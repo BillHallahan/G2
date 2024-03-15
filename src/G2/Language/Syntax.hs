@@ -12,6 +12,7 @@ import GHC.Generics (Generic)
 import Data.Data
 import Data.Hashable
 import qualified Data.Text as T
+import qualified GHC.Generics as GHC
 
 -- | Binds `Id`s to `Expr`s, primarily in @let@ `Expr`s
 type Binds = [(Id, Expr)]
@@ -156,7 +157,8 @@ instance Hashable Expr
 -- And evaluation over literals can be peformed with the functions in:
 --
 --     "G2.Execution.PrimitiveEval" 
-data Primitive = Ge
+data Primitive = -- Mathematical and logical operators
+                 Ge
                | Gt
                | Eq
                | Neq
@@ -178,10 +180,26 @@ data Primitive = Ge
                | Negate
                | Abs
                | SqRt
-               
+
+               --Floating point operations
+               | FpNeg
+               | FpAdd
+               | FpSub
+               | FpMul
+               | FpDiv
+
+               | FpLeq
+               | FpLt
+               | FpGeq
+               | FpGt
+               | FpEq
+               | FpNeq
+
+               -- GHC conversions from data constructors to Int#, and vice versa
                | DataToTag
                | TagToEnum
 
+               -- Numeric conversion
                | IntToFloat
                | IntToDouble
                | RationalToDouble
@@ -189,11 +207,17 @@ data Primitive = Ge
                | ToInteger
                | ToInt
                
+               -- String Handling
+               | StrLen
+               | StrAppend
                | Chr
                | OrdChar
-               
                | WGenCat
+
+               -- Convert a positive Int to a String. (This matches the SMT Str.from_int function, which supports only positive Ints.)
+               | IntToString
                
+               -- Errors
                | Error
                | Undefined
                deriving (Show, Eq, Read, Generic, Typeable, Data)

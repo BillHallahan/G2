@@ -90,7 +90,9 @@ data SMTAST = (:>=) !SMTAST !SMTAST
 
             | Func SMTName ![SMTAST] -- ^ Interpreted function
 
-            | StrLen !SMTAST
+            | (:++) !SMTAST !SMTAST -- ^ String append
+            | FromInt !SMTAST -- ^ Convert Ints to Strings
+            | StrLenSMT !SMTAST
 
             | Ite !SMTAST !SMTAST !SMTAST
             | SLet (SMTName, SMTAST) !SMTAST
@@ -102,6 +104,7 @@ data SMTAST = (:>=) !SMTAST !SMTAST
             | VFloat Float
             | VDouble Double
             | VChar Char
+            | VString String
             | VBool Bool
 
             | V SMTName Sort
@@ -116,6 +119,7 @@ data Sort = SortInt
           | SortFloat
           | SortDouble
           | SortChar
+          | SortString
           | SortBool
           | SortArray Sort Sort
           | SortFunc [Sort] Sort
@@ -259,6 +263,7 @@ sortOf :: SMTAST -> Sort
 sortOf (VInt _) = SortInt
 sortOf (VFloat _) = SortFloat
 sortOf (VDouble _) = SortDouble
+sortOf (VString _) = SortString
 sortOf (VChar _) = SortChar 
 sortOf (VBool _) = SortBool
 sortOf _ = error "sortOf: Unhandled SMTAST"

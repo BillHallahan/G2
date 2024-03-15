@@ -351,6 +351,18 @@ mkPrimHaskell Negate = "-"
 mkPrimHaskell Abs = "abs"
 mkPrimHaskell SqRt = "sqrt"
 
+mkPrimHaskell FpNeg = "-"
+mkPrimHaskell FpAdd = "+"
+mkPrimHaskell FpSub = "-"
+mkPrimHaskell FpMul = "*"
+mkPrimHaskell FpDiv = "/"
+mkPrimHaskell FpLeq = "<="
+mkPrimHaskell FpLt = "<"
+mkPrimHaskell FpGeq = ">="
+mkPrimHaskell FpGt = ">"
+mkPrimHaskell FpEq = "=="
+mkPrimHaskell FpNeq = "/="
+
 mkPrimHaskell DataToTag = "prim_dataToTag#"
 mkPrimHaskell TagToEnum = "prim_tagToEnum#"
 
@@ -361,10 +373,14 @@ mkPrimHaskell RationalToDouble = "fromRational"
 mkPrimHaskell FromInteger = "fromInteger"
 mkPrimHaskell ToInteger = "toInteger"
 
+mkPrimHaskell StrLen = "StrLen"
+mkPrimHaskell StrAppend = "StrAppend"
 mkPrimHaskell Chr = "chr"
 mkPrimHaskell OrdChar = "ord"
 
 mkPrimHaskell WGenCat = "wgencat"
+
+mkPrimHaskell IntToString = "intToString"
 
 mkPrimHaskell ToInt = "toInt"
 

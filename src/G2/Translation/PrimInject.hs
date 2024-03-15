@@ -1,4 +1,4 @@
-{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE CPP, FlexibleContexts #-}
 {-# LANGUAGE OverloadedStrings #-}
 
 -- | Primitive inejction into the environment
@@ -51,12 +51,12 @@ conName :: DataCon -> (Name, [Type])
 conName (DataCon n t) = (n, anonArgumentTypes $ t)
 
 primDefs :: HM.HashMap Name AlgDataTy -> [(T.Text, Expr)]
-primDefs pt = case (boolName pt, charName pt) of
-                (Just b, Just c) -> primDefs' b c
+primDefs pt = case (boolName pt, charName pt, listName pt) of
+                (Just b, Just c, Just l) -> primDefs' b c l
                 _ -> error "primDefs: Required types not found"
 
-primDefs' :: Name -> Name -> [(T.Text, Expr)]
-primDefs' b c =
+primDefs' :: Name -> Name -> Name -> [(T.Text, Expr)]
+primDefs' b c l =
               [ ("$==#", Prim Eq $ tyIntIntBool b)
               , ("$/=#", Prim Neq $ tyIntIntBool b)
               , ("+#", Prim Plus tyIntIntInt)
@@ -72,31 +72,31 @@ primDefs' b c =
               , ("quotInt#", Prim Quot tyIntIntInt)
               , ("remInt#", Prim Rem tyIntIntInt)
 
-              , ("$==##", Prim Eq $ tyDoubleDoubleBool b)
-              , ("$/=##", Prim Neq $ tyDoubleDoubleBool b)
-              , ("+##", Prim Plus tyDoubleDoubleDouble)
-              , ("*##", Prim Mult tyDoubleDoubleDouble)
-              , ("-##", Prim Minus tyDoubleDoubleDouble)
-              , ("negateDouble#", Prim Negate tyDoubleDouble)
+              , ("$==##", Prim FpEq $ tyDoubleDoubleBool b)
+              , ("$/=##", Prim FpNeq $ tyDoubleDoubleBool b)
+              , ("+##", Prim FpAdd tyDoubleDoubleDouble)
+              , ("*##", Prim FpMul tyDoubleDoubleDouble)
+              , ("-##", Prim FpSub tyDoubleDoubleDouble)
+              , ("negateDouble#", Prim FpNeg tyDoubleDouble)
               , ("sqrtDouble#", Prim SqRt tyDoubleDoubleDouble)
-              , ("/##", Prim Div tyDoubleDoubleDouble)
-              , ("$<=##", Prim Le $ tyDoubleDoubleBool b)
-              , ("$<##", Prim Lt $ tyDoubleDoubleBool b)
-              , ("$>##", Prim Gt $ tyDoubleDoubleBool b)
-              , ("$>=##", Prim Ge $ tyDoubleDoubleBool b)
+              , ("/##", Prim FpDiv tyDoubleDoubleDouble)
+              , ("$<=##", Prim FpLeq $ tyDoubleDoubleBool b)
+              , ("$<##", Prim FpLt $ tyDoubleDoubleBool b)
+              , ("$>##", Prim FpGt $ tyDoubleDoubleBool b)
+              , ("$>=##", Prim FpGeq $ tyDoubleDoubleBool b)
 
-              , ("plusFloat#", Prim Plus tyFloatFloatFloat)
-              , ("timesFloat#", Prim Mult tyFloatFloatFloat)
-              , ("minusFloat#", Prim Minus tyFloatFloatFloat)
-              , ("negateFloat#", Prim Negate tyFloatFloat)
+              , ("plusFloat#", Prim FpAdd tyFloatFloatFloat)
+              , ("timesFloat#", Prim FpMul tyFloatFloatFloat)
+              , ("minusFloat#", Prim FpSub tyFloatFloatFloat)
+              , ("negateFloat#", Prim FpNeg tyFloatFloat)
               , ("sqrtFloat#", Prim SqRt tyFloatFloatFloat)
-              , ("divideFloat#", Prim Div tyFloatFloatFloat)
-              , ("smtEqFloat#", Prim Eq $ tyFloatFloatBool b)
-              , ("smtNeFloat#", Prim Neq $ tyFloatFloatBool b)
-              , ("smtLeFloat#", Prim Le $ tyFloatFloatBool b)
-              , ("smtLtFloat#", Prim Lt $ tyFloatFloatBool b)
-              , ("smtGtFloat#", Prim Gt $ tyFloatFloatBool b)
-              , ("smtGeFloat#", Prim Ge $ tyFloatFloatBool b)
+              , ("divideFloat#", Prim FpDiv tyFloatFloatFloat)
+              , ("smtEqFloat#", Prim FpEq $ tyFloatFloatBool b)
+              , ("smtNeFloat#", Prim FpNeq $ tyFloatFloatBool b)
+              , ("smtLeFloat#", Prim FpLeq $ tyFloatFloatBool b)
+              , ("smtLtFloat#", Prim FpLt $ tyFloatFloatBool b)
+              , ("smtGtFloat#", Prim FpGt $ tyFloatFloatBool b)
+              , ("smtGeFloat#", Prim FpGeq $ tyFloatFloatBool b)
 
               , ("quotInteger#", Prim Quot tyIntIntInt)
               , ("remInteger#", Prim Rem tyIntIntInt)
@@ -145,6 +145,8 @@ primDefs' b c =
                                         (Var $ y tyvarA)
 
                             ])
+
+              , ("intToString#", Prim IntToString (TyFun TyLitInt (TyApp (TyCon l (TyFun TYPE TYPE)) (TyCon c TYPE))))
 
               , ("absentErr", Prim Error TyBottom)
               , ("error", Prim Error TyBottom)
@@ -213,6 +215,13 @@ boolName = find ((==) "Bool" . nameOcc) . HM.keys
 
 charName :: HM.HashMap Name AlgDataTy -> Maybe Name
 charName = find ((==) "Char" . nameOcc) . HM.keys
+
+listName :: HM.HashMap Name AlgDataTy -> Maybe Name
+#if MIN_VERSION_GLASGOW_HASKELL(9,6,0,0)
+listName = find ((==) "List" . nameOcc) . HM.keys
+#else
+listName = find ((==) "[]" . nameOcc) . HM.keys
+#endif
 
 replaceFromPD :: HM.HashMap Name AlgDataTy -> Name -> Expr -> Expr
 replaceFromPD pt n e =

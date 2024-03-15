@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE FunctionalDependencies #-}
@@ -110,27 +111,27 @@ checkModel' avf con s b (i:is) pc
             r -> return r
 
 getModelVal :: SMTConverter con => ArbValueFunc -> con -> State t -> Bindings -> Id -> PathConds -> IO (Result Model () (), ArbValueGen)
-getModelVal avf con s b (Id n _) pc = do
-    let (Just (Var (Id n' t))) = E.lookup n (expr_env s)
+getModelVal avf con (State { expr_env = eenv, type_env = tenv, known_values = kv }) b (Id n _) pc = do
+    let (Just (Var (Id n' t))) = E.lookup n eenv
      
     case PC.null pc of
                 True -> 
                     let
-                        (e, av) = avf t (type_env s) (arb_value_gen b)
+                        (e, av) = avf t tenv (arb_value_gen b)
                     in
                     return (SAT $ HM.singleton n' e, av) 
                 False -> do
-                    m <- solveNumericConstraintsPC con pc
+                    m <- solveNumericConstraintsPC con kv tenv pc
                     return (m, arb_value_gen b)
 
-solveNumericConstraintsPC :: SMTConverter con => con -> PathConds -> IO (Result Model () ())
-solveNumericConstraintsPC con pc = do
+solveNumericConstraintsPC :: SMTConverter con => con -> KnownValues -> TypeEnv -> PathConds -> IO (Result Model () ())
+solveNumericConstraintsPC con kv tenv pc = do
     let headers = toSMTHeaders pc
     let vs = map (\(n', srt) -> (nameToStr n', srt)) . HS.toList . pcVars $ pc
 
     m <- solveConstraints con headers vs
     case m of
-        SAT m' -> return . SAT $ modelAsExpr m'
+        SAT m' -> return . SAT $ modelAsExpr kv tenv m'
         UNSAT () -> return $ UNSAT ()
         Unknown s () -> return $ Unknown s ()
 
@@ -241,14 +242,10 @@ isLRA' (_ :+ _) = All True
 isLRA' (_ :- _) = All True
 isLRA' (x :* y) = All $ isRationalCoeff x || isRationalCoeff y
 isLRA' (Neg _) = All True
-isLRA' (VFloat _) = All True
-isLRA' (VDouble _) = All True
 isLRA' (V _ s) = All $ isRASort s
 isLRA' s = isCore' s
 
 isRASort :: Sort -> Bool
-isRASort SortFloat = True
-isRASort SortDouble = True
 isRASort s = isCoreSort s
 
 isRationalCoeff :: SMTAST -> Bool
@@ -368,13 +365,16 @@ funcToSMT e l = error ("Unrecognized " ++ show e ++ " with args " ++ show l ++ "
 
 funcToSMT1Prim :: Primitive -> Expr -> SMTAST
 funcToSMT1Prim Negate a = Neg (exprToSMT a)
+funcToSMT1Prim FpNeg a = FpNegSMT (exprToSMT a)
 funcToSMT1Prim Abs e = AbsSMT (exprToSMT e)
 funcToSMT1Prim SqRt e = SqrtSMT (exprToSMT e)
 funcToSMT1Prim Not e = (:!) (exprToSMT e)
 funcToSMT1Prim IntToFloat e = ItoR (exprToSMT e)
 funcToSMT1Prim IntToDouble e = ItoR (exprToSMT e)
+funcToSMT1Prim IntToString e = FromInt (exprToSMT e)
 funcToSMT1Prim Chr e = FromCode (exprToSMT e)
 funcToSMT1Prim OrdChar e = ToCode (exprToSMT e)
+funcToSMT1Prim StrLen e = StrLenSMT (exprToSMT e)
 funcToSMT1Prim err _ = error $ "funcToSMT1Prim: invalid Primitive " ++ show err
 
 funcToSMT2Prim :: Primitive -> Expr -> Expr -> SMTAST
@@ -392,10 +392,24 @@ funcToSMT2Prim Plus a1 a2 = exprToSMT a1 :+ exprToSMT a2
 funcToSMT2Prim Minus a1 a2 = exprToSMT a1 :- exprToSMT a2
 funcToSMT2Prim Mult a1 a2 = exprToSMT a1 :* exprToSMT a2
 funcToSMT2Prim Div a1 a2 = exprToSMT a1 :/ exprToSMT a2
+
+funcToSMT2Prim FpAdd a1 a2 = exprToSMT a1 `FpAddSMT` exprToSMT a2
+funcToSMT2Prim FpSub a1 a2 = exprToSMT a1 `FpSubSMT` exprToSMT a2
+funcToSMT2Prim FpMul a1 a2 = exprToSMT a1 `FpMulSMT` exprToSMT a2
+funcToSMT2Prim FpDiv a1 a2 = exprToSMT a1 `FpDivSMT` exprToSMT a2
+
+funcToSMT2Prim FpLeq a1 a2 = exprToSMT a1 `FpLeqSMT` exprToSMT a2
+funcToSMT2Prim FpLt a1 a2 = exprToSMT a1 `FpLtSMT` exprToSMT a2
+funcToSMT2Prim FpGeq a1 a2 = exprToSMT a1 `FpGeqSMT` exprToSMT a2
+funcToSMT2Prim FpGt a1 a2 = exprToSMT a1 `FpGtSMT` exprToSMT a2
+funcToSMT2Prim FpEq a1 a2 = exprToSMT a1 `FpEqSMT` exprToSMT a2
+funcToSMT2Prim FpNeq a1 a2 = (:!) (exprToSMT a1 `FpEqSMT` exprToSMT a2)
+
 funcToSMT2Prim Quot a1 a2 = exprToSMT a1 `QuotSMT` exprToSMT a2
 funcToSMT2Prim Mod a1 a2 = exprToSMT a1 `Modulo` exprToSMT a2
 funcToSMT2Prim Rem a1 a2 = exprToSMT a1 :- ((exprToSMT a1 `QuotSMT` exprToSMT a2) :* exprToSMT a2) -- TODO: more efficient encoding?
 funcToSMT2Prim RationalToDouble a1 a2  = exprToSMT a1 :/ exprToSMT a2
+funcToSMT2Prim StrAppend a1 a2  = exprToSMT a1 :++ exprToSMT a2
 funcToSMT2Prim op lhs rhs = error $ "funcToSMT2Prim: invalid case with (op, lhs, rhs): " ++ show (op, lhs, rhs)
 
 altToSMT :: Lit -> Expr -> SMTAST
@@ -409,7 +423,7 @@ createUniqVarDecls :: [(Name, Sort)] -> [SMTHeader]
 createUniqVarDecls [] = []
 createUniqVarDecls ((n,SortChar):xs) =
     let
-        lenAssert = Assert $ StrLen (V (nameToStr n) SortChar) := VInt 1
+        lenAssert = Assert $ StrLenSMT (V (nameToStr n) SortChar) := VInt 1
     in
     VarDecl (nameToBuilder n) SortChar:lenAssert:createUniqVarDecls xs
 createUniqVarDecls ((n,s):xs) = VarDecl (nameToBuilder n) s:createUniqVarDecls xs
@@ -433,6 +447,11 @@ typeToSMT TyLitDouble = SortDouble
 typeToSMT TyLitFloat = SortFloat
 typeToSMT TyLitChar = SortChar
 typeToSMT (TyCon (Name "Bool" _ _ _) _) = SortBool
+#if MIN_VERSION_GLASGOW_HASKELL(9,6,0,0)
+typeToSMT (TyApp (TyCon (Name "List" _ _ _) _) (TyCon (Name "Char" _ _ _) _)) = SortString
+#else
+typeToSMT (TyApp (TyCon (Name "[]" _ _ _) _) (TyCon (Name "Char" _ _ _) _)) = SortString
+#endif
 typeToSMT t = error $ "Unsupported type in typeToSMT: " ++ show t
 
 merge :: TB.Builder -> TB.Builder -> TB.Builder
@@ -528,7 +547,9 @@ toSolverAST (ArrayStore arr ind val) =
 
 toSolverAST (Func n xs) = smtFunc n $ map (toSolverAST) xs
 
-toSolverAST (StrLen x) = function1 "str.len" $ toSolverAST x
+toSolverAST (x :++ y) = function2 "str.++" (toSolverAST x) (toSolverAST y)
+toSolverAST (FromInt x) = function1 "str.from_int" $ toSolverAST x
+toSolverAST (StrLenSMT x) = function1 "str.len" $ toSolverAST x
 toSolverAST (ItoR x) = function1 "to_real" $ toSolverAST x
 
 toSolverAST (Ite x y z) =
@@ -586,6 +607,7 @@ sortName :: Sort -> TB.Builder
 sortName SortInt = "Int"
 sortName SortFloat = "Float32"
 sortName SortDouble = "Float64"
+sortName SortString = "String"
 sortName SortChar = "String"
 sortName SortBool = "Bool"
 sortName (SortArray ind val) = "(Array " <> sortName ind <> " " <> sortName val <> ")"
@@ -607,15 +629,16 @@ toSolverSetLogic lgc =
     "(set-logic " <> s <> ")"
 
 -- | Converts an `SMTAST` to an `Expr`.
-smtastToExpr :: SMTAST -> Expr
-smtastToExpr (VInt i) = (Lit $ LitInt i)
-smtastToExpr (VFloat f) = (Lit $ LitFloat f)
-smtastToExpr (VDouble d) = (Lit $ LitDouble d)
-smtastToExpr (VBool b) =
-    Data (DataCon (Name (T.pack $ show b) (Just "GHC.Types") 0 Nothing) (TyCon (Name "Bool" (Just "GHC.Types") 0 Nothing) TYPE))
-smtastToExpr (VChar c) = Lit $ LitChar c
-smtastToExpr (V n s) = Var $ Id (certainStrToName n) (sortToType s)
-smtastToExpr _ = error "Conversion of this SMTAST to an Expr not supported."
+smtastToExpr :: KnownValues -> TypeEnv -> SMTAST -> Expr
+smtastToExpr _ _ (VInt i) = (Lit $ LitInt i)
+smtastToExpr _ _ (VFloat f) = (Lit $ LitFloat f)
+smtastToExpr _ _ (VDouble d) = (Lit $ LitDouble d)
+smtastToExpr kv _ (VBool True) = mkTrue kv
+smtastToExpr kv _ (VBool False) = mkFalse kv
+smtastToExpr kv tenv (VString cs) = mkG2List kv tenv (tyChar kv) $ map (App (mkDCChar kv tenv) . Lit . LitChar) cs
+smtastToExpr _ _ (VChar c) = Lit $ LitChar c
+smtastToExpr _ _ (V n s) = Var $ Id (certainStrToName n) (sortToType s)
+smtastToExpr _ _ _ = error "Conversion of this SMTAST to an Expr not supported."
 
 -- | Converts a `Sort` to an `Type`.
 sortToType :: Sort -> Type
@@ -627,8 +650,8 @@ sortToType (SortBool) = TyCon (Name "Bool" Nothing 0 Nothing) TYPE
 sortToType _ = error "Conversion of this Sort to a Type not supported."
 
 -- | Coverts an `SMTModel` to a `Model`.
-modelAsExpr :: SMTModel -> Model
-modelAsExpr = HM.fromList . M.toList . M.mapKeys strToName . M.map smtastToExpr
+modelAsExpr :: KnownValues -> TypeEnv ->SMTModel -> Model
+modelAsExpr kv tenv = HM.fromList . M.toList . M.mapKeys strToName . M.map (smtastToExpr kv tenv)
 
 certainStrToName :: String -> Name
 certainStrToName s =

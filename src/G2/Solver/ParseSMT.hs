@@ -148,9 +148,9 @@ flexDoubleFloat = do
 stringExpr :: Parser SMTAST
 stringExpr = do
     _ <- char '"'
-    str <- stringExpr'
+    str <- many stringExpr'
     _ <- char '"'
-    return (VChar str)
+    return (VString str)
 
 stringExpr' :: Parser Char
 stringExpr' = do
