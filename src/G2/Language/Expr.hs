@@ -18,6 +18,7 @@ module G2.Language.Expr ( module G2.Language.Casts
                         , mkDCChar
                         , mkCons
                         , mkEmpty
+                        , mkG2List
                         , mkJust
                         , mkNothing
                         , mkUnit
@@ -170,6 +171,19 @@ mkCons kv tenv = Data . fromJust $ getDataCon tenv (KV.tyList kv) (KV.dcCons kv)
 
 mkEmpty :: KnownValues -> TypeEnv -> Expr
 mkEmpty kv tenv = Data . fromJust $ getDataCon tenv (KV.tyList kv) (KV.dcEmpty kv)
+ 
+-- | Construct a G2 list `Expr` containing a list of `Expr`s
+mkG2List :: KnownValues
+         -> TypeEnv
+         -> Type -- ^ The type of the values in the list.
+         -> [Expr]
+         -> Expr
+mkG2List kv tenv t = foldr go (App emp (Type t))
+    where
+        cons = mkCons kv tenv
+        emp = mkEmpty kv tenv
+
+        go e es = App (App (App cons (Type t)) e) es
 
 mkJust :: KnownValues -> TypeEnv -> Expr
 mkJust kv tenv = Data . fromJust $ getDataCon tenv (KV.tyMaybe kv) (KV.dcJust kv)

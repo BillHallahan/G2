@@ -372,8 +372,10 @@ parseToSMTAST :: String -> Sort -> SMTAST
 parseToSMTAST str s = correctTypes s . parseGetValues $ str
     where
         correctTypes :: Sort -> SMTAST -> SMTAST
-        correctTypes (SortFloat) (VDouble r) = VFloat r
-        correctTypes (SortDouble) (VFloat r) = VDouble r
+        correctTypes SortFloat (VDouble r) = VFloat r
+        correctTypes SortDouble (VFloat r) = VDouble r
+        correctTypes SortChar (VString [c]) = VChar c
+        correctTypes SortChar (VString _) = error "Invalid Char from parseToSMTAST"
         correctTypes _ a = a
 
 getModelZ3 :: Handle -> Handle -> [(SMTName, Sort)] -> IO [(SMTName, String, Sort)]

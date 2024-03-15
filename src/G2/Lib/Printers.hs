@@ -361,10 +361,14 @@ mkPrimHaskell RationalToDouble = "fromRational"
 mkPrimHaskell FromInteger = "fromInteger"
 mkPrimHaskell ToInteger = "toInteger"
 
+mkPrimHaskell StrLen = "StrLen"
+mkPrimHaskell StrAppend = "StrAppend"
 mkPrimHaskell Chr = "chr"
 mkPrimHaskell OrdChar = "ord"
 
 mkPrimHaskell WGenCat = "wgencat"
+
+mkPrimHaskell IntToString = "intToString"
 
 mkPrimHaskell ToInt = "toInt"
 
