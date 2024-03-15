@@ -70,6 +70,20 @@ data SMTAST = (:>=) !SMTAST !SMTAST
             | Modulo !SMTAST !SMTAST
             | Neg !SMTAST -- ^ Unary negation
 
+            -- Floating Point
+            | FpNegSMT !SMTAST
+            | FpAddSMT !SMTAST !SMTAST
+            | FpSubSMT !SMTAST !SMTAST
+            | FpMulSMT !SMTAST !SMTAST
+            | FpDivSMT !SMTAST !SMTAST
+
+            | FpLeqSMT !SMTAST !SMTAST
+            | FpLtSMT !SMTAST !SMTAST
+            | FpGeqSMT !SMTAST !SMTAST
+            | FpGtSMT !SMTAST !SMTAST
+            | FpEqSMT !SMTAST !SMTAST
+
+            -- Arrays
             | ArrayConst !SMTAST Sort Sort
             | ArrayStore !SMTAST !SMTAST !SMTAST
             | ArraySelect !SMTAST !SMTAST

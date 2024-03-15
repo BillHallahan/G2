@@ -502,6 +502,18 @@ toSolverAST (AbsSMT x) = "(abs " <> toSolverAST x <> ")"
 toSolverAST (SqrtSMT x) = "(^ " <> toSolverAST x <> " 0.5)"
 toSolverAST (Neg x) = function1 "-" $ toSolverAST x
 
+toSolverAST (FpNegSMT x) = function1 "fp.neg" (toSolverAST x)
+toSolverAST (FpAddSMT x y) = function3 "fp.add" "RNE" (toSolverAST x) (toSolverAST y)
+toSolverAST (FpSubSMT x y) = function3 "fp.sub" "RNE" (toSolverAST x) (toSolverAST y)
+toSolverAST (FpMulSMT x y) = function3 "fp.mul" "RNE" (toSolverAST x) (toSolverAST y)
+toSolverAST (FpDivSMT x y) = function3 "fp.div" "RNE" (toSolverAST x) (toSolverAST y)
+
+toSolverAST (FpLeqSMT x y) = function2 "fp.leq" (toSolverAST x) (toSolverAST y)
+toSolverAST (FpLtSMT x y) = function2 "fp.lt" (toSolverAST x) (toSolverAST y)
+toSolverAST (FpGeqSMT x y) = function2 "fp.geq" (toSolverAST x) (toSolverAST y)
+toSolverAST (FpGtSMT x y) = function2 "fp.gt" (toSolverAST x) (toSolverAST y)
+toSolverAST (FpEqSMT x y) = function2 "fp.eq" (toSolverAST x) (toSolverAST y)
+
 toSolverAST (ArrayConst v indS valS) =
     let
         sort_arr = "(Array " <> sortName indS <> " " <> sortName valS <> ")"
