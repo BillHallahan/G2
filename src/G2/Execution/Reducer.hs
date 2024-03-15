@@ -1255,15 +1255,12 @@ runReducer' red hal ord pr rs@(ExState { state = s, reducer_val = r_val, halter_
     hc <- stopRed hal h_val pr s
     case () of
         ()
-            | hc == Accept ->
-                let
-                    pr' = pr {accepted = state rs:accepted pr}
+            | hc == Accept -> do
+                onAccept red s r_val
+                let pr' = pr {accepted = state rs:accepted pr}
                     jrs = minState ord pr' xs
-                in
                 case jrs of
-                    Just (rs', xs') -> do
-                        onAccept red s r_val
-                        switchState red hal ord pr' rs' b xs'
+                    Just (rs', xs') -> switchState red hal ord pr' rs' b xs'
                     Nothing -> return (pr', b)
             | hc == Discard ->
                 let
