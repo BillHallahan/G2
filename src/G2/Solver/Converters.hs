@@ -529,10 +529,10 @@ toSolverAST (VInt i) = if i >= 0 then showText i else "(- " <> showText (abs i) 
 toSolverAST (VFloat f) =
     let
         (sb, eb) = decodeFloat f
-        bits_sb = convertBits (fromIntegral sb :: Int)
-        bits_eb = convertBits eb
+        bits_sb = convertBits 23 (fromIntegral sb :: Int)
+        bits_eb = convertBits 8 eb
     in
-    "(#b1 #b" <> TB.string bits_eb <> " #b" <> TB.string bits_sb <> ")" -- if f >= 0 then showText f else "(- " <> showText (abs f) <> ")" 
+    "(fp #b1 #b" <> TB.string bits_eb <> " #b" <> TB.string bits_sb <> ")" -- if f >= 0 then showText f else "(- " <> showText (abs f) <> ")" 
 toSolverAST (VDouble d) = if d >= 0 then showText d else "(- " <> showText (abs d) <> ")"
 toSolverAST (VChar c) = "\"" <> TB.string [c] <> "\""
 toSolverAST (VBool b) = if b then "true" else "false"
@@ -543,8 +543,8 @@ toSolverAST (Named x n) = "(! " <> toSolverAST x <> " :named " <> TB.string n <>
 toSolverAST ast = error $ "toSolverAST: invalid SMTAST: " ++ show ast
 
 -- | Convert to a little endian list of bits
-convertBits :: (Num b, Bits.FiniteBits b) => b -> String
-convertBits b = map (\x -> if x then '1' else '0') $ map (Bits.testBit b) [0..Bits.finiteBitSize b - 1]
+convertBits :: (Num b, Bits.Bits b) => Int -> b -> String
+convertBits sz b = map (\x -> if x then '1' else '0') $ map (Bits.testBit b) [0..sz - 1]
 
 smtFunc :: String -> [TB.Builder] -> TB.Builder
 smtFunc n [] = TB.string n
