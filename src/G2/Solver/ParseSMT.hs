@@ -4,6 +4,7 @@ module G2.Solver.ParseSMT
 
 import G2.Solver.Language
 
+import Data.Bits
 import Data.Char
 import Data.Ratio
 import GHC.Float
@@ -25,7 +26,7 @@ smtDef =
              , Token.nestedComments = False
              , Token.identStart = letter <|> oneOf ident
              , Token.identLetter = alphaNum <|> oneOf ident
-             , Token.reservedNames = ["as", "let", "-", "/", "\"", "fp"]}
+             , Token.reservedNames = ["as", "let", "-", "/", "\"", "fp", "+zero", "-zero", "+oo", "-oo"]}
 
 ident :: [Char]
 ident = ['~', '!', '$', '@', '%', '^', '&', '*' , '_', '-', '+', '=', '<', '>', '.', '?', '/']
@@ -83,7 +84,7 @@ boolExpr = do
     case n of
         "true" -> return (VBool True)
         "false" -> return (VBool False)
-        _ -> error $ "Bad bool expr"
+        _ -> fail "not bool"
 
 parensConsName :: Parsec String st String
 parensConsName = parens parensConsName <|> consName
@@ -123,25 +124,54 @@ doubleFloatExprRat = do
         Nothing -> return (VDouble r)
 
 doubleFloatExprFP :: Parser SMTAST
-doubleFloatExprFP = do
-    _ <- reserved "fp"
-    i <- parseBitVec :: Parser Int
-    _ <- whiteSpace
-    eb <- parseBitVec :: Parser Int
-    _ <- whiteSpace
-    sp <- parseBitVec :: Parser Integer
-    return (VDouble $ encodeFloat sp eb) 
+doubleFloatExprFP = fpNum <|> fpPlusZero
 
-parseBitVec :: Num a => Parser a
-parseBitVec = parens $ do
+fpPlusZero :: Parser SMTAST
+fpPlusZero = do
     _ <- char '_'
     _ <- whiteSpace
-    _ <- char 'b'
-    _ <- char 'v'
-    i <- fromIntegral <$> integer
-    _ <- whiteSpace
+    _ <- reserved "+zero"
     _ <- integer
-    return i 
+    _ <- integer
+    return $ VDouble 0
+
+fpNum :: Parser SMTAST
+fpNum = do
+    _ <- reserved "fp"
+    i <- parseBitVec
+    _ <- whiteSpace
+    eb <- parseBitVec
+    _ <- whiteSpace
+    sp <- parseBitVec
+    return (VFloat $ mkFloat (eb ++ i ++ sp)) 
+
+mkFloat :: [Int] -> Float
+mkFloat = castWord32ToFloat . foldr (\(i, v) w -> if v == 0 then clearBit w i else setBit w i) 0 . zip [0..]
+
+parseBitVec :: Parser [Int]
+parseBitVec = try parseBin <|> parseHex
+    -- _ <- char '_'
+    -- _ <- whiteSpace
+    -- _ <- char 'b'
+    -- _ <- char 'v'
+    -- i <- fromIntegral <$> integer
+    -- _ <- whiteSpace
+    -- _ <- integer
+    -- return i
+
+parseBin :: Parser [Int]
+parseBin = do
+    _ <- char '#'
+    _ <- char 'b'
+    bv <- many (char '0' <|> char '1')
+    return $ map (\c -> if c == '0' then 0 else 1) bv
+
+parseHex :: Parser [Int]
+parseHex = do
+    _ <- char '#'
+    _ <- char 'x'
+    bv <- many (choice . map char $ ['0'..'9'] ++ ['a'..'f'])
+    return . map (\c -> if c == '0' then 0 else 1) $ concatMap bin bv
 
 doubleFloatExprDec :: Parser SMTAST
 doubleFloatExprDec = do
@@ -209,3 +239,22 @@ parseGetValues s =
     case parse getValuesParser s s of
         Left e -> error $ "get values parser error on " ++ show e
         Right r -> r
+
+bin:: Char -> String
+bin '0' = "0000"
+bin '1' = "0001"
+bin '2' = "0010"
+bin '3' = "0011"
+bin '4' = "0100"
+bin '5' = "0101"
+bin '6' = "0110"
+bin '7' = "0111"
+bin '8' = "1000"
+bin '9' = "1001"
+bin 'a' = "1010"
+bin 'b' = "1011"
+bin 'c' = "1100"
+bin 'd' = "1101"
+bin 'e' = "1110"
+bin 'f' = "1111"
+bin _ = error "bin: Unsupported Char"

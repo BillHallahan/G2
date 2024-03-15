@@ -46,8 +46,6 @@ import qualified G2.Language.PathConds as PC
 import G2.Solver.Language
 import G2.Solver.Solver
 
-import Debug.Trace
-
 -- | Used to describe the specific output format required by various solvers
 -- By defining these functions, we can automatically convert from the SMTHeader and SMTAST
 -- datatypes, to a form understandable by the solver.
@@ -567,13 +565,12 @@ toSolverAST (ToCode chr) = function1 "str.to_code" (toSolverAST chr)
 toSolverAST (VInt i) = if i >= 0 then showText i else "(- " <> showText (abs i) <> ")"
 toSolverAST (VFloat f) =
     let
-        (sb, eb) = decodeFloat f
-        bits_sb = convertBits 23 (fromIntegral sb :: Int)
-        adj_eb = (fromIntegral eb :: Int8) - 127
-        bits_eb = convertBits 8 adj_eb
+        w32 = convertBits $ castFloatToWord32 f
+        eb = take 8 w32
+        h = w32 !! 8
+        sb = drop 9 w32
     in
-    trace ("f = " ++ show f ++ "\neb = " ++ show eb ++ "\nadj_eb = " ++ show adj_eb ++ "\n" ++ show (bits_eb))
-    "(fp #b1 #b" <> TB.string bits_eb <> " #b" <> TB.string bits_sb <> ")" -- if f >= 0 then showText f else "(- " <> showText (abs f) <> ")" 
+    "(fp #b" <> TB.char h <> " #b" <> TB.string eb <> " #b" <> TB.string sb <> ")"
 toSolverAST (VDouble d) = if d >= 0 then showText d else "(- " <> showText (abs d) <> ")"
 toSolverAST (VChar c) = "\"" <> TB.string [c] <> "\""
 toSolverAST (VBool b) = if b then "true" else "false"
@@ -584,8 +581,8 @@ toSolverAST (Named x n) = "(! " <> toSolverAST x <> " :named " <> TB.string n <>
 toSolverAST ast = error $ "toSolverAST: invalid SMTAST: " ++ show ast
 
 -- | Convert to a little endian list of bits
-convertBits :: (Num b, Bits.FiniteBits b) => Int -> b -> String
-convertBits sz b = map (\x -> if x then '1' else '0') . reverse $ map (Bits.testBit b) [0..sz - 1]
+convertBits :: (Num b, Bits.FiniteBits b) => b -> String
+convertBits b = map (\x -> if x then '1' else '0') . reverse $ map (Bits.testBit b) [0..Bits.finiteBitSize b - 1]
 
 smtFunc :: String -> [TB.Builder] -> TB.Builder
 smtFunc n [] = TB.string n
