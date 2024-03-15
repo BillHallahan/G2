@@ -363,6 +363,8 @@ mkPrimHaskell FpGt = ">"
 mkPrimHaskell FpEq = "=="
 mkPrimHaskell FpNeq = "/="
 
+mkPrimHaskell FpSqrt = "sqrt"
+
 mkPrimHaskell DataToTag = "prim_dataToTag#"
 mkPrimHaskell TagToEnum = "prim_tagToEnum#"
 

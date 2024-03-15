@@ -83,6 +83,8 @@ data SMTAST = (:>=) !SMTAST !SMTAST
             | FpGtSMT !SMTAST !SMTAST
             | FpEqSMT !SMTAST !SMTAST
 
+            | FpSqrtSMT !SMTAST
+
             -- Arrays
             | ArrayConst !SMTAST Sort Sort
             | ArrayStore !SMTAST !SMTAST !SMTAST
