@@ -326,7 +326,10 @@ getSMTAV avf (Config {smt = ConCVC4}) = do
 -- Ideally, this function should be called only once, and the same Handles should be used
 -- in all future calls
 getZ3ProcessHandles :: Int -> IO (Handle, Handle, ProcessHandle)
-getZ3ProcessHandles time_out = getProcessHandles $ proc "z3" ["-smt2", "-in", "-t:" ++ show time_out]
+getZ3ProcessHandles time_out = do
+    (h_in, h_out, ph) <- getProcessHandles $ proc "z3" ["-smt2", "-in", "-t:" ++ show time_out]
+    T.hPutStrLn h_in "(set-option :pp.bv-literals false)"
+    return (h_in, h_out, ph)
 
 getCVC4ProcessHandles :: IO (Handle, Handle, ProcessHandle)
 getCVC4ProcessHandles = getProcessHandles $ proc "cvc4" ["--lang", "smt2.6", "--produce-models", "--produce-unsat-cores"]

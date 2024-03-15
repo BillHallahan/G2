@@ -25,7 +25,7 @@ smtDef =
              , Token.nestedComments = False
              , Token.identStart = letter <|> oneOf ident
              , Token.identLetter = alphaNum <|> oneOf ident
-             , Token.reservedNames = ["as", "let", "-", "/", "\""]}
+             , Token.reservedNames = ["as", "let", "-", "/", "\"", "fp"]}
 
 ident :: [Char]
 ident = ['~', '!', '$', '@', '%', '^', '&', '*' , '_', '-', '+', '=', '<', '>', '.', '?', '/']
@@ -104,7 +104,7 @@ intExpr = do
         Nothing -> return (VInt i)
 
 doubleFloatExpr :: Parser SMTAST
-doubleFloatExpr = doubleFloatExprNeg <|> doubleFloatExprRat
+doubleFloatExpr = {- doubleFloatExprNeg <|> doubleFloatExprRat <|> -} doubleFloatExprFP
 
 doubleFloatExprNeg :: Parser SMTAST
 doubleFloatExprNeg = do
@@ -121,6 +121,27 @@ doubleFloatExprRat = do
     case s of 
         Just _ -> return (VDouble r)
         Nothing -> return (VDouble r)
+
+doubleFloatExprFP :: Parser SMTAST
+doubleFloatExprFP = do
+    _ <- reserved "fp"
+    i <- parseBitVec :: Parser Int
+    _ <- whiteSpace
+    eb <- parseBitVec :: Parser Int
+    _ <- whiteSpace
+    sp <- parseBitVec :: Parser Integer
+    return (VDouble $ encodeFloat sp eb) 
+
+parseBitVec :: Num a => Parser a
+parseBitVec = parens $ do
+    _ <- char '_'
+    _ <- whiteSpace
+    _ <- char 'b'
+    _ <- char 'v'
+    i <- fromIntegral <$> integer
+    _ <- whiteSpace
+    _ <- integer
+    return i 
 
 doubleFloatExprDec :: Parser SMTAST
 doubleFloatExprDec = do
@@ -154,10 +175,10 @@ stringExpr = do
 
 stringExpr' :: Parser Char
 stringExpr' = do
-    try parseHex <|> try parseUni <|> choice (alphaNum:char '\\':char ' ':map char ident)
+    try parseHexChar <|> try parseUni <|> choice (alphaNum:char '\\':char ' ':map char ident)
 
-parseHex :: Parser Char
-parseHex = do
+parseHexChar :: Parser Char
+parseHexChar = do
     _ <- char '\\'
     _ <- char 'x'
     str <- many (choice . map char $ ['0'..'9'] ++ ['a'..'f'])
