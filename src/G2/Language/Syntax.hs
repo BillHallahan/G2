@@ -196,6 +196,8 @@ data Primitive = -- Mathematical and logical operators
 
                | FpSqrt
 
+               | IsNaN
+
                -- GHC conversions from data constructors to Int#, and vice versa
                | DataToTag
                | TagToEnum
@@ -232,9 +234,22 @@ data Lit = LitInt Integer
          | LitChar Char
          | LitString String
          | LitInteger Integer
-         deriving (Show, Eq, Read, Generic, Typeable, Data)
+         deriving (Show, Read, Generic, Typeable, Data)
 
 instance Hashable Lit
+
+-- | When comparing Lits, we treat LitFloat and LitDouble specially, to ensure reflexivity,
+-- even in the case that we have NaN.
+instance Eq Lit where
+    LitInt x == LitInt y = x == y
+    LitFloat x == LitFloat y | isNaN x, isNaN y = True
+                             | otherwise = x == y
+    LitDouble x == LitDouble y | isNaN x, isNaN y = True
+                               | otherwise = x == y
+    LitChar x == LitChar y = x == y
+    LitString x == LitString y = x == y
+    LitInteger x == LitInteger y = x == y
+    _ == _ = False
 
 -- | Data constructor.
 data DataCon = DataCon Name Type deriving (Show, Eq, Read, Generic, Typeable, Data, Ord)

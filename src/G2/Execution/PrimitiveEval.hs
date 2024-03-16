@@ -77,6 +77,8 @@ evalPrim1' tenv kv IntToString (LitInt x) =
         char_dc = mkDCChar kv tenv
     in
     Just . mkG2List kv tenv TyLitChar . map (App char_dc . Lit . LitChar) $ show x
+evalPrim1' _ kv IsNaN (LitFloat x) = Just . mkBool kv $ isNaN x
+evalPrim1' _ kv IsNaN (LitDouble x) = Just . mkBool kv $  isNaN x
 evalPrim1' _ _ _ _ = Nothing
 
 evalPrim2 :: KnownValues -> Primitive -> Lit -> Lit -> Maybe Expr
@@ -100,7 +102,7 @@ evalPrim2 kv FpLeq x y = evalPrim2NumCharBool (<=) kv x y
 evalPrim2 _ FpAdd x y = evalPrim2Num (+) x y
 evalPrim2 _ FpSub x y = evalPrim2Num (-) x y
 evalPrim2 _ FpMul x y = evalPrim2Num (*) x y
-evalPrim2 _ FpDiv x y = if isZero y then error "Have Div _ 0" else evalPrim2Fractional (/) x y
+evalPrim2 _ FpDiv x y = evalPrim2Fractional (/) x y
 
 evalPrim2 _ _ _ _ = Nothing
 

@@ -98,6 +98,8 @@ primDefs' b c l =
               , ("smtGtFloat#", Prim FpGt $ tyFloatFloatBool b)
               , ("smtGeFloat#", Prim FpGeq $ tyFloatFloatBool b)
 
+              , ("isFloatNaN#", Prim IsNaN $ tyFloatBool b)
+
               , ("quotInteger#", Prim Quot tyIntIntInt)
               , ("remInteger#", Prim Rem tyIntIntInt)
 
@@ -194,6 +196,9 @@ tyDoubleDoubleDouble = TyFun TyLitDouble $ TyFun TyLitDouble TyLitDouble
 
 tyFloatFloat :: Type
 tyFloatFloat = TyFun TyLitFloat TyLitFloat
+
+tyFloatBool :: Name -> Type
+tyFloatBool n = TyFun TyLitFloat (TyCon n TYPE)
 
 tyFloatFloatBool :: Name -> Type
 tyFloatFloatBool n = TyFun TyLitFloat $ TyFun TyLitFloat (TyCon n TYPE)

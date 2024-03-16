@@ -28,7 +28,7 @@ smtDef =
              , Token.nestedComments = False
              , Token.identStart = letter <|> oneOf ident
              , Token.identLetter = alphaNum <|> oneOf ident
-             , Token.reservedNames = ["as", "let", "-", "/", "\"", "fp", "+zero", "-zero", "+oo", "-oo"]}
+             , Token.reservedNames = ["as", "let", "-", "/", "\"", "fp", "+zero", "-zero", "+oo", "-oo", "NaN"]}
 
 ident :: [Char]
 ident = ['~', '!', '$', '@', '%', '^', '&', '*' , '_', '-', '+', '=', '<', '>', '.', '?', '/']
@@ -126,16 +126,31 @@ doubleFloatExprRat = do
         Nothing -> return (VDouble r)
 
 doubleFloatExprFP :: Parser SMTAST
-doubleFloatExprFP = fpNum <|> fpPlusZero
+doubleFloatExprFP = fpNum <|> try fpPlusZero <|> try fpMinusZero <|> try fpPlusInfinity <|> try fpMinusInfinity <|> fpNaN
 
-fpPlusZero :: Parser SMTAST
-fpPlusZero = do
+fpReserved :: String -> Float -> Parser SMTAST
+fpReserved r f = do
     _ <- char '_'
     _ <- whiteSpace
-    _ <- reserved "+zero"
+    _ <- reserved r
     _ <- integer
     _ <- integer
-    return $ VDouble 0
+    return $ VFloat f
+
+fpPlusZero :: Parser SMTAST
+fpPlusZero = fpReserved "+zero" 0
+
+fpMinusZero :: Parser SMTAST
+fpMinusZero = fpReserved "-zero" (- 0)
+
+fpPlusInfinity :: Parser SMTAST
+fpPlusInfinity = fpReserved "+oo" (1 / 0)
+
+fpMinusInfinity :: Parser SMTAST
+fpMinusInfinity = fpReserved "-oo" (- 1 / 0)
+
+fpNaN :: Parser SMTAST
+fpNaN = fpReserved "NaN" (0 / 0)
 
 fpNum :: Parser SMTAST
 fpNum = do

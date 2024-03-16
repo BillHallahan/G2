@@ -368,6 +368,7 @@ funcToSMT1Prim :: Primitive -> Expr -> SMTAST
 funcToSMT1Prim Negate a = Neg (exprToSMT a)
 funcToSMT1Prim FpNeg a = FpNegSMT (exprToSMT a)
 funcToSMT1Prim FpSqrt e = FpSqrtSMT (exprToSMT e)
+funcToSMT1Prim IsNaN e = IsNaNSMT (exprToSMT e)
 funcToSMT1Prim Abs e = AbsSMT (exprToSMT e)
 funcToSMT1Prim Not e = (:!) (exprToSMT e)
 funcToSMT1Prim IntToFloat e = ItoR (exprToSMT e)
@@ -535,6 +536,7 @@ toSolverAST (FpGtSMT x y) = function2 "fp.gt" (toSolverAST x) (toSolverAST y)
 toSolverAST (FpEqSMT x y) = function2 "fp.eq" (toSolverAST x) (toSolverAST y)
 
 toSolverAST (FpSqrtSMT x) = function2 "fp.sqrt" "RNE" (toSolverAST x)
+toSolverAST (IsNaNSMT x) = function1 "fp.isNaN" (toSolverAST x)
 
 toSolverAST (ArrayConst v indS valS) =
     let

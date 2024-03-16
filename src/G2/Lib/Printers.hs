@@ -323,11 +323,17 @@ isLitChar _ = False
 mkLitHaskell :: Lit -> T.Text
 mkLitHaskell (LitInt i) = T.pack $ if i < 0 then "(" <> show i <> ")" else show i
 mkLitHaskell (LitInteger i) = T.pack $ if i < 0 then "(" <> show i <> ")" else show i
-mkLitHaskell (LitFloat r) = "(" <> T.pack (show r) <> ")"
-mkLitHaskell (LitDouble r) = "(" <> T.pack (show r) <> ")"
+mkLitHaskell (LitFloat r) = mkFloat r
+mkLitHaskell (LitDouble r) = mkFloat r
 mkLitHaskell (LitChar c) | isPrint c = T.pack ['\'', c, '\'']
                          | otherwise = "(chr " <> T.pack (show $ ord c) <> ")"
 mkLitHaskell (LitString s) = T.pack s
+
+mkFloat :: (Show n, RealFloat n) => n -> T.Text
+mkFloat r | isNaN r = "(0 / 0)"
+          | r == 1 / 0 = "(1 / 0)" -- Infinity
+          | r == -1 / 0 = "(-1 / 0)" -- Negative Infinity
+          | otherwise = "(" <> T.pack (show r) <> ")"
 
 mkPrimHaskell :: Primitive -> T.Text
 mkPrimHaskell Ge = ">="

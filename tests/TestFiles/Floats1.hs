@@ -1,9 +1,24 @@
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+
 module Floats1 where
 
-f :: Float -> Float
-f x | x > 0 = x / 0
-    | x == 0 = x / x
-    | otherwise = x / 0
+newtype NaNEq = F { unF :: Float } deriving (Ord, Num, Fractional, Floating)
+
+instance Eq NaNEq where
+    F f1 == F f2 | isNaN f1, isNaN f2 = True
+                 | otherwise = f1 == f2
+
+infinite :: NaNEq -> NaNEq
+infinite x | x > 0 = x / 0
+           | x == 0 = x / x
+           | otherwise = x / 0
+
+data Zero = PosZ | NegZ | NA deriving Eq
+
+zero :: Float -> (Float, Zero)
+zero x | x == 0 = (x, PosZ)
+       | x == -0 = (x, NegZ)
+       | otherwise = (x, NA)
 
 {-# NOINLINE g #-}
 g :: Float -> Float
@@ -32,7 +47,7 @@ m :: Float -> Float
 m x | x == 9.1  = x + 0.1
     | otherwise = x
 
-n :: Float -> Float -> (Float, Float)
+n :: NaNEq -> NaNEq -> (NaNEq, NaNEq)
 n x y | x > y = (x * y, x / y)
       | otherwise = (sqrt x, sqrt y)
 
@@ -44,6 +59,5 @@ showFloat1 :: Float -> String
 showFloat1 x | x > 100 * 100 * 100 = "large " ++ show x
              | otherwise = show x
 
-showFloat2 :: Float -> String
-showFloat2 = show . f
-
+showFloat2 :: NaNEq -> String
+showFloat2 = show . unF . infinite
