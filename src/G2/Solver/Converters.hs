@@ -534,7 +534,7 @@ toSolverAST (FpGeqSMT x y) = function2 "fp.geq" (toSolverAST x) (toSolverAST y)
 toSolverAST (FpGtSMT x y) = function2 "fp.gt" (toSolverAST x) (toSolverAST y)
 toSolverAST (FpEqSMT x y) = function2 "fp.eq" (toSolverAST x) (toSolverAST y)
 
-toSolverAST (FpSqrtSMT x) = function1 "fp.sqrt" (toSolverAST x)
+toSolverAST (FpSqrtSMT x) = function2 "fp.sqrt" "RNE" (toSolverAST x)
 
 toSolverAST (ArrayConst v indS valS) =
     let

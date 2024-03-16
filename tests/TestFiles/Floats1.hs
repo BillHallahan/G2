@@ -28,14 +28,22 @@ k x | abs(x - 0.1) < 0.001  = x + 0.2
 kConc :: Float
 kConc = k 0.1
 
+m :: Float -> Float
+m x | x == 9.1  = x + 0.1
+    | otherwise = x
+
+n :: Float -> Float -> (Float, Float)
+n x y | x > y = (x * y, x / y)
+      | otherwise = (sqrt x, sqrt y)
+
+sqrtSquared :: Float -> (Bool, Float, Float)
+sqrtSquared x | sqrt x * sqrt x == x = (True, x, sqrt x * sqrt x)
+              | otherwise  = (False, x, sqrt x * sqrt x)
+
 showFloat1 :: Float -> String
 showFloat1 x | x > 100 * 100 * 100 = "large " ++ show x
              | otherwise = show x
 
 showFloat2 :: Float -> String
 showFloat2 = show . f
-
-m :: Float -> Float
-m x | x == 9.1  = x + 0.1
-    | otherwise = x
 

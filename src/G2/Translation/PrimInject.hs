@@ -89,7 +89,7 @@ primDefs' b c l =
               , ("timesFloat#", Prim FpMul tyFloatFloatFloat)
               , ("minusFloat#", Prim FpSub tyFloatFloatFloat)
               , ("negateFloat#", Prim FpNeg tyFloatFloat)
-              , ("sqrtFloat#", Prim FpSqrt tyFloatFloatFloat)
+              , ("sqrtFloat#", Prim FpSqrt tyFloatFloat)
               , ("divideFloat#", Prim FpDiv tyFloatFloatFloat)
               , ("smtEqFloat#", Prim FpEq $ tyFloatFloatBool b)
               , ("smtNeFloat#", Prim FpNeq $ tyFloatFloatBool b)
