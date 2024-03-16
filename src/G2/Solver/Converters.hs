@@ -368,6 +368,12 @@ funcToSMT1Prim :: Primitive -> Expr -> SMTAST
 funcToSMT1Prim Negate a = Neg (exprToSMT a)
 funcToSMT1Prim FpNeg a = FpNegSMT (exprToSMT a)
 funcToSMT1Prim FpSqrt e = FpSqrtSMT (exprToSMT e)
+funcToSMT1Prim FpIsNegativeZero e =
+    let
+        nz = "INTERNAL_!!_IsNegZero"
+        smt_srt = typeToSMT (typeOf e) 
+    in
+    SLet (nz, exprToSMT e) $ SmtAnd [FpIsNegative (V nz smt_srt), FpIsZero (V nz smt_srt)]
 funcToSMT1Prim IsNaN e = IsNaNSMT (exprToSMT e)
 funcToSMT1Prim Abs e = AbsSMT (exprToSMT e)
 funcToSMT1Prim Not e = (:!) (exprToSMT e)
@@ -535,6 +541,9 @@ toSolverAST (FpGeqSMT x y) = function2 "fp.geq" (toSolverAST x) (toSolverAST y)
 toSolverAST (FpGtSMT x y) = function2 "fp.gt" (toSolverAST x) (toSolverAST y)
 toSolverAST (FpEqSMT x y) = function2 "fp.eq" (toSolverAST x) (toSolverAST y)
 
+toSolverAST (FpIsZero x) = function1 "fp.isZero" (toSolverAST x)
+toSolverAST (FpIsNegative x) = function1 "fp.isNegative" (toSolverAST x)
+
 toSolverAST (FpSqrtSMT x) = function2 "fp.sqrt" "RNE" (toSolverAST x)
 toSolverAST (IsNaNSMT x) = function1 "fp.isNaN" (toSolverAST x)
 
@@ -559,6 +568,9 @@ toSolverAST (ItoR x) = function1 "to_real" $ toSolverAST x
 
 toSolverAST (Ite x y z) =
     function3 "ite" (toSolverAST x) (toSolverAST y) (toSolverAST z)
+
+toSolverAST (SLet (n, e) body_e) =
+    "(let ((" <> TB.string n <> " " <> toSolverAST e <> "))" <> toSolverAST body_e <> ")"
 
 toSolverAST (FromCode chr) = function1 "str.from_code" (toSolverAST chr)
 toSolverAST (ToCode chr) = function1 "str.to_code" (toSolverAST chr)

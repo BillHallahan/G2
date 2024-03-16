@@ -196,6 +196,7 @@ data Primitive = -- Mathematical and logical operators
 
                | FpSqrt
 
+               | FpIsNegativeZero
                | IsNaN
 
                -- GHC conversions from data constructors to Int#, and vice versa

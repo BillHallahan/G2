@@ -83,6 +83,9 @@ data SMTAST = (:>=) !SMTAST !SMTAST
             | FpGtSMT !SMTAST !SMTAST
             | FpEqSMT !SMTAST !SMTAST
 
+            | FpIsZero !SMTAST
+            | FpIsNegative !SMTAST
+
             | FpSqrtSMT !SMTAST
             | IsNaNSMT !SMTAST
 

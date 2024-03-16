@@ -98,6 +98,7 @@ primDefs' b c l =
               , ("smtGtFloat#", Prim FpGt $ tyFloatFloatBool b)
               , ("smtGeFloat#", Prim FpGeq $ tyFloatFloatBool b)
 
+              , ("isFloatNegativeZero#", Prim FpIsNegativeZero $ tyFloatBool b)
               , ("isFloatNaN#", Prim IsNaN $ tyFloatBool b)
 
               , ("quotInteger#", Prim Quot tyIntIntInt)

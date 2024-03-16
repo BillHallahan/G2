@@ -16,7 +16,7 @@ infinite x | x > 0 = x / 0
 data Zero = PosZ | NegZ | NA deriving Eq
 
 zero :: Float -> (Float, Zero)
-zero x | x == 0 = (x, PosZ)
+zero x | x == 0 && not (isNegativeZero x) = (x, PosZ)
        | x == -0 = (x, NegZ)
        | otherwise = (x, NA)
 
