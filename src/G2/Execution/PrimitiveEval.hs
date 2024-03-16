@@ -58,12 +58,12 @@ maybeEvalPrim' tenv kv xs
 
 evalPrim1 :: Primitive -> Lit -> Maybe Expr
 evalPrim1 Negate (LitInt x) = Just . Lit $ LitInt (-x)
-evalPrim1 Negate (LitFloat x) = Just . Lit $ LitFloat (-x)
-evalPrim1 Negate (LitDouble x) = Just . Lit $ LitDouble (-x)
+evalPrim1 FpNeg (LitFloat x) = Just . Lit $ LitFloat (-x)
+evalPrim1 FpNeg (LitDouble x) = Just . Lit $ LitDouble (-x)
 evalPrim1 Abs (LitInt x) = Just . Lit $ LitInt (abs x)
 evalPrim1 Abs (LitFloat x) = Just . Lit $ LitFloat (abs x)
 evalPrim1 Abs (LitDouble x) = Just . Lit $ LitDouble (abs x)
-evalPrim1 SqRt x = evalPrim1Floating (sqrt) x
+evalPrim1 FpSqrt x = evalPrim1Floating sqrt x
 evalPrim1 IntToFloat (LitInt x) = Just . Lit $ LitFloat (fromIntegral x)
 evalPrim1 IntToDouble (LitInt x) = Just . Lit $ LitDouble (fromIntegral x)
 evalPrim1 Chr (LitInt x) = Just . Lit $ LitChar (chr $ fromInteger x)
@@ -88,9 +88,20 @@ evalPrim2 kv Le x y = evalPrim2NumCharBool (<=) kv x y
 evalPrim2 _ Plus x y = evalPrim2Num (+) x y
 evalPrim2 _ Minus x y = evalPrim2Num (-) x y
 evalPrim2 _ Mult x y = evalPrim2Num (*) x y
-evalPrim2 _  Div x y = if isZero y then error "Have Div _ 0" else evalPrim2Fractional (/) x y
+evalPrim2 _ Div x y = if isZero y then error "Have Div _ 0" else evalPrim2Fractional (/) x y
 evalPrim2 _ Quot x y = if isZero y then error "Have Quot _ 0" else evalPrim2Integral quot x y
 evalPrim2 _ Mod x y = evalPrim2Integral mod x y
+
+evalPrim2 kv FpGeq x y = evalPrim2NumCharBool (>=) kv x y
+evalPrim2 kv FpGt x y = evalPrim2NumCharBool (>) kv x y
+evalPrim2 kv FpEq x y = evalPrim2NumCharBool (==) kv x y
+evalPrim2 kv FpLt x y = evalPrim2NumCharBool (<) kv x y
+evalPrim2 kv FpLeq x y = evalPrim2NumCharBool (<=) kv x y
+evalPrim2 _ FpAdd x y = evalPrim2Num (+) x y
+evalPrim2 _ FpSub x y = evalPrim2Num (-) x y
+evalPrim2 _ FpMul x y = evalPrim2Num (*) x y
+evalPrim2 _ FpDiv x y = if isZero y then error "Have Div _ 0" else evalPrim2Fractional (/) x y
+
 evalPrim2 _ _ _ _ = Nothing
 
 evalTypeDCPrim2 :: TypeEnv -> Primitive -> Type -> DataCon -> Maybe Expr

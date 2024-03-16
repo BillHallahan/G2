@@ -179,7 +179,6 @@ data Primitive = -- Mathematical and logical operators
                | Rem
                | Negate
                | Abs
-               | SqRt
 
                --Floating point operations
                | FpNeg

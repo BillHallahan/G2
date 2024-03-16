@@ -349,7 +349,6 @@ mkPrimHaskell Mod = "mod"
 mkPrimHaskell Rem = "rem"
 mkPrimHaskell Negate = "-"
 mkPrimHaskell Abs = "abs"
-mkPrimHaskell SqRt = "sqrt"
 
 mkPrimHaskell FpNeg = "-"
 mkPrimHaskell FpAdd = "+"

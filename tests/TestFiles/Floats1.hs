@@ -2,8 +2,8 @@ module Floats1 where
 
 f :: Float -> Float
 f x | x > 0 = x / 0
-f x | x == 0 = x / x
-f x | x < 0 = x / 0
+    | x == 0 = x / x
+    | otherwise = x / 0
 
 {-# NOINLINE g #-}
 g :: Float -> Float
