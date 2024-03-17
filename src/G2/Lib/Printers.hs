@@ -370,6 +370,9 @@ mkPrimHaskell FpNeq = "/="
 
 mkPrimHaskell FpSqrt = "sqrt"
 
+mkPrimHaskell FpIsNegativeZero = "isNegativeZero#"
+mkPrimHaskell IsNaN = "isNaN#"
+
 mkPrimHaskell DataToTag = "prim_dataToTag#"
 mkPrimHaskell TagToEnum = "prim_tagToEnum#"
 

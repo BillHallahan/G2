@@ -2,7 +2,7 @@
 
 module Floats1 where
 
-newtype NaNEq = F { unF :: Float } deriving (Ord, Num, Fractional, Floating)
+newtype NaNEq = F { unF :: Float } deriving (Ord, Num, Fractional, Floating, Real, RealFrac, RealFloat)
 
 instance Eq NaNEq where
     F f1 == F f2 | isNaN f1, isNaN f2 = True
@@ -13,9 +13,9 @@ infinite x | x > 0 = x / 0
            | x == 0 = x / x
            | otherwise = x / 0
 
-data Zero = PosZ | NegZ | NA deriving Eq
+data Zero = PosZ | NegZ | NA deriving (Eq, Show)
 
-zero :: Float -> (Float, Zero)
+zero :: NaNEq -> (NaNEq, Zero)
 zero x | x == 0 && not (isNegativeZero x) = (x, PosZ)
        | x == -0 = (x, NegZ)
        | otherwise = (x, NA)
@@ -43,7 +43,7 @@ k x | abs(x - 0.1) < 0.001  = x + 0.2
 kConc :: Float
 kConc = k 0.1
 
-m :: Float -> Float
+m :: NaNEq -> NaNEq
 m x | x == 9.1  = x + 0.1
     | otherwise = x
 

@@ -106,6 +106,9 @@ evalPrim2 _ FpSub x y = evalPrim2Num (-) x y
 evalPrim2 _ FpMul x y = evalPrim2Num (*) x y
 evalPrim2 _ FpDiv x y = evalPrim2Fractional (/) x y
 
+evalPrim2 _ RationalToDouble (LitInt x) (LitInt y) =
+       Just . Lit . LitDouble $ fromIntegral x / fromIntegral y
+
 evalPrim2 _ _ _ _ = Nothing
 
 evalTypeDCPrim2 :: TypeEnv -> Primitive -> Type -> DataCon -> Maybe Expr
