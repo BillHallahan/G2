@@ -564,7 +564,7 @@ toSolverAST (Func n xs) = smtFunc n $ map (toSolverAST) xs
 toSolverAST (x :++ y) = function2 "str.++" (toSolverAST x) (toSolverAST y)
 toSolverAST (FromInt x) = function1 "str.from_int" $ toSolverAST x
 toSolverAST (StrLenSMT x) = function1 "str.len" $ toSolverAST x
-toSolverAST (ItoR x) = function1 "to_real" $ toSolverAST x
+toSolverAST (ItoR x) = function2 "(_ to_fp 8 24)" "RNE" (function1 "(_ int2bv 32)" $ toSolverAST x)
 
 toSolverAST (Ite x y z) =
     function3 "ite" (toSolverAST x) (toSolverAST y) (toSolverAST z)
