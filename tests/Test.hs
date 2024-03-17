@@ -378,6 +378,18 @@ testFileTests = testGroup "TestFiles"
                                                      , ("n", 1000, [AtLeast 2])
                                                      , ("sqrtSquared", 1000, [AtLeast 2]) ]
 
+    , checkInputOutputs "tests/TestFiles/Doubles1.hs" [ ("infinite", 1000, [AtLeast 3])
+                                                      , ("zero", 1000, [AtLeast 3])
+                                                      , ("f", 1000, [AtLeast 2])
+                                                      , ("fConc", 1000, [Exactly 1])
+                                                      , ("g", 1300, [AtLeast 2])
+                                                      , ("gConc", 1000, [Exactly 1])
+                                                      , ("k", 1000, [AtLeast 2])
+                                                      , ("kConc", 1000, [Exactly 1])
+                                                      , ("m", 1000, [AtLeast 2])
+                                                      , ("n", 1000, [AtLeast 2])
+                                                      , ("sqrtSquared", 1000, [AtLeast 2]) ]
+
     ]
 
 extensionTests :: TestTree
