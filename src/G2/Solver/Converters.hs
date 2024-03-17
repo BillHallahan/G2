@@ -576,15 +576,8 @@ toSolverAST (FromCode chr) = function1 "str.from_code" (toSolverAST chr)
 toSolverAST (ToCode chr) = function1 "str.to_code" (toSolverAST chr)
 
 toSolverAST (VInt i) = if i >= 0 then showText i else "(- " <> showText (abs i) <> ")"
-toSolverAST (VFloat f) =
-    let
-        w32 = convertBits $ castFloatToWord32 f
-        h:_ = w32
-        eb = take 8 $ drop 1 w32
-        sb = drop 9 w32
-    in
-    "(fp #b" <> TB.char h <> " #b" <> TB.string eb <> " #b" <> TB.string sb <> ")"
-toSolverAST (VDouble d) = if d >= 0 then showText d else "(- " <> showText (abs d) <> ")"
+toSolverAST (VFloat f) = convertFloating castFloatToWord32 8 f
+toSolverAST (VDouble d) = convertFloating castDoubleToWord64 11 d
 toSolverAST (VChar c) = "\"" <> TB.string [c] <> "\""
 toSolverAST (VBool b) = if b then "true" else "false"
 toSolverAST (V n _) = TB.string n
@@ -592,6 +585,16 @@ toSolverAST (V n _) = TB.string n
 toSolverAST (Named x n) = "(! " <> toSolverAST x <> " :named " <> TB.string n <> ")"
 
 toSolverAST ast = error $ "toSolverAST: invalid SMTAST: " ++ show ast
+
+convertFloating :: (Num b, Bits.FiniteBits b) => (a -> b) -> Int -> a -> TB.Builder
+convertFloating conv eb_width f =
+    let
+        w32 = convertBits $ conv f
+        h:_ = w32
+        eb = take eb_width $ drop 1 w32
+        sb = drop (eb_width + 1) w32
+    in
+    "(fp #b" <> TB.char h <> " #b" <> TB.string eb <> " #b" <> TB.string sb <> ")"
 
 -- | Convert to a little endian list of bits
 convertBits :: (Num b, Bits.FiniteBits b) => b -> String

@@ -57,27 +57,27 @@ whiteSpace = Token.whiteSpace smtLexer
 parens :: Parsec String st a -> Parsec String st a
 parens = Token.parens smtLexer
 
-smtParser :: Parser SMTAST
-smtParser = whiteSpace >> sExpr
+smtParser :: Maybe Sort -> Parser SMTAST
+smtParser srt = whiteSpace >> (sExpr srt)
 
-getValuesParser :: Parser SMTAST
-getValuesParser = parens (parens (identifier >> sExpr))
+getValuesParser :: Maybe Sort -> Parser SMTAST
+getValuesParser srt = parens (parens (identifier >> (sExpr srt)))
 
-sExpr :: Parser SMTAST
-sExpr = try boolExpr <|> parens sExpr <|> letExpr <|> try doubleFloatExpr
-                     <|> try doubleFloatExprDec <|> stringExpr <|> intExpr
+sExpr :: Maybe Sort -> Parser SMTAST
+sExpr srt = try boolExpr <|> parens (sExpr srt) <|> letExpr <|> try (doubleFloatExpr srt)
+                         <|> try doubleFloatExprDec <|> stringExpr <|> intExpr
 
 letExpr :: Parser SMTAST
 letExpr = do
     reserved "let"
     bEx <- parens (parens identExprTuple)
-    ex <- sExpr
+    ex <- sExpr Nothing
     return $ SLet bEx ex
 
 identExprTuple :: Parser (SMTName, SMTAST)
 identExprTuple = do
     bind <- identifier
-    ex <- sExpr
+    ex <- sExpr Nothing
     return (bind, ex)
 
 boolExpr :: Parser SMTAST
@@ -106,54 +106,44 @@ intExpr = do
         Just _ -> return (VInt (-i))
         Nothing -> return (VInt i)
 
-doubleFloatExpr :: Parser SMTAST
-doubleFloatExpr = {- doubleFloatExprNeg <|> doubleFloatExprRat <|> -} doubleFloatExprFP
+doubleFloatExpr :: Maybe Sort -> Parser SMTAST
+doubleFloatExpr = doubleFloatExprFP
 
-doubleFloatExprNeg :: Parser SMTAST
-doubleFloatExprNeg = do
-    _ <- reserved "-"
-    (VDouble r) <- parens doubleFloatExprRat
-    return (VDouble (-r))
+doubleFloatExprFP :: Maybe Sort -> Parser SMTAST
+doubleFloatExprFP (Just SortFloat) =
+    floatNum <|> try floatPlusZero <|> try floatMinusZero <|> try floatPlusInfinity <|> try floatMinusInfinity <|> floatNaN
+doubleFloatExprFP _ =
+    doubleNum <|> try doublePlusZero <|> try doubleMinusZero <|> try doublePlusInfinity <|> try doubleMinusInfinity <|> doubleNaN
 
-doubleFloatExprRat :: Parser SMTAST
-doubleFloatExprRat = do
-    s <- optionMaybe (reserved "/")
-    f <- flexDoubleFloat
-    f' <- flexDoubleFloat
-    let r = (f / f')
-    case s of 
-        Just _ -> return (VDouble r)
-        Nothing -> return (VDouble r)
-
-doubleFloatExprFP :: Parser SMTAST
-doubleFloatExprFP = fpNum <|> try fpPlusZero <|> try fpMinusZero <|> try fpPlusInfinity <|> try fpMinusInfinity <|> fpNaN
-
-fpReserved :: String -> Float -> Parser SMTAST
-fpReserved r f = do
+fpReserved :: (a -> SMTAST) -> String -> a -> Parser SMTAST
+fpReserved cons r f = do
     _ <- char '_'
     _ <- whiteSpace
     _ <- reserved r
     _ <- integer
     _ <- integer
-    return $ VFloat f
+    return $ cons f
 
-fpPlusZero :: Parser SMTAST
-fpPlusZero = fpReserved "+zero" 0
+floatReserved :: String -> Float -> Parser SMTAST
+floatReserved = fpReserved VFloat
 
-fpMinusZero :: Parser SMTAST
-fpMinusZero = fpReserved "-zero" (- 0)
+floatPlusZero :: Parser SMTAST
+floatPlusZero = floatReserved "+zero" 0
 
-fpPlusInfinity :: Parser SMTAST
-fpPlusInfinity = fpReserved "+oo" (1 / 0)
+floatMinusZero :: Parser SMTAST
+floatMinusZero = floatReserved "-zero" (- 0)
 
-fpMinusInfinity :: Parser SMTAST
-fpMinusInfinity = fpReserved "-oo" (- 1 / 0)
+floatPlusInfinity :: Parser SMTAST
+floatPlusInfinity = floatReserved "+oo" (1 / 0)
 
-fpNaN :: Parser SMTAST
-fpNaN = fpReserved "NaN" (0 / 0)
+floatMinusInfinity :: Parser SMTAST
+floatMinusInfinity = floatReserved "-oo" (- 1 / 0)
 
-fpNum :: Parser SMTAST
-fpNum = do
+floatNaN :: Parser SMTAST
+floatNaN = floatReserved "NaN" (0 / 0)
+
+floatNum :: Parser SMTAST
+floatNum = do
     _ <- reserved "fp"
     i <- parseBitVec
     _ <- whiteSpace
@@ -164,6 +154,37 @@ fpNum = do
 
 mkFloat :: [Int] -> Float
 mkFloat = castWord32ToFloat . foldr (\(i, v) w -> if v == 0 then w else setBit w i) 0 . zip [0..] . reverse
+
+doubleReserved :: String -> Double -> Parser SMTAST
+doubleReserved = fpReserved VDouble
+
+doublePlusZero :: Parser SMTAST
+doublePlusZero = doubleReserved "+zero" 0
+
+doubleMinusZero :: Parser SMTAST
+doubleMinusZero = doubleReserved "-zero" (- 0)
+
+doublePlusInfinity :: Parser SMTAST
+doublePlusInfinity = doubleReserved "+oo" (1 / 0)
+
+doubleMinusInfinity :: Parser SMTAST
+doubleMinusInfinity = doubleReserved "-oo" (- 1 / 0)
+
+doubleNaN :: Parser SMTAST
+doubleNaN = doubleReserved "NaN" (0 / 0)
+
+doubleNum :: Parser SMTAST
+doubleNum = do
+    _ <- reserved "fp"
+    i <- parseBitVec
+    _ <- whiteSpace
+    eb <- parseBitVec
+    _ <- whiteSpace
+    sp <- parseBitVec
+    trace ("i ++ eb ++ sp = " ++ show (i ++ eb ++ sp)) return (VDouble $ mkDouble (i ++ eb ++ sp)) 
+
+mkDouble :: [Int] -> Double
+mkDouble = castWord64ToDouble . foldr (\(i, v) w -> if v == 0 then w else setBit w i) 0 . zip [0..] . reverse
 
 parseBitVec :: Parser [Int]
 parseBitVec = try parseBin <|> parseHex
@@ -244,16 +265,16 @@ parseUni = do
         [(c, _)] -> return $ chr c
         _ -> error $ "stringExpr': Bad string"
 
-parseSMT :: String -> SMTAST
-parseSMT s = case parse smtParser s s of
+parseSMT :: Sort -> String -> SMTAST
+parseSMT srt s = case parse (smtParser (Just srt)) s s of
     Left e -> error $ "get model parser error on " ++ show e
     Right r -> r
 
 -- | parseGetValues
 -- Parse the result of a get-values call
-parseGetValues :: String -> SMTAST
-parseGetValues s =
-    case parse getValuesParser s s of
+parseGetValues :: Sort -> String -> SMTAST
+parseGetValues srt s =
+    case parse (getValuesParser (Just srt)) s s of
         Left e -> error $ "get values parser error on " ++ show e
         Right r -> r
 

@@ -370,11 +370,9 @@ parseModel = foldr (\(n, s) -> M.insert n s) M.empty
     . map (\(n, str, s) -> (n, parseToSMTAST str s))
 
 parseToSMTAST :: String -> Sort -> SMTAST
-parseToSMTAST str s = correctTypes s . parseGetValues $ str
+parseToSMTAST str s = correctTypes s . parseGetValues s $ str
     where
         correctTypes :: Sort -> SMTAST -> SMTAST
-        correctTypes (SortFloat) (VDouble r) = VFloat (double2Float r)
-        correctTypes (SortDouble) (VFloat r) = VDouble (float2Double r)
         correctTypes SortChar (VString [c]) = VChar c
         correctTypes SortChar (VString _) = error "Invalid Char from parseToSMTAST"
         correctTypes _ a = a
