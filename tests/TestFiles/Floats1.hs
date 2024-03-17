@@ -20,20 +20,20 @@ zero x | x == 0 && not (isNegativeZero x) = (x, PosZ)
        | x == -0 = (x, NegZ)
        | otherwise = (x, NA)
 
+{-# NOINLINE f #-}
+f :: Float -> Float
+f x | abs(x - 9.1) < 0.001  = x + 0.1
+    | otherwise = x
+
+fConc :: Float
+fConc = f 9.1
+
 {-# NOINLINE g #-}
 g :: Float -> Float
-g x | abs(x - 9.1) < 0.001  = x + 0.1
-    | otherwise = x
+g x = 2 * f x
 
 gConc :: Float
 gConc = g 9.1
-
-{-# NOINLINE h #-}
-h :: Float -> Float
-h x = 2 * g x
-
-hConc :: Float
-hConc = h 9.1
 
 {-# NOINLINE k #-}
 k :: Float -> Float
@@ -54,10 +54,3 @@ n x y | x > y = (x * y, x / y)
 sqrtSquared :: Float -> (Bool, Float, Float)
 sqrtSquared x | sqrt x * sqrt x == x = (True, x, sqrt x * sqrt x)
               | otherwise  = (False, x, sqrt x * sqrt x)
-
-showFloat1 :: Float -> String
-showFloat1 x | x > 100 * 100 * 100 = "large " ++ show x
-             | otherwise = show x
-
-showFloat2 :: NaNEq -> String
-showFloat2 = show . unF . infinite
