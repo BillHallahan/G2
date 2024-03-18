@@ -318,11 +318,11 @@ softAbstractResembleReal' abstracted =
     foldr PC.union PC.empty . map PC.fromList $ map (uncurry softPair) (ret_pair:ars_pairs)
 
 softPair :: Expr -> Expr -> [PathCond]
-softPair v1@(Var (Id _ t1)) e2 | isPrimType t1 =
-    assert (t1 == typeOf e2)
+softPair v1@(Var (Id _ TyLitInt)) e2 =
+    assert (TyLitInt == typeOf e2)
         [MinimizePC $ App (Prim Abs TyUnknown) (App (App (Prim Minus TyUnknown) v1) e2)]
-softPair e1 v2@(Var (Id _ t2)) | isPrimType t2 =
-    assert (typeOf e1 == t2)
+softPair e1 v2@(Var (Id _ TyLitInt)) =
+    assert (typeOf e1 == TyLitInt)
         [MinimizePC $ App (Prim Abs TyUnknown) (App (App (Prim Minus TyUnknown) e1) v2)]
 softPair (App e1 e2) (App e1' e2') = softPair e1 e1' ++ softPair e2 e2'
 softPair _ _ = []
