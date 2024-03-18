@@ -400,6 +400,6 @@ instance Simplifier NaNBlockSimplifier where
             is = filter (\(Id _ t) -> t == TyLitFloat || t == TyLitDouble) $ varIds pc
             new_pc = map (\i@(Id _ t) -> ExtCond (App (Prim IsNaN (TyFun t ty_bool)) (Var i)) False) is
         in
-        (s, pc:new_pc)
+        pc:new_pc
     
     reverseSimplification _ _ _ m = m

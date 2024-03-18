@@ -127,7 +127,7 @@ runLHCore entry (mb_modname, exg2) ghci config lhconfig = do
                , ls_memconfig = pres_names } <- liquidStateWithCall entry (mb_modname, exg2) ghci config lhconfig mempty
 
     SomeSolver solver <- initSolver config
-    let simplifier = NaNBlockSimplifier
+    let simplifier = NaNBlockSimplifier :>> FloatSimplifier
 
     let (red, hal, ord) = lhReducerHalterOrderer config lhconfig solver simplifier entry mb_modname cfn final_st
     (exec_res, final_bindings) <- SM.evalStateT (runLHG2 config red hal ord solver simplifier pres_names ifi final_st bindings) (mkPrettyGuide ())
