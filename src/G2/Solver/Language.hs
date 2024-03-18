@@ -115,7 +115,8 @@ data SMTAST = (:>=) !SMTAST !SMTAST
 
             | V SMTName Sort
 
-            | ItoR !SMTAST -- ^ Integer to real conversion
+            | IntToFloatSMT !SMTAST -- ^ Integer to Float conversion
+            | IntToDoubleSMT !SMTAST -- ^ Integer to Double conversion
 
             | Named !SMTAST SMTName -- ^ Name a piece of the SMTAST, allowing it to be returned in unsat cores
             deriving (Show, Eq)

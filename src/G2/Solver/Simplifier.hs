@@ -7,7 +7,8 @@ module G2.Solver.Simplifier ( Simplifier (..)
 import G2.Language
 
 class Simplifier simplifier where
-    -- | Simplifies a PC, by converting it to a form that is easier for the Solver's to handle
+    -- | Simplifies a PC, by converting it into one or more path constraints that are easier
+    -- for the Solver's to handle
     simplifyPC :: forall t . simplifier -> State t -> PathCond -> (State t, [PathCond])
 
     {-# INLINE simplifyPCs #-}

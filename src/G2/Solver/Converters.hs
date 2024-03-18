@@ -259,14 +259,12 @@ isLIRA :: (ASTContainer m SMTAST) => m -> Bool
 isLIRA = getAll . evalASTs isLIRA'
 
 isLIRA' :: SMTAST -> All
-isLIRA' (ItoR _) = All True
 isLIRA' s = All $ getAll (isLIA' s) || getAll (isLRA' s)
 
 isNIRA :: (ASTContainer m SMTAST) => m -> Bool
 isNIRA = getAll . evalASTs isNIRA'
 
 isNIRA' :: SMTAST -> All
-isNIRA' (ItoR _) = All True
 isNIRA' s = All $ getAll (isNIA' s) || getAll (isNRA' s)
 
 isUFLIA :: (ASTContainer m SMTAST) => m -> Bool
@@ -377,8 +375,8 @@ funcToSMT1Prim FpIsNegativeZero e =
 funcToSMT1Prim IsNaN e = IsNaNSMT (exprToSMT e)
 funcToSMT1Prim Abs e = AbsSMT (exprToSMT e)
 funcToSMT1Prim Not e = (:!) (exprToSMT e)
-funcToSMT1Prim IntToFloat e = ItoR (exprToSMT e)
-funcToSMT1Prim IntToDouble e = ItoR (exprToSMT e)
+funcToSMT1Prim IntToFloat e = IntToFloatSMT (exprToSMT e)
+funcToSMT1Prim IntToDouble e = IntToDoubleSMT (exprToSMT e)
 funcToSMT1Prim IntToString e = FromInt (exprToSMT e)
 funcToSMT1Prim Chr e = FromCode (exprToSMT e)
 funcToSMT1Prim OrdChar e = ToCode (exprToSMT e)
@@ -564,7 +562,8 @@ toSolverAST (Func n xs) = smtFunc n $ map (toSolverAST) xs
 toSolverAST (x :++ y) = function2 "str.++" (toSolverAST x) (toSolverAST y)
 toSolverAST (FromInt x) = function1 "str.from_int" $ toSolverAST x
 toSolverAST (StrLenSMT x) = function1 "str.len" $ toSolverAST x
-toSolverAST (ItoR x) = function2 "(_ to_fp 8 24)" "RNE" (function1 "(_ int2bv 32)" $ toSolverAST x)
+toSolverAST (IntToFloatSMT x) = function2 "(_ to_fp 8 24)" "RNE" (function1 "(_ int2bv 32)" $ toSolverAST x)
+toSolverAST (IntToDoubleSMT x) = function2 "(_ to_fp 11 53)" "RNE" (function1 "(_ int2bv 64)" $ toSolverAST x)
 
 toSolverAST (Ite x y z) =
     function3 "ite" (toSolverAST x) (toSolverAST y) (toSolverAST z)
