@@ -3,6 +3,7 @@
 module G2.Solver.Simplifier ( Simplifier (..)
                             , (:>>) (..)
                             , IdSimplifier (..)
+                            , ArithSimplifier (..)
                             , FloatSimplifier (..)) where
 
 import G2.Language
@@ -35,6 +36,36 @@ data IdSimplifier = IdSimplifier
 instance Simplifier IdSimplifier where
     simplifyPC _ _ pc = [pc]
     reverseSimplification _ _ _ m = m
+
+-- | Tries to simplify based on simple arithmetic principles, i.e. x + 0 == x
+data ArithSimplifier = ArithSimplifier
+
+instance Simplifier ArithSimplifier where
+    simplifyPC _ _ pc = [modifyASTs simplifyArith pc]
+
+    reverseSimplification _ _ _ m = m
+
+simplifyArith :: Expr -> Expr
+simplifyArith (App (App (Prim Plus _) e) l) | isZero l = e
+simplifyArith (App (App (Prim Plus _) l) e) | isZero l = e
+
+simplifyArith (App (App (Prim Mult _) e) l) | isZero l = l
+simplifyArith (App (App (Prim Mult _) l) e) | isZero l = l
+
+simplifyArith (App (App (Prim Minus _) e) l) | isZero l = e
+
+simplifyArith (App (App (Prim FpAdd _) e) l) | isZero l = e
+simplifyArith (App (App (Prim FpAdd _) l) e) | isZero l = e
+
+simplifyArith (App (App (Prim FpSub _) e) l) | isZero l = e
+
+simplifyArith e = e
+
+isZero :: Expr -> Bool
+isZero (Lit (LitInt 0)) = True
+isZero (Lit (LitFloat 0)) = True
+isZero (Lit (LitDouble 0)) = True
+isZero _ = False
 
 -- | Tries to simplify constraints involving checking if the value of an Int matches a concrete Float.
 data FloatSimplifier = FloatSimplifier
