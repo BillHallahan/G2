@@ -289,9 +289,13 @@ initRedHaltOrd mod_name solver simplifier config libFunNames =
                         True -> SomeReducer (hpcReducer mod_name ~> stdRed share f solver simplifier)
                         False -> SomeReducer (stdRed share f solver simplifier)
 
+        nrpc_red f = case nrpc config of
+                        Nrpc -> SomeReducer ( nonRedLibFuncsReducer libFunNames ~> stdRed share f solver simplifier)
+                        NoNrpc -> SomeReducer (stdRed share f solver simplifier)
+
         logger_std_red f = case m_logger of
-                            Just logger -> liftSomeReducer (logger .~> liftSomeReducer (hpc_red f))
-                            Nothing -> liftSomeReducer (liftSomeReducer (hpc_red f))
+                            Just logger -> liftSomeReducer (logger .~> liftSomeReducer (hpc_red f) .~> liftSomeReducer (nrpc_red f))
+                            Nothing -> liftSomeReducer (liftSomeReducer (hpc_red f) .~> liftSomeReducer (nrpc_red f))
 
         halter = switchEveryNHalter 20
                  <~> maxOutputsHalter (maxOutputs config)
@@ -316,7 +320,7 @@ initRedHaltOrd mod_name solver simplifier config libFunNames =
              , SomeHalter halter
              , orderer)
         SymbolicFuncTemplate ->
-            ( nonRedLibFuncsReducer libFunNames :== Finished .--> logger_std_red retReplaceSymbFuncVar .== Finished .--> taggerRed state_name :== Finished --> nonRedPCTemplates
+            ( logger_std_red retReplaceSymbFuncVar .== Finished .--> taggerRed state_name :== Finished --> nonRedPCTemplates
              , SomeHalter (discardIfAcceptedTagHalter state_name <~> halter)
              , orderer)
 

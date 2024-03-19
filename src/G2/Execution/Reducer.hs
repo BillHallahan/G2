@@ -508,6 +508,7 @@ nonRedPCTemplatesFunc _
             in return (InProgress, [(s'', ())], b)
 nonRedPCTemplatesFunc _ s b = return (Finished, [(s, ())], b)
 
+-- | A reducer to add library functions in non reduced path constraints for solving later  
 nonRedLibFuncsReducer :: Monad m => HS.HashSet Name -> Reducer m () t
 nonRedLibFuncsReducer n = mkSimpleReducer (\_ -> ())
                             (nonRedLibFuncs n)
