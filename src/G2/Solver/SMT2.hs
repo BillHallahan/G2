@@ -31,7 +31,6 @@ import qualified Data.Map as M
 import Data.Semigroup
 import qualified Data.Text as T
 import qualified Data.Text.IO as T
-import GHC.Float
 import qualified Text.Builder as TB
 import System.IO
 import System.Process
