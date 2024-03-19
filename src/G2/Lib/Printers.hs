@@ -325,6 +325,7 @@ mkLitHaskell (LitInt i) = T.pack $ if i < 0 then "(" <> show i <> ")" else show 
 mkLitHaskell (LitInteger i) = T.pack $ if i < 0 then "(" <> show i <> ")" else show i
 mkLitHaskell (LitFloat r) = mkFloat r
 mkLitHaskell (LitDouble r) = mkFloat r
+mkLitHaskell (LitRational r) = "(" <> T.pack (show r) <> ")"
 mkLitHaskell (LitChar c) | isPrint c = T.pack ['\'', c, '\'']
                          | otherwise = "(chr " <> T.pack (show $ ord c) <> ")"
 mkLitHaskell (LitString s) = T.pack s
@@ -356,6 +357,8 @@ mkPrimHaskell Rem = "rem"
 mkPrimHaskell Negate = "-"
 mkPrimHaskell Abs = "abs"
 
+mkPrimHaskell Sqrt = "sqrt"
+
 mkPrimHaskell FpNeg = "fp.-"
 mkPrimHaskell FpAdd = "fp.+"
 mkPrimHaskell FpSub = "fp.-"
@@ -380,6 +383,7 @@ mkPrimHaskell TagToEnum = "prim_tagToEnum#"
 
 mkPrimHaskell IntToFloat = "fromIntegral"
 mkPrimHaskell IntToDouble = "fromIntegral"
+mkPrimHaskell IntToRational = "fromIntegral"
 mkPrimHaskell RationalToDouble = "fromRational"
 mkPrimHaskell FromInteger = "fromInteger"
 mkPrimHaskell ToInteger = "toInteger"
@@ -408,6 +412,7 @@ mkTypeHaskellPG pg (TyVar i) = mkIdHaskell pg i
 mkTypeHaskellPG _ TyLitInt = "Int#"
 mkTypeHaskellPG _ TyLitFloat = "Float#"
 mkTypeHaskellPG _ TyLitDouble = "Double#"
+mkTypeHaskellPG _ TyLitRational = "Rational#"
 mkTypeHaskellPG _ TyLitChar = "Char#"
 mkTypeHaskellPG _ TyLitString = "String#"
 mkTypeHaskellPG pg (TyFun t1 t2)

@@ -49,8 +49,8 @@ simplifyArith :: Expr -> Expr
 simplifyArith (App (App (Prim Plus _) e) l) | isZero l = e
 simplifyArith (App (App (Prim Plus _) l) e) | isZero l = e
 
-simplifyArith (App (App (Prim Mult _) e) l) | isZero l = l
-simplifyArith (App (App (Prim Mult _) l) e) | isZero l = l
+simplifyArith (App (App (Prim Mult _) _) l) | isZero l = l
+simplifyArith (App (App (Prim Mult _) l) _) | isZero l = l
 
 simplifyArith (App (App (Prim Minus _) e) l) | isZero l = e
 
@@ -65,6 +65,7 @@ isZero :: Expr -> Bool
 isZero (Lit (LitInt 0)) = True
 isZero (Lit (LitFloat 0)) = True
 isZero (Lit (LitDouble 0)) = True
+isZero (Lit (LitRational 0)) = True
 isZero _ = False
 
 -- | Tries to simplify constraints involving checking if the value of an Int matches a concrete Float.

@@ -271,13 +271,14 @@ data InferenceConfig =
 getAllConfigsForInf :: IO (String, Bool, Config, LHConfig, InferenceConfig, Maybe String)
 getAllConfigsForInf = do
     homedir <- getHomeDirectory
-    execParser (mkAllConfigsForInf homedir)
+    (fn, count, config, lhconfig, infconfig, head) <- execParser (mkAllConfigsForInf homedir)
+    return (fn, count, config { fp_handling = RationalFP }, lhconfig, infconfig, head)
 
 mkAllConfigsForInf :: String -> ParserInfo (String, Bool, Config, LHConfig, InferenceConfig, Maybe String)
 mkAllConfigsForInf homedir =
     info (((,,,,,) <$> getFileName
                 <*> flag False True (long "count" <> help "count the number of functions in the file")
-                <*> mkConfig homedir
+                <*> (mkConfig homedir)
                 <*> mkLHConfig
                 <*> mkInferenceConfig
                 <*> mkFuncCheck) <**> helper)

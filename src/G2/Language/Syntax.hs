@@ -12,7 +12,6 @@ import GHC.Generics (Generic)
 import Data.Data
 import Data.Hashable
 import qualified Data.Text as T
-import qualified GHC.Generics as GHC
 
 -- | Binds `Id`s to `Expr`s, primarily in @let@ `Expr`s
 type Binds = [(Id, Expr)]
@@ -180,7 +179,10 @@ data Primitive = -- Mathematical and logical operators
                | Negate
                | Abs
 
-               --Floating point operations
+               -- Rational
+               | Sqrt
+
+               -- Floating point operations
                | FpNeg
                | FpAdd
                | FpSub
@@ -207,6 +209,7 @@ data Primitive = -- Mathematical and logical operators
                -- Numeric conversion
                | IntToFloat
                | IntToDouble
+               | IntToRational
                | RationalToDouble
                | FromInteger
                | ToInteger
@@ -233,6 +236,7 @@ instance Hashable Primitive
 data Lit = LitInt Integer
          | LitFloat Float
          | LitDouble Double
+         | LitRational Rational
          | LitChar Char
          | LitString String
          | LitInteger Integer
@@ -248,6 +252,7 @@ instance Eq Lit where
                              | otherwise = x == y
     LitDouble x == LitDouble y | isNaN x, isNaN y = True
                                | otherwise = x == y
+    LitRational x == LitRational y = x == y
     LitChar x == LitChar y = x == y
     LitString x == LitString y = x == y
     LitInteger x == LitInteger y = x == y
@@ -289,6 +294,7 @@ data Type = TyVar Id -- ^ Polymorphic type variable.
           | TyLitInt -- ^ Unwrapped primitive Int type.
           | TyLitFloat -- ^ Unwrapped primitive Float type.
           | TyLitDouble -- ^ Unwrapped primitive Int type.
+          | TyLitRational -- ^ Unwrapped primitive Rational type.
           | TyLitChar -- ^ Unwrapped primitive Int type.
           | TyLitString -- ^ Unwrapped primitive String type.
           | TyFun Type Type -- ^ Function type. For instance (assume Int): \x -> x + 1 :: TyFun TyInt TyInt

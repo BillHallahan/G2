@@ -259,6 +259,7 @@ isLIRA :: (ASTContainer m SMTAST) => m -> Bool
 isLIRA = getAll . evalASTs isLIRA'
 
 isLIRA' :: SMTAST -> All
+isLIRA' (IntToRealSMT _) = All True
 isLIRA' s = All $ getAll (isLIA' s) || getAll (isLRA' s)
 
 isNIRA :: (ASTContainer m SMTAST) => m -> Bool
@@ -329,6 +330,7 @@ exprToSMT (Lit c) =
         LitInt i -> VInt i
         LitFloat f -> VFloat f
         LitDouble d -> VDouble d
+        LitRational r -> VReal r
         LitChar ch -> VChar ch
         err -> error $ "exprToSMT: invalid Expr: " ++ show err
 exprToSMT (Data (DataCon n (TyCon (Name "Bool" _ _ _) _))) =
@@ -375,6 +377,7 @@ funcToSMT1Prim FpIsNegativeZero e =
 funcToSMT1Prim IsNaN e = IsNaNSMT (exprToSMT e)
 funcToSMT1Prim IsInfinite e = IsInfiniteSMT (exprToSMT e)
 funcToSMT1Prim Abs e = AbsSMT (exprToSMT e)
+funcToSMT1Prim Sqrt e = SqrtSMT (exprToSMT e)
 funcToSMT1Prim Not e = (:!) (exprToSMT e)
 funcToSMT1Prim IntToFloat e = IntToFloatSMT (exprToSMT e)
 funcToSMT1Prim IntToDouble e = IntToDoubleSMT (exprToSMT e)
@@ -452,6 +455,7 @@ typeToSMT (TyFun TyLitFloat _) = SortFloat -- TODO: Remove this
 typeToSMT TyLitInt = SortInt
 typeToSMT TyLitDouble = SortDouble
 typeToSMT TyLitFloat = SortFloat
+typeToSMT TyLitRational = SortReal
 typeToSMT TyLitChar = SortChar
 typeToSMT (TyCon (Name "Bool" _ _ _) _) = SortBool
 #if MIN_VERSION_GLASGOW_HASKELL(9,6,0,0)
@@ -564,6 +568,8 @@ toSolverAST (Func n xs) = smtFunc n $ map (toSolverAST) xs
 toSolverAST (x :++ y) = function2 "str.++" (toSolverAST x) (toSolverAST y)
 toSolverAST (FromInt x) = function1 "str.from_int" $ toSolverAST x
 toSolverAST (StrLenSMT x) = function1 "str.len" $ toSolverAST x
+
+toSolverAST (IntToRealSMT x) = function1 "to_real" $ toSolverAST x
 toSolverAST (IntToFloatSMT x) = function2 "(_ to_fp 8 24)" "RNE" (function1 "(_ int2bv 32)" $ toSolverAST x)
 toSolverAST (IntToDoubleSMT x) = function2 "(_ to_fp 11 53)" "RNE" (function1 "(_ int2bv 64)" $ toSolverAST x)
 
@@ -579,6 +585,7 @@ toSolverAST (ToCode chr) = function1 "str.to_code" (toSolverAST chr)
 toSolverAST (VInt i) = if i >= 0 then showText i else "(- " <> showText (abs i) <> ")"
 toSolverAST (VFloat f) = convertFloating castFloatToWord32 8 f
 toSolverAST (VDouble d) = convertFloating castDoubleToWord64 11 d
+toSolverAST (VReal r) = "(/ " <> showText (numerator r) <> " " <> showText (denominator r) <> ")"
 toSolverAST (VChar c) = "\"" <> TB.string [c] <> "\""
 toSolverAST (VBool b) = if b then "true" else "false"
 toSolverAST (V n _) = TB.string n
@@ -629,6 +636,7 @@ sortName :: Sort -> TB.Builder
 sortName SortInt = "Int"
 sortName SortFloat = "Float32"
 sortName SortDouble = "Float64"
+sortName SortReal = "Real"
 sortName SortString = "String"
 sortName SortChar = "String"
 sortName SortBool = "Bool"

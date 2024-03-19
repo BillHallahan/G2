@@ -347,6 +347,7 @@ eqLHFuncCall ldm i1 i2
         return $ App (App (Prim FpEq pt) (Var i1)) (Var i2)
 
     |  t == TyLitInt
+    || t == TyLitRational
     || t == TyLitChar = do
         b <- tyBoolT
         let pt = TyFun t (TyFun t b)
@@ -533,6 +534,7 @@ lhPPCall lhm fnm t
         return . Lam TermL i =<< mkTrueE
     |  t == TyLitInt
     || t == TyLitDouble
+    || t == TyLitRational
     || t == TyLitFloat
     || t == TyLitChar = do
         i <- freshIdN t

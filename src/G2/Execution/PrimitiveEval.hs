@@ -58,14 +58,17 @@ maybeEvalPrim' tenv kv xs
 
 evalPrim1 :: Primitive -> Lit -> Maybe Expr
 evalPrim1 Negate (LitInt x) = Just . Lit $ LitInt (-x)
+evalPrim1 Negate (LitRational x) = Just . Lit $ LitRational (-x)
 evalPrim1 FpNeg (LitFloat x) = Just . Lit $ LitFloat (-x)
 evalPrim1 FpNeg (LitDouble x) = Just . Lit $ LitDouble (-x)
 evalPrim1 Abs (LitInt x) = Just . Lit $ LitInt (abs x)
+evalPrim1 Abs (LitRational x) = Just . Lit $ LitRational (abs x)
 evalPrim1 Abs (LitFloat x) = Just . Lit $ LitFloat (abs x)
 evalPrim1 Abs (LitDouble x) = Just . Lit $ LitDouble (abs x)
 evalPrim1 FpSqrt x = evalPrim1Floating sqrt x
 evalPrim1 IntToFloat (LitInt x) = Just . Lit $ LitFloat (fromIntegral x)
 evalPrim1 IntToDouble (LitInt x) = Just . Lit $ LitDouble (fromIntegral x)
+evalPrim1 IntToRational (LitInt x) = Just . Lit $ LitRational (fromIntegral x)
 evalPrim1 Chr (LitInt x) = Just . Lit $ LitChar (chr $ fromInteger x)
 evalPrim1 OrdChar (LitChar x) = Just . Lit $ LitInt (toInteger $ ord x)
 evalPrim1 WGenCat (LitInt x) = Just . Lit $ LitInt (toInteger . fromEnum . generalCategory . toEnum $ fromInteger x)
@@ -151,6 +154,7 @@ evalPrim2NumCharBool :: (forall a . Ord a => a -> a -> Bool) -> KnownValues -> L
 evalPrim2NumCharBool f kv (LitInt x) (LitInt y) = Just . mkBool kv $ f x y
 evalPrim2NumCharBool f kv (LitFloat x) (LitFloat y) = Just . mkBool kv $ f x y
 evalPrim2NumCharBool f kv (LitDouble x) (LitDouble y) = Just . mkBool kv $ f x y
+evalPrim2NumCharBool f kv (LitRational x) (LitRational y) = Just . mkBool kv $ f x y
 evalPrim2NumCharBool f kv (LitChar x) (LitChar y) = Just . mkBool kv $ f x y
 evalPrim2NumCharBool _ _ _ _ = Nothing
 
@@ -158,11 +162,13 @@ evalPrim2Num  :: (forall a . Num a => a -> a -> a) -> Lit -> Lit -> Maybe Expr
 evalPrim2Num f (LitInt x) (LitInt y) = Just . Lit . LitInt $ f x y
 evalPrim2Num f (LitFloat x) (LitFloat y) = Just . Lit . LitFloat $ f x y
 evalPrim2Num f (LitDouble x) (LitDouble y) = Just . Lit . LitDouble $ f x y
+evalPrim2Num f (LitRational x) (LitRational y) = Just . Lit . LitRational $ f x y
 evalPrim2Num _ _ _ = Nothing
 
 evalPrim2Fractional  :: (forall a . Fractional a => a -> a -> a) -> Lit -> Lit -> Maybe Expr
 evalPrim2Fractional f (LitFloat x) (LitFloat y) = Just . Lit . LitFloat $ f x y
 evalPrim2Fractional f (LitDouble x) (LitDouble y) = Just . Lit . LitDouble $ f x y
+evalPrim2Fractional f (LitRational x) (LitRational y) = Just . Lit . LitRational $ f x y
 evalPrim2Fractional _ _ _ = Nothing
 
 evalPrim2Integral :: (forall a . Integral a => a -> a -> a) -> Lit -> Lit -> Maybe Expr
