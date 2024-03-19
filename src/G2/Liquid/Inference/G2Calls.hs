@@ -355,7 +355,7 @@ gatherAllowedCalls entry m lrs ghci infconfig config lhconfig = do
     let (s', bindings') = (s, bindings) -- execStateM addTrueAssertsAll s bindings
 
     SomeSolver solver <- initSolver config'
-    let simplifier = NaNBlockSimplifier :>> FloatSimplifier
+    let simplifier = NaNInfBlockSimplifier :>> FloatSimplifier
         s'' = repCFBranch $
                s' { true_assert = True
                   , track = [] :: [FuncCall] }
@@ -491,7 +491,7 @@ runLHInferenceCore entry m lrs ghci = do
                , ls_memconfig = pres_names } <- liftIO $ processLiquidReadyStateWithCall lrs ghci entry m g2config lhconfig mempty
     SomeSolver solver <- liftIO $ initSolver g2config
     -- let solver' = SpreadOutSolver max_coeff_sz solver
-    let simplifier = NaNBlockSimplifier :>> FloatSimplifier
+    let simplifier = NaNInfBlockSimplifier :>> FloatSimplifier
         final_st' = swapHigherOrdForSymGen bindings final_st
 
     (red, hal, ord) <- inferenceReducerHalterOrderer infconfig g2config lhconfig solver simplifier entry m cfn final_st'
@@ -584,7 +584,7 @@ runLHCExSearch entry m lrs ghci = do
                , ls_counterfactual_name = cfn
                , ls_memconfig = pres_names } <- liftIO $ processLiquidReadyStateWithCall lrs ghci entry m g2config lhconfig' mempty
     SomeSolver solver <- liftIO $ initSolver g2config
-    let simplifier = NaNBlockSimplifier :>> FloatSimplifier
+    let simplifier = NaNInfBlockSimplifier :>> FloatSimplifier
         final_st' = swapHigherOrdForSymGen bindings final_st
 
     (red, hal, ord) <- realCExReducerHalterOrderer infconfig g2config lhconfig' entry m solver simplifier cfn
@@ -1077,7 +1077,7 @@ genericG2Call :: ( MonadIO m
                  , Named t
                  , Solver solver) => Config -> solver -> State t -> Bindings -> m ([ExecRes t], Bindings)
 genericG2Call config solver s bindings = do
-    let simplifier = NaNBlockSimplifier :>> FloatSimplifier
+    let simplifier = NaNInfBlockSimplifier :>> FloatSimplifier
         share = sharing config
 
     fslb <- runG2WithSomes (SomeReducer (stdRed share retReplaceSymbFuncVar solver simplifier))
@@ -1100,7 +1100,7 @@ genericG2CallLogging :: ( MonadIO m
                      -> String
                      -> (SM.StateT PrettyGuide m) ([ExecRes t], Bindings)
 genericG2CallLogging config solver s bindings lg = do
-    let simplifier = NaNBlockSimplifier :>> FloatSimplifier
+    let simplifier = NaNInfBlockSimplifier :>> FloatSimplifier
         share = sharing config
 
     fslb <- runG2WithSomes (SomeReducer (prettyLogger lg ~> stdRed share retReplaceSymbFuncVar solver simplifier))

@@ -88,6 +88,7 @@ data SMTAST = (:>=) !SMTAST !SMTAST
 
             | FpSqrtSMT !SMTAST
             | IsNaNSMT !SMTAST
+            | IsInfiniteSMT !SMTAST
 
             -- Arrays
             | ArrayConst !SMTAST Sort Sort

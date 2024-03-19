@@ -87,6 +87,7 @@ primDefs' b c l =
 
               , ("isDoubleNegativeZero#", Prim FpIsNegativeZero $ tyDoubleBool b)
               , ("isDoubleNaN#", Prim IsNaN $ tyDoubleBool b)
+              , ("isDoubleInfinite#", Prim IsInfinite $ tyDoubleBool b)
 
               , ("plusFloat#", Prim FpAdd tyFloatFloatFloat)
               , ("timesFloat#", Prim FpMul tyFloatFloatFloat)
@@ -103,6 +104,7 @@ primDefs' b c l =
 
               , ("isFloatNegativeZero#", Prim FpIsNegativeZero $ tyFloatBool b)
               , ("isFloatNaN#", Prim IsNaN $ tyFloatBool b)
+              , ("isFloatInfinite#", Prim IsInfinite $ tyFloatBool b)
 
               , ("quotInteger#", Prim Quot tyIntIntInt)
               , ("remInteger#", Prim Rem tyIntIntInt)

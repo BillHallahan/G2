@@ -339,9 +339,14 @@ eqLHFuncCall ldm i1 i2
     | TyApp _ _ <- t = mkTrueE
     | TyForAll _ _ <- t = mkTrueE
     
+    |  t == TyLitDouble
+    || t == TyLitFloat = do
+        b <- tyBoolT
+        let pt = TyFun t (TyFun t b)
+        
+        return $ App (App (Prim FpEq pt) (Var i1)) (Var i2)
+
     |  t == TyLitInt
-    || t == TyLitDouble
-    || t == TyLitFloat
     || t == TyLitChar = do
         b <- tyBoolT
         let pt = TyFun t (TyFun t b)

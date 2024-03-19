@@ -81,6 +81,8 @@ evalPrim1' _ kv FpIsNegativeZero (LitFloat x) = Just . mkBool kv $  isNegativeZe
 evalPrim1' _ kv FpIsNegativeZero (LitDouble x) = Just . mkBool kv $  isNegativeZero x
 evalPrim1' _ kv IsNaN (LitFloat x) = Just . mkBool kv $ isNaN x
 evalPrim1' _ kv IsNaN (LitDouble x) = Just . mkBool kv $  isNaN x
+evalPrim1' _ kv IsInfinite (LitFloat x) = Just . mkBool kv $ isInfinite x
+evalPrim1' _ kv IsInfinite (LitDouble x) = Just . mkBool kv $  isInfinite x
 evalPrim1' _ _ _ _ = Nothing
 
 evalPrim2 :: KnownValues -> Primitive -> Lit -> Lit -> Maybe Expr

@@ -373,6 +373,7 @@ funcToSMT1Prim FpIsNegativeZero e =
     in
     SLet (nz, exprToSMT e) $ SmtAnd [FpIsNegative (V nz smt_srt), FpIsZero (V nz smt_srt)]
 funcToSMT1Prim IsNaN e = IsNaNSMT (exprToSMT e)
+funcToSMT1Prim IsInfinite e = IsInfiniteSMT (exprToSMT e)
 funcToSMT1Prim Abs e = AbsSMT (exprToSMT e)
 funcToSMT1Prim Not e = (:!) (exprToSMT e)
 funcToSMT1Prim IntToFloat e = IntToFloatSMT (exprToSMT e)
@@ -544,6 +545,7 @@ toSolverAST (FpIsNegative x) = function1 "fp.isNegative" (toSolverAST x)
 
 toSolverAST (FpSqrtSMT x) = function2 "fp.sqrt" "RNE" (toSolverAST x)
 toSolverAST (IsNaNSMT x) = function1 "fp.isNaN" (toSolverAST x)
+toSolverAST (IsInfiniteSMT x) = function1 "fp.isInfinite" (toSolverAST x)
 
 toSolverAST (ArrayConst v indS valS) =
     let
