@@ -371,7 +371,8 @@ cexInfTests = testGroup "Tests"
             , cexTest "tests_lh/test_files/CEx/CEx3.hs" "kmeans1"
             , cexTest "tests_lh/test_files/CEx/CEx4.hs" "centroid"
             , cexTest "tests_lh/test_files/CEx/CEx5.hs" "centroid"
-            , cexTest "tests_lh/test_files/CEx/CEx6.hs" "nearest" ]
+            , cexTest "tests_lh/test_files/CEx/CEx6.hs" "nearest"
+            , cexTest "tests_lh/test_files/CEx/CEx7.hs" "nearest" ]
 
 todoTests :: TestTree
 todoTests = testGroup "To Do"
