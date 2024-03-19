@@ -42,8 +42,6 @@ import qualified Data.HashMap.Lazy as HM
 import qualified Data.List as L
 import qualified Data.Sequence as S
 
-import Debug.Trace
-
 import Control.Exception
 
 stdReduce :: (Solver solver, Simplifier simplifier) => Sharing -> SymbolicFuncEval t -> solver -> simplifier -> State t -> Bindings -> IO (Rule, [(State t, ())], Bindings)
@@ -888,7 +886,7 @@ retCurrExpr s@(State { expr_env = eenv, known_values = kv }) e1 (EnsureEq e2) or
     , isExprValueForm eenv e2
     , t1 <- typeOf e1
     , isPrimType t1 || t1 == tyBool kv =
-        trace ("Type of e1" ++ show t1 ++ " and Type of e2" ++ show (typeOf e2)) assert (typeOf e2 == t1)
+       assert (typeOf e2 == t1)
         ( RuleReturnCurrExprFr
         , [NewPC { state = s { curr_expr = orig_ce
                              , exec_stack = stck}

@@ -41,7 +41,6 @@ reduceNewPC solver simplifier
                 _ -> PC.scc ns new_pc'
 
         res <- check solver s' rel_pc
-        print ("Result of sat: " ++ show res)
 
         if res == SAT () then
             return $ Just s''

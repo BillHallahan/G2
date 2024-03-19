@@ -78,7 +78,6 @@ import qualified Data.HashSet as S
 import Data.Maybe
 import qualified Data.Sequence as Seq
 import qualified Data.Text as T
-import Debug.Trace
 
 import System.Timeout
 
@@ -607,6 +606,6 @@ runG2 :: ( MonadIO m
          solver -> simplifier -> MemConfig -> State t -> Bindings -> m ([ExecRes t], Bindings)
 runG2 red hal ord solver simplifier mem is bindings = do
     (exec_states, bindings') <- runG2ThroughExecution red hal ord mem is bindings
-    sol_states <- trace("Lenght of states: "++ show (length exec_states)) (mapM (runG2Solving solver simplifier bindings') exec_states)
+    sol_states <- mapM (runG2Solving solver simplifier bindings') exec_states
 
     return (catMaybes sol_states, bindings')
