@@ -100,7 +100,7 @@ def main():
     print("\begin{tabular}{| l | c | c | c |}")
     print("\hline")
     print("File & Lynx & CHC & Z3 \\ \hline")
-    # createCompTable(log_haskell, log_chc, log_z3)
+    createCompTable(log_haskell, log_chc, log_z3)
     print("\end{tabular}")
 
 if __name__ == "__main__":
