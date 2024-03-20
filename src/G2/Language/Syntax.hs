@@ -211,7 +211,6 @@ data Primitive = -- Mathematical and logical operators
                | IntToDouble
                | IntToRational
                | RationalToDouble
-               | FromInteger
                | ToInteger
                | ToInt
                

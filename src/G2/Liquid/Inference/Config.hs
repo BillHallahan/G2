@@ -271,8 +271,8 @@ data InferenceConfig =
 getAllConfigsForInf :: IO (String, Bool, Config, LHConfig, InferenceConfig, Maybe String)
 getAllConfigsForInf = do
     homedir <- getHomeDirectory
-    (fn, count, config, lhconfig, infconfig, head) <- execParser (mkAllConfigsForInf homedir)
-    return (fn, count, config { fp_handling = RationalFP }, lhconfig, infconfig, head)
+    (fn, count, config, lhconfig, infconfig, hd) <- execParser (mkAllConfigsForInf homedir)
+    return (fn, count, config { fp_handling = RationalFP }, lhconfig, infconfig, hd)
 
 mkAllConfigsForInf :: String -> ParserInfo (String, Bool, Config, LHConfig, InferenceConfig, Maybe String)
 mkAllConfigsForInf homedir =

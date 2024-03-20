@@ -385,7 +385,6 @@ mkPrimHaskell IntToFloat = "fromIntegral"
 mkPrimHaskell IntToDouble = "fromIntegral"
 mkPrimHaskell IntToRational = "fromIntegral"
 mkPrimHaskell RationalToDouble = "fromRational"
-mkPrimHaskell FromInteger = "fromInteger"
 mkPrimHaskell ToInteger = "toInteger"
 
 mkPrimHaskell StrLen = "StrLen"
