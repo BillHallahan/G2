@@ -274,6 +274,7 @@ sortOf :: SMTAST -> Sort
 sortOf (VInt _) = SortInt
 sortOf (VFloat _) = SortFloat
 sortOf (VDouble _) = SortDouble
+sortOf (VReal _) = SortReal
 sortOf (VString _) = SortString
 sortOf (VChar _) = SortChar 
 sortOf (VBool _) = SortBool

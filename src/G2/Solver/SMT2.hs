@@ -119,18 +119,18 @@ instance SMTConverter Z3 where
     checkSatGetModel con formula vs = do
         let (h_in, h_out, _) = getIOZ3 con
         setUpFormulaZ3 h_in (TB.run $ toSolverText formula)
-        -- putStrLn "\n\n checkSatGetModel"
-        -- T.putStrLn (TB.run $ toSolverText formula)
+        putStrLn "\n\n checkSatGetModel"
+        T.putStrLn (TB.run $ toSolverText formula)
         r <- checkSat' h_in h_out
-        -- putStrLn $ "r =  " ++ show r
+        putStrLn $ "r =  " ++ show r
         case r of
             SAT () -> do
                 mdl <- getModelZ3 h_in h_out vs
-                -- putStrLn "======"
-                -- putStrLn (show mdl)
+                putStrLn "======"
+                putStrLn (show mdl)
                 let m = parseModel mdl
-                -- putStrLn $ "m = " ++ show m
-                -- putStrLn "======"
+                putStrLn $ "m = " ++ show m
+                putStrLn "======"
                 return $ SAT m
             UNSAT () -> return $ UNSAT ()
             Unknown s _ -> return $ Unknown s ()
@@ -304,7 +304,7 @@ getProcessHandles pr = do
 getZ3 :: Int -> IO Z3
 getZ3 time_out = do
     hhp@(h_in, _, _) <- getZ3ProcessHandles time_out
-    hPutStr h_in "(set-option :pp.decimal true)"
+    -- hPutStr h_in "(set-option :pp.decimal true)"
     return $ Z3 arbValue hhp
 
 getSMT :: Config -> IO SomeSMTSolver
@@ -313,7 +313,7 @@ getSMT = getSMTAV arbValue
 getSMTAV :: ArbValueFunc -> Config -> IO SomeSMTSolver
 getSMTAV avf (Config {smt = ConZ3}) = do
     hhp@(h_in, _, _) <- getZ3ProcessHandles 10000
-    hPutStr h_in "(set-option :pp.decimal true)"
+    -- hPutStr h_in "(set-option :pp.decimal true)"
     return $ SomeSMTSolver (Z3 avf hhp)
 getSMTAV avf (Config {smt = ConCVC4}) = do
     hhp <- getCVC4ProcessHandles

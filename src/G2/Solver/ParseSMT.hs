@@ -62,7 +62,7 @@ getValuesParser :: Maybe Sort -> Parser SMTAST
 getValuesParser srt = parens (parens (identifier >> (sExpr srt)))
 
 sExpr :: Maybe Sort -> Parser SMTAST
-sExpr srt = try boolExpr <|> parens (sExpr srt) <|> letExpr <|> try (doubleFloatExpr srt)
+sExpr srt = try boolExpr <|> parens (sExpr srt) <|> letExpr <|> try realExpr <|> try (doubleFloatExpr srt)
                          <|> try doubleFloatExprDec <|> stringExpr <|> intExpr
 
 letExpr :: Parser SMTAST
@@ -103,6 +103,28 @@ intExpr = do
     case s of
         Just _ -> return (VInt (-i))
         Nothing -> return (VInt i)
+
+realExpr :: Parser SMTAST
+realExpr = try realExprNeg <|> realExprRat
+
+realExprNeg :: Parser SMTAST
+realExprNeg = do
+    _ <- reserved "-"
+    VReal r <- parens realExprRat
+    return (VReal (-r))
+
+realExprRat :: Parser SMTAST
+realExprRat = do
+    s <- reserved "/"
+    f <- integer
+    _ <- char '.'
+    _ <- char '0'
+    _ <- whiteSpace
+    f' <- integer
+    _ <- char '.'
+    _ <- char '0'
+    let r = toRational f / toRational f'
+    return $ VReal r
 
 doubleFloatExpr :: Maybe Sort -> Parser SMTAST
 doubleFloatExpr = doubleFloatExprFP

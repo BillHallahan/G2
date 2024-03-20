@@ -243,10 +243,12 @@ isLRA' (_ :+ _) = All True
 isLRA' (_ :- _) = All True
 isLRA' (x :* y) = All $ isRationalCoeff x || isRationalCoeff y
 isLRA' (Neg _) = All True
+isLRA' (VReal _) = All True
 isLRA' (V _ s) = All $ isRASort s
 isLRA' s = isCore' s
 
 isRASort :: Sort -> Bool
+isRASort SortReal = True
 isRASort s = isCoreSort s
 
 isRationalCoeff :: SMTAST -> Bool
@@ -661,9 +663,10 @@ toSolverSetLogic lgc =
 
 -- | Converts an `SMTAST` to an `Expr`.
 smtastToExpr :: KnownValues -> TypeEnv -> SMTAST -> Expr
-smtastToExpr _ _ (VInt i) = (Lit $ LitInt i)
-smtastToExpr _ _ (VFloat f) = (Lit $ LitFloat f)
-smtastToExpr _ _ (VDouble d) = (Lit $ LitDouble d)
+smtastToExpr _ _ (VInt i) = Lit $ LitInt i
+smtastToExpr _ _ (VFloat f) = Lit $ LitFloat f
+smtastToExpr _ _ (VDouble d) = Lit $ LitDouble d
+smtastToExpr _ _ (VReal r) = Lit $ LitRational r
 smtastToExpr kv _ (VBool True) = mkTrue kv
 smtastToExpr kv _ (VBool False) = mkFalse kv
 smtastToExpr kv tenv (VString cs) = mkG2List kv tenv (tyChar kv) $ map (App (mkDCChar kv tenv) . Lit . LitChar) cs
@@ -673,11 +676,12 @@ smtastToExpr _ _ _ = error "Conversion of this SMTAST to an Expr not supported."
 
 -- | Converts a `Sort` to an `Type`.
 sortToType :: Sort -> Type
-sortToType (SortInt) = TyLitInt
-sortToType (SortFloat) = TyLitFloat
-sortToType (SortDouble) = TyLitDouble
-sortToType (SortChar) = TyLitChar
-sortToType (SortBool) = TyCon (Name "Bool" Nothing 0 Nothing) TYPE
+sortToType SortInt = TyLitInt
+sortToType SortFloat = TyLitFloat
+sortToType SortDouble = TyLitDouble
+sortToType SortReal = TyLitRational
+sortToType SortChar = TyLitChar
+sortToType SortBool = TyCon (Name "Bool" Nothing 0 Nothing) TYPE
 sortToType _ = error "Conversion of this Sort to a Type not supported."
 
 -- | Coverts an `SMTModel` to a `Model`.
