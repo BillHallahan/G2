@@ -22,6 +22,7 @@ arbValueInit :: ArbValueGen
 arbValueInit = ArbValueGen { intGen = 0
                            , floatGen = 0
                            , doubleGen = 0
+                           , rationalGen = 0
                            , charGen = charGenInit -- See [CharGenInit]
                            , boolGen = True
                            }
@@ -87,17 +88,22 @@ arbValue' _ _ TyLitInt _ av =
     let
         i = intGen av
     in
-    (Lit (LitInt $ i), av { intGen = i + 1 })
+    (Lit (LitInt i), av { intGen = i + 1 })
 arbValue' _ _ TyLitFloat _ av =
     let
         f = floatGen av
     in
-    (Lit (LitFloat $ f), av { floatGen = f + 1 })
+    (Lit (LitFloat f), av { floatGen = f + 1 })
 arbValue' _ _ TyLitDouble _ av =
     let
         d = doubleGen av
     in
-    (Lit (LitDouble $ d), av { doubleGen = d + 1 })
+    (Lit (LitDouble d), av { doubleGen = d + 1 })
+arbValue' _ _ TyLitRational _ av =
+    let
+        r = rationalGen av
+    in
+    (Lit (LitRational r), av { rationalGen = r + 1 })
 arbValue' _ _ TyLitChar _ av =
     let
         c:cs = case charGen av of
@@ -132,17 +138,22 @@ constArbValue' _ _ TyLitInt _ av =
     let
         i = intGen av
     in
-    (Lit (LitInt $ i), av)
+    (Lit (LitInt i), av)
 constArbValue' _ _ TyLitFloat _ av =
     let
         f = floatGen av
     in
-    (Lit (LitFloat $ f), av)
+    (Lit (LitFloat f), av)
 constArbValue' _ _ TyLitDouble _ av =
     let
         d = doubleGen av
     in
-    (Lit (LitDouble $ d), av)
+    (Lit (LitDouble d), av)
+constArbValue' _ _ TyLitRational _ av =
+    let
+        r = rationalGen av
+    in
+    (Lit (LitRational r), av)
 constArbValue' _ _ TyLitChar _ av =
     let
         c:_ = case charGen av of
