@@ -155,6 +155,7 @@ mkCoeffs prd s psi j k =
           c_active = s ++ "_f_act_" ++ show j ++ "_t_" ++ show k
         , c_op_branch1 = s ++ "_lia_op1_" ++ show j ++ "_t_" ++ show k
         , c_op_branch2 = s ++ "_lia_op2_" ++ show j ++ "_t_" ++ show k
+        , c_op_branch3 = s ++ "_lia_op3_" ++ show j ++ "_t_" ++ show k
         , b0 = s ++ "_b_" ++ show j ++ "_t_" ++ show k
         
         -- We only want solutions that have one or more return values with a
@@ -169,6 +170,17 @@ mkCoeffs prd s psi j k =
                     []
         , rets_coeffs = 
             [ s ++ "_r_c_" ++ show j ++ "_t_" ++ show k ++ "_a_" ++ show a
+            | a <- [1..rets]]
+
+        , ars_coeffs_rhs =
+            if prd rets
+                then
+                    [ s ++ "_a_c_" ++ show j ++ "_t_" ++ show k ++ "_a_" ++ show a ++ "_rhs"
+                    | a <- [1..ars]]
+                else
+                    []
+        , rets_coeffs_rhs = 
+            [ s ++ "_rhs_r_c_" ++ show j ++ "_t_" ++ show k ++ "_a_" ++ show a ++ "_rhs"
             | a <- [1..rets]]
         }
 
@@ -188,6 +200,7 @@ mkSetForms prd max_sz s psi j k =
           c_active = s ++ "_s_act_" ++ show j ++ "_t_" ++ show k
         , c_op_branch1 = s ++ "_set_op1_" ++ show j ++ "_t_" ++ show k
         , c_op_branch2 = s ++ "_set_op2_" ++ show j ++ "_t_" ++ show k
+        , c_op_branch3 = s ++ "_set_op3_" ++ show j ++ "_t_" ++ show k
 
         , int_sing_set_bools_lhs =
             if prd rets
@@ -249,6 +262,7 @@ mkBoolForms prd sz max_sz s psi j k =
           c_active = s ++ "_bool_act_" ++ show j ++ "_t_" ++ show k
         , c_op_branch1 = s ++ "_bool_op1_" ++ show j ++ "_t_" ++ show k
         , c_op_branch2 = s ++ "_bool_op2_" ++ show j ++ "_t_" ++ show k
+        , c_op_branch3 = s ++ "_bool_op3_" ++ show j ++ "_t_" ++ show k
 
         , ars_bools =
             if prd rets
@@ -412,7 +426,7 @@ runConstraintsForSynth headers vs = do
             liftIO $ setProduceUnsatCores z3_dir
             liftIO $ setProduceUnsatCores z3_max
 
-            -- liftIO $ T.putStrLn (TB.run $ toSolverText headers)
+            liftIO $ T.putStrLn (TB.run $ toSolverText headers)
             liftIO $ addFormula z3_dir headers
             liftIO $ addFormula z3_max headers
 
@@ -420,6 +434,7 @@ runConstraintsForSynth headers vs = do
             liftIO $ checkSatInstr z3_max
             
             res <- liftIO $ waitForRes2 Nothing Nothing z3_dir z3_max vs
+            liftIO $ print res
 
             liftIO $ closeIO z3_dir
             liftIO $ closeIO z3_max
@@ -639,13 +654,16 @@ filterRelOpBranch si mdl =
         clauses = sy_coeffs si
         coeff_nms = concatMap snd clauses
     in
-    -- If we are not using a clause, we don't care about c_op_branch1 and c_op_branch2
-    -- If we are using a clause but c_op_branch1 is true, we don't care about c_op_branch2
+    -- If we are not using a clause, we don't care about c_op_branch1, c_op_branch2, or c_op_branch3
+    -- If we are using a clause but c_op_branch1 is true, we don't care about c_op_branch2 or c_op_branch3
+    -- If we are using a clause but c_op_branch2 is true, we don't care about c_op_branch3
     foldr (\form mdl_ -> if
               | M.lookup (c_active form) mdl == Just (VBool False) ->
                   M.delete (c_op_branch2 form) $ M.delete (c_op_branch1 form) mdl_
               | M.lookup (c_op_branch1 form) mdl == Just (VBool True) ->
-                  M.delete (c_op_branch2 form) mdl_
+                  M.delete (c_op_branch3 form) $ M.delete (c_op_branch2 form) mdl_
+              | M.lookup (c_op_branch2 form) mdl == Just (VBool True) ->
+                  M.delete (c_op_branch3 form) mdl_
               | otherwise -> mdl) mdl coeff_nms
 
 -- | Create specification definitions corresponding to previously rejected models,
@@ -760,7 +778,7 @@ renameByAdding i si =
 
 buildLIA_SMT_fromModel :: SMTModel -> SynthSpec -> SMTAST
 buildLIA_SMT_fromModel mdl sf =
-    buildSpec (:+) (:*) (.=.) (.=.) (:>) (:>=) Ite Ite
+    buildSpec (:+) (:*) Modulo (.=.) (.=.) (:>) (:>=) Ite Ite
               mkSMTAnd mkSMTAnd mkSMTOr
               mkSMTUnion mkSMTIntersection smtSingleton
               mkSMTIsSubsetOf (flip ArraySelect)
@@ -1206,8 +1224,8 @@ sySpecGetOpBranches = concatMap sySpecGetOpBranchesForm . concatMap snd . sy_coe
 
 sySpecGetOpBranchesForm :: Forms -> [SMTName]
 sySpecGetOpBranchesForm c@(BoolForm {}) =
-    [c_op_branch1 c, c_op_branch2 c] ++ concatMap sySpecGetOpBranchesForm (forms c)
-sySpecGetOpBranchesForm c = [c_op_branch1 c, c_op_branch2 c]
+    [c_op_branch1 c, c_op_branch2 c, c_op_branch3 c] ++ concatMap sySpecGetOpBranchesForm (forms c)
+sySpecGetOpBranchesForm c = [c_op_branch1 c, c_op_branch2 c, c_op_branch3 c]
 ---
 
 sySpecGetActs :: SynthSpec -> [SMTName]
@@ -1280,14 +1298,21 @@ defineSynthLIAFuncSF sf =
 -- Building LIA Formulas
 ------------------------------------
 
-type Plus a = a ->  a -> a
-type Mult a = a ->  a -> a
+type Plus a = a -> a -> a
+type Mult a = a -> a -> a
+type Mod a = a -> a -> a
 type EqF a b = a -> a -> b
 type Gt a b = a -> a -> b
 type GEq a b = a -> a -> b
 type Ite b a = b -> a -> a -> a
 type And b c = [b] -> c
 type Or b = [b] -> b
+
+-- | Generates a let expression during SMT translation.
+-- The introduced variable has a fixed name, so can be used only once.
+type LetEx a b = a -- ^ The bindee
+               -> (a -> b) -- ^ Mapping from a bound variable to an expression using that variable
+               -> b
 
 type IsSubsetOf a b = a -> a -> b
 type IsMember a b = a -> a -> b
@@ -1306,7 +1331,7 @@ type UniversalSet s = s
 
 buildLIA_SMT :: SynthSpec -> SMTAST
 buildLIA_SMT sf =
-    buildSpec (:+) (:*) (.=.) (.=.) (:>) (:>=) Ite Ite
+    buildSpec (:+) (:*) Modulo (.=.) (.=.) (:>) (:>=) Ite Ite
               mkSMTAnd mkSMTAnd mkSMTOr mkSMTUnion mkSMTIntersection smtSingleton
               mkSMTIsSubsetOf (flip ArraySelect)
               (flip V SortInt) VInt (flip V SortBool) (flip V $ SortArray SortInt SortBool)
@@ -1331,7 +1356,7 @@ buildLIA_LH' si mv =
     let
         post_ars = allPostSpecArgs si
 
-        build ars = buildSpec ePlus eTimes
+        build ars = buildSpec ePlus eTimes eMod
                               bEq bIff bGt bGeq
                               eIte eIte id
                               pAnd pOr
@@ -1374,6 +1399,8 @@ buildLIA_LH' si mv =
         ePlus x (EBin LH.Times (ECon (I i)) y) | i < 0 = EBin LH.Minus x (EBin LH.Times (ECon (I $ - i)) y)
         ePlus (EBin LH.Times (ECon (I i)) x) y | i < 0 = EBin LH.Minus y (EBin LH.Times (ECon (I $ - i)) x)
         ePlus x y = EBin LH.Plus x y
+
+        eMod x y = EBin LH.Mod x y
 
         eIte PTrue x _ = x
         eIte PFalse _ y = y
@@ -1456,6 +1483,7 @@ buildLIA_LH' si mv =
 
 buildSpec :: Show b => Plus a
           -> Mult a
+          -> Mod a
           -> EqF a b
           -> EqF b b
           -> Gt a b
@@ -1478,9 +1506,11 @@ buildSpec :: Show b => Plus a
           -> VSet a
           -> EmptySet a
           -> UniversalSet a
+
           -> SynthSpec
+
           -> c
-buildSpec plus mult eq eq_bool gt geq ite ite_set mk_and_sp mk_and mk_or mk_union mk_intersection mk_sing is_subset is_member vint cint vbool vset cemptyset cunivset sf =
+buildSpec plus mult mod_op eq eq_bool gt geq ite ite_set mk_and_sp mk_and mk_or mk_union mk_intersection mk_sing is_subset is_member vint cint vbool vset cemptyset cunivset sf =
     let
         all_coeffs = sy_coeffs sf
         lin_ineqs = map (\(cl_act, cl) -> vbool cl_act:map toLinInEqs cl) all_coeffs
@@ -1494,18 +1524,25 @@ buildSpec plus mult eq eq_bool gt geq ite ite_set mk_and_sp mk_and mk_or mk_unio
         toLinInEqs (LIA { c_active = act
                         , c_op_branch1 = op_br1
                         , c_op_branch2 = op_br2
+                        , c_op_branch3 = op_br3
                         , b0 = b
                         , ars_coeffs = acs
-                        , rets_coeffs =  rcs }) =
+                        , rets_coeffs = rcs
+                        
+                        , ars_coeffs_rhs = acs_rhs
+                        , rets_coeffs_rhs = rcs_rhs }) =
             let
                 sm = lia_form acs rcs
+                sm_rhs = lia_form acs_rhs rcs_rhs
             in
             mk_and [vbool act, ite (vbool op_br1)
-                                  (sm `eq` vint b)
-                                  (ite (vbool op_br2) (sm `gt` vint b)
-                                               (sm `geq` vint b)
-                                  )
-                   ]
+                                    (sm `eq` vint b)
+                                    (ite (vbool op_br2) (sm `gt` vint b)
+                                                        -- (sm `geq` vint b)
+                                                        (ite (vbool op_br3) (sm `geq` vint b)
+                                                                            (sm `eq` plus (sm_rhs `mod_op` cint 2) (vint b)))
+                                    )
+                    ]
         toLinInEqs (Set { c_active = act
 
                         , int_sing_set_bools_lhs = int_sing_bools_lhs

@@ -43,13 +43,21 @@ data Forms = LIA { -- LIA formulas
 
                  , c_op_branch1 :: SMTName
                  , c_op_branch2 :: SMTName
+                 , c_op_branch3 :: SMTName
 
                  , b0 :: SMTName
+
+                 -- Argument and return value coefficients for the LHS of an operator.
                  , ars_coeffs :: [SMTName]
-                 , rets_coeffs :: [SMTName] }
+                 , rets_coeffs :: [SMTName]
+                 
+                 -- Argument and return value coefficients for the RHS of an operator- only used with mod.
+                 , ars_coeffs_rhs :: [SMTName]
+                 , rets_coeffs_rhs :: [SMTName] }
            | Set { c_active :: SMTName
                  , c_op_branch1 :: SMTName
                  , c_op_branch2 :: SMTName
+                 , c_op_branch3 :: SMTName
 
                  , int_sing_set_bools_lhs :: [[SMTName]]
                  , int_sing_set_bools_rhs :: [[SMTName]]
@@ -63,6 +71,7 @@ data Forms = LIA { -- LIA formulas
            | BoolForm { c_active :: SMTName
                       , c_op_branch1 :: SMTName
                       , c_op_branch2 :: SMTName
+                      , c_op_branch3 :: SMTName
 
                       , ars_bools :: [SMTName]
                       , rets_bools :: [SMTName]
@@ -72,12 +81,12 @@ data Forms = LIA { -- LIA formulas
                  deriving Show
 
 coeffs :: Forms -> [SMTName]
-coeffs cf@(LIA {}) = b0 cf:ars_coeffs cf ++ rets_coeffs cf
+coeffs cf@(LIA {}) = b0 cf:ars_coeffs cf ++ rets_coeffs cf ++ ars_coeffs_rhs cf ++ rets_coeffs_rhs cf
 coeffs (Set {}) = []
 coeffs cf@(BoolForm {}) = concatMap coeffs (forms cf)
 
 coeffsNoB :: Forms -> [SMTName]
-coeffsNoB cf@(LIA {}) = ars_coeffs cf ++ rets_coeffs cf
+coeffsNoB cf@(LIA {}) = ars_coeffs cf ++ rets_coeffs cf  ++ ars_coeffs_rhs cf ++ rets_coeffs_rhs cf
 coeffsNoB (Set {}) = []
 coeffsNoB cf@(BoolForm {}) = concatMap coeffsNoB (forms cf)
 
