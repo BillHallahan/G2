@@ -94,12 +94,12 @@ liaSynthOfSize sz m_si = do
                         s_syn_pre' =
                             map (mapPB
                                     (\psi ->
-                                        psi { sy_coeffs = mkCNF (>= 1) sz (fromInteger max_form_sz) (sy_name psi) psi }
+                                        psi { sy_coeffs = mkCNF (>= 1) (use_mod inf_c) sz (fromInteger max_form_sz) (sy_name psi) psi }
                                     )
                                  ) (s_syn_pre si)
                         s_syn_post' =
                             mapPB (\psi -> 
-                                        psi { sy_coeffs = mkCNF (>= 1) sz (fromInteger max_form_sz) (sy_name psi) psi }
+                                        psi { sy_coeffs = mkCNF (>= 1) (use_mod inf_c) sz (fromInteger max_form_sz) (sy_name psi) psi }
                                   ) (s_syn_post si)
                     in
                     si { s_syn_pre = s_syn_pre' -- (s_syn_pre si) { sy_coeffs = pre_c }
@@ -108,15 +108,15 @@ liaSynthOfSize sz m_si = do
     return m_si'
     where
 
-mkCNF :: (Int -> Bool) -> Integer -> Int -> String -> SynthSpec -> CNF
-mkCNF prd sz ms s psi_ =
+mkCNF :: (Int -> Bool) -> UseMod -> Integer -> Int -> String -> SynthSpec -> CNF
+mkCNF prd use_md sz ms s psi_ =
     (if length (set_sy_args psi_) + length (set_sy_rets psi_) == 0
         then
           [ 
               (
                   s ++ "_c_coeff_act_" ++ show j
               ,
-                   [ mkCoeffs prd s psi_ j k | k <- [1..sz] ] -- Ors
+                   [ mkCoeffs prd use_md s psi_ j k | k <- [1..sz] ] -- Ors
               )
           | j <-  [1..sz] ] -- Ands
         else [])
@@ -144,8 +144,8 @@ mkCNF prd sz ms s psi_ =
         else [])
 
 
-mkCoeffs :: (Int -> Bool) -> String -> SynthSpec -> Integer -> Integer -> Forms
-mkCoeffs prd s psi j k =
+mkCoeffs :: (Int -> Bool) -> UseMod -> String -> SynthSpec -> Integer -> Integer -> Forms
+mkCoeffs prd use_md s psi j k =
     let
         ars = length (int_sy_args psi)
         rets = length (int_sy_rets psi)
@@ -182,6 +182,8 @@ mkCoeffs prd s psi j k =
         , rets_coeffs_rhs = 
             [ s ++ "_rhs_r_c_" ++ show j ++ "_t_" ++ show k ++ "_a_" ++ show a ++ "_rhs"
             | a <- [1..rets]]
+
+        , allow_mod = use_md
         }
 
 mkSetForms :: (Int -> Bool) -> Int -> String -> SynthSpec -> Integer -> Integer -> Forms
@@ -277,7 +279,7 @@ mkBoolForms prd sz max_sz s psi j k =
 
         , forms = concat
                 . map snd
-                $ mkCNF (const True) sz max_sz (s ++ "_bool_" ++ show j ++ "_t_" ++ show k ++ "_" )
+                $ mkCNF (const True) NoMod sz max_sz (s ++ "_bool_" ++ show j ++ "_t_" ++ show k ++ "_" )
                         (psi { sy_args = filter (not . isBool . smt_sort) (sy_args psi)
                              , sy_rets = filter (not . isBool . smt_sort) (sy_rets psi) })
         }
@@ -1530,18 +1532,21 @@ buildSpec plus mult mod_op eq eq_bool gt geq ite ite_set mk_and_sp mk_and mk_or 
                         , rets_coeffs = rcs
                         
                         , ars_coeffs_rhs = acs_rhs
-                        , rets_coeffs_rhs = rcs_rhs }) =
+                        , rets_coeffs_rhs = rcs_rhs
+                        
+                        , allow_mod = al_mod }) =
             let
                 sm = lia_form acs rcs
                 sm_rhs = lia_form acs_rhs rcs_rhs
+
+                end_eq = if al_mod == UseMod
+                            then ite (vbool op_br3) (sm `geq` vint b)
+                                                (sm `eq` plus (sm_rhs `mod_op` cint 2) (vint b))
+                            else sm `geq` vint b
             in
             mk_and [vbool act, ite (vbool op_br1)
                                     (sm `eq` vint b)
-                                    (ite (vbool op_br2) (sm `gt` vint b)
-                                                        -- (sm `geq` vint b)
-                                                        (ite (vbool op_br3) (sm `geq` vint b)
-                                                                            (sm `eq` plus (sm_rhs `mod_op` cint 2) (vint b)))
-                                    )
+                                    (ite (vbool op_br2) (sm `gt` vint b) end_eq)
                     ]
         toLinInEqs (Set { c_active = act
 

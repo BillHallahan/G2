@@ -37,7 +37,6 @@ type ToBeNames = [Name]
 -- A list of functions to synthesize a the current level
 type ToSynthNames = [Name]
 
-
 data Forms = LIA { -- LIA formulas
                    c_active :: SMTName
 
@@ -53,7 +52,9 @@ data Forms = LIA { -- LIA formulas
                  
                  -- Argument and return value coefficients for the RHS of an operator- only used with mod.
                  , ars_coeffs_rhs :: [SMTName]
-                 , rets_coeffs_rhs :: [SMTName] }
+                 , rets_coeffs_rhs :: [SMTName]
+                 
+                 , allow_mod :: UseMod }
            | Set { c_active :: SMTName
                  , c_op_branch1 :: SMTName
                  , c_op_branch2 :: SMTName

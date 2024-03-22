@@ -16,6 +16,8 @@ module G2.Liquid.Inference.Config (
                                   , InfConfig (..)
                                   , runConfigs
 
+                                  , UseMod (..)
+
                                   , getAllConfigsForInf
                                   , mkInferenceConfig
                                   , mkInferenceConfigDirect
@@ -29,9 +31,11 @@ import G2.Initialization.Types
 import G2.Language ( ExprEnv
                    , Expr
                    , Name (..)
-                   , Type (..))
+                   , Type (..)
+                   , idName)
 import qualified G2.Language.ExprEnv as E
 import qualified G2.Language.Support as S
+import G2.Language.Expr
 import G2.Language.Typing
 import G2.Liquid.Config
 import G2.Liquid.Conversion
@@ -47,6 +51,7 @@ import G2.Liquid.Types (GhcInfo (..), GhcSpec (..))
 import Language.Haskell.Liquid.Types (GhcInfo (..), GhcSpec (..))
 #endif
 import qualified Language.Haskell.Liquid.Types as LH
+import qualified Language.Fixpoint.Types.Refinements as Ref
 
 #if MIN_VERSION_GLASGOW_HASKELL(9,0,2,0)
 import GHC.Types.Var as V
@@ -243,6 +248,7 @@ instance InfConfigM m => InfConfigM (StateT env m) where
     lhConfigM = lift lhConfigM
     infConfigM = lift infConfigM
 
+data UseMod = UseMod | NoMod deriving (Eq, Show)
 
 data InferenceConfig =
     InferenceConfig { keep_quals :: Bool
@@ -263,7 +269,9 @@ data InferenceConfig =
                     , use_binary_minimization :: Bool -- ^ In parallel to the SMT's solvers minimization support,
                                                       --   use a binary search to minimize synthesis solutions
 
-                    , use_invs :: Bool
+                    , use_invs :: Bool -- ^ Use invariant mode for benchmarking
+
+                    , use_mod :: UseMod -- ^ Whether to consider use of the `mod` operator
                    
                     , timeout_se :: NominalDiffTime
                     , timeout_sygus :: NominalDiffTime }
@@ -307,6 +315,7 @@ mkInferenceConfig = InferenceConfig
     <*> flag True False (long "no-negated-models" <> help "do not use negated models")
     <*> flag True False (long "no-binary-min" <> help "use binary minimization during synthesis")
     <*> switch (long "use-invs" <> help "use invariant mode (benchmarking only)")
+    <*> pure NoMod
     <*> option (maybeReader (Just . fromInteger . read)) (long "timeout-se"
                    <> metavar "T"
                    <> value 5
@@ -338,11 +347,12 @@ mkInferenceConfigDirect as =
                     , use_negated_models = boolArg "use-negated-models" as M.empty On
                     , use_binary_minimization = True
                     , use_invs = boolArg "use-invs" as M.empty Off
+                    , use_mod = NoMod
                     , timeout_se = strArg "timeout-se" as M.empty (fromInteger . read) 5
                     , timeout_sygus = strArg "timeout-sygus" as M.empty (fromInteger . read) 10 }
 
 adjustConfig :: Maybe T.Text -> SimpleState -> Config -> LHConfig -> InferenceConfig -> [GhcInfo] -> (Config, LHConfig, InferenceConfig)
-adjustConfig main_mod (SimpleState { expr_env = eenv }) config lhconfig infconfig ghci =
+adjustConfig main_mod s@(SimpleState { expr_env = eenv }) config lhconfig infconfig ghci =
     let
         -- ref = refinable main_mod meas tcv eenv
 
@@ -371,8 +381,47 @@ adjustConfig main_mod (SimpleState { expr_env = eenv }) config lhconfig infconfi
 
         infconfig' = infconfig { modules = S.singleton main_mod
                                , pre_refined = pre }
+
+        infconfig'' = determineUseMod main_mod s ghci infconfig'
     in
-    (config, lhconfig', infconfig')
+    (config, lhconfig', infconfig'')
+
+-- | Determine whether to consider the mod operator when synthesizing code.
+-- We synthesize specifications with mod if some existing relevant specification uses mod.
+determineUseMod :: Maybe T.Text -> SimpleState -> [GhcInfo] -> InferenceConfig -> InferenceConfig
+determineUseMod main_mod s ghci infconfig =
+    let
+        vs = map (\(Name n m _ _) -> (n, m))
+           . map idName
+           . varIds
+           . E.filterWithKey (\(Name _ m _ _) _ -> m == main_mod)
+           $ expr_env s
+        rel_specs = filter (\(Name n m _ _, _) -> (n, m) `elem` vs)
+                  . map (\(n, sp) -> (mkName $ V.varName n, sp))
+                  $ concatMap getTySigs ghci
+    in
+    infconfig { use_mod = if any (hasMod . LH.val . snd) rel_specs then UseMod else NoMod }
+
+hasMod :: LH.SpecType -> Bool
+hasMod = LH.foldRType (\b rtype -> b || chRty rtype) False
+    where
+        chRty (LH.RVar { LH.rt_reft = ref }) = chExpr (Ref.expr $ LH.ur_reft ref)
+        chRty (LH.RApp { LH.rt_reft = ref }) = chExpr (Ref.expr $ LH.ur_reft ref)
+        chRty _ = False
+
+        chExpr (Ref.EApp e1 e2) = chExpr e1 || chExpr e2
+        chExpr (Ref.ENeg e) = chExpr e
+        chExpr (Ref.EBin Ref.Mod _ _) = True
+        chExpr (Ref.EBin _ e1 e2) = chExpr e1 || chExpr e2
+        chExpr (Ref.EIte b e1 e2) = chExpr b || chExpr e1 || chExpr e2
+        chExpr (Ref.ECst e _) = chExpr e
+        chExpr (Ref.PAnd es) = any chExpr es
+        chExpr (Ref.POr es) = any chExpr es
+        chExpr (Ref.PNot e) = chExpr e
+        chExpr (Ref.PImp e1 e2) = chExpr e1 || chExpr e2
+        chExpr (Ref.PIff e1 e2) = chExpr e1 || chExpr e2
+        chExpr (Ref.PAtom _ e1 e2) = chExpr e1 || chExpr e2
+        chExpr _ = False
 
 adjustConfigPostLH :: Maybe T.Text -> Measures -> TCValues -> S.State t -> [GhcInfo] -> LHConfig -> LHConfig
 adjustConfigPostLH main_mod meas tcv (S.State { S.expr_env = eenv, S.known_values = kv }) ghci lhconfig =
