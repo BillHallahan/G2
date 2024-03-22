@@ -74,27 +74,26 @@ mkMainExprNoInstantiateTypes :: Expr -> NameGen -> (Expr, [Id], [Expr], NameGen)
 mkMainExprNoInstantiateTypes e ng = 
     let 
         argts = spArgumentTypes e
-        -- filtering nametype and anontype
         anontype argt = 
             case argt of 
                 AnonType _ -> True
                 _ -> False
         (ats,nts) = partition anontype argts 
-        -- rename id in nametype and return the ids from the nametype as symbolic variable 
+        -- use the rename ids from the nametype as symbolic variable 
         nnames (NamedType (Id n _)) = n 
         ns = map nnames nts
         (ns', ng') = renameAll ns ng
-        -- name type map with all the renames
+
         ntmap = HM.fromList $ zip ns ns' 
-        -- getting the id from name type now and return them as symbolic variable
+        -- return id from nametype as symbolic variable
         idfromNameType (NamedType i) = i 
         ntids = map idfromNameType nts
         ntids' = renames ntmap ntids
-       --  annontype implementation:
+
         ats' = map argTypeToType ats
         (atsToIds,ng'') = freshIds ats' ng'
         atsToIds' = renames ntmap atsToIds
-      -- creating full list of symoblic ids and applying it to the expr
+        
         all_ids = ntids' ++ atsToIds'
         var_id  = Var 
         app_ex = foldl' App e $ map var_id all_ids
