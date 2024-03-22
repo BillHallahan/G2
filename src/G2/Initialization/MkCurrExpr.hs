@@ -6,6 +6,7 @@ module G2.Initialization.MkCurrExpr ( mkCurrExpr
                                     , instantiateArgTypes ) where
 
 import G2.Config
+
 import G2.Language
 import qualified G2.Language.ExprEnv as E
 
@@ -32,7 +33,10 @@ mkCurrExpr m_assume m_assert f@(Id (Name _ m_mod _ _) _) tc ng eenv _ walkers kv
                 -- -- We refind the type of f, because type synonyms get replaced during the initializaton,
                 -- -- after we first got the type of f.
                 -- app_ex = foldl' App var_ex $ typsE ++ var_ids
-                (app_ex, is, typsE, ng') = mkmainExprNoInstantiateTypes var_ex ng
+                (app_ex, is, typsE, ng') =
+                    if  instTV config == InstBefore
+                        then  mkMainExpr tc kv ng var_ex
+                        else  mkMainExprNoInstantiateTypes var_ex ng
                 var_ids = map Var is
 
                 -- strict_app_ex = app_ex
@@ -67,8 +71,8 @@ mkMainExpr tc kv ng ex =
 
 -- | This implementation aims to symbolically execute function 
 -- functions treating both types and value level argument as symbolic
-mkmainExprNoInstantiateTypes :: Expr -> NameGen -> (Expr, [Id], [Expr], NameGen)
-mkmainExprNoInstantiateTypes e ng = 
+mkMainExprNoInstantiateTypes :: Expr -> NameGen -> (Expr, [Id], [Expr], NameGen)
+mkMainExprNoInstantiateTypes e ng = 
     let 
         argts = spArgumentTypes e
         -- filtering nametype and anontype
