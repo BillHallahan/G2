@@ -46,7 +46,7 @@ instType ng st =
         is = tyVarIds $ curr_expr st
         (ng', st') = L.foldl' instType' (ng, st) is
     in
-    trace ("curr_expr = " ++ show (curr_expr st')) (ng', st')
+    (ng', st')
 
 -- Introducing a new type for a type variable and substituting the variable in the curr_expr
 instType' :: ASTContainer t Type => (NameGen, State t) -> Id -> (NameGen, State t)
@@ -59,4 +59,4 @@ instType' (ng, st) i =
                  ,type_env = te}
         st'' = replaceTyVar n t st'
     in
-    trace ("i = " ++ show i ++ "\nt = " ++ show t) (ng',st'')
+    (ng',st'')
