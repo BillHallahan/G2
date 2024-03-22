@@ -101,7 +101,7 @@ symGenIfZero' e eenv tenv kv tc ng =
         e' = mkLams ars
                 $ Case eq i ret_t
                     [ Alt Default (mkApp (e:map (Var . snd) ars))
-                    , Alt (DataAlt trueDC []) (SymGen ret_t)]
+                    , Alt (DataAlt trueDC []) (SymGen SNoLog ret_t)]
     in
     (e', ng'')
 

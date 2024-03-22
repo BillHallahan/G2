@@ -189,7 +189,8 @@ mkExprHaskell' off_init cleaned pg ex = mkExprHaskell'' off_init ex
                 print_es = map (mkExprHaskell'' off) es
             in
             T.intercalate ("\n" <> offset off <> "[NonDet]\n") print_es 
-        mkExprHaskell'' _ (SymGen t) = "(symgen " <> mkTypeHaskellPG pg t <> ")"
+        mkExprHaskell'' _ (SymGen SLog t) = "(symgen log " <> mkTypeHaskellPG pg t <> ")"
+        mkExprHaskell'' _ (SymGen SNoLog t) = "(symgen no_log " <> mkTypeHaskellPG pg t <> ")"
         mkExprHaskell'' _ e = "e = " <> T.pack (show e) <> " NOT SUPPORTED"
 
         parenWrap :: Expr -> T.Text -> T.Text
@@ -360,10 +361,14 @@ mkPrimHaskell RationalToDouble = "fromRational"
 mkPrimHaskell FromInteger = "fromInteger"
 mkPrimHaskell ToInteger = "toInteger"
 
+mkPrimHaskell StrLen = "StrLen"
+mkPrimHaskell StrAppend = "StrAppend"
 mkPrimHaskell Chr = "chr"
 mkPrimHaskell OrdChar = "ord"
 
 mkPrimHaskell WGenCat = "wgencat"
+
+mkPrimHaskell IntToString = "intToString"
 
 mkPrimHaskell ToInt = "toInt"
 
@@ -400,6 +405,7 @@ duplicate s n = s <> duplicate s (n - 1)
 
 printTickish :: PrettyGuide -> Tickish -> T.Text
 printTickish _ (Breakpoint sp) = printLoc (start sp) <> " - " <> printLoc (end sp)
+printTickish _ (HpcTick i m) = "(hpc " <> T.pack (show i) <> " " <> m <> ")" 
 printTickish pg (NamedLoc n) = mkNameHaskell pg n
 
 printLoc :: Loc -> T.Text

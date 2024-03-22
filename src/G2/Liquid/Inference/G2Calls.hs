@@ -74,6 +74,7 @@ import qualified Data.HashMap.Lazy as HM
 import Data.List
 import qualified Data.Map as M
 import Data.Maybe
+import qualified Data.Sequence as S
 import qualified Data.Text as T
 import Data.Tuple.Extra
 
@@ -149,7 +150,7 @@ instance Solver solver => Solver (SpreadOutSolver solver) where
                     => Config
                     -> SomeReducer (SM.StateT PrettyGuide IO) LHTracker
                     -> SomeHalter (SM.StateT PrettyGuide IO) LHTracker
-                    -> SomeOrderer LHTracker
+                    -> SomeOrderer (SM.StateT PrettyGuide IO) LHTracker
                     -> solver
                     -> simplifier
                     -> MemConfig
@@ -162,7 +163,7 @@ runLHG2Inference :: (MonadIO m, Solver solver, Simplifier simplifier)
                  => Config
                  -> SomeReducer m LHTracker
                  -> SomeHalter m LHTracker
-                 -> SomeOrderer LHTracker
+                 -> SomeOrderer m LHTracker
                  -> solver
                  -> simplifier
                  -> MemConfig
@@ -266,7 +267,7 @@ runG2SolvingInference solver simplifier bindings (ExecRes { final_state = s }) =
                 _ -> error "runG2SolvingInference: solving failed with no minimization"
 
 earlyExecRes :: Bindings -> State t -> ExecRes t
-earlyExecRes b s@(State { expr_env = eenv, curr_expr = CurrExpr _ cexpr }) =
+earlyExecRes b s@(State { expr_env = eenv, curr_expr = CurrExpr _ cexpr, sym_gens = gens }) =
     let
         viol = assert_ids s
         viol' = if fmap funcName viol == Just initiallyCalledFuncName
@@ -276,6 +277,7 @@ earlyExecRes b s@(State { expr_env = eenv, curr_expr = CurrExpr _ cexpr }) =
     ExecRes { final_state = s
             , conc_args = fixed_inputs b ++ mapMaybe getArg (input_names b)
             , conc_out = cexpr
+            , conc_sym_gens = fmap fromJust . S.filter isJust $ fmap getArg gens
             , violated = viol' }
     where
         getArg n = case E.lookup n eenv of
@@ -401,7 +403,7 @@ gatherReducerHalterOrderer :: (MonadIO m, Solver solver, Simplifier simplifier)
                            -> simplifier
                            -> IO ( SomeReducer (SM.StateT PrettyGuide m) [FuncCall]
                                  , SomeHalter (SM.StateT PrettyGuide m) [FuncCall]
-                                 , SomeOrderer [FuncCall])
+                                 , SomeOrderer (SM.StateT PrettyGuide m) [FuncCall])
 gatherReducerHalterOrderer infconfig config lhconfig solver simplifier = do
     let
         share = sharing config
@@ -511,7 +513,7 @@ inferenceReducerHalterOrderer :: (MonadIO m, MonadIO m_run, Solver solver, Simpl
                               -> State LHTracker
                               -> InfStack m ( SomeReducer (SM.StateT PrettyGuide m_run) LHTracker
                                             , SomeHalter  (SM.StateT PrettyGuide m_run) LHTracker
-                                            , SomeOrderer LHTracker)
+                                            , SomeOrderer (SM.StateT PrettyGuide m_run) LHTracker)
 inferenceReducerHalterOrderer infconfig config lhconfig solver simplifier entry mb_modname cfn st = do
     extra_ce <- extraMaxCExI (entry, mb_modname)
     extra_time <- extraMaxTimeI (entry, mb_modname)
@@ -603,7 +605,7 @@ realCExReducerHalterOrderer :: (MonadIO m, MonadIO m_run, Solver solver, Simplif
                             -> Name
                             -> InfStack m ( SomeReducer (SM.StateT PrettyGuide m_run) LHTracker
                                           , SomeHalter (SM.StateT PrettyGuide m_run) LHTracker
-                                          , SomeOrderer LHTracker)
+                                          , SomeOrderer (SM.StateT PrettyGuide m_run) LHTracker)
 realCExReducerHalterOrderer infconfig config lhconfig entry modname solver simplifier  cfn = do
     extra_ce <- extraMaxCExI (entry, modname)
     extra_depth <- extraMaxDepthI
@@ -663,7 +665,7 @@ swapForSG i eenv =
 
         sg_i = Id (Name "sym_gen" Nothing 0 Nothing) r
     in
-    E.insert (idName i) (Let [(sg_i, SymGen r)] $ mkLams as (Var sg_i)) eenv
+    E.insert (idName i) (Let [(sg_i, SymGen SNoLog r)] $ mkLams as (Var sg_i)) eenv
 
 -------------------------------
 -- Checking Counterexamples

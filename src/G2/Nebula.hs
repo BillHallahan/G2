@@ -53,7 +53,7 @@ nebulaPluginPass' m_entry nebula_config env modguts = do
     -- We want simpl to be False so the simplifier does not run, because
     -- this plugin get's inserted into the simplifier.  Thus, running the implifier
     -- results in an infinite loop.
-    let tconfig = (TranslationConfig {simpl = False, load_rewrite_rules = True})
+    let tconfig = (simplTranslationConfig {simpl = False, load_rewrite_rules = True, hpc_ticks = False})
         ems = EnvModSumModGuts env [] [modguts]
 
     prev_comp <- readIORef compiledModules

@@ -7,9 +7,11 @@ import G2.Translation.GHC (GeneralFlag(Opt_Hpc))
 import System.Environment
 import System.FilePath
 
+import Data.Foldable (toList)
 import qualified Data.Map as M
 import Data.Maybe
 import Data.Monoid ((<>))
+import qualified Data.Sequence as S
 import qualified Data.Text as T
 import qualified Data.Text.IO as T
 
@@ -65,8 +67,11 @@ printFuncCalls config entry b =
                      . foldl (\a a' -> App a a') (Var entry) $ (conc_args execr)
 
         let funcOut = printHaskellPG pg s $ (conc_out execr)
+            sym_gen_out = fmap (printHaskellPG pg s) $ conc_sym_gens execr
 
-        T.putStrLn $ funcCall <> " = " <> funcOut)
+        case sym_gen_out of
+            S.Empty -> T.putStrLn $ funcCall <> " = " <> funcOut
+            _ -> T.putStrLn $ funcCall <> " = " <> funcOut <> "\t| generated: " <> T.intercalate ", " (toList sym_gen_out))
 
 ppStatePiece :: Bool -> String -> String -> IO ()
 ppStatePiece b n res =

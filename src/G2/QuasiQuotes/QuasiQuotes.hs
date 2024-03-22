@@ -36,6 +36,7 @@ import qualified Data.HashMap.Lazy as HM
 import Data.List
 import qualified Data.Map as M
 import Data.Maybe
+import qualified Data.Sequence as Seq
 import Data.IORef
 import qualified Data.Text as T
 
@@ -201,7 +202,7 @@ parseHaskellIO mods qext = do
                 config <- qqConfig
 
                 translateLoaded projs [filepath]
-                    simplTranslationConfig
+                    (simplTranslationConfig { interpreter = True })
                     config)
     return exG2
     where
@@ -270,7 +271,7 @@ moduleName = "THTemp"
 functionName :: String
 functionName = "g2Expr"
 
-qqRedHaltOrd :: (MonadIO m, Solver solver, Simplifier simplifier) => Config -> solver -> simplifier -> (SomeReducer m (), SomeHalter m (), SomeOrderer ())
+qqRedHaltOrd :: (MonadIO m, Solver solver, Simplifier simplifier) => Config -> solver -> simplifier -> (SomeReducer m (), SomeHalter m (), SomeOrderer m ())
 qqRedHaltOrd config solver simplifier =
     let
         share = sharing config
@@ -331,6 +332,7 @@ moveOutStatePieces tenv_name s = do
              , rules = $(rules_exp)
              , num_steps = $(num_steps_exp)
              , tags = $(tags_exp) 
+             , sym_gens = Seq.empty
              , track = $(track_exp) } |]
 
 -- Returns an Q Exp represeting a [(Name, Expr)] list

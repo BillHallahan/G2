@@ -39,7 +39,7 @@ type G2Call solver simplifier =
                  , Named t
                  , ASTContainer t Expr
                  , ASTContainer t Type) =>
-        SomeReducer m t -> SomeHalter m t -> SomeOrderer t -> solver -> simplifier -> MemConfig -> State t -> Bindings -> m ([ExecRes t], Bindings)
+        SomeReducer m t -> SomeHalter m t -> SomeOrderer m t -> solver -> simplifier -> MemConfig -> State t -> Bindings -> m ([ExecRes t], Bindings)
 
 -------------------------------
 -- Check Abstracted
@@ -507,14 +507,14 @@ elimSymGens arb s = s { expr_env = E.map esg $ expr_env s }
             else e
 
 elimSymGens' :: TypeEnv -> ArbValueGen -> Expr -> Expr
-elimSymGens' tenv arb (SymGen t) = fst $ arbValue t tenv arb
+elimSymGens' tenv arb (SymGen _ t) = fst $ arbValue t tenv arb
 elimSymGens' _ _ e = e
 
 hasSymGen :: Expr -> Bool
 hasSymGen = getAny . eval hasSymGen'
 
 hasSymGen' :: Expr -> Any
-hasSymGen' (SymGen _) = Any True
+hasSymGen' (SymGen _ _) = Any True
 hasSymGen' _ = Any False
 
 -------------------------------
