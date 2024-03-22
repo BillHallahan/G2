@@ -2,7 +2,7 @@
 -- see http://haskell.org/cabal/users-guide/
 
 name:                g2
-version:             0.1.0.2
+version:             0.2.0.0
 synopsis:            Haskell symbolic execution engine.
 description:         A Haskell symbolic execution engine.
                      
@@ -10,7 +10,7 @@ description:         A Haskell symbolic execution engine.
 License:             BSD3
 License-file:        LICENSE
 author:              William Hallahan, Anton Xue
-maintainer:          william.hallahan@yale.edu
+maintainer:          whallahan@binghamton.edu
 -- copyright:           
 category:            Formal Methods, Symbolic Computation
 build-type:          Simple
@@ -198,7 +198,7 @@ library
                        , bimap == 0.3.3
                        , bytestring >= 0.10.8.0 && < 0.11.5
                        , clock >= 0.8 && < 0.9
-                       , concurrent-extra >= 0.7
+                       , concurrent-extra >= 0.7 && < 0.8
                        , containers >= 0.5 && < 0.7
                        , directory >= 1.3.0.2 && <= 1.3.8.1
                        , extra >= 1.6.14 && < 1.7.13
@@ -223,7 +223,7 @@ library
                        , template-haskell >= 2.12.0.0 && <= 2.20.0.0
                        , temporary-rc >= 1.2 && < 1.3
                        , text >= 1.2.3.1 && <= 2.1
-                       , text-builder >= 0.6.6.1
+                       , text-builder >= 0.6.6.1 && < 0.7
                        , time >= 1.6 && <= 1.13
                        , unordered-containers >= 0.2.10.0 && < 0.3
                        
@@ -246,7 +246,7 @@ library
                        -- -ddump-rule-rewrites
                        -- -ddump-splices
                        -- -fexternal-interpreter
-  ghc-prof-options:    -fprof-auto
+  -- ghc-prof-options:    -fprof-auto
   other-extensions:    CPP
   if flag(support-lh) && impl(ghc < 9)
     cpp-options: -DSUPPORT_LH
@@ -266,7 +266,7 @@ executable G2
   default-language:    Haskell2010
   ghc-options:         -threaded -Wall
                        -- -fexternal-interpreter -opti+RTS -opti-p
-  ghc-prof-options:    -fprof-auto "-with-rtsopts=-p"
+  -- ghc-prof-options:    -fprof-auto "-with-rtsopts=-p"
   hs-source-dirs:      exe
   main-is:             Main.hs
 
@@ -288,7 +288,7 @@ executable G2LH
   ghc-options:         -threaded -Wall
                        -- -fprof-auto "-with-rtsopts=-p"
                        -- -fexternal-interpreter -opti+RTS -opti-p
-  ghc-prof-options:    -fprof-auto "-with-rtsopts=-p"
+  -- ghc-prof-options:    -fprof-auto "-with-rtsopts=-p"
   hs-source-dirs:      lh
   main-is:             Main.hs
 
@@ -310,7 +310,7 @@ executable Inference
   default-language:    Haskell2010
   ghc-options:         -threaded -Wall
                        -- -O1
-  ghc-prof-options:    -fprof-auto "-with-rtsopts=-p"
+  -- ghc-prof-options:    -fprof-auto "-with-rtsopts=-p"
   hs-source-dirs:      inference
   main-is:             Main.hs
 
@@ -326,7 +326,7 @@ executable Nebula
                        , unordered-containers >= 0.2 && < 0.3
   default-language:    Haskell2010
   ghc-options:         -threaded -Wall
-  ghc-prof-options:    -fprof-auto "-with-rtsopts=-p"
+  -- ghc-prof-options:    -fprof-auto "-with-rtsopts=-p"
   hs-source-dirs:      nebula
   main-is:             Main.hs
 
@@ -365,7 +365,7 @@ test-suite test
                        , RewriteVerify.RewriteVerifyTest
   ghc-options:         -Wall
                        -threaded
-  ghc-prof-options:    -fprof-auto "-with-rtsopts=-p"
+  -- ghc-prof-options:    -fprof-auto "-with-rtsopts=-p"
   type:                exitcode-stdio-1.0
 
 test-suite test-lh
@@ -399,7 +399,7 @@ test-suite test-lh
                        , UnionPoly
   ghc-options:         -Wall
                        -threaded
-  ghc-prof-options:    -fprof-auto "-with-rtsopts=-p"
+  -- ghc-prof-options:    -fprof-auto "-with-rtsopts=-p"
   type:                exitcode-stdio-1.0
 
 test-suite test-g2q
@@ -430,7 +430,7 @@ test-suite test-g2q
                        , Simple.SimpleTest1
   ghc-options:         -Wall
                        -threaded
-  ghc-prof-options:    -fprof-auto "-with-rtsopts=-p"
+  -- ghc-prof-options:    -fprof-auto "-with-rtsopts=-p"
   type:                exitcode-stdio-1.0
 
 test-suite test-nebula-plugin
@@ -444,5 +444,5 @@ test-suite test-nebula-plugin
   -- other-modules:         
   ghc-options:         -Wall
                        -threaded
-  ghc-prof-options:    -fprof-auto "-with-rtsopts=-p"
+  -- ghc-prof-options:    -fprof-auto "-with-rtsopts=-p"
   type:                exitcode-stdio-1.0
