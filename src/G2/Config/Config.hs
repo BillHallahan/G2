@@ -28,7 +28,7 @@ import qualified Data.Map as M
 import Data.Monoid ((<>))
 import Options.Applicative
 import Text.Read
-import GHC.Tc.Utils.Instantiate (tcInstType)
+
 
 data Mode = Regular | Liquid deriving (Eq, Show, Read)
 
