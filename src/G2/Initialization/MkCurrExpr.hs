@@ -6,7 +6,6 @@ module G2.Initialization.MkCurrExpr ( mkCurrExpr
                                     , instantiateArgTypes ) where
 
 import G2.Config
-
 import G2.Language
 import qualified G2.Language.ExprEnv as E
 
