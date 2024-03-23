@@ -102,7 +102,7 @@ mkConfig homedir = Config Regular
                    <> value 600
                    <> help "time limit, in seconds")
     <*> switch (long "validate" <> help "use GHC to automatically compile and run on generated inputs, and check that generated outputs are correct")
-    <*> flag Nrpc NoNrpc (long "no-nrpc" <> help "execute without non reduced path constraints")
+    <*> flag NoNrpc Nrpc (long "nrpc" <> help "execute with non reduced path constraints")
 
 mkBaseInclude :: String -> Parser [IncludePath]
 mkBaseInclude homedir =
@@ -207,7 +207,7 @@ mkConfigDirect homedir as m = Config {
     , strict = boolArg "strict" as m On
     , timeLimit = strArg "time" as m read 300
     , validate  = boolArg "validate" as m Off
-    , nrpc = Nrpc
+    , nrpc = NoNrpc
 }
 
 baseIncludeDef :: FilePath -> [FilePath]
