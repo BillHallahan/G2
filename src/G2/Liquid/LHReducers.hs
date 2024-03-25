@@ -238,8 +238,8 @@ allMin f xs =
 
 -- | Halt if we abstract more calls than some other already accepted state
 {-# INLINE lhAbsHalter #-}
-lhAbsHalter :: Monad m => T.Text -> Maybe T.Text -> ExprEnv -> Halter m Int LHTracker
-lhAbsHalter entry modn eenv = mkSimpleHalter initial update stop step
+lhAbsHalter :: Monad m => Maybe Int -> T.Text -> Maybe T.Text -> ExprEnv -> Halter m Int LHTracker
+lhAbsHalter max_cf entry modn eenv = mkSimpleHalter initial update stop step
     where
         initial _ =
             let 
@@ -249,7 +249,7 @@ lhAbsHalter entry modn eenv = mkSimpleHalter initial update stop step
                 
                 init_tr = initialTrack eenv fe
             in
-            init_tr
+            fromMaybe init_tr max_cf
 
         update ii (Processed {accepted = acc}) _ =
             minimum $ ii:mapMaybe (\s -> case true_assert s of

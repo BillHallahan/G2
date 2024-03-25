@@ -1,5 +1,5 @@
 {-# LANGUAGE CPP #-}
-{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE LambdaCase, MultiParamTypeClasses #-}
 {-# LANGUAGE OverloadedStrings #-}
 
 module G2.Liquid.Inference.Config (
@@ -81,6 +81,7 @@ data Progress =
     Progress { ex_max_ce :: M.Map (T.Text, Maybe T.Text) Int -- ^ Gives an extra budget for maximum ce number
              , ex_max_depth :: Int -- ^ Gives an extra budget for the depth limit
              , ex_max_time :: M.Map (T.Text, Maybe T.Text) NominalDiffTime -- ^ Gives an extra max bufget for time
+             , max_counterfact_branch :: M.Map (T.Text, Maybe T.Text) Int -- ^ Maximal number of counterfactual branches
              , max_synth_form_size :: MaxSize
              , max_synth_coeff_size :: MaxSize
              , synth_fresh :: Int -- ^ An int to increment to get fresh names
@@ -90,6 +91,7 @@ newProgress :: Progress
 newProgress = Progress { ex_max_ce = M.empty
                        , ex_max_depth = 0
                        , ex_max_time = M.empty
+                       , max_counterfact_branch = M.empty
                        , max_synth_form_size = MaxSize 1
                        , max_synth_coeff_size = MaxSize 2
                        , synth_fresh = 0 }
@@ -103,6 +105,10 @@ class Progresser p where
 
     extraMaxTime :: (T.Text, Maybe T.Text) -> p -> NominalDiffTime
     incrMaxTime :: (T.Text, Maybe T.Text) -> p -> p
+
+    maxCF :: (T.Text, Maybe T.Text) -> p -> Int
+    incrMaxCF :: (T.Text, Maybe T.Text) -> p -> p
+
 
     maxSynthFormSize :: p -> MaxSize
     incrMaxSynthFormSize :: p -> p
@@ -126,6 +132,9 @@ instance Progresser Progress where
     incrMaxTime n p@(Progress { ex_max_time = m }) =
         p { ex_max_time = M.insertWith (+) n 4 m }
 
+    maxCF n (Progress { max_counterfact_branch = m }) = M.findWithDefault 1 n m
+    incrMaxCF n p@(Progress { max_counterfact_branch = m }) = p { max_counterfact_branch = M.alter (\case Just x -> Just (x + 1); Nothing -> Just 2) n m }
+
     maxSynthFormSize (Progress { max_synth_form_size = mss }) = mss
     incrMaxSynthFormSize p@(Progress { max_synth_form_size = mss }) = p { max_synth_form_size = incrMaxSize 1 mss }
 
@@ -147,6 +156,9 @@ class Monad m => ProgresserM m where
     extraMaxTimeM :: (T.Text, Maybe T.Text) -> m NominalDiffTime
     incrMaxTimeM :: (T.Text, Maybe T.Text) -> m ()
 
+    maxCFM :: (T.Text, Maybe T.Text) -> m Int
+    incrMaxCFM :: (T.Text, Maybe T.Text) -> m ()
+
     maxSynthFormSizeM :: m MaxSize
     incrMaxSynthFormSizeM :: m ()
 
@@ -167,6 +179,9 @@ instance (Monad m, Progresser p) => ProgresserM (StateT p m) where
     extraMaxTimeM n = gets (extraMaxTime n)
     incrMaxTimeM n = modify' (incrMaxTime n)
 
+    maxCFM n = gets (maxCF n)
+    incrMaxCFM n = modify' (incrMaxCF n)
+
     maxSynthFormSizeM = gets maxSynthFormSize
     incrMaxSynthFormSizeM = modify' incrMaxSynthFormSize
 
@@ -186,6 +201,9 @@ instance ProgresserM m => ProgresserM (ReaderT env m) where
 
     extraMaxTimeM n = lift (extraMaxTimeM n)
     incrMaxTimeM n = lift (incrMaxTimeM n)
+
+    maxCFM n = lift (maxCFM n)
+    incrMaxCFM n = lift (incrMaxCFM n)
 
     maxSynthFormSizeM = lift maxSynthFormSizeM
     incrMaxSynthFormSizeM = lift incrMaxSynthFormSizeM

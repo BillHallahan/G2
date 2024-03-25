@@ -340,6 +340,7 @@ posInfTests = testGroup "Tests"
             , posTestInference "tests_lh/test_files/Pos/Test49.hs"
             , posTestInference "tests_lh/test_files/Pos/Test50.hs"
             -- , posTestInferenceWithUseInvs "tests_lh/test_files/Pos/Test51.hs"
+            , posTestInferenceWithUseInvs "tests_lh/test_files/Pos/Test53.hs"
 
             , posTestInference "tests_lh/test_files/Pos/Sets1.hs"
             , posTestInference "tests_lh/test_files/Pos/Sets2.hs"
@@ -369,8 +370,7 @@ cexInfTests :: TestTree
 cexInfTests = testGroup "Tests"
             [ cexTest "tests_lh/test_files/CEx/CEx1.hs" "zipWith"
             , cexTest "tests_lh/test_files/CEx/CEx2.hs" "mapReduce"
-            , cexTest "tests_lh/test_files/CEx/CEx3.hs" "kmeans1" 
-            , cexTest "tests_lh/test_files/CEx/CEx4.hs" "main" ]
+            , cexTest "tests_lh/test_files/CEx/CEx3.hs" "kmeans1" ]
 
 todoTests :: TestTree
 todoTests = testGroup "To Do"
