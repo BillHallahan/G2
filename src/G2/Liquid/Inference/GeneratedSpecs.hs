@@ -61,7 +61,6 @@ import Name (nameOccName, occNameString)
 import Var as V
 #endif
 
-
 data GeneratedSpecs = GeneratedSpecs { assert_specs :: M.Map G2.Name [PolyBound Expr]
                                      , assume_specs :: M.Map G2.Name [PolyBound Expr]
                                      , qualifiers :: [Qualifier] } deriving (Eq, Show)
@@ -179,7 +178,7 @@ addAssertedSpecToGhcInfos v e = map (addAssertedSpecToGhcInfo v e) . insertMissi
 
 addAssertedSpecToGhcInfo :: G2.Name -> [PolyBound Expr] -> GhcInfo -> GhcInfo
 addAssertedSpecToGhcInfo n e =
-    modifyGsTySigs (\v st -> if varEqName v n then addToSpecType e st else st)
+    modifyGsTySigs (\v st -> if varEqName v n then addToSpecType 0 e st else st)
 
 addAssumedSpecsToGhcInfos :: [GhcInfo] -> GeneratedSpecs -> [GhcInfo]
 addAssumedSpecsToGhcInfos ghcis = foldr (uncurry addAssumedSpecToGhcInfos) ghcis . M.toList . assume_specs
@@ -189,7 +188,7 @@ addAssumedSpecToGhcInfos v e = map (addAssumedSpecToGhcInfo v e) . insertMissing
 
 addAssumedSpecToGhcInfo :: G2.Name -> [PolyBound Expr] -> GhcInfo -> GhcInfo
 addAssumedSpecToGhcInfo n e =
-    modifyGsAsmSigs (\v st -> if varEqName v n then addToSpecType e st else st)
+    modifyGsAsmSigs (\v st -> if varEqName v n then addToSpecType 0 e st else st)
 
 addQualifiersToGhcInfos :: GeneratedSpecs -> [GhcInfo] -> [GhcInfo]
 addQualifiersToGhcInfos gs = map (addQualifiersToGhcInfo gs)
@@ -201,23 +200,24 @@ addQualifiersToGhcInfo gs ghci =
     in
     putQualifiers ghci (old_quals ++ qualifiers gs)
 
-addToSpecType :: [PolyBound Expr] -> SpecType -> SpecType
-addToSpecType _ rvar@(RVar {}) = rvar
-addToSpecType ees@(e@(PolyBound _ ps):es) rfun@(RFun { rt_in = i, rt_out = out })
-    | isFunTy i = rfun { rt_in = addToSpecType ps i, rt_out = addToSpecType es out }
-    | not (isRVar i) = rfun { rt_in = addToSpecType [e] i, rt_out = addToSpecType es out }
-    | otherwise = rfun {rt_out = addToSpecType ees out }
-addToSpecType es rall@(RAllT { rt_ty = out }) =
-    rall { rt_ty = addToSpecType es out }
-addToSpecType [PolyBound e ps]
+addToSpecType :: Int -> [PolyBound Expr] -> SpecType -> SpecType
+addToSpecType _ _ rvar@(RVar {}) = rvar
+addToSpecType n ees@(e@(PolyBound _ ps):es) rfun@(RFun { rt_in = i, rt_out = out })
+    | isFunTy i = rfun { rt_in = addToSpecType (n + 1) (drop n ps) i, rt_out = addToSpecType (n + 1) es out }
+    | not (isRVar i) = rfun { rt_in = addToSpecType n [e] i, rt_out = addToSpecType (n + 1) es out }
+    | otherwise = rfun {rt_out = addToSpecType n ees out }
+addToSpecType n es rall@(RAllT { rt_ty = out }) =
+    rall { rt_ty = addToSpecType (n + 1) es out }
+addToSpecType n [PolyBound e ps]
         rapp@(RApp { rt_reft = u@(MkUReft { ur_reft = Reft (ur_s, ur_e) }), rt_args = ars }) =
     let
         rt_reft' = u { ur_reft = Reft (ur_s, PAnd [ur_e, e])}
-        ars' = map (uncurry addToSpecType) $ zipSpecTypes (map (:[]) ps) ars
+        ars' = map (uncurry (addToSpecType n)) $ zipSpecTypes (map (:[]) ps) ars
     in
     rapp { rt_reft = rt_reft', rt_args = ars' }
-addToSpecType [] st = st
-addToSpecType _ st = error $ "addToSpecType: Unhandled SpecType " ++ show st
+addToSpecType _ [] st = st
+addToSpecType _ pb_e st@(RApp {}) = error $ "addToSpecType RApp: Unhandled SpecType " ++ show st ++ "\nat\n" ++ show pb_e  
+addToSpecType _ pb_e st = error $ "addToSpecType: Unhandled SpecType " ++ show st ++ "\nat\n" ++ show pb_e  
 
 zipSpecTypes :: [[PolyBound Expr]] -> [SpecType] -> [([PolyBound Expr], SpecType)]
 zipSpecTypes [] [] = []

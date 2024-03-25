@@ -29,6 +29,7 @@ import Data.Maybe
 import qualified Data.Text as T
 import Data.Semigroup (Semigroup (..))
 
+
 type NMExprEnv = HM.HashMap (T.Text, Maybe T.Text) G2.Expr
 
 -- A list of functions that still must have specifications synthesized at a lower level
@@ -286,19 +287,20 @@ buildSI tenv tc meas uts stat ghci f aty rty = do
                 Just spec' -> spec'
                 _ -> error $ "synthesize: No spec found for " ++ show f
 
-    (outer_ars_pb, ret_pb) <- argsAndRetFromSpec tenv tc ghci meas [] aty rty fspec
+    let ut = case lookupUT f uts of
+                    Just _ut -> _ut
+                    Nothing -> error $ "buildSI: Missing UnionedType " ++ show f
+        (ut_a, ut_r) = generateRelTypes ut
+        ut_a_r = reverse . take (length aty) $ reverse ut_a
+        -- ut_a' = reverse . take (length outer_ars_pb) $ reverse ut_a
+    (outer_ars_pb, ut_a', ret_pb) <- argsAndRetFromSpec tenv tc ghci meas [] [] aty rty ut_a_r fspec
     let outer_ars = map fst outer_ars_pb
         ret_v = headValue ret_pb
 
         arg_ns = zipWith (\a i -> a { smt_var = "x_" ++ show i } ) (concat outer_ars) ([1..] :: [Integer])
         ret_ns = zipWith (\r i -> r { smt_var = "x_r_" ++ show i }) (aar_r ret_v) ([1..] :: [Integer])
 
-    let ut = case lookupUT f uts of
-                Just _ut -> _ut
-                Nothing -> error $ "buildSI: Missing UnionedType " ++ show f
-        (ut_a, ut_r) = generateRelTypes ut
-        ut_a' = reverse . take (length outer_ars_pb) $ reverse ut_a
-        -- smt_names = assignNamesAndArgCount ut
+    let -- smt_names = assignNamesAndArgCount ut
         smt_names = assignNamesAndArgCount $ mkTyFun (ut_a' ++ [ut_r])
 
         pre_specs =
@@ -356,36 +358,36 @@ instance Semigroup ArgsAndRet where
 instance Monoid ArgsAndRet where
     mempty = AAndR { aar_a = [], aar_r = [] }
 
-argsAndRetFromSpec :: (InfConfigM m, ProgresserM m) => TypeEnv -> TypeClasses -> [GhcInfo] -> Measures -> [([SpecArg], PolyBound ArgsAndRet)] -> [Type] -> Type -> SpecType
-                                                    -> m ([([SpecArg], PolyBound ArgsAndRet)], PolyBound ArgsAndRet)
-argsAndRetFromSpec tenv tc ghci meas ars ts rty (RAllT { rt_ty = out }) =
-    argsAndRetFromSpec tenv tc ghci meas ars ts rty out
-argsAndRetFromSpec tenv tc ghci meas ars (t:ts) rty (RFun { rt_in = rfun@(RFun {}), rt_out = out}) = do
+argsAndRetFromSpec :: (InfConfigM m, ProgresserM m) => TypeEnv -> TypeClasses -> [GhcInfo] -> Measures -> [([SpecArg], PolyBound ArgsAndRet)] -> [Type] -> [Type] -> Type -> [Type] -> SpecType
+                                                    -> m ([([SpecArg], PolyBound ArgsAndRet)], [Type], PolyBound ArgsAndRet)
+argsAndRetFromSpec tenv tc ghci meas ars u_ars ts rty us (RAllT { rt_ty = out }) =
+    argsAndRetFromSpec tenv tc ghci meas ars u_ars ts rty us out
+argsAndRetFromSpec tenv tc ghci meas ars u_ars (t:ts) rty (u:us) (RFun { rt_in = rfun@(RFun {}), rt_out = out}) = do
     let (ts', rty') = generateRelTypes t
-    (f_ars, f_ret) <- argsAndRetFromSpec tenv tc ghci meas ars ts' rty' rfun
+    (f_ars, _, f_ret) <- argsAndRetFromSpec tenv tc ghci meas ars u_ars ts' rty' (argumentTypes $ PresType u) rfun
     let f_ret_list = case f_ret of
                         PolyBound (AAndR { aar_a = [], aar_r = [] }) [] -> []
                         _ -> [f_ret]
         f_ars_sa = map fst f_ars
         f_ars' = zipWith (\sa pb -> mapPB (AAndR (concat sa)) pb) (L.inits f_ars_sa) (map (mapPB aar_r) $ map snd f_ars ++ f_ret_list)
-    argsAndRetFromSpec tenv tc ghci meas (([], PolyBound mempty f_ars'):ars) ts rty out
-argsAndRetFromSpec tenv tc ghci meas ars (t:ts) rty rfun@(RFun { rt_in = i, rt_out = out}) = do
+    argsAndRetFromSpec tenv tc ghci meas (([], PolyBound mempty f_ars'):ars) (u:u_ars) ts rty us out
+argsAndRetFromSpec tenv tc ghci meas ars u_ars (t:ts) rty (u:us) rfun@(RFun { rt_in = i, rt_out = out}) = do
     (m_out_symb, sa) <- mkSpecArgPB ghci tenv meas t rfun
     let out_symb = case m_out_symb of
                       Just os -> os
                       Nothing -> error "argsAndRetFromSpec: out_symb is Nothing"
     case i of
-        RVar {} -> argsAndRetFromSpec tenv tc ghci meas ars ts rty out
-        RFun {} -> argsAndRetFromSpec tenv tc ghci meas ars ts rty out
-        _ -> argsAndRetFromSpec tenv tc ghci meas ((out_symb, sa):ars) ts rty out
-argsAndRetFromSpec tenv _ ghci meas ars _ rty rapp@(RApp {}) = do
+        RVar {} -> argsAndRetFromSpec tenv tc ghci meas ars u_ars ts rty us out
+        RFun {} -> argsAndRetFromSpec tenv tc ghci meas ars u_ars ts rty us out
+        _ -> argsAndRetFromSpec tenv tc ghci meas ((out_symb, sa):ars) (u:u_ars) ts rty us out
+argsAndRetFromSpec tenv _ ghci meas ars u_ars _ rty uts rapp@(RApp {}) = do
     (_, sa) <- mkSpecArgPB ghci tenv meas rty rapp
-    return (reverse ars, sa)
-argsAndRetFromSpec tenv _ ghci meas ars _ rty rvar@(RVar {}) = do
+    return (reverse ars, reverse u_ars, sa)
+argsAndRetFromSpec tenv _ ghci meas ars u_ars _ rty uts rvar@(RVar {}) = do
     (_, sa) <- mkSpecArgPB ghci tenv meas rty rvar
-    return (reverse ars, sa)
-argsAndRetFromSpec _ _ _ _ _ [] _ st@(RFun {}) = error $ "argsAndRetFromSpec: RFun with empty type list " ++ show st
-argsAndRetFromSpec _ _ _ _ _ _ _ st = error $ "argsAndRetFromSpec: unhandled SpecType " ++ show st
+    return (reverse ars, reverse u_ars, sa)
+argsAndRetFromSpec _ _ _ _ _ _ [] _ _ st@(RFun {}) = error $ "argsAndRetFromSpec: RFun with empty type list " ++ show st
+argsAndRetFromSpec _ _ _ _ _ _ _ _ us st = error $ "argsAndRetFromSpec: unhandled SpecType " ++ show st ++ "\n" ++ show us
 
 mkSpecArgPB :: (InfConfigM m, ProgresserM m) => [GhcInfo] -> TypeEnv -> Measures -> Type -> SpecType -> m (Maybe [SpecArg], PolyBound ArgsAndRet)
 mkSpecArgPB ghci tenv meas t st = do

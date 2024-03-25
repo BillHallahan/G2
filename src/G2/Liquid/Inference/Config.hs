@@ -271,7 +271,7 @@ data InferenceConfig =
 
                     , use_invs :: Bool -- ^ Use invariant mode for benchmarking
 
-                    , use_mod :: UseMod -- ^ Whether to consider use of the `mod` operator
+                    , use_mod :: Maybe UseMod -- ^ Whether to consider use of the `mod` operator
                    
                     , timeout_se :: NominalDiffTime
                     , timeout_sygus :: NominalDiffTime }
@@ -315,7 +315,7 @@ mkInferenceConfig = InferenceConfig
     <*> flag True False (long "no-negated-models" <> help "do not use negated models")
     <*> flag True False (long "no-binary-min" <> help "use binary minimization during synthesis")
     <*> switch (long "use-invs" <> help "use invariant mode (benchmarking only)")
-    <*> pure NoMod
+    <*> flag (Just NoMod) Nothing (long "use-mod" <> help "consider using the mod operator during synthesis")
     <*> option (maybeReader (Just . fromInteger . read)) (long "timeout-se"
                    <> metavar "T"
                    <> value 5
@@ -347,7 +347,7 @@ mkInferenceConfigDirect as =
                     , use_negated_models = boolArg "use-negated-models" as M.empty On
                     , use_binary_minimization = True
                     , use_invs = boolArg "use-invs" as M.empty Off
-                    , use_mod = NoMod
+                    , use_mod = Just NoMod
                     , timeout_se = strArg "timeout-se" as M.empty (fromInteger . read) 5
                     , timeout_sygus = strArg "timeout-sygus" as M.empty (fromInteger . read) 10 }
 
@@ -382,7 +382,7 @@ adjustConfig main_mod s@(SimpleState { expr_env = eenv }) config lhconfig infcon
         infconfig' = infconfig { modules = S.singleton main_mod
                                , pre_refined = pre }
 
-        infconfig'' = determineUseMod main_mod s ghci infconfig'
+        infconfig'' = if use_mod infconfig' == Nothing then determineUseMod main_mod s ghci infconfig' else infconfig'
     in
     (config, lhconfig', infconfig'')
 
@@ -400,7 +400,7 @@ determineUseMod main_mod s ghci infconfig =
                   . map (\(n, sp) -> (mkName $ V.varName n, sp))
                   $ concatMap getTySigs ghci
     in
-    infconfig { use_mod = if any (hasMod . LH.val . snd) rel_specs then UseMod else NoMod }
+    infconfig { use_mod = if any (hasMod . LH.val . snd) rel_specs then Just UseMod else Just NoMod }
 
 hasMod :: LH.SpecType -> Bool
 hasMod = LH.foldRType (\b rtype -> b || chRty rtype) False

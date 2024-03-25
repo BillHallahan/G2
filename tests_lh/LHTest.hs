@@ -339,6 +339,7 @@ posInfTests = testGroup "Tests"
             , posTestInference "tests_lh/test_files/Pos/Test48.hs"
             , posTestInference "tests_lh/test_files/Pos/Test49.hs"
             , posTestInference "tests_lh/test_files/Pos/Test50.hs"
+            -- , posTestInferenceWithUseInvs "tests_lh/test_files/Pos/Test51.hs"
 
             , posTestInference "tests_lh/test_files/Pos/Sets1.hs"
             , posTestInference "tests_lh/test_files/Pos/Sets2.hs"
@@ -368,7 +369,8 @@ cexInfTests :: TestTree
 cexInfTests = testGroup "Tests"
             [ cexTest "tests_lh/test_files/CEx/CEx1.hs" "zipWith"
             , cexTest "tests_lh/test_files/CEx/CEx2.hs" "mapReduce"
-            , cexTest "tests_lh/test_files/CEx/CEx3.hs" "kmeans1" ]
+            , cexTest "tests_lh/test_files/CEx/CEx3.hs" "kmeans1" 
+            , cexTest "tests_lh/test_files/CEx/CEx4.hs" "main" ]
 
 todoTests :: TestTree
 todoTests = testGroup "To Do"
@@ -554,16 +556,21 @@ findCounterExamples' fp entry config lhconfig =
 -- Inference tests
 -------------------------------------------------
 
-posTestInferenceWithTimeOut :: Int -> NominalDiffTime -> FilePath -> TestTree
-posTestInferenceWithTimeOut to to_se fp = do
+posTestInferenceWithTimeOutUseInvs :: Int -> NominalDiffTime -> Bool -> FilePath -> TestTree
+posTestInferenceWithTimeOutUseInvs to to_se inv fp = do
     testCase ("Inference " ++ fp) (do
         config <- G2.getConfigDirect
-        let infconfig = (mkInferenceConfigDirect []) { timeout_se = to_se }
+        let infconfig = (mkInferenceConfigDirect []) { timeout_se = to_se, use_invs = inv }
         let lhconfig = mkLHConfigDirect [] M.empty
         res <- doTimeout to $ inferenceCheck infconfig config lhconfig [] [fp]
 
         assertBool ("Inference for " ++ fp ++ " failed.") $ maybe False (isRight . snd) res
         )
+posTestInferenceWithTimeOut :: Int -> NominalDiffTime -> FilePath -> TestTree
+posTestInferenceWithTimeOut to to_se fp = posTestInferenceWithTimeOutUseInvs to to_se False fp
+
+posTestInferenceWithUseInvs :: FilePath -> TestTree
+posTestInferenceWithUseInvs = posTestInferenceWithTimeOutUseInvs 120 5 True
 
 posTestInference :: FilePath -> TestTree
 posTestInference = posTestInferenceWithTimeOut 120 5

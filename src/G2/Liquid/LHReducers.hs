@@ -84,22 +84,6 @@ lhReduce cfn s@(State { curr_expr = CurrExpr Evaluate (Tick (NamedLoc tn) e@(Ass
 
 lhReduce _ _ = Nothing
 
--- Counts the maximal number of Vars with names in the ExprEnv
--- that could be evaluated along any one path in the function
-initialTrack :: ExprEnv -> Expr -> Int
-initialTrack eenv (Var (Id n _)) =
-    case E.lookup n eenv of
-        Just _ -> 1
-        Nothing -> 0
-initialTrack eenv (App e e') = initialTrack eenv e + initialTrack eenv e'
-initialTrack eenv (Lam _ _ e) = initialTrack eenv e
-initialTrack eenv (Let b e) = initialTrack eenv e + (getSum $ evalContainedASTs (Sum . initialTrack eenv) b)
-initialTrack eenv (Case e _ _ a) = initialTrack eenv e + (getMax $ evalContainedASTs (Max . initialTrack eenv) a)
-initialTrack eenv (Cast e _) = initialTrack eenv e
-initialTrack eenv (Assume _ _ e) = initialTrack eenv e
-initialTrack eenv (Assert _ _ e) = initialTrack eenv e
-initialTrack _ _ = 0
-
 data LHTracker = LHTracker { abstract_calls :: [FuncCall]
                            , last_var :: Maybe Name
                            , annotations :: AnnotMap
@@ -257,15 +241,15 @@ allMin f xs =
 lhAbsHalter :: Monad m => T.Text -> Maybe T.Text -> ExprEnv -> Halter m Int LHTracker
 lhAbsHalter entry modn eenv = mkSimpleHalter initial update stop step
     where
-        -- We initialize the maximal number of abstracted variables,
-        -- to the number of variables in the entry function
         initial _ =
             let 
-                fe = case E.occLookup entry modn eenv of
-                    Just e -> e
+                fe = case E.lookupNameMod entry modn eenv of
+                    Just (_, e) -> e
                     Nothing -> error $ "initOrder: Bad function passed\n" ++ show entry ++ " " ++ show modn
+                
+                init_tr = initialTrack eenv fe
             in
-            initialTrack eenv fe
+            init_tr
 
         update ii (Processed {accepted = acc}) _ =
             minimum $ ii:mapMaybe (\s -> case true_assert s of
@@ -278,6 +262,22 @@ lhAbsHalter entry modn eenv = mkSimpleHalter initial update stop step
                 else Continue
 
         step hv _ _ _ = hv
+
+-- Counts the maximal number of Vars with names in the ExprEnv
+-- that could be evaluated along any one path in the function
+initialTrack :: ExprEnv -> Expr -> Int
+initialTrack eenv (Var (Id n _)) =
+    case E.lookup n eenv of
+        Just _ -> 1
+        Nothing -> 0
+initialTrack eenv (App e e') = initialTrack eenv e + initialTrack eenv e'
+initialTrack eenv (Lam _ _ e) = initialTrack eenv e
+initialTrack eenv (Let b e) = initialTrack eenv e + (getSum $ evalContainedASTs (Sum . initialTrack eenv) b)
+initialTrack eenv (Case e _ _ a) = initialTrack eenv e + (getMax $ evalContainedASTs (Max . initialTrack eenv) a)
+initialTrack eenv (Cast e _) = initialTrack eenv e
+initialTrack eenv (Assume _ _ e) = initialTrack eenv e
+initialTrack eenv (Assert _ _ e) = initialTrack eenv e
+initialTrack _ _ = 0
 
 {-# INLINE lhMaxOutputsHalter #-}
 lhMaxOutputsHalter :: Monad m => Int -> Halter m Int LHTracker

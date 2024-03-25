@@ -108,7 +108,7 @@ liaSynthOfSize sz m_si = do
     return m_si'
     where
 
-mkCNF :: (Int -> Bool) -> UseMod -> Integer -> Int -> String -> SynthSpec -> CNF
+mkCNF :: (Int -> Bool) -> Maybe UseMod -> Integer -> Int -> String -> SynthSpec -> CNF
 mkCNF prd use_md sz ms s psi_ =
     (if length (set_sy_args psi_) + length (set_sy_rets psi_) == 0
         then
@@ -144,7 +144,7 @@ mkCNF prd use_md sz ms s psi_ =
         else [])
 
 
-mkCoeffs :: (Int -> Bool) -> UseMod -> String -> SynthSpec -> Integer -> Integer -> Forms
+mkCoeffs :: (Int -> Bool) -> Maybe UseMod -> String -> SynthSpec -> Integer -> Integer -> Forms
 mkCoeffs prd use_md s psi j k =
     let
         ars = length (int_sy_args psi)
@@ -183,7 +183,7 @@ mkCoeffs prd use_md s psi j k =
             [ s ++ "_rhs_r_c_" ++ show j ++ "_t_" ++ show k ++ "_a_" ++ show a ++ "_rhs"
             | a <- [1..rets]]
 
-        , allow_mod = use_md
+        , allow_mod = fromMaybe NoMod use_md
         }
 
 mkSetForms :: (Int -> Bool) -> Int -> String -> SynthSpec -> Integer -> Integer -> Forms
@@ -279,7 +279,7 @@ mkBoolForms prd sz max_sz s psi j k =
 
         , forms = concat
                 . map snd
-                $ mkCNF (const True) NoMod sz max_sz (s ++ "_bool_" ++ show j ++ "_t_" ++ show k ++ "_" )
+                $ mkCNF (const True) Nothing sz max_sz (s ++ "_bool_" ++ show j ++ "_t_" ++ show k ++ "_" )
                         (psi { sy_args = filter (not . isBool . smt_sort) (sy_args psi)
                              , sy_rets = filter (not . isBool . smt_sort) (sy_rets psi) })
         }
@@ -935,38 +935,38 @@ mkRetNonZero' si =
                   (\(act, cff) ->
                           Solver.Assert (((:!) $ V act SortBool)
                         :=> 
-                          mkSMTOr (concatMap (\c -> mkCoeffRetNonZero c) cff))
+                          mkSMTOr (map (\c -> mkCoeffRetNonZero c) cff))
                   ) cffs
               ) sy_sps
 
-mkCoeffRetNonZero :: Forms -> [SMTAST]
+mkCoeffRetNonZero :: Forms -> SMTAST
 mkCoeffRetNonZero cffs@(LIA {}) =
     let
         act = c_active cffs
         ret_cffs = rets_coeffs cffs
     in
     case null ret_cffs of
-        True -> [VBool True]
+        True -> VBool True
         False -> 
-            [V act SortBool :=> mkSMTOr (map (\r -> V r SortInt :/= VInt 0) ret_cffs)]
+            mkSMTAnd [V act SortBool, mkSMTOr (map (\r -> V r SortInt :/= VInt 0) ret_cffs)]
 mkCoeffRetNonZero cffs@(Set {}) =
     let
         act = c_active cffs
         ret_bools = concat $ rets_bools_lhs cffs ++ rets_bools_rhs cffs
     in
     case null ret_bools of
-        True -> [VBool True]
+        True -> VBool True
         False -> 
-            [V act SortBool :=> mkSMTOr (map (\r -> V r SortBool) ret_bools)]
+            mkSMTAnd [V act SortBool, mkSMTOr (map (\r -> V r SortBool) ret_bools)]
 mkCoeffRetNonZero cffs@(BoolForm {}) =
     let
         act = c_active cffs
         ret_bools = rets_bools cffs
     in
     case null ret_bools of
-        True -> [VBool True]
+        True -> VBool True
         False -> 
-            [V act SortBool :=> mkSMTOr (map (\r -> (:!) (V r SortBool)) ret_bools)]
+            mkSMTAnd[V act SortBool :=> mkSMTOr (map (\r -> (:!) (V r SortBool)) ret_bools)]
 
 -- This function aims to limit the number of different models that can be produced
 -- that result in equivalent specifications. 
