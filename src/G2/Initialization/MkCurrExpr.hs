@@ -14,6 +14,7 @@ import qualified Data.Map as M
 import Data.Maybe
 import qualified Data.Text as T
 import qualified Data.HashMap.Lazy as HM 
+import Debug.Trace
 
 mkCurrExpr :: Maybe T.Text -> Maybe T.Text -> Id
            -> TypeClasses -> NameGen -> ExprEnv -> TypeEnv -> Walkers
@@ -52,7 +53,7 @@ mkCurrExpr m_assume m_assert f@(Id (Name _ m_mod _ _) _) tc ng eenv _ walkers kv
                 
                 let_ex = Let [(id_name, strict_app_ex)] retsTrue_ex
             in
-            (let_ex, is, typsE, ng'')
+            trace("instType: " ++ show (instTV config)  ++ "\n validate flag: " ++ show (validate config)) (let_ex, is, typsE, ng'')
         Nothing -> error "mkCurrExpr: Bad Name"
 
 mkMainExpr :: TypeClasses -> KnownValues -> NameGen -> Expr -> (Expr, [Id], [Expr], NameGen)
