@@ -50,10 +50,10 @@ mkCurrExpr m_assume m_assert f@(Id (Name _ m_mod _ _) _) tc ng eenv _ walkers kv
                 assert_ex = mkAssumeAssert (Assert Nothing) m_assert m_mod (typsE ++ var_ids) assume_ex var_name eenv
 
                 retsTrue_ex = if returnsTrue config then retsTrue assert_ex else assert_ex
-                
+
                 let_ex = Let [(id_name, strict_app_ex)] retsTrue_ex
             in
-            trace("instType: " ++ show (instTV config)  ++ "\n validate flag: " ++ show (validate config)) (let_ex, is, typsE, ng'')
+            trace("the expr is " ++ show app_ex) (let_ex, is, typsE, ng'')
         Nothing -> error "mkCurrExpr: Bad Name"
 
 mkMainExpr :: TypeClasses -> KnownValues -> NameGen -> Expr -> (Expr, [Id], [Expr], NameGen)
