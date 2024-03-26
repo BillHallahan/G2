@@ -44,6 +44,7 @@ data Forms = LIA { -- LIA formulas
                  , c_op_branch1 :: SMTName
                  , c_op_branch2 :: SMTName
                  , c_op_branch3 :: SMTName
+                 , c_op_branch4 :: SMTName
 
                  , b0 :: SMTName
 
@@ -60,6 +61,7 @@ data Forms = LIA { -- LIA formulas
                  , c_op_branch1 :: SMTName
                  , c_op_branch2 :: SMTName
                  , c_op_branch3 :: SMTName
+                 , c_op_branch4 :: SMTName
 
                  , int_sing_set_bools_lhs :: [[SMTName]]
                  , int_sing_set_bools_rhs :: [[SMTName]]
@@ -74,6 +76,7 @@ data Forms = LIA { -- LIA formulas
                       , c_op_branch1 :: SMTName
                       , c_op_branch2 :: SMTName
                       , c_op_branch3 :: SMTName
+                      , c_op_branch4 :: SMTName
 
                       , ars_bools :: [SMTName]
                       , rets_bools :: [SMTName]

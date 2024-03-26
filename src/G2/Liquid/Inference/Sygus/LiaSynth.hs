@@ -156,6 +156,7 @@ mkCoeffs prd use_md s psi j k =
         , c_op_branch1 = s ++ "_lia_op1_" ++ show j ++ "_t_" ++ show k
         , c_op_branch2 = s ++ "_lia_op2_" ++ show j ++ "_t_" ++ show k
         , c_op_branch3 = s ++ "_lia_op3_" ++ show j ++ "_t_" ++ show k
+        , c_op_branch4 = s ++ "_lia_op4_" ++ show j ++ "_t_" ++ show k
         , b0 = s ++ "_b_" ++ show j ++ "_t_" ++ show k
         
         -- We only want solutions that have one or more return values with a
@@ -203,6 +204,7 @@ mkSetForms prd max_sz s psi j k =
         , c_op_branch1 = s ++ "_set_op1_" ++ show j ++ "_t_" ++ show k
         , c_op_branch2 = s ++ "_set_op2_" ++ show j ++ "_t_" ++ show k
         , c_op_branch3 = s ++ "_set_op3_" ++ show j ++ "_t_" ++ show k
+        , c_op_branch4 = s ++ "_set_op4_" ++ show j ++ "_t_" ++ show k
 
         , int_sing_set_bools_lhs =
             if prd rets
@@ -265,6 +267,7 @@ mkBoolForms prd sz max_sz s psi j k =
         , c_op_branch1 = s ++ "_bool_op1_" ++ show j ++ "_t_" ++ show k
         , c_op_branch2 = s ++ "_bool_op2_" ++ show j ++ "_t_" ++ show k
         , c_op_branch3 = s ++ "_bool_op3_" ++ show j ++ "_t_" ++ show k
+        , c_op_branch4 = s ++ "_bool_op3_" ++ show j ++ "_t_" ++ show k
 
         , ars_bools =
             if prd rets
@@ -661,11 +664,14 @@ filterRelOpBranch si mdl =
     -- If we are using a clause but c_op_branch2 is true, we don't care about c_op_branch3
     foldr (\form mdl_ -> if
               | M.lookup (c_active form) mdl == Just (VBool False) ->
-                  M.delete (c_op_branch2 form) $ M.delete (c_op_branch1 form) mdl_
+                    M.delete (c_op_branch4 form)
+                  $ M.delete (c_op_branch3 form)
+                  $ M.delete (c_op_branch2 form)
+                  $ M.delete (c_op_branch1 form) mdl_
               | M.lookup (c_op_branch1 form) mdl == Just (VBool True) ->
-                  M.delete (c_op_branch3 form) $ M.delete (c_op_branch2 form) mdl_
+                  M.delete (c_op_branch4 form) $ M.delete (c_op_branch3 form) $ M.delete (c_op_branch2 form) mdl_
               | M.lookup (c_op_branch2 form) mdl == Just (VBool True) ->
-                  M.delete (c_op_branch3 form) mdl_
+                  M.delete (c_op_branch4 form) $ M.delete (c_op_branch3 form) mdl_
               | otherwise -> mdl) mdl coeff_nms
 
 -- | Create specification definitions corresponding to previously rejected models,
@@ -780,7 +786,7 @@ renameByAdding i si =
 
 buildLIA_SMT_fromModel :: SMTModel -> SynthSpec -> SMTAST
 buildLIA_SMT_fromModel mdl sf =
-    buildSpec (:+) (:*) Modulo (.=.) (.=.) (:>) (:>=) Ite Ite
+    buildSpec (:+) (:*) Modulo (.=.) (.=.) (./=.) (:>) (:>=) Ite Ite
               mkSMTAnd mkSMTAnd mkSMTOr
               mkSMTUnion mkSMTIntersection smtSingleton
               mkSMTIsSubsetOf (flip ArraySelect)
@@ -1226,8 +1232,8 @@ sySpecGetOpBranches = concatMap sySpecGetOpBranchesForm . concatMap snd . sy_coe
 
 sySpecGetOpBranchesForm :: Forms -> [SMTName]
 sySpecGetOpBranchesForm c@(BoolForm {}) =
-    [c_op_branch1 c, c_op_branch2 c, c_op_branch3 c] ++ concatMap sySpecGetOpBranchesForm (forms c)
-sySpecGetOpBranchesForm c = [c_op_branch1 c, c_op_branch2 c, c_op_branch3 c]
+    [c_op_branch1 c, c_op_branch2 c, c_op_branch3 c, c_op_branch4 c] ++ concatMap sySpecGetOpBranchesForm (forms c)
+sySpecGetOpBranchesForm c = [c_op_branch1 c, c_op_branch2 c, c_op_branch3 c, c_op_branch4 c]
 ---
 
 sySpecGetActs :: SynthSpec -> [SMTName]
@@ -1304,6 +1310,7 @@ type Plus a = a -> a -> a
 type Mult a = a -> a -> a
 type Mod a = a -> a -> a
 type EqF a b = a -> a -> b
+type NeqF a b = a -> a -> b
 type Gt a b = a -> a -> b
 type GEq a b = a -> a -> b
 type Ite b a = b -> a -> a -> a
@@ -1333,7 +1340,7 @@ type UniversalSet s = s
 
 buildLIA_SMT :: SynthSpec -> SMTAST
 buildLIA_SMT sf =
-    buildSpec (:+) (:*) Modulo (.=.) (.=.) (:>) (:>=) Ite Ite
+    buildSpec (:+) (:*) Modulo (.=.) (.=.) (./=.) (:>) (:>=) Ite Ite
               mkSMTAnd mkSMTAnd mkSMTOr mkSMTUnion mkSMTIntersection smtSingleton
               mkSMTIsSubsetOf (flip ArraySelect)
               (flip V SortInt) VInt (flip V SortBool) (flip V $ SortArray SortInt SortBool)
@@ -1359,7 +1366,7 @@ buildLIA_LH' si mv =
         post_ars = allPostSpecArgs si
 
         build ars = buildSpec ePlus eTimes eMod
-                              bEq bIff bGt bGeq
+                              bEq bIff bNeq bGt bGeq
                               eIte eIte id
                               pAnd pOr
                               eUnion eIntersection eSingleton
@@ -1429,6 +1436,16 @@ buildLIA_LH' si mv =
             , ECon (I 0) <- y = PAtom LH.Eq e1 e2
             | otherwise = PAtom LH.Eq x y
 
+        bNeq (ECon (I x)) (ECon (I y)) =
+            if x /= y then PTrue else PFalse
+        bNeq x y
+            | x == eUnivSet
+            , y == eUnivSet = PFalse
+            | x == eUnivSet || y == eUnivSet = PTrue
+            | EBin LH.Minus e1 e2 <- x
+            , ECon (I 0) <- y = PAtom LH.Ne e1 e2
+            | otherwise = PAtom LH.Ne x y
+
         bIff x y
             | x == y = PTrue
             | otherwise = PIff x y
@@ -1488,6 +1505,7 @@ buildSpec :: Show b => Plus a
           -> Mod a
           -> EqF a b
           -> EqF b b
+          -> NeqF a b
           -> Gt a b
           -> GEq a b
           -> Ite b b 
@@ -1512,7 +1530,7 @@ buildSpec :: Show b => Plus a
           -> SynthSpec
 
           -> c
-buildSpec plus mult mod_op eq eq_bool gt geq ite ite_set mk_and_sp mk_and mk_or mk_union mk_intersection mk_sing is_subset is_member vint cint vbool vset cemptyset cunivset sf =
+buildSpec plus mult mod_op eq eq_bool neq gt geq ite ite_set mk_and_sp mk_and mk_or mk_union mk_intersection mk_sing is_subset is_member vint cint vbool vset cemptyset cunivset sf =
     let
         all_coeffs = sy_coeffs sf
         lin_ineqs = map (\(cl_act, cl) -> vbool cl_act:map toLinInEqs cl) all_coeffs
@@ -1527,6 +1545,7 @@ buildSpec plus mult mod_op eq eq_bool gt geq ite ite_set mk_and_sp mk_and mk_or 
                         , c_op_branch1 = op_br1
                         , c_op_branch2 = op_br2
                         , c_op_branch3 = op_br3
+                        , c_op_branch4 = op_br4
                         , b0 = b
                         , ars_coeffs = acs
                         , rets_coeffs = rcs
@@ -1540,13 +1559,14 @@ buildSpec plus mult mod_op eq eq_bool gt geq ite ite_set mk_and_sp mk_and mk_or 
                 sm_rhs = lia_form acs_rhs rcs_rhs
 
                 end_eq = if al_mod == UseMod
-                            then ite (vbool op_br3) (sm `geq` vint b)
+                            then ite (vbool op_br4) (sm `geq` vint b)
                                                 (sm `eq` plus (sm_rhs `mod_op` cint 2) (vint b))
                             else sm `geq` vint b
             in
             mk_and [vbool act, ite (vbool op_br1)
                                     (sm `eq` vint b)
-                                    (ite (vbool op_br2) (sm `gt` vint b) end_eq)
+                                    (ite (vbool op_br2) (sm `neq` vint b)
+                                        (ite (vbool op_br3) (sm `gt` vint b) end_eq))
                     ]
         toLinInEqs (Set { c_active = act
 
