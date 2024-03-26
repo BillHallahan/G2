@@ -22,6 +22,7 @@ import Control.Exception
 import System.Process
 
 import Control.Monad.IO.Class
+import Debug.Trace
 
 validateStates :: [FilePath] -> [FilePath] -> String -> String -> [String] -> [GeneralFlag] -> [ExecRes t] -> IO Bool
 validateStates proj src modN entry chAll gflags in_out = do
@@ -72,7 +73,7 @@ runCheck' modN entry chAll s ars out = do
 
     chAllR <- mapM compileExpr chAllStr'
 
-    return $ (v', chAllR)
+    trace ("in chck " ++ show chck )(return $ (v', chAllR))
 
 loadToCheck :: [FilePath] -> [FilePath] -> String -> [GeneralFlag] -> Ghc ()
 loadToCheck proj src modN gflags = do
