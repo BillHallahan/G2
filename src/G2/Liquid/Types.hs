@@ -320,6 +320,50 @@ data LHState = LHState { state :: L.State [L.FuncCall]
                        , inst_funcs :: InstFuncs
                        } deriving (Eq, Show, Read)
 
+instance L.ASTContainer LHState L.Expr where
+    containedASTs s = L.containedASTs (state s)
+                     ++ L.containedASTs (measures s)
+                     ++ L.containedASTs (lh_tcs s)
+                     ++ L.containedASTs (assumptions s)
+                     ++ L.containedASTs (posts s)
+                     ++ L.containedASTs (annots s)
+                     ++ L.containedASTs (tyvar_bags s)
+                     ++ L.containedASTs (inst_funcs s)
+
+    modifyContainedASTs f s = LHState { state = L.modifyContainedASTs f (state s)
+                                      , measures = L.modifyContainedASTs f (measures s)
+                                      , lh_known_values = lh_known_values s
+                                      , lh_tcs = L.modifyContainedASTs f (lh_tcs s)
+                                      , tcvalues = tcvalues s
+                                      , assumptions = L.modifyContainedASTs f (assumptions s)
+                                      , posts = L.modifyContainedASTs f (posts s)
+                                      , annots = L.modifyContainedASTs f (annots s)
+                                      , tyvar_bags = L.modifyContainedASTs f (tyvar_bags s)
+                                      , inst_funcs = L.modifyContainedASTs f (inst_funcs s)
+                                      }
+
+instance L.ASTContainer LHState L.Type where
+    containedASTs s = L.containedASTs (state s)
+                     ++ L.containedASTs (measures s)
+                     ++ L.containedASTs (lh_tcs s)
+                     ++ L.containedASTs (assumptions s)
+                     ++ L.containedASTs (posts s)
+                     ++ L.containedASTs (annots s)
+                     ++ L.containedASTs (tyvar_bags s)
+                     ++ L.containedASTs (inst_funcs s)
+
+    modifyContainedASTs f s = LHState { state = L.modifyContainedASTs f (state s)
+                                      , measures = L.modifyContainedASTs f (measures s)
+                                      , lh_known_values = lh_known_values s
+                                      , lh_tcs = L.modifyContainedASTs f (lh_tcs s)
+                                      , tcvalues = tcvalues s
+                                      , assumptions = L.modifyContainedASTs f (assumptions s)
+                                      , posts = L.modifyContainedASTs f (posts s)
+                                      , annots = L.modifyContainedASTs f (annots s)
+                                      , tyvar_bags = L.modifyContainedASTs f (tyvar_bags s)
+                                      , inst_funcs = L.modifyContainedASTs f (inst_funcs s)
+                                      }
+
 consLHState :: L.State [L.FuncCall] -> Measures -> KV.KnownValues -> L.TypeClasses -> TCValues -> LHState
 consLHState s meas kv tc tcv =
     LHState { state = s

@@ -96,11 +96,11 @@ isIntT :: Type -> Bool
 isIntT (TyCon (Name "Int" _ _ _) _) = True
 isIntT _ = False
 
-isDouble :: Expr -> (Rational -> Bool) -> Bool
+isDouble :: Expr -> (Double -> Bool) -> Bool
 isDouble (App _ (Lit (LitDouble x))) f = f x
 isDouble _ _ = False
 
-isFloat :: Expr -> (Rational -> Bool) -> Bool
+isFloat :: Expr -> (Float -> Bool) -> Bool
 isFloat (Lit (LitFloat x)) f = f x
 isFloat (App _ (Lit (LitFloat x))) f = f x
 isFloat _ _ = False

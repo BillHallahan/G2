@@ -97,8 +97,8 @@ mkToInteger kv eenv = eenv E.! (toIntegerFunc kv)
 
 -- Primitives on primitive types
 mkEqPrimType :: Type -> KnownValues -> Expr
-mkEqPrimType t kv =
-    Prim Eq $ TyFun t (TyFun t (TyCon (KV.tyBool kv) TYPE))
+mkEqPrimType t kv | t == TyLitFloat ||  t == TyLitDouble = Prim FpEq $ TyFun t (TyFun t (TyCon (KV.tyBool kv) TYPE))
+mkEqPrimType t kv = Prim Eq $ TyFun t (TyFun t (TyCon (KV.tyBool kv) TYPE))
 
 mkEqPrimInt :: KnownValues -> Expr
 mkEqPrimInt = mkEqPrimType TyLitInt

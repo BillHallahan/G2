@@ -60,6 +60,7 @@ library
                        , G2.Execution.Rules
                        , G2.Execution.RuleTypes
 
+                       , G2.Initialization.FpToRational
                        , G2.Initialization.Interface
                        , G2.Initialization.DeepSeqWalks
                        , G2.Initialization.ElimTicks

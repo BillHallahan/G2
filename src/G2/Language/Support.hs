@@ -114,8 +114,9 @@ type Walkers = M.Map Name Id
 type CleanedNames = HM.HashMap Name Name
 
 data ArbValueGen = ArbValueGen { intGen :: Integer
-                               , floatGen :: Rational
-                               , doubleGen :: Rational
+                               , floatGen :: Float
+                               , doubleGen :: Double
+                               , rationalGen :: Rational
                                , charGen :: [Char]
                                , boolGen :: Bool
                                } deriving (Show, Eq, Read, Typeable, Data)

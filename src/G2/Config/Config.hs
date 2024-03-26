@@ -5,6 +5,7 @@ module G2.Config.Config ( Mode (..)
                         , SMTSolver (..)
                         , SearchStrategy (..)
                         , HigherOrderSolver (..)
+                        , FpHandling (..)
                         , IncludePath
                         , Config (..)
                         , BoolDef (..)
@@ -46,6 +47,8 @@ data HigherOrderSolver = AllFuncs
                        | SymbolicFunc 
                        | SymbolicFuncTemplate deriving (Eq, Show, Read)
 
+data FpHandling = RealFP | RationalFP deriving (Eq, Show, Read)
+
 type IncludePath = FilePath
 
 data Config = Config {
@@ -61,6 +64,7 @@ data Config = Config {
     , higherOrderSolver :: HigherOrderSolver -- ^ How to try and solve higher order functions
     , search_strat :: SearchStrategy -- ^ The search strategy for the symbolic executor to use
     , subpath_length :: Int -- ^ When using subpath search strategy, the length of the subpaths.
+    , fp_handling :: FpHandling -- ^ Whether to use real floating point values or rationals
     , smt :: SMTSolver -- ^ Sets the SMT solver to solve constraints with
     , steps :: Int -- ^ How many steps to take when running States
     , hpc :: Bool -- ^ Should HPC ticks be generated and tracked during execution?
@@ -85,6 +89,8 @@ mkConfig homedir = Config Regular
                    <> metavar "L"
                    <> value 4
                    <> help "when using subpath search strategy, the length of the subpaths")
+    <*> flag RealFP RationalFP (long "no-real-floats"
+                                <> help "Represent floating point values precisely.  When off, overapproximate as rationals.")
     <*> mkSMTSolver
     <*> option auto (long "n"
                    <> metavar "N"
@@ -196,6 +202,7 @@ mkConfigDirect homedir as m = Config {
     , higherOrderSolver = strArg "higher-order" as m higherOrderSolArg SingleFunc
     , search_strat = Iterative
     , subpath_length = 4
+    , fp_handling = RealFP
     , smt = strArg "smt" as m smtSolverArg ConZ3
     , steps = strArg "n" as m read 1000
     , hpc = False
