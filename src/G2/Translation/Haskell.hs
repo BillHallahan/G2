@@ -594,8 +594,8 @@ mkLit (LitNumber LitNumWord64 i) = G2.LitInt (fromInteger i)
 #endif
 
 #if __GLASGOW_HASKELL__ < 808
-mkLit (MachFloat rat) = G2.LitFloat rat
-mkLit (MachDouble rat) = G2.LitDouble rat
+mkLit (MachFloat rat) = G2.LitFloat (fromRational rat)
+mkLit (MachDouble rat) = G2.LitDouble (fromRational rat)
 #else
 mkLit (LitFloat rat) = G2.LitFloat (fromRational rat)
 mkLit (LitDouble rat) = G2.LitDouble (fromRational rat)
