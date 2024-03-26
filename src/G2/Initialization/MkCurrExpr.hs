@@ -50,7 +50,7 @@ mkCurrExpr m_assume m_assert f@(Id (Name _ m_mod _ _) _) tc ng eenv _ walkers kv
                 assert_ex = mkAssumeAssert (Assert Nothing) m_assert m_mod (typsE ++ var_ids) assume_ex var_name eenv
 
                 retsTrue_ex = if returnsTrue config then retsTrue assert_ex else assert_ex
-                
+                -- investigating for potential failure of instytype plugin
                 let_ex = Let [(id_name, strict_app_ex)] retsTrue_ex
             in
             trace("instType: " ++ show (instTV config)  ++ "\n validate flag: " ++ show (validate config)) (let_ex, is, typsE, ng'')
