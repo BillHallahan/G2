@@ -593,9 +593,13 @@ mkLit (LitNumber LitNumWord i) = G2.LitInt (fromInteger i)
 mkLit (LitNumber LitNumWord64 i) = G2.LitInt (fromInteger i)
 #endif
 
+#if __GLASGOW_HASKELL__ < 808
+mkLit (MachFloat rat) = G2.LitFloat rat
+mkLit (MachDouble rat) = G2.LitDouble rat
+#else
 mkLit (LitFloat rat) = G2.LitFloat rat
 mkLit (LitDouble rat) = G2.LitDouble rat
-mkLit _ = error "mkLit: unhandled Lit"
+#endifmkLit _ = error "mkLit: unhandled Lit"
 -- mkLit (MachNullAddr) = error "mkLit: MachNullAddr"
 -- mkLit (MachLabel _ _ _ ) = error "mkLit: MachLabel"
 
