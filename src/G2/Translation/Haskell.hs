@@ -564,8 +564,13 @@ switchModule m =
         Nothing -> Just m
 
 mkLit :: Literal -> G2.Lit
+#if __GLASGOW_HASKELL__ < 808
+mkLit (MachChar chr) = G2.LitChar chr
+mkLit (MachStr bstr) = G2.LitString (C.unpack bstr)
+#else
 mkLit (LitChar chr) = G2.LitChar chr
 mkLit (LitString bstr) = G2.LitString (C.unpack bstr)
+#endif
 
 #if __GLASGOW_HASKELL__ <= 810
 mkLit (LitNumber LitNumInteger i _) = G2.LitInteger (fromInteger i)
