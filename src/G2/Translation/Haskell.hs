@@ -151,11 +151,7 @@ loadProj hsc proj src gflags tr_con = do
     load LoadAllTargets
 
 setIncludePaths :: [FilePath] -> DynFlags -> DynFlags
-#if __GLASGOW_HASKELL__ < 806
-setIncludePaths proj dflags = dflags { includePaths = proj ++ includePaths dflags }
-#else
 setIncludePaths proj dflags = dflags { includePaths = addQuoteInclude (includePaths dflags) proj }
-#endif
 
 -- Compilation pipeline with CgGuts
 hskToG2ViaCgGutsFromFile :: Maybe HscTarget
@@ -231,14 +227,6 @@ envModSumModGutsImports (EnvModSumModGuts _ ms _) = concatMap (map (\(_, L _ m) 
 
 -- | Extract information from GHC into a form that G2 can process.
 mkCgGutsModDetailsClosures :: G2.TranslationConfig -> HscEnv -> [ModGuts] -> IO [( G2.CgGutsClosure, G2.ModDetailsClosure)]
-#if __GLASGOW_HASKELL__ < 806
-mkCgGutsModDetailsClosures tr_con env modgutss = do
-  simplgutss <- mapM (if G2.simpl tr_con then hscSimplify env else return . id) modgutss
-  tidys <- mapM (tidyProgram env) simplgutss
-  let pairs = map (\((cg, md), mg) -> ( mkCgGutsClosure (mg_binds mg) cg md
-                                      , mkModDetailsClosure (mg_deps mg) md)) $ zip tidys simplgutss
-  return pairs
-#else
 mkCgGutsModDetailsClosures tr_con env modgutss = do
   simplgutss <- mapM (if G2.simpl tr_con then hscSimplify env [] else return . id) modgutss
 
@@ -252,7 +240,6 @@ mkCgGutsModDetailsClosures tr_con env modgutss = do
   let pairs = map (\((cg, md), mg) -> ( mkCgGutsClosure (mg_binds mg) cg md
                                       , mkModDetailsClosure (mg_deps mg) md)) $ zip tidys simplgutss
   return pairs
-#endif
 
 -- | Extract information from GHC into a form that G2 can process.
 mkCgGutsClosure :: CoreProgram -> CgGuts -> ModDetails -> G2.CgGutsClosure
@@ -381,20 +368,11 @@ mkModGutsClosuresFromFile hsc proj src tr_con = do
 
 {-# INLINE convertModuleGraph #-}
 convertModuleGraph :: ModuleGraph -> [ModSummary]
-#if __GLASGOW_HASKELL__ < 806
-convertModuleGraph = id
-#else
 convertModuleGraph = mgModSummaries
-#endif
 
 {-# INLINE hscSimplifyC #-}
 hscSimplifyC :: HscEnv -> ModGuts -> IO ModGuts
-#if __GLASGOW_HASKELL__ < 806
-hscSimplifyC = hscSimplify
-#else
 hscSimplifyC env = hscSimplify env []
-#endif
-
 
 -- This one will need to do the Tidy program stuff
 mkModGutsClosure :: HscEnv -> ModGuts -> IO G2.ModGutsClosure
@@ -594,13 +572,7 @@ mkLit (LitChar chr) = G2.LitChar chr
 mkLit (LitString bstr) = G2.LitString (C.unpack bstr)
 #endif
 
-#if __GLASGOW_HASKELL__ < 806
-mkLit (MachInt i) = G2.LitInt (fromInteger i)
-mkLit (MachInt64 i) = G2.LitInt (fromInteger i)
-mkLit (MachWord i) = G2.LitInt (fromInteger i)
-mkLit (MachWord64 i) = G2.LitInt (fromInteger i)
-mkLit (LitInteger i _) = G2.LitInteger (fromInteger i)
-#elif __GLASGOW_HASKELL__ <= 810
+#if __GLASGOW_HASKELL__ <= 810
 mkLit (LitNumber LitNumInteger i _) = G2.LitInteger (fromInteger i)
 mkLit (LitNumber LitNumNatural i _) = G2.LitInteger (fromInteger i)
 mkLit (LitNumber LitNumInt i _) = G2.LitInt (fromInteger i)

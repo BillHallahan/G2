@@ -7,13 +7,13 @@ It is capable of generating assertion failure counterexamples and solving for hi
 ---
 
 #### Dependencies
-* GHC 8.2.2, 8.6.5, or 8.10.7: https://www.haskell.org/ghc/
+* GHC: https://www.haskell.org/ghc/
 * Custom Haskell Standard Library: https://github.com/BillHallahan/base-4.9.1.0
 * Z3 SMT Solver: https://github.com/Z3Prover/z3
 
 ---
 #### Setup:
-1) Install GHC 8.2.2, 8.6.5, or 8.10.7.
+1) Install GHC.
 2) Install Z3.  Ensure Z3 is in your system's path.
 3) Pull the Custom Haskell Standard Library into ~/.g2 by running `bash base_setup.sh`.
 
@@ -34,12 +34,3 @@ It is capable of generating assertion failure counterexamples and solving for hi
 * `--max-outputs` number of inputs/results to display
 * `--smt` Pass "z3" or "cvc4" to select a solver [Default: Z3]
 * `--time` Set a timeout in seconds
-
----
-
-#### Authors
-* Bill Hallahan (Yale)
-* Anton Xue (Yale)
-* Maxwell Troy Bland (UCSD)
-* Ranjit Jhala (UCSD)
-* Ruzica Piskac (Yale)
