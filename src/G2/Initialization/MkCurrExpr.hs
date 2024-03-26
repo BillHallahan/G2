@@ -53,7 +53,7 @@ mkCurrExpr m_assume m_assert f@(Id (Name _ m_mod _ _) _) tc ng eenv _ walkers kv
 
                 let_ex = Let [(id_name, strict_app_ex)] retsTrue_ex
             in
-            trace ("the expr is : " ++  show let_ex)(let_ex, is, typsE, ng'')
+           (let_ex, is, typsE, ng'')
         Nothing -> error "mkCurrExpr: Bad Name"
 
 mkMainExpr :: TypeClasses -> KnownValues -> NameGen -> Expr -> (Expr, [Id], [Expr], NameGen)
