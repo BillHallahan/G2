@@ -599,7 +599,8 @@ mkLit (MachDouble rat) = G2.LitDouble rat
 #else
 mkLit (LitFloat rat) = G2.LitFloat rat
 mkLit (LitDouble rat) = G2.LitDouble rat
-#endifmkLit _ = error "mkLit: unhandled Lit"
+#endif
+mkLit _ = error "mkLit: unhandled Lit"
 -- mkLit (MachNullAddr) = error "mkLit: MachNullAddr"
 -- mkLit (MachLabel _ _ _ ) = error "mkLit: MachLabel"
 
