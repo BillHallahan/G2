@@ -110,13 +110,14 @@ import qualified G2.Language.PathConds as PC
 import qualified G2.Language.Stack as Stck
 import G2.Solver
 import G2.Lib.Printers
-
+import Debug.Trace
 import Control.Monad.IO.Class
 import qualified Control.Monad.State as SM
 import Data.Foldable
 import qualified Data.HashSet as HS
 import qualified Data.HashMap.Strict as HM
 import qualified Data.Map as M
+import Debug.Trace
 import Data.Maybe
 import Data.Monoid ((<>))
 import qualified Data.List as L
@@ -817,9 +818,9 @@ acceptIfViolatedHalter = mkStoppingHalter stop
         stop _ _ s =
             case isExecValueForm s of
                 True
-                    | true_assert s -> return Accept
-                    | otherwise -> return Discard
-                False -> return Continue
+                    | true_assert s -> return $ trace ("acceptIfViolatedHalter " ++ (show $ (non_red_path_conds s))) Accept
+                    | otherwise -> return  $ trace ("acceptIfViolatedHalter discard") Discard
+                False -> return $ trace( "acceptIfViolatedHalter false") Continue
 
 -- | Allows execution to continue until the step counter hits 0, then discards the state
 zeroHalter :: Monad m => Int -> Halter m Int t
@@ -845,9 +846,9 @@ switchEveryNHalter :: Monad m => Int -> Halter m Int t
 switchEveryNHalter sw = (mkSimpleHalter
                             (const sw)
                             (\_ _ _ -> sw)
-                            (\i _ _ -> return $ if i <= 0 then Switch else Continue)
+                            (\i _ _ ->  (return $ if i <= 0 then Switch else Continue))
                             (\i _ _ _ -> i - 1))
-                        { updateHalterWithAll = updateAll }
+                        { updateHalterWithAll = updateAll } 
     where
         updateAll [] = []
         updateAll xs@((_, c):_) =

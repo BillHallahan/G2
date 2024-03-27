@@ -8,6 +8,7 @@ module G2.Config.Config ( Mode (..)
                         , IncludePath
                         , Config (..)
                         , BoolDef (..)
+                        , InstTV(..)
                         , mkConfig
                         , mkConfigDirect
 
@@ -28,6 +29,7 @@ import Data.Monoid ((<>))
 import Options.Applicative
 import Text.Read
 
+
 data Mode = Regular | Liquid deriving (Eq, Show, Read)
 
 data LogMode = Log LogMethod String | NoLog deriving (Eq, Show, Read)
@@ -36,6 +38,9 @@ data LogMethod = Raw | Pretty deriving (Eq, Show, Read)
 
 -- | Do we use sharing to only reduce variables once?
 data Sharing = Sharing | NoSharing deriving (Eq, Show, Read)
+
+-- Instantiate type variables before or after symbolic execution
+data InstTV = InstBefore | InstAfter deriving (Eq, Show, Read)
 
 data SMTSolver = ConZ3 | ConCVC4 deriving (Eq, Show, Read)
 
@@ -56,6 +61,7 @@ data Config = Config {
     , extraDefaultMods :: [FilePath]
     , logStates :: LogMode -- ^ Determines whether to Log states, and if logging states, how to do so.
     , sharing :: Sharing
+    , instTV :: InstTV -- allow the instantiation of types in the beginning or it's instantiate symbolically by functions  
     , maxOutputs :: Maybe Int -- ^ Maximum number of examples/counterexamples to output.  TODO: Currently works only with LiquidHaskell
     , returnsTrue :: Bool -- ^ If True, shows only those inputs that do not return True
     , higherOrderSolver :: HigherOrderSolver -- ^ How to try and solve higher order functions
@@ -77,6 +83,7 @@ mkConfig homedir = Config Regular
     <*> pure []
     <*> mkLogMode
     <*> flag Sharing NoSharing (long "no-sharing" <> help "disable sharing")
+    <*> flag InstBefore InstAfter (long "inst-after" <> help "instantiate type variables in the function")
     <*> mkMaxOutputs
     <*> switch (long "returns-true" <> help "assert that the function returns true, show only those outputs which return false")
     <*> mkHigherOrder
@@ -190,7 +197,7 @@ mkConfigDirect homedir as m = Config {
     , logStates = strArg "log-states" as m (Log Raw)
                         (strArg "log-pretty" as m (Log Pretty) NoLog)
     , sharing = boolArg' "sharing" as Sharing Sharing NoSharing
-
+    , instTV = InstBefore
     , maxOutputs = strArg "max-outputs" as m (Just . read) Nothing
     , returnsTrue = boolArg "returns-true" as m Off
     , higherOrderSolver = strArg "higher-order" as m higherOrderSolArg SingleFunc

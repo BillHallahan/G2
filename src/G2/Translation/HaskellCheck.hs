@@ -22,6 +22,7 @@ import Control.Exception
 import System.Process
 
 import Control.Monad.IO.Class
+import Debug.Trace
 
 validateStates :: [FilePath] -> [FilePath] -> String -> String -> [String] -> [GeneralFlag] -> [ExecRes t] -> IO Bool
 validateStates proj src modN entry chAll gflags in_out = do
@@ -43,7 +44,7 @@ runCheck modN entry chAll (ExecRes {final_state = s, conc_args = ars, conc_out =
     chAllR' <- liftIO $ (unsafeCoerce chAllR :: IO [Either SomeException Bool])
     let chAllR'' = rights chAllR'
 
-    return $ v'' && and chAllR''
+    trace(" show chck possibly " ++ show v) (return $ v'' && and chAllR'')
 
 runCheck' :: String -> String -> [String] -> State t -> [Expr] -> Expr -> Ghc (HValue, [HValue])
 runCheck' modN entry chAll s ars out = do

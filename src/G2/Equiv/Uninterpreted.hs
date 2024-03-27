@@ -10,7 +10,6 @@ import Data.Maybe
 import qualified Data.Monoid as DM
 import qualified Data.HashMap.Lazy as HM
 import qualified Data.HashSet as HS
-import Debug.Trace
 import qualified Data.Text as T
 
 -- | Find variables that don't have binding and adjust the epxression environment to treat them as symbolic 
