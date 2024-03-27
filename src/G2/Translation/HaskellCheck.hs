@@ -44,7 +44,7 @@ runCheck modN entry chAll (ExecRes {final_state = s, conc_args = ars, conc_out =
     chAllR' <- liftIO $ (unsafeCoerce chAllR :: IO [Either SomeException Bool])
     let chAllR'' = rights chAllR'
 
-    return $ v'' && and chAllR''
+    trace(" show chck possibly " ++ show v) (return $ v'' && and chAllR'')
 
 runCheck' :: String -> String -> [String] -> State t -> [Expr] -> Expr -> Ghc (HValue, [HValue])
 runCheck' modN entry chAll s ars out = do
@@ -73,7 +73,7 @@ runCheck' modN entry chAll s ars out = do
 
     chAllR <- mapM compileExpr chAllStr'
 
-    trace ("in chck " ++ show chck )(return $ (v', chAllR))
+    return $ (v', chAllR)
 
 loadToCheck :: [FilePath] -> [FilePath] -> String -> [GeneralFlag] -> Ghc ()
 loadToCheck proj src modN gflags = do
