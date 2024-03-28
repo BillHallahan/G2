@@ -7,6 +7,7 @@
 {-# LANGUAGE MultiWayIf #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE UndecidableInstances #-}
+{-# LANGUAGE OverloadedStrings #-}
 
 {-| Module: G2.Execution.Reducer
 
@@ -51,6 +52,7 @@ module G2.Execution.Reducer ( Reducer (..)
 
                             , stdRed
                             , nonRedPCTemplates
+                            , nonRedLibFuncsReducer
                             , nonRedPCRed
                             , nonRedPCRedConst
                             , taggerRed
@@ -504,6 +506,47 @@ nonRedPCTemplatesFunc _
                 s'' = s' {curr_expr = CurrExpr Evaluate nre1}
             in return (InProgress, [(s'', ())], b)
 nonRedPCTemplatesFunc _ s b = return (Finished, [(s, ())], b)
+
+-- | A reducer to add library functions in non reduced path constraints for solving later  
+nonRedLibFuncsReducer :: Monad m => HS.HashSet Name -> Reducer m () t
+nonRedLibFuncsReducer n = mkSimpleReducer (\_ -> ())
+                            (nonRedLibFuncs n)
+
+nonRedLibFuncs :: Monad m => HS.HashSet Name -> RedRules m () t
+nonRedLibFuncs names _ s@(State { expr_env = eenv
+                         , curr_expr = CurrExpr _ ce
+                         , non_red_path_conds = nrs
+                         }) 
+                         b@(Bindings { name_gen = ng })
+    | Var (Id n t):es <- unApp ce
+    , hasFuncType (PresType t)
+    , not (hasFuncType ce) = 
+        let
+            isMember =  HS.member n names
+        in
+            case isMember of
+                True -> let
+                            (new_sym, ng') = freshSeededString "sym" ng
+                            new_sym_id = Id new_sym (typeOf ce)
+                            eenv' = E.insertSymbolic new_sym_id eenv
+                            cexpr' = CurrExpr Return (Var new_sym_id)
+                            -- when NRPC moves back to current expression, it immediately gets added as NRPC again.
+                            -- To stop falling into this infinite loop, instead of adding current expression in NRPC
+                            -- we associate a tick (nonRedBlocker) with the expression and then standard reducer reduces
+                            -- this tick.
+                            nonRedBlocker = Name "NonRedBlocker" Nothing 0 Nothing
+                            tick = NamedLoc nonRedBlocker
+                            ce' = mkApp $ (Tick tick (Var (Id n t))):es
+                            s' = s { expr_env = eenv',
+                                    curr_expr = cexpr',
+                                    non_red_path_conds = (ce', Var new_sym_id):nrs } 
+                        in 
+                            return (Finished, [(s', ())], b {name_gen = ng'})
+                False -> return (Finished, [(s, ())], b)
+
+    | otherwise = return (Finished, [(s, ())], b)
+     
+
 
 -- | Removes and reduces the values in a State's non_red_path_conds field. 
 {-#INLINE nonRedPCRed #-}

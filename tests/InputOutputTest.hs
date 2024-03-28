@@ -2,7 +2,8 @@
 module InputOutputTest ( checkInputOutput
                        , checkInputOutputs
                        , checkInputOutputsTemplate
-                       , checkInputOutputsNonRedTemp ) where
+                       , checkInputOutputsNonRedTemp
+                       , checkInputOutputsNonRedLib ) where
 
 import Test.Tasty
 import Test.Tasty.HUnit
@@ -43,6 +44,13 @@ checkInputOutputsNonRedTemp :: FilePath -> [(String, Int, [Reqs String])] -> Tes
 checkInputOutputsNonRedTemp src tests = do
     checkInputOutput'
         (do config <- mkConfigTestIO; return (config { higherOrderSolver = SymbolicFuncTemplate }))
+        src
+        tests
+
+checkInputOutputsNonRedLib :: FilePath -> [(String, Int, [Reqs String])] -> TestTree
+checkInputOutputsNonRedLib src tests = do
+    checkInputOutput'
+        (do config <- mkConfigTestIO; return (config { nrpc = Nrpc }))
         src
         tests
 
