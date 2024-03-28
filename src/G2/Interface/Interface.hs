@@ -392,9 +392,6 @@ initialStateFromFile proj src m_reach def_assert f mkCurr argTys transConfig con
 
     return (reaches_state, ie, bindings)
 
-getExprEnv :: State t -> E.ExprEnv
-getExprEnv (State { expr_env = e }) = e
-
 runG2FromFile :: [FilePath]
               -> [FilePath]
               -> Maybe AssumeFunc
@@ -419,13 +416,13 @@ runG2WithConfig mod_name state config bindings = do
     SomeSolver solver <- initSolver config
     hpc_t <- hpcTracker
     let simplifier = IdSimplifier
-        exp_env = E.keys $ getExprEnv state
+        exp_env_names = E.keys $ expr_env state
 
         lib_funcs = case mod_name  of
                       Just a -> filter (\x -> case nameModule x of
                                                 Just n -> a /= n
-                                                Nothing -> True) exp_env
-                      Nothing -> exp_env
+                                                Nothing -> True) exp_env_names
+                      Nothing -> exp_env_names
     (in_out, bindings') <- case initRedHaltOrd mod_name solver simplifier config (S.fromList lib_funcs) of
                 (red, hal, ord) ->
                     SM.evalStateT

@@ -530,14 +530,16 @@ nonRedLibFuncs names _ s@(State { expr_env = eenv
                             new_sym_id = Id new_sym (typeOf ce)
                             eenv' = E.insertSymbolic new_sym_id eenv
                             cexpr' = CurrExpr Return (Var new_sym_id)
-                            -- nonRedBlocker is just a tick name to avoid reducing function again by standard reducer
-                            -- and adding to non-reduced path constraint
+                            -- when NRPC moves back to current expression, it immediately gets added as NRPC again.
+                            -- To stop falling into this infinite loop, instead of adding current expression in NRPC
+                            -- we associate a tick (nonRedBlocker) with the expression and then standard reducer reduces
+                            -- this tick.
                             nonRedBlocker = Name "NonRedBlocker" Nothing 0 Nothing
                             tick = NamedLoc nonRedBlocker
                             ce' = mkApp $ (Tick tick (Var (Id n t))):es
                             s' = s { expr_env = eenv',
                                     curr_expr = cexpr',
-                                    non_red_path_conds = nrs ++ [(ce', Var new_sym_id)] } 
+                                    non_red_path_conds = (ce', Var new_sym_id):nrs } 
                         in 
                             return (Finished, [(s', ())], b {name_gen = ng'})
                 False -> return (Finished, [(s, ())], b)
