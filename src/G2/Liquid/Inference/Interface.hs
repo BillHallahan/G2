@@ -449,6 +449,7 @@ incrCExAndTime :: Monad m => Name -> InfStack m (Either a (Maybe b, FuncConstrai
 incrCExAndTime (Name n m _ _) = do
     incrMaxCExI (n, m)
     incrMaxTimeI (n, m)
+    incrMaxCFI (n, m)
     return $ Right (Nothing, emptyFC) 
 
 calledByFunc :: LiquidReadyState -> Name -> [Name]

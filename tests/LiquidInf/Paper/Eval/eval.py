@@ -55,7 +55,7 @@ def run_infer(file, name, timeout, extra_opts=[]):
 
 def call_with_timing(file, timeout, passed_args = []):
     start_time = time.perf_counter();
-    (res, res_err) = call_infer_process(file, timeout, passed_args);
+    (res, res_err) = call_infer_process(file, timeout, ["--use-mod"] + passed_args);
     end_time = time.perf_counter();
     elapsed = end_time - start_time;
 
