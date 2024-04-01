@@ -10,7 +10,7 @@ main xs n =
     case while xs 4000 2000 n (0, 0) of
         (i', k') -> k' > n
 
-{-@ while :: List Int -> Int -> Int -> Int -> (Int, Int) -> (Int, Int) @-}
+{-@ while :: List Int -> Int -> Int -> n:Int -> (Int, Int) -> {t:(Int, Int) | not (fst t < n) } @-}
 while :: List Int -> Int -> Int -> Int -> (Int, Int) -> (Int, Int)
 while xs c1 c2 n (i, k) =
     if i < n

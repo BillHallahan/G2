@@ -10,7 +10,7 @@ main xs x y k i n =
     case while xs k n i (x, y, 0, 0) of
         (x', y', j', m') -> x' + y' == k && (if n > 0 then 0 <= m' && m' < n else True)
 
-{-@ while :: List Int -> Int -> Int -> Int -> (Int, Int, Int, Int) -> (Int, Int, Int, Int) @-}
+{-@ while :: List Int -> Int -> n:Int -> Int -> (Int, Int, Int, Int) -> { t:(Int, Int, Int, Int) | not (x_Tuple43 t < n) } @-}
 while :: List Int -> Int -> Int -> Int -> (Int, Int, Int, Int) -> (Int, Int, Int, Int)
 while xs k n i (x, y, j, m) =
     if j < n then while (listTail xs) k n i

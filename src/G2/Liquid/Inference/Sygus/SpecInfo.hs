@@ -29,7 +29,6 @@ import Data.Maybe
 import qualified Data.Text as T
 import Data.Semigroup (Semigroup (..))
 
-
 type NMExprEnv = HM.HashMap (T.Text, Maybe T.Text) G2.Expr
 
 -- A list of functions that still must have specifications synthesized at a lower level
@@ -566,12 +565,21 @@ conflateLoopNames = M.map conflateLoopNames'
 
 conflateLoopNames' :: SpecInfo -> SpecInfo
 conflateLoopNames' si@(SI { s_syn_pre = pb_sy_pre@(_:_)
-                          , s_syn_post = pb_post@(PolyBound sy_post _) })
+                          , s_syn_post = pb_post@(PolyBound sy_post _)
+                          , s_type_pre = ty_pre })
     | take 4 (sy_name sy_post) == "loop" =
         let
             pb_pre = last pb_sy_pre
         in
         si { s_syn_pre = init pb_sy_pre ++ [conflateLoopNames'' pb_pre pb_post] }
+    | take 5 (sy_name sy_post) == "while"
+    , t <- last ty_pre
+    , not (isTyVar t) =
+        let
+            pb_pre = last pb_sy_pre
+            conf = conflateLoopNames'' pb_pre pb_post
+        in
+        si { s_syn_pre = init pb_sy_pre ++ [conf] }
 conflateLoopNames' si = si
 
 conflateLoopNames'' :: PolyBound SynthSpec -> PolyBound SynthSpec -> PolyBound SynthSpec

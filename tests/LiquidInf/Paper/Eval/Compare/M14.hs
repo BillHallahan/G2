@@ -11,6 +11,7 @@ main xs m | m <= 0 = True
                     case while xs m (0, 1) of
                         (a', j') -> a' >= -m && a' <= m
 
+{-@ while :: List Bool -> m:Int -> (Int, Int) -> { t:(Int, Int) | not (snd t <= m) } @-}
 while :: List Bool -> Int -> (Int, Int) -> (Int, Int)
 while xs m (a, j) =
     if j <= m then while (listTail xs) m (if isTrueCons xs
