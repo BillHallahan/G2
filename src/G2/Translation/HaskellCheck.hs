@@ -44,7 +44,7 @@ runCheck modN entry chAll (ExecRes {final_state = s, conc_args = ars, conc_out =
     chAllR' <- liftIO $ (unsafeCoerce chAllR :: IO [Either SomeException Bool])
     let chAllR'' = rights chAllR'
 
-    trace(" show chck possibly " ++ show v) (return $ v'' && and chAllR'')
+    return $ v'' && and chAllR''
 
 runCheck' :: String -> String -> [String] -> State t -> [Expr] -> Expr -> Ghc (HValue, [HValue])
 runCheck' modN entry chAll s ars out = do
@@ -64,7 +64,6 @@ runCheck' modN entry chAll s ars out = do
                                     ++ outStr ++ " :: " ++ outType ++ ")" ++ ")) :: IO (Either SomeException Bool)"
                     True -> "try (evaluate ( (" ++ arsStr ++ " :: " ++ arsType ++
                                                     ") == " ++ arsStr ++ ")) :: IO (Either SomeException Bool)"
-
     v' <- compileExpr chck
 
     let chArgs = ars ++ [out] 
