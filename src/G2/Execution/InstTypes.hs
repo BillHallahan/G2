@@ -8,6 +8,7 @@ import qualified G2.Language.ExprEnv as E
 import qualified Data.List as L 
 import Debug.Trace
 import Data.Foldable (foldl')
+import G2.Language.ExprEnv (isSymbolic)
 
 
 
@@ -50,13 +51,15 @@ instType ng st =
 
 -- Introducing a new type for a type variable and substituting the variable in the curr_expr
 instType' :: ASTContainer t Type => (NameGen, State t) -> Id -> (NameGen, State t)
-instType' (ng, st) i =
-    let 
-        (t,te,ng') = newType ng i (type_env st)
-        n = idName i
-        eenv' = E.insert n (Var i) (expr_env st)
-        st' = st {expr_env = eenv'
-                 ,type_env = te}
-        st'' = replaceTyVar n t st'
-    in
-    (ng',st'')
+instType' (ng, st) i 
+    | isSymbolic (idName i) (expr_env st) =
+        let 
+            (t,te,ng') = newType ng i (type_env st)
+            n = idName i
+            eenv' = E.insert n (Var i) (expr_env st)
+            st' = st {expr_env = eenv'
+                    ,type_env = te}
+            st'' = replaceTyVar n t st'
+        in
+        (ng',st'')
+    | otherwise = (ng, st)

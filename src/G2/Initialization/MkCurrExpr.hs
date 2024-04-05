@@ -80,13 +80,13 @@ mkMainExprNoInstantiateTypes e ng =
                 AnonType _ -> True
                 _ -> False
         (ats,nts) = partition anontype argts 
-        -- use the rename ids from the nametype as symbolic variable 
+        -- We want to have symbolic types so we grab the type level arguments and introduce symbolic variables for them
         nnames (NamedType (Id n _)) = n 
         ns = map nnames nts
         (ns', ng') = renameAll ns ng
 
         ntmap = HM.fromList $ zip ns ns' 
-        -- return id from nametype as symbolic variable
+        -- We want to create a full list of symoblic ids and applying it to the expr so we can later access symbolic ids from expr
         idfromNameType (NamedType i) = i 
         ntids = map idfromNameType nts
         ntids' = renames ntmap ntids
@@ -96,8 +96,7 @@ mkMainExprNoInstantiateTypes e ng =
         atsToIds' = renames ntmap atsToIds
         
         all_ids = ntids' ++ atsToIds'
-        var_id  = Var 
-        app_ex = foldl' App e $ map var_id all_ids
+        app_ex = foldl' App e $ map Var all_ids
     in (app_ex, all_ids,[],ng'')
 
 

@@ -887,9 +887,9 @@ acceptIfViolatedHalter = mkStoppingHalter stop
         stop _ _ s =
             case isExecValueForm s of
                 True
-                    | true_assert s -> return $ trace ("acceptIfViolatedHalter " ++ (show $ (non_red_path_conds s))) Accept
-                    | otherwise -> return  $ trace ("acceptIfViolatedHalter discard") Discard
-                False -> return $ trace( "acceptIfViolatedHalter false") Continue
+                    | true_assert s -> return Accept
+                    | otherwise -> return Discard
+                False -> return Continue
 
 -- | Allows execution to continue until the step counter hits 0, then discards the state
 zeroHalter :: Monad m => Int -> Halter m Int t
