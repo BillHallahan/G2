@@ -10,7 +10,7 @@ main xs m n
     | m + 1 < n = while1 m n xs (0, 0)
     | otherwise = (0, 0)
 
-{-@ while1 :: Int -> Int -> List (List Int) -> (Int, Int) -> (Int, Int) @-}
+{-@ while1 :: Int -> n:Int -> List (List Int) -> (Int, Int) -> { t:(Int, Int) | not (fst t < n) } @-}
 while1 :: Int -> Int -> List (List Int) -> (Int, Int) -> (Int, Int)
 while1 m n xs (i, j) =
     if i < n

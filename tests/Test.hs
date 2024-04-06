@@ -350,7 +350,9 @@ testFileTests = testGroup "TestFiles"
                                                                    , ("sf", 200, [Exactly 2])
                                                                    , ("thirdOrder", 300, [Exactly 2])
                                                                    , ("thirdOrder2", 300, [Exactly 3])
-                                                                   , ("tupleTestMono", 175, [Exactly 2])] 
+                                                                   , ("tupleTestMono", 175, [Exactly 2])]
+    , checkInputOutputsNonRedLib "tests/BaseTests/ListTests.hs" [ ("lengthN", 250, [Exactly 1])
+                                                                   , ("map2", 150, [Exactly 1])] 
     -- , checkInputOutput "tests/TestFiles/BadBool.hs" "BadBool" "f" 1400 [AtLeast 1]
     -- , checkExprAssumeAssert "tests/TestFiles/Coercions/GADT.hs" 400 Nothing Nothing "g" 2
     --     [ AtLeast 2

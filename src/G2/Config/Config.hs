@@ -6,6 +6,7 @@ module G2.Config.Config ( Mode (..)
                         , SearchStrategy (..)
                         , HigherOrderSolver (..)
                         , FpHandling (..)
+                        , NonRedPathCons (..)
                         , IncludePath
                         , Config (..)
                         , BoolDef (..)
@@ -49,6 +50,8 @@ data HigherOrderSolver = AllFuncs
 
 data FpHandling = RealFP | RationalFP deriving (Eq, Show, Read)
 
+data NonRedPathCons = Nrpc | NoNrpc deriving (Eq, Show, Read)
+
 type IncludePath = FilePath
 
 data Config = Config {
@@ -71,6 +74,7 @@ data Config = Config {
     , strict :: Bool -- ^ Should the function output be strictly evaluated?
     , timeLimit :: Int -- ^ Seconds
     , validate :: Bool -- ^ If True, run on G2's input, and check against expected output.
+    , nrpc :: NonRedPathCons -- ^ Whether to execute using non reduced path constraints or not
 }
 
 mkConfig :: String -> Parser Config
@@ -104,6 +108,7 @@ mkConfig homedir = Config Regular
                    <> value 600
                    <> help "time limit, in seconds")
     <*> switch (long "validate" <> help "use GHC to automatically compile and run on generated inputs, and check that generated outputs are correct")
+    <*> flag NoNrpc Nrpc (long "nrpc" <> help "execute with non reduced path constraints")
 
 mkBaseInclude :: String -> Parser [IncludePath]
 mkBaseInclude homedir =
@@ -209,6 +214,7 @@ mkConfigDirect homedir as m = Config {
     , strict = boolArg "strict" as m On
     , timeLimit = strArg "time" as m read 300
     , validate  = boolArg "validate" as m Off
+    , nrpc = NoNrpc
 }
 
 baseIncludeDef :: FilePath -> [FilePath]

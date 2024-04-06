@@ -518,6 +518,7 @@ inferenceReducerHalterOrderer :: (MonadIO m, MonadIO m_run, Solver solver, Simpl
 inferenceReducerHalterOrderer infconfig config lhconfig solver simplifier entry mb_modname cfn st = do
     extra_ce <- extraMaxCExI (entry, mb_modname)
     extra_time <- extraMaxTimeI (entry, mb_modname)
+    max_cf <- maxCFI (entry, mb_modname)
 
     -- time <- liftIO $ getCurrentTime
     let
@@ -536,11 +537,12 @@ inferenceReducerHalterOrderer infconfig config lhconfig solver simplifier entry 
 
     liftIO $ putStrLn $ "ce num for " ++ T.unpack entry ++ " is " ++ show ce_num
     liftIO $ putStrLn $ "timeout for " ++ T.unpack entry ++ " is " ++ show timeout
-    
+    liftIO $ putStrLn $ "max CF for " ++ T.unpack entry ++ " is " ++ show max_cf
+
     timer_halter <- liftIO $ stdTimerHalter (timeout * 2)
     lh_timer_halter <- liftIO $ lhStdTimerHalter timeout
 
-    let halter =      lhAbsHalter entry mb_modname (expr_env st)
+    let halter =      lhAbsHalter (Just max_cf) entry mb_modname (expr_env st)
                  <~> lh_max_outputs
                  <~> switchEveryNHalter (switch_after lhconfig)
                  <~> lhSWHNFHalter

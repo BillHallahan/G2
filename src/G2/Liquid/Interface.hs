@@ -461,7 +461,7 @@ lhReducerHalterOrderer config lhconfig solver simplifier entry mb_modname cfn st
         , SomeHalter
                 (maxOutputsHalter (maxOutputs config)
                   <~> zeroHalter (steps config)
-                  <~> lhAbsHalter entry mb_modname (expr_env st)
+                  <~> lhAbsHalter Nothing entry mb_modname (expr_env st)
                   <~> lhLimitByAcceptedHalter (cut_off lhconfig)
                   <~> switchEveryNHalter (switch_after lhconfig)
                   <~> lhAcceptIfViolatedHalter)
@@ -475,7 +475,7 @@ lhReducerHalterOrderer config lhconfig solver simplifier entry mb_modname cfn st
               <~> discardIfAcceptedTagHalter abs_ret_name
               <~> maxOutputsHalter (maxOutputs config)
               <~> zeroHalter (steps config)
-              <~> lhAbsHalter entry mb_modname (expr_env st)
+              <~> lhAbsHalter Nothing entry mb_modname (expr_env st)
               <~> lhLimitByAcceptedHalter (cut_off lhconfig)
               <~> switchEveryNHalter (switch_after lhconfig)
               <~> lhAcceptIfViolatedHalter)

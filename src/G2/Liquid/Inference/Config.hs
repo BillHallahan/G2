@@ -1,5 +1,5 @@
 {-# LANGUAGE CPP #-}
-{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE LambdaCase, MultiParamTypeClasses #-}
 {-# LANGUAGE OverloadedStrings #-}
 
 module G2.Liquid.Inference.Config (
@@ -16,6 +16,8 @@ module G2.Liquid.Inference.Config (
                                   , InfConfig (..)
                                   , runConfigs
 
+                                  , UseMod (..)
+
                                   , getAllConfigsForInf
                                   , mkInferenceConfig
                                   , mkInferenceConfigDirect
@@ -29,9 +31,11 @@ import G2.Initialization.Types
 import G2.Language ( ExprEnv
                    , Expr
                    , Name (..)
-                   , Type (..))
+                   , Type (..)
+                   , idName)
 import qualified G2.Language.ExprEnv as E
 import qualified G2.Language.Support as S
+import G2.Language.Expr
 import G2.Language.Typing
 import G2.Liquid.Config
 import G2.Liquid.Conversion
@@ -47,6 +51,7 @@ import G2.Liquid.Types (GhcInfo (..), GhcSpec (..))
 import Language.Haskell.Liquid.Types (GhcInfo (..), GhcSpec (..))
 #endif
 import qualified Language.Haskell.Liquid.Types as LH
+import qualified Language.Fixpoint.Types.Refinements as Ref
 
 #if MIN_VERSION_GLASGOW_HASKELL(9,0,2,0)
 import GHC.Types.Var as V
@@ -76,6 +81,7 @@ data Progress =
     Progress { ex_max_ce :: M.Map (T.Text, Maybe T.Text) Int -- ^ Gives an extra budget for maximum ce number
              , ex_max_depth :: Int -- ^ Gives an extra budget for the depth limit
              , ex_max_time :: M.Map (T.Text, Maybe T.Text) NominalDiffTime -- ^ Gives an extra max bufget for time
+             , max_counterfact_branch :: M.Map (T.Text, Maybe T.Text) Int -- ^ Maximal number of counterfactual branches
              , max_synth_form_size :: MaxSize
              , max_synth_coeff_size :: MaxSize
              , synth_fresh :: Int -- ^ An int to increment to get fresh names
@@ -85,6 +91,7 @@ newProgress :: Progress
 newProgress = Progress { ex_max_ce = M.empty
                        , ex_max_depth = 0
                        , ex_max_time = M.empty
+                       , max_counterfact_branch = M.empty
                        , max_synth_form_size = MaxSize 1
                        , max_synth_coeff_size = MaxSize 2
                        , synth_fresh = 0 }
@@ -98,6 +105,10 @@ class Progresser p where
 
     extraMaxTime :: (T.Text, Maybe T.Text) -> p -> NominalDiffTime
     incrMaxTime :: (T.Text, Maybe T.Text) -> p -> p
+
+    maxCF :: (T.Text, Maybe T.Text) -> p -> Int
+    incrMaxCF :: (T.Text, Maybe T.Text) -> p -> p
+
 
     maxSynthFormSize :: p -> MaxSize
     incrMaxSynthFormSize :: p -> p
@@ -121,6 +132,9 @@ instance Progresser Progress where
     incrMaxTime n p@(Progress { ex_max_time = m }) =
         p { ex_max_time = M.insertWith (+) n 4 m }
 
+    maxCF n (Progress { max_counterfact_branch = m }) = M.findWithDefault 1 n m
+    incrMaxCF n p@(Progress { max_counterfact_branch = m }) = p { max_counterfact_branch = M.alter (\case Just x -> Just (x + 1); Nothing -> Just 2) n m }
+
     maxSynthFormSize (Progress { max_synth_form_size = mss }) = mss
     incrMaxSynthFormSize p@(Progress { max_synth_form_size = mss }) = p { max_synth_form_size = incrMaxSize 1 mss }
 
@@ -142,6 +156,9 @@ class Monad m => ProgresserM m where
     extraMaxTimeM :: (T.Text, Maybe T.Text) -> m NominalDiffTime
     incrMaxTimeM :: (T.Text, Maybe T.Text) -> m ()
 
+    maxCFM :: (T.Text, Maybe T.Text) -> m Int
+    incrMaxCFM :: (T.Text, Maybe T.Text) -> m ()
+
     maxSynthFormSizeM :: m MaxSize
     incrMaxSynthFormSizeM :: m ()
 
@@ -162,6 +179,9 @@ instance (Monad m, Progresser p) => ProgresserM (StateT p m) where
     extraMaxTimeM n = gets (extraMaxTime n)
     incrMaxTimeM n = modify' (incrMaxTime n)
 
+    maxCFM n = gets (maxCF n)
+    incrMaxCFM n = modify' (incrMaxCF n)
+
     maxSynthFormSizeM = gets maxSynthFormSize
     incrMaxSynthFormSizeM = modify' incrMaxSynthFormSize
 
@@ -181,6 +201,9 @@ instance ProgresserM m => ProgresserM (ReaderT env m) where
 
     extraMaxTimeM n = lift (extraMaxTimeM n)
     incrMaxTimeM n = lift (incrMaxTimeM n)
+
+    maxCFM n = lift (maxCFM n)
+    incrMaxCFM n = lift (incrMaxCFM n)
 
     maxSynthFormSizeM = lift maxSynthFormSizeM
     incrMaxSynthFormSizeM = lift incrMaxSynthFormSizeM
@@ -243,6 +266,7 @@ instance InfConfigM m => InfConfigM (StateT env m) where
     lhConfigM = lift lhConfigM
     infConfigM = lift infConfigM
 
+data UseMod = UseMod | NoMod deriving (Eq, Show)
 
 data InferenceConfig =
     InferenceConfig { keep_quals :: Bool
@@ -263,7 +287,9 @@ data InferenceConfig =
                     , use_binary_minimization :: Bool -- ^ In parallel to the SMT's solvers minimization support,
                                                       --   use a binary search to minimize synthesis solutions
 
-                    , use_invs :: Bool
+                    , use_invs :: Bool -- ^ Use invariant mode for benchmarking
+
+                    , use_mod :: Maybe UseMod -- ^ Whether to consider use of the `mod` operator
                    
                     , timeout_se :: NominalDiffTime
                     , timeout_sygus :: NominalDiffTime }
@@ -308,6 +334,7 @@ mkInferenceConfig = InferenceConfig
     <*> flag True False (long "no-negated-models" <> help "do not use negated models")
     <*> flag True False (long "no-binary-min" <> help "use binary minimization during synthesis")
     <*> switch (long "use-invs" <> help "use invariant mode (benchmarking only)")
+    <*> flag (Just NoMod) Nothing (long "use-mod" <> help "consider using the mod operator during synthesis")
     <*> option (maybeReader (Just . fromInteger . read)) (long "timeout-se"
                    <> metavar "T"
                    <> value 5
@@ -339,11 +366,12 @@ mkInferenceConfigDirect as =
                     , use_negated_models = boolArg "use-negated-models" as M.empty On
                     , use_binary_minimization = True
                     , use_invs = boolArg "use-invs" as M.empty Off
+                    , use_mod = Just NoMod
                     , timeout_se = strArg "timeout-se" as M.empty (fromInteger . read) 5
                     , timeout_sygus = strArg "timeout-sygus" as M.empty (fromInteger . read) 10 }
 
 adjustConfig :: Maybe T.Text -> SimpleState -> Config -> LHConfig -> InferenceConfig -> [GhcInfo] -> (Config, LHConfig, InferenceConfig)
-adjustConfig main_mod (SimpleState { expr_env = eenv }) config lhconfig infconfig ghci =
+adjustConfig main_mod s@(SimpleState { expr_env = eenv }) config lhconfig infconfig ghci =
     let
         -- ref = refinable main_mod meas tcv eenv
 
@@ -372,8 +400,47 @@ adjustConfig main_mod (SimpleState { expr_env = eenv }) config lhconfig infconfi
 
         infconfig' = infconfig { modules = S.singleton main_mod
                                , pre_refined = pre }
+
+        infconfig'' = if use_mod infconfig' == Nothing then determineUseMod main_mod s ghci infconfig' else infconfig'
     in
-    (config, lhconfig', infconfig')
+    (config, lhconfig', infconfig'')
+
+-- | Determine whether to consider the mod operator when synthesizing code.
+-- We synthesize specifications with mod if some existing relevant specification uses mod.
+determineUseMod :: Maybe T.Text -> SimpleState -> [GhcInfo] -> InferenceConfig -> InferenceConfig
+determineUseMod main_mod s ghci infconfig =
+    let
+        vs = map (\(Name n m _ _) -> (n, m))
+           . map idName
+           . varIds
+           . E.filterWithKey (\(Name _ m _ _) _ -> m == main_mod)
+           $ expr_env s
+        rel_specs = filter (\(Name n m _ _, _) -> (n, m) `elem` vs)
+                  . map (\(n, sp) -> (mkName $ V.varName n, sp))
+                  $ concatMap getTySigs ghci
+    in
+    infconfig { use_mod = if any (hasMod . LH.val . snd) rel_specs then Just UseMod else Just NoMod }
+
+hasMod :: LH.SpecType -> Bool
+hasMod = LH.foldRType (\b rtype -> b || chRty rtype) False
+    where
+        chRty (LH.RVar { LH.rt_reft = ref }) = chExpr (Ref.expr $ LH.ur_reft ref)
+        chRty (LH.RApp { LH.rt_reft = ref }) = chExpr (Ref.expr $ LH.ur_reft ref)
+        chRty _ = False
+
+        chExpr (Ref.EApp e1 e2) = chExpr e1 || chExpr e2
+        chExpr (Ref.ENeg e) = chExpr e
+        chExpr (Ref.EBin Ref.Mod _ _) = True
+        chExpr (Ref.EBin _ e1 e2) = chExpr e1 || chExpr e2
+        chExpr (Ref.EIte b e1 e2) = chExpr b || chExpr e1 || chExpr e2
+        chExpr (Ref.ECst e _) = chExpr e
+        chExpr (Ref.PAnd es) = any chExpr es
+        chExpr (Ref.POr es) = any chExpr es
+        chExpr (Ref.PNot e) = chExpr e
+        chExpr (Ref.PImp e1 e2) = chExpr e1 || chExpr e2
+        chExpr (Ref.PIff e1 e2) = chExpr e1 || chExpr e2
+        chExpr (Ref.PAtom _ e1 e2) = chExpr e1 || chExpr e2
+        chExpr _ = False
 
 adjustConfigPostLH :: Maybe T.Text -> Measures -> TCValues -> S.State t -> [GhcInfo] -> LHConfig -> LHConfig
 adjustConfigPostLH main_mod meas tcv (S.State { S.expr_env = eenv, S.known_values = kv }) ghci lhconfig =

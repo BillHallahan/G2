@@ -35,7 +35,7 @@ loop1 xs (k, w, z) =
     in
     (k', x' + y' + 1, z + 1)
 
-{-@ while :: Int -> (Int, Int) -> (Int, Int) @-}
+{-@ while :: j:Int -> (Int, Int) -> { t:(Int, Int) | not (snd t < j) } @-}
 while :: Int -> (Int, Int) -> (Int, Int)
 while j (k, i) =
     if i < j then while j (k + 1, i + 1) else (k, i)

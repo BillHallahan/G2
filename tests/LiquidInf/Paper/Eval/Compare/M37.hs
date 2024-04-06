@@ -10,7 +10,7 @@ main xs n =
     case while xs n (0, 0) of
         (x, m) -> if n > 0 then 0 <= m && m < n else True
 
-{-@ while :: List -> Int -> (Int, Int) -> (Int, Int) @-}
+{-@ while :: List -> n:Int -> (Int, Int) -> { t:(Int, Int) | not (fst t < n) } @-}
 while :: List -> Int -> (Int, Int) -> (Int, Int)
 while xs n (x, m) =
     if x < n

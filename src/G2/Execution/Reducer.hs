@@ -7,6 +7,7 @@
 {-# LANGUAGE MultiWayIf #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE UndecidableInstances #-}
+{-# LANGUAGE OverloadedStrings #-}
 
 {-| Module: G2.Execution.Reducer
 
@@ -51,6 +52,7 @@ module G2.Execution.Reducer ( Reducer (..)
 
                             , stdRed
                             , nonRedPCTemplates
+                            , nonRedLibFuncsReducer
                             , nonRedPCRed
                             , nonRedPCRedConst
                             , taggerRed
@@ -186,6 +188,9 @@ data Reducer m rv t = Reducer {
         -- Action to run after a State is accepted.
         , onAccept :: State t -> rv -> m ()
 
+        -- Action to run after a State is discared.
+        , onDiscard :: State t -> rv -> m ()
+
         -- | Action to run after execution of all states has terminated.
         , afterRed :: m ()
     }
@@ -200,6 +205,7 @@ mkSimpleReducer init_red red_rules =
     , redRules = red_rules
     , updateWithAll = map snd
     , onAccept = \_ _ -> return ()
+    , onDiscard = \_ _ -> return ()
     , afterRed = return ()
     }
 {-# INLINE mkSimpleReducer #-}
@@ -210,6 +216,7 @@ liftReducer r = Reducer { initReducer = initReducer r
                         , redRules = \rv s b -> SM.lift ((redRules r) rv s b)
                         , updateWithAll = updateWithAll r
                         , onAccept = \s rv -> SM.lift ((onAccept r) s rv)
+                        , onDiscard = \s rv -> SM.lift ((onDiscard r) s rv)
                         , afterRed = SM.lift (afterRed r)}
 
 -- | Lift a SomeReducer from a component monad to a constructed monad. 
@@ -366,6 +373,10 @@ r1 ~> r2 =
                 onAccept r1 s rv1
                 onAccept r2 s rv2
 
+            , onDiscard = \s (RC rv1 rv2) -> do
+                onDiscard r1 s rv1
+                onDiscard r2 s rv2
+
             , afterRed = do
                 afterRed r1
                 afterRed r2
@@ -400,6 +411,10 @@ SomeReducer r1 .~> SomeReducer r2 = SomeReducer (r1 ~> r2)
                 , onAccept = \s (RC rv1 rv2) -> do
                     onAccept r1 s rv1
                     onAccept r2 s rv2
+
+                , onDiscard = \s (RC rv1 rv2) -> do
+                    onDiscard r1 s rv1
+                    onDiscard r2 s rv2
 
                 , afterRed = do
                     afterRed r1
@@ -449,6 +464,10 @@ r1 .|. r2 =
             , onAccept = \s (RC rv1 rv2) -> do
                 onAccept r1 s rv1
                 onAccept r2 s rv2
+
+            , onDiscard = \s (RC rv1 rv2) -> do
+                onDiscard r1 s rv1
+                onDiscard r2 s rv2
 
             , afterRed = do
                 afterRed r1
@@ -504,6 +523,47 @@ nonRedPCTemplatesFunc _
                 s'' = s' {curr_expr = CurrExpr Evaluate nre1}
             in return (InProgress, [(s'', ())], b)
 nonRedPCTemplatesFunc _ s b = return (Finished, [(s, ())], b)
+
+-- | A reducer to add library functions in non reduced path constraints for solving later  
+nonRedLibFuncsReducer :: Monad m => HS.HashSet Name -> Reducer m () t
+nonRedLibFuncsReducer n = mkSimpleReducer (\_ -> ())
+                            (nonRedLibFuncs n)
+
+nonRedLibFuncs :: Monad m => HS.HashSet Name -> RedRules m () t
+nonRedLibFuncs names _ s@(State { expr_env = eenv
+                         , curr_expr = CurrExpr _ ce
+                         , non_red_path_conds = nrs
+                         }) 
+                         b@(Bindings { name_gen = ng })
+    | Var (Id n t):es <- unApp ce
+    , hasFuncType (PresType t)
+    , not (hasFuncType ce) = 
+        let
+            isMember =  HS.member n names
+        in
+            case isMember of
+                True -> let
+                            (new_sym, ng') = freshSeededString "sym" ng
+                            new_sym_id = Id new_sym (typeOf ce)
+                            eenv' = E.insertSymbolic new_sym_id eenv
+                            cexpr' = CurrExpr Return (Var new_sym_id)
+                            -- when NRPC moves back to current expression, it immediately gets added as NRPC again.
+                            -- To stop falling into this infinite loop, instead of adding current expression in NRPC
+                            -- we associate a tick (nonRedBlocker) with the expression and then standard reducer reduces
+                            -- this tick.
+                            nonRedBlocker = Name "NonRedBlocker" Nothing 0 Nothing
+                            tick = NamedLoc nonRedBlocker
+                            ce' = mkApp $ (Tick tick (Var (Id n t))):es
+                            s' = s { expr_env = eenv',
+                                    curr_expr = cexpr',
+                                    non_red_path_conds = (ce', Var new_sym_id):nrs } 
+                        in 
+                            return (Finished, [(s', ())], b {name_gen = ng'})
+                False -> return (Finished, [(s, ())], b)
+
+    | otherwise = return (Finished, [(s, ())], b)
+     
+
 
 -- | Removes and reduces the values in a State's non_red_path_conds field. 
 {-#INLINE nonRedPCRed #-}
@@ -673,7 +733,8 @@ prettyLogger fp =
             return (NoProgress, [(s, li)], b)
         )
     ) { updateWithAll = \s -> map (\(l, i) -> l ++ [i]) $ zip (map snd s) [1..]
-      , onAccept = \_ ll -> liftIO . putStrLn $ "Accepted on path " ++ show ll }
+      , onAccept = \_ ll -> liftIO . putStrLn $ "Accepted on path " ++ show ll
+      , onDiscard = \_ ll -> liftIO . putStrLn $ "Discarded path " ++ show ll }
 
 -- | A Reducer to producer limited logging output.
 data LimLogger =
@@ -690,7 +751,8 @@ limLogger :: (MonadIO m, Show t) => LimLogger -> Reducer m LLTracker t
 limLogger ll@(LimLogger { after_n = aft, before_n = bfr, down_path = down }) =
     (mkSimpleReducer (const $ LLTracker { ll_count = every_n ll, ll_offset = []}) rr)
         { updateWithAll = updateWithAllLL
-        , onAccept = \_ llt -> liftIO . putStrLn $ "Accepted on path " ++ show (ll_offset llt)}
+        , onAccept = \_ llt -> liftIO . putStrLn $ "Accepted on path " ++ show (ll_offset llt)
+        , onDiscard = \_ llt -> liftIO . putStrLn $ "Discarded path " ++ show (ll_offset llt)}
     where
         rr llt@(LLTracker { ll_count = 0, ll_offset = off }) s b
             | down `L.isPrefixOf` off || off `L.isPrefixOf` down
@@ -1222,11 +1284,10 @@ runReducer' red hal ord pr rs@(ExState { state = s, reducer_val = r_val, halter_
                 case jrs of
                     Just (rs', xs') -> switchState red hal ord pr' rs' b xs'
                     Nothing -> return (pr', b)
-            | hc == Discard ->
-                let
-                    pr' = pr {discarded = state rs:discarded pr}
+            | hc == Discard -> do
+                onDiscard red s r_val
+                let pr' = pr {discarded = state rs:discarded pr}
                     jrs = minState ord pr' xs
-                in
                 case jrs of
                     Just (rs', xs') ->
                         switchState red hal ord pr' rs' b xs'
