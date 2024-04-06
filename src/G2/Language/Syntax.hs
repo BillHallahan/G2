@@ -210,6 +210,7 @@ data Primitive = -- Mathematical and logical operators
                | IntToFloat
                | IntToDouble
                | IntToRational
+               | RationalToFloat
                | RationalToDouble
                | ToInteger
                | ToInt

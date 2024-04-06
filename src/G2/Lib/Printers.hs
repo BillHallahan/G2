@@ -384,6 +384,7 @@ mkPrimHaskell TagToEnum = "prim_tagToEnum#"
 mkPrimHaskell IntToFloat = "fromIntegral"
 mkPrimHaskell IntToDouble = "fromIntegral"
 mkPrimHaskell IntToRational = "fromIntegral"
+mkPrimHaskell RationalToFloat = "fromRational"
 mkPrimHaskell RationalToDouble = "fromRational"
 mkPrimHaskell ToInteger = "toInteger"
 
