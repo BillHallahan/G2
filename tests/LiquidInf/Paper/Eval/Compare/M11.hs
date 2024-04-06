@@ -8,5 +8,6 @@ main =
     case while (0, 0, 100) of
         (j', i', x') -> j' == 2 * x'
 
+{-@ while :: (Int, Int, Int) -> { t:(Int, Int, Int) | not (x_Tuple32 t < x_Tuple33 t) } @-}
 while :: (Int, Int, Int) -> (Int, Int, Int)
 while (j, i, x) = if i < x then while (j + 2, i + 1, x) else (j, i, x)

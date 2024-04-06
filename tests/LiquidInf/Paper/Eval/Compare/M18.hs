@@ -8,7 +8,7 @@ main flag =
     case while flag (0, 0) of
         (_, j) -> if flag >= 0 then j == 100 else True
 
-{-@ while :: Int -> (Int, Int) -> (Int, Int) @-}
+{-@ while :: Int -> (Int, Int) -> { t:(Int, Int) | not (fst t < 100 )} @-}
 while :: Int -> (Int, Int) -> (Int, Int)
 while flag (b, j) = if b < 100
                         then while flag (if flag >= 0
