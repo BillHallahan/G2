@@ -415,7 +415,7 @@ runG2WithConfig :: Maybe T.Text -> State () -> Config -> Bindings -> IO ([ExecRe
 runG2WithConfig mod_name state config bindings = do
     SomeSolver solver <- initSolver config
     hpc_t <- hpcTracker
-    let simplifier = IdSimplifier
+    let simplifier = FloatSimplifier :>> ArithSimplifier
         exp_env_names = E.keys $ expr_env state
 
         lib_funcs = case mod_name  of
