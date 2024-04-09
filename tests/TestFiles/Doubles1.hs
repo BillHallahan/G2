@@ -36,11 +36,11 @@ gConc :: Double
 gConc = g 9.1
 
 {-# NOINLINE k #-}
-k :: Double -> Double
+k :: NaNEq -> NaNEq
 k x | abs(x - 0.1) < 0.001  = x + 0.2
     | otherwise = x
 
-kConc :: Double
+kConc :: NaNEq
 kConc = k 0.1
 
 m :: NaNEq -> NaNEq
@@ -51,6 +51,6 @@ n :: NaNEq -> NaNEq -> (NaNEq, NaNEq)
 n x y | x > y = (x * y, x / y)
       | otherwise = (sqrt x, sqrt y)
 
-sqrtSquared :: Double -> (Bool, Double, Double)
+sqrtSquared :: NaNEq -> (Bool, NaNEq, NaNEq)
 sqrtSquared x | sqrt x * sqrt x == x = (True, x, sqrt x * sqrt x)
               | otherwise  = (False, x, sqrt x * sqrt x)
