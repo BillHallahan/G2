@@ -9,6 +9,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE TypeSynonymInstances #-}
+{-# LANGUAGE InstanceSigs #-}
 
 module G2.Solver.SMT2 ( Z3
                       , CVC4
@@ -96,6 +97,7 @@ instance SMTConverter Z3 where
         uc <- getUnsatCoreZ3 h_in h_out
         return (HS.fromList uc)
 
+    setProduceUnsatCores :: Z3 -> IO ()
     setProduceUnsatCores con = do
         let (h_in, _, _) = getIOZ3 con
         T.hPutStrLn h_in "(set-option :produce-unsat-cores true)"
@@ -119,18 +121,18 @@ instance SMTConverter Z3 where
     checkSatGetModel con formula vs = do
         let (h_in, h_out, _) = getIOZ3 con
         setUpFormulaZ3 h_in (TB.run $ toSolverText formula)
-        -- putStrLn "\n\n checkSatGetModel"
-        -- T.putStrLn (TB.run $ toSolverText formula)
+        putStrLn "\n\n checkSatGetModel"
+        T.putStrLn (TB.run $ toSolverText formula)
         r <- checkSat' h_in h_out
-        -- putStrLn $ "r =  " ++ show r
+        putStrLn $ "r =  " ++ show r
         case r of
             SAT () -> do
                 mdl <- getModelZ3 h_in h_out vs
-                -- putStrLn "======"
-                -- putStrLn (show mdl)
+                putStrLn "======"
+                putStrLn (show mdl)
                 let m = parseModel mdl
-                -- putStrLn $ "m = " ++ show m
-                -- putStrLn "======"
+                putStrLn $ "m = " ++ show m
+                putStrLn "======"
                 return $ SAT m
             UNSAT () -> return $ UNSAT ()
             Unknown s _ -> return $ Unknown s ()
