@@ -21,18 +21,18 @@ zero x | x == 0 && not (isNegativeZero x) = (x, PosZ)
        | otherwise = (x, NA)
 
 {-# NOINLINE f #-}
-f :: Float -> Float
+f :: NaNEq -> NaNEq
 f x | abs(x - 9.1) < 0.001  = x + 0.1
     | otherwise = x
 
-fConc :: Float
+fConc :: NaNEq
 fConc = f 9.1
 
 {-# NOINLINE g #-}
-g :: Float -> Float
+g :: NaNEq -> NaNEq
 g x = 2 * f x
 
-gConc :: Float
+gConc :: NaNEq
 gConc = g 9.1
 
 {-# NOINLINE k #-}

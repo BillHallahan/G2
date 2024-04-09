@@ -21,18 +21,18 @@ zero x | x == 0 && not (isNegativeZero x) = (x, PosZ)
        | otherwise = (x, NA)
 
 {-# NOINLINE f #-}
-f :: Double -> Double
+f :: NaNEq -> NaNEq
 f x | abs(x - 9.1) < 0.001  = x + 0.1
     | otherwise = x
 
-fConc :: Double
+fConc :: NaNEq
 fConc = f 9.1
 
 {-# NOINLINE g #-}
-g :: Double -> Double
+g :: NaNEq -> NaNEq
 g x = 2 * f x
 
-gConc :: Double
+gConc :: NaNEq
 gConc = g 9.1
 
 {-# NOINLINE k #-}
