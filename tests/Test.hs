@@ -374,8 +374,8 @@ testFileTests = testGroup "TestFiles"
                                                      , ("fConc", 1000, [Exactly 1])
                                                      , ("g", 1300, [AtLeast 2])
                                                      , ("gConc", 1000, [Exactly 1])
-                                                     , ("k", 1000, [AtLeast 2])
-                                                     , ("kConc", 1000, [Exactly 1])
+                                                     , ("k", 2000, [AtLeast 4])
+                                                     , ("kConc", 2000, [Exactly 1])
                                                      , ("m", 1000, [AtLeast 2])
                                                      , ("n", 1000, [AtLeast 2])
                                                      , ("sqrtSquared", 1000, [AtLeast 2]) ]
@@ -386,8 +386,8 @@ testFileTests = testGroup "TestFiles"
                                                       , ("fConc", 1000, [Exactly 1])
                                                       , ("g", 1300, [AtLeast 2])
                                                       , ("gConc", 1000, [Exactly 1])
-                                                      , ("k", 1000, [AtLeast 2])
-                                                      , ("kConc", 1000, [Exactly 1])
+                                                      , ("k", 2000, [AtLeast 4])
+                                                      , ("kConc", 2000, [Exactly 1])
                                                       , ("m", 1000, [AtLeast 2])
                                                       , ("n", 1000, [AtLeast 2])
                                                       , ("sqrtSquared", 1000, [AtLeast 2]) ]
