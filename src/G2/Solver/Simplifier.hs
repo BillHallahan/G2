@@ -54,17 +54,10 @@ simplifyArith (App (App (Prim Mult _) l) _) | isZero l = l
 
 simplifyArith (App (App (Prim Minus _) e) l) | isZero l = e
 
-simplifyArith (App (App (Prim FpAdd _) e) l) | isZero l = e
-simplifyArith (App (App (Prim FpAdd _) l) e) | isZero l = e
-
-simplifyArith (App (App (Prim FpSub _) e) l) | isZero l = e
-
 simplifyArith e = e
 
 isZero :: Expr -> Bool
 isZero (Lit (LitInt 0)) = True
-isZero (Lit (LitFloat 0)) = True
-isZero (Lit (LitDouble 0)) = True
 isZero (Lit (LitRational 0)) = True
 isZero _ = False
 
