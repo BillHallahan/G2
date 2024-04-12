@@ -12,7 +12,6 @@ import GHC.Generics (Generic)
 import Data.Data
 import Data.Hashable
 import qualified Data.Text as T
-import qualified GHC.Generics as GHC
 
 -- | Binds `Id`s to `Expr`s, primarily in @let@ `Expr`s
 type Binds = [(Id, Expr)]
@@ -179,8 +178,30 @@ data Primitive = -- Mathematical and logical operators
                | Rem
                | Negate
                | Abs
-               | SqRt
-               
+
+               -- Rational
+               | Sqrt
+
+               -- Floating point operations
+               | FpNeg
+               | FpAdd
+               | FpSub
+               | FpMul
+               | FpDiv
+
+               | FpLeq
+               | FpLt
+               | FpGeq
+               | FpGt
+               | FpEq
+               | FpNeq
+
+               | FpSqrt
+
+               | FpIsNegativeZero
+               | IsNaN
+               | IsInfinite
+
                -- GHC conversions from data constructors to Int#, and vice versa
                | DataToTag
                | TagToEnum
@@ -188,8 +209,9 @@ data Primitive = -- Mathematical and logical operators
                -- Numeric conversion
                | IntToFloat
                | IntToDouble
+               | IntToRational
+               | RationalToFloat
                | RationalToDouble
-               | FromInteger
                | ToInteger
                | ToInt
                
@@ -212,14 +234,29 @@ instance Hashable Primitive
 
 -- | Literals for denoting unwrapped types such as Int#, Double#.
 data Lit = LitInt Integer
-         | LitFloat Rational
-         | LitDouble Rational
+         | LitFloat Float
+         | LitDouble Double
+         | LitRational Rational
          | LitChar Char
          | LitString String
          | LitInteger Integer
-         deriving (Show, Eq, Read, Generic, Typeable, Data)
+         deriving (Show, Read, Generic, Typeable, Data)
 
 instance Hashable Lit
+
+-- | When comparing Lits, we treat LitFloat and LitDouble specially, to ensure reflexivity,
+-- even in the case that we have NaN.
+instance Eq Lit where
+    LitInt x == LitInt y = x == y
+    LitFloat x == LitFloat y | isNaN x, isNaN y = True
+                             | otherwise = x == y
+    LitDouble x == LitDouble y | isNaN x, isNaN y = True
+                               | otherwise = x == y
+    LitRational x == LitRational y = x == y
+    LitChar x == LitChar y = x == y
+    LitString x == LitString y = x == y
+    LitInteger x == LitInteger y = x == y
+    _ == _ = False
 
 -- | Data constructor.
 data DataCon = DataCon Name Type deriving (Show, Eq, Read, Generic, Typeable, Data, Ord)
@@ -257,6 +294,7 @@ data Type = TyVar Id -- ^ Polymorphic type variable.
           | TyLitInt -- ^ Unwrapped primitive Int type.
           | TyLitFloat -- ^ Unwrapped primitive Float type.
           | TyLitDouble -- ^ Unwrapped primitive Int type.
+          | TyLitRational -- ^ Unwrapped primitive Rational type.
           | TyLitChar -- ^ Unwrapped primitive Int type.
           | TyLitString -- ^ Unwrapped primitive String type.
           | TyFun Type Type -- ^ Function type. For instance (assume Int): \x -> x + 1 :: TyFun TyInt TyInt

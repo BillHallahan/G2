@@ -21,7 +21,7 @@ reduceNewPC solver simplifier
                    , new_pcs = pc
                    , concretized = concIds })
     | not (null pc) || not (null concIds) = do
-        let (s', pc') = L.mapAccumL (simplifyPC simplifier) s pc
+        let pc' = map (simplifyPC simplifier s) pc
             pc'' = concat pc'
 
 
@@ -31,19 +31,19 @@ reduceNewPC solver simplifier
         -- This allows for more efficient solving, and in some cases may
         -- change an Unknown into a SAT or UNSAT
         let new_pc = foldr PC.insert spc $ pc''
-            new_pc' = foldr (simplifyPCs simplifier s') new_pc pc''
+            new_pc' = foldr (simplifyPCs simplifier s) new_pc pc''
 
-            s'' = s' {path_conds = new_pc'}
+            s' = s {path_conds = new_pc'}
 
         let ns = (concatMap PC.varNamesInPC pc) ++ namesList concIds
             rel_pc = case ns of
                 [] -> PC.fromList pc''
                 _ -> PC.scc ns new_pc'
 
-        res <- check solver s' rel_pc
+        res <- check solver s rel_pc
 
         if res == SAT () then
-            return $ Just s''
+            return $ Just s'
         else
             return Nothing
     | otherwise = return $ Just s

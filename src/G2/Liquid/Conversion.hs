@@ -810,7 +810,7 @@ convertCon _ (Ref.I i) = do
     return $ App dc (Lit . LitInt $ fromIntegral i)
 convertCon _ (Ref.R d) = do
     dc <- mkDCDoubleE
-    return $ App dc (Lit . LitDouble $ toRational d)
+    return $ App dc (Lit $ LitDouble d)
 convertCon _ _ = error "convertCon: Unhandled case"
 
 unsafeSpecTypeToType :: SpecType -> LHStateM Type

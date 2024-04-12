@@ -25,7 +25,9 @@ module G2.Liquid.LHReducers ( lhRed
                             , minAbstractCalls
 
                             , lhReduce
-                            , initialTrack) where
+                            , initialTrack
+                            
+                            , NaNInfBlockSimplifier (..)) where
 
 import G2.Execution.NormalForms
 import G2.Execution.Reducer
@@ -33,6 +35,7 @@ import G2.Execution.Rules
 import G2.Language
 import qualified G2.Language.Stack as Stck
 import qualified G2.Language.ExprEnv as E
+import G2.Solver.Simplifier
 import G2.Liquid.Annotations
 import G2.Liquid.Conversion
 import G2.Liquid.Helpers
@@ -386,3 +389,18 @@ lhSWHNFHalter = mkSimpleHalter (const ()) (\_ _ _ -> ()) stop (\_ _ _ _ -> ())
                 True -> return Accept
                 False -> return Continue
 
+-- | Blocks floating point values from being given NaN as value
+data NaNInfBlockSimplifier = NaNInfBlockSimplifier
+
+instance Simplifier NaNInfBlockSimplifier where
+    simplifyPC _ s pc =
+        let
+            ty_bool = tyBool (known_values s)
+            
+            is = filter (\(Id _ t) -> t == TyLitFloat || t == TyLitDouble) $ varIds pc
+            nan_pc = map (\i@(Id _ t) -> ExtCond (App (Prim IsNaN (TyFun t ty_bool)) (Var i)) False) is
+            not_inf_pc = map (\i@(Id _ t) -> ExtCond (App (Prim IsInfinite (TyFun t ty_bool)) (Var i)) False) is
+        in
+        pc:nan_pc ++ not_inf_pc
+    
+    reverseSimplification _ _ _ m = m

@@ -367,6 +367,31 @@ testFileTests = testGroup "TestFiles"
                                                   , ("show4", 1000, [Exactly 2])
                                                   , ("show5", 1300, [AtLeast 12])
                                                   , ("checkWS", 1000, [Exactly 5]) ]
+
+    , checkInputOutputs "tests/TestFiles/Floats1.hs" [ ("infinite", 1000, [AtLeast 3])
+                                                     , ("zero", 1000, [AtLeast 3])
+                                                     , ("f", 1000, [AtLeast 2])
+                                                     , ("fConc", 2000, [Exactly 1])
+                                                     , ("g", 1300, [AtLeast 2])
+                                                     , ("gConc", 2000, [Exactly 1])
+                                                     , ("k", 2000, [AtLeast 4])
+                                                     , ("kConc", 2000, [Exactly 1])
+                                                     , ("m", 1000, [AtLeast 2])
+                                                     , ("n", 1000, [AtLeast 2])
+                                                     , ("sqrtSquared", 1000, [AtLeast 2]) ]
+
+    , checkInputOutputs "tests/TestFiles/Doubles1.hs" [ ("infinite", 1000, [AtLeast 3])
+                                                      , ("zero", 1000, [AtLeast 3])
+                                                      , ("f", 1000, [AtLeast 2])
+                                                      , ("fConc", 2000, [Exactly 1])
+                                                      , ("g", 1300, [AtLeast 2])
+                                                      , ("gConc", 2000, [Exactly 1])
+                                                      , ("k", 2000, [AtLeast 4])
+                                                      , ("kConc", 2000, [Exactly 1])
+                                                      , ("m", 1000, [AtLeast 2])
+                                                      , ("n", 1000, [AtLeast 2])
+                                                      , ("sqrtSquared", 1000, [AtLeast 2]) ]
+
     ]
 
 extensionTests :: TestTree

@@ -72,31 +72,39 @@ primDefs' b c l =
               , ("quotInt#", Prim Quot tyIntIntInt)
               , ("remInt#", Prim Rem tyIntIntInt)
 
-              , ("$==##", Prim Eq $ tyDoubleDoubleBool b)
-              , ("$/=##", Prim Neq $ tyDoubleDoubleBool b)
-              , ("+##", Prim Plus tyDoubleDoubleDouble)
-              , ("*##", Prim Mult tyDoubleDoubleDouble)
-              , ("-##", Prim Minus tyDoubleDoubleDouble)
-              , ("negateDouble#", Prim Negate tyDoubleDouble)
-              , ("sqrtDouble#", Prim SqRt tyDoubleDoubleDouble)
-              , ("/##", Prim Div tyDoubleDoubleDouble)
-              , ("$<=##", Prim Le $ tyDoubleDoubleBool b)
-              , ("$<##", Prim Lt $ tyDoubleDoubleBool b)
-              , ("$>##", Prim Gt $ tyDoubleDoubleBool b)
-              , ("$>=##", Prim Ge $ tyDoubleDoubleBool b)
+              , ("$==##", Prim FpEq $ tyDoubleDoubleBool b)
+              , ("$/=##", Prim FpNeq $ tyDoubleDoubleBool b)
+              , ("+##", Prim FpAdd tyDoubleDoubleDouble)
+              , ("*##", Prim FpMul tyDoubleDoubleDouble)
+              , ("-##", Prim FpSub tyDoubleDoubleDouble)
+              , ("negateDouble#", Prim FpNeg tyDoubleDouble)
+              , ("sqrtDouble#", Prim FpSqrt tyDoubleDoubleDouble)
+              , ("/##", Prim FpDiv tyDoubleDoubleDouble)
+              , ("$<=##", Prim FpLeq $ tyDoubleDoubleBool b)
+              , ("$<##", Prim FpLt $ tyDoubleDoubleBool b)
+              , ("$>##", Prim FpGt $ tyDoubleDoubleBool b)
+              , ("$>=##", Prim FpGeq $ tyDoubleDoubleBool b)
 
-              , ("plusFloat#", Prim Plus tyFloatFloatFloat)
-              , ("timesFloat#", Prim Mult tyFloatFloatFloat)
-              , ("minusFloat#", Prim Minus tyFloatFloatFloat)
-              , ("negateFloat#", Prim Negate tyFloatFloat)
-              , ("sqrtFloat#", Prim SqRt tyFloatFloatFloat)
-              , ("divideFloat#", Prim Div tyFloatFloatFloat)
-              , ("smtEqFloat#", Prim Eq $ tyFloatFloatBool b)
-              , ("smtNeFloat#", Prim Neq $ tyFloatFloatBool b)
-              , ("smtLeFloat#", Prim Le $ tyFloatFloatBool b)
-              , ("smtLtFloat#", Prim Lt $ tyFloatFloatBool b)
-              , ("smtGtFloat#", Prim Gt $ tyFloatFloatBool b)
-              , ("smtGeFloat#", Prim Ge $ tyFloatFloatBool b)
+              , ("isDoubleNegativeZero#", Prim FpIsNegativeZero $ tyDoubleBool b)
+              , ("isDoubleNaN#", Prim IsNaN $ tyDoubleBool b)
+              , ("isDoubleInfinite#", Prim IsInfinite $ tyDoubleBool b)
+
+              , ("plusFloat#", Prim FpAdd tyFloatFloatFloat)
+              , ("timesFloat#", Prim FpMul tyFloatFloatFloat)
+              , ("minusFloat#", Prim FpSub tyFloatFloatFloat)
+              , ("negateFloat#", Prim FpNeg tyFloatFloat)
+              , ("sqrtFloat#", Prim FpSqrt tyFloatFloat)
+              , ("divideFloat#", Prim FpDiv tyFloatFloatFloat)
+              , ("smtEqFloat#", Prim FpEq $ tyFloatFloatBool b)
+              , ("smtNeFloat#", Prim FpNeq $ tyFloatFloatBool b)
+              , ("smtLeFloat#", Prim FpLeq $ tyFloatFloatBool b)
+              , ("smtLtFloat#", Prim FpLt $ tyFloatFloatBool b)
+              , ("smtGtFloat#", Prim FpGt $ tyFloatFloatBool b)
+              , ("smtGeFloat#", Prim FpGeq $ tyFloatFloatBool b)
+
+              , ("isFloatNegativeZero#", Prim FpIsNegativeZero $ tyFloatBool b)
+              , ("isFloatNaN#", Prim IsNaN $ tyFloatBool b)
+              , ("isFloatInfinite#", Prim IsInfinite $ tyFloatBool b)
 
               , ("quotInteger#", Prim Quot tyIntIntInt)
               , ("remInteger#", Prim Rem tyIntIntInt)
@@ -117,6 +125,7 @@ primDefs' b c l =
               , ("fromIntToFloat", Prim IntToFloat (TyFun TyLitInt TyLitFloat))
               , ("double2Int#", Prim ToInt (TyFun TyLitDouble TyLitInt))
               , ("int2Double#", Prim IntToDouble (TyFun TyLitInt TyLitDouble))
+              , ("rationalToFloat#", Prim RationalToFloat (TyFun TyLitInt $ TyFun TyLitInt TyLitFloat))
               , ("rationalToDouble#", Prim RationalToDouble (TyFun TyLitInt $ TyFun TyLitInt TyLitDouble))
               , ("fromIntToDouble", Prim IntToDouble (TyFun TyLitInt TyLitDouble))
 
@@ -186,6 +195,9 @@ tyIntIntInt = TyFun TyLitInt $ TyFun TyLitInt TyLitInt
 tyDoubleDouble :: Type
 tyDoubleDouble = TyFun TyLitDouble TyLitDouble
 
+tyDoubleBool :: Name -> Type
+tyDoubleBool n = TyFun TyLitDouble (TyCon n TYPE)
+
 tyDoubleDoubleBool :: Name -> Type
 tyDoubleDoubleBool n = TyFun TyLitDouble $ TyFun TyLitDouble (TyCon n TYPE)
 
@@ -194,6 +206,9 @@ tyDoubleDoubleDouble = TyFun TyLitDouble $ TyFun TyLitDouble TyLitDouble
 
 tyFloatFloat :: Type
 tyFloatFloat = TyFun TyLitFloat TyLitFloat
+
+tyFloatBool :: Name -> Type
+tyFloatBool n = TyFun TyLitFloat (TyCon n TYPE)
 
 tyFloatFloatBool :: Name -> Type
 tyFloatFloatBool n = TyFun TyLitFloat $ TyFun TyLitFloat (TyCon n TYPE)

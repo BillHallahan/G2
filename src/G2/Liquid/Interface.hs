@@ -46,6 +46,7 @@ import qualified G2.Language.ExprEnv as E
 
 import G2.Execution
 
+import G2.Initialization.FpToRational
 import G2.Initialization.MkCurrExpr
 
 import G2.Liquid.AddCFBranch
@@ -99,7 +100,7 @@ data FuncInfo = FuncInfo { func :: T.Text
 -- attempt to find counterexamples to the functions liquid type
 findCounterExamples :: [FilePath] -> [FilePath] -> T.Text -> Config -> LHConfig -> IO (([ExecRes AbstractedInfo], Bindings), Lang.Id)
 findCounterExamples proj fp entry config lhconfig = do
-    let config' = config { mode = Liquid }
+    let config' = config { mode = Liquid, fp_handling = RationalFP }
 
     lh_config <- getOpts []
 
@@ -127,7 +128,7 @@ runLHCore entry (mb_modname, exg2) ghci config lhconfig = do
                , ls_memconfig = pres_names } <- liquidStateWithCall entry (mb_modname, exg2) ghci config lhconfig mempty
 
     SomeSolver solver <- initSolver config
-    let simplifier = IdSimplifier
+    let simplifier = NaNInfBlockSimplifier :>> FloatSimplifier :>> ArithSimplifier
 
     let (red, hal, ord) = lhReducerHalterOrderer config lhconfig solver simplifier entry mb_modname cfn final_st
     (exec_res, final_bindings) <- SM.evalStateT (runLHG2 config red hal ord solver simplifier pres_names ifi final_st bindings) (mkPrettyGuide ())
@@ -355,9 +356,11 @@ processLiquidReadyStateWithCall lrs@(LiquidReadyState { lr_state = lhs@(LHState 
         lhs' = lhs { state = s { expr_env = foldr E.insertSymbolic (expr_env s) is
                                , curr_expr = CurrExpr Evaluate ce }
                    }
-        (lhs'', bindings') = execLHStateM (addLHTCCurrExpr) lhs' (bindings { name_gen = ng' })
+        (lhs'', bindings') = execLHStateM addLHTCCurrExpr lhs' (bindings { name_gen = ng' })
+        -- The LiquidHaskell spec conversion uses floating point by default, so we need to substitute if using rationals.
+        lhs''' = if fp_handling config == RationalFP then substRational lhs'' else lhs''
 
-        lrs' = lrs { lr_state = lhs''
+        lrs' = lrs { lr_state = lhs'''
                    , lr_binding = bindings' { fixed_inputs = f_i
                                             , input_names = map idName is
                                             }
