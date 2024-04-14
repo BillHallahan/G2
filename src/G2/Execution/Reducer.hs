@@ -11,14 +11,21 @@
 
 {-| Module: G2.Execution.Reducer
 
-Controls reduction of `State`s.
+Provides utilities to customize and abstract over the reduction of `State`s.
+The key idea is that we can split the process of reducing states into three separate choices:
+* What does it mean to reduce a State? What reduction rules do we use?
+* When do we stop reducing a State?  Either because we want to (temporarily) reduce a different State instead,
+or because we are finished reducing the State.
+* Given a number of States, which State should we reduce first?
 
-The `runReducer` function reduces States, guided by a `Reducer`, `Halter`, and `Orderer`.
+These three points are addressed, respectively, by `Reducer`s, `Halter`s, and `Orderer`s.  
 The `Reducer` defines the reduction rules used to map a State to one or more further States.
 The `Halter` determines when to accept (return) or completely discard a state,
 and allows /temporarily/ stopping reduction of a particular state, to allow reduction of other states.
 The `Orderer` determines which state should be executed next when the Halter chooses to accept, reject,
 or switch to executing a different state.
+
+The `runReducer` function reduces States, guided by a `Reducer`, `Halter`, and `Orderer`.
 -}
 module G2.Execution.Reducer ( Reducer (..)
 
@@ -172,10 +179,10 @@ type RedRules m rv t = rv -> State t -> Bindings -> m (ReducerRes, [(State t, rv
 -- Reduction Rules take a `State`, and output new `State`s.
 -- The reducer value, rv, can be used to track extra information, on a per `State` basis.
 data Reducer m rv t = Reducer {
-        -- | Initialized the reducer value
+        -- | Initializes the reducer value.
           initReducer :: InitReducer rv t
 
-        -- | Takes a State, and performs the appropriate Reduction Rule
+        -- | Takes a State, and performs the appropriate Reduction Rule.
         , redRules :: RedRules m rv t
 
         -- | After a reducer returns multiple states,
@@ -197,7 +204,7 @@ data Reducer m rv t = Reducer {
 
 -- | A simple, default reducer.
 -- `updateWithAll` does not change or adjust the reducer values.
--- `onAccept` immediately returns the empty tuple.
+-- `onAccept` and `afterRed` immediately returns the empty tuple.
 mkSimpleReducer :: Monad m => InitReducer rv t -> RedRules m rv t -> Reducer m rv t
 mkSimpleReducer init_red red_rules =
     Reducer {
