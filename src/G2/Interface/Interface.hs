@@ -318,8 +318,8 @@ initRedHaltOrd mod_name solver simplifier config libFunNames =
             ( logger_std_red retReplaceSymbFuncTemplate .== Finished .--> SomeReducer nonRedPCRed
              , SomeHalter halter
              , orderer)
-        SymbolicFuncTemplate ->
-            ( logger_std_red retReplaceSymbFuncVar .== Finished .--> taggerRed state_name :== Finished --> nonRedPCTemplates
+        SymbolicFuncNRPC ->
+            ( logger_std_red retReplaceSymbFuncVar .== Finished .--> taggerRed state_name :== Finished --> nonRedPCSymFuncRed
              , SomeHalter (discardIfAcceptedTagHalter state_name <~> halter)
              , orderer)
 

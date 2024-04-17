@@ -45,7 +45,7 @@ data SearchStrategy = Iterative | Subpath deriving (Eq, Show, Read)
 data HigherOrderSolver = AllFuncs
                        | SingleFunc
                        | SymbolicFunc 
-                       | SymbolicFuncTemplate deriving (Eq, Show, Read)
+                       | SymbolicFuncNRPC deriving (Eq, Show, Read)
 
 data NonRedPathCons = Nrpc | NoNrpc deriving (Eq, Show, Read)
 
@@ -156,7 +156,7 @@ mkHigherOrder =
                                     "all" -> Right AllFuncs
                                     "single" -> Right SingleFunc
                                     "symbolic" -> Right SymbolicFunc
-                                    "symbolic-temp" -> Right SymbolicFuncTemplate
+                                    "symbolic-nrpc" -> Right SymbolicFuncNRPC
                                     _ -> Left "Unsupported higher order function handling"))
             ( long "higher-order"
             <> metavar "HANDLING"
