@@ -21,7 +21,7 @@ cond1 ys _ = isSucc ys
 loop1 :: (Int, Int) -> (Int, Int)
 loop1 (x, y) = (x + 1, y + 1)
 
-{-@ while2 :: (Int, Int, Int) -> (Int, Int, Int) @-}
+{-@ while2 :: (Int, Int, Int) -> { t:(Int, Int, Int) | not (x_Tuple31 t /= x_Tuple33 t) } @-}
 while2 :: (Int, Int, Int) -> (Int, Int, Int)
 while2 (x, y, n) = if x /= n then while2 (x - 1, y - 1, n) else (x, y, n)
 

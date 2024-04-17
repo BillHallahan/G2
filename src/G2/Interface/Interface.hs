@@ -69,6 +69,7 @@ import G2.Postprocessing.Interface
 import qualified G2.Language.ExprEnv as E
 import qualified G2.Language.PathConds as PC
 import qualified G2.Language.Stack as Stack
+import G2.Language.Support
 
 import Control.Monad.IO.Class
 import qualified Control.Monad.State as SM
@@ -162,7 +163,7 @@ initStateFromSimpleState :: IT.SimpleState
                          -> (State (), Bindings)
 initStateFromSimpleState s m_mod useAssert mkCurr argTys config =
     let
-        (s', ds_walkers) = runInitialization2 s argTys
+        (s', ds_walkers) = runInitialization2 config s argTys
         eenv' = IT.expr_env s'
         tenv' = IT.type_env s'
         ng' = IT.name_gen s'
@@ -265,6 +266,7 @@ type RHOStack m = SM.StateT LengthNTrack (SM.StateT PrettyGuide (SM.StateT HpcTr
                    -> solver
                    -> simplifier
                    -> Config
+                   -> S.HashSet Name
                    -> (SomeReducer (RHOStack IO) (), SomeHalter (RHOStack IO) (), SomeOrderer (RHOStack IO) ())
     #-}
 initRedHaltOrd :: (MonadIO m, Solver solver, Simplifier simplifier) =>
@@ -272,8 +274,9 @@ initRedHaltOrd :: (MonadIO m, Solver solver, Simplifier simplifier) =>
                -> solver
                -> simplifier
                -> Config
+               -> S.HashSet Name
                -> (SomeReducer (RHOStack m) (), SomeHalter (RHOStack m) (), SomeOrderer (RHOStack m) ())
-initRedHaltOrd mod_name solver simplifier config =
+initRedHaltOrd mod_name solver simplifier config libFunNames =
     let
         share = sharing config
 
@@ -285,9 +288,13 @@ initRedHaltOrd mod_name solver simplifier config =
                         True -> SomeReducer (hpcReducer mod_name ~> stdRed share f solver simplifier)
                         False -> SomeReducer (stdRed share f solver simplifier)
 
+        nrpc_red f = case nrpc config of
+                        Nrpc -> liftSomeReducer (SomeReducer (nonRedLibFuncsReducer libFunNames) .== Finished .--> hpc_red f)
+                        NoNrpc -> liftSomeReducer (hpc_red f)
+
         logger_std_red f = case m_logger of
-                            Just logger -> liftSomeReducer (logger .~> liftSomeReducer (hpc_red f))
-                            Nothing -> liftSomeReducer (liftSomeReducer (hpc_red f))
+                            Just logger -> liftSomeReducer (logger .~>  nrpc_red f)
+                            Nothing -> liftSomeReducer (nrpc_red f)
 
         halter = switchEveryNHalter 20
                  <~> maxOutputsHalter (maxOutputs config)
@@ -409,11 +416,16 @@ runG2FromFile proj src m_assume m_assert m_reach def_assert f transConfig config
 runG2WithConfig :: Maybe T.Text -> State () -> Config -> Bindings -> IO ([ExecRes ()], Bindings)
 runG2WithConfig mod_name state config bindings = do
     SomeSolver solver <- initSolver config
-    let simplifier = IdSimplifier
-
     hpc_t <- hpcTracker
+    let simplifier = FloatSimplifier :>> ArithSimplifier
+        exp_env_names = E.keys $ expr_env state
 
-    (in_out, bindings') <- case initRedHaltOrd mod_name solver simplifier config of
+        lib_funcs = case mod_name  of
+                      Just a -> filter (\x -> case nameModule x of
+                                                Just n -> a /= n
+                                                Nothing -> True) exp_env_names
+                      Nothing -> exp_env_names
+    (in_out, bindings') <- case initRedHaltOrd mod_name solver simplifier config (S.fromList lib_funcs) of
                 (red, hal, ord) ->
                     SM.evalStateT
                         (SM.evalStateT

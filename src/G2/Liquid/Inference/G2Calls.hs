@@ -194,6 +194,7 @@ cleanupResultsInference solver simplifier config init_id bindings ers = do
     let ers2 = map (\er -> er { final_state = putSymbolicExistentialInstInExprEnv (final_state er) }) ers
     let ers3 = map (replaceHigherOrderNames (idName init_id) (input_names bindings)) ers2
     (bindings', ers4) <- liftIO $ mapAccumM (reduceCalls runG2ThroughExecutionInference solver simplifier config) bindings ers3
+    liftIO $ putStrLn "About to checkAbstracted"
     ers5 <- liftIO $ mapM (checkAbstracted runG2ThroughExecutionInference solver simplifier config init_id bindings') ers4
     ers6 <- liftIO $ mapM (runG2SolvingInference solver simplifier bindings') ers5
 
@@ -318,11 +319,11 @@ softAbstractResembleReal' abstracted =
     foldr PC.union PC.empty . map PC.fromList $ map (uncurry softPair) (ret_pair:ars_pairs)
 
 softPair :: Expr -> Expr -> [PathCond]
-softPair v1@(Var (Id _ t1)) e2 | isPrimType t1 =
-    assert (t1 == typeOf e2)
+softPair v1@(Var (Id _ TyLitInt)) e2 =
+    assert (TyLitInt == typeOf e2)
         [MinimizePC $ App (Prim Abs TyUnknown) (App (App (Prim Minus TyUnknown) v1) e2)]
-softPair e1 v2@(Var (Id _ t2)) | isPrimType t2 =
-    assert (typeOf e1 == t2)
+softPair e1 v2@(Var (Id _ TyLitInt)) =
+    assert (typeOf e1 == TyLitInt)
         [MinimizePC $ App (Prim Abs TyUnknown) (App (App (Prim Minus TyUnknown) e1) v2)]
 softPair (App e1 e2) (App e1' e2') = softPair e1 e1' ++ softPair e2 e2'
 softPair _ _ = []
@@ -354,7 +355,7 @@ gatherAllowedCalls entry m lrs ghci infconfig config lhconfig = do
     let (s', bindings') = (s, bindings) -- execStateM addTrueAssertsAll s bindings
 
     SomeSolver solver <- initSolver config'
-    let simplifier = IdSimplifier
+    let simplifier = NaNInfBlockSimplifier :>> FloatSimplifier :>> ArithSimplifier
         s'' = repCFBranch $
                s' { true_assert = True
                   , track = [] :: [FuncCall] }
@@ -490,7 +491,7 @@ runLHInferenceCore entry m lrs ghci = do
                , ls_memconfig = pres_names } <- liftIO $ processLiquidReadyStateWithCall lrs ghci entry m g2config lhconfig mempty
     SomeSolver solver <- liftIO $ initSolver g2config
     -- let solver' = SpreadOutSolver max_coeff_sz solver
-    let simplifier = IdSimplifier
+    let simplifier = NaNInfBlockSimplifier :>> FloatSimplifier :>> ArithSimplifier
         final_st' = swapHigherOrdForSymGen bindings final_st
 
     (red, hal, ord) <- inferenceReducerHalterOrderer infconfig g2config lhconfig solver simplifier entry m cfn final_st'
@@ -517,6 +518,7 @@ inferenceReducerHalterOrderer :: (MonadIO m, MonadIO m_run, Solver solver, Simpl
 inferenceReducerHalterOrderer infconfig config lhconfig solver simplifier entry mb_modname cfn st = do
     extra_ce <- extraMaxCExI (entry, mb_modname)
     extra_time <- extraMaxTimeI (entry, mb_modname)
+    max_cf <- maxCFI (entry, mb_modname)
 
     -- time <- liftIO $ getCurrentTime
     let
@@ -535,11 +537,12 @@ inferenceReducerHalterOrderer infconfig config lhconfig solver simplifier entry 
 
     liftIO $ putStrLn $ "ce num for " ++ T.unpack entry ++ " is " ++ show ce_num
     liftIO $ putStrLn $ "timeout for " ++ T.unpack entry ++ " is " ++ show timeout
-    
+    liftIO $ putStrLn $ "max CF for " ++ T.unpack entry ++ " is " ++ show max_cf
+
     timer_halter <- liftIO $ stdTimerHalter (timeout * 2)
     lh_timer_halter <- liftIO $ lhStdTimerHalter timeout
 
-    let halter =      lhAbsHalter entry mb_modname (expr_env st)
+    let halter =      lhAbsHalter (Just max_cf) entry mb_modname (expr_env st)
                  <~> lh_max_outputs
                  <~> switchEveryNHalter (switch_after lhconfig)
                  <~> lhSWHNFHalter
@@ -583,7 +586,7 @@ runLHCExSearch entry m lrs ghci = do
                , ls_counterfactual_name = cfn
                , ls_memconfig = pres_names } <- liftIO $ processLiquidReadyStateWithCall lrs ghci entry m g2config lhconfig' mempty
     SomeSolver solver <- liftIO $ initSolver g2config
-    let simplifier = IdSimplifier
+    let simplifier = NaNInfBlockSimplifier :>> FloatSimplifier :>> ArithSimplifier
         final_st' = swapHigherOrdForSymGen bindings final_st
 
     (red, hal, ord) <- realCExReducerHalterOrderer infconfig g2config lhconfig' entry m solver simplifier cfn
@@ -1076,7 +1079,7 @@ genericG2Call :: ( MonadIO m
                  , Named t
                  , Solver solver) => Config -> solver -> State t -> Bindings -> m ([ExecRes t], Bindings)
 genericG2Call config solver s bindings = do
-    let simplifier = IdSimplifier
+    let simplifier = NaNInfBlockSimplifier :>> FloatSimplifier :>> ArithSimplifier
         share = sharing config
 
     fslb <- runG2WithSomes (SomeReducer (stdRed share retReplaceSymbFuncVar solver simplifier))
@@ -1099,7 +1102,7 @@ genericG2CallLogging :: ( MonadIO m
                      -> String
                      -> (SM.StateT PrettyGuide m) ([ExecRes t], Bindings)
 genericG2CallLogging config solver s bindings lg = do
-    let simplifier = IdSimplifier
+    let simplifier = NaNInfBlockSimplifier :>> FloatSimplifier :>> ArithSimplifier
         share = sharing config
 
     fslb <- runG2WithSomes (SomeReducer (prettyLogger lg ~> stdRed share retReplaceSymbFuncVar solver simplifier))

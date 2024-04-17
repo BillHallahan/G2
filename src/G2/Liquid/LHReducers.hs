@@ -25,7 +25,9 @@ module G2.Liquid.LHReducers ( lhRed
                             , minAbstractCalls
 
                             , lhReduce
-                            , initialTrack) where
+                            , initialTrack
+                            
+                            , NaNInfBlockSimplifier (..)) where
 
 import G2.Execution.NormalForms
 import G2.Execution.Reducer
@@ -33,6 +35,7 @@ import G2.Execution.Rules
 import G2.Language
 import qualified G2.Language.Stack as Stck
 import qualified G2.Language.ExprEnv as E
+import G2.Solver.Simplifier
 import G2.Liquid.Annotations
 import G2.Liquid.Conversion
 import G2.Liquid.Helpers
@@ -83,22 +86,6 @@ lhReduce cfn s@(State { curr_expr = CurrExpr Evaluate (Tick (NamedLoc tn) e@(Ass
                     | otherwise = Nothing
 
 lhReduce _ _ = Nothing
-
--- Counts the maximal number of Vars with names in the ExprEnv
--- that could be evaluated along any one path in the function
-initialTrack :: ExprEnv -> Expr -> Int
-initialTrack eenv (Var (Id n _)) =
-    case E.lookup n eenv of
-        Just _ -> 1
-        Nothing -> 0
-initialTrack eenv (App e e') = initialTrack eenv e + initialTrack eenv e'
-initialTrack eenv (Lam _ _ e) = initialTrack eenv e
-initialTrack eenv (Let b e) = initialTrack eenv e + (getSum $ evalContainedASTs (Sum . initialTrack eenv) b)
-initialTrack eenv (Case e _ _ a) = initialTrack eenv e + (getMax $ evalContainedASTs (Max . initialTrack eenv) a)
-initialTrack eenv (Cast e _) = initialTrack eenv e
-initialTrack eenv (Assume _ _ e) = initialTrack eenv e
-initialTrack eenv (Assert _ _ e) = initialTrack eenv e
-initialTrack _ _ = 0
 
 data LHTracker = LHTracker { abstract_calls :: [FuncCall]
                            , last_var :: Maybe Name
@@ -254,18 +241,18 @@ allMin f xs =
 
 -- | Halt if we abstract more calls than some other already accepted state
 {-# INLINE lhAbsHalter #-}
-lhAbsHalter :: Monad m => T.Text -> Maybe T.Text -> ExprEnv -> Halter m Int LHTracker
-lhAbsHalter entry modn eenv = mkSimpleHalter initial update stop step
+lhAbsHalter :: Monad m => Maybe Int -> T.Text -> Maybe T.Text -> ExprEnv -> Halter m Int LHTracker
+lhAbsHalter max_cf entry modn eenv = mkSimpleHalter initial update stop step
     where
-        -- We initialize the maximal number of abstracted variables,
-        -- to the number of variables in the entry function
         initial _ =
             let 
-                fe = case E.occLookup entry modn eenv of
-                    Just e -> e
+                fe = case E.lookupNameMod entry modn eenv of
+                    Just (_, e) -> e
                     Nothing -> error $ "initOrder: Bad function passed\n" ++ show entry ++ " " ++ show modn
+                
+                init_tr = initialTrack eenv fe
             in
-            initialTrack eenv fe
+            fromMaybe init_tr max_cf
 
         update ii (Processed {accepted = acc}) _ =
             minimum $ ii:mapMaybe (\s -> case true_assert s of
@@ -278,6 +265,22 @@ lhAbsHalter entry modn eenv = mkSimpleHalter initial update stop step
                 else Continue
 
         step hv _ _ _ = hv
+
+-- Counts the maximal number of Vars with names in the ExprEnv
+-- that could be evaluated along any one path in the function
+initialTrack :: ExprEnv -> Expr -> Int
+initialTrack eenv (Var (Id n _)) =
+    case E.lookup n eenv of
+        Just _ -> 1
+        Nothing -> 0
+initialTrack eenv (App e e') = initialTrack eenv e + initialTrack eenv e'
+initialTrack eenv (Lam _ _ e) = initialTrack eenv e
+initialTrack eenv (Let b e) = initialTrack eenv e + (getSum $ evalContainedASTs (Sum . initialTrack eenv) b)
+initialTrack eenv (Case e _ _ a) = initialTrack eenv e + (getMax $ evalContainedASTs (Max . initialTrack eenv) a)
+initialTrack eenv (Cast e _) = initialTrack eenv e
+initialTrack eenv (Assume _ _ e) = initialTrack eenv e
+initialTrack eenv (Assert _ _ e) = initialTrack eenv e
+initialTrack _ _ = 0
 
 {-# INLINE lhMaxOutputsHalter #-}
 lhMaxOutputsHalter :: Monad m => Int -> Halter m Int LHTracker
@@ -386,3 +389,18 @@ lhSWHNFHalter = mkSimpleHalter (const ()) (\_ _ _ -> ()) stop (\_ _ _ _ -> ())
                 True -> return Accept
                 False -> return Continue
 
+-- | Blocks floating point values from being given NaN as value
+data NaNInfBlockSimplifier = NaNInfBlockSimplifier
+
+instance Simplifier NaNInfBlockSimplifier where
+    simplifyPC _ s pc =
+        let
+            ty_bool = tyBool (known_values s)
+            
+            is = filter (\(Id _ t) -> t == TyLitFloat || t == TyLitDouble) $ varIds pc
+            nan_pc = map (\i@(Id _ t) -> ExtCond (App (Prim IsNaN (TyFun t ty_bool)) (Var i)) False) is
+            not_inf_pc = map (\i@(Id _ t) -> ExtCond (App (Prim IsInfinite (TyFun t ty_bool)) (Var i)) False) is
+        in
+        pc:nan_pc ++ not_inf_pc
+    
+    reverseSimplification _ _ _ m = m

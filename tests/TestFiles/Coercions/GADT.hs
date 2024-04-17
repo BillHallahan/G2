@@ -13,3 +13,7 @@ f (B b) = not b
 
 g :: Int -> Int
 g x = f (I x)
+
+h :: X a -> X a
+h x@(I _) = I (f x) 
+h x@(B _) = B (f x)

@@ -94,12 +94,12 @@ liaSynthOfSize sz m_si = do
                         s_syn_pre' =
                             map (mapPB
                                     (\psi ->
-                                        psi { sy_coeffs = mkCNF (>= 1) sz (fromInteger max_form_sz) (sy_name psi) psi }
+                                        psi { sy_coeffs = mkCNF (>= 1) (use_mod inf_c) sz (fromInteger max_form_sz) (sy_name psi) psi }
                                     )
                                  ) (s_syn_pre si)
                         s_syn_post' =
                             mapPB (\psi -> 
-                                        psi { sy_coeffs = mkCNF (>= 1) sz (fromInteger max_form_sz) (sy_name psi) psi }
+                                        psi { sy_coeffs = mkCNF (>= 1) (use_mod inf_c) sz (fromInteger max_form_sz) (sy_name psi) psi }
                                   ) (s_syn_post si)
                     in
                     si { s_syn_pre = s_syn_pre' -- (s_syn_pre si) { sy_coeffs = pre_c }
@@ -108,15 +108,15 @@ liaSynthOfSize sz m_si = do
     return m_si'
     where
 
-mkCNF :: (Int -> Bool) -> Integer -> Int -> String -> SynthSpec -> CNF
-mkCNF prd sz ms s psi_ =
+mkCNF :: (Int -> Bool) -> Maybe UseMod -> Integer -> Int -> String -> SynthSpec -> CNF
+mkCNF prd use_md sz ms s psi_ =
     (if length (set_sy_args psi_) + length (set_sy_rets psi_) == 0
         then
           [ 
               (
                   s ++ "_c_coeff_act_" ++ show j
               ,
-                   [ mkCoeffs prd s psi_ j k | k <- [1..sz] ] -- Ors
+                   [ mkCoeffs prd use_md s psi_ j k | k <- [1..sz] ] -- Ors
               )
           | j <-  [1..sz] ] -- Ands
         else [])
@@ -144,8 +144,8 @@ mkCNF prd sz ms s psi_ =
         else [])
 
 
-mkCoeffs :: (Int -> Bool) -> String -> SynthSpec -> Integer -> Integer -> Forms
-mkCoeffs prd s psi j k =
+mkCoeffs :: (Int -> Bool) -> Maybe UseMod -> String -> SynthSpec -> Integer -> Integer -> Forms
+mkCoeffs prd use_md s psi j k =
     let
         ars = length (int_sy_args psi)
         rets = length (int_sy_rets psi)
@@ -155,6 +155,8 @@ mkCoeffs prd s psi j k =
           c_active = s ++ "_f_act_" ++ show j ++ "_t_" ++ show k
         , c_op_branch1 = s ++ "_lia_op1_" ++ show j ++ "_t_" ++ show k
         , c_op_branch2 = s ++ "_lia_op2_" ++ show j ++ "_t_" ++ show k
+        , c_op_branch3 = s ++ "_lia_op3_" ++ show j ++ "_t_" ++ show k
+        , c_op_branch4 = s ++ "_lia_op4_" ++ show j ++ "_t_" ++ show k
         , b0 = s ++ "_b_" ++ show j ++ "_t_" ++ show k
         
         -- We only want solutions that have one or more return values with a
@@ -170,6 +172,19 @@ mkCoeffs prd s psi j k =
         , rets_coeffs = 
             [ s ++ "_r_c_" ++ show j ++ "_t_" ++ show k ++ "_a_" ++ show a
             | a <- [1..rets]]
+
+        , ars_coeffs_rhs =
+            if prd rets
+                then
+                    [ s ++ "_a_c_" ++ show j ++ "_t_" ++ show k ++ "_a_" ++ show a ++ "_rhs"
+                    | a <- [1..ars]]
+                else
+                    []
+        , rets_coeffs_rhs = 
+            [ s ++ "_rhs_r_c_" ++ show j ++ "_t_" ++ show k ++ "_a_" ++ show a ++ "_rhs"
+            | a <- [1..rets]]
+
+        , allow_mod = fromMaybe NoMod use_md
         }
 
 mkSetForms :: (Int -> Bool) -> Int -> String -> SynthSpec -> Integer -> Integer -> Forms
@@ -188,6 +203,8 @@ mkSetForms prd max_sz s psi j k =
           c_active = s ++ "_s_act_" ++ show j ++ "_t_" ++ show k
         , c_op_branch1 = s ++ "_set_op1_" ++ show j ++ "_t_" ++ show k
         , c_op_branch2 = s ++ "_set_op2_" ++ show j ++ "_t_" ++ show k
+        , c_op_branch3 = s ++ "_set_op3_" ++ show j ++ "_t_" ++ show k
+        , c_op_branch4 = s ++ "_set_op4_" ++ show j ++ "_t_" ++ show k
 
         , int_sing_set_bools_lhs =
             if prd rets
@@ -249,6 +266,8 @@ mkBoolForms prd sz max_sz s psi j k =
           c_active = s ++ "_bool_act_" ++ show j ++ "_t_" ++ show k
         , c_op_branch1 = s ++ "_bool_op1_" ++ show j ++ "_t_" ++ show k
         , c_op_branch2 = s ++ "_bool_op2_" ++ show j ++ "_t_" ++ show k
+        , c_op_branch3 = s ++ "_bool_op3_" ++ show j ++ "_t_" ++ show k
+        , c_op_branch4 = s ++ "_bool_op3_" ++ show j ++ "_t_" ++ show k
 
         , ars_bools =
             if prd rets
@@ -263,7 +282,7 @@ mkBoolForms prd sz max_sz s psi j k =
 
         , forms = concat
                 . map snd
-                $ mkCNF (const True) sz max_sz (s ++ "_bool_" ++ show j ++ "_t_" ++ show k ++ "_" )
+                $ mkCNF (const True) Nothing sz max_sz (s ++ "_bool_" ++ show j ++ "_t_" ++ show k ++ "_" )
                         (psi { sy_args = filter (not . isBool . smt_sort) (sy_args psi)
                              , sy_rets = filter (not . isBool . smt_sort) (sy_rets psi) })
         }
@@ -420,6 +439,7 @@ runConstraintsForSynth headers vs = do
             liftIO $ checkSatInstr z3_max
             
             res <- liftIO $ waitForRes2 Nothing Nothing z3_dir z3_max vs
+            liftIO $ print res
 
             liftIO $ closeIO z3_dir
             liftIO $ closeIO z3_max
@@ -639,13 +659,19 @@ filterRelOpBranch si mdl =
         clauses = sy_coeffs si
         coeff_nms = concatMap snd clauses
     in
-    -- If we are not using a clause, we don't care about c_op_branch1 and c_op_branch2
-    -- If we are using a clause but c_op_branch1 is true, we don't care about c_op_branch2
+    -- If we are not using a clause, we don't care about c_op_branch1, c_op_branch2, or c_op_branch3
+    -- If we are using a clause but c_op_branch1 is true, we don't care about c_op_branch2 or c_op_branch3
+    -- If we are using a clause but c_op_branch2 is true, we don't care about c_op_branch3
     foldr (\form mdl_ -> if
               | M.lookup (c_active form) mdl == Just (VBool False) ->
-                  M.delete (c_op_branch2 form) $ M.delete (c_op_branch1 form) mdl_
+                    M.delete (c_op_branch4 form)
+                  $ M.delete (c_op_branch3 form)
+                  $ M.delete (c_op_branch2 form)
+                  $ M.delete (c_op_branch1 form) mdl_
               | M.lookup (c_op_branch1 form) mdl == Just (VBool True) ->
-                  M.delete (c_op_branch2 form) mdl_
+                  M.delete (c_op_branch4 form) $ M.delete (c_op_branch3 form) $ M.delete (c_op_branch2 form) mdl_
+              | M.lookup (c_op_branch2 form) mdl == Just (VBool True) ->
+                  M.delete (c_op_branch4 form) $ M.delete (c_op_branch3 form) mdl_
               | otherwise -> mdl) mdl coeff_nms
 
 -- | Create specification definitions corresponding to previously rejected models,
@@ -760,7 +786,7 @@ renameByAdding i si =
 
 buildLIA_SMT_fromModel :: SMTModel -> SynthSpec -> SMTAST
 buildLIA_SMT_fromModel mdl sf =
-    buildSpec (:+) (:*) (.=.) (.=.) (:>) (:>=) Ite Ite
+    buildSpec (:+) (:*) Modulo (.=.) (.=.) (./=.) (:>) (:>=) Ite Ite
               mkSMTAnd mkSMTAnd mkSMTOr
               mkSMTUnion mkSMTIntersection smtSingleton
               mkSMTIsSubsetOf (flip ArraySelect)
@@ -915,38 +941,38 @@ mkRetNonZero' si =
                   (\(act, cff) ->
                           Solver.Assert (((:!) $ V act SortBool)
                         :=> 
-                          mkSMTOr (concatMap (\c -> mkCoeffRetNonZero c) cff))
+                          mkSMTOr (map (\c -> mkCoeffRetNonZero c) cff))
                   ) cffs
               ) sy_sps
 
-mkCoeffRetNonZero :: Forms -> [SMTAST]
+mkCoeffRetNonZero :: Forms -> SMTAST
 mkCoeffRetNonZero cffs@(LIA {}) =
     let
         act = c_active cffs
         ret_cffs = rets_coeffs cffs
     in
     case null ret_cffs of
-        True -> [VBool True]
+        True -> VBool True
         False -> 
-            [V act SortBool :=> mkSMTOr (map (\r -> V r SortInt :/= VInt 0) ret_cffs)]
+            mkSMTAnd [V act SortBool, mkSMTOr (map (\r -> V r SortInt :/= VInt 0) ret_cffs)]
 mkCoeffRetNonZero cffs@(Set {}) =
     let
         act = c_active cffs
         ret_bools = concat $ rets_bools_lhs cffs ++ rets_bools_rhs cffs
     in
     case null ret_bools of
-        True -> [VBool True]
+        True -> VBool True
         False -> 
-            [V act SortBool :=> mkSMTOr (map (\r -> V r SortBool) ret_bools)]
+            mkSMTAnd [V act SortBool, mkSMTOr (map (\r -> V r SortBool) ret_bools)]
 mkCoeffRetNonZero cffs@(BoolForm {}) =
     let
         act = c_active cffs
         ret_bools = rets_bools cffs
     in
     case null ret_bools of
-        True -> [VBool True]
+        True -> VBool True
         False -> 
-            [V act SortBool :=> mkSMTOr (map (\r -> (:!) (V r SortBool)) ret_bools)]
+            mkSMTAnd[V act SortBool :=> mkSMTOr (map (\r -> (:!) (V r SortBool)) ret_bools)]
 
 -- This function aims to limit the number of different models that can be produced
 -- that result in equivalent specifications. 
@@ -1206,8 +1232,8 @@ sySpecGetOpBranches = concatMap sySpecGetOpBranchesForm . concatMap snd . sy_coe
 
 sySpecGetOpBranchesForm :: Forms -> [SMTName]
 sySpecGetOpBranchesForm c@(BoolForm {}) =
-    [c_op_branch1 c, c_op_branch2 c] ++ concatMap sySpecGetOpBranchesForm (forms c)
-sySpecGetOpBranchesForm c = [c_op_branch1 c, c_op_branch2 c]
+    [c_op_branch1 c, c_op_branch2 c, c_op_branch3 c, c_op_branch4 c] ++ concatMap sySpecGetOpBranchesForm (forms c)
+sySpecGetOpBranchesForm c = [c_op_branch1 c, c_op_branch2 c, c_op_branch3 c, c_op_branch4 c]
 ---
 
 sySpecGetActs :: SynthSpec -> [SMTName]
@@ -1280,14 +1306,22 @@ defineSynthLIAFuncSF sf =
 -- Building LIA Formulas
 ------------------------------------
 
-type Plus a = a ->  a -> a
-type Mult a = a ->  a -> a
+type Plus a = a -> a -> a
+type Mult a = a -> a -> a
+type Mod a = a -> a -> a
 type EqF a b = a -> a -> b
+type NeqF a b = a -> a -> b
 type Gt a b = a -> a -> b
 type GEq a b = a -> a -> b
 type Ite b a = b -> a -> a -> a
 type And b c = [b] -> c
 type Or b = [b] -> b
+
+-- | Generates a let expression during SMT translation.
+-- The introduced variable has a fixed name, so can be used only once.
+type LetEx a b = a -- ^ The bindee
+               -> (a -> b) -- ^ Mapping from a bound variable to an expression using that variable
+               -> b
 
 type IsSubsetOf a b = a -> a -> b
 type IsMember a b = a -> a -> b
@@ -1306,7 +1340,7 @@ type UniversalSet s = s
 
 buildLIA_SMT :: SynthSpec -> SMTAST
 buildLIA_SMT sf =
-    buildSpec (:+) (:*) (.=.) (.=.) (:>) (:>=) Ite Ite
+    buildSpec (:+) (:*) Modulo (.=.) (.=.) (./=.) (:>) (:>=) Ite Ite
               mkSMTAnd mkSMTAnd mkSMTOr mkSMTUnion mkSMTIntersection smtSingleton
               mkSMTIsSubsetOf (flip ArraySelect)
               (flip V SortInt) VInt (flip V SortBool) (flip V $ SortArray SortInt SortBool)
@@ -1331,8 +1365,8 @@ buildLIA_LH' si mv =
     let
         post_ars = allPostSpecArgs si
 
-        build ars = buildSpec ePlus eTimes
-                              bEq bIff bGt bGeq
+        build ars = buildSpec ePlus eTimes eMod
+                              bEq bIff bNeq bGt bGeq
                               eIte eIte id
                               pAnd pOr
                               eUnion eIntersection eSingleton
@@ -1375,6 +1409,8 @@ buildLIA_LH' si mv =
         ePlus (EBin LH.Times (ECon (I i)) x) y | i < 0 = EBin LH.Minus y (EBin LH.Times (ECon (I $ - i)) x)
         ePlus x y = EBin LH.Plus x y
 
+        eMod x y = EBin LH.Mod x y
+
         eIte PTrue x _ = x
         eIte PFalse _ y = y
         eIte _ _ _ = error "eIte: Should never have non-concrete bool"
@@ -1399,6 +1435,16 @@ buildLIA_LH' si mv =
             | EBin LH.Minus e1 e2 <- x
             , ECon (I 0) <- y = PAtom LH.Eq e1 e2
             | otherwise = PAtom LH.Eq x y
+
+        bNeq (ECon (I x)) (ECon (I y)) =
+            if x /= y then PTrue else PFalse
+        bNeq x y
+            | x == eUnivSet
+            , y == eUnivSet = PFalse
+            | x == eUnivSet || y == eUnivSet = PTrue
+            | EBin LH.Minus e1 e2 <- x
+            , ECon (I 0) <- y = PAtom LH.Ne e1 e2
+            | otherwise = PAtom LH.Ne x y
 
         bIff x y
             | x == y = PTrue
@@ -1456,8 +1502,10 @@ buildLIA_LH' si mv =
 
 buildSpec :: Show b => Plus a
           -> Mult a
+          -> Mod a
           -> EqF a b
           -> EqF b b
+          -> NeqF a b
           -> Gt a b
           -> GEq a b
           -> Ite b b 
@@ -1478,9 +1526,11 @@ buildSpec :: Show b => Plus a
           -> VSet a
           -> EmptySet a
           -> UniversalSet a
+
           -> SynthSpec
+
           -> c
-buildSpec plus mult eq eq_bool gt geq ite ite_set mk_and_sp mk_and mk_or mk_union mk_intersection mk_sing is_subset is_member vint cint vbool vset cemptyset cunivset sf =
+buildSpec plus mult mod_op eq eq_bool neq gt geq ite ite_set mk_and_sp mk_and mk_or mk_union mk_intersection mk_sing is_subset is_member vint cint vbool vset cemptyset cunivset sf =
     let
         all_coeffs = sy_coeffs sf
         lin_ineqs = map (\(cl_act, cl) -> vbool cl_act:map toLinInEqs cl) all_coeffs
@@ -1494,18 +1544,30 @@ buildSpec plus mult eq eq_bool gt geq ite ite_set mk_and_sp mk_and mk_or mk_unio
         toLinInEqs (LIA { c_active = act
                         , c_op_branch1 = op_br1
                         , c_op_branch2 = op_br2
+                        , c_op_branch3 = op_br3
+                        , c_op_branch4 = op_br4
                         , b0 = b
                         , ars_coeffs = acs
-                        , rets_coeffs =  rcs }) =
+                        , rets_coeffs = rcs
+                        
+                        , ars_coeffs_rhs = acs_rhs
+                        , rets_coeffs_rhs = rcs_rhs
+                        
+                        , allow_mod = al_mod }) =
             let
                 sm = lia_form acs rcs
+                sm_rhs = lia_form acs_rhs rcs_rhs
+
+                end_eq = if al_mod == UseMod
+                            then ite (vbool op_br4) (sm `geq` vint b)
+                                                (sm `eq` plus (sm_rhs `mod_op` cint 2) (vint b))
+                            else sm `geq` vint b
             in
             mk_and [vbool act, ite (vbool op_br1)
-                                  (sm `eq` vint b)
-                                  (ite (vbool op_br2) (sm `gt` vint b)
-                                               (sm `geq` vint b)
-                                  )
-                   ]
+                                    (sm `eq` vint b)
+                                    (ite (vbool op_br2) (sm `neq` vint b)
+                                        (ite (vbool op_br3) (sm `gt` vint b) end_eq))
+                    ]
         toLinInEqs (Set { c_active = act
 
                         , int_sing_set_bools_lhs = int_sing_bools_lhs

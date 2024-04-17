@@ -350,7 +350,9 @@ testFileTests = testGroup "TestFiles"
                                                                    , ("sf", 200, [Exactly 2])
                                                                    , ("thirdOrder", 300, [Exactly 2])
                                                                    , ("thirdOrder2", 300, [Exactly 3])
-                                                                   , ("tupleTestMono", 175, [Exactly 2])] 
+                                                                   , ("tupleTestMono", 175, [Exactly 2])]
+    , checkInputOutputsNonRedLib "tests/BaseTests/ListTests.hs" [ ("lengthN", 250, [Exactly 1])
+                                                                   , ("map2", 150, [Exactly 1])] 
     -- , checkInputOutput "tests/TestFiles/BadBool.hs" "BadBool" "f" 1400 [AtLeast 1]
     -- , checkExprAssumeAssert "tests/TestFiles/Coercions/GADT.hs" 400 Nothing Nothing "g" 2
     --     [ AtLeast 2
@@ -365,6 +367,34 @@ testFileTests = testGroup "TestFiles"
                                                   , ("show4", 1000, [Exactly 2])
                                                   , ("show5", 1300, [AtLeast 12])
                                                   , ("checkWS", 1000, [Exactly 5]) ]
+<<<<<<< HEAD
+=======
+
+    , checkInputOutputs "tests/TestFiles/Floats1.hs" [ ("infinite", 1000, [AtLeast 3])
+                                                     , ("zero", 1000, [AtLeast 3])
+                                                     , ("f", 1000, [AtLeast 2])
+                                                     , ("fConc", 2000, [Exactly 1])
+                                                     , ("g", 1300, [AtLeast 2])
+                                                     , ("gConc", 2000, [Exactly 1])
+                                                     , ("k", 2000, [AtLeast 4])
+                                                     , ("kConc", 2000, [Exactly 1])
+                                                     , ("m", 1000, [AtLeast 2])
+                                                     , ("n", 1000, [AtLeast 2])
+                                                     , ("sqrtSquared", 1000, [AtLeast 2]) ]
+
+    , checkInputOutputs "tests/TestFiles/Doubles1.hs" [ ("infinite", 1000, [AtLeast 3])
+                                                      , ("zero", 1000, [AtLeast 3])
+                                                      , ("f", 1000, [AtLeast 2])
+                                                      , ("fConc", 2000, [Exactly 1])
+                                                      , ("g", 1300, [AtLeast 2])
+                                                      , ("gConc", 2000, [Exactly 1])
+                                                      , ("k", 2000, [AtLeast 4])
+                                                      , ("kConc", 2000, [Exactly 1])
+                                                      , ("m", 1000, [AtLeast 2])
+                                                      , ("n", 1000, [AtLeast 2])
+                                                      , ("sqrtSquared", 1000, [AtLeast 2]) ]
+
+>>>>>>> master
     ]
 
 extensionTests :: TestTree

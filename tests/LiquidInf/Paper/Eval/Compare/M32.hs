@@ -7,7 +7,7 @@ main :: Bool -> Int -> Bool
 main b ij = case while 100 (b, ij, ij, 0) of
                 (b', i, j, n) -> i == j
 
-{-@ while :: Int -> (Bool, Int, Int, Int) -> (Bool, Int, Int, Int) @-}
+{-@ while :: k:Int -> (Bool, Int, Int, Int) -> { t:(Bool, Int, Int, Int) | not (x_Tuple44 t < 2 * k) } @-}
 while :: Int -> (Bool, Int, Int, Int) -> (Bool, Int, Int, Int)
 while k (b, i, j, n) =
     if n < 2 * k

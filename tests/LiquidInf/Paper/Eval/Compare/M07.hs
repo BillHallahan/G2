@@ -10,6 +10,7 @@ main xs n =
     case while xs (0, n, 0, 0) of
         (i', n', a', b') -> a' + b' == 3 * n' 
 
+{-@ while :: List Bool -> (Int, Int, Int, Int) -> {t:(Int, Int, Int, Int) | not (x_Tuple41 t < x_Tuple42 t) } @-}
 while :: List Bool -> (Int, Int, Int, Int) -> (Int, Int, Int, Int)
 while xs (i, n, a, b) =
     if i < n

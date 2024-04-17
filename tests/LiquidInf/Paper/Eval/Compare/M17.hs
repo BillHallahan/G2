@@ -7,6 +7,7 @@ main :: Int -> Bool
 main n = case while1 n (1, 1, 0) of
                 (k', _, _) -> k' >= n
 
+{-@ while1 :: n:Int -> (Int, Int, Int) -> { t:(Int, Int, Int) | not (x_Tuple32 t < n )} @-}
 while1 :: Int -> (Int, Int, Int) -> (Int, Int, Int)
 while1 n (k, i, j) = if i < n
                         then (let
@@ -15,7 +16,7 @@ while1 n (k, i, j) = if i < n
                               while1 n (k', i' + 1, j'))
                         else (k, i, j)
 
-{-@ while2 :: Int -> (Int, Int, Int) -> (Int, Int, Int) @-}
+{-@ while2 :: n:Int -> (Int, Int, Int) -> { t:(Int, Int, Int) | not (x_Tuple33 t < x_Tuple32 t)} @-}
 while2 :: Int -> (Int, Int, Int) -> (Int, Int, Int)
 while2 n (k, i, j) = if j < i
                         then while2 n (k + (i - j), i, j + 1)
