@@ -116,7 +116,6 @@ import Data.Foldable
 import qualified Data.HashSet as HS
 import qualified Data.HashMap.Strict as HM
 import qualified Data.Map as M
-import Debug.Trace
 import Data.Maybe
 import Data.Monoid ((<>))
 import qualified Data.List as L
