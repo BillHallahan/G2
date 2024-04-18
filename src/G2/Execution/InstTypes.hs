@@ -40,7 +40,8 @@ newType ng i te =
         te' = HM.insert tn nadt te 
     in
     (ty, te', ng''')
-
+    
+-- | We want to find all the type variable from curr_expr and replace them with symbolic variable
 instType :: ASTContainer t Type => NameGen -> State t -> (NameGen, State t)
 instType ng st = 
     let 

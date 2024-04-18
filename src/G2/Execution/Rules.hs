@@ -235,6 +235,7 @@ retLam s@(State { expr_env = eenv })
 
 traceType :: E.ExprEnv -> Expr -> Maybe Type
 traceType _ (Type t) = Just t
+-- return symoblic type varaible if the varabile we lookup is symoblic in the expression env
 traceType eenv (Var (Id n _)) = case E.lookupConcOrSym n eenv of 
                                         Just (E.Sym i) -> Just (TyVar i)
                                         Just (E.Conc e) -> traceType eenv e
