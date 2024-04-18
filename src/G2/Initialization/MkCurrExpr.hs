@@ -14,7 +14,6 @@ import qualified Data.Map as M
 import Data.Maybe
 import qualified Data.Text as T
 import qualified Data.HashMap.Lazy as HM 
-import Debug.Trace
 
 mkCurrExpr :: Maybe T.Text -> Maybe T.Text -> Id
            -> TypeClasses -> NameGen -> ExprEnv -> TypeEnv -> Walkers
@@ -81,14 +80,12 @@ mkMainExprNoInstantiateTypes e ng =
                 _ -> False
         (ats,nts) = partition anontype argts 
         -- We want to have symbolic types so we grab the type level arguments and introduce symbolic variables for them
-        nnames (NamedType (Id n _)) = n 
-        ns = map nnames nts
+        ns = map (\(NamedType (Id n _)) -> n) nts
         (ns', ng') = renameAll ns ng
 
         ntmap = HM.fromList $ zip ns ns' 
         -- We want to create a full list of symoblic variables with new names and put the symoblic variables into the expr env
-        idfromNameType (NamedType i) = i 
-        ntids = map idfromNameType nts
+        ntids = map (\(NamedType i) -> i) nts
         ntids' = renames ntmap ntids
 
         ats' = map argTypeToType ats

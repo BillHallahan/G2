@@ -110,7 +110,6 @@ import qualified G2.Language.PathConds as PC
 import qualified G2.Language.Stack as Stck
 import G2.Solver
 import G2.Lib.Printers
-import Debug.Trace
 import Control.Monad.IO.Class
 import qualified Control.Monad.State as SM
 import Data.Foldable
@@ -848,7 +847,7 @@ switchEveryNHalter sw = (mkSimpleHalter
                             (\_ _ _ -> sw)
                             (\i _ _ ->  (return $ if i <= 0 then Switch else Continue))
                             (\i _ _ _ -> i - 1))
-                        { updateHalterWithAll = updateAll } 
+                        { updateHalterWithAll = updateAll }
     where
         updateAll [] = []
         updateAll xs@((_, c):_) =
