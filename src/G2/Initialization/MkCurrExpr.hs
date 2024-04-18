@@ -86,7 +86,7 @@ mkMainExprNoInstantiateTypes e ng =
         (ns', ng') = renameAll ns ng
 
         ntmap = HM.fromList $ zip ns ns' 
-        -- We want to create a full list of symoblic ids and applying it to the expr so we can later access symbolic ids from expr
+        -- We want to create a full list of symoblic variables with new names and put the symoblic variables into the expr env
         idfromNameType (NamedType i) = i 
         ntids = map idfromNameType nts
         ntids' = renames ntmap ntids

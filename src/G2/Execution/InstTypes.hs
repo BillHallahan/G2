@@ -1,5 +1,5 @@
 {-# LANGUAGE  OverloadedStrings, FlexibleContexts #-}
-module G2.Execution.InstTypes where
+module G2.Execution.InstTypes (instType) where
 
 
 import G2.Language
@@ -56,7 +56,7 @@ instType' (ng, st) i
         let 
             (t,te,ng') = newType ng i (type_env st)
             n = idName i
-            eenv' = E.insert n (Var i) (expr_env st)
+            eenv' = E.insert n (Type t) (expr_env st)
             st' = st {expr_env = eenv'
                     ,type_env = te}
             st'' = replaceTyVar n t st'
