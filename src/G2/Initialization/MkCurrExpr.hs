@@ -68,8 +68,8 @@ mkMainExpr tc kv ng ex =
     in
     (app_ex, is, typsE, ng')
 
--- | This implementation aims to symbolically execute function 
--- functions treating both types and value level argument as symbolic
+-- | This implementation aims to symbolically execute functions 
+-- treating both types and value level argument as symbolic
 mkMainExprNoInstantiateTypes :: Expr -> NameGen -> (Expr, [Id], [Expr], NameGen)
 mkMainExprNoInstantiateTypes e ng = 
     let 

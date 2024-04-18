@@ -22,7 +22,6 @@ import Control.Exception
 import System.Process
 
 import Control.Monad.IO.Class
-import Debug.Trace
 
 validateStates :: [FilePath] -> [FilePath] -> String -> String -> [String] -> [GeneralFlag] -> [ExecRes t] -> IO Bool
 validateStates proj src modN entry chAll gflags in_out = do
