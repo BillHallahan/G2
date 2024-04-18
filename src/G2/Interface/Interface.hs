@@ -52,34 +52,6 @@ import G2.Preprocessing.Interface
 import G2.Execution.HPC
 import G2.Execution.Interface
 import G2.Execution.Reducer
-    ( (-->),
-      (.-->),
-      (.==),
-      (.~>),
-      (<~>),
-      acceptIfViolatedHalter,
-      discardIfAcceptedTagHalter,
-      getLogger,
-      liftSomeReducer,
-      maxOutputsHalter,
-      nonRedPCRed,
-      nonRedPCTemplates,
-      pickLeastUsedOrderer,
-      runReducer,
-      stdRed,
-      switchEveryNHalter,
-      taggerRed,
-      zeroHalter,
-      (~>),
-      Halter,
-      Orderer,
-      Processed,
-      Reducer,
-      ReducerEq((:==)),
-      ReducerRes(Finished),
-      SomeHalter(..),
-      SomeOrderer(..),
-      SomeReducer(..) )
 import G2.Execution.Rules
 import G2.Execution.PrimitiveEval
 import G2.Execution.Memory
