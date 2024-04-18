@@ -6,7 +6,7 @@ import G2.Language
 import qualified Data.HashMap.Lazy as HM
 import qualified G2.Language.ExprEnv as E 
 import qualified Data.List as L 
-import Debug.Trace
+
 import Data.Foldable (foldl')
 import G2.Language.ExprEnv (isSymbolic)
 
