@@ -3,7 +3,6 @@ module G2.Execution.NormalForms where
 import G2.Language
 import qualified G2.Language.Stack as S
 import qualified G2.Language.ExprEnv as E
-import G2.Language.Typing
 
 import qualified Data.HashSet as HS
 

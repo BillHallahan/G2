@@ -6,7 +6,6 @@ import G2.Solver.Language
 
 import Data.Bits
 import Data.Char
-import Data.Ratio
 import GHC.Float
 import Numeric
 
@@ -45,9 +44,6 @@ integer = Token.integer smtLexer
 
 floatT :: Parsec String st Double
 floatT = try (Token.float smtLexer)
-
-flexFloatT :: Parsec String st Double
-flexFloatT = try (Token.float smtLexer) <|> return . fromInteger =<< integer
 
 whiteSpace :: Parsec String st ()
 whiteSpace = Token.whiteSpace smtLexer
@@ -115,7 +111,7 @@ realExprNeg = do
 
 realExprRat :: Parser SMTAST
 realExprRat = do
-    s <- reserved "/"
+    _ <- reserved "/"
     f <- integer
     _ <- char '.'
     _ <- char '0'
@@ -245,14 +241,6 @@ doubleFloat = do
     case s of 
         Just _ -> return (-r)
         Nothing -> return r
-
-flexDoubleFloat :: Parser Double
-flexDoubleFloat = do
-    s <- optionMaybe (reserved "-")
-    f <- flexFloatT
-    case s of 
-        Just _ -> return (-f)
-        Nothing -> return f
 
 stringExpr :: Parser SMTAST
 stringExpr = do

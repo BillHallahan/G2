@@ -77,7 +77,6 @@ import qualified Data.HashMap.Lazy as HM
 import qualified Data.Map as M
 import Data.Maybe
 import qualified Data.List as L
-import Data.Monoid hiding (Alt)
 import Control.Monad
 
 tyInt :: KV.KnownValues -> Type

@@ -15,7 +15,6 @@ import qualified G2.Language.ExprEnv as E
 import G2.Solver.Converters
 import G2.Solver.Solver
 
-import Data.Function
 import qualified Data.List as L
 import Data.Maybe (mapMaybe, isJust, fromJust)
 import qualified Data.HashMap.Lazy as HM

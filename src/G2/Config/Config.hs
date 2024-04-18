@@ -26,7 +26,6 @@ module G2.Config.Config ( Mode (..)
 import Data.Char
 import Data.List
 import qualified Data.Map as M
-import Data.Monoid ((<>))
 import Options.Applicative
 import Text.Read
 

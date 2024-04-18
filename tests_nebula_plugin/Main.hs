@@ -54,17 +54,17 @@ buildPackage loc = do
     (Nothing, Nothing, Nothing, clean_ph) <- createProcess
                                     $ (proc "cabal" ["clean"]) { cwd = Just loc
                                                                , std_out = Inherit }
-    waitForProcess clean_ph
+    _ <- waitForProcess clean_ph
     (Nothing, Nothing, Nothing, build_g2_ph) <- createProcess
                                     $ (proc "cabal" ["build", "g2"]) { cwd = Just loc }
-    waitForProcess build_g2_ph
-    (Nothing, Just stdout, Nothing, ph) <- createProcess
+    _ <- waitForProcess build_g2_ph
+    (Nothing, Just sout, Nothing, ph) <- createProcess
                                     $ (proc "cabal" ["build"]) { cwd = Just loc
                                                                , std_out = CreatePipe }
-    waitForProcess ph
-    out <- hGetContents stdout
+    _ <- waitForProcess ph
+    out <- hGetContents sout
     _ <- evaluate (length out)
-    hClose stdout
+    hClose sout
     return out
 
 isVerified :: String -> String -> Bool

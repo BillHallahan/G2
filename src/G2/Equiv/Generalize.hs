@@ -14,8 +14,6 @@ import qualified G2.Solver as S
 import G2.Equiv.G2Calls
 import G2.Equiv.Tactics
 
-import Data.Monoid (Any (..))
-
 import qualified Control.Monad.Writer.Lazy as W
 
 innerScrutinees :: Expr -> [Expr]

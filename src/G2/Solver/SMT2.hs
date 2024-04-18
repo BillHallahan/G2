@@ -27,7 +27,6 @@ import Control.Exception.Base (evaluate)
 import Data.List.Utils (countElem)
 import qualified Data.HashSet as HS
 import qualified Data.Map as M
-import Data.Semigroup
 import qualified Data.Text as T
 import qualified Data.Text.IO as T
 import qualified Text.Builder as TB
@@ -302,7 +301,7 @@ getProcessHandles pr = do
 
 getZ3 :: Int -> IO Z3
 getZ3 time_out = do
-    hhp@(h_in, _, _) <- getZ3ProcessHandles time_out
+    hhp <- getZ3ProcessHandles time_out
     return $ Z3 arbValue hhp
 
 getSMT :: Config -> IO SomeSMTSolver
@@ -310,7 +309,7 @@ getSMT = getSMTAV arbValue
 
 getSMTAV :: ArbValueFunc -> Config -> IO SomeSMTSolver
 getSMTAV avf (Config {smt = ConZ3}) = do
-    hhp@(h_in, _, _) <- getZ3ProcessHandles 10000
+    hhp <- getZ3ProcessHandles 10000
     return $ SomeSMTSolver (Z3 avf hhp)
 getSMTAV avf (Config {smt = ConCVC4}) = do
     hhp <- getCVC4ProcessHandles

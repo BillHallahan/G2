@@ -187,13 +187,13 @@ evalPrimSymbolic :: ExprEnv -> TypeEnv -> NameGen -> KnownValues -> Expr -> Mayb
 evalPrimSymbolic eenv tenv ng kv e
     | [Prim DataToTag _, type_t, cse] <- unApp e
     , Type t <- dig eenv type_t
-    , Case v@(Var (Id n _)) _ _ alts <- cse
+    , Case v@(Var _) _ _ alts <- cse
     , TyCon tn _:_ <- unTyApp t
     , Just adt <- M.lookup tn tenv =
         let
-            alt_p = map (\(Alt (LitAlt l) e) ->
+            alt_p = map (\(Alt (LitAlt l) alt_e) ->
                             let
-                                Data dc = head $ unApp e
+                                Data dc = head $ unApp alt_e
                             in
                             (l, dc)) alts
 
@@ -204,7 +204,7 @@ evalPrimSymbolic eenv tenv ng kv e
 
             new_pc = map (`ExtCond` True)
                    $ mapMaybe (\(alt_l, alt_dc) ->
-                            fmap (\(nn, n_dc) -> eq v (Lit alt_l) `eq` eq (Var ret) nn)
+                            fmap (\(nn, _) -> eq v (Lit alt_l) `eq` eq (Var ret) nn)
                         $ L.find ((==) alt_dc . snd) num_dcs) alt_p
         in
         Just (Var ret, E.insertSymbolic ret eenv, new_pc, ng')

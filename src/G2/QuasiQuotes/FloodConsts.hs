@@ -69,3 +69,6 @@ pathCondMaybeSatisfiable tenv kv (ExtCond e b) =
         fal = mkBool kv False
     in
     if (r == tr && not b) || (r == fal && b) then False else True
+pathCondMaybeSatisfiable _ _ (SoftPC _) = True
+pathCondMaybeSatisfiable _ _ (MinimizePC _) = True
+pathCondMaybeSatisfiable tenv kv (AssumePC _ _ hs) = any (pathCondMaybeSatisfiable tenv kv . PC.unhashedPC) hs

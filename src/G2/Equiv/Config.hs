@@ -8,10 +8,8 @@ module G2.Equiv.Config ( NebulaConfig (..)
 
 import G2.Config.Config
 
-import Data.Monoid ((<>))
 import qualified Data.Text as T
 import Options.Applicative
-import Text.Read
 
 -- Config options
 data NebulaConfig = NC { limit :: Int

@@ -32,7 +32,6 @@ module G2.Solver.Converters
 import qualified Data.Bits as Bits
 import qualified Data.HashMap.Lazy as HM
 import qualified Data.HashSet as HS
-import Data.Int
 import qualified Data.Map as M
 import Data.Monoid
 import Data.Ratio

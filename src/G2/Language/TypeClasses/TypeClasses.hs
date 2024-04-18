@@ -33,7 +33,6 @@ import Data.List
 import qualified Data.Map.Lazy as MM
 import qualified Data.HashMap.Lazy as M
 import Data.Maybe
-import Data.Monoid ((<>))
 import qualified Data.Sequence as S
 import GHC.Generics (Generic)
 
