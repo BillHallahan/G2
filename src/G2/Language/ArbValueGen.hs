@@ -11,7 +11,6 @@ import G2.Language.Expr
 import G2.Language.Support
 import G2.Language.Syntax
 import G2.Language.Typing
-import Debug.Trace
 import Data.List
 import qualified Data.HashMap.Lazy as HM
 import Data.Ord

@@ -91,7 +91,7 @@ mkConfig homedir = Config Regular
     <*> pure []
     <*> mkLogMode
     <*> flag Sharing NoSharing (long "no-sharing" <> help "disable sharing")
-    <*> flag InstBefore InstAfter (long "inst-after" <> help "instantiate type variables before or in the function, default institate type variables before function")
+    <*> flag InstBefore InstAfter (long "inst-after" <> help "select to instantiate type variables after symbolic execution, rather than before")
     <*> mkMaxOutputs
     <*> switch (long "returns-true" <> help "assert that the function returns true, show only those outputs which return false")
     <*> mkHigherOrder
