@@ -91,6 +91,7 @@ def unmodified_theorems():
             ret.append(("p" + str(i), []))
     return ret
 
+# TODO move p58 to the finiteness section
 modified_total = [
     ("p01", [n]),
     ("p19", [n]),
@@ -103,7 +104,7 @@ modified_total = [
     ("p49", [xs, ys]),
     ("p51", [xs]),
     ("p56", [n, m]),
-    ("p58", [n, xs, ys]),
+    #("p58", [n, xs, ys]),
     ("p72", [i]),
     ("p73", [p, xs]),
     ("p74", [i, xs]),
@@ -145,6 +146,8 @@ modified_finite = [
     ("p54fin", [m]),
     ("p57finA", [m, xs]),
     ("p57finB", [n, xs]),
+    ("p58finA", [n, xs, ys]),
+    ("p58finB", [n, xs, ys]),
     ("p59finA", [ys]),
     ("p60finB", []),
     ("p61fin", []),
@@ -198,6 +201,7 @@ modified_cycle = [
     ("p53", [n, xs]),
     ("p54", [n, m]),
     ("p57", [n, m, xs]),
+    ("p58", [n, xs, ys]),
     ("p59", [xs, ys]),
     ("p60", [xs, ys]),
     ("p61", [xs, ys]),

@@ -232,11 +232,12 @@ theorems that are listed as requiring totality but not finiteness.
 
 p47:  genuine, I think
 p58:  n infinite, xs infinite, ys empty
-p72
-p73
+p72 no CX, or at least nothing we can find easily
+p73 seemingly fine
 p74
 p83
 p84
+Nothing obvious for the final three either
 
 I can get a relatively high depth for p04fin.  Is this another situation
 like what I had for p58?

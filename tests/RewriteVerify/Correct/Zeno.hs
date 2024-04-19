@@ -1099,6 +1099,15 @@ listE = ():():():():():():():():():():():():listE
 -- Getting the lemma I would need would be hard
 -- p83 and p84 are provable now, but I forgot to make a note of it
 -- I did notice this at some point in the past
+-- seemingly gets stuck on p58finA with all variables total
+-- it doesn't make much progress
+-- I need to add p58 to the list of cycle counterexamples
+-- p58finA n xs gets a counterexample
+-- so does p58finA n ys, same for p58finA xs ys
+-- all three variables need to be total
+-- how about p58finB?
+-- xs ys bad, n xs bad, n ys bad
+-- all three variables need to be total
 {-# RULES
 "p58finA" forall n xs ys . walkNat n (drop n (zip xs ys)) = zip (drop n xs) (drop n ys)
 "p58finB" forall n xs ys . walkList xs (drop n (zip xs ys)) = zip (drop n xs) (drop n ys)
