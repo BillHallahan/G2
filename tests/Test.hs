@@ -367,8 +367,6 @@ testFileTests = testGroup "TestFiles"
                                                   , ("show4", 1000, [Exactly 2])
                                                   , ("show5", 1300, [AtLeast 12])
                                                   , ("checkWS", 1000, [Exactly 5]) ]
-<<<<<<< HEAD
-=======
 
     , checkInputOutputs "tests/TestFiles/Floats1.hs" [ ("infinite", 1000, [AtLeast 3])
                                                      , ("zero", 1000, [AtLeast 3])
@@ -394,7 +392,6 @@ testFileTests = testGroup "TestFiles"
                                                       , ("n", 1000, [AtLeast 2])
                                                       , ("sqrtSquared", 1000, [AtLeast 2]) ]
 
->>>>>>> master
     ]
 
 extensionTests :: TestTree

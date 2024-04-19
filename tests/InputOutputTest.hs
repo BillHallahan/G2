@@ -75,7 +75,7 @@ checkInputOutput' io_config src tests = do
                                 (mb_modname, exg2) <- loadedExG2
                                 config <- io_config
                                 r <- doTimeout (timeLimit config)
-                                               (try (checkInputOutput'' [src] exg2 mb_modname config test)
+                                               (try (checkInputOutput'' [src] exg2 (head mb_modname) config test)
                                                     :: IO (Either SomeException (Bool, [ExecRes ()])))
                                 let (b, e) = case r of
                                         Nothing -> (False, "\nTimeout")
