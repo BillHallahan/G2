@@ -193,7 +193,7 @@ evalPrimSymbolic eenv tenv ng kv e
         let
             alt_p = map (\(Alt (LitAlt l) alt_e) ->
                             let
-                                Data dc = head $ unApp alt_e
+                                Data dc = appCenter alt_e
                             in
                             (l, dc)) alts
 
