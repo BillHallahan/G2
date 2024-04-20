@@ -129,7 +129,7 @@ convertDefs :: [Type] -> Maybe Type -> LHDictMap -> BoundTypes -> Def SpecType G
 convertDefs [l_t] ret m bt (Def { ctor = dc, body = b, binds = bds})
     | TyCon _ _ <- tyAppCenter l_t
     , st_t <- tyAppArgs l_t
-    , dc' <- mkData HM.empty HM.empty dc = do
+    , dc' <- mkDataUnsafe dc = do
     tenv <- typeEnv
     let         
         -- See [1] below, we only evaluate this if Just
@@ -184,7 +184,7 @@ mkExprFromBody ret m bt (R s e) = do
 
         bt' = HM.insert s_nm t bt
     g2_e <- convertLHExpr (mkDictMaps m) bt' ret e
-    return . Let [(i, SymGen t)] . Assume Nothing g2_e $ Var i 
+    return . Let [(i, SymGen SNoLog t)] . Assume Nothing g2_e $ Var i 
 
 mkDictMaps :: LHDictMap -> DictMaps
 mkDictMaps ldm = DictMaps { lh_dicts = ldm

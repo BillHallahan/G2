@@ -10,13 +10,15 @@ executable PluginTests
     main-is:          Main.hs
 
     -- Modules included in this executable, other than Main.
-    other-modules:    Nat
+    other-modules:    Nat, ImportTest, Spec
 
     -- LANGUAGE extensions used by modules in this package.
     -- other-extensions:
     build-depends:      base >= 4.8.0.0
                       , g2 >= 0.1.0.2
+                      , Import
+                      , mtl >= 2.2.2
     default-extensions: LambdaCase
     hs-source-dirs:   app
-    ghc-options:      -fplugin=G2.Nebula 
+    ghc-options:      -fplugin=G2.Nebula
     default-language: Haskell2010

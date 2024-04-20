@@ -46,6 +46,7 @@ import qualified G2.Language.ExprEnv as E
 
 import G2.Execution
 
+import G2.Initialization.FpToRational
 import G2.Initialization.MkCurrExpr
 
 import G2.Liquid.AddCFBranch
@@ -99,7 +100,7 @@ data FuncInfo = FuncInfo { func :: T.Text
 -- attempt to find counterexamples to the functions liquid type
 findCounterExamples :: [FilePath] -> [FilePath] -> T.Text -> Config -> LHConfig -> IO (([ExecRes AbstractedInfo], Bindings), Lang.Id)
 findCounterExamples proj fp entry config lhconfig = do
-    let config' = config { mode = Liquid }
+    let config' = config { mode = Liquid, fp_handling = RationalFP }
 
     lh_config <- getOpts []
 
@@ -127,7 +128,7 @@ runLHCore entry (mb_modname, exg2) ghci config lhconfig = do
                , ls_memconfig = pres_names } <- liquidStateWithCall entry (mb_modname, exg2) ghci config lhconfig mempty
 
     SomeSolver solver <- initSolver config
-    let simplifier = IdSimplifier
+    let simplifier = NaNInfBlockSimplifier :>> FloatSimplifier :>> ArithSimplifier
 
     let (red, hal, ord) = lhReducerHalterOrderer config lhconfig solver simplifier entry mb_modname cfn final_st
     (exec_res, final_bindings) <- SM.evalStateT (runLHG2 config red hal ord solver simplifier pres_names ifi final_st bindings) (mkPrettyGuide ())
@@ -355,9 +356,11 @@ processLiquidReadyStateWithCall lrs@(LiquidReadyState { lr_state = lhs@(LHState 
         lhs' = lhs { state = s { expr_env = foldr E.insertSymbolic (expr_env s) is
                                , curr_expr = CurrExpr Evaluate ce }
                    }
-        (lhs'', bindings') = execLHStateM (addLHTCCurrExpr) lhs' (bindings { name_gen = ng' })
+        (lhs'', bindings') = execLHStateM addLHTCCurrExpr lhs' (bindings { name_gen = ng' })
+        -- The LiquidHaskell spec conversion uses floating point by default, so we need to substitute if using rationals.
+        lhs''' = if fp_handling config == RationalFP then substRational lhs'' else lhs''
 
-        lrs' = lrs { lr_state = lhs''
+        lrs' = lrs { lr_state = lhs'''
                    , lr_binding = bindings' { fixed_inputs = f_i
                                             , input_names = map idName is
                                             }
@@ -369,7 +372,7 @@ runLHG2 :: (MonadIO m, Solver solver, Simplifier simplifier)
         => Config
         -> SomeReducer m LHTracker
         -> SomeHalter m LHTracker
-        -> SomeOrderer LHTracker
+        -> SomeOrderer m LHTracker
         -> solver
         -> simplifier
         -> MemConfig
@@ -432,7 +435,7 @@ lhReducerHalterOrderer :: (MonadIO m, Solver solver, Simplifier simplifier)
                        -> State t
                        -> ( SomeReducer (SM.StateT PrettyGuide m) LHTracker
                           , SomeHalter (SM.StateT PrettyGuide m) LHTracker
-                          , SomeOrderer LHTracker)
+                          , SomeOrderer (SM.StateT PrettyGuide m) LHTracker)
 lhReducerHalterOrderer config lhconfig solver simplifier entry mb_modname cfn st =
     let
 
@@ -445,33 +448,34 @@ lhReducerHalterOrderer config lhconfig solver simplifier entry mb_modname cfn st
         non_red = nonRedPCRed .|. nonRedPCRedConst
 
         m_logger = fmap SomeReducer $ getLogger config
+
+        lh_std_red = existentialInstRed :== NoProgress .--> lhRed cfn :== Finished --> stdRed share retReplaceSymbFuncVar solver simplifier
+        opt_logger_red = case m_logger of
+                            Just logger -> logger .~> lh_std_red
+                            Nothing -> lh_std_red
     in
     if higherOrderSolver config == AllFuncs then
-        ( SomeReducer non_red
-            .<~| (SomeReducer (nonRedAbstractReturnsRed <~| taggerRed abs_ret_name))
-            .<~| (case m_logger of
-                  Just logger -> SomeReducer (stdRed share retReplaceSymbFuncVar solver simplifier <~| lhRed cfn <~? existentialInstRed) .<~ logger
-                  Nothing -> SomeReducer (stdRed share retReplaceSymbFuncVar solver simplifier <~| lhRed cfn <~? existentialInstRed))
+        (opt_logger_red .== Finished .-->
+            (taggerRed abs_ret_name :== Finished --> nonRedAbstractReturnsRed) .== Finished .-->
+            SomeReducer non_red
         , SomeHalter
                 (maxOutputsHalter (maxOutputs config)
                   <~> zeroHalter (steps config)
-                  <~> lhAbsHalter entry mb_modname (expr_env st)
+                  <~> lhAbsHalter Nothing entry mb_modname (expr_env st)
                   <~> lhLimitByAcceptedHalter (cut_off lhconfig)
                   <~> switchEveryNHalter (switch_after lhconfig)
                   <~> lhAcceptIfViolatedHalter)
         , SomeOrderer lhLimitByAcceptedOrderer)
     else
-        (SomeReducer (nonRedAbstractReturnsRed <~| taggerRed abs_ret_name)
-            .<~| (SomeReducer (non_red <~| taggerRed state_name))
-            .<~| (case m_logger of
-                  Just logger -> SomeReducer (stdRed share retReplaceSymbFuncVar solver simplifier <~| lhRed cfn <~? existentialInstRed) .<~ logger
-                  Nothing -> SomeReducer (stdRed share retReplaceSymbFuncVar solver simplifier <~| lhRed cfn <~? existentialInstRed))
+        (opt_logger_red .== Finished .-->
+            ((taggerRed state_name :== Finished --> non_red)) .== Finished .-->
+            (taggerRed abs_ret_name :== Finished --> nonRedAbstractReturnsRed)
         , SomeHalter
             (discardIfAcceptedTagHalter state_name
               <~> discardIfAcceptedTagHalter abs_ret_name
               <~> maxOutputsHalter (maxOutputs config)
               <~> zeroHalter (steps config)
-              <~> lhAbsHalter entry mb_modname (expr_env st)
+              <~> lhAbsHalter Nothing entry mb_modname (expr_env st)
               <~> lhLimitByAcceptedHalter (cut_off lhconfig)
               <~> switchEveryNHalter (switch_after lhconfig)
               <~> lhAcceptIfViolatedHalter)

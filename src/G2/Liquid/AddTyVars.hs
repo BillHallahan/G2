@@ -123,7 +123,7 @@ addTyVarsExprDC' unused dc@(DataCon n _) ars
         let
             (ty_ars, expr_ars) = partition (isTypeExpr) ars
 
-            sym_gens = map (\(Type t) -> SymGen t) $ map (ars !!) is
+            sym_gens = map (\(Type t) -> SymGen SNoLog t) $ map (ars !!) is
             -- nothings = map (\(Type t) -> mkNewNothing new_mb) $ map (ars !!) is
         in
         mkApp $ Data (addTyVarDC unused dc):ty_ars ++ sym_gens ++ expr_ars

@@ -181,7 +181,7 @@ deepSeqFunc w ng ti rm e
             (f_is, ng'') = freshIds tys ng' 
             
             cll = mkApp $ Var a_in:map Var f_is
-            let_cll = Let (zip f_is $ map SymGen tys) cll
+            let_cll = Let (zip f_is $ map (SymGen SNoLog) tys) cll
 
             ds_type = typeOf ds_cll
 

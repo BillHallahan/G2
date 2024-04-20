@@ -339,9 +339,15 @@ eqLHFuncCall ldm i1 i2
     | TyApp _ _ <- t = mkTrueE
     | TyForAll _ _ <- t = mkTrueE
     
+    |  t == TyLitDouble
+    || t == TyLitFloat = do
+        b <- tyBoolT
+        let pt = TyFun t (TyFun t b)
+        
+        return $ App (App (Prim FpEq pt) (Var i1)) (Var i2)
+
     |  t == TyLitInt
-    || t == TyLitDouble
-    || t == TyLitFloat
+    || t == TyLitRational
     || t == TyLitChar = do
         b <- tyBoolT
         let pt = TyFun t (TyFun t b)
@@ -376,16 +382,19 @@ lhNeFunc ldm _ _ dc ba1 = do
            , Alt (DataAlt dc ba2) pr''] 
 
 createLtFunc :: Name -> AlgDataTy -> LHStateM Expr
-createLtFunc = createOrdFunc Lt
+createLtFunc = createOrdFunc Lt FpLt
 
 createLeFunc :: Name -> AlgDataTy -> LHStateM Expr
-createLeFunc = createOrdFunc Le
+createLeFunc = createOrdFunc Le FpLeq
 
 createGtFunc :: Name -> AlgDataTy -> LHStateM Expr
-createGtFunc = createOrdFunc Gt
+createGtFunc = createOrdFunc Gt FpGt
 
 createGeFunc :: Name -> AlgDataTy -> LHStateM Expr
-createGeFunc = createOrdFunc Ge
+createGeFunc = createOrdFunc Ge FpGeq
+
+type IntPrimitive = Primitive
+type FpPrimitive = Primitive
 
 -- We currently treat relations between Ints/Floats/Doubles correctly,
 -- and just assume all other relations are true.
@@ -394,8 +403,8 @@ createGeFunc = createOrdFunc Ge
 -- for all f :: T -> Int, so this could make us miss some counterexamples.
 -- However, we will never generate an incorrect counterexample.
 -- (i.e. it is sound but incomplete)
-createOrdFunc :: Primitive -> Name -> AlgDataTy -> LHStateM Expr 
-createOrdFunc pr n adt = do
+createOrdFunc :: IntPrimitive -> FpPrimitive -> Name -> AlgDataTy -> LHStateM Expr 
+createOrdFunc int_prim fp_prim n adt = do
     let bi = bound_ids adt
 
     lh <- lhTCM
@@ -405,20 +414,20 @@ createOrdFunc pr n adt = do
     d2 <- freshIdN (TyCon n TYPE)
 
     kv <- knownValues
-    e <- mkOrdCases pr kv d1 d2 n adt
+    e <- mkOrdCases int_prim fp_prim kv d1 d2 n adt
 
     let e' = mkLams (map (TypeL,) bi ++ map (TermL,) lhbi ++ [(TermL, d1), (TermL, d2)]) e
 
     return e'
 
-mkOrdCases :: Primitive -> KnownValues -> Id -> Id -> Name -> AlgDataTy -> LHStateM Expr
-mkOrdCases pr kv i1 i2 n (DataTyCon { data_cons = [dc]})
-    | n == KV.tyInt kv = mkPrimOrdCases pr TyLitInt i1 i2 dc
-    | n == KV.tyInteger kv = mkPrimOrdCases pr TyLitInt i1 i2 dc
-    | n == KV.tyFloat kv = mkPrimOrdCases pr TyLitFloat i1 i2 dc
-    | n == KV.tyDouble kv = mkPrimOrdCases pr TyLitDouble i1 i2 dc
+mkOrdCases :: IntPrimitive -> FpPrimitive -> KnownValues -> Id -> Id -> Name -> AlgDataTy -> LHStateM Expr
+mkOrdCases int_prim fp_prim kv i1 i2 n (DataTyCon { data_cons = [dc]})
+    | n == KV.tyInt kv = mkPrimOrdCases int_prim TyLitInt i1 i2 dc
+    | n == KV.tyInteger kv = mkPrimOrdCases int_prim TyLitInt i1 i2 dc
+    | n == KV.tyFloat kv = mkPrimOrdCases fp_prim TyLitFloat i1 i2 dc
+    | n == KV.tyDouble kv = mkPrimOrdCases fp_prim TyLitDouble i1 i2 dc
     | otherwise = mkTrueE
-mkOrdCases _ _ _ _ _ _ = mkTrueE
+mkOrdCases _ _ _ _ _ _ _ = mkTrueE
 
 mkPrimOrdCases :: Primitive -> Type -> Id -> Id -> DataCon -> LHStateM Expr
 mkPrimOrdCases pr t i1 i2 dc = do
@@ -517,7 +526,7 @@ lhPPCall lhm fnm t
         let bind_app = mkApp $ Var bind_i:map Var let_is
         pp <- lhPPCall lhm fnm rt
         let pp_app = App pp bind_app
-        return . Lam TermL bind_i $ Let (zip let_is $ map SymGen ts) pp_app
+        return . Lam TermL bind_i $ Let (zip let_is $ map (SymGen SNoLog) ts) pp_app
         -- i <- freshIdN t
         -- return . Lam TermL i =<< mkTrueE
     | TyForAll _ _ <- t = do
@@ -525,6 +534,7 @@ lhPPCall lhm fnm t
         return . Lam TermL i =<< mkTrueE
     |  t == TyLitInt
     || t == TyLitDouble
+    || t == TyLitRational
     || t == TyLitFloat
     || t == TyLitChar = do
         i <- freshIdN t

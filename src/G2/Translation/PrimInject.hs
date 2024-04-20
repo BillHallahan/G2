@@ -1,4 +1,4 @@
-{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE CPP, FlexibleContexts #-}
 {-# LANGUAGE OverloadedStrings #-}
 
 -- | Primitive inejction into the environment
@@ -51,12 +51,13 @@ conName :: DataCon -> (Name, [Type])
 conName (DataCon n t) = (n, anonArgumentTypes $ t)
 
 primDefs :: HM.HashMap Name AlgDataTy -> [(T.Text, Expr)]
-primDefs pt = case boolName pt of
-                Just n -> primDefs' n
-                Nothing -> error "Bool type not found"
+primDefs pt = case (boolName pt, charName pt, listName pt) of
+                (Just b, Just c, Just l) -> primDefs' b c l
+                _ -> error "primDefs: Required types not found"
 
-primDefs' :: Name -> [(T.Text, Expr)]
-primDefs' b = [ ("$==#", Prim Eq $ tyIntIntBool b)
+primDefs' :: Name -> Name -> Name -> [(T.Text, Expr)]
+primDefs' b c l =
+              [ ("$==#", Prim Eq $ tyIntIntBool b)
               , ("$/=#", Prim Neq $ tyIntIntBool b)
               , ("+#", Prim Plus tyIntIntInt)
               , ("*#", Prim Mult tyIntIntInt)
@@ -71,31 +72,39 @@ primDefs' b = [ ("$==#", Prim Eq $ tyIntIntBool b)
               , ("quotInt#", Prim Quot tyIntIntInt)
               , ("remInt#", Prim Rem tyIntIntInt)
 
-              , ("$==##", Prim Eq $ tyDoubleDoubleBool b)
-              , ("$/=##", Prim Neq $ tyDoubleDoubleBool b)
-              , ("+##", Prim Plus tyDoubleDoubleDouble)
-              , ("*##", Prim Mult tyDoubleDoubleDouble)
-              , ("-##", Prim Minus tyDoubleDoubleDouble)
-              , ("negateDouble#", Prim Negate tyDoubleDouble)
-              , ("sqrtDouble#", Prim SqRt tyDoubleDoubleDouble)
-              , ("/##", Prim Div tyDoubleDoubleDouble)
-              , ("$<=##", Prim Le $ tyDoubleDoubleBool b)
-              , ("$<##", Prim Lt $ tyDoubleDoubleBool b)
-              , ("$>##", Prim Gt $ tyDoubleDoubleBool b)
-              , ("$>=##", Prim Ge $ tyDoubleDoubleBool b)
+              , ("$==##", Prim FpEq $ tyDoubleDoubleBool b)
+              , ("$/=##", Prim FpNeq $ tyDoubleDoubleBool b)
+              , ("+##", Prim FpAdd tyDoubleDoubleDouble)
+              , ("*##", Prim FpMul tyDoubleDoubleDouble)
+              , ("-##", Prim FpSub tyDoubleDoubleDouble)
+              , ("negateDouble#", Prim FpNeg tyDoubleDouble)
+              , ("sqrtDouble#", Prim FpSqrt tyDoubleDoubleDouble)
+              , ("/##", Prim FpDiv tyDoubleDoubleDouble)
+              , ("$<=##", Prim FpLeq $ tyDoubleDoubleBool b)
+              , ("$<##", Prim FpLt $ tyDoubleDoubleBool b)
+              , ("$>##", Prim FpGt $ tyDoubleDoubleBool b)
+              , ("$>=##", Prim FpGeq $ tyDoubleDoubleBool b)
 
-              , ("plusFloat#", Prim Plus tyFloatFloatFloat)
-              , ("timesFloat#", Prim Mult tyFloatFloatFloat)
-              , ("minusFloat#", Prim Minus tyFloatFloatFloat)
-              , ("negateFloat#", Prim Negate tyFloatFloat)
-              , ("sqrtFloat#", Prim SqRt tyFloatFloatFloat)
-              , ("divideFloat#", Prim Div tyFloatFloatFloat)
-              , ("smtEqFloat#", Prim Eq $ tyFloatFloatBool b)
-              , ("smtNeFloat#", Prim Neq $ tyFloatFloatBool b)
-              , ("smtLeFloat#", Prim Le $ tyFloatFloatBool b)
-              , ("smtLtFloat#", Prim Lt $ tyFloatFloatBool b)
-              , ("smtGtFloat#", Prim Gt $ tyFloatFloatBool b)
-              , ("smtGeFloat#", Prim Ge $ tyFloatFloatBool b)
+              , ("isDoubleNegativeZero#", Prim FpIsNegativeZero $ tyDoubleBool b)
+              , ("isDoubleNaN#", Prim IsNaN $ tyDoubleBool b)
+              , ("isDoubleInfinite#", Prim IsInfinite $ tyDoubleBool b)
+
+              , ("plusFloat#", Prim FpAdd tyFloatFloatFloat)
+              , ("timesFloat#", Prim FpMul tyFloatFloatFloat)
+              , ("minusFloat#", Prim FpSub tyFloatFloatFloat)
+              , ("negateFloat#", Prim FpNeg tyFloatFloat)
+              , ("sqrtFloat#", Prim FpSqrt tyFloatFloat)
+              , ("divideFloat#", Prim FpDiv tyFloatFloatFloat)
+              , ("smtEqFloat#", Prim FpEq $ tyFloatFloatBool b)
+              , ("smtNeFloat#", Prim FpNeq $ tyFloatFloatBool b)
+              , ("smtLeFloat#", Prim FpLeq $ tyFloatFloatBool b)
+              , ("smtLtFloat#", Prim FpLt $ tyFloatFloatBool b)
+              , ("smtGtFloat#", Prim FpGt $ tyFloatFloatBool b)
+              , ("smtGeFloat#", Prim FpGeq $ tyFloatFloatBool b)
+
+              , ("isFloatNegativeZero#", Prim FpIsNegativeZero $ tyFloatBool b)
+              , ("isFloatNaN#", Prim IsNaN $ tyFloatBool b)
+              , ("isFloatInfinite#", Prim IsInfinite $ tyFloatBool b)
 
               , ("quotInteger#", Prim Quot tyIntIntInt)
               , ("remInteger#", Prim Rem tyIntIntInt)
@@ -104,14 +113,33 @@ primDefs' b = [ ("$==#", Prim Eq $ tyIntIntBool b)
               , ("ord#", Prim OrdChar $ tyCharIntBool b )
               , ("smtEqChar#", Prim Eq $ tyCharCharBool b )
               , ("smtNeChar#", Prim Neq $ tyCharCharBool b )
+              , ("smtEqChar#", Prim Eq $ tyCharCharBool b )
+              , ("gtChar#", Prim Gt $ tyCharCharBool b )
+              , ("geChar#", Prim Ge $ tyCharCharBool b )
+              , ("ltChar#", Prim Lt $ tyCharCharBool b )
+              , ("leChar#", Prim Le $ tyCharCharBool b )
+              , ("wgencat#", Prim WGenCat $ tyIntInt )
 
               , ("float2Int#", Prim ToInt (TyFun TyLitFloat TyLitInt))
               , ("int2Float#", Prim IntToFloat (TyFun TyLitInt TyLitFloat))
               , ("fromIntToFloat", Prim IntToFloat (TyFun TyLitInt TyLitFloat))
               , ("double2Int#", Prim ToInt (TyFun TyLitDouble TyLitInt))
               , ("int2Double#", Prim IntToDouble (TyFun TyLitInt TyLitDouble))
+              , ("rationalToFloat#", Prim RationalToFloat (TyFun TyLitInt $ TyFun TyLitInt TyLitFloat))
               , ("rationalToDouble#", Prim RationalToDouble (TyFun TyLitInt $ TyFun TyLitInt TyLitDouble))
               , ("fromIntToDouble", Prim IntToDouble (TyFun TyLitInt TyLitDouble))
+
+              -- TODO: G2 doesn't currently draw a distinction between Integers and Words
+              , ("integerToWord#", Lam TermL (x TyLitInt) (Var (x TyLitInt)))
+              , ("plusWord#", Prim Plus tyIntIntInt)
+              , ("minusWord#", Prim Minus tyIntIntInt)
+              , ("timesWord#", Prim Mult tyIntIntInt)
+              , ("eqWord#", Prim Eq $ tyIntIntBool b)
+              , ("neWord#", Prim Neq $ tyIntIntBool b)
+              , ("gtWord#", Prim Gt $ tyIntIntBool b)
+              , ("geWord#", Prim Ge $ tyIntIntBool b)
+              , ("ltWord#", Prim Lt $ tyIntIntBool b)
+              , ("leWord#", Prim Le $ tyIntIntBool b)
 
               , ("dataToTag##", Prim DataToTag (TyForAll a (TyFun (TyVar a) TyLitInt)))
               , ("tagToEnum#", 
@@ -127,6 +155,8 @@ primDefs' b = [ ("$==#", Prim Eq $ tyIntIntBool b)
 
                             ])
 
+              , ("intToString#", Prim IntToString (TyFun TyLitInt (TyApp (TyCon l (TyFun TYPE TYPE)) (TyCon c TYPE))))
+
               , ("absentErr", Prim Error TyBottom)
               , ("error", Prim Error TyBottom)
               , ("errorWithoutStackTrace", Prim Error TyBottom)
@@ -136,7 +166,7 @@ primDefs' b = [ ("$==#", Prim Eq $ tyIntIntBool b)
               , ("succError", Prim Error TyBottom)
               , ("toEnumError", Prim Error TyBottom)
               , ("ratioZeroDenominatorError", Prim Error TyBottom)
-              , ("undefined", Prim Error TyBottom)]
+              , ("undefined", Prim Error TyBottom) ]
 
 a :: Id
 a = Id (Name "a" Nothing 0 Nothing) TYPE
@@ -165,6 +195,9 @@ tyIntIntInt = TyFun TyLitInt $ TyFun TyLitInt TyLitInt
 tyDoubleDouble :: Type
 tyDoubleDouble = TyFun TyLitDouble TyLitDouble
 
+tyDoubleBool :: Name -> Type
+tyDoubleBool n = TyFun TyLitDouble (TyCon n TYPE)
+
 tyDoubleDoubleBool :: Name -> Type
 tyDoubleDoubleBool n = TyFun TyLitDouble $ TyFun TyLitDouble (TyCon n TYPE)
 
@@ -173,6 +206,9 @@ tyDoubleDoubleDouble = TyFun TyLitDouble $ TyFun TyLitDouble TyLitDouble
 
 tyFloatFloat :: Type
 tyFloatFloat = TyFun TyLitFloat TyLitFloat
+
+tyFloatBool :: Name -> Type
+tyFloatBool n = TyFun TyLitFloat (TyCon n TYPE)
 
 tyFloatFloatBool :: Name -> Type
 tyFloatFloatBool n = TyFun TyLitFloat $ TyFun TyLitFloat (TyCon n TYPE)
@@ -191,6 +227,16 @@ tyCharCharBool n = TyFun TyLitChar $ TyFun TyLitChar (TyCon n TYPE)
 
 boolName :: HM.HashMap Name AlgDataTy -> Maybe Name
 boolName = find ((==) "Bool" . nameOcc) . HM.keys
+
+charName :: HM.HashMap Name AlgDataTy -> Maybe Name
+charName = find ((==) "Char" . nameOcc) . HM.keys
+
+listName :: HM.HashMap Name AlgDataTy -> Maybe Name
+#if MIN_VERSION_GLASGOW_HASKELL(9,6,0,0)
+listName = find ((==) "List" . nameOcc) . HM.keys
+#else
+listName = find ((==) "[]" . nameOcc) . HM.keys
+#endif
 
 replaceFromPD :: HM.HashMap Name AlgDataTy -> Name -> Expr -> Expr
 replaceFromPD pt n e =

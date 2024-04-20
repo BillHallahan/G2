@@ -66,6 +66,7 @@ tests = testGroup "Tests"
         , extensionTests
         , baseTests
         , primTests
+        , ioTests
         , exprTests
         , typingTests
         , simplificationTests
@@ -279,6 +280,8 @@ testFileTests = testGroup "TestFiles"
     , checkExpr "tests/TestFiles/MatchesFunc1.hs" 400 "f"
         [RExists (\[x, y] -> getIntB x $ \x' -> getIntB y $ \y' ->  y' == 6 + x'), AtLeast 1]
 
+    , checkInputOutput "tests/TestFiles/Read.hs" "concRead" 20000 [Exactly 1]
+
     , checkExpr "tests/TestFiles/RecordFields1.hs" 400 "f"
         [ RExists 
             (\[x, y] -> appNthArgIs x notCast 0
@@ -319,7 +322,7 @@ testFileTests = testGroup "TestFiles"
     , checkInputOutputs "tests/TestFiles/Strings/Strings1.hs" [ ("con", 300, [AtLeast 10])
                                                               , ("eq", 700, [AtLeast 10])
                                                               , ("eqGt1", 700, [AtLeast 10])
-                                                              , ("capABC", 150, [AtLeast 10])
+                                                              , ("capABC", 200, [AtLeast 10])
                                                               , ("appendEq", 500, [AtLeast 5]) ]
 
     , checkExpr "tests/TestFiles/Strings/Strings1.hs" 1000 "exclaimEq"
@@ -341,13 +344,54 @@ testFileTests = testGroup "TestFiles"
                                                                        , ("assoc", 200, [AtLeast 5])
                                                                        , ("sf", 150, [AtLeast 5])
                                                                        , ("tupleTest", 175, [AtLeast 8])]
+    , checkInputOutputsNonRedTemp "tests/HigherOrder/HigherOrder.hs" [ ("f", 200, [Exactly 3])
+                                                                   , ("h", 150, [Exactly 2])
+                                                                   , ("assoc", 200, [Exactly 2])
+                                                                   , ("sf", 200, [Exactly 2])
+                                                                   , ("thirdOrder", 300, [Exactly 2])
+                                                                   , ("thirdOrder2", 300, [Exactly 3])
+                                                                   , ("tupleTestMono", 175, [Exactly 2])]
+    , checkInputOutputsNonRedLib "tests/BaseTests/ListTests.hs" [ ("lengthN", 250, [Exactly 1])
+                                                                   , ("map2", 150, [Exactly 1])] 
     -- , checkInputOutput "tests/TestFiles/BadBool.hs" "BadBool" "f" 1400 [AtLeast 1]
     -- , checkExprAssumeAssert "tests/TestFiles/Coercions/GADT.hs" 400 Nothing Nothing "g" 2
     --     [ AtLeast 2
     --     , RExists (\[x, y] -> x == Lit (LitInt 0) && y == App (Data (PrimCon I)) (Lit (LitInt 0)))
     --     , RExists (\[x, _] -> x /= Lit (LitInt 0))]
     -- , checkExprAssumeAssert "tests/TestFiles/HigherOrderList.hs" 400 Nothing Nothing "g" [AtLeast  10] 
-    
+    , checkExpr "tests/TestFiles/MkSymbolic.hs" 1500 "f" [ Exactly 9 ]
+
+    , checkInputOutputs "tests/TestFiles/Show.hs" [ ("show1", 1000, [Exactly 1])
+                                                  , ("show2", 1000, [Exactly 1])
+                                                  , ("show3", 1000, [AtLeast 3])
+                                                  , ("show4", 1000, [Exactly 2])
+                                                  , ("show5", 1300, [AtLeast 12])
+                                                  , ("checkWS", 1000, [Exactly 5]) ]
+
+    , checkInputOutputs "tests/TestFiles/Floats1.hs" [ ("infinite", 1000, [AtLeast 3])
+                                                     , ("zero", 1000, [AtLeast 3])
+                                                     , ("f", 1000, [AtLeast 2])
+                                                     , ("fConc", 2000, [Exactly 1])
+                                                     , ("g", 1300, [AtLeast 2])
+                                                     , ("gConc", 2000, [Exactly 1])
+                                                     , ("k", 2000, [AtLeast 4])
+                                                     , ("kConc", 2000, [Exactly 1])
+                                                     , ("m", 1000, [AtLeast 2])
+                                                     , ("n", 1000, [AtLeast 2])
+                                                     , ("sqrtSquared", 1000, [AtLeast 2]) ]
+
+    , checkInputOutputs "tests/TestFiles/Doubles1.hs" [ ("infinite", 1000, [AtLeast 3])
+                                                      , ("zero", 1000, [AtLeast 3])
+                                                      , ("f", 1000, [AtLeast 2])
+                                                      , ("fConc", 2000, [Exactly 1])
+                                                      , ("g", 1300, [AtLeast 2])
+                                                      , ("gConc", 2000, [Exactly 1])
+                                                      , ("k", 2000, [AtLeast 4])
+                                                      , ("kConc", 2000, [Exactly 1])
+                                                      , ("m", 1000, [AtLeast 2])
+                                                      , ("n", 1000, [AtLeast 2])
+                                                      , ("sqrtSquared", 1000, [AtLeast 2]) ]
+
     ]
 
 extensionTests :: TestTree
@@ -361,7 +405,11 @@ extensionTests = testGroup "Extensions"
                                                                          
                                                                          , ("consArrow", 400, [AtLeast 2]) ]
     , checkInputOutputs "tests/TestFiles/Extensions/ViewPatterns1.hs" [ ("shapeToNumSides", 4000, [Exactly 4]) ]
-
+    , checkInputOutputs "tests/TestFiles/Extensions/FlexibleContexts1.hs" [ ("callF", 400, [AtLeast 2])
+                                                                          , ("callF2", 400, [AtLeast 2])
+                                                                          , ("callF3", 400, [AtLeast 2])
+                                                                          , ("callG", 400, [AtLeast 1])
+                                                                          , ("callG2", 400, [AtLeast 1]) ]
     ]
 
 baseTests ::  TestTree
@@ -421,6 +469,12 @@ primTests = testGroup "Prims"
                                             , ("allLetters", 20000, [AtLeast 1])
                                             , ("printBasedOnChr", 1500, [AtLeast 7])
                                             , ("printBasedOnOrd", 1500, [AtLeast 7]) ]
+    ]
+
+ioTests :: TestTree
+ioTests = testGroup "IO"
+    [
+        checkInputOutput "tests/IO/UnsafePerformIO1.hs" "f" 1000 [Exactly 1]
     ]
 
 -- To Do Tests
@@ -543,7 +597,7 @@ checkExprWithConfig src m_assume m_assert m_reaches entry reqList config_f = do
         assertBool ("Assume/Assert for file " ++ src
                                     ++ " with functions [" ++ (fromMaybe "" m_assume) ++ "] "
                                     ++ "[" ++ (fromMaybe "" m_assert) ++ "] "
-                                    ++  entry ++ " failed.\n")
+                                    ++  entry ++ " failed.\n" ++ show res)
                    ch
         )
 

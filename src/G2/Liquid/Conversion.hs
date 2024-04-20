@@ -98,15 +98,19 @@ copyIds n1 n2 dm@(DictMaps { lh_dicts = lhd
 -- | A mapping of variable names to the corresponding types
 type BoundTypes = HM.HashMap Name Type
 
-mergeLHSpecState :: [(Var.Var, LocSpecType)] -> LHStateM ()
-mergeLHSpecState = mapM_ (uncurry mergeLHSpecState')
+type NMExprEnv = HM.HashMap (T.Text, Maybe T.Text) (Name, Expr)
 
-mergeLHSpecState' :: Var.Var -> LocSpecType -> LHStateM ()
-mergeLHSpecState' v lst = do
+mergeLHSpecState :: [(Var.Var, LocSpecType)] -> LHStateM ()
+mergeLHSpecState var_st = do
     eenv <- exprEnv
+    let nm_eenv = E.nameModMap eenv
+    mapM_ (uncurry (mergeLHSpecState' nm_eenv)) var_st
+
+mergeLHSpecState' :: NMExprEnv -> Var.Var -> LocSpecType -> LHStateM ()
+mergeLHSpecState' nm_eenv v lst = do
     let
         (Id (Name n m _ _) _) = mkIdUnsafe v
-        g2N = E.lookupNameMod n m eenv
+        g2N = HM.lookup (n, m) nm_eenv
 
     case g2N of
         Just (n', e) -> do
@@ -806,7 +810,7 @@ convertCon _ (Ref.I i) = do
     return $ App dc (Lit . LitInt $ fromIntegral i)
 convertCon _ (Ref.R d) = do
     dc <- mkDCDoubleE
-    return $ App dc (Lit . LitDouble $ toRational d)
+    return $ App dc (Lit $ LitDouble d)
 convertCon _ _ = error "convertCon: Unhandled case"
 
 unsafeSpecTypeToType :: SpecType -> LHStateM Type
@@ -844,7 +848,7 @@ rTyConType :: RTyCon -> [SpecType]-> LHStateM (Maybe Type)
 rTyConType rtc sts = do
     tenv <- typeEnv
 
-    let tcn = mkTyConName HM.empty . rtc_tc $ rtc
+    let tcn = mkTyConNameUnsafe . rtc_tc $ rtc
         n = nameModMatch tcn tenv
 
     ts <- mapM specTypeToType sts

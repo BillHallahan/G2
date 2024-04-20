@@ -1,4 +1,4 @@
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE LambdaCase, OverloadedStrings #-}
 
 module G2.Initialization.MkCurrExpr ( mkCurrExpr
                                     , checkReaches
@@ -10,8 +10,10 @@ import G2.Language
 import qualified G2.Language.ExprEnv as E
 
 import Data.List
+import qualified Data.Map as M
 import Data.Maybe
 import qualified Data.Text as T
+import qualified Data.HashMap.Lazy as HM 
 
 mkCurrExpr :: Maybe T.Text -> Maybe T.Text -> Id
            -> TypeClasses -> NameGen -> ExprEnv -> TypeEnv -> Walkers
@@ -30,7 +32,10 @@ mkCurrExpr m_assume m_assert f@(Id (Name _ m_mod _ _) _) tc ng eenv _ walkers kv
                 -- -- We refind the type of f, because type synonyms get replaced during the initializaton,
                 -- -- after we first got the type of f.
                 -- app_ex = foldl' App var_ex $ typsE ++ var_ids
-                (app_ex, is, typsE, ng') = mkMainExpr tc kv ng var_ex
+                (app_ex, is, typsE, ng') =
+                    if  instTV config == InstBefore
+                        then  mkMainExpr tc kv ng var_ex
+                        else  mkMainExprNoInstantiateTypes var_ex ng
                 var_ids = map Var is
 
                 -- strict_app_ex = app_ex
@@ -44,10 +49,10 @@ mkCurrExpr m_assume m_assert f@(Id (Name _ m_mod _ _) _) tc ng eenv _ walkers kv
                 assert_ex = mkAssumeAssert (Assert Nothing) m_assert m_mod (typsE ++ var_ids) assume_ex var_name eenv
 
                 retsTrue_ex = if returnsTrue config then retsTrue assert_ex else assert_ex
-                
+
                 let_ex = Let [(id_name, strict_app_ex)] retsTrue_ex
             in
-            (let_ex, is, typsE, ng'')
+           (let_ex, is, typsE, ng'')
         Nothing -> error "mkCurrExpr: Bad Name"
 
 mkMainExpr :: TypeClasses -> KnownValues -> NameGen -> Expr -> (Expr, [Id], [Expr], NameGen)
@@ -62,6 +67,35 @@ mkMainExpr tc kv ng ex =
         app_ex = foldl' App ex $ typsE ++ var_ids
     in
     (app_ex, is, typsE, ng')
+
+-- | This implementation aims to symbolically execute functions 
+-- treating both types and value level argument as symbolic
+mkMainExprNoInstantiateTypes :: Expr -> NameGen -> (Expr, [Id], [Expr], NameGen)
+mkMainExprNoInstantiateTypes e ng = 
+    let 
+        argts = spArgumentTypes e
+        anontype argt = 
+            case argt of 
+                AnonType _ -> True
+                _ -> False
+        (ats,nts) = partition anontype argts 
+        -- We want to have symbolic types so we grab the type level arguments and introduce symbolic variables for them
+        ns = map (\(NamedType (Id n _)) -> n) nts
+        (ns', ng') = renameAll ns ng
+
+        ntmap = HM.fromList $ zip ns ns' 
+        -- We want to create a full list of symoblic variables with new names and put the symoblic variables into the expr env
+        ntids = map (\(NamedType i) -> i) nts
+        ntids' = renames ntmap ntids
+
+        ats' = map argTypeToType ats
+        (atsToIds,ng'') = freshIds ats' ng'
+        atsToIds' = renames ntmap atsToIds
+        
+        all_ids = ntids' ++ atsToIds'
+        app_ex = foldl' App e $ map Var all_ids
+    in (app_ex, all_ids,[],ng'')
+
 
 mkInputs :: NameGen -> [Type] -> ([Expr], [Id], NameGen)
 mkInputs ng [] = ([], [], ng)
@@ -118,20 +152,24 @@ instantiateArgTypes tc kv e =
 instantitateTypes :: TypeClasses -> KnownValues -> [ArgType] -> ([Expr], [Type])
 instantitateTypes tc kv ts = 
     let
-        tv = map (typeNamedId) $ filter (typeNamed) ts
+        tv = mapMaybe (\case NamedType i -> Just i; AnonType _ -> Nothing) ts
 
         -- Get non-TyForAll type reqs, identify typeclasses
-        ts' = map typeAnonType $ filter (not . typeNamed) ts
-        tcSat = map (\i -> (i, satisfyingTCTypes kv tc i ts')) tv
+        ts' = mapMaybe (\case AnonType t -> Just t; NamedType _ -> Nothing) ts
+        tcSat = snd $ mapAccumL (\ts'' i ->
+                                let
+                                    sat = satisfyingTCTypes kv tc i ts''
+                                    pt = pickForTyVar kv sat
+                                in
+                                (replaceTyVar (idName i) pt ts'', (i, pt))) ts' tv
 
-        -- TyForAll type reqs
-        tv' = map (\(i, ts'') -> (i, pickForTyVar kv ts'')) tcSat
-        tvt = map (\(i, t) -> (TyVar i, t)) tv'
-        -- Dictionary arguments
-        vi = mapMaybe (instantiateTCDict tc tv') ts'
+        -- Get dictionary arguments
+        vi = mapMaybe (instantiateTCDict tc tcSat) ts'
 
-        ex = map (Type . snd) tv' ++ vi
-        tss = filter (not . isTypeClass tc) $ foldr (uncurry replaceASTs) ts' tvt
+        ex = map (Type . snd) tcSat ++ vi
+        tss = filter (not . isTypeClass tc)
+            . foldr (uncurry replaceASTs) ts'
+            $ map (\(i, t) -> (TyVar i, t)) tcSat
     in
     (ex, tss)
 
@@ -144,21 +182,12 @@ pickForTyVar kv ts
 
 
 instantiateTCDict :: TypeClasses -> [(Id, Type)] -> Type -> Maybe Expr
-instantiateTCDict tc it tyapp@(TyApp _ (TyVar i)) | TyCon n _ <- tyAppCenter tyapp =
-    return . Var =<< lookupTCDict tc n =<< lookup i it
+instantiateTCDict tc it tyapp@(TyApp _ t) | TyCon n _ <- tyAppCenter tyapp =
+    let
+        t' = applyTypeMap (M.fromList $ map (\(Id ni _, ti) -> (ni,ti)) it) t
+    in
+    return . Var =<< lookupTCDict tc n t'
 instantiateTCDict _ _ _ = Nothing
-
-typeNamedId :: ArgType -> Id
-typeNamedId (NamedType i) = i
-typeNamedId (AnonType _) = error "No Id in T"
-
-typeAnonType :: ArgType -> Type
-typeAnonType (NamedType _) = error "No type in NamedType"
-typeAnonType (AnonType t) = t 
-
-typeNamed :: ArgType -> Bool
-typeNamed (NamedType _) = True
-typeNamed _ = False
 
 checkReaches :: ExprEnv -> KnownValues -> Maybe T.Text -> Maybe T.Text -> ExprEnv
 checkReaches eenv _ Nothing _ = eenv

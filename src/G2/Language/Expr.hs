@@ -18,6 +18,7 @@ module G2.Language.Expr ( module G2.Language.Casts
                         , mkDCChar
                         , mkCons
                         , mkEmpty
+                        , mkG2List
                         , mkJust
                         , mkNothing
                         , mkUnit
@@ -114,7 +115,7 @@ eqUpToTypes (Cast e _) (Cast e' _) = e `eqUpToTypes` e'
 eqUpToTypes (Coercion _) (Coercion _) = True
 eqUpToTypes (Tick _ e) (Tick _ e') = e `eqUpToTypes` e'
 eqUpToTypes (NonDet es) (NonDet es') = all (uncurry eqUpToTypes) $ zip es es'
-eqUpToTypes (SymGen _) (SymGen _) = True
+eqUpToTypes (SymGen _ _) (SymGen _ _) = True
 eqUpToTypes (Assume _ _ _) (Assume _ _ _) = True
 eqUpToTypes (Assert _ _ _) (Assert _ _ _) = True
 eqUpToTypes _ _ = False
@@ -170,6 +171,19 @@ mkCons kv tenv = Data . fromJust $ getDataCon tenv (KV.tyList kv) (KV.dcCons kv)
 
 mkEmpty :: KnownValues -> TypeEnv -> Expr
 mkEmpty kv tenv = Data . fromJust $ getDataCon tenv (KV.tyList kv) (KV.dcEmpty kv)
+ 
+-- | Construct a G2 list `Expr` containing a list of `Expr`s
+mkG2List :: KnownValues
+         -> TypeEnv
+         -> Type -- ^ The type of the values in the list.
+         -> [Expr]
+         -> Expr
+mkG2List kv tenv t = foldr go (App emp (Type t))
+    where
+        cons = mkCons kv tenv
+        emp = mkEmpty kv tenv
+
+        go e es = App (App (App cons (Type t)) e) es
 
 mkJust :: KnownValues -> TypeEnv -> Expr
 mkJust kv tenv = Data . fromJust $ getDataCon tenv (KV.tyMaybe kv) (KV.dcJust kv)
@@ -472,9 +486,14 @@ symbVars' eenv (Id n _) = E.isSymbolic n eenv
 freeVars :: ASTContainer m Expr => E.ExprEnv -> m -> [Id]
 freeVars eenv = evalASTsMonoid (freeVars' eenv)
 
+freeAltMatch :: AltMatch -> [Id]
+freeAltMatch (DataAlt _ is) = is
+freeAltMatch _ = []
+
 freeVars' :: E.ExprEnv -> [Id] -> Expr -> ([Id], [Id])
 freeVars' _ _ (Let b _) = (map fst b, [])
 freeVars' _ _ (Lam _ b _) = ([b], [])
+freeVars' _ _ (Case _ b _ alt) = (b:concatMap (freeAltMatch . altMatch) alt, [])
 freeVars' eenv bound (Var i) =
     if E.member (idName i) eenv || i `elem` bound then
         ([], [])

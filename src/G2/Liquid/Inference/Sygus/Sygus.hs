@@ -162,8 +162,8 @@ convertExprToTerm e = error $ "convertExprToTerm: Unhandled Expr " ++ show e
 
 litToTerm :: G2.Lit -> Term
 litToTerm (LitInt i) = TermLit (LitNum i)
-litToTerm (LitDouble d) = TermCall (ISymb "/") [ TermLit . LitNum $ numerator d
-                                               , TermLit . LitNum $ denominator d]
+litToTerm (LitDouble d) = TermCall (ISymb "/") [ TermLit . LitNum . numerator $ toRational d
+                                               , TermLit . LitNum . denominator $ toRational d]
 litToTerm (LitChar c) = TermLit (LitStr [c])
 litToTerm _ = error "litToTerm: Unhandled Lit"
 

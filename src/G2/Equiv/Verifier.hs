@@ -1,5 +1,6 @@
 {-# LANGUAGE MultiWayIf #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE FlexibleContexts #-}
 
 module G2.Equiv.Verifier
     ( verifyLoop
@@ -13,6 +14,7 @@ import G2.Config
 import G2.Interface
 
 import qualified Control.Monad.State.Lazy as CM
+
 
 import qualified G2.Language.ExprEnv as E
 import qualified G2.Language.CallGraph as G
@@ -34,6 +36,7 @@ import G2.Equiv.G2Calls
 import G2.Equiv.Tactics
 import G2.Equiv.Generalize
 import G2.Equiv.Summary
+import G2.Equiv.Uninterpreted 
 
 import qualified Data.Map as M
 import G2.Execution.Memory
@@ -87,25 +90,25 @@ runSymExec :: S.Solver solver =>
               CM.StateT (Bindings, Int) IO [(StateET, StateET)]
 runSymExec solver config nc@(NC { sync = sy }) ns s1 s2 = do
   (bindings, k) <- CM.get
-  let nc' = nc { log_states = logStatesFolder ("a" ++ show k) (log_states nc) }
+  let config' = config { logStates = logStatesFolder ("a" ++ show k) (log_states nc) }
       t1 = (track s1) { folder_name = logStatesET ("a" ++ show k) (log_states nc) }
       CurrExpr r1 e1 = curr_expr s1
       e1' = addStackTickIfNeeded ns (expr_env s1) e1
       s1' = s1 { track = t1, curr_expr = CurrExpr r1 e1' }
   --CM.liftIO $ putStrLn $ (folder_name $ track s1) ++ " becomes " ++ (folder_name t1)
-  (er1, bindings') <- CM.lift $ runG2ForNebula solver s1' (expr_env s2) (track s2) config nc' bindings
+  (er1, bindings') <- CM.lift $ runG2ForNebula solver s1' (expr_env s2) (track s2) config' nc bindings
   CM.put (bindings', k + 1)
   let final_s1 = map final_state er1
   pairs <- mapM (\s1_ -> do
                     (b_, k_) <- CM.get
                     let s2_ = transferInfo sy s1_ (snd $ syncSymbolic s1_ s2)
-                    let nc'' = nc { log_states = logStatesFolder ("b" ++ show k_) (log_states nc) }
+                    let config'' = config { logStates = logStatesFolder ("b" ++ show k_) (log_states nc) }
                         t2 = (track s2_) { folder_name = logStatesET ("b" ++ show k_) (log_states nc) }
                         CurrExpr r2 e2 = curr_expr s2_
                         e2' = addStackTickIfNeeded ns (expr_env s2) e2
                         s2' = s2_ { track = t2, curr_expr = CurrExpr r2 e2' }
                     --CM.liftIO $ putStrLn $ (folder_name $ track s2_) ++ " becomes " ++ (folder_name t2)
-                    (er2, b_') <- CM.lift $ runG2ForNebula solver s2' (expr_env s1_) (track s1_) config nc'' b_
+                    (er2, b_') <- CM.lift $ runG2ForNebula solver s2' (expr_env s1_) (track s1_) config'' nc b_
                     CM.put (b_', k_ + 1)
                     return $ map (\er2_ -> 
                                     let
@@ -788,7 +791,7 @@ isFromLemma (Marker (sh1, sh2) _) =
                     in f1 /= "" || f2 /= ""
     _ -> False
 
-checkRule :: Config
+checkRule :: (ASTContainer t Type, ASTContainer t Expr) => Config
           -> NebulaConfig
           -> State t
           -> Bindings
@@ -796,9 +799,15 @@ checkRule :: Config
           -> RewriteRule
           -> IO (S.Result () () ())
 checkRule config nc init_state bindings total rule = do
-  let (rewrite_state_l, bindings') = initWithLHS init_state bindings $ rule
-      (rewrite_state_r, bindings'') = initWithRHS init_state bindings' $ rule
-      sym_ids = ru_bndrs rule
+  let (rule' ,mod_state@(State { expr_env = ee }), te_ng) = addFreeTypes rule init_state (name_gen bindings)
+      (mod_state', ng') = if symbolic_unmapped nc 
+                              then  
+                                ( mod_state { expr_env = addFreeVarsAsSymbolic ee }
+                                , te_ng)
+                              else (init_state, name_gen bindings)
+      (rewrite_state_l, bindings') = initWithLHS mod_state' (bindings { name_gen = ng' }) $ rule'
+      (rewrite_state_r, bindings'') = initWithRHS mod_state' bindings' $ rule'
+      sym_ids = ru_bndrs rule' 
       total_names = filter (includedName total) (map idName sym_ids)
       total_hs = foldr HS.insert HS.empty total_names
       EquivTracker et m _ _ _ _ = emptyEquivTracker
@@ -815,13 +824,9 @@ checkRule config nc init_state bindings total rule = do
       
       rewrite_state_l'' = startingState start_equiv_tracker ns rewrite_state_l'
       rewrite_state_r'' = startingState start_equiv_tracker ns rewrite_state_r'
-
+      
   S.SomeSolver solver <- initSolver config
   putStrLn $ "***\n" ++ (show $ ru_name rule) ++ "\n***"
-  DT.putStrLn $ printHaskellDirty e_l
-  DT.putStrLn $ printHaskellDirty e_r
-  DT.putStrLn $ printHaskellDirty $ getExpr $ latest rewrite_state_l''
-  DT.putStrLn $ printHaskellDirty $ getExpr $ latest rewrite_state_r''
   (res, w) <- W.runWriterT $ verifyLoop solver (num_lemmas nc) ns
              emptyLemmas
              [(rewrite_state_l'', rewrite_state_r'')]

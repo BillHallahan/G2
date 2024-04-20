@@ -70,13 +70,36 @@ data SMTAST = (:>=) !SMTAST !SMTAST
             | Modulo !SMTAST !SMTAST
             | Neg !SMTAST -- ^ Unary negation
 
+            -- Floating Point
+            | FpNegSMT !SMTAST
+            | FpAddSMT !SMTAST !SMTAST
+            | FpSubSMT !SMTAST !SMTAST
+            | FpMulSMT !SMTAST !SMTAST
+            | FpDivSMT !SMTAST !SMTAST
+
+            | FpLeqSMT !SMTAST !SMTAST
+            | FpLtSMT !SMTAST !SMTAST
+            | FpGeqSMT !SMTAST !SMTAST
+            | FpGtSMT !SMTAST !SMTAST
+            | FpEqSMT !SMTAST !SMTAST
+
+            | FpIsZero !SMTAST
+            | FpIsNegative !SMTAST
+
+            | FpSqrtSMT !SMTAST
+            | IsNaNSMT !SMTAST
+            | IsInfiniteSMT !SMTAST
+
+            -- Arrays
             | ArrayConst !SMTAST Sort Sort
             | ArrayStore !SMTAST !SMTAST !SMTAST
             | ArraySelect !SMTAST !SMTAST
 
             | Func SMTName ![SMTAST] -- ^ Interpreted function
 
-            | StrLen !SMTAST
+            | (:++) !SMTAST !SMTAST -- ^ String append
+            | FromInt !SMTAST -- ^ Convert Ints to Strings
+            | StrLenSMT !SMTAST
 
             | Ite !SMTAST !SMTAST !SMTAST
             | SLet (SMTName, SMTAST) !SMTAST
@@ -85,14 +108,18 @@ data SMTAST = (:>=) !SMTAST !SMTAST
             | ToCode !SMTAST
 
             | VInt Integer
-            | VFloat Rational
-            | VDouble Rational
+            | VFloat Float
+            | VDouble Double
+            | VReal Rational
             | VChar Char
+            | VString String
             | VBool Bool
 
             | V SMTName Sort
 
-            | ItoR !SMTAST -- ^ Integer to real conversion
+            | IntToFloatSMT !SMTAST -- ^ Integer to Float conversion
+            | IntToDoubleSMT !SMTAST -- ^ Integer to Double conversion
+            | IntToRealSMT !SMTAST -- ^ Integer to Real conversion
 
             | Named !SMTAST SMTName -- ^ Name a piece of the SMTAST, allowing it to be returned in unsat cores
             deriving (Show, Eq)
@@ -101,7 +128,9 @@ data SMTAST = (:>=) !SMTAST !SMTAST
 data Sort = SortInt
           | SortFloat
           | SortDouble
+          | SortReal
           | SortChar
+          | SortString
           | SortBool
           | SortArray Sort Sort
           | SortFunc [Sort] Sort
@@ -113,6 +142,9 @@ instance Hashable Sort
 x .=. y
   | x == y = VBool True
   | otherwise = x := y
+
+(./=.) :: SMTAST -> SMTAST -> SMTAST
+x ./=. y = x :/= y
 
 (.&&.) :: SMTAST -> SMTAST -> SMTAST
 (VBool True) .&&. x = x
@@ -245,6 +277,8 @@ sortOf :: SMTAST -> Sort
 sortOf (VInt _) = SortInt
 sortOf (VFloat _) = SortFloat
 sortOf (VDouble _) = SortDouble
+sortOf (VReal _) = SortReal
+sortOf (VString _) = SortString
 sortOf (VChar _) = SortChar 
 sortOf (VBool _) = SortBool
 sortOf _ = error "sortOf: Unhandled SMTAST"

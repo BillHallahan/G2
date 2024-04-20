@@ -17,15 +17,17 @@ import G2.Solver.Solver
 
 import Data.Function
 import qualified Data.List as L
-import Data.Maybe (mapMaybe)
+import Data.Maybe (mapMaybe, isJust, fromJust)
 import qualified Data.HashMap.Lazy as HM
+import qualified Data.Sequence as S
 
-subModel :: State t -> Bindings -> ([Expr], Expr, Maybe FuncCall)
+subModel :: State t -> Bindings -> ([Expr], Expr, Maybe FuncCall, S.Seq Expr)
 subModel (State { expr_env = eenv
                 , curr_expr = CurrExpr _ cexpr
                 , assert_ids = ais
                 , type_classes = tc
-                , model = m}) 
+                , model = m
+                , sym_gens = gens }) 
           (Bindings {input_names = inputNames}) = 
     let
         ais' = fmap (subVarFuncCall True m eenv tc) ais
@@ -33,13 +35,18 @@ subModel (State { expr_env = eenv
         -- We do not inline all Lambdas, because higher order function arguments
         -- get preinserted into the model.
         -- See [Higher-Order Model] in G2.Execution.Reducers
-        is = mapMaybe (\n -> case E.lookup n eenv of
+        is = mapMaybe toVars inputNames
+        gs = fmap fromJust . S.filter isJust $ fmap toVars gens
+        
+        sv = subVar False m eenv tc (is, cexpr, ais', gs)
+    in
+    untilEq (simplifyLams . pushCaseAppArgIn) sv
+    where
+        toVars n = case E.lookup n eenv of
                                 Just e@(Lam _ _ _) -> Just . Var $ Id n (typeOf e)
                                 Just e -> Just e
-                                Nothing -> Nothing) inputNames
-    in
-    untilEq (simplifyLams . pushCaseAppArgIn) $ subVar False m eenv tc (is, cexpr, ais')
-    where
+                                Nothing -> Nothing
+
         untilEq f x = let x' = f x in if x == x' then x' else untilEq f x'
 
 subVarFuncCall :: Bool -> Model -> ExprEnv -> TypeClasses -> FuncCall -> FuncCall

@@ -1,7 +1,9 @@
 {-# LANGUAGE OverloadedStrings #-}
 module InputOutputTest ( checkInputOutput
                        , checkInputOutputs
-                       , checkInputOutputsTemplate ) where
+                       , checkInputOutputsTemplate
+                       , checkInputOutputsNonRedTemp
+                       , checkInputOutputsNonRedLib ) where
 
 import Test.Tasty
 import Test.Tasty.HUnit
@@ -35,6 +37,20 @@ checkInputOutputsTemplate :: FilePath -> [(String, Int, [Reqs String])] -> TestT
 checkInputOutputsTemplate src tests = do
     checkInputOutput'
         (do config <- mkConfigTestIO; return (config { higherOrderSolver = SymbolicFunc }))
+        src
+        tests
+
+checkInputOutputsNonRedTemp :: FilePath -> [(String, Int, [Reqs String])] -> TestTree
+checkInputOutputsNonRedTemp src tests = do
+    checkInputOutput'
+        (do config <- mkConfigTestIO; return (config { higherOrderSolver = SymbolicFuncNRPC }))
+        src
+        tests
+
+checkInputOutputsNonRedLib :: FilePath -> [(String, Int, [Reqs String])] -> TestTree
+checkInputOutputsNonRedLib src tests = do
+    checkInputOutput'
+        (do config <- mkConfigTestIO; return (config { nrpc = Nrpc }))
         src
         tests
 
@@ -80,7 +96,7 @@ checkInputOutput'' src exg2 mb_modname config (entry, stps, req) = do
     let config' = config { steps = stps }
         (init_state, bindings) = initStateWithCall exg2 False (T.pack entry) mb_modname (mkCurrExpr Nothing Nothing) mkArgTys config'
     
-    (r, _) <- runG2WithConfig init_state config' bindings
+    (r, _) <- runG2WithConfig mb_modname init_state config' bindings
 
     let chAll = checkExprAll req
     let proj = map takeDirectory src

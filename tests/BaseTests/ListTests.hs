@@ -54,3 +54,5 @@ map2 = map snd
 -- g2Entry8 :: [(Int, Float)] -> M.Map Int Float
 -- g2Entry8 = M.fromList
 
+lengthN :: [Int] -> Int
+lengthN xs = length xs

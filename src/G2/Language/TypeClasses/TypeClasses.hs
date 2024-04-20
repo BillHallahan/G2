@@ -18,7 +18,6 @@ module G2.Language.TypeClasses.TypeClasses ( TypeClasses
                                            , tcDicts
                                            , typeClassInst
                                            , satisfyingTCTypes
-                                           , satisfyingTC
                                            , toMap) where
 
 import G2.Language.AST
@@ -31,6 +30,7 @@ import Data.Coerce
 import Data.Data (Data, Typeable)
 import Data.Hashable
 import Data.List
+import qualified Data.Map.Lazy as MM
 import qualified Data.HashMap.Lazy as M
 import Data.Maybe
 import Data.Monoid ((<>))
@@ -54,7 +54,7 @@ initTypeClasses nsi =
         ns = map (\(n, _, i, sc) -> (n, i, sc)) nsi
         nsi' = filter (not . null . insts . snd)
              $ map (\(n, i, sc) -> 
-                (n, Class { insts = mapMaybe (nameIdToTypeId n) nsi
+                (n, Class { insts = nub $ mapMaybe (nameIdToTypeId n) nsi
                           , typ_ids = i
                           , superclasses = sc } )) ns
     in
@@ -151,20 +151,27 @@ typeClassInst tc m tcn t
             Nothing -> Nothing
 typeClassInst _ _ _ _ = Nothing
 
--- satisfyingTCTypes
--- Finds types/dict pairs that satisfy the given TC requirements for the given polymorphic argument
--- returns a list of acceptable types
-satisfyingTCTypes :: KnownValues -> TypeClasses -> Id -> [Type] -> [Type]
+-- | Finds `Type`s that satisfy the given typeclass requirements for the given polymorphic argument.
+-- Returns "Int" by default if there are no typeclass requirements.
+satisfyingTCTypes :: KnownValues
+                  -> TypeClasses
+                  -> Id -- ^ The type variable to look for possible instantiations of 
+                  -> [Type] -- ^ Function arguments to satisfy typeclass requirements for
+                  -> [Type]
 satisfyingTCTypes kv tc i ts =
     let
         tcReq = satisfyTCReq tc i ts
-        lookupTCDictsTypes = fmap (map fst) . flip lookupTCDicts tc
     in
-    substKind i . inter kv $ mapMaybe lookupTCDictsTypes tcReq
-
-inter :: KnownValues -> [[Type]] -> [Type]
-inter kv [] = [tyInt kv]
-inter _ xs = foldr1 intersect xs
+    case mapMaybe lookupTCDictsTypes tcReq of
+        [] -> [tyInt kv]
+        xs -> substKind i $ foldr1 intersect xs
+    where
+        lookupTCDictsTypes (TyApp t1 t2) =
+              fmap (mapMaybe (\t' -> MM.lookup (idName i) =<< specializes t' t2))
+            . fmap (map fst)
+            . flip lookupTCDicts tc
+            =<< (tyConAppName . tyAppCenter $ t1)
+        lookupTCDictsTypes _ = Nothing
 
 substKind :: Id -> [Type] -> [Type]
 substKind (Id _ t) ts = map (\t' -> case t' of 
@@ -175,25 +182,14 @@ tyFunToTyApp :: Type -> Type
 tyFunToTyApp (TyFun t1 (TyFun t2 t3)) = TyApp (TyApp (tyFunToTyApp t1) (tyFunToTyApp t2)) (tyFunToTyApp t3)
 tyFunToTyApp t = modifyChildren tyFunToTyApp t
 
--- |Finds the names of the required typeclasses for a TyVar Id
-satisfyTCReq :: TypeClasses -> Id -> [Type] -> [Name]
-satisfyTCReq tc i =
-    mapMaybe (tyConAppName . tyAppCenter) . filter (isFor i) . filter (isTypeClass tc)
+-- | Finds the names of the required typeclasses for a TyVar Id
+satisfyTCReq :: TypeClasses -> Id -> [Type] -> [Type]
+satisfyTCReq tc (Id n _) = filter isFor . filter (isTypeClass tc)
     where
-      isFor :: Id -> Type -> Bool
-      isFor ii (TyApp _ a) = ii `elem` tyVarIds a
-      isFor _ _ = False
-
--- Given a list of type arguments and a mapping of TyVar Ids to actual Types
--- Gives the required TC's to pass to any TC arguments
-satisfyingTC :: TypeClasses -> [Type] -> Id -> Type -> [Expr]
-satisfyingTC  tc ts i t =
-    let
-        tcReq = satisfyTCReq tc i ts
-    in
-    map (\n -> case lookupTCDict tc n t of
-                    Just i' -> Var i'
-                    Nothing -> error "No typeclass found.") tcReq
+      isFor :: Type -> Bool
+      isFor (TyVar (Id n' _)) = n == n'
+      isFor (TyApp a1 a2) = isFor a1 || isFor a2
+      isFor _ = False
 
 toMap :: TypeClasses -> M.HashMap Name Class
 toMap = coerce
@@ -225,7 +221,7 @@ instance Named TypeClasses where
         coerce $ M.mapKeys (renames hm) $ renames hm m
 
 instance Named Class where
-    names = names . insts
+    names (Class { insts = i, typ_ids = tids, superclasses = sc }) = names i <> names tids <> names sc
     rename old new c = Class { insts = rename old new $ insts c
                              , typ_ids = rename old new $ typ_ids c
                              , superclasses = rename old new $ superclasses c }

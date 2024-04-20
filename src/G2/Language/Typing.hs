@@ -41,6 +41,7 @@ module G2.Language.Typing
     , tyVarNames
     , numArgs
 
+    , replaceTyVar
     , applyTypeMap
     , applyTypeHashMap
 
@@ -169,6 +170,7 @@ instance Typed Lit where
     typeOf (LitInt _) = TyLitInt
     typeOf (LitFloat _) = TyLitFloat
     typeOf (LitDouble _) = TyLitDouble
+    typeOf (LitRational _) = TyLitRational
     typeOf (LitChar _)   = TyLitChar
     typeOf (LitString _) = TyLitString
     typeOf (LitInteger _) = TyLitInt
@@ -204,7 +206,7 @@ instance Typed Expr where
     typeOf' m (Tick _ e) = typeOf' m e
     typeOf' m (NonDet (e:_)) = typeOf' m e
     typeOf' _ (NonDet []) = TyBottom
-    typeOf' _ (SymGen t) = t
+    typeOf' _ (SymGen _ t) = t
     typeOf' m (Assert _ _ e) = typeOf' m e
     typeOf' m (Assume _ _ e) = typeOf' m e
 
@@ -261,7 +263,7 @@ check' uf (Cast e (t :~ t')) = check' uf e
 check' uf (Coercion (t :~ t')) = Just uf
 check' uf (Tick _ t) = check' uf t
 check' uf (NonDet es) = foldM check' uf es
-check' uf (SymGen _) = Just uf
+check' uf (SymGen _ _) = Just uf
 check' uf (Assert _ e1 e2) = check' uf e1 >>= flip check' e2
 check' uf (Assume _ e1 e2) = check' uf e1 >>= flip check' e2
 check' _ _ = error "check'"
@@ -306,6 +308,7 @@ instance Typed Type where
             at = typeOf' m t2
         in
         case (ft, at) of
+            ((TyForAll _ t2'), _) -> t2'
             ((TyFun _ t2'), _) -> t2'
             ((TyApp t1' _), _) -> t1'
             _ -> error $ "Overapplied Type\n" ++ show t1 ++ "\n" ++ show t2 ++ "\n\n" ++ show ft ++ "\n" ++ show at
@@ -314,6 +317,7 @@ instance Typed Type where
     typeOf' _ TyLitInt = TYPE
     typeOf' _ TyLitFloat = TYPE
     typeOf' _ TyLitDouble = TYPE
+    typeOf' _ TyLitRational = TYPE
     typeOf' _ TyLitChar = TYPE
     typeOf' _ TyLitString = TYPE
     typeOf' _ TYPE = TYPE
@@ -367,11 +371,11 @@ specializes = specializes' M.empty
 
 specializes' :: M.Map Name Type -> Type -> Type -> Maybe (M.Map Name Type)
 specializes' m _ TYPE = Just m
-specializes' m t (TyVar (Id n _)) =
+specializes' m t (TyVar (Id n vt)) =
     case M.lookup n m of
         Just t' | t == t' -> Just m
                 | otherwise -> Nothing
-        Nothing -> Just (M.insert n t m)
+        Nothing -> M.insert n t <$> specializes' m (typeOf t) vt
 specializes' m (TyFun t1 t2) (TyFun t1' t2') = do
     m' <- specializes' m t1 t1'
     specializes' m' t2 t2'
@@ -389,6 +393,13 @@ specializes' m _ TyUnknown = Just m
 specializes' m TyBottom _ = Just m
 specializes' _ _ TyBottom = Nothing
 specializes' m t1 t2 = if t1 == t2 then Just m else Nothing
+
+replaceTyVar :: ASTContainer e Type => Name -> Type -> e -> e
+replaceTyVar n t = modifyASTs (replaceTyVar' n t)
+
+replaceTyVar' :: Name -> Type -> Type -> Type
+replaceTyVar' n t  (TyVar (Id n' _)) | n == n' = t
+replaceTyVar' _ _ t = t
 
 applyTypeMap :: ASTContainer e Type => M.Map Name Type -> e -> e
 applyTypeMap m = modifyASTs (applyTypeMap' m)
@@ -591,6 +602,7 @@ isPrimType :: Type -> Bool
 isPrimType TyLitInt = True
 isPrimType TyLitFloat = True
 isPrimType TyLitDouble = True
+isPrimType TyLitRational = True
 isPrimType TyLitChar = True
 isPrimType TyLitString = True
 isPrimType _ = False

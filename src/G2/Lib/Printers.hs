@@ -157,6 +157,12 @@ mkExprHaskell' off_init cleaned pg ex = mkExprHaskell'' off_init ex
                 t2_str = mkTypeHaskellPG pg t2
             in
             "((coerce (" <> e_str <> " :: " <> t1_str <> ")) :: " <> t2_str <> ")"
+        mkExprHaskell'' off (Coercion (t1 :~ t2)) =
+            let
+                t1_str = mkTypeHaskellPG pg t1
+                t2_str = mkTypeHaskellPG pg t2
+            in
+            "(" <> t1_str <> " :~ " <> t2_str <> ")"
         mkExprHaskell'' off (Let binds e) =
             let
                 binds' = T.intercalate (offset off <> "\n")
@@ -183,7 +189,8 @@ mkExprHaskell' off_init cleaned pg ex = mkExprHaskell'' off_init ex
                 print_es = map (mkExprHaskell'' off) es
             in
             T.intercalate ("\n" <> offset off <> "[NonDet]\n") print_es 
-        mkExprHaskell'' _ (SymGen t) = "(symgen " <> mkTypeHaskellPG pg t <> ")"
+        mkExprHaskell'' _ (SymGen SLog t) = "(symgen log " <> mkTypeHaskellPG pg t <> ")"
+        mkExprHaskell'' _ (SymGen SNoLog t) = "(symgen no_log " <> mkTypeHaskellPG pg t <> ")"
         mkExprHaskell'' _ e = "e = " <> T.pack (show e) <> " NOT SUPPORTED"
 
         parenWrap :: Expr -> T.Text -> T.Text
@@ -316,11 +323,18 @@ isLitChar _ = False
 mkLitHaskell :: Lit -> T.Text
 mkLitHaskell (LitInt i) = T.pack $ if i < 0 then "(" <> show i <> ")" else show i
 mkLitHaskell (LitInteger i) = T.pack $ if i < 0 then "(" <> show i <> ")" else show i
-mkLitHaskell (LitFloat r) = "(" <> T.pack (show ((fromRational r) :: Float)) <> ")"
-mkLitHaskell (LitDouble r) = "(" <> T.pack (show ((fromRational r) :: Double)) <> ")"
+mkLitHaskell (LitFloat r) = mkFloat r
+mkLitHaskell (LitDouble r) = mkFloat r
+mkLitHaskell (LitRational r) = "(" <> T.pack (show r) <> ")"
 mkLitHaskell (LitChar c) | isPrint c = T.pack ['\'', c, '\'']
                          | otherwise = "(chr " <> T.pack (show $ ord c) <> ")"
 mkLitHaskell (LitString s) = T.pack s
+
+mkFloat :: (Show n, RealFloat n) => n -> T.Text
+mkFloat r | isNaN r = "(0 / 0)"
+          | r == 1 / 0 = "(1 / 0)" -- Infinity
+          | r == -1 / 0 = "(-1 / 0)" -- Negative Infinity
+          | otherwise = "(" <> T.pack (show r) <> ")"
 
 mkPrimHaskell :: Primitive -> T.Text
 mkPrimHaskell Ge = ">="
@@ -342,7 +356,26 @@ mkPrimHaskell Mod = "mod"
 mkPrimHaskell Rem = "rem"
 mkPrimHaskell Negate = "-"
 mkPrimHaskell Abs = "abs"
-mkPrimHaskell SqRt = "sqrt"
+
+mkPrimHaskell Sqrt = "sqrt"
+
+mkPrimHaskell FpNeg = "fp.-"
+mkPrimHaskell FpAdd = "fp.+"
+mkPrimHaskell FpSub = "fp.-"
+mkPrimHaskell FpMul = "fp.*"
+mkPrimHaskell FpDiv = "fp./"
+mkPrimHaskell FpLeq = "fp.<="
+mkPrimHaskell FpLt = "fp.<"
+mkPrimHaskell FpGeq = "fp.>="
+mkPrimHaskell FpGt = "fp.>"
+mkPrimHaskell FpEq = "fp.=="
+mkPrimHaskell FpNeq = "fp./="
+
+mkPrimHaskell FpSqrt = "fp.sqrt"
+
+mkPrimHaskell FpIsNegativeZero = "isNegativeZero#"
+mkPrimHaskell IsNaN = "isNaN#"
+mkPrimHaskell IsInfinite = "isInfinite#"
 
 mkPrimHaskell DataToTag = "prim_dataToTag#"
 mkPrimHaskell TagToEnum = "prim_tagToEnum#"
@@ -350,12 +383,19 @@ mkPrimHaskell TagToEnum = "prim_tagToEnum#"
 
 mkPrimHaskell IntToFloat = "fromIntegral"
 mkPrimHaskell IntToDouble = "fromIntegral"
+mkPrimHaskell IntToRational = "fromIntegral"
+mkPrimHaskell RationalToFloat = "fromRational"
 mkPrimHaskell RationalToDouble = "fromRational"
-mkPrimHaskell FromInteger = "fromInteger"
 mkPrimHaskell ToInteger = "toInteger"
 
+mkPrimHaskell StrLen = "StrLen"
+mkPrimHaskell StrAppend = "StrAppend"
 mkPrimHaskell Chr = "chr"
 mkPrimHaskell OrdChar = "ord"
+
+mkPrimHaskell WGenCat = "wgencat"
+
+mkPrimHaskell IntToString = "intToString"
 
 mkPrimHaskell ToInt = "toInt"
 
@@ -372,6 +412,7 @@ mkTypeHaskellPG pg (TyVar i) = mkIdHaskell pg i
 mkTypeHaskellPG _ TyLitInt = "Int#"
 mkTypeHaskellPG _ TyLitFloat = "Float#"
 mkTypeHaskellPG _ TyLitDouble = "Double#"
+mkTypeHaskellPG _ TyLitRational = "Rational#"
 mkTypeHaskellPG _ TyLitChar = "Char#"
 mkTypeHaskellPG _ TyLitString = "String#"
 mkTypeHaskellPG pg (TyFun t1 t2)
@@ -392,6 +433,7 @@ duplicate s n = s <> duplicate s (n - 1)
 
 printTickish :: PrettyGuide -> Tickish -> T.Text
 printTickish _ (Breakpoint sp) = printLoc (start sp) <> " - " <> printLoc (end sp)
+printTickish _ (HpcTick i m) = "(hpc " <> T.pack (show i) <> " " <> m <> ")" 
 printTickish pg (NamedLoc n) = mkNameHaskell pg n
 
 printLoc :: Loc -> T.Text
@@ -413,6 +455,8 @@ prettyState pg s =
         , pretty_paths
         , "----- [Non Red Paths] ---------------------"
         , pretty_non_red_paths
+        , "----- [Types] ---------------------"
+        , pretty_tenv
         , "----- [Typeclasses] ---------------------"
         , pretty_tc
         , "----- [True Assert] ---------------------"
@@ -430,6 +474,7 @@ prettyState pg s =
         pretty_eenv = prettyEEnv pg (expr_env s)
         pretty_paths = prettyPathConds pg (path_conds s)
         pretty_non_red_paths = prettyNonRedPaths pg (non_red_path_conds s)
+        pretty_tenv = prettyTypeEnv pg (type_env s)
         pretty_tc = prettyTypeClasses pg (type_classes s)
         pretty_assert_fcs = maybe "None" (printFuncCallPG pg) (assert_ids s)
         pretty_names = prettyGuideStr pg
@@ -508,6 +553,26 @@ prettyPathCond pg (AssumePC i l pc) =
 
 prettyNonRedPaths :: PrettyGuide -> [(Expr, Expr)] -> T.Text
 prettyNonRedPaths pg = T.intercalate "\n" . map (\(e1, e2) -> mkDirtyExprHaskell pg e1 <> " == " <> mkDirtyExprHaskell pg e2)
+
+prettyTypeEnv :: PrettyGuide -> TypeEnv -> T.Text
+prettyTypeEnv pg = T.intercalate "\n" . map (uncurry (prettyADT pg)) . HM.toList
+
+prettyADT :: PrettyGuide -> Name -> AlgDataTy -> T.Text
+prettyADT pg n DataTyCon { bound_ids = bids, data_cons = dcs } =
+    "data " <> mkNameHaskell pg n <> " "
+            <> T.intercalate " " (map (mkIdHaskell pg) bids)
+            <> " = " <> T.intercalate " | " (map (prettyDCWithType pg) dcs)
+prettyADT pg n NewTyCon { bound_ids = bids, data_con = dc } =
+    "newtype " <> mkNameHaskell pg n <> " "
+               <> T.intercalate " " (map (mkIdHaskell pg) bids)
+               <> " = " <> prettyDCWithType pg dc
+prettyADT pg n TypeSynonym { bound_ids = bids, synonym_of = t } =
+    "type " <> mkNameHaskell pg n <> " "
+            <> T.intercalate " " (map (mkIdHaskell pg) bids)
+            <> " = " <> mkTypeHaskellPG pg t
+
+prettyDCWithType :: PrettyGuide -> DataCon -> T.Text
+prettyDCWithType pg dc = mkDataConHaskell pg dc <> " :: " <> mkTypeHaskellPG pg (typeOf dc)
 
 prettyTypeClasses :: PrettyGuide -> TypeClasses -> T.Text
 prettyTypeClasses pg = T.intercalate "\n" . map (\(n, tc) -> mkNameHaskell pg n <> " = " <> prettyClass pg tc) . HM.toList . toMap

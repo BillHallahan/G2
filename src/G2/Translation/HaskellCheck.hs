@@ -63,7 +63,6 @@ runCheck' modN entry chAll s ars out = do
                                     ++ outStr ++ " :: " ++ outType ++ ")" ++ ")) :: IO (Either SomeException Bool)"
                     True -> "try (evaluate ( (" ++ arsStr ++ " :: " ++ arsType ++
                                                     ") == " ++ arsStr ++ ")) :: IO (Either SomeException Bool)"
-
     v' <- compileExpr chck
 
     let chArgs = ars ++ [out] 

@@ -300,7 +300,7 @@ instTyVarCall' func_names is_fs t
             tfa_is = zipWith (\i1 (i2, _) -> (i1, TyVar i2)) tfa is_fs
 
             rt = foldr (uncurry retype) (returnType $ PresType t) tfa_is
-        return $ SymGen rt
+        return $ SymGen SNoLog rt
 
 -- | Primitive operation function calls do not force evaluation of the
 -- underlying primitive value- the assumption is that this is already a literal

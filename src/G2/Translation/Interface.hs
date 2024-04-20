@@ -1,4 +1,5 @@
 {-# LANGUAGE CPP #-}
+{-# LANGUAGE OverloadedStrings #-}
 
 module G2.Translation.Interface ( translateBase
                                 , translateLoaded
@@ -12,12 +13,12 @@ import qualified Data.Text as T
 import System.Directory
 
 import G2.Config
+import G2.Language as G2
 import G2.Translation.GHC
 import G2.Translation.Haskell
 import G2.Translation.InjectSpecials
 import G2.Translation.PrimInject
 import G2.Translation.TransTypes
-
 
 translateBase :: TranslationConfig
   -> Config
@@ -30,7 +31,7 @@ translateBase tr_con config extra hsc = do
   let base_inc = baseInclude config
   let bases = nub $ base config ++ extra
 
-  (base_exg2, b_nm, b_tnm) <- translateLibPairs specialConstructors specialTypeNames tr_con config emptyExtractedG2 hsc base_inc bases
+  (base_exg2, b_nm, b_tnm) <- translateLibPairs specialConstructors specialTypeNames tr_con emptyExtractedG2 hsc base_inc bases
 
   let base_prog = exg2_binds base_exg2
       base_tys = exg2_tycons base_exg2
@@ -42,16 +43,29 @@ translateBase tr_con config extra hsc = do
 translateLibPairs :: NameMap
   -> TypeNameMap
   -> TranslationConfig
-  -> Config
   -> ExtractedG2
   -> Maybe HscTarget
   -> [IncludePath]
   -> [FilePath]
   -> IO (ExtractedG2, NameMap, TypeNameMap)
-translateLibPairs nm tnm _ _ exg2 _ _ [] = return (exg2, nm, tnm)
-translateLibPairs nm tnm tr_con config exg2 hsc inc_paths (f: fs) = do
+translateLibPairs nm tnm _ exg2 _ _ [] = return (exg2, nm, tnm)
+translateLibPairs nm tnm tr_con exg2 hsc inc_paths (f: fs) = do
   (new_nm, new_tnm, exg2') <- hskToG2ViaCgGutsFromFile hsc inc_paths [f] nm tnm tr_con
-  translateLibPairs new_nm new_tnm tr_con config (mergeExtractedG2s [exg2, exg2']) hsc inc_paths fs
+  translateLibPairs new_nm new_tnm tr_con (mergeExtractedG2s [exg2, exg2']) hsc inc_paths fs
+
+#if MIN_VERSION_GLASGOW_HASKELL(9,6,0,0)
+selectBackend :: TranslationConfig -> Maybe Backend
+selectBackend tr | interpreter tr = Just interpreterBackend
+selectBackend _ = Just noBackend
+#elif MIN_VERSION_GLASGOW_HASKELL(9,2,0,0)
+selectBackend :: TranslationConfig -> Maybe Backend
+selectBackend tr | interpreter tr = Just Interpreter
+selectBackend _ = Just NoBackend
+#else
+selectBackend :: TranslationConfig -> Maybe HscTarget
+selectBackend tr | interpreter tr = Just HscInterpreted
+selectBackend _ = Just HscNothing
+#endif
 
 translateLoaded :: [FilePath]
   -> [FilePath]
@@ -59,26 +73,22 @@ translateLoaded :: [FilePath]
   -> Config
   -> IO (Maybe T.Text, ExtractedG2)
 translateLoaded proj src tr_con config = do
+  let tr_con' = tr_con { hpc_ticks = hpc config || search_strat config == Subpath }
   -- Stuff with the actual target
   let def_proj = extraDefaultInclude config
-#if MIN_VERSION_GLASGOW_HASKELL(9,6,0,0)
-  tar_ems <- envModSumModGutsFromFile (Just interpreterBackend) (def_proj ++ proj) src tr_con
-#elif MIN_VERSION_GLASGOW_HASKELL(9,2,0,0)
-  tar_ems <- envModSumModGutsFromFile (Just Interpreter) (def_proj ++ proj) src tr_con
-#else
-  tar_ems <- envModSumModGutsFromFile (Just HscInterpreted) (def_proj ++ proj) src tr_con
-#endif
+  tar_ems <- envModSumModGutsFromFile (selectBackend tr_con') (def_proj ++ proj) src tr_con' 
   let imports = envModSumModGutsImports tar_ems
   extra_imp <- return . catMaybes =<< mapM (findImports (baseInclude config)) imports
 
   -- Stuff with the base library
-  (base_exg2, b_nm, b_tnm) <- translateBase tr_con config extra_imp Nothing
+  (base_exg2, b_nm, b_tnm) <- translateBase tr_con'  config extra_imp Nothing
 
   -- Now the stuff with the actual target
-  (_, _, exg2) <- hskToG2ViaEMS tr_con tar_ems b_nm b_tnm
+  (f_nm, f_tm, exg2) <- hskToG2ViaEMS tr_con'  tar_ems b_nm b_tnm
   let mb_modname = head $ exg2_mod_names exg2
+  let exg2' = adjustMkSymbolicPrim f_nm exg2
 
-  let merged_exg2 = mergeExtractedG2s [exg2, base_exg2]
+  let merged_exg2 = mergeExtractedG2s [exg2', base_exg2]
   let injected_exg2@ExtractedG2 { exg2_binds = near_final_prog } = specialInject merged_exg2
 
   final_prog <- absVarLoc near_final_prog
@@ -86,6 +96,17 @@ translateLoaded proj src tr_con config = do
   let final_exg2 = injected_exg2 { exg2_binds = final_prog }
 
   return (mb_modname, final_exg2)
+
+adjustMkSymbolicPrim :: NameMap -> ExtractedG2 -> ExtractedG2
+adjustMkSymbolicPrim nm exg2@(ExtractedG2 { exg2_binds = binds}) =
+    let
+        a = Id (Name "a" Nothing 0 Nothing) TYPE
+        m_sym_n = HM.lookup ("symgen", Just "G2.Symbolic") nm
+        symgen_e = G2.Lam TypeL a (SymGen SLog $ TyVar a)
+    in
+    case m_sym_n of
+        Just sym_n -> exg2 { exg2_binds = HM.insert sym_n symgen_e binds }
+        Nothing -> exg2
 
 specialInject :: ExtractedG2 -> ExtractedG2
 specialInject exg2 =

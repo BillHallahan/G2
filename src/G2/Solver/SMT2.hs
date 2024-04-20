@@ -8,7 +8,6 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RankNTypes #-}
-{-# LANGUAGE TypeSynonymInstances #-}
 
 module G2.Solver.SMT2 ( Z3
                       , CVC4
@@ -304,7 +303,6 @@ getProcessHandles pr = do
 getZ3 :: Int -> IO Z3
 getZ3 time_out = do
     hhp@(h_in, _, _) <- getZ3ProcessHandles time_out
-    hPutStr h_in "(set-option :pp.decimal true)"
     return $ Z3 arbValue hhp
 
 getSMT :: Config -> IO SomeSMTSolver
@@ -313,7 +311,6 @@ getSMT = getSMTAV arbValue
 getSMTAV :: ArbValueFunc -> Config -> IO SomeSMTSolver
 getSMTAV avf (Config {smt = ConZ3}) = do
     hhp@(h_in, _, _) <- getZ3ProcessHandles 10000
-    hPutStr h_in "(set-option :pp.decimal true)"
     return $ SomeSMTSolver (Z3 avf hhp)
 getSMTAV avf (Config {smt = ConCVC4}) = do
     hhp <- getCVC4ProcessHandles
@@ -369,11 +366,11 @@ parseModel = foldr (\(n, s) -> M.insert n s) M.empty
     . map (\(n, str, s) -> (n, parseToSMTAST str s))
 
 parseToSMTAST :: String -> Sort -> SMTAST
-parseToSMTAST str s = correctTypes s . parseGetValues $ str
+parseToSMTAST str s = correctTypes s . parseGetValues s $ str
     where
         correctTypes :: Sort -> SMTAST -> SMTAST
-        correctTypes (SortFloat) (VDouble r) = VFloat r
-        correctTypes (SortDouble) (VFloat r) = VDouble r
+        correctTypes SortChar (VString [c]) = VChar c
+        correctTypes SortChar (VString _) = error "Invalid Char from parseToSMTAST"
         correctTypes _ a = a
 
 getModelZ3 :: Handle -> Handle -> [(SMTName, Sort)] -> IO [(SMTName, String, Sort)]

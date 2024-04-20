@@ -1,5 +1,8 @@
 module G2.Translation.TransTypes where
 
+import Control.Monad.Identity
+import qualified Control.Monad.State.Lazy as SM
+
 import G2.Translation.GHC
 
 import qualified Data.HashMap.Lazy as HM
@@ -12,16 +15,22 @@ type NameMap = HM.HashMap (T.Text, Maybe T.Text) G2.Name
 
 type TypeNameMap = HM.HashMap (T.Text, Maybe T.Text) G2.Name
 
+type Names = (NameMap, TypeNameMap)
+type NamesT m a = SM.StateT Names m a
+type NamesM a = NamesT Identity a
+
 type ExportedName = G2.Name
 
 data TranslationConfig = TranslationConfig
   {
     simpl :: Bool
+  , interpreter :: Bool
   , load_rewrite_rules :: Bool
+  , hpc_ticks :: Bool
   }
 
 simplTranslationConfig :: TranslationConfig
-simplTranslationConfig = TranslationConfig { simpl = True, load_rewrite_rules = False }
+simplTranslationConfig = TranslationConfig { simpl = True, interpreter = False, load_rewrite_rules = False, hpc_ticks = False }
 
 data ModGutsClosure = ModGutsClosure
   { mgcc_mod_name :: Maybe String

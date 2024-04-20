@@ -10,10 +10,13 @@ module G2.Liquid.Inference.InfStack ( InfStack
                                     , incrMaxCExI
                                     , incrMaxTimeI
                                     , incrMaxSynthSizeI
+                                    , incrMaxCFI
 
                                     , extraMaxDepthI
                                     , extraMaxCExI
                                     , extraMaxTimeI
+                                    , maxCFI
+                                    
                                     , maxSynthCoeffSizeI
                                     , setMaxSynthCoeffSizeI
 
@@ -110,6 +113,12 @@ extraMaxDepthI = lift . lift . lift $ gets extraMaxDepth
 
 extraMaxTimeI :: Monad m => (T.Text, Maybe T.Text) -> InfStack m NominalDiffTime
 extraMaxTimeI n = lift . lift . lift $ gets (extraMaxTime n)
+
+incrMaxCFI :: Monad m => (T.Text, Maybe T.Text) -> InfStack m ()
+incrMaxCFI = lift . lift . lift . incrMaxCFM
+
+maxCFI :: Monad m => (T.Text, Maybe T.Text) -> InfStack m Int
+maxCFI n = lift . lift . lift $ gets (maxCF n)
 
 incrMaxSynthSizeI :: Monad m => InfStack m ()
 incrMaxSynthSizeI = do
