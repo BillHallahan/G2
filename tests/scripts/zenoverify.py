@@ -103,7 +103,7 @@ modified_total = [
     ("p49", [xs, ys]),
     ("p51", [xs]),
     ("p56", [n, m]),
-    ("p58", [n, xs, ys]),
+    #("p58", [n, xs, ys]),
     ("p72", [i]),
     ("p73", [p, xs]),
     ("p74", [i, xs]),
@@ -145,6 +145,8 @@ modified_finite = [
     ("p54fin", [m]),
     ("p57finA", [m, xs]),
     ("p57finB", [n, xs]),
+    ("p58finA", [n, xs, ys]),
+    ("p58finB", [n, xs, ys]),
     ("p59finA", [ys]),
     ("p60finB", []),
     ("p61fin", []),
@@ -198,6 +200,7 @@ modified_cycle = [
     ("p53", [n, xs]),
     ("p54", [n, m]),
     ("p57", [n, m, xs]),
+    ("p58", [n, xs, ys]),
     ("p59", [xs, ys]),
     ("p60", [xs, ys]),
     ("p61", [xs, ys]),
@@ -306,7 +309,7 @@ def test_suite_csv(fname, suite, timeout = 25):
     return test_suite_general(suite, "TestZeno.hs", fname, timeout)
 
 def main():
-    t = 180
+    t = 60
     test_suite_csv("ZenoUnaltered", unmodified_theorems(), t)
     test_suite_csv("ZenoTotal", modified_total, t)
     test_suite_csv("ZenoFinite", modified_finite, t)
