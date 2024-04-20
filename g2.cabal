@@ -198,7 +198,7 @@ library
                        , Cabal >= 2.0.1.0 && < 3.11
                        , base >= 4.8 && < 4.19
                        , bimap == 0.3.3
-                       , bytestring >= 0.10.8.0 && < 0.11.5
+                       , bytestring >= 0.10.8.0 && <= 0.11.5.3
                        , clock >= 0.8 && < 0.9
                        , concurrent-extra >= 0.7 && < 0.8
                        , containers >= 0.5 && < 0.7
