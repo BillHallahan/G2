@@ -547,7 +547,7 @@ moreRestrictiveSingleSubExprs solver ns s1 s2 = do
   case res of
     Right _ -> return res
     Left _ -> do
-      case (exprExtract s1, exprExtract s2) of
+      case (getExpr s1, getExpr s2) of
         (Case e1 _ _ ((Alt _ a1):_), Case e2 _ _ ((Alt _ a2):_)) -> do
           case (a1, a2) of
             (Tick t1 _, Tick t2 _) | t1 == t2 -> do
