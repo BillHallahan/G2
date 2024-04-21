@@ -1102,4 +1102,5 @@ listE = ():():():():():():():():():():():():listE
 {-# RULES
 "p58finA" forall n xs ys . walkNat n (drop n (zip xs ys)) = zip (drop n xs) (drop n ys)
 "p58finB" forall n xs ys . walkList xs (drop n (zip xs ys)) = zip (drop n xs) (drop n ys)
+"faketest" forall xs . (walkList xs xs) =:= xs = walkList xs True
   #-}
