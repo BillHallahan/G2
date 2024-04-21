@@ -52,7 +52,6 @@ library
                        , G2.Execution
                        , G2.Execution.InstTypes
                        , G2.Execution.HPC
-                       , G2.Execution.InstTypes
                        , G2.Execution.Interface
                        , G2.Execution.Memory
                        , G2.Execution.NewPC
