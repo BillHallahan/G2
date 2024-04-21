@@ -58,7 +58,7 @@ module G2.Execution.Reducer ( Reducer (..)
                             , liftSomeReducer
 
                             , stdRed
-                            , nonRedPCSymFuncRed
+                            , nonRedPCTemplates
                             , nonRedLibFuncsReducer
                             , nonRedPCRed
                             , nonRedPCRedConst
@@ -505,12 +505,12 @@ stdRed share symb_func_eval solver simplifier =
                         )
 
 -- | Pushes non_red_path_conds onto the exec_stack for solving higher order symbolic function 
-nonRedPCSymFuncRed :: Monad m => Reducer m () t
-nonRedPCSymFuncRed = mkSimpleReducer (\_ -> ())
-                        nonRedPCSymFunc
+nonRedPCTemplates :: Monad m => Reducer m () t
+nonRedPCTemplates = mkSimpleReducer (\_ -> ())
+                        nonRedPCTemplatesFunc
 
-nonRedPCSymFunc :: Monad m => RedRules m () t
-nonRedPCSymFunc _
+nonRedPCTemplatesFunc :: Monad m => RedRules m () t
+nonRedPCTemplatesFunc _
                       s@(State { expr_env = eenv
                          , curr_expr = cexpr
                          , exec_stack = stck
@@ -528,7 +528,7 @@ nonRedPCSymFunc _
             let 
                 s'' = s' {curr_expr = CurrExpr Evaluate nre1}
             in return (InProgress, [(s'', ())], b)
-nonRedPCSymFunc _ s b = return (Finished, [(s, ())], b)
+nonRedPCTemplatesFunc _ s b = return (Finished, [(s, ())], b)
 
 -- | A reducer to add library functions in non reduced path constraints for solving later  
 nonRedLibFuncsReducer :: Monad m => HS.HashSet Name -> Reducer m () t

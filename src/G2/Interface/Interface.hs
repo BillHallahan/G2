@@ -44,7 +44,6 @@ import G2.Language
 
 import G2.Initialization.Interface
 import G2.Initialization.KnownValues
-import G2.Execution.InstTypes
 import G2.Initialization.MkCurrExpr
 import qualified G2.Initialization.Types as IT
 import G2.Preprocessing.Interface
@@ -78,7 +77,6 @@ import qualified Data.HashSet as S
 import Data.Maybe
 import qualified Data.Sequence as Seq
 import qualified Data.Text as T
-import qualified Data.List as L 
 import System.Timeout
 
 type AssumeFunc = T.Text
@@ -326,8 +324,8 @@ initRedHaltOrd mod_name solver simplifier config libFunNames =
             ( logger_std_red retReplaceSymbFuncTemplate .== Finished .--> SomeReducer nonRedPCRed
              , SomeHalter halter
              , orderer)
-        SymbolicFuncNRPC ->
-            ( logger_std_red retReplaceSymbFuncVar .== Finished .--> taggerRed state_name :== Finished --> nonRedPCSymFuncRed
+        SymbolicFuncTemplate ->
+            ( logger_std_red retReplaceSymbFuncVar .== Finished .--> taggerRed state_name :== Finished --> nonRedPCTemplates
              , SomeHalter (discardIfAcceptedTagHalter state_name <~> halter)
              , orderer)
 
@@ -609,7 +607,6 @@ runG2 :: ( MonadIO m
          solver -> simplifier -> MemConfig -> State t -> Bindings -> m ([ExecRes t], Bindings)
 runG2 red hal ord solver simplifier mem is bindings = do
     (exec_states, bindings') <- runG2ThroughExecution red hal ord mem is bindings
-    let (ng'',exec_states') = L.mapAccumL instType (name_gen bindings') exec_states
-    let bindings'' =  bindings'{ name_gen = ng''}
-    sol_states <- mapM (runG2Solving solver simplifier bindings'') exec_states' 
-    return (catMaybes sol_states, bindings'')
+    sol_states <- mapM (runG2Solving solver simplifier bindings') exec_states
+
+    return (catMaybes sol_states, bindings')
