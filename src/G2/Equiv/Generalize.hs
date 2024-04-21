@@ -174,6 +174,14 @@ need a more thorough set of requirements for soundness.
 
 If I break up function application obligations, it might be sound, but
 that won't work directly for p47 because of mirror.
+
+(1/20) Maybe I need a "generalized" version of the generalization lemmas
+that I have now in order to prove p47.  Would that allow me to get
+something like "max a b = max b a" as a lemma for p47?
+
+It seems that the answer is no.  For p47, there's no point when we have
+"max a b" on one side when "max b a" is on the other side.  The mirror
+function really throws everything off.
 -}
 
 -- TODO do I have functions like this already?

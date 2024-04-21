@@ -757,6 +757,10 @@ reducedGuide ((Marker _ m):ms) = case m of
   _ -> reducedGuide ms
 reducedGuide (_:ms) = reducedGuide ms
 
+putStrLnIfNonEmpty :: String -> IO ()
+putStrLnIfNonEmpty "" = return ()
+putStrLnIfNonEmpty s = putStrLn s
+
 checkRule :: (ASTContainer t Type, ASTContainer t Expr) => Config
           -> NebulaConfig
           -> State t
@@ -800,9 +804,10 @@ checkRule config nc init_state bindings total rule = do
   let pg = if have_summary $ print_summary nc
            then mkPrettyGuide w
            else reducedGuide (reverse w)
+  -- TODO leave out the ones that are just empty strings
   if have_summary $ print_summary nc then do
     putStrLn "--- SUMMARY ---"
-    _ <- mapM (putStrLn . (summarize (print_summary nc) pg ns sym_ids)) w
+    _ <- mapM (putStrLnIfNonEmpty . (summarize (print_summary nc) pg ns sym_ids)) w
     putStrLn "--- END OF SUMMARY ---"
   else return ()
   case res of
