@@ -562,6 +562,10 @@ isIdentity (i1, Tick _ e2) = isIdentity (i1, e2)
 isIdentity (i1, (Var i2)) = i1 == i2
 isIdentity _ = False
 
+-------------------------------------------------------------------------------
+-- Equality
+-------------------------------------------------------------------------------
+
 -- approximation should be the identity map
 -- needs to be enforced, won't just happen naturally
 moreRestrictiveEqual :: S.Solver solver =>
@@ -1025,8 +1029,8 @@ checkCycle solver _ ns _ _ (sh1, sh2) (s1, s2) = do
       hist1' = zip hist1 (map expr_env hist2)
       hist2' = zip hist2 (map expr_env hist1)
   -- histories must have the same length and have matching entries
-  mr1 <- mapM (\(p1, hp2) -> moreRestrictiveSingle solver ns s1' (p1 { track = (track p1) { opp_env = hp2 } })) hist1'
-  mr2 <- mapM (\(p2, hp1) -> moreRestrictiveSingle solver ns s2' (p2 { track = (track p2) { opp_env = hp1 } })) hist2'
+  mr1 <- mapM (\(p1, hp2) -> moreRestrictiveSingleSubExprs solver ns s1' (p1 { track = (track p1) { opp_env = hp2 } })) hist1'
+  mr2 <- mapM (\(p2, hp1) -> moreRestrictiveSingleSubExprs solver ns s2' (p2 { track = (track p2) { opp_env = hp1 } })) hist2'
   let vh _ (Left _, _) = False
       vh s (Right hm, p) = validHigherOrder s p ns $ Right (hm, HS.empty)
       mr1_pairs = zip mr1 hist1

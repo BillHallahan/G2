@@ -836,6 +836,7 @@ checkRule config nc init_state bindings total rule = do
            else if have_lemma_details $ print_summary nc
            then w
            else filter (not . isFromLemma) w
+  -- TODO not sure if this merge resolution was right
   let pg = if have_summary $ print_summary nc
            then mkPrettyGuide $ (getMarkerCX $ reverse w) ++ w'-- $ map (\(Marker _ am) -> am) w
            else mkPrettyGuide $ getMarkerCX $ reverse w
