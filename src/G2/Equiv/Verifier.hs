@@ -265,10 +265,12 @@ insertStamps x k (Case e i t a) =
 insertStamps _ _ e = e
 
 addStamps :: Int -> StateET -> StateET
-addStamps k s =
+addStamps k s = s
+{-
   let CurrExpr c e = curr_expr s
       e' = insertStamps 0 k e
   in s { curr_expr = CurrExpr c e' }
+-}
 
 getLatest :: (StateH, StateH) -> (StateET, StateET)
 getLatest (StateH { latest = s1 }, StateH { latest = s2 }) = (s1, s2)
