@@ -261,16 +261,14 @@ insertStamps x k (Case e i t a) =
         _ -> let sn = stampName x k
                  a1' = Alt am1 (Tick (NamedLoc sn) a1)
              in Case (insertStamps (x + 1) k e) i t (a1':as)
-    _ -> error "Empty Alt List"
+    _ -> Case e i t a
 insertStamps _ _ e = e
 
 addStamps :: Int -> StateET -> StateET
-addStamps k s = s
-{-
+addStamps k s =
   let CurrExpr c e = curr_expr s
       e' = insertStamps 0 k e
   in s { curr_expr = CurrExpr c e' }
--}
 
 getLatest :: (StateH, StateH) -> (StateET, StateET)
 getLatest (StateH { latest = s1 }, StateH { latest = s2 }) = (s1, s2)
