@@ -69,7 +69,6 @@ import G2.Postprocessing.Interface
 import qualified G2.Language.ExprEnv as E
 import qualified G2.Language.PathConds as PC
 import qualified G2.Language.Stack as Stack
-import G2.Language.Support
 
 import Control.Monad.IO.Class
 import qualified Control.Monad.State as SM

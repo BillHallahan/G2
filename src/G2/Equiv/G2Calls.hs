@@ -28,7 +28,6 @@ import G2.Language
 import G2.Lib.Printers
 import qualified G2.Language.ExprEnv as E
 import qualified G2.Language.Stack as S
-import qualified G2.Language.Typing as TY
 import G2.Solver
 import G2.Equiv.Config
 

@@ -13,8 +13,7 @@ jobs:
 
     strategy:
       matrix:
-        compiler: [ { ghc: '8.6.5', cabal: '3.0' },
-                    { ghc: '8.10.7', cabal: '3.6' },
+        compiler: [ { ghc: '8.10.7', cabal: '3.6' },
                     { ghc: '9.0.2', cabal: '3.6' },
                     { ghc: '9.2.4', cabal: '3.6' },
                     { ghc: '9.4.4', cabal: '3.6' },
@@ -23,8 +22,6 @@ jobs:
                 { test: test-g2q, lh: '-support-lh' },
                 { test: test-lh, lh: 'support-lh' } ]
         exclude:
-          - compiler: { ghc: '8.6.5', cabal: '3.0' }
-            test: { test: test-lh }
           - compiler: { ghc: '9.2.4', cabal: '3.6' }
             test: { test: test-lh }
           - compiler: { ghc: '9.4.4', cabal: '3.6' }

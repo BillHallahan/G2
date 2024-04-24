@@ -29,7 +29,6 @@ import G2.Execution.PrimitiveEval
 import G2.Execution.RuleTypes
 import G2.Language
 import qualified G2.Language.ExprEnv as E
-import qualified G2.Language.TypeEnv as TE
 import qualified G2.Language.Typing as T
 import qualified G2.Language.KnownValues as KV
 import qualified G2.Language.Stack as S
@@ -182,11 +181,6 @@ evalApp s@(State { expr_env = eenv
         , [newPCEmpty $ s { curr_expr = CurrExpr Evaluate e1
                           , exec_stack = stck' }]
         , ng)
-    where
-        findSym v@(Var (Id n _))
-          | E.isSymbolic n eenv = v
-          | Just e <- E.lookup n eenv = findSym e
-        findSym _ = error "findSym: No symbolic variable"
 
 lookupForPrim :: ExprEnv -> Expr -> Expr
 lookupForPrim eenv v@(Var (Id _ _)) = repeatedLookup eenv v
@@ -1204,8 +1198,6 @@ mkFuncConst s@(State { expr_env = eenv } ) es n t1 t2 ng =
 -- function later.
 retReplaceSymbFuncVar :: State t -> NameGen -> Expr -> Maybe (Rule, [State t], NameGen)
 retReplaceSymbFuncVar s@(State { expr_env = eenv
-                               , known_values = kv
-                               , type_classes = tc
                                , exec_stack = stck })
                       ng ce
     | notApplyFrame

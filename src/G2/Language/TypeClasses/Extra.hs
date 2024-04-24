@@ -6,10 +6,6 @@ module G2.Language.TypeClasses.Extra ( eqTCDict
 import G2.Language.KnownValues
 import G2.Language.Syntax
 import G2.Language.TypeClasses.TypeClasses
-import G2.Language.Typing
-
-import Data.List
-import Data.Maybe
 
 eqTCDict :: KnownValues -> TypeClasses -> Type -> Maybe Id
 eqTCDict kv tc t = lookupTCDict tc (eqTC kv) t

@@ -35,9 +35,7 @@ import Data.Hashable
 import qualified Data.Map as M
 import qualified Data.HashMap.Lazy as HM
 import qualified Data.HashSet as S
-import Data.Monoid ((<>))
 import qualified Data.Sequence as S
-import qualified Data.Text as T
 
 -- | `State`s represent an execution state of some (symbolic) Haskell code.
 -- A state can be utilized to  perform execution and SMT solving.

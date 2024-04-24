@@ -6,8 +6,6 @@ import G2.Language
 import qualified G2.Language.PathConds as PC
 import G2.Solver
 
-import qualified Data.List as L
-
 data NewPC t = NewPC { state :: State t
                      , new_pcs :: [PathCond]
                      , concretized :: [Id] }
