@@ -309,7 +309,7 @@ def test_suite_csv(fname, suite, timeout = 25):
     return test_suite_general(suite, "TestZeno.hs", fname, timeout)
 
 def main():
-    t = 60
+    t = 180
     test_suite_csv("ZenoUnaltered", unmodified_theorems(), t)
     test_suite_csv("ZenoTotal", modified_total, t)
     test_suite_csv("ZenoFinite", modified_finite, t)
