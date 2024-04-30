@@ -240,7 +240,7 @@ def test_suite_general(suite, fname_in, fname_out, timeout = 25):
         file.write("Name,LHS,RHS,Total,Outcome,Time,Min Max Depth,Min Sum Depth\n")
     for (thm, settings) in suite:
         print(thm, settings)
-        d = run_zeno(fname_in, thm, settings, timeout)
+        d = run_zeno(fname_in, thm, settings + ["--num_lemmas", "0"], timeout)
         check_unsat = d["result"]
         elapsed = d["time"]
         min_max_depth = d["min_max_depth"]
