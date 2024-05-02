@@ -5,7 +5,6 @@ module G2.Interface.OutputTypes ( ExecRes (..)) where
 
 import G2.Language
 
-import Data.Monoid ((<>))
 import qualified Data.Sequence as S
 
 -- | A fully executed `State`.

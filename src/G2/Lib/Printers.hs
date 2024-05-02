@@ -34,7 +34,6 @@ import Data.Char
 import Data.List as L
 import qualified Data.HashMap.Lazy as HM
 import qualified Data.HashSet as HS
-import Data.Monoid ((<>))
 import qualified Data.Text as T
 
 data Clean = Cleaned | Dirty deriving Eq
@@ -157,7 +156,7 @@ mkExprHaskell' off_init cleaned pg ex = mkExprHaskell'' off_init ex
                 t2_str = mkTypeHaskellPG pg t2
             in
             "((coerce (" <> e_str <> " :: " <> t1_str <> ")) :: " <> t2_str <> ")"
-        mkExprHaskell'' off (Coercion (t1 :~ t2)) =
+        mkExprHaskell'' _ (Coercion (t1 :~ t2)) =
             let
                 t1_str = mkTypeHaskellPG pg t1
                 t2_str = mkTypeHaskellPG pg t2
@@ -191,7 +190,6 @@ mkExprHaskell' off_init cleaned pg ex = mkExprHaskell'' off_init ex
             T.intercalate ("\n" <> offset off <> "[NonDet]\n") print_es 
         mkExprHaskell'' _ (SymGen SLog t) = "(symgen log " <> mkTypeHaskellPG pg t <> ")"
         mkExprHaskell'' _ (SymGen SNoLog t) = "(symgen no_log " <> mkTypeHaskellPG pg t <> ")"
-        mkExprHaskell'' _ e = "e = " <> T.pack (show e) <> " NOT SUPPORTED"
 
         parenWrap :: Expr -> T.Text -> T.Text
         parenWrap (Case _ _ _ _) s = "(" <> s <> ")"

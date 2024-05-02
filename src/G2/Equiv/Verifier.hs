@@ -23,7 +23,6 @@ import qualified G2.Language.Typing as T
 import Data.Maybe
 import Data.List
 import qualified Data.Text as DT
-import qualified Data.Text.IO as DT
 
 import qualified Data.HashSet as HS
 import qualified G2.Solver as S

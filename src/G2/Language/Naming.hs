@@ -62,7 +62,6 @@ import qualified Data.HashSet as HS
 import Data.List
 import Data.List.Utils
 import qualified Data.Map as M
-import Data.Monoid ((<>))
 import qualified Data.Sequence as S
 import qualified Data.Text as T
 import Data.Tuple

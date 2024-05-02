@@ -59,7 +59,6 @@ import G2.Equiv.Types
 import Data.Either
 import Data.Either.Extra
 import qualified Data.HashMap.Lazy as HM
-import Data.Monoid ((<>))
 
 import G2.Execution.NormalForms
 import Control.Monad.Extra

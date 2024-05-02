@@ -1,6 +1,5 @@
-{-# LANGUAGE DeriveDataTypeable #-}
-{-# LANGUAGE DeriveGeneric #-}
-{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE DeriveDataTypeable, DeriveGeneric #-}
+{-# LANGUAGE LambdaCase, MultiParamTypeClasses #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TupleSections #-}
 
@@ -80,7 +79,6 @@ import Data.Hashable
 import qualified Data.List as L
 import qualified Data.HashMap.Lazy as M
 import Data.Maybe
-import Data.Monoid ((<>))
 import qualified Data.Sequence as S
 import qualified Data.Text as T
 import qualified Data.Traversable as Trav
@@ -189,7 +187,7 @@ isSymbolic n (ExprEnv eenv') =
 occLookup :: T.Text -> Maybe T.Text -> ExprEnv -> Maybe Expr
 occLookup n m (ExprEnv eenv) = 
     let ex = L.find (\(Name n' m' _ _, _) -> n == n' && (m == m' || m' == Just "PrimDefs")) -- TODO: The PrimDefs exception should not be here! 
-           . M.toList . M.map (\(ExprObj e) -> e) . M.filter (isExprObj) $ eenv
+           . M.toList . M.mapMaybe (\case (ExprObj e) -> Just e; _ -> Nothing) $ eenv
     in
     fmap (\(n', e) -> Var $ Id n' (typeOf e)) ex
 
@@ -467,10 +465,6 @@ instance Named EnvObj where
     renames hm (SymbObj s) = SymbObj $ renames hm s
 
 -- Helpers for EnvObjs
-
-isExprObj :: EnvObj -> Bool
-isExprObj (ExprObj _) = True
-isExprObj _ = False
 
 exprObjs :: [EnvObj]  -> [Expr]
 exprObjs [] = []
