@@ -58,7 +58,7 @@ module G2.Execution.Reducer ( Reducer (..)
                             , liftSomeReducer
 
                             , stdRed
-                            , nonRedPCTemplates
+                            , nonRedPCSymFuncRed
                             , nonRedLibFuncsReducer
                             , nonRedPCRed
                             , nonRedPCRedConst
@@ -119,7 +119,6 @@ import qualified G2.Language.PathConds as PC
 import qualified G2.Language.Stack as Stck
 import G2.Solver
 import G2.Lib.Printers
-
 import Control.Monad.IO.Class
 import qualified Control.Monad.State as SM
 import Data.Foldable
@@ -506,12 +505,12 @@ stdRed share symb_func_eval solver simplifier =
                         )
 
 -- | Pushes non_red_path_conds onto the exec_stack for solving higher order symbolic function 
-nonRedPCTemplates :: Monad m => Reducer m () t
-nonRedPCTemplates = mkSimpleReducer (\_ -> ())
-                        nonRedPCTemplatesFunc
+nonRedPCSymFuncRed :: Monad m => Reducer m () t
+nonRedPCSymFuncRed = mkSimpleReducer (\_ -> ())
+                        nonRedPCSymFunc
 
-nonRedPCTemplatesFunc :: Monad m => RedRules m () t
-nonRedPCTemplatesFunc _
+nonRedPCSymFunc :: Monad m => RedRules m () t
+nonRedPCSymFunc _
                       s@(State { expr_env = eenv
                          , curr_expr = cexpr
                          , exec_stack = stck
@@ -529,7 +528,7 @@ nonRedPCTemplatesFunc _
             let 
                 s'' = s' {curr_expr = CurrExpr Evaluate nre1}
             in return (InProgress, [(s'', ())], b)
-nonRedPCTemplatesFunc _ s b = return (Finished, [(s, ())], b)
+nonRedPCSymFunc _ s b = return (Finished, [(s, ())], b)
 
 -- | A reducer to add library functions in non reduced path constraints for solving later  
 nonRedLibFuncsReducer :: Monad m => HS.HashSet Name -> Reducer m () t
@@ -914,7 +913,7 @@ switchEveryNHalter :: Monad m => Int -> Halter m Int t
 switchEveryNHalter sw = (mkSimpleHalter
                             (const sw)
                             (\_ _ _ -> sw)
-                            (\i _ _ -> return $ if i <= 0 then Switch else Continue)
+                            (\i _ _ ->  (return $ if i <= 0 then Switch else Continue))
                             (\i _ _ _ -> i - 1))
                         { updateHalterWithAll = updateAll }
     where

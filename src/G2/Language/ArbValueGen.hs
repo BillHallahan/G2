@@ -11,7 +11,6 @@ import G2.Language.Expr
 import G2.Language.Support
 import G2.Language.Syntax
 import G2.Language.Typing
-
 import Data.List
 import qualified Data.HashMap.Lazy as HM
 import Data.Ord
@@ -212,5 +211,5 @@ getADT cutoff m tenv av adt ts
 
             final_av = if cutoff >= 0 then av' else av
         in
-        (mkApp $ Data min_dc:map Type ts ++ es, final_av)
+    (mkApp $ Data min_dc:map Type ts ++ es, final_av)
     | otherwise = (Prim Undefined TyBottom, av)
