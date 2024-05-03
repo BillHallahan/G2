@@ -99,6 +99,9 @@ hpcReducer md = (mkSimpleReducer (const ()) logTick) { afterRed = after }
             let init_ts = initial_time hpc
                 ts = times_reached hpc
             liftIO $ putStrLn $ "\nTicks reached: " ++ show (num_reached hpc)
+            case tick_count hpc of
+                Just tc -> liftIO $ putStrLn $ "Tick num: " ++ show tc
+                Nothing -> return ()
             case ts of
                 [] -> liftIO $ putStrLn $ "Last tick reached: N/A"
                 (t:_) -> liftIO $ putStrLn $ "Last tick reached: " ++ showTS (t - init_ts)

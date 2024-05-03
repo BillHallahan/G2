@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 
+import re
 import os
 import subprocess
 import time
@@ -23,7 +24,21 @@ def call_g2_process(filename, func, var_settings, time_limit):
         return TimeoutEx.stdout.decode('utf-8') + "\nTimeout\n"
 
 def run_nofib_bench(filename, var_settings, timeout):
-    return run_g2(filename, "main", ["--include", "nofib-symbolic/common"] + var_settings, timeout)
+    return run_g2(filename, "main", ["--include", "nofib-symbolic/common", "--hpc"] + var_settings, timeout)
+
+def process_output(out):
+    reached = re.search(r"Ticks reached: (\d*)", out)
+    total = re.search(r"Tick num: (\d*)", out)
+    last = re.search(r"Last tick reached: ((\d|\.)*)", out)
+
+    if reached != None and total != None and last != None:
+        reached_f = float(reached.group(1))
+        total_f = float(total.group(1))
+        # print(reached.group(1))
+        # print(total.group(1))
+        print("% reached = " + str(reached_f / total_f))
+        print("last time = " + last.group(1))
+
 
 def run_nofib_set(setname, var_settings, timeout):
         setpath = os.path.join("nofib-symbolic/", setname)
@@ -38,6 +53,6 @@ def run_nofib_set(setname, var_settings, timeout):
                 if os.path.isfile(final_path):
                     print(file_dir);
                     res = run_nofib_bench(final_path, var_settings, timeout)
-                    print(res)
+                    process_output(res)
 
-run_nofib_set("imaginary", [], 10)
+run_nofib_set("imaginary", [], 60)
