@@ -480,7 +480,8 @@ checkLiquidWithConfig fp tests config_f lhconfig_f =
                 fp
                 $ map (\(entry, stps, reqList) ->
                         testCase (fp ++ " " ++ entry) (do
-                            (tgt_trans, ghci, config, lh_config) <- loaded
+                            ((mod_n, ex_g2), ghci, config, lh_config) <- loaded
+                            let tgt_trans = (head mod_n, ex_g2)
                             let config' = config { steps = stps }
                             res <- doTimeout (timeLimit config)
                                         $ (try (return . fst. fst =<< runLHCore (T.pack entry) tgt_trans ghci config' lh_config)
