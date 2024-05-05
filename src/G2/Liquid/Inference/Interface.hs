@@ -119,8 +119,8 @@ getInitState proj fp ghci infconfig config lhconfig = do
         transConfig = simplTranslationConfig { simpl = False }
     (main_mod, exg2) <- translateLoaded proj fp transConfig g2config
 
-    let (lrs, g2config', lhconfig', infconfig') = initStateAndConfig exg2 main_mod g2config lhconfig infconfig ghci
-    return (lrs, g2config', lhconfig', infconfig', main_mod)
+    let (lrs, g2config', lhconfig', infconfig') = initStateAndConfig exg2 (head main_mod) g2config lhconfig infconfig ghci
+    return (lrs, g2config', lhconfig', infconfig', head main_mod)
 
 getNameLevels :: Maybe T.Text -> LiquidReadyState -> NameLevels
 getNameLevels main_mod =

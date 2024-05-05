@@ -110,9 +110,9 @@ findCounterExamples proj fp entry config lhconfig = do
                   Right g_c -> g_c
                   Left e -> error $ "ERROR OCCURRED IN LIQUIDHASKELL\n" ++ show e
 
-    tgt_trans <- translateLoaded proj fp (simplTranslationConfig { simpl = False }) config'
+    (mb_mod, ex_g2) <- translateLoaded proj fp (simplTranslationConfig { simpl = False }) config'
 
-    runLHCore entry tgt_trans ghci' config' lhconfig
+    runLHCore entry (head mb_mod, ex_g2) ghci' config' lhconfig
 
 runLHCore :: T.Text
           -> (Maybe T.Text, ExtractedG2)
@@ -130,7 +130,7 @@ runLHCore entry (mb_modname, exg2) ghci config lhconfig = do
     SomeSolver solver <- initSolver config
     let simplifier = NaNInfBlockSimplifier :>> FloatSimplifier :>> ArithSimplifier
 
-    let (red, hal, ord) = lhReducerHalterOrderer config lhconfig solver simplifier entry mb_modname cfn final_st
+    let (red, hal, ord) = lhReducerHalterOrderer config lhconfig solver simplifier entry (nameModule $ idName ifi) cfn final_st
     (exec_res, final_bindings) <- SM.evalStateT (runLHG2 config red hal ord solver simplifier pres_names ifi final_st bindings) (mkPrettyGuide ())
 
     close solver
@@ -213,7 +213,7 @@ data LiquidReadyState = LiquidReadyState { lr_state :: LHState
 
 data LiquidData = LiquidData { ls_state :: State LHTracker
                              , ls_bindings :: Bindings
-                             , ls_id :: Lang.Id
+                             , ls_id :: Lang.Id -- ^ Function being symbolically executed
                              , ls_counterfactual_name :: CounterfactualName
                              , ls_counterfactual_funcs :: S.HashSet Name
                              , ls_measures :: Measures
@@ -346,7 +346,7 @@ processLiquidReadyStateWithCall lrs@(LiquidReadyState { lr_state = lhs@(LHState 
                                                       , lr_binding = bindings})
                                                                 ghci f m_mod config lhconfig memconfig = do
 
-    let (ie, _) = case findFunc f m_mod (expr_env s) of
+    let (ie, _) = case findFunc f [m_mod] (expr_env s) of
                           Left ie' -> ie'
                           Right errs -> error errs
 
