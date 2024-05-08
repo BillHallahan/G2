@@ -462,11 +462,11 @@ runLHInferenceAll infconfig config g2lhconfig func proj fp = do
         transConfig = simplTranslationConfig { simpl = False }
     (main_mod, exg2) <- liftIO $ translateLoaded proj fp transConfig g2config
 
-    let (lrs, g2config', g2lhconfig', infconfig') = initStateAndConfig exg2 main_mod g2config g2lhconfig infconfig ghci
+    let (lrs, g2config', g2lhconfig', infconfig') = initStateAndConfig exg2 (head main_mod) g2config g2lhconfig infconfig ghci
 
     let configs = Configs { g2_config = g2config', g2lh_config = g2lhconfig', lh_config = lhconfig, inf_config = infconfig'}
 
-    execInfStack configs newProgress (runLHInferenceCore func main_mod lrs ghci)
+    execInfStack configs newProgress (runLHInferenceCore func (head main_mod) lrs ghci)
 
 -------------------------------
 -- Generating Counterexamples

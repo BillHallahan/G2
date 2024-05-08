@@ -19,13 +19,13 @@ main :: IO ()
 main = do
   (src, entry, total, nebula_config) <- getNebulaConfig
 
-  proj <- guessProj src
+  config <- getConfigDirect
+
+  proj <- guessProj (includePaths config) src
 
   let tentry = T.pack entry
 
-  config <- getConfigDirect
-
-  (init_state, bindings) <- initialStateNoStartFunc [proj] [src]
+  (init_state, bindings) <- initialStateNoStartFunc proj [src]
                             (simplTranslationConfig { simpl = True, load_rewrite_rules = True, hpc_ticks = False }) config
 
   let rule = find (\r -> tentry == ru_name r) (rewrite_rules bindings)

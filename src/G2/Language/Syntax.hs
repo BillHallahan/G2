@@ -12,6 +12,7 @@ import GHC.Generics (Generic)
 import Data.Data
 import Data.Hashable
 import qualified Data.Text as T
+import qualified GHC.Generics as GHC
 
 -- | Binds `Id`s to `Expr`s, primarily in @let@ `Expr`s
 type Binds = [(Id, Expr)]

@@ -1,3 +1,6 @@
 [submodule "base-4.9.1.0"]
 	path = base-4.9.1.0
 	url = https://github.com/AntonXue/base-4.9.1.0.git
+[submodule "nofib-symbolic"]
+	path = nofib-symbolic
+	url = https://github.com/BillHallahan/nofib-symbolic.git

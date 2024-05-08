@@ -32,7 +32,7 @@ runWithArgs as = do
   let (_:_:tail_args) = as
   (src, entry, m_assume, m_assert, config) <- getConfig
 
-  proj <- guessProj src
+  proj <- guessProj (includePaths config) src
 
   --Get args
   let m_reaches = mReaches tail_args
@@ -42,14 +42,14 @@ runWithArgs as = do
 
   _ <- doTimeout (timeLimit config) $ do
     ((in_out, b), entry_f@(Id (Name _ mb_modname _ _) _)) <-
-        runG2FromFile [proj] [src] (fmap T.pack m_assume)
+        runG2FromFile proj [src] (fmap T.pack m_assume)
                   (fmap T.pack m_assert) (fmap T.pack m_reaches) 
                   (isJust m_assert || isJust m_reaches || m_retsTrue) 
                   tentry simplTranslationConfig config
 
     case validate config of
         True -> do
-            r <- validateStates [proj] [src] (T.unpack $ fromJust mb_modname) entry [] [Opt_Hpc] in_out
+            r <- validateStates proj [src] (T.unpack $ fromJust mb_modname) entry [] [Opt_Hpc] in_out
             if r then putStrLn "Validated" else putStrLn "There was an error during validation."
 
             -- runHPC src (T.unpack $ fromJust mb_modname) entry in_out

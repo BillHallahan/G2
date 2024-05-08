@@ -71,7 +71,7 @@ translateLoaded :: [FilePath]
   -> [FilePath]
   -> TranslationConfig
   -> Config
-  -> IO (Maybe T.Text, ExtractedG2)
+  -> IO ([Maybe T.Text], ExtractedG2)
 translateLoaded proj src tr_con config = do
   let tr_con' = tr_con { hpc_ticks = hpc config || search_strat config == Subpath }
   -- Stuff with the actual target
@@ -85,7 +85,7 @@ translateLoaded proj src tr_con config = do
 
   -- Now the stuff with the actual target
   (f_nm, f_tm, exg2) <- hskToG2ViaEMS tr_con'  tar_ems b_nm b_tnm
-  let mb_modname = head $ exg2_mod_names exg2
+  let mb_modname = exg2_mod_names exg2
   let exg2' = adjustMkSymbolicPrim f_nm exg2
 
   let merged_exg2 = mergeExtractedG2s [exg2', base_exg2]

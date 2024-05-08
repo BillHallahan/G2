@@ -152,9 +152,9 @@ rvTest :: (Config -> State () -> Bindings -> RewriteRule -> IO Bool) ->
 rvTest check src rule_names =
   withResource
     (do
-        proj <- guessProj src
+        proj <- guessProj Nothing src
         config <- empty_config
-        initialStateNoStartFunc [proj] [src]
+        initialStateNoStartFunc proj [src]
                   (simplTranslationConfig {simpl = True, load_rewrite_rules = True})
                   config
     )

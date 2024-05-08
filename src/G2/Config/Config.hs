@@ -25,7 +25,7 @@ module G2.Config.Config ( Mode (..)
 
 
 import Data.Char
-import Data.List
+import Data.List as L
 import qualified Data.Map as M
 import Options.Applicative
 import Text.Read
@@ -64,6 +64,7 @@ data Config = Config {
     , base :: [FilePath] -- ^ Filepath(s) to base libraries.  Get compiled in order from left to right
     , extraDefaultInclude :: [IncludePath]
     , extraDefaultMods :: [FilePath]
+    , includePaths :: Maybe [FilePath] -- ^ Paths to search for modules
     , logStates :: LogMode -- ^ Determines whether to Log states, and if logging states, how to do so.
     , sharing :: Sharing
     , instTV :: InstTV -- allow the instantiation of types in the beginning or it's instantiate symbolically by functions
@@ -88,6 +89,7 @@ mkConfig homedir = Config Regular
     <*> mkBase homedir
     <*> mkExtraDefault homedir
     <*> pure []
+    <*> mkIncludePaths
     <*> mkLogMode
     <*> flag Sharing NoSharing (long "no-sharing" <> help "disable sharing")
     <*> flag InstBefore InstAfter (long "inst-after" <> help "select to instantiate type variables after symbolic execution, rather than before")
@@ -139,6 +141,14 @@ mkExtraDefault homedir =
             <> metavar "FILE"
             <> value (extraDefaultIncludePaths homedir)
             <> help "where to look for base files")
+
+mkIncludePaths :: Parser (Maybe [FilePath])
+mkIncludePaths = 
+    option (maybeReader (Just . Just . (:[])))
+            ( long "include"
+            <> metavar "I"
+            <> value Nothing
+            <> help "paths to search for included modules")
 
 mkLogMode :: Parser LogMode
 mkLogMode =
@@ -204,6 +214,7 @@ mkConfigDirect homedir as m = Config {
     , base = baseDef (strArg "base" as m id homedir)
     , extraDefaultInclude = extraDefaultIncludePaths (strArg "extra-base-inc" as m id homedir)
     , extraDefaultMods = []
+    , includePaths = Nothing
     , logStates = strArg "log-states" as m (Log Raw)
                         (strArg "log-pretty" as m (Log Pretty) NoLog)
     , sharing = boolArg' "sharing" as Sharing Sharing NoSharing

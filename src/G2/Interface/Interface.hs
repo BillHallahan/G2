@@ -117,7 +117,7 @@ initStateWithCall exg2 useAssert f m_mod mkCurr argTys config =
     let
         s = initSimpleState exg2
 
-        (ie, fe) = case findFunc f m_mod (IT.expr_env s) of
+        (ie, fe) = case findFunc f [m_mod] (IT.expr_env s) of
                         Left ie' -> ie'
                         Right errs -> error errs
     in
@@ -145,7 +145,7 @@ initStateFromSimpleStateWithCall :: IT.SimpleState
                                  -> (State (), Id, Bindings)
 initStateFromSimpleStateWithCall simp_s useAssert f m_mod mkCurr argTys config =
     let
-        (ie, fe) = case findFunc f m_mod (IT.expr_env simp_s) of
+        (ie, fe) = case findFunc f [m_mod] (IT.expr_env simp_s) of
                         Left ie' -> ie'
                         Right errs -> error errs
     
@@ -212,7 +212,7 @@ initStateFromSimpleState' :: IT.SimpleState
                           -> (State (), Bindings)
 initStateFromSimpleState' s sf m_mod =
     let
-        (ie, fe) = case findFunc sf m_mod (IT.expr_env s) of
+        (ie, fe) = case findFunc sf [m_mod] (IT.expr_env s) of
                           Left ie' -> ie'
                           Right errs -> error errs
     in
@@ -358,7 +358,7 @@ initialStateNoStartFunc proj src transConfig config = do
 
     let simp_state = initSimpleState exg2
 
-        (init_s, bindings) = initStateFromSimpleState simp_state m_mod False
+        (init_s, bindings) = initStateFromSimpleState simp_state Nothing False
                                  (\_ ng _ _ _ _ _ -> (Prim Undefined TyBottom, [], [], ng))
                                  (E.higherOrderExprs . IT.expr_env)
                                  config
@@ -383,11 +383,13 @@ initialStateFromFile proj src m_reach def_assert f mkCurr argTys transConfig con
                         Left ie' -> ie'
                         Right errs -> error errs
 
-        (init_s, bindings) = initStateFromSimpleState simp_state mb_modname def_assert
+        spec_mod = nameModule . idName $ ie
+
+        (init_s, bindings) = initStateFromSimpleState simp_state spec_mod def_assert
                                                   (mkCurr ie) (argTys fe) config
     -- let (init_s, ent_f, bindings) = initState exg2 def_assert
     --                                 f mb_modname mkCurr argTys config
-        reaches_state = initCheckReaches init_s mb_modname m_reach
+        reaches_state = initCheckReaches init_s spec_mod m_reach
 
     return (reaches_state, ie, bindings)
 
