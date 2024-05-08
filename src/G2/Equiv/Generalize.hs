@@ -137,10 +137,6 @@ generalizeFull solver num_lems ns lemmas (fresh_name:_) sh_pair s_pair = do
                              in return $ NoProof $ [lem]
 generalizeFull _ _ _ _ _ _ _ = return $ NoProof []
 
--- TODO new tactics, somewhat like generalization
--- make lemmas from arbitrary sub-expression pairs
--- should these lemmas have access to history?
-
 -- notes from 1/19/23
 {-
 The goal is to allow Nebula to handle theorems like p47 from the Zeno
@@ -221,9 +217,6 @@ situation.  I need to do guarded coinduction because of the left side,
 but the inability to make new blocks makes it impossible to do guarded
 coinduction at all.
 
-TODO p58 is misclassified.  It requires finiteness.  Check the other
-theorems that are listed as requiring totality but not finiteness.
-
 p47:  genuine, I think
 p58:  n infinite, xs infinite, ys empty
 p72
@@ -252,10 +245,3 @@ It works if I get rid of that requirement, but it slows Nebula down
 considerably.  Perhaps I can make lemma usage more generous while still
 imposing some restrictions.
 -}
-
--- TODO do I have functions like this already?
--- get the list of symbolic variables contained in an expression
--- there is printVars in the summary file
--- varsFullList and varsFull, also varsInExpr
-getSymVars :: Expr -> [Name]
-getSymVars = error "TODO"

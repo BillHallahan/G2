@@ -778,7 +778,7 @@ isUnresolved :: Marker -> Bool
 isUnresolved (Marker _ (Unresolved _)) = True
 isUnresolved _ = False
 
--- TODO all lemma filtering should happen here
+-- all lemma filtering should happen here
 -- earliest state is at the back
 isFromLemma :: Marker -> Bool
 isFromLemma (LMarker _) = True
@@ -834,7 +834,6 @@ checkRule config nc init_state bindings total rule = do
            else if have_lemma_details $ print_summary nc
            then w
            else filter (not . isFromLemma) w
-  -- TODO not sure if this merge resolution was right
   let pg = if have_summary $ print_summary nc
            then mkPrettyGuide $ (getMarkerCX $ reverse w) ++ w'-- $ map (\(Marker _ am) -> am) w
            else mkPrettyGuide $ getMarkerCX $ reverse w

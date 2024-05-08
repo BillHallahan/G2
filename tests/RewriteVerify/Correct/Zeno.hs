@@ -1093,9 +1093,9 @@ listE = ():():():():():():():():():():():():listE
 "de" listD = listE
   #-}
 
--- TODO (1/22/23) Reworking p58
+-- (1/22/23) Reworking p58
 -- Should I be able to catch a cycle counterexample for p58?
--- TODO can lemmas be used for counterexamples?
+-- can lemmas be used for counterexamples?
 -- Getting the lemma I would need would be hard
 -- p83 and p84 are provable now, but I forgot to make a note of it
 -- I did notice this at some point in the past
