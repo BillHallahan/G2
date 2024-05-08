@@ -229,7 +229,11 @@ retLam s@(State { expr_env = eenv })
 
 traceType :: E.ExprEnv -> Expr -> Maybe Type
 traceType _ (Type t) = Just t
-traceType eenv (Var (Id n _)) = traceType eenv =<< E.lookup n eenv
+-- return symoblic type varaible if the varabile we lookup is symoblic in the expression env
+traceType eenv (Var (Id n _)) = case E.lookupConcOrSym n eenv of 
+                                        Just (E.Sym i) -> Just (TyVar i)
+                                        Just (E.Conc e) -> traceType eenv e
+                                        Nothing -> Nothing
 traceType _ _ = Nothing
 
 evalLet :: State t -> NameGen -> Binds -> Expr -> (Rule, [State t], NameGen)
@@ -1196,8 +1200,7 @@ retReplaceSymbFuncVar :: State t -> NameGen -> Expr -> Maybe (Rule, [State t], N
 retReplaceSymbFuncVar s@(State { expr_env = eenv
                                , exec_stack = stck })
                       ng ce
-    | Just (frm, _) <- S.pop stck
-    , not (isApplyFrame frm)
+    | notApplyFrame
     , (Var (Id f idt):_) <- unApp ce
     , E.isSymbolic f eenv
     , isTyFun idt
@@ -1213,6 +1216,9 @@ retReplaceSymbFuncVar s@(State { expr_env = eenv
                , non_red_path_conds = non_red_path_conds s ++ [(ce, Var new_sym_id)] }]
             , ng')
     | otherwise = Nothing
+    where
+        notApplyFrame | Just (frm, _) <- S.pop stck = not (isApplyFrame frm)
+                      | otherwise = True
 
 isApplyFrame :: Frame -> Bool
 isApplyFrame (ApplyFrame _) = True

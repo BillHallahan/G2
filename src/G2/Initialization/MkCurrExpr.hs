@@ -13,6 +13,7 @@ import Data.List
 import qualified Data.Map as M
 import Data.Maybe
 import qualified Data.Text as T
+import qualified Data.HashMap.Lazy as HM 
 
 mkCurrExpr :: Maybe T.Text -> Maybe T.Text -> Id
            -> TypeClasses -> NameGen -> ExprEnv -> TypeEnv -> Walkers
@@ -31,7 +32,10 @@ mkCurrExpr m_assume m_assert f@(Id (Name _ m_mod _ _) _) tc ng eenv _ walkers kv
                 -- -- We refind the type of f, because type synonyms get replaced during the initializaton,
                 -- -- after we first got the type of f.
                 -- app_ex = foldl' App var_ex $ typsE ++ var_ids
-                (app_ex, is, typsE, ng') = mkMainExpr tc kv ng var_ex
+                (app_ex, is, typsE, ng') =
+                    if instTV config == InstBefore
+                        then mkMainExpr tc kv ng var_ex
+                        else mkMainExprNoInstantiateTypes var_ex ng
                 var_ids = map Var is
 
                 -- strict_app_ex = app_ex
@@ -63,6 +67,35 @@ mkMainExpr tc kv ng ex =
         app_ex = foldl' App ex $ typsE ++ var_ids
     in
     (app_ex, is, typsE, ng')
+
+-- | This implementation aims to symbolically execute functions 
+-- treating both types and value level argument as symbolic
+mkMainExprNoInstantiateTypes :: Expr -> NameGen -> (Expr, [Id], [Expr], NameGen)
+mkMainExprNoInstantiateTypes e ng = 
+    let 
+        argts = spArgumentTypes e
+        anontype argt = 
+            case argt of 
+                AnonType _ -> True
+                _ -> False
+        (ats,nts) = partition anontype argts 
+        -- We want to have symbolic types so we grab the type level arguments and introduce symbolic variables for them
+        ns = map (\(NamedType (Id n _)) -> n) nts
+        (ns', ng') = renameAll ns ng
+
+        ntmap = HM.fromList $ zip ns ns' 
+        -- We want to create a full list of symoblic variables with new names and put the symoblic variables into the expr env
+        ntids = map (\(NamedType i) -> i) nts
+        ntids' = renames ntmap ntids
+
+        ats' = map argTypeToType ats
+        (atsToIds,ng'') = freshIds ats' ng'
+        atsToIds' = renames ntmap atsToIds
+        
+        all_ids = ntids' ++ atsToIds'
+        app_ex = foldl' App e $ map Var all_ids
+    in (app_ex, all_ids,[],ng'')
+
 
 mkInputs :: NameGen -> [Type] -> ([Expr], [Id], NameGen)
 mkInputs ng [] = ([], [], ng)
