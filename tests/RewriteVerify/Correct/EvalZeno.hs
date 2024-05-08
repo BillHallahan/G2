@@ -679,6 +679,9 @@ walkNatList xs a = case xs of
 -- double-sided finiteness
 -- (3/18) double-sided p07fin and p08fin do not pass
 -- double-sided p06fin and p10fin do pass
+-- this is not identical to the suite in TestZeno
+-- For some things in the past, I assumed that it was
+-- I changed props 65 and 69 without realizing the intent of the design here
 {-# RULES
 "p03finA" forall n xs ys . walkNatList xs (prop_03 n xs ys) = walkNatList xs True
 "p03finB" forall n xs ys . walkNat n (prop_03 n xs ys) = walkNat n (walkList xs True)

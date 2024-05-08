@@ -211,5 +211,5 @@ getADT cutoff m tenv av adt ts
 
             final_av = if cutoff >= 0 then av' else av
         in
-    (mkApp $ Data min_dc:map Type ts ++ es, final_av)
+        (mkApp $ Data min_dc:map Type ts ++ es, final_av)
     | otherwise = (Prim Undefined TyBottom, av)

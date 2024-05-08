@@ -77,7 +77,7 @@ import qualified Data.HashSet as S
 import Data.Maybe
 import qualified Data.Sequence as Seq
 import qualified Data.Text as T
-import qualified Data.List as L 
+import qualified Data.List as L
 import System.Timeout
 
 type AssumeFunc = T.Text

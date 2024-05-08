@@ -136,3 +136,112 @@ generalizeFull solver num_lems ns lemmas (fresh_name:_) sh_pair s_pair = do
     Just (s1, s2, q1, q2) -> let lem = mkProposedLemma "Generalization" s1 s2 q1 q2
                              in return $ NoProof $ [lem]
 generalizeFull _ _ _ _ _ _ _ = return $ NoProof []
+
+-- notes from 1/19/23
+{-
+The goal is to allow Nebula to handle theorems like p47 from the Zeno
+suite.  Simply increasing the number of lemmas that can be applied at once
+is not sufficient.  For p47, the expressions that would need to be paired
+with each other for lemmas do not align nicely.  The mirror function
+rearranges the symbolic variables in an inconvenient way.
+
+A new possible system for generating lemmas is to search for pairs of
+sub-expressions of the same type between the two sides.  Most combinations
+would be useless, so, presumably, we would require two paired
+sub-expressions to have at least one non-concretized symbolic variable in
+common.
+
+For p47 at least, a lemma system like this may not be sufficient.  For
+p47, the useful lemmas that would be formed by this are equivalent to the
+original rule.  This wouldn't present an opportunity for coinduction
+because lemmas don't have access to the histories of the state pairs that
+spawn them.
+
+It is possible that we could create a new kind of lemma that uses the
+history of the state pair that spawned it in a sound way.  It could be an
+"alternative proof obligation" or something like that.
+
+However, the mere existence of a sub-expression that reduces to something
+that looks like the original expression doesn't necessarily give us
+anything valuable.  That sub-expression could be unreachable.  I would
+need a more thorough set of requirements for soundness.
+
+If I break up function application obligations, it might be sound, but
+that won't work directly for p47 because of mirror.
+
+(1/20) Maybe I need a "generalized" version of the generalization lemmas
+that I have now in order to prove p47.  Would that allow me to get
+something like "max a b = max b a" as a lemma for p47?
+
+It seems that the answer is no.  For p47, there's no point when we have
+"max a b" on one side when "max b a" is on the other side.  The mirror
+function really throws everything off.
+
+For p58, on the right-hand side, we keep getting more and more successors
+along with more and more list elements.  This keeps us hung up evaluating
+drop forever.  More specifically, the drop application in the scrutinee
+of the outermost case statement gets stuck evaluating forever.
+
+Why can't a lemma take care of the issue?  I should be able to apply two
+lemmas here to get the approximation that I want, one for the outermost
+drop application and one for the inner drop application.
+
+A lot of the unresolved lemmas that I'm seeing aren't actually true.  All
+of them involve drop, but they're trying to prove equivalences that are
+not correct.  More importantly, the things that I want to line up with
+lemmas aren't equivalent to each other.  For the outer drop application,
+things are equivalent, but they aren't for the inner one.
+
+Actually, I could prove this with only one lemma, but that lemma isn't
+being generated, I think.  I want something like this:
+
+drop1 a (S fs9) (fs12:fs17) = drop1 a fs9 fs17
+
+If I applied that to the outer drop application in b9, I could get a
+correspondence between b2 and b9.  What would cause Nebula to generate
+that lemma?  It would be good to have a general approach that isn't
+overfitted to p58.
+
+Effectively, this lemma would just be undoing evaluation steps, wouldn't
+it?  Is that a problem?  Would it be unsound to use lemmas like this?
+This would be unguarded coinduction rather than guarded coinduction.
+Neither b2 nor b9 is in SWHNF, but the left-hand states would both be in
+SWHNF because they're [].  That throws off unguarded coinduction.  Are
+b2 and b9 in distinct blocks?  They shouldn't be in distinct blocks since
+no constructors are getting removed on the left-hand side.  The left side
+is just stuck at [] with no change.
+
+There will never be any new blocks formed for this theorem on the
+unresolved branches that I can see.  This puts me in an awkward
+situation.  I need to do guarded coinduction because of the left side,
+but the inability to make new blocks makes it impossible to do guarded
+coinduction at all.
+
+p47:  genuine, I think
+p58:  n infinite, xs infinite, ys empty
+p72
+p73
+p74
+p83
+p84
+
+I can get a relatively high depth for p04fin.  Is this another situation
+like what I had for p58?
+
+(1/30) Can I use something like my new technique for finding cycle
+counterexamples to help with p47?  I can't just look for cycles within
+scrutinees.
+
+I think p04 is an easier target.  I can see the spots where lemma
+substitution would be helpful, but the things that get generated as
+lemma candidates aren't really true.
+The lemmas for count applications won't align with each other, and the
+natural numbers won't be equivalent either.
+I need a completely different approach, because I can't carve out pairs of
+sub-expressions in corresponding locations that are equivalent.
+On second thought, would things work out if I got rid of the main-path
+requirement for lemma generation and usage?
+It works if I get rid of that requirement, but it slows Nebula down
+considerably.  Perhaps I can make lemma usage more generous while still
+imposing some restrictions.
+-}

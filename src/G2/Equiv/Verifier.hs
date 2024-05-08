@@ -260,7 +260,7 @@ insertStamps x k (Case e i t a) =
         _ -> let sn = stampName x k
                  a1' = Alt am1 (Tick (NamedLoc sn) a1)
              in Case (insertStamps (x + 1) k e) i t (a1':as)
-    _ -> error "Empty Alt List"
+    _ -> Case (insertStamps (x + 1) k e) i t a
 insertStamps _ _ e = e
 
 addStamps :: Int -> StateET -> StateET
@@ -741,12 +741,13 @@ writeCX (_:ms) pg ns sym_ids init_pair =
 -- the main expression pair hits a counterexample, that counterexample
 -- will be the final counterexample in the Marker list (alternatively, the
 -- first counterexample in the reversed list that this takes as input).
--- Lemma  counterexamples appear in the same list and are not distinguished
+-- Lemma counterexamples appear in the same list and are not distinguished
 -- in any special way, but, in each loop iteration, lemma execution happens
 -- before execution on the main expression pair.  If the main execution
 -- hits a counterexample, the iteration when it happens will be the final
 -- loop iteration, so we have an indirect guarantee that the counterexample
 -- covered here will not be one from a lemma.
+{-
 reducedGuide :: [Marker] -> PrettyGuide
 reducedGuide [] = error "No Counterexample"
 reducedGuide ((Marker _ m):ms) = case m of
@@ -755,6 +756,38 @@ reducedGuide ((Marker _ m):ms) = case m of
   CycleFound _ -> mkPrettyGuide m
   _ -> reducedGuide ms
 reducedGuide (_:ms) = reducedGuide ms
+-}
+
+getMarkerCX :: [Marker] -> [Marker]
+getMarkerCX [] = []
+getMarkerCX (mk@(Marker _ m):ms) =
+  if isFromLemma mk
+  then getMarkerCX ms
+  else case m of
+    NotEquivalent _ -> [mk]
+    SolverFail _ -> [mk]
+    CycleFound _ -> [mk]
+    _ -> getMarkerCX ms
+getMarkerCX (_:ms) = getMarkerCX ms
+
+putStrLnIfNonEmpty :: String -> IO ()
+putStrLnIfNonEmpty "" = return ()
+putStrLnIfNonEmpty s = putStrLn s
+
+isUnresolved :: Marker -> Bool
+isUnresolved (Marker _ (Unresolved _)) = True
+isUnresolved _ = False
+
+-- all lemma filtering should happen here
+-- earliest state is at the back
+isFromLemma :: Marker -> Bool
+isFromLemma (LMarker _) = True
+isFromLemma (Marker (sh1, sh2) _) =
+  case (reverse $ history sh1, reverse $ history sh2) of
+    (s1:_, s2:_) -> let f1 = folder_name $ track s1
+                        f2 = folder_name $ track s2
+                    in f1 /= "" || f2 /= ""
+    _ -> False
 
 checkRule :: (ASTContainer t Type, ASTContainer t Expr) => Config
           -> NebulaConfig
@@ -796,12 +829,17 @@ checkRule config nc init_state bindings total rule = do
              emptyLemmas
              [(rewrite_state_l'', rewrite_state_r'')]
              bindings'' config nc sym_ids 0 (limit nc)
+  let w' = if only_unresolved $ print_summary nc
+           then filter isUnresolved w
+           else if have_lemma_details $ print_summary nc
+           then w
+           else filter (not . isFromLemma) w
   let pg = if have_summary $ print_summary nc
-           then mkPrettyGuide w
-           else reducedGuide (reverse w)
+           then mkPrettyGuide $ (getMarkerCX $ reverse w) ++ w'-- $ map (\(Marker _ am) -> am) w
+           else mkPrettyGuide $ getMarkerCX $ reverse w
   if have_summary $ print_summary nc then do
     putStrLn "--- SUMMARY ---"
-    _ <- mapM (putStrLn . (summarize (print_summary nc) pg ns sym_ids)) w
+    _ <- mapM (putStrLnIfNonEmpty . (summarize (print_summary nc) pg ns sym_ids)) w'
     putStrLn "--- END OF SUMMARY ---"
   else return ()
   case res of

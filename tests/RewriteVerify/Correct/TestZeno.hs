@@ -695,6 +695,8 @@ prop_85 :: Eq a => Eq b => [a] -> [b] -> Bool
 "p54fin" forall n m . (m + n) - n = walkNat n m
 "p57finA" forall n m xs . walkNat n (drop n (take m xs)) = walkNat n (take (m - n) (drop n xs))
 "p57finB" forall n m xs . walkNat m (drop n (take m xs)) = walkNat m (take (m - n) (drop n xs))
+"p58finA" forall n xs ys . walkNat n (drop n (zip xs ys)) = zip (drop n xs) (drop n ys)
+"p58finB" forall n xs ys . walkList xs (drop n (zip xs ys)) = zip (drop n xs) (drop n ys)
 "p59finA" forall xs ys . walkNatList xs (prop_59 xs ys) = walkNatList xs True
 "p60finB" forall xs ys . walkList xs (walkNatList ys (prop_60 xs ys)) = walkList xs $ walkNatList ys True
 "p61fin" forall xs ys . last (xs ++ ys) = walkList xs (lastOfTwo xs ys)

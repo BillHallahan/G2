@@ -10,7 +10,7 @@ module G2.Config.Config ( Mode (..)
                         , IncludePath
                         , Config (..)
                         , BoolDef (..)
-                        , InstTV(..)
+                        , InstTV (..)
                         , mkConfig
                         , mkConfigDirect
 
@@ -66,7 +66,7 @@ data Config = Config {
     , extraDefaultMods :: [FilePath]
     , logStates :: LogMode -- ^ Determines whether to Log states, and if logging states, how to do so.
     , sharing :: Sharing
-    , instTV :: InstTV -- allow the instantiation of types in the beginning or it's instantiate symbolically by functions  
+    , instTV :: InstTV -- allow the instantiation of types in the beginning or it's instantiate symbolically by functions
     , maxOutputs :: Maybe Int -- ^ Maximum number of examples/counterexamples to output.  TODO: Currently works only with LiquidHaskell
     , returnsTrue :: Bool -- ^ If True, shows only those inputs that do not return True
     , higherOrderSolver :: HigherOrderSolver -- ^ How to try and solve higher order functions

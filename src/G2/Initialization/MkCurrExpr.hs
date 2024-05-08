@@ -33,9 +33,9 @@ mkCurrExpr m_assume m_assert f@(Id (Name _ m_mod _ _) _) tc ng eenv _ walkers kv
                 -- -- after we first got the type of f.
                 -- app_ex = foldl' App var_ex $ typsE ++ var_ids
                 (app_ex, is, typsE, ng') =
-                    if  instTV config == InstBefore
-                        then  mkMainExpr tc kv ng var_ex
-                        else  mkMainExprNoInstantiateTypes var_ex ng
+                    if instTV config == InstBefore
+                        then mkMainExpr tc kv ng var_ex
+                        else mkMainExprNoInstantiateTypes var_ex ng
                 var_ids = map Var is
 
                 -- strict_app_ex = app_ex
@@ -52,7 +52,7 @@ mkCurrExpr m_assume m_assert f@(Id (Name _ m_mod _ _) _) tc ng eenv _ walkers kv
 
                 let_ex = Let [(id_name, strict_app_ex)] retsTrue_ex
             in
-           (let_ex, is, typsE, ng'')
+            (let_ex, is, typsE, ng'')
         Nothing -> error "mkCurrExpr: Bad Name"
 
 mkMainExpr :: TypeClasses -> KnownValues -> NameGen -> Expr -> (Expr, [Id], [Expr], NameGen)

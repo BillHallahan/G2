@@ -23,10 +23,11 @@ data NebulaConfig = NC { limit :: Int
 
 data SummaryMode = SM { have_summary :: Bool
                       , have_history :: Bool
-                      , have_lemma_details :: Bool }
+                      , have_lemma_details :: Bool
+                      , only_unresolved :: Bool }
 
 noSummary :: SummaryMode
-noSummary = SM False False False
+noSummary = SM False False False False
 
 data UseLabeledErrors = UseLabeledErrors | NoLabeledErrors deriving (Eq, Show, Read)
 
@@ -88,18 +89,26 @@ mkLogRule =
 
 mkSummaryMode :: Parser SummaryMode
 mkSummaryMode =
-    (flag noSummary (SM True False False)
+    (flag noSummary (SM True False False False)
             (long "summarize"
             <> help "provide a summary with no history"))
     <|>
-    (flag noSummary (SM True True False)
+    (flag noSummary (SM True False False True)
+            (long "unresolved-summarize"
+            <> help "summarize only the unresolved obligations"))
+    <|>
+    (flag noSummary (SM True True False True)
+            (long "unresolved-hist-summarize"
+            <> help "unresolved obligations with histories"))
+    <|>
+    (flag noSummary (SM True True False False)
             (long "hist-summarize"
             <> help "provide a summary with history"))
     <|>
-    (flag noSummary (SM True False True)
+    (flag noSummary (SM True False True False)
             (long "lemmas-summarize"
             <> help "provide a summary with all lemma results"))
     <|>
-    (flag noSummary (SM True True True)
+    (flag noSummary (SM True True True False)
             (long "lemmas-hist-summarize"
             <> help "provide a summary with history and lemma results"))
