@@ -323,6 +323,7 @@ moveOutStatePieces tenv_name s = do
              , curr_expr = $(curr_expr_exp)
              , path_conds = PC.fromList $(pc_exp)
              , non_red_path_conds = $(non_red_path_conds_exp)
+             , handles = []
              , true_assert = $(true_assert_exp) 
              , assert_ids = $(assert_ids_exp)
              , type_classes = $(type_classes_exp)

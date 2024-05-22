@@ -166,6 +166,7 @@ initStateFromSimpleState s m_mod useAssert mkCurr argTys config =
         eenv' = IT.expr_env s'
         tenv' = IT.type_env s'
         ng' = IT.name_gen s'
+        hs = IT.handles s'
         kv' = IT.known_values s'
         tc' = IT.type_classes s'
 
@@ -177,6 +178,7 @@ initStateFromSimpleState s m_mod useAssert mkCurr argTys config =
     , curr_expr = CurrExpr Evaluate ce
     , path_conds = PC.fromList []
     , non_red_path_conds = []
+    , handles = hs
     , true_assert = if useAssert then False else True
     , assert_ids = Nothing
     , type_classes = tc'
@@ -236,6 +238,7 @@ initSimpleState (ExtractedG2 { exg2_binds = prog
         s = IT.SimpleState { IT.expr_env = eenv
                            , IT.type_env = tenv
                            , IT.name_gen = ng
+                           , IT.handles = []
                            , IT.known_values = kv
                            , IT.type_classes = tc
                            , IT.rewrite_rules = rs

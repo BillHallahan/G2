@@ -46,6 +46,7 @@ data State t = State { expr_env :: E.ExprEnv -- ^ Mapping of `Name`s to `Expr`s
                      , path_conds :: PathConds -- ^ Path conditions, in SWHNF
                      , non_red_path_conds :: [(Expr, Expr)] -- ^ Path conditions, in the form of (possibly non-reduced)
                                                             -- expression pairs that must be proved equivalent
+                     , handles :: [Handle]
                      , true_assert :: Bool -- ^ Have we violated an assertion?
                      , assert_ids :: Maybe FuncCall
                      , type_classes :: TypeClasses
@@ -143,11 +144,33 @@ instance Hashable CEAction
 -- typically produced by a solver. 
 type Model = HM.HashMap Name Expr
 
+-- | A highly simplified model of Handles.
+data Handle = Handle { h_filepath :: FilePath
+                     , h_input :: HBuffer
+                     , h_output :: HBuffer
+                     , h_status :: HandleStatus }
+                     deriving (Show, Eq, Read, Generic, Typeable, Data)
+
+instance Hashable Handle
+
+data HandleStatus = HOpen | HClosed
+                    deriving (Show, Eq, Read, Generic, Typeable, Data)
+
+instance Hashable HandleStatus
+
+data HBuffer = HBuffer Id -- ^ Must map to a String in the expression environment.
+             | NoBuffer
+               deriving (Show, Eq, Read, Generic, Typeable, Data)
+
+instance Hashable HBuffer
+
 instance Named t => Named (State t) where
     names s = names (expr_env s)
             <> names (type_env s)
             <> names (curr_expr s)
             <> names (path_conds s)
+            <> names (non_red_path_conds s)
+            <> names (handles s)
             <> names (assert_ids s)
             <> names (type_classes s)
             <> names (exec_stack s)
@@ -164,6 +187,7 @@ instance Named t => Named (State t) where
                , curr_expr = rename old new (curr_expr s)
                , path_conds = rename old new (path_conds s)
                , non_red_path_conds = rename old new (non_red_path_conds s)
+               , handles = rename old new (handles s)
                , true_assert = true_assert s
                , assert_ids = rename old new (assert_ids s)
                , type_classes = rename old new (type_classes s)
@@ -184,6 +208,7 @@ instance Named t => Named (State t) where
                , curr_expr = renames hm (curr_expr s)
                , path_conds = renames hm (path_conds s)
                , non_red_path_conds = renames hm (non_red_path_conds s)
+               , handles = renames hm (handles s)
                , true_assert = true_assert s
                , assert_ids = renames hm (assert_ids s)
                , type_classes = renames hm (type_classes s)
@@ -201,6 +226,8 @@ instance ASTContainer t Expr => ASTContainer (State t) Expr where
                       (containedASTs $ expr_env s) ++
                       (containedASTs $ curr_expr s) ++
                       (containedASTs $ path_conds s) ++
+                      (containedASTs $ non_red_path_conds s) ++
+                      (containedASTs $ handles s) ++
                       (containedASTs $ assert_ids s) ++
                       (containedASTs $ exec_stack s) ++
                       (containedASTs $ track s) ++ 
@@ -211,6 +238,8 @@ instance ASTContainer t Expr => ASTContainer (State t) Expr where
                                 , expr_env  = modifyContainedASTs f $ expr_env s
                                 , curr_expr = modifyContainedASTs f $ curr_expr s
                                 , path_conds = modifyContainedASTs f $ path_conds s
+                                , non_red_path_conds = modifyContainedASTs f $ non_red_path_conds s
+                                , handles = modifyContainedASTs f $ handles s
                                 , assert_ids = modifyContainedASTs f $ assert_ids s
                                 , exec_stack = modifyContainedASTs f $ exec_stack s
                                 , track = modifyContainedASTs f $ track s 
@@ -222,6 +251,8 @@ instance ASTContainer t Type => ASTContainer (State t) Type where
                       ((containedASTs . type_env) s) ++
                       ((containedASTs . curr_expr) s) ++
                       ((containedASTs . path_conds) s) ++
+                      (containedASTs $ non_red_path_conds s) ++
+                      (containedASTs $ handles s) ++
                       ((containedASTs . assert_ids) s) ++
                       ((containedASTs . type_classes) s) ++
                       ((containedASTs . exec_stack) s) ++
@@ -233,6 +264,8 @@ instance ASTContainer t Type => ASTContainer (State t) Type where
                                 , expr_env  = (modifyContainedASTs f . expr_env) s
                                 , curr_expr = (modifyContainedASTs f . curr_expr) s
                                 , path_conds = (modifyContainedASTs f . path_conds) s
+                                , non_red_path_conds = modifyContainedASTs f $ non_red_path_conds s
+                                , handles = modifyContainedASTs f $ handles s
                                 , assert_ids = (modifyContainedASTs f . assert_ids) s
                                 , type_classes = (modifyContainedASTs f . type_classes) s
                                 , exec_stack = (modifyContainedASTs f . exec_stack) s
@@ -353,3 +386,49 @@ instance Named Frame where
     renames hm (CurrExprFrame act e) = CurrExprFrame act (renames hm e)
     renames hm (AssumeFrame e) = AssumeFrame (renames hm e)
     renames hm (AssertFrame is e) = AssertFrame (renames hm is) (renames hm e)
+
+instance Named Handle where
+    names (Handle { h_input = i, h_output = o }) = names i <> names o
+
+    rename old new h@(Handle { h_input = i, h_output = o }) =
+        h { h_input = rename old new i, h_output = rename old new o }
+
+    renames hm h@(Handle { h_input = i, h_output = o }) =
+        h { h_input = renames hm i, h_output = renames hm o }
+
+instance ASTContainer Handle Expr where
+    containedASTs (Handle { h_input = i, h_output = o }) = containedASTs i <> containedASTs o
+
+    modifyContainedASTs f h@(Handle { h_input = i, h_output = o }) =
+        h { h_input = modifyContainedASTs f i, h_output = modifyContainedASTs f o }
+
+instance ASTContainer Handle Type where
+    containedASTs (Handle { h_input = i, h_output = o }) = containedASTs i <> containedASTs o
+
+    modifyContainedASTs f h@(Handle { h_input = i, h_output = o }) =
+        h { h_input = modifyContainedASTs f i, h_output = modifyContainedASTs f o }
+
+instance Named HBuffer where
+    names (HBuffer i) = names i
+    names NoBuffer = mempty
+
+    rename old new (HBuffer i) = HBuffer (rename old new i)
+    rename _ _ NoBuffer = NoBuffer
+
+    renames hm (HBuffer i) = HBuffer (renames hm i)
+    renames _ NoBuffer = NoBuffer
+
+instance ASTContainer HBuffer Expr where
+    containedASTs (HBuffer i) = containedASTs i
+    containedASTs NoBuffer = []
+
+    modifyContainedASTs f (HBuffer i) = HBuffer (modifyContainedASTs f i)
+    modifyContainedASTs _ NoBuffer = NoBuffer
+
+instance ASTContainer HBuffer Type where
+    containedASTs (HBuffer i) = containedASTs i
+    containedASTs NoBuffer = []
+
+    modifyContainedASTs f (HBuffer i) = HBuffer (modifyContainedASTs f i)
+    modifyContainedASTs _ NoBuffer = NoBuffer
+
