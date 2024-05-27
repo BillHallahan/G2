@@ -191,25 +191,26 @@ data Reducer m rv t = Reducer {
         , updateWithAll :: [(State t, rv)] -> [rv]
 
         -- Action to run after a State is accepted.
-        , onAccept :: State t -> rv -> m ()
+        , onAccept ::  State t -> Bindings -> rv ->  m (State t, Bindings)
 
         -- Action to run after a State is discared.
         , onDiscard :: State t -> rv -> m ()
 
         -- | Action to run after execution of all states has terminated.
         , afterRed :: m ()
+
     }
 
 -- | A simple, default reducer.
 -- `updateWithAll` does not change or adjust the reducer values.
 -- `onAccept` and `afterRed` immediately returns the empty tuple.
-mkSimpleReducer :: Monad m => InitReducer rv t -> RedRules m rv t -> Reducer m rv t
-mkSimpleReducer init_red red_rules =
+mkSimpleReducer :: Monad m => State t -> Bindings ->  InitReducer rv t -> RedRules m rv t -> Reducer m rv t
+mkSimpleReducer t bs init_red red_rules =
     Reducer {
       initReducer = init_red
     , redRules = red_rules
     , updateWithAll = map snd
-    , onAccept = \_ _ -> return ()
+    , onAccept = \_ _ -> return (t,bs)
     , onDiscard = \_ _ -> return ()
     , afterRed = return ()
     }
@@ -220,13 +221,13 @@ liftReducer :: (Monad m1, SM.MonadTrans m2) => Reducer m1 rv t -> Reducer (m2 m1
 liftReducer r = Reducer { initReducer = initReducer r
                         , redRules = \rv s b -> SM.lift ((redRules r) rv s b)
                         , updateWithAll = updateWithAll r
-                        , onAccept = \s rv -> SM.lift ((onAccept r) s rv)
+                        , onAccept = \s b rv -> SM.lift ((onAccept r ) s b rv)
                         , onDiscard = \s rv -> SM.lift ((onDiscard r) s rv)
                         , afterRed = SM.lift (afterRed r)}
 
 -- | Lift a SomeReducer from a component monad to a constructed monad. 
-liftSomeReducer :: (Monad m1, SM.MonadTrans m2) => SomeReducer m1 t -> SomeReducer (m2 m1) t
-liftSomeReducer (SomeReducer r) = SomeReducer (liftReducer r)
+liftSomeReducer :: (Monad m1, SM.MonadTrans m2) => Bindings -> SomeReducer m1 t -> SomeReducer (m2 m1) t
+liftSomeReducer (SomeReducer r ) = SomeReducer (liftReducer r )
 
 type InitHalter hv t = State t -> hv
 type UpdatePerStateHalt hv t = hv -> Processed (State t) -> State t -> hv
@@ -399,7 +400,7 @@ SomeReducer r1 .~> SomeReducer r2 = SomeReducer (r1 ~> r2)
 (-->) :: Monad m => ReducerEq m t -> Reducer m rv2 t -> SomeReducer m t
 (r1 :== res) --> r2 =
     SomeReducer $
-        Reducer { initReducer = \s -> RC (initReducer r1 s) (initReducer r2 s)
+       Reducer { initReducer = \s -> RC (initReducer r1 s) (initReducer r2 s)
 
                 , redRules = \(RC rv1 rv2) s b -> do
                     (rr1, srv1, b') <- redRules r1 rv1 s b
@@ -414,8 +415,8 @@ SomeReducer r1 .~> SomeReducer r2 = SomeReducer (r1 ~> r2)
                 , updateWithAll = updateWithAllPair (updateWithAll r1) (updateWithAll r2)
 
                 , onAccept = \s (RC rv1 rv2) -> do
-                    onAccept r1 s rv1
-                    onAccept r2 s rv2
+                    onAccept r1 s b rv1
+                    onAccept r2 s b rv2
 
                 , onDiscard = \s (RC rv1 rv2) -> do
                     onDiscard r1 s rv1
