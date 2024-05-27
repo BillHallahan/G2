@@ -284,7 +284,7 @@ initRedHaltOrd mod_name solver simplifier config libFunNames =
         m_logger = fmap SomeReducer $ getLogger config
 
         hpc_red f = case hpc config of
-                        True -> SomeReducer (hpcReducer mod_name ~> stdRed share f solver simplifier)
+                        True ->  SomeReducer (hpcReducer mod_name ~> stdRed share f solver simplifier)
                         False -> SomeReducer (stdRed share f solver simplifier)
 
         nrpc_red f = case nrpc config of

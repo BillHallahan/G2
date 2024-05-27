@@ -210,7 +210,7 @@ mkSimpleReducer  init_red red_rules =
       initReducer = init_red
     , redRules = red_rules
     , updateWithAll = map snd
-    , onAccept = \s bs _ -> return (s, bs)
+    , onAccept = \s b _ -> return (s, b)
     , onDiscard = \_ _ -> return ()
     , afterRed = return ()
     }
@@ -226,7 +226,7 @@ liftReducer r = Reducer { initReducer = initReducer r
                         , afterRed = SM.lift (afterRed r)}
 
 -- | Lift a SomeReducer from a component monad to a constructed monad. 
-liftSomeReducer :: (Monad m1, SM.MonadTrans m2) => Bindings -> SomeReducer m1 t -> SomeReducer (m2 m1) t
+liftSomeReducer :: (Monad m1, SM.MonadTrans m2) => SomeReducer m1 t -> SomeReducer (m2 m1) t
 liftSomeReducer (SomeReducer r ) = SomeReducer (liftReducer r )
 
 type InitHalter hv t = State t -> hv
@@ -375,9 +375,9 @@ r1 ~> r2 =
 
             , updateWithAll = updateWithAllPair (updateWithAll r1) (updateWithAll r2)
 
-            , onAccept = \s bs (RC rv1 rv2) -> do
-                onAccept r1 s bs rv1
-                onAccept r2 s bs rv2
+            , onAccept = \s b (RC rv1 rv2) -> do
+                onAccept r1 s b rv1
+                onAccept r2 s b rv2
 
             , onDiscard = \s (RC rv1 rv2) -> do
                 onDiscard r1 s rv1
@@ -414,9 +414,9 @@ SomeReducer r1 .~> SomeReducer r2 = SomeReducer (r1 ~> r2)
 
                 , updateWithAll = updateWithAllPair (updateWithAll r1) (updateWithAll r2)
 
-                , onAccept = \s bs (RC rv1 rv2) -> do
-                    onAccept r1 s bs rv1
-                    onAccept r2 s bs rv2
+                , onAccept = \s b (RC rv1 rv2) -> do
+                    onAccept r1 s b rv1
+                    onAccept r2 s b rv2
 
                 , onDiscard = \s (RC rv1 rv2) -> do
                     onDiscard r1 s rv1
@@ -467,9 +467,9 @@ r1 .|. r2 =
 
             , updateWithAll = updateWithAllPair (updateWithAll r1) (updateWithAll r2)
 
-            , onAccept = \s (RC rv1 rv2) -> do
-                onAccept r1 s rv1
-                onAccept r2 s rv2
+            , onAccept = \s b (RC rv1 rv2) -> do
+                onAccept r1 s b rv1
+                onAccept r2 s b rv2
 
             , onDiscard = \s (RC rv1 rv2) -> do
                 onDiscard r1 s rv1
@@ -739,7 +739,9 @@ prettyLogger fp =
             return (NoProgress, [(s, li)], b)
         )
     ) { updateWithAll = \s -> map (\(l, i) -> l ++ [i]) $ zip (map snd s) [1..]
-      , onAccept = \_ ll -> liftIO . putStrLn $ "Accepted on path " ++ show ll
+      , onAccept = \s b _ -> do 
+                                liftIO . putStrLn $ "Accepted on path " ++ show (s, b)
+                                return (s,b)
       , onDiscard = \_ ll -> liftIO . putStrLn $ "Discarded path " ++ show ll }
 
 -- | A Reducer to producer limited logging output.
@@ -757,7 +759,9 @@ limLogger :: (MonadIO m, Show t) => LimLogger -> Reducer m LLTracker t
 limLogger ll@(LimLogger { after_n = aft, before_n = bfr, down_path = down }) =
     (mkSimpleReducer (const $ LLTracker { ll_count = every_n ll, ll_offset = []}) rr)
         { updateWithAll = updateWithAllLL
-        , onAccept = \_ llt -> liftIO . putStrLn $ "Accepted on path " ++ show (ll_offset llt)
+        , onAccept = \s b _-> do
+                                liftIO . putStrLn $ "Accepted on path " ++ show (s, b)
+                                return (s, b)
         , onDiscard = \_ llt -> liftIO . putStrLn $ "Discarded path " ++ show (ll_offset llt)}
     where
         rr llt@(LLTracker { ll_count = 0, ll_offset = off }) s b
@@ -1284,7 +1288,7 @@ runReducer' red hal ord pr rs@(ExState { state = s, reducer_val = r_val, halter_
     case () of
         ()
             | hc == Accept -> do
-                onAccept red s r_val
+                onAccept red s b r_val
                 let pr' = pr {accepted = state rs:accepted pr}
                     jrs = minState ord pr' xs
                 case jrs of
