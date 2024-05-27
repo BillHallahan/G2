@@ -204,13 +204,13 @@ data Reducer m rv t = Reducer {
 -- | A simple, default reducer.
 -- `updateWithAll` does not change or adjust the reducer values.
 -- `onAccept` and `afterRed` immediately returns the empty tuple.
-mkSimpleReducer :: Monad m => State t -> Bindings ->  InitReducer rv t -> RedRules m rv t -> Reducer m rv t
-mkSimpleReducer t bs init_red red_rules =
+mkSimpleReducer :: Monad m => InitReducer rv t -> RedRules m rv t -> Reducer m rv t
+mkSimpleReducer  init_red red_rules =
     Reducer {
       initReducer = init_red
     , redRules = red_rules
     , updateWithAll = map snd
-    , onAccept = \_ _ -> return (t,bs)
+    , onAccept = \s bs _ -> return (s, bs)
     , onDiscard = \_ _ -> return ()
     , afterRed = return ()
     }
@@ -375,9 +375,9 @@ r1 ~> r2 =
 
             , updateWithAll = updateWithAllPair (updateWithAll r1) (updateWithAll r2)
 
-            , onAccept = \s (RC rv1 rv2) -> do
-                onAccept r1 s rv1
-                onAccept r2 s rv2
+            , onAccept = \s bs (RC rv1 rv2) -> do
+                onAccept r1 s bs rv1
+                onAccept r2 s bs rv2
 
             , onDiscard = \s (RC rv1 rv2) -> do
                 onDiscard r1 s rv1
@@ -414,9 +414,9 @@ SomeReducer r1 .~> SomeReducer r2 = SomeReducer (r1 ~> r2)
 
                 , updateWithAll = updateWithAllPair (updateWithAll r1) (updateWithAll r2)
 
-                , onAccept = \s (RC rv1 rv2) -> do
-                    onAccept r1 s b rv1
-                    onAccept r2 s b rv2
+                , onAccept = \s bs (RC rv1 rv2) -> do
+                    onAccept r1 s bs rv1
+                    onAccept r2 s bs rv2
 
                 , onDiscard = \s (RC rv1 rv2) -> do
                     onDiscard r1 s rv1
