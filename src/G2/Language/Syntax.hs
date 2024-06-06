@@ -226,6 +226,12 @@ data Primitive = -- Mathematical and logical operators
                -- Convert a positive Int to a String. (This matches the SMT Str.from_int function, which supports only positive Ints.)
                | IntToString
                
+               -- MutVar#
+               | WriteMutVar -- ^ `forall a d . M# a -> a -> d -> State# -> State#`.
+                             -- The first passed `a` must be a `Var`.
+                             -- During execution, its `Name` is remapped in the `ExprEnv`
+                             -- to be the value of the second passed `a`.
+
                -- Errors
                | Error
                | Undefined

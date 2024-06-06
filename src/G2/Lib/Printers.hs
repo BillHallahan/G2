@@ -395,6 +395,8 @@ mkPrimHaskell WGenCat = "wgencat"
 
 mkPrimHaskell IntToString = "intToString"
 
+mkPrimHaskell WriteMutVar = "writeMutVar##"
+
 mkPrimHaskell ToInt = "toInt"
 
 mkPrimHaskell Error = "error"
