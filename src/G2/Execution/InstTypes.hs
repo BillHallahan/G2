@@ -1,5 +1,5 @@
 {-# LANGUAGE  OverloadedStrings, FlexibleContexts #-}
-module G2.Execution.InstTypes (instType) where
+module G2.Execution.InstTypes (instTypeRed) where
 
 
 import G2.Language
@@ -9,7 +9,8 @@ import qualified Data.List as L
 
 import Data.Foldable (foldl')
 import G2.Language.ExprEnv (isSymbolic)
-
+import G2.Execution
+import Debug.Trace
 
 
 generateIds :: NameGen -> Type -> (NameGen, Id)
@@ -48,7 +49,7 @@ instType ng st =
         is = tyVarIds $ curr_expr st
         (ng', st') = L.foldl' instType' (ng, st) is
     in
-    (ng', st')
+     trace("instType in let binding ") (ng', st')
 
 -- Introducing a new type for a type variable and substituting the variable in the curr_expr
 instType' :: ASTContainer t Type => (NameGen, State t) -> Id -> (NameGen, State t)
@@ -62,5 +63,19 @@ instType' (ng, st) i
                     ,type_env = te}
             st'' = replaceTyVar n t st'
         in
-        (ng',st'')
-    | otherwise = (ng, st)
+        trace("instType' isSybmolic ") (ng',st'')
+    | otherwise = trace("instType' otherwise") (ng, st)
+
+-- define a new reducer that calls your instType on your onAccept function
+instTypeRed :: (ASTContainer t Type, Monad m) => Reducer m () t
+instTypeRed  = (mkSimpleReducer
+                        (\_ -> ())
+                        (\rv s b -> return (NoProgress, [(s , rv)], b)) )
+                        {
+                         onAccept = \s b _ ->
+                         let 
+                               (ng', s') = instType (name_gen b) s
+                               b' = b {name_gen = ng'}
+                          in 
+                            trace ("instTypeRed: te in s' " ) return (s', b')} 
+                            

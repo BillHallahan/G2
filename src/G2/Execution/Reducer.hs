@@ -221,7 +221,7 @@ liftReducer :: (Monad m1, SM.MonadTrans m2) => Reducer m1 rv t -> Reducer (m2 m1
 liftReducer r = Reducer { initReducer = initReducer r
                         , redRules = \rv s b -> SM.lift ((redRules r) rv s b)
                         , updateWithAll = updateWithAll r
-                        , onAccept = \s b rv -> SM.lift ((onAccept r ) s b rv)
+                        , onAccept = \s b rv -> SM.lift ((onAccept r) s b rv)
                         , onDiscard = \s rv -> SM.lift ((onDiscard r) s rv)
                         , afterRed = SM.lift (afterRed r)}
 
@@ -376,8 +376,8 @@ r1 ~> r2 =
             , updateWithAll = updateWithAllPair (updateWithAll r1) (updateWithAll r2)
 
             , onAccept = \s b (RC rv1 rv2) -> do
-                onAccept r1 s b rv1
-                onAccept r2 s b rv2
+                (s', b') <- onAccept r1 s b rv1
+                onAccept r2 s' b' rv2
 
             , onDiscard = \s (RC rv1 rv2) -> do
                 onDiscard r1 s rv1
@@ -415,8 +415,8 @@ SomeReducer r1 .~> SomeReducer r2 = SomeReducer (r1 ~> r2)
                 , updateWithAll = updateWithAllPair (updateWithAll r1) (updateWithAll r2)
 
                 , onAccept = \s b (RC rv1 rv2) -> do
-                    onAccept r1 s b rv1
-                    onAccept r2 s b rv2
+                    (s', b') <- onAccept r1 s b rv1
+                    onAccept r2 s' b' rv2
 
                 , onDiscard = \s (RC rv1 rv2) -> do
                     onDiscard r1 s rv1
@@ -468,8 +468,8 @@ r1 .|. r2 =
             , updateWithAll = updateWithAllPair (updateWithAll r1) (updateWithAll r2)
 
             , onAccept = \s b (RC rv1 rv2) -> do
-                onAccept r1 s b rv1
-                onAccept r2 s b rv2
+                (s', b') <- onAccept r1 s b rv1
+                onAccept r2 s' b' rv2
 
             , onDiscard = \s (RC rv1 rv2) -> do
                 onDiscard r1 s rv1
@@ -739,8 +739,8 @@ prettyLogger fp =
             return (NoProgress, [(s, li)], b)
         )
     ) { updateWithAll = \s -> map (\(l, i) -> l ++ [i]) $ zip (map snd s) [1..]
-      , onAccept = \s b _ -> do 
-                                liftIO . putStrLn $ "Accepted on path " ++ show (s, b)
+      , onAccept = \s b ll -> do 
+                                liftIO . putStrLn $ "Accepted on path " ++ show ll
                                 return (s,b)
       , onDiscard = \_ ll -> liftIO . putStrLn $ "Discarded path " ++ show ll }
 
@@ -759,8 +759,8 @@ limLogger :: (MonadIO m, Show t) => LimLogger -> Reducer m LLTracker t
 limLogger ll@(LimLogger { after_n = aft, before_n = bfr, down_path = down }) =
     (mkSimpleReducer (const $ LLTracker { ll_count = every_n ll, ll_offset = []}) rr)
         { updateWithAll = updateWithAllLL
-        , onAccept = \s b _-> do
-                                liftIO . putStrLn $ "Accepted on path " ++ show (s, b)
+        , onAccept = \s b llt -> do
+                                liftIO . putStrLn $ "Accepted on path " ++ show (ll_offset llt)
                                 return (s, b)
         , onDiscard = \_ llt -> liftIO . putStrLn $ "Discarded path " ++ show (ll_offset llt)}
     where
@@ -1288,12 +1288,12 @@ runReducer' red hal ord pr rs@(ExState { state = s, reducer_val = r_val, halter_
     case () of
         ()
             | hc == Accept -> do
-                onAccept red s b r_val
-                let pr' = pr {accepted = state rs:accepted pr}
+                (s', b') <- onAccept red s b r_val
+                let pr' = pr {accepted = s':accepted pr}
                     jrs = minState ord pr' xs
                 case jrs of
-                    Just (rs', xs') -> switchState red hal ord pr' rs' b xs'
-                    Nothing -> return (pr', b)
+                    Just (rs', xs') -> switchState red hal ord pr' rs' b' xs'
+                    Nothing -> return (pr', b')
             | hc == Discard -> do
                 onDiscard red s r_val
                 let pr' = pr {discarded = state rs:discarded pr}
