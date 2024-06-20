@@ -47,7 +47,7 @@ instType :: ASTContainer t Type => NameGen -> State t -> (NameGen, State t)
 instType ng st = 
     let 
         is = tyVarIds $ curr_expr st
-        (ng', st') = L.foldl' instType' (ng, st) is
+        (ng', st') = trace("instType' cases ") L.foldl' instType' (ng, st) is
     in
      trace("instType in let binding ") (ng', st')
 
