@@ -43,13 +43,15 @@ newType ng i te =
     (ty, te', ng''')
     
 -- | We want to find all the type variable from curr_expr and replace them with symbolic variable
-instType :: ASTContainer t Type => NameGen -> State t -> (NameGen, State t)
-instType ng st = 
+instType :: ASTContainer t Type => Bindings  -> State t -> (Bindings, State t)
+instType b st = 
     let 
-        is = tyVarIds $ curr_expr st
-        (ng', st') = trace("instType' cases ") L.foldl' instType' (ng, st) is
+        ng = name_gen b 
+        is = tyVarIds $ map (\n -> E.lookup n (expr_env st)) (input_names b) 
+        (ng', st') = L.foldl' instType' (ng, st) is
+        b'  = b {name_gen = ng'}
     in
-     trace("instType in let binding ") (ng', st')
+      (b', st') 
 
 -- Introducing a new type for a type variable and substituting the variable in the curr_expr
 instType' :: ASTContainer t Type => (NameGen, State t) -> Id -> (NameGen, State t)
@@ -63,9 +65,9 @@ instType' (ng, st) i
                     ,type_env = te}
             st'' = replaceTyVar n t st'
         in
-        trace("instType' isSybmolic ") (ng',st'')
-    | otherwise = trace("instType' otherwise") (ng, st)
-
+         (ng',st'')
+    | otherwise = (ng, st)
+        
 -- define a new reducer that calls your instType on your onAccept function
 instTypeRed :: (ASTContainer t Type, Monad m) => Reducer m () t
 instTypeRed  = (mkSimpleReducer
@@ -74,8 +76,6 @@ instTypeRed  = (mkSimpleReducer
                         {
                          onAccept = \s b _ ->
                          let 
-                               (ng', s') = instType (name_gen b) s
-                               b' = b {name_gen = ng'}
-                          in 
-                            trace ("instTypeRed: te in s' " ) return (s', b')} 
-                            
+                               (b', s') = instType b s
+                         in 
+                            return (s', b')} 
