@@ -43,7 +43,7 @@ newType ng i te =
     (ty, te', ng''')
     
 -- | We want to find all the type variable from curr_expr and replace them with symbolic variable
-instType :: ASTContainer t Type => Bindings  -> State t -> (Bindings, State t)
+instType :: ASTContainer t Type => Bindings -> State t -> (Bindings, State t)
 instType b st = 
     let 
         ng = name_gen b 
