@@ -284,8 +284,8 @@ initRedHaltOrd mod_name solver simplifier config libFunNames =
         m_logger = fmap SomeReducer $ getLogger config
 
         hpc_red f = case hpc config of
-                        True -> SomeReducer (hpcReducer mod_name ~> stdRed share f solver simplifier)
-                        False -> SomeReducer (stdRed share f solver simplifier)
+                        True ->  SomeReducer (hpcReducer mod_name ~> stdRed share f solver simplifier ~> instTypeRed) 
+                        False -> SomeReducer (stdRed share f solver simplifier ~> instTypeRed)
 
         nrpc_red f = case nrpc config of
                         Nrpc -> liftSomeReducer (SomeReducer (nonRedLibFuncsReducer libFunNames) .== Finished .--> hpc_red f)
@@ -602,7 +602,5 @@ runG2 :: ( MonadIO m
          solver -> simplifier -> MemConfig -> State t -> Bindings -> m ([ExecRes t], Bindings)
 runG2 red hal ord solver simplifier mem is bindings = do
     (exec_states, bindings') <- runG2ThroughExecution red hal ord mem is bindings
-    let (ng'',exec_states') = L.mapAccumL instType (name_gen bindings') exec_states
-    let bindings'' =  bindings'{ name_gen = ng''}
-    sol_states <- mapM (runG2Solving solver simplifier bindings'') exec_states' 
-    return (catMaybes sol_states, bindings'')
+    sol_states <- mapM (runG2Solving solver simplifier bindings') exec_states
+    return (catMaybes sol_states, bindings')
