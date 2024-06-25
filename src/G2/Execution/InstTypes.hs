@@ -9,6 +9,7 @@ import qualified Data.List as L
 
 import Data.Foldable (foldl')
 import G2.Language.ExprEnv (isSymbolic)
+import G2.Language.AlgDataTy (AlgDataTy(adt_source))
 
 
 
@@ -35,8 +36,9 @@ newType ng i te =
         tyforall = foldl' (flip TyForAll) tyfuns all_ids
 
         nadt = DataTyCon 
-                    {bound_ids = all_ids
-                    ,data_cons = [DataCon dc tyforall]}
+                    { bound_ids = all_ids
+                    , data_cons = [DataCon dc tyforall]
+                    , adt_source = ADTG2Generated }
         te' = HM.insert tn nadt te 
     in
     (ty, te', ng''')
