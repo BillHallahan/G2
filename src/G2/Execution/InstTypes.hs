@@ -10,7 +10,7 @@ import qualified Data.List as L
 import Data.Foldable (foldl')
 import G2.Language.ExprEnv (isSymbolic)
 import G2.Execution
-import Debug.Trace
+
 
 
 generateIds :: NameGen -> Type -> (NameGen, Id)
@@ -43,15 +43,14 @@ newType ng i te =
     (ty, te', ng''')
     
 -- | We want to find all the type variable from curr_expr and replace them with symbolic variable
-instType :: ASTContainer t Type => Bindings -> State t -> (Bindings, State t)
-instType b st = 
+instType :: ASTContainer t Type => State t -> Bindings -> (State t, Bindings)
+instType st b@(Bindings { name_gen = ng, input_names = ins }) = 
     let 
-        ng = name_gen b 
-        is = tyVarIds $ map (\n -> E.lookup n (expr_env st)) (input_names b) 
+        is = tyVarIds $ map (\n -> E.lookup n (expr_env st)) ins
         (ng', st') = L.foldl' instType' (ng, st) is
         b'  = b {name_gen = ng'}
     in
-      (b', st') 
+      (st', b') 
 
 -- Introducing a new type for a type variable and substituting the variable in the curr_expr
 instType' :: ASTContainer t Type => (NameGen, State t) -> Id -> (NameGen, State t)
@@ -74,8 +73,4 @@ instTypeRed  = (mkSimpleReducer
                         (\_ -> ())
                         (\rv s b -> return (NoProgress, [(s , rv)], b)) )
                         {
-                         onAccept = \s b _ ->
-                         let 
-                               (b', s') = instType b s
-                         in 
-                            return (s', b')} 
+                         onAccept = \s b _ -> return (instType s b)} 

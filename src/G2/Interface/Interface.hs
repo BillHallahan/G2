@@ -283,8 +283,6 @@ initRedHaltOrd mod_name solver simplifier config libFunNames =
 
         m_logger = fmap SomeReducer $ getLogger config
 
-        -- add instType reducer into hpc_red not matter what 
-        -- Ex: instType Red ~> stdRed
         hpc_red f = case hpc config of
                         True ->  SomeReducer (hpcReducer mod_name ~> stdRed share f solver simplifier ~> instTypeRed) 
                         False -> SomeReducer (stdRed share f solver simplifier ~> instTypeRed)
