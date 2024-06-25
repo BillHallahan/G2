@@ -58,6 +58,7 @@ import qualified Data.HashSet as HS
 import qualified Data.Text as T
 import System.FilePath
 import System.Directory
+import G2.Language.AlgDataTy (ADTSource(..))
 
 -- Copying from Language.Typing so the thing we stuff into Ghc
 -- does not have to rely on Language.Typing, which depends on other things.
@@ -678,17 +679,19 @@ mkTyCon t = do
             True -> do
                       SM.put (nm', tm')
                       case algTyConRhs t of
-                            DataTyCon { data_cons = dc } -> do
+                            DataTyCon { data_cons = dc, adt_source = adts} -> do
                                 dcs <- mapM mkData dc
-                                return . Just $ G2.DataTyCon bv dcs
+                                return . Just $ G2.DataTyCon bv dcs adts
                             NewTyCon { data_con = dc
-                                     , nt_rhs = rhst} -> do
+                                     , nt_rhs = rhst
+                                     , adt_source = adts} -> do
                                         dc' <- mkData dc
                                         t' <- mkType rhst
                                         return .
                                           Just $ G2.NewTyCon { G2.bound_ids = bv
                                                              , G2.data_con = dc'
-                                                             , G2.rep_type = t'}
+                                                             , G2.rep_type = t'
+                                                             , G2.adt_source = adts}
                             AbstractTyCon {} -> error "Unhandled TyCon AbstractTyCon"
                             -- TupleTyCon {} -> error "Unhandled TyCon TupleTyCon"
                             TupleTyCon { data_con = dc } -> do
@@ -702,7 +705,8 @@ mkTyCon t = do
                         st' <- mkType st
                         tv' <- mapM typeId tv
                         return . Just $ G2.TypeSynonym { G2.bound_ids = tv'
-                                                       , G2.synonym_of = st'}
+                                                       , G2.synonym_of = st'
+                                                       , G2.adt_source = ADTSourceCode}
                     False -> return Nothing
 
     case dcs of

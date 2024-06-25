@@ -4,6 +4,7 @@
 {-# LANGUAGE FlexibleInstances #-}
 
 module G2.Language.AlgDataTy ( AlgDataTy (..)
+                             , ADTSource (..)
                              , dataCon
                              , dataConWithName) where
 

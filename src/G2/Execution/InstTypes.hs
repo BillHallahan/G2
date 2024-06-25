@@ -9,7 +9,7 @@ import qualified Data.List as L
 
 import Data.Foldable (foldl')
 import G2.Language.ExprEnv (isSymbolic)
-import G2.Language.AlgDataTy (AlgDataTy(adt_source))
+import G2.Language.AlgDataTy 
 
 
 

@@ -105,7 +105,7 @@ addDataCon :: TypeEnv -> DataCon -> TypeEnv
 addDataCon te dc | (TyCon n _):_ <- unTyApp $ returnType dc = 
     let dtc = HM.lookup n te
         adt = case dtc of 
-                   Just (DataTyCon ids' dcs) -> DataTyCon {bound_ids = ids', data_cons = dc : dcs}
+                   Just (DataTyCon ids' dcs _) -> DataTyCon {bound_ids = ids', data_cons = dc : dcs}
                    Nothing -> error "addDataCons: cannot find corresponding Name in TypeEnv"
                    Just _ -> error "addDataCons: Not DataTyCon AlgDataTy found"
         in HM.insert n adt te 

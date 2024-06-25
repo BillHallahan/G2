@@ -528,9 +528,9 @@ instance Named AlgDataTy where
     rename old new (NewTyCon n dc rt adts) = NewTyCon (rename old new n) (rename old new dc) (rename old new rt) adts
     rename old new (TypeSynonym is st adts) = (TypeSynonym (rename old new is) (rename old new st) adts)
 
-    renames hm (DataTyCon n dc) = DataTyCon (renames hm n) (renames hm dc)
-    renames hm (NewTyCon n dc rt) = NewTyCon (renames hm n) (renames hm dc) (renames hm rt)
-    renames hm (TypeSynonym is st) = TypeSynonym (renames hm is) (renames hm st)
+    renames hm (DataTyCon n dc adts) = DataTyCon (renames hm n) (renames hm dc) adts
+    renames hm (NewTyCon n dc rt adts) = NewTyCon (renames hm n) (renames hm dc) (renames hm rt) adts
+    renames hm (TypeSynonym is st adts) = TypeSynonym (renames hm is) (renames hm st) adts
 
 instance Named KnownValues where
     names (KnownValues {
