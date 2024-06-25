@@ -74,5 +74,4 @@ instTypeRed :: (ASTContainer t Type, Monad m) => Reducer m () t
 instTypeRed  = (mkSimpleReducer
                         (\_ -> ())
                         (\rv s b -> return (NoProgress, [(s , rv)], b)) )
-                        {
-                         onAccept = \s b _ -> return (instType s b)} 
+                        {onAccept = \s b _ -> return (instType s b)} 
