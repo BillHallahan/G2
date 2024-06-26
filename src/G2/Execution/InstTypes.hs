@@ -46,7 +46,7 @@ newType ng i te =
     
 -- | We want to find all the type variable from curr_expr and replace them with symbolic variable
 instType :: ASTContainer t Type => State t -> Bindings -> (State t, Bindings)
-instType st b@(Bindings { name_gen = ng, input_names = ins }) = 
+instType st b@(Bindings {name_gen = ng, input_names = ins}) = 
     let 
         is = tyVarIds $ map (\n -> E.lookup n (expr_env st)) ins
         (ng', st') = L.foldl' instType' (ng, st) is
