@@ -675,13 +675,13 @@ mkTyCon t = do
     bv <- mapM typeId $ tyConTyVars t
 
     dcs <-
-        case isAlgTyCon t of 
+        case isAlgTyCon t of
             True -> do
                       SM.put (nm', tm')
                       case algTyConRhs t of
                             DataTyCon { data_cons = dc} -> do
                                 dcs <- mapM mkData dc
-                                return . Just $ G2.DataTyCon bv dcs ADTSourceCode -- need looking
+                                return . Just $ G2.DataTyCon bv dcs ADTSourceCode
                             NewTyCon { data_con = dc
                                      , nt_rhs = rhst} -> do
                                         dc' <- mkData dc
@@ -690,12 +690,12 @@ mkTyCon t = do
                                           Just $ G2.NewTyCon { G2.bound_ids = bv
                                                              , G2.data_con = dc'
                                                              , G2.rep_type = t'
-                                                             , G2.adt_source = ADTSourceCode} --need looking
+                                                             , G2.adt_source = ADTSourceCode}
                             AbstractTyCon {} -> error "Unhandled TyCon AbstractTyCon"
                             -- TupleTyCon {} -> error "Unhandled TyCon TupleTyCon"
                             TupleTyCon { data_con = dc } -> do
                               dc' <- mkData dc
-                              return . Just $ G2.DataTyCon bv [dc'] ADTSourceCode --need looking
+                              return . Just $ G2.DataTyCon bv [dc'] ADTSourceCode
                             SumTyCon {} -> error "Unhandled TyCon SumTyCon"
             False -> case isTypeSynonymTyCon t of
                     True -> do

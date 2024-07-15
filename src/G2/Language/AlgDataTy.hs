@@ -17,7 +17,7 @@ import G2.Language.Syntax
 
 data ADTSource = ADTSourceCode | ADTG2Generated deriving (Show, Eq, Read, Generic, Typeable, Data)
 
-instance Hashable ADTSource 
+instance Hashable ADTSource
 
 -- | Algebraic data types are types constructed with parametrization of some
 -- names over types, and a list of data constructors for said type.

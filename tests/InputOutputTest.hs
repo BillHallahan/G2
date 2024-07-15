@@ -54,6 +54,14 @@ checkInputOutputsNonRedLib src tests = do
         src
         tests
 
+checkInputOutputsInstType :: FilePath -> [(String, Int, [Reqs String])] -> TestTree
+checkInputOutputsInstType src tests = do
+    checkInputOutput'
+        (do config <- mkConfigTestIO; return (config { instTV = InstAfter }))
+        src
+        tests
+
+
 checkInputOutput' :: IO Config
                   -> FilePath
                   -> [(String, Int, [Reqs String])]

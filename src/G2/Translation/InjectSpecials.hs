@@ -23,7 +23,7 @@ specialTypes' (n, m, ns) dcn =
         tn = Name n m 0 Nothing
         dc = map (specialDC ns tn) dcn
     in
-    (tn, DataTyCon {bound_ids = map (flip Id TYPE) ns, data_cons = dc})
+    (tn, DataTyCon {bound_ids = map (flip Id TYPE) ns, data_cons = dc, adt_source = ADTSourceCode})
 
 specialDC :: [Name] -> Name -> (T.Text, Maybe T.Text, [Type]) -> DataCon
 specialDC ns tn (n, m, ts) = 
