@@ -473,8 +473,8 @@ primTests = testGroup "Prims"
     , checkInputOutputs "tests/Prim/MutVar.hs" [ ("f", 10000, [Exactly 3])
                                                , ("g", 10000, [Exactly 1])
                                                , ("h", 10000, [Exactly 1])
-                                               , ("i", 10000, [Exactly 1]) ]
-                                               , ("j", 10000, [Exactly 1])
+                                               , ("i", 10000, [Exactly 1])
+                                               , ("j", 10000, [Exactly 1])]
     ]
 
 ioTests :: TestTree
