@@ -482,7 +482,9 @@ primTests = testGroup "Prims"
 ioTests :: TestTree
 ioTests = testGroup "IO"
     [
-        checkInputOutput "tests/IO/UnsafePerformIO1.hs" "f" 1000 [Exactly 1]
+      checkInputOutput "tests/IO/UnsafePerformIO1.hs" "f" 1000 [Exactly 1]
+    , checkInputOutput "tests/IO/IORef1.hs" "unsafeF" 5000 [Exactly 1]
+    , checkInputOutput "tests/IO/IORef1.hs" "unsafeG" 5000 [Exactly 2]
     ]
 
 -- To Do Tests
