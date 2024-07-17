@@ -227,10 +227,10 @@ data Primitive = -- Mathematical and logical operators
                | IntToString
                
                -- MutVar#
-               | WriteMutVar -- ^ `forall a d . M# a -> a -> d -> State# -> State#`.
-                             -- The first passed `a` must be a `Var`.
-                             -- During execution, its `Name` is remapped in the `ExprEnv`
-                             -- to be the value of the second passed `a`.
+               | MutVar Name
+               | NewMutVar
+               | ReadMutVar
+               | WriteMutVar -- ^ `forall a d . MutVar# -> a -> d -> State# -> State#`.
 
                -- Errors
                | Error

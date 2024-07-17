@@ -1,7 +1,7 @@
 {-# LANGUAGE Rank2Types #-}
 {-# LANGUAGE FlexibleContexts #-}
 
-module G2.Execution.PrimitiveEval (evalPrims, maybeEvalPrim, evalPrimSymbolic) where
+module G2.Execution.PrimitiveEval (evalPrims, evalPrimMutVar, maybeEvalPrim, evalPrimSymbolic) where
 
 import G2.Language.AST
 import G2.Language.Expr
@@ -55,6 +55,38 @@ maybeEvalPrim' tenv kv xs
         evalTypeLitPrim2 tenv p t l
 
     | otherwise = Nothing
+
+evalPrimMutVar :: State t
+               -> NameGen
+               -> Expr
+               -> Maybe (State t, NameGen)
+evalPrimMutVar s ng (App (App (App (App (Prim NewMutVar _) (Type t)) _) e) _) =
+    let
+        (mv_n, ng') = freshName ng
+        (i, ng'') = freshId t ng'
+        s' = s { curr_expr = CurrExpr Evaluate (Prim (MutVar mv_n) TyUnknown)
+               , expr_env = E.insert (idName i) e (expr_env s)
+               , mutvar_env = M.insert mv_n i (mutvar_env s)}
+    in
+    Just (s', ng'')
+evalPrimMutVar s ng (App (App (App (App (Prim ReadMutVar _) (Type t)) _) (Prim (MutVar mv) _)) _) =
+    let
+        i = M.lookup mv (mutvar_env s)
+        s' = maybe (error "evalPrimMutVar: MutVar not found")
+                   (\i' -> s { curr_expr = CurrExpr Evaluate (Var i') })
+                   i
+    in
+    Just (s', ng)
+evalPrimMutVar s ng (App (App (App (App (App (Prim WriteMutVar _) (Type t)) _) (Prim (MutVar mv) _)) e) pr_s) =
+    let
+        i = M.lookup mv (mutvar_env s)
+        s' = maybe (error "evalPrimMutVar: MutVar not found")
+                   (\(Id n _) -> s { expr_env = E.insert n e (expr_env s)
+                                   , curr_expr = CurrExpr Evaluate pr_s })
+                   i
+    in
+    Just (s', ng)
+evalPrimMutVar _ _ _ = Nothing
 
 evalPrim1 :: Primitive -> Lit -> Maybe Expr
 evalPrim1 Negate (LitInt x) = Just . Lit $ LitInt (-x)

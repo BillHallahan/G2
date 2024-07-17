@@ -395,6 +395,9 @@ mkPrimHaskell WGenCat = "wgencat"
 
 mkPrimHaskell IntToString = "intToString"
 
+mkPrimHaskell (MutVar m) = "(MutVar " <> mkNameHaskell (mkPrettyGuide ()) m <> ")"
+mkPrimHaskell NewMutVar = "newMutVar##"
+mkPrimHaskell ReadMutVar = "readMutVar##"
 mkPrimHaskell WriteMutVar = "writeMutVar##"
 
 mkPrimHaskell ToInt = "toInt"
@@ -455,6 +458,8 @@ prettyState pg s =
         , pretty_paths
         , "----- [Non Red Paths] ---------------------"
         , pretty_non_red_paths
+        , "----- [MutVars Env] ---------------------"
+        , pretty_mutvars
         , "----- [Types] ---------------------"
         , pretty_tenv
         , "----- [Typeclasses] ---------------------"
@@ -474,6 +479,7 @@ prettyState pg s =
         pretty_eenv = prettyEEnv pg (expr_env s)
         pretty_paths = prettyPathConds pg (path_conds s)
         pretty_non_red_paths = prettyNonRedPaths pg (non_red_path_conds s)
+        pretty_mutvars = prettyMutVars pg (mutvar_env s)
         pretty_tenv = prettyTypeEnv pg (type_env s)
         pretty_tc = prettyTypeClasses pg (type_classes s)
         pretty_assert_fcs = maybe "None" (printFuncCallPG pg) (assert_ids s)
@@ -553,6 +559,9 @@ prettyPathCond pg (AssumePC i l pc) =
 
 prettyNonRedPaths :: PrettyGuide -> [(Expr, Expr)] -> T.Text
 prettyNonRedPaths pg = T.intercalate "\n" . map (\(e1, e2) -> mkDirtyExprHaskell pg e1 <> " == " <> mkDirtyExprHaskell pg e2)
+
+prettyMutVars :: PrettyGuide -> HM.HashMap Name Id -> T.Text
+prettyMutVars pg = T.intercalate "\n" . map (\(n, i) -> printName pg n <> " , " <> mkIdHaskell pg i) . HM.toList
 
 prettyTypeEnv :: PrettyGuide -> TypeEnv -> T.Text
 prettyTypeEnv pg = T.intercalate "\n" . map (uncurry (prettyADT pg)) . HM.toList

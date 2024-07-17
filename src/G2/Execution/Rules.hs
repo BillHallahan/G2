@@ -154,6 +154,7 @@ evalApp s@(State { expr_env = eenv
         ng e1 e2
     | ac@(Prim Error _) <- appCenter e1 =
         (RuleError, [newPCEmpty $ s { curr_expr = CurrExpr Return ac }], ng)
+    | Just (s', ng') <- evalPrimMutVar s ng (App e1 e2) = (RuleEvalPrimToNorm, [newPCEmpty $ s'], ng')
     | Just (e, eenv', pc, ng') <- evalPrimSymbolic eenv tenv ng kv (App e1 e2) =
         ( RuleEvalPrimToNorm
         , [ (newPCEmpty $ s { expr_env = eenv'

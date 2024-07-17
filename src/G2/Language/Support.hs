@@ -46,6 +46,7 @@ data State t = State { expr_env :: E.ExprEnv -- ^ Mapping of `Name`s to `Expr`s
                      , path_conds :: PathConds -- ^ Path conditions, in SWHNF
                      , non_red_path_conds :: [(Expr, Expr)] -- ^ Path conditions, in the form of (possibly non-reduced)
                                                             -- expression pairs that must be proved equivalent
+                     , mutvar_env :: HM.HashMap Name Id -- ^ MutVar `Name`s to mappings of names in the `ExprEnv`
                      , true_assert :: Bool -- ^ Have we violated an assertion?
                      , assert_ids :: Maybe FuncCall
                      , type_classes :: TypeClasses
@@ -148,6 +149,8 @@ instance Named t => Named (State t) where
             <> names (type_env s)
             <> names (curr_expr s)
             <> names (path_conds s)
+            <> names (non_red_path_conds s)
+            <> names (mutvar_env s)
             <> names (assert_ids s)
             <> names (type_classes s)
             <> names (exec_stack s)
@@ -164,6 +167,7 @@ instance Named t => Named (State t) where
                , curr_expr = rename old new (curr_expr s)
                , path_conds = rename old new (path_conds s)
                , non_red_path_conds = rename old new (non_red_path_conds s)
+               , mutvar_env = rename old new (mutvar_env s)
                , true_assert = true_assert s
                , assert_ids = rename old new (assert_ids s)
                , type_classes = rename old new (type_classes s)
@@ -184,6 +188,7 @@ instance Named t => Named (State t) where
                , curr_expr = renames hm (curr_expr s)
                , path_conds = renames hm (path_conds s)
                , non_red_path_conds = renames hm (non_red_path_conds s)
+               , mutvar_env = renames hm (mutvar_env s)
                , true_assert = true_assert s
                , assert_ids = renames hm (assert_ids s)
                , type_classes = renames hm (type_classes s)
@@ -201,6 +206,8 @@ instance ASTContainer t Expr => ASTContainer (State t) Expr where
                       (containedASTs $ expr_env s) ++
                       (containedASTs $ curr_expr s) ++
                       (containedASTs $ path_conds s) ++
+                      (containedASTs $ non_red_path_conds s) ++
+                      (containedASTs $ mutvar_env s) ++
                       (containedASTs $ assert_ids s) ++
                       (containedASTs $ exec_stack s) ++
                       (containedASTs $ track s) ++ 
@@ -211,6 +218,8 @@ instance ASTContainer t Expr => ASTContainer (State t) Expr where
                                 , expr_env  = modifyContainedASTs f $ expr_env s
                                 , curr_expr = modifyContainedASTs f $ curr_expr s
                                 , path_conds = modifyContainedASTs f $ path_conds s
+                                , non_red_path_conds = modifyContainedASTs f $ non_red_path_conds s
+                                , mutvar_env = modifyContainedASTs f $ mutvar_env s
                                 , assert_ids = modifyContainedASTs f $ assert_ids s
                                 , exec_stack = modifyContainedASTs f $ exec_stack s
                                 , track = modifyContainedASTs f $ track s 
@@ -222,6 +231,8 @@ instance ASTContainer t Type => ASTContainer (State t) Type where
                       ((containedASTs . type_env) s) ++
                       ((containedASTs . curr_expr) s) ++
                       ((containedASTs . path_conds) s) ++
+                      (containedASTs $ non_red_path_conds s) ++
+                      (containedASTs $ mutvar_env s) ++
                       ((containedASTs . assert_ids) s) ++
                       ((containedASTs . type_classes) s) ++
                       ((containedASTs . exec_stack) s) ++
@@ -233,6 +244,8 @@ instance ASTContainer t Type => ASTContainer (State t) Type where
                                 , expr_env  = (modifyContainedASTs f . expr_env) s
                                 , curr_expr = (modifyContainedASTs f . curr_expr) s
                                 , path_conds = (modifyContainedASTs f . path_conds) s
+                                , non_red_path_conds = modifyContainedASTs f $ non_red_path_conds s
+                                , mutvar_env = modifyContainedASTs f $ mutvar_env s
                                 , assert_ids = (modifyContainedASTs f . assert_ids) s
                                 , type_classes = (modifyContainedASTs f . type_classes) s
                                 , exec_stack = (modifyContainedASTs f . exec_stack) s
