@@ -475,6 +475,8 @@ primTests = testGroup "Prims"
                                                , ("h", 10000, [Exactly 1])
                                                , ("i", 10000, [Exactly 1])
                                                , ("j", 10000, [Exactly 1])]
+
+    , checkInputOutputs "tests/Prim/STRef.hs" [ ("f", 10000, [Exactly 1]) ]
     ]
 
 ioTests :: TestTree
