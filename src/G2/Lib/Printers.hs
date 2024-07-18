@@ -113,7 +113,7 @@ mkExprHaskell' off_init cleaned pg ex = mkExprHaskell'' off_init ex
                        -> T.Text
         mkExprHaskell'' _ (Var ids) = mkIdHaskell pg ids
         mkExprHaskell'' _ (Lit c) = mkLitHaskell c
-        mkExprHaskell'' _ (Prim p _) = mkPrimHaskell p
+        mkExprHaskell'' _ (Prim p _) = mkPrimHaskell pg p
         mkExprHaskell'' off (Lam _ ids e) =
             "(\\" <> mkIdHaskell pg ids <> " -> " <> mkExprHaskell'' off e <> ")"
 
@@ -130,7 +130,7 @@ mkExprHaskell' off_init cleaned pg ex = mkExprHaskell'' off_init ex
             , isCleaned =
                 if isLitChar e2 then printString pg a else printList pg a
 
-            | isInfixable e1
+            | isInfixable pg e1
             , isCleaned =
                 let
                     e2P = if isApp e2 then "(" <> mkExprHaskell'' off e2 <> ")" else mkExprHaskell'' off e2
@@ -301,11 +301,11 @@ printTuple' pg (App e e') = mkExprHaskell Cleaned pg e':printTuple' pg e
 printTuple' _ _ = []
 
 
-isInfixable :: Expr -> Bool
-isInfixable (Var (Id n _)) = isInfixableName n
-isInfixable (Data (DataCon n _)) = isInfixableName n
-isInfixable (Prim p _) = not . T.any isAlphaNum $ mkPrimHaskell p
-isInfixable _ = False
+isInfixable :: PrettyGuide -> Expr -> Bool
+isInfixable _ (Var (Id n _)) = isInfixableName n
+isInfixable _ (Data (DataCon n _)) = isInfixableName n
+isInfixable pg (Prim p _) = not . T.any isAlphaNum $ mkPrimHaskell pg p
+isInfixable _ _ = False
 
 isInfixableName :: Name -> Bool
 isInfixableName = not . T.any isAlphaNum . nameOcc
@@ -334,78 +334,81 @@ mkFloat r | isNaN r = "(0 / 0)"
           | r == -1 / 0 = "(-1 / 0)" -- Negative Infinity
           | otherwise = "(" <> T.pack (show r) <> ")"
 
-mkPrimHaskell :: Primitive -> T.Text
-mkPrimHaskell Ge = ">="
-mkPrimHaskell Gt = ">"
-mkPrimHaskell Eq = "=="
-mkPrimHaskell Neq = "/="
-mkPrimHaskell Lt = "<"
-mkPrimHaskell Le = "<="
-mkPrimHaskell And = "&&"
-mkPrimHaskell Or = "||"
-mkPrimHaskell Not = "not"
-mkPrimHaskell Plus = "+"
-mkPrimHaskell Minus = "-"
-mkPrimHaskell Mult = "*"
-mkPrimHaskell Div = "/"
-mkPrimHaskell DivInt = "/"
-mkPrimHaskell Quot = "quot"
-mkPrimHaskell Mod = "mod"
-mkPrimHaskell Rem = "rem"
-mkPrimHaskell Negate = "-"
-mkPrimHaskell Abs = "abs"
+mkPrimHaskell :: PrettyGuide -> Primitive -> T.Text
+mkPrimHaskell pg = pr
+    where
+        pr Ge = ">="
+        pr Gt = ">"
+        pr Eq = "=="
+        pr Neq = "/="
+        pr Lt = "<"
+        pr Le = "<="
+        pr And = "&&"
+        pr Or = "||"
+        pr Not = "not"
+        pr Plus = "+"
+        pr Minus = "-"
+        pr Mult = "*"
+        pr Div = "/"
+        pr DivInt = "/"
+        pr Quot = "quot"
+        pr Mod = "mod"
+        pr Rem = "rem"
+        pr Negate = "-"
+        pr Abs = "abs"
 
-mkPrimHaskell Sqrt = "sqrt"
+        pr Sqrt = "sqrt"
 
-mkPrimHaskell FpNeg = "fp.-"
-mkPrimHaskell FpAdd = "fp.+"
-mkPrimHaskell FpSub = "fp.-"
-mkPrimHaskell FpMul = "fp.*"
-mkPrimHaskell FpDiv = "fp./"
-mkPrimHaskell FpLeq = "fp.<="
-mkPrimHaskell FpLt = "fp.<"
-mkPrimHaskell FpGeq = "fp.>="
-mkPrimHaskell FpGt = "fp.>"
-mkPrimHaskell FpEq = "fp.=="
-mkPrimHaskell FpNeq = "fp./="
+        pr FpNeg = "fp.-"
+        pr FpAdd = "fp.+"
+        pr FpSub = "fp.-"
+        pr FpMul = "fp.*"
+        pr FpDiv = "fp./"
+        pr FpLeq = "fp.<="
+        pr FpLt = "fp.<"
+        pr FpGeq = "fp.>="
+        pr FpGt = "fp.>"
+        pr FpEq = "fp.=="
+        pr FpNeq = "fp./="
 
-mkPrimHaskell FpSqrt = "fp.sqrt"
+        pr FpSqrt = "fp.sqrt"
 
-mkPrimHaskell FpIsNegativeZero = "isNegativeZero#"
-mkPrimHaskell IsNaN = "isNaN#"
-mkPrimHaskell IsInfinite = "isInfinite#"
+        pr FpIsNegativeZero = "isNegativeZero#"
+        pr IsNaN = "isNaN#"
+        pr IsInfinite = "isInfinite#"
 
-mkPrimHaskell DataToTag = "prim_dataToTag#"
-mkPrimHaskell TagToEnum = "prim_tagToEnum#"
+        pr DataToTag = "prim_dataToTag#"
+        pr TagToEnum = "prim_tagToEnum#"
 
 
-mkPrimHaskell IntToFloat = "fromIntegral"
-mkPrimHaskell IntToDouble = "fromIntegral"
-mkPrimHaskell IntToRational = "fromIntegral"
-mkPrimHaskell RationalToFloat = "fromRational"
-mkPrimHaskell RationalToDouble = "fromRational"
-mkPrimHaskell ToInteger = "toInteger"
+        pr IntToFloat = "fromIntegral"
+        pr IntToDouble = "fromIntegral"
+        pr IntToRational = "fromIntegral"
+        pr RationalToFloat = "fromRational"
+        pr RationalToDouble = "fromRational"
+        pr ToInteger = "toInteger"
 
-mkPrimHaskell StrLen = "StrLen"
-mkPrimHaskell StrAppend = "StrAppend"
-mkPrimHaskell Chr = "chr"
-mkPrimHaskell OrdChar = "ord"
+        pr StrLen = "StrLen"
+        pr StrAppend = "StrAppend"
+        pr Chr = "chr"
+        pr OrdChar = "ord"
 
-mkPrimHaskell WGenCat = "wgencat"
+        pr WGenCat = "wgencat"
 
-mkPrimHaskell IntToString = "intToString"
+        pr IntToString = "intToString"
 
-mkPrimHaskell (MutVar m) = "(MutVar " <> mkNameHaskell (mkPrettyGuide ()) m <> ")"
-mkPrimHaskell NewMutVar = "newMutVar##"
-mkPrimHaskell ReadMutVar = "readMutVar##"
-mkPrimHaskell WriteMutVar = "writeMutVar##"
+        pr (MutVar m) = "(MutVar " <> mkNameHaskell pg m <> ")"
+        pr NewMutVar = "newMutVar##"
+        pr ReadMutVar = "readMutVar##"
+        pr WriteMutVar = "writeMutVar##"
 
-mkPrimHaskell ToInt = "toInt"
+        pr ToInt = "toInt"
 
-mkPrimHaskell Error = "error"
-mkPrimHaskell Undefined = "undefined"
-mkPrimHaskell Implies = "undefined"
-mkPrimHaskell Iff = "undefined"
+        pr Error = "error"
+        pr Undefined = "undefined"
+        pr Implies = "undefined"
+        pr Iff = "undefined"
+
 
 mkTypeHaskell :: Type -> T.Text
 mkTypeHaskell = mkTypeHaskellPG (mkPrettyGuide ())
