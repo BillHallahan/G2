@@ -56,10 +56,12 @@ maybeEvalPrim' tenv kv xs
 
     | otherwise = Nothing
 
-evalPrimMutVar :: State t
+-- | Evaluate primitives that deal with mutable variables.
+-- See Note [MutVar Env] in G2.Language.Support.
+evalPrimMutVar :: State t -- ^ Context to evaluate expression `e` in
                -> NameGen
-               -> Expr
-               -> Maybe (State t, NameGen)
+               -> Expr -- ^ The expression `e` to evaluate
+               -> Maybe (State t, NameGen) -- ^ `Just` if `e` is a primitive operation on mutable variable, `Nothing` otherwise
 evalPrimMutVar s ng (App (App (App (App (Prim NewMutVar _) (Type t)) _) e) _) =
     let
         (mv_n, ng') = freshName ng
@@ -79,13 +81,12 @@ evalPrimMutVar s ng (App (App (App (App (Prim ReadMutVar _) (Type t)) _) (Prim (
     Just (s', ng)
 evalPrimMutVar s ng (App (App (App (App (App (Prim WriteMutVar _) (Type t)) _) (Prim (MutVar mv) _)) e) pr_s) =
     let
-        i = M.lookup mv (mutvar_env s)
-        s' = maybe (error "evalPrimMutVar: MutVar not found")
-                   (\(Id n _) -> s { expr_env = E.insert n e (expr_env s)
-                                   , curr_expr = CurrExpr Evaluate pr_s })
-                   i
+        (i, ng') = freshId t ng
+        s' = s { expr_env = E.insert (idName i) e (expr_env s)
+               , mutvar_env = M.insert mv i (mutvar_env s)
+               , curr_expr = CurrExpr Evaluate pr_s }
     in
-    Just (s', ng)
+    Just (s', ng')
 evalPrimMutVar _ _ _ = Nothing
 
 evalPrim1 :: Primitive -> Lit -> Maybe Expr
