@@ -66,4 +66,4 @@ jobs:
     - name: Build
       run: cabal build
     - name: Run tests
-      run: cabal run ${{ matrix.test.test }} -- -p '/tests_lh\/Liquid\/Sets\/Sets6.hs f/'
+      run: cabal run ${{ matrix.test.test }}
