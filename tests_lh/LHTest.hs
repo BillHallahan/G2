@@ -499,7 +499,7 @@ checkLiquidWithConfig fp tests config_f lhconfig_f =
                                             (null r_, Right r_)
 
                             assertBool ("Liquid test for file " ++ fp ++ 
-                                        " with function " ++ entry ++ " failed.\n" ++ show r ++ "\n" ++ show res) ch
+                                        " with function " ++ entry ++ " failed.\n" ++ show r) ch
                         )
                     ) tests
 
