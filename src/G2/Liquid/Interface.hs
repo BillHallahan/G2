@@ -452,7 +452,8 @@ lhReducerHalterOrderer config lhconfig solver simplifier entry mb_modname cfn st
         lh_std_red = existentialInstRed :== NoProgress .--> lhRed cfn :== Finished --> stdRed share retReplaceSymbFuncVar solver simplifier
         opt_logger_red = case m_logger of
                             Just logger -> logger .~> lh_std_red
-                            Nothing -> (if mb_modname == Just "Sets9" then (SomeReducer currExprLogger .~>) else id) lh_std_red
+                            Nothing ->
+                                (if mb_modname == Just "Sets9" then (SomeReducer (currExprLogger $ LimLogger 0 0 Nothing [2,2,2,1,1,2,2,1,2,1,2,2,1,1,1,2,2,1,1] "") .~>) else id) lh_std_red
     in
     if higherOrderSolver config == AllFuncs then
         (opt_logger_red .== Finished .-->

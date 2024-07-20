@@ -805,23 +805,49 @@ getFile dn is n s = do
     return fn
 
 -- | Output each path and current expression on the command line
-currExprLogger :: (MonadIO m, SM.MonadState PrettyGuide m) => Reducer m [Int] t
-currExprLogger = 
-    (mkSimpleReducer
-        (const [])
-        (\li s b -> do
-            pg <- SM.get
-            let pg' = updatePrettyGuide (s { track = () }) pg
-            SM.put pg'
-            liftIO $ print li
-            liftIO . T.putStrLn $ printHaskellDirtyPG pg' (getExpr s)
-            return (NoProgress, [(s, li)], b)
-        )
-    ) { updateWithAll = \s -> map (\(l, i) -> l ++ [i]) $ zip (map snd s) [1..]
-      , onAccept = \s b llt -> do
-                                liftIO . putStrLn $ "Accepted on path " ++ show llt
+currExprLogger :: (MonadIO m, SM.MonadState PrettyGuide m, Show t) => LimLogger -> Reducer m LLTracker t
+currExprLogger ll@(LimLogger { after_n = aft, before_n = bfr, down_path = down }) = 
+    (mkSimpleReducer (const $ LLTracker { ll_count = every_n ll, ll_offset = []}) rr)
+        { updateWithAll = updateWithAllLL
+        , onAccept = \s b llt -> do
+                                liftIO . putStrLn $ "Accepted on path " ++ show (ll_offset llt)
                                 return (s, b)
-      , onDiscard = \_ ll -> liftIO . putStrLn $ "Discarded path " ++ show ll }
+        , onDiscard = \_ llt -> liftIO . putStrLn $ "Discarded path " ++ show (ll_offset llt)}
+    where
+        rr llt@(LLTracker { ll_count = 0, ll_offset = off }) s b
+            | down `L.isPrefixOf` off || off `L.isPrefixOf` down
+            , aft <= length_rules && maybe True (length_rules <=) bfr = do
+                liftIO $ print off
+                pg <- SM.get
+                let pg' = updatePrettyGuide (s { track = () }) pg
+                SM.put pg'
+                liftIO . T.putStrLn $ printHaskellDirtyPG pg' (getExpr s)
+                return (NoProgress, [(s, llt { ll_count = every_n ll })], b)
+            | otherwise =
+                return (NoProgress, [(s, llt { ll_count = every_n ll })], b)
+            where
+                length_rules = length (rules s)
+        rr llt@(LLTracker {ll_count = n}) s b =
+            return (NoProgress, [(s, llt { ll_count = n - 1 })], b)
+
+        updateWithAllLL [(_, l)] = [l]
+        updateWithAllLL ss =
+            map (\(llt, i) -> llt { ll_offset = ll_offset llt ++ [i] }) $ zip (map snd ss) [1..]
+    -- (mkSimpleReducer
+    --     (const [])
+    --     (\li s b -> do
+    --         pg <- SM.get
+    --         let pg' = updatePrettyGuide (s { track = () }) pg
+    --         SM.put pg'
+    --         liftIO $ print li
+    --         liftIO . T.putStrLn $ printHaskellDirtyPG pg' (getExpr s)
+    --         return (NoProgress, [(s, li)], b)
+    --     )
+    -- ) { updateWithAll = \s -> map (\(l, i) -> l ++ [i]) $ zip (map snd s) [1..]
+    --   , onAccept = \s b llt -> do
+    --                             liftIO . putStrLn $ "Accepted on path " ++ show llt
+    --                             return (s, b)
+    --   , onDiscard = \_ ll -> liftIO . putStrLn $ "Discarded path " ++ show ll }
 
 -- We use C to combine the halter values for HCombiner
 -- We should never define any other instance of Halter with C, or export it
