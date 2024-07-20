@@ -68,6 +68,7 @@ module G2.Execution.Reducer ( Reducer (..)
                             , prettyLogger
                             , limLogger
                             , LimLogger (..)
+                            , currExprLogger
 
                             , ReducerEq (..)
                             , (.==)
@@ -128,6 +129,7 @@ import qualified Data.Map as M
 import Data.Maybe
 import qualified Data.List as L
 import qualified Data.Text as T
+import qualified Data.Text.IO as T
 import Data.Tuple
 import Data.Time.Clock
 import System.Directory
@@ -796,6 +798,23 @@ getFile dn is n s = do
     createDirectoryIfMissing True dir
     let fn = dir ++ n ++ show (length $ rules s) ++ ".txt"
     return fn
+
+-- | Output each path and current expression on the command line
+currExprLogger :: (MonadIO m, SM.MonadState PrettyGuide m) => Reducer m [Int] t
+currExprLogger = 
+    (mkSimpleReducer
+        (const [])
+        (\li s b -> do
+            pg <- SM.get
+            let pg' = updatePrettyGuide (s { track = () }) pg
+            SM.put pg'
+            liftIO $ print li
+            liftIO . T.putStrLn $ printHaskellDirtyPG pg' (getExpr s)
+            return (NoProgress, [(s, li)], b)
+        )
+    ) { updateWithAll = \s -> map (\(l, i) -> l ++ [i]) $ zip (map snd s) [1..]
+      , onAccept = \_ ll -> liftIO . putStrLn $ "Accepted on path " ++ show ll
+      , onDiscard = \_ ll -> liftIO . putStrLn $ "Discarded path " ++ show ll }
 
 -- We use C to combine the halter values for HCombiner
 -- We should never define any other instance of Halter with C, or export it
