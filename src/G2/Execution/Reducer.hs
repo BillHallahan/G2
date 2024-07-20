@@ -818,7 +818,9 @@ currExprLogger =
             return (NoProgress, [(s, li)], b)
         )
     ) { updateWithAll = \s -> map (\(l, i) -> l ++ [i]) $ zip (map snd s) [1..]
-      , onAccept = \_ ll -> liftIO . putStrLn $ "Accepted on path " ++ show ll
+      , onAccept = \s b llt -> do
+                                liftIO . putStrLn $ "Accepted on path " ++ show llt
+                                return (s, b)
       , onDiscard = \_ ll -> liftIO . putStrLn $ "Discarded path " ++ show ll }
 
 -- We use C to combine the halter values for HCombiner
