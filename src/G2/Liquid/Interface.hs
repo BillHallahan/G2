@@ -460,9 +460,9 @@ lhReducerHalterOrderer config lhconfig solver simplifier entry mb_modname cfn st
             (taggerRed abs_ret_name :== Finished --> nonRedAbstractReturnsRed) .== Finished .-->
             SomeReducer non_red
         , SomeHalter
-                (maxOutputsHalter (maxOutputs config)
-                  <~> zeroHalter (steps config)
-                  <~> lhAbsHalter Nothing entry mb_modname (expr_env st)
+                ((printOnHaltC Discard "max outputs" $ maxOutputsHalter (maxOutputs config))
+                  <~> (printOnHaltC Discard "zero" $ zeroHalter (steps config))
+                  <~> (printOnHaltC Discard "abs halter" $ lhAbsHalter Nothing entry mb_modname (expr_env st))
                   <~> lhLimitByAcceptedHalter (cut_off lhconfig)
                   <~> switchEveryNHalter (switch_after lhconfig)
                   <~> lhAcceptIfViolatedHalter)

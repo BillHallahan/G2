@@ -95,6 +95,8 @@ module G2.Execution.Reducer ( Reducer (..)
                             , stdTimerHalter
                             , timerHalter
 
+                            , printOnHaltC
+
                             -- * Orderers
                             , mkSimpleOrderer
                             , (<->)
@@ -1036,6 +1038,18 @@ timerHalter ms def ce = do
         step v _ _ _
             | v >= ce = 0
             | otherwise = v + 1
+
+-- | Print a specified message if a specified HaltC is returned from the contained Halter
+printOnHaltC :: MonadIO m =>
+                HaltC -- ^ The HaltC to watch for
+             -> String -- ^ The message to print
+             -> Halter m hv t -- ^ The contained Halter
+             -> Halter m hv t
+printOnHaltC watch mes h =
+    h { stopRed = \hv pr s -> do
+                        halt_c <- stopRed h hv pr s
+                        if halt_c == watch then liftIO $ putStrLn mes else return ()
+                        return halt_c }
 
 -- Orderer things
 (<->) :: Monad m => Orderer m sov1 b1 t -> Orderer m sov2 b2 t -> Orderer m (C sov1 sov2) (b1, b2) t
