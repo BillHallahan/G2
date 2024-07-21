@@ -261,7 +261,7 @@ lhAbsHalter max_cf entry modn eenv = mkSimpleHalter initial update stop step
 
         stop hv _ s =
             return $ if length (abstract_calls $ track s) > hv
-                then trace ("abs halter trace, length abs calls = " ++ show (length (abstract_calls $ track s)) ++ "   hv = " ++ show hv) Discard
+                then Discard
                 else Continue
 
         step hv _ _ _ = hv
