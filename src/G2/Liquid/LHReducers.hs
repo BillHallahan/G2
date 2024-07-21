@@ -53,8 +53,6 @@ import Data.Semigroup
 import qualified Data.Text as T
 import Data.Time.Clock
 
-import Debug.Trace
-
 -- lhReduce
 -- When reducing for LH, we change the rule for evaluating Var f.
 -- Var f can potentially split into two states.
@@ -254,7 +252,7 @@ lhAbsHalter max_cf entry modn eenv = mkSimpleHalter initial update stop step
                 
                 init_tr = initialTrack eenv fe
             in
-            trace ("abs calls init = " ++ show (fromMaybe init_tr max_cf) ++ "\ninit_tr = " ++ show init_tr ++ "\nfe = " ++ show fe) fromMaybe init_tr max_cf
+            fromMaybe init_tr max_cf
 
         update ii (Processed {accepted = acc}) _ =
             minimum $ ii:mapMaybe (\s -> case true_assert s of
