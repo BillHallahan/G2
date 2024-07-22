@@ -3,7 +3,8 @@ module InputOutputTest ( checkInputOutput
                        , checkInputOutputs
                        , checkInputOutputsTemplate
                        , checkInputOutputsNonRedTemp
-                       , checkInputOutputsNonRedLib ) where
+                       , checkInputOutputsNonRedLib
+                       , checkInputOutputsInstType ) where
 
 import Test.Tasty
 import Test.Tasty.HUnit

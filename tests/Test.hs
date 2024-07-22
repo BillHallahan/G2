@@ -392,7 +392,9 @@ testFileTests = testGroup "TestFiles"
                                                       , ("n", 1000, [AtLeast 2])
                                                       , ("sqrtSquared", 1000, [AtLeast 2]) ]
 
-    ]
+    , checkInputOutputs "tests/TestFiles/InstTypes1.hs" [ ("lengthList", 200, [AtLeast 1]) 
+                                                        , ("myTuple", 200, [AtLeast 1])  ]
+ ]
 
 extensionTests :: TestTree
 extensionTests = testGroup "Extensions"

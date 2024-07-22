@@ -4,6 +4,10 @@ module G2.Translation.HaskellCheck ( validateStates
                                    , runHPC) where
 
 import GHC hiding (Name, entry)
+import GHC.Driver.Session
+
+import GHC.LanguageExtensions
+
 import GHC.Paths
 
 import Data.Either
@@ -37,13 +41,12 @@ g2GeneratedTypeToName s (x,y@(DataTyCon{data_cons = dcs, bound_ids = ids})) =
  -- "data " ++ show x ++ " " ++ show ids ++ " = " ++ show dcs
     -- data maybe a = just a | nothing
     --  data Name bound_ids = datacons 
-    -- next step: determine whether the ids is empty, if it's empty, ignore it in the type construction
     let
         x' = T.unpack $ printName (mkPrettyGuide x) x 
         ids' = T.unpack . T.intercalate " " $ map (printHaskellPG (mkPrettyGuide ids) s . Var) ids
         dc_name = T.unpack $ printHaskellPG (mkPrettyGuide dcs) s (mkApp $ map Data dcs)
-        dc_cons = T.unpack . T.intercalate " " $ map mkTypeHaskell (concatMap argumentTypes dcs)
-        str = "data " ++ x' ++ " " ++ ids'++ " = " ++ dc_name ++ " " ++ dc_cons
+        dc_types = T.unpack . T.intercalate " " $ map mkTypeHaskell (concatMap argumentTypes dcs)
+        str = "data " ++ x' ++ " " ++ ids'++ " = " ++ dc_name ++ " " ++ dc_types
     in
     trace ("string returned: " ++ show str) (s, str)
 
@@ -80,6 +83,9 @@ runCheck' modN entry chAll s@(State {type_env = te}) ars out = do
     let g2Gen = H.toList $ H.filter (\x -> adt_source x == ADTG2Generated) te 
 
     let (_ , g2str) = mapAccumL g2GeneratedTypeToName s g2Gen
+    dyn <- getSessionDynFlags
+    let dyn' = xopt_set dyn MagicHash
+    setSessionDynFlags dyn'
 
     _ <- mapM runDecls $ trace (intercalate "\n" (map (\s -> ("g2Gen constructors " ++ s)) g2str )) g2str
 
@@ -102,6 +108,9 @@ loadToCheck :: [FilePath] -> [FilePath] -> String -> [GeneralFlag] -> Ghc ()
 loadToCheck proj src modN gflags = do
         _ <- loadProj Nothing proj src gflags simplTranslationConfig
 
+        let primN = mkModuleName "GHC.Prim"
+        let primImD = simpleImportDecl primN
+
         let prN = mkModuleName "Prelude"
         let prImD = simpleImportDecl prN
 
@@ -117,7 +126,7 @@ loadToCheck proj src modN gflags = do
         let mdN = mkModuleName modN
         let imD = simpleImportDecl mdN
 
-        setContext [IIDecl prImD, IIDecl exImD, IIDecl coerceImD, IIDecl imD, IIDecl charD]
+        setContext [IIDecl primImD, IIDecl prImD, IIDecl exImD, IIDecl coerceImD, IIDecl imD, IIDecl charD]
 
 simpVar :: T.Text -> Expr
 simpVar s = Var (Id (Name s Nothing 0 Nothing) TyBottom)
