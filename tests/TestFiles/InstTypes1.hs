@@ -1,52 +1,54 @@
 module InstTypes1 where
 
-myFilter :: (a -> Bool) -> [a] -> [a]
-myFilter _ [] = []
-myFilter p (x:xs)
-  | p x       = x : myFilter p xs
-  | otherwise = myFilter p xs
+-- myFilter :: (a -> Bool) -> [a] -> [a]
+-- myFilter _ [] = []
+-- myFilter p (x:xs)
+--   | p x       = x : myFilter p xs
+--   | otherwise = myFilter p xs
 
-myHead :: [a] -> a 
-myHead [] = error "Can't find head on an empty list"
-myHead (x : _) = x
+-- myHead :: [a] -> a 
+-- myHead [] = error "Can't find head on an empty list"
+-- myHead (x : _) = x
 
-myReverse :: [a] -> [a]
-myReverse [] = []
-myReverse (x : xs) = myReverse xs ++ [x]
+-- myReverse :: [a] -> [a]
+-- myReverse [] = []
+-- myReverse (x : xs) = myReverse xs ++ [x]
 
-myZip :: [a] -> [b] -> [(a,b)]
-myZip [] _ = []
-myZip _ [] = []
-myZip (x : xs) (y : ys) = (x,y) : myZip xs ys
+-- myZip :: [a] -> [b] -> [(a,b)]
+-- myZip [] _ = []
+-- myZip _ [] = []
+-- myZip (x : xs) (y : ys) = (x,y) : myZip xs ys
 
-myIdentity :: a -> a
-myIdentity a = a
+-- myIdentity :: a -> a
+-- myIdentity a = a
 
-returnFirst :: a -> b -> a
-returnFirst a _ = a 
+-- returnFirst :: a -> b -> a
+-- returnFirst a _ = a 
 
-returnSecond :: a -> b -> b 
-returnSecond _ b = b
+-- returnSecond :: a -> b -> b 
+-- returnSecond _ b = b
 
--- focus on f a 
--- look at the kind of the argument and decided on how many
-cId :: f Int -> f Int
-cId x = x
+-- -- focus on f a 
+-- -- look at the kind of the argument and decided on how many
+-- cId :: f Int -> f Int
+-- cId x = x
 
-compId :: f a -> f a
-compId x = x
+-- compId :: f a -> f a
+-- compId x = x
 
-compId2 :: f a b -> f a b
-compId2 x = x
+-- compId2 :: f a b -> f a b
+-- compId2 x = x
 
-data MyEither l r = MyLeft l | MyRight r
+-- data MyEither l r = MyLeft l | MyRight r
 
-mkLeft :: l -> MyEither l r
-mkLeft l = MyLeft l
+-- mkLeft :: l -> MyEither l r
+-- mkLeft l = MyLeft l
 
-id2 :: a -> a 
-id2 x = x
+-- id2 :: a -> a 
+-- id2 x = x
 
+
+--Actual test case that's useful
 
 -- type that have one type varaible
 data MyList a where
@@ -68,6 +70,12 @@ instance Eq Color where
     Blue == Blue = True
     Yellow == Yellow = True
     _ == _ = False
+
+instance Eq a => Eq (MyList a) where
+  Ni == Ni = True
+  Cons x xs == Cons y ys = (x == y) && (xs == ys)
+  _ == _ = False
+
 
 complement :: Color -> Color
 complement Red = Green
@@ -94,12 +102,67 @@ extractRight (Left _) = Nothing
 
 
 -- Suggestion from professor William
-myTuple :: (MyList a, MyList b) => a -> b -> (a, b)
+contains :: Eq a => a -> MyList a -> Bool
+contains _ Ni = False
+contains x (Cons y ys) = (x == y) || contains x ys
+
+headMyList :: MyList a -> Maybe a
+headMyList Ni = Nothing
+headMyList (Cons x _) = Just x
+
+myTuple ::  a -> b -> (a,b)
 myTuple x y = (x, y)
 
-myMap :: (MyList a, MyList b) => [a] -> (a -> b) -> [b]
+myListTuple ::  MyList a -> MyList a -> (MyList a, MyList a)
+myListTuple x y = (x, y)
+
+myListTuple2 ::  MyList a -> MyList b -> (MyList a, MyList b)
+myListTuple2 x y = (x, y)
+
+myMap :: [a] -> (a -> b) -> [b]
 myMap a f = map f a 
 
-myid :: MyList a => a -> a
-myid x = x
+myListMap :: [MyList a] -> (MyList a -> MyList b) -> [MyList b]
+myListMap a f = map f a 
 
+myId :: a -> a
+myId x = x
+
+myListId :: MyList a -> MyList a 
+myListId x = x
+
+myListInt :: MyList Int -> MyList Int 
+myListInt x = x
+
+-- test cases for three arguments
+data Tri a b c where
+  Tri :: a -> b -> Maybe c -> Tri a b c
+
+triFun :: Tri Int b c -> Tri b b c
+triFun (Tri x y z) = Tri y y z
+
+triInt :: Tri Int b c -> Int
+triInt (Tri x y z) = x 
+
+triFuna :: Tri a b c -> a 
+triFuna (Tri x y z) = x
+
+
+takeMyList :: MyList a -> MyList a -> MyList a -> MyList b -> MyList a
+takeMyList x _ _ _ = x 
+
+takeOne :: a -> a -> a -> b -> a 
+takeOne x _ _ _ = x
+
+
+takeIntMul :: a -> a -> a -> b -> a
+takeIntMul x _ _ _ = x
+
+takeMul :: Int -> a -> a -> b -> Int
+takeMul x _ _ _ = x
+
+takeInt :: Int -> a -> b -> Int
+takeInt x _ _ = x
+
+takeIntTwo :: Int -> a -> Int
+takeIntTwo x _ = x
