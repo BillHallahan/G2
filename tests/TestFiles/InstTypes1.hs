@@ -169,3 +169,18 @@ takeInt x _ _ = x
 
 takeIntTwo :: Int -> a -> Int
 takeIntTwo x _ = x
+
+-- take3, takeMyList, myListTuple, myListMap has a bad argument passed error 
+-- however take2 with Either l r successfully work?
+take3 :: Tri a b c -> Tri a b c -> Tri a b c -> Tri a b c -> Tri a b c
+take3 _ _ _ x = x
+
+take2 :: Either l r -> Either l r -> Either l r -> Either l r -> Either l r 
+take2 _ _ x _ = x
+
+
+data Fou a b c d where
+  Fou :: a -> b -> c -> Maybe d -> Fou a b c d 
+
+take4 :: Fou a b c d -> Fou a b c d -> Fou a b c d -> Fou a b c d -> Fou a b c d 
+take4 x _ _ _ = x
