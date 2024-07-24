@@ -652,7 +652,7 @@ liftSymDefAlt s ng mexpr cvar as =
 
 -- | Concretize Symbolic variable to Case Expr on its possible Data Constructors
 liftSymDefAlt' :: State t -> NameGen -> Expr -> Expr -> Id -> [Alt] -> ([NewPC t], NameGen)
-liftSymDefAlt' s@(State {type_env = tenv}) ng mexpr aexpr cvar alts
+liftSymDefAlt' s@(State {type_env = tenv, expr_env = eenv}) ng mexpr aexpr cvar alts
     | (Var i):_ <- unApp $ unsafeElimOuterCast mexpr
     , isADTType (typeOf i)
     , (Var i'):_ <- unApp $ exprInCasts mexpr = -- Id with original Type
@@ -684,6 +684,11 @@ liftSymDefAlt' s@(State {type_env = tenv}) ng mexpr aexpr cvar alts
         ([NewPC { state = s'', new_pcs = [newSymConstraint], concretized = [] }], ng'')
     | Prim _ _:_ <- unApp mexpr = (liftSymDefAlt'' s mexpr aexpr cvar alts, ng)
     | isPrimType (typeOf mexpr) = (liftSymDefAlt'' s mexpr aexpr cvar alts, ng)
+    -- | TyVar i <- (typeOf mexpr)
+    -- case meexpr of cvar -> aexpr 
+    --introdue a fresh name cvar' 
+    -- execute aexpr  where cvar' is subisted cvar with new ennv [cvar' is mapped mexpr or cvar' = mexpr]
+    -- in the returning NewPC with state t = s'', new pc = [] and conc = []
     | otherwise = error $ "liftSymDefAlt': unhandled Expr" ++ "\n" ++ show mexpr
 
 liftSymDefAlt'' :: State t -> Expr -> Expr -> Id -> [Alt] -> [NewPC t]
