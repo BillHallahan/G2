@@ -80,7 +80,7 @@ runCheck' modN entry chAll s@(State {type_env = te}) ars out = do
     let outStr = T.unpack $ printHaskellPG pg s out
 
     let arsType = T.unpack $ mkTypeHaskellPG pg (typeOf e)
-        outType = T.unpack $ mkTypeHaskellPG pg (typeOf out) 
+        outType = trace("type of out " ++ show (typeOf out) ++ "\n" ++ "out " ++ show out) T.unpack $ mkTypeHaskellPG pg (typeOf out) 
     
     -- Pass g2 generated type into the environment 
     let (_, g2str) = mapAccumL g2GeneratedTypeToName (pg,s) g2Gen

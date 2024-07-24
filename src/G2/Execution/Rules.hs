@@ -684,10 +684,17 @@ liftSymDefAlt' s@(State {type_env = tenv, expr_env = eenv}) ng mexpr aexpr cvar 
         ([NewPC { state = s'', new_pcs = [newSymConstraint], concretized = [] }], ng'')
     | Prim _ _:_ <- unApp mexpr = (liftSymDefAlt'' s mexpr aexpr cvar alts, ng)
     | isPrimType (typeOf mexpr) = (liftSymDefAlt'' s mexpr aexpr cvar alts, ng)
-    -- | TyVar i <- (typeOf mexpr)
+    | TyVar _ <- (typeOf mexpr) = 
+                let
+                    (cvar', ng') = freshId (typeOf cvar) ng
+                    eenv' =  E.insert (idName cvar') mexpr (expr_env s)
+                    aexpr' = replaceVar (idName cvar) (Var cvar') aexpr
+                    s' = s {curr_expr = CurrExpr Evaluate aexpr', expr_env = eenv'}
+
+                in ([NewPC {state = s', new_pcs = [], concretized = []}], ng')
     -- case meexpr of cvar -> aexpr 
-    --introdue a fresh name cvar' 
-    -- execute aexpr  where cvar' is subisted cvar with new ennv [cvar' is mapped mexpr or cvar' = mexpr]
+    -- introdue a fresh name cvar' 
+    -- execute aexpr where cvar' is subisted cvar with new ennv [cvar' is mapped mexpr or cvar' = mexpr]
     -- in the returning NewPC with state t = s'', new pc = [] and conc = []
     | otherwise = error $ "liftSymDefAlt': unhandled Expr" ++ "\n" ++ show mexpr
 

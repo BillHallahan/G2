@@ -14,6 +14,7 @@ import qualified Data.Map as M
 import Data.Maybe
 import qualified Data.Text as T
 import qualified Data.HashMap.Lazy as HM 
+import Debug.Trace
 
 mkCurrExpr :: Maybe T.Text -> Maybe T.Text -> Id
            -> TypeClasses -> NameGen -> ExprEnv -> TypeEnv -> Walkers
@@ -91,10 +92,10 @@ mkMainExprNoInstantiateTypes e ng =
         ats' = map argTypeToType ats
         (atsToIds,ng'') = freshIds ats' ng'
         atsToIds' = renames ntmap atsToIds
-        
+        -- discovering problems relate to atsToIds' sepcifically ntmap in there because atsToIds is fine
         all_ids = ntids' ++ atsToIds'
         app_ex = foldl' App e $ map Var all_ids
-    in (app_ex, all_ids,[],ng'')
+    in trace("atsToIds' in mkcurrexpr " ++ show atsToIds') (app_ex, all_ids,[],ng'')
 
 
 mkInputs :: NameGen -> [Type] -> ([Expr], [Id], NameGen)
