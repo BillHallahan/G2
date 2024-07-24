@@ -154,6 +154,9 @@ takeMyList x _ _ _ = x
 takeOne :: a -> a -> a -> b -> a 
 takeOne x _ _ _ = x
 
+takeTwo :: a -> a -> a -> b -> a 
+takeTwo _ x _ _ = x
+
 
 takeIntMul :: a -> a -> a -> b -> a
 takeIntMul x _ _ _ = x
