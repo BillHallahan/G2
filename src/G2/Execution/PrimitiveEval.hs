@@ -1,10 +1,11 @@
 {-# LANGUAGE Rank2Types #-}
-{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE FlexibleContexts, OverloadedStrings #-}
 
 module G2.Execution.PrimitiveEval (evalPrims, evalPrimMutVar, maybeEvalPrim, evalPrimSymbolic) where
 
 import G2.Language.AST
 import G2.Language.Expr
+import qualified G2.Language.KnownValues as KV
 import G2.Language.Naming
 import G2.Language.Primitives
 import G2.Language.Support
@@ -62,16 +63,16 @@ evalPrimMutVar :: State t -- ^ Context to evaluate expression `e` in
                -> NameGen
                -> Expr -- ^ The expression `e` to evaluate
                -> Maybe (State t, NameGen) -- ^ `Just` if `e` is a primitive operation on mutable variable, `Nothing` otherwise
-evalPrimMutVar s ng (App (App (App (App (Prim NewMutVar _) (Type t)) _) e) _) =
+evalPrimMutVar s ng (App (App (App (App (Prim NewMutVar _) (Type t)) (Type ts)) e) _) =
     let
         (mv_n, ng') = freshName ng
-        (i, ng'') = freshId t ng'
-        s' = s { curr_expr = CurrExpr Evaluate (Prim (MutVar mv_n) TyUnknown)
+        (i, ng'') = freshId t ng'        
+        s' = s { curr_expr = CurrExpr Evaluate (Prim (MutVar mv_n) $ mutVarT (known_values s) ts t)
                , expr_env = E.insert (idName i) e (expr_env s)
                , mutvar_env = M.insert mv_n i (mutvar_env s)}
     in
     Just (s', ng'')
-evalPrimMutVar s ng (App (App (App (App (Prim ReadMutVar _) (Type t)) _) (Prim (MutVar mv) _)) _) =
+evalPrimMutVar s ng (App (App (App (App (Prim ReadMutVar _) _) _) (Prim (MutVar mv) _)) _) =
     let
         i = M.lookup mv (mutvar_env s)
         s' = maybe (error "evalPrimMutVar: MutVar not found")
@@ -79,7 +80,7 @@ evalPrimMutVar s ng (App (App (App (App (Prim ReadMutVar _) (Type t)) _) (Prim (
                    i
     in
     Just (s', ng)
-evalPrimMutVar s ng (App (App (App (App (App (Prim WriteMutVar _) (Type t)) _) (Prim (MutVar mv) _)) e) pr_s) =
+evalPrimMutVar s ng (App (App (App (App (App (Prim WriteMutVar _) _) (Type t)) (Prim (MutVar mv) _)) e) pr_s) =
     let
         (i, ng') = freshId t ng
         s' = s { expr_env = E.insert (idName i) e (expr_env s)
@@ -88,6 +89,12 @@ evalPrimMutVar s ng (App (App (App (App (App (Prim WriteMutVar _) (Type t)) _) (
     in
     Just (s', ng')
 evalPrimMutVar _ _ _ = Nothing
+
+mutVarT :: KnownValues
+        -> Type -- ^ The State type
+        -> Type -- ^ The stored type
+        -> Type
+mutVarT kv ts ta = TyApp (TyApp (TyCon (KV.tyMutVar kv) (TyFun TYPE (TyFun TYPE TYPE))) ts) ta
 
 evalPrim1 :: Primitive -> Lit -> Maybe Expr
 evalPrim1 Negate (LitInt x) = Just . Lit $ LitInt (-x)

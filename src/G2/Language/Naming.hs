@@ -563,6 +563,13 @@ instance Named KnownValues where
             , tyUnit = tUnit
             , dcUnit = dUnit
 
+            , tyMutVar = tMV
+            , dcMutVar = dMV
+            , tyState = tSt
+            , dcState = dSt
+            , tyRealWorld = tRW
+            , dcRealWorld = dRW
+
             , eqTC = eqT
             , numTC = numT
             , ordTC = ordT
@@ -613,6 +620,7 @@ instance Named KnownValues where
                 , tList, tCons, tEmp
                 , tMaybe, dJust, dNothing
                 , tUnit, dUnit
+                , tMV, dMV, tSt, dSt, tRW, dRW
                 , eqT, numT, ordT, integralT, realT, fractionalT
                 , integralEReal, realENum, realEOrd, ordEEq
                 , eqF, neqF, plF, minusF, tmsF, divF, negF, modF
@@ -652,6 +660,13 @@ instance Named KnownValues where
 
                    , tyUnit = tUnit
                    , dcUnit = dUnit
+
+                   , tyMutVar = tMV
+                   , dcMutVar = dMV
+                   , tyState = tSt
+                   , dcState = dSt
+                   , tyRealWorld = tRW
+                   , dcRealWorld = dRW
 
                    , eqTC = eqT
                    , numTC = numT
@@ -727,6 +742,13 @@ instance Named KnownValues where
 
                         , tyUnit = rename old new tUnit
                         , dcUnit = rename old new dUnit
+
+                        , tyState = rename old new tSt
+                        , dcState = rename old new dSt
+                        , tyMutVar = rename old new tMV
+                        , dcMutVar = rename old new dMV
+                        , tyRealWorld = rename old new tRW
+                        , dcRealWorld = rename old new dRW
 
                         , eqTC = rename old new eqT
                         , numTC = rename old new numT

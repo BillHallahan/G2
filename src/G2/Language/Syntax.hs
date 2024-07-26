@@ -228,9 +228,9 @@ data Primitive = -- Mathematical and logical operators
                
                -- MutVar#
                | MutVar Name
-               | NewMutVar
-               | ReadMutVar
-               | WriteMutVar -- ^ `forall a d . MutVar# -> a -> d -> State# -> State#`.
+               | NewMutVar -- ^ `forall a d. a -> State# d -> MutVar# d a`.
+               | ReadMutVar -- ^ `forall d a. MutVar# d a -> State# d -> a`.
+               | WriteMutVar -- ^ `forall d a. MutVar# d a -> a -> State# d -> State# d`.
 
                -- Errors
                | Error
