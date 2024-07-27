@@ -692,10 +692,6 @@ liftSymDefAlt' s@(State {type_env = tenv, expr_env = eenv}) ng mexpr aexpr cvar 
                     s' = s {curr_expr = CurrExpr Evaluate aexpr', expr_env = eenv'}
 
                 in ([NewPC {state = s', new_pcs = [], concretized = []}], ng')
-    -- case meexpr of cvar -> aexpr 
-    -- introdue a fresh name cvar' 
-    -- execute aexpr where cvar' is subisted cvar with new ennv [cvar' is mapped mexpr or cvar' = mexpr]
-    -- in the returning NewPC with state t = s'', new pc = [] and conc = []
     | otherwise = error $ "liftSymDefAlt': unhandled Expr" ++ "\n" ++ show mexpr
 
 liftSymDefAlt'' :: State t -> Expr -> Expr -> Id -> [Alt] -> [NewPC t]

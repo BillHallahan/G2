@@ -154,12 +154,18 @@ takeMyList x _ _ _ = x
 takeOne :: a -> a -> a -> b -> a 
 takeOne x _ _ _ = x
 
+takeb :: a -> a -> a -> b -> b
+takeb _ _ _ x = x
+
 takeTwo :: a -> a -> a -> b -> a 
 takeTwo _ x _ _ = x
 
+takeTwo2 :: a -> a -> a -> b -> c -> c 
+takeTwo2 _ _ _ _ x = x
 
-takeIntMul :: a -> a -> a -> b -> a
-takeIntMul x _ _ _ = x
+
+takeIntMul :: a -> a -> a -> b -> b
+takeIntMul _ _ _ x = x
 
 takeMul :: Int -> a -> a -> b -> Int
 takeMul x _ _ _ = x
@@ -176,7 +182,7 @@ take3 :: Tri a b c -> Tri a b c -> Tri a b c -> Tri a b c -> Tri a b c
 take3 _ _ _ x = x
 
 take2 :: Either l r -> Either l r -> Either l r -> Either l r -> Either l r 
-take2 _ _ x _ = x
+take2 _ _ _ x = x
 
 
 data Fou a b c d where
