@@ -47,10 +47,9 @@ module InstTypes1 where
 -- id2 :: a -> a 
 -- id2 x = x
 
-
 -- Actual test case that's useful
 
--- template test cases in the beginning
+-- template test cases used for benchmark test cases 
 myTuple ::  a -> b -> (a,b)
 myTuple x y = (x, y)
 
@@ -60,23 +59,29 @@ myMap a f = map f a
 myId :: a -> a
 myId x = x
 
--- type that have no type variable 
-data Color = Red | Green | Blue | Yellow 
+takeOne :: a -> a -> a -> b -> a 
+takeOne x _ _ _ = x
 
-instance Eq Color where
-    Red == Red = True
-    Green == Green = True
-    Blue == Blue = True
-    Yellow == Yellow = True
-    _ == _ = False
+takeb :: a -> a -> a -> b -> b
+takeb _ _ _ x = x
 
-complement :: Color -> Color
-complement Red = Green
-complement Green = Red
-complement Blue = Yellow 
-complement Yellow = Red
+takeTwo :: a -> a -> a -> b -> a 
+takeTwo _ x _ _ = x
 
-data MyBool = MyTrue | MyFalse 
+takeTwo2 :: a -> a -> a -> b -> c -> c 
+takeTwo2 _ _ _ _ x = x
+
+takeIntMul :: a -> a -> a -> b -> b
+takeIntMul _ _ _ x = x
+
+takeMul :: Int -> a -> a -> b -> Int
+takeMul x _ _ _ = x
+
+takeInt :: Int -> a -> b -> Int
+takeInt x _ _ = x
+
+takeIntTwo :: Int -> a -> Int
+takeIntTwo x _ = x
 
 checkeq :: Eq a => a -> a -> Bool
 checkeq a a1 = a == a1
@@ -95,10 +100,31 @@ extractRight (Left _) = Nothing
 take2 :: Either l r -> Either l r -> Either l r -> Either l r -> Either l r 
 take2 _ _ _ x = x
 
+takeMaybe :: a -> Maybe a 
+takeMaybe x = Just x 
+takeMaybe _ = Nothing   
+
+-- type that have no type variable 
+data Color = Red | Green | Blue | Yellow 
+
+instance Eq Color where
+    Red == Red = True
+    Green == Green = True
+    Blue == Blue = True
+    Yellow == Yellow = True
+    _ == _ = False
+
+complement :: Color -> Color
+complement Red = Green
+complement Green = Red
+complement Blue = Yellow 
+complement Yellow = Red
+
 -- type that have one type varaible
-data MyList a where
-  Ni :: MyList a
-  Cons :: a -> MyList a -> MyList a
+-- data MyList a where
+--   Ni :: MyList a
+--   Cons :: a -> MyList a -> MyList a
+data MyList a = Ni | Cons a (MyList a)
 
 -- recursion on recursive GADT 
 lengthList :: MyList a -> Int
@@ -138,8 +164,16 @@ headMyList Ni = Nothing
 headMyList (Cons x _) = Just x
 
 -- test cases for three arguments
-data Tri a b c where
-  Tri :: a -> b -> Maybe c -> Tri a b c
+-- data Tri a b c where
+--   Tri :: a -> b -> Maybe c -> Tri a b c
+
+data Tri a b c = Tri a b (Maybe c)
+
+instance (Eq a, Eq b, Eq c) => Eq (Tri a b c) where
+  (Tri a1 b1 c1) == (Tri a2 b2 c2) = a1 == a2 && b1 == b2 && c1 == c2
+
+triId :: Tri a b c -> Tri a b c
+triId x = x 
 
 triFun :: Tri Int b c -> Tri b b c
 triFun (Tri x y z) = Tri y y z
@@ -156,39 +190,28 @@ triFunb (Tri x y z) = y
 triFunc :: Tri a b c -> Maybe c
 triFunc (Tri x y z) = z
 
--- take3, takeMyList, myListTuple, myListMap has a bad argument passed error 
--- however take2 with Either l r successfully work?
 take3 :: Tri a b c -> Tri a b c -> Tri a b c -> Tri a b c -> Tri a b c
 take3 _ _ _ x = x
 
--- template test cases used for benchmark test cases 
-takeOne :: a -> a -> a -> b -> a 
-takeOne x _ _ _ = x
+takeTri2 :: Tri a b c -> Tri a b c -> Tri a b c -> Tri b b c -> Tri b b c
+takeTri2 _ _ _ x = x
 
-takeb :: a -> a -> a -> b -> b
-takeb _ _ _ x = x
+-- test cases for type that take more than three type variable 
+-- data Fou a b c d where
+--   Fou :: a -> b -> Maybe c -> Maybe d -> Fou a b c d 
+data Fou a b c d = Fou a b (Maybe c) (Maybe d)
 
-takeTwo :: a -> a -> a -> b -> a 
-takeTwo _ x _ _ = x
-
-takeTwo2 :: a -> a -> a -> b -> c -> c 
-takeTwo2 _ _ _ _ x = x
-
-takeIntMul :: a -> a -> a -> b -> b
-takeIntMul _ _ _ x = x
-
-takeMul :: Int -> a -> a -> b -> Int
-takeMul x _ _ _ = x
-
-takeInt :: Int -> a -> b -> Int
-takeInt x _ _ = x
-
-takeIntTwo :: Int -> a -> Int
-takeIntTwo x _ = x
-
--- useful test cases for future 
-data Fou a b c d where
-  Fou :: a -> b -> c -> Maybe d -> Fou a b c d 
+instance (Eq a, Eq b, Eq c, Eq d) => Eq (Fou a b c d) where
+  (Fou a1 b1 c1 d1) == (Fou a2 b2 c2 d2) = a1 == a2 && b1 == b2 && c1 == c2 && d1 == d2
 
 take4 :: Fou a b c d -> Fou a b c d -> Fou a b c d -> Fou a b c d -> Fou a b c d 
 take4 x _ _ _ = x
+
+take42 :: Fou b b c d -> Fou a b c d -> Fou a b c d -> Fou a b c d -> Fou b b c d 
+take42 x _ _ _ = x
+
+take4d :: Fou a b c d -> Maybe d 
+take4d (Fou x y z w) = w 
+
+take4c :: Fou a b c d -> Maybe c
+take4c (Fou x y z w) = z

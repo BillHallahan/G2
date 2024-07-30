@@ -48,7 +48,7 @@ g2GeneratedTypeToName (pg, s) (x,y@(DataTyCon{data_cons = dcs, bound_ids = is}))
         dc_types = T.unpack . T.intercalate " " $ map mkTypeHaskell (concatMap argumentTypes dcs)
         str = "data " ++ x' ++ " " ++ ids'++ " = " ++ dc_name ++ " " ++ dc_types ++ " deriving Eq"
     in
-    trace ("string returned: " ++ show str) ((pg,s), str)
+    ((pg,s), str)
 g2GeneratedTypeToName _ _ = error "g2GeneratedTypeToName: unsupported AlgDataTy"
 
 -- Compile with GHC, and check that the output we got is correct for the input
@@ -81,14 +81,14 @@ runCheck' modN entry chAll s@(State {type_env = te}) ars out = do
 
     let arsType = T.unpack $ mkTypeHaskellPG pg (typeOf e)
         outType = T.unpack $ mkTypeHaskellPG pg (typeOf out) 
-        -- trace("type of out " ++ show (typeOf out) ++ "\n" ++ "out " ++ show out) 
+     
     -- Pass g2 generated type into the environment 
     let (_, g2str) = mapAccumL g2GeneratedTypeToName (pg,s) g2Gen
     dyn <- getSessionDynFlags
     let dyn' = xopt_set dyn MagicHash
     setSessionDynFlags dyn'
 
-    _ <- mapM runDecls $ trace (intercalate "\n" (map (\s -> ("g2Gen constructors " ++ s)) g2str )) g2str
+    _ <- mapM runDecls g2str
 
     let chck = case outStr == "error" of
                     False -> "try (evaluate (" ++ arsStr ++ " == " ++ "("
