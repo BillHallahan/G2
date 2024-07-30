@@ -395,6 +395,7 @@ testFileTests = testGroup "TestFiles"
     , checkInputOutputsInstType "tests/TestFiles/InstTypes1.hs" [ ("lengthList", 200, [AtLeast 1])
                                                         , ("myTuple", 200, [AtLeast 1])
                                                         , ("myZip", 200, [AtLeast 1])
+                                                        , ("complement", 200, [AtLeast 1])
                                                         , ("myListId", 200, [AtLeast 1])
                                                         , ("takeMyList", 200, [AtLeast 1])
                                                         , ("takeMyList2", 200, [AtLeast 1]) 
@@ -407,6 +408,9 @@ testFileTests = testGroup "TestFiles"
                                                         , ("take2", 200, [AtLeast 1])
                                                         , ("triId", 200, [AtLeast 1])
                                                         , ("triFun", 200, [AtLeast 1])
+                                                        , ("triFuna", 200, [AtLeast 1])
+                                                        , ("triFunb", 200, [AtLeast 1])
+                                                        , ("triFunc", 200, [AtLeast 1])
                                                         , ("take3", 200, [AtLeast 1])
                                                         , ("takeTri2", 200, [AtLeast 1]) ]
  ]
