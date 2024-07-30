@@ -118,7 +118,7 @@ mkPrimTuples k =
             let
                 tn = Name n m 0 Nothing
             in
-            (tn, DataTyCon {bound_ids = map (flip Id TYPE) ns, data_cons = [dc]})) dcn
+            (tn, DataTyCon {bound_ids = map (flip Id TYPE) ns, data_cons = [dc], adt_source = ADTSourceCode})) dcn
 
 mkPrimTuples' :: Int -> [(T.Text, Maybe T.Text, [Name], DataCon)]
 mkPrimTuples' n | n < 0 = []

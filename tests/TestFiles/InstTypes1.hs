@@ -53,6 +53,11 @@ module InstTypes1 where
 myTuple ::  a -> b -> (a,b)
 myTuple x y = (x, y)
 
+myZip :: [a] -> [b] -> [(a,b)]
+myZip [] _ = []
+myZip _ [] = []
+myZip (x : xs) (y : ys) = (x,y) : myZip xs ys
+
 myMap :: [a] -> (a -> b) -> [b]
 myMap a f = map f a 
 
@@ -142,6 +147,9 @@ myListId x = x
 
 takeMyList :: MyList a -> MyList a -> MyList a -> MyList b -> MyList a
 takeMyList x _ _ _ = x 
+
+takeMyList2 :: MyList a -> MyList a -> MyList a -> MyList b -> MyList b
+takeMyList2 _ _ _ x = x 
 
 myListInt :: MyList Int -> MyList Int 
 myListInt x = x

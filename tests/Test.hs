@@ -392,10 +392,18 @@ testFileTests = testGroup "TestFiles"
                                                       , ("n", 1000, [AtLeast 2])
                                                       , ("sqrtSquared", 1000, [AtLeast 2]) ]
 
-    , checkInputOutputs "tests/TestFiles/InstTypes1.hs" [ ("lengthList", 200, [AtLeast 1]) 
-                                                        , ("myTuple", 200, [AtLeast 1]) 
-                                                        , ("triFuna", 200, [AtLeast 1]) 
-                                                        , ("triFunc", 200, [AtLeast 1]) ]
+    , checkInputOutputsInstType "tests/TestFiles/InstTypes1.hs" [ ("lengthList", 200, [AtLeast 1])
+                                                        , ("myTuple", 200, [AtLeast 1])
+                                                        , ("myListId", 200, [AtLeast 1])
+                                                        , ("takeMyList", 200, [AtLeast 1])
+                                                        , ("takeMyList2", 200, [AtLeast 1]) 
+                                                        , ("contains", 200, [AtLeast 1])
+                                                        , ("headMyList", 200, [AtLeast 1])
+                                                        , ("myListMap", 200, [AtLeast 1])
+                                                        , ("triId", 200, [AtLeast 1])
+                                                        , ("triFun", 200, [AtLeast 1])
+                                                        , ("take3", 200, [AtLeast 1])
+                                                        , ("takeTri2", 200, [AtLeast 1]) ]
  ]
 
 extensionTests :: TestTree
