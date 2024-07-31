@@ -92,7 +92,7 @@ import GHC.Types.TypeEnv
 import GHC.Unit.Module.Deps
 import GHC.Unit.Module.ModDetails
 import GHC.Unit.Module.ModGuts
-import qualified G2.Translation.GHC as Main
+
 
 type HscTarget = Backend
 #else
