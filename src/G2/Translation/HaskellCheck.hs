@@ -4,9 +4,9 @@ module G2.Translation.HaskellCheck ( validateStates
                                    , runHPC) where
 
 #if MIN_VERSION_GLASGOW_HASKELL(9,0,2,0)
-import GHC.Driver.Session (xopt_set)
+import GHC.Driver.Session
 #else
-import Main.DynFlags (xopt_set)
+import Main.DynFlags
 #endif
 
 
