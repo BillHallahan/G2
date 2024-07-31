@@ -18,6 +18,7 @@ import qualified Data.HashMap.Lazy as M
 import qualified Data.List as L
 import Data.Maybe
 import qualified G2.Language.ExprEnv as E
+import G2.Language.ExprEnv (deepLookupExpr)
 
 evalPrims :: ASTContainer m Expr => TypeEnv -> KnownValues -> m -> m
 evalPrims tenv kv = modifyContainedASTs (evalPrims' tenv kv . simplifyCasts)
@@ -64,7 +65,8 @@ evalPrimMutVar :: State t -- ^ Context to evaluate expression `e` in
                -> Expr -- ^ The expression `e` to evaluate
                -> Maybe (State t, NameGen) -- ^ `Just` if `e` is a primitive operation on mutable variable, `Nothing` otherwise
 evalPrimMutVar s ng (App (App (App (App (Prim NewMutVar _) (Type t)) (Type ts)) e) _) = Just $ newMutVar s ng ts t e
-evalPrimMutVar s ng (App (App (App (App (Prim ReadMutVar _) _) _) (Prim (MutVar mv) _)) _) =
+evalPrimMutVar s ng (App (App (App (App (Prim ReadMutVar _) _) _) mv_e) _)
+    | Just (Prim (MutVar mv) _) <- deepLookupExpr mv_e (expr_env s)=
     let
         i = M.lookup mv (mutvar_env s)
         s' = maybe (error "evalPrimMutVar: MutVar not found")
@@ -72,7 +74,8 @@ evalPrimMutVar s ng (App (App (App (App (Prim ReadMutVar _) _) _) (Prim (MutVar 
                    i
     in
     Just (s', ng)
-evalPrimMutVar s ng (App (App (App (App (App (Prim WriteMutVar _) _) (Type t)) (Prim (MutVar mv) _)) e) pr_s) =
+evalPrimMutVar s ng (App (App (App (App (App (Prim WriteMutVar _) _) (Type t)) mv_e) e) pr_s)
+    | Just (Prim (MutVar mv) _) <- deepLookupExpr mv_e (expr_env s) =
     let
         (i, ng') = freshId t ng
         s' = s { expr_env = E.insert (idName i) e (expr_env s)
