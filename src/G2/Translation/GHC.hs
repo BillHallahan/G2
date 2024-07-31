@@ -36,13 +36,11 @@ module G2.Translation.GHC ( module GHC
 #else
                           , module GHC.Driver.Types
                           , module GHC.Driver.Ways
-                          , module Main.DynFlags
 #endif
 #if MIN_VERSION_GLASGOW_HASKELL(9,3,0,0)
                           , module GHC.Driver.Config.Tidy
 #endif
                           ) where
-
 import GHC
 import GHC.Core ( Alt (..)
                 , AltCon (..)
