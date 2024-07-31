@@ -1,10 +1,16 @@
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE OverloadedStrings, CPP #-}
 
 module G2.Translation.HaskellCheck ( validateStates
                                    , runHPC) where
 
+#if MIN_VERSION_GLASGOW_HASKELL(9,0,2,0)
+import GHC.Driver.Session (xopt_set)
+#else
+import Main.DynFlags (xopt_set)
+#endif
+
+
 import GHC hiding (Name, entry)
-import GHC.Driver.Session
 
 import GHC.LanguageExtensions
 

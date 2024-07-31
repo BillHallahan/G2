@@ -24,6 +24,7 @@ module G2.Translation.GHC ( module GHC
                           , module GHC.Types.Unique
                           , module GHC.Types.Var
                           , module GHC.Unit.Types
+#endif
 #if MIN_VERSION_GLASGOW_HASKELL(9,2,0,0)
                           , module GHC.Platform.Ways
                           , module GHC.Types.Tickish
