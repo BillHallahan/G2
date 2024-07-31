@@ -83,6 +83,7 @@ equivMods = HM.fromList
 #else
             , ("GHC.Integer.Type2", "GHC.Integer.Type")
 #endif
+            , ("GHC.PrimSMT", "GHC.Prim")
             , ("GHC.Prim2", "GHC.Prim")
 #if MIN_VERSION_GLASGOW_HASKELL(9,6,0,0)
             , ("GHC.Tuple2", "GHC.Tuple.Prim")

@@ -1,7 +1,7 @@
 {-# LANGUAGE Rank2Types #-}
 {-# LANGUAGE FlexibleContexts, OverloadedStrings #-}
 
-module G2.Execution.PrimitiveEval (evalPrims, evalPrimMutVar, maybeEvalPrim, evalPrimSymbolic) where
+module G2.Execution.PrimitiveEval (evalPrims, evalPrimMutVar, newMutVar, maybeEvalPrim, evalPrimSymbolic) where
 
 import G2.Language.AST
 import G2.Language.Expr
@@ -63,15 +63,7 @@ evalPrimMutVar :: State t -- ^ Context to evaluate expression `e` in
                -> NameGen
                -> Expr -- ^ The expression `e` to evaluate
                -> Maybe (State t, NameGen) -- ^ `Just` if `e` is a primitive operation on mutable variable, `Nothing` otherwise
-evalPrimMutVar s ng (App (App (App (App (Prim NewMutVar _) (Type t)) (Type ts)) e) _) =
-    let
-        (mv_n, ng') = freshName ng
-        (i, ng'') = freshId t ng'        
-        s' = s { curr_expr = CurrExpr Evaluate (Prim (MutVar mv_n) $ mutVarT (known_values s) ts t)
-               , expr_env = E.insert (idName i) e (expr_env s)
-               , mutvar_env = M.insert mv_n i (mutvar_env s)}
-    in
-    Just (s', ng'')
+evalPrimMutVar s ng (App (App (App (App (Prim NewMutVar _) (Type t)) (Type ts)) e) _) = Just $ newMutVar s ng ts t e
 evalPrimMutVar s ng (App (App (App (App (Prim ReadMutVar _) _) _) (Prim (MutVar mv) _)) _) =
     let
         i = M.lookup mv (mutvar_env s)
@@ -95,6 +87,22 @@ mutVarT :: KnownValues
         -> Type -- ^ The stored type
         -> Type
 mutVarT kv ts ta = TyApp (TyApp (TyCon (KV.tyMutVar kv) (TyFun TYPE (TyFun TYPE TYPE))) ts) ta
+
+newMutVar :: State t
+          -> NameGen
+          -> Type -- ^ The State type
+          -> Type -- ^ The stored type
+          -> Expr
+          -> (State t, NameGen)
+newMutVar s ng ts t e =
+    let
+        (mv_n, ng') = freshName ng
+        (i, ng'') = freshId t ng'        
+        s' = s { curr_expr = CurrExpr Evaluate (Prim (MutVar mv_n) $ mutVarT (known_values s) ts t)
+               , expr_env = E.insert (idName i) e (expr_env s)
+               , mutvar_env = M.insert mv_n i (mutvar_env s)}
+    in
+    (s', ng'')
 
 evalPrim1 :: Primitive -> Lit -> Maybe Expr
 evalPrim1 Negate (LitInt x) = Just . Lit $ LitInt (-x)

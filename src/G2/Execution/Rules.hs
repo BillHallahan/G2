@@ -654,6 +654,20 @@ liftSymDefAlt s ng mexpr cvar as =
 -- | Concretize Symbolic variable to Case Expr on its possible Data Constructors
 liftSymDefAlt' :: State t -> NameGen -> Expr -> Expr -> Id -> [Alt] -> ([NewPC t], NameGen)
 liftSymDefAlt' s@(State {type_env = tenv}) ng mexpr aexpr cvar alts
+    | Var i:_ <- unApp mexpr
+    , TyApp (TyApp (TyCon n _) realworld_ty) stored_ty <- typeOf i
+    , n == KV.tyMutVar (known_values s) =
+        let
+            -- Create a new mutable variable with a symbolic stored value
+            (stored_var, ng') = freshSeededId (idName i) stored_ty ng
+            (nmv_s, ng'') = newMutVar s ng' realworld_ty stored_ty (Var stored_var)
+            
+            binds = [(cvar, getExpr nmv_s)]
+            aexpr' = liftCaseBinds binds aexpr
+            eenv' = E.insertSymbolic stored_var $ E.insert (idName i) (getExpr nmv_s) (expr_env nmv_s)
+            nmv_s' = nmv_s { curr_expr = CurrExpr Evaluate aexpr', expr_env = eenv' }
+        in
+        ([newPCEmpty nmv_s'], ng'')
     | (Var i):_ <- unApp $ unsafeElimOuterCast mexpr
     , isADTType (typeOf i)
     , (Var i'):_ <- unApp $ exprInCasts mexpr = -- Id with original Type

@@ -8,7 +8,13 @@ f :: Int -> (Int, Int)
 f x =
     let
         (# s1, mv #) = newMutVar# x realWorld#
-        (# s2, x' #) = readMutVar# mv s1
+    in
+    fIn mv x
+
+fIn :: MutVar# RealWorld Int -> Int -> (Int, Int)
+fIn mv x =
+    let
+        (# s2, x' #) = readMutVar# mv realWorld#
     in
     case x' > 0 of
         True -> (x, x' + 1)
