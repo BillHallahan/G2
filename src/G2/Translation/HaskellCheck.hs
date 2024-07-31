@@ -31,7 +31,7 @@ import G2.Lib.Printers
 import Control.Exception
 
 import System.Process
-import Debug.Trace
+
 
 import Control.Monad.IO.Class
 

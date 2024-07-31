@@ -36,6 +36,7 @@ module G2.Translation.GHC ( module GHC
 #else
                           , module GHC.Driver.Types
                           , module GHC.Driver.Ways
+                          , module Main.DynFlags
 #endif
 #if MIN_VERSION_GLASGOW_HASKELL(9,3,0,0)
                           , module GHC.Driver.Config.Tidy
@@ -67,7 +68,11 @@ import GHC.Core.TyCon
 import GHC.Data.FastString
 import GHC.Data.Pair
 import GHC.Driver.Main
-import GHC.Driver.Session
+#if MIN_VERSION_GLASGOW_HASKELL(9,0,2,0)
+import GHC.Driver.Session 
+#else
+import Main.DynFlags 
+#endif
 import GHC.Iface.Tidy
 import GHC.Paths
 import GHC.Types.Avail
