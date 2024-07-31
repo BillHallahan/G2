@@ -6,7 +6,7 @@ module G2.Translation.HaskellCheck ( validateStates
 #if MIN_VERSION_GLASGOW_HASKELL(9,0,2,0)
 import GHC.Driver.Session
 #else
-import Main.DynFlags
+import Main
 #endif
 
 
