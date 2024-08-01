@@ -89,9 +89,9 @@ mkCleanExprHaskell' tc e
     | otherwise = Nothing
 
 elimPrimDC :: Alt -> Maybe Alt
-elimPrimDC (Alt (DataAlt (DataCon (Name n _ _ _) t) is) e)
+elimPrimDC (Alt (DataAlt dc@(DataCon (Name n _ _ _) _) is) e)
     | n == "I#" || n == "F#" || n == "D#" || n == "Z#" || n == "C#" =
-                        Just $ Alt (DataAlt (DataCon (Name "" Nothing 0 Nothing) t) is) e
+                        Just $ Alt (DataAlt dc is) e
 elimPrimDC _ = Nothing
 
 mkDirtyExprHaskell :: PrettyGuide -> Expr -> T.Text
