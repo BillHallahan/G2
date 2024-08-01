@@ -73,8 +73,13 @@ j x =
     in
     x'
 
-k :: MutVar# RealWorld Int -> MutVar# RealWorld Int -> (Int, Int)
-k mv1 mv2 =
+-- k1 can yield two outputs:
+--     (2, 6) if different MutVars are passed for mv1 and mv2
+--     (6, 6) if the same MutVar is passed as mv1 and mv2
+-- Contrastingly, k2 will yield only the output (2, 6), because the MutVar mv1 that is passed in
+-- cannot be the same as the MutVar mv2 that is created via newMutVar# in k2.
+k1 :: MutVar# RealWorld Int -> MutVar# RealWorld Int -> (Int, Int)
+k1 mv1 mv2 =
     let
         s1 = writeMutVar# mv1 2 realWorld#
         s2 = writeMutVar# mv2 6 s1
@@ -83,3 +88,10 @@ k mv1 mv2 =
         (# s4, x2 #) = readMutVar# mv2 s3 
     in
     (x1, x2)
+
+k2 :: MutVar# RealWorld Int -> (Int, Int)
+k2 mv1 =
+    let
+        (# s1, mv2 #) = newMutVar# 99 realWorld#
+    in
+    k1 mv1 mv2
