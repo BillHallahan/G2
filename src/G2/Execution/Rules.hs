@@ -29,6 +29,7 @@ import G2.Execution.PrimitiveEval
 import G2.Execution.RuleTypes
 import G2.Language
 import qualified G2.Language.ExprEnv as E
+import G2.Language.MutVarEnv
 import qualified G2.Language.Typing as T
 import qualified G2.Language.KnownValues as KV
 import qualified G2.Language.Stack as S
@@ -659,7 +660,8 @@ liftSymDefAlt s ng mexpr cvar as =
 --
 --   1) The MutVar is a new MutVar, containing a fresh symbolic value
 --
---   2) The MutVar is the same as some other previously concretized MutVar, and thus refers to the same mutable value
+--   2) The MutVar is the same as some other MutVar that was previously concretized from a symbolic
+--      variable, and thus refers to the same mutable value.
 --
 -- To see why each of these possibilities must be considered, refer to the below program:
 --
@@ -678,6 +680,12 @@ liftSymDefAlt s ng mexpr cvar as =
 --
 -- If mv1 and mv2 are different mutable variables, the functuon `k` will return the tuple (2, 6).
 -- However, if mv1 and mv2 are the same mutable variable, then `k` will return the tuple (6, 6).
+--
+-- Note that possibility (2) only involves concretizing MutVars to other MutVars that were themselves
+-- concretized from symbolic variables, not MutVars introduced by newMutVar#.  This is due to ordering:
+-- if we have a symbolic MutVar mv1, and then introduce a new MutVar mv2 via newMutVar#, clearly
+-- mv1 and mv2 must be distinct.  We use `MVOrigin`, in G2.Language.MutVar, to track whether a MutVar
+-- came from concretization or newMutVar#. 
 
 -- | Concretize Symbolic variable to Case Expr on its possible Data Constructors
 liftSymDefAlt' :: State t -> NameGen -> Expr -> Expr -> Id -> [Alt] -> ([NewPC t], NameGen)
@@ -691,7 +699,7 @@ liftSymDefAlt' s@(State {type_env = tenv}) ng mexpr aexpr cvar alts
 
             -- Create a new mutable variable with a symbolic stored value
             (stored_var, ng') = freshSeededId (idName i) stored_ty ng
-            (nmv_s, ng'') = newMutVar s ng' realworld_ty stored_ty (Var stored_var)
+            (nmv_s, ng'') = newMutVar s ng' MVSymbolic realworld_ty stored_ty (Var stored_var)
             
             eenv' = E.insertSymbolic stored_var $ E.insert (idName i) (getExpr nmv_s) (expr_env nmv_s)
             nmv_s' = nmv_s { curr_expr = CurrExpr Evaluate aexpr', expr_env = eenv' }
@@ -699,7 +707,9 @@ liftSymDefAlt' s@(State {type_env = tenv}) ng mexpr aexpr cvar alts
             -- Consider that the new mutable variable might be some existing mutable variable.
             -- See Note [MutVar Copy Concretization].
             mv_ty = mutVarTy (known_values s) realworld_ty stored_ty
-            rel_mutvar = HM.keys $ HM.filter (\(Id _ t) -> t == stored_ty) (mutvar_env s)
+            rel_mutvar = HM.keys
+                       $ HM.filter (\MVInfo { mv_val_id = Id _ t
+                                            , mv_origin = org } -> t == stored_ty && org == MVSymbolic) (mutvar_env s)
             copy_states = map (\mv -> s { curr_expr = CurrExpr Evaluate aexpr'
                                         , expr_env = E.insert (idName i) (Prim (MutVar mv) mv_ty) (expr_env s)
                                         }

@@ -22,6 +22,7 @@ module G2.Lib.Printers ( PrettyGuide
 import G2.Language.Expr
 import qualified G2.Language.ExprEnv as E
 import G2.Language.KnownValues
+import G2.Language.MutVarEnv
 import G2.Language.Naming
 import qualified G2.Language.PathConds as PC
 import G2.Language.TypeClasses
@@ -482,7 +483,7 @@ prettyState pg s =
         pretty_eenv = prettyEEnv pg (expr_env s)
         pretty_paths = prettyPathConds pg (path_conds s)
         pretty_non_red_paths = prettyNonRedPaths pg (non_red_path_conds s)
-        pretty_mutvars = prettyMutVars pg (mutvar_env s)
+        pretty_mutvars = prettyMutVars pg . HM.map mv_val_id $ mutvar_env s
         pretty_tenv = prettyTypeEnv pg (type_env s)
         pretty_tc = prettyTypeClasses pg (type_classes s)
         pretty_assert_fcs = maybe "None" (printFuncCallPG pg) (assert_ids s)

@@ -20,6 +20,7 @@ module G2.Language.Support
 import G2.Language.AST
 import qualified G2.Language.ExprEnv as E
 import G2.Language.KnownValues
+import G2.Language.MutVarEnv
 import G2.Language.Naming
 import G2.Language.Stack hiding (filter)
 import G2.Language.Syntax
@@ -46,8 +47,8 @@ data State t = State { expr_env :: E.ExprEnv -- ^ Mapping of `Name`s to `Expr`s
                      , path_conds :: PathConds -- ^ Path conditions, in SWHNF
                      , non_red_path_conds :: [(Expr, Expr)] -- ^ Path conditions, in the form of (possibly non-reduced)
                                                             -- expression pairs that must be proved equivalent
-                     , mutvar_env :: HM.HashMap Name Id -- ^ MutVar `Name`s to mappings of names in the `ExprEnv`.
-                                                        -- See Note [MutVar Env].
+                     , mutvar_env :: MutVarEnv -- ^ MutVar `Name`s to mappings of names in the `ExprEnv`.
+                                               -- See Note [MutVar Env] in G2.Language.MutVarEnv.
                      , true_assert :: Bool -- ^ Have we violated an assertion?
                      , assert_ids :: Maybe FuncCall
                      , type_classes :: TypeClasses
@@ -61,14 +62,6 @@ data State t = State { expr_env :: E.ExprEnv -- ^ Mapping of `Name`s to `Expr`s
                      , track :: t
                      } deriving (Show, Eq, Read, Generic, Typeable, Data)
 
--- Note [MutVar Env]
--- Mutable variables are variables with values that can be changed. These variables are represented via the `MutVar Name`
--- constructor of `Primitive`. The `Name` of a mutable variable is constant.  Given a `State` `s`, the `mutvar_env` field
--- maps each (constant) mutable variable name `n` to an `Id` `i`.  The expression returned by `E.lookup (idName i) (expr_env s)`
--- is then the current value of the mutable variable `n`.
---
--- To update the value of a mutable variable `n` to a new expression `e`, we create a fresh `Id` `i'`, and map `i'` to `e` in the
--- expression environment.  Then, we update the `mutvar_env` so that `n` maps to `i'`.
 
 instance Hashable t => Hashable (State t)
 

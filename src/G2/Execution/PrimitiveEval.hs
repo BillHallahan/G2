@@ -19,6 +19,7 @@ import qualified Data.List as L
 import Data.Maybe
 import qualified G2.Language.ExprEnv as E
 import G2.Language.ExprEnv (deepLookupExpr)
+import G2.Language.MutVarEnv
 
 evalPrims :: ASTContainer m Expr => TypeEnv -> KnownValues -> m -> m
 evalPrims tenv kv = modifyContainedASTs (evalPrims' tenv kv . simplifyCasts)
@@ -64,11 +65,11 @@ evalPrimMutVar :: State t -- ^ Context to evaluate expression `e` in
                -> NameGen
                -> Expr -- ^ The expression `e` to evaluate
                -> Maybe (State t, NameGen) -- ^ `Just` if `e` is a primitive operation on mutable variable, `Nothing` otherwise
-evalPrimMutVar s ng (App (App (App (App (Prim NewMutVar _) (Type t)) (Type ts)) e) _) = Just $ newMutVar s ng ts t e
+evalPrimMutVar s ng (App (App (App (App (Prim NewMutVar _) (Type t)) (Type ts)) e) _) = Just $ newMutVar s ng MVConc ts t e
 evalPrimMutVar s ng (App (App (App (App (Prim ReadMutVar _) _) _) mv_e) _)
     | Just (Prim (MutVar mv) _) <- deepLookupExpr mv_e (expr_env s)=
     let
-        i = M.lookup mv (mutvar_env s)
+        i = lookupMvVal mv (mutvar_env s)
         s' = maybe (error "evalPrimMutVar: MutVar not found")
                    (\i' -> s { curr_expr = CurrExpr Evaluate (Var i') })
                    i
@@ -79,7 +80,7 @@ evalPrimMutVar s ng (App (App (App (App (App (Prim WriteMutVar _) _) (Type t)) m
     let
         (i, ng') = freshId t ng
         s' = s { expr_env = E.insert (idName i) e (expr_env s)
-               , mutvar_env = M.insert mv i (mutvar_env s)
+               , mutvar_env = updateMvVal mv i (mutvar_env s)
                , curr_expr = CurrExpr Evaluate pr_s }
     in
     Just (s', ng')
@@ -93,17 +94,18 @@ mutVarTy kv ts ta = TyApp (TyApp (TyCon (KV.tyMutVar kv) (TyFun TYPE (TyFun TYPE
 
 newMutVar :: State t
           -> NameGen
+          -> MVOrigin
           -> Type -- ^ The State type
           -> Type -- ^ The stored type
           -> Expr
           -> (State t, NameGen)
-newMutVar s ng ts t e =
+newMutVar s ng org ts t e =
     let
         (mv_n, ng') = freshSeededName (Name "mv" Nothing 0 Nothing) ng
         (i, ng'') = freshId t ng'        
         s' = s { curr_expr = CurrExpr Evaluate (Prim (MutVar mv_n) $ mutVarTy (known_values s) ts t)
                , expr_env = E.insert (idName i) e (expr_env s)
-               , mutvar_env = M.insert mv_n i (mutvar_env s)}
+               , mutvar_env = insertMvVal mv_n i org (mutvar_env s)}
     in
     (s', ng'')
 
