@@ -1,7 +1,7 @@
 {-# LANGUAGE Rank2Types #-}
 {-# LANGUAGE FlexibleContexts, OverloadedStrings #-}
 
-module G2.Execution.PrimitiveEval (evalPrims, evalPrimMutVar, newMutVar, maybeEvalPrim, evalPrimSymbolic) where
+module G2.Execution.PrimitiveEval (evalPrims, mutVarTy, evalPrimMutVar, newMutVar, maybeEvalPrim, evalPrimSymbolic) where
 
 import G2.Language.AST
 import G2.Language.Expr
@@ -85,11 +85,11 @@ evalPrimMutVar s ng (App (App (App (App (App (Prim WriteMutVar _) _) (Type t)) m
     Just (s', ng')
 evalPrimMutVar _ _ _ = Nothing
 
-mutVarT :: KnownValues
-        -> Type -- ^ The State type
-        -> Type -- ^ The stored type
-        -> Type
-mutVarT kv ts ta = TyApp (TyApp (TyCon (KV.tyMutVar kv) (TyFun TYPE (TyFun TYPE TYPE))) ts) ta
+mutVarTy :: KnownValues
+         -> Type -- ^ The State type
+         -> Type -- ^ The stored type
+         -> Type
+mutVarTy kv ts ta = TyApp (TyApp (TyCon (KV.tyMutVar kv) (TyFun TYPE (TyFun TYPE TYPE))) ts) ta
 
 newMutVar :: State t
           -> NameGen
@@ -99,9 +99,9 @@ newMutVar :: State t
           -> (State t, NameGen)
 newMutVar s ng ts t e =
     let
-        (mv_n, ng') = freshName ng
+        (mv_n, ng') = freshSeededName (Name "mv" Nothing 0 Nothing) ng
         (i, ng'') = freshId t ng'        
-        s' = s { curr_expr = CurrExpr Evaluate (Prim (MutVar mv_n) $ mutVarT (known_values s) ts t)
+        s' = s { curr_expr = CurrExpr Evaluate (Prim (MutVar mv_n) $ mutVarTy (known_values s) ts t)
                , expr_env = E.insert (idName i) e (expr_env s)
                , mutvar_env = M.insert mv_n i (mutvar_env s)}
     in

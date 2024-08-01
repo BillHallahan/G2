@@ -72,3 +72,14 @@ j x =
         s2 = writeMutVar# mv 6 realWorld#
     in
     x'
+
+k :: MutVar# RealWorld Int -> MutVar# RealWorld Int -> (Int, Int)
+k mv1 mv2 =
+    let
+        s1 = writeMutVar# mv1 2 realWorld#
+        s2 = writeMutVar# mv2 6 s1
+ 
+        (# s3, x1 #) = readMutVar# mv1 s2
+        (# s4, x2 #) = readMutVar# mv2 s3 
+    in
+    (x1, x2)

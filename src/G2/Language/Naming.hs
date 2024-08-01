@@ -163,6 +163,7 @@ exprNames = evalASTs exprTopNames
 
 exprTopNames :: Expr -> [Name]
 exprTopNames (Var var) = [idName var]
+exprTopNames (Prim (MutVar mv) _) = [mv]
 exprTopNames (Data dc) = dataConName dc
 exprTopNames (Lam _ b _) = [idName b]
 exprTopNames (Let kvs _) = map (idName . fst) kvs
@@ -242,7 +243,7 @@ instance Named Expr where
         where
             go :: Expr -> S.Seq Name
             go (Var i) = names i
-            go (Prim _ t) = names t
+            go (Prim p t) = names p <> names t
             go (Data d) = names d
             go (Lam _ i _) = names i
             go (Let b _) = foldr (<>) S.empty $ map (names . fst) b
@@ -311,6 +312,7 @@ renameExpr old new = modifyASTs (renameExpr' old new)
 
 renameExpr' :: Name -> Name -> Expr -> Expr
 renameExpr' old new (Var i) = Var (renameExprId old new i)
+renameExpr' old new (Prim (MutVar mv) t) = (Prim (MutVar $ rename old new mv) t)
 renameExpr' old new (Data d) = Data (renameExprDataCon old new d)
 renameExpr' old new (Lam u i e) = Lam u (renameExprId old new i) e
 renameExpr' old new (Let b e) = Let (map (\(b', e') -> (renameExprId old new b', e')) b) e
@@ -360,6 +362,7 @@ renamesExprs hm = modifyASTs (renamesExprs' hm)
 
 renamesExprs' :: HM.HashMap Name Name -> Expr -> Expr
 renamesExprs' hm (Var i) = Var (renamesExprId hm i)
+renamesExprs' hm (Prim (MutVar mv) t) = (Prim (MutVar $ renames hm mv) t)
 renamesExprs' hm (Data d) = Data (renamesExprDataCon hm d)
 renamesExprs' hm (Lam u i e) = Lam u (renamesExprId hm i) e
 renamesExprs' hm (Let b e) = Let (map (\(b', e') -> (renamesExprId hm b', e')) b) e
@@ -472,6 +475,16 @@ instance Named Tickish where
     renames _ bp@(Breakpoint _) = bp
     renames _ hpc@(HpcTick _ _) = hpc
     renames hm (NamedLoc n) = NamedLoc $ renames hm n
+
+instance Named Primitive where
+    names (MutVar n) = S.singleton n
+    names _ = S.empty
+
+    rename old new (MutVar n) = MutVar (rename old new n)
+    rename _ _ p = p
+
+    renames m (MutVar n) = MutVar (renames m n)
+    renames _ p = p
 
 instance Named RewriteRule where
     names (RewriteRule { ru_head = h
