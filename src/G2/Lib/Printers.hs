@@ -29,7 +29,7 @@ import G2.Language.Typing
 import G2.Language.Stack
 import G2.Language.Syntax
 import G2.Language.Support
-
+import Debug.Trace
 import Data.Char
 import Data.List as L
 import qualified Data.HashMap.Lazy as HM
@@ -89,9 +89,9 @@ mkCleanExprHaskell' tc e
     | otherwise = Nothing
 
 elimPrimDC :: Alt -> Maybe Alt
-elimPrimDC (Alt (DataAlt dc@(DataCon (Name n _ _ _) _) is) e)
+elimPrimDC (Alt (DataAlt dc@(DataCon (Name n _ _ _) t) is) e@(Case dc' b t' alt))
     | n == "I#" || n == "F#" || n == "D#" || n == "Z#" || n == "C#" =
-                        Just $ Alt (DataAlt dc is) e
+                        trace ("dc in e is "++ show dc') Just $ Alt (DataAlt (DataCon (Name "" Nothing 0 Nothing) t) is) (Case (App (Data dc) dc') b t' alt)
 elimPrimDC _ = Nothing
 
 mkDirtyExprHaskell :: PrettyGuide -> Expr -> T.Text
