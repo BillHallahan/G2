@@ -570,12 +570,14 @@ runG2SubstModel m s@(State { type_env = tenv, known_values = kv }) bindings =
         Subbed { s_inputs = es
                , s_output = e
                , s_violated = ais
-               , s_sym_gens = gens } = subModel s' bindings
+               , s_sym_gens = gens
+               , s_mutvars = mv } = subModel s' bindings
 
         sm = ExecRes { final_state = s'
                      , conc_args = es
                      , conc_out = e
                      , conc_sym_gens = gens
+                     , conc_mutvars = mv
                      , violated = ais}
 
         sm' = runPostprocessing bindings sm
@@ -584,6 +586,7 @@ runG2SubstModel m s@(State { type_env = tenv, known_values = kv }) bindings =
                        , conc_args = fixed_inputs bindings ++ conc_args sm'
                        , conc_out = evalPrims tenv kv (conc_out sm')
                        , conc_sym_gens = gens
+                       , conc_mutvars = mv
                        , violated = evalPrims tenv kv (violated sm')}
     in
     sm''
