@@ -72,8 +72,8 @@ library
                        , G2.Initialization.Types
 
                        , G2.Interface
+                       , G2.Interface.ExecRes
                        , G2.Interface.Interface
-                       , G2.Interface.OutputTypes
 
                        , G2.Language
                        , G2.Language.AlgDataTy

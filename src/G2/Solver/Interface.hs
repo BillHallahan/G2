@@ -75,7 +75,7 @@ subModel (State { expr_env = eenv
         is = mapMaybe toVars inputNames
         gs = fmap fromJust . S.filter isJust $ fmap toVars gens
 
-        mv = mapMaybe (\(n, mvi) -> fmap (n,) . toVars . idName $ mv_val_id mvi) (HM.toList mve)
+        mv = mapMaybe (\(n, mvi) -> fmap (n,) . toVars . idName $ mv_initial mvi) (HM.toList mve)
 
         sub = Subbed { s_inputs = is
                      , s_output = cexpr

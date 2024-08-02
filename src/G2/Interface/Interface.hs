@@ -56,7 +56,7 @@ import G2.Execution.Rules
 import G2.Execution.PrimitiveEval
 import G2.Execution.Memory
 
-import G2.Interface.OutputTypes
+import G2.Interface.ExecRes
 
 import G2.Lib.Printers
 

@@ -1,7 +1,7 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 
-module G2.Interface.OutputTypes ( ExecRes (..)) where
+module G2.Interface.ExecRes ( ExecRes (..)) where
 
 import G2.Language
 

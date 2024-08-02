@@ -11,7 +11,7 @@ import Text.Regex
 import Unsafe.Coerce
 
 import G2.Initialization.MkCurrExpr
-import G2.Interface.OutputTypes
+import G2.Interface.ExecRes
 import G2.Language
 import G2.Translation.Haskell
 import G2.Translation.TransTypes
