@@ -44,3 +44,8 @@ staggered f =
         !g = f 1
     in
     g 2
+
+multiPrim :: (Int -> Float -> Int) -> Int 
+multiPrim f = case f 5 6.0 of 
+                        5 -> 5
+                        _ -> 8

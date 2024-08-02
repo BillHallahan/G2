@@ -89,10 +89,16 @@ mkCleanExprHaskell' tc e
     | otherwise = Nothing
 
 elimPrimDC :: Alt -> Maybe Alt
-elimPrimDC (Alt (DataAlt dc@(DataCon (Name n _ _ _) t) is) e@(Case dc' b t' alt))
+elimPrimDC (Alt (DataAlt dc@(DataCon (Name n _ _ _) t) is) e)
     | n == "I#" || n == "F#" || n == "D#" || n == "Z#" || n == "C#" =
-                        trace ("dc in e is "++ show dc') Just $ Alt (DataAlt (DataCon (Name "" Nothing 0 Nothing) t) is) (Case (App (Data dc) dc') b t' alt)
+             Just $ Alt (DataAlt (DataCon (Name "" Nothing 0 Nothing) t) is) (insertLitDC dc e)
+             --trace ("scrutinee in expr is "++ show e)
 elimPrimDC _ = Nothing
+
+insertLitDC :: DataCon -> Expr -> Expr 
+insertLitDC dc (App (App (Prim p t) (Var i)) (Lit l)) = App (App (Prim p t) (Var i)) (App (Data dc) (Lit l)) 
+insertLitDC dc e = modifyChildren (insertLitDC dc) e 
+--trace("expr in insertLitDC: " ++ show e)
 
 mkDirtyExprHaskell :: PrettyGuide -> Expr -> T.Text
 mkDirtyExprHaskell = mkExprHaskell Dirty
