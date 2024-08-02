@@ -1,8 +1,8 @@
-{-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE FlexibleContexts, MultiParamTypeClasses, OverloadedStrings #-}
 
 module G2.Solver.Interface
-    ( subModel
+    ( Subbed (..)
+    , subModel
     , subVar
     , subVarFuncCall
     , SMTConverter (..)
@@ -20,7 +20,36 @@ import Data.Maybe (mapMaybe, isJust, fromJust)
 import qualified Data.HashMap.Lazy as HM
 import qualified Data.Sequence as S
 
-subModel :: State t -> Bindings -> ([Expr], Expr, Maybe FuncCall, S.Seq Expr)
+-- | Concrete instantiations of previously (partially) symbolic values.
+data Subbed = Subbed { s_inputs :: [Expr] -- ^ Concrete `inputNames`
+                     , s_output :: Expr -- ^ Concrete `curr_expr`
+                     , s_violated :: Maybe FuncCall -- ^ Concrete `assert_ids`
+                     , s_sym_gens :: S.Seq Expr -- ^ Concrete `sym_gens`
+                     }
+                     deriving Eq
+
+instance ASTContainer Subbed Expr where
+    containedASTs sub =
+        s_inputs sub ++ s_output sub:containedASTs (s_violated sub) ++ containedASTs (s_sym_gens sub)
+    modifyContainedASTs f sub =
+        Subbed { s_inputs = map f (s_inputs sub)
+               , s_output = f (s_output sub)
+               , s_violated = modifyContainedASTs f (s_violated sub)
+               , s_sym_gens = modifyContainedASTs f (s_sym_gens sub) }
+
+instance ASTContainer Subbed Type where
+    containedASTs sub =
+           containedASTs (s_inputs sub)
+        ++ containedASTs (s_output sub)
+        ++ containedASTs (s_violated sub)
+        ++ containedASTs (s_sym_gens sub)
+    modifyContainedASTs f sub =
+        Subbed { s_inputs = modifyContainedASTs f (s_inputs sub)
+               , s_output = modifyContainedASTs f (s_output sub)
+               , s_violated = modifyContainedASTs f (s_violated sub)
+               , s_sym_gens = modifyContainedASTs f (s_sym_gens sub) }
+
+subModel :: State t -> Bindings -> Subbed
 subModel (State { expr_env = eenv
                 , curr_expr = CurrExpr _ cexpr
                 , assert_ids = ais
@@ -36,8 +65,13 @@ subModel (State { expr_env = eenv
         -- See [Higher-Order Model] in G2.Execution.Reducers
         is = mapMaybe toVars inputNames
         gs = fmap fromJust . S.filter isJust $ fmap toVars gens
+
+        sub = Subbed { s_inputs = is
+                     , s_output = cexpr
+                     , s_violated = ais'
+                     , s_sym_gens = gs }
         
-        sv = subVar False m eenv tc (is, cexpr, ais', gs)
+        sv = subVar False m eenv tc sub
     in
     untilEq (simplifyLams . pushCaseAppArgIn) sv
     where

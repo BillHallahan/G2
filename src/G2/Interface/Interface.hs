@@ -567,7 +567,11 @@ runG2SubstModel m s@(State { type_env = tenv, known_values = kv }) bindings =
     let
         s' = s { model = m }
 
-        (es, e, ais, gens) = subModel s' bindings
+        Subbed { s_inputs = es
+               , s_output = e
+               , s_violated = ais
+               , s_sym_gens = gens } = subModel s' bindings
+
         sm = ExecRes { final_state = s'
                      , conc_args = es
                      , conc_out = e
