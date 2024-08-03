@@ -26,7 +26,7 @@ data Subbed = Subbed { s_inputs :: [Expr] -- ^ Concrete `inputNames`
                      , s_output :: Expr -- ^ Concrete `curr_expr`
                      , s_violated :: Maybe FuncCall -- ^ Concrete `assert_ids`
                      , s_sym_gens :: S.Seq Expr -- ^ Concrete `sym_gens`
-                     , s_mutvars :: [(Name, Expr)] -- ^ Concrete symbolic `mutvar_env`
+                     , s_mutvars :: [(Name, MVOrigin, Expr)] -- ^ Concrete symbolic `mutvar_env`
                      }
                      deriving Eq
 
@@ -75,7 +75,7 @@ subModel (State { expr_env = eenv
         is = mapMaybe toVars inputNames
         gs = fmap fromJust . S.filter isJust $ fmap toVars gens
 
-        mv = mapMaybe (\(n, mvi) -> fmap (n,) . toVars . idName $ mv_initial mvi) (HM.toList mve)
+        mv = mapMaybe (\(n, mvi) -> fmap (n, mv_origin mvi,) . toVars . idName $ mv_initial mvi) (HM.toList mve)
 
         sub = Subbed { s_inputs = is
                      , s_output = cexpr

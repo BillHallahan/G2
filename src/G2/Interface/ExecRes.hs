@@ -1,20 +1,54 @@
-{-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE FlexibleContexts, MultiParamTypeClasses, OverloadedStrings #-}
 
-module G2.Interface.ExecRes ( ExecRes (..)) where
+module G2.Interface.ExecRes ( ExecRes (..), printInputOutput ) where
 
 import G2.Language
+import G2.Lib.Printers
 
 import qualified Data.Sequence as S
+import qualified Data.Text as T
 
 -- | A fully executed `State`.
 data ExecRes t = ExecRes { final_state :: State t -- ^ The final state.
                          , conc_args :: [Expr] -- ^ Fully concrete arguments for the state.
                          , conc_out :: Expr -- ^ Fully concrete output (final `curr_expr`) for the state
                          , conc_sym_gens :: S.Seq Expr 
-                         , conc_mutvars :: [(Name, Expr)]
+                         , conc_mutvars :: [(Name, MVOrigin, Expr)]
                          , violated :: Maybe FuncCall -- ^ A violated assertion
                          } deriving (Show, Read)
+
+printInputOutput :: PrettyGuide
+                 -> Id -- ^ Input function
+                 -> ExecRes t
+                 -> (T.Text, T.Text, T.Text)
+printInputOutput pg i er =
+    let
+        er' = er { conc_args = modifyASTs remMutVarPrim (conc_args er)
+                 , conc_out = modifyASTs remMutVarPrim (conc_out er)
+                 , conc_sym_gens = modifyASTs remMutVarPrim (conc_sym_gens er)
+                 , conc_mutvars = modifyASTs remMutVarPrim (conc_mutvars er) }
+    in
+    (printMutVars pg er', printInputFunc pg i er', printOutput pg er')
+
+printMutVars :: PrettyGuide -> ExecRes t -> T.Text
+printMutVars pg (ExecRes { final_state = s, conc_mutvars = mv@(_:_) }) =
+        let 
+            bound = T.intercalate "; "
+                  . map (\(n, _, e) -> printName pg n <> " = newMutVar# realWorld# " <> printHaskellPG pg s e)
+                  $ filter (\(_, m, _) -> m == MVSymbolic) mv
+        in
+        "let " <> bound <> " in "
+printMutVars _ _ = ""
+
+printInputFunc :: PrettyGuide -> Id -> ExecRes t -> T.Text
+printInputFunc pg i (ExecRes { final_state = s, conc_args = ars }) = printHaskellPG pg s $ mkApp (Var i:ars)
+
+printOutput :: PrettyGuide -> ExecRes t -> T.Text
+printOutput pg (ExecRes { final_state = s, conc_out = e }) = printHaskellPG pg s e
+
+remMutVarPrim :: Expr -> Expr
+remMutVarPrim (Prim (MutVar n) _) = Var $ Id n TyUnknown
+remMutVarPrim e = e
 
 instance Named t => Named (ExecRes t) where
     names (ExecRes { final_state = s

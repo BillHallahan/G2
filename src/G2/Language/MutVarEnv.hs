@@ -69,3 +69,15 @@ instance ASTContainer MVInfo Type where
     containedASTs (MVInfo { mv_val_id = i }) = containedASTs i
     modifyContainedASTs f (MVInfo { mv_val_id = i, mv_initial = initial, mv_origin = org }) =
             MVInfo { mv_val_id = modifyContainedASTs f i, mv_initial = modifyContainedASTs f initial, mv_origin = org }
+
+instance Named MVOrigin where
+    names = mempty
+    rename _ _ org = org
+
+instance ASTContainer MVOrigin Expr where
+    containedASTs _ = []
+    modifyContainedASTs _ org = org
+
+instance ASTContainer MVOrigin Type where
+    containedASTs _ = []
+    modifyContainedASTs _ org = org
