@@ -17,9 +17,7 @@ addFreeVarsAsSymbolic :: ExprEnv -> ExprEnv
 addFreeVarsAsSymbolic eenv = let xs = freeVars eenv eenv 
                              in foldl' (flip E.insertSymbolic) eenv xs 
 
--- | changing the signature of addFreeTypes so that we have 
--- we want to modify the rewrite-rules passed in checkrule 
--- | apply subvars to the rule 
+-- we want to modify the rewrite-rules passed in checkrule and then apply subvars to the rule 
 addFreeTypes :: (ASTContainer c Expr, ASTContainer c Type, ASTContainer t Expr, ASTContainer t Type) => c -> State t -> NameGen -> (c, State t, NameGen) 
 addFreeTypes c s@(State {type_env = tenv }) ng =
     let 
