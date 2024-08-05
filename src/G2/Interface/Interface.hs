@@ -168,7 +168,6 @@ initStateFromSimpleState s m_mod useAssert mkCurr argTys config =
         ng' = IT.name_gen s'
         kv' = IT.known_values s'
         tc' = IT.type_classes s'
-
         (ce, is, f_i, ng'') = mkCurr tc' ng' eenv' tenv' ds_walkers kv' config
     in
     (State {

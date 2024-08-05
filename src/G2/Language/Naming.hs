@@ -520,17 +520,17 @@ instance Named FuncCall where
 
 
 instance Named AlgDataTy where
-    names (DataTyCon ns dc) = names ns <> names dc
-    names (NewTyCon ns dc rt) = names ns <> names dc <> names rt
-    names (TypeSynonym is st) = names is <> names st
+    names (DataTyCon ns dc _) = names ns <> names dc
+    names (NewTyCon ns dc rt _) = names ns <> names dc <> names rt
+    names (TypeSynonym is st _) = names is <> names st
 
-    rename old new (DataTyCon n dc) = DataTyCon (rename old new n) (rename old new dc)
-    rename old new (NewTyCon n dc rt) = NewTyCon (rename old new n) (rename old new dc) (rename old new rt)
-    rename old new (TypeSynonym is st) = (TypeSynonym (rename old new is) (rename old new st))
+    rename old new (DataTyCon n dc adts) = DataTyCon (rename old new n) (rename old new dc) adts
+    rename old new (NewTyCon n dc rt adts) = NewTyCon (rename old new n) (rename old new dc) (rename old new rt) adts
+    rename old new (TypeSynonym is st adts) = (TypeSynonym (rename old new is) (rename old new st) adts)
 
-    renames hm (DataTyCon n dc) = DataTyCon (renames hm n) (renames hm dc)
-    renames hm (NewTyCon n dc rt) = NewTyCon (renames hm n) (renames hm dc) (renames hm rt)
-    renames hm (TypeSynonym is st) = TypeSynonym (renames hm is) (renames hm st)
+    renames hm (DataTyCon n dc adts) = DataTyCon (renames hm n) (renames hm dc) adts
+    renames hm (NewTyCon n dc rt adts) = NewTyCon (renames hm n) (renames hm dc) (renames hm rt) adts
+    renames hm (TypeSynonym is st adts) = TypeSynonym (renames hm is) (renames hm st) adts
 
 instance Named KnownValues where
     names (KnownValues {

@@ -29,7 +29,6 @@ import G2.Language.Typing
 import G2.Language.Stack
 import G2.Language.Syntax
 import G2.Language.Support
-
 import Data.Char
 import Data.List as L
 import qualified Data.HashMap.Lazy as HM
@@ -50,8 +49,8 @@ mkNameHaskell pg n
     | otherwise = nameOcc n
 
 mkUnsugaredExprHaskell :: State t -> Expr -> T.Text
-mkUnsugaredExprHaskell (State {known_values = kv, type_classes = tc}) =
-    mkExprHaskell Cleaned (mkPrettyGuide ()) . modifyMaybe (mkCleanExprHaskell' kv tc)
+mkUnsugaredExprHaskell (State {type_classes = tc}) =
+    mkExprHaskell Cleaned (mkPrettyGuide ()) . modifyMaybe (mkCleanExprHaskell' tc)
 
 printHaskell :: State t -> Expr -> T.Text
 printHaskell = mkCleanExprHaskell (mkPrettyGuide ())
@@ -66,14 +65,11 @@ printHaskellPG :: PrettyGuide -> State t -> Expr -> T.Text
 printHaskellPG = mkCleanExprHaskell
 
 mkCleanExprHaskell :: PrettyGuide -> State t -> Expr -> T.Text
-mkCleanExprHaskell pg (State {known_values = kv, type_classes = tc}) = 
-    mkExprHaskell Cleaned pg . modifyMaybe (mkCleanExprHaskell' kv tc)
+mkCleanExprHaskell pg (State {type_classes = tc}) = 
+    mkExprHaskell Cleaned pg . modifyMaybe (mkCleanExprHaskell' tc)
 
-mkCleanExprHaskell' :: KnownValues -> TypeClasses -> Expr -> Maybe Expr
-mkCleanExprHaskell' kv tc e
-    | (App (Data (DataCon n _)) e') <- e
-    , n == dcInt kv || n == dcFloat kv || n == dcDouble kv || n == dcInteger kv || n == dcChar kv = Just e'
-
+mkCleanExprHaskell' :: TypeClasses -> Expr -> Maybe Expr
+mkCleanExprHaskell' tc e
     | Case scrut i t [a] <- e = Case scrut i t . (:[]) <$> elimPrimDC a
 
     | (App e' e'') <- e
@@ -92,10 +88,14 @@ mkCleanExprHaskell' kv tc e
     | otherwise = Nothing
 
 elimPrimDC :: Alt -> Maybe Alt
-elimPrimDC (Alt (DataAlt (DataCon (Name n _ _ _) t) is) e)
+elimPrimDC (Alt (DataAlt dc@(DataCon (Name n _ _ _) t) is) e)
     | n == "I#" || n == "F#" || n == "D#" || n == "Z#" || n == "C#" =
-                        Just $ Alt (DataAlt (DataCon (Name "" Nothing 0 Nothing) t) is) e
+                        Just $ Alt (DataAlt (DataCon (Name "" Nothing 0 Nothing) t) is) (insertLitDC dc e)
 elimPrimDC _ = Nothing
+
+insertLitDC :: DataCon -> Expr -> Expr 
+insertLitDC dc (App (App (Prim p t) (Var i)) (Lit l)) = App (App (Prim p t) (Var i)) (App (Data dc) (Lit l)) 
+insertLitDC dc e = modifyChildren (insertLitDC dc) e
 
 mkDirtyExprHaskell :: PrettyGuide -> Expr -> T.Text
 mkDirtyExprHaskell = mkExprHaskell Dirty
@@ -112,7 +112,7 @@ mkExprHaskell' off_init cleaned pg ex = mkExprHaskell'' off_init ex
                        -> Expr
                        -> T.Text
         mkExprHaskell'' _ (Var ids) = mkIdHaskell pg ids
-        mkExprHaskell'' _ (Lit c) = mkLitHaskell c
+        mkExprHaskell'' _ (Lit c) = mkLitHaskell UseHash c
         mkExprHaskell'' _ (Prim p _) = mkPrimHaskell p
         mkExprHaskell'' off (Lam _ ids e) =
             "(\\" <> mkIdHaskell pg ids <> " -> " <> mkExprHaskell'' off e <> ")"
@@ -142,6 +142,8 @@ mkExprHaskell' off_init cleaned pg ex = mkExprHaskell'' off_init ex
             | otherwise = mkExprHaskell'' off ea <> " " <> mkExprHaskell'' off e3
 
         mkExprHaskell'' off (App e1 ea@(App _ _)) = mkExprHaskell'' off e1 <> " (" <> mkExprHaskell'' off ea <> ")"
+        mkExprHaskell'' _ (App (Data (DataCon (Name n _ _ _) _)) (Lit l)) 
+            | n == "I#" || n == "F#" || n == "D#" || n == "Z#" || n == "C#" = mkLitHaskell NoHash l
         mkExprHaskell'' off (App e1 e2) =
             parenWrap e1 (mkExprHaskell'' off e1) <> " " <> mkExprHaskell'' off e2
         mkExprHaskell'' _ (Data d) = mkDataConHaskell pg d
@@ -230,8 +232,8 @@ mkAltHaskell off cleaned pg i_bndr@(Id bndr_name _) (Alt am e) =
                 Nothing -> pr_am
         mkAltMatchHaskell m_bndr (LitAlt l) =
             case m_bndr of
-                Just bndr -> mkIdHaskell pg bndr <> "@" <> mkLitHaskell l
-                Nothing -> mkLitHaskell l
+                Just bndr -> mkIdHaskell pg bndr <> "@" <> mkLitHaskell NoHash l
+                Nothing -> mkLitHaskell NoHash l
         mkAltMatchHaskell (Just bndr) Default = mkIdHaskell pg bndr
         mkAltMatchHaskell _ Default = "_"
 
@@ -318,21 +320,27 @@ isLitChar :: Expr -> Bool
 isLitChar (Lit (LitChar _)) = True
 isLitChar _ = False
 
-mkLitHaskell :: Lit -> T.Text
-mkLitHaskell (LitInt i) = T.pack $ if i < 0 then "(" <> show i <> ")" else show i
-mkLitHaskell (LitInteger i) = T.pack $ if i < 0 then "(" <> show i <> ")" else show i
-mkLitHaskell (LitFloat r) = mkFloat r
-mkLitHaskell (LitDouble r) = mkFloat r
-mkLitHaskell (LitRational r) = "(" <> T.pack (show r) <> ")"
-mkLitHaskell (LitChar c) | isPrint c = T.pack ['\'', c, '\'']
-                         | otherwise = "(chr " <> T.pack (show $ ord c) <> ")"
-mkLitHaskell (LitString s) = T.pack s
+data UseHash = UseHash | NoHash deriving Eq
 
-mkFloat :: (Show n, RealFloat n) => n -> T.Text
-mkFloat r | isNaN r = "(0 / 0)"
-          | r == 1 / 0 = "(1 / 0)" -- Infinity
-          | r == -1 / 0 = "(-1 / 0)" -- Negative Infinity
-          | otherwise = "(" <> T.pack (show r) <> ")"
+mkLitHaskell :: UseHash -> Lit -> T.Text
+mkLitHaskell use = lit
+    where
+        hs = if use == UseHash then "#" else ""
+
+        lit (LitInt i) = T.pack $ if i < 0 then "(" <> show i <> hs <> ")" else show i <> hs
+        lit (LitInteger i) = T.pack $ if i < 0 then "(" <> show i <> hs <> ")" else show i <> hs
+        lit (LitFloat r) = mkFloat (T.pack hs) r
+        lit (LitDouble r) = mkFloat (T.pack hs) r
+        lit (LitRational r) = "(" <> T.pack (show r) <> ")"
+        lit (LitChar c) | isPrint c = T.pack ['\'', c, '\'']
+                        | otherwise = "(chr " <> T.pack (show $ ord c) <> ")"
+        lit (LitString s) = T.pack s
+
+mkFloat :: (Show n, RealFloat n) => T.Text -> n -> T.Text
+mkFloat hs r | isNaN r = "(0" <> hs <> " / 0" <> hs <> ")"
+             | r == 1 / 0 = "(1" <> hs <> " / 0" <> hs <> ")" -- Infinity
+             | r == -1 / 0 = "(-1" <> hs <> " / 0" <> hs <> ")" -- Negative Infinity
+             | otherwise = "(" <> T.pack (show r) <> hs <> ")"
 
 mkPrimHaskell :: Primitive -> T.Text
 mkPrimHaskell Ge = ">="
@@ -534,7 +542,7 @@ prettyPathConds pg = T.intercalate "\n" . map (prettyPathCond pg) . PC.toList
 prettyPathCond :: PrettyGuide -> PathCond -> T.Text
 prettyPathCond pg (AltCond l e b) =
     let
-        eq = mkLitHaskell l <> " = " <> mkDirtyExprHaskell pg e
+        eq = mkLitHaskell NoHash l <> " = " <> mkDirtyExprHaskell pg e
     in
     if b then eq else "not (" <> eq <> ")"
 prettyPathCond pg (ExtCond e b) =

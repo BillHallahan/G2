@@ -34,7 +34,6 @@ import qualified G2.Language.KnownValues as KV
 import qualified G2.Language.Stack as S
 import G2.Preprocessing.NameCleaner
 import G2.Solver hiding (Assert)
-
 import Control.Monad.Extra
 import Data.Maybe
 import qualified Data.HashMap.Lazy as HM
@@ -281,14 +280,14 @@ evalCase s@(State { expr_env = eenv
   | (Data dcon):ar <- unApp $ exprInCasts mexpr
   , (DataCon _ _) <- dcon
   , ar' <- removeTypes ar eenv
-  , (Alt (DataAlt _ params) expr):_ <- matchDataAlts dcon alts
-  , length params == length ar' =
+  , (Alt (DataAlt _ params) expr):_ <- matchDataAlts dcon alts =
       let
           dbind = [(bind, mexpr)]
           expr' = liftCaseBinds dbind expr
           pbinds = zip params ar'
           (eenv', expr'', ng', news) = liftBinds pbinds eenv expr' ng
       in 
+         assert (length params == length ar')
          ( RuleEvalCaseData news
          , [newPCEmpty $ s { expr_env = eenv'
                            , curr_expr = CurrExpr Evaluate expr''}] 
@@ -336,7 +335,7 @@ evalCase s@(State { expr_env = eenv
 
         alt_res = dsts_cs ++ lsts_cs ++ def_sts
       in
-      assert (length alt_res == length dalts + length lalts + length defs)
+     assert (length alt_res == length dalts + length lalts + length defs)
       (RuleEvalCaseSym, alt_res, ng'')
 
   -- Case evaluation also uses the stack in graph reduction based evaluation
@@ -652,7 +651,7 @@ liftSymDefAlt s ng mexpr cvar as =
 
 -- | Concretize Symbolic variable to Case Expr on its possible Data Constructors
 liftSymDefAlt' :: State t -> NameGen -> Expr -> Expr -> Id -> [Alt] -> ([NewPC t], NameGen)
-liftSymDefAlt' s@(State {type_env = tenv}) ng mexpr aexpr cvar alts
+liftSymDefAlt' s@(State {type_env = tenv, expr_env = eenv}) ng mexpr aexpr cvar alts
     | (Var i):_ <- unApp $ unsafeElimOuterCast mexpr
     , isADTType (typeOf i)
     , (Var i'):_ <- unApp $ exprInCasts mexpr = -- Id with original Type
@@ -684,6 +683,14 @@ liftSymDefAlt' s@(State {type_env = tenv}) ng mexpr aexpr cvar alts
         ([NewPC { state = s'', new_pcs = [newSymConstraint], concretized = [] }], ng'')
     | Prim _ _:_ <- unApp mexpr = (liftSymDefAlt'' s mexpr aexpr cvar alts, ng)
     | isPrimType (typeOf mexpr) = (liftSymDefAlt'' s mexpr aexpr cvar alts, ng)
+    | TyVar _ <- (typeOf mexpr) = 
+                let
+                    (cvar', ng') = freshId (typeOf cvar) ng
+                    eenv' =  E.insert (idName cvar') mexpr (expr_env s)
+                    aexpr' = replaceVar (idName cvar) (Var cvar') aexpr
+                    s' = s {curr_expr = CurrExpr Evaluate aexpr', expr_env = eenv'}
+
+                in ([NewPC {state = s', new_pcs = [], concretized = []}], ng')
     | otherwise = error $ "liftSymDefAlt': unhandled Expr" ++ "\n" ++ show mexpr
 
 liftSymDefAlt'' :: State t -> Expr -> Expr -> Id -> [Alt] -> [NewPC t]

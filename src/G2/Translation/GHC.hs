@@ -41,7 +41,6 @@ module G2.Translation.GHC ( module GHC
                           , module GHC.Driver.Config.Tidy
 #endif
                           ) where
-
 import GHC
 import GHC.Core ( Alt (..)
                 , AltCon (..)

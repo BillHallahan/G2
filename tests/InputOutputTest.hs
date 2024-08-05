@@ -3,7 +3,8 @@ module InputOutputTest ( checkInputOutput
                        , checkInputOutputs
                        , checkInputOutputsTemplate
                        , checkInputOutputsNonRedTemp
-                       , checkInputOutputsNonRedLib ) where
+                       , checkInputOutputsNonRedLib
+                       , checkInputOutputsInstType ) where
 
 import Test.Tasty
 import Test.Tasty.HUnit
@@ -53,6 +54,14 @@ checkInputOutputsNonRedLib src tests = do
         (do config <- mkConfigTestIO; return (config { nrpc = Nrpc }))
         src
         tests
+
+checkInputOutputsInstType :: FilePath -> [(String, Int, [Reqs String])] -> TestTree
+checkInputOutputsInstType src tests = do
+    checkInputOutput'
+        (do config <- mkConfigTestIO; return (config { instTV = InstAfter }))
+        src
+        tests
+
 
 checkInputOutput' :: IO Config
                   -> FilePath
