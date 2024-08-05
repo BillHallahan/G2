@@ -282,14 +282,14 @@ evalCase s@(State { expr_env = eenv
   | (Data dcon):ar <- unApp $ exprInCasts mexpr
   , (DataCon _ _) <- dcon
   , ar' <- removeTypes ar eenv
-  , (Alt (DataAlt _ params) expr):_ <- matchDataAlts dcon alts
-  , length params == length ar' =
+  , (Alt (DataAlt _ params) expr):_ <- matchDataAlts dcon alts =
       let
           dbind = [(bind, mexpr)]
           expr' = liftCaseBinds dbind expr
           pbinds = zip params ar'
           (eenv', expr'', ng', news) = liftBinds pbinds eenv expr' ng
       in 
+         assert (length params == length ar')
          ( RuleEvalCaseData news
          , [newPCEmpty $ s { expr_env = eenv'
                            , curr_expr = CurrExpr Evaluate expr''}] 
