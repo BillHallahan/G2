@@ -9,10 +9,8 @@ import qualified Data.List as L
 
 import Data.Foldable (foldl')
 import G2.Language.ExprEnv (isSymbolic)
-import G2.Language.AlgDataTy 
 import G2.Execution
 
-import Debug.Trace
 
 generateIds :: NameGen -> Type -> (NameGen, Id)
 generateIds ng t = 
@@ -63,7 +61,7 @@ instType' (ng, st) i
             n = idName i
             eenv' = E.insert n (Type t) (expr_env st)
             st' = st {expr_env = eenv'
-                     , type_env = te}
+                     ,type_env = te}
             st'' = replaceTyVar n t st'
         in
         (ng',st'')

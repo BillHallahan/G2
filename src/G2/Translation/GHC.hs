@@ -67,7 +67,7 @@ import GHC.Core.TyCon
 import GHC.Data.FastString
 import GHC.Data.Pair
 import GHC.Driver.Main
-import GHC.Driver.Session 
+import GHC.Driver.Session
 import GHC.Iface.Tidy
 import GHC.Paths
 import GHC.Types.Avail
@@ -90,7 +90,6 @@ import GHC.Types.TypeEnv
 import GHC.Unit.Module.Deps
 import GHC.Unit.Module.ModDetails
 import GHC.Unit.Module.ModGuts
-
 
 type HscTarget = Backend
 #else

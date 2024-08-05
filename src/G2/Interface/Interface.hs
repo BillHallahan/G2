@@ -169,9 +169,8 @@ initStateFromSimpleState s m_mod useAssert mkCurr argTys config =
         kv' = IT.known_values s'
         tc' = IT.type_classes s'
         (ce, is, f_i, ng'') = mkCurr tc' ng' eenv' tenv' ds_walkers kv' config
-        
     in
-      (State {
+    (State {
       expr_env = foldr E.insertSymbolic eenv' is
     , type_env = tenv'
     , curr_expr = CurrExpr Evaluate ce

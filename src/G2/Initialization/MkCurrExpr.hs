@@ -15,7 +15,6 @@ import Data.Maybe
 import qualified Data.Text as T
 import qualified Data.HashMap.Lazy as HM 
 
-
 mkCurrExpr :: Maybe T.Text -> Maybe T.Text -> Id
            -> TypeClasses -> NameGen -> ExprEnv -> TypeEnv -> Walkers
            -> KnownValues -> Config -> (Expr, [Id], [Expr], NameGen)

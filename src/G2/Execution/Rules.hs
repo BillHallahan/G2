@@ -34,8 +34,6 @@ import qualified G2.Language.KnownValues as KV
 import qualified G2.Language.Stack as S
 import G2.Preprocessing.NameCleaner
 import G2.Solver hiding (Assert)
-import Debug.Trace
-import qualified Data.Text as T
 import Control.Monad.Extra
 import Data.Maybe
 import qualified Data.HashMap.Lazy as HM
@@ -337,11 +335,6 @@ evalCase s@(State { expr_env = eenv
 
         alt_res = dsts_cs ++ lsts_cs ++ def_sts
       in
-    --  trace("alt_res length " ++ show (length alt_res) ++ "\n alt_res curr_expr: " ++ (concatMap (show .curr_expr . state) alt_res) 
-    --        ++ "\n dalts length " ++ show (length dalts) ++ "\n dalts expr: " ++ (concatMap (\(_, _, e) -> show e) dalts)
-    --        ++ "\n defs length " ++ show (length defs) ++ "\n defs expr: " ++ (concatMap (\(Alt altm alte ) -> show alte) defs)
-     
-    --  )
      assert (length alt_res == length dalts + length lalts + length defs)
       (RuleEvalCaseSym, alt_res, ng'')
 

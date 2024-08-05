@@ -9,13 +9,11 @@ import GHC.Driver.Session
 import DynFlags
 #endif
 
-
 import GHC hiding (Name, entry)
 
 import GHC.LanguageExtensions
 
 import GHC.Paths
-
 import Data.Either
 import Data.List
 import qualified Data.Text as T
@@ -102,7 +100,7 @@ runCheck' modN entry chAll s@(State {type_env = te}) ars out = do
                     True -> "try (evaluate ( (" ++ arsStr ++ " :: " ++ arsType ++
                                                     ") == " ++ arsStr ++ ")) :: IO (Either SomeException Bool)"
     v' <- compileExpr chck
-    
+
     let chArgs = ars ++ [out] 
     let chAllStr = map (\f -> T.unpack $ printHaskellPG pg s $ mkApp ((simpVar $ T.pack f):chArgs)) chAll
     let chAllStr' = map (\str -> "try (evaluate (" ++ str ++ ")) :: IO (Either SomeException Bool)") chAllStr
