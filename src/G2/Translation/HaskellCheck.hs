@@ -43,7 +43,7 @@ validateStates proj src modN entry chAll gflags in_out = do
 -- The type is formatted as the following:
 -- data name bound_ids = datacons 
 g2GeneratedTypeToName :: PrettyGuide -> State t -> (Name, AlgDataTy) -> String
-g2GeneratedTypeToName pg s (x,(DataTyCon{data_cons = dcs, bound_ids = is})) =
+g2GeneratedTypeToName pg s (x, DataTyCon{data_cons = dcs, bound_ids = is}) =
     let
         x' = T.unpack $ printName pg x
         ids' = T.unpack . T.intercalate " " $ map (printHaskellPG pg s . Var) is
