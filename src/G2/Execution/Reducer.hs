@@ -835,21 +835,6 @@ currExprLogger ll@(LimLogger { after_n = aft, before_n = bfr, down_path = down }
         updateWithAllLL [(_, l)] = [l]
         updateWithAllLL ss =
             map (\(llt, i) -> llt { ll_offset = ll_offset llt ++ [i] }) $ zip (map snd ss) [1..]
-    -- (mkSimpleReducer
-    --     (const [])
-    --     (\li s b -> do
-    --         pg <- SM.get
-    --         let pg' = updatePrettyGuide (s { track = () }) pg
-    --         SM.put pg'
-    --         liftIO $ print li
-    --         liftIO . T.putStrLn $ printHaskellDirtyPG pg' (getExpr s)
-    --         return (NoProgress, [(s, li)], b)
-    --     )
-    -- ) { updateWithAll = \s -> map (\(l, i) -> l ++ [i]) $ zip (map snd s) [1..]
-    --   , onAccept = \s b llt -> do
-    --                             liftIO . putStrLn $ "Accepted on path " ++ show llt
-    --                             return (s, b)
-    --   , onDiscard = \_ ll -> liftIO . putStrLn $ "Discarded path " ++ show ll }
 
 -- We use C to combine the halter values for HCombiner
 -- We should never define any other instance of Halter with C, or export it
