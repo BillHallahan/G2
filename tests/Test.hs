@@ -492,7 +492,7 @@ primTests = testGroup "Prims"
                                             , ("printBasedOnOrd", 1500, [AtLeast 7]) ]
 
     , checkInputOutputs "tests/Prim/MutVar.hs" [ ("f", 10000, [Exactly 3])
-                                               , ("fIn", 10000, [Exactly 3])
+                                               , ("fIn", 10000, [Exactly 4])
                                                , ("g", 10000, [Exactly 1])
                                                , ("h", 10000, [Exactly 1])
                                                , ("i", 10000, [Exactly 1])
