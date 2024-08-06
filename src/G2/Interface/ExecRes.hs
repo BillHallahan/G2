@@ -34,7 +34,7 @@ printMutVars :: PrettyGuide -> ExecRes t -> T.Text
 printMutVars pg (ExecRes { final_state = s, conc_mutvars = mv@(_:_) }) =
         let 
             bound = T.intercalate "; "
-                  . map (\(n, _, e) -> printName pg n <> " = newMutVar# realWorld# " <> printHaskellPG pg s e)
+                  . map (\(n, _, e) -> "(# _, " <> printName pg n <> " #) = newMutVar# " <> printHaskellPG pg s e <> " realWorld#")
                   $ filter (\(_, m, _) -> m == MVSymbolic) mv
         in
         "let " <> bound <> " in "

@@ -29,7 +29,6 @@ import G2.Execution.PrimitiveEval
 import G2.Execution.RuleTypes
 import G2.Language
 import qualified G2.Language.ExprEnv as E
-import G2.Language.MutVarEnv
 import qualified G2.Language.Typing as T
 import qualified G2.Language.KnownValues as KV
 import qualified G2.Language.Stack as S
@@ -342,9 +341,9 @@ evalCase s@(State { expr_env = eenv
       -- We return exactly one state per branch, unless we are concretizing a MutVar.
       -- In that case, we will return at least one state, but might return an unbounded
       -- number more- see Note [MutVar Copy Concretization].
-      assert (tyConName (tyAppCenter t) == Just (KV.tyMutVar kv)
+      assert (tyConName (tyAppCenter $ typeOf mexpr) == Just (KV.tyMutVar kv)
                         ==> length alt_res >= length dalts + length lalts + length defs)
-      assert (tyConName (tyAppCenter t) /= Just (KV.tyMutVar kv)
+      assert (tyConName (tyAppCenter $ typeOf mexpr) /= Just (KV.tyMutVar kv)
                         ==> length alt_res == length dalts + length lalts + length defs)
       (RuleEvalCaseSym, alt_res, ng'')
 

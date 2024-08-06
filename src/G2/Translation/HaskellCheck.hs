@@ -92,7 +92,7 @@ runCheck' modN entry chAll er@(ExecRes {final_state = s, conc_args = ars, conc_o
     -- Pass g2 generated type into the environment 
     let g2str = map (g2GeneratedTypeToName pg s) g2Gen
     dyn <- getSessionDynFlags
-    let dyn' = xopt_set dyn MagicHash
+    let dyn' = xopt_set (xopt_set dyn MagicHash) UnboxedTuples
     setSessionDynFlags dyn'
 
     _ <- mapM runDecls g2str
