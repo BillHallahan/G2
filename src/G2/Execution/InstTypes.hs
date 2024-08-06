@@ -12,7 +12,6 @@ import G2.Language.ExprEnv (isSymbolic)
 import G2.Execution
 
 
-
 generateIds :: NameGen -> Type -> (NameGen, Id)
 generateIds ng t = 
     let 
@@ -36,15 +35,16 @@ newType ng i te =
         tyforall = foldl' (flip TyForAll) tyfuns all_ids
 
         nadt = DataTyCon 
-                    {bound_ids = all_ids
-                    ,data_cons = [DataCon dc tyforall]}
+                    { bound_ids = all_ids
+                    , data_cons = [DataCon dc tyforall]
+                    , adt_source = ADTG2Generated}
         te' = HM.insert tn nadt te 
     in
     (ty, te', ng''')
     
 -- | We want to find all the type variable from curr_expr and replace them with symbolic variable
 instType :: ASTContainer t Type => State t -> Bindings -> (State t, Bindings)
-instType st b@(Bindings { name_gen = ng, input_names = ins }) = 
+instType st b@(Bindings {name_gen = ng, input_names = ins}) = 
     let 
         is = tyVarIds $ map (\n -> E.lookup n (expr_env st)) ins
         (ng', st') = L.foldl' instType' (ng, st) is
@@ -61,10 +61,10 @@ instType' (ng, st) i
             n = idName i
             eenv' = E.insert n (Type t) (expr_env st)
             st' = st {expr_env = eenv'
-                    ,type_env = te}
+                     ,type_env = te}
             st'' = replaceTyVar n t st'
         in
-         (ng',st'')
+        (ng',st'')
     | otherwise = (ng, st)
         
 -- define a new reducer that calls your instType on your onAccept function
@@ -72,5 +72,4 @@ instTypeRed :: (ASTContainer t Type, Monad m) => Reducer m () t
 instTypeRed  = (mkSimpleReducer
                         (\_ -> ())
                         (\rv s b -> return (NoProgress, [(s , rv)], b)) )
-                        {
-                         onAccept = \s b _ -> return (instType s b)} 
+                        {onAccept = \s b _ -> return (instType s b)} 

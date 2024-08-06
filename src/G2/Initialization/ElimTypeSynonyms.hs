@@ -24,5 +24,5 @@ elimTypeSymsTEnv :: TypeEnv -> TypeEnv
 elimTypeSymsTEnv tenv = elimTypeSyms tenv . HM.filter (not . typeSym) $ tenv
 
 typeSym :: AlgDataTy -> Bool
-typeSym (TypeSynonym _ _) = True
+typeSym (TypeSynonym _ _ _) = True
 typeSym _ = False

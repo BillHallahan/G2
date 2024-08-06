@@ -83,7 +83,7 @@ getDataConNameMod tenv (Name n m _ _) dc =
     flip dataConWithNameMod dc =<< adt'
 
 dataConWithNameMod :: AlgDataTy -> Name -> Maybe DataCon
-dataConWithNameMod (DataTyCon _ dcs) n = find (`dataConHasNameMod` n) dcs
+dataConWithNameMod (DataTyCon _ dcs _) n = find (`dataConHasNameMod` n) dcs
 dataConWithNameMod _ _ = Nothing
 
 dataConHasNameMod :: DataCon -> Name -> Bool

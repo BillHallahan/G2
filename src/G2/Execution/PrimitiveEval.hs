@@ -152,6 +152,7 @@ evalPrim2 _ Minus x y = evalPrim2Num (-) x y
 evalPrim2 _ Mult x y = evalPrim2Num (*) x y
 evalPrim2 _ Div x y = if isZero y then error "Have Div _ 0" else evalPrim2Fractional (/) x y
 evalPrim2 _ Quot x y = if isZero y then error "Have Quot _ 0" else evalPrim2Integral quot x y
+evalPrim2 _ Rem x y = if isZero y then error "Have Rem _ 0" else evalPrim2Integral rem x y
 evalPrim2 _ Mod x y = evalPrim2Integral mod x y
 
 evalPrim2 kv FpGeq x y = evalPrim2NumCharBool (>=) kv x y

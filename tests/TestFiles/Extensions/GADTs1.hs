@@ -55,3 +55,6 @@ checkeq a a1 = a == a1
 
 id2 :: a -> a 
 id2 x = x
+
+idlr :: Either l r -> Either l r 
+idlr x = x

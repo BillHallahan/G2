@@ -84,17 +84,20 @@ mkMainExprNoInstantiateTypes e ng =
         (ns', ng') = renameAll ns ng
 
         ntmap = HM.fromList $ zip ns ns' 
-        -- We want to create a full list of symoblic variables with new names and put the symoblic variables into the expr env
+        -- We want to create a full list of symoblic variables with new names and put the symbolic variables into the expr env
+        -- Type level arguments
         ntids = map (\(NamedType i) -> i) nts
         ntids' = renames ntmap ntids
 
+        -- Value level arguments
         ats' = map argTypeToType ats
         (atsToIds,ng'') = freshIds ats' ng'
         atsToIds' = renames ntmap atsToIds
-        
+
         all_ids = ntids' ++ atsToIds'
-        app_ex = foldl' App e $ map Var all_ids
-    in (app_ex, all_ids,[],ng'')
+        ars = map (Type . TyVar) ntids' ++ map Var atsToIds'
+        app_ex = foldl' App (renames ntmap e) ars
+    in  (app_ex, all_ids, [],ng'')
 
 
 mkInputs :: NameGen -> [Type] -> ([Expr], [Id], NameGen)

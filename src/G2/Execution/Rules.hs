@@ -35,12 +35,12 @@ import qualified G2.Language.KnownValues as KV
 import qualified G2.Language.Stack as S
 import G2.Preprocessing.NameCleaner
 import G2.Solver hiding (Assert)
-
 import Control.Monad.Extra
 import Data.Maybe
 import qualified Data.HashMap.Lazy as HM
 import qualified Data.List as L
 import qualified Data.Sequence as S
+import G2.Data.Utils
 
 import Control.Exception
 
@@ -259,7 +259,8 @@ evalLet s@(State { expr_env = eenv })
 -- | Handle the Case forms of Evaluate.
 evalCase :: State t -> NameGen -> Expr -> Id -> Type -> [Alt] -> (Rule, [NewPC t], NameGen)
 evalCase s@(State { expr_env = eenv
-                  , exec_stack = stck })
+                  , exec_stack = stck
+                  , known_values = kv })
          ng mexpr bind t alts
   -- Is the current expression able to match with a literal based `Alt`? If
   -- so, we do the cvar binding, and proceed with evaluation of the body.
@@ -283,14 +284,14 @@ evalCase s@(State { expr_env = eenv
   | (Data dcon):ar <- unApp $ exprInCasts mexpr
   , (DataCon _ _) <- dcon
   , ar' <- removeTypes ar eenv
-  , (Alt (DataAlt _ params) expr):_ <- matchDataAlts dcon alts
-  , length params == length ar' =
+  , (Alt (DataAlt _ params) expr):_ <- matchDataAlts dcon alts =
       let
           dbind = [(bind, mexpr)]
           expr' = liftCaseBinds dbind expr
           pbinds = zip params ar'
           (eenv', expr'', ng', news) = liftBinds pbinds eenv expr' ng
       in 
+         assert (length params == length ar')
          ( RuleEvalCaseData news
          , [newPCEmpty $ s { expr_env = eenv'
                            , curr_expr = CurrExpr Evaluate expr''}] 
@@ -341,7 +342,10 @@ evalCase s@(State { expr_env = eenv
       -- We return exactly one state per branch, unless we are concretizing a MutVar.
       -- In that case, we will return at least one state, but might return an unbounded
       -- number more- see Note [MutVar Copy Concretization].
-      assert (length alt_res >= length dalts + length lalts + length defs)
+      assert (tyConName (tyAppCenter t) == Just (KV.tyMutVar kv)
+                        ==> length alt_res >= length dalts + length lalts + length defs)
+      assert (tyConName (tyAppCenter t) /= Just (KV.tyMutVar kv)
+                        ==> length alt_res == length dalts + length lalts + length defs)
       (RuleEvalCaseSym, alt_res, ng'')
 
   -- Case evaluation also uses the stack in graph reduction based evaluation
@@ -357,6 +361,9 @@ evalCase s@(State { expr_env = eenv
                            , exec_stack = S.push frame stck }], ng)
 
   | otherwise = error $ "reduceCase: bad case passed in\n" ++ show mexpr ++ "\n" ++ show alts
+  where
+        tyConName (TyCon n _) = Just n
+        tyConName _ = Nothing
 
 -- | Remove everything from an [Expr] that are actually Types.
 removeTypes :: [Expr] -> E.ExprEnv -> [Expr]
@@ -747,6 +754,14 @@ liftSymDefAlt' s@(State {type_env = tenv}) ng mexpr aexpr cvar alts
         ([NewPC { state = s'', new_pcs = [newSymConstraint], concretized = [] }], ng'')
     | Prim _ _:_ <- unApp mexpr = (liftSymDefAlt'' s mexpr aexpr cvar alts, ng)
     | isPrimType (typeOf mexpr) = (liftSymDefAlt'' s mexpr aexpr cvar alts, ng)
+    | TyVar _ <- (typeOf mexpr) = 
+                let
+                    (cvar', ng') = freshId (typeOf cvar) ng
+                    eenv' =  E.insert (idName cvar') mexpr (expr_env s)
+                    aexpr' = replaceVar (idName cvar) (Var cvar') aexpr
+                    s' = s {curr_expr = CurrExpr Evaluate aexpr', expr_env = eenv'}
+
+                in ([NewPC {state = s', new_pcs = [], concretized = []}], ng')
     | otherwise = error $ "liftSymDefAlt': unhandled Expr" ++ "\n" ++ show mexpr
 
 liftSymDefAlt'' :: State t -> Expr -> Expr -> Id -> [Alt] -> [NewPC t]
