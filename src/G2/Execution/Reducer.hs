@@ -68,6 +68,7 @@ module G2.Execution.Reducer ( Reducer (..)
                             , prettyLogger
                             , limLogger
                             , LimLogger (..)
+                            , currExprLogger
 
                             , ReducerEq (..)
                             , (.==)
@@ -93,6 +94,8 @@ module G2.Execution.Reducer ( Reducer (..)
                             , varLookupLimitHalter
                             , stdTimerHalter
                             , timerHalter
+
+                            , printOnHaltC
 
                             -- * Orderers
                             , mkSimpleOrderer
@@ -128,6 +131,7 @@ import qualified Data.Map as M
 import Data.Maybe
 import qualified Data.List as L
 import qualified Data.Text as T
+import qualified Data.Text.IO as T
 import Data.Tuple
 import Data.Time.Clock
 import System.Directory
@@ -802,6 +806,36 @@ getFile dn is n s = do
     let fn = dir ++ n ++ show (length $ rules s) ++ ".txt"
     return fn
 
+-- | Output each path and current expression on the command line
+currExprLogger :: (MonadIO m, SM.MonadState PrettyGuide m, Show t) => LimLogger -> Reducer m LLTracker t
+currExprLogger ll@(LimLogger { after_n = aft, before_n = bfr, down_path = down }) = 
+    (mkSimpleReducer (const $ LLTracker { ll_count = every_n ll, ll_offset = []}) rr)
+        { updateWithAll = updateWithAllLL
+        , onAccept = \s b llt -> do
+                                liftIO . putStrLn $ "Accepted on path " ++ show (ll_offset llt)
+                                return (s, b)
+        , onDiscard = \_ llt -> liftIO . putStrLn $ "Discarded path " ++ show (ll_offset llt)}
+    where
+        rr llt@(LLTracker { ll_count = 0, ll_offset = off }) s b
+            | down `L.isPrefixOf` off || off `L.isPrefixOf` down
+            , aft <= length_rules && maybe True (length_rules <=) bfr = do
+                liftIO $ print off
+                pg <- SM.get
+                let pg' = updatePrettyGuide (s { track = () }) pg
+                SM.put pg'
+                liftIO . T.putStrLn $ printHaskellDirtyPG pg' (getExpr s)
+                return (NoProgress, [(s, llt { ll_count = every_n ll })], b)
+            | otherwise =
+                return (NoProgress, [(s, llt { ll_count = every_n ll })], b)
+            where
+                length_rules = length (rules s)
+        rr llt@(LLTracker {ll_count = n}) s b =
+            return (NoProgress, [(s, llt { ll_count = n - 1 })], b)
+
+        updateWithAllLL [(_, l)] = [l]
+        updateWithAllLL ss =
+            map (\(llt, i) -> llt { ll_offset = ll_offset llt ++ [i] }) $ zip (map snd ss) [1..]
+
 -- We use C to combine the halter values for HCombiner
 -- We should never define any other instance of Halter with C, or export it
 -- because this could lead to undecidable instances
@@ -989,6 +1023,18 @@ timerHalter ms def ce = do
         step v _ _ _
             | v >= ce = 0
             | otherwise = v + 1
+
+-- | Print a specified message if a specified HaltC is returned from the contained Halter
+printOnHaltC :: MonadIO m =>
+                HaltC -- ^ The HaltC to watch for
+             -> String -- ^ The message to print
+             -> Halter m hv t -- ^ The contained Halter
+             -> Halter m hv t
+printOnHaltC watch mes h =
+    h { stopRed = \hv pr s -> do
+                        halt_c <- stopRed h hv pr s
+                        if halt_c == watch then liftIO $ putStrLn mes else return ()
+                        return halt_c }
 
 -- Orderer things
 (<->) :: Monad m => Orderer m sov1 b1 t -> Orderer m sov2 b2 t -> Orderer m (C sov1 sov2) (b1, b2) t

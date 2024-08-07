@@ -39,6 +39,7 @@ import Data.Maybe
 import qualified Data.HashMap.Lazy as HM
 import qualified Data.List as L
 import qualified Data.Sequence as S
+import G2.Data.Utils
 
 import Control.Exception
 
@@ -153,6 +154,7 @@ evalApp s@(State { expr_env = eenv
         ng e1 e2
     | ac@(Prim Error _) <- appCenter e1 =
         (RuleError, [newPCEmpty $ s { curr_expr = CurrExpr Return ac }], ng)
+    | Just (s', ng') <- evalPrimMutVar s ng (App e1 e2) = (RuleEvalPrimToNorm, [newPCEmpty $ s'], ng')
     | Just (e, eenv', pc, ng') <- evalPrimSymbolic eenv tenv ng kv (App e1 e2) =
         ( RuleEvalPrimToNorm
         , [ (newPCEmpty $ s { expr_env = eenv'
@@ -256,7 +258,8 @@ evalLet s@(State { expr_env = eenv })
 -- | Handle the Case forms of Evaluate.
 evalCase :: State t -> NameGen -> Expr -> Id -> Type -> [Alt] -> (Rule, [NewPC t], NameGen)
 evalCase s@(State { expr_env = eenv
-                  , exec_stack = stck })
+                  , exec_stack = stck
+                  , known_values = kv })
          ng mexpr bind t alts
   -- Is the current expression able to match with a literal based `Alt`? If
   -- so, we do the cvar binding, and proceed with evaluation of the body.
@@ -335,7 +338,13 @@ evalCase s@(State { expr_env = eenv
 
         alt_res = dsts_cs ++ lsts_cs ++ def_sts
       in
-     assert (length alt_res == length dalts + length lalts + length defs)
+      -- We return exactly one state per branch, unless we are concretizing a MutVar.
+      -- In that case, we will return at least one state, but might return an unbounded
+      -- number more- see Note [MutVar Copy Concretization].
+      assert (tyConName (tyAppCenter $ typeOf mexpr) == Just (KV.tyMutVar kv)
+                        ==> length alt_res >= length dalts + length lalts + length defs)
+      assert (tyConName (tyAppCenter $ typeOf mexpr) /= Just (KV.tyMutVar kv)
+                        ==> length alt_res == length dalts + length lalts + length defs)
       (RuleEvalCaseSym, alt_res, ng'')
 
   -- Case evaluation also uses the stack in graph reduction based evaluation
@@ -351,6 +360,9 @@ evalCase s@(State { expr_env = eenv
                            , exec_stack = S.push frame stck }], ng)
 
   | otherwise = error $ "reduceCase: bad case passed in\n" ++ show mexpr ++ "\n" ++ show alts
+  where
+        tyConName (TyCon n _) = Just n
+        tyConName _ = Nothing
 
 -- | Remove everything from an [Expr] that are actually Types.
 removeTypes :: [Expr] -> E.ExprEnv -> [Expr]
@@ -649,9 +661,68 @@ liftSymDefAlt s ng mexpr cvar as =
         Just aexpr -> liftSymDefAlt' s ng mexpr aexpr cvar as -- (liftSymDefAlt'' s mexpr aexpr cvar as, ng)
         _ -> ([], ng)
 
+-- Note [MutVar Copy Concretization]
+-- We must consider two possibilities when concretizing a MutVar:
+--
+--   1) The MutVar is a new MutVar, containing a fresh symbolic value
+--
+--   2) The MutVar is the same as some other MutVar that was previously concretized from a symbolic
+--      variable, and thus refers to the same mutable value.
+--
+-- To see why each of these possibilities must be considered, refer to the below program:
+--
+-- @
+-- k :: MutVar# RealWorld Int -> MutVar# RealWorld Int -> (Int, Int)
+-- k mv1 mv2 =
+--     let
+--         s1 = writeMutVar# mv1 2 realWorld#
+--         s2 = writeMutVar# mv2 6 s1
+ 
+--         (# s3, x1 #) = readMutVar# mv1 s2
+--         (# s4, x2 #) = readMutVar# mv2 s3 
+--     in
+--     (x1, x2)
+-- @
+--
+-- If mv1 and mv2 are different mutable variables, the functuon `k` will return the tuple (2, 6).
+-- However, if mv1 and mv2 are the same mutable variable, then `k` will return the tuple (6, 6).
+--
+-- Note that possibility (2) only involves concretizing MutVars to other MutVars that were themselves
+-- concretized from symbolic variables, not MutVars introduced by newMutVar#.  This is due to ordering:
+-- if we have a symbolic MutVar mv1, and then introduce a new MutVar mv2 via newMutVar#, clearly
+-- mv1 and mv2 must be distinct.  We use `MVOrigin`, in G2.Language.MutVar, to track whether a MutVar
+-- came from concretization or newMutVar#. 
+
 -- | Concretize Symbolic variable to Case Expr on its possible Data Constructors
 liftSymDefAlt' :: State t -> NameGen -> Expr -> Expr -> Id -> [Alt] -> ([NewPC t], NameGen)
-liftSymDefAlt' s@(State {type_env = tenv, expr_env = eenv}) ng mexpr aexpr cvar alts
+liftSymDefAlt' s@(State {type_env = tenv}) ng mexpr aexpr cvar alts
+    | Var i:_ <- unApp mexpr
+    , TyApp (TyApp mvt realworld_ty) stored_ty <- typeOf i
+    , TyCon n _ <- tyAppCenter mvt
+    , n == KV.tyMutVar (known_values s) =
+        let
+            binds = [(cvar, getExpr nmv_s)]
+            aexpr' = liftCaseBinds binds aexpr
+
+            -- Create a new mutable variable with a symbolic stored value
+            (stored_var, ng') = freshSeededId (idName i) stored_ty ng
+            (nmv_s, ng'') = newMutVar s ng' MVSymbolic realworld_ty stored_ty (Var stored_var)
+            
+            eenv' = E.insertSymbolic stored_var $ E.insert (idName i) (getExpr nmv_s) (expr_env nmv_s)
+            nmv_s' = nmv_s { curr_expr = CurrExpr Evaluate aexpr', expr_env = eenv' }
+
+            -- Consider that the new mutable variable might be some existing mutable variable.
+            -- See Note [MutVar Copy Concretization].
+            mv_ty = mutVarTy (known_values s) realworld_ty stored_ty
+            rel_mutvar = HM.keys
+                       $ HM.filter (\MVInfo { mv_val_id = Id _ t
+                                            , mv_origin = org } -> t == stored_ty && org == MVSymbolic) (mutvar_env s)
+            copy_states = map (\mv -> s { curr_expr = CurrExpr Evaluate aexpr'
+                                        , expr_env = E.insert (idName i) (Prim (MutVar mv) mv_ty) (expr_env s)
+                                        }
+                              ) rel_mutvar
+        in
+        (map newPCEmpty (nmv_s':copy_states), ng'')
     | (Var i):_ <- unApp $ unsafeElimOuterCast mexpr
     , isADTType (typeOf i)
     , (Var i'):_ <- unApp $ exprInCasts mexpr = -- Id with original Type

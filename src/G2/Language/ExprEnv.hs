@@ -20,6 +20,7 @@ module G2.Language.ExprEnv
     , lookupConcOrSym
     , lookupEnvObj
     , deepLookup
+    , deepLookupExpr
     , isSymbolic
     , occLookup
     , lookupNameMod
@@ -172,9 +173,16 @@ lookupEnvObj n = M.lookup n . unwrapExprEnv
 -- Returns `Nothing` if the `Name` is not in the `ExprEnv`.
 deepLookup :: Name -> ExprEnv -> Maybe Expr
 deepLookup n eenv =
-    case lookup n eenv of
-        Just (Var (Id n' _)) -> lookup n' eenv
-        r -> r
+    case lookupConcOrSym n eenv of
+        Just (Conc (Var (Id n' _))) -> deepLookup n' eenv
+        Just (Conc r) -> Just r
+        Just (Sym r) -> Just (Var r)
+        Nothing -> Nothing
+
+-- | Apply `deepLookup` if passed a `Var`.  Otherwise, just return the passed `Expr`.
+deepLookupExpr :: Expr -> ExprEnv -> Maybe Expr
+deepLookupExpr (Var (Id n _)) eenv = deepLookup n eenv
+deepLookupExpr e _  = Just e
 
 -- | Checks if the given `Name` belongs to a symbolic variable.
 isSymbolic :: Name -> ExprEnv -> Bool

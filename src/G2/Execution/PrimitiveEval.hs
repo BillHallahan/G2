@@ -1,10 +1,11 @@
 {-# LANGUAGE Rank2Types #-}
-{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE FlexibleContexts, OverloadedStrings #-}
 
-module G2.Execution.PrimitiveEval (evalPrims, maybeEvalPrim, evalPrimSymbolic) where
+module G2.Execution.PrimitiveEval (evalPrims, mutVarTy, evalPrimMutVar, newMutVar, maybeEvalPrim, evalPrimSymbolic) where
 
 import G2.Language.AST
 import G2.Language.Expr
+import qualified G2.Language.KnownValues as KV
 import G2.Language.Naming
 import G2.Language.Primitives
 import G2.Language.Support
@@ -17,6 +18,10 @@ import qualified Data.HashMap.Lazy as M
 import qualified Data.List as L
 import Data.Maybe
 import qualified G2.Language.ExprEnv as E
+import G2.Language.ExprEnv (deepLookupExpr)
+import G2.Language.MutVarEnv
+
+import Debug.Trace
 
 evalPrims :: ASTContainer m Expr => TypeEnv -> KnownValues -> m -> m
 evalPrims tenv kv = modifyContainedASTs (evalPrims' tenv kv . simplifyCasts)
@@ -55,6 +60,57 @@ maybeEvalPrim' tenv kv xs
         evalTypeLitPrim2 tenv p t l
 
     | otherwise = Nothing
+
+-- | Evaluate primitives that deal with mutable variables.
+-- See Note [MutVar Env] in G2.Language.Support.
+evalPrimMutVar :: State t -- ^ Context to evaluate expression `e` in
+               -> NameGen
+               -> Expr -- ^ The expression `e` to evaluate
+               -> Maybe (State t, NameGen) -- ^ `Just` if `e` is a primitive operation on mutable variable, `Nothing` otherwise
+evalPrimMutVar s ng (App (App (App (App (Prim NewMutVar _) (Type t)) (Type ts)) e) _) = Just $ newMutVar s ng MVConc ts t e
+evalPrimMutVar s ng (App (App (App (App (Prim ReadMutVar _) _) _) mv_e) _)
+    | Just (Prim (MutVar mv) _) <- deepLookupExpr mv_e (expr_env s)=
+    let
+        i = lookupMvVal mv (mutvar_env s)
+        s' = maybe (error "evalPrimMutVar: MutVar not found")
+                   (\i' -> s { curr_expr = CurrExpr Evaluate (Var i') })
+                   i
+    in
+    Just (s', ng)
+evalPrimMutVar s ng (App (App (App (App (App (Prim WriteMutVar _) _) (Type t)) mv_e) e) pr_s)
+    | Just (Prim (MutVar mv) _) <- deepLookupExpr mv_e (expr_env s) =
+    let
+        (i, ng') = freshId t ng
+        s' = s { expr_env = E.insert (idName i) e (expr_env s)
+               , mutvar_env = updateMvVal mv i (mutvar_env s)
+               , curr_expr = CurrExpr Evaluate pr_s }
+    in
+    Just (s', ng')
+evalPrimMutVar _ _ e | [Prim WriteMutVar _, _, _, _, _, _] <- unApp e = trace ("e = " ++ show e) Nothing
+evalPrimMutVar _ _ _ = Nothing
+
+mutVarTy :: KnownValues
+         -> Type -- ^ The State type
+         -> Type -- ^ The stored type
+         -> Type
+mutVarTy kv ts ta = TyApp (TyApp (TyCon (KV.tyMutVar kv) (TyFun TYPE (TyFun TYPE TYPE))) ts) ta
+
+newMutVar :: State t
+          -> NameGen
+          -> MVOrigin
+          -> Type -- ^ The State type
+          -> Type -- ^ The stored type
+          -> Expr
+          -> (State t, NameGen)
+newMutVar s ng org ts t e =
+    let
+        (mv_n, ng') = freshSeededName (Name "mv" Nothing 0 Nothing) ng
+        (i, ng'') = freshId t ng'        
+        s' = s { curr_expr = CurrExpr Evaluate (Prim (MutVar mv_n) $ mutVarTy (known_values s) ts t)
+               , expr_env = E.insert (idName i) e (expr_env s)
+               , mutvar_env = insertMvVal mv_n i org (mutvar_env s)}
+    in
+    (s', ng'')
 
 evalPrim1 :: Primitive -> Lit -> Maybe Expr
 evalPrim1 Negate (LitInt x) = Just . Lit $ LitInt (-x)
