@@ -21,6 +21,8 @@ import qualified G2.Language.ExprEnv as E
 import G2.Language.ExprEnv (deepLookupExpr)
 import G2.Language.MutVarEnv
 
+import Debug.Trace
+
 evalPrims :: ASTContainer m Expr => TypeEnv -> KnownValues -> m -> m
 evalPrims tenv kv = modifyContainedASTs (evalPrims' tenv kv . simplifyCasts)
 
@@ -84,6 +86,7 @@ evalPrimMutVar s ng (App (App (App (App (App (Prim WriteMutVar _) _) (Type t)) m
                , curr_expr = CurrExpr Evaluate pr_s }
     in
     Just (s', ng')
+evalPrimMutVar _ _ e | [Prim WriteMutVar _, _, _, _, _, _] <- unApp e = trace ("e = " ++ show e) Nothing
 evalPrimMutVar _ _ _ = Nothing
 
 mutVarTy :: KnownValues

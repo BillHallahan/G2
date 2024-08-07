@@ -697,7 +697,8 @@ liftSymDefAlt s ng mexpr cvar as =
 liftSymDefAlt' :: State t -> NameGen -> Expr -> Expr -> Id -> [Alt] -> ([NewPC t], NameGen)
 liftSymDefAlt' s@(State {type_env = tenv}) ng mexpr aexpr cvar alts
     | Var i:_ <- unApp mexpr
-    , TyApp (TyApp (TyCon n _) realworld_ty) stored_ty <- typeOf i
+    , TyApp (TyApp mvt realworld_ty) stored_ty <- typeOf i
+    , TyCon n _ <- tyAppCenter mvt
     , n == KV.tyMutVar (known_values s) =
         let
             binds = [(cvar, getExpr nmv_s)]
