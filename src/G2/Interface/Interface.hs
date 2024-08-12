@@ -56,7 +56,7 @@ import G2.Execution.Rules
 import G2.Execution.PrimitiveEval
 import G2.Execution.Memory
 
-import G2.Interface.OutputTypes
+import G2.Interface.ExecRes
 
 import G2.Lib.Printers
 
@@ -176,6 +176,7 @@ initStateFromSimpleState s m_mod useAssert mkCurr argTys config =
     , curr_expr = CurrExpr Evaluate ce
     , path_conds = PC.fromList []
     , non_red_path_conds = []
+    , mutvar_env = HM.empty
     , true_assert = if useAssert then False else True
     , assert_ids = Nothing
     , type_classes = tc'
@@ -565,11 +566,17 @@ runG2SubstModel m s@(State { type_env = tenv, known_values = kv }) bindings =
     let
         s' = s { model = m }
 
-        (es, e, ais, gens) = subModel s' bindings
+        Subbed { s_inputs = es
+               , s_output = e
+               , s_violated = ais
+               , s_sym_gens = gens
+               , s_mutvars = mv } = subModel s' bindings
+
         sm = ExecRes { final_state = s'
                      , conc_args = es
                      , conc_out = e
                      , conc_sym_gens = gens
+                     , conc_mutvars = mv
                      , violated = ais}
 
         sm' = runPostprocessing bindings sm
@@ -578,6 +585,7 @@ runG2SubstModel m s@(State { type_env = tenv, known_values = kv }) bindings =
                        , conc_args = fixed_inputs bindings ++ conc_args sm'
                        , conc_out = evalPrims tenv kv (conc_out sm')
                        , conc_sym_gens = gens
+                       , conc_mutvars = mv
                        , violated = evalPrims tenv kv (violated sm')}
     in
     sm''

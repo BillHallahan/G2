@@ -490,12 +490,25 @@ primTests = testGroup "Prims"
                                             , ("allLetters", 20000, [AtLeast 1])
                                             , ("printBasedOnChr", 1500, [AtLeast 7])
                                             , ("printBasedOnOrd", 1500, [AtLeast 7]) ]
+
+    , checkInputOutputs "tests/Prim/MutVar.hs" [ ("f", 10000, [Exactly 3])
+                                               , ("fIn", 10000, [Exactly 4])
+                                               , ("g", 10000, [Exactly 1])
+                                               , ("h", 10000, [Exactly 1])
+                                               , ("i", 10000, [Exactly 1])
+                                               , ("j", 10000, [Exactly 1])
+                                               , ("k1", 10000, [Exactly 2])
+                                               , ("k2", 10000, [Exactly 1]) ]
+
+    , checkInputOutputs "tests/Prim/STRef.hs" [ ("f", 10000, [Exactly 1]) ]
     ]
 
 ioTests :: TestTree
 ioTests = testGroup "IO"
     [
-        checkInputOutput "tests/IO/UnsafePerformIO1.hs" "f" 1000 [Exactly 1]
+      checkInputOutput "tests/IO/UnsafePerformIO1.hs" "f" 1000 [Exactly 1]
+    , checkInputOutput "tests/IO/IORef1.hs" "unsafeF" 5000 [Exactly 1]
+    , checkInputOutput "tests/IO/IORef1.hs" "unsafeG" 5000 [Exactly 2]
     ]
 
 -- To Do Tests

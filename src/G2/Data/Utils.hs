@@ -4,7 +4,9 @@ module G2.Data.Utils ( uncurry3
                      , fst4
                      , snd4
                      , thd4
-                     , fth4) where
+                     , fth4
+                     
+                     , (==>)) where
 
 uncurry3 :: (a -> b -> c -> d) -> (a, b, c) -> d
 uncurry3 f (a, b, c) = f a b c
@@ -23,3 +25,8 @@ thd4 (_, _, c, _) = c
 
 fth4 :: (a, b, c, d) -> d
 fth4 (_, _, _, d) = d
+
+infixr 1 ==>
+(==>) :: Bool -> Bool -> Bool
+True ==> False = False
+_ ==> _ = True

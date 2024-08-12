@@ -61,6 +61,13 @@ initKnownValues eenv tenv tc =
     , tyUnit = typeWithStrName tenv "()"
     , dcUnit = dcWithStrName tenv "()" "()"
 
+    , tyMutVar = typeWithStrName tenv "MutVar#"
+    , dcMutVar = dcWithStrName tenv "MutVar#" "MutVar#"
+    , tyState = typeWithStrName tenv "State#"
+    , dcState = dcWithStrName tenv "State#" "State#"
+    , tyRealWorld = typeWithStrName tenv "RealWorld"
+    , dcRealWorld = dcWithStrName tenv "RealWorld" "RealWorld"
+
     , eqTC = eqT
     , numTC = numT
     , ordTC = ordT

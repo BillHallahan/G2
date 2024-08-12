@@ -21,7 +21,7 @@ import Text.Regex
 import Unsafe.Coerce
 import qualified Data.HashMap.Lazy as H
 import G2.Initialization.MkCurrExpr
-import G2.Interface.OutputTypes
+import G2.Interface.ExecRes
 import G2.Language
 import G2.Translation.Haskell
 import G2.Translation.TransTypes
@@ -56,8 +56,8 @@ g2GeneratedTypeToName _ _ _ = error "g2GeneratedTypeToName: unsupported AlgDataT
 
 -- Compile with GHC, and check that the output we got is correct for the input
 runCheck :: String -> String -> [String] -> ExecRes t -> Ghc Bool
-runCheck modN entry chAll (ExecRes {final_state = s, conc_args = ars, conc_out = out}) = do
-    (v, chAllR) <- runCheck' modN entry chAll s ars out
+runCheck modN entry chAll er@(ExecRes {final_state = s, conc_out = out}) = do
+    (v, chAllR) <- runCheck' modN entry chAll er
 
     v' <- liftIO $ (unsafeCoerce v :: IO (Either SomeException Bool))
     let outStr = T.unpack $ printHaskell s out
@@ -70,17 +70,21 @@ runCheck modN entry chAll (ExecRes {final_state = s, conc_args = ars, conc_out =
 
     return $ v'' && and chAllR''
 
-runCheck' :: String -> String -> [String] -> State t -> [Expr] -> Expr -> Ghc (HValue, [HValue])
-runCheck' modN entry chAll s@(State {type_env = te}) ars out = do
+runCheck' :: String -> String -> [String] -> ExecRes t -> Ghc (HValue, [HValue])
+runCheck' modN entry chAll er@(ExecRes {final_state = s, conc_args = ars, conc_out = out}) = do
     let Left (v, _) = findFunc (T.pack entry) [Just $ T.pack modN] (expr_env s)
     let e = mkApp $ Var v:ars
-    let g2Gen = H.toList $ H.filter (\x -> adt_source x == ADTG2Generated) te 
+    let g2Gen = H.toList $ H.filter (\x -> adt_source x == ADTG2Generated) (type_env s) 
     let pg = updatePrettyGuide (exprNames e)
            . updatePrettyGuide (exprNames out)
            . updatePrettyGuide g2Gen
            $ mkPrettyGuide $ varIds v
-    let arsStr = T.unpack $ printHaskellPG pg s e
-    let outStr = T.unpack $ printHaskellPG pg s out
+    -- let arsStr = T.unpack $ printHaskellPG pg s e
+    -- let outStr = T.unpack $ printHaskellPG pg s out
+    let (mvTxt, arsTxt, outTxt) = printInputOutput pg v er 
+        mvStr = T.unpack mvTxt
+        arsStr = T.unpack arsTxt
+        outStr = T.unpack outTxt
 
     let arsType = T.unpack $ mkTypeHaskellPG pg (typeOf e)
         outType = T.unpack $ mkTypeHaskellPG pg (typeOf out) 
@@ -88,15 +92,15 @@ runCheck' modN entry chAll s@(State {type_env = te}) ars out = do
     -- Pass g2 generated type into the environment 
     let g2str = map (g2GeneratedTypeToName pg s) g2Gen
     dyn <- getSessionDynFlags
-    let dyn' = xopt_set dyn MagicHash
+    let dyn' = xopt_set (xopt_set dyn MagicHash) UnboxedTuples
     setSessionDynFlags dyn'
 
     _ <- mapM runDecls g2str
 
     let chck = case outStr == "error" of
-                    False -> "try (evaluate (" ++ arsStr ++ " == " ++ "("
-                                    ++ outStr ++ " :: " ++ outType ++ ")" ++ ")) :: IO (Either SomeException Bool)"
-                    True -> "try (evaluate ( (" ++ arsStr ++ " :: " ++ arsType ++
+                    False -> mvStr ++ "try (evaluate (" ++ arsStr ++ " == " ++ "("
+                                        ++ outStr ++ " :: " ++ outType ++ ")" ++ ")) :: IO (Either SomeException Bool)"
+                    True -> mvStr ++ "try (evaluate ( (" ++ arsStr ++ " :: " ++ arsType ++
                                                     ") == " ++ arsStr ++ ")) :: IO (Either SomeException Bool)"
     v' <- compileExpr chck
 

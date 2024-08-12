@@ -22,6 +22,7 @@ module G2.Lib.Printers ( PrettyGuide
 import G2.Language.Expr
 import qualified G2.Language.ExprEnv as E
 import G2.Language.KnownValues
+import G2.Language.MutVarEnv
 import G2.Language.Naming
 import qualified G2.Language.PathConds as PC
 import G2.Language.TypeClasses
@@ -113,7 +114,7 @@ mkExprHaskell' off_init cleaned pg ex = mkExprHaskell'' off_init ex
                        -> T.Text
         mkExprHaskell'' _ (Var ids) = mkIdHaskell pg ids
         mkExprHaskell'' _ (Lit c) = mkLitHaskell UseHash c
-        mkExprHaskell'' _ (Prim p _) = mkPrimHaskell p
+        mkExprHaskell'' _ (Prim p _) = mkPrimHaskell pg p
         mkExprHaskell'' off (Lam _ ids e) =
             "(\\" <> mkIdHaskell pg ids <> " -> " <> mkExprHaskell'' off e <> ")"
 
@@ -130,7 +131,7 @@ mkExprHaskell' off_init cleaned pg ex = mkExprHaskell'' off_init ex
             , isCleaned =
                 if isLitChar e2 then printString pg a else printList pg a
 
-            | isInfixable e1
+            | isInfixable pg e1
             , isCleaned =
                 let
                     e2P = if isApp e2 then "(" <> mkExprHaskell'' off e2 <> ")" else mkExprHaskell'' off e2
@@ -303,11 +304,11 @@ printTuple' pg (App e e') = mkExprHaskell Cleaned pg e':printTuple' pg e
 printTuple' _ _ = []
 
 
-isInfixable :: Expr -> Bool
-isInfixable (Var (Id n _)) = isInfixableName n
-isInfixable (Data (DataCon n _)) = isInfixableName n
-isInfixable (Prim p _) = not . T.any isAlphaNum $ mkPrimHaskell p
-isInfixable _ = False
+isInfixable :: PrettyGuide -> Expr -> Bool
+isInfixable _ (Var (Id n _)) = isInfixableName n
+isInfixable _ (Data (DataCon n _)) = isInfixableName n
+isInfixable pg (Prim p _) = not . T.any isAlphaNum $ mkPrimHaskell pg p
+isInfixable _ _ = False
 
 isInfixableName :: Name -> Bool
 isInfixableName = not . T.any isAlphaNum . nameOcc
@@ -342,73 +343,81 @@ mkFloat hs r | isNaN r = "(0" <> hs <> " / 0" <> hs <> ")"
              | r == -1 / 0 = "(-1" <> hs <> " / 0" <> hs <> ")" -- Negative Infinity
              | otherwise = "(" <> T.pack (show r) <> hs <> ")"
 
-mkPrimHaskell :: Primitive -> T.Text
-mkPrimHaskell Ge = ">="
-mkPrimHaskell Gt = ">"
-mkPrimHaskell Eq = "=="
-mkPrimHaskell Neq = "/="
-mkPrimHaskell Lt = "<"
-mkPrimHaskell Le = "<="
-mkPrimHaskell And = "&&"
-mkPrimHaskell Or = "||"
-mkPrimHaskell Not = "not"
-mkPrimHaskell Plus = "+"
-mkPrimHaskell Minus = "-"
-mkPrimHaskell Mult = "*"
-mkPrimHaskell Div = "/"
-mkPrimHaskell DivInt = "/"
-mkPrimHaskell Quot = "quot"
-mkPrimHaskell Mod = "mod"
-mkPrimHaskell Rem = "rem"
-mkPrimHaskell Negate = "-"
-mkPrimHaskell Abs = "abs"
+mkPrimHaskell :: PrettyGuide -> Primitive -> T.Text
+mkPrimHaskell pg = pr
+    where
+        pr Ge = ">="
+        pr Gt = ">"
+        pr Eq = "=="
+        pr Neq = "/="
+        pr Lt = "<"
+        pr Le = "<="
+        pr And = "&&"
+        pr Or = "||"
+        pr Not = "not"
+        pr Plus = "+"
+        pr Minus = "-"
+        pr Mult = "*"
+        pr Div = "/"
+        pr DivInt = "/"
+        pr Quot = "quot"
+        pr Mod = "mod"
+        pr Rem = "rem"
+        pr Negate = "-"
+        pr Abs = "abs"
 
-mkPrimHaskell Sqrt = "sqrt"
+        pr Sqrt = "sqrt"
 
-mkPrimHaskell FpNeg = "fp.-"
-mkPrimHaskell FpAdd = "fp.+"
-mkPrimHaskell FpSub = "fp.-"
-mkPrimHaskell FpMul = "fp.*"
-mkPrimHaskell FpDiv = "fp./"
-mkPrimHaskell FpLeq = "fp.<="
-mkPrimHaskell FpLt = "fp.<"
-mkPrimHaskell FpGeq = "fp.>="
-mkPrimHaskell FpGt = "fp.>"
-mkPrimHaskell FpEq = "fp.=="
-mkPrimHaskell FpNeq = "fp./="
+        pr FpNeg = "fp.-"
+        pr FpAdd = "fp.+"
+        pr FpSub = "fp.-"
+        pr FpMul = "fp.*"
+        pr FpDiv = "fp./"
+        pr FpLeq = "fp.<="
+        pr FpLt = "fp.<"
+        pr FpGeq = "fp.>="
+        pr FpGt = "fp.>"
+        pr FpEq = "fp.=="
+        pr FpNeq = "fp./="
 
-mkPrimHaskell FpSqrt = "fp.sqrt"
+        pr FpSqrt = "fp.sqrt"
 
-mkPrimHaskell FpIsNegativeZero = "isNegativeZero#"
-mkPrimHaskell IsNaN = "isNaN#"
-mkPrimHaskell IsInfinite = "isInfinite#"
+        pr FpIsNegativeZero = "isNegativeZero#"
+        pr IsNaN = "isNaN#"
+        pr IsInfinite = "isInfinite#"
 
-mkPrimHaskell DataToTag = "prim_dataToTag#"
-mkPrimHaskell TagToEnum = "prim_tagToEnum#"
+        pr DataToTag = "prim_dataToTag#"
+        pr TagToEnum = "prim_tagToEnum#"
 
 
-mkPrimHaskell IntToFloat = "fromIntegral"
-mkPrimHaskell IntToDouble = "fromIntegral"
-mkPrimHaskell IntToRational = "fromIntegral"
-mkPrimHaskell RationalToFloat = "fromRational"
-mkPrimHaskell RationalToDouble = "fromRational"
-mkPrimHaskell ToInteger = "toInteger"
+        pr IntToFloat = "fromIntegral"
+        pr IntToDouble = "fromIntegral"
+        pr IntToRational = "fromIntegral"
+        pr RationalToFloat = "fromRational"
+        pr RationalToDouble = "fromRational"
+        pr ToInteger = "toInteger"
 
-mkPrimHaskell StrLen = "StrLen"
-mkPrimHaskell StrAppend = "StrAppend"
-mkPrimHaskell Chr = "chr"
-mkPrimHaskell OrdChar = "ord"
+        pr StrLen = "StrLen"
+        pr StrAppend = "StrAppend"
+        pr Chr = "chr"
+        pr OrdChar = "ord"
 
-mkPrimHaskell WGenCat = "wgencat"
+        pr WGenCat = "wgencat"
 
-mkPrimHaskell IntToString = "intToString"
+        pr IntToString = "intToString"
 
-mkPrimHaskell ToInt = "toInt"
+        pr (MutVar m) = "(MutVar " <> mkNameHaskell pg m <> ")"
+        pr NewMutVar = "newMutVar##"
+        pr ReadMutVar = "readMutVar##"
+        pr WriteMutVar = "writeMutVar##"
 
-mkPrimHaskell Error = "error"
-mkPrimHaskell Undefined = "undefined"
-mkPrimHaskell Implies = "undefined"
-mkPrimHaskell Iff = "undefined"
+        pr ToInt = "toInt"
+
+        pr Error = "error"
+        pr Undefined = "undefined"
+        pr Implies = "undefined"
+        pr Iff = "undefined"
+
 
 mkTypeHaskell :: Type -> T.Text
 mkTypeHaskell = mkTypeHaskellPG (mkPrettyGuide ())
@@ -461,6 +470,8 @@ prettyState pg s =
         , pretty_paths
         , "----- [Non Red Paths] ---------------------"
         , pretty_non_red_paths
+        , "----- [MutVars Env] ---------------------"
+        , pretty_mutvars
         , "----- [Types] ---------------------"
         , pretty_tenv
         , "----- [Typeclasses] ---------------------"
@@ -480,6 +491,7 @@ prettyState pg s =
         pretty_eenv = prettyEEnv pg (expr_env s)
         pretty_paths = prettyPathConds pg (path_conds s)
         pretty_non_red_paths = prettyNonRedPaths pg (non_red_path_conds s)
+        pretty_mutvars = prettyMutVars pg . HM.map mv_val_id $ mutvar_env s
         pretty_tenv = prettyTypeEnv pg (type_env s)
         pretty_tc = prettyTypeClasses pg (type_classes s)
         pretty_assert_fcs = maybe "None" (printFuncCallPG pg) (assert_ids s)
@@ -559,6 +571,9 @@ prettyPathCond pg (AssumePC i l pc) =
 
 prettyNonRedPaths :: PrettyGuide -> [(Expr, Expr)] -> T.Text
 prettyNonRedPaths pg = T.intercalate "\n" . map (\(e1, e2) -> mkDirtyExprHaskell pg e1 <> " == " <> mkDirtyExprHaskell pg e2)
+
+prettyMutVars :: PrettyGuide -> HM.HashMap Name Id -> T.Text
+prettyMutVars pg = T.intercalate "\n" . map (\(n, i) -> printName pg n <> " , " <> mkIdHaskell pg i) . HM.toList
 
 prettyTypeEnv :: PrettyGuide -> TypeEnv -> T.Text
 prettyTypeEnv pg = T.intercalate "\n" . map (uncurry (prettyADT pg)) . HM.toList
