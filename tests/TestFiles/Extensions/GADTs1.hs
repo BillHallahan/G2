@@ -1,6 +1,11 @@
-{-# LANGUAGE DataKinds, GADTs,RankNTypes #-}
+{-# LANGUAGE GADTs, DataKinds, KindSignatures, TypeFamilies #-}
 
 module GADTS1 where
+
+
+import GHC.TypeLits 
+import Data.Kind
+
 data ShapeType = Circle | Rectangle
 
 data Shape where
@@ -55,3 +60,30 @@ checkeq a a1 = a == a1
 
 id2 :: a -> a 
 id2 x = x
+
+
+data Peano = Succ Peano | Zero 
+
+data Vec :: Peano -> Type -> Type where
+    VNil  :: Vec Zero a
+    VCons :: forall n a. a -> Vec n a -> Vec (Succ n) a
+
+vecLength :: Vec n a -> Integer
+vecLength VNil         = 0
+vecLength (VCons _ xs) = 1 + vecLength xs
+
+vecHead :: Vec (Succ n) a -> a 
+vecHead (VCons x _) = x
+
+vecZip :: Vec n a -> Vec n b -> Vec n (a, b)
+vecZip VNil _ =  VNil 
+vecZip (VCons x xs) (VCons y ys) = VCons (x, y) (vecZip xs ys)
+
+
+data Term a where
+    Lit :: Int ->  Term Int
+    Pair :: Term a -> Term b -> Term (a,b)
+
+eval2 :: Term a -> a
+eval2 (Lit i)     = i
+eval2 (Pair a b)  = (eval2 a, eval2 b)
