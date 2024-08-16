@@ -1,5 +1,5 @@
-module G2.Interface ( module G2.Interface.Interface
-                    , module G2.Interface.OutputTypes ) where
+module G2.Interface ( module G2.Interface.ExecRes
+                    , module G2.Interface.Interface ) where
 
+import G2.Interface.ExecRes
 import G2.Interface.Interface
-import G2.Interface.OutputTypes

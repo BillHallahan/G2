@@ -157,6 +157,10 @@ primDefs' b c l =
 
               , ("intToString#", Prim IntToString (TyFun TyLitInt (TyApp (TyCon l (TyFun TYPE TYPE)) (TyCon c TYPE))))
 
+              , ("newMutVar##", Prim NewMutVar (TyForAll a (TyForAll d (TyFun tyvarA (TyFun TyUnknown TyUnknown)))))
+              , ("readMutVar##", Prim ReadMutVar (TyForAll d (TyForAll a (TyFun TyUnknown (TyFun TyUnknown tyvarA)))))
+              , ("writeMutVar##", Prim WriteMutVar (TyForAll d (TyForAll a (TyFun tyvarA (TyFun TyUnknown TyUnknown)))))
+
               , ("absentErr", Prim Error TyBottom)
               , ("error", Prim Error TyBottom)
               , ("errorWithoutStackTrace", Prim Error TyBottom)
@@ -173,6 +177,9 @@ a = Id (Name "a" Nothing 0 Nothing) TYPE
 
 tyvarA :: Type
 tyvarA = TyVar a
+
+d :: Id
+d = Id (Name "d" Nothing 0 Nothing) TYPE
 
 x :: Type -> Id
 x = Id (Name "x" Nothing 0 Nothing)

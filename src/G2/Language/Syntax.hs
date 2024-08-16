@@ -226,6 +226,12 @@ data Primitive = -- Mathematical and logical operators
                -- Convert a positive Int to a String. (This matches the SMT Str.from_int function, which supports only positive Ints.)
                | IntToString
                
+               -- MutVar#
+               | MutVar Name
+               | NewMutVar -- ^ `forall a d. a -> State# d -> MutVar# d a`.
+               | ReadMutVar -- ^ `forall d a. MutVar# d a -> State# d -> a`.
+               | WriteMutVar -- ^ `forall d a. MutVar# d a -> a -> State# d -> State# d`.
+
                -- Errors
                | Error
                | Undefined

@@ -54,13 +54,14 @@ evalMyExpr (Add a1 a2) = evalMyExpr a1 + evalMyExpr a2
 testeval :: Int -> MyExpr Int 
 testeval a1 = testeval $ evalMyExpr $ Lt (2*a1)
 
-
 checkeq :: Eq a => a -> a -> Bool
 checkeq a a1 = a == a1
 
 id2 :: a -> a 
 id2 x = x
 
+idlr :: Either l r -> Either l r 
+idlr x = x
 
 data Peano = Succ Peano | Zero 
 
@@ -87,3 +88,18 @@ data Term a where
 eval2 :: Term a -> a
 eval2 (Lit i)     = i
 eval2 (Pair a b)  = (eval2 a, eval2 b)
+
+data MyList a = Ni | Cons a (MyList a)
+
+lengthList :: MyList a -> Int
+lengthList Ni        = 0
+lengthList (Cons _ xs) = 1 + lengthList xs
+
+data MyList2 a where
+  Ni :: MyList2 a
+  Cons :: a -> MyList2 a -> MyList2 a
+
+-- recursion on recursive GADT 
+lengthList :: MyList2 a -> Int
+lengthList Ni        = 0
+lengthList (Cons _ xs) = 1 + lengthList xs
