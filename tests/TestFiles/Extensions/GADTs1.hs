@@ -25,6 +25,24 @@ data HList where
 hlistHeadStr :: HList -> String
 hlistHeadStr (x :> xs) = show (x + 1)
 
+-- data MyList2 a = Ni2 | Cons2 a (MyList2 a)
+
+-- lengthList2 :: MyList2 a -> Int
+-- lengthList2 Ni2        = 0
+-- lengthList2 (Cons2 _ xs) = 1 + lengthList2 xs
+
+-- this above is having an error that says
+-- G2: No type found in typeWithStrName "MutVar#"
+-- CallStack (from HasCallStack):
+--   error, called at src/G2/Initialization/KnownValues.hs:127:10 in g2-0.2.0.0-inplace:G2.Initialization.KnownValues
+
+-- data MyList2 a = Nis | Conss a (MyList2 a)
+
+-- lengthList2 :: MyList2 a -> Int
+-- lengthList2 Nis       = 0
+-- lengthList2 (Conss _ xs) = 1 + lengthList2 xs
+
+
 data MyList a where
   Ni :: MyList a
   Cons :: a -> MyList a -> MyList a
@@ -89,17 +107,3 @@ eval2 :: Term a -> a
 eval2 (Lit i)     = i
 eval2 (Pair a b)  = (eval2 a, eval2 b)
 
-data MyList a = Ni | Cons a (MyList a)
-
-lengthList :: MyList a -> Int
-lengthList Ni        = 0
-lengthList (Cons _ xs) = 1 + lengthList xs
-
-data MyList2 a where
-  Ni :: MyList2 a
-  Cons :: a -> MyList2 a -> MyList2 a
-
--- recursion on recursive GADT 
-lengthList :: MyList2 a -> Int
-lengthList Ni        = 0
-lengthList (Cons _ xs) = 1 + lengthList xs

@@ -135,6 +135,11 @@ data MyList a = Ni | Cons a (MyList a)
 lengthList :: MyList a -> Int
 lengthList Ni        = 0
 lengthList (Cons _ xs) = 1 + lengthList xs
+-- when I run the above code that prove to be successfully
+-- it will raise the error of 
+--  No type found in typeWithStrName "MutVar#"
+-- CallStack (from HasCallStack):
+--   error, called at src/G2/Initialization/KnownValues.hs:127:10 in g2-0.2.0.0-inplace:G2.Initialization.KnownValues
 
 instance Eq a => Eq (MyList a) where
   Ni == Ni = True
