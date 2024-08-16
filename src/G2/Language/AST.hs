@@ -485,22 +485,22 @@ instance ASTContainer AlgDataTy Expr where
     modifyContainedASTs _ a = a
 
 instance ASTContainer AlgDataTy Type where
-    containedASTs (DataTyCon ns dcs) = containedASTs ns ++ containedASTs dcs
-    containedASTs (NewTyCon ns dcs r) = containedASTs ns ++ containedASTs dcs ++ containedASTs r
-    containedASTs (TypeSynonym _ st) = containedASTs st
+    containedASTs (DataTyCon ns dcs _) = containedASTs ns ++ containedASTs dcs
+    containedASTs (NewTyCon ns dcs r _) = containedASTs ns ++ containedASTs dcs ++ containedASTs r
+    containedASTs (TypeSynonym _ st _) = containedASTs st
 
-    modifyContainedASTs f (DataTyCon ns dcs) = DataTyCon (modifyContainedASTs f ns) (modifyContainedASTs f dcs)
-    modifyContainedASTs f (NewTyCon ns dcs rt) = NewTyCon (modifyContainedASTs f ns) (modifyContainedASTs f dcs) (modifyContainedASTs f rt)
-    modifyContainedASTs f (TypeSynonym is st) = TypeSynonym is (modifyContainedASTs f st)
+    modifyContainedASTs f (DataTyCon ns dcs adts) = DataTyCon (modifyContainedASTs f ns) (modifyContainedASTs f dcs) adts 
+    modifyContainedASTs f (NewTyCon ns dcs rt adts) = NewTyCon (modifyContainedASTs f ns) (modifyContainedASTs f dcs) (modifyContainedASTs f rt) adts
+    modifyContainedASTs f (TypeSynonym is st adts) = TypeSynonym is (modifyContainedASTs f st) adts
 
 instance ASTContainer AlgDataTy DataCon where
-    containedASTs (DataTyCon _ dcs) = dcs
-    containedASTs (NewTyCon _ dcs _) = [dcs]
-    containedASTs (TypeSynonym _ _) = []
+    containedASTs (DataTyCon _ dcs _) = dcs
+    containedASTs (NewTyCon _ dcs _ _) = [dcs]
+    containedASTs (TypeSynonym _ _ _) = []
 
-    modifyContainedASTs f (DataTyCon ns dcs) = DataTyCon ns (modifyContainedASTs f dcs)
-    modifyContainedASTs f (NewTyCon ns dc rt) = NewTyCon ns (modifyContainedASTs f dc) rt
-    modifyContainedASTs _ st@(TypeSynonym _ _) = st
+    modifyContainedASTs f (DataTyCon ns dcs adts) = DataTyCon ns (modifyContainedASTs f dcs) adts
+    modifyContainedASTs f (NewTyCon ns dc rt adts) = NewTyCon ns (modifyContainedASTs f dc) rt adts
+    modifyContainedASTs _ st@(TypeSynonym _ _ _) = st
 
 instance (ASTContainer k t, ASTContainer v t, Eq k, Hashable k) => ASTContainer (UF.UFMap k v) t where
     containedASTs = containedASTs . UF.toList

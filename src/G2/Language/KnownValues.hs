@@ -45,6 +45,15 @@ data KnownValues = KnownValues {
                  , tyUnit :: Name
                  , dcUnit :: Name
 
+                 , tyMutVar :: Name
+                 , dcMutVar :: Name
+
+                 , tyState :: Name
+                 , dcState :: Name
+
+                 , tyRealWorld :: Name
+                 , dcRealWorld :: Name
+
                  -- Typeclasses
                  , eqTC :: Name
                  , numTC :: Name
