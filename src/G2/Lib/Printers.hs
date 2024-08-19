@@ -306,7 +306,7 @@ printTuple' _ _ = []
 isInfixable :: PrettyGuide -> Expr -> Bool
 isInfixable _ (Var (Id n _)) = isInfixableName n
 isInfixable _ (Data (DataCon n _)) = isInfixableName n
-isInfixable pg (Prim p _) = not . T.any isAlphaNum $ mkPrimHaskell pg p
+isInfixable pg (Prim p _) = not . T.any isAlphaNum $ mkPrimHaskellNoDistFloat pg p
 isInfixable _ _ = False
 
 isInfixableName :: Name -> Bool
