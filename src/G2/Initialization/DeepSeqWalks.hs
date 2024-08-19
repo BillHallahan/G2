@@ -1,8 +1,11 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TupleSections #-}
 -- | This module generates functions in the expr_env that walk over the whole structure of an ADT,
--- thus forcing evaluation of the ADT.
--- We call these functions "DeepSeq walkers", or just "walkers."
+-- thus forcing evaluation of the ADT. We call these functions "DeepSeq walkers", or just "walkers."
+
+module G2.Initialization.DeepSeqWalks (createDeepSeqWalks) where
+
+-- Note [Walker function code]
 -- An algebraic data type of the form:
 --
 -- @ data T a1 .. ak = D_1 args1 | ... | D_N argsN @
@@ -20,6 +23,8 @@
 --
 -- where each of evals1 to evalsN will recursively walk over args1 to argsN by forcing each argument
 -- via a further walk function call, wrapped in a case statement.
+-- In general, a walker function will have one "outer case statment", which forces evaluation of the `e` argument passed
+-- to walkT, and some number of "inner case statements", to force evaluation of each sub-expression in `e`. 
 -- The walk_a1 to walk_an functions are intended to do the job of walk over the polymorphic types.
 --
 -- As an example, consider the standard `List` type:
@@ -32,16 +37,15 @@
 --
 -- @
 --   walkList :: forall a . (a -> a) -> List a -> List a
---   walkList = \a -> \f -> xs -> case xs of
+--   walkList = \a -> \f -> xs -> case xs of                                        -- Outer case statement on walked type
 --                                      [] -> []
---                                      (y:ys) -> case f y of
---                                                  z -> case walkList ys of
+--                                      (y:ys) -> case f y of                       -- Inner case statement on argument
+--                                                  z -> case walkList ys of        -- Inner case statement on argument
 --                                                          zs -> z:zs
 -- @ 
 -- Notice that the expressions with polymorphic type `a` are forced with the passed function `f`, and
 -- the list tail is forced with a recursive call to `walkList`.
 
-module G2.Initialization.DeepSeqWalks (createDeepSeqWalks) where
 
 import G2.Language
 
@@ -102,7 +106,7 @@ createDeepSeqExpr tenv w (n, adt) ng =
 
         -- Fresh names for type lambas
         (bn', ng') = freshNames (length bn) ng
-        -- Fresh names for functions to force evaluation of each polymorphic type variable (walk_a1 to walk_an)
+        -- Fresh names for functions to force evaluation of each polymorphic type variable (walk_a1 to walk_an in Note [Walker function code])
         (wbn, ng'') = freshNames (length bn) ng'
 
         bni = map (flip Id TYPE) bn'
@@ -112,6 +116,7 @@ createDeepSeqExpr tenv w (n, adt) ng =
     in
     (mkLams (map (TypeL,) bni ++ map (TermL,) wbni) e, ng''')
 
+-- | Creating the "outer case statement" described in Note [Walker function code]
 createDeepSeqCase1 :: TypeEnv -> Walkers -> TyVarWalkersFuncs -> Name -> [BoundName] -> AlgDataTy -> NameGen -> (Expr, NameGen)
 createDeepSeqCase1 tenv w ti n bn (DataTyCon {data_cons = dc}) ng =
     let
@@ -150,6 +155,7 @@ createDeepSeqCase1 _ w ti n bn (NewTyCon {bound_ids = bids, rep_type = t}) ng =
     (Lam TermL i c, ng''')
 createDeepSeqCase1 _ _ _ _ _ _ _ = error "createDeepSeqCase1: bad argument passed"
 
+-- | Creating alternatives for the "outer case statement" in Note [Walker function code]
 createDeepSeqDataConCase1Alts :: TypeEnv -> Walkers -> TyVarWalkersFuncs -> Name -> Id -> [BoundName] -> NameGen -> [DataCon] -> ([Alt], NameGen)
 createDeepSeqDataConCase1Alts _ _ _ _ _ _ ng [] = ([], ng)
 createDeepSeqDataConCase1Alts tenv w ti n i bn ng (dc@(DataCon _ dc_t):xs) =
@@ -178,6 +184,7 @@ bindTypes rm e =
     in
     foldl' App e tb
 
+-- | Creating the "inner case statement" in Note [Walker function code]
 createDeepSeqDataConCase2 :: TypeEnv -> Walkers -> TyVarWalkers -> RenameMap -> [Id] -> NameGen -> Expr -> (Expr, NameGen)
 createDeepSeqDataConCase2 _ _ _ _ [] ng e = (e, ng)
 createDeepSeqDataConCase2 tenv w ti rm (i:is) ng e
