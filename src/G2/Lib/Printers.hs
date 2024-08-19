@@ -114,7 +114,7 @@ mkExprHaskell' off_init cleaned pg ex = mkExprHaskell'' off_init ex
                        -> T.Text
         mkExprHaskell'' _ (Var ids) = mkIdHaskell pg ids
         mkExprHaskell'' _ (Lit c) = mkLitHaskell UseHash c
-        mkExprHaskell'' _ (Prim p _) = mkPrimHaskell pg p
+        mkExprHaskell'' _ (Prim p _) = if isCleaned then mkPrimHaskellNoDistFloat pg p else mkPrimHaskell pg p
         mkExprHaskell'' off (Lam _ ids e) =
             "(\\" <> mkIdHaskell pg ids <> " -> " <> mkExprHaskell'' off e <> ")"
 
@@ -303,7 +303,6 @@ printTuple' :: PrettyGuide -> Expr -> [T.Text]
 printTuple' pg (App e e') = mkExprHaskell Cleaned pg e':printTuple' pg e
 printTuple' _ _ = []
 
-
 isInfixable :: PrettyGuide -> Expr -> Bool
 isInfixable _ (Var (Id n _)) = isInfixableName n
 isInfixable _ (Data (DataCon n _)) = isInfixableName n
@@ -418,6 +417,22 @@ mkPrimHaskell pg = pr
         pr Implies = "undefined"
         pr Iff = "undefined"
 
+mkPrimHaskellNoDistFloat :: PrettyGuide -> Primitive -> T.Text
+mkPrimHaskellNoDistFloat pg = pr
+    where
+        pr FpNeg = "-"
+        pr FpAdd = "+"
+        pr FpSub = "-"
+        pr FpMul = "*"
+        pr FpDiv = "/"
+        pr FpLeq = "<="
+        pr FpLt = "<"
+        pr FpGeq = ">="
+        pr FpGt = ">"
+        pr FpEq = "=="
+        pr FpNeq = "/="
+        pr FpSqrt = "sqrt"
+        pr p = mkPrimHaskell pg p
 
 mkTypeHaskell :: Type -> T.Text
 mkTypeHaskell = mkTypeHaskellPG (mkPrettyGuide ())
