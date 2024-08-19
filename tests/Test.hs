@@ -418,7 +418,8 @@ testFileTests = testGroup "TestFiles"
 extensionTests :: TestTree
 extensionTests = testGroup "Extensions"
     [
-      checkInputOutputs "tests/TestFiles/Extensions/PatternSynonyms1.hs" [ ("isNineInt", 400, [AtLeast 2])
+      checkInputOutputs "tests/TestFiles/Extensions/GADTSyntax.hs" [("cons3", 400, [Exactly 1])]
+    , checkInputOutputs "tests/TestFiles/Extensions/PatternSynonyms1.hs" [ ("isNineInt", 400, [AtLeast 2])
                                                                          , ("isNineInteger", 400, [AtLeast 2])
                                                                          , ("isNineFloat", 400, [AtLeast 2])
                                                                          , ("isFunc", 400, [AtLeast 2])
