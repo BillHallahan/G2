@@ -84,9 +84,6 @@ type AssumeFunc = T.Text
 type AssertFunc = T.Text
 type ReachFunc = T.Text
 
-type StartFunc = T.Text
-type ModuleName = Maybe T.Text 
-
 type MkCurrExpr = TypeClasses -> NameGen -> ExprEnv -> TypeEnv -> Walkers
                      -> KnownValues -> Config -> (Expr, [Id], [Expr], NameGen)
 

@@ -28,6 +28,7 @@ import PeanoTest
 import HigherOrderMathTest
 import GetNthTest
 import DefuncTest
+import FuzzExecution
 import CaseTest
 import Expr
 import Simplifications
@@ -67,11 +68,14 @@ tests = testGroup "Tests"
         , baseTests
         , primTests
         , ioTests
+
         , exprTests
         , typingTests
         , simplificationTests
         , ufMapQuickcheck
         , unionFindQuickcheck
+        , fuzzExecutionQuickCheck
+
         , rewriteTests
         ]
 
