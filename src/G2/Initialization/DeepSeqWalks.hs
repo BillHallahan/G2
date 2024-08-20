@@ -21,11 +21,19 @@ module G2.Initialization.DeepSeqWalks (createDeepSeqWalks) where
 --                          case e of { D_1 args1 -> evals1 ; ...; D_N argsN -> evalsN }
 -- @
 --
--- where each of evals1 to evalsN will recursively walk over args1 to argsN by forcing each argument
--- via a further walk function call, wrapped in a case statement.
--- In general, a walker function will have one "outer case statment", which forces evaluation of the `e` argument passed
+-- where each of the evalsK will recursively walk over argsK, forcing each argument via a further walk function call,
+-- wrapped in a case statement. That is, each pattern match will have the form
+--
+-- @
+--   D_K (x_1 :: T1) ... (x_j :: Tj) -> case walkT1 x_1 of
+--                                              y_1 -> ... -> case walkTj x_j of
+--                                                                  y_j -> D_K y_1 ... y_j 
+-- @
+-- where each walkTk is the correct function to force evaluation of x_k.
+--
+-- In general, a walker function will have one "outer case statement", which forces evaluation of the `e` argument passed
 -- to walkT, and some number of "inner case statements", to force evaluation of each sub-expression in `e`. 
--- The walk_a1 to walk_an functions are intended to do the job of walk over the polymorphic types.
+-- The walk_a1 to walk_an function arguments allow walking over polymorphic types.
 --
 -- As an example, consider the standard `List` type:
 --
@@ -44,8 +52,14 @@ module G2.Initialization.DeepSeqWalks (createDeepSeqWalks) where
 --                                                          zs -> z:zs
 -- @ 
 -- Notice that the expressions with polymorphic type `a` are forced with the passed function `f`, and
--- the list tail is forced with a recursive call to `walkList`.
-
+-- the list tail is forced with a recursive call to `walkList`.  Supposing we had walk functions:
+--
+-- @
+--   walkMaybe :: (a -> a) -> Maybe a -> Maybe a
+--   walkInt :: Int -> Int
+-- @
+-- for the Maybe and Int types, respectively, we would then walk over a value of type `[Maybe Int]` with the call
+-- `walkList (walkMaybe walkInt)`. 
 
 import G2.Language
 
