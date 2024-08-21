@@ -138,34 +138,35 @@ loadToCheck :: [FilePath] -> [FilePath] -> String -> [GeneralFlag] -> Ghc ()
 loadToCheck proj src modN gflags = do
         _ <- loadProj Nothing proj src gflags simplTranslationConfig
 
-        loadStandard
-
         let mdN = mkModuleName modN
         let imD = simpleImportDecl mdN
 
-        setContext [IIDecl imD]
+        setContext (IIDecl imD:loadStandardSet)
 
 loadStandard :: Ghc ()
-loadStandard = do
+loadStandard = setContext loadStandardSet
+
+loadStandardSet :: [InteractiveImport]
+loadStandardSet =
     let primN = mkModuleName "GHC.Prim"
-    let primImD = simpleImportDecl primN
+        primImD = simpleImportDecl primN
 
-    let extsN = mkModuleName "GHC.Exts"
-    let extsImD = simpleImportDecl extsN
+        extsN = mkModuleName "GHC.Exts"
+        extsImD = simpleImportDecl extsN
 
-    let prN = mkModuleName "Prelude"
-    let prImD = simpleImportDecl prN
+        prN = mkModuleName "Prelude"
+        prImD = simpleImportDecl prN
 
-    let exN = mkModuleName "Control.Exception"
-    let exImD = simpleImportDecl exN
+        exN = mkModuleName "Control.Exception"
+        exImD = simpleImportDecl exN
 
-    let coerceN = mkModuleName "Data.Coerce"
-    let coerceImD = simpleImportDecl coerceN
+        coerceN = mkModuleName "Data.Coerce"
+        coerceImD = simpleImportDecl coerceN
 
-    let charN = mkModuleName "Data.Char"
-    let charD = simpleImportDecl charN
-
-    setContext [IIDecl primImD, IIDecl extsImD, IIDecl prImD, IIDecl exImD, IIDecl coerceImD, IIDecl charD]
+        charN = mkModuleName "Data.Char"
+        charD = simpleImportDecl charN
+    in
+    [IIDecl primImD, IIDecl extsImD, IIDecl prImD, IIDecl exImD, IIDecl coerceImD, IIDecl charD]
 
 simpVar :: T.Text -> Expr
 simpVar s = Var (Id (Name s Nothing 0 Nothing) TyBottom)
