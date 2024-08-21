@@ -40,11 +40,11 @@ f [_, x, _, _] = x
 f (x:_) = x
 f [] = error "Empty string"
 
-data WeirdShow = Emp | One | Two | Three | Four
+data WeirdShow = Emp | WSOne | Two | Three | Four
 
 instance Show WeirdShow where
     show Emp = ""
-    show One = "a"
+    show WSOne = "a"
     show Two = "aa"
     show Three = "aaa"
     show Four = "aaaa"
