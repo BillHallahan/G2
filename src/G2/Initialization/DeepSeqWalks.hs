@@ -33,7 +33,7 @@ module G2.Initialization.DeepSeqWalks (createDeepSeqWalks) where
 --
 -- In general, a walker function will have one "outer case statement", which forces evaluation of the `e` argument passed
 -- to walkT, and some number of "inner case statements", to force evaluation of each sub-expression in `e`. 
--- The walk_a1 to walk_an function arguments allow walking over polymorphic types.
+-- The walk_a1 to walk_an function arguments allow walking over expressions with polymorphic types.
 --
 -- As an example, consider the standard `List` type:
 --
