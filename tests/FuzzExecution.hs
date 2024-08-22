@@ -1,4 +1,4 @@
-{-# LANGUAGE OverloadedStrings#-}
+{-# LANGUAGE OverloadedStrings #-}
 
 module FuzzExecution (fuzzExecutionQuickCheck, fuzzExecution) where
 
@@ -7,19 +7,21 @@ import G2.Language
 import G2.Language.Arbitrary
 import qualified G2.Language.ExprEnv as E
 import G2.Lib.Printers
-import G2.Translation.HaskellCheck
+import G2.Translation
 
 import qualified Data.Text as T
+import qualified Data.Text.IO as T
 
 import GHC hiding (Name, entry)
 import GHC.Paths
 
 import TestUtils
 
+import System.IO
+import System.IO.Temp
+
 import Test.Tasty
 import Test.Tasty.QuickCheck
-
-import Control.Monad.IO.Class
 
 fuzzExecutionQuickCheck :: TestTree
 fuzzExecutionQuickCheck =
@@ -34,7 +36,6 @@ fuzzExecution (SB init_state bindings) = do
 
         (ers, _) <- runG2WithConfig Nothing init_state config bindings
 
-        -- let proj = map takeDirectory src
         mr <- runGhc (Just libdir) (do
                 and <$> mapM (\er -> do
                                     let s = final_state er
@@ -49,6 +50,6 @@ fuzzExecution (SB init_state bindings) = do
                                                     return ()
                                         Nothing -> return ()
                                     validateStatesGHC pg Nothing "call" [] er) ers
-            ) -- validateStates proj src (T.unpack $ fromJust mb_modname) entry chAll [] r
+            )
         
         return $ property mr)

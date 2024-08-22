@@ -117,7 +117,7 @@ newtype ArbAlgDataTy = AADT { unAADT :: AlgDataTy} deriving Show
 
 instance Arbitrary ArbTypeEnv where
     arbitrary = do
-        tenv_size <- chooseInt (0, 8)
+        tenv_size <- chooseInt (1, 10)
         ATE . HM.fromList <$> mapM arbAlgDataTy [1..tenv_size] 
 
 arbAlgDataTy :: Int -> Gen (Name, AlgDataTy)
@@ -210,7 +210,7 @@ arbExpr tenv init_t = sized $ \k -> arbExpr' k HM.empty init_t
         
         arbExprCase :: Int -> TypeMap -> Type -> Gen Expr
         arbExprCase k tm t = do
-            scrut_t <- arbNonFunType tenv
+            scrut_t <- arbDCType tenv
             scrut_e <- arbExpr' (k - 1) tm scrut_t
             AN bindee_n <- arbitrary
             let tm' = HM.insert bindee_n scrut_t tm
@@ -223,13 +223,13 @@ arbExpr tenv init_t = sized $ \k -> arbExpr' k HM.empty init_t
                 -> Type -- ^ Return type
                 -> Gen [Alt]
         arbAlts k tm (TyCon n _) t | Just (DataTyCon { data_cons = dcs }) <- HM.lookup n tenv = do
-            mapM (arbAlt (k `div` length dcs) tm t) dcs 
+            mapM (arbAltDC (k `div` length dcs) tm t) dcs 
         arbAlts k tm _ t = do
             e <- arbExpr' (k - 1) tm t
             return [Alt Default e]
 
-        arbAlt :: Int -> TypeMap -> Type -> DataCon -> Gen Alt
-        arbAlt k tm t dc = do
+        arbAltDC :: Int -> TypeMap -> Type -> DataCon -> Gen Alt
+        arbAltDC k tm t dc = do
             AN (Name p _ _ _) <- arbitrary
             let ts = anonArgumentTypes dc
                 ps = map (\i -> Name p Nothing i Nothing) [1..length ts]
@@ -237,7 +237,7 @@ arbExpr tenv init_t = sized $ \k -> arbExpr' k HM.empty init_t
                 tm' = foldl' (\tm_ (p_, t_) -> HM.insert p_ t_ tm_) tm $ zip ps ts
             e <- arbExpr' k tm' t
             return (Alt (DataAlt dc is) e) 
-        
+
 typeMapToVars :: TypeMap -> [Expr]
 typeMapToVars = map (\(n, t') -> Var (Id n t')) . HM.toList
 
@@ -251,6 +251,9 @@ arbType tenv n | n <= 0 = arbNonFunType tenv
 
 arbNonFunType :: TypeEnv -> Gen Type
 arbNonFunType tenv = elements $ [TyLitInt, TyLitFloat] ++ map (flip TyCon TYPE) (HM.keys tenv)
+
+arbDCType :: TypeEnv -> Gen Type
+arbDCType tenv = elements $ map (flip TyCon TYPE) (HM.keys tenv)
 
 shrinkExpr :: Expr -> [Expr]
 shrinkExpr (Case e i t alts@(Alt (DataAlt _ _) _:Alt (DataAlt _ _) _:_)) =
