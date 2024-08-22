@@ -170,10 +170,10 @@ mkExprHaskell' off_init cleaned pg ex = mkExprHaskell'' off_init ex
             "(" <> t1_str <> " :~ " <> t2_str <> ")"
         mkExprHaskell'' off (Let binds e) =
             let
-                binds' = T.intercalate (offset off <> "\n")
-                       $ map (\(i, be) -> mkIdHaskell pg i <> " = " <> mkExprHaskell'' off be) binds 
+                binds' = T.intercalate ("\n" <> offset (off + 2))
+                       $ map (\(i, be) -> mkIdHaskell pg i <> " = " <> mkExprHaskell'' (off + 2) be) binds 
             in
-            "let " <> binds' <> " in " <> mkExprHaskell'' off e
+            "let\n" <> offset (off + 2) <> binds' <> " in " <> mkExprHaskell'' off e
         mkExprHaskell'' off (Tick nl e) = "TICK[" <> printTickish pg nl <> "]{" <> mkExprHaskell'' off e <> "}"
         mkExprHaskell'' off (Assume m_fc e1 e2) =
             let

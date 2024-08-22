@@ -1,4 +1,4 @@
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE OverloadedStrings, TupleSections #-}
 
 module G2.Language.Arbitrary where
 
@@ -12,13 +12,14 @@ import G2.Lib.Printers
 
 import Control.Monad
 import Data.Foldable
+import Data.Function
 import qualified Data.HashMap.Lazy as HM
 import Data.List
 import qualified Data.Map as M
 import qualified Data.Text as T
 import Test.Tasty.QuickCheck
 
-data StateBindingsPair t = SB (State t) Bindings
+data StateBindingsPair t = SB { sb_state :: State t, sb_bindings :: Bindings }
 
 instance Show (StateBindingsPair t) where
     show (SB s _) =
@@ -117,23 +118,50 @@ newtype ArbAlgDataTy = AADT { unAADT :: AlgDataTy} deriving Show
 
 instance Arbitrary ArbTypeEnv where
     arbitrary = do
-        tenv_size <- chooseInt (1, 10)
-        ATE . HM.fromList <$> mapM arbAlgDataTy [1..tenv_size] 
+        tenv_size <- chooseInt (0, 10)
+        tenv <- vectorOf tenv_size arbAlgDataTyEmpty
+        tenv' <- zipWithM (arbInstDataCons HM.empty) [0..] tenv 
+        return . ATE . HM.union basicTypeEnv . HM.fromList $ tenv' 
 
-arbAlgDataTy :: Int -> Gen (Name, AlgDataTy)
-arbAlgDataTy unq = do
+basicTypeEnv :: TypeEnv
+basicTypeEnv =
+    let
+        int_dc = DataCon intDCName (TyFun TyLitInt (TyCon intTypeName TYPE))
+        float_dc = DataCon floatDCName (TyFun TyLitFloat (TyCon floatTypeName TYPE))
+    in
+    HM.fromList [ (intTypeName, DataTyCon { bound_ids = [], data_cons = [int_dc], adt_source = ADTSourceCode })
+                , (floatTypeName, DataTyCon { bound_ids = [], data_cons = [float_dc], adt_source = ADTSourceCode }) ]
+
+-- | Creates `Name` and `AlgDataTy` mappings, with all `data_cons` fields set to the empty list.
+-- The `arbInstDataCons` function can then be used to instantiate the `data_cons` fields.
+-- This structure allows generating datatypes that are nested, recursive, or mutually recursive.
+arbAlgDataTyEmpty :: Gen (Name, AlgDataTy)
+arbAlgDataTyEmpty = do
     AU ty_n <- arbitrary
-    bi <- return [] -- nubBy (on (==) idName) <$> fmap (fmap unAI) arbitrary
-    dc_c <- chooseInt (1, 10)
-    dcs <- map (\(DataCon n t) -> DataCon n (foldr TyForAll t bi)) <$> vectorOf dc_c (arbDataCon unq (TyCon ty_n TYPE))
-    let dcs' = nubBy (\(DataCon n _) (DataCon n' _) -> n == n') dcs
-    return (ty_n, DataTyCon { bound_ids = bi, data_cons = dcs', adt_source = ADTSourceCode })
+    return (ty_n, DataTyCon { bound_ids = [], data_cons = [], adt_source = ADTG2Generated })
 
-arbDataCon :: Int -> Type -> Gen DataCon
-arbDataCon unq ret_ty = do
+arbInstDataCons :: TypeEnv -> Int -> (Name, AlgDataTy) -> Gen (Name, AlgDataTy)
+arbInstDataCons tenv unq (ty_n, adt@(DataTyCon { bound_ids = bi })) = do
+    dc_c <- chooseInt (1, 10)
+    dcs <- map (\(DataCon n t) -> DataCon n (foldr TyForAll t bi)) <$> vectorOf dc_c (arbDataCon tenv unq (TyCon ty_n TYPE))
+    let dcs' = nubBy (\(DataCon n _) (DataCon n' _) -> n == n') dcs
+    return (ty_n, adt { data_cons = dcs' })
+arbInstDataCons _ _ _ = error "arbInstDataCons: Unsupported AlgDataTy"
+
+arbAlgDataTy :: TypeEnv -> Int -> Gen (Name, AlgDataTy)
+arbAlgDataTy tenv unq = do
+    AU ty_n <- arbitrary
+    bi <- return []
+    dc_c <- chooseInt (1, 10)
+    dcs <- map (\(DataCon n t) -> DataCon n (foldr TyForAll t bi)) <$> vectorOf dc_c (arbDataCon tenv unq (TyCon ty_n TYPE))
+    let dcs' = nubBy (\(DataCon n _) (DataCon n' _) -> n == n') dcs
+    return (ty_n, DataTyCon { bound_ids = bi, data_cons = dcs', adt_source = ADTG2Generated })
+
+arbDataCon :: TypeEnv -> Int -> Type -> Gen DataCon
+arbDataCon tenv unq ret_ty = do
     n <- chooseEnum ('A', 'Z')
     ar_c <- chooseInt (0, 5)
-    ar_ty <- vectorOf ar_c (sized $ \k -> arbType HM.empty (k `div` ar_c))
+    ar_ty <- vectorOf ar_c (sized $ \k -> arbType tenv (k `div` ar_c))
     return $ DataCon (Name (T.singleton n) Nothing unq Nothing) (mkTyFun $ ar_ty ++ [ret_ty])
 
 newtype ArbExpr = AE { unAE :: Expr} deriving Show
@@ -177,7 +205,7 @@ arbExpr tenv init_t = sized $ \k -> arbExpr' k HM.empty init_t
             let tm' = HM.insert nm t1 tm
             fmap (Lam TermL (Id nm t1)) (arbExpr' k tm' t2)
         arbExpr' k tm t | k <= 0 = arbExprBase k tm t
-                        | otherwise = oneof [arbExprApp k tm t, arbExprCase k tm t, arbExprBase k tm t]
+                        | otherwise = oneof [arbExprApp k tm t, arbExprLet k tm t, arbExprCase k tm t, arbExprBase k tm t]
 
         arbExprBase :: Int -> TypeMap -> Type -> Gen Expr
         arbExprBase k tm t =
@@ -207,6 +235,17 @@ arbExpr tenv init_t = sized $ \k -> arbExpr' k HM.empty init_t
             liftM2 App
                 (arbExpr' (k `div` 2) tm (TyFun ar_t  ret_t))
                 (arbExpr' (k `div` 2) tm ar_t)
+
+        arbExprLet :: Int -> TypeMap -> Type -> Gen Expr
+        arbExprLet k tm ret_t = do
+            bnd_c <- chooseInt (1, 10)
+            bnd_is <- map unAI <$> vectorOf bnd_c arbitrary
+            let bnd_is' = nubBy ((==) `on` idName) bnd_is
+            let tm' = foldr HM.delete tm $ map idName bnd_is'
+            bnd_is_es <- mapM (\i@(Id _ t) -> (i,) <$> arbExpr' (k `div` bnd_c) tm' t) bnd_is'
+            let tm'' = foldr (\(Id n t) -> HM.insert n t) tm' bnd_is'
+            e <- arbExpr' (k `div` bnd_c) tm'' ret_t
+            return $ Let bnd_is_es e
         
         arbExprCase :: Int -> TypeMap -> Type -> Gen Expr
         arbExprCase k tm t = do
@@ -299,10 +338,10 @@ errorAlt = Alt Default . Prim Undefined
 fakeKnownValues :: KnownValues
 fakeKnownValues =
     KnownValues {
-      KV.tyInt = Name "" Nothing 0 Nothing
-    , dcInt = Name "" Nothing 0 Nothing
-    , KV.tyFloat = Name "" Nothing 0 Nothing
-    , dcFloat = Name "" Nothing 0 Nothing
+      KV.tyInt = intTypeName
+    , dcInt = intDCName
+    , KV.tyFloat = floatTypeName
+    , dcFloat = floatDCName
     , KV.tyDouble = Name "" Nothing 0 Nothing
     , dcDouble = Name "" Nothing 0 Nothing
     , KV.tyInteger = Name "" Nothing 0 Nothing
@@ -367,3 +406,15 @@ fakeKnownValues =
     , errorEmptyListFunc = Name "" Nothing 0 Nothing
     , patErrorFunc = Name "" Nothing 0 Nothing
     }
+
+intDCName :: Name
+intDCName = Name "I#" Nothing 0 Nothing
+
+intTypeName :: Name
+intTypeName = Name "Int" Nothing 0 Nothing
+
+floatDCName :: Name
+floatDCName = Name "F#" Nothing 0 Nothing
+
+floatTypeName :: Name
+floatTypeName = Name "Float" Nothing 0 Nothing

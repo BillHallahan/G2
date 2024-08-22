@@ -9,16 +9,13 @@ import qualified G2.Language.ExprEnv as E
 import G2.Lib.Printers
 import G2.Translation
 
+import qualified Data.HashMap.Lazy as HM
 import qualified Data.Text as T
-import qualified Data.Text.IO as T
 
 import GHC hiding (Name, entry)
 import GHC.Paths
 
 import TestUtils
-
-import System.IO
-import System.IO.Temp
 
 import Test.Tasty
 import Test.Tasty.QuickCheck
@@ -42,10 +39,10 @@ fuzzExecution (SB init_state bindings) = do
                                         pg = mkPrettyGuide (expr_env s, type_env s)
                                     adjustDynFlags
                                     loadStandard
-                                    createDecls pg s (type_env s)
+                                    createDecls pg s (HM.filter (\adt -> adt_source adt == ADTG2Generated) $ type_env s)
                                     case E.lookup nameCall (expr_env s) of
                                         Just e -> do
-                                                    let stmt = T.unpack $ "let call :: " <> mkTypeHaskellPG pg (typeOf e) <> " = " <> printHaskellPG pg s e
+                                                    let stmt = T.unpack $ "let call :: " <> mkTypeHaskellPG pg (typeOf e) <> " = " <> printHaskellDirtyPG pg e
                                                     _ <- execStmt stmt execOptions
                                                     return ()
                                         Nothing -> return ()
