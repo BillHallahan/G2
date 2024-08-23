@@ -1,12 +1,15 @@
 {-# LANGUAGE FlexibleContexts, MultiParamTypeClasses, OverloadedStrings #-}
 
-module G2.Interface.ExecRes ( ExecRes (..), printInputOutput ) where
+module G2.Interface.ExecRes ( ExecRes (..), StartFunc, ModuleName, printInputOutput ) where
 
 import G2.Language
 import G2.Lib.Printers
 
 import qualified Data.Sequence as S
 import qualified Data.Text as T
+
+type StartFunc = T.Text
+type ModuleName = Maybe T.Text 
 
 -- | A fully executed `State`.
 data ExecRes t = ExecRes { final_state :: State t -- ^ The final state.

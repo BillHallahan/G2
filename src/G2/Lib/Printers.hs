@@ -15,7 +15,10 @@ module G2.Lib.Printers ( PrettyGuide
                        , mkTypeHaskellPG
                        , pprExecStateStr
                        , printFuncCall
+
                        , prettyState
+                       , prettyEEnv
+                       , prettyTypeEnv 
 
                        , prettyGuideStr) where
 
@@ -140,13 +143,13 @@ mkExprHaskell' off_init cleaned pg ex = mkExprHaskell'' off_init ex
                 e2P <> " " <> mkExprHaskell'' off e1 <> " " <> e3P
 
             | App _ _ <- e3 = mkExprHaskell'' off ea <> " (" <> mkExprHaskell'' off e3 <> ")"
-            | otherwise = mkExprHaskell'' off ea <> " " <> mkExprHaskell'' off e3
+            | otherwise = mkExprHaskell'' off ea <> " " <> parenWrap e3 (mkExprHaskell'' off e3)
 
-        mkExprHaskell'' off (App e1 ea@(App _ _)) = mkExprHaskell'' off e1 <> " (" <> mkExprHaskell'' off ea <> ")"
+        mkExprHaskell'' off (App e1 ea@(App _ _)) = parenWrap e1 (mkExprHaskell'' off e1) <> " (" <> mkExprHaskell'' off ea <> ")"
         mkExprHaskell'' _ (App (Data (DataCon (Name n _ _ _) _)) (Lit l)) 
             | n == "I#" || n == "F#" || n == "D#" || n == "Z#" || n == "C#" = mkLitHaskell NoHash l
         mkExprHaskell'' off (App e1 e2) =
-            parenWrap e1 (mkExprHaskell'' off e1) <> " " <> mkExprHaskell'' off e2
+            parenWrap e1 (mkExprHaskell'' off e1) <> " " <> parenWrap e2 (mkExprHaskell'' off e2)
         mkExprHaskell'' _ (Data d) = mkDataConHaskell pg d
         mkExprHaskell'' off (Case e bndr _ ae) =
                "case " <> parenWrap e (mkExprHaskell'' off e) <> " of\n" 
@@ -228,8 +231,7 @@ mkAltHaskell off cleaned pg i_bndr@(Id bndr_name _) (Alt am e) =
                 pr_am = mkDataConHaskell pg dc <> " " <> T.intercalate " "  (map (mkIdHaskell pg) ids)
             in
             case m_bndr of
-                Just bndr | not (L.null ids) -> mkIdHaskell pg bndr <> "@(" <> pr_am <> ")"
-                          | otherwise -> mkIdHaskell pg bndr
+                Just bndr -> mkIdHaskell pg bndr <> "@(" <> pr_am <> ")"
                 Nothing -> pr_am
         mkAltMatchHaskell m_bndr (LitAlt l) =
             case m_bndr of

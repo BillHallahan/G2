@@ -621,6 +621,7 @@ mkStrict' w e =
             Just i -> App (foldl' (App) (Var i) (map Type ts ++ map (typeToWalker w) ts)) e
             Nothing -> error $ "mkStrict: failed to find walker with type: " ++ show n
         (TyVar _) -> e
+        t | isPrimType t -> e
         _ -> error $ "No walker found in mkStrict\n e = " ++ show e ++ "\nt = " ++ show (typeOf e) ++ "\nret = " ++ show (returnType e)
 
 typeToWalker :: Walkers -> Type -> Expr

@@ -1,8 +1,65 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TupleSections #-}
--- This module generates functions in the expr_env that walk over the whole structure of an ADT.
--- This forces evaluation of the ADT
+-- | This module generates functions in the expr_env that walk over the whole structure of an ADT,
+-- thus forcing evaluation of the ADT. We call these functions "DeepSeq walkers", or just "walkers."
+
 module G2.Initialization.DeepSeqWalks (createDeepSeqWalks) where
+
+-- Note [Walker function code]
+-- An algebraic data type of the form:
+--
+-- @ data T a1 .. ak = D_1 args1 | ... | D_N argsN @
+--
+-- Will generate a function of the form:
+--
+-- @
+--   walkT = \a1 -> ... \an
+--        -> \(walk_a1 :: a1 -> a1) ->
+--           ...
+--        -> \(walk_an :: an -> an)
+--        -> \(e :: T a1 ... an) ->
+--                          case e of { D_1 args1 -> evals1 ; ...; D_N argsN -> evalsN }
+-- @
+--
+-- where each of the evalsK will recursively walk over argsK, forcing each argument via a further walk function call,
+-- wrapped in a case statement. That is, each pattern match will have the form
+--
+-- @
+--   D_K (x_1 :: T1) ... (x_j :: Tj) -> case walkT1 x_1 of
+--                                              y_1 -> ... -> case walkTj x_j of
+--                                                                  y_j -> D_K y_1 ... y_j 
+-- @
+-- where each walkTk is the correct function to force evaluation of x_k.
+--
+-- In general, a walker function will have one "outer case statement", which forces evaluation of the `e` argument passed
+-- to walkT, and some number of "inner case statements", to force evaluation of each sub-expression in `e`. 
+-- The walk_a1 to walk_an function arguments allow walking over expressions with polymorphic types.
+--
+-- As an example, consider the standard `List` type:
+--
+-- @
+--   data List a = a : List a | []
+-- @
+--
+-- The walk function for the List type would be:
+--
+-- @
+--   walkList :: forall a . (a -> a) -> List a -> List a
+--   walkList = \a -> \f -> xs -> case xs of                                        -- Outer case statement on walked type
+--                                      [] -> []
+--                                      (y:ys) -> case f y of                       -- Inner case statement on argument
+--                                                  z -> case walkList ys of        -- Inner case statement on argument
+--                                                          zs -> z:zs
+-- @ 
+-- Notice that the expressions with polymorphic type `a` are forced with the passed function `f`, and
+-- the list tail is forced with a recursive call to `walkList`.  Supposing we had walk functions:
+--
+-- @
+--   walkMaybe :: (a -> a) -> Maybe a -> Maybe a
+--   walkInt :: Int -> Int
+-- @
+-- for the Maybe and Int types, respectively, we would then walk over a value of type `[Maybe Int]` with the call
+-- `walkList (walkMaybe walkInt)`. 
 
 import G2.Language
 
@@ -24,7 +81,12 @@ createDeepSeqWalks eenv tenv ng =
 createDeepSeqName ::  Name -> Name
 createDeepSeqName n = Name ("walk" `T.append` nameOcc n) Nothing 0 (spanning n)
 
-createDeepSeqStore :: (Name, AlgDataTy) -> Name -> Walkers -> Walkers
+-- | Given a type name and definition, and a name for the corresponding walker function,
+-- create a mapping in `Walkers` from the type name to the walker function `Id`.
+createDeepSeqStore :: (Name, AlgDataTy) -- ^ The type name and definition
+                   -> Name -- ^ The walker function name
+                   -> Walkers
+                   -> Walkers
 createDeepSeqStore (n, adt) n' w =
     let
         bi = bound_ids adt
@@ -43,44 +105,51 @@ createDeepSeqStore (n, adt) n' w =
 
 type RenameMap = HM.HashMap Name Name
 
-createDeepSeqExpr :: TypeEnv -> Walkers -> (Name, AlgDataTy) -> NameGen -> (Expr, NameGen)
+type TyVarWalkersFuncs = [Id]
+type TyVarWalkers = [(Name, Id)]
+
+-- | Generates the code for a walker function.
+createDeepSeqExpr :: TypeEnv
+                  -> Walkers
+                  -> (Name, AlgDataTy) -- ^ The type to generate a walker function for.
+                  -> NameGen
+                  -> (Expr, NameGen)
 createDeepSeqExpr tenv w (n, adt) ng =
     let
         bn = bound_ids adt
 
-        -- Generates fresh names for TYPE variables, and walker function variables
+        -- Fresh names for type lambas
         (bn', ng') = freshNames (length bn) ng
+        -- Fresh names for functions to force evaluation of each polymorphic type variable (walk_a1 to walk_an in Note [Walker function code])
         (wbn, ng'') = freshNames (length bn) ng'
 
         bni = map (flip Id TYPE) bn'
-        wbni = map (\(b, f) -> Id f (TyFun (TyVar (Id b TYPE)) (TyVar (Id b TYPE)))) $ zip bn' wbn
+        wbni = zipWith (\b f -> Id f (TyFun (TyVar (Id b TYPE)) (TyVar (Id b TYPE)))) bn' wbn
 
-        bfuncs = zip bn' wbni -- SUSPECT? bn' should be something else?
-        rm = HM.fromList $ zip (map idName bn) bn'
-
-        adt' = adt --renames (HM.fromList (zip (map idName bn) bn')) adt
-
-        (e, ng''') = createDeepSeqCase1 tenv w bfuncs n rm bn' adt' ng''
+        (e, ng''') = createDeepSeqCase1 tenv w wbni n bn' adt ng''
     in
     (mkLams (map (TypeL,) bni ++ map (TermL,) wbni) e, ng''')
 
-createDeepSeqCase1 :: TypeEnv -> Walkers -> [(Name, Id)] -> Name -> RenameMap-> [BoundName] -> AlgDataTy -> NameGen -> (Expr, NameGen)
-createDeepSeqCase1 tenv w ti n rm bn (DataTyCon {data_cons = dc}) ng =
+-- | Creating the "outer case statement" described in Note [Walker function code]
+createDeepSeqCase1 :: TypeEnv -> Walkers -> TyVarWalkersFuncs -> Name -> [BoundName] -> AlgDataTy -> NameGen -> (Expr, NameGen)
+createDeepSeqCase1 tenv w ti n bn (DataTyCon {data_cons = dc}) ng =
     let
         (i, ng') = freshId (mkFullAppedTyCon n (map (TyVar . flip Id TYPE) bn) TYPE) ng
         (caseB, ng'') = freshId (mkFullAppedTyCon n (map (TyVar . flip Id TYPE) bn) TYPE) ng'
 
-        (alts, ng''') = createDeepSeqDataConCase1Alts tenv w ti n caseB rm bn ng'' dc
+        (alts, ng''') = createDeepSeqDataConCase1Alts tenv w ti n caseB bn ng'' dc
 
-        dc_t = case dc of
-                (d:_) -> typeOf d
+        cs_t = case alts of
+                (a:_) -> typeOf a
                 _ -> TyBottom
 
-        c = Case (Var i) caseB dc_t alts
+        c = Case (Var i) caseB cs_t alts
     in
     (Lam TermL i c, ng''')
-createDeepSeqCase1 _ w ti n rm bn (NewTyCon {rep_type = t}) ng =
+createDeepSeqCase1 _ w ti n bn (NewTyCon {bound_ids = bids, rep_type = t}) ng =
     let
+        rm = HM.fromList $ zip (map idName bids) bn
+
         t' = mkFullAppedTyCon n (map (TyVar . flip Id TYPE) bn) TYPE
         t'' = renames rm t
 
@@ -89,7 +158,8 @@ createDeepSeqCase1 _ w ti n rm bn (NewTyCon {rep_type = t}) ng =
 
         cast = Cast (Var i) (t' :~ t'')
 
-        (e, ng''') = deepSeqFuncCall w ng'' ti rm (Var caseB)
+        ti' = zip bn ti
+        (e, ng''') = deepSeqFuncCall w ng'' ti' rm (Var caseB)
         e' = Cast e (t'' :~ t')
 
         alt = Alt Default e'
@@ -97,38 +167,39 @@ createDeepSeqCase1 _ w ti n rm bn (NewTyCon {rep_type = t}) ng =
         c = Case cast caseB t' [alt]
     in
     (Lam TermL i c, ng''')
-createDeepSeqCase1 _ _ _ _ _ _ _ _ = error "createDeepSeqCase1: bad argument passed"
+createDeepSeqCase1 _ _ _ _ _ _ _ = error "createDeepSeqCase1: bad argument passed"
 
-createDeepSeqDataConCase1Alts :: TypeEnv -> Walkers -> [(Name, Id)] -> Name -> Id -> RenameMap -> [BoundName] -> NameGen -> [DataCon] -> ([Alt], NameGen)
-createDeepSeqDataConCase1Alts _ _ _ _ _ _ _ ng [] = ([], ng)
-createDeepSeqDataConCase1Alts tenv w ti n i rm bn ng (dc@(DataCon _ _):xs) =
+-- | Creating alternatives for the "outer case statement" in Note [Walker function code]
+createDeepSeqDataConCase1Alts :: TypeEnv -> Walkers -> TyVarWalkersFuncs -> Name -> Id -> [BoundName] -> NameGen -> [DataCon] -> ([Alt], NameGen)
+createDeepSeqDataConCase1Alts _ _ _ _ _ _ ng [] = ([], ng)
+createDeepSeqDataConCase1Alts tenv w ti n i bn ng (dc@(DataCon _ dc_t):xs) =
     let
-        ts = renames rm $ anonArgumentTypes dc
+        t_ids = leadingTyForAllBindings $ PresType dc_t
+        rm' = HM.fromList (zip (map idName t_ids) bn)
+        dct = bindTypes rm' (Data dc)
 
+        ti' = zip bn ti
+
+        ts = renames rm' $ anonArgumentTypes dc
         (binds, ng') = freshIds ts ng
 
-        dct = bindTypes rm (Data dc)
-
-        (e, ng'') = createDeepSeqDataConCase2 tenv w ti rm binds ng' dct
+        (e, ng'') = createDeepSeqDataConCase2 tenv w ti' rm' binds ng' dct
         alt = Alt (DataAlt dc binds) e
 
-        (alts, ng''') = createDeepSeqDataConCase1Alts tenv w ti n i rm bn ng'' xs
+        (alts, ng''') = createDeepSeqDataConCase1Alts tenv w ti n i bn ng'' xs
     in
     (alt:alts, ng''')
 
 bindTypes :: RenameMap -> Expr -> Expr
 bindTypes rm e =
     let
-        t = tyForAllIds $ typeOf e
-        tb = map (Type . TyVar . renames rm) t
+        t_ids = leadingTyForAllBindings e
+        tb = map (Type . TyVar . renames rm) t_ids
     in
     foldl' App e tb
 
-tyForAllIds :: Type -> [Id]
-tyForAllIds (TyForAll i t) = i:tyForAllIds t
-tyForAllIds _ = []
-
-createDeepSeqDataConCase2 :: TypeEnv -> Walkers -> [(Name, Id)] -> RenameMap -> [Id] -> NameGen -> Expr -> (Expr, NameGen)
+-- | Creating the "inner case statement" in Note [Walker function code]
+createDeepSeqDataConCase2 :: TypeEnv -> Walkers -> TyVarWalkers -> RenameMap -> [Id] -> NameGen -> Expr -> (Expr, NameGen)
 createDeepSeqDataConCase2 _ _ _ _ [] ng e = (e, ng)
 createDeepSeqDataConCase2 tenv w ti rm (i:is) ng e
     | t@(TyCon n _) <- typeOf i 
@@ -155,14 +226,19 @@ createDeepSeqDataConCase2 tenv w ti rm (i:is) ng e
         in
         (Case b i' (typeOf ae) [Alt Default ae], ng''')
 
--- Calling a higher order function
-deepSeqFuncCall :: Walkers -> NameGen -> [(Name, Id)] -> RenameMap -> Expr -> (Expr, NameGen)
+-- | Creates code to call the appropriate walker function for the passed Expr
+deepSeqFuncCall :: Walkers
+                -> NameGen
+                -> TyVarWalkers
+                -> RenameMap
+                -> Expr -- ^ The Expr to force via a walker function
+                -> (Expr, NameGen)
 deepSeqFuncCall w ng ti rm e =
     case deepSeqFunc w ng ti rm e of
         Just (e', ng') -> (App e' e, ng')
         Nothing -> (e, ng)
 
-deepSeqFunc :: Typed t => Walkers -> NameGen -> [(Name, Id)] -> RenameMap -> t -> Maybe (Expr, NameGen)
+deepSeqFunc :: Typed t => Walkers -> NameGen -> TyVarWalkers -> RenameMap -> t -> Maybe (Expr, NameGen)
 deepSeqFunc w ng ti rm e
     | t <- typeOf e
     , TyCon n _ <- tyAppCenter t
@@ -198,7 +274,7 @@ deepSeqFunc w ng ti rm e
        Just (Var f, ng)
     | otherwise = Nothing
 
-walkerFunc :: Walkers -> [(Name, Id)] -> RenameMap -> Type -> Expr
+walkerFunc :: Walkers -> TyVarWalkers -> RenameMap -> Type -> Expr
 walkerFunc _ ti _ (TyVar (Id n _))
     | Just tyF <- lookup n ti = 
         Var tyF
