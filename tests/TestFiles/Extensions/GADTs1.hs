@@ -25,22 +25,17 @@ data HList where
 hlistHeadStr :: HList -> String
 hlistHeadStr (x :> xs) = show (x + 1)
 
--- data MyList2 a = Ni2 | Cons2 a (MyList2 a)
+data MyList2 a = Nis | Conss a (MyList2 a)
 
--- lengthList2 :: MyList2 a -> Int
--- lengthList2 Ni2        = 0
--- lengthList2 (Cons2 _ xs) = 1 + lengthList2 xs
+lengthList2 :: MyList2 a -> Int
+lengthList2 Nis       = 0
+lengthList2 (Conss _ xs) = 1 + lengthList2 xs
+
 
 -- this above is having an error that says
 -- G2: No type found in typeWithStrName "MutVar#"
 -- CallStack (from HasCallStack):
 --   error, called at src/G2/Initialization/KnownValues.hs:127:10 in g2-0.2.0.0-inplace:G2.Initialization.KnownValues
-
--- data MyList2 a = Nis | Conss a (MyList2 a)
-
--- lengthList2 :: MyList2 a -> Int
--- lengthList2 Nis       = 0
--- lengthList2 (Conss _ xs) = 1 + lengthList2 xs
 
 
 data MyList a where
@@ -97,6 +92,18 @@ vecHead (VCons x _) = x
 vecZip :: Vec n a -> Vec n b -> Vec n (a, b)
 vecZip VNil _ =  VNil 
 vecZip (VCons x xs) (VCons y ys) = VCons (x, y) (vecZip xs ys)
+
+vecMap :: (a -> b) -> Vec n a -> Vec n b 
+vecMap _ VNil = VNil 
+vecMap f (VCons x xs) = VCons (f x) (vecMap f xs)
+
+vecTail :: Vec (Succ n) a -> Vec n a 
+vecTail (VCons _ xs) = xs
+
+-- Return all the elements of a list except the last one
+vecInit :: Vec (Succ n) a -> Vec n a 
+vecInit (VCons x VNil) = VNil 
+vecInit (VCons x xs@(VCons y ys)) = VCons x (vecInit xs)
 
 
 data Term a where
