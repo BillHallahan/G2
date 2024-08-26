@@ -790,7 +790,7 @@ updatePrettyGuide :: Named a => a -> PrettyGuide -> PrettyGuide
 updatePrettyGuide ns pg = foldr insertPG pg $ names ns
 
 updatePGValAndTypeNames :: (ASTContainer a Expr, ASTContainer a Type) => a -> PrettyGuide -> PrettyGuide
-updatePGValAndTypeNames e pg = updatePGValNames e $ updatePGTypeNames e pg
+updatePGValAndTypeNames e = updatePGValNames e . updatePGTypeNames e
 
 -- | Update the `PrettyGuide` with mappings for all Expr `Name`s in the `Named` argument.
 updatePGValNames :: ASTContainer a Expr => a -> PrettyGuide -> PrettyGuide

@@ -98,8 +98,8 @@ runCheck :: PrettyGuide -> I.ModuleName -> String -> [String] -> ExecRes t -> Gh
 runCheck init_pg modN entry chAll er@(ExecRes {final_state = s, conc_args = ars, conc_out = out}) = do
     let Left (v, _) = findFunc (T.pack entry) [modN] (expr_env s)
     let e = mkApp $ Var v:ars
-    let pg = updatePGValAndTypeNames (exprNames e)
-           . updatePGValAndTypeNames (exprNames out)
+    let pg = updatePGValAndTypeNames e
+           . updatePGValAndTypeNames out
            $ updatePGValAndTypeNames (varIds v) init_pg
     -- let arsStr = T.unpack $ printHaskellPG pg s e
     -- let outStr = T.unpack $ printHaskellPG pg s out
