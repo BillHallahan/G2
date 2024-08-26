@@ -44,7 +44,7 @@ validateStates proj src modN entry chAll gflags in_out = do
         loadToCheck proj src modN gflags
         mapM (\er -> do
                 let s = final_state er
-                let pg = mkPrettyGuide (type_env s)
+                let pg = updatePGTypeNames (type_env s) $ mkPrettyGuide ()
                 _ <- createDecls pg s (H.filter (\x -> adt_source x == ADTG2Generated) (type_env s))
                 validateStatesGHC pg (Just $ T.pack modN) entry chAll er) in_out)
 
@@ -98,9 +98,9 @@ runCheck :: PrettyGuide -> I.ModuleName -> String -> [String] -> ExecRes t -> Gh
 runCheck init_pg modN entry chAll er@(ExecRes {final_state = s, conc_args = ars, conc_out = out}) = do
     let Left (v, _) = findFunc (T.pack entry) [modN] (expr_env s)
     let e = mkApp $ Var v:ars
-    let pg = updatePrettyGuide (exprNames e)
-           . updatePrettyGuide (exprNames out)
-           $ updatePrettyGuide (varIds v) init_pg
+    let pg = updatePGValAndTypeNames (exprNames e)
+           . updatePGValAndTypeNames (exprNames out)
+           $ updatePGValAndTypeNames (varIds v) init_pg
     -- let arsStr = T.unpack $ printHaskellPG pg s e
     -- let outStr = T.unpack $ printHaskellPG pg s out
     let (mvTxt, arsTxt, outTxt) = printInputOutput pg v er 
