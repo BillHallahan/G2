@@ -42,7 +42,7 @@ fuzzExecution (SB init_state bindings) = do
                                     createDecls pg s (HM.filter (\adt -> adt_source adt == ADTG2Generated) $ type_env s)
                                     case E.lookup nameCall (expr_env s) of
                                         Just e -> do
-                                                    let stmt = T.unpack $ "let call :: " <> mkTypeHaskellPG pg (typeOf e) <> " = " <> printHaskellDirtyPG pg e
+                                                    let stmt = T.unpack $ "let call " <> " = (" <> printHaskellDirtyPG pg e <> ") :: " <> mkTypeHaskellPG pg (typeOf e)
                                                     _ <- execStmt stmt execOptions
                                                     return ()
                                         Nothing -> return ()
