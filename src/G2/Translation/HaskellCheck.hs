@@ -41,6 +41,7 @@ import Control.Monad.IO.Class
 validateStates :: [FilePath] -> [FilePath] -> String -> String -> [String] -> [GeneralFlag] -> [ExecRes t] -> IO Bool
 validateStates proj src modN entry chAll gflags in_out = do
     and <$> runGhc (Just libdir) (do
+        adjustDynFlags
         loadToCheck proj src modN gflags
         mapM (\er -> do
                 let s = final_state er
@@ -110,8 +111,6 @@ runCheck init_pg modN entry chAll er@(ExecRes {final_state = s, conc_args = ars,
 
     let arsType = T.unpack $ mkTypeHaskellPG pg (typeOf e)
         outType = T.unpack $ mkTypeHaskellPG pg (typeOf out)
-         
-    adjustDynFlags
 
     -- If we are returning a primitive type (Int#, Float#, etc.) wrap in a constructor so that `==` works
     let pr_con = case typeOf out of
