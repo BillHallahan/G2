@@ -23,7 +23,8 @@ module G2.Lib.Printers ( PrettyGuide
                        , prettyEEnv
                        , prettyTypeEnv 
 
-                       , prettyGuideStr) where
+                       , prettyGuideStr
+                       , prettyGuideNumsStr) where
 
 import G2.Language.Expr
 import qualified G2.Language.ExprEnv as E
@@ -739,7 +740,7 @@ printFuncCallPG pg (FuncCall { funcName = f, arguments = ars, returns = r}) =
 -------------------------------------------------------------------------------
 
 -- | See Note [PrettyGuide AssignedLvl]
-data AssignedLvl = TypeLvl | ValLvl | BothLvl deriving Eq
+data AssignedLvl = TypeLvl | ValLvl | BothLvl deriving (Eq, Show)
 
 unionLvl :: AssignedLvl -> AssignedLvl -> AssignedLvl
 unionLvl TypeLvl TypeLvl = TypeLvl
@@ -807,13 +808,11 @@ insertPGLvl :: AssignedLvl -> Name -> PrettyGuide -> PrettyGuide
 insertPGLvl lvl n pg@(PG { pg_assigned = as, pg_nums = nms })
     | not (HM.member n as) =
         case HM.lookup (nameOcc n) nms of
-            Just (curr_lvl, i) ->
-                let
-                    j = if lvl == curr_lvl || lvl == BothLvl || curr_lvl == BothLvl then i + 1 else 1
-                in
+            Just (curr_lvl, i) | lvl == curr_lvl || lvl == BothLvl || curr_lvl == BothLvl ->
+                let  j = i + 1 in
                 PG { pg_assigned = HM.insert n (nameOcc n <> "'" <> T.pack (show j)) as
                    , pg_nums = HM.insert (nameOcc n) (lvl `unionLvl` curr_lvl, j) nms }
-            Nothing ->
+            _ ->
                 PG { pg_assigned = HM.insert n (nameOcc n) as
                    , pg_nums = HM.insert (nameOcc n) (lvl, 1) nms }
     | otherwise = pg
@@ -821,5 +820,10 @@ insertPGLvl lvl n pg@(PG { pg_assigned = as, pg_nums = nms })
 lookupPG :: Name -> PrettyGuide -> Maybe T.Text
 lookupPG n = HM.lookup n . pg_assigned
 
+-- | Print `pg_assigned`. Exposes internal of the `PrettyGuide` to aid in debugging.
 prettyGuideStr :: PrettyGuide -> T.Text
 prettyGuideStr = T.intercalate "\n" . map (\(n, s) -> s <> " <-> " <> T.pack (show n)) . HM.toList . pg_assigned
+
+-- | Print `pg_nums`. Exposes internal of the `PrettyGuide` to aid in debugging.
+prettyGuideNumsStr :: PrettyGuide -> T.Text
+prettyGuideNumsStr = T.intercalate "\n" . map (\(n, (al, i)) -> n <> " -> " <> T.pack (show al) <> ", " <> T.pack (show i)) . HM.toList . pg_nums
