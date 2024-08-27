@@ -45,7 +45,8 @@ validateStates proj src modN entry chAll gflags in_out = do
         loadToCheck proj src modN gflags
         mapM (\er -> do
                 let s = final_state er
-                let pg = updatePGTypeNames (type_env s) $ mkPrettyGuide ()
+                let pg = updatePGValNames (concatMap (map Data . dataCon) $ type_env s)
+                       $ updatePGTypeNames (type_env s) $ mkPrettyGuide ()
                 _ <- createDecls pg s (H.filter (\x -> adt_source x == ADTG2Generated) (type_env s))
                 validateStatesGHC pg (Just $ T.pack modN) entry chAll er) in_out)
 
