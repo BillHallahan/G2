@@ -429,7 +429,9 @@ runG2WithConfig mod_name state config bindings = do
                                 (runG2WithSomes red hal ord solver simplifier emptyMemConfig state bindings)
                                 lnt
                             )
-                            (mkPrettyGuide ())
+                           (if showType config == Lax 
+                            then (mkPrettyGuide ())
+                            else setTypePrinting AggressiveTypes (mkPrettyGuide ())) 
                         )
                         hpc_t
 

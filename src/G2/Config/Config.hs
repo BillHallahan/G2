@@ -11,6 +11,7 @@ module G2.Config.Config ( Mode (..)
                         , Config (..)
                         , BoolDef (..)
                         , InstTV (..)
+                        , ShowType (..)
                         , mkConfig
                         , mkConfigDirect
 
@@ -44,7 +45,7 @@ data Sharing = Sharing | NoSharing deriving (Eq, Show, Read)
 data InstTV = InstBefore | InstAfter deriving (Eq, Show, Read)
 
 -- Determining whether we want to show more type informations
-data ShowType = Lazy | Aggressive deriving (Eq, Show, Read)
+data ShowType = Lax | Aggressive deriving (Eq, Show, Read)
 
 data SMTSolver = ConZ3 | ConCVC4 deriving (Eq, Show, Read)
 
@@ -97,7 +98,7 @@ mkConfig homedir = Config Regular
     <*> mkLogMode
     <*> flag Sharing NoSharing (long "no-sharing" <> help "disable sharing")
     <*> flag InstBefore InstAfter (long "inst-after" <> help "select to instantiate type variables after symbolic execution, rather than before")
-    <*> flag Lazy Aggressive (long "show-type" <> help "determing whether you want to show more type ifnromation when you are logging the states")
+    <*> flag Lax Aggressive (long "show-types" <> help "determing whether you want to show more type ifnromation when you are logging the states")
     <*> mkMaxOutputs
     <*> switch (long "returns-true" <> help "assert that the function returns true, show only those outputs which return false")
     <*> mkHigherOrder

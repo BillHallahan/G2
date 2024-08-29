@@ -20,7 +20,10 @@ module G2.Lib.Printers ( PrettyGuide
                        , prettyEEnv
                        , prettyTypeEnv 
 
-                       , prettyGuideStr) where
+                       , prettyGuideStr
+                       
+                       , TypePrinting(..)
+                       , setTypePrinting) where
 
 import G2.Language.Expr
 import qualified G2.Language.ExprEnv as E
