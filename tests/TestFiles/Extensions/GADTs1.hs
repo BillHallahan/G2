@@ -58,3 +58,6 @@ id2 x = x
 
 idlr :: Either l r -> Either l r 
 idlr x = x
+
+vecZipConc :: Vec (Succ Zero) (Int, Char)
+vecZipConc = vecZip (VCons 1 VNil) (VCons 'a' VNil) 
