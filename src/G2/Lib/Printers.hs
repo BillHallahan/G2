@@ -42,7 +42,8 @@ import qualified Data.Text as T
 data Clean = Cleaned | Dirty deriving Eq
 
 mkIdHaskell :: PrettyGuide -> Id -> T.Text
-mkIdHaskell pg (Id n _) = mkNameHaskell pg n
+mkIdHaskell pg (Id n t) | t == TYPE || type_printing pg == LaxTypes = mkNameHaskell pg n
+                        | otherwise = "(" <> mkNameHaskell pg n <> " :: " <> mkTypeHaskellPG pg t <> ")"
 
 printName :: PrettyGuide -> Name -> T.Text
 printName = mkNameHaskell
@@ -439,7 +440,7 @@ mkTypeHaskellPG pg (TyCon n _) | nameOcc n == "List"
                                , nameModule n == Just "GHC.Types" = "[]"
                                | otherwise = mkNameHaskell pg n
 mkTypeHaskellPG pg (TyApp t1 t2) = "(" <> mkTypeHaskellPG pg t1 <> " " <> mkTypeHaskellPG pg t2 <> ")"
-mkTypeHaskellPG pg (TyForAll i t) = "forall " <> mkIdHaskell pg i <> " . " <> mkTypeHaskellPG pg t
+mkTypeHaskellPG pg (TyForAll i t) = "forall " <> mkIdHaskell pg i <> " . (" <> mkTypeHaskellPG pg t <> " :: " <> mkTypeHaskellPG pg (typeOf t) <> ")"
 mkTypeHaskellPG _ TyBottom = "Bottom"
 mkTypeHaskellPG _ TYPE = "Type"
 mkTypeHaskellPG _ (TyUnknown) = "Unknown"
@@ -735,34 +736,41 @@ printFuncCallPG pg (FuncCall { funcName = f, arguments = ars, returns = r}) =
 -- Pretty Guide
 -------------------------------------------------------------------------------
 
+data TypePrinting = LaxTypes | AggressiveTypes deriving Eq
+
 -- | Maps G2 `Name`s to printable `String`s uniquely and consistently
 -- (two `Name`s will not map to the same `String`, and on a per `PrettyGuide`
 -- basis the same `Name` will always map to the same `String`.)
 -- The `PrettyGuide` will only work on `Name`s it "knows" about.
 -- It "knows" about names in the `Named` value it is passed in it's creation
 -- (via `mkPrettyGuide`) and all `Name`s that it is passed via `updatePrettyGuide`.
-data PrettyGuide = PG { pg_assigned :: HM.HashMap Name T.Text, pg_nums :: HM.HashMap T.Text Int }
+data PrettyGuide = PG { pg_assigned :: HM.HashMap Name T.Text, pg_nums :: HM.HashMap T.Text Int, type_printing :: TypePrinting }
 
 mkPrettyGuide :: Named a => a -> PrettyGuide
-mkPrettyGuide = foldr insertPG (PG HM.empty HM.empty) . names
+mkPrettyGuide = foldr insertPG (PG HM.empty HM.empty LaxTypes) . names
 
 updatePrettyGuide :: Named a => a -> PrettyGuide -> PrettyGuide
 updatePrettyGuide ns pg = foldr insertPG pg $ names ns
 
 insertPG :: Name -> PrettyGuide -> PrettyGuide
-insertPG n pg@(PG { pg_assigned = as, pg_nums = nms })
+insertPG n pg@(PG { pg_assigned = as, pg_nums = nms, type_printing = tp })
     | not (HM.member n as) =
         case HM.lookup (nameOcc n) nms of
             Just i ->
                 PG { pg_assigned = HM.insert n (nameOcc n <> "'" <> T.pack (show i)) as
-                   , pg_nums = HM.insert (nameOcc n) (i + 1) nms }
+                   , pg_nums = HM.insert (nameOcc n) (i + 1) nms
+                   , type_printing = tp}
             Nothing ->
                 PG { pg_assigned = HM.insert n (nameOcc n) as
-                   , pg_nums = HM.insert (nameOcc n) 1 nms }
+                   , pg_nums = HM.insert (nameOcc n) 1 nms 
+                   , type_printing = tp}
     | otherwise = pg
 
 lookupPG :: Name -> PrettyGuide -> Maybe T.Text
 lookupPG n = HM.lookup n . pg_assigned
+
+setTypePrinting :: TypePrinting -> PrettyGuide -> PrettyGuide
+setTypePrinting tp p = p {type_printing = tp}
 
 prettyGuideStr :: PrettyGuide -> T.Text
 prettyGuideStr = T.intercalate "\n" . map (\(n, s) -> s <> " <-> " <> T.pack (show n)) . HM.toList . pg_assigned
