@@ -98,7 +98,7 @@ mkConfig homedir = Config Regular
     <*> mkLogMode
     <*> flag Sharing NoSharing (long "no-sharing" <> help "disable sharing")
     <*> flag InstBefore InstAfter (long "inst-after" <> help "select to instantiate type variables after symbolic execution, rather than before")
-    <*> flag Lax Aggressive (long "show-types" <> help "determing whether you want to show more type ifnromation when you are logging the states")
+    <*> flag Lax Aggressive (long "show-types" <> help "set to show more type information when logging states")
     <*> mkMaxOutputs
     <*> switch (long "returns-true" <> help "assert that the function returns true, show only those outputs which return false")
     <*> mkHigherOrder

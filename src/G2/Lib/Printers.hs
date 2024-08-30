@@ -25,6 +25,7 @@ module G2.Lib.Printers ( PrettyGuide
                        , TypePrinting(..)
                        , setTypePrinting) where
 
+
 import G2.Language.Expr
 import qualified G2.Language.ExprEnv as E
 import G2.Language.KnownValues
@@ -458,7 +459,9 @@ mkTypeHaskellPG pg (TyCon n _) | nameOcc n == "List"
                                , nameModule n == Just "GHC.Types" = "[]"
                                | otherwise = mkNameHaskell pg n
 mkTypeHaskellPG pg (TyApp t1 t2) = "(" <> mkTypeHaskellPG pg t1 <> " " <> mkTypeHaskellPG pg t2 <> ")"
-mkTypeHaskellPG pg (TyForAll i t) = "forall " <> mkIdHaskell pg i <> " . (" <> mkTypeHaskellPG pg t <> " :: " <> mkTypeHaskellPG pg (typeOf t) <> ")"
+mkTypeHaskellPG pg (TyForAll i t) = if type_printing pg == LaxTypes 
+                                    then "forall " <> mkIdHaskell pg i <> " . " <> mkTypeHaskellPG pg t
+                                    else "forall " <> mkIdHaskell pg i <> " . (" <> mkTypeHaskellPG pg t <> " :: " <> mkTypeHaskellPG pg (typeOf t) <> ")"
 mkTypeHaskellPG _ TyBottom = "Bottom"
 mkTypeHaskellPG _ TYPE = "Type"
 mkTypeHaskellPG _ (TyUnknown) = "Unknown"
