@@ -24,7 +24,10 @@ module G2.Lib.Printers ( PrettyGuide
                        , prettyTypeEnv 
 
                        , prettyGuideStr
-                       , prettyGuideNumsStr) where
+                       , prettyGuideNumsStr
+                       
+                       , TypePrinting(..)
+                       , setTypePrinting) where
 
 import G2.Language.Expr
 import qualified G2.Language.ExprEnv as E
@@ -46,7 +49,8 @@ import qualified Data.Text as T
 data Clean = Cleaned | Dirty deriving Eq
 
 mkIdHaskell :: PrettyGuide -> Id -> T.Text
-mkIdHaskell pg (Id n _) = mkNameHaskell pg n
+mkIdHaskell pg (Id n t) | t == TYPE || type_printing pg == LaxTypes = mkNameHaskell pg n
+                        | otherwise = "(" <> mkNameHaskell pg n <> " :: " <> mkTypeHaskellPG pg t <> ")"
 
 printName :: PrettyGuide -> Name -> T.Text
 printName = mkNameHaskell
@@ -121,7 +125,7 @@ mkExprHaskell' off_init cleaned pg ex = mkExprHaskell'' off_init ex
                        -> T.Text
         mkExprHaskell'' _ (Var ids) = mkIdHaskell pg ids
         mkExprHaskell'' _ (Lit c) = mkLitHaskell UseHash c
-        mkExprHaskell'' _ (Prim p _) = mkPrimHaskell pg p
+        mkExprHaskell'' _ (Prim p _) = if isCleaned then mkPrimHaskellNoDistFloat pg p else mkPrimHaskell pg p
         mkExprHaskell'' off (Lam _ ids e) =
             "(\\" <> mkIdHaskell pg ids <> " -> " <> mkExprHaskell'' off e <> ")"
 
@@ -309,11 +313,10 @@ printTuple' :: PrettyGuide -> Expr -> [T.Text]
 printTuple' pg (App e e') = mkExprHaskell Cleaned pg e':printTuple' pg e
 printTuple' _ _ = []
 
-
 isInfixable :: PrettyGuide -> Expr -> Bool
 isInfixable _ (Var (Id n _)) = isInfixableName n
 isInfixable _ (Data (DataCon n _)) = isInfixableName n
-isInfixable pg (Prim p _) = not . T.any isAlphaNum $ mkPrimHaskell pg p
+isInfixable pg (Prim p _) = not . T.any isAlphaNum $ mkPrimHaskellNoDistFloat pg p
 isInfixable _ _ = False
 
 isInfixableName :: Name -> Bool
@@ -424,6 +427,22 @@ mkPrimHaskell pg = pr
         pr Implies = "undefined"
         pr Iff = "undefined"
 
+mkPrimHaskellNoDistFloat :: PrettyGuide -> Primitive -> T.Text
+mkPrimHaskellNoDistFloat pg = pr
+    where
+        pr FpNeg = "-"
+        pr FpAdd = "+"
+        pr FpSub = "-"
+        pr FpMul = "*"
+        pr FpDiv = "/"
+        pr FpLeq = "<="
+        pr FpLt = "<"
+        pr FpGeq = ">="
+        pr FpGt = ">"
+        pr FpEq = "=="
+        pr FpNeq = "/="
+        pr FpSqrt = "sqrt"
+        pr p = mkPrimHaskell pg p
 
 mkTypeHaskell :: Type -> T.Text
 mkTypeHaskell = mkTypeHaskellPG (mkPrettyGuide ())
@@ -739,6 +758,8 @@ printFuncCallPG pg (FuncCall { funcName = f, arguments = ars, returns = r}) =
 -- Pretty Guide
 -------------------------------------------------------------------------------
 
+data TypePrinting = LaxTypes | AggressiveTypes deriving Eq
+
 -- | See Note [PrettyGuide AssignedLvl]
 data AssignedLvl = TypeLvl | ValLvl | BothLvl deriving (Eq, Show)
 
@@ -760,6 +781,7 @@ data PrettyGuide = PG { pg_assigned :: HM.HashMap Name T.Text -- ^ Mapping of G2
                                                                         -- is the greatest Int I such that  X'I has been used
                                                                         -- as a printable name.
                                                                         -- See also Note [PrettyGuide AssignedLvl].
+                      , type_printing :: TypePrinting -- ^ How detailed should the type information we print be?
                       }
 
 -- Note [PrettyGuide AssignedLvl]
@@ -783,7 +805,7 @@ data PrettyGuide = PG { pg_assigned :: HM.HashMap Name T.Text -- ^ Mapping of G2
 -- | Creates a `PrettyGuide` with mappings for all `Name`s in the `Named` argument.
 -- Does not draw any distinction between type level and value level names.
 mkPrettyGuide :: Named a => a -> PrettyGuide
-mkPrettyGuide = foldr insertPG (PG HM.empty HM.empty) . names
+mkPrettyGuide = foldr insertPG (PG HM.empty HM.empty LaxTypes) . names
 
 -- | Update the `PrettyGuide` with mappings for all `Name`s in the `Named` argument.
 -- Does not draw any distinction between type level and value level names.
@@ -810,15 +832,18 @@ insertPGLvl lvl n pg@(PG { pg_assigned = as, pg_nums = nms })
         case HM.lookup (nameOcc n) nms of
             Just (curr_lvl, i) | lvl == curr_lvl || lvl == BothLvl || curr_lvl == BothLvl ->
                 let  j = i + 1 in
-                PG { pg_assigned = HM.insert n (nameOcc n <> "'" <> T.pack (show j)) as
+                pg { pg_assigned = HM.insert n (nameOcc n <> "'" <> T.pack (show j)) as
                    , pg_nums = HM.insert (nameOcc n) (lvl `unionLvl` curr_lvl, j) nms }
             _ ->
-                PG { pg_assigned = HM.insert n (nameOcc n) as
+                pg { pg_assigned = HM.insert n (nameOcc n) as
                    , pg_nums = HM.insert (nameOcc n) (lvl, 1) nms }
     | otherwise = pg
 
 lookupPG :: Name -> PrettyGuide -> Maybe T.Text
 lookupPG n = HM.lookup n . pg_assigned
+
+setTypePrinting :: TypePrinting -> PrettyGuide -> PrettyGuide
+setTypePrinting tp p = p {type_printing = tp}
 
 -- | Print `pg_assigned`. Exposes internal of the `PrettyGuide` to aid in debugging.
 prettyGuideStr :: PrettyGuide -> T.Text
