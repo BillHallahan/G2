@@ -195,7 +195,9 @@ instance Arbitrary ArbUpperName where
     arbitrary = do
         n1 <- chooseEnum ('A', 'Z')
         n2 <- chooseEnum ('A', 'Z')
-        return . AU $ Name (T.pack [n1, n2]) Nothing 0 Nothing
+        let n = T.pack [n1, n2]
+            n' = if n `elem` ["IO"] then n <> "'" else n
+        return . AU $ Name n' Nothing 0 Nothing
 
 instance Arbitrary ArbName where
     arbitrary = do
