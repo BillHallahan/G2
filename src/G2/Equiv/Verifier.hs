@@ -835,7 +835,7 @@ checkRule config nc init_state bindings total rule = do
            then w
            else filter (not . isFromLemma) w
   let pg = if have_summary $ print_summary nc
-           then mkPrettyGuide $ (getMarkerCX $ reverse w) ++ w'-- $ map (\(Marker _ am) -> am) w
+           then mkPrettyGuide $ (getMarkerCX $ reverse w) ++ w'
            else mkPrettyGuide $ getMarkerCX $ reverse w
   if have_summary $ print_summary nc then do
     putStrLn "--- SUMMARY ---"

@@ -13,7 +13,9 @@ module G2.Language.Arbitrary ( StateBindingsPair (..)
                              , prettyArbSet
 
                              , arbExpr
-                             , arbType) where
+                             , arbType
+                             
+                             , nameCall) where
 
 import G2.Config
 import qualified G2.Initialization.Types as IT
@@ -199,7 +201,9 @@ instance Arbitrary ArbName where
     arbitrary = do
         n1 <- chooseEnum ('a', 'z')
         n2 <- chooseEnum ('a', 'z')
-        return . AN $ Name (T.pack [n1, n2]) Nothing 0 Nothing
+        let n = T.pack [n1, n2]
+            n' = if n `elem` ["do", "if", "in", "of"] then n <> "'" else n
+        return . AN $ Name n' Nothing 0 Nothing
 
 instance Arbitrary ArbId where
     arbitrary = do
