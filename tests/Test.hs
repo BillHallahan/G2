@@ -74,7 +74,7 @@ tests = testGroup "Tests"
         , simplificationTests
         , ufMapQuickcheck
         , unionFindQuickcheck
-        -- , fuzzExecutionQuickCheck
+        , fuzzExecutionQuickCheck
         
         , rewriteTests
         ]

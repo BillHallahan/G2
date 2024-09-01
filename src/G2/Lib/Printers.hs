@@ -1,8 +1,11 @@
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE FlexibleContexts, OverloadedStrings #-}
 
 module G2.Lib.Printers ( PrettyGuide
                        , mkPrettyGuide
                        , updatePrettyGuide
+                       , updatePGValAndTypeNames
+                       , updatePGValNames
+                       , updatePGTypeNames
 
                        , printName
 
@@ -21,10 +24,10 @@ module G2.Lib.Printers ( PrettyGuide
                        , prettyTypeEnv 
 
                        , prettyGuideStr
+                       , prettyGuideNumsStr
                        
                        , TypePrinting(..)
                        , setTypePrinting) where
-
 
 import G2.Language.Expr
 import qualified G2.Language.ExprEnv as E
@@ -175,10 +178,10 @@ mkExprHaskell' off_init cleaned pg ex = mkExprHaskell'' off_init ex
             "(" <> t1_str <> " :~ " <> t2_str <> ")"
         mkExprHaskell'' off (Let binds e) =
             let
-                binds' = T.intercalate (offset off <> "\n")
-                       $ map (\(i, be) -> mkIdHaskell pg i <> " = " <> mkExprHaskell'' off be) binds 
+                binds' = T.intercalate ("\n" <> offset (off + 2))
+                       $ map (\(i, be) -> mkIdHaskell pg i <> " = " <> mkExprHaskell'' (off + 2) be) binds 
             in
-            "let " <> binds' <> " in " <> mkExprHaskell'' off e
+            "let\n" <> offset (off + 2) <> binds' <> " in " <> mkExprHaskell'' off e
         mkExprHaskell'' off (Tick nl e) = "TICK[" <> printTickish pg nl <> "]{" <> mkExprHaskell'' off e <> "}"
         mkExprHaskell'' off (Assume m_fc e1 e2) =
             let
@@ -751,38 +754,89 @@ printFuncCallPG pg (FuncCall { funcName = f, arguments = ars, returns = r}) =
     in
     "(" <> call_str f <> " " <> r_str <> ")"
 
-data TypePrinting = LaxTypes | AggressiveTypes deriving Eq
-
 -------------------------------------------------------------------------------
 -- Pretty Guide
 -------------------------------------------------------------------------------
 
+data TypePrinting = LaxTypes | AggressiveTypes deriving Eq
+
+-- | See Note [PrettyGuide AssignedLvl]
+data AssignedLvl = TypeLvl | ValLvl | BothLvl deriving (Eq, Show)
+
+unionLvl :: AssignedLvl -> AssignedLvl -> AssignedLvl
+unionLvl TypeLvl TypeLvl = TypeLvl
+unionLvl ValLvl ValLvl = ValLvl
+unionLvl _ _ = BothLvl
+
 -- | Maps G2 `Name`s to printable `String`s uniquely and consistently
--- (two `Name`s will not map to the same `String`, and on a per `PrettyGuide`
+-- (two `Name`s will not map to the same `String`, unless one `Name` is on the
+-- type level and one is on the value level.  Further, on a per `PrettyGuide`
 -- basis the same `Name` will always map to the same `String`.)
 -- The `PrettyGuide` will only work on `Name`s it "knows" about.
 -- It "knows" about names in the `Named` value it is passed in it's creation
 -- (via `mkPrettyGuide`) and all `Name`s that it is passed via `updatePrettyGuide`.
-data PrettyGuide = PG { pg_assigned :: HM.HashMap Name T.Text, pg_nums :: HM.HashMap T.Text Int, type_printing :: TypePrinting}
+data PrettyGuide = PG { pg_assigned :: HM.HashMap Name T.Text -- ^ Mapping of G2 `Name`s to printable `T.Text`
+                      , pg_nums :: HM.HashMap T.Text (AssignedLvl, Int) -- ^ Tracking information to ensure distinct
+                                                                        -- name assignments. For a given text X, the Int
+                                                                        -- is the greatest Int I such that  X'I has been used
+                                                                        -- as a printable name.
+                                                                        -- See also Note [PrettyGuide AssignedLvl].
+                      , type_printing :: TypePrinting -- ^ How detailed should the type information we print be?
+                      }
 
+-- Note [PrettyGuide AssignedLvl]
+-- Consider the following code:
+--
+-- @ data X = X
+--   f :: X -> X
+--   f X = X
+-- @
+--
+-- The name `X` is bound as both the name of a type (at the type level) and the name of a
+-- data constructor (at the value level.)  When pretty printing- especially for the purpose
+-- of showing output to the user, or running validation (G2.Translation.HaskellCheck)
+-- we want/need to be able to print both names as `X`, rather than one as `X` and one as i.e. `X'1`.
+--
+-- To enable this the PrettyGuide keeps track of whether a specific name has been assigned on
+-- only the value level, on only the type level or (potentially) on both levels.
+-- The first type a name is assigned on a specific level, it is not given any disambiguating num-tick ('#).
+-- This enables the name `X` to be used for exactly one value, and exactly one type.
+
+-- | Creates a `PrettyGuide` with mappings for all `Name`s in the `Named` argument.
+-- Does not draw any distinction between type level and value level names.
 mkPrettyGuide :: Named a => a -> PrettyGuide
 mkPrettyGuide = foldr insertPG (PG HM.empty HM.empty LaxTypes) . names
 
+-- | Update the `PrettyGuide` with mappings for all `Name`s in the `Named` argument.
+-- Does not draw any distinction between type level and value level names.
 updatePrettyGuide :: Named a => a -> PrettyGuide -> PrettyGuide
 updatePrettyGuide ns pg = foldr insertPG pg $ names ns
 
+updatePGValAndTypeNames :: (ASTContainer a Expr, ASTContainer a Type) => a -> PrettyGuide -> PrettyGuide
+updatePGValAndTypeNames e = updatePGValNames e . updatePGTypeNames e
+
+-- | Update the `PrettyGuide` with mappings for all Expr `Name`s in the `Named` argument.
+updatePGValNames :: ASTContainer a Expr => a -> PrettyGuide -> PrettyGuide
+updatePGValNames e pg = foldr (insertPGLvl ValLvl) pg $ exprNames e
+
+-- | Update the `PrettyGuide` with mappings for all Type `Name`s in the `Named` argument.
+updatePGTypeNames :: ASTContainer a Type => a -> PrettyGuide -> PrettyGuide
+updatePGTypeNames e pg = foldr (insertPGLvl TypeLvl) pg $ typeNames e
+
 insertPG :: Name -> PrettyGuide -> PrettyGuide
-insertPG n pg@(PG { pg_assigned = as, pg_nums = nms, type_printing = tp })
+insertPG = insertPGLvl BothLvl
+
+insertPGLvl :: AssignedLvl -> Name -> PrettyGuide -> PrettyGuide
+insertPGLvl lvl n pg@(PG { pg_assigned = as, pg_nums = nms })
     | not (HM.member n as) =
         case HM.lookup (nameOcc n) nms of
-            Just i ->
-                PG { pg_assigned = HM.insert n (nameOcc n <> "'" <> T.pack (show i)) as
-                   , pg_nums = HM.insert (nameOcc n) (i + 1) nms
-                   , type_printing = tp }
-            Nothing ->
-                PG { pg_assigned = HM.insert n (nameOcc n) as
-                   , pg_nums = HM.insert (nameOcc n) 1 nms 
-                   , type_printing = tp}
+            Just (curr_lvl, i) | lvl == curr_lvl || lvl == BothLvl || curr_lvl == BothLvl ->
+                let  j = i + 1 in
+                pg { pg_assigned = HM.insert n (nameOcc n <> "'" <> T.pack (show j)) as
+                   , pg_nums = HM.insert (nameOcc n) (lvl `unionLvl` curr_lvl, j) nms }
+            _ ->
+                pg { pg_assigned = HM.insert n (nameOcc n) as
+                   , pg_nums = HM.insert (nameOcc n) (lvl, 1) nms }
     | otherwise = pg
 
 lookupPG :: Name -> PrettyGuide -> Maybe T.Text
@@ -791,5 +845,10 @@ lookupPG n = HM.lookup n . pg_assigned
 setTypePrinting :: TypePrinting -> PrettyGuide -> PrettyGuide
 setTypePrinting tp p = p {type_printing = tp}
 
+-- | Print `pg_assigned`. Exposes internal of the `PrettyGuide` to aid in debugging.
 prettyGuideStr :: PrettyGuide -> T.Text
 prettyGuideStr = T.intercalate "\n" . map (\(n, s) -> s <> " <-> " <> T.pack (show n)) . HM.toList . pg_assigned
+
+-- | Print `pg_nums`. Exposes internal of the `PrettyGuide` to aid in debugging.
+prettyGuideNumsStr :: PrettyGuide -> T.Text
+prettyGuideNumsStr = T.intercalate "\n" . map (\(n, (al, i)) -> n <> " -> " <> T.pack (show al) <> ", " <> T.pack (show i)) . HM.toList . pg_nums

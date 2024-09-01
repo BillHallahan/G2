@@ -1,4 +1,4 @@
-{-# LANGUAGE OverloadedStrings#-}
+{-# LANGUAGE OverloadedStrings #-}
 
 module FuzzExecution (fuzzExecutionQuickCheck, fuzzExecution) where
 
@@ -7,8 +7,9 @@ import G2.Language
 import G2.Language.Arbitrary
 import qualified G2.Language.ExprEnv as E
 import G2.Lib.Printers
-import G2.Translation.HaskellCheck
+import G2.Translation
 
+import qualified Data.HashMap.Lazy as HM
 import qualified Data.Text as T
 
 import GHC hiding (Name, entry)
@@ -18,8 +19,6 @@ import TestUtils
 
 import Test.Tasty
 import Test.Tasty.QuickCheck
-
-import Control.Monad.IO.Class
 
 fuzzExecutionQuickCheck :: TestTree
 fuzzExecutionQuickCheck =
@@ -34,21 +33,20 @@ fuzzExecution (SB init_state bindings) = do
 
         (ers, _) <- runG2WithConfig Nothing init_state config bindings
 
-        -- let proj = map takeDirectory src
         mr <- runGhc (Just libdir) (do
                 and <$> mapM (\er -> do
                                     let s = final_state er
                                         pg = mkPrettyGuide (expr_env s, type_env s)
                                     adjustDynFlags
                                     loadStandard
-                                    createDecls pg s (type_env s)
+                                    createDecls pg s (HM.filter (\adt -> adt_source adt == ADTG2Generated) $ type_env s)
                                     case E.lookup nameCall (expr_env s) of
                                         Just e -> do
-                                                    let stmt = T.unpack $ "let call :: " <> mkTypeHaskellPG pg (typeOf e) <> " = " <> printHaskellPG pg s e
+                                                    let stmt = T.unpack $ "let call " <> " = (" <> printHaskellDirtyPG pg e <> ") :: " <> mkTypeHaskellPG pg (typeOf e)
                                                     _ <- execStmt stmt execOptions
                                                     return ()
                                         Nothing -> return ()
                                     validateStatesGHC pg Nothing "call" [] er) ers
-            ) -- validateStates proj src (T.unpack $ fromJust mb_modname) entry chAll [] r
+            )
         
-        return $ property mr)
+        return $ not (null ers) ==> property mr)

@@ -225,6 +225,7 @@ mkConfigDirect homedir as m = Config {
                         (strArg "log-pretty" as m (Log Pretty) NoLog)
     , sharing = boolArg' "sharing" as Sharing Sharing NoSharing
     , instTV = InstBefore
+    , showType = Lax
     , maxOutputs = strArg "max-outputs" as m (Just . read) Nothing
     , returnsTrue = boolArg "returns-true" as m Off
     , higherOrderSolver = strArg "higher-order" as m higherOrderSolArg SingleFunc
