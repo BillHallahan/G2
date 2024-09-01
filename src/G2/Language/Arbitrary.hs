@@ -1,6 +1,19 @@
 {-# LANGUAGE OverloadedStrings, TupleSections #-}
 
-module G2.Language.Arbitrary where
+-- | `Arbitrary` typeclasses, to write QuickCheck tests involving types from "G2.Language.Syntax" and "G2.Language.Support".
+
+module G2.Language.Arbitrary ( StateBindingsPair (..)
+                             , ArbSet (..)
+                             , ArbTypeEnv (..)
+                             , ArbUpperName (..)
+                             , ArbName (..)
+                             , ArbExpr (..)
+                             , ArbType (..)
+                             
+                             , prettyArbSet
+
+                             , arbExpr
+                             , arbType) where
 
 import G2.Config
 import qualified G2.Initialization.Types as IT
@@ -123,6 +136,7 @@ instance Arbitrary ArbTypeEnv where
         tenv' <- zipWithM (arbInstDataCons HM.empty) [0..] tenv 
         return . ATE . HM.union basicTypeEnv . HM.fromList $ tenv' 
 
+-- | A `TypeEnv` with `Int` and `Float` datatypes.
 basicTypeEnv :: TypeEnv
 basicTypeEnv =
     let
@@ -148,15 +162,6 @@ arbInstDataCons tenv unq (ty_n, adt@(DataTyCon { bound_ids = bi })) = do
     return (ty_n, adt { data_cons = dcs' })
 arbInstDataCons _ _ _ = error "arbInstDataCons: Unsupported AlgDataTy"
 
-arbAlgDataTy :: TypeEnv -> Int -> Gen (Name, AlgDataTy)
-arbAlgDataTy tenv unq = do
-    AU ty_n <- arbitrary
-    bi <- return []
-    dc_c <- chooseInt (1, 10)
-    dcs <- map (\(DataCon n t) -> DataCon n (foldr TyForAll t bi)) <$> vectorOf dc_c (arbDataCon tenv unq (TyCon ty_n TYPE))
-    let dcs' = nubBy (\(DataCon n _) (DataCon n' _) -> n == n') dcs
-    return (ty_n, DataTyCon { bound_ids = bi, data_cons = dcs', adt_source = ADTG2Generated })
-
 arbDataCon :: TypeEnv -> Int -> Type -> Gen DataCon
 arbDataCon tenv unq ret_ty = do
     n <- chooseEnum ('A', 'Z')
@@ -166,8 +171,14 @@ arbDataCon tenv unq ret_ty = do
 
 newtype ArbExpr = AE { unAE :: Expr} deriving Show
 newtype ArbType = AT { unAT :: Type} deriving Show
+
+-- | Via `arbitrary`, allows generating type and data constructor `Name`s (with an uppercase first letter.)
 newtype ArbUpperName = AU { unAU :: Name} deriving Show
+
+-- | Via `arbitrary`, allows generating function and variable `Name`s (with a lowercase first letter.)
 newtype ArbName = AN { unAN :: Name} deriving Show
+
+-- | Via `arbitrary`, allows generating function and variable `Id`s (with a lowercase first letter.)
 newtype ArbId = AI { unAI :: Id} deriving Show
 
 instance Arbitrary ArbExpr where
@@ -180,13 +191,15 @@ instance Arbitrary ArbType where
 
 instance Arbitrary ArbUpperName where
     arbitrary = do
-        n <- chooseEnum ('A', 'Z')
-        return . AU $ Name (T.singleton n) Nothing 0 Nothing
+        n1 <- chooseEnum ('A', 'Z')
+        n2 <- chooseEnum ('A', 'Z')
+        return . AU $ Name (T.pack [n1, n2]) Nothing 0 Nothing
 
 instance Arbitrary ArbName where
     arbitrary = do
-        n <- chooseEnum ('a', 'z')
-        return . AN $ Name (T.singleton n) Nothing 0 Nothing
+        n1 <- chooseEnum ('a', 'z')
+        n2 <- chooseEnum ('a', 'z')
+        return . AN $ Name (T.pack [n1, n2]) Nothing 0 Nothing
 
 instance Arbitrary ArbId where
     arbitrary = do
@@ -196,7 +209,10 @@ instance Arbitrary ArbId where
 
 type TypeMap = HM.HashMap Name Type
 
-arbExpr :: TypeEnv -> Type -> Gen Expr
+-- | Generates an arbitrary `Expr` of a given `Type`.
+arbExpr :: TypeEnv
+        -> Type -- ^ A type @t@  
+        -> Gen Expr -- ^ A generated expression @e@, satisfying @e :: t@
 arbExpr tenv init_t = sized $ \k -> arbExpr' k HM.empty init_t
     where
         arbExpr' :: Int -> TypeMap -> Type -> Gen Expr
@@ -283,6 +299,7 @@ typeMapToVars = map (\(n, t') -> Var (Id n t')) . HM.toList
 arbFunType :: TypeEnv -> Gen Type
 arbFunType tenv = sized $ \n -> liftM2 TyFun (arbType tenv $ n `div` 2) (arbType tenv $ n `div` 2)
 
+-- Generates an arbitrary `Type`.
 arbType :: TypeEnv -> Int -> Gen Type
 arbType tenv n | n <= 0 = arbNonFunType tenv
                | otherwise = oneof [ arbNonFunType tenv

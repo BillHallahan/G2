@@ -49,4 +49,4 @@ fuzzExecution (SB init_state bindings) = do
                                     validateStatesGHC pg Nothing "call" [] er) ers
             )
         
-        return $ property mr)
+        return $ not (null ers) ==> property mr)
