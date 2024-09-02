@@ -9,6 +9,7 @@ module G2.Language.Typing
     , PresType (..)
 
     , checkType
+    , unify
 
     , tyInt
     , tyInteger
@@ -160,7 +161,9 @@ class Typed a where
     typeOf :: a -> Type
     typeOf = typeOf' M.empty
 
-    typeOf' :: M.Map Name Type -> a -> Type
+    typeOf' :: M.Map Name Type -- ^ Map of type variables to instantiations
+            -> a
+            -> Type
 
 instance Typed Id where
     typeOf' m (Id _ ty) = tyVarRename m ty
@@ -253,11 +256,11 @@ check' uf (App e1 e2) =
                 _ -> error "check: Unexpected type in App"
         t2 = typeOf e2
     in
-    fmap snd (unify t1 t2 uf) >>= flip check' e1 >>= flip check' e2
+    unify' uf t1 t2 >>= flip check' e1 >>= flip check' e2
 check' uf (Lam u b e) = check' uf e
 check' uf (Let b e) = foldM check' uf (map snd b) >>= flip check' e
 check' uf (Case e _ _ alts) = foldM check' uf (map altExpr alts) >>= flip check' e
-check' uf (Type t) = Just uf
+check' uf (Type _) = Just uf
 check' uf (Cast e (t :~ t')) = check' uf e
 check' uf (Coercion (t :~ t')) = Just uf
 check' uf (Tick _ t) = check' uf t
@@ -267,36 +270,35 @@ check' uf (Assert _ e1 e2) = check' uf e1 >>= flip check' e2
 check' uf (Assume _ e1 e2) = check' uf e1 >>= flip check' e2
 check' _ _ = error "check'"
 
-unify :: Type -> Type -> UF.UFMap Name Type -> Maybe (Type, UF.UFMap Name Type)
-unify t@(TyVar (Id n1 _)) (TyVar (Id n2 _)) uf
+-- | Check if two types unify.  If they do, returns a `UFMap` of type variables to instantiations.
+unify :: Type -> Type ->  Maybe (UF.UFMap Name Type)
+unify = unify' UF.empty
+
+unify' :: UF.UFMap Name Type -> Type -> Type ->  Maybe (UF.UFMap Name Type)
+unify' uf t@(TyVar (Id n1 t1)) (TyVar (Id n2 t2))
     | Just t1 <- UF.lookup n1 uf
     , Just t2 <- UF.lookup n2 uf =
-        case unify t1 t2 uf of
-            Just (t, uf') -> Just (t, UF.join (\_ _ -> t) n1 n2 uf')
-            Nothing -> Nothing
-    | otherwise = Just (t, UF.join (error "unify: impossible, no need to join") n1 n2 uf)
-unify (TyVar (Id n _)) t uf
-    | Just t1 <- UF.lookup n uf = unify t1 t uf
-    | otherwise = Just (t, UF.insert n t uf)
-unify t (TyVar (Id n _)) uf
-    | Just t2 <- UF.lookup n uf = unify t t2 uf
-    | otherwise = Just (t, UF.insert n t uf)
-unify (TyFun t1 t2) (TyFun t1' t2') uf = do
-    (ft1, uf') <- unify t1 t1' uf
-    (ft2, uf'') <- unify t2 t2' uf'
-    return (TyFun ft1 ft2, uf'')
-unify (TyApp t1 t2) (TyApp t1' t2') uf = do
-    (ft1, uf') <- unify t1 t1' uf
-    (ft2, uf'') <- unify t2 t2' uf'
-    return (TyApp ft1 ft2, uf'')
-unify (TyCon n1 k1) (TyCon n2 k2) uf | n1 == n2 = do
-    (fk, uf') <- unify k1 k2 uf
-    return (TyCon n1 fk, uf')
-unify (TyForAll i t1) (TyForAll i2 t2) uf = do
-    (t, uf') <- unify t1 t2 uf
-    return (TyForAll i t, uf')
-unify t1 t2 uf | t1 == t2 = return (t1, uf)
-               | otherwise = Nothing
+        UF.join const n1 n2 <$> unify' uf t1 t2
+    | otherwise =
+        UF.join (error "unify': impossible, no need to join") n1 n2 <$> unify' uf t1 t2
+unify' uf (TyVar (Id n _)) t
+    | Just t1 <- UF.lookup n uf = unify' uf t1 t
+    | otherwise = Just (UF.insert n t uf)
+unify' uf t (TyVar (Id n _))
+    | Just t2 <- UF.lookup n uf = unify' uf t t2
+    | otherwise = Just (UF.insert n t uf)
+unify' uf (TyFun t1 t2) (TyFun t1' t2') = do
+    uf' <- unify' uf t1 t1'
+    unify' uf' t2 t2'
+unify' uf (TyApp t1 t2) (TyApp t1' t2') = do
+    uf' <- unify' uf t1 t1'
+    unify' uf' t2 t2'
+unify' uf (TyCon n1 k1) (TyCon n2 k2) | n1 == n2 = unify' uf k1 k2
+unify' uf (TyForAll i1 t1) (TyForAll i2 t2) = do
+    uf' <- unify' uf (typeOf i1) (typeOf i2)
+    unify' uf' t1 t2
+unify' uf t1 t2 | t1 == t2 = return uf
+                | otherwise = Nothing
 
 instance Typed Type where
     typeOf' _ (TyVar (Id _ t)) = t
