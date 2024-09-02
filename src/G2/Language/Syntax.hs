@@ -265,13 +265,16 @@ instance Eq Lit where
     _ == _ = False
 
 -- | Data constructor.
-data DataCon = DataCon Name Type deriving (Show, Eq, Read, Generic, Typeable, Data, Ord)
+data DataCon = DataCon { dc_name :: Name 
+                       , dc_type :: Type 
+                       , dc_univ_tyvars :: [Id]
+                       , dc_exist_tyvars :: [Id] } deriving (Show, Eq, Read, Generic, Typeable, Data, Ord)
 
 instance Hashable DataCon
 
 -- | Extract the `Name` of a `DataCon`.
 dcName :: DataCon -> Name
-dcName (DataCon n _) = n
+dcName (DataCon n _ _ _) = n
 
 -- | Describe the conditions to match on a particular `Alt`.
 data AltMatch = DataAlt DataCon [Id] -- ^ Match a datacon. The number of `Id`s
