@@ -45,7 +45,7 @@ instance Ided Type where
 
 instance Ided DataCon where
     {-# INLINE ids #-}
-    ids (DataCon _ t) = ids t
+    ids (DataCon _ t _ _) = ids t
 
 instance Ided AltMatch where
     {-# INLINE ids #-}

@@ -281,8 +281,8 @@ evalCase s@(State { expr_env = eenv
   -- We do not want to remove casting from any of the arguments since this could
   -- mess up there types later
   | (Data dcon):ar <- unApp $ exprInCasts mexpr
-  , (DataCon _ _) <- dcon
-  , ar' <- removeTypes ar eenv
+  , (DataCon _ _ _ _) <- dcon
+  , ar' <- removeFirstNTypes (length (dc_univ_tyvars dcon)) ar eenv
   , (Alt (DataAlt _ params) expr):_ <- matchDataAlts dcon alts =
       let
           dbind = [(bind, mexpr)]
@@ -373,6 +373,18 @@ removeTypes (v@(Var _):es) eenv = case repeatedLookup eenv v of
     _ -> v : removeTypes es eenv
 removeTypes (e:es) eenv = e : removeTypes es eenv
 removeTypes [] _ = []
+
+-- | Remove the first n elements from an [Expr] that are actually Types.
+removeFirstNTypes :: Int -> [Expr] -> E.ExprEnv -> [Expr]
+removeFirstNTypes 0 e = e
+removeFirstNTypes i ((Type _):es) eenv = removeFirstNTypes (i-1) es eenv
+removeFirstNTypes i (v@(Var _):es) eenv = case repeatedLookup eenv v of
+    (Type _) -> removeFirstNTypes (i-1) es eenv
+    _ -> v : removeFirstNTypes es eenv
+removeFirstNTypes i (e:es) eenv = e : removeFirstNTypes i es eenv
+removeFirstNTypes _ [] _ = []
+
+
 
 -- | DEFAULT `Alt`s.
 matchDefaultAlts :: [Alt] -> [Alt]
