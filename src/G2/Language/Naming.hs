@@ -66,7 +66,7 @@ import qualified Data.Sequence as S
 import qualified Data.Text as T
 import Data.Tuple
 import qualified Text.Builder as TB
-
+import qualified Data.Monoid as M
 -- | Extract the "occurence" from a `Name`.
 --
 -- >>> nameOcc (Name "x" (Just "mod") 100 Nothing)
@@ -179,7 +179,7 @@ altMatchNames (DataAlt dc i) = dataConName dc ++ (map idName i)
 altMatchNames _ = []
 
 dataConName :: DataCon -> [Name]
-dataConName (DataCon n _) = [n]
+dataConName (DataCon n _ u e) = [n] ++ map idName u ++ map idName e
 
 typeNames :: (ASTContainer m Type) => m -> [Name]
 typeNames = evalASTs typeTopNames
@@ -337,8 +337,9 @@ renameVars' _ _ e = e
 renameExprId :: Name -> Name -> Id -> Id
 renameExprId old new (Id n t) = Id (rename old new n) t
 
+-- we should only rename the name in the DataCon and leave univ and exist type variable intact right?
 renameExprDataCon :: Name -> Name -> DataCon -> DataCon
-renameExprDataCon old new (DataCon n t) = DataCon (rename old new n) t
+renameExprDataCon old new (DataCon n t u e) = DataCon (rename old new n) t u e
 
 renameExprAlt :: Name -> Name -> Alt -> Alt
 renameExprAlt old new (Alt (DataAlt dc is) e) =
@@ -374,8 +375,9 @@ renamesExprs' _ e = e
 renamesExprId :: HM.HashMap Name Name -> Id -> Id
 renamesExprId hm (Id n t) = Id (renames hm n) t
 
+-- only rename the name in the DataCon while leaving univ and exist type variable inact?
 renamesExprDataCon :: HM.HashMap Name Name -> DataCon -> DataCon
-renamesExprDataCon hm (DataCon n t) = DataCon (renames hm n) t
+renamesExprDataCon hm (DataCon n t u e) = DataCon (renames hm n) t u e
 
 renamesExprAlt :: HM.HashMap Name Name -> Alt -> Alt
 renamesExprAlt hm (Alt (DataAlt dc is) e) =
@@ -433,15 +435,24 @@ instance Named Alt where
 
 instance Named DataCon where
     {-# INLINE names #-}
-    names (DataCon n t) = n S.<| names t
+    names (DataCon n t u e) = 
+        let 
+            -- might need closer examination of this names instance
+            u' = mconcat $ map names u
+            e' = mconcat $ map names e
+            all_tyvars = u' S.>< e'
+            n' = n S.<| names t 
+            n'' = n' S.>< all_tyvars        
+        in 
+            n''
 
     {-# INLINE rename #-}
-    rename old new (DataCon n t) =
-        DataCon (rename old new n) (rename old new t)
+    rename old new (DataCon n t u e) =
+        DataCon (rename old new n) (rename old new t) (map (rename old new) u) (map (rename old new) e)
 
     {-# INLINE renames #-}
-    renames hm (DataCon n t) =
-        DataCon (renames hm n) (renames hm t)
+    renames hm (DataCon n t u e) =
+        DataCon (renames hm n) (renames hm t) (map (renames hm) u) (map (renames hm) e)
 
 instance Named AltMatch where
     {-# INLINE names #-}
