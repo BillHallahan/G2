@@ -148,7 +148,7 @@ qqDataConLookupFallBack tyv_n arg_n qqtn qqdc type_nm_qqm dc_nm_qqm tenv
             t = mkTyFun $ replicate (arg_n + 1) (TyCon n TYPE)
             t' = foldr TyForAll t (replicate tyv_n i)
         in
-        DataCon (qqNameToName0 qqdc) t'
+        DataCon (qqNameToName0 qqdc) t' [] []
 
 newField :: TH.Name -> TH.Name -> (TH.Name, StrictType) -> Q Exp
 newField _ _ (x, (_, ConT n))

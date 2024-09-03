@@ -40,15 +40,15 @@ dataInject prog progTy =
     modifyASTs (dataInject' dcNames) prog
 
 -- TODO: Polymorphic types?
-dataInject' :: [(Name, [Type])] -> Expr -> Expr
+dataInject' :: [(Name, [Type], [Id], [Id])] -> Expr -> Expr
 dataInject' ns v@(Var (Id (Name n m _ _) t)) = 
-    case find (\(Name n' m' _ _, _) -> n == n' && m == m') ns of
-        Just (n', _) -> Data (DataCon n' t)
+    case find (\(Name n' m' _ _, _, _, _) -> n == n' && m == m') ns of
+        Just (n', _, u, e) -> Data (DataCon n' t u e)
         Nothing -> v
 dataInject' _ e = e
 
-conName :: DataCon -> (Name, [Type])
-conName (DataCon n t) = (n, anonArgumentTypes $ t)
+conName :: DataCon -> (Name, [Type], [Id], [Id])
+conName (DataCon n t u e) = (n, anonArgumentTypes t, u, e)
 
 primDefs :: HM.HashMap Name AlgDataTy -> [(T.Text, Expr)]
 primDefs pt = case (boolName pt, charName pt, listName pt) of

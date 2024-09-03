@@ -172,7 +172,7 @@ createDeepSeqCase1 _ _ _ _ _ _ _ = error "createDeepSeqCase1: bad argument passe
 -- | Creating alternatives for the "outer case statement" in Note [Walker function code]
 createDeepSeqDataConCase1Alts :: TypeEnv -> Walkers -> TyVarWalkersFuncs -> Name -> Id -> [BoundName] -> NameGen -> [DataCon] -> ([Alt], NameGen)
 createDeepSeqDataConCase1Alts _ _ _ _ _ _ ng [] = ([], ng)
-createDeepSeqDataConCase1Alts tenv w ti n i bn ng (dc@(DataCon _ dc_t):xs) =
+createDeepSeqDataConCase1Alts tenv w ti n i bn ng (dc@(DataCon _ dc_t _ _):xs) =
     let
         t_ids = leadingTyForAllBindings $ PresType dc_t
         rm' = HM.fromList (zip (map idName t_ids) bn)

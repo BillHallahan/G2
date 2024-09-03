@@ -134,7 +134,7 @@ dcWithStrName tenv ts dcs =
     dc -> dcWithStrName' dc dcs
 
 dcWithStrName' :: [DataCon] -> T.Text -> Name
-dcWithStrName' (DataCon n@(Name n' _ _ _) _:xs) s =
+dcWithStrName' (DataCon n@(Name n' _ _ _) _ _ _:xs) s =
   if n' == s then n else dcWithStrName' xs s
 dcWithStrName' _ s = error $ "No dc found in dcWithStrName [" ++ (show $ T.unpack s) ++ "]"
 

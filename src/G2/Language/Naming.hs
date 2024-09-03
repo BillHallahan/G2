@@ -2,6 +2,7 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE InstanceSigs #-}
 
 module G2.Language.Naming
     ( nameOcc
@@ -437,22 +438,19 @@ instance Named DataCon where
     {-# INLINE names #-}
     names (DataCon n t u e) = 
         let 
-            -- might need closer examination of this names instance
-            u' = mconcat $ map names u
-            e' = mconcat $ map names e
-            all_tyvars = u' S.>< e'
-            n' = n S.<| names t 
-            n'' = n' S.>< all_tyvars        
+            all_tyvars = names u S.>< names e
+            t_ns = names t 
         in 
-            n''
+        n S.<| t_ns S.>< all_tyvars  
 
     {-# INLINE rename #-}
     rename old new (DataCon n t u e) =
-        DataCon (rename old new n) (rename old new t) (map (rename old new) u) (map (rename old new) e)
+        DataCon (rename old new n) (rename old new t) (rename old new u) (rename old new e)
 
     {-# INLINE renames #-}
+    renames :: HM.HashMap Name Name -> DataCon -> DataCon
     renames hm (DataCon n t u e) =
-        DataCon (renames hm n) (renames hm t) (map (renames hm) u) (map (renames hm) e)
+        DataCon (renames hm n) (renames hm t) (renames hm u) (renames hm e)
 
 instance Named AltMatch where
     {-# INLINE names #-}

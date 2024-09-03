@@ -721,7 +721,10 @@ mkData :: DataCon -> G2.NamesM G2.DataCon
 mkData datacon = do
     name <- mkDataName datacon
     ty <- (mkType . dataConRepType) datacon
-    return $ G2.DataCon name ty
+    u <- mapM typeId $ dataConUnivTyVars datacon
+    e <- mapM typeId $ dataConExTyCoVars datacon
+
+    return $ G2.DataCon name ty u e 
 
 mkDataName :: DataCon -> G2.NamesM G2.Name
 mkDataName datacon = valNameLookup . dataConName $ datacon
