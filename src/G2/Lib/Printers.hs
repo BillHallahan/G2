@@ -100,9 +100,10 @@ mkCleanExprHaskell' tc e
     | otherwise = Nothing
 
 elimPrimDC :: Alt -> Maybe Alt
-elimPrimDC (Alt (DataAlt dc@(DataCon (Name n _ _ _) t) is) e)
+-- datacon: did we ignore the universal and existential type variable in elimPrimDC?
+elimPrimDC (Alt (DataAlt dc@(DataCon (Name n _ _ _) t utyvar etyvar) is) e)
     | n == "I#" || n == "F#" || n == "D#" || n == "Z#" || n == "C#" =
-                        Just $ Alt (DataAlt (DataCon (Name "" Nothing 0 Nothing) t) is) (insertLitDC dc e)
+                        Just $ Alt (DataAlt (DataCon (Name "" Nothing 0 Nothing) t utyvar etyvar) is) (insertLitDC dc e)
 elimPrimDC _ = Nothing
 
 insertLitDC :: DataCon -> Expr -> Expr 
@@ -130,14 +131,15 @@ mkExprHaskell' off_init cleaned pg ex = mkExprHaskell'' off_init ex
             "(\\" <> mkIdHaskell pg ids <> " -> " <> mkExprHaskell'' off e <> ")"
 
         mkExprHaskell'' off a@(App ea@(App e1 e2) e3)
-            | Data (DataCon n _) <- appCenter a
+        -- datacon: I assume we should ignore the mkExprHaskell?
+            | Data (DataCon n _ _ _) <- appCenter a
             , isTuple n
             , isCleaned = printTuple pg a
-            | Data (DataCon n _) <- appCenter a
+            | Data (DataCon n _ _ _) <- appCenter a
             , isPrimTuple n
             , isCleaned = printPrimTuple pg a
 
-            | Data (DataCon n1 _) <- e1
+            | Data (DataCon n1 _ _ _) <- e1
             , nameOcc n1 == ":"
             , isCleaned =
                 if isLitChar e2 then printString pg a else printList pg a
@@ -154,7 +156,7 @@ mkExprHaskell' off_init cleaned pg ex = mkExprHaskell'' off_init ex
             | otherwise = mkExprHaskell'' off ea <> " " <> parenWrap e3 (mkExprHaskell'' off e3)
 
         mkExprHaskell'' off (App e1 ea@(App _ _)) = parenWrap e1 (mkExprHaskell'' off e1) <> " (" <> mkExprHaskell'' off ea <> ")"
-        mkExprHaskell'' _ (App (Data (DataCon (Name n _ _ _) _)) (Lit l)) 
+        mkExprHaskell'' _ (App (Data (DataCon (Name n _ _ _) _ _ _)) (Lit l)) 
             | n == "I#" || n == "F#" || n == "D#" || n == "Z#" || n == "C#" = mkLitHaskell NoHash l
         mkExprHaskell'' off (App e1 e2) =
             parenWrap e1 (mkExprHaskell'' off e1) <> " " <> parenWrap e2 (mkExprHaskell'' off e2)
@@ -219,7 +221,7 @@ mkAltHaskell off cleaned pg i_bndr@(Id bndr_name _) (Alt am e) =
     offset off <> mkAltMatchHaskell (if needs_bndr then Just i_bndr else Nothing) am <> " -> " <> mkExprHaskell' off cleaned pg e
     where
         mkAltMatchHaskell :: Maybe Id -> AltMatch -> T.Text
-        mkAltMatchHaskell m_bndr (DataAlt dc@(DataCon n _) ids) | isTuple n =
+        mkAltMatchHaskell m_bndr (DataAlt dc@(DataCon n _ _ _) ids) | isTuple n =
             let
                 pr_am = printTuple pg $ mkApp (Data dc:map Var ids)
             in
@@ -227,7 +229,7 @@ mkAltHaskell off cleaned pg i_bndr@(Id bndr_name _) (Alt am e) =
                 Just bndr | not (L.null ids) -> mkIdHaskell pg bndr <> "@" <> pr_am <> ""
                           | otherwise -> mkIdHaskell pg bndr
                 Nothing -> pr_am
-        mkAltMatchHaskell m_bndr (DataAlt dc@(DataCon n _) [id1, id2]) | isInfixableName n =
+        mkAltMatchHaskell m_bndr (DataAlt dc@(DataCon n _ _ _) [id1, id2]) | isInfixableName n =
             let
                 pr_am = mkIdHaskell pg id1 <> " " <> mkDataConHaskell pg dc <> " " <> mkIdHaskell pg id2
             in
@@ -250,8 +252,8 @@ mkAltHaskell off cleaned pg i_bndr@(Id bndr_name _) (Alt am e) =
 
 mkDataConHaskell :: PrettyGuide -> DataCon -> T.Text
 -- Special casing for Data.Map in the modified base
-mkDataConHaskell _ (DataCon (Name "Assocs" _ _ _) _) = "fromList"
-mkDataConHaskell pg (DataCon n _) = mkNameHaskell pg n
+mkDataConHaskell _ (DataCon (Name "Assocs" _ _ _) _ _ _) = "fromList"
+mkDataConHaskell pg (DataCon n _ _ _) = mkNameHaskell pg n
 
 offset :: Int -> T.Text
 offset i = duplicate "   " i
@@ -264,11 +266,11 @@ printList pg a =
         _ -> "[" <> T.intercalate ", " strs <> "]"
 
 printList' :: PrettyGuide -> Expr -> ([T.Text], Bool)
-printList' pg (App (App e1 e) e') | Data (DataCon n1 _) <- e1
+printList' pg (App (App e1 e) e') | Data (DataCon n1 _ _ _) <- e1
                                   , nameOcc n1 == ":" =
     let (strs, b) = printList' pg e'
     in (mkExprHaskell Cleaned pg e:strs, b)
-printList' pg e | Data (DataCon n _) <- appCenter e
+printList' pg e | Data (DataCon n _ _ _) <- appCenter e
                 , nameOcc n == "[]" = ([], True)
                 | otherwise = ([mkExprHaskell Cleaned pg e], False)
 
@@ -290,7 +292,7 @@ printString' (App (App _ (Lit (LitChar c))) e') =
     case printString' e' of
         Nothing -> Nothing
         Just str -> Just (T.cons c str)
-printString' e | Data (DataCon n _) <- appCenter e
+printString' e | Data (DataCon n _ _ _) <- appCenter e
                , nameOcc n == "[]" = Just ""
                | otherwise = Nothing
 
@@ -315,7 +317,7 @@ printTuple' _ _ = []
 
 isInfixable :: PrettyGuide -> Expr -> Bool
 isInfixable _ (Var (Id n _)) = isInfixableName n
-isInfixable _ (Data (DataCon n _)) = isInfixableName n
+isInfixable _ (Data (DataCon n _ _ _)) = isInfixableName n
 isInfixable pg (Prim p _) = not . T.any isAlphaNum $ mkPrimHaskellNoDistFloat pg p
 isInfixable _ _ = False
 

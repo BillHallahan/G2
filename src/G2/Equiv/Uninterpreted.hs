@@ -45,11 +45,11 @@ allDC' e = case e of
 freeDC :: ASTContainer e Expr => TypeEnv -> e -> HS.HashSet DataCon
 freeDC typeEnv e =
     let al = allDC e
-        inTEnv = HS.map (\(DataCon n _) -> n)
+        inTEnv = HS.map (\(DataCon n _ _ _) -> n)
                . HS.fromList
                . concatMap dataCon
                . HM.elems $ typeEnv in
-    HS.filter (\(DataCon n _) -> not (HS.member n inTEnv)) al
+    HS.filter (\(DataCon n _ _ _) -> not (HS.member n inTEnv)) al
 
 allTypes :: ASTContainer t Type => t -> [(Name, Kind)]
 allTypes = evalASTs allTypes' 
@@ -86,7 +86,7 @@ unknownDC ng n@(Name occn _ _ _) k is =
         ti = TyLitInt `TyFun` ta 
         tfa = foldl' (flip TyForAll) ti is
         (dc_n, ng') = freshSeededString ("Unknown" DM.<> occn) ng   
-        in (DataCon dc_n tfa, ng')
+        in (DataCon dc_n tfa is [], ng')
 
 -- | add free Datacons into the TypeEnv at the appriorpate Type)
 addDataCons :: TypeEnv -> [DataCon] -> TypeEnv

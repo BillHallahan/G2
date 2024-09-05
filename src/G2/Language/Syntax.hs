@@ -265,6 +265,9 @@ instance Eq Lit where
     _ == _ = False
 
 -- | Data constructor.
+-- The existential and universal quantifiers should correspond to what is in the TyForAll's- in particular,
+-- univTyVar dc ++ existTyVar dc == tyForalls dc
+-- if univTyVar and existTyVar get the universal and existential type variables, and tyForAlls get all tyforall ids.
 data DataCon = DataCon { dc_name :: Name 
                        , dc_type :: Type 
                        , dc_univ_tyvars :: [Id]

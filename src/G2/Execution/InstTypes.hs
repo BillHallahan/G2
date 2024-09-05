@@ -33,10 +33,12 @@ newType ng i te =
         tyapps = mkTyApp tys
         tyfuns = TyFun TyLitInt tyapps
         tyforall = foldl' (flip TyForAll) tyfuns all_ids
+        -- I believe I am doing the right thing but unsure for the universial type variable
+        utyvar = (\(TyForAll u _) -> u) tyforall
 
         nadt = DataTyCon 
                     { bound_ids = all_ids
-                    , data_cons = [DataCon dc tyforall]
+                    , data_cons = [DataCon dc tyforall [utyvar] []]
                     , adt_source = ADTG2Generated}
         te' = HM.insert tn nadt te 
     in
