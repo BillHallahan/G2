@@ -1167,7 +1167,7 @@ constraintsToSMT eenv tenv meas meas_ex evals si fc =
 convertExprToSMT :: G2.Expr -> SMTAST
 convertExprToSMT e = 
     case e of
-        (App (App (Data (DataCon _ _)) _) ls)
+        (App (App (Data (DataCon _ _ _ _)) _) ls)
             | Just is <- extractInts ls ->
                 foldr (\i arr -> ArrayStore arr (VInt i) (VBool True)) falseArray is
         _ -> exprToSMT e
