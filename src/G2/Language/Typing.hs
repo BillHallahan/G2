@@ -8,9 +8,9 @@ module G2.Language.Typing
     ( Typed (..)
     , PresType (..)
 
-    , checkType
     , unify
-
+    , unify'
+    
     , tyInt
     , tyInteger
     , tyDouble
@@ -240,45 +240,16 @@ appTypeOf _ TyBottom _ = TyBottom
 appTypeOf _ TyUnknown _ = TyUnknown
 appTypeOf _ t es = error ("appTypeOf\n" ++ show t ++ "\n" ++ show es ++ "\n\n")
 
-checkType :: Expr -> Maybe (UF.UFMap Name Type)
-checkType = check' UF.empty
-
-check' :: UF.UFMap Name Type -> Expr -> Maybe (UF.UFMap Name Type)
-check' uf (Var (Id _ _)) = Just uf
-check' uf (Lit _) = Just uf
-check' uf (Prim _ _) = Just uf
-check' uf (Data _) = Just uf
-check' uf (App e1 e2) =
-    let
-        t1 = case typeOf e1 of
-                TyFun t _ -> t
-                TyForAll (Id _ t) _ -> t
-                _ -> error "check: Unexpected type in App"
-        t2 = typeOf e2
-    in
-    unify' uf t1 t2 >>= flip check' e1 >>= flip check' e2
-check' uf (Lam u b e) = check' uf e
-check' uf (Let b e) = foldM check' uf (map snd b) >>= flip check' e
-check' uf (Case e _ _ alts) = foldM check' uf (map altExpr alts) >>= flip check' e
-check' uf (Type _) = Just uf
-check' uf (Cast e (t :~ t')) = check' uf e
-check' uf (Coercion (t :~ t')) = Just uf
-check' uf (Tick _ t) = check' uf t
-check' uf (NonDet es) = foldM check' uf es
-check' uf (SymGen _ _) = Just uf
-check' uf (Assert _ e1 e2) = check' uf e1 >>= flip check' e2
-check' uf (Assume _ e1 e2) = check' uf e1 >>= flip check' e2
-check' _ _ = error "check'"
-
 -- | Check if two types unify.  If they do, returns a `UFMap` of type variables to instantiations.
 unify :: Type -> Type ->  Maybe (UF.UFMap Name Type)
 unify = unify' UF.empty
 
+-- | `unify`, but with a pre-existing (partial) mapping of type variables to instantiations.
 unify' :: UF.UFMap Name Type -> Type -> Type ->  Maybe (UF.UFMap Name Type)
-unify' uf t@(TyVar (Id n1 t1)) (TyVar (Id n2 t2))
-    | Just t1 <- UF.lookup n1 uf
-    , Just t2 <- UF.lookup n2 uf =
-        UF.join const n1 n2 <$> unify' uf t1 t2
+unify' uf (TyVar (Id n1 t1)) (TyVar (Id n2 t2))
+    | Just uf_t1 <- UF.lookup n1 uf
+    , Just uf_t2 <- UF.lookup n2 uf =
+        UF.join const n1 n2 <$> unify' uf uf_t1 uf_t2
     | otherwise =
         UF.join (error "unify': impossible, no need to join") n1 n2 <$> unify' uf t1 t2
 unify' uf (TyVar (Id n _)) t
