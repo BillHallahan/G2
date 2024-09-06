@@ -282,7 +282,7 @@ evalCase s@(State { expr_env = eenv
   -- mess up there types later
   | (Data dcon):ar <- unApp $ exprInCasts mexpr
   , (DataCon _ _ _ _) <- dcon
-  , ar' <- removeFirstNTypes (length (dc_univ_tyvars dcon)) ar eenv
+  , ar' <- drop (length (dc_univ_tyvars dcon)) ar 
   , (Alt (DataAlt _ params) expr):_ <- matchDataAlts dcon alts =
       let
           dbind = [(bind, mexpr)]
@@ -373,18 +373,6 @@ removeTypes (v@(Var _):es) eenv = case repeatedLookup eenv v of
     _ -> v : removeTypes es eenv
 removeTypes (e:es) eenv = e : removeTypes es eenv
 removeTypes [] _ = []
-
--- | Remove the first n elements from an [Expr] that are actually Types.
-removeFirstNTypes :: Int -> [Expr] -> E.ExprEnv -> [Expr]
-removeFirstNTypes 0 e _ = e
-removeFirstNTypes i ((Type _):es) eenv = removeFirstNTypes (i-1) es eenv
-removeFirstNTypes i (v@(Var _):es) eenv = case repeatedLookup eenv v of
-    -- might need a double check to make sure I am doing the right things?
-    (Type _) -> removeFirstNTypes (i-1) es eenv
-    _ -> v : removeFirstNTypes i es eenv
-removeFirstNTypes i (e:es) eenv = e : removeFirstNTypes i es eenv
-removeFirstNTypes _ [] _ = []
-
 
 -- | DEFAULT `Alt`s.
 matchDefaultAlts :: [Alt] -> [Alt]
@@ -1265,7 +1253,6 @@ argTypes :: Type -> ([Type], Type)
 argTypes t = (anonArgumentTypes $ PresType t, returnType $ PresType t)
 
 genArgIds :: DataCon -> NameGen -> ([Id], NameGen)
--- might be interesting to look at this case since we can generate the new ids from the universial and existential? 
 genArgIds (DataCon _ dcty _ _) ng =
     let (argTys, _) = argTypes dcty
     in foldr (\ty (is, ng') -> let (i, ng'') = freshId ty ng' in ((i:is), ng'')) ([], ng) argTys

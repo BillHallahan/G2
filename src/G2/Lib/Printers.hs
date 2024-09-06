@@ -100,7 +100,6 @@ mkCleanExprHaskell' tc e
     | otherwise = Nothing
 
 elimPrimDC :: Alt -> Maybe Alt
--- datacon: did we ignore the universal and existential type variable in elimPrimDC?
 elimPrimDC (Alt (DataAlt dc@(DataCon (Name n _ _ _) t utyvar etyvar) is) e)
     | n == "I#" || n == "F#" || n == "D#" || n == "Z#" || n == "C#" =
                         Just $ Alt (DataAlt (DataCon (Name "" Nothing 0 Nothing) t utyvar etyvar) is) (insertLitDC dc e)
@@ -131,7 +130,6 @@ mkExprHaskell' off_init cleaned pg ex = mkExprHaskell'' off_init ex
             "(\\" <> mkIdHaskell pg ids <> " -> " <> mkExprHaskell'' off e <> ")"
 
         mkExprHaskell'' off a@(App ea@(App e1 e2) e3)
-        -- datacon: I assume we should ignore the mkExprHaskell?
             | Data (DataCon n _ _ _) <- appCenter a
             , isTuple n
             , isCleaned = printTuple pg a

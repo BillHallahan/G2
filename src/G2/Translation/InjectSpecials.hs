@@ -10,6 +10,7 @@ import qualified Data.HashMap.Lazy as HM
 import qualified Data.Text as T
 
 import G2.Language
+import Language.Haskell.Syntax (StmtLR(recS_later_ids))
 
 _MAX_TUPLE :: Int
 _MAX_TUPLE = 62
@@ -30,12 +31,11 @@ specialDC ns tn (n, m, ts) =
     let
         tv = map (TyVar . flip Id TYPE) ns
 
-        t = foldr (TyFun) (mkFullAppedTyCon tn tv TYPE) ts
-        t' = foldr (\n' -> TyForAll (Id n' TYPE)) t ns
-        -- might need more investigation into this part of the code 
-        i' = (\(TyForAll i _) -> i) t'
+        t = foldr TyFun (mkFullAppedTyCon tn tv TYPE) ts
+        is = map (flip Id TYPE) ns
+        t' = foldr TyForAll t is
     in
-    DataCon (Name n m 0 Nothing) t' [i'] []
+    DataCon (Name n m 0 Nothing) t' is []
 
 specialTypeNames :: HM.HashMap (T.Text, Maybe T.Text) Name
 specialTypeNames = -- HM.fromList $ map (\(n, m, _) -> ((n, m), Name n m 0 Nothing)) specialTypeNames'
@@ -135,11 +135,12 @@ mkPrimTuples' n | n < 0 = []
                             tv = map (TyVar . flip Id TYPE) ns
 
                             t = foldr (TyFun) (mkFullAppedTyCon tn tv TYPE) tv
-                            t' = foldr (\n' -> TyForAll (Id n' TYPE)) t ns
-                            t'' = foldr (\n' -> TyForAll (Id n' TYPE)) t' rt_ns
-                            -- might need further investigation
-                            i' = (\(TyForAll i _) -> i) t''
-                            dc = DataCon (Name s m 0 Nothing) t'' [i'] []
+                            is = map (flip Id TYPE) ns
+                            rt_is =  map (flip Id TYPE) rt_ns
+                            t' = foldr TyForAll t is
+                            t'' = foldr TyForAll t' rt_is
+                            
+                            dc = DataCon (Name s m 0 Nothing) t'' (rt_is ++ is) []
                         in
                         -- ((s, m, []), [(s, m, [])]) : mkTuples (n - 1)
                         (s, m, rt_ns ++ ns, dc) : mkPrimTuples' (n - 1)
