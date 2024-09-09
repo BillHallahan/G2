@@ -186,17 +186,17 @@ createLHTCFuncs' lhm n adt = do
 
 
     let fs = map (\(n', t) -> Var (Id n' t)) [ (eqN, (typeOf eq))
-                                           , (neN, (typeOf ne))
-                                           , (ltN, (typeOf lt))
-                                           , (leN, (typeOf le))
-                                           , (gtN, (typeOf gt))
-                                           , (geN, (typeOf ge))
-                                           , (ppN, (typeOf pp))]
+                                             , (neN, (typeOf ne))
+                                             , (ltN, (typeOf lt))
+                                             , (leN, (typeOf le))
+                                             , (gtN, (typeOf gt))
+                                             , (geN, (typeOf ge))
+                                             , (ppN, (typeOf pp))]
     let fs' = map (\f -> mkApp $ f:bt ++ lhdv) fs ++ [ordE]
 
     lhdct <- lhDCType
     let ue = leadingTyForAllBindings (PresType lhdct)
-    let e = mkApp $ Data (DataCon lh lhdct ue []):fs'
+    let e = mkApp $ Data (DataCon lh lhdct ue []):Type (TyCon n TyUnknown):fs'
     let e' = foldr (Lam TermL) e lhd
     let e'' = foldr (Lam TypeL) e' bi
 

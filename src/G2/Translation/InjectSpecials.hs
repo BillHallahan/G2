@@ -10,7 +10,6 @@ import qualified Data.HashMap.Lazy as HM
 import qualified Data.Text as T
 
 import G2.Language
-import Language.Haskell.Syntax (StmtLR(recS_later_ids))
 
 _MAX_TUPLE :: Int
 _MAX_TUPLE = 62
