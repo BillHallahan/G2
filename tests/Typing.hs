@@ -129,7 +129,7 @@ just = Data $ DataCon
                     (TyForAll 
                         aid 
                         (TyFun a (TyApp maybe a))
-                    )
+                    ) [] []
 
 idDef :: Expr
 idDef = Lam TypeL aid 
