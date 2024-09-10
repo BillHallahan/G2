@@ -433,12 +433,7 @@ instance Named Alt where
 
 instance Named DataCon where
     {-# INLINE names #-}
-    names (DataCon n t u e) = 
-        let 
-            all_tyvars = names u S.>< names e
-            t_ns = names t 
-        in 
-        n S.<| t_ns S.>< all_tyvars  
+    names (DataCon n t u e) = n S.<| names t S.>< names u S.>< names e
 
     {-# INLINE rename #-}
     rename old new (DataCon n t u e) =
