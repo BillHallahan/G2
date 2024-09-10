@@ -133,7 +133,7 @@ convertDefs [l_t] ret m bt (Def { ctor = dc, body = b, binds = bds})
     tenv <- typeEnv
     let         
         -- See [1] below, we only evaluate this if Just
-        dc''@(DataCon _ dct) = fixNamesDC tenv dc'
+        dc''@(DataCon _ dct _ _) = fixNamesDC tenv dc'
         bnds = tyForAllBindings $ PresType dct
         dctarg = anonArgumentTypes $ PresType dct
 
@@ -153,12 +153,12 @@ convertDefs [l_t] ret m bt (Def { ctor = dc, body = b, binds = bds})
 convertDefs _ _ _ _ _ = error "convertDefs: Unhandled Type List"
 
 fixNamesDC :: TypeEnv -> DataCon -> DataCon
-fixNamesDC tenv (DataCon n t) =
+fixNamesDC tenv (DataCon n t _ _) =
     let
         (TyCon tn _) = tyAppCenter $ returnType $ PresType t
     in
     case getDataConNameMod tenv tn n of
-        Just (DataCon dcn _) -> DataCon dcn (fixNamesType tenv t)
+        Just (DataCon dcn _ u e) -> DataCon dcn (fixNamesType tenv t) u e
         Nothing -> error "fixNamesDC: Bad DC"
 
 fixNamesType :: TypeEnv -> Type -> Type

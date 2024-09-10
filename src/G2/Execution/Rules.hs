@@ -281,8 +281,7 @@ evalCase s@(State { expr_env = eenv
   -- We do not want to remove casting from any of the arguments since this could
   -- mess up there types later
   | (Data dcon):ar <- unApp $ exprInCasts mexpr
-  , (DataCon _ _) <- dcon
-  , ar' <- removeTypes ar eenv
+  , ar' <- drop (length (dc_univ_tyvars dcon)) ar 
   , (Alt (DataAlt _ params) expr):_ <- matchDataAlts dcon alts =
       let
           dbind = [(bind, mexpr)]
@@ -380,8 +379,8 @@ matchDefaultAlts alts = [a | a@(Alt Default _) <- alts]
 
 -- | Match data constructor based `Alt`s.
 matchDataAlts :: DataCon -> [Alt] -> [Alt]
-matchDataAlts (DataCon n _) alts =
-  [a | a@(Alt (DataAlt (DataCon n' _) _) _) <- alts, n == n']
+matchDataAlts (DataCon n _ _ _) alts =
+  [a | a@(Alt (DataAlt (DataCon n' _ _ _) _) _) <- alts, n == n']
 
 -- | Match literal constructor based `Alt`s.
 matchLitAlts :: Lit -> [Alt] -> [Alt]
@@ -543,7 +542,7 @@ mexprTyToExpr' mexpr_t tenv
 
 -- | Given a DataCon, and an (Id, Type) mapping, returns list of Expression level Type Arguments to DataCon
 dconTyToExpr :: DataCon -> [(Id, Type)] -> [Expr]
-dconTyToExpr (DataCon _ t) bindings =
+dconTyToExpr (DataCon _ t _ _) bindings =
     case (getTyApps t) of
         (Just tApps) -> tyAppsToExpr tApps bindings
         Nothing -> []
@@ -622,14 +621,12 @@ createExtCond s ngen mexpr cvar (dcon, bindees, aexpr)
             tenv = type_env s
 
             
-
-
 getBoolFromDataCon :: KnownValues -> DataCon -> Bool
 getBoolFromDataCon kv dcon
-    | (DataCon dconName dconType) <- dcon
+    | (DataCon dconName dconType [] []) <- dcon
     , dconType == (tyBool kv)
     , dconName == (KV.dcTrue kv) = True
-    | (DataCon dconName dconType) <- dcon
+    | (DataCon dconName dconType [] []) <- dcon
     , dconType == (tyBool kv)
     , dconName == (KV.dcFalse kv) = False
     | otherwise = error $ "getBoolFromDataCon: invalid DataCon passed in\n" ++ show dcon ++ "\n"
@@ -732,9 +729,9 @@ liftSymDefAlt' s@(State {type_env = tenv}) ng mexpr aexpr cvar alts
                 _ -> Nothing
             dcs = dataCon adt
             badDCs = mapMaybe (\alt -> case alt of
-                (Alt (DataAlt (DataCon dcn _) _) _) -> Just dcn
+                (Alt (DataAlt (DataCon dcn _ _ _) _) _) -> Just dcn
                 _ -> Nothing) alts
-            dcs' = filter (\(DataCon dcn _) -> dcn `notElem` badDCs) dcs
+            dcs' = filter (\(DataCon dcn _ _ _) -> dcn `notElem` badDCs) dcs
 
             (newId, ng') = freshId TyLitInt ng
 
@@ -792,7 +789,8 @@ defAltExpr (_:xs) = defAltExpr xs
 
 -- | Creates and applies new symbolic variables for arguments of Data Constructor
 concretizeSym :: [(Id, Type)] -> Maybe Coercion -> (State t, NameGen) -> DataCon -> ((State t, NameGen), Expr)
-concretizeSym bi maybeC (s, ng) dc@(DataCon _ ts) =
+-- TODO:: is it safe to ignore the universial and existential type variable?
+concretizeSym bi maybeC (s, ng) dc@(DataCon _ ts _ _) =
     let dc' = Data dc
         ts' = anonArgumentTypes $ PresType ts
         ts'' = foldr (\(i, t) e -> retype i t e) ts' bi
@@ -1035,7 +1033,7 @@ retAssumeFrame s@(State {known_values = kv
             _ -> []
         -- Special handling in case we just have a concrete DataCon, or a lone Var
         (newPCs, ng') = case unApp $ unsafeElimOuterCast e1 of
-            [Data (DataCon dcn _)]
+            [Data (DataCon dcn _ _ _)]
                 | dcn == KV.dcFalse kv -> ([], ng)
                 | dcn == KV.dcTrue kv ->
                     ( [NewPC { state = s { curr_expr = CurrExpr Evaluate e2
@@ -1059,7 +1057,7 @@ retAssertFrame s@(State {known_values = kv
             _ -> []
         -- Special handling in case we just have a concrete DataCon, or a lone Var
         (newPCs, ng') = case unApp $ unsafeElimOuterCast e1 of
-            [Data (DataCon dcn _)]
+            [Data (DataCon dcn _ _ _)]
                 | dcn == KV.dcFalse kv ->
                     ( [NewPC { state = s { curr_expr = CurrExpr Evaluate e2
                                          , exec_stack = stck
@@ -1091,7 +1089,7 @@ concretizeExprToBool s ng mexpr_id (x:xs) e2 stck =
 concretizeExprToBool' :: State t -> NameGen -> Id -> DataCon -> Expr -> S.Stack Frame -> (NewPC t, NameGen)
 concretizeExprToBool' s@(State {expr_env = eenv
                         , known_values = kv})
-                ngen mexpr_id dcon@(DataCon dconName _) e2 stck = 
+                ngen mexpr_id dcon@(DataCon dconName _ _ _) e2 stck = 
         (NewPC { state = s { expr_env = eenv'
                         , exec_stack = stck
                         , curr_expr = CurrExpr Evaluate e2
@@ -1186,7 +1184,8 @@ retReplaceSymbFuncTemplate s@(State { expr_env = eenv
         (x, ng') = freshId t1 ng
         (x', ng'') = freshId t1 ng'
         (alts, symIds, ng''') =
-            foldr (\dc@(DataCon _ dcty) (as, sids, ng1) ->
+            -- TODO: Is it true we can ignore the universial and existential type variable in dc split?
+            foldr (\dc@(DataCon _ dcty _ _) (as, sids, ng1) ->
                         let (argIds, ng1') = genArgIds dc ng1
                             data_alt = DataAlt dc argIds
                             sym_fun_ty = mkTyFun $ fst (argTypes dcty) ++ [t2]
@@ -1232,8 +1231,8 @@ retReplaceSymbFuncTemplate s@(State { expr_env = eenv
     , E.isSymbolic n eenv
     = let
         boolTy = (TyCon (KV.tyBool kv) TYPE)
-        trueDc = DataCon (KV.dcTrue kv) boolTy
-        falseDc = DataCon (KV.dcFalse kv) boolTy
+        trueDc = DataCon (KV.dcTrue kv) boolTy [] []
+        falseDc = DataCon (KV.dcFalse kv) boolTy [] []
         eqT1 = mkEqPrimType t1 kv
         (f1Id:f2Id:xId:discrimId:[], ng') = freshIds [t2, TyFun t1 t2, t1, boolTy] ng
         x = Var xId
@@ -1253,7 +1252,7 @@ argTypes :: Type -> ([Type], Type)
 argTypes t = (anonArgumentTypes $ PresType t, returnType $ PresType t)
 
 genArgIds :: DataCon -> NameGen -> ([Id], NameGen)
-genArgIds (DataCon _ dcty) ng =
+genArgIds (DataCon _ dcty _ _) ng =
     let (argTys, _) = argTypes dcty
     in foldr (\ty (is, ng') -> let (i, ng'') = freshId ty ng' in ((i:is), ng'')) ([], ng) argTys
 

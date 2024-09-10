@@ -52,6 +52,6 @@ dataConWithName (DataTyCon _ dcs _) n = find (`dataConHasName` n) dcs
 dataConWithName _ _ = Nothing
 
 dataConHasName :: DataCon -> Name -> Bool
-dataConHasName (DataCon n _) n' = n == n'
+dataConHasName (DataCon n _ _ _) n' = n == n'
 
 instance Hashable AlgDataTy

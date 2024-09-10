@@ -142,8 +142,8 @@ instance Arbitrary ArbTypeEnv where
 basicTypeEnv :: TypeEnv
 basicTypeEnv =
     let
-        int_dc = DataCon intDCName (TyFun TyLitInt (TyCon intTypeName TYPE))
-        float_dc = DataCon floatDCName (TyFun TyLitFloat (TyCon floatTypeName TYPE))
+        int_dc = DataCon intDCName (TyFun TyLitInt (TyCon intTypeName TYPE)) [] []
+        float_dc = DataCon floatDCName (TyFun TyLitFloat (TyCon floatTypeName TYPE)) [] []
     in
     HM.fromList [ (intTypeName, DataTyCon { bound_ids = [], data_cons = [int_dc], adt_source = ADTSourceCode })
                 , (floatTypeName, DataTyCon { bound_ids = [], data_cons = [float_dc], adt_source = ADTSourceCode }) ]
@@ -159,8 +159,8 @@ arbAlgDataTyEmpty = do
 arbInstDataCons :: TypeEnv -> Int -> (Name, AlgDataTy) -> Gen (Name, AlgDataTy)
 arbInstDataCons tenv unq (ty_n, adt@(DataTyCon { bound_ids = bi })) = do
     dc_c <- chooseInt (1, 10)
-    dcs <- map (\(DataCon n t) -> DataCon n (foldr TyForAll t bi)) <$> vectorOf dc_c (arbDataCon tenv unq (TyCon ty_n TYPE))
-    let dcs' = nubBy (\(DataCon n _) (DataCon n' _) -> n == n') dcs
+    dcs <- map (\(DataCon n t u e) -> DataCon n (foldr TyForAll t bi) u e) <$> vectorOf dc_c (arbDataCon tenv unq (TyCon ty_n TYPE))
+    let dcs' = nubBy (\(DataCon n _ _ _) (DataCon n' _ _ _) -> n == n') dcs
     return (ty_n, adt { data_cons = dcs' })
 arbInstDataCons _ _ _ = error "arbInstDataCons: Unsupported AlgDataTy"
 
@@ -169,7 +169,7 @@ arbDataCon tenv unq ret_ty = do
     n <- chooseEnum ('A', 'Z')
     ar_c <- chooseInt (0, 5)
     ar_ty <- vectorOf ar_c (sized $ \k -> arbType tenv (k `div` ar_c))
-    return $ DataCon (Name (T.singleton n) Nothing unq Nothing) (mkTyFun $ ar_ty ++ [ret_ty])
+    return $ DataCon (Name (T.singleton n) Nothing unq Nothing) (mkTyFun $ ar_ty ++ [ret_ty]) [] []
 
 newtype ArbExpr = AE { unAE :: Expr} deriving Show
 newtype ArbType = AT { unAT :: Type} deriving Show

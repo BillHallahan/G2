@@ -177,7 +177,7 @@ instance Typed Lit where
     typeOf' _ t = typeOf t
 
 instance Typed DataCon where
-    typeOf' _ (DataCon _ ty) = ty
+    typeOf' _ (DataCon _ ty _ _) = ty
 
 instance Typed Alt where
     typeOf' m (Alt _ expr) = typeOf' m expr

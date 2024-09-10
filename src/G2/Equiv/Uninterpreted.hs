@@ -45,11 +45,11 @@ allDC' e = case e of
 freeDC :: ASTContainer e Expr => TypeEnv -> e -> HS.HashSet DataCon
 freeDC typeEnv e =
     let al = allDC e
-        inTEnv = HS.map (\(DataCon n _) -> n)
+        inTEnv = HS.map (\(DataCon n _ _ _) -> n)
                . HS.fromList
                . concatMap dataCon
                . HM.elems $ typeEnv in
-    HS.filter (\(DataCon n _) -> not (HS.member n inTEnv)) al
+    HS.filter (\(DataCon n _ _ _) -> not (HS.member n inTEnv)) al
 
 allTypes :: ASTContainer t Type => t -> [(Name, Kind)]
 allTypes = evalASTs allTypes' 
@@ -86,7 +86,7 @@ unknownDC ng n@(Name occn _ _ _) k is =
         ti = TyLitInt `TyFun` ta 
         tfa = foldl' (flip TyForAll) ti is
         (dc_n, ng') = freshSeededString ("Unknown" DM.<> occn) ng   
-        in (DataCon dc_n tfa, ng')
+        in (DataCon dc_n tfa is [], ng')
 
 -- | add free Datacons into the TypeEnv at the appriorpate Type)
 addDataCons :: TypeEnv -> [DataCon] -> TypeEnv
@@ -107,7 +107,7 @@ addMapping :: [DataCon] -> ExprEnv -> ExprEnv
 addMapping dcs ee = foldl' addMapping' ee dcs
 
 addMapping' :: ExprEnv -> DataCon -> ExprEnv 
-addMapping' ee dc@(DataCon name _) = E.insert name (Data dc) ee
+addMapping' ee dc@(DataCon name _ _ _) = E.insert name (Data dc) ee
 
 
 -- | The translation between GHC and g2 didn't have a matching id for the same occurence name
@@ -117,13 +117,13 @@ dataConMapping :: [DataCon] -> HM.HashMap (T.Text, Maybe T.Text) DataCon
 dataConMapping dcs = HM.fromList $ map dataConMapping' dcs 
 
 dataConMapping' :: DataCon -> ((T.Text, Maybe T.Text ), DataCon)
-dataConMapping' dc@(DataCon (Name t mt _ _ ) _ ) = ((t,mt), dc)
+dataConMapping' dc@(DataCon (Name t mt _ _ ) _ _ _) = ((t,mt), dc)
 
 subVars :: ASTContainer t Expr => HM.HashMap (T.Text, Maybe T.Text) DataCon -> t -> t
 subVars m = modifyASTs (subVars' m) 
 
 subVars' :: HM.HashMap (T.Text, Maybe T.Text) DataCon -> Expr -> Expr
 subVars' m expr@(Var (Id (Name t mt _ _) _ )) = case HM.lookup (t,mt) m of 
-                                                        Just (DataCon n' k) -> Data (DataCon n' k)
+                                                        Just (DataCon n' k u e) -> Data (DataCon n' k u e)
                                                         Nothing -> expr  
 subVars' _ expr = expr
