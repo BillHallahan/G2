@@ -148,7 +148,6 @@ qqDataConLookupFallBack tyv_n arg_n qqtn qqdc type_nm_qqm dc_nm_qqm tenv
             t = mkTyFun $ replicate (arg_n + 1) (TyCon n TYPE)
             ty_forall_ids = replicate tyv_n i
             t' = foldr TyForAll t ty_forall_ids
-            -- might need a double check for this update
         in
         DataCon (qqNameToName0 qqdc) t' ty_forall_ids []
 
