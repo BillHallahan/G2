@@ -179,7 +179,7 @@ altMatchNames (DataAlt dc i) = dataConName dc ++ (map idName i)
 altMatchNames _ = []
 
 dataConName :: DataCon -> [Name]
-dataConName (DataCon n _ u e) = [n] ++ map idName u ++ map idName e
+dataConName (DataCon n _ _ _) = [n]
 
 typeNames :: (ASTContainer m Type) => m -> [Name]
 typeNames = evalASTs typeTopNames

@@ -309,8 +309,8 @@ instance ASTContainer DataCon Expr where
     modifyContainedASTs _ d = d
 
 instance ASTContainer DataCon Type where
-    containedASTs (DataCon _ t u e) = [t] ++ concatMap containedASTs u ++ concatMap containedASTs e
-    modifyContainedASTs f (DataCon n t u e) = DataCon n (f t) (map (modifyContainedASTs f) u) (map (modifyContainedASTs f) e)
+    containedASTs (DataCon _ t u e) = [t] ++ containedASTs u ++ containedASTs e
+    modifyContainedASTs f (DataCon n t u e) = DataCon n (f t) (modifyContainedASTs f u) (modifyContainedASTs f e)
 
 instance ASTContainer AltMatch Expr where
     containedASTs _ = []
