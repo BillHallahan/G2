@@ -281,7 +281,6 @@ evalCase s@(State { expr_env = eenv
   -- We do not want to remove casting from any of the arguments since this could
   -- mess up there types later
   | (Data dcon):ar <- unApp $ exprInCasts mexpr
-  , (DataCon _ _ _ _) <- dcon
   , ar' <- drop (length (dc_univ_tyvars dcon)) ar 
   , (Alt (DataAlt _ params) expr):_ <- matchDataAlts dcon alts =
       let
@@ -790,7 +789,7 @@ defAltExpr (_:xs) = defAltExpr xs
 
 -- | Creates and applies new symbolic variables for arguments of Data Constructor
 concretizeSym :: [(Id, Type)] -> Maybe Coercion -> (State t, NameGen) -> DataCon -> ((State t, NameGen), Expr)
--- is it safe to ignore the universial and existential type variable?
+-- TODO:: is it safe to ignore the universial and existential type variable?
 concretizeSym bi maybeC (s, ng) dc@(DataCon _ ts _ _) =
     let dc' = Data dc
         ts' = anonArgumentTypes $ PresType ts
@@ -1185,7 +1184,7 @@ retReplaceSymbFuncTemplate s@(State { expr_env = eenv
         (x, ng') = freshId t1 ng
         (x', ng'') = freshId t1 ng'
         (alts, symIds, ng''') =
-            -- Is it true we can ignore the universial and existential type variable in dc split?
+            -- TODO: Is it true we can ignore the universial and existential type variable in dc split?
             foldr (\dc@(DataCon _ dcty _ _) (as, sids, ng1) ->
                         let (argIds, ng1') = genArgIds dc ng1
                             data_alt = DataAlt dc argIds

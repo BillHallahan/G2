@@ -8,7 +8,7 @@ module G2.QuasiQuotes.G2Rep ( G2Rep (..)
 import G2.QuasiQuotes.Internals.G2Rep
 
 -- Prelude types
-$(derivingG2Rep ''Bool) 
+$(derivingG2Rep ''Bool)
 $(derivingG2Rep ''Maybe)
 $(derivingG2Rep ''Either)
 $(derivingG2Rep ''Ordering)

@@ -2,7 +2,6 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE InstanceSigs #-}
 
 module G2.Language.Naming
     ( nameOcc
@@ -67,7 +66,7 @@ import qualified Data.Sequence as S
 import qualified Data.Text as T
 import Data.Tuple
 import qualified Text.Builder as TB
-import qualified Data.Monoid as M
+
 -- | Extract the "occurence" from a `Name`.
 --
 -- >>> nameOcc (Name "x" (Just "mod") 100 Nothing)
@@ -338,7 +337,6 @@ renameVars' _ _ e = e
 renameExprId :: Name -> Name -> Id -> Id
 renameExprId old new (Id n t) = Id (rename old new n) t
 
--- we should only rename the name in the DataCon and leave univ and exist type variable intact right?
 renameExprDataCon :: Name -> Name -> DataCon -> DataCon
 renameExprDataCon old new (DataCon n t u e) = DataCon (rename old new n) t u e
 
@@ -376,7 +374,6 @@ renamesExprs' _ e = e
 renamesExprId :: HM.HashMap Name Name -> Id -> Id
 renamesExprId hm (Id n t) = Id (renames hm n) t
 
--- only rename the name in the DataCon while leaving univ and exist type variable inact?
 renamesExprDataCon :: HM.HashMap Name Name -> DataCon -> DataCon
 renamesExprDataCon hm (DataCon n t u e) = DataCon (renames hm n) t u e
 
@@ -448,7 +445,6 @@ instance Named DataCon where
         DataCon (rename old new n) (rename old new t) (rename old new u) (rename old new e)
 
     {-# INLINE renames #-}
-    renames :: HM.HashMap Name Name -> DataCon -> DataCon
     renames hm (DataCon n t u e) =
         DataCon (renames hm n) (renames hm t) (renames hm u) (renames hm e)
 

@@ -169,7 +169,6 @@ arbDataCon tenv unq ret_ty = do
     n <- chooseEnum ('A', 'Z')
     ar_c <- chooseInt (0, 5)
     ar_ty <- vectorOf ar_c (sized $ \k -> arbType tenv (k `div` ar_c))
-    -- need help on this 
     return $ DataCon (Name (T.singleton n) Nothing unq Nothing) (mkTyFun $ ar_ty ++ [ret_ty]) [] []
 
 newtype ArbExpr = AE { unAE :: Expr} deriving Show

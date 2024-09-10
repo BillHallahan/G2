@@ -164,8 +164,8 @@ instance ASTContainerM DataCon Expr where
 instance ASTContainerM DataCon Type where
     modifyContainedASTsM f (DataCon n t u e) = do
         t' <- f t 
-        u' <- traverse (modifyContainedASTsM f) u 
-        e' <- traverse (modifyContainedASTsM f) e 
+        u' <- modifyContainedASTsM f u 
+        e' <- modifyContainedASTsM f e 
         return (DataCon n t' u' e')
 
 

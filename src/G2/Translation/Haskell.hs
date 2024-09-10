@@ -716,7 +716,6 @@ mkTyCon t = do
 mkTyConName :: TyCon -> G2.NamesM G2.Name
 mkTyConName tc = typeNameLookup (tyConName tc)
 
--- need some help on this.
 mkData :: DataCon -> G2.NamesM G2.DataCon
 mkData datacon = do
     name <- mkDataName datacon
