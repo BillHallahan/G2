@@ -62,6 +62,7 @@ module G2.Execution.Reducer ( Reducer (..)
                             , nonRedLibFuncsReducer
                             , nonRedPCRed
                             , nonRedPCRedConst
+                            , strictRed
                             , taggerRed
                             , getLogger
                             , simpleLogger
@@ -115,6 +116,7 @@ module G2.Execution.Reducer ( Reducer (..)
 
 import G2.Config
 import qualified G2.Language.ExprEnv as E
+import G2.Execution.NormalForms
 import G2.Execution.Rules
 import G2.Language
 import qualified G2.Language.Monad as MD
@@ -122,6 +124,7 @@ import qualified G2.Language.PathConds as PC
 import qualified G2.Language.Stack as Stck
 import G2.Solver
 import G2.Lib.Printers
+
 import Control.Monad.IO.Class
 import qualified Control.Monad.State as SM
 import Data.Foldable
@@ -573,7 +576,49 @@ nonRedLibFuncs names _ s@(State { expr_env = eenv
 
     | otherwise = return (Finished, [(s, ())], b)
      
+-- | Force the expression being returned to be strictly evaluated.
+strictRed :: Monad m => Reducer m () t
+strictRed = mkSimpleReducer (\_ -> ())
+                            strict_red
+    where
+        strict_red _ s@(State { curr_expr = ce@(CurrExpr Return e)
+                              , expr_env = eenv
+                              , exec_stack = stck })
+                     b@(Bindings { name_gen = ng })
+            | Data d:es@(_:_) <- unApp e
+            , exec_done 
+            , must_red HS.empty e =
+                let
+                    (is, ng') = freshIds (map typeOf es) ng
+                    eenv' = foldl' (\env (Id n _, e_) -> E.insert n e_ env) eenv $ zip is es
+                    ce' = CurrExpr Return . mkApp $ Data d:map Var is
+                    stck' = foldl' (\st i -> Stck.push (CurrExprFrame NoAction (CurrExpr Evaluate $ Var i)) st)
+                                   (Stck.push (CurrExprFrame NoAction ce') stck )
+                                   (tail is)
+                    
+                    s' = s { expr_env = eenv'
+                           , curr_expr = CurrExpr Evaluate (Var $ head is)
+                           , exec_stack = stck'}
+                in
+                return (InProgress, [(s', ())], b { name_gen = ng' })
+            where
+                exec_done | Stck.null stck = True
+                          | Just (CurrExprFrame _ _, _) <- Stck.pop stck = True
+                          | otherwise = False
 
+                -- | Does the expression need to be further reduced?
+                -- Looks through variables, but tracks seen variable names to avoid an infinite loop
+                must_red ns (Var (Id n _)) | HS.member n ns = False -- If we have seen a variable already,
+                                                                    -- we will have already discovered if it needs to be reduced
+                                           | E.isSymbolic n eenv = False
+                                           | otherwise = maybe False (must_red (HS.insert n ns)) (E.lookup n eenv)
+                must_red _ (Lit _) = False
+                must_red _ (Data _) = False
+                must_red _ (Type _) = False
+                must_red _ (Prim _ _) = False
+                must_red ns (App e1 e2) = must_red ns e1 || must_red ns e2
+                must_red _ _ = True
+        strict_red _ s b = return (NoProgress, [(s, ())], b)
 
 -- | Removes and reduces the values in a State's non_red_path_conds field. 
 {-#INLINE nonRedPCRed #-}

@@ -280,16 +280,20 @@ initRedHaltOrd mod_name solver simplifier config libFunNames =
 
         m_logger = fmap SomeReducer $ getLogger config
 
+        strict_red f = case strict config of
+                            True -> SomeReducer (stdRed share f solver simplifier ~> instTypeRed ~> strictRed)
+                            False -> SomeReducer (stdRed share f solver simplifier ~> instTypeRed)
+
         hpc_red f = case hpc config of
-                        True ->  SomeReducer (hpcReducer mod_name ~> stdRed share f solver simplifier ~> instTypeRed) 
-                        False -> SomeReducer (stdRed share f solver simplifier ~> instTypeRed)
+                        True ->  SomeReducer (hpcReducer mod_name) .~> strict_red f 
+                        False -> strict_red f
 
         nrpc_red f = case nrpc config of
                         Nrpc -> liftSomeReducer (SomeReducer (nonRedLibFuncsReducer libFunNames) .== Finished .--> hpc_red f)
                         NoNrpc -> liftSomeReducer (hpc_red f)
 
         logger_std_red f = case m_logger of
-                            Just logger -> liftSomeReducer (logger .~>  nrpc_red f)
+                            Just logger -> liftSomeReducer (logger .~> nrpc_red f)
                             Nothing -> liftSomeReducer (nrpc_red f)
 
         halter = switchEveryNHalter 20

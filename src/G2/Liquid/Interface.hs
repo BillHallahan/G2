@@ -450,9 +450,12 @@ lhReducerHalterOrderer config lhconfig solver simplifier entry mb_modname cfn st
         m_logger = fmap SomeReducer $ getLogger config
 
         lh_std_red = existentialInstRed :== NoProgress .--> lhRed cfn :== Finished --> stdRed share retReplaceSymbFuncVar solver simplifier
+        strict_red = case strict config of
+                            True -> lh_std_red .~> SomeReducer strictRed
+                            False -> lh_std_red
         opt_logger_red = case m_logger of
-                            Just logger -> logger .~> lh_std_red
-                            Nothing -> lh_std_red
+                            Just logger -> logger .~> strict_red
+                            Nothing -> strict_red
     in
     if higherOrderSolver config == AllFuncs then
         (opt_logger_red .== Finished .-->

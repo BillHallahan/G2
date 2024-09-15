@@ -1,4 +1,4 @@
-{-# LANGUAGE GADTs, DataKinds, KindSignatures, TypeFamilies #-}
+{-# LANGUAGE GADTs, DataKinds, KindSignatures, RankNTypes, TypeFamilies #-}
 
 module GADTS1 where
 
@@ -16,7 +16,7 @@ area :: Shape -> Double
 area (CircleShape radius) = pi * radius * radius
 area (RectangleShape width height) = width * height
 
-infixr :>
+-- infixr :>
 
 -- data HList where 
 --   Nil :: HList 

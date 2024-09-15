@@ -38,11 +38,8 @@ mkCurrExpr m_assume m_assert f@(Id (Name _ m_mod _ _) _) tc ng eenv _ walkers kv
                         else mkMainExprNoInstantiateTypes var_ex ng
                 var_ids = map Var is
 
-                -- strict_app_ex = app_ex
-                strict_app_ex = if strict config then mkStrict walkers app_ex else app_ex
-
                 (name, ng'') = freshName ng'
-                id_name = Id name (typeOf strict_app_ex)
+                id_name = Id name (typeOf app_ex)
                 var_name = Var id_name
 
                 assume_ex = mkAssumeAssert (Assume Nothing) m_assume m_mod (typsE ++ var_ids) var_name var_name eenv
@@ -50,7 +47,7 @@ mkCurrExpr m_assume m_assert f@(Id (Name _ m_mod _ _) _) tc ng eenv _ walkers kv
 
                 retsTrue_ex = if returnsTrue config then retsTrue assert_ex else assert_ex
 
-                let_ex = Let [(id_name, strict_app_ex)] retsTrue_ex
+                let_ex = Let [(id_name, app_ex)] retsTrue_ex
             in
             (let_ex, is, typsE, ng'')
         Nothing -> error "mkCurrExpr: Bad Name"

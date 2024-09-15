@@ -369,7 +369,7 @@ gatherAllowedCalls entry m lrs ghci infconfig config lhconfig = do
                               let fs = final_state er in
                               map (fs,) $ track fs) exec_res
 
-        fc_red = SomeReducer (stdRed (sharing config') retReplaceSymbFuncVar solver simplifier)
+        fc_red = SomeReducer (stdRed (sharing config') retReplaceSymbFuncVar solver simplifier ~> strictRed)
 
     (_, red_calls) <- mapAccumM 
                                 (\b (fs, fc) -> do
@@ -416,8 +416,8 @@ gatherReducerHalterOrderer infconfig config lhconfig solver simplifier = do
     timer_halter <- stdTimerHalter (timeout_se infconfig * 3)
 
     let red = case m_logger of
-                    Just logger -> logger .~> SomeReducer (gathererReducer ~> stdRed share retReplaceSymbFuncVar solver simplifier)
-                    Nothing -> SomeReducer (gathererReducer ~> stdRed share retReplaceSymbFuncVar solver simplifier)
+                    Just logger -> logger .~> SomeReducer (gathererReducer ~> stdRed share retReplaceSymbFuncVar solver simplifier ~> strictRed)
+                    Nothing -> SomeReducer (gathererReducer ~> stdRed share retReplaceSymbFuncVar solver simplifier ~> strictRed)
 
     return
         (red .== Finished .--> (taggerRed state_name :== Finished --> nonRedPCRed)
@@ -1082,7 +1082,7 @@ genericG2Call config solver s bindings = do
     let simplifier = NaNInfBlockSimplifier :>> FloatSimplifier :>> ArithSimplifier
         share = sharing config
 
-    fslb <- runG2WithSomes (SomeReducer (stdRed share retReplaceSymbFuncVar solver simplifier))
+    fslb <- runG2WithSomes (SomeReducer (stdRed share retReplaceSymbFuncVar solver simplifier ~> strictRed))
                            (SomeHalter swhnfHalter)
                            (SomeOrderer nextOrderer)
                            solver simplifier PreserveAllMC s bindings
@@ -1105,7 +1105,7 @@ genericG2CallLogging config solver s bindings lg = do
     let simplifier = NaNInfBlockSimplifier :>> FloatSimplifier :>> ArithSimplifier
         share = sharing config
 
-    fslb <- runG2WithSomes (SomeReducer (prettyLogger lg ~> stdRed share retReplaceSymbFuncVar solver simplifier))
+    fslb <- runG2WithSomes (SomeReducer (prettyLogger lg ~> stdRed share retReplaceSymbFuncVar solver simplifier  ~> strictRed))
                            (SomeHalter swhnfHalter)
                            (SomeOrderer nextOrderer)
                            solver simplifier PreserveAllMC s bindings
