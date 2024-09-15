@@ -66,7 +66,7 @@ etaExpandToOverSat1 =
 
 -- DataCons
 intD :: DataCon
-intD = DataCon (Name "Int" Nothing 0 Nothing) int
+intD = DataCon (Name "Int" Nothing 0 Nothing) int [] []
 
 -- Types
 int :: Type

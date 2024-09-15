@@ -36,7 +36,7 @@ newType ng i te =
 
         nadt = DataTyCon 
                     { bound_ids = all_ids
-                    , data_cons = [DataCon dc tyforall]
+                    , data_cons = [DataCon dc tyforall all_ids []]
                     , adt_source = ADTG2Generated}
         te' = HM.insert tn nadt te 
     in
