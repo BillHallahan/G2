@@ -576,7 +576,15 @@ nonRedLibFuncs names _ s@(State { expr_env = eenv
 
     | otherwise = return (Finished, [(s, ())], b)
      
--- | Force the expression being returned to be strictly evaluated.
+-- | Force the `curr_expr` of each `State` to be fully evaluated.
+-- That is, we evaluate not just to SWHNF, but so that all subexpressions are in SWHNF.
+--
+-- Depending on the `Halter`s and other `Reducer`s being used, some care must be taken.
+-- Suppose we have `strictRed --> stdRed` as a `Reducer`, and `swhnfHalter` as a `Halter`.
+-- In this case, `stdRed` might reduce to a SWHNF expression, and the state would then be
+-- accepted before `strictRed` has time to force full evaluation.
+-- For this reason, it is typically preferable to make `strictRed` one of the last `Reducer`s
+-- to fire on each step, i.e. we would prefer `stdRed --> strictRed`
 strictRed :: Monad m => Reducer m () t
 strictRed = mkSimpleReducer (\_ -> ())
                             strict_red
@@ -587,8 +595,18 @@ strictRed = mkSimpleReducer (\_ -> ())
                      b@(Bindings { name_gen = ng })
             | Data d:es@(_:_) <- unApp e
             , exec_done 
+            -- must_red checks if the expression contains non-fully-reduced subexpressions.
+            -- Without this check, the strictRed might repeatedly fire, fruitlessly arranging for already reduced
+            -- subexpressions to be repeatedly reduced over and over, and preventing the involved `State` from
+            -- being halted.
             , must_red HS.empty e =
                 let
+                    -- Given a `curr_expr` of the form:
+                    --   @ D e1 ... ek @
+                    -- Rewrites to:
+                    --   @ D x1 ... xk@
+                    -- and inserts @x1 -> e1@, ..., @xk -> ek@ in the heap.  This means we can then evaluate
+                    -- `x1, ... xk` and rely on sharing to correctly get a fully evaluated expression.
                     (is, ng') = freshIds (map typeOf es) ng
                     eenv' = foldl' (\env (Id n _, e_) -> E.insert n e_ env) eenv $ zip is es
                     ce' = CurrExpr Return . mkApp $ Data d:map Var is
@@ -606,8 +624,8 @@ strictRed = mkSimpleReducer (\_ -> ())
                           | Just (CurrExprFrame _ _, _) <- Stck.pop stck = True
                           | otherwise = False
 
-                -- | Does the expression need to be further reduced?
-                -- Looks through variables, but tracks seen variable names to avoid an infinite loop
+                -- | Does the expression contain non-fully-reduced subexpressions?
+                -- Looks through variables, but tracks seen variable names to avoid an infinite loop.
                 must_red ns (Var (Id n _)) | HS.member n ns = False -- If we have seen a variable already,
                                                                     -- we will have already discovered if it needs to be reduced
                                            | E.isSymbolic n eenv = False
