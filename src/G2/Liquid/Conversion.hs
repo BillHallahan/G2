@@ -7,6 +7,8 @@ module G2.Liquid.Conversion ( LHDictMap
                             , BoundTypes
                             , CheckPre (..)
                             , mergeLHSpecState
+                            , convertAssumeSpecType
+                            , convertAssertSpecType
                             , convertSpecType
                             , dictMapFromIds
                             , convertLHExpr

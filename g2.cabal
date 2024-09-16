@@ -164,6 +164,7 @@ library
                          , G2.Liquid.Config
                          , G2.Liquid.Conversion
                          , G2.Liquid.ConvertCurrExpr
+                         , G2.Liquid.DataConSigs
                          , G2.Liquid.Helpers
                          , G2.Liquid.Interface
                          , G2.Liquid.LHReducers
@@ -399,6 +400,7 @@ test-suite test-lh
   hs-source-dirs:      tests_lh, tests
   main-is:             LHTest.hs
   other-modules:         GetNthTest
+                       , LHReqs
                        , PeanoTest
                        , Reqs
                        , TestUtils

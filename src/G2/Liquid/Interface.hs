@@ -87,6 +87,8 @@ import qualified Data.Text.IO as TI
 
 import G2.Language.Monad
 
+import Debug.Trace
+
 data LHReturn = LHReturn { calledFunc :: FuncInfo
                          , violating :: Maybe FuncInfo
                          , abstracted :: [FuncInfo] } deriving (Eq, Show)
@@ -509,6 +511,13 @@ initializeLHSpecs :: Counterfactual -> [GhcInfo] -> Lang.Id -> Bindings -> LHSta
 initializeLHSpecs counter ghcInfos ifi bindings = do
     let specs = funcSpecs ghcInfos
     mergeLHSpecState specs
+
+    mapM_ (\s -> do 
+                    let ctors = gsCtors . Language.Haskell.Liquid.Types.gsData . Language.Haskell.Liquid.Types.giSpec $ s
+                        invs = gsInvariants . Language.Haskell.Liquid.Types.gsData . Language.Haskell.Liquid.Types.giSpec $ s
+                    traceM $ "length ctors = " ++ show (length ctors) 
+                    mapM_ (\c -> traceM (show c)) ctors
+                    ) ghcInfos
 
     addSpecialAsserts
     addTrueAsserts (idName ifi)
