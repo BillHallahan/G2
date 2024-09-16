@@ -632,14 +632,14 @@ checkExprWithConfig src m_assume m_assert m_reaches entry reqList config_f = do
         config <- config_f
         res <- testFile src m_assume m_assert m_reaches entry config
         
-        let ch = case res of
-                    Left _ -> False
-                    Right exprs -> null $ checkExprGen (map (\(inp, out) -> inp ++ [out]) exprs) reqList
+        let reqRes = case res of
+                    Left _ -> Nothing
+                    Right exprs -> Just $ checkExprGen (map (\(inp, out) -> inp ++ [out]) exprs) reqList
         assertBool ("Assume/Assert for file " ++ src
                                     ++ " with functions [" ++ (fromMaybe "" m_assume) ++ "] "
                                     ++ "[" ++ (fromMaybe "" m_assert) ++ "] "
-                                    ++  entry ++ " failed.\n" ++ show res)
-                   ch
+                                    ++  entry ++ " failed.\n" ++ show res ++ "\n" ++ show reqRes)
+                   (maybe False null reqRes)
         )
 
     -- return . testCase src
