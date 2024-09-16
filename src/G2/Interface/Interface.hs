@@ -77,14 +77,13 @@ import qualified Data.HashSet as S
 import Data.Maybe
 import qualified Data.Sequence as Seq
 import qualified Data.Text as T
-import qualified Data.List as L
 import System.Timeout
 
 type AssumeFunc = T.Text
 type AssertFunc = T.Text
 type ReachFunc = T.Text
 
-type MkCurrExpr = TypeClasses -> NameGen -> ExprEnv -> TypeEnv -> Walkers
+type MkCurrExpr = TypeClasses -> NameGen -> ExprEnv -> TypeEnv
                      -> KnownValues -> Config -> (Expr, [Id], [Expr], NameGen)
 
 doTimeout :: Int -> IO a -> IO (Maybe a)
@@ -159,13 +158,13 @@ initStateFromSimpleState :: IT.SimpleState
                          -> (State (), Bindings)
 initStateFromSimpleState s m_mod useAssert mkCurr argTys config =
     let
-        (s', ds_walkers) = runInitialization2 config s argTys
+        s' = runInitialization2 config s argTys
         eenv' = IT.expr_env s'
         tenv' = IT.type_env s'
         ng' = IT.name_gen s'
         kv' = IT.known_values s'
         tc' = IT.type_classes s'
-        (ce, is, f_i, ng'') = mkCurr tc' ng' eenv' tenv' ds_walkers kv' config
+        (ce, is, f_i, ng'') = mkCurr tc' ng' eenv' tenv' kv' config
     in
     (State {
       expr_env = foldr E.insertSymbolic eenv' is
@@ -187,8 +186,7 @@ initStateFromSimpleState s m_mod useAssert mkCurr argTys config =
     , tags = S.empty
     }
     , Bindings {
-    deepseq_walkers = ds_walkers
-    , fixed_inputs = f_i
+      fixed_inputs = f_i
     , arb_value_gen = arbValueInit
     , cleaned_names = HM.empty
     , input_names = map idName is
@@ -355,12 +353,12 @@ initialStateNoStartFunc :: [FilePath]
                      -> Config
                      -> IO (State (), Bindings)
 initialStateNoStartFunc proj src transConfig config = do
-    (m_mod, exg2) <- translateLoaded proj src transConfig config
+    (_, exg2) <- translateLoaded proj src transConfig config
 
     let simp_state = initSimpleState exg2
 
         (init_s, bindings) = initStateFromSimpleState simp_state Nothing False
-                                 (\_ ng _ _ _ _ _ -> (Prim Undefined TyBottom, [], [], ng))
+                                 (\_ ng _ _ _ _ -> (Prim Undefined TyBottom, [], [], ng))
                                  (E.higherOrderExprs . IT.expr_env)
                                  config
 
@@ -482,9 +480,9 @@ runG2Pre :: ( Named t
             , ASTContainer t Type) => MemConfig -> State t -> Bindings -> (State t, Bindings)
 runG2Pre mem s bindings =
     let
-        (swept, bindings') = markAndSweepPreserving mem s bindings
+        swept = markAndSweepPreserving mem s bindings
     in
-    runPreprocessing swept bindings'
+    runPreprocessing swept bindings
 
 runG2Post :: ( MonadIO m
              , Named t

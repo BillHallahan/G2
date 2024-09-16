@@ -129,19 +129,19 @@ parseHaskellQ str = do
                                   , b')
         NonCompleted s b -> do
             let 
-                (s', b') = elimUnusedNonCompleted s b
+                s' = elimUnusedNonCompleted s b
 
                 s'' = moveOutStatePieces tenv_name s'
 
                 s''' = addedNonCompRegVarBinds (varE state_name) tenv_name cleaned_names_name ns (inputIds s' b') b'
 
-                b'' = b' { input_names = drop (length regs) (input_names b') }
+                b' = b { input_names = drop (length regs) (input_names b) }
 
                 sol = executeAndSolveStates s''' (varE bindings_name)
 
-                ars = extractArgs (inputIds s b'') (cleaned_names b'') tenv_name sol
+                ars = extractArgs (inputIds s b') (cleaned_names b') tenv_name sol
 
-            return (foldr (\n -> lamE [n]) ars ns_pat, s'', type_env s', b'')
+            return (foldr (\n -> lamE [n]) ars ns_pat, s'', type_env s', b')
 
             -- foldr (\n -> lamE [n]) [|do putStrLn "NONCOMPLETED"; return Nothing;|] ns_pat
 
@@ -377,20 +377,18 @@ addedNonCompRegVarBinds state_exp tenv_name cleaned_name ns in_ids b = do
 elimUnusedCompleted :: Named t => [State t] -> Bindings -> ([State t], Bindings)
 elimUnusedCompleted xs b =
     let
-        b' = b { deepseq_walkers = M.empty
-               , higher_order_inst = HS.empty }
+        b' = b { higher_order_inst = HS.empty }
 
         xs' = map (\s -> s { type_classes = initTypeClasses []
                            , rules = [] }) xs
-        xs'' = map (fst . flip markAndSweepIgnoringKnownValues b') xs'
+        xs'' = map (flip markAndSweepIgnoringKnownValues b') xs'
     in
     (xs'', b')
 
-elimUnusedNonCompleted :: Named t => State t -> Bindings -> (State t, Bindings)
+elimUnusedNonCompleted :: Named t => State t -> Bindings -> State t
 elimUnusedNonCompleted s b =
     let
-        b' = b { deepseq_walkers = M.empty
-               , higher_order_inst = HS.empty }
+        b' = b { higher_order_inst = HS.empty }
         s' = s { type_classes = initTypeClasses []
                , rules = [] }
     in

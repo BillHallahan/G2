@@ -16,9 +16,9 @@ import qualified Data.Text as T
 import qualified Data.HashMap.Lazy as HM 
 
 mkCurrExpr :: Maybe T.Text -> Maybe T.Text -> Id
-           -> TypeClasses -> NameGen -> ExprEnv -> TypeEnv -> Walkers
+           -> TypeClasses -> NameGen -> ExprEnv -> TypeEnv
            -> KnownValues -> Config -> (Expr, [Id], [Expr], NameGen)
-mkCurrExpr m_assume m_assert f@(Id (Name _ m_mod _ _) _) tc ng eenv _ walkers kv config =
+mkCurrExpr m_assume m_assert f@(Id (Name _ m_mod _ _) _) tc ng eenv _ kv config =
     case E.lookup (idName f) eenv of
         Just ex ->
             let

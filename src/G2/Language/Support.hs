@@ -66,8 +66,7 @@ data State t = State { expr_env :: E.ExprEnv -- ^ Mapping of `Name`s to `Expr`s
 instance Hashable t => Hashable (State t)
 
 -- | Global information, shared between all `State`s.
-data Bindings = Bindings { deepseq_walkers :: Walkers
-                         , fixed_inputs :: [Expr]
+data Bindings = Bindings { fixed_inputs :: [Expr]
                          , arb_value_gen :: ArbValueGen 
                          , cleaned_names :: CleanedNames
                          , higher_order_inst :: S.HashSet Name -- ^ Functions to try instantiating higher order functions with
@@ -258,7 +257,6 @@ instance ASTContainer t Type => ASTContainer (State t) Type where
 
 instance Named Bindings where
     names b = names (fixed_inputs b)
-            <> names (deepseq_walkers b)
             <> names (cleaned_names b)
             <> names (higher_order_inst b)
             <> names (input_names b)
@@ -267,7 +265,6 @@ instance Named Bindings where
 
     rename old new b =
         Bindings { fixed_inputs = rename old new (fixed_inputs b)
-                 , deepseq_walkers = rename old new (deepseq_walkers b)
                  , arb_value_gen = arb_value_gen b
                  , cleaned_names = HM.insert new old (cleaned_names b)
                  , higher_order_inst = rename old new (higher_order_inst b)
@@ -279,7 +276,6 @@ instance Named Bindings where
 
     renames hm b =
         Bindings { fixed_inputs = renames hm (fixed_inputs b)
-               , deepseq_walkers = renames hm (deepseq_walkers b)
                , arb_value_gen = arb_value_gen b
                , cleaned_names = foldr (\(old, new) -> HM.insert new old) (cleaned_names b) (HM.toList hm)
                , higher_order_inst = renames hm (higher_order_inst b)
