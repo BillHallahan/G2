@@ -133,7 +133,7 @@ parseHaskellQ str = do
 
                 s'' = moveOutStatePieces tenv_name s'
 
-                s''' = addedNonCompRegVarBinds (varE state_name) tenv_name cleaned_names_name ns (inputIds s' b') b'
+                s''' = addedNonCompRegVarBinds (varE state_name) tenv_name cleaned_names_name ns (inputIds s' b) b
 
                 b' = b { input_names = drop (length regs) (input_names b) }
 
