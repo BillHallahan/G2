@@ -108,9 +108,6 @@ checkAbstracted' g2call solver simplifier share s bindings abs_fc@(FuncCall { fu
         let 
             e' = mkApp $ Var (Id n (typeOf e)):ars
 
-            ds = deepseq_walkers bindings
-            strict_call = maybe e' (fillLHDictArgs ds) $ mkStrict_maybe ds e'
-
         -- We leave assertions in the code, and set true_assert to false so we can
         -- tell if an assertion was violated.
         -- If an assertion is violated, it means that the function did not need to be abstracted,
@@ -121,7 +118,7 @@ checkAbstracted' g2call solver simplifier share s bindings abs_fc@(FuncCall { fu
                . pickHead
                . elimSymGens (arb_value_gen bindings)
                . modelToExprEnv $
-                    s { curr_expr = CurrExpr Evaluate strict_call
+                    s { curr_expr = CurrExpr Evaluate e'
                       , track = False }
 
 
@@ -169,15 +166,12 @@ getAbstracted g2call solver simplifier share s bindings abs_fc@(FuncCall { funcN
         let 
             e' = mkApp $ Var (Id n (typeOf e)):ars
 
-            ds = deepseq_walkers bindings
-            strict_call = maybe e' (fillLHDictArgs ds) $ mkStrict_maybe ds e'
-
         let s' = mkAssertsTrue (known_values s)
                . elimAssumesExcept
                . pickHead
                . elimSymGens (arb_value_gen bindings)
                . modelToExprEnv $
-                    s { curr_expr = CurrExpr Evaluate strict_call
+                    s { curr_expr = CurrExpr Evaluate e'
                       , track = ([] :: [FuncCall], False)}
 
         (er, bindings') <- g2call 
@@ -408,18 +402,13 @@ reduceFCExpr :: ( MonadIO m
                 , Named t)
              => G2Call solver simplifier -> SomeReducer m t -> solver -> simplifier -> State t -> Bindings -> Expr -> m ((State t, Bindings), Expr)
 reduceFCExpr g2call reducer solver simplifier s bindings e 
-    | not . isTypeClass (type_classes s) $ (typeOf e)
-    , ds <- deepseq_walkers bindings
-    , Just strict_e <-  mkStrict_maybe ds e  = do
-        let 
-            e' = fillLHDictArgs ds strict_e
-
+    | not . isTypeClass (type_classes s) $ (typeOf e) = do
         let s' = elimAssumesExcept
                . elimAsserts
                . pickHead
                . elimSymGens (arb_value_gen bindings)
                . modelToExprEnv $
-                   s { curr_expr = CurrExpr Evaluate e'}
+                   s { curr_expr = CurrExpr Evaluate e}
 
         (er, bindings') <- g2call 
                               reducer

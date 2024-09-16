@@ -201,9 +201,9 @@ fromLiquidReadyState :: State ()
                      -> MemConfig
                      -> IO LiquidData
 fromLiquidReadyState init_state ifi bindings ghci ph_tyvars lhconfig memconfig = do
-    let (init_state', bindings') = (markAndSweepPreserving (reqNames init_state `mappend` memconfig) init_state bindings)
+    let init_state' = (markAndSweepPreserving (reqNames init_state `mappend` memconfig) init_state bindings)
         cleaned_state = init_state' { type_env = type_env init_state } 
-    fromLiquidNoCleaning cleaned_state ifi bindings' ghci ph_tyvars lhconfig memconfig
+    fromLiquidNoCleaning cleaned_state ifi bindings ghci ph_tyvars lhconfig memconfig
 
 data LiquidReadyState = LiquidReadyState { lr_state :: LHState
                                          , lr_binding :: Bindings
@@ -225,10 +225,10 @@ data LiquidData = LiquidData { ls_state :: State LHTracker
 cleanReadyState :: LiquidReadyState -> MemConfig -> LiquidReadyState
 cleanReadyState lrs@(LiquidReadyState { lr_state = lhs@(LHState { state = s }), lr_binding = b }) memconfig =
     let
-        (s', b') = (markAndSweepPreserving (reqNames s `mappend` memconfig) s b)
+        s' = (markAndSweepPreserving (reqNames s `mappend` memconfig) s b)
         s'' = s' { type_env = type_env s }
     in
-    lrs { lr_state = lhs { state = s'' }, lr_binding = b' }
+    lrs { lr_state = lhs { state = s'' }, lr_binding = b }
 
 fromLiquidNoCleaning :: State ()
                      -> Lang.Id
@@ -351,7 +351,7 @@ processLiquidReadyStateWithCall lrs@(LiquidReadyState { lr_state = lhs@(LHState 
                           Right errs -> error errs
 
         (ce, is, f_i, ng') = mkCurrExpr Nothing Nothing ie (type_classes s) (name_gen bindings)
-                                      (expr_env s) (type_env s) (deepseq_walkers bindings) (known_values s) config
+                                      (expr_env s) (type_env s) (known_values s) config
 
         lhs' = lhs { state = s { expr_env = foldr E.insertSymbolic (expr_env s) is
                                , curr_expr = CurrExpr Evaluate ce }
@@ -381,8 +381,7 @@ runLHG2 :: (MonadIO m, Solver solver, Simplifier simplifier)
         -> Bindings
         -> m ([ExecRes AbstractedInfo], Bindings)
 runLHG2 config red hal ord solver simplifier pres_names init_id final_st bindings = do
-    let only_abs_st = addTicksToDeepSeqCases (deepseq_walkers bindings) final_st
-    (ret, final_bindings) <- runG2WithSomes red hal ord solver simplifier pres_names only_abs_st bindings
+    (ret, final_bindings) <- runG2WithSomes red hal ord solver simplifier pres_names final_st bindings
 
     let ret' = onlyMinimalStates ret
 
@@ -576,10 +575,7 @@ reqNames (State { expr_env = eenv
           Lang.namesList (filter (\(Name _ m _ _) -> m == Just "Data.Set.Internal") (E.keys eenv))
     in
     MemConfig { search_names = ns
-              , pres_func = pf }
-    where
-        pf _ (Bindings { deepseq_walkers = dsw }) a =
-            S.fromList . map idName . M.elems $ M.filterWithKey (\n _ -> n `S.member` a) dsw
+              , pres_func = \_ _ _ -> S.empty }
 
 printLHOut :: Lang.Id -> [ExecRes AbstractedInfo] -> IO ()
 printLHOut entry =

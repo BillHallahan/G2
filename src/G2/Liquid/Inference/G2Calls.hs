@@ -172,10 +172,9 @@ runLHG2Inference :: (MonadIO m, Solver solver, Simplifier simplifier)
                  -> Bindings
                  -> m ([ExecRes AbstractedInfo], Bindings)
 runLHG2Inference config red hal ord solver simplifier pres_names init_id final_st bindings = do
-    let only_abs_st = addTicksToDeepSeqCases (deepseq_walkers bindings) final_st
     (ret, final_bindings) <- case (red, hal, ord) of
                                 (SomeReducer red', SomeHalter hal', SomeOrderer ord') ->
-                                    runG2ThroughExecution red' hal' ord' pres_names only_abs_st bindings
+                                    runG2ThroughExecution red' hal' ord' pres_names final_st bindings
     
     ret' <- filterM (satState solver) ret
     let ret'' = onlyMinimalStates $ map (earlyExecRes final_bindings) ret'
@@ -924,12 +923,12 @@ evalMeasures init_meas lrs ghci es = do
                , ls_memconfig = pres_names } <- liftIO $ extractWithoutSpecs lrs (Id (Name "" Nothing 0 Nothing) TyUnknown) ghci memc
 
     let s' = s { true_assert = True }
-        (final_s, final_b) = markAndSweepPreserving pres_names s' bindings
+        final_s = markAndSweepPreserving pres_names s' bindings
 
         tot_meas = E.filter (isTotal (type_env s)) meas
 
     SomeSolver solver <- liftIO $ initSolver config
-    meas_res <- foldM (evalMeasures' (final_s {type_env = type_env s}) final_b solver config tot_meas tcv) init_meas $ filter (not . isError) es
+    meas_res <- foldM (evalMeasures' (final_s {type_env = type_env s}) bindings solver config tot_meas tcv) init_meas $ filter (not . isError) es
     liftIO $ close solver
     return meas_res
     where
@@ -1050,13 +1049,8 @@ evalMeasuresCE :: State t -> Bindings -> TCValues -> [Id] -> Expr -> [M.Map Name
 evalMeasuresCE s bindings tcv is e bound =
     let
         meas_call = map (uncurry tyAppId) $ zip is bound
-        ds = deepseq_walkers bindings
-
-        call =  foldr App e meas_call
-        str_call = mkStrict_maybe ds call
-        lh_dicts_call = maybe call (fillLHDictArgs ds)  str_call
     in
-    lh_dicts_call
+    foldr App e meas_call
     where
         tyAppId i b =
             let

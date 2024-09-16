@@ -19,8 +19,7 @@ module G2.Liquid.TyVarBags ( TyVarBags
                            , existentialInstId
                            , postSeqExistentialInstId
                            , putExistentialInstInExprEnv
-                           , putSymbolicExistentialInstInExprEnv
-                           , addTicksToDeepSeqCases) where
+                           , putSymbolicExistentialInstInExprEnv) where
 
 import G2.Execution.Reducer
 import G2.Language
@@ -409,18 +408,3 @@ existInstRedRules rv s@(State { curr_expr = CurrExpr Return e
     , i == existentialInstId =
         return (InProgress, [(s { exec_stack = stck' }, rv)], b)
 existInstRedRules rv s b = return (NoProgress, [(s, rv)], b)
-
-addTicksToDeepSeqCases :: Walkers -> State t -> State t
-addTicksToDeepSeqCases w s@(State { expr_env = eenv }) =
-    s { expr_env = foldr addTicksToDeepSeqCases' eenv (map idName $ M.elems w)}
-
-addTicksToDeepSeqCases' :: Name -> ExprEnv -> ExprEnv
-addTicksToDeepSeqCases' n eenv =
-    case E.lookup n eenv of
-        Just e -> E.insert n (modify addTicksToDeepSeqCases'' e) eenv
-        Nothing -> eenv
-
-addTicksToDeepSeqCases'' :: Expr -> Expr
-addTicksToDeepSeqCases'' (Case e i t (Alt am ae:as)) =
-    Case e i t $ Alt am (Tick (NamedLoc existentialCaseName) ae):as
-addTicksToDeepSeqCases'' e = e

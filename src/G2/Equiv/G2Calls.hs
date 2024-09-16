@@ -57,11 +57,6 @@ runG2ForNebula solver state h_opp track_opp config nc bindings = do
     --SomeSolver solver <- initSolver config
     let simplifier = IdSimplifier
         sym_config = PreserveAllMC
-        {-
-        sym_config = addSearchNames (namesList $ track state)
-                   $ addSearchNames (input_names bindings)
-                   $ addSearchNames (M.keys $ deepseq_walkers bindings) emptyMemConfig
-        -}
 
         state' = state { track = (track state) { saw_tick = Nothing } }
 
@@ -69,7 +64,6 @@ runG2ForNebula solver state h_opp track_opp config nc bindings = do
                 (red, hal, ord) ->
                     SM.evalStateT (runG2WithSomes red hal ord solver simplifier sym_config state' bindings) (mkPrettyGuide ())
 
-    --close solver
 
     return (in_out, bindings')
 
