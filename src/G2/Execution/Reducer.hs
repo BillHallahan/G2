@@ -617,6 +617,8 @@ strictRed = mkSimpleReducer (\_ -> ())
                 must_red _ (Type _) = False
                 must_red _ (Prim _ _) = False
                 must_red ns (App e1 e2) = must_red ns e1 || must_red ns e2
+                must_red ns (Cast c_e _) = must_red ns c_e
+                must_red _ (Coercion _) = False
                 must_red _ _ = True
         strict_red _ s b = return (NoProgress, [(s, ())], b)
 
