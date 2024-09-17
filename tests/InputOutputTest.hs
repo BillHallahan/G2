@@ -85,11 +85,11 @@ checkInputOutput' io_config src tests = do
                                 config <- io_config
                                 r <- doTimeout (timeLimit config)
                                                (try (checkInputOutput'' [src] exg2 (head mb_modname) config test)
-                                                    :: IO (Either SomeException (Bool, [ExecRes ()])))
+                                                    :: IO (Either SomeException (Bool, Bool, [ExecRes ()])))
                                 let (b, e) = case r of
                                         Nothing -> (False, "\nTimeout")
                                         Just (Left e') -> (False, "\n" ++ show e')
-                                        Just (Right (b', _)) -> (b', "")
+                                        Just (Right (b_val, b_count, _)) -> (b_val && b_count, "\nvalidation = " ++ show b_val ++ ", count = " ++ show b_count)
 
                                 assertBool ("Input/Output for file " ++ show src ++ " failed on function " ++ entry ++ "." ++ e) b 
                                 )
@@ -100,7 +100,7 @@ checkInputOutput'' :: [FilePath]
                    -> Maybe T.Text
                    -> Config 
                    -> (String, Int, [Reqs String])
-                   -> IO (Bool, [ExecRes ()])
+                   -> IO (Bool, Bool, [ExecRes ()])
 checkInputOutput'' src exg2 mb_modname config (entry, stps, req) = do
     let config' = config { steps = stps }
         (init_state, bindings) = initStateWithCall exg2 False (T.pack entry) mb_modname (mkCurrExpr Nothing Nothing) mkArgTys config'
@@ -114,7 +114,7 @@ checkInputOutput'' src exg2 mb_modname config (entry, stps, req) = do
 
     let chEx = checkExprInOutCount io req
     
-    return $ (mr && chEx, r)
+    return (mr, chEx, r)
 
 ------------
 
