@@ -268,6 +268,7 @@ unify' uf (TyCon n1 k1) (TyCon n2 k2) | n1 == n2 = unify' uf k1 k2
 unify' uf (TyForAll i1 t1) (TyForAll i2 t2) = do
     uf' <- unify' uf (typeOf i1) (typeOf i2)
     unify' uf' t1 t2
+unify' uf (TyFun _ _) TYPE = Just uf
 unify' uf t1 t2 | t1 == t2 = return uf
                 | otherwise = Nothing
 
