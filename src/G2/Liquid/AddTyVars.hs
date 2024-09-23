@@ -59,7 +59,7 @@ getUnusedPoly' adt =
     foldr (uncurry insertUP) emptyUP $ mapMaybe (getUnusedPoly'' bound) dcs
 
 getUnusedPoly'' :: [Id] -> DataCon -> Maybe (Name, [Int])
-getUnusedPoly'' is dc@(DataCon n _) =
+getUnusedPoly'' is dc@(DataCon n _ _ _) =
     let
         used = tyVarIds . argumentTypes . PresType . inTyForAlls $ typeOf dc
     in
@@ -118,7 +118,7 @@ addTyVarsExprDC :: ASTContainer m Expr => UnusedPoly -> m -> m
 addTyVarsExprDC unused = modifyAppedDatas (addTyVarsExprDC' unused)
 
 addTyVarsExprDC' :: UnusedPoly -> DataCon -> [Expr] -> Expr
-addTyVarsExprDC' unused dc@(DataCon n _) ars
+addTyVarsExprDC' unused dc@(DataCon n _ _ _) ars
     | Just is <- lookupUP n unused =
         let
             (ty_ars, expr_ars) = partition (isTypeExpr) ars
@@ -135,7 +135,7 @@ addTyVarsExprCase unused (Case e i t as) =
 addTyVarsExprCase _ e = e
 
 addTyVarsAlt :: UnusedPoly -> Expr -> Alt -> Alt
-addTyVarsAlt unused case_e (Alt (DataAlt dc@(DataCon n _) is) alt_e)
+addTyVarsAlt unused case_e (Alt (DataAlt dc@(DataCon n _ _ _) is) alt_e)
     | Just i <- lookupUP n unused = 
         let
             dc' = addTyVarDC unused dc
@@ -155,8 +155,8 @@ addTyVarsAlt _ _ alt = alt
 -- Generic
 -------------------------------
 addTyVarDC :: UnusedPoly -> DataCon -> DataCon
-addTyVarDC unused dc@(DataCon n t)
-    | Just is <- lookupUP n unused = DataCon n (addTyVarsToType is t)
+addTyVarDC unused dc@(DataCon n t u e)
+    | Just is <- lookupUP n unused = DataCon n (addTyVarsToType is t) u e
     | otherwise = dc
 
 addTyVarsToType :: [Int] -> Type -> Type
@@ -207,7 +207,7 @@ mkNewJustDC new_mb =
           . TyFun tya
           $ TyApp (TyCon (new_maybe new_mb) TYPE) tya
     in
-    DataCon n t
+    DataCon n t [Id a TYPE] []
 
 mkNewNothingDC :: NewMaybe -> DataCon
 mkNewNothingDC new_mb =
@@ -219,7 +219,7 @@ mkNewNothingDC new_mb =
         t = TyForAll (Id a TYPE)
           $ TyApp (TyCon (new_maybe new_mb) TYPE) tya
     in
-    DataCon n t
+    DataCon n t [Id a TYPE] []
 
 -------------------------------
 -- UnusedPoly

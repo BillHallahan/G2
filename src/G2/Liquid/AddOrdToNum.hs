@@ -106,9 +106,9 @@ changeNumType' num ce@(Case e i@(Id n _) ct [Alt (DataAlt dc is) ae])
 changeNumType' _ e = return e
 
 changeNumTypeDC :: DataCon -> LHStateM DataCon
-changeNumTypeDC (DataCon n t) = do
+changeNumTypeDC (DataCon n t u e) = do
     t' <- changeNumTypeType Nothing t
-    return (DataCon n t')
+    return (DataCon n t' u e)
 
 changeNumTypeType :: Maybe Id -> Type -> LHStateM Type
 changeNumTypeType _ (TyForAll i t) = return . TyForAll i =<< changeNumTypeType (Just i) t

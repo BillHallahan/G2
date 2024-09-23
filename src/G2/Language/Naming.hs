@@ -179,7 +179,7 @@ altMatchNames (DataAlt dc i) = dataConName dc ++ (map idName i)
 altMatchNames _ = []
 
 dataConName :: DataCon -> [Name]
-dataConName (DataCon n _) = [n]
+dataConName (DataCon n _ _ _) = [n]
 
 typeNames :: (ASTContainer m Type) => m -> [Name]
 typeNames = evalASTs typeTopNames
@@ -338,7 +338,7 @@ renameExprId :: Name -> Name -> Id -> Id
 renameExprId old new (Id n t) = Id (rename old new n) t
 
 renameExprDataCon :: Name -> Name -> DataCon -> DataCon
-renameExprDataCon old new (DataCon n t) = DataCon (rename old new n) t
+renameExprDataCon old new (DataCon n t u e) = DataCon (rename old new n) t u e
 
 renameExprAlt :: Name -> Name -> Alt -> Alt
 renameExprAlt old new (Alt (DataAlt dc is) e) =
@@ -375,7 +375,7 @@ renamesExprId :: HM.HashMap Name Name -> Id -> Id
 renamesExprId hm (Id n t) = Id (renames hm n) t
 
 renamesExprDataCon :: HM.HashMap Name Name -> DataCon -> DataCon
-renamesExprDataCon hm (DataCon n t) = DataCon (renames hm n) t
+renamesExprDataCon hm (DataCon n t u e) = DataCon (renames hm n) t u e
 
 renamesExprAlt :: HM.HashMap Name Name -> Alt -> Alt
 renamesExprAlt hm (Alt (DataAlt dc is) e) =
@@ -433,15 +433,15 @@ instance Named Alt where
 
 instance Named DataCon where
     {-# INLINE names #-}
-    names (DataCon n t) = n S.<| names t
+    names (DataCon n t u e) = n S.<| names t S.>< names u S.>< names e
 
     {-# INLINE rename #-}
-    rename old new (DataCon n t) =
-        DataCon (rename old new n) (rename old new t)
+    rename old new (DataCon n t u e) =
+        DataCon (rename old new n) (rename old new t) (rename old new u) (rename old new e)
 
     {-# INLINE renames #-}
-    renames hm (DataCon n t) =
-        DataCon (renames hm n) (renames hm t)
+    renames hm (DataCon n t u e) =
+        DataCon (renames hm n) (renames hm t) (renames hm u) (renames hm e)
 
 instance Named AltMatch where
     {-# INLINE names #-}
