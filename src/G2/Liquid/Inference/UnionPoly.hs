@@ -47,6 +47,36 @@ sharedTyConsEE' ns eenv = do
 
     return . UT $ HM.mapKeys (\(Name n m _ l) -> Name n m 0 l) union_tys
 
+
+checkType :: Expr -> Maybe (UF.UFMap Name Type)
+checkType = check' UF.empty
+
+check' :: UF.UFMap Name Type -> Expr -> Maybe (UF.UFMap Name Type)
+check' uf (Var (Id _ _)) = Just uf
+check' uf (Lit _) = Just uf
+check' uf (Prim _ _) = Just uf
+check' uf (Data _) = Just uf
+check' uf (App e1 e2) =
+    let
+        t1 = case typeOf e1 of
+                TyFun t _ -> t
+                TyForAll (Id _ t) _ -> t
+                _ -> error "check: Unexpected type in App"
+        t2 = typeOf e2
+    in
+    unify' uf t1 t2 >>= flip check' e1 >>= flip check' e2
+check' uf (Lam _ _ e) = check' uf e
+check' uf (Let b e) = foldM check' uf (map snd b) >>= flip check' e
+check' uf (Case e _ _ alts) = foldM check' uf (map altExpr alts) >>= flip check' e
+check' uf (Type _) = Just uf
+check' uf (Cast e (t :~ _)) = unify' uf (typeOf e) t >>= flip check' e
+check' uf (Coercion (_ :~ _)) = Just uf
+check' uf (Tick _ t) = check' uf t
+check' uf (NonDet es) = foldM check' uf es
+check' uf (SymGen _ _) = Just uf
+check' uf (Assert _ e1 e2) = check' uf e1 >>= flip check' e2
+check' uf (Assume _ e1 e2) = check' uf e1 >>= flip check' e2
+
 g2UnionNameText :: T.Text
 g2UnionNameText = "__G2__UNION__NAME__"
 
