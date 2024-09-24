@@ -34,3 +34,14 @@ It is capable of generating assertion failure counterexamples and solving for hi
 * `--max-outputs` number of inputs/results to display
 * `--smt` Pass "z3" or "cvc4" to select a solver [Default: Z3]
 * `--time` Set a timeout in seconds
+
+#### Plugin:
+
+Add the following to your .cabal file in the package:
+
+```
+    build-depends: g2
+    ghc-options: -fplugins=G2.Nebula
+```
+
+Next time running `cabal build` should execute the Nebula plugin
