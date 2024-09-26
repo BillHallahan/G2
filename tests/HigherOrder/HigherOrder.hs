@@ -35,8 +35,11 @@ thirdOrder2 f =
 
 data IntPair = IntPair Int Int
 
-tupleTestMono :: (IntPair -> IntPair) -> Bool
-tupleTestMono f = let (IntPair a b) = f (IntPair 3 6) in a <= b
+tupleTestMono :: (IntPair -> IntPair) -> (Int, Bool)
+tupleTestMono f = let (IntPair a b) = f (IntPair 3 6) in
+                    case a <= b of
+                        True -> (0, True)
+                        False -> (1, False)
 
 staggered :: (Int -> Int -> Int) -> Int
 staggered f =

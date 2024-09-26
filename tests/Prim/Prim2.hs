@@ -7,8 +7,11 @@ quotI1 x y = x `quot` y == 7
 quotI2 :: Int -> Int -> Bool
 quotI2 x y = x `quot` y == -7
 
-remI1 :: Int -> Int -> Bool
-remI1 x y = x `rem` y == 7
+remI1 :: Int -> Int -> (Int, Bool)
+remI1 x y =
+    case x `rem` y == 7 of
+        True -> (1, True)
+        False -> (2, False)
 
 remI2 :: Int -> Int -> Bool
 remI2 x y = x `rem` y == -7

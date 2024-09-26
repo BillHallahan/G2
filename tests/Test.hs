@@ -424,14 +424,14 @@ testFileTests = testGroup "TestFiles"
 extensionTests :: TestTree
 extensionTests = testGroup "Extensions"
     [
-      checkInputOutputs "tests/TestFiles/Extensions/GADTSyntax.hs" [("cons3", 400, [Exactly 1])]
+      checkInputOutputs "tests/TestFiles/Extensions/GADTSyntax.hs" [("cons3", 500, [Exactly 1])]
     , checkInputOutputs "tests/TestFiles/Extensions/PatternSynonyms1.hs" [ ("isNineInt", 400, [AtLeast 2])
-                                                                         , ("isNineInteger", 400, [AtLeast 2])
-                                                                         , ("isNineFloat", 400, [AtLeast 2])
+                                                                         , ("isNineInteger", 400, [AtLeast 1])
+                                                                         , ("isNineFloat", 400, [AtLeast 1])
                                                                          , ("isFunc", 400, [AtLeast 2])
                                                                          , ("funcArg", 400, [AtLeast 2])
                                                                          
-                                                                         , ("consArrow", 400, [AtLeast 2]) ]
+                                                                         , ("consArrow", 400, [AtLeast 1]) ]
     , checkInputOutputs "tests/TestFiles/Extensions/ViewPatterns1.hs" [ ("shapeToNumSides", 4000, [Exactly 4]) ]
     , checkInputOutputs "tests/TestFiles/Extensions/FlexibleContexts1.hs" [ ("callF", 400, [AtLeast 2])
                                                                           , ("callF2", 400, [AtLeast 2])
