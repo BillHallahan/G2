@@ -23,7 +23,7 @@ data ExecRes t = ExecRes { final_state :: State t -- ^ The final state.
 printInputOutput :: PrettyGuide
                  -> Id -- ^ Input function
                  -> ExecRes t
-                 -> (T.Text, T.Text, T.Text)
+                 -> (T.Text, T.Text, T.Text) -- ^ Mutable variables, input, output
 printInputOutput pg i er =
     let
         er' = er { conc_args = modifyASTs remMutVarPrim (conc_args er)

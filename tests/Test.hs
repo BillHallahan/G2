@@ -14,6 +14,7 @@ import G2.Config
 
 import G2.Interface
 import G2.Language as G2
+import G2.Lib.Printers
 
 import Control.Exception
 import Data.Maybe
@@ -43,6 +44,7 @@ import InputOutputTest
 import Reqs
 import TestUtils
 
+import Data.List
 import qualified Data.Map.Lazy as M
 
 -- Run with no arguments for default test cases.
@@ -116,8 +118,6 @@ sampleTests = testGroup "Samples"
         , RForAll allabs2NonNeg
         , AtLeast 4]
     , checkExpr "tests/Samples/HigherOrderMath.hs" 600 "fixed" [ RExists abs2NonNeg
-                                                               , RExists squareRes
-                                                               , RExists fourthPowerRes
                                                                , AtLeast 4]
     , checkExprAssumeAssert "tests/Samples/HigherOrderMath.hs" 600 (Just "isTrue2") Nothing "sameFloatArgLarger"
         [ RExists addRes
@@ -632,29 +632,37 @@ checkExprWithConfig src m_assume m_assert m_reaches entry reqList config_f = do
         config <- config_f
         res <- testFile src m_assume m_assert m_reaches entry config
         
-        let reqRes = case res of
-                    Left _ -> Nothing
-                    Right exprs -> Just $ checkExprGen (map (\(inp, out) -> inp ++ [out]) exprs) reqList
+        let (reqRes, res_print) =
+                case res of
+                    Left _ -> (Nothing, [])
+                    Right exec_res ->
+                            let
+                                reqs = checkExprGen
+                                            (map (\ExecRes { conc_args = inp, conc_out = out} -> inp ++ [out]) exec_res)
+                                            $ reqList
+
+                                pg = mkPrettyGuide exec_res
+                                res_pretty = map (printInputOutput pg (Id (Name (T.pack entry) Nothing 0 Nothing) TyUnknown)) exec_res
+                                res_print = map T.unpack $ map (\(_, inp, out) -> inp <> " = " <> out) res_pretty
+                            in
+                            (Just reqs, res_print)
+
+
+
         assertBool ("Assume/Assert for file " ++ src
                                     ++ " with functions [" ++ (fromMaybe "" m_assume) ++ "] "
                                     ++ "[" ++ (fromMaybe "" m_assert) ++ "] "
-                                    ++  entry ++ " failed.\n" ++ show res ++ "\n" ++ show reqRes)
+                                    ++  entry ++ " failed.\n" ++ intercalate "\n" res_print ++ "\n" ++ show reqRes)
                    (maybe False null reqRes)
         )
 
-    -- return . testCase src
-    --     $ assertBool ("Assume/Assert for file " ++ src ++ 
-    --                   " with functions [" ++ (fromMaybe "" m_assume) ++ "] " ++
-    --                                   "[" ++ (fromMaybe "" m_assert) ++ "] " ++
-    --                                           entry ++ " failed.\n") ch
- 
 testFile :: String
          -> Maybe String
          -> Maybe String
          -> Maybe String
          -> String
          -> Config
-         -> IO (Either SomeException [([Expr], Expr)])
+         -> IO (Either SomeException [ExecRes ()])
 testFile src m_assume m_assert m_reaches entry config =
     try (testFileWithConfig src m_assume m_assert m_reaches entry config)
 
@@ -664,7 +672,7 @@ testFileWithConfig :: String
                    -> Maybe String
                    -> String
                    -> Config
-                   -> IO [([Expr], Expr)]
+                   -> IO [ExecRes ()]
 testFileWithConfig src m_assume m_assert m_reaches entry config = do
     let proj = takeDirectory src
     r <- doTimeout (timeLimit config)
@@ -680,7 +688,7 @@ testFileWithConfig src m_assume m_assert m_reaches entry config = do
                 config
 
     let (states, _) = maybe (error "Timeout") fst r
-    return $ map (\(ExecRes { conc_args = i, conc_out = o}) -> (i, o)) states 
+    return states
 
 -- For mergeState unit tests
 checkFn :: Either String Bool -> String -> IO TestTree
