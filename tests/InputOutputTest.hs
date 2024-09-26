@@ -11,6 +11,7 @@ import Test.Tasty.HUnit
 
 import Control.Exception
 import Data.IORef
+import Data.List
 import qualified Data.Map.Lazy as M
 import Data.Maybe
 import qualified Data.Text as T
@@ -21,6 +22,7 @@ import G2.Config
 import G2.Initialization.MkCurrExpr
 import G2.Interface
 import G2.Language
+import G2.Lib.Printers
 import G2.Translation
 
 import Reqs
@@ -89,7 +91,12 @@ checkInputOutput' io_config src tests = do
                                 let (b, e) = case r of
                                         Nothing -> (False, "\nTimeout")
                                         Just (Left e') -> (False, "\n" ++ show e')
-                                        Just (Right (b_val, b_count, _)) -> (b_val && b_count, "\nvalidation = " ++ show b_val ++ ", count = " ++ show b_count)
+                                        Just (Right (b_val, b_count, exec_res)) ->
+                                            let pg = mkPrettyGuide exec_res
+                                                res_pretty = map (printInputOutput pg (Id (Name (T.pack entry) Nothing 0 Nothing) TyUnknown)) exec_res
+                                                res_print = map T.unpack $ map (\(_, inp, out) -> inp <> " = " <> out) res_pretty
+                                            in
+                                            (b_val && b_count, "\nvalidation = " ++ show b_val ++ ", count = " ++ show b_count ++ "\n" ++ intercalate "\n" res_print)
 
                                 assertBool ("Input/Output for file " ++ show src ++ " failed on function " ++ entry ++ "." ++ e) b 
                                 )
