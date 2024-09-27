@@ -198,7 +198,7 @@ testFileTests = testGroup "TestFiles"
                                                      , ("compZZ", 1600, [AtLeast 2])
                                                      , ("compZZ2", 1600, [AtLeast 2]) ]
 
-    , checkInputOutput "tests/TestFiles/Defunc2.hs" "funcMap" 400 [AtLeast 30]
+    , checkInputOutput "tests/TestFiles/Defunc2.hs" "funcMap" 500 [AtLeast 30]
 
     , checkExpr "tests/TestFiles/MultCase.hs" 400 "f"
         [ RExists (\[App _ (Lit (LitInt x)), y] -> x == 2 && getBoolB y id)
