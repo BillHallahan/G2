@@ -4,7 +4,7 @@ data A = A (Int -> Int)
        | B Int
 
 f :: A -> A
-f (A g) = B (g 2)
+f (A g) = B (case g 2 of 0 -> -1; y -> y)
 f x = x
 
 h :: (Int -> Int) -> Int
