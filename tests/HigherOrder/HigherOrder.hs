@@ -6,15 +6,15 @@ data List = Cons Bool List | EmptyList
 
 f :: (List -> List) -> List -> Bool
 f g l = case g l of
-    Cons True l -> True
-    Cons False l -> False
+    Cons False l -> True
+    Cons True l -> False
     EmptyList -> True
 
 h :: (Int -> Int) -> Bool
-h g = g 3 <= g 6
+h g = not (g 3 <= g 6)
 
 assoc :: (Int -> Int -> Int) -> Int -> Int -> Int -> Bool
-assoc op x y z = op (op x y) z == op x (op y z)
+assoc op x y z = not (op (op x y) z == op x (op y z))
 
 data Stream = Stream Bool Stream
 
@@ -22,10 +22,10 @@ streamTail :: Stream -> Stream
 streamTail (Stream _ s) = s
 
 sf :: (Stream -> Int) -> Stream -> Bool
-sf f s = f s == f (streamTail s)
+sf f s = not (f s == f (streamTail s))
 
 thirdOrder :: ((Bool -> Bool) -> Bool) -> Bool
-thirdOrder f = f (\b -> case b of { True -> False; False -> True })
+thirdOrder f = not (f (\b -> case b of { True -> False; False -> True }))
 
 thirdOrder2 :: ((Bool -> Bool) -> Bool) -> Int
 thirdOrder2 f =

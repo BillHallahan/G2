@@ -23,4 +23,4 @@ sf :: (Stream a -> Int) -> Stream a -> Bool
 sf f s = f s == f (streamTail s)
 
 tupleTest :: (Num a, Ord a) => ((a, a) -> (a, a)) -> Bool
-tupleTest f = let (a,b) = f (3,6) in a <= b
+tupleTest f = let (a,b) = f (3,6) in not (a <= b)
