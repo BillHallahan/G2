@@ -151,7 +151,7 @@ sampleTests = testGroup "Samples"
 
                                                       , ("cfmapInt", 1000, [AtLeast 10])
                                                       , ("cfmapIntX", 1600, [AtLeast 10])
-                                                      , ("cfmapIntCListInt", 600, [AtLeast 2]) ]
+                                                      , ("cfmapIntCListInt", 300, [AtLeast 2]) ]
 
     , checkExprReaches "tests/Samples/GetNthErr.hs" 800 Nothing Nothing (Just "error") "getNth"
         [AtLeast 8, RForAll errors]
