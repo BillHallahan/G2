@@ -676,19 +676,31 @@ strictRed = mkSimpleReducer (\_ -> ())
                                  | otherwise = stck
 
                 -- | Does the expression contain non-fully-reduced subexpressions?
+                --
                 -- Looks through variables, but tracks seen variable names to avoid an infinite loop.
-                must_red ns (Var (Id n _)) | HS.member n ns = False -- If we have seen a variable already,
-                                                                    -- we will have already discovered if it needs to be reduced
-                                           | E.isSymbolic n eenv = False
-                                           | otherwise = maybe False (must_red (HS.insert n ns)) (E.lookup n eenv)
-                must_red _ (Lit _) = False
-                must_red _ (Data _) = False
-                must_red _ (Type _) = False
-                must_red _ (Prim _ _) = False
-                must_red ns (App e1 e2) = must_red ns e1 || must_red ns e2
+                --
+                -- Lambdas that are not in the center of an application (or bound by top level variables/nested in top level casts)
+                -- are fully reduced, but reduction must happen if a lambda is in the center of an `App`.
+                must_red ns (Var (Id n _)) = mr_var must_red ns n
+                must_red _ (Lam _ _ _) = False
                 must_red ns (Cast c_e _) = must_red ns c_e
-                must_red _ (Coercion _) = False
-                must_red _ _ = True
+                must_red ns e_ = must_red_no_lam ns e_
+
+                must_red_no_lam ns (Var (Id n _)) = mr_var must_red_no_lam ns n
+                must_red_no_lam _ (Lit _) = False
+                must_red_no_lam _ (Data _) = False
+                must_red_no_lam _ (Type _) = False
+                must_red_no_lam _ (Prim _ _) = False
+                must_red_no_lam ns (App e1 e2) = must_red_no_lam ns e1 || must_red ns e2
+                must_red_no_lam ns (Cast c_e _) = must_red_no_lam ns c_e
+                must_red_no_lam _ (Coercion _) = False
+                must_red_no_lam _ _ = True
+
+                mr_var cont ns n | HS.member n ns = False -- If we have seen a variable already,
+                                                          -- we will have already discovered if it needs to be reduced
+                                 | E.isSymbolic n eenv = False
+                                 | otherwise = maybe False (cont (HS.insert n ns)) (E.lookup n eenv)
+
         strict_red _ s b = return (NoProgress, [(s, ())], b)
 
 -- | Removes and reduces the values in a State's non_red_path_conds field. 
