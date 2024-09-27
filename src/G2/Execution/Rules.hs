@@ -78,10 +78,10 @@ stdReduce' _ symb_func_eval solver simplifier s@(State { curr_expr = CurrExpr Re
         return (RuleError, [s { exec_stack = stck'
                               , true_assert = True
                               , assert_ids = fmap (\fc -> fc { returns = Prim Error TyBottom }) is }], ng)
+    | Just rs <- symb_func_eval s ng ce = return rs
     | Just (UpdateFrame n, stck') <- frstck = return $ retUpdateFrame s ng n stck'
     | isError ce
     , Just (_, stck') <- S.pop stck = return (RuleError, [s { exec_stack = stck' }], ng)
-    | Just rs <- symb_func_eval s ng ce = return rs
     | Just (CaseFrame i t a, stck') <- frstck = return $ retCaseFrame s ng ce i t a stck'
     | Just (CastFrame c, stck') <- frstck = return $ retCastFrame s ng ce c stck'
     | Lam u i e <- ce

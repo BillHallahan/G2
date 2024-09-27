@@ -9,7 +9,7 @@ f g l = case g l of
     EmptyList -> True
 
 h :: (Num a, Ord a) => (a -> a) -> Bool
-h g = g 3 <= g 6
+h g = not (g 3 <= g 6)
 
 assoc :: Eq a => (a -> a -> a) -> a -> a -> a -> Bool
 assoc op x y z = op (op x y) z == op x (op y z)
