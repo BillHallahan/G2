@@ -24,7 +24,7 @@ initKnownValues eenv tenv tc =
   in
   KnownValues {
       tyCoercion = typeWithStrName tenv "~#" 
-    , dcCoercion = dcWithStrName tenv "~#" ""
+    , dcCoercion = dcWithStrName tenv "~#" "Co"
     , tyInt = typeWithStrName tenv "Int"
     , dcInt = dcWithStrName tenv "Int" "I#"
     , tyFloat = typeWithStrName tenv "Float"
