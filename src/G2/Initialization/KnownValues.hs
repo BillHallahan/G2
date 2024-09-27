@@ -23,9 +23,8 @@ initKnownValues eenv tenv tc =
     ordT = typeWithStrName tenv "Ord"
   in
   KnownValues {
-    -- ToDo is this correct?
-      tyCoercion = typeWithStrName tenv "~# t1 t2" 
-    , dcCoercion = dcWithStrName tenv "~#" "a b"
+      tyCoercion = typeWithStrName tenv "~#" 
+    , dcCoercion = dcWithStrName tenv "~#" ""
     , tyInt = typeWithStrName tenv "Int"
     , dcInt = dcWithStrName tenv "Int" "I#"
     , tyFloat = typeWithStrName tenv "Float"
