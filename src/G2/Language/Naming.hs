@@ -645,12 +645,14 @@ instance Named KnownValues where
                 , errF, errEmpListF, errWOST, patE]
 
     rename old new (KnownValues {
-                     dcInt = dI
+                     dcCoercion = dcC
+                   , dcInt = dI
                    , dcFloat = dF
                    , dcDouble = dD
                    , dcInteger = dI2
                    , dcChar = dcCh
-
+                    
+                   , tyCoercion = tyC 
                    , tyInt = tI
                    , tyFloat = tF
                    , tyDouble = tD
@@ -727,12 +729,14 @@ instance Named KnownValues where
                    , patErrorFunc = patE
                    }) =
                     (KnownValues {
-                          dcInt = rename old new dI
+                          dcCoercion = rename old new dcC
+                        , dcInt = rename old new dI
                         , dcFloat = rename old new dF
                         , dcDouble = rename old new dD
                         , dcInteger = rename old new dI2
                         , dcChar = rename old new dcCh
 
+                        , tyCoercion = rename old new tyC
                         , tyInt = rename old new tI
                         , tyFloat = rename old new tF
                         , tyDouble = rename old new tD

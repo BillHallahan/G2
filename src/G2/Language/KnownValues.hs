@@ -13,7 +13,10 @@ import GHC.Generics (Generic)
 -- | A `KnownValues` tracks the names of  data types we know should
 -- exist, and that we care about for some special reason.
 data KnownValues = KnownValues {
-                   tyInt :: Name
+                   tyCoercion :: Name
+                 , dcCoercion :: Name 
+                 
+                 , tyInt :: Name
                  , dcInt :: Name
 
                  , tyFloat :: Name
