@@ -133,9 +133,10 @@ evalPrim1 _ _ = Nothing
 evalPrim1' :: TypeEnv -> KnownValues -> Primitive -> Lit -> Maybe Expr
 evalPrim1' tenv kv IntToString (LitInt x) =
     let
+        char_ty = tyChar kv
         char_dc = mkDCChar kv tenv
     in
-    Just . mkG2List kv tenv TyLitChar . map (App char_dc . Lit . LitChar) $ show x
+    Just . mkG2List kv tenv char_ty . map (App char_dc . Lit . LitChar) $ show x
 evalPrim1' _ kv FpIsNegativeZero (LitFloat x) = Just . mkBool kv $  isNegativeZero x
 evalPrim1' _ kv FpIsNegativeZero (LitDouble x) = Just . mkBool kv $  isNegativeZero x
 evalPrim1' _ kv IsNaN (LitFloat x) = Just . mkBool kv $ isNaN x
