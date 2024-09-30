@@ -148,6 +148,7 @@ evalPrim2 :: KnownValues -> Primitive -> Lit -> Lit -> Maybe Expr
 evalPrim2 kv Ge x y = evalPrim2NumCharBool (>=) kv x y
 evalPrim2 kv Gt x y = evalPrim2NumCharBool (>) kv x y
 evalPrim2 kv Eq x y = evalPrim2NumCharBool (==) kv x y
+evalPrim2 kv Neq x y = evalPrim2NumCharBool (/=) kv x y
 evalPrim2 kv Lt x y = evalPrim2NumCharBool (<) kv x y
 evalPrim2 kv Le x y = evalPrim2NumCharBool (<=) kv x y
 evalPrim2 _ Plus x y = evalPrim2Num (+) x y
