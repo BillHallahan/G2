@@ -158,7 +158,7 @@ evalApp s@(State { expr_env = eenv
     | Just (e, eenv', pc, ng') <- evalPrimSymbolic eenv tenv ng kv (App e1 e2) =
         ( RuleEvalPrimToNorm
         , [ (newPCEmpty $ s { expr_env = eenv'
-                            , curr_expr = CurrExpr Return e }) { new_pcs = pc} ]
+                            , curr_expr = CurrExpr Evaluate e }) { new_pcs = pc} ]
         , ng')
     | (Prim prim ty):ar <- unApp (App e1 e2) = 
         let
