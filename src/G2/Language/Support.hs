@@ -71,7 +71,10 @@ data Bindings = Bindings { deepseq_walkers :: Walkers
                          , arb_value_gen :: ArbValueGen 
                          , cleaned_names :: CleanedNames
                          , higher_order_inst :: S.HashSet Name -- ^ Functions to try instantiating higher order functions with
-                         , input_names :: [Name]
+
+                         , input_names :: [Name] -- ^ Names of input symbolic arguments
+                         , input_coercion :: Maybe Coercion -- ^ Coercion wrapping the initial function call
+                         
                          , rewrite_rules :: ![RewriteRule]
                          , name_gen :: NameGen
                          , exported_funcs :: [Name]
@@ -262,6 +265,7 @@ instance Named Bindings where
             <> names (cleaned_names b)
             <> names (higher_order_inst b)
             <> names (input_names b)
+            <> names (input_coercion b)
             <> names (exported_funcs b)
             <> names (rewrite_rules b)
 
@@ -272,6 +276,7 @@ instance Named Bindings where
                  , cleaned_names = HM.insert new old (cleaned_names b)
                  , higher_order_inst = rename old new (higher_order_inst b)
                  , input_names = rename old new (input_names b)
+                 , input_coercion = rename old new (input_coercion b)
                  , rewrite_rules = rename old new (rewrite_rules b)
                  , name_gen = name_gen b
                  , exported_funcs = rename old new (exported_funcs b)
@@ -284,6 +289,7 @@ instance Named Bindings where
                , cleaned_names = foldr (\(old, new) -> HM.insert new old) (cleaned_names b) (HM.toList hm)
                , higher_order_inst = renames hm (higher_order_inst b)
                , input_names = renames hm (input_names b)
+               , input_coercion = renames hm (input_coercion b)
                , rewrite_rules = renames hm (rewrite_rules b)
                , name_gen = name_gen b
                , exported_funcs = renames hm (exported_funcs b)
@@ -296,10 +302,13 @@ instance ASTContainer Bindings Expr where
                                 , input_names = modifyContainedASTs f $ input_names b }
 
 instance ASTContainer Bindings Type where
-    containedASTs b = ((containedASTs . fixed_inputs) b) ++ ((containedASTs . input_names) b)
+    containedASTs b = (containedASTs . fixed_inputs $ b)
+                   ++ (containedASTs . input_names $ b)
+                   ++ (containedASTs . input_coercion $ b)
 
-    modifyContainedASTs f b = b { fixed_inputs = (modifyContainedASTs f . fixed_inputs) b
-                                , input_names = (modifyContainedASTs f . input_names) b }
+    modifyContainedASTs f b = b { fixed_inputs = modifyContainedASTs f . fixed_inputs $ b
+                                , input_names = modifyContainedASTs f . input_names $ b
+                                , input_coercion = modifyContainedASTs f . input_coercion $ b }
 
 instance ASTContainer CurrExpr Expr where
     containedASTs (CurrExpr _ e) = [e]

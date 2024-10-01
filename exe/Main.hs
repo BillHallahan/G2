@@ -49,7 +49,7 @@ runWithArgs as = do
 
     case validate config of
         True -> do
-            r <- validateStates proj [src] (T.unpack $ fromJust mb_modname) entry [] [Opt_Hpc] in_out
+            r <- validateStates proj [src] (T.unpack $ fromJust mb_modname) entry [] [Opt_Hpc] b in_out
             if r then putStrLn "Validated" else putStrLn "There was an error during validation."
 
             -- runHPC src (T.unpack $ fromJust mb_modname) entry in_out
@@ -61,9 +61,9 @@ runWithArgs as = do
 
 printFuncCalls :: Config -> Id -> Bindings -> [ExecRes t] -> IO ()
 printFuncCalls config entry b =
-    mapM_ (\execr@(ExecRes { final_state = s}) -> do
+    mapM_ (\execr@(ExecRes { final_state = s }) -> do
         let pg = mkPrettyGuide (exprNames $ conc_args execr)
-        let (mvp, inp, outp) = printInputOutput pg entry execr
+        let (mvp, inp, outp) = printInputOutput pg entry b execr
             sym_gen_out = fmap (printHaskellPG pg s) $ conc_sym_gens execr
 
         case sym_gen_out of
