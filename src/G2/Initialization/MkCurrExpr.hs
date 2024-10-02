@@ -48,7 +48,19 @@ mkCurrExpr m_assume m_assert f@(Id (Name _ m_mod _ _) _) tc ng eenv tenv walkers
             in
             (let_ex, is, typsE, m_coer, ng'')
         Nothing -> error "mkCurrExpr: Bad Name"
+-- | If a function we are symbolically executing returns a newtype wrapping a function type, applies a coercion to the function.
+-- For instance, given:
+-- @
+-- newtype F = F (Int -> Int) 
 
+-- f :: Int -> F
+-- f y = F (\x -> x + y)
+-- @
+--
+-- This allows symbolic execution to find an input/output example:
+--  @
+-- ((coerce (f :: Int -> F)) :: Int -> Int -> Int) (0) (1) = 1
+-- @
 coerceRetNewTypes :: TypeEnv -> Expr -> (Maybe Coercion, Expr)
 coerceRetNewTypes tenv e =
     let
