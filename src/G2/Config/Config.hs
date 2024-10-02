@@ -12,7 +12,6 @@ module G2.Config.Config ( Mode (..)
                         , BoolDef (..)
                         , InstTV (..)
                         , ShowType (..)
-                        , ExpandRetNewTypes (..)
                         , mkConfig
                         , mkConfigDirect
 
@@ -61,8 +60,6 @@ data FpHandling = RealFP | RationalFP deriving (Eq, Show, Read)
 
 data NonRedPathCons = Nrpc | NoNrpc deriving (Eq, Show, Read)
 
-data ExpandRetNewTypes = ExpandNT | NoExpandNT deriving (Eq, Show, Read)
-
 type IncludePath = FilePath
 
 data Config = Config {
@@ -89,7 +86,6 @@ data Config = Config {
     , timeLimit :: Int -- ^ Seconds
     , validate :: Bool -- ^ If True, run on G2's input, and check against expected output.
     , nrpc :: NonRedPathCons -- ^ Whether to execute using non reduced path constraints or not
-    , expand_ret_new_types :: ExpandRetNewTypes -- ^ Whether to expand returned new types wrapping a functions
 }
 
 mkConfig :: String -> Parser Config
@@ -127,7 +123,6 @@ mkConfig homedir = Config Regular
                    <> help "time limit, in seconds")
     <*> switch (long "validate" <> help "use GHC to automatically compile and run on generated inputs, and check that generated outputs are correct")
     <*> flag NoNrpc Nrpc (long "nrpc" <> help "execute with non reduced path constraints")
-    <*> pure ExpandNT
 
 mkBaseInclude :: String -> Parser [IncludePath]
 mkBaseInclude homedir =
@@ -244,7 +239,6 @@ mkConfigDirect homedir as m = Config {
     , timeLimit = strArg "time" as m read 300
     , validate  = boolArg "validate" as m Off
     , nrpc = NoNrpc
-    , expand_ret_new_types = ExpandNT
 }
 
 baseIncludeDef :: FilePath -> [FilePath]

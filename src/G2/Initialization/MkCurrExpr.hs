@@ -23,9 +23,7 @@ mkCurrExpr m_assume m_assert f@(Id (Name _ m_mod _ _) _) tc ng eenv tenv walkers
         Just ex ->
             let
                 var_ex = Var (Id (idName f) (typeOf ex))
-                (m_coer, coer_var_ex) = if expand_ret_new_types config == ExpandNT
-                                                            then coerceRetNewTypes tenv var_ex
-                                                            else (Nothing, var_ex)
+                (m_coer, coer_var_ex) = coerceRetNewTypes tenv var_ex
 
                 -- -- We refind the type of f, because type synonyms get replaced during the initializaton,
                 -- -- after we first got the type of f.

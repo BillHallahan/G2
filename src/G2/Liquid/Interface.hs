@@ -87,7 +87,6 @@ import qualified Data.Text.IO as TI
 
 import G2.Language.Monad
 import G2.Language.Support (Bindings(input_coercion))
-import G2.Config.Config (Config(expand_ret_new_types), ExpandRetNewTypes (NoExpandNT))
 
 data LHReturn = LHReturn { calledFunc :: FuncInfo
                          , violating :: Maybe FuncInfo
@@ -102,7 +101,7 @@ data FuncInfo = FuncInfo { func :: T.Text
 -- attempt to find counterexamples to the functions liquid type
 findCounterExamples :: [FilePath] -> [FilePath] -> T.Text -> Config -> LHConfig -> IO (([ExecRes AbstractedInfo], Bindings), Lang.Id)
 findCounterExamples proj fp entry config lhconfig = do
-    let config' = config { mode = Liquid, fp_handling = RationalFP, expand_ret_new_types = NoExpandNT }
+    let config' = config { mode = Liquid, fp_handling = RationalFP }
 
     lh_config <- getOpts []
 
