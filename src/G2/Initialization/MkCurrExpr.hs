@@ -61,7 +61,8 @@ coerceRetNewTypes tenv e =
     if rt == c then (Nothing, e) else (Just coer, Cast e coer) 
     where
         coerce_to t | TyCon n _:ts <- unTyApp t
-                    , Just (NewTyCon { bound_ids = bis, rep_type = rt }) <- HM.lookup n tenv = 
+                    , Just (NewTyCon { bound_ids = bis, rep_type = rt }) <- HM.lookup n tenv
+                    , hasFuncType $ PresType rt = 
                         coerce_to $ foldl' (\rt_ (b, bt) -> retype b bt rt_) rt (zip bis ts)
                     | otherwise = t
 
