@@ -167,7 +167,9 @@ getAbstracted :: (Solver solver, Simplifier simplifier)
 getAbstracted g2call solver simplifier share s bindings abs_fc@(FuncCall { funcName = n, arguments = ars })
     | Just e <- E.lookup n $ expr_env s = do
         let 
-            e' = mkApp $ Var (Id n (typeOf e)):ars
+            v = Var (Id n (typeOf e))
+            v' = maybe v (Cast v) (input_coercion bindings)
+            e' = mkApp $ v':ars
 
             ds = deepseq_walkers bindings
             strict_call = maybe e' (fillLHDictArgs ds) $ mkStrict_maybe ds e'
