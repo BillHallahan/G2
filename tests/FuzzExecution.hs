@@ -31,7 +31,7 @@ fuzzExecution (SB init_state bindings) = do
     ioProperty (do
         config <- mkConfigTestIO
 
-        (ers, _) <- runG2WithConfig Nothing init_state config bindings
+        (ers, b) <- runG2WithConfig Nothing init_state config bindings
 
         mr <- runGhc (Just libdir) (do
                 and <$> mapM (\er -> do
@@ -46,7 +46,7 @@ fuzzExecution (SB init_state bindings) = do
                                                     _ <- execStmt stmt execOptions
                                                     return ()
                                         Nothing -> return ()
-                                    validateStatesGHC pg Nothing "call" [] er) ers
+                                    validateStatesGHC pg Nothing "call" [] b er) ers
             )
         
         return $ not (null ers) ==> property mr)
