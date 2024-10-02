@@ -44,6 +44,8 @@ import qualified Data.Map as M
 import Data.Maybe
 import qualified Data.Text as T
 
+import Debug.Trace
+
 -- | A mapping of TyVar Name's, to Id's for the LH dict's
 type LHDictMap = HM.HashMap Name Id
 
