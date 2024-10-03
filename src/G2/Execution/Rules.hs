@@ -162,8 +162,6 @@ evalApp s@(State { expr_env = eenv
         , ng')
     | (Prim _ _):_ <- unApp (App e1 e2) = 
         let
-            -- ar' = map (lookupForPrim eenv) ar
-            -- appP = mkApp (Prim prim ty : ar')
             (exP, eenv') = evalPrimsSharing eenv tenv kv (App e1 e2)
         in
         ( RuleEvalPrimToNorm
