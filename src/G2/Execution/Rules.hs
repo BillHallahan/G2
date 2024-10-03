@@ -160,14 +160,14 @@ evalApp s@(State { expr_env = eenv
         , [ (newPCEmpty $ s { expr_env = eenv'
                             , curr_expr = CurrExpr Evaluate e }) { new_pcs = pc} ]
         , ng')
-    | (Prim prim ty):ar <- unApp (App e1 e2) = 
+    | (Prim _ _):_ <- unApp (App e1 e2) = 
         let
-            ar' = map (lookupForPrim eenv) ar
-            appP = mkApp (Prim prim ty : ar')
-            exP = evalPrims tenv kv appP
+            -- ar' = map (lookupForPrim eenv) ar
+            -- appP = mkApp (Prim prim ty : ar')
+            (exP, eenv') = evalPrimsSharing eenv tenv kv (App e1 e2)
         in
         ( RuleEvalPrimToNorm
-        , [newPCEmpty $ s { curr_expr = CurrExpr Return exP }]
+        , [newPCEmpty $ s { expr_env = eenv', curr_expr = CurrExpr Return exP }]
         , ng)
     | isExprValueForm eenv (App e1 e2) =
         ( RuleReturnAppSWHNF
@@ -182,21 +182,6 @@ evalApp s@(State { expr_env = eenv
         , [newPCEmpty $ s { curr_expr = CurrExpr Evaluate e1
                           , exec_stack = stck' }]
         , ng)
-
-lookupForPrim :: ExprEnv -> Expr -> Expr
-lookupForPrim eenv v@(Var (Id _ _)) = repeatedLookup eenv v
-lookupForPrim eenv (App e e') = App (lookupForPrim eenv e) (lookupForPrim eenv e')
-lookupForPrim _ e = e
-
-repeatedLookup :: ExprEnv -> Expr -> Expr
-repeatedLookup eenv v@(Var (Id n _))
-    | E.isSymbolic n eenv = v
-    | otherwise = 
-        case E.lookup n eenv of
-          Just v'@(Var _) -> repeatedLookup eenv v'
-          Just e -> e
-          Nothing -> v
-repeatedLookup _ e = e
 
 evalLam :: State t -> LamUse -> Id -> Expr -> (Rule, [State t])
 evalLam = undefined
@@ -362,16 +347,6 @@ evalCase s@(State { expr_env = eenv
   where
         tyConName (TyCon n _) = Just n
         tyConName _ = Nothing
-
--- | Remove everything from an [Expr] that are actually Types.
-removeTypes :: [Expr] -> E.ExprEnv -> [Expr]
-removeTypes ((Type _):es) eenv = removeTypes es eenv
-removeTypes (v@(Var _):es) eenv = case repeatedLookup eenv v of
-    (Type _) -> removeTypes es eenv
-    -- Just v@(Var (Id n' _)) -> removeTypes (v:es) eenv 
-    _ -> v : removeTypes es eenv
-removeTypes (e:es) eenv = e : removeTypes es eenv
-removeTypes [] _ = []
 
 -- | DEFAULT `Alt`s.
 matchDefaultAlts :: [Alt] -> [Alt]

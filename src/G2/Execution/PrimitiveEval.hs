@@ -1,7 +1,13 @@
 {-# LANGUAGE Rank2Types #-}
 {-# LANGUAGE FlexibleContexts, OverloadedStrings #-}
 
-module G2.Execution.PrimitiveEval (evalPrims, mutVarTy, evalPrimMutVar, newMutVar, maybeEvalPrim, evalPrimSymbolic) where
+module G2.Execution.PrimitiveEval ( evalPrimsSharing
+                                  , evalPrims
+                                  , mutVarTy
+                                  , evalPrimMutVar
+                                  , newMutVar
+                                  , maybeEvalPrim
+                                  , evalPrimSymbolic) where
 
 import G2.Language.AST
 import G2.Language.Expr
@@ -21,7 +27,51 @@ import qualified G2.Language.ExprEnv as E
 import G2.Language.ExprEnv (deepLookupExpr)
 import G2.Language.MutVarEnv
 
-import Debug.Trace
+-- | Evaluates primitives at the root of the passed `Expr` while updating the `ExprEnv`
+-- to share computed results.
+evalPrimsSharing :: ExprEnv -> TypeEnv -> KnownValues -> Expr -> (Expr, ExprEnv)
+evalPrimsSharing eenv tenv kv e =
+    let (_, e', eenv') = evalPrimsSharing' eenv tenv kv . simplifyCasts $ e in (e', eenv')
+
+-- | Passed back in evalPrimsSharing' to indicate whether a new value has been computed,
+-- and thus indicate whether insertion into the `ExprEnv` is needed.
+data NeedUpdate = Update | NoUpdate deriving Show
+
+evalPrimsSharing' :: ExprEnv -> TypeEnv -> KnownValues -> Expr -> (NeedUpdate, Expr, ExprEnv)
+evalPrimsSharing' eenv tenv kv a@(App _ _) =
+    case unApp a of
+        [p@(Prim _ _), l] ->
+            let
+                (_, e, eenv') = evalPrimsSharing' eenv tenv kv l
+                ev = evalPrim' tenv kv [p, e]
+            in
+            (Update, ev, eenv')
+        [p@(Prim _ _), l1, l2] ->
+            let
+                (_, e1, eenv') = evalPrimsSharing' eenv tenv kv l1
+                (_, e2, eenv'') = evalPrimsSharing' eenv' tenv kv l2
+                ev = evalPrim' tenv kv [p, e1, e2]
+            in
+            (Update, ev, eenv'')
+        v@(Var _):xs | p@(Prim _ _) <- repeatedLookup eenv v -> evalPrimsSharing' eenv tenv kv (mkApp $ p:xs)
+        _ -> (NoUpdate, a, eenv)
+evalPrimsSharing' eenv tenv kv v@(Var (Id n _)) =
+    case E.lookupConcOrSym n eenv of
+        Just (E.Conc e) -> case evalPrimsSharing' eenv tenv kv e of
+                                (Update, e', eenv') -> (Update, e', E.insert n e' eenv')
+                                r@(NoUpdate, _, _) -> r
+        _ -> (NoUpdate, v, eenv)
+evalPrimsSharing' eenv _ _ e = (NoUpdate, e, eenv)
+
+repeatedLookup :: ExprEnv -> Expr -> Expr
+repeatedLookup eenv v@(Var (Id n _))
+    | E.isSymbolic n eenv = v
+    | otherwise = 
+        case E.lookup n eenv of
+          Just v'@(Var _) -> repeatedLookup eenv v'
+          Just e -> e
+          Nothing -> v
+repeatedLookup _ e = e
 
 evalPrims :: ASTContainer m Expr => TypeEnv -> KnownValues -> m -> m
 evalPrims tenv kv = modifyContainedASTs (evalPrims' tenv kv . simplifyCasts)
@@ -86,7 +136,7 @@ evalPrimMutVar s ng (App (App (App (App (App (Prim WriteMutVar _) _) (Type t)) m
                , curr_expr = CurrExpr Evaluate pr_s }
     in
     Just (s', ng')
-evalPrimMutVar _ _ e | [Prim WriteMutVar _, _, _, _, _, _] <- unApp e = trace ("e = " ++ show e) Nothing
+evalPrimMutVar _ _ e | [Prim WriteMutVar _, _, _, _, _, _] <- unApp e = Nothing
 evalPrimMutVar _ _ _ = Nothing
 
 mutVarTy :: KnownValues
