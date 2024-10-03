@@ -22,16 +22,17 @@ data ExecRes t = ExecRes { final_state :: State t -- ^ The final state.
 
 printInputOutput :: PrettyGuide
                  -> Id -- ^ Input function
+                 -> Bindings
                  -> ExecRes t
                  -> (T.Text, T.Text, T.Text) -- ^ Mutable variables, input, output
-printInputOutput pg i er =
+printInputOutput pg i (Bindings { input_coercion = c }) er =
     let
         er' = er { conc_args = modifyASTs remMutVarPrim (conc_args er)
                  , conc_out = modifyASTs remMutVarPrim (conc_out er)
                  , conc_sym_gens = modifyASTs remMutVarPrim (conc_sym_gens er)
                  , conc_mutvars = modifyASTs remMutVarPrim (conc_mutvars er) }
     in
-    (printMutVars pg er', printInputFunc pg i er', printOutput pg er')
+    (printMutVars pg er', printInputFunc pg c i er', printOutput pg er')
 
 printMutVars :: PrettyGuide -> ExecRes t -> T.Text
 printMutVars pg (ExecRes { final_state = s, conc_mutvars = mv@(_:_) }) =
@@ -43,8 +44,11 @@ printMutVars pg (ExecRes { final_state = s, conc_mutvars = mv@(_:_) }) =
         "let " <> bound <> " in "
 printMutVars _ _ = ""
 
-printInputFunc :: PrettyGuide -> Id -> ExecRes t -> T.Text
-printInputFunc pg i (ExecRes { final_state = s, conc_args = ars }) = printHaskellPG pg s $ mkApp (Var i:ars)
+printInputFunc :: PrettyGuide -> Maybe Coercion -> Id -> ExecRes t -> T.Text
+printInputFunc pg m_c i (ExecRes { final_state = s, conc_args = ars }) = printHaskellPG pg s $ mkApp (app_maybe_coer m_c (Var i):ars)
+    where
+        app_maybe_coer Nothing e = e
+        app_maybe_coer (Just c) e = Cast e c
 
 printOutput :: PrettyGuide -> ExecRes t -> T.Text
 printOutput pg (ExecRes { final_state = s, conc_out = e }) = printHaskellPG pg s e

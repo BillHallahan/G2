@@ -635,14 +635,14 @@ checkExprWithConfig src m_assume m_assert m_reaches entry reqList config_f = do
         let (reqRes, res_print) =
                 case res of
                     Left _ -> (Nothing, [])
-                    Right exec_res ->
+                    Right (exec_res, b) ->
                             let
                                 reqs = checkExprGen
                                             (map (\ExecRes { conc_args = inp, conc_out = out} -> inp ++ [out]) exec_res)
                                             $ reqList
 
                                 pg = mkPrettyGuide exec_res
-                                res_pretty = map (printInputOutput pg (Id (Name (T.pack entry) Nothing 0 Nothing) TyUnknown)) exec_res
+                                res_pretty = map (printInputOutput pg (Id (Name (T.pack entry) Nothing 0 Nothing) TyUnknown) b) exec_res
                                 res_print = map T.unpack $ map (\(_, inp, out) -> inp <> " = " <> out) res_pretty
                             in
                             (Just reqs, res_print)
@@ -662,7 +662,7 @@ testFile :: String
          -> Maybe String
          -> String
          -> Config
-         -> IO (Either SomeException [ExecRes ()])
+         -> IO (Either SomeException ([ExecRes ()], Bindings))
 testFile src m_assume m_assert m_reaches entry config =
     try (testFileWithConfig src m_assume m_assert m_reaches entry config)
 
@@ -672,7 +672,7 @@ testFileWithConfig :: String
                    -> Maybe String
                    -> String
                    -> Config
-                   -> IO [ExecRes ()]
+                   -> IO ([ExecRes ()], Bindings)
 testFileWithConfig src m_assume m_assert m_reaches entry config = do
     let proj = takeDirectory src
     r <- doTimeout (timeLimit config)
@@ -687,8 +687,7 @@ testFileWithConfig src m_assume m_assert m_reaches entry config = do
                 simplTranslationConfig
                 config
 
-    let (states, _) = maybe (error "Timeout") fst r
-    return states
+    return $ maybe (error "Timeout") fst r
 
 -- For mergeState unit tests
 checkFn :: Either String Bool -> String -> IO TestTree

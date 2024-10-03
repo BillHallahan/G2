@@ -86,6 +86,7 @@ import qualified Data.Text as T
 import qualified Data.Text.IO as TI
 
 import G2.Language.Monad
+import G2.Language.Support (Bindings(input_coercion))
 
 data LHReturn = LHReturn { calledFunc :: FuncInfo
                          , violating :: Maybe FuncInfo
@@ -350,7 +351,7 @@ processLiquidReadyStateWithCall lrs@(LiquidReadyState { lr_state = lhs@(LHState 
                           Left ie' -> ie'
                           Right errs -> error errs
 
-        (ce, is, f_i, ng') = mkCurrExpr Nothing Nothing ie (type_classes s) (name_gen bindings)
+        (ce, is, f_i, m_c, ng') = mkCurrExpr Nothing Nothing ie (type_classes s) (name_gen bindings)
                                       (expr_env s) (type_env s) (known_values s) config
 
         lhs' = lhs { state = s { expr_env = foldr E.insertSymbolic (expr_env s) is
@@ -363,6 +364,7 @@ processLiquidReadyStateWithCall lrs@(LiquidReadyState { lr_state = lhs@(LHState 
         lrs' = lrs { lr_state = lhs'''
                    , lr_binding = bindings' { fixed_inputs = f_i
                                             , input_names = map idName is
+                                            , input_coercion = m_c
                                             }
                    }
 

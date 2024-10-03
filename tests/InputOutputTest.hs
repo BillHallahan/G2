@@ -87,13 +87,13 @@ checkInputOutput' io_config src tests = do
                                 config <- io_config
                                 r <- doTimeout (timeLimit config)
                                                (try (checkInputOutput'' [src] exg2 (head mb_modname) config test)
-                                                    :: IO (Either SomeException (Bool, Bool, [ExecRes ()])))
+                                                    :: IO (Either SomeException (Bool, Bool, [ExecRes ()], Bindings)))
                                 let (b, e) = case r of
                                         Nothing -> (False, "\nTimeout")
                                         Just (Left e') -> (False, "\n" ++ show e')
-                                        Just (Right (b_val, b_count, exec_res)) ->
+                                        Just (Right (b_val, b_count, exec_res, bindings)) ->
                                             let pg = mkPrettyGuide exec_res
-                                                res_pretty = map (printInputOutput pg (Id (Name (T.pack entry) Nothing 0 Nothing) TyUnknown)) exec_res
+                                                res_pretty = map (printInputOutput pg (Id (Name (T.pack entry) Nothing 0 Nothing) TyUnknown) bindings) exec_res
                                                 res_print = map T.unpack $ map (\(_, inp, out) -> inp <> " = " <> out) res_pretty
                                             in
                                             (b_val && b_count, "\nvalidation = " ++ show b_val ++ ", count = " ++ show b_count ++ "\n" ++ intercalate "\n" res_print)
@@ -105,23 +105,23 @@ checkInputOutput' io_config src tests = do
 checkInputOutput'' :: [FilePath]
                    -> ExtractedG2
                    -> Maybe T.Text
-                   -> Config 
+                   -> Config
                    -> (String, Int, [Reqs String])
-                   -> IO (Bool, Bool, [ExecRes ()])
+                   -> IO (Bool, Bool, [ExecRes ()], Bindings)
 checkInputOutput'' src exg2 mb_modname config (entry, stps, req) = do
     let config' = config { steps = stps }
         (init_state, bindings) = initStateWithCall exg2 False (T.pack entry) mb_modname (mkCurrExpr Nothing Nothing) mkArgTys config'
     
-    (r, _) <- runG2WithConfig mb_modname init_state config' bindings
+    (r, b) <- runG2WithConfig mb_modname init_state config' bindings
 
     let chAll = checkExprAll req
     let proj = map takeDirectory src
-    mr <- validateStates proj src (T.unpack $ fromJust mb_modname) entry chAll [] r
+    mr <- validateStates proj src (T.unpack $ fromJust mb_modname) entry chAll [] b r
     let io = map (\(ExecRes { conc_args = i, conc_out = o}) -> i ++ [o]) r
 
     let chEx = checkExprInOutCount io req
     
-    return (mr, chEx, r)
+    return (mr, chEx, r, b)
 
 ------------
 

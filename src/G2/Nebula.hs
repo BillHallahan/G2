@@ -70,7 +70,7 @@ nebulaPluginPass' m_entry nebula_config env modguts = do
     let simp_state = initSimpleState injected_exg2
 
         (init_state, bindings) = initStateFromSimpleState simp_state Nothing False
-                                     (\_ ng _ _ _ _ -> (Prim Undefined TyBottom, [], [], ng))
+                                     (\_ ng _ _ _ _ -> (Prim Undefined TyBottom, [], [], Nothing, ng))
                                      (E.higherOrderExprs . IT.expr_env)
                                      config
     

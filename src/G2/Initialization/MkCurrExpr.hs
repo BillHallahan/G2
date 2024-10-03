@@ -17,25 +17,20 @@ import qualified Data.HashMap.Lazy as HM
 
 mkCurrExpr :: Maybe T.Text -> Maybe T.Text -> Id
            -> TypeClasses -> NameGen -> ExprEnv -> TypeEnv
-           -> KnownValues -> Config -> (Expr, [Id], [Expr], NameGen)
-mkCurrExpr m_assume m_assert f@(Id (Name _ m_mod _ _) _) tc ng eenv _ kv config =
+           -> KnownValues -> Config -> (Expr, [Id], [Expr], Maybe Coercion, NameGen)
+mkCurrExpr m_assume m_assert f@(Id (Name _ m_mod _ _) _) tc ng eenv tenv kv config =
     case E.lookup (idName f) eenv of
         Just ex ->
             let
                 var_ex = Var (Id (idName f) (typeOf ex))
-                -- typs = spArgumentTypes ex
+                (m_coer, coer_var_ex) = coerceRetNewTypes tenv var_ex
 
-                -- (typsE, typs') = instantitateTypes tc kv typs
-
-                -- (var_ids, is, ng') = mkInputs ng typs'
-                
                 -- -- We refind the type of f, because type synonyms get replaced during the initializaton,
                 -- -- after we first got the type of f.
-                -- app_ex = foldl' App var_ex $ typsE ++ var_ids
                 (app_ex, is, typsE, ng') =
                     if instTV config == InstBefore
-                        then mkMainExpr tc kv ng var_ex
-                        else mkMainExprNoInstantiateTypes var_ex ng
+                        then mkMainExpr tc kv ng coer_var_ex
+                        else mkMainExprNoInstantiateTypes coer_var_ex ng
                 var_ids = map Var is
 
                 (name, ng'') = freshName ng'
@@ -49,8 +44,41 @@ mkCurrExpr m_assume m_assert f@(Id (Name _ m_mod _ _) _) tc ng eenv _ kv config 
 
                 let_ex = Let [(id_name, app_ex)] retsTrue_ex
             in
-            (let_ex, is, typsE, ng'')
+            (let_ex, is, typsE, m_coer, ng'')
         Nothing -> error "mkCurrExpr: Bad Name"
+-- | If a function we are symbolically executing returns a newtype wrapping a function type, applies a coercion to the function.
+-- For instance, given:
+-- @
+-- newtype F = F (Int -> Int) 
+
+-- f :: Int -> F
+-- f y = F (\x -> x + y)
+-- @
+--
+-- This allows symbolic execution to find an input/output example:
+--  @
+-- ((coerce (f :: Int -> F)) :: Int -> Int -> Int) (0) (1) = 1
+-- @
+coerceRetNewTypes :: TypeEnv -> Expr -> (Maybe Coercion, Expr)
+coerceRetNewTypes tenv e =
+    let
+        t = typeOf e
+        rt = returnType e
+        c = coerce_to rt
+        c_rt = replace_ret_ty c t
+        coer = t :~ c_rt
+    in
+    if rt == c then (Nothing, e) else (Just coer, Cast e coer) 
+    where
+        coerce_to t | TyCon n _:ts <- unTyApp t
+                    , Just (NewTyCon { bound_ids = bis, rep_type = rt }) <- HM.lookup n tenv
+                    , hasFuncType $ PresType rt = 
+                        coerce_to $ foldl' (\rt_ (b, bt) -> retype b bt rt_) rt (zip bis ts)
+                    | otherwise = t
+
+        replace_ret_ty c (TyForAll i t) = TyForAll i $ replace_ret_ty c t
+        replace_ret_ty c (TyFun t t') = TyFun t $ replace_ret_ty c t'
+        replace_ret_ty c _ = c
 
 mkMainExpr :: TypeClasses -> KnownValues -> NameGen -> Expr -> (Expr, [Id], [Expr], NameGen)
 mkMainExpr tc kv ng ex =

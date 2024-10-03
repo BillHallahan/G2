@@ -164,7 +164,9 @@ getAbstracted :: (Solver solver, Simplifier simplifier)
 getAbstracted g2call solver simplifier share s bindings abs_fc@(FuncCall { funcName = n, arguments = ars })
     | Just e <- E.lookup n $ expr_env s = do
         let 
-            e' = mkApp $ Var (Id n (typeOf e)):ars
+            v = Var (Id n (typeOf e))
+            v' = maybe v (Cast v) (input_coercion bindings)
+            e' = mkApp $ v':ars
 
         let s' = mkAssertsTrue (known_values s)
                . elimAssumesExcept
