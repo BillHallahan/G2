@@ -578,7 +578,8 @@ nonRedLibFuncs names _ s@(State { expr_env = eenv
 
 -- Note [Ignore Update Frames]
 -- In `strictRed`, when deciding whether to split up an expression to force strict evaluation of subexpression,
--- we ignore UpdateFrames.  To see why we do this consider the following example.
+-- we pop UpdateFrames off the stack and search down for a CurrExprFrame (or empty stack).
+-- To see why we do this (rather than just letting UpdateFrames be handled by the stdRed) consider the following example.
 --
 -- Suppose we are reducing the following walk function:
 -- @
@@ -601,7 +602,7 @@ nonRedLibFuncs names _ s@(State { expr_env = eenv
 -- @ y':walk ys''@
 -- with `UpdateFrame zs'` on the top of the stack.
 --
--- If we did NOT ignore update frames, we would store `zs' -> walk ys''` in the heap,
+-- If we did NOT handle update frames in the strictRed, we would store `zs' -> walk ys''` in the heap,
 -- and then strictRed would (similarly to before) introduce new symbolic variables z' and zs'',
 -- rewriting the expression to
 -- @z':zs''@
@@ -615,8 +616,8 @@ nonRedLibFuncs names _ s@(State { expr_env = eenv
 -- @ CurrExprFrame NoAction (z:zs') @
 -- we still have `zs' -> y':walk ys''` in the heap- and so we will just repeatedly try and reduce
 -- this subexpression in a loop- we can never again update the binding of zs'.
--- Thus, we want to ensure all subexpressions of zs' are evaluated to SWHNF before 
--- we reach the `UpdateFrame` for zs'- skipping past `UpdateFrame`s allows us to accomplish this.
+-- Thus, we want to ensure all subexpressions of zs' are variables- which can then themselves hav
+-- bindings be evaluated to SWHNF- skipping past `UpdateFrame`s allows us to accomplish this.
 
 
 -- | Force the `curr_expr` of each `State` to be fully evaluated.
@@ -637,7 +638,7 @@ strictRed = mkSimpleReducer (\_ -> ())
                               , exec_stack = stck })
                      b@(Bindings { name_gen = ng })
             | Data d:es@(_:_) <- unApp e
-            , exec_done 
+            , exec_done
             -- must_red checks if the expression contains non-fully-reduced subexpressions.
             -- Without this check, the strictRed might repeatedly fire, fruitlessly arranging for already reduced
             -- subexpressions to be repeatedly reduced over and over, and preventing the involved `State` from
@@ -652,14 +653,17 @@ strictRed = mkSimpleReducer (\_ -> ())
                     -- `x1, ... xk` and rely on sharing to correctly get a fully evaluated expression.
                     (is, ng') = freshIds (map typeOf es) ng
                     eenv' = foldl' (\env (Id n _, e_) -> E.insert n e_ env) eenv $ zip is es
-                    ce' = CurrExpr Return . mkApp $ Data d:map Var is
-                    stck' = foldl' (\st i -> Stck.push (CurrExprFrame NoAction (CurrExpr Evaluate $ Var i)) st)
-                                   (Stck.push (CurrExprFrame NoAction ce') stck )
+                    ce_expr = mkApp $ Data d:map Var is
+                    ce' = CurrExpr Return ce_expr
+                    stck'' = foldl' (\st i -> Stck.push (CurrExprFrame NoAction (CurrExpr Evaluate $ Var i)) st)
+                                   (Stck.push (CurrExprFrame NoAction ce') stck' )
                                    (tail is)
+                    -- Handle update frames
+                    eenv'' = foldr (\n -> E.insert n ce_expr) eenv' updates
                     
-                    s' = s { expr_env = eenv'
+                    s' = s { expr_env = eenv''
                            , curr_expr = CurrExpr Evaluate (Var $ head is)
-                           , exec_stack = stck'}
+                           , exec_stack = stck'' }
                 in
                 return (InProgress, [(s', ())], b { name_gen = ng' })
             where
@@ -668,12 +672,14 @@ strictRed = mkSimpleReducer (\_ -> ())
                 -- (2) check if the top of the stack is a CurrExprFrame (or empty)
                 -- We effectively ignore UpdateFrames when checking if we should split up an expression to force strictness
                 -- See Note [Ignore Update Frames].
-                exec_done | Stck.null (pop_updates stck) = True
-                          | Just (CurrExprFrame _ _, _) <- Stck.pop (pop_updates stck) = True
+                (updates, stck') = pop_updates [] stck
+
+                exec_done | Stck.null stck' = True
+                          | Just (CurrExprFrame _ _, _) <- Stck.pop stck' = True
                           | otherwise = False
 
-                pop_updates stck | Just (UpdateFrame _, stck') <- Stck.pop stck = pop_updates stck'
-                                 | otherwise = stck
+                pop_updates ns stck | Just (UpdateFrame n, stck_) <- Stck.pop stck = pop_updates (n:ns) stck_
+                                    | otherwise = (ns, stck)
 
                 -- | Does the expression contain non-fully-reduced subexpressions?
                 --
