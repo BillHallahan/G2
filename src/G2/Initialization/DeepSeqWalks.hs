@@ -249,26 +249,26 @@ deepSeqFunc w ng ti rm e
             as' = map (walkerFunc w ti rm) ts
         in
         Just $ (foldl' App (Var f) (as ++ as'), ng)
-    | t@(TyFun _ _) <- typeOf e =
-        let
-            (a_in, ng') = freshId t ng
+    -- | t@(TyFun _ _) <- typeOf e =
+    --     let
+    --         (a_in, ng') = freshId t ng
 
-            tys = anonArgumentTypes e
-            (f_is, ng'') = freshIds tys ng' 
+    --         tys = anonArgumentTypes e
+    --         (f_is, ng'') = freshIds tys ng' 
             
-            cll = mkApp $ Var a_in:map Var f_is
-            let_cll = Let (zip f_is $ map (SymGen SNoLog) tys) cll
+    --         cll = mkApp $ Var a_in:map Var f_is
+    --         let_cll = Let (zip f_is $ map (SymGen SNoLog) tys) cll
 
-            ds_type = typeOf ds_cll
+    --         ds_type = typeOf ds_cll
 
-            (ds_cll, ng''') = deepSeqFuncCall w ng'' ti rm let_cll
-            (bnd, ng'''') = freshId ds_type ng'''
+    --         (ds_cll, ng''') = deepSeqFuncCall w ng'' ti rm let_cll
+    --         (bnd, ng'''') = freshId ds_type ng'''
 
-            (lam_ids, ng''''') = freshIds tys ng''''
+    --         (lam_ids, ng''''') = freshIds tys ng''''
 
-            cse = Case ds_cll bnd ds_type [Alt Default $ mkLams (zip (repeat TermL) lam_ids) (Var bnd)]
-        in
-        Just (Lam TermL a_in cse, ng''''')
+    --         cse = Case ds_cll bnd ds_type [Alt Default $ mkLams (zip (repeat TermL) lam_ids) (Var bnd)]
+    --     in
+    --     Just (Lam TermL a_in cse, ng''''')
     | (TyVar (Id n _)) <- typeOf e
     , Just f <- lookup n ti =
        Just (Var f, ng)

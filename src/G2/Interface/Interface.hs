@@ -85,7 +85,7 @@ type AssertFunc = T.Text
 type ReachFunc = T.Text
 
 type MkCurrExpr = TypeClasses -> NameGen -> ExprEnv -> TypeEnv -> Walkers
-                     -> KnownValues -> Config -> (Expr, [Id], [Expr], NameGen)
+                     -> KnownValues -> Config -> (Expr, [Id], [Expr], Maybe Coercion, NameGen)
 
 doTimeout :: Int -> IO a -> IO (Maybe a)
 doTimeout secs action = do
@@ -165,7 +165,7 @@ initStateFromSimpleState s m_mod useAssert mkCurr argTys config =
         ng' = IT.name_gen s'
         kv' = IT.known_values s'
         tc' = IT.type_classes s'
-        (ce, is, f_i, ng'') = mkCurr tc' ng' eenv' tenv' ds_walkers kv' config
+        (ce, is, f_i, m_coercion, ng'') = mkCurr tc' ng' eenv' tenv' ds_walkers kv' config
     in
     (State {
       expr_env = foldr E.insertSymbolic eenv' is
@@ -192,6 +192,7 @@ initStateFromSimpleState s m_mod useAssert mkCurr argTys config =
     , arb_value_gen = arbValueInit
     , cleaned_names = HM.empty
     , input_names = map idName is
+    , input_coercion = m_coercion
     , higher_order_inst = S.filter (\n -> nameModule n == m_mod) . S.fromList $ IT.exports s
     , rewrite_rules = IT.rewrite_rules s
     , name_gen = ng''
@@ -356,7 +357,7 @@ initialStateNoStartFunc proj src transConfig config = do
     let simp_state = initSimpleState exg2
 
         (init_s, bindings) = initStateFromSimpleState simp_state Nothing False
-                                 (\_ ng _ _ _ _ _ -> (Prim Undefined TyBottom, [], [], ng))
+                                 (\_ ng _ _ _ _ _ -> (Prim Undefined TyBottom, [], [], Nothing, ng))
                                  (E.higherOrderExprs . IT.expr_env)
                                  config
 
