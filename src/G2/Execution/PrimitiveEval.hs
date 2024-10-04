@@ -40,19 +40,14 @@ data NeedUpdate = Update | NoUpdate deriving Show
 evalPrimsSharing' :: ExprEnv -> TypeEnv -> KnownValues -> Expr -> (NeedUpdate, Expr, ExprEnv)
 evalPrimsSharing' eenv tenv kv a@(App _ _) =
     case unApp a of
-        [p@(Prim _ _), l] ->
+        p@(Prim _ _):es ->
             let
-                (_, e, eenv') = evalPrimsSharing' eenv tenv kv l
-                ev = evalPrim' tenv kv [p, e]
+                (eenv', es') = L.mapAccumR
+                                    (\eenv_ e -> let (_, e', eenv_') = evalPrimsSharing' eenv_ tenv kv e in (eenv_', e'))
+                                    eenv es
+                ev = evalPrim' tenv kv (p:es')
             in
             (Update, ev, eenv')
-        [p@(Prim _ _), l1, l2] ->
-            let
-                (_, e1, eenv') = evalPrimsSharing' eenv tenv kv l1
-                (_, e2, eenv'') = evalPrimsSharing' eenv' tenv kv l2
-                ev = evalPrim' tenv kv [p, e1, e2]
-            in
-            (Update, ev, eenv'')
         v@(Var _):xs | p@(Prim _ _) <- repeatedLookup eenv v -> evalPrimsSharing' eenv tenv kv (mkApp $ p:xs)
         _ -> (NoUpdate, a, eenv)
 evalPrimsSharing' eenv tenv kv v@(Var (Id n _)) =
