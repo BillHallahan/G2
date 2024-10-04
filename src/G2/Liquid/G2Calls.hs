@@ -33,6 +33,10 @@ import qualified Data.HashSet as HS
 import Data.Maybe
 import Data.Monoid
 
+import qualified Control.Monad.State as SM
+import G2.Lib.Printers
+
+
 -- | The function to actually use for Symbolic Execution
 type G2Call solver simplifier =
     forall m t . ( MonadIO m
@@ -123,13 +127,13 @@ checkAbstracted' g2call solver simplifier share s bindings abs_fc@(FuncCall { fu
 
 
         let pres = HS.fromList $ namesList s' ++ namesList bindings
-        (er, bindings') <- g2call 
+        (er, bindings') <- SM.evalStateT (g2call 
                                 (SomeReducer (hitsLibError ~> stdRed share retReplaceSymbFuncVar solver simplifier ~> strictRed))
                                 (SomeHalter (swhnfHalter <~> acceptOnlyOneHalter <~> switchEveryNHalter 200))
                                 (SomeOrderer (incrAfterN 2000 (adtSizeOrderer 0 Nothing)))
                                 solver simplifier
                                 (emptyMemConfig { pres_func = \_ _ _ -> pres })
-                                s' bindings
+                                s' bindings) (mkPrettyGuide pres)
 
         case er of
             [ExecRes
@@ -177,7 +181,7 @@ getAbstracted g2call solver simplifier share s bindings abs_fc@(FuncCall { funcN
                       , track = ([] :: [FuncCall], False)}
 
         (er, bindings') <- g2call 
-                              (((hitsLibErrorGatherer ~> stdRed share retReplaceSymbFuncVar solver simplifier) :== Finished
+                              (((hitsLibErrorGatherer ~> stdRed share retReplaceSymbFuncVar solver simplifier ~> strictRed) :== Finished
                                             --> (nonRedPCRed .|. nonRedPCRedConst) ))
                               (SomeHalter (swhnfHalter <~> acceptOnlyOneHalter <~> switchEveryNHalter 200))
                               (SomeOrderer (incrAfterN 2000 (adtSizeOrderer 0 Nothing)))
@@ -321,11 +325,11 @@ reduceCalls g2call solver simplifier config bindings er = do
 
 reduceViolated :: (Solver solver, Simplifier simplifier) => G2Call solver simplifier -> solver -> simplifier -> Sharing -> Bindings -> ExecRes LHTracker -> IO (Bindings, ExecRes LHTracker)
 reduceViolated g2call solver simplifier share bindings er@(ExecRes { final_state = s, violated = Just v }) = do
-    let red = redArbErrors :== Finished --> stdRed share retReplaceSymbFuncVar solver simplifier
+    let red = redArbErrors :== Finished --> (stdRed share retReplaceSymbFuncVar solver simplifier ~> strictRed)
     (s', bindings', v') <- reduceFuncCall g2call red solver simplifier s bindings v
     -- putStrLn $ "v = " ++ show v
     -- putStrLn $ "v' = " ++ show v'
-    return (bindings', er { final_state = s { expr_env = foldr E.insertSymbolic (expr_env s) (E.symbolicIds $ expr_env s')
+    return (bindings', er { final_state = s { expr_env = expr_env s'
                                             , path_conds = path_conds s' }
                           , violated = Just v' })
 reduceViolated _ _ _ _ b er = return (b, er) 
@@ -333,7 +337,7 @@ reduceViolated _ _ _ _ b er = return (b, er)
 reduceAbstracted :: (Solver solver, Simplifier simplifier) => G2Call solver simplifier -> solver -> simplifier -> Sharing -> Bindings -> ExecRes LHTracker -> IO (Bindings, ExecRes LHTracker)
 reduceAbstracted g2call solver simplifier share bindings
                 er@(ExecRes { final_state = (s@State { track = lht}) }) = do
-    let red = redArbErrors :== Finished --> stdRed share retReplaceSymbFuncVar solver simplifier
+    let red = redArbErrors :== Finished --> (stdRed share retReplaceSymbFuncVar solver simplifier ~> strictRed)
         fcs = abstract_calls lht
 
     ((s', bindings'), fcs') <- mapAccumM (\(s_, b_) fc -> do
@@ -341,7 +345,7 @@ reduceAbstracted g2call solver simplifier share bindings
                                             return ((new_s, new_b), r_fc))
                             (s, bindings) fcs
 
-    return (bindings', er { final_state = s { expr_env = foldr E.insertSymbolic (expr_env s) (E.symbolicIds $ expr_env s')
+    return (bindings', er { final_state = s { expr_env = expr_env s'
                                             , path_conds = path_conds s'
                                             , track = lht { abstract_calls = fcs' } }
                           })
@@ -371,7 +375,7 @@ reduceFuncCallMaybeList :: ( ASTContainer t Expr
                            , Solver solver
                            , Simplifier simplifier) => G2Call solver simplifier -> solver -> simplifier -> Sharing -> Bindings -> State t -> [FuncCall] -> IO (State t, Bindings, [FuncCall])
 reduceFuncCallMaybeList g2call solver simplifier share bindings st fcs = do
-    let red = redArbErrors :== Finished --> stdRed share retReplaceSymbFuncVar solver simplifier
+    let red = redArbErrors :== Finished --> (stdRed share retReplaceSymbFuncVar solver simplifier ~> strictRed)
     ((s', b'), fcs') <- mapAccumM (\(s, b) fc -> do
                                   s_b_fc <- reduceFuncCallMaybe g2call red solver simplifier s b fc
                                   case s_b_fc of
@@ -390,6 +394,7 @@ reduceFuncCall :: ( MonadIO m
 reduceFuncCall g2call red solver simplifier s bindings fc@(FuncCall { arguments = ars, returns = r }) = do
     -- (bindings', red_ars) <- mapAccumM (reduceFCExpr share (red <~ SomeReducer (Logger "arg")) solver simplifier s) bindings ars
     -- (bindings'', red_r) <- reduceFCExpr share (red <~ SomeReducer (Logger "ret")) solver simplifier s bindings' r
+
     ((s', bindings'), red_ars) <- mapAccumM (uncurry (reduceFCExpr g2call red solver simplifier)) (s, bindings) ars
     ((s'', bindings''), red_r) <- reduceFCExpr g2call red solver simplifier s' bindings' r
 
@@ -417,14 +422,14 @@ reduceFCExpr g2call reducer solver simplifier s bindings e
                               (SomeHalter (acceptOnlyOneHalter <~> swhnfHalter <~> switchEveryNHalter 200))
                               (SomeOrderer (incrAfterN 2000 (adtSizeOrderer 0 Nothing)))
                               solver simplifier
-                              emptyMemConfig
+                              PreserveAllMC
                               s' bindings
 
         case er of
             [er'] -> do
                 let fs = final_state er'
                     (CurrExpr _ ce) = curr_expr fs
-                return ((s { expr_env = foldr E.insertSymbolic (expr_env s') (E.symbolicIds $ expr_env fs)
+                return ((s { expr_env = expr_env fs
                            , path_conds = path_conds fs }
                         , bindings { name_gen = name_gen bindings' }), ce)
             _ -> error $ "reduceFCExpr: Bad reduction"

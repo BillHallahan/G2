@@ -633,14 +633,25 @@ parseLHOut entry (ExecRes { final_state = s
                           , violated = ais}) =
   let
       called = funcCallToFuncInfo  (printHaskell s)
+             . inlineVars (expr_env s)
              $ FuncCall { funcName = idName entry, arguments = inArg, returns = ex}
-      viFunc = fmap (parseLHFuncTuple s) ais
+      viFunc = fmap (parseLHFuncTuple s) $ inlineVars (expr_env s) ais
 
-      abstr = map (parseLHFuncTuple s) . map abstract . abs_calls $ track s
+      abstr = map (parseLHFuncTuple s) . inlineVars (expr_env s) . map abstract . abs_calls $ track s
   in
   LHReturn { calledFunc = called
            , violating = viFunc
            , abstracted = abstr}
+
+inlineVars :: ASTContainer t Expr => ExprEnv -> t -> t
+inlineVars eenv = modifyASTs (inlineVars' eenv)
+
+inlineVars' :: ExprEnv -> Expr -> Expr
+inlineVars' eenv v@(Var (Id n _)) =
+    case E.lookupConcOrSym n eenv of
+        Just (E.Conc e) -> inlineVars' eenv e
+        _ -> v
+inlineVars' _ e = e 
 
 counterExampleToLHReturn :: State t -> CounterExample -> LHReturn
 counterExampleToLHReturn s (DirectCounter fc abstr _) =
