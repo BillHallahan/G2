@@ -552,7 +552,8 @@ inferenceReducerHalterOrderer infconfig config lhconfig solver simplifier entry 
                     redArbErrors :== Finished .-->
                 SomeReducer (allCallsRed ~>
                              higherOrderCallsRed ~>
-                             stdRed share retReplaceSymbFuncVar solver simplifier)
+                             stdRed share retReplaceSymbFuncVar solver simplifier ~> 
+                             strictRed)
 
     return $
         (
@@ -633,7 +634,7 @@ realCExReducerHalterOrderer infconfig config lhconfig entry modname solver simpl
                  <~> lhAcceptIfViolatedHalter
                  <~> timer_halter
         
-        lh_std_red = lhRed cfn :== Finished --> stdRed share retReplaceSymbFuncVar solver simplifier
+        lh_std_red = lhRed cfn :== Finished --> stdRed share retReplaceSymbFuncVar solver simplifier ~> strictRed
         log_opt_red = case m_logger of
                         Just logger -> logger .~> lh_std_red
                         Nothing -> lh_std_red
