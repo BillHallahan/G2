@@ -338,8 +338,8 @@ nonRedAbstractReturnsRedStep _
                            , exec_stack = stck
                            , track = LHTracker { abstract_calls = afs }
                            , true_assert = True })
-                  b@(Bindings { deepseq_walkers = ds})
-    | Just af <- firstJust (absRetToRed eenv ds) afs = do
+                  b
+    | Just af <- firstJust (absRetToRed eenv) afs = do
         let stck' = Stck.push (CurrExprFrame NoAction cexpr) stck
             cexpr' = CurrExpr Evaluate af
 
@@ -352,11 +352,9 @@ nonRedAbstractReturnsRedStep _
         return (Finished, [(s, ())], b)
 nonRedAbstractReturnsRedStep _ s b = return (Finished, [(s, ())], b)
 
-absRetToRed :: ExprEnv -> Walkers -> FuncCall -> Maybe Expr
-absRetToRed eenv ds (FuncCall { returns = r })
-    | not . normalForm eenv $ r
-    , Just strict_e <- mkStrict_maybe ds r =
-        Just $ fillLHDictArgs ds strict_e 
+absRetToRed :: ExprEnv -> FuncCall -> Maybe Expr
+absRetToRed eenv (FuncCall { returns = r })
+    | not . normalForm eenv $ r = Just r 
     | otherwise = Nothing
 
 -- | Accepts a state when it is in SWHNF, true_assert is true,

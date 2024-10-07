@@ -63,7 +63,6 @@ library
 
                        , G2.Initialization.FpToRational
                        , G2.Initialization.Interface
-                       , G2.Initialization.DeepSeqWalks
                        , G2.Initialization.ElimTicks
                        , G2.Initialization.ElimTypeSynonyms
                        , G2.Initialization.InitVarLocs
