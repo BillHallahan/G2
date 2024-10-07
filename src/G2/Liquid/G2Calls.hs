@@ -147,7 +147,7 @@ checkAbstracted' g2call solver simplifier share s bindings abs_fc@(FuncCall { fu
                                                      , hits_lib_err_in_real = t
                                                      , func_calls_in_real = [] }
                                         ) m
-                            return ( ( s { expr_env = foldr E.insertSymbolic (expr_env s) (E.symbolicIds $ expr_env fs)
+                            return ( ( s { expr_env = expr_env fs -- foldr E.insertSymbolic (expr_env s) (E.symbolicIds $ expr_env fs)
                                         , path_conds = path_conds fs }
                                      , bindings'
                                      )
