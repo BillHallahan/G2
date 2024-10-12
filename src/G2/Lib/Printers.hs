@@ -61,8 +61,8 @@ mkNameHaskell pg n
     | otherwise = nameOcc n
 
 mkUnsugaredExprHaskell :: State t -> Expr -> T.Text
-mkUnsugaredExprHaskell (State {type_classes = tc}) =
-    mkExprHaskell Cleaned (mkPrettyGuide ()) . modifyMaybe (mkCleanExprHaskell' tc)
+mkUnsugaredExprHaskell (State {type_classes = tc, known_values = kv }) =
+    mkExprHaskell Cleaned (mkPrettyGuide ()) . modifyMaybe (mkCleanExprHaskell' tc kv)
 
 printHaskell :: State t -> Expr -> T.Text
 printHaskell = mkCleanExprHaskell (mkPrettyGuide ())
@@ -77,11 +77,11 @@ printHaskellPG :: PrettyGuide -> State t -> Expr -> T.Text
 printHaskellPG = mkCleanExprHaskell
 
 mkCleanExprHaskell :: PrettyGuide -> State t -> Expr -> T.Text
-mkCleanExprHaskell pg (State {type_classes = tc}) = 
-    mkExprHaskell Cleaned pg . modifyMaybe (mkCleanExprHaskell' tc)
+mkCleanExprHaskell pg (State {type_classes = tc, known_values = kv}) = 
+    mkExprHaskell Cleaned pg . modifyMaybe (mkCleanExprHaskell' tc kv)
 
-mkCleanExprHaskell' :: TypeClasses -> Expr -> Maybe Expr
-mkCleanExprHaskell' tc e
+mkCleanExprHaskell' :: TypeClasses -> KnownValues -> Expr -> Maybe Expr
+mkCleanExprHaskell' tc kv e
     | Case scrut i t [a] <- e = Case scrut i t . (:[]) <$> elimPrimDC a
 
     | (App e' e'') <- e
@@ -96,6 +96,11 @@ mkCleanExprHaskell' tc e
     , isTypeClass tc (returnType e'') = Just e'
 
     | App e' (Type _) <- e = Just e'
+
+    | (App e' e'') <- e 
+    , (Data dc) <- e'
+    , n <- dcName dc 
+    , tyCoercion kv == n = Just e' 
 
     | otherwise = Nothing
 
