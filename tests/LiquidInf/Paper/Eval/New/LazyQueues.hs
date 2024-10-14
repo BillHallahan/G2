@@ -1,16 +1,16 @@
-module LazyQueues (remove) where
+module LazyQueues (insert) where
 
 import Prelude hiding (replicate, take)
 
-nil :: (Int, [a])
-nil = (0, [])
+nil :: [a]
+nil = []
 
-cons :: Int -> a -> [a] -> (Int, [a])
-cons n x xs = (n+1, x:xs)
+cons :: a -> [a] -> [a]
+cons x xs = x:xs
 
-tl :: Int -> [a] -> (Int, [a])
-tl n (_:xs) = (n-1, xs)
-tl _ _           = die "empty SList"
+tl :: [a] -> [a]
+tl (_:xs) =  xs
+tl _           = die "empty SList"
 
 hd :: [a] -> a
 hd (x:_)  = x
@@ -24,48 +24,47 @@ data Queue a = Q
   , back  :: [a]
   }
 
-{-@ measure frontList @-}
-frontList :: Queue a -> [a]
-frontList (Q f _) = f
+{-@ measure frontSize :: Queue a -> Int
+frontSize (Q f _) = len f
+@-}
 
-{-@ measure backList @-}
-backList :: Queue a -> [a]
-backList (Q _ b) = b
+{-@ measure backSize :: Queue a -> Int
+backSize (Q _ b) = len b
+@-}
 
-{-@ measure queueLen @-}
-queueLen :: Queue a -> Int
-queueLen (Q f b) = size f + size b
+{-@ type BalancedQ a = { q:Queue a | frontSize q >= backSize q } @-}
 
-{-@ type BalancedQ a = { q:Queue a | len (frontList q) >= len (backList q) } @-}
+{-@ type QueueN a N = {v:BalancedQ a | frontSize q + backSize q == N } @-}
+{-@ type QueueGe a N = {v:BalancedQ a | frontSize q + backSize q >= N } @-}
 
-{-@ type QueueN a N = {v:BalancedQ a | queueLen q == N } @-}
-{-@ type QueueGe a N = {v:BalancedQ a | queueLen q >= N } @-}
+{-@ type FBQ a F B = { q:BalancedQ a | frontSize q == F && backSize q == B } @-}
 
 makeq :: Int -> Int -> [a] -> [a] -> (Int, Int, Queue a)
 makeq flen blen f b
   | blen <= flen = (flen, blen, Q f b)
-  | otherwise        = let (l, f') = rot flen blen 0 f b nil in (l, 0, Q f' nil)
+  | otherwise        = let f' = rot flen f b nil in (flen + blen, 0, Q f' nil)
 
-rot :: Int -> Int -> Int -> [a] -> [a] -> [a] -> (Int, [a])
-rot flen blen alen f b acc
-  | flen == 0 = (alen, hd b `cons` acc)
-  | otherwise   = let (l, r) = rot (flen - 1) (blen - 1) (alen + 1) (tl f) (tl b) (hd b `cons` acc) in (l + 1, hd f `cons` r)
+rot :: Int -> [a] -> [a] -> [a] -> [a]
+rot flen f b acc
+  | flen == 0 = hd b `cons` acc
+  | otherwise   = let r = rot (flen - 1) (tl f) (tl b) (hd b `cons` acc) in hd f `cons` r
 
 emp :: (Int, Int, Queue a)
-emp = (0, 0, Q (snd nil) (snd nil))
+emp = (0, 0, Q nil nil)
 
-remove :: Int -> Int -> Queue a -> (Int, Int, a, Queue a)
-remove flen blen (Q f b)   = let (flen', f') = tl flen f
-                                 (flen'', blen', Q f'' b') = makeq flen' blen f' b
-                             in (flen'' - 1, blen', hd f'', Q f'' b')
+-- remove :: Int -> Int -> Queue a -> (Int, Int, a, Queue a)
+-- remove flen blen (Q f b)   = let (flen', blen', Q f' b') = makeq (flen - 1) blen (tl f) b
+--                              in (flen' - 1, blen', hd f', Q (tl f') b')
 
+{-@ insert :: flen:Int -> blen:Int -> a -> FBQ a flen blen -> (Int, Int, QueueN a {flen + blen + 1}) @-}
 insert :: Int -> Int -> a -> Queue a -> (Int, Int, Queue a)
-insert flen blen e (Q f b) = let (blen', b') = (cons blen e b) in makeq flen blen' f b'
+insert flen blen e (Q f b) = makeq flen (blen + 1) f (cons e b)
 
-{-@ replicate :: n:Nat -> a -> { t:(Int, Int, QueueN a n) | x_31 t + x_32 t == queueSize (x_33 t) } @-}
-replicate :: Int -> a -> (Int, Int, Queue a)
-replicate 0 _ = emp
-replicate n x = let (flen, blen, xs) = replicate (n-1) x in insert flen blen x xs
+-- {-@ replicate :: n:Nat -> a -> { t:(Int, Int, QueueN a n) | x_Tuple31 t == len (frontList (x_Tuple33 t)) 
+--                                                           && x_Tuple32 t == len (backList (x_Tuple33 t)) } @-}
+-- replicate :: Int -> a -> (Int, Int, Queue a)
+-- replicate 0 _ = emp
+-- replicate n x = let (flen, blen, xs) = replicate (n-1) x in insert flen blen x xs
 
 -- {-@ take :: n:Nat -> q:QueueGe a n -> (BalancedQ a, BalancedQ a) @-}
 -- take           :: Int -> Queue a -> (Queue a, Queue a)
