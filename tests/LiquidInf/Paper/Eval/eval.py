@@ -343,11 +343,14 @@ def main():
     (log_sato, safe_sato, num_sato) = test_pos_folder("tests/LiquidInf/Paper/Eval/Sato", "600", skip = skip_list());
     print(str(safe_sato) + "/" + str(num_sato) + " Safe");
 
+    (log_lq, safe_lq, num_lq) = test_pos_folder("tests/LiquidInf/Paper/Eval/LazyQueues", "600");
+    print(str(safe_lq) + "/" + str(num_lq) + " Safe");
+
     (log_kmeans, safe_kmeans, num_kmeans) = test_pos_folder("tests/LiquidInf/Paper/Eval", "600");
     print(str(safe_kmeans) + "/" + str(num_kmeans) + " Safe");
 
 
-    log = log_book + log_book_sets + log_hw + log_inv + log_sato + log_kmeans
+    log = log_book + log_book_sets + log_hw + log_inv + log_sato + log_lq + log_kmeans
 
     create_table(log)
     create_simple_table(log)
