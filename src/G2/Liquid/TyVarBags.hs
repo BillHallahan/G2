@@ -373,13 +373,27 @@ existInstRedRules rv s@(State { expr_env = eenv
             (n_params, ng'') = freshSeededNames (map idName params) ng'
 
             eenv' = E.insertSymbolic postSeqExistentialInstId eenv
-            eenv'' = foldr (\en -> E.insert en (Var existentialInstId)) eenv' n_params
+            eenv'' = foldr (\en -> E.insert en (Var existentialInstId)) eenv' (n_bnd:n_params)
             n_e = rename (idName bnd) n_bnd $ foldr (uncurry rename) ae (zip (map idName params) n_params)
         in 
         return ( InProgress
                , [(s { expr_env = eenv''
                      , curr_expr = CurrExpr Evaluate n_e }, rv)]
                , b { name_gen = ng'' })
+    | Case (Var i) bnd _ ([Alt _ (Tick (NamedLoc n) ae)]) <- e
+    , i == existentialInstId
+    , n == existentialCaseName =
+        let
+            (n_bnd, ng') = freshSeededName (idName bnd) ng
+
+            eenv' = E.insertSymbolic postSeqExistentialInstId eenv
+            eenv'' = E.insert n_bnd (Var existentialInstId) eenv' 
+            n_e = rename (idName bnd) n_bnd ae
+        in 
+        return ( InProgress
+               , [(s { expr_env = eenv''
+                     , curr_expr = CurrExpr Evaluate n_e }, rv)]
+               , b { name_gen = ng' })
     | Case (Var i) _ _ ([Alt _ (Tick (NamedLoc n) ae)]) <- e
     , i == existentialInstId
     , n == existentialCaseName =

@@ -426,7 +426,7 @@ runConstraintsForSynth headers vs = do
     if use_binary_minimization inf_con
         then do
             z3_dir <- liftIO $ getZ3 100000
-            z3_max <-liftIO $ mkMaximizeSolver =<< getZ3 50000
+            z3_max <-liftIO $ mkMaximizeSolver vs =<< getZ3 110000
 
             liftIO $ setProduceUnsatCores z3_dir
             liftIO $ setProduceUnsatCores z3_max
@@ -441,10 +441,22 @@ runConstraintsForSynth headers vs = do
             res <- liftIO $ waitForRes2 Nothing Nothing z3_dir z3_max vs
             liftIO $ print res
 
+            -- In case both solvers failed to find a maximally satisfying result, try to get the best result possible
+            res' <- case res of
+                        Unknown _ _ -> do
+                            mr <- liftIO $ getBestFoundResult z3_max
+                            case mr of
+                                Just (SAT m) -> do
+                                    liftIO $ putStrLn "Best model"
+                                    liftIO $ print m
+                                    return (SAT m)
+                                _ -> return res
+                        _ -> return res
+
             liftIO $ closeIO z3_dir
             liftIO $ closeIO z3_max
 
-            return res
+            return res'
         else do
             z3_dir <- liftIO $ getZ3 100000
 
