@@ -43,6 +43,7 @@ import G2.Data.Utils
 
 import Control.Exception
 
+
 stdReduce :: (Solver solver, Simplifier simplifier) => Sharing -> SymbolicFuncEval t -> solver -> simplifier -> State t -> Bindings -> IO (Rule, [(State t, ())], Bindings)
 stdReduce share symb_func_eval solver simplifier s b@(Bindings {name_gen = ng}) = do
     (r, s', ng') <- stdReduce' share symb_func_eval solver simplifier s ng

@@ -23,9 +23,10 @@ initKnownValues eenv tenv tc =
     ordT = typeWithStrName tenv "Ord"
   in
   KnownValues {
-      tyInt = typeWithStrName tenv "Int"
+      tyCoercion = typeWithStrName tenv "~#" 
+    , dcCoercion = dcWithStrName tenv "~#" "Co"
+    , tyInt = typeWithStrName tenv "Int"
     , dcInt = dcWithStrName tenv "Int" "I#"
-
     , tyFloat = typeWithStrName tenv "Float"
     , dcFloat = dcWithStrName tenv "Float" "F#"
 

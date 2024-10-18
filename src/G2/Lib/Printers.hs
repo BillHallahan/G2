@@ -45,7 +45,7 @@ import Data.List as L
 import qualified Data.HashMap.Lazy as HM
 import qualified Data.HashSet as HS
 import qualified Data.Text as T
-
+import Debug.Trace 
 data Clean = Cleaned | Dirty deriving Eq
 
 mkIdHaskell :: PrettyGuide -> Id -> T.Text
@@ -78,7 +78,7 @@ printHaskellPG = mkCleanExprHaskell
 
 mkCleanExprHaskell :: PrettyGuide -> State t -> Expr -> T.Text
 mkCleanExprHaskell pg (State {type_classes = tc}) = 
-    mkExprHaskell Cleaned pg . modifyMaybe (mkCleanExprHaskell' tc)
+    mkExprHaskell Cleaned pg . modifyMaybe (mkCleanExprHaskell' tc )
 
 mkCleanExprHaskell' :: TypeClasses -> Expr -> Maybe Expr
 mkCleanExprHaskell' tc e
@@ -94,6 +94,9 @@ mkCleanExprHaskell' tc e
 
     | (App e' e'') <- e
     , isTypeClass tc (returnType e'') = Just e'
+
+    | (App e' e'') <- e
+    , Coercion _ <- e'' = Just e'
 
     | App e' (Type _) <- e = Just e'
 

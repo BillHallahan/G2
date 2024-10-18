@@ -361,7 +361,9 @@ errorAlt = Alt Default . Prim Undefined
 fakeKnownValues :: KnownValues
 fakeKnownValues =
     KnownValues {
-      KV.tyInt = intTypeName
+      KV.tyCoercion = Name "" Nothing 0 Nothing
+    , dcCoercion = Name "" Nothing 0 Nothing
+    , KV.tyInt = intTypeName
     , dcInt = intDCName
     , KV.tyFloat = floatTypeName
     , dcFloat = floatDCName
