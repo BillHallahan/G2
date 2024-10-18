@@ -61,8 +61,8 @@ mkNameHaskell pg n
     | otherwise = nameOcc n
 
 mkUnsugaredExprHaskell :: State t -> Expr -> T.Text
-mkUnsugaredExprHaskell (State {type_classes = tc, known_values = kv }) =
-    mkExprHaskell Cleaned (mkPrettyGuide ()) . modifyMaybe (mkCleanExprHaskell' tc kv)
+mkUnsugaredExprHaskell (State {type_classes = tc}) =
+    mkExprHaskell Cleaned (mkPrettyGuide ()) . modifyMaybe (mkCleanExprHaskell' tc)
 
 printHaskell :: State t -> Expr -> T.Text
 printHaskell = mkCleanExprHaskell (mkPrettyGuide ())
