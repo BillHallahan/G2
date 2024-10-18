@@ -43,7 +43,6 @@ import G2.Data.Utils
 
 import Control.Exception
 
-import Debug.Trace
 
 stdReduce :: (Solver solver, Simplifier simplifier) => Sharing -> SymbolicFuncEval t -> solver -> simplifier -> State t -> Bindings -> IO (Rule, [(State t, ())], Bindings)
 stdReduce share symb_func_eval solver simplifier s b@(Bindings {name_gen = ng}) = do
@@ -418,7 +417,6 @@ concretizeVarExpr s ng mexpr_id cvar (x:xs) maybeC =
 concretizeVarExpr' :: State t -> NameGen -> Id -> Id -> (DataCon, [Id], Expr) -> Maybe Coercion -> (NewPC t, NameGen)
 concretizeVarExpr' s@(State {expr_env = eenv, type_env = tenv, known_values = kv})
                 ngen mexpr_id cvar (dcon, params, aexpr) maybeC =
-          trace ("dcon = " ++ show dcon ++ "\ntype_ars = " ++ show type_ars)
           (NewPC { state =  s { expr_env = eenv''
                               , curr_expr = CurrExpr Evaluate aexpr''}
                  -- It is VERY important that we insert the mexpr_id in `concretized`
