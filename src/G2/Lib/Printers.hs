@@ -31,7 +31,6 @@ module G2.Lib.Printers ( PrettyGuide
 
 import G2.Language.Expr
 import qualified G2.Language.ExprEnv as E
-import G2.Language.KnownValues
 import G2.Language.MutVarEnv
 import G2.Language.Naming
 import qualified G2.Language.PathConds as PC
@@ -45,7 +44,7 @@ import Data.List as L
 import qualified Data.HashMap.Lazy as HM
 import qualified Data.HashSet as HS
 import qualified Data.Text as T
-import Debug.Trace 
+
 data Clean = Cleaned | Dirty deriving Eq
 
 mkIdHaskell :: PrettyGuide -> Id -> T.Text
