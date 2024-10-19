@@ -2,7 +2,6 @@
 
 module GADTS1 where
 
-
 import GHC.TypeLits 
 import Data.Kind
 
