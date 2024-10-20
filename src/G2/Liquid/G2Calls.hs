@@ -143,7 +143,7 @@ checkAbstracted' g2call solver simplifier share s bindings abs_fc@(FuncCall { fu
                         True -> do
                             let ar = AbstractRes 
                                         ( Abstracted { abstract = repTCsFC (type_classes s) $ abs_fc
-                                                     , real = repTCsFC (type_classes s) $ abs_fc { returns = ce }
+                                                     , real = repTCsFC (type_classes s) $ abs_fc { returns = inline (expr_env fs) HS.empty ce }
                                                      , hits_lib_err_in_real = t
                                                      , func_calls_in_real = [] }
                                         ) m
