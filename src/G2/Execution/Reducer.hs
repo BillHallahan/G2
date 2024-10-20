@@ -705,8 +705,7 @@ strictRed = mkSimpleReducer (\_ -> ())
                 mr_var cont ns n | HS.member n ns = False -- If we have seen a variable already,
                                                           -- we will have already discovered if it needs to be reduced
                                  | E.isSymbolic n eenv = False
-                                 | otherwise = maybe False (cont (HS.insert n ns)) (E.lookup n eenv)
-
+                                 | otherwise = maybe True (cont (HS.insert n ns)) (E.lookup n eenv)
         strict_red _ s b = return (NoProgress, [(s, ())], b)
 
 -- | Removes and reduces the values in a State's non_red_path_conds field. 
