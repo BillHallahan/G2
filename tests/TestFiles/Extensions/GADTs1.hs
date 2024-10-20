@@ -30,7 +30,6 @@ lengthList2 :: MyList2 a -> Int
 lengthList2 Nis       = 0
 lengthList2 (Conss _ xs) = 1 + lengthList2 xs
 
-
 -- this above is having an error that says
 -- G2: No type found in typeWithStrName "MutVar#"
 -- CallStack (from HasCallStack):
