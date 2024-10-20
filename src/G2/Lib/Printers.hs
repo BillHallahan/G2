@@ -77,7 +77,7 @@ printHaskellPG = mkCleanExprHaskell
 
 mkCleanExprHaskell :: PrettyGuide -> State t -> Expr -> T.Text
 mkCleanExprHaskell pg (State {type_classes = tc}) = 
-    mkExprHaskell Cleaned pg . modifyMaybe (mkCleanExprHaskell' tc )
+    mkExprHaskell Cleaned pg . modifyMaybe (mkCleanExprHaskell' tc)
 
 mkCleanExprHaskell' :: TypeClasses -> Expr -> Maybe Expr
 mkCleanExprHaskell' tc e
