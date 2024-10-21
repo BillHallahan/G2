@@ -1,10 +1,14 @@
 module Prim4 where
 
-divIntTest :: Int -> Bool
+divIntTest :: Int -> Int
 divIntTest x 
-    | x > 0 = (div x 2) > 1
-    | x < 0 = (div x 2) > 0
-    | x == 0 = (div x 2) > 2
+    | x > 0 = boolInt $ (div x 2) > 1
+    | x < 0 = boolInt $ (div x 2) > 0
+    | x == 0 = boolInt $ (div x 2) > 2
+
+boolInt :: Bool -> Int
+boolInt True = 0
+boolInt False = 1
 
 divIntegerTest :: Integer -> Bool
 divIntegerTest x = (div x 2) > 1

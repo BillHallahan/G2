@@ -1,4 +1,4 @@
-{-# LANGUAGE GADTs, DataKinds, KindSignatures, TypeFamilies #-}
+{-# LANGUAGE GADTs, DataKinds, KindSignatures, RankNTypes, TypeFamilies #-}
 
 module GADTS1 where
 
@@ -114,3 +114,14 @@ data Term a where
 eval2 :: Term a -> a
 eval2 (Lit i)     = i
 eval2 (Pair a b)  = (eval2 a, eval2 b)
+
+data X (b :: Bool) where
+    XTrue :: X b -> X True 
+    XFalse :: X False
+
+getX :: X True
+getX = walkX (XTrue XFalse)
+
+walkX :: X b -> X b
+walkX (XTrue x) = XTrue (walkX x)
+walkX XFalse = XFalse
