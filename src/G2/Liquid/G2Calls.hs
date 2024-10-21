@@ -35,6 +35,7 @@ import Data.Monoid
 
 import qualified Control.Monad.State as SM
 import G2.Lib.Printers
+import G2.Solver.Language (ASTContainer(modifyContainedASTs))
 
 
 -- | The function to actually use for Symbolic Execution
@@ -142,7 +143,7 @@ checkAbstracted' g2call solver simplifier share s bindings abs_fc@(FuncCall { fu
                 }] -> case not $ ce `eqUpToTypes` r of
                         True -> do
                             let ar = AbstractRes 
-                                        ( Abstracted { abstract = repTCsFC (type_classes s) $ abs_fc
+                                        ( Abstracted { abstract = repTCsFC (type_classes s) $ modifyContainedASTs (inline (expr_env fs) HS.empty) abs_fc
                                                      , real = repTCsFC (type_classes s) $ abs_fc { returns = inline (expr_env fs) HS.empty ce }
                                                      , hits_lib_err_in_real = t
                                                      , func_calls_in_real = [] }
