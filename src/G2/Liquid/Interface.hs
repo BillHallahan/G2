@@ -202,9 +202,9 @@ fromLiquidReadyState :: State ()
                      -> MemConfig
                      -> IO LiquidData
 fromLiquidReadyState init_state ifi bindings ghci ph_tyvars lhconfig memconfig = do
-    let (init_state', bindings') = (markAndSweepPreserving (reqNames init_state `mappend` memconfig) init_state bindings)
+    let init_state' = (markAndSweepPreserving (reqNames init_state `mappend` memconfig) init_state bindings)
         cleaned_state = init_state' { type_env = type_env init_state } 
-    fromLiquidNoCleaning cleaned_state ifi bindings' ghci ph_tyvars lhconfig memconfig
+    fromLiquidNoCleaning cleaned_state ifi bindings ghci ph_tyvars lhconfig memconfig
 
 data LiquidReadyState = LiquidReadyState { lr_state :: LHState
                                          , lr_binding :: Bindings
@@ -226,10 +226,10 @@ data LiquidData = LiquidData { ls_state :: State LHTracker
 cleanReadyState :: LiquidReadyState -> MemConfig -> LiquidReadyState
 cleanReadyState lrs@(LiquidReadyState { lr_state = lhs@(LHState { state = s }), lr_binding = b }) memconfig =
     let
-        (s', b') = (markAndSweepPreserving (reqNames s `mappend` memconfig) s b)
+        s' = (markAndSweepPreserving (reqNames s `mappend` memconfig) s b)
         s'' = s' { type_env = type_env s }
     in
-    lrs { lr_state = lhs { state = s'' }, lr_binding = b' }
+    lrs { lr_state = lhs { state = s'' }, lr_binding = b }
 
 fromLiquidNoCleaning :: State ()
                      -> Lang.Id
@@ -352,7 +352,7 @@ processLiquidReadyStateWithCall lrs@(LiquidReadyState { lr_state = lhs@(LHState 
                           Right errs -> error errs
 
         (ce, is, f_i, m_c, ng') = mkCurrExpr Nothing Nothing ie (type_classes s) (name_gen bindings)
-                                      (expr_env s) (type_env s) (deepseq_walkers bindings) (known_values s) config
+                                      (expr_env s) (type_env s) (known_values s) config
 
         lhs' = lhs { state = s { expr_env = foldr E.insertSymbolic (expr_env s) is
                                , curr_expr = CurrExpr Evaluate ce }
@@ -383,8 +383,7 @@ runLHG2 :: (MonadIO m, Solver solver, Simplifier simplifier)
         -> Bindings
         -> m ([ExecRes AbstractedInfo], Bindings)
 runLHG2 config red hal ord solver simplifier pres_names init_id final_st bindings = do
-    let only_abs_st = addTicksToDeepSeqCases (deepseq_walkers bindings) final_st
-    (ret, final_bindings) <- runG2WithSomes red hal ord solver simplifier pres_names only_abs_st bindings
+    (ret, final_bindings) <- runG2WithSomes red hal ord solver simplifier pres_names final_st bindings
 
     let ret' = onlyMinimalStates ret
 
@@ -452,9 +451,12 @@ lhReducerHalterOrderer config lhconfig solver simplifier entry mb_modname cfn st
         m_logger = fmap SomeReducer $ getLogger config
 
         lh_std_red = existentialInstRed :== NoProgress .--> lhRed cfn :== Finished --> stdRed share retReplaceSymbFuncVar solver simplifier
+        strict_red = case strict config of
+                            True -> lh_std_red .~> SomeReducer strictRed
+                            False -> lh_std_red
         opt_logger_red = case m_logger of
-                            Just logger -> logger .~> lh_std_red
-                            Nothing -> lh_std_red
+                            Just logger -> logger .~> strict_red
+                            Nothing -> strict_red
     in
     if higherOrderSolver config == AllFuncs then
         (opt_logger_red .== Finished .-->
@@ -575,10 +577,7 @@ reqNames (State { expr_env = eenv
           Lang.namesList (filter (\(Name _ m _ _) -> m == Just "Data.Set.Internal") (E.keys eenv))
     in
     MemConfig { search_names = ns
-              , pres_func = pf }
-    where
-        pf _ (Bindings { deepseq_walkers = dsw }) a =
-            S.fromList . map idName . M.elems $ M.filterWithKey (\n _ -> n `S.member` a) dsw
+              , pres_func = \_ _ _ -> S.empty }
 
 printLHOut :: Lang.Id -> [ExecRes AbstractedInfo] -> IO ()
 printLHOut entry =
@@ -634,14 +633,25 @@ parseLHOut entry (ExecRes { final_state = s
                           , violated = ais}) =
   let
       called = funcCallToFuncInfo  (printHaskell s)
+             . inlineVars (expr_env s)
              $ FuncCall { funcName = idName entry, arguments = inArg, returns = ex}
-      viFunc = fmap (parseLHFuncTuple s) ais
+      viFunc = fmap (parseLHFuncTuple s) $ inlineVars (expr_env s) ais
 
-      abstr = map (parseLHFuncTuple s) . map abstract . abs_calls $ track s
+      abstr = map (parseLHFuncTuple s) . inlineVars (expr_env s) . map abstract . abs_calls $ track s
   in
   LHReturn { calledFunc = called
            , violating = viFunc
            , abstracted = abstr}
+
+inlineVars :: ASTContainer t Expr => ExprEnv -> t -> t
+inlineVars eenv = modifyASTs (inlineVars' eenv)
+
+inlineVars' :: ExprEnv -> Expr -> Expr
+inlineVars' eenv v@(Var (Id n _)) =
+    case E.lookupConcOrSym n eenv of
+        Just (E.Conc e) -> inlineVars' eenv e
+        _ -> v
+inlineVars' _ e = e 
 
 counterExampleToLHReturn :: State t -> CounterExample -> LHReturn
 counterExampleToLHReturn s (DirectCounter fc abstr _) =
