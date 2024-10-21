@@ -37,7 +37,6 @@ import qualified Control.Monad.State as SM
 import G2.Lib.Printers
 import G2.Solver.Language (ASTContainer(modifyContainedASTs))
 
-
 -- | The function to actually use for Symbolic Execution
 type G2Call solver simplifier =
     forall m t . ( MonadIO m
@@ -197,14 +196,14 @@ getAbstracted g2call solver simplifier share s bindings abs_fc@(FuncCall { funcN
                 }] -> do
                   let fs' = modelToExprEnv fs
                   (fs'', bindings'', gfc') <- reduceFuncCallMaybeList g2call solver simplifier share bindings' fs' gfc
-                  let ar = Abstracted { abstract = repTCsFC (type_classes s) abs_fc
-                                      , real = repTCsFC (type_classes s) $ abs_fc { returns = (inline (expr_env fs) HS.empty ce) }
+                  let ar = Abstracted { abstract = repTCsFC (type_classes s) $ modifyContainedASTs (inline (expr_env fs'') HS.empty) abs_fc
+                                      , real = repTCsFC (type_classes s) $ abs_fc { returns = (inline (expr_env fs'') HS.empty ce) }
                                       , hits_lib_err_in_real = hle
                                       , func_calls_in_real = gfc' }
-                  return ( s { expr_env = foldr E.insertSymbolic (expr_env s) (E.symbolicIds $ expr_env fs'')
+                  return ( s { expr_env = expr_env fs''
                              , path_conds = path_conds fs }
                          , bindings''
-                         , ar
+                         , modifyContainedASTs (inline (expr_env fs'') HS.empty) ar
                          , m)
             _ -> error $ "checkAbstracted': Bad return from g2call"
     | otherwise = error $ "getAbstracted: Bad lookup in g2call" ++ show n
