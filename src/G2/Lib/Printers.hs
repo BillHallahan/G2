@@ -31,7 +31,6 @@ module G2.Lib.Printers ( PrettyGuide
 
 import G2.Language.Expr
 import qualified G2.Language.ExprEnv as E
-import G2.Language.KnownValues
 import G2.Language.MutVarEnv
 import G2.Language.Naming
 import qualified G2.Language.PathConds as PC
@@ -94,6 +93,9 @@ mkCleanExprHaskell' tc e
 
     | (App e' e'') <- e
     , isTypeClass tc (returnType e'') = Just e'
+
+    | (App e' e'') <- e
+    , Coercion _ <- e'' = Just e'
 
     | App e' (Type _) <- e = Just e'
 
