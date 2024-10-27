@@ -306,8 +306,9 @@ satState solver s
 -- | Generate soft path constraints that encourage the `abstract` function call arguments
 -- to be the same as the `real` function call arguments.
 softAbstractResembleReal :: State AbstractedInfo -> PathConds
-softAbstractResembleReal =
-    foldr PC.union PC.empty . map softAbstractResembleReal' . abs_calls . track
+softAbstractResembleReal s =
+      foldr PC.union PC.empty . map softAbstractResembleReal' 
+    . modifyContainedASTs (inline (expr_env s) HS.empty) . abs_calls . track $ s
 
 softAbstractResembleReal' :: Abstracted -> PathConds
 softAbstractResembleReal' abstracted =

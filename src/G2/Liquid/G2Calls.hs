@@ -11,7 +11,8 @@ module G2.Liquid.G2Calls ( G2Call
                          , reduceAllCalls
                          , reduceCalls
                          , reduceFuncCall
-                         , mapAccumM) where
+                         , mapAccumM
+                         , inline) where
 
 import G2.Config
 import G2.Data.Utils
@@ -224,7 +225,8 @@ inline :: ExprEnv -> HS.HashSet Name -> Expr -> Expr
 inline h ns v@(Var (Id n _))
     | E.isSymbolic n h = v
     | HS.member n ns = v
-    | Just e <- E.lookup n h = inline h (HS.insert n ns) e
+    | Just e <- E.lookup n h
+    , not (isLam e) = inline h (HS.insert n ns) e
 inline h ns e = modifyChildren (inline h ns) e
 
 hitsLibError :: Monad m => Reducer m () Bool
