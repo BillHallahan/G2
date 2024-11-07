@@ -73,12 +73,13 @@ library
                        , G2.Initialization.Types
 
                        , G2.Interface
+                       , G2.Interface.ExecRes
                        , G2.Interface.Interface
-                       , G2.Interface.OutputTypes
 
                        , G2.Language
                        , G2.Language.AlgDataTy
                        , G2.Language.Approximation
+                       , G2.Language.Arbitrary
                        , G2.Language.ArbValueGen
                        , G2.Language.AST
                        , G2.Language.CallGraph
@@ -100,6 +101,7 @@ library
                        , G2.Language.Monad.TypeClasses
                        , G2.Language.Monad.TypeEnv
                        , G2.Language.Monad.Typing
+                       , G2.Language.MutVarEnv
                        , G2.Language.Naming
                        , G2.Language.PathConds
                        , G2.Language.Primitives
@@ -208,6 +210,7 @@ library
                        , filepath >= 1.4 && <= 1.5
                        , ghc-paths >= 0.1 && < 0.2
                        , ghc >= 8.10 && < 9.7
+                       , ghc-boot >= 8.10 && < 9.7
                        , hashable >= 1.2.6.0 && <= 1.4.2.0
                        , HTTP >= 4000.3.0 && < 4001.0
                        , language-sygus >= 0.1.1.3 && < 0.2
@@ -355,6 +358,7 @@ test-suite test
   other-modules:         CaseTest
                        , DefuncTest
                        , Expr
+                       , FuzzExecution
                        , GetNthTest
                        , HigherOrderMathTest
                        , InputOutputTest

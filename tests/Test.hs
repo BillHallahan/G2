@@ -28,6 +28,7 @@ import PeanoTest
 import HigherOrderMathTest
 import GetNthTest
 import DefuncTest
+import FuzzExecution
 import CaseTest
 import Expr
 import Simplifications
@@ -67,11 +68,14 @@ tests = testGroup "Tests"
         , baseTests
         , primTests
         , ioTests
+
         , exprTests
         , typingTests
         , simplificationTests
         , ufMapQuickcheck
         , unionFindQuickcheck
+        , fuzzExecutionQuickCheck
+        
         , rewriteTests
         ]
 
@@ -338,19 +342,21 @@ testFileTests = testGroup "TestFiles"
                                                                    , ("assoc", 200, [AtLeast 5])
                                                                    , ("sf", 150, [AtLeast 5])
                                                                    , ("thirdOrder", 75, [AtLeast 10])
-                                                                   , ("tupleTestMono", 175, [AtLeast 10])]
+                                                                   , ("tupleTestMono", 175, [AtLeast 10])
+                                                                   , ("multiPrim", 300, [AtLeast 8])]
     , checkInputOutputsTemplate "tests/HigherOrder/PolyHigherOrder.hs" [ ("f", 50, [AtLeast 5])
                                                                        , ("h", 200, [AtLeast 3])
                                                                        , ("assoc", 200, [AtLeast 5])
                                                                        , ("sf", 150, [AtLeast 5])
                                                                        , ("tupleTest", 175, [AtLeast 8])]
     , checkInputOutputsNonRedTemp "tests/HigherOrder/HigherOrder.hs" [ ("f", 200, [Exactly 3])
-                                                                   , ("h", 150, [Exactly 2])
-                                                                   , ("assoc", 200, [Exactly 2])
-                                                                   , ("sf", 200, [Exactly 2])
-                                                                   , ("thirdOrder", 300, [Exactly 2])
-                                                                   , ("thirdOrder2", 300, [Exactly 3])
-                                                                   , ("tupleTestMono", 175, [Exactly 2])]
+                                                                     , ("h", 150, [Exactly 2])
+                                                                     , ("assoc", 200, [Exactly 2])
+                                                                     , ("sf", 200, [Exactly 2])
+                                                                     , ("thirdOrder", 300, [Exactly 2])
+                                                                     , ("thirdOrder2", 300, [Exactly 3])
+                                                                     , ("tupleTestMono", 175, [Exactly 2])
+                                                                     , ("multiPrim", 300, [Exactly 2])]
     , checkInputOutputsNonRedLib "tests/BaseTests/ListTests.hs" [ ("lengthN", 250, [Exactly 1])
                                                                    , ("map2", 150, [Exactly 1])] 
     -- , checkInputOutput "tests/TestFiles/BadBool.hs" "BadBool" "f" 1400 [AtLeast 1]
@@ -392,12 +398,34 @@ testFileTests = testGroup "TestFiles"
                                                       , ("n", 1000, [AtLeast 2])
                                                       , ("sqrtSquared", 1000, [AtLeast 2]) ]
 
-    ]
+    , checkInputOutputsInstType "tests/TestFiles/InstTypes1.hs" [ ("lengthList", 200, [AtLeast 1])
+                                                        , ("myTuple", 200, [AtLeast 1])
+                                                        , ("myZip", 200, [AtLeast 1])
+                                                        , ("complement", 200, [AtLeast 1])
+                                                        , ("myListId", 200, [AtLeast 1])
+                                                        , ("takeMyList", 200, [AtLeast 1])
+                                                        , ("takeMyList2", 200, [AtLeast 1]) 
+                                                        , ("contains", 200, [AtLeast 1])
+                                                        , ("headMyList", 200, [AtLeast 1])
+                                                        , ("myListMap", 200, [AtLeast 1])
+                                                        , ("idlr", 200, [AtLeast 1])
+                                                        , ("extractLeft", 200, [AtLeast 1])
+                                                        , ("extractRight", 200, [AtLeast 1])
+                                                        , ("take2", 200, [AtLeast 1])
+                                                        , ("triId", 200, [AtLeast 1])
+                                                        , ("triFun", 200, [AtLeast 1])
+                                                        , ("triFuna", 200, [AtLeast 1])
+                                                        , ("triFunb", 200, [AtLeast 1])
+                                                        , ("triFunc", 200, [AtLeast 1])
+                                                        , ("take3", 200, [AtLeast 1])
+                                                        , ("takeTri2", 200, [AtLeast 1]) ]
+ ]
 
 extensionTests :: TestTree
 extensionTests = testGroup "Extensions"
     [
-      checkInputOutputs "tests/TestFiles/Extensions/PatternSynonyms1.hs" [ ("isNineInt", 400, [AtLeast 2])
+      checkInputOutputs "tests/TestFiles/Extensions/GADTSyntax.hs" [("cons3", 400, [Exactly 1])]
+    , checkInputOutputs "tests/TestFiles/Extensions/PatternSynonyms1.hs" [ ("isNineInt", 400, [AtLeast 2])
                                                                          , ("isNineInteger", 400, [AtLeast 2])
                                                                          , ("isNineFloat", 400, [AtLeast 2])
                                                                          , ("isFunc", 400, [AtLeast 2])
@@ -469,12 +497,25 @@ primTests = testGroup "Prims"
                                             , ("allLetters", 20000, [AtLeast 1])
                                             , ("printBasedOnChr", 1500, [AtLeast 7])
                                             , ("printBasedOnOrd", 1500, [AtLeast 7]) ]
+
+    , checkInputOutputs "tests/Prim/MutVar.hs" [ ("f", 10000, [Exactly 3])
+                                               , ("fIn", 10000, [Exactly 4])
+                                               , ("g", 10000, [Exactly 1])
+                                               , ("h", 10000, [Exactly 1])
+                                               , ("i", 10000, [Exactly 1])
+                                               , ("j", 10000, [Exactly 1])
+                                               , ("k1", 10000, [Exactly 2])
+                                               , ("k2", 10000, [Exactly 1]) ]
+
+    , checkInputOutputs "tests/Prim/STRef.hs" [ ("f", 10000, [Exactly 1]) ]
     ]
 
 ioTests :: TestTree
 ioTests = testGroup "IO"
     [
-        checkInputOutput "tests/IO/UnsafePerformIO1.hs" "f" 1000 [Exactly 1]
+      checkInputOutput "tests/IO/UnsafePerformIO1.hs" "f" 1000 [Exactly 1]
+    , checkInputOutput "tests/IO/IORef1.hs" "unsafeF" 5000 [Exactly 1]
+    , checkInputOutput "tests/IO/IORef1.hs" "unsafeG" 5000 [Exactly 2]
     ]
 
 -- To Do Tests

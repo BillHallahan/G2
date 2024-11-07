@@ -12,6 +12,7 @@ import G2.Liquid.Types
 import Data.Foldable
 import qualified Data.HashMap.Lazy as HM
 import qualified Data.Text as T
+import G2.Language (leadingTyForAllBindings)
 
 -- | Creates an LHState.  This involves building a TCValue, and
 -- creating the new LH TC which checks equality, and has a function to
@@ -185,16 +186,17 @@ createLHTCFuncs' lhm n adt = do
 
 
     let fs = map (\(n', t) -> Var (Id n' t)) [ (eqN, (typeOf eq))
-                                           , (neN, (typeOf ne))
-                                           , (ltN, (typeOf lt))
-                                           , (leN, (typeOf le))
-                                           , (gtN, (typeOf gt))
-                                           , (geN, (typeOf ge))
-                                           , (ppN, (typeOf pp))]
+                                             , (neN, (typeOf ne))
+                                             , (ltN, (typeOf lt))
+                                             , (leN, (typeOf le))
+                                             , (gtN, (typeOf gt))
+                                             , (geN, (typeOf ge))
+                                             , (ppN, (typeOf pp))]
     let fs' = map (\f -> mkApp $ f:bt ++ lhdv) fs ++ [ordE]
 
     lhdct <- lhDCType
-    let e = mkApp $ Data (DataCon lh lhdct):fs'
+    let ue = leadingTyForAllBindings (PresType lhdct)
+    let e = mkApp $ Data (DataCon lh lhdct ue []):Type (TyCon n TyUnknown):fs'
     let e' = foldr (Lam TermL) e lhd
     let e'' = foldr (Lam TypeL) e' bi
 
@@ -215,11 +217,13 @@ lhDCType = do
 
     a <- freshSeededStringN "a"
     bool <- tyBoolT
-    let tva = TyVar (Id a TYPE)
+    let i = Id a TYPE
+    let tva = TyVar i
     let taab = TyFun tva (TyFun tva bool)
 
 
-    return $ (TyFun
+    return $ TyForAll i
+            (TyFun
                 taab -- eq
                 (TyFun
                     taab --neq
@@ -578,6 +582,8 @@ createExtractors'' lh i j n = do
                                 (TyApp (TyCon lh (TyFun TYPE TYPE)) (TyVar b))
                             )
                         )
+                        [b]
+                        []
     let vi = bi !! j
         c = Case (Var li) ci (typeOf vi) [Alt (DataAlt d bi) (Var vi)]
     let e = Lam TypeL a $ Lam TermL li c

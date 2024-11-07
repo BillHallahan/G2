@@ -206,6 +206,10 @@ typeSymsTestsGood :: TestTree
 typeSymsTestsGood =
   rvTest acceptRule "tests/RewriteVerify/Correct/TypeSyms.hs" ["parBuffer"]
 
+instTypeRed :: TestTree
+instTypeRed =
+  rvTest acceptRule "tests/RewriteVerify/Correct/TestZeno.hs" ["p12"]
+
 multiLemmaTestsGood :: TestTree
 multiLemmaTestsGood =
   rvTest acceptRule multi_lemma_good_src multi_lemma_good_names
@@ -221,6 +225,7 @@ rewriteTests = testGroup "Rewrite Tests"
         , treeTestsGood
         , treeTestsBad
         , typeSymsTestsGood
+        , instTypeRed
         , multiLemmaTestsGood
         ]
 

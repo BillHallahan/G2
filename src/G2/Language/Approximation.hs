@@ -149,7 +149,7 @@ moreRestrictive' mr_cont gen_lemma lkp s1@(State {expr_env = h1}) s2@(State {exp
     -- same type, but (2) "the same type" may be represented in different syntactic
     -- ways, most significantly bound variable names may differ
     -- "forall a . a" is the same type as "forall b . b", but fails a syntactic check.
-    (Data (DataCon d1 _), Data (DataCon d2 _))
+    (Data (DataCon d1 _ _ _), Data (DataCon d2 _ _ _))
                                   | d1 == d2 -> Right hm
                                   | otherwise -> Left []
     -- We neglect to check type equality here for the same reason.
@@ -201,8 +201,8 @@ moreRestrictive' mr_cont gen_lemma lkp s1@(State {expr_env = h1}) s2@(State {exp
 -- check only the names for DataAlt
 altEquiv :: AltMatch -> AltMatch -> Bool
 altEquiv (DataAlt dc1 ids1) (DataAlt dc2 ids2) =
-  let DataCon dn1 _ = dc1
-      DataCon dn2 _ = dc2
+  let DataCon dn1 _ _ _ = dc1
+      DataCon dn2 _ _ _ = dc2
       n1 = map idName ids1
       n2 = map idName ids2
   in

@@ -23,9 +23,10 @@ initKnownValues eenv tenv tc =
     ordT = typeWithStrName tenv "Ord"
   in
   KnownValues {
-      tyInt = typeWithStrName tenv "Int"
+      tyCoercion = typeWithStrName tenv "~#" 
+    , dcCoercion = dcWithStrName tenv "~#" "Co"
+    , tyInt = typeWithStrName tenv "Int"
     , dcInt = dcWithStrName tenv "Int" "I#"
-
     , tyFloat = typeWithStrName tenv "Float"
     , dcFloat = dcWithStrName tenv "Float" "F#"
 
@@ -60,6 +61,13 @@ initKnownValues eenv tenv tc =
 
     , tyUnit = typeWithStrName tenv "()"
     , dcUnit = dcWithStrName tenv "()" "()"
+
+    , tyMutVar = typeWithStrName tenv "MutVar#"
+    , dcMutVar = dcWithStrName tenv "MutVar#" "MutVar#"
+    , tyState = typeWithStrName tenv "State#"
+    , dcState = dcWithStrName tenv "State#" "State#"
+    , tyRealWorld = typeWithStrName tenv "RealWorld"
+    , dcRealWorld = dcWithStrName tenv "RealWorld" "RealWorld"
 
     , eqTC = eqT
     , numTC = numT
@@ -127,7 +135,7 @@ dcWithStrName tenv ts dcs =
     dc -> dcWithStrName' dc dcs
 
 dcWithStrName' :: [DataCon] -> T.Text -> Name
-dcWithStrName' (DataCon n@(Name n' _ _ _) _:xs) s =
+dcWithStrName' (DataCon n@(Name n' _ _ _) _ _ _:xs) s =
   if n' == s then n else dcWithStrName' xs s
 dcWithStrName' _ s = error $ "No dc found in dcWithStrName [" ++ (show $ T.unpack s) ++ "]"
 

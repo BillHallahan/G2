@@ -724,7 +724,7 @@ hasAssert' _ = Any False
 
 
 currExprIsTrue :: State t -> Bool
-currExprIsTrue (State { curr_expr = CurrExpr _ (Data (DataCon (Name dcn _ _ _) _))}) = dcn == "True"
+currExprIsTrue (State { curr_expr = CurrExpr _ (Data (DataCon { dc_name = Name dcn _ _ _ }))}) = dcn == "True"
 currExprIsTrue _ = False
 
 -------------------------------

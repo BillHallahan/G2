@@ -154,7 +154,7 @@ constraintsToSygus eenv tenv meas meas_ex evals si fc =
         mkSygusImplies t1 t2 = TermCall (ISymb "=>") [t1, t2]
 
 convertExprToTerm :: G2.Expr -> Term
-convertExprToTerm (Data (DataCon (Name n _ _ _) _))
+convertExprToTerm (Data (DataCon (Name n _ _ _) _ _ _))
     | "True" <- n = TermLit $ LitBool True
     | "False" <- n =TermLit $ LitBool False
 convertExprToTerm (Lit l) = litToTerm l

@@ -20,6 +20,7 @@ module G2.Language.Support
 import G2.Language.AST
 import qualified G2.Language.ExprEnv as E
 import G2.Language.KnownValues
+import G2.Language.MutVarEnv
 import G2.Language.Naming
 import G2.Language.Stack hiding (filter)
 import G2.Language.Syntax
@@ -47,6 +48,8 @@ data State t = State { expr_env :: E.ExprEnv -- ^ Mapping of `Name`s to `Expr`s
                      , non_red_path_conds :: [(Expr, Expr)] -- ^ Path conditions, in the form of (possibly non-reduced)
                                                             -- expression pairs that must be proved equivalent
                      , handles :: [Handle]
+                     , mutvar_env :: MutVarEnv -- ^ MutVar `Name`s to mappings of names in the `ExprEnv`.
+                                               -- See Note [MutVar Env] in G2.Language.MutVarEnv.
                      , true_assert :: Bool -- ^ Have we violated an assertion?
                      , assert_ids :: Maybe FuncCall
                      , type_classes :: TypeClasses
@@ -60,6 +63,7 @@ data State t = State { expr_env :: E.ExprEnv -- ^ Mapping of `Name`s to `Expr`s
                      , track :: t
                      } deriving (Show, Eq, Read, Generic, Typeable, Data)
 
+
 instance Hashable t => Hashable (State t)
 
 -- | Global information, shared between all `State`s.
@@ -68,7 +72,10 @@ data Bindings = Bindings { deepseq_walkers :: Walkers
                          , arb_value_gen :: ArbValueGen 
                          , cleaned_names :: CleanedNames
                          , higher_order_inst :: S.HashSet Name -- ^ Functions to try instantiating higher order functions with
-                         , input_names :: [Name]
+
+                         , input_names :: [Name] -- ^ Names of input symbolic arguments
+                         , input_coercion :: Maybe Coercion -- ^ Coercion wrapping the initial function call
+                         
                          , rewrite_rules :: ![RewriteRule]
                          , name_gen :: NameGen
                          , exported_funcs :: [Name]
@@ -171,6 +178,7 @@ instance Named t => Named (State t) where
             <> names (path_conds s)
             <> names (non_red_path_conds s)
             <> names (handles s)
+            <> names (mutvar_env s)
             <> names (assert_ids s)
             <> names (type_classes s)
             <> names (exec_stack s)
@@ -188,6 +196,7 @@ instance Named t => Named (State t) where
                , path_conds = rename old new (path_conds s)
                , non_red_path_conds = rename old new (non_red_path_conds s)
                , handles = rename old new (handles s)
+               , mutvar_env = rename old new (mutvar_env s)
                , true_assert = true_assert s
                , assert_ids = rename old new (assert_ids s)
                , type_classes = rename old new (type_classes s)
@@ -209,6 +218,7 @@ instance Named t => Named (State t) where
                , path_conds = renames hm (path_conds s)
                , non_red_path_conds = renames hm (non_red_path_conds s)
                , handles = renames hm (handles s)
+               , mutvar_env = renames hm (mutvar_env s)
                , true_assert = true_assert s
                , assert_ids = renames hm (assert_ids s)
                , type_classes = renames hm (type_classes s)
@@ -228,6 +238,7 @@ instance ASTContainer t Expr => ASTContainer (State t) Expr where
                       (containedASTs $ path_conds s) ++
                       (containedASTs $ non_red_path_conds s) ++
                       (containedASTs $ handles s) ++
+                      (containedASTs $ mutvar_env s) ++
                       (containedASTs $ assert_ids s) ++
                       (containedASTs $ exec_stack s) ++
                       (containedASTs $ track s) ++ 
@@ -240,6 +251,7 @@ instance ASTContainer t Expr => ASTContainer (State t) Expr where
                                 , path_conds = modifyContainedASTs f $ path_conds s
                                 , non_red_path_conds = modifyContainedASTs f $ non_red_path_conds s
                                 , handles = modifyContainedASTs f $ handles s
+                                , mutvar_env = modifyContainedASTs f $ mutvar_env s
                                 , assert_ids = modifyContainedASTs f $ assert_ids s
                                 , exec_stack = modifyContainedASTs f $ exec_stack s
                                 , track = modifyContainedASTs f $ track s 
@@ -253,6 +265,7 @@ instance ASTContainer t Type => ASTContainer (State t) Type where
                       ((containedASTs . path_conds) s) ++
                       (containedASTs $ non_red_path_conds s) ++
                       (containedASTs $ handles s) ++
+                      (containedASTs $ mutvar_env s) ++
                       ((containedASTs . assert_ids) s) ++
                       ((containedASTs . type_classes) s) ++
                       ((containedASTs . exec_stack) s) ++
@@ -266,6 +279,7 @@ instance ASTContainer t Type => ASTContainer (State t) Type where
                                 , path_conds = (modifyContainedASTs f . path_conds) s
                                 , non_red_path_conds = modifyContainedASTs f $ non_red_path_conds s
                                 , handles = modifyContainedASTs f $ handles s
+                                , mutvar_env = modifyContainedASTs f $ mutvar_env s
                                 , assert_ids = (modifyContainedASTs f . assert_ids) s
                                 , type_classes = (modifyContainedASTs f . type_classes) s
                                 , exec_stack = (modifyContainedASTs f . exec_stack) s
@@ -279,6 +293,7 @@ instance Named Bindings where
             <> names (cleaned_names b)
             <> names (higher_order_inst b)
             <> names (input_names b)
+            <> names (input_coercion b)
             <> names (exported_funcs b)
             <> names (rewrite_rules b)
 
@@ -289,6 +304,7 @@ instance Named Bindings where
                  , cleaned_names = HM.insert new old (cleaned_names b)
                  , higher_order_inst = rename old new (higher_order_inst b)
                  , input_names = rename old new (input_names b)
+                 , input_coercion = rename old new (input_coercion b)
                  , rewrite_rules = rename old new (rewrite_rules b)
                  , name_gen = name_gen b
                  , exported_funcs = rename old new (exported_funcs b)
@@ -301,6 +317,7 @@ instance Named Bindings where
                , cleaned_names = foldr (\(old, new) -> HM.insert new old) (cleaned_names b) (HM.toList hm)
                , higher_order_inst = renames hm (higher_order_inst b)
                , input_names = renames hm (input_names b)
+               , input_coercion = renames hm (input_coercion b)
                , rewrite_rules = renames hm (rewrite_rules b)
                , name_gen = name_gen b
                , exported_funcs = renames hm (exported_funcs b)
@@ -313,10 +330,13 @@ instance ASTContainer Bindings Expr where
                                 , input_names = modifyContainedASTs f $ input_names b }
 
 instance ASTContainer Bindings Type where
-    containedASTs b = ((containedASTs . fixed_inputs) b) ++ ((containedASTs . input_names) b)
+    containedASTs b = (containedASTs . fixed_inputs $ b)
+                   ++ (containedASTs . input_names $ b)
+                   ++ (containedASTs . input_coercion $ b)
 
-    modifyContainedASTs f b = b { fixed_inputs = (modifyContainedASTs f . fixed_inputs) b
-                                , input_names = (modifyContainedASTs f . input_names) b }
+    modifyContainedASTs f b = b { fixed_inputs = modifyContainedASTs f . fixed_inputs $ b
+                                , input_names = modifyContainedASTs f . input_names $ b
+                                , input_coercion = modifyContainedASTs f . input_coercion $ b }
 
 instance ASTContainer CurrExpr Expr where
     containedASTs (CurrExpr _ e) = [e]

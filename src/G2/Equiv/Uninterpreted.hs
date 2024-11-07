@@ -17,10 +17,7 @@ addFreeVarsAsSymbolic :: ExprEnv -> ExprEnv
 addFreeVarsAsSymbolic eenv = let xs = freeVars eenv eenv 
                              in foldl' (flip E.insertSymbolic) eenv xs 
 
--- | changing the signature of addFreeTypes so that we have 
--- we want to modify the rewrite-rules passed in checkrule 
---  (AstContainer c Expr, Astcontainer c Type, AstContainer t Expr, Astcontainer t Type) => c -> State t -> NameGen -> (c, State t, NameGen)
--- | apply subvars to the rule 
+-- we want to modify the rewrite-rules passed in checkrule and then apply subvars to the rule 
 addFreeTypes :: (ASTContainer c Expr, ASTContainer c Type, ASTContainer t Expr, ASTContainer t Type) => c -> State t -> NameGen -> (c, State t, NameGen) 
 addFreeTypes c s@(State {type_env = tenv }) ng =
     let 
@@ -31,9 +28,7 @@ addFreeTypes c s@(State {type_env = tenv }) ng =
         s' = subVars m s
         c' = subVars m c
         n_te = addDataCons tenv'' free_dc
-    in (c', s' { type_env = n_te }, ng' )
-    -- trace ("show map " ++ show m) (s' { type_env = n_te }, ng') 
-
+    in (c', s' { type_env = n_te }, ng')
 
 allDC :: ASTContainer t Expr => t -> HS.HashSet DataCon
 allDC = evalASTs allDC' 
@@ -47,17 +42,14 @@ allDC' e = case e of
                                                         _ -> Nothing) as 
     _ -> HS.empty
 
-
-
 freeDC :: ASTContainer e Expr => TypeEnv -> e -> HS.HashSet DataCon
 freeDC typeEnv e =
     let al = allDC e
-        inTEnv = HS.map (\(DataCon n _) -> n)
+        inTEnv = HS.map (\(DataCon n _ _ _) -> n)
                . HS.fromList
                . concatMap dataCon
                . HM.elems $ typeEnv in
-    HS.filter (\(DataCon n _) -> not (HS.member n inTEnv)) al
-
+    HS.filter (\(DataCon n _ _ _) -> not (HS.member n inTEnv)) al
 
 allTypes :: ASTContainer t Type => t -> [(Name, Kind)]
 allTypes = evalASTs allTypes' 
@@ -67,12 +59,10 @@ allTypes' t = case t of
         TyCon n k -> [(n,k)]
         _ -> []
 
-
 freeTypes :: ASTContainer t Type => TypeEnv -> t -> [(Name, Kind)]
 freeTypes typeEnv t = HM.toList $ HM.difference (HM.fromList $ allTypes t) typeEnv 
 
-
--- | we getting "free" typesnames and insert it into the TypeEnv with a "uninterprted " dataCons 
+-- | we getting "free" typesnames and insert it into the TypeEnv with a "uninterprted" dataCons 
 -- Uninterpreted means there are potentially unlimited amount of datacons for a free type
 freeTypesToTypeEnv :: [(Name,Kind)] -> NameGen -> (TypeEnv, NameGen)
 freeTypesToTypeEnv nks ng = 
@@ -84,7 +74,8 @@ freeTypesToTypeEnv' (n,k) ng =
     let (bids, ng') = freshIds (argumentTypes $ PresType k) ng 
         (dcs,ng'') = unknownDC ng' n k bids
         n_adt = (n, DataTyCon {bound_ids = bids,
-                               data_cons = [dcs]})
+                               data_cons = [dcs],
+                               adt_source = ADTSourceCode})
         in (n_adt, ng'')
 
 unknownDC :: NameGen -> Name -> Kind -> [Id] -> (DataCon, NameGen)
@@ -95,7 +86,7 @@ unknownDC ng n@(Name occn _ _ _) k is =
         ti = TyLitInt `TyFun` ta 
         tfa = foldl' (flip TyForAll) ti is
         (dc_n, ng') = freshSeededString ("Unknown" DM.<> occn) ng   
-        in (DataCon dc_n tfa, ng')
+        in (DataCon dc_n tfa is [], ng')
 
 -- | add free Datacons into the TypeEnv at the appriorpate Type)
 addDataCons :: TypeEnv -> [DataCon] -> TypeEnv
@@ -105,7 +96,7 @@ addDataCon :: TypeEnv -> DataCon -> TypeEnv
 addDataCon te dc | (TyCon n _):_ <- unTyApp $ returnType dc = 
     let dtc = HM.lookup n te
         adt = case dtc of 
-                   Just (DataTyCon ids' dcs) -> DataTyCon {bound_ids = ids', data_cons = dc : dcs}
+                   Just (DataTyCon ids' dcs adts) -> DataTyCon {bound_ids = ids', data_cons = dc : dcs, adt_source = adts}
                    Nothing -> error "addDataCons: cannot find corresponding Name in TypeEnv"
                    Just _ -> error "addDataCons: Not DataTyCon AlgDataTy found"
         in HM.insert n adt te 
@@ -116,7 +107,7 @@ addMapping :: [DataCon] -> ExprEnv -> ExprEnv
 addMapping dcs ee = foldl' addMapping' ee dcs
 
 addMapping' :: ExprEnv -> DataCon -> ExprEnv 
-addMapping' ee dc@(DataCon name _) = E.insert name (Data dc) ee
+addMapping' ee dc@(DataCon name _ _ _) = E.insert name (Data dc) ee
 
 
 -- | The translation between GHC and g2 didn't have a matching id for the same occurence name
@@ -126,13 +117,13 @@ dataConMapping :: [DataCon] -> HM.HashMap (T.Text, Maybe T.Text) DataCon
 dataConMapping dcs = HM.fromList $ map dataConMapping' dcs 
 
 dataConMapping' :: DataCon -> ((T.Text, Maybe T.Text ), DataCon)
-dataConMapping' dc@(DataCon (Name t mt _ _ ) _ ) = ((t,mt), dc)
+dataConMapping' dc@(DataCon (Name t mt _ _ ) _ _ _) = ((t,mt), dc)
 
 subVars :: ASTContainer t Expr => HM.HashMap (T.Text, Maybe T.Text) DataCon -> t -> t
 subVars m = modifyASTs (subVars' m) 
 
 subVars' :: HM.HashMap (T.Text, Maybe T.Text) DataCon -> Expr -> Expr
 subVars' m expr@(Var (Id (Name t mt _ _) _ )) = case HM.lookup (t,mt) m of 
-                                                        Just (DataCon n' k) -> Data (DataCon n' k)
+                                                        Just (DataCon n' k u e) -> Data (DataCon n' k u e)
                                                         Nothing -> expr  
 subVars' _ expr = expr

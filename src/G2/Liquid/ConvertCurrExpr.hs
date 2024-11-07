@@ -204,10 +204,11 @@ addCurrExprAssumption ifi (Bindings {fixed_inputs = fi}) = do
     -- fi <- fixedInputs
     eenv <- exprEnv
     inames <- inputNames
+    let inames' = take (length $ argumentTypes ifi) inames
 
     lh <- mapM (lhTCDict' HM.empty) $ mapMaybe typeType fi'
 
-    let is = catMaybes (map (E.getIdFromName eenv) inames)   
+    let is = catMaybes (map (E.getIdFromName eenv) inames')   
     let (typs, ars) = span isType $ fi' ++ map Var is
 
     case assumpt of

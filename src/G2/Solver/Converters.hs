@@ -334,12 +334,12 @@ exprToSMT (Lit c) =
         LitRational r -> VReal r
         LitChar ch -> VChar ch
         err -> error $ "exprToSMT: invalid Expr: " ++ show err
-exprToSMT (Data (DataCon n (TyCon (Name "Bool" _ _ _) _))) =
+exprToSMT (Data (DataCon n (TyCon (Name "Bool" _ _ _) _ ) _ _)) =
     case nameOcc n of
         "True" -> VBool True
         "False" -> VBool False
         _ -> error "Invalid bool in exprToSMT"
-exprToSMT (Data (DataCon n t)) = V (nameToStr n) (typeToSMT t)
+exprToSMT (Data (DataCon n t _ _)) = V (nameToStr n) (typeToSMT t)
 exprToSMT a@(App _ _) =
     let
         f = getFunc a

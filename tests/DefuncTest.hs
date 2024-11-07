@@ -8,10 +8,10 @@ import TestUtils
 -- Defunc1
 
 a :: Expr -> Expr
-a = App (Data $ DataCon (Name "A" (Just "Defunc1") 0 Nothing) (TyCon (Name "A" (Just "Defunc1") 0 Nothing) TYPE))
+a = App (Data $ DataCon (Name "A" (Just "Defunc1") 0 Nothing) (TyCon (Name "A" (Just "Defunc1") 0 Nothing) TYPE) [] [])
 
 dataB :: Expr
-dataB = Data $ DataCon (Name "B" (Just "Defunc1") 0 Nothing) (TyCon (Name "A" (Just "Defunc1") 0 Nothing) TYPE)
+dataB = Data $ DataCon (Name "B" (Just "Defunc1") 0 Nothing) (TyCon (Name "A" (Just "Defunc1") 0 Nothing) TYPE) [] []
 
 add1 :: Expr
 add1 = Var (Id (Name "add1" (Just "Defunc1") 0 Nothing) tyIntS) 

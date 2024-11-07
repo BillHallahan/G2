@@ -1,8 +1,8 @@
-{-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE FlexibleContexts, MultiParamTypeClasses, OverloadedStrings, TupleSections #-}
 
 module G2.Solver.Interface
-    ( subModel
+    ( Subbed (..)
+    , subModel
     , subVar
     , subVarFuncCall
     , SMTConverter (..)
@@ -12,6 +12,7 @@ module G2.Solver.Interface
 import G2.Execution.NormalForms
 import G2.Language
 import qualified G2.Language.ExprEnv as E
+import G2.Language.MutVarEnv
 import G2.Solver.Converters
 import G2.Solver.Solver
 
@@ -20,13 +21,50 @@ import Data.Maybe (mapMaybe, isJust, fromJust)
 import qualified Data.HashMap.Lazy as HM
 import qualified Data.Sequence as S
 
-subModel :: State t -> Bindings -> ([Expr], Expr, Maybe FuncCall, S.Seq Expr)
+-- | Concrete instantiations of previously (partially) symbolic values.
+data Subbed = Subbed { s_inputs :: [Expr] -- ^ Concrete `inputNames`
+                     , s_output :: Expr -- ^ Concrete `curr_expr`
+                     , s_violated :: Maybe FuncCall -- ^ Concrete `assert_ids`
+                     , s_sym_gens :: S.Seq Expr -- ^ Concrete `sym_gens`
+                     , s_mutvars :: [(Name, MVOrigin, Expr)] -- ^ Concrete symbolic `mutvar_env`
+                     }
+                     deriving Eq
+
+instance ASTContainer Subbed Expr where
+    containedASTs sub =
+           s_inputs sub
+        ++ s_output sub:containedASTs (s_violated sub)
+        ++ containedASTs (s_sym_gens sub)
+        ++ containedASTs (s_mutvars sub)
+    modifyContainedASTs f sub =
+        Subbed { s_inputs = map f (s_inputs sub)
+               , s_output = f (s_output sub)
+               , s_violated = modifyContainedASTs f (s_violated sub)
+               , s_sym_gens = modifyContainedASTs f (s_sym_gens sub)
+               , s_mutvars = modifyContainedASTs f (s_mutvars sub) }
+
+instance ASTContainer Subbed Type where
+    containedASTs sub =
+           containedASTs (s_inputs sub)
+        ++ containedASTs (s_output sub)
+        ++ containedASTs (s_violated sub)
+        ++ containedASTs (s_sym_gens sub)
+        ++ containedASTs (s_mutvars sub)
+    modifyContainedASTs f sub =
+        Subbed { s_inputs = modifyContainedASTs f (s_inputs sub)
+               , s_output = modifyContainedASTs f (s_output sub)
+               , s_violated = modifyContainedASTs f (s_violated sub)
+               , s_sym_gens = modifyContainedASTs f (s_sym_gens sub)
+               , s_mutvars = modifyContainedASTs f (s_mutvars sub) }
+
+subModel :: State t -> Bindings -> Subbed
 subModel (State { expr_env = eenv
                 , curr_expr = CurrExpr _ cexpr
                 , assert_ids = ais
                 , type_classes = tc
                 , model = m
-                , sym_gens = gens }) 
+                , sym_gens = gens
+                , mutvar_env = mve }) 
           (Bindings {input_names = inputNames}) = 
     let
         ais' = fmap (subVarFuncCall True m eenv tc) ais
@@ -36,8 +74,16 @@ subModel (State { expr_env = eenv
         -- See [Higher-Order Model] in G2.Execution.Reducers
         is = mapMaybe toVars inputNames
         gs = fmap fromJust . S.filter isJust $ fmap toVars gens
+
+        mv = mapMaybe (\(n, mvi) -> fmap (n, mv_origin mvi,) . toVars . idName $ mv_initial mvi) (HM.toList mve)
+
+        sub = Subbed { s_inputs = is
+                     , s_output = cexpr
+                     , s_violated = ais'
+                     , s_sym_gens = gs
+                     , s_mutvars = mv }
         
-        sv = subVar False m eenv tc (is, cexpr, ais', gs)
+        sv = subVar False m eenv tc sub
     in
     untilEq (simplifyLams . pushCaseAppArgIn) sv
     where

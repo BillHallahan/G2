@@ -34,13 +34,12 @@ import qualified G2.Language.KnownValues as KV
 import qualified G2.Language.Stack as S
 import G2.Preprocessing.NameCleaner
 import G2.Solver hiding (Assert)
-
 import Control.Monad.Extra
 import Data.Maybe
 import qualified Data.HashMap.Lazy as HM
 import qualified Data.List as L
 import qualified Data.Sequence as S
-
+import G2.Data.Utils
 import Control.Exception
 
 stdReduce :: (Solver solver, Simplifier simplifier) => Sharing -> SymbolicFuncEval t -> solver -> simplifier -> State t -> Bindings -> IO (Rule, [(State t, ())], Bindings)
@@ -154,6 +153,7 @@ evalApp s@(State { expr_env = eenv
         ng e1 e2
     | ac@(Prim Error _) <- appCenter e1 =
         (RuleError, [newPCEmpty $ s { curr_expr = CurrExpr Return ac }], ng)
+    | Just (s', ng') <- evalPrimMutVar s ng (App e1 e2) = (RuleEvalPrimToNorm, [newPCEmpty $ s'], ng')
     | Just (e, eenv', pc, ng') <- evalPrimSymbolic eenv tenv ng kv (App e1 e2) =
         ( RuleEvalPrimToNorm
         , [ (newPCEmpty $ s { expr_env = eenv'
@@ -257,7 +257,8 @@ evalLet s@(State { expr_env = eenv })
 -- | Handle the Case forms of Evaluate.
 evalCase :: State t -> NameGen -> Expr -> Id -> Type -> [Alt] -> (Rule, [NewPC t], NameGen)
 evalCase s@(State { expr_env = eenv
-                  , exec_stack = stck })
+                  , exec_stack = stck
+                  , known_values = kv })
          ng mexpr bind t alts
   -- Is the current expression able to match with a literal based `Alt`? If
   -- so, we do the cvar binding, and proceed with evaluation of the body.
@@ -279,16 +280,15 @@ evalCase s@(State { expr_env = eenv
   -- We do not want to remove casting from any of the arguments since this could
   -- mess up there types later
   | (Data dcon):ar <- unApp $ exprInCasts mexpr
-  , (DataCon _ _) <- dcon
-  , ar' <- removeTypes ar eenv
-  , (Alt (DataAlt _ params) expr):_ <- matchDataAlts dcon alts
-  , length params == length ar' =
+  , ar' <- drop (length (dc_univ_tyvars dcon)) ar 
+  , (Alt (DataAlt _ params) expr):_ <- matchDataAlts dcon alts =
       let
           dbind = [(bind, mexpr)]
           expr' = liftCaseBinds dbind expr
           pbinds = zip params ar'
           (eenv', expr'', ng', news) = liftBinds pbinds eenv expr' ng
       in 
+         assert (length params == length ar')
          ( RuleEvalCaseData news
          , [newPCEmpty $ s { expr_env = eenv'
                            , curr_expr = CurrExpr Evaluate expr''}] 
@@ -336,7 +336,13 @@ evalCase s@(State { expr_env = eenv
 
         alt_res = dsts_cs ++ lsts_cs ++ def_sts
       in
-      assert (length alt_res == length dalts + length lalts + length defs)
+      -- We return exactly one state per branch, unless we are concretizing a MutVar.
+      -- In that case, we will return at least one state, but might return an unbounded
+      -- number more- see Note [MutVar Copy Concretization].
+      assert (tyConName (tyAppCenter $ typeOf mexpr) == Just (KV.tyMutVar kv)
+                        ==> length alt_res >= length dalts + length lalts + length defs)
+      assert (tyConName (tyAppCenter $ typeOf mexpr) /= Just (KV.tyMutVar kv)
+                        ==> length alt_res == length dalts + length lalts + length defs)
       (RuleEvalCaseSym, alt_res, ng'')
 
   -- Case evaluation also uses the stack in graph reduction based evaluation
@@ -352,6 +358,9 @@ evalCase s@(State { expr_env = eenv
                            , exec_stack = S.push frame stck }], ng)
 
   | otherwise = error $ "reduceCase: bad case passed in\n" ++ show mexpr ++ "\n" ++ show alts
+  where
+        tyConName (TyCon n _) = Just n
+        tyConName _ = Nothing
 
 -- | Remove everything from an [Expr] that are actually Types.
 removeTypes :: [Expr] -> E.ExprEnv -> [Expr]
@@ -369,8 +378,8 @@ matchDefaultAlts alts = [a | a@(Alt Default _) <- alts]
 
 -- | Match data constructor based `Alt`s.
 matchDataAlts :: DataCon -> [Alt] -> [Alt]
-matchDataAlts (DataCon n _) alts =
-  [a | a@(Alt (DataAlt (DataCon n' _) _) _) <- alts, n == n']
+matchDataAlts (DataCon n _ _ _) alts =
+  [a | a@(Alt (DataAlt (DataCon n' _ _ _) _) _) <- alts, n == n']
 
 -- | Match literal constructor based `Alt`s.
 matchLitAlts :: Lit -> [Alt] -> [Alt]
@@ -532,7 +541,7 @@ mexprTyToExpr' mexpr_t tenv
 
 -- | Given a DataCon, and an (Id, Type) mapping, returns list of Expression level Type Arguments to DataCon
 dconTyToExpr :: DataCon -> [(Id, Type)] -> [Expr]
-dconTyToExpr (DataCon _ t) bindings =
+dconTyToExpr (DataCon _ t _ _) bindings =
     case (getTyApps t) of
         (Just tApps) -> tyAppsToExpr tApps bindings
         Nothing -> []
@@ -611,14 +620,12 @@ createExtCond s ngen mexpr cvar (dcon, bindees, aexpr)
             tenv = type_env s
 
             
-
-
 getBoolFromDataCon :: KnownValues -> DataCon -> Bool
 getBoolFromDataCon kv dcon
-    | (DataCon dconName dconType) <- dcon
+    | (DataCon dconName dconType [] []) <- dcon
     , dconType == (tyBool kv)
     , dconName == (KV.dcTrue kv) = True
-    | (DataCon dconName dconType) <- dcon
+    | (DataCon dconName dconType [] []) <- dcon
     , dconType == (tyBool kv)
     , dconName == (KV.dcFalse kv) = False
     | otherwise = error $ "getBoolFromDataCon: invalid DataCon passed in\n" ++ show dcon ++ "\n"
@@ -650,9 +657,68 @@ liftSymDefAlt s ng mexpr cvar as =
         Just aexpr -> liftSymDefAlt' s ng mexpr aexpr cvar as -- (liftSymDefAlt'' s mexpr aexpr cvar as, ng)
         _ -> ([], ng)
 
+-- Note [MutVar Copy Concretization]
+-- We must consider two possibilities when concretizing a MutVar:
+--
+--   1) The MutVar is a new MutVar, containing a fresh symbolic value
+--
+--   2) The MutVar is the same as some other MutVar that was previously concretized from a symbolic
+--      variable, and thus refers to the same mutable value.
+--
+-- To see why each of these possibilities must be considered, refer to the below program:
+--
+-- @
+-- k :: MutVar# RealWorld Int -> MutVar# RealWorld Int -> (Int, Int)
+-- k mv1 mv2 =
+--     let
+--         s1 = writeMutVar# mv1 2 realWorld#
+--         s2 = writeMutVar# mv2 6 s1
+ 
+--         (# s3, x1 #) = readMutVar# mv1 s2
+--         (# s4, x2 #) = readMutVar# mv2 s3 
+--     in
+--     (x1, x2)
+-- @
+--
+-- If mv1 and mv2 are different mutable variables, the functuon `k` will return the tuple (2, 6).
+-- However, if mv1 and mv2 are the same mutable variable, then `k` will return the tuple (6, 6).
+--
+-- Note that possibility (2) only involves concretizing MutVars to other MutVars that were themselves
+-- concretized from symbolic variables, not MutVars introduced by newMutVar#.  This is due to ordering:
+-- if we have a symbolic MutVar mv1, and then introduce a new MutVar mv2 via newMutVar#, clearly
+-- mv1 and mv2 must be distinct.  We use `MVOrigin`, in G2.Language.MutVar, to track whether a MutVar
+-- came from concretization or newMutVar#. 
+
 -- | Concretize Symbolic variable to Case Expr on its possible Data Constructors
 liftSymDefAlt' :: State t -> NameGen -> Expr -> Expr -> Id -> [Alt] -> ([NewPC t], NameGen)
 liftSymDefAlt' s@(State {type_env = tenv}) ng mexpr aexpr cvar alts
+    | Var i:_ <- unApp mexpr
+    , TyApp (TyApp mvt realworld_ty) stored_ty <- typeOf i
+    , TyCon n _ <- tyAppCenter mvt
+    , n == KV.tyMutVar (known_values s) =
+        let
+            binds = [(cvar, getExpr nmv_s)]
+            aexpr' = liftCaseBinds binds aexpr
+
+            -- Create a new mutable variable with a symbolic stored value
+            (stored_var, ng') = freshSeededId (idName i) stored_ty ng
+            (nmv_s, ng'') = newMutVar s ng' MVSymbolic realworld_ty stored_ty (Var stored_var)
+            
+            eenv' = E.insertSymbolic stored_var $ E.insert (idName i) (getExpr nmv_s) (expr_env nmv_s)
+            nmv_s' = nmv_s { curr_expr = CurrExpr Evaluate aexpr', expr_env = eenv' }
+
+            -- Consider that the new mutable variable might be some existing mutable variable.
+            -- See Note [MutVar Copy Concretization].
+            mv_ty = mutVarTy (known_values s) realworld_ty stored_ty
+            rel_mutvar = HM.keys
+                       $ HM.filter (\MVInfo { mv_val_id = Id _ t
+                                            , mv_origin = org } -> t == stored_ty && org == MVSymbolic) (mutvar_env s)
+            copy_states = map (\mv -> s { curr_expr = CurrExpr Evaluate aexpr'
+                                        , expr_env = E.insert (idName i) (Prim (MutVar mv) mv_ty) (expr_env s)
+                                        }
+                              ) rel_mutvar
+        in
+        (map newPCEmpty (nmv_s':copy_states), ng'')
     | (Var i):_ <- unApp $ unsafeElimOuterCast mexpr
     , isADTType (typeOf i)
     , (Var i'):_ <- unApp $ exprInCasts mexpr = -- Id with original Type
@@ -662,9 +728,9 @@ liftSymDefAlt' s@(State {type_env = tenv}) ng mexpr aexpr cvar alts
                 _ -> Nothing
             dcs = dataCon adt
             badDCs = mapMaybe (\alt -> case alt of
-                (Alt (DataAlt (DataCon dcn _) _) _) -> Just dcn
+                (Alt (DataAlt (DataCon dcn _ _ _) _) _) -> Just dcn
                 _ -> Nothing) alts
-            dcs' = filter (\(DataCon dcn _) -> dcn `notElem` badDCs) dcs
+            dcs' = filter (\(DataCon dcn _ _ _) -> dcn `notElem` badDCs) dcs
 
             (newId, ng') = freshId TyLitInt ng
 
@@ -684,6 +750,14 @@ liftSymDefAlt' s@(State {type_env = tenv}) ng mexpr aexpr cvar alts
         ([NewPC { state = s'', new_pcs = [newSymConstraint], concretized = [] }], ng'')
     | Prim _ _:_ <- unApp mexpr = (liftSymDefAlt'' s mexpr aexpr cvar alts, ng)
     | isPrimType (typeOf mexpr) = (liftSymDefAlt'' s mexpr aexpr cvar alts, ng)
+    | TyVar _ <- (typeOf mexpr) = 
+                let
+                    (cvar', ng') = freshId (typeOf cvar) ng
+                    eenv' =  E.insert (idName cvar') mexpr (expr_env s)
+                    aexpr' = replaceVar (idName cvar) (Var cvar') aexpr
+                    s' = s {curr_expr = CurrExpr Evaluate aexpr', expr_env = eenv'}
+
+                in ([NewPC {state = s', new_pcs = [], concretized = []}], ng')
     | otherwise = error $ "liftSymDefAlt': unhandled Expr" ++ "\n" ++ show mexpr
 
 liftSymDefAlt'' :: State t -> Expr -> Expr -> Id -> [Alt] -> [NewPC t]
@@ -714,7 +788,8 @@ defAltExpr (_:xs) = defAltExpr xs
 
 -- | Creates and applies new symbolic variables for arguments of Data Constructor
 concretizeSym :: [(Id, Type)] -> Maybe Coercion -> (State t, NameGen) -> DataCon -> ((State t, NameGen), Expr)
-concretizeSym bi maybeC (s, ng) dc@(DataCon _ ts) =
+-- TODO:: is it safe to ignore the universial and existential type variable?
+concretizeSym bi maybeC (s, ng) dc@(DataCon _ ts _ _) =
     let dc' = Data dc
         ts' = anonArgumentTypes $ PresType ts
         ts'' = foldr (\(i, t) e -> retype i t e) ts' bi
@@ -957,7 +1032,7 @@ retAssumeFrame s@(State {known_values = kv
             _ -> []
         -- Special handling in case we just have a concrete DataCon, or a lone Var
         (newPCs, ng') = case unApp $ unsafeElimOuterCast e1 of
-            [Data (DataCon dcn _)]
+            [Data (DataCon dcn _ _ _)]
                 | dcn == KV.dcFalse kv -> ([], ng)
                 | dcn == KV.dcTrue kv ->
                     ( [NewPC { state = s { curr_expr = CurrExpr Evaluate e2
@@ -981,7 +1056,7 @@ retAssertFrame s@(State {known_values = kv
             _ -> []
         -- Special handling in case we just have a concrete DataCon, or a lone Var
         (newPCs, ng') = case unApp $ unsafeElimOuterCast e1 of
-            [Data (DataCon dcn _)]
+            [Data (DataCon dcn _ _ _)]
                 | dcn == KV.dcFalse kv ->
                     ( [NewPC { state = s { curr_expr = CurrExpr Evaluate e2
                                          , exec_stack = stck
@@ -1013,7 +1088,7 @@ concretizeExprToBool s ng mexpr_id (x:xs) e2 stck =
 concretizeExprToBool' :: State t -> NameGen -> Id -> DataCon -> Expr -> S.Stack Frame -> (NewPC t, NameGen)
 concretizeExprToBool' s@(State {expr_env = eenv
                         , known_values = kv})
-                ngen mexpr_id dcon@(DataCon dconName _) e2 stck = 
+                ngen mexpr_id dcon@(DataCon dconName _ _ _) e2 stck = 
         (NewPC { state = s { expr_env = eenv'
                         , exec_stack = stck
                         , curr_expr = CurrExpr Evaluate e2
@@ -1108,7 +1183,8 @@ retReplaceSymbFuncTemplate s@(State { expr_env = eenv
         (x, ng') = freshId t1 ng
         (x', ng'') = freshId t1 ng'
         (alts, symIds, ng''') =
-            foldr (\dc@(DataCon _ dcty) (as, sids, ng1) ->
+            -- TODO: Is it true we can ignore the universial and existential type variable in dc split?
+            foldr (\dc@(DataCon _ dcty _ _) (as, sids, ng1) ->
                         let (argIds, ng1') = genArgIds dc ng1
                             data_alt = DataAlt dc argIds
                             sym_fun_ty = mkTyFun $ fst (argTypes dcty) ++ [t2]
@@ -1154,8 +1230,8 @@ retReplaceSymbFuncTemplate s@(State { expr_env = eenv
     , E.isSymbolic n eenv
     = let
         boolTy = (TyCon (KV.tyBool kv) TYPE)
-        trueDc = DataCon (KV.dcTrue kv) boolTy
-        falseDc = DataCon (KV.dcFalse kv) boolTy
+        trueDc = DataCon (KV.dcTrue kv) boolTy [] []
+        falseDc = DataCon (KV.dcFalse kv) boolTy [] []
         eqT1 = mkEqPrimType t1 kv
         (f1Id:f2Id:xId:discrimId:[], ng') = freshIds [t2, TyFun t1 t2, t1, boolTy] ng
         x = Var xId
@@ -1175,7 +1251,7 @@ argTypes :: Type -> ([Type], Type)
 argTypes t = (anonArgumentTypes $ PresType t, returnType $ PresType t)
 
 genArgIds :: DataCon -> NameGen -> ([Id], NameGen)
-genArgIds (DataCon _ dcty) ng =
+genArgIds (DataCon _ dcty _ _) ng =
     let (argTys, _) = argTypes dcty
     in foldr (\ty (is, ng') -> let (i, ng'') = freshId ty ng' in ((i:is), ng'')) ([], ng) argTys
 

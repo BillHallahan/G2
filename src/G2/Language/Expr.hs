@@ -101,7 +101,7 @@ eqUpToTypes :: Expr -> Expr -> Bool
 eqUpToTypes (Var (Id n _)) (Var (Id n' _)) = n == n'
 eqUpToTypes (Lit l) (Lit l') = l == l'
 eqUpToTypes (Prim p _) (Prim p' _) = p == p'
-eqUpToTypes (Data (DataCon n _)) (Data (DataCon n' _)) = n == n'
+eqUpToTypes (Data (DataCon n _ _ _)) (Data (DataCon n' _ _ _)) = n == n'
 eqUpToTypes (App e1 e2) (App e1' e2') = e1 `eqUpToTypes` e1' && e2 `eqUpToTypes` e2'
 eqUpToTypes (Lam lu (Id n _) e) (Lam lu' (Id n' _) e') = lu == lu' && n == n' && e `eqUpToTypes` e'
 eqUpToTypes (Let b e) (Let b' e') =
@@ -158,10 +158,10 @@ mkDCFalse :: KnownValues -> TypeEnv -> DataCon
 mkDCFalse kv tenv = fromJust $ getDataCon tenv (KV.tyBool kv) (KV.dcFalse kv)
 
 mkTrue :: KnownValues -> Expr
-mkTrue kv = Data $ DataCon (KV.dcTrue kv) (TyCon (KV.tyBool kv) TYPE)
+mkTrue kv = Data $ DataCon (KV.dcTrue kv) (TyCon (KV.tyBool kv) TYPE) [] []
 
 mkFalse :: KnownValues -> Expr
-mkFalse kv = Data $ DataCon (KV.dcFalse kv) (TyCon (KV.tyBool kv) TYPE)
+mkFalse kv = Data $ DataCon (KV.dcFalse kv) (TyCon (KV.tyBool kv) TYPE) [] []
 
 mkBool :: KnownValues -> Bool -> Expr
 mkBool kv b = if b then mkTrue kv else mkFalse kv
@@ -620,6 +620,8 @@ mkStrict' w e =
         (TyCon n _) -> case M.lookup n w of
             Just i -> App (foldl' (App) (Var i) (map Type ts ++ map (typeToWalker w) ts)) e
             Nothing -> error $ "mkStrict: failed to find walker with type: " ++ show n
+        (TyVar _) -> e
+        t | isPrimType t -> e
         _ -> error $ "No walker found in mkStrict\n e = " ++ show e ++ "\nt = " ++ show (typeOf e) ++ "\nret = " ++ show (returnType e)
 
 typeToWalker :: Walkers -> Type -> Expr

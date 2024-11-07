@@ -58,6 +58,7 @@ import qualified Data.HashSet as HS
 import qualified Data.Text as T
 import System.FilePath
 import System.Directory
+import G2.Language.AlgDataTy (ADTSource(..))
 
 -- Copying from Language.Typing so the thing we stuff into Ghc
 -- does not have to rely on Language.Typing, which depends on other things.
@@ -83,6 +84,7 @@ equivMods = HM.fromList
 #else
             , ("GHC.Integer.Type2", "GHC.Integer.Type")
 #endif
+            , ("GHC.PrimSMT", "GHC.Prim")
             , ("GHC.Prim2", "GHC.Prim")
 #if MIN_VERSION_GLASGOW_HASKELL(9,6,0,0)
             , ("GHC.Tuple2", "GHC.Tuple.Prim")
@@ -674,13 +676,13 @@ mkTyCon t = do
     bv <- mapM typeId $ tyConTyVars t
 
     dcs <-
-        case isAlgTyCon t of 
+        case isAlgTyCon t of
             True -> do
                       SM.put (nm', tm')
                       case algTyConRhs t of
-                            DataTyCon { data_cons = dc } -> do
+                            DataTyCon { data_cons = dc} -> do
                                 dcs <- mapM mkData dc
-                                return . Just $ G2.DataTyCon bv dcs
+                                return . Just $ G2.DataTyCon bv dcs ADTSourceCode
                             NewTyCon { data_con = dc
                                      , nt_rhs = rhst} -> do
                                         dc' <- mkData dc
@@ -688,12 +690,13 @@ mkTyCon t = do
                                         return .
                                           Just $ G2.NewTyCon { G2.bound_ids = bv
                                                              , G2.data_con = dc'
-                                                             , G2.rep_type = t'}
+                                                             , G2.rep_type = t'
+                                                             , G2.adt_source = ADTSourceCode}
                             AbstractTyCon {} -> error "Unhandled TyCon AbstractTyCon"
                             -- TupleTyCon {} -> error "Unhandled TyCon TupleTyCon"
                             TupleTyCon { data_con = dc } -> do
                               dc' <- mkData dc
-                              return . Just $ G2.DataTyCon bv $ [dc']
+                              return . Just $ G2.DataTyCon bv [dc'] ADTSourceCode
                             SumTyCon {} -> error "Unhandled TyCon SumTyCon"
             False -> case isTypeSynonymTyCon t of
                     True -> do
@@ -702,7 +705,8 @@ mkTyCon t = do
                         st' <- mkType st
                         tv' <- mapM typeId tv
                         return . Just $ G2.TypeSynonym { G2.bound_ids = tv'
-                                                       , G2.synonym_of = st'}
+                                                       , G2.synonym_of = st'
+                                                       , G2.adt_source = ADTSourceCode}
                     False -> return Nothing
 
     case dcs of
@@ -716,7 +720,10 @@ mkData :: DataCon -> G2.NamesM G2.DataCon
 mkData datacon = do
     name <- mkDataName datacon
     ty <- (mkType . dataConRepType) datacon
-    return $ G2.DataCon name ty
+    u <- mapM typeId $ dataConUnivTyVars datacon
+    e <- mapM typeId $ dataConExTyCoVars datacon
+
+    return $ G2.DataCon name ty u e 
 
 mkDataName :: DataCon -> G2.NamesM G2.Name
 mkDataName datacon = valNameLookup . dataConName $ datacon

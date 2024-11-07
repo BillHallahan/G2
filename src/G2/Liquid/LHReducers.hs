@@ -280,6 +280,7 @@ initialTrack eenv (Case e _ _ a) = initialTrack eenv e + (getMax $ evalContained
 initialTrack eenv (Cast e _) = initialTrack eenv e
 initialTrack eenv (Assume _ _ e) = initialTrack eenv e
 initialTrack eenv (Assert _ _ e) = initialTrack eenv e
+initialTrack eenv (NonDet es) = maximum $ map (initialTrack eenv) es
 initialTrack _ _ = 0
 
 {-# INLINE lhMaxOutputsHalter #-}

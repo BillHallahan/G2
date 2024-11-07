@@ -535,7 +535,7 @@ exprDepth h h' ns n e = case e of
         , not $ m `elem` ns
         , Just e' <- lookupBoth m h h' -> exprDepth h h' ns (m:n) e'
         | not $ (idName i) `elem` ns -> error "unmapped variable"
-  _ | d@(Data (DataCon _ _)):l <- unAppNoTicks e
+  _ | d@(Data _):l <- unAppNoTicks e
     , not $ null (anonArgumentTypes d) ->
       1 + (maximum $ 0:(map (exprDepth h h' ns n) l))
     | otherwise -> 0

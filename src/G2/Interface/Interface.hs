@@ -56,7 +56,7 @@ import G2.Execution.Rules
 import G2.Execution.PrimitiveEval
 import G2.Execution.Memory
 
-import G2.Interface.OutputTypes
+import G2.Interface.ExecRes
 
 import G2.Lib.Printers
 
@@ -84,11 +84,8 @@ type AssumeFunc = T.Text
 type AssertFunc = T.Text
 type ReachFunc = T.Text
 
-type StartFunc = T.Text
-type ModuleName = Maybe T.Text 
-
 type MkCurrExpr = TypeClasses -> NameGen -> ExprEnv -> TypeEnv -> Walkers
-                     -> KnownValues -> Config -> (Expr, [Id], [Expr], NameGen)
+                     -> KnownValues -> Config -> (Expr, [Id], [Expr], Maybe Coercion, NameGen)
 
 doTimeout :: Int -> IO a -> IO (Maybe a)
 doTimeout secs action = do
@@ -169,8 +166,7 @@ initStateFromSimpleState s m_mod useAssert mkCurr argTys config =
         hs = IT.handles s'
         kv' = IT.known_values s'
         tc' = IT.type_classes s'
-
-        (ce, is, f_i, ng'') = mkCurr tc' ng' eenv' tenv' ds_walkers kv' config
+        (ce, is, f_i, m_coercion, ng'') = mkCurr tc' ng' eenv' tenv' ds_walkers kv' config
     in
     (State {
       expr_env = foldr E.insertSymbolic eenv' is
@@ -179,6 +175,7 @@ initStateFromSimpleState s m_mod useAssert mkCurr argTys config =
     , path_conds = PC.fromList []
     , non_red_path_conds = []
     , handles = hs
+    , mutvar_env = HM.empty
     , true_assert = if useAssert then False else True
     , assert_ids = Nothing
     , type_classes = tc'
@@ -197,6 +194,7 @@ initStateFromSimpleState s m_mod useAssert mkCurr argTys config =
     , arb_value_gen = arbValueInit
     , cleaned_names = HM.empty
     , input_names = map idName is
+    , input_coercion = m_coercion
     , higher_order_inst = S.filter (\n -> nameModule n == m_mod) . S.fromList $ IT.exports s
     , rewrite_rules = IT.rewrite_rules s
     , name_gen = ng''
@@ -287,8 +285,8 @@ initRedHaltOrd mod_name solver simplifier config libFunNames =
         m_logger = fmap SomeReducer $ getLogger config
 
         hpc_red f = case hpc config of
-                        True -> SomeReducer (hpcReducer mod_name ~> stdRed share f solver simplifier)
-                        False -> SomeReducer (stdRed share f solver simplifier)
+                        True ->  SomeReducer (hpcReducer mod_name ~> stdRed share f solver simplifier ~> instTypeRed) 
+                        False -> SomeReducer (stdRed share f solver simplifier ~> instTypeRed)
 
         nrpc_red f = case nrpc config of
                         Nrpc -> liftSomeReducer (SomeReducer (nonRedLibFuncsReducer libFunNames) .== Finished .--> hpc_red f)
@@ -362,7 +360,7 @@ initialStateNoStartFunc proj src transConfig config = do
     let simp_state = initSimpleState exg2
 
         (init_s, bindings) = initStateFromSimpleState simp_state Nothing False
-                                 (\_ ng _ _ _ _ _ -> (Prim Undefined TyBottom, [], [], ng))
+                                 (\_ ng _ _ _ _ _ -> (Prim Undefined TyBottom, [], [], Nothing, ng))
                                  (E.higherOrderExprs . IT.expr_env)
                                  config
 
@@ -435,7 +433,9 @@ runG2WithConfig mod_name state config bindings = do
                                 (runG2WithSomes red hal ord solver simplifier emptyMemConfig state bindings)
                                 lnt
                             )
-                            (mkPrettyGuide ())
+                           (if showType config == Lax 
+                            then (mkPrettyGuide ())
+                            else setTypePrinting AggressiveTypes (mkPrettyGuide ())) 
                         )
                         hpc_t
 
@@ -569,11 +569,17 @@ runG2SubstModel m s@(State { type_env = tenv, known_values = kv }) bindings =
     let
         s' = s { model = m }
 
-        (es, e, ais, gens) = subModel s' bindings
+        Subbed { s_inputs = es
+               , s_output = e
+               , s_violated = ais
+               , s_sym_gens = gens
+               , s_mutvars = mv } = subModel s' bindings
+
         sm = ExecRes { final_state = s'
                      , conc_args = es
                      , conc_out = e
                      , conc_sym_gens = gens
+                     , conc_mutvars = mv
                      , violated = ais}
 
         sm' = runPostprocessing bindings sm
@@ -582,6 +588,7 @@ runG2SubstModel m s@(State { type_env = tenv, known_values = kv }) bindings =
                        , conc_args = fixed_inputs bindings ++ conc_args sm'
                        , conc_out = evalPrims tenv kv (conc_out sm')
                        , conc_sym_gens = gens
+                       , conc_mutvars = mv
                        , violated = evalPrims tenv kv (violated sm')}
     in
     sm''
@@ -605,7 +612,5 @@ runG2 :: ( MonadIO m
          solver -> simplifier -> MemConfig -> State t -> Bindings -> m ([ExecRes t], Bindings)
 runG2 red hal ord solver simplifier mem is bindings = do
     (exec_states, bindings') <- runG2ThroughExecution red hal ord mem is bindings
-    let (ng'',exec_states') = L.mapAccumL instType (name_gen bindings') exec_states
-    let bindings'' =  bindings'{ name_gen = ng''}
-    sol_states <- mapM (runG2Solving solver simplifier bindings'') exec_states' 
-    return (catMaybes sol_states, bindings'')
+    sol_states <- mapM (runG2Solving solver simplifier bindings') exec_states
+    return (catMaybes sol_states, bindings')

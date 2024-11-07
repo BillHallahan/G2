@@ -3,7 +3,8 @@ module InputOutputTest ( checkInputOutput
                        , checkInputOutputs
                        , checkInputOutputsTemplate
                        , checkInputOutputsNonRedTemp
-                       , checkInputOutputsNonRedLib ) where
+                       , checkInputOutputsNonRedLib
+                       , checkInputOutputsInstType ) where
 
 import Test.Tasty
 import Test.Tasty.HUnit
@@ -54,6 +55,14 @@ checkInputOutputsNonRedLib src tests = do
         src
         tests
 
+checkInputOutputsInstType :: FilePath -> [(String, Int, [Reqs String])] -> TestTree
+checkInputOutputsInstType src tests = do
+    checkInputOutput'
+        (do config <- mkConfigTestIO; return (config { instTV = InstAfter }))
+        src
+        tests
+
+
 checkInputOutput' :: IO Config
                   -> FilePath
                   -> [(String, Int, [Reqs String])]
@@ -89,18 +98,18 @@ checkInputOutput' io_config src tests = do
 checkInputOutput'' :: [FilePath]
                    -> ExtractedG2
                    -> Maybe T.Text
-                   -> Config 
+                   -> Config
                    -> (String, Int, [Reqs String])
                    -> IO (Bool, [ExecRes ()])
 checkInputOutput'' src exg2 mb_modname config (entry, stps, req) = do
     let config' = config { steps = stps }
         (init_state, bindings) = initStateWithCall exg2 False (T.pack entry) mb_modname (mkCurrExpr Nothing Nothing) mkArgTys config'
     
-    (r, _) <- runG2WithConfig mb_modname init_state config' bindings
+    (r, b) <- runG2WithConfig mb_modname init_state config' bindings
 
     let chAll = checkExprAll req
     let proj = map takeDirectory src
-    mr <- validateStates proj src (T.unpack $ fromJust mb_modname) entry chAll [] r
+    mr <- validateStates proj src (T.unpack $ fromJust mb_modname) entry chAll [] b r
     let io = map (\(ExecRes { conc_args = i, conc_out = o}) -> i ++ [o]) r
 
     let chEx = checkExprInOutCount io req

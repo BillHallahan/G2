@@ -42,7 +42,7 @@ createStateForInference simp_s main_mod config lhconfig ghci =
                                 then fmap Just $ addTyVarsEEnvTEnv simp_s
                                 else (simp_s, Nothing)
         (s, b) = initStateFromSimpleState simp_s' main_mod True 
-                    (\_ ng _ _ _ _ _ -> (Prim Undefined TyBottom, [], [], ng))
+                    (\_ ng _ _ _ _ _ -> (Prim Undefined TyBottom, [], [], Nothing, ng))
                     (E.higherOrderExprs . IT.expr_env)
                     config
     in

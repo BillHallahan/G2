@@ -12,7 +12,6 @@ import GHC.Generics (Generic)
 import Data.Data
 import Data.Hashable
 import qualified Data.Text as T
-import qualified GHC.Generics as GHC
 
 -- | Binds `Id`s to `Expr`s, primarily in @let@ `Expr`s
 type Binds = [(Id, Expr)]
@@ -226,6 +225,12 @@ data Primitive = -- Mathematical and logical operators
                -- Convert a positive Int to a String. (This matches the SMT Str.from_int function, which supports only positive Ints.)
                | IntToString
                
+               -- MutVar#
+               | MutVar Name
+               | NewMutVar -- ^ `forall a d. a -> State# d -> MutVar# d a`.
+               | ReadMutVar -- ^ `forall d a. MutVar# d a -> State# d -> a`.
+               | WriteMutVar -- ^ `forall d a. MutVar# d a -> a -> State# d -> State# d`.
+
                -- Errors
                | Error
                | Undefined
@@ -260,13 +265,20 @@ instance Eq Lit where
     _ == _ = False
 
 -- | Data constructor.
-data DataCon = DataCon Name Type deriving (Show, Eq, Read, Generic, Typeable, Data, Ord)
+-- The existential and universal quantifiers should correspond to the TyForAll's binders.
+-- In particular,
+--   @univTyVar dc ++ existTyVar dc == leadingTyForAllBindings dc@
+data DataCon = DataCon { dc_name :: Name 
+                       , dc_type :: Type 
+                       , dc_univ_tyvars :: [Id] -- ^ Universal type variables
+                       , dc_exist_tyvars :: [Id] -- ^ Existential type variables
+                       } deriving (Show, Eq, Read, Generic, Typeable, Data, Ord)
 
 instance Hashable DataCon
 
 -- | Extract the `Name` of a `DataCon`.
 dcName :: DataCon -> Name
-dcName (DataCon n _) = n
+dcName (DataCon n _ _ _) = n
 
 -- | Describe the conditions to match on a particular `Alt`.
 data AltMatch = DataAlt DataCon [Id] -- ^ Match a datacon. The number of `Id`s
