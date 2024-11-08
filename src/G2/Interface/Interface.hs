@@ -236,7 +236,7 @@ initSimpleState (ExtractedG2 { exg2_binds = prog
         s = IT.SimpleState { IT.expr_env = eenv
                            , IT.type_env = tenv
                            , IT.name_gen = ng
-                           , IT.handles = []
+                           , IT.handles = HM.empty
                            , IT.known_values = kv
                            , IT.type_classes = tc
                            , IT.rewrite_rules = rs

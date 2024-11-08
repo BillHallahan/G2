@@ -47,7 +47,7 @@ data State t = State { expr_env :: E.ExprEnv -- ^ Mapping of `Name`s to `Expr`s
                      , path_conds :: PathConds -- ^ Path conditions, in SWHNF
                      , non_red_path_conds :: [(Expr, Expr)] -- ^ Path conditions, in the form of (possibly non-reduced)
                                                             -- expression pairs that must be proved equivalent
-                     , handles :: [Handle]
+                     , handles :: HM.HashMap Name Handle -- ^ Each Handle has a name, that appears in `Expr`s within the `Handle` `Primitive`
                      , mutvar_env :: MutVarEnv -- ^ MutVar `Name`s to mappings of names in the `ExprEnv`.
                                                -- See Note [MutVar Env] in G2.Language.MutVarEnv.
                      , true_assert :: Bool -- ^ Have we violated an assertion?
@@ -152,11 +152,11 @@ instance Hashable CEAction
 type Model = HM.HashMap Name Expr
 
 -- | A highly simplified model of Handles.
-data Handle = Handle { h_filepath :: FilePath
-                     , h_input :: HBuffer
-                     , h_output :: HBuffer
-                     , h_status :: HandleStatus }
-                     deriving (Show, Eq, Read, Generic, Typeable, Data)
+data Handle = HandleInfo { h_filepath :: FilePath
+                         , h_start :: Id -- ^ The entire contents of the file, maps to a String in the `ExprEnv`
+                         , h_pos :: Id -- ^ The current position of the Handle, maps to a String in the `ExprEnv`
+                         , h_status :: HandleStatus }
+                         deriving (Show, Eq, Read, Generic, Typeable, Data)
 
 instance Hashable Handle
 
@@ -164,12 +164,6 @@ data HandleStatus = HOpen | HClosed
                     deriving (Show, Eq, Read, Generic, Typeable, Data)
 
 instance Hashable HandleStatus
-
-data HBuffer = HBuffer Id -- ^ Must map to a String in the expression environment.
-             | NoBuffer
-               deriving (Show, Eq, Read, Generic, Typeable, Data)
-
-instance Hashable HBuffer
 
 instance Named t => Named (State t) where
     names s = names (expr_env s)
@@ -408,47 +402,22 @@ instance Named Frame where
     renames hm (AssertFrame is e) = AssertFrame (renames hm is) (renames hm e)
 
 instance Named Handle where
-    names (Handle { h_input = i, h_output = o }) = names i <> names o
+    names (HandleInfo { h_start = s, h_pos = p }) = names s <> names p
 
-    rename old new h@(Handle { h_input = i, h_output = o }) =
-        h { h_input = rename old new i, h_output = rename old new o }
+    rename old new h@(HandleInfo { h_start = s, h_pos = p }) =
+        h { h_start = rename old new s, h_pos = rename old new p }
 
-    renames hm h@(Handle { h_input = i, h_output = o }) =
-        h { h_input = renames hm i, h_output = renames hm o }
+    renames hm h@(HandleInfo { h_start = s, h_pos = p }) =
+        h { h_start = renames hm s, h_pos = renames hm p }
 
 instance ASTContainer Handle Expr where
-    containedASTs (Handle { h_input = i, h_output = o }) = containedASTs i <> containedASTs o
+    containedASTs (HandleInfo { h_start = s, h_pos = p }) = containedASTs s <> containedASTs p
 
-    modifyContainedASTs f h@(Handle { h_input = i, h_output = o }) =
-        h { h_input = modifyContainedASTs f i, h_output = modifyContainedASTs f o }
+    modifyContainedASTs f h@(HandleInfo { h_start = s, h_pos = p }) =
+        h { h_start = modifyContainedASTs f s, h_pos = modifyContainedASTs f p }
 
 instance ASTContainer Handle Type where
-    containedASTs (Handle { h_input = i, h_output = o }) = containedASTs i <> containedASTs o
+    containedASTs (HandleInfo { h_start = s, h_pos = p }) = containedASTs s <> containedASTs p
 
-    modifyContainedASTs f h@(Handle { h_input = i, h_output = o }) =
-        h { h_input = modifyContainedASTs f i, h_output = modifyContainedASTs f o }
-
-instance Named HBuffer where
-    names (HBuffer i) = names i
-    names NoBuffer = mempty
-
-    rename old new (HBuffer i) = HBuffer (rename old new i)
-    rename _ _ NoBuffer = NoBuffer
-
-    renames hm (HBuffer i) = HBuffer (renames hm i)
-    renames _ NoBuffer = NoBuffer
-
-instance ASTContainer HBuffer Expr where
-    containedASTs (HBuffer i) = containedASTs i
-    containedASTs NoBuffer = []
-
-    modifyContainedASTs f (HBuffer i) = HBuffer (modifyContainedASTs f i)
-    modifyContainedASTs _ NoBuffer = NoBuffer
-
-instance ASTContainer HBuffer Type where
-    containedASTs (HBuffer i) = containedASTs i
-    containedASTs NoBuffer = []
-
-    modifyContainedASTs f (HBuffer i) = HBuffer (modifyContainedASTs f i)
-    modifyContainedASTs _ NoBuffer = NoBuffer
-
+    modifyContainedASTs f h@(HandleInfo { h_start = s, h_pos = p }) =
+        h { h_start = modifyContainedASTs f s, h_pos = modifyContainedASTs f p }
