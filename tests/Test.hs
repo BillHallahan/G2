@@ -200,6 +200,8 @@ testFileTests = testGroup "TestFiles"
 
     , checkInputOutput "tests/TestFiles/Defunc2.hs" "funcMap" 400 [AtLeast 30]
 
+    , checkInputOutput "tests/TestFiles/Imports/MakesSound.hs" "makesSound" 1000 [Exactly 3]
+
     , checkExpr "tests/TestFiles/MultCase.hs" 400 "f"
         [ RExists (\[App _ (Lit (LitInt x)), y] -> x == 2 && getBoolB y id)
         , RExists (\[App _ (Lit (LitInt x)), y] -> x == 1 && getBoolB y id)

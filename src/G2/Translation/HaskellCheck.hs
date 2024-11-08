@@ -29,6 +29,7 @@ import G2.Initialization.MkCurrExpr
 import G2.Interface.ExecRes as I
 import G2.Language
 import G2.Translation.Haskell
+import G2.Translation.Interface
 import G2.Translation.TransTypes
 import G2.Lib.Printers
 import Control.Exception
@@ -42,7 +43,7 @@ validateStates :: [FilePath] -> [FilePath] -> String -> String -> [String] -> [G
 validateStates proj src modN entry chAll gflags b in_out = do
     and <$> runGhc (Just libdir) (do
         adjustDynFlags
-        loadToCheck proj src modN gflags
+        loadToCheck (map dirPath src ++ proj) src modN gflags
         mapM (\er -> do
                 let s = final_state er
                 let pg = updatePGValNames (concatMap (map Data . dataCon) $ type_env s)

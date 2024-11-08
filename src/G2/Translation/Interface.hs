@@ -3,7 +3,8 @@
 
 module G2.Translation.Interface ( translateBase
                                 , translateLoaded
-                                , specialInject ) where
+                                , specialInject
+                                , dirPath) where
 
 import Control.Monad.Extra
 import qualified Data.HashMap.Lazy as HM
@@ -76,7 +77,7 @@ translateLoaded proj src tr_con config = do
   let tr_con' = tr_con { hpc_ticks = hpc config || search_strat config == Subpath }
   -- Stuff with the actual target
   let def_proj = extraDefaultInclude config
-  tar_ems <- envModSumModGutsFromFile (selectBackend tr_con') (def_proj ++ proj) src tr_con' 
+  tar_ems <- envModSumModGutsFromFile (selectBackend tr_con') (def_proj ++ proj ++ map dirPath src) src tr_con' 
   let imports = envModSumModGutsImports tar_ems
   extra_imp <- return . catMaybes =<< mapM (findImports (baseInclude config)) imports
 
@@ -123,6 +124,9 @@ specialInject exg2 =
          , exg2_tycons = tys'
          , exg2_rules = rules'
          , exg2_classes = cls' }
+
+dirPath :: FilePath -> FilePath
+dirPath = reverse . dropWhile (/= '/') . reverse
 
 findImports :: [FilePath] -> FilePath -> IO (Maybe FilePath)
 findImports roots fp = do
