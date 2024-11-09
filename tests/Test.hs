@@ -516,6 +516,9 @@ ioTests = testGroup "IO"
       checkInputOutput "tests/IO/UnsafePerformIO1.hs" "f" 1000 [Exactly 1]
     , checkInputOutput "tests/IO/IORef1.hs" "unsafeF" 5000 [Exactly 1]
     , checkInputOutput "tests/IO/IORef1.hs" "unsafeG" 5000 [Exactly 2]
+
+    , checkExpr "tests/IO/Handles1.hs" 2500 "compareInitChars"  [Exactly 4]
+    , checkExpr "tests/IO/Handles1.hs" 2500 "take10Contents" [Exactly 11]
     ]
 
 -- To Do Tests
