@@ -105,7 +105,7 @@ runCheck init_pg modN entry chAll b er@(ExecRes {final_state = s, conc_args = ar
            $ updatePGValAndTypeNames (varIds v) init_pg
     -- let arsStr = T.unpack $ printHaskellPG pg s e
     -- let outStr = T.unpack $ printHaskellPG pg s out
-    let (mvTxt, arsTxt, outTxt) = printInputOutput pg v b er 
+    let (mvTxt, arsTxt, outTxt, _) = printInputOutput pg v b er 
         mvStr = T.unpack mvTxt
         arsStr = T.unpack arsTxt
         outStr = T.unpack outTxt
