@@ -25,7 +25,13 @@ mkHandles eenv kv ng =
                             , h_start = stdout_id
                             , h_pos = stdout_id
                             , h_status = HOpen }
-        
-        eenv' = E.insertSymbolic stdin_id $ E.insertSymbolic stdout_id eenv
+
+        (stderr_id, ng''') = freshSeededId (Name "stderr" Nothing 0 Nothing) str_ty ng''
+        stderr = HandleInfo { h_filepath = "stderr"
+                            , h_start = stderr_id
+                            , h_pos = stderr_id
+                            , h_status = HOpen }
+
+        eenv' = E.insertSymbolic stdin_id . E.insertSymbolic stdout_id $ E.insertSymbolic stderr_id eenv
     in
-    (eenv', HM.fromList [(undefined, stdin), (undefined, stdout)], ng'')
+    (eenv', HM.fromList [(stdinName, stdin), (stdoutName, stdout), (stderrName, stderr)], ng''')

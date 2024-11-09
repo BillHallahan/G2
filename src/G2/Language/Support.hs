@@ -1,9 +1,6 @@
 {-# LANGUAGE BangPatterns #-}
-{-# LANGUAGE DeriveDataTypeable #-}
-{-# LANGUAGE DeriveGeneric #-}
-{-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE DeriveDataTypeable, DeriveGeneric#-}
+{-# LANGUAGE FlexibleContexts, FlexibleInstances, MultiParamTypeClasses, OverloadedStrings #-}
 
 module G2.Language.Support
     ( module G2.Language.AST
@@ -162,6 +159,15 @@ instance Hashable Handle
 
 data HandleStatus = HOpen | HClosed
                     deriving (Show, Eq, Read, Generic, Typeable, Data)
+
+stdinName :: Name
+stdinName = Name "stdin" Nothing 0 Nothing
+
+stdoutName :: Name
+stdoutName = Name "stdout" Nothing 0 Nothing
+
+stderrName :: Name
+stderrName = Name "stderr" Nothing 0 Nothing
 
 instance Hashable HandleStatus
 

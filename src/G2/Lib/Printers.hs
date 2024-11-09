@@ -44,6 +44,7 @@ import Data.List as L
 import qualified Data.HashMap.Lazy as HM
 import qualified Data.HashSet as HS
 import qualified Data.Text as T
+import qualified Data.Text.Internal.Read as T
 
 data Clean = Cleaned | Dirty deriving Eq
 
@@ -415,6 +416,10 @@ mkPrimHaskell pg = pr
 
         pr WGenCat = "wgencat"
 
+        pr (Handle n) = "(Handle " <> mkNameHaskell pg n <> ")"
+        pr HandleGetPos = "handle_getPos"
+        pr HandleSetPos = "handle_setPos"
+
         pr IntToString = "intToString"
 
         pr (MutVar m) = "(MutVar " <> mkNameHaskell pg m <> ")"
@@ -497,6 +502,8 @@ prettyState pg s =
         , pretty_paths
         , "----- [Non Red Paths] ---------------------"
         , pretty_non_red_paths
+        , "----- [Handles] ---------------------"
+        , pretty_handles
         , "----- [MutVars Env] ---------------------"
         , pretty_mutvars
         , "----- [Types] ---------------------"
@@ -518,6 +525,7 @@ prettyState pg s =
         pretty_eenv = prettyEEnv pg (expr_env s)
         pretty_paths = prettyPathConds pg (path_conds s)
         pretty_non_red_paths = prettyNonRedPaths pg (non_red_path_conds s)
+        pretty_handles = prettyHandles pg $ handles s
         pretty_mutvars = prettyMutVars pg . HM.map mv_val_id $ mutvar_env s
         pretty_tenv = prettyTypeEnv pg (type_env s)
         pretty_tc = prettyTypeClasses pg (type_classes s)
@@ -598,6 +606,13 @@ prettyPathCond pg (AssumePC i l pc) =
 
 prettyNonRedPaths :: PrettyGuide -> [(Expr, Expr)] -> T.Text
 prettyNonRedPaths pg = T.intercalate "\n" . map (\(e1, e2) -> mkDirtyExprHaskell pg e1 <> " == " <> mkDirtyExprHaskell pg e2)
+
+prettyHandles :: PrettyGuide -> HM.HashMap Name Handle -> T.Text
+prettyHandles pg = T.intercalate "\n" . map (\(n, h) -> printName pg n
+                                                <> "\tfilepath = " <> T.pack (h_filepath h)
+                                                <> "\tstart = " <> printName pg (idName (h_start h))
+                                                <> "\tpos = " <> printName pg (idName (h_pos h))
+                                                <> "\tstatus = " <> T.pack (show (h_status h))) . HM.toList
 
 prettyMutVars :: PrettyGuide -> HM.HashMap Name Id -> T.Text
 prettyMutVars pg = T.intercalate "\n" . map (\(n, i) -> printName pg n <> " , " <> mkIdHaskell pg i) . HM.toList

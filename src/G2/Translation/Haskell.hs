@@ -93,7 +93,12 @@ equivMods = HM.fromList
 #endif
             , ("GHC.Magic2", "GHC.Magic")
             , ("GHC.CString2", "GHC.CString")
-            , ("Data.Map.Base", "Data.Map")]
+            , ("Data.Map.Base", "Data.Map")
+            
+#if MIN_VERSION_GLASGOW_HASKELL(9,4,0,0)
+            , ("GHC.IO.Handle.FD", "GHC.IO.StdHandles")
+#endif
+            ]
 
 loadProj :: Maybe HscTarget -> [FilePath] -> [FilePath] -> [GeneralFlag] -> G2.TranslationConfig -> Ghc SuccessFlag
 loadProj hsc proj src gflags tr_con = do
