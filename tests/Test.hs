@@ -517,13 +517,13 @@ ioTests = testGroup "IO"
     , checkInputOutput "tests/IO/IORef1.hs" "unsafeF" 5000 [Exactly 1]
     , checkInputOutput "tests/IO/IORef1.hs" "unsafeG" 5000 [Exactly 2]
 
-    , checkExpr "tests/IO/Handles1.hs" 2500 "compareInitChars"  [Exactly 4]
+    , checkExpr "tests/IO/Handles1.hs" 2500 "compareInitChars" [Exactly 4]
     , checkExpr "tests/IO/Handles1.hs" 2500 "take10Contents" [Exactly 11]
     , checkExpr "tests/IO/Handles1.hs" 5000 "output1" [Exactly 1]
     , checkExpr "tests/IO/Handles1.hs" 5000 "output2" [Exactly 1]
     , checkExpr "tests/IO/Handles1.hs" 5000 "output3" [Exactly 1]
     , checkExpr "tests/IO/Handles1.hs" 3000 "interact1" [AtLeast 10]
-]
+    ]
 
 -- To Do Tests
 --------------
