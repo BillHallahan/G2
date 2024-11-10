@@ -95,7 +95,7 @@ equivMods = HM.fromList
             , ("GHC.CString2", "GHC.CString")
             , ("Data.Map.Base", "Data.Map")
             
-#if MIN_VERSION_GLASGOW_HASKELL(9,2,0,0)
+#if MIN_VERSION_GLASGOW_HASKELL(9,0,0,0)
             , ("GHC.IO.Handle.FD", "GHC.IO.StdHandles")
 #endif
             ]
