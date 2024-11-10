@@ -419,6 +419,7 @@ mkPrimHaskell pg = pr
         pr (Handle n) = "(Handle " <> mkNameHaskell pg n <> ")"
         pr HandleGetPos = "handle_getPos"
         pr HandleSetPos = "handle_setPos"
+        pr HandlePutChar = "handle_putChar"
 
         pr IntToString = "intToString"
 

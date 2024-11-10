@@ -19,6 +19,7 @@ module G2.Language.Typing
     , tyChar
     , tyRational
     , tyList
+    , tyString
     , tyMaybe
     , tyUnit
     , mkTyApp
@@ -103,6 +104,9 @@ tyRational kv = TyCon (KV.tyRational kv) (tyTYPE kv)
 
 tyList :: KV.KnownValues -> Type
 tyList kv = TyCon (KV.tyList kv) (TyFun TYPE TYPE)
+
+tyString :: KV.KnownValues -> Type
+tyString kv = TyApp (tyList kv) (tyChar kv)
 
 tyMaybe :: KV.KnownValues -> Type
 tyMaybe kv = TyCon (KV.tyMaybe kv) (TyFun TYPE TYPE)

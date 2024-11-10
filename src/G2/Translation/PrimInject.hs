@@ -161,6 +161,7 @@ primDefs' b c l unit =
               , ("stderr", Prim (Handle stderrName) TyUnknown)
               , ("g2GetPos'", Prim HandleGetPos (TyFun TyUnknown strTy))
               , ("g2SetPos'", Prim HandleSetPos (TyFun strTy (TyFun TyUnknown (TyCon unit TYPE))))
+              , ("g2PutChar'", Prim HandlePutChar (TyFun (TyCon c TYPE) (TyFun TyUnknown (TyCon unit TYPE))))
 
               , ("intToString#", Prim IntToString (TyFun TyLitInt strTy))
 

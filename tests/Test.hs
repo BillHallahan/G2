@@ -519,6 +519,8 @@ ioTests = testGroup "IO"
 
     , checkExpr "tests/IO/Handles1.hs" 2500 "compareInitChars"  [Exactly 4]
     , checkExpr "tests/IO/Handles1.hs" 2500 "take10Contents" [Exactly 11]
+    , checkExpr "tests/IO/Handles1.hs" 5000 "output1" [Exactly 1]
+    , checkExpr "tests/IO/Handles1.hs" 5000 "output2" [Exactly 1]
     ]
 
 -- To Do Tests

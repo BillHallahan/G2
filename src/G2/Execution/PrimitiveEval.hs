@@ -78,6 +78,20 @@ evalPrimWithState s ng (App (App (Prim HandleSetPos _) (Var new_pos)) hnd)
                    , handles = M.insert n (hi { h_pos = new_pos }) (handles s)}
         in
         Just (s', ng)
+evalPrimWithState s ng (App (App (Prim HandlePutChar _) c) hnd)
+    | Just (Prim (Handle n) _) <- deepLookupExpr hnd (expr_env s)
+    , Just hi <- M.lookup n (handles s) =
+        let
+            pos = h_pos hi
+            ty_string = typeOf pos
+
+            (new_pos, ng') = freshSeededId (Name "pos" Nothing 0 Nothing) ty_string ng
+            e = mkApp [mkCons (known_values s) (type_env s), Type ty_string, c, Var new_pos]
+            s' = s { expr_env = E.insert (idName pos) e (expr_env s)
+                   , curr_expr = CurrExpr Evaluate (mkUnit (known_values s) (type_env s))
+                   , handles = M.insert n (hi { h_pos = new_pos }) (handles s)}
+        in
+        Just (s', ng')
 evalPrimWithState s ng (App (App (App (App (Prim NewMutVar _) (Type t)) (Type ts)) e) _) = Just $ newMutVar s ng MVConc ts t e
 evalPrimWithState s ng (App (App (App (App (Prim ReadMutVar _) _) _) mv_e) _)
     | Just (Prim (MutVar mv) _) <- deepLookupExpr mv_e (expr_env s)=
