@@ -41,6 +41,7 @@ import qualified Data.List as L
 import qualified Data.Sequence as S
 import G2.Data.Utils
 import Control.Exception
+import Debug.Trace
 
 stdReduce :: (Solver solver, Simplifier simplifier) => Sharing -> SymbolicFuncEval t -> solver -> simplifier -> State t -> Bindings -> IO (Rule, [(State t, ())], Bindings)
 stdReduce share symb_func_eval solver simplifier s b@(Bindings {name_gen = ng}) = do
@@ -77,10 +78,10 @@ stdReduce' _ symb_func_eval solver simplifier s@(State { curr_expr = CurrExpr Re
         return (RuleError, [s { exec_stack = stck'
                               , true_assert = True
                               , assert_ids = fmap (\fc -> fc { returns = Prim Error TyBottom }) is }], ng)
-    | Just rs <- symb_func_eval s ng ce = return rs
     | Just (UpdateFrame n, stck') <- frstck = return $ retUpdateFrame s ng n stck'
     | isError ce
     , Just (_, stck') <- S.pop stck = return (RuleError, [s { exec_stack = stck' }], ng)
+    | Just rs <- symb_func_eval s ng ce = return rs
     | Just (CaseFrame i t a, stck') <- frstck = return $ retCaseFrame s ng ce i t a stck'
     | Just (CastFrame c, stck') <- frstck = return $ retCastFrame s ng ce c stck'
     | Lam u i e <- ce
@@ -157,14 +158,16 @@ evalApp s@(State { expr_env = eenv
     | Just (e, eenv', pc, ng') <- evalPrimSymbolic eenv tenv ng kv (App e1 e2) =
         ( RuleEvalPrimToNorm
         , [ (newPCEmpty $ s { expr_env = eenv'
-                            , curr_expr = CurrExpr Evaluate e }) { new_pcs = pc} ]
+                            , curr_expr = CurrExpr Return e }) { new_pcs = pc} ]
         , ng')
-    | (Prim _ _):_ <- unApp (App e1 e2) = 
+    | (Prim prim ty):ar <- unApp (App e1 e2) = 
         let
-            (exP, eenv') = evalPrimsSharing eenv tenv kv (App e1 e2)
+            ar' = map (lookupForPrim eenv) ar
+            appP = mkApp (Prim prim ty : ar')
+            exP = evalPrims tenv kv appP
         in
         ( RuleEvalPrimToNorm
-        , [newPCEmpty $ s { expr_env = eenv', curr_expr = CurrExpr Return exP }]
+        , [newPCEmpty $ s { curr_expr = CurrExpr Return exP }]
         , ng)
     | isExprValueForm eenv (App e1 e2) =
         ( RuleReturnAppSWHNF
@@ -179,6 +182,21 @@ evalApp s@(State { expr_env = eenv
         , [newPCEmpty $ s { curr_expr = CurrExpr Evaluate e1
                           , exec_stack = stck' }]
         , ng)
+
+lookupForPrim :: ExprEnv -> Expr -> Expr
+lookupForPrim eenv v@(Var (Id _ _)) = repeatedLookup eenv v
+lookupForPrim eenv (App e e') = App (lookupForPrim eenv e) (lookupForPrim eenv e')
+lookupForPrim _ e = e
+
+repeatedLookup :: ExprEnv -> Expr -> Expr
+repeatedLookup eenv v@(Var (Id n _))
+    | E.isSymbolic n eenv = v
+    | otherwise = 
+        case E.lookup n eenv of
+          Just v'@(Var _) -> repeatedLookup eenv v'
+          Just e -> e
+          Nothing -> v
+repeatedLookup _ e = e
 
 evalLam :: State t -> LamUse -> Id -> Expr -> (Rule, [State t])
 evalLam = undefined
@@ -270,6 +288,7 @@ evalCase s@(State { expr_env = eenv
           expr' = liftCaseBinds dbind expr
           pbinds = zip params ar'
           (eenv', expr'', ng', news) = liftBinds pbinds eenv expr' ng
+         
       in 
          assert (length params == length ar')
          ( RuleEvalCaseData news
@@ -345,6 +364,16 @@ evalCase s@(State { expr_env = eenv
         tyConName (TyCon n _) = Just n
         tyConName _ = Nothing
 
+-- | Remove everything from an [Expr] that are actually Types.
+removeTypes :: [Expr] -> E.ExprEnv -> [Expr]
+removeTypes ((Type _):es) eenv = removeTypes es eenv
+removeTypes (v@(Var _):es) eenv = case repeatedLookup eenv v of
+    (Type _) -> removeTypes es eenv
+    -- Just v@(Var (Id n' _)) -> removeTypes (v:es) eenv 
+    _ -> v : removeTypes es eenv
+removeTypes (e:es) eenv = e : removeTypes es eenv
+removeTypes [] _ = []
+
 -- | DEFAULT `Alt`s.
 matchDefaultAlts :: [Alt] -> [Alt]
 matchDefaultAlts alts = [a | a@(Alt Default _) <- alts]
@@ -397,6 +426,22 @@ concretizeVarExpr' s@(State {expr_env = eenv, type_env = tenv, known_values = kv
                  , concretized = [mexpr_id]
                  }, ngen'')
   where
+    -- goal: avoid printout error by G2 which print the cases that shouldn't appear
+    -- First, isolate all the coercion from the state
+    coer = HM.elems $ HM.filter (\expr -> case expr of 
+                                        Coercion _ -> True
+                                        _  -> False)   (E.toHashMap eenv)
+    -- Now pull out all the types inside the coercion
+    -- Then, we can unify the types 
+    coer' = map (\e -> case e of
+                      Coercion co -> co
+                      _ -> error "Not a Coercion") coer
+    all_types = map (\c -> case c of
+         (t1 :~ t2) -> (t1, t2)) coer'
+    uni_types = mapM (uncurry T.unify) all_types
+    
+    
+
     -- Make sure that the parameters do not conflict in their symbolic reps.
     olds = map idName params
     clean_olds = map cleanName olds
@@ -1108,19 +1153,64 @@ addExtConds s ng e1 ais e2 stck =
 
 -- | Inject binds into the eenv. The LHS of the [(Id, Expr)] are treated as
 -- seed values for the names.
+-- update the Expr with correct type information you learn from the coercion 
+-- we are trying to the state 63 from logging-pretty working 
+-- eliminate coercion in the printing as it should be n1= zero 
+-- in order to see n1 in the log-pretty you should have show-types on 
+-- look at retype when we are updating the expr from the coercion 
+-- the expr pass in should be telling us whether we should coerce 
+
+-- | This function determines whether the [Expr] is a Coercion 
+-- if we have a Coercion, we want to extract the corresponding types 
+-- in [Id] that are equivalent under Coercion
+isCoercion :: [Expr] -> Bool
+isCoercion [Coercion _] = True
+isCoercion _ = False
+
+-- n1 represent the symoblic type variables 
+-- n2 represent the concrete type that we are reference to 
+-- for example: in concrete GADT when we want to establish a coercion between n and zero
+-- n1 in this case represent n and n2 represent zero
+extractTypes :: [Id] -> (Type, Type)
+extractTypes [Id n (TyApp (TyApp _ n1) n2)] = (n1, n2)
+
 liftBinds :: [(Id, Expr)] -> E.ExprEnv -> Expr -> NameGen ->
              (E.ExprEnv, Expr, NameGen, [Name])
-liftBinds binds eenv expr ngen = (eenv', expr', ngen', news)
+liftBinds binds eenv expr ngen = trace("The list of RHS " ++ show bindsRHS ++ "\n " ++ "The list of LHS " ++ show bindsLHS) (eenv', expr', ngen', news)
   where
+ -- when we see the first element from the bindsRHS is Coercion types 
+ -- we can start looking at the corresponding bindsLHS
+ -- specifically the type of the id:
+ -- in which there are four tyapps wrapped next inside 
+ -- TyApp( TyApp ( TyApp(...) TyCon ) TyCon )
+ -- Then, we want to unify them and retype them 
+ -- Those functions are located in typing.hs 
     (bindsLHS, bindsRHS) = unzip binds
-
+    
     olds = map (idName) bindsLHS
     (news, ngen') = freshSeededNames olds ngen
 
     olds_news = HM.fromList $ zip olds news
-    expr' = renamesExprs olds_news expr
 
     eenv' = E.insertExprs (zip news bindsRHS) eenv
+
+    if isCoercion bindsRHS == True
+    then 
+        let 
+            (TyVar i, t2) = extractTypes bindsLHS
+            expr' = case unify t1 t2 of 
+                        Nothing -> error $ "can't unify types under coercion: " ++ show t1 ++ " " ++ show t2
+                        Just un_map ->
+                            case HM.toList $ toSimpleMap un_map of
+                                [(n, t)] -> retype i t2 (Var n t)
+                                _ -> error "Expected a singleton list in un_map"
+        in 
+            expr'
+
+                 
+    else
+        expr' = renamesExprs olds_news expr
+        
 
 liftBind :: Id -> Expr -> E.ExprEnv -> Expr -> NameGen ->
              (E.ExprEnv, Expr, NameGen, Name)
