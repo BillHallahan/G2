@@ -98,8 +98,7 @@ translateLoaded proj src tr_con config = do
   return (mb_modname, final_exg2)
 
 adjustMkSymbolicPrim :: NameMap -> ExtractedG2 -> ExtractedG2
-adjustMkSymbolicPrim nm exg2 = adjustMkSymbolicPrim' (Just "Unsafe.G2") nm 
-                             $ adjustMkSymbolicPrim' (Just "G2.Symbolic") nm exg2
+adjustMkSymbolicPrim nm exg2 = adjustMkSymbolicPrim' (Just "G2.Symbolic") nm exg2
 
 adjustMkSymbolicPrim' :: Maybe T.Text -> NameMap -> ExtractedG2 -> ExtractedG2
 adjustMkSymbolicPrim' mod_name nm exg2@(ExtractedG2 { exg2_binds = binds}) =
