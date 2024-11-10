@@ -1,3 +1,5 @@
+{-# LANGUAGE LambdaCase #-}
+
 module Handles1 where
 
 import System.IO
@@ -27,3 +29,6 @@ output3 = do
     putStrLn "---"
     putStr "x = "
     print 6
+
+interact1 :: IO ()
+interact1 = interact (\case "ABC" -> "EFG"; s -> s)

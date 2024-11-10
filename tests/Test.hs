@@ -521,7 +521,9 @@ ioTests = testGroup "IO"
     , checkExpr "tests/IO/Handles1.hs" 2500 "take10Contents" [Exactly 11]
     , checkExpr "tests/IO/Handles1.hs" 5000 "output1" [Exactly 1]
     , checkExpr "tests/IO/Handles1.hs" 5000 "output2" [Exactly 1]
-    ]
+    , checkExpr "tests/IO/Handles1.hs" 5000 "output3" [Exactly 1]
+    , checkExpr "tests/IO/Handles1.hs" 3000 "interact1" [AtLeast 10]
+]
 
 -- To Do Tests
 --------------
