@@ -1197,7 +1197,7 @@ liftBinds binds eenv expr ngen = trace("The list of RHS " ++ show bindsRHS ++ "\
     if isCoercion bindsRHS == True
     then 
         let 
-            (TyVar i, t2) = extractTypes bindsLHS
+            ( (TyVar i) , t2) = extractTypes bindsLHS
             expr' = case unify t1 t2 of 
                         Nothing -> error $ "can't unify types under coercion: " ++ show t1 ++ " " ++ show t2
                         Just un_map ->
@@ -1205,9 +1205,7 @@ liftBinds binds eenv expr ngen = trace("The list of RHS " ++ show bindsRHS ++ "\
                                 [(n, t)] -> retype i t2 (Var n t)
                                 _ -> error "Expected a singleton list in un_map"
         in 
-            expr'
-
-                 
+            expr'   
     else
         expr' = renamesExprs olds_news expr
         
