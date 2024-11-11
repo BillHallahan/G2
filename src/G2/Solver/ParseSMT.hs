@@ -251,7 +251,7 @@ stringExpr = do
 
 stringExpr' :: Parser Char
 stringExpr' = do
-    try parseHexChar <|> try parseUni <|> choice (alphaNum:char '\\':char ' ':map char ident)
+    try parseHexChar <|> try parseUni <|> choice (alphaNum:char '\\':char ' ':char '[':char ']':char '{':char '}':map char ident)
 
 parseHexChar :: Parser Char
 parseHexChar = do

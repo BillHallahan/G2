@@ -186,7 +186,8 @@ testFileTests = testGroup "TestFiles"
         (Just "assumeGt5") (Just "assertGt5") "outShouldBeGe5" [Exactly 0]
 
     , checkInputOutputs "tests/TestFiles/Char.hs" [ ("char", 400, [Exactly 2])
-                                                  , ("f", 1000, [Exactly 2]) ]
+                                                  , ("f", 1000, [Exactly 2])
+                                                  , ("g", 1000, [AtLeast 8]) ]
 
     , checkExpr "tests/TestFiles/CheckSq.hs" 400 "checkSq"
         [AtLeast 2, RExists (\[x, _] -> isInt x (\x' -> x' == 3 || x' == -3))]
