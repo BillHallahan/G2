@@ -1,12 +1,16 @@
 {-# LANGUAGE FlexibleContexts, MultiParamTypeClasses, OverloadedStrings #-}
+{-# LANGUAGE InstanceSigs #-}
 
 module G2.Interface.ExecRes ( ExecRes (..), StartFunc, ModuleName, printInputOutput ) where
 
 import G2.Language
 import G2.Lib.Printers
 
+import qualified Data.HashMap.Lazy as HM
+import Data.Maybe
 import qualified Data.Sequence as S
 import qualified Data.Text as T
+import G2.Language.KnownValues (KnownValues(dcEmpty))
 
 type StartFunc = T.Text
 type ModuleName = Maybe T.Text 
@@ -17,6 +21,7 @@ data ExecRes t = ExecRes { final_state :: State t -- ^ The final state.
                          , conc_out :: Expr -- ^ Fully concrete output (final `curr_expr`) for the state
                          , conc_sym_gens :: S.Seq Expr 
                          , conc_mutvars :: [(Name, MVOrigin, Expr)]
+                         , conc_handles :: [(Name, Expr)]
                          , violated :: Maybe FuncCall -- ^ A violated assertion
                          } deriving (Show, Read)
 
@@ -24,7 +29,7 @@ printInputOutput :: PrettyGuide
                  -> Id -- ^ Input function
                  -> Bindings
                  -> ExecRes t
-                 -> (T.Text, T.Text, T.Text)
+                 -> (T.Text, T.Text, T.Text, T.Text)
 printInputOutput pg i (Bindings { input_coercion = c }) er =
     let
         er' = er { conc_args = modifyASTs remMutVarPrim (conc_args er)
@@ -32,7 +37,7 @@ printInputOutput pg i (Bindings { input_coercion = c }) er =
                  , conc_sym_gens = modifyASTs remMutVarPrim (conc_sym_gens er)
                  , conc_mutvars = modifyASTs remMutVarPrim (conc_mutvars er) }
     in
-    (printMutVars pg er', printInputFunc pg c i er', printOutput pg er')
+    (printMutVars pg er', printInputFunc pg c i er', printOutput pg er', printHandles pg er')
 
 printMutVars :: PrettyGuide -> ExecRes t -> T.Text
 printMutVars pg (ExecRes { final_state = s, conc_mutvars = mv@(_:_) }) =
@@ -57,26 +62,38 @@ remMutVarPrim :: Expr -> Expr
 remMutVarPrim (Prim (MutVar n) _) = Var $ Id n TyUnknown
 remMutVarPrim e = e
 
+printHandles :: PrettyGuide -> ExecRes t -> T.Text
+printHandles pg (ExecRes { final_state = s, conc_handles = h })= T.intercalate "\n" . mapMaybe (uncurry (printHandle pg s)) $ h
+
+printHandle :: PrettyGuide -> State t -> Name -> Expr -> Maybe T.Text
+printHandle _ s _ e | (Data (DataCon { dc_name = n }):_) <- unApp e
+                    , n == dcEmpty (known_values s) = Nothing
+printHandle pg s n h = Just (" --- " <> printName pg n <> " --- \n\t" <> printHaskellPG pg s h)
+
 instance Named t => Named (ExecRes t) where
+    names :: Named t => ExecRes t -> S.Seq Name
     names (ExecRes { final_state = s
                    , conc_args = es
                    , conc_out = r
                    , conc_sym_gens = g
                    , conc_mutvars = mv
+                   , conc_handles = h
                    , violated = fc }) =
-                      names s <> names es <> names r <> names g <> names mv <> names fc
+                      names s <> names es <> names r <> names g <> names mv <> names h <> names fc
 
     rename old new (ExecRes { final_state = s
                             , conc_args = es
                             , conc_out = r
                             , conc_sym_gens = g
                             , conc_mutvars = mv
+                            , conc_handles = h
                             , violated = fc }) =
       ExecRes { final_state = rename old new s
               , conc_args = rename old new es
               , conc_out = rename old new r
               , conc_sym_gens = rename old new g
               , conc_mutvars = rename old new mv
+              , conc_handles = rename old new h
               , violated = rename old new fc}
 
     renames hm (ExecRes { final_state = s
@@ -84,12 +101,14 @@ instance Named t => Named (ExecRes t) where
                         , conc_out = r
                         , conc_sym_gens = g
                         , conc_mutvars = mv
+                        , conc_handles = h
                         , violated = fc }) =
       ExecRes { final_state = renames hm s
               , conc_args = renames hm es
               , conc_out = renames hm r
               , conc_sym_gens = renames hm g
               , conc_mutvars = renames hm mv
+              , conc_handles = renames hm h
               , violated = renames hm fc }
 
 instance ASTContainer t Expr => ASTContainer (ExecRes t) Expr where
@@ -106,12 +125,14 @@ instance ASTContainer t Expr => ASTContainer (ExecRes t) Expr where
                                    , conc_out = r
                                    , conc_sym_gens = g
                                    , conc_mutvars = mv
+                                   , conc_handles = h
                                    , violated = fc }) =
         ExecRes { final_state = modifyContainedASTs f s
                 , conc_args = modifyContainedASTs f es
                 , conc_out = modifyContainedASTs f r
                 , conc_sym_gens = modifyContainedASTs f g
                 , conc_mutvars = modifyContainedASTs f mv
+                , conc_handles = h
                 , violated = modifyContainedASTs f fc}
 
 instance ASTContainer t Type => ASTContainer (ExecRes t) Type where
@@ -128,10 +149,12 @@ instance ASTContainer t Type => ASTContainer (ExecRes t) Type where
                                    , conc_out = r
                                    , conc_sym_gens = g
                                    , conc_mutvars = mv
+                                   , conc_handles = h
                                    , violated = fc }) =
         ExecRes { final_state = modifyContainedASTs f s
                 , conc_args = modifyContainedASTs f es
                 , conc_out = modifyContainedASTs f r
                 , conc_sym_gens = modifyContainedASTs f g
                 , conc_mutvars = modifyContainedASTs f mv
+                , conc_handles = h
                 , violated = modifyContainedASTs f fc }
