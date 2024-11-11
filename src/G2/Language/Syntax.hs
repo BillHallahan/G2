@@ -216,6 +216,10 @@ data Primitive = -- Mathematical and logical operators
                | ToInt
                
                -- String Handling
+               | StrGt
+               | StrGe
+               | StrLt
+               | StrLe
                | StrLen
                | StrAppend
                | Chr

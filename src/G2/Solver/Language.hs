@@ -97,9 +97,14 @@ data SMTAST = (:>=) !SMTAST !SMTAST
 
             | Func SMTName ![SMTAST] -- ^ Interpreted function
 
+            -- Strings
             | (:++) !SMTAST !SMTAST -- ^ String append
             | FromInt !SMTAST -- ^ Convert Ints to Strings
             | StrLenSMT !SMTAST
+            | StrLtSMT !SMTAST !SMTAST
+            | StrLeSMT !SMTAST !SMTAST
+            | StrGtSMT !SMTAST !SMTAST
+            | StrGeSMT !SMTAST !SMTAST
 
             | Ite !SMTAST !SMTAST !SMTAST
             | SLet (SMTName, SMTAST) !SMTAST

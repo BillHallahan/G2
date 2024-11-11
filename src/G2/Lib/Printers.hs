@@ -409,6 +409,10 @@ mkPrimHaskell pg = pr
         pr RationalToDouble = "fromRational"
         pr ToInteger = "toInteger"
 
+        pr StrGt = "str.>"
+        pr StrGe = "str.>="
+        pr StrLt = "str.<"
+        pr StrLe = "str.<="
         pr StrLen = "StrLen"
         pr StrAppend = "StrAppend"
         pr Chr = "chr"

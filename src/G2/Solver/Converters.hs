@@ -422,6 +422,11 @@ funcToSMT2Prim Mod a1 a2 = exprToSMT a1 `Modulo` exprToSMT a2
 funcToSMT2Prim Rem a1 a2 = exprToSMT a1 :- ((exprToSMT a1 `QuotSMT` exprToSMT a2) :* exprToSMT a2) -- TODO: more efficient encoding?
 funcToSMT2Prim RationalToFloat a1 a2  = exprToSMT a1 :/ exprToSMT a2
 funcToSMT2Prim RationalToDouble a1 a2  = exprToSMT a1 :/ exprToSMT a2
+
+funcToSMT2Prim StrGe a1 a2 = exprToSMT a1 `StrGeSMT` exprToSMT a2
+funcToSMT2Prim StrGt a1 a2 = exprToSMT a1 `StrGtSMT` exprToSMT a2
+funcToSMT2Prim StrLt a1 a2 = exprToSMT a1 `StrLtSMT` exprToSMT a2
+funcToSMT2Prim StrLe a1 a2 = exprToSMT a1 `StrLeSMT` exprToSMT a2
 funcToSMT2Prim StrAppend a1 a2  = exprToSMT a1 :++ exprToSMT a2
 funcToSMT2Prim op lhs rhs = error $ "funcToSMT2Prim: invalid case with (op, lhs, rhs): " ++ show (op, lhs, rhs)
 
@@ -567,6 +572,11 @@ toSolverAST (ArrayStore arr ind val) =
     function3 "store" (toSolverAST arr) (toSolverAST ind) (toSolverAST val)
 
 toSolverAST (Func n xs) = smtFunc n $ map (toSolverAST) xs
+
+toSolverAST (StrGeSMT x y) = function2 "str.>=" (toSolverAST x) (toSolverAST y)
+toSolverAST (StrGtSMT x y) = function2 "str.>" (toSolverAST x) (toSolverAST y)
+toSolverAST (StrLtSMT x y) = function2 "str.<" (toSolverAST x) (toSolverAST y)
+toSolverAST (StrLeSMT x y) = function2 "str.<=" (toSolverAST x) (toSolverAST y)
 
 toSolverAST (x :++ y) = function2 "str.++" (toSolverAST x) (toSolverAST y)
 toSolverAST (FromInt x) = function1 "str.from_int" $ toSolverAST x

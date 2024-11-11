@@ -94,7 +94,7 @@ evalPrimWithState s ng (App (App (Prim HandlePutChar _) c) hnd)
         Just (s', ng')
 evalPrimWithState s ng (App (App (App (App (Prim NewMutVar _) (Type t)) (Type ts)) e) _) = Just $ newMutVar s ng MVConc ts t e
 evalPrimWithState s ng (App (App (App (App (Prim ReadMutVar _) _) _) mv_e) _)
-    | Just (Prim (MutVar mv) _) <- deepLookupExpr mv_e (expr_env s)=
+    | Just (Prim (MutVar mv) _) <- deepLookupExpr mv_e (expr_env s) =
     let
         i = lookupMvVal mv (mutvar_env s)
         s' = maybe (error "evalPrimWithState: MutVar not found")
@@ -192,6 +192,11 @@ evalPrim2 _ FpAdd x y = evalPrim2Num (+) x y
 evalPrim2 _ FpSub x y = evalPrim2Num (-) x y
 evalPrim2 _ FpMul x y = evalPrim2Num (*) x y
 evalPrim2 _ FpDiv x y = evalPrim2Fractional (/) x y
+
+evalPrim2 kv StrGe x y = evalPrim2NumCharBool (>=) kv x y
+evalPrim2 kv StrGt x y = evalPrim2NumCharBool (>) kv x y
+evalPrim2 kv StrLt x y = evalPrim2NumCharBool (<) kv x y
+evalPrim2 kv StrLe x y = evalPrim2NumCharBool (<=) kv x y
 
 evalPrim2 _ RationalToFloat (LitInt x) (LitInt y) =
        Just . Lit . LitFloat $ fromIntegral x / fromIntegral y
