@@ -186,7 +186,7 @@ testFileTests = testGroup "TestFiles"
         (Just "assumeGt5") (Just "assertGt5") "outShouldBeGe5" [Exactly 0]
 
     , checkInputOutputs "tests/TestFiles/Char.hs" [ ("char", 400, [Exactly 2])
-                                                  , ("f", 1000, [Exactly 2])
+                                                  , ("f", 1000, [AtLeast 3])
                                                   , ("g", 1000, [AtLeast 8]) ]
 
     , checkExpr "tests/TestFiles/CheckSq.hs" 400 "checkSq"
@@ -201,6 +201,8 @@ testFileTests = testGroup "TestFiles"
                                                      , ("compZZ2", 1600, [AtLeast 2]) ]
 
     , checkInputOutput "tests/TestFiles/Defunc2.hs" "funcMap" 400 [AtLeast 30]
+
+    , checkInputOutput "tests/TestFiles/Ix.hs" "ixRange1" 1000 [AtLeast 10]
 
     , checkInputOutput "tests/TestFiles/Imports/MakesSound.hs" "makesSound" 1000 [Exactly 3]
 
