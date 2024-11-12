@@ -392,7 +392,8 @@ testFileTests = testGroup "TestFiles"
                                                      , ("kConc", 2000, [Exactly 1])
                                                      , ("m", 1000, [AtLeast 2])
                                                      , ("n", 1000, [AtLeast 2])
-                                                     , ("sqrtSquared", 1000, [AtLeast 2]) ]
+                                                     , ("sqrtSquared", 1000, [AtLeast 2])
+                                                     , ("floorAndCeiling", 1000, [AtLeast 6]) ]
 
     , checkInputOutputs "tests/TestFiles/Doubles1.hs" [ ("infinite", 1000, [AtLeast 3])
                                                       , ("zero", 1000, [AtLeast 3])
@@ -404,7 +405,8 @@ testFileTests = testGroup "TestFiles"
                                                       , ("kConc", 2000, [Exactly 1])
                                                       , ("m", 1000, [AtLeast 2])
                                                       , ("n", 1000, [AtLeast 2])
-                                                      , ("sqrtSquared", 1000, [AtLeast 2]) ]
+                                                      , ("sqrtSquared", 1000, [AtLeast 2])
+                                                      , ("floorAndCeiling", 1000, [AtLeast 6]) ]
 
     , checkInputOutputsInstType "tests/TestFiles/InstTypes1.hs" [ ("lengthList", 200, [AtLeast 1])
                                                         , ("myTuple", 200, [AtLeast 1])

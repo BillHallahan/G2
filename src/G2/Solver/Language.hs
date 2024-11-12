@@ -87,6 +87,8 @@ data SMTAST = (:>=) !SMTAST !SMTAST
             | FpIsNegative !SMTAST
 
             | FpSqrtSMT !SMTAST
+            | TruncZeroSMT !SMTAST
+
             | IsNaNSMT !SMTAST
             | IsInfiniteSMT !SMTAST
 
@@ -122,6 +124,8 @@ data SMTAST = (:>=) !SMTAST !SMTAST
 
             | V SMTName Sort
 
+            | FloatToIntSMT !SMTAST -- ^ Float to Integer conversion
+            | DoubleToIntSMT !SMTAST -- ^ Double to Integer conversion
             | IntToFloatSMT !SMTAST -- ^ Integer to Float conversion
             | IntToDoubleSMT !SMTAST -- ^ Integer to Double conversion
             | IntToRealSMT !SMTAST -- ^ Integer to Real conversion

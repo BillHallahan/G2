@@ -369,6 +369,10 @@ funcToSMT1Prim :: Primitive -> Expr -> SMTAST
 funcToSMT1Prim Negate a = Neg (exprToSMT a)
 funcToSMT1Prim FpNeg a = FpNegSMT (exprToSMT a)
 funcToSMT1Prim FpSqrt e = FpSqrtSMT (exprToSMT e)
+funcToSMT1Prim TruncZero e | typeOf e == TyLitFloat = FloatToIntSMT (TruncZeroSMT (exprToSMT e))
+                           | typeOf e == TyLitDouble = DoubleToIntSMT (TruncZeroSMT (exprToSMT e))
+funcToSMT1Prim DecimalPart e | typeOf e == TyLitFloat = exprToSMT e `FpSubSMT` TruncZeroSMT (exprToSMT e)
+                             | typeOf e == TyLitDouble = exprToSMT e `FpSubSMT` TruncZeroSMT (exprToSMT e)
 funcToSMT1Prim FpIsNegativeZero e =
     let
         nz = "INTERNAL_!!_IsNegZero"
@@ -556,6 +560,8 @@ toSolverAST (FpIsZero x) = function1 "fp.isZero" (toSolverAST x)
 toSolverAST (FpIsNegative x) = function1 "fp.isNegative" (toSolverAST x)
 
 toSolverAST (FpSqrtSMT x) = function2 "fp.sqrt" "RNE" (toSolverAST x)
+toSolverAST (TruncZeroSMT x) = function2 "fp.roundToIntegral" "RTZ" (toSolverAST x)
+
 toSolverAST (IsNaNSMT x) = function1 "fp.isNaN" (toSolverAST x)
 toSolverAST (IsInfiniteSMT x) = function1 "fp.isInfinite" (toSolverAST x)
 
@@ -585,6 +591,8 @@ toSolverAST (StrLenSMT x) = function1 "str.len" $ toSolverAST x
 toSolverAST (IntToRealSMT x) = function1 "to_real" $ toSolverAST x
 toSolverAST (IntToFloatSMT x) = function2 "(_ to_fp 8 24)" "RNE" (function1 "(_ int2bv 32)" $ toSolverAST x)
 toSolverAST (IntToDoubleSMT x) = function2 "(_ to_fp 11 53)" "RNE" (function1 "(_ int2bv 64)" $ toSolverAST x)
+toSolverAST (FloatToIntSMT x) = function1 "bv2nat" (function2 "(_ fp.to_sbv 32)" "RNE" $ toSolverAST x)
+toSolverAST (DoubleToIntSMT x) = function1 "bv2nat" (function2 "(_ fp.to_sbv 64)" "RNE" $ toSolverAST x)
 
 toSolverAST (Ite x y z) =
     function3 "ite" (toSolverAST x) (toSolverAST y) (toSolverAST z)

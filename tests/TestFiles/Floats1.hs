@@ -54,3 +54,13 @@ n x y | x > y = (x * y, x / y)
 sqrtSquared :: NaNEq -> (Bool, NaNEq, NaNEq)
 sqrtSquared x | sqrt x * sqrt x == x = (True, x, sqrt x * sqrt x)
               | otherwise  = (False, x, sqrt x * sqrt x)
+
+floorAndCeiling :: NaNEq -> (Int, Int, Int)
+floorAndCeiling (F x)
+    | isNaN x = (0, 0, 0)
+    | x > 11 = (1, floor x, ceiling x)
+    | x < -4 = (2, floor x, ceiling x)
+    | otherwise =  (3, floor x, ceiling x)
+
+floor1 :: NaNEq -> Int
+floor1 (F x) = floor x
