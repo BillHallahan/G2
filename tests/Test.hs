@@ -206,6 +206,8 @@ testFileTests = testGroup "TestFiles"
 
     , checkInputOutput "tests/TestFiles/Ix.hs" "ixRange1" 1000 [AtLeast 10]
 
+    , checkInputOutput "tests/TestFiles/ListComp.hs" "list1" 10000 [Exactly 1]
+
     , checkInputOutput "tests/TestFiles/Imports/MakesSound.hs" "makesSound" 1000 [Exactly 3]
 
     , checkExpr "tests/TestFiles/MultCase.hs" 400 "f"
