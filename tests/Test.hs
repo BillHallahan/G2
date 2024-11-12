@@ -173,7 +173,9 @@ sampleTests = testGroup "Samples"
 testFileTests :: TestTree
 testFileTests = testGroup "TestFiles"
     [
-      checkExpr "tests/TestFiles/IfTest.hs" 400 "f"
+      checkInputOutputs "tests/TestFiles/Array1.hs" [ ("buildArray1", 15000, [AtLeast 1])
+                                                    , ("buildArray2", 15000, [AtLeast 1])]
+    , checkExpr "tests/TestFiles/IfTest.hs" 400 "f"
         [ RForAll (\[App _ (Lit (LitInt x)), App _ (Lit (LitInt y)), App _ (Lit (LitInt r))] -> 
             if x == y then r == x + y else r == y)
         , AtLeast 2]
