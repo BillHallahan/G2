@@ -91,7 +91,7 @@ createDecls pg s = mapM_ runDecls . createDeclsStr pg s
 adjustDynFlags :: Ghc ()
 adjustDynFlags = do
     dyn <- getSessionDynFlags
-    let dyn' = xopt_set (xopt_set dyn MagicHash) UnboxedTuples
+    let dyn' = foldl' xopt_set dyn [MagicHash, UnboxedTuples, DataKinds]
         dyn'' = wopt_unset dyn' Opt_WarnOverlappingPatterns
     _ <- setSessionDynFlags dyn''
     return ()

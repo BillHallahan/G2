@@ -91,8 +91,8 @@ vecZip :: Vec n a -> Vec n b -> Vec n (a, b)
 vecZip VNil _ =  VNil 
 vecZip (VCons x xs) (VCons y ys) = VCons (x, y) (vecZip xs ys)
 
-vecZipConc :: Vec (Succ Zero) (Int, Char)
-vecZipConc = vecZip (VCons 1 VNil) (VCons 'a' VNil) 
+vecZipConc :: Vec (Succ (Succ Zero)) (Int, Char)
+vecZipConc = vecZip (VCons 1 (VCons 2 VNil)) (VCons 'a' (VCons 'b' VNil)) 
 
 vecMap :: (a -> b) -> Vec n a -> Vec n b 
 vecMap _ VNil = VNil 

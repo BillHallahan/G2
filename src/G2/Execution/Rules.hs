@@ -40,6 +40,8 @@ import qualified Data.HashMap.Lazy as HM
 import qualified Data.List as L
 import qualified Data.Sequence as S
 import G2.Data.Utils
+import qualified G2.Data.UFMap as UF
+
 import Control.Exception
 import Debug.Trace
 
@@ -1176,7 +1178,8 @@ extractTypes [Id n (TyApp (TyApp _ n1) n2)] = (n1, n2)
 
 liftBinds :: [(Id, Expr)] -> E.ExprEnv -> Expr -> NameGen ->
              (E.ExprEnv, Expr, NameGen, [Name])
-liftBinds binds eenv expr ngen = trace("The list of RHS " ++ show bindsRHS ++ "\n " ++ "The list of LHS " ++ show bindsLHS) (eenv', expr', ngen', news)
+             --trace("The list of RHS " ++ show bindsRHS ++ "\n " ++ "The list of LHS " ++ show bindsLHS)
+liftBinds binds eenv expr ngen =  (eenv', expr'', ngen', news)
   where
  -- when we see the first element from the bindsRHS is Coercion types 
  -- we can start looking at the corresponding bindsLHS
@@ -1194,20 +1197,20 @@ liftBinds binds eenv expr ngen = trace("The list of RHS " ++ show bindsRHS ++ "\
 
     eenv' = E.insertExprs (zip news bindsRHS) eenv
 
-    if isCoercion bindsRHS == True
-    then 
-        let 
-            ( (TyVar i) , t2) = extractTypes bindsLHS
-            expr' = case unify t1 t2 of 
-                        Nothing -> error $ "can't unify types under coercion: " ++ show t1 ++ " " ++ show t2
-                        Just un_map ->
-                            case HM.toList $ toSimpleMap un_map of
-                                [(n, t)] -> retype i t2 (Var n t)
-                                _ -> error "Expected a singleton list in un_map"
-        in 
-            expr'   
-    else
-        expr' = renamesExprs olds_news expr
+    expr' = renamesExprs olds_news expr
+    expr'' = case isCoercion bindsRHS of               
+                True -> 
+                    let
+                        (t1 , t2) = extractTypes bindsLHS
+                        e = case unify t1 t2 of 
+                                    Nothing -> error $ "can't unify types under coercion: " ++ show t1 ++ " " ++ show t2
+                                    Just un_map ->
+                                        case HM.toList $ UF.toSimpleMap un_map of
+                                            [(n, t)] -> trace ("retype n = " ++ show n) retype (Id n (typeOf t)) t expr'
+                                            _ -> error "Expected a singleton list in un_map"
+                    in
+                    e
+                False -> trace ("bindsRHS = " ++ show bindsRHS) expr'
         
 
 liftBind :: Id -> Expr -> E.ExprEnv -> Expr -> NameGen ->
