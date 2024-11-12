@@ -70,13 +70,3 @@ roundTest (F x) | isNaN x || isInfinite x = (0, 0)
                 | otherwise = (3, r)
     where
         r = round x
-
-test :: NaNEq -> Int
-test (F x) | isNaN x || isInfinite x = 0
-           | round x > -100 = 1
-           | otherwise = 2
-
-test2 :: Float -> Int
-test2 x | isNaN x || isInfinite x = 1
-        | -304 > x && x > -305 = round x
-        | otherwise = 0
