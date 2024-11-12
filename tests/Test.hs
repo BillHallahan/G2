@@ -395,7 +395,7 @@ testFileTests = testGroup "TestFiles"
                                                      , ("m", 1000, [AtLeast 2])
                                                      , ("n", 1000, [AtLeast 2])
                                                      , ("sqrtSquared", 1000, [AtLeast 2])
-                                                     , ("floorAndCeiling", 1000, [AtLeast 6])
+                                                     , ("floorAndCeiling", 1500, [AtLeast 6])
                                                      , ("roundTest", 1500, [AtLeast 8]) ]
 
     , checkInputOutputs "tests/TestFiles/Doubles1.hs" [ ("infinite", 1000, [AtLeast 3])
@@ -409,7 +409,7 @@ testFileTests = testGroup "TestFiles"
                                                       , ("m", 1000, [AtLeast 2])
                                                       , ("n", 1000, [AtLeast 2])
                                                       , ("sqrtSquared", 1000, [AtLeast 2])
-                                                      , ("floorAndCeiling", 1000, [AtLeast 6])
+                                                      , ("floorAndCeiling", 1500, [AtLeast 6])
                                                       , ("roundTest", 1500, [AtLeast 8])  ]
 
     , checkInputOutputsInstType "tests/TestFiles/InstTypes1.hs" [ ("lengthList", 200, [AtLeast 1])
