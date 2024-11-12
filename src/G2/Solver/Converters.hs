@@ -591,8 +591,10 @@ toSolverAST (StrLenSMT x) = function1 "str.len" $ toSolverAST x
 toSolverAST (IntToRealSMT x) = function1 "to_real" $ toSolverAST x
 toSolverAST (IntToFloatSMT x) = function2 "(_ to_fp 8 24)" "RNE" (function1 "(_ int2bv 32)" $ toSolverAST x)
 toSolverAST (IntToDoubleSMT x) = function2 "(_ to_fp 11 53)" "RNE" (function1 "(_ int2bv 64)" $ toSolverAST x)
-toSolverAST (FloatToIntSMT x) = function1 "bv2nat" (function2 "(_ fp.to_sbv 32)" "RNE" $ toSolverAST x)
-toSolverAST (DoubleToIntSMT x) = function1 "bv2nat" (function2 "(_ fp.to_sbv 64)" "RNE" $ toSolverAST x)
+-- toSolverAST (FloatToIntSMT x) = function1 "to_int" (function1 "fp.to_real" $ toSolverAST x)
+toSolverAST (FloatToIntSMT x) = bvToSignedInt 32 (function2 "(_ fp.to_sbv 32)" "RNE" $ toSolverAST x)
+-- toSolverAST (DoubleToIntSMT x) = function1 "to_int" (function1 "fp.to_real" $ toSolverAST x)
+toSolverAST (DoubleToIntSMT x) = bvToSignedInt 32 (function2 "(_ fp.to_sbv 32)" "RNE" $ toSolverAST x)
 
 toSolverAST (Ite x y z) =
     function3 "ite" (toSolverAST x) (toSolverAST y) (toSolverAST z)
@@ -614,6 +616,26 @@ toSolverAST (V n _) = TB.string n
 toSolverAST (Named x n) = "(! " <> toSolverAST x <> " :named " <> TB.string n <> ")"
 
 toSolverAST ast = error $ "toSolverAST: invalid SMTAST: " ++ show ast
+
+-- | Converts a bit vector to a signed Int.
+-- Z3 has a bv2int function, but uses unsigned integers.
+-- The bit vector theory:
+--      https://smt-lib.org/theories-FixedSizeBitVectors.shtml
+-- has a note about converting bit vectors to signed ints:
+--   "bv2int, which takes a bitvector b: [0, m) → {0, 1}
+--    with 0 < m, and returns an integer in the range [- 2^(m - 1), 2^(m - 1)),
+--    and is defined as follows:
+--        bv2int(b) := if b(m-1) = 0 then bv2nat(b) else bv2nat(b) - 2^m"
+bvToSignedInt :: Int -- ^ Bitvector width
+              -> TB.Builder -- ^ Bitvector SMT expression
+              -> TB.Builder
+bvToSignedInt w smt =
+    let
+        ext = showText (w - 1)
+    in
+    function3 "ite" (function2 "=" (function1 ("(_ extract " <> ext <> " " <> ext <> ")") smt) "#b0")
+                    (function1 "bv2nat" smt)
+                    (function2 "-" (function1 "bv2nat" smt) (showText (2^w :: Integer)))
 
 convertFloating :: (Num b, Bits.FiniteBits b) => (a -> b) -> Int -> a -> TB.Builder
 convertFloating conv eb_width f =
