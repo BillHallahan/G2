@@ -18,7 +18,6 @@ import qualified Data.HashMap.Lazy as M
 import qualified Data.List as L
 import Data.Maybe
 import qualified G2.Language.ExprEnv as E
-import G2.Language.ExprEnv (deepLookupExpr)
 import G2.Language.MutVarEnv
 
 import Debug.Trace
@@ -68,10 +67,10 @@ evalPrimWithState :: State t -- ^ Context to evaluate expression `e` in
                   -> Expr -- ^ The expression `e` to evaluate
                   -> Maybe (State t, NameGen) -- ^ `Just` if `e` is a primitive operation that this function reduces, `Nothing` otherwise
 evalPrimWithState s ng (App (Prim HandleGetPos _) hnd)
-    | Just (Prim (Handle n) _) <- deepLookupExpr hnd (expr_env s)
+    | (Prim (Handle n) _) <- deepLookupExprPastTicks hnd (expr_env s)
     , Just (HandleInfo { h_pos = pos }) <- M.lookup n (handles s) = Just (s { curr_expr = CurrExpr Evaluate (Var pos) }, ng)
 evalPrimWithState s ng (App (App (Prim HandleSetPos _) (Var new_pos)) hnd)
-    | Just (Prim (Handle n) _) <- deepLookupExpr hnd (expr_env s)
+    | (Prim (Handle n) _) <- deepLookupExprPastTicks hnd (expr_env s)
     , Just hi <- M.lookup n (handles s) =
         let
             s' = s { curr_expr = CurrExpr Evaluate (mkUnit (known_values s) (type_env s))
@@ -79,7 +78,7 @@ evalPrimWithState s ng (App (App (Prim HandleSetPos _) (Var new_pos)) hnd)
         in
         Just (s', ng)
 evalPrimWithState s ng (App (App (Prim HandlePutChar _) c) hnd)
-    | Just (Prim (Handle n) _) <- deepLookupExpr hnd (expr_env s)
+    | (Prim (Handle n) _) <- deepLookupExprPastTicks hnd (expr_env s)
     , Just hi <- M.lookup n (handles s) =
         let
             pos = h_pos hi
@@ -94,7 +93,7 @@ evalPrimWithState s ng (App (App (Prim HandlePutChar _) c) hnd)
         Just (s', ng')
 evalPrimWithState s ng (App (App (App (App (Prim NewMutVar _) (Type t)) (Type ts)) e) _) = Just $ newMutVar s ng MVConc ts t e
 evalPrimWithState s ng (App (App (App (App (Prim ReadMutVar _) _) _) mv_e) _)
-    | Just (Prim (MutVar mv) _) <- deepLookupExpr mv_e (expr_env s) =
+    | (Prim (MutVar mv) _) <- deepLookupExprPastTicks mv_e (expr_env s) =
     let
         i = lookupMvVal mv (mutvar_env s)
         s' = maybe (error "evalPrimWithState: MutVar not found")
@@ -103,7 +102,7 @@ evalPrimWithState s ng (App (App (App (App (Prim ReadMutVar _) _) _) mv_e) _)
     in
     Just (s', ng)
 evalPrimWithState s ng (App (App (App (App (App (Prim WriteMutVar _) _) (Type t)) mv_e) e) pr_s)
-    | Just (Prim (MutVar mv) _) <- deepLookupExpr mv_e (expr_env s) =
+    | (Prim (MutVar mv) _) <- deepLookupExprPastTicks mv_e (expr_env s) =
     let
         (i, ng') = freshId t ng
         s' = s { expr_env = E.insert (idName i) e (expr_env s)
@@ -113,6 +112,14 @@ evalPrimWithState s ng (App (App (App (App (App (Prim WriteMutVar _) _) (Type t)
     Just (s', ng')
 evalPrimWithState _ _ e | [Prim WriteMutVar _, _, _, _, _, _] <- unApp e = trace ("e = " ++ show e) Nothing
 evalPrimWithState _ _ _ = Nothing
+
+deepLookupExprPastTicks :: Expr -> ExprEnv -> Expr
+deepLookupExprPastTicks (Var i@(Id n _)) eenv =
+    case E.lookupConcOrSym n eenv of
+        Just (E.Conc e) -> deepLookupExprPastTicks e eenv
+        _ -> Var i
+deepLookupExprPastTicks (Tick _ e) eenv = deepLookupExprPastTicks e eenv
+deepLookupExprPastTicks e _ = e
 
 mutVarTy :: KnownValues
          -> Type -- ^ The State type

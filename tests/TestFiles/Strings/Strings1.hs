@@ -21,3 +21,11 @@ appendEq s = s ++ "!"
 
 exclaimEq :: String -> String -> Bool
 exclaimEq s1 s2 = s1 == s2 ++ "!"
+
+stringSub1 :: String -> Bool
+stringSub1 (_:_:_:_) = False
+stringSub1 str = any (`elem` str) "~`!@#$%^&*-_+="
+
+stringSub2 :: String -> Bool
+stringSub2 (_:_:_:_) = False
+stringSub2 str = any (`elem` str) "{}|:;<>?/,."
