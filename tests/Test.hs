@@ -338,7 +338,8 @@ testFileTests = testGroup "TestFiles"
                                                               , ("eqGt1", 700, [AtLeast 10])
                                                               , ("capABC", 200, [AtLeast 10])
                                                               , ("appendEq", 500, [AtLeast 5])
-                                                              , ("stringSub", 1500, [AtLeast 15]) ]
+                                                              , ("stringSub1", 7000, [AtLeast 40])
+                                                              , ("stringSub2", 7000, [AtLeast 35]) ]
 
     , checkExpr "tests/TestFiles/Strings/Strings1.hs" 1000 "exclaimEq"
         [AtLeast 5, RExists (\[_, _, r] -> dcHasName "True" r)]
