@@ -3,7 +3,8 @@
 
 module G2.Translation.Interface ( translateBase
                                 , translateLoaded
-                                , specialInject ) where
+                                , specialInject
+                                , dirPath) where
 
 import Control.Monad.Extra
 import qualified Data.HashMap.Lazy as HM
@@ -76,12 +77,12 @@ translateLoaded proj src tr_con config = do
   let tr_con' = tr_con { hpc_ticks = hpc config || search_strat config == Subpath }
   -- Stuff with the actual target
   let def_proj = extraDefaultInclude config
-  tar_ems <- envModSumModGutsFromFile (selectBackend tr_con') (def_proj ++ proj) src tr_con' 
+  tar_ems <- envModSumModGutsFromFile (selectBackend tr_con') (def_proj ++ proj ++ map dirPath src) src tr_con' 
   let imports = envModSumModGutsImports tar_ems
   extra_imp <- return . catMaybes =<< mapM (findImports (baseInclude config)) imports
 
   -- Stuff with the base library
-  (base_exg2, b_nm, b_tnm) <- translateBase tr_con'  config extra_imp Nothing
+  (base_exg2, b_nm, b_tnm) <- translateBase tr_con' config extra_imp Nothing
 
   -- Now the stuff with the actual target
   (f_nm, f_tm, exg2) <- hskToG2ViaEMS tr_con'  tar_ems b_nm b_tnm
@@ -98,10 +99,13 @@ translateLoaded proj src tr_con config = do
   return (mb_modname, final_exg2)
 
 adjustMkSymbolicPrim :: NameMap -> ExtractedG2 -> ExtractedG2
-adjustMkSymbolicPrim nm exg2@(ExtractedG2 { exg2_binds = binds}) =
+adjustMkSymbolicPrim nm exg2 = adjustMkSymbolicPrim' (Just "G2.Symbolic") nm exg2
+
+adjustMkSymbolicPrim' :: Maybe T.Text -> NameMap -> ExtractedG2 -> ExtractedG2
+adjustMkSymbolicPrim' mod_name nm exg2@(ExtractedG2 { exg2_binds = binds}) =
     let
         a = Id (Name "a" Nothing 0 Nothing) TYPE
-        m_sym_n = HM.lookup ("symgen", Just "G2.Symbolic") nm
+        m_sym_n = HM.lookup ("symgen", mod_name) nm
         symgen_e = G2.Lam TypeL a (SymGen SLog $ TyVar a)
     in
     case m_sym_n of
@@ -123,6 +127,9 @@ specialInject exg2 =
          , exg2_tycons = tys'
          , exg2_rules = rules'
          , exg2_classes = cls' }
+
+dirPath :: FilePath -> FilePath
+dirPath = reverse . dropWhile (/= '/') . reverse
 
 findImports :: [FilePath] -> FilePath -> IO (Maybe FilePath)
 findImports roots fp = do

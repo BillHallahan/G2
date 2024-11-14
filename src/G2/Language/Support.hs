@@ -1,9 +1,6 @@
 {-# LANGUAGE BangPatterns #-}
-{-# LANGUAGE DeriveDataTypeable #-}
-{-# LANGUAGE DeriveGeneric #-}
-{-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE DeriveDataTypeable, DeriveGeneric#-}
+{-# LANGUAGE FlexibleContexts, FlexibleInstances, MultiParamTypeClasses, OverloadedStrings #-}
 
 module G2.Language.Support
     ( module G2.Language.AST
@@ -47,6 +44,7 @@ data State t = State { expr_env :: E.ExprEnv -- ^ Mapping of `Name`s to `Expr`s
                      , path_conds :: PathConds -- ^ Path conditions, in SWHNF
                      , non_red_path_conds :: [(Expr, Expr)] -- ^ Path conditions, in the form of (possibly non-reduced)
                                                             -- expression pairs that must be proved equivalent
+                     , handles :: HM.HashMap Name Handle -- ^ Each Handle has a name, that appears in `Expr`s within the `Handle` `Primitive`
                      , mutvar_env :: MutVarEnv -- ^ MutVar `Name`s to mappings of names in the `ExprEnv`.
                                                -- See Note [MutVar Env] in G2.Language.MutVarEnv.
                      , true_assert :: Bool -- ^ Have we violated an assertion?
@@ -145,12 +143,36 @@ instance Hashable CEAction
 -- typically produced by a solver. 
 type Model = HM.HashMap Name Expr
 
+-- | A highly simplified model of Handles.
+data Handle = HandleInfo { h_filepath :: FilePath
+                         , h_start :: Id -- ^ The entire contents of the file, maps to a String in the `ExprEnv`
+                         , h_pos :: Id -- ^ The current position of the Handle, maps to a String in the `ExprEnv`
+                         , h_status :: HandleStatus }
+                         deriving (Show, Eq, Read, Generic, Typeable, Data)
+
+instance Hashable Handle
+
+data HandleStatus = HOpen | HClosed
+                    deriving (Show, Eq, Read, Generic, Typeable, Data)
+
+stdinName :: Name
+stdinName = Name "stdin" Nothing 0 Nothing
+
+stdoutName :: Name
+stdoutName = Name "stdout" Nothing 0 Nothing
+
+stderrName :: Name
+stderrName = Name "stderr" Nothing 0 Nothing
+
+instance Hashable HandleStatus
+
 instance Named t => Named (State t) where
     names s = names (expr_env s)
             <> names (type_env s)
             <> names (curr_expr s)
             <> names (path_conds s)
             <> names (non_red_path_conds s)
+            <> names (handles s)
             <> names (mutvar_env s)
             <> names (assert_ids s)
             <> names (type_classes s)
@@ -168,6 +190,7 @@ instance Named t => Named (State t) where
                , curr_expr = rename old new (curr_expr s)
                , path_conds = rename old new (path_conds s)
                , non_red_path_conds = rename old new (non_red_path_conds s)
+               , handles = rename old new (handles s)
                , mutvar_env = rename old new (mutvar_env s)
                , true_assert = true_assert s
                , assert_ids = rename old new (assert_ids s)
@@ -189,6 +212,7 @@ instance Named t => Named (State t) where
                , curr_expr = renames hm (curr_expr s)
                , path_conds = renames hm (path_conds s)
                , non_red_path_conds = renames hm (non_red_path_conds s)
+               , handles = renames hm (handles s)
                , mutvar_env = renames hm (mutvar_env s)
                , true_assert = true_assert s
                , assert_ids = renames hm (assert_ids s)
@@ -208,6 +232,7 @@ instance ASTContainer t Expr => ASTContainer (State t) Expr where
                       (containedASTs $ curr_expr s) ++
                       (containedASTs $ path_conds s) ++
                       (containedASTs $ non_red_path_conds s) ++
+                      (containedASTs $ handles s) ++
                       (containedASTs $ mutvar_env s) ++
                       (containedASTs $ assert_ids s) ++
                       (containedASTs $ exec_stack s) ++
@@ -220,6 +245,7 @@ instance ASTContainer t Expr => ASTContainer (State t) Expr where
                                 , curr_expr = modifyContainedASTs f $ curr_expr s
                                 , path_conds = modifyContainedASTs f $ path_conds s
                                 , non_red_path_conds = modifyContainedASTs f $ non_red_path_conds s
+                                , handles = modifyContainedASTs f $ handles s
                                 , mutvar_env = modifyContainedASTs f $ mutvar_env s
                                 , assert_ids = modifyContainedASTs f $ assert_ids s
                                 , exec_stack = modifyContainedASTs f $ exec_stack s
@@ -233,6 +259,7 @@ instance ASTContainer t Type => ASTContainer (State t) Type where
                       ((containedASTs . curr_expr) s) ++
                       ((containedASTs . path_conds) s) ++
                       (containedASTs $ non_red_path_conds s) ++
+                      (containedASTs $ handles s) ++
                       (containedASTs $ mutvar_env s) ++
                       ((containedASTs . assert_ids) s) ++
                       ((containedASTs . type_classes) s) ++
@@ -246,6 +273,7 @@ instance ASTContainer t Type => ASTContainer (State t) Type where
                                 , curr_expr = (modifyContainedASTs f . curr_expr) s
                                 , path_conds = (modifyContainedASTs f . path_conds) s
                                 , non_red_path_conds = modifyContainedASTs f $ non_red_path_conds s
+                                , handles = modifyContainedASTs f $ handles s
                                 , mutvar_env = modifyContainedASTs f $ mutvar_env s
                                 , assert_ids = (modifyContainedASTs f . assert_ids) s
                                 , type_classes = (modifyContainedASTs f . type_classes) s
@@ -370,3 +398,24 @@ instance Named Frame where
     renames hm (CurrExprFrame act e) = CurrExprFrame act (renames hm e)
     renames hm (AssumeFrame e) = AssumeFrame (renames hm e)
     renames hm (AssertFrame is e) = AssertFrame (renames hm is) (renames hm e)
+
+instance Named Handle where
+    names (HandleInfo { h_start = s, h_pos = p }) = names s <> names p
+
+    rename old new h@(HandleInfo { h_start = s, h_pos = p }) =
+        h { h_start = rename old new s, h_pos = rename old new p }
+
+    renames hm h@(HandleInfo { h_start = s, h_pos = p }) =
+        h { h_start = renames hm s, h_pos = renames hm p }
+
+instance ASTContainer Handle Expr where
+    containedASTs (HandleInfo { h_start = s, h_pos = p }) = containedASTs s <> containedASTs p
+
+    modifyContainedASTs f h@(HandleInfo { h_start = s, h_pos = p }) =
+        h { h_start = modifyContainedASTs f s, h_pos = modifyContainedASTs f p }
+
+instance ASTContainer Handle Type where
+    containedASTs (HandleInfo { h_start = s, h_pos = p }) = containedASTs s <> containedASTs p
+
+    modifyContainedASTs f h@(HandleInfo { h_start = s, h_pos = p }) =
+        h { h_start = modifyContainedASTs f s, h_pos = modifyContainedASTs f p }

@@ -94,7 +94,7 @@ checkInputOutput' io_config src tests = do
                                         Just (Right (b_val, b_count, exec_res, bindings)) ->
                                             let pg = mkPrettyGuide exec_res
                                                 res_pretty = map (printInputOutput pg (Id (Name (T.pack entry) Nothing 0 Nothing) TyUnknown) bindings) exec_res
-                                                res_print = map T.unpack $ map (\(_, inp, out) -> inp <> " = " <> out) res_pretty
+                                                res_print = map T.unpack $ map (\(_, inp, out, _) -> inp <> " = " <> out) res_pretty
                                             in
                                             (b_val && b_count, "\nvalidation = " ++ show b_val ++ ", count = " ++ show b_count ++ "\n" ++ intercalate "\n" res_print)
 

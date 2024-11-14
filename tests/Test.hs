@@ -200,6 +200,8 @@ testFileTests = testGroup "TestFiles"
 
     , checkInputOutput "tests/TestFiles/Defunc2.hs" "funcMap" 500 [AtLeast 30]
 
+    , checkInputOutput "tests/TestFiles/Imports/MakesSound.hs" "makesSound" 1000 [Exactly 3]
+
     , checkExpr "tests/TestFiles/MultCase.hs" 400 "f"
         [ RExists (\[App _ (Lit (LitInt x)), y] -> x == 2 && getBoolB y id)
         , RExists (\[App _ (Lit (LitInt x)), y] -> x == 1 && getBoolB y id)
@@ -516,6 +518,13 @@ ioTests = testGroup "IO"
       checkInputOutput "tests/IO/UnsafePerformIO1.hs" "f" 1000 [Exactly 1]
     , checkInputOutput "tests/IO/IORef1.hs" "unsafeF" 5000 [Exactly 1]
     , checkInputOutput "tests/IO/IORef1.hs" "unsafeG" 5000 [Exactly 2]
+
+    , checkExpr "tests/IO/Handles1.hs" 2500 "compareInitChars" [Exactly 4]
+    , checkExpr "tests/IO/Handles1.hs" 5000 "take10Contents" [Exactly 11]
+    , checkExpr "tests/IO/Handles1.hs" 5000 "output1" [Exactly 1]
+    , checkExpr "tests/IO/Handles1.hs" 5000 "output2" [Exactly 1]
+    , checkExpr "tests/IO/Handles1.hs" 5000 "output3" [Exactly 1]
+    , checkExpr "tests/IO/Handles1.hs" 3000 "interact1" [AtLeast 10]
     ]
 
 -- To Do Tests
@@ -643,7 +652,7 @@ checkExprWithConfig src m_assume m_assert m_reaches entry reqList config_f = do
 
                                 pg = mkPrettyGuide exec_res
                                 res_pretty = map (printInputOutput pg (Id (Name (T.pack entry) Nothing 0 Nothing) TyUnknown) b) exec_res
-                                res_print = map T.unpack $ map (\(_, inp, out) -> inp <> " = " <> out) res_pretty
+                                res_print = map T.unpack $ map (\(_, inp, out, _) -> inp <> " = " <> out) res_pretty
                             in
                             (Just reqs, res_print)
 

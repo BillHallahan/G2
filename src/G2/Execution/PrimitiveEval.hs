@@ -4,7 +4,7 @@
 module G2.Execution.PrimitiveEval ( evalPrimsSharing
                                   , evalPrims
                                   , mutVarTy
-                                  , evalPrimMutVar
+                                  , evalPrimWithState
                                   , newMutVar
                                   , maybeEvalPrim
                                   , evalPrimSymbolic) where
@@ -106,23 +106,48 @@ maybeEvalPrim' tenv kv xs
 
     | otherwise = Nothing
 
--- | Evaluate primitives that deal with mutable variables.
--- See Note [MutVar Env] in G2.Language.Support.
-evalPrimMutVar :: State t -- ^ Context to evaluate expression `e` in
-               -> NameGen
-               -> Expr -- ^ The expression `e` to evaluate
-               -> Maybe (State t, NameGen) -- ^ `Just` if `e` is a primitive operation on mutable variable, `Nothing` otherwise
-evalPrimMutVar s ng (App (App (App (App (Prim NewMutVar _) (Type t)) (Type ts)) e) _) = Just $ newMutVar s ng MVConc ts t e
-evalPrimMutVar s ng (App (App (App (App (Prim ReadMutVar _) _) _) mv_e) _)
+-- | Evaluate primitives that need to read from or modify the State.
+-- For more on MutVar's Note [MutVar Env] in G2.Language.MutVarEnv.
+evalPrimWithState :: State t -- ^ Context to evaluate expression `e` in
+                  -> NameGen
+                  -> Expr -- ^ The expression `e` to evaluate
+                  -> Maybe (State t, NameGen) -- ^ `Just` if `e` is a primitive operation that this function reduces, `Nothing` otherwise
+evalPrimWithState s ng (App (Prim HandleGetPos _) hnd)
+    | Just (Prim (Handle n) _) <- deepLookupExpr hnd (expr_env s)
+    , Just (HandleInfo { h_pos = pos }) <- M.lookup n (handles s) = Just (s { curr_expr = CurrExpr Evaluate (Var pos) }, ng)
+evalPrimWithState s ng (App (App (Prim HandleSetPos _) (Var new_pos)) hnd)
+    | Just (Prim (Handle n) _) <- deepLookupExpr hnd (expr_env s)
+    , Just hi <- M.lookup n (handles s) =
+        let
+            s' = s { curr_expr = CurrExpr Evaluate (mkUnit (known_values s) (type_env s))
+                   , handles = M.insert n (hi { h_pos = new_pos }) (handles s)}
+        in
+        Just (s', ng)
+evalPrimWithState s ng (App (App (Prim HandlePutChar _) c) hnd)
+    | Just (Prim (Handle n) _) <- deepLookupExpr hnd (expr_env s)
+    , Just hi <- M.lookup n (handles s) =
+        let
+            pos = h_pos hi
+            ty_string = typeOf pos
+
+            (new_pos, ng') = freshSeededId (Name "pos" Nothing 0 Nothing) ty_string ng
+            e = mkApp [mkCons (known_values s) (type_env s), Type ty_string, c, Var new_pos]
+            s' = s { expr_env = E.insert (idName pos) e (expr_env s)
+                   , curr_expr = CurrExpr Evaluate (mkUnit (known_values s) (type_env s))
+                   , handles = M.insert n (hi { h_pos = new_pos }) (handles s)}
+        in
+        Just (s', ng')
+evalPrimWithState s ng (App (App (App (App (Prim NewMutVar _) (Type t)) (Type ts)) e) _) = Just $ newMutVar s ng MVConc ts t e
+evalPrimWithState s ng (App (App (App (App (Prim ReadMutVar _) _) _) mv_e) _)
     | Just (Prim (MutVar mv) _) <- deepLookupExpr mv_e (expr_env s)=
     let
         i = lookupMvVal mv (mutvar_env s)
-        s' = maybe (error "evalPrimMutVar: MutVar not found")
+        s' = maybe (error "evalPrimWithState: MutVar not found")
                    (\i' -> s { curr_expr = CurrExpr Evaluate (Var i') })
                    i
     in
     Just (s', ng)
-evalPrimMutVar s ng (App (App (App (App (App (Prim WriteMutVar _) _) (Type t)) mv_e) e) pr_s)
+evalPrimWithState s ng (App (App (App (App (App (Prim WriteMutVar _) _) (Type t)) mv_e) e) pr_s)
     | Just (Prim (MutVar mv) _) <- deepLookupExpr mv_e (expr_env s) =
     let
         (i, ng') = freshId t ng
@@ -131,8 +156,8 @@ evalPrimMutVar s ng (App (App (App (App (App (Prim WriteMutVar _) _) (Type t)) m
                , curr_expr = CurrExpr Evaluate pr_s }
     in
     Just (s', ng')
-evalPrimMutVar _ _ e | [Prim WriteMutVar _, _, _, _, _, _] <- unApp e = Nothing
-evalPrimMutVar _ _ _ = Nothing
+evalPrimWithState _ _ e | [Prim WriteMutVar _, _, _, _, _, _] <- unApp e = Nothing
+evalPrimWithState _ _ _ = Nothing
 
 mutVarTy :: KnownValues
          -> Type -- ^ The State type

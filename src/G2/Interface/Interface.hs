@@ -162,6 +162,7 @@ initStateFromSimpleState s m_mod useAssert mkCurr argTys config =
         eenv' = IT.expr_env s'
         tenv' = IT.type_env s'
         ng' = IT.name_gen s'
+        hs = IT.handles s'
         kv' = IT.known_values s'
         tc' = IT.type_classes s'
         (ce, is, f_i, m_coercion, ng'') = mkCurr tc' ng' eenv' tenv' kv' config
@@ -172,6 +173,7 @@ initStateFromSimpleState s m_mod useAssert mkCurr argTys config =
     , curr_expr = CurrExpr Evaluate ce
     , path_conds = PC.fromList []
     , non_red_path_conds = []
+    , handles = hs
     , mutvar_env = HM.empty
     , true_assert = if useAssert then False else True
     , assert_ids = Nothing
@@ -232,6 +234,7 @@ initSimpleState (ExtractedG2 { exg2_binds = prog
         s = IT.SimpleState { IT.expr_env = eenv
                            , IT.type_env = tenv
                            , IT.name_gen = ng
+                           , IT.handles = HM.empty
                            , IT.known_values = kv
                            , IT.type_classes = tc
                            , IT.rewrite_rules = rs
@@ -572,13 +575,15 @@ runG2SubstModel m s@(State { type_env = tenv, known_values = kv }) bindings =
                , s_output = e
                , s_violated = ais
                , s_sym_gens = gens
-               , s_mutvars = mv } = subModel s' bindings
+               , s_mutvars = mv
+               , s_handles = h } = subModel s' bindings
 
         sm = ExecRes { final_state = s'
                      , conc_args = es
                      , conc_out = e
                      , conc_sym_gens = gens
                      , conc_mutvars = mv
+                     , conc_handles = h
                      , violated = ais}
 
         sm' = runPostprocessing bindings sm
@@ -588,6 +593,7 @@ runG2SubstModel m s@(State { type_env = tenv, known_values = kv }) bindings =
                        , conc_out = evalPrims tenv kv (conc_out sm')
                        , conc_sym_gens = gens
                        , conc_mutvars = mv
+                       , conc_handles = conc_handles sm'
                        , violated = evalPrims tenv kv (violated sm')}
     in
     sm''

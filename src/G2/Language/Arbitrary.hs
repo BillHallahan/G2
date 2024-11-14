@@ -83,6 +83,7 @@ instance Arbitrary ArbSimpleState where
                                       , IT.type_classes = initTypeClasses []
                                       , IT.rewrite_rules = []
                                       , IT.exports = []
+                                      , IT.handles = HM.empty
                                       }
         return $ ArbSimple simple_s
 

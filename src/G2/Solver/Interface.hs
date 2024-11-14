@@ -27,6 +27,7 @@ data Subbed = Subbed { s_inputs :: [Expr] -- ^ Concrete `inputNames`
                      , s_violated :: Maybe FuncCall -- ^ Concrete `assert_ids`
                      , s_sym_gens :: S.Seq Expr -- ^ Concrete `sym_gens`
                      , s_mutvars :: [(Name, MVOrigin, Expr)] -- ^ Concrete symbolic `mutvar_env`
+                     , s_handles :: [(Name, Expr)]
                      }
                      deriving Eq
 
@@ -36,12 +37,14 @@ instance ASTContainer Subbed Expr where
         ++ s_output sub:containedASTs (s_violated sub)
         ++ containedASTs (s_sym_gens sub)
         ++ containedASTs (s_mutvars sub)
+        ++ containedASTs (s_handles sub)
     modifyContainedASTs f sub =
         Subbed { s_inputs = map f (s_inputs sub)
                , s_output = f (s_output sub)
                , s_violated = modifyContainedASTs f (s_violated sub)
                , s_sym_gens = modifyContainedASTs f (s_sym_gens sub)
-               , s_mutvars = modifyContainedASTs f (s_mutvars sub) }
+               , s_mutvars = modifyContainedASTs f (s_mutvars sub)
+               , s_handles = modifyContainedASTs f (s_handles sub) }
 
 instance ASTContainer Subbed Type where
     containedASTs sub =
@@ -50,12 +53,14 @@ instance ASTContainer Subbed Type where
         ++ containedASTs (s_violated sub)
         ++ containedASTs (s_sym_gens sub)
         ++ containedASTs (s_mutvars sub)
+        ++ containedASTs (s_handles sub)
     modifyContainedASTs f sub =
         Subbed { s_inputs = modifyContainedASTs f (s_inputs sub)
                , s_output = modifyContainedASTs f (s_output sub)
                , s_violated = modifyContainedASTs f (s_violated sub)
                , s_sym_gens = modifyContainedASTs f (s_sym_gens sub)
-               , s_mutvars = modifyContainedASTs f (s_mutvars sub) }
+               , s_mutvars = modifyContainedASTs f (s_mutvars sub)
+               , s_handles = modifyContainedASTs f (s_handles sub) }
 
 subModel :: State t -> Bindings -> Subbed
 subModel (State { expr_env = eenv
@@ -64,6 +69,7 @@ subModel (State { expr_env = eenv
                 , type_classes = tc
                 , model = m
                 , sym_gens = gens
+                , handles = hs
                 , mutvar_env = mve }) 
           (Bindings {input_names = inputNames}) = 
     let
@@ -81,7 +87,8 @@ subModel (State { expr_env = eenv
                      , s_output = cexpr
                      , s_violated = ais'
                      , s_sym_gens = gs
-                     , s_mutvars = mv }
+                     , s_mutvars = mv
+                     , s_handles = map (\(n, hi) -> (n, Var $ h_start hi)) $ HM.toList hs }
         
         sv = subVar False m eenv tc sub
     in
