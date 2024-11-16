@@ -173,7 +173,9 @@ sampleTests = testGroup "Samples"
 testFileTests :: TestTree
 testFileTests = testGroup "TestFiles"
     [
-      checkExpr "tests/TestFiles/IfTest.hs" 400 "f"
+      checkInputOutputs "tests/TestFiles/Array1.hs" [ ("buildArray1", 15000, [AtLeast 1])
+                                                    , ("buildArray2", 15000, [AtLeast 1])]
+    , checkExpr "tests/TestFiles/IfTest.hs" 400 "f"
         [ RForAll (\[App _ (Lit (LitInt x)), App _ (Lit (LitInt y)), App _ (Lit (LitInt r))] -> 
             if x == y then r == x + y else r == y)
         , AtLeast 2]
@@ -185,7 +187,9 @@ testFileTests = testGroup "TestFiles"
     , checkExprAssumeAssert "tests/TestFiles/AssumeAssert.hs" 400
         (Just "assumeGt5") (Just "assertGt5") "outShouldBeGe5" [Exactly 0]
 
-    , checkInputOutputs "tests/TestFiles/Char.hs" [ ("char", 400, [Exactly 2]) ]
+    , checkInputOutputs "tests/TestFiles/Char.hs" [ ("char", 400, [Exactly 2])
+                                                  , ("f", 1000, [AtLeast 3])
+                                                  , ("g", 1000, [AtLeast 8]) ]
 
     , checkExpr "tests/TestFiles/CheckSq.hs" 400 "checkSq"
         [AtLeast 2, RExists (\[x, _] -> isInt x (\x' -> x' == 3 || x' == -3))]
@@ -199,6 +203,10 @@ testFileTests = testGroup "TestFiles"
                                                      , ("compZZ2", 1600, [AtLeast 2]) ]
 
     , checkInputOutput "tests/TestFiles/Defunc2.hs" "funcMap" 400 [AtLeast 30]
+
+    , checkInputOutput "tests/TestFiles/Ix.hs" "ixRange1" 1000 [AtLeast 10]
+
+    , checkInputOutput "tests/TestFiles/ListComp.hs" "list1" 10000 [Exactly 1]
 
     , checkInputOutput "tests/TestFiles/Imports/MakesSound.hs" "makesSound" 1000 [Exactly 3]
 
@@ -329,7 +337,9 @@ testFileTests = testGroup "TestFiles"
                                                               , ("eq", 700, [AtLeast 10])
                                                               , ("eqGt1", 700, [AtLeast 10])
                                                               , ("capABC", 200, [AtLeast 10])
-                                                              , ("appendEq", 500, [AtLeast 5]) ]
+                                                              , ("appendEq", 500, [AtLeast 5])
+                                                              , ("stringSub1", 7000, [AtLeast 40])
+                                                              , ("stringSub2", 7000, [AtLeast 35]) ]
 
     , checkExpr "tests/TestFiles/Strings/Strings1.hs" 1000 "exclaimEq"
         [AtLeast 5, RExists (\[_, _, r] -> dcHasName "True" r)]
@@ -386,7 +396,9 @@ testFileTests = testGroup "TestFiles"
                                                      , ("kConc", 2000, [Exactly 1])
                                                      , ("m", 1000, [AtLeast 2])
                                                      , ("n", 1000, [AtLeast 2])
-                                                     , ("sqrtSquared", 1000, [AtLeast 2]) ]
+                                                     , ("sqrtSquared", 1000, [AtLeast 2])
+                                                     , ("floorAndCeiling", 1500, [AtLeast 6])
+                                                     , ("roundTest", 1750, [AtLeast 8]) ]
 
     , checkInputOutputs "tests/TestFiles/Doubles1.hs" [ ("infinite", 1000, [AtLeast 3])
                                                       , ("zero", 1000, [AtLeast 3])
@@ -398,7 +410,9 @@ testFileTests = testGroup "TestFiles"
                                                       , ("kConc", 2000, [Exactly 1])
                                                       , ("m", 1000, [AtLeast 2])
                                                       , ("n", 1000, [AtLeast 2])
-                                                      , ("sqrtSquared", 1000, [AtLeast 2]) ]
+                                                      , ("sqrtSquared", 1000, [AtLeast 2])
+                                                      , ("floorAndCeiling", 1500, [AtLeast 6])
+                                                      , ("roundTest", 1750, [AtLeast 8])  ]
 
     , checkInputOutputsInstType "tests/TestFiles/InstTypes1.hs" [ ("lengthList", 200, [AtLeast 1])
                                                         , ("myTuple", 200, [AtLeast 1])

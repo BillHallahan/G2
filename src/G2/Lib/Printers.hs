@@ -393,6 +393,8 @@ mkPrimHaskell pg = pr
         pr FpNeq = "fp./="
 
         pr FpSqrt = "fp.sqrt"
+        pr TruncZero = "fp.truncZero"
+        pr DecimalPart = "fp.decimalPart"
 
         pr FpIsNegativeZero = "isNegativeZero#"
         pr IsNaN = "isNaN#"
@@ -409,6 +411,10 @@ mkPrimHaskell pg = pr
         pr RationalToDouble = "fromRational"
         pr ToInteger = "toInteger"
 
+        pr StrGt = "str.>"
+        pr StrGe = "str.>="
+        pr StrLt = "str.<"
+        pr StrLe = "str.<="
         pr StrLen = "StrLen"
         pr StrAppend = "StrAppend"
         pr Chr = "chr"
