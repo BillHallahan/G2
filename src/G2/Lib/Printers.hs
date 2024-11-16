@@ -143,7 +143,7 @@ mkExprHaskell' off_init cleaned pg ex = mkExprHaskell'' off_init ex
             | Data (DataCon n1 _ _ _) <- e1
             , nameOcc n1 == ":"
             , isCleaned =
-                if isLitChar e2 then printString pg a else printList pg a
+                if isChar e2 then printString pg a else printList pg a
 
             | isInfixable pg e1
             , isCleaned =
@@ -289,7 +289,7 @@ printString pg a =
             | otherwise = "toEnum " ++ show (ord c)
 
 printString' :: Expr -> Maybe T.Text
-printString' (App (App _ (Lit (LitChar c))) e') =
+printString' (App (App _ (App _ (Lit (LitChar c)))) e') =
     case printString' e' of
         Nothing -> Nothing
         Just str -> Just (T.cons c str)
@@ -329,9 +329,9 @@ isApp :: Expr -> Bool
 isApp (App _ _) = True
 isApp _ = False
 
-isLitChar :: Expr -> Bool
-isLitChar (Lit (LitChar _)) = True
-isLitChar _ = False
+isChar :: Expr -> Bool
+isChar (App (Data (DataCon { dc_name = Name "C#" _ _ _ })) (Lit (LitChar _))) = True
+isChar _ = False
 
 data UseHash = UseHash | NoHash deriving Eq
 
