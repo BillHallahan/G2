@@ -289,7 +289,7 @@ evalCase s@(State { expr_env = eenv
           dbind = [(bind, mexpr)]
           expr' = liftCaseBinds dbind expr
           pbinds = zip params ar'
-          (eenv', expr'', ng', news) = liftBinds pbinds eenv expr' ng
+          (eenv', expr'', ng', news) = liftBinds kv pbinds eenv expr' ng
          
       in 
          assert (length params == length ar')
@@ -1162,24 +1162,53 @@ addExtConds s ng e1 ais e2 stck =
 -- look at retype when we are updating the expr from the coercion 
 -- the expr pass in should be telling us whether we should coerce 
 
--- | This function determines whether the [Expr] is a Coercion 
+-- | This function determines whether the [Expr] contain a Coercion 
 -- if we have a Coercion, we want to extract the corresponding types 
 -- in [Id] that are equivalent under Coercion
-isCoercion :: [Expr] -> Bool
-isCoercion [Coercion _] = True
-isCoercion _ = False
+-- now we want to improve the robustness of this code below 
+-- filter out the coercion use parition
+-- coercion + value argument 
+-- multiple coercion 
+-- multiple name type pairs with coercion 
+-- Goal: if you have a bunch of coercion 
+-- you want to make sure the coercion in scrutinee unify with the pattern in a conssitent ways
+-- pattern is the rhs
+-- we want to isolated coercion and the value args
+-- also want to use the known values(ty_coercion) to isolated out the coercion 
+-- 
+containCoercion :: [Expr] -> Bool
+containCoercion e = 
+    let  
+        (co, _) = L.partition (\expr -> case expr of
+                                                Coercion _ -> True
+                                                _          -> False) e
+    in 
+        not $ L.null co 
 
+-- We first verify whether the center of the TyApp is a coercion we known
 -- n1 represent the symoblic type variables 
 -- n2 represent the concrete type that we are reference to 
 -- for example: in concrete GADT when we want to establish a coercion between n and zero
 -- n1 in this case represent n and n2 represent zero
-extractTypes :: [Id] -> (Type, Type)
-extractTypes [Id n (TyApp (TyApp _ n1) n2)] = (n1, n2)
+-- This code is probably find as it's beside the fact we need to: 
+-- checking the center is a cerocion using the known values
+-- print out to determine type or dc coercion from the knownvalues 
 
-liftBinds :: [(Id, Expr)] -> E.ExprEnv -> Expr -> NameGen ->
+extractTypes :: KnownValues -> [Id] -> (Type, Type)
+extractTypes kv [Id _ (TyApp (TyApp (TyApp (TyApp (TyCon n _) _) _) n1) n2)] =
+        trace("ty_coercion: " ++ show (KV.tyCoercion kv) ++ "\n" ++ "dc_coercions: " ++ show (KV.dcCoercion kv))
+        (if KV.tyCoercion kv == n 
+        then    
+            (n1, n2)
+        else
+            error "the center of the id is not a coercion")
+extractTypes _ _ = error "Pattern not matched in extractTypes"
+
+
+liftBinds :: KnownValues -> [(Id, Expr)] -> E.ExprEnv -> Expr -> NameGen ->
              (E.ExprEnv, Expr, NameGen, [Name])
              --trace("The list of RHS " ++ show bindsRHS ++ "\n " ++ "The list of LHS " ++ show bindsLHS)
-liftBinds binds eenv expr ngen =  (eenv', expr'', ngen', news)
+liftBinds kv binds eenv expr ngen = trace("The list of RHS " ++ show bindsRHS ++ "\n " ++ "The list of LHS " ++ show bindsLHS) (eenv', expr'', ngen', news)
   where
  -- when we see the first element from the bindsRHS is Coercion types 
  -- we can start looking at the corresponding bindsLHS
@@ -1188,6 +1217,9 @@ liftBinds binds eenv expr ngen =  (eenv', expr'', ngen', news)
  -- TyApp( TyApp ( TyApp(...) TyCon ) TyCon )
  -- Then, we want to unify them and retype them 
  -- Those functions are located in typing.hs 
+
+ -- bindsLHS is the pattern 
+ -- bindsRHS is the scrutinee 
     (bindsLHS, bindsRHS) = unzip binds
     
     olds = map (idName) bindsLHS
@@ -1198,10 +1230,16 @@ liftBinds binds eenv expr ngen =  (eenv', expr'', ngen', news)
     eenv' = E.insertExprs (zip news bindsRHS) eenv
 
     expr' = renamesExprs olds_news expr
-    expr'' = case isCoercion bindsRHS of               
+    -- Here we want to use the binds 
+    -- first parition the list into coercion and values 
+    -- for the values, keep everything as it's
+    -- for the coercion, maybe consider rename them? but it's already done?
+    -- using the foldl' on the unify' not unfy for each of the coercion because we want to use only one 
+    --- ufmap to check the consistency 
+    expr'' = case containCoercion bindsRHS of               
                 True -> 
                     let
-                        (t1 , t2) = extractTypes bindsLHS
+                        (t1 , t2) = extractTypes kv bindsLHS
                         e = case unify t1 t2 of 
                                     Nothing -> error $ "can't unify types under coercion: " ++ show t1 ++ " " ++ show t2
                                     Just un_map ->
@@ -1210,7 +1248,8 @@ liftBinds binds eenv expr ngen =  (eenv', expr'', ngen', news)
                                             _ -> error "Expected a singleton list in un_map"
                     in
                     e
-                False -> trace ("bindsRHS = " ++ show bindsRHS) expr'
+                -- trace ("bindsRHS = " ++ show bindsRHS)
+                False -> expr'
         
 
 liftBind :: Id -> Expr -> E.ExprEnv -> Expr -> NameGen ->
