@@ -1,3 +1,5 @@
+{-# LANGUAGE FlexibleContexts #-}
+
 module G2.Execution.NormalForms where
 
 import G2.Language
@@ -14,6 +16,9 @@ isSWHNF (State { expr_env = h, curr_expr = CurrExpr _ e }) =
   in case e' of
     Var _ -> (isPrimType t || not (concretizable t)) && isExprValueForm h e'
     _ -> isExprValueForm h e'
+
+stripAllTicks :: ASTContainer m Expr => m -> m
+stripAllTicks = modifyASTs stripTicks
 
 stripTicks :: Expr -> Expr
 stripTicks (Tick _ e) = e
