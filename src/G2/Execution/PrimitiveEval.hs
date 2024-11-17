@@ -86,7 +86,8 @@ evalPrimWithState s ng (App (App (Prim HandlePutChar _) c) hnd)
 
             (new_pos, ng') = freshSeededId (Name "pos" Nothing 0 Nothing) ty_string ng
             e = mkApp [mkCons (known_values s) (type_env s), Type ty_string, c, Var new_pos]
-            s' = s { expr_env = E.insert (idName pos) e (expr_env s)
+            s' = s { expr_env = E.insert (idName pos) e 
+                              $ E.insertSymbolic new_pos (expr_env s)
                    , curr_expr = CurrExpr Evaluate (mkUnit (known_values s) (type_env s))
                    , handles = M.insert n (hi { h_pos = new_pos }) (handles s)}
         in
