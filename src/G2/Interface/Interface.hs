@@ -535,7 +535,6 @@ runG2SolvingResult :: ( Named t
 runG2SolvingResult solver simplifier bindings s
     | true_assert s = do
         r <- solve solver s bindings (E.symbolicIds . expr_env $ s) (path_conds s)
-        print $ E.symbolicIds . expr_env $ s
         case r of
             SAT m -> do
                 let m' = reverseSimplification simplifier s bindings m

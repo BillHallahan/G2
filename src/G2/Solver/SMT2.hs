@@ -1,7 +1,7 @@
 -- | This defines an SMTConverter for the SMT2 language
 -- It provides methods to construct formulas, as well as feed them to an external solver
 
-{-# LANGUAGE CPP #-}
+{-# LANGUAGE BangPatterns, CPP #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE GADTs #-}
@@ -105,11 +105,11 @@ instance SMTConverter Z3 where
     checkSatNoReset con formula = do
         let (h_in, h_out, _) = getIOZ3 con
         -- putStrLn "checkSat"
+        -- T.putStrLn (TB.run $ toSolverText formula)
         
         T.hPutStrLn h_in (TB.run $ toSolverText formula)
         r <- checkSat' h_in h_out
 
-        -- T.putStrLn (TB.run $ toSolverText formula)
         -- putStrLn $ show r
 
         return r
@@ -431,19 +431,33 @@ getModelCVC4 h_in h_out ns = do
             return . (:) (n, out, s) =<< getModel' nss
 
 getLinesMatchParens :: Handle -> IO String
-getLinesMatchParens h_out = getLinesMatchParens' h_out 0
+getLinesMatchParens h_out = getLinesMatchParens' h_out False 0
 
-getLinesMatchParens' :: Handle -> Int -> IO String
-getLinesMatchParens' h_out n = do
+getLinesMatchParens' :: Handle
+                     -> Bool -- ^ Are we in a string?
+                     -> Int -- ^ Unclosed paren count
+                     -> IO String
+getLinesMatchParens' h_out in_string count = do
     out <- hGetLine h_out
     _ <- evaluate (length out)
 
-    let open = countElem '(' out
-    let clse = countElem ')' out
-    let n' = n + open - clse
+    let (count', in_string') = readCountingParen in_string count out
 
-    if n' == 0 then
+    if count' == 0 then
         return out
     else do
-        out' <- getLinesMatchParens' h_out n'
+        out' <- getLinesMatchParens' h_out in_string' count'
         return $ out ++ out'
+
+
+-- | Count the number of unclosed parentheses. Does not count parentheses in strings
+readCountingParen :: Bool -- ^ Are we in a string?
+                  -> Int -- ^ Unclosed paren count
+                  -> String
+                  -> (Int, Bool)
+readCountingParen in_string count "" = (count, in_string)
+readCountingParen False count ('(':xs) = let !count' = count + 1 in readCountingParen False count' xs
+readCountingParen False count (')':xs) = let !count' = count - 1 in readCountingParen False count' xs
+readCountingParen in_string count ('"':'"':xs) = readCountingParen in_string count xs
+readCountingParen in_string count ('"':xs) = readCountingParen (not in_string) count xs
+readCountingParen in_string count (_:xs) = readCountingParen in_string count xs

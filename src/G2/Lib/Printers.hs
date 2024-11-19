@@ -280,13 +280,21 @@ printString pg a =
     let
         maybe_str = printString' a
     in case maybe_str of
-        Just str -> if T.all isPrint str then "\"" <> str <> "\""
-                    else "[" <> T.intercalate ", " (map (T.pack . stringToEnum) $ T.unpack str) <> "]"
+        Just str -> if T.all isPrint str then "\"" <> T.concatMap addEscapeStr str <> "\""
+                    else ("[" <> T.intercalate ", " (map stringToEnum $ T.unpack str) <> "]")
         Nothing -> printList pg a
     where
         stringToEnum c
-            | isPrint c = '\'':c:'\'':[]
-            | otherwise = "toEnum " ++ show (ord c)
+            | isPrint c = "\'" <> addEscapeChar c <> "\'"
+            | otherwise = T.pack $ "toEnum " ++ show (ord c)
+
+        addEscapeStr '"' = "\\\""
+        addEscapeStr '\\' = "\\\\"
+        addEscapeStr c = T.singleton c
+
+        addEscapeChar '\'' = "\\'"
+        addEscapeChar '\\' = "\\\\"
+        addEscapeChar c = T.singleton c
 
 printString' :: Expr -> Maybe T.Text
 printString' (App (App _ (App _ (Lit (LitChar c)))) e') =
