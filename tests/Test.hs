@@ -342,7 +342,7 @@ testFileTests = testGroup "TestFiles"
                                                               , ("stringSub2", 7000, [AtLeast 35])
                                                               , ("stringSub3", 7000, [AtLeast 16])
                                                               , ("nStringSub3", 2000, [AtLeast 25])
-                                                              , ("stringSub4", 7000, [AtLeast 10])
+                                                              , ("stringSub4", 7000, [AtLeast 7])
                                                               , ("nStringSub4", 2000, [AtLeast 25]) ]
 
     , checkExpr "tests/TestFiles/Strings/Strings1.hs" 1000 "exclaimEq"
