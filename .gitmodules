@@ -4,3 +4,6 @@
 [submodule "nofib-symbolic"]
 	path = nofib-symbolic
 	url = https://github.com/BillHallahan/nofib-symbolic.git
+[submodule "nofib-buggy-symbolic"]
+	path = nofib-buggy-symbolic
+	url = https://github.com/BillHallahan/nofib-buggy-symbolic

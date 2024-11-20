@@ -54,3 +54,19 @@ n x y | x > y = (x * y, x / y)
 sqrtSquared :: NaNEq -> (Bool, NaNEq, NaNEq)
 sqrtSquared x | sqrt x * sqrt x == x = (True, x, sqrt x * sqrt x)
               | otherwise  = (False, x, sqrt x * sqrt x)
+
+floorAndCeiling :: NaNEq -> (Int, Int, Int)
+floorAndCeiling (F x)
+    | isNaN x || isInfinite x = (0, 0, 0)
+    | x > 11 = (1, floor x, ceiling x)
+    | x < -4 = (2, floor x, ceiling x)
+    | otherwise =  (3, floor x, ceiling x)
+
+roundTest :: NaNEq -> (Integer, Integer)
+roundTest (F x) | isNaN x || isInfinite x = (0, 0)
+                | x > 1000 || x < -1000 = (0, 0)
+                | r > 10 && r < 20 = (1, r)
+                | r < -10 && r > -100 = (2, r)
+                | otherwise = (3, r)
+    where
+        r = round x

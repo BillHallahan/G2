@@ -369,6 +369,10 @@ funcToSMT1Prim :: Primitive -> Expr -> SMTAST
 funcToSMT1Prim Negate a = Neg (exprToSMT a)
 funcToSMT1Prim FpNeg a = FpNegSMT (exprToSMT a)
 funcToSMT1Prim FpSqrt e = FpSqrtSMT (exprToSMT e)
+funcToSMT1Prim TruncZero e | typeOf e == TyLitFloat = FloatToIntSMT (TruncZeroSMT (exprToSMT e))
+                           | typeOf e == TyLitDouble = DoubleToIntSMT (TruncZeroSMT (exprToSMT e))
+funcToSMT1Prim DecimalPart e | typeOf e == TyLitFloat = exprToSMT e `FpSubSMT` TruncZeroSMT (exprToSMT e)
+                             | typeOf e == TyLitDouble = exprToSMT e `FpSubSMT` TruncZeroSMT (exprToSMT e)
 funcToSMT1Prim FpIsNegativeZero e =
     let
         nz = "INTERNAL_!!_IsNegZero"
@@ -422,6 +426,11 @@ funcToSMT2Prim Mod a1 a2 = exprToSMT a1 `Modulo` exprToSMT a2
 funcToSMT2Prim Rem a1 a2 = exprToSMT a1 :- ((exprToSMT a1 `QuotSMT` exprToSMT a2) :* exprToSMT a2) -- TODO: more efficient encoding?
 funcToSMT2Prim RationalToFloat a1 a2  = exprToSMT a1 :/ exprToSMT a2
 funcToSMT2Prim RationalToDouble a1 a2  = exprToSMT a1 :/ exprToSMT a2
+
+funcToSMT2Prim StrGe a1 a2 = exprToSMT a1 `StrGeSMT` exprToSMT a2
+funcToSMT2Prim StrGt a1 a2 = exprToSMT a1 `StrGtSMT` exprToSMT a2
+funcToSMT2Prim StrLt a1 a2 = exprToSMT a1 `StrLtSMT` exprToSMT a2
+funcToSMT2Prim StrLe a1 a2 = exprToSMT a1 `StrLeSMT` exprToSMT a2
 funcToSMT2Prim StrAppend a1 a2  = exprToSMT a1 :++ exprToSMT a2
 funcToSMT2Prim op lhs rhs = error $ "funcToSMT2Prim: invalid case with (op, lhs, rhs): " ++ show (op, lhs, rhs)
 
@@ -551,6 +560,8 @@ toSolverAST (FpIsZero x) = function1 "fp.isZero" (toSolverAST x)
 toSolverAST (FpIsNegative x) = function1 "fp.isNegative" (toSolverAST x)
 
 toSolverAST (FpSqrtSMT x) = function2 "fp.sqrt" "RNE" (toSolverAST x)
+toSolverAST (TruncZeroSMT x) = function2 "fp.roundToIntegral" "RTZ" (toSolverAST x)
+
 toSolverAST (IsNaNSMT x) = function1 "fp.isNaN" (toSolverAST x)
 toSolverAST (IsInfiniteSMT x) = function1 "fp.isInfinite" (toSolverAST x)
 
@@ -568,6 +579,11 @@ toSolverAST (ArrayStore arr ind val) =
 
 toSolverAST (Func n xs) = smtFunc n $ map (toSolverAST) xs
 
+toSolverAST (StrGeSMT x y) = function2 "str.>=" (toSolverAST x) (toSolverAST y)
+toSolverAST (StrGtSMT x y) = function2 "str.>" (toSolverAST x) (toSolverAST y)
+toSolverAST (StrLtSMT x y) = function2 "str.<" (toSolverAST x) (toSolverAST y)
+toSolverAST (StrLeSMT x y) = function2 "str.<=" (toSolverAST x) (toSolverAST y)
+
 toSolverAST (x :++ y) = function2 "str.++" (toSolverAST x) (toSolverAST y)
 toSolverAST (FromInt x) = function1 "str.from_int" $ toSolverAST x
 toSolverAST (StrLenSMT x) = function1 "str.len" $ toSolverAST x
@@ -575,6 +591,10 @@ toSolverAST (StrLenSMT x) = function1 "str.len" $ toSolverAST x
 toSolverAST (IntToRealSMT x) = function1 "to_real" $ toSolverAST x
 toSolverAST (IntToFloatSMT x) = function2 "(_ to_fp 8 24)" "RNE" (function1 "(_ int2bv 32)" $ toSolverAST x)
 toSolverAST (IntToDoubleSMT x) = function2 "(_ to_fp 11 53)" "RNE" (function1 "(_ int2bv 64)" $ toSolverAST x)
+-- toSolverAST (FloatToIntSMT x) = function1 "to_int" (function1 "fp.to_real" $ toSolverAST x)
+toSolverAST (FloatToIntSMT x) = bvToSignedInt 32 (function2 "(_ fp.to_sbv 32)" "RNE" $ toSolverAST x)
+-- toSolverAST (DoubleToIntSMT x) = function1 "to_int" (function1 "fp.to_real" $ toSolverAST x)
+toSolverAST (DoubleToIntSMT x) = bvToSignedInt 32 (function2 "(_ fp.to_sbv 32)" "RNE" $ toSolverAST x)
 
 toSolverAST (Ite x y z) =
     function3 "ite" (toSolverAST x) (toSolverAST y) (toSolverAST z)
@@ -596,6 +616,26 @@ toSolverAST (V n _) = TB.string n
 toSolverAST (Named x n) = "(! " <> toSolverAST x <> " :named " <> TB.string n <> ")"
 
 toSolverAST ast = error $ "toSolverAST: invalid SMTAST: " ++ show ast
+
+-- | Converts a bit vector to a signed Int.
+-- Z3 has a bv2int function, but uses unsigned integers.
+-- The bit vector theory:
+--      https://smt-lib.org/theories-FixedSizeBitVectors.shtml
+-- has a note about converting bit vectors to signed ints:
+--   "bv2int, which takes a bitvector b: [0, m) → {0, 1}
+--    with 0 < m, and returns an integer in the range [- 2^(m - 1), 2^(m - 1)),
+--    and is defined as follows:
+--        bv2int(b) := if b(m-1) = 0 then bv2nat(b) else bv2nat(b) - 2^m"
+bvToSignedInt :: Int -- ^ Bitvector width
+              -> TB.Builder -- ^ Bitvector SMT expression
+              -> TB.Builder
+bvToSignedInt w smt =
+    let
+        ext = showText (w - 1)
+    in
+    function3 "ite" (function2 "=" (function1 ("(_ extract " <> ext <> " " <> ext <> ")") smt) "#b0")
+                    (function1 "bv2nat" smt)
+                    (function2 "-" (function1 "bv2nat" smt) (showText (2^w :: Integer)))
 
 convertFloating :: (Num b, Bits.FiniteBits b) => (a -> b) -> Int -> a -> TB.Builder
 convertFloating conv eb_width f =

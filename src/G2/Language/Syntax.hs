@@ -202,6 +202,9 @@ data Primitive = -- Mathematical and logical operators
                | IsNaN
                | IsInfinite
 
+               | TruncZero
+               | DecimalPart
+
                -- GHC conversions from data constructors to Int#, and vice versa
                | DataToTag
                | TagToEnum
@@ -216,6 +219,10 @@ data Primitive = -- Mathematical and logical operators
                | ToInt
                
                -- String Handling
+               | StrGt
+               | StrGe
+               | StrLt
+               | StrLe
                | StrLen
                | StrAppend
                | Chr
