@@ -186,9 +186,9 @@ deepLookupExpr e _  = Just e
 
 -- | Checks if the given `Name` belongs to a symbolic variable.
 isSymbolic :: Name -> ExprEnv -> Bool
-isSymbolic n (ExprEnv eenv') =
-    case M.lookup n eenv' of
-        Just (SymbObj _) -> True
+isSymbolic n eenv =
+    case lookupConcOrSym n eenv of
+        Just (Sym _) -> True
         _ -> False
 
 -- TODO -- This seems kinda too much like a special case to be here...

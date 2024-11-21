@@ -62,6 +62,7 @@ module G2.Execution.Reducer ( Reducer (..)
                             , nonRedLibFuncsReducer
                             , nonRedPCRed
                             , nonRedPCRedConst
+                            , strictRed
                             , taggerRed
                             , getLogger
                             , simpleLogger
@@ -115,6 +116,7 @@ module G2.Execution.Reducer ( Reducer (..)
 
 import G2.Config
 import qualified G2.Language.ExprEnv as E
+import G2.Execution.NormalForms
 import G2.Execution.Rules
 import G2.Language
 import qualified G2.Language.Monad as MD
@@ -122,6 +124,7 @@ import qualified G2.Language.PathConds as PC
 import qualified G2.Language.Stack as Stck
 import G2.Solver
 import G2.Lib.Printers
+
 import Control.Monad.IO.Class
 import qualified Control.Monad.State as SM
 import Data.Foldable
@@ -572,8 +575,138 @@ nonRedLibFuncs names _ s@(State { expr_env = eenv
                 False -> return (Finished, [(s, ())], b)
 
     | otherwise = return (Finished, [(s, ())], b)
-     
 
+-- Note [Ignore Update Frames]
+-- In `strictRed`, when deciding whether to split up an expression to force strict evaluation of subexpression,
+-- we pop UpdateFrames off the stack and search down for a CurrExprFrame (or empty stack).
+-- To see why we do this (rather than just letting UpdateFrames be handled by the stdRed) consider the following example.
+--
+-- Suppose we are reducing the following walk function:
+-- @
+--  walk [] = []
+--  walk (x:xs) = x:walk xs 
+-- @
+-- on a symbolic variable ys:
+-- @ walk ys @
+-- we will reach a state where s has been concretized to `y:ys'` and we have the current expression:
+-- @ y:walk ys' @
+-- At this point strictRed will kick in.  It will introduce fresh bindings z and zs', such that:
+-- @ z = y
+--   zs' = ys'
+-- @
+-- and set up the stack as:
+-- @ CurrExprFrame NoAction z
+--   CurrExprFrame NoAction zs'
+--   CurrExprFrame NoAction (z:zs') @
+-- Then, we will eventually reduce zs', and get, for some symbolic y' and ys'':
+-- @ y':walk ys''@
+-- with `UpdateFrame zs'` on the top of the stack.
+--
+-- If we did NOT handle update frames in the strictRed, we would store `zs' -> walk ys''` in the heap,
+-- and then strictRed would (similarly to before) introduce new symbolic variables z' and zs'',
+-- rewriting the expression to
+-- @z':zs''@
+-- and updating the stack to hold:
+-- @ CurrExprFrame NoAction z'
+--   CurrExprFrame NoAction zs''
+--   CurrExprFrame NoAction (z':zs'')
+--   CurrExprFrame NoAction (z:zs') @
+-- (Note: the first three Frames are new, the last frame is a holdover.)
+-- But now, when we eventually move down the stack to reach the final frame:
+-- @ CurrExprFrame NoAction (z:zs') @
+-- we still have `zs' -> y':walk ys''` in the heap- and so we will just repeatedly try and reduce
+-- this subexpression in a loop- we can never again update the binding of zs'.
+-- Thus, we want to ensure all subexpressions of zs' are variables- which can then themselves hav
+-- bindings be evaluated to SWHNF- skipping past `UpdateFrame`s allows us to accomplish this.
+
+
+-- | Force the `curr_expr` of each `State` to be fully evaluated.
+-- That is, we evaluate not just to SWHNF, but so that all subexpressions are in SWHNF.
+--
+-- Depending on the `Halter`s and other `Reducer`s being used, some care must be taken.
+-- Suppose we have `strictRed --> stdRed` as a `Reducer`, and `swhnfHalter` as a `Halter`.
+-- In this case, `stdRed` might reduce to a SWHNF expression, and the state would then be
+-- accepted before `strictRed` has time to force full evaluation.
+-- For this reason, it is typically preferable to make `strictRed` one of the last `Reducer`s
+-- to fire on each step, i.e. we would prefer `stdRed --> strictRed`
+strictRed :: Monad m => Reducer m () t
+strictRed = mkSimpleReducer (\_ -> ())
+                            strict_red
+    where
+        strict_red _ s@(State { curr_expr = ce@(CurrExpr Return e)
+                              , expr_env = eenv
+                              , exec_stack = stck })
+                     b@(Bindings { name_gen = ng })
+            | Data d:es@(_:_) <- unApp e
+            , exec_done
+            -- must_red checks if the expression contains non-fully-reduced subexpressions.
+            -- Without this check, the strictRed might repeatedly fire, fruitlessly arranging for already reduced
+            -- subexpressions to be repeatedly reduced over and over, and preventing the involved `State` from
+            -- being halted.
+            , must_red HS.empty e =
+                let
+                    -- Given a `curr_expr` of the form:
+                    --   @ D e1 ... ek @
+                    -- Rewrites to:
+                    --   @ D x1 ... xk@
+                    -- and inserts @x1 -> e1@, ..., @xk -> ek@ in the heap.  This means we can then evaluate
+                    -- `x1, ... xk` and rely on sharing to correctly get a fully evaluated expression.
+                    (is, ng') = freshIds (map typeOf es) ng
+                    eenv' = foldl' (\env (Id n _, e_) -> E.insert n e_ env) eenv $ zip is es
+                    ce_expr = mkApp $ Data d:map Var is
+                    ce' = CurrExpr Return ce_expr
+                    stck'' = foldl' (\st i -> Stck.push (CurrExprFrame NoAction (CurrExpr Evaluate $ Var i)) st)
+                                   (Stck.push (CurrExprFrame NoAction ce') stck' )
+                                   (tail is)
+                    -- Handle update frames
+                    eenv'' = foldr (\n -> E.insert n ce_expr) eenv' updates
+                    
+                    s' = s { expr_env = eenv''
+                           , curr_expr = CurrExpr Evaluate (Var $ head is)
+                           , exec_stack = stck'' }
+                in
+                return (InProgress, [(s', ())], b { name_gen = ng' })
+            where
+                -- To decide when to apply the strictRed, we must 
+                -- (1) remove all update frames from the top of the stack
+                -- (2) check if the top of the stack is a CurrExprFrame (or empty)
+                -- We effectively ignore UpdateFrames when checking if we should split up an expression to force strictness
+                -- See Note [Ignore Update Frames].
+                (updates, stck') = pop_updates [] stck
+
+                exec_done | Stck.null stck' = True
+                          | Just (CurrExprFrame _ _, _) <- Stck.pop stck' = True
+                          | otherwise = False
+
+                pop_updates ns stck | Just (UpdateFrame n, stck_) <- Stck.pop stck = pop_updates (n:ns) stck_
+                                    | otherwise = (ns, stck)
+
+                -- | Does the expression contain non-fully-reduced subexpressions?
+                --
+                -- Looks through variables, but tracks seen variable names to avoid an infinite loop.
+                --
+                -- Lambdas that are not in the center of an application (or bound by top level variables/nested in top level casts)
+                -- are fully reduced, but reduction must happen if a lambda is in the center of an `App`.
+                must_red ns (Var (Id n _)) = mr_var must_red ns n
+                must_red _ (Lam _ _ _) = False
+                must_red ns (Cast c_e _) = must_red ns c_e
+                must_red ns e_ = must_red_no_lam ns e_
+
+                must_red_no_lam ns (Var (Id n _)) = mr_var must_red_no_lam ns n
+                must_red_no_lam _ (Lit _) = False
+                must_red_no_lam _ (Data _) = False
+                must_red_no_lam _ (Type _) = False
+                must_red_no_lam _ (Prim _ _) = False
+                must_red_no_lam ns (App e1 e2) = must_red_no_lam ns e1 || must_red ns e2
+                must_red_no_lam ns (Cast c_e _) = must_red_no_lam ns c_e
+                must_red_no_lam _ (Coercion _) = False
+                must_red_no_lam _ _ = True
+
+                mr_var cont ns n | HS.member n ns = False -- If we have seen a variable already,
+                                                          -- we will have already discovered if it needs to be reduced
+                                 | E.isSymbolic n eenv = False
+                                 | otherwise = maybe True (cont (HS.insert n ns)) (E.lookup n eenv)
+        strict_red _ s b = return (NoProgress, [(s, ())], b)
 
 -- | Removes and reduces the values in a State's non_red_path_conds field. 
 {-#INLINE nonRedPCRed #-}

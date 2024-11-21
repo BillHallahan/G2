@@ -8,7 +8,7 @@ compareInitChars :: IO (Char, Char, Bool)
 compareInitChars = do
     c1 <- hGetChar stdin
     c2 <- hGetChar stdin
-    return (c1, c2, c1 == c2)
+    return (c1, c2, not (c1 == c2))
 
 take10Contents :: IO String
 take10Contents = do
