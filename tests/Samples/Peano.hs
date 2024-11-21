@@ -6,6 +6,10 @@ add :: Peano -> Peano -> Peano
 add Zero p = p
 add (Succ p) p2 = add p (Succ p2)
 
+add2 :: Peano -> Peano -> Peano
+add2 Zero p = p
+add2 (Succ p) p2 = Succ (add p p2)
+
 --Subtracts the smaller number from the larger number
 sub :: Peano -> Peano -> Peano
 sub (Succ p1) (Succ p2) = sub p1 p2

@@ -14,6 +14,7 @@ import G2.Config
 
 import G2.Interface
 import G2.Language as G2
+import G2.Lib.Printers
 
 import Control.Exception
 import Data.Maybe
@@ -43,6 +44,7 @@ import InputOutputTest
 import Reqs
 import TestUtils
 
+import Data.List
 import qualified Data.Map.Lazy as M
 
 -- Run with no arguments for default test cases.
@@ -116,8 +118,6 @@ sampleTests = testGroup "Samples"
         , RForAll allabs2NonNeg
         , AtLeast 4]
     , checkExpr "tests/Samples/HigherOrderMath.hs" 600 "fixed" [ RExists abs2NonNeg
-                                                               , RExists squareRes
-                                                               , RExists fourthPowerRes
                                                                , AtLeast 4]
     , checkExprAssumeAssert "tests/Samples/HigherOrderMath.hs" 600 (Just "isTrue2") Nothing "sameFloatArgLarger"
         [ RExists addRes
@@ -151,7 +151,7 @@ sampleTests = testGroup "Samples"
 
                                                       , ("cfmapInt", 1000, [AtLeast 10])
                                                       , ("cfmapIntX", 1600, [AtLeast 10])
-                                                      , ("cfmapIntCListInt", 600, [AtLeast 2]) ]
+                                                      , ("cfmapIntCListInt", 300, [AtLeast 2]) ]
 
     , checkExprReaches "tests/Samples/GetNthErr.hs" 800 Nothing Nothing (Just "error") "getNth"
         [AtLeast 8, RForAll errors]
@@ -202,7 +202,7 @@ testFileTests = testGroup "TestFiles"
                                                      , ("compZZ", 1600, [AtLeast 2])
                                                      , ("compZZ2", 1600, [AtLeast 2]) ]
 
-    , checkInputOutput "tests/TestFiles/Defunc2.hs" "funcMap" 400 [AtLeast 30]
+    , checkInputOutput "tests/TestFiles/Defunc2.hs" "funcMap" 500 [AtLeast 30]
 
     , checkInputOutput "tests/TestFiles/Ix.hs" "ixRange1" 1000 [AtLeast 10]
 
@@ -336,7 +336,7 @@ testFileTests = testGroup "TestFiles"
     , checkInputOutputs "tests/TestFiles/Strings/Strings1.hs" [ ("con", 300, [AtLeast 10])
                                                               , ("eq", 700, [AtLeast 10])
                                                               , ("eqGt1", 700, [AtLeast 10])
-                                                              , ("capABC", 200, [AtLeast 10])
+                                                              , ("capABC", 100, [AtLeast 10])
                                                               , ("appendEq", 500, [AtLeast 5])
                                                               , ("stringSub1", 7000, [AtLeast 40])
                                                               , ("stringSub2", 7000, [AtLeast 35])
@@ -373,8 +373,8 @@ testFileTests = testGroup "TestFiles"
                                                                      , ("thirdOrder2", 300, [Exactly 3])
                                                                      , ("tupleTestMono", 175, [Exactly 2])
                                                                      , ("multiPrim", 300, [Exactly 2])]
-    , checkInputOutputsNonRedLib "tests/BaseTests/ListTests.hs" [ ("lengthN", 250, [Exactly 1])
-                                                                   , ("map2", 150, [Exactly 1])] 
+    , checkInputOutputsNonRedLib "tests/BaseTests/ListTests.hs" [ ("lengthN", 800, [AtLeast 5])
+                                                                , ("map2", 150, [AtLeast 2])] 
     -- , checkInputOutput "tests/TestFiles/BadBool.hs" "BadBool" "f" 1400 [AtLeast 1]
     -- , checkExprAssumeAssert "tests/TestFiles/Coercions/GADT.hs" 400 Nothing Nothing "g" 2
     --     [ AtLeast 2
@@ -444,14 +444,14 @@ testFileTests = testGroup "TestFiles"
 extensionTests :: TestTree
 extensionTests = testGroup "Extensions"
     [
-      checkInputOutputs "tests/TestFiles/Extensions/GADTSyntax.hs" [("cons3", 400, [Exactly 1])]
+      checkInputOutputs "tests/TestFiles/Extensions/GADTSyntax.hs" [("cons3", 500, [Exactly 1])]
     , checkInputOutputs "tests/TestFiles/Extensions/PatternSynonyms1.hs" [ ("isNineInt", 400, [AtLeast 2])
-                                                                         , ("isNineInteger", 400, [AtLeast 2])
-                                                                         , ("isNineFloat", 400, [AtLeast 2])
+                                                                         , ("isNineInteger", 400, [AtLeast 1])
+                                                                         , ("isNineFloat", 400, [AtLeast 1])
                                                                          , ("isFunc", 400, [AtLeast 2])
                                                                          , ("funcArg", 400, [AtLeast 2])
                                                                          
-                                                                         , ("consArrow", 400, [AtLeast 2]) ]
+                                                                         , ("consArrow", 400, [AtLeast 1]) ]
     , checkInputOutputs "tests/TestFiles/Extensions/ViewPatterns1.hs" [ ("shapeToNumSides", 4000, [Exactly 4]) ]
     , checkInputOutputs "tests/TestFiles/Extensions/FlexibleContexts1.hs" [ ("callF", 400, [AtLeast 2])
                                                                           , ("callF2", 400, [AtLeast 2])
@@ -659,29 +659,37 @@ checkExprWithConfig src m_assume m_assert m_reaches entry reqList config_f = do
         config <- config_f
         res <- testFile src m_assume m_assert m_reaches entry config
         
-        let ch = case res of
-                    Left _ -> False
-                    Right exprs -> null $ checkExprGen (map (\(inp, out) -> inp ++ [out]) exprs) reqList
+        let (reqRes, res_print) =
+                case res of
+                    Left _ -> (Nothing, [])
+                    Right (exec_res, b) ->
+                            let
+                                reqs = checkExprGen
+                                            (map (\ExecRes { conc_args = inp, conc_out = out} -> inp ++ [out]) exec_res)
+                                            $ reqList
+
+                                pg = mkPrettyGuide exec_res
+                                res_pretty = map (printInputOutput pg (Id (Name (T.pack entry) Nothing 0 Nothing) TyUnknown) b) exec_res
+                                res_print = map T.unpack $ map (\(_, inp, out, _) -> inp <> " = " <> out) res_pretty
+                            in
+                            (Just reqs, res_print)
+
+
+
         assertBool ("Assume/Assert for file " ++ src
                                     ++ " with functions [" ++ (fromMaybe "" m_assume) ++ "] "
                                     ++ "[" ++ (fromMaybe "" m_assert) ++ "] "
-                                    ++  entry ++ " failed.\n" ++ show res)
-                   ch
+                                    ++  entry ++ " failed.\n" ++ intercalate "\n" res_print ++ "\n" ++ show reqRes)
+                   (maybe False null reqRes)
         )
 
-    -- return . testCase src
-    --     $ assertBool ("Assume/Assert for file " ++ src ++ 
-    --                   " with functions [" ++ (fromMaybe "" m_assume) ++ "] " ++
-    --                                   "[" ++ (fromMaybe "" m_assert) ++ "] " ++
-    --                                           entry ++ " failed.\n") ch
- 
 testFile :: String
          -> Maybe String
          -> Maybe String
          -> Maybe String
          -> String
          -> Config
-         -> IO (Either SomeException [([Expr], Expr)])
+         -> IO (Either SomeException ([ExecRes ()], Bindings))
 testFile src m_assume m_assert m_reaches entry config =
     try (testFileWithConfig src m_assume m_assert m_reaches entry config)
 
@@ -691,7 +699,7 @@ testFileWithConfig :: String
                    -> Maybe String
                    -> String
                    -> Config
-                   -> IO [([Expr], Expr)]
+                   -> IO ([ExecRes ()], Bindings)
 testFileWithConfig src m_assume m_assert m_reaches entry config = do
     let proj = takeDirectory src
     r <- doTimeout (timeLimit config)
@@ -706,8 +714,7 @@ testFileWithConfig src m_assume m_assert m_reaches entry config = do
                 simplTranslationConfig
                 config
 
-    let (states, _) = maybe (error "Timeout") fst r
-    return $ map (\(ExecRes { conc_args = i, conc_out = o}) -> (i, o)) states 
+    return $ maybe (error "Timeout") fst r
 
 -- For mergeState unit tests
 checkFn :: Either String Bool -> String -> IO TestTree

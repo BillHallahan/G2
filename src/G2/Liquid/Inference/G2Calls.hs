@@ -172,10 +172,9 @@ runLHG2Inference :: (MonadIO m, Solver solver, Simplifier simplifier)
                  -> Bindings
                  -> m ([ExecRes AbstractedInfo], Bindings)
 runLHG2Inference config red hal ord solver simplifier pres_names init_id final_st bindings = do
-    let only_abs_st = addTicksToDeepSeqCases (deepseq_walkers bindings) final_st
     (ret, final_bindings) <- case (red, hal, ord) of
                                 (SomeReducer red', SomeHalter hal', SomeOrderer ord') ->
-                                    runG2ThroughExecution red' hal' ord' pres_names only_abs_st bindings
+                                    runG2ThroughExecution red' hal' ord' pres_names final_st bindings
     
     ret' <- filterM (satState solver) ret
     let ret'' = onlyMinimalStates $ map (earlyExecRes final_bindings) ret'
@@ -307,8 +306,9 @@ satState solver s
 -- | Generate soft path constraints that encourage the `abstract` function call arguments
 -- to be the same as the `real` function call arguments.
 softAbstractResembleReal :: State AbstractedInfo -> PathConds
-softAbstractResembleReal =
-    foldr PC.union PC.empty . map softAbstractResembleReal' . abs_calls . track
+softAbstractResembleReal s =
+      foldr PC.union PC.empty . map softAbstractResembleReal' 
+    . modifyContainedASTs (inline (expr_env s) HS.empty) . abs_calls . track $ s
 
 softAbstractResembleReal' :: Abstracted -> PathConds
 softAbstractResembleReal' abstracted =
@@ -369,7 +369,7 @@ gatherAllowedCalls entry m lrs ghci infconfig config lhconfig = do
                               let fs = final_state er in
                               map (fs,) $ track fs) exec_res
 
-        fc_red = SomeReducer (stdRed (sharing config') retReplaceSymbFuncVar solver simplifier)
+        fc_red = SomeReducer (stdRed (sharing config') retReplaceSymbFuncVar solver simplifier ~> strictRed)
 
     (_, red_calls) <- mapAccumM 
                                 (\b (fs, fc) -> do
@@ -416,8 +416,8 @@ gatherReducerHalterOrderer infconfig config lhconfig solver simplifier = do
     timer_halter <- stdTimerHalter (timeout_se infconfig * 3)
 
     let red = case m_logger of
-                    Just logger -> logger .~> SomeReducer (gathererReducer ~> stdRed share retReplaceSymbFuncVar solver simplifier)
-                    Nothing -> SomeReducer (gathererReducer ~> stdRed share retReplaceSymbFuncVar solver simplifier)
+                    Just logger -> logger .~> SomeReducer (gathererReducer ~> stdRed share retReplaceSymbFuncVar solver simplifier ~> strictRed)
+                    Nothing -> SomeReducer (gathererReducer ~> stdRed share retReplaceSymbFuncVar solver simplifier ~> strictRed)
 
     return
         (red .== Finished .--> (taggerRed state_name :== Finished --> nonRedPCRed)
@@ -553,7 +553,8 @@ inferenceReducerHalterOrderer infconfig config lhconfig solver simplifier entry 
                     redArbErrors :== Finished .-->
                 SomeReducer (allCallsRed ~>
                              higherOrderCallsRed ~>
-                             stdRed share retReplaceSymbFuncVar solver simplifier)
+                             stdRed share retReplaceSymbFuncVar solver simplifier ~> 
+                             strictRed)
 
     return $
         (
@@ -634,7 +635,7 @@ realCExReducerHalterOrderer infconfig config lhconfig entry modname solver simpl
                  <~> lhAcceptIfViolatedHalter
                  <~> timer_halter
         
-        lh_std_red = lhRed cfn :== Finished --> stdRed share retReplaceSymbFuncVar solver simplifier
+        lh_std_red = lhRed cfn :== Finished --> stdRed share retReplaceSymbFuncVar solver simplifier ~> strictRed
         log_opt_red = case m_logger of
                         Just logger -> logger .~> lh_std_red
                         Nothing -> lh_std_red
@@ -924,12 +925,12 @@ evalMeasures init_meas lrs ghci es = do
                , ls_memconfig = pres_names } <- liftIO $ extractWithoutSpecs lrs (Id (Name "" Nothing 0 Nothing) TyUnknown) ghci memc
 
     let s' = s { true_assert = True }
-        (final_s, final_b) = markAndSweepPreserving pres_names s' bindings
+        final_s = markAndSweepPreserving pres_names s' bindings
 
         tot_meas = E.filter (isTotal (type_env s)) meas
 
     SomeSolver solver <- liftIO $ initSolver config
-    meas_res <- foldM (evalMeasures' (final_s {type_env = type_env s}) final_b solver config tot_meas tcv) init_meas $ filter (not . isError) es
+    meas_res <- foldM (evalMeasures' (final_s {type_env = type_env s}) bindings solver config tot_meas tcv) init_meas $ filter (not . isError) es
     liftIO $ close solver
     return meas_res
     where
@@ -1050,13 +1051,8 @@ evalMeasuresCE :: State t -> Bindings -> TCValues -> [Id] -> Expr -> [M.Map Name
 evalMeasuresCE s bindings tcv is e bound =
     let
         meas_call = map (uncurry tyAppId) $ zip is bound
-        ds = deepseq_walkers bindings
-
-        call =  foldr App e meas_call
-        str_call = mkStrict_maybe ds call
-        lh_dicts_call = maybe call (fillLHDictArgs ds)  str_call
     in
-    lh_dicts_call
+    foldr App e meas_call
     where
         tyAppId i b =
             let
@@ -1082,7 +1078,7 @@ genericG2Call config solver s bindings = do
     let simplifier = NaNInfBlockSimplifier :>> FloatSimplifier :>> ArithSimplifier
         share = sharing config
 
-    fslb <- runG2WithSomes (SomeReducer (stdRed share retReplaceSymbFuncVar solver simplifier))
+    fslb <- runG2WithSomes (SomeReducer (stdRed share retReplaceSymbFuncVar solver simplifier ~> strictRed))
                            (SomeHalter swhnfHalter)
                            (SomeOrderer nextOrderer)
                            solver simplifier PreserveAllMC s bindings
@@ -1105,7 +1101,7 @@ genericG2CallLogging config solver s bindings lg = do
     let simplifier = NaNInfBlockSimplifier :>> FloatSimplifier :>> ArithSimplifier
         share = sharing config
 
-    fslb <- runG2WithSomes (SomeReducer (prettyLogger lg ~> stdRed share retReplaceSymbFuncVar solver simplifier))
+    fslb <- runG2WithSomes (SomeReducer (prettyLogger lg ~> stdRed share retReplaceSymbFuncVar solver simplifier  ~> strictRed))
                            (SomeHalter swhnfHalter)
                            (SomeOrderer nextOrderer)
                            solver simplifier PreserveAllMC s bindings

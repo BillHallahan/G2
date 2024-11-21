@@ -1,7 +1,13 @@
 {-# LANGUAGE Rank2Types #-}
 {-# LANGUAGE FlexibleContexts, OverloadedStrings #-}
 
-module G2.Execution.PrimitiveEval (evalPrims, mutVarTy, evalPrimWithState, newMutVar, maybeEvalPrim, evalPrimSymbolic) where
+module G2.Execution.PrimitiveEval ( evalPrimsSharing
+                                  , evalPrims
+                                  , mutVarTy
+                                  , evalPrimWithState
+                                  , newMutVar
+                                  , maybeEvalPrim
+                                  , evalPrimSymbolic) where
 
 import G2.Language.AST
 import G2.Language.Expr
@@ -20,7 +26,46 @@ import Data.Maybe
 import qualified G2.Language.ExprEnv as E
 import G2.Language.MutVarEnv
 
-import Debug.Trace
+-- | Evaluates primitives at the root of the passed `Expr` while updating the `ExprEnv`
+-- to share computed results.
+evalPrimsSharing :: ExprEnv -> TypeEnv -> KnownValues -> Expr -> (Expr, ExprEnv)
+evalPrimsSharing eenv tenv kv e =
+    let (_, e', eenv') = evalPrimsSharing' eenv tenv kv . simplifyCasts $ e in (e', eenv')
+
+-- | Passed back in evalPrimsSharing' to indicate whether a new value has been computed,
+-- and thus indicate whether insertion into the `ExprEnv` is needed.
+data NeedUpdate = Update | NoUpdate deriving Show
+
+evalPrimsSharing' :: ExprEnv -> TypeEnv -> KnownValues -> Expr -> (NeedUpdate, Expr, ExprEnv)
+evalPrimsSharing' eenv tenv kv a@(App _ _) =
+    case unApp a of
+        p@(Prim _ _):es ->
+            let
+                (eenv', es') = L.mapAccumR
+                                    (\eenv_ e -> let (_, e', eenv_') = evalPrimsSharing' eenv_ tenv kv e in (eenv_', e'))
+                                    eenv es
+                ev = evalPrim' tenv kv (p:es')
+            in
+            (Update, ev, eenv')
+        v@(Var _):xs | p@(Prim _ _) <- repeatedLookup eenv v -> evalPrimsSharing' eenv tenv kv (mkApp $ p:xs)
+        _ -> (NoUpdate, a, eenv)
+evalPrimsSharing' eenv tenv kv v@(Var (Id n _)) =
+    case E.lookupConcOrSym n eenv of
+        Just (E.Conc e) -> case evalPrimsSharing' eenv tenv kv e of
+                                (Update, e', eenv') -> (Update, e', E.insert n e' eenv')
+                                r@(NoUpdate, _, _) -> r
+        _ -> (NoUpdate, v, eenv)
+evalPrimsSharing' eenv _ _ e = (NoUpdate, e, eenv)
+
+repeatedLookup :: ExprEnv -> Expr -> Expr
+repeatedLookup eenv v@(Var (Id n _))
+    | E.isSymbolic n eenv = v
+    | otherwise = 
+        case E.lookup n eenv of
+          Just v'@(Var _) -> repeatedLookup eenv v'
+          Just e -> e
+          Nothing -> v
+repeatedLookup _ e = e
 
 evalPrims :: ASTContainer m Expr => TypeEnv -> KnownValues -> m -> m
 evalPrims tenv kv = modifyContainedASTs (evalPrims' tenv kv . simplifyCasts)
@@ -111,7 +156,7 @@ evalPrimWithState s ng (App (App (App (App (App (Prim WriteMutVar _) _) (Type t)
                , curr_expr = CurrExpr Evaluate pr_s }
     in
     Just (s', ng')
-evalPrimWithState _ _ e | [Prim WriteMutVar _, _, _, _, _, _] <- unApp e = trace ("e = " ++ show e) Nothing
+evalPrimWithState _ _ e | [Prim WriteMutVar _, _, _, _, _, _] <- unApp e = Nothing
 evalPrimWithState _ _ _ = Nothing
 
 deepLookupExprPastTicks :: Expr -> ExprEnv -> Expr
@@ -170,9 +215,10 @@ evalPrim1 _ _ = Nothing
 evalPrim1' :: TypeEnv -> KnownValues -> Primitive -> Lit -> Maybe Expr
 evalPrim1' tenv kv IntToString (LitInt x) =
     let
+        char_ty = tyChar kv
         char_dc = mkDCChar kv tenv
     in
-    Just . mkG2List kv tenv TyLitChar . map (App char_dc . Lit . LitChar) $ show x
+    Just . mkG2List kv tenv char_ty . map (App char_dc . Lit . LitChar) $ show x
 evalPrim1' _ kv FpIsNegativeZero (LitFloat x) = Just . mkBool kv $  isNegativeZero x
 evalPrim1' _ kv FpIsNegativeZero (LitDouble x) = Just . mkBool kv $  isNegativeZero x
 evalPrim1' _ kv IsNaN (LitFloat x) = Just . mkBool kv $ isNaN x
@@ -185,6 +231,7 @@ evalPrim2 :: KnownValues -> Primitive -> Lit -> Lit -> Maybe Expr
 evalPrim2 kv Ge x y = evalPrim2NumCharBool (>=) kv x y
 evalPrim2 kv Gt x y = evalPrim2NumCharBool (>) kv x y
 evalPrim2 kv Eq x y = evalPrim2NumCharBool (==) kv x y
+evalPrim2 kv Neq x y = evalPrim2NumCharBool (/=) kv x y
 evalPrim2 kv Lt x y = evalPrim2NumCharBool (<) kv x y
 evalPrim2 kv Le x y = evalPrim2NumCharBool (<=) kv x y
 evalPrim2 _ Plus x y = evalPrim2Num (+) x y

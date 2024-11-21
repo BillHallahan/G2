@@ -159,18 +159,14 @@ iterativeInference con ghci m_modname lrs nls meas_ex gs fc ut = do
         Env n_gs _ _ _ -> return $ Right n_gs
         Raise _ r_fc _ -> do
             incrMaxDepthI
-            -- We might be missing some internal GHC types from our deep_seq walkers
-            -- We filter them out to avoid an error
+            -- We might be missing some internal GHC types from our type_env
+             -- We filter them out to avoid an error
             let eenv = expr_env . G2LH.state $ lr_state lrs
                 chck = filter (\n -> 
-                                  case E.lookup n eenv of
-                                      Just e -> isJust $ 
-                                              mkStrict_maybe 
-                                              (deepseq_walkers $ lr_binding lrs) 
-                                              (Var (Id (Name "" Nothing 0 Nothing) (returnType e)))
-                                      Nothing -> False) (head nls)
+                                   case E.lookup n eenv of
+                                       Just e | TyCon tcn _ <- returnType e -> isJust $ HM.lookup tcn (type_env  . G2LH.state $ lr_state lrs)  
+                                       _ -> False) (head nls)
             liftIO . putStrLn $ "head nls =  " ++ show (head nls)
-
             logEventStartM CExSE
             ref <- getCEx ghci m_modname lrs gs chck
             logEventEndM
