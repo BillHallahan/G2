@@ -143,7 +143,7 @@ mkExprHaskell' off_init cleaned pg ex = mkExprHaskell'' off_init ex
             | Data (DataCon n1 _ _ _) <- e1
             , nameOcc n1 == ":"
             , isCleaned =
-                if isLitChar e2 then printString pg a else printList pg a
+                if isChar e2 then printString pg a else printList pg a
 
             | isInfixable pg e1
             , isCleaned =
@@ -280,16 +280,24 @@ printString pg a =
     let
         maybe_str = printString' a
     in case maybe_str of
-        Just str -> if T.all isPrint str then "\"" <> str <> "\""
-                    else "[" <> T.intercalate ", " (map (T.pack . stringToEnum) $ T.unpack str) <> "]"
+        Just str -> if T.all isPrint str then "\"" <> T.concatMap addEscapeStr str <> "\""
+                    else ("[" <> T.intercalate ", " (map stringToEnum $ T.unpack str) <> "]")
         Nothing -> printList pg a
     where
         stringToEnum c
-            | isPrint c = '\'':c:'\'':[]
-            | otherwise = "toEnum " ++ show (ord c)
+            | isPrint c = "\'" <> addEscapeChar c <> "\'"
+            | otherwise = T.pack $ "toEnum " ++ show (ord c)
+
+        addEscapeStr '"' = "\\\""
+        addEscapeStr '\\' = "\\\\"
+        addEscapeStr c = T.singleton c
+
+        addEscapeChar '\'' = "\\'"
+        addEscapeChar '\\' = "\\\\"
+        addEscapeChar c = T.singleton c
 
 printString' :: Expr -> Maybe T.Text
-printString' (App (App _ (Lit (LitChar c))) e') =
+printString' (App (App _ (App _ (Lit (LitChar c)))) e') =
     case printString' e' of
         Nothing -> Nothing
         Just str -> Just (T.cons c str)
@@ -329,9 +337,9 @@ isApp :: Expr -> Bool
 isApp (App _ _) = True
 isApp _ = False
 
-isLitChar :: Expr -> Bool
-isLitChar (Lit (LitChar _)) = True
-isLitChar _ = False
+isChar :: Expr -> Bool
+isChar (App (Data (DataCon { dc_name = Name "C#" _ _ _ })) (Lit (LitChar _))) = True
+isChar _ = False
 
 data UseHash = UseHash | NoHash deriving Eq
 
