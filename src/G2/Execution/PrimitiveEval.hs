@@ -163,9 +163,12 @@ evalPrimWithState s@(State { known_values = kv, type_env = tenv, expr_env = eenv
         -- and we need to shift (see Note [Scaled decodedFloat]), otherwise leading bit is one
         ext_sig = mkApp [ Prim PIf TyUnknown
                         , App (App (Prim Eq TyUnknown) exp_int) (Lit (LitInt 0))
-                        , mkApp [ Prim ShiftLBV TyUnknown
-                                , mkApp [ Prim ConcatBV TyUnknown, Lit $ LitBV [0], Var sig ]
-                                , Var shift_l_v]
+                        , mkApp [ Prim ConcatBV TyUnknown
+                                , Lit $ LitBV [1]
+                                , mkApp [ Prim ShiftLBV TyUnknown
+                                        , Var sig
+                                        , Var shift_l_v ]
+                                ]
                         , mkApp [Prim ConcatBV TyUnknown, Lit $ LitBV [1], Var sig] ]
         unsign_sig = App (Prim (BVToInt (sig_bits + 1)) (TyFun ty_sig TyLitInt)) ext_sig
         -- Negate significand if needed
