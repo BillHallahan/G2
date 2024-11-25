@@ -151,7 +151,7 @@ evalPrimWithState s@(State { known_values = kv, type_env = tenv, expr_env = eenv
         -- to Note [Scaled decodeFloat], so we have to compensate by adjusting the exponent returned by decodeFloat
         exp_int = App (Prim BVToNat (TyFun ty_ex TyLitInt)) (Var ex)
 
-        exp_e = mkApp [ Prim PIf TyUnknown
+        exp_e = mkApp [ Prim Ite TyUnknown
                       , App (App (Prim Eq TyUnknown) exp_int) (Lit (LitInt 0))
                       , mkApp [ Prim Minus TyUnknown
                               , exp_int
@@ -165,7 +165,7 @@ evalPrimWithState s@(State { known_values = kv, type_env = tenv, expr_env = eenv
         ---------------------------------------------------------------------------------------------
         -- If the exponent from the FP primitive is 0, float is denormalized with a leading bit of 1,
         -- and we need to shift (see Note [Scaled decodedFloat]), otherwise leading bit is one
-        ext_sig = mkApp [ Prim PIf TyUnknown
+        ext_sig = mkApp [ Prim Ite TyUnknown
                         , App (App (Prim Eq TyUnknown) exp_int) (Lit (LitInt 0))
                         , mkApp [ Prim ConcatBV TyUnknown
                                 , Lit $ LitBV [1]
@@ -176,7 +176,7 @@ evalPrimWithState s@(State { known_values = kv, type_env = tenv, expr_env = eenv
                         , mkApp [Prim ConcatBV TyUnknown, Lit $ LitBV [1], Var sig] ]
         unsign_sig = App (Prim BVToNat (TyFun ty_sig TyLitInt)) ext_sig
         -- Negate significand if needed
-        sig_e = mkApp [ Prim PIf TyUnknown
+        sig_e = mkApp [ Prim Ite TyUnknown
                       , App (App (Prim Eq TyUnknown) (App (Prim BVToNat (TyFun (TyLitBV 1) TyLitInt)) (Var sign))) (Lit (LitInt 0))
                       , unsign_sig
                       , App (Prim Negate TyUnknown) unsign_sig]
@@ -432,7 +432,7 @@ evalPrim1Floating f (LitDouble x)  = Just . Lit . LitDouble $ f x
 evalPrim1Floating _ _ = Nothing
 
 evalPrim3 :: KnownValues -> Primitive -> Expr -> Expr -> Expr -> Maybe Expr
-evalPrim3 kv PIf (Data (DataCon { dc_name = b })) e1 e2 | b == KV.dcTrue kv = Just e1
+evalPrim3 kv Ite (Data (DataCon { dc_name = b })) e1 e2 | b == KV.dcTrue kv = Just e1
                                                         | b == KV.dcFalse kv = Just e2
 evalPrim3 _ p _ _ _ = Nothing
 

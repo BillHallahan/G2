@@ -114,7 +114,7 @@ solveSoftAsserts con headers vs = do
         set_logic = getSetLogic headers
         soft_assert_sum =
               foldr (:+) (VInt 0)
-            $ map (\(AssertSoft assrt _) -> Ite assrt (VInt 1) (VInt 0)) soft_asserts
+            $ map (\(AssertSoft assrt _) -> IteSMT assrt (VInt 1) (VInt 0)) soft_asserts
         new_assert = Assert $ V totalVarName SortInt := soft_assert_sum
         var_decl = VarDecl (string totalVarName) SortInt
     setProduceUnsatCores con

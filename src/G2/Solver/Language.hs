@@ -120,7 +120,7 @@ data SMTAST = (:>=) !SMTAST !SMTAST
             | StrGtSMT !SMTAST !SMTAST
             | StrGeSMT !SMTAST !SMTAST
 
-            | Ite !SMTAST !SMTAST !SMTAST
+            | IteSMT !SMTAST !SMTAST !SMTAST
             | SLet (SMTName, SMTAST) !SMTAST
 
             | FromCode !SMTAST
@@ -143,7 +143,7 @@ data SMTAST = (:>=) !SMTAST !SMTAST
             | IntToDoubleSMT !SMTAST -- ^ Integer to Double conversion
             | IntToRealSMT !SMTAST -- ^ Integer to Real conversion
             | BVToIntSMT Int !SMTAST -- ^ BitVector (of indicated width) to Int conversion
-            | BVToNatSMT !SMTAST -- ^ BitVector to unsigned int
+            | BVToNatSMT !SMTAST -- ^ BitVector to unsigned Int
 
             | Named !SMTAST SMTName -- ^ Name a piece of the SMTAST, allowing it to be returned in unsat cores
             deriving (Show, Eq)
@@ -237,7 +237,7 @@ instance AST SMTAST where
     children (x :/ y) = [x, y]
     children (Neg x) = [x]
 
-    children (Ite x x' x'') = [x, x', x'']
+    children (IteSMT x x' x'') = [x, x', x'']
     children (SLet (_, x) x') = [x, x']
 
     children (FromCode x) = [x]
@@ -266,7 +266,7 @@ instance AST SMTAST where
     modifyChildren f (FromCode x) = FromCode (f x)
     modifyChildren f (ToCode x) = ToCode (f x)
 
-    modifyChildren f (Ite x x' x'') = Ite (f x) (f x') (f x'')
+    modifyChildren f (IteSMT x x' x'') = IteSMT (f x) (f x') (f x'')
     modifyChildren f (SLet (n, x) x') = SLet (n, f x) (f x')
 
     modifyChildren _ e = e

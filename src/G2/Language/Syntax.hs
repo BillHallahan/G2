@@ -170,7 +170,7 @@ data Primitive = -- Mathematical and logical operators
                | Not
                | Implies
                | Iff
-               | PIf -- ^ Bool -> a -> a -> a, if-then-else, convertable to an SMT representation.  Both arguments should be representable in the SMT solver.
+               | Ite -- ^ Bool -> a -> a -> a, if-then-else, convertable to an SMT representation.  Both arguments should be representable in the SMT solver.
                | Plus
                | Minus
                | Mult

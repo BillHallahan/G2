@@ -452,7 +452,7 @@ mkPrimHaskell pg = pr
         pr Undefined = "undefined"
         pr Implies = "pr_implies"
         pr Iff = "pr_iff"
-        pr PIf = "pr_if"
+        pr Ite = "pr_ite"
 
 mkPrimHaskellNoDistFloat :: PrettyGuide -> Primitive -> T.Text
 mkPrimHaskellNoDistFloat pg = pr

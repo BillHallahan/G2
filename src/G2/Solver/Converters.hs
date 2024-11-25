@@ -454,7 +454,7 @@ funcToSMT2Prim op lhs rhs = error $ "funcToSMT2Prim: invalid case with (op, lhs,
 
 funcToSMT3Prim :: Primitive -> Expr -> Expr -> Expr -> SMTAST
 funcToSMT3Prim Fp x y z = FpSMT  (exprToSMT x) (exprToSMT y) (exprToSMT z)
-funcToSMT3Prim PIf x y z = Ite  (exprToSMT x) (exprToSMT y) (exprToSMT z)
+funcToSMT3Prim Ite x y z = IteSMT (exprToSMT x) (exprToSMT y) (exprToSMT z)
 funcToSMT3Prim op _ _ _ = error $ "funcToSMT3Prim: invalid case with " ++ show op
 
 altToSMT :: Lit -> Expr -> SMTAST
@@ -630,7 +630,7 @@ toSolverAST (DoubleToIntSMT x) = bvToSignedInt 64 (function2 "(_ fp.to_sbv 64)" 
 toSolverAST (BVToNatSMT x) = function1 "bv2nat" (toSolverAST x)
 toSolverAST (BVToIntSMT w x) = bvToSignedInt w (toSolverAST x)
 
-toSolverAST (Ite x y z) =
+toSolverAST (IteSMT x y z) =
     function3 "ite" (toSolverAST x) (toSolverAST y) (toSolverAST z)
 
 toSolverAST (SLet (n, e) body_e) =
