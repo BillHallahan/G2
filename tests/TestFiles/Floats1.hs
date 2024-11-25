@@ -84,7 +84,7 @@ decodeFloatConst = map decodeFloat ([-5, -4, -3, -2, -1, 1, 2, 3, 4, 5] :: [Floa
 
 decodeFloatCheck :: NaNEq -> Int
 decodeFloatCheck (F x) = case decodeFloat x of
-                            (m, n) | m - 7 == 9894 -> 10
+                            (m, n) | m - 7 == 10131456 -> 10
                             _ -> 20
 
 exponentTest :: NaNEq -> (Integer, Int)
