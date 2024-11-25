@@ -98,6 +98,3 @@ exponentTest (F x)
     | otherwise = (6, r)
     where
         r = exponent x
-
-c :: (Integer, Int)
-c = decodeFloat 2

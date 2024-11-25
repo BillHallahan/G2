@@ -175,10 +175,13 @@ evalPrimWithState s@(State { known_values = kv, type_env = tenv, expr_env = eenv
 
         is_zero = App (App (Prim Eq TyUnknown) (Var sig)) (Lit $ integerToBV sig_bits 0)
         -- Shift the significand to the right until equal to 1.
-        shift_r_amount = mkApp
-                            [ Prim Eq TyUnknown
-                            , mkApp [Prim ShiftRBV TyUnknown, Var sig, Var shift_r_v]
-                            , Lit $ integerToBV sig_bits 1 ]
+        shift_r_amount = mkApp [ Prim Or TyUnknown
+                               , is_zero
+                               , mkApp
+                                    [ Prim Eq TyUnknown
+                                    , mkApp [Prim ShiftRBV TyUnknown, Var sig, Var shift_r_v]
+                                    , Lit $ integerToBV sig_bits 1 ]
+                                ]
         -- Calculate how far the first 1 is from the left.
         shift_l_amount = mkApp
                          [ Prim MinusBV TyUnknown
