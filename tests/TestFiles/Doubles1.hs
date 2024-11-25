@@ -70,3 +70,23 @@ roundTest (D x) | isNaN x || isInfinite x = (0, 0)
                 | otherwise = (3, r)
     where
         r = round x
+
+decodeFloatTest :: NaNEq -> (Int, (Integer, Int))
+decodeFloatTest (D x) | isNaN x || isInfinite x = (0, (0, 0))
+                      | isDenormalized x = (1, decodeFloat x)
+                      | x > 100 = (2, decodeFloat x)
+                      | x > 9 = (3, decodeFloat x)
+                      | x < -12 = (4, decodeFloat x)
+                      | otherwise = (5, decodeFloat x)
+
+exponentTest :: NaNEq -> (Integer, Int)
+exponentTest (D x)
+    | isNaN x || isInfinite x = (0, 0)
+    | r > 17 = (1, r)
+    | r > 4 = (2, r)
+    | x < -3 = (3, r)
+    | x < -17 = (4, r)
+    | x < -400 = (5, r)
+    | otherwise = (6, r)
+    where
+        r = exponent x
