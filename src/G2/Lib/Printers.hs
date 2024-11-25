@@ -421,6 +421,7 @@ mkPrimHaskell pg = pr
         pr RationalToDouble = "fromRational"
         pr ToInteger = "toInteger"
         pr (BVToInt w) = "(bvToInt " <> T.pack (show w) <> ")"
+        pr BVToNat = "bvToNat"
 
         pr StrGt = "str.>"
         pr StrGe = "str.>="

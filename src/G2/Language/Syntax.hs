@@ -234,6 +234,7 @@ data Primitive = -- Mathematical and logical operators
                | ToInteger
                | ToInt
                | BVToInt Int -- ^ Signed conversion, takes the width of the bit vector
+               | BVToNat -- ^ Unsigned conversion
                
                -- String Handling
                | StrGt

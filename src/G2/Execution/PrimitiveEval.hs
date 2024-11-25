@@ -86,18 +86,21 @@ evalPrimWithState s@(State { known_values = kv, type_env = tenv, expr_env = eenv
 
         -- Introduce variables for the sign, exponent, and significant of the floating point number.
         -- Also introduces variables to account for shifting (see Note [Scaled decodeFloat])
-        (sign, ng2) = freshSeededId (Name "sign" Nothing 0 Nothing) (TyLitBV 1) ng
-        (ex, ng3) = freshSeededId (Name "exp" Nothing 0 Nothing) ty_ex ng2
-        (sig, ng4) = freshSeededId (Name "sig" Nothing 0 Nothing) ty_sig ng3
+        (sign, ng2) = freshSeededId (Name "sign_fp" Nothing 0 Nothing) (TyLitBV 1) ng
+        (ex, ng3) = freshSeededId (Name "exp_fp" Nothing 0 Nothing) ty_ex ng2
+        (sig, ng4) = freshSeededId (Name "sig_fp" Nothing 0 Nothing) ty_sig ng3
 
-        (shift_r_v, ng5) = freshSeededId (Name "shift_r" Nothing 0 Nothing) ty_sig ng4
-        (shift_l_v, ng6) = freshSeededId (Name "shift_l" Nothing 0 Nothing) ty_sig ng5
+        (exp_r, ng5) = freshSeededId (Name "exp" Nothing 0 Nothing) TyLitInt ng4
+        (sig_r, ng6) = freshSeededId (Name "sig" Nothing 0 Nothing) TyLitInt ng5
+
+        (shift_r_v, ng7) = freshSeededId (Name "shift_r" Nothing 0 Nothing) ty_sig ng6
+        (shift_l_v, ng8) = freshSeededId (Name "shift_l" Nothing 0 Nothing) ty_sig ng7
 
         -- Setting up the Fp Primitive
         fp_exp = App (App (App (Prim Fp TyUnknown) (Var sign)) (Var ex)) (Var sig)
         fp_pc = ExtCond (App (App (Prim Eq TyUnknown) fp_exp) e) True
 
-        eenv' = foldl' (flip E.insertSymbolic) (expr_env s) [sign, ex, sig, shift_r_v, shift_l_v]
+        eenv' = foldl' (flip E.insertSymbolic) (expr_env s) [sign, ex, sig, exp_r, sig_r, shift_r_v, shift_l_v]
 
         -- Note [Scaled decodeFloat]
         -- The output significand includes the hidden bit, which is 1 for a normal float and 0 for a denormalized float.
@@ -146,16 +149,17 @@ evalPrimWithState s@(State { known_values = kv, type_env = tenv, expr_env = eenv
         ---------------------------------------------------------------------------------------------
         -- If the exponent from the FP primitive is 0, float is denormalized and will be shifted according
         -- to Note [Scaled decodeFloat], so we have to compensate by adjusting the exponent returned by decodeFloat
-        exp_int = App (Prim (BVToInt ex_bits) (TyFun ty_ex TyLitInt)) (Var ex)
+        exp_int = App (Prim BVToNat (TyFun ty_ex TyLitInt)) (Var ex)
 
         exp_e = mkApp [ Prim PIf TyUnknown
                       , App (App (Prim Eq TyUnknown) exp_int) (Lit (LitInt 0))
                       , mkApp [ Prim Minus TyUnknown
                               , exp_int
                               , mkApp [ Prim Minus TyUnknown
-                                      , App (Prim (BVToInt sig_bits) (TyFun ty_ex TyLitInt)) (Var shift_l_v)
+                                      , App (Prim BVToNat (TyFun ty_ex TyLitInt)) (Var shift_l_v)
                                       , Lit (LitInt 1) ] ]
                       , exp_int ]
+        exp_pc = ExtCond (mkApp [Prim Eq TyUnknown, Var exp_r, exp_e]) True
         ---------------------------------------------------------------------------------------------
         -- Significand value in G2
         ---------------------------------------------------------------------------------------------
@@ -170,12 +174,13 @@ evalPrimWithState s@(State { known_values = kv, type_env = tenv, expr_env = eenv
                                         , Var shift_l_v ]
                                 ]
                         , mkApp [Prim ConcatBV TyUnknown, Lit $ LitBV [1], Var sig] ]
-        unsign_sig = App (Prim (BVToInt (sig_bits + 1)) (TyFun ty_sig TyLitInt)) ext_sig
+        unsign_sig = App (Prim BVToNat (TyFun ty_sig TyLitInt)) ext_sig
         -- Negate significand if needed
         sig_e = mkApp [ Prim PIf TyUnknown
-                      , App (App (Prim Eq TyUnknown) (App (Prim (BVToInt 1) (TyFun (TyLitBV 1) TyLitInt)) (Var sign))) (Lit (LitInt 0))
+                      , App (App (Prim Eq TyUnknown) (App (Prim BVToNat (TyFun (TyLitBV 1) TyLitInt)) (Var sign))) (Lit (LitInt 0))
                       , unsign_sig
                       , App (Prim Negate TyUnknown) unsign_sig]
+        sig_pc = ExtCond (mkApp [Prim Eq TyUnknown, Var sig_r, sig_e]) True
 
         ---------------------------------------------------------------------------------------------
         -- Return value of decodeFloat, (# significand, exponent #)
@@ -189,15 +194,15 @@ evalPrimWithState s@(State { known_values = kv, type_env = tenv, expr_env = eenv
                             ) 
                             (Type ty_sig)
                         )
-                        sig_e
+                        (Var sig_r)
                     ) 
-                    exp_e
+                    (Var exp_r)
     in
     Just ( NewPC { state = s { expr_env = eenv'
                              , curr_expr = CurrExpr Return curr' }
-                 , new_pcs = [ fp_pc, shift_pc1, shift_pc2 ]
+                 , new_pcs = [ fp_pc, shift_pc1, shift_pc2, exp_pc, sig_pc ]
                  , concretized = [] }
-         , ng6)
+         , ng8)
 evalPrimWithState s ng (App (Prim HandleGetPos _) hnd)
     | (Prim (Handle n) _) <- deepLookupExprPastTicks hnd (expr_env s)
     , Just (HandleInfo { h_pos = pos }) <- M.lookup n (handles s) =

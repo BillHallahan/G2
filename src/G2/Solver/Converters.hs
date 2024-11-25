@@ -399,6 +399,7 @@ funcToSMT1Prim IntToDouble e = IntToDoubleSMT (exprToSMT e)
 funcToSMT1Prim IntToRational e = IntToRealSMT (exprToSMT e)
 funcToSMT1Prim IntToString e = FromInt (exprToSMT e)
 funcToSMT1Prim (BVToInt w) e = (BVToIntSMT w) (exprToSMT e)
+funcToSMT1Prim BVToNat e = BVToNatSMT (exprToSMT e)
 funcToSMT1Prim Chr e = FromCode (exprToSMT e)
 funcToSMT1Prim OrdChar e = ToCode (exprToSMT e)
 funcToSMT1Prim StrLen e = StrLenSMT (exprToSMT e)
@@ -626,6 +627,7 @@ toSolverAST (IntToDoubleSMT x) = function2 "(_ to_fp 11 53)" "RNE" (function1 "(
 toSolverAST (FloatToIntSMT x) = bvToSignedInt 32 (function2 "(_ fp.to_sbv 32)" "RNE" $ toSolverAST x)
 -- toSolverAST (DoubleToIntSMT x) = function1 "to_int" (function1 "fp.to_real" $ toSolverAST x)
 toSolverAST (DoubleToIntSMT x) = bvToSignedInt 64 (function2 "(_ fp.to_sbv 64)" "RNE" $ toSolverAST x)
+toSolverAST (BVToNatSMT x) = function1 "bv2nat" (toSolverAST x)
 toSolverAST (BVToIntSMT w x) = bvToSignedInt w (toSolverAST x)
 
 toSolverAST (Ite x y z) =

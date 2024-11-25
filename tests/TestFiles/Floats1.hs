@@ -90,3 +90,12 @@ exponentTest (F x)
     | otherwise = (6, r)
     where
         r = exponent x
+
+e :: NaNEq -> (Integer, Int)
+e (F x)
+    | isNaN x || isInfinite x = (0, 0)
+    | r > 17 = (1, r)
+    | r > 4 = (2, r)
+    | otherwise = (6, r)
+    where
+        r = exponent x

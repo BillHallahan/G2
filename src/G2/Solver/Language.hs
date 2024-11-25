@@ -143,6 +143,7 @@ data SMTAST = (:>=) !SMTAST !SMTAST
             | IntToDoubleSMT !SMTAST -- ^ Integer to Double conversion
             | IntToRealSMT !SMTAST -- ^ Integer to Real conversion
             | BVToIntSMT Int !SMTAST -- ^ BitVector (of indicated width) to Int conversion
+            | BVToNatSMT !SMTAST -- ^ BitVector to unsigned int
 
             | Named !SMTAST SMTName -- ^ Name a piece of the SMTAST, allowing it to be returned in unsat cores
             deriving (Show, Eq)
