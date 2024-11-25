@@ -345,6 +345,7 @@ mkLitHaskell use = lit
         lit (LitFloat r) = mkFloat (T.pack hs) r
         lit (LitDouble r) = mkFloat (T.pack hs) r
         lit (LitRational r) = "(" <> T.pack (show r) <> ")"
+        lit (LitBV bv) = "#b" <> T.concat (map (T.pack . show) bv)
         lit (LitChar c) | isPrint c = T.pack ['\'', c, '\'']
                         | otherwise = "(chr " <> T.pack (show $ ord c) <> ")"
         lit (LitString s) = T.pack s
@@ -380,6 +381,14 @@ mkPrimHaskell pg = pr
 
         pr Sqrt = "sqrt"
 
+        pr AddBV = "bv.+"
+        pr MinusBV = "bv.-"
+        pr ConcatBV = "concatBV"
+        pr ShiftLBV = "shiftL"
+        pr ShiftRBV = "shiftL"
+
+        pr Fp = "fp"
+        pr DecodeFloat = "fp.decodeFloat"
         pr FpNeg = "fp.-"
         pr FpAdd = "fp.+"
         pr FpSub = "fp.-"
@@ -396,6 +405,7 @@ mkPrimHaskell pg = pr
         pr TruncZero = "fp.truncZero"
         pr DecimalPart = "fp.decimalPart"
 
+        pr IsDenormalized = "isDenormalized#"
         pr FpIsNegativeZero = "isNegativeZero#"
         pr IsNaN = "isNaN#"
         pr IsInfinite = "isInfinite#"
@@ -410,6 +420,7 @@ mkPrimHaskell pg = pr
         pr RationalToFloat = "fromRational"
         pr RationalToDouble = "fromRational"
         pr ToInteger = "toInteger"
+        pr (BVToInt w) = "(bvToInt " <> T.pack (show w) <> ")"
 
         pr StrGt = "str.>"
         pr StrGe = "str.>="
@@ -438,8 +449,9 @@ mkPrimHaskell pg = pr
 
         pr Error = "error"
         pr Undefined = "undefined"
-        pr Implies = "undefined"
-        pr Iff = "undefined"
+        pr Implies = "pr_implies"
+        pr Iff = "pr_iff"
+        pr PIf = "pr_if"
 
 mkPrimHaskellNoDistFloat :: PrettyGuide -> Primitive -> T.Text
 mkPrimHaskellNoDistFloat pg = pr
@@ -467,6 +479,7 @@ mkTypeHaskellPG _ TyLitInt = "Int#"
 mkTypeHaskellPG _ TyLitFloat = "Float#"
 mkTypeHaskellPG _ TyLitDouble = "Double#"
 mkTypeHaskellPG _ TyLitRational = "Rational#"
+mkTypeHaskellPG _ (TyLitBV w) = "BV# " <> T.pack (show w)
 mkTypeHaskellPG _ TyLitChar = "Char#"
 mkTypeHaskellPG _ TyLitString = "String#"
 mkTypeHaskellPG pg (TyFun t1 t2)

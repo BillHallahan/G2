@@ -84,6 +84,7 @@ instance Arbitrary ArbSimpleState where
                                       , IT.type_classes = initTypeClasses []
                                       , IT.rewrite_rules = []
                                       , IT.exports = []
+                                      , IT.handles = HM.empty
                                       }
         return $ ArbSimple simple_s
 
@@ -385,6 +386,8 @@ fakeKnownValues =
     , dcNothing = Name "" Nothing 0 Nothing
     , KV.tyUnit = Name "" Nothing 0 Nothing
     , dcUnit = Name "" Nothing 0 Nothing
+    , KV.tyPrimTuple = Name "" Nothing 0 Nothing
+    , dcPrimTuple = Name "" Nothing 0 Nothing
     , tyMutVar = Name "" Nothing 0 Nothing
     , dcMutVar = Name "" Nothing 0 Nothing
     , tyState = Name "" Nothing 0 Nothing

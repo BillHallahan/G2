@@ -88,7 +88,9 @@ primDefs' b c l unit =
               , ("$>##", Prim FpGt $ tyDoubleDoubleBool b)
               , ("$>=##", Prim FpGeq $ tyDoubleDoubleBool b)
 
+              , ("decodeDouble#", Prim DecodeFloat tyDoubleInteger)
               , ("isDoubleNegativeZero#", Prim FpIsNegativeZero $ tyDoubleBool b)
+              , ("isDoubleDenormalized#", Prim IsDenormalized $ tyDoubleBool b)
               , ("isDoubleNaN#", Prim IsNaN $ tyDoubleBool b)
               , ("isDoubleInfinite#", Prim IsInfinite $ tyDoubleBool b)
 
@@ -107,7 +109,9 @@ primDefs' b c l unit =
               , ("smtGtFloat#", Prim FpGt $ tyFloatFloatBool b)
               , ("smtGeFloat#", Prim FpGeq $ tyFloatFloatBool b)
 
+              , ("decodeFloat#", Prim DecodeFloat tyFloatInteger)
               , ("isFloatNegativeZero#", Prim FpIsNegativeZero $ tyFloatBool b)
+              , ("isFloatDenormalized#", Prim IsDenormalized $ tyFloatBool b)
               , ("isFloatNaN#", Prim IsNaN $ tyFloatBool b)
               , ("isFloatInfinite#", Prim IsInfinite $ tyFloatBool b)
 

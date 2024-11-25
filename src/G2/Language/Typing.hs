@@ -177,6 +177,7 @@ instance Typed Lit where
     typeOf (LitFloat _) = TyLitFloat
     typeOf (LitDouble _) = TyLitDouble
     typeOf (LitRational _) = TyLitRational
+    typeOf (LitBV bv) = TyLitBV (length bv)
     typeOf (LitChar _)   = TyLitChar
     typeOf (LitString _) = TyLitString
     typeOf (LitInteger _) = TyLitInt
@@ -295,6 +296,7 @@ instance Typed Type where
     typeOf' _ TyLitFloat = TYPE
     typeOf' _ TyLitDouble = TYPE
     typeOf' _ TyLitRational = TYPE
+    typeOf' _ (TyLitBV _) = TYPE
     typeOf' _ TyLitChar = TYPE
     typeOf' _ TyLitString = TYPE
     typeOf' _ TYPE = TYPE
@@ -580,6 +582,7 @@ isPrimType TyLitInt = True
 isPrimType TyLitFloat = True
 isPrimType TyLitDouble = True
 isPrimType TyLitRational = True
+isPrimType (TyLitBV _) = True
 isPrimType TyLitChar = True
 isPrimType TyLitString = True
 isPrimType _ = False

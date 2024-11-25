@@ -6,6 +6,7 @@ import G2.Solver.Language
 
 import Data.Bits
 import Data.Char
+import Data.Foldable
 import GHC.Float
 import Numeric
 
@@ -59,7 +60,7 @@ getValuesParser srt = parens (parens (identifier >> (sExpr srt)))
 
 sExpr :: Maybe Sort -> Parser SMTAST
 sExpr srt = try boolExpr <|> parens (sExpr srt) <|> letExpr <|> try realExpr <|> try (doubleFloatExpr srt)
-                         <|> try doubleFloatExprDec <|> stringExpr <|> intExpr
+                         <|> try doubleFloatExprDec <|> stringExpr <|> intExpr <|> bvExpr
 
 letExpr :: Parser SMTAST
 letExpr = do
@@ -99,6 +100,9 @@ intExpr = do
     case s of
         Just _ -> return (VInt (-i))
         Nothing -> return (VInt i)
+
+bvExpr :: Parser SMTAST
+bvExpr = VBitVec <$> parseBitVec
 
 realExpr :: Parser SMTAST
 realExpr = try realExprNeg <|> realExprRat

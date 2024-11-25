@@ -70,7 +70,15 @@ data SMTAST = (:>=) !SMTAST !SMTAST
             | Modulo !SMTAST !SMTAST
             | Neg !SMTAST -- ^ Unary negation
 
+            -- BitVectors
+            | BVAdd !SMTAST !SMTAST
+            | BVNeg !SMTAST
+            | Concat !SMTAST !SMTAST
+            | ShiftL !SMTAST !SMTAST
+            | ShiftR !SMTAST !SMTAST
+
             -- Floating Point
+            | FpSMT !SMTAST !SMTAST !SMTAST -- ^ Sign, Exponent, Significand 
             | FpNegSMT !SMTAST
             | FpAddSMT !SMTAST !SMTAST
             | FpSubSMT !SMTAST !SMTAST
@@ -89,6 +97,10 @@ data SMTAST = (:>=) !SMTAST !SMTAST
             | FpSqrtSMT !SMTAST
             | TruncZeroSMT !SMTAST
 
+            | FpSignificand !SMTAST
+            | FpExponent !SMTAST
+
+            | IsNormalSMT !SMTAST
             | IsNaNSMT !SMTAST
             | IsInfiniteSMT !SMTAST
 
@@ -118,6 +130,7 @@ data SMTAST = (:>=) !SMTAST !SMTAST
             | VFloat Float
             | VDouble Double
             | VReal Rational
+            | VBitVec [Int]
             | VChar Char
             | VString String
             | VBool Bool
@@ -129,6 +142,7 @@ data SMTAST = (:>=) !SMTAST !SMTAST
             | IntToFloatSMT !SMTAST -- ^ Integer to Float conversion
             | IntToDoubleSMT !SMTAST -- ^ Integer to Double conversion
             | IntToRealSMT !SMTAST -- ^ Integer to Real conversion
+            | BVToIntSMT Int !SMTAST -- ^ BitVector (of indicated width) to Int conversion
 
             | Named !SMTAST SMTName -- ^ Name a piece of the SMTAST, allowing it to be returned in unsat cores
             deriving (Show, Eq)
@@ -138,6 +152,7 @@ data Sort = SortInt
           | SortFloat
           | SortDouble
           | SortReal
+          | SortBV Int
           | SortChar
           | SortString
           | SortBool
