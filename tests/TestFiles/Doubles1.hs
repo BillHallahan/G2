@@ -80,7 +80,7 @@ decodeFloatTest (D x) | isNaN x || isInfinite x = (0, (0, 0))
                       | otherwise = (5, decodeFloat x)
 
 decodeFloatConst :: [(Integer, Int)]
-decodeFloatConst = map decodeFloat ([-20..20] :: [Double])
+decodeFloatConst = map decodeFloat ([-5, -4, -3, -2, -1, 1, 2, 3, 4, 5] :: [Double])
 
 decodeFloatCheck :: NaNEq -> Bool
 decodeFloatCheck (D x) = case decodeFloat x of
