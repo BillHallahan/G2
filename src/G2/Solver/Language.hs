@@ -97,9 +97,6 @@ data SMTAST = (:>=) !SMTAST !SMTAST
             | FpSqrtSMT !SMTAST
             | TruncZeroSMT !SMTAST
 
-            | FpSignificand !SMTAST
-            | FpExponent !SMTAST
-
             | IsNormalSMT !SMTAST
             | IsNaNSMT !SMTAST
             | IsInfiniteSMT !SMTAST
