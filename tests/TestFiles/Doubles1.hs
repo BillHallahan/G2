@@ -79,6 +79,14 @@ decodeFloatTest (D x) | isNaN x || isInfinite x = (0, (0, 0))
                       | x < -12 = (4, decodeFloat x)
                       | otherwise = (5, decodeFloat x)
 
+decodeFloatConst :: [(Integer, Int)]
+decodeFloatConst = map decodeFloat ([-20..20] :: [Double])
+
+decodeFloatCheck :: NaNEq -> Bool
+decodeFloatCheck (D x) = case decodeFloat x of
+                            (m, n) | m - 7 == 9894 -> True
+                            _ -> False
+
 exponentTest :: NaNEq -> (Integer, Int)
 exponentTest (D x)
     | isNaN x || isInfinite x = (0, 0)

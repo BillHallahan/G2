@@ -402,6 +402,8 @@ testFileTests = testGroup "TestFiles"
                                                      , ("floorAndCeiling", 1500, [AtLeast 6])
                                                      , ("roundTest", 1750, [AtLeast 8])
                                                      , ("decodeFloatTest", 2000, [AtLeast 6])
+                                                     , ("decodeFloatConst", 2000, [Exactly 1])
+                                                     , ("decodeFloatCheck", 2000, [AtLeast 2])
                                                      , ("exponentTest", 2000, [AtLeast 6]) ]
 
     , checkInputOutputs "tests/TestFiles/Doubles1.hs" [ ("infinite", 1000, [AtLeast 3])
@@ -418,6 +420,8 @@ testFileTests = testGroup "TestFiles"
                                                       , ("floorAndCeiling", 1500, [AtLeast 6])
                                                       , ("roundTest", 1750, [AtLeast 8])
                                                       , ("decodeFloatTest", 2000, [AtLeast 6])
+                                                      , ("decodeFloatConst", 2000, [Exactly 1])
+                                                      , ("decodeFloatCheck", 2000, [AtLeast 2])
                                                       , ("exponentTest", 2000, [AtLeast 6])  ]
 
     , checkInputOutputsInstType "tests/TestFiles/InstTypes1.hs" [ ("lengthList", 200, [AtLeast 1])
