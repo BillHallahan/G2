@@ -37,7 +37,6 @@ import G2.Equiv.Generalize
 import G2.Equiv.Summary
 import G2.Equiv.Uninterpreted 
 
-import qualified Data.Map as M
 import G2.Execution.Memory
 import Data.Monoid (Any (..))
 
@@ -713,10 +712,9 @@ startingState et ns s =
     }
   in newStateH s'
 
-cleanState :: State t -> Bindings -> (State t, Bindings)
+cleanState :: State t -> Bindings -> State t
 cleanState state bindings =
-  let sym_config = addSearchNames (input_names bindings)
-                   $ addSearchNames (M.keys $ deepseq_walkers bindings) emptyMemConfig
+  let sym_config = addSearchNames (input_names bindings) emptyMemConfig
   in markAndSweepPreserving sym_config state bindings
 
 -- If the Marker list is reversed from how it was when it was fetched, then
@@ -816,9 +814,9 @@ checkRule config nc init_state bindings total rule = do
       -- no need for two separate name sets
       ns = HS.filter (\n -> not (E.isSymbolic n $ expr_env rewrite_state_l)) $ HS.union ns_l ns_r
       e_l = getExpr rewrite_state_l
-      (rewrite_state_l',_) = cleanState (rewrite_state_l { curr_expr = CurrExpr Evaluate e_l }) bindings
+      rewrite_state_l' = cleanState (rewrite_state_l { curr_expr = CurrExpr Evaluate e_l }) bindings
       e_r = getExpr rewrite_state_r
-      (rewrite_state_r',_) = cleanState (rewrite_state_r { curr_expr = CurrExpr Evaluate e_r }) bindings
+      rewrite_state_r' = cleanState (rewrite_state_r { curr_expr = CurrExpr Evaluate e_r }) bindings
       
       rewrite_state_l'' = startingState start_equiv_tracker ns rewrite_state_l'
       rewrite_state_r'' = startingState start_equiv_tracker ns rewrite_state_r'

@@ -59,16 +59,15 @@ instance Arbitrary t => Arbitrary (StateBindingsPair t) where
     
     shrink (SB s b) =
         let
-            eenvs = shrinkExprEnv (deepseq_walkers b) (expr_env s)
+            eenvs = shrinkExprEnv (expr_env s)
         in
         map (\eenv -> SB (s { expr_env = eenv}) b) eenvs
 
 
-shrinkExprEnv :: Walkers -> ExprEnv -> [ExprEnv]
-shrinkExprEnv w eenv =
+shrinkExprEnv :: ExprEnv -> [ExprEnv]
+shrinkExprEnv eenv =
     let
-        wk = map idName $ M.elems w
-        ks = filter (\k -> k `notElem` wk) $ E.keys eenv
+        ks = E.keys eenv
     in
     concatMap (\k -> case E.lookupConcOrSym k eenv of
                             Just (E.Conc e) -> map (\(AE e') -> E.insert k e' eenv) $ shrink (AE e)

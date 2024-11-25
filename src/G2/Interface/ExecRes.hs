@@ -6,7 +6,6 @@ module G2.Interface.ExecRes ( ExecRes (..), StartFunc, ModuleName, printInputOut
 import G2.Language
 import G2.Lib.Printers
 
-import qualified Data.HashMap.Lazy as HM
 import Data.Maybe
 import qualified Data.Sequence as S
 import qualified Data.Text as T
@@ -29,7 +28,7 @@ printInputOutput :: PrettyGuide
                  -> Id -- ^ Input function
                  -> Bindings
                  -> ExecRes t
-                 -> (T.Text, T.Text, T.Text, T.Text)
+                 -> (T.Text, T.Text, T.Text, T.Text) -- ^ Mutable variables, input, output, handles
 printInputOutput pg i (Bindings { input_coercion = c }) er =
     let
         er' = er { conc_args = modifyASTs remMutVarPrim (conc_args er)

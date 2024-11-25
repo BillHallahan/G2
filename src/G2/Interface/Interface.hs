@@ -77,14 +77,13 @@ import qualified Data.HashSet as S
 import Data.Maybe
 import qualified Data.Sequence as Seq
 import qualified Data.Text as T
-import qualified Data.List as L
 import System.Timeout
 
 type AssumeFunc = T.Text
 type AssertFunc = T.Text
 type ReachFunc = T.Text
 
-type MkCurrExpr = TypeClasses -> NameGen -> ExprEnv -> TypeEnv -> Walkers
+type MkCurrExpr = TypeClasses -> NameGen -> ExprEnv -> TypeEnv
                      -> KnownValues -> Config -> (Expr, [Id], [Expr], Maybe Coercion, NameGen)
 
 doTimeout :: Int -> IO a -> IO (Maybe a)
@@ -159,14 +158,14 @@ initStateFromSimpleState :: IT.SimpleState
                          -> (State (), Bindings)
 initStateFromSimpleState s m_mod useAssert mkCurr argTys config =
     let
-        (s', ds_walkers) = runInitialization2 config s argTys
+        s' = runInitialization2 config s argTys
         eenv' = IT.expr_env s'
         tenv' = IT.type_env s'
         ng' = IT.name_gen s'
         hs = IT.handles s'
         kv' = IT.known_values s'
         tc' = IT.type_classes s'
-        (ce, is, f_i, m_coercion, ng'') = mkCurr tc' ng' eenv' tenv' ds_walkers kv' config
+        (ce, is, f_i, m_coercion, ng'') = mkCurr tc' ng' eenv' tenv' kv' config
     in
     (State {
       expr_env = foldr E.insertSymbolic eenv' is
@@ -189,8 +188,7 @@ initStateFromSimpleState s m_mod useAssert mkCurr argTys config =
     , tags = S.empty
     }
     , Bindings {
-    deepseq_walkers = ds_walkers
-    , fixed_inputs = f_i
+      fixed_inputs = f_i
     , arb_value_gen = arbValueInit
     , cleaned_names = HM.empty
     , input_names = map idName is
@@ -284,16 +282,20 @@ initRedHaltOrd mod_name solver simplifier config libFunNames =
 
         m_logger = fmap SomeReducer $ getLogger config
 
+        strict_red f = case strict config of
+                            True -> SomeReducer (stdRed share f solver simplifier ~> instTypeRed ~> strictRed)
+                            False -> SomeReducer (stdRed share f solver simplifier ~> instTypeRed)
+
         hpc_red f = case hpc config of
-                        True ->  SomeReducer (hpcReducer mod_name ~> stdRed share f solver simplifier ~> instTypeRed) 
-                        False -> SomeReducer (stdRed share f solver simplifier ~> instTypeRed)
+                        True ->  SomeReducer (hpcReducer mod_name) .~> strict_red f 
+                        False -> strict_red f
 
         nrpc_red f = case nrpc config of
                         Nrpc -> liftSomeReducer (SomeReducer (nonRedLibFuncsReducer libFunNames) .== Finished .--> hpc_red f)
                         NoNrpc -> liftSomeReducer (hpc_red f)
 
         logger_std_red f = case m_logger of
-                            Just logger -> liftSomeReducer (logger .~>  nrpc_red f)
+                            Just logger -> liftSomeReducer (logger .~> nrpc_red f)
                             Nothing -> liftSomeReducer (nrpc_red f)
 
         halter = switchEveryNHalter 20
@@ -355,12 +357,12 @@ initialStateNoStartFunc :: [FilePath]
                      -> Config
                      -> IO (State (), Bindings)
 initialStateNoStartFunc proj src transConfig config = do
-    (m_mod, exg2) <- translateLoaded proj src transConfig config
+    (_, exg2) <- translateLoaded proj src transConfig config
 
     let simp_state = initSimpleState exg2
 
         (init_s, bindings) = initStateFromSimpleState simp_state Nothing False
-                                 (\_ ng _ _ _ _ _ -> (Prim Undefined TyBottom, [], [], Nothing, ng))
+                                 (\_ ng _ _ _ _ -> (Prim Undefined TyBottom, [], [], Nothing, ng))
                                  (E.higherOrderExprs . IT.expr_env)
                                  config
 
@@ -482,9 +484,9 @@ runG2Pre :: ( Named t
             , ASTContainer t Type) => MemConfig -> State t -> Bindings -> (State t, Bindings)
 runG2Pre mem s bindings =
     let
-        (swept, bindings') = markAndSweepPreserving mem s bindings
+        swept = markAndSweepPreserving mem s bindings
     in
-    runPreprocessing swept bindings'
+    runPreprocessing swept bindings
 
 runG2Post :: ( MonadIO m
              , Named t

@@ -43,35 +43,33 @@ instance Monoid MemConfig where
 emptyMemConfig :: MemConfig
 emptyMemConfig = MemConfig { search_names = [], pres_func = \_ _ a -> a }
 
-markAndSweep :: State t -> Bindings -> (State t, Bindings)
+markAndSweep :: State t -> Bindings -> State t
 markAndSweep s = markAndSweepPreserving emptyMemConfig s
 
 addSearchNames :: [Name] -> MemConfig -> MemConfig
 addSearchNames ns mc@(MemConfig { search_names = ns' }) = mc { search_names = ns ++ ns' }
 addSearchNames _ PreserveAllMC = PreserveAllMC
 
-markAndSweepIgnoringKnownValues :: State t -> Bindings -> (State t, Bindings)
+markAndSweepIgnoringKnownValues :: State t -> Bindings -> State t
 markAndSweepIgnoringKnownValues = markAndSweepPreserving' emptyMemConfig
 
-markAndSweepPreserving :: MemConfig -> State t -> Bindings -> (State t, Bindings)
+markAndSweepPreserving :: MemConfig -> State t -> Bindings -> State t
 markAndSweepPreserving mc s =
     markAndSweepPreserving' (toList (names (known_values s)) `addSearchNames` mc) s
 
-markAndSweepPreserving' :: MemConfig -> State t -> Bindings -> (State t, Bindings)
-markAndSweepPreserving' PreserveAllMC s b = (s, b)
+markAndSweepPreserving' :: MemConfig -> State t -> Bindings -> State t
+markAndSweepPreserving' PreserveAllMC s _ = s
 markAndSweepPreserving' mc (state@State { expr_env = eenv
                                         , type_env = tenv
                                         , curr_expr = cexpr
                                         , path_conds = pc
                                         , exec_stack = es
-                                        }) (bindings@Bindings { deepseq_walkers = dsw
-                                                              , higher_order_inst = inst }) = -- error $ show $ length $ take 20 $ PC.toList path_conds
-                               (state', bindings')
+                                        }) (bindings@Bindings { higher_order_inst = inst }) = -- error $ show $ length $ take 20 $ PC.toList path_conds
+                               state'
   where
     state' = state { expr_env = eenv'
                    , type_env = tenv'
                    }
-    bindings' = bindings { deepseq_walkers = dsw'}
 
     active = activeNames tenv (E.redirsToExprs eenv) HS.empty $ names cexpr <>
                                                                 names es <>
@@ -87,8 +85,6 @@ markAndSweepPreserving' mc (state@State { expr_env = eenv
 
     eenv' = E.filterWithKey (\n _ -> isActive n) eenv
     tenv' = HM.filterWithKey (\n _ -> isActive n) tenv
-
-    dsw' = M.filterWithKey (\n _ -> isActive n) dsw
 
     higher_ord_eenv = E.filterWithKey (\n _ -> n `HS.member` inst) eenv
     higher_ord = nubBy (.::.) $ argTypesTEnv tenv ++ E.higherOrderExprs higher_ord_eenv
