@@ -74,13 +74,19 @@ roundTest (F x) | isNaN x || isInfinite x = (0, 0)
 decodeFloatTest :: NaNEq -> (Int, (Integer, Int))
 decodeFloatTest (F x) | isNaN x || isInfinite x = (0, (0, 0))
                       | isDenormalized x = (1, decodeFloat x)
-                      | x > 100 = (2, decodeFloat x)
-                      | x > 9 = (3, decodeFloat x)
-                      | x < -12 = (4, decodeFloat x)
-                      | otherwise = (5, decodeFloat x)
+                      | x > 1000 = (2, decodeFloat x)
+                      | x > 100 = (3, decodeFloat x)
+                      | x > 9 = (4, decodeFloat x)
+                      | x > 4 = (5, decodeFloat x)
+                      | x < -1000 = (6, decodeFloat x)
+                      | x < -100 = (7, decodeFloat x)
+                      | x < -12 = (8, decodeFloat x)
+                      | x < -3 = (9, decodeFloat x)
+                      | otherwise = (10, decodeFloat x)
 
 decodeFloatConst :: [(Integer, Int)]
-decodeFloatConst = map decodeFloat ([-5, -4, -3, -2, -1, 1, 2, 3, 4, 5] :: [Float])
+decodeFloatConst = map decodeFloat ([-10, -9, -8, -7, -6, -5, -4, -3, -2, -1,
+                                       0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10] :: [Float])
 
 decodeFloatCheck :: NaNEq -> Int
 decodeFloatCheck (F x) = case decodeFloat x of

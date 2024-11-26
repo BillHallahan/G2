@@ -402,7 +402,7 @@ testFileTests = testGroup "TestFiles"
                                                      , ("floorAndCeiling", 1500, [AtLeast 6])
                                                      , ("roundTest", 1750, [AtLeast 8])
                                                      , ("decodeFloatTest", 2000, [AtLeast 6])
-                                                     , ("decodeFloatConst", 2000, [Exactly 1])
+                                                     , ("decodeFloatConst", 5000, [Exactly 1])
                                                      , ("decodeFloatCheck", 2000, [AtLeast 2])
                                                      , ("exponentTest", 2000, [AtLeast 6]) ]
 
@@ -420,7 +420,7 @@ testFileTests = testGroup "TestFiles"
                                                       , ("floorAndCeiling", 1500, [AtLeast 6])
                                                       , ("roundTest", 1750, [AtLeast 8])
                                                       , ("decodeFloatTest", 2000, [AtLeast 6])
-                                                      , ("decodeFloatConst", 2000, [Exactly 1])
+                                                      , ("decodeFloatConst", 5000, [Exactly 1])
                                                       , ("decodeFloatCheck", 2000, [AtLeast 2])
                                                       , ("exponentTest", 2000, [AtLeast 6])  ]
 
