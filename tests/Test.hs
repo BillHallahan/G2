@@ -379,7 +379,7 @@ testFileTests = testGroup "TestFiles"
     -- , checkExprAssumeAssert "tests/TestFiles/HigherOrderList.hs" 400 Nothing Nothing "g" [AtLeast  10] 
     , checkExpr "tests/TestFiles/MkSymbolic.hs" 1500 "f" [ Exactly 9 ]
     , checkExpr "tests/TestFiles/MkSymbolic.hs" 1500 "testAssume" [ AtLeast 1
-                                                                  , RForAll (\[r] -> not (isError r)) ]
+                                                                  , RForAll (\[_, r] -> not (isError r)) ]
 
     , checkInputOutputs "tests/TestFiles/Show.hs" [ ("show1", 1000, [Exactly 1])
                                                   , ("show2", 1000, [Exactly 1])
