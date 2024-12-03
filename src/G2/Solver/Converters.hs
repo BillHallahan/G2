@@ -399,6 +399,8 @@ funcToSMT1Prim IntToDouble e = IntToDoubleSMT (exprToSMT e)
 funcToSMT1Prim IntToRational e = IntToRealSMT (exprToSMT e)
 funcToSMT1Prim IntToString e = FromInt (exprToSMT e)
 funcToSMT1Prim (BVToInt w) e = (BVToIntSMT w) (exprToSMT e)
+funcToSMT1Prim RationalToFloat e = RealToFloat (exprToSMT e)
+funcToSMT1Prim RationalToDouble e = RealToDouble (exprToSMT e)
 funcToSMT1Prim BVToNat e = BVToNatSMT (exprToSMT e)
 funcToSMT1Prim Chr e = FromCode (exprToSMT e)
 funcToSMT1Prim OrdChar e = ToCode (exprToSMT e)
@@ -420,9 +422,11 @@ funcToSMT2Prim Plus a1 a2 = exprToSMT a1 :+ exprToSMT a2
 funcToSMT2Prim Minus a1 a2 = exprToSMT a1 :- exprToSMT a2
 funcToSMT2Prim Mult a1 a2 = exprToSMT a1 :* exprToSMT a2
 funcToSMT2Prim Div a1 a2 = exprToSMT a1 :/ exprToSMT a2
+funcToSMT2Prim Exp a1 a2 = exprToSMT a1 :^ exprToSMT a2
 
 funcToSMT2Prim AddBV a1 a2 = exprToSMT a1 `BVAdd` exprToSMT a2
 funcToSMT2Prim MinusBV a1 a2 = exprToSMT a1 `BVAdd` BVNeg (exprToSMT a2)
+funcToSMT2Prim MultBV a1 a2 = exprToSMT a1 `BVMult` exprToSMT a2
 funcToSMT2Prim ConcatBV a1 a2 = exprToSMT a1 `Concat` exprToSMT a2
 funcToSMT2Prim ShiftLBV a1 a2 = exprToSMT a1 `ShiftL` exprToSMT a2
 funcToSMT2Prim ShiftRBV a1 a2 = exprToSMT a1 `ShiftR` exprToSMT a2
@@ -562,6 +566,7 @@ toSolverAST (x :+ y) = function2 "+" (toSolverAST x) (toSolverAST y)
 toSolverAST (x :- y) = function2 "-" (toSolverAST x) (toSolverAST y)
 toSolverAST (x :* y) = function2 "*" (toSolverAST x) (toSolverAST y)
 toSolverAST (x :/ y) = function2 "/" (toSolverAST x) (toSolverAST y)
+toSolverAST (x :^ y) = function2 "^" (toSolverAST x) (toSolverAST y)
 toSolverAST (x `QuotSMT` y) = function2 "div" (toSolverAST x) (toSolverAST y)
 toSolverAST (x `Modulo` y) = function2 "mod" (toSolverAST x) (toSolverAST y)
 toSolverAST (AbsSMT x) = "(abs " <> toSolverAST x <> ")"
@@ -570,6 +575,7 @@ toSolverAST (Neg x) = function1 "-" $ toSolverAST x
 
 toSolverAST (x `BVAdd` y) = function2 "bvadd" (toSolverAST x) (toSolverAST y)
 toSolverAST (BVNeg x) = function1 "bvneg" (toSolverAST x)
+toSolverAST (x `BVMult` y) = function2 "bvmul" (toSolverAST x) (toSolverAST y)
 toSolverAST (x `Concat` y) = function2 "concat" (toSolverAST x) (toSolverAST y)
 toSolverAST (x `ShiftL` y) = function2 "bvshl" (toSolverAST x) (toSolverAST y)
 toSolverAST (x `ShiftR` y) = function2 "bvlshr" (toSolverAST x) (toSolverAST y)
@@ -623,6 +629,10 @@ toSolverAST (StrLenSMT x) = function1 "str.len" $ toSolverAST x
 toSolverAST (IntToRealSMT x) = function1 "to_real" $ toSolverAST x
 toSolverAST (IntToFloatSMT x) = function2 "(_ to_fp 8 24)" "RNE" (function1 "(_ int2bv 32)" $ toSolverAST x)
 toSolverAST (IntToDoubleSMT x) = function2 "(_ to_fp 11 53)" "RNE" (function1 "(_ int2bv 64)" $ toSolverAST x)
+
+toSolverAST (RealToFloat x) = function2 "(_ to_fp 8 24)" "RNE" (function1 "(_ int2bv 32)" $ toSolverAST x)
+toSolverAST (RealToDouble x) = function2 "(_ to_fp 11 53)" "RNE" (function1 "(_ int2bv 64)" $ toSolverAST x)
+
 -- toSolverAST (FloatToIntSMT x) = function1 "to_int" (function1 "fp.to_real" $ toSolverAST x)
 toSolverAST (FloatToIntSMT x) = bvToSignedInt 32 (function2 "(_ fp.to_sbv 32)" "RNE" $ toSolverAST x)
 -- toSolverAST (DoubleToIntSMT x) = function1 "to_int" (function1 "fp.to_real" $ toSolverAST x)

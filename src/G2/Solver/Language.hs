@@ -64,6 +64,8 @@ data SMTAST = (:>=) !SMTAST !SMTAST
             | (:-) !SMTAST !SMTAST -- ^ Subtraction
             | (:*) !SMTAST !SMTAST
             | (:/) !SMTAST !SMTAST
+            | (:^) !SMTAST !SMTAST
+
             | AbsSMT !SMTAST
             | SqrtSMT !SMTAST
             | QuotSMT !SMTAST !SMTAST
@@ -73,6 +75,7 @@ data SMTAST = (:>=) !SMTAST !SMTAST
             -- BitVectors
             | BVAdd !SMTAST !SMTAST
             | BVNeg !SMTAST
+            | BVMult !SMTAST !SMTAST
             | Concat !SMTAST !SMTAST
             | ShiftL !SMTAST !SMTAST
             | ShiftR !SMTAST !SMTAST
@@ -141,6 +144,8 @@ data SMTAST = (:>=) !SMTAST !SMTAST
             | IntToRealSMT !SMTAST -- ^ Integer to Real conversion
             | BVToIntSMT Int !SMTAST -- ^ BitVector (of indicated width) to Int conversion
             | BVToNatSMT !SMTAST -- ^ BitVector to unsigned Int
+            | RealToFloat !SMTAST -- ^ Real to Float
+            | RealToDouble !SMTAST -- ^ Real to Double
 
             | Named !SMTAST SMTName -- ^ Name a piece of the SMTAST, allowing it to be returned in unsat cores
             deriving (Show, Eq)

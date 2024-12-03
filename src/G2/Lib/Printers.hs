@@ -380,15 +380,18 @@ mkPrimHaskell pg = pr
         pr Abs = "abs"
 
         pr Sqrt = "sqrt"
+        pr Exp = "exp"
 
         pr AddBV = "bv.+"
         pr MinusBV = "bv.-"
+        pr MultBV = "bv.*"
         pr ConcatBV = "concatBV"
         pr ShiftLBV = "shiftL"
         pr ShiftRBV = "shiftL"
 
         pr Fp = "fp"
         pr DecodeFloat = "fp.decodeFloat"
+        pr EncodeFloat = "fp.encodeFloat"
         pr FpNeg = "fp.-"
         pr FpAdd = "fp.+"
         pr FpSub = "fp.-"

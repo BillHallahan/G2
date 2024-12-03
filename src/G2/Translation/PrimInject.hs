@@ -110,6 +110,7 @@ primDefs' b c l unit =
               , ("smtGeFloat#", Prim FpGeq $ tyFloatFloatBool b)
 
               , ("decodeFloat#", Prim DecodeFloat tyFloatInteger)
+              , ("encodeFloatInteger#", Prim EncodeFloat tyIntIntFloat)
               , ("isFloatNegativeZero#", Prim FpIsNegativeZero $ tyFloatBool b)
               , ("isFloatDenormalized#", Prim IsDenormalized $ tyFloatBool b)
               , ("isFloatNaN#", Prim IsNaN $ tyFloatBool b)
@@ -237,6 +238,9 @@ tyFloatFloat = TyFun TyLitFloat TyLitFloat
 
 tyFloatInteger :: Type
 tyFloatInteger = TyFun TyLitFloat TyLitInt
+
+tyIntIntFloat :: Type
+tyIntIntFloat = TyFun TyLitInt (TyFun TyLitInt TyLitFloat)
 
 tyFloatBool :: Name -> Type
 tyFloatBool n = TyFun TyLitFloat (TyCon n TYPE)

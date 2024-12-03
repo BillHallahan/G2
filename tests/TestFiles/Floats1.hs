@@ -1,8 +1,8 @@
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving, MultiWayIf #-}
 
 module Floats1 where
 
-newtype NaNEq = F { unF :: Float } deriving (Ord, Num, Fractional, Floating, Real, RealFrac, RealFloat)
+newtype NaNEq = F { unF :: Float } deriving (Ord, Num, Fractional, Floating, Real, RealFrac, RealFloat, Show)
 
 instance Eq NaNEq where
     F f1 == F f2 | isNaN f1, isNaN f2 = True
@@ -114,3 +114,22 @@ exponentTest (F x)
     | otherwise = (6, r)
     where
         r = exponent x
+
+encodeFloatTest1 :: Integer -> Int -> (Int, Int, NaNEq)
+encodeFloatTest1 x y | -128 == y = (-1, -1, r')
+                     | x > 1000 * 1000 = (0, b, r')
+                     | x > 1000 = (1, b, r')
+                     | x > 10 = (2, b, r')
+                     | x > 1 = (3, b, r')
+                     | x > -100 = (4, b, r')
+                     | x > -1000 = (5, b, r')
+                     | otherwise = (6, b, r')
+    where
+        r = encodeFloat x y
+        r' = F r
+
+        b = if | y == -127 -> 0
+               | y > 100 -> 1
+               | y > 10 -> 2
+               | y > -50 -> 3
+               | otherwise -> 4

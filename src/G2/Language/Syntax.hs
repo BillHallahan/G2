@@ -185,10 +185,12 @@ data Primitive = -- Mathematical and logical operators
 
                -- Rational
                | Sqrt
+               | Exp
 
                -- BitVectors
                | AddBV
                | MinusBV
+               | MultBV
                | ConcatBV
                | ShiftLBV
                | ShiftRBV
@@ -197,6 +199,7 @@ data Primitive = -- Mathematical and logical operators
                | Fp -- ^ A floating point number, should be wrapped in arguments representing (Sign Exponent Significand).
                     -- Currently only supports being used in PathCons to be converted to SMT.
                | DecodeFloat
+               | EncodeFloat
 
                | FpNeg
                | FpAdd

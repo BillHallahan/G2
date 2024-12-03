@@ -124,10 +124,7 @@ evalPrimWithState s@(State { known_values = kv, type_env = tenv, expr_env = eenv
         -- The decodeFloat function returns a (signed and scaled) significand and exponent from a float.
         -- More details on scaling are in Note [Scaled decodeFloat], below.
 
-        (ex_bits, sig_bits) = case typeOf e of
-                                TyLitFloat -> (8, 23)
-                                TyLitDouble -> (11, 52)
-                                _ -> error "evalPrimWithState: decodeFloat - unsupported type"
+        (ex_bits, sig_bits) = expSigBits (typeOf e)
         ty_ex = TyLitBV ex_bits
         ty_sig = TyLitBV sig_bits
 
@@ -253,6 +250,89 @@ evalPrimWithState s@(State { known_values = kv, type_env = tenv, expr_env = eenv
                  , new_pcs = [ fp_pc, shift_pc1, shift_pc2, exp_pc, sig_pc ]
                  , concretized = [] }
          , ng8)
+evalPrimWithState s@(State { known_values = kv, type_env = tenv, expr_env = eenv }) ng (App (App (Prim EncodeFloat t) m_arg) n_arg) =
+    let
+        -- `encodeFloat m n` returns one of the two closest representable floating-point numbers closest to m*b^^n, generally the closer,
+        -- where b is the floating-point radix.
+        --
+        -- SMT-LIB does not have a floating-point exponentiation operator, but fortunately the radix for both Floats and Doubles is 2.
+        -- For IEEE floating points, 2^n is represented by setting the exponent bits to the signed representation of (n + 127)
+        -- and the significand to 0.
+
+        rt = returnType (PresType t)
+
+        m = deepLookupExprPastTicks m_arg eenv
+        n = deepLookupExprPastTicks n_arg eenv
+
+        (ex_bits, sig_bits) = expSigBits rt
+        ty_ex = TyLitBV ex_bits
+        ty_sig = TyLitBV sig_bits
+
+        (exp_bv, ng') = freshSeededId (Name "exp_bv" Nothing 0 Nothing) ty_ex ng
+        (encoded, ng'') = freshSeededId (Name "enc" Nothing 0 Nothing) rt ng'
+
+        -- Currently, radix is always 2, so can raise to a power by bit shifting.
+        radix = case rt of
+                    TyLitFloat -> 2
+                    TyLitDouble -> 2
+                    _ -> error "evalPrimWithState: encodeFloat - unsupported type"
+        
+        to_float = case rt of
+                    TyLitFloat -> Prim IntToFloat (TyFun TyLitInt TyLitFloat)
+                    TyLitDouble -> Prim IntToDouble (TyFun TyLitInt TyLitDouble)
+                    _ -> error "evalPrimWithState: encodeFloat - unsupported type"
+
+        -- Set up the float for 2^n.
+        sign_2n = Lit $ LitBV [0]
+
+        scl_exp = mkApp [ Prim Plus (mkTyFun [TyLitInt, TyLitInt, TyLitInt])
+                        , n
+                        , Lit $ LitInt 127]
+        exp_eq = mkApp [ Prim Eq TyUnknown
+                       , scl_exp
+                       , mkApp [ Prim (BVToInt ex_bits) (mkTyFun [TyLitBV ex_bits, TyLitInt])
+                               , Var exp_bv ]
+                       ]
+        exp_pc = ExtCond exp_eq True
+
+        sig_2n = Lit . LitBV $ replicate sig_bits 0
+
+        n_fp = mkApp [ Prim Ite TyUnknown
+                     , mkApp [ Prim Eq TyUnknown, n, Lit $ LitInt (-127)]
+                     , App (App (App (Prim Fp TyUnknown) sign_2n) (Lit . LitBV $ replicate ex_bits 0)) (Lit . LitBV $ 1:replicate (sig_bits - 1) 0)
+                     , App (App (App (Prim Fp TyUnknown) sign_2n) (Var exp_bv)) sig_2n
+                     ]
+
+        -- Multiply m*b^^n
+        m_fp = mkApp [ to_float, m]
+
+        mult_expr = mkApp [ Prim FpMul TyUnknown
+                          , m_fp
+                          , n_fp ]
+        enc_expr = mkApp [ Prim Eq TyUnknown
+                         , Var encoded
+                         , mult_expr]
+
+        eenv' = E.insertSymbolic encoded eenv
+        curr' = Var encoded
+        enc_pc = ExtCond enc_expr True
+
+        -- intToRational ie = mkApp [ Prim IntToRational (TyFun TyLitInt TyLitRational), ie]
+
+        -- e_exp = mkApp [ Prim Exp (TyFun TyLitRational TyLitRational)
+        --               , Lit $ LitRational radix
+        --               , intToRational n
+        --               ]
+        -- e_mult = mkApp [ Prim Mult (TyFun TyLitRational (TyFun TyLitRational TyLitRational))
+        --                , intToRational m
+        --                , e_exp ]
+        -- e = mkApp [to_float, e_mult]
+    in
+    Just ( NewPC { state = s { expr_env = eenv'
+                             , curr_expr = CurrExpr Return curr' }
+                 , new_pcs = [ exp_pc, enc_pc ]
+                 , concretized = [] }
+         , ng'')
 evalPrimWithState s ng (App (Prim HandleGetPos _) hnd)
     | (Prim (Handle n) _) <- deepLookupExprPastTicks hnd (expr_env s)
     , Just (HandleInfo { h_pos = pos }) <- M.lookup n (handles s) =
@@ -332,6 +412,12 @@ newMutVar s ng org ts t e =
                , mutvar_env = insertMvVal mv_n i org (mutvar_env s)}
     in
     (s', ng'')
+
+expSigBits :: Type -> (Int, Int)
+expSigBits t = case t of
+                    TyLitFloat -> (8, 23)
+                    TyLitDouble -> (11, 52)
+                    _ -> error "evalPrimWithState: decodeFloat - unsupported type"
 
 evalPrim1 :: Primitive -> Lit -> Maybe Expr
 evalPrim1 Negate (LitInt x) = Just . Lit $ LitInt (-x)
