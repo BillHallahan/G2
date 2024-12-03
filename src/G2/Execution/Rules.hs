@@ -1175,7 +1175,6 @@ addExtConds s ng e1 ais e2 stck =
 -- pattern is the rhs
 -- we want to isolated coercion and the value args
 -- also want to use the known values(ty_coercion) to isolated out the coercion 
--- 
 containCoercion :: [Expr] -> Bool
 containCoercion e = 
     let  
@@ -1183,7 +1182,8 @@ containCoercion e =
                                                 Coercion _ -> True
                                                 _          -> False) e
     in 
-        not $ L.null co 
+       trace("The list of expr is " ++ show co) not $ L.null co 
+
 
 -- We first verify whether the center of the TyApp is a coercion we known
 -- n1 represent the symoblic type variables 
@@ -1194,8 +1194,8 @@ containCoercion e =
 -- checking the center is a cerocion using the known values
 -- print out to determine type or dc coercion from the knownvalues 
 
-extractTypes :: KnownValues -> [Id] -> (Type, Type)
-extractTypes kv [Id _ (TyApp (TyApp (TyApp (TyApp (TyCon n _) _) _) n1) n2)] =
+extractTypes :: KnownValues -> Id -> (Type, Type)
+extractTypes kv (Id _ (TyApp (TyApp (TyApp (TyApp (TyCon n _) _) _) n1) n2)) =
         trace("ty_coercion: " ++ show (KV.tyCoercion kv) ++ "\n" ++ "dc_coercions: " ++ show (KV.dcCoercion kv))
         (if KV.tyCoercion kv == n 
         then    
@@ -1204,11 +1204,10 @@ extractTypes kv [Id _ (TyApp (TyApp (TyApp (TyApp (TyCon n _) _) _) n1) n2)] =
             error "the center of the id is not a coercion")
 extractTypes _ _ = error "Pattern not matched in extractTypes"
 
-
 liftBinds :: KnownValues -> [(Id, Expr)] -> E.ExprEnv -> Expr -> NameGen ->
              (E.ExprEnv, Expr, NameGen, [Name])
              --trace("The list of RHS " ++ show bindsRHS ++ "\n " ++ "The list of LHS " ++ show bindsLHS)
-liftBinds kv binds eenv expr ngen = trace("The list of RHS " ++ show bindsRHS ++ "\n " ++ "The list of LHS " ++ show bindsLHS) (eenv', expr'', ngen', news)
+liftBinds kv binds eenv expr ngen = (eenv', expr', ngen', news)
   where
  -- when we see the first element from the bindsRHS is Coercion types 
  -- we can start looking at the corresponding bindsLHS
@@ -1218,8 +1217,38 @@ liftBinds kv binds eenv expr ngen = trace("The list of RHS " ++ show bindsRHS ++
  -- Then, we want to unify them and retype them 
  -- Those functions are located in typing.hs 
 
- -- bindsLHS is the pattern 
- -- bindsRHS is the scrutinee 
+
+
+    -- Here we want to use the binds 
+    -- first parition the list into coercion and values 
+    -- for the values, keep everything as it's
+    -- for the coercion, maybe consider rename them? but it's already done?
+    -- using the foldl' on the unify' not unify for each of the coercion because we want to use only one 
+    --- ufmap to check the consistency 
+    -- ideas: use the extract types function, modify it to become a bool function for partiion
+    -- then, using the name in uf_map, find the corresponinding id from the coercion
+    -- after finding the correct id, retye the expr associated with the id 
+    -- note the ufmap give us the ufmap n t
+    -- retype (Id n (typeof t)) t expr (which are the current expr associated with the epxr) 
+    -- In the end, we want to have something like 
+    -- a -> int, b -> float, c -> string 
+    -- E a b c -> E int float string 
+    
+    -- bindsLHS is the pattern 
+    -- bindsRHS is the scrutinee 
+
+    (coercion, value) = L.partition (\(_, e) -> case e of
+                                        Coercion _ -> True
+                                        _ -> False) binds
+    extract_tys = map (extractTypes kv) (map fst coercion)
+
+    uf_map = foldM (\uf_map (t1, t2) -> T.unify' uf_map t1 t2) UF.empty extract_tys
+    
+    new_expr = case uf_map of
+            Nothing -> error "The unify map is having an error"
+            Just uf_map' -> L.foldl' (\e (n,t) -> retype (Id n (typeOf t)) t e) expr (HM.toList $ UF.toSimpleMap uf_map')
+
+  
     (bindsLHS, bindsRHS) = unzip binds
     
     olds = map (idName) bindsLHS
@@ -1229,28 +1258,8 @@ liftBinds kv binds eenv expr ngen = trace("The list of RHS " ++ show bindsRHS ++
 
     eenv' = E.insertExprs (zip news bindsRHS) eenv
 
-    expr' = renamesExprs olds_news expr
-    -- Here we want to use the binds 
-    -- first parition the list into coercion and values 
-    -- for the values, keep everything as it's
-    -- for the coercion, maybe consider rename them? but it's already done?
-    -- using the foldl' on the unify' not unfy for each of the coercion because we want to use only one 
-    --- ufmap to check the consistency 
-    expr'' = case containCoercion bindsRHS of               
-                True -> 
-                    let
-                        (t1 , t2) = extractTypes kv bindsLHS
-                        e = case unify t1 t2 of 
-                                    Nothing -> error $ "can't unify types under coercion: " ++ show t1 ++ " " ++ show t2
-                                    Just un_map ->
-                                        case HM.toList $ UF.toSimpleMap un_map of
-                                            [(n, t)] -> trace ("retype n = " ++ show n) retype (Id n (typeOf t)) t expr'
-                                            _ -> error "Expected a singleton list in un_map"
-                    in
-                    e
-                -- trace ("bindsRHS = " ++ show bindsRHS)
-                False -> expr'
-        
+    -- expr' = renamesExprs olds_news expr
+    expr' = if L.null coercion then renamesExprs olds_news expr else new_expr      
 
 liftBind :: Id -> Expr -> E.ExprEnv -> Expr -> NameGen ->
              (E.ExprEnv, Expr, NameGen, Name)
