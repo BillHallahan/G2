@@ -406,7 +406,9 @@ testFileTests = testGroup "TestFiles"
                                                      , ("decodeFloatConst", 5000, [Exactly 1])
                                                      , ("decodeFloatCheck", 2000, [AtLeast 2])
                                                      , ("exponentTest", 2000, [AtLeast 6])
-                                                     , ("encodeFloatTest1", 2000, [AtLeast 30]) ]
+                                                     , ("encodeFloatTest1", 2000, [AtLeast 30])
+                                                     , ("significandTest", 2000, [AtLeast 5]) 
+                                                     , ("scaleFloatTest", 2000, [AtLeast 5]) ]
 
     , checkInputOutputs "tests/TestFiles/Doubles1.hs" [ ("infinite", 1000, [AtLeast 3])
                                                       , ("zero", 1000, [AtLeast 3])
@@ -426,7 +428,9 @@ testFileTests = testGroup "TestFiles"
                                                       , ("decodeFloatConst", 5000, [Exactly 1])
                                                       , ("decodeFloatCheck", 2000, [AtLeast 2])
                                                       , ("exponentTest", 2000, [AtLeast 6])
-                                                      , ("encodeFloatTest1", 2000, [AtLeast 30]) ]
+                                                      , ("encodeFloatTest1", 2000, [AtLeast 30]) 
+                                                      , ("significandTest", 2000, [AtLeast 5])
+                                                      , ("scaleFloatTest", 2000, [AtLeast 5]) ]
 
     , checkInputOutputsInstType "tests/TestFiles/InstTypes1.hs" [ ("lengthList", 200, [AtLeast 1])
                                                         , ("myTuple", 200, [AtLeast 1])

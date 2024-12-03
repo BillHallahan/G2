@@ -135,3 +135,22 @@ encodeFloatTest1 x y | -128 >= y || y >= 128 = (-1, -1, r')
                | y > -50 -> 4
                | y > -100 -> 5
                | otherwise -> 6
+
+significandTest :: NaNEq -> (Integer, NaNEq)
+significandTest (F x)
+    | isNaN x || isInfinite x = (0, 0)
+    | x > 20 = (1, r)
+    | x > 9 = (2, r)
+    | x < -3 = (3, r)
+    | x < -17 = (4, r)
+    | x < -400 = (5, r)
+    | r > 17 = (6, r)
+    | r > 4 = (7, r)
+    | otherwise = (6, r)
+    where
+        r = F (significand x)
+
+scaleFloatTest :: NaNEq -> (Int, NaNEq, NaNEq)
+scaleFloatTest (F x) | x > 10 = (0, F (scaleFloat 4 x), F (scaleFloat 8 x))
+                     | x < -9 = (1, F (scaleFloat 6 x), F (scaleFloat 11 x))
+                     | otherwise = (2, F (scaleFloat 9 x), F (scaleFloat 14 x))
