@@ -116,7 +116,7 @@ exponentTest (F x)
         r = exponent x
 
 encodeFloatTest1 :: Integer -> Int -> (Int, Int, NaNEq)
-encodeFloatTest1 x y | -128 == y = (-1, -1, r')
+encodeFloatTest1 x y | -128 >= y || y >= 128 = (-1, -1, r')
                      | x > 1000 * 1000 = (0, b, r')
                      | x > 1000 = (1, b, r')
                      | x > 10 = (2, b, r')
@@ -131,5 +131,7 @@ encodeFloatTest1 x y | -128 == y = (-1, -1, r')
         b = if | y == -127 -> 0
                | y > 100 -> 1
                | y > 10 -> 2
-               | y > -50 -> 3
-               | otherwise -> 4
+               | y > -10 -> 3
+               | y > -50 -> 4
+               | y > -100 -> 5
+               | otherwise -> 6

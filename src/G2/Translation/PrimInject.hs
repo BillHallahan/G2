@@ -89,6 +89,7 @@ primDefs' b c l unit =
               , ("$>=##", Prim FpGeq $ tyDoubleDoubleBool b)
 
               , ("decodeDouble#", Prim DecodeFloat tyDoubleInteger)
+              , ("encodeDoubleInteger#", Prim EncodeFloat tyIntIntDouble)
               , ("isDoubleNegativeZero#", Prim FpIsNegativeZero $ tyDoubleBool b)
               , ("isDoubleDenormalized#", Prim IsDenormalized $ tyDoubleBool b)
               , ("isDoubleNaN#", Prim IsNaN $ tyDoubleBool b)
@@ -223,6 +224,9 @@ tyDoubleDouble = TyFun TyLitDouble TyLitDouble
 
 tyDoubleInteger :: Type
 tyDoubleInteger = TyFun TyLitDouble TyLitInt
+
+tyIntIntDouble :: Type
+tyIntIntDouble = TyFun TyLitInt (TyFun TyLitInt TyLitDouble)
 
 tyDoubleBool :: Name -> Type
 tyDoubleBool n = TyFun TyLitDouble (TyCon n TYPE)

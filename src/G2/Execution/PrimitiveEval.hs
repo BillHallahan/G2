@@ -269,17 +269,23 @@ evalPrimWithState s@(State { known_values = kv, type_env = tenv, expr_env = eenv
         ty_sig = TyLitBV sig_bits
 
         (exp_bv, ng') = freshSeededId (Name "exp_bv" Nothing 0 Nothing) ty_ex ng
-        (encoded, ng'') = freshSeededId (Name "enc" Nothing 0 Nothing) rt ng'
+        (encoded_m_nan, ng'') = freshSeededId (Name "enc_nan" Nothing 0 Nothing) rt ng'
+        (encoded, ng''') = freshSeededId (Name "enc" Nothing 0 Nothing) rt ng''
+
+        offset = 2^(ex_bits - 1) - 1
 
         -- Currently, radix is always 2, so can raise to a power by bit shifting.
         radix = case rt of
                     TyLitFloat -> 2
                     TyLitDouble -> 2
                     _ -> error "evalPrimWithState: encodeFloat - unsupported type"
-        
         to_float = case rt of
                     TyLitFloat -> Prim IntToFloat (TyFun TyLitInt TyLitFloat)
                     TyLitDouble -> Prim IntToDouble (TyFun TyLitInt TyLitDouble)
+                    _ -> error "evalPrimWithState: encodeFloat - unsupported type"
+        float_zero = case rt of
+                    TyLitFloat -> Lit $ LitFloat 0
+                    TyLitDouble -> Lit $ LitDouble 0
                     _ -> error "evalPrimWithState: encodeFloat - unsupported type"
 
         -- Set up the float for 2^n.
@@ -287,7 +293,7 @@ evalPrimWithState s@(State { known_values = kv, type_env = tenv, expr_env = eenv
 
         scl_exp = mkApp [ Prim Plus (mkTyFun [TyLitInt, TyLitInt, TyLitInt])
                         , n
-                        , Lit $ LitInt 127]
+                        , Lit $ LitInt offset]
         exp_eq = mkApp [ Prim Eq TyUnknown
                        , scl_exp
                        , mkApp [ Prim (BVToInt ex_bits) (mkTyFun [TyLitBV ex_bits, TyLitInt])
@@ -298,7 +304,7 @@ evalPrimWithState s@(State { known_values = kv, type_env = tenv, expr_env = eenv
         sig_2n = Lit . LitBV $ replicate sig_bits 0
 
         n_fp = mkApp [ Prim Ite TyUnknown
-                     , mkApp [ Prim Eq TyUnknown, n, Lit $ LitInt (-127)]
+                     , mkApp [ Prim Eq TyUnknown, n, Lit $ LitInt (-offset)]
                      , App (App (App (Prim Fp TyUnknown) sign_2n) (Lit . LitBV $ replicate ex_bits 0)) (Lit . LitBV $ 1:replicate (sig_bits - 1) 0)
                      , App (App (App (Prim Fp TyUnknown) sign_2n) (Var exp_bv)) sig_2n
                      ]
@@ -309,13 +315,22 @@ evalPrimWithState s@(State { known_values = kv, type_env = tenv, expr_env = eenv
         mult_expr = mkApp [ Prim FpMul TyUnknown
                           , m_fp
                           , n_fp ]
+        enc_m_nan_expr = mkApp [ Prim Eq TyUnknown
+                               , Var encoded_m_nan
+                               , mult_expr]
         enc_expr = mkApp [ Prim Eq TyUnknown
                          , Var encoded
-                         , mult_expr]
+                         , mkApp [ Prim Ite TyUnknown
+                                 , mkApp [ Prim IsNaN TyUnknown
+                                         , Var encoded_m_nan
+                                         ]
+                                 , float_zero
+                                 , Var encoded_m_nan
+                                 ]
+                         ]
 
-        eenv' = E.insertSymbolic encoded eenv
+        eenv' = E.insertSymbolic encoded . E.insertSymbolic encoded_m_nan . E.insertSymbolic exp_bv $ eenv
         curr' = Var encoded
-        enc_pc = ExtCond enc_expr True
 
         -- intToRational ie = mkApp [ Prim IntToRational (TyFun TyLitInt TyLitRational), ie]
 
@@ -330,9 +345,9 @@ evalPrimWithState s@(State { known_values = kv, type_env = tenv, expr_env = eenv
     in
     Just ( NewPC { state = s { expr_env = eenv'
                              , curr_expr = CurrExpr Return curr' }
-                 , new_pcs = [ exp_pc, enc_pc ]
+                 , new_pcs = [ exp_pc, ExtCond enc_m_nan_expr True, ExtCond enc_expr True ]
                  , concretized = [] }
-         , ng'')
+         , ng''')
 evalPrimWithState s ng (App (Prim HandleGetPos _) hnd)
     | (Prim (Handle n) _) <- deepLookupExprPastTicks hnd (expr_env s)
     , Just (HandleInfo { h_pos = pos }) <- M.lookup n (handles s) =
