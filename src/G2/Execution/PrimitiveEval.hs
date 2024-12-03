@@ -20,7 +20,6 @@ import G2.Language.Syntax
 import G2.Language.Typing
 
 import Control.Exception
-import Data.Bits
 import Data.Char
 import Data.Foldable
 import qualified Data.HashMap.Lazy as M
@@ -250,7 +249,7 @@ evalPrimWithState s@(State { known_values = kv, type_env = tenv, expr_env = eenv
                  , new_pcs = [ fp_pc, shift_pc1, shift_pc2, exp_pc, sig_pc ]
                  , concretized = [] }
          , ng8)
-evalPrimWithState s@(State { known_values = kv, type_env = tenv, expr_env = eenv }) ng (App (App (Prim EncodeFloat t) m_arg) n_arg) =
+evalPrimWithState s@(State { expr_env = eenv }) ng (App (App (Prim EncodeFloat t) m_arg) n_arg) =
     let
         -- `encodeFloat m n` returns one of the two closest representable floating-point numbers closest to m*b^^n, generally the closer,
         -- where b is the floating-point radix.
@@ -266,7 +265,6 @@ evalPrimWithState s@(State { known_values = kv, type_env = tenv, expr_env = eenv
 
         (ex_bits, sig_bits) = expSigBits rt
         ty_ex = TyLitBV ex_bits
-        ty_sig = TyLitBV sig_bits
 
         (exp_bv, ng') = freshSeededId (Name "exp_bv" Nothing 0 Nothing) ty_ex ng
         (encoded_m_nan, ng'') = freshSeededId (Name "enc_nan" Nothing 0 Nothing) rt ng'
@@ -274,11 +272,6 @@ evalPrimWithState s@(State { known_values = kv, type_env = tenv, expr_env = eenv
 
         offset = 2^(ex_bits - 1) - 1
 
-        -- Currently, radix is always 2, so can raise to a power by bit shifting.
-        radix = case rt of
-                    TyLitFloat -> 2
-                    TyLitDouble -> 2
-                    _ -> error "evalPrimWithState: encodeFloat - unsupported type"
         to_float = case rt of
                     TyLitFloat -> Prim IntToFloat (TyFun TyLitInt TyLitFloat)
                     TyLitDouble -> Prim IntToDouble (TyFun TyLitInt TyLitDouble)
@@ -309,7 +302,7 @@ evalPrimWithState s@(State { known_values = kv, type_env = tenv, expr_env = eenv
                      , App (App (App (Prim Fp TyUnknown) sign_2n) (Var exp_bv)) sig_2n
                      ]
 
-        -- Multiply m*b^^n
+        -- Multiply m*b^^n, adjust for NaN values (should be 0 based on observed behavior of encodeFloat primitive)
         m_fp = mkApp [ to_float, m]
 
         mult_expr = mkApp [ Prim FpMul TyUnknown
@@ -331,17 +324,6 @@ evalPrimWithState s@(State { known_values = kv, type_env = tenv, expr_env = eenv
 
         eenv' = E.insertSymbolic encoded . E.insertSymbolic encoded_m_nan . E.insertSymbolic exp_bv $ eenv
         curr' = Var encoded
-
-        -- intToRational ie = mkApp [ Prim IntToRational (TyFun TyLitInt TyLitRational), ie]
-
-        -- e_exp = mkApp [ Prim Exp (TyFun TyLitRational TyLitRational)
-        --               , Lit $ LitRational radix
-        --               , intToRational n
-        --               ]
-        -- e_mult = mkApp [ Prim Mult (TyFun TyLitRational (TyFun TyLitRational TyLitRational))
-        --                , intToRational m
-        --                , e_exp ]
-        -- e = mkApp [to_float, e_mult]
     in
     Just ( NewPC { state = s { expr_env = eenv'
                              , curr_expr = CurrExpr Return curr' }
