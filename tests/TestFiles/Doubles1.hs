@@ -154,3 +154,7 @@ scaleFloatTest :: NaNEq -> (Int, NaNEq, NaNEq)
 scaleFloatTest (D x) | x > 10 = (0, D (scaleFloat 4 x), D (scaleFloat 8 x))
                      | x < -9 = (1, D (scaleFloat 6 x), D (scaleFloat 11 x))
                      | otherwise = (2, D (scaleFloat 9 x), D (scaleFloat 14 x))
+
+scaleFloatTest2 :: NaNEq -> NaNEq
+scaleFloatTest2 (F x) | -1.93e-43 <= x, x <= -1.92e-43 = F (scaleFloat 9 x)
+                      | otherwise = F 0
