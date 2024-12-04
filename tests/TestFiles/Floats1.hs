@@ -160,3 +160,4 @@ scaleFloatTest (F x) | x > 10 = (0, F (scaleFloat 4 x), F (scaleFloat 8 x))
 scaleFloatTest2 :: NaNEq -> NaNEq
 scaleFloatTest2 (F x) | -1.93e-43 <= x, x <= -1.92e-43 = F (scaleFloat 9 x)
                       | otherwise = F 0
+                      
