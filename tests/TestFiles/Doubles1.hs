@@ -126,7 +126,7 @@ encodeFloatTest1 x y | x > 1000 * 1000 * 10 = (-1, b, r')
                      | otherwise = (6, b, r')
     where
         r = encodeFloat x y
-        r' = F r
+        r' = D r
 
         b = if | y == -127 -> 0
                | y > 128 -> 1
@@ -158,5 +158,5 @@ scaleFloatTest (D x) | x > 10 = (0, D (scaleFloat 4 x), D (scaleFloat 8 x))
                      | otherwise = (2, D (scaleFloat 9 x), D (scaleFloat 14 x))
 
 scaleFloatTest2 :: NaNEq -> NaNEq
-scaleFloatTest2 (F x) | -1.93e-43 <= x, x <= -1.92e-43 = F (scaleFloat 9 x)
-                      | otherwise = F 0
+scaleFloatTest2 (D x) | -1.93e-43 <= x, x <= -1.92e-43 = D (scaleFloat 9 x)
+                      | otherwise = D 0
