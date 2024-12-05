@@ -94,6 +94,10 @@ decodeFloatTest2 (D x) | isNaN x || isInfinite x = (0, (0, 0))
                        | x < -3 = (6, decodeFloat x)
                        | otherwise = (7, decodeFloat x)
 
+decodeFloatTest3 :: NaNEq -> NaNEq
+decodeFloatTest3 (F x) | -1.93e-43 <= x, x <= -1.92e-43 = D (uncurry encodeFloat (decodeFloat x))
+                       | otherwise = D 0
+
 decodeFloatConst :: [(Integer, Int)]
 decodeFloatConst = map decodeFloat ([-10, -9, -8, -7, -6, -5, -4, -3, -2, -1,
                                        0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10] :: [Double])
@@ -123,7 +127,9 @@ encodeFloatTest1 x y | x > 1000 * 1000 * 10 = (-1, b, r')
                      | x > 1 = (3, b, r')
                      | x > -100 = (4, b, r')
                      | x > -1000 = (5, b, r')
-                     | otherwise = (6, b, r')
+                     | x > -1000 * 1000 = (6, b, r')
+                     | x > -1000 * 1000 * 10 = (7, b, r')
+                     | otherwise = (8, b, r')
     where
         r = encodeFloat x y
         r' = D r
@@ -136,7 +142,9 @@ encodeFloatTest1 x y | x > 1000 * 1000 * 10 = (-1, b, r')
                | y > -50 -> 5
                | y > -100 -> 6
                | y > -128 -> 7
-               | otherwise -> 8
+               | y > -160 -> 8
+               | y > -180 -> 9
+               | otherwise -> 10
 
 significandTest :: NaNEq -> (Integer, NaNEq)
 significandTest (D x)
@@ -160,3 +168,4 @@ scaleFloatTest (D x) | x > 10 = (0, D (scaleFloat 4 x), D (scaleFloat 8 x))
 scaleFloatTest2 :: NaNEq -> NaNEq
 scaleFloatTest2 (D x) | -1.93e-43 <= x, x <= -1.92e-43 = D (scaleFloat 9 x)
                       | otherwise = D 0
+                    
