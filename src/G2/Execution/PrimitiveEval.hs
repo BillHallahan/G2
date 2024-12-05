@@ -255,8 +255,9 @@ evalPrimWithState s@(State { expr_env = eenv }) ng (App (App (Prim EncodeFloat t
         -- where b is the floating-point radix.
         --
         -- SMT-LIB does not have a floating-point exponentiation operator, but fortunately the radix for both Floats and Doubles is 2.
-        -- For IEEE floating points, 2^n is represented by setting the exponent bits to the signed representation of (n + 127)
-        -- and the significand to 0.
+        -- For IEEE floating points, 2^n is represented by:
+        --  (1) setting the exponent bits to the signed representation of (n + bias) and the significand to 0. (For exponents which fit in the exponent bits.)
+        --  (2) setting the exponent field to all 0s, and having a single significand bit set to 1 (for powers of 2 representable as denormalized numbers.)
 
         rt = returnType (PresType t)
 
@@ -284,6 +285,7 @@ evalPrimWithState s@(State { expr_env = eenv }) ng (App (App (Prim EncodeFloat t
         -- Set up the float for 2^n.
         sign_2n = Lit $ LitBV [0]
 
+        -- If n > -offset, we can represent the required value as a normalized float
         scl_exp = mkApp [ Prim Plus (mkTyFun [TyLitInt, TyLitInt, TyLitInt])
                         , n
                         , Lit $ LitInt offset]
@@ -296,9 +298,22 @@ evalPrimWithState s@(State { expr_env = eenv }) ng (App (App (Prim EncodeFloat t
 
         sig_2n = Lit . LitBV $ replicate sig_bits 0
 
+        -- If n <= -offset, the required value is a denormalized float
+        de_exp = Lit . LitBV $ replicate ex_bits 0
+        de_sig = mkApp [ Prim ShiftRBV TyUnknown
+                       , Lit . LitBV $ 1:replicate (sig_bits - 1) 0
+                       , mkApp [ Prim (IntToBV sig_bits) TyUnknown
+                               , mkApp [ Prim Abs TyUnknown
+                                       , mkApp [ Prim Plus TyUnknown
+                                               , n
+                                               , Lit . LitInt $ offset]
+                                       ]
+                               ]
+                       ]
+
         n_fp = mkApp [ Prim Ite TyUnknown
-                     , mkApp [ Prim Eq TyUnknown, n, Lit $ LitInt (-offset)]
-                     , App (App (App (Prim Fp TyUnknown) sign_2n) (Lit . LitBV $ replicate ex_bits 0)) (Lit . LitBV $ 1:replicate (sig_bits - 1) 0)
+                     , mkApp [ Prim Le TyUnknown, n, Lit $ LitInt (-offset)]
+                     , App (App (App (Prim Fp TyUnknown) sign_2n) de_exp) de_sig
                      , App (App (App (Prim Fp TyUnknown) sign_2n) (Var exp_bv)) sig_2n
                      ]
 

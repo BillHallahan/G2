@@ -236,6 +236,7 @@ data Primitive = -- Mathematical and logical operators
                | RationalToDouble
                | ToInteger
                | ToInt
+               | IntToBV Int -- ^ Signed conversion, takes the width of the bit vector
                | BVToInt Int -- ^ Signed conversion, takes the width of the bit vector
                | BVToNat -- ^ Unsigned conversion
                
