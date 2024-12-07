@@ -234,6 +234,8 @@ data Primitive = -- Mathematical and logical operators
                | IntToRational
                | RationalToFloat
                | RationalToDouble
+               | FloatToDouble
+               | DoubleToFloat
                | ToInteger
                | ToInt
                | IntToBV Int -- ^ Signed conversion, takes the width of the bit vector

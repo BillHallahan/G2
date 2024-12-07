@@ -141,6 +141,8 @@ data SMTAST = (:>=) !SMTAST !SMTAST
             | DoubleToIntSMT !SMTAST -- ^ Double to Integer conversion
             | IntToFloatSMT !SMTAST -- ^ Integer to Float conversion
             | IntToDoubleSMT !SMTAST -- ^ Integer to Double conversion
+            | FloatToDoubleSMT !SMTAST
+            | DoubleToFloatSMT !SMTAST
             | IntToRealSMT !SMTAST -- ^ Integer to Real conversion
             | IntToBVSMT Int !SMTAST -- ^ Int to BitVector (of indicated width) conversion
             | BVToIntSMT Int !SMTAST -- ^ BitVector (of indicated width) to Int conversion

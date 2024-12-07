@@ -136,6 +136,8 @@ primDefs' b c l unit =
               , ("fromIntToFloat", Prim IntToFloat (TyFun TyLitInt TyLitFloat))
               , ("double2Int#", Prim ToInt (TyFun TyLitDouble TyLitInt))
               , ("int2Double#", Prim IntToDouble (TyFun TyLitInt TyLitDouble))
+              , ("float2Double#", Prim FloatToDouble (TyFun TyLitFloat TyLitDouble))
+              , ("double2Float#", Prim DoubleToFloat (TyFun TyLitDouble TyLitFloat))
               , ("rationalToFloat#", Prim RationalToFloat (TyFun TyLitInt $ TyFun TyLitInt TyLitFloat))
               , ("rationalToDouble#", Prim RationalToDouble (TyFun TyLitInt $ TyFun TyLitInt TyLitDouble))
               , ("fromIntToDouble", Prim IntToDouble (TyFun TyLitInt TyLitDouble))

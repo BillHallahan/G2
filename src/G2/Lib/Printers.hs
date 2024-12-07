@@ -422,9 +422,12 @@ mkPrimHaskell pg = pr
         pr IntToRational = "fromIntegral"
         pr RationalToFloat = "fromRational"
         pr RationalToDouble = "fromRational"
+        pr FloatToDouble = "float2Double"
+        pr DoubleToFloat = "double2Float"
         pr ToInteger = "toInteger"
         pr (BVToInt w) = "(bvToInt " <> T.pack (show w) <> ")"
         pr BVToNat = "bvToNat"
+        pr (IntToBV w) = "(intToBV " <> T.pack (show w) <> ")"
 
         pr StrGt = "str.>"
         pr StrGe = "str.>="

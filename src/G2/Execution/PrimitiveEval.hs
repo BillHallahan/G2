@@ -28,6 +28,8 @@ import Data.Maybe
 import qualified G2.Language.ExprEnv as E
 import G2.Language.MutVarEnv
 
+import GHC.Float
+
 -- | Evaluates primitives at the root of the passed `Expr` while updating the `ExprEnv`
 -- to share computed results.
 evalPrimsSharing :: ExprEnv -> TypeEnv -> KnownValues -> Expr -> (Expr, ExprEnv)
@@ -448,6 +450,8 @@ evalPrim1 DecimalPart (LitDouble x) = Just . Lit $ LitDouble (snd $ properFracti
 evalPrim1 IntToFloat (LitInt x) = Just . Lit $ LitFloat (fromIntegral x)
 evalPrim1 IntToDouble (LitInt x) = Just . Lit $ LitDouble (fromIntegral x)
 evalPrim1 IntToRational (LitInt x) = Just . Lit $ LitRational (fromIntegral x)
+evalPrim1 FloatToDouble (LitFloat x) = Just . Lit $ LitDouble (float2Double x)
+evalPrim1 DoubleToFloat (LitDouble x) = Just . Lit $ LitFloat (double2Float x)
 evalPrim1 (BVToInt _) (LitBV bv) = Just . Lit . LitInt $ bvToInteger bv
 evalPrim1 Chr (LitInt x) = Just . Lit $ LitChar (chr $ fromInteger x)
 evalPrim1 OrdChar (LitChar x) = Just . Lit $ LitInt (toInteger $ ord x)
