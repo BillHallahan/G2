@@ -39,9 +39,11 @@ import System.Process
 import Control.Monad.IO.Class
 
 -- | Load the passed module(s) into GHC, and check that the `ExecRes` results are correct.
-validateStates :: [FilePath] -> [FilePath] -> String -> String -> [String] -> [GeneralFlag] -> Bindings -> [ExecRes t] -> IO Bool
+validateStates :: [FilePath] -> [FilePath] -> String -> String -> [String] -> [GeneralFlag] -> Bindings
+               -> [ExecRes t]
+               -> IO [Bool] -- ^ One bool per input `ExecRes`, indicating whether the results are correct or not
 validateStates proj src modN entry chAll gflags b in_out = do
-    and <$> runGhc (Just libdir) (do
+    runGhc (Just libdir) (do
         adjustDynFlags
         loadToCheck (map dirPath src ++ proj) src modN gflags
         mapM (\er -> do
