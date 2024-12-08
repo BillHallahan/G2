@@ -62,6 +62,9 @@ initKnownValues eenv tenv tc =
     , tyUnit = typeWithStrName tenv "()"
     , dcUnit = dcWithStrName tenv "()" "()"
 
+    , tyPrimTuple = typeWithStrName tenv "(#,#)"
+    , dcPrimTuple = dcWithStrName tenv "(#,#)" "(#,#)"
+
     , tyMutVar = typeWithStrName tenv "MutVar#"
     , dcMutVar = dcWithStrName tenv "MutVar#" "MutVar#"
     , tyState = typeWithStrName tenv "State#"

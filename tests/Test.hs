@@ -378,6 +378,8 @@ testFileTests = testGroup "TestFiles"
     --     , RExists (\[x, _] -> x /= Lit (LitInt 0))]
     -- , checkExprAssumeAssert "tests/TestFiles/HigherOrderList.hs" 400 Nothing Nothing "g" [AtLeast  10] 
     , checkExpr "tests/TestFiles/MkSymbolic.hs" 1500 "f" [ Exactly 9 ]
+    , checkExpr "tests/TestFiles/MkSymbolic.hs" 1500 "testAssume" [ AtLeast 1
+                                                                  , RForAll (\[_, r] -> not (isError r)) ]
 
     , checkInputOutputs "tests/TestFiles/Show.hs" [ ("show1", 1000, [Exactly 1])
                                                   , ("show2", 1000, [Exactly 1])
@@ -398,7 +400,17 @@ testFileTests = testGroup "TestFiles"
                                                      , ("n", 1000, [AtLeast 2])
                                                      , ("sqrtSquared", 1000, [AtLeast 2])
                                                      , ("floorAndCeiling", 1500, [AtLeast 6])
-                                                     , ("roundTest", 1750, [AtLeast 8]) ]
+                                                     , ("roundTest", 1750, [AtLeast 8])
+                                                     , ("decodeFloatTest1", 5000, [AtLeast 11])
+                                                     , ("decodeFloatTest2", 5000, [AtLeast 8])
+                                                     , ("decodeFloatTest3", 5000, [AtLeast 2])
+                                                     , ("decodeFloatConst", 5000, [Exactly 1])
+                                                     , ("decodeFloatCheck", 2000, [AtLeast 2])
+                                                     , ("exponentTest", 2000, [AtLeast 6])
+                                                     , ("encodeFloatTest1", 4000, [AtLeast 40])
+                                                     , ("significandTest", 2000, [AtLeast 5]) 
+                                                     , ("scaleFloatTest", 2000, [AtLeast 5])
+                                                     , ("scaleFloatTest2", 2000, [AtLeast 3]) ]
 
     , checkInputOutputs "tests/TestFiles/Doubles1.hs" [ ("infinite", 1000, [AtLeast 3])
                                                       , ("zero", 1000, [AtLeast 3])
@@ -412,7 +424,17 @@ testFileTests = testGroup "TestFiles"
                                                       , ("n", 1000, [AtLeast 2])
                                                       , ("sqrtSquared", 1000, [AtLeast 2])
                                                       , ("floorAndCeiling", 1500, [AtLeast 6])
-                                                      , ("roundTest", 1750, [AtLeast 8])  ]
+                                                      , ("roundTest", 1750, [AtLeast 8])
+                                                      , ("decodeFloatTest1", 5000, [AtLeast 11])
+                                                      , ("decodeFloatTest2", 5000, [AtLeast 8])
+                                                      , ("decodeFloatTest3", 5000, [AtLeast 2])
+                                                      , ("decodeFloatConst", 5000, [Exactly 1])
+                                                      , ("decodeFloatCheck", 2000, [AtLeast 2])
+                                                      , ("exponentTest", 2000, [AtLeast 6])
+                                                      , ("encodeFloatTest1", 4000, [AtLeast 40]) 
+                                                      , ("significandTest", 2000, [AtLeast 5])
+                                                      , ("scaleFloatTest", 2000, [AtLeast 5])
+                                                      , ("scaleFloatTest2", 2000, [AtLeast 3]) ]
 
     , checkInputOutputsInstType "tests/TestFiles/InstTypes1.hs" [ ("lengthList", 200, [AtLeast 1])
                                                         , ("myTuple", 200, [AtLeast 1])

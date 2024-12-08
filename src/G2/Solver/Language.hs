@@ -64,13 +64,24 @@ data SMTAST = (:>=) !SMTAST !SMTAST
             | (:-) !SMTAST !SMTAST -- ^ Subtraction
             | (:*) !SMTAST !SMTAST
             | (:/) !SMTAST !SMTAST
+            | (:^) !SMTAST !SMTAST
+
             | AbsSMT !SMTAST
             | SqrtSMT !SMTAST
             | QuotSMT !SMTAST !SMTAST
             | Modulo !SMTAST !SMTAST
             | Neg !SMTAST -- ^ Unary negation
 
+            -- BitVectors
+            | BVAdd !SMTAST !SMTAST
+            | BVNeg !SMTAST
+            | BVMult !SMTAST !SMTAST
+            | Concat !SMTAST !SMTAST
+            | ShiftL !SMTAST !SMTAST
+            | ShiftR !SMTAST !SMTAST
+
             -- Floating Point
+            | FpSMT !SMTAST !SMTAST !SMTAST -- ^ Sign, Exponent, Significand 
             | FpNegSMT !SMTAST
             | FpAddSMT !SMTAST !SMTAST
             | FpSubSMT !SMTAST !SMTAST
@@ -89,6 +100,7 @@ data SMTAST = (:>=) !SMTAST !SMTAST
             | FpSqrtSMT !SMTAST
             | TruncZeroSMT !SMTAST
 
+            | IsNormalSMT !SMTAST
             | IsNaNSMT !SMTAST
             | IsInfiniteSMT !SMTAST
 
@@ -108,7 +120,7 @@ data SMTAST = (:>=) !SMTAST !SMTAST
             | StrGtSMT !SMTAST !SMTAST
             | StrGeSMT !SMTAST !SMTAST
 
-            | Ite !SMTAST !SMTAST !SMTAST
+            | IteSMT !SMTAST !SMTAST !SMTAST
             | SLet (SMTName, SMTAST) !SMTAST
 
             | FromCode !SMTAST
@@ -118,6 +130,7 @@ data SMTAST = (:>=) !SMTAST !SMTAST
             | VFloat Float
             | VDouble Double
             | VReal Rational
+            | VBitVec [Int]
             | VChar Char
             | VString String
             | VBool Bool
@@ -128,7 +141,14 @@ data SMTAST = (:>=) !SMTAST !SMTAST
             | DoubleToIntSMT !SMTAST -- ^ Double to Integer conversion
             | IntToFloatSMT !SMTAST -- ^ Integer to Float conversion
             | IntToDoubleSMT !SMTAST -- ^ Integer to Double conversion
+            | FloatToDoubleSMT !SMTAST
+            | DoubleToFloatSMT !SMTAST
             | IntToRealSMT !SMTAST -- ^ Integer to Real conversion
+            | IntToBVSMT Int !SMTAST -- ^ Int to BitVector (of indicated width) conversion
+            | BVToIntSMT Int !SMTAST -- ^ BitVector (of indicated width) to Int conversion
+            | BVToNatSMT !SMTAST -- ^ BitVector to unsigned Int
+            | RealToFloat !SMTAST -- ^ Real to Float
+            | RealToDouble !SMTAST -- ^ Real to Double
 
             | Named !SMTAST SMTName -- ^ Name a piece of the SMTAST, allowing it to be returned in unsat cores
             deriving (Show, Eq)
@@ -138,6 +158,7 @@ data Sort = SortInt
           | SortFloat
           | SortDouble
           | SortReal
+          | SortBV Int
           | SortChar
           | SortString
           | SortBool
@@ -221,7 +242,7 @@ instance AST SMTAST where
     children (x :/ y) = [x, y]
     children (Neg x) = [x]
 
-    children (Ite x x' x'') = [x, x', x'']
+    children (IteSMT x x' x'') = [x, x', x'']
     children (SLet (_, x) x') = [x, x']
 
     children (FromCode x) = [x]
@@ -250,7 +271,7 @@ instance AST SMTAST where
     modifyChildren f (FromCode x) = FromCode (f x)
     modifyChildren f (ToCode x) = ToCode (f x)
 
-    modifyChildren f (Ite x x' x'') = Ite (f x) (f x') (f x'')
+    modifyChildren f (IteSMT x x' x'') = IteSMT (f x) (f x') (f x'')
     modifyChildren f (SLet (n, x) x') = SLet (n, f x) (f x')
 
     modifyChildren _ e = e
