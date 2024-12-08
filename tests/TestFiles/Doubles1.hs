@@ -95,7 +95,7 @@ decodeFloatTest2 (D x) | isNaN x || isInfinite x = (0, (0, 0))
                        | otherwise = (7, decodeFloat x)
 
 decodeFloatTest3 :: NaNEq -> NaNEq
-decodeFloatTest3 (F x) | -1.93e-43 <= x, x <= -1.92e-43 = D (uncurry encodeFloat (decodeFloat x))
+decodeFloatTest3 (D x) | -1.93e-43 <= x, x <= -1.92e-43 = D (uncurry encodeFloat (decodeFloat x))
                        | otherwise = D 0
 
 decodeFloatConst :: [(Integer, Int)]
