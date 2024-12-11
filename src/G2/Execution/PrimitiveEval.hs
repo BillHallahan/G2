@@ -284,10 +284,12 @@ evalPrimWithState s@(State { expr_env = eenv }) ng (App (App (Prim EncodeFloat t
                     TyLitDouble -> Lit $ LitDouble 0
                     _ -> error "evalPrimWithState: encodeFloat - unsupported type"
 
+        ---------------------------------------------------------------------------------------------
         -- Set up the float for 2^n.
+        ---------------------------------------------------------------------------------------------
         sign_2n = Lit $ LitBV [0]
 
-        -- If n > -offset, we can represent the required value as a normalized float
+        -- If n > -offset, we can represent the required exponent as a normalized float
         scl_exp = mkApp [ Prim Plus (mkTyFun [TyLitInt, TyLitInt, TyLitInt])
                         , n
                         , Lit $ LitInt offset]
@@ -300,7 +302,7 @@ evalPrimWithState s@(State { expr_env = eenv }) ng (App (App (Prim EncodeFloat t
 
         sig_2n = Lit . LitBV $ replicate sig_bits 0
 
-        -- If n <= -offset, the required value is a denormalized float
+        -- If n <= -offset, the required exponent is a denormalized float
         de_exp = Lit . LitBV $ replicate ex_bits 0
         de_sig = mkApp [ Prim ShiftRBV TyUnknown
                        , Lit . LitBV $ 1:replicate (sig_bits - 1) 0
@@ -315,11 +317,13 @@ evalPrimWithState s@(State { expr_env = eenv }) ng (App (App (Prim EncodeFloat t
 
         n_fp = mkApp [ Prim Ite TyUnknown
                      , mkApp [ Prim Le TyUnknown, n, Lit $ LitInt (-offset)]
-                     , App (App (App (Prim Fp TyUnknown) sign_2n) de_exp) de_sig
-                     , App (App (App (Prim Fp TyUnknown) sign_2n) (Var exp_bv)) sig_2n
+                     , App (App (App (Prim Fp TyUnknown) sign_2n) de_exp) de_sig -- Denormalized
+                     , App (App (App (Prim Fp TyUnknown) sign_2n) (Var exp_bv)) sig_2n -- Normalized
                      ]
 
+        ---------------------------------------------------------------------------------------------
         -- Multiply m*b^^n, adjust for NaN values (should be 0 based on observed behavior of encodeFloat primitive)
+        ---------------------------------------------------------------------------------------------
         m_fp = mkApp [ to_float, m]
 
         mult_expr = mkApp [ Prim FpMul TyUnknown

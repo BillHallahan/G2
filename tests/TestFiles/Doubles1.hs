@@ -120,7 +120,8 @@ exponentTest (D x)
         r = exponent x
 
 encodeFloatTest1 :: Integer -> Int -> (Int, Int, NaNEq)
-encodeFloatTest1 x y | x > 1000 * 1000 * 10 = (-1, b, r')
+encodeFloatTest1 x y | x > 1000 * 1000 * 100 = (-2, b, r')
+                     | x > 1000 * 1000 * 10 = (-1, b, r')
                      | x > 1000 * 1000 = (0, b, r')
                      | x > 1000 = (1, b, r')
                      | x > 10 = (2, b, r')
@@ -129,7 +130,8 @@ encodeFloatTest1 x y | x > 1000 * 1000 * 10 = (-1, b, r')
                      | x > -1000 = (5, b, r')
                      | x > -1000 * 1000 = (6, b, r')
                      | x > -1000 * 1000 * 10 = (7, b, r')
-                     | otherwise = (8, b, r')
+                     | x > -1000 * 1000 * 100 = (8, b, r')
+                     | otherwise = (9, b, r')
     where
         r = encodeFloat x y
         r' = D r
@@ -144,7 +146,15 @@ encodeFloatTest1 x y | x > 1000 * 1000 * 10 = (-1, b, r')
                | y > -128 -> 7
                | y > -160 -> 8
                | y > -180 -> 9
-               | otherwise -> 10
+               | y > -300 -> 10
+               | y > -500 -> 11
+               | y > -800 -> 12
+               | y > -1000 -> 13
+               | y > -1050 -> 14
+               | y > -1080 -> 15
+               | y > -1090 -> 16
+               | y > -1100 -> 17
+               | otherwise -> 18
 
 significandTest :: NaNEq -> (Integer, NaNEq)
 significandTest (D x)
