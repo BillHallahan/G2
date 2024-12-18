@@ -44,6 +44,7 @@ import qualified G2.Data.UFMap as UF
 
 import Control.Exception
 import Debug.Trace
+import Data.HashMap.Internal.Array (new_)
 
 stdReduce :: (Solver solver, Simplifier simplifier) => Sharing -> SymbolicFuncEval t -> solver -> simplifier -> State t -> Bindings -> IO (Rule, [(State t, ())], Bindings)
 stdReduce share symb_func_eval solver simplifier s b@(Bindings {name_gen = ng}) = do
@@ -1175,14 +1176,6 @@ addExtConds s ng e1 ais e2 stck =
 -- pattern is the rhs
 -- we want to isolated coercion and the value args
 -- also want to use the known values(ty_coercion) to isolated out the coercion 
-containCoercion :: [Expr] -> Bool
-containCoercion e = 
-    let  
-        (co, _) = L.partition (\expr -> case expr of
-                                                Coercion _ -> True
-                                                _          -> False) e
-    in 
-       trace("The list of expr is " ++ show co) not $ L.null co 
 
 
 -- We first verify whether the center of the TyApp is a coercion we known
@@ -1196,7 +1189,8 @@ containCoercion e =
 
 extractTypes :: KnownValues -> Id -> (Type, Type)
 extractTypes kv (Id _ (TyApp (TyApp (TyApp (TyApp (TyCon n _) _) _) n1) n2)) =
-        trace("ty_coercion: " ++ show (KV.tyCoercion kv) ++ "\n" ++ "dc_coercions: " ++ show (KV.dcCoercion kv))
+        --trace("ty_coercion: " ++ show (KV.tyCoercion kv) ++ "\n" ++ "dc_coercions: " ++ show (KV.dcCoercion kv))
+        --trace("ty_coercion: " ++ show (KV.tyCoercion kv) ++ "\n" ++ "the Name is " ++ show n)
         (if KV.tyCoercion kv == n 
         then    
             (n1, n2)
@@ -1207,6 +1201,7 @@ extractTypes _ _ = error "Pattern not matched in extractTypes"
 liftBinds :: KnownValues -> [(Id, Expr)] -> E.ExprEnv -> Expr -> NameGen ->
              (E.ExprEnv, Expr, NameGen, [Name])
              --trace("The list of RHS " ++ show bindsRHS ++ "\n " ++ "The list of LHS " ++ show bindsLHS)
+             --trace("The elements in the coercion " ++ show coercion)
 liftBinds kv binds eenv expr ngen = (eenv', expr', ngen', news)
   where
  -- when we see the first element from the bindsRHS is Coercion types 
@@ -1216,8 +1211,6 @@ liftBinds kv binds eenv expr ngen = (eenv', expr', ngen', news)
  -- TyApp( TyApp ( TyApp(...) TyCon ) TyCon )
  -- Then, we want to unify them and retype them 
  -- Those functions are located in typing.hs 
-
-
 
     -- Here we want to use the binds 
     -- first parition the list into coercion and values 
@@ -1240,16 +1233,17 @@ liftBinds kv binds eenv expr ngen = (eenv', expr', ngen', news)
     (coercion, value) = L.partition (\(_, e) -> case e of
                                         Coercion _ -> True
                                         _ -> False) binds
-    extract_tys = map (extractTypes kv) (map fst coercion)
+    
+    extract_tys = map (extractTypes kv . fst) coercion
 
-    uf_map = foldM (\uf_map (t1, t2) -> T.unify' uf_map t1 t2) UF.empty extract_tys
+    uf_map = foldM (\uf_map' (t1, t2) -> T.unify' uf_map' t1 t2) UF.empty extract_tys
     
     new_expr = case uf_map of
             Nothing -> error "The unify map is having an error"
             Just uf_map' -> L.foldl' (\e (n,t) -> retype (Id n (typeOf t)) t e) expr (HM.toList $ UF.toSimpleMap uf_map')
 
   
-    (bindsLHS, bindsRHS) = unzip binds
+    (bindsLHS, bindsRHS) = unzip value
     
     olds = map (idName) bindsLHS
     (news, ngen') = freshSeededNames olds ngen
@@ -1259,7 +1253,8 @@ liftBinds kv binds eenv expr ngen = (eenv', expr', ngen', news)
     eenv' = E.insertExprs (zip news bindsRHS) eenv
 
     -- expr' = renamesExprs olds_news expr
-    expr' = if L.null coercion then renamesExprs olds_news expr else new_expr      
+    --trace("The new expr is " ++ show new_expr)
+    expr' = if L.null coercion then renamesExprs olds_news expr else  new_expr      
 
 liftBind :: Id -> Expr -> E.ExprEnv -> Expr -> NameGen ->
              (E.ExprEnv, Expr, NameGen, Name)
