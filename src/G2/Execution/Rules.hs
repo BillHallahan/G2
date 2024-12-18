@@ -1188,12 +1188,13 @@ addExtConds s ng e1 ais e2 stck =
 -- print out to determine type or dc coercion from the knownvalues 
 
 extractTypes :: KnownValues -> Id -> (Type, Type)
-extractTypes kv (Id _ (TyApp (TyApp (TyApp (TyApp (TyCon n _) _) _) n1) n2)) =
+extractTypes kv i@(Id _ (TyApp (TyApp (TyApp (TyApp (TyCon n _) _) _) n1) n2)) =
         --trace("ty_coercion: " ++ show (KV.tyCoercion kv) ++ "\n" ++ "dc_coercions: " ++ show (KV.dcCoercion kv))
         --trace("ty_coercion: " ++ show (KV.tyCoercion kv) ++ "\n" ++ "the Name is " ++ show n)
         (if KV.tyCoercion kv == n 
         then    
-            (n1, n2)
+            -- trace("The id in extract type is " ++ show i ++ "\n")
+           (n1, n2)
         else
             error "the center of the id is not a coercion")
 extractTypes _ _ = error "Pattern not matched in extractTypes"
@@ -1243,7 +1244,7 @@ liftBinds kv binds eenv expr ngen = (eenv', expr', ngen', news)
             Just uf_map' -> L.foldl' (\e (n,t) -> retype (Id n (typeOf t)) t e) expr (HM.toList $ UF.toSimpleMap uf_map')
 
   
-    (bindsLHS, bindsRHS) = unzip value
+    (bindsLHS, bindsRHS) = unzip binds
     
     olds = map (idName) bindsLHS
     (news, ngen') = freshSeededNames olds ngen
@@ -1254,7 +1255,7 @@ liftBinds kv binds eenv expr ngen = (eenv', expr', ngen', news)
 
     -- expr' = renamesExprs olds_news expr
     --trace("The new expr is " ++ show new_expr)
-    expr' = if L.null coercion then renamesExprs olds_news expr else  new_expr      
+    expr' = if L.null coercion then renamesExprs olds_news expr else renamesExprs olds_news new_expr      
 
 liftBind :: Id -> Expr -> E.ExprEnv -> Expr -> NameGen ->
              (E.ExprEnv, Expr, NameGen, Name)
