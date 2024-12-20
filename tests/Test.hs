@@ -410,7 +410,8 @@ testFileTests = testGroup "TestFiles"
                                                      , ("encodeFloatTest1", 4000, [AtLeast 40])
                                                      , ("significandTest", 2000, [AtLeast 5]) 
                                                      , ("scaleFloatTest", 2000, [AtLeast 5])
-                                                     , ("scaleFloatTest2", 2000, [AtLeast 3]) ]
+                                                     , ("scaleFloatTest2", 2000, [AtLeast 3])
+                                                     , ("doubleToFloat", 2000, [AtLeast 4]) ]
 
     , checkInputOutputs "tests/TestFiles/Doubles1.hs" [ ("infinite", 1000, [AtLeast 3])
                                                       , ("zero", 1000, [AtLeast 3])
@@ -434,7 +435,8 @@ testFileTests = testGroup "TestFiles"
                                                       , ("encodeFloatTest1", 7000, [AtLeast 150]) 
                                                       , ("significandTest", 2000, [AtLeast 5])
                                                       , ("scaleFloatTest", 2000, [AtLeast 5])
-                                                      , ("scaleFloatTest2", 2000, [AtLeast 3]) ]
+                                                      , ("scaleFloatTest2", 2000, [AtLeast 3])
+                                                      , ("floatToDouble", 2000, [AtLeast 4]) ]
 
     , checkInputOutputsInstType "tests/TestFiles/InstTypes1.hs" [ ("lengthList", 200, [AtLeast 1])
                                                         , ("myTuple", 200, [AtLeast 1])

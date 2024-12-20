@@ -394,10 +394,10 @@ funcToSMT1Prim IsInfinite e = IsInfiniteSMT (exprToSMT e)
 funcToSMT1Prim Abs e = AbsSMT (exprToSMT e)
 funcToSMT1Prim Sqrt e = SqrtSMT (exprToSMT e)
 funcToSMT1Prim Not e = (:!) (exprToSMT e)
-funcToSMT1Prim IntToFloat e = IntToFloatSMT (exprToSMT e)
-funcToSMT1Prim IntToDouble e = IntToDoubleSMT (exprToSMT e)
-funcToSMT1Prim FloatToDouble e = FloatToDoubleSMT (exprToSMT e)
-funcToSMT1Prim DoubleToFloat e = DoubleToFloatSMT (exprToSMT e)
+funcToSMT1Prim IntToFloat e = IntToFP 8 24 (exprToSMT e)
+funcToSMT1Prim IntToDouble e = IntToFP 11 53 (exprToSMT e)
+funcToSMT1Prim FloatToDouble e = FPToFP 11 53 (exprToSMT e)
+funcToSMT1Prim DoubleToFloat e = FPToFP 8 24 (exprToSMT e)
 funcToSMT1Prim IntToRational e = IntToRealSMT (exprToSMT e)
 funcToSMT1Prim IntToString e = FromInt (exprToSMT e)
 funcToSMT1Prim (BVToInt w) e = (BVToIntSMT w) (exprToSMT e)
@@ -630,17 +630,14 @@ toSolverAST (FromInt x) = function1 "str.from_int" $ toSolverAST x
 toSolverAST (StrLenSMT x) = function1 "str.len" $ toSolverAST x
 
 toSolverAST (IntToRealSMT x) = function1 "to_real" $ toSolverAST x
-toSolverAST (IntToFloatSMT x) = function2 "(_ to_fp 8 24)" "RNE" (function1 "(_ int2bv 32)" $ toSolverAST x)
-toSolverAST (IntToDoubleSMT x) = function2 "(_ to_fp 11 53)" "RNE" (function1 "(_ int2bv 64)" $ toSolverAST x)
-toSolverAST (FloatToDoubleSMT x) = function2 "(_ to_fp 11 53)" "RNE" (function1 "(_ int2bv 64)" $ toSolverAST x)
-toSolverAST (DoubleToFloatSMT x) = function2 "(_ to_fp 8 24)" "RNE" (function1 "(_ int2bv 32)" $ toSolverAST x)
+toSolverAST (IntToFP e s x) =
+    function2 ("(_ to_fp " <> showText e <> " " <> showText s <> ")") "RNE" . function1 ("(_ int2bv " <> showText (e + s) <> ")") $ toSolverAST x
+toSolverAST (FPToFP e s x) = function2 ("(_ to_fp " <> showText e <> " " <> showText s <> ")") "RNE" $ toSolverAST x
 
 toSolverAST (RealToFloat x) = function2 "(_ to_fp 8 24)" "RNE" (function1 "(_ int2bv 32)" $ toSolverAST x)
 toSolverAST (RealToDouble x) = function2 "(_ to_fp 11 53)" "RNE" (function1 "(_ int2bv 64)" $ toSolverAST x)
 
--- toSolverAST (FloatToIntSMT x) = function1 "to_int" (function1 "fp.to_real" $ toSolverAST x)
 toSolverAST (FloatToIntSMT x) = bvToSignedInt 32 (function2 "(_ fp.to_sbv 32)" "RNE" $ toSolverAST x)
--- toSolverAST (DoubleToIntSMT x) = function1 "to_int" (function1 "fp.to_real" $ toSolverAST x)
 toSolverAST (DoubleToIntSMT x) = bvToSignedInt 64 (function2 "(_ fp.to_sbv 64)" "RNE" $ toSolverAST x)
 toSolverAST (BVToNatSMT x) = function1 "bv2nat" (toSolverAST x)
 toSolverAST (BVToIntSMT w x) = bvToSignedInt w (toSolverAST x)

@@ -139,10 +139,8 @@ data SMTAST = (:>=) !SMTAST !SMTAST
 
             | FloatToIntSMT !SMTAST -- ^ Float to Integer conversion
             | DoubleToIntSMT !SMTAST -- ^ Double to Integer conversion
-            | IntToFloatSMT !SMTAST -- ^ Integer to Float conversion
-            | IntToDoubleSMT !SMTAST -- ^ Integer to Double conversion
-            | FloatToDoubleSMT !SMTAST
-            | DoubleToFloatSMT !SMTAST
+            | IntToFP !Int !Int !SMTAST -- ^ Integer to floating point (with the given exponent and significand) conversion
+            | FPToFP !Int !Int !SMTAST -- ^ Floating point to floating point conversion- exponent and significand of the target fp must be provided
             | IntToRealSMT !SMTAST -- ^ Integer to Real conversion
             | IntToBVSMT Int !SMTAST -- ^ Int to BitVector (of indicated width) conversion
             | BVToIntSMT Int !SMTAST -- ^ BitVector (of indicated width) to Int conversion

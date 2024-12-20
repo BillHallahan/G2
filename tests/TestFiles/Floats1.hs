@@ -2,6 +2,8 @@
 
 module Floats1 where
 
+import GHC.Float
+
 newtype NaNEq = F { unF :: Float } deriving (Ord, Num, Fractional, Floating, Real, RealFrac, RealFloat, Show)
 
 instance Eq NaNEq where
@@ -168,3 +170,8 @@ scaleFloatTest (F x) | x > 10 = (0, F (scaleFloat 4 x), F (scaleFloat 8 x))
 scaleFloatTest2 :: NaNEq -> NaNEq
 scaleFloatTest2 (F x) | -1.93e-43 <= x, x <= -1.92e-43 = F (scaleFloat 9 x)
                       | otherwise = F 0
+
+doubleToFloat :: Double -> (Int, NaNEq)
+doubleToFloat x | isNaN x || isInfinite x = (0, F 0)
+                | double2Float x > 0 = (1, F (double2Float x))
+                | otherwise = (2, F (double2Float x))
