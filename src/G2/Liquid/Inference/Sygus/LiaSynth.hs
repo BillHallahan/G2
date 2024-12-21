@@ -798,7 +798,7 @@ renameByAdding i si =
 
 buildLIA_SMT_fromModel :: SMTModel -> SynthSpec -> SMTAST
 buildLIA_SMT_fromModel mdl sf =
-    buildSpec (:+) (:*) Modulo (.=.) (.=.) (./=.) (:>) (:>=) Ite Ite
+    buildSpec (:+) (:*) Modulo (.=.) (.=.) (./=.) (:>) (:>=) IteSMT IteSMT
               mkSMTAnd mkSMTAnd mkSMTOr
               mkSMTUnion mkSMTIntersection smtSingleton
               mkSMTIsSubsetOf (flip ArraySelect)
@@ -1352,7 +1352,7 @@ type UniversalSet s = s
 
 buildLIA_SMT :: SynthSpec -> SMTAST
 buildLIA_SMT sf =
-    buildSpec (:+) (:*) Modulo (.=.) (.=.) (./=.) (:>) (:>=) Ite Ite
+    buildSpec (:+) (:*) Modulo (.=.) (.=.) (./=.) (:>) (:>=) IteSMT IteSMT
               mkSMTAnd mkSMTAnd mkSMTOr mkSMTUnion mkSMTIntersection smtSingleton
               mkSMTIsSubsetOf (flip ArraySelect)
               (flip V SortInt) VInt (flip V SortBool) (flip V $ SortArray SortInt SortBool)

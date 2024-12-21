@@ -9,3 +9,12 @@ f = do
     x <- mkSymbolic 
     y <- mkSymbolic
     return (compare x 0, compare y 0)
+
+testAssume :: IO Int
+testAssume = do
+    x <- mkSymbolic
+    y <- mkSymbolic
+    assumeIO (x > y)
+    case x - y > 0 of
+        True -> return 1
+        False -> error "impossible"

@@ -1,4 +1,5 @@
 {-# LANGUAGE RankNTypes, OverloadedStrings, TypeOperators #-}
+{-# LANGUAGE InstanceSigs #-}
 
 module G2.Solver.Simplifier ( Simplifier (..)
                             , (:>>) (..)

@@ -87,27 +87,29 @@ checkInputOutput' io_config src tests = do
                                 config <- io_config
                                 r <- doTimeout (timeLimit config)
                                                (try (checkInputOutput'' [src] exg2 (head mb_modname) config test)
-                                                    :: IO (Either SomeException (Bool, Bool, [ExecRes ()], Bindings)))
+                                                    :: IO (Either SomeException ([Bool], Bool, [ExecRes ()], Bindings)))
                                 let (b, e) = case r of
                                         Nothing -> (False, "\nTimeout")
                                         Just (Left e') -> (False, "\n" ++ show e')
                                         Just (Right (b_val, b_count, exec_res, bindings)) ->
                                             let pg = mkPrettyGuide exec_res
-                                                res_pretty = map (printInputOutput pg (Id (Name (T.pack entry) Nothing 0 Nothing) TyUnknown) bindings) exec_res
-                                                res_print = map T.unpack $ map (\(_, inp, out, _) -> inp <> " = " <> out) res_pretty
+                                                res_pretty = map (uncurry (printIO pg entry bindings)) $ zip b_val exec_res
+                                                res_print = map T.unpack $ map (\(chck, (_, inp, out, _)) -> chck <> inp <> " = " <> out) res_pretty
                                             in
-                                            (b_val && b_count, "\nvalidation = " ++ show b_val ++ ", count = " ++ show b_count ++ "\n" ++ intercalate "\n" res_print)
+                                            (and b_val && b_count, "\nvalidation = " ++ show (and b_val) ++ ", count = " ++ show b_count ++ "\n" ++ intercalate "\n" res_print)
 
                                 assertBool ("Input/Output for file " ++ show src ++ " failed on function " ++ entry ++ "." ++ e) b 
                                 )
                 ) tests
-
+    where
+        printIO pg ent b val er = ((if val then "✓ " else "✗ "), printInputOutput pg (Id (Name (T.pack ent) Nothing 0 Nothing) TyUnknown) b er)
+ 
 checkInputOutput'' :: [FilePath]
                    -> ExtractedG2
                    -> Maybe T.Text
                    -> Config
                    -> (String, Int, [Reqs String])
-                   -> IO (Bool, Bool, [ExecRes ()], Bindings)
+                   -> IO ([Bool], Bool, [ExecRes ()], Bindings)
 checkInputOutput'' src exg2 mb_modname config (entry, stps, req) = do
     let config' = config { steps = stps }
         (init_state, bindings) = initStateWithCall exg2 False (T.pack entry) mb_modname (mkCurrExpr Nothing Nothing) mkArgTys config'

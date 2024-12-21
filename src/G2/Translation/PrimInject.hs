@@ -88,7 +88,10 @@ primDefs' b c l unit =
               , ("$>##", Prim FpGt $ tyDoubleDoubleBool b)
               , ("$>=##", Prim FpGeq $ tyDoubleDoubleBool b)
 
+              , ("decodeDouble#", Prim DecodeFloat tyDoubleInteger)
+              , ("encodeDoubleInteger#", Prim EncodeFloat tyIntIntDouble)
               , ("isDoubleNegativeZero#", Prim FpIsNegativeZero $ tyDoubleBool b)
+              , ("isDoubleDenormalized#", Prim IsDenormalized $ tyDoubleBool b)
               , ("isDoubleNaN#", Prim IsNaN $ tyDoubleBool b)
               , ("isDoubleInfinite#", Prim IsInfinite $ tyDoubleBool b)
 
@@ -107,7 +110,10 @@ primDefs' b c l unit =
               , ("smtGtFloat#", Prim FpGt $ tyFloatFloatBool b)
               , ("smtGeFloat#", Prim FpGeq $ tyFloatFloatBool b)
 
+              , ("decodeFloat#", Prim DecodeFloat tyFloatInteger)
+              , ("encodeFloatInteger#", Prim EncodeFloat tyIntIntFloat)
               , ("isFloatNegativeZero#", Prim FpIsNegativeZero $ tyFloatBool b)
+              , ("isFloatDenormalized#", Prim IsDenormalized $ tyFloatBool b)
               , ("isFloatNaN#", Prim IsNaN $ tyFloatBool b)
               , ("isFloatInfinite#", Prim IsInfinite $ tyFloatBool b)
 
@@ -130,6 +136,8 @@ primDefs' b c l unit =
               , ("fromIntToFloat", Prim IntToFloat (TyFun TyLitInt TyLitFloat))
               , ("double2Int#", Prim ToInt (TyFun TyLitDouble TyLitInt))
               , ("int2Double#", Prim IntToDouble (TyFun TyLitInt TyLitDouble))
+              , ("float2Double#", Prim FloatToDouble (TyFun TyLitFloat TyLitDouble))
+              , ("double2Float#", Prim DoubleToFloat (TyFun TyLitDouble TyLitFloat))
               , ("rationalToFloat#", Prim RationalToFloat (TyFun TyLitInt $ TyFun TyLitInt TyLitFloat))
               , ("rationalToDouble#", Prim RationalToDouble (TyFun TyLitInt $ TyFun TyLitInt TyLitDouble))
               , ("fromIntToDouble", Prim IntToDouble (TyFun TyLitInt TyLitDouble))
@@ -219,6 +227,9 @@ tyDoubleDouble = TyFun TyLitDouble TyLitDouble
 tyDoubleInteger :: Type
 tyDoubleInteger = TyFun TyLitDouble TyLitInt
 
+tyIntIntDouble :: Type
+tyIntIntDouble = TyFun TyLitInt (TyFun TyLitInt TyLitDouble)
+
 tyDoubleBool :: Name -> Type
 tyDoubleBool n = TyFun TyLitDouble (TyCon n TYPE)
 
@@ -233,6 +244,9 @@ tyFloatFloat = TyFun TyLitFloat TyLitFloat
 
 tyFloatInteger :: Type
 tyFloatInteger = TyFun TyLitFloat TyLitInt
+
+tyIntIntFloat :: Type
+tyIntIntFloat = TyFun TyLitInt (TyFun TyLitInt TyLitFloat)
 
 tyFloatBool :: Name -> Type
 tyFloatBool n = TyFun TyLitFloat (TyCon n TYPE)
