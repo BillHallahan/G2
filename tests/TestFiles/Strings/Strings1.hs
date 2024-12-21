@@ -29,3 +29,17 @@ stringSub1 str = any (`elem` str) "~`!@#$%^&*-_+="
 stringSub2 :: String -> Bool
 stringSub2 (_:_:_:_) = False
 stringSub2 str = any (`elem` str) "{}|:;<>?/,."
+
+stringSub3 :: String -> Bool
+stringSub3 (_:_:_:_) = False
+stringSub3 str = any (`elem` str) "()\"\'"
+
+stringSub4 :: String -> Bool
+stringSub4 (_:_:_:_) = False
+stringSub4 str = any (`elem` str) "\\"
+
+nStringSub3 :: String -> String
+nStringSub3 s = if stringSub3 s then "\n" ++ s else s
+
+nStringSub4 :: String -> String
+nStringSub4 s = if stringSub4 s then "\n" ++ s else s

@@ -657,6 +657,7 @@ toSolverAST (VFloat f) = convertFloating castFloatToWord32 8 f
 toSolverAST (VDouble d) = convertFloating castDoubleToWord64 11 d
 toSolverAST (VReal r) = "(/ " <> showText (numerator r) <> " " <> showText (denominator r) <> ")"
 toSolverAST (VBitVec b) = "#b" <> foldr (<>) "" (map showText b)
+toSolverAST (VChar '"') = "\"\"\"\""
 toSolverAST (VChar c) = "\"" <> TB.string [c] <> "\""
 toSolverAST (VBool b) = if b then "true" else "false"
 toSolverAST (V n _) = TB.string n
