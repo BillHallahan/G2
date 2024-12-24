@@ -436,7 +436,7 @@ testFileTests = testGroup "TestFiles"
                                                       , ("decodeFloatConst", 5000, [Exactly 1])
                                                       , ("decodeFloatCheck", 2000, [AtLeast 2])
                                                       , ("exponentTest", 2000, [AtLeast 6])
-                                                      , ("encodeFloatTest1", 7000, [AtLeast 150]) 
+                                                      , ("encodeFloatTest1", 8000, [AtLeast 215]) 
                                                       , ("significandTest", 2000, [AtLeast 5])
                                                       , ("scaleFloatTest", 2000, [AtLeast 5])
                                                       , ("scaleFloatTest2", 2000, [AtLeast 3])
