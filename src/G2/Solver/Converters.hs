@@ -724,6 +724,7 @@ sortName :: Sort -> TB.Builder
 sortName SortInt = "Int"
 sortName SortFloat = "Float32"
 sortName SortDouble = "Float64"
+sortName (SortFP e s) = "(_ FloatingPoint " <> showText e <> " " <> showText s <> ")"
 sortName SortReal = "Real"
 sortName (SortBV w) = "(_ BitVec " <> showText w <> ")"
 sortName SortString = "String"

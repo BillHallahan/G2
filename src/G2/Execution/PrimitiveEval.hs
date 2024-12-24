@@ -266,21 +266,27 @@ evalPrimWithState s@(State { expr_env = eenv }) ng (App (App (Prim EncodeFloat t
         m = deepLookupExprPastTicks m_arg eenv
         n = deepLookupExprPastTicks n_arg eenv
 
-        (ex_bits, sig_bits_1) = expSigBits rt
-        sig_bits = sig_bits_1 - 1
-        ty_ex = TyLitBV ex_bits
+        -- Size of the expected type
+        (f_ex_bits, f_sig_bits_1) = expSigBits rt
+        f_sig_bits = f_sig_bits_1 - 1
+
+        -- Sizes to work with during encoding
+        w_ex_bits = f_ex_bits * 2
+        w_sig_bits_1 = f_sig_bits_1 * 2
+        w_sig_bits = w_sig_bits_1 - 1
+        ty_ex = TyLitBV w_ex_bits
 
         (exp_bv, ng') = freshSeededId (Name "exp_bv" Nothing 0 Nothing) ty_ex ng
-        (encoded_m_nan, ng'') = freshSeededId (Name "enc_nan" Nothing 0 Nothing) rt ng'
+        (encoded_m_nan, ng'') = freshSeededId (Name "enc_nan" Nothing 0 Nothing) (TyLitFP w_ex_bits w_sig_bits_1) ng'
         (encoded, ng''') = freshSeededId (Name "enc" Nothing 0 Nothing) rt ng''
 
-        offset = 2^(ex_bits - 1) - 1
+        offset = 2^(w_ex_bits - 1) - 1
 
-        to_float = Prim (IntToFP ex_bits sig_bits_1) (TyFun TyLitInt rt)
+        to_float = Prim (IntToFP w_ex_bits w_sig_bits_1) (TyFun TyLitInt rt)
         float_zero = mkApp [ Prim Fp TyUnknown
                            , Lit $ LitBV [0]
-                           , Lit $ LitBV (replicate ex_bits 0)
-                           , Lit $ LitBV (replicate sig_bits 0)]
+                           , Lit $ LitBV (replicate w_ex_bits 0)
+                           , Lit $ LitBV (replicate w_sig_bits 0)]
 
         ---------------------------------------------------------------------------------------------
         -- Set up the float for 2^n.
@@ -293,18 +299,18 @@ evalPrimWithState s@(State { expr_env = eenv }) ng (App (App (Prim EncodeFloat t
                         , Lit $ LitInt offset]
         exp_eq = mkApp [ Prim Eq TyUnknown
                        , scl_exp
-                       , mkApp [ Prim (BVToInt ex_bits) (mkTyFun [TyLitBV ex_bits, TyLitInt])
+                       , mkApp [ Prim (BVToInt w_ex_bits) (mkTyFun [TyLitBV w_ex_bits, TyLitInt])
                                , Var exp_bv ]
                        ]
         exp_pc = ExtCond exp_eq True
 
-        sig_2n = Lit . LitBV $ replicate sig_bits 0
+        sig_2n = Lit . LitBV $ replicate w_sig_bits 0
 
         -- If n <= -offset, the required exponent is a denormalized float
-        de_exp = Lit . LitBV $ replicate ex_bits 0
+        de_exp = Lit . LitBV $ replicate w_ex_bits 0
         de_sig = mkApp [ Prim ShiftRBV TyUnknown
-                       , Lit . LitBV $ 1:replicate (sig_bits - 1) 0
-                       , mkApp [ Prim (IntToBV sig_bits) TyUnknown
+                       , Lit . LitBV $ 1:replicate (w_sig_bits - 1) 0
+                       , mkApp [ Prim (IntToBV w_sig_bits) TyUnknown
                                , mkApp [ Prim Abs TyUnknown
                                        , mkApp [ Prim Plus TyUnknown
                                                , n
@@ -330,15 +336,16 @@ evalPrimWithState s@(State { expr_env = eenv }) ng (App (App (Prim EncodeFloat t
         enc_m_nan_expr = mkApp [ Prim Eq TyUnknown
                                , Var encoded_m_nan
                                , mult_expr]
+        enc_sel = mkApp [ Prim Ite TyUnknown
+                        , mkApp [ Prim IsNaN TyUnknown
+                                , Var encoded_m_nan
+                                ]
+                        , float_zero
+                        , Var encoded_m_nan
+                        ]
         enc_expr = mkApp [ Prim Eq TyUnknown
                          , Var encoded
-                         , mkApp [ Prim Ite TyUnknown
-                                 , mkApp [ Prim IsNaN TyUnknown
-                                         , Var encoded_m_nan
-                                         ]
-                                 , float_zero
-                                 , Var encoded_m_nan
-                                 ]
+                         , mkApp [ Prim (FPToFP f_ex_bits f_sig_bits_1) TyUnknown, enc_sel ]
                          ]
 
         eenv' = E.insertSymbolic encoded . E.insertSymbolic encoded_m_nan . E.insertSymbolic exp_bv $ eenv
