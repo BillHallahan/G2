@@ -27,6 +27,25 @@ lengthList2 (Conss _ xs) = 1 + lengthList2 xs
 --   error, called at src/G2/Initialization/KnownValues.hs:127:10 in g2-0.2.0.0-inplace:G2.Initialization.KnownValues
 
 
+data ShapeArea a where
+  CircleShape :: Double -> ShapeArea (Double, String) -- Area and shape type
+  RectangleShape :: Double -> Double -> ShapeArea (Double, String) -- Area and shape type
+
+area :: ShapeArea (Double, String) -> Double
+area (CircleShape radius) = pi * radius * radius
+area (RectangleShape width height) = width * height
+
+getShapeType :: ShapeArea (Double, String) -> String
+getShapeType (CircleShape _) = "Circle"
+getShapeType (RectangleShape _ _) = "Rectangle"
+
+myCricle :: ShapeArea (Double, String)
+myCircle = CircleShape 5.0 
+
+myRect :: ShapeArea (Double, String)
+myRect = RectangleShape 3.0 3.0
+
+
 data Expr a where
   Lit    :: Int -> Expr Int
   Add    :: Expr Int -> Expr Int -> Expr Int
