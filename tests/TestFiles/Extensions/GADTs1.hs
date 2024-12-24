@@ -5,15 +5,6 @@ module GADTS1 where
 import GHC.TypeLits 
 import Data.Kind
 
-data ShapeType = Circle | Rectangle
-
-data Shape where
-  CircleShape :: Double -> Shape
-  RectangleShape :: Double -> Double -> Shape
-
-area :: Shape -> Double
-area (CircleShape radius) = pi * radius * radius
-area (RectangleShape width height) = width * height
 
 -- infixr :>
 
@@ -36,49 +27,37 @@ lengthList2 (Conss _ xs) = 1 + lengthList2 xs
 --   error, called at src/G2/Initialization/KnownValues.hs:127:10 in g2-0.2.0.0-inplace:G2.Initialization.KnownValues
 
 
-data MyList a where
-  Ni :: MyList a
-  Cons :: a -> MyList a -> MyList a
+data Expr a where
+  Lit    :: Int -> Expr Int
+  Add    :: Expr Int -> Expr Int -> Expr Int
+  IsZero :: Expr Int -> Expr Bool
+  If     :: Expr Bool -> Expr a -> Expr a -> Expr a
 
--- recursion on recursive GADT 
-lengthList :: MyList a -> Int
-lengthList Ni        = 0
-lengthList (Cons _ xs) = 1 + lengthList xs
+-- GADT that take multiple arguments 
+exampleExpr :: Expr Int
+exampleExpr = Add (Lit 5) (Lit 3)
 
-add2 :: a -> a -> MyList a -> MyList a
-add2 a1 a2 li = Cons a2 $ Cons a1 li  
+exampleConditional :: Expr Int
+exampleConditional = If (IsZero (Lit 0)) (Lit 42) (Lit 0)
 
-addn :: [a] -> MyList a -> MyList a 
-addn  [] a = a 
-addn (x:xs) a = addn xs (Cons x a) 
-
-data MyExpr a where 
-  Lt :: Int -> MyExpr Int 
-  Mul :: MyExpr Int -> MyExpr Int ->  MyExpr Int
-  Add :: MyExpr Int -> MyExpr Int ->  MyExpr Int
-
-evalMyExpr :: MyExpr a -> a
-evalMyExpr (Lt a) = a
-evalMyExpr (Mul a1 a2) = evalMyExpr a1 * evalMyExpr a2 
-evalMyExpr (Add a1 a2) = evalMyExpr a1 + evalMyExpr a2 
-
-testeval :: Int -> MyExpr Int 
-testeval a1 = testeval $ evalMyExpr $ Lt (2*a1)
-
-checkeq :: Eq a => a -> a -> Bool
-checkeq a a1 = a == a1
-
-id2 :: a -> a 
-id2 x = x
-
-idlr :: Either l r -> Either l r 
-idlr x = x
 
 data Peano = Succ Peano | Zero 
 
 data Vec :: Peano -> Type -> Type where
     VNil  :: Vec Zero a
     VCons :: forall n a. a -> Vec n a -> Vec (Succ n) a
+
+data TypedPair a b where
+  Pair :: a -> b -> TypedPair a b
+
+examplePair :: TypedPair Int String
+examplePair = Pair 42 "hello"
+
+data TypedTriple a b c where
+  Triple :: a -> b -> c -> TypedTriple a b c 
+
+exampleTriple :: TypedTriple Int String Bool
+exampleTriple = Triple 32 "Hello" True
 
 vecLength :: Vec n a -> Integer
 vecLength VNil         = 0
@@ -110,21 +89,21 @@ vecInit (VCons x VNil) = VNil
 vecInit (VCons x xs@(VCons y ys)) = VCons x (vecInit xs)
 
 
-data Term a where
-    Lit :: Int ->  Term Int
-    Pair :: Term a -> Term b -> Term (a,b)
+-- data Term a where
+--     Lit :: Int ->  Term Int
+--     Pair :: Term a -> Term b -> Term (a,b)
 
-eval2 :: Term a -> a
-eval2 (Lit i)     = i
-eval2 (Pair a b)  = (eval2 a, eval2 b)
+-- eval2 :: Term a -> a
+-- eval2 (Lit i)     = i
+-- eval2 (Pair a b)  = (eval2 a, eval2 b)
 
-data X (b :: Bool) where
-    XTrue :: X b -> X True 
-    XFalse :: X False
+-- data X (b :: Bool) where
+--     XTrue :: X b -> X True 
+--     XFalse :: X False
 
-getX :: X True
-getX = walkX (XTrue XFalse)
+-- getX :: X True
+-- getX = walkX (XTrue XFalse)
 
-walkX :: X b -> X b
-walkX (XTrue x) = XTrue (walkX x)
-walkX XFalse = XFalse
+-- walkX :: X b -> X b
+-- walkX (XTrue x) = XTrue (walkX x)
+-- walkX XFalse = XFalse

@@ -1164,19 +1164,7 @@ addExtConds s ng e1 ais e2 stck =
 -- the expr pass in should be telling us whether we should coerce 
 
 -- | This function determines whether the [Expr] contain a Coercion 
--- if we have a Coercion, we want to extract the corresponding types 
--- in [Id] that are equivalent under Coercion
--- now we want to improve the robustness of this code below 
--- filter out the coercion use parition
--- coercion + value argument 
--- multiple coercion 
--- multiple name type pairs with coercion 
--- Goal: if you have a bunch of coercion 
--- you want to make sure the coercion in scrutinee unify with the pattern in a conssitent ways
--- pattern is the rhs
--- we want to isolated coercion and the value args
--- also want to use the known values(ty_coercion) to isolated out the coercion 
-
+-- We want to extract the corresponding types in [Id] that are equivalent under Coercion
 
 -- We first verify whether the center of the TyApp is a coercion we known
 -- n1 represent the symoblic type variables 
@@ -1188,7 +1176,7 @@ addExtConds s ng e1 ais e2 stck =
 -- print out to determine type or dc coercion from the knownvalues 
 
 extractTypes :: KnownValues -> Id -> (Type, Type)
-extractTypes kv i@(Id _ (TyApp (TyApp (TyApp (TyApp (TyCon n _) _) _) n1) n2)) =
+extractTypes kv (Id _ (TyApp (TyApp (TyApp (TyApp (TyCon n _) _) _) n1) n2)) =
         --trace("ty_coercion: " ++ show (KV.tyCoercion kv) ++ "\n" ++ "dc_coercions: " ++ show (KV.dcCoercion kv))
         --trace("ty_coercion: " ++ show (KV.tyCoercion kv) ++ "\n" ++ "the Name is " ++ show n)
         (if KV.tyCoercion kv == n 
@@ -1255,7 +1243,7 @@ liftBinds kv binds eenv expr ngen = (eenv', expr', ngen', news)
 
     -- expr' = renamesExprs olds_news expr
     --trace("The new expr is " ++ show new_expr)
-    expr' = if L.null coercion then renamesExprs olds_news expr else renamesExprs olds_news new_expr      
+    expr' = if L.null coercion then renamesExprs olds_news expr else renamesExprs olds_news new_expr 
 
 liftBind :: Id -> Expr -> E.ExprEnv -> Expr -> NameGen ->
              (E.ExprEnv, Expr, NameGen, Name)
