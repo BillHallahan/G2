@@ -1,7 +1,13 @@
 {-# LANGUAGE Rank2Types #-}
 {-# LANGUAGE FlexibleContexts, OverloadedStrings #-}
 
-module G2.Execution.PrimitiveEval (evalPrims, mutVarTy, evalPrimMutVar, newMutVar, maybeEvalPrim, evalPrimSymbolic) where
+module G2.Execution.PrimitiveEval ( evalPrimsSharing
+                                  , evalPrims
+                                  , mutVarTy
+                                  , evalPrimWithState
+                                  , newMutVar
+                                  , maybeEvalPrim
+                                  , evalPrimSymbolic) where
 
 import G2.Language.AST
 import G2.Language.Expr
@@ -150,8 +156,16 @@ evalPrimWithState s ng (App (App (App (App (App (Prim WriteMutVar _) _) (Type t)
                , curr_expr = CurrExpr Evaluate pr_s }
     in
     Just (s', ng')
-evalPrimMutVar _ _ e | [Prim WriteMutVar _, _, _, _, _, _] <- unApp e = trace ("e = " ++ show e) Nothing
-evalPrimMutVar _ _ _ = Nothing
+evalPrimWithState _ _ e | [Prim WriteMutVar _, _, _, _, _, _] <- unApp e = Nothing
+evalPrimWithState _ _ _ = Nothing
+
+deepLookupExprPastTicks :: Expr -> ExprEnv -> Expr
+deepLookupExprPastTicks (Var i@(Id n _)) eenv =
+    case E.lookupConcOrSym n eenv of
+        Just (E.Conc e) -> deepLookupExprPastTicks e eenv
+        _ -> Var i
+deepLookupExprPastTicks (Tick _ e) eenv = deepLookupExprPastTicks e eenv
+deepLookupExprPastTicks e _ = e
 
 mutVarTy :: KnownValues
          -> Type -- ^ The State type
@@ -346,8 +360,7 @@ evalPrimSymbolic eenv tenv ng kv e
     | tBool <- tyBool kv
     , [Prim TagToEnum _, _, pe] <- unApp e
     , typeOf (dig eenv pe) == tBool = Just (pe, eenv, [], ng)
-    | [Prim TagToEnum _, type_t, pe] <- unA
-    pp e
+    | [Prim TagToEnum _, type_t, pe] <- unApp e
     , Type t <- dig eenv type_t =
         case unTyApp t of
             TyCon n _:_ | Just adt <- M.lookup n tenv ->
