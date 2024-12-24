@@ -394,10 +394,8 @@ funcToSMT1Prim IsInfinite e = IsInfiniteSMT (exprToSMT e)
 funcToSMT1Prim Abs e = AbsSMT (exprToSMT e)
 funcToSMT1Prim Sqrt e = SqrtSMT (exprToSMT e)
 funcToSMT1Prim Not e = (:!) (exprToSMT e)
-funcToSMT1Prim IntToFloat e = IntToFP 8 24 (exprToSMT e)
-funcToSMT1Prim IntToDouble e = IntToFP 11 53 (exprToSMT e)
-funcToSMT1Prim FloatToDouble e = FPToFP 11 53 (exprToSMT e)
-funcToSMT1Prim DoubleToFloat e = FPToFP 8 24 (exprToSMT e)
+funcToSMT1Prim (IntToFP ex s) e = IntToFPSMT ex s (exprToSMT e)
+funcToSMT1Prim (FPToFP ex s) e = FPToFPSMT ex s (exprToSMT e)
 funcToSMT1Prim IntToRational e = IntToRealSMT (exprToSMT e)
 funcToSMT1Prim IntToString e = FromInt (exprToSMT e)
 funcToSMT1Prim (BVToInt w) e = (BVToIntSMT w) (exprToSMT e)
@@ -492,11 +490,9 @@ idToNameSort (Id n t) = (n, typeToSMT t)
 
 typeToSMT :: Type -> Sort
 typeToSMT (TyFun TyLitInt _) = SortInt -- TODO: Remove this
-typeToSMT (TyFun TyLitDouble _) = SortDouble -- TODO: Remove this
-typeToSMT (TyFun TyLitFloat _) = SortFloat -- TODO: Remove this
+typeToSMT (TyFun (TyLitFP e s) _) = SortFP e s -- TODO: Remove this
 typeToSMT TyLitInt = SortInt
-typeToSMT TyLitDouble = SortDouble
-typeToSMT TyLitFloat = SortFloat
+typeToSMT (TyLitFP e s) = SortFP e s
 typeToSMT TyLitRational = SortReal
 typeToSMT (TyLitBV w) = SortBV w
 typeToSMT TyLitChar = SortChar
@@ -630,9 +626,9 @@ toSolverAST (FromInt x) = function1 "str.from_int" $ toSolverAST x
 toSolverAST (StrLenSMT x) = function1 "str.len" $ toSolverAST x
 
 toSolverAST (IntToRealSMT x) = function1 "to_real" $ toSolverAST x
-toSolverAST (IntToFP e s x) =
+toSolverAST (IntToFPSMT e s x) =
     function2 ("(_ to_fp " <> showText e <> " " <> showText s <> ")") "RNE" . function1 ("(_ int2bv " <> showText (e + s) <> ")") $ toSolverAST x
-toSolverAST (FPToFP e s x) = function2 ("(_ to_fp " <> showText e <> " " <> showText s <> ")") "RNE" $ toSolverAST x
+toSolverAST (FPToFPSMT e s x) = function2 ("(_ to_fp " <> showText e <> " " <> showText s <> ")") "RNE" $ toSolverAST x
 
 toSolverAST (RealToFloat x) = function2 "(_ to_fp 8 24)" "RNE" (function1 "(_ int2bv 32)" $ toSolverAST x)
 toSolverAST (RealToDouble x) = function2 "(_ to_fp 11 53)" "RNE" (function1 "(_ int2bv 64)" $ toSolverAST x)

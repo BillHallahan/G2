@@ -1,5 +1,4 @@
-{-# LANGUAGE DeriveDataTypeable #-}
-{-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE DeriveDataTypeable, DeriveGeneric, PatternSynonyms #-}
 
 -- | Defines most of the central language in G2. This language closely resembles Core Haskell.
 -- The central datatypes are `Expr` and t`Type`.
@@ -229,13 +228,11 @@ data Primitive = -- Mathematical and logical operators
                | TagToEnum
 
                -- Numeric conversion
-               | IntToFloat
-               | IntToDouble
+               | IntToFP Int Int  -- ^ Int to floating point conversion- exponent and significand of the target fp must be provided
                | IntToRational
                | RationalToFloat
                | RationalToDouble
-               | FloatToDouble
-               | DoubleToFloat
+               | FPToFP Int Int -- ^ Floating point to floating point conversion- exponent and significand of the target fp must be provided
                | ToInteger
                | ToInt
                | IntToBV Int -- ^ Signed conversion, takes the width of the bit vector
@@ -272,6 +269,18 @@ data Primitive = -- Mathematical and logical operators
                | Error
                | Undefined
                deriving (Show, Eq, Read, Generic, Typeable, Data)
+
+pattern IntToFloat :: Primitive
+pattern IntToFloat = IntToFP 8 24
+
+pattern IntToDouble :: Primitive
+pattern IntToDouble = IntToFP 11 53
+
+pattern DoubleToFloat :: Primitive
+pattern DoubleToFloat = FPToFP 8 24
+
+pattern FloatToDouble :: Primitive
+pattern FloatToDouble = FPToFP 11 53
 
 instance Hashable Primitive
 
@@ -354,8 +363,7 @@ instance Hashable Coercion
 -- | Types information.
 data Type = TyVar Id -- ^ Polymorphic type variable.
           | TyLitInt -- ^ Unwrapped primitive Int type.
-          | TyLitFloat -- ^ Unwrapped primitive Float type.
-          | TyLitDouble -- ^ Unwrapped primitive Int type.
+          | TyLitFP Int Int -- ^ Unwrapped primitive floating point type with the indicated exponent and significand.
           | TyLitBV Int -- ^ Unwrapped primitive BitVector type of the indicated width.
           | TyLitRational -- ^ Unwrapped primitive Rational type.
           | TyLitChar -- ^ Unwrapped primitive Int type.
@@ -368,6 +376,12 @@ data Type = TyVar Id -- ^ Polymorphic type variable.
           | TYPE
           | TyUnknown
           deriving (Show, Eq, Read, Generic, Typeable, Data, Ord)
+
+pattern TyLitFloat :: Type
+pattern TyLitFloat = TyLitFP 8 24
+
+pattern TyLitDouble :: Type
+pattern TyLitDouble = TyLitFP 11 53
 
 -- | A `Kind` is a t`Type` of a t`Type`.
 type Kind = Type

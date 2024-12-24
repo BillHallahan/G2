@@ -266,7 +266,8 @@ evalPrimWithState s@(State { expr_env = eenv }) ng (App (App (Prim EncodeFloat t
         m = deepLookupExprPastTicks m_arg eenv
         n = deepLookupExprPastTicks n_arg eenv
 
-        (ex_bits, sig_bits) = expSigBits rt
+        (ex_bits, sig_bits_1) = expSigBits rt
+        sig_bits = sig_bits_1 - 1
         ty_ex = TyLitBV ex_bits
 
         (exp_bv, ng') = freshSeededId (Name "exp_bv" Nothing 0 Nothing) ty_ex ng
@@ -275,14 +276,11 @@ evalPrimWithState s@(State { expr_env = eenv }) ng (App (App (Prim EncodeFloat t
 
         offset = 2^(ex_bits - 1) - 1
 
-        to_float = case rt of
-                    TyLitFloat -> Prim IntToFloat (TyFun TyLitInt TyLitFloat)
-                    TyLitDouble -> Prim IntToDouble (TyFun TyLitInt TyLitDouble)
-                    _ -> error "evalPrimWithState: encodeFloat - unsupported type"
-        float_zero = case rt of
-                    TyLitFloat -> Lit $ LitFloat 0
-                    TyLitDouble -> Lit $ LitDouble 0
-                    _ -> error "evalPrimWithState: encodeFloat - unsupported type"
+        to_float = Prim (IntToFP ex_bits sig_bits_1) (TyFun TyLitInt rt)
+        float_zero = mkApp [ Prim Fp TyUnknown
+                           , Lit $ LitBV [0]
+                           , Lit $ LitBV (replicate ex_bits 0)
+                           , Lit $ LitBV (replicate sig_bits 0)]
 
         ---------------------------------------------------------------------------------------------
         -- Set up the float for 2^n.
@@ -433,10 +431,8 @@ newMutVar s ng org ts t e =
     (s', ng'')
 
 expSigBits :: Type -> (Int, Int)
-expSigBits t = case t of
-                    TyLitFloat -> (8, 23)
-                    TyLitDouble -> (11, 52)
-                    _ -> error "evalPrimWithState: decodeFloat - unsupported type"
+expSigBits (TyLitFP e s) =  (e, s)
+expSigBits _ = error "evalPrimWithState: decodeFloat - unsupported type"
 
 evalPrim1 :: Primitive -> Lit -> Maybe Expr
 evalPrim1 Negate (LitInt x) = Just . Lit $ LitInt (-x)

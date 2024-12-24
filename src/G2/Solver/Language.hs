@@ -1,9 +1,7 @@
 -- | Language
 --   Provides a language definition designed to closely resemble the SMTLIB2 language.
 
-{-# LANGUAGE FunctionalDependencies #-}
-{-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE DeriveGeneric, MultiParamTypeClasses, PatternSynonyms #-}
 
 module G2.Solver.Language
     ( module G2.Solver.Language
@@ -139,8 +137,8 @@ data SMTAST = (:>=) !SMTAST !SMTAST
 
             | FloatToIntSMT !SMTAST -- ^ Float to Integer conversion
             | DoubleToIntSMT !SMTAST -- ^ Double to Integer conversion
-            | IntToFP !Int !Int !SMTAST -- ^ Integer to floating point (with the given exponent and significand) conversion
-            | FPToFP !Int !Int !SMTAST -- ^ Floating point to floating point conversion- exponent and significand of the target fp must be provided
+            | IntToFPSMT !Int !Int !SMTAST -- ^ Integer to floating point (with the given exponent and significand) conversion
+            | FPToFPSMT !Int !Int !SMTAST -- ^ Floating point to floating point conversion- exponent and significand of the target fp must be provided
             | IntToRealSMT !SMTAST -- ^ Integer to Real conversion
             | IntToBVSMT Int !SMTAST -- ^ Int to BitVector (of indicated width) conversion
             | BVToIntSMT Int !SMTAST -- ^ BitVector (of indicated width) to Int conversion
@@ -153,8 +151,7 @@ data SMTAST = (:>=) !SMTAST !SMTAST
 
 -- | Every `SMTAST` has a `Sort`
 data Sort = SortInt
-          | SortFloat
-          | SortDouble
+          | SortFP Int Int -- Floating point with the indicated exponent and significand.
           | SortReal
           | SortBV Int
           | SortChar
@@ -163,6 +160,12 @@ data Sort = SortInt
           | SortArray Sort Sort
           | SortFunc [Sort] Sort
           deriving (Show, Eq, Ord, Generic)
+
+pattern SortFloat :: Sort
+pattern SortFloat = SortFP 8 24
+
+pattern SortDouble :: Sort
+pattern SortDouble = SortFP 11 53
 
 instance Hashable Sort
 
