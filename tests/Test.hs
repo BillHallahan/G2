@@ -173,7 +173,9 @@ sampleTests = testGroup "Samples"
 testFileTests :: TestTree
 testFileTests = testGroup "TestFiles"
     [
-      checkExpr "tests/TestFiles/IfTest.hs" 400 "f"
+      checkInputOutputs "tests/TestFiles/Array1.hs" [ ("buildArray1", 15000, [AtLeast 1])
+                                                    , ("buildArray2", 15000, [AtLeast 1])]
+    , checkExpr "tests/TestFiles/IfTest.hs" 400 "f"
         [ RForAll (\[App _ (Lit (LitInt x)), App _ (Lit (LitInt y)), App _ (Lit (LitInt r))] -> 
             if x == y then r == x + y else r == y)
         , AtLeast 2]
@@ -185,7 +187,9 @@ testFileTests = testGroup "TestFiles"
     , checkExprAssumeAssert "tests/TestFiles/AssumeAssert.hs" 400
         (Just "assumeGt5") (Just "assertGt5") "outShouldBeGe5" [Exactly 0]
 
-    , checkInputOutputs "tests/TestFiles/Char.hs" [ ("char", 400, [Exactly 2]) ]
+    , checkInputOutputs "tests/TestFiles/Char.hs" [ ("char", 400, [Exactly 2])
+                                                  , ("f", 1000, [AtLeast 3])
+                                                  , ("g", 1000, [AtLeast 8]) ]
 
     , checkExpr "tests/TestFiles/CheckSq.hs" 400 "checkSq"
         [AtLeast 2, RExists (\[x, _] -> isInt x (\x' -> x' == 3 || x' == -3))]
@@ -199,6 +203,12 @@ testFileTests = testGroup "TestFiles"
                                                      , ("compZZ2", 1600, [AtLeast 2]) ]
 
     , checkInputOutput "tests/TestFiles/Defunc2.hs" "funcMap" 500 [AtLeast 30]
+
+    , checkInputOutput "tests/TestFiles/Ix.hs" "ixRange1" 1000 [AtLeast 10]
+
+    , checkInputOutput "tests/TestFiles/ListComp.hs" "list1" 10000 [Exactly 1]
+
+    , checkInputOutput "tests/TestFiles/Imports/MakesSound.hs" "makesSound" 1000 [Exactly 3]
 
     , checkExpr "tests/TestFiles/MultCase.hs" 400 "f"
         [ RExists (\[App _ (Lit (LitInt x)), y] -> x == 2 && getBoolB y id)
@@ -327,7 +337,13 @@ testFileTests = testGroup "TestFiles"
                                                               , ("eq", 700, [AtLeast 10])
                                                               , ("eqGt1", 700, [AtLeast 10])
                                                               , ("capABC", 100, [AtLeast 10])
-                                                              , ("appendEq", 500, [AtLeast 5]) ]
+                                                              , ("appendEq", 500, [AtLeast 5])
+                                                              , ("stringSub1", 7000, [AtLeast 40])
+                                                              , ("stringSub2", 7000, [AtLeast 35])
+                                                              , ("stringSub3", 7000, [AtLeast 16])
+                                                              , ("nStringSub3", 2000, [AtLeast 15])
+                                                              , ("stringSub4", 7000, [AtLeast 7])
+                                                              , ("nStringSub4", 2000, [AtLeast 5]) ]
 
     , checkExpr "tests/TestFiles/Strings/Strings1.hs" 1000 "exclaimEq"
         [AtLeast 5, RExists (\[_, _, r] -> dcHasName "True" r)]
@@ -384,7 +400,9 @@ testFileTests = testGroup "TestFiles"
                                                      , ("kConc", 2000, [Exactly 1])
                                                      , ("m", 1000, [AtLeast 2])
                                                      , ("n", 1000, [AtLeast 2])
-                                                     , ("sqrtSquared", 1000, [AtLeast 2]) ]
+                                                     , ("sqrtSquared", 1000, [AtLeast 2])
+                                                     , ("floorAndCeiling", 1500, [AtLeast 6])
+                                                     , ("roundTest", 1750, [AtLeast 8]) ]
 
     , checkInputOutputs "tests/TestFiles/Doubles1.hs" [ ("infinite", 1000, [AtLeast 3])
                                                       , ("zero", 1000, [AtLeast 3])
@@ -396,7 +414,9 @@ testFileTests = testGroup "TestFiles"
                                                       , ("kConc", 2000, [Exactly 1])
                                                       , ("m", 1000, [AtLeast 2])
                                                       , ("n", 1000, [AtLeast 2])
-                                                      , ("sqrtSquared", 1000, [AtLeast 2]) ]
+                                                      , ("sqrtSquared", 1000, [AtLeast 2])
+                                                      , ("floorAndCeiling", 1500, [AtLeast 6])
+                                                      , ("roundTest", 1750, [AtLeast 8])  ]
 
     , checkInputOutputsInstType "tests/TestFiles/InstTypes1.hs" [ ("lengthList", 200, [AtLeast 1])
                                                         , ("myTuple", 200, [AtLeast 1])
@@ -516,6 +536,13 @@ ioTests = testGroup "IO"
       checkInputOutput "tests/IO/UnsafePerformIO1.hs" "f" 1000 [Exactly 1]
     , checkInputOutput "tests/IO/IORef1.hs" "unsafeF" 5000 [Exactly 1]
     , checkInputOutput "tests/IO/IORef1.hs" "unsafeG" 5000 [Exactly 2]
+
+    , checkExpr "tests/IO/Handles1.hs" 2500 "compareInitChars" [Exactly 4]
+    , checkExpr "tests/IO/Handles1.hs" 5000 "take10Contents" [Exactly 11]
+    , checkExpr "tests/IO/Handles1.hs" 5000 "output1" [Exactly 1]
+    , checkExpr "tests/IO/Handles1.hs" 5000 "output2" [Exactly 1]
+    , checkExpr "tests/IO/Handles1.hs" 5000 "output3" [Exactly 1]
+    , checkExpr "tests/IO/Handles1.hs" 3000 "interact1" [AtLeast 10]
     ]
 
 -- To Do Tests
@@ -643,7 +670,7 @@ checkExprWithConfig src m_assume m_assert m_reaches entry reqList config_f = do
 
                                 pg = mkPrettyGuide exec_res
                                 res_pretty = map (printInputOutput pg (Id (Name (T.pack entry) Nothing 0 Nothing) TyUnknown) b) exec_res
-                                res_print = map T.unpack $ map (\(_, inp, out) -> inp <> " = " <> out) res_pretty
+                                res_print = map T.unpack $ map (\(_, inp, out, _) -> inp <> " = " <> out) res_pretty
                             in
                             (Just reqs, res_print)
 

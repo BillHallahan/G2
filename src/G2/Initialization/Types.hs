@@ -9,6 +9,7 @@ module G2.Initialization.Types ( SimpleState (..)
                                , putKnownValues ) where
 
 import qualified Control.Monad.State.Lazy as SM
+import qualified Data.HashMap.Lazy as HM
 
 import qualified G2.Language as L
 import G2.Language.AST
@@ -18,6 +19,7 @@ import G2.Language.Syntax
 data SimpleState = SimpleState { expr_env :: L.ExprEnv
                                , type_env :: L.TypeEnv
                                , name_gen :: L.NameGen
+                               , handles :: HM.HashMap Name L.Handle
                                , known_values :: L.KnownValues
                                , type_classes :: L.TypeClasses
                                , rewrite_rules :: ![L.RewriteRule]
@@ -90,4 +92,5 @@ instance ASTContainer SimpleState Type where
         containedASTs (expr_env s) ++ containedASTs (type_env s) ++ containedASTs  (rewrite_rules s)
     modifyContainedASTs f s = s { expr_env = modifyContainedASTs f (expr_env s)
                                 , type_env = modifyContainedASTs f (type_env s)
+                                , handles = modifyContainedASTs f (handles s)
                                 , rewrite_rules = modifyContainedASTs f (rewrite_rules s) }

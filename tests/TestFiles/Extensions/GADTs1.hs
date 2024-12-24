@@ -104,6 +104,6 @@ vecInit (VCons x xs@(VCons y ys)) = VCons x (vecInit xs)
 -- getX :: X True
 -- getX = walkX (XTrue XFalse)
 
--- walkX :: X b -> X b
--- walkX (XTrue x) = XTrue (walkX x)
--- walkX XFalse = XFalse
+eval2 :: Term a -> a
+eval2 (Lit i)     = i
+eval2 (Pair a b)  = (eval2 a, eval2 b)

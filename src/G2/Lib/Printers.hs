@@ -44,6 +44,7 @@ import Data.List as L
 import qualified Data.HashMap.Lazy as HM
 import qualified Data.HashSet as HS
 import qualified Data.Text as T
+import qualified Data.Text.Internal.Read as T
 
 data Clean = Cleaned | Dirty deriving Eq
 
@@ -142,7 +143,7 @@ mkExprHaskell' off_init cleaned pg ex = mkExprHaskell'' off_init ex
             | Data (DataCon n1 _ _ _) <- e1
             , nameOcc n1 == ":"
             , isCleaned =
-                if isLitChar e2 then printString pg a else printList pg a
+                if isChar e2 then printString pg a else printList pg a
 
             | isInfixable pg e1
             , isCleaned =
@@ -279,16 +280,24 @@ printString pg a =
     let
         maybe_str = printString' a
     in case maybe_str of
-        Just str -> if T.all isPrint str then "\"" <> str <> "\""
-                    else "[" <> T.intercalate ", " (map (T.pack . stringToEnum) $ T.unpack str) <> "]"
+        Just str -> if T.all isPrint str then "\"" <> T.concatMap addEscapeStr str <> "\""
+                    else ("[" <> T.intercalate ", " (map stringToEnum $ T.unpack str) <> "]")
         Nothing -> printList pg a
     where
         stringToEnum c
-            | isPrint c = '\'':c:'\'':[]
-            | otherwise = "toEnum " ++ show (ord c)
+            | isPrint c = "\'" <> addEscapeChar c <> "\'"
+            | otherwise = T.pack $ "toEnum " ++ show (ord c)
+
+        addEscapeStr '"' = "\\\""
+        addEscapeStr '\\' = "\\\\"
+        addEscapeStr c = T.singleton c
+
+        addEscapeChar '\'' = "\\'"
+        addEscapeChar '\\' = "\\\\"
+        addEscapeChar c = T.singleton c
 
 printString' :: Expr -> Maybe T.Text
-printString' (App (App _ (Lit (LitChar c))) e') =
+printString' (App (App _ (App _ (Lit (LitChar c)))) e') =
     case printString' e' of
         Nothing -> Nothing
         Just str -> Just (T.cons c str)
@@ -328,9 +337,9 @@ isApp :: Expr -> Bool
 isApp (App _ _) = True
 isApp _ = False
 
-isLitChar :: Expr -> Bool
-isLitChar (Lit (LitChar _)) = True
-isLitChar _ = False
+isChar :: Expr -> Bool
+isChar (App (Data (DataCon { dc_name = Name "C#" _ _ _ })) (Lit (LitChar _))) = True
+isChar _ = False
 
 data UseHash = UseHash | NoHash deriving Eq
 
@@ -392,6 +401,8 @@ mkPrimHaskell pg = pr
         pr FpNeq = "fp./="
 
         pr FpSqrt = "fp.sqrt"
+        pr TruncZero = "fp.truncZero"
+        pr DecimalPart = "fp.decimalPart"
 
         pr FpIsNegativeZero = "isNegativeZero#"
         pr IsNaN = "isNaN#"
@@ -408,12 +419,21 @@ mkPrimHaskell pg = pr
         pr RationalToDouble = "fromRational"
         pr ToInteger = "toInteger"
 
+        pr StrGt = "str.>"
+        pr StrGe = "str.>="
+        pr StrLt = "str.<"
+        pr StrLe = "str.<="
         pr StrLen = "StrLen"
         pr StrAppend = "StrAppend"
         pr Chr = "chr"
         pr OrdChar = "ord"
 
         pr WGenCat = "wgencat"
+
+        pr (Handle n) = "(Handle " <> mkNameHaskell pg n <> ")"
+        pr HandleGetPos = "handle_getPos"
+        pr HandleSetPos = "handle_setPos"
+        pr HandlePutChar = "handle_putChar"
 
         pr IntToString = "intToString"
 
@@ -497,6 +517,8 @@ prettyState pg s =
         , pretty_paths
         , "----- [Non Red Paths] ---------------------"
         , pretty_non_red_paths
+        , "----- [Handles] ---------------------"
+        , pretty_handles
         , "----- [MutVars Env] ---------------------"
         , pretty_mutvars
         , "----- [Types] ---------------------"
@@ -518,6 +540,7 @@ prettyState pg s =
         pretty_eenv = prettyEEnv pg (expr_env s)
         pretty_paths = prettyPathConds pg (path_conds s)
         pretty_non_red_paths = prettyNonRedPaths pg (non_red_path_conds s)
+        pretty_handles = prettyHandles pg $ handles s
         pretty_mutvars = prettyMutVars pg . HM.map mv_val_id $ mutvar_env s
         pretty_tenv = prettyTypeEnv pg (type_env s)
         pretty_tc = prettyTypeClasses pg (type_classes s)
@@ -598,6 +621,13 @@ prettyPathCond pg (AssumePC i l pc) =
 
 prettyNonRedPaths :: PrettyGuide -> [(Expr, Expr)] -> T.Text
 prettyNonRedPaths pg = T.intercalate "\n" . map (\(e1, e2) -> mkDirtyExprHaskell pg e1 <> " == " <> mkDirtyExprHaskell pg e2)
+
+prettyHandles :: PrettyGuide -> HM.HashMap Name Handle -> T.Text
+prettyHandles pg = T.intercalate "\n" . map (\(n, h) -> printName pg n
+                                                <> "\tfilepath = " <> T.pack (h_filepath h)
+                                                <> "\tstart = " <> printName pg (idName (h_start h))
+                                                <> "\tpos = " <> printName pg (idName (h_pos h))
+                                                <> "\tstatus = " <> T.pack (show (h_status h))) . HM.toList
 
 prettyMutVars :: PrettyGuide -> HM.HashMap Name Id -> T.Text
 prettyMutVars pg = T.intercalate "\n" . map (\(n, i) -> printName pg n <> " , " <> mkIdHaskell pg i) . HM.toList

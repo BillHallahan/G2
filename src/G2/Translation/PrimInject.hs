@@ -12,6 +12,7 @@ module G2.Translation.PrimInject
 
 import G2.Language.AST
 import G2.Language.Naming
+import G2.Language.Support
 import G2.Language.Syntax
 import G2.Language.Typing
 import G2.Language.TypeEnv
@@ -51,12 +52,12 @@ conName :: DataCon -> (Name, [Type], [Id], [Id])
 conName (DataCon n t u e) = (n, anonArgumentTypes t, u, e)
 
 primDefs :: HM.HashMap Name AlgDataTy -> [(T.Text, Expr)]
-primDefs pt = case (boolName pt, charName pt, listName pt) of
-                (Just b, Just c, Just l) -> primDefs' b c l
+primDefs pt = case (boolName pt, charName pt, listName pt, unitName pt) of
+                (Just b, Just c, Just l, Just unit) -> primDefs' b c l unit
                 _ -> error "primDefs: Required types not found"
 
-primDefs' :: Name -> Name -> Name -> [(T.Text, Expr)]
-primDefs' b c l =
+primDefs' :: Name -> Name -> Name -> Name -> [(T.Text, Expr)]
+primDefs' b c l unit =
               [ ("$==#", Prim Eq $ tyIntIntBool b)
               , ("$/=#", Prim Neq $ tyIntIntBool b)
               , ("+#", Prim Plus tyIntIntInt)
@@ -78,7 +79,9 @@ primDefs' b c l =
               , ("*##", Prim FpMul tyDoubleDoubleDouble)
               , ("-##", Prim FpSub tyDoubleDoubleDouble)
               , ("negateDouble#", Prim FpNeg tyDoubleDouble)
-              , ("sqrtDouble#", Prim FpSqrt tyDoubleDoubleDouble)
+              , ("sqrtDouble#", Prim FpSqrt tyDoubleDouble)
+              , ("truncZeroDouble#", Prim TruncZero tyDoubleInteger)
+              , ("decPartDouble#", Prim DecimalPart tyDoubleDouble)
               , ("/##", Prim FpDiv tyDoubleDoubleDouble)
               , ("$<=##", Prim FpLeq $ tyDoubleDoubleBool b)
               , ("$<##", Prim FpLt $ tyDoubleDoubleBool b)
@@ -94,6 +97,8 @@ primDefs' b c l =
               , ("minusFloat#", Prim FpSub tyFloatFloatFloat)
               , ("negateFloat#", Prim FpNeg tyFloatFloat)
               , ("sqrtFloat#", Prim FpSqrt tyFloatFloat)
+              , ("truncZeroFloat#", Prim TruncZero tyFloatInteger)
+              , ("decPartFloat#", Prim DecimalPart tyFloatFloat)
               , ("divideFloat#", Prim FpDiv tyFloatFloatFloat)
               , ("smtEqFloat#", Prim FpEq $ tyFloatFloatBool b)
               , ("smtNeFloat#", Prim FpNeq $ tyFloatFloatBool b)
@@ -114,10 +119,10 @@ primDefs' b c l =
               , ("smtEqChar#", Prim Eq $ tyCharCharBool b )
               , ("smtNeChar#", Prim Neq $ tyCharCharBool b )
               , ("smtEqChar#", Prim Eq $ tyCharCharBool b )
-              , ("gtChar#", Prim Gt $ tyCharCharBool b )
-              , ("geChar#", Prim Ge $ tyCharCharBool b )
-              , ("ltChar#", Prim Lt $ tyCharCharBool b )
-              , ("leChar#", Prim Le $ tyCharCharBool b )
+              , ("gtChar#", Prim StrGt $ tyCharCharBool b )
+              , ("geChar#", Prim StrGe $ tyCharCharBool b )
+              , ("ltChar#", Prim StrLt $ tyCharCharBool b )
+              , ("leChar#", Prim StrLe $ tyCharCharBool b )
               , ("wgencat#", Prim WGenCat $ tyIntInt )
 
               , ("float2Int#", Prim ToInt (TyFun TyLitFloat TyLitInt))
@@ -154,8 +159,15 @@ primDefs' b c l =
                                         (Var $ y tyvarA)
 
                             ])
+              
+              , ("stdin", Prim (Handle stdinName) TyUnknown)
+              , ("stdout", Prim (Handle stdoutName) TyUnknown)
+              , ("stderr", Prim (Handle stderrName) TyUnknown)
+              , ("g2GetPos'", Prim HandleGetPos (TyFun TyUnknown strTy))
+              , ("g2SetPos'", Prim HandleSetPos (TyFun strTy (TyFun TyUnknown (TyCon unit TYPE))))
+              , ("g2PutChar'", Prim HandlePutChar (TyFun (TyCon c TYPE) (TyFun TyUnknown (TyCon unit TYPE))))
 
-              , ("intToString#", Prim IntToString (TyFun TyLitInt (TyApp (TyCon l (TyFun TYPE TYPE)) (TyCon c TYPE))))
+              , ("intToString#", Prim IntToString (TyFun TyLitInt strTy))
 
               , ("newMutVar##", Prim NewMutVar (TyForAll a (TyForAll d (TyFun tyvarA (TyFun TyUnknown TyUnknown)))))
               , ("readMutVar##", Prim ReadMutVar (TyForAll d (TyForAll a (TyFun TyUnknown (TyFun TyUnknown tyvarA)))))
@@ -171,6 +183,8 @@ primDefs' b c l =
               , ("toEnumError", Prim Error TyBottom)
               , ("ratioZeroDenominatorError", Prim Error TyBottom)
               , ("undefined", Prim Error TyBottom) ]
+              where
+                    strTy = (TyApp (TyCon l (TyFun TYPE TYPE)) (TyCon c TYPE))
 
 a :: Id
 a = Id (Name "a" Nothing 0 Nothing) TYPE
@@ -202,6 +216,9 @@ tyIntIntInt = TyFun TyLitInt $ TyFun TyLitInt TyLitInt
 tyDoubleDouble :: Type
 tyDoubleDouble = TyFun TyLitDouble TyLitDouble
 
+tyDoubleInteger :: Type
+tyDoubleInteger = TyFun TyLitDouble TyLitInt
+
 tyDoubleBool :: Name -> Type
 tyDoubleBool n = TyFun TyLitDouble (TyCon n TYPE)
 
@@ -213,6 +230,9 @@ tyDoubleDoubleDouble = TyFun TyLitDouble $ TyFun TyLitDouble TyLitDouble
 
 tyFloatFloat :: Type
 tyFloatFloat = TyFun TyLitFloat TyLitFloat
+
+tyFloatInteger :: Type
+tyFloatInteger = TyFun TyLitFloat TyLitInt
 
 tyFloatBool :: Name -> Type
 tyFloatBool n = TyFun TyLitFloat (TyCon n TYPE)
@@ -244,6 +264,9 @@ listName = find ((==) "List" . nameOcc) . HM.keys
 #else
 listName = find ((==) "[]" . nameOcc) . HM.keys
 #endif
+
+unitName :: HM.HashMap Name AlgDataTy -> Maybe Name
+unitName = find ((==) "()" . nameOcc) . HM.keys
 
 replaceFromPD :: HM.HashMap Name AlgDataTy -> Name -> Expr -> Expr
 replaceFromPD pt n e =

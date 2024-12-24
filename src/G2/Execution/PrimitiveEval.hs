@@ -1,13 +1,7 @@
 {-# LANGUAGE Rank2Types #-}
 {-# LANGUAGE FlexibleContexts, OverloadedStrings #-}
 
-module G2.Execution.PrimitiveEval ( evalPrimsSharing
-                                  , evalPrims
-                                  , mutVarTy
-                                  , evalPrimMutVar
-                                  , newMutVar
-                                  , maybeEvalPrim
-                                  , evalPrimSymbolic) where
+module G2.Execution.PrimitiveEval (evalPrims, mutVarTy, evalPrimMutVar, newMutVar, maybeEvalPrim, evalPrimSymbolic) where
 
 import G2.Language.AST
 import G2.Language.Expr
@@ -24,7 +18,6 @@ import qualified Data.HashMap.Lazy as M
 import qualified Data.List as L
 import Data.Maybe
 import qualified G2.Language.ExprEnv as E
-import G2.Language.ExprEnv (deepLookupExpr)
 import G2.Language.MutVarEnv
 
 -- | Evaluates primitives at the root of the passed `Expr` while updating the `ExprEnv`
@@ -106,24 +99,50 @@ maybeEvalPrim' tenv kv xs
 
     | otherwise = Nothing
 
--- | Evaluate primitives that deal with mutable variables.
--- See Note [MutVar Env] in G2.Language.Support.
-evalPrimMutVar :: State t -- ^ Context to evaluate expression `e` in
-               -> NameGen
-               -> Expr -- ^ The expression `e` to evaluate
-               -> Maybe (State t, NameGen) -- ^ `Just` if `e` is a primitive operation on mutable variable, `Nothing` otherwise
-evalPrimMutVar s ng (App (App (App (App (Prim NewMutVar _) (Type t)) (Type ts)) e) _) = Just $ newMutVar s ng MVConc ts t e
-evalPrimMutVar s ng (App (App (App (App (Prim ReadMutVar _) _) _) mv_e) _)
-    | Just (Prim (MutVar mv) _) <- deepLookupExpr mv_e (expr_env s)=
+-- | Evaluate primitives that need to read from or modify the State.
+-- For more on MutVar's Note [MutVar Env] in G2.Language.MutVarEnv.
+evalPrimWithState :: State t -- ^ Context to evaluate expression `e` in
+                  -> NameGen
+                  -> Expr -- ^ The expression `e` to evaluate
+                  -> Maybe (State t, NameGen) -- ^ `Just` if `e` is a primitive operation that this function reduces, `Nothing` otherwise
+evalPrimWithState s ng (App (Prim HandleGetPos _) hnd)
+    | (Prim (Handle n) _) <- deepLookupExprPastTicks hnd (expr_env s)
+    , Just (HandleInfo { h_pos = pos }) <- M.lookup n (handles s) = Just (s { curr_expr = CurrExpr Evaluate (Var pos) }, ng)
+evalPrimWithState s ng (App (App (Prim HandleSetPos _) (Var new_pos)) hnd)
+    | (Prim (Handle n) _) <- deepLookupExprPastTicks hnd (expr_env s)
+    , Just hi <- M.lookup n (handles s) =
+        let
+            s' = s { curr_expr = CurrExpr Evaluate (mkUnit (known_values s) (type_env s))
+                   , handles = M.insert n (hi { h_pos = new_pos }) (handles s)}
+        in
+        Just (s', ng)
+evalPrimWithState s ng (App (App (Prim HandlePutChar _) c) hnd)
+    | (Prim (Handle n) _) <- deepLookupExprPastTicks hnd (expr_env s)
+    , Just hi <- M.lookup n (handles s) =
+        let
+            pos = h_pos hi
+            ty_string = typeOf pos
+
+            (new_pos, ng') = freshSeededId (Name "pos" Nothing 0 Nothing) ty_string ng
+            e = mkApp [mkCons (known_values s) (type_env s), Type ty_string, c, Var new_pos]
+            s' = s { expr_env = E.insert (idName pos) e 
+                              $ E.insertSymbolic new_pos (expr_env s)
+                   , curr_expr = CurrExpr Evaluate (mkUnit (known_values s) (type_env s))
+                   , handles = M.insert n (hi { h_pos = new_pos }) (handles s)}
+        in
+        Just (s', ng')
+evalPrimWithState s ng (App (App (App (App (Prim NewMutVar _) (Type t)) (Type ts)) e) _) = Just $ newMutVar s ng MVConc ts t e
+evalPrimWithState s ng (App (App (App (App (Prim ReadMutVar _) _) _) mv_e) _)
+    | (Prim (MutVar mv) _) <- deepLookupExprPastTicks mv_e (expr_env s) =
     let
         i = lookupMvVal mv (mutvar_env s)
-        s' = maybe (error "evalPrimMutVar: MutVar not found")
+        s' = maybe (error "evalPrimWithState: MutVar not found")
                    (\i' -> s { curr_expr = CurrExpr Evaluate (Var i') })
                    i
     in
     Just (s', ng)
-evalPrimMutVar s ng (App (App (App (App (App (Prim WriteMutVar _) _) (Type t)) mv_e) e) pr_s)
-    | Just (Prim (MutVar mv) _) <- deepLookupExpr mv_e (expr_env s) =
+evalPrimWithState s ng (App (App (App (App (App (Prim WriteMutVar _) _) (Type t)) mv_e) e) pr_s)
+    | (Prim (MutVar mv) _) <- deepLookupExprPastTicks mv_e (expr_env s) =
     let
         (i, ng') = freshId t ng
         s' = s { expr_env = E.insert (idName i) e (expr_env s)
@@ -131,7 +150,7 @@ evalPrimMutVar s ng (App (App (App (App (App (Prim WriteMutVar _) _) (Type t)) m
                , curr_expr = CurrExpr Evaluate pr_s }
     in
     Just (s', ng')
-evalPrimMutVar _ _ e | [Prim WriteMutVar _, _, _, _, _, _] <- unApp e = Nothing
+evalPrimMutVar _ _ e | [Prim WriteMutVar _, _, _, _, _, _] <- unApp e = trace ("e = " ++ show e) Nothing
 evalPrimMutVar _ _ _ = Nothing
 
 mutVarTy :: KnownValues
@@ -167,6 +186,10 @@ evalPrim1 Abs (LitRational x) = Just . Lit $ LitRational (abs x)
 evalPrim1 Abs (LitFloat x) = Just . Lit $ LitFloat (abs x)
 evalPrim1 Abs (LitDouble x) = Just . Lit $ LitDouble (abs x)
 evalPrim1 FpSqrt x = evalPrim1Floating sqrt x
+evalPrim1 TruncZero (LitFloat x) = Just . Lit $ LitInt (fst $ properFraction x)
+evalPrim1 TruncZero (LitDouble x) = Just . Lit $ LitInt (fst $ properFraction x)
+evalPrim1 DecimalPart (LitFloat x) = Just . Lit $ LitFloat (snd $ properFraction x)
+evalPrim1 DecimalPart (LitDouble x) = Just . Lit $ LitDouble (snd $ properFraction x)
 evalPrim1 IntToFloat (LitInt x) = Just . Lit $ LitFloat (fromIntegral x)
 evalPrim1 IntToDouble (LitInt x) = Just . Lit $ LitDouble (fromIntegral x)
 evalPrim1 IntToRational (LitInt x) = Just . Lit $ LitRational (fromIntegral x)
@@ -214,6 +237,11 @@ evalPrim2 _ FpAdd x y = evalPrim2Num (+) x y
 evalPrim2 _ FpSub x y = evalPrim2Num (-) x y
 evalPrim2 _ FpMul x y = evalPrim2Num (*) x y
 evalPrim2 _ FpDiv x y = evalPrim2Fractional (/) x y
+
+evalPrim2 kv StrGe x y = evalPrim2NumCharBool (>=) kv x y
+evalPrim2 kv StrGt x y = evalPrim2NumCharBool (>) kv x y
+evalPrim2 kv StrLt x y = evalPrim2NumCharBool (<) kv x y
+evalPrim2 kv StrLe x y = evalPrim2NumCharBool (<=) kv x y
 
 evalPrim2 _ RationalToFloat (LitInt x) (LitInt y) =
        Just . Lit . LitFloat $ fromIntegral x / fromIntegral y
@@ -318,7 +346,8 @@ evalPrimSymbolic eenv tenv ng kv e
     | tBool <- tyBool kv
     , [Prim TagToEnum _, _, pe] <- unApp e
     , typeOf (dig eenv pe) == tBool = Just (pe, eenv, [], ng)
-    | [Prim TagToEnum _, type_t, pe] <- unApp e
+    | [Prim TagToEnum _, type_t, pe] <- unA
+    pp e
     , Type t <- dig eenv type_t =
         case unTyApp t of
             TyCon n _:_ | Just adt <- M.lookup n tenv ->

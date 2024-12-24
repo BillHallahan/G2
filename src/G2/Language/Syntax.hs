@@ -202,6 +202,9 @@ data Primitive = -- Mathematical and logical operators
                | IsNaN
                | IsInfinite
 
+               | TruncZero
+               | DecimalPart
+
                -- GHC conversions from data constructors to Int#, and vice versa
                | DataToTag
                | TagToEnum
@@ -216,11 +219,21 @@ data Primitive = -- Mathematical and logical operators
                | ToInt
                
                -- String Handling
+               | StrGt
+               | StrGe
+               | StrLt
+               | StrLe
                | StrLen
                | StrAppend
                | Chr
                | OrdChar
                | WGenCat
+
+               -- IO Handles
+               | Handle Name -- ^ An IO Handle, the `Name` corresponds to a `HandleInfo` via a `State`s `handles` field
+               | HandleGetPos -- ^ Handle -> String
+               | HandleSetPos -- ^ String -> Handle -> ()
+               | HandlePutChar -- ^ Char -> Handle -> ()
 
                -- Convert a positive Int to a String. (This matches the SMT Str.from_int function, which supports only positive Ints.)
                | IntToString
