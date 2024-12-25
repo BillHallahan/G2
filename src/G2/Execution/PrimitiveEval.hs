@@ -299,7 +299,7 @@ evalPrimWithState s@(State { expr_env = eenv }) ng (App (App (Prim EncodeFloat t
                         , Lit $ LitInt offset]
         exp_eq = mkApp [ Prim Eq TyUnknown
                        , scl_exp
-                       , mkApp [ Prim (BVToInt w_ex_bits) (mkTyFun [TyLitBV w_ex_bits, TyLitInt])
+                       , mkApp [ Prim (BVToNat ) (mkTyFun [TyLitBV w_ex_bits, TyLitInt])
                                , Var exp_bv ]
                        ]
         exp_pc = ExtCond exp_eq True
