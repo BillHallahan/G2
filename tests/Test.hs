@@ -413,7 +413,7 @@ testFileTests = testGroup "TestFiles"
                                                      , ("exponentTest", 2000, [AtLeast 6])
                                                      , ("encodeFloatTest1", 4000, [AtLeast 100])
                                                      , ("significandTest", 2000, [AtLeast 5]) 
-                                                     , ("scaleFloatTest", 2000, [AtLeast 5])
+                                                     , ("scaleFloatTest", 2000, [AtLeast 7])
                                                      , ("scaleFloatTest2", 2000, [AtLeast 3])
                                                      , ("doubleToFloat", 2000, [AtLeast 4]) ]
 
@@ -438,7 +438,7 @@ testFileTests = testGroup "TestFiles"
                                                       , ("exponentTest", 2000, [AtLeast 6])
                                                       , ("encodeFloatTest1", 8000, [AtLeast 225]) 
                                                       , ("significandTest", 2000, [AtLeast 5])
-                                                      , ("scaleFloatTest", 2000, [AtLeast 5])
+                                                      , ("scaleFloatTest", 2000, [AtLeast 7])
                                                       , ("scaleFloatTest2", 2000, [AtLeast 3])
                                                       , ("floatToDouble", 2000, [AtLeast 4]) ]
 

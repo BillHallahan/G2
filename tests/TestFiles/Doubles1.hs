@@ -73,6 +73,7 @@ roundTest (D x) | isNaN x || isInfinite x = (0, 0)
     where
         r = round x
 
+-- `decodeFloat x` is unspecified if `isNaN x` of `isInfinite x`
 decodeFloatTest1 :: NaNEq -> (Int, (Integer, Int))
 decodeFloatTest1 (D x) | isNaN x || isInfinite x = (0, (0, 0))
                        | isDenormalized x = (1, decodeFloat x)
@@ -173,7 +174,8 @@ significandTest (D x)
         r = D (significand x)
 
 scaleFloatTest :: NaNEq -> (Int, NaNEq, NaNEq)
-scaleFloatTest (D x) | x > 10 = (0, D (scaleFloat 4 x), D (scaleFloat 8 x))
+scaleFloatTest (D x) | isNaN x || isInfinite x = (0, D 0, D 0)
+                     | x > 10 = (0, D (scaleFloat 4 x), D (scaleFloat 8 x))
                      | x < -9 = (1, D (scaleFloat 6 x), D (scaleFloat 11 x))
                      | otherwise = (2, D (scaleFloat 9 x), D (scaleFloat 14 x))
 
