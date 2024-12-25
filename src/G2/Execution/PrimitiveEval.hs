@@ -125,7 +125,8 @@ evalPrimWithState s@(State { known_values = kv, type_env = tenv, expr_env = eenv
         -- The decodeFloat function returns a (signed and scaled) significand and exponent from a float.
         -- More details on scaling are in Note [Scaled decodeFloat], below.
 
-        (ex_bits, sig_bits) = expSigBits (typeOf e)
+        (ex_bits, sig_bits_1) = expSigBits (typeOf e)
+        sig_bits = sig_bits_1 - 1
         ty_ex = TyLitBV ex_bits
         ty_sig = TyLitBV sig_bits
 
