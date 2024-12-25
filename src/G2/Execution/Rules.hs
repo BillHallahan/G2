@@ -1127,67 +1127,31 @@ addExtConds s ng e1 ais e2 stck =
     in
     ([strue, sfalse], ng)
 
--- | Inject binds into the eenv. The LHS of the [(Id, Expr)] are treated as
--- seed values for the names.
--- update the Expr with correct type information you learn from the coercion 
--- we are trying to the state 63 from logging-pretty working 
--- eliminate coercion in the printing as it should be n1= zero 
--- in order to see n1 in the log-pretty you should have show-types on 
--- look at retype when we are updating the expr from the coercion 
--- the expr pass in should be telling us whether we should coerce 
-
--- | This function determines whether the [Expr] contain a Coercion 
--- We want to extract the corresponding types in [Id] that are equivalent under Coercion
-
--- We first verify whether the center of the TyApp is a coercion we known
+-- | This function extract the corresponding types in [Id] that are equivalent under Coercion
 -- n1 represent the symoblic type variables 
 -- n2 represent the concrete type that we are reference to 
 -- for example: in concrete GADT when we want to establish a coercion between n and zero
 -- n1 in this case represent n and n2 represent zero
--- This code is probably find as it's beside the fact we need to: 
--- checking the center is a cerocion using the known values
--- print out to determine type or dc coercion from the knownvalues 
-
 extractTypes :: KnownValues -> Id -> (Type, Type)
 extractTypes kv (Id _ (TyApp (TyApp (TyApp (TyApp (TyCon n _) _) _) n1) n2)) =
         (if KV.tyCoercion kv == n 
         then    
            (n1, n2)
         else
-            error "the center of the id is not a coercion")
-extractTypes _ _ = error "Pattern not matched in extractTypes"
+            error "the center of the pattern is not a coercion")
+extractTypes _ _ = error "Pattern is not matched in extractTypes"
 
 liftBinds :: KnownValues -> [(Id, Expr)] -> E.ExprEnv -> Expr -> NameGen ->
              (E.ExprEnv, Expr, NameGen, [Name])
 liftBinds kv binds eenv expr ngen = (eenv', expr', ngen', news)
   where
- -- when we see the first element from the bindsRHS is Coercion types 
- -- we can start looking at the corresponding bindsLHS
- -- specifically the type of the id:
- -- in which there are four tyapps wrapped next inside 
- -- TyApp( TyApp ( TyApp(...) TyCon ) TyCon )
- -- Then, we want to unify them and retype them 
- -- Those functions are located in typing.hs 
 
-    -- Here we want to use the binds 
-    -- first parition the list into coercion and values 
-    -- for the values, keep everything as it's
-    -- for the coercion, maybe consider rename them? but it's already done?
-    -- using the foldl' on the unify' not unify for each of the coercion because we want to use only one 
-    --- ufmap to check the consistency 
-    -- ideas: use the extract types function, modify it to become a bool function for partiion
-    -- then, using the name in uf_map, find the corresponinding id from the coercion
-    -- after finding the correct id, retye the expr associated with the id 
-    -- note the ufmap give us the ufmap n t
-    -- retype (Id n (typeof t)) t expr (which are the current expr associated with the epxr) 
-    -- In the end, we want to have something like 
-    -- a -> int, b -> float, c -> string 
+    -- The goal of the below codes allows us to convert symoblic variables to its corresponding types that are equivalent under coercion
+    -- For example, in E a b c where 
+    -- a '~#' int, b '~#' float, c '~#' string 
+    -- The code simply does the following:  
     -- E a b c -> E int float string 
-    
-    -- bindsLHS is the pattern 
-    -- bindsRHS is the scrutinee 
-
-    (coercion, value) = L.partition (\(_, e) -> case e of
+    (coercion, value_args) = L.partition (\(_, e) -> case e of
                                         Coercion _ -> True
                                         _ -> False) binds
     
@@ -1198,11 +1162,12 @@ liftBinds kv binds eenv expr ngen = (eenv', expr', ngen', news)
     new_expr = case uf_map of
             Nothing -> error "The unify map is having an error"
             Just uf_map' -> L.foldl' (\e (n,t) -> retype (Id n (typeOf t)) t e) expr (HM.toList $ UF.toSimpleMap uf_map')
+   
 
-  
-    (bindsLHS, bindsRHS) = unzip binds
+    -- bindsLHS is the patternn and bindsRHS is the scrutinee 
+    (bindsLHS, bindsRHS) = unzip value_args
     
-    olds = map (idName) bindsLHS
+    olds = map idName bindsLHS
     (news, ngen') = freshSeededNames olds ngen
 
     olds_news = HM.fromList $ zip olds news
