@@ -458,6 +458,7 @@ extensionTests = testGroup "Extensions"
                                                                           , ("callF3", 400, [AtLeast 2])
                                                                           , ("callG", 400, [AtLeast 1])
                                                                           , ("callG2", 400, [AtLeast 1]) ]
+                                                                          
     , checkInputOutputs "tests/TestFiles/Extensions/GADTs1.hs" [ ("vecZipConc", 400, [Exactly 1])
                                                                , ("vecZipConc2", 400, [Exactly 1])
                                                                , ("vecHeadEx", 400, [Exactly 1])

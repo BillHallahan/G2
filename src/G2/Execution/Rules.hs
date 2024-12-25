@@ -1150,11 +1150,8 @@ addExtConds s ng e1 ais e2 stck =
 
 extractTypes :: KnownValues -> Id -> (Type, Type)
 extractTypes kv (Id _ (TyApp (TyApp (TyApp (TyApp (TyCon n _) _) _) n1) n2)) =
-        --trace("ty_coercion: " ++ show (KV.tyCoercion kv) ++ "\n" ++ "dc_coercions: " ++ show (KV.dcCoercion kv))
-        --trace("ty_coercion: " ++ show (KV.tyCoercion kv) ++ "\n" ++ "the Name is " ++ show n)
         (if KV.tyCoercion kv == n 
         then    
-            -- trace("The id in extract type is " ++ show i ++ "\n")
            (n1, n2)
         else
             error "the center of the id is not a coercion")
@@ -1162,8 +1159,6 @@ extractTypes _ _ = error "Pattern not matched in extractTypes"
 
 liftBinds :: KnownValues -> [(Id, Expr)] -> E.ExprEnv -> Expr -> NameGen ->
              (E.ExprEnv, Expr, NameGen, [Name])
-             --trace("The list of RHS " ++ show bindsRHS ++ "\n " ++ "The list of LHS " ++ show bindsLHS)
-             --trace("The elements in the coercion " ++ show coercion)
 liftBinds kv binds eenv expr ngen = (eenv', expr', ngen', news)
   where
  -- when we see the first element from the bindsRHS is Coercion types 
@@ -1214,8 +1209,6 @@ liftBinds kv binds eenv expr ngen = (eenv', expr', ngen', news)
 
     eenv' = E.insertExprs (zip news bindsRHS) eenv
 
-    -- expr' = renamesExprs olds_news expr
-    --trace("The new expr is " ++ show new_expr)
     expr' = if L.null coercion then renamesExprs olds_news expr else renamesExprs olds_news new_expr 
 
 liftBind :: Id -> Expr -> E.ExprEnv -> Expr -> NameGen ->
