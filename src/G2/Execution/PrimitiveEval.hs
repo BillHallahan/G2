@@ -270,7 +270,8 @@ evalPrimWithState s@(State { expr_env = eenv }) ng (App (App (Prim EncodeFloat t
         -- Size of the expected type
         (f_ex_bits, f_sig_bits_1) = expSigBits rt
 
-        -- Sizes to work with during encoding
+        -- Sizes to work with during encoding.  We work with a larger size than we ultimately want to output to prevent overflow,
+        -- then downcast before returning.
         w_ex_bits = f_ex_bits * 2
         w_sig_bits_1 = f_sig_bits_1 * 2
         w_sig_bits = w_sig_bits_1 - 1
