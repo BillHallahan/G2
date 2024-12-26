@@ -30,7 +30,7 @@ runInitialization2 config s@(IT.SimpleState { IT.expr_env = eenv
 
         (eenv3, hs, ng2) = mkHandles eenv2 kv ng
 
-        s' = s { IT.expr_env = eenv2
+        s' = s { IT.expr_env = eenv3
                , IT.type_env = tenv2
                , IT.name_gen = ng2
                , IT.handles = hs
