@@ -107,7 +107,6 @@ exampleExpr5 = IsZero (If (IsZero (Lit 0)) (Lit 0) (Lit 1)) -- isZero (if 0 == 0
 evalExpr5 :: Bool
 evalExpr5 = eval exampleExpr5
 
-
 data Peano = Succ Peano | Zero 
 
 data Vec :: Peano -> Type -> Type where
