@@ -53,6 +53,18 @@ data Expr a where
   IsZero :: Expr Int -> Expr Bool
   If     :: Expr Bool -> Expr a -> Expr a -> Expr a
 
+instance Eq (Expr a) where
+  (Lit x) == (Lit y) = x == y
+  
+  (Add e1 e2) == (Add e3 e4) = e1 == e3 && e2 == e4
+  
+  (IsZero e1) == (IsZero e2) = e1 == e2
+  
+  (If c1 t1 f1) == (If c2 t2 f2) = c1 == c2 && t1 == t2 && f1 == f2
+  
+  -- If the constructors are different, the expressions are not equal
+  _ == _ = False
+
 eval :: Expr a -> a
 eval (Lit n)       = n
 eval (Add x y)     = eval x + eval y
@@ -101,6 +113,12 @@ data Peano = Succ Peano | Zero
 data Vec :: Peano -> Type -> Type where
     VNil  :: Vec Zero a
     VCons :: forall n a. a -> Vec n a -> Vec (Succ n) a
+
+instance Eq a => Eq (Vec Zero a) where
+    VNil == VNil = True
+
+instance (Eq a, Eq (Vec n a)) => Eq (Vec (Succ n) a) where
+    (VCons x xs) == (VCons y ys) = x == y && xs == ys
 
 -- data TypedPair a b where
 --   Pair :: a -> b -> TypedPair a b
