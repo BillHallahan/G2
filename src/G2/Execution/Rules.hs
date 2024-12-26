@@ -43,8 +43,6 @@ import G2.Data.Utils
 import qualified G2.Data.UFMap as UF
 
 import Control.Exception
-import Debug.Trace
-import Data.HashMap.Internal.Array (new_)
 
 stdReduce :: (Solver solver, Simplifier simplifier) => Sharing -> SymbolicFuncEval t -> solver -> simplifier -> State t -> Bindings -> IO (Rule, [(State t, ())], Bindings)
 stdReduce share symb_func_eval solver simplifier s b@(Bindings {name_gen = ng}) = do
@@ -402,22 +400,7 @@ concretizeVarExpr' s@(State {expr_env = eenv, type_env = tenv, known_values = kv
                  , concretized = [mexpr_id]
                  }, ngen'')
   where
-    -- goal: avoid printout error by G2 which print the cases that shouldn't appear
-    -- First, isolate all the coercion from the state
-    coer = HM.elems $ HM.filter (\expr -> case expr of 
-                                        Coercion _ -> True
-                                        _  -> False)   (E.toHashMap eenv)
-    -- Now pull out all the types inside the coercion
-    -- Then, we can unify the types 
-    coer' = map (\e -> case e of
-                      Coercion co -> co
-                      _ -> error "Not a Coercion") coer
-    all_types = map (\c -> case c of
-         (t1 :~ t2) -> (t1, t2)) coer'
-    uni_types = mapM (uncurry T.unify) all_types
     
-    
-
     -- Make sure that the parameters do not conflict in their symbolic reps.
     olds = map idName params
     clean_olds = map cleanName olds
