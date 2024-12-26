@@ -1144,13 +1144,9 @@ extractTypes _ _ = error "Pattern is not matched in extractTypes"
 liftBinds :: KnownValues -> [(Id, Expr)] -> E.ExprEnv -> Expr -> NameGen ->
              (E.ExprEnv, Expr, NameGen, [Name])
 liftBinds kv binds eenv expr ngen = (eenv', expr', ngen', news)
-  where
 
-    -- The goal of the below codes allows us to convert symoblic variables to its corresponding types that are equivalent under coercion
-    -- For example, in E a b c where 
-    -- a '~#' int, b '~#' float, c '~#' string 
-    -- The code simply does the following:  
-    -- E a b c -> E int float string 
+  where
+   
     (coercion, value_args) = L.partition (\(_, e) -> case e of
                                         Coercion _ -> True
                                         _ -> False) binds
@@ -1162,8 +1158,13 @@ liftBinds kv binds eenv expr ngen = (eenv', expr', ngen', news)
     new_expr = case uf_map of
             Nothing -> error "The unify map is having an error"
             Just uf_map' -> L.foldl' (\e (n,t) -> retype (Id n (typeOf t)) t e) expr (HM.toList $ UF.toSimpleMap uf_map')
+    
+    -- The goal of the above codes are allowing us to convert symoblic variables to its corresponding types that are equivalent under coercion
+    -- For example, in E a b c where 
+    -- a '~#' int, b '~#' float, c '~#' string 
+    -- The code simply does the following:  
+    -- E a b c -> E int float string 
    
-
     -- bindsLHS is the patternn and bindsRHS is the scrutinee 
     (bindsLHS, bindsRHS) = unzip value_args
     
