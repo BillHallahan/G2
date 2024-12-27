@@ -385,6 +385,12 @@ concretizeVarExpr s ng mexpr_id cvar (x:xs) maybeC =
         (x', ng') = concretizeVarExpr' s ng mexpr_id cvar x maybeC
         (newPCs, ng'') = concretizeVarExpr s ng' mexpr_id cvar xs maybeC
 
+-- TODO: we now need to think about what we need to do when we need to handle symbolic GADT
+-- The current issue we face is that the unificiation is failing in which we are unifiying a Vec that have Succ Peano with an Int
+-- The approach we take here is exactly the same how we handle concrete GADT in which 
+-- we want to find the coercion, create the uf-map based on the coercion and retype the expr based on the uf-map genereated from the coercion
+-- the code for concrete GADT is in liftBinds after we merge my branch with master
+-- We can use the text cases from GADTs1.hs for testing
 concretizeVarExpr' :: State t -> NameGen -> Id -> Id -> (DataCon, [Id], Expr) -> Maybe Coercion -> (NewPC t, NameGen)
 concretizeVarExpr' s@(State {expr_env = eenv, type_env = tenv, known_values = kv})
                 ngen mexpr_id cvar (dcon, params, aexpr) maybeC =
