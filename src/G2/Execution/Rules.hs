@@ -1110,11 +1110,7 @@ addExtConds s ng e1 ais e2 stck =
     in
     ([strue, sfalse], ng)
 
--- | This function aims to extract the types variable and types as determined by the coercion in the pattern 
--- n1 represent the type variables 
--- n2 represent the type determined by the coercion
--- for example: in a GADT when we want to establish a coercion between n and zero
--- In this case, n1 represent n and n2 represent zero
+-- This function aims to extract pairs of types being coerced between. Given a coercion t1 :~ t2, the tuple (t1, t2) is returned.
 extractTypes :: KnownValues -> Id -> (Type, Type)
 extractTypes kv (Id _ (TyApp (TyApp (TyApp (TyApp (TyCon n _) _) _) n1) n2)) =
         (if KV.tyCoercion kv == n 
@@ -1126,14 +1122,14 @@ extractTypes _ _ = error "ExtractTypes: The type of the pattern doesn't have fou
 
 liftBinds :: KnownValues -> [(Id, Expr)] -> E.ExprEnv -> Expr -> NameGen ->
              (E.ExprEnv, Expr, NameGen, [Name])
-liftBinds kv binds eenv expr ngen = (eenv', expr', ngen', news)
+liftBinds kv binds eenv expr ngen = (eenv', expr'', ngen', news)
 
   where
-    -- This code aims to handle the conversion of type variables into their corresponding types as determined by coercion.
+    -- Converts type variables into corresponding types as determined by coercions
     -- For example, in 'E a b c' where 
-    -- 'a ~# int', 'b ~# float', 'c ~# string'
+    -- 'a ~# Int', 'b ~# Float', 'c ~# String'
     -- The code simply does the following:  
-    -- 'E a b c' -> 'E int float string'
+    -- 'E a b c' -> 'E Int Float String'
     (coercion, value_args) = L.partition (\(_, e) -> case e of
                                         Coercion _ -> True
                                         _ -> False) binds
@@ -1142,8 +1138,8 @@ liftBinds kv binds eenv expr ngen = (eenv', expr', ngen', news)
 
     uf_map = foldM (\uf_map' (t1, t2) -> T.unify' uf_map' t1 t2) UF.empty extract_tys
     
-    new_expr = case uf_map of
-            Nothing -> error "LiftBinds: the uf_map after unification is empty."
+    expr' = case uf_map of
+            Nothing -> expr
             Just uf_map' -> L.foldl' (\e (n,t) -> retype (Id n (typeOf t)) t e) expr (HM.toList $ UF.toSimpleMap uf_map')
     
     -- bindsLHS is the pattern
@@ -1157,7 +1153,7 @@ liftBinds kv binds eenv expr ngen = (eenv', expr', ngen', news)
 
     eenv' = E.insertExprs (zip news bindsRHS) eenv
 
-    expr' = if L.null coercion then renamesExprs olds_news expr else renamesExprs olds_news new_expr 
+    expr'' = renamesExprs olds_news expr'
 
 liftBind :: Id -> Expr -> E.ExprEnv -> Expr -> NameGen ->
              (E.ExprEnv, Expr, NameGen, Name)

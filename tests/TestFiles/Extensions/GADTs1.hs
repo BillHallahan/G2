@@ -5,47 +5,6 @@ module GADTS1 where
 import GHC.TypeLits 
 import Data.Kind
 
-
--- infixr :>
-
--- data HList where 
---   Nil :: HList 
---   (:>) :: forall a . (Num a, Show a) => a -> HList -> HList
-
--- hlistHeadStr :: HList -> String
--- hlistHeadStr (x :> xs) = show (x + 1)
-
-data MyList2 a = Nis | Conss a (MyList2 a)
-
-lengthList2 :: MyList2 a -> Int
-lengthList2 Nis       = 0
-lengthList2 (Conss _ xs) = 1 + lengthList2 xs
-
--- this above is having an error that says
--- G2: No type found in typeWithStrName "MutVar#"
--- CallStack (from HasCallStack):
---   error, called at src/G2/Initialization/KnownValues.hs:127:10 in g2-0.2.0.0-inplace:G2.Initialization.KnownValues
-
-
--- data ShapeArea a where
---   CircleShape :: Double -> ShapeArea (Double, String) -- Area and shape type
---   RectangleShape :: Double -> Double -> ShapeArea (Double, String) -- Area and shape type
-
--- area :: ShapeArea (Double, String) -> Double
--- area (CircleShape radius) = pi * radius * radius
--- area (RectangleShape width height) = width * height
-
--- getShapeType :: ShapeArea (Double, String) -> String
--- getShapeType (CircleShape _) = "Circle"
--- getShapeType (RectangleShape _ _) = "Rectangle"
-
--- myCricle :: ShapeArea (Double, String)
--- myCircle = CircleShape 5.0 
-
--- myRect :: ShapeArea (Double, String)
--- myRect = RectangleShape 3.0 3.0
-
-
 -- example of recursive GADT
 data Expr a where
   Lit    :: Int -> Expr Int
@@ -119,18 +78,6 @@ instance Eq a => Eq (Vec Zero a) where
 instance (Eq a, Eq (Vec n a)) => Eq (Vec (Succ n) a) where
     (VCons x xs) == (VCons y ys) = x == y && xs == ys
 
--- data TypedPair a b where
---   Pair :: a -> b -> TypedPair a b
-
--- examplePair :: TypedPair Int String
--- examplePair = Pair 42 "hello"
-
--- data TypedTriple a b c where
---   Triple :: a -> b -> c -> TypedTriple a b c 
-
--- exampleTriple :: TypedTriple Int String Bool
--- exampleTriple = Triple 32 "Hello" True
-
 vecLength :: Vec n a -> Int
 vecLength VNil         = 0
 vecLength (VCons _ xs) = 1 + vecLength xs
@@ -172,34 +119,3 @@ tailPairVec = vecTail $ vecZip (VCons 1 (VCons 2 VNil)) (VCons 'a' (VCons 'b' VN
 vecInit :: Vec (Succ n) a -> Vec n a 
 vecInit (VCons x VNil) = VNil 
 vecInit (VCons x xs@(VCons y ys)) = VCons x (vecInit xs)
-
-
--- data Term a where
---     Lit :: Int ->  Term Int
---     Pair :: Term a -> Term b -> Term (a,b)
-
--- eval2 :: Term a -> a
--- eval2 (Lit i)     = i
--- eval2 (Pair a b)  = (eval2 a, eval2 b)
-
--- data X (b :: Bool) where
---     XTrue :: X b -> X True 
---     XFalse :: X False
-
--- getX :: X True
--- getX = walkX (XTrue XFalse)
-
--- eval2 :: Term a -> a
--- eval2 (Lit i)     = i
--- eval2 (Pair a b)  = (eval2 a, eval2 b)
-
--- data X (b :: Bool) where
---     XTrue :: X b -> X True 
---     XFalse :: X False
-
--- getX :: X True
--- getX = walkX (XTrue XFalse)
-
--- walkX :: X b -> X b
--- walkX (XTrue x) = XTrue (walkX x)
--- walkX XFalse = XFalse
