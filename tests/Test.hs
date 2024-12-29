@@ -458,6 +458,18 @@ extensionTests = testGroup "Extensions"
                                                                           , ("callF3", 400, [AtLeast 2])
                                                                           , ("callG", 400, [AtLeast 1])
                                                                           , ("callG2", 400, [AtLeast 1]) ]
+                                                                          
+    , checkInputOutputs "tests/TestFiles/Extensions/GADTs1.hs" [ ("vecZipConc", 400, [Exactly 1])
+                                                               , ("vecZipConc2", 400, [Exactly 1])
+                                                               , ("vecHeadEx", 400, [Exactly 1])
+                                                               , ("doubleVec", 400, [Exactly 1])
+                                                               , ("tailVec", 400, [Exactly 1])
+                                                               , ("tailPairVec", 400, [Exactly 1])
+                                                               , ("exampleExpr1", 400, [Exactly 1])
+                                                               , ("exampleExpr2", 400, [Exactly 1])
+                                                               , ("exampleExpr3", 400, [Exactly 1])
+                                                               , ("exampleExpr4", 400, [Exactly 1])
+                                                               , ("exampleExpr5", 400, [Exactly 1]) ]
     ]
 
 baseTests ::  TestTree
