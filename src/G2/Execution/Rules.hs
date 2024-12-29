@@ -40,6 +40,8 @@ import qualified Data.HashMap.Lazy as HM
 import qualified Data.List as L
 import qualified Data.Sequence as S
 import G2.Data.Utils
+import qualified G2.Data.UFMap as UF
+
 import Control.Exception
 
 stdReduce :: (Solver solver, Simplifier simplifier) => Sharing -> SymbolicFuncEval t -> solver -> simplifier -> State t -> Bindings -> IO (Rule, [(State t, ())], Bindings)
@@ -269,7 +271,8 @@ evalCase s@(State { expr_env = eenv
           dbind = [(bind, mexpr)]
           expr' = liftCaseBinds dbind expr
           pbinds = zip params ar'
-          (eenv', expr'', ng', news) = liftBinds pbinds eenv expr' ng
+          (eenv', expr'', ng', news) = liftBinds kv pbinds eenv expr' ng
+         
       in 
          assert (length params == length ar')
          ( RuleEvalCaseData news
@@ -397,6 +400,7 @@ concretizeVarExpr' s@(State {expr_env = eenv, type_env = tenv, known_values = kv
                  , concretized = [mexpr_id]
                  }, ngen'')
   where
+    
     -- Make sure that the parameters do not conflict in their symbolic reps.
     olds = map idName params
     clean_olds = map cleanName olds
@@ -1106,21 +1110,50 @@ addExtConds s ng e1 ais e2 stck =
     in
     ([strue, sfalse], ng)
 
--- | Inject binds into the eenv. The LHS of the [(Id, Expr)] are treated as
--- seed values for the names.
-liftBinds :: [(Id, Expr)] -> E.ExprEnv -> Expr -> NameGen ->
-             (E.ExprEnv, Expr, NameGen, [Name])
-liftBinds binds eenv expr ngen = (eenv', expr', ngen', news)
-  where
-    (bindsLHS, bindsRHS) = unzip binds
+-- This function aims to extract pairs of types being coerced between. Given a coercion t1 :~ t2, the tuple (t1, t2) is returned.
+extractTypes :: KnownValues -> Id -> (Type, Type)
+extractTypes kv (Id _ (TyApp (TyApp (TyApp (TyApp (TyCon n _) _) _) n1) n2)) =
+        (if KV.tyCoercion kv == n 
+        then    
+           (n1, n2)
+        else
+            error "ExtractTypes: the center of the pattern is not a coercion")
+extractTypes _ _ = error "ExtractTypes: The type of the pattern doesn't have four nested TyApp while its corresponding scrutinee is a coercion"
 
-    olds = map (idName) bindsLHS
+liftBinds :: KnownValues -> [(Id, Expr)] -> E.ExprEnv -> Expr -> NameGen ->
+             (E.ExprEnv, Expr, NameGen, [Name])
+liftBinds kv binds eenv expr ngen = (eenv', expr'', ngen', news)
+
+  where
+    -- Converts type variables into corresponding types as determined by coercions
+    -- For example, in 'E a b c' where 
+    -- 'a ~# Int', 'b ~# Float', 'c ~# String'
+    -- The code simply does the following:  
+    -- 'E a b c' -> 'E Int Float String'
+    (coercion, value_args) = L.partition (\(_, e) -> case e of
+                                        Coercion _ -> True
+                                        _ -> False) binds
+    
+    extract_tys = map (extractTypes kv . fst) coercion
+
+    uf_map = foldM (\uf_map' (t1, t2) -> T.unify' uf_map' t1 t2) UF.empty extract_tys
+    
+    expr' = case uf_map of
+            Nothing -> expr
+            Just uf_map' -> L.foldl' (\e (n,t) -> retype (Id n (typeOf t)) t e) expr (HM.toList $ UF.toSimpleMap uf_map')
+    
+    -- bindsLHS is the pattern
+    -- bindsRHS is the scrutinee 
+    (bindsLHS, bindsRHS) = unzip value_args
+    
+    olds = map idName bindsLHS
     (news, ngen') = freshSeededNames olds ngen
 
     olds_news = HM.fromList $ zip olds news
-    expr' = renamesExprs olds_news expr
 
     eenv' = E.insertExprs (zip news bindsRHS) eenv
+
+    expr'' = renamesExprs olds_news expr'
 
 liftBind :: Id -> Expr -> E.ExprEnv -> Expr -> NameGen ->
              (E.ExprEnv, Expr, NameGen, Name)
