@@ -1,4 +1,4 @@
-{-# LANGUAGE OverloadedStrings,  FlexibleContexts #-}
+{-# LANGUAGE OverloadedStrings,  FlexibleContexts, EmptyCase #-}
 
 module G2.Execution.Rules ( module G2.Execution.RuleTypes
                           , Sharing (..)
@@ -41,7 +41,7 @@ import qualified Data.List as L
 import qualified Data.Sequence as S
 import G2.Data.Utils
 import qualified G2.Data.UFMap as UF
-
+import Debug.Trace
 import Control.Exception
 
 stdReduce :: (Solver solver, Simplifier simplifier) => Sharing -> SymbolicFuncEval t -> solver -> simplifier -> State t -> Bindings -> IO (Rule, [(State t, ())], Bindings)
@@ -395,10 +395,16 @@ concretizeVarExpr s ng mexpr_id cvar (x:xs) maybeC =
 -- we want to find the coercion, create the uf-map based on the coercion and retype the expr based on the uf-map genereated from the coercion
 -- the code for concrete GADT is in liftBinds after we merge my branch with master
 -- We can use the text cases from GADTs1.hs for testing
+-- retype the aexpr according to the trace?
+-- but how did we make sure which is the coercion?
+-- the coercion is contain in the params, it actually the first one introduced in the params 
+-- but it's kind of funny it's already trying to coerce Succ Peano with int
+
+
 concretizeVarExpr' :: State t -> NameGen -> Id -> Id -> (DataCon, [Id], Expr) -> Maybe Coercion -> (NewPC t, NameGen)
 concretizeVarExpr' s@(State {expr_env = eenv, type_env = tenv, known_values = kv})
                 ngen mexpr_id cvar (dcon, params, aexpr) maybeC =
-          (NewPC { state =  s { expr_env = eenv''
+                trace("The extract_tys from params are " ++ show extract_tys) (NewPC { state =  s { expr_env = eenv''
                               , curr_expr = CurrExpr Evaluate aexpr''}
                  -- It is VERY important that we insert the mexpr_id in `concretized`
                  -- This forces reduceNewPC to check that the concretized data constructor does
@@ -410,6 +416,23 @@ concretizeVarExpr' s@(State {expr_env = eenv, type_env = tenv, known_values = kv
     
     -- Make sure that the parameters do not conflict in their symbolic reps.
     olds = map idName params
+    
+    --expr_lookup = map  ( (flip E.deepLookup) eenv) olds 
+    extract_tys = mapMaybe (extractTypes kv) params
+
+    uf_map = foldM (\uf_map' (t1, t2) -> T.unify' uf_map' t1 t2) UF.empty extract_tys
+
+    eenv' = case uf_map of
+                Nothing -> eenv
+                Just uf_map' -> exprenv'
+                                where
+                                    uf_list = HM.toList $ UF.toSimpleMap uf_map'
+                                    es = map (Var . Id . (uncurry uf_list)) 
+                                    exprenv' = E.insertExprs (zip (map fst uf_list) es) eenv
+
+
+
+
     clean_olds = map cleanName olds
 
     (news, ngen') = freshSeededNames clean_olds ngen
@@ -418,9 +441,24 @@ concretizeVarExpr' s@(State {expr_env = eenv, type_env = tenv, known_values = kv
 
     newparams = map (uncurry Id) $ zip news (map typeOf params)
     dConArgs = (map (Var) newparams)
+
+
     -- Get list of Types to concretize polymorphic data constructor and concatenate with other arguments
     mexpr_t = typeOf mexpr_id
     type_ars = mexprTyToExpr mexpr_t tenv
+
+    --    all_expr' =  (flip  E.deepLookupExpr eenv) (aexpr)
+    -- all_expr = (flip  E.deepLookup eenv) (idName mexpr_id)
+    -- all_expr' =  map (flip  E.deepLookupExpr eenv) (type_ars)
+
+    -- eenv' = case all_expr' of 
+    --             Nothing -> eenv
+    --             Just all_expr'' -> map (\(Type i@(TyVar (Id n t))) -> (i, t))
+
+
+    -- it seems like all_expr' is what we want because we are able to find the type variable(but it also seems the type variable 
+    -- are in the mexpr_id but I think it's easier to extract from the type_ars)
+
     exprs = [dcon'] ++ type_ars ++ dConArgs
 
     -- Apply list of types (if present) and DataCon children to DataCon
@@ -1117,15 +1155,16 @@ addExtConds s ng e1 ais e2 stck =
     in
     ([strue, sfalse], ng)
 
+
 -- This function aims to extract pairs of types being coerced between. Given a coercion t1 :~ t2, the tuple (t1, t2) is returned.
-extractTypes :: KnownValues -> Id -> (Type, Type)
+extractTypes :: KnownValues -> Id -> Maybe (Type, Type)
 extractTypes kv (Id _ (TyApp (TyApp (TyApp (TyApp (TyCon n _) _) _) n1) n2)) =
-        (if KV.tyCoercion kv == n 
+        if KV.tyCoercion kv == n 
         then    
-           (n1, n2)
+           Just (n1, n2)
         else
-            error "ExtractTypes: the center of the pattern is not a coercion")
-extractTypes _ _ = error "ExtractTypes: The type of the pattern doesn't have four nested TyApp while its corresponding scrutinee is a coercion"
+            Nothing
+extractTypes _ _ = Nothing --error "ExtractTypes: The type of the pattern doesn't have four nested TyApp while its corresponding scrutinee is a coercion"
 
 liftBinds :: KnownValues -> [(Id, Expr)] -> E.ExprEnv -> Expr -> NameGen ->
              (E.ExprEnv, Expr, NameGen, [Name])
@@ -1141,7 +1180,10 @@ liftBinds kv binds eenv expr ngen = (eenv', expr'', ngen', news)
                                         Coercion _ -> True
                                         _ -> False) binds
     
-    extract_tys = map (extractTypes kv . fst) coercion
+    extract_tys = let tys = mapMaybe (extractTypes kv . fst) coercion in
+                    if null tys
+                        then error "ExtractTypes: it can't isolate the types determined by the coercion"
+                        else tys
 
     uf_map = foldM (\uf_map' (t1, t2) -> T.unify' uf_map' t1 t2) UF.empty extract_tys
     
