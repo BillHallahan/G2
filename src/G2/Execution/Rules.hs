@@ -427,7 +427,7 @@ concretizeVarExpr' s@(State {expr_env = eenv, type_env = tenv, known_values = kv
                 Just uf_map' -> exprenv'
                                 where
                                     uf_list = HM.toList $ UF.toSimpleMap uf_map'
-                                    es = map (Var . Id . (uncurry uf_list)) 
+                                    es = map (Var . uncurry Id) uf_list
                                     exprenv' = E.insertExprs (zip (map fst uf_list) es) eenv
 
 
