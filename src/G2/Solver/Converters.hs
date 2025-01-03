@@ -332,6 +332,7 @@ exprToSMT (Lit c) =
         LitFloat f -> VFloat f
         LitDouble d -> VDouble d
         LitRational r -> VReal r
+        LitBV bv -> VBitVec bv
         LitChar ch -> VChar ch
         err -> error $ "exprToSMT: invalid Expr: " ++ show err
 exprToSMT (Data (DataCon n (TyCon (Name "Bool" _ _ _) _ ) _ _)) =
@@ -363,6 +364,7 @@ exprToSMT e = error $ "exprToSMT: unhandled Expr: " ++ show e
 funcToSMT :: Expr -> [Expr] -> SMTAST
 funcToSMT (Prim p _) [a] = funcToSMT1Prim p a
 funcToSMT (Prim p _) [a1, a2] = funcToSMT2Prim p a1 a2
+funcToSMT (Prim p _) [a1, a2, a3] = funcToSMT3Prim p a1 a2 a3
 funcToSMT e l = error ("Unrecognized " ++ show e ++ " with args " ++ show l ++ " in funcToSMT")
 
 funcToSMT1Prim :: Primitive -> Expr -> SMTAST
@@ -379,15 +381,28 @@ funcToSMT1Prim FpIsNegativeZero e =
         smt_srt = typeToSMT (typeOf e) 
     in
     SLet (nz, exprToSMT e) $ SmtAnd [FpIsNegative (V nz smt_srt), FpIsZero (V nz smt_srt)]
+funcToSMT1Prim IsDenormalized e =
+    let
+        zero = case typeOf e of
+                    TyLitFloat -> VFloat 0
+                    TyLitDouble -> VDouble 0
+                    _ -> error "funcToSMT1Prim: bad type passed to IsDenormalized"
+    in
+    SmtAnd [(:!) (IsNormalSMT (exprToSMT e)), (:!) (exprToSMT e `FpEqSMT` zero)]
 funcToSMT1Prim IsNaN e = IsNaNSMT (exprToSMT e)
 funcToSMT1Prim IsInfinite e = IsInfiniteSMT (exprToSMT e)
 funcToSMT1Prim Abs e = AbsSMT (exprToSMT e)
 funcToSMT1Prim Sqrt e = SqrtSMT (exprToSMT e)
 funcToSMT1Prim Not e = (:!) (exprToSMT e)
-funcToSMT1Prim IntToFloat e = IntToFloatSMT (exprToSMT e)
-funcToSMT1Prim IntToDouble e = IntToDoubleSMT (exprToSMT e)
+funcToSMT1Prim (IntToFP ex s) e = IntToFPSMT ex s (exprToSMT e)
+funcToSMT1Prim (FPToFP ex s) e = FPToFPSMT ex s (exprToSMT e)
 funcToSMT1Prim IntToRational e = IntToRealSMT (exprToSMT e)
 funcToSMT1Prim IntToString e = FromInt (exprToSMT e)
+funcToSMT1Prim (BVToInt w) e = (BVToIntSMT w) (exprToSMT e)
+funcToSMT1Prim (IntToBV w) e = (IntToBVSMT w) (exprToSMT e)
+funcToSMT1Prim RationalToFloat e = RealToFloat (exprToSMT e)
+funcToSMT1Prim RationalToDouble e = RealToDouble (exprToSMT e)
+funcToSMT1Prim BVToNat e = BVToNatSMT (exprToSMT e)
 funcToSMT1Prim Chr e = FromCode (exprToSMT e)
 funcToSMT1Prim OrdChar e = ToCode (exprToSMT e)
 funcToSMT1Prim StrLen e = StrLenSMT (exprToSMT e)
@@ -408,6 +423,14 @@ funcToSMT2Prim Plus a1 a2 = exprToSMT a1 :+ exprToSMT a2
 funcToSMT2Prim Minus a1 a2 = exprToSMT a1 :- exprToSMT a2
 funcToSMT2Prim Mult a1 a2 = exprToSMT a1 :* exprToSMT a2
 funcToSMT2Prim Div a1 a2 = exprToSMT a1 :/ exprToSMT a2
+funcToSMT2Prim Exp a1 a2 = exprToSMT a1 :^ exprToSMT a2
+
+funcToSMT2Prim AddBV a1 a2 = exprToSMT a1 `BVAdd` exprToSMT a2
+funcToSMT2Prim MinusBV a1 a2 = exprToSMT a1 `BVAdd` BVNeg (exprToSMT a2)
+funcToSMT2Prim MultBV a1 a2 = exprToSMT a1 `BVMult` exprToSMT a2
+funcToSMT2Prim ConcatBV a1 a2 = exprToSMT a1 `Concat` exprToSMT a2
+funcToSMT2Prim ShiftLBV a1 a2 = exprToSMT a1 `ShiftL` exprToSMT a2
+funcToSMT2Prim ShiftRBV a1 a2 = exprToSMT a1 `ShiftR` exprToSMT a2
 
 funcToSMT2Prim FpAdd a1 a2 = exprToSMT a1 `FpAddSMT` exprToSMT a2
 funcToSMT2Prim FpSub a1 a2 = exprToSMT a1 `FpSubSMT` exprToSMT a2
@@ -433,6 +456,11 @@ funcToSMT2Prim StrLt a1 a2 = exprToSMT a1 `StrLtSMT` exprToSMT a2
 funcToSMT2Prim StrLe a1 a2 = exprToSMT a1 `StrLeSMT` exprToSMT a2
 funcToSMT2Prim StrAppend a1 a2  = exprToSMT a1 :++ exprToSMT a2
 funcToSMT2Prim op lhs rhs = error $ "funcToSMT2Prim: invalid case with (op, lhs, rhs): " ++ show (op, lhs, rhs)
+
+funcToSMT3Prim :: Primitive -> Expr -> Expr -> Expr -> SMTAST
+funcToSMT3Prim Fp x y z = FpSMT  (exprToSMT x) (exprToSMT y) (exprToSMT z)
+funcToSMT3Prim Ite x y z = IteSMT (exprToSMT x) (exprToSMT y) (exprToSMT z)
+funcToSMT3Prim op _ _ _ = error $ "funcToSMT3Prim: invalid case with " ++ show op
 
 altToSMT :: Lit -> Expr -> SMTAST
 altToSMT (LitInt i) _ = VInt i
@@ -462,12 +490,11 @@ idToNameSort (Id n t) = (n, typeToSMT t)
 
 typeToSMT :: Type -> Sort
 typeToSMT (TyFun TyLitInt _) = SortInt -- TODO: Remove this
-typeToSMT (TyFun TyLitDouble _) = SortDouble -- TODO: Remove this
-typeToSMT (TyFun TyLitFloat _) = SortFloat -- TODO: Remove this
+typeToSMT (TyFun (TyLitFP e s) _) = SortFP e s -- TODO: Remove this
 typeToSMT TyLitInt = SortInt
-typeToSMT TyLitDouble = SortDouble
-typeToSMT TyLitFloat = SortFloat
+typeToSMT (TyLitFP e s) = SortFP e s
 typeToSMT TyLitRational = SortReal
+typeToSMT (TyLitBV w) = SortBV w
 typeToSMT TyLitChar = SortChar
 typeToSMT (TyCon (Name "Bool" _ _ _) _) = SortBool
 #if MIN_VERSION_GLASGOW_HASKELL(9,6,0,0)
@@ -538,12 +565,21 @@ toSolverAST (x :+ y) = function2 "+" (toSolverAST x) (toSolverAST y)
 toSolverAST (x :- y) = function2 "-" (toSolverAST x) (toSolverAST y)
 toSolverAST (x :* y) = function2 "*" (toSolverAST x) (toSolverAST y)
 toSolverAST (x :/ y) = function2 "/" (toSolverAST x) (toSolverAST y)
+toSolverAST (x :^ y) = function2 "^" (toSolverAST x) (toSolverAST y)
 toSolverAST (x `QuotSMT` y) = function2 "div" (toSolverAST x) (toSolverAST y)
 toSolverAST (x `Modulo` y) = function2 "mod" (toSolverAST x) (toSolverAST y)
 toSolverAST (AbsSMT x) = "(abs " <> toSolverAST x <> ")"
 toSolverAST (SqrtSMT x) = "(^ " <> toSolverAST x <> " 0.5)"
 toSolverAST (Neg x) = function1 "-" $ toSolverAST x
 
+toSolverAST (x `BVAdd` y) = function2 "bvadd" (toSolverAST x) (toSolverAST y)
+toSolverAST (BVNeg x) = function1 "bvneg" (toSolverAST x)
+toSolverAST (x `BVMult` y) = function2 "bvmul" (toSolverAST x) (toSolverAST y)
+toSolverAST (x `Concat` y) = function2 "concat" (toSolverAST x) (toSolverAST y)
+toSolverAST (x `ShiftL` y) = function2 "bvshl" (toSolverAST x) (toSolverAST y)
+toSolverAST (x `ShiftR` y) = function2 "bvlshr" (toSolverAST x) (toSolverAST y)
+
+toSolverAST (FpSMT x y z) = function3 "fp" (toSolverAST x) (toSolverAST y) (toSolverAST z)
 toSolverAST (FpNegSMT x) = function1 "fp.neg" (toSolverAST x)
 toSolverAST (FpAddSMT x y) = function3 "fp.add" "RNE" (toSolverAST x) (toSolverAST y)
 toSolverAST (FpSubSMT x y) = function3 "fp.sub" "RNE" (toSolverAST x) (toSolverAST y)
@@ -562,6 +598,7 @@ toSolverAST (FpIsNegative x) = function1 "fp.isNegative" (toSolverAST x)
 toSolverAST (FpSqrtSMT x) = function2 "fp.sqrt" "RNE" (toSolverAST x)
 toSolverAST (TruncZeroSMT x) = function2 "fp.roundToIntegral" "RTZ" (toSolverAST x)
 
+toSolverAST (IsNormalSMT x) = function1 "fp.isNormal" (toSolverAST x)
 toSolverAST (IsNaNSMT x) = function1 "fp.isNaN" (toSolverAST x)
 toSolverAST (IsInfiniteSMT x) = function1 "fp.isInfinite" (toSolverAST x)
 
@@ -589,14 +626,20 @@ toSolverAST (FromInt x) = function1 "str.from_int" $ toSolverAST x
 toSolverAST (StrLenSMT x) = function1 "str.len" $ toSolverAST x
 
 toSolverAST (IntToRealSMT x) = function1 "to_real" $ toSolverAST x
-toSolverAST (IntToFloatSMT x) = function2 "(_ to_fp 8 24)" "RNE" (function1 "(_ int2bv 32)" $ toSolverAST x)
-toSolverAST (IntToDoubleSMT x) = function2 "(_ to_fp 11 53)" "RNE" (function1 "(_ int2bv 64)" $ toSolverAST x)
--- toSolverAST (FloatToIntSMT x) = function1 "to_int" (function1 "fp.to_real" $ toSolverAST x)
-toSolverAST (FloatToIntSMT x) = bvToSignedInt 32 (function2 "(_ fp.to_sbv 32)" "RNE" $ toSolverAST x)
--- toSolverAST (DoubleToIntSMT x) = function1 "to_int" (function1 "fp.to_real" $ toSolverAST x)
-toSolverAST (DoubleToIntSMT x) = bvToSignedInt 32 (function2 "(_ fp.to_sbv 32)" "RNE" $ toSolverAST x)
+toSolverAST (IntToFPSMT e s x) =
+    function2 ("(_ to_fp " <> showText e <> " " <> showText s <> ")") "RNE" . function1 ("(_ int2bv " <> showText (e + s) <> ")") $ toSolverAST x
+toSolverAST (FPToFPSMT e s x) = function2 ("(_ to_fp " <> showText e <> " " <> showText s <> ")") "RNE" $ toSolverAST x
 
-toSolverAST (Ite x y z) =
+toSolverAST (RealToFloat x) = function2 "(_ to_fp 8 24)" "RNE" (function1 "(_ int2bv 32)" $ toSolverAST x)
+toSolverAST (RealToDouble x) = function2 "(_ to_fp 11 53)" "RNE" (function1 "(_ int2bv 64)" $ toSolverAST x)
+
+toSolverAST (FloatToIntSMT x) = bvToSignedInt 32 (function2 "(_ fp.to_sbv 32)" "RNE" $ toSolverAST x)
+toSolverAST (DoubleToIntSMT x) = bvToSignedInt 64 (function2 "(_ fp.to_sbv 64)" "RNE" $ toSolverAST x)
+toSolverAST (BVToNatSMT x) = function1 "bv2nat" (toSolverAST x)
+toSolverAST (BVToIntSMT w x) = bvToSignedInt w (toSolverAST x)
+toSolverAST (IntToBVSMT w x) = function1 ("(_ int2bv " <> showText w <> ")") (toSolverAST x)
+
+toSolverAST (IteSMT x y z) =
     function3 "ite" (toSolverAST x) (toSolverAST y) (toSolverAST z)
 
 toSolverAST (SLet (n, e) body_e) =
@@ -609,6 +652,7 @@ toSolverAST (VInt i) = if i >= 0 then showText i else "(- " <> showText (abs i) 
 toSolverAST (VFloat f) = convertFloating castFloatToWord32 8 f
 toSolverAST (VDouble d) = convertFloating castDoubleToWord64 11 d
 toSolverAST (VReal r) = "(/ " <> showText (numerator r) <> " " <> showText (denominator r) <> ")"
+toSolverAST (VBitVec b) = "#b" <> foldr (<>) "" (map showText b)
 toSolverAST (VChar '"') = "\"\"\"\""
 toSolverAST (VChar c) = "\"" <> TB.string [c] <> "\""
 toSolverAST (VBool b) = if b then "true" else "false"
@@ -680,7 +724,9 @@ sortName :: Sort -> TB.Builder
 sortName SortInt = "Int"
 sortName SortFloat = "Float32"
 sortName SortDouble = "Float64"
+sortName (SortFP e s) = "(_ FloatingPoint " <> showText e <> " " <> showText s <> ")"
 sortName SortReal = "Real"
+sortName (SortBV w) = "(_ BitVec " <> showText w <> ")"
 sortName SortString = "String"
 sortName SortChar = "String"
 sortName SortBool = "Bool"
@@ -708,6 +754,7 @@ smtastToExpr _ _ (VInt i) = Lit $ LitInt i
 smtastToExpr _ _ (VFloat f) = Lit $ LitFloat f
 smtastToExpr _ _ (VDouble d) = Lit $ LitDouble d
 smtastToExpr _ _ (VReal r) = Lit $ LitRational r
+smtastToExpr _ _ (VBitVec bv) = Lit $ LitBV bv
 smtastToExpr kv _ (VBool True) = mkTrue kv
 smtastToExpr kv _ (VBool False) = mkFalse kv
 smtastToExpr kv tenv (VString cs) = mkG2List kv tenv (tyChar kv) $ map (App (mkDCChar kv tenv) . Lit . LitChar) cs
