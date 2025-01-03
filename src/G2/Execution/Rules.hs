@@ -400,11 +400,10 @@ concretizeVarExpr s ng mexpr_id cvar (x:xs) maybeC =
 -- the coercion is contain in the params, it actually the first one introduced in the params 
 -- but it's kind of funny it's already trying to coerce Succ Peano with int
 
-
 concretizeVarExpr' :: State t -> NameGen -> Id -> Id -> (DataCon, [Id], Expr) -> Maybe Coercion -> (NewPC t, NameGen)
 concretizeVarExpr' s@(State {expr_env = eenv, type_env = tenv, known_values = kv})
                 ngen mexpr_id cvar (dcon, params, aexpr) maybeC =
-                trace("The extract_tys from params are " ++ show extract_tys) (NewPC { state =  s { expr_env = eenv''
+                trace("The extract_tys from params are " ++ show (map fst extract_tys)) (NewPC { state =  s { expr_env = eenv''
                               , curr_expr = CurrExpr Evaluate aexpr''}
                  -- It is VERY important that we insert the mexpr_id in `concretized`
                  -- This forces reduceNewPC to check that the concretized data constructor does
@@ -467,7 +466,7 @@ concretizeVarExpr' s@(State {expr_env = eenv, type_env = tenv, known_values = kv
     binds = [(cvar, (Var mexpr_id))]
     aexpr'' = liftCaseBinds binds aexpr'
 
-    (eenv'', pcs, ngen'') = adjustExprEnvAndPathConds kv tenv eenv' ngen' dcon dcon''' mexpr_id params news
+    (eenv'', pcs, ngen'') = adjustExprEnvAndPathConds kv tenv eenv ngen' dcon dcon''' mexpr_id params news
 
 -- [String Concretizations and Constraints]
 -- Generally speaking, the values of symbolic variable are determined by one of two methods:
@@ -1151,6 +1150,7 @@ addExtConds s ng e1 ais e2 stck =
 
 
 -- This function aims to extract pairs of types being coerced between. Given a coercion t1 :~ t2, the tuple (t1, t2) is returned.
+-- Typically, t1 represents the type variable, while t2 refers to the concrete types we aim to instantiate t1 with.
 extractTypes :: KnownValues -> Id -> Maybe (Type, Type)
 extractTypes kv (Id _ (TyApp (TyApp (TyApp (TyApp (TyCon n _) _) _) n1) n2)) =
         if KV.tyCoercion kv == n 
