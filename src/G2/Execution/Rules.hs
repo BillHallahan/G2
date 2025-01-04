@@ -403,7 +403,8 @@ concretizeVarExpr s ng mexpr_id cvar (x:xs) maybeC =
 concretizeVarExpr' :: State t -> NameGen -> Id -> Id -> (DataCon, [Id], Expr) -> Maybe Coercion -> (NewPC t, NameGen)
 concretizeVarExpr' s@(State {expr_env = eenv, type_env = tenv, known_values = kv})
                 ngen mexpr_id cvar (dcon, params, aexpr) maybeC =
-                trace("The extract_tys from params are " ++ show (map fst extract_tys)) (NewPC { state =  s { expr_env = eenv''
+                -- the first element show the type variable while the second show the type is coerced to in the extract_tys
+                trace("The snd from extract_tys are " ++ show (map snd extract_tys)) (NewPC { state =  s { expr_env = eenv''
                               , curr_expr = CurrExpr Evaluate aexpr''}
                  -- It is VERY important that we insert the mexpr_id in `concretized`
                  -- This forces reduceNewPC to check that the concretized data constructor does
@@ -423,6 +424,10 @@ concretizeVarExpr' s@(State {expr_env = eenv, type_env = tenv, known_values = kv
     extract_tys = mapMaybe (extractTypes kv) params
 
     uf_map = foldM (\uf_map' (t1, t2) -> T.unify' uf_map' t1 t2) UF.empty extract_tys
+    
+    new_aexpr = case uf_map of
+            Nothing -> aexpr
+            Just uf_map' -> L.foldl' (\e (n,t) -> retype (Id n (typeOf t)) t e) aexpr (HM.toList $ UF.toSimpleMap uf_map')
 
     eenv' = case uf_map of
                 Nothing -> eenv
