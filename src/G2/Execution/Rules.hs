@@ -404,7 +404,8 @@ concretizeVarExpr' :: State t -> NameGen -> Id -> Id -> (DataCon, [Id], Expr) ->
 concretizeVarExpr' s@(State {expr_env = eenv, type_env = tenv, known_values = kv})
                 ngen mexpr_id cvar (dcon, params, aexpr) maybeC =
                 -- the first element show the type variable while the second show the type is coerced to in the extract_tys
-                trace("The snd from extract_tys are " ++ show (map snd extract_tys)) (NewPC { state =  s { expr_env = eenv''
+                trace("The snd element from extract_tys are " ++ show (map snd extract_tys))
+                (NewPC { state =  s { expr_env = eenv''
                               , curr_expr = CurrExpr Evaluate aexpr''}
                  -- It is VERY important that we insert the mexpr_id in `concretized`
                  -- This forces reduceNewPC to check that the concretized data constructor does
@@ -415,12 +416,12 @@ concretizeVarExpr' s@(State {expr_env = eenv, type_env = tenv, known_values = kv
   where
     
     -- Make sure that the parameters do not conflict in their symbolic reps.
-    olds = map idName params
-    
-    -- expr_lookup = map  ( (flip E.deepLookup) eenv) olds 
+   
     -- so the params are the right thing to look at because it contains the coercion variable 
     -- Then, we are trying to extract the cocercion (type variable) from the params
     -- after that, we are trying to unify those type variable and instantiated them with the right types in the expr_env
+    olds = map idName params
+
     extract_tys = mapMaybe (extractTypes kv) params
 
     uf_map = foldM (\uf_map' (t1, t2) -> T.unify' uf_map' t1 t2) UF.empty extract_tys
@@ -436,12 +437,12 @@ concretizeVarExpr' s@(State {expr_env = eenv, type_env = tenv, known_values = kv
                                     uf_list = HM.toList $ UF.toSimpleMap uf_map'
                                     es = map (Var . uncurry Id) uf_list
                                     exprenv' = E.insertExprs (zip (map fst uf_list) es) eenv
-
+    
     clean_olds = map cleanName olds
 
     (news, ngen') = freshSeededNames clean_olds ngen
 
-    (dcon', aexpr') = renameExprs (zip olds news) (Data dcon, aexpr)
+    (dcon', aexpr') = renameExprs (zip olds news) (Data dcon, new_aexpr)
 
     newparams = map (uncurry Id) $ zip news (map typeOf params)
     dConArgs = (map (Var) newparams)
@@ -449,13 +450,6 @@ concretizeVarExpr' s@(State {expr_env = eenv, type_env = tenv, known_values = kv
     -- Get list of Types to concretize polymorphic data constructor and concatenate with other arguments
     mexpr_t = typeOf mexpr_id
     type_ars = mexprTyToExpr mexpr_t tenv
-
-    --    all_expr' =  (flip  E.deepLookupExpr eenv) (aexpr)
-    -- all_expr = (flip  E.deepLookup eenv) (idName mexpr_id)
-    -- all_expr' =  map (flip  E.deepLookupExpr eenv) (type_ars)
-
-    -- it seems like all_expr' is what we want because we are able to find the type variable(but it also seems the type variable 
-    -- are in the mexpr_id but I think it's easier to extract from the type_ars)
 
     exprs = [dcon'] ++ type_ars ++ dConArgs
 
@@ -471,7 +465,7 @@ concretizeVarExpr' s@(State {expr_env = eenv, type_env = tenv, known_values = kv
     binds = [(cvar, (Var mexpr_id))]
     aexpr'' = liftCaseBinds binds aexpr'
 
-    (eenv'', pcs, ngen'') = adjustExprEnvAndPathConds kv tenv eenv ngen' dcon dcon''' mexpr_id params news
+    (eenv'', pcs, ngen'') = adjustExprEnvAndPathConds kv tenv eenv' ngen' dcon dcon''' mexpr_id params news
 
 -- [String Concretizations and Constraints]
 -- Generally speaking, the values of symbolic variable are determined by one of two methods:
