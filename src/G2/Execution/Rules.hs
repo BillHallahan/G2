@@ -404,7 +404,7 @@ concretizeVarExpr' :: State t -> NameGen -> Id -> Id -> (DataCon, [Id], Expr) ->
 concretizeVarExpr' s@(State {expr_env = eenv, type_env = tenv, known_values = kv})
                 ngen mexpr_id cvar (dcon, params, aexpr) maybeC =
                 -- the first element show the type variable while the second show the type is coerced to in the extract_tys
-                trace("The snd element from extract_tys are " ++ show (map snd extract_tys))
+                trace("The dConArgs are " ++ show dConArgs)
                 (NewPC { state =  s { expr_env = eenv''
                               , curr_expr = CurrExpr Evaluate aexpr''}
                  -- It is VERY important that we insert the mexpr_id in `concretized`
@@ -422,13 +422,22 @@ concretizeVarExpr' s@(State {expr_env = eenv, type_env = tenv, known_values = kv
     -- after that, we are trying to unify those type variable and instantiated them with the right types in the expr_env
     olds = map idName params
 
-    extract_tys = mapMaybe (extractTypes kv) params
+    clean_olds = map cleanName olds
+
+    (news, ngen') = freshSeededNames clean_olds ngen
+
+    (dcon', aexpr') = renameExprs (zip olds news) (Data dcon, aexpr)
+
+    newparams = map (uncurry Id) $ zip news (map typeOf params)
+    dConArgs = (map (Var) newparams)
+
+    extract_tys = mapMaybe (extractTypes kv) newparams
 
     uf_map = foldM (\uf_map' (t1, t2) -> T.unify' uf_map' t1 t2) UF.empty extract_tys
     
     new_aexpr = case uf_map of
-            Nothing -> aexpr
-            Just uf_map' -> L.foldl' (\e (n,t) -> retype (Id n (typeOf t)) t e) aexpr (HM.toList $ UF.toSimpleMap uf_map')
+            Nothing -> aexpr'
+            Just uf_map' -> L.foldl' (\e (n,t) -> retype (Id n (typeOf t)) t e) aexpr' (HM.toList $ UF.toSimpleMap uf_map')
 
     eenv' = case uf_map of
                 Nothing -> eenv
@@ -438,15 +447,6 @@ concretizeVarExpr' s@(State {expr_env = eenv, type_env = tenv, known_values = kv
                                     es = map (Var . uncurry Id) uf_list
                                     exprenv' = E.insertExprs (zip (map fst uf_list) es) eenv
     
-    clean_olds = map cleanName olds
-
-    (news, ngen') = freshSeededNames clean_olds ngen
-
-    (dcon', aexpr') = renameExprs (zip olds news) (Data dcon, new_aexpr)
-
-    newparams = map (uncurry Id) $ zip news (map typeOf params)
-    dConArgs = (map (Var) newparams)
-
     -- Get list of Types to concretize polymorphic data constructor and concatenate with other arguments
     mexpr_t = typeOf mexpr_id
     type_ars = mexprTyToExpr mexpr_t tenv
@@ -463,7 +463,7 @@ concretizeVarExpr' s@(State {expr_env = eenv, type_env = tenv, known_values = kv
 
     -- Now do a round of rename for binding the cvar.
     binds = [(cvar, (Var mexpr_id))]
-    aexpr'' = liftCaseBinds binds aexpr'
+    aexpr'' = liftCaseBinds binds new_aexpr
 
     (eenv'', pcs, ngen'') = adjustExprEnvAndPathConds kv tenv eenv' ngen' dcon dcon''' mexpr_id params news
 
