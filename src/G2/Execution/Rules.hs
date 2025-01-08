@@ -404,7 +404,7 @@ concretizeVarExpr' :: State t -> NameGen -> Id -> Id -> (DataCon, [Id], Expr) ->
 concretizeVarExpr' s@(State {expr_env = eenv, type_env = tenv, known_values = kv})
                 ngen mexpr_id cvar (dcon, params, aexpr) maybeC =
                 -- the first element show the type variable while the second show the type is coerced to in the extract_tys
-                trace("The dConArgs are " ++ show dConArgs)
+                trace("We are running ConVarExpr'")
                 (NewPC { state =  s { expr_env = eenv''
                               , curr_expr = CurrExpr Evaluate aexpr''}
                  -- It is VERY important that we insert the mexpr_id in `concretized`
@@ -436,8 +436,8 @@ concretizeVarExpr' s@(State {expr_env = eenv, type_env = tenv, known_values = kv
     uf_map = foldM (\uf_map' (t1, t2) -> T.unify' uf_map' t1 t2) UF.empty extract_tys
     
     new_aexpr = case uf_map of
-            Nothing -> aexpr'
-            Just uf_map' -> L.foldl' (\e (n,t) -> retype (Id n (typeOf t)) t e) aexpr' (HM.toList $ UF.toSimpleMap uf_map')
+            Nothing ->trace("The uf_map generated from not updating the expr is ") aexpr'
+            Just uf_map' -> trace("The uf_map generated from updating the expr case is ") L.foldl' (\e (n,t) -> retype (Id n (typeOf t)) t e) aexpr' (HM.toList $ UF.toSimpleMap uf_map')
 
     eenv' = case uf_map of
                 Nothing -> eenv
