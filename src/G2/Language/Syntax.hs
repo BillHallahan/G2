@@ -1,5 +1,4 @@
-{-# LANGUAGE DeriveDataTypeable #-}
-{-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE DeriveDataTypeable, DeriveGeneric, PatternSynonyms #-}
 
 -- | Defines most of the central language in G2. This language closely resembles Core Haskell.
 -- The central datatypes are `Expr` and t`Type`.
@@ -9,7 +8,9 @@ module G2.Language.Syntax
     ) where
 
 import GHC.Generics (Generic)
+import Data.Bits
 import Data.Data
+import Data.Foldable
 import Data.Hashable
 import qualified Data.Text as T
 
@@ -168,6 +169,7 @@ data Primitive = -- Mathematical and logical operators
                | Not
                | Implies
                | Iff
+               | Ite -- ^ Bool -> a -> a -> a, if-then-else, convertable to an SMT representation.  All arguments should be representable in the SMT solver.
                | Plus
                | Minus
                | Mult
@@ -179,10 +181,25 @@ data Primitive = -- Mathematical and logical operators
                | Negate
                | Abs
 
+
                -- Rational
                | Sqrt
+               | Exp
+
+               -- BitVectors
+               | AddBV
+               | MinusBV
+               | MultBV
+               | ConcatBV
+               | ShiftLBV
+               | ShiftRBV
 
                -- Floating point operations
+               | Fp -- ^ A floating point number, should be wrapped in arguments representing (Sign Exponent Significand).
+                    -- Currently only supports being used in PathCons to be converted to SMT.
+               | DecodeFloat
+               | EncodeFloat
+
                | FpNeg
                | FpAdd
                | FpSub
@@ -198,6 +215,7 @@ data Primitive = -- Mathematical and logical operators
 
                | FpSqrt
 
+               | IsDenormalized
                | FpIsNegativeZero
                | IsNaN
                | IsInfinite
@@ -210,13 +228,16 @@ data Primitive = -- Mathematical and logical operators
                | TagToEnum
 
                -- Numeric conversion
-               | IntToFloat
-               | IntToDouble
+               | IntToFP Int Int  -- ^ Int to floating point conversion- exponent and significand of the target fp must be provided
                | IntToRational
                | RationalToFloat
                | RationalToDouble
+               | FPToFP Int Int -- ^ Floating point to floating point conversion- exponent and significand of the target fp must be provided
                | ToInteger
                | ToInt
+               | IntToBV Int -- ^ Signed conversion, takes the width of the bit vector
+               | BVToInt Int -- ^ Signed conversion, takes the width of the bit vector
+               | BVToNat -- ^ Unsigned conversion
                
                -- String Handling
                | StrGt
@@ -249,6 +270,18 @@ data Primitive = -- Mathematical and logical operators
                | Undefined
                deriving (Show, Eq, Read, Generic, Typeable, Data)
 
+pattern IntToFloat :: Primitive
+pattern IntToFloat = IntToFP 8 24
+
+pattern IntToDouble :: Primitive
+pattern IntToDouble = IntToFP 11 53
+
+pattern DoubleToFloat :: Primitive
+pattern DoubleToFloat = FPToFP 8 24
+
+pattern FloatToDouble :: Primitive
+pattern FloatToDouble = FPToFP 11 53
+
 instance Hashable Primitive
 
 -- | Literals for denoting unwrapped types such as Int#, Double#.
@@ -256,12 +289,23 @@ data Lit = LitInt Integer
          | LitFloat Float
          | LitDouble Double
          | LitRational Rational
+         | LitBV [Int] -- ^ Variable size bitvector- exists primarily to interact with SMT solver
          | LitChar Char
          | LitString String
          | LitInteger Integer
          deriving (Show, Read, Generic, Typeable, Data)
 
 instance Hashable Lit
+
+integerToBV :: Int -- ^ Width
+            -> Integer -- ^ Value
+            -> Lit
+integerToBV w i = LitBV $ map (\pos -> if testBit i pos then 1 else 0) [w - 1,w-2..0]
+
+bvToInteger :: [Int] -> Integer
+bvToInteger bv = foldl' (\acc (i,b) -> if b == 1 then setBit acc i else acc)
+                 0
+                 (zip [length bv - 1, length bv - 2..0] bv)
 
 -- | When comparing Lits, we treat LitFloat and LitDouble specially, to ensure reflexivity,
 -- even in the case that we have NaN.
@@ -272,6 +316,7 @@ instance Eq Lit where
     LitDouble x == LitDouble y | isNaN x, isNaN y = True
                                | otherwise = x == y
     LitRational x == LitRational y = x == y
+    LitBV x == LitBV y = x == y
     LitChar x == LitChar y = x == y
     LitString x == LitString y = x == y
     LitInteger x == LitInteger y = x == y
@@ -318,8 +363,8 @@ instance Hashable Coercion
 -- | Types information.
 data Type = TyVar Id -- ^ Polymorphic type variable.
           | TyLitInt -- ^ Unwrapped primitive Int type.
-          | TyLitFloat -- ^ Unwrapped primitive Float type.
-          | TyLitDouble -- ^ Unwrapped primitive Int type.
+          | TyLitFP Int Int -- ^ Unwrapped primitive floating point type with the indicated exponent and significand.
+          | TyLitBV Int -- ^ Unwrapped primitive BitVector type of the indicated width.
           | TyLitRational -- ^ Unwrapped primitive Rational type.
           | TyLitChar -- ^ Unwrapped primitive Int type.
           | TyLitString -- ^ Unwrapped primitive String type.
@@ -331,6 +376,12 @@ data Type = TyVar Id -- ^ Polymorphic type variable.
           | TYPE
           | TyUnknown
           deriving (Show, Eq, Read, Generic, Typeable, Data, Ord)
+
+pattern TyLitFloat :: Type
+pattern TyLitFloat = TyLitFP 8 24
+
+pattern TyLitDouble :: Type
+pattern TyLitDouble = TyLitFP 11 53
 
 -- | A `Kind` is a t`Type` of a t`Type`.
 type Kind = Type

@@ -576,6 +576,9 @@ instance Named KnownValues where
             , tyUnit = tUnit
             , dcUnit = dUnit
 
+            , tyPrimTuple = tPrimTuple
+            , dcPrimTuple = dPrimTuple
+
             , tyMutVar = tMV
             , dcMutVar = dMV
             , tyState = tSt
@@ -633,6 +636,7 @@ instance Named KnownValues where
                 , tList, tCons, tEmp
                 , tMaybe, dJust, dNothing
                 , tUnit, dUnit
+                , tPrimTuple, dPrimTuple
                 , tMV, dMV, tSt, dSt, tRW, dRW
                 , eqT, numT, ordT, integralT, realT, fractionalT
                 , integralEReal, realENum, realEOrd, ordEEq
@@ -675,6 +679,9 @@ instance Named KnownValues where
 
                    , tyUnit = tUnit
                    , dcUnit = dUnit
+
+                   , tyPrimTuple = tPrimTuple
+                   , dcPrimTuple = dPrimTuple
 
                    , tyMutVar = tMV
                    , dcMutVar = dMV
@@ -759,6 +766,9 @@ instance Named KnownValues where
 
                         , tyUnit = rename old new tUnit
                         , dcUnit = rename old new dUnit
+
+                        , tyPrimTuple = rename old new tPrimTuple
+                        , dcPrimTuple = rename old new dPrimTuple
 
                         , tyState = rename old new tSt
                         , dcState = rename old new dSt

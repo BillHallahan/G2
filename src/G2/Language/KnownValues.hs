@@ -48,6 +48,9 @@ data KnownValues = KnownValues {
                  , tyUnit :: Name
                  , dcUnit :: Name
 
+                 , tyPrimTuple :: Name
+                 , dcPrimTuple :: Name
+
                  , tyMutVar :: Name
                  , dcMutVar :: Name
 

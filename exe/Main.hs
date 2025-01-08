@@ -7,6 +7,7 @@ import G2.Translation.GHC (GeneralFlag(Opt_Hpc))
 import System.Environment
 import System.FilePath
 
+import Control.Monad
 import Data.Foldable (toList)
 import qualified Data.Map as M
 import Data.Maybe
@@ -50,18 +51,25 @@ runWithArgs as = do
     case validate config of
         True -> do
             r <- validateStates proj [src] (T.unpack $ fromJust mb_modname) entry [] [Opt_Hpc] b in_out
-            if r then putStrLn "Validated" else putStrLn "There was an error during validation."
+            if and r then putStrLn "Validated" else putStrLn "There was an error during validation."
 
+            printFuncCalls config entry_f b (Just r) in_out
             -- runHPC src (T.unpack $ fromJust mb_modname) entry in_out
-        False -> return ()
-
-    printFuncCalls config entry_f b in_out
+        False -> printFuncCalls config entry_f b Nothing in_out
 
   return ()
 
-printFuncCalls :: Config -> Id -> Bindings -> [ExecRes t] -> IO ()
-printFuncCalls config entry b =
-    mapM_ (\execr@(ExecRes { final_state = s }) -> do
+printFuncCalls :: Config -> Id -> Bindings
+               -> Maybe [Bool]
+               -> [ExecRes t]
+               -> IO ()
+printFuncCalls config entry b m_valid exec_res = do
+    let valid = fromMaybe (repeat True) m_valid
+        print_valid = isJust m_valid
+
+    mapM_ (\(execr@(ExecRes { final_state = s }), val) -> do
+        when print_valid (putStr (if val then "✓ " else "✗ "))
+
         let pg = mkPrettyGuide (exprNames $ conc_args execr)
         let (mvp, inp, outp, handles) = printInputOutput pg entry b execr
             sym_gen_out = fmap (printHaskellPG pg s) $ conc_sym_gens execr
@@ -70,6 +78,7 @@ printFuncCalls config entry b =
             S.Empty -> T.putStrLn $ mvp <> inp <> " = " <> outp
             _ -> T.putStrLn $ mvp <> inp <> " = " <> outp <> "\t| generated: " <> T.intercalate ", " (toList sym_gen_out)
         if handles /= "" then T.putStrLn handles else return ())
+      $ zip exec_res valid 
 
 ppStatePiece :: Bool -> String -> String -> IO ()
 ppStatePiece b n res =
