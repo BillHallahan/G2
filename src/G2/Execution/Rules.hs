@@ -380,13 +380,19 @@ defaultAlts alts = [a | a@(Alt Default _) <- alts]
 -- | Lift positive datacon `State`s from symbolic alt matching. This in
 -- part involves erasing all of the parameters from the environment by rename
 -- their occurrence in the aexpr to something fresh.
-concretizeVarExpr :: State t -> NameGen -> Id -> Id -> [(DataCon, [Id], Expr)] -> Maybe Coercion -> ([NewPC t], NameGen)
+concretizeVarExpr :: State t -> NameGen -> Id -> Id -> [(DataCon, [Id], Expr)] -> Maybe Coercion -> ([(NewPC t)], NameGen)
 concretizeVarExpr _ ng _ _ [] _ = ([], ng)
 concretizeVarExpr s ng mexpr_id cvar (x:xs) maybeC = 
-        (x':newPCs, ng'') 
-    where
+        -- (x':newPCs, ng'') 
+    let
         (x', ng') = concretizeVarExpr' s ng mexpr_id cvar x maybeC
+
         (newPCs, ng'') = concretizeVarExpr s ng' mexpr_id cvar xs maybeC
+        newPCs' = case x' of
+                        Just x'' -> (x'':newPCs, ng'') 
+                        Nothing -> (newPCs, ng'')
+    in 
+        newPCs'
 
 -- TODO: handle symbolic GADT
 -- The current issue we face is that the unificiation is failing in which we are unifiying 
@@ -413,29 +419,30 @@ concretizeVarExpr' s@(State {expr_env = eenv, type_env = tenv, known_values = kv
                 --  })
     case uf_map of 
         Nothing -> (Nothing, ngen)
-        Just uf_map -> buildNewPC uf_map ngen
+        Just uf_map' -> buildNewPC uf_map' ngen
   where
-        
-    olds = map idName params
 
-    clean_olds = map cleanName olds
-
-    (news, ngen') = freshSeededNames clean_olds ngen
-
-    (dcon', aexpr') = renameExprs (zip olds news) (Data dcon, aexpr)
-
-    newparams = map (uncurry Id) $ zip news (map typeOf params)
-    dConArgs = (map (Var) newparams)
-
-    extract_tys = mapMaybe (extractTypes kv) newparams
+    extract_tys = mapMaybe (extractTypes kv) params
     
     uf_map = foldM (\uf_map' (t1, t2) -> T.unify' uf_map' t1 t2) UF.empty extract_tys
 
-    buildNewPC uf_map ngen =
+    buildNewPC uf_map'' namegen =
         let 
-            L.foldl' (\e (n,t) -> retype (Id n (typeOf t)) t e) aexpr' (HM.toList $ UF.toSimpleMap uf_map')
+            olds = map idName params
+
+            clean_olds = map cleanName olds
+
+            (news, ngen') = freshSeededNames clean_olds namegen
+
+            (dcon', aexpr') = renameExprs (zip olds news) (Data dcon, aexpr)
+
+            newparams = map (uncurry Id) $ zip news (map typeOf params)
+            dConArgs = (map (Var) newparams)
+
+            aexpr'' = L.foldl' (\e (n,t) -> retype (Id n (typeOf t)) t e) aexpr' (HM.toList $ UF.toSimpleMap uf_map'')
                 
-            uf_list = HM.toList $ UF.toSimpleMap uf_map
+            -- need to reformat this for clarity but would be safe for now
+            uf_list = HM.toList $ UF.toSimpleMap uf_map''
             es = map (Var . uncurry Id) uf_list
             eenv' = E.insertExprs (zip (map fst uf_list) es) eenv
         
@@ -455,12 +462,12 @@ concretizeVarExpr' s@(State {expr_env = eenv, type_env = tenv, known_values = kv
 
             -- Now do a round of rename for binding the cvar.
             binds = [(cvar, (Var mexpr_id))]
-            aexpr'' = liftCaseBinds binds new_aexpr
+            aexpr''' = liftCaseBinds binds aexpr''
 
             (eenv'', pcs, ngen'') = adjustExprEnvAndPathConds kv tenv eenv' ngen' dcon dcon''' mexpr_id params news
         in 
             (Just $ NewPC { state =  s { expr_env = eenv''
-                                , curr_expr = CurrExpr Evaluate aexpr''}
+                                , curr_expr = CurrExpr Evaluate aexpr'''}
                           , new_pcs = pcs
                           , concretized = [mexpr_id]
                           }, ngen'')
