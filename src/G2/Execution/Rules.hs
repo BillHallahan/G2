@@ -400,26 +400,22 @@ concretizeVarExpr s ng mexpr_id cvar (x:xs) maybeC =
 -- the coercion is contain in the params, it actually the first one introduced in the params 
 -- but it's kind of funny it's already trying to coerce Succ Peano with int
 
-concretizeVarExpr' :: State t -> NameGen -> Id -> Id -> (DataCon, [Id], Expr) -> Maybe Coercion -> (NewPC t, NameGen)
+concretizeVarExpr' :: State t -> NameGen -> Id -> Id -> (DataCon, [Id], Expr) -> Maybe Coercion -> (Maybe (NewPC t), NameGen)
 concretizeVarExpr' s@(State {expr_env = eenv, type_env = tenv, known_values = kv})
                 ngen mexpr_id cvar (dcon, params, aexpr) maybeC =
-                -- the first element show the type variable while the second show the type is coerced to in the extract_tys
-                trace("We are running ConVarExpr'")
-                (NewPC { state =  s { expr_env = eenv''
-                              , curr_expr = CurrExpr Evaluate aexpr''}
                  -- It is VERY important that we insert the mexpr_id in `concretized`
                  -- This forces reduceNewPC to check that the concretized data constructor does
-                 -- not violate any path constraints from default cases. 
-                 , new_pcs = pcs
-                 , concretized = [mexpr_id]
-                 }, ngen'')
+                 -- not violate any path constraints from default cases.  
+                -- Just (NewPC { state =  s { expr_env = eenv''
+                --               , curr_expr = CurrExpr Evaluate aexpr''}
+                --  , new_pcs = pcs
+                --  , concretized = [mexpr_id]
+                --  })
+    case uf_map of 
+        Nothing -> (Nothing, ngen)
+        Just uf_map -> buildNewPC uf_map ngen
   where
-    
-    -- Make sure that the parameters do not conflict in their symbolic reps.
-   
-    -- so the params are the right thing to look at because it contains the coercion variable 
-    -- Then, we are trying to extract the cocercion (type variable) from the params
-    -- after that, we are trying to unify those type variable and instantiated them with the right types in the expr_env
+        
     olds = map idName params
 
     clean_olds = map cleanName olds
@@ -432,40 +428,42 @@ concretizeVarExpr' s@(State {expr_env = eenv, type_env = tenv, known_values = kv
     dConArgs = (map (Var) newparams)
 
     extract_tys = mapMaybe (extractTypes kv) newparams
-
+    
     uf_map = foldM (\uf_map' (t1, t2) -> T.unify' uf_map' t1 t2) UF.empty extract_tys
-    
-    new_aexpr = case uf_map of
-            Nothing ->trace("The uf_map generated from not updating the expr is ") aexpr'
-            Just uf_map' -> trace("The uf_map generated from updating the expr case is ") L.foldl' (\e (n,t) -> retype (Id n (typeOf t)) t e) aexpr' (HM.toList $ UF.toSimpleMap uf_map')
 
-    eenv' = case uf_map of
-                Nothing -> eenv
-                Just uf_map' -> exprenv'
-                                where
-                                    uf_list = HM.toList $ UF.toSimpleMap uf_map'
-                                    es = map (Var . uncurry Id) uf_list
-                                    exprenv' = E.insertExprs (zip (map fst uf_list) es) eenv
-    
-    -- Get list of Types to concretize polymorphic data constructor and concatenate with other arguments
-    mexpr_t = typeOf mexpr_id
-    type_ars = mexprTyToExpr mexpr_t tenv
+    buildNewPC uf_map ngen =
+        let 
+            L.foldl' (\e (n,t) -> retype (Id n (typeOf t)) t e) aexpr' (HM.toList $ UF.toSimpleMap uf_map')
+                
+            uf_list = HM.toList $ UF.toSimpleMap uf_map
+            es = map (Var . uncurry Id) uf_list
+            eenv' = E.insertExprs (zip (map fst uf_list) es) eenv
+        
+            -- Get list of Types to concretize polymorphic data constructor and concatenate with other arguments
+            mexpr_t = typeOf mexpr_id
+            type_ars = mexprTyToExpr mexpr_t tenv
 
-    exprs = [dcon'] ++ type_ars ++ dConArgs
+            exprs = [dcon'] ++ type_ars ++ dConArgs
 
-    -- Apply list of types (if present) and DataCon children to DataCon
-    dcon'' = mkApp exprs
+            -- Apply list of types (if present) and DataCon children to DataCon
+            dcon'' = mkApp exprs
 
-    -- Apply cast, in opposite direction of unsafeElimOuterCast
-    dcon''' = case maybeC of 
-                (Just (t1 :~ t2)) -> Cast dcon'' (t2 :~ t1)
-                Nothing -> dcon''
+            -- Apply cast, in opposite direction of unsafeElimOuterCast
+            dcon''' = case maybeC of 
+                            (Just (t1 :~ t2)) -> Cast dcon'' (t2 :~ t1)
+                            Nothing -> dcon''
 
-    -- Now do a round of rename for binding the cvar.
-    binds = [(cvar, (Var mexpr_id))]
-    aexpr'' = liftCaseBinds binds new_aexpr
+            -- Now do a round of rename for binding the cvar.
+            binds = [(cvar, (Var mexpr_id))]
+            aexpr'' = liftCaseBinds binds new_aexpr
 
-    (eenv'', pcs, ngen'') = adjustExprEnvAndPathConds kv tenv eenv' ngen' dcon dcon''' mexpr_id params news
+            (eenv'', pcs, ngen'') = adjustExprEnvAndPathConds kv tenv eenv' ngen' dcon dcon''' mexpr_id params news
+        in 
+            (Just $ NewPC { state =  s { expr_env = eenv''
+                                , curr_expr = CurrExpr Evaluate aexpr''}
+                          , new_pcs = pcs
+                          , concretized = [mexpr_id]
+                          }, ngen'')
 
 -- [String Concretizations and Constraints]
 -- Generally speaking, the values of symbolic variable are determined by one of two methods:
