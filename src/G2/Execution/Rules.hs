@@ -328,7 +328,8 @@ evalCase s@(State { expr_env = eenv
       assert (tyConName (tyAppCenter $ typeOf mexpr) == Just (KV.tyMutVar kv)
                         ==> length alt_res >= length dalts + length lalts + length defs)
       assert (tyConName (tyAppCenter $ typeOf mexpr) /= Just (KV.tyMutVar kv)
-                        ==> length alt_res == length dalts + length lalts + length defs)
+      -- now we will get at most one branch per path
+                        ==> length alt_res <= length dalts + length lalts + length defs)
       (RuleEvalCaseSym, alt_res, ng'')
 
   -- Case evaluation also uses the stack in graph reduction based evaluation
@@ -382,17 +383,18 @@ defaultAlts alts = [a | a@(Alt Default _) <- alts]
 -- their occurrence in the aexpr to something fresh.
 concretizeVarExpr :: State t -> NameGen -> Id -> Id -> [(DataCon, [Id], Expr)] -> Maybe Coercion -> ([(NewPC t)], NameGen)
 concretizeVarExpr _ ng _ _ [] _ = ([], ng)
-concretizeVarExpr s ng mexpr_id cvar (x:xs) maybeC = 
-        -- (x':newPCs, ng'') 
-    let
-        (x', ng') = concretizeVarExpr' s ng mexpr_id cvar x maybeC
+concretizeVarExpr s ng mexpr_id cvar (x:xs) maybeC = newPCs
+    where
+        pcs = concretizeVarExpr' s ng mexpr_id cvar x maybeC
 
-        (newPCs, ng'') = concretizeVarExpr s ng' mexpr_id cvar xs maybeC
-        newPCs' = case x' of
-                        Just x'' -> (x'':newPCs, ng'') 
-                        Nothing -> (newPCs, ng'')
-    in 
-        newPCs'
+        newPCs = case pcs of 
+                            Nothing -> concretizeVarExpr s ng mexpr_id cvar xs maybeC
+                            Just (x', ng') -> let 
+                                                    (newPCs', ng'') = concretizeVarExpr s ng' mexpr_id cvar xs maybeC
+                                                in 
+                                                    (x':newPCs', ng'')
+                                                    
+    
 
 -- TODO: handle symbolic GADT
 -- The current issue we face is that the unificiation is failing in which we are unifiying 
@@ -406,7 +408,7 @@ concretizeVarExpr s ng mexpr_id cvar (x:xs) maybeC =
 -- the coercion is contain in the params, it actually the first one introduced in the params 
 -- but it's kind of funny it's already trying to coerce Succ Peano with int
 
-concretizeVarExpr' :: State t -> NameGen -> Id -> Id -> (DataCon, [Id], Expr) -> Maybe Coercion -> (Maybe (NewPC t), NameGen)
+concretizeVarExpr' :: State t -> NameGen -> Id -> Id -> (DataCon, [Id], Expr) -> Maybe Coercion -> Maybe ((NewPC t), NameGen)
 concretizeVarExpr' s@(State {expr_env = eenv, type_env = tenv, known_values = kv})
                 ngen mexpr_id cvar (dcon, params, aexpr) maybeC =
                  -- It is VERY important that we insert the mexpr_id in `concretized`
@@ -418,7 +420,7 @@ concretizeVarExpr' s@(State {expr_env = eenv, type_env = tenv, known_values = kv
                 --  , concretized = [mexpr_id]
                 --  })
     case uf_map of 
-        Nothing -> (Nothing, ngen)
+        Nothing -> Nothing 
         Just uf_map' -> buildNewPC uf_map' ngen
   where
 
@@ -466,7 +468,7 @@ concretizeVarExpr' s@(State {expr_env = eenv, type_env = tenv, known_values = kv
 
             (eenv'', pcs, ngen'') = adjustExprEnvAndPathConds kv tenv eenv' ngen' dcon dcon''' mexpr_id params news
         in 
-            (Just $ NewPC { state =  s { expr_env = eenv''
+            Just (NewPC { state =  s { expr_env = eenv''
                                 , curr_expr = CurrExpr Evaluate aexpr'''}
                           , new_pcs = pcs
                           , concretized = [mexpr_id]
