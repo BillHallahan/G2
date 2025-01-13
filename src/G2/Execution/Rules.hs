@@ -394,8 +394,6 @@ concretizeVarExpr s ng mexpr_id cvar (x:xs) maybeC = newPCs
                                                 in 
                                                     (x':newPCs', ng'')
                                                     
-    
-
 -- TODO: handle symbolic GADT
 -- The current issue we face is that the unificiation is failing in which we are unifiying 
 -- the length of a Vec that have the type of Succ Peano with an Int
@@ -414,11 +412,6 @@ concretizeVarExpr' s@(State {expr_env = eenv, type_env = tenv, known_values = kv
                  -- It is VERY important that we insert the mexpr_id in `concretized`
                  -- This forces reduceNewPC to check that the concretized data constructor does
                  -- not violate any path constraints from default cases.  
-                -- Just (NewPC { state =  s { expr_env = eenv''
-                --               , curr_expr = CurrExpr Evaluate aexpr''}
-                --  , new_pcs = pcs
-                --  , concretized = [mexpr_id]
-                --  })
     case uf_map of 
         Nothing -> Nothing 
         Just uf_map' -> buildNewPC uf_map' ngen
