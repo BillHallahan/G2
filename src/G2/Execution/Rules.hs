@@ -438,7 +438,9 @@ concretizeVarExpr' s@(State {expr_env = eenv, type_env = tenv, known_values = kv
                 
             -- need to reformat this for clarity but would be safe for now
             uf_list = HM.toList $ UF.toSimpleMap uf_map''
-            es = map (Var . uncurry Id) uf_list
+            uf_types = map (typeOf . snd) uf_list
+            uf_expr = zip (map fst uf_list) uf_types 
+            es = map Type uf_types
             eenv' = E.insertExprs (zip (map fst uf_list) es) eenv
         
             -- Get list of Types to concretize polymorphic data constructor and concatenate with other arguments
@@ -461,7 +463,7 @@ concretizeVarExpr' s@(State {expr_env = eenv, type_env = tenv, known_values = kv
 
             (eenv'', pcs, ngen'') = adjustExprEnvAndPathConds kv tenv eenv' ngen' dcon dcon''' mexpr_id params news
         in 
-            Just (NewPC { state =  s { expr_env = eenv''
+          Just (NewPC { state =  s { expr_env = eenv''
                                 , curr_expr = CurrExpr Evaluate aexpr'''}
                           , new_pcs = pcs
                           , concretized = [mexpr_id]
