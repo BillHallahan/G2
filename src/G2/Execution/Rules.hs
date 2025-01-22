@@ -411,11 +411,17 @@ concretizeVarExpr' s@(State {expr_env = eenv, type_env = tenv, known_values = kv
                 ngen mexpr_id cvar (dcon, params, aexpr) maybeC =
                  -- It is VERY important that we insert the mexpr_id in `concretized`
                  -- This forces reduceNewPC to check that the concretized data constructor does
-                 -- not violate any path constraints from default cases.  
+                 -- not violate any path constraints from default cases. 
+    -- few things I need to trace now is that 
+    -- 1. the existential type from the dcon 
+    -- 2. how to insert the existential type into the params?
+    -- 3. check the difference between the dcon and params?
     case uf_map of 
         Nothing -> Nothing 
         Just uf_map' -> buildNewPC uf_map' ngen
   where
+    
+    
 
     extract_tys = mapMaybe (extractTypes kv) params
     
@@ -423,6 +429,7 @@ concretizeVarExpr' s@(State {expr_env = eenv, type_env = tenv, known_values = kv
 
     buildNewPC uf_map'' namegen =
         let 
+            
             olds = map idName params
 
             clean_olds = map cleanName olds
@@ -431,23 +438,33 @@ concretizeVarExpr' s@(State {expr_env = eenv, type_env = tenv, known_values = kv
 
             (dcon', aexpr') = renameExprs (zip olds news) (Data dcon, aexpr)
 
-            newparams = map (uncurry Id) $ zip news (map typeOf params)
-            dConArgs = (map (Var) newparams)
+            newparams =  map (uncurry Id) $ zip news (map typeOf params)
+            value_args = (map (Var) newparams)
 
+            -- need to reformat this for clarity but would be safe for now
             aexpr'' = L.foldl' (\e (n,t) -> retype (Id n (typeOf t)) t e) aexpr' (HM.toList $ UF.toSimpleMap uf_map'')
-                
+
             -- need to reformat this for clarity but would be safe for now
             uf_list = HM.toList $ UF.toSimpleMap uf_map''
-            uf_types = map (typeOf . snd) uf_list
-            uf_expr = zip (map fst uf_list) uf_types 
-            es = map Type uf_types
+            es = map (Var . uncurry Id) uf_list
             eenv' = E.insertExprs (zip (map fst uf_list) es) eenv
-        
+
+            -- ++ map Var (dc_exist_tyvars dcon)   
+            -- Introduce Type(TyVar (Id _ _)) where the id have new name 
+            -- This should after type_ars
+            olds_exist = map idName (dc_exist_tyvars dcon)
+            exist_type = map typeOf (dc_exist_tyvars dcon)
+            clean_exist = map cleanName olds_exist
+            (new_exist_name, ngen'') = freshSeededNames clean_exist ngen'
+            new_exist = map (uncurry Id) (zip new_exist_name exist_type)
+            new_exist' = map (Type . TyVar) new_exist
+
             -- Get list of Types to concretize polymorphic data constructor and concatenate with other arguments
             mexpr_t = typeOf mexpr_id
             type_ars = mexprTyToExpr mexpr_t tenv
 
-            exprs = [dcon'] ++ type_ars ++ dConArgs
+
+            exprs = trace("The new_exist' is " ++ show new_exist' ++ " The correpsonding dcon' is " ++ show dcon')[dcon'] ++ type_ars ++ new_exist' ++ value_args
 
             -- Apply list of types (if present) and DataCon children to DataCon
             dcon'' = mkApp exprs
@@ -461,13 +478,13 @@ concretizeVarExpr' s@(State {expr_env = eenv, type_env = tenv, known_values = kv
             binds = [(cvar, (Var mexpr_id))]
             aexpr''' = liftCaseBinds binds aexpr''
 
-            (eenv'', pcs, ngen'') = adjustExprEnvAndPathConds kv tenv eenv' ngen' dcon dcon''' mexpr_id params news
+            (eenv'', pcs, ngen''') = adjustExprEnvAndPathConds kv tenv eenv' ngen'' dcon dcon''' mexpr_id params news
         in 
-          Just (NewPC { state =  s { expr_env = eenv''
-                                , curr_expr = CurrExpr Evaluate aexpr'''}
+          Just (NewPC { state = s{ expr_env = eenv''
+                          , curr_expr = CurrExpr Evaluate aexpr'''}
                           , new_pcs = pcs
                           , concretized = [mexpr_id]
-                          }, ngen'')
+                          }, ngen''')
 
 -- [String Concretizations and Constraints]
 -- Generally speaking, the values of symbolic variable are determined by one of two methods:
