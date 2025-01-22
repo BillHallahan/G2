@@ -412,16 +412,11 @@ concretizeVarExpr' s@(State {expr_env = eenv, type_env = tenv, known_values = kv
                  -- It is VERY important that we insert the mexpr_id in `concretized`
                  -- This forces reduceNewPC to check that the concretized data constructor does
                  -- not violate any path constraints from default cases. 
-    -- few things I need to trace now is that 
-    -- 1. the existential type from the dcon 
-    -- 2. how to insert the existential type into the params?
-    -- 3. check the difference between the dcon and params?
+
     case uf_map of 
         Nothing -> Nothing 
         Just uf_map' -> buildNewPC uf_map' ngen
   where
-    
-    
 
     extract_tys = mapMaybe (extractTypes kv) params
     
@@ -438,7 +433,7 @@ concretizeVarExpr' s@(State {expr_env = eenv, type_env = tenv, known_values = kv
 
             (dcon', aexpr') = renameExprs (zip olds news) (Data dcon, aexpr)
 
-            -- we are differentiating between the existential type variable and the value level arguments 
+            -- we aim to differentiating between the existential type variable and the value level arguments 
             new_params =  map (uncurry Id) $ zip news (map typeOf params)
             (exist_tys, value_args) = splitAt (length $ dc_exist_tyvars dcon) new_params
             value_args' = (map (Var) value_args)
@@ -448,16 +443,15 @@ concretizeVarExpr' s@(State {expr_env = eenv, type_env = tenv, known_values = kv
 
             -- need to reformat this for clarity but would be safe for now
             -- introduce type variable with its respective instantiation into the expression environment
-            uf_list = HM.toList $ UF.toSimpleMap uf_map''
-            es = map (Var . uncurry Id) uf_list
-            eenv' = E.insertExprs (zip (map fst uf_list) es) eenv
+            (uf_names, uf_types) = unzip $ HM.toList $ UF.toSimpleMap uf_map''
+            eenv' = E.insertExprs (zip uf_names (map Type uf_types)) eenv
             
             -- Get list of Types to concretize polymorphic data constructor and concatenate with other arguments
             mexpr_t = typeOf mexpr_id
             type_ars = mexprTyToExpr mexpr_t tenv
 
 
-            exprs = trace("The value_args " ++ show value_args)[dcon'] ++ type_ars ++ exist_tys' ++ value_args'
+            exprs = [dcon'] ++ type_ars ++ exist_tys' ++ value_args'
 
             -- Apply list of types (if present) and DataCon children to DataCon
             dcon'' = mkApp exprs
