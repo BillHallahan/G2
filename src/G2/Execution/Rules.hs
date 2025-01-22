@@ -438,33 +438,26 @@ concretizeVarExpr' s@(State {expr_env = eenv, type_env = tenv, known_values = kv
 
             (dcon', aexpr') = renameExprs (zip olds news) (Data dcon, aexpr)
 
-            newparams =  map (uncurry Id) $ zip news (map typeOf params)
-            value_args = (map (Var) newparams)
+            -- we are differentiating between the existential type variable and the value level arguments 
+            new_params =  map (uncurry Id) $ zip news (map typeOf params)
+            (exist_tys, value_args) = splitAt (length $ dc_exist_tyvars dcon) new_params
+            value_args' = (map (Var) value_args)
+            exist_tys' = map (Type . TyVar) exist_tys
 
-            -- need to reformat this for clarity but would be safe for now
             aexpr'' = L.foldl' (\e (n,t) -> retype (Id n (typeOf t)) t e) aexpr' (HM.toList $ UF.toSimpleMap uf_map'')
 
             -- need to reformat this for clarity but would be safe for now
+            -- introduce type variable with its respective instantiation into the expression environment
             uf_list = HM.toList $ UF.toSimpleMap uf_map''
             es = map (Var . uncurry Id) uf_list
             eenv' = E.insertExprs (zip (map fst uf_list) es) eenv
-
-            -- ++ map Var (dc_exist_tyvars dcon)   
-            -- Introduce Type(TyVar (Id _ _)) where the id have new name 
-            -- This should after type_ars
-            olds_exist = map idName (dc_exist_tyvars dcon)
-            exist_type = map typeOf (dc_exist_tyvars dcon)
-            clean_exist = map cleanName olds_exist
-            (new_exist_name, ngen'') = freshSeededNames clean_exist ngen'
-            new_exist = map (uncurry Id) (zip new_exist_name exist_type)
-            new_exist' = map (Type . TyVar) new_exist
-
+            
             -- Get list of Types to concretize polymorphic data constructor and concatenate with other arguments
             mexpr_t = typeOf mexpr_id
             type_ars = mexprTyToExpr mexpr_t tenv
 
 
-            exprs = trace("The new_exist' is " ++ show new_exist' ++ " The correpsonding dcon' is " ++ show dcon')[dcon'] ++ type_ars ++ new_exist' ++ value_args
+            exprs = trace("The value_args " ++ show value_args)[dcon'] ++ type_ars ++ exist_tys' ++ value_args'
 
             -- Apply list of types (if present) and DataCon children to DataCon
             dcon'' = mkApp exprs
@@ -478,13 +471,13 @@ concretizeVarExpr' s@(State {expr_env = eenv, type_env = tenv, known_values = kv
             binds = [(cvar, (Var mexpr_id))]
             aexpr''' = liftCaseBinds binds aexpr''
 
-            (eenv'', pcs, ngen''') = adjustExprEnvAndPathConds kv tenv eenv' ngen'' dcon dcon''' mexpr_id params news
+            (eenv'', pcs, ngen'') = adjustExprEnvAndPathConds kv tenv eenv' ngen' dcon dcon''' mexpr_id params news
         in 
           Just (NewPC { state = s{ expr_env = eenv''
                           , curr_expr = CurrExpr Evaluate aexpr'''}
                           , new_pcs = pcs
                           , concretized = [mexpr_id]
-                          }, ngen''')
+                          }, ngen'')
 
 -- [String Concretizations and Constraints]
 -- Generally speaking, the values of symbolic variable are determined by one of two methods:
