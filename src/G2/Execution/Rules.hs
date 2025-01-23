@@ -434,24 +434,30 @@ concretizeVarExpr' s@(State {expr_env = eenv, type_env = tenv, known_values = kv
             (dcon', aexpr') = renameExprs (zip olds news) (Data dcon, aexpr)
 
             -- we aim to differentiating between the existential type variable and the value level arguments 
+            -- need to some renaming for the existential type variable to ensure it print vec length of 2
             new_params =  map (uncurry Id) $ zip news (map typeOf params)
             (exist_tys, value_args) = splitAt (length $ dc_exist_tyvars dcon) new_params
+            old_exist = map idName exist_tys
+            clean_exist = map cleanName old_exist
+            (new_exist_name, ngen'') = freshSeededNames clean_exist ngen'
+            exist_tys' = zip new_exist_name (map typeOf exist_tys)
+            exist_tys'' = map (Type . TyVar) (map (uncurry Id) exist_tys')
+
             value_args' = (map (Var) value_args)
-            exist_tys' = map (Type . TyVar) exist_tys
+            univ_and_exist = (HM.toList $ UF.toSimpleMap uf_map'') ++ exist_tys' 
 
-            aexpr'' = L.foldl' (\e (n,t) -> retype (Id n (typeOf t)) t e) aexpr' (HM.toList $ UF.toSimpleMap uf_map'')
+            aexpr'' = L.foldl' (\e (n,t) -> retype (Id n (typeOf t)) t e) aexpr' univ_and_exist
 
-            -- need to reformat this for clarity but would be safe for now
-            -- introduce type variable with its respective instantiation into the expression environment
-            (uf_names, uf_types) = unzip $ HM.toList $ UF.toSimpleMap uf_map''
-            eenv' = E.insertExprs (zip uf_names (map Type uf_types)) eenv
+            -- introduce type variable and existential variable with its respective instantiation into the expression environment
+            (univ_exist_name, univ_exist_type) = unzip univ_and_exist
+            eenv' = E.insertExprs (zip univ_exist_name (map Type univ_exist_type)) eenv
             
             -- Get list of Types to concretize polymorphic data constructor and concatenate with other arguments
             mexpr_t = typeOf mexpr_id
             type_ars = mexprTyToExpr mexpr_t tenv
 
 
-            exprs = [dcon'] ++ type_ars ++ exist_tys' ++ value_args'
+            exprs = [dcon'] ++ type_ars ++ exist_tys'' ++ value_args'
 
             -- Apply list of types (if present) and DataCon children to DataCon
             dcon'' = mkApp exprs
@@ -465,13 +471,13 @@ concretizeVarExpr' s@(State {expr_env = eenv, type_env = tenv, known_values = kv
             binds = [(cvar, (Var mexpr_id))]
             aexpr''' = liftCaseBinds binds aexpr''
 
-            (eenv'', pcs, ngen'') = adjustExprEnvAndPathConds kv tenv eenv' ngen' dcon dcon''' mexpr_id params news
+            (eenv'', pcs, ngen''') = adjustExprEnvAndPathConds kv tenv eenv' ngen'' dcon dcon''' mexpr_id params news
         in 
           Just (NewPC { state = s{ expr_env = eenv''
                           , curr_expr = CurrExpr Evaluate aexpr'''}
                           , new_pcs = pcs
                           , concretized = [mexpr_id]
-                          }, ngen'')
+                          }, ngen''')
 
 -- [String Concretizations and Constraints]
 -- Generally speaking, the values of symbolic variable are determined by one of two methods:
@@ -544,7 +550,15 @@ adjustExprEnvAndPathConds kv tenv eenv ng dc dc_e mexpr params dc_args
 
         --Update the expr environment
         newIds = zipWith (\(Id _ t) n -> Id n t) params dc_args
-        eenv' = foldr E.insertSymbolic eenv newIds
+        -- insert a concrete coercion between types, using coercion from syntax.hs
+        -- possible error with coercion, need to check it 
+
+        insertSymbolicExceptCoercion i@(Id id_n t) eenv_
+            | TyApp (TyApp (TyApp (TyApp (TyCon tc_n _) _) _) c1) c2 <- t
+            , tc_n == KV.tyCoercion kv = E.insert id_n (Coercion (c1 :~ c2)) eenv_
+            | otherwise = E.insertSymbolic i eenv_
+
+        eenv' = foldr insertSymbolicExceptCoercion eenv newIds 
         -- concretizes the mexpr to have same form as the DataCon specified
         eenv'' = E.insert mexpr_n dc_e eenv' 
 
