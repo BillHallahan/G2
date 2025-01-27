@@ -430,34 +430,31 @@ concretizeVarExpr' s@(State {expr_env = eenv, type_env = tenv, known_values = kv
             clean_olds = map cleanName olds
 
             (news, ngen') = freshSeededNames clean_olds namegen
-
-            (dcon', aexpr') = renameExprs (zip olds news) (Data dcon, aexpr)
+            old_new = zip olds news
 
             -- Differentiating between the existential type variable and the value level arguments 
-            new_params =  map (uncurry Id) $ zip news (map typeOf params)
-            (exist_tys, value_args) = splitAt (length $ dc_exist_tyvars dcon) new_params
-            old_exist = map idName exist_tys
-            clean_exist = map cleanName old_exist
-            (new_exist_name, ngen'') = freshSeededNames clean_exist ngen'
-            exist_tys' = zip old_exist (map typeOf exist_tys) 
-            exist_tys'' = map (Type . TyVar) (map (uncurry Id) exist_tys')
+            (old_new_exists, old_new_value) = splitAt (length $ dc_exist_tyvars dcon) old_new
 
-            value_args' = (map (Var) value_args)
-            univ_and_exist = (HM.toList $ UF.toSimpleMap uf_map'') ++ (zip old_exist (map typeOf exist_tys))
-            univ_and_exist' = (HM.toList $ UF.toSimpleMap uf_map'') ++ (zip new_exist_name (map typeOf exist_tys))
+            -- We use renameExpr as an optimization to rename the value level arguments in `Expr`s, since
+            -- value level arguments cannot appear in types.
+            (dcon', aexpr') = renames (HM.fromList old_new_exists)
+                            $ renameExprs old_new_value (Data dcon, aexpr)
+            params' = renames (HM.fromList old_new) params
 
-            aexpr'' = L.foldl' (\e (n,t) -> retype (Id n (typeOf t)) t e) aexpr' univ_and_exist
+            (exist_tys, value_args) = splitAt (length $ dc_exist_tyvars dcon) params'
 
-            -- introduce type variable and existential variable with its respective instantiation into the expression environment
-            (univ_exist_name, univ_exist_type) = unzip univ_and_exist'
-            eenv' = E.insertExprs (zip univ_exist_name (map Type univ_exist_type)) eenv
+            univ_args = (HM.toList $ UF.toSimpleMap uf_map'')
+            aexpr'' = L.foldl' (\e (n,t) -> retype (Id n (typeOf t)) t e) aexpr' univ_args
+
+            -- Introduce universial type with its respective instantiation into the expression environment
+            (univ_name, univ_type) = unzip univ_args
+            eenv' = E.insertExprs (zip univ_name (map Type univ_type)) eenv
             
             -- Get list of Types to concretize polymorphic data constructor and concatenate with other arguments
             mexpr_t = typeOf mexpr_id
             univ_ars = mexprTyToExpr mexpr_t tenv
 
-
-            exprs = [dcon'] ++ univ_ars ++ exist_tys'' ++ value_args'
+            exprs = [dcon'] ++ univ_ars ++ map (Type . TyVar) exist_tys ++ map Var value_args 
 
             -- Apply list of types (if present) and DataCon children to DataCon
             dcon'' = mkApp exprs
@@ -471,13 +468,13 @@ concretizeVarExpr' s@(State {expr_env = eenv, type_env = tenv, known_values = kv
             binds = [(cvar, (Var mexpr_id))]
             aexpr''' = liftCaseBinds binds aexpr''
 
-            (eenv'', pcs, ngen''') = adjustExprEnvAndPathConds kv tenv eenv' ngen'' dcon dcon''' mexpr_id new_params news
+            (eenv'', pcs, ngen'') = adjustExprEnvAndPathConds kv tenv eenv' ngen' dcon dcon''' mexpr_id params' news
         in 
           Just (NewPC { state = s{ expr_env = eenv''
                           , curr_expr = CurrExpr Evaluate aexpr'''}
                           , new_pcs = pcs
                           , concretized = [mexpr_id]
-                          }, ngen''')
+                          }, ngen'')
 
 -- [String Concretizations and Constraints]
 -- Generally speaking, the values of symbolic variable are determined by one of two methods:
@@ -548,7 +545,6 @@ adjustExprEnvAndPathConds kv tenv eenv ng dc dc_e mexpr params dc_args
     where
         mexpr_n = idName mexpr
 
-        --Update the expr environment
         newIds = zipWith (\(Id _ t) n -> Id n t) params dc_args
 
         insertSymbolicExceptCoercion i@(Id id_n t) eenv_

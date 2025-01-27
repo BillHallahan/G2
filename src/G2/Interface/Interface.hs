@@ -616,10 +616,5 @@ runG2 :: ( MonadIO m
          solver -> simplifier -> MemConfig -> State t -> Bindings -> m ([ExecRes t], Bindings)
 runG2 red hal ord solver simplifier mem is bindings = do
     (exec_states, bindings') <- runG2ThroughExecution red hal ord mem is bindings
-    let n2 =  Name "n" Nothing 6989586621679142071 (Just (Span {start = Loc {line = 88, col = 1, file = "tests/TestFiles/Extensions/GADTs1.hs"}, end = Loc {line = 88, col = 45, file = "tests/TestFiles/Extensions/GADTs1.hs"}}))
-    -- liftIO $ mapM (print . E.lookup n2) (map expr_env exec_states)
     sol_states <- mapM (runG2Solving solver simplifier bindings') exec_states
-    -- liftIO $ mapM (print . E.lookup n2) (map (expr_env . final_state) (catMaybes sol_states))
-    -- liftIO $ putStrLn ("Conc_args: ")
-    -- liftIO $ mapM (print . map(printHaskellDirty)) (map conc_args (catMaybes sol_states))
     return (catMaybes sol_states, bindings')
