@@ -13,11 +13,11 @@ import G2.Solver.Solver
 -- | Converts constraints about ADTs to numerical constraints before sending them to other solvers
 data ADTNumericalSolver solver = ADTNumericalSolver ArbValueFunc solver
 
-adtNumericalSolFinite :: solver -> ADTNumericalSolver solver
-adtNumericalSolFinite = ADTNumericalSolver arbValue
+adtNumericalSolFinite :: KnownValues -> solver -> ADTNumericalSolver solver
+adtNumericalSolFinite kv so = ADTNumericalSolver (arbValue kv) so 
 
-adtNumericalSolInfinite :: solver -> ADTNumericalSolver solver
-adtNumericalSolInfinite = ADTNumericalSolver arbValueInfinite
+adtNumericalSolInfinite :: KnownValues -> solver -> ADTNumericalSolver solver
+adtNumericalSolInfinite kv so = ADTNumericalSolver (arbValueInfinite kv) so 
 
 instance Solver solver => Solver (ADTNumericalSolver solver) where
     check (ADTNumericalSolver _ sol) s pc = return . fst =<< checkConsistency (Tr sol) s pc

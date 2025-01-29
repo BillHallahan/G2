@@ -8,6 +8,7 @@ module G2.Language.ArbValueGen ( ArbValueGen
                                , constArbValue ) where
 
 import G2.Language.Expr
+import G2.Language.KnownValues
 import G2.Language.Support
 import G2.Language.Syntax
 import G2.Language.Typing
@@ -15,6 +16,7 @@ import Data.List
 import qualified Data.HashMap.Lazy as HM
 import Data.Ord
 import Data.Tuple
+import Debug.Trace
 
 -- | A default `ArbValueGen`.
 arbValueInit :: ArbValueGen
@@ -40,25 +42,25 @@ charGenInit = ['a'..'z'] ++ ['A'..'Z'] ++ ['0'..'9']
 -- Returns a new ArbValueGen that (in the case of the primitives)
 -- will give a different value the next time arbValue is called with
 -- the same Type.
-arbValue :: Type -> TypeEnv -> ArbValueGen -> (Expr, ArbValueGen)
-arbValue t tenv = arbValue' getFiniteADT HM.empty t tenv
+arbValue :: KnownValues -> Type -> TypeEnv -> ArbValueGen -> (Expr, ArbValueGen)
+arbValue kv t tenv gen = arbValue' (getFiniteADT kv) HM.empty t tenv gen
 
 -- | Allows the generation of arbitrary values of the given type.
 -- Cuts off recursive ADTs with a Prim Undefined
 -- Returns a new ArbValueGen that is identical to the passed ArbValueGen
-constArbValue :: Type -> TypeEnv -> ArbValueGen -> (Expr, ArbValueGen)
-constArbValue = constArbValue' getFiniteADT HM.empty
+constArbValue :: KnownValues -> Type -> TypeEnv -> ArbValueGen -> (Expr, ArbValueGen)
+constArbValue kv t tenv gen = constArbValue' (getFiniteADT kv) HM.empty t tenv gen
 
 -- | Allows the generation of arbitrary values of the given type.
 -- Does not always cut off recursive ADTs.
 -- Returns a new ArbValueGen that (in the case of the primitives)
 -- will give a different value the next time arbValue is called with
 -- the same Type.
-arbValueInfinite :: Type -> TypeEnv -> ArbValueGen -> (Expr, ArbValueGen)
-arbValueInfinite t = arbValueInfinite' cutOffVal HM.empty t
+arbValueInfinite :: KnownValues -> Type -> TypeEnv -> ArbValueGen -> (Expr, ArbValueGen)
+arbValueInfinite kv t = arbValueInfinite' kv cutOffVal HM.empty t
 
-arbValueInfinite' :: Int -> HM.HashMap Name Type -> Type -> TypeEnv -> ArbValueGen -> (Expr, ArbValueGen)
-arbValueInfinite' cutoff = arbValue' (getADT cutoff)
+arbValueInfinite' :: KnownValues -> Int -> HM.HashMap Name Type -> Type -> TypeEnv -> ArbValueGen -> (Expr, ArbValueGen)
+arbValueInfinite' kv cutoff = arbValue' (getADT kv cutoff)
 
 arbValue' :: GetADT
           -> HM.HashMap Name Type -- ^ Maps TyVar's to Types
@@ -168,10 +170,10 @@ type GetADT = HM.HashMap Name Type -> TypeEnv -> ArbValueGen -> AlgDataTy -> [Ty
 
 -- | Generates an arbitrary value of the given ADT,
 -- but will return something containing @(Prim Undefined)@ instead of an infinite Expr.
-getFiniteADT :: HM.HashMap Name Type -> TypeEnv -> ArbValueGen -> AlgDataTy -> [Type] -> (Expr, ArbValueGen)
-getFiniteADT m tenv av adt ts =
+getFiniteADT :: KnownValues -> HM.HashMap Name Type -> TypeEnv -> ArbValueGen -> AlgDataTy -> [Type] -> (Expr, ArbValueGen)
+getFiniteADT kv m tenv av adt ts =
     let
-        (e, av') = getADT cutOffVal m tenv av adt ts
+        (e, av') = getADT kv cutOffVal m tenv av adt ts
     in 
     (cutOff [] e, av')
 
@@ -187,6 +189,16 @@ cutOff ns a@(App _ _)
             False -> mapArgs (cutOff (n:ns)) a
 cutOff _ e = e
 
+
+extractDCTypes :: KnownValues -> Type -> Maybe (Type, Type)
+extractDCTypes kv (TyForAll i (TyFun (TyApp(TyApp (TyApp (TyApp (TyCon n t') tyfun) ty) t2) t1) t)) =
+    if tyCoercion kv == n 
+    then 
+        trace("The t1 is " ++ show t1 ++ " The t2 is " ++ show t2)Just (t1, t2)
+    else 
+        trace("The name is " ++ show n)Nothing
+extractDCTypes _ _ = trace("extractDCTypes: pattern match not correct") Nothing 
+
 -- | Generates an arbitrary value of the given AlgDataTy
 -- If there is no such finite value, this may return an infinite Expr.
 --
@@ -195,8 +207,8 @@ cutOff _ e = e
 -- To see why this is needed, suppose we are returning an infinitely large Expr.
 -- This Expr will be returned lazily.  But the return of the ArbValueGen is not lazy-
 -- so we must just cut off and return at some point.
-getADT :: Int -> HM.HashMap Name Type -> TypeEnv -> ArbValueGen -> AlgDataTy -> [Type] -> (Expr, ArbValueGen)
-getADT cutoff m tenv av adt ts 
+getADT :: KnownValues -> Int -> HM.HashMap Name Type -> TypeEnv -> ArbValueGen -> AlgDataTy -> [Type] -> (Expr, ArbValueGen)
+getADT kv cutoff m tenv av adt ts 
     | dcs <- dataCon adt
     , _:_ <- dcs =
         let
@@ -207,7 +219,7 @@ getADT cutoff m tenv av adt ts
 
             m' = foldr (uncurry HM.insert) m $ zip (map idName ids) ts
 
-            (av', es) = mapAccumL (\av_ t -> swap $ arbValueInfinite' (cutoff - 1) m' (applyTypeHashMap m' t) tenv av_) av $ anonArgumentTypes min_dc
+            (av', es) = mapAccumL (\av_ t -> swap $ arbValueInfinite' kv (cutoff - 1) m' (applyTypeHashMap m' t) tenv av_) av $ anonArgumentTypes min_dc
 
             final_av = if cutoff >= 0 then av' else av
         in

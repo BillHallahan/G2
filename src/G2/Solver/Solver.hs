@@ -80,11 +80,11 @@ data SomeTrSolver where
 -- | Splits path constraints before sending them to the rest of the solvers
 data GroupRelated a = GroupRelated ArbValueFunc a
 
-groupRelatedFinite :: a -> GroupRelated a
-groupRelatedFinite = GroupRelated arbValue
+groupRelatedFinite :: KnownValues -> a -> GroupRelated a
+groupRelatedFinite kv a' = GroupRelated (arbValue kv) a'
 
-groupRelatedInfinite :: a -> GroupRelated a
-groupRelatedInfinite = GroupRelated arbValueInfinite
+groupRelatedInfinite :: KnownValues -> a -> GroupRelated a
+groupRelatedInfinite kv a' = GroupRelated (arbValueInfinite kv) a'
 
 checkRelated :: TrSolver a => a -> State t -> PathConds -> IO (Result () () (), a)
 checkRelated solver s pc =

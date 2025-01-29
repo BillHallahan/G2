@@ -232,7 +232,7 @@ runExecutionQ s b config = do
   runIO $ do
     let (s', b') = addAssume s b
     
-    SomeSolver solver <- initSolverInfinite config
+    SomeSolver solver <- initSolverInfinite (known_values s) config
     let simplifier = IdSimplifier
     case qqRedHaltOrd config solver simplifier of
         (SomeReducer red, SomeHalter hal, SomeOrderer ord) -> do
@@ -416,7 +416,7 @@ executeAndSolveStates s b = do
 executeAndSolveStates' :: Bindings -> State () -> IO (Maybe (ExecRes ()))
 executeAndSolveStates' b s = do
     config <- qqConfig
-    SomeSolver solver <- initSolverInfinite config
+    SomeSolver solver <- initSolverInfinite (known_values s) config
     let simplifier = IdSimplifier
     case qqRedHaltOrd config solver simplifier of
         (SomeReducer red, SomeHalter hal, _) -> do
@@ -433,12 +433,13 @@ solveStates :: StateExp -> BindingsExp -> Q Exp
 solveStates xs b = do
     varE 'solveStates' `appE` b `appE` xs 
 
+-- sol_states might have an issue associated with the known values
 solveStates' :: ( Named t
                 , ASTContainer t Expr
                 , ASTContainer t G2.Type) => Bindings -> [State t] -> IO (Maybe (ExecRes t))
 solveStates' b xs = do
     config <- qqConfig
-    SomeSolver solver <- initSolverInfinite config
+    SomeSolver solver <- initSolverInfinite (known_values (head xs)) config
     let simplifier = IdSimplifier
     solveStates'' solver simplifier b xs
 

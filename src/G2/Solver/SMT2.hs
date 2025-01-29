@@ -32,6 +32,7 @@ import qualified Data.Text.IO as T
 import qualified Text.Builder as TB
 import System.IO
 import System.Process
+import G2.Language (KnownValues)
 
 data Z3 = Z3 ArbValueFunc (Handle, Handle, ProcessHandle)
 data CVC4 = CVC4 ArbValueFunc (Handle, Handle, ProcessHandle)
@@ -299,13 +300,13 @@ getProcessHandles pr = do
 
     return (h_in, h_out, p)
 
-getZ3 :: Int -> IO Z3
-getZ3 time_out = do
+getZ3 :: KnownValues -> Int -> IO Z3
+getZ3 kv time_out = do
     hhp <- getZ3ProcessHandles time_out
-    return $ Z3 arbValue hhp
+    return $ Z3 (arbValue kv) hhp
 
-getSMT :: Config -> IO SomeSMTSolver
-getSMT = getSMTAV arbValue
+getSMT :: KnownValues -> Config -> IO SomeSMTSolver
+getSMT kv c = getSMTAV (arbValue kv) c
 
 getSMTAV :: ArbValueFunc -> Config -> IO SomeSMTSolver
 getSMTAV avf (Config {smt = ConZ3}) = do
