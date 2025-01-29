@@ -119,3 +119,12 @@ tailPairVec = vecTail $ vecZip (VCons 1 (VCons 2 VNil)) (VCons 'a' (VCons 'b' VN
 vecInit :: Vec (Succ n) a -> Vec n a 
 vecInit (VCons x VNil) = VNil 
 vecInit (VCons x xs@(VCons y ys)) = VCons x (vecInit xs)
+
+
+-- Test cases for ArbValueGen 
+data Contains a where
+    CInt :: Contains Int
+    CBool :: Contains Bool
+
+idCBool :: Contains Bool -> Contains Bool
+idCBool x = x
