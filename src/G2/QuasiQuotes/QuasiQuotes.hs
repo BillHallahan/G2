@@ -439,6 +439,7 @@ solveStates' :: ( Named t
                 , ASTContainer t G2.Type) => Bindings -> [State t] -> IO (Maybe (ExecRes t))
 solveStates' b xs = do
     config <- qqConfig
+    -- TODO: might need to check for potential problem in case of the state being empty
     SomeSolver solver <- initSolverInfinite (known_values (head xs)) config
     let simplifier = IdSimplifier
     solveStates'' solver simplifier b xs

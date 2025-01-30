@@ -14,6 +14,9 @@ import G2.Language.Syntax
 import G2.Language.Typing
 import Data.List
 import qualified Data.HashMap.Lazy as HM
+import qualified Data.Maybe as MA 
+import Control.Monad.Extra
+import qualified G2.Data.UFMap as UF
 import Data.Ord
 import Data.Tuple
 import Debug.Trace
@@ -215,7 +218,10 @@ getADT kv cutoff m tenv av adt ts
             ids = bound_ids adt
 
             -- Finds the DataCon for adt with the least arguments
-            min_dc = minimumBy (comparing (length . anonArgumentTypes)) dcs
+            -- Alternate idea: filter out the 
+            extract_tys = MA.mapMaybe (extractDCTypes kv . dc_type) dcs
+            uf_map = foldM (\uf_map' (t1, t2) -> unify' uf_map' t1 t2) UF.empty extract_tys
+            min_dc = trace("The uf map generated are " ++ show uf_map)minimumBy (comparing (length . anonArgumentTypes)) dcs
 
             m' = foldr (uncurry HM.insert) m $ zip (map idName ids) ts
 
