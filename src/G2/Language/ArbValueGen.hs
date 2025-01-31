@@ -194,12 +194,12 @@ cutOff _ e = e
 
 
 extractDCTypes :: KnownValues -> Type -> Maybe (Type, Type)
-extractDCTypes kv (TyForAll i (TyFun (TyApp(TyApp (TyApp (TyApp (TyCon n t') tyfun) ty) t2) t1) t)) =
+extractDCTypes kv (TyForAll _ (TyFun (TyApp(TyApp (TyApp (TyApp (TyCon n _) _) _) t2) t1) _)) =
     if tyCoercion kv == n 
     then 
-        trace("The t1 is " ++ show t1 ++ " The t2 is " ++ show t2)Just (t1, t2)
+        Just (t1, t2)
     else 
-        trace("The name is " ++ show n)Nothing
+       Nothing
 extractDCTypes _ _ = trace("extractDCTypes: pattern match not correct") Nothing 
 
 -- | Generates an arbitrary value of the given AlgDataTy
@@ -218,10 +218,14 @@ getADT kv cutoff m tenv av adt ts
             ids = bound_ids adt
 
             -- Finds the DataCon for adt with the least arguments
-            -- Alternate idea: filter out the 
+            -- Alternate idea: filter out the coercion that doesn't work using the uf_map 
             extract_tys = MA.mapMaybe (extractDCTypes kv . dc_type) dcs
-            uf_map = foldM (\uf_map' (t1, t2) -> unify' uf_map' t1 t2) UF.empty extract_tys
-            min_dc = trace("The uf map generated are " ++ show uf_map)minimumBy (comparing (length . anonArgumentTypes)) dcs
+            uf_map = MA.mapMaybe (uncurry unify) extract_tys
+            uf_map' = concatMap (HM.toList . UF.toSimpleMap) uf_map
+            uf_map'' = map snd uf_map'
+            dcs' = filter (\dc -> dc_type dc `elem` uf_map'') dcs
+
+            min_dc = minimumBy (comparing (length . anonArgumentTypes)) dcs' 
 
             m' = foldr (uncurry HM.insert) m $ zip (map idName ids) ts
 

@@ -547,6 +547,7 @@ adjustExprEnvAndPathConds kv tenv eenv ng dc dc_e mexpr params dc_args
 
         newIds = zipWith (\(Id _ t) n -> Id n t) params dc_args
 
+        -- TODO: might need to be looking co from vecZip
         insertSymbolicExceptCoercion i@(Id id_n t) eenv_
             | TyApp (TyApp (TyApp (TyApp (TyCon tc_n _) _) _) c1) c2 <- t
             , tc_n == KV.tyCoercion kv = E.insert id_n (Coercion (c1 :~ c2)) eenv_
