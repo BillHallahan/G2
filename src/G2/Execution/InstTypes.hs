@@ -54,7 +54,7 @@ instType st b@(Bindings {name_gen = ng, input_names = ins}) =
 
 -- Introducing a new type for a type variable and substituting the variable in the curr_expr
 instType' :: ASTContainer t Type => (NameGen, State t) -> Id -> (NameGen, State t)
-instType' (ng, st) i 
+instType' (ng, st) i@(Id _ TYPE)
     | isSymbolic (idName i) (expr_env st) =
         let 
             (t,te,ng') = newType ng i (type_env st)
@@ -65,7 +65,7 @@ instType' (ng, st) i
             st'' = replaceTyVar n t st'
         in
         (ng',st'')
-    | otherwise = (ng, st)
+instType' (ng, st) _ = (ng, st)
         
 -- define a new reducer that calls your instType on your onAccept function
 instTypeRed :: (ASTContainer t Type, Monad m) => Reducer m () t

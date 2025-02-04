@@ -14,7 +14,8 @@ import G2.Language.Syntax
 import G2.Language.Typing
 import Data.List
 import qualified Data.HashMap.Lazy as HM
-import qualified Data.Maybe as MA 
+import qualified Data.Maybe as MA
+import Control.Exception 
 import Control.Monad.Extra
 import qualified G2.Data.UFMap as UF
 import Data.Ord
@@ -200,7 +201,7 @@ extractDCTypes kv (TyApp(TyApp (TyApp (TyApp (TyCon n _) _) _) t2) t1) =
         [(t1, t2)]
     else 
        []
-extractDCTypes _ _ = trace("extractDCTypes: pattern match not correct") []
+extractDCTypes _ _ = []
 
 -- | Generates an arbitrary value of the given AlgDataTy
 -- If there is no such finite value, this may return an infinite Expr.
@@ -211,25 +212,29 @@ extractDCTypes _ _ = trace("extractDCTypes: pattern match not correct") []
 -- This Expr will be returned lazily.  But the return of the ArbValueGen is not lazy-
 -- so we must just cut off and return at some point.
 getADT :: KnownValues -> Int -> HM.HashMap Name Type -> TypeEnv -> ArbValueGen -> AlgDataTy -> [Type] -> (Expr, ArbValueGen)
-getADT kv cutoff m tenv av adt ts 
+getADT kv cutoff m tenv av adt ts
+    | [dc] <- dataCon adt
+    , TyApp (TyApp (TyApp (TyApp (TyCon tc_n _) _) _) c1) c2 <- returnType dc
+    , tc_n == tyCoercion kv = (Coercion (c1 :~ c2), av)
     | dcs <- dataCon adt
     , _:_ <- dcs =
         let
             ids = bound_ids adt
 
             -- Finds the DataCon for adt with the least arguments
-            -- Alternate idea: filter out the coercion that doesn't work using the uf_map 
-            -- eval :: (AST t, Monoid a) => (t -> a) -> t -> a 
-            -- it seems like the t is the type and then the a is Maybe 
-            extract_tys =concatMap (\dc -> eval (extractDCTypes kv) (dc_type dc) ) dcs
-            uf_map = MA.mapMaybe (uncurry unify) extract_tys
-            uf_map' = concatMap (HM.toList . UF.toSimpleMap) uf_map
-            uf_map'' = map snd uf_map'
-            dcs' = filter (\dc -> dc_type dc `elem` uf_map'') dcs
+            -- Ideas: currently, we are able to filter the correct constructor(at least based on the test cases)
+            -- it seems like we have to use eval to recursively digging into the constructor
+            -- extract_tys = map (\dc -> eval (extractDCTypes kv) (dc_type dc)) dcs
+            -- uf_map = MA.mapMaybe (uncurry unify) extract_tys
+            -- uf_map' = concatMap (HM.toList . UF.toSimpleMap) uf_map
+            -- -- uf_map'' currently have the correct arguments?
+            -- uf_map'' = filter (\(_, dc) -> dc `elem` ts) uf_map'
+            -- uf_type = map snd uf_map'' 
+            -- dcs' = filter(\dc -> (dc_type dc ) `elem` ts) dcs
 
-            min_dc =  trace("The uf_map' is " ++ show uf_map'
-                                ++ " The corresponding extract_tys is " ++ show extract_tys
-                                ++ " The corresponding uf_map is " ++ show uf_map) minimumBy (comparing (length . anonArgumentTypes)) dcs
+            dcs' = filter checkCoercions dcs
+
+            min_dc = minimumBy (comparing (length . anonArgumentTypes)) dcs'
 
             m' = foldr (uncurry HM.insert) m $ zip (map idName ids) ts
 
@@ -239,3 +244,27 @@ getADT kv cutoff m tenv av adt ts
         in
         (mkApp $ Data min_dc:map Type ts ++ es, final_av)
     | otherwise = (Prim Undefined TyBottom, av)
+    where
+        -- Figure out which data constructor are compatible with the required type, based on coercions.
+        -- Consider:
+        -- ```
+        -- data Contains a where
+        -- CInt :: Contains Int
+        -- CBool :: Contains Bool
+        
+        -- idCBool :: Contains Bool -> Contains Bool
+        -- idCBool x = x
+        -- ```
+        -- x must be a CBool, not a CInt.  To figure this out, we need to know that the type variable a
+        -- has been instantiated with Bool (we learn this from the ts input parameter), that the CBool
+        -- constructor has the (ok) coercion (a ~ Bool) and that CInt has the (disallowed) coercion (a ~ Int) 
+        checkCoercions dc = 
+            let
+                coer = eval (extractDCTypes kv) (dc_type dc)
+                leading_ty = leadingTyForAllBindings dc
+                univ_ty_inst = zip (map TyVar leading_ty) ts
+                uf_map = foldr (\(c1, c2) m_uf -> (\uf -> unify' uf c1 c2) =<< m_uf)
+                                (Just UF.empty)
+                                (coer ++ univ_ty_inst)
+            in
+            assert (length leading_ty >= length ts) MA.isJust uf_map
