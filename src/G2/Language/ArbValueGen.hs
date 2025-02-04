@@ -221,18 +221,10 @@ getADT kv cutoff m tenv av adt ts
         let
             ids = bound_ids adt
 
-            -- Finds the DataCon for adt with the least arguments
-            -- Ideas: currently, we are able to filter the correct constructor(at least based on the test cases)
-            -- it seems like we have to use eval to recursively digging into the constructor
-            -- extract_tys = map (\dc -> eval (extractDCTypes kv) (dc_type dc)) dcs
-            -- uf_map = MA.mapMaybe (uncurry unify) extract_tys
-            -- uf_map' = concatMap (HM.toList . UF.toSimpleMap) uf_map
-            -- -- uf_map'' currently have the correct arguments?
-            -- uf_map'' = filter (\(_, dc) -> dc `elem` ts) uf_map'
-            -- uf_type = map snd uf_map'' 
-            -- dcs' = filter(\dc -> (dc_type dc ) `elem` ts) dcs
+            -- the expr we return will be a good point to start 
+            -- Name "n" Nothing 6341068275337658368 will 
 
-            dcs' = filter checkCoercions dcs
+            dcs' = filter checkDC dcs
 
             min_dc = minimumBy (comparing (length . anonArgumentTypes)) dcs'
 
@@ -258,7 +250,7 @@ getADT kv cutoff m tenv av adt ts
         -- x must be a CBool, not a CInt.  To figure this out, we need to know that the type variable a
         -- has been instantiated with Bool (we learn this from the ts input parameter), that the CBool
         -- constructor has the (ok) coercion (a ~ Bool) and that CInt has the (disallowed) coercion (a ~ Int) 
-        checkCoercions dc = 
+        checkDC dc = 
             let
                 coer = eval (extractDCTypes kv) (dc_type dc)
                 leading_ty = leadingTyForAllBindings dc
@@ -267,4 +259,5 @@ getADT kv cutoff m tenv av adt ts
                                 (Just UF.empty)
                                 (coer ++ univ_ty_inst)
             in
-            assert (length leading_ty >= length ts) MA.isJust uf_map
+            trace ("uf_map = " ++ show uf_map)
+            assert (length leading_ty >= length ts)MA.isJust uf_map

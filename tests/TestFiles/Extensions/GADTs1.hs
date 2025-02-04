@@ -124,6 +124,10 @@ vecInit (VCons x xs@(VCons y ys)) = VCons x (vecInit xs)
 data Contains a where
     CInt :: Contains Int
     CBool :: Contains Bool
-    
+
+instance Eq (Contains a) where
+    CInt == CInt = True
+    CBool == CBool = True
+
 idCBool :: Contains Bool -> Contains Bool
 idCBool x = x
