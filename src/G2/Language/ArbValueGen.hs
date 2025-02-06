@@ -16,7 +16,6 @@ import Data.List
 import qualified Data.HashMap.Lazy as HM
 import qualified Data.Maybe as MA
 import Control.Exception 
-import Control.Monad.Extra
 import qualified G2.Data.UFMap as UF
 import Data.Ord
 import Data.Tuple
@@ -194,15 +193,14 @@ cutOff ns a@(App _ _)
 cutOff _ e = e
 
 
-extractDCTypes :: KnownValues -> Type -> [(Type, Type)]
+extractDCTypes :: KnownValues -> Type -> Maybe (Type, Type)
 extractDCTypes kv (TyApp(TyApp (TyApp (TyApp (TyCon n _) _) _) t2) t1) =
     if tyCoercion kv == n 
     then 
-        [(t1, t2)]
-    else 
-       []
-extractDCTypes _ _ = []
-
+        Just (t1, t2)
+    else
+        Nothing
+extractDCTypes _ _ = Nothing
 -- | Generates an arbitrary value of the given AlgDataTy
 -- If there is no such finite value, this may return an infinite Expr.
 --
@@ -222,9 +220,7 @@ getADT kv cutoff m tenv av adt ts
             ids = bound_ids adt
 
             -- the expr we return will be a good point to start 
-            -- Name "n" Nothing 6341068275337658368 will 
-
-            dcs' = filter checkDC dcs
+            dcs' = MA.mapMaybe checkDC dcs
 
             min_dc = minimumBy (comparing (length . anonArgumentTypes)) dcs'
 
@@ -252,12 +248,25 @@ getADT kv cutoff m tenv av adt ts
         -- constructor has the (ok) coercion (a ~ Bool) and that CInt has the (disallowed) coercion (a ~ Int) 
         checkDC dc = 
             let
-                coer = eval (extractDCTypes kv) (dc_type dc)
+                coer_univ = case extractDCTypes kv (dc_type dc) of 
+                                Just (t1 , t2) -> [(t1,t2)]
+                                Nothing -> []
+
                 leading_ty = leadingTyForAllBindings dc
                 univ_ty_inst = zip (map TyVar leading_ty) ts
-                uf_map = foldr (\(c1, c2) m_uf -> (\uf -> unify' uf c1 c2) =<< m_uf)
+                
+                uf_map_univ = foldr (\(c1, c2) m_uf -> (\uf -> unify' uf c1 c2) =<< m_uf)
                                 (Just UF.empty)
-                                (coer ++ univ_ty_inst)
+                                (coer_univ ++ univ_ty_inst)
+                -- following the same setup like what we did in rules
+                -- for the existential types 
+                exist_tys = map (typeOf . dc_exist_tyvars) dc  
+                coer_exist = MA.mapMaybe (extractDCTypes kv) exist_tys
+                uf_map_exist = foldr (\(c1, c2) m_uf -> (\uf -> unify' uf c1 c2) =<< m_uf)
+                                (Just UF.empty)
+                                coer_exist
+                dc' = case (uf_map_univ, uf_map_exist) of
+                                    (Just _, Just exist) -> Just (dc, map snd (HM.toList $ UF.toSimpleMap exist))
+                                    _ -> Nothing 
             in
-            trace ("uf_map = " ++ show uf_map)
-            assert (length leading_ty >= length ts)MA.isJust uf_map
+            assert (length leading_ty >= length ts) dc'
