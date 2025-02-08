@@ -106,6 +106,7 @@ module G2.Execution.Reducer ( Reducer (..)
 import G2.Config
 import qualified G2.Language.ExprEnv as E
 import G2.Execution.Rules
+import G2.Execution.ExecSkip
 import G2.Language
 import qualified G2.Language.Monad as MD
 import qualified G2.Language.PathConds as PC
@@ -126,6 +127,7 @@ import qualified Data.Text as T
 import Data.Tuple
 import Data.Time.Clock
 import System.Directory
+import Debug.Trace
 
 -- | Used when applying execution rules
 -- Allows tracking extra information to control halting of rule application,
@@ -481,6 +483,10 @@ stdRed share symb_func_eval solver simplifier =
                             return (if r == RuleIdentity then Finished else InProgress, s', b')
                         )
 
+stripTicks :: Expr -> Expr
+stripTicks (Tick _ e) = e
+stripTicks e = e
+
 -- | Pushes non_red_path_conds onto the exec_stack for solving higher order symbolic function 
 nonRedPCSymFuncRed :: Monad m => Reducer m () t
 nonRedPCSymFuncRed = mkSimpleReducer (\_ -> ())
@@ -496,10 +502,10 @@ nonRedPCSymFunc _
                         b@(Bindings { name_gen = ng }) =
     
     let
-        stck' = Stck.push (CurrExprFrame (EnsureEq nre2) cexpr) stck
+        stck' = trace("I am in nonRedPCSymFunc") Stck.push (CurrExprFrame (EnsureEq nre2) cexpr) stck
         s' = s { exec_stack = stck', non_red_path_conds = nrs }
     in
-    case retReplaceSymbFuncTemplate s' ng nre1 of
+    case retReplaceSymbFuncTemplate s' ng (modifyASTs stripTicks nre1) of
         Just (r, s'', ng') -> return (InProgress, zip s'' (repeat ()), b {name_gen = ng'})
         Nothing ->
             let 
@@ -507,7 +513,7 @@ nonRedPCSymFunc _
             in return (InProgress, [(s'', ())], b)
 nonRedPCSymFunc _ s b = return (Finished, [(s, ())], b)
 
--- | A reducer to add library functions in non reduced path constraints for solving later  
+-- | A reducer to add library functions in non reduced path constraints for solving later 
 nonRedLibFuncsReducer :: Monad m => HS.HashSet Name -> Reducer m () t
 nonRedLibFuncsReducer n = mkSimpleReducer (\_ -> ())
                             (nonRedLibFuncs n)
@@ -520,29 +526,26 @@ nonRedLibFuncs names _ s@(State { expr_env = eenv
                          b@(Bindings { name_gen = ng })
     | Var (Id n t):es <- unApp ce
     , hasFuncType (PresType t)
-    , not (hasFuncType ce) = 
+    , not (hasFuncType ce)
+    --, Skip <- trace("I am about to enter canAddToNRPC.  ") canAddToNRPC eenv ce ng names
+    = 
         let
-            isMember =  HS.member n names
-        in
-            case isMember of
-                True -> let
-                            (new_sym, ng') = freshSeededString "sym" ng
-                            new_sym_id = Id new_sym (typeOf ce)
-                            eenv' = E.insertSymbolic new_sym_id eenv
-                            cexpr' = CurrExpr Return (Var new_sym_id)
-                            -- when NRPC moves back to current expression, it immediately gets added as NRPC again.
-                            -- To stop falling into this infinite loop, instead of adding current expression in NRPC
-                            -- we associate a tick (nonRedBlocker) with the expression and then standard reducer reduces
-                            -- this tick.
-                            nonRedBlocker = Name "NonRedBlocker" Nothing 0 Nothing
-                            tick = NamedLoc nonRedBlocker
-                            ce' = mkApp $ (Tick tick (Var (Id n t))):es
-                            s' = s { expr_env = eenv',
-                                    curr_expr = cexpr',
-                                    non_red_path_conds = (ce', Var new_sym_id):nrs } 
-                        in 
-                            return (Finished, [(s', ())], b {name_gen = ng'})
-                False -> return (Finished, [(s, ())], b)
+            (new_sym, ng') = trace("I have come out of canAddToNRPC") freshSeededString "sym" ng
+            new_sym_id = Id new_sym (typeOf ce)
+            eenv' = E.insertSymbolic new_sym_id eenv
+            cexpr' = CurrExpr Return (Var new_sym_id)
+            -- when NRPC moves back to current expression, it immediately gets added as NRPC again.
+            -- To stop falling into this infinite loop, instead of adding current expression in NRPC
+            -- we associate a tick (nonRedBlocker) with the expression and then standard reducer reduces
+            -- this tick.
+            nonRedBlocker = Name "NonRedBlocker" Nothing 0 Nothing
+            tick = NamedLoc nonRedBlocker
+            ce' = mkApp $ (Tick tick (Var (Id n t))):es
+            s' = s { expr_env = eenv',
+            curr_expr = cexpr',
+            non_red_path_conds = (ce', Var new_sym_id):nrs } 
+        in 
+            return (Finished, [(s', ())], b {name_gen = ng'})
 
     | otherwise = return (Finished, [(s, ())], b)
      
