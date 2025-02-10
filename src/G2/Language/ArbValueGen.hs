@@ -19,7 +19,9 @@ import Control.Exception
 import qualified G2.Data.UFMap as UF
 import Data.Ord
 import Data.Tuple
+
 import Debug.Trace
+import Data.Maybe (fromMaybe)
 
 -- | A default `ArbValueGen`.
 arbValueInit :: ArbValueGen
@@ -192,15 +194,18 @@ cutOff ns a@(App _ _)
             False -> mapArgs (cutOff (n:ns)) a
 cutOff _ e = e
 
-
-extractDCTypes :: KnownValues -> Type -> Maybe (Type, Type)
+-- Do it before merging
+-- have this in g2.language.typing
+-- call it extractCoercion
+-- extractCoercions :: knownValues -> Type -> [(Type, Type)]
+extractDCTypes :: KnownValues -> Type -> [(Type, Type)]
 extractDCTypes kv (TyApp(TyApp (TyApp (TyApp (TyCon n _) _) _) t2) t1) =
     if tyCoercion kv == n 
     then 
-        Just (t1, t2)
-    else
-        Nothing
-extractDCTypes _ _ = Nothing
+        [(t1, t2)]
+    else 
+       []
+extractDCTypes _ _ = []
 -- | Generates an arbitrary value of the given AlgDataTy
 -- If there is no such finite value, this may return an infinite Expr.
 --
@@ -222,7 +227,7 @@ getADT kv cutoff m tenv av adt ts
             -- the expr we return will be a good point to start 
             dcs' = MA.mapMaybe checkDC dcs
 
-            min_dc = minimumBy (comparing (length . anonArgumentTypes)) dcs'
+            (min_dc, exist_ty) = minimumBy (comparing (length . anonArgumentTypes . fst)) dcs'
 
             m' = foldr (uncurry HM.insert) m $ zip (map idName ids) ts
 
@@ -230,7 +235,7 @@ getADT kv cutoff m tenv av adt ts
 
             final_av = if cutoff >= 0 then av' else av
         in
-        (mkApp $ Data min_dc:map Type ts ++ es, final_av)
+        (mkApp $ Data min_dc:map Type ts ++ map Type exist_ty ++ es, final_av)
     | otherwise = (Prim Undefined TyBottom, av)
     where
         -- Figure out which data constructor are compatible with the required type, based on coercions.
@@ -246,27 +251,27 @@ getADT kv cutoff m tenv av adt ts
         -- x must be a CBool, not a CInt.  To figure this out, we need to know that the type variable a
         -- has been instantiated with Bool (we learn this from the ts input parameter), that the CBool
         -- constructor has the (ok) coercion (a ~ Bool) and that CInt has the (disallowed) coercion (a ~ Int) 
+
         checkDC dc = 
             let
-                coer_univ = case extractDCTypes kv (dc_type dc) of 
-                                Just (t1 , t2) -> [(t1,t2)]
-                                Nothing -> []
+                coer = eval (extractDCTypes kv) (dc_type dc)
 
                 leading_ty = leadingTyForAllBindings dc
                 univ_ty_inst = zip (map TyVar leading_ty) ts
                 
                 uf_map_univ = foldr (\(c1, c2) m_uf -> (\uf -> unify' uf c1 c2) =<< m_uf)
                                 (Just UF.empty)
-                                (coer_univ ++ univ_ty_inst)
-                -- following the same setup like what we did in rules
-                -- for the existential types 
-                exist_tys = map (typeOf . dc_exist_tyvars) dc  
-                coer_exist = MA.mapMaybe (extractDCTypes kv) exist_tys
-                uf_map_exist = foldr (\(c1, c2) m_uf -> (\uf -> unify' uf c1 c2) =<< m_uf)
-                                (Just UF.empty)
-                                coer_exist
-                dc' = case (uf_map_univ, uf_map_exist) of
-                                    (Just _, Just exist) -> Just (dc, map snd (HM.toList $ UF.toSimpleMap exist))
-                                    _ -> Nothing 
+                                (coer ++ univ_ty_inst)
+                exist_name =map idName (dc_exist_tyvars dc)
+                
+                -- TODO: It might be possible that uf_map doesn't have the existential type variable we are looking for 
+                -- dc' = case uf_map_univ of
+                --                     Just uf_map -> case mapM (\n -> UF.lookup n uf_map) exist_name of
+                --                                     Just exist -> Just (dc, exist)
+                --                                     -- we might need some special attention around this case in which 
+                --                                     Nothing -> Nothing 
+                --                     _ -> Nothing 
+                dc' = uf_map_univ >>= \uf_map -> fmap (\exist -> trace("The dc exist is " ++ show exist
+                                                                    ++ " the corresponding exist_name is " ++ show exist_name)(dc, exist)) (mapM (flip UF.lookup uf_map) exist_name)
             in
-            assert (length leading_ty >= length ts) dc'
+            assert (length leading_ty >= length ts)trace("The exist name is " ++ show exist_name)  dc'
