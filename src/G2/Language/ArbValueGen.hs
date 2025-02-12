@@ -262,16 +262,9 @@ getADT kv cutoff m tenv av adt ts
                 uf_map_univ = foldr (\(c1, c2) m_uf -> (\uf -> unify' uf c1 c2) =<< m_uf)
                                 (Just UF.empty)
                                 (coer ++ univ_ty_inst)
-                exist_name =map idName (dc_exist_tyvars dc)
+                exist_name = map idName (dc_exist_tyvars dc)
                 
-                -- TODO: It might be possible that uf_map doesn't have the existential type variable we are looking for 
-                -- dc' = case uf_map_univ of
-                --                     Just uf_map -> case mapM (\n -> UF.lookup n uf_map) exist_name of
-                --                                     Just exist -> Just (dc, exist)
-                --                                     -- we might need some special attention around this case in which 
-                --                                     Nothing -> Nothing 
-                --                     _ -> Nothing 
-                dc' = uf_map_univ >>= \uf_map -> fmap (\exist -> trace("The dc exist is " ++ show exist
-                                                                    ++ " the corresponding exist_name is " ++ show exist_name)(dc, exist)) (mapM (flip UF.lookup uf_map) exist_name)
+                -- TO DO: finding n1'3 from haskellcheck 
+                dc' = uf_map_univ >>= \uf_map -> fmap (\exist ->(dc, exist)) (mapM (flip UF.lookup uf_map) exist_name)
             in
-            assert (length leading_ty >= length ts)trace("The exist name is " ++ show exist_name)  dc'
+            assert (length leading_ty >= length ts) dc'
