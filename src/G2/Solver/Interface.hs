@@ -95,7 +95,8 @@ subModel (State { expr_env = eenv
         sv = subVar False m eenv tc sub
         sv' = untilEq (simplifyLams . pushCaseAppArgIn) sv
     in
-    trace ("cexpr = " ++ show cexpr ++ "\ncexpr' = " ++ show (s_output sv')) sv'
+        --trace ("cexpr = " ++ show cexpr ++ "\ncexpr' = " ++ show (s_output sv'))
+     sv'
     where
         toVars n = case E.lookup n eenv of
                                 Just e@(Lam _ _ _) -> Just . Var $ Id n (typeOf e)

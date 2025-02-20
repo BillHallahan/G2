@@ -447,8 +447,10 @@ concretizeVarExpr' s@(State {expr_env = eenv, type_env = tenv, known_values = kv
             aexpr'' = L.foldl' (\e (n,t) -> retype (Id n (typeOf t)) t e) aexpr' univ_args
 
             -- Introduce universial type with its respective instantiation into the expression environment
+        
             (univ_name, univ_type) = unzip univ_args
-            eenv' =trace("The univ_name is " ++ show univ_name) E.insertExprs (zip univ_name (map Type univ_type)) eenv
+            univ_type' = renames (HM.fromList old_new_exists) univ_type
+            eenv' = E.insertExprs (zip univ_name (map Type univ_type')) eenv
             
             -- Get list of Types to concretize polymorphic data constructor and concatenate with other arguments
             mexpr_t = typeOf mexpr_id
@@ -1283,7 +1285,6 @@ retReplaceSymbFuncTemplate s@(State { expr_env = eenv
         (fa, ng''') = freshId t1 ng''
         e = Lam TermL fa $ mkApp [f, mkApp (Var fa : xs), Var fa]
         eenv' = foldr E.insertSymbolic eenv xIds
-        -- eenv'' = E.insertSymbolic (idName fId) fId eenv'
         eenv'' = E.insertSymbolic fId eenv'
         eenv''' = E.insert n e eenv''
         (constState, ng'''') = mkFuncConst s es n t1 t2 ng'''
