@@ -21,6 +21,8 @@ import Data.Maybe (mapMaybe, isJust, fromJust)
 import qualified Data.HashMap.Lazy as HM
 import qualified Data.Sequence as S
 
+import Debug.Trace
+
 -- | Concrete instantiations of previously (partially) symbolic values.
 data Subbed = Subbed { s_inputs :: [Expr] -- ^ Concrete `inputNames`
                      , s_output :: Expr -- ^ Concrete `curr_expr`
@@ -91,8 +93,9 @@ subModel (State { expr_env = eenv
                      , s_handles = map (\(n, hi) -> (n, Var $ h_start hi)) $ HM.toList hs }
         
         sv = subVar False m eenv tc sub
+        sv' = untilEq (simplifyLams . pushCaseAppArgIn) sv
     in
-    untilEq (simplifyLams . pushCaseAppArgIn) sv
+    trace ("cexpr = " ++ show cexpr ++ "\ncexpr' = " ++ show (s_output sv')) sv'
     where
         toVars n = case E.lookup n eenv of
                                 Just e@(Lam _ _ _) -> Just . Var $ Id n (typeOf e)
@@ -126,7 +129,12 @@ subVar' inLam mdl eenv tc is cse@(Case e _ _ as) =
             | Just (Alt _ ae) <- L.find (\(Alt (LitAlt l') _) -> l == l') as ->
                 subVar' inLam mdl eenv tc is ae
         _ -> modifyChildren (subVar' inLam mdl eenv tc is) cse
+subVar' _ _ eenv _ _ (Type t) = Type $ modify (subType eenv) t
 subVar' inLam em eenv tc is e = modifyChildren (subVar' inLam em eenv tc is) e
+
+subType :: ExprEnv -> Type -> Type
+subType eenv (TyVar (Id n _)) | Just (Type t) <- E.lookup n eenv = t
+subType _ t = t
 
 isApp :: Expr -> Bool
 isApp (App _ _) = True

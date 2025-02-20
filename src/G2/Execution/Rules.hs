@@ -448,7 +448,7 @@ concretizeVarExpr' s@(State {expr_env = eenv, type_env = tenv, known_values = kv
 
             -- Introduce universial type with its respective instantiation into the expression environment
             (univ_name, univ_type) = unzip univ_args
-            eenv' = E.insertExprs (zip univ_name (map Type univ_type)) eenv
+            eenv' =trace("The univ_name is " ++ show univ_name) E.insertExprs (zip univ_name (map Type univ_type)) eenv
             
             -- Get list of Types to concretize polymorphic data constructor and concatenate with other arguments
             mexpr_t = typeOf mexpr_id
@@ -1184,6 +1184,11 @@ liftBinds kv binds eenv expr ngen = (eenv', expr'', ngen', news)
     -- 'a ~# Int', 'b ~# Float', 'c ~# String'
     -- The code simply does the following:  
     -- 'E a b c' -> 'E Int Float String'
+
+    -- TODO: I think this is the problem in state 54 and state 55
+    -- in which that a name is use for different values 
+    -- look into google docs for further detail but I think we should do the rename first before 
+    -- doing the splitting 
     (coercion, value_args) = L.partition (\(_, e) -> case e of
                                         Coercion _ -> True
                                         _ -> False) binds

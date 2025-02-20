@@ -264,7 +264,6 @@ getADT kv cutoff m tenv av adt ts
                                 (coer ++ univ_ty_inst)
                 exist_name = map idName (dc_exist_tyvars dc)
                 
-                -- TO DO: finding n1'3 from haskellcheck 
                 dc' = uf_map_univ >>= \uf_map -> fmap (\exist ->(dc, exist)) (mapM (flip UF.lookup uf_map) exist_name)
             in
             assert (length leading_ty >= length ts) dc'

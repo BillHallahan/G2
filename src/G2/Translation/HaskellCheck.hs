@@ -35,7 +35,6 @@ import G2.Lib.Printers
 import Control.Exception
 
 import System.Process
-import Debug.Trace
 import Control.Monad.IO.Class
 
 -- | Load the passed module(s) into GHC, and check that the `ExecRes` results are correct.
@@ -123,9 +122,9 @@ runCheck init_pg modN entry chAll b er@(ExecRes {final_state = s, conc_args = ar
                         TyLitChar -> "C# "
                         _ -> ""
     
-    -- ToDo: determine what's happening with outType since this is where Succ n1'3 is coming from
+ 
     let chck = case outStr == "error" || outStr == "undefined" of
-                    False -> trace("The outType is " ++ show outType)mvStr ++ "try (evaluate (" ++ pr_con ++ "(" ++ arsStr ++ ") == " ++ pr_con ++ "("
+                    False -> mvStr ++ "try (evaluate (" ++ pr_con ++ "(" ++ arsStr ++ ") == " ++ pr_con ++ "("
                                         ++ outStr ++ " :: " ++ outType ++ ")" ++ ")) :: IO (Either SomeException Bool)"
                     True -> mvStr ++ "try (evaluate ( (" ++ pr_con ++ "(" ++ arsStr ++ " :: " ++ arsType ++ ")" ++
                                                     ") == " ++ pr_con ++ "(" ++ arsStr ++ "))) :: IO (Either SomeException Bool)"
@@ -133,7 +132,7 @@ runCheck init_pg modN entry chAll b er@(ExecRes {final_state = s, conc_args = ar
     v' <- compileExpr chck
 
     let chArgs = ars ++ [out] 
-    let chAllStr =trace("The str is " ++ show chAll) map (\f -> T.unpack $ printHaskellPG pg s $ mkApp ((simpVar $ T.pack f):chArgs)) chAll
+    let chAllStr = map (\f -> T.unpack $ printHaskellPG pg s $ mkApp ((simpVar $ T.pack f):chArgs)) chAll
     let chAllStr' = map (\str -> "try (evaluate (" ++ str ++ ")) :: IO (Either SomeException Bool)") chAllStr
 
     chAllR <- mapM compileExpr chAllStr'
