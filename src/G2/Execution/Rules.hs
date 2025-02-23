@@ -394,17 +394,7 @@ concretizeVarExpr s ng mexpr_id cvar (x:xs) maybeC = newPCs
                                                 in 
                                                     (x':newPCs', ng'')
                                                     
--- TODO: handle symbolic GADT
--- The current issue we face is that the unificiation is failing in which we are unifiying 
--- the length of a Vec that have the type of Succ Peano with an Int
--- The approach we take here is exactly the same how we handle concrete GADT in which 
--- we want to find the coercion, create the uf-map based on the coercion and retype the expr based on the uf-map genereated from the coercion
--- the code for concrete GADT is in liftBinds after we merge my branch with master
--- We can use the text cases from GADTs1.hs for testing
--- retype the aexpr according to the trace?
--- but how did we make sure which is the coercion?
--- the coercion is contain in the params, it actually the first one introduced in the params 
--- but it's kind of funny it's already trying to coerce Succ Peano with int
+
 
 concretizeVarExpr' :: State t -> NameGen -> Id -> Id -> (DataCon, [Id], Expr) -> Maybe Coercion -> Maybe ((NewPC t), NameGen)
 concretizeVarExpr' s@(State {expr_env = eenv, type_env = tenv, known_values = kv})
@@ -447,8 +437,9 @@ concretizeVarExpr' s@(State {expr_env = eenv, type_env = tenv, known_values = kv
             aexpr'' = L.foldl' (\e (n,t) -> retype (Id n (typeOf t)) t e) aexpr' univ_args
 
             -- Introduce universial type with its respective instantiation into the expression environment
-        
             (univ_name, univ_type) = unzip univ_args
+            -- The universial type might coerce with existential type, 
+            -- therefore, we need to rename the univerisal with existential types to avoid conflicting names
             univ_type' = renames (HM.fromList old_new_exists) univ_type
             eenv' = E.insertExprs (zip univ_name (map Type univ_type')) eenv
             
@@ -1187,10 +1178,6 @@ liftBinds kv binds eenv expr ngen = (eenv', expr'', ngen', news)
     -- The code simply does the following:  
     -- 'E a b c' -> 'E Int Float String'
 
-    -- TODO: I think this is the problem in state 54 and state 55
-    -- in which that a name is use for different values 
-    -- look into google docs for further detail but I think we should do the rename first before 
-    -- doing the splitting 
     (coercion, value_args) = L.partition (\(_, e) -> case e of
                                         Coercion _ -> True
                                         _ -> False) binds
