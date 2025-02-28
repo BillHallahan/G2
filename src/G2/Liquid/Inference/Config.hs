@@ -390,8 +390,7 @@ adjustConfig main_mod s@(SimpleState { expr_env = eenv }) config lhconfig infcon
         --       . E.filter (not . tyVarNoMeas meas tcv)
         --       $ E.filter (not . tyVarRetTy) eenv
 
-        ns_not_main = filter (\(n, _) -> n == "foldr1")
-                    . map (\(Name n m _ _) -> (n, m))
+        ns_not_main = map (\(Name n m _ _) -> (n, m))
                     . filter (\(Name _ m _ _) -> m /= main_mod)
                     $ E.keys eenv
     
