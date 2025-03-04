@@ -254,7 +254,7 @@ getADT kv cutoff m tenv av adt ts
 
         checkDC dc = 
             let
-                coer = eval (extractDCTypes kv) (dc_type dc)
+                coer = eval (getCoercions kv) (dc_type dc)
 
                 leading_ty = leadingTyForAllBindings dc
                 univ_ty_inst = zip (map TyVar leading_ty) ts

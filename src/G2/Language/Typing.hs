@@ -65,6 +65,7 @@ module G2.Language.Typing
     , numTypeArgs
     , typeToExpr
     , getTyApps
+    , getCoercions
     , tyAppsToExpr
     , isADTType
     , isPrimType
@@ -551,6 +552,16 @@ getTyApps (TyForAll _ t) = getTyApps t
 getTyApps (TyFun t _) = getTyApps t
 getTyApps t@(TyApp _ _) = Just t
 getTyApps _ = Nothing
+
+-- This function aims to extract pairs of types being coerced between. Given a coercion t1 :~ t2, the tuple (t1, t2) is returned.
+getCoercions :: KnownValues -> Type -> [(Type, Type)]
+getCoercion kv (TyApp(TyApp (TyApp (TyApp (TyCon n _) _) _) t2) t1) =
+    if tyCoercion kv == n 
+    then 
+        [(t1, t2)]
+    else 
+       []
+extractDCTypes _ _ = []
 
 -- | Given sequence of nested tyApps e.g. tyApp (tyApp ...) ...), returns list of expr level Types, searching through [Id,Type] list in the process
 tyAppsToExpr :: Type -> [(Id, Type)] -> [Expr]

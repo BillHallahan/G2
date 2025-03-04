@@ -408,7 +408,7 @@ concretizeVarExpr' s@(State {expr_env = eenv, type_env = tenv, known_values = kv
         Just uf_map' -> buildNewPC uf_map' ngen
   where
 
-    extract_tys = mapMaybe (extractTypes kv) params
+    extract_tys = eval (T.getCoercions kv) (map typeOf params)
     
     uf_map = foldM (\uf_map' (t1, t2) -> T.unify' uf_map' t1 t2) UF.empty extract_tys
 
@@ -1155,18 +1155,6 @@ addExtConds s ng e1 ais e2 stck =
     in
     ([strue, sfalse], ng)
 
-
--- This function aims to extract pairs of types being coerced between. Given a coercion t1 :~ t2, the tuple (t1, t2) is returned.
--- Typically, t1 represents the type variable, while t2 refers to the concrete types we aim to instantiate t1 with.
-extractTypes :: KnownValues -> Id -> Maybe (Type, Type)
-extractTypes kv (Id _ (TyApp (TyApp (TyApp (TyApp (TyCon n _) _) _) n1) n2)) =
-        if KV.tyCoercion kv == n 
-        then    
-           Just (n1, n2)
-        else
-            Nothing
-extractTypes _ _ = Nothing --error "ExtractTypes: The type of the pattern doesn't have four nested TyApp while its corresponding scrutinee is a coercion"
-
 liftBinds :: KnownValues -> [(Id, Expr)] -> E.ExprEnv -> Expr -> NameGen ->
              (E.ExprEnv, Expr, NameGen, [Name])
 liftBinds kv binds eenv expr ngen = (eenv', expr'', ngen', news)
@@ -1182,11 +1170,8 @@ liftBinds kv binds eenv expr ngen = (eenv', expr'', ngen', news)
                                         Coercion _ -> True
                                         _ -> False) binds
     
-    extract_tys = let tys = mapMaybe (extractTypes kv . fst) coercion in
-                    if null tys
-                        then error "ExtractTypes: it can't isolate the types determined by the coercion"
-                        else tys
-
+    extract_tys = eval (T.getCoercions kv) (map (typeOf . fst) coercion)
+                    
     uf_map = foldM (\uf_map' (t1, t2) -> T.unify' uf_map' t1 t2) UF.empty extract_tys
     
     expr' = case uf_map of
