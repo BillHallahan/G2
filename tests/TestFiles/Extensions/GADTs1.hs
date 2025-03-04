@@ -12,15 +12,16 @@ data Expr a where
   IsZero :: Expr Int -> Expr Bool
   If     :: Expr Bool -> Expr a -> Expr a -> Expr a
 
-instance Eq (Expr a) where
-  (Lit x) == (Lit y) = x == y
-  
-  (Add e1 e2) == (Add e3 e4) = e1 == e3 && e2 == e4
-  
+instance Eq a => Eq (Expr a) where
+  (Lit x) == (Lit y)         = x == y
+
+  (Add a b) == (Add c d)     = a == c && b == d
+
   (IsZero e1) == (IsZero e2) = e1 == e2
-  
+
+  -- Compare condition and both branches
   (If c1 t1 f1) == (If c2 t2 f2) = c1 == c2 && t1 == t2 && f1 == f2
-  
+
   -- If the constructors are different, the expressions are not equal
   _ == _ = False
 

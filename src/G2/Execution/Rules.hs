@@ -408,7 +408,7 @@ concretizeVarExpr' s@(State {expr_env = eenv, type_env = tenv, known_values = kv
         Just uf_map' -> buildNewPC uf_map' ngen
   where
 
-    extract_tys = eval (T.getCoercions kv) (map typeOf params)
+    extract_tys = concatMap (T.getCoercions kv) (map typeOf params)
     
     uf_map = foldM (\uf_map' (t1, t2) -> T.unify' uf_map' t1 t2) UF.empty extract_tys
 
@@ -1170,7 +1170,7 @@ liftBinds kv binds eenv expr ngen = (eenv', expr'', ngen', news)
                                         Coercion _ -> True
                                         _ -> False) binds
     
-    extract_tys = eval (T.getCoercions kv) (map (typeOf . fst) coercion)
+    extract_tys = concatMap (T.getCoercions kv) (map (typeOf . fst) coercion)
                     
     uf_map = foldM (\uf_map' (t1, t2) -> T.unify' uf_map' t1 t2) UF.empty extract_tys
     
