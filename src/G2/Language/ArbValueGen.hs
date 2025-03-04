@@ -194,18 +194,6 @@ cutOff ns a@(App _ _)
             False -> mapArgs (cutOff (n:ns)) a
 cutOff _ e = e
 
--- Do it before merging
--- have this in g2.language.typing
--- call it extractCoercion
--- extractCoercions :: knownValues -> Type -> [(Type, Type)]
-extractDCTypes :: KnownValues -> Type -> [(Type, Type)]
-extractDCTypes kv (TyApp(TyApp (TyApp (TyApp (TyCon n _) _) _) t2) t1) =
-    if tyCoercion kv == n 
-    then 
-        [(t1, t2)]
-    else 
-       []
-extractDCTypes _ _ = []
 -- | Generates an arbitrary value of the given AlgDataTy
 -- If there is no such finite value, this may return an infinite Expr.
 --
