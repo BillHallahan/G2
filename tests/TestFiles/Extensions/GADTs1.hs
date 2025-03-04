@@ -25,6 +25,16 @@ instance Eq a => Eq (Expr a) where
   -- If the constructors are different, the expressions are not equal
   _ == _ = False
 
+-- TODO: the problem now we encounter can be describe as the following:
+-- so we are trying to fix a problem occurring in the validate flag
+--  ((eval (If (IsZero (Lit (1))) (Lit (1)) (IsZero (Lit (0)))))
+-- The problem with the following code is that 
+-- If :: Expr Bool -> Expr a -> Expr a -> Expr a
+-- Therefore, lit 1 and (IsZero (Lit (0)) should be the same type Expr Int or Expr bool but in here it isn't
+-- So the next thing we should do is to create a miminal example
+-- log the states and see what's going on 
+-- but it should be a similar issue we dealt with 
+-- Note: do it over the break
 eval :: Expr a -> a
 eval (Lit n)       = n
 eval (Add x y)     = eval x + eval y

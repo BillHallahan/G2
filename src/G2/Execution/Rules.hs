@@ -394,8 +394,6 @@ concretizeVarExpr s ng mexpr_id cvar (x:xs) maybeC = newPCs
                                                 in 
                                                     (x':newPCs', ng'')
                                                     
-
-
 concretizeVarExpr' :: State t -> NameGen -> Id -> Id -> (DataCon, [Id], Expr) -> Maybe Coercion -> Maybe ((NewPC t), NameGen)
 concretizeVarExpr' s@(State {expr_env = eenv, type_env = tenv, known_values = kv})
                 ngen mexpr_id cvar (dcon, params, aexpr) maybeC = 
