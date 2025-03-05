@@ -60,7 +60,7 @@ initKnownValues eenv tenv tc =
     , dcNothing = dcWithStrName tenv "Maybe" "Nothing"
 
   
-#if MIN_VERSION_GLASGOW_HASKELL(9,6,0,0)
+#if MIN_VERSION_GLASGOW_HASKELL(9,8,0,0)
     , tyUnit = typeWithStrName tenv "Unit"
     , dcUnit = dcWithStrName tenv "()" "Unit"
 #else
