@@ -33,7 +33,7 @@ jobs:
             test: { test: test-lh }
     steps:
     - uses: actions/checkout@v3
-    - uses: haskell/actions/setup@v2
+    - uses: haskell-actions/setup@v2
       id: setup-haskell-cabal
       with:
         ghc-version: ${{ matrix.compiler.ghc }}
@@ -42,7 +42,7 @@ jobs:
     - run: cabal update
     - run: cabal configure --enable-tests -f ${{ matrix.test.lh }}
     - run: cabal freeze
-    - uses: actions/cache@v3
+    - uses: actions/cache@v3g
       with:
         path: |
           ${{ steps.setup-haskell-cabal.outputs.cabal-store }}
