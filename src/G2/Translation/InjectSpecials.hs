@@ -106,7 +106,7 @@ mkTuples ls rs m n | n < 0 = []
 
 #if MIN_VERSION_GLASGOW_HASKELL(9,8,0,0)
                             ty_n = if n == 0 then "Unit" else "Tuple" <> T.pack (show n)
-#elif
+#else
                             ty_n = cons_n
 #endif
                             ns = if n == 0 then [] else map (\i -> Name "a" m i Nothing) [0..n]
