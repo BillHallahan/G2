@@ -21,7 +21,7 @@ jobs:
                     { ghc: '9.8.4', cabal: '3.10' } ]
     steps:
     - uses: actions/checkout@v3
-    - uses: haskell/actions/setup@v2
+    - uses: haskell/actions/setup@v3
       id: setup-haskell-cabal
       with:
         ghc-version: ${{ matrix.compiler.ghc }}
