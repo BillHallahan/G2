@@ -69,28 +69,23 @@ derivingG2Rep' ty = do
 #endif
 
 #if MIN_VERSION_GLASGOW_HASKELL(9,0,2,0)
-genG2Rep :: TH.Name -> [TyVarBndr ()] -> [Con] -> Q Dec
+genG2Rep :: TH.Name -> [TyVarBndr a] -> [Con] -> Q Dec
+genG2RepClause :: TH.Name -> [TyVarBndr a] -> Con -> Q Clause
+genG2RepClause' :: TH.Name -> [TyVarBndr a] -> TH.Name -> [StrictType] -> Q Clause
 #else
 genG2Rep :: TH.Name -> [TyVarBndr] -> [Con] -> Q Dec
+genG2RepClause :: TH.Name -> [TyVarBndr] -> Con -> Q Clause
+genG2RepClause' :: TH.Name -> [TyVarBndr] -> TH.Name -> [StrictType] -> Q Clause
 #endif
+
 genG2Rep tyConName tvs cs = funD 'g2Rep (map (genG2RepClause tyConName tvs) cs)
 
-#if MIN_VERSION_GLASGOW_HASKELL(9,0,2,0)
-genG2RepClause :: TH.Name -> [TyVarBndr ()] -> Con -> Q Clause
-#else
-genG2RepClause :: TH.Name -> [TyVarBndr] -> Con -> Q Clause
-#endif
 genG2RepClause tyConName tvs (NormalC name fieldTypes) =
     genG2RepClause' tyConName tvs name fieldTypes
 genG2RepClause tyConName tvs (InfixC st1 n st2) =
     genG2RepClause' tyConName tvs n [st1, st2]
 genG2RepClause _ _ con = error $ "genG2RepClause: Unhandled case." ++ show con 
 
-#if MIN_VERSION_GLASGOW_HASKELL(9,0,2,0)
-genG2RepClause' :: TH.Name -> [TyVarBndr ()] -> TH.Name -> [StrictType] -> Q Clause
-#else
-genG2RepClause' :: TH.Name -> [TyVarBndr] -> TH.Name -> [StrictType] -> Q Clause
-#endif
 genG2RepClause' tyConName tvs dcNme fieldTypes = do
     tenv <- newName "tenv_rep"
     cleaned <- newName "cleaned"

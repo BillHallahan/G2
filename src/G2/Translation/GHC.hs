@@ -31,6 +31,7 @@ module G2.Translation.GHC ( module GHC
                           , module GHC.Unit.Module.Deps
                           , module GHC.Unit.Module.ModDetails
                           , module GHC.Unit.Module.ModGuts
+                          , module GHC.Utils.Word64
 
                           , HscTarget
 #else
@@ -78,6 +79,7 @@ import GHC.Types.SrcLoc
 import GHC.Types.Unique
 import GHC.Types.Var
 import GHC.Unit.Types
+import GHC.Utils.Word64
 
 #if MIN_VERSION_GLASGOW_HASKELL(9,3,0,0)
 import GHC.Driver.Config.Tidy
