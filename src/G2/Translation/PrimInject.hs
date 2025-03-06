@@ -280,7 +280,11 @@ listName = find ((==) "[]" . nameOcc) . HM.keys
 #endif
 
 unitName :: HM.HashMap Name AlgDataTy -> Maybe Name
+#if MIN_VERSION_GLASGOW_HASKELL(9,8,0,0)
+unitName = find ((==) "Unit" . nameOcc) . HM.keys
+#else
 unitName = find ((==) "()" . nameOcc) . HM.keys
+#endif
 
 replaceFromPD :: HM.HashMap Name AlgDataTy -> Name -> Expr -> Expr
 replaceFromPD pt n e =

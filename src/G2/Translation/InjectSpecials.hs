@@ -113,7 +113,7 @@ mkTuples ls rs m n | n < 0 = []
                             tv = map (TyVar . flip Id TYPE) ns
                         in
                         -- ((s, m, []), [(s, m, [])]) : mkTuples (n - 1)
-                        ((cons_n, m, ns), [(ty_n, m, tv)]) : mkTuples ls rs m (n - 1)
+                        ((ty_n, m, ns), [(cons_n, m, tv)]) : mkTuples ls rs m (n - 1)
 
 mkPrimTuples :: Int -> [(Name, AlgDataTy)]
 mkPrimTuples k =
