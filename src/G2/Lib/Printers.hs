@@ -45,6 +45,7 @@ import qualified Data.HashMap.Lazy as HM
 import qualified Data.HashSet as HS
 import qualified Data.Text as T
 import qualified Data.Text.Internal.Read as T
+import Text.Read
 
 data Clean = Cleaned | Dirty deriving Eq
 
@@ -505,6 +506,8 @@ mkTypeHaskellPG pg (TyFun t1 t2)
     | otherwise = mkTypeHaskellPG pg t1 <> " -> " <> mkTypeHaskellPG pg t2
 mkTypeHaskellPG pg (TyCon n _) | nameOcc n == "List"
                                , nameModule n == Just "GHC.Types" = "[]"
+                               | ("Tuple", k_str) <- T.splitAt 5 (nameOcc n)
+                               , Just k <- readMaybe (T.unpack k_str) = "(" <> T.pack (replicate (k - 1) ',') <> ")"
                                | otherwise = mkNameHaskell pg n
 mkTypeHaskellPG pg (TyApp t1 t2) = "(" <> mkTypeHaskellPG pg t1 <> " " <> mkTypeHaskellPG pg t2 <> ")"
 mkTypeHaskellPG pg (TyForAll i t) = "forall " <> mkIdHaskell pg i <> " . " <> mkTypeHaskellPG pg t
