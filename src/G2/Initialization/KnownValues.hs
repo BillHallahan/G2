@@ -59,8 +59,14 @@ initKnownValues eenv tenv tc =
     , dcJust = dcWithStrName tenv "Maybe" "Just"
     , dcNothing = dcWithStrName tenv "Maybe" "Nothing"
 
+  
+#if MIN_VERSION_GLASGOW_HASKELL(9,8,0,0)
+    , tyUnit = typeWithStrName tenv "Unit"
+    , dcUnit = dcWithStrName tenv "Unit" "()"
+#else
     , tyUnit = typeWithStrName tenv "()"
     , dcUnit = dcWithStrName tenv "()" "()"
+#endif
 
     , tyPrimTuple = typeWithStrName tenv "(#,#)"
     , dcPrimTuple = dcWithStrName tenv "(#,#)" "(#,#)"
