@@ -105,7 +105,10 @@ mkTuples ls rs m n | n < 0 = []
                             cons_n = ls `T.append` T.pack (replicate n ',') `T.append` rs
 
 #if MIN_VERSION_GLASGOW_HASKELL(9,8,0,0)
-                            ty_n = if n == 0 then "Unit" else "Tuple" <> T.pack (show n)
+                            -- Need to add one here to avoid an off-by-one error between type name
+                            -- and number of parentheses in constructor.
+                            -- I.e. Tuple2 has the constructor (,)
+                            ty_n = if n == 0 then "Unit" else "Tuple" <> T.pack (show (n + 1))
 #else
                             ty_n = cons_n
 #endif
