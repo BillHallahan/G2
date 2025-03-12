@@ -18,3 +18,9 @@ testAssume = do
     case x - y > 0 of
         True -> return 1
         False -> error "impossible"
+
+testAssert :: IO Int
+testAssert = do
+    x <- mkSymbolic
+    assertIO (x < x + 1)
+    return 0

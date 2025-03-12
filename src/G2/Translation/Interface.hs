@@ -87,7 +87,7 @@ translateLoaded proj src tr_con config = do
   -- Now the stuff with the actual target
   (f_nm, f_tm, exg2) <- hskToG2ViaEMS tr_con'  tar_ems b_nm b_tnm
   let mb_modname = exg2_mod_names exg2
-  let exg2' = adjustAssume f_nm $ adjustMkSymbolicPrim f_nm exg2
+  let exg2' = adjustAssert f_nm . adjustAssume f_nm $ adjustMkSymbolicPrim f_nm exg2
 
   let merged_exg2 = mergeExtractedG2s [exg2', base_exg2]
   let injected_exg2@ExtractedG2 { exg2_binds = near_final_prog } = specialInject merged_exg2
@@ -117,6 +117,14 @@ adjustAssume nm exg2 =
                  b = Id (Name "b" Nothing 0 Nothing) TyUnknown
                  x = Id (Name "x" Nothing 0 Nothing) (TyVar a) in
                 G2.Lam TypeL a . G2.Lam TermL b . G2.Lam TermL x $ G2.Assume Nothing (G2.Var b) (G2.Var x))
+
+adjustAssert :: NameMap -> ExtractedG2 -> ExtractedG2
+adjustAssert nm exg2 =
+    adjustFunction ("assert", Just "G2.Symbolic") nm exg2
+            (let a = Id (Name "a" Nothing 0 Nothing) TYPE
+                 b = Id (Name "b" Nothing 0 Nothing) TyUnknown
+                 x = Id (Name "x" Nothing 0 Nothing) (TyVar a) in
+                G2.Lam TypeL a . G2.Lam TermL b . G2.Lam TermL x $ G2.Assert Nothing (G2.Var b) (G2.Var x))
 
 adjustFunction :: (T.Text, Maybe T.Text) -> NameMap -> ExtractedG2 -> G2.Expr -> ExtractedG2
 adjustFunction fname@(_, Just _) nm exg2@(ExtractedG2 { exg2_binds = binds}) e =
