@@ -133,7 +133,7 @@ lnt = LNT HM.empty
 --     You Li, Zhendong Su, Linzhang Wang, Xuandong Li
 lengthNSubpathOrderer :: SM.MonadState LengthNTrack m =>
                          Int -- ^ N, the length of the subpaths to track
-                      -> Orderer m [(Int, T.Text)] Int t
+                      -> Orderer m [(Int, T.Text)] Int r t
 lengthNSubpathOrderer n = (mkSimpleOrderer initial order update) { stepOrderer  = step }
     where
         initial _ = []
