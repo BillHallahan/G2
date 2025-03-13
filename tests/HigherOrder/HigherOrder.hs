@@ -24,8 +24,11 @@ streamTail (Stream _ s) = s
 sf :: (Stream -> Int) -> Stream -> Bool
 sf f s = not (f s == f (streamTail s))
 
-thirdOrder :: ((Bool -> Bool) -> Bool) -> Bool
-thirdOrder f = not (f (\b -> case b of { True -> False; False -> True }))
+thirdOrder :: ((Bool -> Bool) -> Bool) -> Int
+thirdOrder f =
+    case not (f (\b -> case b of { True -> False; False -> True })) of
+        True -> 1
+        False -> 2
 
 thirdOrder2 :: ((Bool -> Bool) -> Bool) -> Int
 thirdOrder2 f =

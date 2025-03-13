@@ -56,3 +56,12 @@ map2 = map snd
 
 lengthN :: [Int] -> Int
 lengthN xs = length xs
+
+fibonacci :: [Int]
+fibonacci = let fibs = 0 : 1 : zipWith (+) fibs (tail fibs)  
+            in fibs
+
+testFib :: Bool
+testFib = case length (take 3 fibonacci) of
+        3 -> True
+        _ -> False
