@@ -82,6 +82,7 @@ data Config = Config {
     , fp_handling :: FpHandling -- ^ Whether to use real floating point values or rationals
     , smt :: SMTSolver -- ^ Sets the SMT solver to solve constraints with
     , steps :: Int -- ^ How many steps to take when running States
+    , accept_times :: Bool -- ^ Output the time each state is accepted
     , hpc :: Bool -- ^ Should HPC ticks be generated and tracked during execution?
     , strict :: Bool -- ^ Should the function output be strictly evaluated?
     , timeLimit :: Int -- ^ Seconds
@@ -116,6 +117,7 @@ mkConfig homedir = Config Regular
                    <> metavar "N"
                    <> value 1000
                    <> help "how many steps to take when running states")
+    <*> switch (long "accept-times" <> help "output the time each state is accepted")
     <*> flag False True (long "hpc"
                       <> help "Generate and report on HPC ticks")
     <*> flag True False (long "no-strict" <> help "do not evaluate the output strictly")
@@ -237,6 +239,7 @@ mkConfigDirect homedir as m = Config {
     , fp_handling = RealFP
     , smt = strArg "smt" as m smtSolverArg ConZ3
     , steps = strArg "n" as m read 1000
+    , accept_times = boolArg "accept-times" as m Off
     , hpc = False
     , strict = boolArg "strict" as m On
     , timeLimit = strArg "time" as m read 300

@@ -265,7 +265,7 @@ type RHOStack m = SM.StateT LengthNTrack (SM.StateT PrettyGuide (SM.StateT HpcTr
                    -> simplifier
                    -> Config
                    -> S.HashSet Name
-                   -> (SomeReducer (RHOStack IO) (), SomeHalter (RHOStack IO) (ExecRes ()) (), SomeOrderer (RHOStack IO) (ExecRes ()) ())
+                   -> IO (SomeReducer (RHOStack IO) (), SomeHalter (RHOStack IO) (ExecRes ()) (), SomeOrderer (RHOStack IO) (ExecRes ()) ())
     #-}
 initRedHaltOrd :: (MonadIO m, Solver solver, Simplifier simplifier) =>
                   Maybe T.Text
@@ -273,10 +273,11 @@ initRedHaltOrd :: (MonadIO m, Solver solver, Simplifier simplifier) =>
                -> simplifier
                -> Config
                -> S.HashSet Name
-               -> (SomeReducer (RHOStack m) (), SomeHalter (RHOStack m) (ExecRes ()) (), SomeOrderer (RHOStack m) (ExecRes ()) ())
-initRedHaltOrd mod_name solver simplifier config libFunNames =
-    let
-        share = sharing config
+               -> IO (SomeReducer (RHOStack m) (), SomeHalter (RHOStack m) (ExecRes ()) (), SomeOrderer (RHOStack m) (ExecRes ()) ())
+initRedHaltOrd mod_name solver simplifier config libFunNames = do
+    time_logger <- acceptTimeLogger
+
+    let share = sharing config
 
         state_name = Name "state" Nothing 0 Nothing
 
@@ -294,9 +295,13 @@ initRedHaltOrd mod_name solver simplifier config libFunNames =
                         Nrpc -> liftSomeReducer (SomeReducer (nonRedLibFuncsReducer libFunNames) .== Finished .--> hpc_red f)
                         NoNrpc -> liftSomeReducer (hpc_red f)
 
+        accept_time_red f = case accept_times config of
+                                True -> SomeReducer time_logger .~> nrpc_red f
+                                False -> nrpc_red f
+
         logger_std_red f = case m_logger of
-                            Just logger -> liftSomeReducer (logger .~> nrpc_red f)
-                            Nothing -> liftSomeReducer (nrpc_red f)
+                            Just logger -> liftSomeReducer (logger .~> accept_time_red f)
+                            Nothing -> liftSomeReducer (accept_time_red f)
 
         halter = switchEveryNHalter 20
                  <~> maxOutputsHalter (maxOutputs config)
@@ -306,24 +311,25 @@ initRedHaltOrd mod_name solver simplifier config libFunNames =
         orderer = case search_strat config of
                         Subpath -> SomeOrderer $ lengthNSubpathOrderer (subpath_length config)
                         Iterative -> SomeOrderer $ pickLeastUsedOrderer
-    in
-    case higherOrderSolver config of
-        AllFuncs ->
-            ( logger_std_red retReplaceSymbFuncVar .== Finished .--> SomeReducer nonRedPCRed
-             , SomeHalter halter
-             , orderer)
-        SingleFunc ->
-            ( logger_std_red retReplaceSymbFuncVar .== Finished .--> taggerRed state_name :== Finished --> nonRedPCRed
-             , SomeHalter (discardIfAcceptedTagHalter state_name <~> halter)
-             , orderer)
-        SymbolicFunc ->
-            ( logger_std_red retReplaceSymbFuncTemplate .== Finished .--> SomeReducer nonRedPCRed
-             , SomeHalter halter
-             , orderer)
-        SymbolicFuncNRPC ->
-            ( logger_std_red retReplaceSymbFuncVar .== Finished .--> taggerRed state_name :== Finished --> nonRedPCSymFuncRed
-             , SomeHalter (discardIfAcceptedTagHalter state_name <~> halter)
-             , orderer)
+
+    return $
+        case higherOrderSolver config of
+            AllFuncs ->
+                ( logger_std_red retReplaceSymbFuncVar .== Finished .--> SomeReducer nonRedPCRed
+                , SomeHalter halter
+                , orderer)
+            SingleFunc ->
+                ( logger_std_red retReplaceSymbFuncVar .== Finished .--> taggerRed state_name :== Finished --> nonRedPCRed
+                , SomeHalter (discardIfAcceptedTagHalter state_name <~> halter)
+                , orderer)
+            SymbolicFunc ->
+                ( logger_std_red retReplaceSymbFuncTemplate .== Finished .--> SomeReducer nonRedPCRed
+                , SomeHalter halter
+                , orderer)
+            SymbolicFuncNRPC ->
+                ( logger_std_red retReplaceSymbFuncVar .== Finished .--> taggerRed state_name :== Finished --> nonRedPCSymFuncRed
+                , SomeHalter (discardIfAcceptedTagHalter state_name <~> halter)
+                , orderer)
 
 initSolver :: Config -> IO SomeSolver
 initSolver = initSolver' arbValue
@@ -427,7 +433,8 @@ runG2WithConfig mod_name state config bindings = do
                                                 Just n -> a /= n
                                                 Nothing -> True) exp_env_names
                       Nothing -> exp_env_names
-    (in_out, bindings') <- case initRedHaltOrd mod_name solver simplifier config (S.fromList lib_funcs) of
+    rho <- initRedHaltOrd mod_name solver simplifier config (S.fromList lib_funcs)
+    (in_out, bindings') <- case rho of
                 (red, hal, ord) ->
                     SM.evalStateT
                         (SM.evalStateT

@@ -67,6 +67,7 @@ module G2.Execution.Reducer ( Reducer (..)
                             , simpleLogger
                             , prettyLogger
                             , limLogger
+                            , acceptTimeLogger
                             , LimLogger (..)
                             , currExprLogger
 
@@ -137,6 +138,7 @@ import qualified Data.Text as T
 import qualified Data.Text.IO as T
 import Data.Tuple
 import Data.Time.Clock
+import System.Clock
 import System.Directory
 
 -- | Used when applying execution rules
@@ -196,6 +198,9 @@ data Reducer m rv t = Reducer {
         -- Action to run after a State is accepted.
         , onAccept :: State t -> Bindings -> rv -> m (State t, Bindings)
 
+        -- Action to run after a State is solved.
+        , onSolved :: m ()
+
         -- Action to run after a State is discared.
         , onDiscard :: State t -> rv -> m ()
 
@@ -214,6 +219,7 @@ mkSimpleReducer init_red red_rules =
     , redRules = red_rules
     , updateWithAll = map snd
     , onAccept = \s b _ -> return (s, b)
+    , onSolved = return ()
     , onDiscard = \_ _ -> return ()
     , afterRed = return ()
     }
@@ -225,6 +231,7 @@ liftReducer r = Reducer { initReducer = initReducer r
                         , redRules = \rv s b -> SM.lift ((redRules r) rv s b)
                         , updateWithAll = updateWithAll r
                         , onAccept = \s b rv -> SM.lift ((onAccept r) s b rv)
+                        , onSolved = SM.lift (onSolved r)
                         , onDiscard = \s rv -> SM.lift ((onDiscard r) s rv)
                         , afterRed = SM.lift (afterRed r)}
 
@@ -382,6 +389,10 @@ r1 ~> r2 =
                 (s', b') <- onAccept r1 s b rv1
                 onAccept r2 s' b' rv2
 
+            , onSolved = do
+                onSolved r1
+                onSolved r2
+
             , onDiscard = \s (RC rv1 rv2) -> do
                 onDiscard r1 s rv1
                 onDiscard r2 s rv2
@@ -420,6 +431,10 @@ SomeReducer r1 .~> SomeReducer r2 = SomeReducer (r1 ~> r2)
                 , onAccept = \s b (RC rv1 rv2) -> do
                     (s', b') <- onAccept r1 s b rv1
                     onAccept r2 s' b' rv2
+
+                , onSolved = do
+                    onSolved r1
+                    onSolved r2
 
                 , onDiscard = \s (RC rv1 rv2) -> do
                     onDiscard r1 s rv1
@@ -473,6 +488,10 @@ r1 .|. r2 =
             , onAccept = \s b (RC rv1 rv2) -> do
                 (s', b') <- onAccept r1 s b rv1
                 onAccept r2 s' b' rv2
+
+            , onSolved = do
+                onSolved r1
+                onSolved r2
 
             , onDiscard = \s (RC rv1 rv2) -> do
                 onDiscard r1 s rv1
@@ -964,6 +983,17 @@ currExprLogger ll@(LimLogger { after_n = aft, before_n = bfr, down_path = down }
         updateWithAllLL [(_, l)] = [l]
         updateWithAllLL ss =
             map (\(llt, i) -> llt { ll_offset = ll_offset llt ++ [i] }) $ zip (map snd ss) [1..]
+
+acceptTimeLogger :: MonadIO m => IO (Reducer m () t)
+acceptTimeLogger = do
+    init_time <- getTime Realtime
+    return (mkSimpleReducer (\_ -> ()) (\rv s b -> return (NoProgress, [(s, rv)], b)))
+                        { onSolved = liftIO $ do
+                            accept_time <- getTime Realtime
+                            let diff = diffTimeSpec accept_time init_time
+                                diff_secs = (fromInteger (toNanoSecs diff)) / (10 ^ (9 :: Int) :: Double)
+                            print diff_secs
+                            return () }
 
 -- We use C to combine the halter values for HCombiner
 -- We should never define any other instance of Halter with C, or export it
@@ -1469,10 +1499,12 @@ runReducer' red hal ord solve_r pr rs@(ExState { state = s, reducer_val = r_val,
             | hc == Accept -> do
                 (s', b') <- onAccept red s b r_val
                 er <- solve_r s' b'
-                let pr' = case er of
-                            Just er' -> pr {accepted = er':accepted pr}
-                            Nothing -> pr
-                    jrs = minState ord pr' xs
+                pr' <- case er of
+                            Just er' -> do
+                                onSolved red
+                                return $ pr {accepted = er':accepted pr}
+                            Nothing -> return pr
+                let jrs = minState ord pr' xs
                 case jrs of
                     Just (rs', xs') -> switchState red hal ord solve_r pr' rs' b' xs'
                     Nothing -> return (pr', b')
