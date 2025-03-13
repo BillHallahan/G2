@@ -121,6 +121,7 @@ import G2.Execution.NormalForms
 import G2.Execution.Rules
 import G2.Execution.ExecSkip
 import G2.Interface.ExecRes
+import G2.Execution.ExecSkip
 import G2.Language
 import G2.Language.KnownValues
 import qualified G2.Language.Monad as MD
