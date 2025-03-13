@@ -76,6 +76,7 @@ data Config = Config {
     , maxOutputs :: Maybe Int -- ^ Maximum number of examples/counterexamples to output.  TODO: Currently works only with LiquidHaskell
     , returnsTrue :: Bool -- ^ If True, shows only those inputs that do not return True
     , check_asserts :: Bool -- ^ If True, shows only those inputs that violate asserts
+    , error_asserts :: Bool -- ^ If True, treat error as an assertion violation
     , higherOrderSolver :: HigherOrderSolver -- ^ How to try and solve higher order functions
     , search_strat :: SearchStrategy -- ^ The search strategy for the symbolic executor to use
     , subpath_length :: Int -- ^ When using subpath search strategy, the length of the subpaths.
@@ -103,6 +104,7 @@ mkConfig homedir = Config Regular
     <*> mkMaxOutputs
     <*> switch (long "returns-true" <> help "assert that the function returns true, show only those outputs which return false")
     <*> switch (long "check-asserts" <> help "show only inputs that violate assertions")
+    <*> switch (long "error-asserts" <> help "treat error as an assertion violation")
     <*> mkHigherOrder
     <*> mkSearchStrategy
     <*> option auto (long "subpath-len"
@@ -231,6 +233,7 @@ mkConfigDirect homedir as m = Config {
     , maxOutputs = strArg "max-outputs" as m (Just . read) Nothing
     , returnsTrue = boolArg "returns-true" as m Off
     , check_asserts = boolArg "check-asserts" as m Off
+    , error_asserts = boolArg "error-asserts" as m Off
     , higherOrderSolver = strArg "higher-order" as m higherOrderSolArg SingleFunc
     , search_strat = Iterative
     , subpath_length = 4
