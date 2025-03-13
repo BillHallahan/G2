@@ -75,8 +75,8 @@ rewriteRedHaltOrd :: (MonadIO m, Solver solver, Simplifier simplifier) =>
                      Config ->
                      NebulaConfig ->
                      ( SomeReducer (SM.StateT PrettyGuide m) EquivTracker
-                     , SomeHalter (SM.StateT PrettyGuide m) EquivTracker
-                     , SomeOrderer (SM.StateT PrettyGuide m) EquivTracker)
+                     , SomeHalter (SM.StateT PrettyGuide m) (ExecRes EquivTracker) EquivTracker
+                     , SomeOrderer (SM.StateT PrettyGuide m) (ExecRes EquivTracker) EquivTracker)
 rewriteRedHaltOrd solver simplifier h_opp track_opp config (NC { use_labeled_errors = use_labels }) =
     let
         share = sharing config
@@ -276,7 +276,7 @@ labeledErrorsRed = mkSimpleReducer
             | isLabeledError ce = return (Finished, [(s { exec_stack = S.empty }, rv)], b)
             | otherwise = return (NoProgress, [(s, rv)], b)
 
-labeledErrorsHalter :: Monad m => Halter m () t
+labeledErrorsHalter :: Monad m => Halter m () r t
 labeledErrorsHalter = mkSimpleHalter (const ())
                                      (\hv _ _ -> hv)
                                      stop
@@ -326,7 +326,7 @@ recursionInCase (State { curr_expr = CurrExpr _ e }) =
             p == T.pack "REC" -- && containsCase sk
         _ -> False
 
-enforceProgressHalter :: Monad m => Halter m () EquivTracker
+enforceProgressHalter :: Monad m => Halter m () r EquivTracker
 enforceProgressHalter = mkSimpleHalter
                             (const ())
                             (\_ _ _ -> ())

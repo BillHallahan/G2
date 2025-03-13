@@ -32,6 +32,7 @@ module G2.Liquid.LHReducers ( lhRed
 import G2.Execution.NormalForms
 import G2.Execution.Reducer
 import G2.Execution.Rules
+import G2.Interface.ExecRes
 import G2.Language
 import qualified G2.Language.Stack as Stck
 import qualified G2.Language.ExprEnv as E
@@ -208,7 +209,7 @@ redArbErrors = mkSimpleReducer (const ()) rr
 -- many steps.
 
 -- | Halt if we go `n` steps past another, already accepted state
-lhLimitByAcceptedHalter :: Monad m => Int -> Halter m (Maybe Int) LHTracker
+lhLimitByAcceptedHalter :: Monad m => Int -> Halter m (Maybe Int) (ExecRes LHTracker) LHTracker
 lhLimitByAcceptedHalter co =
     (mkSimpleHalter (const Nothing) update stop (\hv _ _ _ -> hv)) { discardOnStart = discard }
     where
@@ -222,14 +223,15 @@ lhLimitByAcceptedHalter co =
         update _ (Processed { accepted = []}) _ = Nothing
         update _ (Processed { accepted = acc@(_:_)}) _ =
             Just . minimum . map num_steps
-                $ allMin (length . abstract_calls . track) acc
+                . allMin (length . abstract_calls . track)
+                $ map final_state acc
         
         stop Nothing _ _ = return Continue
         stop (Just nAcc) _ s =
             return $ if num_steps s > nAcc + co then Switch else Continue
 
 -- | Runs the state that had the fewest number of rules applied.
-lhLimitByAcceptedOrderer :: Monad m => Orderer m () Int t
+lhLimitByAcceptedOrderer :: Monad m => Orderer m () Int r t
 lhLimitByAcceptedOrderer = mkSimpleOrderer (const ()) (\_ _ -> return . num_steps ) (\_ _ -> return ())
 
 allMin :: Ord b => (a -> b) -> [a] -> [a]
@@ -241,7 +243,7 @@ allMin f xs =
 
 -- | Halt if we abstract more calls than some other already accepted state
 {-# INLINE lhAbsHalter #-}
-lhAbsHalter :: Monad m => Maybe Int -> T.Text -> Maybe T.Text -> ExprEnv -> Halter m Int LHTracker
+lhAbsHalter :: Monad m => Maybe Int -> T.Text -> Maybe T.Text -> ExprEnv -> Halter m Int (ExecRes LHTracker) LHTracker
 lhAbsHalter max_cf entry modn eenv = mkSimpleHalter initial update stop step
     where
         initial _ =
@@ -255,8 +257,8 @@ lhAbsHalter max_cf entry modn eenv = mkSimpleHalter initial update stop step
             fromMaybe init_tr max_cf
 
         update ii (Processed {accepted = acc}) _ =
-            minimum $ ii:mapMaybe (\s -> case true_assert s of
-                                            True -> Just . length . abstract_calls . track $ s
+            minimum $ ii:mapMaybe (\er -> case true_assert (final_state er) of
+                                            True -> Just . length . abstract_calls . track . final_state $ er
                                             False -> Nothing) acc
 
         stop hv _ s =
@@ -284,7 +286,7 @@ initialTrack eenv (NonDet es) = maximum $ map (initialTrack eenv) es
 initialTrack _ _ = 0
 
 {-# INLINE lhMaxOutputsHalter #-}
-lhMaxOutputsHalter :: Monad m => Int -> Halter m Int LHTracker
+lhMaxOutputsHalter :: Monad m => Int -> Halter m Int (ExecRes LHTracker) LHTracker
 lhMaxOutputsHalter mx = (mkSimpleHalter
                             (const mx)
                             (\hv _ _ -> hv)
@@ -293,15 +295,16 @@ lhMaxOutputsHalter mx = (mkSimpleHalter
     where
         discard m (Processed { accepted = acc }) _ = length acc' >= m
             where
-                min_abs = minAbstractCalls acc
-                acc' = filter (\s -> abstractCallsNum s == min_abs) acc
+                acc_s = map final_state acc
+                min_abs = minAbstractCalls acc_s
+                acc' = filter (\s -> abstractCallsNum s == min_abs) acc_s
 
 {-# INLINE lhStdTimerHalter #-}
-lhStdTimerHalter :: (MonadIO m, MonadIO m_run) => NominalDiffTime -> m (Halter m_run Int t)
+lhStdTimerHalter :: (MonadIO m, MonadIO m_run) => NominalDiffTime -> m (Halter m_run Int (ExecRes t) t)
 lhStdTimerHalter ms = lhTimerHalter ms 10
 
 {-# INLINE lhTimerHalter #-}
-lhTimerHalter :: (MonadIO m, MonadIO m_run) => NominalDiffTime -> Int -> m (Halter m_run Int t)
+lhTimerHalter :: (MonadIO m, MonadIO m_run) => NominalDiffTime -> Int -> m (Halter m_run Int (ExecRes t) t)
 lhTimerHalter ms ce = do
     curr <- liftIO $ getCurrentTime
     return $ mkSimpleHalter (const 0)
@@ -311,7 +314,7 @@ lhTimerHalter ms ce = do
     where
         stop it v (Processed { accepted = acc }) _
             | v == 0
-            , any true_assert acc = do
+            , any (true_assert . final_state) acc = do
                 curr <- liftIO $ getCurrentTime
                 let t_diff = diffUTCTime curr it
 
@@ -360,7 +363,7 @@ absRetToRed eenv (FuncCall { returns = r })
 -- | Accepts a state when it is in SWHNF, true_assert is true,
 -- and all abstracted functions have reduced returns.
 -- Discards it if in SWHNF and true_assert is false
-lhAcceptIfViolatedHalter :: Monad m => Halter m () LHTracker
+lhAcceptIfViolatedHalter :: Monad m => Halter m () r LHTracker
 lhAcceptIfViolatedHalter = mkSimpleHalter (const ()) (\_ _ _ -> ()) stop (\_ _ _ _ -> ())
     where
         stop _ _ s =
@@ -376,7 +379,7 @@ lhAcceptIfViolatedHalter = mkSimpleHalter (const ()) (\_ _ _ -> ()) stop (\_ _ _
                     | otherwise -> return Discard
                 False -> return Continue
 
-lhSWHNFHalter :: Monad m => Halter m () LHTracker
+lhSWHNFHalter :: Monad m => Halter m () r LHTracker
 lhSWHNFHalter = mkSimpleHalter (const ()) (\_ _ _ -> ()) stop (\_ _ _ _ -> ())
     where
         stop _ _ s =

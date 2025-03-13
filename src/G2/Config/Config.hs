@@ -75,12 +75,15 @@ data Config = Config {
     , showType :: ShowType -- allow user to see more type information when they are logging states for the execution
     , maxOutputs :: Maybe Int -- ^ Maximum number of examples/counterexamples to output.  TODO: Currently works only with LiquidHaskell
     , returnsTrue :: Bool -- ^ If True, shows only those inputs that do not return True
+    , check_asserts :: Bool -- ^ If True, shows only those inputs that violate asserts
+    , error_asserts :: Bool -- ^ If True, treat error as an assertion violation
     , higherOrderSolver :: HigherOrderSolver -- ^ How to try and solve higher order functions
     , search_strat :: SearchStrategy -- ^ The search strategy for the symbolic executor to use
     , subpath_length :: Int -- ^ When using subpath search strategy, the length of the subpaths.
     , fp_handling :: FpHandling -- ^ Whether to use real floating point values or rationals
     , smt :: SMTSolver -- ^ Sets the SMT solver to solve constraints with
     , steps :: Int -- ^ How many steps to take when running States
+    , accept_times :: Bool -- ^ Output the time each state is accepted
     , hpc :: Bool -- ^ Should HPC ticks be generated and tracked during execution?
     , strict :: Bool -- ^ Should the function output be strictly evaluated?
     , timeLimit :: Int -- ^ Seconds
@@ -101,6 +104,8 @@ mkConfig homedir = Config Regular
     <*> flag Lax Aggressive (long "show-types" <> help "set to show more type information when logging states")
     <*> mkMaxOutputs
     <*> switch (long "returns-true" <> help "assert that the function returns true, show only those outputs which return false")
+    <*> switch (long "check-asserts" <> help "show only inputs that violate assertions")
+    <*> switch (long "error-asserts" <> help "treat error as an assertion violation")
     <*> mkHigherOrder
     <*> mkSearchStrategy
     <*> option auto (long "subpath-len"
@@ -114,6 +119,7 @@ mkConfig homedir = Config Regular
                    <> metavar "N"
                    <> value 1000
                    <> help "how many steps to take when running states")
+    <*> switch (long "accept-times" <> help "output the time each state is accepted")
     <*> flag False True (long "hpc"
                       <> help "Generate and report on HPC ticks")
     <*> flag True False (long "no-strict" <> help "do not evaluate the output strictly")
@@ -228,12 +234,15 @@ mkConfigDirect homedir as m = Config {
     , showType = Lax
     , maxOutputs = strArg "max-outputs" as m (Just . read) Nothing
     , returnsTrue = boolArg "returns-true" as m Off
+    , check_asserts = boolArg "check-asserts" as m Off
+    , error_asserts = boolArg "error-asserts" as m Off
     , higherOrderSolver = strArg "higher-order" as m higherOrderSolArg SingleFunc
     , search_strat = Iterative
     , subpath_length = 4
     , fp_handling = RealFP
     , smt = strArg "smt" as m smtSolverArg ConZ3
     , steps = strArg "n" as m read 1000
+    , accept_times = boolArg "accept-times" as m Off
     , hpc = False
     , strict = boolArg "strict" as m On
     , timeLimit = strArg "time" as m read 300

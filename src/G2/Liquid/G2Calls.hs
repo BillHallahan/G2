@@ -41,10 +41,10 @@ import G2.Solver.Language (ASTContainer(modifyContainedASTs))
 -- | The function to actually use for Symbolic Execution
 type G2Call solver simplifier =
     forall m t . ( MonadIO m
-                 , Named t
-                 , ASTContainer t Expr
-                 , ASTContainer t Type) =>
-        SomeReducer m t -> SomeHalter m t -> SomeOrderer m t -> solver -> simplifier -> MemConfig -> State t -> Bindings -> m ([ExecRes t], Bindings)
+                   , Named t
+                   , ASTContainer t Expr
+                   , ASTContainer t Type) =>
+        SomeReducer m t -> SomeHalter m (ExecRes t) t -> SomeOrderer m (ExecRes t) t -> solver -> simplifier -> MemConfig -> State t -> Bindings -> m ([ExecRes t], Bindings)
 
 -------------------------------
 -- Check Abstracted
@@ -292,7 +292,7 @@ hitsLibErrorGatherer = mkSimpleReducer
                       return (NoProgress, [(s { track = (glc, True) }, ())], b)
                 _ -> return (NoProgress, [(s, ())], b)
 
-acceptOnlyOneHalter :: Monad m => Halter m () t
+acceptOnlyOneHalter :: Monad m => Halter m () r t
 acceptOnlyOneHalter =
     (mkSimpleHalter (const ())
                     (\hv _ _ -> hv)

@@ -385,6 +385,10 @@ testFileTests = testGroup "TestFiles"
     , checkExpr "tests/TestFiles/MkSymbolic.hs" 1500 "f" [ Exactly 9 ]
     , checkExpr "tests/TestFiles/MkSymbolic.hs" 1500 "testAssume" [ AtLeast 1
                                                                   , RForAll (\[_, r] -> not (isError r)) ]
+    , checkExprWithConfig "tests/TestFiles/MkSymbolic.hs" Nothing Nothing Nothing "testAssert" [ Exactly 0 ]
+                                                                                    (do
+                                                                                        config <- mkConfigTestIO
+                                                                                        return $ config { check_asserts = True })
 
     , checkInputOutputs "tests/TestFiles/Show.hs" [ ("show1", 1000, [Exactly 1])
                                                   , ("show2", 1000, [Exactly 1])

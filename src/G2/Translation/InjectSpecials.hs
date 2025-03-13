@@ -102,13 +102,21 @@ mkTuples :: T.Text -> T.Text -> Maybe T.Text -> Int -> [((T.Text, Maybe  T.Text,
 mkTuples ls rs m n | n < 0 = []
                    | otherwise =
                         let
-                            s = ls `T.append` T.pack (replicate n ',') `T.append` rs
+                            cons_n = ls `T.append` T.pack (replicate n ',') `T.append` rs
 
+#if MIN_VERSION_GLASGOW_HASKELL(9,8,0,0)
+                            -- Need to add one here to avoid an off-by-one error between type name
+                            -- and number of parentheses in constructor.
+                            -- I.e. Tuple2 has the constructor (,)
+                            ty_n = if n == 0 then "Unit" else "Tuple" <> T.pack (show (n + 1))
+#else
+                            ty_n = cons_n
+#endif
                             ns = if n == 0 then [] else map (\i -> Name "a" m i Nothing) [0..n]
                             tv = map (TyVar . flip Id TYPE) ns
                         in
                         -- ((s, m, []), [(s, m, [])]) : mkTuples (n - 1)
-                        ((s, m, ns), [(s, m, tv)]) : mkTuples ls rs m (n - 1)
+                        ((ty_n, m, ns), [(cons_n, m, tv)]) : mkTuples ls rs m (n - 1)
 
 mkPrimTuples :: Int -> [(Name, AlgDataTy)]
 mkPrimTuples k =

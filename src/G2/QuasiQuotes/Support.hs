@@ -1,4 +1,4 @@
-{-# LANGUAGE BangPatterns #-}
+{-# LANGUAGE BangPatterns, CPP #-}
 {-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE OverloadedStrings #-}
@@ -29,6 +29,7 @@ import Data.Foldable
 import Data.Hashable
 import qualified Data.HashMap.Lazy as HM
 import qualified Data.Text as T
+import Text.Read
 
 data QQName = QQName T.Text (Maybe T.Text)
             deriving (Eq, Show, Read, Generic, Typeable, Data)
@@ -78,6 +79,12 @@ toTHType cleaned t@(TyCon n _)
             Nothing -> error $ "toTHType: Unhandled case\n" ++ show (renames cleaned t)
 toTHType _ t = error $ "toTHType: Unhandled case\n" ++ show t
 
+#if MIN_VERSION_GLASGOW_HASKELL(9,8,0,0)
+tupleNum :: T.Text -> Maybe Int
+tupleNum "Unit" = Just 0
+tupleNum t | 'T':'u':'p':'l':'e':n <- T.unpack t = readMaybe n
+tupleNum _ = Nothing
+#else
 tupleNum :: T.Text -> Maybe Int
 tupleNum = tupleNum' 0 . T.unpack
 
@@ -87,3 +94,4 @@ tupleNum' 0 ('(':xs) = tupleNum' 1 xs
 tupleNum' !n (',':xs) = tupleNum' (1 + n) xs
 tupleNum' !n ")" = Just n
 tupleNum' _ _ = Nothing
+#endif

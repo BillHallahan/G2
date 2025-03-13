@@ -56,6 +56,7 @@ import Data.Maybe
 import qualified Data.HashMap.Lazy as HM
 import qualified Data.HashSet as HS
 import qualified Data.Text as T
+import Data.Word
 import System.FilePath
 import System.Directory
 import G2.Language.AlgDataTy (ADTSource(..))
@@ -502,7 +503,7 @@ mkName :: Name -> G2.Name
 mkName name = G2.Name occ mdl unq sp
   where
     occ = T.pack . occNameString . nameOccName $ name
-    unq = (getKey . nameUnique) name
+    unq = convertUnq . getKey . nameUnique $ name
     mdl = case nameModule_maybe name of
               Nothing -> Nothing
               Just md -> switchModule (T.pack . moduleNameString . moduleName $ md)
@@ -534,12 +535,21 @@ nameLookup nm name = do
                           Nothing -> let n = G2.Name occ mdl unq sp in (n, HM.insert (occ, mdl) n nm)
     where
         occ = T.pack . occNameString . nameOccName $ name
-        unq = getKey . nameUnique $ name
+        unq = convertUnq . getKey . nameUnique $ name
         mdl = case nameModule_maybe name of
                   Nothing -> Nothing
                   Just md -> switchModule (T.pack . moduleNameString . moduleName $ md)
 
         sp = mkSpan $ getSrcSpan name
+
+{-# INLINE convertUnq #-}
+#if MIN_VERSION_GLASGOW_HASKELL(9,8,0,0)
+convertUnq :: Word64 -> Int
+convertUnq = word64ToInt
+#else
+convertUnq :: Int -> Int
+convertUnq = id
+#endif
 
 mkSpan :: SrcSpan -> Maybe G2.Span
 #if MIN_VERSION_GLASGOW_HASKELL(9,0,2,0)
@@ -789,7 +799,10 @@ exportedNames :: ModDetails -> [G2.ExportedName]
 exportedNames = concatMap availInfoNames . md_exports
 
 availInfoNames :: AvailInfo -> [G2.ExportedName]
-#if MIN_VERSION_GLASGOW_HASKELL(9,2,0,0)
+#if MIN_VERSION_GLASGOW_HASKELL(9,8,0,0)
+availInfoNames (Avail n) = [mkName n]
+availInfoNames (AvailTC n ns) = mkName n:map mkName ns
+#elif MIN_VERSION_GLASGOW_HASKELL(9,2,0,0)
 availInfoNames (Avail n) = [greNameToName n]
 availInfoNames (AvailTC n ns) = mkName n:map greNameToName ns
 

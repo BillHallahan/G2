@@ -238,11 +238,11 @@ runExecutionQ s b config = do
         (SomeReducer red, SomeHalter hal, SomeOrderer ord) -> do
             let (s'', b'') = runG2Pre emptyMemConfig s' b'
                 hal' = hal <~> zeroHalter 2000 <~> lemmingsHalter
-            (xs, b''') <- runExecutionToProcessed red hal' ord s'' b''
+            (xs, b''') <- runExecutionToProcessed red hal' ord (\s b -> return $ Just s) s'' b''
 
             case xs of
                 Processed { accepted = acc, discarded = [] } -> do
-                    let acc' = filter (trueCurrExpr) acc
+                    let acc' =  filter (trueCurrExpr) acc
                     return $ Completed acc' b'''
                 _ -> do
                     return $ NonCompleted s'' b''
@@ -252,7 +252,7 @@ runExecutionQ s b config = do
         _ = False
 
 -- | As soon as one States has been discarded, discard all States
-lemmingsHalter :: Monad m => Halter m () t
+lemmingsHalter :: Monad m => Halter m () r t
 lemmingsHalter =
         (mkSimpleHalter
                 (const ())
@@ -271,17 +271,14 @@ moduleName = "THTemp"
 functionName :: String
 functionName = "g2Expr"
 
-qqRedHaltOrd :: (MonadIO m, Solver solver, Simplifier simplifier) => Config -> solver -> simplifier -> (SomeReducer m (), SomeHalter m (), SomeOrderer m ())
+qqRedHaltOrd :: (MonadIO m, Solver solver, Simplifier simplifier) => Config -> solver -> simplifier -> (SomeReducer m (), SomeHalter m r (), SomeOrderer m r ())
 qqRedHaltOrd config solver simplifier =
     let
         share = sharing config
-
-        state_name = G2.Name "state" Nothing 0 Nothing
     in
-    ( taggerRed state_name :== Finished .--> nonRedPCRed :== Finished --> stdRed share retReplaceSymbFuncVar solver simplifier
+    ( nonRedPCRed :== Finished --> stdRed share retReplaceSymbFuncVar solver simplifier
     , SomeHalter
-        (discardIfAcceptedTagHalter state_name 
-        <~> acceptIfViolatedHalter)
+        (acceptIfViolatedHalter)
     , SomeOrderer nextOrderer)
 
 addAssume :: State t -> Bindings -> (State t, Bindings)
@@ -399,7 +396,7 @@ type StateExp = Q Exp
 type StateListExp = Q Exp
 type BindingsExp = Q Exp
 
-errorHalter :: Monad m => Halter m () t
+errorHalter :: Monad m => Halter m () r t
 errorHalter = mkSimpleHalter
                     (const ())
                     (\_ _ _ -> ())
@@ -449,7 +446,7 @@ solveStates'' :: ( Named t
                  , Simplifier simplifier) => solver -> simplifier -> Bindings -> [State t] -> IO (Maybe (ExecRes t))
 solveStates'' _ _ _ [] = return Nothing
 solveStates'' sol simplifier b (s:xs) = do
-    m_ex_res <- runG2Solving sol simplifier b s
+    m_ex_res <- runG2Solving sol simplifier s b
     case m_ex_res of
         Just _ -> do
             return m_ex_res
