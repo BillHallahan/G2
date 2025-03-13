@@ -354,7 +354,7 @@ testFileTests = testGroup "TestFiles"
                                                    , ("g", 400, [AtLeast 3]) ]
 
     , checkInputOutputsTemplate "tests/HigherOrder/HigherOrder.hs" [ ("f", 50, [AtLeast 5])
-                                                                   , ("h", 100, [AtLeast 3])
+                                                                   , ("h", 150, [AtLeast 3])
                                                                    , ("assoc", 200, [AtLeast 5])
                                                                    , ("sf", 150, [AtLeast 5])
                                                                    , ("thirdOrder", 75, [AtLeast 10])
@@ -367,14 +367,15 @@ testFileTests = testGroup "TestFiles"
                                                                        , ("tupleTest", 175, [AtLeast 8])]
     , checkInputOutputsNonRedTemp "tests/HigherOrder/HigherOrder.hs" [ ("f", 200, [Exactly 3])
                                                                      , ("h", 150, [Exactly 2])
-                                                                     , ("assoc", 200, [Exactly 2])
+                                                                     , ("assoc", 250, [Exactly 2])
                                                                      , ("sf", 200, [Exactly 2])
                                                                      , ("thirdOrder", 300, [Exactly 2])
                                                                      , ("thirdOrder2", 300, [Exactly 3])
                                                                      , ("tupleTestMono", 175, [Exactly 2])
                                                                      , ("multiPrim", 300, [Exactly 2])]
     , checkInputOutputsNonRedLib "tests/BaseTests/ListTests.hs" [ ("lengthN", 800, [AtLeast 5])
-                                                                , ("map2", 150, [AtLeast 2])] 
+                                                                , ("map2", 150, [AtLeast 2])
+                                                                , ("testFib", 1300, [Atleast 1])] 
     -- , checkInputOutput "tests/TestFiles/BadBool.hs" "BadBool" "f" 1400 [AtLeast 1]
     -- , checkExprAssumeAssert "tests/TestFiles/Coercions/GADT.hs" 400 Nothing Nothing "g" 2
     --     [ AtLeast 2

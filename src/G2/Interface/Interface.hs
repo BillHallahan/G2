@@ -1,7 +1,6 @@
 {-# OPTIONS_GHC -Wno-orphans #-}
 
-{-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE FlexibleContexts, LambdaCase, OverloadedStrings #-}
 
 module G2.Interface.Interface ( MkCurrExpr
                               , MkArgTypes
@@ -420,11 +419,11 @@ runG2WithConfig mod_name state config bindings = do
     SomeSolver solver <- initSolver config
     hpc_t <- hpcTracker
     let simplifier = FloatSimplifier :>> ArithSimplifier
-        exp_env_names = E.keys $ expr_env state
+        exp_env_names = E.keys . E.filterConcOrSym (\case { E.Sym _ -> False; E.Conc _ -> True }) $ expr_env state
 
         lib_funcs = case mod_name  of
                       Just a -> filter (\x -> case nameModule x of
-                                                Just n -> a /= n
+                                                Just n -> a == n
                                                 Nothing -> True) exp_env_names
                       Nothing -> exp_env_names
     (in_out, bindings') <- case initRedHaltOrd mod_name solver simplifier config (S.fromList lib_funcs) of

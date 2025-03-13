@@ -552,6 +552,8 @@ prettyState pg s =
         , T.pack (show (true_assert s))
         , "----- [Assert FC] ---------------------"
         , pretty_assert_fcs
+        , "----- [Tags] ---------------------"
+        , pretty_tags
         , "----- [Tracker] ---------------------"
         , T.pack (show (track s))
         , "----- [Pretty] ---------------------"
@@ -568,6 +570,7 @@ prettyState pg s =
         pretty_tenv = prettyTypeEnv pg (type_env s)
         pretty_tc = prettyTypeClasses pg (type_classes s)
         pretty_assert_fcs = maybe "None" (printFuncCallPG pg) (assert_ids s)
+        pretty_tags = T.intercalate ", " . map (mkNameHaskell pg) $ HS.toList (tags s)
         pretty_names = prettyGuideStr pg
 
 
