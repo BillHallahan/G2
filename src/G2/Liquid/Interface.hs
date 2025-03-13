@@ -373,8 +373,8 @@ processLiquidReadyStateWithCall lrs@(LiquidReadyState { lr_state = lhs@(LHState 
 runLHG2 :: (MonadIO m, Solver solver, Simplifier simplifier)
         => Config
         -> SomeReducer m LHTracker
-        -> SomeHalter m LHTracker
-        -> SomeOrderer m LHTracker
+        -> SomeHalter m (ExecRes LHTracker) LHTracker
+        -> SomeOrderer m (ExecRes LHTracker) LHTracker
         -> solver
         -> simplifier
         -> MemConfig
@@ -435,8 +435,8 @@ lhReducerHalterOrderer :: (MonadIO m, Solver solver, Simplifier simplifier)
                        -> CounterfactualName
                        -> State t
                        -> ( SomeReducer (SM.StateT PrettyGuide m) LHTracker
-                          , SomeHalter (SM.StateT PrettyGuide m) LHTracker
-                          , SomeOrderer (SM.StateT PrettyGuide m) LHTracker)
+                          , SomeHalter (SM.StateT PrettyGuide m) (ExecRes LHTracker) LHTracker
+                          , SomeOrderer (SM.StateT PrettyGuide m) (ExecRes LHTracker) LHTracker)
 lhReducerHalterOrderer config lhconfig solver simplifier entry mb_modname cfn st =
     let
 

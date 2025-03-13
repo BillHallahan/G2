@@ -31,7 +31,6 @@ module G2.Interface.Interface ( MkCurrExpr
                               , runG2WithSomes
                               , runG2Pre
                               , runG2Post
-                              , runG2ThroughExecution
                               , runExecution
                               , runG2SolvingResult
                               , runG2Solving
@@ -251,11 +250,12 @@ type RHOStack m = SM.StateT LengthNTrack (SM.StateT PrettyGuide (SM.StateT HpcTr
 
 {-# SPECIALIZE runReducer :: Ord b =>
                              Reducer (RHOStack IO) rv ()
-                          -> Halter (RHOStack IO) hv ()
-                          -> Orderer (RHOStack IO) sov b ()
+                          -> Halter (RHOStack IO) hv (ExecRes ()) ()
+                          -> Orderer (RHOStack IO) sov b (ExecRes ()) ()
+                          -> (State () -> Bindings -> RHOStack IO (Maybe (ExecRes ())))
                           -> State ()
                           -> Bindings
-                          -> (RHOStack IO) (Processed (State ()), Bindings)
+                          -> (RHOStack IO) (Processed (ExecRes ()) (State ()), Bindings)
     #-}
 
 {-# SPECIALIZE 
@@ -265,7 +265,7 @@ type RHOStack m = SM.StateT LengthNTrack (SM.StateT PrettyGuide (SM.StateT HpcTr
                    -> simplifier
                    -> Config
                    -> S.HashSet Name
-                   -> (SomeReducer (RHOStack IO) (), SomeHalter (RHOStack IO) (), SomeOrderer (RHOStack IO) ())
+                   -> IO (SomeReducer (RHOStack IO) (), SomeHalter (RHOStack IO) (ExecRes ()) (), SomeOrderer (RHOStack IO) (ExecRes ()) ())
     #-}
 initRedHaltOrd :: (MonadIO m, Solver solver, Simplifier simplifier) =>
                   Maybe T.Text
@@ -273,10 +273,11 @@ initRedHaltOrd :: (MonadIO m, Solver solver, Simplifier simplifier) =>
                -> simplifier
                -> Config
                -> S.HashSet Name
-               -> (SomeReducer (RHOStack m) (), SomeHalter (RHOStack m) (), SomeOrderer (RHOStack m) ())
-initRedHaltOrd mod_name solver simplifier config libFunNames =
-    let
-        share = sharing config
+               -> IO (SomeReducer (RHOStack m) (), SomeHalter (RHOStack m) (ExecRes ()) (), SomeOrderer (RHOStack m) (ExecRes ()) ())
+initRedHaltOrd mod_name solver simplifier config libFunNames = do
+    time_logger <- acceptTimeLogger
+
+    let share = sharing config
 
         state_name = Name "state" Nothing 0 Nothing
 
@@ -294,9 +295,13 @@ initRedHaltOrd mod_name solver simplifier config libFunNames =
                         Nrpc -> liftSomeReducer (SomeReducer (nonRedLibFuncsReducer libFunNames) .== Finished .--> hpc_red f)
                         NoNrpc -> liftSomeReducer (hpc_red f)
 
+        accept_time_red f = case accept_times config of
+                                True -> SomeReducer time_logger .~> nrpc_red f
+                                False -> nrpc_red f
+
         logger_std_red f = case m_logger of
-                            Just logger -> liftSomeReducer (logger .~> nrpc_red f)
-                            Nothing -> liftSomeReducer (nrpc_red f)
+                            Just logger -> liftSomeReducer (logger .~> accept_time_red f)
+                            Nothing -> liftSomeReducer (accept_time_red f)
 
         halter = switchEveryNHalter 20
                  <~> maxOutputsHalter (maxOutputs config)
@@ -306,24 +311,25 @@ initRedHaltOrd mod_name solver simplifier config libFunNames =
         orderer = case search_strat config of
                         Subpath -> SomeOrderer $ lengthNSubpathOrderer (subpath_length config)
                         Iterative -> SomeOrderer $ pickLeastUsedOrderer
-    in
-    case higherOrderSolver config of
-        AllFuncs ->
-            ( logger_std_red retReplaceSymbFuncVar .== Finished .--> SomeReducer nonRedPCRed
-             , SomeHalter halter
-             , orderer)
-        SingleFunc ->
-            ( logger_std_red retReplaceSymbFuncVar .== Finished .--> taggerRed state_name :== Finished --> nonRedPCRed
-             , SomeHalter (discardIfAcceptedTagHalter state_name <~> halter)
-             , orderer)
-        SymbolicFunc ->
-            ( logger_std_red retReplaceSymbFuncTemplate .== Finished .--> SomeReducer nonRedPCRed
-             , SomeHalter halter
-             , orderer)
-        SymbolicFuncNRPC ->
-            ( logger_std_red retReplaceSymbFuncVar .== Finished .--> taggerRed state_name :== Finished --> nonRedPCSymFuncRed
-             , SomeHalter (discardIfAcceptedTagHalter state_name <~> halter)
-             , orderer)
+
+    return $
+        case higherOrderSolver config of
+            AllFuncs ->
+                ( logger_std_red retReplaceSymbFuncVar .== Finished .--> SomeReducer nonRedPCRed
+                , SomeHalter halter
+                , orderer)
+            SingleFunc ->
+                ( logger_std_red retReplaceSymbFuncVar .== Finished .--> taggerRed state_name :== Finished --> nonRedPCRed
+                , SomeHalter (discardIfAcceptedTagHalter state_name <~> halter)
+                , orderer)
+            SymbolicFunc ->
+                ( logger_std_red retReplaceSymbFuncTemplate .== Finished .--> SomeReducer nonRedPCRed
+                , SomeHalter halter
+                , orderer)
+            SymbolicFuncNRPC ->
+                ( logger_std_red retReplaceSymbFuncVar .== Finished .--> taggerRed state_name :== Finished --> nonRedPCSymFuncRed
+                , SomeHalter (discardIfAcceptedTagHalter state_name <~> halter)
+                , orderer)
 
 initSolver :: Config -> IO SomeSolver
 initSolver = initSolver' arbValue
@@ -427,7 +433,8 @@ runG2WithConfig mod_name state config bindings = do
                                                 Just n -> a /= n
                                                 Nothing -> True) exp_env_names
                       Nothing -> exp_env_names
-    (in_out, bindings') <- case initRedHaltOrd mod_name solver simplifier config (S.fromList lib_funcs) of
+    rho <- initRedHaltOrd mod_name solver simplifier config (S.fromList lib_funcs)
+    (in_out, bindings') <- case rho of
                 (red, hal, ord) ->
                     SM.evalStateT
                         (SM.evalStateT
@@ -450,8 +457,8 @@ runG2WithConfig mod_name state config bindings = do
     runG2WithSomes :: ( Solver solver
                       , Simplifier simplifier)
                 => SomeReducer (RHOStack IO) ()
-                -> SomeHalter (RHOStack IO) ()
-                -> SomeOrderer (RHOStack IO) ()
+                -> SomeHalter (RHOStack IO) (ExecRes ()) ()
+                -> SomeOrderer (RHOStack IO) (ExecRes ()) ()
                 -> solver
                 -> simplifier
                 -> MemConfig
@@ -466,8 +473,8 @@ runG2WithSomes :: ( MonadIO m
                   , Solver solver
                   , Simplifier simplifier)
                => SomeReducer m t
-               -> SomeHalter m t
-               -> SomeOrderer m t
+               -> SomeHalter m (ExecRes t) t
+               -> SomeOrderer m (ExecRes t) t
                -> solver
                -> simplifier
                -> MemConfig
@@ -494,37 +501,10 @@ runG2Post :: ( MonadIO m
              , ASTContainer t Type
              , Solver solver
              , Simplifier simplifier
-             , Ord b) => Reducer m rv t -> Halter m hv t -> Orderer m sov b t ->
+             , Ord b) => Reducer m rv t -> Halter m hv (ExecRes t) t -> Orderer m sov b (ExecRes t) t ->
              solver -> simplifier -> State t -> Bindings -> m ([ExecRes t], Bindings)
 runG2Post red hal ord solver simplifier is bindings = do
-    (exec_states, bindings') <- runExecution red hal ord is bindings
-    sol_states <- mapM (runG2Solving solver simplifier bindings') exec_states
-
-    return (catMaybes sol_states, bindings')
-
-{-# SPECIALISE runG2ThroughExecution ::
-    ( Named t
-    , ASTContainer t Expr
-    , ASTContainer t Type
-    , Ord b) => Reducer IO rv t -> Halter IO hv t -> Orderer IO sov b t ->
-    MemConfig -> State t -> Bindings -> IO ([State t], Bindings) #-}
-{-# SPECIALISE runG2ThroughExecution ::
-    ( Named t
-    , ASTContainer t Expr
-    , ASTContainer t Type
-    , Ord b) => Reducer (SM.StateT PrettyGuide IO) rv t -> Halter (SM.StateT PrettyGuide IO) hv t -> Orderer (SM.StateT PrettyGuide IO) sov b t ->
-    MemConfig -> State t -> Bindings -> SM.StateT PrettyGuide IO ([State t], Bindings) #-}
-runG2ThroughExecution ::
-    ( Monad m
-    , Named t
-    , ASTContainer t Expr
-    , ASTContainer t Type
-    , Ord b) => Reducer m rv t -> Halter m hv t -> Orderer m sov b t ->
-    MemConfig -> State t -> Bindings -> m ([State t], Bindings)
-runG2ThroughExecution red hal ord mem is bindings = do
-    let (is', bindings') = runG2Pre mem is bindings
-    runExecution red hal ord is' bindings'
-{-# INLINABLE runG2ThroughExecution #-}
+    runExecution red hal ord (runG2Solving solver simplifier) is bindings
 
 runG2SolvingResult :: ( Named t
                       , Solver solver
@@ -552,10 +532,10 @@ runG2Solving :: ( MonadIO m
                 , Simplifier simplifier) =>
                 solver
              -> simplifier
-             -> Bindings
              -> State t
+             -> Bindings
              -> m (Maybe (ExecRes t))
-runG2Solving solver simplifier bindings s = do
+runG2Solving solver simplifier s bindings = do
     res <- liftIO $ runG2SolvingResult solver simplifier bindings s
     case res of
         SAT m -> return $ Just m
@@ -599,7 +579,7 @@ runG2SubstModel m s@(State { type_env = tenv, known_values = kv }) bindings =
 
 {-# SPECIALIZE runG2 :: ( Solver solver
                         , Simplifier simplifier
-                        , Ord b) => Reducer (RHOStack IO) rv () -> Halter (RHOStack IO) hv () -> Orderer (RHOStack IO) sov b () ->
+                        , Ord b) => Reducer (RHOStack IO) rv () -> Halter (RHOStack IO) hv (ExecRes ()) () -> Orderer (RHOStack IO) sov b (ExecRes ()) () ->
                         solver -> simplifier -> MemConfig -> State () -> Bindings -> RHOStack IO ([ExecRes ()], Bindings)
     #-}
 
@@ -612,9 +592,8 @@ runG2 :: ( MonadIO m
          , ASTContainer t Type
          , Solver solver
          , Simplifier simplifier
-         , Ord b) => Reducer m rv t -> Halter m hv t -> Orderer m sov b t ->
+         , Ord b) => Reducer m rv t -> Halter m hv (ExecRes t) t -> Orderer m sov b (ExecRes t) t ->
          solver -> simplifier -> MemConfig -> State t -> Bindings -> m ([ExecRes t], Bindings)
 runG2 red hal ord solver simplifier mem is bindings = do
-    (exec_states, bindings') <- runG2ThroughExecution red hal ord mem is bindings
-    sol_states <- mapM (runG2Solving solver simplifier bindings') exec_states
-    return (catMaybes sol_states, bindings')
+    let (is', bindings') = runG2Pre mem is bindings
+    runExecution red hal ord (runG2Solving solver simplifier) is' bindings'
