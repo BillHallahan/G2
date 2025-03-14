@@ -82,6 +82,14 @@ canAddToNRPC eenv e ng names seen_vars
     | Case e' i t alts <- e = 
         let altsExpr = e' : map (\(Alt _ e) -> e) alts
         in checklistOfExprs eenv altsExpr ng names seen_vars
+    
+    | Type _ <- e = Skip
+    | Cast e _ <- e = canAddToNRPC eenv e ng names seen_vars
+    | Tick _ e <- e = canAddToNRPC eenv e ng names seen_vars
+    | NonDet es <- e = checklistOfExprs eenv es ng names seen_vars
+    | SymGen _ _ <- e = Skip
+    | Assume _ e1 e2 <- e = isExecOrSkip (canAddToNRPC eenv e1 ng names seen_vars) (canAddToNRPC eenv e2 ng names seen_vars)
+    | Assert _ e1 e2 <- e = isExecOrSkip (canAddToNRPC eenv e1 ng names seen_vars) (canAddToNRPC eenv e2 ng names seen_vars)
          
     | otherwise = Skip
 
