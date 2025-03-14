@@ -17,6 +17,7 @@ import DynFlags
 import GHC hiding (Name, entry)
 
 import GHC.LanguageExtensions
+import Debug.Trace
 
 import GHC.Paths
 import Data.Either
@@ -122,9 +123,10 @@ runCheck init_pg modN entry chAll b er@(ExecRes {final_state = s, conc_args = ar
                         TyLitChar -> "C# "
                         _ -> ""
     
- 
+    -- the arstr contain the things we want 
+     
     let chck = case outStr == "error" || outStr == "undefined" of
-                    False -> mvStr ++ "try (evaluate (" ++ pr_con ++ "(" ++ arsStr ++ ") == " ++ pr_con ++ "("
+                    False ->trace("the ar type is " ++ show arsType) mvStr ++ "try (evaluate (" ++ pr_con ++ "(" ++ arsStr ++ ") == " ++ pr_con ++ "("
                                         ++ outStr ++ " :: " ++ outType ++ ")" ++ ")) :: IO (Either SomeException Bool)"
                     True -> mvStr ++ "try (evaluate ( (" ++ pr_con ++ "(" ++ arsStr ++ " :: " ++ arsType ++ ")" ++
                                                     ") == " ++ pr_con ++ "(" ++ arsStr ++ "))) :: IO (Either SomeException Bool)"

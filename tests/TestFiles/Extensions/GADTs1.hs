@@ -35,6 +35,26 @@ instance Eq a => Eq (Expr a) where
 -- log the states and see what's going on 
 -- but it should be a similar issue we dealt with 
 -- Note: do it over the break
+
+-- Simplified GADT with enforced type consistency in branches
+data Exp a where
+  ValI  :: Int  -> Exp Int       -- Integer value
+  ValB  :: Bool -> Exp Bool      -- Boolean value
+  Cond  :: Exp a -> Exp a -> Exp a  -- Branches must match type 'a'
+
+instance Eq a => Eq (Exp a) where
+  (ValI x) == (ValI y) = x == y
+  (ValB x) == (ValB y) = x == y
+  (Cond c1 t1) == (Cond c2 t2) =
+    c1 == c2 && t1 == t2
+  _ == _ = False  -- Different constructors are never equal
+
+evalExp :: Exp a -> a
+evalExp (ValI n)   = n
+evalExp (ValB b)   = b
+evalExp (Cond c t) = evalExp t
+
+
 eval :: Expr a -> a
 eval (Lit n)       = n
 eval (Add x y)     = eval x + eval y
