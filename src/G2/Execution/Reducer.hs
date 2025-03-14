@@ -992,6 +992,7 @@ acceptTimeLogger = do
                             accept_time <- getTime Realtime
                             let diff = diffTimeSpec accept_time init_time
                                 diff_secs = (fromInteger (toNanoSecs diff)) / (10 ^ (9 :: Int) :: Double)
+                            putStr "State Accepted: "
                             print diff_secs
                             return () }
 
