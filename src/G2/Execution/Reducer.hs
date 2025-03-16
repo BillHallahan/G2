@@ -1177,8 +1177,7 @@ timerHalter ms def ce = do
                 step
     where
         stop it v (Processed { accepted = acc }) _
-            | v == 0
-            , not (null acc) = do
+            | v == 0 = do
                 curr <- liftIO $ getCurrentTime
                 let diff = diffUTCTime curr it
 

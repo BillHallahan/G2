@@ -276,6 +276,7 @@ initRedHaltOrd :: (MonadIO m, Solver solver, Simplifier simplifier) =>
                -> IO (SomeReducer (RHOStack m) (), SomeHalter (RHOStack m) (ExecRes ()) (), SomeOrderer (RHOStack m) (ExecRes ()) ())
 initRedHaltOrd mod_name solver simplifier config libFunNames = do
     time_logger <- acceptTimeLogger
+    time_halter <- stdTimerHalter (fromInteger . toInteger $ timeLimit config)
 
     let share = sharing config
 
@@ -306,10 +307,12 @@ initRedHaltOrd mod_name solver simplifier config libFunNames = do
         halter = switchEveryNHalter 20
                  <~> maxOutputsHalter (maxOutputs config)
                  <~> acceptIfViolatedHalter
+                 <~> time_halter
 
         halter_step = case step_limit config of
                             True -> SomeHalter (zeroHalter (steps config) <~> halter)
                             False -> SomeHalter halter
+        
 
         orderer = case search_strat config of
                         Subpath -> SomeOrderer $ lengthNSubpathOrderer (subpath_length config)
