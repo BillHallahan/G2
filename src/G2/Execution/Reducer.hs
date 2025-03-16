@@ -88,6 +88,7 @@ module G2.Execution.Reducer ( Reducer (..)
                             , swhnfHalter
                             , acceptIfViolatedHalter
                             , (<~>)
+                            , (.<~>)
                             , zeroHalter
                             , discardIfAcceptedTagHalter
                             , maxOutputsHalter
@@ -1065,6 +1066,12 @@ h1 <~> h2 =
                 map (uncurry C) $ zip shv1' shv2'
             }
 {-# INLINE (<~>) #-}
+
+
+(.<~>) :: Monad m => SomeHalter m r t -> SomeHalter m r t -> SomeHalter m r t
+SomeHalter h1 .<~> SomeHalter h2 = SomeHalter (h1 <~> h2)
+
+{-# INLINE (.<~>) #-}
 
 {-# INLINE swhnfHalter #-}
 swhnfHalter :: Monad m => Halter m () r t

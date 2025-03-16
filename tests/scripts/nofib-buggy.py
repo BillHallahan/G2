@@ -25,10 +25,10 @@ def call_g2_process(filename, func, var_settings, time_limit):
         return TimeoutEx.stdout.decode('utf-8') + "\nTimeout\n"
 
 def run_nofib_bench(filename, var_settings, timeout):
-    return run_g2(filename, "main", ["--check-asserts", "--error-asserts", "--accept-times", "--n", "30000"] + var_settings, timeout)
+    return run_g2(filename, "main", ["--check-asserts", "--error-asserts", "--accept-times", "--no-step-limit"] + var_settings, timeout)
 
 def run_nofib_bench_nrpc(filename, var_settings, timeout):
-    return run_g2(filename, "main", ["--check-asserts", "--error-asserts", "--accept-times", "--n", "30000", "--nrpc", "--higher-order", "symbolic-nrpc"] + var_settings, timeout)
+    return run_nofib_bench(filename, ["--nrpc", "--higher-order", "symbolic-nrpc"] + var_settings, timeout)
 
 def process_output(out):
     reached = re.findall(r"State Accepted: ((?:\d|\.)*)", out)
