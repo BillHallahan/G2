@@ -82,6 +82,7 @@ data Config = Config {
     , subpath_length :: Int -- ^ When using subpath search strategy, the length of the subpaths.
     , fp_handling :: FpHandling -- ^ Whether to use real floating point values or rationals
     , smt :: SMTSolver -- ^ Sets the SMT solver to solve constraints with
+    , step_limit :: Bool -- ^ Should steps be limited when running states?
     , steps :: Int -- ^ How many steps to take when running States
     , accept_times :: Bool -- ^ Output the time each state is accepted
     , hpc :: Bool -- ^ Should HPC ticks be generated and tracked during execution?
@@ -115,6 +116,7 @@ mkConfig homedir = Config Regular
     <*> flag RealFP RationalFP (long "no-real-floats"
                                 <> help "Represent floating point values precisely.  When off, overapproximate as rationals.")
     <*> mkSMTSolver
+    <*> flag True False (long "no-step-limit" <> help "disable step limit")
     <*> option auto (long "n"
                    <> metavar "N"
                    <> value 1000
@@ -241,6 +243,7 @@ mkConfigDirect homedir as m = Config {
     , subpath_length = 4
     , fp_handling = RealFP
     , smt = strArg "smt" as m smtSolverArg ConZ3
+    , step_limit = boolArg' "no-step-limit" as True True False
     , steps = strArg "n" as m read 1000
     , accept_times = boolArg "accept-times" as m Off
     , hpc = False

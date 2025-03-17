@@ -41,14 +41,13 @@ runWithArgs as = do
 
   let tentry = T.pack entry
 
-  _ <- doTimeout (timeLimit config) $ do
-    ((in_out, b), entry_f@(Id (Name _ mb_modname _ _) _)) <-
+  ((in_out, b), entry_f@(Id (Name _ mb_modname _ _) _)) <-
         runG2FromFile proj [src] (fmap T.pack m_assume)
                   (fmap T.pack m_assert) (fmap T.pack m_reaches) 
                   (isJust m_assert || isJust m_reaches || m_retsTrue) 
                   tentry simplTranslationConfig config
 
-    case validate config of
+  case validate config of
         True -> do
             r <- validateStates proj [src] (T.unpack $ fromJust mb_modname) entry [] [Opt_Hpc] b in_out
             if and r then putStrLn "Validated" else putStrLn "There was an error during validation."

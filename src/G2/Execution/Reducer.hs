@@ -88,6 +88,7 @@ module G2.Execution.Reducer ( Reducer (..)
                             , swhnfHalter
                             , acceptIfViolatedHalter
                             , (<~>)
+                            , (.<~>)
                             , zeroHalter
                             , discardIfAcceptedTagHalter
                             , maxOutputsHalter
@@ -992,6 +993,7 @@ acceptTimeLogger = do
                             accept_time <- getTime Realtime
                             let diff = diffTimeSpec accept_time init_time
                                 diff_secs = (fromInteger (toNanoSecs diff)) / (10 ^ (9 :: Int) :: Double)
+                            putStr "State Accepted: "
                             print diff_secs
                             return () }
 
@@ -1064,6 +1066,12 @@ h1 <~> h2 =
                 map (uncurry C) $ zip shv1' shv2'
             }
 {-# INLINE (<~>) #-}
+
+
+(.<~>) :: Monad m => SomeHalter m r t -> SomeHalter m r t -> SomeHalter m r t
+SomeHalter h1 .<~> SomeHalter h2 = SomeHalter (h1 <~> h2)
+
+{-# INLINE (.<~>) #-}
 
 {-# INLINE swhnfHalter #-}
 swhnfHalter :: Monad m => Halter m () r t
@@ -1169,8 +1177,7 @@ timerHalter ms def ce = do
                 step
     where
         stop it v (Processed { accepted = acc }) _
-            | v == 0
-            , not (null acc) = do
+            | v == 0 = do
                 curr <- liftIO $ getCurrentTime
                 let diff = diffUTCTime curr it
 
