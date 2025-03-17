@@ -375,7 +375,8 @@ testFileTests = testGroup "TestFiles"
                                                                      , ("multiPrim", 300, [Exactly 2])]
     , checkInputOutputsNonRedLib "tests/BaseTests/ListTests.hs" [ ("lengthN", 800, [AtLeast 5])
                                                                 , ("map2", 150, [AtLeast 2])
-                                                                , ("testFib", 1300, [AtLeast 1])] 
+                                                                , ("testFib", 1300, [AtLeast 1])]
+    , checkInputOutputsNonRedLib "tests/TestFiles/NRPC/EmptyTuple.hs" [ ("main", 1000, [AtLeast 1])]
     -- , checkInputOutput "tests/TestFiles/BadBool.hs" "BadBool" "f" 1400 [AtLeast 1]
     -- , checkExprAssumeAssert "tests/TestFiles/Coercions/GADT.hs" 400 Nothing Nothing "g" 2
     --     [ AtLeast 2
