@@ -343,6 +343,13 @@ evalCase s@(State { expr_env = eenv
                            , curr_expr = CurrExpr Evaluate mexpr
                            , exec_stack = S.push frame stck }], ng)
 
+  -- If the list of alts is empty, that normally means that the bindee is guaranteed
+  -- to be bottom (either evaluate to an error or not terminate.)  In either case, we would normally
+  -- never then actually try to branch on the case.  However, the executor might reach
+  -- this put if NRPCs are being used, as a bottoming expression may be replaced by a
+  -- symbolic variable.
+  | [] <- alts = (RuleEvalCaseBottom, [newPCEmpty $ s { curr_expr = CurrExpr Evaluate (Prim Error TyBottom) }], ng)
+
   | otherwise = error $ "reduceCase: bad case passed in\n" ++ show mexpr ++ "\n" ++ show alts
   where
         tyConName (TyCon n _) = Just n
