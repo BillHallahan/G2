@@ -562,12 +562,15 @@ nonRedLibFuncsReducer n = mkSimpleReducer (\_ -> ())
 nonRedLibFuncs :: Monad m => HS.HashSet Name -> RedRules m () t
 nonRedLibFuncs names _ s@(State { expr_env = eenv
                          , curr_expr = CurrExpr _ ce
+                         , type_env = tenv
                          , non_red_path_conds = nrs
                          }) 
                          b@(Bindings { name_gen = ng })
     | Var (Id n t):es <- unApp ce
     , hasFuncType (PresType t)
-    , not (hasFuncType ce)
+    -- We want to introduce an NRPC only if the function is fully applied-
+    -- we check "through" newtypes here
+    , not (hasFuncType . PresType . digNewType . typeOf $ ce)
     , Skip <- canAddToNRPC eenv ce ng names HS.empty
     = 
         let
@@ -589,6 +592,10 @@ nonRedLibFuncs names _ s@(State { expr_env = eenv
             return (Finished, [(s', ())], b {name_gen = ng'})
 
     | otherwise = return (Finished, [(s, ())], b)
+    where
+        digNewType (TyCon n _) | Just (NewTyCon { rep_type = rt }) <- HM.lookup n tenv = digNewType rt
+        digNewType (TyApp t1 t2) = digNewType t1
+        digNewType t = t
 
 -- Note [Ignore Update Frames]
 -- In `strictRed`, when deciding whether to split up an expression to force strict evaluation of subexpression,
