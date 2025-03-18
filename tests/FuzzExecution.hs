@@ -52,7 +52,7 @@ fuzzExecution (SB init_state bindings) = do
             )
         
         -- Get information about generated input/outputs when test fails
-        let pg = mkPrettyGuide (map (exprNames . conc_args) ers)
-            er_out = map (printInputOutput pg (Id (Name "call" Nothing 0 Nothing) TyUnknown) b) ers
+        -- let pg = mkPrettyGuide (map (exprNames . conc_args) ers)
+        --     er_out = map (printInputOutput pg (Id (Name "call" Nothing 0 Nothing) TyUnknown) b) ers
         
-        return . counterexample ("er_out = " ++ show er_out) $ not (null ers) ==> property mr)
+        return {- . counterexample ("er_out = " ++ show er_out) -} $ not (null ers) ==> property mr)
