@@ -46,7 +46,13 @@ fuzzExecution (SB init_state bindings) = do
                                                     _ <- execStmt stmt execOptions
                                                     return ()
                                         Nothing -> return ()
+                                    
+                                    -- Actually validate
                                     validateStatesGHC pg Nothing "call" [] b er) ers
             )
         
-        return $ not (null ers) ==> property mr)
+        -- Get information about generated input/outputs when test fails
+        let pg = mkPrettyGuide (map (exprNames . conc_args) ers)
+            er_out = map (printInputOutput pg (Id (Name "call" Nothing 0 Nothing) TyUnknown) b) ers
+        
+        return . counterexample ("er_out = " ++ show er_out) $ not (null ers) ==> property mr)
