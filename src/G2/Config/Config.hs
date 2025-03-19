@@ -86,6 +86,7 @@ data Config = Config {
     , steps :: Int -- ^ How many steps to take when running States
     , accept_times :: Bool -- ^ Output the time each state is accepted
     , hpc :: Bool -- ^ Should HPC ticks be generated and tracked during execution?
+    , hpc_print_times :: Bool -- ^ Print the time each HPC tick is reached?
     , strict :: Bool -- ^ Should the function output be strictly evaluated?
     , timeLimit :: Int -- ^ Seconds
     , validate :: Bool -- ^ If True, run on G2's input, and check against expected output.
@@ -124,6 +125,7 @@ mkConfig homedir = Config Regular
     <*> switch (long "accept-times" <> help "output the time each state is accepted")
     <*> flag False True (long "hpc"
                       <> help "Generate and report on HPC ticks")
+    <*> switch (long "hpc-print-times" <> help "Print the time each HPC tick is reached?")
     <*> flag True False (long "no-strict" <> help "do not evaluate the output strictly")
     <*> option auto (long "time"
                    <> metavar "T"
@@ -247,6 +249,7 @@ mkConfigDirect homedir as m = Config {
     , steps = strArg "n" as m read 1000
     , accept_times = boolArg "accept-times" as m Off
     , hpc = False
+    , hpc_print_times = False
     , strict = boolArg "strict" as m On
     , timeLimit = strArg "time" as m read 300
     , validate  = boolArg "validate" as m Off
