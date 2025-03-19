@@ -71,12 +71,12 @@ markAndSweepPreserving' mc (state@State { expr_env = eenv
                    , type_env = tenv'
                    }
 
-    active = activeNames tenv (E.redirsToExprs eenv) HS.empty $ names cexpr <>
-                                                                names es <>
-                                                                names pc <>
-                                                                names (E.symbolicIds eenv) <>
-                                                                S.fromList higher_ord_rel <>
-                                                                S.fromList (search_names mc)
+    active = activeNames tenv eenv HS.empty $ names cexpr <>
+                                                    names es <>
+                                                    names pc <>
+                                                    names (E.symbolicIds eenv) <>
+                                                    S.fromList higher_ord_rel <>
+                                                    S.fromList (search_names mc)
 
     active' = HS.union (pres_func mc state bindings active) active
 

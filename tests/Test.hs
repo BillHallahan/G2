@@ -376,6 +376,7 @@ testFileTests = testGroup "TestFiles"
     , checkInputOutputsNonRedLib "tests/BaseTests/ListTests.hs" [ ("lengthN", 800, [AtLeast 5])
                                                                 , ("map2", 150, [AtLeast 2])]
     , checkInputOutputsNonRedLib "tests/TestFiles/NRPC/EmptyTuple.hs" [ ("main", 1000, [AtLeast 1])]
+    , checkExprNRPC "tests/TestFiles/NRPC/Print.hs" 2500 "f" [AtLeast 5]
     -- , checkInputOutput "tests/TestFiles/BadBool.hs" "BadBool" "f" 1400 [AtLeast 1]
     -- , checkExprAssumeAssert "tests/TestFiles/Coercions/GADT.hs" 400 Nothing Nothing "g" 2
     --     [ AtLeast 2
@@ -626,6 +627,17 @@ instance IsOption ToDo where
 checkExpr :: String -> Int -> String -> [Reqs ([Expr] -> Bool)] -> TestTree
 checkExpr src stps entry reqList =
     checkExprReaches src stps Nothing Nothing Nothing entry reqList
+
+checkExprNRPC :: String
+              -> Int
+              -> String
+              -> [Reqs ([Expr] -> Bool)]
+              -> TestTree
+checkExprNRPC src stps entry reqList = do
+    checkExprWithConfig src Nothing Nothing Nothing entry reqList
+            (do
+                config <- mkConfigTestWithSetIO
+                return $ config {steps = stps, nrpc = Nrpc})
 
 checkExprAssume :: String -> Int -> Maybe String -> String -> [Reqs ([Expr] -> Bool)] -> TestTree
 checkExprAssume src stps m_assume entry reqList =

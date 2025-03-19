@@ -341,6 +341,11 @@ exprToSMT (Data (DataCon n (TyCon (Name "Bool" _ _ _) _ ) _ _)) =
         "False" -> VBool False
         _ -> error "Invalid bool in exprToSMT"
 exprToSMT (Data (DataCon n t _ _)) = V (nameToStr n) (typeToSMT t)
+exprToSMT (App (Data (DataCon (Name "[]" _ _ _) _ _ _)) (Type (TyCon (Name "Char" _ _ _) _))) = VString ""
+exprToSMT e | [ Data (DataCon (Name ":" _ _ _) _ _ _)
+              , Type (TyCon (Name "Char" _ _ _) _)
+              , App _ e1
+              , e2] <- unApp e = exprToSMT e1 :++ exprToSMT e2
 exprToSMT a@(App _ _) =
     let
         f = getFunc a
@@ -653,6 +658,7 @@ toSolverAST (VFloat f) = convertFloating castFloatToWord32 8 f
 toSolverAST (VDouble d) = convertFloating castDoubleToWord64 11 d
 toSolverAST (VReal r) = "(/ " <> showText (numerator r) <> " " <> showText (denominator r) <> ")"
 toSolverAST (VBitVec b) = "#b" <> foldr (<>) "" (map showText b)
+toSolverAST (VString s) = "\"" <> TB.string s <> "\""
 toSolverAST (VChar '"') = "\"\"\"\""
 toSolverAST (VChar c) = "\"" <> TB.string [c] <> "\""
 toSolverAST (VBool b) = if b then "true" else "false"
