@@ -570,9 +570,9 @@ nonRedLibFuncs names _ s@(State { expr_env = eenv
                          b@(Bindings { name_gen = ng })
     | Var (Id n t):es <- unApp ce
     , hasFuncType (PresType t)
-    -- We want to introduce an NRPC only if the function is fully applied-
-    -- we check "through" newtypes here
-    , ce_ty <- digNewType . typeOf $ ce
+    -- We want to introduce an NRPC only if the function is fully applied and does not have nested function argument types
+    , ce_ty <- typeOf $ ce
+    , not . hasNestedFuncType HS.empty $ ce_ty
     , not . hasFuncType . PresType $ ce_ty
     -- Don't turn functions manipulating "magic types"- types represented as Primitives, with special handling
     -- (for instance, MutVars, Handles) into NRPC symbolic variables.
@@ -605,6 +605,16 @@ nonRedLibFuncs names _ s@(State { expr_env = eenv
         digNewType (TyCon n _) | Just (NewTyCon { rep_type = rt }) <- HM.lookup n tenv = digNewType rt
         digNewType (TyApp t1 t2) = digNewType t1
         digNewType t = t
+
+        hasNestedFuncType seen (TyCon n _)
+            | n `HS.member` seen = False
+            | Just (NewTyCon { rep_type = rt }) <- HM.lookup n tenv, hasFuncType (PresType rt) = True
+            | Just (NewTyCon { rep_type = rt }) <- HM.lookup n tenv = hasNestedFuncType (HS.insert n seen) rt
+            | Just (DataTyCon { data_cons = dcs }) <- HM.lookup n tenv =
+                        any (\dc -> hasNestedFuncType (HS.insert n seen) . typeOf $ dc) dcs
+        hasNestedFuncType _ (TyFun (TyFun _ _) _) = True
+        hasNestedFuncType _ (TyFun (TyForAll _ _) _) = True
+        hasNestedFuncType seen t = getAny $ evalChildren (Any . hasNestedFuncType seen) t
 
         hasMagicTypes = getAny . evalASTs hmt
 
