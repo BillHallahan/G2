@@ -8,24 +8,20 @@ import time
 # Calling and reading from G2
 exe_name = str(subprocess.run(["cabal", "exec", "which", "G2"], capture_output = True).stdout.decode('utf-8')).strip()
 
-def run_g2(filename, func, var_settings, timeout):
+def run_g2(filename, func, var_settings):
     start_time = time.monotonic();
-    res = call_g2_process(filename, func, var_settings, timeout);
+    res = call_g2_process(filename, func, var_settings);
     end_time = time.monotonic();
     elapsed = end_time - start_time;
     return res
 
-def call_g2_process(filename, func, var_settings, time_limit):
-    try:
-        args = [exe_name, filename, func]
-        res = subprocess.run(args + var_settings, universal_newlines=True, capture_output=True, timeout=time_limit);
-        return res.stdout
-    except subprocess.TimeoutExpired as TimeoutEx:
-        # extra line break at end to match the one from normal termination
-        return TimeoutEx.stdout.decode('utf-8') + "\nTimeout\n"
+def call_g2_process(filename, func, var_settings):
+    args = [exe_name, filename, func]
+    res = subprocess.run(args + var_settings, universal_newlines=True, capture_output=True);
+    return res.stdout
 
 def run_nofib_bench(filename, var_settings, timeout):
-    return run_g2(filename, "main", ["--check-asserts", "--error-asserts", "--accept-times", "--no-step-limit"] + var_settings, timeout)
+    return run_g2(filename, "main", ["--check-asserts", "--error-asserts", "--accept-times", "--no-step-limit", "--search", "subpath", "--time", str(timeout)] + var_settings)
 
 def run_nofib_bench_nrpc(filename, var_settings, timeout):
     return run_nofib_bench(filename, ["--nrpc", "--higher-order", "symbolic-nrpc"] + var_settings, timeout)

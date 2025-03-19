@@ -430,7 +430,7 @@ runG2FromFile proj src m_assume m_assert m_reach def_assert f transConfig config
 runG2WithConfig :: Maybe T.Text -> State () -> Config -> Bindings -> IO ([ExecRes ()], Bindings)
 runG2WithConfig mod_name state config bindings = do
     SomeSolver solver <- initSolver config
-    hpc_t <- hpcTracker
+    hpc_t <- hpcTracker (hpc_print_times config)
     let simplifier = FloatSimplifier :>> ArithSimplifier
         exp_env_names = E.keys $ expr_env state
 

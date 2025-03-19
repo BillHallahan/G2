@@ -41,6 +41,8 @@ data HpcTracker = HPC {
 
                       , initial_time :: TimeSpec -- ^ The initial creation time of the HpcTracker
                       , times_reached :: [TimeSpec] -- ^ A list of times, where each time corresponds to a new tick being reached, in reverse order
+                      
+                      , h_print_times :: Bool -- ^ Print the time each tick is reached?
                       }
 
 -- [HPC Total Tick Count]
@@ -54,10 +56,16 @@ data HpcTracker = HPC {
 -- the total tick count) or `Just i`, where `i` is the total tick count.
 
 -- | State used by `hpcReducer`.
-hpcTracker :: MonadIO m => m HpcTracker
-hpcTracker = do
+hpcTracker :: MonadIO m => Bool -- ^ Print the time each tick is reached?
+                        -> m HpcTracker
+hpcTracker pr_tms = do
     ts <- liftIO $ getTime Monotonic
-    return $ HPC { hpc_ticks = HS.empty, tick_count = Nothing, num_reached = 0, initial_time = ts, times_reached = [] }
+    return $ HPC { hpc_ticks = HS.empty
+                 , tick_count = Nothing
+                 , num_reached = 0
+                 , initial_time = ts
+                 , times_reached = []
+                 , h_print_times = pr_tms }
 
 hpcInsert :: MonadIO m => Int -> T.Text -> HpcTracker -> m HpcTracker
 hpcInsert i t hpc@(HPC { hpc_ticks = tr, num_reached = nr, times_reached = reached, initial_time = init_ts }) =
@@ -105,6 +113,12 @@ hpcReducer md = (mkSimpleReducer (const ()) logTick) { afterRed = after }
             case ts of
                 [] -> liftIO $ putStrLn $ "Last tick reached: N/A"
                 (t:_) -> liftIO $ putStrLn $ "Last tick reached: " ++ showTS (t - init_ts)
+            case h_print_times hpc of
+                False -> return ()
+                True -> liftIO $ do
+                    putStrLn "All tick times:"
+                    mapM_ (\t -> putStrLn $ showTS (t - init_ts)) (reverse $ times_reached hpc)
+                    putStrLn "End of tick times"
 
 showTS :: TimeSpec -> String
 showTS (TimeSpec { sec = s, nsec = n }) = let str_n = show n in show s ++ "." ++ replicate (9 - length str_n) '0' ++ show n
