@@ -60,6 +60,8 @@ data KnownValues = KnownValues {
                  , tyRealWorld :: Name
                  , dcRealWorld :: Name
 
+                 , tyHandle :: Name
+
                  -- Typeclasses
                  , eqTC :: Name
                  , numTC :: Name
@@ -116,3 +118,8 @@ isErrorFunc kv n =    n == errorFunc kv
                    || n == errorEmptyListFunc kv    
                    || n == errorWithoutStackTraceFunc kv
                    || n == patErrorFunc kv
+
+-- | A list of type names that are "magic".  These are concretely represented as `Primitive`s,
+-- rather than normal data constructors, and have special support in "G2.Execution.PrimitiveEval".
+magicTypes :: KnownValues -> [Name]
+magicTypes kv = [ tyMutVar kv, tyHandle kv, tyRealWorld kv ]

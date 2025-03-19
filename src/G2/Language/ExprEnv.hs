@@ -28,7 +28,6 @@ module G2.Language.ExprEnv
     , insert
     , insertSymbolic
     , insertExprs
-    , redirect
     , difference
     , union
     , union'
@@ -58,7 +57,6 @@ module G2.Language.ExprEnv
     , symbolicIds
     , elems
     , higherOrderExprs
-    , redirsToExprs
     , toList
     , toExprList
     , fromExprList
@@ -97,13 +95,10 @@ concOrSymToExpr (Conc e) = e
 concOrSymToExpr (Sym i) = Var i
 
 -- From a user perspective, `ExprEnv`s are mappings from `Name` to
--- `Expr`s. however, there are two complications:
---   1) Redirection pointers can map two names to the same expr
---   2) Certain names are symbolic.  This means they represent a symbolic variable
---      Nonsymbolic names map to an ExprObj, symbolic names to a SymObj.
+-- `Expr`s. however, certain names are symbolic.  This means they represent a symbolic variable
+--  Nonsymbolic names map to an ExprObj, symbolic names to a SymObj.
  
 data EnvObj = ExprObj Expr
-            | RedirObj Name
             | SymbObj Id
             deriving (Show, Eq, Read, Generic, Typeable, Data)
 
@@ -123,7 +118,6 @@ toHashMap :: ExprEnv -> M.HashMap Name Expr
 toHashMap eenv =
     M.map(\e -> case e of
                     ExprObj e' -> e'
-                    RedirObj n' -> eenv ! n'
                     SymbObj i -> Var i) . unwrapExprEnv $ eenv
 
 -- | Constructs an empty `ExprEnv`
@@ -156,7 +150,6 @@ lookup :: Name -> ExprEnv -> Maybe Expr
 lookup n (ExprEnv smap) = 
     case M.lookup n smap of
         Just (ExprObj expr) -> Just expr
-        Just (RedirObj redir) -> lookup redir (ExprEnv smap)
         Just (SymbObj i) -> Just $ Var i
         Nothing -> Nothing
 
@@ -164,7 +157,6 @@ lookupConcOrSym :: Name -> ExprEnv -> Maybe ConcOrSym
 lookupConcOrSym  n (ExprEnv smap) = 
     case M.lookup n smap of
         Just (ExprObj expr) -> Just $ Conc expr
-        Just (RedirObj redir) -> lookupConcOrSym redir (ExprEnv smap)
         Just (SymbObj i) -> Just $ Sym i
         Nothing -> Nothing
 
@@ -213,7 +205,6 @@ nameModMap = M.fromList . L.map (\(n@(Name n' m _ _), e) -> ((n', m), (n, e))) .
 (!) :: ExprEnv -> Name -> Expr
 (!) env@(ExprEnv env') n =
     case M.lookup n env' of
-        Just (RedirObj n') -> env ! n'
         Just (ExprObj e) -> e
         Just (SymbObj i) -> Var i
         Nothing -> error $ "ExprEnv.!: Given key is not an element of the expr env" ++ show n
@@ -228,10 +219,6 @@ insertSymbolic i = ExprEnv. M.insert (idName i) (SymbObj i) . unwrapExprEnv
 
 insertExprs :: [(Name, Expr)] -> ExprEnv -> ExprEnv
 insertExprs kvs scope = foldr (uncurry insert) scope kvs
-
--- | Maps the two `Name`@s@ so that they point to the same value
-redirect :: Name -> Name -> ExprEnv -> ExprEnv
-redirect n n' = ExprEnv . M.insert n (RedirObj n') . unwrapExprEnv
 
 difference :: ExprEnv -> ExprEnv -> ExprEnv
 difference (ExprEnv m1) (ExprEnv m2) =
@@ -350,7 +337,6 @@ filterWithKey :: (Name -> Expr -> Bool) -> ExprEnv -> ExprEnv
 filterWithKey p env@(ExprEnv env') = ExprEnv $ M.filterWithKey p' env'
     where
         p' :: Name -> EnvObj -> Bool
-        p' n (RedirObj n') = p n (env ! n')
         p' n (ExprObj e) = p n e
         p' n (SymbObj i) = p n (Var i)
 
@@ -391,13 +377,6 @@ elems = exprObjs . M.elems . unwrapExprEnv
 higherOrderExprs :: ExprEnv -> [Type]
 higherOrderExprs = concatMap (higherOrderFuncs) . elems
 
--- | Converts all RedirObjs in ExprObjs.  Useful for certain kinds of analysis
-redirsToExprs :: ExprEnv -> ExprEnv
-redirsToExprs eenv = coerce . M.map rToE . coerce $ eenv
-    where
-        rToE (RedirObj n) = ExprObj . Var . Id n . typeOf $ eenv ! n
-        rToE e = e
-
 toList :: ExprEnv -> [(Name, EnvObj)]
 toList = M.toList . unwrapExprEnv
 
@@ -437,7 +416,6 @@ instance ASTContainer ExprEnv Type where
 
 instance ASTContainer EnvObj Expr where
     containedASTs (ExprObj e) = [e]
-    containedASTs (RedirObj _) = []
     containedASTs (SymbObj i) = [Var i]
 
     modifyContainedASTs f (ExprObj e) = ExprObj (f e)
@@ -449,7 +427,6 @@ instance ASTContainer EnvObj Expr where
 
 instance ASTContainer EnvObj Type where
     containedASTs (ExprObj e) = containedASTs e
-    containedASTs (RedirObj _) = []
     containedASTs (SymbObj i) = containedASTs i
 
     modifyContainedASTs f (ExprObj e) = ExprObj (modifyContainedASTs f e)
@@ -475,15 +452,12 @@ instance Named ExprEnv where
 
 instance Named EnvObj where
     names (ExprObj e) = names e
-    names (RedirObj r) = S.singleton r
     names (SymbObj s) = names s
 
     rename old new (ExprObj e) = ExprObj $ rename old new e
-    rename old new (RedirObj r) = RedirObj $ rename old new r
     rename old new (SymbObj s) = SymbObj $ rename old new s
 
     renames hm (ExprObj e) = ExprObj $ renames hm e
-    renames hm (RedirObj r) = RedirObj $ renames hm r
     renames hm (SymbObj s) = SymbObj $ renames hm s
 
 -- Helpers for EnvObjs
@@ -492,4 +466,3 @@ exprObjs :: [EnvObj]  -> [Expr]
 exprObjs [] = []
 exprObjs (ExprObj e:xs) = e:exprObjs xs
 exprObjs (SymbObj i:xs) = Var i:exprObjs xs
-exprObjs (_:xs) = exprObjs xs
