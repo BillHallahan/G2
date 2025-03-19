@@ -393,6 +393,7 @@ fakeKnownValues =
     , dcState = Name "" Nothing 0 Nothing
     , tyRealWorld = Name "" Nothing 0 Nothing
     , dcRealWorld = Name "" Nothing 0 Nothing
+    , tyHandle = Name "" Nothing 0 Nothing
     , eqTC = Name "" Nothing 0 Nothing
     , numTC = Name "" Nothing 0 Nothing
     , ordTC = Name "" Nothing 0 Nothing

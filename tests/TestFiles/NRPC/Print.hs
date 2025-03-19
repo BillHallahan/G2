@@ -1,4 +1,4 @@
 module Print where
 
-f :: IO ()
-f = print 2
+f :: Int -> IO ()
+f x = print x

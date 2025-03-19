@@ -121,6 +121,7 @@ import G2.Execution.NormalForms
 import G2.Execution.Rules
 import G2.Interface.ExecRes
 import G2.Language
+import G2.Language.KnownValues
 import qualified G2.Language.Monad as MD
 import qualified G2.Language.PathConds as PC
 import qualified G2.Language.Stack as Stck
@@ -134,6 +135,7 @@ import qualified Data.HashSet as HS
 import qualified Data.HashMap.Strict as HM
 import qualified Data.Map as M
 import Data.Maybe
+import Data.Monoid
 import qualified Data.List as L
 import qualified Data.Text as T
 import qualified Data.Text.IO as T
@@ -562,6 +564,7 @@ nonRedLibFuncs :: Monad m => HS.HashSet Name -> RedRules m () t
 nonRedLibFuncs names _ s@(State { expr_env = eenv
                          , curr_expr = CurrExpr _ ce
                          , type_env = tenv
+                         , known_values = kv
                          , non_red_path_conds = nrs
                          }) 
                          b@(Bindings { name_gen = ng })
@@ -569,7 +572,11 @@ nonRedLibFuncs names _ s@(State { expr_env = eenv
     , hasFuncType (PresType t)
     -- We want to introduce an NRPC only if the function is fully applied-
     -- we check "through" newtypes here
-    , not (hasFuncType . PresType . digNewType . typeOf $ ce) = 
+    , ce_ty <- digNewType . typeOf $ ce
+    , not . hasFuncType . PresType $ ce_ty
+    -- Don't turn functions manipulating "magic types"- types represented as Primitives, with special handling
+    -- (for instance, MutVars, Handles) into NRPC symbolic variables.
+    , not (hasMagicTypes ce) = 
         let
             isMember =  HS.member n names
         in
@@ -598,6 +605,11 @@ nonRedLibFuncs names _ s@(State { expr_env = eenv
         digNewType (TyCon n _) | Just (NewTyCon { rep_type = rt }) <- HM.lookup n tenv = digNewType rt
         digNewType (TyApp t1 t2) = digNewType t1
         digNewType t = t
+
+        hasMagicTypes = getAny . evalASTs hmt
+
+        hmt (TyCon n _) = Any (n `elem` magicTypes kv)
+        hmt _ = Any False
 
 -- Note [Ignore Update Frames]
 -- In `strictRed`, when deciding whether to split up an expression to force strict evaluation of subexpression,
