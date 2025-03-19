@@ -1,4 +1,7 @@
 module Print where
 
 f :: Int -> IO ()
-f x = print x
+f x = do
+    case show x of
+            '-':_ -> putStrLn "!"
+            _ -> print x
