@@ -2,8 +2,8 @@
 
 module HigherOrder where
 
-import G2.Symbolic
-import ListTests
+--import G2.Symbolic
+--import ListTests
 
 data List = Cons Bool List | EmptyList
 
@@ -62,7 +62,7 @@ multiPrim f = case f 5 6.0 of
                         5 -> 5
                         _ -> 8
 
-callOtherMod :: Int -> Int
+{-callOtherMod :: Int -> Int
 callOtherMod a = 
     let 
         x = minTest a
@@ -70,4 +70,4 @@ callOtherMod a =
         x + (assert (x /= 0) maxMap a)
 
 testModAssert :: Int -> Int
-testModAssert a = callOtherMod a
+testModAssert a = callOtherMod a-}

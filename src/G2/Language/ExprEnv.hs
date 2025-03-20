@@ -347,7 +347,6 @@ filterConcOrSymWithKey :: (Name -> ConcOrSym -> Bool) -> ExprEnv -> ExprEnv
 filterConcOrSymWithKey p env@(ExprEnv env') = ExprEnv $ M.filterWithKey p' env'
     where
         p' :: Name -> EnvObj -> Bool
-        p' n (RedirObj n') = p n (fromJust $ lookupConcOrSym n' env)
         p' n (ExprObj e) = p n (Conc e)
         p' n (SymbObj i) = p n (Sym i)
 
