@@ -462,18 +462,11 @@ runG2WithConfig entry_f mb_modname state config bindings = do
     return (in_out, bindings')
 
 getFuncsByModule :: [Maybe T.Text] -> [Name] -> [Name]
-getFuncsByModule [] _ = []
-getFuncsByModule (m:ms) reachable_funcs = 
+getFuncsByModule ms reachable_funcs = 
     let 
-        curr_mod_funcs = case m of
-                            Just a -> filter (\x -> case nameModule x of
-                                                Just n -> a == n
-                                                Nothing -> False) reachable_funcs
-                            _ -> []
+        j_ms = filter isJust ms
     in 
-        curr_mod_funcs ++ getFuncsByModule ms reachable_funcs
-
-        
+    filter (\x -> nameModule x `elem` j_ms) reachable_funcs
 
 getFuncsByAssert :: G.CallGraph -> [Name] -> [Name]
 getFuncsByAssert g reachable_funcs = 
