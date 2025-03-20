@@ -2,10 +2,16 @@
 
 module HigherOrder where
 
+--import G2.Symbolic
+--import ListTests
+
 data List = Cons Bool List | EmptyList
 
+getList :: List -> List
+getList l = Cons True l
+
 f :: (List -> List) -> List -> Bool
-f g l = case g l of
+f g l = case g (getList l) of
     Cons False l -> True
     Cons True l -> False
     EmptyList -> True
@@ -24,8 +30,11 @@ streamTail (Stream _ s) = s
 sf :: (Stream -> Int) -> Stream -> Bool
 sf f s = not (f s == f (streamTail s))
 
-thirdOrder :: ((Bool -> Bool) -> Bool) -> Bool
-thirdOrder f = not (f (\b -> case b of { True -> False; False -> True }))
+thirdOrder :: ((Bool -> Bool) -> Bool) -> Int
+thirdOrder f =
+    case not (f (\b -> case b of { True -> False; False -> True })) of
+        True -> 1
+        False -> 2
 
 thirdOrder2 :: ((Bool -> Bool) -> Bool) -> Int
 thirdOrder2 f =
@@ -52,3 +61,13 @@ multiPrim :: (Int -> Float -> Int) -> Int
 multiPrim f = case f 5 6.0 of 
                         5 -> 5
                         _ -> 8
+
+{-callOtherMod :: Int -> Int
+callOtherMod a = 
+    let 
+        x = minTest a
+    in
+        x + (assert (x /= 0) maxMap a)
+
+testModAssert :: Int -> Int
+testModAssert a = callOtherMod a-}

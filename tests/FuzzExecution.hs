@@ -31,7 +31,8 @@ fuzzExecution (SB init_state bindings) = do
     ioProperty (do
         config <- mkConfigTestIO
 
-        (ers, b) <- runG2WithConfig Nothing init_state config bindings
+        -- Adding a dummy name in place of entry function, this function doesn't use it.
+        (ers, b) <- runG2WithConfig (Name (T.pack "fuzz") Nothing 0 Nothing) [Nothing] init_state config bindings
 
         mr <- runGhc (Just libdir) (do
                 and <$> mapM (\er -> do

@@ -47,6 +47,9 @@ module G2.Language.ExprEnv
     , mapWithKeyM
     , filter
     , filterWithKey
+    , filterConcOrSym
+    , filterWithKey
+    , filterConcOrSymWithKey
     , filterToSymbolic
     , getIdFromName
     , funcsOfType
@@ -336,6 +339,16 @@ filterWithKey p env@(ExprEnv env') = ExprEnv $ M.filterWithKey p' env'
         p' :: Name -> EnvObj -> Bool
         p' n (ExprObj e) = p n e
         p' n (SymbObj i) = p n (Var i)
+
+filterConcOrSym :: (ConcOrSym -> Bool) -> ExprEnv -> ExprEnv
+filterConcOrSym p = filterConcOrSymWithKey (\_ -> p) 
+
+filterConcOrSymWithKey :: (Name -> ConcOrSym -> Bool) -> ExprEnv -> ExprEnv
+filterConcOrSymWithKey p env@(ExprEnv env') = ExprEnv $ M.filterWithKey p' env'
+    where
+        p' :: Name -> EnvObj -> Bool
+        p' n (ExprObj e) = p n (Conc e)
+        p' n (SymbObj i) = p n (Sym i)
 
 -- | Returns a new `ExprEnv`, which contains only the symbolic values.
 filterToSymbolic :: ExprEnv -> ExprEnv

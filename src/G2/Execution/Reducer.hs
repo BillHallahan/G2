@@ -120,6 +120,7 @@ import qualified G2.Language.ExprEnv as E
 import G2.Execution.NormalForms
 import G2.Execution.Rules
 import G2.Interface.ExecRes
+import G2.Execution.ExecSkip
 import G2.Language
 import G2.Language.KnownValues
 import qualified G2.Language.Monad as MD
@@ -547,7 +548,7 @@ nonRedPCSymFunc _
         stck' = Stck.push (CurrExprFrame (EnsureEq nre2) cexpr) stck
         s' = s { exec_stack = stck', non_red_path_conds = nrs }
     in
-    case retReplaceSymbFuncTemplate s' ng nre1 of
+    case retReplaceSymbFuncTemplate s' ng (modifyASTs stripTicks nre1) of
         Just (r, s'', ng') -> return (InProgress, zip s'' (repeat ()), b {name_gen = ng'})
         Nothing ->
             let 
@@ -576,29 +577,27 @@ nonRedLibFuncs names _ s@(State { expr_env = eenv
     , not . hasFuncType . PresType $ ce_ty
     -- Don't turn functions manipulating "magic types"- types represented as Primitives, with special handling
     -- (for instance, MutVars, Handles) into NRPC symbolic variables.
-    , not (hasMagicTypes ce) = 
+    , not (hasMagicTypes ce)
+    , containsSymbolic eenv ce
+    , Skip <- canAddToNRPC eenv ce ng names HS.empty
+    = 
         let
-            isMember =  HS.member n names
-        in
-            case isMember of
-                True -> let
-                            (new_sym, ng') = freshSeededString "sym" ng
-                            new_sym_id = Id new_sym (typeOf ce)
-                            eenv' = E.insertSymbolic new_sym_id eenv
-                            cexpr' = CurrExpr Return (Var new_sym_id)
-                            -- when NRPC moves back to current expression, it immediately gets added as NRPC again.
-                            -- To stop falling into this infinite loop, instead of adding current expression in NRPC
-                            -- we associate a tick (nonRedBlocker) with the expression and then standard reducer reduces
-                            -- this tick.
-                            nonRedBlocker = Name "NonRedBlocker" Nothing 0 Nothing
-                            tick = NamedLoc nonRedBlocker
-                            ce' = mkApp $ (Tick tick (Var (Id n t))):es
-                            s' = s { expr_env = eenv',
-                                    curr_expr = cexpr',
-                                    non_red_path_conds = (ce', Var new_sym_id):nrs } 
-                        in 
-                            return (Finished, [(s', ())], b {name_gen = ng'})
-                False -> return (Finished, [(s, ())], b)
+            (new_sym, ng') = freshSeededString "sym" ng
+            new_sym_id = Id new_sym (typeOf ce)
+            eenv' = E.insertSymbolic new_sym_id eenv
+            cexpr' = CurrExpr Return (Var new_sym_id)
+            -- when NRPC moves back to current expression, it immediately gets added as NRPC again.
+            -- To stop falling into this infinite loop, instead of adding current expression in NRPC
+            -- we associate a tick (nonRedBlocker) with the expression and then standard reducer reduces
+            -- this tick.
+            nonRedBlocker = Name "NonRedBlocker" Nothing 0 Nothing
+            tick = NamedLoc nonRedBlocker
+            ce' = mkApp $ (Tick tick (Var (Id n t))):es
+            s' = s { expr_env = eenv',
+            curr_expr = cexpr',
+            non_red_path_conds = (ce', Var new_sym_id):nrs } 
+        in 
+            return (Finished, [(s', ())], b {name_gen = ng'})
 
     | otherwise = return (Finished, [(s, ())], b)
     where
@@ -620,6 +619,17 @@ nonRedLibFuncs names _ s@(State { expr_env = eenv
 
         hmt (TyCon n _) = Any (n `elem` magicTypes kv)
         hmt _ = Any False
+
+
+containsSymbolic :: ExprEnv -> Expr -> Bool
+containsSymbolic eenv = getAny . go HS.empty
+    where
+        go seen (Var (Id n _)) | not (HS.member n seen) =
+            case E.lookupConcOrSym n eenv of
+                Just (E.Conc e) -> go (HS.insert n seen) e
+                Just (E.Sym _) -> Any True
+                Nothing -> Any False
+        go seen e = evalChildren (go seen) e
 
 -- Note [Ignore Update Frames]
 -- In `strictRed`, when deciding whether to split up an expression to force strict evaluation of subexpression,
