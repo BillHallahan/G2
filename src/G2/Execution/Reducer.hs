@@ -621,6 +621,7 @@ nonRedLibFuncs names _ s@(State { expr_env = eenv
         hmt (TyCon n _) = Any (n `elem` magicTypes kv)
         hmt _ = Any False
 
+
 containsSymbolic :: ExprEnv -> Expr -> Bool
 containsSymbolic eenv = getAny . go HS.empty
     where
