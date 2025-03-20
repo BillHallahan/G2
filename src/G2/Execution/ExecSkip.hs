@@ -35,9 +35,8 @@ canAddToNRPC eenv e ng names seen_vars
     -- Rule-VAR
     | Var (Id n t)  <- e
     , Just e' <- E.lookup n eenv = 
-        do
-            let seen_vars' = HS.insert n seen_vars
-            canAddToNRPC eenv e' ng names seen_vars'
+        let seen_vars' = HS.insert n seen_vars
+        in canAddToNRPC eenv e' ng names seen_vars'
     -- Rule-SYM-VAR, that decides for any variable that's not in heap, be it let bindings or symbolic variable
     | Var (Id n t)  <- e = Skip
     -- Rule-DC
@@ -52,7 +51,7 @@ canAddToNRPC eenv e ng names seen_vars
             olds = map idName binds_lhs
             (news, ng') = freshSeededNames olds ng
 
-            e'' = renameExprs (zip olds news) e
+            e'' = renameExprs (zip olds news) e'
             binds_rhs' = renameExprs (zip olds news) binds_rhs
 
             eenv' = E.insertExprs (zip news binds_rhs') eenv
@@ -84,8 +83,8 @@ canAddToNRPC eenv e ng names seen_vars
         in checklistOfExprs eenv altsExpr ng names seen_vars
     
     | Type _ <- e = Skip
-    | Cast e _ <- e = canAddToNRPC eenv e ng names seen_vars
-    | Tick _ e <- e = canAddToNRPC eenv e ng names seen_vars
+    | Cast e' _ <- e = canAddToNRPC eenv e' ng names seen_vars
+    | Tick _ e' <- e = canAddToNRPC eenv e' ng names seen_vars
     | NonDet es <- e = checklistOfExprs eenv es ng names seen_vars
     | SymGen _ _ <- e = Skip
     | Assume _ e1 e2 <- e = isExecOrSkip (canAddToNRPC eenv e1 ng names seen_vars) (canAddToNRPC eenv e2 ng names seen_vars)

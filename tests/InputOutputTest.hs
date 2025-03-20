@@ -114,7 +114,7 @@ checkInputOutput'' src exg2 mb_modname config (entry, stps, req) = do
     let config' = config { steps = stps }
         (init_state, bindings) = initStateWithCall exg2 False (T.pack entry) mb_modname (mkCurrExpr Nothing Nothing) mkArgTys config'
     
-    (r, b) <- runG2WithConfig mb_modname init_state config' bindings
+    (r, b) <- runG2WithConfig (Name (T.pack entry) Nothing 0 Nothing) (exg2_mod_names exg2) init_state config' bindings
 
     let chAll = checkExprAll req
     let proj = map takeDirectory src

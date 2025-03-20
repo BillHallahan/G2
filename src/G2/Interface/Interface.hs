@@ -64,6 +64,7 @@ import G2.Solver
 
 import G2.Postprocessing.Interface
 
+import qualified G2.Language.CallGraph as G
 import qualified G2.Language.ExprEnv as E
 import qualified G2.Language.PathConds as PC
 import qualified G2.Language.Stack as Stack
@@ -75,6 +76,7 @@ import qualified Data.HashSet as S
 import Data.Maybe
 import qualified Data.Sequence as Seq
 import qualified Data.Text as T
+import qualified Data.List as L
 import System.Timeout
 
 type AssumeFunc = T.Text
@@ -358,7 +360,7 @@ initialStateFromFileSimple :: [FilePath]
                    -> (Id -> MkCurrExpr)
                    -> (Expr -> MkArgTypes)
                    -> Config
-                   -> IO (State (), Id, Bindings)
+                   -> IO (State (), Id, Bindings, [Maybe T.Text])
 initialStateFromFileSimple proj src f mkCurr argTys config =
     initialStateFromFile proj src Nothing False f mkCurr argTys simplTranslationConfig config
 
@@ -388,7 +390,7 @@ initialStateFromFile :: [FilePath]
                      -> (Expr -> MkArgTypes)
                      -> TranslationConfig
                      -> Config
-                     -> IO (State (), Id, Bindings)
+                     -> IO (State (), Id, Bindings, [Maybe T.Text])
 initialStateFromFile proj src m_reach def_assert f mkCurr argTys transConfig config = do
     (mb_modname, exg2) <- translateLoaded proj src transConfig config
 
@@ -405,7 +407,7 @@ initialStateFromFile proj src m_reach def_assert f mkCurr argTys transConfig con
     --                                 f mb_modname mkCurr argTys config
         reaches_state = initCheckReaches init_s spec_mod m_reach
 
-    return (reaches_state, ie, bindings)
+    return (reaches_state, ie, bindings, mb_modname)
 
 runG2FromFile :: [FilePath]
               -> [FilePath]
@@ -418,27 +420,29 @@ runG2FromFile :: [FilePath]
               -> Config
               -> IO (([ExecRes ()], Bindings), Id)
 runG2FromFile proj src m_assume m_assert m_reach def_assert f transConfig config = do
-    (init_state, entry_f, bindings) <- initialStateFromFile proj src
+    (init_state, entry_f, bindings, mb_modname) <- initialStateFromFile proj src
                                     m_reach def_assert f (mkCurrExpr m_assume m_assert) (mkArgTys)
                                     transConfig config
 
-    r <- runG2WithConfig (nameModule $ idName entry_f) init_state config bindings
+    r <- runG2WithConfig (idName entry_f) mb_modname init_state config bindings
 
     return (r, entry_f)
 
-runG2WithConfig :: Maybe T.Text -> State () -> Config -> Bindings -> IO ([ExecRes ()], Bindings)
-runG2WithConfig mod_name state config bindings = do
+runG2WithConfig :: Name -> [Maybe T.Text] -> State () -> Config -> Bindings -> IO ([ExecRes ()], Bindings)
+runG2WithConfig entry_f mb_modname state config bindings = do
     SomeSolver solver <- initSolver config
     hpc_t <- hpcTracker (hpc_print_times config)
     let simplifier = FloatSimplifier :>> ArithSimplifier
-        exp_env_names = E.keys . E.filterConcOrSym (\case { E.Sym _ -> False; E.Conc _ -> True }) $ expr_env state
+        --exp_env_names = E.keys . E.filterConcOrSym (\case { E.Sym _ -> False; E.Conc _ -> True }) $ expr_env state
+        mod_name = nameModule entry_f
+        callGraph = G.getCallGraph $ expr_env state
+        reachable_funcs = G.reachable entry_f callGraph
 
-        lib_funcs = case mod_name  of
-                      Just a -> filter (\x -> case nameModule x of
-                                                Just n -> a == n
-                                                Nothing -> True) exp_env_names
-                      Nothing -> exp_env_names
-    rho <- initRedHaltOrd mod_name solver simplifier config (S.fromList lib_funcs)
+        executable_funcs = case by_assert config of
+                                ByModule -> getFuncsByModule mb_modname reachable_funcs
+                                ByAssert -> getFuncsByAssert callGraph reachable_funcs
+                                
+    rho <- initRedHaltOrd mod_name solver simplifier config (S.fromList executable_funcs)
     (in_out, bindings') <- case rho of
                 (red, hal, ord) ->
                     SM.evalStateT
@@ -457,6 +461,37 @@ runG2WithConfig mod_name state config bindings = do
 
     return (in_out, bindings')
 
+getFuncsByModule :: [Maybe T.Text] -> [Name] -> [Name]
+getFuncsByModule [] _ = []
+getFuncsByModule (m:ms) reachable_funcs = 
+    let 
+        curr_mod_funcs = case m of
+                            Just a -> filter (\x -> case nameModule x of
+                                                Just n -> a == n
+                                                Nothing -> False) reachable_funcs
+                            _ -> []
+    in 
+        curr_mod_funcs ++ getFuncsByModule ms reachable_funcs
+
+        
+
+getFuncsByAssert :: G.CallGraph -> [Name] -> [Name]
+getFuncsByAssert g reachable_funcs = 
+    let
+        assert_name = L.find (\x -> nameOcc x == "assert" && nameModule x == Just "G2.Symbolic") reachable_funcs
+        exec_funcs = case assert_name of
+                        Just a -> a : getAllCalledBys a g -- Added assert function name too because we want to execute that as well
+                        Nothing -> []
+    in
+        exec_funcs
+
+-- It gives all the methods that call assert function
+getAllCalledBys :: Name -> G.CallGraph -> [Name]
+getAllCalledBys n g = 
+    let
+        calledbys = G.calledBy n g
+    in
+        calledbys ++ concatMap (`getAllCalledBys` g) calledbys
 
 {-# SPECIALIZE 
     runG2WithSomes :: ( Solver solver

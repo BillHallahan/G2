@@ -47,6 +47,7 @@ nodeName g v = (\(_, n, _) -> n) $ nfv g v
 calls :: Name -> CallGraph -> Maybe [Name]
 calls n g = fmap (\(_, _, ns) -> ns) . fmap (nfv g) $ vert g n
 
+-- | Functions that call named function
 calledBy :: Name -> CallGraph -> [Name]
 calledBy n g = map fst
              . filter ((==) n . snd)

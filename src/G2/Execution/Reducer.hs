@@ -579,6 +579,7 @@ nonRedLibFuncs names _ s@(State { expr_env = eenv
     -- Don't turn functions manipulating "magic types"- types represented as Primitives, with special handling
     -- (for instance, MutVars, Handles) into NRPC symbolic variables.
     , not (hasMagicTypes ce)
+    , containsSymbolic eenv ce
     , Skip <- canAddToNRPC eenv ce ng names HS.empty
     = 
         let
@@ -619,6 +620,16 @@ nonRedLibFuncs names _ s@(State { expr_env = eenv
 
         hmt (TyCon n _) = Any (n `elem` magicTypes kv)
         hmt _ = Any False
+
+containsSymbolic :: ExprEnv -> Expr -> Bool
+containsSymbolic eenv = getAny . go HS.empty
+    where
+        go seen (Var (Id n _)) | not (HS.member n seen) =
+            case E.lookupConcOrSym n eenv of
+                Just (E.Conc e) -> go (HS.insert n seen) e
+                Just (E.Sym _) -> Any True
+                Nothing -> Any False
+        go seen e = evalChildren (go seen) e
 
 -- Note [Ignore Update Frames]
 -- In `strictRed`, when deciding whether to split up an expression to force strict evaluation of subexpression,
