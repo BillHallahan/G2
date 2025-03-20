@@ -1,4 +1,4 @@
-module ListTests (maxMap, minTest) where
+module ListTests where
 
 -- import qualified Data.Map as M
 import Data.List
