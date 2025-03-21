@@ -46,7 +46,7 @@ checkInputOutputsTemplate src tests = do
 checkInputOutputsNonRedTemp :: FilePath -> [(String, Int, [Reqs String])] -> TestTree
 checkInputOutputsNonRedTemp src tests = do
     checkInputOutput'
-        (do config <- mkConfigTestIO; return (config { higherOrderSolver = SymbolicFuncNRPC }))
+        (do config <- mkConfigTestIO; return (config { higherOrderSolver = SymbolicFunc }))
         src
         tests
 
