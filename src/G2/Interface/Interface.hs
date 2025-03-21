@@ -293,7 +293,7 @@ initRedHaltOrd mod_name solver simplifier config libFunNames = do
                         False -> strict_red
 
         nrpc_red = case nrpc config of
-                        Nrpc -> liftSomeReducer (SomeReducer (nonRedLibFuncsReducer libFunNames) .== Finished .--> hpc_red)
+                        Nrpc -> liftSomeReducer (SomeReducer (nonRedLibFuncsReducer libFunNames (symbolic_func_nrpc config)) .== Finished .--> hpc_red)
                         NoNrpc -> liftSomeReducer hpc_red
 
         accept_time_red = case accept_times config of
@@ -329,10 +329,6 @@ initRedHaltOrd mod_name solver simplifier config libFunNames = do
                 , SomeHalter (discardIfAcceptedTagHalter state_name) .<~> halter_step
                 , orderer)
             SymbolicFunc ->
-                ( logger_std_red .== Finished .--> SomeReducer nonRedPCRed
-                , halter_step
-                , orderer)
-            SymbolicFuncNRPC ->
                 ( logger_std_red .== Finished .--> taggerRed state_name :== Finished --> nonRedPCSymFuncRed
                 , SomeHalter (discardIfAcceptedTagHalter state_name) .<~> halter_step
                 , orderer)
