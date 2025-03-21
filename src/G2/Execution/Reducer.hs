@@ -521,12 +521,12 @@ updateWithAllPair update1 update2 srv =
                 map (uncurry RC) $ zip rv1' rv2'
 
 {-#INLINE stdRed #-}
-{-# SPECIALIZE stdRed :: (Solver solver, Simplifier simplifier) => Sharing -> SymbolicFuncEval t -> solver -> simplifier -> Reducer IO () t #-}
-stdRed :: (MonadIO m, Solver solver, Simplifier simplifier) => Sharing -> SymbolicFuncEval t -> solver -> simplifier -> Reducer m () t
-stdRed share symb_func_eval solver simplifier =
+{-# SPECIALIZE stdRed :: (Solver solver, Simplifier simplifier) => Sharing -> solver -> simplifier -> Reducer IO () t #-}
+stdRed :: (MonadIO m, Solver solver, Simplifier simplifier) => Sharing -> solver -> simplifier -> Reducer m () t
+stdRed share solver simplifier =
         mkSimpleReducer (\_ -> ())
                         (\_ s b -> do
-                            (r, s', b') <- liftIO $ stdReduce share symb_func_eval solver simplifier s b
+                            (r, s', b') <- liftIO $ stdReduce share solver simplifier s b
 
                             return (if r == RuleIdentity then Finished else InProgress, s', b')
                         )
@@ -597,7 +597,7 @@ nonRedLibFuncs names _ s@(State { expr_env = eenv
             s' = s { expr_env = eenv',
             curr_expr = cexpr',
             non_red_path_conds = (ce', Var new_sym_id):nrs } 
-        in 
+        in
             return (Finished, [(s', ())], b {name_gen = ng'})
 
     | otherwise = return (Finished, [(s, ())], b)

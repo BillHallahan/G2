@@ -129,7 +129,7 @@ checkAbstracted' g2call solver simplifier share s bindings abs_fc@(FuncCall { fu
 
         let pres = HS.fromList $ namesList s' ++ namesList bindings
         (er, bindings') <- SM.evalStateT (g2call 
-                                (SomeReducer (hitsLibError ~> stdRed share retReplaceSymbFuncVar solver simplifier ~> strictRed))
+                                (SomeReducer (hitsLibError ~> stdRed share solver simplifier ~> strictRed))
                                 (SomeHalter (swhnfHalter <~> acceptOnlyOneHalter <~> switchEveryNHalter 200))
                                 (SomeOrderer (incrAfterN 2000 (adtSizeOrderer 0 Nothing)))
                                 solver simplifier
@@ -182,7 +182,7 @@ getAbstracted g2call solver simplifier share s bindings abs_fc@(FuncCall { funcN
                       , track = ([] :: [FuncCall], False)}
 
         (er, bindings') <- g2call 
-                              (((hitsLibErrorGatherer ~> stdRed share retReplaceSymbFuncVar solver simplifier ~> strictRed) :== Finished
+                              (((hitsLibErrorGatherer ~> stdRed share solver simplifier ~> strictRed) :== Finished
                                             --> (nonRedPCRedNoPrune .|. nonRedPCRedConst) ))
                               (SomeHalter (swhnfHalter <~> acceptOnlyOneHalter <~> switchEveryNHalter 200))
                               (SomeOrderer (incrAfterN 2000 (adtSizeOrderer 0 Nothing)))
@@ -327,7 +327,7 @@ reduceCalls g2call solver simplifier config bindings er = do
 
 reduceViolated :: (Solver solver, Simplifier simplifier) => G2Call solver simplifier -> solver -> simplifier -> Sharing -> Bindings -> ExecRes LHTracker -> IO (Bindings, ExecRes LHTracker)
 reduceViolated g2call solver simplifier share bindings er@(ExecRes { final_state = s, violated = Just v }) = do
-    let red = redArbErrors :== Finished --> (stdRed share retReplaceSymbFuncVar solver simplifier ~> strictRed)
+    let red = redArbErrors :== Finished --> (stdRed share solver simplifier ~> strictRed)
     (s', bindings', v') <- reduceFuncCall g2call red solver simplifier s bindings v
     -- putStrLn $ "v = " ++ show v
     -- putStrLn $ "v' = " ++ show v'
@@ -339,7 +339,7 @@ reduceViolated _ _ _ _ b er = return (b, er)
 reduceAbstracted :: (Solver solver, Simplifier simplifier) => G2Call solver simplifier -> solver -> simplifier -> Sharing -> Bindings -> ExecRes LHTracker -> IO (Bindings, ExecRes LHTracker)
 reduceAbstracted g2call solver simplifier share bindings
                 er@(ExecRes { final_state = (s@State { track = lht}) }) = do
-    let red = redArbErrors :== Finished --> (stdRed share retReplaceSymbFuncVar solver simplifier ~> strictRed)
+    let red = redArbErrors :== Finished --> (stdRed share solver simplifier ~> strictRed)
         fcs = abstract_calls lht
 
     ((s', bindings'), fcs') <- mapAccumM (\(s_, b_) fc -> do
@@ -377,7 +377,7 @@ reduceFuncCallMaybeList :: ( ASTContainer t Expr
                            , Solver solver
                            , Simplifier simplifier) => G2Call solver simplifier -> solver -> simplifier -> Sharing -> Bindings -> State t -> [FuncCall] -> IO (State t, Bindings, [FuncCall])
 reduceFuncCallMaybeList g2call solver simplifier share bindings st fcs = do
-    let red = redArbErrors :== Finished --> (stdRed share retReplaceSymbFuncVar solver simplifier ~> strictRed)
+    let red = redArbErrors :== Finished --> (stdRed share solver simplifier ~> strictRed)
     ((s', b'), fcs') <- mapAccumM (\(s, b) fc -> do
                                   s_b_fc <- reduceFuncCallMaybe g2call red solver simplifier s b fc
                                   case s_b_fc of

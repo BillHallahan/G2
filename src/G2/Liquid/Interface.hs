@@ -450,7 +450,7 @@ lhReducerHalterOrderer config lhconfig solver simplifier entry mb_modname cfn st
 
         m_logger = fmap SomeReducer $ getLogger config
 
-        lh_std_red = existentialInstRed :== NoProgress .--> lhRed cfn :== Finished --> stdRed share retReplaceSymbFuncVar solver simplifier
+        lh_std_red = existentialInstRed :== NoProgress .--> lhRed cfn :== Finished --> stdRed share solver simplifier
         strict_red = case strict config of
                             True -> lh_std_red .~> SomeReducer strictRed
                             False -> lh_std_red
