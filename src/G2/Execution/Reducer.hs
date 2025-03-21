@@ -60,6 +60,7 @@ module G2.Execution.Reducer ( Reducer (..)
                             , nonRedPCSymFuncRed
                             , nonRedLibFuncsReducer
                             , nonRedPCRed
+                            , nonRedPCRedNoPrune
                             , nonRedPCRedConst
                             , strictRed
                             , taggerRed
@@ -763,14 +764,23 @@ strictRed = mkSimpleReducer (\_ -> ())
                                  | otherwise = maybe True (cont (HS.insert n ns)) (E.lookup n eenv)
         strict_red _ s b = return (NoProgress, [(s, ())], b)
 
--- | Removes and reduces the values in a State's non_red_path_conds field. 
+-- | Removes and reduces the values in a State's non_red_path_conds field.
+-- If a state has not yet violated an assertion, it is discarded.
 {-#INLINE nonRedPCRed #-}
 nonRedPCRed :: Monad m => Reducer m () t
 nonRedPCRed = (mkSimpleReducer (\_ -> ())
-                              nonRedPCRedFunc)
+                              (nonRedPCRedFunc True))
 
-nonRedPCRedFunc :: Monad m => RedRules m () t
-nonRedPCRedFunc _
+-- | Removes and reduces the values in a State's non_red_path_conds field.
+-- Keep all states, regardless of whether they have violated an assertion.
+{-#INLINE nonRedPCRedNoPrune #-}
+nonRedPCRedNoPrune :: Monad m => Reducer m () t
+nonRedPCRedNoPrune = (mkSimpleReducer (\_ -> ())
+                              (nonRedPCRedFunc False))
+
+nonRedPCRedFunc :: Monad m => Bool -- ^ If true, prune states that do not have true_assert == True
+                           -> RedRules m () t
+nonRedPCRedFunc prune _
                 s@(State { expr_env = eenv
                          , curr_expr = cexpr
                          , exec_stack = stck
@@ -781,7 +791,7 @@ nonRedPCRedFunc _
     -- we get to NRPCs, just discard the state.
     -- Based on how we calculate the "exec" set, any assertion violations must occur before
     -- we get to NRPCs. 
-    | not (true_assert s) = return (Finished, [], b)
+    | not (true_assert s), prune = return (Finished, [], b)
     | Var (Id n t) <- nre2
     , E.isSymbolic n eenv
     , hasFuncType (PresType t) =
@@ -813,7 +823,7 @@ nonRedPCRedFunc _
                                               , curr_expr = ce }, ())) eenv_si_ces
 
         return (InProgress, xs, b)
-nonRedPCRedFunc _ s b = return (Finished, [(s, ())], b)
+nonRedPCRedFunc _ _ s b = return (Finished, [(s, ())], b)
 
 -- [Higher-Order Model]
 -- Substitutes all possible higher order functions for symbolic higher order functions.

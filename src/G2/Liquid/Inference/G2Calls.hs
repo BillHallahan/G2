@@ -426,7 +426,7 @@ gatherReducerHalterOrderer infconfig config lhconfig solver simplifier = do
                     Nothing -> SomeReducer (gathererReducer ~> stdRed share retReplaceSymbFuncVar solver simplifier ~> strictRed)
 
     return
-        (red .== Finished .--> (taggerRed state_name :== Finished --> nonRedPCRed)
+        (red .== Finished .--> (taggerRed state_name :== Finished --> nonRedPCRedNoPrune)
         , SomeHalter
             (discardIfAcceptedTagHalter state_name
               <~> switchEveryNHalter (switch_after lhconfig)
@@ -567,7 +567,7 @@ inferenceReducerHalterOrderer infconfig config lhconfig solver simplifier entry 
             (case m_logger of
                     Just logger -> logger .~> some_red
                     Nothing -> some_red) .== Finished .-->
-            (taggerRed state_name :== Finished --> nonRedPCRed) .== Finished .-->
+            (taggerRed state_name :== Finished --> nonRedPCRedNoPrune) .== Finished .-->
             (taggerRed abs_ret_name :== Finished --> nonRedAbstractReturnsRed)
         , SomeHalter
             (discardIfAcceptedTagHalter state_name <~> halter)
@@ -648,7 +648,7 @@ realCExReducerHalterOrderer infconfig config lhconfig entry modname solver simpl
 
     return $
         (log_opt_red .== Finished .-->
-            (taggerRed state_name :== Finished --> nonRedPCRed) .== Finished .-->
+            (taggerRed state_name :== Finished --> nonRedPCRedNoPrune) .== Finished .-->
             (taggerRed abs_ret_name :== Finished --> nonRedAbstractReturnsRed)
         , SomeHalter
             (discardIfAcceptedTagHalter state_name <~> halter)

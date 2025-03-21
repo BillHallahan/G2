@@ -183,7 +183,7 @@ getAbstracted g2call solver simplifier share s bindings abs_fc@(FuncCall { funcN
 
         (er, bindings') <- g2call 
                               (((hitsLibErrorGatherer ~> stdRed share retReplaceSymbFuncVar solver simplifier ~> strictRed) :== Finished
-                                            --> (nonRedPCRed .|. nonRedPCRedConst) ))
+                                            --> (nonRedPCRedNoPrune .|. nonRedPCRedConst) ))
                               (SomeHalter (swhnfHalter <~> acceptOnlyOneHalter <~> switchEveryNHalter 200))
                               (SomeOrderer (incrAfterN 2000 (adtSizeOrderer 0 Nothing)))
                               solver simplifier

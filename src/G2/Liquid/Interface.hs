@@ -446,7 +446,7 @@ lhReducerHalterOrderer config lhconfig solver simplifier entry mb_modname cfn st
 
         abs_ret_name = Name "abs_ret" Nothing 0 Nothing
 
-        non_red = nonRedPCRed .|. nonRedPCRedConst
+        non_red = nonRedPCRedNoPrune .|. nonRedPCRedConst
 
         m_logger = fmap SomeReducer $ getLogger config
 
