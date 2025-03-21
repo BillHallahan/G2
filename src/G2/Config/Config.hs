@@ -7,7 +7,6 @@ module G2.Config.Config ( Mode (..)
                         , HigherOrderSolver (..)
                         , FpHandling (..)
                         , NonRedPathCons (..)
-                        , AssertOrModule (..)
                         , IncludePath
                         , Config (..)
                         , BoolDef (..)
@@ -61,8 +60,6 @@ data FpHandling = RealFP | RationalFP deriving (Eq, Show, Read)
 
 data NonRedPathCons = Nrpc | NoNrpc deriving (Eq, Show, Read)
 
-data AssertOrModule = ByModule | ByAssert deriving (Eq, Show, Read)
-
 type IncludePath = FilePath
 
 data Config = Config {
@@ -94,7 +91,6 @@ data Config = Config {
     , timeLimit :: Int -- ^ Seconds
     , validate :: Bool -- ^ If True, run on G2's input, and check against expected output.
     , nrpc :: NonRedPathCons -- ^ Whether to execute using non reduced path constraints or not
-    , by_assert :: AssertOrModule -- ^ Whether to execute based on modules or just assert function
 }
 
 mkConfig :: String -> Parser Config
@@ -137,7 +133,6 @@ mkConfig homedir = Config Regular
                    <> help "time limit, in seconds")
     <*> switch (long "validate" <> help "use GHC to automatically compile and run on generated inputs, and check that generated outputs are correct")
     <*> flag NoNrpc Nrpc (long "nrpc" <> help "execute with non reduced path constraints")
-    <*> flag ByModule ByAssert (long "by-assert" <> help "only execute functions that are in required modules")
 
 mkBaseInclude :: String -> Parser [IncludePath]
 mkBaseInclude homedir =
@@ -259,7 +254,6 @@ mkConfigDirect homedir as m = Config {
     , timeLimit = strArg "time" as m read 300
     , validate  = boolArg "validate" as m Off
     , nrpc = NoNrpc
-    , by_assert = ByModule
 }
 
 baseIncludeDef :: FilePath -> [FilePath]

@@ -438,9 +438,9 @@ runG2WithConfig entry_f mb_modname state config bindings = do
         callGraph = G.getCallGraph $ expr_env state
         reachable_funcs = G.reachable entry_f callGraph
 
-        executable_funcs = case by_assert config of
-                                ByModule -> getFuncsByModule mb_modname reachable_funcs
-                                ByAssert -> getFuncsByAssert callGraph reachable_funcs
+        executable_funcs = case check_asserts config of
+                                False -> getFuncsByModule mb_modname reachable_funcs
+                                True -> getFuncsByAssert callGraph reachable_funcs
                                 
     rho <- initRedHaltOrd mod_name solver simplifier config (S.fromList executable_funcs)
     (in_out, bindings') <- case rho of
