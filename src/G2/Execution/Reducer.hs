@@ -766,8 +766,8 @@ strictRed = mkSimpleReducer (\_ -> ())
 -- | Removes and reduces the values in a State's non_red_path_conds field. 
 {-#INLINE nonRedPCRed #-}
 nonRedPCRed :: Monad m => Reducer m () t
-nonRedPCRed = mkSimpleReducer (\_ -> ())
-                              nonRedPCRedFunc
+nonRedPCRed = (mkSimpleReducer (\_ -> ())
+                              nonRedPCRedFunc)
 
 nonRedPCRedFunc :: Monad m => RedRules m () t
 nonRedPCRedFunc _
@@ -777,6 +777,11 @@ nonRedPCRedFunc _
                          , non_red_path_conds = (nre1, nre2):nrs
                          , model = m })
                 b@(Bindings { higher_order_inst = inst })
+    -- If our goal is to violate assertions, and we haven't violated an assertion yet when
+    -- we get to NRPCs, just discard the state.
+    -- Based on how we calculate the "exec" set, any assertion violations must occur before
+    -- we get to NRPCs. 
+    | not (true_assert s) = return (Finished, [], b)
     | Var (Id n t) <- nre2
     , E.isSymbolic n eenv
     , hasFuncType (PresType t) =
