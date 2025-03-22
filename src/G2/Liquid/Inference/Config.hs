@@ -370,7 +370,7 @@ mkInferenceConfigDirect as =
                     , timeout_se = strArg "timeout-se" as M.empty (fromInteger . read) 5
                     , timeout_sygus = strArg "timeout-sygus" as M.empty (fromInteger . read) 10 }
 
-adjustConfig :: Maybe T.Text -> SimpleState -> Config -> LHConfig -> InferenceConfig -> [GhcInfo] -> (Config, LHConfig, InferenceConfig)
+adjustConfig :: [Maybe T.Text] -> SimpleState -> Config -> LHConfig -> InferenceConfig -> [GhcInfo] -> (Config, LHConfig, InferenceConfig)
 adjustConfig main_mod s@(SimpleState { expr_env = eenv }) config lhconfig infconfig ghci =
     let
         -- ref = refinable main_mod meas tcv eenv
@@ -392,13 +392,13 @@ adjustConfig main_mod s@(SimpleState { expr_env = eenv }) config lhconfig infcon
 
         ns_not_main = filter (\(n, _) -> n == "foldr1")
                     . map (\(Name n m _ _) -> (n, m))
-                    . filter (\(Name _ m _ _) -> m /= main_mod)
+                    . filter (\(Name _ m _ _) -> m `notElem` main_mod)
                     $ E.keys eenv
     
         lhconfig' = lhconfig { only_top = True
                              , block_errors_in = S.fromList ns_not_main }
 
-        infconfig' = infconfig { modules = S.singleton main_mod
+        infconfig' = infconfig { modules = S.fromList main_mod
                                , pre_refined = pre }
 
         infconfig'' = if use_mod infconfig' == Nothing then determineUseMod main_mod s ghci infconfig' else infconfig'
@@ -407,13 +407,13 @@ adjustConfig main_mod s@(SimpleState { expr_env = eenv }) config lhconfig infcon
 
 -- | Determine whether to consider the mod operator when synthesizing code.
 -- We synthesize specifications with mod if some existing relevant specification uses mod.
-determineUseMod :: Maybe T.Text -> SimpleState -> [GhcInfo] -> InferenceConfig -> InferenceConfig
+determineUseMod :: [Maybe T.Text] -> SimpleState -> [GhcInfo] -> InferenceConfig -> InferenceConfig
 determineUseMod main_mod s ghci infconfig =
     let
         vs = map (\(Name n m _ _) -> (n, m))
            . map idName
            . varIds
-           . E.filterWithKey (\(Name _ m _ _) _ -> m == main_mod)
+           . E.filterWithKey (\(Name _ m _ _) _ -> m `elem` main_mod)
            $ expr_env s
         rel_specs = filter (\(Name n m _ _, _) -> (n, m) `elem` vs)
                   . map (\(n, sp) -> (mkName $ V.varName n, sp))
@@ -442,7 +442,7 @@ hasMod = LH.foldRType (\b rtype -> b || chRty rtype) False
         chExpr (Ref.PAtom _ e1 e2) = chExpr e1 || chExpr e2
         chExpr _ = False
 
-adjustConfigPostLH :: Maybe T.Text -> Measures -> TCValues -> S.State t -> [GhcInfo] -> LHConfig -> LHConfig
+adjustConfigPostLH :: [Maybe T.Text] -> Measures -> TCValues -> S.State t -> [GhcInfo] -> LHConfig -> LHConfig
 adjustConfigPostLH main_mod meas tcv (S.State { S.expr_env = eenv, S.known_values = kv }) ghci lhconfig =
     let
         ref = refinable main_mod meas tcv ghci kv eenv
@@ -454,13 +454,13 @@ adjustConfigPostLH main_mod meas tcv (S.State { S.expr_env = eenv, S.known_value
     in
     lhconfig { counterfactual = Counterfactual . CFOnly $ S.fromList ns_mm }
 
-refinable :: Maybe T.Text -> Measures -> TCValues -> [GhcInfo] -> S.KnownValues -> ExprEnv -> [(T.Text, Maybe T.Text)]
+refinable :: [Maybe T.Text] -> Measures -> TCValues -> [GhcInfo] -> S.KnownValues -> ExprEnv -> [(T.Text, Maybe T.Text)]
 refinable main_mod meas tcv ghci kv eenv = 
     let
         ns_mm = E.keys
               . E.filter (\e -> not (tyVarNoMeas meas tcv ghci e) || isPrimRetTy kv e)
               . E.filter (not . tyVarRetTy)
-              $ E.filterWithKey (\(Name _ m _ _) _ -> m == main_mod) eenv
+              $ E.filterWithKey (\(Name _ m _ _) _ -> m `elem` main_mod) eenv
         ns_mm' = map (\(Name n m _ _) -> (n, m)) ns_mm
     in
     ns_mm'
