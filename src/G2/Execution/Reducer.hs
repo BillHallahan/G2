@@ -563,8 +563,8 @@ nonRedLibFuncsReducer :: Monad m =>
                       -> Bool -- ^ is function recursive?
                       -> Bool -- ^ Should NRPCs be used to delay execution of symbolic functions?
                       -> Reducer m () t
-nonRedLibFuncsReducer n use_with_symb_func is_recursive = mkSimpleReducer (\_ -> ())
-                                                 (nonRedLibFuncs n use_with_symb_func is_recursive)
+nonRedLibFuncsReducer n is_recursive use_with_symb_func = mkSimpleReducer (\_ -> ())
+                                                 (nonRedLibFuncs n is_recursive use_with_symb_func)
 
 nonRedLibFuncs :: Monad m => HS.HashSet Name -> Bool -> Bool -> RedRules m () t
 nonRedLibFuncs names is_recursive use_with_symb_func _
