@@ -113,10 +113,10 @@ findCounterExamples proj fp entry config lhconfig = do
 
     (mb_mod, ex_g2) <- translateLoaded proj fp (simplTranslationConfig { simpl = False }) config'
 
-    runLHCore entry (head mb_mod, ex_g2) ghci' config' lhconfig
+    runLHCore entry (mb_mod, ex_g2) ghci' config' lhconfig
 
 runLHCore :: T.Text
-          -> (Maybe T.Text, ExtractedG2)
+          -> ([Maybe T.Text], ExtractedG2)
           -> [GhcInfo]
           -> Config
           -> LHConfig
@@ -139,7 +139,7 @@ runLHCore entry (mb_modname, exg2) ghci config lhconfig = do
     return ((exec_res, final_bindings), ifi)
 
 {-# INLINE liquidStateWithCall #-}
-liquidStateWithCall :: T.Text -> (Maybe T.Text, ExtractedG2)
+liquidStateWithCall :: T.Text -> ([Maybe T.Text], ExtractedG2)
                       -> [GhcInfo]
                       -> Config
                       -> LHConfig
@@ -149,7 +149,7 @@ liquidStateWithCall entry (mb_modname, exg2) ghci config lhconfig memconfig =
     liquidStateWithCall' entry (mb_modname, exg2) ghci config lhconfig memconfig (mkCurrExpr Nothing Nothing) mkArgTys
 
 {-# INLINE liquidStateWithCall' #-}
-liquidStateWithCall' :: T.Text -> (Maybe T.Text, ExtractedG2)
+liquidStateWithCall' :: T.Text -> ([Maybe T.Text], ExtractedG2)
                        -> [GhcInfo]
                        -> Config
                        -> LHConfig
@@ -165,7 +165,7 @@ liquidStateWithCall' entry (mb_m, exg2) ghci config lhconfig memconfig mkCurr ar
 liquidStateFromSimpleStateWithCall :: SimpleState
                                    -> [GhcInfo]
                                    -> T.Text
-                                   -> Maybe T.Text
+                                   -> [Maybe T.Text]
                                    -> Config
                                    -> LHConfig
                                    -> MemConfig
@@ -177,7 +177,7 @@ liquidStateFromSimpleStateWithCall simp_s ghci entry mb_m config lhconfig memcon
 liquidStateFromSimpleStateWithCall' :: SimpleState
                                     -> [GhcInfo]
                                     -> T.Text
-                                    -> Maybe T.Text
+                                    -> [Maybe T.Text]
                                     -> Config
                                     -> LHConfig
                                     -> MemConfig
@@ -446,7 +446,7 @@ lhReducerHalterOrderer config lhconfig solver simplifier entry mb_modname cfn st
 
         abs_ret_name = Name "abs_ret" Nothing 0 Nothing
 
-        non_red = nonRedPCRed .|. nonRedPCRedConst
+        non_red = nonRedPCRedNoPrune .|. nonRedPCRedConst
 
         m_logger = fmap SomeReducer $ getLogger config
 

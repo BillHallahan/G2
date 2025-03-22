@@ -21,7 +21,7 @@ import qualified Language.Fixpoint.Types.Config as FP
 
 import qualified Data.Text as T
 
-initStateAndConfig :: ExtractedG2 -> Maybe T.Text -> G2.Config -> LHConfig -> InferenceConfig -> [GhcInfo]
+initStateAndConfig :: ExtractedG2 -> [Maybe T.Text] -> G2.Config -> LHConfig -> InferenceConfig -> [GhcInfo]
                    -> (LiquidReadyState, G2.Config, LHConfig, InferenceConfig)
 initStateAndConfig exg2 main_mod g2config lhconfig infconfig ghci = 
     let
@@ -35,7 +35,7 @@ initStateAndConfig exg2 main_mod g2config lhconfig infconfig ghci =
     in
     (lrs, g2config', lhconfig'', infconfig')
 
-createStateForInference :: SimpleState -> Maybe T.Text -> G2.Config -> LHConfig -> [GhcInfo] -> LiquidReadyState
+createStateForInference :: SimpleState -> [Maybe T.Text] -> G2.Config -> LHConfig -> [GhcInfo] -> LiquidReadyState
 createStateForInference simp_s main_mod config lhconfig ghci =
     let
         (simp_s', ph_tyvars) = if add_tyvars lhconfig

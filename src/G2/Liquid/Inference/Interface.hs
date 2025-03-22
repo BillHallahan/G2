@@ -88,7 +88,7 @@ inference' infconfig config g2lhconfig lhconfig ghci proj fp = do
     mapM_ (print . getQualifiers) ghci
 
     (lrs, g2config', g2lhconfig', infconfig', main_mod) <- getInitState proj fp ghci infconfig config g2lhconfig
-    let nls = getNameLevels main_mod lrs
+    let nls = getNameLevels (head main_mod) lrs
 
     let ut = sharedTyConsEE (concat nls) (expr_env . G2LH.state . lr_state $ lrs)
 
@@ -96,7 +96,7 @@ inference' infconfig config g2lhconfig lhconfig ghci proj fp = do
         prog = newProgress
 
     SomeSMTSolver solver <- getSMT g2config'
-    let infL = iterativeInference solver ghci main_mod lrs nls HM.empty emptyGS emptyFC ut
+    let infL = iterativeInference solver ghci (head main_mod) lrs nls HM.empty emptyGS emptyFC ut
 
     (res, ev_timer, lvl_timer, loops) <- runInfStack configs prog infL -- runProgresser (runConfigs (runTimer infL timer) configs) prog
 
@@ -112,15 +112,15 @@ getInitState :: [FilePath]
              -> InferenceConfig
              -> G2.Config
              -> LHConfig
-             -> IO (LiquidReadyState, G2.Config, LHConfig, InferenceConfig, Maybe T.Text)
+             -> IO (LiquidReadyState, G2.Config, LHConfig, InferenceConfig, [Maybe T.Text])
 getInitState proj fp ghci infconfig config lhconfig = do
     let g2config = config { mode = Liquid
                           , steps = 2000 }
         transConfig = simplTranslationConfig { simpl = False }
     (main_mod, exg2) <- translateLoaded proj fp transConfig g2config
 
-    let (lrs, g2config', lhconfig', infconfig') = initStateAndConfig exg2 (head main_mod) g2config lhconfig infconfig ghci
-    return (lrs, g2config', lhconfig', infconfig', head main_mod)
+    let (lrs, g2config', lhconfig', infconfig') = initStateAndConfig exg2 main_mod g2config lhconfig infconfig ghci
+    return (lrs, g2config', lhconfig', infconfig', main_mod)
 
 getNameLevels :: Maybe T.Text -> LiquidReadyState -> NameLevels
 getNameLevels main_mod =

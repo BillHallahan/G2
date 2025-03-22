@@ -16,11 +16,15 @@ f g l = case g (getList l) of
     Cons True l -> False
     EmptyList -> True
 
+myNot :: Bool -> Bool
+myNot True = False
+myNot False = True
+
 h :: (Int -> Int) -> Bool
-h g = not (g 3 <= g 6)
+h g = myNot (g 3 <= g 6)
 
 assoc :: (Int -> Int -> Int) -> Int -> Int -> Int -> Bool
-assoc op x y z = not (op (op x y) z == op x (op y z))
+assoc op x y z = myNot (op (op x y) z == op x (op y z))
 
 data Stream = Stream Bool Stream
 
@@ -28,7 +32,7 @@ streamTail :: Stream -> Stream
 streamTail (Stream _ s) = s
 
 sf :: (Stream -> Int) -> Stream -> Bool
-sf f s = not (f s == f (streamTail s))
+sf f s = myNot (f s == f (streamTail s))
 
 thirdOrder :: ((Bool -> Bool) -> Bool) -> Int
 thirdOrder f =
