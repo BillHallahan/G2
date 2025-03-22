@@ -50,6 +50,7 @@ import G2.Preprocessing.Interface
 import G2.Execution.HPC
 import G2.Execution.Interface
 import G2.Execution.Reducer
+import G2.Execution.Rules
 import G2.Execution.PrimitiveEval
 import G2.Execution.Memory
 
@@ -284,25 +285,25 @@ initRedHaltOrd mod_name solver simplifier config libFunNames = do
 
         m_logger = fmap SomeReducer $ getLogger config
 
-        strict_red = case strict config of
-                            True -> SomeReducer (stdRed share solver simplifier ~> instTypeRed ~> strictRed)
-                            False -> SomeReducer (stdRed share solver simplifier ~> instTypeRed)
+        strict_red f = case strict config of
+                            True -> SomeReducer (stdRed share f solver simplifier ~> instTypeRed ~> strictRed)
+                            False -> SomeReducer (stdRed share f solver simplifier ~> instTypeRed)
 
-        hpc_red = case hpc config of
-                        True ->  SomeReducer (hpcReducer mod_name) .~> strict_red
-                        False -> strict_red
+        hpc_red f = case hpc config of
+                        True ->  SomeReducer (hpcReducer mod_name) .~> strict_red f 
+                        False -> strict_red f
 
-        nrpc_red = case nrpc config of
-                        Nrpc -> liftSomeReducer (SomeReducer (nonRedLibFuncsReducer libFunNames (symbolic_func_nrpc config)) .== Finished .--> hpc_red)
-                        NoNrpc -> liftSomeReducer hpc_red
+        nrpc_red f = case nrpc config of
+                        Nrpc -> liftSomeReducer (SomeReducer (nonRedLibFuncsReducer libFunNames (symbolic_func_nrpc config)) .== Finished .--> hpc_red f)
+                        NoNrpc -> liftSomeReducer (hpc_red f)
 
-        accept_time_red = case accept_times config of
-                                True -> SomeReducer time_logger .~> nrpc_red
-                                False -> nrpc_red
+        accept_time_red f = case accept_times config of
+                                True -> SomeReducer time_logger .~> nrpc_red f
+                                False -> nrpc_red f
 
-        logger_std_red = case m_logger of
-                            Just logger -> liftSomeReducer (logger .~> accept_time_red)
-                            Nothing -> liftSomeReducer accept_time_red
+        logger_std_red f = case m_logger of
+                            Just logger -> liftSomeReducer (logger .~> accept_time_red f)
+                            Nothing -> liftSomeReducer (accept_time_red f)
 
         halter = switchEveryNHalter 20
                  <~> maxOutputsHalter (maxOutputs config)
@@ -321,15 +322,15 @@ initRedHaltOrd mod_name solver simplifier config libFunNames = do
     return $
         case higherOrderSolver config of
             AllFuncs ->
-                ( logger_std_red .== Finished .--> SomeReducer nonRedPCRed
+                ( logger_std_red retReplaceSymbFuncVar .== Finished .--> SomeReducer nonRedPCRed
                 ,  halter_step
                 , orderer)
             SingleFunc ->
-                ( logger_std_red .== Finished .--> taggerRed state_name :== Finished --> nonRedPCRed
+                ( logger_std_red retReplaceSymbFuncVar .== Finished .--> taggerRed state_name :== Finished --> nonRedPCRed
                 , SomeHalter (discardIfAcceptedTagHalter state_name) .<~> halter_step
                 , orderer)
             SymbolicFunc ->
-                ( logger_std_red .== Finished .--> taggerRed state_name :== Finished --> nonRedPCSymFuncRed
+                ( logger_std_red retReplaceSymbFuncTemplate .== Finished .--> taggerRed state_name :== Finished --> nonRedPCSymFuncRed
                 , SomeHalter (discardIfAcceptedTagHalter state_name) .<~> halter_step
                 , orderer)
 

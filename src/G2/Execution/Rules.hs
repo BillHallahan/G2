@@ -16,8 +16,10 @@ module G2.Execution.Rules ( module G2.Execution.RuleTypes
                           , evalAssume
                           , evalAssert
 
-                          , isExecValueForm
-
+                          , isExecValueForm 
+                          
+                          , SymbolicFuncEval
+                          , retReplaceSymbFuncVar
                           , retReplaceSymbFuncTemplate) where
 
 import G2.Config.Config
@@ -43,14 +45,14 @@ import qualified G2.Data.UFMap as UF
 
 import Control.Exception
 
-stdReduce :: (Solver solver, Simplifier simplifier) => Sharing -> solver -> simplifier -> State t -> Bindings -> IO (Rule, [(State t, ())], Bindings)
-stdReduce share solver simplifier s b@(Bindings {name_gen = ng}) = do
-    (r, s', ng') <- stdReduce' share solver simplifier s ng
+stdReduce :: (Solver solver, Simplifier simplifier) => Sharing -> SymbolicFuncEval t -> solver -> simplifier -> State t -> Bindings -> IO (Rule, [(State t, ())], Bindings)
+stdReduce share symb_func_eval solver simplifier s b@(Bindings {name_gen = ng}) = do
+    (r, s', ng') <- stdReduce' share symb_func_eval solver simplifier s ng
     let s'' = map (\ss -> ss { rules = r:rules ss }) s'
     return (r, zip s'' (repeat ()), b { name_gen = ng'})
 
-stdReduce' :: (Solver solver, Simplifier simplifier) => Sharing -> solver -> simplifier -> State t -> NameGen -> IO (Rule, [State t], NameGen)
-stdReduce' share solver simplifier s@(State { curr_expr = CurrExpr Evaluate ce }) ng
+stdReduce' :: (Solver solver, Simplifier simplifier) => Sharing -> SymbolicFuncEval t -> solver -> simplifier -> State t -> NameGen -> IO (Rule, [State t], NameGen)
+stdReduce' share _ solver simplifier s@(State { curr_expr = CurrExpr Evaluate ce }) ng
     | Var i  <- ce
     , share == Sharing = return $ evalVarSharing s ng i
     | Var i <- ce
@@ -71,14 +73,14 @@ stdReduce' share solver simplifier s@(State { curr_expr = CurrExpr Evaluate ce }
     | Assume fc e1 e2 <- ce = return $ evalAssume s ng fc e1 e2
     | Assert fc e1 e2 <- ce = return $ evalAssert s ng fc e1 e2
     | otherwise = return (RuleReturn, [s { curr_expr = CurrExpr Return ce }], ng)
-stdReduce' _ solver simplifier s@(State { curr_expr = CurrExpr Return ce
+stdReduce' _ symb_func_eval solver simplifier s@(State { curr_expr = CurrExpr Return ce
                                  , exec_stack = stck }) ng
     | isError ce
     , Just (AssertFrame is _, stck') <- S.pop stck =
         return (RuleError, [s { exec_stack = stck'
                               , true_assert = True
                               , assert_ids = fmap (\fc -> fc { returns = Prim Error TyBottom }) is }], ng)
-    | Just rs <- retReplaceSymbFuncTemplate s ng ce = return rs
+    | Just rs <- symb_func_eval s ng ce = return rs
     | Just (UpdateFrame n, stck') <- frstck = return $ retUpdateFrame s ng n stck'
     | isError ce
     , Just (_, stck') <- S.pop stck = return (RuleError, [s { exec_stack = stck' }], ng)
@@ -1187,6 +1189,8 @@ liftBind bindsLHS bindsRHS eenv expr ngen = (eenv', expr', ngen', new)
 
     eenv' = E.insert new bindsRHS eenv
 
+type SymbolicFuncEval t = State t -> NameGen -> Expr -> Maybe (Rule, [State t], NameGen)
+
 -- change literal rule to only match on arguments
 retReplaceSymbFuncTemplate :: State t -> NameGen -> Expr -> Maybe (Rule, [State t], NameGen)
 retReplaceSymbFuncTemplate s@(State { expr_env = eenv
@@ -1292,4 +1296,37 @@ mkFuncConst s@(State { expr_env = eenv } ) es n t1 t2 ng =
         -- symbolic_ids = fId:symbolic_ids state,
         expr_env = eenv''
     }, ng')
+
+-- If the expression is a symbolic higher order function application, replaces
+-- it with a symbolic variable of the correct type.
+-- A non reduced path constraint is added, to force solving for the symbolic
+-- function later.
+retReplaceSymbFuncVar :: State t -> NameGen -> Expr -> Maybe (Rule, [State t], NameGen)
+retReplaceSymbFuncVar s@(State { expr_env = eenv
+                               , exec_stack = stck })
+                      ng ce
+    | notApplyFrame
+    , (Var (Id f idt):_) <- unApp ce
+    , E.isSymbolic f eenv
+    , isTyFun idt
+    , t <- typeOf ce
+    , not (isTyFun t) =
+        let
+            (new_sym, ng') = freshSeededString "sym" ng
+            new_sym_id = Id new_sym t
+        in
+        Just (RuleReturnReplaceSymbFunc, 
+            [s { expr_env = E.insertSymbolic new_sym_id eenv
+               , curr_expr = CurrExpr Return (Var new_sym_id)
+               , non_red_path_conds = non_red_path_conds s ++ [(ce, Var new_sym_id)] }]
+            , ng')
+    | otherwise = Nothing
+    where
+        notApplyFrame | Just (frm, _) <- S.pop stck = not (isApplyFrame frm)
+                      | otherwise = True
+
+isApplyFrame :: Frame -> Bool
+isApplyFrame (ApplyFrame _) = True
+isApplyFrame _ = False
+
 

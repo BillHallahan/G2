@@ -276,7 +276,7 @@ qqRedHaltOrd config solver simplifier =
     let
         share = sharing config
     in
-    ( nonRedPCRed :== Finished --> stdRed share solver simplifier
+    ( nonRedPCRed :== Finished --> stdRed share retReplaceSymbFuncVar solver simplifier
     , SomeHalter
         (acceptIfViolatedHalter)
     , SomeOrderer nextOrderer)

@@ -9,6 +9,7 @@ module G2.Execution.ExecSkip
 import qualified Data.HashSet as HS
 import qualified G2.Language.ExprEnv as E
 import G2.Language
+import G2.Execution.Rules
 
 data ExecOrSkip = Exec
                 | Skip
