@@ -560,7 +560,8 @@ nonRedPCSymFunc _ s b = return (Finished, [(s, ())], b)
 -- | A reducer to add library functions in non reduced path constraints for solving later  
 nonRedLibFuncsReducer :: Monad m =>
                          HS.HashSet Name
-                      -> Bool -> Bool -- ^ Should NRPCs be used to delay execution of symbolic functions?
+                      -> Bool -- ^ is function recursive?
+                      -> Bool -- ^ Should NRPCs be used to delay execution of symbolic functions?
                       -> Reducer m () t
 nonRedLibFuncsReducer n use_with_symb_func is_recursive = mkSimpleReducer (\_ -> ())
                                                  (nonRedLibFuncs n use_with_symb_func is_recursive)
