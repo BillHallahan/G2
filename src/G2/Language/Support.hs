@@ -47,7 +47,8 @@ data State t = State { expr_env :: E.ExprEnv -- ^ Mapping of `Name`s to `Expr`s
                      , handles :: HM.HashMap Name Handle -- ^ Each Handle has a name, that appears in `Expr`s within the `Handle` `Primitive`
                      , mutvar_env :: MutVarEnv -- ^ MutVar `Name`s to mappings of names in the `ExprEnv`.
                                                -- See Note [MutVar Env] in G2.Language.MutVarEnv.
-                     , true_assert :: Bool -- ^ Have we violated an assertion?
+                     , true_assert :: Bool -- ^ Do we want to output the state?  True if yes, false if no.
+                                           -- When running to violate assertions, an assertion violations flips this from False to True.
                      , assert_ids :: Maybe FuncCall
                      , type_classes :: TypeClasses
                      , exec_stack :: Stack Frame

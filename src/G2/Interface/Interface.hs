@@ -105,29 +105,31 @@ maybeDoTimeout Nothing = fmap Just
 initStateWithCall :: ExtractedG2
                   -> Bool
                   -> StartFunc
-                  -> ModuleName
+                  -> [Maybe T.Text]
                   -> (Id -> MkCurrExpr)
                   -> (Expr -> MkArgTypes)
                   -> Config
-                  -> (State (), Bindings)
+                  -> (Id, State (), Bindings)
 initStateWithCall exg2 useAssert f m_mod mkCurr argTys config =
     let
         s = initSimpleState exg2
 
-        (ie, fe) = case findFunc f [m_mod] (IT.expr_env s) of
+        (ie, fe) = case findFunc f m_mod (IT.expr_env s) of
                         Left ie' -> ie'
                         Right errs -> error errs
+        
+        (s', b) = initStateFromSimpleState s m_mod useAssert (mkCurr ie) (argTys fe) config
     in
-    initStateFromSimpleState s m_mod useAssert (mkCurr ie) (argTys fe) config
+    (ie, s', b)
 
 {-# INLINE initStateWithCall' #-}
 initStateWithCall' :: ExtractedG2
                    -> StartFunc
-                   -> ModuleName
+                   -> [Maybe T.Text]
                    -> (Id -> MkCurrExpr)
                    -> (Expr -> MkArgTypes)
                    -> Config
-                   -> (State (), Bindings)
+                   -> (Id, State (), Bindings)
 initStateWithCall' exg2 =
     initStateWithCall exg2 False
 
@@ -135,14 +137,14 @@ initStateWithCall' exg2 =
 initStateFromSimpleStateWithCall :: IT.SimpleState
                                  -> Bool
                                  -> StartFunc
-                                 -> ModuleName
+                                 -> [Maybe T.Text]
                                  -> (Id -> MkCurrExpr)
                                  -> (Expr -> MkArgTypes)
                                  -> Config
                                  -> (State (), Id, Bindings)
 initStateFromSimpleStateWithCall simp_s useAssert f m_mod mkCurr argTys config =
     let
-        (ie, fe) = case findFunc f [m_mod] (IT.expr_env simp_s) of
+        (ie, fe) = case findFunc f m_mod (IT.expr_env simp_s) of
                         Left ie' -> ie'
                         Right errs -> error errs
     
@@ -151,7 +153,7 @@ initStateFromSimpleStateWithCall simp_s useAssert f m_mod mkCurr argTys config =
     (s, ie, b)
 
 initStateFromSimpleState :: IT.SimpleState
-                         -> Maybe T.Text
+                         -> [Maybe T.Text]
                          -> Bool
                          -> MkCurrExpr
                          -> MkArgTypes
@@ -194,7 +196,7 @@ initStateFromSimpleState s m_mod useAssert mkCurr argTys config =
     , cleaned_names = HM.empty
     , input_names = map idName is
     , input_coercion = m_coercion
-    , higher_order_inst = S.filter (\n -> nameModule n == m_mod) . S.fromList $ IT.exports s
+    , higher_order_inst = S.filter (\n -> nameModule n `elem` m_mod) . S.fromList $ IT.exports s
     , rewrite_rules = IT.rewrite_rules s
     , name_gen = ng''
     , exported_funcs = IT.exports s })
@@ -206,12 +208,12 @@ mkArgTys e simp_s =
 {-# INLINE initStateFromSimpleState' #-}
 initStateFromSimpleState' :: IT.SimpleState
                           -> StartFunc
-                          -> ModuleName
+                          -> [Maybe T.Text]
                           -> Config
                           -> (State (), Bindings)
 initStateFromSimpleState' s sf m_mod =
     let
-        (ie, fe) = case findFunc sf [m_mod] (IT.expr_env s) of
+        (ie, fe) = case findFunc sf m_mod (IT.expr_env s) of
                           Left ie' -> ie'
                           Right errs -> error errs
     in
@@ -243,7 +245,7 @@ initSimpleState (ExtractedG2 { exg2_binds = prog
     in
     runInitialization1 s
 
-initCheckReaches :: State t -> ModuleName -> Maybe ReachFunc -> State t
+initCheckReaches :: State t -> Maybe T.Text -> Maybe ReachFunc -> State t
 initCheckReaches s@(State { expr_env = eenv
                           , known_values = kv }) m_mod reaches =
     s {expr_env = checkReaches eenv kv reaches m_mod }
@@ -297,7 +299,7 @@ initRedHaltOrd mod_name solver simplifier config exec_func_names is_recursive = 
                         False -> strict_red f
 
         nrpc_red f = case nrpc config of
-                        Nrpc -> liftSomeReducer (SomeReducer (nonRedLibFuncsReducer exec_func_names is_recursive) .== Finished .--> hpc_red f)
+                        Nrpc -> liftSomeReducer (SomeReducer (nonRedLibFuncsReducer exec_func_names is_recursive (symbolic_func_nrpc config)) .== Finished .--> hpc_red f)
                         NoNrpc -> liftSomeReducer (hpc_red f)
 
         accept_time_red f = case accept_times config of
@@ -333,11 +335,7 @@ initRedHaltOrd mod_name solver simplifier config exec_func_names is_recursive = 
                 , SomeHalter (discardIfAcceptedTagHalter state_name) .<~> halter_step
                 , orderer)
             SymbolicFunc ->
-                ( logger_std_red retReplaceSymbFuncTemplate .== Finished .--> SomeReducer nonRedPCRed
-                , halter_step
-                , orderer)
-            SymbolicFuncNRPC ->
-                ( logger_std_red retReplaceSymbFuncVar .== Finished .--> taggerRed state_name :== Finished --> nonRedPCSymFuncRed
+                ( logger_std_red retReplaceSymbFuncTemplate .== Finished .--> taggerRed state_name :== Finished --> nonRedPCSymFuncRed
                 , SomeHalter (discardIfAcceptedTagHalter state_name) .<~> halter_step
                 , orderer)
 
@@ -377,7 +375,7 @@ initialStateNoStartFunc proj src transConfig config = do
 
     let simp_state = initSimpleState exg2
 
-        (init_s, bindings) = initStateFromSimpleState simp_state Nothing False
+        (init_s, bindings) = initStateFromSimpleState simp_state [Nothing] False
                                  (\_ ng _ _ _ _ -> (Prim Undefined TyBottom, [], [], Nothing, ng))
                                  (E.higherOrderExprs . IT.expr_env)
                                  config
@@ -404,7 +402,7 @@ initialStateFromFile proj src m_reach def_assert f mkCurr argTys transConfig con
 
         spec_mod = nameModule . idName $ ie
 
-        (init_s, bindings) = initStateFromSimpleState simp_state spec_mod def_assert
+        (init_s, bindings) = initStateFromSimpleState simp_state mb_modname def_assert
                                                   (mkCurr ie) (argTys fe) config
     -- let (init_s, ent_f, bindings) = initState exg2 def_assert
     --                                 f mb_modname mkCurr argTys config
@@ -442,10 +440,10 @@ runG2WithConfig entry_f mb_modname state config bindings = do
         reachable_funcs = G.reachable entry_f callGraph
         is_recursive = isFuncRecursive callGraph entry_f
 
-        executable_funcs = case by_assert config of
-                                ByModule -> getFuncsByModule mb_modname reachable_funcs
-                                ByAssert -> getFuncsByAssert callGraph reachable_funcs
-                                
+        executable_funcs = case check_asserts config of
+                                False -> getFuncsByModule mb_modname reachable_funcs
+                                True -> getFuncsByAssert callGraph reachable_funcs
+
     rho <- initRedHaltOrd mod_name solver simplifier config (S.fromList executable_funcs) is_recursive
     (in_out, bindings') <- case rho of
                 (red, hal, ord) ->

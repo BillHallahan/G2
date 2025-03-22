@@ -60,6 +60,7 @@ module G2.Execution.Reducer ( Reducer (..)
                             , nonRedPCSymFuncRed
                             , nonRedLibFuncsReducer
                             , nonRedPCRed
+                            , nonRedPCRedNoPrune
                             , nonRedPCRedConst
                             , strictRed
                             , taggerRed
@@ -557,12 +558,16 @@ nonRedPCSymFunc _
 nonRedPCSymFunc _ s b = return (Finished, [(s, ())], b)
 
 -- | A reducer to add library functions in non reduced path constraints for solving later  
-nonRedLibFuncsReducer :: Monad m => HS.HashSet Name -> Bool -> Reducer m () t
-nonRedLibFuncsReducer n is_recursive = mkSimpleReducer (\_ -> ())
-                            (nonRedLibFuncs n is_recursive)
+nonRedLibFuncsReducer :: Monad m =>
+                         HS.HashSet Name
+                      -> Bool -> Bool -- ^ Should NRPCs be used to delay execution of symbolic functions?
+                      -> Reducer m () t
+nonRedLibFuncsReducer n use_with_symb_func is_recursive = mkSimpleReducer (\_ -> ())
+                                                 (nonRedLibFuncs n use_with_symb_func is_recursive)
 
-nonRedLibFuncs :: Monad m => HS.HashSet Name -> Bool -> RedRules m () t
-nonRedLibFuncs names is_recursive _ s@(State { expr_env = eenv
+nonRedLibFuncs :: Monad m => HS.HashSet Name -> Bool -> Bool -> RedRules m () t
+nonRedLibFuncs names is_recursive use_with_symb_func _
+                s@(State { expr_env = eenv
                          , curr_expr = CurrExpr _ ce
                          , type_env = tenv
                          , known_values = kv
@@ -570,6 +575,7 @@ nonRedLibFuncs names is_recursive _ s@(State { expr_env = eenv
                          }) 
                          b@(Bindings { name_gen = ng })
     | Var (Id n t):es <- unApp ce
+    , use_with_symb_func || (E.isSymbolic n eenv)
     , is_recursive
     , hasFuncType (PresType t)
     -- We want to introduce an NRPC only if the function is fully applied and does not have nested function argument types
@@ -764,20 +770,34 @@ strictRed = mkSimpleReducer (\_ -> ())
                                  | otherwise = maybe True (cont (HS.insert n ns)) (E.lookup n eenv)
         strict_red _ s b = return (NoProgress, [(s, ())], b)
 
--- | Removes and reduces the values in a State's non_red_path_conds field. 
+-- | Removes and reduces the values in a State's non_red_path_conds field.
+-- If a state has not yet violated an assertion, it is discarded.
 {-#INLINE nonRedPCRed #-}
 nonRedPCRed :: Monad m => Reducer m () t
-nonRedPCRed = mkSimpleReducer (\_ -> ())
-                              nonRedPCRedFunc
+nonRedPCRed = (mkSimpleReducer (\_ -> ())
+                              (nonRedPCRedFunc True))
 
-nonRedPCRedFunc :: Monad m => RedRules m () t
-nonRedPCRedFunc _
+-- | Removes and reduces the values in a State's non_red_path_conds field.
+-- Keep all states, regardless of whether they have violated an assertion.
+{-#INLINE nonRedPCRedNoPrune #-}
+nonRedPCRedNoPrune :: Monad m => Reducer m () t
+nonRedPCRedNoPrune = (mkSimpleReducer (\_ -> ())
+                              (nonRedPCRedFunc False))
+
+nonRedPCRedFunc :: Monad m => Bool -- ^ If true, prune states that do not have true_assert == True
+                           -> RedRules m () t
+nonRedPCRedFunc prune _
                 s@(State { expr_env = eenv
                          , curr_expr = cexpr
                          , exec_stack = stck
                          , non_red_path_conds = (nre1, nre2):nrs
                          , model = m })
                 b@(Bindings { higher_order_inst = inst })
+    -- If our goal is to violate assertions, and we haven't violated an assertion yet when
+    -- we get to NRPCs, just discard the state.
+    -- Based on how we calculate the "exec" set, any assertion violations must occur before
+    -- we get to NRPCs. 
+    | not (true_assert s), prune = return (Finished, [], b)
     | Var (Id n t) <- nre2
     , E.isSymbolic n eenv
     , hasFuncType (PresType t) =
@@ -809,7 +829,7 @@ nonRedPCRedFunc _
                                               , curr_expr = ce }, ())) eenv_si_ces
 
         return (InProgress, xs, b)
-nonRedPCRedFunc _ s b = return (Finished, [(s, ())], b)
+nonRedPCRedFunc _ _ s b = return (Finished, [(s, ())], b)
 
 -- [Higher-Order Model]
 -- Substitutes all possible higher order functions for symbolic higher order functions.
