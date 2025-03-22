@@ -46,7 +46,7 @@ checkInputOutputsTemplate src tests = do
 checkInputOutputsNonRedTemp :: FilePath -> [(String, Int, [Reqs String])] -> TestTree
 checkInputOutputsNonRedTemp src tests = do
     checkInputOutput'
-        (do config <- mkConfigTestIO; return (config { higherOrderSolver = SymbolicFunc }))
+        (do config <- mkConfigTestIO; return (config { higherOrderSolver = SymbolicFunc, nrpc = Nrpc }))
         src
         tests
 
@@ -86,7 +86,7 @@ checkInputOutput' io_config src tests = do
                                 (mb_modname, exg2) <- loadedExG2
                                 config <- io_config
                                 r <- doTimeout (timeLimit config)
-                                               (try (checkInputOutput'' [src] exg2 (head mb_modname) config test)
+                                               (try (checkInputOutput'' [src] exg2 mb_modname config test)
                                                     :: IO (Either SomeException ([Bool], Bool, [ExecRes ()], Bindings)))
                                 let (b, e) = case r of
                                         Nothing -> (False, "\nTimeout")
@@ -106,19 +106,19 @@ checkInputOutput' io_config src tests = do
  
 checkInputOutput'' :: [FilePath]
                    -> ExtractedG2
-                   -> Maybe T.Text
+                   -> [Maybe T.Text]
                    -> Config
                    -> (String, Int, [Reqs String])
                    -> IO ([Bool], Bool, [ExecRes ()], Bindings)
 checkInputOutput'' src exg2 mb_modname config (entry, stps, req) = do
     let config' = config { steps = stps }
-        (init_state, bindings) = initStateWithCall exg2 False (T.pack entry) mb_modname (mkCurrExpr Nothing Nothing) mkArgTys config'
+        (entry_f, init_state, bindings) = initStateWithCall exg2 False (T.pack entry) mb_modname (mkCurrExpr Nothing Nothing) mkArgTys config'
     
-    (r, b) <- runG2WithConfig (Name (T.pack entry) Nothing 0 Nothing) (exg2_mod_names exg2) init_state config' bindings
+    (r, b) <- runG2WithConfig (idName entry_f) mb_modname init_state config' bindings
 
     let chAll = checkExprAll req
     let proj = map takeDirectory src
-    mr <- validateStates proj src (T.unpack $ fromJust mb_modname) entry chAll [] b r
+    mr <- validateStates proj src (T.unpack . fromJust $ head mb_modname) entry chAll [] b r
     let io = map (\(ExecRes { conc_args = i, conc_out = o}) -> i ++ [o]) r
 
     let chEx = checkExprInOutCount io req
