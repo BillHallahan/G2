@@ -560,14 +560,13 @@ nonRedPCSymFunc _ s b = return (Finished, [(s, ())], b)
 -- | A reducer to add library functions in non reduced path constraints for solving later  
 nonRedLibFuncsReducer :: Monad m =>
                          HS.HashSet Name
-                      -> Bool -- ^ is function recursive?
                       -> Bool -- ^ Should NRPCs be used to delay execution of symbolic functions?
                       -> Reducer m () t
-nonRedLibFuncsReducer n is_recursive use_with_symb_func = mkSimpleReducer (\_ -> ())
-                                                 (nonRedLibFuncs n is_recursive use_with_symb_func)
+nonRedLibFuncsReducer n use_with_symb_func = mkSimpleReducer (\_ -> ())
+                                                 (nonRedLibFuncs n use_with_symb_func)
 
-nonRedLibFuncs :: Monad m => HS.HashSet Name -> Bool -> Bool -> RedRules m () t
-nonRedLibFuncs names is_recursive use_with_symb_func _
+nonRedLibFuncs :: Monad m => HS.HashSet Name -> Bool -> RedRules m () t
+nonRedLibFuncs names use_with_symb_func _
                 s@(State { expr_env = eenv
                          , curr_expr = CurrExpr _ ce
                          , type_env = tenv
@@ -577,7 +576,6 @@ nonRedLibFuncs names is_recursive use_with_symb_func _
                          b@(Bindings { name_gen = ng })
     | Var (Id n t):es <- unApp ce
     , use_with_symb_func || (E.isSymbolic n eenv)
-    , is_recursive
     , hasFuncType (PresType t)
     -- We want to introduce an NRPC only if the function is fully applied and does not have nested function argument types
     , ce_ty <- typeOf $ ce

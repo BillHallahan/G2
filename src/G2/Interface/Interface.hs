@@ -269,7 +269,6 @@ type RHOStack m = SM.StateT LengthNTrack (SM.StateT PrettyGuide (SM.StateT HpcTr
                    -> simplifier
                    -> Config
                    -> S.HashSet Name
-                   -> Bool
                    -> IO (SomeReducer (RHOStack IO) (), SomeHalter (RHOStack IO) (ExecRes ()) (), SomeOrderer (RHOStack IO) (ExecRes ()) ())
     #-}
 initRedHaltOrd :: (MonadIO m, Solver solver, Simplifier simplifier) =>
@@ -278,9 +277,8 @@ initRedHaltOrd :: (MonadIO m, Solver solver, Simplifier simplifier) =>
                -> simplifier
                -> Config
                -> S.HashSet Name
-               -> Bool
                -> IO (SomeReducer (RHOStack m) (), SomeHalter (RHOStack m) (ExecRes ()) (), SomeOrderer (RHOStack m) (ExecRes ()) ())
-initRedHaltOrd mod_name solver simplifier config exec_func_names is_recursive = do
+initRedHaltOrd mod_name solver simplifier config exec_func_names = do
     time_logger <- acceptTimeLogger
     time_halter <- stdTimerHalter (fromInteger . toInteger $ timeLimit config)
 
@@ -299,7 +297,7 @@ initRedHaltOrd mod_name solver simplifier config exec_func_names is_recursive = 
                         False -> strict_red f
 
         nrpc_red f = case nrpc config of
-                        Nrpc -> liftSomeReducer (SomeReducer (nonRedLibFuncsReducer exec_func_names is_recursive (symbolic_func_nrpc config)) .== Finished .--> hpc_red f)
+                        Nrpc -> liftSomeReducer (SomeReducer (nonRedLibFuncsReducer exec_func_names (symbolic_func_nrpc config)) .== Finished .--> hpc_red f)
                         NoNrpc -> liftSomeReducer (hpc_red f)
 
         accept_time_red f = case accept_times config of
@@ -438,13 +436,14 @@ runG2WithConfig entry_f mb_modname state config bindings = do
         mod_name = nameModule entry_f
         callGraph = G.getCallGraph $ expr_env state
         reachable_funcs = G.reachable entry_f callGraph
-        is_recursive = isFuncRecursive callGraph entry_f
 
         executable_funcs = case check_asserts config of
                                 False -> getFuncsByModule mb_modname reachable_funcs
                                 True -> getFuncsByAssert callGraph reachable_funcs
 
-    rho <- initRedHaltOrd mod_name solver simplifier config (S.fromList executable_funcs) is_recursive
+        non_rec_funcs = filter (isFuncNonRecursive callGraph) reachable_funcs
+
+    rho <- initRedHaltOrd mod_name solver simplifier config (S.fromList (executable_funcs ++ non_rec_funcs))
     (in_out, bindings') <- case rho of
                 (red, hal, ord) ->
                     SM.evalStateT
@@ -488,15 +487,15 @@ getAllCalledBys n g =
     in
         calledbys ++ concatMap (`getAllCalledBys` g) calledbys
 
-isFuncRecursive :: G.CallGraph -> Name -> Bool
-isFuncRecursive g entry_f = 
+isFuncNonRecursive :: G.CallGraph -> Name -> Bool
+isFuncNonRecursive g n = 
     let
-        directFuncs = G.calls entry_f g
+        directFuncs = G.calls n g
         reach_funcs = case directFuncs of 
-                        Just a -> a ++ concatMap (`G.reachable` g) a
+                        Just a -> concatMap (`G.reachable` g) a
                         _ -> []
     in
-        entry_f `elem` reach_funcs
+        not (n `elem` reach_funcs)
 
 {-# SPECIALIZE 
     runG2WithSomes :: ( Solver solver
