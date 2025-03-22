@@ -557,12 +557,12 @@ nonRedPCSymFunc _
 nonRedPCSymFunc _ s b = return (Finished, [(s, ())], b)
 
 -- | A reducer to add library functions in non reduced path constraints for solving later  
-nonRedLibFuncsReducer :: Monad m => HS.HashSet Name -> Reducer m () t
-nonRedLibFuncsReducer n = mkSimpleReducer (\_ -> ())
-                            (nonRedLibFuncs n)
+nonRedLibFuncsReducer :: Monad m => HS.HashSet Name -> Bool -> Reducer m () t
+nonRedLibFuncsReducer n is_recursive = mkSimpleReducer (\_ -> ())
+                            (nonRedLibFuncs n is_recursive)
 
-nonRedLibFuncs :: Monad m => HS.HashSet Name -> RedRules m () t
-nonRedLibFuncs names _ s@(State { expr_env = eenv
+nonRedLibFuncs :: Monad m => HS.HashSet Name -> Bool -> RedRules m () t
+nonRedLibFuncs names is_recursive _ s@(State { expr_env = eenv
                          , curr_expr = CurrExpr _ ce
                          , type_env = tenv
                          , known_values = kv
@@ -570,6 +570,7 @@ nonRedLibFuncs names _ s@(State { expr_env = eenv
                          }) 
                          b@(Bindings { name_gen = ng })
     | Var (Id n t):es <- unApp ce
+    , is_recursive
     , hasFuncType (PresType t)
     -- We want to introduce an NRPC only if the function is fully applied and does not have nested function argument types
     , ce_ty <- typeOf $ ce

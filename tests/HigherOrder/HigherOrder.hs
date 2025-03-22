@@ -70,4 +70,7 @@ callOtherMod a =
         x + (assert (x /= 0) maxMap a)
 
 testModAssert :: Int -> Int
-testModAssert a = callOtherMod a-}
+testModAssert a = callOtherMod a
+
+testRecursive :: (Int -> Float -> Int) -> Int
+testRecursive f = testRecursive f -}
