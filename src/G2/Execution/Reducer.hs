@@ -564,14 +564,18 @@ nonRedPCSymFunc _ s b = return (Finished, [(s, ())], b)
 
 -- | A reducer to add library functions in non reduced path constraints for solving later  
 nonRedLibFuncsReducer :: Monad m =>
-                         HS.HashSet Name
+                         HS.HashSet Name -- ^ Names of variables that definitely do not lead to symbolic variables 
+                      -> HS.HashSet Name -- ^ Names of functions that must be executed
                       -> Bool -- ^ Should NRPCs be used to delay execution of symbolic functions?
                       -> Reducer m () t
-nonRedLibFuncsReducer n use_with_symb_func = mkSimpleReducer (\_ -> ())
-                                                 (nonRedLibFuncs n use_with_symb_func)
+nonRedLibFuncsReducer not_symbolic exec_names use_with_symb_func =
+    mkSimpleReducer (\_ -> ()) (nonRedLibFuncs not_symbolic exec_names use_with_symb_func)
 
-nonRedLibFuncs :: Monad m => HS.HashSet Name -> Bool -> RedRules m () t
-nonRedLibFuncs names use_with_symb_func _
+nonRedLibFuncs :: Monad m => HS.HashSet Name -- ^ Names of variables that definitely do not lead to symbolic variables 
+                          -> HS.HashSet Name -- ^ Names of functions that must be executed
+                          -> Bool
+                          -> RedRules m () t
+nonRedLibFuncs not_symbolic exec_names use_with_symb_func _
                 s@(State { expr_env = eenv
                          , curr_expr = CurrExpr _ ce
                          , type_env = tenv
@@ -589,8 +593,8 @@ nonRedLibFuncs names use_with_symb_func _
     -- Don't turn functions manipulating "magic types"- types represented as Primitives, with special handling
     -- (for instance, MutVars, Handles) into NRPC symbolic variables.
     , not (hasMagicTypes ce)
-    , containsSymbolic eenv ce
-    , Skip <- canAddToNRPC eenv ce ng names HS.empty
+    , containsSymbolic ce
+    , Skip <- canAddToNRPC eenv ce ng exec_names HS.empty
     = 
         let
             (new_sym, ng') = freshSeededString "sym" ng
@@ -631,16 +635,16 @@ nonRedLibFuncs names use_with_symb_func _
         hmt (TyCon n _) = Any (n `elem` magicTypes kv)
         hmt _ = Any False
 
-
-containsSymbolic :: ExprEnv -> Expr -> Bool
-containsSymbolic eenv = getAny . go HS.empty
-    where
-        go seen (Var (Id n _)) | not (HS.member n seen) =
-            case E.lookupConcOrSym n eenv of
-                Just (E.Conc e) -> go (HS.insert n seen) e
-                Just (E.Sym _) -> Any True
-                Nothing -> Any False
-        go seen e = evalChildren (go seen) e
+        containsSymbolic = getAny . go HS.empty
+            where
+                go seen (Var (Id n _))
+                    | HS.member n not_symbolic = Any False 
+                    | not (HS.member n seen) =
+                        case E.lookupConcOrSym n eenv of
+                            Just (E.Conc e) -> go (HS.insert n seen) e
+                            Just (E.Sym _) -> Any True
+                            Nothing -> Any False
+                go seen e = evalChildren (go seen) e
 
 -- Note [Ignore Update Frames]
 -- In `strictRed`, when deciding whether to split up an expression to force strict evaluation of subexpression,
