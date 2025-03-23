@@ -94,6 +94,7 @@ data Config = Config {
     , validate :: Bool -- ^ If True, run on G2's input, and check against expected output.
     , nrpc :: NonRedPathCons -- ^ Whether to execute using non reduced path constraints or not
     , symbolic_func_nrpc :: Bool -- ^ If true, use NRPCs with symbolic functions
+    , print_num_nrpc :: Bool -- ^ Output the number of NRPCs for each accepted state
 }
 
 mkConfig :: String -> Parser Config
@@ -149,6 +150,7 @@ mkConfig homedir = Config Regular
     <*> switch (long "validate" <> help "use GHC to automatically compile and run on generated inputs, and check that generated outputs are correct")
     <*> flag NoNrpc Nrpc (long "nrpc" <> help "execute with non reduced path constraints")
     <*> flag True False (long "no-symbolic-func-nrpc" <> help "do not use NRPCs to delay execution of symbolic functions")
+    <*> flag False True (long "print-num-nrpc" <> help "output the number of NRPCs for each accepted state")
 
 mkBaseInclude :: String -> Parser [IncludePath]
 mkBaseInclude homedir =
@@ -273,6 +275,7 @@ mkConfigDirect homedir as m = Config {
     , validate  = boolArg "validate" as m Off
     , nrpc = NoNrpc
     , symbolic_func_nrpc = True
+    , print_num_nrpc = False
 }
 
 baseIncludeDef :: FilePath -> [FilePath]

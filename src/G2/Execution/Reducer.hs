@@ -563,19 +563,25 @@ nonRedPCSymFunc _
 nonRedPCSymFunc _ s b = return (Finished, [(s, ())], b)
 
 -- | A reducer to add library functions in non reduced path constraints for solving later  
-nonRedLibFuncsReducer :: Monad m =>
+nonRedLibFuncsReducer :: MonadIO m =>
                          HS.HashSet Name -- ^ Names of variables that definitely do not lead to symbolic variables 
                       -> HS.HashSet Name -- ^ Names of functions that must be executed
-                      -> Bool -- ^ Should NRPCs be used to delay execution of symbolic functions?
-                      -> Reducer m () t
-nonRedLibFuncsReducer not_symbolic exec_names use_with_symb_func =
-    mkSimpleReducer (\_ -> ()) (nonRedLibFuncs not_symbolic exec_names use_with_symb_func)
+                      -> Config
+                      -> Reducer m Int t
+nonRedLibFuncsReducer not_symbolic exec_names config =
+    (mkSimpleReducer (\_ -> 0)
+        (nonRedLibFuncs not_symbolic exec_names (symbolic_func_nrpc config)))
+        { onAccept = \s b nrpc_count -> do
+            if print_num_nrpc config
+                then liftIO . putStrLn $ "NRPCs Generated: " ++ show nrpc_count
+                else return ()
+            return (s, b) }
 
 nonRedLibFuncs :: Monad m => HS.HashSet Name -- ^ Names of variables that definitely do not lead to symbolic variables 
                           -> HS.HashSet Name -- ^ Names of functions that must be executed
-                          -> Bool
-                          -> RedRules m () t
-nonRedLibFuncs not_symbolic exec_names use_with_symb_func _
+                          -> Bool -- ^ Use NRPCs to delay execution of symbolic functions
+                          -> RedRules m Int t
+nonRedLibFuncs not_symbolic exec_names use_with_symb_func nrpc_count
                 s@(State { expr_env = eenv
                          , curr_expr = CurrExpr _ ce
                          , type_env = tenv
@@ -612,9 +618,9 @@ nonRedLibFuncs not_symbolic exec_names use_with_symb_func _
             curr_expr = cexpr',
             non_red_path_conds = (ce', Var new_sym_id):nrs } 
         in 
-            return (Finished, [(s', ())], b {name_gen = ng'})
+            return (Finished, [(s', nrpc_count + 1)], b {name_gen = ng'})
 
-    | otherwise = return (Finished, [(s, ())], b)
+    | otherwise = return (Finished, [(s, nrpc_count)], b)
     where
         digNewType (TyCon n _) | Just (NewTyCon { rep_type = rt }) <- HM.lookup n tenv = digNewType rt
         digNewType (TyApp t1 t2) = digNewType t1
