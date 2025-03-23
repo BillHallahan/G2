@@ -303,7 +303,7 @@ initRedHaltOrd mod_name solver simplifier config not_symbolic exec_func_names = 
                                     (SomeReducer (nonRedLibFuncsReducer
                                                                 not_symbolic
                                                                 exec_func_names
-                                                                (symbolic_func_nrpc config)
+                                                                config
                                                  ) .== Finished .--> hpc_red f)
                         NoNrpc -> liftSomeReducer (hpc_red f)
 
