@@ -286,7 +286,7 @@ initRedHaltOrd mod_name solver simplifier config exec_func_names = do
 
         state_name = Name "state" Nothing 0 Nothing
 
-        m_logger = fmap SomeReducer $ getLogger config
+        m_logger = fmap SomeReducer $ getLimLogger config
 
         strict_red f = case strict config of
                             True -> SomeReducer (stdRed share f solver simplifier ~> instTypeRed ~> strictRed)

@@ -69,6 +69,9 @@ data Config = Config {
     , extraDefaultMods :: [FilePath]
     , includePaths :: Maybe [FilePath] -- ^ Paths to search for modules
     , logStates :: LogMode -- ^ Determines whether to Log states, and if logging states, how to do so.
+    , logEveryN :: Int -- ^ If logging states, log every nth state
+    , logAfterN :: Int -- ^ Logs state only after the nth state
+    , logPath :: [Int] -- ^ Log states that are following on or proceed from some path, passed as a list i.e. [1, 2, 1]
     , sharing :: Sharing
     , instTV :: InstTV -- allow the instantiation of types in the beginning or it's instantiate symbolically by functions
     , showType :: ShowType -- allow user to see more type information when they are logging states for the execution
@@ -101,6 +104,18 @@ mkConfig homedir = Config Regular
     <*> pure []
     <*> mkIncludePaths
     <*> mkLogMode
+    <*> option auto (long "log-every-n"
+                   <> metavar "LN"
+                   <> value 0
+                   <> help "if logging states, log every nth state")
+    <*> option auto (long "log-after-n"
+                   <> metavar "LA"
+                   <> value 0
+                   <> help "logs state only after the nth state")
+    <*> option auto (long "log-path"
+                   <> metavar "LP"
+                   <> value []
+                   <> help "log states that are following on or proceed from some path, passed as a list i.e. [1, 2, 1]")
     <*> flag Sharing NoSharing (long "no-sharing" <> help "disable sharing")
     <*> flag InstBefore InstAfter (long "inst-after" <> help "select to instantiate type variables after symbolic execution, rather than before")
     <*> flag Lax Aggressive (long "show-types" <> help "set to show more type information when logging states")
@@ -233,6 +248,9 @@ mkConfigDirect homedir as m = Config {
     , includePaths = Nothing
     , logStates = strArg "log-states" as m (Log Raw)
                         (strArg "log-pretty" as m (Log Pretty) NoLog)
+    , logEveryN = 0
+    , logAfterN = 0
+    , logPath = []
     , sharing = boolArg' "sharing" as Sharing Sharing NoSharing
     , instTV = InstBefore
     , showType = Lax

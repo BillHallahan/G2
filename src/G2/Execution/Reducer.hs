@@ -67,9 +67,14 @@ module G2.Execution.Reducer ( Reducer (..)
                             , getLogger
                             , simpleLogger
                             , prettyLogger
-                            , limLogger
-                            , acceptTimeLogger
+
                             , LimLogger (..)
+                            , limLoggerConfig
+                            , getLimLogger
+                            , limLogger
+                            , prettyLimLogger
+
+                            , acceptTimeLogger
                             , currExprLogger
 
                             , ReducerEq (..)
@@ -965,10 +970,27 @@ data LimLogger =
               , lim_output_path :: String
               }
 
+limLoggerConfig :: FilePath -> LimLogger
+limLoggerConfig fp = LimLogger { every_n = 0, after_n = 0, before_n = Nothing, down_path = [], lim_output_path = fp }
+
 data LLTracker = LLTracker { ll_count :: Int, ll_offset :: [Int]}
 
-limLogger :: (MonadIO m, Show t) => LimLogger -> Reducer m LLTracker t
-limLogger ll@(LimLogger { after_n = aft, before_n = bfr, down_path = down }) =
+getLimLogger :: (MonadIO m, SM.MonadState PrettyGuide m, Show t) => Config -> Maybe (Reducer m LLTracker t)
+getLimLogger config =
+    let
+        ll_config = case logStates config of
+                        Log _ fp -> (limLoggerConfig fp) { after_n = logAfterN config
+                                                         , every_n = logEveryN config
+                                                         , down_path = logPath config }
+                        NoLog -> limLoggerConfig ""
+    in
+    case logStates config of
+            Log Raw fp -> Just . limLogger $ ll_config
+            Log Pretty fp -> Just . prettyLimLogger $ ll_config
+            NoLog -> Nothing
+
+genLimLogger :: (MonadIO m, Show t) => ([Int] -> State t -> Bindings -> m ()) -> LimLogger -> Reducer m LLTracker t
+genLimLogger out_f ll@(LimLogger { after_n = aft, before_n = bfr, down_path = down }) =
     (mkSimpleReducer (const $ LLTracker { ll_count = every_n ll, ll_offset = []}) rr)
         { updateWithAll = updateWithAllLL
         , onAccept = \s b llt -> do
@@ -976,12 +998,13 @@ limLogger ll@(LimLogger { after_n = aft, before_n = bfr, down_path = down }) =
                                 return (s, b)
         , onDiscard = \_ llt -> liftIO . putStrLn $ "Discarded path " ++ show (ll_offset llt)}
     where
-        rr llt@(LLTracker { ll_count = 0, ll_offset = off }) s b
+        rr llt@(LLTracker { ll_count = c, ll_offset = off }) s b
             | down `L.isPrefixOf` off || off `L.isPrefixOf` down
-            , aft <= length_rules && maybe True (length_rules <=) bfr = do
-                liftIO $ outputState (lim_output_path ll) off s b pprExecStateStr
+            , aft <= length_rules && maybe True (length_rules <=) bfr
+            , c <= 1 = do
+                out_f off s b
                 return (NoProgress, [(s, llt { ll_count = every_n ll })], b)
-            | otherwise =
+            | c <= 1 =
                 return (NoProgress, [(s, llt { ll_count = every_n ll })], b)
             where
                 length_rules = length (rules s)
@@ -991,6 +1014,19 @@ limLogger ll@(LimLogger { after_n = aft, before_n = bfr, down_path = down }) =
         updateWithAllLL [(_, l)] = [l]
         updateWithAllLL ss =
             map (\(llt, i) -> llt { ll_offset = ll_offset llt ++ [i] }) $ zip (map snd ss) [1..]
+
+limLogger :: (MonadIO m, Show t) => LimLogger -> Reducer m LLTracker t
+limLogger ll = genLimLogger (\off s b -> liftIO $ outputState (lim_output_path ll) off s b pprExecStateStr) ll
+
+prettyLimLogger :: (MonadIO m, SM.MonadState PrettyGuide m, Show t) => LimLogger -> Reducer m LLTracker t
+prettyLimLogger ll =
+    genLimLogger (\off s b -> do
+                pg <- SM.get
+                let pg' = updatePrettyGuide (s { track = () }) pg
+                SM.put pg'
+                liftIO $ outputState (lim_output_path ll) off s b (\s_ _ -> T.unpack $ prettyState pg' s_)
+    ) ll
+ 
 
 outputState :: FilePath -> [Int] -> State t -> Bindings -> (State t -> Bindings -> String) -> IO ()
 outputState dn is s b printer = do
