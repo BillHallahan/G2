@@ -1,6 +1,6 @@
 {-# OPTIONS_GHC -Wno-orphans #-}
 
-{-# LANGUAGE FlexibleContexts, LambdaCase, OverloadedStrings #-}
+{-# LANGUAGE BangPatterns, FlexibleContexts, LambdaCase, OverloadedStrings #-}
 
 module G2.Interface.Interface ( MkCurrExpr
                               , MkArgTypes
@@ -74,11 +74,11 @@ import qualified Control.Monad.State as SM
 import qualified Data.HashMap.Lazy as HM
 import qualified Data.HashSet as S
 import Data.Maybe
+import Data.Monoid
 import qualified Data.Sequence as Seq
 import qualified Data.Text as T
 import qualified Data.List as L
 import System.Timeout
-import Debug.Trace
 
 type AssumeFunc = T.Text
 type AssertFunc = T.Text
@@ -270,6 +270,7 @@ type RHOStack m = SM.StateT LengthNTrack (SM.StateT PrettyGuide (SM.StateT HpcTr
                    -> Config
                    -> S.HashSet Name
                    -> S.HashSet Name
+                   -> S.HashSet Name
                    -> IO (SomeReducer (RHOStack IO) (), SomeHalter (RHOStack IO) (ExecRes ()) (), SomeOrderer (RHOStack IO) (ExecRes ()) ())
     #-}
 initRedHaltOrd :: (MonadIO m, Solver solver, Simplifier simplifier) =>
@@ -279,8 +280,9 @@ initRedHaltOrd :: (MonadIO m, Solver solver, Simplifier simplifier) =>
                -> Config
                -> S.HashSet Name -- ^ Names of functions that definitely do not lead to symbolic variables in the expr_env
                -> S.HashSet Name -- ^ Names of functions that may not be added to NRPCs
+               -> S.HashSet Name -- ^ Names of functions that do not have to be executed, but should not be added to the NRPC at the top level
                -> IO (SomeReducer (RHOStack m) (), SomeHalter (RHOStack m) (ExecRes ()) (), SomeOrderer (RHOStack m) (ExecRes ()) ())
-initRedHaltOrd mod_name solver simplifier config not_symbolic exec_func_names = do
+initRedHaltOrd mod_name solver simplifier config not_symbolic exec_func_names no_nrpc_names = do
     time_logger <- acceptTimeLogger
     time_halter <- stdTimerHalter (fromInteger . toInteger $ timeLimit config)
 
@@ -303,6 +305,7 @@ initRedHaltOrd mod_name solver simplifier config not_symbolic exec_func_names = 
                                     (SomeReducer (nonRedLibFuncsReducer
                                                                 not_symbolic
                                                                 exec_func_names
+                                                                no_nrpc_names
                                                                 config
                                                  ) .== Finished .--> hpc_red f)
                         NoNrpc -> liftSomeReducer (hpc_red f)
@@ -435,24 +438,26 @@ runG2FromFile proj src m_assume m_assert m_reach def_assert f transConfig config
     return (r, entry_f)
 
 runG2WithConfig :: Name -> [Maybe T.Text] -> State () -> Config -> Bindings -> IO ([ExecRes ()], Bindings)
-runG2WithConfig entry_f mb_modname state config bindings = do
+runG2WithConfig entry_f mb_modname state@(State { expr_env = eenv }) config bindings = do
     SomeSolver solver <- initSolver config
     hpc_t <- hpcTracker (hpc_print_times config)
     let simplifier = FloatSimplifier :>> ArithSimplifier
         --exp_env_names = E.keys . E.filterConcOrSym (\case { E.Sym _ -> False; E.Conc _ -> True }) $ expr_env state
         mod_name = nameModule entry_f
-        callGraph = G.getCallGraph $ expr_env state
-        reachable_funcs = G.reachable entry_f callGraph
+        !callGraph = G.getCallGraph $ expr_env state
+        !reachable_funcs = G.reachable entry_f callGraph
 
-        executable_funcs = case check_asserts config of
+        !executable_funcs = case check_asserts config of
                                 False -> getFuncsByModule mb_modname reachable_funcs
                                 True -> getFuncsByAssert callGraph reachable_funcs
 
-        non_rec_funcs = filter (isFuncNonRecursive callGraph) reachable_funcs
+        !non_rec_funcs = filter (isFuncNonRecursive callGraph) reachable_funcs
 
-        not_symbolic = S.fromList . E.keys $ E.filterConcOrSym (\cs -> case cs of E.Conc _ -> True; E.Sym _ -> False) (expr_env state)
+        !not_symbolic = S.fromList
+                     . E.keys
+                     $ E.filterConcOrSym (\case { E.Conc e -> not (reachesSymbolic S.empty eenv e); E.Sym _ -> False }) eenv
 
-    rho <- initRedHaltOrd mod_name solver simplifier config not_symbolic (S.fromList (executable_funcs ++ non_rec_funcs))
+    rho <- initRedHaltOrd mod_name solver simplifier config not_symbolic (S.fromList executable_funcs) (S.fromList non_rec_funcs)
     (in_out, bindings') <- case rho of
                 (red, hal, ord) ->
                     SM.evalStateT
