@@ -21,14 +21,19 @@ def call_g2_process(filename, func, var_settings):
     return res.stdout
 
 def run_nofib_bench(filename, var_settings, timeout):
-    return run_g2(filename, "main", ["--check-asserts", "--error-asserts", "--accept-times", "--no-step-limit", "--search", "subpath", "--time", str(timeout)] + var_settings)
+    return run_g2(filename, "main", ["--check-asserts", "--error-asserts", "--accept-times", "--print-num-nrpc", "--no-step-limit", "--search", "subpath", "--time", str(timeout)] + var_settings)
 
 def run_nofib_bench_nrpc(filename, var_settings, timeout):
     return run_nofib_bench(filename, ["--nrpc", "--higher-order", "symbolic"] + var_settings, timeout)
 
 def process_output(out):
+    nrpcs = re.findall(r"NRPCs Generated: ((?:\d)*)", out)
     reached = re.findall(r"State Accepted: ((?:\d|\.)*)", out)
+    nrpcs_num = list(map(lambda x : int(x), nrpcs))
     reached_time = list(map(lambda x : float(x), reached))
+    print("NRPCS Num")
+    print (nrpcs_num)
+    print("Time")
     print(reached_time)
 
 # Read in the types of bugs
