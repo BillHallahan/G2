@@ -32,10 +32,10 @@ def process_output(out):
     nrpcs_num = list(map(lambda x : int(x), nrpcs))
     reached = re.findall(r"State Accepted: ((?:\d|\.|e|-)*)", out)
     reached_time = list(map(lambda x : float(x), reached))
-    print("NRPCS Num")
-    print (nrpcs_num)
-    print("Time")
-    print(reached_time)
+    out = reached_time
+    if len(nrpcs_num) == len(reached_time):
+        out = list(zip(nrpcs_num, reached_time))
+    print(out)
 
 # Read in the types of bugs
 def read_bug_types(setpath):
