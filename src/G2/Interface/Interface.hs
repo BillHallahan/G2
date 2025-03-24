@@ -445,16 +445,16 @@ runG2WithConfig entry_f mb_modname state@(State { expr_env = eenv }) config bind
     let simplifier = FloatSimplifier :>> ArithSimplifier
         --exp_env_names = E.keys . E.filterConcOrSym (\case { E.Sym _ -> False; E.Conc _ -> True }) $ expr_env state
         mod_name = nameModule entry_f
-        !callGraph = G.getCallGraph $ expr_env state
-        !reachable_funcs = G.reachable entry_f callGraph
+        callGraph = G.getCallGraph $ expr_env state
+        reachable_funcs = G.reachable entry_f callGraph
 
-        !executable_funcs = case check_asserts config of
+        executable_funcs = case check_asserts config of
                                 False -> getFuncsByModule mb_modname reachable_funcs
                                 True -> getFuncsByAssert callGraph reachable_funcs
 
-        !non_rec_funcs = filter (isFuncNonRecursive callGraph) reachable_funcs
+        non_rec_funcs = filter (isFuncNonRecursive callGraph) reachable_funcs
 
-        !not_symbolic = S.fromList
+        not_symbolic = S.fromList
                      . E.keys
                      $ E.filterConcOrSym (\case { E.Conc e -> not (reachesSymbolic S.empty eenv e); E.Sym _ -> False }) eenv
 
