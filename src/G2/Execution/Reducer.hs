@@ -570,7 +570,10 @@ nonRedPCSymFunc _ s b = return (Finished, [(s, ())], b)
 nonRedLibFuncsReducer :: MonadIO m =>
                          HS.HashSet Name -- ^ Names of variables that definitely do not lead to symbolic variables 
                       -> HS.HashSet Name -- ^ Names of functions that must be executed
-                      -> HS.HashSet Name -- ^ Names of functions that do not have to be executed, but should not be added to the NRPC at the top level
+                      -> HS.HashSet Name -- ^ Names of functions that should not reesult in a larger expression become EXEC,
+                                         -- but should not be added to the NRPC at the top level.
+                                         -- I.e. if `f` is in this set, `f x y` will not be added to the NRPCs, but a function `g` that includes
+                                         -- `f in it's definition may still be added to the NRPCs.
                       -> Config
                       -> Reducer m Int t
 nonRedLibFuncsReducer not_symbolic exec_names no_nrpc_names config =
@@ -584,7 +587,8 @@ nonRedLibFuncsReducer not_symbolic exec_names no_nrpc_names config =
 
 nonRedLibFuncs :: Monad m => HS.HashSet Name -- ^ Names of variables that definitely do not lead to symbolic variables 
                           -> HS.HashSet Name -- ^ Names of functions that must be executed
-                          -> HS.HashSet Name -- ^ Names of functions that do not have to be executed, but should not be added to the NRPC at the top level
+                          -> HS.HashSet Name -- ^ Names of functions that should not reesult in a larger expression become EXEC,
+                                             -- but should not be added to the NRPC at the top level.
                           -> Bool -- ^ Use NRPCs to delay execution of symbolic functions
                           -> RedRules m Int t
 nonRedLibFuncs not_symbolic exec_names no_nrpc_names use_with_symb_func nrpc_count

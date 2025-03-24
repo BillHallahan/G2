@@ -280,7 +280,8 @@ initRedHaltOrd :: (MonadIO m, Solver solver, Simplifier simplifier) =>
                -> Config
                -> S.HashSet Name -- ^ Names of functions that definitely do not lead to symbolic variables in the expr_env
                -> S.HashSet Name -- ^ Names of functions that may not be added to NRPCs
-               -> S.HashSet Name -- ^ Names of functions that do not have to be executed, but should not be added to the NRPC at the top level
+               -> S.HashSet Name -- ^ Names of functions that should not reesult in a larger expression become EXEC,
+                                 -- but should not be added to the NRPC at the top level.
                -> IO (SomeReducer (RHOStack m) (), SomeHalter (RHOStack m) (ExecRes ()) (), SomeOrderer (RHOStack m) (ExecRes ()) ())
 initRedHaltOrd mod_name solver simplifier config not_symbolic exec_func_names no_nrpc_names = do
     time_logger <- acceptTimeLogger
