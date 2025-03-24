@@ -68,6 +68,8 @@ module G2.Execution.Reducer ( Reducer (..)
                             , simpleLogger
                             , prettyLogger
 
+                            , reachesSymbolic
+
                             , LimLogger (..)
                             , limLoggerConfig
                             , getLimLogger
@@ -150,6 +152,8 @@ import Data.Tuple
 import Data.Time.Clock
 import System.Clock
 import System.Directory
+
+import Debug.Trace
 
 -- | Used when applying execution rules
 -- Allows tracking extra information to control halting of rule application,
@@ -566,11 +570,15 @@ nonRedPCSymFunc _ s b = return (Finished, [(s, ())], b)
 nonRedLibFuncsReducer :: MonadIO m =>
                          HS.HashSet Name -- ^ Names of variables that definitely do not lead to symbolic variables 
                       -> HS.HashSet Name -- ^ Names of functions that must be executed
+                      -> HS.HashSet Name -- ^ Names of functions that should not reesult in a larger expression become EXEC,
+                                         -- but should not be added to the NRPC at the top level.
+                                         -- I.e. if `f` is in this set, `f x y` will not be added to the NRPCs, but a function `g` that includes
+                                         -- `f in it's definition may still be added to the NRPCs.
                       -> Config
                       -> Reducer m Int t
-nonRedLibFuncsReducer not_symbolic exec_names config =
+nonRedLibFuncsReducer not_symbolic exec_names no_nrpc_names config =
     (mkSimpleReducer (\_ -> 0)
-        (nonRedLibFuncs not_symbolic exec_names (symbolic_func_nrpc config)))
+        (nonRedLibFuncs not_symbolic exec_names no_nrpc_names (symbolic_func_nrpc config)))
         { onAccept = \s b nrpc_count -> do
             if print_num_nrpc config
                 then liftIO . putStrLn $ "NRPCs Generated: " ++ show nrpc_count
@@ -579,9 +587,11 @@ nonRedLibFuncsReducer not_symbolic exec_names config =
 
 nonRedLibFuncs :: Monad m => HS.HashSet Name -- ^ Names of variables that definitely do not lead to symbolic variables 
                           -> HS.HashSet Name -- ^ Names of functions that must be executed
+                          -> HS.HashSet Name -- ^ Names of functions that should not reesult in a larger expression become EXEC,
+                                             -- but should not be added to the NRPC at the top level.
                           -> Bool -- ^ Use NRPCs to delay execution of symbolic functions
                           -> RedRules m Int t
-nonRedLibFuncs not_symbolic exec_names use_with_symb_func nrpc_count
+nonRedLibFuncs not_symbolic exec_names no_nrpc_names use_with_symb_func nrpc_count
                 s@(State { expr_env = eenv
                          , curr_expr = CurrExpr _ ce
                          , type_env = tenv
@@ -590,6 +600,7 @@ nonRedLibFuncs not_symbolic exec_names use_with_symb_func nrpc_count
                          }) 
                          b@(Bindings { name_gen = ng })
     | Var (Id n t):es <- unApp ce
+    , not (n `HS.member` no_nrpc_names)
     , use_with_symb_func || (E.isSymbolic n eenv)
     , hasFuncType (PresType t)
     -- We want to introduce an NRPC only if the function is fully applied and does not have nested function argument types
@@ -599,7 +610,7 @@ nonRedLibFuncs not_symbolic exec_names use_with_symb_func nrpc_count
     -- Don't turn functions manipulating "magic types"- types represented as Primitives, with special handling
     -- (for instance, MutVars, Handles) into NRPC symbolic variables.
     , not (hasMagicTypes ce)
-    , containsSymbolic ce
+    , reachesSymbolic not_symbolic eenv ce
     , Skip <- canAddToNRPC eenv ce ng exec_names HS.empty
     = 
         let
@@ -641,16 +652,19 @@ nonRedLibFuncs not_symbolic exec_names use_with_symb_func nrpc_count
         hmt (TyCon n _) = Any (n `elem` magicTypes kv)
         hmt _ = Any False
 
-        containsSymbolic = getAny . go HS.empty
-            where
-                go seen (Var (Id n _))
-                    | HS.member n not_symbolic = Any False 
-                    | not (HS.member n seen) =
-                        case E.lookupConcOrSym n eenv of
-                            Just (E.Conc e) -> go (HS.insert n seen) e
-                            Just (E.Sym _) -> Any True
-                            Nothing -> Any False
-                go seen e = evalChildren (go seen) e
+-- | Can evaluating the Expr branch? Or is it fully concrete (including looking through variables.)
+reachesSymbolic :: HS.HashSet Name -> ExprEnv -> Expr -> Bool
+reachesSymbolic not_symbolic eenv = getAny . go HS.empty
+    where
+        go seen (SymGen _ _) = Any True
+        go seen (Var (Id n _))
+            | HS.member n not_symbolic = Any False 
+            | not (HS.member n seen) =
+                case E.lookupConcOrSym n eenv of
+                    Just (E.Conc e) -> go (HS.insert n seen) e
+                    Just (E.Sym _) -> Any True
+                    Nothing -> Any False
+        go seen e = evalChildren (go seen) e
 
 -- Note [Ignore Update Frames]
 -- In `strictRed`, when deciding whether to split up an expression to force strict evaluation of subexpression,
