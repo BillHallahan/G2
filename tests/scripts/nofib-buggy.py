@@ -21,8 +21,8 @@ def call_g2_process(filename, func, var_settings):
     return res.stdout
 
 def run_nofib_bench(filename, var_settings, timeout):
-    # --check-asserts --error-asserts --accept-times -print-num-nrpc --no-step-limit --search subpath --time 60
-    return run_g2(filename, "main", ["--check-asserts", "--error-asserts", "--accept-times", "-print-num-nrpc", "--no-step-limit", "--search", "subpath", "--time", str(timeout)] + var_settings)
+    # --check-asserts --error-asserts --accept-times --print-num-nrpc --no-step-limit --search subpath --time 60
+    return run_g2(filename, "main", ["--check-asserts", "--error-asserts", "--accept-times", "--print-num-nrpc", "--no-step-limit", "--search", "subpath", "--time", str(timeout)] + var_settings)
 
 def run_nofib_bench_nrpc(filename, var_settings, timeout):
     return run_nofib_bench(filename, ["--nrpc", "--higher-order", "symbolic"] + var_settings, timeout)
