@@ -123,6 +123,10 @@ module G2.Execution.Reducer ( Reducer (..)
                             , noAnalysis
                             , logStatesAtTime
 
+                            , LogStatesAtStep
+                            , logStatesAtStepTracker
+                            , logStatesAtStep
+
                             -- * Execution
                             , SolveStates
                             , runReducer ) where
@@ -1600,11 +1604,10 @@ type AnalyzeStates m r t = AnalysisEvent t -- ^ Newly generated states.
                         -> [State t] -- ^ All states are are waiting to run
                         -> m ()
 
-noAnalysis :: Monad m => AnalyzeStates m r t
-noAnalysis _ _ _ = return ()
+noAnalysis :: [AnalyzeStates m r t]
+noAnalysis = []
 
--- ^ Whenever the number of states grows, output the (new) number of states
--- and the time.
+-- | Whenever the number of states grows, output the (new) number of states and the time.
 logStatesAtTime :: MonadIO m => IO (AnalyzeStates m r t)
 logStatesAtTime = do
     init_time <- getTime Realtime
@@ -1626,6 +1629,55 @@ logStatesAtTime = do
                     StateDiscarded _ -> prTime [] all_s
                     _ -> return ())        
 
+newtype LogStatesAtStep = LSS (M.Map Int Int, Int)
+
+logStatesAtStepTracker :: LogStatesAtStep
+logStatesAtStepTracker = LSS (M.empty, 0)
+
+-- | Whenever the number of states that have reached a particular step changes, outputs the number of states.
+logStatesAtStep :: (MonadIO m, SM.MonadState LogStatesAtStep m) => AnalyzeStates m r t
+logStatesAtStep (StateReduced new_s@(s:_)) _ waiting = do
+    -- We track a Map of (unprinted step numbers) -> (count of states at that step number)
+    -- We can print out the number of states at step N only once there are no live states that have taken < N steps.
+    -- We remove step numbers from the map once they are printed.
+    --
+    -- We also track how many states there were at the last state that we printed- we print only if the number
+    -- of states is different than this previous state count.
+    LSS (m, last_count_printed) <- SM.get
+    let m' = M.alter (Just . maybe (length new_s) (+ length new_s)) (num_steps s) m
+    let min_rule_num = minimum $ map num_steps (new_s ++ waiting)
+
+    -- While there is some step count in the map that is less than the current minimum step count
+    -- of all live steps, check if it should be printed and delete it from the map.
+    let go m_ curr_min = case M.lookupMin m_ of
+                            Just (min_key, states_at_min) | min_rule_num >= min_key -> do
+                                liftIO $ if states_at_min /= curr_min
+                                            then do
+                                                putStr "Steps: "
+                                                putStr (show min_key)
+                                                putStr " Num States: "
+                                                print states_at_min
+                                            else return ()
+                                go (M.delete min_key m_) states_at_min
+                            _ -> return (m_, curr_min)
+    fm_lcp <- go m' last_count_printed
+    SM.put $ LSS fm_lcp
+logStatesAtStep (StateDiscarded _) _ [] = do
+    LSS (m, last_count_printed) <- SM.get
+    let go m_ curr_min = case M.lookupMin m_ of
+                        Just (min_key, states_at_min) -> do
+                            liftIO $ if states_at_min /= curr_min
+                                        then do
+                                            putStr "Steps: "
+                                            putStr (show min_key)
+                                            putStr " At Least Num States: "
+                                            print states_at_min
+                                        else return ()
+                            go (M.delete min_key m_) states_at_min
+                        _ -> return ()
+    go m last_count_printed
+logStatesAtStep _ _ _ = return ()
+
 --------
 --------
 
@@ -1638,7 +1690,7 @@ type SolveStates m r t = State t -> Bindings -> m (Maybe r)
                           -> Halter IO hv r t
                           -> Orderer IO sov b r t
                           -> SolveStates IO r t
-                          -> AnalyzeStates IO r t
+                          -> [AnalyzeStates IO r t]
                           -> State t
                           -> Bindings
                           -> IO (Processed r (State t), Bindings)
@@ -1648,7 +1700,7 @@ type SolveStates m r t = State t -> Bindings -> m (Maybe r)
                           -> Halter (SM.StateT PrettyGuide IO) hv r t
                           -> Orderer (SM.StateT PrettyGuide IO) sov b r t
                           -> SolveStates (SM.StateT PrettyGuide IO) r t
-                          -> AnalyzeStates (SM.StateT PrettyGuide IO) r t
+                          -> [AnalyzeStates (SM.StateT PrettyGuide IO) r t]
                           -> State t
                           -> Bindings
                           -> SM.StateT PrettyGuide IO (Processed r (State t), Bindings)
@@ -1660,7 +1712,7 @@ runReducer :: forall m b rv hv sov r t .
            -> Halter m hv r t
            -> Orderer m sov b r t
            -> SolveStates m r t -- ^ Given a fully executed state, solve for concrete values
-           -> AnalyzeStates m r t -- ^ Output information about all states being symbolically executed
+           -> [AnalyzeStates m r t] -- ^ Output information about all states being symbolically executed
            -> State t
            -> Bindings
            -> m (Processed r (State t), Bindings)
@@ -1689,7 +1741,7 @@ runReducer red hal ord solve_r analyze init_state init_bindings = do
                     | hc == Accept -> do
                         (s', b') <- onAccept red s b r_val
                         er <- solve_r s' b'
-                        analyze (StateAccepted s') pr (map state . concat $ M.elems xs)
+                        sequence_ $ analyze <*> pure (StateAccepted s') <*> pure pr <*> pure (map state . concat $ M.elems xs)
                         pr' <- case er of
                                     Just er' -> do
                                         onSolved red
@@ -1701,7 +1753,7 @@ runReducer red hal ord solve_r analyze init_state init_bindings = do
                             Nothing -> return (pr', b')
                     | hc == Discard -> do
                         onDiscard red s r_val
-                        analyze (StateDiscarded s) pr (map state . concat $ M.elems xs)
+                        sequence_ $ analyze <*> pure (StateDiscarded s) <*> pure pr <*> pure (map state . concat $ M.elems xs)
                         let pr' = pr {discarded = state rs:discarded pr}
                             jrs = minState pr' xs
                         case jrs of
@@ -1728,7 +1780,7 @@ runReducer red hal ord solve_r analyze init_state init_bindings = do
 
                             new_states = map fst reduceds'
                         
-                        analyze (StateReduced new_states) pr (map state . concat $ M.elems xs)
+                        sequence_ $ analyze <*> pure (StateReduced new_states) <*> pure pr <*> pure (map state . concat $ M.elems xs)
 
                         mod_info <- mapM (\(s', r_val', h_val') -> do
                                                 or_v <- stepOrderer ord o_val pr new_states s'
@@ -1807,4 +1859,3 @@ runReducer red hal ord solve_r analyze init_state init_bindings = do
             Just (k, x:xs) -> Just (x, M.insert k xs m)
             Just (k, []) -> minState pr $ M.delete k m
             Nothing -> Nothing
-
