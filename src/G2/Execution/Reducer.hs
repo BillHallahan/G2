@@ -3,9 +3,7 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE FunctionalDependencies #-}
 {-# LANGUAGE GADTs #-}
-{-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE MultiWayIf #-}
-{-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE MultiParamTypeClasses, MultiWayIf, RankNTypes, ScopedTypeVariables #-}
 {-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE OverloadedStrings #-}
 
@@ -1568,12 +1566,14 @@ quotTrueAssert ord = (mkSimpleOrderer (initPerStateOrder ord)
 --------
 --------
 
+type SolveStates t m r = State t -> Bindings -> m (Maybe r)
+
 {-# INLINABLE runReducer #-}
 {-# SPECIALIZE runReducer :: Ord b =>
                              Reducer IO rv t
                           -> Halter IO hv r t
                           -> Orderer IO sov b r t
-                          -> (State t -> Bindings -> IO (Maybe r)) -- ^ Given a fully executed state, solve for concrete values
+                          -> SolveStates t IO r -- ^ Given a fully executed state, solve for concrete values
                           -> State t
                           -> Bindings
                           -> IO (Processed r (State t), Bindings)
@@ -1582,174 +1582,158 @@ quotTrueAssert ord = (mkSimpleOrderer (initPerStateOrder ord)
                              Reducer (SM.StateT PrettyGuide IO) rv t
                           -> Halter (SM.StateT PrettyGuide IO) hv r t
                           -> Orderer (SM.StateT PrettyGuide IO) sov b r t
-                          -> (State t -> Bindings -> SM.StateT PrettyGuide IO (Maybe r)) -- ^ Given a fully executed state, solve for concrete values
+                          -> SolveStates t (SM.StateT PrettyGuide IO) r -- ^ Given a fully executed state, solve for concrete values
                           -> State t
                           -> Bindings
                           -> SM.StateT PrettyGuide IO (Processed r (State t), Bindings)
     #-}
 -- | Uses a passed Reducer, Halter and Orderer to execute the reduce on the State, and generated States
-runReducer :: (Monad m, Ord b) =>
+runReducer :: forall m b rv hv sov r t .
+              (Monad m, Ord b) =>
               Reducer m rv t
            -> Halter m hv r t
            -> Orderer m sov b r t
-           -> (State t -> Bindings -> m (Maybe r)) -- ^ Given a fully executed state, solve for concrete values
+           -> SolveStates t m r -- ^ Given a fully executed state, solve for concrete values
            -> State t
            -> Bindings
            -> m (Processed r (State t), Bindings)
-runReducer red hal ord solve_r s b = do
+runReducer red hal ord solve_r init_state init_bindings = do
     let pr = Processed {accepted = [], discarded = []}
-    let s' = ExState { state = s
-                     , reducer_val = initReducer red s
-                     , halter_val = initHalt hal s
-                     , order_val = initPerStateOrder ord s }
+    let s' = ExState { state = init_state
+                     , reducer_val = initReducer red init_state
+                     , halter_val = initHalt hal init_state
+                     , order_val = initPerStateOrder ord init_state }
 
-    (states, b') <- runReducer' red hal ord solve_r pr s' b M.empty
+    (states, b') <- runReducer' pr s' init_bindings M.empty
     afterRed red
     return (states, b')
-
-{-# INLINABLE runReducer' #-}
-runReducer' :: (Monad m, Ord b)
-            => Reducer m rv t
-            -> Halter m hv r t
-            -> Orderer m sov b r t
-            -> (State t -> Bindings -> m (Maybe r)) -- ^ Given a fully executed state, solve for concrete values
-            -> Processed r (State t)
-            -> ExState rv hv sov t
-            -> Bindings
-            -> M.Map b [ExState rv hv sov t]
-            -> m (Processed r (State t), Bindings)
-runReducer' red hal ord solve_r pr rs@(ExState { state = s, reducer_val = r_val, halter_val = h_val, order_val = o_val }) b xs = do
-    hc <- stopRed hal h_val pr s
-    case () of
-        ()
-            | hc == Accept -> do
-                (s', b') <- onAccept red s b r_val
-                er <- solve_r s' b'
-                pr' <- case er of
-                            Just er' -> do
-                                onSolved red
-                                return $ pr {accepted = er':accepted pr}
-                            Nothing -> return pr
-                let jrs = minState ord pr' xs
-                case jrs of
-                    Just (rs', xs') -> switchState red hal ord solve_r pr' rs' b' xs'
-                    Nothing -> return (pr', b')
-            | hc == Discard -> do
-                onDiscard red s r_val
-                let pr' = pr {discarded = state rs:discarded pr}
-                    jrs = minState ord pr' xs
-                case jrs of
-                    Just (rs', xs') ->
-                        switchState red hal ord solve_r pr' rs' b xs'
-                    Nothing -> return (pr', b)
-            | hc == Switch -> do
-                let rs' = rs { order_val = updateSelected ord (order_val rs) pr (state rs) }
-                k <- orderStates ord (order_val rs') pr (state rs)
-                let Just (rs'', xs') = minState ord pr (M.insertWith (++) k [rs'] xs)
-                switchState red hal ord solve_r pr rs'' b xs'
-            | otherwise -> do
-                (_, reduceds, b') <- redRules red r_val s b
-                let reduceds' = map (\(r, rv) -> (r {num_steps = num_steps r + 1}, rv)) reduceds
-
-                    r_vals = if length reduceds' > 1
-                                then updateWithAll red reduceds' ++ error "List returned by updateWithAll is too short."
-                                else map snd reduceds
-
-                    reduceds_h_vals = map (\(r, _) -> (r, h_val)) reduceds'
-                    h_vals = if length reduceds' > 1
-                                then updateHalterWithAll hal reduceds_h_vals ++ error "List returned by updateWithAll is too short."
-                                else repeat h_val
-
-                    new_states = map fst reduceds'
-
-                mod_info <- mapM (\(s', r_val', h_val') -> do
-                                        or_v <- stepOrderer ord o_val pr new_states s'
-                                        return $ rs { state = s'
-                                                    , reducer_val = r_val'
-                                                    , halter_val = stepHalter hal h_val' pr new_states s'
-                                                    , order_val = or_v}) $ zip3 new_states r_vals h_vals
-
-
-
-
-                case mod_info of
-                    (s_h:ss_tail) -> do
-                        b_ss_tail <- mapM (\s' -> do
-                                                    n_b <- orderStates ord (order_val s') pr (state s')
-                                                    return (n_b, s')) ss_tail
-
-                        let xs' = foldr (\(or_b, s') -> M.insertWith (++) or_b [s']) xs b_ss_tail
-
-                        runReducer' red hal ord solve_r pr s_h b' xs'
-                    [] -> runReducerList red hal ord solve_r pr xs b'
-
-{-# INLINABLE switchState #-}
-switchState :: (Monad m, Ord b)
-            => Reducer m rv t
-            -> Halter m hv r t
-            -> Orderer m sov b r t
-            -> (State t -> Bindings -> m (Maybe r)) -- ^ Given a fully executed state, solve for concrete values
-            -> Processed r (State t)
-            -> ExState rv hv sov t
-            -> Bindings
-            -> M.Map b [ExState rv hv sov t]
-            -> m (Processed r (State t), Bindings)
-switchState red hal ord solve_r pr rs b xs
-    | not $ discardOnStart hal (halter_val rs') pr (state rs') =
-        runReducer' red hal ord solve_r pr rs' b xs
-    | otherwise =
-        runReducerListSwitching red hal ord solve_r (pr {discarded = state rs':discarded pr}) xs b
     where
-        rs' = rs { halter_val = updatePerStateHalt hal (halter_val rs) pr (state rs) }
+        {-# INLINABLE runReducer' #-}
+        runReducer' :: (Monad m, Ord b)
+                    => Processed r (State t)
+                    -> ExState rv hv sov t
+                    -> Bindings
+                    -> M.Map b [ExState rv hv sov t]
+                    -> m (Processed r (State t), Bindings)
+        runReducer' pr rs@(ExState { state = s, reducer_val = r_val, halter_val = h_val, order_val = o_val }) b xs = do
+            hc <- stopRed hal h_val pr s
+            case () of
+                ()
+                    | hc == Accept -> do
+                        (s', b') <- onAccept red s b r_val
+                        er <- solve_r s' b'
+                        pr' <- case er of
+                                    Just er' -> do
+                                        onSolved red
+                                        return $ pr {accepted = er':accepted pr}
+                                    Nothing -> return pr
+                        let jrs = minState pr' xs
+                        case jrs of
+                            Just (rs', xs') -> switchState pr' rs' b' xs'
+                            Nothing -> return (pr', b')
+                    | hc == Discard -> do
+                        onDiscard red s r_val
+                        let pr' = pr {discarded = state rs:discarded pr}
+                            jrs = minState pr' xs
+                        case jrs of
+                            Just (rs', xs') ->
+                                switchState pr' rs' b xs'
+                            Nothing -> return (pr', b)
+                    | hc == Switch -> do
+                        let rs' = rs { order_val = updateSelected ord (order_val rs) pr (state rs) }
+                        k <- orderStates ord (order_val rs') pr (state rs)
+                        let Just (rs'', xs') = minState pr (M.insertWith (++) k [rs'] xs)
+                        switchState pr rs'' b xs'
+                    | otherwise -> do
+                        (_, reduceds, b') <- redRules red r_val s b
+                        let reduceds' = map (\(r, rv) -> (r {num_steps = num_steps r + 1}, rv)) reduceds
 
-{-# INLINABLE runReducerList #-}
--- To be used when we we need to select a state without switching 
-runReducerList :: (Monad m, Ord b)
-               => Reducer m rv t
-               -> Halter m hv r t
-               -> Orderer m sov b r t
-               -> (State t -> Bindings -> m (Maybe r)) -- ^ Given a fully executed state, solve for concrete values
-               -> Processed r (State t)
-               -> M.Map b [ExState rv hv sov t]
-               -> Bindings
-               -> m (Processed r (State t), Bindings)
-runReducerList red hal ord solve_r pr m binds =
-    case minState ord pr m of
-        Just (rs, m') ->
-            let
+                            r_vals = if length reduceds' > 1
+                                        then updateWithAll red reduceds' ++ error "List returned by updateWithAll is too short."
+                                        else map snd reduceds
+
+                            reduceds_h_vals = map (\(r, _) -> (r, h_val)) reduceds'
+                            h_vals = if length reduceds' > 1
+                                        then updateHalterWithAll hal reduceds_h_vals ++ error "List returned by updateWithAll is too short."
+                                        else repeat h_val
+
+                            new_states = map fst reduceds'
+
+                        mod_info <- mapM (\(s', r_val', h_val') -> do
+                                                or_v <- stepOrderer ord o_val pr new_states s'
+                                                return $ rs { state = s'
+                                                            , reducer_val = r_val'
+                                                            , halter_val = stepHalter hal h_val' pr new_states s'
+                                                            , order_val = or_v}) $ zip3 new_states r_vals h_vals
+
+
+
+
+                        case mod_info of
+                            (s_h:ss_tail) -> do
+                                b_ss_tail <- mapM (\s' -> do
+                                                            n_b <- orderStates ord (order_val s') pr (state s')
+                                                            return (n_b, s')) ss_tail
+
+                                let xs' = foldr (\(or_b, s') -> M.insertWith (++) or_b [s']) xs b_ss_tail
+
+                                runReducer' pr s_h b' xs'
+                            [] -> runReducerList pr xs b'
+
+        {-# INLINABLE switchState #-}
+        switchState :: (Monad m, Ord b)
+                    => Processed r (State t)
+                    -> ExState rv hv sov t
+                    -> Bindings
+                    -> M.Map b [ExState rv hv sov t]
+                    -> m (Processed r (State t), Bindings)
+        switchState pr rs b xs
+            | not $ discardOnStart hal (halter_val rs') pr (state rs') =
+                runReducer' pr rs' b xs
+            | otherwise =
+                runReducerListSwitching (pr {discarded = state rs':discarded pr}) xs b
+            where
                 rs' = rs { halter_val = updatePerStateHalt hal (halter_val rs) pr (state rs) }
-            in
-            runReducer' red hal ord solve_r pr rs' binds m'
-        Nothing -> return (pr, binds)
 
-{-# INLINABLE runReducerListSwitching #-}
--- To be used when we are possibly switching states 
-runReducerListSwitching :: (Monad m, Ord b)
-                        => Reducer m rv t
-                        -> Halter m hv r t
-                        -> Orderer m sov b r t
-                        -> (State t -> Bindings -> m (Maybe r)) -- ^ Given a fully executed state, solve for concrete values
-                        -> Processed r (State t)
-                        -> M.Map b [ExState rv hv sov t]
-                        -> Bindings
-                        -> m (Processed r (State t), Bindings)
-runReducerListSwitching red hal ord solve_r pr m binds =
-    case minState ord pr m of
-        Just (x, m') -> switchState red hal ord solve_r pr x binds m'
-        Nothing -> return (pr, binds)
+        {-# INLINABLE runReducerList #-}
+        -- To be used when we we need to select a state without switching 
+        runReducerList :: (Monad m, Ord b)
+                    => Processed r (State t)
+                    -> M.Map b [ExState rv hv sov t]
+                    -> Bindings
+                    -> m (Processed r (State t), Bindings)
+        runReducerList pr m binds =
+            case minState pr m of
+                Just (rs, m') ->
+                    let
+                        rs' = rs { halter_val = updatePerStateHalt hal (halter_val rs) pr (state rs) }
+                    in
+                    runReducer' pr rs' binds m'
+                Nothing -> return (pr, binds)
 
-{-# INLINABLE minState #-}
--- Uses the Orderer to determine which state to continue execution on.
--- Returns that State, and a list of the rest of the states 
-minState :: Ord b
-         => Orderer m sov b r t
-         -> Processed r (State t)
-         -> M.Map b [ExState rv hv sov t]
-         -> Maybe ((ExState rv hv sov t), M.Map b [ExState rv hv sov t])
-minState ord pr m =
-    case getState m of
-      Just (k, x:[]) -> Just (x, M.delete k m)
-      Just (k, x:xs) -> Just (x, M.insert k xs m)
-      Just (k, []) -> minState ord pr $ M.delete k m
-      Nothing -> Nothing
+        {-# INLINABLE runReducerListSwitching #-}
+        -- To be used when we are possibly switching states 
+        runReducerListSwitching :: (Monad m, Ord b)
+                                => Processed r (State t)
+                                -> M.Map b [ExState rv hv sov t]
+                                -> Bindings
+                                -> m (Processed r (State t), Bindings)
+        runReducerListSwitching pr m binds =
+            case minState pr m of
+                Just (x, m') -> switchState pr x binds m'
+                Nothing -> return (pr, binds)
+
+        {-# INLINABLE minState #-}
+        -- Uses the Orderer to determine which state to continue execution on.
+        -- Returns that State, and a list of the rest of the states 
+        minState :: Ord b
+                => Processed r (State t)
+                -> M.Map b [ExState rv hv sov t]
+                -> Maybe (ExState rv hv sov t, M.Map b [ExState rv hv sov t])
+        minState pr m =
+            case getState m of
+            Just (k, x:[]) -> Just (x, M.delete k m)
+            Just (k, x:xs) -> Just (x, M.insert k xs m)
+            Just (k, []) -> minState pr $ M.delete k m
+            Nothing -> Nothing
 
