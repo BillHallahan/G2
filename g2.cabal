@@ -252,7 +252,7 @@ library
                        -- -ddump-rule-rewrites
                        -- -ddump-splices
                        -- -fexternal-interpreter
-  -- ghc-prof-options:    -fprof-auto
+  ghc-prof-options:    -fprof-auto
   other-extensions:    CPP
   if flag(support-lh) && impl(ghc < 9)
     cpp-options: -DSUPPORT_LH
@@ -372,7 +372,7 @@ test-suite test
                        , RewriteVerify.RewriteVerifyTest
   ghc-options:         -Wall
                        -threaded
-  -- ghc-prof-options:    -fprof-auto "-with-rtsopts=-p"
+  ghc-prof-options:    -fprof-auto "-with-rtsopts=-p"
   type:                exitcode-stdio-1.0
 
 test-suite test-lh

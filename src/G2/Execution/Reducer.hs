@@ -118,7 +118,13 @@ module G2.Execution.Reducer ( Reducer (..)
                             , incrAfterN
                             , quotTrueAssert
 
+                            -- * Analyzers
+                            , AnalyzeStates
+                            , noAnalysis
+                            , logStatesAtTime
+
                             -- * Execution
+                            , SolveStates
                             , runReducer ) where
 
 import G2.Config
@@ -362,6 +368,12 @@ data SomeHalter m r t where
 -- | Hide the details of an Orderer's orderer value and ordering type.
 data SomeOrderer m r t where
     SomeOrderer :: forall m sov b r t . Ord b => Orderer m sov b r t -> SomeOrderer m r t
+
+-- * Reducers
+--
+-- $reducers
+--
+-- Reducers define sets of reduction rules.
 
 
 -- Combines multiple reducers together into a single reducer.
@@ -1114,6 +1126,11 @@ acceptTimeLogger = do
                             print diff_secs
                             return () }
 
+-- * Halters
+--
+-- $halters
+--
+
 -- We use C to combine the halter values for HCombiner
 -- We should never define any other instance of Halter with C, or export it
 -- because this could lead to undecidable instances
@@ -1319,7 +1336,11 @@ printOnHaltC watch mes h =
                         if halt_c == watch then liftIO $ putStrLn mes else return ()
                         return halt_c }
 
--- Orderer things
+-- * Orderers
+--
+-- $orderers
+--
+
 (<->) :: Monad m => Orderer m sov1 b1 r t -> Orderer m sov2 b2 r t -> Orderer m (C sov1 sov2) (b1, b2) r t
 or1 <-> or2 = Orderer {
       initPerStateOrder = \s ->
@@ -1563,17 +1584,61 @@ quotTrueAssert ord = (mkSimpleOrderer (initPerStateOrder ord)
             b <- orderStates ord sov pr s
             return (if true_assert s then b `quot` 2 else b)
 
+-- * Analyzers
+--
+-- $analyzers
+--
+
+data AnalysisEvent t = StateAccepted (State t)
+                     | StateDiscarded (State t)
+                     | StateReduced [State t]
+
+-- | Output information about all states being symbolically executed.
+-- To be run after each symbolic execution step. 
+type AnalyzeStates m r t = AnalysisEvent t -- ^ Newly generated states. 
+                        -> Processed r (State t) -- ^ Accepted/Rejected States
+                        -> [State t] -- ^ All states are are waiting to run
+                        -> m ()
+
+noAnalysis :: Monad m => AnalyzeStates m r t
+noAnalysis _ _ _ = return ()
+
+-- ^ Whenever the number of states grows, output the (new) number of states
+-- and the time.
+logStatesAtTime :: MonadIO m => IO (AnalyzeStates m r t)
+logStatesAtTime = do
+    init_time <- getTime Realtime
+
+    let prTime ns as = liftIO $ do
+                        curr_time <- getTime Realtime
+                        let diff = diffTimeSpec curr_time init_time
+                            diff_secs = (fromInteger (toNanoSecs diff)) / (10 ^ (9 :: Int) :: Double)
+                        putStr "Time: "
+                        putStr (show diff_secs)
+                        putStr " Num States: "
+                        print (length ns + length as)
+
+    return (\ae _ all_s ->
+                case ae of
+                    StateReduced new_s@(s1_:s2_:_) -> prTime new_s all_s
+                    StateReduced new_s@[] -> prTime new_s all_s
+                    StateAccepted _ -> prTime [] all_s
+                    StateDiscarded _ -> prTime [] all_s
+                    _ -> return ())        
+
 --------
 --------
 
-type SolveStates t m r = State t -> Bindings -> m (Maybe r)
+-- | Solve for concrete values in a fully executed state.
+type SolveStates m r t = State t -> Bindings -> m (Maybe r)
 
 {-# INLINABLE runReducer #-}
 {-# SPECIALIZE runReducer :: Ord b =>
                              Reducer IO rv t
                           -> Halter IO hv r t
                           -> Orderer IO sov b r t
-                          -> SolveStates t IO r -- ^ Given a fully executed state, solve for concrete values
+                          -> SolveStates IO r t
+                          -> AnalyzeStates IO r t
                           -> State t
                           -> Bindings
                           -> IO (Processed r (State t), Bindings)
@@ -1582,7 +1647,8 @@ type SolveStates t m r = State t -> Bindings -> m (Maybe r)
                              Reducer (SM.StateT PrettyGuide IO) rv t
                           -> Halter (SM.StateT PrettyGuide IO) hv r t
                           -> Orderer (SM.StateT PrettyGuide IO) sov b r t
-                          -> SolveStates t (SM.StateT PrettyGuide IO) r -- ^ Given a fully executed state, solve for concrete values
+                          -> SolveStates (SM.StateT PrettyGuide IO) r t
+                          -> AnalyzeStates (SM.StateT PrettyGuide IO) r t
                           -> State t
                           -> Bindings
                           -> SM.StateT PrettyGuide IO (Processed r (State t), Bindings)
@@ -1593,11 +1659,12 @@ runReducer :: forall m b rv hv sov r t .
               Reducer m rv t
            -> Halter m hv r t
            -> Orderer m sov b r t
-           -> SolveStates t m r -- ^ Given a fully executed state, solve for concrete values
+           -> SolveStates m r t -- ^ Given a fully executed state, solve for concrete values
+           -> AnalyzeStates m r t -- ^ Output information about all states being symbolically executed
            -> State t
            -> Bindings
            -> m (Processed r (State t), Bindings)
-runReducer red hal ord solve_r init_state init_bindings = do
+runReducer red hal ord solve_r analyze init_state init_bindings = do
     let pr = Processed {accepted = [], discarded = []}
     let s' = ExState { state = init_state
                      , reducer_val = initReducer red init_state
@@ -1622,6 +1689,7 @@ runReducer red hal ord solve_r init_state init_bindings = do
                     | hc == Accept -> do
                         (s', b') <- onAccept red s b r_val
                         er <- solve_r s' b'
+                        analyze (StateAccepted s') pr (map state . concat $ M.elems xs)
                         pr' <- case er of
                                     Just er' -> do
                                         onSolved red
@@ -1633,6 +1701,7 @@ runReducer red hal ord solve_r init_state init_bindings = do
                             Nothing -> return (pr', b')
                     | hc == Discard -> do
                         onDiscard red s r_val
+                        analyze (StateDiscarded s) pr (map state . concat $ M.elems xs)
                         let pr' = pr {discarded = state rs:discarded pr}
                             jrs = minState pr' xs
                         case jrs of
@@ -1658,6 +1727,8 @@ runReducer red hal ord solve_r init_state init_bindings = do
                                         else repeat h_val
 
                             new_states = map fst reduceds'
+                        
+                        analyze (StateReduced new_states) pr (map state . concat $ M.elems xs)
 
                         mod_info <- mapM (\(s', r_val', h_val') -> do
                                                 or_v <- stepOrderer ord o_val pr new_states s'

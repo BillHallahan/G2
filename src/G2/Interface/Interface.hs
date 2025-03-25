@@ -257,6 +257,7 @@ type RHOStack m = SM.StateT LengthNTrack (SM.StateT PrettyGuide (SM.StateT HpcTr
                           -> Halter (RHOStack IO) hv (ExecRes ()) ()
                           -> Orderer (RHOStack IO) sov b (ExecRes ()) ()
                           -> (State () -> Bindings -> RHOStack IO (Maybe (ExecRes ())))
+                          -> AnalyzeStates (RHOStack IO) (ExecRes ()) ()
                           -> State ()
                           -> Bindings
                           -> (RHOStack IO) (Processed (ExecRes ()) (State ()), Bindings)
@@ -459,12 +460,13 @@ runG2WithConfig entry_f mb_modname state@(State { expr_env = eenv }) config bind
                      $ E.filterConcOrSym (\case { E.Conc e -> not (reachesSymbolic S.empty eenv e); E.Sym _ -> False }) eenv
 
     rho <- initRedHaltOrd mod_name solver simplifier config not_symbolic (S.fromList executable_funcs) (S.fromList non_rec_funcs)
+    analysis <- if states_at_time config then logStatesAtTime else return noAnalysis 
     (in_out, bindings') <- case rho of
                 (red, hal, ord) ->
                     SM.evalStateT
                         (SM.evalStateT
                             (SM.evalStateT
-                                (runG2WithSomes red hal ord solver simplifier emptyMemConfig state bindings)
+                                (runG2WithSomes red hal ord analysis solver simplifier emptyMemConfig state bindings)
                                 lnt
                             )
                            (if showType config == Lax 
@@ -518,6 +520,7 @@ isFuncNonRecursive g n =
                 => SomeReducer (RHOStack IO) ()
                 -> SomeHalter (RHOStack IO) (ExecRes ()) ()
                 -> SomeOrderer (RHOStack IO) (ExecRes ()) ()
+                -> AnalyzeStates (RHOStack IO) (ExecRes ()) ()
                 -> solver
                 -> simplifier
                 -> MemConfig
@@ -534,6 +537,7 @@ runG2WithSomes :: ( MonadIO m
                => SomeReducer m t
                -> SomeHalter m (ExecRes t) t
                -> SomeOrderer m (ExecRes t) t
+               -> AnalyzeStates m (ExecRes t) t
                -> solver
                -> simplifier
                -> MemConfig
@@ -563,7 +567,7 @@ runG2Post :: ( MonadIO m
              , Ord b) => Reducer m rv t -> Halter m hv (ExecRes t) t -> Orderer m sov b (ExecRes t) t ->
              solver -> simplifier -> State t -> Bindings -> m ([ExecRes t], Bindings)
 runG2Post red hal ord solver simplifier is bindings = do
-    runExecution red hal ord (runG2Solving solver simplifier) is bindings
+    runExecution red hal ord (runG2Solving solver simplifier) noAnalysis is bindings
 
 runG2SolvingResult :: ( Named t
                       , Solver solver
@@ -639,6 +643,7 @@ runG2SubstModel m s@(State { type_env = tenv, known_values = kv }) bindings =
 {-# SPECIALIZE runG2 :: ( Solver solver
                         , Simplifier simplifier
                         , Ord b) => Reducer (RHOStack IO) rv () -> Halter (RHOStack IO) hv (ExecRes ()) () -> Orderer (RHOStack IO) sov b (ExecRes ()) () ->
+                        AnalyzeStates (RHOStack IO) (ExecRes ()) () ->
                         solver -> simplifier -> MemConfig -> State () -> Bindings -> RHOStack IO ([ExecRes ()], Bindings)
     #-}
 
@@ -651,8 +656,8 @@ runG2 :: ( MonadIO m
          , ASTContainer t Type
          , Solver solver
          , Simplifier simplifier
-         , Ord b) => Reducer m rv t -> Halter m hv (ExecRes t) t -> Orderer m sov b (ExecRes t) t ->
+         , Ord b) => Reducer m rv t -> Halter m hv (ExecRes t) t -> Orderer m sov b (ExecRes t) t -> AnalyzeStates m (ExecRes t) t ->
          solver -> simplifier -> MemConfig -> State t -> Bindings -> m ([ExecRes t], Bindings)
-runG2 red hal ord solver simplifier mem is bindings = do
+runG2 red hal ord analyze solver simplifier mem is bindings = do
     let (is', bindings') = runG2Pre mem is bindings
-    runExecution red hal ord (runG2Solving solver simplifier) is' bindings'
+    runExecution red hal ord (runG2Solving solver simplifier) analyze is' bindings'

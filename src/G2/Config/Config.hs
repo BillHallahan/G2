@@ -87,6 +87,7 @@ data Config = Config {
     , step_limit :: Bool -- ^ Should steps be limited when running states?
     , steps :: Int -- ^ How many steps to take when running States
     , accept_times :: Bool -- ^ Output the time each state is accepted
+    , states_at_time :: Bool -- ^ Output time and number of states each time a state is added/removed
     , hpc :: Bool -- ^ Should HPC ticks be generated and tracked during execution?
     , hpc_print_times :: Bool -- ^ Print the time each HPC tick is reached?
     , strict :: Bool -- ^ Should the function output be strictly evaluated?
@@ -139,6 +140,7 @@ mkConfig homedir = Config Regular
                    <> value 1000
                    <> help "how many steps to take when running states")
     <*> switch (long "accept-times" <> help "output the time each state is accepted")
+    <*> switch (long "states-at-time" <> help "output time and number of states each time a state is added/removed")
     <*> flag False True (long "hpc"
                       <> help "Generate and report on HPC ticks")
     <*> switch (long "hpc-print-times" <> help "Print the time each HPC tick is reached?")
@@ -268,6 +270,7 @@ mkConfigDirect homedir as m = Config {
     , step_limit = boolArg' "no-step-limit" as True True False
     , steps = strArg "n" as m read 1000
     , accept_times = boolArg "accept-times" as m Off
+    , states_at_time = False
     , hpc = False
     , hpc_print_times = False
     , strict = boolArg "strict" as m On
