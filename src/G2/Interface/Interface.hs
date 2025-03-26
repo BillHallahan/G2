@@ -250,7 +250,7 @@ initCheckReaches s@(State { expr_env = eenv
                           , known_values = kv }) m_mod reaches =
     s {expr_env = checkReaches eenv kv reaches m_mod }
 
-type RHOStack m = SM.StateT LengthNTrack (SM.StateT PrettyGuide (SM.StateT HpcTracker (SM.StateT LogStatesAtStep m)))
+type RHOStack m = SM.StateT LengthNTrack (SM.StateT PrettyGuide (SM.StateT HpcTracker m))
 
 {-# SPECIALIZE runReducer :: Ord b =>
                              Reducer (RHOStack IO) rv ()
@@ -459,19 +459,20 @@ runG2WithConfig entry_f mb_modname state@(State { expr_env = eenv }) config bind
                      . E.keys
                      $ E.filterConcOrSym (\case { E.Conc e -> not (reachesSymbolic S.empty eenv e); E.Sym _ -> False }) eenv
 
-    rho <- initRedHaltOrd mod_name solver simplifier config not_symbolic (S.fromList executable_funcs) (S.fromList non_rec_funcs)
-
     analysis1 <- if states_at_time config then do l <- logStatesAtTime; return [l] else return noAnalysis
     let analysis2 = if states_at_step config then [\s p xs -> SM.lift . SM.lift . SM.lift $ logStatesAtStep s p xs] else noAnalysis
-        analysis = analysis1 ++ analysis2
+    let analysis3 = if print_num_red_rules config then [\s p xs -> SM.lift . SM.lift . SM.lift . SM.lift $ logRedRuleNum s p xs] else noAnalysis
+        analysis = analysis1 ++ analysis2 ++ analysis3
     
-    (in_out, bindings') <- case rho of
+    (in_out, bindings') <- case null analysis of
+        True -> do
+            rho <- initRedHaltOrd mod_name solver simplifier config not_symbolic (S.fromList executable_funcs) (S.fromList non_rec_funcs)
+            case rho of
                 (red, hal, ord) ->
-                    SM.evalStateT(
                         SM.evalStateT
                             (SM.evalStateT
                                 (SM.evalStateT
-                                    (runG2WithSomes red hal ord analysis solver simplifier emptyMemConfig state bindings)
+                                    (runG2WithSomes red hal ord [] solver simplifier emptyMemConfig state bindings)
                                     lnt
                                 )
                                 (if showType config == Lax 
@@ -479,8 +480,27 @@ runG2WithConfig entry_f mb_modname state@(State { expr_env = eenv }) config bind
                                 else setTypePrinting AggressiveTypes (mkPrettyGuide ())) 
                             )
                             hpc_t
+        False -> do
+            rho <- initRedHaltOrd mod_name solver simplifier config not_symbolic (S.fromList executable_funcs) (S.fromList non_rec_funcs)
+            case rho of
+                (red, hal, ord) ->
+                    SM.evalStateT (
+                        SM.evalStateT (
+                            SM.evalStateT
+                                (SM.evalStateT
+                                    (SM.evalStateT
+                                        (runG2WithSomes red hal ord analysis solver simplifier emptyMemConfig state bindings)
+                                        lnt
+                                    )
+                                    (if showType config == Lax 
+                                    then (mkPrettyGuide ())
+                                    else setTypePrinting AggressiveTypes (mkPrettyGuide ())) 
+                                )
+                                hpc_t
+                            )
+                            logStatesAtStepTracker
                         )
-                        logStatesAtStepTracker
+                        0
 
     close solver
 

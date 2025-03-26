@@ -107,6 +107,8 @@ module G2.Execution.Reducer ( Reducer (..)
 
                             -- * Orderers
                             , mkSimpleOrderer
+                            , liftOrderer
+                            , liftSomeOrderer
                             , (<->)
                             , ordComb
                             , nextOrderer
@@ -122,6 +124,7 @@ module G2.Execution.Reducer ( Reducer (..)
                             , AnalyzeStates
                             , noAnalysis
                             , logStatesAtTime
+                            , logRedRuleNum
 
                             , LogStatesAtStep
                             , logStatesAtStepTracker
@@ -357,6 +360,17 @@ mkSimpleOrderer initial order update = Orderer { initPerStateOrder = initial
                                                , orderStates = order
                                                , updateSelected = update
                                                , stepOrderer = \sov _ _ _ -> return sov}
+
+-- | Lift a Orderer from a component monad to a constructed monad. 
+liftOrderer :: (Monad m1, SM.MonadTrans m2) => Orderer m1 sov b r t -> Orderer (m2 m1) sov b r t
+liftOrderer r = Orderer { initPerStateOrder = initPerStateOrder r
+                        , orderStates = \sov pr s -> SM.lift ((orderStates r) sov pr s)
+                        , updateSelected = updateSelected r
+                        , stepOrderer = \sov pr xs s -> SM.lift ((stepOrderer r) sov pr xs s) }
+
+-- | Lift a liftSomeOrderer from a component monad to a constructed monad. 
+liftSomeOrderer :: (Monad m1, SM.MonadTrans m2) => SomeOrderer m1 r t -> SomeOrderer (m2 m1) r t
+liftSomeOrderer (SomeOrderer r) = SomeOrderer (liftOrderer r)
 
 getState :: M.Map b [s] -> Maybe (b, [s])
 getState = M.lookupMin
@@ -1623,7 +1637,7 @@ logStatesAtTime = do
 
     return (\ae _ all_s ->
                 case ae of
-                    StateReduced new_s@(s1_:s2_:_) -> prTime new_s all_s
+                    StateReduced new_s@(_:_:_) -> prTime new_s all_s
                     StateReduced new_s@[] -> prTime new_s all_s
                     StateAccepted _ -> prTime [] all_s
                     StateDiscarded _ -> prTime [] all_s
@@ -1677,6 +1691,14 @@ logStatesAtStep (StateDiscarded _) _ [] = do
                         _ -> return ()
     go m last_count_printed
 logStatesAtStep _ _ _ = return ()
+
+-- | Outputs the total number of reduction rules after reduction stops.
+logRedRuleNum :: (MonadIO m, SM.MonadState Int m) => AnalyzeStates m r t
+logRedRuleNum (StateReduced _) _ _ = SM.modify (+ 1)
+logRedRuleNum (StateDiscarded _) _ [] = do
+    n <- SM.get
+    liftIO . putStrLn $ "# Red Rules: " ++ show n
+logRedRuleNum _ _ _ = return ()
 
 --------
 --------
