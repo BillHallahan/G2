@@ -232,7 +232,7 @@ runExecutionQ s b config = do
   runIO $ do
     let (s', b') = addAssume s b
     
-    SomeSolver solver <- initSolverInfinite (known_values s) config
+    SomeSolver solver <- initSolverInfinite (expr_env s) (known_values s) config
     let simplifier = IdSimplifier
     case qqRedHaltOrd config solver simplifier of
         (SomeReducer red, SomeHalter hal, SomeOrderer ord) -> do
@@ -416,7 +416,7 @@ executeAndSolveStates s b = do
 executeAndSolveStates' :: Bindings -> State () -> IO (Maybe (ExecRes ()))
 executeAndSolveStates' b s = do
     config <- qqConfig
-    SomeSolver solver <- initSolverInfinite (known_values s) config
+    SomeSolver solver <- initSolverInfinite (expr_env s) (known_values s) config
     let simplifier = IdSimplifier
     case qqRedHaltOrd config solver simplifier of
         (SomeReducer red, SomeHalter hal, _) -> do
@@ -440,7 +440,7 @@ solveStates' :: ( Named t
 solveStates' b xs = do
     config <- qqConfig
     -- TODO: might need to check for potential problem in case of the state being empty
-    SomeSolver solver <- initSolverInfinite (known_values (head xs)) config
+    SomeSolver solver <- initSolverInfinite (expr_env (head xs)) (known_values (head xs)) config
     let simplifier = IdSimplifier
     solveStates'' solver simplifier b xs
 

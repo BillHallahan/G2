@@ -325,11 +325,11 @@ initRedHaltOrd mod_name solver simplifier config libFunNames =
              , SomeHalter (discardIfAcceptedTagHalter state_name <~> halter)
              , orderer)
 
-initSolver :: KnownValues ->  Config -> IO SomeSolver
-initSolver kv con = initSolver' (arbValue kv) con
+initSolver :: E.ExprEnv -> KnownValues ->  Config -> IO SomeSolver
+initSolver eenv kv con = initSolver' (arbValue eenv kv) con
 
-initSolverInfinite :: KnownValues -> Config -> IO SomeSolver
-initSolverInfinite kv con = initSolver' (arbValueInfinite kv) con
+initSolverInfinite :: E.ExprEnv -> KnownValues -> Config -> IO SomeSolver
+initSolverInfinite eenv kv con = initSolver' (arbValueInfinite eenv kv) con
 
 initSolver' :: ArbValueFunc -> Config -> IO SomeSolver
 initSolver' avf config = do
@@ -417,7 +417,7 @@ runG2FromFile proj src m_assume m_assert m_reach def_assert f transConfig config
 
 runG2WithConfig :: Maybe T.Text -> State () -> Config -> Bindings -> IO ([ExecRes ()], Bindings)
 runG2WithConfig mod_name state config bindings = do
-    SomeSolver solver <- initSolver (known_values state) config
+    SomeSolver solver <- initSolver (expr_env state) (known_values state) config
     hpc_t <- hpcTracker
     let simplifier = FloatSimplifier :>> ArithSimplifier
         exp_env_names = E.keys $ expr_env state

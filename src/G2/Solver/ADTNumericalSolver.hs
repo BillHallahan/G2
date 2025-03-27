@@ -8,16 +8,17 @@ import G2.Language.ArbValueGen
 import G2.Language.Support
 import G2.Language.Syntax
 import qualified G2.Language.PathConds as PC
+import qualified G2.Language.ExprEnv as E
 import G2.Solver.Solver
 
 -- | Converts constraints about ADTs to numerical constraints before sending them to other solvers
 data ADTNumericalSolver solver = ADTNumericalSolver ArbValueFunc solver
 
-adtNumericalSolFinite :: KnownValues -> solver -> ADTNumericalSolver solver
-adtNumericalSolFinite kv so = ADTNumericalSolver (arbValue kv) so 
+adtNumericalSolFinite :: E.ExprEnv -> KnownValues -> solver -> ADTNumericalSolver solver
+adtNumericalSolFinite eenv kv so = ADTNumericalSolver (arbValue eenv kv) so 
 
-adtNumericalSolInfinite :: KnownValues -> solver -> ADTNumericalSolver solver
-adtNumericalSolInfinite kv so = ADTNumericalSolver (arbValueInfinite kv) so 
+adtNumericalSolInfinite :: E.ExprEnv -> KnownValues -> solver -> ADTNumericalSolver solver
+adtNumericalSolInfinite eenv kv so = ADTNumericalSolver (arbValueInfinite eenv kv) so 
 
 instance Solver solver => Solver (ADTNumericalSolver solver) where
     check (ADTNumericalSolver _ sol) s pc = return . fst =<< checkConsistency (Tr sol) s pc

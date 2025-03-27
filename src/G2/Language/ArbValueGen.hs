@@ -24,6 +24,7 @@ import Data.Tuple
 
 import Debug.Trace
 import Data.Maybe (fromMaybe)
+import Control.Monad (foldM)
 
 -- | A default `ArbValueGen`.
 arbValueInit :: ArbValueGen
@@ -242,20 +243,32 @@ getADT eenv kv cutoff m tenv av adt ts
         -- has been instantiated with Bool (we learn this from the ts input parameter), that the CBool
         -- constructor has the (ok) coercion (a ~ Bool) and that CInt has the (disallowed) coercion (a ~ Int) 
 
-        checkDC eenv dc = 
+        checkDC eenv' dc = 
             let
                 coer = eval (getCoercions kv) (dc_type dc)
 
                 leading_ty = leadingTyForAllBindings dc
-                tyvar_ids = tyVarIds ts  
 
-                univ_ty_inst = zip (map TyVar leading_ty) ts
+                tyvar_ids = tyVarIds ts  
+                ts_tys = map typeOf tyvar_ids
+                expr = MA.mapMaybe (flip E.lookup  eenv') (map idName tyvar_ids)
+                expr_tys = map typeOf expr 
+                -- now do the retyping 
+                -- first ziped the list 
+                ts' = zip expr_tys ts_tys
+                uf_map = foldM (\uf_map' (t1, t2) -> unify' uf_map' t1 t2) UF.empty ts' 
+                ts'' = case uf_map of
+                            Nothing -> trace("In the nothing case ")ts
+                            Just uf_map' -> foldl' (\e (n,t) -> retype (Id n (typeOf t)) t e) ts (HM.toList $ UF.toSimpleMap uf_map')
+
+    
+                univ_ty_inst = zip (map TyVar leading_ty) ts''
                 -- a'110 bound in the expr environment but we aren't checking it 
                 uf_map_univ = foldr (\(c1, c2) m_uf -> (\uf -> unify' uf c1 c2) =<< m_uf)
                                 (Just UF.empty)
                                 (coer ++ univ_ty_inst)
                 exist_name = map idName (dc_exist_tyvars dc)
                 
-                dc' =trace("The ts in arbvalue gen is " ++ show ts ) uf_map_univ >>= \uf_map -> fmap (\exist ->(dc, exist)) (mapM (flip UF.lookup uf_map) exist_name)
+                dc' = uf_map_univ >>= \uf_map -> fmap (\exist ->(dc, exist)) (mapM (flip UF.lookup uf_map) exist_name)
             in
             assert (length leading_ty >= length ts) dc'
