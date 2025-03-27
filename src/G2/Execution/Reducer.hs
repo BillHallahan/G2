@@ -124,6 +124,7 @@ module G2.Execution.Reducer ( Reducer (..)
                             , AnalyzeStates
                             , noAnalysis
                             , logStatesAtTime
+                            , logNRPCs
                             , logRedRuleNum
 
                             , LogStatesAtStep
@@ -1607,9 +1608,11 @@ quotTrueAssert ord = (mkSimpleOrderer (initPerStateOrder ord)
 -- $analyzers
 --
 
-data AnalysisEvent t = StateAccepted (State t)
-                     | StateDiscarded (State t)
-                     | StateReduced [State t]
+-- | An event that occurs during symbolic execution
+data AnalysisEvent t = StateAccepted (State t) -- ^ The state that was accepted
+                     | StateDiscarded (State t) -- ^ The state that was discarded
+                     | StateReduced (State t) -- ^ The initial state, pre-reduction
+                                    [State t] -- ^ The new states
 
 -- | Output information about all states being symbolically executed.
 -- To be run after each symbolic execution step. 
@@ -1637,8 +1640,8 @@ logStatesAtTime = do
 
     return (\ae _ all_s ->
                 case ae of
-                    StateReduced new_s@(_:_:_) -> prTime new_s all_s
-                    StateReduced new_s@[] -> prTime new_s all_s
+                    StateReduced _ new_s@(_:_:_) -> prTime new_s all_s
+                    StateReduced _ new_s@[] -> prTime new_s all_s
                     StateAccepted _ -> prTime [] all_s
                     StateDiscarded _ -> prTime [] all_s
                     _ -> return ())        
@@ -1650,7 +1653,7 @@ logStatesAtStepTracker = LSS (M.empty, 0)
 
 -- | Whenever the number of states that have reached a particular step changes, outputs the number of states.
 logStatesAtStep :: (MonadIO m, SM.MonadState LogStatesAtStep m) => AnalyzeStates m r t
-logStatesAtStep (StateReduced new_s@(s:_)) _ waiting = do
+logStatesAtStep (StateReduced _ new_s@(s:_)) _ waiting = do
     -- We track a Map of (unprinted step numbers) -> (count of states at that step number)
     -- We can print out the number of states at step N only once there are no live states that have taken < N steps.
     -- We remove step numbers from the map once they are printed.
@@ -1692,9 +1695,27 @@ logStatesAtStep (StateDiscarded _) _ [] = do
     go m last_count_printed
 logStatesAtStep _ _ _ = return ()
 
+-- | Outputs generated NRPCs.
+logNRPCs :: (MonadIO m, SM.MonadState PrettyGuide m) => AnalyzeStates m r t
+logNRPCs (StateReduced s xs) _ _ = do
+    let s_nrpc = non_red_path_conds s
+        -- Find any added NRPCs
+        new_nrpc = filter (not . null)
+                 . map (L.\\ s_nrpc)
+                 -- Computing the difference is a bit expensive- don't bother if 
+                 -- the new list of NRPCs isn't longer than the old list of NRPCs
+                 . filter (\nrpc' -> length nrpc' > length s_nrpc)
+                 $ map non_red_path_conds xs
+    pg <- SM.get
+    mapM_ (\nrpc -> liftIO $ do
+                putStrLn "NRPC: "
+                T.putStrLn . prettyNonRedPaths pg $ nrpc)
+          new_nrpc
+logNRPCs _ _ _ = return ()
+
 -- | Outputs the total number of reduction rules after reduction stops.
 logRedRuleNum :: (MonadIO m, SM.MonadState Int m) => AnalyzeStates m r t
-logRedRuleNum (StateReduced _) _ _ = SM.modify (+ 1)
+logRedRuleNum (StateReduced _ _) _ _ = SM.modify (+ 1)
 logRedRuleNum (StateDiscarded _) _ [] = do
     n <- SM.get
     liftIO . putStrLn $ "# Red Rules: " ++ show n
@@ -1802,7 +1823,7 @@ runReducer red hal ord solve_r analyze init_state init_bindings = do
 
                             new_states = map fst reduceds'
                         
-                        sequence_ $ analyze <*> pure (StateReduced new_states) <*> pure pr <*> pure (map state . concat $ M.elems xs)
+                        sequence_ $ analyze <*> pure (StateReduced s new_states) <*> pure pr <*> pure (map state . concat $ M.elems xs)
 
                         mod_info <- mapM (\(s', r_val', h_val') -> do
                                                 or_v <- stepOrderer ord o_val pr new_states s'

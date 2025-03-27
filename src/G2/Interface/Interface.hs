@@ -461,8 +461,9 @@ runG2WithConfig entry_f mb_modname state@(State { expr_env = eenv }) config bind
 
     analysis1 <- if states_at_time config then do l <- logStatesAtTime; return [l] else return noAnalysis
     let analysis2 = if states_at_step config then [\s p xs -> SM.lift . SM.lift . SM.lift $ logStatesAtStep s p xs] else noAnalysis
-    let analysis3 = if print_num_red_rules config then [\s p xs -> SM.lift . SM.lift . SM.lift . SM.lift $ logRedRuleNum s p xs] else noAnalysis
-        analysis = analysis1 ++ analysis2 ++ analysis3
+        analysis3 = if print_num_red_rules config then [\s p xs -> SM.lift . SM.lift . SM.lift . SM.lift $ logRedRuleNum s p xs] else noAnalysis
+        analysis4 = if print_nrpcs config then [\s p xs -> SM.lift $ logNRPCs s p xs] else noAnalysis
+        analysis = analysis1 ++ analysis2 ++ analysis3 ++ analysis4
     
     (in_out, bindings') <- case null analysis of
         True -> do
