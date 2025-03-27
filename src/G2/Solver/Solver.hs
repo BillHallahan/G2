@@ -19,8 +19,10 @@ module G2.Solver.Solver ( Solver (..)
 
 import G2.Language
 import qualified G2.Language.PathConds as PC
+import qualified G2.Language.ExprEnv as E
 import Data.List
 import qualified Data.HashMap.Lazy as HM
+
 
 -- | The result of a Solver query
 data Result m u um = SAT m
@@ -80,11 +82,11 @@ data SomeTrSolver where
 -- | Splits path constraints before sending them to the rest of the solvers
 data GroupRelated a = GroupRelated ArbValueFunc a
 
-groupRelatedFinite :: KnownValues -> a -> GroupRelated a
-groupRelatedFinite kv a' = GroupRelated (arbValue kv) a'
+groupRelatedFinite :: E.ExprEnv -> KnownValues -> a -> GroupRelated a
+groupRelatedFinite eenv kv a' = GroupRelated (arbValue eenv kv) a'
 
-groupRelatedInfinite :: KnownValues -> a -> GroupRelated a
-groupRelatedInfinite kv a' = GroupRelated (arbValueInfinite kv) a'
+groupRelatedInfinite :: E.ExprEnv -> KnownValues -> a -> GroupRelated a
+groupRelatedInfinite eenv kv a' = GroupRelated (arbValueInfinite eenv kv) a'
 
 checkRelated :: TrSolver a => a -> State t -> PathConds -> IO (Result () () (), a)
 checkRelated solver s pc =

@@ -22,7 +22,7 @@ import G2.Solver.Language
 import G2.Solver.ParseSMT
 import G2.Solver.Solver
 import G2.Solver.Converters --It would be nice to not import this...
-
+import qualified G2.Language.ExprEnv as E 
 import Control.Exception.Base (evaluate)
 import Data.List.Utils (countElem)
 import qualified Data.HashSet as HS
@@ -300,13 +300,13 @@ getProcessHandles pr = do
 
     return (h_in, h_out, p)
 
-getZ3 :: KnownValues -> Int -> IO Z3
-getZ3 kv time_out = do
+getZ3 :: E.ExprEnv -> KnownValues -> Int -> IO Z3
+getZ3 eenv kv time_out = do
     hhp <- getZ3ProcessHandles time_out
-    return $ Z3 (arbValue kv) hhp
+    return $ Z3 (arbValue eenv kv) hhp
 
-getSMT :: KnownValues -> Config -> IO SomeSMTSolver
-getSMT kv c = getSMTAV (arbValue kv) c
+getSMT :: E.ExprEnv -> KnownValues -> Config -> IO SomeSMTSolver
+getSMT eenv kv c = getSMTAV (arbValue eenv kv) c
 
 getSMTAV :: ArbValueFunc -> Config -> IO SomeSMTSolver
 getSMTAV avf (Config {smt = ConZ3}) = do

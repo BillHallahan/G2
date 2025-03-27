@@ -8,6 +8,7 @@ module G2.Language.ArbValueGen ( ArbValueGen
                                , constArbValue ) where
 
 import G2.Language.Expr
+import qualified G2.Language.ExprEnv as E
 import G2.Language.KnownValues
 import G2.Language.Support
 import G2.Language.Syntax
@@ -16,6 +17,7 @@ import Data.List
 import qualified Data.HashMap.Lazy as HM
 import qualified Data.Maybe as MA
 import Control.Exception 
+import Debug.Trace
 import qualified G2.Data.UFMap as UF
 import Data.Ord
 import Data.Tuple
@@ -47,25 +49,25 @@ charGenInit = ['a'..'z'] ++ ['A'..'Z'] ++ ['0'..'9']
 -- Returns a new ArbValueGen that (in the case of the primitives)
 -- will give a different value the next time arbValue is called with
 -- the same Type.
-arbValue :: KnownValues -> Type -> TypeEnv -> ArbValueGen -> (Expr, ArbValueGen)
-arbValue kv t tenv gen = arbValue' (getFiniteADT kv) HM.empty t tenv gen
+arbValue :: E.ExprEnv -> KnownValues -> Type -> TypeEnv -> ArbValueGen -> (Expr, ArbValueGen)
+arbValue eenv kv t tenv gen = arbValue' (getFiniteADT eenv kv) HM.empty t tenv gen
 
 -- | Allows the generation of arbitrary values of the given type.
 -- Cuts off recursive ADTs with a Prim Undefined
 -- Returns a new ArbValueGen that is identical to the passed ArbValueGen
-constArbValue :: KnownValues -> Type -> TypeEnv -> ArbValueGen -> (Expr, ArbValueGen)
-constArbValue kv t tenv gen = constArbValue' (getFiniteADT kv) HM.empty t tenv gen
+constArbValue :: E.ExprEnv -> KnownValues -> Type -> TypeEnv -> ArbValueGen -> (Expr, ArbValueGen)
+constArbValue eenv kv t tenv gen = constArbValue' (getFiniteADT eenv kv) HM.empty t tenv gen
 
 -- | Allows the generation of arbitrary values of the given type.
 -- Does not always cut off recursive ADTs.
 -- Returns a new ArbValueGen that (in the case of the primitives)
 -- will give a different value the next time arbValue is called with
 -- the same Type.
-arbValueInfinite :: KnownValues -> Type -> TypeEnv -> ArbValueGen -> (Expr, ArbValueGen)
-arbValueInfinite kv t = arbValueInfinite' kv cutOffVal HM.empty t
+arbValueInfinite :: E.ExprEnv -> KnownValues -> Type -> TypeEnv -> ArbValueGen -> (Expr, ArbValueGen)
+arbValueInfinite eenv kv t = arbValueInfinite' eenv kv cutOffVal HM.empty t
 
-arbValueInfinite' :: KnownValues -> Int -> HM.HashMap Name Type -> Type -> TypeEnv -> ArbValueGen -> (Expr, ArbValueGen)
-arbValueInfinite' kv cutoff = arbValue' (getADT kv cutoff)
+arbValueInfinite' :: E.ExprEnv -> KnownValues -> Int -> HM.HashMap Name Type -> Type -> TypeEnv -> ArbValueGen -> (Expr, ArbValueGen)
+arbValueInfinite' eenv kv cutoff = arbValue' (getADT eenv kv cutoff)
 
 arbValue' :: GetADT
           -> HM.HashMap Name Type -- ^ Maps TyVar's to Types
@@ -175,10 +177,10 @@ type GetADT = HM.HashMap Name Type -> TypeEnv -> ArbValueGen -> AlgDataTy -> [Ty
 
 -- | Generates an arbitrary value of the given ADT,
 -- but will return something containing @(Prim Undefined)@ instead of an infinite Expr.
-getFiniteADT :: KnownValues -> HM.HashMap Name Type -> TypeEnv -> ArbValueGen -> AlgDataTy -> [Type] -> (Expr, ArbValueGen)
-getFiniteADT kv m tenv av adt ts =
+getFiniteADT :: E.ExprEnv -> KnownValues -> HM.HashMap Name Type -> TypeEnv -> ArbValueGen -> AlgDataTy -> [Type] -> (Expr, ArbValueGen)
+getFiniteADT eenv kv m tenv av adt ts =
     let
-        (e, av') = getADT kv cutOffVal m tenv av adt ts
+        (e, av') = getADT eenv kv cutOffVal m tenv av adt ts
     in 
     (cutOff [] e, av')
 
@@ -202,8 +204,8 @@ cutOff _ e = e
 -- To see why this is needed, suppose we are returning an infinitely large Expr.
 -- This Expr will be returned lazily.  But the return of the ArbValueGen is not lazy-
 -- so we must just cut off and return at some point.
-getADT :: KnownValues -> Int -> HM.HashMap Name Type -> TypeEnv -> ArbValueGen -> AlgDataTy -> [Type] -> (Expr, ArbValueGen)
-getADT kv cutoff m tenv av adt ts
+getADT :: E.ExprEnv ->  KnownValues -> Int -> HM.HashMap Name Type -> TypeEnv -> ArbValueGen -> AlgDataTy -> [Type] -> (Expr, ArbValueGen)
+getADT eenv kv cutoff m tenv av adt ts
     | [dc] <- dataCon adt
     , TyApp (TyApp (TyApp (TyApp (TyCon tc_n _) _) _) c1) c2 <- returnType dc
     , tc_n == tyCoercion kv = (Coercion (c1 :~ c2), av)
@@ -213,13 +215,13 @@ getADT kv cutoff m tenv av adt ts
             ids = bound_ids adt
 
             -- the expr we return will be a good point to start 
-            dcs' = MA.mapMaybe checkDC dcs
+            dcs' = MA.mapMaybe (checkDC eenv) dcs
 
             (min_dc, exist_ty) = minimumBy (comparing (length . anonArgumentTypes . fst)) dcs'
 
             m' = foldr (uncurry HM.insert) m $ zip (map idName ids) ts
 
-            (av', es) = mapAccumL (\av_ t -> swap $ arbValueInfinite' kv (cutoff - 1) m' (applyTypeHashMap m' t) tenv av_) av $ anonArgumentTypes min_dc
+            (av', es) = mapAccumL (\av_ t -> swap $ arbValueInfinite' eenv kv (cutoff - 1) m' (applyTypeHashMap m' t) tenv av_) av $ anonArgumentTypes min_dc
 
             final_av = if cutoff >= 0 then av' else av
         in
@@ -240,18 +242,20 @@ getADT kv cutoff m tenv av adt ts
         -- has been instantiated with Bool (we learn this from the ts input parameter), that the CBool
         -- constructor has the (ok) coercion (a ~ Bool) and that CInt has the (disallowed) coercion (a ~ Int) 
 
-        checkDC dc = 
+        checkDC eenv dc = 
             let
                 coer = eval (getCoercions kv) (dc_type dc)
 
                 leading_ty = leadingTyForAllBindings dc
+                tyvar_ids = tyVarIds ts  
+
                 univ_ty_inst = zip (map TyVar leading_ty) ts
-                
+                -- a'110 bound in the expr environment but we aren't checking it 
                 uf_map_univ = foldr (\(c1, c2) m_uf -> (\uf -> unify' uf c1 c2) =<< m_uf)
                                 (Just UF.empty)
                                 (coer ++ univ_ty_inst)
                 exist_name = map idName (dc_exist_tyvars dc)
                 
-                dc' = uf_map_univ >>= \uf_map -> fmap (\exist ->(dc, exist)) (mapM (flip UF.lookup uf_map) exist_name)
+                dc' =trace("The ts in arbvalue gen is " ++ show ts ) uf_map_univ >>= \uf_map -> fmap (\exist ->(dc, exist)) (mapM (flip UF.lookup uf_map) exist_name)
             in
             assert (length leading_ty >= length ts) dc'
