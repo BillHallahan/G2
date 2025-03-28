@@ -62,7 +62,7 @@ runG2ForNebula solver state h_opp track_opp config nc bindings = do
 
     (in_out, bindings') <- case rewriteRedHaltOrd solver simplifier h_opp track_opp config nc of
                 (red, hal, ord) ->
-                    SM.evalStateT (runG2WithSomes red hal ord solver simplifier sym_config state' bindings) (mkPrettyGuide ())
+                    SM.evalStateT (runG2WithSomes red hal ord noAnalysis solver simplifier sym_config state' bindings) (mkPrettyGuide ())
 
 
     return (in_out, bindings')
