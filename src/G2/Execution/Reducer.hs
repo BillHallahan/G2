@@ -151,7 +151,6 @@ import Data.Time.Clock
 import System.Clock
 import System.Directory
 
-import Debug.Trace
 
 -- | Used when applying execution rules
 -- Allows tracking extra information to control halting of rule application,

@@ -78,6 +78,7 @@ import Data.Monoid
 import qualified Data.Sequence as Seq
 import qualified Data.Text as T
 import qualified Data.List as L
+import qualified G2.Language.TyVarEnv as TV
 import System.Timeout
 
 type AssumeFunc = T.Text
@@ -173,6 +174,7 @@ initStateFromSimpleState s m_mod useAssert mkCurr argTys config =
     (State {
       expr_env = foldr E.insertSymbolic eenv' is
     , type_env = tenv'
+    , tyvar_env = TV.empty
     , curr_expr = CurrExpr Evaluate ce
     , path_conds = PC.fromList []
     , non_red_path_conds = []

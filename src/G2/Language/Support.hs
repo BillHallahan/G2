@@ -16,6 +16,7 @@ module G2.Language.Support
 
 import G2.Language.AST
 import qualified G2.Language.ExprEnv as E
+import qualified G2.Language.TyVarEnv as TV
 import G2.Language.KnownValues
 import G2.Language.MutVarEnv
 import G2.Language.Naming
@@ -23,7 +24,6 @@ import G2.Language.Stack hiding (filter)
 import G2.Language.Syntax
 import G2.Language.TypeClasses
 import G2.Language.TypeEnv
-import G2.Language.TyVarEnv
 import G2.Language.Typing
 import G2.Language.PathConds hiding (map, filter)
 import G2.Execution.RuleTypes
@@ -35,6 +35,7 @@ import qualified Data.Map as M
 import qualified Data.HashMap.Lazy as HM
 import qualified Data.HashSet as S
 import qualified Data.Sequence as S
+import qualified Control.Applicative as T
 
 -- | `State`s represent an execution state of some (symbolic) Haskell code.
 -- A state can be utilized to  perform execution and SMT solving.
@@ -43,7 +44,7 @@ data State t = State { expr_env :: E.ExprEnv -- ^ Mapping of `Name`s to `Expr`s
                      , type_env :: TypeEnv -- ^ Type information
                         -- TODO:: we need to figure out how to handle symbolic type variables
                         -- As for now, it's always empty
-                     , tyvar_env :: TyVarEnv -- ^ Type variable information
+                     , tyvar_env :: TV.TyVarEnv -- ^ Type variable information
                      , curr_expr :: CurrExpr -- ^ The expression represented by the state
                      , path_conds :: PathConds -- ^ Path conditions, in SWHNF
                      , non_red_path_conds :: [(Expr, Expr)] -- ^ Path conditions, in the form of (possibly non-reduced)
@@ -192,6 +193,7 @@ instance Named t => Named (State t) where
                , type_env =
                     HM.mapKeys (\k -> if k == old then new else k)
                     $ rename old new (type_env s)
+               , tyvar_env = TV.empty
                , curr_expr = rename old new (curr_expr s)
                , path_conds = rename old new (path_conds s)
                , non_red_path_conds = rename old new (non_red_path_conds s)
@@ -214,6 +216,7 @@ instance Named t => Named (State t) where
                , type_env =
                     HM.mapKeys (renames hm)
                     $ renames hm (type_env s)
+               , tyvar_env = TV.empty
                , curr_expr = renames hm (curr_expr s)
                , path_conds = renames hm (path_conds s)
                , non_red_path_conds = renames hm (non_red_path_conds s)
