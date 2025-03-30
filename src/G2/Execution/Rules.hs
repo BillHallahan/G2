@@ -42,6 +42,7 @@ import qualified Data.List as L
 import qualified Data.Sequence as S
 import G2.Data.Utils
 import qualified G2.Data.UFMap as UF
+import qualified G2.Language.TyVarEnv as TV
 
 import Control.Exception
 
@@ -187,22 +188,19 @@ evalLam :: State t -> LamUse -> Id -> Expr -> (Rule, [State t])
 evalLam = undefined
 
 retLam :: State t -> NameGen -> LamUse -> Id -> Expr -> Expr -> S.Stack Frame -> (Rule, [State t], NameGen)
-retLam s@(State { expr_env = eenv })
+retLam s@(State { expr_env = eenv, tyvar_env = tvnv })
        ng u i e ae stck'
     | TypeL <- u =
-        case traceType eenv ae of
-        Just t ->
-            let
-                e' = retypeRespectingTyForAll i t e
+        let 
+            (n', ng') = freshSeededName (idName i) ng 
+            i' = rename (idName i) n' i
+            tvnv' = TV.insert (idName i') (typeOf i') tvnv 
 
-                (eenv', e'', ng', news) = liftBind i (Type t) eenv e' ng
-            in
-            ( RuleReturnEApplyLamType [news]
-            , [s { expr_env = eenv'
-                 , curr_expr = CurrExpr Evaluate e''
-                 , exec_stack = stck' }]
-            , ng')
-        Nothing -> error $ "retLam: Bad type\ni = " ++ show i
+        in 
+        -- TODO: retLam, need to check the rule in the type lambda case in retLam
+        ( RuleIdentity
+        , [s {tyvar_env = tvnv'}]
+        , ng')
     | otherwise =
         let
             (eenv', e', ng', news) = liftBind i ae eenv e ng

@@ -5,12 +5,13 @@
 
 module G2.Language.TyVarEnv (TyVarEnv
                             , empty
-                            , insertTyVarEnv 
-                            , lookupTyVarEnv 
-                            , deleteTyVarEnv
-                            , fromListTyVarEnv
-                            , toListTyVarEnv ) where 
+                            , insert
+                            , lookup
+                            , delete
+                            , fromList 
+                            , toList ) where 
 
+import Prelude hiding(lookup)
 import GHC.Generics (Generic)
 import Data.Data (Data, Typeable)
 import Data.Hashable(Hashable)
@@ -22,20 +23,20 @@ newtype TyVarEnv = TyVarEnv (HM.HashMap Name Type) deriving (Show, Eq, Read, Gen
 empty :: TyVarEnv
 empty = TyVarEnv HM.empty
 
-insertTyVarEnv :: Name -> Type -> TyVarEnv -> TyVarEnv
-insertTyVarEnv n ty (TyVarEnv env) = TyVarEnv $ HM.insert n ty env
+insert :: Name -> Type -> TyVarEnv -> TyVarEnv
+insert n ty (TyVarEnv env) = TyVarEnv $ HM.insert n ty env
 
-lookupTyVarEnv :: Name -> TyVarEnv -> Maybe Type
-lookupTyVarEnv n (TyVarEnv env) = HM.lookup n env
+lookup :: Name -> TyVarEnv -> Maybe Type
+lookup n (TyVarEnv env) = HM.lookup n env
 
-deleteTyVarEnv :: Name -> TyVarEnv -> TyVarEnv
-deleteTyVarEnv n (TyVarEnv env) = TyVarEnv (HM.delete n env)
+delete :: Name -> TyVarEnv -> TyVarEnv
+delete n (TyVarEnv env) = TyVarEnv (HM.delete n env)
 
-fromListTyVarEnv :: [(Name, Type)] -> TyVarEnv
-fromListTyVarEnv = TyVarEnv . HM.fromList
+fromList :: [(Name, Type)] -> TyVarEnv
+fromList = TyVarEnv . HM.fromList
 
-toListTyVarEnv :: TyVarEnv -> [(Name, Type)]
-toListTyVarEnv (TyVarEnv env) = HM.toList env
+toList :: TyVarEnv -> [(Name, Type)]
+toList (TyVarEnv env) = HM.toList env
 
 instance Hashable TyVarEnv
 
