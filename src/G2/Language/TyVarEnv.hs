@@ -1,16 +1,28 @@
-module TyVarEnv (TyVarEnv, empty, insert, lookup) where 
+module TyVarEnv (TyVarEnv, empty, insert, lookup, delete, fromList, toList) where 
 
 import Data.Hashable
 import qualified Data.HashMap.Lazy as HM
+import G2.Language.Syntax
 
-newtype TyVarEnv = TyVarEnv (HM.HashMap Name Type)
+newtype TyVarEnv = TyVarEnv (HM.HashMap Name Type) deriving (Show, Eq, Read, Generic, Typeable, Data)
 
 empty :: TyVarEnv
 empty = TyVarEnv HM.empty
 
-insert :: (Hashable Name, Eq Name) => Name -> Type -> TyVarEnv -> TyVarEnv
-insert name ty (TyVarEnv env) = TyVarEnv $ HM.insert name ty env
+insert :: Name -> Type -> TyVarEnv -> TyVarEnv
+insert n ty (TyVarEnv env) = TyVarEnv $ HM.insert n ty env
 
-lookup :: (Hashable Name, Eq Name) => Name -> TyVarEnv -> Maybe Type
-lookup name (TyVarEnv env) = HM.lookup name env
+lookup :: Name -> TyVarEnv -> Maybe Type
+lookup n (TyVarEnv env) = HM.lookup n env
+
+delete :: Name -> TyVarEnv -> TyVarEnv
+delete n (TyVarEnv env) = TyVarEnv (HM.delete n env)
+
+fromList :: [(Name, Type)] -> TyVarEnv
+fromList = TyVarEnv . HM.fromList
+
+toList :: TyVarEnv -> [(Name, Type)]
+toList (TyVarEnv env) = HM.toList env
+
+instance Hashable TyVarEnv
 

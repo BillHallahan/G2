@@ -23,6 +23,7 @@ import G2.Language.Stack hiding (filter)
 import G2.Language.Syntax
 import G2.Language.TypeClasses
 import G2.Language.TypeEnv
+import G2.Language.TyVarEnv
 import G2.Language.Typing
 import G2.Language.PathConds hiding (map, filter)
 import G2.Execution.RuleTypes
@@ -40,6 +41,9 @@ import qualified Data.Sequence as S
 -- The t parameter can be used to track extra information during the execution.
 data State t = State { expr_env :: E.ExprEnv -- ^ Mapping of `Name`s to `Expr`s
                      , type_env :: TypeEnv -- ^ Type information
+                        -- TODO:: we need to figure out how to handle symbolic type variables
+                        -- As for now, it's always empty
+                     , tyvar_env :: TyVarEnv -- ^ Type variable information
                      , curr_expr :: CurrExpr -- ^ The expression represented by the state
                      , path_conds :: PathConds -- ^ Path conditions, in SWHNF
                      , non_red_path_conds :: [(Expr, Expr)] -- ^ Path conditions, in the form of (possibly non-reduced)
