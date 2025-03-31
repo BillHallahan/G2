@@ -200,7 +200,7 @@ retLam s@(State { expr_env = eenv, tyvar_env = tvnv })
         -- TODO: retLam, need to check the rule in the type lambda case in retLam
         ( RuleIdentity
         , [s {tyvar_env = tvnv'}]
-        , ng')
+        , ng' )
     | otherwise =
         let
             (eenv', e', ng', news) = liftBind i ae eenv e ng
@@ -209,7 +209,7 @@ retLam s@(State { expr_env = eenv, tyvar_env = tvnv })
         , [s { expr_env = eenv'
              , curr_expr = CurrExpr Evaluate e'
              , exec_stack = stck' }]
-        ,ng')
+        , ng' )
 
 traceType :: E.ExprEnv -> Expr -> Maybe Type
 traceType _ (Type t) = Just t
