@@ -178,7 +178,7 @@ instance Typed Lit where
     typeOf _ (LitString _) = TyLitString
     typeOf _ (LitInteger _) = TyLitInt
 
-    typeOf _ t = typeOf t
+    typeOf m t = typeOf m t
 
 instance Typed DataCon where
     typeOf _ (DataCon _ ty _ _) = ty
@@ -333,8 +333,8 @@ tyVarRename' _ t = t
 
 -- | Returns if the first type given is a specialization of the second,
 -- i.e. if given t1, t2, returns true iff t1 :: t2
-(.::) :: Typed t => t -> Type -> Bool
-t1 .:: t2 = isJust $ specializes (typeOf t1) t2
+(.::) :: Type -> Type -> Bool
+t1 .:: t2 = isJust $ specializes t1 t2
 {-# INLINE (.::) #-}
 
 -- | Checks if the first type is equivalent to the second type.
@@ -404,8 +404,8 @@ hasFuncType t =
 
 -- | higherOrderFuncs
 -- Returns all internal higher order function types
-higherOrderFuncs :: Typed t => t -> [Type]
-higherOrderFuncs = higherOrderFuncs' . typeOf
+higherOrderFuncs :: Type -> [Type]
+higherOrderFuncs = higherOrderFuncs'
 
 higherOrderFuncs' :: Type -> [Type]
 higherOrderFuncs' = eval higherOrderFuncs''
@@ -447,14 +447,15 @@ tyVarNames :: ASTContainer m Type => m -> [Name]
 tyVarNames = map idName . tyVarIds
 
 -- | Computes the number of type and value level arguments 
-numArgs :: Typed t => t -> Int
+numArgs :: Type -> Int
 numArgs = length . argumentTypes
 
 data ArgType = AnonType Type | NamedType Id deriving (Show, Read)
 
 -- | Gives the types of the arguments of the functions
-argumentTypes :: Typed t => t -> [Type]
-argumentTypes = argumentTypes' . typeOf
+-- TODO: argumentTypes typeOf problem 
+argumentTypes :: Type -> [Type]
+argumentTypes = argumentTypes'
 
 argumentTypes' :: Type -> [Type]
 argumentTypes' (TyForAll _ t2) = TYPE:argumentTypes' t2
@@ -469,31 +470,31 @@ argTypeToLamUse :: ArgType -> LamUse
 argTypeToLamUse (AnonType _) = TermL
 argTypeToLamUse (NamedType _) = TypeL
 
-spArgumentTypes :: Typed t => t -> [ArgType]
-spArgumentTypes = spArgumentTypes' . typeOf
+spArgumentTypes :: Type -> [ArgType]
+spArgumentTypes = spArgumentTypes' 
 
 spArgumentTypes' :: Type -> [ArgType]
 spArgumentTypes' (TyForAll i t2) = NamedType i:spArgumentTypes' t2
 spArgumentTypes' (TyFun t1 t2) = AnonType t1:spArgumentTypes' t2
 spArgumentTypes' _ = []
 
-leadingTyForAllBindings :: Typed t => t -> [Id]
-leadingTyForAllBindings = leadingTyForAllBindings' . typeOf
+leadingTyForAllBindings :: Type -> [Id]
+leadingTyForAllBindings = leadingTyForAllBindings' 
 
 leadingTyForAllBindings' :: Type -> [Id]
 leadingTyForAllBindings' (TyForAll i t) = i:leadingTyForAllBindings' t
 leadingTyForAllBindings' _ = []
 
-tyForAllBindings :: Typed t => t -> [Id]
-tyForAllBindings = tyForAllBindings' . typeOf
+tyForAllBindings :: Type -> [Id]
+tyForAllBindings = tyForAllBindings'
 
 tyForAllBindings' :: Type -> [Id]
 tyForAllBindings' (TyForAll i t) = i:tyForAllBindings' t
 tyForAllBindings' (TyFun t t') = tyForAllBindings' t ++ tyForAllBindings t'
 tyForAllBindings' _ = []
 
-anonArgumentTypes :: Typed t => t -> [Type]
-anonArgumentTypes = anonArgumentTypes' . typeOf
+anonArgumentTypes :: Type -> [Type]
+anonArgumentTypes = anonArgumentTypes'
 
 anonArgumentTypes' :: Type -> [Type]
 anonArgumentTypes' (TyForAll _ t) = anonArgumentTypes' t
@@ -501,8 +502,8 @@ anonArgumentTypes' (TyFun t1 t2) = t1:anonArgumentTypes' t2
 anonArgumentTypes' _ = []
 
 -- | Gives the return type if the given function type is fully saturated
-returnType :: Typed t => t -> Type
-returnType = returnType' . typeOf
+returnType :: Type -> Type
+returnType = returnType'
 
 returnType' :: Type -> Type
 returnType' (TyForAll _ t) = returnType' t
@@ -533,8 +534,8 @@ inTyForAlls :: Type -> Type
 inTyForAlls (TyForAll _ t) = inTyForAlls t
 inTyForAlls t = t
 
-numTypeArgs :: Typed t => t -> Int
-numTypeArgs = numTypeArgs' . typeOf
+numTypeArgs :: Type -> Int
+numTypeArgs = numTypeArgs'
 
 numTypeArgs' :: Type -> Int
 numTypeArgs' (TyForAll _ t) = 1 + numTypeArgs' t
