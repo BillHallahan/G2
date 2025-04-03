@@ -95,6 +95,8 @@ import Data.Foldable
 import qualified Data.Map as M
 import Data.Maybe
 import Data.Semigroup
+import qualified G2.Language.TyVarEnv as TV
+import qualified G2.Translation.GHC as TV
 
 eqUpToTypes :: Expr -> Expr -> Bool
 eqUpToTypes (Var (Id n _)) (Var (Id n' _)) = n == n'
@@ -203,13 +205,13 @@ mkIdentity t =
     in
     Lam TermL x (Var x)
 
-mkEqExpr :: KnownValues -> Expr -> Expr -> Expr
-mkEqExpr kv e1 e2 = App (App eq e1) e2
-    where eq = mkEqPrimType (typeOf e1) kv
+mkEqExpr :: TV.TyVarEnv -> KnownValues -> Expr -> Expr -> Expr
+mkEqExpr tv kv e1 e2 = App (App eq e1) e2
+    where eq = mkEqPrimType (typeOf tv e1) kv
 
-mkEqPrimExpr :: KnownValues -> Expr -> Expr -> Expr
-mkEqPrimExpr kv e1 e2 = App (App eq e1) e2
-    where eq = mkEqPrimType (typeOf e1) kv
+mkEqPrimExpr :: TV.TyVarEnv -> KnownValues -> Expr -> Expr -> Expr
+mkEqPrimExpr tv kv e1 e2 = App (App eq e1) e2
+    where eq = mkEqPrimType (typeOf tv e1) kv
 
 mkGeIntExpr :: KnownValues -> Expr -> Integer -> Expr
 mkGeIntExpr kv e num = App (App ge e) (Lit (LitInt num))
@@ -519,13 +521,13 @@ alphaReduction' mi l@(Lam u i@(Id (Name n m ii lo) t) e) =
 alphaReduction' m e = (e, m)
 
 -- |  Performs beta reduction, if a Var is being applied 
-varBetaReduction :: ASTContainer m Expr => m -> m
-varBetaReduction = modifyASTs varBetaReduction'
+varBetaReduction :: ASTContainer m Expr => TV.TyVarEnv ->  m -> m
+varBetaReduction tv m = modifyASTs (varBetaReduction' tv) m 
 
-varBetaReduction' :: Expr -> Expr
-varBetaReduction' a@(App (Lam _ i e) (Var v)) = 
-    if not (isTYPE . typeOf $ i) then replaceLamIds i v e else a
-varBetaReduction' e = e
+varBetaReduction' :: TV.TyVarEnv -> Expr -> Expr
+varBetaReduction' tv a@(App (Lam _ i e) (Var v)) = 
+    if not (isTYPE . typeOf tv $ i) then replaceLamIds i v e else a
+varBetaReduction' _ e = e
 
 replaceLamIds :: Id -> Id -> Expr -> Expr
 replaceLamIds i i' v@(Var v') = if i == v' then Var i' else v
@@ -558,18 +560,18 @@ replaceLamIds i i' e = modifyChildren (replaceLamIds i i') e
 --      @ (\x -> undefined x) `seq` 1 @
 -- because the first will call undefined, and error, whereas the second will
 -- evaluate to 1.
-etaExpandTo :: ExprEnv -> NameGen -> Int -> Expr -> (Expr, NameGen)
-etaExpandTo eenv ng n (Lam u i e) =
+etaExpandTo :: TV.TyVarEnv ->  ExprEnv -> NameGen -> Int -> Expr -> (Expr, NameGen)
+etaExpandTo tv eenv ng n (Lam u i e) =
     let
-        (e', ng') = etaExpandTo eenv ng n e
+        (e', ng') = etaExpandTo tv eenv ng n e
     in
     (Lam u i e', ng')
-etaExpandTo eenv ng n e = etaExpandTo' eenv ng n e
+etaExpandTo tv eenv ng n e = etaExpandTo' tv eenv ng n e
 
-etaExpandTo' :: ExprEnv -> NameGen -> Int -> Expr -> (Expr, NameGen)
-etaExpandTo' eenv ng n e = (addLamApps fn (typeOf e) e, ng')
+etaExpandTo' :: TV.TyVarEnv -> ExprEnv -> NameGen -> Int -> Expr -> (Expr, NameGen)
+etaExpandTo' tv eenv ng n e = (addLamApps fn (typeOf tv e) e, ng')
     where
-        n' = n `min` numArgs e
+        n' = n `min` numArgs (typeOf tv e)
         n'' = validN eenv M.empty n' e
 
         (fn, ng') = freshNames n'' ng

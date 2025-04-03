@@ -46,7 +46,8 @@ import qualified Data.HashSet as HS
 import qualified Data.Text as T
 import qualified Data.Text.Internal.Read as T
 import Text.Read
-
+import qualified G2.Language.TyVarEnv as TV 
+import qualified G2.Language.TyVarEnv as TV
 data Clean = Cleaned | Dirty deriving Eq
 
 mkIdHaskell :: PrettyGuide -> Id -> T.Text
@@ -78,23 +79,23 @@ printHaskellPG :: PrettyGuide -> State t -> Expr -> T.Text
 printHaskellPG = mkCleanExprHaskell
 
 mkCleanExprHaskell :: PrettyGuide -> State t -> Expr -> T.Text
-mkCleanExprHaskell pg (State {type_classes = tc}) = 
-    mkExprHaskell Cleaned pg . modifyMaybe (mkCleanExprHaskell' tc)
+mkCleanExprHaskell pg (State {type_classes = tc, tyvar_env = tvnv }) = 
+    mkExprHaskell Cleaned pg . modifyMaybe (mkCleanExprHaskell' tvnv tc)
 
-mkCleanExprHaskell' :: TypeClasses -> Expr -> Maybe Expr
-mkCleanExprHaskell' tc e
+mkCleanExprHaskell' :: TV.TyVarEnv -> TypeClasses -> Expr -> Maybe Expr
+mkCleanExprHaskell' tv tc e
     | Case scrut i t [a] <- e = Case scrut i t . (:[]) <$> elimPrimDC a
 
     | (App e' e'') <- e
-    , t <- typeOf e'
+    , t <- typeOf tv e'
     , isTypeClass tc t = Just e''
 
     | (App e' e'') <- e
-    , t <- typeOf e''
+    , t <- typeOf tv e''
     , isTypeClass tc t = Just e'
 
     | (App e' e'') <- e
-    , isTypeClass tc (returnType e'') = Just e'
+    , isTypeClass tc (returnType (typeOf tv e'') ) = Just e'
 
     | (App e' e'') <- e
     , Coercion _ <- e'' = Just e'

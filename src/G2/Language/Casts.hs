@@ -15,7 +15,7 @@ import G2.Language.Syntax
 import G2.Language.Typing
 import Data.Monoid as M
 import qualified G2.Language.TyVarEnv as TV 
-import qualified G2.Language.TyVarEnv as TV
+
 containsCast :: ASTContainer m Expr => m -> M.Any
 containsCast = evalASTs isCast
 
@@ -54,7 +54,7 @@ unsafeElimOuterCast e = e
 --
 -- Given any other expression, acts as the identity function
 splitCast :: TV.TyVarEnv -> NameGen -> Expr -> (Expr, NameGen)
-splitCast tv ng (Cast e ((TyFun t1 t2) :~ (TyFun t1' t2'))) =
+splitCast _ ng (Cast e ((TyFun t1 t2) :~ (TyFun t1' t2'))) =
     let
         (i, ng') = freshId t1 ng
 

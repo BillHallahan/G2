@@ -14,8 +14,8 @@ import qualified Data.HashMap.Lazy as HM
 import qualified Data.Text as T
 import qualified G2.Language.TyVarEnv as TV
 
-initKnownValues :: E.ExprEnv -> TypeEnv -> TypeClasses -> KnownValues
-initKnownValues eenv tenv tc =
+initKnownValues :: TV.TyVarEnv -> E.ExprEnv -> TypeEnv -> TypeClasses -> KnownValues
+initKnownValues tv eenv tenv tc =
   let
     numT = typeWithStrName tenv "Num"
     integralT = typeWithStrName tenv "Integral"
@@ -88,10 +88,10 @@ initKnownValues eenv tenv tc =
     , realTC = realT
     , fractionalTC = typeWithStrName tenv "Fractional"
 
-    , integralExtactReal = superClassExtractor tc integralT realT
-    , realExtractNum = superClassExtractor tc realT numT
-    , realExtractOrd = superClassExtractor tc realT ordT
-    , ordExtractEq = superClassExtractor tc ordT eqT
+    , integralExtactReal = superClassExtractor tv tc integralT realT
+    , realExtractNum = superClassExtractor tv tc realT numT
+    , realExtractOrd = superClassExtractor tv tc realT ordT
+    , ordExtractEq = superClassExtractor tv tc ordT eqT
 
     , eqFunc = exprWithStrName eenv "=="
     , neqFunc = exprWithStrName eenv "/="
