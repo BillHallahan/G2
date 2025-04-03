@@ -7,11 +7,12 @@ import G2.Language.KnownValues
 import G2.Language.Syntax
 import G2.Language.TypeClasses
 import G2.Language.TypeEnv
-import G2.Language.Typing (PresType (..), tyAppCenter, returnType)
+import G2.Language.Typing (tyAppCenter, returnType, typeOf)
 
 import Data.List
 import qualified Data.HashMap.Lazy as HM
 import qualified Data.Text as T
+import qualified G2.Language.TyVarEnv as TV
 
 initKnownValues :: E.ExprEnv -> TypeEnv -> TypeClasses -> KnownValues
 initKnownValues eenv tenv tc =
@@ -150,8 +151,8 @@ dcWithStrName' (DataCon n@(Name n' _ _ _) _ _ _:xs) s =
   if n' == s then n else dcWithStrName' xs s
 dcWithStrName' _ s = error $ "No dc found in dcWithStrName [" ++ (show $ T.unpack s) ++ "]"
 
-superClassExtractor :: TypeClasses -> Name -> Name -> Name
-superClassExtractor tc tc_n sc_n =
+superClassExtractor :: TV.TyVarEnv -> TypeClasses -> Name -> Name -> Name
+superClassExtractor tv tc tc_n sc_n =
     case lookupTCClass tc_n tc of
         Just c
             | Just (_, i) <- find extractsSC (superclasses c) -> idName i
@@ -160,7 +161,7 @@ superClassExtractor tc tc_n sc_n =
     where
         extractsSC (t, _) =
             let
-                t_c = tyAppCenter . returnType . PresType $ t
+                t_c = tyAppCenter . returnType . typeOf tv $ t
             in
             case t_c of
                 TyCon n _ -> n == sc_n

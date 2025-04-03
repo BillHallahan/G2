@@ -88,9 +88,9 @@ data Bindings = Bindings { fixed_inputs :: [Expr]
 type InputIds = [Id]
 
 inputIds :: State t -> Bindings -> InputIds
-inputIds (State { expr_env = eenv }) (Bindings { input_names = ns }) =
+inputIds (State { expr_env = eenv, tyvar_env= tv }) (Bindings { input_names = ns }) =
     map (\n -> case E.lookup n eenv of
-                Just e -> Id n (typeOf e)
+                Just e -> Id n (typeOf tv e)
                 Nothing -> error "inputIds: Name not found in ExprEnv") ns
 
 -- | `CurrExpr` is the current expression we have. 

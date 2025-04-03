@@ -80,7 +80,8 @@ import qualified Data.Map as M
 import Data.Maybe
 import qualified Data.List as L
 import Control.Monad
-import G2.Language.TyVarEnv
+import qualified G2.Language.TyVarEnv as TV
+import qualified G2.Translation.GHC as TV
 
 tyInt :: KV.KnownValues -> Type
 tyInt kv = TyCon (KV.tyInt kv) (tyTYPE kv)
@@ -146,13 +147,14 @@ mkTyCon n ts k = mkTyApp $ TyCon n k:ts
 -- | Makes a fully applied TyCon.
 -- Since the TyCon is fully applied, we can figure out its kind based on it's
 -- arguments and result kind.
-mkFullAppedTyCon :: Name
+mkFullAppedTyCon :: TV.TyVarEnv
+                 -> Name
                  -> [Type] -- ^ Type arguments
                  -> Kind -- ^ Result kind
                  -> Type
-mkFullAppedTyCon n ts k =
+mkFullAppedTyCon tv n ts k =
     let
-        tsk = mkTyFun $ map typeOf ts ++ [k]
+        tsk = mkTyFun $ map (typeOf tv) ts ++ [k]
     in
     mkTyApp $ TyCon n tsk:ts
 
@@ -163,10 +165,10 @@ unTyApp t = [t]
 
 -- | Typeclass for things that have type information.
 class Typed a where
-    typeOf :: TyVarEnv -> a -> Type
+    typeOf :: TV.TyVarEnv -> a -> Type
 
 instance Typed Id where
-    typeOf m (Id _ ty) = tyVarRename (toMap m) ty
+    typeOf m (Id _ ty) = tyVarRename (TV.toMap m) ty
 
 instance Typed Lit where
     typeOf _ (LitInt _) = TyLitInt
@@ -177,8 +179,6 @@ instance Typed Lit where
     typeOf _ (LitChar _)   = TyLitChar
     typeOf _ (LitString _) = TyLitString
     typeOf _ (LitInteger _) = TyLitInt
-
-    typeOf m t = typeOf m t
 
 instance Typed DataCon where
     typeOf _ (DataCon _ ty _ _) = ty
@@ -206,8 +206,8 @@ instance Typed Expr where
     typeOf m (Let _ expr) = typeOf m expr
     typeOf _ (Case _ _ t _) = t
     typeOf _ (Type _) = TYPE
-    typeOf m (Cast _ (_ :~ t')) = tyVarRename (toMap m) t'
-    typeOf m (Coercion (_ :~ t')) = tyVarRename (toMap m) t'
+    typeOf m (Cast _ (_ :~ t')) = tyVarRename (TV.toMap m) t'
+    typeOf m (Coercion (_ :~ t')) = tyVarRename (TV.toMap m) t'
     typeOf m (Tick _ e) = typeOf m e
     typeOf m (NonDet (e:_)) = typeOf m e
     typeOf _ (NonDet []) = TyBottom
@@ -269,8 +269,8 @@ unify' uf (TyApp t1 t2) (TyApp t1' t2') = do
     uf' <- unify' uf t1 t1'
     unify' uf' t2 t2'
 unify' uf (TyCon n1 k1) (TyCon n2 k2) | n1 == n2 = unify' uf k1 k2
-unify' uf (TyForAll i1 t1) (TyForAll i2 t2) = do
-    uf' <- unify' uf (typeOf i1) (typeOf i2)
+unify' uf (TyForAll (Id _ it1) t1) (TyForAll (Id _ it2) t2) = do
+    uf' <- unify' uf it1 it2
     unify' uf' t1 t2
 unify' uf (TyFun _ _) TYPE = Just uf
 unify' uf t1 t2 | t1 == t2 = return uf
@@ -340,19 +340,19 @@ t1 .:: t2 = isJust $ specializes t1 t2
 -- | Checks if the first type is equivalent to the second type.
 -- That is, @e@ has type @t1@ iff @e@ has type @t2@.
 (.::.) :: Type -> Type -> Bool
-t1 .::. t2 = PresType t1 .:: t2 && PresType t2 .:: t1
+t1 .::. t2 = t1 .:: t2 && t2 .:: t1
 {-# INLINE (.::.) #-}
 
-specializes :: Type -> Type -> Maybe (M.Map Name Type)
-specializes = specializes' M.empty
+specializes :: Type -> Type -> Maybe TV.TyVarEnv 
+specializes = specializes' TV.empty
 
-specializes' :: M.Map Name Type -> Type -> Type -> Maybe (M.Map Name Type)
+specializes' :: TV.TyVarEnv -> Type -> Type -> Maybe TV.TyVarEnv 
 specializes' m _ TYPE = Just m
 specializes' m t (TyVar (Id n vt)) =
-    case M.lookup n m of
+    case TV.lookup n m of
         Just t' | t == t' -> Just m
                 | otherwise -> Nothing
-        Nothing -> M.insert n t <$> specializes' m (typeOf t) vt
+        Nothing -> TV.insert n t <$> specializes' m t vt
 specializes' m (TyFun t1 t2) (TyFun t1' t2') = do
     m' <- specializes' m t1 t1'
     specializes' m' t2 t2'

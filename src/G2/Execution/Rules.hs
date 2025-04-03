@@ -196,7 +196,7 @@ retLam s@(State { expr_env = eenv, tyvar_env = tvnv })
             let 
                 (n', ng') = freshSeededName (idName i) ng 
                 i' = rename (idName i) n' i
-                tvnv' = TV.insert (idName i') (typeOf i') tvnv 
+                tvnv' = TV.insert (idName i') t tvnv 
                 (eenv', e', ng'', news) = liftBind i (Type t) eenv e ng'
 
             in 
