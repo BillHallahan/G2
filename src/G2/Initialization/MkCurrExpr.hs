@@ -14,15 +14,17 @@ import qualified Data.Map as M
 import Data.Maybe
 import qualified Data.Text as T
 import qualified Data.HashMap.Lazy as HM 
+import qualified G2.Language.TyVarEnv as TV 
+import qualified G2.Language.TyVarEnv as TV
 
-mkCurrExpr :: Maybe T.Text -> Maybe T.Text -> Id
+mkCurrExpr :: TV.TyVarEnv -> Maybe T.Text -> Maybe T.Text -> Id
            -> TypeClasses -> NameGen -> ExprEnv -> TypeEnv
            -> KnownValues -> Config -> (Expr, [Id], [Expr], Maybe Coercion, NameGen)
-mkCurrExpr m_assume m_assert f@(Id (Name _ m_mod _ _) _) tc ng eenv tenv kv config =
+mkCurrExpr tv m_assume m_assert f@(Id (Name _ m_mod _ _) _) tc ng eenv tenv kv config =
     case E.lookup (idName f) eenv of
         Just ex ->
             let
-                var_ex = Var (Id (idName f) (typeOf ex))
+                var_ex = Var (Id (idName f) (typeOf tv ex))
                 (m_coer, coer_var_ex) = coerceRetNewTypes tenv var_ex
 
                 -- -- We refind the type of f, because type synonyms get replaced during the initializaton,
@@ -34,7 +36,7 @@ mkCurrExpr m_assume m_assert f@(Id (Name _ m_mod _ _) _) tc ng eenv tenv kv conf
                 var_ids = map Var is
 
                 (name, ng'') = freshName ng'
-                id_name = Id name (typeOf app_ex)
+                id_name = Id name (typeOf tv app_ex)
                 var_name = Var id_name
 
                 assume_ex = mkAssumeAssert (Assume Nothing) m_assume m_mod (typsE ++ var_ids) var_name var_name eenv
@@ -59,11 +61,11 @@ mkCurrExpr m_assume m_assert f@(Id (Name _ m_mod _ _) _) tc ng eenv tenv kv conf
 --  @
 -- ((coerce (f :: Int -> F)) :: Int -> Int -> Int) (0) (1) = 1
 -- @
-coerceRetNewTypes :: TypeEnv -> Expr -> (Maybe Coercion, Expr)
-coerceRetNewTypes tenv e =
+coerceRetNewTypes :: TV.TyVarEnv -> TypeEnv -> Expr -> (Maybe Coercion, Expr)
+coerceRetNewTypes tv tenv e =
     let
-        t = typeOf e
-        rt = returnType e
+        t = typeOf tv e
+        rt = returnType (typeOf tv e)
         c = coerce_to rt
         c_rt = replace_ret_ty c t
         coer = t :~ c_rt
@@ -72,7 +74,7 @@ coerceRetNewTypes tenv e =
     where
         coerce_to t | TyCon n _:ts <- unTyApp t
                     , Just (NewTyCon { bound_ids = bis, rep_type = rt }) <- HM.lookup n tenv
-                    , hasFuncType $ PresType rt = 
+                    , hasFuncType rt = 
                         coerce_to $ foldl' (\rt_ (b, bt) -> retype b bt rt_) rt (zip bis ts)
                     | otherwise = t
 
@@ -153,24 +155,24 @@ mkAssumeAssert _ Nothing _ _ e _ _ = e
 retsTrue :: Expr -> Expr
 retsTrue e = Assert Nothing e e
 
-findFunc :: T.Text -> [Maybe T.Text] -> ExprEnv -> Either (Id, Expr) String
-findFunc s m_mod eenv =
+findFunc :: TV.TyVarEnv -> T.Text -> [Maybe T.Text] -> ExprEnv -> Either (Id, Expr) String
+findFunc tv s m_mod eenv =
     let
         match = E.toExprList $ E.filterWithKey (\n _ -> nameOcc n == s) eenv
     in
     case match of
         [] -> Right $ "No functions with name " ++ (T.unpack s)
-        [(n, e)] -> Left (Id n (typeOf e) , e)
+        [(n, e)] -> Left (Id n (typeOf tv e) , e)
         pairs -> case filter (\(n, _) -> nameModule n `elem` m_mod) pairs of
-                    [(n, e)] -> Left (Id n (typeOf e), e)
+                    [(n, e)] -> Left (Id n (typeOf tv e), e)
                     [] -> Right $ "No function with name " ++ (T.unpack s) ++ " in available modules"
                     _ -> Right $ "Multiple functions with same name " ++ (T.unpack s) ++
                                 " in available modules"
 
-instantiateArgTypes :: TypeClasses -> KnownValues -> Expr -> ([Expr], [Type])
-instantiateArgTypes tc kv e =
+instantiateArgTypes :: TV.TyVarEnv -> TypeClasses -> KnownValues -> Expr -> ([Expr], [Type])
+instantiateArgTypes tv tc kv e =
     let
-        typs = spArgumentTypes e
+        typs = spArgumentTypes (typeOf tv e)
     in
     instantitateTypes tc kv typs
 

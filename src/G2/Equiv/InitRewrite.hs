@@ -25,7 +25,7 @@ initWithLHS s b r =
   in
   case f_maybe of
     Nothing -> error "function name not found"
-    Just f -> let t = T.typeOf f
+    Just f -> let t = T.typeOf (tyvar_env s) f
                   i = Id f_name t
                   v = Var i
                   app = X.mkApp (v:ru_args r)
