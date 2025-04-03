@@ -191,16 +191,23 @@ retLam :: State t -> NameGen -> LamUse -> Id -> Expr -> Expr -> S.Stack Frame ->
 retLam s@(State { expr_env = eenv, tyvar_env = tvnv })
        ng u i e ae stck'
     | TypeL <- u =
-        let 
-            (n', ng') = freshSeededName (idName i) ng 
-            i' = rename (idName i) n' i
-            tvnv' = TV.insert (idName i') (typeOf i') tvnv 
+        case traceType eenv ae of
+        Just t ->
+            let 
+                (n', ng') = freshSeededName (idName i) ng 
+                i' = rename (idName i) n' i
+                tvnv' = TV.insert (idName i') (typeOf i') tvnv 
+                (eenv', e', ng'', news) = liftBind i (Type t) eenv e ng'
 
-        in 
-        -- TODO: retLam, need to check the rule in the type lambda case in retLam
-        ( RuleIdentity
-        , [s {tyvar_env = tvnv'}]
-        , ng' )
+            in 
+            -- TODO: retLam, need to check the rule in the type lambda case in retLam
+           ( RuleReturnEApplyLamType [news]
+            , [ s { expr_env = eenv'
+                 , curr_expr = CurrExpr Evaluate e'
+                 , exec_stack = stck' 
+                 , tyvar_env = tvnv' } ]
+            , ng'' )
+        Nothing -> error $ "retLam: Bad type\ni = " ++ show i
     | otherwise =
         let
             (eenv', e', ng', news) = liftBind i ae eenv e ng

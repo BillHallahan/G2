@@ -9,16 +9,22 @@ module G2.Language.TyVarEnv (TyVarEnv
                             , lookup
                             , delete
                             , fromList 
-                            , toList ) where 
+                            , toList 
+                            , tyVarEnvCons
+                            , toMap) where 
 
 import Prelude hiding(lookup)
 import GHC.Generics (Generic)
 import Data.Data (Data, Typeable)
 import Data.Hashable(Hashable)
 import qualified Data.HashMap.Lazy as HM
+import qualified Data.Map as M
 import G2.Language.Syntax
 
 newtype TyVarEnv = TyVarEnv (HM.HashMap Name Type) deriving (Show, Eq, Read, Generic, Typeable, Data)
+
+tyVarEnvCons :: TyVarEnv -> HM.HashMap Name Type
+tyVarEnvCons (TyVarEnv tyvarenv) = tyvarenv
 
 empty :: TyVarEnv
 empty = TyVarEnv HM.empty
@@ -37,6 +43,9 @@ fromList = TyVarEnv . HM.fromList
 
 toList :: TyVarEnv -> [(Name, Type)]
 toList (TyVarEnv env) = HM.toList env
+
+toMap :: TyVarEnv -> M.Map Name Type 
+toMap tvenv = M.fromList $ toList tvenv  
 
 instance Hashable TyVarEnv
 

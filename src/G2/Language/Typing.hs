@@ -80,6 +80,7 @@ import qualified Data.Map as M
 import Data.Maybe
 import qualified Data.List as L
 import Control.Monad
+import G2.Language.TyVarEnv
 
 tyInt :: KV.KnownValues -> Type
 tyInt kv = TyCon (KV.tyInt kv) (tyTYPE kv)
@@ -162,60 +163,57 @@ unTyApp t = [t]
 
 -- | Typeclass for things that have type information.
 class Typed a where
-    typeOf :: a -> Type
-    typeOf = typeOf' M.empty
-
-    typeOf' :: M.Map Name Type -- ^ Map of type variables to instantiations
-            -> a
-            -> Type
+    typeOf :: TyVarEnv -> a -> Type
 
 instance Typed Id where
-    typeOf' m (Id _ ty) = tyVarRename m ty
+    typeOf m (Id _ ty) = tyVarRename (toMap m) ty
 
 instance Typed Lit where
-    typeOf (LitInt _) = TyLitInt
-    typeOf (LitFloat _) = TyLitFloat
-    typeOf (LitDouble _) = TyLitDouble
-    typeOf (LitRational _) = TyLitRational
-    typeOf (LitBV bv) = TyLitBV (length bv)
-    typeOf (LitChar _)   = TyLitChar
-    typeOf (LitString _) = TyLitString
-    typeOf (LitInteger _) = TyLitInt
+    typeOf _ (LitInt _) = TyLitInt
+    typeOf _ (LitFloat _) = TyLitFloat
+    typeOf _ (LitDouble _) = TyLitDouble
+    typeOf _ (LitRational _) = TyLitRational
+    typeOf _ (LitBV bv) = TyLitBV (length bv)
+    typeOf _ (LitChar _)   = TyLitChar
+    typeOf _ (LitString _) = TyLitString
+    typeOf _ (LitInteger _) = TyLitInt
 
-    typeOf' _ t = typeOf t
+    typeOf _ t = typeOf t
 
 instance Typed DataCon where
-    typeOf' _ (DataCon _ ty _ _) = ty
+    typeOf _ (DataCon _ ty _ _) = ty
 
 instance Typed Alt where
-    typeOf' m (Alt _ expr) = typeOf' m expr
+    typeOf m (Alt _ expr) = typeOf m expr
 
+--TODO: check whether the I handled the Typed Expr correctly
 instance Typed Expr where
-    typeOf' m (Var v) = typeOf' m v
-    typeOf' m (Lit lit) = typeOf' m lit
-    typeOf' _ (Prim _ ty) = ty
-    typeOf' m (Data dcon) = typeOf' m dcon
-    typeOf' m a@(App _ _) =
+    typeOf m (Var v) = typeOf m v
+    typeOf m (Lit lit) = typeOf m lit
+    typeOf _ (Prim _ ty) = ty
+    typeOf m (Data dcon) = typeOf m dcon
+    -- TODO ask professor whether this idea is correct
+    typeOf m a@(App _ _) =
         let
             as = passedArgs a
-            t = typeOf' m $ appCenter a
+            t = typeOf m $ appCenter a
         in
         appTypeOf M.empty t as
-    typeOf' m (Lam u b e) =
+    typeOf m (Lam u b e) =
         case u of
-            TypeL -> TyForAll b (typeOf' m e)
-            TermL -> TyFun (typeOf' m b) (typeOf' m e)
-    typeOf' m (Let _ expr) = typeOf' m expr
-    typeOf' _ (Case _ _ t _) = t
-    typeOf' _ (Type _) = TYPE
-    typeOf' m (Cast _ (_ :~ t')) = tyVarRename m t'
-    typeOf' m (Coercion (_ :~ t')) = tyVarRename m t'
-    typeOf' m (Tick _ e) = typeOf' m e
-    typeOf' m (NonDet (e:_)) = typeOf' m e
-    typeOf' _ (NonDet []) = TyBottom
-    typeOf' _ (SymGen _ t) = t
-    typeOf' m (Assert _ _ e) = typeOf' m e
-    typeOf' m (Assume _ _ e) = typeOf' m e
+            TypeL -> TyForAll b (typeOf m e)
+            TermL -> TyFun (typeOf m b) (typeOf m e)
+    typeOf m (Let _ expr) = typeOf m expr
+    typeOf _ (Case _ _ t _) = t
+    typeOf _ (Type _) = TYPE
+    typeOf m (Cast _ (_ :~ t')) = tyVarRename (toMap m) t'
+    typeOf m (Coercion (_ :~ t')) = tyVarRename (toMap m) t'
+    typeOf m (Tick _ e) = typeOf m e
+    typeOf m (NonDet (e:_)) = typeOf m e
+    typeOf _ (NonDet []) = TyBottom
+    typeOf _ (SymGen _ t) = t
+    typeOf m (Assert _ _ e) = typeOf m e
+    typeOf m (Assume _ _ e) = typeOf m e
 
 passedArgs :: Expr -> [Expr]
 passedArgs = reverse . passedArgs'
@@ -246,11 +244,12 @@ appTypeOf _ TyUnknown _ = TyUnknown
 appTypeOf _ t es = error ("appTypeOf\n" ++ show t ++ "\n" ++ show es ++ "\n\n")
 
 -- | Check if two types unify.  If they do, returns a `UFMap` of type variables to instantiations.
-unify :: Type -> Type ->  Maybe (UF.UFMap Name Type)
-unify = unify' UF.empty
+unify :: Type -> Type -> Maybe (UF.UFMap Name Type)
+unify  = unify' UF.empty
 
 -- | `unify`, but with a pre-existing (partial) mapping of type variables to instantiations.
-unify' :: UF.UFMap Name Type -> Type -> Type ->  Maybe (UF.UFMap Name Type)
+-- TODO: is it necessary to include tyvarenv?
+unify' ::   UF.UFMap Name Type -> Type -> Type ->  Maybe (UF.UFMap Name Type)
 unify' uf (TyVar (Id n1 t1)) (TyVar (Id n2 t2))
     | Just uf_t1 <- UF.lookup n1 uf
     , Just uf_t2 <- UF.lookup n2 uf =
@@ -278,34 +277,34 @@ unify' uf t1 t2 | t1 == t2 = return uf
                 | otherwise = Nothing
 
 instance Typed Type where
-    typeOf' _ (TyVar (Id _ t)) = t
-    typeOf' _ (TyFun _ _) = TYPE
-    typeOf' m (TyApp t1 t2) =
+    typeOf _ (TyVar (Id _ t)) = t
+    typeOf _ (TyFun _ _) = TYPE
+    typeOf m (TyApp t1 t2) =
         let
-            ft = typeOf' m t1
-            at = typeOf' m t2
+            ft = typeOf m t1
+            at = typeOf m t2
         in
         case (ft, at) of
             ((TyForAll _ t2'), _) -> t2'
             ((TyFun _ t2'), _) -> t2'
             ((TyApp t1' _), _) -> t1'
             _ -> error $ "Overapplied Type\n" ++ show t1 ++ "\n" ++ show t2 ++ "\n\n" ++ show ft ++ "\n" ++ show at
-    typeOf' _ (TyCon _ t) = t
-    typeOf' m (TyForAll b t) = TyApp (typeOf b) (typeOf' m t)
-    typeOf' _ TyLitInt = TYPE
-    typeOf' _ (TyLitFP _ _) = TYPE
-    typeOf' _ TyLitRational = TYPE
-    typeOf' _ (TyLitBV _) = TYPE
-    typeOf' _ TyLitChar = TYPE
-    typeOf' _ TyLitString = TYPE
-    typeOf' _ TYPE = TYPE
-    typeOf' _ TyBottom = TyBottom
-    typeOf' _ TyUnknown = TyUnknown
+    typeOf _ (TyCon _ t) = t
+    typeOf m (TyForAll b t) = TyApp (typeOf m b) (typeOf m t)
+    typeOf _ TyLitInt = TYPE
+    typeOf _ (TyLitFP _ _) = TYPE
+    typeOf _ TyLitRational = TYPE
+    typeOf _ (TyLitBV _) = TYPE
+    typeOf _ TyLitChar = TYPE
+    typeOf _ TyLitString = TYPE
+    typeOf _ TYPE = TYPE
+    typeOf _ TyBottom = TyBottom
+    typeOf _ TyUnknown = TyUnknown
 
 newtype PresType = PresType Type deriving (Show, Read)
 
 instance Typed PresType where
-    typeOf' _ (PresType t) = t
+    typeOf _ (PresType t) = t
 
 -- | Retyping
 -- We look to see if the type we potentially replace has a TyVar whose Id is a
@@ -396,9 +395,9 @@ applyTypeHashMap' m (TyVar (Id n _))
 applyTypeHashMap' _ t = t
 
 
-hasFuncType :: (Typed t) => t -> Bool
+hasFuncType :: Type -> Bool
 hasFuncType t =
-    case typeOf t of
+    case t of
         (TyFun _ _) -> True
         (TyForAll _ _)  -> True
         _ -> False
