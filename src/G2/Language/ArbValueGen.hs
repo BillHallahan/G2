@@ -15,6 +15,7 @@ import Data.List
 import qualified Data.HashMap.Lazy as HM
 import Data.Ord
 import Data.Tuple
+import qualified G2.Language.TyVarEnv as TV 
 
 -- | A default `ArbValueGen`.
 arbValueInit :: ArbValueGen
@@ -54,11 +55,11 @@ constArbValue = constArbValue' getFiniteADT HM.empty
 -- Returns a new ArbValueGen that (in the case of the primitives)
 -- will give a different value the next time arbValue is called with
 -- the same Type.
-arbValueInfinite :: Type -> TypeEnv -> ArbValueGen -> (Expr, ArbValueGen)
-arbValueInfinite t = arbValueInfinite' cutOffVal HM.empty t
+arbValueInfinite :: TV.TyVarEnv -> Type -> TypeEnv -> ArbValueGen -> (Expr, ArbValueGen)
+arbValueInfinite tv t = arbValueInfinite' tv cutOffVal HM.empty t
 
-arbValueInfinite' :: Int -> HM.HashMap Name Type -> Type -> TypeEnv -> ArbValueGen -> (Expr, ArbValueGen)
-arbValueInfinite' cutoff = arbValue' (getADT cutoff)
+arbValueInfinite' :: TV.TyVarEnv -> Int -> HM.HashMap Name Type -> Type -> TypeEnv -> ArbValueGen -> (Expr, ArbValueGen)
+arbValueInfinite' tv cutoff = arbValue' (getADT tv cutoff)
 
 arbValue' :: GetADT
           -> HM.HashMap Name Type -- ^ Maps TyVar's to Types
@@ -195,19 +196,20 @@ cutOff _ e = e
 -- To see why this is needed, suppose we are returning an infinitely large Expr.
 -- This Expr will be returned lazily.  But the return of the ArbValueGen is not lazy-
 -- so we must just cut off and return at some point.
-getADT :: Int -> HM.HashMap Name Type -> TypeEnv -> ArbValueGen -> AlgDataTy -> [Type] -> (Expr, ArbValueGen)
-getADT cutoff m tenv av adt ts 
+getADT :: TV.TyVarEnv -> Int -> HM.HashMap Name Type -> TypeEnv -> ArbValueGen -> AlgDataTy -> [Type] -> (Expr, ArbValueGen)
+getADT tvnv cutoff m tenv av adt ts 
     | dcs <- dataCon adt
     , _:_ <- dcs =
         let
             ids = bound_ids adt
 
             -- Finds the DataCon for adt with the least arguments
-            min_dc = minimumBy (comparing (length . anonArgumentTypes)) dcs
+            min_dc = minimumBy (comparing (length . anonArgumentTypes. typeOf tvnv)) dcs
 
             m' = foldr (uncurry HM.insert) m $ zip (map idName ids) ts
 
-            (av', es) = mapAccumL (\av_ t -> swap $ arbValueInfinite' (cutoff - 1) m' (applyTypeHashMap m' t) tenv av_) av $ anonArgumentTypes min_dc
+            (av', es) = mapAccumL (\av_ t -> swap $ arbValueInfinite' tvnv (cutoff - 1) m' (applyTypeHashMap m' t) tenv av_) av 
+                            $ anonArgumentTypes (typeOf tvnv min_dc)
 
             final_av = if cutoff >= 0 then av' else av
         in

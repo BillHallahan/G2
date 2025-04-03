@@ -74,7 +74,7 @@ caseOfKnownCons (Case e i _ as)
     | Data (DataCon n t _ _):es <- unApp e
     , Just (Alt (DataAlt _ is) ae) <- find (matchingDataAlt n) as =
         let
-            tfa_count = length (leadingTyForAllBindings $ PresType t)
+            tfa_count = length (leadingTyForAllBindings t)
             es' = drop tfa_count es
         in
         foldr (uncurry replaceVar) (replaceVar (idName i) e ae) (zip (map idName is) es')

@@ -37,6 +37,8 @@ import qualified G2.Language.PathConds as PC
 import G2.Language.Syntax
 import G2.Language.Support
 import G2.Language.TypeClasses
+import qualified G2.Language.TyVarEnv as TV 
+import qualified G2.Language.TyVarEnv as TV
 
 -- | A wrapper for `State`, allowing it to be used as a monadic context.
 type StateT t m a = SM.StateT (State t, Bindings) m a
@@ -78,6 +80,7 @@ class Monad m => ExprEnvM s m | m -> s where
 -- | Allows access to certain basic components of a state.
 class (ExprEnvM s m, NamingM s m) => ExState s m | m -> s where
     typeEnv :: m TypeEnv
+    tyVarEnv :: m TV.TyVarEnv
     putTypeEnv :: TypeEnv -> m ()
 
     knownValues :: m KnownValues
