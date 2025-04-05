@@ -85,9 +85,9 @@ class Solver con => SMTConverter con where
 addHeaders :: SMTConverter con => con -> [SMTHeader] -> IO ()
 addHeaders = addFormula
 
-checkConstraintsPC :: SMTConverter con => con -> PathConds -> IO (Result () () ())
-checkConstraintsPC con pc = do
-    let headers = toSMTHeaders pc
+checkConstraintsPC :: SMTConverter con => TV.TyVarEnv -> con -> PathConds -> IO (Result () () ())
+checkConstraintsPC tv con pc = do
+    let headers = toSMTHeaders tv pc
     checkConstraints con headers
 
 checkConstraints :: SMTConverter con => con -> [SMTHeader] -> IO (Result () () ())
@@ -112,7 +112,7 @@ checkModel' avf con s b (i:is) pc
             r -> return r
 
 getModelVal :: SMTConverter con => ArbValueFunc -> con -> State t -> Bindings -> Id -> PathConds -> IO (Result Model () (), ArbValueGen)
-getModelVal avf con (State { expr_env = eenv, type_env = tenv, known_values = kv }) b (Id n _) pc = do
+getModelVal avf con (State { expr_env = eenv, type_env = tenv, known_values = kv, tyvar_env = tvnv }) b (Id n _) pc = do
     let (Just (Var (Id n' t))) = E.lookup n eenv
      
     case PC.null pc of
@@ -122,12 +122,12 @@ getModelVal avf con (State { expr_env = eenv, type_env = tenv, known_values = kv
                     in
                     return (SAT $ HM.singleton n' e, av) 
                 False -> do
-                    m <- solveNumericConstraintsPC con kv tenv pc
+                    m <- solveNumericConstraintsPC tvnv con kv tenv pc
                     return (m, arb_value_gen b)
 
-solveNumericConstraintsPC :: SMTConverter con => con -> KnownValues -> TypeEnv -> PathConds -> IO (Result Model () ())
-solveNumericConstraintsPC con kv tenv pc = do
-    let headers = toSMTHeaders pc
+solveNumericConstraintsPC :: SMTConverter con => TV.TyVarEnv -> con -> KnownValues -> TypeEnv -> PathConds -> IO (Result Model () ())
+solveNumericConstraintsPC tv con kv tenv pc = do
+    let headers = toSMTHeaders tv pc
     let vs = map (\(n', srt) -> (nameToStr n', srt)) . HS.toList . pcVars $ pc
 
     m <- solveConstraints con headers vs
@@ -151,17 +151,17 @@ constraintsToModelOrUnsatCoreNoReset = checkSatGetModelOrUnsatCoreNoReset
 -- we need only consider the types and path constraints of that state.
 -- We can also pass in some other Expr Container to instantiate names from, which is
 -- important if you wish to later be able to scrape variables from those Expr's
-toSMTHeaders :: PathConds -> [SMTHeader]
-toSMTHeaders = addSetLogic . toSMTHeaders'
+toSMTHeaders :: TV.TyVarEnv -> PathConds -> [SMTHeader]
+toSMTHeaders tv pc = addSetLogic  (toSMTHeaders' tv pc)
 
-toSMTHeaders' :: PathConds -> [SMTHeader]
-toSMTHeaders' pc  =
+toSMTHeaders' :: TV.TyVarEnv -> PathConds -> [SMTHeader]
+toSMTHeaders' tv pc  =
     let
         pc' = PC.toList pc
     in 
     (pcVarDecls pc)
     ++
-    (pathConsToSMTHeaders pc')
+    (pathConsToSMTHeaders tv pc')
 
 -- |  Determines an appropriate SetLogic command, and adds it to the headers
 addSetLogic :: [SMTHeader] -> [SMTHeader]
@@ -315,15 +315,15 @@ pathConsToSMT' tv (ExtCond e b) =
         exprSMT = exprToSMT tv e
     in
     if b then exprSMT else (:!) exprSMT
-pathConsToSMT' (AssumePC (Id n t) num pc) =
+pathConsToSMT' tv (AssumePC (Id n t) num pc) =
     let
         idSMT = V (nameToStr n) (typeToSMT t) -- exprToSMT (Var i)
         intSMT = VInt $ toInteger num -- exprToSMT (Lit (LitInt $ toInteger num))
-        pcSMT = map (pathConsToSMT' . PC.unhashedPC) $ HS.toList pc
+        pcSMT = map ( pathConsToSMT' tv . PC.unhashedPC) $ HS.toList pc
     in
     (idSMT := intSMT) :=> SmtAnd pcSMT
-pathConsToSMT' (MinimizePC _) = error "pathConsToSMT': unsupported nesting of MinimizePC."
-pathConsToSMT' (SoftPC _) = error "pathConsToSMT': unsupported nesting of SoftPC."
+pathConsToSMT' _ (MinimizePC _) = error "pathConsToSMT': unsupported nesting of MinimizePC."
+pathConsToSMT' _ (SoftPC _) = error "pathConsToSMT': unsupported nesting of SoftPC."
 
 exprToSMT :: TV.TyVarEnv -> Expr -> SMTAST
 exprToSMT _ (Var (Id n t)) = V (nameToStr n) (typeToSMT t)
@@ -381,38 +381,38 @@ funcToSMT1Prim tv TruncZero e | typeOf tv e == TyLitFloat = FloatToIntSMT (Trunc
                            | typeOf tv e == TyLitDouble = DoubleToIntSMT (TruncZeroSMT (exprToSMT tv e))
 funcToSMT1Prim tv DecimalPart e | typeOf tv e == TyLitFloat = exprToSMT tv e `FpSubSMT` TruncZeroSMT (exprToSMT tv e)
                              | typeOf tv e == TyLitDouble = exprToSMT tv e `FpSubSMT` TruncZeroSMT (exprToSMT tv e)
-funcToSMT1Prim FpIsNegativeZero e =
+funcToSMT1Prim tv FpIsNegativeZero e =
     let
         nz = "INTERNAL_!!_IsNegZero"
-        smt_srt = typeToSMT (typeOf e) 
+        smt_srt = typeToSMT (typeOf tv e) 
     in
-    SLet (nz, exprToSMT e) $ SmtAnd [FpIsNegative (V nz smt_srt), FpIsZero (V nz smt_srt)]
-funcToSMT1Prim IsDenormalized e =
+    SLet (nz, exprToSMT tv e) $ SmtAnd [FpIsNegative (V nz smt_srt), FpIsZero (V nz smt_srt)]
+funcToSMT1Prim tv IsDenormalized e =
     let
-        zero = case typeOf e of
+        zero = case typeOf tv e of
                     TyLitFloat -> VFloat 0
                     TyLitDouble -> VDouble 0
                     _ -> error "funcToSMT1Prim: bad type passed to IsDenormalized"
     in
-    SmtAnd [(:!) (IsNormalSMT (exprToSMT e)), (:!) (exprToSMT e `FpEqSMT` zero)]
-funcToSMT1Prim IsNaN e = IsNaNSMT (exprToSMT e)
-funcToSMT1Prim IsInfinite e = IsInfiniteSMT (exprToSMT e)
-funcToSMT1Prim Abs e = AbsSMT (exprToSMT e)
-funcToSMT1Prim Sqrt e = SqrtSMT (exprToSMT e)
-funcToSMT1Prim Not e = (:!) (exprToSMT e)
-funcToSMT1Prim (IntToFP ex s) e = IntToFPSMT ex s (exprToSMT e)
-funcToSMT1Prim (FPToFP ex s) e = FPToFPSMT ex s (exprToSMT e)
-funcToSMT1Prim IntToRational e = IntToRealSMT (exprToSMT e)
-funcToSMT1Prim IntToString e = FromInt (exprToSMT e)
-funcToSMT1Prim (BVToInt w) e = (BVToIntSMT w) (exprToSMT e)
-funcToSMT1Prim (IntToBV w) e = (IntToBVSMT w) (exprToSMT e)
-funcToSMT1Prim RationalToFloat e = RealToFloat (exprToSMT e)
-funcToSMT1Prim RationalToDouble e = RealToDouble (exprToSMT e)
-funcToSMT1Prim BVToNat e = BVToNatSMT (exprToSMT e)
-funcToSMT1Prim Chr e = FromCode (exprToSMT e)
-funcToSMT1Prim OrdChar e = ToCode (exprToSMT e)
-funcToSMT1Prim StrLen e = StrLenSMT (exprToSMT e)
-funcToSMT1Prim err _ = error $ "funcToSMT1Prim: invalid Primitive " ++ show err
+    SmtAnd [(:!) (IsNormalSMT (exprToSMT tv e)), (:!) (exprToSMT tv e `FpEqSMT` zero)]
+funcToSMT1Prim tv IsNaN e = IsNaNSMT (exprToSMT tv e)
+funcToSMT1Prim tv IsInfinite e = IsInfiniteSMT (exprToSMT tv e)
+funcToSMT1Prim tv Abs e = AbsSMT (exprToSMT tv e)
+funcToSMT1Prim tv Sqrt e = SqrtSMT (exprToSMT tv e)
+funcToSMT1Prim tv Not e = (:!) (exprToSMT tv e)
+funcToSMT1Prim tv (IntToFP ex s) e = IntToFPSMT ex s (exprToSMT tv e)
+funcToSMT1Prim tv (FPToFP ex s) e = FPToFPSMT ex s (exprToSMT tv e)
+funcToSMT1Prim tv IntToRational e = IntToRealSMT (exprToSMT tv e)
+funcToSMT1Prim tv IntToString e = FromInt (exprToSMT tv e)
+funcToSMT1Prim tv (BVToInt w) e = (BVToIntSMT w) (exprToSMT tv e)
+funcToSMT1Prim tv (IntToBV w) e = (IntToBVSMT w) (exprToSMT tv e)
+funcToSMT1Prim tv RationalToFloat e = RealToFloat (exprToSMT tv e)
+funcToSMT1Prim tv RationalToDouble e = RealToDouble (exprToSMT tv e)
+funcToSMT1Prim tv BVToNat e = BVToNatSMT (exprToSMT tv e)
+funcToSMT1Prim tv Chr e = FromCode (exprToSMT tv e)
+funcToSMT1Prim tv OrdChar e = ToCode (exprToSMT tv e)
+funcToSMT1Prim tv StrLen e = StrLenSMT (exprToSMT tv e)
+funcToSMT1Prim _ err _ = error $ "funcToSMT1Prim: invalid Primitive " ++ show err
 
 funcToSMT2Prim :: TV.TyVarEnv -> Primitive -> Expr -> Expr -> SMTAST
 funcToSMT2Prim tv And a1 a2 = SmtAnd [exprToSMT tv a1, exprToSMT tv a2]
