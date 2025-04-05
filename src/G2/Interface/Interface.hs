@@ -103,7 +103,9 @@ maybeDoTimeout Nothing = fmap Just
 
 
 {-# INLINE initStateWithCall #-}
-initStateWithCall :: ExtractedG2
+-- TODO: is it safe to use TyVarEnv?
+initStateWithCall :: TV.TyVarEnv 
+                  -> ExtractedG2
                   -> Bool
                   -> StartFunc
                   -> [Maybe T.Text]
@@ -111,11 +113,11 @@ initStateWithCall :: ExtractedG2
                   -> (Expr -> MkArgTypes)
                   -> Config
                   -> (Id, State (), Bindings)
-initStateWithCall exg2 useAssert f m_mod mkCurr argTys config =
+initStateWithCall tv exg2 useAssert f m_mod mkCurr argTys config =
     let
-        s = initSimpleState exg2
+        s = initSimpleState tv exg2
 
-        (ie, fe) = case findFunc f m_mod (IT.expr_env s) of
+        (ie, fe) = case findFunc tv f m_mod (IT.expr_env s) of
                         Left ie' -> ie'
                         Right errs -> error errs
         
@@ -124,18 +126,20 @@ initStateWithCall exg2 useAssert f m_mod mkCurr argTys config =
     (ie, s', b)
 
 {-# INLINE initStateWithCall' #-}
-initStateWithCall' :: ExtractedG2
+initStateWithCall' :: TV.TyVarEnv
+                   -> ExtractedG2
                    -> StartFunc
                    -> [Maybe T.Text]
                    -> (Id -> MkCurrExpr)
                    -> (Expr -> MkArgTypes)
                    -> Config
                    -> (Id, State (), Bindings)
-initStateWithCall' exg2 =
-    initStateWithCall exg2 False
+initStateWithCall' tv exg2 =
+    initStateWithCall tv exg2 False
 
 {-# INLINE initStateFromSimpleStateWithCall #-}
-initStateFromSimpleStateWithCall :: IT.SimpleState
+initStateFromSimpleStateWithCall :: TV.TyVarEnv 
+                                 -> IT.SimpleState
                                  -> Bool
                                  -> StartFunc
                                  -> [Maybe T.Text]
@@ -143,9 +147,9 @@ initStateFromSimpleStateWithCall :: IT.SimpleState
                                  -> (Expr -> MkArgTypes)
                                  -> Config
                                  -> (State (), Id, Bindings)
-initStateFromSimpleStateWithCall simp_s useAssert f m_mod mkCurr argTys config =
+initStateFromSimpleStateWithCall tv simp_s useAssert f m_mod mkCurr argTys config =
     let
-        (ie, fe) = case findFunc f m_mod (IT.expr_env simp_s) of
+        (ie, fe) = case findFunc tv f m_mod (IT.expr_env simp_s) of
                         Left ie' -> ie'
                         Right errs -> error errs
     
@@ -203,28 +207,30 @@ initStateFromSimpleState s m_mod useAssert mkCurr argTys config =
     , name_gen = ng''
     , exported_funcs = IT.exports s })
 
-mkArgTys :: Expr -> MkArgTypes
-mkArgTys e simp_s =
-    snd $ instantiateArgTypes (IT.type_classes simp_s) (IT.known_values simp_s) e
+mkArgTys :: TV.TyVarEnv -> Expr -> MkArgTypes
+mkArgTys tv e simp_s =
+    snd $ instantiateArgTypes tv (IT.type_classes simp_s) (IT.known_values simp_s) e
 
 {-# INLINE initStateFromSimpleState' #-}
-initStateFromSimpleState' :: IT.SimpleState
+initStateFromSimpleState' :: TV.TyVarEnv
+                          -> IT.SimpleState
                           -> StartFunc
                           -> [Maybe T.Text]
                           -> Config
                           -> (State (), Bindings)
-initStateFromSimpleState' s sf m_mod =
+initStateFromSimpleState' tv s sf m_mod =
     let
-        (ie, fe) = case findFunc sf m_mod (IT.expr_env s) of
+        (ie, fe) = case findFunc tv sf m_mod (IT.expr_env s) of
                           Left ie' -> ie'
                           Right errs -> error errs
     in
-    initStateFromSimpleState s m_mod False (mkCurrExpr Nothing Nothing ie) (mkArgTys fe)
+    initStateFromSimpleState s m_mod False (mkCurrExpr tv Nothing Nothing ie) (mkArgTys tv fe)
 
 {-# INLINE initSimpleState #-}
-initSimpleState :: ExtractedG2
+initSimpleState :: TV.TyVarEnv 
+                -> ExtractedG2
                 -> IT.SimpleState
-initSimpleState (ExtractedG2 { exg2_binds = prog
+initSimpleState tv (ExtractedG2 { exg2_binds = prog
                              , exg2_tycons = prog_typ
                              , exg2_classes = cls
                              , exg2_exports = es
@@ -232,8 +238,8 @@ initSimpleState (ExtractedG2 { exg2_binds = prog
     let
         eenv = E.fromExprMap prog
         tenv = mkTypeEnv prog_typ
-        tc = initTypeClasses cls
-        kv = initKnownValues eenv tenv tc
+        tc = initTypeClasses tv cls
+        kv = initKnownValues tv eenv tenv tc
         ng = mkNameGen (prog, prog_typ, rs)
 
         s = IT.SimpleState { IT.expr_env = eenv
@@ -249,8 +255,9 @@ initSimpleState (ExtractedG2 { exg2_binds = prog
 
 initCheckReaches :: State t -> Maybe T.Text -> Maybe ReachFunc -> State t
 initCheckReaches s@(State { expr_env = eenv
-                          , known_values = kv }) m_mod reaches =
-    s {expr_env = checkReaches eenv kv reaches m_mod }
+                          , known_values = kv 
+                          , tyvar_env = tvnv}) m_mod reaches =
+    s {expr_env = checkReaches tvnv eenv kv reaches m_mod }
 
 type RHOStack m = SM.StateT LengthNTrack (SM.StateT PrettyGuide (SM.StateT HpcTracker m))
 
@@ -350,11 +357,11 @@ initRedHaltOrd mod_name solver simplifier config not_symbolic exec_func_names no
                 , SomeHalter (discardIfAcceptedTagHalter state_name) .<~> halter_step
                 , orderer)
 
-initSolver :: Config -> IO SomeSolver
-initSolver = initSolver' arbValue
+initSolver :: TV.TyVarEnv -> Config -> IO SomeSolver
+initSolver tv = initSolver' (arbValue tv)
 
-initSolverInfinite :: Config -> IO SomeSolver
-initSolverInfinite con = initSolver' arbValueInfinite con
+initSolverInfinite :: TV.TyVarEnv -> Config -> IO SomeSolver
+initSolverInfinite tv con = initSolver' (arbValueInfinite tv) con
 
 initSolver' :: ArbValueFunc -> Config -> IO SomeSolver
 initSolver' avf config = do
@@ -366,34 +373,37 @@ mkTypeEnv :: HM.HashMap Name AlgDataTy -> TypeEnv
 mkTypeEnv = id
 
 {-# INLINE initialStateFromFileSimple #-}
-initialStateFromFileSimple :: [FilePath]
+initialStateFromFileSimple :: TV.TyVarEnv 
+                   ->[FilePath]
                    -> [FilePath]
                    -> StartFunc
                    -> (Id -> MkCurrExpr)
                    -> (Expr -> MkArgTypes)
                    -> Config
                    -> IO (State (), Id, Bindings, [Maybe T.Text])
-initialStateFromFileSimple proj src f mkCurr argTys config =
-    initialStateFromFile proj src Nothing False f mkCurr argTys simplTranslationConfig config
+initialStateFromFileSimple tv proj src f mkCurr argTys config =
+    initialStateFromFile tv proj src Nothing False f mkCurr argTys simplTranslationConfig config
 
-initialStateNoStartFunc :: [FilePath]
+initialStateNoStartFunc :: TV.TyVarEnv
+                     -> [FilePath]
                      -> [FilePath]
                      -> TranslationConfig
                      -> Config
                      -> IO (State (), Bindings)
-initialStateNoStartFunc proj src transConfig config = do
-    (_, exg2) <- translateLoaded proj src transConfig config
+initialStateNoStartFunc tv proj src transConfig config = do
+    (_, exg2) <- translateLoaded tv proj src transConfig config
 
-    let simp_state = initSimpleState exg2
+    let simp_state = initSimpleState tv exg2
 
         (init_s, bindings) = initStateFromSimpleState simp_state [Nothing] False
                                  (\_ ng _ _ _ _ -> (Prim Undefined TyBottom, [], [], Nothing, ng))
-                                 (E.higherOrderExprs . IT.expr_env)
+                                 (E.higherOrderExprs tv . IT.expr_env)
                                  config
 
     return (init_s, bindings)
 
-initialStateFromFile :: [FilePath]
+initialStateFromFile :: TV.TyVarEnv
+                     -> [FilePath]
                      -> [FilePath]
                      -> Maybe ReachFunc
                      -> Bool
@@ -403,11 +413,11 @@ initialStateFromFile :: [FilePath]
                      -> TranslationConfig
                      -> Config
                      -> IO (State (), Id, Bindings, [Maybe T.Text])
-initialStateFromFile proj src m_reach def_assert f mkCurr argTys transConfig config = do
-    (mb_modname, exg2) <- translateLoaded proj src transConfig config
+initialStateFromFile tv proj src m_reach def_assert f mkCurr argTys transConfig config = do
+    (mb_modname, exg2) <- translateLoaded tv proj src transConfig config
 
-    let simp_state = initSimpleState exg2
-        (ie, fe) = case findFunc f mb_modname (IT.expr_env simp_state) of
+    let simp_state = initSimpleState tv exg2
+        (ie, fe) = case findFunc tv f mb_modname (IT.expr_env simp_state) of
                         Left ie' -> ie'
                         Right errs -> error errs
 
@@ -421,7 +431,8 @@ initialStateFromFile proj src m_reach def_assert f mkCurr argTys transConfig con
 
     return (reaches_state, ie, bindings, mb_modname)
 
-runG2FromFile :: [FilePath]
+runG2FromFile :: TV.TyVarEnv
+              -> [FilePath]
               -> [FilePath]
               -> Maybe AssumeFunc
               -> Maybe AssertFunc
@@ -431,9 +442,9 @@ runG2FromFile :: [FilePath]
               -> TranslationConfig
               -> Config
               -> IO (([ExecRes ()], Bindings), Id)
-runG2FromFile proj src m_assume m_assert m_reach def_assert f transConfig config = do
-    (init_state, entry_f, bindings, mb_modname) <- initialStateFromFile proj src
-                                    m_reach def_assert f (mkCurrExpr m_assume m_assert) (mkArgTys)
+runG2FromFile tv proj src m_assume m_assert m_reach def_assert f transConfig config = do
+    (init_state, entry_f, bindings, mb_modname) <- initialStateFromFile tv proj src
+                                    m_reach def_assert f (mkCurrExpr tv m_assume m_assert) (mkArgTys tv)
                                     transConfig config
 
     r <- runG2WithConfig (idName entry_f) mb_modname init_state config bindings
@@ -441,8 +452,8 @@ runG2FromFile proj src m_assume m_assert m_reach def_assert f transConfig config
     return (r, entry_f)
 
 runG2WithConfig :: Name -> [Maybe T.Text] -> State () -> Config -> Bindings -> IO ([ExecRes ()], Bindings)
-runG2WithConfig entry_f mb_modname state@(State { expr_env = eenv }) config bindings = do
-    SomeSolver solver <- initSolver config
+runG2WithConfig entry_f mb_modname state@(State { expr_env = eenv, tyvar_env = tvnv}) config bindings = do
+    SomeSolver solver <- initSolver tvnv config
     hpc_t <- hpcTracker (hpc_print_times config)
     let simplifier = FloatSimplifier :>> ArithSimplifier
         --exp_env_names = E.keys . E.filterConcOrSym (\case { E.Sym _ -> False; E.Conc _ -> True }) $ expr_env state

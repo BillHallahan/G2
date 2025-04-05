@@ -723,7 +723,8 @@ strictRed = mkSimpleReducer (\_ -> ())
     where
         strict_red _ s@(State { curr_expr = ce@(CurrExpr Return e)
                               , expr_env = eenv
-                              , exec_stack = stck })
+                              , exec_stack = stck
+                              , tyvar_env = tvnv })
                      b@(Bindings { name_gen = ng })
             | Data d:es@(_:_) <- unApp e
             , exec_done
@@ -739,7 +740,7 @@ strictRed = mkSimpleReducer (\_ -> ())
                     --   @ D x1 ... xk@
                     -- and inserts @x1 -> e1@, ..., @xk -> ek@ in the heap.  This means we can then evaluate
                     -- `x1, ... xk` and rely on sharing to correctly get a fully evaluated expression.
-                    (is, ng') = freshIds (map typeOf es) ng
+                    (is, ng') = freshIds (map (typeOf tvnv) es) ng
                     eenv' = foldl' (\env (Id n _, e_) -> E.insert n e_ env) eenv $ zip is es
                     ce_expr = mkApp $ Data d:map Var is
                     ce' = CurrExpr Return ce_expr
@@ -817,7 +818,8 @@ nonRedPCRedFunc prune _
                          , curr_expr = cexpr
                          , exec_stack = stck
                          , non_red_path_conds = (nre1, nre2):nrs
-                         , model = m })
+                         , model = m
+                         , tyvar_env = tvnv })
                 b@(Bindings { higher_order_inst = inst })
     -- If our goal is to violate assertions, and we haven't violated an assertion yet when
     -- we get to NRPCs, just discard the state.
@@ -845,7 +847,7 @@ nonRedPCRedFunc prune _
 
         let cexpr' = CurrExpr Evaluate nre1
 
-        let eenv_si_ces = substHigherOrder eenv m inst cexpr'
+        let eenv_si_ces = substHigherOrder tvnv eenv m inst cexpr'
 
         let s' = s { exec_stack = stck'
                    , non_red_path_conds = nrs
@@ -909,16 +911,17 @@ nonRedPCRedConstFunc _
                               , curr_expr = cexpr
                               , exec_stack = stck
                               , non_red_path_conds = (nre1, nre2):nrs
-                              , model = m })
+                              , model = m
+                              , tyvar_env = tvnv })
                      b@(Bindings { name_gen = ng })
-    | higher_ord <- L.filter (isTyFun . typeOf) $ E.symbolicIds eenv
+    | higher_ord <- L.filter (isTyFun . typeOf tvnv) $ E.symbolicIds eenv
     , not (null higher_ord) = do
         let stck' = Stck.push (CurrExprFrame (EnsureEq nre2) cexpr) stck
 
         let cexpr' = CurrExpr Evaluate nre1
 
-        let (ng', new_lam_is) = L.mapAccumL (\ng_ ts -> swap $ freshIds ts ng_) ng (map anonArgumentTypes higher_ord)
-            (new_sym_gen, ng'') = freshIds (map returnType higher_ord) ng'
+        let (ng', new_lam_is) = L.mapAccumL (\ng_ ts -> swap $ freshIds ts ng_) ng (map (anonArgumentTypes . typeOf tvnv) higher_ord)
+            (new_sym_gen, ng'') = freshIds (map (returnType . typeOf tvnv) higher_ord) ng'
 
             es = map (\(f_id, lam_i, sg_i) -> (f_id, mkLams (zip (repeat TermL) lam_i) (Var sg_i)) )
                $ zip3 higher_ord new_lam_is new_sym_gen

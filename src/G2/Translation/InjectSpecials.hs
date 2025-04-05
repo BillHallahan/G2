@@ -11,13 +11,13 @@ import qualified Data.Text as T
 import qualified G2.Language.TyVarEnv as TV 
 
 import G2.Language
-import qualified G2.Language.TyVarEnv as TV
 
 _MAX_TUPLE :: Int
 _MAX_TUPLE = 62
 
+-- TODO: Are we handling the TyVarEnv argument correctly here?
 specialTypes :: TV.TyVarEnv -> HM.HashMap Name AlgDataTy
-specialTypes tv = HM.fromList $ map (uncurry (specialTypes' tv)) specials ++ mkPrimTuples _MAX_TUPLE
+specialTypes tv = HM.fromList $ map (uncurry (specialTypes' tv)) (specials tv) ++ mkPrimTuples tv _MAX_TUPLE
 
 specialTypes' :: TV.TyVarEnv -> (T.Text, Maybe T.Text, [Name]) -> [(T.Text, Maybe T.Text, [Type])] -> (Name, AlgDataTy)
 specialTypes' tv (n, m, ns) dcn = 
@@ -120,10 +120,10 @@ mkTuples ls rs m n | n < 0 = []
                         -- ((s, m, []), [(s, m, [])]) : mkTuples (n - 1)
                         ((ty_n, m, ns), [(cons_n, m, tv)]) : mkTuples ls rs m (n - 1)
 
-mkPrimTuples :: Int -> [(Name, AlgDataTy)]
-mkPrimTuples k =
+mkPrimTuples :: TV.TyVarEnv -> Int -> [(Name, AlgDataTy)]
+mkPrimTuples tv k =
     let
-        dcn = mkPrimTuples' k
+        dcn = mkPrimTuples' tv k
     in
     map (\(n, m, ns, dc) -> 
             let

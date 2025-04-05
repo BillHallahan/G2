@@ -62,9 +62,10 @@ creatDeclStr pg s (x, DataTyCon{data_cons = dcs, bound_ids = is}) =
         x' = T.unpack $ printName pg x
         ids' = T.unpack . T.intercalate " " $ map (printHaskellPG pg s . Var) is
         wrapParens str = "(" <> str <> ")" 
-        dc_decls = map (\dc -> printHaskellPG pg s (Data dc) <> " " <> T.intercalate " " (map (wrapParens . mkTypeHaskellPG pg) (argumentTypes dc))) dcs
+        -- TODO: Is the update I make here due to the changing signature of hasFuncType(i.e Typed to Type) correct?
+        dc_decls = map (\dc -> printHaskellPG pg s (Data dc) <> " " <> T.intercalate " " (map (wrapParens . mkTypeHaskellPG pg) (argumentTypes (typeOf (tyvar_env s) dc)))) dcs
         all_dc_decls = T.unpack $ T.intercalate " | " dc_decls
-        derive_eq = if not (any isTyFun $ concatMap argumentTypes dcs) then " deriving Eq" else ""
+        derive_eq = if not (any isTyFun $ concatMap (argumentTypes . typeOf (tyvar_env s) ) dcs) then " deriving Eq" else ""
     in
     "data " ++ x' ++ " " ++ ids'++ " = " ++ all_dc_decls ++ derive_eq
 creatDeclStr _ _ _ = error "creatDeclStr: unsupported AlgDataTy"
@@ -101,7 +102,7 @@ adjustDynFlags = do
 
 runCheck :: PrettyGuide -> Maybe T.Text -> String -> [String] -> Bindings -> ExecRes t -> Ghc (HValue, [HValue])
 runCheck init_pg modN entry chAll b er@(ExecRes {final_state = s, conc_args = ars, conc_out = out}) = do
-    let Left (v, _) = findFunc (T.pack entry) [modN] (expr_env s)
+    let Left (v, _) = findFunc (tyvar_env s) (T.pack entry) [modN] (expr_env s)
     let e = mkApp $ Var v:ars
     let pg = updatePGValAndTypeNames e
            . updatePGValAndTypeNames out
@@ -113,11 +114,11 @@ runCheck init_pg modN entry chAll b er@(ExecRes {final_state = s, conc_args = ar
         arsStr = T.unpack arsTxt
         outStr = T.unpack outTxt
 
-    let arsType = T.unpack $ mkTypeHaskellPG pg (typeOf e)
-        outType = T.unpack $ mkTypeHaskellPG pg (typeOf out)
+    let arsType = T.unpack $ mkTypeHaskellPG pg (typeOf (tyvar_env s) e)
+        outType = T.unpack $ mkTypeHaskellPG pg (typeOf (tyvar_env s) out)
 
     -- If we are returning a primitive type (Int#, Float#, etc.) wrap in a constructor so that `==` works
-    let pr_con = case typeOf out of
+    let pr_con = case typeOf (tyvar_env s) out of
                         TyLitInt -> "I# "
                         TyLitDouble -> "D# "
                         TyLitFloat -> "F# "
