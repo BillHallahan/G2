@@ -140,17 +140,17 @@ mkInputs ng (t:ts) =
     in
     (var_id:ev, i:ei, ng'')
 
-mkAssumeAssert :: (Expr -> Expr -> Expr) -> Maybe T.Text -> Maybe T.Text
+mkAssumeAssert :: TV.TyVarEnv -> (Expr -> Expr -> Expr) -> Maybe T.Text -> Maybe T.Text
                -> [Expr] -> Expr -> Expr -> ExprEnv -> Expr
-mkAssumeAssert p (Just f) m_mod var_ids inter pre_ex eenv =
-    case findFunc f [m_mod] eenv of
+mkAssumeAssert tv p (Just f) m_mod var_ids inter pre_ex eenv =
+    case findFunc tv f [m_mod] eenv of
         Left (f', _) -> 
             let
                 app_ex = foldl' App (Var f') (var_ids ++ [pre_ex])
             in
             p app_ex inter
         Right s -> error s
-mkAssumeAssert _ Nothing _ _ e _ _ = e
+mkAssumeAssert _ _ Nothing _ _ e _ _ = e
 
 retsTrue :: Expr -> Expr
 retsTrue e = Assert Nothing e e
@@ -216,9 +216,9 @@ instantiateTCDict tc it tyapp@(TyApp _ t) | TyCon n _ <- tyAppCenter tyapp =
     return . Var =<< lookupTCDict tc n t'
 instantiateTCDict _ _ _ = Nothing
 
-checkReaches :: ExprEnv -> KnownValues -> Maybe T.Text -> Maybe T.Text -> ExprEnv
-checkReaches eenv _ Nothing _ = eenv
-checkReaches eenv kv (Just s) m_mod =
-    case findFunc s [m_mod] eenv of
+checkReaches :: TV.TyVarEnv -> ExprEnv -> KnownValues -> Maybe T.Text -> Maybe T.Text -> ExprEnv
+checkReaches _ eenv _ Nothing _ = eenv
+checkReaches tv eenv kv (Just s) m_mod =
+    case findFunc tv s [m_mod] eenv of
         Left (Id n _, e) -> E.insert n (Assert Nothing (mkFalse kv) e) eenv
         Right err -> error  err
