@@ -150,7 +150,7 @@ import Data.Tuple
 import Data.Time.Clock
 import System.Clock
 import System.Directory
-
+import qualified G2.Language.TyVarEnv as TV 
 
 -- | Used when applying execution rules
 -- Allows tracking extra information to control halting of rule application,
@@ -594,16 +594,17 @@ nonRedLibFuncs not_symbolic exec_names no_nrpc_names use_with_symb_func nrpc_cou
                          , type_env = tenv
                          , known_values = kv
                          , non_red_path_conds = nrs
+                         , tyvar_env = tvnv
                          }) 
                          b@(Bindings { name_gen = ng })
     | Var (Id n t):es <- unApp ce
     , not (n `HS.member` no_nrpc_names)
     , use_with_symb_func || (E.isSymbolic n eenv)
-    , hasFuncType (PresType t)
+    , hasFuncType t
     -- We want to introduce an NRPC only if the function is fully applied and does not have nested function argument types
-    , ce_ty <- typeOf $ ce
+    , ce_ty <- typeOf tvnv $ ce
     , not . hasNestedFuncType HS.empty $ ce_ty
-    , not . hasFuncType . PresType $ ce_ty
+    , not . hasFuncType $ ce_ty
     -- Don't turn functions manipulating "magic types"- types represented as Primitives, with special handling
     -- (for instance, MutVars, Handles) into NRPC symbolic variables.
     , not (hasMagicTypes ce)
@@ -612,7 +613,7 @@ nonRedLibFuncs not_symbolic exec_names no_nrpc_names use_with_symb_func nrpc_cou
     = 
         let
             (new_sym, ng') = freshSeededString "sym" ng
-            new_sym_id = Id new_sym (typeOf ce)
+            new_sym_id = Id new_sym (typeOf tvnv ce)
             eenv' = E.insertSymbolic new_sym_id eenv
             cexpr' = CurrExpr Return (Var new_sym_id)
             -- when NRPC moves back to current expression, it immediately gets added as NRPC again.
@@ -636,10 +637,10 @@ nonRedLibFuncs not_symbolic exec_names no_nrpc_names use_with_symb_func nrpc_cou
 
         hasNestedFuncType seen (TyCon n _)
             | n `HS.member` seen = False
-            | Just (NewTyCon { rep_type = rt }) <- HM.lookup n tenv, hasFuncType (PresType rt) = True
+            | Just (NewTyCon { rep_type = rt }) <- HM.lookup n tenv, hasFuncType rt = True
             | Just (NewTyCon { rep_type = rt }) <- HM.lookup n tenv = hasNestedFuncType (HS.insert n seen) rt
             | Just (DataTyCon { data_cons = dcs }) <- HM.lookup n tenv =
-                        any (\dc -> hasNestedFuncType (HS.insert n seen) . typeOf $ dc) dcs
+                        any (\dc -> hasNestedFuncType (HS.insert n seen) . typeOf tvnv $ dc) dcs
         hasNestedFuncType _ (TyFun (TyFun _ _) _) = True
         hasNestedFuncType _ (TyFun (TyForAll _ _) _) = True
         hasNestedFuncType seen t = getAny $ evalChildren (Any . hasNestedFuncType seen) t
@@ -825,7 +826,7 @@ nonRedPCRedFunc prune _
     | not (true_assert s), prune = return (Finished, [], b)
     | Var (Id n t) <- nre2
     , E.isSymbolic n eenv
-    , hasFuncType (PresType t) =
+    , hasFuncType t =
         let
             s' = s { expr_env = E.insert n nre1 eenv
                    , non_red_path_conds  = nrs }
@@ -833,7 +834,7 @@ nonRedPCRedFunc prune _
         return (InProgress, [(s', ())], b)
     | Var (Id n t) <- nre1
     , E.isSymbolic n eenv
-    , hasFuncType (PresType t) =
+    , hasFuncType t =
         let
             s' = s { expr_env = E.insert n nre2 eenv
                    , non_red_path_conds  = nrs }
@@ -860,25 +861,27 @@ nonRedPCRedFunc _ _ s b = return (Finished, [(s, ())], b)
 -- Substitutes all possible higher order functions for symbolic higher order functions.
 -- We insert the substituted higher order function directly into the model, because, due
 -- to the VAR-RED rule, the function name will (if the function is called) be lost during execution.
-substHigherOrder :: ExprEnv -> Model -> HS.HashSet Name -> CurrExpr -> [(ExprEnv, Model, CurrExpr)]
-substHigherOrder eenv m ns ce =
+
+-- TODO: is the update I am doing here due to the change in typeOf correct?
+substHigherOrder :: TV.TyVarEnv -> ExprEnv -> Model -> HS.HashSet Name -> CurrExpr -> [(ExprEnv, Model, CurrExpr)]
+substHigherOrder tv eenv m ns ce =
     let
         is = mapMaybe (\n -> case E.lookup n eenv of
-                                Just e -> Just $ Id n (typeOf e)
+                                Just e -> Just $ Id n (typeOf tv e)
                                 Nothing -> Nothing) $ HS.toList ns
 
-        higherOrd = filter (isTyFun . typeOf) . symbVars eenv $ ce
-        higherOrdSub = map (\v -> (v, mapMaybe (genSubstitutable v) is)) higherOrd
+        higherOrd = filter (isTyFun . typeOf tv) . symbVars eenv $ ce
+        higherOrdSub = map (\v -> (v, mapMaybe (genSubstitutable v) (map (typeOf tv) is) )) higherOrd
     in
     substHigherOrder' [(eenv, m, ce)] higherOrdSub
     where
         genSubstitutable v i
-            | Just bm <- specializes (typeOf v) (typeOf i) =
+            | Just bm <- specializes (typeOf tv v) (typeOf tv i) =
                 let
                     bnds = map idName $ leadingTyForAllBindings i
-                    tys = mapMaybe (\b -> fmap Type $ M.lookup b bm) bnds
+                    tys = mapMaybe (\b -> fmap Type $ TV.lookup b bm) bnds
                 in
-                Just . mkApp $ Var i:tys
+                Just . mkApp $ Type i:tys
             | otherwise = Nothing
 
 substHigherOrder' :: [(ExprEnv, Model, CurrExpr)] -> [(Id, [Expr])] -> [(ExprEnv, Model, CurrExpr)]
