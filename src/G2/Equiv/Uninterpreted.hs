@@ -12,7 +12,6 @@ import qualified Data.HashMap.Lazy as HM
 import qualified Data.HashSet as HS
 import qualified Data.Text as T
 import qualified G2.Language.TyVarEnv as TV 
-import qualified G2.Language.TyVarEnv as TV
 
 -- | Find variables that don't have binding and adjust the epxression environment to treat them as symbolic 
 addFreeVarsAsSymbolic :: ExprEnv -> ExprEnv 

@@ -27,6 +27,7 @@ import qualified Data.List as L
 import Data.Maybe
 import qualified G2.Language.ExprEnv as E
 import G2.Language.MutVarEnv
+import qualified G2.Language.TyVarEnv as TV 
 
 import GHC.Float
 
@@ -119,13 +120,13 @@ evalPrimWithState :: State t -- ^ Context to evaluate expression `e` in
                   -> NameGen
                   -> Expr -- ^ The expression `e` to evaluate
                   -> Maybe (NewPC t, NameGen) -- ^ `Just` if `e` is a primitive operation that this function reduces, `Nothing` otherwise
-evalPrimWithState s@(State { known_values = kv, type_env = tenv, expr_env = eenv }) ng (App (Prim DecodeFloat _) e_arg) | e <- deepLookupExprPastTicks e_arg eenv =
+evalPrimWithState s@(State { known_values = kv, type_env = tenv, expr_env = eenv, tyvar_env = tvnv }) ng (App (Prim DecodeFloat _) e_arg) | e <- deepLookupExprPastTicks e_arg eenv =
     let
 
         -- The decodeFloat function returns a (signed and scaled) significand and exponent from a float.
         -- More details on scaling are in Note [Scaled decodeFloat], below.
 
-        (ex_bits, sig_bits_1) = expSigBits (typeOf e)
+        (ex_bits, sig_bits_1) = expSigBits (typeOf tvnv e)
         sig_bits = sig_bits_1 - 1
         ty_ex = TyLitBV ex_bits
         ty_sig = TyLitBV sig_bits
@@ -262,7 +263,7 @@ evalPrimWithState s@(State { expr_env = eenv }) ng (App (App (Prim EncodeFloat t
         --  (1) setting the exponent bits to the signed representation of (n + bias) and the significand to 0. (For exponents which fit in the exponent bits.)
         --  (2) setting the exponent field to all 0s, and having a single significand bit set to 1 (for powers of 2 representable as denormalized numbers.)
 
-        rt = returnType (PresType t)
+        rt = returnType t
 
         m = deepLookupExprPastTicks m_arg eenv
         n = deepLookupExprPastTicks n_arg eenv
@@ -374,7 +375,7 @@ evalPrimWithState s ng (App (App (Prim HandlePutChar _) c) hnd)
     , Just hi <- M.lookup n (handles s) =
         let
             pos = h_pos hi
-            ty_string = typeOf pos
+            ty_string = typeOf (tyvar_env s) pos
 
             (new_pos, ng') = freshSeededId (Name "pos" Nothing 0 Nothing) ty_string ng
             e = mkApp [mkCons (known_values s) (type_env s), Type ty_string, c, Var new_pos]
@@ -601,8 +602,8 @@ evalPrim3 kv Ite (Data (DataCon { dc_name = b })) e1 e2 | b == KV.dcTrue kv = Ju
 evalPrim3 _ p _ _ _ = Nothing
 
 -- | Evaluate certain primitives applied to symbolic expressions, when possible
-evalPrimSymbolic :: ExprEnv -> TypeEnv -> NameGen -> KnownValues -> Expr -> Maybe (Expr, ExprEnv, [PathCond], NameGen)
-evalPrimSymbolic eenv tenv ng kv e
+evalPrimSymbolic :: TV.TyVarEnv -> ExprEnv -> TypeEnv -> NameGen -> KnownValues -> Expr -> Maybe (Expr, ExprEnv, [PathCond], NameGen)
+evalPrimSymbolic tv eenv tenv ng kv e
     | [Prim DataToTag _, type_t, cse] <- unApp e
     , Type t <- dig eenv type_t
     , Case v@(Var _) _ _ alts <- cse
@@ -631,7 +632,7 @@ evalPrimSymbolic eenv tenv ng kv e
     -- (which has type Int# -> a).  Instead, we simply return the Bool directly.
     | tBool <- tyBool kv
     , [Prim TagToEnum _, _, pe] <- unApp e
-    , typeOf (dig eenv pe) == tBool = Just (pe, eenv, [], ng)
+    , typeOf tv (dig eenv pe) == tBool = Just (pe, eenv, [], ng)
     | [Prim TagToEnum _, type_t, pe] <- unApp e
     , Type t <- dig eenv type_t =
         case unTyApp t of
@@ -646,7 +647,7 @@ evalPrimSymbolic eenv tenv ng kv e
             _ -> error "evalTypeLitPrim2: Unsupported Primitive Op"
     | otherwise = Nothing
     where
-        eq e1 = App (App (mkEqPrimType (typeOf e1) kv) e1)
+        eq e1 = App (App (mkEqPrimType (typeOf tv e1) kv) e1)
 
 dig :: ExprEnv -> Expr -> Expr
 dig eenv (Var (Id n _)) | Just (E.Conc e) <- E.lookupConcOrSym n eenv = dig eenv e

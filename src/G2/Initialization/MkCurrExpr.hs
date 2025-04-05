@@ -15,7 +15,6 @@ import Data.Maybe
 import qualified Data.Text as T
 import qualified Data.HashMap.Lazy as HM 
 import qualified G2.Language.TyVarEnv as TV 
-import qualified G2.Language.TyVarEnv as TV
 
 mkCurrExpr :: TV.TyVarEnv -> Maybe T.Text -> Maybe T.Text -> Id
            -> TypeClasses -> NameGen -> ExprEnv -> TypeEnv
@@ -25,22 +24,22 @@ mkCurrExpr tv m_assume m_assert f@(Id (Name _ m_mod _ _) _) tc ng eenv tenv kv c
         Just ex ->
             let
                 var_ex = Var (Id (idName f) (typeOf tv ex))
-                (m_coer, coer_var_ex) = coerceRetNewTypes tenv var_ex
+                (m_coer, coer_var_ex) = coerceRetNewTypes tv tenv var_ex
 
                 -- -- We refind the type of f, because type synonyms get replaced during the initializaton,
                 -- -- after we first got the type of f.
                 (app_ex, is, typsE, ng') =
                     if instTV config == InstBefore
-                        then mkMainExpr tc kv ng coer_var_ex
-                        else mkMainExprNoInstantiateTypes coer_var_ex ng
+                        then mkMainExpr tv tc kv ng coer_var_ex
+                        else mkMainExprNoInstantiateTypes tv coer_var_ex ng
                 var_ids = map Var is
 
                 (name, ng'') = freshName ng'
                 id_name = Id name (typeOf tv app_ex)
                 var_name = Var id_name
 
-                assume_ex = mkAssumeAssert (Assume Nothing) m_assume m_mod (typsE ++ var_ids) var_name var_name eenv
-                assert_ex = mkAssumeAssert (Assert Nothing) m_assert m_mod (typsE ++ var_ids) assume_ex var_name eenv
+                assume_ex = mkAssumeAssert tv (Assume Nothing) m_assume m_mod (typsE ++ var_ids) var_name var_name eenv
+                assert_ex = mkAssumeAssert tv (Assert Nothing) m_assert m_mod (typsE ++ var_ids) assume_ex var_name eenv
 
                 retsTrue_ex = if returnsTrue config then retsTrue assert_ex else assert_ex
 
@@ -82,10 +81,10 @@ coerceRetNewTypes tv tenv e =
         replace_ret_ty c (TyFun t t') = TyFun t $ replace_ret_ty c t'
         replace_ret_ty c _ = c
 
-mkMainExpr :: TypeClasses -> KnownValues -> NameGen -> Expr -> (Expr, [Id], [Expr], NameGen)
-mkMainExpr tc kv ng ex =
+mkMainExpr :: TV.TyVarEnv -> TypeClasses -> KnownValues -> NameGen -> Expr -> (Expr, [Id], [Expr], NameGen)
+mkMainExpr tv tc kv ng ex =
     let
-        typs = spArgumentTypes ex
+        typs = spArgumentTypes (typeOf tv ex)
 
         (typsE, typs') = instantitateTypes tc kv typs
 
@@ -97,10 +96,10 @@ mkMainExpr tc kv ng ex =
 
 -- | This implementation aims to symbolically execute functions 
 -- treating both types and value level argument as symbolic
-mkMainExprNoInstantiateTypes :: Expr -> NameGen -> (Expr, [Id], [Expr], NameGen)
-mkMainExprNoInstantiateTypes e ng = 
+mkMainExprNoInstantiateTypes :: TV.TyVarEnv -> Expr -> NameGen -> (Expr, [Id], [Expr], NameGen)
+mkMainExprNoInstantiateTypes tv e ng = 
     let 
-        argts = spArgumentTypes e
+        argts = spArgumentTypes (typeOf tv e)
         anontype argt = 
             case argt of 
                 AnonType _ -> True
