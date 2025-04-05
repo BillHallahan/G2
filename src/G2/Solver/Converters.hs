@@ -44,6 +44,7 @@ import qualified G2.Language.ExprEnv as E
 import qualified G2.Language.PathConds as PC
 import G2.Solver.Language
 import G2.Solver.Solver
+import qualified G2.Language.TyVarEnv as TV
 
 -- | Used to describe the specific output format required by various solvers
 -- By defining these functions, we can automatically convert from the SMTHeader and SMTAST
@@ -294,24 +295,24 @@ isCoreSort _ = False
 
 -------------------------------------------------------------------------------
 
-pathConsToSMTHeaders :: [PathCond] -> [SMTHeader]
-pathConsToSMTHeaders = map pathConsToSMT
+pathConsToSMTHeaders :: TV.TyVarEnv -> [PathCond] -> [SMTHeader]
+pathConsToSMTHeaders tv = map (pathConsToSMT tv)
 
-pathConsToSMT :: PathCond -> SMTHeader
-pathConsToSMT (MinimizePC e) = Minimize $ exprToSMT e
-pathConsToSMT (SoftPC pc) = AssertSoft (pathConsToSMT' pc) Nothing
-pathConsToSMT pc = Assert (pathConsToSMT' pc) 
+pathConsToSMT :: TV.TyVarEnv -> PathCond -> SMTHeader
+pathConsToSMT tv (MinimizePC e) = Minimize $ exprToSMT tv e
+pathConsToSMT tv (SoftPC pc) = AssertSoft (pathConsToSMT' tv pc) Nothing
+pathConsToSMT tv pc = Assert (pathConsToSMT' tv pc) 
 
-pathConsToSMT' :: PathCond -> SMTAST
-pathConsToSMT' (AltCond l e b) =
+pathConsToSMT' :: TV.TyVarEnv -> PathCond -> SMTAST
+pathConsToSMT' tv (AltCond l e b) =
     let
-        exprSMT = exprToSMT e
+        exprSMT = exprToSMT tv e
         altSMT = altToSMT l e
     in
     if b then exprSMT := altSMT else (:!) (exprSMT := altSMT) 
-pathConsToSMT' (ExtCond e b) =
+pathConsToSMT' tv (ExtCond e b) =
     let
-        exprSMT = exprToSMT e
+        exprSMT = exprToSMT tv e
     in
     if b then exprSMT else (:!) exprSMT
 pathConsToSMT' (AssumePC (Id n t) num pc) =
@@ -324,9 +325,9 @@ pathConsToSMT' (AssumePC (Id n t) num pc) =
 pathConsToSMT' (MinimizePC _) = error "pathConsToSMT': unsupported nesting of MinimizePC."
 pathConsToSMT' (SoftPC _) = error "pathConsToSMT': unsupported nesting of SoftPC."
 
-exprToSMT :: Expr -> SMTAST
-exprToSMT (Var (Id n t)) = V (nameToStr n) (typeToSMT t)
-exprToSMT (Lit c) =
+exprToSMT :: TV.TyVarEnv -> Expr -> SMTAST
+exprToSMT _ (Var (Id n t)) = V (nameToStr n) (typeToSMT t)
+exprToSMT _ (Lit c) =
     case c of
         LitInt i -> VInt i
         LitFloat f -> VFloat f
@@ -335,23 +336,23 @@ exprToSMT (Lit c) =
         LitBV bv -> VBitVec bv
         LitChar ch -> VChar ch
         err -> error $ "exprToSMT: invalid Expr: " ++ show err
-exprToSMT (Data (DataCon n (TyCon (Name "Bool" _ _ _) _ ) _ _)) =
+exprToSMT _ (Data (DataCon n (TyCon (Name "Bool" _ _ _) _ ) _ _)) =
     case nameOcc n of
         "True" -> VBool True
         "False" -> VBool False
         _ -> error "Invalid bool in exprToSMT"
-exprToSMT (Data (DataCon n t _ _)) = V (nameToStr n) (typeToSMT t)
-exprToSMT (App (Data (DataCon (Name "[]" _ _ _) _ _ _)) (Type (TyCon (Name "Char" _ _ _) _))) = VString ""
-exprToSMT e | [ Data (DataCon (Name ":" _ _ _) _ _ _)
+exprToSMT _ (Data (DataCon n t _ _)) = V (nameToStr n) (typeToSMT t)
+exprToSMT _ (App (Data (DataCon (Name "[]" _ _ _) _ _ _)) (Type (TyCon (Name "Char" _ _ _) _))) = VString ""
+exprToSMT tv e | [ Data (DataCon (Name ":" _ _ _) _ _ _)
               , Type (TyCon (Name "Char" _ _ _) _)
               , App _ e1
-              , e2] <- unApp e = exprToSMT e1 :++ exprToSMT e2
-exprToSMT a@(App _ _) =
+              , e2] <- unApp e = exprToSMT tv e1 :++ exprToSMT tv e2
+exprToSMT tv a@(App _ _) =
     let
         f = getFunc a
         ars = getArgs a
     in
-    funcToSMT f ars
+    funcToSMT tv f ars
     where
         getFunc :: Expr -> Expr
         getFunc v@(Var _) = v
@@ -363,23 +364,23 @@ exprToSMT a@(App _ _) =
         getArgs :: Expr -> [Expr]
         getArgs (App a1 a2) = getArgs a1 ++ [a2]
         getArgs _ = []
-exprToSMT e = error $ "exprToSMT: unhandled Expr: " ++ show e
+exprToSMT _ e = error $ "exprToSMT: unhandled Expr: " ++ show e
 
 -- | We split based on whether the passed Expr is a function or known data constructor, or an unknown data constructor
-funcToSMT :: Expr -> [Expr] -> SMTAST
-funcToSMT (Prim p _) [a] = funcToSMT1Prim p a
-funcToSMT (Prim p _) [a1, a2] = funcToSMT2Prim p a1 a2
-funcToSMT (Prim p _) [a1, a2, a3] = funcToSMT3Prim p a1 a2 a3
-funcToSMT e l = error ("Unrecognized " ++ show e ++ " with args " ++ show l ++ " in funcToSMT")
+funcToSMT :: TV.TyVarEnv -> Expr -> [Expr] -> SMTAST
+funcToSMT tv (Prim p _) [a] = funcToSMT1Prim tv p a
+funcToSMT tv (Prim p _) [a1, a2] = funcToSMT2Prim tv p a1 a2
+funcToSMT tv (Prim p _) [a1, a2, a3] = funcToSMT3Prim tv p a1 a2 a3
+funcToSMT _ e l = error ("Unrecognized " ++ show e ++ " with args " ++ show l ++ " in funcToSMT")
 
-funcToSMT1Prim :: Primitive -> Expr -> SMTAST
-funcToSMT1Prim Negate a = Neg (exprToSMT a)
-funcToSMT1Prim FpNeg a = FpNegSMT (exprToSMT a)
-funcToSMT1Prim FpSqrt e = FpSqrtSMT (exprToSMT e)
-funcToSMT1Prim TruncZero e | typeOf e == TyLitFloat = FloatToIntSMT (TruncZeroSMT (exprToSMT e))
-                           | typeOf e == TyLitDouble = DoubleToIntSMT (TruncZeroSMT (exprToSMT e))
-funcToSMT1Prim DecimalPart e | typeOf e == TyLitFloat = exprToSMT e `FpSubSMT` TruncZeroSMT (exprToSMT e)
-                             | typeOf e == TyLitDouble = exprToSMT e `FpSubSMT` TruncZeroSMT (exprToSMT e)
+funcToSMT1Prim :: TV.TyVarEnv -> Primitive -> Expr -> SMTAST
+funcToSMT1Prim tv Negate a = Neg (exprToSMT tv a)
+funcToSMT1Prim tv FpNeg a = FpNegSMT (exprToSMT tv a)
+funcToSMT1Prim tv FpSqrt e = FpSqrtSMT (exprToSMT tv e)
+funcToSMT1Prim tv TruncZero e | typeOf tv e == TyLitFloat = FloatToIntSMT (TruncZeroSMT (exprToSMT tv e))
+                           | typeOf tv e == TyLitDouble = DoubleToIntSMT (TruncZeroSMT (exprToSMT tv e))
+funcToSMT1Prim tv DecimalPart e | typeOf tv e == TyLitFloat = exprToSMT tv e `FpSubSMT` TruncZeroSMT (exprToSMT tv e)
+                             | typeOf tv e == TyLitDouble = exprToSMT tv e `FpSubSMT` TruncZeroSMT (exprToSMT tv e)
 funcToSMT1Prim FpIsNegativeZero e =
     let
         nz = "INTERNAL_!!_IsNegZero"
@@ -413,59 +414,59 @@ funcToSMT1Prim OrdChar e = ToCode (exprToSMT e)
 funcToSMT1Prim StrLen e = StrLenSMT (exprToSMT e)
 funcToSMT1Prim err _ = error $ "funcToSMT1Prim: invalid Primitive " ++ show err
 
-funcToSMT2Prim :: Primitive -> Expr -> Expr -> SMTAST
-funcToSMT2Prim And a1 a2 = SmtAnd [exprToSMT a1, exprToSMT a2]
-funcToSMT2Prim Or a1 a2 = SmtOr [exprToSMT a1, exprToSMT a2]
-funcToSMT2Prim Implies a1 a2 = exprToSMT a1 :=> exprToSMT a2
-funcToSMT2Prim Iff a1 a2 = exprToSMT a1 :<=> exprToSMT a2
-funcToSMT2Prim Ge a1 a2 = exprToSMT a1 :>= exprToSMT a2
-funcToSMT2Prim Gt a1 a2 = exprToSMT a1 :> exprToSMT a2
-funcToSMT2Prim Eq a1 a2 = exprToSMT a1 := exprToSMT a2
-funcToSMT2Prim Neq a1 a2 = exprToSMT a1 :/= exprToSMT a2
-funcToSMT2Prim Lt a1 a2 = exprToSMT a1 :< exprToSMT a2
-funcToSMT2Prim Le a1 a2 = exprToSMT a1 :<= exprToSMT a2
-funcToSMT2Prim Plus a1 a2 = exprToSMT a1 :+ exprToSMT a2
-funcToSMT2Prim Minus a1 a2 = exprToSMT a1 :- exprToSMT a2
-funcToSMT2Prim Mult a1 a2 = exprToSMT a1 :* exprToSMT a2
-funcToSMT2Prim Div a1 a2 = exprToSMT a1 :/ exprToSMT a2
-funcToSMT2Prim Exp a1 a2 = exprToSMT a1 :^ exprToSMT a2
+funcToSMT2Prim :: TV.TyVarEnv -> Primitive -> Expr -> Expr -> SMTAST
+funcToSMT2Prim tv And a1 a2 = SmtAnd [exprToSMT tv a1, exprToSMT tv a2]
+funcToSMT2Prim tv Or a1 a2 = SmtOr [exprToSMT tv a1, exprToSMT tv a2]
+funcToSMT2Prim tv Implies a1 a2 = exprToSMT tv a1 :=> exprToSMT tv a2
+funcToSMT2Prim tv Iff a1 a2 = exprToSMT tv a1 :<=> exprToSMT tv a2
+funcToSMT2Prim tv Ge a1 a2 = exprToSMT tv a1 :>= exprToSMT tv a2
+funcToSMT2Prim tv Gt a1 a2 = exprToSMT tv a1 :> exprToSMT tv a2
+funcToSMT2Prim tv Eq a1 a2 = exprToSMT tv a1 := exprToSMT tv a2
+funcToSMT2Prim tv Neq a1 a2 = exprToSMT tv a1 :/= exprToSMT tv a2
+funcToSMT2Prim tv Lt a1 a2 = exprToSMT tv a1 :< exprToSMT tv a2
+funcToSMT2Prim tv Le a1 a2 = exprToSMT tv a1 :<= exprToSMT tv a2
+funcToSMT2Prim tv Plus a1 a2 = exprToSMT tv a1 :+ exprToSMT tv a2
+funcToSMT2Prim tv Minus a1 a2 = exprToSMT tv a1 :- exprToSMT tv a2
+funcToSMT2Prim tv Mult a1 a2 = exprToSMT tv a1 :* exprToSMT tv a2
+funcToSMT2Prim tv Div a1 a2 = exprToSMT tv a1 :/ exprToSMT tv a2
+funcToSMT2Prim tv Exp a1 a2 = exprToSMT tv a1 :^ exprToSMT tv a2
 
-funcToSMT2Prim AddBV a1 a2 = exprToSMT a1 `BVAdd` exprToSMT a2
-funcToSMT2Prim MinusBV a1 a2 = exprToSMT a1 `BVAdd` BVNeg (exprToSMT a2)
-funcToSMT2Prim MultBV a1 a2 = exprToSMT a1 `BVMult` exprToSMT a2
-funcToSMT2Prim ConcatBV a1 a2 = exprToSMT a1 `Concat` exprToSMT a2
-funcToSMT2Prim ShiftLBV a1 a2 = exprToSMT a1 `ShiftL` exprToSMT a2
-funcToSMT2Prim ShiftRBV a1 a2 = exprToSMT a1 `ShiftR` exprToSMT a2
+funcToSMT2Prim tv AddBV a1 a2 = exprToSMT tv a1 `BVAdd` exprToSMT tv a2
+funcToSMT2Prim tv MinusBV a1 a2 = exprToSMT tv a1 `BVAdd` BVNeg (exprToSMT tv a2)
+funcToSMT2Prim tv MultBV a1 a2 = exprToSMT tv a1 `BVMult` exprToSMT tv a2
+funcToSMT2Prim tv ConcatBV a1 a2 = exprToSMT tv a1 `Concat` exprToSMT tv a2
+funcToSMT2Prim tv ShiftLBV a1 a2 = exprToSMT tv a1 `ShiftL` exprToSMT tv a2
+funcToSMT2Prim tv ShiftRBV a1 a2 = exprToSMT tv a1 `ShiftR` exprToSMT tv a2
 
-funcToSMT2Prim FpAdd a1 a2 = exprToSMT a1 `FpAddSMT` exprToSMT a2
-funcToSMT2Prim FpSub a1 a2 = exprToSMT a1 `FpSubSMT` exprToSMT a2
-funcToSMT2Prim FpMul a1 a2 = exprToSMT a1 `FpMulSMT` exprToSMT a2
-funcToSMT2Prim FpDiv a1 a2 = exprToSMT a1 `FpDivSMT` exprToSMT a2
+funcToSMT2Prim tv FpAdd a1 a2 = exprToSMT tv a1 `FpAddSMT` exprToSMT tv a2
+funcToSMT2Prim tv FpSub a1 a2 = exprToSMT tv a1 `FpSubSMT` exprToSMT tv a2
+funcToSMT2Prim tv FpMul a1 a2 = exprToSMT tv a1 `FpMulSMT` exprToSMT tv a2
+funcToSMT2Prim tv FpDiv a1 a2 = exprToSMT tv a1 `FpDivSMT` exprToSMT tv a2
 
-funcToSMT2Prim FpLeq a1 a2 = exprToSMT a1 `FpLeqSMT` exprToSMT a2
-funcToSMT2Prim FpLt a1 a2 = exprToSMT a1 `FpLtSMT` exprToSMT a2
-funcToSMT2Prim FpGeq a1 a2 = exprToSMT a1 `FpGeqSMT` exprToSMT a2
-funcToSMT2Prim FpGt a1 a2 = exprToSMT a1 `FpGtSMT` exprToSMT a2
-funcToSMT2Prim FpEq a1 a2 = exprToSMT a1 `FpEqSMT` exprToSMT a2
-funcToSMT2Prim FpNeq a1 a2 = (:!) (exprToSMT a1 `FpEqSMT` exprToSMT a2)
+funcToSMT2Prim tv FpLeq a1 a2 = exprToSMT tv a1 `FpLeqSMT` exprToSMT tv a2
+funcToSMT2Prim tv FpLt a1 a2 = exprToSMT tv a1 `FpLtSMT` exprToSMT tv a2
+funcToSMT2Prim tv FpGeq a1 a2 = exprToSMT tv a1 `FpGeqSMT` exprToSMT tv a2
+funcToSMT2Prim tv FpGt a1 a2 = exprToSMT tv a1 `FpGtSMT` exprToSMT tv a2
+funcToSMT2Prim tv FpEq a1 a2 = exprToSMT tv a1 `FpEqSMT` exprToSMT tv a2
+funcToSMT2Prim tv FpNeq a1 a2 = (:!) (exprToSMT tv a1 `FpEqSMT` exprToSMT tv a2)
 
-funcToSMT2Prim Quot a1 a2 = exprToSMT a1 `QuotSMT` exprToSMT a2
-funcToSMT2Prim Mod a1 a2 = exprToSMT a1 `Modulo` exprToSMT a2
-funcToSMT2Prim Rem a1 a2 = exprToSMT a1 :- ((exprToSMT a1 `QuotSMT` exprToSMT a2) :* exprToSMT a2) -- TODO: more efficient encoding?
-funcToSMT2Prim RationalToFloat a1 a2  = exprToSMT a1 :/ exprToSMT a2
-funcToSMT2Prim RationalToDouble a1 a2  = exprToSMT a1 :/ exprToSMT a2
+funcToSMT2Prim tv Quot a1 a2 = exprToSMT tv a1 `QuotSMT` exprToSMT tv a2
+funcToSMT2Prim tv Mod a1 a2 = exprToSMT tv a1 `Modulo` exprToSMT tv a2
+funcToSMT2Prim tv Rem a1 a2 = exprToSMT tv a1 :- ((exprToSMT tv a1 `QuotSMT` exprToSMT tv a2) :* exprToSMT tv a2) -- TODO: more efficient encoding?
+funcToSMT2Prim tv RationalToFloat a1 a2  = exprToSMT tv a1 :/ exprToSMT tv a2
+funcToSMT2Prim tv RationalToDouble a1 a2  = exprToSMT tv a1 :/ exprToSMT tv a2
 
-funcToSMT2Prim StrGe a1 a2 = exprToSMT a1 `StrGeSMT` exprToSMT a2
-funcToSMT2Prim StrGt a1 a2 = exprToSMT a1 `StrGtSMT` exprToSMT a2
-funcToSMT2Prim StrLt a1 a2 = exprToSMT a1 `StrLtSMT` exprToSMT a2
-funcToSMT2Prim StrLe a1 a2 = exprToSMT a1 `StrLeSMT` exprToSMT a2
-funcToSMT2Prim StrAppend a1 a2  = exprToSMT a1 :++ exprToSMT a2
-funcToSMT2Prim op lhs rhs = error $ "funcToSMT2Prim: invalid case with (op, lhs, rhs): " ++ show (op, lhs, rhs)
+funcToSMT2Prim tv StrGe a1 a2 = exprToSMT tv a1 `StrGeSMT` exprToSMT tv a2
+funcToSMT2Prim tv StrGt a1 a2 = exprToSMT tv a1 `StrGtSMT` exprToSMT tv a2
+funcToSMT2Prim tv StrLt a1 a2 = exprToSMT tv a1 `StrLtSMT` exprToSMT tv a2
+funcToSMT2Prim tv StrLe a1 a2 = exprToSMT tv a1 `StrLeSMT` exprToSMT tv a2
+funcToSMT2Prim tv StrAppend a1 a2  = exprToSMT tv a1 :++ exprToSMT tv a2
+funcToSMT2Prim _ op lhs rhs = error $ "funcToSMT2Prim: invalid case with (op, lhs, rhs): " ++ show (op, lhs, rhs)
 
-funcToSMT3Prim :: Primitive -> Expr -> Expr -> Expr -> SMTAST
-funcToSMT3Prim Fp x y z = FpSMT  (exprToSMT x) (exprToSMT y) (exprToSMT z)
-funcToSMT3Prim Ite x y z = IteSMT (exprToSMT x) (exprToSMT y) (exprToSMT z)
-funcToSMT3Prim op _ _ _ = error $ "funcToSMT3Prim: invalid case with " ++ show op
+funcToSMT3Prim :: TV.TyVarEnv -> Primitive -> Expr -> Expr -> Expr -> SMTAST
+funcToSMT3Prim tv Fp x y z = FpSMT  (exprToSMT tv x) (exprToSMT tv y) (exprToSMT tv z)
+funcToSMT3Prim tv Ite x y z = IteSMT (exprToSMT tv x) (exprToSMT tv y) (exprToSMT tv z)
+funcToSMT3Prim _ op _ _ _ = error $ "funcToSMT3Prim: invalid case with " ++ show op
 
 altToSMT :: Lit -> Expr -> SMTAST
 altToSMT (LitInt i) _ = VInt i
