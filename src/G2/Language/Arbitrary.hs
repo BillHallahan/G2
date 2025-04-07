@@ -101,7 +101,7 @@ instance Arbitrary ArbSet where
         t <- arbFunType tenv
         let t' = case returnType t of
                         TyCon n _ | Just (DataTyCon {data_cons = dc }) <- HM.lookup n tenv
-                                  , any isTyFun $ concatMap argumentTypes dc -> addTyLitInt t
+                                  , any isTyFun $ concatMap (argumentTypes . typeOf TV.empty) dc -> addTyLitInt t
                         _ -> t
         e <- arbExpr tenv t'
         return $ ArbSet { arb_type_env = tenv, arb_expr = e }
@@ -124,7 +124,7 @@ prettyArbSet as =
     let
         pg = mkPrettyGuide as
 
-        tenv_str = prettyTypeEnv pg (arb_type_env as)
+        tenv_str = prettyTypeEnv TV.empty pg (arb_type_env as)
         e_str = printHaskellDirtyPG pg (arb_expr as)
     in
     T.unpack $ "TypeEnv\n" <> tenv_str <> "\nExpr\n" <> e_str
@@ -248,7 +248,7 @@ arbExpr tenv init_t = sized $ \k -> arbExpr' k HM.empty init_t
         -- Apply arbitrary arguments to eliminate all function arrows
         arbWrap :: Int -> TypeMap -> Expr -> Gen Expr
         arbWrap k tm e = do
-            let ts = anonArgumentTypes e
+            let ts = anonArgumentTypes $ typeOf TV.empty e
             es <- mapM (arbExpr' (k `div` length ts) tm) ts
             return $ mkApp (e:es)
 
@@ -293,7 +293,7 @@ arbExpr tenv init_t = sized $ \k -> arbExpr' k HM.empty init_t
         arbAltDC :: Int -> TypeMap -> Type -> DataCon -> Gen Alt
         arbAltDC k tm t dc = do
             AN (Name p _ _ _) <- arbitrary
-            let ts = anonArgumentTypes dc
+            let ts = anonArgumentTypes $ typeOf TV.empty dc
                 ps = map (\i -> Name p Nothing i Nothing) [1..length ts]
                 is = zipWith Id ps ts
                 tm' = foldl' (\tm_ (p_, t_) -> HM.insert p_ t_ tm_) tm $ zip ps ts
@@ -342,8 +342,8 @@ shrinkExpr (App e1 e2) =
 shrinkExpr (Lit (LitInt x)) = [Lit (LitInt x') | x' <- shrink x]
 shrinkExpr (Lit (LitFloat x)) = [Lit (LitFloat x') | x' <- shrink x]
 
-shrinkExpr (Var i) | typeOf i == TyLitInt = [Lit (LitInt 0)]
-                   | typeOf i == TyLitFloat = [Lit (LitFloat 0)]
+shrinkExpr (Var i) | typeOf TV.empty i == TyLitInt = [Lit (LitInt 0)]
+                   | typeOf TV.empty i == TyLitFloat = [Lit (LitFloat 0)]
 
 shrinkExpr _ = []
 

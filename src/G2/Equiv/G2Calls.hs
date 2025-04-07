@@ -41,6 +41,7 @@ import qualified Data.Text as T
 import Data.Hashable
 import qualified Data.List as L
 
+import qualified G2.Language.TyVarEnv as TV 
 import GHC.Generics (Generic)
 
 -- get names from symbolic ids in the state
@@ -133,10 +134,11 @@ concSymReducer use_labels = mkSimpleReducer
                  s@(State { curr_expr = CurrExpr _ (Var (Id n t))
                           , expr_env = eenv
                           , type_env = tenv
-                          , track = EquivTracker et m total dcp opp fname })
+                          , track = EquivTracker et m total dcp opp fname
+                          , tyvar_env = tvnv })
                  b@(Bindings { name_gen = ng })
             | E.isSymbolic n eenv
-            , Just (dc_symbs, ng') <- arbDC use_labels tenv ng t n total = do
+            , Just (dc_symbs, ng') <- arbDC tvnv use_labels tenv ng t n total = do
                 let new_names = map idName $ concat $ map snd dc_symbs
                     total' = if n `elem` total
                             then foldr HS.insert total new_names
@@ -159,14 +161,15 @@ concSymReducer use_labels = mkSimpleReducer
 -- | Build a case expression with one alt for each data constructor of the given type
 -- and symbolic arguments.  Thus, the case expression could evaluate to any value of the
 -- given type.
-arbDC :: UseLabeledErrors
+arbDC :: TV.TyVarEnv 
+      -> UseLabeledErrors
       -> TypeEnv
       -> NameGen
       -> Type
       -> Name
       -> HS.HashSet Name
       -> Maybe ([(Expr, [Id])], NameGen)
-arbDC use_labels tenv ng t n total
+arbDC tv use_labels tenv ng t n total
     | TyCon tn _:ts <- unTyApp t
     , Just adt <- HM.lookup tn tenv =
         let
@@ -190,10 +193,12 @@ arbDC use_labels tenv ng t n total
                             re_anon = foldr (\(i, ty) -> retype i ty) anon_ts bound_ts
                             (ars, ng_') = freshIds re_anon ng_
                         in
-                        (ng_', (mkApp $ dc:map Var ars, ars))
+                            -- TODO: why is this having a problem and 
+                            -- whether the way I am handling it correct?
+                        (ng_', (mkApp $ Type dc:map Var ars, ars))
                     )
                     ng'
-                    (if n `elem` total then ty_apped_dcs else ty_apped_dcs')
+                    (if n `elem` total then map (typeOf tv) ty_apped_dcs else map (typeOf tv) ty_apped_dcs')
         in
         Just (dc_symbs, ng'')
     | otherwise = Nothing
@@ -289,7 +294,7 @@ labeledErrorsHalter = mkSimpleHalter (const ())
 
 -- this does not account for type arguments
 argCount :: Type -> Int
-argCount = length . spArgumentTypes . PresType
+argCount = length . spArgumentTypes
 
 exprFullApp :: ExprEnv -> Expr -> Bool
 exprFullApp h e | (Tick (NamedLoc (Name p _ _ _)) f):as <- unApp e
@@ -360,7 +365,8 @@ equivReducer = mkSimpleReducer
         rr _
            s@(State { expr_env = eenv
                     , curr_expr = CurrExpr Evaluate e
-                    , track = EquivTracker et m total dcp opp fname })
+                    , track = EquivTracker et m total dcp opp fname
+                    , tyvar_env = tvnv })
            b@(Bindings { name_gen = ng })
            | isSymFuncApp eenv (removeAllTicks e) =
                 let
@@ -380,7 +386,7 @@ equivReducer = mkSimpleReducer
                         return (InProgress, [(s', ())], b)
                     Nothing ->
                         let
-                            (v, ng') = freshId (typeOf e) ng
+                            (v, ng') = freshId (typeOf tvnv e) ng
                             et' = HM.insert e' v et
                             -- carry over totality if function and all args are total
                             all_total = all (totalExpr s HS.empty []) $ unApp e'
@@ -453,7 +459,7 @@ isSymFuncApp :: ExprEnv -> Expr -> Bool
 isSymFuncApp eenv e
     | v@(Var _):(_:_) <- unApp e
     , (Var (Id f t)) <- inlineVars eenv v =
-       E.isSymbolic f eenv && hasFuncType (PresType t)
+       E.isSymbolic f eenv && hasFuncType t
     | otherwise = False
 
 removeTicks :: Expr -> Expr

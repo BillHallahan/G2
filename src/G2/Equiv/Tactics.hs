@@ -63,6 +63,7 @@ import G2.Execution.NormalForms
 import Control.Monad.Extra
 
 import qualified Control.Monad.Writer.Lazy as W
+import qualified G2.Language.TyVarEnv as TV
 
 -- the Bool value for Failure is True if a cycle has been found
 data TacticResult = Success

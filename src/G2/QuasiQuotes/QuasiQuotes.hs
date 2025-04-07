@@ -48,6 +48,7 @@ import System.Directory
 import System.IO
 import System.IO.Temp
 import System.IO.Unsafe
+import qualified G2.Language.TyVarEnv as TV
 
 g2 :: QuasiQuoter
 g2 = QuasiQuoter { quoteExp = parseHaskellQ
@@ -90,7 +91,7 @@ parseHaskellQ str = do
     exG2 <- parseHaskellQ' qext
     config <- runIO qqConfig
     let (_, init_s, init_b) = initStateWithCall' exG2 (T.pack functionName) [Just $ T.pack moduleName]
-                                        (mkCurrExpr Nothing Nothing) (mkArgTys) config
+                                        (mkCurrExpr TV.empty Nothing Nothing) (mkArgTys TV.empty) config
 
     runIO $ releaseIORefLock
 
@@ -117,7 +118,7 @@ parseHaskellQ str = do
                 ([], _) ->
                     let
                         b' = init_b { input_names = drop (length regs) (input_names init_b) }
-                        ts = map (toTHType (cleaned_names b') . Ty.typeOf) $ inputIds init_s b'
+                        ts = map (toTHType (cleaned_names b') . Ty.typeOf TV.empty) $ inputIds init_s b'
                         tup_t = case ts of
                                     [t] -> t
                                     _ -> foldr appT (tupleT (length ts)) ts
@@ -201,7 +202,7 @@ parseHaskellIO mods qext = do
                 projs <- cabalSrcDirs cabal'
                 config <- qqConfig
 
-                translateLoaded projs [filepath]
+                translateLoaded TV.empty projs [filepath]
                     (simplTranslationConfig { interpreter = True })
                     config)
     return exG2
@@ -282,9 +283,9 @@ qqRedHaltOrd config solver simplifier =
     , SomeOrderer nextOrderer)
 
 addAssume :: State t -> Bindings -> (State t, Bindings)
-addAssume s@(State { curr_expr = CurrExpr er e }) b@(Bindings { name_gen = ng }) =
+addAssume s@(State { curr_expr = CurrExpr er e, tyvar_env = tvnv}) b@(Bindings { name_gen = ng }) =
     let
-        (v, ng') = freshId (Ty.typeOf e) ng
+        (v, ng') = freshId (Ty.typeOf tvnv e) ng
         e' = Let [(v, e)] (Assume Nothing (Var v) (Var v))
     in
     (s { curr_expr = CurrExpr er e' }, b { name_gen = ng' })
@@ -377,7 +378,7 @@ elimUnusedCompleted xs b =
     let
         b' = b { higher_order_inst = HS.empty }
 
-        xs' = map (\s -> s { type_classes = initTypeClasses []
+        xs' = map (\s -> s { type_classes = initTypeClasses TV.empty []
                            , rules = [] }) xs
         xs'' = map (flip markAndSweepIgnoringKnownValues b') xs'
     in
@@ -387,7 +388,7 @@ elimUnusedNonCompleted :: Named t => State t -> Bindings -> State t
 elimUnusedNonCompleted s b =
     let
         b' = b { higher_order_inst = HS.empty }
-        s' = s { type_classes = initTypeClasses []
+        s' = s { type_classes = initTypeClasses TV.empty []
                , rules = [] }
     in
     markAndSweepIgnoringKnownValues s' b'
