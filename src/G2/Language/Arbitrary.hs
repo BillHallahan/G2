@@ -33,6 +33,7 @@ import Data.List
 import qualified Data.Map as M
 import qualified Data.Text as T
 import Test.Tasty.QuickCheck
+import qualified G2.Language.TyVarEnv as TV 
 
 data StateBindingsPair t = SB { sb_state :: State t, sb_bindings :: Bindings }
 
@@ -41,8 +42,8 @@ instance Show (StateBindingsPair t) where
         let
             pg = mkPrettyGuide (expr_env s, type_env s, curr_expr s)
 
-            eenv_str = prettyEEnv pg (expr_env s)
-            tenv_str = prettyTypeEnv pg (type_env s)
+            eenv_str = prettyEEnv (tyvar_env s) pg (expr_env s)
+            tenv_str = prettyTypeEnv (tyvar_env s) pg (type_env s)
             e_str = printHaskellDirtyPG pg (getExpr s)
         in
         T.unpack $ "ExprEnv\n" <> eenv_str <> "\nTypeEnv\n" <> tenv_str <> "\nExpr\n" <> e_str
