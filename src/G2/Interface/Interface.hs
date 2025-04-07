@@ -219,7 +219,7 @@ initStateFromSimpleState' s sf m_mod =
                           Left ie' -> ie'
                           Right errs -> error errs
     in
-    initStateFromSimpleState s m_mod False (mkCurrExpr tv Nothing Nothing ie) (mkArgTys tv fe)
+    initStateFromSimpleState s m_mod False (mkCurrExpr TV.empty Nothing Nothing ie) (mkArgTys TV.empty fe)
 
 {-# INLINE initSimpleState #-}
 initSimpleState :: ExtractedG2
@@ -383,7 +383,7 @@ initialStateNoStartFunc :: [FilePath]
                      -> Config
                      -> IO (State (), Bindings)
 initialStateNoStartFunc proj src transConfig config = do
-    (_, exg2) <- translateLoaded proj src transConfig config
+    (_, exg2) <- translateLoaded TV.empty proj src transConfig config
 
     let simp_state = initSimpleState exg2
 
@@ -405,7 +405,7 @@ initialStateFromFile :: [FilePath]
                      -> Config
                      -> IO (State (), Id, Bindings, [Maybe T.Text])
 initialStateFromFile proj src m_reach def_assert f mkCurr argTys transConfig config = do
-    (mb_modname, exg2) <- translateLoaded proj src transConfig config
+    (mb_modname, exg2) <- translateLoaded TV.empty proj src transConfig config
 
     let simp_state = initSimpleState exg2
         (ie, fe) = case findFunc TV.empty f mb_modname (IT.expr_env simp_state) of

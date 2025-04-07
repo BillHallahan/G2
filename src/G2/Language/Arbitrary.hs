@@ -81,7 +81,7 @@ instance Arbitrary ArbSimpleState where
                                       , IT.type_env = tenv
                                       , IT.name_gen = mkNameGen (tenv, e)
                                       , IT.known_values = fakeKnownValues
-                                      , IT.type_classes = initTypeClasses []
+                                      , IT.type_classes = initTypeClasses TV.empty []
                                       , IT.rewrite_rules = []
                                       , IT.exports = []
                                       , IT.handles = HM.empty
@@ -99,7 +99,7 @@ instance Arbitrary ArbSet where
     arbitrary = do
         ATE tenv <- arbitrary
         t <- arbFunType tenv
-        let t' = case returnType $ PresType t of
+        let t' = case returnType t of
                         TyCon n _ | Just (DataTyCon {data_cons = dc }) <- HM.lookup n tenv
                                   , any isTyFun $ concatMap argumentTypes dc -> addTyLitInt t
                         _ -> t
