@@ -41,6 +41,7 @@ import G2.Execution.Memory
 import Data.Monoid (Any (..))
 
 import qualified G2.Language.Stack as Stck
+import qualified G2.Language.TyVarEnv as TV
 import Control.Monad
 
 import G2.Lib.Printers
@@ -51,6 +52,7 @@ import G2.Lib.Printers
 import qualified Control.Monad.Writer.Lazy as W
 
 import System.IO
+import qualified G2.Language.TyVarEnv as TV
 
 statePairReadyForSolver :: (State t, State t) -> Bool
 statePairReadyForSolver (s1, s2) =
@@ -59,15 +61,15 @@ statePairReadyForSolver (s1, s2) =
       CurrExpr _ e1 = curr_expr s1
       CurrExpr _ e2 = curr_expr s2
   in
-  exprReadyForSolver h1 e1 && exprReadyForSolver h2 e2
+  exprReadyForSolver (tyvar_env s1) h1 e1 && exprReadyForSolver (tyvar_env s2) h2 e2
 
-exprReadyForSolver :: ExprEnv -> Expr -> Bool
-exprReadyForSolver h (Tick _ e) = exprReadyForSolver h e
-exprReadyForSolver h (Var i) = E.isSymbolic (idName i) h && T.isPrimType (typeOf i)
-exprReadyForSolver h (App f a) = exprReadyForSolver h f && exprReadyForSolver h a
-exprReadyForSolver _ (Prim _ _) = True
-exprReadyForSolver _ (Lit _) = True
-exprReadyForSolver _ _ = False
+exprReadyForSolver :: TV.TyVarEnv -> ExprEnv -> Expr -> Bool
+exprReadyForSolver tv h (Tick _ e) = exprReadyForSolver tv h e
+exprReadyForSolver tv h (Var i) = E.isSymbolic (idName i) h && T.isPrimType (typeOf tv i)
+exprReadyForSolver tv h (App f a) = exprReadyForSolver tv h f && exprReadyForSolver tv h a
+exprReadyForSolver _ _ (Prim _ _) = True
+exprReadyForSolver _ _ (Lit _) = True
+exprReadyForSolver _ _ _ = False
 
 -- don't log when the base folder name is empty
 logStatesFolder :: String -> LogMode -> LogMode
@@ -285,17 +287,17 @@ appendH sh s =
 replaceH :: StateH -> StateET -> StateH
 replaceH sh s = sh { latest = s }
 
-allTactics :: S.Solver s => [Tactic s]
-allTactics = [
-    tryEquality
-  , tryCoinduction
-  , generalizeFull
+allTactics :: S.Solver s => TV.TyVarEnv -> [Tactic s]
+allTactics tv = [
+    tryEquality tv
+  , tryCoinduction tv 
+  , generalizeFull tv 
   , trySolver
-  , checkCycle
+  , checkCycle tv
   ]
 
-allNewLemmaTactics :: S.Solver s => [NewLemmaTactic s]
-allNewLemmaTactics = map applyTacticToLabeledStates [tryEquality, tryCoinduction]
+allNewLemmaTactics :: S.Solver s => TV.TyVarEnv -> [NewLemmaTactic s]
+allNewLemmaTactics tv = map applyTacticToLabeledStates [tryEquality tv, tryCoinduction tv]
 
 -- negative loop iteration count means there's no limit
 -- The (null states) check ensures that we return UNSAT rather than
@@ -317,36 +319,37 @@ verifyLoop solver num_lems ns lemmas states b config nc sym_ids k n | (n /= 0) |
   W.liftIO $ putStrLn "<Loop Iteration>"
   W.liftIO $ putStrLn $ show n
   -- this printing allows our Python script to report depth stats
-  let min_max_depth = minMaxDepth ns sym_ids states
-      min_sum_depth = minSumDepth ns sym_ids states
+  let min_max_depth = minMaxDepth TV.empty ns sym_ids states
+      min_sum_depth = minSumDepth TV.empty ns sym_ids states
   case states of
     [] -> return ()
     _ -> do
       W.liftIO $ putStrLn $ "<<Min Max Depth>> " ++ show min_max_depth
       W.liftIO $ putStrLn $ "<<Min Sum Depth>> " ++ show min_sum_depth
   W.liftIO $ hFlush stdout
-  (b', k', proven, lemmas') <- verifyLoopPropLemmas solver allTactics num_lems ns lemmas b config nc k
-
+  -- TODO: should we insert TV.empty for the TyVarEnv in verifyLoop?
+  (b', k', proven, lemmas') <- verifyLoopPropLemmas TV.empty solver (allTactics TV.empty) num_lems ns lemmas b config nc k
+ 
   -- W.liftIO $ putStrLn $ "proposed_lemmas: " ++ show (length $ proposed_lemmas lemmas')
   -- W.liftIO $ putStrLn $ "proven_lemmas: " ++ show (length $ proven_lemmas lemmas')
   -- W.liftIO $ putStrLn $ "continued_lemmas: " ++ show (length continued_lemmas)
   -- W.liftIO $ putStrLn $ "disproven_lemmas: " ++ show (length $ disproven_lemmas lemmas')
-
-  (b'', k'', proven', lemmas'') <- verifyLemmasWithNewProvenLemmas solver allNewLemmaTactics num_lems ns proven lemmas' b' config nc k'
-  (pl_sr, b''') <- verifyWithNewProvenLemmas solver allNewLemmaTactics num_lems ns proven' lemmas'' b'' states
+  -- TODO: is what we doing here for TyVarEnv correct?
+  (b'', k'', proven', lemmas'') <- verifyLemmasWithNewProvenLemmas solver (allNewLemmaTactics TV.empty) num_lems ns proven lemmas' b' config nc k'
+  (pl_sr, b''') <- verifyWithNewProvenLemmas solver (allNewLemmaTactics TV.empty) num_lems ns proven' lemmas'' b'' states
 
   case pl_sr of
       CounterexampleFound -> return $ S.SAT ()
       Proven -> return $ S.UNSAT ()
       ContinueWith _ pl_lemmas -> do
-          (sr, b'''', k''') <- verifyLoopWithSymEx solver allTactics num_lems ns lemmas'' b''' config nc k'' states
+          (sr, b'''', k''') <- verifyLoopWithSymEx solver (allTactics TV.empty) num_lems ns lemmas'' b''' config nc k'' states
           case sr of
               ContinueWith new_obligations new_lemmas -> do
                   let n' = if n > 0 then n - 1 else n
                   --W.liftIO $ putStrLn $ show $ length new_obligations
                   --W.liftIO $ putStrLn $ "length new_lemmas = " ++ show (length $ pl_lemmas ++ new_lemmas)
 
-                  final_lemmas <- foldM (flip (insertProposedLemma solver ns))
+                  final_lemmas <- foldM (flip (insertProposedLemma TV.empty solver ns))
                                         lemmas''
                                         (pl_lemmas ++ new_lemmas)
                   verifyLoop solver num_lems ns final_lemmas new_obligations b'''' config nc sym_ids k''' n'
@@ -380,7 +383,8 @@ data StepRes = CounterexampleFound
              | Proven
 
 verifyLoopPropLemmas :: S.Solver solver =>
-                        solver
+                        TV.TyVarEnv 
+                     -> solver
                      -> [Tactic solver]
                      -> Int
                      -> HS.HashSet Name
@@ -390,17 +394,17 @@ verifyLoopPropLemmas :: S.Solver solver =>
                      -> NebulaConfig
                      -> Int
                      -> (W.WriterT [Marker] IO) (Bindings, Int, [ProvenLemma], Lemmas)
-verifyLoopPropLemmas solver tactics num_lems ns lemmas b config nc k = do
+verifyLoopPropLemmas tv solver tactics num_lems ns lemmas b config nc k = do
     let prop_lemmas = proposedLemmas lemmas
         verify_lemma = verifyLoopPropLemmas' solver tactics num_lems ns lemmas config nc
     (prop_lemmas', (b', k')) <- CM.runStateT (mapM verify_lemma prop_lemmas) (b, k)
 
     let (proven, continued_lemmas, disproven, new_lemmas) = partitionLemmas ([], [], [], []) prop_lemmas'
         lemmas' = replaceProposedLemmas continued_lemmas lemmas
-    lemmas'' <- foldM (insertProvenLemma solver ns) lemmas' proven
-    lemmas''' <- foldM (insertDisprovenLemma solver ns) lemmas'' disproven
+    lemmas'' <- foldM (insertProvenLemma tv solver ns) lemmas' proven
+    lemmas''' <- foldM (insertDisprovenLemma tv solver ns) lemmas'' disproven
 
-    lemmas'''' <- foldM (flip (insertProposedLemma solver ns))
+    lemmas'''' <- foldM (flip (insertProposedLemma tv solver ns))
                           lemmas'''
                           new_lemmas
 
@@ -492,7 +496,7 @@ verifyLemmasWithNewProvenLemmas solver nl_tactics num_lems ns proven lemmas b co
 
     --W.liftIO $ putStrLn "verifyLemmasWithNewProvenLemmas"
     (b', k', new_proven, lemmas') <-
-          verifyLoopPropLemmas solver tactics num_lems ns lemmas b config nc k
+          verifyLoopPropLemmas TV.empty solver tactics num_lems ns lemmas b config nc k
     case null new_proven of
         True -> return (b', k', proven, lemmas')
         False ->
@@ -795,7 +799,7 @@ checkRule :: (ASTContainer t Type, ASTContainer t Expr) => Config
           -> RewriteRule
           -> IO (S.Result () () ())
 checkRule config nc init_state bindings total rule = do
-  let (rule' ,mod_state@(State { expr_env = ee }), te_ng) = addFreeTypes rule init_state (name_gen bindings)
+  let (rule' ,mod_state@(State { expr_env = ee, tyvar_env = tvnv }), te_ng) = addFreeTypes rule init_state (name_gen bindings)
       (mod_state', ng') = if symbolic_unmapped nc 
                               then  
                                 ( mod_state { expr_env = addFreeVarsAsSymbolic ee }
@@ -837,7 +841,7 @@ checkRule config nc init_state bindings total rule = do
            else mkPrettyGuide $ getMarkerCX $ reverse w
   if have_summary $ print_summary nc then do
     putStrLn "--- SUMMARY ---"
-    _ <- mapM (putStrLnIfNonEmpty . (summarize (print_summary nc) pg ns sym_ids)) w'
+    _ <- mapM (putStrLnIfNonEmpty . (summarize tvnv (print_summary nc) pg ns sym_ids)) w'
     putStrLn "--- END OF SUMMARY ---"
   else return ()
   case res of
