@@ -202,7 +202,7 @@ parseHaskellIO mods qext = do
                 projs <- cabalSrcDirs cabal'
                 config <- qqConfig
 
-                translateLoaded TV.empty projs [filepath]
+                translateLoaded projs [filepath]
                     (simplTranslationConfig { interpreter = True })
                     config)
     return exG2

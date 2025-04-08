@@ -22,24 +22,23 @@ import G2.Translation.PrimInject
 import G2.Translation.TransTypes
 import qualified G2.Language.TyVarEnv as TV 
 
-translateBase :: TV.TyVarEnv
-  ->  TranslationConfig
+translateBase :: TranslationConfig
   -> Config
   -> [FilePath]
   -> Maybe HscTarget
   -> IO (ExtractedG2, NameMap, TypeNameMap)
-translateBase tv tr_con config extra hsc = do
+translateBase tr_con config extra hsc = do
   -- For base we have the advantage of knowing apriori the structure
   -- So we can list the (proj, file) pairings
   let base_inc = baseInclude config
   let bases = nub $ base config ++ extra
 
-  (base_exg2, b_nm, b_tnm) <- translateLibPairs (specialConstructors tv) (specialTypeNames tv) tr_con emptyExtractedG2 hsc base_inc bases
+  (base_exg2, b_nm, b_tnm) <- translateLibPairs (specialConstructors TV.empty) (specialTypeNames TV.empty) tr_con emptyExtractedG2 hsc base_inc bases
 
   let base_prog = exg2_binds base_exg2
       base_tys = exg2_tycons base_exg2
 
-  let base_tys' = base_tys `HM.union` specialTypes tv
+  let base_tys' = base_tys `HM.union` specialTypes TV.empty
   let base_prog' = addPrimsToBase base_tys' base_prog
   return (base_exg2 { exg2_binds = base_prog', exg2_tycons = base_tys' }, b_nm, b_tnm)
 
@@ -70,13 +69,12 @@ selectBackend tr | interpreter tr = Just HscInterpreted
 selectBackend _ = Just HscNothing
 #endif
 
-translateLoaded :: TV.TyVarEnv
-  -> [FilePath]
+translateLoaded :: [FilePath]
   -> [FilePath]
   -> TranslationConfig
   -> Config
   -> IO ([Maybe T.Text], ExtractedG2)
-translateLoaded tv proj src tr_con config = do
+translateLoaded  proj src tr_con config = do
   let tr_con' = tr_con { hpc_ticks = hpc config || search_strat config == Subpath }
   -- Stuff with the actual target
   let def_proj = extraDefaultInclude config
@@ -85,7 +83,7 @@ translateLoaded tv proj src tr_con config = do
   extra_imp <- return . catMaybes =<< mapM (findImports (baseInclude config)) imports
 
   -- Stuff with the base library
-  (base_exg2, b_nm, b_tnm) <- translateBase tv tr_con' config extra_imp Nothing
+  (base_exg2, b_nm, b_tnm) <- translateBase tr_con' config extra_imp Nothing
 
   -- Now the stuff with the actual target
   (f_nm, f_tm, exg2) <- hskToG2ViaEMS tr_con'  tar_ems b_nm b_tnm

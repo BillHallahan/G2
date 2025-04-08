@@ -383,7 +383,7 @@ initialStateNoStartFunc :: [FilePath]
                      -> Config
                      -> IO (State (), Bindings)
 initialStateNoStartFunc proj src transConfig config = do
-    (_, exg2) <- translateLoaded TV.empty proj src transConfig config
+    (_, exg2) <- translateLoaded proj src transConfig config
 
     let simp_state = initSimpleState exg2
 
@@ -405,7 +405,7 @@ initialStateFromFile :: [FilePath]
                      -> Config
                      -> IO (State (), Id, Bindings, [Maybe T.Text])
 initialStateFromFile proj src m_reach def_assert f mkCurr argTys transConfig config = do
-    (mb_modname, exg2) <- translateLoaded TV.empty proj src transConfig config
+    (mb_modname, exg2) <- translateLoaded proj src transConfig config
 
     let simp_state = initSimpleState exg2
         (ie, fe) = case findFunc TV.empty f mb_modname (IT.expr_env simp_state) of

@@ -189,16 +189,16 @@ arbDC tv use_labels tenv ng t n total
                 L.mapAccumL
                     (\ng_ dc ->
                         let
-                            anon_ts = anonArgumentTypes dc
+                            anon_ts = anonArgumentTypes $ typeOf tv dc
                             re_anon = foldr (\(i, ty) -> retype i ty) anon_ts bound_ts
                             (ars, ng_') = freshIds re_anon ng_
                         in
                             -- TODO: why is this having a problem and 
                             -- whether the way I am handling it correct?
-                        (ng_', (mkApp $ Type dc:map Var ars, ars))
+                        (ng_', (mkApp $ dc:map Var ars, ars))
                     )
                     ng'
-                    (if n `elem` total then map (typeOf tv) ty_apped_dcs else map (typeOf tv) ty_apped_dcs')
+                    (if n `elem` total then ty_apped_dcs else ty_apped_dcs')
         in
         Just (dc_symbs, ng'')
     | otherwise = Nothing
