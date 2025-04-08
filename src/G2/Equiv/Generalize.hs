@@ -15,7 +15,7 @@ import G2.Equiv.G2Calls
 import G2.Equiv.Tactics
 
 import qualified Control.Monad.Writer.Lazy as W
-
+import qualified G2.Language.TyVarEnv as TV 
 innerScrutinees :: Expr -> [Expr]
 innerScrutinees (Tick _ e) = innerScrutinees e
 innerScrutinees e@(Case e' _ _ _) = e:(innerScrutinees e')
@@ -28,6 +28,7 @@ replaceScrutinee e1 e2 (Case e i t a) = Case (replaceScrutinee e1 e2 e) i t a
 replaceScrutinee _ _ e = e
 
 generalizeAux :: S.Solver solver =>
+                 TV.TyVarEnv -> 
                  solver ->
                  Int ->
                  HS.HashSet Name ->
@@ -35,22 +36,22 @@ generalizeAux :: S.Solver solver =>
                  [StateET] ->
                  StateET ->
                  W.WriterT [Marker] IO (Maybe (PrevMatch EquivTracker))
-generalizeAux solver num_lems ns lemmas s1_list s2 = do
+generalizeAux tv solver num_lems ns lemmas s1_list s2 = do
   -- Originally, this equality check did not allow for lemma usage
   -- because it was supposed to check only for syntactic equality.
   -- However, there do not seem to be any soundness issues with
   -- enabling lemma usage here to make the tactic more powerful.
-  let check_equiv s1_ = moreRestrictiveEqual solver num_lems ns lemmas s1_ s2
+  let check_equiv s1_ = moreRestrictiveEqual tv solver num_lems ns lemmas s1_ s2
   res <- mapM check_equiv s1_list
   let res' = filter isJust res
   case res' of
     [] -> return Nothing
     h:_ -> return h
 
-adjustStateForGeneralization :: Expr -> Name -> StateET -> StateET
-adjustStateForGeneralization e_old fresh_name s =
+adjustStateForGeneralization :: TV.TyVarEnv -> Expr -> Name -> StateET -> StateET
+adjustStateForGeneralization tv e_old fresh_name s =
   let e = getExpr s
-      fresh_id = Id fresh_name (typeOf e)
+      fresh_id = Id fresh_name (typeOf tv e)
       fresh_var = Var fresh_id
       e' = replaceScrutinee e fresh_var e_old
       h = expr_env s
@@ -62,6 +63,7 @@ adjustStateForGeneralization e_old fresh_name s =
 
 -- replace the largest sub-expression possible with a fresh symbolic var
 generalize :: S.Solver solver =>
+              TV.TyVarEnv -> 
               solver ->
               Int ->
               HS.HashSet Name ->
@@ -69,7 +71,7 @@ generalize :: S.Solver solver =>
               Name ->
               (StateET, StateET) ->
               W.WriterT [Marker] IO (Maybe (StateET, StateET))
-generalize solver num_lems ns lemmas fresh_name (s1, s2) | dc_path (track s1) == dc_path (track s2) = do
+generalize tv solver num_lems ns lemmas fresh_name (s1, s2) | dc_path (track s1) == dc_path (track s2) = do
   -- expressions are ordered from outer to inner
   -- the largest ones are on the outside
   -- take the earliest array entry that works
@@ -80,18 +82,19 @@ generalize solver num_lems ns lemmas fresh_name (s1, s2) | dc_path (track s1) ==
       e2 = getExpr s2
       scr2 = innerScrutinees e2
       scr_states2 = map (\e -> s2 { curr_expr = CurrExpr Evaluate e }) scr2
-  res <- mapM (generalizeAux solver num_lems ns lemmas scr_states1) scr_states2
+  res <- mapM (generalizeAux tv solver num_lems ns lemmas scr_states1) scr_states2
   -- no equiv tracker changes seem to be necessary
   let res' = filter isJust res
   case res' of
     (Just pm):_ -> let (s1', s2') = present pm
-                       s1'' = adjustStateForGeneralization e1 fresh_name s1'
-                       s2'' = adjustStateForGeneralization e2 fresh_name s2'
+                       s1'' = adjustStateForGeneralization tv e1 fresh_name s1'
+                       s2'' = adjustStateForGeneralization tv e2 fresh_name s2'
                    in return $ Just $ syncSymbolic s1'' s2''
     _ -> return Nothing
   | otherwise = return Nothing
 
 generalizeFoldL :: S.Solver solver =>
+                   TV.TyVarEnv -> 
                    solver ->
                    Int ->
                    HS.HashSet Name ->
@@ -100,16 +103,17 @@ generalizeFoldL :: S.Solver solver =>
                    [StateET] ->
                    StateET ->
                    W.WriterT [Marker] IO (Maybe (StateET, StateET, StateET, StateET))
-generalizeFoldL solver num_lems ns lemmas fresh_name prev2 s1 = do
+generalizeFoldL tv solver num_lems ns lemmas fresh_name prev2 s1 = do
   case prev2 of
     [] -> return Nothing
     p2:t -> do
-      gen <- generalize solver num_lems ns lemmas fresh_name (s1, p2)
+      gen <- generalize tv solver num_lems ns lemmas fresh_name (s1, p2)
       case gen of
         Just (s1', s2') -> return $ Just (s1, p2, s1', s2')
-        _ -> generalizeFoldL solver num_lems ns lemmas fresh_name t s1
+        _ -> generalizeFoldL tv solver num_lems ns lemmas fresh_name t s1
 
 generalizeFold :: S.Solver solver =>
+                  TV.TyVarEnv -> 
                   solver ->
                   Int ->
                   HS.HashSet Name ->
@@ -118,24 +122,24 @@ generalizeFold :: S.Solver solver =>
                   (StateH, StateH) ->
                   (StateET, StateET) ->
                   W.WriterT [Marker] IO (Maybe (StateET, StateET, StateET, StateET))
-generalizeFold solver num_lems ns lemmas fresh_name (sh1, sh2) (s1, s2) = do
-  fl <- generalizeFoldL solver num_lems ns lemmas fresh_name (s2:history sh2) s1
+generalizeFold tv solver num_lems ns lemmas fresh_name (sh1, sh2) (s1, s2) = do
+  fl <- generalizeFoldL tv solver num_lems ns lemmas fresh_name (s2:history sh2) s1
   case fl of
     Just _ -> return fl
     Nothing -> do
-      fr <- generalizeFoldL solver num_lems ns lemmas fresh_name (s1:history sh1) s2
+      fr <- generalizeFoldL tv solver num_lems ns lemmas fresh_name (s1:history sh1) s2
       case fr of
         Just (q2, q1, q2', q1') -> return $ Just (q1, q2, q1', q2')
         Nothing -> return Nothing
 
-generalizeFull :: S.Solver s => Tactic s
-generalizeFull solver num_lems ns lemmas (fresh_name:_) sh_pair s_pair = do
-  gfold <- generalizeFold solver num_lems ns lemmas fresh_name sh_pair s_pair
+generalizeFull :: S.Solver s => TV.TyVarEnv -> Tactic s
+generalizeFull tv solver num_lems ns lemmas (fresh_name:_) sh_pair s_pair = do
+  gfold <- generalizeFold tv solver num_lems ns lemmas fresh_name sh_pair s_pair
   case gfold of
     Nothing -> return $ NoProof []
     Just (s1, s2, q1, q2) -> let lem = mkProposedLemma "Generalization" s1 s2 q1 q2
                              in return $ NoProof $ [lem]
-generalizeFull _ _ _ _ _ _ _ = return $ NoProof []
+generalizeFull _ _ _ _ _ _ _ _ = return $ NoProof []
 
 -- notes from 1/19/23
 {-
