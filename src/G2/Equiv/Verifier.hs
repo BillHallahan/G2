@@ -52,7 +52,6 @@ import G2.Lib.Printers
 import qualified Control.Monad.Writer.Lazy as W
 
 import System.IO
-import qualified G2.Language.TyVarEnv as TV
 
 statePairReadyForSolver :: (State t, State t) -> Bool
 statePairReadyForSolver (s1, s2) =
@@ -293,7 +292,7 @@ allTactics tv = [
   , tryCoinduction tv 
   , generalizeFull tv 
   , trySolver
-  , checkCycle tv
+  , checkCycle
   ]
 
 allNewLemmaTactics :: S.Solver s => TV.TyVarEnv -> [NewLemmaTactic s]
@@ -319,6 +318,7 @@ verifyLoop solver num_lems ns lemmas states b config nc sym_ids k n | (n /= 0) |
   W.liftIO $ putStrLn "<Loop Iteration>"
   W.liftIO $ putStrLn $ show n
   -- this printing allows our Python script to report depth stats
+  -- TODO I don't know which states I should use 
   let min_max_depth = minMaxDepth TV.empty ns sym_ids states
       min_sum_depth = minSumDepth TV.empty ns sym_ids states
   case states of
@@ -328,7 +328,7 @@ verifyLoop solver num_lems ns lemmas states b config nc sym_ids k n | (n /= 0) |
       W.liftIO $ putStrLn $ "<<Min Sum Depth>> " ++ show min_sum_depth
   W.liftIO $ hFlush stdout
   -- TODO: should we insert TV.empty for the TyVarEnv in verifyLoop?
-  (b', k', proven, lemmas') <- verifyLoopPropLemmas TV.empty solver (allTactics TV.empty) num_lems ns lemmas b config nc k
+  (b', k', proven, lemmas') <- verifyLoopPropLemmas solver (allTactics TV.empty) num_lems ns lemmas b config nc k
  
   -- W.liftIO $ putStrLn $ "proposed_lemmas: " ++ show (length $ proposed_lemmas lemmas')
   -- W.liftIO $ putStrLn $ "proven_lemmas: " ++ show (length $ proven_lemmas lemmas')
@@ -349,7 +349,7 @@ verifyLoop solver num_lems ns lemmas states b config nc sym_ids k n | (n /= 0) |
                   --W.liftIO $ putStrLn $ show $ length new_obligations
                   --W.liftIO $ putStrLn $ "length new_lemmas = " ++ show (length $ pl_lemmas ++ new_lemmas)
 
-                  final_lemmas <- foldM (flip (insertProposedLemma TV.empty solver ns))
+                  final_lemmas <- foldM (flip (insertProposedLemma solver ns))
                                         lemmas''
                                         (pl_lemmas ++ new_lemmas)
                   verifyLoop solver num_lems ns final_lemmas new_obligations b'''' config nc sym_ids k''' n'
@@ -383,8 +383,7 @@ data StepRes = CounterexampleFound
              | Proven
 
 verifyLoopPropLemmas :: S.Solver solver =>
-                        TV.TyVarEnv 
-                     -> solver
+                        solver
                      -> [Tactic solver]
                      -> Int
                      -> HS.HashSet Name
@@ -394,17 +393,17 @@ verifyLoopPropLemmas :: S.Solver solver =>
                      -> NebulaConfig
                      -> Int
                      -> (W.WriterT [Marker] IO) (Bindings, Int, [ProvenLemma], Lemmas)
-verifyLoopPropLemmas tv solver tactics num_lems ns lemmas b config nc k = do
+verifyLoopPropLemmas solver tactics num_lems ns lemmas b config nc k = do
     let prop_lemmas = proposedLemmas lemmas
         verify_lemma = verifyLoopPropLemmas' solver tactics num_lems ns lemmas config nc
     (prop_lemmas', (b', k')) <- CM.runStateT (mapM verify_lemma prop_lemmas) (b, k)
 
     let (proven, continued_lemmas, disproven, new_lemmas) = partitionLemmas ([], [], [], []) prop_lemmas'
         lemmas' = replaceProposedLemmas continued_lemmas lemmas
-    lemmas'' <- foldM (insertProvenLemma tv solver ns) lemmas' proven
-    lemmas''' <- foldM (insertDisprovenLemma tv solver ns) lemmas'' disproven
+    lemmas'' <- foldM (insertProvenLemma solver ns) lemmas' proven
+    lemmas''' <- foldM (insertDisprovenLemma solver ns) lemmas'' disproven
 
-    lemmas'''' <- foldM (flip (insertProposedLemma tv solver ns))
+    lemmas'''' <- foldM (flip (insertProposedLemma solver ns))
                           lemmas'''
                           new_lemmas
 
@@ -496,7 +495,7 @@ verifyLemmasWithNewProvenLemmas solver nl_tactics num_lems ns proven lemmas b co
 
     --W.liftIO $ putStrLn "verifyLemmasWithNewProvenLemmas"
     (b', k', new_proven, lemmas') <-
-          verifyLoopPropLemmas TV.empty solver tactics num_lems ns lemmas b config nc k
+          verifyLoopPropLemmas solver tactics num_lems ns lemmas b config nc k
     case null new_proven of
         True -> return (b', k', proven, lemmas')
         False ->

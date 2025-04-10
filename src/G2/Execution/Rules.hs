@@ -201,7 +201,6 @@ retLam s@(State { expr_env = eenv, tyvar_env = tvnv })
                 (eenv', e', ng'', news) = liftBind i (Type t) eenv e ng'
 
             in 
-            -- TODO: retLam, need to check the rule in the type lambda case in retLam
            ( RuleReturnEApplyLamType [news]
             , [ s { expr_env = eenv'
                  , curr_expr = CurrExpr Evaluate e'

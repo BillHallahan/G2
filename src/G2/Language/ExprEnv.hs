@@ -188,7 +188,7 @@ isSymbolic n eenv =
         Just (Sym _) -> True
         _ -> False
 
--- TODO -- This seems kinda too much like a special case to be here...
+-- TODO: did we handle the TyVarEnv correctly here?
 occLookup :: TV.TyVarEnv -> T.Text -> Maybe T.Text -> ExprEnv -> Maybe Expr
 occLookup tv n m (ExprEnv eenv) = 
     let ex = L.find (\(Name n' m' _ _, _) -> n == n' && (m == m' || m' == Just "PrimDefs")) -- TODO: The PrimDefs exception should not be here! 

@@ -186,13 +186,11 @@ instance Typed DataCon where
 instance Typed Alt where
     typeOf m (Alt _ expr) = typeOf m expr
 
---TODO: check whether the I handled the Typed Expr correctly
 instance Typed Expr where
     typeOf m (Var v) = typeOf m v
     typeOf m (Lit lit) = typeOf m lit
     typeOf _ (Prim _ ty) = ty
     typeOf m (Data dcon) = typeOf m dcon
-    -- TODO ask professor whether this idea is correct
     typeOf m a@(App _ _) =
         let
             as = passedArgs a
@@ -248,7 +246,6 @@ unify :: Type -> Type -> Maybe (UF.UFMap Name Type)
 unify  = unify' UF.empty
 
 -- | `unify`, but with a pre-existing (partial) mapping of type variables to instantiations.
--- TODO: is it necessary to include tyvarenv?
 unify' ::   UF.UFMap Name Type -> Type -> Type ->  Maybe (UF.UFMap Name Type)
 unify' uf (TyVar (Id n1 t1)) (TyVar (Id n2 t2))
     | Just uf_t1 <- UF.lookup n1 uf
@@ -453,7 +450,6 @@ numArgs = length . argumentTypes
 data ArgType = AnonType Type | NamedType Id deriving (Show, Read)
 
 -- | Gives the types of the arguments of the functions
--- TODO: argumentTypes typeOf problem 
 argumentTypes :: Type -> [Type]
 argumentTypes = argumentTypes'
 

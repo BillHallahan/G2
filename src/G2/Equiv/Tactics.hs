@@ -97,14 +97,13 @@ validTotal s1 s2 ns hm =
 validTypes :: TV.TyVarEnv -> HM.HashMap Id Expr -> Bool
 validTypes tv hm = all (\((Id _ t), e) -> typeOf tv e T..:: t) $ HM.toList hm
 
-restrictHelper :: TV.TyVarEnv ->
-                  StateET ->
+restrictHelper :: StateET ->
                   StateET ->
                   HS.HashSet Name ->
                   Either [Lemma] (HM.HashMap Id Expr, HS.HashSet (Expr, Expr)) ->
                   Either [Lemma] (HM.HashMap Id Expr, HS.HashSet (Expr, Expr))
-restrictHelper tv s1 s2 ns hm_hs =
-    (\(hm, hs) -> if (validTotal s1 s2 ns hm) && (validTypes tv hm)
+restrictHelper s1 s2 ns hm_hs =
+    (\(hm, hs) -> if (validTotal s1 s2 ns hm) && (validTypes (tyvar_env s2) hm)
                               then Right (hm, hs)
                               else Left [])
     =<< A.moreRestrictive s1 s2 ns =<< hm_hs
@@ -146,20 +145,19 @@ checkObligations solver s1 s2 obligation_set | not $ HS.null obligation_set =
 -- first pair is "current," second pair is the match from the past
 -- the third entry in a prev triple is the original for left or right
 moreRestrictivePair :: S.Solver solver =>
-                       TV.TyVarEnv ->
                        solver ->
                        ((StateET, StateET) -> (StateET, StateET) -> Bool) ->
                        HS.HashSet Name ->
                        [(StateET, StateET)] ->
                        (StateET, StateET) ->
                         W.WriterT [Marker] IO (Either [Lemma] (PrevMatch EquivTracker))
-moreRestrictivePair tv solver valid ns prev (s1, s2) | dc_path (track s1) == dc_path (track s2) = do
+moreRestrictivePair solver valid ns prev (s1, s2) | dc_path (track s1) == dc_path (track s2) = do
   let (s1', s2') = syncSymbolic s1 s2
       mr (p1, p2) =
           if valid (p1, p2) (s1', s2') then
             let hm_obs = let (p1', p2') = syncSymbolic p1 p2
-                         in restrictHelper tv p2' s2' ns $
-                         restrictHelper tv p1' s1' ns (Right (HM.empty, HS.empty))
+                         in restrictHelper p2' s2' ns $
+                         restrictHelper p1' s1' ns (Right (HM.empty, HS.empty))
                 hm_obs_ = case hm_obs of
                   Left lems -> Left $ zip lems [1..length lems]
                   Right hmo -> Right hmo
@@ -194,14 +192,13 @@ moreRestrictivePair tv solver valid ns prev (s1, s2) | dc_path (track s1) == dc_
       isUnsat _ = return False
 
 moreRestrictiveSingle :: S.Solver solver =>
-                         TV.TyVarEnv -> 
                          solver ->
                          HS.HashSet Name ->
                          StateET ->
                          StateET ->
                          W.WriterT [Marker] IO (Either [Lemma] (HM.HashMap Id Expr))
-moreRestrictiveSingle tv solver ns s1 s2 = do
-    case restrictHelper tv s1 s2 ns $ Right (HM.empty, HS.empty) of
+moreRestrictiveSingle solver ns s1 s2 = do
+    case restrictHelper s1 s2 ns $ Right (HM.empty, HS.empty) of
         (Left l) -> return $ Left l
         Right (hm, obs) -> do
             more_res_pc <- LA.moreRestrictivePC solver s1 s2 hm
@@ -373,13 +370,13 @@ data Lemmas = Lemmas { proposed_lemmas :: [ProposedLemma]
 emptyLemmas :: Lemmas
 emptyLemmas = Lemmas [] [] []
 
-insertProposedLemma :: S.Solver solver => TV.TyVarEnv -> solver -> HS.HashSet Name -> Lemma -> Lemmas -> W.WriterT [Marker] IO Lemmas
-insertProposedLemma tv solver ns lem lems@(Lemmas { proposed_lemmas = prop_lems
+insertProposedLemma :: S.Solver solver => solver -> HS.HashSet Name -> Lemma -> Lemmas -> W.WriterT [Marker] IO Lemmas
+insertProposedLemma solver ns lem lems@(Lemmas { proposed_lemmas = prop_lems
                                                , proven_lemmas = proven_lems
                                                , disproven_lemmas = disproven_lems }) = do
-    same_as_proposed <- equivLemma tv solver ns lem prop_lems
-    implied_by_proven <- moreRestrictiveLemma tv solver ns lem proven_lems
-    implies_disproven <- anyM (\dl -> moreRestrictiveLemma tv solver ns dl [lem]) disproven_lems
+    same_as_proposed <- equivLemma solver ns lem prop_lems
+    implied_by_proven <- moreRestrictiveLemma solver ns lem proven_lems
+    implies_disproven <- anyM (\dl -> moreRestrictiveLemma solver ns dl [lem]) disproven_lems
     case same_as_proposed || implied_by_proven || implies_disproven of
         True -> return lems
         False -> do
@@ -401,16 +398,15 @@ replaceProposedLemmas pl lems = lems { proposed_lemmas = pl }
 -- proactively confirm lemmas implied by this
 -- this might be redundant with the verifier's work
 insertProvenLemma :: S.Solver solver =>
-                     TV.TyVarEnv 
-                  -> solver
+                     solver
                   -> HS.HashSet Name
                   -> Lemmas
                   -> ProvenLemma
                   -> W.WriterT [Marker] IO Lemmas
-insertProvenLemma tv solver ns lems lem = do
+insertProvenLemma solver ns lems lem = do
   W.tell [LMarker $ LemmaProven lem]
   let prop_lems = proposed_lemmas lems
-  (extra_proven, still_prop) <- partitionM (\l -> moreRestrictiveLemma tv solver ns l [lem]) prop_lems
+  (extra_proven, still_prop) <- partitionM (\l -> moreRestrictiveLemma solver ns l [lem]) prop_lems
   W.tell $ map (\l -> LMarker $ LemmaProvenEarly (lem, l)) extra_proven
   return $ lems {
       proposed_lemmas = still_prop
@@ -420,38 +416,37 @@ insertProvenLemma tv solver ns lems lem = do
 -- remove lemmas that imply the disproven lemma
 -- for every discarded lemma, add a marker
 insertDisprovenLemma :: S.Solver solver =>
-                        TV.TyVarEnv
-                     -> solver
+                        solver
                      -> HS.HashSet Name
                      -> Lemmas
                      -> DisprovenLemma
                      -> W.WriterT [Marker] IO Lemmas
-insertDisprovenLemma tv solver ns lems lem = do
+insertDisprovenLemma solver ns lems lem = do
   W.tell [LMarker $ LemmaRejected lem]
   -- the one implied is the more specific one
   -- the one doing the implying is the more general one
   let prop_lems = proposed_lemmas lems
-  (extra_disproven, still_prop) <- partitionM (\l -> moreRestrictiveLemma tv solver ns lem [l]) prop_lems
+  (extra_disproven, still_prop) <- partitionM (\l -> moreRestrictiveLemma solver ns lem [l]) prop_lems
   W.tell $ map (\l -> LMarker $ LemmaRejectedEarly (lem, l)) extra_disproven
   return $ lems {
       proposed_lemmas = still_prop
     , disproven_lemmas = lem:(extra_disproven ++ disproven_lemmas lems)
   }
 
-moreRestrictiveLemma :: S.Solver solver => TV.TyVarEnv -> solver -> HS.HashSet Name -> Lemma -> [Lemma] -> W.WriterT [Marker] IO Bool 
-moreRestrictiveLemma tv solver ns (Lemma { lemma_lhs = l1_1, lemma_rhs = l1_2 }) lems = do
-    mr <- moreRestrictivePair tv solver (\_ _ -> True) ns
+moreRestrictiveLemma :: S.Solver solver => solver -> HS.HashSet Name -> Lemma -> [Lemma] -> W.WriterT [Marker] IO Bool 
+moreRestrictiveLemma solver ns (Lemma { lemma_lhs = l1_1, lemma_rhs = l1_2 }) lems = do
+    mr <- moreRestrictivePair solver (\_ _ -> True) ns
                               (map (\(Lemma { lemma_lhs = l2_1, lemma_rhs = l2_2 }) -> (l2_1, l2_2)) lems)
                               (l1_1, l1_2)
     case mr of
         Left _ -> return False
         Right _ -> return True
 
-equivLemma :: S.Solver solver => TV.TyVarEnv -> solver -> HS.HashSet Name -> Lemma -> [Lemma] -> W.WriterT [Marker] IO Bool 
-equivLemma tv solver ns (Lemma { lemma_lhs = l1_1, lemma_rhs = l1_2 }) lems = do
+equivLemma :: S.Solver solver => solver -> HS.HashSet Name -> Lemma -> [Lemma] -> W.WriterT [Marker] IO Bool 
+equivLemma solver ns (Lemma { lemma_lhs = l1_1, lemma_rhs = l1_2 }) lems = do
     anyM (\(Lemma { lemma_lhs = l2_1, lemma_rhs = l2_2 }) -> do
-                    mr1 <- moreRestrictivePair tv solver (\_ _ -> True) ns [(l2_1, l2_2)] (l1_1, l1_2)
-                    mr2 <- moreRestrictivePair tv solver (\_ _ -> True) ns [(l1_1, l1_2)] (l2_1, l2_2)
+                    mr1 <- moreRestrictivePair solver (\_ _ -> True) ns [(l2_1, l2_2)] (l1_1, l1_2)
+                    mr2 <- moreRestrictivePair solver (\_ _ -> True) ns [(l1_1, l1_2)] (l2_1, l2_2)
                     case (mr1, mr2) of
                         (Right _, Right _) -> return True
                         _ -> return False) lems
@@ -560,7 +555,7 @@ replaceMoreRestrictiveSubExpr' tv solver ns lemma@(Lemma { lemma_lhs = lhs_s, le
                                          s2 sound e = do
     replaced <- CM.get
     if isNothing replaced then do
-        mr_sub <- CM.lift $ moreRestrictiveSingle tv solver ns lhs_s (s2 { curr_expr = CurrExpr Evaluate e })
+        mr_sub <- CM.lift $ moreRestrictiveSingle solver ns lhs_s (s2 { curr_expr = CurrExpr Evaluate e })
         case mr_sub of
             Right hm -> do
                 let v_rep = HM.toList hm
@@ -645,7 +640,7 @@ moreRestrictivePairWithLemmas tv solver num_lems valid ns lemmas past_list (s1, 
         pairs = [ (pair1, pair2) | pair1 <- xs1', pair2 <- xs2' ]
 
     rp <- mapM (\((l1, s1_), (l2, s2_)) -> do
-            mrp <- moreRestrictivePair tv solver valid ns past_list (s1_, s2_)
+            mrp <- moreRestrictivePair solver valid ns past_list (s1_, s2_)
             -- the underscore states here are ones with substs applied
             let l1' = map swap l1
             let l2' = map swap l2
@@ -681,8 +676,8 @@ moreRestrictivePairWithLemmasPast tv solver num_lems ns lemmas past_list s_pair 
 -- CounterExample Generation
 -------------------------------------------------------------------------------
 
-checkCycle :: S.Solver s => TV.TyVarEnv -> Tactic s
-checkCycle tv solver _ ns _ _ (sh1, sh2) (s1, s2) = do
+checkCycle :: S.Solver s => Tactic s
+checkCycle solver _ ns _ _ (sh1, sh2) (s1, s2) = do
   --W.liftIO $ putStrLn $ "Cycle?" ++ (folder_name $ track s1) ++ (folder_name $ track s2)
   let (s1', s2') = syncSymbolic s1 s2
       hist1 = filter (\p -> dc_path (track p) == dc_path (track s1')) $ history sh1
@@ -690,10 +685,10 @@ checkCycle tv solver _ ns _ _ (sh1, sh2) (s1, s2) = do
       hist1' = zip hist1 (map expr_env hist2)
       hist2' = zip hist2 (map expr_env hist1)
   -- histories must have the same length and have matching entries
-  mr1 <- mapM (\(p1, hp2) -> moreRestrictiveSingle tv solver ns s1' (p1 { track = (track p1) { opp_env = hp2 } })) hist1'
-  mr2 <- mapM (\(p2, hp1) -> moreRestrictiveSingle tv solver ns s2' (p2 { track = (track p2) { opp_env = hp1 } })) hist2'
+  mr1 <- mapM (\(p1, hp2) -> moreRestrictiveSingle solver ns s1' (p1 { track = (track p1) { opp_env = hp2 } })) hist1'
+  mr2 <- mapM (\(p2, hp1) -> moreRestrictiveSingle solver ns s2' (p2 { track = (track p2) { opp_env = hp1 } })) hist2'
   let vh _ (Left _, _) = False
-      vh s (Right hm, p) = validHigherOrder tv s p ns $ Right (hm, HS.empty)
+      vh s (Right hm, p) = validHigherOrder s p ns $ Right (hm, HS.empty)
       mr1_pairs = zip mr1 hist1
       mr1_pairs' = filter (vh s1') mr1_pairs
       mr1_pair = find (isRight . fst) mr1_pairs'
@@ -714,13 +709,12 @@ checkCycle tv solver _ ns _ _ (sh1, sh2) (s1, s2) = do
 -- dealing with symbolic functions.  Specifically, it detects apparent
 -- counterexamples that are invalid because they map expressions with
 -- differently-concretized symbolic function mappings to each other.
-validHigherOrder :: TV.TyVarEnv ->
-                    StateET ->
+validHigherOrder :: StateET ->
                     StateET ->
                     HS.HashSet Name ->
                     Either [Lemma] (HM.HashMap Id Expr, HS.HashSet (Expr, Expr)) ->
                     Bool
-validHigherOrder tv s1 s2 ns hm_hs | Right (hm, _) <- hm_hs =
+validHigherOrder s1 s2 ns hm_hs | Right (hm, _) <- hm_hs =
   let -- empty these to avoid an infinite loop
       s1' = s1 { track = (track s1) { higher_order = HM.empty } }
       s2' = s2 { track = (track s2) { higher_order = HM.empty } }
@@ -737,9 +731,9 @@ validHigherOrder tv s1 s2 ns hm_hs | Right (hm, _) <- hm_hs =
       -- only current expressions change between all these states
       -- I can keep the other-side expr envs the same
       check ((p1, p2), (q1, q2)) =
-        case restrictHelper tv p1 q1 ns hm_hs of
+        case restrictHelper p1 q1 ns hm_hs of
           Right (hm', hs') -> if HM.size hm' == HM.size hm
-                              then restrictHelper tv p2 q2 ns (Right (hm', hs'))
+                              then restrictHelper p2 q2 ns (Right (hm', hs'))
                               else Right (hm', hs')
           _ -> hm_hs
   in all isRight $ map check zipped
