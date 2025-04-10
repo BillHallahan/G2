@@ -15,6 +15,7 @@ import Data.List
 import qualified Data.HashMap.Lazy as HM
 import Data.Ord
 import Data.Tuple
+import qualified G2.Language.TyVarEnv as TV 
 
 -- | A default `ArbValueGen`.
 arbValueInit :: ArbValueGen
@@ -40,25 +41,25 @@ charGenInit = ['a'..'z'] ++ ['A'..'Z'] ++ ['0'..'9']
 -- Returns a new ArbValueGen that (in the case of the primitives)
 -- will give a different value the next time arbValue is called with
 -- the same Type.
-arbValue :: Type -> TypeEnv -> ArbValueGen -> (Expr, ArbValueGen)
-arbValue t tenv = arbValue' getFiniteADT HM.empty t tenv
+arbValue :: TV.TyVarEnv -> Type -> TypeEnv -> ArbValueGen -> (Expr, ArbValueGen)
+arbValue tv t tenv = arbValue' (getFiniteADT tv) HM.empty t tenv
 
 -- | Allows the generation of arbitrary values of the given type.
 -- Cuts off recursive ADTs with a Prim Undefined
 -- Returns a new ArbValueGen that is identical to the passed ArbValueGen
-constArbValue :: Type -> TypeEnv -> ArbValueGen -> (Expr, ArbValueGen)
-constArbValue = constArbValue' getFiniteADT HM.empty
+constArbValue :: TV.TyVarEnv -> Type -> TypeEnv -> ArbValueGen -> (Expr, ArbValueGen)
+constArbValue tv = constArbValue' (getFiniteADT tv) HM.empty
 
 -- | Allows the generation of arbitrary values of the given type.
 -- Does not always cut off recursive ADTs.
 -- Returns a new ArbValueGen that (in the case of the primitives)
 -- will give a different value the next time arbValue is called with
 -- the same Type.
-arbValueInfinite :: Type -> TypeEnv -> ArbValueGen -> (Expr, ArbValueGen)
-arbValueInfinite t = arbValueInfinite' cutOffVal HM.empty t
+arbValueInfinite :: TV.TyVarEnv -> Type -> TypeEnv -> ArbValueGen -> (Expr, ArbValueGen)
+arbValueInfinite tv t = arbValueInfinite' tv cutOffVal HM.empty t
 
-arbValueInfinite' :: Int -> HM.HashMap Name Type -> Type -> TypeEnv -> ArbValueGen -> (Expr, ArbValueGen)
-arbValueInfinite' cutoff = arbValue' (getADT cutoff)
+arbValueInfinite' :: TV.TyVarEnv -> Int -> HM.HashMap Name Type -> Type -> TypeEnv -> ArbValueGen -> (Expr, ArbValueGen)
+arbValueInfinite' tv cutoff = arbValue' (getADT tv cutoff)
 
 arbValue' :: GetADT
           -> HM.HashMap Name Type -- ^ Maps TyVar's to Types
@@ -168,10 +169,10 @@ type GetADT = HM.HashMap Name Type -> TypeEnv -> ArbValueGen -> AlgDataTy -> [Ty
 
 -- | Generates an arbitrary value of the given ADT,
 -- but will return something containing @(Prim Undefined)@ instead of an infinite Expr.
-getFiniteADT :: HM.HashMap Name Type -> TypeEnv -> ArbValueGen -> AlgDataTy -> [Type] -> (Expr, ArbValueGen)
-getFiniteADT m tenv av adt ts =
+getFiniteADT :: TV.TyVarEnv -> HM.HashMap Name Type -> TypeEnv -> ArbValueGen -> AlgDataTy -> [Type] -> (Expr, ArbValueGen)
+getFiniteADT tv m tenv av adt ts =
     let
-        (e, av') = getADT cutOffVal m tenv av adt ts
+        (e, av') = getADT tv cutOffVal m tenv av adt ts
     in 
     (cutOff [] e, av')
 
@@ -195,19 +196,20 @@ cutOff _ e = e
 -- To see why this is needed, suppose we are returning an infinitely large Expr.
 -- This Expr will be returned lazily.  But the return of the ArbValueGen is not lazy-
 -- so we must just cut off and return at some point.
-getADT :: Int -> HM.HashMap Name Type -> TypeEnv -> ArbValueGen -> AlgDataTy -> [Type] -> (Expr, ArbValueGen)
-getADT cutoff m tenv av adt ts 
+getADT :: TV.TyVarEnv -> Int -> HM.HashMap Name Type -> TypeEnv -> ArbValueGen -> AlgDataTy -> [Type] -> (Expr, ArbValueGen)
+getADT tvnv cutoff m tenv av adt ts 
     | dcs <- dataCon adt
     , _:_ <- dcs =
         let
             ids = bound_ids adt
 
             -- Finds the DataCon for adt with the least arguments
-            min_dc = minimumBy (comparing (length . anonArgumentTypes)) dcs
+            min_dc = minimumBy (comparing (length . anonArgumentTypes. typeOf tvnv)) dcs
 
             m' = foldr (uncurry HM.insert) m $ zip (map idName ids) ts
 
-            (av', es) = mapAccumL (\av_ t -> swap $ arbValueInfinite' (cutoff - 1) m' (applyTypeHashMap m' t) tenv av_) av $ anonArgumentTypes min_dc
+            (av', es) = mapAccumL (\av_ t -> swap $ arbValueInfinite' tvnv (cutoff - 1) m' (applyTypeHashMap m' t) tenv av_) av 
+                            $ anonArgumentTypes (typeOf tvnv min_dc)
 
             final_av = if cutoff >= 0 then av' else av
         in

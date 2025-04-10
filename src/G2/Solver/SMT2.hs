@@ -32,6 +32,8 @@ import qualified Data.Text.IO as T
 import qualified Text.Builder as TB
 import System.IO
 import System.Process
+import G2.Language.Support(State(..))
+import qualified G2.Language.TyVarEnv as TV 
 
 data Z3 = Z3 ArbValueFunc (Handle, Handle, ProcessHandle)
 data CVC4 = CVC4 ArbValueFunc (Handle, Handle, ProcessHandle)
@@ -41,12 +43,12 @@ data SomeSMTSolver where
                    . SMTConverter con => con -> SomeSMTSolver
 
 instance Solver Z3 where
-    check solver _ pc = checkConstraintsPC solver pc
+    check solver s pc = checkConstraintsPC (tyvar_env s) solver pc
     solve con@(Z3 avf _) = checkModelPC avf con
     close = closeIO
 
 instance Solver CVC4 where
-    check solver _ pc = checkConstraintsPC solver pc
+    check solver s pc = checkConstraintsPC (tyvar_env s) solver pc
     solve con@(CVC4 avf _) = checkModelPC avf con
     close = closeIO
 
@@ -299,13 +301,13 @@ getProcessHandles pr = do
 
     return (h_in, h_out, p)
 
-getZ3 :: Int -> IO Z3
-getZ3 time_out = do
+getZ3 :: TV.TyVarEnv -> Int -> IO Z3
+getZ3 tv time_out = do
     hhp <- getZ3ProcessHandles time_out
-    return $ Z3 arbValue hhp
+    return $ Z3 (arbValue tv) hhp
 
-getSMT :: Config -> IO SomeSMTSolver
-getSMT = getSMTAV arbValue
+getSMT :: TV.TyVarEnv -> Config -> IO SomeSMTSolver
+getSMT tv = getSMTAV (arbValue tv)
 
 getSMTAV :: ArbValueFunc -> Config -> IO SomeSMTSolver
 getSMTAV avf (Config {smt = ConZ3}) = do

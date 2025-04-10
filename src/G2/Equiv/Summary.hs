@@ -34,6 +34,7 @@ import G2.Equiv.G2Calls
 import G2.Equiv.Tactics
 
 import G2.Lib.Printers
+import qualified G2.Language.TyVarEnv as TV 
 
 sideName :: Side -> String
 sideName ILeft = "Left"
@@ -50,8 +51,8 @@ trackName s =
     "" -> "Start"
     _ -> final_sub
 
-printPG :: PrettyGuide -> HS.HashSet Name -> [Id] -> StateET -> String
-printPG pg ns sym_ids s =
+printPG :: TV.TyVarEnv -> PrettyGuide -> HS.HashSet Name -> [Id] -> StateET -> String
+printPG tv pg ns sym_ids s =
   let label_str = trackName s
       h = expr_env s
       e = inlineVars ns h $ getExpr s
@@ -59,8 +60,8 @@ printPG pg ns sym_ids s =
       -- sym exec keeps higher_order in sync but not concretizations
       -- this means that the ids in func_ids are not always mapped
       -- if they are unmapped, they will not be printed for a state
-      depth_str1 = "\nMax Depth:  " ++ (show $ maxArgDepth ns sym_ids s)
-      depth_str2 = "\nSum Depth:  " ++ (show $ sumArgDepths ns sym_ids s)
+      depth_str1 = "\nMax Depth:  " ++ (show $ maxArgDepth tv ns sym_ids s)
+      depth_str2 = "\nSum Depth:  " ++ (show $ sumArgDepths tv ns sym_ids s)
       func_ids = map snd $ HM.toList $ higher_order $ track s
       sym_vars = varsFullList h ns $ sym_ids ++ func_ids
       sym_str = printVars pg ns s sym_vars
@@ -175,8 +176,8 @@ printMappings pg s =
   let mapping_list = HM.toList $ higher_order $ track s
   in intercalate "\n" $ map (printMapping pg) mapping_list
 
-printLemma :: PrettyGuide -> HS.HashSet Name -> [Id] -> Lemma -> String
-printLemma pg ns sym_ids (Lemma{
+printLemma :: TV.TyVarEnv -> PrettyGuide -> HS.HashSet Name -> [Id] -> Lemma -> String
+printLemma tv pg ns sym_ids (Lemma{
                    lemma_name = n
                  , lemma_lhs = s1
                  , lemma_rhs = s2
@@ -185,45 +186,48 @@ printLemma pg ns sym_ids (Lemma{
                  }) =
   n ++ ": from " ++
   n1 ++ ", " ++ n2 ++ "\n" ++
-  (summarizeStatePairTrack "States" pg ns sym_ids s1 s2)
+  (summarizeStatePairTrack tv "States" pg ns sym_ids s1 s2)
 
 -- no new line at end
-summarizeStatePairTrack :: String ->
+summarizeStatePairTrack :: TV.TyVarEnv ->
+                           String ->
                            PrettyGuide ->
                            HS.HashSet Name ->
                            [Id] ->
                            StateET ->
                            StateET ->
                            String
-summarizeStatePairTrack str pg ns sym_ids s1 s2 =
+summarizeStatePairTrack tv str pg ns sym_ids s1 s2 =
   str ++ ": " ++
   (trackName s1) ++ ", " ++
   (trackName s2) ++ "\n" ++
-  (printPG pg ns sym_ids s1) ++ "\n" ++
-  (printPG pg ns sym_ids s2)
+  (printPG tv pg ns sym_ids s1) ++ "\n" ++
+  (printPG tv pg ns sym_ids s2)
 
-summarizeLemma :: String
+summarizeLemma :: TV.TyVarEnv
+               -> String
                -> PrettyGuide
                -> HS.HashSet Name
                -> [Id]
                -> Lemma
                -> String
-summarizeLemma str pg ns sym_ids lem =
+summarizeLemma tv str pg ns sym_ids lem =
   str ++ ":\n" ++
-  printLemma pg ns sym_ids lem
+  printLemma tv pg ns sym_ids lem
 
-summarizeLemmaSubst :: String
+summarizeLemmaSubst :: TV.TyVarEnv
+                    -> String
                     -> PrettyGuide
                     -> HS.HashSet Name
                     -> [Id]
                     -> (StateET, Lemma)
                     -> String
-summarizeLemmaSubst str pg ns sym_ids (s, lem) =
-  "\n" ++ str ++ " Lemma:\n" ++ printLemma pg ns sym_ids lem ++
-  "\n" ++ str ++ " Before Lemma Usage:\n" ++ printPG pg ns sym_ids s
+summarizeLemmaSubst tv str pg ns sym_ids (s, lem) =
+  "\n" ++ str ++ " Lemma:\n" ++ printLemma tv pg ns sym_ids lem ++
+  "\n" ++ str ++ " Before Lemma Usage:\n" ++ printPG tv pg ns sym_ids s
 
-summarizeCoinduction :: PrettyGuide -> HS.HashSet Name -> [Id] -> CoMarker -> String
-summarizeCoinduction pg ns sym_ids (CoMarker {
+summarizeCoinduction :: TV.TyVarEnv -> PrettyGuide -> HS.HashSet Name -> [Id] -> CoMarker -> String
+summarizeCoinduction tv pg ns sym_ids (CoMarker {
                              co_used_present = (q1, q2)
                            , co_past = (p1, p2)
                            , lemma_used_left = lemma_l
@@ -231,160 +235,175 @@ summarizeCoinduction pg ns sym_ids (CoMarker {
                            }) =
   "Coinduction:\n" ++
   --(summarizeStatePairTrack "Real Present" pg ns sym_ids s1 s2) ++ "\n" ++
-  (summarizeStatePairTrack "Used Present" pg ns sym_ids q1 q2) ++ "\n" ++
-  (summarizeStatePairTrack "Past" pg ns sym_ids p1 p2) ++
-  (intercalate "\n" $ map (summarizeLemmaSubst "Left" pg ns sym_ids) lemma_l) ++
-  (intercalate "\n" $ map (summarizeLemmaSubst "Right" pg ns sym_ids) lemma_r)
+  (summarizeStatePairTrack tv "Used Present" pg ns sym_ids q1 q2) ++ "\n" ++
+  (summarizeStatePairTrack tv "Past" pg ns sym_ids p1 p2) ++
+  (intercalate "\n" $ map (summarizeLemmaSubst tv "Left" pg ns sym_ids) lemma_l) ++
+  (intercalate "\n" $ map (summarizeLemmaSubst tv "Right" pg ns sym_ids) lemma_r)
 
 -- variables:  find all names used in here
 -- look them up, find a fixed point
 -- print all relevant vars beside the expressions
 -- don't include definitions from the initial state (i.e. things in ns)
-summarizeEquality :: PrettyGuide -> HS.HashSet Name -> [Id] -> EqualMarker -> String
-summarizeEquality pg ns sym_ids (EqualMarker { eq_used_present = (q1, q2) }) =
+summarizeEquality :: TV.TyVarEnv -> PrettyGuide -> HS.HashSet Name -> [Id] -> EqualMarker -> String
+summarizeEquality tv pg ns sym_ids (EqualMarker { eq_used_present = (q1, q2) }) =
   "Equivalent Expressions:\n" ++
   --(summarizeStatePairTrack "Real Present" pg ns sym_ids s1 s2) ++ "\n" ++
-  (summarizeStatePairTrack "Used States" pg ns sym_ids q1 q2)
+  (summarizeStatePairTrack tv "Used States" pg ns sym_ids q1 q2)
 
-summarizeCycleFound :: PrettyGuide ->
+summarizeCycleFound :: TV.TyVarEnv -> 
+                       PrettyGuide ->
                        HS.HashSet Name ->
                        [Id] ->
                        CycleMarker ->
                        String
-summarizeCycleFound pg ns sym_ids (CycleMarker (s1, s2) p _ sd) =
+summarizeCycleFound tv pg ns sym_ids (CycleMarker (s1, s2) p _ sd) =
   "CYCLE FOUND:\n" ++
-  (summarizeStatePairTrack "Real Present" pg ns sym_ids s1 s2) ++
-  "\nPast State:\n" ++ (printPG pg ns sym_ids p) ++
+  (summarizeStatePairTrack tv "Real Present" pg ns sym_ids s1 s2) ++
+  "\nPast State:\n" ++ (printPG tv pg ns sym_ids p) ++
   "\nSide: " ++ (sideName sd)
 
-summarizeNoObligations :: PrettyGuide ->
+summarizeNoObligations :: TV.TyVarEnv ->
+                          PrettyGuide ->
                           HS.HashSet Name ->
                           [Id] ->
                           (StateET, StateET) ->
                           String
-summarizeNoObligations = summarizeStatePair "No Obligations Produced"
+summarizeNoObligations tv = summarizeStatePair tv "No Obligations Produced"
 
-summarizeNotEquivalent :: PrettyGuide ->
+summarizeNotEquivalent :: TV.TyVarEnv ->
+                          PrettyGuide ->
                           HS.HashSet Name ->
                           [Id] ->
                           (StateET, StateET) ->
                           String
-summarizeNotEquivalent = summarizeStatePair "NOT EQUIVALENT"
+summarizeNotEquivalent tv = summarizeStatePair tv "NOT EQUIVALENT"
 
-summarizeSolverFail :: PrettyGuide ->
+summarizeSolverFail :: TV.TyVarEnv ->
+                       PrettyGuide ->
                        HS.HashSet Name ->
                        [Id] ->
                        (StateET, StateET) ->
                        String
-summarizeSolverFail = summarizeStatePair "SOLVER FAIL"
+summarizeSolverFail tv = summarizeStatePair tv "SOLVER FAIL"
 
-summarizeLemmaProposed :: PrettyGuide ->
+summarizeLemmaProposed :: TV.TyVarEnv -> 
+                          PrettyGuide ->
                           HS.HashSet Name ->
                           [Id] ->
                           Lemma ->
                           String
-summarizeLemmaProposed = summarizeLemma "Lemma Proposed"
+summarizeLemmaProposed tv = summarizeLemma tv "Lemma Proposed"
 
-summarizeLemmaProven :: PrettyGuide ->
+summarizeLemmaProven :: TV.TyVarEnv ->
+                        PrettyGuide ->
                         HS.HashSet Name ->
                         [Id] ->
                         Lemma ->
                         String
-summarizeLemmaProven = summarizeLemma "Lemma Proven"
+summarizeLemmaProven tv = summarizeLemma tv "Lemma Proven"
 
-summarizeLemmaRejected :: PrettyGuide ->
+summarizeLemmaRejected :: TV.TyVarEnv -> 
+                          PrettyGuide ->
                           HS.HashSet Name ->
                           [Id] ->
                           Lemma ->
                           String
-summarizeLemmaRejected = summarizeLemma "Lemma Rejected"
+summarizeLemmaRejected tv = summarizeLemma tv "Lemma Rejected"
 
-summarizeLemmaProvenEarly :: PrettyGuide ->
+summarizeLemmaProvenEarly :: TV.TyVarEnv -> 
+                             PrettyGuide ->
                              HS.HashSet Name ->
                              [Id] ->
                              (Lemma, Lemma) ->
                              String
-summarizeLemmaProvenEarly = summarizeLemmaPair "Lemma Superseded"
+summarizeLemmaProvenEarly tv = summarizeLemmaPair tv "Lemma Superseded"
 
-summarizeLemmaRejectedEarly :: PrettyGuide ->
+summarizeLemmaRejectedEarly :: TV.TyVarEnv -> 
+                               PrettyGuide ->
                                HS.HashSet Name ->
                                [Id] ->
                                (Lemma, Lemma) ->
                                String
-summarizeLemmaRejectedEarly = summarizeLemmaPair "Lemma Discarded"
+summarizeLemmaRejectedEarly tv = summarizeLemmaPair tv "Lemma Discarded"
 
-summarizeLemmaUnresolved :: PrettyGuide ->
+summarizeLemmaUnresolved :: TV.TyVarEnv ->
+                            PrettyGuide ->
                             HS.HashSet Name ->
                             [Id] ->
                             Lemma ->
                             String
-summarizeLemmaUnresolved = summarizeLemma "Lemma Unresolved"
+summarizeLemmaUnresolved tv = summarizeLemma tv "Lemma Unresolved"
 
-summarizeUnresolved :: PrettyGuide ->
+summarizeUnresolved :: TV.TyVarEnv -> 
+                       PrettyGuide ->
                        HS.HashSet Name ->
                        [Id] ->
                        (StateET, StateET) ->
                        String
-summarizeUnresolved = summarizeStatePair "Unresolved"
+summarizeUnresolved tv = summarizeStatePair tv "Unresolved"
 
-summarizeStatePair :: String ->
+summarizeStatePair :: TV.TyVarEnv -> 
+                      String ->
                       PrettyGuide ->
                       HS.HashSet Name ->
                       [Id] ->
                       (StateET, StateET) ->
                       String
-summarizeStatePair str pg ns sym_ids (s1, s2) =
+summarizeStatePair tv str pg ns sym_ids (s1, s2) =
   str ++ ":\n" ++
   trackName s1 ++ ", " ++
   trackName s2 ++ "\n" ++
-  printPG pg ns sym_ids s1 ++ "\n" ++
-  printPG pg ns sym_ids s2
+  printPG tv pg ns sym_ids s1 ++ "\n" ++
+  printPG tv pg ns sym_ids s2
 
 -- we care principally about l2 here
-summarizeLemmaPair :: String ->
+summarizeLemmaPair :: TV.TyVarEnv -> 
+                      String ->
                       PrettyGuide ->
                       HS.HashSet Name ->
                       [Id] ->
                       (Lemma, Lemma) ->
                       String
-summarizeLemmaPair str pg ns sym_ids (l1, l2) =
+summarizeLemmaPair tv str pg ns sym_ids (l1, l2) =
   str ++ ":\n" ++
   lemma_lhs_origin l2 ++ ", " ++
   lemma_rhs_origin l2 ++ "\n" ++
-  printLemma pg ns sym_ids l1 ++ "\n" ++
-  printLemma pg ns sym_ids l2
+  printLemma tv pg ns sym_ids l1 ++ "\n" ++
+  printLemma tv pg ns sym_ids l2
 
 -- TODO s_mode not used for now
-summarizeAct :: PrettyGuide
+summarizeAct :: TV.TyVarEnv
+             -> PrettyGuide
              -> HS.HashSet Name
              -> [Id]
              -> ActMarker
              -> String
-summarizeAct pg ns sym_ids m = case m of
-  Coinduction cm -> summarizeCoinduction pg ns sym_ids cm
-  Equality em -> summarizeEquality pg ns sym_ids em
-  NoObligations s_pair -> summarizeNoObligations pg ns sym_ids s_pair
-  NotEquivalent s_pair -> summarizeNotEquivalent pg ns sym_ids s_pair
-  SolverFail s_pair -> summarizeSolverFail pg ns sym_ids s_pair
-  CycleFound cm -> summarizeCycleFound pg ns sym_ids cm
-  Unresolved s_pair -> summarizeUnresolved pg ns sym_ids s_pair
+summarizeAct tv pg ns sym_ids m = case m of
+  Coinduction cm -> summarizeCoinduction tv pg ns sym_ids cm
+  Equality em -> summarizeEquality tv pg ns sym_ids em
+  NoObligations s_pair -> summarizeNoObligations tv pg ns sym_ids s_pair
+  NotEquivalent s_pair -> summarizeNotEquivalent tv pg ns sym_ids s_pair
+  SolverFail s_pair -> summarizeSolverFail tv pg ns sym_ids s_pair
+  CycleFound cm -> summarizeCycleFound tv pg ns sym_ids cm
+  Unresolved s_pair -> summarizeUnresolved tv pg ns sym_ids s_pair
 
-summarizeLemmaMarker :: PrettyGuide
+summarizeLemmaMarker :: TV.TyVarEnv
+                     -> PrettyGuide
                      -> HS.HashSet Name
                      -> [Id]
                      -> LemmaMarker
                      -> String
-summarizeLemmaMarker pg ns sym_ids lm = case lm of
-  LemmaProposed l -> summarizeLemmaProposed pg ns sym_ids l
-  LemmaProven l -> summarizeLemmaProven pg ns sym_ids l
-  LemmaRejected l -> summarizeLemmaRejected pg ns sym_ids l
-  LemmaProvenEarly lp -> summarizeLemmaProvenEarly pg ns sym_ids lp
-  LemmaRejectedEarly lp -> summarizeLemmaRejectedEarly pg ns sym_ids lp
-  LemmaUnresolved l -> summarizeLemmaUnresolved pg ns sym_ids l
+summarizeLemmaMarker tv pg ns sym_ids lm = case lm of
+  LemmaProposed l -> summarizeLemmaProposed tv pg ns sym_ids l
+  LemmaProven l -> summarizeLemmaProven tv pg ns sym_ids l
+  LemmaRejected l -> summarizeLemmaRejected tv pg ns sym_ids l
+  LemmaProvenEarly lp -> summarizeLemmaProvenEarly tv pg ns sym_ids lp
+  LemmaRejectedEarly lp -> summarizeLemmaRejectedEarly tv pg ns sym_ids lp
+  LemmaUnresolved l -> summarizeLemmaUnresolved tv pg ns sym_ids l
 
-summarizeHistory :: PrettyGuide -> HS.HashSet Name -> [Id] -> StateH -> String
-summarizeHistory pg ns sym_ids =
-  intercalate "\n" . map (printPG pg ns sym_ids) . reverse . history
+summarizeHistory :: TV.TyVarEnv -> PrettyGuide -> HS.HashSet Name -> [Id] -> StateH -> String
+summarizeHistory tv pg ns sym_ids =
+  intercalate "\n" . map (printPG tv pg ns sym_ids) . reverse . history
 
 tabsAfterNewLines :: String -> String
 tabsAfterNewLines [] = []
@@ -392,8 +411,8 @@ tabsAfterNewLines ('\n':t) = '\n':'\t':(tabsAfterNewLines t)
 tabsAfterNewLines (c:t) = c:(tabsAfterNewLines t)
 
 -- generate the guide for the whole summary externally
-summarize :: SummaryMode -> PrettyGuide -> HS.HashSet Name -> [Id] -> Marker -> String
-summarize s_mode pg ns sym_ids (Marker (sh1, sh2) m) =
+summarize :: TV.TyVarEnv -> SummaryMode -> PrettyGuide -> HS.HashSet Name -> [Id] -> Marker -> String
+summarize tv s_mode pg ns sym_ids (Marker (sh1, sh2) m) =
   let names1 = map trackName $ (latest sh1):history sh1
       names2 = map trackName $ (latest sh2):history sh2
   in
@@ -402,14 +421,14 @@ summarize s_mode pg ns sym_ids (Marker (sh1, sh2) m) =
   "\nRight Path: " ++
   (intercalate " -> " $ (reverse names2)) ++ "\n" ++
   (if have_history s_mode
-      then "Left:\n\t" ++ tabsAfterNewLines (summarizeHistory pg ns sym_ids sh1)
-            ++ "\nRight:\n\t" ++ tabsAfterNewLines (summarizeHistory pg ns sym_ids sh2) ++ "\n"
+      then "Left:\n\t" ++ tabsAfterNewLines (summarizeHistory tv pg ns sym_ids sh1)
+            ++ "\nRight:\n\t" ++ tabsAfterNewLines (summarizeHistory tv pg ns sym_ids sh2) ++ "\n"
       else "")
   ++
-  (tabsAfterNewLines $ summarizeAct pg ns sym_ids m)
-summarize s_mode pg ns sym_ids (LMarker lm) =
+  (tabsAfterNewLines $ summarizeAct tv pg ns sym_ids m)
+summarize tv s_mode pg ns sym_ids (LMarker lm) =
   if have_lemma_details s_mode
-  then "***\n" ++ (tabsAfterNewLines $ summarizeLemmaMarker pg ns sym_ids lm)
+  then "***\n" ++ (tabsAfterNewLines $ summarizeLemmaMarker tv pg ns sym_ids lm)
   else ""
 
 printDC :: PrettyGuide -> [BlockInfo] -> String -> String
@@ -527,29 +546,29 @@ showCycle pg ns sym_ids sh_pair s_pair cm =
 
 -- type arguments do not contribute to the depth of an expression
 -- this takes the opposite side's expression environment into account
-exprDepth :: ExprEnv -> ExprEnv -> HS.HashSet Name -> [Name] -> Expr -> Int
-exprDepth h h' ns n e = case e of
-  Tick _ e' -> exprDepth h h' ns n e'
+exprDepth :: TV.TyVarEnv -> ExprEnv -> ExprEnv -> HS.HashSet Name -> [Name] -> Expr -> Int
+exprDepth tv h h' ns n e = case e of
+  Tick _ e' -> exprDepth tv h h' ns n e'
   Var i | isSymbolicBoth (idName i) h h' -> 0
         | m <- idName i
         , not $ m `elem` ns
-        , Just e' <- lookupBoth m h h' -> exprDepth h h' ns (m:n) e'
+        , Just e' <- lookupBoth m h h' -> exprDepth tv h h' ns (m:n) e'
         | not $ (idName i) `elem` ns -> error "unmapped variable"
   _ | d@(Data _):l <- unAppNoTicks e
-    , not $ null (anonArgumentTypes d) ->
-      1 + (maximum $ 0:(map (exprDepth h h' ns n) l))
+    , not $ null (anonArgumentTypes $ typeOf tv d) ->
+      1 + (maximum $ 0:(map (exprDepth tv h h' ns n) l))
     | otherwise -> 0
 
-getDepth :: StateET -> HS.HashSet Name -> Id -> Int
-getDepth s ns i = exprDepth (expr_env s) (opp_env $ track s) ns [] (Var i)
+getDepth :: TV.TyVarEnv -> StateET -> HS.HashSet Name -> Id -> Int
+getDepth tv s ns i = exprDepth tv (expr_env s) (opp_env $ track s) ns [] (Var i)
 
-maxArgDepth :: HS.HashSet Name -> [Id] -> StateET -> Int
-maxArgDepth ns sym_ids s = case sym_ids of
+maxArgDepth :: TV.TyVarEnv -> HS.HashSet Name -> [Id] -> StateET -> Int
+maxArgDepth tv ns sym_ids s = case sym_ids of
   [] -> 0
-  _ -> maximum $ map (getDepth s ns) sym_ids
+  _ -> maximum $ map (getDepth tv s ns) sym_ids
 
-sumArgDepths :: HS.HashSet Name -> [Id] -> StateET -> Int
-sumArgDepths ns sym_ids s = foldr (+) 0 $ map (getDepth s ns) sym_ids
+sumArgDepths :: TV.TyVarEnv -> HS.HashSet Name -> [Id] -> StateET -> Int
+sumArgDepths tv ns sym_ids s = foldr (+) 0 $ map (getDepth tv s ns) sym_ids
 
 minDepthMetric :: (HS.HashSet Name -> [Id] -> StateET -> Int) ->
                   HS.HashSet Name ->
@@ -574,15 +593,15 @@ stateDepthMetric m ns sym_ids (sh1, sh2) =
   let (s1, s2) = syncSymbolic (latest sh1) (latest sh2)
   in min (m ns sym_ids s1) (m ns sym_ids s2)
 
-stateMaxDepth :: HS.HashSet Name -> [Id] -> (StateH, StateH) -> Int
-stateMaxDepth = stateDepthMetric maxArgDepth
+stateMaxDepth :: TV.TyVarEnv -> HS.HashSet Name -> [Id] -> (StateH, StateH) -> Int
+stateMaxDepth tv = stateDepthMetric (maxArgDepth tv)
 
-stateSumDepths :: HS.HashSet Name -> [Id] -> (StateH, StateH) -> Int
-stateSumDepths = stateDepthMetric sumArgDepths
+stateSumDepths :: TV.TyVarEnv -> HS.HashSet Name -> [Id] -> (StateH, StateH) -> Int
+stateSumDepths tv = stateDepthMetric (sumArgDepths tv)
 
-minMaxDepth :: HS.HashSet Name -> [Id] -> [(StateH, StateH)] -> Int
-minMaxDepth = minDepthMetric maxArgDepth
+minMaxDepth :: TV.TyVarEnv -> HS.HashSet Name -> [Id] -> [(StateH, StateH)] -> Int
+minMaxDepth tv = minDepthMetric (maxArgDepth tv)
 
 -- correct to sync beforehand for all these
-minSumDepth :: HS.HashSet Name -> [Id] -> [(StateH, StateH)] -> Int
-minSumDepth = minDepthMetric sumArgDepths
+minSumDepth :: TV.TyVarEnv -> HS.HashSet Name -> [Id] -> [(StateH, StateH)] -> Int
+minSumDepth tv = minDepthMetric (sumArgDepths tv)
