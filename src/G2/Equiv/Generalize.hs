@@ -15,7 +15,7 @@ import G2.Equiv.G2Calls
 import G2.Equiv.Tactics
 
 import qualified Control.Monad.Writer.Lazy as W
-import qualified G2.Language.TyVarEnv as TV 
+
 innerScrutinees :: Expr -> [Expr]
 innerScrutinees (Tick _ e) = innerScrutinees e
 innerScrutinees e@(Case e' _ _ _) = e:(innerScrutinees e')
@@ -47,10 +47,10 @@ generalizeAux solver num_lems ns lemmas s1_list s2 = do
     [] -> return Nothing
     h:_ -> return h
 
-adjustStateForGeneralization :: TV.TyVarEnv -> Expr -> Name -> StateET -> StateET
-adjustStateForGeneralization tv e_old fresh_name s =
+adjustStateForGeneralization :: Expr -> Name -> StateET -> StateET
+adjustStateForGeneralization e_old fresh_name s =
   let e = getExpr s
-      fresh_id = Id fresh_name (typeOf tv e)
+      fresh_id = Id fresh_name (typeOf (tyvar_env s) e)
       fresh_var = Var fresh_id
       e' = replaceScrutinee e fresh_var e_old
       h = expr_env s
@@ -85,8 +85,8 @@ generalize solver num_lems ns lemmas fresh_name (s1, s2) | dc_path (track s1) ==
   let res' = filter isJust res
   case res' of
     (Just pm):_ -> let (s1', s2') = present pm
-                       s1'' = adjustStateForGeneralization (tyvar_env s1') e1 fresh_name s1'
-                       s2'' = adjustStateForGeneralization (tyvar_env s2') e2 fresh_name s2'
+                       s1'' = adjustStateForGeneralization e1 fresh_name s1'
+                       s2'' = adjustStateForGeneralization e2 fresh_name s2'
                    in return $ Just $ syncSymbolic s1'' s2''
     _ -> return Nothing
   | otherwise = return Nothing
