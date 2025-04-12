@@ -286,17 +286,17 @@ appendH sh s =
 replaceH :: StateH -> StateET -> StateH
 replaceH sh s = sh { latest = s }
 
-allTactics :: S.Solver s => TV.TyVarEnv -> [Tactic s]
-allTactics tv = [
-    tryEquality tv
-  , tryCoinduction tv 
-  , generalizeFull tv 
+allTactics :: S.Solver s => [Tactic s]
+allTactics = [
+    tryEquality
+  , tryCoinduction
+  , generalizeFull
   , trySolver
   , checkCycle
   ]
 
-allNewLemmaTactics :: S.Solver s => TV.TyVarEnv -> [NewLemmaTactic s]
-allNewLemmaTactics tv = map applyTacticToLabeledStates [tryEquality tv, tryCoinduction tv]
+allNewLemmaTactics :: S.Solver s => [NewLemmaTactic s]
+allNewLemmaTactics = map applyTacticToLabeledStates [tryEquality, tryCoinduction]
 
 -- negative loop iteration count means there's no limit
 -- The (null states) check ensures that we return UNSAT rather than
@@ -319,8 +319,8 @@ verifyLoop solver num_lems ns lemmas states b config nc sym_ids k n | (n /= 0) |
   W.liftIO $ putStrLn $ show n
   -- this printing allows our Python script to report depth stats
   -- TODO I don't know which states I should use 
-  let min_max_depth = minMaxDepth TV.empty ns sym_ids states
-      min_sum_depth = minSumDepth TV.empty ns sym_ids states
+  let min_max_depth = minMaxDepth ns sym_ids states
+      min_sum_depth = minSumDepth ns sym_ids states
   case states of
     [] -> return ()
     _ -> do
@@ -328,21 +328,21 @@ verifyLoop solver num_lems ns lemmas states b config nc sym_ids k n | (n /= 0) |
       W.liftIO $ putStrLn $ "<<Min Sum Depth>> " ++ show min_sum_depth
   W.liftIO $ hFlush stdout
   -- TODO: should we insert TV.empty for the TyVarEnv in verifyLoop?
-  (b', k', proven, lemmas') <- verifyLoopPropLemmas solver (allTactics TV.empty) num_lems ns lemmas b config nc k
+  (b', k', proven, lemmas') <- verifyLoopPropLemmas solver allTactics num_lems ns lemmas b config nc k
  
   -- W.liftIO $ putStrLn $ "proposed_lemmas: " ++ show (length $ proposed_lemmas lemmas')
   -- W.liftIO $ putStrLn $ "proven_lemmas: " ++ show (length $ proven_lemmas lemmas')
   -- W.liftIO $ putStrLn $ "continued_lemmas: " ++ show (length continued_lemmas)
   -- W.liftIO $ putStrLn $ "disproven_lemmas: " ++ show (length $ disproven_lemmas lemmas')
   -- TODO: is what we doing here for TyVarEnv correct?
-  (b'', k'', proven', lemmas'') <- verifyLemmasWithNewProvenLemmas solver (allNewLemmaTactics TV.empty) num_lems ns proven lemmas' b' config nc k'
-  (pl_sr, b''') <- verifyWithNewProvenLemmas solver (allNewLemmaTactics TV.empty) num_lems ns proven' lemmas'' b'' states
+  (b'', k'', proven', lemmas'') <- verifyLemmasWithNewProvenLemmas solver allNewLemmaTactics num_lems ns proven lemmas' b' config nc k'
+  (pl_sr, b''') <- verifyWithNewProvenLemmas solver allNewLemmaTactics num_lems ns proven' lemmas'' b'' states
 
   case pl_sr of
       CounterexampleFound -> return $ S.SAT ()
       Proven -> return $ S.UNSAT ()
       ContinueWith _ pl_lemmas -> do
-          (sr, b'''', k''') <- verifyLoopWithSymEx solver (allTactics TV.empty) num_lems ns lemmas'' b''' config nc k'' states
+          (sr, b'''', k''') <- verifyLoopWithSymEx solver allTactics num_lems ns lemmas'' b''' config nc k'' states
           case sr of
               ContinueWith new_obligations new_lemmas -> do
                   let n' = if n > 0 then n - 1 else n
@@ -798,7 +798,7 @@ checkRule :: (ASTContainer t Type, ASTContainer t Expr) => Config
           -> RewriteRule
           -> IO (S.Result () () ())
 checkRule config nc init_state bindings total rule = do
-  let (rule' ,mod_state@(State { expr_env = ee, tyvar_env = tvnv }), te_ng) = addFreeTypes rule init_state (name_gen bindings)
+  let (rule' ,mod_state@(State { expr_env = ee}), te_ng) = addFreeTypes rule init_state (name_gen bindings)
       (mod_state', ng') = if symbolic_unmapped nc 
                               then  
                                 ( mod_state { expr_env = addFreeVarsAsSymbolic ee }
@@ -840,7 +840,7 @@ checkRule config nc init_state bindings total rule = do
            else mkPrettyGuide $ getMarkerCX $ reverse w
   if have_summary $ print_summary nc then do
     putStrLn "--- SUMMARY ---"
-    _ <- mapM (putStrLnIfNonEmpty . (summarize tvnv (print_summary nc) pg ns sym_ids)) w'
+    _ <- mapM (putStrLnIfNonEmpty . (summarize (print_summary nc) pg ns sym_ids)) w'
     putStrLn "--- END OF SUMMARY ---"
   else return ()
   case res of
