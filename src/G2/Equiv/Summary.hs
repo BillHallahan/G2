@@ -549,7 +549,7 @@ maxArgDepth ns sym_ids s = case sym_ids of
   [] -> 0
   _ -> maximum $ map (getDepth s ns) sym_ids
 
-sumArgDepths ::  HS.HashSet Name -> [Id] -> StateET -> Int
+sumArgDepths :: HS.HashSet Name -> [Id] -> StateET -> Int
 sumArgDepths ns sym_ids s = foldr (+) 0 $ map (getDepth s ns) sym_ids
 
 minDepthMetric :: (HS.HashSet Name -> [Id] -> StateET -> Int) ->
