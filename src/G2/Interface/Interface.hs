@@ -233,7 +233,7 @@ initSimpleState (ExtractedG2 { exg2_binds = prog
         eenv = E.fromExprMap prog
         tenv = mkTypeEnv prog_typ
         tc = initTypeClasses TV.empty cls
-        kv = initKnownValues TV.empty eenv tenv tc
+        kv = initKnownValues eenv tenv tc
         ng = mkNameGen (prog, prog_typ, rs)
 
         s = IT.SimpleState { IT.expr_env = eenv
