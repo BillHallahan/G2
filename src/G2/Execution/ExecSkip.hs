@@ -1,15 +1,21 @@
+{-# LANGUAGE FlexibleContexts #-}
+
 module G2.Execution.ExecSkip 
     (
         ExecOrSkip (..),
+        NRPCMemoTable,
         isExecOrSkip,
-        canAddToNRPC,
+        checkDelayability,
         checklistOfExprs
     ) where
 
+import qualified Control.Monad.State as SM
 import qualified Data.HashSet as HS
+import qualified Data.HashMap.Lazy as HM
 import qualified G2.Language.ExprEnv as E
 import G2.Language
-import G2.Execution.Rules
+import G2.Execution.NormalForms ( normalForm )
+
 
 data ExecOrSkip = Exec
                 | Skip
@@ -21,28 +27,38 @@ isExecOrSkip Skip Skip = Skip
 isExecOrSkip Exec _ = Exec
 isExecOrSkip _ Exec = Exec
 
-canAddToNRPC :: ExprEnv -> Expr -> NameGen -> HS.HashSet Name -> HS.HashSet Name -> ExecOrSkip
-canAddToNRPC eenv e ng names seen_vars
-    -- If a variable is already seen, then it can be skipped. e.g recursive bindings
-    | Var (Id n t)  <- e
-    , True <- HS.member n seen_vars = Skip
-    -- Rule-VAR-EXEC
-    | Var (Id n t)  <- e
-    , True <- HS.member n names = Exec 
-    -- Rule-SYM-VAR for symbolic variables
-    | Var (Id n t) <- e
-    , E.isSymbolic n eenv = Skip
-    -- Rule-VAR
-    | Var (Id n t)  <- e
-    , Just e' <- E.lookup n eenv = 
-        let seen_vars' = HS.insert n seen_vars
-        in canAddToNRPC eenv e' ng names seen_vars'
-    -- Rule-SYM-VAR, that decides for any variable that's not in heap, be it let bindings or symbolic variable
-    | Var (Id n t)  <- e = Skip
+data IsSWHNF = IsSWHNF | NotIsSWHNF deriving (Show)
+type NRPCMemoTable = HM.HashMap Name (ExecOrSkip, IsSWHNF)
+
+checkDelayability :: ExprEnv -> Expr -> NameGen -> HS.HashSet Name -> NRPCMemoTable -> (ExecOrSkip, NRPCMemoTable)
+checkDelayability eenv e ng exec_names table = 
+    let 
+        ((res, _), var_table) = SM.runState (checkDelayability' eenv e ng exec_names ) table 
+    in (res, var_table)
+
+checkDelayability' :: SM.MonadState NRPCMemoTable m => ExprEnv -> Expr -> NameGen -> HS.HashSet Name -> m (ExecOrSkip, NameGen)
+checkDelayability' eenv e ng exec_names
+    | Var (Id n _) <- e =
+        do
+            currMemoTable <- SM.get
+            case HM.lookup n currMemoTable of
+                Just value -> isSkippable e value ng eenv
+                -- Rule-VAR-EXEC
+                Nothing | True <- HS.member n exec_names -> return (Exec, ng)
+                -- Rule-VAR
+                Nothing | Just e' <- E.lookup n eenv -> do 
+                    let var_table_update = HM.insert n (Skip, NotIsSWHNF) currMemoTable
+                    SM.put var_table_update
+                    (res, ng') <- checkDelayability' eenv e' ng exec_names
+                    let var_table_update' = HM.insert n (res, getSWHNFStatus eenv e') currMemoTable
+                    SM.put var_table_update'
+                    return (res, ng')
+                -- Rule-SYM-VAR, that decides for any variable that's not in heap, be it let bindings or symbolic variable
+                Nothing -> return (Skip, ng)
     -- Rule-DC
-    | Data dcon  <- e = Skip
+    | Data _  <- e = return (Skip, ng)
     -- Rule-LIT
-    | Lit lit <- e = Skip
+    | Lit _ <- e = return (Skip, ng)
     -- Rule-Let
     | Let b e' <- e  = 
         let 
@@ -56,42 +72,75 @@ canAddToNRPC eenv e ng names seen_vars
 
             eenv' = E.insertExprs (zip news binds_rhs') eenv
 
-        in canAddToNRPC eenv' e'' ng' names seen_vars
-    | Lam u i e1 <- e = 
+        in checkDelayability' eenv' e'' ng' exec_names
+    -- Rule-LAM
+    | Lam _ i e1 <- e = 
         let
             old = idName i
             (x', ng') = freshSeededName old ng
             e1' = renameExpr old x' e1
         in
-            canAddToNRPC eenv e1' ng names seen_vars
-    -- Rule-LAM
-    | App (Lam u i e1) e2 <- e = 
+            checkDelayability' eenv e1' ng' exec_names
+    -- Rule-APP-LAM
+    | App (Lam _ i e1) e2 <- e = 
         let
             old = idName i
             (x', ng') = freshSeededName old ng
             e1' = renameExpr old x' e1
             eenv' = E.insert x' e2 eenv
         in 
-            canAddToNRPC eenv' e1' ng names seen_vars
-    -- Rule-PRIM
-    | (Prim _ _):es <- unApp e = checklistOfExprs eenv es ng names seen_vars
+            checkDelayability' eenv' e1' ng' exec_names
     -- Rule-APP
-    | App e1 e2 <- e = isExecOrSkip (canAddToNRPC eenv e1 ng names seen_vars) (canAddToNRPC eenv e2 ng names seen_vars)
+    | App e1 e2 <- e = 
+        do -- Question: Come back here and decide if we need to return name gen too?
+            (del_e1, ng') <- checkDelayability' eenv e1 ng exec_names
+            (del_e2, ng'') <- checkDelayability' eenv e2 ng' exec_names
+            return (isExecOrSkip del_e1 del_e2, ng'')
+    -- Rule-PRIM
+    | (Prim _ _):es <- unApp e = checklistOfExprs eenv es ng exec_names
     -- Rule for determining case statements
-    | Case e' i t alts <- e = 
+    | Case e' _ _ alts <- e = 
         let altsExpr = e' : map (\(Alt _ e) -> e) alts
-        in checklistOfExprs eenv altsExpr ng names seen_vars
-    
-    | Type _ <- e = Skip
-    | Cast e' _ <- e = canAddToNRPC eenv e' ng names seen_vars
-    | Tick _ e' <- e = canAddToNRPC eenv e' ng names seen_vars
-    | NonDet es <- e = checklistOfExprs eenv es ng names seen_vars
-    | SymGen _ _ <- e = Skip
-    | Assume _ e1 e2 <- e = isExecOrSkip (canAddToNRPC eenv e1 ng names seen_vars) (canAddToNRPC eenv e2 ng names seen_vars)
-    | Assert _ e1 e2 <- e = isExecOrSkip (canAddToNRPC eenv e1 ng names seen_vars) (canAddToNRPC eenv e2 ng names seen_vars)
-         
-    | otherwise = Skip
+        in checklistOfExprs eenv altsExpr ng exec_names
 
-checklistOfExprs :: ExprEnv -> [Expr] -> NameGen -> HS.HashSet Name -> HS.HashSet Name -> ExecOrSkip
-checklistOfExprs eenv [] ng _ _ = Skip
-checklistOfExprs eenv (e : es) ng names seen_vars = isExecOrSkip (canAddToNRPC eenv e ng names seen_vars) (checklistOfExprs eenv es ng names seen_vars)
+    | Type _ <- e = return (Skip, ng)
+    | Cast e' _ <- e = checkDelayability' eenv e' ng exec_names
+    | Tick _ e' <- e = checkDelayability' eenv e' ng exec_names
+    | NonDet es <- e = checklistOfExprs eenv es ng exec_names
+    | SymGen _ _ <- e = return (Skip, ng)
+    | Assume _ e1 e2 <- e = 
+        do
+            (del_e1, ng') <- checkDelayability' eenv e1 ng exec_names
+            (del_e2, ng'') <- checkDelayability' eenv e2 ng' exec_names
+            return (isExecOrSkip del_e1 del_e2, ng'')
+    | Assert _ e1 e2 <- e = 
+        do
+            (del_e1, ng') <- checkDelayability' eenv e1 ng exec_names
+            (del_e2, ng'') <- checkDelayability' eenv e2 ng' exec_names
+            return (isExecOrSkip del_e1 del_e2, ng'')
+    | otherwise = return (Skip, ng)
+
+    where
+        isSkippable _ (Skip, _) ng' _ = return (Skip, ng')
+        isSkippable _ (Exec, IsSWHNF) ng' _ = return (Exec, ng')
+        isSkippable (Var (Id n _)) (Exec, NotIsSWHNF) ng' eenv'
+            | Just expr' <- E.lookup n eenv'
+            , normalForm eenv expr' =
+                do
+                    (res, ng'') <- checkDelayability' eenv' expr' ng' exec_names
+                    curr_var_table <- SM.get
+                    let var_table_update = HM.insert n (res, IsSWHNF) curr_var_table
+                    SM.put var_table_update
+                    return (res, ng'')
+        isSkippable _ (Exec, NotIsSWHNF) ng' _ = return (Exec, ng')
+
+        getSWHNFStatus eenv' e' = if normalForm eenv' e' then IsSWHNF else NotIsSWHNF
+
+
+checklistOfExprs :: SM.MonadState NRPCMemoTable m => ExprEnv -> [Expr] -> NameGen -> HS.HashSet Name -> m (ExecOrSkip, NameGen)
+checklistOfExprs _ [] ng _ = return (Skip, ng)
+checklistOfExprs eenv (e : es) ng exec_names = 
+    do
+        (del_e, ng') <- checkDelayability' eenv e ng exec_names
+        (del_es, ng'') <- checklistOfExprs eenv es ng' exec_names
+        return (isExecOrSkip del_e del_es, ng'')
