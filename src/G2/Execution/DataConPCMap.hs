@@ -40,20 +40,29 @@ data DataConPCInfo =
     , dc_pc :: [PathCond] -- ^ Path constraints to generate, written over the DCPC
     }
 
+-- mapToDCPC :: DataCon -> TypeEnv -> KnownValues -> Expr -> [Id] -> [Name] -> DataConPCInfo
+-- mapToDCPC dc tenv kv mexpr params new_ids 
+--     | Just (dcName dc) == fmap dcName (getDataCon tenv (KV.tyList kv) (KV.dcEmpty kv))
+--     , typeOf mexpr == TyApp (T.tyList kv) (T.tyChar kv) =
+
 applyDCPC :: NameGen
           -> ExprEnv
           -> [Type]
           -> [Id] -- ^ Newly generated arguments for the data constructor
           -> Name -- ^ As pattern name to replace
           -> DataConPCInfo
-          -> (Expr, ExprEnv, [PathCond], NameGen)
-applyDCPC ng eenv ts new_ids prev_asp (DCPC { dc_id = did, dc_args = ars, dc_pc = pc }) =
+          -> (ExprEnv, [PathCond], NameGen)
+applyDCPC ng eenv ts new_ids prev_asp (DCPC { dc_id = did, dc_as_pattern = asp, dc_args = ars, dc_pc = pc }) =
     let
         ts' = anonArgumentTypes did 
         ((ng', eenv', pc'), ars_e) = mapAccumL mkDCArg (ng, eenv, pc) $ zip3 ars new_ids ts'
+        ars_e' = rename asp prev_asp ars_e
     in
     assert (length ars == length new_ids)
-    (mkApp (Data did:map Type ts' ++ ars_e), eenv', pc', ng')
+    -- how to insert here without breaking (appTypeOf error ?)
+    -- (E.insert prev_asp (mkApp (Data did:map Type ts' ++ ars_e')) eenv', rename asp prev_asp pc', ng')
+    (eenv', rename asp prev_asp pc', ng')
+
 
 mkDCArg :: (NameGen, ExprEnv, [PathCond]) -> (DCArgBind, Id, Type) -> ((NameGen, ExprEnv, [PathCond]), Expr)
 mkDCArg (ng, eenv, pc) (ArgSymb bi, i, t) =
@@ -68,7 +77,6 @@ mkDCArg (ng, eenv, pc) (ArgConcretize { binder_name = bn, fresh_vars = fv, arg_e
         rn_hm = HM.fromList $ (bn, idName i):zip (map idName fv) (map idName fv')
         e' = renames rn_hm e
         pc' = renames rn_hm pc
-        -- insert expr here as well: gets closer somehow (but still allows repeat of same letter?)
         eenv' = E.insert (idName i) e' $ foldl' (flip E.insertSymbolic) eenv fv'
     in
     ((ng', eenv', pc'), e')

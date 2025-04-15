@@ -394,7 +394,6 @@ concretizeVarExpr s ng mexpr_id cvar (x:xs) maybeC =
 concretizeVarExpr' :: State t -> NameGen -> Id -> Id -> (DataCon, [Id], Expr) -> Maybe Coercion -> (NewPC t, NameGen)
 concretizeVarExpr' s@(State {expr_env = eenv, type_env = tenv, known_values = kv})
                 ngen mexpr_id cvar (dcon, params, aexpr) maybeC =
-        trace ("aexpr'' = " ++ show aexpr'' )
           (NewPC { state =  s { expr_env = eenv''
                               , curr_expr = CurrExpr Evaluate aexpr''}
                  -- It is VERY important that we insert the mexpr_id in `concretized`
@@ -476,40 +475,22 @@ adjustExprEnvAndPathConds :: KnownValues
 adjustExprEnvAndPathConds kv tenv eenv ng dc dc_e mexpr params dc_args
     | Just (dcName dc) == fmap dcName (getDataCon tenv (KV.tyList kv) (KV.dcEmpty kv))
     , typeOf mexpr == TyApp (T.tyList kv) (T.tyChar kv) =
-        -- assert (length params == 0)
-        -- (eenv''
-        -- , [ExtCond (mkEqExpr kv
-        --             (App (mkStringLen kv) (Var mexpr))
-        --             (Lit (LitInt 0)))
-        --         True]
-        -- , ng)
         let
-            -- new_e = Var (Id (dcName dc) (TyApp (T.tyList kv) (T.tyChar kv)))
+            asn = Name "as" Nothing 0 Nothing
+            asi = Id asn (TyApp (T.tyList kv) (T.tyChar kv))
             dcpc = DCPC { dc_id = dc
+                        , dc_as_pattern = asn
                         , dc_args = []
                         , dc_pc = [ExtCond (mkEqExpr kv
-                                      (App (mkStringLen kv) (Var mexpr)) -- (Id (dcName dc) TyLitString) instead of mexpr?
+                                      (App (mkStringLen kv) (Var asi))
                                       (Lit (LitInt 0)))
                                   True] }
-            (dc_e', eenv''', pc, ng') = applyDCPC ng eenv'' (map idType params) [] dcpc
         in
-        trace ("dc_e' = " ++ show dc_e')
-        (eenv''', pc, ng')
+        applyDCPC ng eenv'' (map idType params) newIds mexpr_n dcpc
     | Just (dcName dc) == fmap dcName (getDataCon tenv (KV.tyList kv) (KV.dcCons kv))
     , typeOf mexpr == TyApp (T.tyList kv) (T.tyChar kv)
     , [_, _] <- params
     , [arg_h, arg_t] <- newIds =
-        -- let
-        --     (char_i, ng') = freshId TyLitChar ng
-        --     char_dc = App (mkDCChar kv tenv) (Var char_i)
-        --     eenv''' = E.insertSymbolic char_i $ E.insert (idName arg_h) char_dc eenv''
-        -- in
-        -- assert (length params == 2)
-        -- (eenv'''
-        -- , [ExtCond (mkEqExpr kv
-        --             (App (App (mkStringAppend kv) (Var char_i)) (Var arg_t))
-        --             (Var mexpr)) True]
-        -- , ng')
         let
             hn = Name "h" Nothing 0 Nothing
             hi = Id hn (T.tyChar kv)
@@ -517,7 +498,10 @@ adjustExprEnvAndPathConds kv tenv eenv ng dc dc_e mexpr params dc_args
             ti = Id tn (TyApp (T.tyList kv) (T.tyChar kv))
             cn = Name "c" Nothing 0 Nothing
             ci = Id cn TyLitChar
+            asn = Name "as" Nothing 0 Nothing
+            asi = Id asn (TyApp (T.tyList kv) (T.tyChar kv))
             dcpc = DCPC { dc_id = dc
+                        , dc_as_pattern = asn
                         , dc_args = [ArgConcretize { binder_name = hn
                                                    , fresh_vars = [ ci ]
                                                    , arg_expr = App (mkDCChar kv tenv) (Var ci)
@@ -525,10 +509,9 @@ adjustExprEnvAndPathConds kv tenv eenv ng dc dc_e mexpr params dc_args
                                     , ArgSymb tn]    
                         , dc_pc = [ExtCond (mkEqExpr kv
                                            (App (App (mkStringAppend kv) (Var ci)) (Var ti))
-                                           (Var mexpr)) True] }
-            (dc_e', eenv''', pc, ng') = applyDCPC ng eenv'' (map idType params) newIds dcpc
+                                           (Var asi)) True] }
         in
-        (eenv''', pc, ng')
+        applyDCPC ng eenv'' (map idType params) newIds mexpr_n dcpc
     | otherwise = (eenv'', [], ng)
     where
         mexpr_n = idName mexpr
