@@ -99,8 +99,7 @@ checkDelayability' eenv e exec_names ng
     | App e1 e2 <- e = isExecOrSkip ng (checkDelayability' eenv e1 exec_names) (checkDelayability' eenv e2 exec_names)
     -- Rule-PRIM
     | (Prim _ _):es <- unApp e = checklistOfExprs eenv es exec_names ng
-    -- Rule for determining case statements
-    | Case e' _ _ alts <- e = 
+    -- Rule for determining case statements 
     | Case e' _ _ alts <- e = 
         let altsExpr = e' : map (\(Alt _ e) -> e) alts
         in checklistOfExprs eenv altsExpr exec_names ng
