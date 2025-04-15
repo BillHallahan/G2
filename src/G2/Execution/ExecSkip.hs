@@ -49,7 +49,7 @@ checkDelayability' eenv e exec_names ng
         do
             currMemoTable <- SM.get
             case HM.lookup n currMemoTable of
-                Just value | Just ex_sk <- isSkippable n value ng eenv -> return ex_sk
+                Just value | Just ex_sk <- isSkippable n value eenv -> return (ex_sk, ng)
                 -- Rule-VAR
                 _ | Just e' <- E.lookup n eenv -> do
                     -- If we have recursive let bindings then we keep variable as skip to avoid infinite loop
@@ -114,13 +114,13 @@ checkDelayability' eenv e exec_names ng
     | otherwise = return (Skip, ng)
 
     where
-        isSkippable :: Name -> (ExecOrSkip, IsSWHNF) -> NameGen -> ExprEnv -> Maybe (ExecOrSkip, NameGen)
-        isSkippable _ (Skip, _) ng' _ = Just (Skip, ng')
-        isSkippable _ (Exec, IsSWHNF) ng' _ = Just (Exec, ng')
-        isSkippable var_name (Exec, NotIsSWHNF) _ eenv'
+        isSkippable :: Name -> (ExecOrSkip, IsSWHNF) -> ExprEnv -> Maybe ExecOrSkip
+        isSkippable _ (Skip, _) _ = Just Skip
+        isSkippable _ (Exec, IsSWHNF) _ = Just Exec
+        isSkippable var_name (Exec, NotIsSWHNF) eenv'
             | Just expr' <- E.lookup var_name eenv'
             , normalForm eenv expr' = Nothing
-        isSkippable _ _ ng' _ =  Just (Exec, ng')
+        isSkippable _ _ _ =  Just Exec
 
         getSWHNFStatus eenv' e' = if normalForm eenv' e' then IsSWHNF else NotIsSWHNF
 
