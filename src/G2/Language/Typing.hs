@@ -60,6 +60,7 @@ module G2.Language.Typing
     , splitTyFuns
     , retype
     , retypeRespectingTyForAll
+    , tyVarSubst
     , mapInTyForAlls
     , inTyForAlls
     , numTypeArgs
@@ -81,7 +82,6 @@ import Data.Maybe
 import qualified Data.List as L
 import Control.Monad
 import qualified G2.Language.TyVarEnv as TV
-import qualified G2.Translation.GHC as TV
 
 tyInt :: KV.KnownValues -> Type
 tyInt kv = TyCon (KV.tyInt kv) (tyTYPE kv)
@@ -320,6 +320,13 @@ retypeRespectingTyForAll' :: Id -> Type -> Type -> Type
 retypeRespectingTyForAll' i _ t@(TyForAll ni _) | i == ni = t
 retypeRespectingTyForAll' key new (TyVar test) = if idName key == idName test then new else TyVar test
 retypeRespectingTyForAll' key new ty = modifyChildren (retypeRespectingTyForAll' key new) ty
+
+tyVarSubst :: (ASTContainer t Type) => TV.TyVarEnv -> t -> t
+tyVarSubst m = modifyASTs (tyVarSubst' m)
+
+tyVarSubst' ::  TV.TyVarEnv -> Type -> Type 
+tyVarSubst' m t@(TyVar (Id n _)) = HM.lookupDefault t n (TV.tyVarEnvCons m) 
+tyVarSubst' _ t = t
 
 tyVarRename :: (ASTContainer t Type) => M.Map Name Type -> t -> t
 tyVarRename m = modifyASTs (tyVarRename' m)

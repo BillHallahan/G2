@@ -35,7 +35,7 @@ import G2.Lib.Printers
 import Control.Exception
 
 import System.Process
-
+import qualified G2.Language.TyVarEnv as TV
 import Control.Monad.IO.Class
 
 -- | Load the passed module(s) into GHC, and check that the `ExecRes` results are correct.
@@ -113,12 +113,16 @@ runCheck init_pg modN entry chAll b er@(ExecRes {final_state = s, conc_args = ar
         mvStr = T.unpack mvTxt
         arsStr = T.unpack arsTxt
         outStr = T.unpack outTxt
-
-    let arsType = T.unpack $ mkTypeHaskellPG pg (typeOf (tyvar_env s) e)
-        outType = T.unpack $ mkTypeHaskellPG pg (typeOf (tyvar_env s) out)
+    -- before the typeOf in the next line , we want to retype the type variable in the expression 
+    -- with the corresponding type find in the tyvar_env 
+    -- use tyVarRename and change the map into TyVarEnv 
+    let e' = tyVarSubst (tyvar_env s)  e
+    let out' = tyVarSubst (tyvar_env s) out
+    let arsType = T.unpack $ mkTypeHaskellPG pg (typeOf (tyvar_env s) e')
+        outType = T.unpack $ mkTypeHaskellPG pg (typeOf (tyvar_env s) out')
 
     -- If we are returning a primitive type (Int#, Float#, etc.) wrap in a constructor so that `==` works
-    let pr_con = case typeOf (tyvar_env s) out of
+    let pr_con = case typeOf (tyvar_env s) out' of
                         TyLitInt -> "I# "
                         TyLitDouble -> "D# "
                         TyLitFloat -> "F# "
@@ -130,6 +134,7 @@ runCheck init_pg modN entry chAll b er@(ExecRes {final_state = s, conc_args = ar
                                         ++ outStr ++ " :: " ++ outType ++ ")" ++ ")) :: IO (Either SomeException Bool)"
                     True -> mvStr ++ "try (evaluate ( (" ++ pr_con ++ "(" ++ arsStr ++ " :: " ++ arsType ++ ")" ++
                                                     ") == " ++ pr_con ++ "(" ++ arsStr ++ "))) :: IO (Either SomeException Bool)"
+    liftIO $ putStrLn chck    
     v' <- compileExpr chck
 
     let chArgs = ars ++ [out] 

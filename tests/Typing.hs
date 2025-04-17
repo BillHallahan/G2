@@ -70,25 +70,25 @@ funcAppTest :: Bool
 funcAppTest = typeOf TV.empty (App (App idDef (Type int)) x1) == int
 
 funcTest :: Bool
-funcTest = idDef .:: (TyForAll aid (TyFun a a))
+funcTest = typeOf TV.empty idDef .:: (TyForAll aid (TyFun a a))
 
 tyAppKindTest :: Bool
 tyAppKindTest = typeOf TV.empty (TyApp either a) == TyFun TYPE TYPE
 
 specTest1 :: Bool
-specTest1 = x1 .:: int
+specTest1 = typeOf TV.empty x1 .:: int
 
 specTest2 :: Bool
-specTest2 = x1 .:: a
+specTest2 = typeOf TV.empty x1 .:: a
 
 specTest3 :: Bool
-specTest3 = f2 .:: typeOf TV.empty f3
+specTest3 = typeOf TV.empty f2 .:: typeOf TV.empty f3
 
 specFalseTest1 :: Bool
-specFalseTest1 = not $ Var (Id (Name "x1" Nothing 0 Nothing) a) .:: int
+specFalseTest1 = not $ typeOf TV.empty (Var (Id (Name "x1" Nothing 0 Nothing) a)) .:: int
 
 specFalseTest2 :: Bool
-specFalseTest2 = not $ f3 .:: typeOf TV.empty f2
+specFalseTest2 = not $ typeOf TV.empty f3 .:: typeOf TV.empty f2
 
 specFalseTest3 :: Bool
 specFalseTest3 =
