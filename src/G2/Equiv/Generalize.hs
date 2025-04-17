@@ -50,7 +50,7 @@ generalizeAux solver num_lems ns lemmas s1_list s2 = do
 adjustStateForGeneralization :: Expr -> Name -> StateET -> StateET
 adjustStateForGeneralization e_old fresh_name s =
   let e = getExpr s
-      fresh_id = Id fresh_name (typeOf e)
+      fresh_id = Id fresh_name (typeOf (tyvar_env s) e)
       fresh_var = Var fresh_id
       e' = replaceScrutinee e fresh_var e_old
       h = expr_env s

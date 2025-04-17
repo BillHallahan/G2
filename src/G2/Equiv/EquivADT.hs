@@ -19,7 +19,6 @@ import GHC.Generics (Generic)
 import Data.Data
 import Data.Hashable
 import Data.Maybe
-
 -- The information that comes before the Expr pair is used for checking
 -- the validity of guarded coinduction and also for counterexample
 -- summarization in the event of a SAT output.
@@ -64,7 +63,7 @@ exprPairing :: HS.HashSet Name -- ^ vars that should not be inlined on either si
             -> [Name] -- ^ variables inlined previously on the LHS
             -> [Name] -- ^ variables inlined previously on the RHS
             -> Maybe (HS.HashSet Obligation)
-exprPairing ns s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) e1 e2 pairs n1 n2 =
+exprPairing ns s1@(State {expr_env = h1, tyvar_env = tvnv1}) s2@(State {expr_env = h2}) e1 e2 pairs n1 n2 =
   case (e1, e2) of
     _ | e1 == e2 -> Just pairs
     -- ignore all Ticks
@@ -84,7 +83,7 @@ exprPairing ns s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) e1 e2 pairs
                      | E.isSymbolic (idName i1) h1
                      , E.isSymbolic (idName i2) h2
                      , idName i1 /= idName i2
-                     , not (concretizable $ T.typeOf e1) -> Nothing
+                     , not (concretizable $ T.typeOf tvnv1 e1) -> Nothing
     (Var i, _) | E.isSymbolic (idName i) h1 -> Just $ HS.insert (Ob [] e1 e2) pairs
                | m <- idName i
                , not $ m `elem` ns
