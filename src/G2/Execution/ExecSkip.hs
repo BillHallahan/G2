@@ -58,14 +58,13 @@ checkDelayability' eenv (Var (Id n _)) exec_names ng
                     -- and check delayability of the mapped expression. Now, we can update variable's exact delayability.
                     SM.modify (HM.insert n (Skip, NotIsSWHNF))
                     (res, ng') <- checkDelayability' eenv e' exec_names ng
-                    SM.modify (HM.insert n (res, getSWHNFStatus eenv e'))
+                    let swhnf_status = if normalForm eenv e' then IsSWHNF else NotIsSWHNF
+                    SM.modify (HM.insert n (res, swhnf_status))
                     return (res, ng')
                 -- Rule-SYM-VAR, that says symbolic variables are skippable, or for any variable that's not in heap, such as a let bound variable
                 _ -> return (Skip, ng)
     where
         e = E.lookupConcOrSym n eenv
-
-        getSWHNFStatus eenv' e' = if normalForm eenv' e' then IsSWHNF else NotIsSWHNF
 checkDelayability' eenv e exec_names ng
     -- Rule-DC
     | Data _  <- e = return (Skip, ng)
