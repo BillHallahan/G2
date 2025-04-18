@@ -443,10 +443,12 @@ runG2WithConfig :: Name -> [Maybe T.Text] -> State () -> Config -> Bindings -> I
 runG2WithConfig entry_f mb_modname state@(State { expr_env = eenv }) config bindings = do
     SomeSolver solver <- initSolver config
     hpc_t <- hpcTracker (hpc_print_times config)
-    let simplifier = FloatSimplifier :>> ArithSimplifier
+    let 
+        (state', bindings') = runG2Pre emptyMemConfig state bindings
+        simplifier = FloatSimplifier :>> ArithSimplifier
         --exp_env_names = E.keys . E.filterConcOrSym (\case { E.Sym _ -> False; E.Conc _ -> True }) $ expr_env state
         mod_name = nameModule entry_f
-        callGraph = G.getCallGraph $ expr_env state
+        callGraph = G.getCallGraph $ expr_env state'
         reachable_funcs = G.reachable entry_f callGraph
 
         executable_funcs = case check_asserts config of
@@ -465,7 +467,7 @@ runG2WithConfig entry_f mb_modname state@(State { expr_env = eenv }) config bind
         analysis4 = if print_nrpcs config then [\s p xs -> SM.lift $ logNRPCs s p xs] else noAnalysis
         analysis = analysis1 ++ analysis2 ++ analysis3 ++ analysis4
     
-    (in_out, bindings') <- case null analysis of
+    (in_out, bindings'') <- case null analysis of
         True -> do
             rho <- initRedHaltOrd mod_name solver simplifier config not_symbolic (S.fromList executable_funcs) (S.fromList non_rec_funcs)
             case rho of
@@ -473,7 +475,7 @@ runG2WithConfig entry_f mb_modname state@(State { expr_env = eenv }) config bind
                         SM.evalStateT
                             (SM.evalStateT
                                 (SM.evalStateT
-                                    (runG2WithSomes red hal ord [] solver simplifier emptyMemConfig state bindings)
+                                    (runG2WithSomes' red hal ord [] solver simplifier state' bindings')
                                     lnt
                                 )
                                 (if showType config == Lax 
@@ -490,7 +492,7 @@ runG2WithConfig entry_f mb_modname state@(State { expr_env = eenv }) config bind
                             SM.evalStateT
                                 (SM.evalStateT
                                     (SM.evalStateT
-                                        (runG2WithSomes red hal ord analysis solver simplifier emptyMemConfig state bindings)
+                                        (runG2WithSomes' red hal ord analysis solver simplifier state' bindings')
                                         lnt
                                     )
                                     (if showType config == Lax 
@@ -505,7 +507,7 @@ runG2WithConfig entry_f mb_modname state@(State { expr_env = eenv }) config bind
 
     close solver
 
-    return (in_out, bindings')
+    return (in_out, bindings'')
 
 getFuncsByModule :: [Maybe T.Text] -> [Name] -> [Name]
 getFuncsByModule ms reachable_funcs = 
@@ -572,10 +574,31 @@ runG2WithSomes :: ( MonadIO m
                -> State t
                -> Bindings
                -> m ([ExecRes t], Bindings)
-runG2WithSomes red hal ord solver simplifier mem state bindings =
+runG2WithSomes red hal ord analyze solver simplifier mem state bindings =
     case (red, hal, ord) of
         (SomeReducer red', SomeHalter hal', SomeOrderer ord') ->
-            runG2 red' hal' ord' solver simplifier mem state bindings
+            runG2 red' hal' ord' analyze solver simplifier mem state bindings
+ 
+runG2WithSomes' :: ( MonadIO m
+                  , Named t
+                  , ASTContainer t Expr
+                  , ASTContainer t Type
+                  , Solver solver
+                  , Simplifier simplifier)
+               => SomeReducer m t
+               -> SomeHalter m (ExecRes t) t
+               -> SomeOrderer m (ExecRes t) t
+               -> [AnalyzeStates m (ExecRes t) t]
+               -> solver
+               -> simplifier
+               -> State t
+               -> Bindings
+               -> m ([ExecRes t], Bindings)
+runG2WithSomes' red hal ord analyze solver simplifier state bindings =
+    case (red, hal, ord) of
+        (SomeReducer red', SomeHalter hal', SomeOrderer ord') ->
+            --runG2 red' hal' ord' analyze solver simplifier state bindings
+            runExecution red' hal' ord' (runG2Solving solver simplifier) analyze state bindings
 
 runG2Pre :: ( Named t
             , ASTContainer t Expr

@@ -22,7 +22,7 @@ def call_g2_process(filename, func, var_settings):
 
 def run_nofib_bench(filename, var_settings, timeout):
     # --check-asserts --error-asserts --accept-times --print-num-nrpc --no-step-limit --search subpath --time 60
-    return run_g2(filename, "main", ["--check-asserts", "--error-asserts", "--accept-times", "--print-num-nrpc", "--no-step-limit", "--search", "subpath", "--time", str(timeout)] + var_settings)
+    return run_g2(filename, "main", ["--check-asserts", "--error-asserts", "--accept-times", "--print-num-nrpc", "--print-num-red-rules", "--no-step-limit", "--search", "subpath", "--time", str(timeout)] + var_settings)
 
 def run_nofib_bench_nrpc(filename, var_settings, timeout):
     return run_nofib_bench(filename, ["--nrpc", "--higher-order", "symbolic"] + var_settings, timeout)
@@ -32,10 +32,15 @@ def process_output(out):
     nrpcs_num = list(map(lambda x : int(x), nrpcs))
     reached = re.findall(r"State Accepted: ((?:\d|\.|e|-)*)", out)
     reached_time = list(map(lambda x : float(x), reached))
+    red_rules = re.search(r"# Red Rules: ((?:\d)*)", out)
+    red_rules_num = 0
+    if red_rules:
+        red_rules_num = int(red_rules.group(1))
     out = reached_time
     if len(nrpcs_num) == len(reached_time):
         out = list(zip(nrpcs_num, reached_time))
     print(out)
+    print(red_rules_num)
 
 # Read in the types of bugs
 def read_bug_types(setpath):
