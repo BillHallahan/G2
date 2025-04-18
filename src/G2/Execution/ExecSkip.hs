@@ -41,25 +41,32 @@ checkDelayability eenv e ng exec_names table =
     in (res, var_table)
 
 checkDelayability' :: SM.MonadState NRPCMemoTable m => ExprEnv -> Expr -> HS.HashSet Name -> NameGen -> m (ExecOrSkip, NameGen)
-checkDelayability' eenv e exec_names ng
+checkDelayability' eenv (Var (Id n _)) exec_names ng
     -- Rule-VAR-EXEC
-    | Var (Id n _) <- e
-    , True <- HS.member n exec_names = return (Exec, ng)
-    | Var (Id n _) <- e =
+    | True <- HS.member n exec_names = return (Exec, ng)
+    | otherwise =
         do
             currMemoTable <- SM.get
             case HM.lookup n currMemoTable of
-                Just value | Just ex_sk <- isSkippable n value eenv -> return (ex_sk, ng)
+                Just (Skip, _) -> return (Skip, ng)
+                Just (Exec, IsSWHNF) -> return (Exec, ng)
+                Just (Exec, NotIsSWHNF) | Just (E.Conc e') <- e
+                                        , not (normalForm eenv e') -> return (Exec, ng)
                 -- Rule-VAR
-                _ | Just e' <- E.lookup n eenv -> do
+                _ | Just (E.Conc e') <- e -> do
                     -- If we have recursive let bindings then we keep variable as skip to avoid infinite loop
                     -- and check delayability of the mapped expression. Now, we can update variable's exact delayability.
                     SM.modify (HM.insert n (Skip, NotIsSWHNF))
                     (res, ng') <- checkDelayability' eenv e' exec_names ng
                     SM.modify (HM.insert n (res, getSWHNFStatus eenv e'))
                     return (res, ng')
-                -- Rule-SYM-VAR, that decides for any variable that's not in heap, be it let bindings or symbolic variable
-                Nothing -> return (Skip, ng)
+                -- Rule-SYM-VAR, that says symbolic variables are skippable, or for any variable that's not in heap, such as a let bound variable
+                _ -> return (Skip, ng)
+    where
+        e = E.lookupConcOrSym n eenv
+
+        getSWHNFStatus eenv' e' = if normalForm eenv' e' then IsSWHNF else NotIsSWHNF
+checkDelayability' eenv e exec_names ng
     -- Rule-DC
     | Data _  <- e = return (Skip, ng)
     -- Rule-LIT
@@ -101,7 +108,7 @@ checkDelayability' eenv e exec_names ng
     | (Prim _ _):es <- unApp e = checklistOfExprs eenv es exec_names ng
     -- Rule for determining case statements 
     | Case e' _ _ alts <- e = 
-        let altsExpr = e' : map (\(Alt _ e) -> e) alts
+        let altsExpr = e' : map (\(Alt _ ae) -> ae) alts
         in checklistOfExprs eenv altsExpr exec_names ng
 
     | Type _ <- e = return (Skip, ng)
@@ -112,18 +119,6 @@ checkDelayability' eenv e exec_names ng
     | Assume _ e1 e2 <- e = isExecOrSkip ng (checkDelayability' eenv e1 exec_names) (checkDelayability' eenv e2 exec_names)
     | Assert _ e1 e2 <- e = isExecOrSkip ng (checkDelayability' eenv e1 exec_names) (checkDelayability' eenv e2 exec_names)
     | otherwise = return (Skip, ng)
-
-    where
-        isSkippable :: Name -> (ExecOrSkip, IsSWHNF) -> ExprEnv -> Maybe ExecOrSkip
-        isSkippable _ (Skip, _) _ = Just Skip
-        isSkippable _ (Exec, IsSWHNF) _ = Just Exec
-        isSkippable var_name (Exec, NotIsSWHNF) eenv'
-            | Just expr' <- E.lookup var_name eenv'
-            , normalForm eenv expr' = Nothing
-        isSkippable _ _ _ =  Just Exec
-
-        getSWHNFStatus eenv' e' = if normalForm eenv' e' then IsSWHNF else NotIsSWHNF
-
 
 checklistOfExprs :: SM.MonadState NRPCMemoTable m => ExprEnv -> [Expr] -> HS.HashSet Name -> NameGen -> m (ExecOrSkip, NameGen)
 checklistOfExprs _ [] _ ng = return (Skip, ng)
