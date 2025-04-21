@@ -486,10 +486,10 @@ adjustExprEnvAndPathConds kv tenv eenv ng dc dc_e mexpr params dc_args
                                       (Lit (LitInt 0)))
                                   True] }
         in
-        applyDCPC ng eenv'' (map idType params) newIds mexpr_n dcpc
+        applyDCPC ng eenv'' newIds mexpr_n dcpc
     | Just (dcName dc) == fmap dcName (getDataCon tenv (KV.tyList kv) (KV.dcCons kv))
     , typeOf mexpr == TyApp (T.tyList kv) (T.tyChar kv)
-    , [_, _] <- params
+    , [a, b] <- params
     , [arg_h, arg_t] <- newIds =
         let
             hn = Name "h" Nothing 0 Nothing
@@ -511,7 +511,8 @@ adjustExprEnvAndPathConds kv tenv eenv ng dc dc_e mexpr params dc_args
                                            (App (App (mkStringAppend kv) (Var ci)) (Var ti))
                                            (Var asi)) True] }
         in
-        applyDCPC ng eenv'' (map idType params) newIds mexpr_n dcpc
+        -- trace ("first param: " ++ show a ++ " second param: " ++ show b)
+        applyDCPC ng eenv'' newIds mexpr_n dcpc
     | otherwise = (eenv'', [], ng)
     where
         mexpr_n = idName mexpr
