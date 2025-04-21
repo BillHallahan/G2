@@ -21,8 +21,8 @@ def call_g2_process(filename, func, var_settings):
     return res.stdout
 
 def run_nofib_bench(filename, var_settings, timeout):
-    # --check-asserts --error-asserts --accept-times --print-num-nrpc --print-num-red-rules --solver-time --no-step-limit --search subpath --time 60
-    return run_g2(filename, "main", ["--check-asserts", "--error-asserts", "--accept-times", "--print-num-nrpc", "--print-num-red-rules", "--solver-time", "--no-step-limit", "--search", "subpath", "--time", str(timeout)] + var_settings)
+    # --check-asserts --error-asserts --accept-times --print-num-nrpc --print-num-red-rules --solver-time --print-num-solver-calls --no-step-limit --search subpath --time 60
+    return run_g2(filename, "main", ["--check-asserts", "--error-asserts", "--accept-times", "--print-num-nrpc", "--print-num-red-rules", "--solver-time", "--print-num-solver-calls", "--no-step-limit", "--search", "subpath", "--time", str(timeout)] + var_settings)
 
 def run_nofib_bench_nrpc(filename, var_settings, timeout):
     return run_nofib_bench(filename, ["--nrpc", "--higher-order", "symbolic"] + var_settings, timeout)
@@ -36,16 +36,21 @@ def process_output(out):
     red_rules_num = -1
     if red_rules:
         red_rules_num = int(red_rules.group(1))
-    solving_time = re.search(r"Solving time: ((?:\d|\.|e|-)*)", out)
+    solving_time = re.search(r"Solving Time: ((?:\d|\.|e|-)*)", out)
     solving_time_num = -1
     if solving_time:
         solving_time_num = float(solving_time.group(1))
+    solver_calls = re.search(r"Solver Calls: ((?:\d)*)", out)
+    solver_calls_num = -1
+    if solver_calls:
+        solver_calls_num = int(solver_calls.group(1))
     out = reached_time
     if len(nrpcs_num) == len(reached_time):
         out = list(zip(nrpcs_num, reached_time))
     print(out)
     print("Red Rules #: " + str(red_rules_num))
     print("Solving time: " + str(solving_time_num))
+    print("Solver calls: " + str(solver_calls_num))
 
 # Read in the types of bugs
 def read_bug_types(setpath):
@@ -83,6 +88,7 @@ def run_nofib_set(setname, var_settings, timeout):
             if os.path.isdir(bench_path):
                 final_path = os.path.join(bench_path, "Main.hs")
                 if os.path.isfile(final_path):
+                    print("")
                     print(file_dir);
                     res_bench = run_nofib_bench(final_path, var_settings, timeout)
                     print("Baseline:")

@@ -17,7 +17,12 @@ module G2.Solver.Solver ( Solver (..)
                         , UndefinedHigherOrder (..)
                         , UnknownSolver (..)
                         
-                        , timeSolver) where
+                        , TimeSolver
+                        , timeSolver
+                        , timeSomeSolver
+                        , CallsSolver
+                        , callsSolver
+                        , callsSomeSolver) where
 
 import G2.Language
 import qualified G2.Language.PathConds as PC
@@ -251,10 +256,15 @@ instance Solver UnknownSolver where
 -- | A solver to time the runtime of other solvers
 data TimeSolver s = TimeSolver (IORef TimeSpec) s
 
+-- | A solver to time the runtime of other solvers
 timeSolver :: s -> IO (TimeSolver s)
 timeSolver s = do
     zero <- newIORef 0
     return (TimeSolver zero s)
+
+-- | Lift timeSolver into a SomeSolver.
+timeSomeSolver :: SomeSolver -> IO SomeSolver
+timeSomeSolver (SomeSolver s) = return . SomeSolver =<< timeSolver s
 
 instance Solver s => Solver (TimeSolver s) where
     check (TimeSolver ts solver) s pc = do
@@ -269,7 +279,35 @@ instance Solver s => Solver (TimeSolver s) where
         en <- getTime Realtime
         modifyIORef ts (+ (en - st))
         return r
-    close (TimeSolver io_ts _) = do
+    close (TimeSolver io_ts solver) = do
+        close solver
         ts <- readIORef io_ts
         let t = (fromInteger (toNanoSecs ts)) / (10 ^ (9 :: Int) :: Double)
-        putStrLn $ "Solving time: " ++ show t
+        putStrLn $ "Solving Time: " ++ show t
+
+-- | A solver to count the number of solver calls
+data CallsSolver s = CallsSolver (IORef Int) s
+
+-- | A solver to count the number of solver calls
+callsSolver :: s -> IO (CallsSolver s)
+callsSolver s = do
+    zero <- newIORef 0
+    return (CallsSolver zero s)
+
+-- | Lift callsSolver into a SomeSolver.
+callsSomeSolver :: SomeSolver -> IO SomeSolver
+callsSomeSolver (SomeSolver s) = return . SomeSolver =<< callsSolver s
+
+instance Solver s => Solver (CallsSolver s) where
+    check (CallsSolver c solver) s pc = do
+        r <- check solver s pc
+        modifyIORef c (+ 1)
+        return r
+    solve (CallsSolver c solver) s b is pc = do
+        r <- solve solver s b is pc
+        modifyIORef c (+ 1)
+        return r
+    close (CallsSolver io_c solver) = do
+        close solver
+        c <- readIORef io_c
+        putStrLn $ "Solver Calls: " ++ show c

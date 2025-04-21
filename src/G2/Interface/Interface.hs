@@ -356,9 +356,12 @@ initSolver' :: ArbValueFunc -> Config -> IO SomeSolver
 initSolver' avf config = do
     SomeSMTSolver con <- getSMTAV avf config
     let con' = GroupRelated avf (UndefinedHigherOrder :?> (ADTNumericalSolver avf con))
-    case time_solving config of
-        True -> return . SomeSolver =<< timeSolver con'
-        False -> return (SomeSolver con')
+    con'' <- case time_solving config of
+                True -> return . SomeSolver =<< timeSolver con'
+                False -> return (SomeSolver con')
+    case print_num_solver_calls config of
+                True -> callsSomeSolver con''
+                False -> return con''
 
 mkTypeEnv :: HM.HashMap Name AlgDataTy -> TypeEnv
 mkTypeEnv = id
