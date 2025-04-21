@@ -1,12 +1,16 @@
+{-# LANGUAGE OverloadedStrings #-}
+
 module G2.Execution.DataConPCMap ( DCArgBind (..)
                                  , DataConPCInfo (..)
+                                 , dcpcMap
                                  , applyDCPC
                                  ) where
 
 import G2.Language.Naming
-import qualified G2.Language.PathConds as P
 import G2.Language
 import qualified G2.Language.ExprEnv as E
+import qualified G2.Language.KnownValues as KV
+import qualified G2.Language.Typing as T
 
 import Data.List
 import qualified Data.HashMap.Lazy as HM
@@ -34,17 +38,52 @@ data DCArgBind =
 -- or newly introduced concrete values.
 data DataConPCInfo =
     DCPC
-    { dc_id :: DataCon -- ^ The data constructor that the DCPC applies to
-    , dc_as_pattern :: Name -- ^ The entirety of the data constructor application
+    { dc_as_pattern :: Name -- ^ The entirety of the data constructor application
     , dc_args :: [DCArgBind] -- ^ How to instantiate arguments for the DCPC
     , dc_pc :: [PathCond] -- ^ Path constraints to generate, written over the DCPC
     }
 
--- DCPCMap :: HM.HashMap (DataCon, [Type]) DataConPCInfo
--- DCPCMap = HM.fromList [
---             ((), strDcpc),
---             ((), strEmptyDcpc)
---         ]
+-- | Map Name's of DataCons to associations of type arguments to DataConPCInfos
+dcpcMap :: KnownValues -> TypeEnv -> HM.HashMap Name [([Type], DataConPCInfo)]
+dcpcMap kv tenv = HM.fromList [
+                      ( KV.dcCons kv, [ ([T.tyChar kv], strConsDcpc kv tenv) ])
+                    , ( KV.dcEmpty kv, [ ([T.tyChar kv], strEmptyDcpc kv) ])
+                  ]
+
+strConsDcpc :: KnownValues -> TypeEnv -> DataConPCInfo
+strConsDcpc kv tenv = let
+                        hn = Name "h" Nothing 0 Nothing
+                        hi = Id hn (T.tyChar kv)
+                        tn = Name "t" Nothing 0 Nothing
+                        ti = Id tn (TyApp (T.tyList kv) (T.tyChar kv))
+                        cn = Name "c" Nothing 0 Nothing
+                        ci = Id cn TyLitChar
+                        asn = Name "as" Nothing 0 Nothing
+                        asi = Id asn (TyApp (T.tyList kv) (T.tyChar kv))
+                        dcpc = DCPC { dc_as_pattern = asn
+                                    , dc_args = [ArgConcretize { binder_name = hn
+                                                            , fresh_vars = [ ci ]
+                                                            , arg_expr = App (mkDCChar kv tenv) (Var ci)
+                                                            }
+                                                , ArgSymb tn]    
+                                    , dc_pc = [ExtCond (mkEqExpr kv
+                                                    (App (App (mkStringAppend kv) (Var ci)) (Var ti))
+                                                    (Var asi)) True] }
+                      in
+                      dcpc
+
+strEmptyDcpc :: KnownValues -> DataConPCInfo
+strEmptyDcpc kv = let
+                    asn = Name "as" Nothing 0 Nothing
+                    asi = Id asn (TyApp (T.tyList kv) (T.tyChar kv))
+                    dcpc = DCPC { dc_as_pattern = asn
+                                , dc_args = []
+                                , dc_pc = [ExtCond (mkEqExpr kv
+                                    (App (mkStringLen kv) (Var asi))
+                                    (Lit (LitInt 0)))
+                                    True] }
+                  in
+                  dcpc
 
 applyDCPC :: NameGen
           -> ExprEnv
@@ -52,7 +91,7 @@ applyDCPC :: NameGen
           -> Name -- ^ As pattern name to replace
           -> DataConPCInfo
           -> (ExprEnv, [PathCond], NameGen)
-applyDCPC ng eenv new_ids prev_asp (DCPC { dc_id = did, dc_as_pattern = asp, dc_args = ars, dc_pc = pc }) =
+applyDCPC ng eenv new_ids prev_asp (DCPC { dc_as_pattern = asp, dc_args = ars, dc_pc = pc }) =
     let
         (ng', eenv', pc') = foldl' mkDCArg (ng, eenv, pc) (zip ars new_ids)
         pc'' = rename asp prev_asp pc'

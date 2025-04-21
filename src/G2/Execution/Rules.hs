@@ -473,53 +473,15 @@ adjustExprEnvAndPathConds :: KnownValues
                   -> [Name]
                   -> (ExprEnv, [PathCond], NameGen)
 adjustExprEnvAndPathConds kv tenv eenv ng dc dc_e mexpr params dc_args
-    | Just (dcName dc) == fmap dcName (getDataCon tenv (KV.tyList kv) (KV.dcEmpty kv))
-    , typeOf mexpr == TyApp (T.tyList kv) (T.tyChar kv) =
-        let
-            asn = Name "as" Nothing 0 Nothing
-            asi = Id asn (TyApp (T.tyList kv) (T.tyChar kv))
-            dcpc = DCPC { dc_id = dc
-                        , dc_as_pattern = asn
-                        , dc_args = []
-                        , dc_pc = [ExtCond (mkEqExpr kv
-                                      (App (mkStringLen kv) (Var asi))
-                                      (Lit (LitInt 0)))
-                                  True] }
-        in
-        applyDCPC ng eenv'' newIds mexpr_n dcpc
-    | Just (dcName dc) == fmap dcName (getDataCon tenv (KV.tyList kv) (KV.dcCons kv))
-    , typeOf mexpr == TyApp (T.tyList kv) (T.tyChar kv)
-    , [a, b] <- params
-    , [arg_h, arg_t] <- newIds =
-        let
-            hn = Name "h" Nothing 0 Nothing
-            hi = Id hn (T.tyChar kv)
-            tn = Name "t" Nothing 0 Nothing
-            ti = Id tn (TyApp (T.tyList kv) (T.tyChar kv))
-            cn = Name "c" Nothing 0 Nothing
-            ci = Id cn TyLitChar
-            asn = Name "as" Nothing 0 Nothing
-            asi = Id asn (TyApp (T.tyList kv) (T.tyChar kv))
-            dcpc = DCPC { dc_id = dc
-                        , dc_as_pattern = asn
-                        , dc_args = [ArgConcretize { binder_name = hn
-                                                   , fresh_vars = [ ci ]
-                                                   , arg_expr = App (mkDCChar kv tenv) (Var ci)
-                                                   }
-                                    , ArgSymb tn]    
-                        , dc_pc = [ExtCond (mkEqExpr kv
-                                           (App (App (mkStringAppend kv) (Var ci)) (Var ti))
-                                           (Var asi)) True] }
-        in
-        -- trace ("first param: " ++ show a ++ " second param: " ++ show b)
-        applyDCPC ng eenv'' newIds mexpr_n dcpc
+    | Just dcpcs <- HM.lookup (dcName dc) (dcpcMap kv tenv)
+    , _:ty_args <- unTyApp $ typeOf mexpr
+    , Just dcpc <- L.lookup ty_args dcpcs = applyDCPC ng eenv'' new_ids mexpr_n dcpc 
     | otherwise = (eenv'', [], ng)
     where
         mexpr_n = idName mexpr
-
-        --Update the expr environment
-        newIds = zipWith (\(Id _ t) n -> Id n t) params dc_args
-        eenv' = foldr E.insertSymbolic eenv newIds
+        -- update the expr environment
+        new_ids = zipWith (\(Id _ t) n -> Id n t) params dc_args
+        eenv' = foldr E.insertSymbolic eenv new_ids
         -- concretizes the mexpr to have same form as the DataCon specified
         eenv'' = E.insert mexpr_n dc_e eenv' 
 
