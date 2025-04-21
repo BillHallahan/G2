@@ -15,12 +15,16 @@ module G2.Solver.Solver ( Solver (..)
                         , groupRelatedInfinite
                         , CombineSolvers (..)
                         , UndefinedHigherOrder (..)
-                        , UnknownSolver (..)) where
+                        , UnknownSolver (..)
+                        
+                        , timeSolver) where
 
 import G2.Language
 import qualified G2.Language.PathConds as PC
 import Data.List
 import qualified Data.HashMap.Lazy as HM
+import Data.IORef
+import System.Clock
 
 -- | The result of a Solver query
 data Result m u um = SAT m
@@ -243,3 +247,29 @@ instance Solver UnknownSolver where
     solve _ _ _ _ pc
         | PC.null pc = return (SAT HM.empty)
         | otherwise = return (Unknown "unknown" ())
+
+-- | A solver to time the runtime of other solvers
+data TimeSolver s = TimeSolver (IORef TimeSpec) s
+
+timeSolver :: s -> IO (TimeSolver s)
+timeSolver s = do
+    zero <- newIORef 0
+    return (TimeSolver zero s)
+
+instance Solver s => Solver (TimeSolver s) where
+    check (TimeSolver ts solver) s pc = do
+        st <- getTime Realtime
+        r <- check solver s pc
+        en <- getTime Realtime
+        modifyIORef ts (+ (en - st))
+        return r
+    solve (TimeSolver ts solver) s b is pc = do
+        st <- getTime Realtime
+        r <- solve solver s b is pc
+        en <- getTime Realtime
+        modifyIORef ts (+ (en - st))
+        return r
+    close (TimeSolver io_ts _) = do
+        ts <- readIORef io_ts
+        let t = (fromInteger (toNanoSecs ts)) / (10 ^ (9 :: Int) :: Double)
+        putStrLn $ "Solving time: " ++ show t
