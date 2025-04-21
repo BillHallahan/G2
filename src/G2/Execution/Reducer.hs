@@ -66,8 +66,6 @@ module G2.Execution.Reducer ( Reducer (..)
                             , simpleLogger
                             , prettyLogger
 
-                            , reachesSymbolic
-
                             , LimLogger (..)
                             , limLoggerConfig
                             , getLimLogger
@@ -597,31 +595,29 @@ nonRedPCSymFunc _ s b = return (Finished, [(s, ())], b)
 
 -- | A reducer to add library functions in non reduced path constraints for solving later  
 nonRedLibFuncsReducer :: MonadIO m =>
-                         HS.HashSet Name -- ^ Names of variables that definitely do not lead to symbolic variables 
-                      -> HS.HashSet Name -- ^ Names of functions that must be executed
+                         HS.HashSet Name -- ^ Names of functions that must be executed
                       -> HS.HashSet Name -- ^ Names of functions that should not reesult in a larger expression become EXEC,
                                          -- but should not be added to the NRPC at the top level.
                                          -- I.e. if `f` is in this set, `f x y` will not be added to the NRPCs, but a function `g` that includes
                                          -- `f in it's definition may still be added to the NRPCs.
                       -> Config
-                      -> Reducer m (NRPCMemoTable, Int) t
-nonRedLibFuncsReducer not_symbolic exec_names no_nrpc_names config =
-    (mkSimpleReducer (\_ -> (HM.empty, 0))
-        (nonRedLibFuncs not_symbolic exec_names no_nrpc_names (symbolic_func_nrpc config)))
-        { onAccept = \s b (_, nrpc_count) -> do
+                      -> Reducer m (NRPCMemoTable, ReachesSymMemoTable, Int) t
+nonRedLibFuncsReducer exec_names no_nrpc_names config =
+    (mkSimpleReducer (\_ -> (HM.empty, HM.empty, 0))
+        (nonRedLibFuncs exec_names no_nrpc_names (symbolic_func_nrpc config)))
+        { onAccept = \s b (_, _, nrpc_count) -> do
             if print_num_nrpc config
                 then liftIO . putStrLn $ "NRPCs Generated: " ++ show nrpc_count
                 else return ()
             return (s, b) }
 
-nonRedLibFuncs :: Monad m => HS.HashSet Name -- ^ Names of variables that definitely do not lead to symbolic variables 
-                          -> HS.HashSet Name -- ^ Names of functions that must be executed
+nonRedLibFuncs :: Monad m => HS.HashSet Name -- ^ Names of functions that must be executed
                           -> HS.HashSet Name -- ^ Names of functions that should not reesult in a larger expression become EXEC,
                                              -- but should not be added to the NRPC at the top level.
                           -> Bool -- ^ Use NRPCs to delay execution of symbolic functions
-                          -> RedRules m (NRPCMemoTable, Int) t
-nonRedLibFuncs not_symbolic exec_names no_nrpc_names use_with_symb_func 
-                (var_table, nrpc_count)
+                          -> RedRules m (NRPCMemoTable, ReachesSymMemoTable, Int) t
+nonRedLibFuncs exec_names no_nrpc_names use_with_symb_func 
+                (var_table, sym_table, nrpc_count)
                 s@(State { expr_env = eenv
                          , curr_expr = CurrExpr _ ce
                          , type_env = tenv
@@ -640,28 +636,33 @@ nonRedLibFuncs not_symbolic exec_names no_nrpc_names use_with_symb_func
     -- Don't turn functions manipulating "magic types"- types represented as Primitives, with special handling
     -- (for instance, MutVars, Handles) into NRPC symbolic variables.
     , not (hasMagicTypes ce)
-    , reachesSymbolic not_symbolic eenv ce
-    , (Skip, var_table') <- checkDelayability eenv ce ng exec_names var_table
     = 
         let
-            (new_sym, ng') = freshSeededString "sym" ng
-            new_sym_id = Id new_sym (typeOf ce)
-            eenv' = E.insertSymbolic new_sym_id eenv
-            cexpr' = CurrExpr Return (Var new_sym_id)
-            -- when NRPC moves back to current expression, it immediately gets added as NRPC again.
-            -- To stop falling into this infinite loop, instead of adding current expression in NRPC
-            -- we associate a tick (nonRedBlocker) with the expression and then standard reducer reduces
-            -- this tick.
-            nonRedBlocker = Name "NonRedBlocker" Nothing 0 Nothing
-            tick = NamedLoc nonRedBlocker
-            ce' = mkApp $ (Tick tick (Var (Id n t))):es
-            s' = s { expr_env = eenv',
-            curr_expr = cexpr',
-            non_red_path_conds = (ce', Var new_sym_id):nrs } 
-        in 
-            return (Finished, [(s', (var_table', nrpc_count + 1))], b {name_gen = ng'})
+            (reaches_sym, sym_table') = reachesSymbolic sym_table eenv ce
+            (exec_skip, var_table') = if reaches_sym then checkDelayability eenv ce ng exec_names var_table else (Skip, var_table)
+        in
+        case (reaches_sym, exec_skip) of
+            (True, Skip) -> 
+                let
+                    (new_sym, ng') = freshSeededString "sym" ng
+                    new_sym_id = Id new_sym (typeOf ce)
+                    eenv' = E.insertSymbolic new_sym_id eenv
+                    cexpr' = CurrExpr Return (Var new_sym_id)
+                    -- when NRPC moves back to current expression, it immediately gets added as NRPC again.
+                    -- To stop falling into this infinite loop, instead of adding current expression in NRPC
+                    -- we associate a tick (nonRedBlocker) with the expression and then standard reducer reduces
+                    -- this tick.
+                    nonRedBlocker = Name "NonRedBlocker" Nothing 0 Nothing
+                    tick = NamedLoc nonRedBlocker
+                    ce' = mkApp $ (Tick tick (Var (Id n t))):es
+                    s' = s { expr_env = eenv',
+                    curr_expr = cexpr',
+                    non_red_path_conds = (ce', Var new_sym_id):nrs } 
+                in 
+                    return (Finished, [(s', (var_table', sym_table', nrpc_count + 1))], b {name_gen = ng'})
+            _ -> return (Finished, [(s, (var_table', sym_table', nrpc_count + 1))], b)
 
-    | otherwise = return (Finished, [(s, (var_table, nrpc_count + 1))], b)
+    | otherwise = return (Finished, [(s, (var_table, sym_table, nrpc_count + 1))], b)
     where
         digNewType (TyCon n _) | Just (NewTyCon { rep_type = rt }) <- HM.lookup n tenv = digNewType rt
         digNewType (TyApp t1 t2) = digNewType t1
@@ -681,20 +682,6 @@ nonRedLibFuncs not_symbolic exec_names no_nrpc_names use_with_symb_func
 
         hmt (TyCon n _) = Any (n `elem` magicTypes kv)
         hmt _ = Any False
-
--- | Can evaluating the Expr branch? Or is it fully concrete (including looking through variables.)
-reachesSymbolic :: HS.HashSet Name -> ExprEnv -> Expr -> Bool
-reachesSymbolic not_symbolic eenv = getAny . go HS.empty
-    where
-        go seen (SymGen _ _) = Any True
-        go seen (Var (Id n _))
-            | HS.member n not_symbolic = Any False 
-            | not (HS.member n seen) =
-                case E.lookupConcOrSym n eenv of
-                    Just (E.Conc e) -> go (HS.insert n seen) e
-                    Just (E.Sym _) -> Any True
-                    Nothing -> Any False
-        go seen e = evalChildren (go seen) e
 
 -- Note [Ignore Update Frames]
 -- In `strictRed`, when deciding whether to split up an expression to force strict evaluation of subexpression,

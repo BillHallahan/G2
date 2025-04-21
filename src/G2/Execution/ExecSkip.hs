@@ -6,16 +6,21 @@ module G2.Execution.ExecSkip
         NRPCMemoTable,
         isExecOrSkip,
         checkDelayability,
-        checklistOfExprs
+        checklistOfExprs,
+
+        ReachesSymMemoTable,
+        reachesSymbolic
     ) where
 
 import qualified Control.Monad.State as SM
 import qualified Data.HashSet as HS
 import qualified Data.HashMap.Lazy as HM
 import qualified G2.Language.ExprEnv as E
+import G2.Language.Monad.AST
 import G2.Language
 import G2.Execution.NormalForms ( normalForm )
 
+import Data.Monoid hiding (Alt)
 
 data ExecOrSkip = Exec
                 | Skip
@@ -123,3 +128,35 @@ checklistOfExprs :: SM.MonadState NRPCMemoTable m => ExprEnv -> [Expr] -> HS.Has
 checklistOfExprs _ [] _ ng = return (Skip, ng)
 checklistOfExprs eenv (e : es) exec_names ng = 
         isExecOrSkip ng (checkDelayability' eenv e exec_names) (checklistOfExprs eenv es exec_names)
+
+
+type ReachesSym = Bool
+type ReachesSymMemoTable = HM.HashMap Name (ReachesSym, IsSWHNF)
+
+-- | Can evaluating the Expr branch? Or is it fully concrete (including looking through variables.)
+reachesSymbolic :: ReachesSymMemoTable -> ExprEnv -> Expr -> (ReachesSym, ReachesSymMemoTable)
+reachesSymbolic rsmt eenv e = 
+    let 
+        (res, rsmt') = SM.runState (reachesSymbolic' eenv e) rsmt 
+    in (res, rsmt')
+
+reachesSymbolic' :: SM.MonadState ReachesSymMemoTable m => ExprEnv -> Expr -> m Bool
+reachesSymbolic' eenv e = return . getAny =<< go e
+    where
+        go (SymGen _ _) = return $ Any True
+        go (Var (Id n _)) = do
+            memo <- SM.get
+            case HM.lookup n memo of
+                Just (False, _) -> return $ Any False 
+                Just (True, _) -> return $ Any True 
+                _ -> do
+                    r <- case E.lookupConcOrSym n eenv of
+                                Just (E.Conc e) -> do
+                                    SM.modify (HM.insert n (False, undefined))
+                                    go e
+                                Just (E.Sym _) -> return $ Any True
+                                Nothing -> return $ Any False
+                    SM.modify (HM.insert n (getAny r, undefined))
+                    return r
+        go e = return . mconcat =<< mapM go (children e)
+

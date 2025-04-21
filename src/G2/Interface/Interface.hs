@@ -271,7 +271,6 @@ type RHOStack m = SM.StateT LengthNTrack (SM.StateT PrettyGuide (SM.StateT HpcTr
                    -> Config
                    -> S.HashSet Name
                    -> S.HashSet Name
-                   -> S.HashSet Name
                    -> IO (SomeReducer (RHOStack IO) (), SomeHalter (RHOStack IO) (ExecRes ()) (), SomeOrderer (RHOStack IO) (ExecRes ()) ())
     #-}
 initRedHaltOrd :: (MonadIO m, Solver solver, Simplifier simplifier) =>
@@ -279,12 +278,11 @@ initRedHaltOrd :: (MonadIO m, Solver solver, Simplifier simplifier) =>
                -> solver
                -> simplifier
                -> Config
-               -> S.HashSet Name -- ^ Names of functions that definitely do not lead to symbolic variables in the expr_env
                -> S.HashSet Name -- ^ Names of functions that may not be added to NRPCs
                -> S.HashSet Name -- ^ Names of functions that should not reesult in a larger expression become EXEC,
                                  -- but should not be added to the NRPC at the top level.
                -> IO (SomeReducer (RHOStack m) (), SomeHalter (RHOStack m) (ExecRes ()) (), SomeOrderer (RHOStack m) (ExecRes ()) ())
-initRedHaltOrd mod_name solver simplifier config not_symbolic exec_func_names no_nrpc_names = do
+initRedHaltOrd mod_name solver simplifier config exec_func_names no_nrpc_names = do
     time_logger <- acceptTimeLogger
     time_halter <- stdTimerHalter (fromInteger . toInteger $ timeLimit config)
 
@@ -305,7 +303,6 @@ initRedHaltOrd mod_name solver simplifier config not_symbolic exec_func_names no
         nrpc_red f = case nrpc config of
                         Nrpc -> liftSomeReducer
                                     (SomeReducer (nonRedLibFuncsReducer
-                                                                not_symbolic
                                                                 exec_func_names
                                                                 no_nrpc_names
                                                                 config
@@ -457,10 +454,6 @@ runG2WithConfig entry_f mb_modname state@(State { expr_env = eenv }) config bind
 
         non_rec_funcs = filter (isFuncNonRecursive callGraph) reachable_funcs
 
-        not_symbolic = S.fromList
-                     . E.keys
-                     $ E.filterConcOrSym (\case { E.Conc e -> not (reachesSymbolic S.empty eenv e); E.Sym _ -> False }) eenv
-
     analysis1 <- if states_at_time config then do l <- logStatesAtTime; return [l] else return noAnalysis
     let analysis2 = if states_at_step config then [\s p xs -> SM.lift . SM.lift . SM.lift $ logStatesAtStep s p xs] else noAnalysis
         analysis3 = if print_num_red_rules config then [\s p xs -> SM.lift . SM.lift . SM.lift . SM.lift $ logRedRuleNum s p xs] else noAnalysis
@@ -469,7 +462,7 @@ runG2WithConfig entry_f mb_modname state@(State { expr_env = eenv }) config bind
     
     (in_out, bindings'') <- case null analysis of
         True -> do
-            rho <- initRedHaltOrd mod_name solver simplifier config not_symbolic (S.fromList executable_funcs) (S.fromList non_rec_funcs)
+            rho <- initRedHaltOrd mod_name solver simplifier config (S.fromList executable_funcs) (S.fromList non_rec_funcs)
             case rho of
                 (red, hal, ord) ->
                         SM.evalStateT
@@ -484,7 +477,7 @@ runG2WithConfig entry_f mb_modname state@(State { expr_env = eenv }) config bind
                             )
                             hpc_t
         False -> do
-            rho <- initRedHaltOrd mod_name solver simplifier config not_symbolic (S.fromList executable_funcs) (S.fromList non_rec_funcs)
+            rho <- initRedHaltOrd mod_name solver simplifier config (S.fromList executable_funcs) (S.fromList non_rec_funcs)
             case rho of
                 (red, hal, ord) ->
                     SM.evalStateT (
