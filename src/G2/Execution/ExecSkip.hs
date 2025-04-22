@@ -113,7 +113,7 @@ checkDelayability' eenv (Var (Id n _)) exec_names ng
         checkNotNormalForm memo n' | HS.member n' exec_names = True
                                    | Just e' <- E.lookup n' eenv
                                    , not (normalForm eenv e')
-                                   , Just (ExecI n'') <- HM.lookup n memo = checkNotNormalForm memo n''
+                                   , Just (ExecI n'') <- HM.lookup n' memo = checkNotNormalForm memo n''
                                    | otherwise = False
 checkDelayability' eenv e exec_names ng
     -- Rule-DC
