@@ -77,6 +77,7 @@ import qualified G2.Language.KnownValues as KV
 import G2.Language.Syntax
 
 import qualified Data.HashMap.Lazy as HM
+import qualified Data.HashMap.Internal as HMI
 import qualified Data.Map as M
 import Data.Maybe
 import qualified Data.List as L
@@ -325,7 +326,7 @@ tyVarSubst :: (ASTContainer t Type) => TV.TyVarEnv -> t -> t
 tyVarSubst m = modifyASTs (tyVarSubst' m)
 
 tyVarSubst' ::  TV.TyVarEnv -> Type -> Type 
-tyVarSubst' m t@(TyVar (Id n _)) = HM.lookupDefault t n (TV.tyVarEnvCons m) 
+tyVarSubst' m t@(TyVar (Id n _)) = HMI.findWithDefault t n (TV.tyVarEnvCons m) 
 tyVarSubst' _ t = t
 
 tyVarRename :: (ASTContainer t Type) => M.Map Name Type -> t -> t

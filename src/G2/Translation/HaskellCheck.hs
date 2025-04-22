@@ -37,6 +37,7 @@ import Control.Exception
 import System.Process
 import qualified G2.Language.TyVarEnv as TV
 import Control.Monad.IO.Class
+import Debug.Trace
 
 -- | Load the passed module(s) into GHC, and check that the `ExecRes` results are correct.
 validateStates :: [FilePath] -> [FilePath] -> String -> String -> [String] -> [GeneralFlag] -> Bindings
@@ -116,7 +117,7 @@ runCheck init_pg modN entry chAll b er@(ExecRes {final_state = s, conc_args = ar
     -- before the typeOf in the next line , we want to retype the type variable in the expression 
     -- with the corresponding type find in the tyvar_env 
     -- use tyVarRename and change the map into TyVarEnv 
-    let e' = tyVarSubst (tyvar_env s)  e
+    let e' = trace("The tyvar_env is " ++ show (tyvar_env s))tyVarSubst (tyvar_env s)  e
     let out' = tyVarSubst (tyvar_env s) out
     let arsType = T.unpack $ mkTypeHaskellPG pg (typeOf (tyvar_env s) e')
         outType = T.unpack $ mkTypeHaskellPG pg (typeOf (tyvar_env s) out')
