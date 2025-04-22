@@ -1,0 +1,6 @@
+packages: *.cabal
+
+package g2
+
+allow-newer:
+    liquidhaskell:ghc
