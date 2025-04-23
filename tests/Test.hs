@@ -32,6 +32,7 @@ import DefuncTest
 import FuzzExecution
 import CaseTest
 import Expr
+import ExecSkip
 import Simplifications
 import Typing
 import UnionFindTests
@@ -73,6 +74,7 @@ tests = testGroup "Tests"
 
         , exprTests
         , typingTests
+        , execSkipTests
         , simplificationTests
         , ufMapQuickcheck
         , unionFindQuickcheck

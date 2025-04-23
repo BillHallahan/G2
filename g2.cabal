@@ -61,6 +61,7 @@ library
                        , G2.Execution.Rules
                        , G2.Execution.RuleTypes
                        , G2.Execution.ExecSkip
+                       , G2.Execution.Internals.ExecSkip
 
                        , G2.Initialization.FpToRational
                        , G2.Initialization.Interface
@@ -357,6 +358,7 @@ test-suite test
   main-is:             Test.hs
   other-modules:         CaseTest
                        , DefuncTest
+                       , ExecSkip
                        , Expr
                        , FuzzExecution
                        , GetNthTest
