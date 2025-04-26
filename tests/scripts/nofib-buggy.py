@@ -40,17 +40,22 @@ def process_output(out):
     solving_time_num = -1
     if solving_time:
         solving_time_num = float(solving_time.group(1))
-    solver_calls = re.search(r"Solver Calls: ((?:\d)*)", out)
-    solver_calls_num = -1
-    if solver_calls:
-        solver_calls_num = int(solver_calls.group(1))
+    gen_solver_calls = re.search(r"General Solver Calls: ((?:\d)*)", out)
+    gen_solver_calls_num = -1
+    if gen_solver_calls:
+        gen_solver_calls_num = int(gen_solver_calls.group(1))
+    smt_solver_calls = re.search(r"SMT Solver Calls: ((?:\d)*)", out)
+    smt_solver_calls_num = -1
+    if smt_solver_calls:
+        smt_solver_calls_num = int(smt_solver_calls.group(1))
     out = reached_time
     if len(nrpcs_num) == len(reached_time):
         out = list(zip(nrpcs_num, reached_time))
     print(out)
     print("Red Rules #: " + str(red_rules_num))
     print("Solving time: " + str(solving_time_num))
-    print("Solver calls: " + str(solver_calls_num))
+    print("SMT Solver calls: " + str(smt_solver_calls_num))
+    print("General Solver calls: " + str(gen_solver_calls_num))
 
 # Read in the types of bugs
 def read_bug_types(setpath):

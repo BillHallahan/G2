@@ -286,28 +286,35 @@ instance Solver s => Solver (TimeSolver s) where
         putStrLn $ "Solving Time: " ++ show t
 
 -- | A solver to count the number of solver calls
-data CallsSolver s = CallsSolver (IORef Int) s
+data CallsSolver s = CallsSolver
+                            String -- ^ Prefix for output string
+                            (IORef Int) -- ^ Counter
+                            s -- ^ Underlying solver to count invocations of
 
 -- | A solver to count the number of solver calls
-callsSolver :: s -> IO (CallsSolver s)
-callsSolver s = do
+callsSolver :: String  -- ^ Prefix for output string
+            -> s
+            -> IO (CallsSolver s)
+callsSolver pre_s s = do
     zero <- newIORef 0
-    return (CallsSolver zero s)
+    return (CallsSolver pre_s zero s)
 
 -- | Lift callsSolver into a SomeSolver.
-callsSomeSolver :: SomeSolver -> IO SomeSolver
-callsSomeSolver (SomeSolver s) = return . SomeSolver =<< callsSolver s
+callsSomeSolver :: String  -- ^ Prefix for output string
+                -> SomeSolver
+                -> IO SomeSolver
+callsSomeSolver pre_s (SomeSolver s) = return . SomeSolver =<< callsSolver pre_s s
 
 instance Solver s => Solver (CallsSolver s) where
-    check (CallsSolver c solver) s pc = do
+    check (CallsSolver _ c solver) s pc = do
         r <- check solver s pc
         modifyIORef c (+ 1)
         return r
-    solve (CallsSolver c solver) s b is pc = do
+    solve (CallsSolver _ c solver) s b is pc = do
         r <- solve solver s b is pc
         modifyIORef c (+ 1)
         return r
-    close (CallsSolver io_c solver) = do
+    close (CallsSolver pre_s io_c solver) = do
         close solver
         c <- readIORef io_c
-        putStrLn $ "Solver Calls: " ++ show c
+        putStrLn $ pre_s ++ " Solver Calls: " ++ show c

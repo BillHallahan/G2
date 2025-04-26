@@ -5,9 +5,11 @@ module G2.Solver.Simplifier ( Simplifier (..)
                             , (:>>) (..)
                             , IdSimplifier (..)
                             , ArithSimplifier (..)
-                            , FloatSimplifier (..)) where
+                            , FloatSimplifier (..)
+                            , EqualitySimplifier (..)) where
 
 import G2.Language
+import qualified G2.Language.ExprEnv as E
 
 class Simplifier simplifier where
     -- | Simplifies a PC, by converting it into one or more path constraints that are easier
@@ -15,8 +17,14 @@ class Simplifier simplifier where
     simplifyPC :: forall t . simplifier -> State t -> PathCond -> [PathCond]
 
     {-# INLINE simplifyPCs #-}
+    -- | Simplifies the existing PathConds based on a new PathCond
     simplifyPCs :: forall t. simplifier -> State t -> PathCond -> PathConds -> PathConds
     simplifyPCs _ _ _ = id
+    
+    {-# INLINE updateExprEnvPC #-}
+    -- | Update the ExprEnv based on a new PathCond
+    updateExprEnvPC :: forall t . simplifier -> State t -> PathCond -> ExprEnv -> ExprEnv
+    updateExprEnvPC _ _ _ = id
 
     -- | Reverses the affect of simplification in the model, if needed.
     reverseSimplification :: forall t . simplifier -> State t -> Bindings -> Model -> Model
@@ -28,6 +36,8 @@ instance (Simplifier simp1, Simplifier simp2) => Simplifier (simp1 :>> simp2) wh
     simplifyPC (simp1 :>> simp2) s = concatMap (simplifyPC simp2 s) . simplifyPC simp1 s
 
     simplifyPCs (simp1 :>> simp2) s pc = simplifyPCs simp2 s pc . simplifyPCs simp1 s pc
+
+    updateExprEnvPC (simp1 :>> simp2) s pc = updateExprEnvPC simp2 s pc . updateExprEnvPC simp1 s pc
 
     reverseSimplification (simp1 :>> simp2) s b m = reverseSimplification simp1 s b $ reverseSimplification simp2 s b m
 
@@ -79,3 +89,42 @@ instance Simplifier FloatSimplifier where
     simplifyPC _ _ pc = [pc]
 
     reverseSimplification _ _ _ m = m
+
+
+-- When we get a path constraint that is an equality between a variable and a constant,
+-- inline the constant in all path constraints and in the ExprEnv
+data EqualitySimplifier = EqualitySimplifier
+
+instance Simplifier EqualitySimplifier where
+    simplifyPC _ s pc | Just _ <- smallEqPC (known_values s) pc = []
+                      | otherwise = [pc]
+
+    simplifyPCs _ s pc pcs | Just (n, e) <- smallEqPC (known_values s) pc = replaceVar n e pcs
+                           | otherwise = pcs
+
+    updateExprEnvPC _ s pc eenv | Just (n, e) <- smallEqPC (known_values s) pc = E.insert n e eenv
+                                | otherwise = eenv
+    
+    reverseSimplification _ _ _ m = m
+
+smallEqPC :: KnownValues
+          -> PathCond
+          -> Maybe (Name, Expr) -- ^ If PC is an equality between a variable and a constant, (Just (variable name, constant))
+smallEqPC _ (ExtCond e True)
+    | [Prim Eq _, e1, e2] <- es
+    , Var (Id n _) <- e1
+    , isSmall e2 = Just (n, e2)
+    | [Prim Eq _, e1, e2] <- es
+    , Var (Id n _) <- e2
+    , isSmall e1 = Just (n, e1)
+    where
+        es = unApp e
+
+        isSmall (Var _) = True
+        isSmall (Data _) = True
+        isSmall (Lit _) = True
+        isSmall _ = False
+smallEqPC kv (ExtCond (Var (Id n _)) True) = Just (n, mkTrue kv)
+smallEqPC kv (ExtCond (Var (Id n _)) False) = Just (n, mkFalse kv)
+smallEqPC _ (AltCond l (Var (Id n _)) True) = Just (n, Lit l)
+smallEqPC _ _ = Nothing
