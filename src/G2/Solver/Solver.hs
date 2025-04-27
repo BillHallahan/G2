@@ -254,36 +254,43 @@ instance Solver UnknownSolver where
         | otherwise = return (Unknown "unknown" ())
 
 -- | A solver to time the runtime of other solvers
-data TimeSolver s = TimeSolver (IORef TimeSpec) s
+data TimeSolver s = TimeSolver
+                        String -- ^ Prefix for output string
+                        (IORef TimeSpec) -- ^ Timer
+                        s -- ^ Underlying solver to count invocations of
 
 -- | A solver to time the runtime of other solvers
-timeSolver :: s -> IO (TimeSolver s)
-timeSolver s = do
+timeSolver :: String -- ^ Prefix for output string
+           -> s
+           -> IO (TimeSolver s)
+timeSolver pre_s s = do
     zero <- newIORef 0
-    return (TimeSolver zero s)
+    return (TimeSolver pre_s zero s)
 
 -- | Lift timeSolver into a SomeSolver.
-timeSomeSolver :: SomeSolver -> IO SomeSolver
-timeSomeSolver (SomeSolver s) = return . SomeSolver =<< timeSolver s
+timeSomeSolver :: String  -- ^ Prefix for output string
+               -> SomeSolver
+               -> IO SomeSolver
+timeSomeSolver pre_s (SomeSolver s) = return . SomeSolver =<< timeSolver pre_s s
 
 instance Solver s => Solver (TimeSolver s) where
-    check (TimeSolver ts solver) s pc = do
+    check (TimeSolver _ ts solver) s pc = do
         st <- getTime Realtime
         r <- check solver s pc
         en <- getTime Realtime
         modifyIORef ts (+ (en - st))
         return r
-    solve (TimeSolver ts solver) s b is pc = do
+    solve (TimeSolver _ ts solver) s b is pc = do
         st <- getTime Realtime
         r <- solve solver s b is pc
         en <- getTime Realtime
         modifyIORef ts (+ (en - st))
         return r
-    close (TimeSolver io_ts solver) = do
+    close (TimeSolver pre_s io_ts solver) = do
         close solver
         ts <- readIORef io_ts
         let t = (fromInteger (toNanoSecs ts)) / (10 ^ (9 :: Int) :: Double)
-        putStrLn $ "Solving Time: " ++ show t
+        putStrLn $ pre_s ++ " Solving Time: " ++ show t
 
 -- | A solver to count the number of solver calls
 data CallsSolver s = CallsSolver

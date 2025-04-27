@@ -10,6 +10,7 @@ module G2.Solver.Simplifier ( Simplifier (..)
 
 import G2.Language
 import qualified G2.Language.ExprEnv as E
+import G2.Language.KnownValues
 
 class Simplifier simplifier where
     -- | Simplifies a PC, by converting it into one or more path constraints that are easier
@@ -65,6 +66,18 @@ simplifyArith (App (App (Prim Mult _) l) _) | isZero l = l
 
 simplifyArith (App (App (Prim Minus _) e) l) | isZero l = e
 
+-- 0 == lit * e is equivalent to 0 == e if lit /= 0
+simplifyArith (App (App (Prim Eq t) l) (App (App (Prim Mult _) e1) e2))
+    | isZero l
+    , not (isZero e1)
+    , isLit e1 = App (App (Prim Eq t) l) e2
+    | isZero l
+    , not (isZero e2)
+    , isLit e2 = App (App (Prim Eq t) l) e1
+
+-- 0 == - e is equivalent to 0 == e
+simplifyArith (App (App (Prim Eq t) l) (App (Prim Negate _) e)) | isZero l = App (App (Prim Eq t) l) e
+
 simplifyArith e = e
 
 isZero :: Expr -> Bool
@@ -110,13 +123,17 @@ instance Simplifier EqualitySimplifier where
 smallEqPC :: KnownValues
           -> PathCond
           -> Maybe (Name, Expr) -- ^ If PC is an equality between a variable and a constant, (Just (variable name, constant))
-smallEqPC _ (ExtCond e True)
+smallEqPC kv (ExtCond e True)
     | [Prim Eq _, e1, e2] <- es
     , Var (Id n _) <- e1
     , isSmall e2 = Just (n, e2)
     | [Prim Eq _, e1, e2] <- es
     , Var (Id n _) <- e2
     , isSmall e1 = Just (n, e1)
+    | [Prim Eq _, Data (DataCon { dc_name = n }), e2] <- es
+    , n == dcTrue kv = smallEqPC kv (ExtCond e2 True)
+    | [Prim Eq _, e1, Data (DataCon { dc_name = n })] <- es
+    , n == dcTrue kv = smallEqPC kv (ExtCond e1 True)
     where
         es = unApp e
 

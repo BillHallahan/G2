@@ -27,33 +27,53 @@ def run_nofib_bench(filename, var_settings, timeout):
 def run_nofib_bench_nrpc(filename, var_settings, timeout):
     return run_nofib_bench(filename, ["--nrpc", "--higher-order", "symbolic"] + var_settings, timeout)
 
+def read_float(pre, out):
+    reg = re.search(pre + r": ((?:\d|\.|e|-)*)", out)
+    res_num = -1
+    if reg:
+        res_num = float(reg.group(1))
+    return res_num
+
+def read_int(pre, out):
+    reg = re.search(pre + r": ((?:\d)*)", out)
+    res_num = -1
+    if reg:
+        res_num = int(reg.group(1))
+    return res_num
+
 def process_output(out):
     nrpcs = re.findall(r"NRPCs Generated: ((?:\d)*)", out)
     nrpcs_num = list(map(lambda x : int(x), nrpcs))
     reached = re.findall(r"State Accepted: ((?:\d|\.|e|-)*)", out)
     reached_time = list(map(lambda x : float(x), reached))
-    red_rules = re.search(r"# Red Rules: ((?:\d)*)", out)
-    red_rules_num = -1
-    if red_rules:
-        red_rules_num = int(red_rules.group(1))
-    solving_time = re.search(r"Solving Time: ((?:\d|\.|e|-)*)", out)
-    solving_time_num = -1
-    if solving_time:
-        solving_time_num = float(solving_time.group(1))
-    gen_solver_calls = re.search(r"General Solver Calls: ((?:\d)*)", out)
-    gen_solver_calls_num = -1
-    if gen_solver_calls:
-        gen_solver_calls_num = int(gen_solver_calls.group(1))
-    smt_solver_calls = re.search(r"SMT Solver Calls: ((?:\d)*)", out)
-    smt_solver_calls_num = -1
-    if smt_solver_calls:
-        smt_solver_calls_num = int(smt_solver_calls.group(1))
+    red_rules_num = read_int("# Red Rules", out)
+    # red_rules = re.search(r"# Red Rules: ((?:\d)*)", out)
+    # red_rules_num = -1
+    # if red_rules:
+    #     red_rules_num = int(red_rules.group(1))
+    smt_solving_time_num = read_float("SMT Solving Time", out)
+    gen_solving_time_num = read_float("General Solving Time", out)
+    # solving_time = re.search(r"General Solving Time: ((?:\d|\.|e|-)*)", out)
+    # solving_time_num = -1
+    # if solving_time:
+    #     solving_time_num = float(solving_time.group(1))
+    gen_solver_calls_num = read_int("General Solver Calls", out)
+    # gen_solver_calls = re.search(r"General Solver Calls: ((?:\d)*)", out)
+    # gen_solver_calls_num = -1
+    # if gen_solver_calls:
+    #     gen_solver_calls_num = int(gen_solver_calls.group(1))
+    smt_solver_calls_num = read_int("SMT Solver Calls", out)
+    # smt_solver_calls = re.search(r"SMT Solver Calls: ((?:\d)*)", out)
+    # smt_solver_calls_num = -1
+    # if smt_solver_calls:
+    #     smt_solver_calls_num = int(smt_solver_calls.group(1))
     out = reached_time
     if len(nrpcs_num) == len(reached_time):
         out = list(zip(nrpcs_num, reached_time))
     print(out)
     print("Red Rules #: " + str(red_rules_num))
-    print("Solving time: " + str(solving_time_num))
+    print("SMT Solving time: " + str(smt_solving_time_num))
+    print("Gen Solving time: " + str(gen_solving_time_num))
     print("SMT Solver calls: " + str(smt_solver_calls_num))
     print("General Solver calls: " + str(gen_solver_calls_num))
 
