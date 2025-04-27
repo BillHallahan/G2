@@ -115,8 +115,12 @@ instance Simplifier EqualitySimplifier where
     simplifyPCs _ s pc pcs | Just (n, e) <- smallEqPC (known_values s) pc = replaceVar n e pcs
                            | otherwise = pcs
 
-    updateExprEnvPC _ s pc eenv | Just (n, e) <- smallEqPC (known_values s) pc = E.insert n e eenv
-                                | otherwise = eenv
+    updateExprEnvPC _ s pc eenv
+        | Just (n, e) <- smallEqPC (known_values s) pc =
+            case e of
+                Var (Id n' _) | n == n' -> eenv
+                _ -> E.insert n e eenv
+        | otherwise = eenv
     
     reverseSimplification _ _ _ m = m
 
