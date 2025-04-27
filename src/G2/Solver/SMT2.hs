@@ -301,13 +301,13 @@ getProcessHandles pr = do
 
     return (h_in, h_out, p)
 
-getZ3 :: TV.TyVarEnv -> Int -> IO Z3
-getZ3 tv time_out = do
+getZ3 :: Int -> IO Z3
+getZ3 time_out = do
     hhp <- getZ3ProcessHandles time_out
-    return $ Z3 (arbValue tv) hhp
+    return $ Z3 arbValue hhp
 
-getSMT :: TV.TyVarEnv -> Config -> IO SomeSMTSolver
-getSMT tv = getSMTAV (arbValue tv)
+getSMT :: Config -> IO SomeSMTSolver
+getSMT = getSMTAV arbValue
 
 getSMTAV :: ArbValueFunc -> Config -> IO SomeSMTSolver
 getSMTAV avf (Config {smt = ConZ3}) = do

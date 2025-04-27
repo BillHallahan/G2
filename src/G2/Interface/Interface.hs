@@ -352,10 +352,10 @@ initRedHaltOrd mod_name solver simplifier config not_symbolic exec_func_names no
                 , orderer)
 
 initSolver :: Config -> IO SomeSolver
-initSolver = initSolver' (arbValue TV.empty)
+initSolver = initSolver' arbValue
 
 initSolverInfinite :: Config -> IO SomeSolver
-initSolverInfinite con = initSolver' (arbValueInfinite TV.empty) con
+initSolverInfinite con = initSolver' arbValueInfinite con
 
 initSolver' :: ArbValueFunc -> Config -> IO SomeSolver
 initSolver' avf config = do

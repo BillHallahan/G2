@@ -553,6 +553,8 @@ prettyState pg s =
         , pretty_mutvars
         , "----- [Types] ---------------------"
         , pretty_tenv
+        , "----- [TyVars] ---------------------"
+        , pretty_tyvar_env
         , "----- [Typeclasses] ---------------------"
         , pretty_tc
         , "----- [True Assert] ---------------------"
@@ -575,6 +577,7 @@ prettyState pg s =
         pretty_handles = prettyHandles pg $ handles s
         pretty_mutvars = prettyMutVars pg . HM.map mv_val_id $ mutvar_env s
         pretty_tenv = prettyTypeEnv (tyvar_env s) pg (type_env s)
+        pretty_tyvar_env = prettyTypeVarEnv pg (tyvar_env s)
         pretty_tc = prettyTypeClasses pg (type_classes s)
         pretty_assert_fcs = maybe "None" (printFuncCallPG pg) (assert_ids s)
         pretty_tags = T.intercalate ", " . map (mkNameHaskell pg) $ HS.toList (tags s)
@@ -682,6 +685,11 @@ prettyADT _ pg n TypeSynonym { bound_ids = bids, synonym_of = t } =
 
 prettyDCWithType :: TV.TyVarEnv ->  PrettyGuide -> DataCon -> T.Text
 prettyDCWithType tv pg dc = mkDataConHaskell pg dc <> " :: " <> mkTypeHaskellPG pg (typeOf tv dc)
+
+prettyTypeVarEnv :: PrettyGuide -> TV.TyVarEnv -> T.Text
+prettyTypeVarEnv pg = T.intercalate "\n"
+                    . map (\(n, t) -> mkNameHaskell pg n <> " -> " <> mkTypeHaskellPG pg t)
+                    . TV.toList
 
 prettyTypeClasses :: PrettyGuide -> TypeClasses -> T.Text
 prettyTypeClasses pg = T.intercalate "\n" . map (\(n, tc) -> mkNameHaskell pg n <> " = " <> prettyClass pg tc) . HM.toList . toMap

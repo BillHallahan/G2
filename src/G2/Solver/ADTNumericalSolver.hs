@@ -13,11 +13,11 @@ import qualified G2.Language.TyVarEnv as TV
 -- | Converts constraints about ADTs to numerical constraints before sending them to other solvers
 data ADTNumericalSolver solver = ADTNumericalSolver ArbValueFunc solver
 
-adtNumericalSolFinite :: TV.TyVarEnv -> solver -> ADTNumericalSolver solver
-adtNumericalSolFinite tv = ADTNumericalSolver (arbValue tv) 
+adtNumericalSolFinite :: solver -> ADTNumericalSolver solver
+adtNumericalSolFinite = ADTNumericalSolver arbValue 
 
-adtNumericalSolInfinite :: TV.TyVarEnv -> solver -> ADTNumericalSolver solver
-adtNumericalSolInfinite tv = ADTNumericalSolver (arbValueInfinite tv)
+adtNumericalSolInfinite :: solver -> ADTNumericalSolver solver
+adtNumericalSolInfinite = ADTNumericalSolver arbValueInfinite
 
 instance Solver solver => Solver (ADTNumericalSolver solver) where
     check (ADTNumericalSolver _ sol) s pc = return . fst =<< checkConsistency (Tr sol) s pc

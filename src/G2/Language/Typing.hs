@@ -326,14 +326,20 @@ tyVarSubst :: (ASTContainer t Type) => TV.TyVarEnv -> t -> t
 tyVarSubst m = modifyASTs (tyVarSubst' m)
 
 tyVarSubst' ::  TV.TyVarEnv -> Type -> Type 
-tyVarSubst' m t@(TyVar (Id n _)) = HMI.findWithDefault t n (TV.tyVarEnvCons m) 
+tyVarSubst' m t@(TyVar (Id n _)) =
+    case TV.lookup n m of
+        Nothing -> t
+        Just t' -> tyVarSubst' m t'
 tyVarSubst' _ t = t
 
 tyVarRename :: (ASTContainer t Type) => M.Map Name Type -> t -> t
 tyVarRename m = modifyASTs (tyVarRename' m)
 
 tyVarRename' :: M.Map Name Type -> Type -> Type
-tyVarRename' m t@(TyVar (Id n _)) = M.findWithDefault t n m
+tyVarRename' m t@(TyVar (Id n _)) = 
+    case M.lookup n m of
+        Nothing -> t
+        Just t' -> tyVarRename' m t'
 tyVarRename' _ t = t
 
 -- | Returns if the first type given is a specialization of the second,

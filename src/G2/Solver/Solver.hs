@@ -21,8 +21,6 @@ import G2.Language
 import qualified G2.Language.PathConds as PC
 import Data.List
 import qualified Data.HashMap.Lazy as HM
-import qualified G2.Language.TyVarEnv as TV 
-import qualified G2.Translation.GHC as TV
 
 -- | The result of a Solver query
 data Result m u um = SAT m
@@ -82,11 +80,11 @@ data SomeTrSolver where
 -- | Splits path constraints before sending them to the rest of the solvers
 data GroupRelated a = GroupRelated ArbValueFunc a
 
-groupRelatedFinite :: TV.TyVarEnv -> a -> GroupRelated a
-groupRelatedFinite tv = GroupRelated (arbValue tv) 
+groupRelatedFinite :: a -> GroupRelated a
+groupRelatedFinite = GroupRelated arbValue 
 
-groupRelatedInfinite :: TV.TyVarEnv -> a -> GroupRelated a
-groupRelatedInfinite tv = GroupRelated (arbValueInfinite tv)
+groupRelatedInfinite :: a -> GroupRelated a
+groupRelatedInfinite = GroupRelated arbValueInfinite
 
 checkRelated :: TrSolver a => a -> State t -> PathConds -> IO (Result () () (), a)
 checkRelated solver s pc =
@@ -112,7 +110,7 @@ solveRelated' avf sol s b m is [] =
         (_, nv) = mapAccumL
             (\av_ (Id n t) ->
                 let 
-                    (av_', v) = avf t (type_env s) av_
+                    (av_', v) = avf t (type_env s) (tyvar_env s) av_
                     in
                     (v, (n, av_'))
             ) (arb_value_gen b) is'

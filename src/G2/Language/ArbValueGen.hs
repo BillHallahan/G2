@@ -27,7 +27,8 @@ arbValueInit = ArbValueGen { intGen = 0
                            , boolGen = True
                            }
 
-type ArbValueFunc = Type -> TypeEnv -> ArbValueGen -> (Expr, ArbValueGen)
+-- Pass the TyVarEnv as the argument after TypeEnv 
+type ArbValueFunc = Type -> TypeEnv -> TV.TyVarEnv -> ArbValueGen -> (Expr, ArbValueGen)
 
 -- [CharGenInit]
 -- Do NOT make this a cycle.  It would simplify arbValue, but causes an infinite loop
@@ -41,22 +42,23 @@ charGenInit = ['a'..'z'] ++ ['A'..'Z'] ++ ['0'..'9']
 -- Returns a new ArbValueGen that (in the case of the primitives)
 -- will give a different value the next time arbValue is called with
 -- the same Type.
-arbValue :: TV.TyVarEnv -> Type -> TypeEnv -> ArbValueGen -> (Expr, ArbValueGen)
-arbValue tv t tenv = arbValue' (getFiniteADT tv) HM.empty t tenv
+-- This know TV.TyVarEnv 
+arbValue :: Type -> TypeEnv -> TV.TyVarEnv -> ArbValueGen -> (Expr, ArbValueGen)
+arbValue t tenv tv = arbValue' (getFiniteADT tv) HM.empty t tenv
 
 -- | Allows the generation of arbitrary values of the given type.
 -- Cuts off recursive ADTs with a Prim Undefined
 -- Returns a new ArbValueGen that is identical to the passed ArbValueGen
-constArbValue :: TV.TyVarEnv -> Type -> TypeEnv -> ArbValueGen -> (Expr, ArbValueGen)
-constArbValue tv = constArbValue' (getFiniteADT tv) HM.empty
+constArbValue :: Type -> TypeEnv -> TV.TyVarEnv -> ArbValueGen -> (Expr, ArbValueGen)
+constArbValue t tenv tv = constArbValue' (getFiniteADT tv) HM.empty t tenv
 
 -- | Allows the generation of arbitrary values of the given type.
 -- Does not always cut off recursive ADTs.
 -- Returns a new ArbValueGen that (in the case of the primitives)
 -- will give a different value the next time arbValue is called with
 -- the same Type.
-arbValueInfinite :: TV.TyVarEnv -> Type -> TypeEnv -> ArbValueGen -> (Expr, ArbValueGen)
-arbValueInfinite tv t = arbValueInfinite' tv cutOffVal HM.empty t
+arbValueInfinite :: Type -> TypeEnv -> TV.TyVarEnv -> ArbValueGen -> (Expr, ArbValueGen)
+arbValueInfinite t tenv tv = arbValueInfinite' tv cutOffVal HM.empty t tenv
 
 arbValueInfinite' :: TV.TyVarEnv -> Int -> HM.HashMap Name Type -> Type -> TypeEnv -> ArbValueGen -> (Expr, ArbValueGen)
 arbValueInfinite' tv cutoff = arbValue' (getADT tv cutoff)

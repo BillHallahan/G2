@@ -196,17 +196,17 @@ retLam s@(State { expr_env = eenv, tyvar_env = tvnv })
         Just t ->
             let 
                 (n', ng') = freshSeededName (idName i) ng 
-                i' = rename (idName i) n' i
-                tvnv' = TV.insert (idName i') t tvnv 
-                (eenv', e', ng'', news) = liftBind i (Type t) eenv e ng'
+                e' = rename (idName i) n' e
+                tvnv' = TV.insert n' t tvnv
+                -- (eenv', e'', ng'', news) = liftBind i (Type t) eenv e' ng'
 
             in 
-           ( RuleReturnEApplyLamType [news]
-            , [ s { expr_env = eenv'
+           ( RuleReturnEApplyLamType [n']
+            , [ s { expr_env = eenv
                  , curr_expr = CurrExpr Evaluate e'
                  , exec_stack = stck' 
                  , tyvar_env = tvnv' } ]
-            , ng'' )
+            , ng' )
         Nothing -> error $ "retLam: Bad type\ni = " ++ show i
     | otherwise =
         let
