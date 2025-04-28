@@ -242,7 +242,11 @@ allIds (PathConds pc) = HS.unions . P.map pcs_contains $ UF.elems pc
 
 -- | Computes the path constraints that relate to the `Names` in the passed list.
 scc :: [Name] -> PathConds -> PathConds
-scc ns = sccMaybe (L.map Just ns)
+scc ns (PathConds pcc) =
+    let
+        ns' = P.map (flip UF.find pcc) (L.map Just ns)
+    in
+    PathConds $ UF.filterWithKey (\k _ -> k `L.elem` ns') pcc
 
 {-# INLINE toList #-}
 toList :: PathConds -> [PathCond]
