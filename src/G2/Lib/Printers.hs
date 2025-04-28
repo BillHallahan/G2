@@ -47,7 +47,6 @@ import qualified Data.Text as T
 import qualified Data.Text.Internal.Read as T
 import Text.Read
 import qualified G2.Language.TyVarEnv as TV 
-import qualified G2.Language.TyVarEnv as TV
 data Clean = Cleaned | Dirty deriving Eq
 
 mkIdHaskell :: PrettyGuide -> Id -> T.Text

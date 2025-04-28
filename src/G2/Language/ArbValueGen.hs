@@ -27,7 +27,6 @@ arbValueInit = ArbValueGen { intGen = 0
                            , boolGen = True
                            }
 
--- Pass the TyVarEnv as the argument after TypeEnv 
 type ArbValueFunc = Type -> TypeEnv -> TV.TyVarEnv -> ArbValueGen -> (Expr, ArbValueGen)
 
 -- [CharGenInit]
@@ -42,7 +41,6 @@ charGenInit = ['a'..'z'] ++ ['A'..'Z'] ++ ['0'..'9']
 -- Returns a new ArbValueGen that (in the case of the primitives)
 -- will give a different value the next time arbValue is called with
 -- the same Type.
--- This know TV.TyVarEnv 
 arbValue :: Type -> TypeEnv -> TV.TyVarEnv -> ArbValueGen -> (Expr, ArbValueGen)
 arbValue t tenv tv = arbValue' (getFiniteADT tv) HM.empty t tenv
 

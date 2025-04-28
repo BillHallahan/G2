@@ -10,6 +10,7 @@ import G2.Execution.Reducer
 import G2.Execution.Rules
 import G2.Interface.ExecRes
 import G2.Language.Support
+import Debug.Trace
 
 {-# INLINE runExecutionToProcessed #-}
 runExecutionToProcessed :: (Monad m, Ord b) => Reducer m rv t -> Halter m hv r t -> Orderer m sov b r t -> (State t -> Bindings -> m (Maybe r)) -> State t -> Bindings -> m (Processed r (State t), Bindings)
@@ -19,4 +20,4 @@ runExecutionToProcessed = runReducer
 runExecution :: (Monad m, Ord b) => Reducer m rv t -> Halter m hv r t -> Orderer m sov b r t -> (State t -> Bindings -> m (Maybe r)) -> State t -> Bindings -> m ([r], Bindings)
 runExecution r h ord solve_r s b = do
     (pr, b') <- runReducer r h ord solve_r s b
-    return (accepted pr, b')
+    trace("The type_env from the states in runExecution: " ++ show (type_env s)) return (accepted pr, b')
