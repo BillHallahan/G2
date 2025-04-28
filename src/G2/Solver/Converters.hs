@@ -191,6 +191,7 @@ isNIA' :: SMTAST -> All
 isNIA' (_ :* _) = All True
 isNIA' (_ :/ _) = All True
 isNIA' (_ `Modulo` _) = All True
+isNIA' (_ `QuotSMT` _) = All True
 isNIA' s = isLIA' s
 
 isLIA :: (ASTContainer m SMTAST) => m -> Bool
