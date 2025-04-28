@@ -30,14 +30,16 @@ reduceNewPC solver simplifier
             s' = s { expr_env = eenv', path_conds = new_pc' }
 
         -- Optimization
-        -- We replace the path_conds with only those that are directly
-        -- affected by the new path constraints
-        -- This allows for more efficient solving, and in some cases may
-        -- change an Unknown into a SAT or UNSAT
+        -- We replace the path_conds with only those that are directly affected by the new path constraints.
+        -- This allows for more efficient solving, and in some cases may change an Unknown into a SAT or UNSAT.
+        --
+        -- Note that the simplifier might eliminate variables from new path constraints (by substituting them with constants,
+        -- for example), but we still need to make sure that such substititions don't violate exisitng path constraints.
+        -- For this reason, we extract names for the original (unsimplified) path constraints
         let ns = (concatMap PC.varNamesInPC pc) ++ namesList concIds
             rel_pc = case ns of
                 [] -> PC.fromList pc''
-                _ -> PC.sccMaybe (Nothing:map Just ns) new_pc'
+                _ -> PC.scc ns new_pc'
 
         res <- check solver s rel_pc
 

@@ -11,6 +11,7 @@ module G2.Solver.Simplifier ( Simplifier (..)
 import G2.Language
 import qualified G2.Language.ExprEnv as E
 import G2.Language.KnownValues
+import qualified G2.Language.PathConds as PC
 
 class Simplifier simplifier where
     -- | Simplifies a PC, by converting it into one or more path constraints that are easier
@@ -18,7 +19,7 @@ class Simplifier simplifier where
     simplifyPC :: forall t . simplifier -> State t -> PathCond -> [PathCond]
 
     {-# INLINE simplifyPCs #-}
-    -- | Simplifies the existing PathConds based on a new PathCond
+    -- | Simplifies the existing PathConds based on a new PathCond.
     simplifyPCs :: forall t. simplifier -> State t -> PathCond -> PathConds -> PathConds
     simplifyPCs _ _ _ = id
     
@@ -112,8 +113,11 @@ instance Simplifier EqualitySimplifier where
     simplifyPC _ s pc | Just _ <- smallEqPC (known_values s) pc = []
                       | otherwise = [pc]
 
-    simplifyPCs _ s pc pcs | Just (n, e) <- smallEqPC (known_values s) pc = replaceVar n e pcs
+    simplifyPCs _ s pc pcs | Just (n1, e@(Var (Id n2 _))) <- eq_pc = PC.mapPathCondsSCC n1 (replaceVar n1 e) (PC.join n1 n2 pcs)
+                           | Just (n, e) <- eq_pc = PC.mapPathCondsSCC n (replaceVar n e) pcs
                            | otherwise = pcs
+                           where
+                            eq_pc = smallEqPC (known_values s) pc
 
     updateExprEnvPC _ s pc eenv
         | Just (n, e) <- smallEqPC (known_values s) pc =
