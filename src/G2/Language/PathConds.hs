@@ -158,9 +158,7 @@ mapPathCondsSCC :: Name -> (PathCond -> PathCond) -> PathConds -> PathConds
 mapPathCondsSCC n f (PathConds uf) | Just pcg <- UF.lookup (Just n) uf =
     let
         pcs' = HS.map (mapHashedPC f) $ pcs pcg
-        pcs_c = HS.union
-                    (HS.fromList . concatMap varIdsInPC $ HS.map unhashedPC pcs')
-                    (pcs_contains pcg)
+        pcs_c = HS.fromList . concatMap varIdsInPC $ HS.map unhashedPC pcs'
         uf' = UF.insert (Just n) (pcg { pcs_contains = pcs_c, pcs = pcs'}) uf
     in
     PathConds uf'
