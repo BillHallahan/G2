@@ -23,6 +23,7 @@ import G2.Language.Syntax
 
 newtype TyVarEnv = TyVarEnv (HM.HashMap Name Type) deriving (Show, Eq, Read, Generic, Typeable, Data)
 
+-- ToDo: is this function necessary?
 tyVarEnvCons :: TyVarEnv -> HM.HashMap Name Type
 tyVarEnvCons (TyVarEnv tyvarenv) = tyvarenv
 
@@ -48,4 +49,3 @@ toMap :: TyVarEnv -> M.Map Name Type
 toMap tvenv = M.fromList $ toList tvenv  
 
 instance Hashable TyVarEnv
-

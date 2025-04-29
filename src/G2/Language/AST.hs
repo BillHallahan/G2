@@ -37,6 +37,7 @@ import qualified Data.HashSet as HS
 import qualified Data.Map as M
 import qualified Data.Sequence as S
 import qualified Data.Text as T
+import qualified G2.Language.TyVarEnv as TV 
 
 -- | Describes data types that define an AST.
 class AST t where
@@ -369,6 +370,11 @@ instance ASTContainer RewriteRule Type where
 --     containedASTs = foldMap (containedASTs)
 
 --     modifyContainedASTs f = fmap (modifyContainedASTs f)
+-- instance ASTContainer TV.TyVarEnv t => ASTContainer TV.TyVarEnv t where
+
+--     containedASTs = containedASTs . toList
+
+--     modifyContainedASTs f = fmap (modifyContainedASTs f)
 
 instance ASTContainer c t => ASTContainer [c] t where
     containedASTs = foldMap containedASTs
@@ -400,6 +406,7 @@ instance (ASTContainer s t, Hashable s, Eq s) => ASTContainer (HS.HashSet s) t w
     containedASTs = containedASTs . HS.toList 
 
     modifyContainedASTs f = HS.map (modifyContainedASTs f)
+
 
 instance ASTContainer () Expr where
     containedASTs _ = []
@@ -501,6 +508,19 @@ instance ASTContainer AlgDataTy DataCon where
     modifyContainedASTs f (DataTyCon ns dcs adts) = DataTyCon ns (modifyContainedASTs f dcs) adts
     modifyContainedASTs f (NewTyCon ns dc rt adts) = NewTyCon ns (modifyContainedASTs f dc) rt adts
     modifyContainedASTs _ st@(TypeSynonym _ _ _) = st
+
+-- TODO: determine whether the implementation of ASTContainer for TyVarEnv is correct
+instance ASTContainer TV.TyVarEnv Type where
+    containedASTs = containedASTs . TV.toList
+    
+    modifyContainedASTs f c = undefined --TV.fromList (modifyContainedASTs f (TV.toList c) )
+
+instance ASTContainer TV.TyVarEnv Expr where
+    containedASTs = containedASTs . TV.toList
+    
+    modifyContainedASTs f c = undefined -- TV.fromList (modifyContainedASTs f (TV.toList c) )
+
+
 
 instance (ASTContainer k t, ASTContainer v t, Eq k, Hashable k) => ASTContainer (UF.UFMap k v) t where
     containedASTs = containedASTs . UF.toList

@@ -175,6 +175,7 @@ instance Hashable HandleStatus
 instance Named t => Named (State t) where
     names s = names (expr_env s)
             <> names (type_env s)
+            <> names (tyvar_env s)
             <> names (curr_expr s)
             <> names (path_conds s)
             <> names (non_red_path_conds s)
@@ -193,7 +194,7 @@ instance Named t => Named (State t) where
                , type_env =
                     HM.mapKeys (\k -> if k == old then new else k)
                     $ rename old new (type_env s)
-               , tyvar_env = TV.empty
+               , tyvar_env = rename old new (tyvar_env s)
                , curr_expr = rename old new (curr_expr s)
                , path_conds = rename old new (path_conds s)
                , non_red_path_conds = rename old new (non_red_path_conds s)
@@ -216,7 +217,7 @@ instance Named t => Named (State t) where
                , type_env =
                     HM.mapKeys (renames hm)
                     $ renames hm (type_env s)
-               , tyvar_env = TV.empty
+               , tyvar_env = renames hm (tyvar_env s)
                , curr_expr = renames hm (curr_expr s)
                , path_conds = renames hm (path_conds s)
                , non_red_path_conds = renames hm (non_red_path_conds s)
@@ -237,6 +238,7 @@ instance Named t => Named (State t) where
 instance ASTContainer t Expr => ASTContainer (State t) Expr where
     containedASTs s = (containedASTs $ type_env s) ++
                       (containedASTs $ expr_env s) ++
+                      (containedASTs $ tyvar_env s) ++
                       (containedASTs $ curr_expr s) ++
                       (containedASTs $ path_conds s) ++
                       (containedASTs $ non_red_path_conds s) ++
@@ -250,6 +252,7 @@ instance ASTContainer t Expr => ASTContainer (State t) Expr where
 
     modifyContainedASTs f s = s { type_env  = modifyContainedASTs f $ type_env s
                                 , expr_env  = modifyContainedASTs f $ expr_env s
+                                , tyvar_env = modifyContainedASTs f $ tyvar_env s
                                 , curr_expr = modifyContainedASTs f $ curr_expr s
                                 , path_conds = modifyContainedASTs f $ path_conds s
                                 , non_red_path_conds = modifyContainedASTs f $ non_red_path_conds s
@@ -264,6 +267,7 @@ instance ASTContainer t Expr => ASTContainer (State t) Expr where
 instance ASTContainer t Type => ASTContainer (State t) Type where
     containedASTs s = ((containedASTs . expr_env) s) ++
                       ((containedASTs . type_env) s) ++
+                      ((containedASTs . tyvar_env) s) ++
                       ((containedASTs . curr_expr) s) ++
                       ((containedASTs . path_conds) s) ++
                       (containedASTs $ non_red_path_conds s) ++
@@ -278,6 +282,7 @@ instance ASTContainer t Type => ASTContainer (State t) Type where
 
     modifyContainedASTs f s = s { type_env  = (modifyContainedASTs f . type_env) s
                                 , expr_env  = (modifyContainedASTs f . expr_env) s
+                                , tyvar_env  = (modifyContainedASTs f . tyvar_env) s
                                 , curr_expr = (modifyContainedASTs f . curr_expr) s
                                 , path_conds = (modifyContainedASTs f . path_conds) s
                                 , non_red_path_conds = modifyContainedASTs f $ non_red_path_conds s

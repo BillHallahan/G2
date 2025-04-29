@@ -81,6 +81,8 @@ import qualified Data.List as L
 import qualified G2.Language.TyVarEnv as TV
 import System.Timeout
 
+import Debug.Trace
+
 type AssumeFunc = T.Text
 type AssertFunc = T.Text
 type ReachFunc = T.Text
@@ -598,6 +600,7 @@ runG2Solving :: ( MonadIO m
              -> Bindings
              -> m (Maybe (ExecRes t))
 runG2Solving solver simplifier s bindings = do
+    liftIO . putStrLn $ "runG2Solving " ++ show (tyvar_env s) 
     res <- liftIO $ runG2SolvingResult solver simplifier bindings s
     case res of
         SAT m -> return $ Just m
@@ -637,7 +640,7 @@ runG2SubstModel m s@(State { type_env = tenv, known_values = kv }) bindings =
                        , conc_handles = conc_handles sm'
                        , violated = evalPrims tenv kv (violated sm')}
     in
-    sm''
+    trace ("runG2SubstModel s' = " ++ show (tyvar_env s') ++ "\nsm'' = " ++ show (tyvar_env . final_state $ sm'')) sm''
 
 {-# SPECIALIZE runG2 :: ( Solver solver
                         , Simplifier simplifier
@@ -658,4 +661,6 @@ runG2 :: ( MonadIO m
          solver -> simplifier -> MemConfig -> State t -> Bindings -> m ([ExecRes t], Bindings)
 runG2 red hal ord solver simplifier mem is bindings = do
     let (is', bindings') = runG2Pre mem is bindings
-    runExecution red hal ord (runG2Solving solver simplifier) is' bindings'
+    (er, b) <- runExecution red hal ord (runG2Solving solver simplifier) is' bindings'
+    liftIO . print $ map (tyvar_env . final_state) er 
+    return (er, b)
