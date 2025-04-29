@@ -49,7 +49,7 @@ runWithArgs as = do
 
   case validate config of
         True -> do
-            r <- trace("The tyvar_env in each of the final states from runWithArgs function: " ++ show (map (tyvar_env . final_state) in_out))validateStates proj [src] (T.unpack $ fromJust mb_modname) entry [] [Opt_Hpc] b in_out
+            r <- validateStates proj [src] (T.unpack $ fromJust mb_modname) entry [] [Opt_Hpc] b in_out
             if and r then putStrLn "Validated" else putStrLn "There was an error during validation."
 
             printFuncCalls config entry_f b (Just r) in_out

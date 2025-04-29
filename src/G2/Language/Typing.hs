@@ -83,6 +83,8 @@ import Data.Maybe
 import qualified Data.List as L
 import Control.Monad
 import qualified G2.Language.TyVarEnv as TV
+import Debug.Trace
+
 
 tyInt :: KV.KnownValues -> Type
 tyInt kv = TyCon (KV.tyInt kv) (tyTYPE kv)
@@ -328,8 +330,8 @@ tyVarSubst m = modifyASTs (tyVarSubst' m)
 tyVarSubst' ::  TV.TyVarEnv -> Type -> Type 
 tyVarSubst' m t@(TyVar (Id n _)) =
     case TV.lookup n m of
-        Nothing -> t
-        Just t' -> tyVarSubst' m t'
+        Nothing -> trace("In the nothing case:, the type we can't find in tyvar_env is " ++ show t)t 
+        Just t' -> trace("tyVarSubst': we are substing the the type varaible " ++ show n ++ " that have type " ++ show t ++ " with type: " ++ show t')tyVarSubst' m t'
 tyVarSubst' _ t = t
 
 tyVarRename :: (ASTContainer t Type) => M.Map Name Type -> t -> t

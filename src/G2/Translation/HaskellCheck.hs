@@ -47,7 +47,8 @@ validateStates proj src modN entry chAll gflags b in_out = do
     runGhc (Just libdir) (do
         adjustDynFlags
         loadToCheck (map dirPath src ++ proj) src modN gflags
-        trace("The tyvar_env in each of the final states from validateStates function: " ++ show (map (tyvar_env . final_state) in_out))mapM (\er -> do
+        -- trace("The tyvar_env in each of the final states from validateStates function: " ++ show (map (tyvar_env . final_state) in_out))
+        mapM (\er -> do
                 let s = final_state er
                 let pg = updatePGValNames (concatMap (map Data . dataCon) $ type_env s)
                        $ updatePGTypeNames (type_env s) $ mkPrettyGuide ()
@@ -121,7 +122,7 @@ runCheck init_pg modN entry chAll b er@(ExecRes {final_state = s, conc_args = ar
     -- with the corresponding type find in the tyvar_env 
     -- use tyVarRename and change the map into TyVarEnv 
     --trace("The tyvar_env is " ++ show (tyvar_env s))
-    let e' = trace("The tyvar_env is " ++ show (tyvar_env s)) tyVarSubst (tyvar_env s)  e
+    let e' = tyVarSubst (tyvar_env s)  e
     let out' = tyVarSubst (tyvar_env s) out
     -- liftIO $ do
     --     print e'

@@ -513,12 +513,12 @@ instance ASTContainer AlgDataTy DataCon where
 instance ASTContainer TV.TyVarEnv Type where
     containedASTs = containedASTs . TV.toList
     
-    modifyContainedASTs f c = undefined --TV.fromList (modifyContainedASTs f (TV.toList c) )
+    modifyContainedASTs f c = TV.fromList (modifyContainedASTs f (TV.toList c) )
 
 instance ASTContainer TV.TyVarEnv Expr where
     containedASTs = containedASTs . TV.toList
     
-    modifyContainedASTs f c = undefined -- TV.fromList (modifyContainedASTs f (TV.toList c) )
+    modifyContainedASTs f c = TV.fromList (modifyContainedASTs f (TV.toList c) )
 
 
 
