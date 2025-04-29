@@ -105,8 +105,8 @@ instance Simplifier FloatSimplifier where
     reverseSimplification _ _ _ m = m
 
 
--- When we get a path constraint that is an equality between a variable and a constant,
--- inline the constant in all path constraints and in the ExprEnv
+-- When we get a path constraint that is an equality between a variable and a small expression,
+-- inline the small expression in all path constraints and in the ExprEnv.
 data EqualitySimplifier = EqualitySimplifier
 
 instance Simplifier EqualitySimplifier where

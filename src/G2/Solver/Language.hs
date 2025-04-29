@@ -40,7 +40,8 @@ data Logic = ALL
            | QF_NRA
            | QF_LIRA
            | QF_NIRA
-           | QF_UFLIA           
+           | QF_UFLIA
+           | QF_S -- ^ Strings   
            deriving (Show, Eq)
 
 -- | These correspond to first order logic, arithmetic operators, and variables, as supported by an SMT Solver
