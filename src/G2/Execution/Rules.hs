@@ -802,8 +802,10 @@ bindExprToNum f es = L.mapAccumL (\num e -> (num + 1, f num e)) 1 es
 
 -- | Return PathCond restricting value of `newId` to [lower, upper]
 restrictSymVal :: KnownValues -> Integer -> Integer -> Id -> PathCond
-restrictSymVal kv lower upper newId =
-  ExtCond (mkAndExpr kv (mkGeIntExpr kv (Var newId) lower) (mkLeIntExpr kv (Var newId) upper)) True
+restrictSymVal kv lower upper newId
+    | lower /= upper =
+        ExtCond (mkAndExpr kv (mkGeIntExpr kv (Var newId) lower) (mkLeIntExpr kv (Var newId) upper)) True
+    | otherwise = ExtCond (mkEqExpr kv (Var newId) (Lit $ LitInt lower)) True
 
 ----------------------------------------------------
 

@@ -20,6 +20,7 @@ module G2.Language.PathConds ( PathConds
                              , fromHashedList
                              , map
                              , mapHashedPCs
+                             , mapPathCondsSCC
                              , map'
                              , filter
                              , alter
@@ -28,6 +29,7 @@ module G2.Language.PathConds ( PathConds
                              , insert
                              , null
                              , number
+                             , join
                              , relatedSets
                              , scc
                              , varIdsInPC
@@ -151,6 +153,17 @@ map f = fromList . L.map f . toList
 mapHashedPCs :: (HashedPathCond -> HashedPathCond) -> PathConds -> PathConds
 mapHashedPCs f = fromHashedList . L.map f . toHashedList
 
+-- | Apply a mapping to all PathConds that are in the same SCC as PathConds with some `Name`.
+mapPathCondsSCC :: Name -> (PathCond -> PathCond) -> PathConds -> PathConds
+mapPathCondsSCC n f (PathConds uf) | Just pcg <- UF.lookup (Just n) uf =
+    let
+        pcs' = HS.map (mapHashedPC f) $ pcs pcg
+        pcs_c = HS.fromList . concatMap varIdsInPC $ HS.map unhashedPC pcs'
+        uf' = UF.insert (Just n) (pcg { pcs_contains = pcs_c, pcs = pcs'}) uf
+    in
+    PathConds uf'
+mapPathCondsSCC _ _ pc = pc
+
 map' :: (PathCond -> a) -> PathConds -> [a]
 map' f = L.map f . toList
 
@@ -199,7 +212,11 @@ number = length . toList
 null :: PathConds -> Bool
 null = UF.null . toUFMap
 
--- Returns a list of PathConds, where the union of the output PathConds
+-- | Join two SCCs in the PathConds, without adding any new PathCond 
+join :: Name -> Name -> PathConds -> PathConds
+join n1 n2 (PathConds uf) = PathConds (UF.join (<>) (Just n1) (Just n2) uf)
+
+-- | Returns a list of PathConds, where the union of the output PathConds
 -- is the input PathConds, and the PathCond are seperated into there SCCs
 relatedSets :: PathConds -> [PathConds]
 relatedSets (PathConds ufm) =
@@ -225,7 +242,7 @@ allIds (PathConds pc) = HS.unions . P.map pcs_contains $ UF.elems pc
 scc :: [Name] -> PathConds -> PathConds
 scc ns (PathConds pcc) =
     let
-        ns' = P.map (flip UF.find pcc . Just) ns
+        ns' = P.map (flip UF.find pcc) (L.map Just ns)
     in
     PathConds $ UF.filterWithKey (\k _ -> k `L.elem` ns') pcc
 
