@@ -367,6 +367,7 @@ initSolver' avf config = do
                     SomeSolver adt_solver ->
                         SomeSolver $ GroupRelated avf
                                     ( UndefinedHigherOrder
+                                 :?> EqualitySolver
                                  :?> adt_solver)
 
     con'' <- case time_solving config of

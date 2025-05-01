@@ -16,6 +16,7 @@ module G2.Solver.Solver ( Solver (..)
                         , CombineSolvers (..)
                         , UndefinedHigherOrder (..)
                         , UnknownSolver (..)
+                        , EqualitySolver (..)
                         
                         , TimeSolver
                         , timeSolver
@@ -252,6 +253,31 @@ instance Solver UnknownSolver where
     solve _ _ _ _ pc
         | PC.null pc = return (SAT HM.empty)
         | otherwise = return (Unknown "unknown" ())
+
+-- | A solver that handles checking of certain equalities between variables and expressions.
+-- In particular, if we have a lone path constraint of the form:
+--    @ x == e @
+-- where x does not appear in e, then this path constraint is guaranteed to be satisfiable-
+-- we can arbitrary instantiate the variables in e, then solve e and assign that value to x.
+data EqualitySolver = EqualitySolver
+
+instance Solver EqualitySolver where
+    check _ _ pcs | [pc] <- PC.toList pcs
+                  , Just (v, vs) <- isolatedFormula pc
+                  , v `notElem` vs = return $ SAT ()
+                  | otherwise = return $ Unknown "Equality Solver: unsupported constraint" ()
+    solve _ _ _ _ _ = return $ Unknown "Equality Solver does not support solving" ()
+    close _ = return ()
+
+isolatedFormula :: PathCond -> Maybe (Name, [Name])
+isolatedFormula (ExtCond ext_e True)
+    | [Prim Eq _, e1, e2] <- unApp ext_e
+    , Just (n, e) <- varEq e1 e2 = Just (n, map idName $ vars e)
+    where
+        varEq (Var (Id n _)) e = Just (n, e)
+        varEq e (Var (Id n _)) = Just (n, e)
+        varEq _ _ = Nothing
+isolatedFormula _ = Nothing
 
 -- | A solver to time the runtime of other solvers
 data TimeSolver s = TimeSolver
