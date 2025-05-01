@@ -122,7 +122,7 @@ runCheck init_pg modN entry chAll b er@(ExecRes {final_state = s, conc_args = ar
     -- with the corresponding type find in the tyvar_env 
     -- use tyVarRename and change the map into TyVarEnv 
     --trace("The tyvar_env is " ++ show (tyvar_env s))
-    let e' = tyVarSubst (tyvar_env s)  e
+    let e' = tyVarSubst (tyvar_env s) e
     let out' = tyVarSubst (tyvar_env s) out
     -- liftIO $ do
     --     print e'
