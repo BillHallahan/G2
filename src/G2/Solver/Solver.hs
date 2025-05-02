@@ -27,6 +27,7 @@ module G2.Solver.Solver ( Solver (..)
 
 import G2.Language
 import qualified G2.Language.PathConds as PC
+import Data.Graph
 import Data.List
 import qualified Data.HashMap.Lazy as HM
 import Data.IORef
@@ -255,29 +256,56 @@ instance Solver UnknownSolver where
         | otherwise = return (Unknown "unknown" ())
 
 -- | A solver that handles checking of certain equalities between variables and expressions.
--- In particular, if we have a lone path constraint of the form:
---    @ x == e @
--- where x does not appear in e, then this path constraint is guaranteed to be satisfiable-
--- we can arbitrary instantiate the variables in e, then solve e and assign that value to x.
+-- In particular, if we have a set of path constraints of the form:
+--    @ x_1 `op` e_1
+--      x_2 `op` e_2
+--      ..
+--      x_n `op` e_n @
+-- (For op one of ==, /=, >, >=, <, <=)
+-- where x_i does not appear in e_j for any j <= i, then this path constraint is guaranteed to be satisfiable.
+-- For i from e_1 to e_n, we can instantiate the variables in e_i, then solve e_i and assign an appropriate
+-- value to x_i.
 data EqualitySolver = EqualitySolver
 
 instance Solver EqualitySolver where
-    check _ _ pcs | [pc] <- PC.toList pcs
-                  , Just (v, vs) <- isolatedFormula pc
-                  , v `notElem` vs = return $ SAT ()
+    check _ _ pcs | Just m_v_vs <- sequence . map isolatedFormula $ PC.toList pcs
+                  , not (cycleExists m_v_vs) = return $ SAT ()
                   | otherwise = return $ Unknown "Equality Solver: unsupported constraint" ()
     solve _ _ _ _ _ = return $ Unknown "Equality Solver does not support solving" ()
     close _ = return ()
 
 isolatedFormula :: PathCond -> Maybe (Name, [Name])
-isolatedFormula (ExtCond ext_e True)
-    | [Prim Eq _, e1, e2] <- unApp ext_e
+isolatedFormula (ExtCond ext_e _)
+    | [Prim op _, e1, e2] <- unApp ext_e
+    , allowedOp op
+    , Just (n, e) <- varEq e1 e2 = Just (n, map idName $ vars e)
+    | App (Prim Not _) ext_e' <- ext_e
+    , [Prim op _, e1, e2] <- unApp ext_e'
+    , allowedOp op
     , Just (n, e) <- varEq e1 e2 = Just (n, map idName $ vars e)
     where
         varEq (Var (Id n _)) e = Just (n, e)
         varEq e (Var (Id n _)) = Just (n, e)
         varEq _ _ = Nothing
-isolatedFormula _ = Nothing
+
+        allowedOp Eq = True
+        allowedOp Neq = True
+        allowedOp Lt = True
+        allowedOp Gt = True
+        allowedOp Le = True
+        allowedOp Ge = True
+        allowedOp _ = False
+isolatedFormula _ = Nothing        
+
+-- adapted from https://github.com/haskell/containers/issues/978
+cycleExists :: Ord a => [(a, [a])] -> Bool
+cycleExists tuples = any (uncurry elem) tuples ||
+    -- There's a cycle if one of the strongly connected components has more than one node
+    any ((> 1) . length . flattenSCC)
+       -- Generate strongly connected components from edges
+       (stronglyConnComp $
+        -- Create edges by converting a tuple (a, b) to (a, a, [b]) to reflect a -> b
+        map (\(a, b) -> (a, a, b)) tuples)
 
 -- | A solver to time the runtime of other solvers
 data TimeSolver s = TimeSolver
