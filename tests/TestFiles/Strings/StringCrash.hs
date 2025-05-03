@@ -1,7 +1,6 @@
 module StringCrash where
 
 import Data.Char
-import G2.Symbolic
 
 f :: String -> [String]
 f x =
