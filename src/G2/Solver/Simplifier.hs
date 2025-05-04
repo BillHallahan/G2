@@ -184,8 +184,15 @@ smallEqPC kv (ExtCond e True)
 
         isSmall (Var _) = True
         isSmall (Data _) = True
-        isSmall (Lit _) = True
+        isSmall (Lit l) | nonMagicLit l = True
         isSmall _ = False
+
+        -- String literals are "magic" because they are also data constructors.
+        -- We need to ensure that all path conds/data constructors are lined up,
+        -- and the equality solver risks messing this correspondence up.
+        nonMagicLit (LitString _) = False
+        nonMagicLit _ = True
+
 smallEqPC kv (ExtCond (Var (Id n _)) True) = Just (n, mkTrue kv)
 smallEqPC kv (ExtCond (Var (Id n _)) False) = Just (n, mkFalse kv)
 smallEqPC _ (AltCond l (Var (Id n _)) True) = Just (n, Lit l)
