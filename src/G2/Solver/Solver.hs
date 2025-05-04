@@ -269,6 +269,9 @@ data EqualitySolver = EqualitySolver
 
 instance Solver EqualitySolver where
     check _ _ pcs | Just m_v_vs <- sequence . map isolatedFormula $ PC.toList pcs
+                  -- Check that the left hand side of all operators is unqiue, i.e. all x_i differ from each other
+                  , uniq $ map fst m_v_vs
+                  -- Check that there are no loops where x_i ... x_j appear on the RHS of each others equations
                   , not (cycleExists m_v_vs) = return $ SAT ()
                   | otherwise = return $ Unknown "Equality Solver: unsupported constraint" ()
     solve _ _ _ _ _ = return $ Unknown "Equality Solver does not support solving" ()
@@ -306,6 +309,15 @@ cycleExists tuples = any (uncurry elem) tuples ||
        (stronglyConnComp $
         -- Create edges by converting a tuple (a, b) to (a, a, [b]) to reflect a -> b
         map (\(a, b) -> (a, a, b)) tuples)
+
+uniq :: Ord a => [a] -> Bool
+uniq = comp . sort
+    where
+        comp [] = True
+        comp [_] = True
+        comp (x:y:xs) 
+            | x == y = False
+            | otherwise = comp (y : xs)
 
 -- | A solver to time the runtime of other solvers
 data TimeSolver s = TimeSolver
