@@ -367,6 +367,7 @@ initSolver' avf config = do
                     SomeSolver adt_solver ->
                         SomeSolver $ GroupRelated avf
                                     ( UndefinedHigherOrder
+                                 :?> EqualitySolver
                                  :?> adt_solver)
 
     con'' <- case time_solving config of
@@ -461,7 +462,7 @@ runG2WithConfig entry_f mb_modname state@(State { expr_env = eenv }) config bind
     hpc_t <- hpcTracker (hpc_print_times config)
     let 
         (state', bindings') = runG2Pre emptyMemConfig state bindings
-        simplifier = FloatSimplifier :>> ArithSimplifier :>> EqualitySimplifier
+        simplifier = FloatSimplifier :>> ArithSimplifier :>> BoolSimplifier :>> StringSimplifier :>> EqualitySimplifier
         --exp_env_names = E.keys . E.filterConcOrSym (\case { E.Sym _ -> False; E.Conc _ -> True }) $ expr_env state
         mod_name = nameModule entry_f
         callGraph = G.getCallGraph $ expr_env state'
