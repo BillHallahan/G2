@@ -24,6 +24,7 @@ import G2.Solver.Solver
 import G2.Solver.Converters --It would be nice to not import this...
 
 import Control.Exception.Base (evaluate)
+import Control.Monad
 import Data.List.Utils (countElem)
 import qualified Data.HashSet as HS
 import qualified Data.Map as M
@@ -35,8 +36,10 @@ import System.Process
 import G2.Language.Support(State(..))
 import qualified G2.Language.TyVarEnv as TV 
 
-data Z3 = Z3 ArbValueFunc (Handle, Handle, ProcessHandle)
-data CVC4 = CVC4 ArbValueFunc (Handle, Handle, ProcessHandle)
+type PrintSMT = Bool
+
+data Z3 = Z3 PrintSMT ArbValueFunc (Handle, Handle, ProcessHandle)
+data CVC4 = CVC4 PrintSMT ArbValueFunc (Handle, Handle, ProcessHandle)
 
 data SomeSMTSolver where
     SomeSMTSolver :: forall con
@@ -44,19 +47,19 @@ data SomeSMTSolver where
 
 instance Solver Z3 where
     check solver s pc = checkConstraintsPC (tyvar_env s) solver pc
-    solve con@(Z3 avf _) = checkModelPC avf con
+    solve con@(Z3 _ avf _) = checkModelPC avf con
     close = closeIO
 
 instance Solver CVC4 where
     check solver s pc = checkConstraintsPC (tyvar_env s) solver pc
-    solve con@(CVC4 avf _) = checkModelPC avf con
+    solve con@(CVC4 _ avf _) = checkModelPC avf con
     close = closeIO
 
 getIOZ3 :: Z3 -> (Handle, Handle, ProcessHandle)
-getIOZ3 (Z3 _ hhp) = hhp
+getIOZ3 (Z3 _ _ hhp) = hhp
 
 instance SMTConverter Z3 where
-    closeIO (Z3 _ (h_in, h_out, ph)) = do
+    closeIO (Z3 _ _ (h_in, h_out, ph)) = do
 #if MIN_VERSION_process(1,6,4)
         cleanupProcess (Just h_in, Just h_out, Nothing, ph)
 #else
@@ -104,25 +107,31 @@ instance SMTConverter Z3 where
         let (h_in, _, _) = getIOZ3 con
         T.hPutStrLn h_in (TB.run $ toSolverText form)
 
-    checkSatNoReset con formula = do
+    checkSatNoReset con@(Z3 print_smt _ _) formula = do
         let (h_in, h_out, _) = getIOZ3 con
-        -- putStrLn "checkSat"
-        -- T.putStrLn (TB.run $ toSolverText formula)
+
+        when print_smt $ do
+            putStrLn "checkSat"
+            T.putStrLn (TB.run $ toSolverText formula)
         
         T.hPutStrLn h_in (TB.run $ toSolverText formula)
         r <- checkSat' h_in h_out
 
-        -- putStrLn $ show r
+        when print_smt (putStrLn $ show r)
 
         return r
 
-    checkSatGetModel con formula vs = do
+    checkSatGetModel con@(Z3 print_smt _ _) formula vs = do
         let (h_in, h_out, _) = getIOZ3 con
         setUpFormulaZ3 h_in (TB.run $ toSolverText formula)
-        -- putStrLn "\n\n checkSatGetModel"
-        -- T.putStrLn (TB.run $ toSolverText formula)
+        
+        when print_smt $ do
+            putStrLn "checkSatGetModel"
+            T.putStrLn (TB.run $ toSolverText formula)
+        
         r <- checkSat' h_in h_out
-        -- putStrLn $ "r =  " ++ show r
+        when print_smt (putStrLn $ "r =  " ++ show r)
+
         case r of
             SAT () -> do
                 mdl <- getModelZ3 h_in h_out vs
@@ -169,10 +178,10 @@ instance SMTConverter Z3 where
         T.hPutStrLn h_in "(pop)"
 
 getIOCVC4 :: CVC4 -> (Handle, Handle, ProcessHandle)
-getIOCVC4 (CVC4 _ hhp) = hhp
+getIOCVC4 (CVC4 _ _ hhp) = hhp
 
 instance SMTConverter CVC4 where
-    closeIO (CVC4 _ (h_in, h_out, ph)) = do
+    closeIO (CVC4 _ _ (h_in, h_out, ph)) = do
         hPutStrLn h_in "(exit)"
         _ <- waitForProcess ph
         hClose h_in
@@ -214,27 +223,27 @@ instance SMTConverter CVC4 where
         let (h_in, _, _) = getIOCVC4 con
         T.hPutStrLn h_in (TB.run $ toSolverText form)
 
-    checkSatNoReset con formula = do
+    checkSatNoReset con@(CVC4 print_smt _ _) formula = do
         let (h_in, h_out, _) = getIOCVC4 con
-        -- putStrLn "checkSat"
-        -- let formula = run formulaBldr
-        -- T.putStrLn (TB.run formula)
-        -- putStrLn formula
+        when print_smt $ do
+            putStrLn "checkSat"
+            T.putStrLn (TB.run $ toSolverText formula)
         
         T.hPutStrLn h_in (TB.run $ toSolverText formula)
         r <- checkSat' h_in h_out
 
-        -- putStrLn $ show r
+        when print_smt (putStrLn $ show r)
 
         return r
 
-    checkSatGetModel con formula vs = do
+    checkSatGetModel con@(CVC4 print_smt _ _) formula vs = do
         let (h_in, h_out, _) = getIOCVC4 con
         setUpFormulaCVC4 h_in (TB.run $ toSolverText formula)
-        -- putStrLn "\n\n checkSatGetModel"
-        -- putStrLn formula
+        when print_smt $ do
+            putStrLn "checkSatGetModel"
+            T.putStrLn (TB.run $ toSolverText formula)
         r <- checkSat' h_in h_out
-        -- putStrLn $ "r =  " ++ show r
+        when print_smt (putStrLn $ "r =  " ++ show r)
         case r of
             SAT _ -> do
                 mdl <- getModelCVC4 h_in h_out vs
@@ -304,18 +313,18 @@ getProcessHandles pr = do
 getZ3 :: Int -> IO Z3
 getZ3 time_out = do
     hhp <- getZ3ProcessHandles time_out
-    return $ Z3 arbValue hhp
+    return $ Z3 False arbValue hhp
 
 getSMT :: Config -> IO SomeSMTSolver
 getSMT = getSMTAV arbValue
 
 getSMTAV :: ArbValueFunc -> Config -> IO SomeSMTSolver
-getSMTAV avf (Config {smt = ConZ3}) = do
+getSMTAV avf (Config { smt = ConZ3, print_smt = pr }) = do
     hhp <- getZ3ProcessHandles 10000
-    return $ SomeSMTSolver (Z3 avf hhp)
-getSMTAV avf (Config {smt = ConCVC4}) = do
+    return $ SomeSMTSolver (Z3 pr avf hhp)
+getSMTAV avf (Config { smt = ConCVC4, print_smt = pr }) = do
     hhp <- getCVC4ProcessHandles
-    return $ SomeSMTSolver (CVC4 avf hhp)
+    return $ SomeSMTSolver (CVC4 pr avf hhp)
 
 -- | getZ3ProcessHandles
 -- This calls Z3, and get's it running in command line mode.  Then you can read/write on the

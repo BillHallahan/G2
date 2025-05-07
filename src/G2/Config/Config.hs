@@ -86,7 +86,14 @@ data Config = Config {
     , smt :: SMTSolver -- ^ Sets the SMT solver to solve constraints with
     , step_limit :: Bool -- ^ Should steps be limited when running states?
     , steps :: Int -- ^ How many steps to take when running States
+    , time_solving :: Bool -- ^ Output the amount of time spent checking/solving path constraints
+    , print_num_solver_calls :: Bool -- ^ Output the number of calls made to check/solve path constraints
+    , print_smt :: Bool -- ^ Output SMT formulas when checking/solving path constraints
     , accept_times :: Bool -- ^ Output the time each state is accepted
+    , states_at_time :: Bool -- ^ Output time and number of states each time a state is added/removed
+    , states_at_step :: Bool -- ^ Output step and number of states at each step where a state is added/removed
+    , print_num_red_rules :: Bool -- ^ Output the total number of reduction rules
+    , print_nrpcs :: Bool -- ^ Output generated NRPCs
     , hpc :: Bool -- ^ Should HPC ticks be generated and tracked during execution?
     , hpc_print_times :: Bool -- ^ Print the time each HPC tick is reached?
     , strict :: Bool -- ^ Should the function output be strictly evaluated?
@@ -138,7 +145,14 @@ mkConfig homedir = Config Regular
                    <> metavar "N"
                    <> value 1000
                    <> help "how many steps to take when running states")
+    <*> switch (long "solver-time" <> help "output the amount of time spent checking/solving path constraints")
+    <*> switch (long "print-num-solver-calls" <> help "output the number of calls made to check/solve path constraints")
+    <*> switch (long "print-smt" <> help "output SMT formulas when checking/solving path constraints")
     <*> switch (long "accept-times" <> help "output the time each state is accepted")
+    <*> switch (long "states-at-time" <> help "output time and number of states each time a state is added/removed")
+    <*> switch (long "states-at-step" <> help "output step and number of states at each step where a state is added/removed")
+    <*> switch (long "print-num-red-rules" <> help "output the total number of reduction rules")
+    <*> switch (long "print-nrpc" <> help "output generated nrpcs")
     <*> flag False True (long "hpc"
                       <> help "Generate and report on HPC ticks")
     <*> switch (long "hpc-print-times" <> help "Print the time each HPC tick is reached?")
@@ -267,7 +281,14 @@ mkConfigDirect homedir as m = Config {
     , smt = strArg "smt" as m smtSolverArg ConZ3
     , step_limit = boolArg' "no-step-limit" as True True False
     , steps = strArg "n" as m read 1000
+    , time_solving = False
+    , print_num_solver_calls = False
+    , print_smt = False
     , accept_times = boolArg "accept-times" as m Off
+    , states_at_time = False
+    , states_at_step = False
+    , print_num_red_rules = False
+    , print_nrpcs = False
     , hpc = False
     , hpc_print_times = False
     , strict = boolArg "strict" as m On

@@ -174,6 +174,7 @@ addSetLogic xs =
         nra = isNRA xs
         nira = isNIRA xs
         uflia = isUFLIA xs
+        str = isStr xs
 
         sl = if lia then SetLogic QF_LIA else
              if lra then SetLogic QF_LRA else
@@ -181,9 +182,12 @@ addSetLogic xs =
              if nia then SetLogic QF_NIA else
              if nra then SetLogic QF_NRA else 
              if nira then SetLogic QF_NIRA else
-             if uflia then SetLogic QF_UFLIA else SetLogic ALL
+             if uflia then SetLogic QF_UFLIA else
+             if str then SetLogic QF_S else SetLogic ALL
     in
     sl:xs
+
+-- NIA
 
 isNIA :: (ASTContainer m SMTAST) => m -> Bool
 isNIA = getAll . evalASTs isNIA'
@@ -192,7 +196,10 @@ isNIA' :: SMTAST -> All
 isNIA' (_ :* _) = All True
 isNIA' (_ :/ _) = All True
 isNIA' (_ `Modulo` _) = All True
+isNIA' (_ `QuotSMT` _) = All True
 isNIA' s = isLIA' s
+
+-- LIA
 
 isLIA :: (ASTContainer m SMTAST) => m -> Bool
 isLIA = getAll . evalASTs isLIA'
@@ -221,6 +228,8 @@ isIntegerCoeff (Neg s) = isIntegerCoeff s
 isIntegerCoeff (VInt _) = True
 isIntegerCoeff _ = False
 
+-- NRA
+
 isNRA :: (ASTContainer m SMTAST) => m -> Bool
 isNRA = getAll . evalASTs isNRA'
 
@@ -228,6 +237,8 @@ isNRA' :: SMTAST -> All
 isNRA' (_ :* _) = All True
 isNRA' (_ :/ _) = All True
 isNRA' s = isLRA' s
+
+-- LRA
 
 isLRA :: (ASTContainer m SMTAST) => m -> Bool
 isLRA = getAll . evalASTs isLRA'
@@ -257,6 +268,8 @@ isRationalCoeff (VFloat _) = True
 isRationalCoeff (VDouble _) = True
 isRationalCoeff _ = False
 
+-- LIRA
+
 isLIRA :: (ASTContainer m SMTAST) => m -> Bool
 isLIRA = getAll . evalASTs isLIRA'
 
@@ -264,11 +277,15 @@ isLIRA' :: SMTAST -> All
 isLIRA' (IntToRealSMT _) = All True
 isLIRA' s = All $ getAll (isLIA' s) || getAll (isLRA' s)
 
+-- NIRA
+
 isNIRA :: (ASTContainer m SMTAST) => m -> Bool
 isNIRA = getAll . evalASTs isNIRA'
 
 isNIRA' :: SMTAST -> All
 isNIRA' s = All $ getAll (isNIA' s) || getAll (isNRA' s)
+
+-- UFLIA
 
 isUFLIA :: (ASTContainer m SMTAST) => m -> Bool
 isUFLIA = getAll . evalASTs isUFLIA'
@@ -276,6 +293,33 @@ isUFLIA = getAll . evalASTs isUFLIA'
 isUFLIA' :: SMTAST -> All
 isUFLIA' (Func _ xs) = mconcat $ map isUFLIA' xs
 isUFLIA' s = isLIA' s
+
+-- Str
+
+isStr :: (ASTContainer m SMTAST) => m -> Bool
+isStr = getAll . evalASTs isStr'
+
+isStr' :: SMTAST -> All
+isStr' (_ :++ _) = All True
+isStr' (FromInt _) = All True
+isStr' (_ `StrLtSMT` _) = All True
+isStr' (_ `StrLeSMT` _) = All True
+isStr' (_ `StrGtSMT` _) = All True
+isStr' (_ `StrGeSMT` _) = All True
+isStr' (StrLenSMT _) = All True
+isStr' (FromCode _) = All True
+isStr' (ToCode _) = All True
+isStr' (VString _) = All True
+isStr' (VChar _) = All True
+isStr' (V _ s) = All $ isStringSort s
+isStr' s = isLIA' s
+
+isStringSort :: Sort -> Bool
+isStringSort SortString = True
+isStringSort SortChar = True
+isStringSort s = isIASort s
+
+-- Core
 
 isCore' :: SMTAST -> All
 isCore' (_ := _) = All True
@@ -751,6 +795,7 @@ toSolverSetLogic lgc =
             QF_NRA -> "QF_NRA"
             QF_NIRA -> "QF_NIRA"
             QF_UFLIA -> "QF_UFLIA"
+            QF_S -> "QF_S"
             _ -> "ALL"
     in
     "(set-logic " <> s <> ")"

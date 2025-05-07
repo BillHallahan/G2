@@ -239,7 +239,7 @@ runExecutionQ s b config = do
         (SomeReducer red, SomeHalter hal, SomeOrderer ord) -> do
             let (s'', b'') = runG2Pre emptyMemConfig s' b'
                 hal' = hal <~> zeroHalter 2000 <~> lemmingsHalter
-            (xs, b''') <- runExecutionToProcessed red hal' ord (\s b -> return $ Just s) s'' b''
+            (xs, b''') <- runExecutionToProcessed red hal' ord (\s b -> return $ Just s) noAnalysis s'' b''
 
             case xs of
                 Processed { accepted = acc, discarded = [] } -> do

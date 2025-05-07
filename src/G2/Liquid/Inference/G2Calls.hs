@@ -175,7 +175,7 @@ runLHG2Inference config red hal ord solver simplifier pres_names init_id final_s
     (ret, final_bindings) <- case (red, hal, ord) of
                                 (SomeReducer red', SomeHalter hal', SomeOrderer ord') -> do
                                     let (s', b') = runG2Pre pres_names final_st bindings
-                                    runExecution red' hal' ord' (\s b -> return . Just $ earlyExecRes b s) s' b'
+                                    runExecution red' hal' ord' (\s b -> return . Just $ earlyExecRes b s) noAnalysis s' b'
     
     ret' <- filterM (satState solver . final_state) ret
     let ret'' = onlyMinimalStates ret'
@@ -242,12 +242,12 @@ runG2ThroughExecutionInference :: ( MonadIO m
                    , Named t
                    , ASTContainer t Expr
                    , ASTContainer t Type) =>
-        SomeReducer m t -> SomeHalter m (ExecRes t) t -> SomeOrderer m (ExecRes t) t -> solver -> simplifier -> MemConfig -> State t -> Bindings -> m ([ExecRes t], Bindings)
-runG2ThroughExecutionInference red hal ord _ _ pres s b = do
+        SomeReducer m t -> SomeHalter m (ExecRes t) t -> SomeOrderer m (ExecRes t) t -> [AnalyzeStates m (ExecRes t) t] -> solver -> simplifier -> MemConfig -> State t -> Bindings -> m ([ExecRes t], Bindings)
+runG2ThroughExecutionInference red hal ord _ _ _ pres s b = do
     case (red, hal, ord) of
             (SomeReducer red', SomeHalter hal', SomeOrderer ord') -> do
                     let (s', b') = runG2Pre pres s b
-                    runExecution red' hal' ord' (\s b -> return . Just $ earlyExecRes b s) s' b'
+                    runExecution red' hal' ord' (\s b -> return . Just $ earlyExecRes b s) noAnalysis s' b'
 
 runG2SolvingInference :: (MonadIO m, Solver solver, Simplifier simplifier) => solver -> simplifier -> Bindings -> ExecRes AbstractedInfo -> m (ExecRes AbstractedInfo)
 runG2SolvingInference solver simplifier bindings (ExecRes { final_state = s }) = do
@@ -367,7 +367,7 @@ gatherAllowedCalls entry m lrs ghci infconfig config lhconfig = do
                   , track = [] :: [FuncCall] }
 
     (red, hal, ord) <- gatherReducerHalterOrderer infconfig config' lhconfig solver simplifier
-    (exec_res, bindings'') <- SM.evalStateT (runG2WithSomes red hal ord solver simplifier pres_names s'' bindings') (mkPrettyGuide ())
+    (exec_res, bindings'') <- SM.evalStateT (runG2WithSomes red hal ord noAnalysis solver simplifier pres_names s'' bindings') (mkPrettyGuide ())
 
     putStrLn $ "length exec_res = " ++ show (length exec_res)
 
@@ -1087,6 +1087,7 @@ genericG2Call config solver s bindings = do
     fslb <- runG2WithSomes (SomeReducer (stdRed share retReplaceSymbFuncVar solver simplifier ~> strictRed))
                            (SomeHalter swhnfHalter)
                            (SomeOrderer nextOrderer)
+                           noAnalysis
                            solver simplifier PreserveAllMC s bindings
 
     return fslb
@@ -1110,6 +1111,7 @@ genericG2CallLogging config solver s bindings lg = do
     fslb <- runG2WithSomes (SomeReducer (prettyLogger lg ~> stdRed share retReplaceSymbFuncVar solver simplifier  ~> strictRed))
                            (SomeHalter swhnfHalter)
                            (SomeOrderer nextOrderer)
+                           noAnalysis
                            solver simplifier PreserveAllMC s bindings
 
     return fslb

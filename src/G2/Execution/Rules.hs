@@ -732,7 +732,7 @@ liftSymDefAlt' s@(State {type_env = tenv, tyvar_env = tvnv}) ng mexpr aexpr cvar
             aexpr' = liftCaseBinds binds aexpr
 
             -- add PC restricting range of values for newSymId
-            newSymConstraint = restrictSymVal (known_values s') 1 (toInteger $ length dcs'') newId
+            newSymConstraint = restrictSymVal tvnv (known_values s') 1 (toInteger $ length dcs'') newId
 
             eenv' = E.insert (idName i') mexpr' (expr_env s')
             s'' = s' { curr_expr = CurrExpr Evaluate aexpr'
@@ -808,9 +808,11 @@ bindExprToNum f es = L.mapAccumL (\num e -> (num + 1, f num e)) 1 es
 
 
 -- | Return PathCond restricting value of `newId` to [lower, upper]
-restrictSymVal :: KnownValues -> Integer -> Integer -> Id -> PathCond
-restrictSymVal kv lower upper newId =
-  ExtCond (mkAndExpr kv (mkGeIntExpr kv (Var newId) lower) (mkLeIntExpr kv (Var newId) upper)) True
+restrictSymVal :: TV.TyVarEnv -> KnownValues -> Integer -> Integer -> Id -> PathCond
+restrictSymVal tv kv lower upper newId
+    | lower /= upper =
+        ExtCond (mkAndExpr kv (mkGeIntExpr kv (Var newId) lower) (mkLeIntExpr kv (Var newId) upper)) True
+    | otherwise = ExtCond (mkEqExpr tv kv (Var newId) (Lit $ LitInt lower)) True
 
 ----------------------------------------------------
 

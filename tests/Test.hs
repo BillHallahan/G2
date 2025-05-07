@@ -32,6 +32,7 @@ import DefuncTest
 import FuzzExecution
 import CaseTest
 import Expr
+import ExecSkip
 import Simplifications
 import Typing
 import UnionFindTests
@@ -73,6 +74,7 @@ tests = testGroup "Tests"
 
         , exprTests
         , typingTests
+        , execSkipTests
         , simplificationTests
         , ufMapQuickcheck
         , unionFindQuickcheck
@@ -375,7 +377,7 @@ testFileTests = testGroup "TestFiles"
                                                                      , ("multiPrim", 300, [Exactly 2])]
     , checkInputOutputsNonRedLib "tests/BaseTests/ListTests.hs" [ ("lengthN", 800, [AtLeast 5])
                                                                 , ("map2", 150, [AtLeast 2])
-                                                                , ("testFib", 1300, [AtLeast 1])]
+                                                                , ("testFib", 300, [AtLeast 1])]
                                                                 
     , checkInputOutputsNonRedLib "tests/TestFiles/NRPC/EmptyTuple.hs" [ ("main", 1000, [AtLeast 1])]
     , checkExprNRPC "tests/TestFiles/NRPC/Print.hs" 2500 "f" [AtLeast 5]

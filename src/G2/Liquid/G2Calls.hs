@@ -44,7 +44,7 @@ type G2Call solver simplifier =
                    , Named t
                    , ASTContainer t Expr
                    , ASTContainer t Type) =>
-        SomeReducer m t -> SomeHalter m (ExecRes t) t -> SomeOrderer m (ExecRes t) t -> solver -> simplifier -> MemConfig -> State t -> Bindings -> m ([ExecRes t], Bindings)
+        SomeReducer m t -> SomeHalter m (ExecRes t) t -> SomeOrderer m (ExecRes t) t -> [AnalyzeStates m (ExecRes t) t] -> solver -> simplifier -> MemConfig -> State t -> Bindings -> m ([ExecRes t], Bindings)
 
 -------------------------------
 -- Check Abstracted
@@ -132,6 +132,7 @@ checkAbstracted' g2call solver simplifier share s bindings abs_fc@(FuncCall { fu
                                 (SomeReducer (hitsLibError ~> stdRed share retReplaceSymbFuncVar solver simplifier ~> strictRed))
                                 (SomeHalter (swhnfHalter <~> acceptOnlyOneHalter <~> switchEveryNHalter 200))
                                 (SomeOrderer (incrAfterN 2000 (adtSizeOrderer 0 Nothing)))
+                                noAnalysis
                                 solver simplifier
                                 (emptyMemConfig { pres_func = \_ _ _ -> pres })
                                 s' bindings) (mkPrettyGuide pres)
@@ -186,6 +187,7 @@ getAbstracted g2call solver simplifier share s bindings abs_fc@(FuncCall { funcN
                                             --> (nonRedPCRedNoPrune .|. nonRedPCRedConst) ))
                               (SomeHalter (swhnfHalter <~> acceptOnlyOneHalter <~> switchEveryNHalter 200))
                               (SomeOrderer (incrAfterN 2000 (adtSizeOrderer 0 Nothing)))
+                              noAnalysis
                               solver simplifier
                               PreserveAllMC
                               s' bindings
@@ -423,6 +425,7 @@ reduceFCExpr g2call reducer solver simplifier s bindings e
                               reducer
                               (SomeHalter (acceptOnlyOneHalter <~> swhnfHalter <~> switchEveryNHalter 200))
                               (SomeOrderer (incrAfterN 2000 (adtSizeOrderer 0 Nothing)))
+                              noAnalysis
                               solver simplifier
                               PreserveAllMC
                               s' bindings

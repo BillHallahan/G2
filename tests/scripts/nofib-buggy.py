@@ -21,21 +21,47 @@ def call_g2_process(filename, func, var_settings):
     return res.stdout
 
 def run_nofib_bench(filename, var_settings, timeout):
-    # --check-asserts --error-asserts --accept-times --print-num-nrpc --no-step-limit --search subpath --time 60
-    return run_g2(filename, "main", ["--check-asserts", "--error-asserts", "--accept-times", "--print-num-nrpc", "--no-step-limit", "--search", "subpath", "--time", str(timeout)] + var_settings)
+    # --check-asserts --error-asserts --accept-times --print-num-nrpc --print-num-red-rules --solver-time --print-num-solver-calls --no-step-limit --search subpath --time 60
+    return run_g2(filename, "main", ["--check-asserts", "--error-asserts", "--accept-times", "--print-num-nrpc", "--print-num-red-rules", "--solver-time", "--print-num-solver-calls", "--no-step-limit", "--search", "subpath", "--time", str(timeout)] + var_settings)
 
 def run_nofib_bench_nrpc(filename, var_settings, timeout):
     return run_nofib_bench(filename, ["--nrpc", "--higher-order", "symbolic"] + var_settings, timeout)
+
+def read_float(pre, out):
+    reg = re.search(pre + r": ((?:\d|\.|e|-)*)", out)
+    res_num = -1
+    if reg:
+        res_num = float(reg.group(1))
+    return res_num
+
+def read_int(pre, out):
+    reg = re.search(pre + r": ((?:\d)*)", out)
+    res_num = -1
+    if reg:
+        res_num = int(reg.group(1))
+    return res_num
 
 def process_output(out):
     nrpcs = re.findall(r"NRPCs Generated: ((?:\d)*)", out)
     nrpcs_num = list(map(lambda x : int(x), nrpcs))
     reached = re.findall(r"State Accepted: ((?:\d|\.|e|-)*)", out)
     reached_time = list(map(lambda x : float(x), reached))
-    out = reached_time
+
+    red_rules_num = read_int("# Red Rules", out)
+    smt_solving_time_num = read_float("SMT Solving Time", out)
+    gen_solving_time_num = read_float("General Solving Time", out)
+    gen_solver_calls_num = read_int("General Solver Calls", out)
+    smt_solver_calls_num = read_int("SMT Solver Calls", out)
+
+    out_time = reached_time
     if len(nrpcs_num) == len(reached_time):
-        out = list(zip(nrpcs_num, reached_time))
-    print(out)
+        out_time = list(zip(nrpcs_num, reached_time))
+    print(out_time)
+    print("Red Rules #: " + str(red_rules_num))
+    print("SMT Solving time: " + str(smt_solving_time_num))
+    print("Gen Solving time: " + str(gen_solving_time_num))
+    print("SMT Solver calls: " + str(smt_solver_calls_num))
+    print("General Solver calls: " + str(gen_solver_calls_num))
 
 # Read in the types of bugs
 def read_bug_types(setpath):
@@ -73,6 +99,7 @@ def run_nofib_set(setname, var_settings, timeout):
             if os.path.isdir(bench_path):
                 final_path = os.path.join(bench_path, "Main.hs")
                 if os.path.isfile(final_path):
+                    print("")
                     print(file_dir);
                     res_bench = run_nofib_bench(final_path, var_settings, timeout)
                     print("Baseline:")
