@@ -17,6 +17,7 @@ import qualified Data.HashSet as S
 import qualified Data.Text as T
 
 import Debug.Trace
+import qualified G2.Language.TyVarEnv as TV
 
 -- | Adds an assert of false to the function called when a pattern match fails
 addSpecialAsserts :: LHStateM ()
