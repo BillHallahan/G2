@@ -18,6 +18,7 @@ import qualified Data.Text as T
 
 import Debug.Trace
 import qualified G2.Language.TyVarEnv as TV
+import qualified G2.Language.TyVarEnv as TV
 
 -- | Adds an assert of false to the function called when a pattern match fails
 addSpecialAsserts :: LHStateM ()
@@ -99,9 +100,9 @@ addErrorAssumes config = do
     lh_kv <- lhKnownValuesM
     mapMeasuresWithKeyM (addErrorAssumes' (block_errors_method config) (block_errors_in config) lh_kv)
 
-addErrorAssumes' :: BlockErrorsMethod -> S.HashSet (T.Text, Maybe T.Text) -> KnownValues -> Name -> Expr -> LHStateM Expr
-addErrorAssumes' be ns kv (Name n m _ _) e = do
-    if (n, m) `S.member` ns then addErrorAssumes'' be kv (typeOf e) e else return e
+addErrorAssumes' :: TV.TyVarEnv -> BlockErrorsMethod -> S.HashSet (T.Text, Maybe T.Text) -> KnownValues -> Name -> Expr -> LHStateM Expr
+addErrorAssumes' tv be ns kv (Name n m _ _) e = do
+    if (n, m) `S.member` ns then addErrorAssumes'' be kv (typeOf tv e) e else return e
 
 addErrorAssumes'' :: BlockErrorsMethod -> KnownValues -> Type -> Expr -> LHStateM Expr
 addErrorAssumes'' be kv _ v@(Var (Id n t))
@@ -112,8 +113,8 @@ addErrorAssumes'' be kv _ v@(Var (Id n t))
     | KV.isErrorFunc kv n
     , be == ArbBlock = do
         d <- freshSeededStringN "d"
-        let ast = spArgumentTypes $ PresType t
-            rt = returnType $ PresType t
+        let ast = spArgumentTypes t
+            rt = returnType t
 
             lam_it = map (\as -> case as of
                                     AnonType at -> (TermL, Id d at)
