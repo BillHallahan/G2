@@ -1,5 +1,8 @@
 module Show where
 
+show0 :: String
+show0 = show (0 :: Int)
+
 show1 :: String
 show1 = show (978925 :: Int)
 

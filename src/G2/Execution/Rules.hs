@@ -475,14 +475,18 @@ adjustExprEnvAndPathConds :: KnownValues
 adjustExprEnvAndPathConds kv tenv eenv ng dc dc_e mexpr params dc_args
     | Just dcpcs <- HM.lookup (dcName dc) (dcpcMap kv tenv)
     , _:ty_args <- unTyApp $ typeOf mexpr
-    , Just dcpc <- L.lookup ty_args dcpcs = applyDCPC ng eenv'' new_ids mexpr_n dcpc 
+    , Just dcpc <- L.lookup ty_args dcpcs = 
+        let 
+            (eenv''', pcs, ng', _) = applyDCPC ng eenv'' new_ids mexpr_n dcpc
+        in
+        (eenv''', pcs, ng')
     | otherwise = (eenv'', [], ng)
     where
         mexpr_n = idName mexpr
-        -- update the expr environment
+        -- Update the expr environment
         new_ids = zipWith (\(Id _ t) n -> Id n t) params dc_args
         eenv' = foldr E.insertSymbolic eenv new_ids
-        -- concretizes the mexpr to have same form as the DataCon specified
+        -- Concretizes the mexpr to have same form as the DataCon specified
         eenv'' = E.insert mexpr_n dc_e eenv' 
 
 -- | Given the Type of the matched Expr, looks for Type in the TypeEnv, and returns Expr level representation of the Type
@@ -528,6 +532,43 @@ createExtCond s ngen mexpr cvar (dcon, bindees, aexpr)
             res = s {curr_expr = CurrExpr Evaluate aexpr'}
         in
         (NewPC { state = res, new_pcs = [cond] , concretized = []}, ngen)
+    | Just dcpcs <- HM.lookup (dcName dcon) (dcpcMap kv tenv)
+    , _:ty_args <- unTyApp $ typeOf mexpr
+    , Just dcpc <- L.lookup ty_args dcpcs = 
+        let
+            -- Ensure parameters do not conflict in their symbolic reps
+            olds = map idName bindees
+            clean_olds = map cleanName olds
+
+            (news, ngen') = freshSeededNames clean_olds ngen
+
+            (dcon', aexpr') = renameExprs (zip olds news) (Data dcon, aexpr)
+
+            new_params = map (uncurry Id) $ zip news (map typeOf bindees)
+            dcon_args = (map (Var) new_params)
+
+            -- Get list of Types to concretize polymorphic data constructor and concatenate with other arguments
+            mexpr_t = typeOf mexpr
+            type_ars = mexprTyToExpr mexpr_t tenv
+            exprs = [dcon'] ++ type_ars ++ dcon_args
+
+            -- Apply list of types (if present) and DataCon children to DataCon
+            dcon'' = mkApp exprs
+
+            new_ids = zipWith (\(Id _ t) n -> Id n t) bindees news
+            eenv = foldr E.insertSymbolic (expr_env s) new_ids
+            (asp_name, ngen'') = freshName ngen'
+
+            (eenv', pcs, ngen''', bindee_exprs) = applyDCPC ngen'' eenv new_ids asp_name dcpc
+
+            -- Bind the cvar and bindees
+            -- Issue here: get bindee exprs from DCPC somehow
+            binds = (cvar, dcon''):zip new_ids bindee_exprs
+            aexpr'' = liftCaseBinds binds aexpr'
+
+            res = s { expr_env = eenv', curr_expr = CurrExpr Return aexpr'' }
+        in
+        (NewPC { state = res, new_pcs = pcs, concretized = [] }, ngen'')
     | Just (dcName dcon) == fmap dcName (getDataCon tenv (KV.tyList kv) (KV.dcEmpty kv)) =
         -- Concretize a primitive application which creates a symbolic [Char] into an empty list.
         let
@@ -541,6 +582,7 @@ createExtCond s ngen mexpr cvar (dcon, bindees, aexpr)
             aexpr' = liftCaseBinds binds aexpr
             res = s { curr_expr = CurrExpr Return aexpr' }
         in
+        trace ("empty\n\n")
         (NewPC { state = res, new_pcs = [eq_str] , concretized = []}, ngen)
 
     | Just (dcName dcon) == fmap dcName (getDataCon tenv (KV.tyList kv) (KV.dcCons kv))
@@ -570,6 +612,7 @@ createExtCond s ngen mexpr cvar (dcon, bindees, aexpr)
             res = s { expr_env = E.insertSymbolic i_char $ E.insertSymbolic i_char_list (expr_env s)
                     , curr_expr = CurrExpr Return aexpr' }
         in
+        trace ("dc_char = " ++ (show dc_char) ++ "\n\nv_char_list = " ++ (show v_char_list) ++ "\n\n")
         (NewPC { state = res, new_pcs = [eq_str] , concretized = [i_char, i_char_list]}, ng'')
     | otherwise = error $ "createExtCond: unsupported type" ++ "\n" ++ show (typeOf mexpr) ++ "\n" ++ show dcon
         where

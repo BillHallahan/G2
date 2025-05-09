@@ -41,17 +41,19 @@ data DataConPCInfo =
     { dc_as_pattern :: Name -- ^ The entirety of the data constructor application
     , dc_args :: [DCArgBind] -- ^ How to instantiate arguments for the DCPC
     , dc_pc :: [PathCond] -- ^ Path constraints to generate, written over the DCPC
+    , dc_bindee_exprs :: [Expr] -- ^ Expressions corresponding to the args
     }
 
 -- | Map Name's of DataCons to associations of type arguments to DataConPCInfos
+-- alongside an Expr representing the entire expression (used by IntToString)
 dcpcMap :: KnownValues -> TypeEnv -> HM.HashMap Name [([Type], DataConPCInfo)]
 dcpcMap kv tenv = HM.fromList [
-                      ( KV.dcCons kv, [ ([T.tyChar kv], strConsDcpc kv tenv) ])
-                    , ( KV.dcEmpty kv, [ ([T.tyChar kv], strEmptyDcpc kv) ])
+                      ( KV.dcCons kv, [ ([T.tyChar kv], strCons kv tenv) ])
+                    , ( KV.dcEmpty kv, [ ([T.tyChar kv], strEmpty kv) ])
                   ]
 
-strConsDcpc :: KnownValues -> TypeEnv -> DataConPCInfo
-strConsDcpc kv tenv = let
+strCons :: KnownValues -> TypeEnv -> DataConPCInfo
+strCons kv tenv = let
                         hn = Name "h" Nothing 0 Nothing
                         hi = Id hn (T.tyChar kv)
                         tn = Name "t" Nothing 0 Nothing
@@ -60,59 +62,64 @@ strConsDcpc kv tenv = let
                         ci = Id cn TyLitChar
                         asn = Name "as" Nothing 0 Nothing
                         asi = Id asn (TyApp (T.tyList kv) (T.tyChar kv))
+                        dc_char = App (mkDCChar kv tenv) (Var ci)
                         dcpc = DCPC { dc_as_pattern = asn
                                     , dc_args = [ArgConcretize { binder_name = hn
                                                             , fresh_vars = [ ci ]
-                                                            , arg_expr = App (mkDCChar kv tenv) (Var ci)
+                                                            , arg_expr = dc_char
                                                             }
-                                                , ArgSymb tn]    
+                                                , ArgSymb tn]
                                     , dc_pc = [ExtCond (mkEqExpr kv
                                                     (App (App (mkStringAppend kv) (Var ci)) (Var ti))
-                                                    (Var asi)) True] }
+                                                    (Var asi)) True]
+                                    , dc_bindee_exprs = [dc_char, (Var ti)]
+                                    }
                       in
                       dcpc
 
-strEmptyDcpc :: KnownValues -> DataConPCInfo
-strEmptyDcpc kv = let
-                    asn = Name "as" Nothing 0 Nothing
-                    asi = Id asn (TyApp (T.tyList kv) (T.tyChar kv))
-                    dcpc = DCPC { dc_as_pattern = asn
-                                , dc_args = []
-                                , dc_pc = [ExtCond (mkEqExpr kv
-                                    (App (mkStringLen kv) (Var asi))
-                                    (Lit (LitInt 0)))
-                                    True] }
-                  in
-                  dcpc
+strEmpty :: KnownValues -> DataConPCInfo
+strEmpty kv = let
+                asn = Name "as" Nothing 0 Nothing
+                asi = Id asn (TyApp (T.tyList kv) (T.tyChar kv))
+                dcpc = DCPC { dc_as_pattern = asn
+                            , dc_args = []
+                            , dc_pc = [ExtCond (mkEqExpr kv
+                                (App (mkStringLen kv) (Var asi))
+                                (Lit (LitInt 0))) True]
+                            , dc_bindee_exprs = []
+                            }
+              in
+              dcpc
 
 applyDCPC :: NameGen
           -> ExprEnv
           -> [Id] -- ^ Newly generated arguments for the data constructor
           -> Name -- ^ As pattern name to replace
           -> DataConPCInfo
-          -> (ExprEnv, [PathCond], NameGen)
-applyDCPC ng eenv new_ids prev_asp (DCPC { dc_as_pattern = asp, dc_args = ars, dc_pc = pc }) =
+          -> (ExprEnv, [PathCond], NameGen, [Expr])
+applyDCPC ng eenv new_ids prev_asp (DCPC { dc_as_pattern = asp, dc_args = ars, dc_pc = pc, dc_bindee_exprs = be }) =
     let
-        (ng', eenv', pc') = foldl' mkDCArg (ng, eenv, pc) (zip ars new_ids)
+        (ng', eenv', pc', be') = foldl' mkDCArg (ng, eenv, pc, be) (zip ars new_ids)
         pc'' = rename asp prev_asp pc'
     in
     assert (length ars == length new_ids)
-    (eenv', pc'', ng')
+    (eenv', pc'', ng', be')
 
-
-mkDCArg :: (NameGen, ExprEnv, [PathCond]) -> (DCArgBind, Id) -> (NameGen, ExprEnv, [PathCond])
-mkDCArg (ng, eenv, pc) (ArgSymb bi, i) =
+mkDCArg :: (NameGen, ExprEnv, [PathCond], [Expr]) -> (DCArgBind, Id) -> (NameGen, ExprEnv, [PathCond], [Expr])
+mkDCArg (ng, eenv, pc, be) (ArgSymb bi, i) =
     let
         eenv' = E.insertSymbolic i eenv
         pc' = rename bi (idName i) pc
+        be' = map (rename bi (idName i)) be
     in
-    (ng, eenv', pc')
-mkDCArg (ng, eenv, pc) (ArgConcretize { binder_name = bn, fresh_vars = fv, arg_expr = e}, i) =
+    (ng, eenv', pc', be')
+mkDCArg (ng, eenv, pc, be) (ArgConcretize { binder_name = bn, fresh_vars = fv, arg_expr = e}, i) =
     let
         (fv', ng') = freshSeededIds fv ng
         rn_hm = HM.fromList $ (bn, idName i):zip (map idName fv) (map idName fv')
         e' = renames rn_hm e
         pc' = renames rn_hm pc
+        be' = map (renames rn_hm) be
         eenv' = E.insert (idName i) e' $ foldl' (flip E.insertSymbolic) eenv fv'
     in
-    (ng', eenv', pc')
+    (ng', eenv', pc', be')
