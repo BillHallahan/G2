@@ -19,6 +19,7 @@ import qualified Data.Text as T
 import Debug.Trace
 import qualified G2.Language.TyVarEnv as TV
 import qualified G2.Language.TyVarEnv as TV
+import qualified G2.Language.TyVarEnv as TV
 
 -- | Adds an assert of false to the function called when a pattern match fails
 addSpecialAsserts :: LHStateM ()
@@ -93,12 +94,12 @@ addTrueAssertsAll = mapWithKeyME (addTrueAssert'')
 --- [BlockErrors]
 -- | Blocks calling error in the functions specified in the block_errors_in in
 -- the Config, by wrapping the errors in Assume False.
-addErrorAssumes :: LHConfig -> LHStateM ()
-addErrorAssumes config = do
+addErrorAssumes :: TV.TyVarEnv -> LHConfig -> LHStateM ()
+addErrorAssumes tv config = do
     kv <- knownValues
     mapWithKeyME (addErrorAssumes' (block_errors_method config) (block_errors_in config) kv)
     lh_kv <- lhKnownValuesM
-    mapMeasuresWithKeyM (addErrorAssumes' (block_errors_method config) (block_errors_in config) lh_kv)
+    mapMeasuresWithKeyM (addErrorAssumes' tv (block_errors_method config) (block_errors_in config) lh_kv)
 
 addErrorAssumes' :: TV.TyVarEnv -> BlockErrorsMethod -> S.HashSet (T.Text, Maybe T.Text) -> KnownValues -> Name -> Expr -> LHStateM Expr
 addErrorAssumes' tv be ns kv (Name n m _ _) e = do
