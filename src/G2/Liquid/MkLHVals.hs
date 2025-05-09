@@ -42,7 +42,7 @@ symGenIfZero tv n eenv tenv kv tc ng =
 symGenIfZero' :: TV.TyVarEnv -> Expr -> ExprEnv -> TypeEnv -> KnownValues -> TypeClasses -> NameGen -> (Expr, NameGen)
 symGenIfZero' tv e eenv tenv kv tc ng =
     let
-        (ars, ng') = argTyToLamUseIds (spArgumentTypes e) ng
+        (ars, ng') = argTyToLamUseIds (spArgumentTypes $ typeOf tv e) ng
 
         class_ty = case ars of
                     (TypeL, c_ty):_ -> c_ty
