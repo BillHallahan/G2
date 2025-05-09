@@ -53,7 +53,7 @@ extractExprPolyBound tv e
     | Data dc:_ <- unApp e =
         let
             bound = leadingTyForAllBindings (typeOf tv dc)
-            m = extractExprPolyBound' e
+            m = extractExprPolyBound' tv e
 
             bound_es = map (\i -> HM.lookupDefault [] i m) bound
         in
