@@ -8,6 +8,7 @@ import qualified G2.Language.ExprEnv as E
 
 import qualified Data.HashSet as S
 import qualified Data.Text as T
+import qualified G2.Language.TyVarEnv as TV 
 
 mkLHVals :: State t
          -> S.HashSet Name
@@ -17,37 +18,38 @@ mkLHVals :: State t
 mkLHVals (State { expr_env = eenv
                 , type_env = tenv
                 , known_values = kv
-                , type_classes = tc }) inst exported ng =
+                , type_classes = tc 
+                , tyvar_env = tvnv }) inst exported ng =
     let
         renme = E.keys eenv
         ((meenv, mkv, mtc, minst, mexported), ng') = doRenames renme ng (eenv, kv, tc, inst, exported)
 
-        (newMod, meenv', ng'') = symGenIfZero (modFunc mkv) meenv tenv mkv mtc ng'
+        (newMod, meenv', ng'') = symGenIfZero tvnv (modFunc mkv) meenv tenv mkv mtc ng'
     in
     (meenv', mkv { modFunc = newMod } , mtc, minst, mexported, ng'')
 
-symGenIfZero :: Name -> ExprEnv -> TypeEnv -> KnownValues -> TypeClasses -> NameGen -> (Name, ExprEnv, NameGen)
-symGenIfZero n eenv tenv kv tc ng =
+symGenIfZero :: TV.TyVarEnv -> Name -> ExprEnv -> TypeEnv -> KnownValues -> TypeClasses -> NameGen -> (Name, ExprEnv, NameGen)
+symGenIfZero tv n eenv tenv kv tc ng =
     case E.lookup n eenv of
         Just e ->
             let
                 (newN, ng') = freshSeededString ("symGen" `T.append` nameOcc n) ng
-                (e', ng'') = symGenIfZero' e eenv tenv kv tc ng'
+                (e', ng'') = symGenIfZero' tv e eenv tenv kv tc ng'
             in
             (newN, E.insert newN e' eenv, ng'')
         Nothing -> error "symGenIfZero: Name not found"
 
-symGenIfZero' :: Expr -> ExprEnv -> TypeEnv -> KnownValues -> TypeClasses -> NameGen -> (Expr, NameGen)
-symGenIfZero' e eenv tenv kv tc ng =
+symGenIfZero' :: TV.TyVarEnv -> Expr -> ExprEnv -> TypeEnv -> KnownValues -> TypeClasses -> NameGen -> (Expr, NameGen)
+symGenIfZero' tv e eenv tenv kv tc ng =
     let
         (ars, ng') = argTyToLamUseIds (spArgumentTypes e) ng
 
         class_ty = case ars of
                     (TypeL, c_ty):_ -> c_ty
                     _ -> error "symGenIfZero: Type not found"
-        snd_int = haveType (TyVar class_ty) (map snd ars) !! 1
+        snd_int = haveType tv (TyVar class_ty) (map snd ars) !! 1
 
-        int_tcs_m = tcWithNameMap (integralTC kv) (map snd ars)
+        int_tcs_m = tcWithNameMap tv (integralTC kv) (map snd ars)
         int_tc = case typeClassInst tc int_tcs_m (integralTC kv) (TyVar class_ty) of
                         Just int_tc' -> int_tc'
                         Nothing -> error "symGenIfZero: Typeclass dictionary not found"
@@ -96,7 +98,7 @@ symGenIfZero' e eenv tenv kv tc ng =
 
         trueDC = mkDCTrue kv tenv
 
-        ret_t = returnType e
+        ret_t = returnType (typeOf tv e)
 
         e' = mkLams ars
                 $ Case eq i ret_t
@@ -105,8 +107,8 @@ symGenIfZero' e eenv tenv kv tc ng =
     in
     (e', ng'')
 
-haveType :: Type -> [Id] -> [Id]
-haveType t = filter (\e -> typeOf e == t)
+haveType :: TV.TyVarEnv -> Type -> [Id] -> [Id]
+haveType tv t = filter (\e -> typeOf tv e == t)
 
 argTyToLamUseIds :: [ArgType] -> NameGen -> ([(LamUse, Id)], NameGen)
 argTyToLamUseIds =
