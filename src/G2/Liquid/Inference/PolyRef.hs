@@ -87,7 +87,7 @@ extractExprPolyBound' tv e
         direct_hm = foldr (HM.unionWith (++)) HM.empty
                         $ map (\(i, e_) -> uncurry HM.singleton (i, e_:[])) direct'
     in
-    foldr (HM.unionWith (++)) direct_hm $ map (extractExprPolyBound' tv . adjustIndirectTypes) indirect'
+    foldr (HM.unionWith (++)) direct_hm $ map (extractExprPolyBound' tv . adjustIndirectTypes tv) indirect'
     | otherwise = HM.empty
     where
         isType (Type _) = True
