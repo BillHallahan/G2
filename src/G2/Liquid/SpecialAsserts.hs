@@ -20,6 +20,8 @@ import Debug.Trace
 import qualified G2.Language.TyVarEnv as TV
 import qualified G2.Language.TyVarEnv as TV
 import qualified G2.Language.TyVarEnv as TV
+import qualified G2.Language.TyVarEnv as TV
+import qualified G2.Language.TyVarEnv as TV
 
 -- | Adds an assert of false to the function called when a pattern match fails
 addSpecialAsserts :: LHStateM ()
@@ -57,14 +59,14 @@ addTrueAsserts' ns n e
     | n `elem` ns = addTrueAssert'' n e
     | otherwise = return e
 
-addTrueAssert'' :: ExState s m => Name -> Expr -> m Expr 
-addTrueAssert'' n e = do
+addTrueAssert'' :: ExState s m => TV.TyVarEnv -> Name -> Expr -> m Expr 
+addTrueAssert'' tv n e = do
     insertInLamsE (\is e' ->
                 case e' of
                     Let [(_, _)] (Assert _ _ _) -> return e'
                     _ -> do
                         true <- mkTrueE
-                        r <- freshIdN (returnType e')
+                        r <- freshIdN (returnType (typeOf tv e') )
 
                         more_is <- tyBindings e'
 
@@ -76,9 +78,9 @@ addTrueAssert'' n e = do
                         return e''
                 ) =<< etaExpandToE (numArgs e) e
 
-tyBindings :: (ExState s m, Typed t) => t -> m [(LamUse, Id)]
-tyBindings t = do
-    let at = spArgumentTypes t
+tyBindings :: (ExState s m, Typed t) => TV.TyVarEnv -> t -> m [(LamUse, Id)]
+tyBindings tv t = do
+    let at = spArgumentTypes (typeOf tv t)
     fn <- freshNamesN (length at)
     return $ tyBindings' fn at
 
@@ -97,7 +99,7 @@ addTrueAssertsAll = mapWithKeyME (addTrueAssert'')
 addErrorAssumes :: TV.TyVarEnv -> LHConfig -> LHStateM ()
 addErrorAssumes tv config = do
     kv <- knownValues
-    mapWithKeyME (addErrorAssumes' (block_errors_method config) (block_errors_in config) kv)
+    mapWithKeyME (addErrorAssumes' tv (block_errors_method config) (block_errors_in config) kv)
     lh_kv <- lhKnownValuesM
     mapMeasuresWithKeyM (addErrorAssumes' tv (block_errors_method config) (block_errors_in config) lh_kv)
 
@@ -105,8 +107,8 @@ addErrorAssumes' :: TV.TyVarEnv -> BlockErrorsMethod -> S.HashSet (T.Text, Maybe
 addErrorAssumes' tv be ns kv (Name n m _ _) e = do
     if (n, m) `S.member` ns then addErrorAssumes'' be kv (typeOf tv e) e else return e
 
-addErrorAssumes'' :: BlockErrorsMethod -> KnownValues -> Type -> Expr -> LHStateM Expr
-addErrorAssumes'' be kv _ v@(Var (Id n t))
+addErrorAssumes'' :: TV.TyVarEnv -> BlockErrorsMethod -> KnownValues -> Type -> Expr -> LHStateM Expr
+addErrorAssumes'' tv be kv _ v@(Var (Id n t))
     | KV.isErrorFunc kv n 
     , be == AssumeBlock = do
         flse <- mkFalseE
@@ -115,7 +117,7 @@ addErrorAssumes'' be kv _ v@(Var (Id n t))
     , be == ArbBlock = do
         d <- freshSeededStringN "d"
         let ast = spArgumentTypes t
-            rt = returnType t
+            rt = returnType (typeof tv t)
 
             lam_it = map (\as -> case as of
                                     AnonType at -> (TermL, Id d at)
