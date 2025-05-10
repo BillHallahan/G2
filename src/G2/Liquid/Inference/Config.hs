@@ -458,17 +458,17 @@ refinable :: TV.TyVarEnv -> [Maybe T.Text] -> Measures -> TCValues -> [GhcInfo] 
 refinable tv main_mod meas tcv ghci kv eenv = 
     let
         ns_mm = E.keys
-              . E.filter (\e -> not (tyVarNoMeas tv meas tcv ghci e) || isPrimRetTy kv e)
+              . E.filter (\e -> not (tyVarNoMeas tv meas tcv ghci e) || isPrimRetTy tv kv e)
               . E.filter (not . (tyVarRetTy tv)) 
               $ E.filterWithKey (\(Name _ m _ _) _ -> m `elem` main_mod) eenv
         ns_mm' = map (\(Name n m _ _) -> (n, m)) ns_mm
     in
     ns_mm'
 
-isPrimRetTy :: S.KnownValues -> Expr -> Bool
-isPrimRetTy kv e =
+isPrimRetTy :: TV.TyVarEnv -> S.KnownValues -> Expr -> Bool
+isPrimRetTy tv kv e =
     let
-        rel_t = extractValues . extractTypePolyBound $ returnType e
+        rel_t = extractValues . extractTypePolyBound $ returnType $ typeOf tv e
     in
     any (\t -> t == tyInt kv || t == tyBool kv) rel_t
 
