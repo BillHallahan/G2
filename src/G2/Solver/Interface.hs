@@ -2,6 +2,8 @@
 
 module G2.Solver.Interface
     ( Subbed (..)
+    , initSolver
+    , initSolverInfinite
     , subModel
     , subVar
     , subVarFuncCall
@@ -9,12 +11,15 @@ module G2.Solver.Interface
     , Solver (..)
     ) where
 
+import G2.Config
 import G2.Execution.NormalForms
 import G2.Language
 import qualified G2.Language.ExprEnv as E
 import G2.Language.MutVarEnv
+import G2.Solver.ADTNumericalSolver
 import G2.Solver.Converters
 import G2.Solver.Solver
+import G2.Solver.SMT2
 
 import qualified Data.List as L
 import Data.Maybe (mapMaybe, isJust, fromJust)
@@ -61,6 +66,37 @@ instance ASTContainer Subbed Type where
                , s_sym_gens = modifyContainedASTs f (s_sym_gens sub)
                , s_mutvars = modifyContainedASTs f (s_mutvars sub)
                , s_handles = modifyContainedASTs f (s_handles sub) }
+
+initSolver :: Config -> IO SomeSolver
+initSolver = initSolver' arbValue
+
+initSolverInfinite :: Config -> IO SomeSolver
+initSolverInfinite con = initSolver' arbValueInfinite con
+
+initSolver' :: ArbValueFunc -> Config -> IO SomeSolver
+initSolver' avf config = do
+    SomeSMTSolver con <- getSMTAV avf config
+    let adt_num = ADTNumericalSolver avf con
+    some_adt_solver <- case print_num_solver_calls config of
+            True -> return . SomeSolver =<< callsSolver "SMT" adt_num
+            False -> return $ SomeSolver adt_num
+    some_adt_solver' <- case time_solving config of
+            True -> timeSomeSolver "SMT" some_adt_solver
+            False -> return some_adt_solver
+
+    let con' = case some_adt_solver' of
+                    SomeSolver adt_solver ->
+                        SomeSolver $ GroupRelated avf
+                                    ( UndefinedHigherOrder
+                                 :?> adt_solver)
+
+    con'' <- case time_solving config of
+                True -> timeSomeSolver "General" con'
+                False -> return con'
+
+    case print_num_solver_calls config of
+                True -> callsSomeSolver "General" con''
+                False -> return con''
 
 subModel :: State t -> Bindings -> Subbed
 subModel (State { expr_env = eenv

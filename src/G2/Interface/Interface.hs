@@ -286,11 +286,11 @@ initRedHaltOrd mod_name solver simplifier config exec_func_names no_nrpc_names =
     time_logger <- acceptTimeLogger
     time_halter <- stdTimerHalter (fromInteger . toInteger $ timeLimit config)
 
+    m_logger <- fmap SomeReducer <$> getLimLogger config
+
     let share = sharing config
 
         state_name = Name "state" Nothing 0 Nothing
-
-        m_logger = fmap SomeReducer $ getLimLogger config
 
         strict_red f = case strict config of
                             True -> SomeReducer (stdRed share f solver simplifier ~> instTypeRed ~> strictRed)
@@ -345,37 +345,6 @@ initRedHaltOrd mod_name solver simplifier config exec_func_names no_nrpc_names =
                 ( logger_std_red retReplaceSymbFuncTemplate .== Finished .--> taggerRed state_name :== Finished --> nonRedPCSymFuncRed
                 , SomeHalter (discardIfAcceptedTagHalter state_name) .<~> halter_step
                 , orderer)
-
-initSolver :: Config -> IO SomeSolver
-initSolver = initSolver' arbValue
-
-initSolverInfinite :: Config -> IO SomeSolver
-initSolverInfinite con = initSolver' arbValueInfinite con
-
-initSolver' :: ArbValueFunc -> Config -> IO SomeSolver
-initSolver' avf config = do
-    SomeSMTSolver con <- getSMTAV avf config
-    let adt_num = ADTNumericalSolver avf con
-    some_adt_solver <- case print_num_solver_calls config of
-            True -> return . SomeSolver =<< callsSolver "SMT" adt_num
-            False -> return $ SomeSolver adt_num
-    some_adt_solver' <- case time_solving config of
-            True -> timeSomeSolver "SMT" some_adt_solver
-            False -> return some_adt_solver
-
-    let con' = case some_adt_solver' of
-                    SomeSolver adt_solver ->
-                        SomeSolver $ GroupRelated avf
-                                    ( UndefinedHigherOrder
-                                 :?> adt_solver)
-
-    con'' <- case time_solving config of
-                True -> timeSomeSolver "General" con'
-                False -> return con'
-
-    case print_num_solver_calls config of
-                True -> callsSomeSolver "General" con''
-                False -> return con''
 
 mkTypeEnv :: HM.HashMap Name AlgDataTy -> TypeEnv
 mkTypeEnv = id

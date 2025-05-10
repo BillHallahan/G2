@@ -71,6 +71,7 @@ data Config = Config {
     , logStates :: LogMode -- ^ Determines whether to Log states, and if logging states, how to do so.
     , logEveryN :: Int -- ^ If logging states, log every nth state
     , logAfterN :: Int -- ^ Logs state only after the nth state
+    , logConcPCGuide :: Maybe String -- ^ Log states only if they match the ConcPCGuide in the provided file
     , logPath :: [Int] -- ^ Log states that are following on or proceed from some path, passed as a list i.e. [1, 2, 1]
     , sharing :: Sharing
     , instTV :: InstTV -- allow the instantiation of types in the beginning or it's instantiate symbolically by functions
@@ -120,6 +121,11 @@ mkConfig homedir = Config Regular
                    <> metavar "LA"
                    <> value 0
                    <> help "logs state only after the nth state")
+    <*> option (maybeReader (Just . Just))
+                 (long "log-conc-pc"
+                   <> metavar "LCPC"
+                   <> value Nothing
+                   <> help "logs state only if they match the concretizations and path constraints specified in the provided file")
     <*> option auto (long "log-path"
                    <> metavar "LP"
                    <> value []
@@ -266,6 +272,7 @@ mkConfigDirect homedir as m = Config {
                         (strArg "log-pretty" as m (Log Pretty) NoLog)
     , logEveryN = 0
     , logAfterN = 0
+    , logConcPCGuide = Nothing
     , logPath = []
     , sharing = boolArg' "sharing" as Sharing Sharing NoSharing
     , instTV = InstBefore
