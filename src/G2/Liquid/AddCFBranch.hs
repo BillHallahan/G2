@@ -18,7 +18,7 @@ import G2.Liquid.TyVarBags
 
 import qualified Data.HashSet as S
 import Data.List
-
+import qualified G2.Language.TyVarEnv as TV 
 type CounterfactualName = Name
 
 -- Enables finding abstract counterexamples, by adding counterfactual branches
@@ -35,51 +35,53 @@ type CounterfactualName = Name
 --     This is essentially abstracting away the function definition, leaving
 --     only the information that LH also knows (that is, the information in the
 --     refinment type.)
-addCounterfactualBranch :: CFModules
+addCounterfactualBranch :: TV.TyVarEnv
+                        -> CFModules
                         -> [Name] -- ^ Which functions to consider abstracting
                         -> LHStateM CounterfactualName
-addCounterfactualBranch cf_mod ns = do
+addCounterfactualBranch tv cf_mod ns = do
     let ns' = case cf_mod of
                 CFAll -> ns
                 CFOnly mods -> filter (\(Name n m _ _) -> (n, m) `S.member` mods) ns
 
-    bag_func_ns <- return . concat =<< mapM argumentNames ns'
-    inst_func_ns <- return . concat =<< mapM returnNames ns'
+    bag_func_ns <- return . concat =<< mapM (argumentNames tv) ns'
+    inst_func_ns <- return . concat =<< mapM (returnNames tv) ns'
 
-    createBagAndInstFuncs bag_func_ns inst_func_ns
+    createBagAndInstFuncs tv bag_func_ns inst_func_ns
 
     cfn <- freshSeededStringN "cf"
-    mapWithKeyME (addCounterfactualBranch' cfn ns')
+    mapWithKeyME (addCounterfactualBranch' tv cfn ns')
     return cfn
 
-addCounterfactualBranch' :: CounterfactualName -> [Name] -> Name -> Expr -> LHStateM Expr
-addCounterfactualBranch' cfn ns n =
-    if n `elem` ns then insertInLamsE (\_ -> addCounterfactualBranch'' cfn) else return
+addCounterfactualBranch' :: TV.TyVarEnv -> CounterfactualName -> [Name] -> Name -> Expr -> LHStateM Expr
+addCounterfactualBranch' tv cfn ns n =
+    if n `elem` ns then insertInLamsE (\_ -> addCounterfactualBranch'' tv cfn) else return
 
-addCounterfactualBranch'' :: CounterfactualName -> Expr -> LHStateM Expr
-addCounterfactualBranch'' cfn
+addCounterfactualBranch'' :: TV.TyVarEnv -> CounterfactualName -> Expr -> LHStateM Expr
+addCounterfactualBranch'' tv cfn
     orig_e@(Let 
             [(b, _)]
             (Assert (Just (FuncCall { funcName = fn, arguments = ars, returns = r })) a _)) = do
-        sg <- cfRetValue ars rt
+        sg <- cfRetValue tv ars rt
 
         -- If the type of b is not the same as e's type, we have no assumption,
         -- so we get a new b.  Otherwise, we just keep our current b,
         -- in case it is used in the assertion
-        b' <- if typeOf b == rt then return b else freshIdN rt
+        b' <- if (typeOf tv b) == rt then return b else freshIdN rt
 
         let fc = FuncCall { funcName = fn, arguments = ars, returns = (Var b')}
             e' = Let [(b', sg)] $ Tick (NamedLoc cfn) $ Assume (Just fc) a (Var b')
 
         return $ NonDet [orig_e, e']
         where
-            rt = typeOf r
-addCounterfactualBranch'' cfn e = modifyChildrenM (addCounterfactualBranch'' cfn) e
+            rt = typeOf tv r
+addCounterfactualBranch'' tv cfn e = modifyChildrenM (addCounterfactualBranch'' tv cfn) e
 
-cfRetValue :: [Expr] -- ^ Arguments
+cfRetValue :: TV.TyVarEnv
+           -> [Expr] -- ^ Arguments
            -> Type -- ^ Type of return value
            -> LHStateM Expr
-cfRetValue ars rt
+cfRetValue tvnv ars rt
     | tvs <- tyVarIds rt
     , not (null tvs)  = do
         let all_tvs = tvs ++ tyVarIds ars
@@ -92,16 +94,16 @@ cfRetValue ars rt
                         (\tv -> wrapExtractCalls
                               . filter nullNonDet
                               . concat
-                              =<< mapM (extractTyVarCall ty_bags ex_tvs_to_vrs tv) ars) (nub all_tvs)
+                              =<< mapM (extractTyVarCall tvnv ty_bags ex_tvs_to_vrs tv) ars) (nub all_tvs)
 
         let ex_let_bnds = zip ex_vrs ex_ty_clls
 
         dUnit <- mkUnitE
 
         insts_f <- getInstFuncs
-        inst_ret <- instTyVarCall insts_f ex_tvs_to_vrs rt
+        inst_ret <- instTyVarCall tvnv insts_f ex_tvs_to_vrs rt
         let inst_ret_call = App inst_ret dUnit
-        ir_bndr <- freshIdN (typeOf inst_ret_call)
+        ir_bndr <- freshIdN (typeOf tvnv inst_ret_call)
         
         return . Let ((ir_bndr, inst_ret_call):ex_let_bnds) $ Tick (NamedLoc instFuncTickName) (Var ir_bndr)
     | otherwise = do 
@@ -114,18 +116,18 @@ nullNonDet _ = True
 instFuncTickName :: Name
 instFuncTickName = Name "INST_FUNC_TICK" Nothing 0 Nothing
 
-argumentNames :: ExState s m => Name -> m [Name]
-argumentNames n = do
+argumentNames :: ExState s m => TV.TyVarEnv -> Name -> m [Name]
+argumentNames tv n = do
     e <- lookupE n
     case e of
-        Just e' -> return . concatMap tyConNames $ anonArgumentTypes e'
+        Just e' -> return . concatMap tyConNames $ anonArgumentTypes (typeOf tv e')
         Nothing -> return []
 
-returnNames :: ExState s m => Name -> m [Name]
-returnNames n = do
+returnNames :: ExState s m => TV.TyVarEnv -> Name -> m [Name]
+returnNames tv n = do
     e <- lookupE n
     case e of
-        Just e' -> return . tyConNames $ returnType e'
+        Just e' -> return . tyConNames $ returnType (typeOf tv e')
         Nothing -> return []
 
 tyConNames :: Type -> [Name]

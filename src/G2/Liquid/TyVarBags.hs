@@ -45,16 +45,16 @@ createBagAndInstFuncs tv bag_func_ns inst_func_ns = do
     
     let bag_func_ns' = relNames tenv S.empty bag_func_ns
         bag_tenv = HM.filterWithKey (\n _ -> n `S.member` bag_func_ns') tenv
-    bag_names <- assignBagFuncNames bag_tenv
+    bag_names <- assignBagFuncNames tv bag_tenv
     setTyVarBags bag_names
 
     let inst_func_ns' = relNames tenv S.empty inst_func_ns
         inst_tenv = HM.filterWithKey (\n _ -> n `S.member` inst_func_ns') tenv
-    inst_names <- assignInstFuncNames inst_tenv
+    inst_names <- assignInstFuncNames tv inst_tenv
     setInstFuncs inst_names
 
     createBagFuncs tv bag_names bag_tenv
-    createInstFuncs inst_names inst_tenv
+    createInstFuncs tv inst_names inst_tenv
 
 relNames :: TypeEnv -> S.HashSet Name -> [Name] -> S.HashSet Name
 relNames _ rel [] = rel
@@ -75,8 +75,8 @@ createBagFuncs tv func_names tenv = do
     mapM_ (uncurry (createBagFunc tv func_names)) (HM.toList tenv)
 
 -- | Creates a mapping of type names to bag creation function names 
-assignBagFuncNames :: ExState s m => TypeEnv -> m TyVarBags
-assignBagFuncNames tenv =
+assignBagFuncNames :: ExState s m => TV.TyVarEnv -> TypeEnv -> m TyVarBags
+assignBagFuncNames tv tenv =
     return . M.fromList
         =<< mapM
             (\(n@(Name n' m _ _), adt) -> do
@@ -88,7 +88,7 @@ assignBagFuncNames tenv =
                         (\(i, tbi) -> do
                             n_fn <- freshSeededNameN (mkName i)
                             let t = foldr (\ntb -> TyForAll ntb)
-                                    (TyFun (returnType dc) (TyVar tbi)) bi
+                                    (TyFun (returnType $ typeOf tv dc) (TyVar tbi)) bi
                             return $ Id n_fn t)
                         $ zip [0 :: Int ..] bi
                 return (n, fn)
@@ -129,25 +129,25 @@ createBagFuncCase tv func_names adt_i tyvar_id bi (DataTyCon { bound_ids = adt_b
                                                           , data_cons = dc }) = do
     bindee <- freshIdN (typeOf tv adt_i)
     let ty_map = zip adt_bi (map TyVar bi)
-    alts <- mapM (createBagFuncCaseAlt func_names tyvar_id ty_map) dc
+    alts <- mapM (createBagFuncCaseAlt tv func_names tyvar_id ty_map) dc
             
     return $ Case (Var adt_i) bindee (typeOf tv $ head alts) alts
 createBagFuncCase tv func_names adt_i tyvar_id bi (NewTyCon { bound_ids = adt_bi
                                                          , rep_type = rt }) = do
     let rt' = foldr (uncurry retype) rt $ zip adt_bi (map TyVar bi)
         cst = Cast (Var adt_i) (typeOf tv adt_i :~ rt')
-    clls <- extractTyVarCall func_names todo_emp tyvar_id cst
+    clls <- extractTyVarCall tv func_names todo_emp tyvar_id cst
     wrapExtractCalls clls
 createBagFuncCase _ _ _ _ _ (TypeSynonym {}) =
     error "creatBagFuncCase: TypeSynonyms unsupported"
 
-createBagFuncCaseAlt :: TyVarBags -> Id -> [(Id, Type)] -> DataCon -> LHStateM Alt
-createBagFuncCaseAlt func_names tyvar_id ty_map dc = do
-    let at = anonArgumentTypes dc
+createBagFuncCaseAlt :: TV.TyVarEnv -> TyVarBags -> Id -> [(Id, Type)] -> DataCon -> LHStateM Alt
+createBagFuncCaseAlt tv func_names tyvar_id ty_map dc = do
+    let at = anonArgumentTypes (typeOf tv dc)
     is <- freshIdsN at
     let is' = foldr (uncurry retype) is ty_map
         tyvar_id' = maybe tyvar_id id $ tyVarId =<< lookup tyvar_id ty_map
-    es <- return . concat =<< mapM (extractTyVarCall func_names todo_emp tyvar_id' . Var) is'
+    es <- return . concat =<< mapM (extractTyVarCall tv func_names todo_emp tyvar_id' . Var) is'
     case null es of
         True -> do 
             flse <- mkFalseE
@@ -181,11 +181,11 @@ extractTyVarCall tv func_names is_fs i e
         return (concat nds')
     | TyFun _ _ <- t = do
         -- TODO: should we use typeOf or simply remove PresType 
-        let ars_ty = anonArgumentTypes $ PresType t
-            tvs = tyVarIds . returnType $ PresType t
+        let ars_ty = anonArgumentTypes (typeOf tv t)
+            tvs = tyVarIds (returnType $ typeOf tv t)
 
         inst_fs <- getInstFuncs
-        inst_ars <- mapM (instTyVarCall' inst_fs is_fs) ars_ty
+        inst_ars <- mapM (instTyVarCall' tv inst_fs is_fs) ars_ty
         let call_f = mkApp $ e:inst_ars
 
         cll <- if i `elem` tvs then extractTyVarCall tv func_names is_fs i call_f else return []
@@ -248,12 +248,12 @@ createInstFunc' tv func_names is_fs (DataTyCon { data_cons = dcs }) = do
 
                 is_fs' = zipWith (\i (_, f) -> (i, f)) (leadingTyForAllBindings (typeOf tv dc)) is_fs
 
-            ars <- mapM (instTyVarCall' func_names is_fs') ars_ty
+            ars <- mapM (instTyVarCall' tv func_names is_fs') ars_ty
             bnds <- mapM freshIdN ars_ty
             let vrs = map Var bnds
 
             let e = mkApp $ apped_dc:vrs
-            e' <- foldM wrapPrimsInCase e vrs
+            e' <- foldM (wrapPrimsInCase tv) e vrs
             return $ Let (zip bnds ars) e') dcs
     return (NonDet dc')
 createInstFunc' _ _ _ (NewTyCon { rep_type = _ }) = do
@@ -263,22 +263,24 @@ createInstFunc' _ _ _ _ = error "createInstFunc': unhandled datatype"
 
 -- | Creates an instTyVarCall function call to create an expression of type t with appropriate TyVars
 instTyVarCall :: ExState s m =>
-                 InstFuncs
+                 TV.TyVarEnv 
+              -> InstFuncs
               -> [(Id, Id)] -- ^ Mapping of TyVar Ids to Functions to create those TyVars
               -> Type
               -> m Expr
-instTyVarCall func_names is_fs t = do
+instTyVarCall tv func_names is_fs t = do
     tUnit <- tyUnitT
     ui <- freshIdN tUnit
-    cll <- instTyVarCall' func_names is_fs t 
+    cll <- instTyVarCall' tv func_names is_fs t 
     return $ Lam TermL ui cll
 
 instTyVarCall' :: ExState s m =>
-                 InstFuncs
+                 TV.TyVarEnv 
+              -> InstFuncs
               -> [(Id, Id)] -- ^ Mapping of TyVar Ids to Functions to create those TyVars
               -> Type
               -> m Expr
-instTyVarCall' func_names is_fs t 
+instTyVarCall' tv func_names is_fs t 
     | TyVar i <- t
     , Just f <- lookup i is_fs = do
         return $ Var f
@@ -288,7 +290,7 @@ instTyVarCall' func_names is_fs t
 
     | TyCon n tc_t:ts <- unTyApp t
     , Just fn <- M.lookup n func_names = do
-        let tyc_is = anonArgumentTypes (PresType tc_t)
+        let tyc_is = anonArgumentTypes (typeOf tv tc_t)
             ty_ts = take (length tyc_is) ts
 
             ty_ars = map Type ty_ts
@@ -296,17 +298,17 @@ instTyVarCall' func_names is_fs t
                                     TyVar i
                                         | Just i' <- lookup i is_fs -> return (Var i')
                                     _ -> do
-                                        cll <- instTyVarCall' func_names is_fs t'
+                                        cll <- instTyVarCall' tv func_names is_fs t'
                                         return cll) ty_ts
-        let_ids <- freshIdsN $ map typeOf func_ars
+        let_ids <- freshIdsN $ map (typeOf tv) func_ars
         let bnds = zip let_ids func_ars
 
         return . Let bnds . mkApp $ Var fn:ty_ars ++ map Var let_ids
     | otherwise = do
-        let tfa = leadingTyForAllBindings $ PresType t
+        let tfa = leadingTyForAllBindings $ typeOf tv t
             tfa_is = zipWith (\i1 (i2, _) -> (i1, TyVar i2)) tfa is_fs
 
-            rt = foldr (uncurry retype) (returnType $ PresType t) tfa_is
+            rt = foldr (uncurry retype) (returnType $ typeOf tv t) tfa_is
         return $ SymGen SNoLog rt
 
 -- | Primitive operation function calls do not force evaluation of the
@@ -314,14 +316,14 @@ instTyVarCall' func_names is_fs t
 -- or a symbolic value.  Thus, if we have a SymGen being passed to a primitive
 -- operation, our rules will not know how to handle it.
 -- Thus, we wrap SymGen's of primitive types in case statements.
-wrapPrimsInCase :: ExState s m => Expr -> Expr -> m Expr
-wrapPrimsInCase e e'
+wrapPrimsInCase :: ExState s m => TV.TyVarEnv -> Expr -> Expr -> m Expr
+wrapPrimsInCase tv e e'
     | isPrimType t = do
         i <- freshIdN t
-        return $ Case e' i (typeOf e) [Alt Default e]
+        return $ Case e' i (typeOf tv e) [Alt Default e]
     | otherwise = return e
     where
-        t = typeOf e'
+        t = typeOf tv e'
 
 ----------------------------------------
 -- Existential Inst
