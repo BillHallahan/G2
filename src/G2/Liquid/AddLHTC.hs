@@ -10,15 +10,17 @@ import G2.Language.Monad
 import G2.Liquid.Types
 
 import qualified Data.HashMap.Lazy as HM
+import qualified G2.Language.TyVarEnv as TV 
+
 
 -- | Adds the LiquidHaskell typeclass to all functions in the ExprEnv, and to
 -- the current expression.  This requires:
 --   1. Adding Lambda bindings for the LH TC
 --   2. Passing the LH TC typeclass to functions
 --   3. Updating all type information
-addLHTC :: LHStateM ()
-addLHTC = do
-    mapME addLHTCExprEnv
+addLHTC :: TV.TyVarEnv -> LHStateM ()
+addLHTC tv = do
+    mapME (addLHTCExprEnv tv)
     addLHTCCurrExpr
 
 addLHTCCurrExpr :: LHStateM ()
@@ -27,10 +29,10 @@ addLHTCCurrExpr = do
     ce' <- addLHTCExprPasses HM.empty ce
     putCurrExpr (CurrExpr er ce')
 
-addLHTCExprEnv :: Expr -> LHStateM Expr
-addLHTCExprEnv e = do
-    e' <- addTypeLams e
-    e'' <- addTypeLamsLet e'
+addLHTCExprEnv :: TV.TyVarEnv -> Expr -> LHStateM Expr
+addLHTCExprEnv tv e = do
+    e' <- addTypeLams tv e
+    e'' <- addTypeLamsLet tv e'
     (e''', m) <- addLHTCExprEnvLams [] e''
     addLHTCExprEnvPasses m e'''
 
@@ -38,10 +40,10 @@ addLHTCExprEnv e = do
 -- This is needed so that addLHTCExprEnvLams can insert the LH Dict after the type correctly.
 -- In generally, it's not always correct to eta-expand Haskell functions, but
 -- it is fine here because the type arguments are guaranteed to not be undefined
-addTypeLams :: Expr -> LHStateM Expr
-addTypeLams e = 
+addTypeLams :: TV.TyVarEnv -> Expr -> LHStateM Expr
+addTypeLams tv e = 
     let
-        t = typeOf e
+        t = typeOf tv e
     in
     addTypeLams' t e
 
@@ -53,17 +55,17 @@ addTypeLams' _ e = return e
 
 -- | Let bindings may be passed Type parameters, but have no type lambdas,
 -- so we have to add Lambdas to Let's as well. 
-addTypeLamsLet :: Expr -> LHStateM Expr
-addTypeLamsLet = modifyM addTypeLamsLet'
+addTypeLamsLet :: TV.TyVarEnv -> Expr -> LHStateM Expr
+addTypeLamsLet tv = modifyM (addTypeLamsLet' tv)
 
-addTypeLamsLet' :: Expr -> LHStateM Expr
-addTypeLamsLet' (Let be e) = do
+addTypeLamsLet' :: TV.TyVarEnv -> Expr -> LHStateM Expr
+addTypeLamsLet' tv (Let be e) = do
     be' <- mapM (\(b, e') -> do
-            e'' <- addTypeLams e'
+            e'' <- addTypeLams tv e' 
             return (b, e'')
         ) be
     return (Let be' e)
-addTypeLamsLet' e = return e
+addTypeLamsLet' _ e = return e
 
 -- Updates a function definition with Lambdas to take the LH TC for each type argument.
 addLHTCExprEnvLams :: [Id] -> Expr -> LHStateM (Expr, HM.HashMap Name Id)

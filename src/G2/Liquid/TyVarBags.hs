@@ -33,12 +33,14 @@ import qualified Data.HashSet as S
 import qualified Data.HashMap.Lazy as HM
 import qualified Data.Map.Lazy as M
 import qualified Data.Text as T
+import qualified G2.Language.TyVarEnv as TV
 
 -- | The bag and instantiation functions rely on each other, so we have to make them together
-createBagAndInstFuncs :: [Name] -- ^ Which types do we need bag functions for?
+createBagAndInstFuncs :: TV.TyVarEnv 
+                      -> [Name] -- ^ Which types do we need bag functions for?
                       -> [Name] -- ^ Which types do we need instantiation functions for?
                       -> LHStateM ()
-createBagAndInstFuncs bag_func_ns inst_func_ns = do
+createBagAndInstFuncs tv bag_func_ns inst_func_ns = do
     tenv <- typeEnv
     
     let bag_func_ns' = relNames tenv S.empty bag_func_ns
@@ -51,7 +53,7 @@ createBagAndInstFuncs bag_func_ns inst_func_ns = do
     inst_names <- assignInstFuncNames inst_tenv
     setInstFuncs inst_names
 
-    createBagFuncs bag_names bag_tenv
+    createBagFuncs tv bag_names bag_tenv
     createInstFuncs inst_names inst_tenv
 
 relNames :: TypeEnv -> S.HashSet Name -> [Name] -> S.HashSet Name
@@ -65,11 +67,12 @@ relNames tenv rel (n:ns) =
         Nothing -> ns
         Just r -> namesList r ++ ns
 
-createBagFuncs :: TyVarBags -- ^ Which types do we need bag functions for?
+createBagFuncs :: TV.TyVarEnv 
+               -> TyVarBags -- ^ Which types do we need bag functions for?
                -> TypeEnv
                -> LHStateM ()
-createBagFuncs func_names tenv = do
-    mapM_ (uncurry (createBagFunc func_names)) (HM.toList tenv)
+createBagFuncs tv func_names tenv = do
+    mapM_ (uncurry (createBagFunc tv func_names)) (HM.toList tenv)
 
 -- | Creates a mapping of type names to bag creation function names 
 assignBagFuncNames :: ExState s m => TypeEnv -> m TyVarBags
@@ -91,49 +94,51 @@ assignBagFuncNames tenv =
                 return (n, fn)
             ) (HM.toList tenv)
 
-createBagFunc :: TyVarBags -> Name -> AlgDataTy -> LHStateM ()
-createBagFunc func_names tn adt
+createBagFunc :: TV.TyVarEnv -> TyVarBags -> Name -> AlgDataTy -> LHStateM ()
+createBagFunc tv func_names tn adt
     | Just fs <- M.lookup tn func_names =
-        mapM_ (uncurry (createBagFunc' func_names tn adt)) $ zip fs (bound_ids adt)
+        mapM_ (uncurry (createBagFunc' tv func_names tn adt)) $ zip fs (bound_ids adt)
     | otherwise = error "createBagFunc: type not found"
 
-createBagFunc' :: TyVarBags
+createBagFunc' :: TV.TyVarEnv 
+               -> TyVarBags
                -> Name
                -> AlgDataTy
                -> Id -- ^ The Id of the function to create
                -> Id -- ^ The Id of the TyVar to extract
                -> LHStateM ()
-createBagFunc' func_names tn adt fn tyvar_id = do
+createBagFunc' tv func_names tn adt fn tyvar_id = do
     bi <- freshIdsN $ map (const TYPE) (bound_ids adt)
-    adt_i <- freshIdN $ mkFullAppedTyCon tn (map TyVar bi) TYPE
+    adt_i <- freshIdN $ mkFullAppedTyCon tv tn (map TyVar bi) TYPE
 
-    cse <- createBagFuncCase func_names adt_i tyvar_id bi adt
+    cse <- createBagFuncCase tv func_names adt_i tyvar_id bi adt
     let e = mkLams (map (TypeL,) bi) $ Lam TermL adt_i cse
 
     insertE (idName fn) e
 
 -- | Examines the passed `Id` adt_i, which is the ADT to extract the tyvar tyvar_id from,
 -- and constructs an expression to actually nondeterministically extract a tyvar_id.
-createBagFuncCase :: TyVarBags
+createBagFuncCase :: TV.TyVarEnv
+                  -> TyVarBags
                   -> Id
                   -> Id
                   -> [Id]
                   -> AlgDataTy
                   -> LHStateM Expr
-createBagFuncCase func_names adt_i tyvar_id bi (DataTyCon { bound_ids = adt_bi
+createBagFuncCase tv func_names adt_i tyvar_id bi (DataTyCon { bound_ids = adt_bi
                                                           , data_cons = dc }) = do
-    bindee <- freshIdN (typeOf adt_i)
+    bindee <- freshIdN (typeOf tv adt_i)
     let ty_map = zip adt_bi (map TyVar bi)
     alts <- mapM (createBagFuncCaseAlt func_names tyvar_id ty_map) dc
             
-    return $ Case (Var adt_i) bindee (typeOf $ head alts) alts
-createBagFuncCase func_names adt_i tyvar_id bi (NewTyCon { bound_ids = adt_bi
+    return $ Case (Var adt_i) bindee (typeOf tv $ head alts) alts
+createBagFuncCase tv func_names adt_i tyvar_id bi (NewTyCon { bound_ids = adt_bi
                                                          , rep_type = rt }) = do
     let rt' = foldr (uncurry retype) rt $ zip adt_bi (map TyVar bi)
-        cst = Cast (Var adt_i) (typeOf adt_i :~ rt')
+        cst = Cast (Var adt_i) (typeOf tv adt_i :~ rt')
     clls <- extractTyVarCall func_names todo_emp tyvar_id cst
     wrapExtractCalls clls
-createBagFuncCase _ _ _ _ (TypeSynonym {}) =
+createBagFuncCase _ _ _ _ _ (TypeSynonym {}) =
     error "creatBagFuncCase: TypeSynonyms unsupported"
 
 createBagFuncCaseAlt :: TyVarBags -> Id -> [(Id, Type)] -> DataCon -> LHStateM Alt
@@ -158,22 +163,24 @@ todo_emp = []
 
 -- | Creates a set of expressions to get all TyVars i out of an
 -- expression e. 
-extractTyVarCall :: TyVarBags
+extractTyVarCall :: TV.TyVarEnv
+                 -> TyVarBags
                  -> [(Id, Id)]  -- ^ Mapping of TyVar Ids to Functions to create those TyVars
                  -> Id 
                  -> Expr 
                  -> LHStateM [Expr]
-extractTyVarCall func_names is_fs i e 
+extractTyVarCall tv func_names is_fs i e 
     | TyVar i' <- t
     , i == i' = return [e]
     | TyCon n tc_t:ts <- unTyApp t
     , Just fn <- M.lookup n func_names = do
-        let is = anonArgumentTypes (PresType tc_t)
+        let is = anonArgumentTypes (typeOf tv tc_t)
             ty_ars = map Type $ take (length is) ts
             nds = map (\f -> App (mkApp (Var f:ty_ars)) e) fn
-        nds' <- mapM (extractTyVarCall func_names is_fs i) nds
+        nds' <- mapM (extractTyVarCall tv func_names is_fs i) nds
         return (concat nds')
     | TyFun _ _ <- t = do
+        -- TODO: should we use typeOf or simply remove PresType 
         let ars_ty = anonArgumentTypes $ PresType t
             tvs = tyVarIds . returnType $ PresType t
 
@@ -181,11 +188,11 @@ extractTyVarCall func_names is_fs i e
         inst_ars <- mapM (instTyVarCall' inst_fs is_fs) ars_ty
         let call_f = mkApp $ e:inst_ars
 
-        cll <- if i `elem` tvs then extractTyVarCall func_names is_fs i call_f else return []
+        cll <- if i `elem` tvs then extractTyVarCall tv func_names is_fs i call_f else return []
         return cll
     | otherwise = return []
     where
-        t = typeOf e
+        t = typeOf tv e
 
 wrapExtractCalls :: ExState s m => [Expr] -> m Expr
 wrapExtractCalls clls = do
@@ -198,47 +205,48 @@ wrapExtractCalls clls = do
 -- | Creates functions to, for each type (T a_1 ... a_n), create a nondeterministic value.
 -- Each a_1 ... a_n has an associated function, allowing the caller to decide how to instantiate
 -- these values. 
-createInstFuncs :: InstFuncs -- ^ Which types do we need instantiation functions for?
+createInstFuncs :: TV.TyVarEnv 
+                -> InstFuncs -- ^ Which types do we need instantiation functions for?
                 -> TypeEnv
                 -> LHStateM ()
-createInstFuncs func_names tenv = do
-    mapM_ (uncurry (createInstFunc func_names)) (HM.toList tenv)
+createInstFuncs tv func_names tenv = do
+    mapM_ (uncurry (createInstFunc tv func_names)) (HM.toList tenv)
 
 -- | Creates a mapping of type names to instantatiation function names 
-assignInstFuncNames :: ExState s m => TypeEnv -> m InstFuncs
-assignInstFuncNames tenv =
+assignInstFuncNames :: ExState s m => TV.TyVarEnv -> TypeEnv -> m InstFuncs
+assignInstFuncNames tv tenv =
     return . M.fromList
         =<< mapM
             (\(tn@(Name n m _ _), adt) -> do
                 let bi = bound_ids adt
                 fn <- freshSeededNameN (Name (n `T.append` "_inst_") m 0 Nothing)
 
-                let adt_i = mkFullAppedTyCon tn (map TyVar bi) TYPE
+                let adt_i = mkFullAppedTyCon tv tn (map TyVar bi) TYPE
                 let t = foldr (\ntb -> TyForAll ntb)
                             (foldr (\i -> TyFun (TyVar i)) adt_i bi) bi
 
                 return (tn, Id fn t)
             ) (HM.toList tenv)
 
-createInstFunc :: InstFuncs -> Name -> AlgDataTy -> LHStateM ()
-createInstFunc func_names tn adt
+createInstFunc :: TV.TyVarEnv -> InstFuncs -> Name -> AlgDataTy -> LHStateM ()
+createInstFunc tv func_names tn adt
     | Just fn <- M.lookup tn func_names = do
         bi <- freshIdsN $ map (const TYPE) (bound_ids adt)
         inst_fs <- freshIdsN $ map TyVar bi
 
-        cse <- createInstFunc' func_names (zip bi inst_fs) adt
+        cse <- createInstFunc' tv func_names (zip bi inst_fs) adt
         let e = mkLams (map (TypeL,) bi) $ mkLams (map (TermL,) inst_fs) cse
 
         insertE (idName fn) e
     | otherwise = error "createInstFunc: type not found"
 
-createInstFunc' :: InstFuncs -> [(Id, Id)] -> AlgDataTy -> LHStateM Expr
-createInstFunc' func_names is_fs (DataTyCon { data_cons = dcs }) = do
+createInstFunc' :: TV.TyVarEnv -> InstFuncs -> [(Id, Id)] -> AlgDataTy -> LHStateM Expr
+createInstFunc' tv func_names is_fs (DataTyCon { data_cons = dcs }) = do
     dc' <- mapM (\dc -> do
             let apped_dc = mkApp (Data dc:map (Type . TyVar . fst) is_fs)
-                ars_ty = anonArgumentTypes dc
+                ars_ty = anonArgumentTypes (typeOf tv dc)
 
-                is_fs' = zipWith (\i (_, f) -> (i, f)) (leadingTyForAllBindings dc) is_fs
+                is_fs' = zipWith (\i (_, f) -> (i, f)) (leadingTyForAllBindings (typeOf tv dc)) is_fs
 
             ars <- mapM (instTyVarCall' func_names is_fs') ars_ty
             bnds <- mapM freshIdN ars_ty
@@ -248,10 +256,10 @@ createInstFunc' func_names is_fs (DataTyCon { data_cons = dcs }) = do
             e' <- foldM wrapPrimsInCase e vrs
             return $ Let (zip bnds ars) e') dcs
     return (NonDet dc')
-createInstFunc' _ _ (NewTyCon { rep_type = _ }) = do
+createInstFunc' _ _ _ (NewTyCon { rep_type = _ }) = do
     -- rt_val <- instTyVarCall' func_names is_fs rt
     return $ Cast undefined undefined
-createInstFunc' _ _ _ = error "createInstFunc': unhandled datatype"
+createInstFunc' _ _ _ _ = error "createInstFunc': unhandled datatype"
 
 -- | Creates an instTyVarCall function call to create an expression of type t with appropriate TyVars
 instTyVarCall :: ExState s m =>
