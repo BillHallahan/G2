@@ -19,13 +19,14 @@ import Data.Maybe
 import qualified GHC as GHC
 
 import qualified Data.HashMap.Lazy as HM
+import qualified G2.Language.TyVarEnv as TV 
 
 -- | Creates measures from LH measure specifications.
 -- This is required to find all measures that are written in comments.
-createMeasures :: [Measure SpecType GHC.DataCon] -> LHStateM ()
-createMeasures meas = do
-    nt <- return . HM.fromList =<< mapMaybeM measureTypeMappings meas
-    meas' <- mapMaybeM (convertMeasure nt) =<< filterM allTypesKnown meas
+createMeasures :: TV.TyVarEnv -> [Measure SpecType GHC.DataCon] -> LHStateM ()
+createMeasures tv meas = do
+    nt <- return . HM.fromList =<< mapMaybeM (measureTypeMappings tv) meas
+    meas' <- mapMaybeM (convertMeasure tv nt) =<< filterM (allTypesKnown tv) meas
     
     filterMeasures (HM.keys nt)
 
@@ -52,25 +53,25 @@ filterMeasures' pre_meenv nt = do
         fil_meenv = E.filterWithKey (\(Name n m _ _) _ -> (n, m) `notElem` ns) pre_meenv
     return fil_meenv
 
-allTypesKnown :: Measure SpecType GHC.DataCon -> LHStateM Bool
+allTypesKnown :: TV.TyVarEnv -> Measure SpecType GHC.DataCon -> LHStateM Bool
 #if MIN_VERSION_liquidhaskell(0,8,6)
-allTypesKnown (M {msSort = srt}) = do
+allTypesKnown tv (M {msSort = srt}) = do
 #else
-allTypesKnown (M {sort = srt}) = do
+allTypesKnown tv (M {sort = srt}) = do
 #endif
-    st <- specTypeToType srt
+    st <- specTypeToType tv srt
     return $ isJust st
 
-measureTypeMappings :: Measure SpecType GHC.DataCon -> LHStateM (Maybe (Name, Type))
+measureTypeMappings :: TV.TyVarEnv -> Measure SpecType GHC.DataCon -> LHStateM (Maybe (Name, Type))
 #if MIN_VERSION_liquidhaskell(0,8,6)
-measureTypeMappings (M {msName = n, msSort = srt}) = do
+measureTypeMappings tv (M {msName = n, msSort = srt}) = do
 #else
-measureTypeMappings (M {name = n, sort = srt}) = do
+measureTypeMappings tv (M {name = n, sort = srt}) = do
 #endif
-    st <- specTypeToType srt
+    st <- specTypeToType tv srt
     lh <- lhTCM
 
-    let t = fmap (addLHDictToType lh) st
+    let t = fmap (addLHDictToType tv lh) st
 
     let n' = symbolName $ val n
     
@@ -78,41 +79,41 @@ measureTypeMappings (M {name = n, sort = srt}) = do
         Just t' -> return $ Just (n', t')
         _ -> return  Nothing
 
-addLHDictToType :: Name -> Type -> Type
-addLHDictToType lh t =
+addLHDictToType :: TV.TyVarEnv -> Name -> Type -> Type
+addLHDictToType tv lh t =
     let
-        lhD = map (\i -> mkFullAppedTyCon lh [TyVar i] TYPE) $ tyForAllBindings $ PresType t
+        lhD = map (\i -> mkFullAppedTyCon tv lh [TyVar i] TYPE) $ tyForAllBindings $ typeOf tv t
     in
     mapInTyForAlls (\t' -> foldr TyFun t' lhD) t
 
-convertMeasure :: BoundTypes -> Measure SpecType GHC.DataCon -> LHStateM (Maybe (Name, Expr))
+convertMeasure :: TV.TyVarEnv -> BoundTypes -> Measure SpecType GHC.DataCon -> LHStateM (Maybe (Name, Expr))
 #if MIN_VERSION_liquidhaskell(0,8,6)
-convertMeasure bt (M {msName = n, msSort = srt, msEqns = eq}) = do
+convertMeasure tv bt (M {msName = n, msSort = srt, msEqns = eq}) = do
 #else
-convertMeasure bt (M {name = n, sort = srt, eqns = eq}) = do
+convertMeasure tv bt (M {name = n, sort = srt, eqns = eq}) = do
 #endif
     let n' = symbolName $ val n
 
-    st <- specTypeToType srt
+    st <- specTypeToType tv srt
     lh_tc <- lhTCM
         
-    let bnds = tyForAllBindings $ PresType $ fromJust st
+    let bnds = tyForAllBindings $ typeOf tv $ fromJust st
         ds = map (\i -> Name "d" Nothing i Nothing) [1 .. length bnds]
         nbnds = zip ds $ map TyVar bnds
-        as = map (\(d, t) -> Id d $ mkFullAppedTyCon lh_tc [t] TYPE) nbnds
+        as = map (\(d, t) -> Id d $ mkFullAppedTyCon tv lh_tc [t] TYPE) nbnds
         as' = map (TypeL, ) bnds ++ map (TermL,) as
 
-        as_t = map (\i -> (forType $ typeOf i, i)) as
+        as_t = map (\i -> (forType $ typeOf tv i, i)) as
 
-        stArgs = anonArgumentTypes . PresType $ fromJust st
-        stRet = fmap (returnType . PresType) st
+        stArgs = anonArgumentTypes . typeOf tv $ fromJust st
+        stRet = fmap (returnType . typeOf tv) st
 
     lam_i <- mapM freshIdN stArgs
     cb <- freshIdN (head stArgs)
     
-    alts <- mapMaybeM (convertDefs stArgs stRet (HM.fromList as_t) bt) eq
+    alts <- mapMaybeM (convertDefs tv stArgs stRet (HM.fromList as_t) bt) eq
     fls <- mkFalseE
-    let defTy = maybe TyUnknown (returnType . PresType) st
+    let defTy = maybe TyUnknown (returnType . typeOf tv) st
         defAlt = Alt Default $ Assume Nothing fls (Prim Undefined defTy)
 
     let e = mkLams (as' ++ map (TermL,) lam_i) $ Case (Var (head lam_i)) cb defTy (defAlt:alts) 
@@ -125,37 +126,37 @@ convertMeasure bt (M {name = n, sort = srt, eqns = eq}) = do
         forType (TyApp _ (TyVar (Id n' _))) = n'
         forType _ = error "Bad type in forType"
 
-convertDefs :: [Type] -> Maybe Type -> LHDictMap -> BoundTypes -> Def SpecType GHC.DataCon -> LHStateM (Maybe Alt)
-convertDefs [l_t] ret m bt (Def { ctor = dc, body = b, binds = bds})
+convertDefs :: TV.TyVarEnv -> [Type] -> Maybe Type -> LHDictMap -> BoundTypes -> Def SpecType GHC.DataCon -> LHStateM (Maybe Alt)
+convertDefs tv [l_t] ret m bt (Def { ctor = dc, body = b, binds = bds})
     | TyCon _ _ <- tyAppCenter l_t
     , st_t <- tyAppArgs l_t
     , dc' <- mkDataUnsafe dc = do
     tenv <- typeEnv
     let         
         -- See [1] below, we only evaluate this if Just
-        dc''@(DataCon _ dct _ _) = fixNamesDC tenv dc'
-        bnds = tyForAllBindings $ PresType dct
-        dctarg = anonArgumentTypes $ PresType dct
+        dc''@(DataCon _ dct _ _) = fixNamesDC tv tenv dc'
+        bnds = tyForAllBindings $ typeOf tv dct
+        dctarg = anonArgumentTypes $ typeOf tv dct
 
         -- Adjust the tyvars in the datacon to have the same ids as those we read from LH
         dctarg' = foldr (uncurry replaceASTs) dctarg $ zip (map TyVar bnds) st_t
 
     nt <- mapM (\((sym, t'), t'') -> do
-                    t''' <- maybeM (return t'') unsafeSpecTypeToType (return t')
+                    t''' <- maybeM (return t'') (unsafeSpecTypeToType tv) (return t')
                     return (symbolName sym, t''')) $ zip bds dctarg'
 
     let is = map (uncurry Id) nt
 
-    e <- mkExprFromBody ret m (HM.union bt $ HM.fromList nt) b
+    e <- mkExprFromBody tv ret m (HM.union bt $ HM.fromList nt) b
     
     return $ Just $ Alt (DataAlt dc'' is) e -- [1]
     | otherwise = return Nothing
-convertDefs _ _ _ _ _ = error "convertDefs: Unhandled Type List"
+convertDefs _ _ _ _ _ _ = error "convertDefs: Unhandled Type List"
 
-fixNamesDC :: TypeEnv -> DataCon -> DataCon
-fixNamesDC tenv (DataCon n t _ _) =
+fixNamesDC :: TV.TyVarEnv -> TypeEnv -> DataCon -> DataCon
+fixNamesDC tv tenv (DataCon n t _ _) =
     let
-        (TyCon tn _) = tyAppCenter $ returnType $ PresType t
+        (TyCon tn _) = tyAppCenter $ returnType $ typeOf tv t
     in
     case getDataConNameMod tenv tn n of
         Just (DataCon dcn _ u e) -> DataCon dcn (fixNamesType tenv t) u e
@@ -174,16 +175,16 @@ fixNamesType' _ t = t
 getTypeNameMod :: TypeEnv -> Name -> Maybe Name
 getTypeNameMod tenv (Name n m _ _) = find (\(Name n' m' _ _) -> n == n' && m == m') $ HM.keys tenv
 
-mkExprFromBody :: Maybe Type -> LHDictMap -> BoundTypes -> Body -> LHStateM Expr
-mkExprFromBody ret m bt (E e) = convertLHExpr (mkDictMaps m) bt ret e
-mkExprFromBody ret m bt (P e) = convertLHExpr (mkDictMaps m) bt ret e
-mkExprFromBody ret m bt (R s e) = do
+mkExprFromBody :: TV.TyVarEnv -> Maybe Type -> LHDictMap -> BoundTypes -> Body -> LHStateM Expr
+mkExprFromBody tv ret m bt (E e) = convertLHExpr tv (mkDictMaps m) bt ret e
+mkExprFromBody tv ret m bt (P e) = convertLHExpr tv (mkDictMaps m) bt ret e
+mkExprFromBody tv ret m bt (R s e) = do
     let s_nm = symbolName s
         t = maybe (error "mkExprFromBody: ret type unknown") id ret
         i = Id s_nm t
 
         bt' = HM.insert s_nm t bt
-    g2_e <- convertLHExpr (mkDictMaps m) bt' ret e
+    g2_e <- convertLHExpr tv (mkDictMaps m) bt' ret e
     return . Let [(i, SymGen SNoLog t)] . Assume Nothing g2_e $ Var i 
 
 mkDictMaps :: LHDictMap -> DictMaps
