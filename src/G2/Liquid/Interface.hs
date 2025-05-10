@@ -87,6 +87,7 @@ import qualified Data.Text.IO as TI
 
 import G2.Language.Monad
 import G2.Language.Support (Bindings(input_coercion))
+import qualified G2.Language.TyVarEnv as TV 
 
 data LHReturn = LHReturn { calledFunc :: FuncInfo
                          , violating :: Maybe FuncInfo
@@ -99,8 +100,8 @@ data FuncInfo = FuncInfo { func :: T.Text
 -- | findCounterExamples
 -- Given (several) LH sources, and a string specifying a function name,
 -- attempt to find counterexamples to the functions liquid type
-findCounterExamples :: [FilePath] -> [FilePath] -> T.Text -> Config -> LHConfig -> IO (([ExecRes AbstractedInfo], Bindings), Lang.Id)
-findCounterExamples proj fp entry config lhconfig = do
+findCounterExamples :: TV.TyVarEnv -> [FilePath] -> [FilePath] -> T.Text -> Config -> LHConfig -> IO (([ExecRes AbstractedInfo], Bindings), Lang.Id)
+findCounterExamples tv proj fp entry config lhconfig = do
     let config' = config { mode = Liquid, fp_handling = RationalFP }
 
     lh_config <- getOpts []
@@ -113,20 +114,21 @@ findCounterExamples proj fp entry config lhconfig = do
 
     (mb_mod, ex_g2) <- translateLoaded proj fp (simplTranslationConfig { simpl = False }) config'
 
-    runLHCore entry (mb_mod, ex_g2) ghci' config' lhconfig
+    runLHCore tv entry (mb_mod, ex_g2) ghci' config' lhconfig
 
-runLHCore :: T.Text
+runLHCore :: TV.TyVarEnv 
+          ->T.Text
           -> ([Maybe T.Text], ExtractedG2)
           -> [GhcInfo]
           -> Config
           -> LHConfig
           -> IO (([ExecRes AbstractedInfo], Bindings), Lang.Id)
-runLHCore entry (mb_modname, exg2) ghci config lhconfig = do
+runLHCore tv entry (mb_modname, exg2) ghci config lhconfig = do
     LiquidData { ls_state = final_st
                , ls_bindings = bindings
                , ls_id = ifi
                , ls_counterfactual_name = cfn
-               , ls_memconfig = pres_names } <- liquidStateWithCall entry (mb_modname, exg2) ghci config lhconfig mempty
+               , ls_memconfig = pres_names } <- liquidStateWithCall tv entry (mb_modname, exg2) ghci config lhconfig mempty
 
     SomeSolver solver <- initSolver config
     let simplifier = NaNInfBlockSimplifier :>> FloatSimplifier :>> ArithSimplifier
@@ -139,17 +141,17 @@ runLHCore entry (mb_modname, exg2) ghci config lhconfig = do
     return ((exec_res, final_bindings), ifi)
 
 {-# INLINE liquidStateWithCall #-}
-liquidStateWithCall :: T.Text -> ([Maybe T.Text], ExtractedG2)
+liquidStateWithCall :: TV.TyVarEnv -> T.Text -> ([Maybe T.Text], ExtractedG2)
                       -> [GhcInfo]
                       -> Config
                       -> LHConfig
                       -> MemConfig
                       -> IO LiquidData
-liquidStateWithCall entry (mb_modname, exg2) ghci config lhconfig memconfig =
-    liquidStateWithCall' entry (mb_modname, exg2) ghci config lhconfig memconfig (mkCurrExpr Nothing Nothing) mkArgTys
+liquidStateWithCall tv entry (mb_modname, exg2) ghci config lhconfig memconfig =
+    liquidStateWithCall' tv entry (mb_modname, exg2) ghci config lhconfig memconfig (mkCurrExpr tv Nothing Nothing) (mkArgTys tv)
 
 {-# INLINE liquidStateWithCall' #-}
-liquidStateWithCall' :: T.Text -> ([Maybe T.Text], ExtractedG2)
+liquidStateWithCall' :: TV.TyVarEnv -> T.Text -> ([Maybe T.Text], ExtractedG2)
                        -> [GhcInfo]
                        -> Config
                        -> LHConfig
@@ -157,12 +159,13 @@ liquidStateWithCall' :: T.Text -> ([Maybe T.Text], ExtractedG2)
                        -> (Lang.Id -> MkCurrExpr)
                        -> (Lang.Expr -> MkArgTypes)
                        -> IO LiquidData
-liquidStateWithCall' entry (mb_m, exg2) ghci config lhconfig memconfig mkCurr argTys = do
+liquidStateWithCall' tv entry (mb_m, exg2) ghci config lhconfig memconfig mkCurr argTys = do
     let simp_s = initSimpleState exg2
-    liquidStateFromSimpleStateWithCall' simp_s ghci entry mb_m config lhconfig memconfig mkCurr argTys
+    liquidStateFromSimpleStateWithCall' tv simp_s ghci entry mb_m config lhconfig memconfig mkCurr argTys
 
 {-# INLINE liquidStateFromSimpleStateWithCall #-}
-liquidStateFromSimpleStateWithCall :: SimpleState
+liquidStateFromSimpleStateWithCall :: TV.TyVarEnv
+                                   -> SimpleState
                                    -> [GhcInfo]
                                    -> T.Text
                                    -> [Maybe T.Text]
@@ -170,11 +173,12 @@ liquidStateFromSimpleStateWithCall :: SimpleState
                                    -> LHConfig
                                    -> MemConfig
                                    -> IO LiquidData
-liquidStateFromSimpleStateWithCall simp_s ghci entry mb_m config lhconfig memconfig =
-    liquidStateFromSimpleStateWithCall' simp_s ghci entry mb_m config lhconfig memconfig (mkCurrExpr Nothing Nothing) mkArgTys
+liquidStateFromSimpleStateWithCall tv simp_s ghci entry mb_m config lhconfig memconfig =
+    liquidStateFromSimpleStateWithCall' tv simp_s ghci entry mb_m config lhconfig memconfig (mkCurrExpr tv Nothing Nothing) (mkArgTys tv)
 
 {-# INLINE liquidStateFromSimpleStateWithCall' #-}
-liquidStateFromSimpleStateWithCall' :: SimpleState
+liquidStateFromSimpleStateWithCall' :: TV.TyVarEnv 
+                                    -> SimpleState
                                     -> [GhcInfo]
                                     -> T.Text
                                     -> [Maybe T.Text]
@@ -184,9 +188,9 @@ liquidStateFromSimpleStateWithCall' :: SimpleState
                                     -> (Lang.Id -> MkCurrExpr)
                                     -> (Lang.Expr -> MkArgTypes)
                                     -> IO LiquidData
-liquidStateFromSimpleStateWithCall' simp_s ghci entry mb_m config lhconfig memconfig mkCurr argTys = do
+liquidStateFromSimpleStateWithCall' tv simp_s ghci entry mb_m config lhconfig memconfig mkCurr argTys = do
     let (simp_s', ph_tyvars) = if add_tyvars lhconfig
-                                  then fmap Just $ addTyVarsEEnvTEnv simp_s
+                                  then fmap Just $ addTyVarsEEnvTEnv tv simp_s
                                   else (simp_s, Nothing)
         (s, i, bindings') = initStateFromSimpleStateWithCall simp_s' True entry mb_m mkCurr argTys config
     
@@ -241,7 +245,7 @@ fromLiquidNoCleaning :: State ()
                      -> IO LiquidData
 fromLiquidNoCleaning init_state ifi bindings ghci ph_tyvars lhconfig memconfig = do
     let lrs = createLiquidReadyState init_state bindings ghci ph_tyvars lhconfig
-    processLiquidReadyState lrs ifi ghci lhconfig memconfig
+    processLiquidReadyState (tyvar_env init_state) lrs ifi ghci lhconfig memconfig
 
 createLiquidReadyState :: State () -> Bindings -> [GhcInfo] -> Maybe PhantomTyVars -> LHConfig -> LiquidReadyState
 createLiquidReadyState s bindings ghci ph_tyvars lhconfig =
@@ -253,9 +257,9 @@ createLiquidReadyState s bindings ghci ph_tyvars lhconfig =
         s' = s { track = [] }
         bindings' = bindings { exported_funcs = mexported ++ exported_funcs bindings, name_gen = ng' }
 
-        (lh_state, lh_bindings) = createLHState meenv mkv mtc s' bindings'
+        (lh_state, lh_bindings) = createLHState (tyvar_env s) meenv mkv mtc s' bindings'
 
-        (data_state, data_bindings) = execLHStateM (initializeLHData ghci ph_tyvars lhconfig) lh_state lh_bindings
+        (data_state, data_bindings) = execLHStateM (initializeLHData (tyvar_env s) ghci ph_tyvars lhconfig) lh_state lh_bindings
     in
     LiquidReadyState { lr_state = data_state
                      , lr_binding = data_bindings
@@ -263,17 +267,17 @@ createLiquidReadyState s bindings ghci ph_tyvars lhconfig =
                      , lr_type_classes = mtc
                      , lr_higher_ord_insts = minst } -- (mkv, mtc, minst, data_state, data_bindings)
 
-processLiquidReadyStateCleaning :: LiquidReadyState -> Lang.Id -> [GhcInfo] -> LHConfig -> MemConfig -> IO LiquidData
-processLiquidReadyStateCleaning lrs ifi ghci lhconfig memconfig =
+processLiquidReadyStateCleaning :: TV.TyVarEnv -> LiquidReadyState -> Lang.Id -> [GhcInfo] -> LHConfig -> MemConfig -> IO LiquidData
+processLiquidReadyStateCleaning tv lrs ifi ghci lhconfig memconfig =
     let
         lrs' = cleanReadyState lrs memconfig
     in
-    processLiquidReadyState lrs' ifi ghci lhconfig memconfig
+    processLiquidReadyState tv lrs' ifi ghci lhconfig memconfig
 
-processLiquidReadyState :: LiquidReadyState -> Lang.Id -> [GhcInfo] -> LHConfig -> MemConfig -> IO LiquidData
-processLiquidReadyState lrs@(LiquidReadyState { lr_state = lh_state
+processLiquidReadyState :: TV.TyVarEnv -> LiquidReadyState -> Lang.Id -> [GhcInfo] -> LHConfig -> MemConfig -> IO LiquidData
+processLiquidReadyState tv lrs@(LiquidReadyState { lr_state = lh_state
                                               , lr_binding = lh_bindings }) ifi ghci lhconfig memconfig = do
-    let ((cfn, mc, cff), (merged_state, bindings')) = runLHStateM (initializeLHSpecs (counterfactual lhconfig) ghci ifi lh_bindings) lh_state lh_bindings
+    let ((cfn, mc, cff), (merged_state, bindings')) = runLHStateM (initializeLHSpecs tv (counterfactual lhconfig) ghci ifi lh_bindings) lh_state lh_bindings
         lrs' = lrs { lr_state = merged_state, lr_binding = bindings'}
 
     lhs <- extractWithoutSpecs lrs' ifi ghci memconfig
@@ -347,11 +351,11 @@ processLiquidReadyStateWithCall lrs@(LiquidReadyState { lr_state = lhs@(LHState 
                                                       , lr_binding = bindings})
                                                                 ghci f m_mod config lhconfig memconfig = do
 
-    let (ie, _) = case findFunc f [m_mod] (expr_env s) of
+    let (ie, _) = case findFunc (tyvar_env s) f [m_mod] (expr_env s) of
                           Left ie' -> ie'
                           Right errs -> error errs
 
-        (ce, is, f_i, m_c, ng') = mkCurrExpr Nothing Nothing ie (type_classes s) (name_gen bindings)
+        (ce, is, f_i, m_c, ng') = mkCurrExpr (tyvar_env s) Nothing Nothing ie (type_classes s) (name_gen bindings)
                                       (expr_env s) (type_env s) (known_values s) config
 
         lhs' = lhs { state = s { expr_env = foldr E.insertSymbolic (expr_env s) is
@@ -368,7 +372,7 @@ processLiquidReadyStateWithCall lrs@(LiquidReadyState { lr_state = lhs@(LHState 
                                             }
                    }
 
-    processLiquidReadyStateCleaning lrs' ie ghci lhconfig memconfig
+    processLiquidReadyStateCleaning (tyvar_env s) lrs' ie ghci lhconfig memconfig
 
 runLHG2 :: (MonadIO m, Solver solver, Simplifier simplifier)
         => Config
@@ -419,7 +423,7 @@ cleanupResults solver simplifier config init_id init_state bindings ers = do
           map (\er@(ExecRes { final_state = s }) ->
                 (er { final_state =
                               s {track = 
-                                    mapAbstractedInfoFCs (subVarFuncCall True (model s) (expr_env init_state) (type_classes s))
+                                    mapAbstractedInfoFCs (subVarFuncCall (tyvar_env s) True (model s) (expr_env init_state) (type_classes s))
                                     $ track s
                                 }
                     })) ers5
@@ -485,23 +489,23 @@ lhReducerHalterOrderer config lhconfig solver simplifier entry mb_modname cfn st
               <~> lhAcceptIfViolatedHalter)
         , SomeOrderer lhLimitByAcceptedOrderer)
 
-initializeLHData :: [GhcInfo] -> Maybe PhantomTyVars -> LHConfig -> LHStateM ()
-initializeLHData ghcInfos m_ph_tyvars config = do
-    addLHTC
-    addOrdToNum
+initializeLHData :: TV.TyVarEnv -> [GhcInfo] -> Maybe PhantomTyVars -> LHConfig -> LHStateM ()
+initializeLHData tv ghcInfos m_ph_tyvars config = do
+    addLHTC tv
+    addOrdToNum tv 
 
-    addErrorAssumes config
+    addErrorAssumes tv config
 
     let lh_measures = measureSpecs ghcInfos
 
     meenv <- measuresM
-    nt <- return . M.fromList =<< mapMaybeM measureTypeMappings lh_measures
+    nt <- return . M.fromList =<< mapMaybeM (measureTypeMappings tv) lh_measures
     fil_meenv <- filterMeasures' meenv (M.keys nt)
 
-    createMeasures lh_measures
+    createMeasures tv lh_measures
 
     case m_ph_tyvars of
-      Just ph_tyvars -> addTyVarsMeasures ph_tyvars
+      Just ph_tyvars -> addTyVarsMeasures tv ph_tyvars
       Nothing -> return ()
 
     meenv' <- measuresM
@@ -509,24 +513,24 @@ initializeLHData ghcInfos m_ph_tyvars config = do
 
 -- | Returns the name of the Tick on the counterfactual branches, and the names
 -- of all functions with counterfactual branches
-initializeLHSpecs :: Counterfactual -> [GhcInfo] -> Lang.Id -> Bindings -> LHStateM (Lang.Name, Lang.Id, S.HashSet Lang.Name)
-initializeLHSpecs counter ghcInfos ifi bindings = do
+initializeLHSpecs :: TV.TyVarEnv -> Counterfactual -> [GhcInfo] -> Lang.Id -> Bindings -> LHStateM (Lang.Name, Lang.Id, S.HashSet Lang.Name)
+initializeLHSpecs tv counter ghcInfos ifi bindings = do
     let specs = funcSpecs ghcInfos
-    mergeLHSpecState specs
+    mergeLHSpecState tv specs
 
     addSpecialAsserts
-    addTrueAsserts (idName ifi)
+    addTrueAsserts tv (idName ifi)
 
     -- Most of the simplification works less well on some of the Core generated by convertCurrExpr,
     -- so we apply the simplification first.  However, we do want to stamp out as much redundancy
     -- from convertCurrExpr as we can, so we do further simplificiation after
     simplify
-    (main_call, ns) <- convertCurrExpr ifi bindings
+    (main_call, ns) <- convertCurrExpr tv ifi bindings
     furtherSimplifyCurrExpr
 
     (cfn, ns') <- case counter of
                     Counterfactual cf_mods ->
-                        return . (,ns) =<< addCounterfactualBranch cf_mods ns
+                        return . (,ns) =<< addCounterfactualBranch tv cf_mods ns
                     NotCounterfactual -> return (Name "" Nothing 0 Nothing, [])
 
     mapME (return . flattenLets)
@@ -688,7 +692,7 @@ lhStateToCE (ExecRes { final_state = State { track = t } })
 parseLHFuncTuple :: State t -> FuncCall -> FuncInfo
 parseLHFuncTuple s (FuncCall {funcName = n, arguments = ars, returns = out}) =
     let
-        t = case fmap typeOf $ E.lookup n (expr_env s) of
+        t = case fmap (typeOf (tyvar_env s)) $ E.lookup n (expr_env s) of
                   Just t' -> t'
                   Nothing -> error $ "Unknown type for abstracted function " ++ show n
     in
