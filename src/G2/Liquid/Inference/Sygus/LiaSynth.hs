@@ -18,6 +18,7 @@ module G2.Liquid.Inference.Sygus.LiaSynth ( SynthRes (..)
                                           , blockedHashMap
                                           , unionBlockedModels) where
 
+import G2.Config
 import G2.Data.Utils
 import G2.Language as G2
 import qualified G2.Language.ExprEnv as E
@@ -422,11 +423,12 @@ synth' con ghci eenv tenv meas meas_ex evals m_si fc headers drop_if_unknown blk
 runConstraintsForSynth :: (InfConfigM m, MonadIO m)
                        => [SMTHeader] -> [(SMTName, Sort)] -> m (Result SMTModel UnsatCore ())
 runConstraintsForSynth headers vs = do
+    g2_con <- g2ConfigM
     inf_con <- infConfigM
     if use_binary_minimization inf_con
         then do
-            z3_dir <- liftIO $ getZ3 100000
-            z3_max <-liftIO $ mkMaximizeSolver vs =<< getZ3 110000
+            z3_dir <- liftIO $ getZ3 (print_smt g2_con) 100000
+            z3_max <-liftIO $ mkMaximizeSolver vs =<< getZ3 (print_smt g2_con) 110000
 
             liftIO $ setProduceUnsatCores z3_dir
             liftIO $ setProduceUnsatCores z3_max
@@ -458,7 +460,7 @@ runConstraintsForSynth headers vs = do
 
             return res'
         else do
-            z3_dir <- liftIO $ getZ3 100000
+            z3_dir <- liftIO $ getZ3 (print_smt g2_con) 100000
 
             liftIO $ setProduceUnsatCores z3_dir
             liftIO $ addFormula z3_dir headers

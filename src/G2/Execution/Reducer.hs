@@ -1095,9 +1095,10 @@ getLimLogger config = do
     cpg <- maybe
                 (return Nothing)
                 (\fp -> do
-                    solver <- initSolver config
+                    con <- getZ3 False 10000
+                    let solver = ADTNumericalSolver arbValue con
                     c <- readFile fp
-                    return $ Just (solver, read c))
+                    return $ Just (SomeSolver solver, read c))
                 $ logConcPCGuide config
     let ll_config = case logStates config of
                         Log _ fp -> (limLoggerConfig fp) { after_n = logAfterN config

@@ -346,6 +346,38 @@ initRedHaltOrd mod_name solver simplifier config exec_func_names no_nrpc_names =
                 , SomeHalter (discardIfAcceptedTagHalter state_name) .<~> halter_step
                 , orderer)
 
+initSolver :: Config -> IO SomeSolver
+initSolver = initSolver' arbValue
+
+initSolverInfinite :: Config -> IO SomeSolver
+initSolverInfinite con = initSolver' arbValueInfinite con
+
+initSolver' :: ArbValueFunc -> Config -> IO SomeSolver
+initSolver' avf config = do
+    SomeSMTSolver con <- getSMTAV avf config
+    let adt_num = ADTNumericalSolver avf con
+    some_adt_solver <- case print_num_solver_calls config of
+            True -> return . SomeSolver =<< callsSolver "SMT" adt_num
+            False -> return $ SomeSolver adt_num
+    some_adt_solver' <- case time_solving config of
+            True -> timeSomeSolver "SMT" some_adt_solver
+            False -> return some_adt_solver
+
+    let con' = case some_adt_solver' of
+                    SomeSolver adt_solver ->
+                        SomeSolver $ GroupRelated avf
+                                    ( UndefinedHigherOrder
+                                 :?> EqualitySolver
+                                 :?> adt_solver)
+
+    con'' <- case time_solving config of
+                True -> timeSomeSolver "General" con'
+                False -> return con'
+
+    case print_num_solver_calls config of
+                True -> callsSomeSolver "General" con''
+                False -> return con''
+
 mkTypeEnv :: HM.HashMap Name AlgDataTy -> TypeEnv
 mkTypeEnv = id
 
@@ -430,7 +462,7 @@ runG2WithConfig entry_f mb_modname state@(State { expr_env = eenv }) config bind
     hpc_t <- hpcTracker (hpc_print_times config)
     let 
         (state', bindings') = runG2Pre emptyMemConfig state bindings
-        simplifier = FloatSimplifier :>> ArithSimplifier :>> EqualitySimplifier
+        simplifier = FloatSimplifier :>> ArithSimplifier :>> BoolSimplifier :>> StringSimplifier :>> EqualitySimplifier
         --exp_env_names = E.keys . E.filterConcOrSym (\case { E.Sym _ -> False; E.Conc _ -> True }) $ expr_env state
         mod_name = nameModule entry_f
         callGraph = G.getCallGraph $ expr_env state'

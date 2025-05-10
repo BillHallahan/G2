@@ -378,6 +378,7 @@ exprToSMT (Lit c) =
         LitRational r -> VReal r
         LitBV bv -> VBitVec bv
         LitChar ch -> VChar ch
+        LitString s -> VString s
         err -> error $ "exprToSMT: invalid Expr: " ++ show err
 exprToSMT (Data (DataCon n (TyCon (Name "Bool" _ _ _) _ ) _ _)) =
     case nameOcc n of
