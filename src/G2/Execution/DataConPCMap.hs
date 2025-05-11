@@ -55,7 +55,6 @@ dcpcMap kv tenv = HM.fromList [
 strCons :: KnownValues -> TypeEnv -> DataConPCInfo
 strCons kv tenv = let
                         hn = Name "h" Nothing 0 Nothing
-                        hi = Id hn (T.tyChar kv)
                         tn = Name "t" Nothing 0 Nothing
                         ti = Id tn (TyApp (T.tyList kv) (T.tyChar kv))
                         cn = Name "c" Nothing 0 Nothing
