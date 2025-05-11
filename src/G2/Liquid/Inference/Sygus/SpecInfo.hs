@@ -28,6 +28,7 @@ import qualified Data.Map as M
 import Data.Maybe
 import qualified Data.Text as T
 import Data.Semigroup (Semigroup (..))
+import qualified G2.Language.TyVarEnv as TV 
 
 type NMExprEnv = HM.HashMap (T.Text, Maybe T.Text) G2.Expr
 
@@ -258,14 +259,14 @@ buildSpecInfo eenv tenv tc meas ghci fc ut to_be_ns ns_synth = do
     where
       zeroOutName (Name n m _ l) = Name n m 0 l
 
-relNameTypePairs :: NMExprEnv -> Name -> (Name, ([Type], Type))
-relNameTypePairs eenv n =
+relNameTypePairs :: TV.TyVarEnv -> NMExprEnv -> Name -> (Name, ([Type], Type))
+relNameTypePairs tv eenv n =
     case HM.lookup (nameOcc n, nameModule n) eenv of
-        Just e' -> (n, generateRelTypesFromExpr e')
+        Just e' -> (n, generateRelTypesFromExpr tv e')
         Nothing -> error $ "synthesize: No expr found"
 
-generateRelTypesFromExpr :: G2.Expr -> ([Type], Type)
-generateRelTypesFromExpr = generateRelTypes . inTyForAlls . typeOf
+generateRelTypesFromExpr :: TV.TyVarEnv -> G2.Expr -> ([Type], Type)
+generateRelTypesFromExpr tv = generateRelTypes . inTyForAlls . (typeOf tv)
 
 generateRelTypes :: Type -> ([Type], Type)
 generateRelTypes t =
@@ -614,13 +615,13 @@ getLHMeasureName ghci (Name n m _ l) =
         Just meas -> meas
         Nothing -> error "getLHMeasureName: unhandled measure"
 
-applicableMeasuresType :: Int -> TypeEnv -> Measures -> Type -> [([Name], (Type, Type))]
-applicableMeasuresType mx_meas tenv meas t =
+applicableMeasuresType :: TV.TyVarEnv -> Int -> TypeEnv -> Measures -> Type -> [([Name], (Type, Type))]
+applicableMeasuresType tv mx_meas tenv meas t =
     HM.toList . HM.map (\es -> case filter notLH . anonArgumentTypes $ last es of
                                 [at]
-                                  | Just (rt, _) <- chainReturnType t es -> (at, rt)
+                                  | Just (rt, _) <- chainReturnType tv t es -> (at, rt)
                                 _ -> error $ "applicableMeasuresType: too many arguments" ++ "\n" ++ show es)
-              $ applicableMeasures mx_meas tenv meas t
+              $ applicableMeasures tv mx_meas tenv meas t
 
 applicableMeasures :: Int -> TypeEnv -> Measures -> Type -> HM.HashMap [Name] [G2.Expr]
 applicableMeasures mx_meas tenv meas t =
