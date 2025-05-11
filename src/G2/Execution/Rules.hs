@@ -477,7 +477,7 @@ adjustExprEnvAndPathConds kv tenv eenv ng dc dc_e mexpr params dc_args
     , _:ty_args <- unTyApp $ typeOf mexpr
     , Just dcpc <- L.lookup ty_args dcpcs = 
         let 
-            (eenv''', pcs, ng', _) = applyDCPC ng eenv'' new_ids mexpr_n dcpc
+            (eenv''', pcs, ng', _) = applyDCPC ng eenv'' new_ids (Var mexpr) dcpc
         in
         (eenv''', pcs, ng')
     | otherwise = (eenv'', [], ng)
@@ -557,18 +557,16 @@ createExtCond s ngen mexpr cvar (dcon, bindees, aexpr)
 
             new_ids = zipWith (\(Id _ t) n -> Id n t) bindees news
             eenv = foldr E.insertSymbolic (expr_env s) new_ids
-            (asp_name, ngen'') = freshName ngen'
 
-            (eenv', pcs, ngen''', bindee_exprs) = applyDCPC ngen'' eenv new_ids asp_name dcpc
+            (eenv', pcs, ngen'', bindee_exprs) = applyDCPC ngen'' eenv new_ids mexpr dcpc
 
             -- Bind the cvar and bindees
-            -- Issue here: get bindee exprs from DCPC somehow
             binds = (cvar, dcon''):zip new_ids bindee_exprs
             aexpr'' = liftCaseBinds binds aexpr'
 
             res = s { expr_env = eenv', curr_expr = CurrExpr Return aexpr'' }
         in
-        (NewPC { state = res, new_pcs = pcs, concretized = [] }, ngen'')
+        (NewPC { state = res, new_pcs = pcs, concretized = new_ids }, ngen'')
     | Just (dcName dcon) == fmap dcName (getDataCon tenv (KV.tyList kv) (KV.dcEmpty kv)) =
         -- Concretize a primitive application which creates a symbolic [Char] into an empty list.
         let
@@ -582,7 +580,7 @@ createExtCond s ngen mexpr cvar (dcon, bindees, aexpr)
             aexpr' = liftCaseBinds binds aexpr
             res = s { curr_expr = CurrExpr Return aexpr' }
         in
-        trace ("empty\n\n")
+        trace ("pcs = " ++ (show [eq_str]) ++ "\n\n")
         (NewPC { state = res, new_pcs = [eq_str] , concretized = []}, ngen)
 
     | Just (dcName dcon) == fmap dcName (getDataCon tenv (KV.tyList kv) (KV.dcCons kv))
@@ -612,7 +610,7 @@ createExtCond s ngen mexpr cvar (dcon, bindees, aexpr)
             res = s { expr_env = E.insertSymbolic i_char $ E.insertSymbolic i_char_list (expr_env s)
                     , curr_expr = CurrExpr Return aexpr' }
         in
-        trace ("dc_char = " ++ (show dc_char) ++ "\n\nv_char_list = " ++ (show v_char_list) ++ "\n\n")
+        trace ("pcs = " ++ (show [eq_str]) ++ "\n\n")
         (NewPC { state = res, new_pcs = [eq_str] , concretized = [i_char, i_char_list]}, ng'')
     | otherwise = error $ "createExtCond: unsupported type" ++ "\n" ++ show (typeOf mexpr) ++ "\n" ++ show dcon
         where

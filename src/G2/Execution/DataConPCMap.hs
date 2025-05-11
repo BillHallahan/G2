@@ -94,13 +94,16 @@ strEmpty kv = let
 applyDCPC :: NameGen
           -> ExprEnv
           -> [Id] -- ^ Newly generated arguments for the data constructor
-          -> Name -- ^ As pattern name to replace
+          -> Expr -- ^ Expr to replace as pattern name with
           -> DataConPCInfo
           -> (ExprEnv, [PathCond], NameGen, [Expr])
-applyDCPC ng eenv new_ids prev_asp (DCPC { dc_as_pattern = asp, dc_args = ars, dc_pc = pc, dc_bindee_exprs = be }) =
+applyDCPC ng eenv new_ids as_expr (DCPC { dc_as_pattern = as_p, dc_args = ars, dc_pc = pc, dc_bindee_exprs = be }) =
     let
         (ng', eenv', pc', be') = foldl' mkDCArg (ng, eenv, pc, be) (zip ars new_ids)
-        pc'' = rename asp prev_asp pc'
+        -- Replace expr corresponding to as pattern in PathCond list
+        pc'' = replaceVar as_p as_expr pc'
+        -- Not having this means the above fold runs forever?
+        -- pc'' = rename asp prev_asp pc'
     in
     assert (length ars == length new_ids)
     (eenv', pc'', ng', be')
