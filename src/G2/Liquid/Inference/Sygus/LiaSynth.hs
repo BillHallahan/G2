@@ -49,6 +49,7 @@ import Data.Maybe
 import qualified Data.Text as T
 import qualified Text.Builder as TB
 import qualified Data.Text.IO as T
+import qualified G2.Language.TyVarEnv as TV 
 
 data SynthRes = SynthEnv
                   GeneratedSpecs -- ^ The synthesized specifications
@@ -74,14 +75,15 @@ liaSynth con iter ghci lrs evals meas_ex fc ut blk_mdls to_be_ns ns_synth = do
         tenv = type_env . state $ lr_state lrs
         tc = type_classes . state $ lr_state lrs
         meas = lrsMeasures ghci lrs
+        tyvarenv = tyvar_env . state $ lr_state lrs
 
-    si <- buildSpecInfo eenv tenv tc meas ghci fc ut to_be_ns ns_synth
+    si <- buildSpecInfo tyvarenv eenv tenv tc meas ghci fc ut to_be_ns ns_synth
 
     liftIO . putStrLn $ "si = " ++ show si
 
     MaxSize max_sz <- maxSynthFormSizeM
 
-    synth con iter ghci eenv tenv meas meas_ex evals si fc blk_mdls max_sz
+    synth tyvarenv con iter ghci eenv tenv meas meas_ex evals si fc blk_mdls max_sz
 
 liaSynthOfSize :: (InfConfigM m, ProgresserM m) => Integer -> M.Map Name SpecInfo -> m (M.Map Name SpecInfo)
 liaSynthOfSize sz m_si = do
@@ -291,7 +293,8 @@ mkBoolForms prd sz max_sz s psi j k =
             isBool _ = False
 
 synth :: (InfConfigM m, ProgresserM m, MonadIO m, SMTConverter con)
-      => con
+      => TV.TyVarEnv
+      -> con
       -> Iteration
       -> [GhcInfo]
       -> NMExprEnv
@@ -304,7 +307,7 @@ synth :: (InfConfigM m, ProgresserM m, MonadIO m, SMTConverter con)
       -> BlockedModels
       -> Size
       -> m SynthRes
-synth con iter ghci eenv tenv meas meas_ex evals si fc blk_mdls sz = do
+synth tv con iter ghci eenv tenv meas meas_ex evals si fc blk_mdls sz = do
     si' <- liaSynthOfSize sz si
     let zero_coeff_hdrs = softCoeffAssertZero si' ++ softClauseActAssertZero si' -- ++ softFuncActAssertZero si'
         -- zero_coeff_hdrs = softFuncActAssertZero si' ++ softClauseActAssertZero si'
@@ -341,7 +344,7 @@ synth con iter ghci eenv tenv meas meas_ex evals si fc blk_mdls sz = do
 
     MaxSize max_sz <- maxSynthFormSizeM
 
-    res <- synth' con ghci eenv tenv meas meas_ex evals si' fc ex_assrts drop_if_unknown blk_mdls sz
+    res <- synth' tv con ghci eenv tenv meas meas_ex evals si' fc ex_assrts drop_if_unknown blk_mdls sz
     case res of
         SynthEnv _ _ n_mdl _ -> do
             new  <- checkModelIsNewFunc con si' n_mdl non_equiv_mdls
@@ -356,11 +359,11 @@ synth con iter ghci eenv tenv meas meas_ex evals si fc blk_mdls sz = do
                         mdls' = foldr (\n -> insertEquivBlockedModel sz (MNOnlySMTNames [n]) n_mdl) blk_mdls mn
 
                     liftIO . putStrLn $ "mn = " ++ show mn
-                    synth con iter ghci eenv tenv meas meas_ex evals si fc mdls' sz
+                    synth tv con iter ghci eenv tenv meas meas_ex evals si fc mdls' sz
         SynthFail _
-            | sz < max_sz -> synth con iter ghci eenv tenv meas meas_ex evals si fc blk_mdls (sz + 1)
+            | sz < max_sz -> synth tv con iter ghci eenv tenv meas meas_ex evals si fc blk_mdls (sz + 1)
             | FirstRound <- iter -> do
-                no_max_res <- synth' con ghci eenv tenv meas meas_ex evals si' fc ex_assrts2 drop_if_unknown blk_mdls sz
+                no_max_res <- synth' tv con ghci eenv tenv meas meas_ex evals si' fc ex_assrts2 drop_if_unknown blk_mdls sz
                 case no_max_res of
                     SynthEnv gs _ _ _ -> do
                         let lits = concatMap exprIntegers $ allExprs gs
@@ -371,7 +374,8 @@ synth con iter ghci eenv tenv meas meas_ex evals si fc blk_mdls sz = do
             | otherwise -> return res
     
 synth' :: (InfConfigM m, ProgresserM m, MonadIO m, SMTConverter con)
-       => con
+       => TV.TyVarEnv 
+       -> con
        -> [GhcInfo]
        -> NMExprEnv
        -> TypeEnv
@@ -385,10 +389,10 @@ synth' :: (InfConfigM m, ProgresserM m, MonadIO m, SMTConverter con)
        -> BlockedModels
        -> Size
        -> m SynthRes
-synth' con ghci eenv tenv meas meas_ex evals m_si fc headers drop_if_unknown blk_mdls sz = do
+synth' tv con ghci eenv tenv meas meas_ex evals m_si fc headers drop_if_unknown blk_mdls sz = do
     let n_for_m = namesForModel m_si
     let consts = arrayConstants m_si
-    (constraints, nm_fc_map) <- nonMaxCoeffConstraints ghci eenv tenv meas meas_ex evals m_si fc
+    (constraints, nm_fc_map) <- nonMaxCoeffConstraints tv ghci eenv tenv meas meas_ex evals m_si fc
     let hdrs = SetLogic ALL:consts ++ constraints ++ headers ++ drop_if_unknown
 
     liftIO $ if not (null drop_if_unknown) then putStrLn "non empty drop_if_unknown" else return ()
@@ -407,7 +411,7 @@ synth' con ghci eenv tenv meas meas_ex evals m_si fc headers drop_if_unknown blk
             return (SynthFail fc_uc)
         Unknown _ maybe_mdl
             | not (null drop_if_unknown) ->
-                synth' con ghci eenv tenv meas meas_ex evals m_si fc headers [] blk_mdls sz
+                synth' tv con ghci eenv tenv meas meas_ex evals m_si fc headers [] blk_mdls sz
             | Just mdl <- maybe_mdl -> do
                 liftIO $ putStrLn "Unknown model!"
                 let gs' = modelToGS m_si mdl
@@ -1102,9 +1106,9 @@ trueArray = V "true_array" (SortArray SortInt SortBool)
 falseArray :: SMTAST
 falseArray = V "false_array" (SortArray SortInt SortBool)
 
-nonMaxCoeffConstraints :: (InfConfigM m, ProgresserM m) => [GhcInfo] -> NMExprEnv -> TypeEnv -> Measures -> MeasureExs -> Evals Bool  -> M.Map Name SpecInfo -> FuncConstraints
+nonMaxCoeffConstraints :: (InfConfigM m, ProgresserM m) => TV.TyVarEnv -> [GhcInfo] -> NMExprEnv -> TypeEnv -> Measures -> MeasureExs -> Evals Bool  -> M.Map Name SpecInfo -> FuncConstraints
                        -> m ([SMTHeader], HM.HashMap SMTName FuncConstraint)
-nonMaxCoeffConstraints ghci eenv tenv meas meas_ex evals m_si fc = do
+nonMaxCoeffConstraints tv ghci eenv tenv meas meas_ex evals m_si fc = do
     synth_fresh <- synthFreshM
     incrSynthFreshM
     let evals' = assignIds evals
@@ -1128,9 +1132,9 @@ nonMaxCoeffConstraints ghci eenv tenv meas meas_ex evals m_si fc = do
 
         lim_equiv_smt = limitEquivModels m_si
 
-        poly_access = polyAccessConstraints2 ghci meas m_si
+        poly_access = polyAccessConstraints2 tv ghci meas m_si
     
-    fc_smt <- constraintsToSMT eenv tenv meas meas_ex evals' m_si fc
+    fc_smt <- constraintsToSMT tv eenv tenv meas meas_ex evals' m_si fc
 
     return
         (    var_act_hdrs
@@ -1152,7 +1156,8 @@ nonMaxCoeffConstraints ghci eenv tenv meas meas_ex evals m_si fc = do
         , nm_fc)
 
 constraintsToSMT :: (InfConfigM m, ProgresserM m) =>
-                     NMExprEnv
+                     TV.TyVarEnv
+                  -> NMExprEnv
                   -> TypeEnv
                   -> Measures
                   -> MeasureExs
@@ -1160,10 +1165,10 @@ constraintsToSMT :: (InfConfigM m, ProgresserM m) =>
                   -> M.Map Name SpecInfo
                   -> FuncConstraints
                   -> m [SMTHeader]
-constraintsToSMT eenv tenv meas meas_ex evals si fc =
+constraintsToSMT tv eenv tenv meas meas_ex evals si fc =
     return . map (Solver.Assert) =<<
-        convertConstraints 
-                    convertExprToSMT
+        (convertConstraints tv)
+                    (convertExprToSMT tv)
                     (ifNotNull mkSMTAnd (VBool True))
                     (ifNotNull mkSMTOr (VBool False))
                     (:!)
@@ -1176,13 +1181,13 @@ constraintsToSMT eenv tenv meas meas_ex evals si fc =
         ifNotNull _ def [] = def
         ifNotNull f _ xs = f xs
 
-convertExprToSMT :: G2.Expr -> SMTAST
-convertExprToSMT e = 
+convertExprToSMT :: TV.TyVarEnv -> G2.Expr -> SMTAST
+convertExprToSMT tv e = 
     case e of
         (App (App (Data _) _) ls)
             | Just is <- extractInts ls ->
                 foldr (\i arr -> ArrayStore arr (VInt i) (VBool True)) falseArray is
-        _ -> exprToSMT e
+        _ -> exprToSMT tv e
 
 extractInts :: G2.Expr -> Maybe [Integer]
 extractInts (App (App (App (Data _ ) (Type _)) (App _ (Lit (LitInt i)))) xs) =
@@ -1640,10 +1645,10 @@ buildSpec plus mult mod_op eq eq_bool neq gt geq ite ite_set mk_and_sp mk_and mk
 -- errors from LH.  Thus, we add softer assertions to, when possible,
 -- avoid using polymorphic access measures.
 
-polyAccessConstraints2 :: [GhcInfo] -> Measures -> M.Map Name SpecInfo -> [SMTHeader]
-polyAccessConstraints2 ghci meas =
+polyAccessConstraints2 :: TV.TyVarEnv -> [GhcInfo] -> Measures -> M.Map Name SpecInfo -> [SMTHeader]
+polyAccessConstraints2 tv ghci meas =
     let
-      pa_meas = getPolyAccessMeasures ghci meas
+      pa_meas = getPolyAccessMeasures tv ghci meas
     in
       map (flip AssertSoft Nothing)
     . polyAccessConstraints2' pa_meas
@@ -1677,13 +1682,13 @@ polyAccessConstraints2''' meas sys =
       usesPolyAcc (EApp (EVar lh) e) = lh `elem` meas' || usesPolyAcc e
       usesPolyAcc _ = False
 
-getPolyAccessMeasures :: [GhcInfo] -> Measures -> [(LH.Symbol, Type, Type)]
-getPolyAccessMeasures ghci =
+getPolyAccessMeasures :: TV.TyVarEnv -> [GhcInfo] -> Measures -> [(LH.Symbol, Type, Type)]
+getPolyAccessMeasures tv ghci =
       map (\(n, at, rt) -> (getLHMeasureName ghci n, at, rt)) 
     . mapMaybe (\(n, (t:ts, rt)) -> if null ts then Just (n, t, rt) else Nothing)
     . HM.toList
-    . E.map' (\e -> (filter (not . isLHDict) $ anonArgumentTypes e, returnType e))
-    . E.filter (isTyVar . returnType)
+    . E.map' (\e -> (filter (not . isLHDict) $ anonArgumentTypes $ typeOf tv e, returnType $ typeOf tv e))
+    . E.filter (isTyVar . returnType . typeOf tv)
     where
         isLHDict t
           | (TyCon (Name n _ _ _) _):_ <- unTyApp t = n == "lh"

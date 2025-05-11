@@ -114,7 +114,7 @@ addErrorAssumes'' tv be kv _ v@(Var (Id n t))
     , be == ArbBlock = do
         d <- freshSeededStringN "d"
         let ast = spArgumentTypes t
-            rt = returnType (typeOf tv t)
+            rt = returnType t
 
             lam_it = map (\as -> case as of
                                     AnonType at -> (TermL, Id d at)

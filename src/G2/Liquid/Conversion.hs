@@ -393,10 +393,10 @@ polyPredLam :: TV.TyVarEnv -> CheckPre -> DictMaps -> BoundTypes -> SpecType -> 
 polyPredLam tv cp m bt rapp  = do
     t <- unsafeSpecTypeToType tv rapp
 
-    let argT = spArgumentTypes $ typeOf tv t
+    let argT = spArgumentTypes $ t
     is <- mapM argsFromArgT argT
 
-    i <- freshIdN . returnType $ typeOf tv t
+    i <- freshIdN . returnType $ t
     
     st <- convertSpecType tv cp m bt is (Just i) rapp
     return $ Lam TermL i st

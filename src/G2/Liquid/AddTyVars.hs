@@ -66,14 +66,14 @@ getUnusedPoly'' tv is dc@(DataCon n _ _ _) =
     in
     case filter (flip notElem used) is of
         [] -> Nothing
-        not_used -> Just (n, getTypeInds tv not_used (typeOf tv dc))
+        not_used -> Just (n, getTypeInds not_used (typeOf tv dc))
 
-getTypeInds :: TV.TyVarEnv -> [Id] -> Type -> [Int]
-getTypeInds tv is t =
+getTypeInds :: [Id] -> Type -> [Int]
+getTypeInds is t =
     map fst
         . filter (flip elem is . snd)
         . zip [0..]
-        . leadingTyForAllBindings $ typeOf tv t
+        . leadingTyForAllBindings $ t
 
 -------------------------------
 -- Adjust TypeEnv
@@ -83,7 +83,7 @@ addTyVarsTypeEnv tv unused = HM.map (addTyVarADT tv unused)
 
 addTyVarADT :: TV.TyVarEnv -> UnusedPoly -> AlgDataTy -> AlgDataTy
 addTyVarADT tv unused dtc@(DataTyCon { data_cons = dcs }) =
-    dtc { data_cons = map (addTyVarDC tv unused) dcs }
+    dtc { data_cons = map (addTyVarDC unused) dcs }
 addTyVarADT _ _ adt = adt
 
 addNewMaybe :: NewMaybe -> TypeEnv -> TypeEnv
@@ -100,7 +100,7 @@ addNewMaybe new_mb@(NewMaybe { new_maybe = new_mb_t }) tenv =
 
 addTyVarsExpr :: ASTContainer m Expr => TV.TyVarEnv -> UnusedPoly -> ExprEnv -> NameGen -> m -> m
 addTyVarsExpr tv unused eenv ng =
-    modifyASTs (addTyVarsExprCase tv unused) . addTyVarsExprDC tv unused . etaExpandDC tv eenv ng
+    modifyASTs (addTyVarsExprCase tv unused) . addTyVarsExprDC unused . etaExpandDC tv eenv ng
 
 etaExpandDC :: ASTContainer m Expr => TV.TyVarEnv -> ExprEnv -> NameGen -> m -> m
 etaExpandDC tv eenv ng = modifyAppedDatas (etaExpandDC' tv eenv ng) 
@@ -114,11 +114,11 @@ etaExpandDC' tv eenv ng dc ars =
     in
     e'
 
-addTyVarsExprDC :: ASTContainer m Expr => TV.TyVarEnv -> UnusedPoly -> m -> m
-addTyVarsExprDC tv unused = modifyAppedDatas (addTyVarsExprDC' tv unused)
+addTyVarsExprDC :: ASTContainer m Expr => UnusedPoly -> m -> m
+addTyVarsExprDC unused = modifyAppedDatas (addTyVarsExprDC' unused)
 
-addTyVarsExprDC' :: TV.TyVarEnv -> UnusedPoly -> DataCon -> [Expr] -> Expr
-addTyVarsExprDC' tv unused dc@(DataCon n _ _ _) ars
+addTyVarsExprDC' :: UnusedPoly -> DataCon -> [Expr] -> Expr
+addTyVarsExprDC' unused dc@(DataCon n _ _ _) ars
     | Just is <- lookupUP n unused =
         let
             (ty_ars, expr_ars) = partition (isTypeExpr) ars
@@ -126,7 +126,7 @@ addTyVarsExprDC' tv unused dc@(DataCon n _ _ _) ars
             sym_gens = map (\(Type t) -> SymGen SNoLog t) $ map (ars !!) is
             -- nothings = map (\(Type t) -> mkNewNothing new_mb) $ map (ars !!) is
         in
-        mkApp $ Data (addTyVarDC tv unused dc):ty_ars ++ sym_gens ++ expr_ars
+        mkApp $ Data (addTyVarDC unused dc):ty_ars ++ sym_gens ++ expr_ars
     | otherwise = mkApp $ Data dc:ars
 
 addTyVarsExprCase :: TV.TyVarEnv -> UnusedPoly -> Expr -> Expr
@@ -138,7 +138,7 @@ addTyVarsAlt :: TV.TyVarEnv -> UnusedPoly -> Expr -> Alt -> Alt
 addTyVarsAlt tv unused case_e (Alt (DataAlt dc@(DataCon n _ _ _) is) alt_e)
     | Just i <- lookupUP n unused = 
         let
-            dc' = addTyVarDC tv unused dc
+            dc' = addTyVarDC unused dc
 
             ty_binds = reverse . unTyApp $ typeOf tv case_e
 
@@ -154,16 +154,16 @@ addTyVarsAlt _ _ _ alt = alt
 -------------------------------
 -- Generic
 -------------------------------
-addTyVarDC :: TV.TyVarEnv -> UnusedPoly -> DataCon -> DataCon
-addTyVarDC tv unused dc@(DataCon n t u e)
-    | Just is <- lookupUP n unused = DataCon n (addTyVarsToType tv is t) u e
+addTyVarDC :: UnusedPoly -> DataCon -> DataCon
+addTyVarDC unused dc@(DataCon n t u e)
+    | Just is <- lookupUP n unused = DataCon n (addTyVarsToType is t) u e
     | otherwise = dc
 
 -- TODO: should we include TyVarEnv in addTyVarsToType?
-addTyVarsToType :: TV.TyVarEnv -> [Int] -> Type -> Type
-addTyVarsToType tv i t =
+addTyVarsToType :: [Int] -> Type -> Type
+addTyVarsToType i t =
     let
-        ty_binds = leadingTyForAllBindings (typeOf tv t)
+        ty_binds = leadingTyForAllBindings t
         is = map (ty_binds !!) i
     in
     mapInTyForAlls (\t' -> mkTyFun $ map TyVar is ++ [t']) t

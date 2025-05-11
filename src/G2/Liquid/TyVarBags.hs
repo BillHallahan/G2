@@ -174,15 +174,14 @@ extractTyVarCall tv func_names is_fs i e
     , i == i' = return [e]
     | TyCon n tc_t:ts <- unTyApp t
     , Just fn <- M.lookup n func_names = do
-        let is = anonArgumentTypes (typeOf tv tc_t)
+        let is = anonArgumentTypes tc_t
             ty_ars = map Type $ take (length is) ts
             nds = map (\f -> App (mkApp (Var f:ty_ars)) e) fn
         nds' <- mapM (extractTyVarCall tv func_names is_fs i) nds
         return (concat nds')
     | TyFun _ _ <- t = do
-        -- TODO: should we use typeOf or simply remove PresType 
-        let ars_ty = anonArgumentTypes (typeOf tv t)
-            tvs = tyVarIds (returnType $ typeOf tv t)
+        let ars_ty = anonArgumentTypes t
+            tvs = tyVarIds $ returnType t
 
         inst_fs <- getInstFuncs
         inst_ars <- mapM (instTyVarCall' tv inst_fs is_fs) ars_ty
@@ -290,7 +289,7 @@ instTyVarCall' tv func_names is_fs t
 
     | TyCon n tc_t:ts <- unTyApp t
     , Just fn <- M.lookup n func_names = do
-        let tyc_is = anonArgumentTypes (typeOf tv tc_t)
+        let tyc_is = anonArgumentTypes tc_t
             ty_ts = take (length tyc_is) ts
 
             ty_ars = map Type ty_ts
@@ -305,10 +304,10 @@ instTyVarCall' tv func_names is_fs t
 
         return . Let bnds . mkApp $ Var fn:ty_ars ++ map Var let_ids
     | otherwise = do
-        let tfa = leadingTyForAllBindings $ typeOf tv t
+        let tfa = leadingTyForAllBindings t
             tfa_is = zipWith (\i1 (i2, _) -> (i1, TyVar i2)) tfa is_fs
 
-            rt = foldr (uncurry retype) (returnType $ typeOf tv t) tfa_is
+            rt = foldr (uncurry retype) (returnType t) tfa_is
         return $ SymGen SNoLog rt
 
 -- | Primitive operation function calls do not force evaluation of the

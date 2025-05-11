@@ -209,7 +209,8 @@ buildNMExprEnv :: ExprEnv -> NMExprEnv
 buildNMExprEnv = HM.fromList . map (\(n, e) -> ((nameOcc n, nameModule n), e)) . E.toExprList
 
 buildSpecInfo :: (InfConfigM m, ProgresserM m) =>
-                 NMExprEnv
+                 TV.TyVarEnv
+              -> NMExprEnv
               -> TypeEnv
               -> TypeClasses
               -> Measures
@@ -219,7 +220,7 @@ buildSpecInfo :: (InfConfigM m, ProgresserM m) =>
               -> ToBeNames
               -> ToSynthNames
               -> m (M.Map Name SpecInfo)
-buildSpecInfo eenv tenv tc meas ghci fc ut to_be_ns ns_synth = do
+buildSpecInfo tv eenv tenv tc meas ghci fc ut to_be_ns ns_synth = do
     -- Compensate for zeroed out names in FuncConstraints
     let ns_synth' = map zeroOutName ns_synth
 
@@ -232,21 +233,21 @@ buildSpecInfo eenv tenv tc meas ghci fc ut to_be_ns ns_synth = do
     -- (2) Function Argument Types
     -- (3) Function Known Types
     -- to be used in forming SpecInfo's
-    let ns_aty_rty = map (relNameTypePairs eenv) ns_synth'
+    let ns_aty_rty = map (relNameTypePairs tv eenv) ns_synth'
 
-        other_aty_rty = map (relNameTypePairs eenv) non_ns
+        other_aty_rty = map (relNameTypePairs tv eenv) non_ns
         to_be_ns' = map zeroOutName to_be_ns
         (to_be_ns_aty_rty, known_ns_aty_rty) = L.partition (\(n, _) -> n `elem` to_be_ns') other_aty_rty
 
 
     si <- foldM (\m (n, (at, rt)) -> do
-        s <- buildSI tenv tc meas ut Synth ghci n at rt
+        s <- buildSI tv tenv tc meas ut Synth ghci n at rt
         return $ M.insert n s m) M.empty ns_aty_rty
     si' <- foldM (\m (n, (at, rt)) -> do
-        s <- buildSI tenv tc meas ut ToBeSynthed ghci n at rt
+        s <- buildSI tv tenv tc meas ut ToBeSynthed ghci n at rt
         return $ M.insert n s m) si to_be_ns_aty_rty
     si'' <- foldM (\m (n, (at, rt)) -> do
-        s <- buildSI tenv tc meas ut Known ghci n at rt
+        s <- buildSI tv tenv tc meas ut Known ghci n at rt
         return $ M.insert n s m) si' known_ns_aty_rty
 
     inf_con <- infConfigM
@@ -271,11 +272,10 @@ generateRelTypesFromExpr tv = generateRelTypes . inTyForAlls . (typeOf tv)
 generateRelTypes :: Type -> ([Type], Type)
 generateRelTypes t =
     let
-        ty_e = PresType t
         arg_ty_c = filter (not . isTYPE)
                  . filter (notLH)
-                 $ argumentTypes ty_e
-        ret_ty_c = returnType ty_e
+                 $ argumentTypes t
+        ret_ty_c = returnType t
     in
     (arg_ty_c, ret_ty_c)
 
@@ -283,8 +283,8 @@ generateRelTypes t =
 -- Building SpecInfos
 ------------------------------------
 
-buildSI :: (InfConfigM m, ProgresserM m) => TypeEnv -> TypeClasses -> Measures -> UnionedTypes -> Status -> [GhcInfo] ->  Name -> [Type] -> Type -> m SpecInfo
-buildSI tenv tc meas uts stat ghci f aty rty = do
+buildSI :: (InfConfigM m, ProgresserM m) => TV.TyVarEnv -> TypeEnv -> TypeClasses -> Measures -> UnionedTypes -> Status -> [GhcInfo] ->  Name -> [Type] -> Type -> m SpecInfo
+buildSI tv tenv tc meas uts stat ghci f aty rty = do
     let smt_f = nameToStr f
         fspec = case genSpec ghci f of
                 Just spec' -> spec'
@@ -296,7 +296,7 @@ buildSI tenv tc meas uts stat ghci f aty rty = do
         (ut_a, ut_r) = generateRelTypes ut
         ut_a_r = reverse . take (length aty) $ reverse ut_a
         -- ut_a' = reverse . take (length outer_ars_pb) $ reverse ut_a
-    (outer_ars_pb, ut_a', ret_pb) <- argsAndRetFromSpec tenv tc ghci meas [] [] aty rty ut_a_r fspec
+    (outer_ars_pb, ut_a', ret_pb) <- argsAndRetFromSpec tv tenv tc ghci meas [] [] aty rty ut_a_r fspec
     let outer_ars = map fst outer_ars_pb
         ret_v = headValue ret_pb
 
@@ -361,39 +361,39 @@ instance Semigroup ArgsAndRet where
 instance Monoid ArgsAndRet where
     mempty = AAndR { aar_a = [], aar_r = [] }
 
-argsAndRetFromSpec :: (InfConfigM m, ProgresserM m) => TypeEnv -> TypeClasses -> [GhcInfo] -> Measures -> [([SpecArg], PolyBound ArgsAndRet)] -> [Type] -> [Type] -> Type -> [Type] -> SpecType
+argsAndRetFromSpec :: (InfConfigM m, ProgresserM m) => TV.TyVarEnv -> TypeEnv -> TypeClasses -> [GhcInfo] -> Measures -> [([SpecArg], PolyBound ArgsAndRet)] -> [Type] -> [Type] -> Type -> [Type] -> SpecType
                                                     -> m ([([SpecArg], PolyBound ArgsAndRet)], [Type], PolyBound ArgsAndRet)
-argsAndRetFromSpec tenv tc ghci meas ars u_ars ts rty us (RAllT { rt_ty = out }) =
-    argsAndRetFromSpec tenv tc ghci meas ars u_ars ts rty us out
-argsAndRetFromSpec tenv tc ghci meas ars u_ars (t:ts) rty (u:us) (RFun { rt_in = rfun@(RFun {}), rt_out = out}) = do
+argsAndRetFromSpec tv tenv tc ghci meas ars u_ars ts rty us (RAllT { rt_ty = out }) =
+    argsAndRetFromSpec tv tenv tc ghci meas ars u_ars ts rty us out
+argsAndRetFromSpec tv tenv tc ghci meas ars u_ars (t:ts) rty (u:us) (RFun { rt_in = rfun@(RFun {}), rt_out = out}) = do
     let (ts', rty') = generateRelTypes t
-    (f_ars, _, f_ret) <- argsAndRetFromSpec tenv tc ghci meas ars u_ars ts' rty' (argumentTypes $ PresType u) rfun
+    (f_ars, _, f_ret) <- argsAndRetFromSpec tv tenv tc ghci meas ars u_ars ts' rty' (argumentTypes u) rfun
     let f_ret_list = case f_ret of
                         PolyBound (AAndR { aar_a = [], aar_r = [] }) [] -> []
                         _ -> [f_ret]
         f_ars_sa = map fst f_ars
         f_ars' = zipWith (\sa pb -> mapPB (AAndR (concat sa)) pb) (L.inits f_ars_sa) (map (mapPB aar_r) $ map snd f_ars ++ f_ret_list)
-    argsAndRetFromSpec tenv tc ghci meas (([], PolyBound mempty f_ars'):ars) (u:u_ars) ts rty us out
-argsAndRetFromSpec tenv tc ghci meas ars u_ars (t:ts) rty (u:us) rfun@(RFun { rt_in = i, rt_out = out}) = do
-    (m_out_symb, sa) <- mkSpecArgPB ghci tenv meas t rfun
+    argsAndRetFromSpec tv tenv tc ghci meas (([], PolyBound mempty f_ars'):ars) (u:u_ars) ts rty us out
+argsAndRetFromSpec tv tenv tc ghci meas ars u_ars (t:ts) rty (u:us) rfun@(RFun { rt_in = i, rt_out = out}) = do
+    (m_out_symb, sa) <- mkSpecArgPB tv ghci tenv meas t rfun
     let out_symb = case m_out_symb of
                       Just os -> os
                       Nothing -> error "argsAndRetFromSpec: out_symb is Nothing"
     case i of
-        RVar {} -> argsAndRetFromSpec tenv tc ghci meas ars u_ars ts rty us out
-        RFun {} -> argsAndRetFromSpec tenv tc ghci meas ars u_ars ts rty us out
-        _ -> argsAndRetFromSpec tenv tc ghci meas ((out_symb, sa):ars) (u:u_ars) ts rty us out
-argsAndRetFromSpec tenv _ ghci meas ars u_ars _ rty uts rapp@(RApp {}) = do
-    (_, sa) <- mkSpecArgPB ghci tenv meas rty rapp
+        RVar {} -> argsAndRetFromSpec tv tenv tc ghci meas ars u_ars ts rty us out
+        RFun {} -> argsAndRetFromSpec tv tenv tc ghci meas ars u_ars ts rty us out
+        _ -> argsAndRetFromSpec tv tenv tc ghci meas ((out_symb, sa):ars) (u:u_ars) ts rty us out
+argsAndRetFromSpec tv tenv _ ghci meas ars u_ars _ rty uts rapp@(RApp {}) = do
+    (_, sa) <- mkSpecArgPB tv ghci tenv meas rty rapp
     return (reverse ars, reverse u_ars, sa)
-argsAndRetFromSpec tenv _ ghci meas ars u_ars _ rty uts rvar@(RVar {}) = do
-    (_, sa) <- mkSpecArgPB ghci tenv meas rty rvar
+argsAndRetFromSpec tv tenv _ ghci meas ars u_ars _ rty uts rvar@(RVar {}) = do
+    (_, sa) <- mkSpecArgPB tv ghci tenv meas rty rvar
     return (reverse ars, reverse u_ars, sa)
-argsAndRetFromSpec _ _ _ _ _ _ [] _ _ st@(RFun {}) = error $ "argsAndRetFromSpec: RFun with empty type list " ++ show st
-argsAndRetFromSpec _ _ _ _ _ _ _ _ us st = error $ "argsAndRetFromSpec: unhandled SpecType " ++ show st ++ "\n" ++ show us
+argsAndRetFromSpec _ _ _ _ _ _ _ [] _ _ st@(RFun {}) = error $ "argsAndRetFromSpec: RFun with empty type list " ++ show st
+argsAndRetFromSpec _ _ _ _ _ _ _ _ _ us st = error $ "argsAndRetFromSpec: unhandled SpecType " ++ show st ++ "\n" ++ show us
 
-mkSpecArgPB :: (InfConfigM m, ProgresserM m) => [GhcInfo] -> TypeEnv -> Measures -> Type -> SpecType -> m (Maybe [SpecArg], PolyBound ArgsAndRet)
-mkSpecArgPB ghci tenv meas t st = do
+mkSpecArgPB :: (InfConfigM m, ProgresserM m) => TV.TyVarEnv -> [GhcInfo] -> TypeEnv -> Measures -> Type -> SpecType -> m (Maybe [SpecArg], PolyBound ArgsAndRet)
+mkSpecArgPB tv ghci tenv meas t st = do
     MaxSize mx_meas <- maxSynthFormSizeM
     let t_pb = extractTypePolyBound t
 
@@ -406,13 +406,13 @@ mkSpecArgPB ghci tenv meas t st = do
                     Nothing -> PolyBound (inner $ headValue sy_pb, t) []
 
         out_symb = outer $ headValue sy_pb
-        out_spec_arg = fmap (\os -> mkSpecArg (fromInteger mx_meas) ghci tenv meas os t) out_symb
+        out_spec_arg = fmap (\os -> mkSpecArg tv (fromInteger mx_meas) ghci tenv meas os t) out_symb
 
-    return (out_spec_arg, mapPB (ret . uncurry (mkSpecArg (fromInteger mx_meas) ghci tenv meas)) t_sy_pb')
+    return (out_spec_arg, mapPB (ret . uncurry (mkSpecArg tv (fromInteger mx_meas) ghci tenv meas)) t_sy_pb')
 
 
-mkSpecArg :: Int -> [GhcInfo] -> TypeEnv -> Measures -> LH.Symbol -> Type -> [SpecArg]
-mkSpecArg mx_meas ghci tenv meas symb t =
+mkSpecArg :: TV.TyVarEnv -> Int -> [GhcInfo] -> TypeEnv -> Measures -> LH.Symbol -> Type -> [SpecArg]
+mkSpecArg tv mx_meas ghci tenv meas symb t =
     let
         srt = typeToSort t
     in
@@ -423,7 +423,7 @@ mkSpecArg mx_meas ghci tenv meas symb t =
                      , smt_sort = srt' }]
         Nothing ->
             let
-                app_meas = applicableMeasuresType mx_meas tenv meas t
+                app_meas = applicableMeasuresType tv mx_meas tenv meas t
                 app_meas' = L.sortBy (\(n1, _) (n2, _) -> compare n1 n2) app_meas
             in
             mapMaybe
@@ -432,8 +432,8 @@ mkSpecArg mx_meas ghci tenv meas symb t =
                     case vm of
                         Just vm' ->
                             let
-
-                                rt' = applyTypeMap vm' rt
+                                -- TODO: probably a good idea to convert the Map Name Type to TyVarEnv
+                                rt' = applyTypeMap (TV.toMap vm') rt
                             in
                             fmap (\srt' ->
                                     let
@@ -617,18 +617,18 @@ getLHMeasureName ghci (Name n m _ l) =
 
 applicableMeasuresType :: TV.TyVarEnv -> Int -> TypeEnv -> Measures -> Type -> [([Name], (Type, Type))]
 applicableMeasuresType tv mx_meas tenv meas t =
-    HM.toList . HM.map (\es -> case filter notLH . anonArgumentTypes $ last es of
+    HM.toList . HM.map (\es -> case filter notLH . anonArgumentTypes . typeOf tv $ last es of
                                 [at]
                                   | Just (rt, _) <- chainReturnType tv t es -> (at, rt)
                                 _ -> error $ "applicableMeasuresType: too many arguments" ++ "\n" ++ show es)
               $ applicableMeasures tv mx_meas tenv meas t
 
-applicableMeasures :: Int -> TypeEnv -> Measures -> Type -> HM.HashMap [Name] [G2.Expr]
-applicableMeasures mx_meas tenv meas t =
+applicableMeasures :: TV.TyVarEnv -> Int -> TypeEnv -> Measures -> Type -> HM.HashMap [Name] [G2.Expr]
+applicableMeasures tv mx_meas tenv meas t =
     HM.fromList . map unzip
                 . filter repFstSnd
-                . filter (maybe False (isJust . typeToSort . fst) . chainReturnType t . map snd)
-                $ formMeasureComps mx_meas tenv t meas
+                . filter (maybe False (isJust . typeToSort . fst) . chainReturnType tv t . map snd)
+                $ formMeasureComps tv mx_meas tenv t meas
 
 -- LiquidHaskell includes measures to extract from tuples of various sizes.
 -- It includes redundant pairs (fst and x_Tuple21) and (snd and x_Tuple22).

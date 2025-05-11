@@ -82,7 +82,7 @@ measureTypeMappings tv (M {name = n, sort = srt}) = do
 addLHDictToType :: TV.TyVarEnv -> Name -> Type -> Type
 addLHDictToType tv lh t =
     let
-        lhD = map (\i -> mkFullAppedTyCon tv lh [TyVar i] TYPE) $ tyForAllBindings $ typeOf tv t
+        lhD = map (\i -> mkFullAppedTyCon tv lh [TyVar i] TYPE) $ tyForAllBindings t
     in
     mapInTyForAlls (\t' -> foldr TyFun t' lhD) t
 
@@ -97,7 +97,7 @@ convertMeasure tv bt (M {name = n, sort = srt, eqns = eq}) = do
     st <- specTypeToType tv srt
     lh_tc <- lhTCM
         
-    let bnds = tyForAllBindings $ typeOf tv $ fromJust st
+    let bnds = tyForAllBindings $ fromJust st
         ds = map (\i -> Name "d" Nothing i Nothing) [1 .. length bnds]
         nbnds = zip ds $ map TyVar bnds
         as = map (\(d, t) -> Id d $ mkFullAppedTyCon tv lh_tc [t] TYPE) nbnds
@@ -105,15 +105,15 @@ convertMeasure tv bt (M {name = n, sort = srt, eqns = eq}) = do
 
         as_t = map (\i -> (forType $ typeOf tv i, i)) as
 
-        stArgs = anonArgumentTypes . typeOf tv $ fromJust st
-        stRet = fmap (returnType . typeOf tv) st
+        stArgs = anonArgumentTypes $ fromJust st
+        stRet = fmap returnType st
 
     lam_i <- mapM freshIdN stArgs
     cb <- freshIdN (head stArgs)
     
     alts <- mapMaybeM (convertDefs tv stArgs stRet (HM.fromList as_t) bt) eq
     fls <- mkFalseE
-    let defTy = maybe TyUnknown (returnType . typeOf tv) st
+    let defTy = maybe TyUnknown returnType st
         defAlt = Alt Default $ Assume Nothing fls (Prim Undefined defTy)
 
     let e = mkLams (as' ++ map (TermL,) lam_i) $ Case (Var (head lam_i)) cb defTy (defAlt:alts) 
@@ -134,9 +134,9 @@ convertDefs tv [l_t] ret m bt (Def { ctor = dc, body = b, binds = bds})
     tenv <- typeEnv
     let         
         -- See [1] below, we only evaluate this if Just
-        dc''@(DataCon _ dct _ _) = fixNamesDC tv tenv dc'
-        bnds = tyForAllBindings $ typeOf tv dct
-        dctarg = anonArgumentTypes $ typeOf tv dct
+        dc''@(DataCon _ dct _ _) = fixNamesDC tenv dc'
+        bnds = tyForAllBindings dct
+        dctarg = anonArgumentTypes dct
 
         -- Adjust the tyvars in the datacon to have the same ids as those we read from LH
         dctarg' = foldr (uncurry replaceASTs) dctarg $ zip (map TyVar bnds) st_t
@@ -153,10 +153,10 @@ convertDefs tv [l_t] ret m bt (Def { ctor = dc, body = b, binds = bds})
     | otherwise = return Nothing
 convertDefs _ _ _ _ _ _ = error "convertDefs: Unhandled Type List"
 
-fixNamesDC :: TV.TyVarEnv -> TypeEnv -> DataCon -> DataCon
-fixNamesDC tv tenv (DataCon n t _ _) =
+fixNamesDC :: TypeEnv -> DataCon -> DataCon
+fixNamesDC tenv (DataCon n t _ _) =
     let
-        (TyCon tn _) = tyAppCenter $ returnType $ typeOf tv t
+        (TyCon tn _) = tyAppCenter $ returnType t
     in
     case getDataConNameMod tenv tn n of
         Just (DataCon dcn _ u e) -> DataCon dcn (fixNamesType tenv t) u e
