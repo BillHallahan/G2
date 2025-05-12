@@ -7,3 +7,6 @@
 [submodule "nofib-buggy-symbolic"]
 	path = nofib-buggy-symbolic
 	url = https://github.com/BillHallahan/nofib-buggy-symbolic
+[submodule "/Users/abhachaudhary/Documents/Research/G2/nofib-symbolic-functions"]
+	path = /Users/abhachaudhary/Documents/Research/G2/nofib-symbolic-functions
+	url = https://github.com/abhachaudhary/nofib-symbolic-functions.git
