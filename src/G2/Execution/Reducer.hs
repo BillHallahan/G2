@@ -71,6 +71,7 @@ module G2.Execution.Reducer ( Reducer (..)
                             , getLimLogger
 
                             , acceptTimeLogger
+                            , numStepsLogger
                             , currExprLogger
 
                             , ReducerEq (..)
@@ -1243,6 +1244,14 @@ acceptTimeLogger = do
                             putStr "State Accepted Time: "
                             print diff_secs
                             return () }
+
+numStepsLogger :: MonadIO m => Reducer m () t
+numStepsLogger = do
+    (mkSimpleReducer (\_ -> ()) (\rv s b -> return (NoProgress, [(s, rv)], b)))
+                        { onAccept = \s b _ -> liftIO $ do
+                            putStr "State Accepted Num Steps: "
+                            print (num_steps s)
+                            return (s, b) }
 
 -- * Halters
 --

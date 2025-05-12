@@ -313,9 +313,13 @@ initRedHaltOrd mod_name solver simplifier config exec_func_names no_nrpc_names =
                                 True -> SomeReducer time_logger .~> nrpc_red f
                                 False -> nrpc_red f
 
+        num_steps_red f = case print_num_red_rules_per_state config of
+                                True -> SomeReducer numStepsLogger .~> accept_time_red f
+                                False -> accept_time_red f
+
         logger_std_red f = case m_logger of
-                            Just logger -> liftSomeReducer (logger .~> accept_time_red f)
-                            Nothing -> liftSomeReducer (accept_time_red f)
+                            Just logger -> liftSomeReducer (logger .~> num_steps_red f)
+                            Nothing -> liftSomeReducer (num_steps_red f)
 
         halter = switchEveryNHalter 20
                  <~> maxOutputsHalter (maxOutputs config)
