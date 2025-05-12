@@ -1033,7 +1033,7 @@ matchesConcPCGuide inp_ids
         Just hm -> do
             let hm_pc = PC.fromList 
                       . map (flip ExtCond True)
-                      . map (\(i1, i2) -> (App (App (Prim Eq TyUnknown) (Var i1)) (Var i2)))
+                      . map (\(i, e) -> (App (App (Prim Eq TyUnknown) (Var i)) e))
                       $ HM.toList hm
                 chck_pc_eq = PC.union hm_pc $ PC.union pc l_pc
             
@@ -1043,7 +1043,7 @@ matchesConcPCGuide inp_ids
                     return (case res of SAT _ -> True; _ -> False)
         Nothing -> return False
 
-foldrMatchesExprEnv  :: ExprEnv -> ExprEnv -> HM.HashMap Id Id -> [Expr] -> [Expr] -> Maybe (HM.HashMap Id Id)
+foldrMatchesExprEnv  :: ExprEnv -> ExprEnv -> HM.HashMap Id Expr -> [Expr] -> [Expr] -> Maybe (HM.HashMap Id Expr)
 foldrMatchesExprEnv eenv1 eenv2 hm es1 es2 = 
     foldr
         (\(e1, e2) -> maybe Nothing (\hm' -> matchesExprEnvs eenv1 eenv2 hm' e1 e2))
@@ -1051,18 +1051,26 @@ foldrMatchesExprEnv eenv1 eenv2 hm es1 es2 =
         $ zip es1 es2
 
 -- Is the first expr_env less specific (corresponds to more actual executions) than the second?
-matchesExprEnvs :: ExprEnv -> ExprEnv -> HM.HashMap Id Id -> Expr -> Expr -> Maybe (HM.HashMap Id Id)
+matchesExprEnvs :: ExprEnv -> ExprEnv -> HM.HashMap Id Expr -> Expr -> Expr -> Maybe (HM.HashMap Id Expr)
 matchesExprEnvs eenv1 eenv2 hm (Var (Id n1 _)) (Var (Id n2 _))
     | Just (E.Sym i1@(Id _ t)) <- e1
     , Just (E.Sym i2) <- e2 =
-        if isPrimType t then Just $ HM.insert i1 i2 hm else Just hm
-    | Just (E.Sym _) <- e1
-    , Just _ <- e2 = Just hm
+        if isPrimType t then Just $ HM.insert i1 (Var i2) hm else Just hm
+
+    | Just (E.Sym i1@(Id _ t)) <- e1
+    , Just (E.Conc e2') <- e2 =
+        if isPrimType t then Just $ HM.insert i1 e2' hm else Just hm
+
+    | Just (E.Conc e1') <- e1
+    , Just (E.Sym i2@(Id _ t)) <- e2 =
+        if isPrimType t then Just $ HM.insert i2 e1' hm else Just hm
+
     | Just (E.Conc c1) <- e1
     , Just (E.Conc c2) <- e2 = matchesExprEnvs eenv1 eenv2 hm c1 c2
     where
         e1 = E.lookupConcOrSym n1 eenv1
         e2 = E.lookupConcOrSym n2 eenv2
+matchesExprEnvs _ _ hm (Lit l1) (Lit l2) = if l1 == l2 then Just hm else Nothing
 matchesExprEnvs eenv1 eenv2 hm e1 e2
     | Data d1:es1 <- unApp e1
     , Data d2:es2 <- unApp e2
@@ -1232,7 +1240,7 @@ acceptTimeLogger = do
                             accept_time <- getTime Realtime
                             let diff = diffTimeSpec accept_time init_time
                                 diff_secs = (fromInteger (toNanoSecs diff)) / (10 ^ (9 :: Int) :: Double)
-                            putStr "State Accepted: "
+                            putStr "State Accepted Time: "
                             print diff_secs
                             return () }
 
