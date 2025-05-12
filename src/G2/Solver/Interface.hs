@@ -12,7 +12,6 @@ module G2.Solver.Interface
 import G2.Execution.NormalForms
 import G2.Language
 import qualified G2.Language.ExprEnv as E
-import G2.Language.MutVarEnv
 import G2.Solver.Converters
 import G2.Solver.Solver
 
