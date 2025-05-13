@@ -164,6 +164,8 @@ import Data.Time.Clock
 import System.Clock
 import System.Directory
 
+import Debug.Trace
+
 -- | Used when applying execution rules
 -- Allows tracking extra information to control halting of rule application,
 -- and to reorder states
@@ -658,7 +660,6 @@ nonRedLibFuncs exec_names skip_funcs use_with_symb_func
                 in 
                     return (Finished, [(s', (var_table', sym_table', nrpc_count + 1))], b {name_gen = ng'})
             _ -> return (Finished, [(s, (var_table', sym_table', nrpc_count + 1))], b)
-
     | otherwise = return (Finished, [(s, (var_table, sym_table, nrpc_count + 1))], b)
     where
         digNewType (TyCon n _) | Just (NewTyCon { rep_type = rt }) <- HM.lookup n tenv = digNewType rt

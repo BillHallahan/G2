@@ -279,10 +279,9 @@ initRedHaltOrd :: (MonadIO m, Solver solver, Simplifier simplifier) =>
                -> simplifier
                -> Config
                -> S.HashSet Name -- ^ Names of functions that may not be added to NRPCs
-               -> S.HashSet Name -- ^ Names of functions that should not reesult in a larger expression become EXEC,
-                                 -- but should not be added to the NRPC at the top level.
+               -> S.HashSet Name -- ^ Names of functions that can be skipped via NRPC
                -> IO (SomeReducer (RHOStack m) (), SomeHalter (RHOStack m) (ExecRes ()) (), SomeOrderer (RHOStack m) (ExecRes ()) ())
-initRedHaltOrd mod_name solver simplifier config exec_func_names no_nrpc_names = do
+initRedHaltOrd mod_name solver simplifier config exec_func_names skip_names = do
     time_logger <- acceptTimeLogger
     time_halter <- stdTimerHalter (fromInteger . toInteger $ timeLimit config)
 
@@ -304,7 +303,7 @@ initRedHaltOrd mod_name solver simplifier config exec_func_names no_nrpc_names =
                         Nrpc -> liftSomeReducer
                                     (SomeReducer (nonRedLibFuncsReducer
                                                                 exec_func_names
-                                                                no_nrpc_names
+                                                                skip_names
                                                                 config
                                                  ) .== Finished .--> hpc_red f)
                         NoNrpc -> liftSomeReducer (hpc_red f)
@@ -476,12 +475,15 @@ runG2WithConfig entry_f mb_modname state@(State { expr_env = eenv }) config bind
                                 False -> getFuncsByModule mb_modname reachable_funcs
                                 True -> getFuncsByAssert callGraph reachable_funcs
 
+
+        rec_funcs = filter (isFuncRecursive callGraph) reachable_funcs
         non_guarded_rec_funcs =
                         map fst
                       . filter (uncurry isFuncNonGuardedRecursive)
                       $ map (\n -> (n, eenv E.! n )) reachable_funcs
 
-    print non_guarded_rec_funcs
+    putStrLn $ "rec_funcs = " ++ show rec_funcs
+    putStrLn $ "non_guarded_rec_funcs = " ++ show non_guarded_rec_funcs
 
     analysis1 <- if states_at_time config then do l <- logStatesAtTime; return [l] else return noAnalysis
     let analysis2 = if states_at_step config then [\s p xs -> SM.lift . SM.lift . SM.lift $ logStatesAtStep s p xs] else noAnalysis
@@ -556,15 +558,15 @@ getAllCalledBys n g =
     in
         calledbys ++ concatMap (`getAllCalledBys` g) calledbys
 
-isFuncNonRecursive :: G.CallGraph -> Name -> Bool
-isFuncNonRecursive g n = 
+isFuncRecursive :: G.CallGraph -> Name -> Bool
+isFuncRecursive g n = 
     let
         directFuncs = G.calls n g
         reach_funcs = case directFuncs of 
                         Just a -> concatMap (`G.reachable` g) a
                         _ -> []
     in
-        not (n `elem` reach_funcs)
+    n `elem` reach_funcs
 
 isFuncNonGuardedRecursive :: Name -> Expr -> Bool
 isFuncNonGuardedRecursive n = getAny . go
