@@ -120,8 +120,8 @@ primDefs' b c l unit =
               , ("quotInteger#", Prim Quot tyIntIntInt)
               , ("remInteger#", Prim Rem tyIntIntInt)
 
-              , ("chr#", Prim Chr $ tyIntCharBool b )
-              , ("ord#", Prim OrdChar $ tyCharIntBool b )
+              , ("chr#", Prim Chr $ tyIntChar b )
+              , ("ord#", Prim OrdChar $ tyCharInt b )
               , ("smtEqChar#", Prim Eq $ tyCharCharBool b )
               , ("smtNeChar#", Prim Neq $ tyCharCharBool b )
               , ("smtEqChar#", Prim Eq $ tyCharCharBool b )
@@ -259,6 +259,12 @@ tyFloatFloatFloat = TyFun TyLitFloat $ TyFun TyLitFloat TyLitFloat
 
 tyIntCharBool :: Name -> Type
 tyIntCharBool n = TyFun TyLitInt $ TyFun TyLitChar (TyCon n TYPE)
+
+tyIntChar :: Name -> Type
+tyIntChar n = TyFun TyLitInt TyLitChar
+
+tyCharInt :: Name -> Type
+tyCharInt n = TyFun TyLitChar TyLitInt
 
 tyCharIntBool :: Name -> Type
 tyCharIntBool n = TyFun TyLitChar $ TyFun TyLitInt (TyCon n TYPE)

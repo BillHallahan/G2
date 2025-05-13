@@ -5,6 +5,8 @@ module G2.Solver.Simplifier ( Simplifier (..)
                             , (:>>) (..)
                             , IdSimplifier (..)
                             , ArithSimplifier (..)
+                            , BoolSimplifier (..)
+                            , StringSimplifier (..)
                             , FloatSimplifier (..)
                             , EqualitySimplifier (..)) where
 
@@ -50,7 +52,7 @@ instance Simplifier IdSimplifier where
     simplifyPC _ _ pc = [pc]
     reverseSimplification _ _ _ m = m
 
--- | Tries to simplify based on simple arithmetic principles, i.e. x + 0 == x
+-- | Tries to simplify based on simple arithmetic principles, i.e. x + 0 -> x
 data ArithSimplifier = ArithSimplifier
 
 instance Simplifier ArithSimplifier where
@@ -85,6 +87,41 @@ isZero :: Expr -> Bool
 isZero (Lit (LitInt 0)) = True
 isZero (Lit (LitRational 0)) = True
 isZero _ = False
+
+-- | Tries to simplify based on simple boolean principles, i.e. x == True -> x
+data BoolSimplifier = BoolSimplifier
+
+instance Simplifier BoolSimplifier where
+    simplifyPC _ s pc = [modifyContainedASTs (simplifyBool (known_values s)) pc]
+
+    reverseSimplification _ _ _ m = m
+
+simplifyBool :: KnownValues -> Expr -> Expr
+simplifyBool kv e
+    | [Prim Eq _, Data (DataCon { dc_name = n }), e2 ] <- unApp e
+    , n == dcTrue kv = e2
+    | [Prim Eq _, e1, Data (DataCon { dc_name = n }) ] <- unApp e
+    , n == dcTrue kv = e1
+    | [Prim Eq _, Data (DataCon { dc_name = n }), e2 ] <- unApp e
+    , n == dcFalse kv = mkNotExpr kv e2
+    | [Prim Eq _, e1, Data (DataCon { dc_name = n }) ] <- unApp e
+    , n == dcFalse kv = mkNotExpr kv e1
+simplifyBool _ e = e
+
+-- | Tries to simplify based on simple String principles, i.e. len x == 0 -> x == ""
+-- (Note that rewrite 0 length constraints on Strings then composes well with the EqualitySimplifier.)
+data StringSimplifier = StringSimplifier
+
+instance Simplifier StringSimplifier where
+    simplifyPC _ _ pc = [modifyContainedASTs simplifyString pc]
+
+    reverseSimplification _ _ _ m = m
+
+simplifyString :: Expr -> Expr
+simplifyString e
+    | [Prim Eq _, App (Prim StrLen _) v, Lit (LitInt 0) ] <- unApp e = mkApp [Prim Eq TyUnknown, v, Lit (LitString "")]
+    | [Prim Eq _, Lit (LitInt 0), App (Prim StrLen _) v ] <- unApp e = mkApp [Prim Eq TyUnknown, v, Lit (LitString "")]
+simplifyString e = e
 
 -- | Tries to simplify constraints involving checking if the value of an Int matches a concrete Float.
 data FloatSimplifier = FloatSimplifier
@@ -147,8 +184,15 @@ smallEqPC kv (ExtCond e True)
 
         isSmall (Var _) = True
         isSmall (Data _) = True
-        isSmall (Lit _) = True
+        isSmall (Lit l) | nonMagicLit l = True
         isSmall _ = False
+
+        -- String literals are "magic" because they are also data constructors.
+        -- We need to ensure that all path conds/data constructors are lined up,
+        -- and the equality solver risks messing this correspondence up.
+        nonMagicLit (LitString _) = False
+        nonMagicLit _ = True
+
 smallEqPC kv (ExtCond (Var (Id n _)) True) = Just (n, mkTrue kv)
 smallEqPC kv (ExtCond (Var (Id n _)) False) = Just (n, mkFalse kv)
 smallEqPC _ (AltCond l (Var (Id n _)) True) = Just (n, Lit l)

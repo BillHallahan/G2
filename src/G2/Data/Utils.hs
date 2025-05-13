@@ -8,6 +8,8 @@ module G2.Data.Utils ( uncurry3
                      
                      , (==>)) where
 
+-- * Tuples
+
 uncurry3 :: (a -> b -> c -> d) -> (a, b, c) -> d
 uncurry3 f (a, b, c) = f a b c
 
@@ -25,6 +27,8 @@ thd4 (_, _, c, _) = c
 
 fth4 :: (a, b, c, d) -> d
 fth4 (_, _, _, d) = d
+
+-- * Logic
 
 infixr 1 ==>
 (==>) :: Bool -> Bool -> Bool
