@@ -659,9 +659,9 @@ nonRedLibFuncs exec_names no_nrpc_names use_with_symb_func
                     non_red_path_conds = (ce', Var new_sym_id):nrs } 
                 in 
                     return (Finished, [(s', (var_table', sym_table', nrpc_count + 1))], b {name_gen = ng'})
-            _ -> return (Finished, [(s, (var_table', sym_table', nrpc_count + 1))], b)
+            _ -> return (Finished, [(s, (var_table', sym_table', nrpc_count))], b)
 
-    | otherwise = return (Finished, [(s, (var_table, sym_table, nrpc_count + 1))], b)
+    | otherwise = return (Finished, [(s, (var_table, sym_table, nrpc_count))], b)
     where
         digNewType (TyCon n _) | Just (NewTyCon { rep_type = rt }) <- HM.lookup n tenv = digNewType rt
         digNewType (TyApp t1 t2) = digNewType t1
