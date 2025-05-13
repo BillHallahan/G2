@@ -163,20 +163,20 @@ lookupConcOrSym  n (ExprEnv smap) =
 lookupEnvObj :: Name -> ExprEnv -> Maybe EnvObj
 lookupEnvObj n = M.lookup n . unwrapExprEnv
 
--- | Lookup the `Expr` with the given `Name`.
+-- | Lookup the `Expr` and the last `Name` in a Var pointed to by a given `Name`.
 -- If the name is bound to a @Var@, recursively searches that @Vars@ name.
 -- Returns `Nothing` if the `Name` is not in the `ExprEnv`.
-deepLookup :: Name -> ExprEnv -> Maybe Expr
+deepLookup :: Name -> ExprEnv -> Maybe (Name, Expr)
 deepLookup n eenv =
     case lookupConcOrSym n eenv of
         Just (Conc (Var (Id n' _))) -> deepLookup n' eenv
-        Just (Conc r) -> Just r
-        Just (Sym r) -> Just (Var r)
+        Just (Conc r) -> Just (n, r)
+        Just (Sym r) -> Just (idName r, Var r)
         Nothing -> Nothing
 
 -- | Apply `deepLookup` if passed a `Var`.  Otherwise, just return the passed `Expr`.
 deepLookupExpr :: Expr -> ExprEnv -> Maybe Expr
-deepLookupExpr (Var (Id n _)) eenv = deepLookup n eenv
+deepLookupExpr (Var (Id n _)) eenv = fmap snd $ deepLookup n eenv
 deepLookupExpr e _  = Just e
 
 -- | Checks if the given `Name` belongs to a symbolic variable.

@@ -595,15 +595,12 @@ nonRedPCSymFunc _ s b = return (Finished, [(s, ())], b)
 -- | A reducer to add library functions in non reduced path constraints for solving later  
 nonRedLibFuncsReducer :: MonadIO m =>
                          HS.HashSet Name -- ^ Names of functions that must be executed
-                      -> HS.HashSet Name -- ^ Names of functions that should not reesult in a larger expression become EXEC,
-                                         -- but should not be added to the NRPC at the top level.
-                                         -- I.e. if `f` is in this set, `f x y` will not be added to the NRPCs, but a function `g` that includes
-                                         -- `f in it's definition may still be added to the NRPCs.
+                      -> HS.HashSet Name -- ^ Names of functions that we should consider skipping.
                       -> Config
                       -> Reducer m (NRPCMemoTable, ReachesSymMemoTable, Int) t
-nonRedLibFuncsReducer exec_names no_nrpc_names config =
+nonRedLibFuncsReducer exec_names skip_funcs config =
     (mkSimpleReducer (\_ -> (HM.empty, HM.empty, 0))
-        (nonRedLibFuncs exec_names no_nrpc_names (symbolic_func_nrpc config)))
+        (nonRedLibFuncs exec_names skip_funcs (symbolic_func_nrpc config)))
         { onAccept = \s b (_, _, nrpc_count) -> do
             if print_num_nrpc config
                 then liftIO . putStrLn $ "NRPCs Generated: " ++ show nrpc_count
@@ -611,11 +608,10 @@ nonRedLibFuncsReducer exec_names no_nrpc_names config =
             return (s, b) }
 
 nonRedLibFuncs :: Monad m => HS.HashSet Name -- ^ Names of functions that must be executed
-                          -> HS.HashSet Name -- ^ Names of functions that should not reesult in a larger expression become EXEC,
-                                             -- but should not be added to the NRPC at the top level.
+                          -> HS.HashSet Name -- ^ Names of functions that we should consider skipping.
                           -> Bool -- ^ Use NRPCs to delay execution of symbolic functions
                           -> RedRules m (NRPCMemoTable, ReachesSymMemoTable, Int) t
-nonRedLibFuncs exec_names no_nrpc_names use_with_symb_func 
+nonRedLibFuncs exec_names skip_funcs use_with_symb_func 
                 (var_table, sym_table, nrpc_count)
                 s@(State { expr_env = eenv
                          , curr_expr = CurrExpr _ ce
@@ -625,6 +621,8 @@ nonRedLibFuncs exec_names no_nrpc_names use_with_symb_func
                          }) 
                 b@(Bindings { name_gen = ng })
     | Var (Id n t):es <- unApp ce
+    , Just (n', _) <- E.deepLookup n eenv
+    , n' `HS.member` skip_funcs
     --, not (n `HS.member` no_nrpc_names)
     , use_with_symb_func || (E.isSymbolic n eenv)
     , hasFuncType (PresType t)

@@ -476,7 +476,12 @@ runG2WithConfig entry_f mb_modname state@(State { expr_env = eenv }) config bind
                                 False -> getFuncsByModule mb_modname reachable_funcs
                                 True -> getFuncsByAssert callGraph reachable_funcs
 
-        non_rec_funcs = filter (isFuncNonRecursive callGraph) reachable_funcs
+        non_guarded_rec_funcs =
+                        map fst
+                      . filter (uncurry isFuncNonGuardedRecursive)
+                      $ map (\n -> (n, eenv E.! n )) reachable_funcs
+
+    print non_guarded_rec_funcs
 
     analysis1 <- if states_at_time config then do l <- logStatesAtTime; return [l] else return noAnalysis
     let analysis2 = if states_at_step config then [\s p xs -> SM.lift . SM.lift . SM.lift $ logStatesAtStep s p xs] else noAnalysis
@@ -486,7 +491,7 @@ runG2WithConfig entry_f mb_modname state@(State { expr_env = eenv }) config bind
     
     (in_out, bindings'') <- case null analysis of
         True -> do
-            rho <- initRedHaltOrd mod_name solver simplifier config (S.fromList executable_funcs) (S.fromList non_rec_funcs)
+            rho <- initRedHaltOrd mod_name solver simplifier config (S.fromList executable_funcs) (S.fromList non_guarded_rec_funcs)
             case rho of
                 (red, hal, ord) ->
                         SM.evalStateT
@@ -501,7 +506,7 @@ runG2WithConfig entry_f mb_modname state@(State { expr_env = eenv }) config bind
                             )
                             hpc_t
         False -> do
-            rho <- initRedHaltOrd mod_name solver simplifier config (S.fromList executable_funcs) (S.fromList non_rec_funcs)
+            rho <- initRedHaltOrd mod_name solver simplifier config (S.fromList executable_funcs) (S.fromList non_guarded_rec_funcs)
             case rho of
                 (red, hal, ord) ->
                     SM.evalStateT (
@@ -560,6 +565,14 @@ isFuncNonRecursive g n =
                         _ -> []
     in
         not (n `elem` reach_funcs)
+
+isFuncNonGuardedRecursive :: Name -> Expr -> Bool
+isFuncNonGuardedRecursive n = getAny . go
+    where
+        go (Var (Id n' _)) = Any (n == n')
+        go e | (Data _):_ <- unApp e = Any False
+        go e = evalChildren go e
+
 
 {-# SPECIALIZE 
     runG2WithSomes :: ( Solver solver
