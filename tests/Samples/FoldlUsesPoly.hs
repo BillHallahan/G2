@@ -92,3 +92,7 @@ getInP = getIn
 
 getInInt :: Holds Int -> Holds Int
 getInInt = getInP
+
+-- Function that creates a Pair and applies switchInt
+mypair2 :: Pair Int Int
+mypair2 = switchInt (Pair 1 2)
