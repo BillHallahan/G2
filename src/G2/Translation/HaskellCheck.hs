@@ -35,8 +35,9 @@ import G2.Lib.Printers
 import Control.Exception
 
 import System.Process
-
+import qualified G2.Language.TyVarEnv as TV
 import Control.Monad.IO.Class
+import Debug.Trace
 
 -- | Load the passed module(s) into GHC, and check that the `ExecRes` results are correct.
 validateStates :: [FilePath] -> [FilePath] -> String -> String -> [String] -> [GeneralFlag] -> Bindings
@@ -46,6 +47,7 @@ validateStates proj src modN entry chAll gflags b in_out = do
     runGhc (Just libdir) (do
         adjustDynFlags
         loadToCheck (map dirPath src ++ proj) src modN gflags
+        -- trace("The tyvar_env in each of the final states from validateStates function: " ++ show (map (tyvar_env . final_state) in_out))
         mapM (\er -> do
                 let s = final_state er
                 let pg = updatePGValNames (concatMap (map Data . dataCon) $ type_env s)
@@ -62,9 +64,10 @@ creatDeclStr pg s (x, DataTyCon{data_cons = dcs, bound_ids = is}) =
         x' = T.unpack $ printName pg x
         ids' = T.unpack . T.intercalate " " $ map (printHaskellPG pg s . Var) is
         wrapParens str = "(" <> str <> ")" 
-        dc_decls = map (\dc -> printHaskellPG pg s (Data dc) <> " " <> T.intercalate " " (map (wrapParens . mkTypeHaskellPG pg) (argumentTypes dc))) dcs
+        -- TODO: Is the update I make here due to the changing signature of hasFuncType(i.e Typed to Type) correct?
+        dc_decls = map (\dc -> printHaskellPG pg s (Data dc) <> " " <> T.intercalate " " (map (wrapParens . mkTypeHaskellPG pg) (argumentTypes (typeOf (tyvar_env s) dc)))) dcs
         all_dc_decls = T.unpack $ T.intercalate " | " dc_decls
-        derive_eq = if not (any isTyFun $ concatMap argumentTypes dcs) then " deriving Eq" else ""
+        derive_eq = if not (any isTyFun $ concatMap (argumentTypes . typeOf (tyvar_env s) ) dcs) then " deriving Eq" else ""
     in
     "data " ++ x' ++ " " ++ ids'++ " = " ++ all_dc_decls ++ derive_eq
 creatDeclStr _ _ _ = error "creatDeclStr: unsupported AlgDataTy"
@@ -79,7 +82,10 @@ validateStatesGHC pg modN entry chAll b er@(ExecRes {final_state = s, conc_out =
     let v'' = case v' of
                     Left _ -> outStr == "error" || outStr == "undefined"
                     Right b -> b && outStr /= "error" && outStr /= "undefined"
-
+    -- let tv = tyvar_env s 
+    -- liftIO $ do
+    --         putStrLn "tyvar_env of final state in validateStatesGHC: "
+    --         print tv
     chAllR' <- liftIO $ (unsafeCoerce chAllR :: IO [Either SomeException Bool])
     let chAllR'' = rights chAllR'
 
@@ -101,7 +107,7 @@ adjustDynFlags = do
 
 runCheck :: PrettyGuide -> Maybe T.Text -> String -> [String] -> Bindings -> ExecRes t -> Ghc (HValue, [HValue])
 runCheck init_pg modN entry chAll b er@(ExecRes {final_state = s, conc_args = ars, conc_out = out}) = do
-    let Left (v, _) = findFunc (T.pack entry) [modN] (expr_env s)
+    let Left (v, _) = findFunc (tyvar_env s) (T.pack entry) [modN] (expr_env s)
     let e = mkApp $ Var v:ars
     let pg = updatePGValAndTypeNames e
            . updatePGValAndTypeNames out
@@ -112,12 +118,20 @@ runCheck init_pg modN entry chAll b er@(ExecRes {final_state = s, conc_args = ar
         mvStr = T.unpack mvTxt
         arsStr = T.unpack arsTxt
         outStr = T.unpack outTxt
-
-    let arsType = T.unpack $ mkTypeHaskellPG pg (typeOf e)
-        outType = T.unpack $ mkTypeHaskellPG pg (typeOf out)
+    -- before the typeOf in the next line , we want to retype the type variable in the expression 
+    -- with the corresponding type find in the tyvar_env 
+    -- use tyVarRename and change the map into TyVarEnv 
+    --trace("The tyvar_env is " ++ show (tyvar_env s))
+    let e' = tyVarSubst (tyvar_env s) e
+    let out' = tyVarSubst (tyvar_env s) out
+    -- liftIO $ do
+    --     print e'
+    --     print out'
+    let arsType = T.unpack $ mkTypeHaskellPG pg (typeOf (tyvar_env s) e')
+        outType = T.unpack $ mkTypeHaskellPG pg (typeOf (tyvar_env s) out')
 
     -- If we are returning a primitive type (Int#, Float#, etc.) wrap in a constructor so that `==` works
-    let pr_con = case typeOf out of
+    let pr_con = case typeOf (tyvar_env s) out' of
                         TyLitInt -> "I# "
                         TyLitDouble -> "D# "
                         TyLitFloat -> "F# "
@@ -129,6 +143,7 @@ runCheck init_pg modN entry chAll b er@(ExecRes {final_state = s, conc_args = ar
                                         ++ outStr ++ " :: " ++ outType ++ ")" ++ ")) :: IO (Either SomeException Bool)"
                     True -> mvStr ++ "try (evaluate ( (" ++ pr_con ++ "(" ++ arsStr ++ " :: " ++ arsType ++ ")" ++
                                                     ") == " ++ pr_con ++ "(" ++ arsStr ++ "))) :: IO (Either SomeException Bool)"
+    liftIO $ putStrLn chck    
     v' <- compileExpr chck
 
     let chArgs = ars ++ [out] 

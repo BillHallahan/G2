@@ -107,9 +107,10 @@ insertInLamsE' f xs e = f (reverse xs) e
 etaExpandToE :: ExState s m => Int -> Expr -> m Expr
 etaExpandToE n e = do
     eenv <- exprEnv
+    tvenv <- tyVarEnv
     ng <- nameGen
 
-    let (e', ng') = etaExpandTo eenv ng n e
+    let (e', ng') = etaExpandTo tvenv eenv ng n e
 
     putNameGen ng'
     return e'

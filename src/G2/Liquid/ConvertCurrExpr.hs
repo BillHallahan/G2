@@ -16,13 +16,14 @@ import G2.Liquid.Types
 import Control.Monad.Extra
 import qualified Data.HashMap.Lazy as HM
 import Data.Maybe
+import qualified G2.Language.TyVarEnv as TV 
 
 -- | Returns (1) the Id of the new main function and (2) the functions that need counterfactual variants
-convertCurrExpr :: Id -> Bindings -> LHStateM (Id, [Name])
-convertCurrExpr ifi bindings = do
-    ifi' <- modifyInputExpr ifi
-    mapWithKeyME (\(Name _ m _ _) e -> if isJust m then letLiftHigherOrder e else return e)
-    addCurrExprAssumption ifi bindings
+convertCurrExpr :: TV.TyVarEnv -> Id -> Bindings -> LHStateM (Id, [Name])
+convertCurrExpr tv ifi bindings = do
+    ifi' <- modifyInputExpr tv ifi
+    mapWithKeyME (\(Name _ m _ _) e -> if isJust m then letLiftHigherOrder tv e else return e)
+    addCurrExprAssumption tv ifi bindings
     return ifi'
 
 -- We create a copy of the input function which is modified to:
@@ -38,14 +39,14 @@ convertCurrExpr ifi bindings = do
 --      it'll only be computed once.  This is NOT just for efficiency.
 --      Since the choice is nondeterministic, this is the only way to ensure that
 --      we don't make two different choices, and get two different values.
-modifyInputExpr :: Id -> LHStateM (Id, [Name])
-modifyInputExpr i@(Id n _) = do
+modifyInputExpr :: TV.TyVarEnv -> Id -> LHStateM (Id, [Name])
+modifyInputExpr tv i@(Id n _) = do
     (CurrExpr er ce) <- currExpr
 
     e <- lookupE n
     case e of
         Just je -> do
-            (newI, ns) <- modifyInputExpr' i je
+            (newI, ns) <- modifyInputExpr' tv i je
 
             let ce' = replaceVarWithName (idName i) (Var newI) ce
 
@@ -55,13 +56,13 @@ modifyInputExpr i@(Id n _) = do
 
 -- Actually does the work of modify the function for modifyInputExpr
 -- Inserts the new function in the ExprEnv, and returns the Id
-modifyInputExpr' :: Id -> Expr -> LHStateM (Id, [Name])
-modifyInputExpr' i e = do
+modifyInputExpr' :: TV.TyVarEnv -> Id -> Expr -> LHStateM (Id, [Name])
+modifyInputExpr' tv i e = do
     (e', ns) <- rebindFuncs e
-    e'' <- letLiftFuncs e'
+    e'' <- letLiftFuncs tv e'
     e''' <- replaceLocalAssert i e''
 
-    newI <- freshSeededIdN (idName i) (typeOf i)
+    newI <- freshSeededIdN (idName i) (typeOf tv i)
     insertE (idName newI) e'''
 
     return (newI, ns)
@@ -121,42 +122,42 @@ replaceVarWithName' _ _ e = e
 -- So we gather them up, one by one, and rewrite as we go.
 -- Furthermore, we have to be careful to not move bindings from Lambdas/other Let's
 -- out of scope.
-letLiftFuncs :: Expr -> LHStateM Expr
-letLiftFuncs e = do
-    e' <- modifyAppTopE letLiftFuncs' e
+letLiftFuncs :: TV.TyVarEnv -> Expr -> LHStateM Expr
+letLiftFuncs tv e = do
+    e' <- modifyAppTopE (letLiftFuncs' tv) e
     return $ flattenLets e'
 
-letLiftFuncs' :: Expr -> LHStateM Expr
-letLiftFuncs' e
+letLiftFuncs' :: TV.TyVarEnv -> Expr -> LHStateM Expr
+letLiftFuncs' tv e
     | ars <- passedArgs e
     , any (\case { Var _ -> False; _ -> True }) ars = do
         let c = appCenter e
-        is <- freshIdsN $ map typeOf ars
+        is <- freshIdsN $ map (typeOf tv) ars
 
         return . Let (zip is ars) . mkApp $ c:map Var is
     | otherwise = return e
 
 
 -- | Tries to be more selective then liftLetFuncs, doesn't really work yet...
-letLiftHigherOrder :: Expr -> LHStateM Expr
-letLiftHigherOrder e = return . shiftLetsOutOfApps =<< insertInLamsE letLiftHigherOrder' e
+letLiftHigherOrder :: TV.TyVarEnv -> Expr -> LHStateM Expr
+letLiftHigherOrder tv e = return . shiftLetsOutOfApps =<< insertInLamsE (letLiftHigherOrder' tv) e
 
-letLiftHigherOrder' :: [Id] -> Expr -> LHStateM Expr
-letLiftHigherOrder' is e@(App _ _)
+letLiftHigherOrder' :: TV.TyVarEnv -> [Id] -> Expr -> LHStateM Expr
+letLiftHigherOrder' tv is e@(App _ _)
     | Var i <- appCenter e
     , i `elem` is = do
-        ni <- freshIdN (typeOf e)
-        e' <- modifyAppRHSE (letLiftHigherOrder' is) e
+        ni <- freshIdN (typeOf tv e)
+        e' <- modifyAppRHSE (letLiftHigherOrder' tv is) e
         return $ Let [(ni, e')] (Var ni)
     | d@(Data _) <- appCenter e = do
         let ars = passedArgs e
-        f_is <- freshIdsN $ map typeOf ars
+        f_is <- freshIdsN $ map (typeOf tv) ars
 
-        ars' <- mapM (letLiftHigherOrder' f_is) ars
+        ars' <- mapM (letLiftHigherOrder' tv f_is) ars
 
         return . Let (zip f_is ars') . mkApp $ d:map Var f_is
-letLiftHigherOrder' is e@(Lam _ _ _) = insertInLamsE (\is' -> letLiftHigherOrder' (is ++ is')) e
-letLiftHigherOrder' is e = modifyChildrenM (letLiftHigherOrder' is) e
+letLiftHigherOrder' tv is e@(Lam _ _ _) = insertInLamsE (\is' -> letLiftHigherOrder' tv (is ++ is')) e
+letLiftHigherOrder' tv is e = modifyChildrenM (letLiftHigherOrder' tv is) e
 
 shiftLetsOutOfApps :: Expr -> Expr
 shiftLetsOutOfApps e@(App _ _) =
@@ -192,19 +193,19 @@ modifyBottomApp f e = f e
 -- We add an assumption about the inputs to the current expression
 -- This prevents us from finding a violation of the output refinement type
 -- that requires a violation of the input refinement type
-addCurrExprAssumption :: Id -> Bindings -> LHStateM ()
-addCurrExprAssumption ifi (Bindings {fixed_inputs = fi}) = do
+addCurrExprAssumption :: TV.TyVarEnv -> Id -> Bindings -> LHStateM ()
+addCurrExprAssumption tv ifi (Bindings {fixed_inputs = fi}) = do
     (CurrExpr er ce) <- currExpr
 
     lh_tc_n <- lhTCM
     let lh_tc = TyCon lh_tc_n (TyFun TYPE TYPE)
-    let fi' = filter (\e -> tyAppCenter (typeOf e) /= lh_tc) fi
+    let fi' = filter (\e -> tyAppCenter (typeOf tv e) /= lh_tc) fi
 
     assumpt <- lookupAssumptionM (idName ifi)
     -- fi <- fixedInputs
     eenv <- exprEnv
     inames <- inputNames
-    let inames' = take (length $ argumentTypes ifi) inames
+    let inames' = take (length $ argumentTypes $ typeOf tv ifi) inames
 
     lh <- mapM (lhTCDict' HM.empty) $ mapMaybe typeType fi'
 
@@ -219,7 +220,7 @@ addCurrExprAssumption ifi (Bindings {fixed_inputs = fi}) = do
             inputs <- inputNames
             let matching = zipWith (\n (i, hi) -> (n, i, hi)) inputs $ drop (length higher_is - length inputs) $ zip assumpt_is higher_is
                 matching_higher = mapMaybe (\(n, i, hi) -> maybe Nothing (Just . (n, i,)) hi) matching
-                let_expr = Let (map (\(n, i, _) -> (snd i, Var (Id n . typeOf $ snd i))) matching_higher)
+                let_expr = Let (map (\(n, i, _) -> (snd i, Var (Id n . typeOf tv $ snd i))) matching_higher)
 
             let ce' = let_expr
                     . flip (foldr (uncurry replaceAssumeFC)) (map (\(n, (_, i), _) -> (idName i, n)) matching_higher)

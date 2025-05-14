@@ -11,6 +11,8 @@ import Data.IORef
 import Data.List as L
 import qualified Data.Map as M
 import Text.Builder
+import G2.Language.Support(State(..))
+
 
 data MaxResult = MaxProven (Result () () ()) -- ^ A result known to be correct- if SAT, maximize the number of satisfied soft assertions
                | MaxFound String (Result SMTModel () ()) -- ^ A "best effort" result- there may be a better answer that satisfies more soft assertions.
@@ -43,7 +45,7 @@ mkMaximizeSolver vs con = do
     return $ MaxSolver thread_mvar res_mvar headers_io_ref vs con
 
 instance SMTConverter con => Solver (MaximizeSolver con) where
-    check solver _ pc = checkConstraintsPC solver pc
+    check solver s pc = checkConstraintsPC (tyvar_env s) solver pc
     solve (MaxSolver _ _ _ _ con) = solve con
     close = closeIO
 

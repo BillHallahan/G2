@@ -20,7 +20,8 @@ badProg =
     Assign "z" (Add (Var "k") (Add (Var "i") (Var "j"))),
     Assert (Lt (Mul (Var "n") (I 2)) (Var "z"))
   ]
-
+-- This is the test case we are currently failing 
+-- TODO: handle it in local and figured out where the problem is 
 productTest :: IO (Maybe (AExpr, AExpr))
 productTest =
   [g2| \(a :: Int) -> ?(s1 :: AExpr)

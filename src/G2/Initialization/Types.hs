@@ -82,6 +82,7 @@ rep_type_classesM tc = do
     s <- SM.get
     SM.put $ s {type_classes = tc}
 
+
 instance ASTContainer SimpleState Expr where
     containedASTs s =  containedASTs (expr_env s) ++ containedASTs  (rewrite_rules s)
     modifyContainedASTs f s = s { expr_env = modifyContainedASTs f (expr_env s)

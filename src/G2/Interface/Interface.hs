@@ -78,7 +78,10 @@ import Data.Monoid
 import qualified Data.Sequence as Seq
 import qualified Data.Text as T
 import qualified Data.List as L
+import qualified G2.Language.TyVarEnv as TV
 import System.Timeout
+
+import Debug.Trace
 
 type AssumeFunc = T.Text
 type AssertFunc = T.Text
@@ -114,7 +117,7 @@ initStateWithCall exg2 useAssert f m_mod mkCurr argTys config =
     let
         s = initSimpleState exg2
 
-        (ie, fe) = case findFunc f m_mod (IT.expr_env s) of
+        (ie, fe) = case findFunc TV.empty f m_mod (IT.expr_env s) of
                         Left ie' -> ie'
                         Right errs -> error errs
         
@@ -144,7 +147,7 @@ initStateFromSimpleStateWithCall :: IT.SimpleState
                                  -> (State (), Id, Bindings)
 initStateFromSimpleStateWithCall simp_s useAssert f m_mod mkCurr argTys config =
     let
-        (ie, fe) = case findFunc f m_mod (IT.expr_env simp_s) of
+        (ie, fe) = case findFunc TV.empty f m_mod (IT.expr_env simp_s) of
                         Left ie' -> ie'
                         Right errs -> error errs
     
@@ -173,6 +176,7 @@ initStateFromSimpleState s m_mod useAssert mkCurr argTys config =
     (State {
       expr_env = foldr E.insertSymbolic eenv' is
     , type_env = tenv'
+    , tyvar_env = TV.empty
     , curr_expr = CurrExpr Evaluate ce
     , path_conds = PC.fromList []
     , non_red_path_conds = []
@@ -201,9 +205,9 @@ initStateFromSimpleState s m_mod useAssert mkCurr argTys config =
     , name_gen = ng''
     , exported_funcs = IT.exports s })
 
-mkArgTys :: Expr -> MkArgTypes
-mkArgTys e simp_s =
-    snd $ instantiateArgTypes (IT.type_classes simp_s) (IT.known_values simp_s) e
+mkArgTys :: TV.TyVarEnv -> Expr -> MkArgTypes
+mkArgTys tv e simp_s =
+    snd $ instantiateArgTypes tv (IT.type_classes simp_s) (IT.known_values simp_s) e
 
 {-# INLINE initStateFromSimpleState' #-}
 initStateFromSimpleState' :: IT.SimpleState
@@ -213,11 +217,11 @@ initStateFromSimpleState' :: IT.SimpleState
                           -> (State (), Bindings)
 initStateFromSimpleState' s sf m_mod =
     let
-        (ie, fe) = case findFunc sf m_mod (IT.expr_env s) of
+        (ie, fe) = case findFunc TV.empty sf m_mod (IT.expr_env s) of
                           Left ie' -> ie'
                           Right errs -> error errs
     in
-    initStateFromSimpleState s m_mod False (mkCurrExpr Nothing Nothing ie) (mkArgTys fe)
+    initStateFromSimpleState s m_mod False (mkCurrExpr TV.empty Nothing Nothing ie) (mkArgTys TV.empty fe)
 
 {-# INLINE initSimpleState #-}
 initSimpleState :: ExtractedG2
@@ -230,7 +234,7 @@ initSimpleState (ExtractedG2 { exg2_binds = prog
     let
         eenv = E.fromExprMap prog
         tenv = mkTypeEnv prog_typ
-        tc = initTypeClasses cls
+        tc = initTypeClasses TV.empty cls
         kv = initKnownValues eenv tenv tc
         ng = mkNameGen (prog, prog_typ, rs)
 
@@ -247,8 +251,9 @@ initSimpleState (ExtractedG2 { exg2_binds = prog
 
 initCheckReaches :: State t -> Maybe T.Text -> Maybe ReachFunc -> State t
 initCheckReaches s@(State { expr_env = eenv
-                          , known_values = kv }) m_mod reaches =
-    s {expr_env = checkReaches eenv kv reaches m_mod }
+                          , known_values = kv 
+                          , tyvar_env = tvnv}) m_mod reaches =
+    s {expr_env = checkReaches tvnv eenv kv reaches m_mod }
 
 type RHOStack m = SM.StateT LengthNTrack (SM.StateT PrettyGuide (SM.StateT HpcTracker m))
 
@@ -396,7 +401,7 @@ initialStateFromFileSimple :: [FilePath]
                    -> (Expr -> MkArgTypes)
                    -> Config
                    -> IO (State (), Id, Bindings, [Maybe T.Text])
-initialStateFromFileSimple proj src f mkCurr argTys config =
+initialStateFromFileSimple  proj src f mkCurr argTys config =
     initialStateFromFile proj src Nothing False f mkCurr argTys simplTranslationConfig config
 
 initialStateNoStartFunc :: [FilePath]
@@ -411,7 +416,7 @@ initialStateNoStartFunc proj src transConfig config = do
 
         (init_s, bindings) = initStateFromSimpleState simp_state [Nothing] False
                                  (\_ ng _ _ _ _ -> (Prim Undefined TyBottom, [], [], Nothing, ng))
-                                 (E.higherOrderExprs . IT.expr_env)
+                                 (E.higherOrderExprs TV.empty . IT.expr_env)
                                  config
 
     return (init_s, bindings)
@@ -430,7 +435,7 @@ initialStateFromFile proj src m_reach def_assert f mkCurr argTys transConfig con
     (mb_modname, exg2) <- translateLoaded proj src transConfig config
 
     let simp_state = initSimpleState exg2
-        (ie, fe) = case findFunc f mb_modname (IT.expr_env simp_state) of
+        (ie, fe) = case findFunc TV.empty f mb_modname (IT.expr_env simp_state) of
                         Left ie' -> ie'
                         Right errs -> error errs
 
@@ -455,8 +460,8 @@ runG2FromFile :: [FilePath]
               -> Config
               -> IO (([ExecRes ()], Bindings), Id)
 runG2FromFile proj src m_assume m_assert m_reach def_assert f transConfig config = do
-    (init_state, entry_f, bindings, mb_modname) <- initialStateFromFile proj src
-                                    m_reach def_assert f (mkCurrExpr m_assume m_assert) (mkArgTys)
+    (init_state, entry_f, bindings, mb_modname) <- initialStateFromFile  proj src
+                                    m_reach def_assert f (mkCurrExpr TV.empty m_assume m_assert) (mkArgTys TV.empty)
                                     transConfig config
 
     r <- runG2WithConfig (idName entry_f) mb_modname init_state config bindings
@@ -464,7 +469,7 @@ runG2FromFile proj src m_assume m_assert m_reach def_assert f transConfig config
     return (r, entry_f)
 
 runG2WithConfig :: Name -> [Maybe T.Text] -> State () -> Config -> Bindings -> IO ([ExecRes ()], Bindings)
-runG2WithConfig entry_f mb_modname state@(State { expr_env = eenv }) config bindings = do
+runG2WithConfig entry_f mb_modname state@(State { expr_env = eenv}) config bindings = do
     SomeSolver solver <- initSolver config
     hpc_t <- hpcTracker (hpc_print_times config)
     let 

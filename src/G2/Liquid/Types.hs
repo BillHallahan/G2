@@ -131,7 +131,6 @@ import Language.Haskell.Liquid.Types (GhcInfo)
 
 import Language.Haskell.Liquid.Constraint.Types
 import Language.Fixpoint.Types.Constraints
-
 import Data.Monoid ((<>))
 
 -- LiquidHaskell renamed these types.
