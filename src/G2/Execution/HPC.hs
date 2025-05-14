@@ -22,6 +22,7 @@ import Control.Monad.IO.Class
 import qualified Control.Monad.State.Lazy as SM
 import qualified Data.HashSet as HS
 import qualified Data.HashMap.Lazy as HM
+import Data.List.Extra
 import Data.Maybe
 import Data.Monoid
 import qualified Data.Text as T
@@ -35,13 +36,12 @@ deriving instance Monad m => (SM.MonadState (HS.HashSet (Int, T.Text)) (HpcT m))
 type HpcM a = HpcT Identity a
 
 data HpcTracker = HPC {
-                        hpc_ticks :: HS.HashSet (Int, T.Text) -- ^ The HPC ticks that execution has reached
+                        hpc_ticks :: HM.HashMap (Int, T.Text) TimeSpec -- ^ The HPC ticks that execution has reached mapped to the time each was reached
 
                       , tick_count :: Maybe Int -- ^ Total number of HPC ticks that we could reach.  See [HPC Total Tick Count]
                       , num_reached :: Int -- ^ Total number of HPC ticks currently reached by execution
 
                       , initial_time :: TimeSpec -- ^ The initial creation time of the HpcTracker
-                      , times_reached :: [TimeSpec] -- ^ A list of times, where each time corresponds to a new tick being reached, in reverse order
                       
                       , h_print_times :: Bool -- ^ Print the time each tick is reached?
                       }
@@ -61,32 +61,30 @@ hpcTracker :: MonadIO m => Bool -- ^ Print the time each tick is reached?
                         -> m HpcTracker
 hpcTracker pr_tms = do
     ts <- liftIO $ getTime Monotonic
-    return $ HPC { hpc_ticks = HS.empty
+    return $ HPC { hpc_ticks = HM.empty
                  , tick_count = Nothing
                  , num_reached = 0
                  , initial_time = ts
-                 , times_reached = []
                  , h_print_times = pr_tms }
 
 unionHpcTracker :: HpcTracker -> HpcTracker -> HpcTracker
 unionHpcTracker hpc1 hpc2 =
     let
-        hpc_union = hpc_ticks hpc1 `HS.union` hpc_ticks hpc2
+        hpc_union = HM.unionWith min (hpc_ticks hpc1) (hpc_ticks hpc2)
     in
     HPC { hpc_ticks = hpc_union
         , tick_count = tick_count hpc1
-        , num_reached = HS.size hpc_union
+        , num_reached = HM.size hpc_union
         , initial_time = initial_time hpc1
-        , times_reached = times_reached hpc1 ++ times_reached hpc2
         , h_print_times = h_print_times hpc1 }
 
 hpcInsert :: MonadIO m => Int -> T.Text -> HpcTracker -> m HpcTracker
-hpcInsert i t hpc@(HPC { hpc_ticks = tr, num_reached = nr, times_reached = reached, initial_time = init_ts }) =
-    case HS.member (i, t) tr of
+hpcInsert i t hpc@(HPC { hpc_ticks = tr, num_reached = nr }) =
+    case HM.member (i, t) tr of
         True -> return hpc
         False -> do
             ts <- liftIO $ getTime Monotonic
-            return $ hpc { hpc_ticks = HS.insert (i, t) tr, num_reached = nr + 1, times_reached =  ts:reached }
+            return $ hpc { hpc_ticks = HM.insert (i, t) ts tr, num_reached = nr + 1 }
 
 totalTickCount :: SM.MonadState HpcTracker m => Maybe T.Text -> State t -> m Int
 totalTickCount m s = do
@@ -116,23 +114,7 @@ immedHpcReducer md = (mkSimpleReducer (const ()) logTick) { afterRed = after }
                 return (NoProgress, [(s, ())], b)
         logTick _ s b = return (NoProgress, [(s, ())], b)
 
-        after = do
-            hpc <- SM.get
-            let init_ts = initial_time hpc
-                ts = times_reached hpc
-            liftIO $ putStrLn $ "\nTicks reached: " ++ show (num_reached hpc)
-            case tick_count hpc of
-                Just tc -> liftIO $ putStrLn $ "Tick num: " ++ show tc
-                Nothing -> return ()
-            case ts of
-                [] -> liftIO $ putStrLn $ "Last tick reached: N/A"
-                (t:_) -> liftIO $ putStrLn $ "Last tick reached: " ++ showTS (t - init_ts)
-            case h_print_times hpc of
-                False -> return ()
-                True -> liftIO $ do
-                    putStrLn "All tick times:"
-                    mapM_ (\t -> putStrLn $ showTS (t - init_ts)) (reverse $ times_reached hpc)
-                    putStrLn "End of tick times"
+        after = afterHPC
 
 -- | A reducer that tracks and prints the number of HPC ticks encountered during execution.
 -- A HPC tick is considered reached only once a State that reached it is accepted.
@@ -157,23 +139,26 @@ onAcceptHpcReducer md = do
             liftIO $ hFlush stdout
             return (s, b)
 
-        after = do
-            hpc <- SM.get
-            let init_ts = initial_time hpc
-                ts = times_reached hpc
-            liftIO $ putStrLn $ "\nTicks reached: " ++ show (num_reached hpc)
-            case tick_count hpc of
-                Just tc -> liftIO $ putStrLn $ "Tick num: " ++ show tc
-                Nothing -> return ()
-            case ts of
-                [] -> liftIO $ putStrLn $ "Last tick reached: N/A"
-                (t:_) -> liftIO $ putStrLn $ "Last tick reached: " ++ showTS (t - init_ts)
-            case h_print_times hpc of
-                False -> return ()
-                True -> liftIO $ do
-                    putStrLn "All tick times:"
-                    mapM_ (\t -> putStrLn $ showTS (t - init_ts)) (reverse $ times_reached hpc)
-                    putStrLn "End of tick times"
+        after = afterHPC
+
+afterHPC :: (MonadIO m, SM.MonadState HpcTracker m) => m ()
+afterHPC = do
+    hpc <- SM.get
+    let init_ts = initial_time hpc
+        ts = sort $ HM.elems (hpc_ticks hpc)
+    liftIO $ putStrLn $ "\nTicks reached: " ++ show (num_reached hpc)
+    case tick_count hpc of
+        Just tc -> liftIO $ putStrLn $ "Tick num: " ++ show tc
+        Nothing -> return ()
+    case ts of
+        [] -> liftIO $ putStrLn $ "Last tick reached: N/A"
+        (_:_) -> liftIO $ putStrLn $ "Last tick reached: " ++ showTS (last ts - init_ts)
+    case h_print_times hpc of
+        False -> return ()
+        True -> liftIO $ do
+            putStrLn "All tick times:"
+            mapM_ (\t -> putStrLn $ showTS (t - init_ts)) ts
+            putStrLn "End of tick times"
 
 showTS :: TimeSpec -> String
 showTS (TimeSpec { sec = s, nsec = n }) = let str_n = show n in show s ++ "." ++ replicate (9 - length str_n) '0' ++ show n
