@@ -288,6 +288,8 @@ initRedHaltOrd mod_name solver simplifier config exec_func_names no_nrpc_names =
 
     m_logger <- fmap SomeReducer <$> getLimLogger config
 
+    on_acc_hpc_red <- onAcceptHpcReducer mod_name
+
     let share = sharing config
 
         state_name = Name "state" Nothing 0 Nothing
@@ -297,7 +299,8 @@ initRedHaltOrd mod_name solver simplifier config exec_func_names no_nrpc_names =
                             False -> SomeReducer (stdRed share f solver simplifier ~> instTypeRed)
 
         hpc_red f = case hpc config of
-                        True ->  SomeReducer (hpcReducer mod_name) .~> strict_red f 
+                        -- True ->  SomeReducer (immedHpcReducer mod_name) .~> strict_red f 
+                        True ->  SomeReducer on_acc_hpc_red .~> strict_red f 
                         False -> strict_red f
 
         nrpc_red f = case nrpc config of
