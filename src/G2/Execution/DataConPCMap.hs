@@ -101,8 +101,6 @@ applyDCPC ng eenv new_ids as_expr (DCPC { dc_as_pattern = as_p, dc_args = ars, d
         (ng', eenv', pc', be') = foldl' mkDCArg (ng, eenv, pc, be) (zip ars new_ids)
         -- Replace expr corresponding to as pattern in PathCond list
         pc'' = replaceVar as_p as_expr pc'
-        -- Not having this means the above fold runs forever?
-        -- pc'' = rename asp prev_asp pc'
     in
     assert (length ars == length new_ids)
     (eenv', pc'', ng', be')

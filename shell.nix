@@ -1,8 +1,8 @@
 { pkgs ? import <nixpkgs> {} }:
 
-# note: cabal can cache the location of ghc for some reason :/
+# note: cabal can cache the location of ghc
 # if this happens (ex: can't find file and is looking for wrong ghc version in store)
-# remove all related files and compile again
+# remove all files related to cabal and run nix-shell again
 
 pkgs.mkShell {
   nativeBuildInputs = with pkgs.buildPackages; [ 
