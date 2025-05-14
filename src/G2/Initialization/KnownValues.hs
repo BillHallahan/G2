@@ -78,6 +78,8 @@ initKnownValues eenv tenv tc =
     , tyRealWorld = typeWithStrName tenv "RealWorld"
     , dcRealWorld = dcWithStrName tenv "RealWorld" "RealWorld"
 
+    , tyHandle = typeWithStrName tenv "Handle"
+
     , eqTC = eqT
     , numTC = numT
     , ordTC = ordT

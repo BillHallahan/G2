@@ -21,7 +21,9 @@ module G2.Lib.Printers ( PrettyGuide
 
                        , prettyState
                        , prettyEEnv
-                       , prettyTypeEnv 
+                       , prettyTypeEnv
+                       , prettyPathConds
+                       , prettyNonRedPaths
 
                        , prettyGuideStr
                        , prettyGuideNumsStr
@@ -506,7 +508,10 @@ mkTypeHaskellPG pg (TyFun t1 t2)
     | otherwise = mkTypeHaskellPG pg t1 <> " -> " <> mkTypeHaskellPG pg t2
 mkTypeHaskellPG pg (TyCon n _) | nameOcc n == "List"
                                , nameModule n == Just "GHC.Types" = "[]"
+                               | nameOcc n == "Unit"
+                               , nameModule n == Just "GHC.Tuple.Prim" = "()"
                                | ("Tuple", k_str) <- T.splitAt 5 (nameOcc n)
+                               , nameModule n == Just "GHC.Tuple.Prim"
                                , Just k <- readMaybe (T.unpack k_str) = "(" <> T.pack (replicate (k - 1) ',') <> ")"
                                | otherwise = mkNameHaskell pg n
 mkTypeHaskellPG pg (TyApp t1 t2) = "(" <> mkTypeHaskellPG pg t1 <> " " <> mkTypeHaskellPG pg t2 <> ")"
@@ -555,6 +560,8 @@ prettyState pg s =
         , T.pack (show (true_assert s))
         , "----- [Assert FC] ---------------------"
         , pretty_assert_fcs
+        , "----- [Tags] ---------------------"
+        , pretty_tags
         , "----- [Tracker] ---------------------"
         , T.pack (show (track s))
         , "----- [Pretty] ---------------------"
@@ -571,6 +578,7 @@ prettyState pg s =
         pretty_tenv = prettyTypeEnv pg (type_env s)
         pretty_tc = prettyTypeClasses pg (type_classes s)
         pretty_assert_fcs = maybe "None" (printFuncCallPG pg) (assert_ids s)
+        pretty_tags = T.intercalate ", " . map (mkNameHaskell pg) $ HS.toList (tags s)
         pretty_names = prettyGuideStr pg
 
 
@@ -592,7 +600,7 @@ prettyFrame pg (CaseFrame i _ as) =
 prettyFrame pg (ApplyFrame e) = "apply frame: " <> mkDirtyExprHaskell pg e
 prettyFrame pg (UpdateFrame n) = "update frame: " <> mkNameHaskell pg n
 prettyFrame pg (CastFrame (t1 :~ t2)) = "cast frame: " <> mkTypeHaskellPG pg t1 <> " ~ " <> mkTypeHaskellPG pg t2
-prettyFrame pg (CurrExprFrame act ce) = "curr_expr frame: " <> prettyCEAction pg act <> prettyCurrExpr pg ce
+prettyFrame pg (CurrExprFrame act ce) = "curr_expr frame: " <> prettyCEAction pg act <> " " <> prettyCurrExpr pg ce
 prettyFrame pg (AssumeFrame e) = "assume frame: " <> mkDirtyExprHaskell pg e
 prettyFrame pg (AssertFrame m_fc e) =
     let
@@ -617,12 +625,10 @@ prettyEEnv pg eenv = T.intercalate "\n\n"
 printEnvObj :: PrettyGuide -> E.EnvObj -> T.Text
 printEnvObj pg (E.ExprObj e) = mkDirtyExprHaskell pg e
 printEnvObj pg (E.SymbObj (Id _ t)) = "symbolic " <> mkTypeHaskellPG pg t
-printEnvObj pg (E.RedirObj n) = "redir to " <> mkNameHaskell pg n
 
 envObjType :: ExprEnv -> E.EnvObj -> Type
 envObjType _ (E.ExprObj e) = typeOf e
 envObjType _ (E.SymbObj (Id _ t)) = t
-envObjType eenv (E.RedirObj n) = maybe (TyCon (Name "???" Nothing 0 Nothing) TYPE) typeOf $ E.lookup n eenv
 
 prettyPathConds :: PrettyGuide -> PathConds -> T.Text
 prettyPathConds pg = T.intercalate "\n" . map (prettyPathCond pg) . PC.toList

@@ -536,8 +536,9 @@ evalTypeDCPrim2 tenv DataToTag t dc =
         TyCon n _:_ | Just adt <- M.lookup n tenv ->
             let
                 dcs = dataCon adt
+                dc_names = map dc_name dcs
             in
-            fmap (Lit . LitInt . fst) . L.find ((==) dc . snd) $ zip [1..] dcs
+                fmap (Lit . LitInt . fst) . L.find ((==) (dc_name dc) . snd) $ zip [1..] dc_names
         _ -> error "evalTypeDCPrim2: Unsupported Primitive Op"
 evalTypeDCPrim2 _ _ _ _ = Nothing
 

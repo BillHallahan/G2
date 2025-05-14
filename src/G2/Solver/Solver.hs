@@ -15,12 +15,23 @@ module G2.Solver.Solver ( Solver (..)
                         , groupRelatedInfinite
                         , CombineSolvers (..)
                         , UndefinedHigherOrder (..)
-                        , UnknownSolver (..)) where
+                        , UnknownSolver (..)
+                        , EqualitySolver (..)
+                        
+                        , TimeSolver
+                        , timeSolver
+                        , timeSomeSolver
+                        , CallsSolver
+                        , callsSolver
+                        , callsSomeSolver) where
 
 import G2.Language
 import qualified G2.Language.PathConds as PC
+import Data.Graph
 import Data.List
 import qualified Data.HashMap.Lazy as HM
+import Data.IORef
+import System.Clock
 
 -- | The result of a Solver query
 data Result m u um = SAT m
@@ -243,3 +254,140 @@ instance Solver UnknownSolver where
     solve _ _ _ _ pc
         | PC.null pc = return (SAT HM.empty)
         | otherwise = return (Unknown "unknown" ())
+
+-- | A solver that handles checking of certain equalities between variables and expressions.
+-- In particular, if we have a set of path constraints of the form:
+--    @ x_1 `op` e_1
+--      x_2 `op` e_2
+--      ..
+--      x_n `op` e_n @
+-- (For op one of ==, /=, >, >=, <, <=)
+-- where x_i does not appear in e_j for any j <= i, then this path constraint is guaranteed to be satisfiable.
+-- For i from e_1 to e_n, we can instantiate the variables in e_i, then solve e_i and assign an appropriate
+-- value to x_i.
+data EqualitySolver = EqualitySolver
+
+instance Solver EqualitySolver where
+    check _ _ pcs | Just m_v_vs <- sequence . map isolatedFormula $ PC.toList pcs
+                  -- Check that the left hand side of all operators is unqiue, i.e. all x_i differ from each other
+                  , uniq $ map fst m_v_vs
+                  -- Check that there are no loops where x_i ... x_j appear on the RHS of each others equations
+                  , not (cycleExists m_v_vs) = return $ SAT ()
+                  | otherwise = return $ Unknown "Equality Solver: unsupported constraint" ()
+    solve _ _ _ _ _ = return $ Unknown "Equality Solver does not support solving" ()
+    close _ = return ()
+
+isolatedFormula :: PathCond -> Maybe (Name, [Name])
+isolatedFormula (ExtCond ext_e _)
+    | [Prim op _, e1, e2] <- unApp ext_e
+    , allowedOp op
+    , Just (n, e) <- varEq e1 e2 = Just (n, map idName $ vars e)
+    | App (Prim Not _) ext_e' <- ext_e
+    , [Prim op _, e1, e2] <- unApp ext_e'
+    , allowedOp op
+    , Just (n, e) <- varEq e1 e2 = Just (n, map idName $ vars e)
+    where
+        varEq (Var (Id n _)) e = Just (n, e)
+        varEq e (Var (Id n _)) = Just (n, e)
+        varEq _ _ = Nothing
+
+        allowedOp Eq = True
+        allowedOp Neq = True
+        allowedOp Lt = True
+        allowedOp Gt = True
+        allowedOp Le = True
+        allowedOp Ge = True
+        allowedOp _ = False
+isolatedFormula _ = Nothing        
+
+-- adapted from https://github.com/haskell/containers/issues/978
+cycleExists :: Ord a => [(a, [a])] -> Bool
+cycleExists tuples = any (uncurry elem) tuples ||
+    -- There's a cycle if one of the strongly connected components has more than one node
+    any ((> 1) . length . flattenSCC)
+       -- Generate strongly connected components from edges
+       (stronglyConnComp $
+        -- Create edges by converting a tuple (a, b) to (a, a, [b]) to reflect a -> b
+        map (\(a, b) -> (a, a, b)) tuples)
+
+uniq :: Ord a => [a] -> Bool
+uniq = comp . sort
+    where
+        comp [] = True
+        comp [_] = True
+        comp (x:y:xs) 
+            | x == y = False
+            | otherwise = comp (y : xs)
+
+-- | A solver to time the runtime of other solvers
+data TimeSolver s = TimeSolver
+                        String -- ^ Prefix for output string
+                        (IORef TimeSpec) -- ^ Timer
+                        s -- ^ Underlying solver to count invocations of
+
+-- | A solver to time the runtime of other solvers
+timeSolver :: String -- ^ Prefix for output string
+           -> s
+           -> IO (TimeSolver s)
+timeSolver pre_s s = do
+    zero <- newIORef 0
+    return (TimeSolver pre_s zero s)
+
+-- | Lift timeSolver into a SomeSolver.
+timeSomeSolver :: String  -- ^ Prefix for output string
+               -> SomeSolver
+               -> IO SomeSolver
+timeSomeSolver pre_s (SomeSolver s) = return . SomeSolver =<< timeSolver pre_s s
+
+instance Solver s => Solver (TimeSolver s) where
+    check (TimeSolver _ ts solver) s pc = do
+        st <- getTime Realtime
+        r <- check solver s pc
+        en <- getTime Realtime
+        modifyIORef ts (+ (en - st))
+        return r
+    solve (TimeSolver _ ts solver) s b is pc = do
+        st <- getTime Realtime
+        r <- solve solver s b is pc
+        en <- getTime Realtime
+        modifyIORef ts (+ (en - st))
+        return r
+    close (TimeSolver pre_s io_ts solver) = do
+        close solver
+        ts <- readIORef io_ts
+        let t = (fromInteger (toNanoSecs ts)) / (10 ^ (9 :: Int) :: Double)
+        putStrLn $ pre_s ++ " Solving Time: " ++ show t
+
+-- | A solver to count the number of solver calls
+data CallsSolver s = CallsSolver
+                            String -- ^ Prefix for output string
+                            (IORef Int) -- ^ Counter
+                            s -- ^ Underlying solver to count invocations of
+
+-- | A solver to count the number of solver calls
+callsSolver :: String  -- ^ Prefix for output string
+            -> s
+            -> IO (CallsSolver s)
+callsSolver pre_s s = do
+    zero <- newIORef 0
+    return (CallsSolver pre_s zero s)
+
+-- | Lift callsSolver into a SomeSolver.
+callsSomeSolver :: String  -- ^ Prefix for output string
+                -> SomeSolver
+                -> IO SomeSolver
+callsSomeSolver pre_s (SomeSolver s) = return . SomeSolver =<< callsSolver pre_s s
+
+instance Solver s => Solver (CallsSolver s) where
+    check (CallsSolver _ c solver) s pc = do
+        r <- check solver s pc
+        modifyIORef c (+ 1)
+        return r
+    solve (CallsSolver _ c solver) s b is pc = do
+        r <- solve solver s b is pc
+        modifyIORef c (+ 1)
+        return r
+    close (CallsSolver pre_s io_c solver) = do
+        close solver
+        c <- readIORef io_c
+        putStrLn $ pre_s ++ " Solver Calls: " ++ show c

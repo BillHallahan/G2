@@ -38,6 +38,7 @@ import G2.Solver hiding (Assert)
 import Control.Monad.Extra
 import Data.Maybe
 import qualified Data.HashMap.Lazy as HM
+import qualified Data.HashSet as HS
 import qualified Data.List as L
 import qualified Data.Sequence as S
 import G2.Data.Utils
@@ -344,6 +345,13 @@ evalCase s@(State { expr_env = eenv
                            , curr_expr = CurrExpr Evaluate mexpr
                            , exec_stack = S.push frame stck }], ng)
 
+  -- If the list of alts is empty, that normally means that the bindee is guaranteed
+  -- to be bottom (either evaluate to an error or not terminate.)  In either case, we would normally
+  -- never then actually try to branch on the case.  However, the executor might reach
+  -- this put if NRPCs are being used, as a bottoming expression may be replaced by a
+  -- symbolic variable.
+  | [] <- alts = (RuleEvalCaseBottom, [newPCEmpty $ s { curr_expr = CurrExpr Evaluate (Prim Error TyBottom) }], ng)
+
   | otherwise = error $ "reduceCase: bad case passed in\n" ++ show mexpr ++ "\n" ++ show alts
   where
         tyConName (TyCon n _) = Just n
@@ -561,7 +569,6 @@ createExtCond s ngen mexpr cvar (dcon, bindees, aexpr)
             kv = known_values s
             tenv = type_env s
 
-            
 getBoolFromDataCon :: KnownValues -> DataCon -> Bool
 getBoolFromDataCon kv dcon
     | (DataCon dconName dconType [] []) <- dcon
@@ -760,8 +767,10 @@ bindExprToNum f es = L.mapAccumL (\num e -> (num + 1, f num e)) 1 es
 
 -- | Return PathCond restricting value of `newId` to [lower, upper]
 restrictSymVal :: KnownValues -> Integer -> Integer -> Id -> PathCond
-restrictSymVal kv lower upper newId =
-  ExtCond (mkAndExpr kv (mkGeIntExpr kv (Var newId) lower) (mkLeIntExpr kv (Var newId) upper)) True
+restrictSymVal kv lower upper newId
+    | lower /= upper =
+        ExtCond (mkAndExpr kv (mkGeIntExpr kv (Var newId) lower) (mkLeIntExpr kv (Var newId) upper)) True
+    | otherwise = ExtCond (mkEqExpr kv (Var newId) (Lit $ LitInt lower)) True
 
 ----------------------------------------------------
 
@@ -847,10 +856,10 @@ evalAssert s@(State { exec_stack = stck }) ng is e1 e2 =
 retUpdateFrame :: State t -> NameGen -> Name -> S.Stack Frame -> (Rule, [State t], NameGen)
 retUpdateFrame s@(State { expr_env = eenv
                         , curr_expr = CurrExpr _ e}) ng un stck
-    | Var i@(Id vn _) <- e =
+    | Var _ <- e =
        ( RuleReturnEUpdateVar un
-       , [s { expr_env = E.redirect un vn eenv
-            , curr_expr = CurrExpr Return (Var i)
+       , [s { expr_env = E.insert un e eenv
+            , curr_expr = CurrExpr Return e
             , exec_stack = stck }]
        , ng)
     | otherwise =
@@ -900,12 +909,16 @@ retCurrExpr s@(State { expr_env = eenv, known_values = kv }) e1 (EnsureEq e2) or
     | isExprValueForm eenv e1
     , isExprValueForm eenv e2
     , t1 <- typeOf e1
-    , isPrimType t1 || t1 == tyBool kv =
+    -- We can always add to the path constraints if we have a type that is primitive or Bool.
+    , isPrimType t1 || t1 == tyBool kv
+    -- We can also add to the path constraints if we have a primitive expression
+    -- that returns a list
+    || isPrimApp e1 || isPrimApp e2 =
         assert (typeOf e2 == t1)
         ( RuleReturnCurrExprFr
         , [NewPC { state = s { curr_expr = orig_ce
                              , exec_stack = stck}
-                    , new_pcs = [ExtCond (mkEqPrimExpr kv e1 e2) True]
+                    , new_pcs = [ExtCond (inline eenv HS.empty $ mkEqPrimExpr kv e1 e2) True]
                     , concretized = [] }] )
 
     -- Symmetric cases for e1/e2 being  symbolic variables 
@@ -930,7 +943,7 @@ retCurrExpr s@(State { expr_env = eenv, known_values = kv }) e1 (EnsureEq e2) or
 
     | Data dc1:es1 <- unApp e1
     , Data dc2:es2 <- unApp e2 =
-        case dc1 == dc2 of
+        case dcName dc1 == dcName dc2 of
             True ->
                 let
                     es = zip es1 es2
@@ -955,6 +968,18 @@ retCurrExpr s@(State { expr_env = eenv, known_values = kv }) e1 (EnsureEq e2) or
                                     , exec_stack = S.push (CurrExprFrame (EnsureEq e1) orig_ce) stck}
                         , new_pcs = []
                         , concretized = [] }] )
+    where
+        isPrimApp (App e _) = isPrimApp e
+        isPrimApp (Prim _ _) = True
+        isPrimApp _ = False
+
+        inline :: ExprEnv -> HS.HashSet Name -> Expr -> Expr
+        inline h ns v@(Var (Id n _))
+            | E.isSymbolic n h = v
+            | HS.member n ns = v
+            | Just e <- E.lookup n h
+            , not (isLam e) = inline h (HS.insert n ns) e
+        inline h ns e = modifyChildren (inline h ns) e
 
 retCurrExpr s _ NoAction orig_ce stck = 
     ( RuleReturnCurrExprFr

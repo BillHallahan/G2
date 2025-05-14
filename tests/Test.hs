@@ -32,6 +32,7 @@ import DefuncTest
 import FuzzExecution
 import CaseTest
 import Expr
+import ExecSkip
 import Simplifications
 import Typing
 import UnionFindTests
@@ -73,6 +74,7 @@ tests = testGroup "Tests"
 
         , exprTests
         , typingTests
+        , execSkipTests
         , simplificationTests
         , ufMapQuickcheck
         , unionFindQuickcheck
@@ -348,13 +350,17 @@ testFileTests = testGroup "TestFiles"
     , checkExpr "tests/TestFiles/Strings/Strings1.hs" 1000 "exclaimEq"
         [AtLeast 5, RExists (\[_, _, r] -> dcHasName "True" r)]
 
+    , checkInputOutputs "tests/TestFiles/Strings/StringCrash.hs" [ ("f", 700, [AtLeast 2])]
+
+    , checkExpr "tests/TestFiles/Strings/StringCrash.hs" 1500 "g" [ AtLeast 2 ]
+
     , checkExpr "tests/TestFiles/Sets/SetInsert.hs" 700 "prop" [AtLeast 3]
     
     , checkInputOutputs "tests/TestFiles/BadDC.hs" [ ("f", 400, [AtLeast 5])
                                                    , ("g", 400, [AtLeast 3]) ]
 
     , checkInputOutputsTemplate "tests/HigherOrder/HigherOrder.hs" [ ("f", 50, [AtLeast 5])
-                                                                   , ("h", 100, [AtLeast 3])
+                                                                   , ("h", 150, [AtLeast 3])
                                                                    , ("assoc", 200, [AtLeast 5])
                                                                    , ("sf", 150, [AtLeast 5])
                                                                    , ("thirdOrder", 75, [AtLeast 10])
@@ -367,14 +373,18 @@ testFileTests = testGroup "TestFiles"
                                                                        , ("tupleTest", 175, [AtLeast 8])]
     , checkInputOutputsNonRedTemp "tests/HigherOrder/HigherOrder.hs" [ ("f", 200, [Exactly 3])
                                                                      , ("h", 150, [Exactly 2])
-                                                                     , ("assoc", 200, [Exactly 2])
+                                                                     , ("assoc", 250, [Exactly 2])
                                                                      , ("sf", 200, [Exactly 2])
                                                                      , ("thirdOrder", 300, [Exactly 2])
                                                                      , ("thirdOrder2", 300, [Exactly 3])
                                                                      , ("tupleTestMono", 175, [Exactly 2])
                                                                      , ("multiPrim", 300, [Exactly 2])]
     , checkInputOutputsNonRedLib "tests/BaseTests/ListTests.hs" [ ("lengthN", 800, [AtLeast 5])
-                                                                , ("map2", 150, [AtLeast 2])] 
+                                                                , ("map2", 150, [AtLeast 2])
+                                                                , ("testFib", 300, [AtLeast 1])]
+                                                                
+    , checkInputOutputsNonRedLib "tests/TestFiles/NRPC/EmptyTuple.hs" [ ("main", 1000, [AtLeast 1])]
+    , checkExprNRPC "tests/TestFiles/NRPC/Print.hs" 2500 "f" [AtLeast 5]
     -- , checkInputOutput "tests/TestFiles/BadBool.hs" "BadBool" "f" 1400 [AtLeast 1]
     -- , checkExprAssumeAssert "tests/TestFiles/Coercions/GADT.hs" 400 Nothing Nothing "g" 2
     --     [ AtLeast 2
@@ -625,6 +635,17 @@ instance IsOption ToDo where
 checkExpr :: String -> Int -> String -> [Reqs ([Expr] -> Bool)] -> TestTree
 checkExpr src stps entry reqList =
     checkExprReaches src stps Nothing Nothing Nothing entry reqList
+
+checkExprNRPC :: String
+              -> Int
+              -> String
+              -> [Reqs ([Expr] -> Bool)]
+              -> TestTree
+checkExprNRPC src stps entry reqList = do
+    checkExprWithConfig src Nothing Nothing Nothing entry reqList
+            (do
+                config <- mkConfigTestWithSetIO
+                return $ config {steps = stps, nrpc = Nrpc})
 
 checkExprAssume :: String -> Int -> Maybe String -> String -> [Reqs ([Expr] -> Bool)] -> TestTree
 checkExprAssume src stps m_assume entry reqList =

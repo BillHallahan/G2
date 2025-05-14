@@ -33,6 +33,7 @@ data Rule = RuleEvalVal
           | RuleEvalCaseSym
           | RuleEvalCasePrim
           | RuleEvalCaseNonVal
+          | RuleEvalCaseBottom
 
           | RuleEvalCastSplit
           | RuleEvalCast

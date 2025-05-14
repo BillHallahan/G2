@@ -5,9 +5,15 @@ module G2.Solver.Simplifier ( Simplifier (..)
                             , (:>>) (..)
                             , IdSimplifier (..)
                             , ArithSimplifier (..)
-                            , FloatSimplifier (..)) where
+                            , BoolSimplifier (..)
+                            , StringSimplifier (..)
+                            , FloatSimplifier (..)
+                            , EqualitySimplifier (..)) where
 
 import G2.Language
+import qualified G2.Language.ExprEnv as E
+import G2.Language.KnownValues
+import qualified G2.Language.PathConds as PC
 
 class Simplifier simplifier where
     -- | Simplifies a PC, by converting it into one or more path constraints that are easier
@@ -15,8 +21,14 @@ class Simplifier simplifier where
     simplifyPC :: forall t . simplifier -> State t -> PathCond -> [PathCond]
 
     {-# INLINE simplifyPCs #-}
+    -- | Simplifies the existing PathConds based on a new PathCond.
     simplifyPCs :: forall t. simplifier -> State t -> PathCond -> PathConds -> PathConds
     simplifyPCs _ _ _ = id
+    
+    {-# INLINE updateExprEnvPC #-}
+    -- | Update the ExprEnv based on a new PathCond
+    updateExprEnvPC :: forall t . simplifier -> State t -> PathCond -> ExprEnv -> ExprEnv
+    updateExprEnvPC _ _ _ = id
 
     -- | Reverses the affect of simplification in the model, if needed.
     reverseSimplification :: forall t . simplifier -> State t -> Bindings -> Model -> Model
@@ -29,6 +41,8 @@ instance (Simplifier simp1, Simplifier simp2) => Simplifier (simp1 :>> simp2) wh
 
     simplifyPCs (simp1 :>> simp2) s pc = simplifyPCs simp2 s pc . simplifyPCs simp1 s pc
 
+    updateExprEnvPC (simp1 :>> simp2) s pc = updateExprEnvPC simp2 s pc . updateExprEnvPC simp1 s pc
+
     reverseSimplification (simp1 :>> simp2) s b m = reverseSimplification simp1 s b $ reverseSimplification simp2 s b m
 
 -- | A simplifier that does no simplification
@@ -38,7 +52,7 @@ instance Simplifier IdSimplifier where
     simplifyPC _ _ pc = [pc]
     reverseSimplification _ _ _ m = m
 
--- | Tries to simplify based on simple arithmetic principles, i.e. x + 0 == x
+-- | Tries to simplify based on simple arithmetic principles, i.e. x + 0 -> x
 data ArithSimplifier = ArithSimplifier
 
 instance Simplifier ArithSimplifier where
@@ -55,12 +69,59 @@ simplifyArith (App (App (Prim Mult _) l) _) | isZero l = l
 
 simplifyArith (App (App (Prim Minus _) e) l) | isZero l = e
 
+-- 0 == lit * e is equivalent to 0 == e if lit /= 0
+simplifyArith (App (App (Prim Eq t) l) (App (App (Prim Mult _) e1) e2))
+    | isZero l
+    , not (isZero e1)
+    , isLit e1 = App (App (Prim Eq t) l) e2
+    | isZero l
+    , not (isZero e2)
+    , isLit e2 = App (App (Prim Eq t) l) e1
+
+-- 0 == - e is equivalent to 0 == e
+simplifyArith (App (App (Prim Eq t) l) (App (Prim Negate _) e)) | isZero l = App (App (Prim Eq t) l) e
+
 simplifyArith e = e
 
 isZero :: Expr -> Bool
 isZero (Lit (LitInt 0)) = True
 isZero (Lit (LitRational 0)) = True
 isZero _ = False
+
+-- | Tries to simplify based on simple boolean principles, i.e. x == True -> x
+data BoolSimplifier = BoolSimplifier
+
+instance Simplifier BoolSimplifier where
+    simplifyPC _ s pc = [modifyContainedASTs (simplifyBool (known_values s)) pc]
+
+    reverseSimplification _ _ _ m = m
+
+simplifyBool :: KnownValues -> Expr -> Expr
+simplifyBool kv e
+    | [Prim Eq _, Data (DataCon { dc_name = n }), e2 ] <- unApp e
+    , n == dcTrue kv = e2
+    | [Prim Eq _, e1, Data (DataCon { dc_name = n }) ] <- unApp e
+    , n == dcTrue kv = e1
+    | [Prim Eq _, Data (DataCon { dc_name = n }), e2 ] <- unApp e
+    , n == dcFalse kv = mkNotExpr kv e2
+    | [Prim Eq _, e1, Data (DataCon { dc_name = n }) ] <- unApp e
+    , n == dcFalse kv = mkNotExpr kv e1
+simplifyBool _ e = e
+
+-- | Tries to simplify based on simple String principles, i.e. len x == 0 -> x == ""
+-- (Note that rewrite 0 length constraints on Strings then composes well with the EqualitySimplifier.)
+data StringSimplifier = StringSimplifier
+
+instance Simplifier StringSimplifier where
+    simplifyPC _ _ pc = [modifyContainedASTs simplifyString pc]
+
+    reverseSimplification _ _ _ m = m
+
+simplifyString :: Expr -> Expr
+simplifyString e
+    | [Prim Eq _, App (Prim StrLen _) v, Lit (LitInt 0) ] <- unApp e = mkApp [Prim Eq TyUnknown, v, Lit (LitString "")]
+    | [Prim Eq _, Lit (LitInt 0), App (Prim StrLen _) v ] <- unApp e = mkApp [Prim Eq TyUnknown, v, Lit (LitString "")]
+simplifyString e = e
 
 -- | Tries to simplify constraints involving checking if the value of an Int matches a concrete Float.
 data FloatSimplifier = FloatSimplifier
@@ -79,3 +140,60 @@ instance Simplifier FloatSimplifier where
     simplifyPC _ _ pc = [pc]
 
     reverseSimplification _ _ _ m = m
+
+
+-- When we get a path constraint that is an equality between a variable and a small expression,
+-- inline the small expression in all path constraints and in the ExprEnv.
+data EqualitySimplifier = EqualitySimplifier
+
+instance Simplifier EqualitySimplifier where
+    simplifyPC _ s pc | Just _ <- smallEqPC (known_values s) pc = []
+                      | otherwise = [pc]
+
+    simplifyPCs _ s pc pcs | Just (n1, e@(Var (Id n2 _))) <- eq_pc = PC.mapPathCondsSCC n1 (replaceVar n1 e) (PC.join n1 n2 pcs)
+                           | Just (n, e) <- eq_pc = PC.mapPathCondsSCC n (replaceVar n e) pcs
+                           | otherwise = pcs
+                           where
+                            eq_pc = smallEqPC (known_values s) pc
+
+    updateExprEnvPC _ s pc eenv
+        | Just (n, e) <- smallEqPC (known_values s) pc =
+            case e of
+                Var (Id n' _) | n == n' -> eenv
+                _ -> E.insert n e eenv
+        | otherwise = eenv
+    
+    reverseSimplification _ _ _ m = m
+
+smallEqPC :: KnownValues
+          -> PathCond
+          -> Maybe (Name, Expr) -- ^ If PC is an equality between a variable and a constant, (Just (variable name, constant))
+smallEqPC kv (ExtCond e True)
+    | [Prim Eq _, e1, e2] <- es
+    , Var (Id n _) <- e1
+    , isSmall e2 = Just (n, e2)
+    | [Prim Eq _, e1, e2] <- es
+    , Var (Id n _) <- e2
+    , isSmall e1 = Just (n, e1)
+    | [Prim Eq _, Data (DataCon { dc_name = n }), e2] <- es
+    , n == dcTrue kv = smallEqPC kv (ExtCond e2 True)
+    | [Prim Eq _, e1, Data (DataCon { dc_name = n })] <- es
+    , n == dcTrue kv = smallEqPC kv (ExtCond e1 True)
+    where
+        es = unApp e
+
+        isSmall (Var _) = True
+        isSmall (Data _) = True
+        isSmall (Lit l) | nonMagicLit l = True
+        isSmall _ = False
+
+        -- String literals are "magic" because they are also data constructors.
+        -- We need to ensure that all path conds/data constructors are lined up,
+        -- and the equality solver risks messing this correspondence up.
+        nonMagicLit (LitString _) = False
+        nonMagicLit _ = True
+
+smallEqPC kv (ExtCond (Var (Id n _)) True) = Just (n, mkTrue kv)
+smallEqPC kv (ExtCond (Var (Id n _)) False) = Just (n, mkFalse kv)
+smallEqPC _ (AltCond l (Var (Id n _)) True) = Just (n, Lit l)
+smallEqPC _ _ = Nothing

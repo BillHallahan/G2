@@ -89,7 +89,7 @@ parseHaskellQ str = do
     -- Get names for the lambdas for the regular inputs
     exG2 <- parseHaskellQ' qext
     config <- runIO qqConfig
-    let (init_s, init_b) = initStateWithCall' exG2 (T.pack functionName) (Just $ T.pack moduleName)
+    let (_, init_s, init_b) = initStateWithCall' exG2 (T.pack functionName) [Just $ T.pack moduleName]
                                         (mkCurrExpr Nothing Nothing) (mkArgTys) config
 
     runIO $ releaseIORefLock
@@ -238,7 +238,7 @@ runExecutionQ s b config = do
         (SomeReducer red, SomeHalter hal, SomeOrderer ord) -> do
             let (s'', b'') = runG2Pre emptyMemConfig s' b'
                 hal' = hal <~> zeroHalter 2000 <~> lemmingsHalter
-            (xs, b''') <- runExecutionToProcessed red hal' ord (\s b -> return $ Just s) s'' b''
+            (xs, b''') <- runExecutionToProcessed red hal' ord (\s b -> return $ Just s) noAnalysis s'' b''
 
             case xs of
                 Processed { accepted = acc, discarded = [] } -> do

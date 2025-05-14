@@ -70,7 +70,7 @@ creatDeclStr pg s (x, DataTyCon{data_cons = dcs, bound_ids = is}) =
 creatDeclStr _ _ _ = error "creatDeclStr: unsupported AlgDataTy"
 
 -- | Compile with GHC, and check that the output we got is correct for the input
-validateStatesGHC :: PrettyGuide -> I.ModuleName -> String -> [String] -> Bindings -> ExecRes t -> Ghc Bool
+validateStatesGHC :: PrettyGuide -> Maybe T.Text -> String -> [String] -> Bindings -> ExecRes t -> Ghc Bool
 validateStatesGHC pg modN entry chAll b er@(ExecRes {final_state = s, conc_out = out}) = do
     (v, chAllR) <- runCheck pg modN entry chAll b er
 
@@ -99,7 +99,7 @@ adjustDynFlags = do
     _ <- setSessionDynFlags dyn''
     return ()
 
-runCheck :: PrettyGuide -> I.ModuleName -> String -> [String] -> Bindings -> ExecRes t -> Ghc (HValue, [HValue])
+runCheck :: PrettyGuide -> Maybe T.Text -> String -> [String] -> Bindings -> ExecRes t -> Ghc (HValue, [HValue])
 runCheck init_pg modN entry chAll b er@(ExecRes {final_state = s, conc_args = ars, conc_out = out}) = do
     let Left (v, _) = findFunc (T.pack entry) [modN] (expr_env s)
     let e = mkApp $ Var v:ars

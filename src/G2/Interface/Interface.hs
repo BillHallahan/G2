@@ -1,7 +1,6 @@
 {-# OPTIONS_GHC -Wno-orphans #-}
 
-{-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE BangPatterns, FlexibleContexts, LambdaCase, OverloadedStrings #-}
 
 module G2.Interface.Interface ( MkCurrExpr
                               , MkArgTypes
@@ -65,6 +64,7 @@ import G2.Solver
 
 import G2.Postprocessing.Interface
 
+import qualified G2.Language.CallGraph as G
 import qualified G2.Language.ExprEnv as E
 import qualified G2.Language.PathConds as PC
 import qualified G2.Language.Stack as Stack
@@ -74,8 +74,10 @@ import qualified Control.Monad.State as SM
 import qualified Data.HashMap.Lazy as HM
 import qualified Data.HashSet as S
 import Data.Maybe
+import Data.Monoid
 import qualified Data.Sequence as Seq
 import qualified Data.Text as T
+import qualified Data.List as L
 import System.Timeout
 
 type AssumeFunc = T.Text
@@ -103,29 +105,31 @@ maybeDoTimeout Nothing = fmap Just
 initStateWithCall :: ExtractedG2
                   -> Bool
                   -> StartFunc
-                  -> ModuleName
+                  -> [Maybe T.Text]
                   -> (Id -> MkCurrExpr)
                   -> (Expr -> MkArgTypes)
                   -> Config
-                  -> (State (), Bindings)
+                  -> (Id, State (), Bindings)
 initStateWithCall exg2 useAssert f m_mod mkCurr argTys config =
     let
         s = initSimpleState exg2
 
-        (ie, fe) = case findFunc f [m_mod] (IT.expr_env s) of
+        (ie, fe) = case findFunc f m_mod (IT.expr_env s) of
                         Left ie' -> ie'
                         Right errs -> error errs
+        
+        (s', b) = initStateFromSimpleState s m_mod useAssert (mkCurr ie) (argTys fe) config
     in
-    initStateFromSimpleState s m_mod useAssert (mkCurr ie) (argTys fe) config
+    (ie, s', b)
 
 {-# INLINE initStateWithCall' #-}
 initStateWithCall' :: ExtractedG2
                    -> StartFunc
-                   -> ModuleName
+                   -> [Maybe T.Text]
                    -> (Id -> MkCurrExpr)
                    -> (Expr -> MkArgTypes)
                    -> Config
-                   -> (State (), Bindings)
+                   -> (Id, State (), Bindings)
 initStateWithCall' exg2 =
     initStateWithCall exg2 False
 
@@ -133,14 +137,14 @@ initStateWithCall' exg2 =
 initStateFromSimpleStateWithCall :: IT.SimpleState
                                  -> Bool
                                  -> StartFunc
-                                 -> ModuleName
+                                 -> [Maybe T.Text]
                                  -> (Id -> MkCurrExpr)
                                  -> (Expr -> MkArgTypes)
                                  -> Config
                                  -> (State (), Id, Bindings)
 initStateFromSimpleStateWithCall simp_s useAssert f m_mod mkCurr argTys config =
     let
-        (ie, fe) = case findFunc f [m_mod] (IT.expr_env simp_s) of
+        (ie, fe) = case findFunc f m_mod (IT.expr_env simp_s) of
                         Left ie' -> ie'
                         Right errs -> error errs
     
@@ -149,7 +153,7 @@ initStateFromSimpleStateWithCall simp_s useAssert f m_mod mkCurr argTys config =
     (s, ie, b)
 
 initStateFromSimpleState :: IT.SimpleState
-                         -> Maybe T.Text
+                         -> [Maybe T.Text]
                          -> Bool
                          -> MkCurrExpr
                          -> MkArgTypes
@@ -192,7 +196,7 @@ initStateFromSimpleState s m_mod useAssert mkCurr argTys config =
     , cleaned_names = HM.empty
     , input_names = map idName is
     , input_coercion = m_coercion
-    , higher_order_inst = S.filter (\n -> nameModule n == m_mod) . S.fromList $ IT.exports s
+    , higher_order_inst = S.filter (\n -> nameModule n `elem` m_mod) . S.fromList $ IT.exports s
     , rewrite_rules = IT.rewrite_rules s
     , name_gen = ng''
     , exported_funcs = IT.exports s })
@@ -204,12 +208,12 @@ mkArgTys e simp_s =
 {-# INLINE initStateFromSimpleState' #-}
 initStateFromSimpleState' :: IT.SimpleState
                           -> StartFunc
-                          -> ModuleName
+                          -> [Maybe T.Text]
                           -> Config
                           -> (State (), Bindings)
 initStateFromSimpleState' s sf m_mod =
     let
-        (ie, fe) = case findFunc sf [m_mod] (IT.expr_env s) of
+        (ie, fe) = case findFunc sf m_mod (IT.expr_env s) of
                           Left ie' -> ie'
                           Right errs -> error errs
     in
@@ -241,7 +245,7 @@ initSimpleState (ExtractedG2 { exg2_binds = prog
     in
     runInitialization1 s
 
-initCheckReaches :: State t -> ModuleName -> Maybe ReachFunc -> State t
+initCheckReaches :: State t -> Maybe T.Text -> Maybe ReachFunc -> State t
 initCheckReaches s@(State { expr_env = eenv
                           , known_values = kv }) m_mod reaches =
     s {expr_env = checkReaches eenv kv reaches m_mod }
@@ -253,6 +257,7 @@ type RHOStack m = SM.StateT LengthNTrack (SM.StateT PrettyGuide (SM.StateT HpcTr
                           -> Halter (RHOStack IO) hv (ExecRes ()) ()
                           -> Orderer (RHOStack IO) sov b (ExecRes ()) ()
                           -> (State () -> Bindings -> RHOStack IO (Maybe (ExecRes ())))
+                          -> [AnalyzeStates (RHOStack IO) (ExecRes ()) ()]
                           -> State ()
                           -> Bindings
                           -> (RHOStack IO) (Processed (ExecRes ()) (State ()), Bindings)
@@ -265,6 +270,7 @@ type RHOStack m = SM.StateT LengthNTrack (SM.StateT PrettyGuide (SM.StateT HpcTr
                    -> simplifier
                    -> Config
                    -> S.HashSet Name
+                   -> S.HashSet Name
                    -> IO (SomeReducer (RHOStack IO) (), SomeHalter (RHOStack IO) (ExecRes ()) (), SomeOrderer (RHOStack IO) (ExecRes ()) ())
     #-}
 initRedHaltOrd :: (MonadIO m, Solver solver, Simplifier simplifier) =>
@@ -272,16 +278,19 @@ initRedHaltOrd :: (MonadIO m, Solver solver, Simplifier simplifier) =>
                -> solver
                -> simplifier
                -> Config
-               -> S.HashSet Name
+               -> S.HashSet Name -- ^ Names of functions that may not be added to NRPCs
+               -> S.HashSet Name -- ^ Names of functions that should not reesult in a larger expression become EXEC,
+                                 -- but should not be added to the NRPC at the top level.
                -> IO (SomeReducer (RHOStack m) (), SomeHalter (RHOStack m) (ExecRes ()) (), SomeOrderer (RHOStack m) (ExecRes ()) ())
-initRedHaltOrd mod_name solver simplifier config libFunNames = do
+initRedHaltOrd mod_name solver simplifier config exec_func_names no_nrpc_names = do
     time_logger <- acceptTimeLogger
+    time_halter <- stdTimerHalter (fromInteger . toInteger $ timeLimit config)
+
+    m_logger <- fmap SomeReducer <$> getLimLogger config
 
     let share = sharing config
 
         state_name = Name "state" Nothing 0 Nothing
-
-        m_logger = fmap SomeReducer $ getLogger config
 
         strict_red f = case strict config of
                             True -> SomeReducer (stdRed share f solver simplifier ~> instTypeRed ~> strictRed)
@@ -292,21 +301,35 @@ initRedHaltOrd mod_name solver simplifier config libFunNames = do
                         False -> strict_red f
 
         nrpc_red f = case nrpc config of
-                        Nrpc -> liftSomeReducer (SomeReducer (nonRedLibFuncsReducer libFunNames) .== Finished .--> hpc_red f)
+                        Nrpc -> liftSomeReducer
+                                    (SomeReducer (nonRedLibFuncsReducer
+                                                                exec_func_names
+                                                                no_nrpc_names
+                                                                config
+                                                 ) .== Finished .--> hpc_red f)
                         NoNrpc -> liftSomeReducer (hpc_red f)
 
         accept_time_red f = case accept_times config of
                                 True -> SomeReducer time_logger .~> nrpc_red f
                                 False -> nrpc_red f
 
+        num_steps_red f = case print_num_red_rules_per_state config of
+                                True -> SomeReducer numStepsLogger .~> accept_time_red f
+                                False -> accept_time_red f
+
         logger_std_red f = case m_logger of
-                            Just logger -> liftSomeReducer (logger .~> accept_time_red f)
-                            Nothing -> liftSomeReducer (accept_time_red f)
+                            Just logger -> liftSomeReducer (logger .~> num_steps_red f)
+                            Nothing -> liftSomeReducer (num_steps_red f)
 
         halter = switchEveryNHalter 20
                  <~> maxOutputsHalter (maxOutputs config)
-                 <~> zeroHalter (steps config)
                  <~> acceptIfViolatedHalter
+                 <~> time_halter
+
+        halter_step = case step_limit config of
+                            True -> SomeHalter (zeroHalter (steps config) <~> halter)
+                            False -> SomeHalter halter
+        
 
         orderer = case search_strat config of
                         Subpath -> SomeOrderer $ lengthNSubpathOrderer (subpath_length config)
@@ -316,19 +339,15 @@ initRedHaltOrd mod_name solver simplifier config libFunNames = do
         case higherOrderSolver config of
             AllFuncs ->
                 ( logger_std_red retReplaceSymbFuncVar .== Finished .--> SomeReducer nonRedPCRed
-                , SomeHalter halter
+                ,  halter_step
                 , orderer)
             SingleFunc ->
                 ( logger_std_red retReplaceSymbFuncVar .== Finished .--> taggerRed state_name :== Finished --> nonRedPCRed
-                , SomeHalter (discardIfAcceptedTagHalter state_name <~> halter)
+                , SomeHalter (discardIfAcceptedTagHalter state_name) .<~> halter_step
                 , orderer)
             SymbolicFunc ->
-                ( logger_std_red retReplaceSymbFuncTemplate .== Finished .--> SomeReducer nonRedPCRed
-                , SomeHalter halter
-                , orderer)
-            SymbolicFuncNRPC ->
-                ( logger_std_red retReplaceSymbFuncVar .== Finished .--> taggerRed state_name :== Finished --> nonRedPCSymFuncRed
-                , SomeHalter (discardIfAcceptedTagHalter state_name <~> halter)
+                ( logger_std_red retReplaceSymbFuncTemplate .== Finished .--> taggerRed state_name :== Finished --> nonRedPCSymFuncRed
+                , SomeHalter (discardIfAcceptedTagHalter state_name) .<~> halter_step
                 , orderer)
 
 initSolver :: Config -> IO SomeSolver
@@ -340,8 +359,28 @@ initSolverInfinite con = initSolver' arbValueInfinite con
 initSolver' :: ArbValueFunc -> Config -> IO SomeSolver
 initSolver' avf config = do
     SomeSMTSolver con <- getSMTAV avf config
-    let con' = GroupRelated avf (UndefinedHigherOrder :?> (ADTNumericalSolver avf con))
-    return (SomeSolver con')
+    let adt_num = ADTNumericalSolver avf con
+    some_adt_solver <- case print_num_solver_calls config of
+            True -> return . SomeSolver =<< callsSolver "SMT" adt_num
+            False -> return $ SomeSolver adt_num
+    some_adt_solver' <- case time_solving config of
+            True -> timeSomeSolver "SMT" some_adt_solver
+            False -> return some_adt_solver
+
+    let con' = case some_adt_solver' of
+                    SomeSolver adt_solver ->
+                        SomeSolver $ GroupRelated avf
+                                    ( UndefinedHigherOrder
+                                 :?> EqualitySolver
+                                 :?> adt_solver)
+
+    con'' <- case time_solving config of
+                True -> timeSomeSolver "General" con'
+                False -> return con'
+
+    case print_num_solver_calls config of
+                True -> callsSomeSolver "General" con''
+                False -> return con''
 
 mkTypeEnv :: HM.HashMap Name AlgDataTy -> TypeEnv
 mkTypeEnv = id
@@ -353,7 +392,7 @@ initialStateFromFileSimple :: [FilePath]
                    -> (Id -> MkCurrExpr)
                    -> (Expr -> MkArgTypes)
                    -> Config
-                   -> IO (State (), Id, Bindings)
+                   -> IO (State (), Id, Bindings, [Maybe T.Text])
 initialStateFromFileSimple proj src f mkCurr argTys config =
     initialStateFromFile proj src Nothing False f mkCurr argTys simplTranslationConfig config
 
@@ -367,7 +406,7 @@ initialStateNoStartFunc proj src transConfig config = do
 
     let simp_state = initSimpleState exg2
 
-        (init_s, bindings) = initStateFromSimpleState simp_state Nothing False
+        (init_s, bindings) = initStateFromSimpleState simp_state [Nothing] False
                                  (\_ ng _ _ _ _ -> (Prim Undefined TyBottom, [], [], Nothing, ng))
                                  (E.higherOrderExprs . IT.expr_env)
                                  config
@@ -383,7 +422,7 @@ initialStateFromFile :: [FilePath]
                      -> (Expr -> MkArgTypes)
                      -> TranslationConfig
                      -> Config
-                     -> IO (State (), Id, Bindings)
+                     -> IO (State (), Id, Bindings, [Maybe T.Text])
 initialStateFromFile proj src m_reach def_assert f mkCurr argTys transConfig config = do
     (mb_modname, exg2) <- translateLoaded proj src transConfig config
 
@@ -394,13 +433,13 @@ initialStateFromFile proj src m_reach def_assert f mkCurr argTys transConfig con
 
         spec_mod = nameModule . idName $ ie
 
-        (init_s, bindings) = initStateFromSimpleState simp_state spec_mod def_assert
+        (init_s, bindings) = initStateFromSimpleState simp_state mb_modname def_assert
                                                   (mkCurr ie) (argTys fe) config
     -- let (init_s, ent_f, bindings) = initState exg2 def_assert
     --                                 f mb_modname mkCurr argTys config
         reaches_state = initCheckReaches init_s spec_mod m_reach
 
-    return (reaches_state, ie, bindings)
+    return (reaches_state, ie, bindings, mb_modname)
 
 runG2FromFile :: [FilePath]
               -> [FilePath]
@@ -413,45 +452,114 @@ runG2FromFile :: [FilePath]
               -> Config
               -> IO (([ExecRes ()], Bindings), Id)
 runG2FromFile proj src m_assume m_assert m_reach def_assert f transConfig config = do
-    (init_state, entry_f, bindings) <- initialStateFromFile proj src
+    (init_state, entry_f, bindings, mb_modname) <- initialStateFromFile proj src
                                     m_reach def_assert f (mkCurrExpr m_assume m_assert) (mkArgTys)
                                     transConfig config
 
-    r <- runG2WithConfig (nameModule $ idName entry_f) init_state config bindings
+    r <- runG2WithConfig (idName entry_f) mb_modname init_state config bindings
 
     return (r, entry_f)
 
-runG2WithConfig :: Maybe T.Text -> State () -> Config -> Bindings -> IO ([ExecRes ()], Bindings)
-runG2WithConfig mod_name state config bindings = do
+runG2WithConfig :: Name -> [Maybe T.Text] -> State () -> Config -> Bindings -> IO ([ExecRes ()], Bindings)
+runG2WithConfig entry_f mb_modname state@(State { expr_env = eenv }) config bindings = do
     SomeSolver solver <- initSolver config
-    hpc_t <- hpcTracker
-    let simplifier = FloatSimplifier :>> ArithSimplifier
-        exp_env_names = E.keys $ expr_env state
+    hpc_t <- hpcTracker (hpc_print_times config)
+    let 
+        (state', bindings') = runG2Pre emptyMemConfig state bindings
+        simplifier = FloatSimplifier :>> ArithSimplifier :>> BoolSimplifier :>> StringSimplifier :>> EqualitySimplifier
+        --exp_env_names = E.keys . E.filterConcOrSym (\case { E.Sym _ -> False; E.Conc _ -> True }) $ expr_env state
+        mod_name = nameModule entry_f
+        callGraph = G.getCallGraph $ expr_env state'
+        reachable_funcs = G.reachable entry_f callGraph
 
-        lib_funcs = case mod_name  of
-                      Just a -> filter (\x -> case nameModule x of
-                                                Just n -> a /= n
-                                                Nothing -> True) exp_env_names
-                      Nothing -> exp_env_names
-    rho <- initRedHaltOrd mod_name solver simplifier config (S.fromList lib_funcs)
-    (in_out, bindings') <- case rho of
+        executable_funcs = case check_asserts config of
+                                False -> getFuncsByModule mb_modname reachable_funcs
+                                True -> getFuncsByAssert callGraph reachable_funcs
+
+        non_rec_funcs = filter (isFuncNonRecursive callGraph) reachable_funcs
+
+    analysis1 <- if states_at_time config then do l <- logStatesAtTime; return [l] else return noAnalysis
+    let analysis2 = if states_at_step config then [\s p xs -> SM.lift . SM.lift . SM.lift $ logStatesAtStep s p xs] else noAnalysis
+        analysis3 = if print_num_red_rules config then [\s p xs -> SM.lift . SM.lift . SM.lift . SM.lift $ logRedRuleNum s p xs] else noAnalysis
+        analysis4 = if print_nrpcs config then [\s p xs -> SM.lift $ logNRPCs s p xs] else noAnalysis
+        analysis = analysis1 ++ analysis2 ++ analysis3 ++ analysis4
+    
+    (in_out, bindings'') <- case null analysis of
+        True -> do
+            rho <- initRedHaltOrd mod_name solver simplifier config (S.fromList executable_funcs) (S.fromList non_rec_funcs)
+            case rho of
                 (red, hal, ord) ->
-                    SM.evalStateT
-                        (SM.evalStateT
+                        SM.evalStateT
                             (SM.evalStateT
-                                (runG2WithSomes red hal ord solver simplifier emptyMemConfig state bindings)
-                                lnt
+                                (SM.evalStateT
+                                    (runG2WithSomes' red hal ord [] solver simplifier state' bindings')
+                                    lnt
+                                )
+                                (if showType config == Lax 
+                                then (mkPrettyGuide ())
+                                else setTypePrinting AggressiveTypes (mkPrettyGuide ())) 
                             )
-                           (if showType config == Lax 
-                            then (mkPrettyGuide ())
-                            else setTypePrinting AggressiveTypes (mkPrettyGuide ())) 
+                            hpc_t
+        False -> do
+            rho <- initRedHaltOrd mod_name solver simplifier config (S.fromList executable_funcs) (S.fromList non_rec_funcs)
+            case rho of
+                (red, hal, ord) ->
+                    SM.evalStateT (
+                        SM.evalStateT (
+                            SM.evalStateT
+                                (SM.evalStateT
+                                    (SM.evalStateT
+                                        (runG2WithSomes' red hal ord analysis solver simplifier state' bindings')
+                                        lnt
+                                    )
+                                    (if showType config == Lax 
+                                    then (mkPrettyGuide ())
+                                    else setTypePrinting AggressiveTypes (mkPrettyGuide ())) 
+                                )
+                                hpc_t
+                            )
+                            logStatesAtStepTracker
                         )
-                        hpc_t
+                        0
 
     close solver
 
-    return (in_out, bindings')
+    return (in_out, bindings'')
 
+getFuncsByModule :: [Maybe T.Text] -> [Name] -> [Name]
+getFuncsByModule ms reachable_funcs = 
+    let 
+        j_ms = filter isJust ms
+    in 
+    filter (\x -> nameModule x `elem` j_ms) reachable_funcs
+
+getFuncsByAssert :: G.CallGraph -> [Name] -> [Name]
+getFuncsByAssert g reachable_funcs = 
+    let
+        assert_name = L.find (\x -> nameOcc x == "assert" && nameModule x == Just "G2.Symbolic") reachable_funcs
+        exec_funcs = case assert_name of
+                        Just a -> a : getAllCalledBys a g -- Added assert function name too because we want to execute that as well
+                        Nothing -> []
+    in
+        exec_funcs
+
+-- It gives all the methods that call assert function
+getAllCalledBys :: Name -> G.CallGraph -> [Name]
+getAllCalledBys n g = 
+    let
+        calledbys = G.calledBy n g
+    in
+        calledbys ++ concatMap (`getAllCalledBys` g) calledbys
+
+isFuncNonRecursive :: G.CallGraph -> Name -> Bool
+isFuncNonRecursive g n = 
+    let
+        directFuncs = G.calls n g
+        reach_funcs = case directFuncs of 
+                        Just a -> concatMap (`G.reachable` g) a
+                        _ -> []
+    in
+        not (n `elem` reach_funcs)
 
 {-# SPECIALIZE 
     runG2WithSomes :: ( Solver solver
@@ -459,6 +567,7 @@ runG2WithConfig mod_name state config bindings = do
                 => SomeReducer (RHOStack IO) ()
                 -> SomeHalter (RHOStack IO) (ExecRes ()) ()
                 -> SomeOrderer (RHOStack IO) (ExecRes ()) ()
+                -> [AnalyzeStates (RHOStack IO) (ExecRes ()) ()]
                 -> solver
                 -> simplifier
                 -> MemConfig
@@ -475,16 +584,38 @@ runG2WithSomes :: ( MonadIO m
                => SomeReducer m t
                -> SomeHalter m (ExecRes t) t
                -> SomeOrderer m (ExecRes t) t
+               -> [AnalyzeStates m (ExecRes t) t]
                -> solver
                -> simplifier
                -> MemConfig
                -> State t
                -> Bindings
                -> m ([ExecRes t], Bindings)
-runG2WithSomes red hal ord solver simplifier mem state bindings =
+runG2WithSomes red hal ord analyze solver simplifier mem state bindings =
     case (red, hal, ord) of
         (SomeReducer red', SomeHalter hal', SomeOrderer ord') ->
-            runG2 red' hal' ord' solver simplifier mem state bindings
+            runG2 red' hal' ord' analyze solver simplifier mem state bindings
+ 
+runG2WithSomes' :: ( MonadIO m
+                  , Named t
+                  , ASTContainer t Expr
+                  , ASTContainer t Type
+                  , Solver solver
+                  , Simplifier simplifier)
+               => SomeReducer m t
+               -> SomeHalter m (ExecRes t) t
+               -> SomeOrderer m (ExecRes t) t
+               -> [AnalyzeStates m (ExecRes t) t]
+               -> solver
+               -> simplifier
+               -> State t
+               -> Bindings
+               -> m ([ExecRes t], Bindings)
+runG2WithSomes' red hal ord analyze solver simplifier state bindings =
+    case (red, hal, ord) of
+        (SomeReducer red', SomeHalter hal', SomeOrderer ord') ->
+            --runG2 red' hal' ord' analyze solver simplifier state bindings
+            runExecution red' hal' ord' (runG2Solving solver simplifier) analyze state bindings
 
 runG2Pre :: ( Named t
             , ASTContainer t Expr
@@ -504,7 +635,7 @@ runG2Post :: ( MonadIO m
              , Ord b) => Reducer m rv t -> Halter m hv (ExecRes t) t -> Orderer m sov b (ExecRes t) t ->
              solver -> simplifier -> State t -> Bindings -> m ([ExecRes t], Bindings)
 runG2Post red hal ord solver simplifier is bindings = do
-    runExecution red hal ord (runG2Solving solver simplifier) is bindings
+    runExecution red hal ord (runG2Solving solver simplifier) [] is bindings
 
 runG2SolvingResult :: ( Named t
                       , Solver solver
@@ -580,6 +711,7 @@ runG2SubstModel m s@(State { type_env = tenv, known_values = kv }) bindings =
 {-# SPECIALIZE runG2 :: ( Solver solver
                         , Simplifier simplifier
                         , Ord b) => Reducer (RHOStack IO) rv () -> Halter (RHOStack IO) hv (ExecRes ()) () -> Orderer (RHOStack IO) sov b (ExecRes ()) () ->
+                        [AnalyzeStates (RHOStack IO) (ExecRes ()) ()] ->
                         solver -> simplifier -> MemConfig -> State () -> Bindings -> RHOStack IO ([ExecRes ()], Bindings)
     #-}
 
@@ -592,8 +724,8 @@ runG2 :: ( MonadIO m
          , ASTContainer t Type
          , Solver solver
          , Simplifier simplifier
-         , Ord b) => Reducer m rv t -> Halter m hv (ExecRes t) t -> Orderer m sov b (ExecRes t) t ->
+         , Ord b) => Reducer m rv t -> Halter m hv (ExecRes t) t -> Orderer m sov b (ExecRes t) t -> [AnalyzeStates m (ExecRes t) t] ->
          solver -> simplifier -> MemConfig -> State t -> Bindings -> m ([ExecRes t], Bindings)
-runG2 red hal ord solver simplifier mem is bindings = do
+runG2 red hal ord analyze solver simplifier mem is bindings = do
     let (is', bindings') = runG2Pre mem is bindings
-    runExecution red hal ord (runG2Solving solver simplifier) is' bindings'
+    runExecution red hal ord (runG2Solving solver simplifier) analyze is' bindings'

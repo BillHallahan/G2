@@ -52,7 +52,7 @@ data ArbSimpleState = ArbSimple IT.SimpleState
 instance Arbitrary t => Arbitrary (StateBindingsPair t) where
     arbitrary = do
         ArbSimple simple_s <- arbitrary
-        let (s, b) = initStateFromSimpleState' simple_s "call" Nothing (mkConfigDirect "" [] M.empty)
+        let (s, b) = initStateFromSimpleState' simple_s "call" [Nothing] (mkConfigDirect "" [] M.empty)
         t <- arbitrary
         let s' = s { track = t }
         return $ SB s' b
@@ -393,6 +393,7 @@ fakeKnownValues =
     , dcState = Name "" Nothing 0 Nothing
     , tyRealWorld = Name "" Nothing 0 Nothing
     , dcRealWorld = Name "" Nothing 0 Nothing
+    , tyHandle = Name "" Nothing 0 Nothing
     , eqTC = Name "" Nothing 0 Nothing
     , numTC = Name "" Nothing 0 Nothing
     , ordTC = Name "" Nothing 0 Nothing

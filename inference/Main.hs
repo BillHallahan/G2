@@ -80,7 +80,7 @@ checkFuncNums :: String -> InferenceConfig -> G2.Config -> LHConfig -> IO ()
 checkFuncNums f infconfig config g2lhconfig = do
     (ghci, lhconfig) <- getGHCI infconfig [] [f]
     (lrs, _, _, _, main_mod)  <- getInitState [] [f] ghci infconfig config g2lhconfig
-    let nls = getNameLevels main_mod lrs
+    let nls = getNameLevels (head main_mod) lrs
 
     print nls
 

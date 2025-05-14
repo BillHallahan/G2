@@ -53,8 +53,7 @@ data SearchStrategy = Iterative | Subpath deriving (Eq, Show, Read)
 
 data HigherOrderSolver = AllFuncs
                        | SingleFunc
-                       | SymbolicFunc 
-                       | SymbolicFuncNRPC deriving (Eq, Show, Read)
+                       | SymbolicFunc deriving (Eq, Show, Read)
 
 data FpHandling = RealFP | RationalFP deriving (Eq, Show, Read)
 
@@ -70,6 +69,10 @@ data Config = Config {
     , extraDefaultMods :: [FilePath]
     , includePaths :: Maybe [FilePath] -- ^ Paths to search for modules
     , logStates :: LogMode -- ^ Determines whether to Log states, and if logging states, how to do so.
+    , logEveryN :: Int -- ^ If logging states, log every nth state
+    , logAfterN :: Int -- ^ Logs state only after the nth state
+    , logConcPCGuide :: Maybe String -- ^ Log states only if they match the ConcPCGuide in the provided file
+    , logPath :: [Int] -- ^ Log states that are following on or proceed from some path, passed as a list i.e. [1, 2, 1]
     , sharing :: Sharing
     , instTV :: InstTV -- allow the instantiation of types in the beginning or it's instantiate symbolically by functions
     , showType :: ShowType -- allow user to see more type information when they are logging states for the execution
@@ -82,13 +85,25 @@ data Config = Config {
     , subpath_length :: Int -- ^ When using subpath search strategy, the length of the subpaths.
     , fp_handling :: FpHandling -- ^ Whether to use real floating point values or rationals
     , smt :: SMTSolver -- ^ Sets the SMT solver to solve constraints with
+    , step_limit :: Bool -- ^ Should steps be limited when running states?
     , steps :: Int -- ^ How many steps to take when running States
+    , time_solving :: Bool -- ^ Output the amount of time spent checking/solving path constraints
+    , print_num_solver_calls :: Bool -- ^ Output the number of calls made to check/solve path constraints
+    , print_smt :: Bool -- ^ Output SMT formulas when checking/solving path constraints
     , accept_times :: Bool -- ^ Output the time each state is accepted
+    , states_at_time :: Bool -- ^ Output time and number of states each time a state is added/removed
+    , states_at_step :: Bool -- ^ Output step and number of states at each step where a state is added/removed
+    , print_num_red_rules :: Bool -- ^ Output the total number of reduction rules
+    , print_num_red_rules_per_state :: Bool  -- ^ Output the number of reduction rules per accepted state
+    , print_nrpcs :: Bool -- ^ Output generated NRPCs
     , hpc :: Bool -- ^ Should HPC ticks be generated and tracked during execution?
+    , hpc_print_times :: Bool -- ^ Print the time each HPC tick is reached?
     , strict :: Bool -- ^ Should the function output be strictly evaluated?
     , timeLimit :: Int -- ^ Seconds
     , validate :: Bool -- ^ If True, run on G2's input, and check against expected output.
     , nrpc :: NonRedPathCons -- ^ Whether to execute using non reduced path constraints or not
+    , symbolic_func_nrpc :: Bool -- ^ If true, use NRPCs with symbolic functions
+    , print_num_nrpc :: Bool -- ^ Output the number of NRPCs for each accepted state
 }
 
 mkConfig :: String -> Parser Config
@@ -99,6 +114,23 @@ mkConfig homedir = Config Regular
     <*> pure []
     <*> mkIncludePaths
     <*> mkLogMode
+    <*> option auto (long "log-every-n"
+                   <> metavar "LN"
+                   <> value 0
+                   <> help "if logging states, log every nth state")
+    <*> option auto (long "log-after-n"
+                   <> metavar "LA"
+                   <> value 0
+                   <> help "logs state only after the nth state")
+    <*> option (maybeReader (Just . Just))
+                 (long "log-conc-pc"
+                   <> metavar "LCPC"
+                   <> value Nothing
+                   <> help "logs state only if they match the concretizations and path constraints specified in the provided file")
+    <*> option auto (long "log-path"
+                   <> metavar "LP"
+                   <> value []
+                   <> help "log states that are following on or proceed from some path, passed as a list i.e. [1, 2, 1]")
     <*> flag Sharing NoSharing (long "no-sharing" <> help "disable sharing")
     <*> flag InstBefore InstAfter (long "inst-after" <> help "select to instantiate type variables after symbolic execution, rather than before")
     <*> flag Lax Aggressive (long "show-types" <> help "set to show more type information when logging states")
@@ -115,13 +147,23 @@ mkConfig homedir = Config Regular
     <*> flag RealFP RationalFP (long "no-real-floats"
                                 <> help "Represent floating point values precisely.  When off, overapproximate as rationals.")
     <*> mkSMTSolver
+    <*> flag True False (long "no-step-limit" <> help "disable step limit")
     <*> option auto (long "n"
                    <> metavar "N"
                    <> value 1000
                    <> help "how many steps to take when running states")
+    <*> switch (long "solver-time" <> help "output the amount of time spent checking/solving path constraints")
+    <*> switch (long "print-num-solver-calls" <> help "output the number of calls made to check/solve path constraints")
+    <*> switch (long "print-smt" <> help "output SMT formulas when checking/solving path constraints")
     <*> switch (long "accept-times" <> help "output the time each state is accepted")
+    <*> switch (long "states-at-time" <> help "output time and number of states each time a state is added/removed")
+    <*> switch (long "states-at-step" <> help "output step and number of states at each step where a state is added/removed")
+    <*> switch (long "print-num-red-rules" <> help "output the total number of reduction rules")
+    <*> switch (long "print-num-red-rules-per-state" <> help "output the number of reduction rules per accepted state")
+    <*> switch (long "print-nrpc" <> help "output generated nrpcs")
     <*> flag False True (long "hpc"
                       <> help "Generate and report on HPC ticks")
+    <*> switch (long "hpc-print-times" <> help "Print the time each HPC tick is reached?")
     <*> flag True False (long "no-strict" <> help "do not evaluate the output strictly")
     <*> option auto (long "time"
                    <> metavar "T"
@@ -129,6 +171,8 @@ mkConfig homedir = Config Regular
                    <> help "time limit, in seconds")
     <*> switch (long "validate" <> help "use GHC to automatically compile and run on generated inputs, and check that generated outputs are correct")
     <*> flag NoNrpc Nrpc (long "nrpc" <> help "execute with non reduced path constraints")
+    <*> flag True False (long "no-symbolic-func-nrpc" <> help "do not use NRPCs to delay execution of symbolic functions")
+    <*> flag False True (long "print-num-nrpc" <> help "output the number of NRPCs for each accepted state")
 
 mkBaseInclude :: String -> Parser [IncludePath]
 mkBaseInclude homedir =
@@ -190,7 +234,6 @@ mkHigherOrder =
                                     "all" -> Right AllFuncs
                                     "single" -> Right SingleFunc
                                     "symbolic" -> Right SymbolicFunc
-                                    "symbolic-nrpc" -> Right SymbolicFuncNRPC
                                     _ -> Left "Unsupported higher order function handling"))
             ( long "higher-order"
             <> metavar "HANDLING"
@@ -229,6 +272,10 @@ mkConfigDirect homedir as m = Config {
     , includePaths = Nothing
     , logStates = strArg "log-states" as m (Log Raw)
                         (strArg "log-pretty" as m (Log Pretty) NoLog)
+    , logEveryN = 0
+    , logAfterN = 0
+    , logConcPCGuide = Nothing
+    , logPath = []
     , sharing = boolArg' "sharing" as Sharing Sharing NoSharing
     , instTV = InstBefore
     , showType = Lax
@@ -241,13 +288,25 @@ mkConfigDirect homedir as m = Config {
     , subpath_length = 4
     , fp_handling = RealFP
     , smt = strArg "smt" as m smtSolverArg ConZ3
+    , step_limit = boolArg' "no-step-limit" as True True False
     , steps = strArg "n" as m read 1000
+    , time_solving = False
+    , print_num_solver_calls = False
+    , print_smt = False
     , accept_times = boolArg "accept-times" as m Off
+    , states_at_time = False
+    , states_at_step = False
+    , print_num_red_rules = False
+    , print_num_red_rules_per_state = False
+    , print_nrpcs = False
     , hpc = False
+    , hpc_print_times = False
     , strict = boolArg "strict" as m On
     , timeLimit = strArg "time" as m read 300
     , validate  = boolArg "validate" as m Off
     , nrpc = NoNrpc
+    , symbolic_func_nrpc = True
+    , print_num_nrpc = False
 }
 
 baseIncludeDef :: FilePath -> [FilePath]
