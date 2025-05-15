@@ -23,7 +23,7 @@ expand' (c:rest) = [ [c] | z <- expand' rest ]
 
 numericRule x
   = [ show i
-	| i <- [u..v] ]
+    | i <- [u..v] ]
   where
     (p,_:q) = span (/= '-') x
     (u,v)   = (0, foldl (\ u c -> u) 0 p)

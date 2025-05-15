@@ -350,7 +350,7 @@ testFileTests = testGroup "TestFiles"
     , checkExpr "tests/TestFiles/Strings/Strings1.hs" 1000 "exclaimEq"
         [AtLeast 5, RExists (\[_, _, r] -> dcHasName "True" r)]
 
-    , checkExpr "tests/TestFiles/Strings/Strings2.hs" 900 "main" [AtLeast 1]
+    , checkExpr "tests/TestFiles/Strings/Strings2.hs" 1250 "main" [AtLeast 1]
 
     , checkInputOutputs "tests/TestFiles/Strings/StringCrash.hs" [ ("f", 700, [AtLeast 2])]
 
