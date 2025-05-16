@@ -666,8 +666,10 @@ toSolverAST (ArrayStore arr ind val) =
 
 toSolverAST (Func n xs) = smtFunc n $ map (toSolverAST) xs
 
-toSolverAST (StrGeSMT x y) = function2 "str.>=" (toSolverAST x) (toSolverAST y)
-toSolverAST (StrGtSMT x y) = function2 "str.>" (toSolverAST x) (toSolverAST y)
+-- Note: arguments flipped because SMTLIB does not have str.>= or str.>
+toSolverAST (StrGeSMT x y) = function2 "str.<=" (toSolverAST y) (toSolverAST x)
+toSolverAST (StrGtSMT x y) = function2 "str.<" (toSolverAST y) (toSolverAST x)
+
 toSolverAST (StrLtSMT x y) = function2 "str.<" (toSolverAST x) (toSolverAST y)
 toSolverAST (StrLeSMT x y) = function2 "str.<=" (toSolverAST x) (toSolverAST y)
 
