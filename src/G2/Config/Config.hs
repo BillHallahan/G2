@@ -171,7 +171,7 @@ mkConfig homedir = Config Regular
                    <> help "time limit, in seconds")
     <*> switch (long "validate" <> help "use GHC to automatically compile and run on generated inputs, and check that generated outputs are correct")
     <*> flag NoNrpc Nrpc (long "nrpc" <> help "execute with non reduced path constraints")
-    <*> flag True False (long "no-symbolic-func-nrpc" <> help "do not use NRPCs to delay execution of symbolic functions")
+    <*> flag False True (long "lib-nrpc" <> help "use NRPCs to delay execution of library functions")
     <*> flag False True (long "print-num-nrpc" <> help "output the number of NRPCs for each accepted state")
 
 mkBaseInclude :: String -> Parser [IncludePath]
@@ -305,7 +305,7 @@ mkConfigDirect homedir as m = Config {
     , timeLimit = strArg "time" as m read 300
     , validate  = boolArg "validate" as m Off
     , nrpc = NoNrpc
-    , symbolic_func_nrpc = True
+    , symbolic_func_nrpc = False
     , print_num_nrpc = False
 }
 
