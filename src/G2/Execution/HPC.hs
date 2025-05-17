@@ -138,6 +138,7 @@ afterHPC = do
     assert (num_reached hpc == HM.size (hpc_ticks hpc))
         (liftIO $ putStrLn $ "\nTicks reached: " ++ show (num_reached hpc))
     liftIO $ putStrLn $ "Tick num: " ++ show (tick_count hpc)
+
     case ts of
         [] -> liftIO $ putStrLn $ "Last tick reached: N/A"
         (_:_) -> liftIO $ putStrLn $ "Last tick reached: " ++ showTS (last ts - init_ts)
