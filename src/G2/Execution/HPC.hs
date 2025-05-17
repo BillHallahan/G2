@@ -17,6 +17,7 @@ module G2.Execution.HPC ( HpcT
 import G2.Execution.Reducer
 import G2.Language
 
+import Control.Exception
 import Control.Monad.Identity
 import Control.Monad.IO.Class
 import qualified Control.Monad.State.Lazy as SM
@@ -38,7 +39,7 @@ type HpcM a = HpcT Identity a
 data HpcTracker = HPC {
                         hpc_ticks :: HM.HashMap (Int, T.Text) TimeSpec -- ^ The HPC ticks that execution has reached mapped to the time each was reached
 
-                      , tick_count :: Maybe Int -- ^ Total number of HPC ticks that we could reach.  See [HPC Total Tick Count]
+                      , tick_count :: Int -- ^ Total number of HPC ticks that we could reach
                       , num_reached :: Int -- ^ Total number of HPC ticks currently reached by execution
 
                       , initial_time :: TimeSpec -- ^ The initial creation time of the HpcTracker
@@ -46,23 +47,15 @@ data HpcTracker = HPC {
                       , h_print_times :: Bool -- ^ Print the time each tick is reached?
                       }
 
--- [HPC Total Tick Count]
--- We want to know (as good an approximation as possible of) how many HPC ticks our execution
--- could potentially reach.  Knowing this requires the state, after memory cleaning has occurred.
---
--- Memory cleaning happens after the Reducer has been created, so we want to delay computing the
--- total tick count until execution has begun.  But we don't want to repeatedly recompute
--- the total tick count, because this requires scanning the entire state.  So instead,
--- we track the total tick count as a `Maybe Int`, which is `Nothing` (if we have not yet computed
--- the total tick count) or `Just i`, where `i` is the total tick count.
-
 -- | State used by `hpcReducer`.
-hpcTracker :: MonadIO m => Bool -- ^ Print the time each tick is reached?
+hpcTracker :: MonadIO m => State t
+                        -> Maybe T.Text
+                        -> Bool -- ^ Print the time each tick is reached?
                         -> m HpcTracker
-hpcTracker pr_tms = do
+hpcTracker s m pr_tms = do
     ts <- liftIO $ getTime Monotonic
     return $ HPC { hpc_ticks = HM.empty
-                 , tick_count = Nothing
+                 , tick_count = HS.size $ HS.fromList $ evalASTs (getHPCTicks m) (expr_env s)
                  , num_reached = 0
                  , initial_time = ts
                  , h_print_times = pr_tms }
@@ -86,15 +79,10 @@ hpcInsert i t hpc@(HPC { hpc_ticks = tr, num_reached = nr }) =
             ts <- liftIO $ getTime Monotonic
             return $ hpc { hpc_ticks = HM.insert (i, t) ts tr, num_reached = nr + 1 }
 
-totalTickCount :: SM.MonadState HpcTracker m => Maybe T.Text -> State t -> m Int
-totalTickCount m s = do
-    hpc@(HPC { tick_count = ttc }) <- SM.get
-    case ttc of
-        Just i -> return i
-        Nothing -> do
-            let i = HS.size . HS.fromList $ evalASTs (getHPCTicks m) (expr_env s)
-            SM.put $ hpc { tick_count = Just i }
-            return i
+totalTickCount :: SM.MonadState HpcTracker m => m Int
+totalTickCount = do
+    (HPC { tick_count = ttc }) <- SM.get
+    return ttc
 
 -- | A reducer that tracks and prints the number of HPC ticks encountered during execution.
 -- A HPC tick is considered reached as soon as a State reaches it.
@@ -108,7 +96,7 @@ immedHpcReducer md = (mkSimpleReducer (const ()) logTick) { afterRed = after }
                 hpc <- SM.get
                 hpc'@(HPC { num_reached = nr }) <- hpcInsert i tm hpc
                 SM.put hpc'
-                hpc_tick_num <- totalTickCount md s
+                hpc_tick_num <- totalTickCount
                 liftIO $ putStr ("\r" ++ show nr ++ " / " ++ show hpc_tick_num)
                 liftIO $ hFlush stdout
                 return (NoProgress, [(s, ())], b)
@@ -119,10 +107,11 @@ immedHpcReducer md = (mkSimpleReducer (const ()) logTick) { afterRed = after }
 -- | A reducer that tracks and prints the number of HPC ticks encountered during execution.
 -- A HPC tick is considered reached only once a State that reached it is accepted.
 onAcceptHpcReducer :: (MonadIO m, SM.MonadState HpcTracker m) =>
-                      Maybe T.Text -- ^ A module to track tick count in
+                      State t
+                   -> Maybe T.Text -- ^ A module to track tick count in
                    -> IO (Reducer m HpcTracker t)
-onAcceptHpcReducer md = do
-    trck <- hpcTracker False
+onAcceptHpcReducer st md = do
+    trck <- hpcTracker st md False
     return (mkSimpleReducer (const trck) logTick) { onAccept = onAcc, afterRed = after }
     where
         logTick hpc s@(State {curr_expr = CurrExpr _ (Tick (HpcTick i tm) _)}) b
@@ -134,7 +123,7 @@ onAcceptHpcReducer md = do
         onAcc s b s_hpc = do
             SM.modify (`unionHpcTracker` s_hpc)
             (HPC { num_reached = nr }) <- SM.get
-            hpc_tick_num <- totalTickCount md s
+            hpc_tick_num <- totalTickCount
             liftIO $ putStr ("\r" ++ show nr ++ " / " ++ show hpc_tick_num)
             liftIO $ hFlush stdout
             return (s, b)
@@ -146,10 +135,10 @@ afterHPC = do
     hpc <- SM.get
     let init_ts = initial_time hpc
         ts = sort $ HM.elems (hpc_ticks hpc)
-    liftIO $ putStrLn $ "\nTicks reached: " ++ show (num_reached hpc)
-    case tick_count hpc of
-        Just tc -> liftIO $ putStrLn $ "Tick num: " ++ show tc
-        Nothing -> return ()
+    assert (num_reached hpc == HM.size (hpc_ticks hpc))
+        (liftIO $ putStrLn $ "\nTicks reached: " ++ show (num_reached hpc))
+    liftIO $ putStrLn $ "Tick num: " ++ show (tick_count hpc)
+
     case ts of
         [] -> liftIO $ putStrLn $ "Last tick reached: N/A"
         (_:_) -> liftIO $ putStrLn $ "Last tick reached: " ++ showTS (last ts - init_ts)
