@@ -35,12 +35,14 @@ def call_g2_process(filename, func, var_settings):
 def run_nofib_bench(filename, var_settings, timeout):
     # --include nofib-symbolic/common --higher-order symbolic --hpc --hpc-print-times --no-step-limit --search subpath --time 60
     return run_g2(filename, "main", ["--include", "nofib-symbolic/common", "--higher-order", "symbolic",
-                                     "--hpc", "--hpc-print-times", "--no-step-limit", "--search", "subpath", "--time", str(timeout)] + var_settings)
+                                     "--hpc", "--hpc-print-times", "--print-num-nrpc", "--no-step-limit", "--search", "subpath", "--time", str(timeout)] + var_settings)
 
 def run_nofib_bench_nrpc(filename, var_settings, timeout):
     return run_nofib_bench(filename, ["--nrpc"] + var_settings, timeout)
 
 def process_output(out):
+    nrpcs = re.findall(r"NRPCs Generated: ((?:\d)*)", out)
+    nrpcs_num = list(map(lambda x : int(x), nrpcs))
     reached = re.search(r"Ticks reached: (\d*)", out)
     total = re.search(r"Tick num: (\d*)", out)
     last = re.search(r"Last tick reached: ((\d|\.)*)", out)
@@ -55,6 +57,7 @@ def process_output(out):
         print("% reached = " + str(reached_f / total_f))
         print("last time = " + last.group(1))
         print("all_times = " + str(all_times))
+        print ("# nrpcs = " + str(nrpcs_num))
 
 
 def run_nofib_set(setname, var_settings, timeout):

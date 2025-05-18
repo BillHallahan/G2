@@ -470,7 +470,7 @@ runG2WithConfig entry_f mb_modname state@(State { expr_env = eenv }) config bind
     SomeSolver solver <- initSolver config
     let (state', bindings') = runG2Pre emptyMemConfig state bindings
         mod_name = nameModule entry_f
-    hpc_t <- hpcTracker state' mod_name (hpc_print_times config)
+    hpc_t <- hpcTracker state' mod_name (hpc_print_times config) (hpc_print_ticks config)
     let 
         simplifier = FloatSimplifier :>> ArithSimplifier :>> BoolSimplifier :>> StringSimplifier :>> EqualitySimplifier
         --exp_env_names = E.keys . E.filterConcOrSym (\case { E.Sym _ -> False; E.Conc _ -> True }) $ expr_env state

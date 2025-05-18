@@ -98,6 +98,7 @@ data Config = Config {
     , print_nrpcs :: Bool -- ^ Output generated NRPCs
     , hpc :: Bool -- ^ Should HPC ticks be generated and tracked during execution?
     , hpc_print_times :: Bool -- ^ Print the time each HPC tick is reached?
+    , hpc_print_ticks :: Bool -- ^ Print each HPC tick number that was reached?
     , strict :: Bool -- ^ Should the function output be strictly evaluated?
     , timeLimit :: Int -- ^ Seconds
     , validate :: Bool -- ^ If True, run on G2's input, and check against expected output.
@@ -164,6 +165,7 @@ mkConfig homedir = Config Regular
     <*> flag False True (long "hpc"
                       <> help "Generate and report on HPC ticks")
     <*> switch (long "hpc-print-times" <> help "Print the time each HPC tick is reached?")
+    <*> switch (long "hpc-print-ticks" <> help "Print each HPC tick number that was reached?")
     <*> flag True False (long "no-strict" <> help "do not evaluate the output strictly")
     <*> option auto (long "time"
                    <> metavar "T"
@@ -301,6 +303,7 @@ mkConfigDirect homedir as m = Config {
     , print_nrpcs = False
     , hpc = False
     , hpc_print_times = False
+    , hpc_print_ticks = False
     , strict = boolArg "strict" as m On
     , timeLimit = strArg "time" as m read 300
     , validate  = boolArg "validate" as m Off

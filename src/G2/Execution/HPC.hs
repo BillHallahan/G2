@@ -45,20 +45,23 @@ data HpcTracker = HPC {
                       , initial_time :: TimeSpec -- ^ The initial creation time of the HpcTracker
                       
                       , h_print_times :: Bool -- ^ Print the time each tick is reached?
+                      , h_print_ticks :: Bool -- ^ Print each HPC tick number that was reached?
                       }
 
 -- | State used by `hpcReducer`.
 hpcTracker :: MonadIO m => State t
                         -> Maybe T.Text
                         -> Bool -- ^ Print the time each tick is reached?
+                        -> Bool -- ^ Print each HPC tick number that was reached?
                         -> m HpcTracker
-hpcTracker s m pr_tms = do
+hpcTracker s m pr_tms pr_ticks = do
     ts <- liftIO $ getTime Monotonic
     return $ HPC { hpc_ticks = HM.empty
                  , tick_count = HS.size $ HS.fromList $ evalASTs (getHPCTicks m) (expr_env s)
                  , num_reached = 0
                  , initial_time = ts
-                 , h_print_times = pr_tms }
+                 , h_print_times = pr_tms 
+                 , h_print_ticks = pr_ticks }
 
 unionHpcTracker :: HpcTracker -> HpcTracker -> HpcTracker
 unionHpcTracker hpc1 hpc2 =
@@ -69,7 +72,8 @@ unionHpcTracker hpc1 hpc2 =
         , tick_count = tick_count hpc1
         , num_reached = HM.size hpc_union
         , initial_time = initial_time hpc1
-        , h_print_times = h_print_times hpc1 }
+        , h_print_times = h_print_times hpc1
+        , h_print_ticks = h_print_ticks hpc1 }
 
 hpcInsert :: MonadIO m => Int -> T.Text -> HpcTracker -> m HpcTracker
 hpcInsert i t hpc@(HPC { hpc_ticks = tr, num_reached = nr }) =
@@ -111,7 +115,7 @@ onAcceptHpcReducer :: (MonadIO m, SM.MonadState HpcTracker m) =>
                    -> Maybe T.Text -- ^ A module to track tick count in
                    -> IO (Reducer m HpcTracker t)
 onAcceptHpcReducer st md = do
-    trck <- hpcTracker st md False
+    trck <- hpcTracker st md False False
     return (mkSimpleReducer (const trck) logTick) { onAccept = onAcc, afterRed = after }
     where
         logTick hpc s@(State {curr_expr = CurrExpr _ (Tick (HpcTick i tm) _)}) b
@@ -142,6 +146,11 @@ afterHPC = do
     case ts of
         [] -> liftIO $ putStrLn $ "Last tick reached: N/A"
         (_:_) -> liftIO $ putStrLn $ "Last tick reached: " ++ showTS (last ts - init_ts)
+    case h_print_ticks hpc of
+        False -> return ()
+        True -> liftIO $ do
+            putStrLn "All ticks:"
+            print . sort $ HM.keys (hpc_ticks hpc)
     case h_print_times hpc of
         False -> return ()
         True -> liftIO $ do
