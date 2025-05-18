@@ -626,27 +626,30 @@ nonRedLibFuncs exec_names no_nrpc_names use_with_symb_func
                          , non_red_path_conds = nrs
                          }) 
                 b@(Bindings { name_gen = ng })
-    | Var (Id n t):es <- unApp ce
+    | (ae, stck') <- allApplyFrames [] (exec_stack s)
+    , Var (Id n t):es_ce <- unApp ce
+    , let es = es_ce ++ ae
+          ce' = mkApp (Var (Id n t):es)
     --, not (n `HS.member` no_nrpc_names)
     , use_with_symb_func || (E.isSymbolic n eenv)
     , hasFuncType (PresType t)
     -- We want to introduce an NRPC only if the function is fully applied and does not have nested function argument types
-    , ce_ty <- typeOf $ ce
+    , ce_ty <- typeOf $ ce'
     , not . hasNestedFuncType HS.empty $ ce_ty
     , not . hasFuncType . PresType $ ce_ty
     -- Don't turn functions manipulating "magic types"- types represented as Primitives, with special handling
     -- (for instance, MutVars, Handles) into NRPC symbolic variables.
-    , not (hasMagicTypes ce)
+    , not (hasMagicTypes ce')
     = 
         let
-            (reaches_sym, sym_table') = reachesSymbolic sym_table eenv ce
-            (exec_skip, var_table') = if reaches_sym then checkDelayability eenv ce ng exec_names var_table else (Skip, var_table)
+            (reaches_sym, sym_table') = reachesSymbolic sym_table eenv ce'
+            (exec_skip, var_table') = if reaches_sym then checkDelayability eenv ce' ng exec_names var_table else (Skip, var_table)
         in
         case (reaches_sym, exec_skip) of
             (True, Skip) -> 
                 let
                     (new_sym, ng') = freshSeededString "sym" ng
-                    new_sym_id = Id new_sym (typeOf ce)
+                    new_sym_id = Id new_sym ce_ty
                     eenv' = E.insertSymbolic new_sym_id eenv
                     cexpr' = CurrExpr Return (Var new_sym_id)
                     -- when NRPC moves back to current expression, it immediately gets added as NRPC again.
@@ -655,10 +658,11 @@ nonRedLibFuncs exec_names no_nrpc_names use_with_symb_func
                     -- this tick.
                     nonRedBlocker = Name "NonRedBlocker" Nothing 0 Nothing
                     tick = NamedLoc nonRedBlocker
-                    ce' = mkApp $ (Tick tick (Var (Id n t))):es
-                    s' = s { expr_env = eenv',
-                    curr_expr = cexpr',
-                    non_red_path_conds = (ce', Var new_sym_id):nrs } 
+                    ce'' = mkApp $ (Tick tick (Var (Id n t))):es
+                    s' = s { expr_env = eenv'
+                           , curr_expr = cexpr'
+                           , non_red_path_conds = (ce'', Var new_sym_id):nrs
+                           , exec_stack = stck' } 
                 in 
                     return (Finished, [(s', (var_table', sym_table', nrpc_count + 1))], b {name_gen = ng'})
             _ -> return (Finished, [(s, (var_table', sym_table', nrpc_count))], b)
@@ -683,6 +687,9 @@ nonRedLibFuncs exec_names no_nrpc_names use_with_symb_func
 
         hmt (TyCon n _) = Any (n `elem` magicTypes kv)
         hmt _ = Any False
+
+        allApplyFrames aes stck | Just (ApplyFrame ae, stck') <- Stck.pop stck = allApplyFrames (ae:aes) stck'
+                                | otherwise = (reverse aes, stck)
 
 -- Note [Ignore Update Frames]
 -- In `strictRed`, when deciding whether to split up an expression to force strict evaluation of subexpression,

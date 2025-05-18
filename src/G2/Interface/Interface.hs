@@ -331,7 +331,6 @@ initRedHaltOrd s mod_name solver simplifier config exec_func_names no_nrpc_names
                  <~> maxOutputsHalter (maxOutputs config)
                  <~> acceptIfViolatedHalter
                  <~> time_halter
-                 <~> noNewHPCHalter
 
         halter_step = case step_limit config of
                             True -> SomeHalter (zeroHalter (steps config) <~> halter)

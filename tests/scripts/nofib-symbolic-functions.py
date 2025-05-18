@@ -35,14 +35,22 @@ def call_g2_process(filename, func, var_settings):
 def run_nofib_bench(filename, var_settings, timeout):
     # --include nofib-symbolic/common --higher-order symbolic --hpc --hpc-print-times --no-step-limit --search subpath --time 60
     return run_g2(filename, "main", ["--include", "nofib-symbolic/common", "--higher-order", "symbolic",
-                                     "--hpc", "--hpc-print-times", "--print-num-nrpc", "--no-step-limit", "--search", "subpath", "--time", str(timeout)] + var_settings)
+                                     "--hpc", "--hpc-print-times", "--print-num-nrpc", "--print-num-red-rules", "--no-step-limit", "--search", "subpath", "--time", str(timeout)] + var_settings)
 
 def run_nofib_bench_nrpc(filename, var_settings, timeout):
     return run_nofib_bench(filename, ["--nrpc"] + var_settings, timeout)
 
+def read_int(pre, out):
+    reg = re.search(pre + r": ((?:\d)*)", out)
+    res_num = -1
+    if reg:
+        res_num = int(reg.group(1))
+    return res_num
+
 def process_output(out):
     nrpcs = re.findall(r"NRPCs Generated: ((?:\d)*)", out)
     nrpcs_num = list(map(lambda x : int(x), nrpcs))
+    red_rules_num = read_int("# Red Rules", out)
     reached = re.search(r"Ticks reached: (\d*)", out)
     total = re.search(r"Tick num: (\d*)", out)
     last = re.search(r"Last tick reached: ((\d|\.)*)", out)
@@ -57,6 +65,7 @@ def process_output(out):
         print("% reached = " + str(reached_f / total_f))
         print("last time = " + last.group(1))
         print("all_times = " + str(all_times))
+        print("Red Rules #: " + str(red_rules_num))
         print ("# nrpcs = " + str(nrpcs_num))
 
 

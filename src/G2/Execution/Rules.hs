@@ -1258,7 +1258,7 @@ retReplaceSymbFuncTemplate s@(State { expr_env = eenv
     }, constState], ng'''')
 
     -- LIT-SPLIT
-    | App (Var (Id n (TyFun t1 t2))) ea <- ce
+    | Var (Id n (TyFun t1 t2)):ea:es <- unApp ce
     , isPrimType t1
     , E.isSymbolic n eenv
     = let
@@ -1275,7 +1275,7 @@ retReplaceSymbFuncTemplate s@(State { expr_env = eenv
         eenv'' = E.insert n e eenv'
     in Just (RuleReturnReplaceSymbFunc, [s {
         -- because we are always going down true branch
-        curr_expr = CurrExpr Evaluate (Var f1Id),
+        curr_expr = CurrExpr Evaluate (mkApp (Var f1Id:es)),
         expr_env = eenv''
     }], ng')
     | otherwise = Nothing
