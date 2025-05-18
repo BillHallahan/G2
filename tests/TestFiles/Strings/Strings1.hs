@@ -17,8 +17,7 @@ capABC (x:xs) = x:capABC xs
 capABC "" = ""
 
 appendEq :: String -> String
-appendEq s@(_:_) = s ++ "!"
-appendEq _ = "..."
+appendEq s = s ++ "!"
 
 exclaimEq :: String -> String -> Bool
 exclaimEq s1 s2 = s1 == s2 ++ "!"
