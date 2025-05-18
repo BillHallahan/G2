@@ -97,6 +97,7 @@ module G2.Execution.Reducer ( Reducer (..)
                             , maxOutputsHalter
                             , switchEveryNHalter
                             , varLookupLimitHalter
+                            , noNewHPCHalter
                             , stdTimerHalter
                             , timerHalter
 
@@ -585,7 +586,8 @@ nonRedPCSymFunc _
         s' = s { exec_stack = stck', non_red_path_conds = nrs }
     in
     case retReplaceSymbFuncTemplate s' ng (modifyASTs stripTicks nre1) of
-        Just (r, s'', ng') -> return (InProgress, zip s'' (repeat ()), b {name_gen = ng'})
+        Just (r, s'', ng') -> do
+            return (InProgress, zip s'' (repeat ()), b {name_gen = ng'})
         Nothing ->
             let 
                 s'' = s' {curr_expr = CurrExpr Evaluate nre1}
@@ -1422,6 +1424,21 @@ varLookupLimitHalter lim = mkSimpleHalter
     where
         step l _ _ (State { curr_expr = CurrExpr Evaluate (Var _) }) = l - 1
         step l _ _ _ = l
+
+noNewHPCHalter :: MonadIO m => Halter m () (ExecRes t) t
+noNewHPCHalter = mkSimpleHalter
+                    (const ())
+                    (\hv _ _ -> hv)
+                    stop
+                    (\hv _ _ _ -> hv)
+    where
+        stop _ pr s
+            | Just (CurrExprFrame (EnsureEq _) _, _) <- Stck.pop (exec_stack s) = 
+                let
+                    seen_hpc = HS.unions (map (reached_hpc . final_state) $ accepted pr)
+                in
+                liftIO $ if HS.null (HS.difference (reached_hpc s) seen_hpc) then (do putStrLn "Discard"; return Discard) else (do putStrLn "Continue"; return Continue) 
+            | otherwise = return Continue
 
 {-# INLINE stdTimerHalter #-}
 stdTimerHalter :: (MonadIO m, MonadIO m_run) => NominalDiffTime -> m (Halter m_run Int r t)

@@ -188,6 +188,7 @@ initStateFromSimpleState s m_mod useAssert mkCurr argTys config =
     , num_steps = 0
     , track = ()
     , sym_gens = Seq.empty
+    , reached_hpc = S.empty
     , tags = S.empty
     }
     , Bindings {
@@ -330,6 +331,7 @@ initRedHaltOrd s mod_name solver simplifier config exec_func_names no_nrpc_names
                  <~> maxOutputsHalter (maxOutputs config)
                  <~> acceptIfViolatedHalter
                  <~> time_halter
+                 <~> noNewHPCHalter
 
         halter_step = case step_limit config of
                             True -> SomeHalter (zeroHalter (steps config) <~> halter)
