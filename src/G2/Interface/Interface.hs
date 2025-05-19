@@ -270,7 +270,8 @@ type RHOStack m = SM.StateT LengthNTrack (SM.StateT PrettyGuide (SM.StateT HpcTr
 
 {-# SPECIALIZE 
     initRedHaltOrd :: (Solver solver, Simplifier simplifier) =>
-                      Maybe T.Text
+                      State ()
+                   -> Maybe T.Text
                    -> solver
                    -> simplifier
                    -> Config
@@ -279,7 +280,8 @@ type RHOStack m = SM.StateT LengthNTrack (SM.StateT PrettyGuide (SM.StateT HpcTr
                    -> IO (SomeReducer (RHOStack IO) (), SomeHalter (RHOStack IO) (ExecRes ()) (), SomeOrderer (RHOStack IO) (ExecRes ()) ())
     #-}
 initRedHaltOrd :: (MonadIO m, Solver solver, Simplifier simplifier) =>
-                  Maybe T.Text
+                  State ()
+               -> Maybe T.Text
                -> solver
                -> simplifier
                -> Config
@@ -287,11 +289,13 @@ initRedHaltOrd :: (MonadIO m, Solver solver, Simplifier simplifier) =>
                -> S.HashSet Name -- ^ Names of functions that should not reesult in a larger expression become EXEC,
                                  -- but should not be added to the NRPC at the top level.
                -> IO (SomeReducer (RHOStack m) (), SomeHalter (RHOStack m) (ExecRes ()) (), SomeOrderer (RHOStack m) (ExecRes ()) ())
-initRedHaltOrd mod_name solver simplifier config exec_func_names no_nrpc_names = do
+initRedHaltOrd s mod_name solver simplifier config exec_func_names no_nrpc_names = do
     time_logger <- acceptTimeLogger
     time_halter <- stdTimerHalter (fromInteger . toInteger $ timeLimit config)
 
     m_logger <- fmap SomeReducer <$> getLimLogger config
+
+    on_acc_hpc_red <- onAcceptHpcReducer s mod_name
 
     let share = sharing config
 
@@ -302,7 +306,8 @@ initRedHaltOrd mod_name solver simplifier config exec_func_names no_nrpc_names =
                             False -> SomeReducer (stdRed share f solver simplifier ~> instTypeRed)
 
         hpc_red f = case hpc config of
-                        True ->  SomeReducer (hpcReducer mod_name) .~> strict_red f 
+                        -- True ->  SomeReducer (immedHpcReducer mod_name) .~> strict_red f 
+                        True ->  SomeReducer on_acc_hpc_red .~> strict_red f 
                         False -> strict_red f
 
         nrpc_red f = case nrpc config of
@@ -468,12 +473,12 @@ runG2FromFile proj src m_assume m_assert m_reach def_assert f transConfig config
 runG2WithConfig :: Name -> [Maybe T.Text] -> State () -> Config -> Bindings -> IO ([ExecRes ()], Bindings)
 runG2WithConfig entry_f mb_modname state@(State { expr_env = eenv}) config bindings = do
     SomeSolver solver <- initSolver config
-    hpc_t <- hpcTracker (hpc_print_times config)
+    let (state', bindings') = runG2Pre emptyMemConfig state bindings
+        mod_name = nameModule entry_f
+    hpc_t <- hpcTracker state' mod_name (hpc_print_times config)
     let 
-        (state', bindings') = runG2Pre emptyMemConfig state bindings
         simplifier = FloatSimplifier :>> ArithSimplifier :>> BoolSimplifier :>> StringSimplifier :>> EqualitySimplifier
         --exp_env_names = E.keys . E.filterConcOrSym (\case { E.Sym _ -> False; E.Conc _ -> True }) $ expr_env state
-        mod_name = nameModule entry_f
         callGraph = G.getCallGraph $ expr_env state'
         reachable_funcs = G.reachable entry_f callGraph
 
@@ -491,7 +496,7 @@ runG2WithConfig entry_f mb_modname state@(State { expr_env = eenv}) config bindi
     
     (in_out, bindings'') <- case null analysis of
         True -> do
-            rho <- initRedHaltOrd mod_name solver simplifier config (S.fromList executable_funcs) (S.fromList non_rec_funcs)
+            rho <- initRedHaltOrd  state' mod_name solver simplifier config (S.fromList executable_funcs) (S.fromList non_rec_funcs)
             case rho of
                 (red, hal, ord) ->
                         SM.evalStateT
@@ -506,7 +511,7 @@ runG2WithConfig entry_f mb_modname state@(State { expr_env = eenv}) config bindi
                             )
                             hpc_t
         False -> do
-            rho <- initRedHaltOrd mod_name solver simplifier config (S.fromList executable_funcs) (S.fromList non_rec_funcs)
+            rho <- initRedHaltOrd state' mod_name solver simplifier config (S.fromList executable_funcs) (S.fromList non_rec_funcs)
             case rho of
                 (red, hal, ord) ->
                     SM.evalStateT (

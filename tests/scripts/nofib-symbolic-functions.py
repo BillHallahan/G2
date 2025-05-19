@@ -33,11 +33,12 @@ def call_g2_process(filename, func, var_settings):
     return res.stdout
 
 def run_nofib_bench(filename, var_settings, timeout):
-    # --include nofib-symbolic/common --hpc --hpc-print-times --no-step-limit --search subpath --time 60
-    return run_g2(filename, "main", ["--include", "nofib-symbolic/common", "--hpc", "--hpc-print-times", "--no-step-limit", "--search", "subpath", "--time", str(timeout)] + var_settings)
+    # --include nofib-symbolic/common --higher-order symbolic --hpc --hpc-print-times --no-step-limit --search subpath --time 60
+    return run_g2(filename, "main", ["--include", "nofib-symbolic/common", "--higher-order", "symbolic",
+                                     "--hpc", "--hpc-print-times", "--no-step-limit", "--search", "subpath", "--time", str(timeout)] + var_settings)
 
 def run_nofib_bench_nrpc(filename, var_settings, timeout):
-    return run_nofib_bench(filename, ["--nrpc", "--higher-order", "symbolic"] + var_settings, timeout)
+    return run_nofib_bench(filename, ["--nrpc"] + var_settings, timeout)
 
 def process_output(out):
     reached = re.search(r"Ticks reached: (\d*)", out)
@@ -49,23 +50,28 @@ def process_output(out):
     if reached != None and total != None and last != None:
         reached_f = float(reached.group(1))
         total_f = float(total.group(1))
-        # print(reached.group(1))
-        # print(total.group(1))
+        print("reached = " + str(reached.group(1)))
+        print("total = " + str(total.group(1)))
         print("% reached = " + str(reached_f / total_f))
         print("last time = " + last.group(1))
         print("all_times = " + str(all_times))
 
 
 def run_nofib_set(setname, var_settings, timeout):
-        setpath = os.path.join("nofib-symbolic/", setname)
+        setpath = os.path.join("nofib-symbolic-functions/", setname)
         all_files_dirs = os.listdir(setpath);
+        print(all_files_dirs)
+        lhs_files = ["digits-of-e1", "digits-of-e2"]
 
         print(setpath)
 
         for file_dir in all_files_dirs:
             bench_path = os.path.join(setpath, file_dir)
             if os.path.isdir(bench_path):
-                final_path = os.path.join(bench_path, "Main.hs")
+                if file_dir in lhs_files:
+                    final_path = os.path.join(bench_path, "Main.lhs")
+                else:
+                    final_path = os.path.join(bench_path, "Main.hs")
                 if os.path.isfile(final_path):
                     print(file_dir);
                     res_bench = run_nofib_bench(final_path, var_settings, timeout)
