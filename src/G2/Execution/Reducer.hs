@@ -97,6 +97,7 @@ module G2.Execution.Reducer ( Reducer (..)
                             , maxOutputsHalter
                             , switchEveryNHalter
                             , varLookupLimitHalter
+                            , HPCMemoTable
                             , noNewHPCHalter
                             , stdTimerHalter
                             , timerHalter
@@ -1437,7 +1438,10 @@ varLookupLimitHalter lim = mkSimpleHalter
         step l _ _ (State { curr_expr = CurrExpr Evaluate (Var _) }) = l - 1
         step l _ _ _ = l
 
-noNewHPCHalter :: MonadIO m => Maybe T.Text -> Halter m Int (ExecRes t) t
+
+type HPCMemoTable = HM.HashMap Name (HS.HashSet (Int, T.Text))
+
+noNewHPCHalter :: SM.MonadState HPCMemoTable m => Maybe T.Text -> Halter m Int (ExecRes t) t
 noNewHPCHalter mod_name = mkSimpleHalter
                                 (const 0)
                                 (\hv _ _ -> hv)
@@ -1445,28 +1449,34 @@ noNewHPCHalter mod_name = mkSimpleHalter
                                 (\hv _ _ _ -> if hv < 100 then hv + 1 else 0)
     where
         stop hv pr s
-            | hv == 100 = 
-                let
-                    acc_seen_hpc = HS.unions (map (reached_hpc . final_state) $ accepted pr)
-                    reachable_hpc = reachesHPC (expr_env s) (curr_expr s, exec_stack s, non_red_path_conds s)
+            | hv == 100 = do
+                let acc_seen_hpc = HS.unions (map (reached_hpc . final_state) $ accepted pr)
 
                     diff1 = HS.difference (reached_hpc s) acc_seen_hpc
-                    diff2 = HS.difference reachable_hpc acc_seen_hpc
-                in
-                liftIO $ if not (HS.null diff1)
-                         || not (HS.null diff2)
-                        then do return Continue
-                        else do return Discard
+
+                if HS.null diff1
+                    then do
+                        reachable_hpc <- reachesHPC (expr_env s) (curr_expr s, exec_stack s, non_red_path_conds s)
+                        let diff2 = HS.difference reachable_hpc acc_seen_hpc
+                        if HS.null diff2 then do return Discard else do return Continue
+                    else return Continue
             | otherwise = return Continue
         
-        -- reachesHPC :: ASTContainer m Expr => ExprEnv -> m -> [(Int, T.Text)]
-        reachesHPC eenv = evalContainedASTs (reaches HS.empty eenv)
+        reachesHPC :: (SM.MonadState HPCMemoTable m, ASTContainer c Expr) => ExprEnv -> c -> m (HS.HashSet (Int, T.Text))
+        reachesHPC eenv es = mconcat <$> mapM (reaches eenv) (containedASTs es) 
 
-        reaches seen eenv (Var (Id n _))
-            | not (n `HS.member` seen) = maybe HS.empty (reaches (HS.insert n seen) eenv) (E.lookup n eenv)
-            | otherwise = HS.empty
-        reaches seen eenv (Tick (HpcTick i t) e) | mod_name == Just t = HS.insert (i, t) $ reaches seen eenv e
-        reaches seen eenv e = evalChildren (reaches seen eenv) e
+        reaches :: SM.MonadState HPCMemoTable m => ExprEnv -> Expr -> m (HS.HashSet (Int, T.Text))
+        reaches eenv (Var (Id n _)) = do
+            seen <- SM.get
+            case HM.lookup n seen of
+                Just hpcs -> return hpcs
+                Nothing -> do
+                    SM.modify (HM.insert n HS.empty)
+                    hpcs <- maybe (return HS.empty) (reaches eenv) (E.lookup n eenv)
+                    SM.modify (HM.insert n hpcs)
+                    return hpcs
+        reaches eenv (Tick (HpcTick i t) e) | mod_name == Just t = HS.insert (i, t) <$> reaches eenv e
+        reaches eenv e = mconcat <$> mapM (reaches eenv) (children e)
 
 {-# INLINE stdTimerHalter #-}
 stdTimerHalter :: (MonadIO m, MonadIO m_run) => NominalDiffTime -> m (Halter m_run Int r t)

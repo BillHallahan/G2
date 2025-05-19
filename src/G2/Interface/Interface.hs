@@ -251,7 +251,7 @@ initCheckReaches s@(State { expr_env = eenv
                           , known_values = kv }) m_mod reaches =
     s {expr_env = checkReaches eenv kv reaches m_mod }
 
-type RHOStack m = SM.StateT LengthNTrack (SM.StateT PrettyGuide (SM.StateT HpcTracker m))
+type RHOStack m = SM.StateT LengthNTrack (SM.StateT PrettyGuide (SM.StateT HpcTracker (SM.StateT HPCMemoTable m)))
 
 {-# SPECIALIZE runReducer :: Ord b =>
                              Reducer (RHOStack IO) rv ()
@@ -331,7 +331,7 @@ initRedHaltOrd s mod_name solver simplifier config exec_func_names no_nrpc_names
                  <~> maxOutputsHalter (maxOutputs config)
                  <~> acceptIfViolatedHalter
                  <~> time_halter
-                 <~> noNewHPCHalter mod_name
+                 <~> liftHalter (liftHalter (liftHalter (noNewHPCHalter mod_name)))
 
         halter_step = case step_limit config of
                             True -> SomeHalter (zeroHalter (steps config) <~> halter)
@@ -486,8 +486,8 @@ runG2WithConfig entry_f mb_modname state@(State { expr_env = eenv }) config bind
         non_rec_funcs = filter (isFuncNonRecursive callGraph) reachable_funcs
 
     analysis1 <- if states_at_time config then do l <- logStatesAtTime; return [l] else return noAnalysis
-    let analysis2 = if states_at_step config then [\s p xs -> SM.lift . SM.lift . SM.lift $ logStatesAtStep s p xs] else noAnalysis
-        analysis3 = if print_num_red_rules config then [\s p xs -> SM.lift . SM.lift . SM.lift . SM.lift $ logRedRuleNum s p xs] else noAnalysis
+    let analysis2 = if states_at_step config then [\s p xs -> SM.lift . SM.lift . SM.lift . SM.lift $ logStatesAtStep s p xs] else noAnalysis
+        analysis3 = if print_num_red_rules config then [\s p xs -> SM.lift . SM.lift . SM.lift . SM.lift . SM.lift $ logRedRuleNum s p xs] else noAnalysis
         analysis4 = if print_nrpcs config then [\s p xs -> SM.lift $ logNRPCs s p xs] else noAnalysis
         analysis = analysis1 ++ analysis2 ++ analysis3 ++ analysis4
     
@@ -496,6 +496,7 @@ runG2WithConfig entry_f mb_modname state@(State { expr_env = eenv }) config bind
             rho <- initRedHaltOrd  state' mod_name solver simplifier config (S.fromList executable_funcs) (S.fromList non_rec_funcs)
             case rho of
                 (red, hal, ord) ->
+                    SM.evalStateT (
                         SM.evalStateT
                             (SM.evalStateT
                                 (SM.evalStateT
@@ -507,23 +508,28 @@ runG2WithConfig entry_f mb_modname state@(State { expr_env = eenv }) config bind
                                 else setTypePrinting AggressiveTypes (mkPrettyGuide ())) 
                             )
                             hpc_t
+                        )
+                        HM.empty
         False -> do
             rho <- initRedHaltOrd state' mod_name solver simplifier config (S.fromList executable_funcs) (S.fromList non_rec_funcs)
             case rho of
                 (red, hal, ord) ->
                     SM.evalStateT (
                         SM.evalStateT (
-                            SM.evalStateT
-                                (SM.evalStateT
+                            SM.evalStateT (
+                                SM.evalStateT
                                     (SM.evalStateT
-                                        (runG2WithSomes' red hal ord analysis solver simplifier state' bindings')
-                                        lnt
+                                        (SM.evalStateT
+                                            (runG2WithSomes' red hal ord analysis solver simplifier state' bindings')
+                                            lnt
+                                        )
+                                        (if showType config == Lax 
+                                        then (mkPrettyGuide ())
+                                        else setTypePrinting AggressiveTypes (mkPrettyGuide ())) 
                                     )
-                                    (if showType config == Lax 
-                                    then (mkPrettyGuide ())
-                                    else setTypePrinting AggressiveTypes (mkPrettyGuide ())) 
+                                    hpc_t
                                 )
-                                hpc_t
+                                HM.empty
                             )
                             logStatesAtStepTracker
                         )
