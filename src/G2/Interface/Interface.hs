@@ -331,6 +331,7 @@ initRedHaltOrd s mod_name solver simplifier config exec_func_names no_nrpc_names
                  <~> maxOutputsHalter (maxOutputs config)
                  <~> acceptIfViolatedHalter
                  <~> time_halter
+                 <~> noNewHPCHalter mod_name
 
         halter_step = case step_limit config of
                             True -> SomeHalter (zeroHalter (steps config) <~> halter)
@@ -352,8 +353,8 @@ initRedHaltOrd s mod_name solver simplifier config exec_func_names no_nrpc_names
                 , SomeHalter (discardIfAcceptedTagHalter state_name) .<~> halter_step
                 , orderer)
             SymbolicFunc ->
-                ( logger_std_red retReplaceSymbFuncTemplate .== Finished .--> taggerRed state_name :== Finished --> nonRedPCSymFuncRed
-                , SomeHalter (discardIfAcceptedTagHalter state_name) .<~> halter_step
+                ( logger_std_red retReplaceSymbFuncTemplate .== Finished {- .--> taggerRed state_name :== Finished -} --> nonRedPCSymFuncRed
+                , {-SomeHalter (discardIfAcceptedTagHalter state_name) .<~> -} halter_step
                 , orderer)
 
 initSolver :: Config -> IO SomeSolver

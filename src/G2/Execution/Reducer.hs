@@ -584,8 +584,11 @@ nonRedPCSymFunc _
     let
         stck' = Stck.push (CurrExprFrame (EnsureEq nre2) cexpr) stck
         s' = s { exec_stack = stck', non_red_path_conds = nrs }
+
+        stripCenterTick (Tick _ e) = e
+        stripCenterTick (App e1 e2) = App (stripCenterTick e1) e2
     in
-    case retReplaceSymbFuncTemplate s' ng (modifyASTs stripTicks nre1) of
+    case retReplaceSymbFuncTemplate s' ng (stripCenterTick nre1) of
         Just (r, s'', ng') -> do
             return (InProgress, zip s'' (repeat ()), b {name_gen = ng'})
         Nothing ->
@@ -612,7 +615,7 @@ nonRedLibFuncsReducer exec_names no_nrpc_names config =
                 else return ()
             return (s, b) }
 
-nonRedLibFuncs :: Monad m => HS.HashSet Name -- ^ Names of functions that must be executed
+nonRedLibFuncs :: MonadIO m => HS.HashSet Name -- ^ Names of functions that must be executed
                           -> HS.HashSet Name -- ^ Names of functions that should not reesult in a larger expression become EXEC,
                                              -- but should not be added to the NRPC at the top level.
                           -> Bool -- ^ Use NRPCs to delay execution of symbolic functions
@@ -635,15 +638,15 @@ nonRedLibFuncs exec_names no_nrpc_names use_with_symb_func
     , hasFuncType (PresType t)
     -- We want to introduce an NRPC only if the function is fully applied and does not have nested function argument types
     , ce_ty <- typeOf $ ce'
-    , not . hasNestedFuncType HS.empty $ ce_ty
+    -- , not . hasNestedFuncType HS.empty $ ce_ty
     , not . hasFuncType . PresType $ ce_ty
     -- Don't turn functions manipulating "magic types"- types represented as Primitives, with special handling
     -- (for instance, MutVars, Handles) into NRPC symbolic variables.
     , not (hasMagicTypes ce')
     = 
         let
-            (reaches_sym, sym_table') = reachesSymbolic sym_table eenv ce'
-            (exec_skip, var_table') = if reaches_sym then checkDelayability eenv ce' ng exec_names var_table else (Skip, var_table)
+            (reaches_sym, sym_table') = (True, sym_table) -- reachesSymbolic sym_table eenv ce'
+            (exec_skip, var_table') = (Skip, var_table) -- if reaches_sym then checkDelayability eenv ce' ng exec_names var_table else (Skip, var_table)
         in
         case (reaches_sym, exec_skip) of
             (True, Skip) -> 
@@ -689,6 +692,7 @@ nonRedLibFuncs exec_names no_nrpc_names use_with_symb_func
         hmt _ = Any False
 
         allApplyFrames aes stck | Just (ApplyFrame ae, stck') <- Stck.pop stck = allApplyFrames (ae:aes) stck'
+                                | Just (UpdateFrame _, stck') <- Stck.pop stck = allApplyFrames aes stck'
                                 | otherwise = (reverse aes, stck)
 
 -- Note [Ignore Update Frames]
@@ -1432,20 +1436,36 @@ varLookupLimitHalter lim = mkSimpleHalter
         step l _ _ (State { curr_expr = CurrExpr Evaluate (Var _) }) = l - 1
         step l _ _ _ = l
 
-noNewHPCHalter :: MonadIO m => Halter m () (ExecRes t) t
-noNewHPCHalter = mkSimpleHalter
-                    (const ())
-                    (\hv _ _ -> hv)
-                    stop
-                    (\hv _ _ _ -> hv)
+noNewHPCHalter :: MonadIO m => Maybe T.Text -> Halter m Int (ExecRes t) t
+noNewHPCHalter mod_name = mkSimpleHalter
+                                (const 0)
+                                (\hv _ _ -> hv)
+                                stop
+                                (\hv _ _ _ -> if hv < 100 then hv + 1 else 0)
     where
-        stop _ pr s
-            | Just (CurrExprFrame (EnsureEq _) _, _) <- Stck.pop (exec_stack s) = 
+        stop hv pr s
+            | hv == 100 = 
                 let
-                    seen_hpc = HS.unions (map (reached_hpc . final_state) $ accepted pr)
+                    acc_seen_hpc = HS.unions (map (reached_hpc . final_state) $ accepted pr)
+                    reachable_hpc = reachesHPC (expr_env s) (curr_expr s, exec_stack s, non_red_path_conds s)
+
+                    diff1 = HS.difference (reached_hpc s) acc_seen_hpc
+                    diff2 = HS.difference reachable_hpc acc_seen_hpc
                 in
-                liftIO $ if HS.null (HS.difference (reached_hpc s) seen_hpc) then (do putStrLn "Discard"; return Discard) else (do putStrLn "Continue"; return Continue) 
+                liftIO $ if not (HS.null diff1)
+                         || not (HS.null diff2)
+                        then do return Continue
+                        else do putStrLn "DISCARD"; return Discard
             | otherwise = return Continue
+        
+        -- reachesHPC :: ASTContainer m Expr => ExprEnv -> m -> [(Int, T.Text)]
+        reachesHPC eenv = evalContainedASTs (reaches HS.empty eenv)
+
+        reaches seen eenv (Var (Id n _))
+            | not (n `HS.member` seen) = maybe HS.empty (reaches (HS.insert n seen) eenv) (E.lookup n eenv)
+            | otherwise = HS.empty
+        reaches seen eenv (Tick (HpcTick i t) e) | mod_name == Just t = HS.insert (i, t) $ reaches seen eenv e
+        reaches seen eenv e = evalChildren (reaches seen eenv) e
 
 {-# INLINE stdTimerHalter #-}
 stdTimerHalter :: (MonadIO m, MonadIO m_run) => NominalDiffTime -> m (Halter m_run Int r t)
