@@ -587,9 +587,10 @@ nonRedPCSymFunc _
 
         stripCenterTick (Tick _ e) = e
         stripCenterTick (App e1 e2) = App (stripCenterTick e1) e2
+        stripCenterTick e = e
     in
     case retReplaceSymbFuncTemplate s' ng (stripCenterTick nre1) of
-        Just (r, s'', ng') -> do
+        Just (r, s'', ng') ->
             return (InProgress, zip s'' (repeat ()), b {name_gen = ng'})
         Nothing ->
             let 
@@ -1455,7 +1456,7 @@ noNewHPCHalter mod_name = mkSimpleHalter
                 liftIO $ if not (HS.null diff1)
                          || not (HS.null diff2)
                         then do return Continue
-                        else do putStrLn "DISCARD"; return Discard
+                        else do return Discard
             | otherwise = return Continue
         
         -- reachesHPC :: ASTContainer m Expr => ExprEnv -> m -> [(Int, T.Text)]
