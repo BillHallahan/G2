@@ -267,7 +267,7 @@ type RHOStack m = SM.StateT LengthNTrack (SM.StateT PrettyGuide (SM.StateT HpcTr
 {-# SPECIALIZE 
     initRedHaltOrd :: (Solver solver, Simplifier simplifier) =>
                       State ()
-                   -> Maybe T.Text
+                   -> S.HashSet (Maybe T.Text)
                    -> solver
                    -> simplifier
                    -> Config
@@ -277,7 +277,7 @@ type RHOStack m = SM.StateT LengthNTrack (SM.StateT PrettyGuide (SM.StateT HpcTr
     #-}
 initRedHaltOrd :: (MonadIO m, Solver solver, Simplifier simplifier) =>
                   State ()
-               -> Maybe T.Text
+               -> S.HashSet (Maybe T.Text)
                -> solver
                -> simplifier
                -> Config
@@ -473,8 +473,9 @@ runG2WithConfig :: Name -> [Maybe T.Text] -> State () -> Config -> Bindings -> I
 runG2WithConfig entry_f mb_modname state@(State { expr_env = eenv }) config bindings = do
     SomeSolver solver <- initSolver config
     let (state', bindings') = runG2Pre emptyMemConfig state bindings
+        all_mod_set = S.fromList mb_modname
         mod_name = nameModule entry_f
-    hpc_t <- hpcTracker state' mod_name (hpc_print_times config) (hpc_print_ticks config)
+    hpc_t <- hpcTracker state' all_mod_set (hpc_print_times config) (hpc_print_ticks config)
     let 
         simplifier = FloatSimplifier :>> ArithSimplifier :>> BoolSimplifier :>> StringSimplifier :>> EqualitySimplifier
         --exp_env_names = E.keys . E.filterConcOrSym (\case { E.Sym _ -> False; E.Conc _ -> True }) $ expr_env state
@@ -495,7 +496,7 @@ runG2WithConfig entry_f mb_modname state@(State { expr_env = eenv }) config bind
     
     (in_out, bindings'') <- case null analysis of
         True -> do
-            rho <- initRedHaltOrd  state' mod_name solver simplifier config (S.fromList executable_funcs) (S.fromList non_rec_funcs)
+            rho <- initRedHaltOrd  state' all_mod_set solver simplifier config (S.fromList executable_funcs) (S.fromList non_rec_funcs)
             case rho of
                 (red, hal, ord) ->
                     SM.evalStateT (
@@ -513,7 +514,7 @@ runG2WithConfig entry_f mb_modname state@(State { expr_env = eenv }) config bind
                         )
                         HM.empty
         False -> do
-            rho <- initRedHaltOrd state' mod_name solver simplifier config (S.fromList executable_funcs) (S.fromList non_rec_funcs)
+            rho <- initRedHaltOrd state' all_mod_set solver simplifier config (S.fromList executable_funcs) (S.fromList non_rec_funcs)
             case rho of
                 (red, hal, ord) ->
                     SM.evalStateT (

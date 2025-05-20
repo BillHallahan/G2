@@ -50,7 +50,7 @@ data HpcTracker = HPC {
 
 -- | State used by `hpcReducer`.
 hpcTracker :: MonadIO m => State t
-                        -> Maybe T.Text
+                        -> HS.HashSet (Maybe T.Text)
                         -> Bool -- ^ Print the time each tick is reached?
                         -> Bool -- ^ Print each HPC tick number that was reached?
                         -> m HpcTracker
@@ -91,12 +91,12 @@ totalTickCount = do
 -- | A reducer that tracks and prints the number of HPC ticks encountered during execution.
 -- A HPC tick is considered reached as soon as a State reaches it.
 immedHpcReducer :: (MonadIO m, SM.MonadState HpcTracker m) =>
-                   Maybe T.Text -- ^ A module to track tick count in
+                   HS.HashSet (Maybe T.Text) -- ^ A module to track tick count in
                 -> Reducer m () t
 immedHpcReducer md = (mkSimpleReducer (const ()) logTick) { afterRed = after }
     where
         logTick _ s@(State {curr_expr = CurrExpr _ (Tick (HpcTick i tm) _)}) b
-            | Just tm == md = do
+            | Just tm `HS.member` md = do
                 hpc <- SM.get
                 hpc'@(HPC { num_reached = nr }) <- hpcInsert i tm hpc
                 SM.put hpc'
@@ -112,14 +112,14 @@ immedHpcReducer md = (mkSimpleReducer (const ()) logTick) { afterRed = after }
 -- A HPC tick is considered reached only once a State that reached it is accepted.
 onAcceptHpcReducer :: (MonadIO m, SM.MonadState HpcTracker m) =>
                       State t
-                   -> Maybe T.Text -- ^ A module to track tick count in
+                   -> HS.HashSet (Maybe T.Text) -- ^ Modules to track tick count in
                    -> IO (Reducer m HpcTracker t)
 onAcceptHpcReducer st md = do
     trck <- hpcTracker st md False False
     return (mkSimpleReducer (const trck) logTick) { onAccept = onAcc, afterRed = after }
     where
         logTick hpc s@(State {curr_expr = CurrExpr _ (Tick (HpcTick i tm) _)}) b
-            | Just tm == md = do
+            | Just tm `HS.member` md = do
                 hpc' <- hpcInsert i tm hpc
                 return (NoProgress, [(s, hpc')], b)
         logTick rv s b = return (NoProgress, [(s, rv)], b)
@@ -163,8 +163,8 @@ afterHPC = do
 showTS :: TimeSpec -> String
 showTS (TimeSpec { sec = s, nsec = n }) = let str_n = show n in show s ++ "." ++ replicate (9 - length str_n) '0' ++ show n
 
-getHPCTicks :: Maybe T.Text -> Expr -> [Int]
-getHPCTicks m (Tick (HpcTick i m2) _) | m == Just m2 = [i]
+getHPCTicks :: HS.HashSet (Maybe T.Text) -> Expr -> [(Int, T.Text)]
+getHPCTicks m (Tick (HpcTick i m2) _) | Just m2 `HS.member` m = [(i, m2)]
 getHPCTicks _ _ = []
 
 

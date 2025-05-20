@@ -1441,7 +1441,7 @@ varLookupLimitHalter lim = mkSimpleHalter
 
 type HPCMemoTable = HM.HashMap Name (HS.HashSet (Int, T.Text))
 
-noNewHPCHalter :: SM.MonadState HPCMemoTable m => Maybe T.Text -> Halter m Int (ExecRes t) t
+noNewHPCHalter :: SM.MonadState HPCMemoTable m => HS.HashSet (Maybe T.Text) -> Halter m Int (ExecRes t) t
 noNewHPCHalter mod_name = mkSimpleHalter
                                 (const 0)
                                 (\hv _ _ -> hv)
@@ -1475,7 +1475,7 @@ noNewHPCHalter mod_name = mkSimpleHalter
                     hpcs <- maybe (return HS.empty) (reaches eenv) (E.lookup n eenv)
                     SM.modify (HM.insert n hpcs)
                     return hpcs
-        reaches eenv (Tick (HpcTick i t) e) | mod_name == Just t = HS.insert (i, t) <$> reaches eenv e
+        reaches eenv (Tick (HpcTick i t) e) | Just t `HS.member` mod_name = HS.insert (i, t) <$> reaches eenv e
         reaches eenv e = mconcat <$> mapM (reaches eenv) (children e)
 
 {-# INLINE stdTimerHalter #-}
