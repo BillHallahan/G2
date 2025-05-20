@@ -33,6 +33,8 @@ import qualified Data.Text.IO as T
 import qualified Text.Builder as TB
 import System.IO
 import System.Process
+import G2.Language.Support(State(..))
+import qualified G2.Language.TyVarEnv as TV 
 
 type PrintSMT = Bool
 
@@ -44,12 +46,12 @@ data SomeSMTSolver where
                    . SMTConverter con => con -> SomeSMTSolver
 
 instance Solver Z3 where
-    check solver _ pc = checkConstraintsPC solver pc
+    check solver s pc = checkConstraintsPC (tyvar_env s) solver pc
     solve con@(Z3 _ avf _) = checkModelPC avf con
     close = closeIO
 
 instance Solver CVC4 where
-    check solver _ pc = checkConstraintsPC solver pc
+    check solver s pc = checkConstraintsPC (tyvar_env s) solver pc
     solve con@(CVC4 _ avf _) = checkModelPC avf con
     close = closeIO
 

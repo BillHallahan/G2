@@ -186,7 +186,7 @@ redArbErrors = mkSimpleReducer (const ()) rr
         rr _ s@(State { curr_expr = CurrExpr er (Tick tick (Let [(_, Type t)] _)) }) b 
             | tick == arbErrorTickish =
                 let
-                    (arb, _) = arbValue t (type_env s) (arb_value_gen b)
+                    (arb, _) = arbValue t (type_env s) (tyvar_env s) (arb_value_gen b)
                 in
                 return (InProgress, [(s { curr_expr = CurrExpr er arb }, ())], b)
         rr _ s b = return (Finished, [(s, ())], b)

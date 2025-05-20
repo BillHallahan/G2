@@ -48,6 +48,7 @@ import Data.List
 import Data.Maybe
 import qualified Data.Text as T
 import qualified Data.Text.IO as T
+import qualified G2.Language.TyVarEnv as TV 
 
 -- Run inference, with an extra, final check of correctness at the end.
 -- Assuming inference is working correctly, this check should neve fail.
@@ -90,7 +91,7 @@ inference' infconfig config g2lhconfig lhconfig ghci proj fp = do
     (lrs, g2config', g2lhconfig', infconfig', main_mod) <- getInitState proj fp ghci infconfig config g2lhconfig
     let nls = getNameLevels (head main_mod) lrs
 
-    let ut = sharedTyConsEE (concat nls) (expr_env . G2LH.state . lr_state $ lrs)
+    let ut = sharedTyConsEE (tyvar_env . G2LH.state . lr_state $ lrs) (concat nls) (expr_env . G2LH.state . lr_state $ lrs)
 
     let configs = Configs { g2_config = g2config', g2lh_config = g2lhconfig', lh_config = lhconfig, inf_config = infconfig'}
         prog = newProgress
@@ -118,8 +119,8 @@ getInitState proj fp ghci infconfig config lhconfig = do
                           , steps = 2000 }
         transConfig = simplTranslationConfig { simpl = False }
     (main_mod, exg2) <- translateLoaded proj fp transConfig g2config
-
-    let (lrs, g2config', lhconfig', infconfig') = initStateAndConfig exg2 main_mod g2config lhconfig infconfig ghci
+    -- TODO: is it safe to include the have TV.empty
+    let (lrs, g2config', lhconfig', infconfig') = initStateAndConfig TV.empty exg2 main_mod g2config lhconfig infconfig ghci
     return (lrs, g2config', lhconfig', infconfig', main_mod)
 
 getNameLevels :: Maybe T.Text -> LiquidReadyState -> NameLevels
@@ -164,7 +165,7 @@ iterativeInference con ghci m_modname lrs nls meas_ex gs fc ut = do
             let eenv = expr_env . G2LH.state $ lr_state lrs
                 chck = filter (\n -> 
                                    case E.lookup n eenv of
-                                       Just e | TyCon tcn _ <- returnType e -> isJust $ HM.lookup tcn (type_env  . G2LH.state $ lr_state lrs)  
+                                       Just e | TyCon tcn _ <- returnType $ typeOf (tyvar_env  . G2LH.state $ lr_state lrs) e -> isJust $ HM.lookup tcn (type_env  . G2LH.state $ lr_state lrs)  
                                        _ -> False) (head nls)
             liftIO . putStrLn $ "head nls =  " ++ show (head nls)
             logEventStartM CExSE
@@ -554,7 +555,7 @@ updateMeasureExs meas_ex lrs ghci fcs =
                     let
                         clls = concatMap (\(mfc, hfc) -> mfc:hfc) $ allCalls fc
                         vls = concatMap (\c -> returns c:arguments c) clls 
-                        ex_poly = concat . concatMap extractValues . concatMap extractExprPolyBound $ vls
+                        ex_poly = concat . concatMap extractValues . concatMap (extractExprPolyBound (tyvar_env  . G2LH.state $ lr_state lrs))  $ vls
                     in
                     vls ++ ex_poly
                 ) (toListFC fcs)

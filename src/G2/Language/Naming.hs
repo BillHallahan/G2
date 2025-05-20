@@ -54,6 +54,7 @@ import G2.Language.AST
 import G2.Language.KnownValues
 import G2.Language.Syntax
 import G2.Language.TypeEnv
+import qualified G2.Language.TyVarEnv as TV
 
 import Data.Data (Data, Typeable)
 import Data.Foldable
@@ -823,6 +824,11 @@ instance Named KnownValues where
                         , errorWithoutStackTraceFunc = rename old new errWOST
                         , patErrorFunc = rename old new patE
                         })
+
+instance Named TV.TyVarEnv where
+    names = names . TV.toList
+    rename old new = TV.fromList . rename old new . TV.toList
+    renames hm = TV.fromList . renames hm . TV.toList
 
 instance Named a => Named [a] where
     {-# INLINE names #-}

@@ -11,7 +11,7 @@ import G2.Language
 import qualified G2.Language.ExprEnv as E
 import qualified G2.Language.KnownValues as KV
 import qualified G2.Language.Typing as T
-
+import qualified G2.Language.TyVarEnv as TV 
 import Data.List
 import qualified Data.HashMap.Lazy as HM
 
@@ -46,14 +46,14 @@ data DataConPCInfo =
 
 -- | Map Name's of DataCons to associations of type arguments to DataConPCInfos
 -- alongside an Expr representing the entire expression (used by IntToString)
-dcpcMap :: KnownValues -> TypeEnv -> HM.HashMap Name [([Type], DataConPCInfo)]
-dcpcMap kv tenv = HM.fromList [
-                      ( KV.dcCons kv, [ ([T.tyChar kv], strCons kv tenv) ])
-                    , ( KV.dcEmpty kv, [ ([T.tyChar kv], strEmpty kv) ])
+dcpcMap :: TV.TyVarEnv -> KnownValues -> TypeEnv -> HM.HashMap Name [([Type], DataConPCInfo)]
+dcpcMap tv kv tenv = HM.fromList [
+                      ( KV.dcCons kv, [ ([T.tyChar kv], strCons tv kv tenv) ])
+                    , ( KV.dcEmpty kv, [ ([T.tyChar kv], strEmpty tv kv) ])
                   ]
 
-strCons :: KnownValues -> TypeEnv -> DataConPCInfo
-strCons kv tenv = let
+strCons :: TV.TyVarEnv -> KnownValues -> TypeEnv -> DataConPCInfo
+strCons tv kv tenv = let
                         hn = Name "h" Nothing 0 Nothing
                         tn = Name "t" Nothing 0 Nothing
                         ti = Id tn (TyApp (T.tyList kv) (T.tyChar kv))
@@ -68,7 +68,7 @@ strCons kv tenv = let
                                                             , arg_expr = dc_char
                                                             }
                                                 , ArgSymb tn]
-                                    , dc_pc = [ExtCond (mkEqExpr kv
+                                    , dc_pc = [ExtCond (mkEqExpr tv kv
                                                     (App (App (mkStringAppend kv) (Var ci)) (Var ti))
                                                     (Var asi)) True]
                                     , dc_bindee_exprs = [dc_char, (Var ti)]
@@ -76,13 +76,13 @@ strCons kv tenv = let
                       in
                       dcpc
 
-strEmpty :: KnownValues -> DataConPCInfo
-strEmpty kv = let
+strEmpty :: TV.TyVarEnv -> KnownValues -> DataConPCInfo
+strEmpty tv kv = let
                 asn = Name "as" Nothing 0 Nothing
                 asi = Id asn (TyApp (T.tyList kv) (T.tyChar kv))
                 dcpc = DCPC { dc_as_pattern = asn
                             , dc_args = []
-                            , dc_pc = [ExtCond (mkEqExpr kv
+                            , dc_pc = [ExtCond (mkEqExpr tv kv
                                 (App (mkStringLen kv) (Var asi))
                                 (Lit (LitInt 0))) True]
                             , dc_bindee_exprs = []

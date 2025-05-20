@@ -33,7 +33,7 @@ floodConstant n e s
         case E.lookup n (expr_env s) of
             Just e' ->
                 let
-                    i = Id n $ typeOf e'
+                    i = Id n $ typeOf (tyvar_env s) e'
                     r_pc = replaceASTs (Var i) e (path_conds s) 
                 in
                 Just (s { expr_env = E.insert n e (expr_env s)

@@ -92,7 +92,7 @@ data SomeTrSolver where
 data GroupRelated a = GroupRelated ArbValueFunc a
 
 groupRelatedFinite :: a -> GroupRelated a
-groupRelatedFinite = GroupRelated arbValue
+groupRelatedFinite = GroupRelated arbValue 
 
 groupRelatedInfinite :: a -> GroupRelated a
 groupRelatedInfinite = GroupRelated arbValueInfinite
@@ -121,7 +121,7 @@ solveRelated' avf sol s b m is [] =
         (_, nv) = mapAccumL
             (\av_ (Id n t) ->
                 let 
-                    (av_', v) = avf t (type_env s) av_
+                    (av_', v) = avf t (type_env s) (tyvar_env s) av_
                     in
                     (v, (n, av_'))
             ) (arb_value_gen b) is'
