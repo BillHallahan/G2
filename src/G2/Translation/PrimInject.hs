@@ -175,6 +175,7 @@ primDefs' b c l unit =
               , ("g2SetPos'", Prim HandleSetPos (TyFun strTy (TyFun TyUnknown (TyCon unit TYPE))))
               , ("g2PutChar'", Prim HandlePutChar (TyFun (TyCon c TYPE) (TyFun TyUnknown (TyCon unit TYPE))))
 
+              , ("strLen#", Lam TypeL (x TYPE) . Lam TermL (y strTy) $ App (Prim StrLen (TyFun strTy TyLitInt)) (Var $ y strTy))
               , ("intToString#", Prim IntToString (TyFun TyLitInt strTy))
 
               , ("newMutVar##", Prim NewMutVar (TyForAll a (TyForAll d (TyFun tyvarA (TyFun TyUnknown TyUnknown)))))
@@ -190,7 +191,9 @@ primDefs' b c l unit =
               , ("succError", Prim Error TyBottom)
               , ("toEnumError", Prim Error TyBottom)
               , ("ratioZeroDenominatorError", Prim Error TyBottom)
-              , ("undefined", Prim Error TyBottom) ]
+              , ("undefined", Prim Error TyBottom)
+              
+              , ("typeIndex#", Prim TypeIndex (TyForAll a (TyFun (TyVar a) TyLitInt))) ]
               where
                     strTy = (TyApp (TyCon l (TyFun TYPE TYPE)) (TyCon c TYPE))
 

@@ -98,12 +98,17 @@ maybeEvalPrim' tenv kv xs
     , Just e <- evalPrim1 p x' = Just e
     | [Prim p _, x] <- xs
     , Lit x' <- x = evalPrim1' tenv kv p x'
+    | [Prim p _, x] <- xs
+    , Just e <- evalPrimADT1 kv p x = Just e
 
     | [Prim p _, x, y] <- xs
     , Lit x' <- x
     , Lit y' <- y = evalPrim2 kv p x' y'
 
     | [Prim p _, x, y, z] <- xs = evalPrim3 kv p x y z
+
+    | [Prim p _, Type t, _] <- xs
+    , Just e <- evalTypeAnyArgPrim kv p t = Just e
 
     | [Prim p _, Type t, dc_e] <- xs, Data dc:_ <- unApp dc_e =
         evalTypeDCPrim2 tenv p t dc
@@ -482,6 +487,17 @@ evalPrim1' _ kv IsInfinite (LitFloat x) = Just . mkBool kv $ isInfinite x
 evalPrim1' _ kv IsInfinite (LitDouble x) = Just . mkBool kv $  isInfinite x
 evalPrim1' _ _ _ _ = Nothing
 
+evalPrimADT1 :: KnownValues -> Primitive -> Expr -> Maybe Expr
+evalPrimADT1 kv StrLen e = fmap (Lit . LitInt) (compLen e)
+    where
+        -- [] @Char
+        compLen (App (Data dc) _ {- type -}) = assert (KV.dcEmpty kv == dcName dc) Just 0
+        -- (:) @Char head tail
+        compLen (App (App (App (Data dc) _ {- type -}) _ {- char -}) xs) = assert (KV.dcCons kv == dcName dc) fmap (+ 1) (compLen xs)
+        compLen _ = Nothing
+
+evalPrimADT1 _ _ _ = Nothing
+
 evalPrim2 :: KnownValues -> Primitive -> Lit -> Lit -> Maybe Expr
 evalPrim2 kv Ge x y = evalPrim2NumCharBool (>=) kv x y
 evalPrim2 kv Gt x y = evalPrim2NumCharBool (>) kv x y
@@ -529,6 +545,11 @@ evalPrim2 _ RationalToDouble (LitInt x) (LitInt y) =
        Just . Lit . LitDouble $ fromIntegral x / fromIntegral y
 
 evalPrim2 _ _ _ _ = Nothing
+
+evalTypeAnyArgPrim :: KnownValues -> Primitive -> Type -> Maybe Expr
+evalTypeAnyArgPrim kv TypeIndex t | t == tyString kv = Just (Lit (LitInt 1))
+                                  | otherwise = Just (Lit (LitInt 0))
+evalTypeAnyArgPrim _ _ _ = Nothing
 
 evalTypeDCPrim2 :: TypeEnv -> Primitive -> Type -> DataCon -> Maybe Expr
 evalTypeDCPrim2 tenv DataToTag t dc =

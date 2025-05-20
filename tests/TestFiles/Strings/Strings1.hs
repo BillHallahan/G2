@@ -43,3 +43,6 @@ nStringSub3 s = if stringSub3 s then "\n" ++ s else s
 
 nStringSub4 :: String -> String
 nStringSub4 s = if stringSub4 s then "\n" ++ s else s
+
+strLen :: String -> (Int, Bool)
+strLen xs = let l = length xs in (l, case l > 5 of True -> False; False -> True)

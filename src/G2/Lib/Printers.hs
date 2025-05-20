@@ -473,6 +473,8 @@ mkPrimHaskell pg = pr
         pr Iff = "pr_iff"
         pr Ite = "pr_ite"
 
+        pr TypeIndex = "typeIndex"
+
 mkPrimHaskellNoDistFloat :: PrettyGuide -> Primitive -> T.Text
 mkPrimHaskellNoDistFloat pg = pr
     where

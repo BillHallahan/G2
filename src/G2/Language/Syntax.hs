@@ -265,6 +265,11 @@ data Primitive = -- Mathematical and logical operators
                | ReadMutVar -- ^ `forall d a. MutVar# d a -> State# d -> a`.
                | WriteMutVar -- ^ `forall d a. MutVar# d a -> a -> State# d -> State# d`.
 
+               -- TypeIndex maps types to Int#s:
+               -- 1: String
+               -- 0: Any other type
+               | TypeIndex
+
                -- Errors
                | Error
                | Undefined
