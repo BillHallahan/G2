@@ -36,6 +36,7 @@ import Data.Maybe
 import qualified Data.Sequence as S
 import qualified G2.Language.TyVarEnv as TV 
 import GHC.Generics (Generic)
+import Debug.Trace
 
 data Class = Class { insts :: [(Type, Id)], typ_ids :: [Id], superclasses :: [(Type, Id)]}
                 deriving (Show, Eq, Read, Typeable, Data, Generic)
@@ -164,7 +165,7 @@ satisfyingTCTypes kv tc i ts =
     in
     case mapMaybe lookupTCDictsTypes tcReq of
         [] -> [tyInt kv]
-        xs -> substKind i $ foldr1 intersect xs
+        xs ->trace("In xs case") substKind i $ foldr1 intersect xs
     where
         lookupTCDictsTypes (TyApp t1 t2) =
               fmap (mapMaybe (\t' -> TV.lookup (idName i) =<< specializes t' t2))

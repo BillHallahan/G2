@@ -40,6 +40,7 @@ mapY f (Y x) = Y (f x)
 yAdd1 :: Y Int -> Y Int
 yAdd1 (Y x) = Y (x + 1)
 
+-- This is failling in the ci but succeed in local testing
 mapYInt :: (Y Int -> Y Int) -> Y Int -> Y Int
 mapYInt f x = f x 
 
