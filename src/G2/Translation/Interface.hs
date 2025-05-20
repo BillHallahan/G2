@@ -74,7 +74,7 @@ translateLoaded :: [FilePath]
   -> Config
   -> IO ([Maybe T.Text], ExtractedG2)
 translateLoaded proj src tr_con config = do
-  let tr_con' = tr_con { hpc_ticks = hpc config || search_strat config == Subpath }
+  let tr_con' = tr_con { hpc_ticks = hpc config || search_strat config == Subpath || hpc_discard_strat config }
   -- Stuff with the actual target
   let def_proj = extraDefaultInclude config
   tar_ems <- envModSumModGutsFromFile (selectBackend tr_con') (def_proj ++ proj ++ map dirPath src) src tr_con' 

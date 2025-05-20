@@ -97,6 +97,7 @@ data Config = Config {
     , print_num_red_rules_per_state :: Bool  -- ^ Output the number of reduction rules per accepted state
     , print_nrpcs :: Bool -- ^ Output generated NRPCs
     , hpc :: Bool -- ^ Should HPC ticks be generated and tracked during execution?
+    , hpc_discard_strat :: Bool -- ^ Discard states that cannot reach any new HPC ticks
     , hpc_print_times :: Bool -- ^ Print the time each HPC tick is reached?
     , hpc_print_ticks :: Bool -- ^ Print each HPC tick number that was reached?
     , strict :: Bool -- ^ Should the function output be strictly evaluated?
@@ -164,6 +165,7 @@ mkConfig homedir = Config Regular
     <*> switch (long "print-nrpc" <> help "output generated nrpcs")
     <*> flag False True (long "hpc"
                       <> help "Generate and report on HPC ticks")
+    <*> flag False True (long "hpc-discard-strat" <> help "Discard states that cannot reach any new HPC ticks")
     <*> switch (long "hpc-print-times" <> help "Print the time each HPC tick is reached?")
     <*> switch (long "hpc-print-ticks" <> help "Print each HPC tick number that was reached?")
     <*> flag True False (long "no-strict" <> help "do not evaluate the output strictly")
@@ -302,6 +304,7 @@ mkConfigDirect homedir as m = Config {
     , print_num_red_rules_per_state = False
     , print_nrpcs = False
     , hpc = False
+    , hpc_discard_strat = False
     , hpc_print_times = False
     , hpc_print_ticks = False
     , strict = boolArg "strict" as m On

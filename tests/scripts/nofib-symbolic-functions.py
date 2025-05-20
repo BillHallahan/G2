@@ -33,10 +33,10 @@ def call_g2_process(filename, func, var_settings):
     return res.stdout
 
 def run_nofib_bench(filename, var_settings, timeout):
-    # --include nofib-symbolic/common --higher-order symbolic --hpc --hpc-print-times --print-num-nrpc --print-num-red-rules --solver-time --print-num-solver-calls --no-step-limit --search subpath --time 60
+    # --include nofib-symbolic/common --higher-order symbolic --hpc --hpc-print-times --print-num-nrpc --print-num-red-rules --solver-time --print-num-solver-calls --no-step-limit --search subpath --hpc-discard-strat --time 60
     return run_g2(filename, "main", ["--include", "nofib-symbolic/common", "--higher-order", "symbolic",
                                      "--hpc", "--hpc-print-times", "--print-num-nrpc", "--print-num-red-rules", "--solver-time", "--print-num-solver-calls",
-                                     "--no-step-limit", "--search", "subpath", "--time", str(timeout)] + var_settings)
+                                     "--no-step-limit", "--search", "subpath", "--hpc-discard-strat", "--time", str(timeout)] + var_settings)
 
 def run_nofib_bench_nrpc(filename, var_settings, timeout):
     return run_nofib_bench(filename, ["--nrpc"] + var_settings, timeout)
