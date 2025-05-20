@@ -33,14 +33,38 @@ def call_g2_process(filename, func, var_settings):
     return res.stdout
 
 def run_nofib_bench(filename, var_settings, timeout):
-    # --include nofib-symbolic/common --higher-order symbolic --hpc --hpc-print-times --no-step-limit --search subpath --time 60
+    # --include nofib-symbolic/common --higher-order symbolic --hpc --hpc-print-times --print-num-nrpc --print-num-red-rules --solver-time --print-num-solver-calls --no-step-limit --search subpath --hpc-discard-strat --time 60
     return run_g2(filename, "main", ["--include", "nofib-symbolic/common", "--higher-order", "symbolic",
-                                     "--hpc", "--hpc-print-times", "--no-step-limit", "--search", "subpath", "--time", str(timeout)] + var_settings)
+                                     "--hpc", "--hpc-print-times", "--print-num-nrpc", "--print-num-red-rules", "--solver-time", "--print-num-solver-calls",
+                                     "--no-step-limit", "--search", "subpath", "--hpc-discard-strat", "--time", str(timeout)] + var_settings)
 
 def run_nofib_bench_nrpc(filename, var_settings, timeout):
     return run_nofib_bench(filename, ["--nrpc"] + var_settings, timeout)
 
+def read_float(pre, out):
+    reg = re.search(pre + r": ((?:\d|\.|e|-)*)", out)
+    res_num = -1
+    if reg:
+        res_num = float(reg.group(1))
+    return res_num
+
+def read_int(pre, out):
+    reg = re.search(pre + r": ((?:\d)*)", out)
+    res_num = -1
+    if reg:
+        res_num = int(reg.group(1))
+    return res_num
+
 def process_output(out):
+    nrpcs = re.findall(r"NRPCs Generated: ((?:\d)*)", out)
+    nrpcs_num = list(map(lambda x : int(x), nrpcs))
+
+    red_rules_num = read_int("# Red Rules", out)
+    smt_solving_time_num = read_float("SMT Solving Time", out)
+    gen_solving_time_num = read_float("General Solving Time", out)
+    gen_solver_calls_num = read_int("General Solver Calls", out)
+    smt_solver_calls_num = read_int("SMT Solver Calls", out)
+
     reached = re.search(r"Ticks reached: (\d*)", out)
     total = re.search(r"Tick num: (\d*)", out)
     last = re.search(r"Last tick reached: ((\d|\.)*)", out)
@@ -55,6 +79,12 @@ def process_output(out):
         print("% reached = " + str(reached_f / total_f))
         print("last time = " + last.group(1))
         print("all_times = " + str(all_times))
+        print("Red Rules #: " + str(red_rules_num))
+        print("SMT Solving time: " + str(smt_solving_time_num))
+        print("Gen Solving time: " + str(gen_solving_time_num))
+        print("SMT Solver calls: " + str(smt_solver_calls_num))
+        print("General Solver calls: " + str(gen_solver_calls_num))
+        print ("# nrpcs = " + str(nrpcs_num))
 
 
 def run_nofib_set(setname, var_settings, timeout):
@@ -80,5 +110,7 @@ def run_nofib_set(setname, var_settings, timeout):
                     res_bench_nrpc = run_nofib_bench_nrpc(final_path, var_settings, timeout)
                     print("NRPC:")
                     process_output(res_bench_nrpc)
+                    print("\n")
 
 run_nofib_set("imaginary", [], 60)
+run_nofib_set("spectral", [], 60)

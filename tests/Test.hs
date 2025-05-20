@@ -364,19 +364,19 @@ testFileTests = testGroup "TestFiles"
     , checkInputOutputsTemplate "tests/HigherOrder/HigherOrder.hs" [ ("f", 50, [AtLeast 5])
                                                                    , ("h", 150, [AtLeast 3])
                                                                    , ("assoc", 200, [AtLeast 5])
-                                                                   , ("sf", 150, [AtLeast 5])
+                                                                   , ("sf", 175, [AtLeast 5])
                                                                    , ("thirdOrder", 75, [AtLeast 10])
                                                                    , ("tupleTestMono", 175, [AtLeast 10])
                                                                    , ("multiPrim", 300, [AtLeast 8])]
     , checkInputOutputsTemplate "tests/HigherOrder/PolyHigherOrder.hs" [ ("f", 50, [AtLeast 5])
                                                                        , ("h", 200, [AtLeast 3])
                                                                        , ("assoc", 200, [AtLeast 5])
-                                                                       , ("sf", 150, [AtLeast 5])
+                                                                       , ("sf", 175, [AtLeast 5])
                                                                        , ("tupleTest", 175, [AtLeast 8])]
     , checkInputOutputsNonRedTemp "tests/HigherOrder/HigherOrder.hs" [ ("f", 200, [AtLeast 3])
                                                                      , ("h", 150, [AtLeast 2])
                                                                      , ("assoc", 250, [AtLeast 2])
-                                                                     , ("sf", 200, [AtLeast 2])
+                                                                     , ("sf", 250, [AtLeast 2])
                                                                      , ("thirdOrder", 300, [AtLeast 2])
                                                                      , ("thirdOrder2", 300, [AtLeast 3])
                                                                      , ("tupleTestMono", 175, [AtLeast 2])
@@ -431,7 +431,8 @@ testFileTests = testGroup "TestFiles"
                                                      , ("significandTest", 2000, [AtLeast 5]) 
                                                      , ("scaleFloatTest", 2000, [AtLeast 6])
                                                      , ("scaleFloatTest2", 2000, [AtLeast 3])
-                                                     , ("doubleToFloat", 2000, [AtLeast 4]) ]
+                                                     , ("doubleToFloat", 2000, [AtLeast 4])
+                                                     , ("enum", 50000, [Exactly 1]) ]
 
     , checkInputOutputs "tests/TestFiles/Doubles1.hs" [ ("infinite", 1000, [AtLeast 3])
                                                       , ("zero", 1000, [AtLeast 3])
@@ -456,7 +457,8 @@ testFileTests = testGroup "TestFiles"
                                                       , ("significandTest", 2000, [AtLeast 5])
                                                       , ("scaleFloatTest", 2000, [AtLeast 6])
                                                       , ("scaleFloatTest2", 2000, [AtLeast 3])
-                                                      , ("floatToDouble", 2000, [AtLeast 4]) ]
+                                                      , ("floatToDouble", 2000, [AtLeast 4])
+                                                      , ("enum", 50000, [Exactly 1]) ]
 
     , checkInputOutputsInstType "tests/TestFiles/InstTypes1.hs" [ ("lengthList", 200, [AtLeast 1])
                                                         , ("myTuple", 200, [AtLeast 1])
