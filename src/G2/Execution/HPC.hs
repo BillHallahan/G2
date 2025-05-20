@@ -125,7 +125,9 @@ onAcceptHpcReducer st md = do
         logTick rv s b = return (NoProgress, [(s, rv)], b)
 
         onAcc s b s_hpc = do
-            SM.modify (`unionHpcTracker` s_hpc)
+            ts <- liftIO $ getTime Monotonic
+            let s_hpc' = s_hpc { hpc_ticks = HM.map (const ts) $ hpc_ticks s_hpc }
+            SM.modify (`unionHpcTracker` s_hpc')
             (HPC { num_reached = nr }) <- SM.get
             hpc_tick_num <- totalTickCount
             liftIO $ putStr ("\r" ++ show nr ++ " / " ++ show hpc_tick_num)
