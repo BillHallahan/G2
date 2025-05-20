@@ -338,7 +338,7 @@ initRedHaltOrd s mod_name solver simplifier config exec_func_names no_nrpc_names
 
         halter_discard = case hpc_discard_strat config of
                             True -> SomeHalter (liftHalter (liftHalter (liftHalter (noNewHPCHalter mod_name)))) .<~> halter_step
-                            False -> halter_step
+                            False -> SomeHalter (discardIfAcceptedTagHalter state_name) .<~> halter_step
 
         orderer = case search_strat config of
                         Subpath -> SomeOrderer $ lengthNSubpathOrderer (subpath_length config)
@@ -352,11 +352,11 @@ initRedHaltOrd s mod_name solver simplifier config exec_func_names no_nrpc_names
                 , orderer)
             SingleFunc ->
                 ( logger_std_red retReplaceSymbFuncVar .== Finished .--> taggerRed state_name :== Finished --> nonRedPCRed
-                , SomeHalter (discardIfAcceptedTagHalter state_name) .<~> halter_discard
+                , halter_discard
                 , orderer)
             SymbolicFunc ->
-                ( logger_std_red retReplaceSymbFuncTemplate .== Finished {- .--> taggerRed state_name :== Finished -} --> nonRedPCSymFuncRed
-                , {-SomeHalter (discardIfAcceptedTagHalter state_name) .<~> -} halter_discard
+                ( logger_std_red retReplaceSymbFuncTemplate .== Finished .--> taggerRed state_name :== Finished --> nonRedPCSymFuncRed
+                , halter_discard
                 , orderer)
 
 initSolver :: Config -> IO SomeSolver
