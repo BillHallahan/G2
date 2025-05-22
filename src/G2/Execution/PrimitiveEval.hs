@@ -508,11 +508,11 @@ evalPrimADT2 kv StrAppend h t = strApp h t
         -- (:) @Char head tail ys
         strApp (App (App (App (Data dc) typ) char) xs) ys = 
             let
-                tail = case (strApp xs ys) of
+                tl = case (strApp xs ys) of
                     Nothing -> error "wrong nested type in string expr, should be impossible"
                     Just e -> e
             in assert (KV.dcCons kv == dcName dc) 
-                (Just (App (App (App (Data dc) typ) char) tail))
+                (Just (App (App (App (Data dc) typ) char) tl))
         -- [] @Char ys
         strApp (App (Data dc) _ {- type -}) ys = assert (KV.dcEmpty kv == dcName dc) (Just ys)
         strApp _ _ = Nothing
