@@ -4,6 +4,7 @@ import re
 import os
 import subprocess
 import time
+from tabulate import tabulate
 
 exe_name = str(subprocess.run(["cabal", "exec", "which", "G2"], capture_output = True).stdout.decode('utf-8')).strip()
 
@@ -47,25 +48,45 @@ def process_output(out):
 
     all_times = read_hpc_times(out)
 
+    coverage = "";
+    last_time = "";
+
     if reached != None and total != None and last != None:
         reached_f = float(reached.group(1))
         total_f = float(total.group(1))
+        coverage = str(round(((reached_f / total_f)*100), 2))
+        last_time = last.group(1)
+
         print("reached = " + str(reached.group(1)))
         print("total = " + str(total.group(1)))
-        print("% reached = " + str(reached_f / total_f))
-        print("last time = " + last.group(1))
+        print("% reached = " + coverage)
+        print("last time = " + last_time)
         print("all_times = " + str(all_times))
+    return coverage, last_time
+
+def read_runnable_benchmarks(setpath) :
+    lines = {}
+    file = os.path.join(setpath, "run_benchmarks.txt")
+    with open(file, 'r') as file :
+        lines = [line.rstrip('\n') for line in file.readlines()]
+    return lines
 
 
 def run_nofib_set(setname, var_settings, timeout):
         setpath = os.path.join("nofib-symbolic-functions/", setname)
         all_files_dirs = os.listdir(setpath);
-        print(all_files_dirs)
-        lhs_files = ["digits-of-e1", "digits-of-e2"]
+        lhs_files = ["digits-of-e1", "digits-of-e2", "boyer", "circsim", "fibheaps", "knights",
+                     "para", "primetest", "rewrite", "secretary", "sphere", "fft2"]
 
-        print(setpath)
+        run_benchmarks = read_runnable_benchmarks(setpath)
+        print(run_benchmarks)
 
-        for file_dir in all_files_dirs:
+        data = []
+
+        headers = ["Benchmark", "Baseline cov %", "Baseline last time",
+                    "NRPC cov %", "NRPC last time"]
+
+        for file_dir in run_benchmarks:
             bench_path = os.path.join(setpath, file_dir)
             if os.path.isdir(bench_path):
                 if file_dir in lhs_files:
@@ -76,9 +97,14 @@ def run_nofib_set(setname, var_settings, timeout):
                     print(file_dir);
                     res_bench = run_nofib_bench(final_path, var_settings, timeout)
                     print("Baseline:")
-                    process_output(res_bench)
+                    base_cov, base_last = process_output(res_bench)
                     res_bench_nrpc = run_nofib_bench_nrpc(final_path, var_settings, timeout)
                     print("NRPC:")
-                    process_output(res_bench_nrpc)
+                    nrpc_cov, nrpc_last = process_output(res_bench_nrpc)
+
+                    data.append([file_dir, base_cov, base_last, nrpc_cov, nrpc_last])
+        print(tabulate(data, headers=headers, tablefmt="grid"))
+
 
 run_nofib_set("imaginary", [], 60)
+run_nofib_set("spectral", [], 60)
