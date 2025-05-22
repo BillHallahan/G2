@@ -593,7 +593,7 @@ nonRedPCSymFunc _ _
         strip_nre1 = stripCenterTick nre1
 
         rep = case easyReplacementOpt tenv eenv (strip_nre1, nre2) nrs of
-                    Just OnlyNonConst -> retReplaceSymbFuncTemplateNonConst
+                    Just FavorNonConst -> retReplaceSymbFuncTemplateFavorNonConst
                     Nothing -> retReplaceSymbFuncTemplate
     in
     case rep s' ng strip_nre1 of
@@ -605,27 +605,22 @@ nonRedPCSymFunc _ _
             in return (InProgress, [(s'', ())], b)
 nonRedPCSymFunc _ _ s b = return (Finished, [(s, ())], b)
 
-data ReplacementInstr = OnlyConst | OnlyNonConst
+data ReplacementInstr = FavorConst | FavorNonConst
 
 -- | Look for cases where we can replace a function with only a constant function or only a non-constant function
 easyReplacementOpt :: TypeEnv -> ExprEnv -> (Expr, Expr) -> [(Expr, Expr)] -> Maybe ReplacementInstr
 easyReplacementOpt tenv eenv (e1, e2) nrpc
     | func_structs <- map toFuncStruct nrpc
     , Var (Id f (TyFun t1 _)):es@(ea:_) <- unApp e1
-    , f_func_structs <- filter (\(f', _, _, _) -> f == f') func_structs
     , centerIsTyCon t1 || isTyFun t1
-    , let easy_scrut = all (easyScrutinee tenv eenv) (ea:map (\(_, ea', _, _) -> ea') f_func_structs)
-    , easy_scrut =
-        case reachesVar eenv f (es, e2, func_structs) of
-            False | easy_scrut -> Just OnlyNonConst
-            _ -> Nothing
+    , easyScrutinee tenv eenv ea = Just FavorNonConst
+    | otherwise = Nothing
     where
         centerIsTyCon t | TyCon _ _:_ <- unTyApp t = True
         centerIsTyCon _ = False
 
         toFuncStruct (e1, e2) | Var (Id f _):ea:es <- unApp (stripCenterTick e1) = (f, ea, es, e2)
                               | otherwise = error "toFuncStruct: unsupported"
-easyReplacementOpt _ _ _ _ = Nothing
 
 easyScrutinee :: TypeEnv -> ExprEnv -> Expr -> Bool
 easyScrutinee tenv eenv = getAll . go HS.empty

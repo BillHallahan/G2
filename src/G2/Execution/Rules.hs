@@ -21,8 +21,7 @@ module G2.Execution.Rules ( module G2.Execution.RuleTypes
                           , SymbolicFuncEval
                           , retReplaceSymbFuncVar
                           , retReplaceSymbFuncTemplate
-                          , retReplaceSymbFuncTemplateConst
-                          , retReplaceSymbFuncTemplateNonConst) where
+                          , retReplaceSymbFuncTemplateFavorNonConst) where
 
 import G2.Config.Config
 import G2.Execution.DataConPCMap
@@ -1166,10 +1165,16 @@ type SymbolicFuncEval t = State t -> NameGen -> Expr -> Maybe ([State t], NameGe
 
 
 retReplaceSymbFuncTemplate :: State t -> NameGen -> Expr -> Maybe ([State t], NameGen)
-retReplaceSymbFuncTemplate s ng e = do
+retReplaceSymbFuncTemplate = retReplaceSymbFuncTemplate' (++)
+
+retReplaceSymbFuncTemplateFavorNonConst :: State t -> NameGen -> Expr -> Maybe ([State t], NameGen)
+retReplaceSymbFuncTemplateFavorNonConst = retReplaceSymbFuncTemplate' (flip (++))
+
+retReplaceSymbFuncTemplate' :: ([State t] -> [State t] -> [State t]) -> State t -> NameGen -> Expr -> Maybe ([State t], NameGen)
+retReplaceSymbFuncTemplate' comb s ng e = do
     (xs, ng') <- retReplaceSymbFuncTemplateNonConst s ng e
     let xs_ng = retReplaceSymbFuncTemplateConst s ng' e
-        (final_xs, final_ng) = maybe (xs, ng') (first (++ xs)) xs_ng
+        (final_xs, final_ng) = maybe (xs, ng') (first (`comb` xs)) xs_ng
     return (final_xs, final_ng)
 
 retReplaceSymbFuncTemplateConst :: State t -> NameGen -> Expr -> Maybe ([State t], NameGen)
