@@ -45,6 +45,7 @@ import G2.Data.Utils
 import qualified G2.Data.UFMap as UF
 
 import Control.Exception
+import Data.Monoid hiding (Alt)
 
 stdReduce :: (Solver solver, Simplifier simplifier) => Sharing -> SymbolicFuncEval t -> solver -> simplifier -> State t -> Bindings -> IO (Rule, [(State t, ())], Bindings)
 stdReduce share symb_func_eval solver simplifier s b@(Bindings {name_gen = ng}) = do
@@ -1168,7 +1169,7 @@ retReplaceSymbFuncTemplate s@(State { expr_env = eenv
                            ng ce
 
     -- DC-SPLIT
-    | Var (Id n (TyFun t1 t2)):es <- unApp ce
+    | Var (Id n (TyFun t1 t2)):es@(ea:_) <- unApp ce
     , TyCon tname _:ts <- unTyApp t1 
     , E.isSymbolic n eenv
     , Just alg_data_ty <- HM.lookup tname tenv
@@ -1197,10 +1198,17 @@ retReplaceSymbFuncTemplate s@(State { expr_env = eenv
         eenv' = foldr E.insertSymbolic eenv symIds
         eenv'' = E.insert n e eenv'
         (constState, ng''''') = mkFuncConst s es n t1 t2 ng''''
-    in Just (RuleReturnReplaceSymbFunc, [constState, s {
-        curr_expr = CurrExpr Evaluate e',
-        expr_env = eenv''
-    }], ng''''')
+        
+        dc_split_s = s { curr_expr = CurrExpr Evaluate e'
+                       , expr_env = eenv''
+                       }
+
+    in
+    -- If the scrutinee is easy to reduce and won't result in state splitting, just use the dc split rule
+    -- and split introducing a constant function
+    if easyScrutinee tenv eenv ea
+        then Just (RuleReturnReplaceSymbFunc, [dc_split_s], ng''''')
+        else Just (RuleReturnReplaceSymbFunc, [constState, dc_split_s], ng''''')
 
     -- FUNC-APP
     | Var (Id n (TyFun t1@(TyFun _ _) t2)):es <- unApp ce
@@ -1247,6 +1255,29 @@ retReplaceSymbFuncTemplate s@(State { expr_env = eenv
         expr_env = eenv''
     }], ng'')
     | otherwise = Nothing
+
+easyScrutinee :: TypeEnv -> ExprEnv -> Expr -> Bool
+easyScrutinee tenv eenv = getAll . go HS.empty
+    where
+        go ns (Var (Id n t)) | n `HS.member` ns = All False
+                             | E.isSymbolic n eenv
+                             , nonRecType HS.empty t = All True
+                             | Just e <- E.lookup n eenv = go (HS.insert n ns) e
+                             | otherwise = All False
+        go ns (Tick _ e) = go ns e
+        go ns (App e1 e2) = go ns e1 <> go ns e2
+        go _ (Data _) = All True
+        go _ e = All False
+        
+        -- Recursive types must eventually be able to hit func-const
+        nonRecType ns (TyCon n _)
+            | n `HS.member` ns = False
+            | Just (DataTyCon { data_cons = [dc] }) <- HM.lookup n tenv =
+                            all (nonRecType (HS.insert n ns)) $ argumentTypes dc
+            | otherwise = False
+        nonRecType _ TYPE = True
+        nonRecType _ t | isPrimType t = True
+        nonRecType _ _ = False
 
 freshHpcTick :: NameGen -> (Tickish, NameGen)
 freshHpcTick ng =
