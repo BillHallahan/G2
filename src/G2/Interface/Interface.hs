@@ -254,7 +254,7 @@ initCheckReaches s@(State { expr_env = eenv
 type RHOStack m = SM.StateT LengthNTrack (SM.StateT PrettyGuide (SM.StateT HpcTracker (SM.StateT HPCMemoTable m)))
 
 {-# SPECIALIZE runReducer :: Ord b =>
-                             Reducer (RHOStack IO) rv ()
+                             Reducer (RHOStack IO) rv (ExecRes ()) ()
                           -> Halter (RHOStack IO) hv (ExecRes ()) ()
                           -> Orderer (RHOStack IO) sov b (ExecRes ()) ()
                           -> (State () -> Bindings -> RHOStack IO (Maybe (ExecRes ())))
@@ -273,7 +273,7 @@ type RHOStack m = SM.StateT LengthNTrack (SM.StateT PrettyGuide (SM.StateT HpcTr
                    -> Config
                    -> S.HashSet Name
                    -> S.HashSet Name
-                   -> IO (SomeReducer (RHOStack IO) (), SomeHalter (RHOStack IO) (ExecRes ()) (), SomeOrderer (RHOStack IO) (ExecRes ()) ())
+                   -> IO (SomeReducer (RHOStack IO) (ExecRes t) (), SomeHalter (RHOStack IO) (ExecRes ()) (), SomeOrderer (RHOStack IO) (ExecRes ()) ())
     #-}
 initRedHaltOrd :: (MonadIO m, Solver solver, Simplifier simplifier) =>
                   State ()
@@ -284,7 +284,7 @@ initRedHaltOrd :: (MonadIO m, Solver solver, Simplifier simplifier) =>
                -> S.HashSet Name -- ^ Names of functions that may not be added to NRPCs
                -> S.HashSet Name -- ^ Names of functions that should not reesult in a larger expression become EXEC,
                                  -- but should not be added to the NRPC at the top level.
-               -> IO (SomeReducer (RHOStack m) (), SomeHalter (RHOStack m) (ExecRes ()) (), SomeOrderer (RHOStack m) (ExecRes ()) ())
+               -> IO (SomeReducer (RHOStack m) (ExecRes t) (), SomeHalter (RHOStack m) (ExecRes ()) (), SomeOrderer (RHOStack m) (ExecRes ()) ())
 initRedHaltOrd s mod_name solver simplifier config exec_func_names no_nrpc_names = do
     time_logger <- acceptTimeLogger
     time_halter <- stdTimerHalter (fromInteger . toInteger $ timeLimit config)
@@ -580,7 +580,7 @@ isFuncNonRecursive g n =
 {-# SPECIALIZE 
     runG2WithSomes :: ( Solver solver
                       , Simplifier simplifier)
-                => SomeReducer (RHOStack IO) ()
+                => SomeReducer (RHOStack IO) (ExecRes ()) ()
                 -> SomeHalter (RHOStack IO) (ExecRes ()) ()
                 -> SomeOrderer (RHOStack IO) (ExecRes ()) ()
                 -> [AnalyzeStates (RHOStack IO) (ExecRes ()) ()]
@@ -597,7 +597,7 @@ runG2WithSomes :: ( MonadIO m
                   , ASTContainer t Type
                   , Solver solver
                   , Simplifier simplifier)
-               => SomeReducer m t
+               => SomeReducer m (ExecRes t) t
                -> SomeHalter m (ExecRes t) t
                -> SomeOrderer m (ExecRes t) t
                -> [AnalyzeStates m (ExecRes t) t]
@@ -618,7 +618,7 @@ runG2WithSomes' :: ( MonadIO m
                   , ASTContainer t Type
                   , Solver solver
                   , Simplifier simplifier)
-               => SomeReducer m t
+               => SomeReducer m (ExecRes t) t
                -> SomeHalter m (ExecRes t) t
                -> SomeOrderer m (ExecRes t) t
                -> [AnalyzeStates m (ExecRes t) t]
@@ -648,7 +648,7 @@ runG2Post :: ( MonadIO m
              , ASTContainer t Type
              , Solver solver
              , Simplifier simplifier
-             , Ord b) => Reducer m rv t -> Halter m hv (ExecRes t) t -> Orderer m sov b (ExecRes t) t ->
+             , Ord b) => Reducer m rv (ExecRes t) t -> Halter m hv (ExecRes t) t -> Orderer m sov b (ExecRes t) t ->
              solver -> simplifier -> State t -> Bindings -> m ([ExecRes t], Bindings)
 runG2Post red hal ord solver simplifier is bindings = do
     runExecution red hal ord (runG2Solving solver simplifier) [] is bindings
@@ -726,7 +726,7 @@ runG2SubstModel m s@(State { type_env = tenv, known_values = kv }) bindings =
 
 {-# SPECIALIZE runG2 :: ( Solver solver
                         , Simplifier simplifier
-                        , Ord b) => Reducer (RHOStack IO) rv () -> Halter (RHOStack IO) hv (ExecRes ()) () -> Orderer (RHOStack IO) sov b (ExecRes ()) () ->
+                        , Ord b) => Reducer (RHOStack IO) rv (ExecRes ()) () -> Halter (RHOStack IO) hv (ExecRes ()) () -> Orderer (RHOStack IO) sov b (ExecRes ()) () ->
                         [AnalyzeStates (RHOStack IO) (ExecRes ()) ()] ->
                         solver -> simplifier -> MemConfig -> State () -> Bindings -> RHOStack IO ([ExecRes ()], Bindings)
     #-}
@@ -740,7 +740,7 @@ runG2 :: ( MonadIO m
          , ASTContainer t Type
          , Solver solver
          , Simplifier simplifier
-         , Ord b) => Reducer m rv t -> Halter m hv (ExecRes t) t -> Orderer m sov b (ExecRes t) t -> [AnalyzeStates m (ExecRes t) t] ->
+         , Ord b) => Reducer m rv (ExecRes t) t -> Halter m hv (ExecRes t) t -> Orderer m sov b (ExecRes t) t -> [AnalyzeStates m (ExecRes t) t] ->
          solver -> simplifier -> MemConfig -> State t -> Bindings -> m ([ExecRes t], Bindings)
 runG2 red hal ord analyze solver simplifier mem is bindings = do
     let (is', bindings') = runG2Pre mem is bindings

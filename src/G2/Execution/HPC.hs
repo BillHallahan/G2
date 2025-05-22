@@ -92,10 +92,10 @@ totalTickCount = do
 -- A HPC tick is considered reached as soon as a State reaches it.
 immedHpcReducer :: (MonadIO m, SM.MonadState HpcTracker m) =>
                    HS.HashSet (Maybe T.Text) -- ^ A module to track tick count in
-                -> Reducer m () t
+                -> Reducer m () r t
 immedHpcReducer md = (mkSimpleReducer (const ()) logTick) { afterRed = after }
     where
-        logTick _ s@(State {curr_expr = CurrExpr _ (Tick (HpcTick i tm) _)}) b
+        logTick _ _ s@(State {curr_expr = CurrExpr _ (Tick (HpcTick i tm) _)}) b
             | Just tm `HS.member` md = do
                 hpc <- SM.get
                 hpc'@(HPC { num_reached = nr }) <- hpcInsert i tm hpc
@@ -104,7 +104,7 @@ immedHpcReducer md = (mkSimpleReducer (const ()) logTick) { afterRed = after }
                 liftIO $ putStr ("\r" ++ show nr ++ " / " ++ show hpc_tick_num)
                 liftIO $ hFlush stdout
                 return (NoProgress, [(s, ())], b)
-        logTick _ s b = return (NoProgress, [(s, ())], b)
+        logTick _ _ s b = return (NoProgress, [(s, ())], b)
 
         after = afterHPC
 
@@ -113,16 +113,16 @@ immedHpcReducer md = (mkSimpleReducer (const ()) logTick) { afterRed = after }
 onAcceptHpcReducer :: (MonadIO m, SM.MonadState HpcTracker m) =>
                       State t
                    -> HS.HashSet (Maybe T.Text) -- ^ Modules to track tick count in
-                   -> IO (Reducer m HpcTracker t)
+                   -> IO (Reducer m HpcTracker r t)
 onAcceptHpcReducer st md = do
     trck <- hpcTracker st md False False
     return (mkSimpleReducer (const trck) logTick) { onAccept = onAcc, afterRed = after }
     where
-        logTick hpc s@(State {curr_expr = CurrExpr _ (Tick (HpcTick i tm) _)}) b
+        logTick hpc _ s@(State {curr_expr = CurrExpr _ (Tick (HpcTick i tm) _)}) b
             | Just tm `HS.member` md = do
                 hpc' <- hpcInsert i tm hpc
                 return (NoProgress, [(s, hpc')], b)
-        logTick rv s b = return (NoProgress, [(s, rv)], b)
+        logTick rv _ s b = return (NoProgress, [(s, rv)], b)
 
         onAcc s b s_hpc = do
             ts <- liftIO $ getTime Monotonic

@@ -79,7 +79,9 @@ module G2.Language.Expr ( module G2.Language.Casts
                         , freeVars
                         , alphaReduction
                         , varBetaReduction
-                        , etaExpandTo) where
+                        , etaExpandTo
+                        
+                        , reachesVar) where
 
 import G2.Language.AST
 import G2.Language.Casts
@@ -91,7 +93,9 @@ import G2.Language.Syntax
 import G2.Language.Typing
 import G2.Language.Primitives
 
+import qualified Control.Monad.State as SM
 import Data.Foldable
+import qualified Data.HashSet as HS
 import qualified Data.Map as M
 import Data.Maybe
 import Data.Semigroup
@@ -605,3 +609,14 @@ etaExpandTo' eenv ng n e = (addLamApps fn (typeOf e) e, ng')
         addLamApps (ln:ns) (TyFun t t') e' =
             Lam TermL (Id ln t) (App (addLamApps ns t' e') (Var (Id ln t)))
         addLamApps _ _ e' = e'
+
+reachesVar :: ASTContainer c Expr => ExprEnv -> Name -> c -> Bool
+reachesVar eenv n cont =
+    SM.evalState (getAny . mconcat . map Any <$> mapM go (containedASTs cont)) HS.empty 
+    where
+        go (Var (Id n' _)) | n == n' = return True
+                           | Just (E.Conc c) <- E.lookupConcOrSym n' eenv = do
+                                checked <- SM.gets (n' `HS.member`)
+                                if not checked then do SM.modify (HS.insert n'); go c else return False
+                           | otherwise = return False
+        go e' = getAny . mconcat . map Any <$> mapM go (children e')

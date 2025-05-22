@@ -271,7 +271,7 @@ moduleName = "THTemp"
 functionName :: String
 functionName = "g2Expr"
 
-qqRedHaltOrd :: (MonadIO m, Solver solver, Simplifier simplifier) => Config -> solver -> simplifier -> (SomeReducer m (), SomeHalter m r (), SomeOrderer m r ())
+qqRedHaltOrd :: (MonadIO m, Solver solver, Simplifier simplifier) => Config -> solver -> simplifier -> (SomeReducer m r (), SomeHalter m r (), SomeOrderer m r ())
 qqRedHaltOrd config solver simplifier =
     let
         share = sharing config

@@ -20,7 +20,9 @@ module G2.Execution.Rules ( module G2.Execution.RuleTypes
                           
                           , SymbolicFuncEval
                           , retReplaceSymbFuncVar
-                          , retReplaceSymbFuncTemplate) where
+                          , retReplaceSymbFuncTemplate
+                          , retReplaceSymbFuncTemplateConst
+                          , retReplaceSymbFuncTemplateNonConst) where
 
 import G2.Config.Config
 import G2.Execution.DataConPCMap
@@ -36,6 +38,7 @@ import qualified G2.Language.Stack as S
 import G2.Preprocessing.NameCleaner
 import G2.Solver hiding (Assert)
 import Control.Monad.Extra
+import Data.Bifunctor
 import Data.Maybe
 import qualified Data.HashMap.Lazy as HM
 import qualified Data.HashSet as HS
@@ -82,7 +85,7 @@ stdReduce' _ symb_func_eval solver simplifier s@(State { curr_expr = CurrExpr Re
         return (RuleError, [s { exec_stack = stck'
                               , true_assert = True
                               , assert_ids = fmap (\fc -> fc { returns = Prim Error TyBottom }) is }], ng)
-    | Just rs <- symb_func_eval s ng ce = return rs
+    | Just (xs, ng') <- symb_func_eval s ng ce = return (RuleReturnReplaceSymbFunc, xs, ng')
     | Just (UpdateFrame n, stck') <- frstck = return $ retUpdateFrame s ng n stck'
     | isError ce
     , Just (_, stck') <- S.pop stck = return (RuleError, [s { exec_stack = stck' }], ng)
@@ -1159,14 +1162,31 @@ liftBind bindsLHS bindsRHS eenv expr ngen = (eenv', expr', ngen', new)
 
     eenv' = E.insert new bindsRHS eenv
 
-type SymbolicFuncEval t = State t -> NameGen -> Expr -> Maybe (Rule, [State t], NameGen)
+type SymbolicFuncEval t = State t -> NameGen -> Expr -> Maybe ([State t], NameGen)
 
--- change literal rule to only match on arguments
-retReplaceSymbFuncTemplate :: State t -> NameGen -> Expr -> Maybe (Rule, [State t], NameGen)
-retReplaceSymbFuncTemplate s@(State { expr_env = eenv
-                                    , type_env = tenv
-                                    , known_values = kv })
-                           ng ce
+
+retReplaceSymbFuncTemplate :: State t -> NameGen -> Expr -> Maybe ([State t], NameGen)
+retReplaceSymbFuncTemplate s ng e = do
+    (xs, ng') <- retReplaceSymbFuncTemplateNonConst s ng e
+    let xs_ng = retReplaceSymbFuncTemplateConst s ng' e
+        (final_xs, final_ng) = maybe (xs, ng') (first (++ xs)) xs_ng
+    return (final_xs, final_ng)
+
+retReplaceSymbFuncTemplateConst :: State t -> NameGen -> Expr -> Maybe ([State t], NameGen)
+retReplaceSymbFuncTemplateConst s@(State { expr_env = eenv
+                                            , type_env = tenv
+                                            , known_values = kv })
+                                ng ce
+    | Var (Id n (TyFun t1 t2)):es <- unApp ce
+    , not (isPrimType t1)
+    , E.isSymbolic n eenv = Just . first (:[]) $ mkFuncConst s es n t1 t2 ng
+    | otherwise = Nothing
+
+retReplaceSymbFuncTemplateNonConst :: State t -> NameGen -> Expr -> Maybe ([State t], NameGen)
+retReplaceSymbFuncTemplateNonConst s@(State { expr_env = eenv
+                                            , type_env = tenv
+                                            , known_values = kv })
+                                   ng ce
 
     -- DC-SPLIT
     | Var (Id n (TyFun t1 t2)):es@(ea:_) <- unApp ce
@@ -1197,7 +1217,6 @@ retReplaceSymbFuncTemplate s@(State { expr_env = eenv
         e' = mkApp (e:es)
         eenv' = foldr E.insertSymbolic eenv symIds
         eenv'' = E.insert n e eenv'
-        (constState, ng''''') = mkFuncConst s es n t1 t2 ng''''
         
         dc_split_s = s { curr_expr = CurrExpr Evaluate e'
                        , expr_env = eenv''
@@ -1206,9 +1225,7 @@ retReplaceSymbFuncTemplate s@(State { expr_env = eenv
     in
     -- If the scrutinee is easy to reduce and won't result in state splitting, just use the dc split rule
     -- and split introducing a constant function
-    if easyScrutinee tenv eenv ea
-        then Just (RuleReturnReplaceSymbFunc, [dc_split_s], ng''''')
-        else Just (RuleReturnReplaceSymbFunc, [constState, dc_split_s], ng''''')
+    Just ([dc_split_s], ng'''')
 
     -- FUNC-APP
     | Var (Id n (TyFun t1@(TyFun _ _) t2)):es <- unApp ce
@@ -1226,11 +1243,11 @@ retReplaceSymbFuncTemplate s@(State { expr_env = eenv
         -- eenv'' = E.insertSymbolic (idName fId) fId eenv'
         eenv'' = E.insertSymbolic fId eenv'
         eenv''' = E.insert n e eenv''
-        (constState, ng''''') = mkFuncConst s es n t1 t2 ng''''
-    in Just (RuleReturnReplaceSymbFunc, [constState, s {
-        curr_expr = CurrExpr Evaluate $ mkApp (e:es),
-        expr_env = eenv'''
-    }], ng''''')
+    in Just ([
+            s {
+                curr_expr = CurrExpr Evaluate $ mkApp (e:es),
+                expr_env = eenv'''
+            }], ng'''')
 
     -- LIT-SPLIT
     | Var (Id n (TyFun t1 t2)):ea:es <- unApp ce
@@ -1249,37 +1266,13 @@ retReplaceSymbFuncTemplate s@(State { expr_env = eenv
            , Alt (DataAlt falseDc []) (App (Var f2Id) x)]
         eenv' = foldr E.insertSymbolic eenv [f1Id, f2Id]
         eenv'' = E.insert n e eenv'
-    in Just (RuleReturnReplaceSymbFunc, [s {
+    in Just (
+    [s {
         -- because we are always going down true branch
         curr_expr = CurrExpr Evaluate (mkApp (Var f1Id:es)),
         expr_env = eenv''
     }], ng'')
     | otherwise = Nothing
-
-easyScrutinee :: TypeEnv -> ExprEnv -> Expr -> Bool
-easyScrutinee tenv eenv = getAll . go HS.empty
-    where
-        go ns (Var (Id n t)) | n `HS.member` ns = All False
-                             | E.isSymbolic n eenv
-                             , nonRecType HS.empty t = All True
-                             | Just e <- E.lookup n eenv = go (HS.insert n ns) e
-                             | otherwise = All False
-        go ns (Tick _ e) = go ns e
-        go ns (App e1 e2) = go ns e1 <> go ns e2
-        go _ (Data _) = All True
-        go _ (Type _) = All True
-        go _ _ = All False
-        
-        -- Recursive types must eventually be able to hit func-const
-        nonRecType ns (TyCon n _)
-            | n `HS.member` ns = False
-            | Just (DataTyCon { data_cons = [dc] }) <- HM.lookup n tenv =
-                            all (nonRecType (HS.insert n ns)) $ argumentTypes dc
-            | otherwise = False
-        nonRecType ns (TyApp t1 t2) = nonRecType ns t1 && nonRecType ns t2
-        nonRecType _ TYPE = True
-        nonRecType _ t | isPrimType t = True
-        nonRecType _ _ = False
 
 freshHpcTick :: NameGen -> (Tickish, NameGen)
 freshHpcTick ng =
@@ -1312,7 +1305,7 @@ mkFuncConst s@(State { expr_env = eenv } ) es n t1 t2 ng =
 -- it with a symbolic variable of the correct type.
 -- A non reduced path constraint is added, to force solving for the symbolic
 -- function later.
-retReplaceSymbFuncVar :: State t -> NameGen -> Expr -> Maybe (Rule, [State t], NameGen)
+retReplaceSymbFuncVar :: State t -> NameGen -> Expr -> Maybe ([State t], NameGen)
 retReplaceSymbFuncVar s@(State { expr_env = eenv
                                , exec_stack = stck })
                       ng ce
@@ -1326,7 +1319,7 @@ retReplaceSymbFuncVar s@(State { expr_env = eenv
             (new_sym, ng') = freshSeededString "sym" ng
             new_sym_id = Id new_sym t
         in
-        Just (RuleReturnReplaceSymbFunc, 
+        Just (
             [s { expr_env = E.insertSymbolic new_sym_id eenv
                , curr_expr = CurrExpr Return (Var new_sym_id)
                , non_red_path_conds = non_red_path_conds s ++ [(ce, Var new_sym_id)] }]

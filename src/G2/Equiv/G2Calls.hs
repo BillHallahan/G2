@@ -74,7 +74,7 @@ rewriteRedHaltOrd :: (MonadIO m, Solver solver, Simplifier simplifier) =>
                      EquivTracker ->
                      Config ->
                      NebulaConfig ->
-                     ( SomeReducer (SM.StateT PrettyGuide m) EquivTracker
+                     ( SomeReducer (SM.StateT PrettyGuide m) (ExecRes EquivTracker) EquivTracker
                      , SomeHalter (SM.StateT PrettyGuide m) (ExecRes EquivTracker) EquivTracker
                      , SomeOrderer (SM.StateT PrettyGuide m) (ExecRes EquivTracker) EquivTracker)
 rewriteRedHaltOrd solver simplifier h_opp track_opp config (NC { use_labeled_errors = use_labels }) =
@@ -124,12 +124,12 @@ instance Hashable EquivTracker
 
 -- | Forces a lone symbolic variable with a type corresponding to an ADT
 -- to evaluate to some value of that ADT
-concSymReducer :: Monad m => UseLabeledErrors -> Reducer m () EquivTracker
+concSymReducer :: Monad m => UseLabeledErrors -> Reducer m () r EquivTracker
 concSymReducer use_labels = mkSimpleReducer
                     (const ())
                     rr
     where
-        rr _
+        rr _ _
                  s@(State { curr_expr = CurrExpr _ (Var (Id n t))
                           , expr_env = eenv
                           , type_env = tenv
@@ -154,7 +154,7 @@ concSymReducer use_labels = mkSimpleReducer
                     -- not all of these will be used on each branch
                     -- they're all fresh, though, so overlap is not a problem
                 return (InProgress, zip xs (repeat ()) , b')
-        rr _ s b = return (NoProgress, [(s, ())], b)
+        rr _ _ s b = return (NoProgress, [(s, ())], b)
 
 -- | Build a case expression with one alt for each data constructor of the given type
 -- and symbolic arguments.  Thus, the case expression could evaluate to any value of the
@@ -198,12 +198,12 @@ arbDC use_labels tenv ng t n total
         Just (dc_symbs, ng'')
     | otherwise = Nothing
 
-symbolicSwapperRed :: Monad m => E.ExprEnv -> EquivTracker -> Reducer m () EquivTracker
+symbolicSwapperRed :: Monad m => E.ExprEnv -> EquivTracker -> Reducer m () r EquivTracker
 symbolicSwapperRed h_opp track_opp = mkSimpleReducer
                         (const ())
                         rr
     where
-        rr rv
+        rr rv _
            s@(State { curr_expr = CurrExpr _ e
                     , expr_env = h
                     , track = EquivTracker et m tot dcp opp fname })
@@ -225,14 +225,14 @@ symbolicSwapperRed h_opp track_opp = mkSimpleReducer
                         _ -> return (NoProgress, [(s, rv)], b)
                 _ -> return (NoProgress, [(s, rv)], b)
 
-enforceProgressRed :: Monad m => Reducer m () EquivTracker
+enforceProgressRed :: Monad m => Reducer m () r EquivTracker
 enforceProgressRed = mkSimpleReducer
                         (const ())
                         rr
     where
-        rr rv s@(State { curr_expr = CurrExpr _ e
-                               , num_steps = n
-                               , track = EquivTracker et m total dcp opp fname })
+        rr rv _ s@(State { curr_expr = CurrExpr _ e
+                         , num_steps = n
+                         , track = EquivTracker et m total dcp opp fname })
                       b =
             let s' = s { track = EquivTracker et (Just n) total dcp opp fname }
                 need_more = case m of
@@ -267,12 +267,12 @@ isLabeledError (Tick (NamedLoc n) (Prim Error _)) = isLabeledErrorName n
 isLabeledError (Tick (NamedLoc n) (Prim Undefined _)) = isLabeledErrorName n
 isLabeledError _ = False
 
-labeledErrorsRed :: Monad m => Reducer m () t
+labeledErrorsRed :: Monad m => Reducer m () r t
 labeledErrorsRed = mkSimpleReducer
                         (const ())
                         rr
     where
-        rr rv s@(State { curr_expr = CurrExpr _ ce }) b
+        rr rv _ s@(State { curr_expr = CurrExpr _ ce }) b
             | isLabeledError ce = return (Finished, [(s { exec_stack = S.empty }, rv)], b)
             | otherwise = return (NoProgress, [(s, rv)], b)
 
@@ -352,12 +352,12 @@ enforceProgressHalter = mkSimpleHalter
 emptyEquivTracker :: EquivTracker
 emptyEquivTracker = EquivTracker HM.empty Nothing HS.empty [] E.empty ""
 
-equivReducer :: Monad m => Reducer m () EquivTracker
+equivReducer :: Monad m => Reducer m () r EquivTracker
 equivReducer = mkSimpleReducer
                 (const ())
                 rr
     where
-        rr _
+        rr _ _
            s@(State { expr_env = eenv
                     , curr_expr = CurrExpr Evaluate e
                     , track = EquivTracker et m total dcp opp fname })
@@ -393,7 +393,7 @@ equivReducer = mkSimpleReducer
                             b' = b { name_gen = ng' }
                         in
                         return (InProgress, [(s', ())], b')
-        rr rv s b = return (NoProgress, [(s, rv)], b)
+        rr rv _ s b = return (NoProgress, [(s, rv)], b)
 
 -- not exhaustive, but totality is undecidable in general
 -- cyclic expressions do not count as total for now

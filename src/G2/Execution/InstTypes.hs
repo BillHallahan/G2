@@ -68,8 +68,8 @@ instType' (ng, st) i
     | otherwise = (ng, st)
         
 -- define a new reducer that calls your instType on your onAccept function
-instTypeRed :: (ASTContainer t Type, Monad m) => Reducer m () t
+instTypeRed :: (ASTContainer t Type, Monad m) => Reducer m () r t
 instTypeRed  = (mkSimpleReducer
                         (\_ -> ())
-                        (\rv s b -> return (NoProgress, [(s , rv)], b)) )
+                        (\rv _ s b -> return (NoProgress, [(s , rv)], b)) )
                         {onAccept = \s b _ -> return (instType s b)} 
