@@ -1265,8 +1265,10 @@ easyScrutinee tenv eenv = getAll . go HS.empty
                              | Just e <- E.lookup n eenv = go (HS.insert n ns) e
                              | otherwise = All False
         go ns (Tick _ e) = go ns e
-        go ns (App e1 e2) = go ns e1 <> go ns e2
+        go ns (App e1 _) = go ns e1
         go _ (Data _) = All True
+        go _ (Lit _) = All True
+        go _ (Type _) = All True
         go _ e = All False
         
         -- Recursive types must eventually be able to hit func-const
@@ -1275,6 +1277,7 @@ easyScrutinee tenv eenv = getAll . go HS.empty
             | Just (DataTyCon { data_cons = [dc] }) <- HM.lookup n tenv =
                             all (nonRecType (HS.insert n ns)) $ argumentTypes dc
             | otherwise = False
+        nonRecType ns (TyApp t1 t2) = nonRecType ns t1 && nonRecType ns t2
         nonRecType _ TYPE = True
         nonRecType _ t | isPrimType t = True
         nonRecType _ _ = False
