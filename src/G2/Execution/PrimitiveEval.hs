@@ -104,6 +104,8 @@ maybeEvalPrim' tenv kv xs
     | [Prim p _, x, y] <- xs
     , Lit x' <- x
     , Lit y' <- y = evalPrim2 kv p x' y'
+    | [Prim p _, x, y] <- xs
+    , Just e <- evalPrimADT2 kv p x y = Just e
 
     | [Prim p _, x, y, z] <- xs = evalPrim3 kv p x y z
 
@@ -497,6 +499,25 @@ evalPrimADT1 kv StrLen e = fmap (Lit . LitInt) (compLen e)
         compLen _ = Nothing
 
 evalPrimADT1 _ _ _ = Nothing
+
+evalPrimADT2 :: KnownValues -> Primitive -> Expr -> Expr -> Maybe Expr
+evalPrimADT2 kv StrAppend h t = strApp h t
+    where
+        -- Equivalent to: append (x:xs) ys = x:append xs ys
+        --                append [] ys = ys  
+        -- (:) @Char head tail ys
+        strApp (App (App (App (Data dc) typ) char) xs) ys = 
+            let
+                tail = case (strApp xs ys) of
+                    Nothing -> error "wrong nested type in string expr, should be impossible"
+                    Just e -> e
+            in assert (KV.dcCons kv == dcName dc) 
+                (Just (App (App (App (Data dc) typ) char) tail))
+        -- [] @Char ys
+        strApp (App (Data dc) _ {- type -}) ys = assert (KV.dcEmpty kv == dcName dc) (Just ys)
+        strApp _ _ = Nothing
+        
+evalPrimADT2 _ _ _ _ = Nothing
 
 evalPrim2 :: KnownValues -> Primitive -> Lit -> Lit -> Maybe Expr
 evalPrim2 kv Ge x y = evalPrim2NumCharBool (>=) kv x y

@@ -176,6 +176,12 @@ primDefs' b c l unit =
               , ("g2PutChar'", Prim HandlePutChar (TyFun (TyCon c TYPE) (TyFun TyUnknown (TyCon unit TYPE))))
 
               , ("strLen#", Lam TypeL (x TYPE) . Lam TermL (y strTy) $ App (Prim StrLen (TyFun strTy TyLitInt)) (Var $ y strTy))
+              , ("strAppend#", Lam TypeL (x TYPE) . Lam TermL (y strTy) . Lam TermL (z strTy)
+                                  $ App 
+                                      (App 
+                                          (Prim StrAppend ((TyFun strTy) $ TyFun strTy strTy))
+                                          (Var $ y strTy))
+                                      (Var $ z strTy))
               , ("intToString#", Prim IntToString (TyFun TyLitInt strTy))
 
               , ("newMutVar##", Prim NewMutVar (TyForAll a (TyForAll d (TyFun tyvarA (TyFun TyUnknown TyUnknown)))))
@@ -211,6 +217,9 @@ x = Id (Name "x" Nothing 0 Nothing)
 
 y :: Type -> Id
 y = Id (Name "y" Nothing 0 Nothing)
+
+z :: Type -> Id
+z = Id (Name "z" Nothing 0 Nothing)
 
 binder :: Type -> Id
 binder = Id (Name "b" Nothing 0 Nothing)

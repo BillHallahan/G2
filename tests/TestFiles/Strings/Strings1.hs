@@ -46,3 +46,9 @@ nStringSub4 s = if stringSub4 s then "\n" ++ s else s
 
 strLen :: String -> (Int, Bool)
 strLen xs = let l = length xs in (l, case l > 5 of True -> False; False -> True)
+
+strApp :: String -> String -> Int
+strApp xs ys = case xs ++ ys of
+                    "Hello World!" -> 2
+                    "Goodbye" -> 1
+                    _ -> 0
