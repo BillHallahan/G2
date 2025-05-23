@@ -45,6 +45,7 @@ import G2.Data.Utils
 import qualified G2.Data.UFMap as UF
 
 import Control.Exception
+import Data.Int (Int)
 
 stdReduce :: (Solver solver, Simplifier simplifier) => Sharing -> SymbolicFuncEval t -> solver -> simplifier -> State t -> Bindings -> IO (Rule, [(State t, ())], Bindings)
 stdReduce share symb_func_eval solver simplifier s b@(Bindings {name_gen = ng}) = do
@@ -157,6 +158,12 @@ evalApp s@(State { expr_env = eenv
         ng e1 e2
     | ac@(Prim Error _) <- appCenter e1 =
         (RuleError, [newPCEmpty $ s { curr_expr = CurrExpr Return ac }], ng)
+    -- Float ticks to the top of a prim
+    | Prim _ _:es <- unApp (App e1 e2)
+    , ts <- concatMap getTickish es
+    , not (null ts) =
+        let e = foldr Tick (stripAllTicks (App e1 e2)) ts in
+        (RuleEvalPrimToNorm, [ (newPCEmpty $ s { curr_expr = CurrExpr Evaluate e })], ng)
     | Just (new_pc, ng') <- evalPrimWithState s ng (stripAllTicks $ App e1 e2) = (RuleEvalPrimToNorm, [new_pc], ng')
     | Just (e, eenv', pc, ng') <- evalPrimSymbolic eenv tenv ng kv (App e1 e2) =
         ( RuleEvalPrimToNorm
@@ -183,6 +190,9 @@ evalApp s@(State { expr_env = eenv
         , [newPCEmpty $ s { curr_expr = CurrExpr Evaluate e1
                           , exec_stack = stck' }]
         , ng)
+    where
+        getTickish (Tick t e) = t:getTickish e
+        getTickish _ = []
 
 evalLam :: State t -> LamUse -> Id -> Expr -> (Rule, [State t])
 evalLam = undefined
@@ -1191,16 +1201,15 @@ retReplaceSymbFuncTemplate s@(State { expr_env = eenv
                         in (Alt data_alt (mkApp (Var fi : vargs)) : as, fi : sids, ng1'')
                         ) ([], [], ng'') dcs
         -- alts = map (\dc -> Alt (Alt)) dcs
-        (tick, ng'''') = freshHpcTick ng'''
-        e = Lam TermL x $ Case (Tick tick (Var x)) x' t2 alts
+        e = Lam TermL x $ Case (Tick dcSplitTick (Var x)) x' t2 alts
         e' = mkApp (e:es)
         eenv' = foldr E.insertSymbolic eenv symIds
         eenv'' = E.insert n e eenv'
-        (constState, ng''''') = mkFuncConst s es n t1 t2 ng''''
+        (constState, ng'''') = mkFuncConst s es n t1 t2 ng'''
     in Just (RuleReturnReplaceSymbFunc, [constState, s {
         curr_expr = CurrExpr Evaluate e',
         expr_env = eenv''
-    }], ng''''')
+    }], ng'''')
 
     -- FUNC-APP
     | Var (Id n (TyFun t1@(TyFun _ _) t2)):es <- unApp ce
@@ -1212,17 +1221,16 @@ retReplaceSymbFuncTemplate s@(State { expr_env = eenv
         (fId, ng'') = freshId (TyFun tr $ TyFun t1 t2) ng'
         f = Var fId
         (fa, ng''') = freshId t1 ng''
-        (tick, ng'''') = freshHpcTick ng'''
-        e = Lam TermL fa . Tick tick $ mkApp [f, mkApp (Var fa : xs), Var fa]
+        e = Lam TermL fa . Tick funcSplitTick $ mkApp [f, mkApp (Var fa : xs), Var fa]
         eenv' = foldr E.insertSymbolic eenv xIds
         -- eenv'' = E.insertSymbolic (idName fId) fId eenv'
         eenv'' = E.insertSymbolic fId eenv'
         eenv''' = E.insert n e eenv''
-        (constState, ng''''') = mkFuncConst s es n t1 t2 ng''''
+        (constState, ng'''') = mkFuncConst s es n t1 t2 ng'''
     in Just (RuleReturnReplaceSymbFunc, [constState, s {
         curr_expr = CurrExpr Evaluate $ mkApp (e:es),
         expr_env = eenv'''
-    }], ng''''')
+    }], ng'''')
 
     -- LIT-SPLIT
     | Var (Id n (TyFun t1 t2)):ea:es <- unApp ce
@@ -1235,8 +1243,7 @@ retReplaceSymbFuncTemplate s@(State { expr_env = eenv
         eqT1 = mkEqPrimType t1 kv
         (f1Id:f2Id:xId:discrimId:[], ng') = freshIds [t2, TyFun t1 t2, t1, boolTy] ng
         x = Var xId
-        (tick, ng'') = freshHpcTick ng'
-        e = Lam TermL xId $ Case (Tick tick (mkApp [eqT1, x, ea])) discrimId t2
+        e = Lam TermL xId $ Case (Tick litSplitTick (mkApp [eqT1, x, ea])) discrimId t2
            [ Alt (DataAlt trueDc []) (Var f1Id)
            , Alt (DataAlt falseDc []) (App (Var f2Id) x)]
         eenv' = foldr E.insertSymbolic eenv [f1Id, f2Id]
@@ -1245,13 +1252,23 @@ retReplaceSymbFuncTemplate s@(State { expr_env = eenv
         -- because we are always going down true branch
         curr_expr = CurrExpr Evaluate (mkApp (Var f1Id:es)),
         expr_env = eenv''
-    }], ng'')
+    }], ng')
     | otherwise = Nothing
 
-freshHpcTick :: NameGen -> (Tickish, NameGen)
-freshHpcTick ng =
-    let (Name n _ u _, ng') = freshSeededName (Name "HPC" Nothing 0 Nothing) ng in
-    (HpcTick u n, ng')
+dcSplitTick :: Tickish
+dcSplitTick = hpcTick 1
+
+funcSplitTick :: Tickish
+funcSplitTick = hpcTick 2
+
+litSplitTick :: Tickish
+litSplitTick = hpcTick 3
+
+constTick :: Tickish
+constTick = hpcTick 0
+
+hpcTick :: Int -> Tickish
+hpcTick u = HpcTick u "HPC"
 
 argTypes :: Type -> ([Type], Type)
 argTypes t = (anonArgumentTypes $ PresType t, returnType $ PresType t)
@@ -1266,14 +1283,13 @@ mkFuncConst s@(State { expr_env = eenv } ) es n t1 t2 ng =
     let
         (fId:xId:[], ng') = freshIds [t2, t1] ng
         eenv' = foldr E.insertSymbolic eenv [fId]
-        (tick, ng'') = freshHpcTick ng'
-        e = Lam TermL xId . Tick tick $ Var fId
+        e = Lam TermL xId . Tick constTick $ Var fId
         eenv'' = E.insert n e eenv'
     in (s {
         curr_expr = CurrExpr Evaluate $ mkApp (e:es),
         -- symbolic_ids = fId:symbolic_ids state,
         expr_env = eenv''
-    }, ng'')
+    }, ng')
 
 -- If the expression is a symbolic higher order function application, replaces
 -- it with a symbolic variable of the correct type.

@@ -351,6 +351,7 @@ eqLHFuncCall ldm i1 i2
         return $ App (App (Prim FpEq pt) (Var i1)) (Var i2)
 
     |  t == TyLitInt
+    || t == TyLitWord
     || t == TyLitRational
     || t == TyLitChar = do
         b <- tyBoolT
