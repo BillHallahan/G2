@@ -11,18 +11,10 @@ import qualified Data.HashSet as HS
 -- A Var counts as being in EVF if it's symbolic or if it's unmapped.
 isSWHNF :: State t -> Bool
 isSWHNF (State { expr_env = h, curr_expr = CurrExpr _ e }) =
-  let e' = modifyASTs stripTicks e
-      t = typeOf e'
-  in case e' of
-    Var _ -> (isPrimType t || not (concretizable t)) && isExprValueForm h e'
-    _ -> isExprValueForm h e'
-
-stripAllTicks :: ASTContainer m Expr => m -> m
-stripAllTicks = modifyASTs stripTicks
-
-stripTicks :: Expr -> Expr
-stripTicks (Tick _ e) = e
-stripTicks e = e
+  let t = typeOf e
+  in case e of
+    Var _ -> (isPrimType t || not (concretizable t)) && isExprValueForm h e
+    _ -> isExprValueForm h e
 
 -- used by EquivADT and Tactics
 concretizable :: Type -> Bool

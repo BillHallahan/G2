@@ -191,7 +191,8 @@ testFileTests = testGroup "TestFiles"
 
     , checkInputOutputs "tests/TestFiles/Char.hs" [ ("char", 400, [Exactly 2])
                                                   , ("f", 1000, [AtLeast 3])
-                                                  , ("g", 1000, [AtLeast 8]) ]
+                                                  , ("g", 1000, [AtLeast 8])
+                                                  , ("isDigitTest", 1000, [AtLeast 2]) ]
 
     , checkExpr "tests/TestFiles/CheckSq.hs" 400 "checkSq"
         [AtLeast 2, RExists (\[x, _] -> isInt x (\x' -> x' == 3 || x' == -3))]
@@ -522,7 +523,8 @@ baseTests = testGroup "Base"
     , checkInputOutputs "tests/BaseTests/ListTests.hs" [ ("test", 1000, [AtLeast 1])
                                                        , ("maxMap", 1000, [AtLeast 4])
                                                        , ("minTest", 1000, [AtLeast 2])
-                                                       , ("foldrTest2", 1000, [AtLeast 1]) ]
+                                                       , ("foldrTest2", 1000, [AtLeast 1])
+                                                       , ("unionTest", 1000, [AtLeast 9]) ]
 
     , checkInputOutput "tests/BaseTests/Tuples.hs" "addTupleElems" 1000 [AtLeast 2]
 

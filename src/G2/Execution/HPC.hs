@@ -16,6 +16,7 @@ module G2.Execution.HPC ( HpcT
 
 import G2.Execution.Reducer
 import G2.Language
+import qualified G2.Language.Stack as S
 
 import Control.Exception
 import Control.Monad.Identity
@@ -185,7 +186,7 @@ lnt = LNT HM.empty
 -- Based on the paper:
 --     Steering Symbolic Execution to Less Traveled Paths
 --     You Li, Zhendong Su, Linzhang Wang, Xuandong Li
-lengthNSubpathOrderer :: SM.MonadState LengthNTrack m =>
+lengthNSubpathOrderer :: (MonadIO m, SM.MonadState LengthNTrack m) =>
                          Int -- ^ N, the length of the subpaths to track
                       -> Orderer m [(Int, T.Text)] Int r t
 lengthNSubpathOrderer n = (mkSimpleOrderer initial order update) { stepOrderer  = step }
@@ -198,8 +199,11 @@ lengthNSubpathOrderer n = (mkSimpleOrderer initial order update) { stepOrderer  
 
         update p _ _ = p
 
-        step p _ _ (State { curr_expr = CurrExpr _ (Tick (HpcTick i m) _) }) = do
+        step p _ _ (State { curr_expr = CurrExpr Evaluate (Tick (HpcTick i m) _) }) = do
             let p' = take n $ (i, m):p
             SM.modify (LNT . HM.insertWith (+) p' 1 . unLNT)
+            -- count <- SM.gets (HM.lookup p' . unLNT)
+            -- liftIO $ do
+            --     putStrLn $ "p' = " ++ show p' ++ " c = " ++ show count
             return p'
         step p _ _ _ = return p

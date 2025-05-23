@@ -105,7 +105,7 @@ maybeEvalPrim' tenv kv xs
 
     | [Prim p _, x, y, z] <- xs = evalPrim3 kv p x y z
 
-    | [Prim p _, Type t, dc_e] <- xs, Data dc:_ <- unApp dc_e =
+    | [Prim p _, Type t, dc_e] <- xs, Data dc:_ <- unApp (stripAllTicks dc_e) =
         evalTypeDCPrim2 tenv p t dc
 
     | [Prim p _, Type t, Lit (LitInt l)] <- xs =
