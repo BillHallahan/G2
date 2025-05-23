@@ -202,8 +202,8 @@ lengthNSubpathOrderer n = (mkSimpleOrderer initial order update) { stepOrderer  
         step p _ _ (State { curr_expr = CurrExpr Evaluate (Tick (HpcTick i m) _) }) = do
             let p' = take n $ (i, m):p
             SM.modify (LNT . HM.insertWith (+) p' 1 . unLNT)
-            -- count <- SM.gets (HM.lookup p' . unLNT)
-            -- liftIO $ do
-            --     putStrLn $ "p' = " ++ show p' ++ " c = " ++ show count
+            count <- SM.gets (HM.lookup p' . unLNT)
+            liftIO $ do
+                putStrLn $ "p' = " ++ show p' ++ " c = " ++ show count
             return p'
         step p _ _ _ = return p

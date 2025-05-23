@@ -460,6 +460,10 @@ testFileTests = testGroup "TestFiles"
                                                       , ("scaleFloatTest2", 2000, [AtLeast 3])
                                                       , ("floatToDouble", 2000, [AtLeast 4])
                                                       , ("enum", 50000, [Exactly 1]) ]
+    
+    , checkInputOutputs "tests/TestFiles/Word.hs" [ ("addWords", 5000, [Exactly 1])
+                                                  , ("subWords1", 5000, [Exactly 1])
+                                                  , ("subWords2", 5000, [Exactly 1]) ]
 
     , checkInputOutputsInstType "tests/TestFiles/InstTypes1.hs" [ ("lengthList", 200, [AtLeast 1])
                                                         , ("myTuple", 200, [AtLeast 1])
