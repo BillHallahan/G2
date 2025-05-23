@@ -463,7 +463,7 @@ testFileTests = testGroup "TestFiles"
     
     , checkInputOutputs "tests/TestFiles/Word.hs" [ ("addWords", 5000, [Exactly 1])
                                                   , ("subWords1", 5000, [Exactly 1])
-                                                  , ("subWords2", 5000, [Exactly 1]) ]
+                                                  , ("subWords2", 5000, [Exactly 2]) ]
 
     , checkInputOutputsInstType "tests/TestFiles/InstTypes1.hs" [ ("lengthList", 200, [AtLeast 1])
                                                         , ("myTuple", 200, [AtLeast 1])

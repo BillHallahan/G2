@@ -479,10 +479,12 @@ funcToSMT2Prim Minus a1 a2
 
             v1 = V bind1 SortWord
             v2 = V bind2 SortWord
+
+            mws = VWord maxBound
         in
           SLet (bind1, exprToSMT a1)
         . SLet (bind2, exprToSMT a2)
-        $ IteSMT (v1 :>= v2) (v1 :- v2) (VWord (maxBound :: Word) :- (v2 :- v1 :- VWord 1))
+        $ IteSMT (v1 :>= v2) (v1 :- v2) (mws :- ((v2 `Modulo` mws) :- v1 :- VWord 1))
     | otherwise = exprToSMT a1 :- exprToSMT a2
 funcToSMT2Prim Mult a1 a2 = exprToSMT a1 :* exprToSMT a2
 funcToSMT2Prim Div a1 a2 = exprToSMT a1 :/ exprToSMT a2
