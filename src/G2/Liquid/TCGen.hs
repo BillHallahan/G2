@@ -536,11 +536,7 @@ lhPPCall lhm fnm t
     | TyForAll _ _ <- t = do
         i <- freshIdN t
         return . Lam TermL i =<< mkTrueE
-    |  t == TyLitInt
-    || t == TyLitDouble
-    || t == TyLitRational
-    || t == TyLitFloat
-    || t == TyLitChar = do
+    | isPrimType t = do
         i <- freshIdN t
         return . Lam TermL i =<< mkTrueE
     | otherwise = error $ "\nError in lhPPCall " ++ show t ++ "\n" ++ show lhm
