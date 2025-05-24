@@ -142,9 +142,10 @@ def process_output(out):
     last = re.search(r"Last tick reached: ((\d|\.)*)", out)
 
     tick_times_list, all_times = read_hpc_times(out)
-    coverage = "";
-    last_time = "";
+    coverage = ""
+    last_time = ""
     avg_nrpc = sum(nrpcs_num)/len(nrpcs_num) if len(nrpcs_num) > 0 else 0
+    total_f = 0.0
 
     if reached != None and total != None and last != None:
         reached_f = float(reached.group(1))
@@ -206,5 +207,5 @@ def run_nofib_set(setname, var_settings, timeout):
                     print("\n")
         print(tabulate(data, headers=headers, tablefmt="grid"))
 
-run_nofib_set("imaginary", [], 300)
-run_nofib_set("spectral", [], 300)
+run_nofib_set("imaginary", [], 10)
+run_nofib_set("spectral", [], 10)
