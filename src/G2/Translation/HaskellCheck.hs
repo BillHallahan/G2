@@ -5,7 +5,6 @@ module G2.Translation.HaskellCheck ( validateStates
                                    , loadStandard
                                    , createDeclsStr
                                    , createDecls
-                                   , adjustDynFlags
                                    , runHPC) where
 
 #if MIN_VERSION_GLASGOW_HASKELL(9,0,2,0)
@@ -15,7 +14,7 @@ import DynFlags
 #endif
 
 import GHC hiding (Name, entry)
-
+import qualified GHC.Data.EnumSet as ES
 import GHC.LanguageExtensions
 
 import GHC.Paths
@@ -94,9 +93,10 @@ createDecls pg s = mapM_ runDecls . createDeclsStr pg s
 adjustDynFlags :: Ghc ()
 adjustDynFlags = do
     dyn <- getSessionDynFlags
-    let dyn' = foldl' xopt_set dyn [MagicHash, UnboxedTuples, DataKinds]
-        dyn'' = wopt_unset dyn' Opt_WarnOverlappingPatterns
-    _ <- setSessionDynFlags dyn''
+    let dyn2 = foldl' xopt_set dyn [MagicHash, UnboxedTuples, DataKinds]
+        dyn3 = wopt_unset dyn2 Opt_WarnOverlappingPatterns
+        dyn4 = dyn3 { generalFlags = ES.insert Opt_Hpc (generalFlags dyn3) }
+    _ <- setSessionDynFlags dyn4
     return ()
 
 runCheck :: PrettyGuide -> Maybe T.Text -> String -> [String] -> Bindings -> ExecRes t -> Ghc (HValue, [HValue])
@@ -124,7 +124,7 @@ runCheck init_pg modN entry chAll b er@(ExecRes {final_state = s, conc_args = ar
                         TyLitChar -> "C# "
                         _ -> ""
 
-    let chck = case outStr == "error" || outStr == "undefined" of
+    let chck = case outStr == "error" || outStr == "undefined" || outStr == "?" of
                     False -> mvStr ++ "try (evaluate (" ++ pr_con ++ "(" ++ arsStr ++ ") == " ++ pr_con ++ "("
                                         ++ outStr ++ " :: " ++ outType ++ ")" ++ ")) :: IO (Either SomeException Bool)"
                     True -> mvStr ++ "try (evaluate ( (" ++ pr_con ++ "(" ++ arsStr ++ " :: " ++ arsType ++ ")" ++

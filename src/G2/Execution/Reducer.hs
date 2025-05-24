@@ -156,7 +156,7 @@ import qualified Data.HashSet as HS
 import qualified Data.HashMap.Strict as HM
 import qualified Data.Map as M
 import Data.Maybe
-import Data.Monoid
+import Data.Monoid hiding (Alt)
 import qualified Data.List as L
 import qualified Data.Sequence as S
 import qualified Data.Text as T
@@ -165,7 +165,6 @@ import Data.Tuple
 import Data.Time.Clock
 import System.Clock
 import System.Directory
-import G2.Execution.Rules (SymFuncTicks, freshSymFuncTicks)
 
 -- | Used when applying execution rules
 -- Allows tracking extra information to control halting of rule application,
@@ -601,6 +600,9 @@ nonRedPCSymFunc m_sft
             in return (InProgress, [(s'', Just sft)], b { name_gen = ng' })
 nonRedPCSymFunc m_sft s b = return (Finished, [(s, m_sft)], b)
 
+-- | (Symbolic) functions to not add to the NRPCs
+type NoNRPC = HS.HashSet Name
+
 -- | A reducer to add library functions in non reduced path constraints for solving later  
 nonRedLibFuncsReducer :: MonadIO m =>
                          HS.HashSet Name -- ^ Names of functions that must be executed
@@ -609,11 +611,11 @@ nonRedLibFuncsReducer :: MonadIO m =>
                                          -- I.e. if `f` is in this set, `f x y` will not be added to the NRPCs, but a function `g` that includes
                                          -- `f in it's definition may still be added to the NRPCs.
                       -> Config
-                      -> Reducer m (NRPCMemoTable, ReachesSymMemoTable, Int) t
+                      -> Reducer m (NoNRPC, NRPCMemoTable, ReachesSymMemoTable, Int) t
 nonRedLibFuncsReducer exec_names no_nrpc_names config =
-    (mkSimpleReducer (\_ -> (HM.empty, HM.empty, 0))
+    (mkSimpleReducer (\_ -> (HS.empty, HM.empty, HM.empty, 0))
         (nonRedLibFuncs exec_names no_nrpc_names (symbolic_func_nrpc config)))
-        { onAccept = \s b (_, _, nrpc_count) -> do
+        { onAccept = \s b (_, _, _, nrpc_count) -> do
             if print_num_nrpc config
                 then liftIO . putStrLn $ "NRPCs Generated: " ++ show nrpc_count
                 else return ()
@@ -623,9 +625,9 @@ nonRedLibFuncs :: MonadIO m => HS.HashSet Name -- ^ Names of functions that must
                           -> HS.HashSet Name -- ^ Names of functions that should not reesult in a larger expression become EXEC,
                                              -- but should not be added to the NRPC at the top level.
                           -> Bool -- ^ Use NRPCs to delay execution of symbolic functions
-                          -> RedRules m (NRPCMemoTable, ReachesSymMemoTable, Int) t
+                          -> RedRules m (NoNRPC, NRPCMemoTable, ReachesSymMemoTable, Int) t
 nonRedLibFuncs exec_names no_nrpc_names use_with_symb_func 
-                (var_table, sym_table, nrpc_count)
+                (no_nrpc, var_table, sym_table, nrpc_count)
                 s@(State { expr_env = eenv
                          , curr_expr = CurrExpr _ ce
                          , type_env = tenv
@@ -635,6 +637,7 @@ nonRedLibFuncs exec_names no_nrpc_names use_with_symb_func
                 b@(Bindings { name_gen = ng })
     | (ae, stck') <- allApplyFrames [] (exec_stack s)
     , Var (Id n t):es_ce <- unApp ce
+    , not (n `HS.member` no_nrpc)
     , let es = es_ce ++ ae
           ce' = mkApp (Var (Id n t):es)
     --, not (n `HS.member` no_nrpc_names)
@@ -663,21 +666,34 @@ nonRedLibFuncs exec_names no_nrpc_names use_with_symb_func
                     -- To stop falling into this infinite loop, instead of adding current expression in NRPC
                     -- we associate a tick (nonRedBlocker) with the expression and then standard reducer reduces
                     -- this tick.
-                    nonRedBlocker = Name "NonRedBlocker" Nothing 0 Nothing
-                    tick = NamedLoc nonRedBlocker
-                    ce'' = mkApp $ (Tick tick (Var (Id n t))):es
+                    ce'' = mkApp $ (Tick non_red_blocker_tick (Var (Id n t))):es
                     s' = s { expr_env = eenv'
                            , curr_expr = cexpr'
                            , non_red_path_conds = (ce'', Var new_sym_id):nrs
                            , exec_stack = stck' }
-                    xs' = map (\new_e -> s { curr_expr = CurrExpr Evaluate new_e, exec_stack = Stck.empty }) es
-                    xs'' = map (\new_s -> (new_s, (var_table', sym_table', nrpc_count))) xs'
-                in 
-                    return (Finished, (s', (var_table', sym_table', nrpc_count + 1)):xs'', b {name_gen = ng'})
-            _ -> return (Finished, [(s, (var_table', sym_table', nrpc_count))], b)
 
-    | otherwise = return (Finished, [(s, (var_table, sym_table, nrpc_count))], b)
+                    -- If we have an EnsureEq on the stack, we do not want to add function argument states because
+                    -- (a) we have already added function argument states when we initially began reducing the NRPC
+                    -- and (b) we need to make sure that we actually do satisfy the equality, for soundness, and
+                    -- thus cannot clear out the stack
+                    (ng'', xs_new_g) = if noEnsureEq stck'
+                                    then L.mapAccumR
+                                            (funcArgState (map typeOf es) (returnType $ PresType t)) ng'
+                                            $ zip [0..] es
+                                    else (ng', [])
+                    xs = mapMaybe (fmap fst) xs_new_g
+                    new_g = catMaybes $ mapMaybe (fmap snd) xs_new_g
+                    no_nrpc' = foldr HS.insert no_nrpc new_g
+                    xs' = map (\new_s -> (new_s, (no_nrpc', var_table', sym_table', nrpc_count))) xs
+                in 
+                    return (Finished, (s', (no_nrpc', var_table', sym_table', nrpc_count + 1)):xs', b {name_gen = ng''})
+            _ -> return (Finished, [(s, (no_nrpc, var_table', sym_table', nrpc_count))], b)
+
+    | otherwise = return (Finished, [(s, (no_nrpc, var_table, sym_table, nrpc_count))], b)
     where
+        non_red_blocker = Name "NonRedBlocker" Nothing 0 Nothing
+        non_red_blocker_tick = NamedLoc non_red_blocker
+
         digNewType (TyCon n _) | Just (NewTyCon { rep_type = rt }) <- HM.lookup n tenv = digNewType rt
         digNewType (TyApp t1 t2) = digNewType t1
         digNewType t = t
@@ -700,6 +716,57 @@ nonRedLibFuncs exec_names no_nrpc_names use_with_symb_func
         allApplyFrames aes stck | Just (ApplyFrame ae, stck') <- Stck.pop stck = allApplyFrames (ae:aes) stck'
                                 | Just (UpdateFrame _, stck') <- Stck.pop stck = allApplyFrames aes stck'
                                 | otherwise = (reverse aes, stck)
+
+        noEnsureEq stck | Just (CurrExprFrame (EnsureEq _) _, _) <- Stck.pop stck = False
+                        | Just (_, stck') <- Stck.pop stck = noEnsureEq stck'
+                        |otherwise = True
+
+        -- | Generate `State`s to explore each function argument
+        funcArgState all_args_ts ret_ty init_ng (this_arg_num, fa_e)
+            | isTyFun (typeOf fa_e) = 
+                    let
+                        ts = anonArgumentTypes fa_e
+                        (is, ng') = freshIds ts ng_args
+                        vs = map Var is
+                        fa_e' = mkApp $ fa_e:vs
+                        (bindee, ng'') = freshId (typeOf this_arg) ng'
+                        (ret_id, ng''') = freshId ret_ty ng''
+
+                        -- Instantiate the symbolic function `n`
+                        lam_center = Case (mkApp $ Var this_arg:vs) bindee ret_ty [Alt Default (Var ret_id)]
+                        f_def = mkLams (zip (repeat TermL) arg_is) lam_center
+                        eenv' = E.insert n f_def eenv
+
+                        -- Set up symbolic variables
+                        eenv'' = E.insertSymbolic ret_id $ foldr E.insertSymbolic eenv' is
+                    in
+                    (ng''', Just $ (s { expr_env = eenv''
+                                      , curr_expr = CurrExpr Evaluate fa_e'
+                                      , exec_stack = stck }, Nothing))
+            | isPrimType (typeOf fa_e) = (init_ng, Nothing)
+            | otherwise =
+                let
+                    (g, ng') = freshId (TyFun (typeOf this_arg) ret_ty) ng_args
+                    (bindee, ng'') = freshId (typeOf this_arg) ng'
+                    g_app = Case (Var this_arg) bindee ret_ty $ [Alt Default (App (Var g) (Var bindee))]
+                    f_def = mkLams (zip (repeat TermL) arg_is) g_app
+
+                    fa_e' = App (Var g) fa_e
+
+                    eenv' = E.insert n f_def eenv
+                    eenv'' = E.insertSymbolic g eenv'
+                in
+                (ng'', Just $ (s { expr_env = eenv'', curr_expr = CurrExpr Evaluate fa_e', exec_stack = stck }, Just $ idName g))
+            where
+                n = case unApp ce of
+                    Var (Id vn _):_ -> vn
+                    _ -> error "funcArgState: impossible"
+
+                (arg_is, ng_args) = freshIds all_args_ts init_ng
+                this_arg = arg_is !! this_arg_num
+
+                stck = Stck.singleton $ CurrExprFrame NoAction (CurrExpr Return $ Prim UnspecifiedOutput TyUnknown)
+
 
 -- Note [Ignore Update Frames]
 -- In `strictRed`, when deciding whether to split up an expression to force strict evaluation of subexpression,
@@ -1413,12 +1480,12 @@ switchEveryNHalter sw = (mkSimpleHalter
 -- | If the Name, disregarding the Unique, in the DiscardIfAcceptedTag
 -- matches a Tag in the Accepted State list,
 -- and in the State being evaluated, discard the State
-discardIfAcceptedTagHalter :: MonadIO m => Name -> Halter m (HS.HashSet Name) (ExecRes t) t
+discardIfAcceptedTagHalter :: Monad m => Name -> Halter m (HS.HashSet Name) (ExecRes t) t
 discardIfAcceptedTagHalter (Name n m _ _) =
                             mkSimpleHalter
                                 (const HS.empty)
                                 ups
-                                (\ns _ _ -> liftIO $ if not (HS.null ns) then do putStrLn "DISCARD"; return Discard else return Continue)
+                                (\ns _ _ -> if not (HS.null ns) then return Discard else return Continue)
                                 (\hv _ _ _ -> hv)
     where
         ups _

@@ -68,6 +68,7 @@ data Config = Config {
     , extraDefaultInclude :: [IncludePath]
     , extraDefaultMods :: [FilePath]
     , includePaths :: Maybe [FilePath] -- ^ Paths to search for modules
+    , print_output :: Bool -- ^ Print function outputs
     , logStates :: LogMode -- ^ Determines whether to Log states, and if logging states, how to do so.
     , logEveryN :: Int -- ^ If logging states, log every nth state
     , logAfterN :: Int -- ^ Logs state only after the nth state
@@ -115,6 +116,7 @@ mkConfig homedir = Config Regular
     <*> mkExtraDefault homedir
     <*> pure []
     <*> mkIncludePaths
+    <*> flag True False (long "no-print-outputs" <> help "Print function outputs")
     <*> mkLogMode
     <*> option auto (long "log-every-n"
                    <> metavar "LN"
@@ -274,6 +276,7 @@ mkConfigDirect homedir as m = Config {
     , extraDefaultInclude = extraDefaultIncludePaths (strArg "extra-base-inc" as m id homedir)
     , extraDefaultMods = []
     , includePaths = Nothing
+    , print_output = True
     , logStates = strArg "log-states" as m (Log Raw)
                         (strArg "log-pretty" as m (Log Pretty) NoLog)
     , logEveryN = 0

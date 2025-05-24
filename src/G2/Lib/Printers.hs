@@ -473,6 +473,8 @@ mkPrimHaskell pg = pr
         pr Iff = "pr_iff"
         pr Ite = "pr_ite"
 
+        pr UnspecifiedOutput = "?"
+
 mkPrimHaskellNoDistFloat :: PrettyGuide -> Primitive -> T.Text
 mkPrimHaskellNoDistFloat pg = pr
     where
@@ -565,6 +567,8 @@ prettyState pg s =
         , pretty_tags
         , "----- [Tracker] ---------------------"
         , T.pack (show (track s))
+        , "----- [HPC] ---------------------"
+        , pretty_hpc_ticks
         , "----- [Pretty] ---------------------"
         , pretty_names
         ]
@@ -580,6 +584,7 @@ prettyState pg s =
         pretty_tc = prettyTypeClasses pg (type_classes s)
         pretty_assert_fcs = maybe "None" (printFuncCallPG pg) (assert_ids s)
         pretty_tags = T.intercalate ", " . map (mkNameHaskell pg) $ HS.toList (tags s)
+        pretty_hpc_ticks = T.pack $ show (reached_hpc s)
         pretty_names = prettyGuideStr pg
 
 

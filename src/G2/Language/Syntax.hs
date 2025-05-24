@@ -267,6 +267,10 @@ data Primitive = -- Mathematical and logical operators
                -- Errors
                | Error
                | Undefined
+               
+               -- Unspecified Output- when we want to calculate input values that lead to a specific point,
+               -- and then don't want to actually follow through on calculating the output value
+               | UnspecifiedOutput
                deriving (Show, Eq, Read, Generic, Typeable, Data)
 
 pattern IntToFloat :: Primitive

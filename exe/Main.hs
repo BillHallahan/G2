@@ -73,9 +73,13 @@ printFuncCalls config entry b m_valid exec_res = do
         let (mvp, inp, outp, handles) = printInputOutput pg entry b execr
             sym_gen_out = fmap (printHaskellPG pg s) $ conc_sym_gens execr
 
+        let print_method = case print_output config of
+                                True -> \m i o -> m <> i <> " = " <> o 
+                                False -> \m i _ ->  m <> i
+
         case sym_gen_out of
-            S.Empty -> T.putStrLn $ mvp <> inp <> " = " <> outp
-            _ -> T.putStrLn $ mvp <> inp <> " = " <> outp <> "\t| generated: " <> T.intercalate ", " (toList sym_gen_out)
+            S.Empty -> T.putStrLn $ print_method mvp inp outp
+            _ -> T.putStrLn $ print_method mvp inp outp <> "\t| generated: " <> T.intercalate ", " (toList sym_gen_out)
         if handles /= "" then T.putStrLn handles else return ())
       $ zip exec_res valid 
 

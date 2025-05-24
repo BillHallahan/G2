@@ -338,7 +338,7 @@ initRedHaltOrd s mod_name solver simplifier config exec_func_names no_nrpc_names
 
         halter_discard = case hpc_discard_strat config of
                             True -> SomeHalter (liftHalter (liftHalter (liftHalter (noNewHPCHalter mod_name)))) .<~> halter_step
-                            False -> SomeHalter (discardIfAcceptedTagHalter state_name) .<~> halter_step
+                            False -> halter_step
 
         orderer = case search_strat config of
                         Subpath -> SomeOrderer $ lengthNSubpathOrderer (subpath_length config)
