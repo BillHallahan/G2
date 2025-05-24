@@ -27,6 +27,7 @@ import qualified Data.HashMap.Lazy as HM
 import Data.List.Extra
 import Data.Maybe
 import Data.Monoid
+import Data.Ord
 import qualified Data.Text as T
 import System.IO
 import System.Clock
@@ -141,14 +142,14 @@ afterHPC :: (MonadIO m, SM.MonadState HpcTracker m) => m ()
 afterHPC = do
     hpc <- SM.get
     let init_ts = initial_time hpc
-        ts = sort $ HM.elems (hpc_ticks hpc)
+        ts = sortBy (comparing snd) $ HM.toList (hpc_ticks hpc)
     assert (num_reached hpc == HM.size (hpc_ticks hpc))
         (liftIO $ putStrLn $ "\nTicks reached: " ++ show (num_reached hpc))
     liftIO $ putStrLn $ "Tick num: " ++ show (tick_count hpc)
 
     case ts of
         [] -> liftIO $ putStrLn $ "Last tick reached: N/A"
-        (_:_) -> liftIO $ putStrLn $ "Last tick reached: " ++ showTS (last ts - init_ts)
+        (_:_) -> liftIO $ putStrLn $ "Last tick reached: " ++ showTS (snd (last ts) - init_ts)
     case h_print_ticks hpc of
         False -> return ()
         True -> liftIO $ do
@@ -158,7 +159,9 @@ afterHPC = do
         False -> return ()
         True -> liftIO $ do
             putStrLn "All tick times:"
-            mapM_ (\t -> putStrLn $ showTS (t - init_ts)) ts
+            mapM_ (\(k, t) -> do
+                putStr (show k ++ " - ")
+                putStrLn $ showTS (t - init_ts)) ts
             putStrLn "End of tick times"
 
 showTS :: TimeSpec -> String
