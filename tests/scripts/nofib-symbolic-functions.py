@@ -11,14 +11,20 @@ exe_name = str(subprocess.run(["cabal", "exec", "which", "G2"], capture_output =
 def read_hpc_times(out):
     times = []
     read = False
+    tick_time_list = []
+    
     for line in out.splitlines():
         if line.startswith("End of tick times"):
             read = False
         if read:
+            match = re.search(r'\((\d+),"(.*?)"\)\s*-\s*([0-9]*\.[0-9]+)', line)
+            key = (int(match.group(1)), match.group(2))
+            value = float(match.group(3))
+            tick_time_list.append((key, value))
             times.append(line)
         if line.startswith("All tick times:"):
             read = True
-    return times
+    return tick_time_list, times
 
 # Calling and reading from G2
 def run_g2(filename, func, var_settings):
@@ -56,6 +62,64 @@ def read_int(pre, out):
         res_num = int(reg.group(1))
     return res_num
 
+def calculate_order(base_tick_times, nrpc_tick_times):
+    nrpc1 = 0
+    nrpc3 = 0
+    nrpc5 = 0
+    base1 = 0
+    base3 = 0
+    base5 = 0
+    zippedList = zip(base_tick_times, nrpc_tick_times)
+    for ((baseTick, baseMod), baseTime) , ((nrpcTick, nrpcMod), nrpcTime) in zippedList:
+        if baseTick == nrpcTick and baseMod == nrpcMod:
+            continue
+        timeDiff = nrpcTime - baseTime
+        # NRPCs are doing better
+        if timeDiff < 0:
+            if abs(timeDiff) >= 1:
+                nrpc1 += 1
+            if abs(timeDiff) >= 3:
+                nrpc3 += 1
+            if abs(timeDiff) >= 5:
+                nrpc5 += 1
+        # Baseline is doing better
+        else:
+            if abs(timeDiff) >= 1:
+                base1 += 1
+            if abs(timeDiff) >= 3:
+                base3 += 1
+            if abs(timeDiff) >= 5:
+                base5 += 1
+    return base1, base3, base5, nrpc1, nrpc3, nrpc5
+
+def calculate_time_diff(base_tick_times_map, nrpc_tick_times_map):
+    nrpc1 = 0
+    nrpc3 = 0
+    nrpc5 = 0
+    base1 = 0
+    base3 = 0
+    base5 = 0
+    for tick, base_time in base_tick_times_map.items():
+        if tick in nrpc_tick_times_map:
+            nrpc_tick_time = nrpc_tick_times_map[tick]
+            timeDiff = nrpc_tick_time - base_time
+            if timeDiff < 0:
+                if abs(timeDiff) >= 1:
+                    nrpc1 += 1
+                if abs(timeDiff) >= 3:
+                    nrpc3 += 1
+                if abs(timeDiff) >= 5:
+                    nrpc5 += 1
+            else:
+                if abs(timeDiff) >= 1:
+                    base1 += 1
+                if abs(timeDiff) >= 3:
+                    base3 += 1
+                if abs(timeDiff) >= 5:
+                    base5 += 1
+        
+    return base1, base3, base5, nrpc1, nrpc3, nrpc5
+
 def read_runnable_benchmarks(setpath) :
     lines = {}
     file = os.path.join(setpath, "run_benchmarks.txt")
@@ -77,9 +141,10 @@ def process_output(out):
     total = re.search(r"Tick num: (\d*)", out)
     last = re.search(r"Last tick reached: ((\d|\.)*)", out)
 
-    all_times = read_hpc_times(out)
+    tick_times_list, all_times = read_hpc_times(out)
     coverage = "";
     last_time = "";
+    avg_nrpc = sum(nrpcs_num)/len(nrpcs_num) if len(nrpcs_num) > 0 else 0
 
     if reached != None and total != None and last != None:
         reached_f = float(reached.group(1))
@@ -90,7 +155,7 @@ def process_output(out):
 
         print("reached = " + str(reached.group(1)))
         print("total = " + str(total.group(1)))
-        print("% reached = " + str(reached_f / total_f))
+        print("% reached = " + coverage)
         print("last time = " + last.group(1))
         print("all_times = " + str(all_times))
         print("Red Rules #: " + str(red_rules_num))
@@ -99,7 +164,7 @@ def process_output(out):
         print("SMT Solver calls: " + str(smt_solver_calls_num))
         print("General Solver calls: " + str(gen_solver_calls_num))
         print ("# nrpcs = " + str(nrpcs_num))
-    return coverage, last_time
+    return coverage, last_time, avg_nrpc, tick_times_list, total_f
 
 
 def run_nofib_set(setname, var_settings, timeout):
@@ -113,8 +178,9 @@ def run_nofib_set(setname, var_settings, timeout):
 
         data = []
 
-        headers = ["Benchmark", "Baseline cov %", "Baseline last time",
-                    "NRPC cov %", "NRPC last time"]
+        headers = ["Benchmark", "#Total Ticks", "B cov %", "B last time",
+                    "N cov %", "N last time", "Pos 1-sec B/N", "Pos 3-sec B/N", 
+                    "Pos 5-sec B/N", "Diff tick 1s", "Diff tick 3s", "Diff tick 5s", "Avg # Nrpcs"]
 
         for file_dir in run_benchmarks:
             bench_path = os.path.join(setpath, file_dir)
@@ -127,11 +193,16 @@ def run_nofib_set(setname, var_settings, timeout):
                     print(file_dir);
                     res_bench = run_nofib_bench(final_path, var_settings, timeout)
                     print("Baseline:")
-                    base_cov, base_last = process_output(res_bench)
+                    base_cov, base_last, avg, base_tick_times, base_total = process_output(res_bench)
                     res_bench_nrpc = run_nofib_bench_nrpc(final_path, var_settings, timeout)
                     print("NRPC:")
-                    nrpc_cov, nrpc_last = process_output(res_bench_nrpc)
-                    data.append([file_dir, base_cov, base_last, nrpc_cov, nrpc_last])
+                    nrpc_cov, nrpc_last, avg_nrpc, nrpc_tick_times, nrpc_total  = process_output(res_bench_nrpc)
+                    bt1, bt3, bt5, nt1, nt3, nt5 = calculate_time_diff(dict(base_tick_times), dict(nrpc_tick_times))
+                    bo1, bo3, bo5, no1, no3, no5 = calculate_order(base_tick_times, nrpc_tick_times)
+                    data.append([file_dir, base_total, base_cov, base_last, nrpc_cov, nrpc_last,
+                                 str(bt1) + "/" + str(nt1), str(bt3) + "/" + str(nt3), str(bt5) + "/" + str(nt5),
+                                 str(bo1) + "/" + str(no1), str(bo3) + "/" + str(no3), str(bo5) + "/" + str(no5),
+                                 str(avg_nrpc)])
                     print("\n")
         print(tabulate(data, headers=headers, tablefmt="grid"))
 
