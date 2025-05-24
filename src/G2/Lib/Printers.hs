@@ -46,7 +46,6 @@ import Data.List as L
 import qualified Data.HashMap.Lazy as HM
 import qualified Data.HashSet as HS
 import qualified Data.Text as T
-import qualified Data.Text.Internal.Read as T
 import Text.Read
 
 data Clean = Cleaned | Dirty deriving Eq
@@ -107,7 +106,7 @@ mkCleanExprHaskell' tc e
 
 elimPrimDC :: Alt -> Maybe Alt
 elimPrimDC (Alt (DataAlt dc@(DataCon (Name n _ _ _) t utyvar etyvar) is) e)
-    | n == "I#" || n == "F#" || n == "D#" || n == "Z#" || n == "C#" =
+    | n == "I#" || n == "W#" || n == "F#" || n == "D#" || n == "Z#" || n == "C#" =
                         Just $ Alt (DataAlt (DataCon (Name "" Nothing 0 Nothing) t utyvar etyvar) is) (insertLitDC dc e)
 elimPrimDC _ = Nothing
 
@@ -161,7 +160,7 @@ mkExprHaskell' off_init cleaned pg ex = mkExprHaskell'' off_init ex
 
         mkExprHaskell'' off (App e1 ea@(App _ _)) = parenWrap e1 (mkExprHaskell'' off e1) <> " (" <> mkExprHaskell'' off ea <> ")"
         mkExprHaskell'' _ (App (Data (DataCon (Name n _ _ _) _ _ _)) (Lit l)) 
-            | n == "I#" || n == "F#" || n == "D#" || n == "Z#" || n == "C#" = mkLitHaskell NoHash l
+            | n == "I#" || n == "W#" || n == "F#" || n == "D#" || n == "Z#" || n == "C#" = mkLitHaskell NoHash l
         mkExprHaskell'' off (App e1 e2) =
             parenWrap e1 (mkExprHaskell'' off e1) <> " " <> parenWrap e2 (mkExprHaskell'' off e2)
         mkExprHaskell'' _ (Data d) = mkDataConHaskell pg d
@@ -353,6 +352,7 @@ mkLitHaskell use = lit
 
         lit (LitInt i) = T.pack $ if i < 0 then "(" <> show i <> hs <> ")" else show i <> hs
         lit (LitInteger i) = T.pack $ if i < 0 then "(" <> show i <> hs <> ")" else show i <> hs
+        lit (LitWord w) = T.pack $ show w <> hs
         lit (LitFloat r) = mkFloat (T.pack hs) r
         lit (LitDouble r) = mkFloat (T.pack hs) r
         lit (LitRational r) = "(" <> T.pack (show r) <> ")"
@@ -496,6 +496,7 @@ mkTypeHaskell = mkTypeHaskellPG (mkPrettyGuide ())
 mkTypeHaskellPG :: PrettyGuide -> Type -> T.Text
 mkTypeHaskellPG pg (TyVar i) = mkIdHaskell pg i
 mkTypeHaskellPG _ TyLitInt = "Int#"
+mkTypeHaskellPG _ TyLitWord = "Word#"
 mkTypeHaskellPG _ TyLitFloat = "Float#"
 mkTypeHaskellPG _ TyLitDouble = "Double#"
 mkTypeHaskellPG _ (TyLitFP e s) = "(FP#" <> T.pack (show e) <> " " <> T.pack (show s) <> ")"

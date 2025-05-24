@@ -37,7 +37,7 @@ def run_nofib_bench(filename, var_settings, timeout):
     # --include nofib-symbolic/common --higher-order symbolic --hpc --hpc-print-times --print-num-nrpc --print-num-red-rules --solver-time --print-num-solver-calls --no-step-limit --search subpath --hpc-discard-strat --time 60
     return run_g2(filename, "main", ["--include", "nofib-symbolic/common", "--higher-order", "symbolic",
                                      "--hpc", "--hpc-print-times", "--print-num-nrpc", "--print-num-red-rules", "--solver-time", "--print-num-solver-calls",
-                                     "--no-step-limit", "--search", "subpath", "--hpc-discard-strat", "--time", str(timeout)] + var_settings)
+                                     "--no-step-limit", "--search", "subpath", "--subpath-len", "2", "--hpc-discard-strat", "--time", str(timeout)] + var_settings)
 
 def run_nofib_bench_nrpc(filename, var_settings, timeout):
     return run_nofib_bench(filename, ["--nrpc"] + var_settings, timeout)
@@ -135,5 +135,5 @@ def run_nofib_set(setname, var_settings, timeout):
                     print("\n")
         print(tabulate(data, headers=headers, tablefmt="grid"))
 
-run_nofib_set("imaginary", [], 60)
-run_nofib_set("spectral", [], 60)
+run_nofib_set("imaginary", [], 300)
+run_nofib_set("spectral", [], 300)

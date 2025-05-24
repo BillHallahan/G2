@@ -444,10 +444,12 @@ expSigBits _ = error "evalPrimWithState: decodeFloat - unsupported type"
 
 evalPrim1 :: Primitive -> Lit -> Maybe Expr
 evalPrim1 Negate (LitInt x) = Just . Lit $ LitInt (-x)
+evalPrim1 Negate (LitWord x) = Just . Lit $ LitWord (-x)
 evalPrim1 Negate (LitRational x) = Just . Lit $ LitRational (-x)
 evalPrim1 FpNeg (LitFloat x) = Just . Lit $ LitFloat (-x)
 evalPrim1 FpNeg (LitDouble x) = Just . Lit $ LitDouble (-x)
 evalPrim1 Abs (LitInt x) = Just . Lit $ LitInt (abs x)
+evalPrim1 Abs (LitWord x) = Just . Lit $ LitWord (abs x)
 evalPrim1 Abs (LitRational x) = Just . Lit $ LitRational (abs x)
 evalPrim1 Abs (LitFloat x) = Just . Lit $ LitFloat (abs x)
 evalPrim1 Abs (LitDouble x) = Just . Lit $ LitDouble (abs x)
@@ -561,12 +563,14 @@ ith _ _ = Nothing
 
 isZero :: Lit -> Bool
 isZero (LitInt 0) = True
+isZero (LitWord 0) = True
 isZero (LitFloat 0) = True
 isZero (LitDouble 0) = True
 isZero _ = False
 
 evalPrim2NumCharBool :: (forall a . Ord a => a -> a -> Bool) -> KnownValues -> Lit -> Lit -> Maybe Expr
 evalPrim2NumCharBool f kv (LitInt x) (LitInt y) = Just . mkBool kv $ f x y
+evalPrim2NumCharBool f kv (LitWord x) (LitWord y) = Just . mkBool kv $ f x y
 evalPrim2NumCharBool f kv (LitFloat x) (LitFloat y) = Just . mkBool kv $ f x y
 evalPrim2NumCharBool f kv (LitDouble x) (LitDouble y) = Just . mkBool kv $ f x y
 evalPrim2NumCharBool f kv (LitRational x) (LitRational y) = Just . mkBool kv $ f x y
@@ -575,6 +579,7 @@ evalPrim2NumCharBool _ _ _ _ = Nothing
 
 evalPrim2Num  :: (forall a . Num a => a -> a -> a) -> Lit -> Lit -> Maybe Expr
 evalPrim2Num f (LitInt x) (LitInt y) = Just . Lit . LitInt $ f x y
+evalPrim2Num f (LitWord x) (LitWord y) = Just . Lit . LitWord $ f x y
 evalPrim2Num f (LitFloat x) (LitFloat y) = Just . Lit . LitFloat $ f x y
 evalPrim2Num f (LitDouble x) (LitDouble y) = Just . Lit . LitDouble $ f x y
 evalPrim2Num f (LitRational x) (LitRational y) = Just . Lit . LitRational $ f x y
@@ -588,6 +593,7 @@ evalPrim2Fractional _ _ _ = Nothing
 
 evalPrim2Integral :: (forall a . Integral a => a -> a -> a) -> Lit -> Lit -> Maybe Expr
 evalPrim2Integral f (LitInt x) (LitInt y) = Just . Lit . LitInt $ f x y
+evalPrim2Integral f (LitWord x) (LitWord y) = Just . Lit . LitWord $ f x y
 evalPrim2Integral _ _ _ = Nothing
 
 evalPrim1Floating :: (forall a . Floating a => a -> a) -> Lit -> Maybe Expr

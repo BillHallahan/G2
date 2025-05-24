@@ -79,7 +79,9 @@ module G2.Language.Expr ( module G2.Language.Casts
                         , freeVars
                         , alphaReduction
                         , varBetaReduction
-                        , etaExpandTo) where
+                        , etaExpandTo
+                        
+                        , stripAllTicks) where
 
 import G2.Language.AST
 import G2.Language.Casts
@@ -605,3 +607,10 @@ etaExpandTo' eenv ng n e = (addLamApps fn (typeOf e) e, ng')
         addLamApps (ln:ns) (TyFun t t') e' =
             Lam TermL (Id ln t) (App (addLamApps ns t' e') (Var (Id ln t)))
         addLamApps _ _ e' = e'
+
+stripAllTicks :: ASTContainer m Expr => m -> m
+stripAllTicks = modifyASTs stripTicks
+
+stripTicks :: Expr -> Expr
+stripTicks (Tick _ e) = e
+stripTicks e = e

@@ -1,5 +1,7 @@
 module Char where
 
+import Data.Char
+
 char :: Char -> Int
 char 'a' = 0
 char _ = 1
@@ -17,3 +19,7 @@ g ('}':_) = ["D"]
 g ('<':_) = ["E"]
 g ('>':_) = ["F"]
 g _ = []
+
+isDigitTest :: Char -> (Bool, Int)
+isDigitTest c | isDigit c = (True, 0)
+              | otherwise = (False, 1)

@@ -4,7 +4,7 @@
 {-# LANGUAGE FunctionalDependencies #-}
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE MultiParamTypeClasses, MultiWayIf, RankNTypes, ScopedTypeVariables #-}
-{-# LANGUAGE UndecidableInstances #-}
+{-# LANGUAGE TupleSections, UndecidableInstances #-}
 {-# LANGUAGE OverloadedStrings #-}
 
 {-| Module: G2.Execution.Reducer
@@ -165,6 +165,7 @@ import Data.Tuple
 import Data.Time.Clock
 import System.Clock
 import System.Directory
+import G2.Execution.Rules (SymFuncTicks, freshSymFuncTicks)
 
 -- | Used when applying execution rules
 -- Allows tracking extra information to control halting of rule application,
@@ -569,12 +570,12 @@ stdRed share symb_func_eval solver simplifier =
                         )
 
 -- | Pushes non_red_path_conds onto the exec_stack for solving higher order symbolic function 
-nonRedPCSymFuncRed :: Monad m => Reducer m () t
-nonRedPCSymFuncRed = mkSimpleReducer (\_ -> ())
+nonRedPCSymFuncRed :: Monad m => Reducer m (Maybe SymFuncTicks) t
+nonRedPCSymFuncRed = mkSimpleReducer (\_ -> Nothing)
                         nonRedPCSymFunc
 
-nonRedPCSymFunc :: Monad m => RedRules m () t
-nonRedPCSymFunc _
+nonRedPCSymFunc :: Monad m => RedRules m (Maybe SymFuncTicks) t
+nonRedPCSymFunc m_sft
                       s@(State { expr_env = eenv
                          , curr_expr = cexpr
                          , exec_stack = stck
@@ -583,6 +584,7 @@ nonRedPCSymFunc _
                         b@(Bindings { name_gen = ng }) =
     
     let
+        (sft, ng') = fromMaybe (freshSymFuncTicks ng) (fmap (,ng) m_sft)
         stck' = Stck.push (CurrExprFrame (EnsureEq nre2) cexpr) stck
         s' = s { exec_stack = stck', non_red_path_conds = nrs }
 
@@ -590,14 +592,14 @@ nonRedPCSymFunc _
         stripCenterTick (App e1 e2) = App (stripCenterTick e1) e2
         stripCenterTick e = e
     in
-    case retReplaceSymbFuncTemplate s' ng (stripCenterTick nre1) of
-        Just (r, s'', ng') ->
-            return (InProgress, zip s'' (repeat ()), b {name_gen = ng'})
+    case retReplaceSymbFuncTemplate sft s' ng' (stripCenterTick nre1) of
+        Just (r, s'', ng'') ->
+            return (InProgress, zip s'' (repeat (Just sft)), b {name_gen = ng''})
         Nothing ->
             let 
                 s'' = s' {curr_expr = CurrExpr Evaluate nre1}
-            in return (InProgress, [(s'', ())], b)
-nonRedPCSymFunc _ s b = return (Finished, [(s, ())], b)
+            in return (InProgress, [(s'', Just sft)], b { name_gen = ng' })
+nonRedPCSymFunc m_sft s b = return (Finished, [(s, m_sft)], b)
 
 -- | A reducer to add library functions in non reduced path constraints for solving later  
 nonRedLibFuncsReducer :: MonadIO m =>
