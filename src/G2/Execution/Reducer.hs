@@ -669,9 +669,11 @@ nonRedLibFuncs exec_names no_nrpc_names use_with_symb_func
                     s' = s { expr_env = eenv'
                            , curr_expr = cexpr'
                            , non_red_path_conds = (ce'', Var new_sym_id):nrs
-                           , exec_stack = stck' } 
+                           , exec_stack = stck' }
+                    xs' = map (\new_e -> s { curr_expr = CurrExpr Evaluate new_e, exec_stack = Stck.empty }) es
+                    xs'' = map (\new_s -> (new_s, (var_table', sym_table', nrpc_count))) xs'
                 in 
-                    return (Finished, [(s', (var_table', sym_table', nrpc_count + 1))], b {name_gen = ng'})
+                    return (Finished, (s', (var_table', sym_table', nrpc_count + 1)):xs'', b {name_gen = ng'})
             _ -> return (Finished, [(s, (var_table', sym_table', nrpc_count))], b)
 
     | otherwise = return (Finished, [(s, (var_table, sym_table, nrpc_count))], b)
@@ -1411,12 +1413,12 @@ switchEveryNHalter sw = (mkSimpleHalter
 -- | If the Name, disregarding the Unique, in the DiscardIfAcceptedTag
 -- matches a Tag in the Accepted State list,
 -- and in the State being evaluated, discard the State
-discardIfAcceptedTagHalter :: Monad m => Name -> Halter m (HS.HashSet Name) (ExecRes t) t
+discardIfAcceptedTagHalter :: MonadIO m => Name -> Halter m (HS.HashSet Name) (ExecRes t) t
 discardIfAcceptedTagHalter (Name n m _ _) =
                             mkSimpleHalter
                                 (const HS.empty)
                                 ups
-                                (\ns _ _ -> return $ if not (HS.null ns) then Discard else Continue)
+                                (\ns _ _ -> liftIO $ if not (HS.null ns) then do putStrLn "DISCARD"; return Discard else return Continue)
                                 (\hv _ _ _ -> hv)
     where
         ups _

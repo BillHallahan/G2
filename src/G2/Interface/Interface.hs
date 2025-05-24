@@ -352,11 +352,11 @@ initRedHaltOrd s mod_name solver simplifier config exec_func_names no_nrpc_names
                 , orderer)
             SingleFunc ->
                 ( logger_std_red retReplaceSymbFuncVar .== Finished .--> taggerRed state_name :== Finished --> nonRedPCRed
-                , halter_discard
+                , SomeHalter (discardIfAcceptedTagHalter state_name) .<~> halter_discard
                 , orderer)
             SymbolicFunc ->
                 ( logger_std_red retReplaceSymbFuncTemplate .== Finished .--> taggerRed state_name :== Finished --> nonRedPCSymFuncRed
-                , halter_discard
+                , SomeHalter (discardIfAcceptedTagHalter state_name) .<~> halter_discard
                 , orderer)
 
 initSolver :: Config -> IO SomeSolver
