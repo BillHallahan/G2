@@ -84,7 +84,7 @@ validateStatesGHC pg modN entry chAll b er@(ExecRes {final_state = s, conc_out =
     let v'' = case v' of
                     Nothing -> Nothing
                     Just (Left e) | show e == "<<timeout>>" -> Nothing
-                                  | otherwise -> Just (outStr == "error" || outStr == "undefined")
+                                  | otherwise -> Just (outStr == "error" || outStr == "undefined" || outStr == "?")
                     Just (Right b) -> Just (b && outStr /= "error" && outStr /= "undefined")
 
     chAllR' <- liftIO $ (unsafeCoerce chAllR :: IO [Either SomeException Bool])
