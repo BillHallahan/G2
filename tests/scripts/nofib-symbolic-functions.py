@@ -37,7 +37,7 @@ def run_nofib_bench(filename, var_settings, timeout):
     # --include nofib-symbolic/common --higher-order symbolic --hpc --hpc-print-times --print-num-nrpc --print-num-red-rules --solver-time --print-num-solver-calls --no-step-limit --search subpath --hpc-discard-strat --time 60
     return run_g2(filename, "main", ["--include", "nofib-symbolic/common", "--higher-order", "symbolic",
                                      "--hpc", "--hpc-print-times", "--print-num-nrpc", "--print-num-red-rules", "--solver-time", "--print-num-solver-calls",
-                                     "--no-step-limit", "--search", "subpath", "--subpath-len", "2", "--hpc-discard-strat", "--time", str(timeout)] + var_settings)
+                                     "--no-step-limit", "--search", "subpath", "--subpath-len", "2", "--hpc-discard-strat", "--measure-coverage", "--time", str(timeout)] + var_settings)
 
 def run_nofib_bench_nrpc(filename, var_settings, timeout):
     return run_nofib_bench(filename, ["--nrpc"] + var_settings, timeout)
@@ -77,6 +77,11 @@ def process_output(out):
     total = re.search(r"Tick num: (\d*)", out)
     last = re.search(r"Last tick reached: ((\d|\.)*)", out)
 
+    hpc_exp = re.findall(r"((?:\d)*)% expressions used", out)
+    print(hpc_exp)
+    hpc_exp_num = list(map(lambda x : int(x), hpc_exp))
+    hpc_reached = hpc_exp_num[-1] if len(hpc_exp_num) > 0 else 0
+
     all_times = read_hpc_times(out)
     coverage = "";
     last_time = "";
@@ -88,7 +93,8 @@ def process_output(out):
         coverage = str(round(((reached_f / total_f)*100), 2))
         last_time = last.group(1)
 
-        print("reached = " + str(reached.group(1)))
+        print("hpc reached = " + str(hpc_reached))
+        print("g2 reached = " + str(reached.group(1)))
         print("total = " + str(total.group(1)))
         print("% reached = " + str(reached_f / total_f))
         print("last time = " + last.group(1))
@@ -135,5 +141,5 @@ def run_nofib_set(setname, var_settings, timeout):
                     print("\n")
         print(tabulate(data, headers=headers, tablefmt="grid"))
 
-run_nofib_set("imaginary", [], 300)
-run_nofib_set("spectral", [], 300)
+run_nofib_set("imaginary", [], 10)
+run_nofib_set("spectral", [], 10)

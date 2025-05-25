@@ -256,6 +256,7 @@ mkAltHaskell off cleaned pg i_bndr@(Id bndr_name _) (Alt am e) =
 mkDataConHaskell :: PrettyGuide -> DataCon -> T.Text
 -- Special casing for Data.Map in the modified base
 mkDataConHaskell _ (DataCon (Name "Assocs" _ _ _) _ _ _) = "fromList"
+mkDataConHaskell _ (DataCon (Name ":%" _ _ _) _ _ _) = "%"
 mkDataConHaskell pg (DataCon n _ _ _) = mkNameHaskell pg n
 
 offset :: Int -> T.Text

@@ -104,6 +104,7 @@ data Config = Config {
     , strict :: Bool -- ^ Should the function output be strictly evaluated?
     , timeLimit :: Int -- ^ Seconds
     , validate :: Bool -- ^ If True, run on G2's input, and check against expected output.
+    , measure_coverage :: Bool -- ^ Use HPC to measure code coverage
     , nrpc :: NonRedPathCons -- ^ Whether to execute using non reduced path constraints or not
     , symbolic_func_nrpc :: Bool -- ^ If true, use NRPCs with symbolic functions
     , print_num_nrpc :: Bool -- ^ Output the number of NRPCs for each accepted state
@@ -176,6 +177,7 @@ mkConfig homedir = Config Regular
                    <> value 600
                    <> help "time limit, in seconds")
     <*> switch (long "validate" <> help "use GHC to automatically compile and run on generated inputs, and check that generated outputs are correct")
+    <*> switch (long "measure-coverage" <> help "use HPC to measure code coverage")
     <*> flag NoNrpc Nrpc (long "nrpc" <> help "execute with non reduced path constraints")
     <*> flag False True (long "lib-nrpc" <> help "use NRPCs to delay execution of library functions")
     <*> flag False True (long "print-num-nrpc" <> help "output the number of NRPCs for each accepted state")
@@ -313,6 +315,7 @@ mkConfigDirect homedir as m = Config {
     , strict = boolArg "strict" as m On
     , timeLimit = strArg "time" as m read 300
     , validate  = boolArg "validate" as m Off
+    , measure_coverage = False
     , nrpc = NoNrpc
     , symbolic_func_nrpc = False
     , print_num_nrpc = False

@@ -33,9 +33,13 @@ import G2.Translation.TransTypes
 import G2.Lib.Printers
 import Control.Exception
 
+import System.Directory
+import System.IO.Error
 import System.Process
 
 import Control.Monad.IO.Class
+
+import Debug.Trace
 
 -- | Load the passed module(s) into GHC, and check that the `ExecRes` results are correct.
 validateStates :: [FilePath] -> [FilePath] -> String -> String -> [String] -> [GeneralFlag] -> Bindings
@@ -198,35 +202,54 @@ runHPC src modN entry in_out = do
 runHPC' :: FilePath -> String -> [String] -> IO ()
 runHPC' src modN ars = do
     srcCode <- readFile src
-    let srcCode' = removeModule modN srcCode
+    let ext = dropWhile (/= '.') src
+        srcCode' = removeModule modN srcCode
 
     let spces = "  "
 
-    let chck = intercalate ("\n" ++ spces) $ map (\s -> "print (" ++ s ++ ")") ars
+    let chck = intercalate ("\n" ++ spces) $ map (\s -> "try (print (" ++ s ++ ")) :: IO (Either SomeException ())") ars
 
-    let mainFunc = "\n\nmain_internal_g2 :: IO ()\nmain_internal_g2 =do\n" ++ spces ++ chck ++ "\n" ++ spces
+    let mainFunc = "\n\nmain_internal_g2 :: IO ()\nmain_internal_g2 =do\n"
+                            ++ spces ++ chck ++ "\n" ++ spces ++  "return ()\n" ++ spces
 
-    let origN = "Orig_" ++ modN
-    let mainN = "Main_" ++ modN
 
-    writeFile (origN ++ ".hs") ("module " ++ origN ++ " where\n\n" ++ srcCode')
-    writeFile (mainN ++ ".hs") ("module Main2 where\n\nimport " ++ origN ++ "\n" ++ mainFunc)
+    createDirectoryIfMissing False "hpc"
+    let origMod = "Orig_" ++ modN
+        origFile = "hpc/" ++ origMod
+        mainMod = "Main_" ++ modN
+        mainFile = "hpc/" ++ mainMod
 
-    callProcess "ghc" ["-main-is", "Main2.main_internal_g2", "-fhpc", mainN ++ ".hs", origN ++ ".hs", "-O0"]
-    callProcess ("./" ++ mainN) []
+    let handleExists e
+          | isDoesNotExistError e = return ()
+          | otherwise = throwIO e
+    removeFile (mainMod ++ ".tix") `catch` handleExists
+
+    let birdtick = case ext of ".lhs" -> "> "; _ -> ""
+    writeFile (origFile ++ ext) (birdtick ++ "module " ++ origMod ++ " where\n\n" ++ srcCode')
+    writeFile (mainFile ++ ".hs") ("module Main2 where\n\nimport Control.Exception\nimport " ++ origMod ++ "\n" ++ mainFunc)
+
+    callProcess "ghc" ["-main-is", "Main2.main_internal_g2", "-fhpc"
+                      , mainFile ++ ".hs", origFile ++ ext, "-o", mainFile, "-O0"]
+    callProcess ("./" ++ mainFile) []
     putStrLn "HERE BEFORE HPC"
 
-    callProcess "hpc" ["report", mainN, "--per-module"]
+    callProcess "hpc" ["report", mainMod, "--per-module", "--srcdir=hpc", "--hpcdir=../.hpc"]
     putStrLn "HERE AFTER HPC"
 
     -- putStrLn mainFunc
 
 toCall :: String -> State t -> [Expr] -> Expr -> String
-toCall entry s ars _ = T.unpack . printHaskell s $ mkApp ((simpVar $ T.pack entry):ars)
+toCall entry s ars _ =
+    let
+        e = mkApp ((simpVar $ T.pack entry):ars)
+        pg = mkPrettyGuide e
+    in
+    T.unpack . printHaskellPG pg s $ e
 
 removeModule :: String -> String -> String
 removeModule modN s =
     let
-        r = mkRegex $ "module " ++ modN ++ " where"
+        r_str = "module " ++ modN ++ " *(\\([a-zA-Z0-9, ]*\\))? *where"
+        r = mkRegex r_str
     in
-    subRegex r s ""
+    trace ("modN = " ++ show modN  ++ "\nr_str = " ++ r_str ++ "\n" ++ show (matchRegex r s)) subRegex r s ""

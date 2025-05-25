@@ -99,6 +99,7 @@ module G2.Execution.Reducer ( Reducer (..)
                             , varLookupLimitHalter
                             , HPCMemoTable
                             , noNewHPCHalter
+                            , acceptOnlyNewHPC
                             , stdTimerHalter
                             , timerHalter
 
@@ -583,7 +584,7 @@ nonRedPCSymFunc m_sft
                         b@(Bindings { name_gen = ng }) =
     
     let
-        (sft, ng') = fromMaybe (freshSymFuncTicks ng) (fmap (,ng) m_sft)
+        sft = defSymFuncTicks
         stck' = Stck.push (CurrExprFrame (EnsureEq nre2) cexpr) stck
         s' = s { exec_stack = stck', non_red_path_conds = nrs }
 
@@ -591,13 +592,13 @@ nonRedPCSymFunc m_sft
         stripCenterTick (App e1 e2) = App (stripCenterTick e1) e2
         stripCenterTick e = e
     in
-    case retReplaceSymbFuncTemplate sft s' ng' (stripCenterTick nre1) of
-        Just (r, s'', ng'') ->
-            return (InProgress, zip s'' (repeat (Just sft)), b {name_gen = ng''})
+    case retReplaceSymbFuncTemplate sft s' ng (stripCenterTick nre1) of
+        Just (r, s'', ng') ->
+            return (InProgress, zip s'' (repeat (Just sft)), b {name_gen = ng'})
         Nothing ->
             let 
                 s'' = s' {curr_expr = CurrExpr Evaluate nre1}
-            in return (InProgress, [(s'', Just sft)], b { name_gen = ng' })
+            in return (InProgress, [(s'', Just sft)], b { name_gen = ng })
 nonRedPCSymFunc m_sft s b = return (Finished, [(s, m_sft)], b)
 
 -- | (Symbolic) functions to not add to the NRPCs
@@ -733,7 +734,7 @@ nonRedLibFuncs exec_names no_nrpc_names use_with_symb_func
                         (ret_id, ng''') = freshId ret_ty ng''
 
                         -- Instantiate the symbolic function `n`
-                        lam_center = Case (mkApp $ Var this_arg:vs) bindee ret_ty [Alt Default (error_show (Var bindee))]
+                        lam_center = Case (mkApp $ Var this_arg:vs) bindee ret_ty [Alt Default  (Var ret_id)]
                         f_def = mkLams (zip (repeat TermL) arg_is) lam_center
                         eenv' = E.insert n f_def eenv
 
@@ -748,7 +749,7 @@ nonRedLibFuncs exec_names no_nrpc_names use_with_symb_func
                 let
                     (g, ng') = freshId (TyFun (typeOf this_arg) ret_ty) ng_args
                     (bindee, ng'') = freshId (typeOf this_arg) ng'
-                    g_app = Case (App (Var g) (Var this_arg)) bindee ret_ty [Alt Default (error_show (Var bindee))]
+                    g_app = Case (App (Var g) (Var this_arg)) bindee ret_ty [Alt Default  (Var bindee)]
                     f_def = mkLams (zip (repeat TermL) arg_is) g_app
 
                     fa_e' = App (Var g) fa_e
@@ -1550,6 +1551,34 @@ noNewHPCHalter mod_name = mkSimpleHalter
                     return hpcs
         reaches eenv (Tick (HpcTick i t) e) | Just t `HS.member` mod_name = HS.insert (i, t) <$> reaches eenv e
         reaches eenv e = mconcat <$> mapM (reaches eenv) (children e)
+
+acceptOnlyNewHPC :: (Monad m1, SM.MonadState HPCMemoTable (m2 m1), SM.MonadTrans m2) => Halter m1 r (ExecRes t) t -> Halter (m2 m1) r (ExecRes t) t
+acceptOnlyNewHPC h = 
+        Halter {
+              initHalt = initHalt h
+            , updatePerStateHalt = updatePerStateHalt h
+            , discardOnStart = discardOnStart h
+            , stopRed = stop
+            , stepHalter = stepHalter h
+            , updateHalterWithAll = updateHalterWithAll h
+            }
+    where
+        stop hv pr s = do
+            res <- SM.lift $ stopRed h hv pr s
+            case res of
+                Accept -> do
+                    let acc_seen_hpc = HS.unions (map (reached_hpc . final_state) $ accepted pr)
+                        diff1 = HS.difference (reached_hpc s) acc_seen_hpc
+                    if HS.null diff1 then return Discard else return Accept
+                r -> return r
+
+-- liftHalter :: (Monad m1, SM.MonadTrans m2) => Halter m1 rv r t -> Halter (m2 m1) rv r t
+-- liftHalter h = Halter { initHalt = initHalt h
+--                       , updatePerStateHalt = updatePerStateHalt h
+--                       , discardOnStart = discardOnStart h
+--                       , stopRed = \hv pr s -> SM.lift ((stopRed h) hv pr s)
+--                       , stepHalter = stepHalter h
+--                       , updateHalterWithAll = updateHalterWithAll h }
 
 {-# INLINE stdTimerHalter #-}
 stdTimerHalter :: (MonadIO m, MonadIO m_run) => NominalDiffTime -> m (Halter m_run Int r t)

@@ -335,10 +335,12 @@ initRedHaltOrd s mod_name solver simplifier config exec_func_names no_nrpc_names
         halter_step = case step_limit config of
                             True -> SomeHalter (zeroHalter (steps config) <~> halter)
                             False -> SomeHalter halter
+        
+        halter_accept_only = case halter_step of SomeHalter h -> SomeHalter (liftHalter (liftHalter (liftHalter (acceptOnlyNewHPC h))))
 
         halter_discard = case hpc_discard_strat config of
-                            True -> SomeHalter (liftHalter (liftHalter (liftHalter (noNewHPCHalter mod_name)))) .<~> halter_step
-                            False -> halter_step
+                            True -> SomeHalter (liftHalter (liftHalter (liftHalter (noNewHPCHalter mod_name)))) .<~> halter_accept_only
+                            False -> halter_accept_only
 
         orderer = case search_strat config of
                         Subpath -> SomeOrderer $ lengthNSubpathOrderer (subpath_length config)

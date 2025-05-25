@@ -53,8 +53,9 @@ runWithArgs as = do
             if and r then putStrLn "Validated" else putStrLn "There was an error during validation."
 
             printFuncCalls config entry_f b (Just r) in_out
-            -- runHPC src (T.unpack $ fromJust mb_modname) entry in_out
         False -> printFuncCalls config entry_f b Nothing in_out
+
+  when (measure_coverage config ) $ runHPC src (T.unpack $ fromJust mb_modname) entry in_out
 
   return ()
 
