@@ -176,9 +176,9 @@ loadStandardSet =
 simpVar :: T.Text -> Expr
 simpVar s = Var (Id (Name s Nothing 0 Nothing) TyBottom)
 
-runHPC :: FilePath -> String -> String -> [(State t, Bindings, [Expr], Expr, Maybe FuncCall)] -> IO ()
+runHPC :: FilePath -> String -> String -> [ExecRes t] -> IO ()
 runHPC src modN entry in_out = do
-    let calls = map (\(s, _, i, o, _) -> toCall entry s i o) in_out
+    let calls = map (\(ExecRes { final_state = s, conc_args = i, conc_out = o })-> toCall entry s i o) in_out
 
     runHPC' src modN calls
 
@@ -192,16 +192,20 @@ runHPC' src modN ars = do
 
     let chck = intercalate ("\n" ++ spces) $ map (\s -> "print (" ++ s ++ ")") ars
 
-    let mainFunc = "\n\nmain :: IO ()\nmain =do\n" ++ spces ++ chck ++ "\n" ++ spces
+    let mainFunc = "\n\nmain_internal_g2 :: IO ()\nmain_internal_g2 =do\n" ++ spces ++ chck ++ "\n" ++ spces
 
+    let origN = "Orig_" ++ modN
     let mainN = "Main_" ++ modN
 
-    writeFile (mainN ++ ".hs") (srcCode' ++ mainFunc)
+    writeFile (origN ++ ".hs") ("module " ++ origN ++ " where\n\n" ++ srcCode')
+    writeFile (mainN ++ ".hs") ("module Main2 where\n\nimport " ++ origN ++ "\n" ++ mainFunc)
 
-    callProcess "ghc" ["-fhpc", mainN ++ ".hs"]
+    callProcess "ghc" ["-main-is", "Main2.main_internal_g2", "-fhpc", mainN ++ ".hs", origN ++ ".hs", "-O0"]
     callProcess ("./" ++ mainN) []
+    putStrLn "HERE BEFORE HPC"
 
-    callProcess "hpc" ["report", mainN]
+    callProcess "hpc" ["report", mainN, "--per-module"]
+    putStrLn "HERE AFTER HPC"
 
     -- putStrLn mainFunc
 
