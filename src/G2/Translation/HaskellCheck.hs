@@ -146,7 +146,19 @@ loadToCheck proj src modN gflags = do
         let mdN = mkModuleName modN
         let imD = simpleImportDecl mdN
 
-        setContext (IIDecl imD:loadStandardSet)
+        imps <- liftIO $ concat <$> mapM getImports src
+
+        let imp_decls = map (IIDecl . simpleImportDecl . mkModuleName) imps
+
+        setContext (IIDecl imD:loadStandardSet ++ imp_decls)
+
+getImports :: FilePath -> IO [String]
+getImports src = do
+    srcCode <- readFile src
+    let r = mkRegex "import *([a-zA-Z0-9.]*)"
+    case matchRegexAll r srcCode of
+        Just (_, _, _, imps) -> return imps
+        Nothing -> return []
 
 loadStandard :: Ghc ()
 loadStandard = setContext loadStandardSet

@@ -733,7 +733,7 @@ nonRedLibFuncs exec_names no_nrpc_names use_with_symb_func
                         (ret_id, ng''') = freshId ret_ty ng''
 
                         -- Instantiate the symbolic function `n`
-                        lam_center = Case (mkApp $ Var this_arg:vs) bindee ret_ty [Alt Default (Var ret_id)]
+                        lam_center = Case (mkApp $ Var this_arg:vs) bindee ret_ty [Alt Default (error_show (Var bindee))]
                         f_def = mkLams (zip (repeat TermL) arg_is) lam_center
                         eenv' = E.insert n f_def eenv
 
@@ -742,13 +742,13 @@ nonRedLibFuncs exec_names no_nrpc_names use_with_symb_func
                     in
                     (ng''', Just $ (s { expr_env = eenv''
                                       , curr_expr = CurrExpr Evaluate fa_e'
-                                      , exec_stack = stck }, Nothing))
+                                      , exec_stack = stck (Var bindee) }, Nothing))
             | isPrimType (typeOf fa_e) = (init_ng, Nothing)
             | otherwise =
                 let
                     (g, ng') = freshId (TyFun (typeOf this_arg) ret_ty) ng_args
                     (bindee, ng'') = freshId (typeOf this_arg) ng'
-                    g_app = Case (Var this_arg) bindee ret_ty $ [Alt Default (App (Var g) (Var bindee))]
+                    g_app = Case (App (Var g) (Var this_arg)) bindee ret_ty [Alt Default (error_show (Var bindee))]
                     f_def = mkLams (zip (repeat TermL) arg_is) g_app
 
                     fa_e' = App (Var g) fa_e
@@ -756,7 +756,7 @@ nonRedLibFuncs exec_names no_nrpc_names use_with_symb_func
                     eenv' = E.insert n f_def eenv
                     eenv'' = E.insertSymbolic g eenv'
                 in
-                (ng'', Just $ (s { expr_env = eenv'', curr_expr = CurrExpr Evaluate fa_e', exec_stack = stck }, Just $ idName g))
+                (ng'', Just $ (s { expr_env = eenv'', curr_expr = CurrExpr Evaluate fa_e', exec_stack = stck (Var bindee) }, Just $ idName g))
             where
                 n = case unApp ce of
                     Var (Id vn _):_ -> vn
@@ -765,7 +765,9 @@ nonRedLibFuncs exec_names no_nrpc_names use_with_symb_func
                 (arg_is, ng_args) = freshIds all_args_ts init_ng
                 this_arg = arg_is !! this_arg_num
 
-                stck = Stck.singleton $ CurrExprFrame NoAction (CurrExpr Return $ Prim UnspecifiedOutput TyUnknown)
+                error_show show_e = App (Prim Error TyBottom) $ App (Var (Id (Name "show" Nothing 0 Nothing) TyBottom)) show_e
+
+                stck show_e = Stck.singleton $ CurrExprFrame NoAction (CurrExpr Return $ Prim UnspecifiedOutput TyBottom)
 
 
 -- Note [Ignore Update Frames]
