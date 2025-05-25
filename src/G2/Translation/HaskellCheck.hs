@@ -9,12 +9,13 @@ module G2.Translation.HaskellCheck ( validateStates
 
 #if MIN_VERSION_GLASGOW_HASKELL(9,0,2,0)
 import GHC.Driver.Session
+import qualified GHC.Data.EnumSet as ES
 #else
 import DynFlags
+import qualified EnumSet as ES
 #endif
 
 import GHC hiding (Name, entry)
-import qualified GHC.Data.EnumSet as ES
 import GHC.LanguageExtensions
 
 import GHC.Paths
