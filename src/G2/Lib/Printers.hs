@@ -129,7 +129,7 @@ mkExprHaskell' off_init cleaned pg ex = mkExprHaskell'' off_init ex
                        -> Expr
                        -> T.Text
         mkExprHaskell'' _ (Var ids) = mkIdHaskell pg ids
-        mkExprHaskell'' _ (Lit c) = mkLitHaskell UseHash c
+        mkExprHaskell'' _ (Lit c) = if isCleaned then mkLitHaskell NoHash c else mkLitHaskell UseHash c
         mkExprHaskell'' _ (Prim p _) = if isCleaned then mkPrimHaskellNoDistFloat pg p else mkPrimHaskell pg p
         mkExprHaskell'' off (Lam _ ids e) =
             "(\\" <> mkIdHaskell pg ids <> " -> " <> mkExprHaskell'' off e <> ")"
@@ -355,7 +355,7 @@ mkLitHaskell use = lit
         lit (LitInteger i) = T.pack $ if i < 0 then "(" <> show i <> hs <> ")" else show i <> hs
         lit (LitWord w) = T.pack $ show w <> hs
         lit (LitFloat r) = mkFloat (T.pack hs) r
-        lit (LitDouble r) = mkFloat (T.pack hs) r
+        lit (LitDouble r) = mkFloat (T.pack (hs ++ hs)) r
         lit (LitRational r) = "(" <> T.pack (show r) <> ")"
         lit (LitBV bv) = "#b" <> T.concat (map (T.pack . show) bv)
         lit (LitChar c) | isPrint c = T.pack ['\'', c, '\'']

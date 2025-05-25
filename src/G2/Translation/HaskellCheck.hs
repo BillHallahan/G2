@@ -36,6 +36,7 @@ import Control.Exception
 import System.Directory
 import System.IO.Error
 import System.Process
+import System.Timeout
 
 import Control.Monad.IO.Class
 
@@ -44,7 +45,7 @@ import Debug.Trace
 -- | Load the passed module(s) into GHC, and check that the `ExecRes` results are correct.
 validateStates :: [FilePath] -> [FilePath] -> String -> String -> [String] -> [GeneralFlag] -> Bindings
                -> [ExecRes t]
-               -> IO [Bool] -- ^ One bool per input `ExecRes`, indicating whether the results are correct or not
+               -> IO [Maybe Bool] -- ^ One bool per input `ExecRes`, indicating whether the results are correct or not
 validateStates proj src modN entry chAll gflags b in_out = do
     runGhc (Just libdir) (do
         adjustDynFlags
@@ -73,20 +74,23 @@ creatDeclStr pg s (x, DataTyCon{data_cons = dcs, bound_ids = is}) =
 creatDeclStr _ _ _ = error "creatDeclStr: unsupported AlgDataTy"
 
 -- | Compile with GHC, and check that the output we got is correct for the input
-validateStatesGHC :: PrettyGuide -> Maybe T.Text -> String -> [String] -> Bindings -> ExecRes t -> Ghc Bool
+validateStatesGHC :: PrettyGuide -> Maybe T.Text -> String -> [String] -> Bindings -> ExecRes t -> Ghc (Maybe Bool)
 validateStatesGHC pg modN entry chAll b er@(ExecRes {final_state = s, conc_out = out}) = do
     (v, chAllR) <- runCheck pg modN entry chAll b er
 
-    v' <- liftIO $ (unsafeCoerce v :: IO (Either SomeException Bool))
+    v' <- liftIO . timeout (2 * 10 * 1000) $ (unsafeCoerce v :: IO (Either SomeException Bool))
+    liftIO . putStrLn $ "v' = " ++ show v'
     let outStr = T.unpack $ printHaskell s out
     let v'' = case v' of
-                    Left _ -> outStr == "error" || outStr == "undefined"
-                    Right b -> b && outStr /= "error" && outStr /= "undefined"
+                    Nothing -> Nothing
+                    Just (Left e) | show e == "<<timeout>>" -> Nothing
+                                  | otherwise -> Just (outStr == "error" || outStr == "undefined")
+                    Just (Right b) -> Just (b && outStr /= "error" && outStr /= "undefined")
 
     chAllR' <- liftIO $ (unsafeCoerce chAllR :: IO [Either SomeException Bool])
     let chAllR'' = rights chAllR'
 
-    return $ v'' && and chAllR''
+    return $ fmap (&& and chAllR'') v''
 
 createDeclsStr :: PrettyGuide -> State t -> TypeEnv -> [String]
 createDeclsStr pg s = map (creatDeclStr pg s) . H.toList
@@ -133,7 +137,9 @@ runCheck init_pg modN entry chAll b er@(ExecRes {final_state = s, conc_args = ar
                                         ++ outStr ++ " :: " ++ outType ++ ")" ++ ")) :: IO (Either SomeException Bool)"
                     True -> mvStr ++ "try (evaluate ( (" ++ pr_con ++ "(" ++ arsStr ++ " :: " ++ arsType ++ ")" ++
                                                     ") == " ++ pr_con ++ "(" ++ arsStr ++ "))) :: IO (Either SomeException Bool)"
+    liftIO $ putStrLn "about to compile"
     v' <- compileExpr chck
+    liftIO $ print v'
 
     let chArgs = ars ++ [out] 
     let chAllStr = map (\f -> T.unpack $ printHaskellPG pg s $ mkApp ((simpVar $ T.pack f):chArgs)) chAll
@@ -226,7 +232,7 @@ runHPC' src modN ars = do
 
     let birdtick = case ext of ".lhs" -> "> "; _ -> ""
     writeFile (origFile ++ ext) (birdtick ++ "module " ++ origMod ++ " where\n\n" ++ srcCode')
-    writeFile (mainFile ++ ".hs") ("module Main2 where\n\nimport Control.Exception\nimport " ++ origMod ++ "\n" ++ mainFunc)
+    writeFile (mainFile ++ ".hs") ("module Main2 where\n\nimport Control.Exception\nimport Data.Char\nimport " ++ origMod ++ "\n" ++ mainFunc)
 
     callProcess "ghc" ["-main-is", "Main2.main_internal_g2", "-fhpc"
                       , mainFile ++ ".hs", origFile ++ ext, "-o", mainFile, "-O0"]
@@ -242,7 +248,7 @@ toCall :: String -> State t -> [Expr] -> Expr -> String
 toCall entry s ars _ =
     let
         e = mkApp ((simpVar $ T.pack entry):ars)
-        pg = mkPrettyGuide e
+        pg = mkPrettyGuide (exprNames e)
     in
     T.unpack . printHaskellPG pg s $ e
 

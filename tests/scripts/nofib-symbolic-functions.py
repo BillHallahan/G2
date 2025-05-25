@@ -141,5 +141,5 @@ def run_nofib_set(setname, var_settings, timeout):
                     print("\n")
         print(tabulate(data, headers=headers, tablefmt="grid"))
 
-run_nofib_set("imaginary", [], 10)
-run_nofib_set("spectral", [], 10)
+run_nofib_set("imaginary", [], 300)
+run_nofib_set("spectral", [], 300)
