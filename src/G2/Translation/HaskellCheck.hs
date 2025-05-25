@@ -36,6 +36,7 @@ import G2.Lib.Printers
 import Control.Exception
 
 import System.Directory
+import System.FilePath
 import System.IO.Error
 import System.Process
 import System.Timeout
@@ -81,7 +82,6 @@ validateStatesGHC pg modN entry chAll b er@(ExecRes {final_state = s, conc_out =
     (v, chAllR) <- runCheck pg modN entry chAll b er
 
     v' <- liftIO . timeout (2 * 10 * 1000) $ (unsafeCoerce v :: IO (Either SomeException Bool))
-    liftIO . putStrLn $ "v' = " ++ show v'
     let outStr = T.unpack $ printHaskell s out
     let v'' = case v' of
                     Nothing -> Nothing
@@ -167,7 +167,7 @@ loadToCheck proj src modN gflags = do
 getImports :: FilePath -> IO [String]
 getImports src = do
     srcCode <- readFile src
-    let r = mkRegex "import *([a-zA-Z0-9.]*)"
+    let r = mkRegex "^import *([a-zA-Z0-9.]*)"
     case matchRegexAll r srcCode of
         Just (_, _, _, imps) -> return imps
         Nothing -> return []
@@ -211,7 +211,8 @@ runHPC' :: FilePath -> String -> [String] -> IO ()
 runHPC' src modN ars = do
     srcCode <- readFile src
     let ext = dropWhile (/= '.') src
-        srcCode' = removeModule modN srcCode
+        dir = takeDirectory src
+        -- srcCode' = removeModule modN srcCode
 
     let spces = "  "
 
@@ -222,7 +223,7 @@ runHPC' src modN ars = do
 
 
     createDirectoryIfMissing False "hpc"
-    let origMod = "Orig_" ++ modN
+    let origMod = modN
         origFile = "hpc/" ++ origMod
         mainMod = "Main_" ++ modN
         mainFile = "hpc/" ++ mainMod
@@ -232,12 +233,11 @@ runHPC' src modN ars = do
           | otherwise = throwIO e
     removeFile (mainMod ++ ".tix") `catch` handleExists
 
-    let birdtick = case ext of ".lhs" -> "> "; _ -> ""
-    writeFile (origFile ++ ext) (birdtick ++ "module " ++ origMod ++ " where\n\n" ++ srcCode')
-    writeFile (mainFile ++ ".hs") ("module Main2 where\n\nimport Control.Exception\nimport Data.Char\nimport " ++ origMod ++ "\n" ++ mainFunc)
+    writeFile (origFile ++ ext) srcCode
+    writeFile (mainFile ++ ".hs") ("module CallForHPC where\n\nimport Control.Exception\nimport Data.Char\nimport " ++ modN ++ "\n" ++ mainFunc)
 
-    callProcess "ghc" ["-main-is", "Main2.main_internal_g2", "-fhpc"
-                      , mainFile ++ ".hs", origFile ++ ext, "-o", mainFile, "-O0"]
+    callProcess "ghc" $ ["-main-is", "CallForHPC.main_internal_g2", "-fhpc"
+                        , mainFile ++ ".hs", src, "-o", mainFile, "-O0", "-i" ++ dir]
     callProcess ("./" ++ mainFile) []
     putStrLn "HERE BEFORE HPC"
 

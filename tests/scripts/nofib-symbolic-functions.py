@@ -120,6 +120,19 @@ def calculate_time_diff(base_tick_times_map, nrpc_tick_times_map):
         
     return base1, base3, base5, nrpc1, nrpc3, nrpc5
 
+def calculate_hpc_coverage(hpc_res):
+    rel_hpc_res = hpc_res[1:] if len(hpc_res) > 0 else []
+    print("calculate hpc converage")
+    print(hpc_res)
+    print(rel_hpc_res)
+    found = map(lambda x : x[1], rel_hpc_res)
+    total = map(lambda x : x[2], rel_hpc_res)
+    coverage = 0
+    try:
+        return (sum(found) / sum(total))
+    except:
+        return 0
+
 def read_runnable_benchmarks(setpath) :
     lines = {}
     file = os.path.join(setpath, "run_benchmarks.txt")
@@ -141,9 +154,9 @@ def process_output(out):
     total = re.search(r"Tick num: (\d*)", out)
     last = re.search(r"Last tick reached: ((\d|\.)*)", out)
 
-    hpc_exp = re.findall(r"((?:\d)*)% expressions used", out)
-    hpc_exp_num = list(map(lambda x : int(x), hpc_exp))
-    hpc_reached = hpc_exp_num[-1] if len(hpc_exp_num) > 0 else 0
+    hpc_exp = re.findall(r"((?:\d)*)% expressions used \(((?:\d)*)/((?:\d)*)\)", out)
+    hpc_exp_num = list(map(lambda x : (int(x[0]), int(x[1]), int(x[2])), hpc_exp))
+    hpc_reached = calculate_hpc_coverage(hpc_exp_num)
 
     tick_times_list, all_times = read_hpc_times(out)
     coverage = ""
