@@ -122,6 +122,9 @@ def calculate_time_diff(base_tick_times_map, nrpc_tick_times_map):
 
 def calculate_hpc_coverage(hpc_res):
     rel_hpc_res = hpc_res[1:] if len(hpc_res) > 0 else []
+    print("calculate hpc converage")
+    print(hpc_res)
+    print(rel_hpc_res)
     found = map(lambda x : x[1], rel_hpc_res)
     total = map(lambda x : x[2], rel_hpc_res)
     coverage = 0
@@ -222,5 +225,5 @@ def run_nofib_set(setname, var_settings, timeout):
                     print("\n")
         print(tabulate(data, headers=headers, tablefmt="grid"))
 
-run_nofib_set("imaginary", [], 300)
-run_nofib_set("spectral", [], 300)
+run_nofib_set("imaginary", [], 7)
+run_nofib_set("spectral", [], 7)

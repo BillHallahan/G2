@@ -135,13 +135,11 @@ runCheck init_pg modN entry chAll b er@(ExecRes {final_state = s, conc_args = ar
                         _ -> ""
 
     let chck = case outStr == "error" || outStr == "undefined" || outStr == "?" of
-                    False -> mvStr ++ "try (evaluate (" ++ pr_con ++ "(" ++ arsStr ++ ") == " ++ pr_con ++ "("
+                    False -> mvStr ++ "Control.Exception.try (evaluate (" ++ pr_con ++ "(" ++ arsStr ++ ") == " ++ pr_con ++ "("
                                         ++ outStr ++ " :: " ++ outType ++ ")" ++ ")) :: IO (Either SomeException Bool)"
-                    True -> mvStr ++ "try (evaluate ( (" ++ pr_con ++ "(" ++ arsStr ++ " :: " ++ arsType ++ ")" ++
+                    True -> mvStr ++ "Control.Exception.try (evaluate ( (" ++ pr_con ++ "(" ++ arsStr ++ " :: " ++ arsType ++ ")" ++
                                                     ") == " ++ pr_con ++ "(" ++ arsStr ++ "))) :: IO (Either SomeException Bool)"
-    liftIO $ putStrLn "about to compile"
     v' <- compileExpr chck
-    liftIO $ print v'
 
     let chArgs = ars ++ [out] 
     let chAllStr = map (\f -> T.unpack $ printHaskellPG pg s $ mkApp ((simpVar $ T.pack f):chArgs)) chAll
@@ -159,6 +157,7 @@ loadToCheck proj src modN gflags = do
         let imD = simpleImportDecl mdN
 
         imps <- liftIO $ concat <$> mapM getImports src
+        liftIO $ print imps
 
         let imp_decls = map (IIDecl . simpleImportDecl . mkModuleName) imps
 
@@ -167,10 +166,13 @@ loadToCheck proj src modN gflags = do
 getImports :: FilePath -> IO [String]
 getImports src = do
     srcCode <- readFile src
-    let r = mkRegex "^import *([a-zA-Z0-9.]*)"
-    case matchRegexAll r srcCode of
-        Just (_, _, _, imps) -> return imps
-        Nothing -> return []
+    get srcCode
+    where
+        get str = do
+            let r = mkRegex "^import *([a-zA-Z0-9.]*)"
+            case matchRegexAll r str of
+                Just (_, _, after, imps) -> (imps ++) <$> get after
+                Nothing -> return []
 
 loadStandard :: Ghc ()
 loadStandard = setContext loadStandardSet
@@ -209,6 +211,7 @@ runHPC src modN entry in_out = do
 -- Compile with GHC, and check that the output we got is correct for the input
 runHPC' :: FilePath -> String -> [String] -> IO ()
 runHPC' src modN ars = do
+    imps <- getImports src
     srcCode <- readFile src
     let ext = dropWhile (/= '.') src
         dir = takeDirectory src
@@ -216,7 +219,7 @@ runHPC' src modN ars = do
 
     let spces = "  "
 
-    let chck = intercalate ("\n" ++ spces) $ map (\s -> "try (print (" ++ s ++ ")) :: IO (Either SomeException ())") ars
+    let chck = intercalate ("\n" ++ spces) $ map (\s -> "Ex.try (print (" ++ s ++ ")) :: IO (Either Ex.SomeException ())") ars
 
     let mainFunc = "\n\nmain_internal_g2 :: IO ()\nmain_internal_g2 =do\n"
                             ++ spces ++ chck ++ "\n" ++ spces ++  "return ()\n" ++ spces
@@ -234,7 +237,8 @@ runHPC' src modN ars = do
     removeFile (mainMod ++ ".tix") `catch` handleExists
 
     writeFile (origFile ++ ext) srcCode
-    writeFile (mainFile ++ ".hs") ("module CallForHPC where\n\nimport Control.Exception\nimport Data.Char\nimport " ++ modN ++ "\n" ++ mainFunc)
+    let main_imps = intercalate "\n" $ map ("import " ++) imps
+    writeFile (mainFile ++ ".hs") ("module CallForHPC where\n\nimport qualified Control.Exception as Ex\nimport Data.Char\nimport " ++ modN ++ "\n" ++ main_imps ++ "\n" ++ mainFunc)
 
     callProcess "ghc" $ ["-main-is", "CallForHPC.main_internal_g2", "-fhpc"
                         , mainFile ++ ".hs", src, "-o", mainFile, "-O0", "-i" ++ dir]

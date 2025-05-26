@@ -717,7 +717,7 @@ runG2SubstModel m s@(State { type_env = tenv, known_values = kv }) bindings =
         sm' = runPostprocessing bindings sm
 
         sm'' = ExecRes { final_state = final_state sm'
-                       , conc_args = fixed_inputs bindings ++ conc_args sm'
+                       , conc_args = fixed_inputs bindings ++ evalPrims tenv kv (conc_args sm')
                        , conc_out = evalPrims tenv kv (conc_out sm')
                        , conc_sym_gens = gens
                        , conc_mutvars = mv
