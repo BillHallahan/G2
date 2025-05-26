@@ -157,7 +157,6 @@ loadToCheck proj src modN gflags = do
         let imD = simpleImportDecl mdN
 
         imps <- liftIO $ concat <$> mapM getImports src
-        liftIO $ print imps
 
         let imp_decls = map (IIDecl . simpleImportDecl . mkModuleName) imps
 
@@ -243,10 +242,8 @@ runHPC' src modN ars = do
     callProcess "ghc" $ ["-main-is", "CallForHPC.main_internal_g2", "-fhpc"
                         , mainFile ++ ".hs", src, "-o", mainFile, "-O0", "-i" ++ dir]
     callProcess ("./" ++ mainFile) []
-    putStrLn "HERE BEFORE HPC"
 
     callProcess "hpc" ["report", mainMod, "--per-module", "--srcdir=hpc", "--hpcdir=../.hpc"]
-    putStrLn "HERE AFTER HPC"
 
     -- putStrLn mainFunc
 
@@ -257,11 +254,3 @@ toCall entry s ars _ =
         pg = mkPrettyGuide (exprNames e)
     in
     T.unpack . printHaskellPG pg s $ e
-
-removeModule :: String -> String -> String
-removeModule modN s =
-    let
-        r_str = "module " ++ modN ++ " *(\\([a-zA-Z0-9, ]*\\))? *where"
-        r = mkRegex r_str
-    in
-    trace ("modN = " ++ show modN  ++ "\nr_str = " ++ r_str ++ "\n" ++ show (matchRegex r s)) subRegex r s ""

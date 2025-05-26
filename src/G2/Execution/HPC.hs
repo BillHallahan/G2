@@ -16,7 +16,6 @@ module G2.Execution.HPC ( HpcT
 
 import G2.Execution.Reducer
 import G2.Language
-import qualified G2.Language.Stack as S
 
 import Control.Exception
 import Control.Monad.Identity
