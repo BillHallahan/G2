@@ -18,10 +18,11 @@ def read_hpc_times(out):
             read = False
         if read:
             match = re.search(r'\((\d+),"(.*?)"\)\s*-\s*([0-9]*\.[0-9]+)', line)
-            key = (int(match.group(1)), match.group(2))
-            value = float(match.group(3))
-            tick_time_list.append((key, value))
-            times.append(line)
+            if match != None:
+                key = (int(match.group(1)), match.group(2))
+                value = float(match.group(3))
+                tick_time_list.append((key, value))
+                times.append(line)
         if line.startswith("All tick times:"):
             read = True
     return tick_time_list, times
@@ -43,7 +44,7 @@ def run_nofib_bench(filename, var_settings, timeout):
     # --include nofib-symbolic/common --higher-order symbolic --hpc --hpc-print-times --print-num-nrpc --print-num-red-rules --solver-time --print-num-solver-calls --no-step-limit --search subpath --hpc-discard-strat --time 60
     return run_g2(filename, "main", ["--include", "nofib-symbolic/common", "--higher-order", "symbolic",
                                      "--hpc", "--hpc-print-times", "--print-num-nrpc", "--print-num-red-rules", "--solver-time", "--print-num-solver-calls",
-                                     "--no-step-limit", "--search", "subpath", "--subpath-len", "2", "--hpc-discard-strat", "--time", str(timeout)] + var_settings)
+                                     "--no-step-limit", "--search", "subpath", "--subpath-len", "2", "--hpc-discard-strat", "--measure-coverage", "--time", str(timeout)] + var_settings)
 
 def run_nofib_bench_nrpc(filename, var_settings, timeout):
     return run_nofib_bench(filename, ["--nrpc"] + var_settings, timeout)
@@ -120,6 +121,19 @@ def calculate_time_diff(base_tick_times_map, nrpc_tick_times_map):
         
     return base1, base3, base5, nrpc1, nrpc3, nrpc5
 
+def calculate_hpc_coverage(hpc_res):
+    rel_hpc_res = hpc_res[1:] if len(hpc_res) > 0 else []
+    print("calculate hpc converage")
+    print(hpc_res)
+    print(rel_hpc_res)
+    found = map(lambda x : x[1], rel_hpc_res)
+    total = map(lambda x : x[2], rel_hpc_res)
+    coverage = 0
+    try:
+        return (sum(found) / sum(total))
+    except:
+        return 0
+
 def read_runnable_benchmarks(setpath) :
     lines = {}
     file = os.path.join(setpath, "run_benchmarks.txt")
@@ -141,6 +155,10 @@ def process_output(out):
     total = re.search(r"Tick num: (\d*)", out)
     last = re.search(r"Last tick reached: ((\d|\.)*)", out)
 
+    hpc_exp = re.findall(r"((?:\d)*)% expressions used \(((?:\d)*)/((?:\d)*)\)", out)
+    hpc_exp_num = list(map(lambda x : (int(x[0]), int(x[1]), int(x[2])), hpc_exp))
+    hpc_reached = calculate_hpc_coverage(hpc_exp_num)
+
     tick_times_list, all_times = read_hpc_times(out)
     coverage = ""
     last_time = ""
@@ -154,7 +172,8 @@ def process_output(out):
         coverage = str(round(((reached_f / total_f)*100), 2))
         last_time = last.group(1)
 
-        print("reached = " + str(reached.group(1)))
+        print("hpc reached = " + str(hpc_reached))
+        print("g2 reached = " + str(reached.group(1)))
         print("total = " + str(total.group(1)))
         print("% reached = " + coverage)
         print("last time = " + last.group(1))
@@ -165,7 +184,7 @@ def process_output(out):
         print("SMT Solver calls: " + str(smt_solver_calls_num))
         print("General Solver calls: " + str(gen_solver_calls_num))
         print ("# nrpcs = " + str(nrpcs_num))
-    return coverage, last_time, avg_nrpc, tick_times_list, total_f
+    return hpc_reached, coverage, last_time, avg_nrpc, tick_times_list, total_f
 
 
 def run_nofib_set(setname, var_settings, timeout):
@@ -179,8 +198,8 @@ def run_nofib_set(setname, var_settings, timeout):
 
         data = []
 
-        headers = ["Benchmark", "#Total Ticks", "B cov %", "B last time",
-                    "N cov %", "N last time", "Pos 1-sec B/N", "Pos 3-sec B/N", 
+        headers = ["Benchmark", "#Total Ticks", "B HPC cov %", "B cov %", "B last time",
+                    "N HPC cov %", "N cov %", "N last time", "Pos 1-sec B/N", "Pos 3-sec B/N", 
                     "Pos 5-sec B/N", "Diff tick 1s", "Diff tick 3s", "Diff tick 5s", "Avg # Nrpcs"]
 
         for file_dir in run_benchmarks:
@@ -194,13 +213,13 @@ def run_nofib_set(setname, var_settings, timeout):
                     print(file_dir);
                     res_bench = run_nofib_bench(final_path, var_settings, timeout)
                     print("Baseline:")
-                    base_cov, base_last, avg, base_tick_times, base_total = process_output(res_bench)
+                    base_hpc_cov, base_cov, base_last, avg, base_tick_times, base_total = process_output(res_bench)
                     res_bench_nrpc = run_nofib_bench_nrpc(final_path, var_settings, timeout)
                     print("NRPC:")
-                    nrpc_cov, nrpc_last, avg_nrpc, nrpc_tick_times, nrpc_total  = process_output(res_bench_nrpc)
+                    nrpc_hpc_cov, nrpc_cov, nrpc_last, avg_nrpc, nrpc_tick_times, nrpc_total  = process_output(res_bench_nrpc)
                     bt1, bt3, bt5, nt1, nt3, nt5 = calculate_time_diff(dict(base_tick_times), dict(nrpc_tick_times))
                     bo1, bo3, bo5, no1, no3, no5 = calculate_order(base_tick_times, nrpc_tick_times)
-                    data.append([file_dir, base_total, base_cov, base_last, nrpc_cov, nrpc_last,
+                    data.append([file_dir, base_total, base_hpc_cov, base_cov, base_last, nrpc_hpc_cov, nrpc_cov, nrpc_last,
                                  str(bt1) + "/" + str(nt1), str(bt3) + "/" + str(nt3), str(bt5) + "/" + str(nt5),
                                  str(bo1) + "/" + str(no1), str(bo3) + "/" + str(no3), str(bo5) + "/" + str(no5),
                                  str(avg_nrpc)])

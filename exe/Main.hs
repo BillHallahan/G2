@@ -47,35 +47,47 @@ runWithArgs as = do
                   (isJust m_assert || isJust m_reaches || m_retsTrue) 
                   tentry simplTranslationConfig config
 
-  case validate config of
-        True -> do
-            r <- validateStates proj [src] (T.unpack $ fromJust mb_modname) entry [] [Opt_Hpc] b in_out
-            if and r then putStrLn "Validated" else putStrLn "There was an error during validation."
+  val_res <- case validate config || measure_coverage config of
+                True -> do
+                    r <- validateStates proj [src] (T.unpack $ fromJust mb_modname) entry [] [Opt_Hpc] b in_out
+                    if all isJust r && and (map fromJust r) then putStrLn "Validated" else putStrLn "There was an error during validation."
 
-            printFuncCalls config entry_f b (Just r) in_out
-            -- runHPC src (T.unpack $ fromJust mb_modname) entry in_out
-        False -> printFuncCalls config entry_f b Nothing in_out
+                    printFuncCalls config entry_f b (Just r) in_out
+                    return (Just r)
+                False -> do
+                    printFuncCalls config entry_f b Nothing in_out
+                    return Nothing
 
-  return ()
+  when (measure_coverage config) $
+    case val_res of
+        Just vals -> runHPC src (T.unpack $ fromJust mb_modname) entry . map snd . filter (fromMaybe False . fst) $ zip vals in_out
+        Nothing -> error "Impossible: validate must have run"
 
 printFuncCalls :: Config -> Id -> Bindings
-               -> Maybe [Bool]
+               -> Maybe [Maybe Bool]
                -> [ExecRes t]
                -> IO ()
 printFuncCalls config entry b m_valid exec_res = do
-    let valid = fromMaybe (repeat True) m_valid
+    let valid = fromMaybe (repeat (Just True)) m_valid
         print_valid = isJust m_valid
 
     mapM_ (\(execr@(ExecRes { final_state = s }), val) -> do
-        when print_valid (putStr (if val then "✓ " else "✗ "))
+        when print_valid (putStr (case val of
+                                        Just True -> "✓ "
+                                        Just False -> "✗ "
+                                        Nothing -> "✗TO "))
 
         let pg = mkPrettyGuide (exprNames $ conc_args execr)
         let (mvp, inp, outp, handles) = printInputOutput pg entry b execr
             sym_gen_out = fmap (printHaskellPG pg s) $ conc_sym_gens execr
 
+        let print_method = case print_output config of
+                                True -> \m i o -> m <> i <> " = " <> o 
+                                False -> \m i _ ->  m <> i
+
         case sym_gen_out of
-            S.Empty -> T.putStrLn $ mvp <> inp <> " = " <> outp
-            _ -> T.putStrLn $ mvp <> inp <> " = " <> outp <> "\t| generated: " <> T.intercalate ", " (toList sym_gen_out)
+            S.Empty -> T.putStrLn $ print_method mvp inp outp
+            _ -> T.putStrLn $ print_method mvp inp outp <> "\t| generated: " <> T.intercalate ", " (toList sym_gen_out)
         if handles /= "" then T.putStrLn handles else return ())
       $ zip exec_res valid 
 

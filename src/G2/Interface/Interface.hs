@@ -335,10 +335,12 @@ initRedHaltOrd s mod_name solver simplifier config exec_func_names no_nrpc_names
         halter_step = case step_limit config of
                             True -> SomeHalter (zeroHalter (steps config) <~> halter)
                             False -> SomeHalter halter
+        
+        -- halter_accept_only = case halter_step of SomeHalter h -> SomeHalter (liftHalter (liftHalter (liftHalter (acceptOnlyNewHPC h))))
 
         halter_discard = case hpc_discard_strat config of
                             True -> SomeHalter (liftHalter (liftHalter (liftHalter (noNewHPCHalter mod_name)))) .<~> halter_step
-                            False -> SomeHalter (discardIfAcceptedTagHalter state_name) .<~> halter_step
+                            False -> halter_step
 
         orderer = case search_strat config of
                         Subpath -> SomeOrderer $ lengthNSubpathOrderer (subpath_length config)
@@ -352,11 +354,11 @@ initRedHaltOrd s mod_name solver simplifier config exec_func_names no_nrpc_names
                 , orderer)
             SingleFunc ->
                 ( logger_std_red retReplaceSymbFuncVar .== Finished .--> taggerRed state_name :== Finished --> nonRedPCRed
-                , halter_discard
+                , SomeHalter (discardIfAcceptedTagHalter state_name) .<~> halter_discard
                 , orderer)
             SymbolicFunc ->
                 ( logger_std_red retReplaceSymbFuncTemplate .== Finished .--> taggerRed state_name :== Finished --> nonRedPCSymFuncRed
-                , halter_discard
+                , SomeHalter (discardIfAcceptedTagHalter state_name) .<~> halter_discard
                 , orderer)
 
 initSolver :: Config -> IO SomeSolver
@@ -715,7 +717,7 @@ runG2SubstModel m s@(State { type_env = tenv, known_values = kv }) bindings =
         sm' = runPostprocessing bindings sm
 
         sm'' = ExecRes { final_state = final_state sm'
-                       , conc_args = fixed_inputs bindings ++ conc_args sm'
+                       , conc_args = fixed_inputs bindings ++ evalPrims tenv kv (conc_args sm')
                        , conc_out = evalPrims tenv kv (conc_out sm')
                        , conc_sym_gens = gens
                        , conc_mutvars = mv

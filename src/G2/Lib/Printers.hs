@@ -256,6 +256,7 @@ mkAltHaskell off cleaned pg i_bndr@(Id bndr_name _) (Alt am e) =
 mkDataConHaskell :: PrettyGuide -> DataCon -> T.Text
 -- Special casing for Data.Map in the modified base
 mkDataConHaskell _ (DataCon (Name "Assocs" _ _ _) _ _ _) = "fromList"
+mkDataConHaskell _ (DataCon (Name ":%" _ _ _) _ _ _) = "%"
 mkDataConHaskell pg (DataCon n _ _ _) = mkNameHaskell pg n
 
 offset :: Int -> T.Text
@@ -354,7 +355,7 @@ mkLitHaskell use = lit
         lit (LitInteger i) = T.pack $ if i < 0 then "(" <> show i <> hs <> ")" else show i <> hs
         lit (LitWord w) = T.pack $ show w <> hs
         lit (LitFloat r) = mkFloat (T.pack hs) r
-        lit (LitDouble r) = mkFloat (T.pack hs) r
+        lit (LitDouble r) = mkFloat (T.pack (hs ++ hs)) r
         lit (LitRational r) = "(" <> T.pack (show r) <> ")"
         lit (LitBV bv) = "#b" <> T.concat (map (T.pack . show) bv)
         lit (LitChar c) | isPrint c = T.pack ['\'', c, '\'']
@@ -473,6 +474,8 @@ mkPrimHaskell pg = pr
         pr Iff = "pr_iff"
         pr Ite = "pr_ite"
 
+        pr UnspecifiedOutput = "?"
+
 mkPrimHaskellNoDistFloat :: PrettyGuide -> Primitive -> T.Text
 mkPrimHaskellNoDistFloat pg = pr
     where
@@ -565,6 +568,8 @@ prettyState pg s =
         , pretty_tags
         , "----- [Tracker] ---------------------"
         , T.pack (show (track s))
+        , "----- [HPC] ---------------------"
+        , pretty_hpc_ticks
         , "----- [Pretty] ---------------------"
         , pretty_names
         ]
@@ -580,6 +585,7 @@ prettyState pg s =
         pretty_tc = prettyTypeClasses pg (type_classes s)
         pretty_assert_fcs = maybe "None" (printFuncCallPG pg) (assert_ids s)
         pretty_tags = T.intercalate ", " . map (mkNameHaskell pg) $ HS.toList (tags s)
+        pretty_hpc_ticks = T.pack $ show (reached_hpc s)
         pretty_names = prettyGuideStr pg
 
 
