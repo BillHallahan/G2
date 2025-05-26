@@ -18,10 +18,11 @@ def read_hpc_times(out):
             read = False
         if read:
             match = re.search(r'\((\d+),"(.*?)"\)\s*-\s*([0-9]*\.[0-9]+)', line)
-            key = (int(match.group(1)), match.group(2))
-            value = float(match.group(3))
-            tick_time_list.append((key, value))
-            times.append(line)
+            if match != None:
+                key = (int(match.group(1)), match.group(2))
+                value = float(match.group(3))
+                tick_time_list.append((key, value))
+                times.append(line)
         if line.startswith("All tick times:"):
             read = True
     return tick_time_list, times
@@ -225,5 +226,5 @@ def run_nofib_set(setname, var_settings, timeout):
                     print("\n")
         print(tabulate(data, headers=headers, tablefmt="grid"))
 
-run_nofib_set("imaginary", [], 7)
-run_nofib_set("spectral", [], 7)
+run_nofib_set("imaginary", [], 300)
+run_nofib_set("spectral", [], 300)
