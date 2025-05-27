@@ -68,9 +68,9 @@ def generate_string_for_cov(benchmark, tickCount, covBL, covNRPC, lastTimeBL, la
         tempNCov = r"\textbf{" + str(covNRPC) + "}"
     else:
         if abs(lastTimeNrpc - lastTimeBL) >= 1 :
-            if lastTimeBL > lastTimeNrpc :
+            if lastTimeBL < lastTimeNrpc :
                 tempBTime = r"\textbf{" + str(lastTimeBL) + "}"
-            elif lastTimeNrpc > lastTimeBL:
+            elif lastTimeNrpc < lastTimeBL:
                 tempNTime = r"\textbf{" + str(lastTimeNrpc) + "}"
     
     latex_str_tbl1 = latex_str_tbl1 + benchmark + common_str + str(tickCount) + common_str + tempBCov + common_str + tempBTime + common_str + tempNCov + common_str + tempNTime + r"\\ \hline " + "\n"
@@ -312,8 +312,8 @@ def run_nofib_set(setname, var_settings, timeout):
         print(tabulate(data, headers=headers, tablefmt="grid"))
         print("\n")
 
-run_nofib_set("imaginary", [], 1)
-run_nofib_set("spectral", [], 1)
+run_nofib_set("imaginary", [], 300)
+run_nofib_set("spectral", [], 300)
 
 print("Latex string for coverage table\n")
 print(latex_str_tbl1)
