@@ -7,6 +7,9 @@ import time
 from tabulate import tabulate
 
 exe_name = str(subprocess.run(["cabal", "exec", "which", "G2"], capture_output = True).stdout.decode('utf-8')).strip()
+latex_str_tbl1 = ""
+latex_str_tbl2 = ""
+latex_str_tbl3 = ""
 
 def read_hpc_times(out):
     times = []
@@ -20,7 +23,7 @@ def read_hpc_times(out):
             match = re.search(r'\((\d+),"(.*?)"\)\s*-\s*([0-9]*\.[0-9]+)', line)
             if match != None:
                 key = (int(match.group(1)), match.group(2))
-                value = float(match.group(3))
+                value = round(float(match.group(3)), 2)
                 tick_time_list.append((key, value))
                 times.append(line)
         if line.startswith("All tick times:"):
@@ -49,6 +52,51 @@ def run_nofib_bench(filename, var_settings, timeout):
 def run_nofib_bench_nrpc(filename, var_settings, timeout):
     return run_nofib_bench(filename, ["--nrpc"] + var_settings, timeout)
 
+def generate_string_for_cov(benchmark, tickCount, covBL, covNRPC, lastTimeBL, lastTimeNrpc):
+    #cichelli & \textbf{4} & 3 & 9.5 & 11 & 2\\ \hline
+    tempBCov = str(covBL)
+    tempNCov = str(covNRPC)
+    tempBTime = str(lastTimeBL)
+    tempNTime = str(lastTimeNrpc)
+
+    global latex_str_tbl1
+    common_str = " & "
+    
+    if covBL > covNRPC:
+        tempBCov = r"\textbf{" + str(covBL) + "}"
+    elif covNRPC > covBL:
+        tempNCov = r"\textbf{" + str(covNRPC) + "}"
+    else:
+        if abs(lastTimeNrpc - lastTimeBL) >= 1 :
+            if lastTimeBL < lastTimeNrpc :
+                tempBTime = r"\textbf{" + str(lastTimeBL) + "}"
+            elif lastTimeNrpc < lastTimeBL:
+                tempNTime = r"\textbf{" + str(lastTimeNrpc) + "}"
+    
+    latex_str_tbl1 = latex_str_tbl1 + benchmark + common_str + str(tickCount) + common_str + tempBCov + common_str + tempBTime + common_str + tempNCov + common_str + tempNTime + r"\\ \hline " + "\n"
+
+
+def generate_str_for_pos_ord(benchmark, bTick1s, nTick1s, bTick3s, nTick3s, bTick5s, nTick5s):
+    result = ""
+    common_str = " & "
+    tempTick1s = str(bTick1s) + "/" + str(nTick1s)
+    tempTick3s = str(bTick3s) + "/" + str(nTick3s)
+    tempTick5s = str(bTick5s) + "/" + str(nTick5s)
+    result = benchmark + common_str + tempTick1s + common_str + tempTick3s + common_str + tempTick5s + r"\\ \hline " + "\n"
+
+    return result
+
+def generate_graph_string(benchmark, bCoordinates, nCoordinates):
+
+    str = r"\begin{tikzpicture}" + "\n" + r"\centering" + "\n" + r"\begin{axis}[" + "\n" + r"title={Baseline vs NRPC(" + \
+    benchmark + ")}," + "\n" + r"xlabel={Time (s)}," + "\n" + r"ylabel={No. of Ticks}," + "\n" + "grid=major," + "\n" + \
+    r"width=\columnwidth," + "\n" + r"]" + "\n" + r"\addplot[color=blue,mark=*,smooth] plot coordinates {" + "\n" + bCoordinates + \
+    r"};" + "\n" + r"\addlegendentry{Baseline}" + "\n" + r"\addplot[smooth,color=red,mark=x] plot coordinates {" + "\n" +\
+    nCoordinates + "\n" + r"};" + "\n" + r"\addlegendentry{NRPC}" + "\n" + r"\end{axis}" + "\n" + r"\end{tikzpicture}"
+
+    return str
+
+
 def read_float(pre, out):
     reg = re.search(pre + r": ((?:\d|\.|e|-)*)", out)
     res_num = -1
@@ -62,6 +110,26 @@ def read_int(pre, out):
     if reg:
         res_num = int(reg.group(1))
     return res_num
+
+def calculate_graph(tick_times):
+    if not tick_times:
+        return "(0, 0)"
+    count = 0
+    numTickMap = []
+    lastTickTime = tick_times[0][1]
+    for tick, time in tick_times:
+        if time != lastTickTime :
+            numTickMap.append((lastTickTime, count))
+            count = 1
+            lastTickTime = time
+        else:
+            count += 1
+    numTickMap.append((lastTickTime, count))
+
+    pair_strings = [f"({x}, {y})" for x, y in numTickMap]
+    coordinates = " ".join(pair_strings)
+
+    return coordinates
 
 def calculate_order(base_tick_times, nrpc_tick_times):
     nrpc1 = 0
@@ -157,25 +225,26 @@ def process_output(out):
 
     hpc_exp = re.findall(r"((?:\d)*)% expressions used \(((?:\d)*)/((?:\d)*)\)", out)
     hpc_exp_num = list(map(lambda x : (int(x[0]), int(x[1]), int(x[2])), hpc_exp))
-    hpc_reached = calculate_hpc_coverage(hpc_exp_num)
+    hpc_reached = round((calculate_hpc_coverage(hpc_exp_num) * 100), 2)
 
     tick_times_list, all_times = read_hpc_times(out)
-    coverage = ""
-    last_time = ""
-    avg_nrpc = sum(nrpcs_num)/len(nrpcs_num) if len(nrpcs_num) > 0 else 0
+    coverage = 0.0
+    last_time = 0.0
+    avg_nrpc = round((sum(nrpcs_num)/len(nrpcs_num) if len(nrpcs_num) > 0 else 0), 2)
     total_f = 0.0
 
     if reached != None and total != None and last != None:
         reached_f = float(reached.group(1))
         total_f = float(total.group(1))
 
-        coverage = str(round(((reached_f / total_f)*100), 2))
-        last_time = last.group(1)
+        coverage = round(((reached_f / total_f)*100), 2)
+        print("Last time is: "+ last.group(1))
+        last_time = round(float(last.group(1)), 2) if last.group(1) else 0.0
 
         print("hpc reached = " + str(hpc_reached))
         print("g2 reached = " + str(reached.group(1)))
         print("total = " + str(total.group(1)))
-        print("% reached = " + coverage)
+        print("% reached = " + str(coverage))
         print("last time = " + last.group(1))
         print("all_times = " + str(all_times))
         print("Red Rules #: " + str(red_rules_num))
@@ -188,6 +257,9 @@ def process_output(out):
 
 
 def run_nofib_set(setname, var_settings, timeout):
+        global latex_str_tbl1
+        global latex_str_tbl2
+        global latex_str_tbl3
         setpath = os.path.join("nofib-symbolic-functions/", setname)
         all_files_dirs = os.listdir(setpath);
         lhs_files = ["digits-of-e1", "digits-of-e2", "boyer", "circsim", "fibheaps", "knights",
@@ -201,6 +273,11 @@ def run_nofib_set(setname, var_settings, timeout):
         headers = ["Benchmark", "#Total Ticks", "B HPC cov %", "B cov %", "B last time",
                     "N HPC cov %", "N cov %", "N last time", "Pos 1-sec B/N", "Pos 3-sec B/N", 
                     "Pos 5-sec B/N", "Diff tick 1s", "Diff tick 3s", "Diff tick 5s", "Avg # Nrpcs"]
+        
+        tempStr = r"\multicolumn{4}{l}{\textbf{" + setname + r"}}\\ \hline " + "\n"
+        latex_str_tbl1 += tempStr
+        latex_str_tbl2 += tempStr
+        latex_str_tbl3 += tempStr
 
         for file_dir in run_benchmarks:
             bench_path = os.path.join(setpath, file_dir)
@@ -219,12 +296,28 @@ def run_nofib_set(setname, var_settings, timeout):
                     nrpc_hpc_cov, nrpc_cov, nrpc_last, avg_nrpc, nrpc_tick_times, nrpc_total  = process_output(res_bench_nrpc)
                     bt1, bt3, bt5, nt1, nt3, nt5 = calculate_time_diff(dict(base_tick_times), dict(nrpc_tick_times))
                     bo1, bo3, bo5, no1, no3, no5 = calculate_order(base_tick_times, nrpc_tick_times)
-                    data.append([file_dir, base_total, base_hpc_cov, base_cov, base_last, nrpc_hpc_cov, nrpc_cov, nrpc_last,
+
+                    graph_latex = generate_graph_string(file_dir, calculate_graph(base_tick_times), calculate_graph(nrpc_tick_times))
+
+                    data.append([file_dir, base_total, base_hpc_cov, str(base_cov), base_last, nrpc_hpc_cov, str(nrpc_cov), nrpc_last,
                                  str(bt1) + "/" + str(nt1), str(bt3) + "/" + str(nt3), str(bt5) + "/" + str(nt5),
                                  str(bo1) + "/" + str(no1), str(bo3) + "/" + str(no3), str(bo5) + "/" + str(no5),
                                  str(avg_nrpc)])
+                    generate_string_for_cov(file_dir, base_total, base_hpc_cov, nrpc_hpc_cov, base_last, nrpc_last)
+                    latex_str_tbl2 += generate_str_for_pos_ord(file_dir, bt1, bt3, bt5, nt1, nt3, nt5)
+                    latex_str_tbl3 += generate_str_for_pos_ord(file_dir, bo1, bo3, bo5, no1, no3, no5)
+                    print("\n")
+                    print("Graph latex for: " + file_dir + ": \n" + graph_latex)
                     print("\n")
         print(tabulate(data, headers=headers, tablefmt="grid"))
+        print("\n")
 
 run_nofib_set("imaginary", [], 300)
 run_nofib_set("spectral", [], 300)
+
+print("Latex string for coverage table\n")
+print(latex_str_tbl1)
+print("\nLatex string for table 2\n")
+print(latex_str_tbl2)
+print("\nLatex string for table 3\n")
+print(latex_str_tbl3)
