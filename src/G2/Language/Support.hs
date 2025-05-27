@@ -45,6 +45,7 @@ data State t = State { expr_env :: E.ExprEnv -- ^ Mapping of `Name`s to `Expr`s
                      , path_conds :: PathConds -- ^ Path conditions, in SWHNF
                      , non_red_path_conds :: [(Expr, Expr)] -- ^ Path conditions, in the form of (possibly non-reduced)
                                                             -- expression pairs that must be proved equivalent
+                     , symfun_no_nrpc :: S.HashSet Name -- ^ Symbolic function names to not apply symbolic functions to
                      , handles :: HM.HashMap Name Handle -- ^ Each Handle has a name, that appears in `Expr`s within the `Handle` `Primitive`
                      , mutvar_env :: MutVarEnv -- ^ MutVar `Name`s to mappings of names in the `ExprEnv`.
                                                -- See Note [MutVar Env] in G2.Language.MutVarEnv.
@@ -193,6 +194,7 @@ instance Named t => Named (State t) where
                , curr_expr = rename old new (curr_expr s)
                , path_conds = rename old new (path_conds s)
                , non_red_path_conds = rename old new (non_red_path_conds s)
+               , symfun_no_nrpc = rename old new (symfun_no_nrpc s)
                , handles = rename old new (handles s)
                , mutvar_env = rename old new (mutvar_env s)
                , true_assert = true_assert s
@@ -216,6 +218,7 @@ instance Named t => Named (State t) where
                , curr_expr = renames hm (curr_expr s)
                , path_conds = renames hm (path_conds s)
                , non_red_path_conds = renames hm (non_red_path_conds s)
+               , symfun_no_nrpc = renames hm (symfun_no_nrpc s)
                , handles = renames hm (handles s)
                , mutvar_env = renames hm (mutvar_env s)
                , true_assert = true_assert s

@@ -580,6 +580,7 @@ nonRedPCSymFunc m_sft
                          , curr_expr = cexpr
                          , exec_stack = stck
                          , non_red_path_conds = (nre1, nre2):nrs
+                         , symfun_no_nrpc = no_nrpc
                          , model = m })
                         b@(Bindings { name_gen = ng }) =
     
@@ -588,17 +589,74 @@ nonRedPCSymFunc m_sft
         stck' = Stck.push (CurrExprFrame (EnsureEq nre2) cexpr) stck
         s' = s { exec_stack = stck', non_red_path_conds = nrs }
 
-        stripCenterTick (Tick _ e) = e
-        stripCenterTick (App e1 e2) = App (stripCenterTick e1) e2
-        stripCenterTick e = e
+        Var (Id _ t):es = case unApp (stripCenterTick nre1) of
+                                e_unApp@(Var _:_) -> e_unApp
+                                _ -> error $ "unApp fail = " ++ show (nre1, nre2)
+        (ng', xs_new_g) = L.mapAccumR (funcArgState (map typeOf es) (returnType $ PresType t)) ng $ zip [0..] es
+        -- no_nrpc' = foldr HS.insert no_nrpc new_g
+        xs' = map (\(new_s, new_g) -> (new_s { symfun_no_nrpc = fromMaybe no_nrpc (fmap (flip HS.insert no_nrpc) new_g)}, Just sft)) $ catMaybes xs_new_g
+
     in
-    case retReplaceSymbFuncTemplate sft s' ng (stripCenterTick nre1) of
-        Just (r, s'', ng') ->
-            return (InProgress, zip s'' (repeat (Just sft)), b {name_gen = ng'})
+    case retReplaceSymbFuncTemplate sft s' ng' (stripCenterTick nre1) of
+        Just (r, s'', ng'') ->
+            return (InProgress, zip s'' (repeat (Just sft)) ++ xs', b {name_gen = ng''})
         Nothing ->
             let 
                 s'' = s' {curr_expr = CurrExpr Evaluate nre1}
             in return (InProgress, [(s'', Just sft)], b { name_gen = ng })
+    where
+        stripCenterTick (Tick _ e) = e
+        stripCenterTick (App e1 e2) = App (stripCenterTick e1) e2
+        stripCenterTick e = e
+
+        -- | Generate `State`s to explore each function argument
+        funcArgState all_args_ts ret_ty init_ng (this_arg_num, fa_e)
+            | isTyFun (typeOf fa_e) = 
+                    let
+                        ts = anonArgumentTypes fa_e
+                        (is, ng') = freshIds ts ng_args
+                        vs = map Var is
+                        fa_e' = mkApp $ fa_e:vs
+                        (bindee, ng'') = freshId (typeOf this_arg) ng'
+                        (ret_id, ng''') = freshId ret_ty ng''
+
+                        -- Instantiate the symbolic function `n`
+                        lam_center = Case (mkApp $ Var this_arg:vs) bindee ret_ty [Alt Default  (Var ret_id)]
+                        f_def = mkLams (zip (repeat TermL) arg_is) lam_center
+                        eenv' = E.insert n f_def eenv
+
+                        -- Set up symbolic variables
+                        eenv'' = E.insertSymbolic ret_id $ foldr E.insertSymbolic eenv' is
+                    in
+                    (ng''', Just $ (s { expr_env = eenv''
+                                      , curr_expr = CurrExpr Evaluate fa_e'
+                                      , exec_stack = stck (Var bindee) }, Nothing))
+            | isPrimType (typeOf fa_e) = (init_ng, Nothing)
+            | otherwise =
+                let
+                    (g, ng') = freshId (TyFun (typeOf this_arg) ret_ty) ng_args
+                    (bindee, ng'') = freshId (typeOf this_arg) ng'
+                    g_app = Case (App (Var g) (Var this_arg)) bindee ret_ty [Alt Default  (Var bindee)]
+                    f_def = mkLams (zip (repeat TermL) arg_is) g_app
+
+                    fa_e' = App (Var g) fa_e
+
+                    eenv' = E.insert n f_def eenv
+                    eenv'' = E.insertSymbolic g eenv'
+                in
+                (ng'', Just $ (s { expr_env = eenv'', curr_expr = CurrExpr Evaluate fa_e', exec_stack = stck (Var bindee) }, Just $ idName g))
+            where
+                n = case unApp (stripCenterTick nre1) of
+                    Var (Id vn _):_ -> vn
+                    _ -> error "funcArgState: impossible"
+
+                (arg_is, ng_args) = freshIds all_args_ts init_ng
+                this_arg = arg_is !! this_arg_num
+
+                error_show show_e = App (Prim Error TyBottom) $ App (Var (Id (Name "show" Nothing 0 Nothing) TyBottom)) show_e
+
+                stck show_e = Stck.singleton $ CurrExprFrame NoAction (CurrExpr Return $ Prim UnspecifiedOutput TyBottom)
+
 nonRedPCSymFunc m_sft s b = return (Finished, [(s, m_sft)], b)
 
 -- | (Symbolic) functions to not add to the NRPCs
@@ -628,7 +686,7 @@ nonRedLibFuncs :: MonadIO m => HS.HashSet Name -- ^ Names of functions that must
                           -> Bool -- ^ Use NRPCs to delay execution of symbolic functions
                           -> RedRules m (NoNRPC, NRPCMemoTable, ReachesSymMemoTable, Int) t
 nonRedLibFuncs exec_names no_nrpc_names use_with_symb_func 
-                (no_nrpc, var_table, sym_table, nrpc_count)
+                (_, var_table, sym_table, nrpc_count)
                 s@(State { expr_env = eenv
                          , curr_expr = CurrExpr _ ce
                          , type_env = tenv
@@ -638,7 +696,7 @@ nonRedLibFuncs exec_names no_nrpc_names use_with_symb_func
                 b@(Bindings { name_gen = ng })
     | (ae, stck') <- allApplyFrames [] (exec_stack s)
     , Var (Id n t):es_ce <- unApp ce
-    , not (n `HS.member` no_nrpc)
+    , not (n `HS.member` symfun_no_nrpc s)
     , let es = es_ce ++ ae
           ce' = mkApp (Var (Id n t):es)
     --, not (n `HS.member` no_nrpc_names)
@@ -677,20 +735,20 @@ nonRedLibFuncs exec_names no_nrpc_names use_with_symb_func
                     -- (a) we have already added function argument states when we initially began reducing the NRPC
                     -- and (b) we need to make sure that we actually do satisfy the equality, for soundness, and
                     -- thus cannot clear out the stack
-                    (ng'', xs_new_g) = if noEnsureEq stck'
-                                    then L.mapAccumR
-                                            (funcArgState (map typeOf es) (returnType $ PresType t)) ng'
-                                            $ zip [0..] es
-                                    else (ng', [])
-                    xs = mapMaybe (fmap fst) xs_new_g
-                    new_g = catMaybes $ mapMaybe (fmap snd) xs_new_g
-                    no_nrpc' = foldr HS.insert no_nrpc new_g
-                    xs' = map (\new_s -> (new_s, (no_nrpc', var_table', sym_table', nrpc_count))) xs
+                    -- (ng'', xs_new_g) = if noEnsureEq stck'
+                    --                 then L.mapAccumR
+                    --                         (funcArgState (map typeOf es) (returnType $ PresType t)) ng'
+                    --                         $ zip [0..] es
+                    --                 else (ng', [])
+                    -- xs = mapMaybe (fmap fst) xs_new_g
+                    -- new_g = catMaybes $ mapMaybe (fmap snd) xs_new_g
+                    -- no_nrpc' = foldr HS.insert no_nrpc new_g
+                    -- xs' = map (\new_s -> (new_s, (no_nrpc', var_table', sym_table', nrpc_count))) xs
                 in 
-                    return (Finished, (s', (no_nrpc', var_table', sym_table', nrpc_count + 1)):xs', b {name_gen = ng''})
-            _ -> return (Finished, [(s, (no_nrpc, var_table', sym_table', nrpc_count))], b)
+                    return (Finished, [(s', (HS.empty, var_table', sym_table', nrpc_count + 1))], b {name_gen = ng'})
+            _ -> return (Finished, [(s, (HS.empty, var_table', sym_table', nrpc_count))], b)
 
-    | otherwise = return (Finished, [(s, (no_nrpc, var_table, sym_table, nrpc_count))], b)
+    | otherwise = return (Finished, [(s, (HS.empty, var_table, sym_table, nrpc_count))], b)
     where
         non_red_blocker = Name "NonRedBlocker" Nothing 0 Nothing
         non_red_blocker_tick = NamedLoc non_red_blocker
