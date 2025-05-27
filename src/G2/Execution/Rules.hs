@@ -1244,10 +1244,10 @@ retReplaceSymbFuncTemplate sft
         eenv' = foldr E.insertSymbolic eenv symIds
         eenv'' = E.insert n e eenv'
         (constState, ng'''') = mkFuncConst sft s es n t1 t2 ng'''
-    in Just (RuleReturnReplaceSymbFunc, [constState, s {
+    in Just (RuleReturnReplaceSymbFunc, [s {
         curr_expr = CurrExpr Evaluate e',
         expr_env = eenv''
-    }], ng'''')
+    }, constState], ng'''')
 
     -- FUNC-APP
     | Var (Id n (TyFun t1@(TyFun _ _) t2)):es <- unApp ce
@@ -1265,10 +1265,10 @@ retReplaceSymbFuncTemplate sft
         eenv'' = E.insertSymbolic fId eenv'
         eenv''' = E.insert n e eenv''
         (constState, ng'''') = mkFuncConst sft s es n t1 t2 ng'''
-    in Just (RuleReturnReplaceSymbFunc, [constState, s {
+    in Just (RuleReturnReplaceSymbFunc, [s {
         curr_expr = CurrExpr Evaluate $ mkApp (e:es),
         expr_env = eenv'''
-    }], ng'''')
+    }, constState], ng'''')
 
     -- LIT-SPLIT
     | Var (Id n (TyFun t1 t2)):ea:es <- unApp ce
