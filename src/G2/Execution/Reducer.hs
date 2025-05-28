@@ -66,6 +66,10 @@ module G2.Execution.Reducer ( Reducer (..)
                             , simpleLogger
                             , prettyLogger
 
+                            , StateTrap
+                            , mkStateTrap
+                            , funcArgStateTrapRed
+
                             , LimLogger (..)
                             , limLoggerConfig
                             , getLimLogger
@@ -743,7 +747,8 @@ nonRedLibFuncs exec_names no_nrpc_names use_with_symb_func
                     in
                     (ng''', Just $ (s { expr_env = eenv''
                                       , curr_expr = CurrExpr Evaluate fa_e'
-                                      , exec_stack = stck (Var bindee) }, Nothing))
+                                      , exec_stack = stck (Var bindee)
+                                      , func_arg_state = True }, Nothing))
             | isPrimType (typeOf fa_e) = (init_ng, Nothing)
             | otherwise =
                 let
@@ -757,7 +762,10 @@ nonRedLibFuncs exec_names no_nrpc_names use_with_symb_func
                     eenv' = E.insert n f_def eenv
                     eenv'' = E.insertSymbolic g eenv'
                 in
-                (ng'', Just $ (s { expr_env = eenv'', curr_expr = CurrExpr Evaluate fa_e', exec_stack = stck (Var bindee) }, Just $ idName g))
+                (ng'', Just $ (s { expr_env = eenv''
+                                 , curr_expr = CurrExpr Evaluate fa_e'
+                                 , exec_stack = stck (Var bindee)
+                                 , func_arg_state = True }, Just $ idName g))
             where
                 n = case unApp ce of
                     Var (Id vn _):_ -> vn
@@ -770,6 +778,49 @@ nonRedLibFuncs exec_names no_nrpc_names use_with_symb_func
 
                 stck show_e = Stck.singleton $ CurrExprFrame NoAction (CurrExpr Return $ Prim UnspecifiedOutput TyBottom)
 
+data StateTrap t = StTr [ConcPCGuide] [State t]
+
+mkStateTrap :: StateTrap t
+mkStateTrap = StTr [] []
+
+funcArgStateTrapRed :: (SM.MonadState (StateTrap t) m, MonadIO m) => SomeSolver -> Reducer m () t
+funcArgStateTrapRed solver = (mkSimpleReducer (const ())
+                                               red)
+                                        { onAccept = acc }
+    where
+        unspec_frame = CurrExprFrame NoAction (CurrExpr Return $ Prim UnspecifiedOutput TyBottom)
+        
+        red rv s@(State { expr_env = eenv
+                        , curr_expr = CurrExpr Return e
+                        , exec_stack = stck }) b
+            | normalForm eenv e 
+            , func_arg_state s = do
+                StTr cpg xs <- SM.get
+                liftIO .  putStrLn $ "length cpg = " ++ show (length cpg)
+                        ++ "\nlength xs = " ++ show (length xs)
+
+                res <- liftIO $ findM (matchesConcPCGuide (input_names b) s solver) cpg
+
+                case res of
+                    (Just c) -> do
+                        let s' =  s { expr_env = E.union (expr_env s) (l_conc c)
+                                    , path_conds = PC.union (path_conds s) (l_path_conds c) }
+                        liftIO $ putStrLn "HERE SUCCESS"
+                        return (Finished, [(s, ())], b)
+                    Nothing -> do
+                        SM.put (StTr cpg (s:xs))
+                        return (InProgress, [], b)
+            | normalForm eenv e  = do return (NoProgress, [(s, ())], b)
+        red _ s b = return (NoProgress, [(s, ())], b)
+
+        acc s b _ = do
+            StTr cpg xs <- SM.get
+            let c = mkConcPCGuide s b
+            res <- liftIO $ filterM (\saved_s -> matchesConcPCGuide (input_names b) saved_s solver c) xs
+            liftIO $ putStrLn ("length res =" ++ show (length res))
+            SM.put (StTr (c:cpg) xs)
+            return (s, b)
+        
 
 -- Note [Ignore Update Frames]
 -- In `strictRed`, when deciding whether to split up an expression to force strict evaluation of subexpression,
@@ -1168,6 +1219,13 @@ matchesExprEnvs eenv1 eenv2 hm e1 e2
 matchesExprEnvs eenv1 eenv2 hm (Cast e1 _) (Cast e2 _) = matchesExprEnvs eenv1 eenv2 hm e1 e2
 matchesExprEnvs _ _ _ _ _ = Nothing
 
+mkConcPCGuide :: State t -> Bindings -> ConcPCGuide
+mkConcPCGuide s b = ConcPCGuide  { l_input_ids = input_names b
+                                 , l_sym_gens = sym_gens s
+                                 , l_conc = expr_env s
+                                 , l_path_conds = path_conds s
+                                 }
+
 -- | A Reducer to producer limited logging output.
 data LimLogger =
     LimLogger { every_n :: Int -- Output a state every n steps
@@ -1271,11 +1329,7 @@ outputConcPCGuide :: FilePath -> [Int] -> State t -> Bindings -> IO ()
 outputConcPCGuide fp is s b = do
     conc_file <- liftIO $ getFile fp is "conc_pc_guide"
     putStrLn conc_file
-    let cpg = ConcPCGuide  { l_input_ids = input_names b
-                           , l_sym_gens = sym_gens s
-                           , l_conc = expr_env s
-                           , l_path_conds = path_conds s
-                           }
+    let cpg = mkConcPCGuide s b
     -- Don't re-output states that  already exist
     exists <- doesPathExist conc_file
 

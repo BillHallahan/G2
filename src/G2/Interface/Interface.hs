@@ -176,6 +176,7 @@ initStateFromSimpleState s m_mod useAssert mkCurr argTys config =
     , curr_expr = CurrExpr Evaluate ce
     , path_conds = PC.fromList []
     , non_red_path_conds = []
+    , func_arg_state = False
     , handles = hs
     , mutvar_env = HM.empty
     , true_assert = if useAssert || check_asserts config then False else True
@@ -251,17 +252,17 @@ initCheckReaches s@(State { expr_env = eenv
                           , known_values = kv }) m_mod reaches =
     s {expr_env = checkReaches eenv kv reaches m_mod }
 
-type RHOStack m = SM.StateT LengthNTrack (SM.StateT PrettyGuide (SM.StateT HpcTracker (SM.StateT HPCMemoTable m)))
+type RHOStack m t = SM.StateT LengthNTrack (SM.StateT PrettyGuide (SM.StateT HpcTracker (SM.StateT HPCMemoTable (SM.StateT (StateTrap t) m))))
 
 {-# SPECIALIZE runReducer :: Ord b =>
-                             Reducer (RHOStack IO) rv ()
-                          -> Halter (RHOStack IO) hv (ExecRes ()) ()
-                          -> Orderer (RHOStack IO) sov b (ExecRes ()) ()
-                          -> (State () -> Bindings -> RHOStack IO (Maybe (ExecRes ())))
-                          -> [AnalyzeStates (RHOStack IO) (ExecRes ()) ()]
+                             Reducer (RHOStack IO ()) rv ()
+                          -> Halter (RHOStack IO ()) hv (ExecRes ()) ()
+                          -> Orderer (RHOStack IO ()) sov b (ExecRes ()) ()
+                          -> (State () -> Bindings -> RHOStack IO () (Maybe (ExecRes ())))
+                          -> [AnalyzeStates (RHOStack IO ()) (ExecRes ()) ()]
                           -> State ()
                           -> Bindings
-                          -> (RHOStack IO) (Processed (ExecRes ()) (State ()), Bindings)
+                          -> (RHOStack IO) () (Processed (ExecRes ()) (State ()), Bindings)
     #-}
 
 {-# SPECIALIZE 
@@ -273,7 +274,7 @@ type RHOStack m = SM.StateT LengthNTrack (SM.StateT PrettyGuide (SM.StateT HpcTr
                    -> Config
                    -> S.HashSet Name
                    -> S.HashSet Name
-                   -> IO (SomeReducer (RHOStack IO) (), SomeHalter (RHOStack IO) (ExecRes ()) (), SomeOrderer (RHOStack IO) (ExecRes ()) ())
+                   -> IO (SomeReducer (RHOStack IO ()) (), SomeHalter (RHOStack IO ()) (ExecRes ()) (), SomeOrderer (RHOStack IO ()) (ExecRes ()) ())
     #-}
 initRedHaltOrd :: (MonadIO m, Solver solver, Simplifier simplifier) =>
                   State ()
@@ -284,7 +285,7 @@ initRedHaltOrd :: (MonadIO m, Solver solver, Simplifier simplifier) =>
                -> S.HashSet Name -- ^ Names of functions that may not be added to NRPCs
                -> S.HashSet Name -- ^ Names of functions that should not reesult in a larger expression become EXEC,
                                  -- but should not be added to the NRPC at the top level.
-               -> IO (SomeReducer (RHOStack m) (), SomeHalter (RHOStack m) (ExecRes ()) (), SomeOrderer (RHOStack m) (ExecRes ()) ())
+               -> IO (SomeReducer (RHOStack m ()) (), SomeHalter (RHOStack m ()) (ExecRes ()) (), SomeOrderer (RHOStack m ()) (ExecRes ()) ())
 initRedHaltOrd s mod_name solver simplifier config exec_func_names no_nrpc_names = do
     time_logger <- acceptTimeLogger
     time_halter <- stdTimerHalter (fromInteger . toInteger $ timeLimit config)
@@ -346,6 +347,8 @@ initRedHaltOrd s mod_name solver simplifier config exec_func_names no_nrpc_names
                         Subpath -> SomeOrderer $ lengthNSubpathOrderer (subpath_length config)
                         Iterative -> SomeOrderer $ pickLeastUsedOrderer
 
+        func_arg_trap = liftSomeReducer (liftSomeReducer (liftSomeReducer (liftSomeReducer (SomeReducer (funcArgStateTrapRed $ SomeSolver solver)))))
+
     return $
         case higherOrderSolver config of
             AllFuncs ->
@@ -357,7 +360,9 @@ initRedHaltOrd s mod_name solver simplifier config exec_func_names no_nrpc_names
                 , SomeHalter (discardIfAcceptedTagHalter state_name) .<~> halter_discard
                 , orderer)
             SymbolicFunc ->
-                ( logger_std_red retReplaceSymbFuncTemplate .== Finished .--> taggerRed state_name :== Finished --> nonRedPCSymFuncRed
+                ( logger_std_red retReplaceSymbFuncTemplate .== Finished
+                        .--> taggerRed state_name :== Finished
+                        .--> (func_arg_trap .~> SomeReducer nonRedPCSymFuncRed)
                 , SomeHalter (discardIfAcceptedTagHalter state_name) .<~> halter_discard
                 , orderer)
 
@@ -491,8 +496,8 @@ runG2WithConfig entry_f mb_modname state@(State { expr_env = eenv }) config bind
         non_rec_funcs = filter (isFuncNonRecursive callGraph) reachable_funcs
 
     analysis1 <- if states_at_time config then do l <- logStatesAtTime; return [l] else return noAnalysis
-    let analysis2 = if states_at_step config then [\s p xs -> SM.lift . SM.lift . SM.lift . SM.lift $ logStatesAtStep s p xs] else noAnalysis
-        analysis3 = if print_num_red_rules config then [\s p xs -> SM.lift . SM.lift . SM.lift . SM.lift . SM.lift $ logRedRuleNum s p xs] else noAnalysis
+    let analysis2 = if states_at_step config then [\s p xs -> SM.lift . SM.lift . SM.lift . SM.lift . SM.lift $ logStatesAtStep s p xs] else noAnalysis
+        analysis3 = if print_num_red_rules config then [\s p xs -> SM.lift . SM.lift . SM.lift . SM.lift . SM.lift . SM.lift $ logRedRuleNum s p xs] else noAnalysis
         analysis4 = if print_nrpcs config then [\s p xs -> SM.lift $ logNRPCs s p xs] else noAnalysis
         analysis = analysis1 ++ analysis2 ++ analysis3 ++ analysis4
     
@@ -502,19 +507,22 @@ runG2WithConfig entry_f mb_modname state@(State { expr_env = eenv }) config bind
             case rho of
                 (red, hal, ord) ->
                     SM.evalStateT (
-                        SM.evalStateT
-                            (SM.evalStateT
+                        SM.evalStateT (
+                            SM.evalStateT
                                 (SM.evalStateT
-                                    (runG2WithSomes' red hal ord [] solver simplifier state' bindings')
-                                    lnt
+                                    (SM.evalStateT
+                                        (runG2WithSomes' red hal ord [] solver simplifier state' bindings')
+                                        lnt
+                                    )
+                                    (if showType config == Lax 
+                                    then (mkPrettyGuide ())
+                                    else setTypePrinting AggressiveTypes (mkPrettyGuide ())) 
                                 )
-                                (if showType config == Lax 
-                                then (mkPrettyGuide ())
-                                else setTypePrinting AggressiveTypes (mkPrettyGuide ())) 
+                                hpc_t
                             )
-                            hpc_t
-                        )
-                        HM.empty
+                            HM.empty
+                    )
+                    mkStateTrap
         False -> do
             rho <- initRedHaltOrd state' all_mod_set solver simplifier config (S.fromList executable_funcs) (S.fromList non_rec_funcs)
             case rho of
@@ -522,19 +530,22 @@ runG2WithConfig entry_f mb_modname state@(State { expr_env = eenv }) config bind
                     SM.evalStateT (
                         SM.evalStateT (
                             SM.evalStateT (
-                                SM.evalStateT
-                                    (SM.evalStateT
+                                SM.evalStateT (
+                                    SM.evalStateT
                                         (SM.evalStateT
-                                            (runG2WithSomes' red hal ord analysis solver simplifier state' bindings')
-                                            lnt
+                                            (SM.evalStateT
+                                                (runG2WithSomes' red hal ord analysis solver simplifier state' bindings')
+                                                lnt
+                                            )
+                                            (if showType config == Lax 
+                                            then (mkPrettyGuide ())
+                                            else setTypePrinting AggressiveTypes (mkPrettyGuide ())) 
                                         )
-                                        (if showType config == Lax 
-                                        then (mkPrettyGuide ())
-                                        else setTypePrinting AggressiveTypes (mkPrettyGuide ())) 
+                                        hpc_t
                                     )
-                                    hpc_t
+                                    HM.empty
                                 )
-                                HM.empty
+                                mkStateTrap
                             )
                             logStatesAtStepTracker
                         )
@@ -582,16 +593,16 @@ isFuncNonRecursive g n =
 {-# SPECIALIZE 
     runG2WithSomes :: ( Solver solver
                       , Simplifier simplifier)
-                => SomeReducer (RHOStack IO) ()
-                -> SomeHalter (RHOStack IO) (ExecRes ()) ()
-                -> SomeOrderer (RHOStack IO) (ExecRes ()) ()
-                -> [AnalyzeStates (RHOStack IO) (ExecRes ()) ()]
+                => SomeReducer (RHOStack IO ()) ()
+                -> SomeHalter (RHOStack IO ()) (ExecRes ()) ()
+                -> SomeOrderer (RHOStack IO ()) (ExecRes ()) ()
+                -> [AnalyzeStates (RHOStack IO ()) (ExecRes ()) ()]
                 -> solver
                 -> simplifier
                 -> MemConfig
                 -> State ()
                 -> Bindings
-                -> RHOStack IO ([ExecRes ()], Bindings)
+                -> RHOStack IO () ([ExecRes ()], Bindings)
     #-}
 runG2WithSomes :: ( MonadIO m
                   , Named t
@@ -728,9 +739,9 @@ runG2SubstModel m s@(State { type_env = tenv, known_values = kv }) bindings =
 
 {-# SPECIALIZE runG2 :: ( Solver solver
                         , Simplifier simplifier
-                        , Ord b) => Reducer (RHOStack IO) rv () -> Halter (RHOStack IO) hv (ExecRes ()) () -> Orderer (RHOStack IO) sov b (ExecRes ()) () ->
-                        [AnalyzeStates (RHOStack IO) (ExecRes ()) ()] ->
-                        solver -> simplifier -> MemConfig -> State () -> Bindings -> RHOStack IO ([ExecRes ()], Bindings)
+                        , Ord b) => Reducer (RHOStack IO ()) rv () -> Halter (RHOStack IO ()) hv (ExecRes ()) () -> Orderer (RHOStack IO ()) sov b (ExecRes ()) () ->
+                        [AnalyzeStates (RHOStack IO ()) (ExecRes ()) ()] ->
+                        solver -> simplifier -> MemConfig -> State () -> Bindings -> RHOStack IO () ([ExecRes ()], Bindings)
     #-}
 
 
