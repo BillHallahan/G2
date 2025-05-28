@@ -306,6 +306,7 @@ isStr' (_ `StrLeSMT` _) = All True
 isStr' (_ `StrGtSMT` _) = All True
 isStr' (_ `StrGeSMT` _) = All True
 isStr' (StrLenSMT _) = All True
+isStr' (_ :!! _) = All True
 isStr' (FromCode _) = All True
 isStr' (ToCode _) = All True
 isStr' (VString _) = All True
@@ -505,6 +506,7 @@ funcToSMT2Prim StrGt a1 a2 = exprToSMT a1 `StrGtSMT` exprToSMT a2
 funcToSMT2Prim StrLt a1 a2 = exprToSMT a1 `StrLtSMT` exprToSMT a2
 funcToSMT2Prim StrLe a1 a2 = exprToSMT a1 `StrLeSMT` exprToSMT a2
 funcToSMT2Prim StrAppend a1 a2  = exprToSMT a1 :++ exprToSMT a2
+funcToSMT2Prim StrAt a1 a2 = exprToSMT a1 :!! exprToSMT a2
 funcToSMT2Prim op lhs rhs = error $ "funcToSMT2Prim: invalid case with (op, lhs, rhs): " ++ show (op, lhs, rhs)
 
 funcToSMT3Prim :: Primitive -> Expr -> Expr -> Expr -> SMTAST
@@ -676,6 +678,7 @@ toSolverAST (StrLeSMT x y) = function2 "str.<=" (toSolverAST x) (toSolverAST y)
 toSolverAST (x :++ y) = function2 "str.++" (toSolverAST x) (toSolverAST y)
 toSolverAST (FromInt x) = function1 "str.from_int" $ toSolverAST x
 toSolverAST (StrLenSMT x) = function1 "str.len" $ toSolverAST x
+toSolverAST (x :!! y) = function2 "str.at" (toSolverAST x) (toSolverAST y)
 
 toSolverAST (IntToRealSMT x) = function1 "to_real" $ toSolverAST x
 toSolverAST (IntToFPSMT e s x) =

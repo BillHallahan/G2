@@ -61,7 +61,7 @@ con2 xs ys = case xs ++ ys of
 
 strIndex :: String -> (Bool, String)
 strIndex str =
-    case str !! 3 of
+    case str !! 50 of
         '3' -> (True, "Three")
         '2' -> (False, "Two")
         _ -> (False, "None")
