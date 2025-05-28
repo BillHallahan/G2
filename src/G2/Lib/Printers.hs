@@ -448,6 +448,7 @@ mkPrimHaskell pg = pr
         pr StrLe = "str.<="
         pr StrLen = "StrLen"
         pr StrAppend = "StrAppend"
+        pr StrAt = "str.at"
         pr Chr = "chr"
         pr OrdChar = "ord"
 

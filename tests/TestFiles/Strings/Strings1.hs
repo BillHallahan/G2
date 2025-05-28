@@ -52,3 +52,17 @@ strApp xs ys = case xs ++ ys of
                     "Hello World!" -> 2
                     "Goodbye" -> 1
                     _ -> 0
+
+con2 :: String -> String -> (String, Int)
+con2 xs ys = case xs ++ ys of
+    xs@(_:_:_) -> (xs, 3)
+    xs@(_:_) -> (xs, 2)
+    [] -> ([], 1)
+
+strIndex :: String -> (Bool, String)
+strIndex str =
+    case str !! 3 of
+        '3' -> (True, "Three")
+        '2' -> (False, "Two")
+        _ -> (False, "None")
+
