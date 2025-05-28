@@ -304,8 +304,8 @@ def run_nofib_set(setname, var_settings, timeout):
                                  str(bo1) + "/" + str(no1), str(bo3) + "/" + str(no3), str(bo5) + "/" + str(no5),
                                  str(avg_nrpc)])
                     generate_string_for_cov(file_dir, base_total, base_hpc_cov, nrpc_hpc_cov, base_last, nrpc_last)
-                    latex_str_tbl2 += generate_str_for_pos_ord(file_dir, bt1, bt3, bt5, nt1, nt3, nt5)
-                    latex_str_tbl3 += generate_str_for_pos_ord(file_dir, bo1, bo3, bo5, no1, no3, no5)
+                    latex_str_tbl2 += generate_str_for_pos_ord(file_dir, bt1, nt1, bt3, nt3, bt5, nt5)
+                    latex_str_tbl3 += generate_str_for_pos_ord(file_dir, bo1, no1, bo3, no3, bo5, no5)
                     print("\n")
                     print("Graph latex for: " + file_dir + ": \n" + graph_latex)
                     print("\n")
