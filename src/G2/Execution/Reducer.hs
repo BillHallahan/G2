@@ -677,7 +677,7 @@ nonRedLibFuncs exec_names no_nrpc_names use_with_symb_func
                     -- (a) we have already added function argument states when we initially began reducing the NRPC
                     -- and (b) we need to make sure that we actually do satisfy the equality, for soundness, and
                     -- thus cannot clear out the stack
-                    (ng'', xs_new_g) = if noEnsureEq stck'
+                    (ng'', xs_new_g) = if noEnsureEq stck' && func_arg_state s /= FAState
                                     then L.mapAccumR
                                             (funcArgState (map typeOf es) (returnType $ PresType t)) ng'
                                             $ zip [0..] es
@@ -744,7 +744,7 @@ nonRedLibFuncs exec_names no_nrpc_names use_with_symb_func
                     (ng''', Just $ (s { expr_env = eenv''
                                       , curr_expr = CurrExpr Evaluate fa_e'
                                       , exec_stack = stck (Var bindee)
-                                      , func_arg_state = True }, Nothing))
+                                      , func_arg_state = FAState }, Nothing))
             | isPrimType (typeOf fa_e) = (init_ng, Nothing)
             | otherwise =
                 let
@@ -761,7 +761,7 @@ nonRedLibFuncs exec_names no_nrpc_names use_with_symb_func
                 (ng'', Just $ (s { expr_env = eenv''
                                  , curr_expr = CurrExpr Evaluate fa_e'
                                  , exec_stack = stck (Var bindee)
-                                 , func_arg_state = True }, Just $ idName g))
+                                 , func_arg_state = FAState }, Just $ idName g))
             where
                 n = case unApp ce of
                     Var (Id vn _):_ -> vn
@@ -781,8 +781,8 @@ data StateTrap t = StTr [(TerminatingState t, ConcPCGuide)] [FuncArgState t]
 mkStateTrap :: StateTrap t
 mkStateTrap = StTr [] []
 
-funcArgStateTrapRed :: (SM.MonadState (StateTrap t) m, MonadIO m) => SomeSolver -> Reducer m () t
-funcArgStateTrapRed solver = (mkSimpleReducer (const ())
+funcArgStateTrapRed :: (SM.MonadState (StateTrap t) m, MonadIO m) => SomeSolver -> Reducer m Integer t
+funcArgStateTrapRed solver = (mkSimpleReducer (const 0)
                                                red)
                                         -- { onAccept = acc }
     where
@@ -790,49 +790,50 @@ funcArgStateTrapRed solver = (mkSimpleReducer (const ())
         red rv s@(State { expr_env = eenv
                         , curr_expr = CurrExpr Return e
                         , exec_stack = stck }) b
-            | func_arg_state s 
+            | func_arg_state s == FAState
             , normalForm eenv e 
             , Stck.null stck = do
                 StTr cpg xs <- SM.get
-                -- liftIO .  putStrLn $ "length cpg = " ++ show (length cpg)
-                --         ++ "\nlength xs = " ++ show (length xs)
+                liftIO .  putStrLn $ "length cpg = " ++ show (length cpg)
+                        ++ "\nlength xs = " ++ show (length xs)
 
-                -- liftIO $ putStrLn "Checking match"
-                -- begin_time <- liftIO $ getCurrentTime
+                liftIO $ putStrLn "Checking match"
+                begin_time <- liftIO $ getCurrentTime
                 res <- liftIO $ findM (\(term_s, c) -> matchesCPG b s term_s c) cpg
-                -- end_time <- liftIO $ getCurrentTime
-                -- liftIO . putStrLn $ "Done checking match " ++ show (end_time `diffUTCTime` begin_time)
+                end_time <- liftIO $ getCurrentTime
+                liftIO . putStrLn $ "Done checking match " ++ show (end_time `diffUTCTime` begin_time)
 
                 case res of
                     (Just (term_s, c)) -> do
-                        let new_nrpc =  L.nub $ non_red_path_conds s ++ non_red_path_conds term_s
-                            s' =  s { expr_env = E.union (expr_env s) (l_conc c)
-                                    , path_conds = PC.union (path_conds s) (l_path_conds c)
-                                    , non_red_path_conds = new_nrpc
-                                    , func_arg_state = False
-                                    }
-                        -- liftIO . putStrLn $ "HERE SUCCESS\n"    
-                        --             ++ show (length (non_red_path_conds s))
-                        --             ++ "\nterm path = " ++ show (log_path term_s)
-                        return (Finished, [(s', ())], b)
+                        let s' = adjustState s term_s c
+                        liftIO . putStrLn $ "HERE SUCCESS\n"    
+                                    ++ show (length (non_red_path_conds s))
+                                    ++ "\nterm path = " ++ show (log_path term_s)
+                        return (Finished, [(s', 0)], b)
                     Nothing -> do
                         SM.put (StTr cpg (s:xs))
                         return (InProgress, [], b)
-            | normalForm eenv e
+            | func_arg_state s == NotFAState
+            , normalForm eenv e
             , nrpc_solving s == PreNrpcSolving
+            , not . null $ non_red_path_conds s
             , Stck.null stck = do
                 StTr cpg xs <- SM.get
                 let c = mkConcPCGuide s b
-                res <- liftIO $ filterM (\saved_s -> matchesCPG b saved_s s c) xs
+                liftIO $ putStrLn "Checking match"
+                begin_time <- liftIO $ getCurrentTime
+                (res, rem_xs) <- liftIO $ partitionM (\saved_s -> matchesCPG b saved_s s c) xs
+                end_time <- liftIO $ getCurrentTime
+                liftIO . putStrLn $ "Done checking match " ++ show (end_time `diffUTCTime` begin_time)
                 -- liftIO $ putStrLn ("length res =" ++ show (length res))
                 let xs = map (\fa_s -> adjustState fa_s s c) res
-                SM.put (StTr ((s, c):cpg) xs)
-                return (NoProgress, (s, ()):map (,()) xs, b)
+                SM.put (StTr ((s, c):cpg) rem_xs)
+                return (NoProgress, (s, 0):map (,0) xs, b)
             | normalForm eenv e
             , Just (CurrExprFrame _ _, _) <- Stck.pop stck = do
                 -- liftIO . putStrLn $ "HERE, have CurrExprFrame\nfunc_arg_state s = " ++ show (func_arg_state s)
-                return (NoProgress, [(s, ())], b) 
-        red _ s b = return (NoProgress, [(s, ())], b)
+                return (NoProgress, [(s, 0)], b) 
+        red _ s b = return (NoProgress, [(s, 0)], b)
 
         adjustState :: FuncArgState t -> TerminatingState t -> ConcPCGuide -> State t
         adjustState s term_s c = 
@@ -840,7 +841,7 @@ funcArgStateTrapRed solver = (mkSimpleReducer (const ())
                             s' =  s { expr_env = E.union (expr_env s) (l_conc c)
                                     , path_conds = PC.union (path_conds s) (l_path_conds c)
                                     , non_red_path_conds = new_nrpc
-                                    , func_arg_state = False
+                                    , func_arg_state = FormerFAState
                                     }
                         in
                         s'
@@ -1222,14 +1223,14 @@ matchesConcPCGuide inp_ids
                 chck_pc_eq = PC.union hm_pc $ PC.union pc l_pc
 
             let pg = mkPrettyGuide chck_pc_eq
-            -- liftIO . T.putStrLn $ "state = \n" <> prettyPathConds pg pc
-            -- liftIO . T.putStrLn $ "cpg = \n" <> prettyPathConds pg l_pc
-            -- liftIO . T.putStrLn $ "hm_pc = \n" <> prettyPathConds pg hm_pc
+            liftIO . T.putStrLn $ "state = \n" <> prettyPathConds pg pc
+            liftIO . T.putStrLn $ "cpg = \n" <> prettyPathConds pg l_pc
+            liftIO . T.putStrLn $ "hm_pc = \n" <> prettyPathConds pg hm_pc
             
             case some_solver of
                 SomeSolver solver -> do
                     res <- check solver s chck_pc_eq
-                    -- putStrLn $ "res = " ++ show res
+                    putStrLn $ "res = " ++ show res
                     return (case res of SAT _ -> True; _ -> False)
         Nothing -> return False
 
@@ -1266,7 +1267,8 @@ matchesExprEnvs eenv1 eenv2 hm e1 e2
     , Data d2:es2 <- unApp e2
     , dc_name d1 == dc_name d2 = foldrMatchesExprEnv eenv1 eenv2 hm es1 es2
 matchesExprEnvs eenv1 eenv2 hm (Cast e1 _) (Cast e2 _) = matchesExprEnvs eenv1 eenv2 hm e1 e2
-matchesExprEnvs _ _ _ e1 e2 = Nothing
+matchesExprEnvs _ _ hm (Type _) (Type _) = Just hm
+matchesExprEnvs _ _ _ e1 e2 = trace ("\ne1 = " ++ show e1 ++ "\ne2 = " ++ show e2 ++ "\n") Nothing
 
 mkConcPCGuide :: State t -> Bindings -> ConcPCGuide
 mkConcPCGuide s b = ConcPCGuide  { l_input_ids = input_names b

@@ -46,7 +46,7 @@ data State t = State { expr_env :: E.ExprEnv -- ^ Mapping of `Name`s to `Expr`s
                      , non_red_path_conds :: [(Expr, Expr)] -- ^ Path conditions, in the form of (possibly non-reduced)
                                                             -- expression pairs that must be proved equivalent
                      , nrpc_solving :: NRPCSolving -- ^ Has the state started solving NRPCs? 
-                     , func_arg_state :: Bool
+                     , func_arg_state :: FAState
                      , handles :: HM.HashMap Name Handle -- ^ Each Handle has a name, that appears in `Expr`s within the `Handle` `Primitive`
                      , mutvar_env :: MutVarEnv -- ^ MutVar `Name`s to mappings of names in the `ExprEnv`.
                                                -- See Note [MutVar Env] in G2.Language.MutVarEnv.
@@ -178,6 +178,13 @@ data NRPCSolving = PreNrpcSolving | NrpcSolving
                     deriving (Show, Eq, Read, Generic, Typeable, Data)
 
 instance Hashable NRPCSolving
+
+data FAState = NotFAState
+             | FAState
+             | FormerFAState
+             deriving (Show, Eq, Read, Generic, Typeable, Data)
+
+instance Hashable FAState
 
 instance Named t => Named (State t) where
     names s = names (expr_env s)
