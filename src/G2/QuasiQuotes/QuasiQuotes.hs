@@ -260,7 +260,7 @@ lemmingsHalter =
                 (\_ _ _ -> return Continue)
                 (\_ _ _ _ -> ())) { discardOnStart = discard }
     where
-        discard _ pr _ = not . null . discarded $ pr
+        discard _ pr _ = return . not . null . discarded $ pr
 
 fileName :: String
 fileName = "THTemp.hs"

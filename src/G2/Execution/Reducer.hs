@@ -172,8 +172,6 @@ import Data.Time.Clock
 import System.Clock
 import System.Directory
 
-import G2.Lib.Printers
-import Debug.Trace
 
 -- | Used when applying execution rules
 -- Allows tracking extra information to control halting of rule application,
@@ -292,7 +290,7 @@ data Halter m hv r t = Halter {
     -- `updatePerStateHalt`.  Allows a State to be discarded right
     -- before execution is about to (re-)begin.
     -- Return True if execution should proceed, False to discard
-    , discardOnStart :: hv -> Processed r (State t) -> State t -> Bool
+    , discardOnStart :: hv -> Processed r (State t) -> State t -> m Bool
 
     -- | Determines whether to continue reduction on the current state
     , stopRed :: StopRed m hv r t
@@ -311,7 +309,7 @@ data Halter m hv r t = Halter {
 mkSimpleHalter :: Monad m => InitHalter hv t -> UpdatePerStateHalt hv r t -> StopRed m hv r t -> StepHalter hv r t -> Halter m hv r t
 mkSimpleHalter initial update stop step = Halter { initHalt = initial
                                                  , updatePerStateHalt = update
-                                                 , discardOnStart = \_ _ _ -> False
+                                                 , discardOnStart = \_ _ _ -> return False
                                                  , stopRed = stop
                                                  , stepHalter = step
                                                  , updateHalterWithAll = map snd }
@@ -321,8 +319,8 @@ mkSimpleHalter initial update stop step = Halter { initHalt = initial
 liftHalter :: (Monad m1, SM.MonadTrans m2) => Halter m1 rv r t -> Halter (m2 m1) rv r t
 liftHalter h = Halter { initHalt = initHalt h
                       , updatePerStateHalt = updatePerStateHalt h
-                      , discardOnStart = discardOnStart h
-                      , stopRed = \hv pr s -> SM.lift ((stopRed h) hv pr s)
+                      , discardOnStart = \hv pr s -> SM.lift (discardOnStart h hv pr s)
+                      , stopRed = \hv pr s -> SM.lift (stopRed h hv pr s)
                       , stepHalter = stepHalter h
                       , updateHalterWithAll = updateHalterWithAll h }
 
@@ -794,21 +792,21 @@ funcArgStateTrapRed solver = (mkSimpleReducer (const 0)
             , normalForm eenv e 
             , Stck.null stck = do
                 StTr cpg xs <- SM.get
-                liftIO .  putStrLn $ "length cpg = " ++ show (length cpg)
-                        ++ "\nlength xs = " ++ show (length xs)
+                -- liftIO .  putStrLn $ "length cpg = " ++ show (length cpg)
+                --         ++ "\nlength xs = " ++ show (length xs)
 
-                liftIO $ putStrLn "Checking match"
-                begin_time <- liftIO $ getCurrentTime
+                -- liftIO $ putStrLn "Checking match"
+                -- begin_time <- liftIO $ getCurrentTime
                 res <- liftIO $ findM (\(term_s, c) -> matchesCPG b s term_s c) cpg
-                end_time <- liftIO $ getCurrentTime
-                liftIO . putStrLn $ "Done checking match " ++ show (end_time `diffUTCTime` begin_time)
+                -- end_time <- liftIO $ getCurrentTime
+                -- liftIO . putStrLn $ "Done checking match " ++ show (end_time `diffUTCTime` begin_time)
 
                 case res of
                     (Just (term_s, c)) -> do
                         let s' = adjustState s term_s c
-                        liftIO . putStrLn $ "HERE SUCCESS\n"    
-                                    ++ show (length (non_red_path_conds s))
-                                    ++ "\nterm path = " ++ show (log_path term_s)
+                        -- liftIO . putStrLn $ "HERE SUCCESS\n"    
+                        --             ++ show (length (non_red_path_conds s))
+                        --             ++ "\nterm path = " ++ show (log_path term_s)
                         return (Finished, [(s', 0)], b)
                     Nothing -> do
                         SM.put (StTr cpg (s:xs))
@@ -820,11 +818,11 @@ funcArgStateTrapRed solver = (mkSimpleReducer (const 0)
             , Stck.null stck = do
                 StTr cpg xs <- SM.get
                 let c = mkConcPCGuide s b
-                liftIO $ putStrLn "Checking match"
-                begin_time <- liftIO $ getCurrentTime
+                -- liftIO $ putStrLn "Checking match"
+                -- begin_time <- liftIO $ getCurrentTime
                 (res, rem_xs) <- liftIO $ partitionM (\saved_s -> matchesCPG b saved_s s c) xs
-                end_time <- liftIO $ getCurrentTime
-                liftIO . putStrLn $ "Done checking match " ++ show (end_time `diffUTCTime` begin_time)
+                -- end_time <- liftIO $ getCurrentTime
+                -- liftIO . putStrLn $ "Done checking match " ++ show (end_time `diffUTCTime` begin_time)
                 -- liftIO $ putStrLn ("length res =" ++ show (length res))
                 let xs = map (\fa_s -> adjustState fa_s s c) res
                 SM.put (StTr ((s, c):cpg) rem_xs)
@@ -1137,16 +1135,16 @@ nonRedPCRedConstFunc _
 nonRedPCRedConstFunc _ s b = return (Finished, [], b)
 
 {-# INLINE taggerRed #-}
-taggerRed :: MonadIO m => Name -> Reducer m () t
+taggerRed :: Monad m => Name -> Reducer m () t
 taggerRed n = mkSimpleReducer (const ()) (taggerRedStep n)
 
-taggerRedStep :: MonadIO m => Name -> RedRules m () t
+taggerRedStep :: Monad m => Name -> RedRules m () t
 taggerRedStep n _ s@(State {tags = ts}) b@(Bindings { name_gen = ng }) =
     let
         (n'@(Name n_ m_ _ _), ng') = freshSeededName n ng
     in
     if null $ HS.filter (\(Name n__ m__ _ _) -> n_ == n__ && m_ == m__) ts then
-        do liftIO $ putStrLn "TAGGED"; return (Finished, [(s {tags = HS.insert n' ts}, ())], b { name_gen = ng' })
+        return (Finished, [(s {tags = HS.insert n' ts}, ())], b { name_gen = ng' })
     else
         return (Finished, [(s, ())], b)
 
@@ -1222,15 +1220,15 @@ matchesConcPCGuide inp_ids
                       $ HM.toList hm
                 chck_pc_eq = PC.union hm_pc $ PC.union pc l_pc
 
-            let pg = mkPrettyGuide chck_pc_eq
-            liftIO . T.putStrLn $ "state = \n" <> prettyPathConds pg pc
-            liftIO . T.putStrLn $ "cpg = \n" <> prettyPathConds pg l_pc
-            liftIO . T.putStrLn $ "hm_pc = \n" <> prettyPathConds pg hm_pc
+            -- let pg = mkPrettyGuide chck_pc_eq
+            -- liftIO . T.putStrLn $ "state = \n" <> prettyPathConds pg pc
+            -- liftIO . T.putStrLn $ "cpg = \n" <> prettyPathConds pg l_pc
+            -- liftIO . T.putStrLn $ "hm_pc = \n" <> prettyPathConds pg hm_pc
             
             case some_solver of
                 SomeSolver solver -> do
                     res <- check solver s chck_pc_eq
-                    putStrLn $ "res = " ++ show res
+                    -- putStrLn $ "res = " ++ show res
                     return (case res of SAT _ -> True; _ -> False)
         Nothing -> return False
 
@@ -1268,7 +1266,7 @@ matchesExprEnvs eenv1 eenv2 hm e1 e2
     , dc_name d1 == dc_name d2 = foldrMatchesExprEnv eenv1 eenv2 hm es1 es2
 matchesExprEnvs eenv1 eenv2 hm (Cast e1 _) (Cast e2 _) = matchesExprEnvs eenv1 eenv2 hm e1 e2
 matchesExprEnvs _ _ hm (Type _) (Type _) = Just hm
-matchesExprEnvs _ _ _ e1 e2 = trace ("\ne1 = " ++ show e1 ++ "\ne2 = " ++ show e2 ++ "\n") Nothing
+matchesExprEnvs _ _ _ e1 e2 = Nothing
 
 mkConcPCGuide :: State t -> Bindings -> ConcPCGuide
 mkConcPCGuide s b = ConcPCGuide  { l_input_ids = input_names b
@@ -1490,12 +1488,11 @@ h1 <~> h2 =
                 in
                 C hv1' hv2'
 
-            , discardOnStart = \(C hv1 hv2) proc s ->
-                let
-                    b1 = discardOnStart h1 hv1 proc s
-                    b2 = discardOnStart h2 hv2 proc s
-                in
-                b1 || b2
+            , discardOnStart = \(C hv1 hv2) proc s -> do
+                b1 <- discardOnStart h1 hv1 proc s
+                b2 <- discardOnStart h2 hv2 proc s
+                
+                return (b1 || b2)
 
             , stopRed = \(C hv1 hv2) proc s -> do
                 hc1 <- stopRed h1 hv1 proc s
@@ -1620,14 +1617,15 @@ varLookupLimitHalter lim = mkSimpleHalter
 
 type HPCMemoTable = HM.HashMap Name (HS.HashSet (Int, T.Text))
 
-noNewHPCHalter :: SM.MonadState HPCMemoTable m => HS.HashSet (Maybe T.Text) -> Halter m Int (ExecRes t) t
-noNewHPCHalter mod_name = mkSimpleHalter
+noNewHPCHalter :: (SM.MonadState HPCMemoTable m, MonadIO m) => HS.HashSet (Maybe T.Text) -> Halter m Int (ExecRes t) t
+noNewHPCHalter mod_name = (mkSimpleHalter
                                 (const 0)
                                 (\hv _ _ -> hv)
-                                stop
-                                (\hv _ _ _ -> if hv < 100 then hv + 1 else 0)
+                                (stop False)
+                                (\hv _ _ _ -> if hv < 100 then hv + 1 else 0))
+                                { discardOnStart = discard }
     where
-        stop hv pr s
+        stop b hv pr s
             | hv == 100 = do
                 let acc_seen_hpc = HS.unions (map (reached_hpc . final_state) $ accepted pr)
 
@@ -1635,11 +1633,17 @@ noNewHPCHalter mod_name = mkSimpleHalter
 
                 if HS.null diff1
                     then do
-                        reachable_hpc <- reachesHPC (expr_env s) (curr_expr s, exec_stack s, non_red_path_conds s)
+                        reachable_hpc_ce_stck <- reachesHPC (expr_env s) (curr_expr s, exec_stack s)
+                        reachable_hpc_nrpc <- reachesHPC (expr_env s) (non_red_path_conds s)
+                        let reachable_hpc = reachable_hpc_ce_stck `HS.union` reachable_hpc_nrpc
                         let diff2 = HS.difference reachable_hpc acc_seen_hpc
-                        if HS.null diff2 then do return Discard else do return Continue
+                        if HS.null diff2 then do return Discard else return Continue
                     else return Continue
             | otherwise = return Continue
+
+        discard hv pr s = do
+            r <- stop True hv pr s
+            return (r == Discard)
         
         reachesHPC :: (SM.MonadState HPCMemoTable m, ASTContainer c Expr) => ExprEnv -> c -> m (HS.HashSet (Int, T.Text))
         reachesHPC eenv es = mconcat <$> mapM (reaches eenv) (containedASTs es) 
@@ -1657,12 +1661,13 @@ noNewHPCHalter mod_name = mkSimpleHalter
         reaches eenv (Tick (HpcTick i t) e) | Just t `HS.member` mod_name = HS.insert (i, t) <$> reaches eenv e
         reaches eenv e = mconcat <$> mapM (reaches eenv) (children e)
 
+
 acceptOnlyNewHPC :: (Monad m1, SM.MonadState HPCMemoTable (m2 m1), SM.MonadTrans m2) => Halter m1 r (ExecRes t) t -> Halter (m2 m1) r (ExecRes t) t
 acceptOnlyNewHPC h = 
         Halter {
               initHalt = initHalt h
             , updatePerStateHalt = updatePerStateHalt h
-            , discardOnStart = discardOnStart h
+            , discardOnStart = \hv pr s -> SM.lift $ discardOnStart h hv pr s
             , stopRed = stop
             , stepHalter = stepHalter h
             , updateHalterWithAll = updateHalterWithAll h
@@ -2224,11 +2229,11 @@ runReducer red hal ord solve_r analyze init_state init_bindings = do
                     -> Bindings
                     -> M.Map b [ExState rv hv sov t]
                     -> m (Processed r (State t), Bindings)
-        switchState pr rs b xs
-            | not $ discardOnStart hal (halter_val rs') pr (state rs') =
-                runReducer' pr rs' b xs
-            | otherwise =
-                runReducerListSwitching (pr {discarded = state rs':discarded pr}) xs b
+        switchState pr rs b xs = do
+            dis <- discardOnStart hal (halter_val rs') pr (state rs')
+            if not dis
+                then runReducer' pr rs' b xs
+                else runReducerListSwitching (pr {discarded = state rs':discarded pr}) xs b
             where
                 rs' = rs { halter_val = updatePerStateHalt hal (halter_val rs) pr (state rs) }
 
