@@ -176,6 +176,7 @@ initStateFromSimpleState s m_mod useAssert mkCurr argTys config =
     , curr_expr = CurrExpr Evaluate ce
     , path_conds = PC.fromList []
     , non_red_path_conds = []
+    , nrpc_solving = PreNrpcSolving
     , func_arg_state = False
     , handles = hs
     , mutvar_env = HM.empty
@@ -360,9 +361,9 @@ initRedHaltOrd s mod_name solver simplifier config exec_func_names no_nrpc_names
                 , SomeHalter (discardIfAcceptedTagHalter state_name) .<~> halter_discard
                 , orderer)
             SymbolicFunc ->
-                ( logger_std_red retReplaceSymbFuncTemplate .== Finished
+                ( (logger_std_red retReplaceSymbFuncTemplate .~> func_arg_trap) .== Finished
                         .--> taggerRed state_name :== Finished
-                        .--> (func_arg_trap .~> SomeReducer nonRedPCSymFuncRed)
+                        .--> (SomeReducer nonRedPCSymFuncRed)
                 , SomeHalter (discardIfAcceptedTagHalter state_name) .<~> halter_discard
                 , orderer)
 

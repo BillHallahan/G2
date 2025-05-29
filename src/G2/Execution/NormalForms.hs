@@ -86,6 +86,7 @@ normalForm' looked eenv (App f a) = case unApp (App f a) of
     (Data _:xs) -> all (normalForm' looked eenv) xs
     ((Var _):_) -> False
     _ -> False
+normalForm' looked eenv (Prim _ _) = True 
 normalForm' _ _ (Let _ _) = False
 normalForm' _ _ (Case _ _ _ _) = False
 normalForm' looked eenv (Cast e (t :~ _)) = not (hasFuncType t) && normalForm' looked eenv e

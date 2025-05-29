@@ -171,6 +171,9 @@ import Data.Time.Clock
 import System.Clock
 import System.Directory
 
+import G2.Lib.Printers
+import Debug.Trace
+
 -- | Used when applying execution rules
 -- Allows tracking extra information to control halting of rule application,
 -- and to reorder states
@@ -590,7 +593,7 @@ nonRedPCSymFunc m_sft
     let
         sft = defSymFuncTicks
         stck' = Stck.push (CurrExprFrame (EnsureEq nre2) cexpr) stck
-        s' = s { exec_stack = stck', non_red_path_conds = nrs }
+        s' = s { exec_stack = stck', non_red_path_conds = nrs, nrpc_solving = NrpcSolving }
 
         stripCenterTick (Tick _ e) = e
         stripCenterTick (App e1 e2) = App (stripCenterTick e1) e2
@@ -778,7 +781,9 @@ nonRedLibFuncs exec_names no_nrpc_names use_with_symb_func
 
                 stck show_e = Stck.singleton $ CurrExprFrame NoAction (CurrExpr Return $ Prim UnspecifiedOutput TyBottom)
 
-data StateTrap t = StTr [ConcPCGuide] [State t]
+type FuncArgState t = State t
+type TerminatingState t = State t
+data StateTrap t = StTr [(TerminatingState t, ConcPCGuide)] [FuncArgState t]
 
 mkStateTrap :: StateTrap t
 mkStateTrap = StTr [] []
@@ -786,40 +791,71 @@ mkStateTrap = StTr [] []
 funcArgStateTrapRed :: (SM.MonadState (StateTrap t) m, MonadIO m) => SomeSolver -> Reducer m () t
 funcArgStateTrapRed solver = (mkSimpleReducer (const ())
                                                red)
-                                        { onAccept = acc }
+                                        -- { onAccept = acc }
     where
-        unspec_frame = CurrExprFrame NoAction (CurrExpr Return $ Prim UnspecifiedOutput TyBottom)
         
         red rv s@(State { expr_env = eenv
                         , curr_expr = CurrExpr Return e
                         , exec_stack = stck }) b
             | normalForm eenv e 
-            , func_arg_state s = do
+            , func_arg_state s 
+            , Stck.null stck = do
                 StTr cpg xs <- SM.get
                 liftIO .  putStrLn $ "length cpg = " ++ show (length cpg)
                         ++ "\nlength xs = " ++ show (length xs)
 
-                res <- liftIO $ findM (matchesConcPCGuide (input_names b) s solver) cpg
+                liftIO $ putStrLn "Checking match"
+                begin_time <- liftIO $ getCurrentTime
+                res <- liftIO $ findM (matchesConcPCGuide (input_names b) s solver . snd) cpg
+                end_time <- liftIO $ getCurrentTime
+                liftIO . putStrLn $ "Done checking match " ++ show (end_time `diffUTCTime` begin_time)
 
                 case res of
-                    (Just c) -> do
-                        let s' =  s { expr_env = E.union (expr_env s) (l_conc c)
-                                    , path_conds = PC.union (path_conds s) (l_path_conds c) }
-                        liftIO $ putStrLn "HERE SUCCESS"
-                        return (Finished, [(s, ())], b)
+                    (Just (term_s, c)) -> do
+                        let new_nrpc =  L.nub $ non_red_path_conds s ++ non_red_path_conds term_s
+                            s' =  s { expr_env = E.union (expr_env s) (l_conc c)
+                                    , path_conds = PC.union (path_conds s) (l_path_conds c)
+                                    , non_red_path_conds = new_nrpc
+                                    , func_arg_state = False
+                                    }
+                        liftIO . putStrLn $ "HERE SUCCESS\n" ++ show (length (non_red_path_conds s))
+                        return (Finished, [(s', ())], b)
                     Nothing -> do
                         SM.put (StTr cpg (s:xs))
                         return (InProgress, [], b)
-            | normalForm eenv e  = do return (NoProgress, [(s, ())], b)
+            | normalForm eenv e
+            , nrpc_solving s == PreNrpcSolving
+            , Stck.null stck = do
+                StTr cpg xs <- SM.get
+                let c = mkConcPCGuide s b
+                res <- liftIO $ filterM (\saved_s -> matchesConcPCGuide (input_names b) saved_s solver c) xs
+                -- liftIO $ putStrLn ("length res =" ++ show (length res))
+                let xs = map (\fa_s -> adjustState fa_s s c) res
+                SM.put (StTr ((s, c):cpg) xs)
+                return (NoProgress, [(s, ())], b)
+            | normalForm eenv e
+            , Just (CurrExprFrame _ _, _) <- Stck.pop stck = do
+                -- liftIO . putStrLn $ "HERE, have CurrExprFrame\nfunc_arg_state s = " ++ show (func_arg_state s)
+                return (NoProgress, [(s, ())], b) 
         red _ s b = return (NoProgress, [(s, ())], b)
 
-        acc s b _ = do
-            StTr cpg xs <- SM.get
-            let c = mkConcPCGuide s b
-            res <- liftIO $ filterM (\saved_s -> matchesConcPCGuide (input_names b) saved_s solver c) xs
-            liftIO $ putStrLn ("length res =" ++ show (length res))
-            SM.put (StTr (c:cpg) xs)
-            return (s, b)
+        adjustState :: FuncArgState t -> TerminatingState t -> ConcPCGuide -> State t
+        adjustState s term_s c = 
+                        let new_nrpc =  L.nub $ non_red_path_conds s ++ non_red_path_conds term_s
+                            s' =  s { expr_env = E.union (expr_env s) (l_conc c)
+                                    , path_conds = PC.union (path_conds s) (l_path_conds c)
+                                    , non_red_path_conds = new_nrpc
+                                    , func_arg_state = False
+                                    }
+                        in
+                        s'
+        -- acc s b _ = do
+        --     StTr cpg xs <- SM.get
+        --     let c = mkConcPCGuide s b
+        --     res <- liftIO $ filterM (\saved_s -> matchesConcPCGuide (input_names b) saved_s solver c) xs
+        --     liftIO $ putStrLn ("length res =" ++ show (length res))
+        --     SM.put (StTr (c:cpg) xs)
+        --     return (s, b)
         
 
 -- Note [Ignore Update Frames]
@@ -1094,16 +1130,16 @@ nonRedPCRedConstFunc _
 nonRedPCRedConstFunc _ s b = return (Finished, [], b)
 
 {-# INLINE taggerRed #-}
-taggerRed :: Monad m => Name -> Reducer m () t
+taggerRed :: MonadIO m => Name -> Reducer m () t
 taggerRed n = mkSimpleReducer (const ()) (taggerRedStep n)
 
-taggerRedStep :: Monad m => Name -> RedRules m () t
+taggerRedStep :: MonadIO m => Name -> RedRules m () t
 taggerRedStep n _ s@(State {tags = ts}) b@(Bindings { name_gen = ng }) =
     let
         (n'@(Name n_ m_ _ _), ng') = freshSeededName n ng
     in
     if null $ HS.filter (\(Name n__ m__ _ _) -> n_ == n__ && m_ == m__) ts then
-        return (Finished, [(s {tags = HS.insert n' ts}, ())], b { name_gen = ng' })
+        do liftIO $ putStrLn "TAGGED"; return (Finished, [(s {tags = HS.insert n' ts}, ())], b { name_gen = ng' })
     else
         return (Finished, [(s, ())], b)
 
@@ -1177,10 +1213,16 @@ matchesConcPCGuide inp_ids
                       . map (\(i, e) -> (App (App (Prim Eq TyUnknown) (Var i)) e))
                       $ HM.toList hm
                 chck_pc_eq = PC.union hm_pc $ PC.union pc l_pc
+
+            let pg = mkPrettyGuide chck_pc_eq
+            liftIO . T.putStrLn $ "state = \n" <> prettyPathConds pg pc
+            liftIO . T.putStrLn $ "cpg = \n" <> prettyPathConds pg l_pc
+            liftIO . T.putStrLn $ "hm_pc = \n" <> prettyPathConds pg hm_pc
             
             case some_solver of
                 SomeSolver solver -> do
                     res <- check solver s chck_pc_eq
+                    putStrLn $ "res = " ++ show res
                     return (case res of SAT _ -> True; _ -> False)
         Nothing -> return False
 
@@ -1217,7 +1259,7 @@ matchesExprEnvs eenv1 eenv2 hm e1 e2
     , Data d2:es2 <- unApp e2
     , dc_name d1 == dc_name d2 = foldrMatchesExprEnv eenv1 eenv2 hm es1 es2
 matchesExprEnvs eenv1 eenv2 hm (Cast e1 _) (Cast e2 _) = matchesExprEnvs eenv1 eenv2 hm e1 e2
-matchesExprEnvs _ _ _ _ _ = Nothing
+matchesExprEnvs _ _ _ e1 e2 = trace ("\ne1 = " ++ show e1 ++ "\ne2 = " ++ show e2 ++ "\n") Nothing
 
 mkConcPCGuide :: State t -> Bindings -> ConcPCGuide
 mkConcPCGuide s b = ConcPCGuide  { l_input_ids = input_names b
