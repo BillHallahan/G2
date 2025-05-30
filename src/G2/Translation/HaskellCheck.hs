@@ -49,6 +49,7 @@ import Debug.Trace
 validateStates :: [FilePath] -> [FilePath] -> String -> String -> [String] -> [GeneralFlag] -> Bindings
                -> [ExecRes t]
                -> IO [Maybe Bool] -- ^ One bool per input `ExecRes`, indicating whether the results are correct or not
+                                  -- Nothing in the case of a timeout  
 validateStates proj src modN entry chAll gflags b in_out = do
     runGhc (Just libdir) (do
         adjustDynFlags
@@ -81,7 +82,7 @@ validateStatesGHC :: PrettyGuide -> Maybe T.Text -> String -> [String] -> Bindin
 validateStatesGHC pg modN entry chAll b er@(ExecRes {final_state = s, conc_out = out}) = do
     (v, chAllR) <- runCheck pg modN entry chAll b er
 
-    v' <- liftIO . timeout (2 * 10 * 1000) $ (unsafeCoerce v :: IO (Either SomeException Bool))
+    v' <- liftIO . timeout (5 * 10 * 1000) $ (unsafeCoerce v :: IO (Either SomeException Bool))
     let outStr = T.unpack $ printHaskell s out
     let v'' = case v' of
                     Nothing -> Nothing

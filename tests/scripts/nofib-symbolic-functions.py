@@ -117,9 +117,9 @@ def read_float(pre, out):
         res_num = float(reg.group(1))
     return res_num
 
-def read_int(pre, out):
+def read_int(pre, out, default_val= -1):
     reg = re.search(pre + r": ((?:\d)*)", out)
-    res_num = -1
+    res_num = default_val
     if reg:
         res_num = int(reg.group(1))
     return res_num
@@ -256,6 +256,10 @@ def process_output(out):
     avg_nrpc = round((sum(nrpcs_num)/len(nrpcs_num) if len(nrpcs_num) > 0 else 0), 2)
     total_f = 0.0
 
+    post_call_s = read_int(r"Post call states", out, 0)
+    func_arg_s = read_int(r"Func arg states", out, 0)
+    timeout_s = read_int(r"Timeout count", out, 0)
+
     if reached != None and total != None and last != None:
         reached_f = float(reached.group(1))
         total_f = int(total.group(1))
@@ -276,10 +280,24 @@ def process_output(out):
         print("SMT Solver calls: " + str(smt_solver_calls_num))
         print("General Solver calls: " + str(gen_solver_calls_num))
         print ("# nrpcs = " + str(nrpcs_num))
-    return hpc_reached, coverage, last_time, avg_nrpc, tick_times_list, total_f
+        print ("# post call args = " + str(post_call_s))
+        print ("# func args = " + str(func_arg_s))
+        print ("# timeouts = " + str(timeout_s))
+    return hpc_reached, coverage, last_time, avg_nrpc, tick_times_list, total_f, post_call_s, func_arg_s, timeout_s
+
+total_nrpc_post_call_s = 0
+total_nrpc_func_arg_s = 0
+total_nrpc_timeout = 0
+
+total_programs_with_timeout = 0
 
 
 def run_nofib_set(setname, var_settings, timeout):
+        global total_nrpc_post_call_s 
+        global total_nrpc_func_arg_s
+        global total_nrpc_timeout
+        global total_programs_with_timeout
+
         global latex_str_tbl1
         global latex_str_tbl2
         global latex_str_tbl3
@@ -306,6 +324,7 @@ def run_nofib_set(setname, var_settings, timeout):
         latex_str_tbl4 += tempStr
         latex_str_tbl5 += tempStr
 
+
         for file_dir in run_benchmarks:
             bench_path = os.path.join(setpath, file_dir)
             if os.path.isdir(bench_path):
@@ -317,12 +336,18 @@ def run_nofib_set(setname, var_settings, timeout):
                     print(file_dir);
                     res_bench = run_nofib_bench(final_path, var_settings, timeout)
                     print("Baseline:")
-                    base_hpc_cov, base_cov, base_last, avg, base_tick_times, base_total = process_output(res_bench)
+                    base_hpc_cov, base_cov, base_last, avg, base_tick_times, base_total, base_post_call, base_func_args, base_timeouts = process_output(res_bench)
                     res_bench_nrpc = run_nofib_bench_nrpc(final_path, var_settings, timeout)
                     print("NRPC:")
-                    nrpc_hpc_cov, nrpc_cov, nrpc_last, avg_nrpc, nrpc_tick_times, nrpc_total  = process_output(res_bench_nrpc)
+                    nrpc_hpc_cov, nrpc_cov, nrpc_last, avg_nrpc, nrpc_tick_times, nrpc_total, nrpc_post_call, nrpc_func_args, nrpc_timeout  = process_output(res_bench_nrpc)
                     bt1, bt3, bt5, nt1, nt3, nt5 = calculate_time_diff(dict(base_tick_times), dict(nrpc_tick_times))
                     bo1, bo3, bo5, no1, no3, no5 = calculate_order(base_tick_times, nrpc_tick_times)
+
+                    total_nrpc_post_call_s += nrpc_post_call
+                    total_nrpc_func_arg_s += nrpc_func_args
+                    total_nrpc_timeout += nrpc_timeout
+                    if nrpc_timeout > 0:
+                        total_programs_with_timeout += 1
 
                     graph_latex = generate_graph_string(file_dir, calculate_graph(base_tick_times), calculate_graph(nrpc_tick_times))
 
@@ -354,3 +379,8 @@ print("\nLatex string for table 2\n")
 print(latex_str_tbl2)
 print("\nLatex string for table 3\n")
 print(latex_str_tbl3)
+
+print("Total NRPC post call states = " + str(total_nrpc_post_call_s))
+print("Total NRPC func arg states = " + str(total_nrpc_func_arg_s))
+print("Total NRPC timeouts = " + str(total_nrpc_timeout))
+print("Total programs with timeout = " + str(total_programs_with_timeout))
