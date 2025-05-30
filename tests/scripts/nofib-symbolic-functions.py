@@ -10,6 +10,8 @@ exe_name = str(subprocess.run(["cabal", "exec", "which", "G2"], capture_output =
 latex_str_tbl1 = ""
 latex_str_tbl2 = ""
 latex_str_tbl3 = ""
+latex_str_tbl4 = ""
+latex_str_tbl5 = ""
 
 def read_hpc_times(out):
     times = []
@@ -52,7 +54,7 @@ def run_nofib_bench(filename, var_settings, timeout):
 def run_nofib_bench_nrpc(filename, var_settings, timeout):
     return run_nofib_bench(filename, ["--nrpc"] + var_settings, timeout)
 
-def generate_string_for_cov(benchmark, tickCount, covBL, covNRPC, lastTimeBL, lastTimeNrpc):
+def generate_string_for_cov(benchmark, tickCount, covBL, covNRPC, lastTimeBL, lastTimeNrpc, bTick1s, nTick1s, bTick5s, nTick5s):
     #cichelli & \textbf{4} & 3 & 9.5 & 11 & 2\\ \hline
     tempBCov = str(covBL)
     tempNCov = str(covNRPC)
@@ -60,6 +62,8 @@ def generate_string_for_cov(benchmark, tickCount, covBL, covNRPC, lastTimeBL, la
     tempNTime = str(lastTimeNrpc)
 
     global latex_str_tbl1
+    global latex_str_tbl4
+    global latex_str_tbl5
     common_str = " & "
     
     if covBL > covNRPC:
@@ -72,8 +76,17 @@ def generate_string_for_cov(benchmark, tickCount, covBL, covNRPC, lastTimeBL, la
                 tempBTime = r"\textbf{" + str(lastTimeBL) + "}"
             elif lastTimeNrpc < lastTimeBL:
                 tempNTime = r"\textbf{" + str(lastTimeNrpc) + "}"
+    temp = benchmark + common_str + str(tickCount) + common_str + tempBCov + common_str + \
+          tempNCov + common_str + tempBTime +  common_str + tempNTime
     
-    latex_str_tbl1 = latex_str_tbl1 + benchmark + common_str + str(tickCount) + common_str + tempBCov + common_str + tempBTime + common_str + tempNCov + common_str + tempNTime + r"\\ \hline " + "\n"
+    if not bTick1s and not bTick5s:
+        latex_str_tbl1 = latex_str_tbl1 + temp + r"\\ \hline " + "\n"
+
+    if bTick1s and not bTick5s :
+        latex_str_tbl4 += temp + common_str + bTick1s + "/" + nTick1s + r"\\ \hline " + "\n"
+
+    if bTick5s :
+        latex_str_tbl5 += temp + common_str + bTick1s + "/" + nTick1s + common_str + bTick5s + "/" + nTick5s + r"\\ \hline " + "\n"
 
 
 def generate_str_for_pos_ord(benchmark, bTick1s, nTick1s, bTick3s, nTick3s, bTick5s, nTick5s):
@@ -139,9 +152,7 @@ def calculate_order(base_tick_times, nrpc_tick_times):
     base3 = 0
     base5 = 0
     zippedList = zip(base_tick_times, nrpc_tick_times)
-    for ((baseTick, baseMod), baseTime) , ((nrpcTick, nrpcMod), nrpcTime) in zippedList:
-        if baseTick == nrpcTick and baseMod == nrpcMod:
-            continue
+    for (tick, baseTime) , (tick, nrpcTime) in zippedList:
         timeDiff = nrpcTime - baseTime
         # NRPCs are doing better
         if timeDiff < 0:
@@ -159,6 +170,18 @@ def calculate_order(base_tick_times, nrpc_tick_times):
                 base3 += 1
             if abs(timeDiff) >= 5:
                 base5 += 1
+
+    if len(base_tick_times) > len(nrpc_tick_times):
+        temp = len(base_tick_times) - len(nrpc_tick_times)
+        base1 += temp
+        base3 += temp
+        base5 += temp
+    elif (len(base_tick_times) < len(nrpc_tick_times)):
+        temp = len(nrpc_tick_times) - len(base_tick_times)
+        nrpc1 += temp
+        nrpc3 += temp
+        nrpc5 += temp
+
     return base1, base3, base5, nrpc1, nrpc3, nrpc5
 
 def calculate_time_diff(base_tick_times_map, nrpc_tick_times_map):
@@ -225,7 +248,7 @@ def process_output(out):
 
     hpc_exp = re.findall(r"module (.*)>-----\n\s*((?:\d)*)% expressions used \(((?:\d)*)/((?:\d)*)\)", out)
     hpc_exp_num = list(map(lambda x : (x[0], int(x[1]), int(x[2]), int(x[3])), hpc_exp))
-    hpc_reached = round((calculate_hpc_coverage(hpc_exp_num) * 100), 2)
+    hpc_reached = round((calculate_hpc_coverage(hpc_exp_num) * 100), 1)
 
     tick_times_list, all_times = read_hpc_times(out)
     coverage = 0.0
@@ -235,11 +258,11 @@ def process_output(out):
 
     if reached != None and total != None and last != None:
         reached_f = float(reached.group(1))
-        total_f = float(total.group(1))
+        total_f = int(total.group(1))
 
-        coverage = round(((reached_f / total_f)*100), 2)
+        coverage = round(((reached_f / total_f)*100), 1)
         print("Last time is: "+ last.group(1))
-        last_time = round(float(last.group(1)), 2) if last.group(1) else 0.0
+        last_time = round(float(last.group(1)), 1) if last.group(1) else 0.0
 
         print("hpc reached = " + str(hpc_reached))
         print("g2 reached = " + str(reached.group(1)))
@@ -260,6 +283,8 @@ def run_nofib_set(setname, var_settings, timeout):
         global latex_str_tbl1
         global latex_str_tbl2
         global latex_str_tbl3
+        global latex_str_tbl4
+        global latex_str_tbl5
         setpath = os.path.join("nofib-symbolic-functions/", setname)
         all_files_dirs = os.listdir(setpath);
         lhs_files = ["digits-of-e1", "digits-of-e2", "boyer", "circsim", "fibheaps", "knights",
@@ -278,6 +303,8 @@ def run_nofib_set(setname, var_settings, timeout):
         latex_str_tbl1 += tempStr
         latex_str_tbl2 += tempStr
         latex_str_tbl3 += tempStr
+        latex_str_tbl4 += tempStr
+        latex_str_tbl5 += tempStr
 
         for file_dir in run_benchmarks:
             bench_path = os.path.join(setpath, file_dir)
@@ -303,7 +330,9 @@ def run_nofib_set(setname, var_settings, timeout):
                                  str(bt1) + "/" + str(nt1), str(bt3) + "/" + str(nt3), str(bt5) + "/" + str(nt5),
                                  str(bo1) + "/" + str(no1), str(bo3) + "/" + str(no3), str(bo5) + "/" + str(no5),
                                  str(avg_nrpc)])
-                    generate_string_for_cov(file_dir, base_total, base_hpc_cov, nrpc_hpc_cov, base_last, nrpc_last)
+                    generate_string_for_cov(file_dir, base_total, base_hpc_cov, nrpc_hpc_cov, base_last, nrpc_last, "", "", "", "")
+                    generate_string_for_cov(file_dir, base_total, base_hpc_cov, nrpc_hpc_cov, base_last, nrpc_last, str(bo1), str(no1), "", "")
+                    generate_string_for_cov(file_dir, base_total, base_hpc_cov, nrpc_hpc_cov, base_last, nrpc_last, str(bo1), str(no1), str(bo5), str(no5))
                     latex_str_tbl2 += generate_str_for_pos_ord(file_dir, bt1, nt1, bt3, nt3, bt5, nt5)
                     latex_str_tbl3 += generate_str_for_pos_ord(file_dir, bo1, no1, bo3, no3, bo5, no5)
                     print("\n")
@@ -317,6 +346,10 @@ run_nofib_set("spectral", [], 300)
 
 print("Latex string for coverage table\n")
 print(latex_str_tbl1)
+print("Latex string for coverage table with Tick count at atleast 1second \n")
+print(latex_str_tbl4)
+print("Latex string for coverage table with Tick count at atleast 5second \n")
+print(latex_str_tbl5)
 print("\nLatex string for table 2\n")
 print(latex_str_tbl2)
 print("\nLatex string for table 3\n")
