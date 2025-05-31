@@ -9,6 +9,7 @@ import System.FilePath
 
 import Control.Monad
 import Data.Foldable (toList)
+import qualified Data.List as L
 import qualified Data.Map as M
 import Data.Maybe
 import Data.Monoid ((<>))
@@ -47,10 +48,16 @@ runWithArgs as = do
                   (isJust m_assert || isJust m_reaches || m_retsTrue) 
                   tentry simplTranslationConfig config
 
+  let (unspecified_output, spec_output) = L.partition (\ExecRes { final_state = s } -> getExpr s == Prim UnspecifiedOutput TyBottom) in_out
+  putStrLn $ "Post call states: " ++ show (length spec_output)
+  putStrLn $ "Func arg states: " ++ show (length unspecified_output)
+
   val_res <- case validate config || measure_coverage config of
                 True -> do
                     r <- validateStates proj [src] (T.unpack $ fromJust mb_modname) entry [] [Opt_Hpc] b in_out
                     if all isJust r && and (map fromJust r) then putStrLn "Validated" else putStrLn "There was an error during validation."
+
+                    if any isNothing r then putStrLn $ "Timeout count: " ++ show (length $ filter isNothing r) else return ()
 
                     printFuncCalls config entry_f b (Just r) in_out
                     return (Just r)

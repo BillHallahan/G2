@@ -117,9 +117,12 @@ def read_float(pre, out):
         res_num = float(reg.group(1))
     return res_num
 
-def read_int(pre, out):
-    reg = re.search(pre + r": ((?:\d)*)", out)
-    res_num = -1
+def read_int(pre, out, default_val= -1):
+    return read_int_gen(pre + r": ((?:\d)*)", out, default_val)
+
+def read_int_gen(pre, out, default_val= -1):
+    reg = re.search(pre, out)
+    res_num = default_val
     if reg:
         res_num = int(reg.group(1))
     return res_num
@@ -220,10 +223,12 @@ def calculate_hpc_coverage(hpc_res):
     found = map(lambda x : x[2], rel_hpc_res)
     total = map(lambda x : x[3], rel_hpc_res)
     coverage = 0
+    print(list(map(lambda x : ((x[4]), (x[5])), rel_hpc_res)))
+    hpc_branch_nums = sum(map(lambda x : (int(x[4]) + int(x[5])), rel_hpc_res))
     try:
-        return (sum(found) / sum(total))
+        return (sum(found) / sum(total)), hpc_branch_nums
     except:
-        return 0
+        return 0, hpc_branch_nums
 
 def read_runnable_benchmarks(setpath) :
     lines = {}
@@ -246,15 +251,23 @@ def process_output(out):
     total = re.search(r"Tick num: (\d*)", out)
     last = re.search(r"Last tick reached: ((\d|\.)*)", out)
 
-    hpc_exp = re.findall(r"module (.*)>-----\n\s*((?:\d)*)% expressions used \(((?:\d)*)/((?:\d)*)\)", out)
-    hpc_exp_num = list(map(lambda x : (x[0], int(x[1]), int(x[2]), int(x[3])), hpc_exp))
-    hpc_reached = round((calculate_hpc_coverage(hpc_exp_num) * 100), 1)
+    hpc_exp = re.findall(r"module (.*)>-----\n\s*((?:\d)*)% expressions used \(((?:\d)*)/((?:\d)*)\)(?:\n|[^-])*boolean coverage \((?:\d*)/(\d*)\)(?:\n|[^-])*alternatives used \((?:\d*)/(\d*)\)", out)
+    print("hpc_exp = " + str(hpc_exp))
+    hpc_exp_num = list(map(lambda x : (x[0], int(x[1]), int(x[2]), int(x[3]), (x[4]), (x[5])), hpc_exp))
+    hpc_reached, branch_num = calculate_hpc_coverage(hpc_exp_num)
+    hpc_reached = round(hpc_reached * 100, 1)
 
     tick_times_list, all_times = read_hpc_times(out)
     coverage = 0.0
     last_time = 0.0
     avg_nrpc = round((sum(nrpcs_num)/len(nrpcs_num) if len(nrpcs_num) > 0 else 0), 2)
     total_f = 0.0
+
+    # number of states generated, number of timeouts
+    post_call_s = read_int(r"Post call states", out, 0)
+    func_arg_s = read_int(r"Func arg states", out, 0)
+    timeout_s = read_int(r"Timeout count", out, 0)
+
 
     if reached != None and total != None and last != None:
         reached_f = float(reached.group(1))
@@ -276,10 +289,25 @@ def process_output(out):
         print("SMT Solver calls: " + str(smt_solver_calls_num))
         print("General Solver calls: " + str(gen_solver_calls_num))
         print ("# nrpcs = " + str(nrpcs_num))
-    return hpc_reached, coverage, last_time, avg_nrpc, tick_times_list, total_f
+        print ("# post call args = " + str(post_call_s))
+        print ("# func args = " + str(func_arg_s))
+        print ("# timeouts = " + str(timeout_s))
+        print("# branches = " + str(branch_num))
+    return hpc_reached, coverage, last_time, avg_nrpc, tick_times_list, total_f, post_call_s, func_arg_s, timeout_s, branch_num
+
+total_nrpc_post_call_s = 0
+total_nrpc_func_arg_s = 0
+total_nrpc_timeout = 0
+
+total_programs_with_timeout = 0
 
 
 def run_nofib_set(setname, var_settings, timeout):
+        global total_nrpc_post_call_s 
+        global total_nrpc_func_arg_s
+        global total_nrpc_timeout
+        global total_programs_with_timeout
+
         global latex_str_tbl1
         global latex_str_tbl2
         global latex_str_tbl3
@@ -297,7 +325,7 @@ def run_nofib_set(setname, var_settings, timeout):
 
         headers = ["Benchmark", "#Total Ticks", "B HPC cov %", "B cov %", "B last time",
                     "N HPC cov %", "N cov %", "N last time", "Pos 1-sec B/N", "Pos 3-sec B/N", 
-                    "Pos 5-sec B/N", "Diff tick 1s", "Diff tick 3s", "Diff tick 5s", "Avg # Nrpcs"]
+                    "Pos 5-sec B/N", "Diff tick 1s", "Diff tick 3s", "Diff tick 5s", "Avg # Nrpcs", "# Branches"]
         
         tempStr = r"\multicolumn{4}{l}{\textbf{" + setname + r"}}\\ \hline " + "\n"
         latex_str_tbl1 += tempStr
@@ -305,6 +333,7 @@ def run_nofib_set(setname, var_settings, timeout):
         latex_str_tbl3 += tempStr
         latex_str_tbl4 += tempStr
         latex_str_tbl5 += tempStr
+
 
         for file_dir in run_benchmarks:
             bench_path = os.path.join(setpath, file_dir)
@@ -317,19 +346,25 @@ def run_nofib_set(setname, var_settings, timeout):
                     print(file_dir);
                     res_bench = run_nofib_bench(final_path, var_settings, timeout)
                     print("Baseline:")
-                    base_hpc_cov, base_cov, base_last, avg, base_tick_times, base_total = process_output(res_bench)
+                    base_hpc_cov, base_cov, base_last, avg, base_tick_times, base_total, base_post_call, base_func_args, base_timeouts, branch_num = process_output(res_bench)
                     res_bench_nrpc = run_nofib_bench_nrpc(final_path, var_settings, timeout)
                     print("NRPC:")
-                    nrpc_hpc_cov, nrpc_cov, nrpc_last, avg_nrpc, nrpc_tick_times, nrpc_total  = process_output(res_bench_nrpc)
+                    nrpc_hpc_cov, nrpc_cov, nrpc_last, avg_nrpc, nrpc_tick_times, nrpc_total, nrpc_post_call, nrpc_func_args, nrpc_timeout, _  = process_output(res_bench_nrpc)
                     bt1, bt3, bt5, nt1, nt3, nt5 = calculate_time_diff(dict(base_tick_times), dict(nrpc_tick_times))
                     bo1, bo3, bo5, no1, no3, no5 = calculate_order(base_tick_times, nrpc_tick_times)
+
+                    total_nrpc_post_call_s += nrpc_post_call
+                    total_nrpc_func_arg_s += nrpc_func_args
+                    total_nrpc_timeout += nrpc_timeout
+                    if nrpc_timeout > 0:
+                        total_programs_with_timeout += 1
 
                     graph_latex = generate_graph_string(file_dir, calculate_graph(base_tick_times), calculate_graph(nrpc_tick_times))
 
                     data.append([file_dir, base_total, base_hpc_cov, str(base_cov), base_last, nrpc_hpc_cov, str(nrpc_cov), nrpc_last,
                                  str(bt1) + "/" + str(nt1), str(bt3) + "/" + str(nt3), str(bt5) + "/" + str(nt5),
                                  str(bo1) + "/" + str(no1), str(bo3) + "/" + str(no3), str(bo5) + "/" + str(no5),
-                                 str(avg_nrpc)])
+                                 str(avg_nrpc), str(branch_num)])
                     generate_string_for_cov(file_dir, base_total, base_hpc_cov, nrpc_hpc_cov, base_last, nrpc_last, "", "", "", "")
                     generate_string_for_cov(file_dir, base_total, base_hpc_cov, nrpc_hpc_cov, base_last, nrpc_last, str(bo1), str(no1), "", "")
                     generate_string_for_cov(file_dir, base_total, base_hpc_cov, nrpc_hpc_cov, base_last, nrpc_last, str(bo1), str(no1), str(bo5), str(no5))
@@ -341,8 +376,8 @@ def run_nofib_set(setname, var_settings, timeout):
         print(tabulate(data, headers=headers, tablefmt="grid"))
         print("\n")
 
-run_nofib_set("imaginary", [], 300)
-run_nofib_set("spectral", [], 300)
+run_nofib_set("imaginary", [], 1)
+run_nofib_set("spectral", [], 1)
 
 print("Latex string for coverage table\n")
 print(latex_str_tbl1)
@@ -354,3 +389,8 @@ print("\nLatex string for table 2\n")
 print(latex_str_tbl2)
 print("\nLatex string for table 3\n")
 print(latex_str_tbl3)
+
+print("Total NRPC post call states = " + str(total_nrpc_post_call_s))
+print("Total NRPC func arg states = " + str(total_nrpc_func_arg_s))
+print("Total NRPC timeouts = " + str(total_nrpc_timeout))
+print("Total programs with timeout = " + str(total_programs_with_timeout))
