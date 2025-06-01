@@ -12,7 +12,8 @@ module G2.Language.TyVarEnv (TyVarEnv
                             , toList 
                             , tyVarEnvCons
                             , toMap
-                            , deepLookup) where 
+                            , deepLookup
+                            , deepLookup') where 
 
 import Prelude hiding(lookup)
 import GHC.Generics (Generic)
