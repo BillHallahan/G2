@@ -352,6 +352,7 @@ eqLHFuncCall tv ldm i1 i2
         return $ App (App (Prim FpEq pt) (Var i1)) (Var i2)
 
     |  t == TyLitInt
+    || t == TyLitWord
     || t == TyLitRational
     || t == TyLitChar = do
         b <- tyBoolT
@@ -537,11 +538,7 @@ lhPPCall tv lhm fnm t
     | TyForAll _ _ <- t = do
         i <- freshIdN t
         return . Lam TermL i =<< mkTrueE
-    |  t == TyLitInt
-    || t == TyLitDouble
-    || t == TyLitRational
-    || t == TyLitFloat
-    || t == TyLitChar = do
+    | isPrimType t = do
         i <- freshIdN t
         return . Lam TermL i =<< mkTrueE
     | otherwise = error $ "\nError in lhPPCall " ++ show t ++ "\n" ++ show lhm

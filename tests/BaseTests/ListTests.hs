@@ -65,3 +65,10 @@ testFib :: Int -> Bool
 testFib n = case length (take n fibonacci) of
         3 -> True
         _ -> False
+
+unionTest :: Int -> [Int] -> [Int] -> ([Int], Int)
+unionTest v xs ys | v `notElem` xs
+                  , v `elem` ys = (xs `union` ys, 1)
+                  | v `notElem` ys
+                  , v `elem` xs = (xs `union` ys, 2)
+                  | otherwise = (xs `union` ys, 3)

@@ -192,6 +192,7 @@ initStateFromSimpleState s m_mod useAssert mkCurr argTys config =
     , num_steps = 0
     , track = ()
     , sym_gens = Seq.empty
+    , reached_hpc = S.empty
     , tags = S.empty
     }
     , Bindings {
@@ -255,7 +256,7 @@ initCheckReaches s@(State { expr_env = eenv
                           , tyvar_env = tvnv}) m_mod reaches =
     s {expr_env = checkReaches tvnv eenv kv reaches m_mod }
 
-type RHOStack m = SM.StateT LengthNTrack (SM.StateT PrettyGuide (SM.StateT HpcTracker m))
+type RHOStack m = SM.StateT LengthNTrack (SM.StateT PrettyGuide (SM.StateT HpcTracker (SM.StateT HPCMemoTable m)))
 
 {-# SPECIALIZE runReducer :: Ord b =>
                              Reducer (RHOStack IO) rv ()
@@ -271,7 +272,7 @@ type RHOStack m = SM.StateT LengthNTrack (SM.StateT PrettyGuide (SM.StateT HpcTr
 {-# SPECIALIZE 
     initRedHaltOrd :: (Solver solver, Simplifier simplifier) =>
                       State ()
-                   -> Maybe T.Text
+                   -> S.HashSet (Maybe T.Text)
                    -> solver
                    -> simplifier
                    -> Config
@@ -281,7 +282,7 @@ type RHOStack m = SM.StateT LengthNTrack (SM.StateT PrettyGuide (SM.StateT HpcTr
     #-}
 initRedHaltOrd :: (MonadIO m, Solver solver, Simplifier simplifier) =>
                   State ()
-               -> Maybe T.Text
+               -> S.HashSet (Maybe T.Text)
                -> solver
                -> simplifier
                -> Config
@@ -340,6 +341,11 @@ initRedHaltOrd s mod_name solver simplifier config exec_func_names no_nrpc_names
                             True -> SomeHalter (zeroHalter (steps config) <~> halter)
                             False -> SomeHalter halter
         
+        -- halter_accept_only = case halter_step of SomeHalter h -> SomeHalter (liftHalter (liftHalter (liftHalter (acceptOnlyNewHPC h))))
+
+        halter_discard = case hpc_discard_strat config of
+                            True -> SomeHalter (liftHalter (liftHalter (liftHalter (noNewHPCHalter mod_name)))) .<~> halter_step
+                            False -> halter_step
 
         orderer = case search_strat config of
                         Subpath -> SomeOrderer $ lengthNSubpathOrderer (subpath_length config)
@@ -349,15 +355,15 @@ initRedHaltOrd s mod_name solver simplifier config exec_func_names no_nrpc_names
         case higherOrderSolver config of
             AllFuncs ->
                 ( logger_std_red retReplaceSymbFuncVar .== Finished .--> SomeReducer nonRedPCRed
-                ,  halter_step
+                ,  halter_discard
                 , orderer)
             SingleFunc ->
                 ( logger_std_red retReplaceSymbFuncVar .== Finished .--> taggerRed state_name :== Finished --> nonRedPCRed
-                , SomeHalter (discardIfAcceptedTagHalter state_name) .<~> halter_step
+                , SomeHalter (discardIfAcceptedTagHalter state_name) .<~> halter_discard
                 , orderer)
             SymbolicFunc ->
                 ( logger_std_red retReplaceSymbFuncTemplate .== Finished .--> taggerRed state_name :== Finished --> nonRedPCSymFuncRed
-                , SomeHalter (discardIfAcceptedTagHalter state_name) .<~> halter_step
+                , SomeHalter (discardIfAcceptedTagHalter state_name) .<~> halter_discard
                 , orderer)
 
 initSolver :: Config -> IO SomeSolver
@@ -474,8 +480,9 @@ runG2WithConfig :: Name -> [Maybe T.Text] -> State () -> Config -> Bindings -> I
 runG2WithConfig entry_f mb_modname state@(State { expr_env = eenv}) config bindings = do
     SomeSolver solver <- initSolver config
     let (state', bindings') = runG2Pre emptyMemConfig state bindings
+        all_mod_set = S.fromList mb_modname
         mod_name = nameModule entry_f
-    hpc_t <- hpcTracker state' mod_name (hpc_print_times config)
+    hpc_t <- hpcTracker state' all_mod_set (hpc_print_times config) (hpc_print_ticks config)
     let 
         simplifier = FloatSimplifier :>> ArithSimplifier :>> BoolSimplifier :>> StringSimplifier :>> EqualitySimplifier
         --exp_env_names = E.keys . E.filterConcOrSym (\case { E.Sym _ -> False; E.Conc _ -> True }) $ expr_env state
@@ -489,16 +496,17 @@ runG2WithConfig entry_f mb_modname state@(State { expr_env = eenv}) config bindi
         non_rec_funcs = filter (isFuncNonRecursive callGraph) reachable_funcs
 
     analysis1 <- if states_at_time config then do l <- logStatesAtTime; return [l] else return noAnalysis
-    let analysis2 = if states_at_step config then [\s p xs -> SM.lift . SM.lift . SM.lift $ logStatesAtStep s p xs] else noAnalysis
-        analysis3 = if print_num_red_rules config then [\s p xs -> SM.lift . SM.lift . SM.lift . SM.lift $ logRedRuleNum s p xs] else noAnalysis
+    let analysis2 = if states_at_step config then [\s p xs -> SM.lift . SM.lift . SM.lift . SM.lift $ logStatesAtStep s p xs] else noAnalysis
+        analysis3 = if print_num_red_rules config then [\s p xs -> SM.lift . SM.lift . SM.lift . SM.lift . SM.lift $ logRedRuleNum s p xs] else noAnalysis
         analysis4 = if print_nrpcs config then [\s p xs -> SM.lift $ logNRPCs s p xs] else noAnalysis
         analysis = analysis1 ++ analysis2 ++ analysis3 ++ analysis4
     
     (in_out, bindings'') <- case null analysis of
         True -> do
-            rho <- initRedHaltOrd  state' mod_name solver simplifier config (S.fromList executable_funcs) (S.fromList non_rec_funcs)
+            rho <- initRedHaltOrd  state' all_mod_set solver simplifier config (S.fromList executable_funcs) (S.fromList non_rec_funcs)
             case rho of
                 (red, hal, ord) ->
+                    SM.evalStateT (
                         SM.evalStateT
                             (SM.evalStateT
                                 (SM.evalStateT
@@ -510,23 +518,28 @@ runG2WithConfig entry_f mb_modname state@(State { expr_env = eenv}) config bindi
                                 else setTypePrinting AggressiveTypes (mkPrettyGuide ())) 
                             )
                             hpc_t
+                        )
+                        HM.empty
         False -> do
-            rho <- initRedHaltOrd state' mod_name solver simplifier config (S.fromList executable_funcs) (S.fromList non_rec_funcs)
+            rho <- initRedHaltOrd state' all_mod_set solver simplifier config (S.fromList executable_funcs) (S.fromList non_rec_funcs)
             case rho of
                 (red, hal, ord) ->
                     SM.evalStateT (
                         SM.evalStateT (
-                            SM.evalStateT
-                                (SM.evalStateT
+                            SM.evalStateT (
+                                SM.evalStateT
                                     (SM.evalStateT
-                                        (runG2WithSomes' red hal ord analysis solver simplifier state' bindings')
-                                        lnt
+                                        (SM.evalStateT
+                                            (runG2WithSomes' red hal ord analysis solver simplifier state' bindings')
+                                            lnt
+                                        )
+                                        (if showType config == Lax 
+                                        then (mkPrettyGuide ())
+                                        else setTypePrinting AggressiveTypes (mkPrettyGuide ())) 
                                     )
-                                    (if showType config == Lax 
-                                    then (mkPrettyGuide ())
-                                    else setTypePrinting AggressiveTypes (mkPrettyGuide ())) 
+                                    hpc_t
                                 )
-                                hpc_t
+                                HM.empty
                             )
                             logStatesAtStepTracker
                         )
@@ -709,7 +722,7 @@ runG2SubstModel m s@(State { type_env = tenv, known_values = kv }) bindings =
         sm' = runPostprocessing bindings sm
 
         sm'' = ExecRes { final_state = final_state sm'
-                       , conc_args = fixed_inputs bindings ++ conc_args sm'
+                       , conc_args = fixed_inputs bindings ++ evalPrims tenv kv (conc_args sm')
                        , conc_out = evalPrims tenv kv (conc_out sm')
                        , conc_sym_gens = gens
                        , conc_mutvars = mv

@@ -6,6 +6,7 @@
 module G2.Language.Stack
     ( Stack
     , empty
+    , singleton
     , null
     , push
     , pop
@@ -29,6 +30,10 @@ instance Hashable a => Hashable (Stack a)
 -- | Get an empty `Stack`.
 empty :: Stack a
 empty = Stack []
+
+-- | Get a `Stack` with a single value.
+singleton :: a -> Stack a
+singleton x = Stack [x]
 
 -- | Is the `Stack` empty?
 null :: Stack a -> Bool

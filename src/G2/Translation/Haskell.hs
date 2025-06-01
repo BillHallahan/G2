@@ -105,10 +105,11 @@ loadProj :: Maybe HscTarget -> [FilePath] -> [FilePath] -> [GeneralFlag] -> G2.T
 loadProj hsc proj src gflags tr_con = do
     beta_flags <- getSessionDynFlags
     let gen_flags = if G2.hpc_ticks tr_con then Opt_Hpc:gflags else gflags
+        gen_flags' = Opt_IgnoreAsserts:gen_flags
 
     let init_beta_flags = gopt_unset beta_flags Opt_StaticArgumentTransformation
 
-    let beta_flags' = foldl' gopt_set init_beta_flags gen_flags
+    let beta_flags' = foldl' gopt_set init_beta_flags gen_flags'
     let dflags = beta_flags' {
 #if MIN_VERSION_GLASGOW_HASKELL(9,6,0,0)
                                backend = case hsc of

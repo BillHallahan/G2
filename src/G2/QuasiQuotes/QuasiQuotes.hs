@@ -334,6 +334,7 @@ moveOutStatePieces tenv_name s = do
              , num_steps = $(num_steps_exp)
              , tags = $(tags_exp) 
              , sym_gens = Seq.empty
+             , reached_hpc = HS.empty
              , track = $(track_exp) } |]
 
 -- Returns an Q Exp represeting a [(Name, Expr)] list

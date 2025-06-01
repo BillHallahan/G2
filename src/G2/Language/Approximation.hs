@@ -114,8 +114,8 @@ moreRestrictive' mr_cont gen_lemma lkp s1@(State {expr_env = h1, tyvar_env = tv1
                            | not (hasFuncType (typeOf tv1 e1) )
                            , not (hasFuncType (typeOf tv2 e2) )
                            , not active
-                           , Var (Id m1 _):_ <- unApp (modifyASTs stripTicks e1)
-                           , Var (Id m2 _):_ <- unApp (modifyASTs stripTicks e2)
+                           , Var (Id m1 _):_ <- unApp (stripAllTicks e1)
+                           , Var (Id m2 _):_ <- unApp (stripAllTicks e2)
                            , nameOcc m1 == nameOcc m2
                            , Left lems <- moreResFA ->
                                 Left $ (gen_lemma s1 s2 hm e1 e2):lems
