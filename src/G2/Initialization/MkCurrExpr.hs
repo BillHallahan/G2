@@ -15,7 +15,6 @@ import Data.Maybe
 import qualified Data.Text as T
 import qualified Data.HashMap.Lazy as HM 
 import qualified G2.Language.TyVarEnv as TV 
-import Debug.Trace
 
 mkCurrExpr :: TV.TyVarEnv -> Maybe T.Text -> Maybe T.Text -> Id
            -> TypeClasses -> NameGen -> ExprEnv -> TypeEnv
@@ -188,7 +187,7 @@ instantitateTypes tc kv ts =
                                     sat = satisfyingTCTypes kv tc i ts''
                                     pt = pickForTyVar kv sat
                                 in
-                                trace("The sat is " ++ show sat)(replaceTyVar (idName i) pt ts'', (i, pt))) ts' tv
+                                (replaceTyVar (idName i) pt ts'', (i, pt))) ts' tv
 
         -- Get dictionary arguments
         vi = mapMaybe (instantiateTCDict tc tcSat) ts'
