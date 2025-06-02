@@ -416,7 +416,7 @@ concretizeVarExpr' s@(State {expr_env = eenv, type_env = tenv, known_values = kv
                  }, ngen'')
   where
     mexpr_t = typeOf tvnv mexpr_id
-    (news, dcon', ngen', aexpr') = cleanParamsAndMakeDcon tvnv params ngen dcon aexpr mexpr_t tenv
+    (news, dcon', ngen', aexpr') = cleanParamsAndMakeDcon params ngen dcon aexpr mexpr_t tenv
 
     -- Apply cast, in opposite direction of unsafeElimOuterCast
     dcon'' = case maybeC of 
@@ -427,10 +427,10 @@ concretizeVarExpr' s@(State {expr_env = eenv, type_env = tenv, known_values = kv
     binds = [(cvar, (Var mexpr_id))]
     aexpr'' = liftCaseBinds binds aexpr'
 
-    (eenv'', pcs, ngen'') = adjustExprEnvAndPathConds tvnv kv tenv eenv ngen' dcon dcon'' mexpr_id params news
+    (eenv'', pcs, ngen'') = adjustExprEnvAndPathConds kv tenv eenv ngen' dcon dcon'' mexpr_id params news
 
-cleanParamsAndMakeDcon :: TV.TyVarEnv -> [Id] -> NameGen -> DataCon -> Expr -> Type -> TypeEnv -> ([Name], Expr, NameGen, Expr)
-cleanParamsAndMakeDcon tv params ngen dcon aexpr mexpr_t tenv =
+cleanParamsAndMakeDcon :: [Id] -> NameGen -> DataCon -> Expr -> Type -> TypeEnv -> ([Name], Expr, NameGen, Expr)
+cleanParamsAndMakeDcon params ngen dcon aexpr mexpr_t tenv =
     let
         -- Make sure that the parameters do not conflict in their symbolic reps.
         olds = map idName params
@@ -440,10 +440,10 @@ cleanParamsAndMakeDcon tv params ngen dcon aexpr mexpr_t tenv =
 
         (dcon', aexpr') = renameExprs (zip olds news) (Data dcon, aexpr)
 
-        newparams = map (uncurry Id) $ zip news (map (typeOf tv) params)
+        newparams = map (uncurry Id) $ zip news (map (typeOf tvnv) params)
         dConArgs = (map (Var) newparams)
-
         -- Get list of Types to concretize polymorphic data constructor and concatenate with other arguments
+        mexpr_t = typeOf tvnv mexpr_id
         type_ars = mexprTyToExpr mexpr_t tenv
         exprs = [dcon'] ++ type_ars ++ dConArgs
 
@@ -493,7 +493,7 @@ adjustExprEnvAndPathConds :: TV.TyVarEnv
                   -> [Name]
                   -> (ExprEnv, [PathCond], NameGen)
 adjustExprEnvAndPathConds tv kv tenv eenv ng dc dc_e mexpr params dc_args
-    | Just dcpcs <- HM.lookup (dcName dc) (dcpcMap tv kv tenv)
+    | Just dcpcs <- HM.lookup (dcName dc) (dcpcMap kv tenv)
     , _:ty_args <- unTyApp $ typeOf tv mexpr
     , Just dcpc <- L.lookup ty_args dcpcs = 
         let 
@@ -552,12 +552,12 @@ createExtCond s ngen mexpr cvar (dcon, bindees, aexpr)
             res = s {curr_expr = CurrExpr Evaluate aexpr'}
         in
         (NewPC { state = res, new_pcs = [cond] , concretized = []}, ngen)
-    | Just dcpcs <- HM.lookup (dcName dcon) (dcpcMap tvnv kv tenv)
+    | Just dcpcs <- HM.lookup (dcName dcon) (dcpcMap kv tenv)
     , _:ty_args <- unTyApp $ typeOf tvnv mexpr
     , Just dcpc <- L.lookup ty_args dcpcs = 
         let
             mexpr_t = typeOf tvnv mexpr
-            (news, dcon', ngen', aexpr') = cleanParamsAndMakeDcon tvnv bindees ngen dcon aexpr mexpr_t tenv
+            (news, dcon', ngen', aexpr') = cleanParamsAndMakeDcon bindees ngen dcon aexpr mexpr_t tenv
 
             new_ids = zipWith (\(Id _ t) n -> Id n t) bindees news
             eenv = foldr E.insertSymbolic (expr_env s) new_ids
