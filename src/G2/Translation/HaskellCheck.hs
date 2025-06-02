@@ -112,7 +112,8 @@ runCheck init_pg modN entry chAll b er@(ExecRes {final_state = s, conc_args = ar
     let pg = updatePGValAndTypeNames e
            . updatePGValAndTypeNames out
            $ updatePGValAndTypeNames (varIds v) init_pg
-
+    -- let arsStr = T.unpack $ printHaskellPG pg s e
+    -- let outStr = T.unpack $ printHaskellPG pg s out
     let (mvTxt, arsTxt, outTxt, _) = printInputOutput pg v b er 
         mvStr = T.unpack mvTxt
         arsStr = T.unpack arsTxt
@@ -120,15 +121,17 @@ runCheck init_pg modN entry chAll b er@(ExecRes {final_state = s, conc_args = ar
     -- before the typeOf in the next line , we want to retype the type variable in the expression 
     -- with the corresponding type find in the tyvar_env 
     -- use tyVarRename and change the map into TyVarEnv 
-
-    -- let e' = tyVarSubst (tyvar_env s) e
-    -- let out' = tyVarSubst (tyvar_env s) out
-
-    let arsType = T.unpack $ mkTypeHaskellPG pg (typeOf (tyvar_env s) e)
-        outType = T.unpack $ mkTypeHaskellPG pg (typeOf (tyvar_env s) out)
+    --trace("The tyvar_env is " ++ show (tyvar_env s))
+    let e' = tyVarSubst (tyvar_env s) e
+    let out' = tyVarSubst (tyvar_env s) out
+    -- liftIO $ do
+    --     print e'
+    --     print out'
+    let arsType = T.unpack $ mkTypeHaskellPG pg (typeOf (tyvar_env s) e')
+        outType = T.unpack $ mkTypeHaskellPG pg (typeOf (tyvar_env s) out')
 
     -- If we are returning a primitive type (Int#, Float#, etc.) wrap in a constructor so that `==` works
-    let pr_con = case typeOf (tyvar_env s) out of
+    let pr_con = case typeOf (tyvar_env s) out' of
                         TyLitInt -> "I# "
                         TyLitDouble -> "D# "
                         TyLitFloat -> "F# "
