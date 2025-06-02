@@ -85,7 +85,6 @@ import Control.Monad.IO.Class
 import qualified Control.Monad.State as SM
 import Data.Function
 import Data.Monoid
-import qualified G2.Language.TyVarEnv as TV 
 
 -------------------------------------
 -- Solvers
@@ -100,7 +99,7 @@ instance Solver solver => Solver (SpreadOutSolver solver) where
     
     solve (SpreadOutSolver mx_size solver) s b is pc =
         let
-            int_vs = filter (isInteger . typeOf (tyvar_env s)) is
+            int_vs = filter (isInteger . typeOf) is
             max_vs = map (\i -> Id (Name "MAX_INT_ORD__??__" Nothing i Nothing) TyLitInt)
                    . map fst
                    $ zip [1..] int_vs
@@ -204,22 +203,21 @@ cleanupResultsInference solver simplifier config init_id bindings ers = do
                 (er { final_state =
                               s {track = 
                                     mapAbstractedInfoFCs (evalPrims (type_env s) (known_values s)
-                                                         . subVarFuncCall (tyvar_env s) True (model s) (expr_env s) (type_classes s))
+                                                         . subVarFuncCall True (model s) (expr_env s) (type_classes s))
                                     $ track s
                                 }
                     })) ers6
     return (ers7, bindings')
 
 replaceHigherOrderNames :: Name -> [Name] -> ExecRes LHTracker -> ExecRes LHTracker
-replaceHigherOrderNames init_name input_names er@(ExecRes { final_state = s@(State { expr_env = eenv, track = t, tyvar_env = tvnv })}) =
+replaceHigherOrderNames init_name input_names er@(ExecRes { final_state = s@(State { expr_env = eenv, track = t })}) =
     let
         higher = higher_order_calls t
 
-        input_names' = filter (hasFuncType . (typeOf tvnv) . (E.!) eenv) input_names
+        input_names' = filter (hasFuncType . (E.!) eenv) input_names
         higher_num_init = zip input_names' (map (higherOrderName (nameOcc init_name)) [1..])
         higher_num_all = concatMap (\fc -> let
-                                        -- TODO: did I use the typeOf correctly in replaceHigherOrderNames?
-                                        as = map nameFromVar $ filter (hasFuncType . typeOf tvnv) (arguments fc)
+                                        as = map nameFromVar $ filter hasFuncType (arguments fc)
                                      in
                                       zip as (map (higherOrderName (nameOcc $ funcName fc)) [1..]) )
                        . map (\fc -> if nameOcc (funcName fc) == "INITIALLY_CALLED_FUNC" then fc { funcName = init_name } else fc)
@@ -275,7 +273,7 @@ runG2SolvingInference solver simplifier bindings (ExecRes { final_state = s }) =
                 _ -> error "runG2SolvingInference: solving failed with no minimization"
 
 earlyExecRes :: Bindings -> State t -> ExecRes t
-earlyExecRes b s@(State { expr_env = eenv, curr_expr = CurrExpr _ cexpr, sym_gens = gens, tyvar_env = tvnv }) =
+earlyExecRes b s@(State { expr_env = eenv, curr_expr = CurrExpr _ cexpr, sym_gens = gens }) =
     let
         viol = assert_ids s
         viol' = if fmap funcName viol == Just initiallyCalledFuncName
@@ -289,7 +287,7 @@ earlyExecRes b s@(State { expr_env = eenv, curr_expr = CurrExpr _ cexpr, sym_gen
             , violated = viol' }
     where
         getArg n = case E.lookup n eenv of
-                                Just e@(Lam _ _ _) -> Just . Var $ Id n (typeOf tvnv e)
+                                Just e@(Lam _ _ _) -> Just . Var $ Id n (typeOf e)
                                 Just e -> Just e
                                 Nothing -> Nothing
 
@@ -315,26 +313,26 @@ satState solver s
 -- to be the same as the `real` function call arguments.
 softAbstractResembleReal :: State AbstractedInfo -> PathConds
 softAbstractResembleReal s =
-      foldr PC.union PC.empty . map (softAbstractResembleReal' (tyvar_env s)) 
+      foldr PC.union PC.empty . map softAbstractResembleReal' 
     . modifyContainedASTs (inline (expr_env s) HS.empty) . abs_calls . track $ s
 
-softAbstractResembleReal' :: TV.TyVarEnv -> Abstracted -> PathConds
-softAbstractResembleReal' tv abstracted =
+softAbstractResembleReal' :: Abstracted -> PathConds
+softAbstractResembleReal' abstracted =
     let
         ars_pairs = zip (arguments $ abstract abstracted) (arguments $ real abstracted)
         ret_pair = (returns $ abstract abstracted, returns $ real abstracted)
     in
-    foldr PC.union PC.empty . map PC.fromList $ map (uncurry (softPair tv) ) (ret_pair:ars_pairs)
+    foldr PC.union PC.empty . map PC.fromList $ map (uncurry softPair) (ret_pair:ars_pairs)
 
-softPair :: TV.TyVarEnv -> Expr -> Expr -> [PathCond]
-softPair tv v1@(Var (Id _ TyLitInt)) e2 =
-    assert (TyLitInt == typeOf tv e2)
+softPair :: Expr -> Expr -> [PathCond]
+softPair v1@(Var (Id _ TyLitInt)) e2 =
+    assert (TyLitInt == typeOf e2)
         [MinimizePC $ App (Prim Abs TyUnknown) (App (App (Prim Minus TyUnknown) v1) e2)]
-softPair tv e1 v2@(Var (Id _ TyLitInt)) =
-    assert (typeOf tv e1 == TyLitInt)
+softPair e1 v2@(Var (Id _ TyLitInt)) =
+    assert (typeOf e1 == TyLitInt)
         [MinimizePC $ App (Prim Abs TyUnknown) (App (App (Prim Minus TyUnknown) e1) v2)]
-softPair tv (App e1 e2) (App e1' e2') = softPair tv e1 e1' ++ softPair tv e2 e2'
-softPair _ _ _ = []
+softPair (App e1 e2) (App e1' e2') = softPair e1 e1' ++ softPair e2 e2'
+softPair _ _ = []
 
 -------------------------------------
 -- Generating Allowed Inputs/Outputs
@@ -445,8 +443,7 @@ gatherReducerHalterOrderer infconfig config lhconfig solver simplifier = do
 -- function to just running the symbolic execution, for debugging.
 
 {-# SPECIALISE
-    runLHInferenceAll :: TV.TyVarEnv
-                      -> InferenceConfig
+    runLHInferenceAll :: InferenceConfig
                       -> Config
                       -> LHConfig
                       -> T.Text
@@ -455,15 +452,14 @@ gatherReducerHalterOrderer infconfig config lhconfig solver simplifier = do
                       -> IO (([ExecRes AbstractedInfo], Bindings), Id)
  #-}
 runLHInferenceAll :: MonadIO m
-                  => TV.TyVarEnv
-                  -> InferenceConfig
+                  => InferenceConfig
                   -> Config
                   -> LHConfig
                   -> T.Text
                   -> [FilePath]
                   -> [FilePath]
                   -> m (([ExecRes AbstractedInfo], Bindings), Id)
-runLHInferenceAll tv infconfig config g2lhconfig func proj fp = do
+runLHInferenceAll infconfig config g2lhconfig func proj fp = do
     -- Initialize LiquidHaskell
     (ghci, lhconfig) <- liftIO $ getGHCI infconfig proj fp
 
@@ -472,7 +468,7 @@ runLHInferenceAll tv infconfig config g2lhconfig func proj fp = do
         transConfig = simplTranslationConfig { simpl = False }
     (main_mod, exg2) <- liftIO $ translateLoaded proj fp transConfig g2config
 
-    let (lrs, g2config', g2lhconfig', infconfig') = initStateAndConfig tv exg2 main_mod g2config g2lhconfig infconfig ghci
+    let (lrs, g2config', g2lhconfig', infconfig') = initStateAndConfig exg2 main_mod g2config g2lhconfig infconfig ghci
 
     let configs = Configs { g2_config = g2config', g2lh_config = g2lhconfig', lh_config = lhconfig, inf_config = infconfig'}
 
@@ -660,22 +656,22 @@ realCExReducerHalterOrderer infconfig config lhconfig entry modname solver simpl
 
 
 swapHigherOrdForSymGen :: Bindings -> State t -> State t
-swapHigherOrdForSymGen b s@(State { expr_env = eenv, tyvar_env = tvnv }) =
+swapHigherOrdForSymGen b s@(State { expr_env = eenv }) =
     let
-        is = filter (isTyFun . (typeOf tvnv) ) $ inputIds s b
+        is = filter (isTyFun . typeOf) $ inputIds s b
 
-        eenv' = foldr (swapForSG tvnv) eenv is
+        eenv' = foldr swapForSG eenv is
     in
     s { expr_env = eenv' }
 
-swapForSG :: TV.TyVarEnv -> Id -> ExprEnv -> ExprEnv
-swapForSG tv i eenv =
+swapForSG :: Id -> ExprEnv -> ExprEnv
+swapForSG i eenv =
     let
         as = map (\at -> case at of
                           NamedType i' -> (TypeL, i')
                           AnonType t -> (TermL, Id (Name "x" Nothing 0 Nothing) t))
-           $ spArgumentTypes $ typeOf tv i
-        r = returnType $ typeOf tv i
+           $ spArgumentTypes i
+        r = returnType i
 
         sg_i = Id (Name "sym_gen" Nothing 0 Nothing) r
     in
@@ -937,7 +933,7 @@ evalMeasures init_meas lrs ghci es = do
     let s' = s { true_assert = True }
         final_s = markAndSweepPreserving pres_names s' bindings
 
-        tot_meas = E.filter (isTotal (tyvar_env s) (type_env s)) meas
+        tot_meas = E.filter (isTotal (type_env s)) meas
 
     SomeSolver solver <- liftIO $ initSolver config
     meas_res <- foldM (evalMeasures' (final_s {type_env = type_env s}) bindings solver config tot_meas tcv) init_meas $ filter (not . isError) es
@@ -957,11 +953,11 @@ evalMeasures init_meas lrs ghci es = do
         isError (Prim Error _) = True
         isError _ = False
 
-isTotal :: TV.TyVarEnv -> TypeEnv -> Expr -> Bool
-isTotal tv tenv = getAll . evalASTs isTotal'
+isTotal :: TypeEnv -> Expr -> Bool
+isTotal tenv = getAll . evalASTs isTotal'
     where
         isTotal' (Case i _ _ as)
-            | TyCon n _:_ <- unTyApp (typeOf tv i)
+            | TyCon n _:_ <- unTyApp (typeOf i)
             , Just adt <- HM.lookup n tenv =
                 All (length (dataCon adt) == length (filter isDataAlt as))
         isTotal' (Case _ _ _ _) = All False
@@ -1000,62 +996,57 @@ evalMeasures' s bindings solver config meas tcv init_meas e =  do
 evalMeasures'' :: Int -> State t -> Bindings -> Measures -> TCValues -> Expr -> [([Name], Expr, State t)]
 evalMeasures'' mx_meas s b m tcv e =
     let
-        meas_comps = formMeasureComps (tyvar_env s) mx_meas (type_env s) (typeOf (tyvar_env s) e) m
+        meas_comps = formMeasureComps mx_meas (type_env s) (typeOf e) m
 
         rel_m = mapMaybe (\ns_me ->
-                              case chainReturnType (tyvar_env s) (typeOf (tyvar_env s) e) (map snd ns_me) of
+                              case chainReturnType (typeOf e) (map snd ns_me) of
                                   Just (_, vms) -> Just (ns_me, vms)
                                   Nothing -> Nothing) meas_comps
     in
     map (\(ns_es, bound) ->
             let
-                is = map (\(n, me) -> Id n (typeOf (tyvar_env s) me)) ns_es
+                is = map (\(n, me) -> Id n (typeOf me)) ns_es
                 str_call = evalMeasuresCE s b tcv is e bound
             in
             (map fst ns_es, e, s { curr_expr = CurrExpr Evaluate str_call })
         ) rel_m
 
 -- Form all possible measure compositions, up to the maximal length
-formMeasureComps :: TV.TyVarEnv 
-                 -> MaxMeasures -- ^ max length
+formMeasureComps :: MaxMeasures -- ^ max length
                  -> TypeEnv
                  -> Type -- ^ Type of input value to the measures
                  -> Measures
                  -> [[(Name, Expr)]]
-formMeasureComps tv !mx tenv in_t meas =
+formMeasureComps !mx tenv in_t meas =
     let
-        meas' = E.toExprList $ E.filter (isTotal tv tenv) meas
+        meas' = E.toExprList $ E.filter (isTotal tenv) meas
     in
-    formMeasureComps' tv mx in_t (map (:[]) meas') meas'
+    formMeasureComps' mx in_t (map (:[]) meas') meas'
 
-formMeasureComps' :: TV.TyVarEnv 
-                  -> MaxMeasures -- ^ max length
+formMeasureComps' :: MaxMeasures -- ^ max length
                   -> Type -- ^ Type of input value to the measures
                   -> [[(Name, Expr)]]
                   -> [(Name, Expr)]
                   -> [[(Name, Expr)]]
-formMeasureComps' tv !mx in_t existing ns_me
+formMeasureComps' !mx in_t existing ns_me
     | mx <= 1 = existing
     | otherwise =
       let 
           r = [ ne1:ne2 | ne1@(_, e1) <- ns_me
                         , ne2 <- existing
-                        , case (filter notLH $ anonArgumentTypes (typeOf tv e1), fmap fst . chainReturnType tv in_t $ map snd ne2) of
-                            ([at], Just t) -> t .:: at
+                        , case (filter notLH $ anonArgumentTypes e1, fmap fst . chainReturnType in_t $ map snd ne2) of
+                            ([at], Just t) -> PresType t .:: at
                             _ -> False ]
       in
-      formMeasureComps' tv (mx - 1) in_t (r ++ existing) ns_me
+      formMeasureComps' (mx - 1) in_t (r ++ existing) ns_me
 
--- TODO: chainReturnType return should be a TyVarEnv or M.Map, I am currently keep it as M.Map 
--- but probably should be change into TyVarEnv in the future
--- In addition, I am wondering whether the change I made is correct?
-chainReturnType :: TV.TyVarEnv -> Type -> [Expr] -> Maybe (Type, [M.Map Name Type])
-chainReturnType tv t ne =
+chainReturnType :: Type -> [Expr] -> Maybe (Type, [M.Map Name Type])
+chainReturnType t ne =
     foldM (\(t', vms) et -> 
-                case filter notLH (anonArgumentTypes et) of
+                case filter notLH . anonArgumentTypes $ PresType et of
                     [at]
-                        | Just vm <- t' `specializes` at -> Just (applyTypeMap (TV.toMap vm) . returnType $ typeOf tv et, TV.toMap vm : vms )
-                    _ ->  Nothing) (t, []) (map (typeOf tv) $ reverse ne)
+                        | Just vm <- t' `specializes` at -> Just (applyTypeMap vm . returnType $ PresType et, vm:vms)
+                    _ ->  Nothing) (t, []) (map typeOf $ reverse ne)
 
 notLH :: Type -> Bool
 notLH ty
@@ -1071,7 +1062,7 @@ evalMeasuresCE s bindings tcv is e bound =
     where
         tyAppId i b =
             let
-                bound_names = map idName (tyForAllBindings $ typeOf (tyvar_env s) i) 
+                bound_names = map idName $ tyForAllBindings i
                 bound_tys = map (\n -> case M.lookup n b of
                                         Just t -> t
                                         Nothing -> TyUnknown) bound_names
