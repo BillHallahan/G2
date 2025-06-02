@@ -37,7 +37,6 @@ import qualified Data.Sequence as S
 import qualified G2.Language.TyVarEnv as TV 
 import GHC.Generics (Generic)
 import Debug.Trace
-import Data.Maybe (fromMaybe)
 
 data Class = Class { insts :: [(Type, Id)], typ_ids :: [Id], superclasses :: [(Type, Id)]}
                 deriving (Show, Eq, Read, Typeable, Data, Generic)
@@ -104,9 +103,7 @@ lookupTCDict tc n t =
 -- `Type`s that have instances of that typeclass, and the
 -- typeclass dictionaries.
 lookupTCDicts :: Name -> TypeClasses -> Maybe [(Type, Id)]
-lookupTCDicts n tc = 
-    let result = fmap insts . M.lookup n . coerce $ tc
-    in traceShow result result
+lookupTCDicts n = fmap insts . M.lookup n . coerce
 
 lookupTCClass :: Name -> TypeClasses -> Maybe Class
 lookupTCClass n = M.lookup n . coerce
@@ -168,7 +165,7 @@ satisfyingTCTypes kv tc i ts =
     in
     case mapMaybe lookupTCDictsTypes tcReq of
         [] -> [tyInt kv]
-        xs -> substKind i $ foldr1 intersect xs
+        xs ->trace("In xs case, the xs are: "++ show xs) substKind i $ foldr1 intersect xs
     where
         lookupTCDictsTypes (TyApp t1 t2) =
               fmap (mapMaybe (\t' -> TV.lookup (idName i) =<< specializes t' t2))
