@@ -1046,12 +1046,13 @@ formMeasureComps' tv !mx in_t existing ns_me
       in
       formMeasureComps' tv (mx - 1) in_t (r ++ existing) ns_me
 
--- TODO: chainReturnType currently return a M.Map but probably should be change into TyVarEnv in the future
+-- TODO: chainReturnType return should be a TyVarEnv or M.Map, I am currently keep it as M.Map 
+-- but probably should be change into TyVarEnv in the future
 -- In addition, I am wondering whether the change I made is correct?
 chainReturnType :: TV.TyVarEnv -> Type -> [Expr] -> Maybe (Type, [M.Map Name Type])
 chainReturnType tv t ne =
     foldM (\(t', vms) et -> 
-                case filter notLH (anonArgumentTypes $ typeOf tv et) of
+                case filter notLH (anonArgumentTypes et) of
                     [at]
                         | Just vm <- t' `specializes` at -> Just (applyTypeMap (TV.toMap vm) . returnType $ typeOf tv et, TV.toMap vm : vms )
                     _ ->  Nothing) (t, []) (map (typeOf tv) $ reverse ne)

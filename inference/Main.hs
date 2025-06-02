@@ -21,7 +21,6 @@ import qualified Data.Map as M
 import qualified Data.Text as T
 import Data.Time.Clock
 import System.Environment
-import qualified G2.Language.TyVarEnv as TV 
 
 main :: IO ()
 main = do
@@ -33,8 +32,7 @@ main = do
                             then checkFuncNums f infconfig config g2lhconfig
                             else callInference f infconfig config g2lhconfig
         Just func' -> do
-            -- TODO: is it safe to use TV.empty in main as our starting point?
-            ((in_out, _), entry) <- runLHInferenceAll TV.empty infconfig config g2lhconfig (T.pack func') [] [f]
+            ((in_out, _), entry) <- runLHInferenceAll infconfig config g2lhconfig (T.pack func') [] [f]
             printLHOut entry in_out
             return ()
 
