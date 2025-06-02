@@ -187,6 +187,3 @@ floatToDouble :: Float -> (Int, NaNEq)
 floatToDouble x | isNaN x || isInfinite x = (0, D 0)
                 | float2Double x > 0 = (1, D (float2Double x))
                 | otherwise = (2, D (float2Double x))
-
-enum :: [Double]
-enum = take 5 (map (^4) ([1.0..]))

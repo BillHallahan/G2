@@ -27,7 +27,7 @@ primInject = modifyASTs primInjectT
 primInjectT :: Type -> Type
 primInjectT (TyCon (Name "TYPE" (Just "GHC.Prim") _ _) _) = TYPE
 primInjectT (TyCon (Name "Int#" _ _ _) _) = TyLitInt
-primInjectT (TyCon (Name "Word#" _ _ _) _) = TyLitWord
+primInjectT (TyCon (Name "Word#" _ _ _) _) = TyLitInt
 primInjectT (TyCon (Name "Float#" _ _ _) _) = TyLitFloat
 primInjectT (TyCon (Name "Double#" _ _ _) _) = TyLitDouble
 primInjectT (TyCon (Name "Char#" _ _ _) _) = TyLitChar
@@ -142,16 +142,17 @@ primDefs' b c l unit =
               , ("rationalToDouble#", Prim RationalToDouble (TyFun TyLitInt $ TyFun TyLitInt TyLitDouble))
               , ("fromIntToDouble", Prim IntToDouble (TyFun TyLitInt TyLitDouble))
 
-              , ("integerToWord#", Lam TermL (x TyLitWord) (Var (x TyLitWord)))
-              , ("plusWord#", Prim Plus tyWordWordWord)
-              , ("minusWord#", Prim Minus tyWordWordWord)
-              , ("timesWord#", Prim Mult tyWordWordWord)
-              , ("eqWord#", Prim Eq $ tyWordWordBool b)
-              , ("neWord#", Prim Neq $ tyWordWordBool b)
-              , ("gtWord#", Prim Gt $ tyWordWordBool b)
-              , ("geWord#", Prim Ge $ tyWordWordBool b)
-              , ("ltWord#", Prim Lt $ tyWordWordBool b)
-              , ("leWord#", Prim Le $ tyWordWordBool b)
+              -- TODO: G2 doesn't currently draw a distinction between Integers and Words
+              , ("integerToWord#", Lam TermL (x TyLitInt) (Var (x TyLitInt)))
+              , ("plusWord#", Prim Plus tyIntIntInt)
+              , ("minusWord#", Prim Minus tyIntIntInt)
+              , ("timesWord#", Prim Mult tyIntIntInt)
+              , ("eqWord#", Prim Eq $ tyIntIntBool b)
+              , ("neWord#", Prim Neq $ tyIntIntBool b)
+              , ("gtWord#", Prim Gt $ tyIntIntBool b)
+              , ("geWord#", Prim Ge $ tyIntIntBool b)
+              , ("ltWord#", Prim Lt $ tyIntIntBool b)
+              , ("leWord#", Prim Le $ tyIntIntBool b)
 
               , ("dataToTag##", Prim DataToTag (TyForAll a (TyFun (TyVar a) TyLitInt)))
               , ("tagToEnum#", 
@@ -219,12 +220,6 @@ tyIntIntBool n = TyFun TyLitInt $ TyFun TyLitInt (TyCon n TYPE)
 
 tyIntIntInt :: Type
 tyIntIntInt = TyFun TyLitInt $ TyFun TyLitInt TyLitInt
-
-tyWordWordBool :: Name -> Type
-tyWordWordBool n = TyFun TyLitWord $ TyFun TyLitWord (TyCon n TYPE)
-
-tyWordWordWord :: Type
-tyWordWordWord = TyFun TyLitWord $ TyFun TyLitWord TyLitWord
 
 tyDoubleDouble :: Type
 tyDoubleDouble = TyFun TyLitDouble TyLitDouble

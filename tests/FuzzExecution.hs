@@ -10,7 +10,6 @@ import G2.Lib.Printers
 import G2.Translation
 
 import qualified Data.HashMap.Lazy as HM
-import Data.Maybe
 import qualified Data.Text as T
 
 import GHC hiding (Name, entry)
@@ -50,8 +49,7 @@ fuzzExecution (SB init_state bindings) = do
                                         Nothing -> return ()
                                     
                                     -- Actually validate
-                                    val <- validateStatesGHC pg Nothing "call" [] b er
-                                    return $ fromMaybe False val) ers
+                                    validateStatesGHC pg Nothing "call" [] b er) ers
             )
         
         -- Get information about generated input/outputs when test fails

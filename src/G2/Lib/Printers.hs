@@ -46,6 +46,7 @@ import Data.List as L
 import qualified Data.HashMap.Lazy as HM
 import qualified Data.HashSet as HS
 import qualified Data.Text as T
+import qualified Data.Text.Internal.Read as T
 import Text.Read
 import qualified G2.Language.TyVarEnv as TV 
 data Clean = Cleaned | Dirty deriving Eq
@@ -106,7 +107,7 @@ mkCleanExprHaskell' tv tc e
 
 elimPrimDC :: Alt -> Maybe Alt
 elimPrimDC (Alt (DataAlt dc@(DataCon (Name n _ _ _) t utyvar etyvar) is) e)
-    | n == "I#" || n == "W#" || n == "F#" || n == "D#" || n == "Z#" || n == "C#" =
+    | n == "I#" || n == "F#" || n == "D#" || n == "Z#" || n == "C#" =
                         Just $ Alt (DataAlt (DataCon (Name "" Nothing 0 Nothing) t utyvar etyvar) is) (insertLitDC dc e)
 elimPrimDC _ = Nothing
 
@@ -160,7 +161,7 @@ mkExprHaskell' off_init cleaned pg ex = mkExprHaskell'' off_init ex
 
         mkExprHaskell'' off (App e1 ea@(App _ _)) = parenWrap e1 (mkExprHaskell'' off e1) <> " (" <> mkExprHaskell'' off ea <> ")"
         mkExprHaskell'' _ (App (Data (DataCon (Name n _ _ _) _ _ _)) (Lit l)) 
-            | n == "I#" || n == "W#" || n == "F#" || n == "D#" || n == "Z#" || n == "C#" = mkLitHaskell NoHash l
+            | n == "I#" || n == "F#" || n == "D#" || n == "Z#" || n == "C#" = mkLitHaskell NoHash l
         mkExprHaskell'' off (App e1 e2) =
             parenWrap e1 (mkExprHaskell'' off e1) <> " " <> parenWrap e2 (mkExprHaskell'' off e2)
         mkExprHaskell'' _ (Data d) = mkDataConHaskell pg d
@@ -256,7 +257,6 @@ mkAltHaskell off cleaned pg i_bndr@(Id bndr_name _) (Alt am e) =
 mkDataConHaskell :: PrettyGuide -> DataCon -> T.Text
 -- Special casing for Data.Map in the modified base
 mkDataConHaskell _ (DataCon (Name "Assocs" _ _ _) _ _ _) = "fromList"
-mkDataConHaskell _ (DataCon (Name ":%" _ _ _) _ _ _) = "%"
 mkDataConHaskell pg (DataCon n _ _ _) = mkNameHaskell pg n
 
 offset :: Int -> T.Text
@@ -353,9 +353,8 @@ mkLitHaskell use = lit
 
         lit (LitInt i) = T.pack $ if i < 0 then "(" <> show i <> hs <> ")" else show i <> hs
         lit (LitInteger i) = T.pack $ if i < 0 then "(" <> show i <> hs <> ")" else show i <> hs
-        lit (LitWord w) = T.pack $ show w <> hs
         lit (LitFloat r) = mkFloat (T.pack hs) r
-        lit (LitDouble r) = mkFloat (T.pack (hs ++ hs)) r
+        lit (LitDouble r) = mkFloat (T.pack hs) r
         lit (LitRational r) = "(" <> T.pack (show r) <> ")"
         lit (LitBV bv) = "#b" <> T.concat (map (T.pack . show) bv)
         lit (LitChar c) | isPrint c = T.pack ['\'', c, '\'']
@@ -474,8 +473,6 @@ mkPrimHaskell pg = pr
         pr Iff = "pr_iff"
         pr Ite = "pr_ite"
 
-        pr UnspecifiedOutput = "?"
-
 mkPrimHaskellNoDistFloat :: PrettyGuide -> Primitive -> T.Text
 mkPrimHaskellNoDistFloat pg = pr
     where
@@ -499,7 +496,6 @@ mkTypeHaskell = mkTypeHaskellPG (mkPrettyGuide ())
 mkTypeHaskellPG :: PrettyGuide -> Type -> T.Text
 mkTypeHaskellPG pg (TyVar i) = mkIdHaskell pg i
 mkTypeHaskellPG _ TyLitInt = "Int#"
-mkTypeHaskellPG _ TyLitWord = "Word#"
 mkTypeHaskellPG _ TyLitFloat = "Float#"
 mkTypeHaskellPG _ TyLitDouble = "Double#"
 mkTypeHaskellPG _ (TyLitFP e s) = "(FP#" <> T.pack (show e) <> " " <> T.pack (show s) <> ")"
@@ -570,8 +566,6 @@ prettyState pg s =
         , pretty_tags
         , "----- [Tracker] ---------------------"
         , T.pack (show (track s))
-        , "----- [HPC] ---------------------"
-        , pretty_hpc_ticks
         , "----- [Pretty] ---------------------"
         , pretty_names
         ]
@@ -588,7 +582,6 @@ prettyState pg s =
         pretty_tc = prettyTypeClasses pg (type_classes s)
         pretty_assert_fcs = maybe "None" (printFuncCallPG pg) (assert_ids s)
         pretty_tags = T.intercalate ", " . map (mkNameHaskell pg) $ HS.toList (tags s)
-        pretty_hpc_ticks = T.pack $ show (reached_hpc s)
         pretty_names = prettyGuideStr pg
 
 

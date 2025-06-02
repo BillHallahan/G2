@@ -177,6 +177,3 @@ doubleToFloat :: Double -> (Int, NaNEq)
 doubleToFloat x | isNaN x || isInfinite x = (0, F 0)
                 | double2Float x > 0 = (1, F (double2Float x))
                 | otherwise = (2, F (double2Float x))
-
-enum :: [Float]
-enum = take 5 (map (^4) ([1.0..]))

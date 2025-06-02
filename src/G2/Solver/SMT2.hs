@@ -140,8 +140,11 @@ instance SMTConverter Z3 where
         case r of
             SAT () -> do
                 mdl <- getModelZ3 h_in h_out vs
-                when print_smt (putStrLn $ "model =  " ++ show (map (\(_, v, _) -> v) mdl))
+                -- putStrLn "======"
+                -- putStrLn (show mdl)
                 let m = parseModel mdl
+                -- putStrLn $ "m = " ++ show m
+                -- putStrLn "======"
                 return $ SAT m
             UNSAT () -> return $ UNSAT ()
             Unknown s _ -> return $ Unknown s ()
