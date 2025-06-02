@@ -27,3 +27,4 @@ cabal.project.local
 .liquid/
 *.mix
 dumps
+*.~*
