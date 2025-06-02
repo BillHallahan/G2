@@ -42,7 +42,6 @@ module G2.Language.Naming
 
     , freshId
     , freshSeededId
-    , freshSeededIds
     , freshIds
     , freshVar
 
@@ -979,9 +978,6 @@ freshSeededId x t ngen =
                             x' S.:< _ -> freshSeededName x' ngen
     in
     (Id n t, ngen')
-
-freshSeededIds :: [Id] -> NameGen -> ([Id], NameGen)
-freshSeededIds is ng = swap $ mapAccumR (\ng' (Id n t) -> swap $ freshSeededId n t ng') ng is
 
 freshVar :: Type -> NameGen -> (Expr, NameGen)
 freshVar t ngen =
