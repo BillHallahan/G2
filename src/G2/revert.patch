@@ -1,0 +1,1532 @@
+diff --git a/base_setup.sh b/base_setup.sh
+index 785a84fec..f2b24205f 100755
+--- a/base_setup.sh
++++ b/base_setup.sh
+@@ -1,4 +1,4 @@
+-base_commit=c25e6e9
++base_commit=755495a
+ stubs_commit=db1e16c
+ 
+ get_base() {
+diff --git a/exe/Main.hs b/exe/Main.hs
+index ebe1d6879..1b1378a7a 100644
+--- a/exe/Main.hs
++++ b/exe/Main.hs
+@@ -9,6 +9,7 @@ import System.FilePath
+ 
+ import Control.Monad
+ import Data.Foldable (toList)
++import qualified Data.List as L
+ import qualified Data.Map as M
+ import Data.Maybe
+ import Data.Monoid ((<>))
+@@ -47,35 +48,53 @@ runWithArgs as = do
+                   (isJust m_assert || isJust m_reaches || m_retsTrue) 
+                   tentry simplTranslationConfig config
+ 
+-  case validate config of
+-        True -> do
+-            r <- validateStates proj [src] (T.unpack $ fromJust mb_modname) entry [] [Opt_Hpc] b in_out
+-            if and r then putStrLn "Validated" else putStrLn "There was an error during validation."
++  let (unspecified_output, spec_output) = L.partition (\ExecRes { final_state = s } -> getExpr s == Prim UnspecifiedOutput TyBottom) in_out
++  putStrLn $ "Post call states: " ++ show (length spec_output)
++  putStrLn $ "Func arg states: " ++ show (length unspecified_output)
++
++  val_res <- case validate config || measure_coverage config of
++                True -> do
++                    r <- validateStates proj [src] (T.unpack $ fromJust mb_modname) entry [] [Opt_Hpc] b in_out
++                    if all isJust r && and (map fromJust r) then putStrLn "Validated" else putStrLn "There was an error during validation."
+ 
+-            printFuncCalls config entry_f b (Just r) in_out
+-            -- runHPC src (T.unpack $ fromJust mb_modname) entry in_out
+-        False -> printFuncCalls config entry_f b Nothing in_out
++                    if any isNothing r then putStrLn $ "Timeout count: " ++ show (length $ filter isNothing r) else return ()
+ 
+-  return ()
++                    printFuncCalls config entry_f b (Just r) in_out
++                    return (Just r)
++                False -> do
++                    printFuncCalls config entry_f b Nothing in_out
++                    return Nothing
++
++  when (measure_coverage config) $
++    case val_res of
++        Just vals -> runHPC src (T.unpack $ fromJust mb_modname) entry . map snd . filter (fromMaybe False . fst) $ zip vals in_out
++        Nothing -> error "Impossible: validate must have run"
+ 
+ printFuncCalls :: Config -> Id -> Bindings
+-               -> Maybe [Bool]
++               -> Maybe [Maybe Bool]
+                -> [ExecRes t]
+                -> IO ()
+ printFuncCalls config entry b m_valid exec_res = do
+-    let valid = fromMaybe (repeat True) m_valid
++    let valid = fromMaybe (repeat (Just True)) m_valid
+         print_valid = isJust m_valid
+ 
+     mapM_ (\(execr@(ExecRes { final_state = s }), val) -> do
+-        when print_valid (putStr (if val then "✓ " else "✗ "))
++        when print_valid (putStr (case val of
++                                        Just True -> "✓ "
++                                        Just False -> "✗ "
++                                        Nothing -> "✗TO "))
+ 
+         let pg = mkPrettyGuide (exprNames $ conc_args execr)
+         let (mvp, inp, outp, handles) = printInputOutput pg entry b execr
+             sym_gen_out = fmap (printHaskellPG pg s) $ conc_sym_gens execr
+ 
++        let print_method = case print_output config of
++                                True -> \m i o -> m <> i <> " = " <> o 
++                                False -> \m i _ ->  m <> i
++
+         case sym_gen_out of
+-            S.Empty -> T.putStrLn $ mvp <> inp <> " = " <> outp
+-            _ -> T.putStrLn $ mvp <> inp <> " = " <> outp <> "\t| generated: " <> T.intercalate ", " (toList sym_gen_out)
++            S.Empty -> T.putStrLn $ print_method mvp inp outp
++            _ -> T.putStrLn $ print_method mvp inp outp <> "\t| generated: " <> T.intercalate ", " (toList sym_gen_out)
+         if handles /= "" then T.putStrLn handles else return ())
+       $ zip exec_res valid 
+ 
+diff --git a/nofib-symbolic-functions b/nofib-symbolic-functions
+index 9e7d8bbaf..113e21af2 160000
+--- a/nofib-symbolic-functions
++++ b/nofib-symbolic-functions
+@@ -1 +1 @@
+-Subproject commit 9e7d8bbaffa49d70fad8dcb4e91d1426aba3106f
++Subproject commit 113e21af2a553c2ba29e474ace5c3adfdcfa53e6
+diff --git a/src/G2/Config/Config.hs b/src/G2/Config/Config.hs
+index bd6448a42..d914efefb 100644
+--- a/src/G2/Config/Config.hs
++++ b/src/G2/Config/Config.hs
+@@ -68,6 +68,7 @@ data Config = Config {
+     , extraDefaultInclude :: [IncludePath]
+     , extraDefaultMods :: [FilePath]
+     , includePaths :: Maybe [FilePath] -- ^ Paths to search for modules
++    , print_output :: Bool -- ^ Print function outputs
+     , logStates :: LogMode -- ^ Determines whether to Log states, and if logging states, how to do so.
+     , logEveryN :: Int -- ^ If logging states, log every nth state
+     , logAfterN :: Int -- ^ Logs state only after the nth state
+@@ -97,10 +98,13 @@ data Config = Config {
+     , print_num_red_rules_per_state :: Bool  -- ^ Output the number of reduction rules per accepted state
+     , print_nrpcs :: Bool -- ^ Output generated NRPCs
+     , hpc :: Bool -- ^ Should HPC ticks be generated and tracked during execution?
++    , hpc_discard_strat :: Bool -- ^ Discard states that cannot reach any new HPC ticks
+     , hpc_print_times :: Bool -- ^ Print the time each HPC tick is reached?
++    , hpc_print_ticks :: Bool -- ^ Print each HPC tick number that was reached?
+     , strict :: Bool -- ^ Should the function output be strictly evaluated?
+     , timeLimit :: Int -- ^ Seconds
+     , validate :: Bool -- ^ If True, run on G2's input, and check against expected output.
++    , measure_coverage :: Bool -- ^ Use HPC to measure code coverage
+     , nrpc :: NonRedPathCons -- ^ Whether to execute using non reduced path constraints or not
+     , symbolic_func_nrpc :: Bool -- ^ If true, use NRPCs with symbolic functions
+     , print_num_nrpc :: Bool -- ^ Output the number of NRPCs for each accepted state
+@@ -113,6 +117,7 @@ mkConfig homedir = Config Regular
+     <*> mkExtraDefault homedir
+     <*> pure []
+     <*> mkIncludePaths
++    <*> flag True False (long "no-print-outputs" <> help "Print function outputs")
+     <*> mkLogMode
+     <*> option auto (long "log-every-n"
+                    <> metavar "LN"
+@@ -163,13 +168,16 @@ mkConfig homedir = Config Regular
+     <*> switch (long "print-nrpc" <> help "output generated nrpcs")
+     <*> flag False True (long "hpc"
+                       <> help "Generate and report on HPC ticks")
++    <*> flag False True (long "hpc-discard-strat" <> help "Discard states that cannot reach any new HPC ticks")
+     <*> switch (long "hpc-print-times" <> help "Print the time each HPC tick is reached?")
++    <*> switch (long "hpc-print-ticks" <> help "Print each HPC tick number that was reached?")
+     <*> flag True False (long "no-strict" <> help "do not evaluate the output strictly")
+     <*> option auto (long "time"
+                    <> metavar "T"
+                    <> value 600
+                    <> help "time limit, in seconds")
+     <*> switch (long "validate" <> help "use GHC to automatically compile and run on generated inputs, and check that generated outputs are correct")
++    <*> switch (long "measure-coverage" <> help "use HPC to measure code coverage")
+     <*> flag NoNrpc Nrpc (long "nrpc" <> help "execute with non reduced path constraints")
+     <*> flag False True (long "lib-nrpc" <> help "use NRPCs to delay execution of library functions")
+     <*> flag False True (long "print-num-nrpc" <> help "output the number of NRPCs for each accepted state")
+@@ -270,6 +278,7 @@ mkConfigDirect homedir as m = Config {
+     , extraDefaultInclude = extraDefaultIncludePaths (strArg "extra-base-inc" as m id homedir)
+     , extraDefaultMods = []
+     , includePaths = Nothing
++    , print_output = True
+     , logStates = strArg "log-states" as m (Log Raw)
+                         (strArg "log-pretty" as m (Log Pretty) NoLog)
+     , logEveryN = 0
+@@ -300,10 +309,13 @@ mkConfigDirect homedir as m = Config {
+     , print_num_red_rules_per_state = False
+     , print_nrpcs = False
+     , hpc = False
++    , hpc_discard_strat = False
+     , hpc_print_times = False
++    , hpc_print_ticks = False
+     , strict = boolArg "strict" as m On
+     , timeLimit = strArg "time" as m read 300
+     , validate  = boolArg "validate" as m Off
++    , measure_coverage = False
+     , nrpc = NoNrpc
+     , symbolic_func_nrpc = False
+     , print_num_nrpc = False
+diff --git a/src/G2/Equiv/Tactics.hs b/src/G2/Equiv/Tactics.hs
+index 0f40394f4..1d36c8c53 100644
+--- a/src/G2/Equiv/Tactics.hs
++++ b/src/G2/Equiv/Tactics.hs
+@@ -131,7 +131,7 @@ checkObligations :: S.Solver solver =>
+                     HS.HashSet (Expr, Expr) ->
+                     IO (S.Result () () ())
+ checkObligations solver s1 s2 obligation_set | not $ HS.null obligation_set =
+-    case obligationWrap $ modifyASTs stripTicks obligation_set of
++    case obligationWrap $ stripAllTicks obligation_set of
+         Nothing -> LA.applySolver solver P.empty s1 s2
+         Just allPO -> LA.applySolver solver (P.insert allPO P.empty) s1 s2
+   | otherwise = return $ S.UNSAT ()
+@@ -589,7 +589,7 @@ replaceMoreRestrictiveSubExpr' solver ns lemma@(Lemma { lemma_lhs = lhs_s, lemma
+ lemmaSound :: HS.HashSet Name -> StateET -> Lemma -> Bool
+ lemmaSound ns s lem =
+   let lkp n s_ = lookupConcOrSymBoth n (expr_env s_) (opp_env $ track s_) in
+-  case unApp . modifyASTs stripTicks . LA.inlineEquiv lkp s ns $ getExpr s of
++  case unApp . stripAllTicks . LA.inlineEquiv lkp s ns $ getExpr s of
+     Var (Id f _):_ ->
+         let
+             lem_vars = varNames $ LA.inlineEquiv lkp s ns $ getExpr (lemma_rhs lem)
+diff --git a/src/G2/Execution/HPC.hs b/src/G2/Execution/HPC.hs
+index 4f55ff21e..b1c253771 100644
+--- a/src/G2/Execution/HPC.hs
++++ b/src/G2/Execution/HPC.hs
+@@ -26,6 +26,7 @@ import qualified Data.HashMap.Lazy as HM
+ import Data.List.Extra
+ import Data.Maybe
+ import Data.Monoid
++import Data.Ord
+ import qualified Data.Text as T
+ import System.IO
+ import System.Clock
+@@ -45,20 +46,23 @@ data HpcTracker = HPC {
+                       , initial_time :: TimeSpec -- ^ The initial creation time of the HpcTracker
+                       
+                       , h_print_times :: Bool -- ^ Print the time each tick is reached?
++                      , h_print_ticks :: Bool -- ^ Print each HPC tick number that was reached?
+                       }
+ 
+ -- | State used by `hpcReducer`.
+ hpcTracker :: MonadIO m => State t
+-                        -> Maybe T.Text
++                        -> HS.HashSet (Maybe T.Text)
+                         -> Bool -- ^ Print the time each tick is reached?
++                        -> Bool -- ^ Print each HPC tick number that was reached?
+                         -> m HpcTracker
+-hpcTracker s m pr_tms = do
++hpcTracker s m pr_tms pr_ticks = do
+     ts <- liftIO $ getTime Monotonic
+     return $ HPC { hpc_ticks = HM.empty
+                  , tick_count = HS.size $ HS.fromList $ evalASTs (getHPCTicks m) (expr_env s)
+                  , num_reached = 0
+                  , initial_time = ts
+-                 , h_print_times = pr_tms }
++                 , h_print_times = pr_tms 
++                 , h_print_ticks = pr_ticks }
+ 
+ unionHpcTracker :: HpcTracker -> HpcTracker -> HpcTracker
+ unionHpcTracker hpc1 hpc2 =
+@@ -69,7 +73,8 @@ unionHpcTracker hpc1 hpc2 =
+         , tick_count = tick_count hpc1
+         , num_reached = HM.size hpc_union
+         , initial_time = initial_time hpc1
+-        , h_print_times = h_print_times hpc1 }
++        , h_print_times = h_print_times hpc1
++        , h_print_ticks = h_print_ticks hpc1 }
+ 
+ hpcInsert :: MonadIO m => Int -> T.Text -> HpcTracker -> m HpcTracker
+ hpcInsert i t hpc@(HPC { hpc_ticks = tr, num_reached = nr }) =
+@@ -87,12 +92,12 @@ totalTickCount = do
+ -- | A reducer that tracks and prints the number of HPC ticks encountered during execution.
+ -- A HPC tick is considered reached as soon as a State reaches it.
+ immedHpcReducer :: (MonadIO m, SM.MonadState HpcTracker m) =>
+-                   Maybe T.Text -- ^ A module to track tick count in
++                   HS.HashSet (Maybe T.Text) -- ^ A module to track tick count in
+                 -> Reducer m () t
+ immedHpcReducer md = (mkSimpleReducer (const ()) logTick) { afterRed = after }
+     where
+         logTick _ s@(State {curr_expr = CurrExpr _ (Tick (HpcTick i tm) _)}) b
+-            | Just tm == md = do
++            | Just tm `HS.member` md = do
+                 hpc <- SM.get
+                 hpc'@(HPC { num_reached = nr }) <- hpcInsert i tm hpc
+                 SM.put hpc'
+@@ -108,20 +113,22 @@ immedHpcReducer md = (mkSimpleReducer (const ()) logTick) { afterRed = after }
+ -- A HPC tick is considered reached only once a State that reached it is accepted.
+ onAcceptHpcReducer :: (MonadIO m, SM.MonadState HpcTracker m) =>
+                       State t
+-                   -> Maybe T.Text -- ^ A module to track tick count in
++                   -> HS.HashSet (Maybe T.Text) -- ^ Modules to track tick count in
+                    -> IO (Reducer m HpcTracker t)
+ onAcceptHpcReducer st md = do
+-    trck <- hpcTracker st md False
++    trck <- hpcTracker st md False False
+     return (mkSimpleReducer (const trck) logTick) { onAccept = onAcc, afterRed = after }
+     where
+         logTick hpc s@(State {curr_expr = CurrExpr _ (Tick (HpcTick i tm) _)}) b
+-            | Just tm == md = do
++            | Just tm `HS.member` md = do
+                 hpc' <- hpcInsert i tm hpc
+                 return (NoProgress, [(s, hpc')], b)
+         logTick rv s b = return (NoProgress, [(s, rv)], b)
+ 
+         onAcc s b s_hpc = do
+-            SM.modify (`unionHpcTracker` s_hpc)
++            ts <- liftIO $ getTime Monotonic
++            let s_hpc' = s_hpc { hpc_ticks = HM.map (const ts) $ hpc_ticks s_hpc }
++            SM.modify (`unionHpcTracker` s_hpc')
+             (HPC { num_reached = nr }) <- SM.get
+             hpc_tick_num <- totalTickCount
+             liftIO $ putStr ("\r" ++ show nr ++ " / " ++ show hpc_tick_num)
+@@ -134,26 +141,33 @@ afterHPC :: (MonadIO m, SM.MonadState HpcTracker m) => m ()
+ afterHPC = do
+     hpc <- SM.get
+     let init_ts = initial_time hpc
+-        ts = sort $ HM.elems (hpc_ticks hpc)
++        ts = sortBy (comparing snd) $ HM.toList (hpc_ticks hpc)
+     assert (num_reached hpc == HM.size (hpc_ticks hpc))
+         (liftIO $ putStrLn $ "\nTicks reached: " ++ show (num_reached hpc))
+     liftIO $ putStrLn $ "Tick num: " ++ show (tick_count hpc)
+ 
+     case ts of
+         [] -> liftIO $ putStrLn $ "Last tick reached: N/A"
+-        (_:_) -> liftIO $ putStrLn $ "Last tick reached: " ++ showTS (last ts - init_ts)
++        (_:_) -> liftIO $ putStrLn $ "Last tick reached: " ++ showTS (snd (last ts) - init_ts)
++    case h_print_ticks hpc of
++        False -> return ()
++        True -> liftIO $ do
++            putStrLn "All ticks:"
++            print . sort $ HM.keys (hpc_ticks hpc)
+     case h_print_times hpc of
+         False -> return ()
+         True -> liftIO $ do
+             putStrLn "All tick times:"
+-            mapM_ (\t -> putStrLn $ showTS (t - init_ts)) ts
++            mapM_ (\(k, t) -> do
++                putStr (show k ++ " - ")
++                putStrLn $ showTS (t - init_ts)) ts
+             putStrLn "End of tick times"
+ 
+ showTS :: TimeSpec -> String
+ showTS (TimeSpec { sec = s, nsec = n }) = let str_n = show n in show s ++ "." ++ replicate (9 - length str_n) '0' ++ show n
+ 
+-getHPCTicks :: Maybe T.Text -> Expr -> [Int]
+-getHPCTicks m (Tick (HpcTick i m2) _) | m == Just m2 = [i]
++getHPCTicks :: HS.HashSet (Maybe T.Text) -> Expr -> [(Int, T.Text)]
++getHPCTicks m (Tick (HpcTick i m2) _) | Just m2 `HS.member` m = [(i, m2)]
+ getHPCTicks _ _ = []
+ 
+ 
+@@ -174,7 +188,7 @@ lnt = LNT HM.empty
+ -- Based on the paper:
+ --     Steering Symbolic Execution to Less Traveled Paths
+ --     You Li, Zhendong Su, Linzhang Wang, Xuandong Li
+-lengthNSubpathOrderer :: SM.MonadState LengthNTrack m =>
++lengthNSubpathOrderer :: (MonadIO m, SM.MonadState LengthNTrack m) =>
+                          Int -- ^ N, the length of the subpaths to track
+                       -> Orderer m [(Int, T.Text)] Int r t
+ lengthNSubpathOrderer n = (mkSimpleOrderer initial order update) { stepOrderer  = step }
+@@ -187,8 +201,11 @@ lengthNSubpathOrderer n = (mkSimpleOrderer initial order update) { stepOrderer
+ 
+         update p _ _ = p
+ 
+-        step p _ _ (State { curr_expr = CurrExpr _ (Tick (HpcTick i m) _) }) = do
++        step p _ _ (State { curr_expr = CurrExpr Evaluate (Tick (HpcTick i m) _) }) = do
+             let p' = take n $ (i, m):p
+             SM.modify (LNT . HM.insertWith (+) p' 1 . unLNT)
++            -- count <- SM.gets (HM.lookup p' . unLNT)
++            -- liftIO $ do
++            --     putStrLn $ "p' = " ++ show p' ++ " c = " ++ show count
+             return p'
+         step p _ _ _ = return p
+\ No newline at end of file
+diff --git a/src/G2/Execution/PrimitiveEval.hs b/src/G2/Execution/PrimitiveEval.hs
+index 3f31de78d..c807996ac 100644
+--- a/src/G2/Execution/PrimitiveEval.hs
++++ b/src/G2/Execution/PrimitiveEval.hs
+@@ -445,10 +445,12 @@ expSigBits _ = error "evalPrimWithState: decodeFloat - unsupported type"
+ 
+ evalPrim1 :: Primitive -> Lit -> Maybe Expr
+ evalPrim1 Negate (LitInt x) = Just . Lit $ LitInt (-x)
++evalPrim1 Negate (LitWord x) = Just . Lit $ LitWord (-x)
+ evalPrim1 Negate (LitRational x) = Just . Lit $ LitRational (-x)
+ evalPrim1 FpNeg (LitFloat x) = Just . Lit $ LitFloat (-x)
+ evalPrim1 FpNeg (LitDouble x) = Just . Lit $ LitDouble (-x)
+ evalPrim1 Abs (LitInt x) = Just . Lit $ LitInt (abs x)
++evalPrim1 Abs (LitWord x) = Just . Lit $ LitWord (abs x)
+ evalPrim1 Abs (LitRational x) = Just . Lit $ LitRational (abs x)
+ evalPrim1 Abs (LitFloat x) = Just . Lit $ LitFloat (abs x)
+ evalPrim1 Abs (LitDouble x) = Just . Lit $ LitDouble (abs x)
+@@ -562,12 +564,14 @@ ith _ _ = Nothing
+ 
+ isZero :: Lit -> Bool
+ isZero (LitInt 0) = True
++isZero (LitWord 0) = True
+ isZero (LitFloat 0) = True
+ isZero (LitDouble 0) = True
+ isZero _ = False
+ 
+ evalPrim2NumCharBool :: (forall a . Ord a => a -> a -> Bool) -> KnownValues -> Lit -> Lit -> Maybe Expr
+ evalPrim2NumCharBool f kv (LitInt x) (LitInt y) = Just . mkBool kv $ f x y
++evalPrim2NumCharBool f kv (LitWord x) (LitWord y) = Just . mkBool kv $ f x y
+ evalPrim2NumCharBool f kv (LitFloat x) (LitFloat y) = Just . mkBool kv $ f x y
+ evalPrim2NumCharBool f kv (LitDouble x) (LitDouble y) = Just . mkBool kv $ f x y
+ evalPrim2NumCharBool f kv (LitRational x) (LitRational y) = Just . mkBool kv $ f x y
+@@ -576,6 +580,7 @@ evalPrim2NumCharBool _ _ _ _ = Nothing
+ 
+ evalPrim2Num  :: (forall a . Num a => a -> a -> a) -> Lit -> Lit -> Maybe Expr
+ evalPrim2Num f (LitInt x) (LitInt y) = Just . Lit . LitInt $ f x y
++evalPrim2Num f (LitWord x) (LitWord y) = Just . Lit . LitWord $ f x y
+ evalPrim2Num f (LitFloat x) (LitFloat y) = Just . Lit . LitFloat $ f x y
+ evalPrim2Num f (LitDouble x) (LitDouble y) = Just . Lit . LitDouble $ f x y
+ evalPrim2Num f (LitRational x) (LitRational y) = Just . Lit . LitRational $ f x y
+@@ -589,6 +594,7 @@ evalPrim2Fractional _ _ _ = Nothing
+ 
+ evalPrim2Integral :: (forall a . Integral a => a -> a -> a) -> Lit -> Lit -> Maybe Expr
+ evalPrim2Integral f (LitInt x) (LitInt y) = Just . Lit . LitInt $ f x y
++evalPrim2Integral f (LitWord x) (LitWord y) = Just . Lit . LitWord $ f x y
+ evalPrim2Integral _ _ _ = Nothing
+ 
+ evalPrim1Floating :: (forall a . Floating a => a -> a) -> Lit -> Maybe Expr
+diff --git a/src/G2/Interface/Interface.hs b/src/G2/Interface/Interface.hs
+index f787b6a68..8eaf960c9 100644
+--- a/src/G2/Interface/Interface.hs
++++ b/src/G2/Interface/Interface.hs
+@@ -192,6 +192,7 @@ initStateFromSimpleState s m_mod useAssert mkCurr argTys config =
+     , num_steps = 0
+     , track = ()
+     , sym_gens = Seq.empty
++    , reached_hpc = S.empty
+     , tags = S.empty
+     }
+     , Bindings {
+@@ -255,7 +256,7 @@ initCheckReaches s@(State { expr_env = eenv
+                           , tyvar_env = tvnv}) m_mod reaches =
+     s {expr_env = checkReaches tvnv eenv kv reaches m_mod }
+ 
+-type RHOStack m = SM.StateT LengthNTrack (SM.StateT PrettyGuide (SM.StateT HpcTracker m))
++type RHOStack m = SM.StateT LengthNTrack (SM.StateT PrettyGuide (SM.StateT HpcTracker (SM.StateT HPCMemoTable m)))
+ 
+ {-# SPECIALIZE runReducer :: Ord b =>
+                              Reducer (RHOStack IO) rv ()
+@@ -271,7 +272,7 @@ type RHOStack m = SM.StateT LengthNTrack (SM.StateT PrettyGuide (SM.StateT HpcTr
+ {-# SPECIALIZE 
+     initRedHaltOrd :: (Solver solver, Simplifier simplifier) =>
+                       State ()
+-                   -> Maybe T.Text
++                   -> S.HashSet (Maybe T.Text)
+                    -> solver
+                    -> simplifier
+                    -> Config
+@@ -281,7 +282,7 @@ type RHOStack m = SM.StateT LengthNTrack (SM.StateT PrettyGuide (SM.StateT HpcTr
+     #-}
+ initRedHaltOrd :: (MonadIO m, Solver solver, Simplifier simplifier) =>
+                   State ()
+-               -> Maybe T.Text
++               -> S.HashSet (Maybe T.Text)
+                -> solver
+                -> simplifier
+                -> Config
+@@ -340,6 +341,11 @@ initRedHaltOrd s mod_name solver simplifier config exec_func_names no_nrpc_names
+                             True -> SomeHalter (zeroHalter (steps config) <~> halter)
+                             False -> SomeHalter halter
+         
++        -- halter_accept_only = case halter_step of SomeHalter h -> SomeHalter (liftHalter (liftHalter (liftHalter (acceptOnlyNewHPC h))))
++
++        halter_discard = case hpc_discard_strat config of
++                            True -> SomeHalter (liftHalter (liftHalter (liftHalter (noNewHPCHalter mod_name)))) .<~> halter_step
++                            False -> halter_step
+ 
+         orderer = case search_strat config of
+                         Subpath -> SomeOrderer $ lengthNSubpathOrderer (subpath_length config)
+@@ -349,15 +355,15 @@ initRedHaltOrd s mod_name solver simplifier config exec_func_names no_nrpc_names
+         case higherOrderSolver config of
+             AllFuncs ->
+                 ( logger_std_red retReplaceSymbFuncVar .== Finished .--> SomeReducer nonRedPCRed
+-                ,  halter_step
++                ,  halter_discard
+                 , orderer)
+             SingleFunc ->
+                 ( logger_std_red retReplaceSymbFuncVar .== Finished .--> taggerRed state_name :== Finished --> nonRedPCRed
+-                , SomeHalter (discardIfAcceptedTagHalter state_name) .<~> halter_step
++                , SomeHalter (discardIfAcceptedTagHalter state_name) .<~> halter_discard
+                 , orderer)
+             SymbolicFunc ->
+                 ( logger_std_red retReplaceSymbFuncTemplate .== Finished .--> taggerRed state_name :== Finished --> nonRedPCSymFuncRed
+-                , SomeHalter (discardIfAcceptedTagHalter state_name) .<~> halter_step
++                , SomeHalter (discardIfAcceptedTagHalter state_name) .<~> halter_discard
+                 , orderer)
+ 
+ initSolver :: Config -> IO SomeSolver
+@@ -474,8 +480,9 @@ runG2WithConfig :: Name -> [Maybe T.Text] -> State () -> Config -> Bindings -> I
+ runG2WithConfig entry_f mb_modname state@(State { expr_env = eenv}) config bindings = do
+     SomeSolver solver <- initSolver config
+     let (state', bindings') = runG2Pre emptyMemConfig state bindings
++        all_mod_set = S.fromList mb_modname
+         mod_name = nameModule entry_f
+-    hpc_t <- hpcTracker state' mod_name (hpc_print_times config)
++    hpc_t <- hpcTracker state' all_mod_set (hpc_print_times config) (hpc_print_ticks config)
+     let 
+         simplifier = FloatSimplifier :>> ArithSimplifier :>> BoolSimplifier :>> StringSimplifier :>> EqualitySimplifier
+         --exp_env_names = E.keys . E.filterConcOrSym (\case { E.Sym _ -> False; E.Conc _ -> True }) $ expr_env state
+@@ -489,16 +496,17 @@ runG2WithConfig entry_f mb_modname state@(State { expr_env = eenv}) config bindi
+         non_rec_funcs = filter (isFuncNonRecursive callGraph) reachable_funcs
+ 
+     analysis1 <- if states_at_time config then do l <- logStatesAtTime; return [l] else return noAnalysis
+-    let analysis2 = if states_at_step config then [\s p xs -> SM.lift . SM.lift . SM.lift $ logStatesAtStep s p xs] else noAnalysis
+-        analysis3 = if print_num_red_rules config then [\s p xs -> SM.lift . SM.lift . SM.lift . SM.lift $ logRedRuleNum s p xs] else noAnalysis
++    let analysis2 = if states_at_step config then [\s p xs -> SM.lift . SM.lift . SM.lift . SM.lift $ logStatesAtStep s p xs] else noAnalysis
++        analysis3 = if print_num_red_rules config then [\s p xs -> SM.lift . SM.lift . SM.lift . SM.lift . SM.lift $ logRedRuleNum s p xs] else noAnalysis
+         analysis4 = if print_nrpcs config then [\s p xs -> SM.lift $ logNRPCs s p xs] else noAnalysis
+         analysis = analysis1 ++ analysis2 ++ analysis3 ++ analysis4
+     
+     (in_out, bindings'') <- case null analysis of
+         True -> do
+-            rho <- initRedHaltOrd  state' mod_name solver simplifier config (S.fromList executable_funcs) (S.fromList non_rec_funcs)
++            rho <- initRedHaltOrd  state' all_mod_set solver simplifier config (S.fromList executable_funcs) (S.fromList non_rec_funcs)
+             case rho of
+                 (red, hal, ord) ->
++                    SM.evalStateT (
+                         SM.evalStateT
+                             (SM.evalStateT
+                                 (SM.evalStateT
+@@ -510,23 +518,28 @@ runG2WithConfig entry_f mb_modname state@(State { expr_env = eenv}) config bindi
+                                 else setTypePrinting AggressiveTypes (mkPrettyGuide ())) 
+                             )
+                             hpc_t
++                        )
++                        HM.empty
+         False -> do
+-            rho <- initRedHaltOrd state' mod_name solver simplifier config (S.fromList executable_funcs) (S.fromList non_rec_funcs)
++            rho <- initRedHaltOrd state' all_mod_set solver simplifier config (S.fromList executable_funcs) (S.fromList non_rec_funcs)
+             case rho of
+                 (red, hal, ord) ->
+                     SM.evalStateT (
+                         SM.evalStateT (
+-                            SM.evalStateT
+-                                (SM.evalStateT
++                            SM.evalStateT (
++                                SM.evalStateT
+                                     (SM.evalStateT
+-                                        (runG2WithSomes' red hal ord analysis solver simplifier state' bindings')
+-                                        lnt
++                                        (SM.evalStateT
++                                            (runG2WithSomes' red hal ord analysis solver simplifier state' bindings')
++                                            lnt
++                                        )
++                                        (if showType config == Lax 
++                                        then (mkPrettyGuide ())
++                                        else setTypePrinting AggressiveTypes (mkPrettyGuide ())) 
+                                     )
+-                                    (if showType config == Lax 
+-                                    then (mkPrettyGuide ())
+-                                    else setTypePrinting AggressiveTypes (mkPrettyGuide ())) 
++                                    hpc_t
+                                 )
+-                                hpc_t
++                                HM.empty
+                             )
+                             logStatesAtStepTracker
+                         )
+@@ -709,7 +722,7 @@ runG2SubstModel m s@(State { type_env = tenv, known_values = kv }) bindings =
+         sm' = runPostprocessing bindings sm
+ 
+         sm'' = ExecRes { final_state = final_state sm'
+-                       , conc_args = fixed_inputs bindings ++ conc_args sm'
++                       , conc_args = fixed_inputs bindings ++ evalPrims tenv kv (conc_args sm')
+                        , conc_out = evalPrims tenv kv (conc_out sm')
+                        , conc_sym_gens = gens
+                        , conc_mutvars = mv
+diff --git a/src/G2/Language/Approximation.hs b/src/G2/Language/Approximation.hs
+index 8b5be87b4..28ab96452 100644
+--- a/src/G2/Language/Approximation.hs
++++ b/src/G2/Language/Approximation.hs
+@@ -114,8 +114,8 @@ moreRestrictive' mr_cont gen_lemma lkp s1@(State {expr_env = h1, tyvar_env = tv1
+                            | not (hasFuncType (typeOf tv1 e1) )
+                            , not (hasFuncType (typeOf tv2 e2) )
+                            , not active
+-                           , Var (Id m1 _):_ <- unApp (modifyASTs stripTicks e1)
+-                           , Var (Id m2 _):_ <- unApp (modifyASTs stripTicks e2)
++                           , Var (Id m1 _):_ <- unApp (stripAllTicks e1)
++                           , Var (Id m2 _):_ <- unApp (stripAllTicks e2)
+                            , nameOcc m1 == nameOcc m2
+                            , Left lems <- moreResFA ->
+                                 Left $ (gen_lemma s1 s2 hm e1 e2):lems
+diff --git a/src/G2/Language/Expr.hs b/src/G2/Language/Expr.hs
+index f96f43fa9..efd7e6e76 100644
+--- a/src/G2/Language/Expr.hs
++++ b/src/G2/Language/Expr.hs
+@@ -79,7 +79,9 @@ module G2.Language.Expr ( module G2.Language.Casts
+                         , freeVars
+                         , alphaReduction
+                         , varBetaReduction
+-                        , etaExpandTo) where
++                        , etaExpandTo
++                        
++                        , stripAllTicks) where
+ 
+ import G2.Language.AST
+ import G2.Language.Casts
+@@ -606,4 +608,11 @@ etaExpandTo' tv eenv ng n e = (addLamApps fn (typeOf tv e) e, ng')
+             Lam TypeL b (App (addLamApps ns t' e') (Type (TyVar b)))
+         addLamApps (ln:ns) (TyFun t t') e' =
+             Lam TermL (Id ln t) (App (addLamApps ns t' e') (Var (Id ln t)))
+-        addLamApps _ _ e' = e'
+\ No newline at end of file
++        addLamApps _ _ e' = e'
++
++stripAllTicks :: ASTContainer m Expr => m -> m
++stripAllTicks = modifyASTs stripTicks
++
++stripTicks :: Expr -> Expr
++stripTicks (Tick _ e) = e
++stripTicks e = e
+\ No newline at end of file
+diff --git a/src/G2/Language/KnownValues.hs b/src/G2/Language/KnownValues.hs
+index dd5fabb24..9530cab8a 100644
+--- a/src/G2/Language/KnownValues.hs
++++ b/src/G2/Language/KnownValues.hs
+@@ -104,6 +104,7 @@ data KnownValues = KnownValues {
+                  , orFunc :: Name
+                  , notFunc :: Name
+ 
++                 -- Useful functions
+                  , errorFunc :: Name
+                  , errorWithoutStackTraceFunc :: Name
+                  , errorEmptyListFunc :: Name
+diff --git a/src/G2/Language/Stack.hs b/src/G2/Language/Stack.hs
+index 85ca7bb9a..0a2610881 100644
+--- a/src/G2/Language/Stack.hs
++++ b/src/G2/Language/Stack.hs
+@@ -6,6 +6,7 @@
+ module G2.Language.Stack
+     ( Stack
+     , empty
++    , singleton
+     , null
+     , push
+     , pop
+@@ -30,6 +31,10 @@ instance Hashable a => Hashable (Stack a)
+ empty :: Stack a
+ empty = Stack []
+ 
++-- | Get a `Stack` with a single value.
++singleton :: a -> Stack a
++singleton x = Stack [x]
++
+ -- | Is the `Stack` empty?
+ null :: Stack a -> Bool
+ null = L.null . toList
+diff --git a/src/G2/Language/Syntax.hs b/src/G2/Language/Syntax.hs
+index 17b83c556..2fa2f6af1 100644
+--- a/src/G2/Language/Syntax.hs
++++ b/src/G2/Language/Syntax.hs
+@@ -181,7 +181,6 @@ data Primitive = -- Mathematical and logical operators
+                | Negate
+                | Abs
+ 
+-
+                -- Rational
+                | Sqrt
+                | Exp
+@@ -268,6 +267,10 @@ data Primitive = -- Mathematical and logical operators
+                -- Errors
+                | Error
+                | Undefined
++               
++               -- Unspecified Output- when we want to calculate input values that lead to a specific point,
++               -- and then don't want to actually follow through on calculating the output value
++               | UnspecifiedOutput
+                deriving (Show, Eq, Read, Generic, Typeable, Data)
+ 
+ pattern IntToFloat :: Primitive
+@@ -286,6 +289,7 @@ instance Hashable Primitive
+ 
+ -- | Literals for denoting unwrapped types such as Int#, Double#.
+ data Lit = LitInt Integer
++         | LitWord Word
+          | LitFloat Float
+          | LitDouble Double
+          | LitRational Rational
+@@ -311,6 +315,7 @@ bvToInteger bv = foldl' (\acc (i,b) -> if b == 1 then setBit acc i else acc)
+ -- even in the case that we have NaN.
+ instance Eq Lit where
+     LitInt x == LitInt y = x == y
++    LitWord x == LitWord y = x == y
+     LitFloat x == LitFloat y | isNaN x, isNaN y = True
+                              | otherwise = x == y
+     LitDouble x == LitDouble y | isNaN x, isNaN y = True
+@@ -363,6 +368,7 @@ instance Hashable Coercion
+ -- | Types information.
+ data Type = TyVar Id -- ^ Polymorphic type variable.
+           | TyLitInt -- ^ Unwrapped primitive Int type.
++          | TyLitWord -- ^ Unwrapped primitive Word type.
+           | TyLitFP Int Int -- ^ Unwrapped primitive floating point type with the indicated exponent and significand.
+           | TyLitBV Int -- ^ Unwrapped primitive BitVector type of the indicated width.
+           | TyLitRational -- ^ Unwrapped primitive Rational type.
+diff --git a/src/G2/Lib/Printers.hs b/src/G2/Lib/Printers.hs
+index 2d280ac46..09411e816 100644
+--- a/src/G2/Lib/Printers.hs
++++ b/src/G2/Lib/Printers.hs
+@@ -46,7 +46,6 @@ import Data.List as L
+ import qualified Data.HashMap.Lazy as HM
+ import qualified Data.HashSet as HS
+ import qualified Data.Text as T
+-import qualified Data.Text.Internal.Read as T
+ import Text.Read
+ import qualified G2.Language.TyVarEnv as TV 
+ data Clean = Cleaned | Dirty deriving Eq
+@@ -107,7 +106,7 @@ mkCleanExprHaskell' tv tc e
+ 
+ elimPrimDC :: Alt -> Maybe Alt
+ elimPrimDC (Alt (DataAlt dc@(DataCon (Name n _ _ _) t utyvar etyvar) is) e)
+-    | n == "I#" || n == "F#" || n == "D#" || n == "Z#" || n == "C#" =
++    | n == "I#" || n == "W#" || n == "F#" || n == "D#" || n == "Z#" || n == "C#" =
+                         Just $ Alt (DataAlt (DataCon (Name "" Nothing 0 Nothing) t utyvar etyvar) is) (insertLitDC dc e)
+ elimPrimDC _ = Nothing
+ 
+@@ -161,7 +160,7 @@ mkExprHaskell' off_init cleaned pg ex = mkExprHaskell'' off_init ex
+ 
+         mkExprHaskell'' off (App e1 ea@(App _ _)) = parenWrap e1 (mkExprHaskell'' off e1) <> " (" <> mkExprHaskell'' off ea <> ")"
+         mkExprHaskell'' _ (App (Data (DataCon (Name n _ _ _) _ _ _)) (Lit l)) 
+-            | n == "I#" || n == "F#" || n == "D#" || n == "Z#" || n == "C#" = mkLitHaskell NoHash l
++            | n == "I#" || n == "W#" || n == "F#" || n == "D#" || n == "Z#" || n == "C#" = mkLitHaskell NoHash l
+         mkExprHaskell'' off (App e1 e2) =
+             parenWrap e1 (mkExprHaskell'' off e1) <> " " <> parenWrap e2 (mkExprHaskell'' off e2)
+         mkExprHaskell'' _ (Data d) = mkDataConHaskell pg d
+@@ -257,6 +256,7 @@ mkAltHaskell off cleaned pg i_bndr@(Id bndr_name _) (Alt am e) =
+ mkDataConHaskell :: PrettyGuide -> DataCon -> T.Text
+ -- Special casing for Data.Map in the modified base
+ mkDataConHaskell _ (DataCon (Name "Assocs" _ _ _) _ _ _) = "fromList"
++mkDataConHaskell _ (DataCon (Name ":%" _ _ _) _ _ _) = "%"
+ mkDataConHaskell pg (DataCon n _ _ _) = mkNameHaskell pg n
+ 
+ offset :: Int -> T.Text
+@@ -353,8 +353,9 @@ mkLitHaskell use = lit
+ 
+         lit (LitInt i) = T.pack $ if i < 0 then "(" <> show i <> hs <> ")" else show i <> hs
+         lit (LitInteger i) = T.pack $ if i < 0 then "(" <> show i <> hs <> ")" else show i <> hs
++        lit (LitWord w) = T.pack $ show w <> hs
+         lit (LitFloat r) = mkFloat (T.pack hs) r
+-        lit (LitDouble r) = mkFloat (T.pack hs) r
++        lit (LitDouble r) = mkFloat (T.pack (hs ++ hs)) r
+         lit (LitRational r) = "(" <> T.pack (show r) <> ")"
+         lit (LitBV bv) = "#b" <> T.concat (map (T.pack . show) bv)
+         lit (LitChar c) | isPrint c = T.pack ['\'', c, '\'']
+@@ -473,6 +474,8 @@ mkPrimHaskell pg = pr
+         pr Iff = "pr_iff"
+         pr Ite = "pr_ite"
+ 
++        pr UnspecifiedOutput = "?"
++
+ mkPrimHaskellNoDistFloat :: PrettyGuide -> Primitive -> T.Text
+ mkPrimHaskellNoDistFloat pg = pr
+     where
+@@ -496,6 +499,7 @@ mkTypeHaskell = mkTypeHaskellPG (mkPrettyGuide ())
+ mkTypeHaskellPG :: PrettyGuide -> Type -> T.Text
+ mkTypeHaskellPG pg (TyVar i) = mkIdHaskell pg i
+ mkTypeHaskellPG _ TyLitInt = "Int#"
++mkTypeHaskellPG _ TyLitWord = "Word#"
+ mkTypeHaskellPG _ TyLitFloat = "Float#"
+ mkTypeHaskellPG _ TyLitDouble = "Double#"
+ mkTypeHaskellPG _ (TyLitFP e s) = "(FP#" <> T.pack (show e) <> " " <> T.pack (show s) <> ")"
+@@ -566,6 +570,8 @@ prettyState pg s =
+         , pretty_tags
+         , "----- [Tracker] ---------------------"
+         , T.pack (show (track s))
++        , "----- [HPC] ---------------------"
++        , pretty_hpc_ticks
+         , "----- [Pretty] ---------------------"
+         , pretty_names
+         ]
+@@ -582,6 +588,7 @@ prettyState pg s =
+         pretty_tc = prettyTypeClasses pg (type_classes s)
+         pretty_assert_fcs = maybe "None" (printFuncCallPG pg) (assert_ids s)
+         pretty_tags = T.intercalate ", " . map (mkNameHaskell pg) $ HS.toList (tags s)
++        pretty_hpc_ticks = T.pack $ show (reached_hpc s)
+         pretty_names = prettyGuideStr pg
+ 
+ 
+diff --git a/src/G2/Liquid/TCGen.hs b/src/G2/Liquid/TCGen.hs
+index aa0a7a194..14ea4e731 100644
+--- a/src/G2/Liquid/TCGen.hs
++++ b/src/G2/Liquid/TCGen.hs
+@@ -352,6 +352,7 @@ eqLHFuncCall tv ldm i1 i2
+         return $ App (App (Prim FpEq pt) (Var i1)) (Var i2)
+ 
+     |  t == TyLitInt
++    || t == TyLitWord
+     || t == TyLitRational
+     || t == TyLitChar = do
+         b <- tyBoolT
+@@ -537,11 +538,7 @@ lhPPCall tv lhm fnm t
+     | TyForAll _ _ <- t = do
+         i <- freshIdN t
+         return . Lam TermL i =<< mkTrueE
+-    |  t == TyLitInt
+-    || t == TyLitDouble
+-    || t == TyLitRational
+-    || t == TyLitFloat
+-    || t == TyLitChar = do
++    | isPrimType t = do
+         i <- freshIdN t
+         return . Lam TermL i =<< mkTrueE
+     | otherwise = error $ "\nError in lhPPCall " ++ show t ++ "\n" ++ show lhm
+diff --git a/src/G2/QuasiQuotes/QuasiQuotes.hs b/src/G2/QuasiQuotes/QuasiQuotes.hs
+index 783cbb477..98f23b234 100644
+--- a/src/G2/QuasiQuotes/QuasiQuotes.hs
++++ b/src/G2/QuasiQuotes/QuasiQuotes.hs
+@@ -334,6 +334,7 @@ moveOutStatePieces tenv_name s = do
+              , num_steps = $(num_steps_exp)
+              , tags = $(tags_exp) 
+              , sym_gens = Seq.empty
++             , reached_hpc = HS.empty
+              , track = $(track_exp) } |]
+ 
+ -- Returns an Q Exp represeting a [(Name, Expr)] list
+diff --git a/src/G2/Solver/Language.hs b/src/G2/Solver/Language.hs
+index ca60ace7b..eba8b7f8a 100644
+--- a/src/G2/Solver/Language.hs
++++ b/src/G2/Solver/Language.hs
+@@ -126,6 +126,7 @@ data SMTAST = (:>=) !SMTAST !SMTAST
+             | ToCode !SMTAST
+ 
+             | VInt Integer
++            | VWord Word
+             | VFloat Float
+             | VDouble Double
+             | VReal Rational
+@@ -152,6 +153,7 @@ data SMTAST = (:>=) !SMTAST !SMTAST
+ 
+ -- | Every `SMTAST` has a `Sort`
+ data Sort = SortInt
++          | SortWord
+           | SortFP Int Int -- Floating point with the indicated exponent and significand.
+           | SortReal
+           | SortBV Int
+diff --git a/src/G2/Solver/SMT2.hs b/src/G2/Solver/SMT2.hs
+index 417010c72..3122e889e 100644
+--- a/src/G2/Solver/SMT2.hs
++++ b/src/G2/Solver/SMT2.hs
+@@ -140,11 +140,8 @@ instance SMTConverter Z3 where
+         case r of
+             SAT () -> do
+                 mdl <- getModelZ3 h_in h_out vs
+-                -- putStrLn "======"
+-                -- putStrLn (show mdl)
++                when print_smt (putStrLn $ "model =  " ++ show (map (\(_, v, _) -> v) mdl))
+                 let m = parseModel mdl
+-                -- putStrLn $ "m = " ++ show m
+-                -- putStrLn "======"
+                 return $ SAT m
+             UNSAT () -> return $ UNSAT ()
+             Unknown s _ -> return $ Unknown s ()
+diff --git a/src/G2/Translation/Haskell.hs b/src/G2/Translation/Haskell.hs
+index 360b874df..813b5961f 100644
+--- a/src/G2/Translation/Haskell.hs
++++ b/src/G2/Translation/Haskell.hs
+@@ -105,10 +105,11 @@ loadProj :: Maybe HscTarget -> [FilePath] -> [FilePath] -> [GeneralFlag] -> G2.T
+ loadProj hsc proj src gflags tr_con = do
+     beta_flags <- getSessionDynFlags
+     let gen_flags = if G2.hpc_ticks tr_con then Opt_Hpc:gflags else gflags
++        gen_flags' = Opt_IgnoreAsserts:gen_flags
+ 
+     let init_beta_flags = gopt_unset beta_flags Opt_StaticArgumentTransformation
+ 
+-    let beta_flags' = foldl' gopt_set init_beta_flags gen_flags
++    let beta_flags' = foldl' gopt_set init_beta_flags gen_flags'
+     let dflags = beta_flags' {
+ #if MIN_VERSION_GLASGOW_HASKELL(9,6,0,0)
+                                backend = case hsc of
+diff --git a/src/G2/Translation/PrimInject.hs b/src/G2/Translation/PrimInject.hs
+index e05da314c..f4e047f26 100644
+--- a/src/G2/Translation/PrimInject.hs
++++ b/src/G2/Translation/PrimInject.hs
+@@ -27,7 +27,7 @@ primInject = modifyASTs primInjectT
+ primInjectT :: Type -> Type
+ primInjectT (TyCon (Name "TYPE" (Just "GHC.Prim") _ _) _) = TYPE
+ primInjectT (TyCon (Name "Int#" _ _ _) _) = TyLitInt
+-primInjectT (TyCon (Name "Word#" _ _ _) _) = TyLitInt
++primInjectT (TyCon (Name "Word#" _ _ _) _) = TyLitWord
+ primInjectT (TyCon (Name "Float#" _ _ _) _) = TyLitFloat
+ primInjectT (TyCon (Name "Double#" _ _ _) _) = TyLitDouble
+ primInjectT (TyCon (Name "Char#" _ _ _) _) = TyLitChar
+@@ -142,17 +142,16 @@ primDefs' b c l unit =
+               , ("rationalToDouble#", Prim RationalToDouble (TyFun TyLitInt $ TyFun TyLitInt TyLitDouble))
+               , ("fromIntToDouble", Prim IntToDouble (TyFun TyLitInt TyLitDouble))
+ 
+-              -- TODO: G2 doesn't currently draw a distinction between Integers and Words
+-              , ("integerToWord#", Lam TermL (x TyLitInt) (Var (x TyLitInt)))
+-              , ("plusWord#", Prim Plus tyIntIntInt)
+-              , ("minusWord#", Prim Minus tyIntIntInt)
+-              , ("timesWord#", Prim Mult tyIntIntInt)
+-              , ("eqWord#", Prim Eq $ tyIntIntBool b)
+-              , ("neWord#", Prim Neq $ tyIntIntBool b)
+-              , ("gtWord#", Prim Gt $ tyIntIntBool b)
+-              , ("geWord#", Prim Ge $ tyIntIntBool b)
+-              , ("ltWord#", Prim Lt $ tyIntIntBool b)
+-              , ("leWord#", Prim Le $ tyIntIntBool b)
++              , ("integerToWord#", Lam TermL (x TyLitWord) (Var (x TyLitWord)))
++              , ("plusWord#", Prim Plus tyWordWordWord)
++              , ("minusWord#", Prim Minus tyWordWordWord)
++              , ("timesWord#", Prim Mult tyWordWordWord)
++              , ("eqWord#", Prim Eq $ tyWordWordBool b)
++              , ("neWord#", Prim Neq $ tyWordWordBool b)
++              , ("gtWord#", Prim Gt $ tyWordWordBool b)
++              , ("geWord#", Prim Ge $ tyWordWordBool b)
++              , ("ltWord#", Prim Lt $ tyWordWordBool b)
++              , ("leWord#", Prim Le $ tyWordWordBool b)
+ 
+               , ("dataToTag##", Prim DataToTag (TyForAll a (TyFun (TyVar a) TyLitInt)))
+               , ("tagToEnum#", 
+@@ -221,6 +220,12 @@ tyIntIntBool n = TyFun TyLitInt $ TyFun TyLitInt (TyCon n TYPE)
+ tyIntIntInt :: Type
+ tyIntIntInt = TyFun TyLitInt $ TyFun TyLitInt TyLitInt
+ 
++tyWordWordBool :: Name -> Type
++tyWordWordBool n = TyFun TyLitWord $ TyFun TyLitWord (TyCon n TYPE)
++
++tyWordWordWord :: Type
++tyWordWordWord = TyFun TyLitWord $ TyFun TyLitWord TyLitWord
++
+ tyDoubleDouble :: Type
+ tyDoubleDouble = TyFun TyLitDouble TyLitDouble
+ 
+diff --git a/tests/BaseTests/ListTests.hs b/tests/BaseTests/ListTests.hs
+index 1514997f7..c2fcbb9de 100644
+--- a/tests/BaseTests/ListTests.hs
++++ b/tests/BaseTests/ListTests.hs
+@@ -65,3 +65,10 @@ testFib :: Int -> Bool
+ testFib n = case length (take n fibonacci) of
+         3 -> True
+         _ -> False
++
++unionTest :: Int -> [Int] -> [Int] -> ([Int], Int)
++unionTest v xs ys | v `notElem` xs
++                  , v `elem` ys = (xs `union` ys, 1)
++                  | v `notElem` ys
++                  , v `elem` xs = (xs `union` ys, 2)
++                  | otherwise = (xs `union` ys, 3)
+\ No newline at end of file
+diff --git a/tests/FuzzExecution.hs b/tests/FuzzExecution.hs
+index 6a60f0888..2e8cb25b4 100644
+--- a/tests/FuzzExecution.hs
++++ b/tests/FuzzExecution.hs
+@@ -10,6 +10,7 @@ import G2.Lib.Printers
+ import G2.Translation
+ 
+ import qualified Data.HashMap.Lazy as HM
++import Data.Maybe
+ import qualified Data.Text as T
+ 
+ import GHC hiding (Name, entry)
+@@ -49,7 +50,8 @@ fuzzExecution (SB init_state bindings) = do
+                                         Nothing -> return ()
+                                     
+                                     -- Actually validate
+-                                    validateStatesGHC pg Nothing "call" [] b er) ers
++                                    val <- validateStatesGHC pg Nothing "call" [] b er
++                                    return $ fromMaybe False val) ers
+             )
+         
+         -- Get information about generated input/outputs when test fails
+diff --git a/tests/InputOutputTest.hs b/tests/InputOutputTest.hs
+index 244ba008c..7cb23dfc8 100644
+--- a/tests/InputOutputTest.hs
++++ b/tests/InputOutputTest.hs
+@@ -123,7 +123,7 @@ checkInputOutput'' src exg2 mb_modname config (entry, stps, req) = do
+ 
+     let chEx = checkExprInOutCount io req
+     
+-    return (mr, chEx, r, b)
++    return (fmap (fromMaybe False) mr, chEx, r, b)
+ 
+ ------------
+ 
+diff --git a/tests/Test.hs b/tests/Test.hs
+index 868d84f14..353965c21 100644
+--- a/tests/Test.hs
++++ b/tests/Test.hs
+@@ -191,7 +191,8 @@ testFileTests = testGroup "TestFiles"
+ 
+     , checkInputOutputs "tests/TestFiles/Char.hs" [ ("char", 400, [Exactly 2])
+                                                   , ("f", 1000, [AtLeast 3])
+-                                                  , ("g", 1000, [AtLeast 8]) ]
++                                                  , ("g", 1000, [AtLeast 8])
++                                                  , ("isDigitTest", 1000, [AtLeast 2]) ]
+ 
+     , checkExpr "tests/TestFiles/CheckSq.hs" 400 "checkSq"
+         [AtLeast 2, RExists (\[x, _] -> isInt x (\x' -> x' == 3 || x' == -3))]
+@@ -364,19 +365,19 @@ testFileTests = testGroup "TestFiles"
+     , checkInputOutputsTemplate "tests/HigherOrder/HigherOrder.hs" [ ("f", 50, [AtLeast 5])
+                                                                    , ("h", 150, [AtLeast 3])
+                                                                    , ("assoc", 200, [AtLeast 5])
+-                                                                   , ("sf", 150, [AtLeast 5])
++                                                                   , ("sf", 175, [AtLeast 5])
+                                                                    , ("thirdOrder", 75, [AtLeast 10])
+                                                                    , ("tupleTestMono", 175, [AtLeast 10])
+                                                                    , ("multiPrim", 300, [AtLeast 8])]
+     , checkInputOutputsTemplate "tests/HigherOrder/PolyHigherOrder.hs" [ ("f", 50, [AtLeast 5])
+                                                                        , ("h", 200, [AtLeast 3])
+                                                                        , ("assoc", 200, [AtLeast 5])
+-                                                                       , ("sf", 150, [AtLeast 5])
++                                                                       , ("sf", 175, [AtLeast 5])
+                                                                        , ("tupleTest", 175, [AtLeast 8])]
+     , checkInputOutputsNonRedTemp "tests/HigherOrder/HigherOrder.hs" [ ("f", 200, [AtLeast 3])
+                                                                      , ("h", 150, [AtLeast 2])
+                                                                      , ("assoc", 250, [AtLeast 2])
+-                                                                     , ("sf", 200, [AtLeast 2])
++                                                                     , ("sf", 250, [AtLeast 2])
+                                                                      , ("thirdOrder", 300, [AtLeast 2])
+                                                                      , ("thirdOrder2", 300, [AtLeast 3])
+                                                                      , ("tupleTestMono", 175, [AtLeast 2])
+@@ -431,7 +432,8 @@ testFileTests = testGroup "TestFiles"
+                                                      , ("significandTest", 2000, [AtLeast 5]) 
+                                                      , ("scaleFloatTest", 2000, [AtLeast 6])
+                                                      , ("scaleFloatTest2", 2000, [AtLeast 3])
+-                                                     , ("doubleToFloat", 2000, [AtLeast 4]) ]
++                                                     , ("doubleToFloat", 2000, [AtLeast 4])
++                                                     , ("enum", 50000, [Exactly 1]) ]
+ 
+     , checkInputOutputs "tests/TestFiles/Doubles1.hs" [ ("infinite", 1000, [AtLeast 3])
+                                                       , ("zero", 1000, [AtLeast 3])
+@@ -456,7 +458,12 @@ testFileTests = testGroup "TestFiles"
+                                                       , ("significandTest", 2000, [AtLeast 5])
+                                                       , ("scaleFloatTest", 2000, [AtLeast 6])
+                                                       , ("scaleFloatTest2", 2000, [AtLeast 3])
+-                                                      , ("floatToDouble", 2000, [AtLeast 4]) ]
++                                                      , ("floatToDouble", 2000, [AtLeast 4])
++                                                      , ("enum", 50000, [Exactly 1]) ]
++    
++    , checkInputOutputs "tests/TestFiles/Word.hs" [ ("addWords", 5000, [Exactly 1])
++                                                  , ("subWords1", 5000, [Exactly 1])
++                                                  , ("subWords2", 5000, [Exactly 2]) ]
+ 
+     , checkInputOutputsInstType "tests/TestFiles/InstTypes1.hs" [ ("lengthList", 200, [AtLeast 1])
+                                                         , ("myTuple", 200, [AtLeast 1])
+@@ -520,7 +527,8 @@ baseTests = testGroup "Base"
+     , checkInputOutputs "tests/BaseTests/ListTests.hs" [ ("test", 1000, [AtLeast 1])
+                                                        , ("maxMap", 1000, [AtLeast 4])
+                                                        , ("minTest", 1000, [AtLeast 2])
+-                                                       , ("foldrTest2", 1000, [AtLeast 1]) ]
++                                                       , ("foldrTest2", 1000, [AtLeast 1])
++                                                       , ("unionTest", 1000, [AtLeast 9]) ]
+ 
+     , checkInputOutput "tests/BaseTests/Tuples.hs" "addTupleElems" 1000 [AtLeast 2]
+ 
+diff --git a/tests/TestFiles/Char.hs b/tests/TestFiles/Char.hs
+index 6e5a763b5..616274ec5 100644
+--- a/tests/TestFiles/Char.hs
++++ b/tests/TestFiles/Char.hs
+@@ -1,5 +1,7 @@
+ module Char where
+ 
++import Data.Char
++
+ char :: Char -> Int
+ char 'a' = 0
+ char _ = 1
+@@ -17,3 +19,7 @@ g ('}':_) = ["D"]
+ g ('<':_) = ["E"]
+ g ('>':_) = ["F"]
+ g _ = []
++
++isDigitTest :: Char -> (Bool, Int)
++isDigitTest c | isDigit c = (True, 0)
++              | otherwise = (False, 1)
+\ No newline at end of file
+diff --git a/tests/TestFiles/Doubles1.hs b/tests/TestFiles/Doubles1.hs
+index 7307570e3..b7d41c272 100644
+--- a/tests/TestFiles/Doubles1.hs
++++ b/tests/TestFiles/Doubles1.hs
+@@ -187,3 +187,6 @@ floatToDouble :: Float -> (Int, NaNEq)
+ floatToDouble x | isNaN x || isInfinite x = (0, D 0)
+                 | float2Double x > 0 = (1, D (float2Double x))
+                 | otherwise = (2, D (float2Double x))
++
++enum :: [Double]
++enum = take 5 (map (^4) ([1.0..]))
+\ No newline at end of file
+diff --git a/tests/TestFiles/Floats1.hs b/tests/TestFiles/Floats1.hs
+index abb0720f5..94a8b3004 100644
+--- a/tests/TestFiles/Floats1.hs
++++ b/tests/TestFiles/Floats1.hs
+@@ -176,4 +176,7 @@ scaleFloatTest2 (F x) | -1.93e-43 <= x, x <= -1.92e-43 = F (scaleFloat 9 x)
+ doubleToFloat :: Double -> (Int, NaNEq)
+ doubleToFloat x | isNaN x || isInfinite x = (0, F 0)
+                 | double2Float x > 0 = (1, F (double2Float x))
+-                | otherwise = (2, F (double2Float x))
+\ No newline at end of file
++                | otherwise = (2, F (double2Float x))
++
++enum :: [Float]
++enum = take 5 (map (^4) ([1.0..]))
+\ No newline at end of file
+diff --git a/tests/TestFiles/NRPC/HigherOrder1.hs b/tests/TestFiles/NRPC/HigherOrder1.hs
+index 17c2cae37..d8c216c93 100644
+--- a/tests/TestFiles/NRPC/HigherOrder1.hs
++++ b/tests/TestFiles/NRPC/HigherOrder1.hs
+@@ -6,4 +6,20 @@ f :: (Int -> Int) -> Int -> Int
+ f h x = h (assert (x >= 0) 1)
+ 
+ g :: (Int -> Bool) -> Int -> Int
+-g h x = assert (h x) 1
+\ No newline at end of file
++g h x = assert (h x) 1
++
++data AB = A | B
++
++higher :: ((AB -> AB) -> AB) -> Int
++higher h =
++    case h (\_ -> A) of
++        A -> case h (\_ -> B) of
++                B -> 1
++                _ -> 2
++        _ -> 3
++
++c :: Int -> Int
++c x = x
++
++call :: (Int -> Int) -> Int -> Int
++call h x = h (c x)
+diff --git a/tests/TestFiles/Word.hs b/tests/TestFiles/Word.hs
+new file mode 100644
+index 000000000..a9347b722
+--- /dev/null
++++ b/tests/TestFiles/Word.hs
+@@ -0,0 +1,29 @@
++module Word where
++
++import Data.Word
++
++addWords :: Word -> Word -> (Word, Bool)
++addWords x y =
++    case x + y < 0 of
++        True -> (x + y, False)
++        False -> (x + y, True)
++
++subWords1 :: Word -> Word -> (Word, Bool)
++subWords1 x y =
++    case x - y < 0 of
++        True -> (x + y, False)
++        False -> (x + y, True)
++
++subWords2 :: Word -> Word -> (Word, Bool)
++subWords2 x y =
++    case x - y > x of
++        True -> (x + y, False)
++        False -> (x + y, True)
++
++fromIntegerTest :: Integer -> (Word, Int)
++fromIntegerTest x =
++    let y = fromInteger x in
++    case () of
++        () | y < 0 -> (y, 1)
++           | y > 10 -> (y, 2)
++           | otherwise -> (y, 3)
+\ No newline at end of file
+diff --git a/tests/scripts/nofib-symbolic-functions.py b/tests/scripts/nofib-symbolic-functions.py
+index a169e0249..1b3f87f5e 100644
+--- a/tests/scripts/nofib-symbolic-functions.py
++++ b/tests/scripts/nofib-symbolic-functions.py
+@@ -4,20 +4,33 @@ import re
+ import os
+ import subprocess
+ import time
++from tabulate import tabulate
+ 
+ exe_name = str(subprocess.run(["cabal", "exec", "which", "G2"], capture_output = True).stdout.decode('utf-8')).strip()
++latex_str_tbl1 = ""
++latex_str_tbl2 = ""
++latex_str_tbl3 = ""
++latex_str_tbl4 = ""
++latex_str_tbl5 = ""
+ 
+ def read_hpc_times(out):
+     times = []
+     read = False
++    tick_time_list = []
++    
+     for line in out.splitlines():
+         if line.startswith("End of tick times"):
+             read = False
+         if read:
+-            times.append(line)
++            match = re.search(r'\((\d+),"(.*?)"\)\s*-\s*([0-9]*\.[0-9]+)', line)
++            if match != None:
++                key = (int(match.group(1)), match.group(2))
++                value = round(float(match.group(3)), 2)
++                tick_time_list.append((key, value))
++                times.append(line)
+         if line.startswith("All tick times:"):
+             read = True
+-    return times
++    return tick_time_list, times
+ 
+ # Calling and reading from G2
+ def run_g2(filename, func, var_settings):
+@@ -33,39 +46,296 @@ def call_g2_process(filename, func, var_settings):
+     return res.stdout
+ 
+ def run_nofib_bench(filename, var_settings, timeout):
+-    # --include nofib-symbolic/common --higher-order symbolic --hpc --hpc-print-times --no-step-limit --search subpath --time 60
++    # --include nofib-symbolic/common --higher-order symbolic --hpc --hpc-print-times --print-num-nrpc --print-num-red-rules --solver-time --print-num-solver-calls --no-step-limit --search subpath --hpc-discard-strat --time 60
+     return run_g2(filename, "main", ["--include", "nofib-symbolic/common", "--higher-order", "symbolic",
+-                                     "--hpc", "--hpc-print-times", "--no-step-limit", "--search", "subpath", "--time", str(timeout)] + var_settings)
++                                     "--hpc", "--hpc-print-times", "--print-num-nrpc", "--print-num-red-rules", "--solver-time", "--print-num-solver-calls",
++                                     "--no-step-limit", "--search", "subpath", "--subpath-len", "8", "--hpc-discard-strat", "--measure-coverage", "--time", str(timeout)] + var_settings)
+ 
+ def run_nofib_bench_nrpc(filename, var_settings, timeout):
+     return run_nofib_bench(filename, ["--nrpc"] + var_settings, timeout)
+ 
++def generate_string_for_cov(benchmark, tickCount, covBL, covNRPC, lastTimeBL, lastTimeNrpc, bTick1s, nTick1s, bTick5s, nTick5s):
++    #cichelli & \textbf{4} & 3 & 9.5 & 11 & 2\\ \hline
++    tempBCov = str(covBL)
++    tempNCov = str(covNRPC)
++    tempBTime = str(lastTimeBL)
++    tempNTime = str(lastTimeNrpc)
++
++    global latex_str_tbl1
++    global latex_str_tbl4
++    global latex_str_tbl5
++    common_str = " & "
++    
++    if covBL > covNRPC:
++        tempBCov = r"\textbf{" + str(covBL) + "}"
++    elif covNRPC > covBL:
++        tempNCov = r"\textbf{" + str(covNRPC) + "}"
++    else:
++        if abs(lastTimeNrpc - lastTimeBL) >= 1 :
++            if lastTimeBL < lastTimeNrpc :
++                tempBTime = r"\textbf{" + str(lastTimeBL) + "}"
++            elif lastTimeNrpc < lastTimeBL:
++                tempNTime = r"\textbf{" + str(lastTimeNrpc) + "}"
++    temp = benchmark + common_str + str(tickCount) + common_str + tempBCov + common_str + \
++          tempNCov + common_str + tempBTime +  common_str + tempNTime
++    
++    if not bTick1s and not bTick5s:
++        latex_str_tbl1 = latex_str_tbl1 + temp + r"\\ \hline " + "\n"
++
++    if bTick1s and not bTick5s :
++        latex_str_tbl4 += temp + common_str + bTick1s + "/" + nTick1s + r"\\ \hline " + "\n"
++
++    if bTick5s :
++        latex_str_tbl5 += temp + common_str + bTick1s + "/" + nTick1s + common_str + bTick5s + "/" + nTick5s + r"\\ \hline " + "\n"
++
++
++def generate_str_for_pos_ord(benchmark, bTick1s, nTick1s, bTick3s, nTick3s, bTick5s, nTick5s):
++    result = ""
++    common_str = " & "
++    tempTick1s = str(bTick1s) + "/" + str(nTick1s)
++    tempTick3s = str(bTick3s) + "/" + str(nTick3s)
++    tempTick5s = str(bTick5s) + "/" + str(nTick5s)
++    result = benchmark + common_str + tempTick1s + common_str + tempTick3s + common_str + tempTick5s + r"\\ \hline " + "\n"
++
++    return result
++
++def generate_graph_string(benchmark, bCoordinates, nCoordinates):
++
++    str = r"\begin{tikzpicture}" + "\n" + r"\centering" + "\n" + r"\begin{axis}[" + "\n" + r"title={Baseline vs NRPC(" + \
++    benchmark + ")}," + "\n" + r"xlabel={Time (s)}," + "\n" + r"ylabel={No. of Ticks}," + "\n" + "grid=major," + "\n" + \
++    r"width=\columnwidth," + "\n" + r"]" + "\n" + r"\addplot[color=blue,mark=*,smooth] plot coordinates {" + "\n" + bCoordinates + \
++    r"};" + "\n" + r"\addlegendentry{Baseline}" + "\n" + r"\addplot[smooth,color=red,mark=x] plot coordinates {" + "\n" +\
++    nCoordinates + "\n" + r"};" + "\n" + r"\addlegendentry{NRPC}" + "\n" + r"\end{axis}" + "\n" + r"\end{tikzpicture}"
++
++    return str
++
++
++def read_float(pre, out):
++    reg = re.search(pre + r": ((?:\d|\.|e|-)*)", out)
++    res_num = -1
++    if reg:
++        res_num = float(reg.group(1))
++    return res_num
++
++def read_int(pre, out, default_val= -1):
++    return read_int_gen(pre + r": ((?:\d)*)", out, default_val)
++
++def read_int_gen(pre, out, default_val= -1):
++    reg = re.search(pre, out)
++    res_num = default_val
++    if reg:
++        res_num = int(reg.group(1))
++    return res_num
++
++def calculate_graph(tick_times):
++    if not tick_times:
++        return "(0, 0)"
++    count = 0
++    numTickMap = []
++    lastTickTime = tick_times[0][1]
++    for tick, time in tick_times:
++        if time != lastTickTime :
++            numTickMap.append((lastTickTime, count))
++            count = 1
++            lastTickTime = time
++        else:
++            count += 1
++    numTickMap.append((lastTickTime, count))
++
++    pair_strings = [f"({x}, {y})" for x, y in numTickMap]
++    coordinates = " ".join(pair_strings)
++
++    return coordinates
++
++def calculate_order(base_tick_times, nrpc_tick_times):
++    nrpc1 = 0
++    nrpc3 = 0
++    nrpc5 = 0
++    base1 = 0
++    base3 = 0
++    base5 = 0
++    zippedList = zip(base_tick_times, nrpc_tick_times)
++    for (tick, baseTime) , (tick, nrpcTime) in zippedList:
++        timeDiff = nrpcTime - baseTime
++        # NRPCs are doing better
++        if timeDiff < 0:
++            if abs(timeDiff) >= 1:
++                nrpc1 += 1
++            if abs(timeDiff) >= 3:
++                nrpc3 += 1
++            if abs(timeDiff) >= 5:
++                nrpc5 += 1
++        # Baseline is doing better
++        else:
++            if abs(timeDiff) >= 1:
++                base1 += 1
++            if abs(timeDiff) >= 3:
++                base3 += 1
++            if abs(timeDiff) >= 5:
++                base5 += 1
++
++    if len(base_tick_times) > len(nrpc_tick_times):
++        temp = len(base_tick_times) - len(nrpc_tick_times)
++        base1 += temp
++        base3 += temp
++        base5 += temp
++    elif (len(base_tick_times) < len(nrpc_tick_times)):
++        temp = len(nrpc_tick_times) - len(base_tick_times)
++        nrpc1 += temp
++        nrpc3 += temp
++        nrpc5 += temp
++
++    return base1, base3, base5, nrpc1, nrpc3, nrpc5
++
++def calculate_time_diff(base_tick_times_map, nrpc_tick_times_map):
++    nrpc1 = 0
++    nrpc3 = 0
++    nrpc5 = 0
++    base1 = 0
++    base3 = 0
++    base5 = 0
++    for tick, base_time in base_tick_times_map.items():
++        if tick in nrpc_tick_times_map:
++            nrpc_tick_time = nrpc_tick_times_map[tick]
++            timeDiff = nrpc_tick_time - base_time
++            if timeDiff < 0:
++                if abs(timeDiff) >= 1:
++                    nrpc1 += 1
++                if abs(timeDiff) >= 3:
++                    nrpc3 += 1
++                if abs(timeDiff) >= 5:
++                    nrpc5 += 1
++            else:
++                if abs(timeDiff) >= 1:
++                    base1 += 1
++                if abs(timeDiff) >= 3:
++                    base3 += 1
++                if abs(timeDiff) >= 5:
++                    base5 += 1
++        
++    return base1, base3, base5, nrpc1, nrpc3, nrpc5
++
++def calculate_hpc_coverage(hpc_res):
++    rel_hpc_res = list(filter(lambda x: x[0] != "CallForHPC", hpc_res))
++    print("calculate hpc converage")
++    print(hpc_res)
++    print(rel_hpc_res)
++    found = map(lambda x : x[2], rel_hpc_res)
++    total = map(lambda x : x[3], rel_hpc_res)
++    coverage = 0
++    print(list(map(lambda x : ((x[4]), (x[5])), rel_hpc_res)))
++    hpc_branch_nums = sum(map(lambda x : (int(x[4]) + int(x[5])), rel_hpc_res))
++    try:
++        return (sum(found) / sum(total)), hpc_branch_nums
++    except:
++        return 0, hpc_branch_nums
++
++def read_runnable_benchmarks(setpath) :
++    lines = {}
++    file = os.path.join(setpath, "run_benchmarks.txt")
++    with open(file, 'r') as file :
++        lines = [line.rstrip('\n') for line in file.readlines()]
++    return lines
++
+ def process_output(out):
++    nrpcs = re.findall(r"NRPCs Generated: ((?:\d)*)", out)
++    nrpcs_num = list(map(lambda x : int(x), nrpcs))
++
++    red_rules_num = read_int("# Red Rules", out)
++    smt_solving_time_num = read_float("SMT Solving Time", out)
++    gen_solving_time_num = read_float("General Solving Time", out)
++    gen_solver_calls_num = read_int("General Solver Calls", out)
++    smt_solver_calls_num = read_int("SMT Solver Calls", out)
++
+     reached = re.search(r"Ticks reached: (\d*)", out)
+     total = re.search(r"Tick num: (\d*)", out)
+     last = re.search(r"Last tick reached: ((\d|\.)*)", out)
+ 
+-    all_times = read_hpc_times(out)
++    hpc_exp = re.findall(r"module (.*)>-----\n\s*((?:\d)*)% expressions used \(((?:\d)*)/((?:\d)*)\)(?:\n|[^-])*boolean coverage \((?:\d*)/(\d*)\)(?:\n|[^-])*alternatives used \((?:\d*)/(\d*)\)", out)
++    print("hpc_exp = " + str(hpc_exp))
++    hpc_exp_num = list(map(lambda x : (x[0], int(x[1]), int(x[2]), int(x[3]), (x[4]), (x[5])), hpc_exp))
++    hpc_reached, branch_num = calculate_hpc_coverage(hpc_exp_num)
++    hpc_reached = round(hpc_reached * 100, 1)
++
++    tick_times_list, all_times = read_hpc_times(out)
++    coverage = 0.0
++    last_time = 0.0
++    avg_nrpc = round((sum(nrpcs_num)/len(nrpcs_num) if len(nrpcs_num) > 0 else 0), 2)
++    total_f = 0.0
++
++    # number of states generated, number of timeouts
++    post_call_s = read_int(r"Post call states", out, 0)
++    func_arg_s = read_int(r"Func arg states", out, 0)
++    timeout_s = read_int(r"Timeout count", out, 0)
++
+ 
+     if reached != None and total != None and last != None:
+         reached_f = float(reached.group(1))
+-        total_f = float(total.group(1))
+-        print("reached = " + str(reached.group(1)))
++        total_f = int(total.group(1))
++
++        coverage = round(((reached_f / total_f)*100), 1)
++        print("Last time is: "+ last.group(1))
++        last_time = round(float(last.group(1)), 1) if last.group(1) else 0.0
++
++        print("hpc reached = " + str(hpc_reached))
++        print("g2 reached = " + str(reached.group(1)))
+         print("total = " + str(total.group(1)))
+-        print("% reached = " + str(reached_f / total_f))
++        print("% reached = " + str(coverage))
+         print("last time = " + last.group(1))
+         print("all_times = " + str(all_times))
++        print("Red Rules #: " + str(red_rules_num))
++        print("SMT Solving time: " + str(smt_solving_time_num))
++        print("Gen Solving time: " + str(gen_solving_time_num))
++        print("SMT Solver calls: " + str(smt_solver_calls_num))
++        print("General Solver calls: " + str(gen_solver_calls_num))
++        print ("# nrpcs = " + str(nrpcs_num))
++        print ("# post call args = " + str(post_call_s))
++        print ("# func args = " + str(func_arg_s))
++        print ("# timeouts = " + str(timeout_s))
++        print("# branches = " + str(branch_num))
++    return hpc_reached, coverage, last_time, avg_nrpc, tick_times_list, total_f, post_call_s, func_arg_s, timeout_s, branch_num
++
++total_nrpc_post_call_s = 0
++total_nrpc_func_arg_s = 0
++total_nrpc_timeout = 0
++
++total_programs_with_timeout = 0
+ 
+ 
+ def run_nofib_set(setname, var_settings, timeout):
++        global total_nrpc_post_call_s 
++        global total_nrpc_func_arg_s
++        global total_nrpc_timeout
++        global total_programs_with_timeout
++
++        global latex_str_tbl1
++        global latex_str_tbl2
++        global latex_str_tbl3
++        global latex_str_tbl4
++        global latex_str_tbl5
+         setpath = os.path.join("nofib-symbolic-functions/", setname)
+         all_files_dirs = os.listdir(setpath);
+-        print(all_files_dirs)
+-        lhs_files = ["digits-of-e1", "digits-of-e2"]
++        lhs_files = ["digits-of-e1", "digits-of-e2", "boyer", "circsim", "fibheaps", "knights",
++                     "para", "primetest", "rewrite", "secretary", "sphere", "fft2"]
++
++        run_benchmarks = read_runnable_benchmarks(setpath)
++        print(run_benchmarks)
++
++        data = []
++
++        headers = ["Benchmark", "#Total Ticks", "B HPC cov %", "B cov %", "B last time",
++                    "N HPC cov %", "N cov %", "N last time", "Pos 1-sec B/N", "Pos 3-sec B/N", 
++                    "Pos 5-sec B/N", "Diff tick 1s", "Diff tick 3s", "Diff tick 5s", "Avg # Nrpcs", "# Branches"]
++        
++        tempStr = r"\multicolumn{4}{l}{\textbf{" + setname + r"}}\\ \hline " + "\n"
++        latex_str_tbl1 += tempStr
++        latex_str_tbl2 += tempStr
++        latex_str_tbl3 += tempStr
++        latex_str_tbl4 += tempStr
++        latex_str_tbl5 += tempStr
+ 
+-        print(setpath)
+ 
+-        for file_dir in all_files_dirs:
++        for file_dir in run_benchmarks:
+             bench_path = os.path.join(setpath, file_dir)
+             if os.path.isdir(bench_path):
+                 if file_dir in lhs_files:
+@@ -76,9 +346,51 @@ def run_nofib_set(setname, var_settings, timeout):
+                     print(file_dir);
+                     res_bench = run_nofib_bench(final_path, var_settings, timeout)
+                     print("Baseline:")
+-                    process_output(res_bench)
++                    base_hpc_cov, base_cov, base_last, avg, base_tick_times, base_total, base_post_call, base_func_args, base_timeouts, branch_num = process_output(res_bench)
+                     res_bench_nrpc = run_nofib_bench_nrpc(final_path, var_settings, timeout)
+                     print("NRPC:")
+-                    process_output(res_bench_nrpc)
++                    nrpc_hpc_cov, nrpc_cov, nrpc_last, avg_nrpc, nrpc_tick_times, nrpc_total, nrpc_post_call, nrpc_func_args, nrpc_timeout, _  = process_output(res_bench_nrpc)
++                    bt1, bt3, bt5, nt1, nt3, nt5 = calculate_time_diff(dict(base_tick_times), dict(nrpc_tick_times))
++                    bo1, bo3, bo5, no1, no3, no5 = calculate_order(base_tick_times, nrpc_tick_times)
++
++                    total_nrpc_post_call_s += nrpc_post_call
++                    total_nrpc_func_arg_s += nrpc_func_args
++                    total_nrpc_timeout += nrpc_timeout
++                    if nrpc_timeout > 0:
++                        total_programs_with_timeout += 1
++
++                    graph_latex = generate_graph_string(file_dir, calculate_graph(base_tick_times), calculate_graph(nrpc_tick_times))
++
++                    data.append([file_dir, base_total, base_hpc_cov, str(base_cov), base_last, nrpc_hpc_cov, str(nrpc_cov), nrpc_last,
++                                 str(bt1) + "/" + str(nt1), str(bt3) + "/" + str(nt3), str(bt5) + "/" + str(nt5),
++                                 str(bo1) + "/" + str(no1), str(bo3) + "/" + str(no3), str(bo5) + "/" + str(no5),
++                                 str(avg_nrpc), str(branch_num)])
++                    generate_string_for_cov(file_dir, base_total, base_hpc_cov, nrpc_hpc_cov, base_last, nrpc_last, "", "", "", "")
++                    generate_string_for_cov(file_dir, base_total, base_hpc_cov, nrpc_hpc_cov, base_last, nrpc_last, str(bo1), str(no1), "", "")
++                    generate_string_for_cov(file_dir, base_total, base_hpc_cov, nrpc_hpc_cov, base_last, nrpc_last, str(bo1), str(no1), str(bo5), str(no5))
++                    latex_str_tbl2 += generate_str_for_pos_ord(file_dir, bt1, nt1, bt3, nt3, bt5, nt5)
++                    latex_str_tbl3 += generate_str_for_pos_ord(file_dir, bo1, no1, bo3, no3, bo5, no5)
++                    print("\n")
++                    print("Graph latex for: " + file_dir + ": \n" + graph_latex)
++                    print("\n")
++        print(tabulate(data, headers=headers, tablefmt="grid"))
++        print("\n")
++
++run_nofib_set("imaginary", [], 1)
++run_nofib_set("spectral", [], 1)
++
++print("Latex string for coverage table\n")
++print(latex_str_tbl1)
++print("Latex string for coverage table with Tick count at atleast 1second \n")
++print(latex_str_tbl4)
++print("Latex string for coverage table with Tick count at atleast 5second \n")
++print(latex_str_tbl5)
++print("\nLatex string for table 2\n")
++print(latex_str_tbl2)
++print("\nLatex string for table 3\n")
++print(latex_str_tbl3)
+ 
+-run_nofib_set("imaginary", [], 60)
++print("Total NRPC post call states = " + str(total_nrpc_post_call_s))
++print("Total NRPC func arg states = " + str(total_nrpc_func_arg_s))
++print("Total NRPC timeouts = " + str(total_nrpc_timeout))
++print("Total programs with timeout = " + str(total_programs_with_timeout))
+\ No newline at end of file
