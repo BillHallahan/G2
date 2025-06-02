@@ -104,7 +104,9 @@ lookupTCDict tc n t =
 -- `Type`s that have instances of that typeclass, and the
 -- typeclass dictionaries.
 lookupTCDicts :: Name -> TypeClasses -> Maybe [(Type, Id)]
-lookupTCDicts n = fmap insts . M.lookup n . coerce 
+lookupTCDicts n tc = 
+    let result = fmap insts . M.lookup n . coerce $ tc
+    in traceShow result result
 
 lookupTCClass :: Name -> TypeClasses -> Maybe Class
 lookupTCClass n = M.lookup n . coerce
@@ -169,13 +171,7 @@ satisfyingTCTypes kv tc i ts =
         xs -> substKind i $ foldr1 intersect xs
     where
         lookupTCDictsTypes (TyApp t1 t2) =
-              fmap (mapMaybe (\t' -> 
-                let sp = specializes t' t2
-                 in trace ("Trying: " ++ show t' ++ " specializes to " ++ show sp) $
-                        case sp of
-                            Just m  -> trace ("Looking up: " ++ show (idName i) ++ " in " ++ show m) $
-                                    TV.lookup (idName i) m
-                            Nothing -> trace "Specialization failed" Nothing))
+              fmap (mapMaybe (\t' -> TV.lookup (idName i) =<< specializes t' t2))
             . fmap (map fst)
             . flip lookupTCDicts tc
             =<< (tyConAppName . tyAppCenter $ t1)
