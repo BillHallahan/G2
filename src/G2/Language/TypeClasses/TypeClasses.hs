@@ -165,7 +165,7 @@ satisfyingTCTypes kv tc i ts =
     in
     case mapMaybe lookupTCDictsTypes tcReq of
         [] -> [tyInt kv]
-        xs ->trace("In xs case, the xs are: "++ show xs) substKind i $ foldr1 intersect xs
+        xs ->trace("In xs case") substKind i $ foldr1 intersect xs
     where
         lookupTCDictsTypes (TyApp t1 t2) =
               fmap (mapMaybe (\t' -> TV.lookup (idName i) =<< specializes t' t2))
