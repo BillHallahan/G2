@@ -192,7 +192,7 @@ retLam :: State t -> NameGen -> LamUse -> Id -> Expr -> Expr -> S.Stack Frame ->
 retLam s@(State { expr_env = eenv, tyvar_env = tvnv })
        ng u i e ae stck'
     | TypeL <- u =
-        case TV.deepLookup tvnv ae of
+        case traceType eenv ae of
         Just t ->
             let 
                 (n', ng') = freshSeededName (idName i) ng 
