@@ -103,13 +103,8 @@ instance SMTConverter Z3 where
         let (h_in, _, _) = getIOZ3 con
         T.hPutStrLn h_in "(set-option :produce-unsat-cores true)"
 
-    addFormula con@(Z3 print_smt _ _) form = do
+    addFormula con form = do
         let (h_in, _, _) = getIOZ3 con
-
-        when print_smt $ do
-            putStrLn "addFormula"
-            T.putStrLn (TB.run $ toSolverText form)
-
         T.hPutStrLn h_in (TB.run $ toSolverText form)
 
     checkSatNoReset con@(Z3 print_smt _ _) formula = do
@@ -315,10 +310,10 @@ getProcessHandles pr = do
 
     return (h_in, h_out, p)
 
-getZ3 :: PrintSMT -> Int -> IO Z3
-getZ3 pr_smt time_out = do
+getZ3 :: Int -> IO Z3
+getZ3 time_out = do
     hhp <- getZ3ProcessHandles time_out
-    return $ Z3 pr_smt arbValue hhp
+    return $ Z3 False arbValue hhp
 
 getSMT :: Config -> IO SomeSMTSolver
 getSMT = getSMTAV arbValue

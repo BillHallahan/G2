@@ -291,11 +291,11 @@ initRedHaltOrd mod_name solver simplifier config exec_func_names no_nrpc_names =
     time_logger <- acceptTimeLogger
     time_halter <- stdTimerHalter (fromInteger . toInteger $ timeLimit config)
 
-    m_logger <- fmap SomeReducer <$> getLimLogger config
-
     let share = sharing config
 
         state_name = Name "state" Nothing 0 Nothing
+
+        m_logger = fmap SomeReducer $ getLimLogger config
 
         strict_red f = case strict config of
                             True -> SomeReducer (stdRed share f solver simplifier ~> instTypeRed ~> strictRed)
@@ -318,13 +318,9 @@ initRedHaltOrd mod_name solver simplifier config exec_func_names no_nrpc_names =
                                 True -> SomeReducer time_logger .~> nrpc_red f
                                 False -> nrpc_red f
 
-        num_steps_red f = case print_num_red_rules_per_state config of
-                                True -> SomeReducer numStepsLogger .~> accept_time_red f
-                                False -> accept_time_red f
-
         logger_std_red f = case m_logger of
-                            Just logger -> liftSomeReducer (logger .~> num_steps_red f)
-                            Nothing -> liftSomeReducer (num_steps_red f)
+                            Just logger -> liftSomeReducer (logger .~> accept_time_red f)
+                            Nothing -> liftSomeReducer (accept_time_red f)
 
         halter = switchEveryNHalter 20
                  <~> maxOutputsHalter (maxOutputs config)
@@ -376,7 +372,6 @@ initSolver' avf config = do
                     SomeSolver adt_solver ->
                         SomeSolver $ GroupRelated avf
                                     ( UndefinedHigherOrder
-                                 :?> EqualitySolver
                                  :?> adt_solver)
 
     con'' <- case time_solving config of
@@ -471,7 +466,7 @@ runG2WithConfig entry_f mb_modname state@(State { expr_env = eenv}) config bindi
     hpc_t <- hpcTracker (hpc_print_times config)
     let 
         (state', bindings') = runG2Pre emptyMemConfig state bindings
-        simplifier = FloatSimplifier :>> ArithSimplifier :>> BoolSimplifier :>> StringSimplifier :>> EqualitySimplifier
+        simplifier = FloatSimplifier :>> ArithSimplifier :>> EqualitySimplifier
         --exp_env_names = E.keys . E.filterConcOrSym (\case { E.Sym _ -> False; E.Conc _ -> True }) $ expr_env state
         mod_name = nameModule entry_f
         callGraph = G.getCallGraph $ expr_env state'

@@ -44,7 +44,7 @@ def read_int(pre, out):
 def process_output(out):
     nrpcs = re.findall(r"NRPCs Generated: ((?:\d)*)", out)
     nrpcs_num = list(map(lambda x : int(x), nrpcs))
-    reached = re.findall(r"State Accepted Time: ((?:\d|\.|e|-)*)", out)
+    reached = re.findall(r"State Accepted: ((?:\d|\.|e|-)*)", out)
     reached_time = list(map(lambda x : float(x), reached))
 
     red_rules_num = read_int("# Red Rules", out)

@@ -71,7 +71,6 @@ data Config = Config {
     , logStates :: LogMode -- ^ Determines whether to Log states, and if logging states, how to do so.
     , logEveryN :: Int -- ^ If logging states, log every nth state
     , logAfterN :: Int -- ^ Logs state only after the nth state
-    , logConcPCGuide :: Maybe String -- ^ Log states only if they match the ConcPCGuide in the provided file
     , logPath :: [Int] -- ^ Log states that are following on or proceed from some path, passed as a list i.e. [1, 2, 1]
     , sharing :: Sharing
     , instTV :: InstTV -- allow the instantiation of types in the beginning or it's instantiate symbolically by functions
@@ -94,7 +93,6 @@ data Config = Config {
     , states_at_time :: Bool -- ^ Output time and number of states each time a state is added/removed
     , states_at_step :: Bool -- ^ Output step and number of states at each step where a state is added/removed
     , print_num_red_rules :: Bool -- ^ Output the total number of reduction rules
-    , print_num_red_rules_per_state :: Bool  -- ^ Output the number of reduction rules per accepted state
     , print_nrpcs :: Bool -- ^ Output generated NRPCs
     , hpc :: Bool -- ^ Should HPC ticks be generated and tracked during execution?
     , hpc_print_times :: Bool -- ^ Print the time each HPC tick is reached?
@@ -122,11 +120,6 @@ mkConfig homedir = Config Regular
                    <> metavar "LA"
                    <> value 0
                    <> help "logs state only after the nth state")
-    <*> option (maybeReader (Just . Just))
-                 (long "log-conc-pc"
-                   <> metavar "LCPC"
-                   <> value Nothing
-                   <> help "logs state only if they match the concretizations and path constraints specified in the provided file")
     <*> option auto (long "log-path"
                    <> metavar "LP"
                    <> value []
@@ -159,7 +152,6 @@ mkConfig homedir = Config Regular
     <*> switch (long "states-at-time" <> help "output time and number of states each time a state is added/removed")
     <*> switch (long "states-at-step" <> help "output step and number of states at each step where a state is added/removed")
     <*> switch (long "print-num-red-rules" <> help "output the total number of reduction rules")
-    <*> switch (long "print-num-red-rules-per-state" <> help "output the number of reduction rules per accepted state")
     <*> switch (long "print-nrpc" <> help "output generated nrpcs")
     <*> flag False True (long "hpc"
                       <> help "Generate and report on HPC ticks")
@@ -274,7 +266,6 @@ mkConfigDirect homedir as m = Config {
                         (strArg "log-pretty" as m (Log Pretty) NoLog)
     , logEveryN = 0
     , logAfterN = 0
-    , logConcPCGuide = Nothing
     , logPath = []
     , sharing = boolArg' "sharing" as Sharing Sharing NoSharing
     , instTV = InstBefore
@@ -297,7 +288,6 @@ mkConfigDirect homedir as m = Config {
     , states_at_time = False
     , states_at_step = False
     , print_num_red_rules = False
-    , print_num_red_rules_per_state = False
     , print_nrpcs = False
     , hpc = False
     , hpc_print_times = False
