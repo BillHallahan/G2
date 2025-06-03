@@ -2,24 +2,32 @@ module G2.Language.Approximation ( GenerateLemma
                                  , Lookup
                                  , MRCont
                                  
+                                 , moreRestrictiveIncludingPC
                                  , moreRestrictive
                                  , moreRestrictive'
                                  , moreRestrictivePC
 
                                  , applySolver
                                  
-                                 , inlineEquiv) where
+                                 , inlineEquiv
+                                 
+                                 , lookupConcOrSymState
+                                 
+                                 , stackWrap
+                                 , stateAdjStack) where
 
 import G2.Execution.NormalForms
 import G2.Language.Expr
 import qualified G2.Language.ExprEnv as E
 import G2.Language.Naming
 import qualified G2.Language.PathConds as P
+import qualified G2.Language.Stack as Stck
 import G2.Language.Support
 import G2.Language.Syntax
 import G2.Language.Typing as T
 import qualified G2.Solver as S
 
+import Control.Exception
 import Control.Monad.Extra
 import Control.Monad.IO.Class
 import qualified Data.HashSet as HS
@@ -55,6 +63,22 @@ type MRCont t l =  State t
 -------------------------------------------------------------------------------
 
 -- | Check is s1 is an approximation of s2 (if s2 is more restrictive than s1.)
+moreRestrictiveIncludingPC :: S.Solver solver =>
+                   solver
+                -> MRCont t l -- ^ For special case handling - what to do if we don't match elsewhere in moreRestrictive
+                -> GenerateLemma t l
+                -> Lookup t -- ^ How to lookup variable names
+                -> HS.HashSet Name -- ^ Names that should not be inlined (often: top level names from the original source code)
+                -> State t -- ^ State 1
+                -> State t -- ^ State 2
+                -> IO Bool
+moreRestrictiveIncludingPC solver mr_cont gen_lemma lkp ns s1 s2  = do
+    let mr = moreRestrictive' mr_cont gen_lemma lkp s1 s2 ns (HM.empty, HS.empty) True [] [] (getExpr s1) (getExpr s2)
+    case mr of
+        Left _ -> return False
+        Right (sym_var_map, expr_pairs) -> moreRestrictivePC solver s1 s2 sym_var_map expr_pairs
+
+-- | Check is s1 is an approximation of s2 (if s2 is more restrictive than s1.)
 moreRestrictive :: MRCont t l -- ^ For special case handling - what to do if we don't match elsewhere in moreRestrictive
                 -> GenerateLemma t l
                 -> Lookup t -- ^ How to lookup variable names
@@ -67,6 +91,8 @@ moreRestrictive :: MRCont t l -- ^ For special case handling - what to do if we 
                               , HS.HashSet (Expr, Expr) -- ^ Pairs of `Expr`s from `State` 1 and `State` 2, which must be checked for implication via the SMT solver 
                               )
 moreRestrictive mr_cont gen_lemma lkp s1 s2 ns hm =
+    assert (Stck.null $ exec_stack s1)
+    assert (Stck.null $ exec_stack s2)
     moreRestrictive' mr_cont gen_lemma lkp s1 s2 ns hm True [] [] (getExpr s1) (getExpr s2)
 
 moreRestrictive' :: MRCont t l -- ^ For special case handling - what to do if we don't match elsewhere in moreRestrictive'
@@ -253,18 +279,19 @@ moreRestrictivePC :: (MonadIO m, S.Solver solver) =>
                      State t -> -- The more general state (the older state)
                      State t -> -- ^ The more specific state (the newer state)
                      HM.HashMap Id Expr ->
+                     HS.HashSet (Expr, Expr) ->
                      m Bool
-moreRestrictivePC solver s1@(State { known_values = kv }) s2 hm = do
+moreRestrictivePC solver s1@(State { known_values = kv }) s2 sym_var_map expr_pairs = do
   let new_conds = map extractCond (P.toList $ path_conds s2)
       old_conds = map extractCond (P.toList $ path_conds s1)
-      l = map (\(i, e) -> (Var i, e)) $ HM.toList hm
+      l = map (\(i, e) -> (Var i, e)) $ HM.toList sym_var_map
       
       -- Link up variables/expressions between the states, i.e. assert equality
       -- of some variable from state 1 with some expression in state 2
       l' = map (\(e1, e2) ->
                   if T.isPrimType (typeOf e1) && T.isPrimType (typeOf e2)
                   then Just $ App (App (Prim Eq TyUnknown) e1) e2
-                  else Nothing) l
+                  else Nothing) (l ++ HS.toList expr_pairs)
       l'' = catMaybes l'
       new_conds' = l'' ++ new_conds
       
@@ -311,3 +338,27 @@ extractCond (AltCond l e True) =
 extractCond (AltCond l e False) =
   App (App (Prim Neq TyUnknown) e) (Lit l)
 extractCond _ = error "Not Supported"
+
+lookupConcOrSymState :: Name -> State t -> Maybe E.ConcOrSym
+lookupConcOrSymState n = E.lookupConcOrSym n . expr_env
+
+frameWrap :: Frame -> Expr -> Expr
+frameWrap (CaseFrame i t alts) e = Case e i t alts
+frameWrap (ApplyFrame e') e = App e e'
+frameWrap (UpdateFrame _) e = e
+frameWrap (CastFrame co) e = Cast e co
+frameWrap _ _ = error "unsupported frame"
+
+stackWrap :: Stck.Stack Frame -> Expr -> Expr
+stackWrap sk e =
+  case Stck.pop sk of
+    Nothing -> e
+    Just (fr, sk') -> stackWrap sk' $ frameWrap fr e
+
+stateAdjStack :: State t -> State t
+stateAdjStack s =
+    let e = getExpr s
+    in s {
+           curr_expr = CurrExpr Evaluate $ stackWrap (exec_stack s) $ e
+         , exec_stack = Stck.empty
+         }

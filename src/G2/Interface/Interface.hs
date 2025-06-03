@@ -251,17 +251,17 @@ initCheckReaches s@(State { expr_env = eenv
                           , known_values = kv }) m_mod reaches =
     s {expr_env = checkReaches eenv kv reaches m_mod }
 
-type RHOStack m = SM.StateT LengthNTrack (SM.StateT PrettyGuide (SM.StateT HpcTracker (SM.StateT HPCMemoTable m)))
+type RHOStack m t = SM.StateT [State t] (SM.StateT LengthNTrack (SM.StateT PrettyGuide (SM.StateT HpcTracker (SM.StateT HPCMemoTable m))))
 
 {-# SPECIALIZE runReducer :: Ord b =>
-                             Reducer (RHOStack IO) rv ()
-                          -> Halter (RHOStack IO) hv (ExecRes ()) ()
-                          -> Orderer (RHOStack IO) sov b (ExecRes ()) ()
-                          -> (State () -> Bindings -> RHOStack IO (Maybe (ExecRes ())))
-                          -> [AnalyzeStates (RHOStack IO) (ExecRes ()) ()]
+                             Reducer (RHOStack IO ()) rv ()
+                          -> Halter (RHOStack IO ()) hv (ExecRes ()) ()
+                          -> Orderer (RHOStack IO ()) sov b (ExecRes ()) ()
+                          -> (State () -> Bindings -> RHOStack IO () (Maybe (ExecRes ())))
+                          -> [AnalyzeStates (RHOStack IO ()) (ExecRes ()) ()]
                           -> State ()
                           -> Bindings
-                          -> (RHOStack IO) (Processed (ExecRes ()) (State ()), Bindings)
+                          -> (RHOStack IO ()) (Processed (ExecRes ()) (State ()), Bindings)
     #-}
 
 {-# SPECIALIZE 
@@ -273,7 +273,7 @@ type RHOStack m = SM.StateT LengthNTrack (SM.StateT PrettyGuide (SM.StateT HpcTr
                    -> Config
                    -> S.HashSet Name
                    -> S.HashSet Name
-                   -> IO (SomeReducer (RHOStack IO) (), SomeHalter (RHOStack IO) (ExecRes ()) (), SomeOrderer (RHOStack IO) (ExecRes ()) ())
+                   -> IO (SomeReducer (RHOStack IO ()) (), SomeHalter (RHOStack IO ()) (ExecRes ()) (), SomeOrderer (RHOStack IO ()) (ExecRes ()) ())
     #-}
 initRedHaltOrd :: (MonadIO m, Solver solver, Simplifier simplifier) =>
                   State ()
@@ -284,7 +284,7 @@ initRedHaltOrd :: (MonadIO m, Solver solver, Simplifier simplifier) =>
                -> S.HashSet Name -- ^ Names of functions that may not be added to NRPCs
                -> S.HashSet Name -- ^ Names of functions that should not reesult in a larger expression become EXEC,
                                  -- but should not be added to the NRPC at the top level.
-               -> IO (SomeReducer (RHOStack m) (), SomeHalter (RHOStack m) (ExecRes ()) (), SomeOrderer (RHOStack m) (ExecRes ()) ())
+               -> IO (SomeReducer (RHOStack m ()) (), SomeHalter (RHOStack m ()) (ExecRes ()) (), SomeOrderer (RHOStack m ()) (ExecRes ()) ())
 initRedHaltOrd s mod_name solver simplifier config exec_func_names no_nrpc_names = do
     time_logger <- acceptTimeLogger
     time_halter <- stdTimerHalter (fromInteger . toInteger $ timeLimit config)
@@ -324,8 +324,8 @@ initRedHaltOrd s mod_name solver simplifier config exec_func_names no_nrpc_names
                                 False -> accept_time_red f
 
         logger_std_red f = case m_logger of
-                            Just logger -> liftSomeReducer (logger .~> num_steps_red f)
-                            Nothing -> liftSomeReducer (num_steps_red f)
+                            Just logger -> liftSomeReducer $ liftSomeReducer (logger .~> num_steps_red f)
+                            Nothing -> liftSomeReducer $ liftSomeReducer (num_steps_red f)
 
         halter = switchEveryNHalter 20
                  <~> maxOutputsHalter (maxOutputs config)
@@ -338,27 +338,31 @@ initRedHaltOrd s mod_name solver simplifier config exec_func_names no_nrpc_names
         
         -- halter_accept_only = case halter_step of SomeHalter h -> SomeHalter (liftHalter (liftHalter (liftHalter (acceptOnlyNewHPC h))))
 
-        halter_discard = case hpc_discard_strat config of
-                            True -> SomeHalter (liftHalter (liftHalter (liftHalter (noNewHPCHalter mod_name)))) .<~> halter_step
-                            False -> halter_step
+        halter_hpc_discard = case hpc_discard_strat config of
+                                    True -> SomeHalter (liftHalter . liftHalter . liftHalter . liftHalter $ noNewHPCHalter mod_name) .<~> halter_step
+                                    False -> halter_step
+
+        halter_approx_discard = case approx_discard config of
+                                    True -> SomeHalter (approximationHalter solver S.empty) .<~> halter_hpc_discard
+                                    False -> halter_hpc_discard
 
         orderer = case search_strat config of
-                        Subpath -> SomeOrderer $ lengthNSubpathOrderer (subpath_length config)
+                        Subpath -> SomeOrderer . liftOrderer $ lengthNSubpathOrderer (subpath_length config)
                         Iterative -> SomeOrderer $ pickLeastUsedOrderer
 
     return $
         case higherOrderSolver config of
             AllFuncs ->
                 ( logger_std_red retReplaceSymbFuncVar .== Finished .--> SomeReducer nonRedPCRed
-                ,  halter_discard
+                ,  halter_approx_discard
                 , orderer)
             SingleFunc ->
                 ( logger_std_red retReplaceSymbFuncVar .== Finished .--> taggerRed state_name :== Finished --> nonRedPCRed
-                , SomeHalter (discardIfAcceptedTagHalter state_name) .<~> halter_discard
+                , SomeHalter (discardIfAcceptedTagHalter state_name) .<~> halter_approx_discard
                 , orderer)
             SymbolicFunc ->
                 ( logger_std_red retReplaceSymbFuncTemplate .== Finished .--> taggerRed state_name :== Finished --> nonRedPCSymFuncRed
-                , SomeHalter (discardIfAcceptedTagHalter state_name) .<~> halter_discard
+                , SomeHalter (discardIfAcceptedTagHalter state_name) .<~> halter_approx_discard
                 , orderer)
 
 initSolver :: Config -> IO SomeSolver
@@ -491,9 +495,9 @@ runG2WithConfig entry_f mb_modname state@(State { expr_env = eenv }) config bind
         non_rec_funcs = filter (isFuncNonRecursive callGraph) reachable_funcs
 
     analysis1 <- if states_at_time config then do l <- logStatesAtTime; return [l] else return noAnalysis
-    let analysis2 = if states_at_step config then [\s p xs -> SM.lift . SM.lift . SM.lift . SM.lift $ logStatesAtStep s p xs] else noAnalysis
-        analysis3 = if print_num_red_rules config then [\s p xs -> SM.lift . SM.lift . SM.lift . SM.lift . SM.lift $ logRedRuleNum s p xs] else noAnalysis
-        analysis4 = if print_nrpcs config then [\s p xs -> SM.lift $ logNRPCs s p xs] else noAnalysis
+    let analysis2 = if states_at_step config then [\s p xs -> SM.lift . SM.lift . SM.lift . SM.lift . SM.lift $ logStatesAtStep s p xs] else noAnalysis
+        analysis3 = if print_num_red_rules config then [\s p xs -> SM.lift . SM.lift . SM.lift . SM.lift . SM.lift . SM.lift $ logRedRuleNum s p xs] else noAnalysis
+        analysis4 = if print_nrpcs config then [\s p xs -> SM.lift . SM.lift $ logNRPCs s p xs] else noAnalysis
         analysis = analysis1 ++ analysis2 ++ analysis3 ++ analysis4
     
     (in_out, bindings'') <- case null analysis of
@@ -505,7 +509,10 @@ runG2WithConfig entry_f mb_modname state@(State { expr_env = eenv }) config bind
                         SM.evalStateT
                             (SM.evalStateT
                                 (SM.evalStateT
-                                    (runG2WithSomes' red hal ord [] solver simplifier state' bindings')
+                                    (SM.evalStateT
+                                        (runG2WithSomes' red hal ord [] solver simplifier state' bindings')
+                                        []
+                                    )
                                     lnt
                                 )
                                 (if showType config == Lax 
@@ -525,7 +532,10 @@ runG2WithConfig entry_f mb_modname state@(State { expr_env = eenv }) config bind
                                 SM.evalStateT
                                     (SM.evalStateT
                                         (SM.evalStateT
-                                            (runG2WithSomes' red hal ord analysis solver simplifier state' bindings')
+                                            (SM.evalStateT
+                                                (runG2WithSomes' red hal ord analysis solver simplifier state' bindings')
+                                                []
+                                            )
                                             lnt
                                         )
                                         (if showType config == Lax 
@@ -582,16 +592,16 @@ isFuncNonRecursive g n =
 {-# SPECIALIZE 
     runG2WithSomes :: ( Solver solver
                       , Simplifier simplifier)
-                => SomeReducer (RHOStack IO) ()
-                -> SomeHalter (RHOStack IO) (ExecRes ()) ()
-                -> SomeOrderer (RHOStack IO) (ExecRes ()) ()
-                -> [AnalyzeStates (RHOStack IO) (ExecRes ()) ()]
+                => SomeReducer (RHOStack IO ()) ()
+                -> SomeHalter (RHOStack IO ()) (ExecRes ()) ()
+                -> SomeOrderer (RHOStack IO ()) (ExecRes ()) ()
+                -> [AnalyzeStates (RHOStack IO ()) (ExecRes ()) ()]
                 -> solver
                 -> simplifier
                 -> MemConfig
                 -> State ()
                 -> Bindings
-                -> RHOStack IO ([ExecRes ()], Bindings)
+                -> RHOStack IO () ([ExecRes ()], Bindings)
     #-}
 runG2WithSomes :: ( MonadIO m
                   , Named t
@@ -728,9 +738,9 @@ runG2SubstModel m s@(State { type_env = tenv, known_values = kv }) bindings =
 
 {-# SPECIALIZE runG2 :: ( Solver solver
                         , Simplifier simplifier
-                        , Ord b) => Reducer (RHOStack IO) rv () -> Halter (RHOStack IO) hv (ExecRes ()) () -> Orderer (RHOStack IO) sov b (ExecRes ()) () ->
-                        [AnalyzeStates (RHOStack IO) (ExecRes ()) ()] ->
-                        solver -> simplifier -> MemConfig -> State () -> Bindings -> RHOStack IO ([ExecRes ()], Bindings)
+                        , Ord b) => Reducer (RHOStack IO ()) rv () -> Halter (RHOStack IO ()) hv (ExecRes ()) () -> Orderer (RHOStack IO ()) sov b (ExecRes ()) () ->
+                        [AnalyzeStates (RHOStack IO ()) (ExecRes ()) ()] ->
+                        solver -> simplifier -> MemConfig -> State () -> Bindings -> RHOStack IO () ([ExecRes ()], Bindings)
     #-}
 
 

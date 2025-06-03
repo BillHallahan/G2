@@ -143,6 +143,7 @@ import G2.Execution.Rules
 import G2.Interface.ExecRes
 import G2.Execution.ExecSkip
 import G2.Language
+import G2.Language.Approximation
 import G2.Language.KnownValues
 import qualified G2.Language.Monad as MD
 import qualified G2.Language.PathConds as PC
@@ -1513,16 +1514,37 @@ varLookupLimitHalter lim = mkSimpleHalter
         step l _ _ (State { curr_expr = CurrExpr Evaluate (Var _) }) = l - 1
         step l _ _ _ = l
 
-approximationHalter :: SM.MonadState [State t] m => Halter m () r t
-approximationHalter = mkSimpleHalter
-                            (const ())
-                            (\hv _ _ -> hv)
-                            stop
-                            (\hv _ _ _ -> hv)
+approximationHalter :: (Solver solver, SM.MonadState [State t] m, MonadIO m ) =>
+                       solver
+                    -> HS.HashSet Name -- ^ Names that should not be inlined (often: top level names from the original source code)
+                    -> Halter m () r t
+approximationHalter solver no_inline = mkSimpleHalter
+                                            (const ())
+                                            (\hv _ _ -> hv)
+                                            stop
+                                            (\hv _ _ _ -> hv)
     where
-        stop _ pr s = do
-            xs <- SM.get
-            undefined
+        stop _ _ s
+            | s'@(State { curr_expr = CurrExpr Evaluate e}) <- stateAdjStack s
+            , Var _:_ <- unApp e
+            , not . isTyFun . typeOf $ e = do
+                xs <- SM.get
+                approx <- liftIO $ findM (\prev -> moreRestrictiveIncludingPC
+                                                        solver
+                                                        mr_cont
+                                                        gen_lemma
+                                                        lookupConcOrSymState
+                                                        no_inline
+                                                        prev
+                                                        s'
+                                                ) xs
+                if isJust approx
+                    then do liftIO $ print (fmap (printHaskellDirty . getExpr) approx); return Discard
+                    else do SM.modify (s':); return Continue
+        stop _ _ _ = return Continue
+        
+        mr_cont _ _ _ _ _ _ _ _ _ = Left []
+        gen_lemma _ _ _ _ _ = ()
 
 -- type StopRed m hv r t = hv -> Processed r (State t)  -> State t -> m HaltC
 
