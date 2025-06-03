@@ -24,6 +24,7 @@ import Control.Monad.Extra
 import Control.Monad.IO.Class
 import qualified Data.HashSet as HS
 import qualified Data.HashMap.Lazy as HM
+import Data.Maybe
 
 type GenerateLemma t l = State t -> State t -> (HM.HashMap Id Expr, HS.HashSet (Expr, Expr)) -> Expr -> Expr -> l
 type Lookup t = Name -> State t -> Maybe E.ConcOrSym
@@ -57,11 +58,14 @@ type MRCont t l =  State t
 moreRestrictive :: MRCont t l -- ^ For special case handling - what to do if we don't match elsewhere in moreRestrictive
                 -> GenerateLemma t l
                 -> Lookup t -- ^ How to lookup variable names
-                -> State t -- ^ s1
-                -> State t -- ^ s2
+                -> State t -- ^ State 1
+                -> State t -- ^ State 2
                 -> HS.HashSet Name -- ^ Names that should not be inlined (often: top level names from the original source code)
                 -> (HM.HashMap Id Expr, HS.HashSet (Expr, Expr))
-                -> Either [l] (HM.HashMap Id Expr, HS.HashSet (Expr, Expr))
+                -> Either [l] -- ^ Generated lemmas (or other information) from a approxmiation checking failure
+                              ( HM.HashMap Id Expr -- ^ Mapping of symbolic variables in `State` 1 to `Expr`s in `State` 2
+                              , HS.HashSet (Expr, Expr) -- ^ Pairs of `Expr`s from `State` 1 and `State` 2, which must be checked for implication via the SMT solver 
+                              )
 moreRestrictive mr_cont gen_lemma lkp s1 s2 ns hm =
     moreRestrictive' mr_cont gen_lemma lkp s1 s2 ns hm True [] [] (getExpr s1) (getExpr s2)
 
@@ -246,35 +250,35 @@ moreRestrictiveAlt mr_cont gen_lemma lkp s1 s2 ns hm active n1 n2 (Alt am1 e1) (
 -- only apply to old-new state pairs for which moreRestrictive' works
 moreRestrictivePC :: (MonadIO m, S.Solver solver) =>
                      solver ->
-                     State t ->
-                     State t ->
+                     State t -> -- The more general state (the older state)
+                     State t -> -- ^ The more specific state (the newer state)
                      HM.HashMap Id Expr ->
                      m Bool
-moreRestrictivePC solver s1 s2 hm = do
+moreRestrictivePC solver s1@(State { known_values = kv }) s2 hm = do
   let new_conds = map extractCond (P.toList $ path_conds s2)
       old_conds = map extractCond (P.toList $ path_conds s1)
       l = map (\(i, e) -> (Var i, e)) $ HM.toList hm
-      -- this should only be used with primitive types
-      -- no apparent problems come from using TyUnknown
+      
+      -- Link up variables/expressions between the states, i.e. assert equality
+      -- of some variable from state 1 with some expression in state 2
       l' = map (\(e1, e2) ->
                   if (T.isPrimType $ typeOf e1) && (T.isPrimType $ typeOf e2)
                   then Just $ App (App (Prim Eq TyUnknown) e1) e2
                   else Nothing) l
-      l'' = [c | Just c <- l']
+      l'' = catMaybes l'
       new_conds' = l'' ++ new_conds
-      -- not safe to use unless the lists are non-empty
-      conj_new = foldr1 (\o1 o2 -> App (App (Prim And TyUnknown) o1) o2) new_conds'
-      conj_old = foldr1 (\o1 o2 -> App (App (Prim And TyUnknown) o1) o2) old_conds
-
+      
+      -- Form an implication:
+      --    (new path conds) => (old path conds)
+      -- We want to show that this is ALWAYS true- so we negate it, and then check for unsatisfiability
+      conj_new = foldr (App . App (Prim And TyUnknown)) (mkTrue kv) new_conds'
+      conj_old = foldr (App . App (Prim And TyUnknown)) (mkTrue kv) old_conds
       imp = App (App (Prim Implies TyUnknown) conj_new) conj_old
       neg_imp = ExtCond (App (Prim Not TyUnknown) imp) True
-      neg_conj = ExtCond (App (Prim Not TyUnknown) conj_old) True
   
   res <- if null old_conds
          then return $ S.UNSAT ()
-         else if null new_conds'
-                then liftIO $ applySolver solver (P.insert neg_conj P.empty) s1 s2
-                else liftIO $ applySolver solver (P.insert neg_imp P.empty) s1 s2
+         else liftIO $ applySolver solver (P.insert neg_imp P.empty) s1 s2
   case res of
     S.UNSAT () -> return True
     _ -> return False
