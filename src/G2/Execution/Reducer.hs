@@ -1525,8 +1525,11 @@ approximationHalter solver no_inline = mkSimpleHalter
                                             (\hv _ _ _ -> hv)
     where
         stop _ _ s
-            | s'@(State { curr_expr = CurrExpr Evaluate e}) <- stateAdjStack s
-            , Var _:_ <- unApp e
+            | maybe True (allowed_frame . fst) (Stck.pop (exec_stack s))
+            
+            , s'@(State { curr_expr = CurrExpr Evaluate e}) <- stateAdjStack s
+            , Var _:_:_ <- unApp e
+
             , not . isTyFun . typeOf $ e = do
                 xs <- SM.get
                 approx <- liftIO $ findM (\prev -> moreRestrictiveIncludingPC
@@ -1539,12 +1542,15 @@ approximationHalter solver no_inline = mkSimpleHalter
                                                         s'
                                                 ) xs
                 if isJust approx
-                    then do liftIO $ print (fmap (printHaskellDirty . getExpr) approx); return Discard
+                    then return Discard
                     else do SM.modify (s':); return Continue
         stop _ _ _ = return Continue
         
         mr_cont _ _ _ _ _ _ _ _ _ = Left []
         gen_lemma _ _ _ _ _ = ()
+
+        allowed_frame (ApplyFrame _) = False
+        allowed_frame _ = True
 
 -- type StopRed m hv r t = hv -> Processed r (State t)  -> State t -> m HaltC
 

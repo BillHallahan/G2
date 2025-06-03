@@ -343,7 +343,9 @@ initRedHaltOrd s mod_name solver simplifier config exec_func_names no_nrpc_names
                                     False -> halter_step
 
         halter_approx_discard = case approx_discard config of
-                                    True -> SomeHalter (approximationHalter solver S.empty) .<~> halter_hpc_discard
+                                    True ->
+                                        let no_inline = S.fromList . E.keys $ expr_env s in
+                                        SomeHalter (approximationHalter solver no_inline) .<~> halter_hpc_discard
                                     False -> halter_hpc_discard
 
         orderer = case search_strat config of
