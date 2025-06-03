@@ -262,7 +262,7 @@ moreRestrictivePC solver s1@(State { known_values = kv }) s2 hm = do
       -- Link up variables/expressions between the states, i.e. assert equality
       -- of some variable from state 1 with some expression in state 2
       l' = map (\(e1, e2) ->
-                  if (T.isPrimType $ typeOf e1) && (T.isPrimType $ typeOf e2)
+                  if T.isPrimType (typeOf e1) && T.isPrimType (typeOf e2)
                   then Just $ App (App (Prim Eq TyUnknown) e1) e2
                   else Nothing) l
       l'' = catMaybes l'
@@ -297,7 +297,7 @@ applySolver solver extraPC s1 s2 =
         -- adding extraPC in here may be redundant
         allPC = foldr P.insert unionPC (P.toList extraPC)
         newState = s1 { expr_env = unionEnv, path_conds = extraPC }
-    in case (P.toList allPC) of
+    in case P.toList allPC of
       [] -> return $ S.SAT ()
       _ -> S.check solver newState allPC
 
