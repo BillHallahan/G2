@@ -97,6 +97,7 @@ module G2.Execution.Reducer ( Reducer (..)
                             , maxOutputsHalter
                             , switchEveryNHalter
                             , varLookupLimitHalter
+                            , approximationHalter
                             , HPCMemoTable
                             , noNewHPCHalter
                             , acceptOnlyNewHPC
@@ -1511,6 +1512,19 @@ varLookupLimitHalter lim = mkSimpleHalter
     where
         step l _ _ (State { curr_expr = CurrExpr Evaluate (Var _) }) = l - 1
         step l _ _ _ = l
+
+approximationHalter :: SM.MonadState [State t] m => Halter m () r t
+approximationHalter = mkSimpleHalter
+                            (const ())
+                            (\hv _ _ -> hv)
+                            stop
+                            (\hv _ _ _ -> hv)
+    where
+        stop _ pr s = do
+            xs <- SM.get
+            undefined
+
+-- type StopRed m hv r t = hv -> Processed r (State t)  -> State t -> m HaltC
 
 
 type HPCMemoTable = HM.HashMap Name (HS.HashSet (Int, T.Text))
