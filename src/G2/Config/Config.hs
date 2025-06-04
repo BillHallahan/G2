@@ -7,6 +7,7 @@ module G2.Config.Config ( Mode (..)
                         , HigherOrderSolver (..)
                         , FpHandling (..)
                         , NonRedPathCons (..)
+                        , SMTStrings (..)
                         , IncludePath
                         , Config (..)
                         , BoolDef (..)
@@ -59,6 +60,8 @@ data FpHandling = RealFP | RationalFP deriving (Eq, Show, Read)
 
 data NonRedPathCons = Nrpc | NoNrpc deriving (Eq, Show, Read)
 
+data SMTStrings = UseSMTStrings | NoSMTStrings deriving (Eq, Show, Read)
+
 type IncludePath = FilePath
 
 data Config = Config {
@@ -85,6 +88,7 @@ data Config = Config {
     , subpath_length :: Int -- ^ When using subpath search strategy, the length of the subpaths.
     , fp_handling :: FpHandling -- ^ Whether to use real floating point values or rationals
     , smt :: SMTSolver -- ^ Sets the SMT solver to solve constraints with
+    , smt_strings :: SMTStrings -- ^ Sets whether the SMT solver should be used to solve string constraints
     , step_limit :: Bool -- ^ Should steps be limited when running states?
     , steps :: Int -- ^ How many steps to take when running States
     , time_solving :: Bool -- ^ Output the amount of time spent checking/solving path constraints
@@ -147,6 +151,7 @@ mkConfig homedir = Config Regular
     <*> flag RealFP RationalFP (long "no-real-floats"
                                 <> help "Represent floating point values precisely.  When off, overapproximate as rationals.")
     <*> mkSMTSolver
+    <*> flag NoSMTStrings UseSMTStrings (long "smt-strings" <> help "Sets whether the SMT solver should be used to solve string constraints")
     <*> flag True False (long "no-step-limit" <> help "disable step limit")
     <*> option auto (long "n"
                    <> metavar "N"
@@ -288,6 +293,7 @@ mkConfigDirect homedir as m = Config {
     , subpath_length = 4
     , fp_handling = RealFP
     , smt = strArg "smt" as m smtSolverArg ConZ3
+    , smt_strings = NoSMTStrings
     , step_limit = boolArg' "no-step-limit" as True True False
     , steps = strArg "n" as m read 1000
     , time_solving = False
