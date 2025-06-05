@@ -128,7 +128,7 @@ checkInputOutput'' src exg2 mb_modname config (entry, stps, req) = do
 
     let chEx = checkExprInOutCount io req
     
-    return (mr, chEx, r, b)
+    return (fmap (fromMaybe False) mr, chEx, r, b)
 
 ------------
 

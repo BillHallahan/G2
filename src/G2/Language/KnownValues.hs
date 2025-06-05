@@ -106,6 +106,7 @@ data KnownValues = KnownValues {
 
                  , typeIndex :: Name
 
+                 -- Useful functions
                  , errorFunc :: Name
                  , errorWithoutStackTraceFunc :: Name
                  , errorEmptyListFunc :: Name

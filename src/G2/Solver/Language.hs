@@ -127,6 +127,7 @@ data SMTAST = (:>=) !SMTAST !SMTAST
             | ToCode !SMTAST
 
             | VInt Integer
+            | VWord Word
             | VFloat Float
             | VDouble Double
             | VReal Rational
@@ -153,6 +154,7 @@ data SMTAST = (:>=) !SMTAST !SMTAST
 
 -- | Every `SMTAST` has a `Sort`
 data Sort = SortInt
+          | SortWord
           | SortFP Int Int -- Floating point with the indicated exponent and significand.
           | SortReal
           | SortBV Int

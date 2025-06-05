@@ -174,6 +174,7 @@ instance Typed Id where
 
 instance Typed Lit where
     typeOf (LitInt _) = TyLitInt
+    typeOf (LitWord _) = TyLitWord
     typeOf (LitFloat _) = TyLitFloat
     typeOf (LitDouble _) = TyLitDouble
     typeOf (LitRational _) = TyLitRational
@@ -578,6 +579,7 @@ isADTType t =
 
 isPrimType :: Type -> Bool
 isPrimType TyLitInt = True
+isPrimType TyLitWord = True
 isPrimType (TyLitFP _ _) = True
 isPrimType TyLitRational = True
 isPrimType (TyLitBV _) = True
