@@ -574,7 +574,7 @@ createExtCond s ngen mexpr cvar (dcon, bindees, aexpr)
             binds = (cvar, dcon'):zip new_ids bindee_exprs
             aexpr'' = liftCaseBinds binds aexpr'
 
-            res = s { expr_env = eenv', curr_expr = CurrExpr Return aexpr'' }
+            res = s { expr_env = eenv', curr_expr = CurrExpr Evaluate aexpr'' }
         in
         (NewPC { state = res, new_pcs = pcs, concretized = [] }, ngen'')
     | otherwise = error $ "createExtCond: unsupported type" ++ "\n" ++ show (typeOf mexpr) ++ "\n" ++ show dcon

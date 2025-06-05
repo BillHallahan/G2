@@ -43,3 +43,26 @@ nStringSub3 s = if stringSub3 s then "\n" ++ s else s
 
 nStringSub4 :: String -> String
 nStringSub4 s = if stringSub4 s then "\n" ++ s else s
+
+strLen :: String -> (Int, Bool)
+strLen xs = let l = length xs in (l, case l > 5 of True -> False; False -> True)
+
+strApp :: String -> String -> Int
+strApp xs ys = case xs ++ ys of
+                    "Hello World!" -> 2
+                    "Goodbye" -> 1
+                    _ -> 0
+
+con2 :: String -> String -> (String, Int)
+con2 xs ys = case xs ++ ys of
+    xs@(_:_:_) -> (xs, 3)
+    xs@(_:_) -> (xs, 2)
+    [] -> ([], 1)
+
+strIndex :: String -> (Bool, String)
+strIndex str =
+    case str !! 50 of
+        '3' -> (True, "Three")
+        '2' -> (False, "Two")
+        _ -> (False, "None")
+

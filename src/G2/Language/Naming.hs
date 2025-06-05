@@ -627,6 +627,8 @@ instance Named KnownValues where
             , orFunc = orF
             , notFunc = notF
 
+            , typeIndex = ti
+
             , errorFunc = errF
             , errorEmptyListFunc = errEmpListF
             , errorWithoutStackTraceFunc = errWOST
@@ -647,6 +649,7 @@ instance Named KnownValues where
                 , geF, gtF, ltF, leF
                 , impF, iffF
                 , andF, orF, notF
+                , ti
                 , errF, errEmpListF, errWOST, patE]
 
     rename old new (KnownValues {
@@ -691,6 +694,8 @@ instance Named KnownValues where
                    , tyRealWorld = tRW
                    , dcRealWorld = dRW
 
+                   , tyHandle = ty_handle
+
                    , eqTC = eqT
                    , numTC = numT
                    , ordTC = ordT
@@ -730,6 +735,8 @@ instance Named KnownValues where
                    , andFunc = andF
                    , orFunc = orF
                    , notFunc = notF
+
+                   , typeIndex = ti
 
                    , errorFunc = errF
                    , errorEmptyListFunc = errEmpListF
@@ -778,6 +785,8 @@ instance Named KnownValues where
                         , tyRealWorld = rename old new tRW
                         , dcRealWorld = rename old new dRW
 
+                        , tyHandle = rename old new ty_handle
+
                         , eqTC = rename old new eqT
                         , numTC = rename old new numT
                         , ordTC = rename old new ordT
@@ -817,6 +826,8 @@ instance Named KnownValues where
                         , andFunc = rename old new andF
                         , orFunc = rename old new orF
                         , notFunc = rename old new notF
+
+                        , typeIndex = rename old new ti
 
                         , errorFunc = rename old new errF
                         , errorEmptyListFunc = rename old new errEmpListF

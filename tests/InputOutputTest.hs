@@ -1,6 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 module InputOutputTest ( checkInputOutput
                        , checkInputOutputs
+                       , checkInputOutputsSMTStrings
                        , checkInputOutputsTemplate
                        , checkInputOutputsNonRedTemp
                        , checkInputOutputsNonRedLib
@@ -35,6 +36,10 @@ checkInputOutput src entry stps req = do
 checkInputOutputs :: FilePath -> [(String, Int, [Reqs String])] -> TestTree
 checkInputOutputs src tests = do
     checkInputOutput' mkConfigTestIO src tests
+
+checkInputOutputsSMTStrings :: FilePath -> [(String, Int, [Reqs String])] -> TestTree
+checkInputOutputsSMTStrings src tests = do
+    checkInputOutput' mkConfigTestWithSMTStringsIO src tests
 
 checkInputOutputsTemplate :: FilePath -> [(String, Int, [Reqs String])] -> TestTree
 checkInputOutputsTemplate src tests = do

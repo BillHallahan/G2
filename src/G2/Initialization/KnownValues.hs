@@ -120,6 +120,8 @@ initKnownValues eenv tenv tc =
     , orFunc = exprWithStrName eenv "||"
     , notFunc = exprWithStrName eenv "not"
 
+    , typeIndex = exprWithStrName eenv "typeIndex#"
+
     , errorFunc = exprWithStrName eenv "error"
     , errorEmptyListFunc = exprWithStrName eenv "errorEmptyList"
     , errorWithoutStackTraceFunc = exprWithStrName eenv "errorWithoutStackTrace"
