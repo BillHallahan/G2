@@ -34,6 +34,8 @@ import qualified Data.HashSet as HS
 import qualified Data.HashMap.Lazy as HM
 import Data.Maybe
 
+import Debug.Trace
+
 type GenerateLemma t l = State t -> State t -> (HM.HashMap Id Expr, HS.HashSet (Expr, Expr)) -> Expr -> Expr -> l
 type Lookup t = Name -> State t -> Maybe E.ConcOrSym
 
@@ -349,16 +351,18 @@ frameWrap (UpdateFrame _) e = e
 frameWrap (CastFrame co) e = Cast e co
 frameWrap _ _ = error "unsupported frame"
 
-stackWrap :: Stck.Stack Frame -> Expr -> Expr
+stackWrap :: Stck.Stack Frame -> Expr -> (Expr, Stck.Stack Frame)
 stackWrap sk e =
   case Stck.pop sk of
-    Nothing -> e
+    Nothing -> (e, sk)
+    Just (CurrExprFrame _ _, sk') -> (e, sk')
     Just (fr, sk') -> stackWrap sk' $ frameWrap fr e
 
 stateAdjStack :: State t -> State t
 stateAdjStack s =
     let e = getExpr s
+        (e', stck') = stackWrap (exec_stack s) e
     in s {
-           curr_expr = CurrExpr Evaluate $ stackWrap (exec_stack s) $ e
-         , exec_stack = Stck.empty
+           curr_expr = CurrExpr Evaluate e'
+         , exec_stack = stck'
          }

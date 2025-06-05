@@ -97,7 +97,10 @@ module G2.Execution.Reducer ( Reducer (..)
                             , maxOutputsHalter
                             , switchEveryNHalter
                             , varLookupLimitHalter
+
+                            , hpcApproximationHalter
                             , approximationHalter
+                            
                             , HPCMemoTable
                             , noNewHPCHalter
                             , acceptOnlyNewHPC
@@ -1514,17 +1517,28 @@ varLookupLimitHalter lim = mkSimpleHalter
         step l _ _ (State { curr_expr = CurrExpr Evaluate (Var _) }) = l - 1
         step l _ _ _ = l
 
-approximationHalter :: (Solver solver, SM.MonadState [State t] m, MonadIO m ) =>
-                       solver
+hpcApproximationHalter :: (Solver solver, SM.MonadState [State t] m, MonadIO m) =>
+                          solver
+                       -> HS.HashSet Name -- ^ Names that should not be inlined (often: top level names from the original source code)
+                       -> Halter m () (ExecRes  t) t
+hpcApproximationHalter = approximationHalter stop_cond
+    where
+        stop_cond pr s =
+            let acc_seen_hpc = HS.unions (map (reached_hpc . final_state) $ accepted pr) in
+            HS.null $ HS.difference (reached_hpc s) acc_seen_hpc
+
+approximationHalter :: (Solver solver, SM.MonadState [State t] m, MonadIO m) =>
+                       (Processed r (State t) -> State t -> Bool) -- ^ Approximated states are discarded only if they match this condition
+                    -> solver
                     -> HS.HashSet Name -- ^ Names that should not be inlined (often: top level names from the original source code)
                     -> Halter m () r t
-approximationHalter solver no_inline = mkSimpleHalter
-                                            (const ())
-                                            (\hv _ _ -> hv)
-                                            stop
-                                            (\hv _ _ _ -> hv)
+approximationHalter stop_cond solver no_inline = mkSimpleHalter
+                                                        (const ())
+                                                        (\hv _ _ -> hv)
+                                                        stop
+                                                        (\hv _ _ _ -> hv)
     where
-        stop _ _ s
+        stop _ pr s
             | maybe True (allowed_frame . fst) (Stck.pop (exec_stack s))
             
             , s'@(State { curr_expr = CurrExpr Evaluate e}) <- stateAdjStack s
@@ -1541,7 +1555,7 @@ approximationHalter solver no_inline = mkSimpleHalter
                                                         prev
                                                         s'
                                                 ) xs
-                if isJust approx
+                if isJust approx && stop_cond pr s
                     then return Discard
                     else do SM.modify (s':); return Continue
         stop _ _ _ = return Continue
