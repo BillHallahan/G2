@@ -9,7 +9,7 @@ module G2.Execution.PrimitiveEval ( evalPrimsSharing
                                   , maybeEvalPrim
                                   , evalPrimSymbolic) where
 
-import G2.Execution.NewPC
+import G2.Execution.NewPC.Type
 import G2.Language.AST
 import G2.Language.Expr
 import qualified G2.Language.KnownValues as KV

@@ -8,8 +8,11 @@ module G2.Solver.Simplifier ( Simplifier (..)
                             , BoolSimplifier (..)
                             , StringSimplifier (..)
                             , FloatSimplifier (..)
-                            , EqualitySimplifier (..)) where
+                            , EqualitySimplifier (..)
+                            , ConstSimplifier (..)) where
 
+-- import G2.Execution.NewPC.Handling
+import G2.Execution.PrimitiveEval
 import G2.Language
 import qualified G2.Language.ExprEnv as E
 import G2.Language.KnownValues
@@ -87,6 +90,29 @@ isZero :: Expr -> Bool
 isZero (Lit (LitInt 0)) = True
 isZero (Lit (LitRational 0)) = True
 isZero _ = False
+
+-- | Tries to simplify literal expressions, i.e. 1 == 1 -> True
+data ConstSimplifier = ConstSimplifier
+
+instance Simplifier ConstSimplifier where 
+    simplifyPC :: ConstSimplifier -> State t -> PathCond -> [PathCond]
+    simplifyPC _ s (ExtCond e True) = case unApp e of
+        [Prim Eq _, l, r] -> case areLiteralsEq l r of 
+            Just True -> []
+            Just False -> [ExtCond (mkFalse kv) True]
+            Nothing -> [pc]
+        _ -> []
+        where kv = known_values s
+              -- rewrap into path condition
+              pc = ExtCond e True
+
+    simplifyPC _ _ pc = [pc]
+
+    reverseSimplification _ _ _ m = m
+
+areLiteralsEq :: Expr -> Expr -> Maybe Bool
+areLiteralsEq (Lit l) (Lit r) = Just (l == r)
+areLiteralsEq _ _ = Nothing
 
 -- | Tries to simplify based on simple boolean principles, i.e. x == True -> x
 data BoolSimplifier = BoolSimplifier
