@@ -71,3 +71,9 @@ taker str = case take 30 str of
                 "HelloHelloHelloHelloHelloHello" -> error "aaa"
                 _ -> (True, "abcde")
 
+-- For smt strings, needs a fairly long string for speedup here
+eq1 :: String -> Int
+eq1 s = case "123456789019234623479629031641906590659651902651908560189893412572348901572902834752389057389057890345789037529803" == s of
+            True -> 1
+            _ -> 0
+

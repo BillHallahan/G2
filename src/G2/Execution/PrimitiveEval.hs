@@ -521,6 +521,17 @@ evalPrimADT2 kv StrAppend h t = strApp h t
         -- [] @Char ys
         strApp (App (Data dc) _ {- type -}) ys = assert (KV.dcEmpty kv == dcName dc) (Just ys)
         strApp _ _ = Nothing
+
+evalPrimADT2 kv Eq f s = fmap (mkBool kv) $ lstEq f s
+    where
+        -- List equality, currently used for strings and assumes types can be compared
+        lstEq (App (App (App (Data dc_f) _) elem_f) xs) (App (App (App (Data dc_s) _) elem_s) ys) = do
+            nxt <- lstEq xs ys
+            assert (KV.dcCons kv == dcName dc_f && KV.dcCons kv == dcName dc_s) (Just (nxt && elem_f == elem_s))
+        lstEq (App (App (App (Data _) _) _) _) (App (Data _) _) = Just False
+        lstEq (App (Data _) _) (App (App (App (Data _) _) _) _) = Just False
+        lstEq (App (Data dc_f) _) (App (Data dc_s) _) = assert (KV.dcEmpty kv == dcName dc_f && KV.dcEmpty kv == dcName dc_s) (Just True)
+        lstEq _ _ = Nothing
         
 evalPrimADT2 _ _ _ _ = Nothing
 
