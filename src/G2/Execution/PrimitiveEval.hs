@@ -107,6 +107,9 @@ maybeEvalPrim' tenv kv xs
     | [Prim p _, x, y] <- xs
     , Just e <- evalPrimADT2 kv p x y = Just e
 
+    | [Prim p _, x, y, z] <- xs
+    , Just e <- evalPrimADT3 p x y z = Just e
+
     | [Prim p _, x, y, z] <- xs = evalPrim3 kv p x y z
 
     | [Prim p _, Type t, _] <- xs
@@ -520,6 +523,20 @@ evalPrimADT2 kv StrAppend h t = strApp h t
         strApp _ _ = Nothing
         
 evalPrimADT2 _ _ _ _ = Nothing
+
+evalPrimADT3 :: Primitive -> Expr -> Expr -> Expr -> Maybe Expr
+evalPrimADT3 StrSubstr str (Lit (LitInt s)) (Lit (LitInt e)) = substr str s e
+    where
+        -- Find a substring starting at index s and ending at index e - 1
+        substr expr@(App (Data _) _) _ _ = Just expr
+        substr (App (App (App dc@(Data _) typ) _) _) 0 0 = Just (App dc typ)
+        substr (App (App (App (Data dc) typ) char) xs) 0 en = do
+            next_substr <- substr xs 0 (en - 1)
+            return (App (App (App (Data dc) typ) char) next_substr)
+        substr (App (App (App (Data _) _) _) xs) st en = substr xs (st - 1) en
+        substr _ _ _ = Nothing
+
+evalPrimADT3 _ _ _ _ = Nothing
 
 evalPrim2 :: KnownValues -> Primitive -> Lit -> Lit -> Maybe Expr
 evalPrim2 kv Ge x y = evalPrim2NumCharBool (>=) kv x y

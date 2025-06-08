@@ -66,3 +66,8 @@ strIndex str =
         '2' -> (False, "Two")
         _ -> (False, "None")
 
+taker :: String -> (Bool, String)
+taker str = case take 30 str of
+                "HelloHelloHelloHelloHelloHello" -> error "aaa"
+                _ -> (True, "abcde")
+

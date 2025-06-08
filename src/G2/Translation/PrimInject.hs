@@ -184,9 +184,17 @@ primDefs' b c l unit =
               , ("strAt#", Lam TypeL (x TYPE) . Lam TermL (y strTy) . Lam TermL (z TyLitInt)
                             $ App 
                                 (App 
-                                    (Prim StrAt ((TyFun strTy) $ TyFun strTy strTy))
+                                    (Prim StrAt ((TyFun strTy) $ TyFun TyLitInt strTy))
                                     (Var $ y strTy))
                                 (Var $ z TyLitInt))
+              , ("strSubstr#", Lam TypeL (x TYPE) . Lam TermL (y strTy) . Lam TermL (z TyLitInt) . Lam TermL ((dummyId "q") TyLitInt)
+                            $ App
+                                (App
+                                    (App
+                                        (Prim StrSubstr (TyFun strTy (TyFun TyLitInt (TyFun TyLitInt strTy))))
+                                        (Var $ y strTy))
+                                    (Var $ z TyLitInt))
+                                (Var $ (dummyId "q") TyLitInt))
               , ("intToString#", Prim IntToString (TyFun TyLitInt strTy))
 
               , ("newMutVar##", Prim NewMutVar (TyForAll a (TyForAll d (TyFun tyvarA (TyFun TyUnknown TyUnknown)))))
@@ -225,6 +233,9 @@ y = Id (Name "y" Nothing 0 Nothing)
 
 z :: Type -> Id
 z = Id (Name "z" Nothing 0 Nothing)
+
+dummyId :: T.Text -> Type -> Id
+dummyId name = Id (Name name Nothing 0 Nothing) 
 
 binder :: Type -> Id
 binder = Id (Name "b" Nothing 0 Nothing)
