@@ -98,12 +98,22 @@ maybeEvalPrim' tenv kv xs
     , Just e <- evalPrim1 p x' = Just e
     | [Prim p _, x] <- xs
     , Lit x' <- x = evalPrim1' tenv kv p x'
+    | [Prim p _, x] <- xs
+    , Just e <- evalPrimADT1 kv p x = Just e
 
     | [Prim p _, x, y] <- xs
     , Lit x' <- x
     , Lit y' <- y = evalPrim2 kv p x' y'
+    | [Prim p _, x, y] <- xs
+    , Just e <- evalPrimADT2 kv p x y = Just e
+
+    | [Prim p _, x, y, z] <- xs
+    , Just e <- evalPrimADT3 p x y z = Just e
 
     | [Prim p _, x, y, z] <- xs = evalPrim3 kv p x y z
+
+    | [Prim p _, Type t, _] <- xs
+    , Just e <- evalTypeAnyArgPrim kv p t = Just e
 
     | [Prim p _, Type t, dc_e] <- xs, Data dc:_ <- unApp dc_e =
         evalTypeDCPrim2 tenv p t dc
@@ -484,6 +494,61 @@ evalPrim1' _ kv IsInfinite (LitFloat x) = Just . mkBool kv $ isInfinite x
 evalPrim1' _ kv IsInfinite (LitDouble x) = Just . mkBool kv $  isInfinite x
 evalPrim1' _ _ _ _ = Nothing
 
+evalPrimADT1 :: KnownValues -> Primitive -> Expr -> Maybe Expr
+evalPrimADT1 kv StrLen e = fmap (Lit . LitInt) (compLen e)
+    where
+        -- [] @Char
+        compLen (App (Data dc) _ {- type -}) = assert (KV.dcEmpty kv == dcName dc) Just 0
+        -- (:) @Char head tail
+        compLen (App (App (App (Data dc) _ {- type -}) _ {- char -}) xs) = assert (KV.dcCons kv == dcName dc) fmap (+ 1) (compLen xs)
+        compLen _ = Nothing
+
+evalPrimADT1 _ _ _ = Nothing
+
+evalPrimADT2 :: KnownValues -> Primitive -> Expr -> Expr -> Maybe Expr
+evalPrimADT2 kv StrAppend h t = strApp h t
+    where
+        -- Equivalent to: append (x:xs) ys = x:append xs ys
+        --                append [] ys = ys  
+        -- (:) @Char head tail ys
+        strApp (App (App (App (Data dc) typ) char) xs) ys = 
+            let
+                tl = case (strApp xs ys) of
+                    Nothing -> error "wrong nested type in string expr, should be impossible"
+                    Just e -> e
+            in assert (KV.dcCons kv == dcName dc) 
+                (Just (App (App (App (Data dc) typ) char) tl))
+        -- [] @Char ys
+        strApp (App (Data dc) _ {- type -}) ys = assert (KV.dcEmpty kv == dcName dc) (Just ys)
+        strApp _ _ = Nothing
+
+evalPrimADT2 kv Eq f s = fmap (mkBool kv) $ lstEq f s
+    where
+        -- List equality, currently used for strings and assumes types can be compared
+        lstEq (App (App (App (Data dc_f) _) elem_f) xs) (App (App (App (Data dc_s) _) elem_s) ys) = do
+            nxt <- lstEq xs ys
+            assert (KV.dcCons kv == dcName dc_f && KV.dcCons kv == dcName dc_s) (Just (nxt && elem_f == elem_s))
+        lstEq (App (App (App (Data _) _) _) _) (App (Data _) _) = Just False
+        lstEq (App (Data _) _) (App (App (App (Data _) _) _) _) = Just False
+        lstEq (App (Data dc_f) _) (App (Data dc_s) _) = assert (KV.dcEmpty kv == dcName dc_f && KV.dcEmpty kv == dcName dc_s) (Just True)
+        lstEq _ _ = Nothing
+        
+evalPrimADT2 _ _ _ _ = Nothing
+
+evalPrimADT3 :: Primitive -> Expr -> Expr -> Expr -> Maybe Expr
+evalPrimADT3 StrSubstr str (Lit (LitInt s)) (Lit (LitInt e)) = substr str s e
+    where
+        -- Find a substring starting at index s and ending at index e - 1
+        substr expr@(App (Data _) _) _ _ = Just expr
+        substr (App (App (App dc@(Data _) typ) _) _) 0 0 = Just (App dc typ)
+        substr (App (App (App (Data dc) typ) char) xs) 0 en = do
+            next_substr <- substr xs 0 (en - 1)
+            return (App (App (App (Data dc) typ) char) next_substr)
+        substr (App (App (App (Data _) _) _) xs) st en = substr xs (st - 1) en
+        substr _ _ _ = Nothing
+
+evalPrimADT3 _ _ _ _ = Nothing
+
 evalPrim2 :: KnownValues -> Primitive -> Lit -> Lit -> Maybe Expr
 evalPrim2 kv Ge x y = evalPrim2NumCharBool (>=) kv x y
 evalPrim2 kv Gt x y = evalPrim2NumCharBool (>) kv x y
@@ -531,6 +596,11 @@ evalPrim2 _ RationalToDouble (LitInt x) (LitInt y) =
        Just . Lit . LitDouble $ fromIntegral x / fromIntegral y
 
 evalPrim2 _ _ _ _ = Nothing
+
+evalTypeAnyArgPrim :: KnownValues -> Primitive -> Type -> Maybe Expr
+evalTypeAnyArgPrim kv TypeIndex t | t == tyString kv = Just (Lit (LitInt 1))
+                                  | otherwise = Just (Lit (LitInt 0))
+evalTypeAnyArgPrim _ _ _ = Nothing
 
 evalTypeDCPrim2 :: TypeEnv -> Primitive -> Type -> DataCon -> Maybe Expr
 evalTypeDCPrim2 tenv DataToTag t dc =

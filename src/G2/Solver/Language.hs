@@ -118,6 +118,8 @@ data SMTAST = (:>=) !SMTAST !SMTAST
             | StrLeSMT !SMTAST !SMTAST
             | StrGtSMT !SMTAST !SMTAST
             | StrGeSMT !SMTAST !SMTAST
+            | (:!!) !SMTAST !SMTAST -- ^ String index
+            | StrSubstrSMT !SMTAST !SMTAST !SMTAST
 
             | IteSMT !SMTAST !SMTAST !SMTAST
             | SLet (SMTName, SMTAST) !SMTAST
