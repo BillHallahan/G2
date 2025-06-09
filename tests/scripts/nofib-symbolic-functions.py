@@ -376,8 +376,8 @@ def run_nofib_set(setname, var_settings, timeout):
         print(tabulate(data, headers=headers, tablefmt="grid"))
         print("\n")
 
-run_nofib_set("imaginary", [], 1)
-run_nofib_set("spectral", [], 1)
+run_nofib_set("imaginary", [], 300)
+run_nofib_set("spectral", [], 300)
 
 print("Latex string for coverage table\n")
 print(latex_str_tbl1)
