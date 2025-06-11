@@ -5,17 +5,18 @@ module G2.Translation.HaskellCheck ( validateStates
                                    , loadStandard
                                    , createDeclsStr
                                    , createDecls
-                                   , adjustDynFlags
-                                   , runHPC) where
+                                   , runHPC
+                                   , adjustDynFlags ) where
 
 #if MIN_VERSION_GLASGOW_HASKELL(9,0,2,0)
 import GHC.Driver.Session
+import qualified GHC.Data.EnumSet as ES
 #else
 import DynFlags
+import qualified EnumSet as ES
 #endif
 
 import GHC hiding (Name, entry)
-
 import GHC.LanguageExtensions
 
 import GHC.Paths
@@ -34,9 +35,14 @@ import G2.Translation.TransTypes
 import G2.Lib.Printers
 import Control.Exception
 
+import System.Directory
+import System.FilePath
+import System.IO.Error
 import System.Process
-import qualified G2.Language.TyVarEnv as TV
+import System.Timeout
+
 import Control.Monad.IO.Class
+
 import Debug.Trace
 
 -- | Load the passed module(s) into GHC, and check that the `ExecRes` results are correct.
@@ -48,7 +54,6 @@ validateStates proj src modN entry chAll gflags b in_out = do
     runGhc (Just libdir) (do
         adjustDynFlags
         loadToCheck (map dirPath src ++ proj) src modN gflags
-        -- trace("The tyvar_env in each of the final states from validateStates function: " ++ show (map (tyvar_env . final_state) in_out))
         mapM (\er -> do
                 let s = final_state er
                 let pg = updatePGValNames (concatMap (map Data . dataCon) $ type_env s)
@@ -74,23 +79,22 @@ creatDeclStr pg s (x, DataTyCon{data_cons = dcs, bound_ids = is}) =
 creatDeclStr _ _ _ = error "creatDeclStr: unsupported AlgDataTy"
 
 -- | Compile with GHC, and check that the output we got is correct for the input
-validateStatesGHC :: PrettyGuide -> Maybe T.Text -> String -> [String] -> Bindings -> ExecRes t -> Ghc Bool
+validateStatesGHC :: PrettyGuide -> Maybe T.Text -> String -> [String] -> Bindings -> ExecRes t -> Ghc (Maybe Bool)
 validateStatesGHC pg modN entry chAll b er@(ExecRes {final_state = s, conc_out = out}) = do
     (v, chAllR) <- runCheck pg modN entry chAll b er
 
     v' <- liftIO . timeout (5 * 10 * 1000) $ (unsafeCoerce v :: IO (Either SomeException Bool))
     let outStr = T.unpack $ printHaskell s out
     let v'' = case v' of
-                    Left _ -> outStr == "error" || outStr == "undefined"
-                    Right b -> b && outStr /= "error" && outStr /= "undefined"
-    -- let tv = tyvar_env s 
-    -- liftIO $ do
-    --         putStrLn "tyvar_env of final state in validateStatesGHC: "
-    --         print tv
+                    Nothing -> Nothing
+                    Just (Left e) | show e == "<<timeout>>" -> Nothing
+                                  | otherwise -> Just (outStr == "error" || outStr == "undefined" || outStr == "?")
+                    Just (Right b) -> Just (b && outStr /= "error" && outStr /= "undefined")
+
     chAllR' <- liftIO $ (unsafeCoerce chAllR :: IO [Either SomeException Bool])
     let chAllR'' = rights chAllR'
 
-    return $ v'' && and chAllR''
+    return $ fmap (&& and chAllR'') v''
 
 createDeclsStr :: PrettyGuide -> State t -> TypeEnv -> [String]
 createDeclsStr pg s = map (creatDeclStr pg s) . H.toList

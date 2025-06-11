@@ -35,7 +35,14 @@ runInitialization2 config s@(IT.SimpleState { IT.expr_env = eenv
 
         eenv4 = if error_asserts config then assertFalseOnError kv eenv3 else eenv3
 
-        s' = s { IT.expr_env = eenv4
+        t = Id (Name "t" Nothing 0 Nothing) TYPE
+        x = Id (Name "x" Nothing 0 Nothing) TyLitInt
+        eenv5 = if smt_strings config == NoSMTStrings
+                        then E.insert (typeIndex kv) 
+                                      (Lam TypeL t . Lam TermL x . Lit $ LitInt 0) eenv4
+                        else eenv4
+
+        s' = s { IT.expr_env = eenv5
                , IT.type_env = tenv2
                , IT.name_gen = ng2
                , IT.handles = hs

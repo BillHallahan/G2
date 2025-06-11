@@ -7,6 +7,7 @@ module G2.Config.Config ( Mode (..)
                         , HigherOrderSolver (..)
                         , FpHandling (..)
                         , NonRedPathCons (..)
+                        , SMTStrings (..)
                         , IncludePath
                         , Config (..)
                         , BoolDef (..)
@@ -58,6 +59,8 @@ data HigherOrderSolver = AllFuncs
 data FpHandling = RealFP | RationalFP deriving (Eq, Show, Read)
 
 data NonRedPathCons = Nrpc | NoNrpc deriving (Eq, Show, Read)
+
+data SMTStrings = UseSMTStrings | NoSMTStrings deriving (Eq, Show, Read)
 
 type IncludePath = FilePath
 
