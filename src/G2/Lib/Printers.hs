@@ -476,6 +476,8 @@ mkPrimHaskell pg = pr
         pr Iff = "pr_iff"
         pr Ite = "pr_ite"
 
+        pr IsSymbolic = "isSymbolic"
+
         pr TypeIndex = "typeIndex"
 
         pr UnspecifiedOutput = "?"

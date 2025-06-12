@@ -430,6 +430,7 @@ fakeKnownValues =
     , notFunc = Name "" Nothing 0 Nothing
 
     , typeIndex = Name "" Nothing 0 Nothing
+    , adjStr = Name "" Nothing 0 Nothing
 
     , errorFunc = Name "" Nothing 0 Nothing
     , errorWithoutStackTraceFunc = Name "" Nothing 0 Nothing

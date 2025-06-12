@@ -347,14 +347,18 @@ testFileTests = testGroup "TestFiles"
                                                               , ("nStringSub3", 2000, [AtLeast 15])
                                                               , ("stringSub4", 7000, [AtLeast 7])
                                                               , ("nStringSub4", 2000, [AtLeast 5])
-                                                              , ("strLen", 1000, [AtLeast 5]) ]
+                                                              , ("strLen", 1000, [AtLeast 5])
+                                                              , ("taker2", 2000, [AtLeast 5]) ]
     , checkInputOutputsSMTStrings "tests/TestFiles/Strings/Strings1.hs"
                                         [ ("con", 1000, [Exactly 1])
                                         , ("appendEq", 1000, [Exactly 1])
                                         , ("strLen", 1000, [Exactly 2])
                                         , ("con2", 1000, [Exactly 3])
                                         , ("strIndex", 1000, [Exactly 4]) 
-                                        , ("eq1", 1000, [Exactly 2])]
+                                        , ("taker1", 1000, [Exactly 3])
+                                        , ("taker2", 1000, [Exactly 3])
+                                        , ("eq1", 1000, [Exactly 2])
+                                        , ("eq2", 1000, [Exactly 2])]
 
     , checkExpr "tests/TestFiles/Strings/Strings1.hs" 1000 "exclaimEq"
         [AtLeast 5, RExists (\[_, _, r] -> dcHasName "True" r)]

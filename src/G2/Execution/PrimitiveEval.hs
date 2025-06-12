@@ -48,7 +48,7 @@ evalPrimsSharing' eenv tenv kv a@(App _ _) =
                 (eenv', es') = L.mapAccumR
                                     (\eenv_ e -> let (_, e', eenv_') = evalPrimsSharing' eenv_ tenv kv e in (eenv_', e'))
                                     eenv es
-                ev = evalPrim' tenv kv (p:es')
+                ev = evalPrim' eenv tenv kv (p:es')
             in
             (Update, ev, eenv')
         v@(Var _):xs | p@(Prim _ _) <- repeatedLookup eenv v -> evalPrimsSharing' eenv tenv kv (mkApp $ p:xs)
@@ -71,28 +71,28 @@ repeatedLookup eenv v@(Var (Id n _))
           Nothing -> v
 repeatedLookup _ e = e
 
-evalPrims :: ASTContainer m Expr => TypeEnv -> KnownValues -> m -> m
-evalPrims tenv kv = modifyContainedASTs (evalPrims' tenv kv . simplifyCasts)
+evalPrims :: ASTContainer m Expr => ExprEnv -> TypeEnv -> KnownValues -> m -> m
+evalPrims eenv tenv kv = modifyContainedASTs (evalPrims' eenv tenv kv . simplifyCasts)
 
-evalPrims' :: TypeEnv -> KnownValues -> Expr -> Expr
-evalPrims' tenv kv a@(App x y) =
+evalPrims' :: ExprEnv -> TypeEnv -> KnownValues -> Expr -> Expr
+evalPrims' eenv tenv kv a@(App x y) =
     case unApp a of
-        [p@(Prim _ _), l] -> evalPrim' tenv kv [p, evalPrims' tenv kv l]
+        [p@(Prim _ _), l] -> evalPrim' eenv tenv kv [p, evalPrims' eenv tenv kv l]
         [p@(Prim _ _), l1, l2] ->
-            evalPrim' tenv kv [p, evalPrims' tenv kv l1, evalPrims' tenv kv l2]
+            evalPrim' eenv tenv kv [p, evalPrims' eenv tenv kv l1, evalPrims' eenv tenv kv l2]
         [p@(Prim _ _), l1, l2, l3] ->
-            evalPrim' tenv kv [p, evalPrims' tenv kv l1, evalPrims' tenv kv l2, evalPrims' tenv kv l3]
-        _ -> App (evalPrims' tenv kv x) (evalPrims' tenv kv y)
-evalPrims' tenv kv e = modifyChildren (evalPrims' tenv kv) e
+            evalPrim' eenv tenv kv [p, evalPrims' eenv tenv kv l1, evalPrims' eenv tenv kv l2, evalPrims' eenv tenv kv l3]
+        _ -> App (evalPrims' eenv tenv kv x) (evalPrims' eenv tenv kv y)
+evalPrims' eenv tenv kv e = modifyChildren (evalPrims' eenv tenv kv) e
 
-evalPrim' :: TypeEnv -> KnownValues -> [Expr] -> Expr
-evalPrim' tenv kv xs = fromMaybe (mkApp xs) (maybeEvalPrim' tenv kv xs)
+evalPrim' :: ExprEnv -> TypeEnv -> KnownValues -> [Expr] -> Expr
+evalPrim' eenv tenv kv xs = fromMaybe (mkApp xs) (maybeEvalPrim' eenv tenv kv xs)
 
-maybeEvalPrim :: TypeEnv -> KnownValues -> Expr -> Maybe Expr
-maybeEvalPrim tenv kv = maybeEvalPrim' tenv kv . unApp
+maybeEvalPrim :: ExprEnv -> TypeEnv -> KnownValues -> Expr -> Maybe Expr
+maybeEvalPrim eenv tenv kv = maybeEvalPrim' eenv tenv kv . unApp
 
-maybeEvalPrim' :: TypeEnv -> KnownValues -> [Expr] -> Maybe Expr
-maybeEvalPrim' tenv kv xs
+maybeEvalPrim' :: ExprEnv -> TypeEnv -> KnownValues -> [Expr] -> Maybe Expr
+maybeEvalPrim' eenv tenv kv xs
     | [Prim p _, x] <- xs
     , Lit x' <- x
     , Just e <- evalPrim1 p x' = Just e
@@ -112,8 +112,8 @@ maybeEvalPrim' tenv kv xs
 
     | [Prim p _, x, y, z] <- xs = evalPrim3 kv p x y z
 
-    | [Prim p _, Type t, _] <- xs
-    , Just e <- evalTypeAnyArgPrim kv p t = Just e
+    | [Prim p _, Type t, x] <- xs
+    , Just e <- evalTypeAnyArgPrim eenv kv p t x = Just e
 
     | [Prim p _, Type t, dc_e] <- xs, Data dc:_ <- unApp dc_e =
         evalTypeDCPrim2 tenv p t dc
@@ -597,10 +597,13 @@ evalPrim2 _ RationalToDouble (LitInt x) (LitInt y) =
 
 evalPrim2 _ _ _ _ = Nothing
 
-evalTypeAnyArgPrim :: KnownValues -> Primitive -> Type -> Maybe Expr
-evalTypeAnyArgPrim kv TypeIndex t | t == tyString kv = Just (Lit (LitInt 1))
-                                  | otherwise = Just (Lit (LitInt 0))
-evalTypeAnyArgPrim _ _ _ = Nothing
+evalTypeAnyArgPrim :: ExprEnv -> KnownValues -> Primitive -> Type -> Expr -> Maybe Expr
+evalTypeAnyArgPrim _ kv TypeIndex t _ | t == tyString kv = Just (Lit (LitInt 1))
+                                      | otherwise = Just (Lit (LitInt 0))
+evalTypeAnyArgPrim eenv kv IsSymbolic _ e | Var (Id n _) <- e
+                                          , Just (E.Sym _) <- E.deepLookupConcOrSym n eenv = Just (mkTrue kv)
+                                          | otherwise = Just (mkFalse kv)
+evalTypeAnyArgPrim _ _ _ _ _ = Nothing
 
 evalTypeDCPrim2 :: TypeEnv -> Primitive -> Type -> DataCon -> Maybe Expr
 evalTypeDCPrim2 tenv DataToTag t dc =

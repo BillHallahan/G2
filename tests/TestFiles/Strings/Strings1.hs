@@ -66,10 +66,15 @@ strIndex str =
         '2' -> (False, "Two")
         _ -> (False, "None")
 
-taker :: String -> (Bool, String)
-taker str = case take 30 str of
-                "HelloHelloHelloHelloHelloHello" -> error "aaa"
-                _ -> (True, "abcde")
+taker1 :: String -> (Bool, String)
+taker1 str = case take 30 str of
+                x@"HelloHelloHelloHelloHelloHello" -> (True, x)
+                y -> (False, y)
+
+taker2 :: String -> (Bool, String)
+taker2 str = case take 22 str of
+                x@"HelloHelloHelloHelloHe" -> (True, x)
+                y -> (False, y)
 
 -- For smt strings, needs a fairly long string for speedup here
 eq1 :: String -> Int
@@ -77,3 +82,7 @@ eq1 s = case "123456789019234623479629031641906590659651902651908560189893412572
             True -> 1
             _ -> 0
 
+eq2 :: String -> Int
+eq2 s = case s of
+            "123456789019234623479629031641906590659651902651908560189893412572348901572902834752389057389057890345789037529803" -> 1
+            _ -> 0
