@@ -73,7 +73,7 @@ taker1 str = case take 30 str of
 
 taker2 :: String -> (Bool, String)
 taker2 str = case take 22 str of
-                x@"HelloHelloHelloHelloHe" -> (True, x)
+                x@"Hi" -> (True, x)
                 y -> (False, y)
 
 -- For smt strings, needs a fairly long string for speedup here
