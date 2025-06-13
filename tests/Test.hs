@@ -357,8 +357,13 @@ testFileTests = testGroup "TestFiles"
                                         , ("strIndex", 1000, [Exactly 4]) 
                                         , ("taker1", 1000, [Exactly 3])
                                         , ("taker2", 1000, [Exactly 3])
+                                        , ("conTaker1", 2500, [AtLeast 4])
+                                        , ("conTaker2", 2500, [Exactly 3])
+                                        , ("lengthCon1", 2500, [Exactly 2])
+                                        , ("conIndex1", 2500, [AtLeast 2])
                                         , ("eq1", 1000, [Exactly 2])
-                                        , ("eq2", 1000, [Exactly 2])]
+                                        , ("eq2", 1000, [Exactly 2])
+                                        , ("eq3", 2500, [AtLeast 2])]
 
     , checkExpr "tests/TestFiles/Strings/Strings1.hs" 1000 "exclaimEq"
         [AtLeast 5, RExists (\[_, _, r] -> dcHasName "True" r)]
