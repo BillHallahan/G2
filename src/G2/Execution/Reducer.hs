@@ -612,11 +612,11 @@ nonRedLibFuncsReducer :: MonadIO m =>
                                          -- I.e. if `f` is in this set, `f x y` will not be added to the NRPCs, but a function `g` that includes
                                          -- `f in it's definition may still be added to the NRPCs.
                       -> Config
-                      -> Reducer m (NoNRPC, NRPCMemoTable, ReachesSymMemoTable, Int) t
+                      -> Reducer m (NRPCMemoTable, ReachesSymMemoTable, Int) t
 nonRedLibFuncsReducer exec_names no_nrpc_names config =
-    (mkSimpleReducer (\_ -> (HS.empty, HM.empty, HM.empty, 0))
+    (mkSimpleReducer (\_ -> (HM.empty, HM.empty, 0))
         (nonRedLibFuncs exec_names no_nrpc_names))
-        { onAccept = \s b (_, _, _, nrpc_count) -> do
+        { onAccept = \s b (_, _, nrpc_count) -> do
             if print_num_nrpc config
                 then liftIO . putStrLn $ "NRPCs Generated: " ++ show nrpc_count
                 else return ()
@@ -625,9 +625,9 @@ nonRedLibFuncsReducer exec_names no_nrpc_names config =
 nonRedLibFuncs :: MonadIO m => HS.HashSet Name -- ^ Names of functions that must be executed
                           -> HS.HashSet Name -- ^ Names of functions that should not reesult in a larger expression become EXEC,
                                              -- but should not be added to the NRPC at the top level.
-                          -> RedRules m (NoNRPC, NRPCMemoTable, ReachesSymMemoTable, Int) t
+                          -> RedRules m (NRPCMemoTable, ReachesSymMemoTable, Int) t
 nonRedLibFuncs exec_names no_nrpc_names 
-                (no_nrpc, var_table, sym_table, nrpc_count)
+                (var_table, sym_table, nrpc_count)
                 s@(State { expr_env = eenv
                          , curr_expr = CurrExpr _ ce
                          , known_values = kv
@@ -636,7 +636,6 @@ nonRedLibFuncs exec_names no_nrpc_names
     | 
       -- We are NOT dealing with a symbolic function or a function that should not be put in the NRPCs
       Var (Id n t):es_ce <- unApp ce
-    , not (n `HS.member` no_nrpc)
     -- , not (n `HS.member` no_nrpc_names)
     , not (E.isSymbolic n eenv)
 
@@ -652,10 +651,10 @@ nonRedLibFuncs exec_names no_nrpc_names
         case (reaches_sym, exec_skip) of
             (True, Skip) | let part_s = s { curr_expr = CurrExpr Evaluate ce', exec_stack = stck' }
                          , Just (s', ng') <- createNonRed ng part_s -> 
-                    return (Finished, [(s', (no_nrpc, var_table', sym_table', nrpc_count + 1))], b {name_gen = ng'})
-            _ -> return (Finished, [(s, (no_nrpc, var_table', sym_table', nrpc_count))], b)
+                    return (Finished, [(s', (var_table', sym_table', nrpc_count + 1))], b {name_gen = ng'})
+            _ -> return (Finished, [(s, (var_table', sym_table', nrpc_count))], b)
 
-    | otherwise = return (Finished, [(s, (no_nrpc, var_table, sym_table, nrpc_count))], b)
+    | otherwise = return (Finished, [(s, (var_table, sym_table, nrpc_count))], b)
 
 -- | A reducer to add higher order functions to non reduced path constraints for solving later  
 nonRedHigherOrderReducer :: MonadIO m =>
