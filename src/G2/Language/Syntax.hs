@@ -267,7 +267,7 @@ data Primitive = -- Mathematical and logical operators
                | WriteMutVar -- ^ `forall d a. MutVar# d a -> a -> State# d -> State# d`.
 
                -- True if passed a symbolic variable, false otherwise
-               | IsSymbolic
+               | IsSMTRep
 
                -- TypeIndex maps types to Int#s:
                -- 1: String

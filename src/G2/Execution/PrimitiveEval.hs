@@ -600,9 +600,15 @@ evalPrim2 _ _ _ _ = Nothing
 evalTypeAnyArgPrim :: ExprEnv -> KnownValues -> Primitive -> Type -> Expr -> Maybe Expr
 evalTypeAnyArgPrim _ kv TypeIndex t _ | t == tyString kv = Just (Lit (LitInt 1))
                                       | otherwise = Just (Lit (LitInt 0))
-evalTypeAnyArgPrim eenv kv IsSymbolic _ e | Var (Id n _) <- e
-                                          , Just (E.Sym _) <- E.deepLookupConcOrSym n eenv = Just (mkTrue kv)
-                                          | otherwise = Just (mkFalse kv)
+evalTypeAnyArgPrim eenv kv IsSMTRep _ e
+    | Just (E.Sym _) <- c_s = Just (mkTrue kv)
+    | Just (E.Conc e) <- c_s 
+    , Prim _ _:_ <- unApp e = Just (mkTrue kv)
+    where
+        c_s = case e of
+                Var (Id n _) -> E.deepLookupConcOrSym n eenv
+                _ -> Just (E.Conc e) 
+evalTypeAnyArgPrim _ kv IsSMTRep _ _ = Just (mkFalse kv)
 evalTypeAnyArgPrim _ _ _ _ _ = Nothing
 
 evalTypeDCPrim2 :: TypeEnv -> Primitive -> Type -> DataCon -> Maybe Expr
