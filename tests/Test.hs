@@ -382,14 +382,14 @@ testFileTests = testGroup "TestFiles"
                                                                        , ("assoc", 200, [AtLeast 5])
                                                                        , ("sf", 175, [AtLeast 5])
                                                                        , ("tupleTest", 175, [AtLeast 8])]
-    , checkInputOutputsNonRedTemp "tests/HigherOrder/HigherOrder.hs" [ ("f", 200, [AtLeast 3])
-                                                                     , ("h", 150, [AtLeast 2])
-                                                                     , ("assoc", 250, [AtLeast 2])
-                                                                     , ("sf", 250, [AtLeast 2])
-                                                                     , ("thirdOrder", 300, [AtLeast 2])
-                                                                     , ("thirdOrder2", 300, [AtLeast 3])
-                                                                     , ("tupleTestMono", 175, [AtLeast 2])
-                                                                     , ("multiPrim", 300, [AtLeast 2])]
+    , checkInputOutputsNonRedHigher "tests/HigherOrder/HigherOrder.hs" [ ("f", 200, [AtLeast 3])
+                                                                       , ("h", 150, [AtLeast 2])
+                                                                       , ("assoc", 250, [AtLeast 2])
+                                                                       , ("sf", 250, [AtLeast 2])
+                                                                       , ("thirdOrder", 300, [AtLeast 2])
+                                                                       , ("thirdOrder2", 300, [AtLeast 3])
+                                                                       , ("tupleTestMono", 175, [AtLeast 2])
+                                                                       , ("multiPrim", 300, [AtLeast 2])]
     , checkInputOutputsNonRedLib "tests/BaseTests/ListTests.hs" [ ("lengthN", 800, [AtLeast 5])
                                                                 , ("map2", 150, [AtLeast 2])
                                                                 , ("testFib", 300, [AtLeast 1])]

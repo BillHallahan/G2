@@ -57,6 +57,7 @@ module G2.Execution.Reducer ( Reducer (..)
                             , stdRed
                             , nonRedPCSymFuncRed
                             , nonRedLibFuncsReducer
+                            , nonRedHigherOrderReducer
                             , nonRedPCRed
                             , nonRedPCRedNoPrune
                             , nonRedPCRedConst
@@ -569,7 +570,7 @@ stdRed share symb_func_eval solver simplifier =
                             return (if r == RuleIdentity then Finished else InProgress, s', b')
                         )
 
--- | Pushes non_red_path_conds onto the exec_stack for solving higher order symbolic function 
+-- | Solves NRPCs, while handling higher order symbolic functions.
 nonRedPCSymFuncRed :: Monad m => Reducer m (Maybe SymFuncTicks) t
 nonRedPCSymFuncRed = mkSimpleReducer (\_ -> Nothing)
                         nonRedPCSymFunc
@@ -604,7 +605,7 @@ nonRedPCSymFunc m_sft s b = return (Finished, [(s, m_sft)], b)
 -- | (Symbolic) functions to not add to the NRPCs
 type NoNRPC = HS.HashSet Name
 
--- | A reducer to add library functions in non reduced path constraints for solving later  
+-- | A reducer to add library functions to non reduced path constraints for solving later  
 nonRedLibFuncsReducer :: MonadIO m =>
                          HS.HashSet Name -- ^ Names of functions that must be executed
                       -> HS.HashSet Name -- ^ Names of functions that should not reesult in a larger expression become EXEC,
@@ -615,7 +616,7 @@ nonRedLibFuncsReducer :: MonadIO m =>
                       -> Reducer m (NoNRPC, NRPCMemoTable, ReachesSymMemoTable, Int) t
 nonRedLibFuncsReducer exec_names no_nrpc_names config =
     (mkSimpleReducer (\_ -> (HS.empty, HM.empty, HM.empty, 0))
-        (nonRedLibFuncs exec_names no_nrpc_names (symbolic_func_nrpc config)))
+        (nonRedLibFuncs exec_names no_nrpc_names))
         { onAccept = \s b (_, _, _, nrpc_count) -> do
             if print_num_nrpc config
                 then liftIO . putStrLn $ "NRPCs Generated: " ++ show nrpc_count
@@ -625,36 +626,37 @@ nonRedLibFuncsReducer exec_names no_nrpc_names config =
 nonRedLibFuncs :: MonadIO m => HS.HashSet Name -- ^ Names of functions that must be executed
                           -> HS.HashSet Name -- ^ Names of functions that should not reesult in a larger expression become EXEC,
                                              -- but should not be added to the NRPC at the top level.
-                          -> Bool -- ^ Use NRPCs to delay execution of symbolic functions
                           -> RedRules m (NoNRPC, NRPCMemoTable, ReachesSymMemoTable, Int) t
-nonRedLibFuncs exec_names no_nrpc_names use_with_symb_func 
+nonRedLibFuncs exec_names no_nrpc_names 
                 (no_nrpc, var_table, sym_table, nrpc_count)
                 s@(State { expr_env = eenv
                          , curr_expr = CurrExpr _ ce
-                         , type_env = tenv
                          , known_values = kv
                          , non_red_path_conds = nrs
                          }) 
                 b@(Bindings { name_gen = ng })
-    | (ae, stck') <- allApplyFrames [] (exec_stack s)
-    , Var (Id n t):es_ce <- unApp ce
+    | 
+      -- We are NOT dealing with a symbolic function or a function that should not be put in the NRPCs
+      Var (Id n t):es_ce <- unApp ce
     , not (n `HS.member` no_nrpc)
+    -- , not (n `HS.member` no_nrpc_names)
+    , not (E.isSymbolic n eenv)
+
+    -- Function is being fully applied 
+    , (ae, stck') <- allApplyFrames [] (exec_stack s)
     , let es = es_ce ++ ae
           ce' = mkApp (Var (Id n t):es)
-    --, not (n `HS.member` no_nrpc_names)
-    , use_with_symb_func || (E.isSymbolic n eenv)
     , hasFuncType (PresType t)
-    -- We want to introduce an NRPC only if the function is fully applied and does not have nested function argument types
     , ce_ty <- typeOf $ ce'
-    -- , not . hasNestedFuncType HS.empty $ ce_ty
     , not . hasFuncType . PresType $ ce_ty
+
     -- Don't turn functions manipulating "magic types"- types represented as Primitives, with special handling
     -- (for instance, MutVars, Handles) into NRPC symbolic variables.
     , not (hasMagicTypes ce')
     = 
         let
-            (reaches_sym, sym_table') = (True, sym_table) -- reachesSymbolic sym_table eenv ce'
-            (exec_skip, var_table') = (Skip, var_table) -- if reaches_sym then checkDelayability eenv ce' ng exec_names var_table else (Skip, var_table)
+            (reaches_sym, sym_table') = reachesSymbolic sym_table eenv ce'
+            (exec_skip, var_table') = if reaches_sym then checkDelayability eenv ce' ng exec_names var_table else (Skip, var_table)
         in
         case (reaches_sym, exec_skip) of
             (True, Skip) -> 
@@ -672,22 +674,8 @@ nonRedLibFuncs exec_names no_nrpc_names use_with_symb_func
                            , curr_expr = cexpr'
                            , non_red_path_conds = (ce'', Var new_sym_id):nrs
                            , exec_stack = stck' }
-
-                    -- If we have an EnsureEq on the stack, we do not want to add function argument states because
-                    -- (a) we have already added function argument states when we initially began reducing the NRPC
-                    -- and (b) we need to make sure that we actually do satisfy the equality, for soundness, and
-                    -- thus cannot clear out the stack
-                    (ng'', xs_new_g) = if noEnsureEq stck'
-                                    then L.mapAccumR
-                                            (funcArgState (map typeOf es) (returnType $ PresType t)) ng'
-                                            $ zip [0..] es
-                                    else (ng', [])
-                    xs = mapMaybe (fmap fst) xs_new_g
-                    new_g = catMaybes $ mapMaybe (fmap snd) xs_new_g
-                    no_nrpc' = foldr HS.insert no_nrpc new_g
-                    xs' = map (\new_s -> (new_s, (no_nrpc', var_table', sym_table', nrpc_count))) xs
                 in 
-                    return (Finished, (s', (no_nrpc', var_table', sym_table', nrpc_count + 1)):xs', b {name_gen = ng''})
+                    return (Finished, [(s', (no_nrpc, var_table', sym_table', nrpc_count + 1))], b {name_gen = ng'})
             _ -> return (Finished, [(s, (no_nrpc, var_table', sym_table', nrpc_count))], b)
 
     | otherwise = return (Finished, [(s, (no_nrpc, var_table, sym_table, nrpc_count))], b)
@@ -695,19 +683,89 @@ nonRedLibFuncs exec_names no_nrpc_names use_with_symb_func
         non_red_blocker = Name "NonRedBlocker" Nothing 0 Nothing
         non_red_blocker_tick = NamedLoc non_red_blocker
 
-        digNewType (TyCon n _) | Just (NewTyCon { rep_type = rt }) <- HM.lookup n tenv = digNewType rt
-        digNewType (TyApp t1 t2) = digNewType t1
-        digNewType t = t
+        hasMagicTypes = getAny . evalASTs hmt
 
-        hasNestedFuncType seen (TyCon n _)
-            | n `HS.member` seen = False
-            | Just (NewTyCon { rep_type = rt }) <- HM.lookup n tenv, hasFuncType (PresType rt) = True
-            | Just (NewTyCon { rep_type = rt }) <- HM.lookup n tenv = hasNestedFuncType (HS.insert n seen) rt
-            | Just (DataTyCon { data_cons = dcs }) <- HM.lookup n tenv =
-                        any (\dc -> hasNestedFuncType (HS.insert n seen) . typeOf $ dc) dcs
-        hasNestedFuncType _ (TyFun (TyFun _ _) _) = True
-        hasNestedFuncType _ (TyFun (TyForAll _ _) _) = True
-        hasNestedFuncType seen t = getAny $ evalChildren (Any . hasNestedFuncType seen) t
+        hmt (TyCon n _) = Any (n `elem` magicTypes kv)
+        hmt _ = Any False
+
+        allApplyFrames aes stck | Just (ApplyFrame ae, stck') <- Stck.pop stck = allApplyFrames (ae:aes) stck'
+                                | Just (UpdateFrame _, stck') <- Stck.pop stck = allApplyFrames aes stck'
+                                | otherwise = (reverse aes, stck)
+
+-- | A reducer to add higher order functions to non reduced path constraints for solving later  
+nonRedHigherOrderReducer :: MonadIO m =>
+                            Config
+                         -> Reducer m (NoNRPC, Int) t
+nonRedHigherOrderReducer config =
+    (mkSimpleReducer (\_ -> (HS.empty, 0)) nonRedHigherOrderFunc)
+        { onAccept = \s b (_, nrpc_count) -> do
+            if print_num_nrpc config
+                then liftIO . putStrLn $ "NRPCs Generated: " ++ show nrpc_count
+                else return ()
+            return (s, b) }
+
+nonRedHigherOrderFunc :: MonadIO m => RedRules m (NoNRPC, Int) t
+nonRedHigherOrderFunc 
+                (no_nrpc, nrpc_count)
+                s@(State { expr_env = eenv
+                         , curr_expr = CurrExpr _ ce
+                         , known_values = kv
+                         , non_red_path_conds = nrs
+                         }) 
+                b@(Bindings { name_gen = ng })
+    | 
+      -- We have a symbolic function
+      Var (Id n t):es_ce <- unApp ce
+    , E.isSymbolic n eenv
+    , hasFuncType (PresType t)
+    
+    -- Function is being fully applied 
+    , (ae, stck') <- allApplyFrames [] (exec_stack s)
+    , not (n `HS.member` no_nrpc)
+    , let es = es_ce ++ ae
+          ce' = mkApp (Var (Id n t):es)
+    , ce_ty <- typeOf $ ce'
+    , not . hasFuncType . PresType $ ce_ty
+
+    -- Don't turn functions manipulating "magic types"- types represented as Primitives, with special handling
+    -- (for instance, MutVars, Handles) into NRPC symbolic variables.
+    , not (hasMagicTypes ce')
+    = 
+        let
+            (new_sym, ng') = freshSeededString "sym" ng
+            new_sym_id = Id new_sym ce_ty
+            eenv' = E.insertSymbolic new_sym_id eenv
+            cexpr' = CurrExpr Return (Var new_sym_id)
+            -- when NRPC moves back to current expression, it immediately gets added as NRPC again.
+            -- To stop falling into this infinite loop, instead of adding current expression in NRPC
+            -- we associate a tick (nonRedBlocker) with the expression and then standard reducer reduces
+            -- this tick.
+            ce'' = mkApp $ (Tick non_red_blocker_tick (Var (Id n t))):es
+            s' = s { expr_env = eenv'
+                    , curr_expr = cexpr'
+                    , non_red_path_conds = (ce'', Var new_sym_id):nrs
+                    , exec_stack = stck' }
+
+            -- If we have an EnsureEq on the stack, we do not want to add function argument states because
+            -- (a) we have already added function argument states when we initially began reducing the NRPC
+            -- and (b) we need to make sure that we actually do satisfy the equality, for soundness, and
+            -- thus cannot clear out the stack
+            (ng'', xs_new_g) = if noEnsureEq stck'
+                            then L.mapAccumR
+                                    (funcArgState (map typeOf es) (returnType $ PresType t)) ng'
+                                    $ zip [0..] es
+                            else (ng', [])
+            xs = mapMaybe (fmap fst) xs_new_g
+            new_g = catMaybes $ mapMaybe (fmap snd) xs_new_g
+            no_nrpc' = foldr HS.insert no_nrpc new_g
+            xs' = map (\new_s -> (new_s, (no_nrpc', nrpc_count))) xs
+        in 
+        return (Finished, (s', (no_nrpc', nrpc_count + 1)):xs', b {name_gen = ng''})
+
+    | otherwise = return (Finished, [(s, (no_nrpc, nrpc_count))], b)
+    where
+        non_red_blocker = Name "NonRedBlocker" Nothing 0 Nothing
+        non_red_blocker_tick = NamedLoc non_red_blocker
 
         hasMagicTypes = getAny . evalASTs hmt
 
@@ -743,7 +801,7 @@ nonRedLibFuncs exec_names no_nrpc_names use_with_symb_func
                     in
                     (ng''', Just $ (s { expr_env = eenv''
                                       , curr_expr = CurrExpr Evaluate fa_e'
-                                      , exec_stack = stck (Var bindee) }, Nothing))
+                                      , exec_stack = stck }, Nothing))
             | isPrimType (typeOf fa_e) = (init_ng, Nothing)
             | otherwise =
                 let
@@ -757,7 +815,7 @@ nonRedLibFuncs exec_names no_nrpc_names use_with_symb_func
                     eenv' = E.insert n f_def eenv
                     eenv'' = E.insertSymbolic g eenv'
                 in
-                (ng'', Just $ (s { expr_env = eenv'', curr_expr = CurrExpr Evaluate fa_e', exec_stack = stck (Var bindee) }, Just $ idName g))
+                (ng'', Just $ (s { expr_env = eenv'', curr_expr = CurrExpr Evaluate fa_e', exec_stack = stck }, Just $ idName g))
             where
                 n = case unApp ce of
                     Var (Id vn _):_ -> vn
@@ -766,10 +824,7 @@ nonRedLibFuncs exec_names no_nrpc_names use_with_symb_func
                 (arg_is, ng_args) = freshIds all_args_ts init_ng
                 this_arg = arg_is !! this_arg_num
 
-                error_show show_e = App (Prim Error TyBottom) $ App (Var (Id (Name "show" Nothing 0 Nothing) TyBottom)) show_e
-
-                stck show_e = Stck.singleton $ CurrExprFrame NoAction (CurrExpr Return $ Prim UnspecifiedOutput TyBottom)
-
+                stck = Stck.singleton $ CurrExprFrame NoAction (CurrExpr Return $ Prim UnspecifiedOutput TyBottom)
 
 -- Note [Ignore Update Frames]
 -- In `strictRed`, when deciding whether to split up an expression to force strict evaluation of subexpression,
