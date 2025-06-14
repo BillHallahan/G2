@@ -635,23 +635,16 @@ nonRedLibFuncs exec_names no_nrpc_names
                 b@(Bindings { name_gen = ng })
     | 
       -- We are NOT dealing with a symbolic function or a function that should not be put in the NRPCs
-      Var (Id n t):es_ce <- unApp ce
+      Var (Id n _):_ <- unApp ce
     -- , not (n `HS.member` no_nrpc_names)
     , not (E.isSymbolic n eenv)
-
-    -- Function is being fully applied 
-    , (ae, stck') <- allApplyFrames (exec_stack s)
-    , let es = es_ce ++ ae
-          ce' = mkApp (Var (Id n t):es)
-    , hasFuncType (PresType t) = 
+    , Just (s'@(State { curr_expr = CurrExpr _ ce' }), ng') <- createNonRed ng s = 
         let
             (reaches_sym, sym_table') = reachesSymbolic sym_table eenv ce'
             (exec_skip, var_table') = if reaches_sym then checkDelayability eenv ce' ng exec_names var_table else (Skip, var_table)
         in
         case (reaches_sym, exec_skip) of
-            (True, Skip) | let part_s = s { curr_expr = CurrExpr Evaluate ce', exec_stack = stck' }
-                         , Just (s', ng') <- createNonRed ng part_s -> 
-                    return (Finished, [(s', (var_table', sym_table', nrpc_count + 1))], b {name_gen = ng'})
+            (True, Skip) -> return (Finished, [(s', (var_table', sym_table', nrpc_count + 1))], b {name_gen = ng'})
             _ -> return (Finished, [(s, (var_table', sym_table', nrpc_count))], b)
 
     | otherwise = return (Finished, [(s, (var_table, sym_table, nrpc_count))], b)
@@ -682,16 +675,10 @@ nonRedHigherOrderFunc
     , E.isSymbolic n eenv
     , not (n `HS.member` no_nrpc)
     
-    -- Function is being fully applied
     , (ae, stck') <- allApplyFrames (exec_stack s)
     , let es = es_ce ++ ae
-          ce' = mkApp (Var (Id n t):es)
-    , hasFuncType (PresType t)
 
-    -- Don't turn functions manipulating "magic types"- types represented as Primitives, with special handling
-    -- (for instance, MutVars, Handles) into NRPC symbolic variables.
-    , let part_s = s { curr_expr = CurrExpr Evaluate ce', exec_stack = stck' }
-    , Just (s', ng') <- createNonRed ng part_s 
+    , Just (s', ng') <- createNonRed ng s 
     = 
         let
             -- If we have an EnsureEq on the stack, we do not want to add function argument states because
@@ -771,8 +758,14 @@ createNonRed ng
                       , expr_env = eenv
                       , non_red_path_conds = nrs
                       , known_values = kv })
-            | Var (Id n t):es <- unApp ce
-            , let ce_ty = typeOf ce
+            | v@(Var (Id _ t)):es_ce <- unApp ce
+             -- Function is being fully applied 
+            , (ae, stck) <- allApplyFrames (exec_stack s)
+            , let es = es_ce ++ ae
+                  ce' = mkApp (v:es)
+            , hasFuncType (PresType t)
+            
+            , let ce_ty = typeOf ce'
             , not . hasFuncType . PresType $ ce_ty
             -- Don't turn functions manipulating "magic types"- types represented as Primitives, with special handling
             -- (for instance, MutVars, Handles) into NRPC symbolic variables.
@@ -786,10 +779,11 @@ createNonRed ng
         -- To stop falling into this infinite loop, instead of adding current expression in NRPC
         -- we associate a tick (nonRedBlocker) with the expression and then standard reducer reduces
         -- this tick.
-        ce'' = mkApp $ (nonRedBlockerTick (Var (Id n t))):es
+        ce'' = mkApp $ nonRedBlockerTick v:es
         s' = s { expr_env = eenv'
-                , curr_expr = cexpr'
-                , non_red_path_conds = (ce'', Var new_sym_id):nrs }
+               , curr_expr = cexpr'
+               , non_red_path_conds = (ce'', Var new_sym_id):nrs
+               , exec_stack = stck }
     in
     Just (s', ng')
 createNonRed _ _ = Nothing
