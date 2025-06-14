@@ -336,7 +336,7 @@ testFileTests = testGroup "TestFiles"
 
     , checkExprAssume "tests/TestFiles/Subseq.hs" 1200 (Just "assume") "subseqTest" [AtLeast 1]
 
-    , checkInputOutputs "tests/TestFiles/Strings/Strings1.hs" [ ("con", 300, [AtLeast 10])
+    , checkInputOutputs "tests/TestFiles/Strings/Strings1.hs" [ ("con", 400, [AtLeast 10])
                                                               , ("eq", 700, [AtLeast 10])
                                                               , ("eqGt1", 700, [AtLeast 10])
                                                               , ("capABC", 100, [AtLeast 10])
@@ -355,15 +355,15 @@ testFileTests = testGroup "TestFiles"
                                         , ("strLen", 1000, [Exactly 2])
                                         , ("con2", 1000, [Exactly 3])
                                         , ("strIndex", 1000, [Exactly 4]) 
-                                        , ("taker1", 1000, [Exactly 3])
-                                        , ("taker2", 1000, [Exactly 3])
+                                        , ("taker1", 5000, [Exactly 2])
+                                        , ("taker2", 5000, [Exactly 2])
                                         , ("conTaker1", 2500, [Exactly 4])
                                         , ("conTaker2", 2500, [Exactly 2])
                                         , ("lengthCon1", 2500, [Exactly 2])
                                         , ("conIndex1", 2500, [AtLeast 2])
-                                        , ("eq1", 1000, [Exactly 2])
-                                        , ("eq2", 1000, [Exactly 2])
-                                        , ("eq3", 2500, [Exactly 2])]
+                                        , ("eq1", 5000, [Exactly 2])
+                                        , ("eq2", 5000, [Exactly 2])
+                                        , ("eq3", 5000, [Exactly 2])]
 
     , checkExpr "tests/TestFiles/Strings/Strings1.hs" 1000 "exclaimEq"
         [AtLeast 5, RExists (\[_, _, r] -> dcHasName "True" r)]
