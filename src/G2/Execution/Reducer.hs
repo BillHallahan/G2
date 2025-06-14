@@ -576,12 +576,11 @@ nonRedPCSymFuncRed = mkSimpleReducer (\_ -> Nothing)
                         nonRedPCSymFunc
 
 nonRedPCSymFunc :: Monad m => RedRules m (Maybe SymFuncTicks) t
-nonRedPCSymFunc m_sft
-                      s@(State { expr_env = eenv
-                         , curr_expr = cexpr
+nonRedPCSymFunc _
+                s@(State {curr_expr = cexpr
                          , exec_stack = stck
                          , non_red_path_conds = (nre1, nre2):nrs
-                         , model = m })
+                         })
                         b@(Bindings { name_gen = ng }) =
     
     let
@@ -594,7 +593,7 @@ nonRedPCSymFunc m_sft
         stripCenterTick e = e
     in
     case retReplaceSymbFuncTemplate sft s' ng (stripCenterTick nre1) of
-        Just (r, s'', ng') ->
+        Just (_, s'', ng') ->
             return (InProgress, zip s'' (repeat (Just sft)), b {name_gen = ng'})
         Nothing ->
             let 
@@ -632,7 +631,6 @@ nonRedLibFuncs exec_names no_nrpc_names
                 s@(State { expr_env = eenv
                          , curr_expr = CurrExpr _ ce
                          , known_values = kv
-                         , non_red_path_conds = nrs
                          }) 
                 b@(Bindings { name_gen = ng })
     | 
@@ -643,54 +641,21 @@ nonRedLibFuncs exec_names no_nrpc_names
     , not (E.isSymbolic n eenv)
 
     -- Function is being fully applied 
-    , (ae, stck') <- allApplyFrames [] (exec_stack s)
+    , (ae, stck') <- allApplyFrames (exec_stack s)
     , let es = es_ce ++ ae
           ce' = mkApp (Var (Id n t):es)
-    , hasFuncType (PresType t)
-    , ce_ty <- typeOf $ ce'
-    , not . hasFuncType . PresType $ ce_ty
-
-    -- Don't turn functions manipulating "magic types"- types represented as Primitives, with special handling
-    -- (for instance, MutVars, Handles) into NRPC symbolic variables.
-    , not (hasMagicTypes ce')
-    = 
+    , hasFuncType (PresType t) = 
         let
             (reaches_sym, sym_table') = reachesSymbolic sym_table eenv ce'
             (exec_skip, var_table') = if reaches_sym then checkDelayability eenv ce' ng exec_names var_table else (Skip, var_table)
         in
         case (reaches_sym, exec_skip) of
-            (True, Skip) -> 
-                let
-                    (new_sym, ng') = freshSeededString "sym" ng
-                    new_sym_id = Id new_sym ce_ty
-                    eenv' = E.insertSymbolic new_sym_id eenv
-                    cexpr' = CurrExpr Return (Var new_sym_id)
-                    -- when NRPC moves back to current expression, it immediately gets added as NRPC again.
-                    -- To stop falling into this infinite loop, instead of adding current expression in NRPC
-                    -- we associate a tick (nonRedBlocker) with the expression and then standard reducer reduces
-                    -- this tick.
-                    ce'' = mkApp $ (Tick non_red_blocker_tick (Var (Id n t))):es
-                    s' = s { expr_env = eenv'
-                           , curr_expr = cexpr'
-                           , non_red_path_conds = (ce'', Var new_sym_id):nrs
-                           , exec_stack = stck' }
-                in 
+            (True, Skip) | let part_s = s { curr_expr = CurrExpr Evaluate ce', exec_stack = stck' }
+                         , Just (s', ng') <- createNonRed ng part_s -> 
                     return (Finished, [(s', (no_nrpc, var_table', sym_table', nrpc_count + 1))], b {name_gen = ng'})
             _ -> return (Finished, [(s, (no_nrpc, var_table', sym_table', nrpc_count))], b)
 
     | otherwise = return (Finished, [(s, (no_nrpc, var_table, sym_table, nrpc_count))], b)
-    where
-        non_red_blocker = Name "NonRedBlocker" Nothing 0 Nothing
-        non_red_blocker_tick = NamedLoc non_red_blocker
-
-        hasMagicTypes = getAny . evalASTs hmt
-
-        hmt (TyCon n _) = Any (n `elem` magicTypes kv)
-        hmt _ = Any False
-
-        allApplyFrames aes stck | Just (ApplyFrame ae, stck') <- Stck.pop stck = allApplyFrames (ae:aes) stck'
-                                | Just (UpdateFrame _, stck') <- Stck.pop stck = allApplyFrames aes stck'
-                                | otherwise = (reverse aes, stck)
 
 -- | A reducer to add higher order functions to non reduced path constraints for solving later  
 nonRedHigherOrderReducer :: MonadIO m =>
@@ -710,42 +675,26 @@ nonRedHigherOrderFunc
                 s@(State { expr_env = eenv
                          , curr_expr = CurrExpr _ ce
                          , known_values = kv
-                         , non_red_path_conds = nrs
                          }) 
                 b@(Bindings { name_gen = ng })
     | 
       -- We have a symbolic function
       Var (Id n t):es_ce <- unApp ce
     , E.isSymbolic n eenv
-    , hasFuncType (PresType t)
-    
-    -- Function is being fully applied 
-    , (ae, stck') <- allApplyFrames [] (exec_stack s)
     , not (n `HS.member` no_nrpc)
+    
+    -- Function is being fully applied
+    , (ae, stck') <- allApplyFrames (exec_stack s)
     , let es = es_ce ++ ae
           ce' = mkApp (Var (Id n t):es)
-    , ce_ty <- typeOf $ ce'
-    , not . hasFuncType . PresType $ ce_ty
+    , hasFuncType (PresType t)
 
     -- Don't turn functions manipulating "magic types"- types represented as Primitives, with special handling
     -- (for instance, MutVars, Handles) into NRPC symbolic variables.
-    , not (hasMagicTypes ce')
+    , let part_s = s { curr_expr = CurrExpr Evaluate ce', exec_stack = stck' }
+    , Just (s', ng') <- createNonRed ng part_s 
     = 
         let
-            (new_sym, ng') = freshSeededString "sym" ng
-            new_sym_id = Id new_sym ce_ty
-            eenv' = E.insertSymbolic new_sym_id eenv
-            cexpr' = CurrExpr Return (Var new_sym_id)
-            -- when NRPC moves back to current expression, it immediately gets added as NRPC again.
-            -- To stop falling into this infinite loop, instead of adding current expression in NRPC
-            -- we associate a tick (nonRedBlocker) with the expression and then standard reducer reduces
-            -- this tick.
-            ce'' = mkApp $ (Tick non_red_blocker_tick (Var (Id n t))):es
-            s' = s { expr_env = eenv'
-                    , curr_expr = cexpr'
-                    , non_red_path_conds = (ce'', Var new_sym_id):nrs
-                    , exec_stack = stck' }
-
             -- If we have an EnsureEq on the stack, we do not want to add function argument states because
             -- (a) we have already added function argument states when we initially began reducing the NRPC
             -- and (b) we need to make sure that we actually do satisfy the equality, for soundness, and
@@ -764,18 +713,6 @@ nonRedHigherOrderFunc
 
     | otherwise = return (Finished, [(s, (no_nrpc, nrpc_count))], b)
     where
-        non_red_blocker = Name "NonRedBlocker" Nothing 0 Nothing
-        non_red_blocker_tick = NamedLoc non_red_blocker
-
-        hasMagicTypes = getAny . evalASTs hmt
-
-        hmt (TyCon n _) = Any (n `elem` magicTypes kv)
-        hmt _ = Any False
-
-        allApplyFrames aes stck | Just (ApplyFrame ae, stck') <- Stck.pop stck = allApplyFrames (ae:aes) stck'
-                                | Just (UpdateFrame _, stck') <- Stck.pop stck = allApplyFrames aes stck'
-                                | otherwise = (reverse aes, stck)
-
         noEnsureEq stck | Just (CurrExprFrame (EnsureEq _) _, _) <- Stck.pop stck = False
                         | Just (_, stck') <- Stck.pop stck = noEnsureEq stck'
                         |otherwise = True
@@ -825,6 +762,54 @@ nonRedHigherOrderFunc
                 this_arg = arg_is !! this_arg_num
 
                 stck = Stck.singleton $ CurrExprFrame NoAction (CurrExpr Return $ Prim UnspecifiedOutput TyBottom)
+
+-- If doing so is possible, create an NRPC for the current expression of the passed state
+createNonRed :: NameGen
+             -> State t
+             -> Maybe (State t, NameGen)
+createNonRed ng
+             s@(State { curr_expr = CurrExpr _ ce
+                      , expr_env = eenv
+                      , non_red_path_conds = nrs
+                      , known_values = kv })
+            | Var (Id n t):es <- unApp ce
+            , let ce_ty = typeOf ce
+            , not . hasFuncType . PresType $ ce_ty
+            -- Don't turn functions manipulating "magic types"- types represented as Primitives, with special handling
+            -- (for instance, MutVars, Handles) into NRPC symbolic variables.
+            , not (hasMagicTypes kv ce) =
+    let
+        (new_sym, ng') = freshSeededString "sym" ng
+        new_sym_id = Id new_sym ce_ty
+        eenv' = E.insertSymbolic new_sym_id eenv
+        cexpr' = CurrExpr Return (Var new_sym_id)
+        -- when NRPC moves back to current expression, it immediately gets added as NRPC again.
+        -- To stop falling into this infinite loop, instead of adding current expression in NRPC
+        -- we associate a tick (nonRedBlocker) with the expression and then standard reducer reduces
+        -- this tick.
+        ce'' = mkApp $ (nonRedBlockerTick (Var (Id n t))):es
+        s' = s { expr_env = eenv'
+                , curr_expr = cexpr'
+                , non_red_path_conds = (ce'', Var new_sym_id):nrs }
+    in
+    Just (s', ng')
+createNonRed _ _ = Nothing
+
+hasMagicTypes :: ASTContainer c Type => KnownValues -> c -> Bool
+hasMagicTypes kv = getAny . evalASTs hmt
+    where
+        hmt (TyCon n _) = Any (n `elem` magicTypes kv)
+        hmt _ = Any False
+
+allApplyFrames :: Stck.Stack Frame -> ([Expr], Stck.Stack Frame)
+allApplyFrames = go []
+    where
+        go aes stck | Just (ApplyFrame ae, stck') <- Stck.pop stck = go (ae:aes) stck'
+                    | Just (UpdateFrame _, stck') <- Stck.pop stck = go aes stck'
+                    | otherwise = (reverse aes, stck)
+
+nonRedBlockerTick :: Expr -> Expr
+nonRedBlockerTick = Tick (NamedLoc (Name "NonRedBlocker" Nothing 0 Nothing))
 
 -- Note [Ignore Update Frames]
 -- In `strictRed`, when deciding whether to split up an expression to force strict evaluation of subexpression,
