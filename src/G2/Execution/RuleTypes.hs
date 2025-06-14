@@ -23,6 +23,9 @@ data Rule = RuleEvalVal
           | RuleEvalApp Expr
 
           | RuleEvalPrimAlreadyNorm
+          | RuleEvalPrimFloatTicks
+          | RuleEvalPrimToNormWithState
+          | RuleEvalPrimToNormSymbolic
           | RuleEvalPrimToNorm
 
           | RuleEvalLet [Name]

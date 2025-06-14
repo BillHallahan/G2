@@ -336,7 +336,7 @@ testFileTests = testGroup "TestFiles"
 
     , checkExprAssume "tests/TestFiles/Subseq.hs" 1200 (Just "assume") "subseqTest" [AtLeast 1]
 
-    , checkInputOutputs "tests/TestFiles/Strings/Strings1.hs" [ ("con", 300, [AtLeast 10])
+    , checkInputOutputs "tests/TestFiles/Strings/Strings1.hs" [ ("con", 400, [AtLeast 10])
                                                               , ("eq", 700, [AtLeast 10])
                                                               , ("eqGt1", 700, [AtLeast 10])
                                                               , ("capABC", 100, [AtLeast 10])
@@ -347,14 +347,23 @@ testFileTests = testGroup "TestFiles"
                                                               , ("nStringSub3", 2000, [AtLeast 15])
                                                               , ("stringSub4", 7000, [AtLeast 7])
                                                               , ("nStringSub4", 2000, [AtLeast 5])
-                                                              , ("strLen", 1000, [AtLeast 5]) ]
+                                                              , ("strLen", 1000, [AtLeast 5])
+                                                              , ("taker2", 2000, [AtLeast 5]) ]
     , checkInputOutputsSMTStrings "tests/TestFiles/Strings/Strings1.hs"
                                         [ ("con", 1000, [Exactly 1])
                                         , ("appendEq", 1000, [Exactly 1])
                                         , ("strLen", 1000, [Exactly 2])
                                         , ("con2", 1000, [Exactly 3])
                                         , ("strIndex", 1000, [Exactly 4]) 
-                                        , ("eq1", 1000, [Exactly 2])]
+                                        , ("taker1", 5000, [Exactly 2])
+                                        , ("taker2", 5000, [Exactly 2])
+                                        , ("conTaker1", 2500, [Exactly 4])
+                                        , ("conTaker2", 2500, [Exactly 2])
+                                        , ("lengthCon1", 2500, [Exactly 2])
+                                        , ("conIndex1", 2500, [AtLeast 2])
+                                        , ("eq1", 5000, [Exactly 2])
+                                        , ("eq2", 5000, [Exactly 2])
+                                        , ("eq3", 5000, [Exactly 2])]
 
     , checkExpr "tests/TestFiles/Strings/Strings1.hs" 1000 "exclaimEq"
         [AtLeast 5, RExists (\[_, _, r] -> dcHasName "True" r)]

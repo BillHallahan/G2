@@ -105,6 +105,7 @@ data KnownValues = KnownValues {
                  , notFunc :: Name
 
                  , typeIndex :: Name
+                 , adjStr :: Name
 
                  -- Useful functions
                  , errorFunc :: Name
