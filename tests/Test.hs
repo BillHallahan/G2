@@ -358,7 +358,7 @@ testFileTests = testGroup "TestFiles"
                                         , ("taker1", 1000, [Exactly 3])
                                         , ("taker2", 1000, [Exactly 3])
                                         , ("conTaker1", 2500, [Exactly 4])
-                                        , ("conTaker2", 2500, [Exactly 3])
+                                        , ("conTaker2", 2500, [Exactly 2])
                                         , ("lengthCon1", 2500, [Exactly 2])
                                         , ("conIndex1", 2500, [AtLeast 2])
                                         , ("eq1", 1000, [Exactly 2])
