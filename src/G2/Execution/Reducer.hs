@@ -627,7 +627,7 @@ nonRedLibFuncs :: MonadIO m => HS.HashSet Name -- ^ Names of functions that must
                                              -- but should not be added to the NRPC at the top level.
                           -> RedRules m (NRPCMemoTable, ReachesSymMemoTable, Int) t
 nonRedLibFuncs exec_names no_nrpc_names 
-                (var_table, sym_table, nrpc_count)
+                rv@(var_table, sym_table, nrpc_count)
                 s@(State { expr_env = eenv
                          , curr_expr = CurrExpr _ ce
                          , known_values = kv
@@ -636,9 +636,9 @@ nonRedLibFuncs exec_names no_nrpc_names
     | 
       -- We are NOT dealing with a symbolic function or a function that should not be put in the NRPCs
       Var (Id n _):_ <- unApp ce
-    -- , not (n `HS.member` no_nrpc_names)
+    , not (n `HS.member` no_nrpc_names)
     , not (E.isSymbolic n eenv)
-    , Just (s'@(State { curr_expr = CurrExpr _ ce' }), ng') <- createNonRed ng s = 
+    , Just (s'@(State { curr_expr = CurrExpr _ _ }), ce', ng') <- createNonRed ng s = 
         let
             (reaches_sym, sym_table') = reachesSymbolic sym_table eenv ce'
             (exec_skip, var_table') = if reaches_sym then checkDelayability eenv ce' ng exec_names var_table else (Skip, var_table)
@@ -647,7 +647,10 @@ nonRedLibFuncs exec_names no_nrpc_names
             (True, Skip) -> return (Finished, [(s', (var_table', sym_table', nrpc_count + 1))], b {name_gen = ng'})
             _ -> return (Finished, [(s, (var_table', sym_table', nrpc_count))], b)
 
-    | otherwise = return (Finished, [(s, (var_table, sym_table, nrpc_count))], b)
+    | Tick nl (Var (Id n _)) <- ce
+    , nl == nonRedBlockerTickNL
+    , Just e <- E.lookup n eenv = return (Finished, [(s { curr_expr = CurrExpr Evaluate e }, rv)], b)
+    | otherwise = return (Finished, [(s, rv)], b)
 
 -- | A reducer to add higher order functions to non reduced path constraints for solving later  
 nonRedHigherOrderReducer :: MonadIO m =>
@@ -678,7 +681,7 @@ nonRedHigherOrderFunc
     , (ae, stck') <- allApplyFrames (exec_stack s)
     , let es = es_ce ++ ae
 
-    , Just (s', ng') <- createNonRed ng s 
+    , Just (s', _, ng') <- createNonRed ng s 
     = 
         let
             -- If we have an EnsureEq on the stack, we do not want to add function argument states because
@@ -752,7 +755,10 @@ nonRedHigherOrderFunc
 -- If doing so is possible, create an NRPC for the current expression of the passed state
 createNonRed :: NameGen
              -> State t
-             -> Maybe (State t, NameGen)
+             -> Maybe
+                      ( State t -- ^ New state with NRPC applied
+                      , Expr -- ^ Expression added into the NRPCs (and equated to some symbolic variable)
+                      , NameGen)
 createNonRed ng
              s@(State { curr_expr = CurrExpr _ ce
                       , expr_env = eenv
@@ -785,7 +791,7 @@ createNonRed ng
                , non_red_path_conds = (ce'', Var new_sym_id):nrs
                , exec_stack = stck }
     in
-    Just (s', ng')
+    Just (s', ce'', ng')
 createNonRed _ _ = Nothing
 
 hasMagicTypes :: ASTContainer c Type => KnownValues -> c -> Bool
@@ -802,7 +808,10 @@ allApplyFrames = go []
                     | otherwise = (reverse aes, stck)
 
 nonRedBlockerTick :: Expr -> Expr
-nonRedBlockerTick = Tick (NamedLoc (Name "NonRedBlocker" Nothing 0 Nothing))
+nonRedBlockerTick = Tick nonRedBlockerTickNL
+
+nonRedBlockerTickNL :: Tickish
+nonRedBlockerTickNL = NamedLoc (Name "NonRedBlocker" Nothing 0 Nothing)
 
 -- Note [Ignore Update Frames]
 -- In `strictRed`, when deciding whether to split up an expression to force strict evaluation of subexpression,

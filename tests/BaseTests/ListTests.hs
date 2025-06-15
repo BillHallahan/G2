@@ -1,3 +1,5 @@
+{-# LANGUAGE MultiWayIf#-}
+
 module ListTests where
 
 -- import qualified Data.Map as M
@@ -45,7 +47,10 @@ foldrx k z = go
             go (y:ys) = y `k` go ys
 
 map2 :: [(a, b)] -> [b]
-map2 = map snd
+map2 xs =
+    case map snd xs of
+        _:ys -> ys
+        [] -> [] 
 
 -- g2Entry7 :: Int -> [(Int, Int)]
 -- g2Entry7 a = let m = M.fromList [(123456, a)]
@@ -56,6 +61,14 @@ map2 = map snd
 
 lengthN :: [Int] -> Int
 lengthN xs = length xs
+
+lengthBranch :: [Int] -> Int
+lengthBranch xs =
+        let len = length xs in
+        if | len > 5 -> 1
+           | len > 2 -> 2
+           | len == 0 -> 3
+           | otherwise -> 4
 
 fibonacci :: [Int]
 fibonacci = let fibs = 0 : 1 : zipWith (+) fibs (tail fibs)  
