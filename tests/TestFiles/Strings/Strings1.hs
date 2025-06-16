@@ -1,5 +1,7 @@
 module Strings1 where
 
+import Data.List
+
 con :: String -> String -> String
 con xs ys = xs ++ ys
 
