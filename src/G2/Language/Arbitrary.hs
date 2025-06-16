@@ -26,6 +26,7 @@ import G2.Language.KnownValues as KV
 import G2.Lib.Printers
 
 import Control.Monad
+import Data.Bifunctor
 import Data.Foldable
 import Data.Function
 import qualified Data.HashMap.Lazy as HM
@@ -318,16 +319,18 @@ arbDCType :: TypeEnv -> Gen Type
 arbDCType tenv = elements $ map (flip TyCon TYPE) (HM.keys tenv)
 
 shrinkExpr :: Expr -> [Expr]
-shrinkExpr (Case e i t alts@(Alt (DataAlt _ _) _:Alt (DataAlt _ _) _:_)) =
-                    map (\a@(Alt am _) -> Case e i t (a:if am == Default then [] else [errorAlt t])) alts
 shrinkExpr (Case e i t alts) =
     let
-        opt1 = [Case e' i t alts' | (AE e', alts') <- liftShrink2 shrink shrinkAlts (AE e, alts)]
-        opt2 = map altExpr $ filter (varsNotUsed (idName i)) alts
+        opt1 = case alts of
+                Alt (DataAlt _ _) _:Alt (DataAlt _ _) _:_ ->
+                    map (\a@(Alt am _) -> Case e i t (a:if am == Default then [] else [errorAlt t])) alts
+                _ -> []
+        opt2 = [Case e' i t alts' | (AE e', alts') <- liftShrink2 shrink shrinkAlts (AE e, alts)]
+        opt3 = map altExpr $ filter (varsNotUsed (idName i)) alts
     in
-    opt1 ++ opt2
+    opt1 ++ opt2 ++ opt3
 
-shrinkExpr (Lam u i e) = map (Lam u i) (shrinkExpr e)
+shrinkExpr (Lam u i e) = map (Lam u i . unAE) (shrink $ AE e)
 
 shrinkExpr (App e1 e2) =
     let
@@ -344,7 +347,21 @@ shrinkExpr (Lit (LitFloat x)) = [Lit (LitFloat x') | x' <- shrink x]
 shrinkExpr (Var i) | typeOf i == TyLitInt = [Lit (LitInt 0)]
                    | typeOf i == TyLitFloat = [Lit (LitFloat 0)]
 
+shrinkExpr (Let [] e) = [e] ++ [Let [] e' | AE e' <- shrink (AE e)]
+shrinkExpr (Let es e) = [Let es e' | AE e' <- shrink (AE e)]
+                     ++ [Let es' e | es' <- removeUnused (map idName $ freeVars E.empty e) es]
+                     ++ [Let (map (bimap unAI unAE) es') e | es' <- shrinkElem (map (bimap AI AE) es)]
+
 shrinkExpr _ = []
+
+shrinkElem :: Arbitrary a => [a] -> [[a]]
+shrinkElem [] = []
+shrinkElem (x:xs) = [x':xs | x' <- shrink x] ++ map (x:) (shrink xs)
+
+removeUnused :: [Name] -> [(Id, Expr)] -> [[(Id, Expr)]]
+removeUnused _ [] = []
+removeUnused ns (ie@(Id n _, _):es) =
+    if n `notElem` ns then es:map (ie:) (removeUnused ns es) else  map (ie:) (removeUnused ns es)
 
 shrinkAlts :: [Alt] -> [[Alt]]
 shrinkAlts [] = []
@@ -430,6 +447,7 @@ fakeKnownValues =
     , notFunc = Name "" Nothing 0 Nothing
 
     , typeIndex = Name "" Nothing 0 Nothing
+    , adjStr = Name "" Nothing 0 Nothing
 
     , errorFunc = Name "" Nothing 0 Nothing
     , errorWithoutStackTraceFunc = Name "" Nothing 0 Nothing
