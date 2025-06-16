@@ -1523,11 +1523,13 @@ switchEveryNHalter sw = (mkSimpleHalter
             in
             replicate len c'
 
--- | If the Name, disregarding the Unique, in the DiscardIfAcceptedTag
--- matches a Tag in the Accepted State list,
--- and in the State being evaluated, discard the State
-discardIfAcceptedTagHalter :: Monad m => Name -> Halter m (HS.HashSet Name) (ExecRes t) t
-discardIfAcceptedTagHalter (Name n m _ _) =
+-- | If the Name, disregarding the Unique, matches a Tag in the Accepted State list,
+-- and in the State being evaluated, discard the State.
+discardIfAcceptedTagHalter :: Monad m =>
+                              Bool -- ^ If True, consider only accepted states that are non-erroring
+                           -> Name
+                           -> Halter m (HS.HashSet Name) (ExecRes t) t
+discardIfAcceptedTagHalter non_erroring (Name n m _ _) =
                             mkSimpleHalter
                                 (const HS.empty)
                                 ups
@@ -1538,10 +1540,17 @@ discardIfAcceptedTagHalter (Name n m _ _) =
             (Processed {accepted = acc})
             (State {tags = ts}) =
                 let
-                    allAccTags = HS.unions $ map (tags . final_state) acc
+                    acc_states = case non_erroring of
+                                    True -> filter (not . isError . getExpr . final_state) acc
+                                    False -> acc
+                    allAccTags = HS.unions $ map (tags . final_state) acc_states
                     matchCurrState = HS.intersection ts allAccTags
                 in
                 HS.filter (\(Name n' m' _ _) -> n == n' && m == m') matchCurrState
+            
+        isError (Prim Error _) = True
+        isError (Prim Undefined _) = True
+        isError _ = False
 
 -- | Counts the number of variable lookups are made, and switches the state
 -- whenever we've hit a threshold

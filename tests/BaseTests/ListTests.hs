@@ -84,7 +84,18 @@ indexCall1 xs y | 0 <= y && y < length xs =
     (z, Just x)
 indexCall1 _ y | 0 <= y = (5, Nothing)
                | otherwise = (6, Nothing)
-               
+
+indexCall2 :: [Int] -> Int -> (Int, Maybe Int)
+indexCall2 xs y =
+    let x = xs !! y
+        z = if | x < 100 -> 1
+               | x > 200 -> 2
+               | y < 2 -> 3
+               | otherwise -> 4
+
+    in
+    (z, Just x)
+
 -- g2Entry7 :: Int -> [(Int, Int)]
 -- g2Entry7 a = let m = M.fromList [(123456, a)]
 --              in M.toList m
