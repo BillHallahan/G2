@@ -408,7 +408,7 @@ testFileTests = testGroup "TestFiles"
                                                                 , ("testFib", 2500, [AtLeast 5])]
                                                                 
     , checkInputOutputsNonRedLib "tests/TestFiles/NRPC/EmptyTuple.hs" [ ("main", 1000, [AtLeast 1])]
-    , checkExprNRPC "tests/TestFiles/NRPC/Print.hs" 2500 "f" [AtLeast 5]
+    , checkExprLibNRPC "tests/TestFiles/NRPC/Print.hs" 2500 "f" [AtLeast 5]
     -- , checkInputOutput "tests/TestFiles/BadBool.hs" "BadBool" "f" 1400 [AtLeast 1]
     -- , checkExprAssumeAssert "tests/TestFiles/Coercions/GADT.hs" 400 Nothing Nothing "g" 2
     --     [ AtLeast 2
@@ -667,16 +667,16 @@ checkExpr :: String -> Int -> String -> [Reqs ([Expr] -> Bool)] -> TestTree
 checkExpr src stps entry reqList =
     checkExprReaches src stps Nothing Nothing Nothing entry reqList
 
-checkExprNRPC :: String
-              -> Int
-              -> String
-              -> [Reqs ([Expr] -> Bool)]
-              -> TestTree
-checkExprNRPC src stps entry reqList = do
+checkExprLibNRPC :: String
+                 -> Int
+                 -> String
+                 -> [Reqs ([Expr] -> Bool)]
+                 -> TestTree
+checkExprLibNRPC src stps entry reqList = do
     checkExprWithConfig src Nothing Nothing Nothing entry reqList
             (do
                 config <- mkConfigTestWithSetIO
-                return $ config {steps = stps, nrpc = Nrpc})
+                return $ config {steps = stps, lib_nrpc = Nrpc})
 
 checkExprAssume :: String -> Int -> Maybe String -> String -> [Reqs ([Expr] -> Bool)] -> TestTree
 checkExprAssume src stps m_assume entry reqList =

@@ -3,7 +3,7 @@ module InputOutputTest ( checkInputOutput
                        , checkInputOutputs
                        , checkInputOutputsSMTStrings
                        , checkInputOutputsTemplate
-                       , checkInputOutputsNonRedTemp
+                       , checkInputOutputsNonRedHigher
                        , checkInputOutputsNonRedLib
                        , checkInputOutputsInstType ) where
 
