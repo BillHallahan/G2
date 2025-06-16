@@ -112,6 +112,7 @@ data Config = Config {
     , lib_nrpc :: NonRedPathCons -- ^ Whether to use NRPCs for library functions or not
     , symbolic_func_nrpc :: NonRedPathCons -- ^ Whether to use NRPCs for symbolic functions or not
     , print_num_nrpc :: Bool -- ^ Output the number of NRPCs for each accepted state
+    , print_num_post_call_func_arg :: Bool -- ^ Output the number of post call and function argument states
 }
 
 mkConfig :: String -> Parser Config
@@ -186,6 +187,7 @@ mkConfig homedir = Config Regular
     <*> flag NoNrpc Nrpc (long "lib-nrpc" <> help "execute with non reduced path constraints")
     <*> flag NoNrpc Nrpc (long "higher-nrpc" <> help "use NRPCs to delay execution of library functions")
     <*> flag False True (long "print-num-nrpc" <> help "output the number of NRPCs for each accepted state")
+    <*> flag False True (long "print-num-higher-states" <> help "output the number of post call and function argument states (from higher order coverage checking)")
 
 mkBaseInclude :: String -> Parser [IncludePath]
 mkBaseInclude homedir =
@@ -325,6 +327,7 @@ mkConfigDirect homedir as m = Config {
     , lib_nrpc = NoNrpc
     , symbolic_func_nrpc = NoNrpc
     , print_num_nrpc = False
+    , print_num_post_call_func_arg = False
 }
 
 baseIncludeDef :: FilePath -> [FilePath]

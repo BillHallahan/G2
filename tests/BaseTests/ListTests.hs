@@ -49,6 +49,7 @@ foldrx k z = go
 map2 :: [(a, b)] -> [b]
 map2 xs =
     case map snd xs of
+        _:_:ys -> ys
         _:ys -> ys
         [] -> [] 
 
