@@ -191,7 +191,8 @@ testFileTests = testGroup "TestFiles"
 
     , checkInputOutputs "tests/TestFiles/Char.hs" [ ("char", 400, [Exactly 2])
                                                   , ("f", 1000, [AtLeast 3])
-                                                  , ("g", 1000, [AtLeast 8]) ]
+                                                  , ("g", 1000, [AtLeast 8])
+                                                  , ("isDigitTest", 1000, [AtLeast 2]) ]
 
     , checkExpr "tests/TestFiles/CheckSq.hs" 400 "checkSq"
         [AtLeast 2, RExists (\[x, _] -> isInt x (\x' -> x' == 3 || x' == -3))]
@@ -345,7 +346,15 @@ testFileTests = testGroup "TestFiles"
                                                               , ("stringSub3", 7000, [AtLeast 16])
                                                               , ("nStringSub3", 2000, [AtLeast 15])
                                                               , ("stringSub4", 7000, [AtLeast 7])
-                                                              , ("nStringSub4", 2000, [AtLeast 5]) ]
+                                                              , ("nStringSub4", 2000, [AtLeast 5])
+                                                              , ("strLen", 1000, [AtLeast 5]) ]
+    , checkInputOutputsSMTStrings "tests/TestFiles/Strings/Strings1.hs"
+                                        [ ("con", 1000, [Exactly 1])
+                                        , ("appendEq", 1000, [Exactly 1])
+                                        , ("strLen", 1000, [Exactly 2])
+                                        , ("con2", 1000, [Exactly 3])
+                                        , ("strIndex", 1000, [Exactly 4]) 
+                                        , ("eq1", 1000, [Exactly 2])]
 
     , checkExpr "tests/TestFiles/Strings/Strings1.hs" 1000 "exclaimEq"
         [AtLeast 5, RExists (\[_, _, r] -> dcHasName "True" r)]
@@ -364,19 +373,19 @@ testFileTests = testGroup "TestFiles"
     , checkInputOutputsTemplate "tests/HigherOrder/HigherOrder.hs" [ ("f", 50, [AtLeast 5])
                                                                    , ("h", 150, [AtLeast 3])
                                                                    , ("assoc", 200, [AtLeast 5])
-                                                                   , ("sf", 150, [AtLeast 5])
+                                                                   , ("sf", 175, [AtLeast 5])
                                                                    , ("thirdOrder", 75, [AtLeast 10])
                                                                    , ("tupleTestMono", 175, [AtLeast 10])
                                                                    , ("multiPrim", 300, [AtLeast 8])]
     , checkInputOutputsTemplate "tests/HigherOrder/PolyHigherOrder.hs" [ ("f", 50, [AtLeast 5])
                                                                        , ("h", 200, [AtLeast 3])
                                                                        , ("assoc", 200, [AtLeast 5])
-                                                                       , ("sf", 150, [AtLeast 5])
+                                                                       , ("sf", 175, [AtLeast 5])
                                                                        , ("tupleTest", 175, [AtLeast 8])]
     , checkInputOutputsNonRedTemp "tests/HigherOrder/HigherOrder.hs" [ ("f", 200, [AtLeast 3])
                                                                      , ("h", 150, [AtLeast 2])
                                                                      , ("assoc", 250, [AtLeast 2])
-                                                                     , ("sf", 200, [AtLeast 2])
+                                                                     , ("sf", 250, [AtLeast 2])
                                                                      , ("thirdOrder", 300, [AtLeast 2])
                                                                      , ("thirdOrder2", 300, [AtLeast 3])
                                                                      , ("tupleTestMono", 175, [AtLeast 2])
@@ -431,7 +440,8 @@ testFileTests = testGroup "TestFiles"
                                                      , ("significandTest", 2000, [AtLeast 5]) 
                                                      , ("scaleFloatTest", 2000, [AtLeast 6])
                                                      , ("scaleFloatTest2", 2000, [AtLeast 3])
-                                                     , ("doubleToFloat", 2000, [AtLeast 4]) ]
+                                                     , ("doubleToFloat", 2000, [AtLeast 4])
+                                                     , ("enum", 50000, [Exactly 1]) ]
 
     , checkInputOutputs "tests/TestFiles/Doubles1.hs" [ ("infinite", 1000, [AtLeast 3])
                                                       , ("zero", 1000, [AtLeast 3])
@@ -456,7 +466,12 @@ testFileTests = testGroup "TestFiles"
                                                       , ("significandTest", 2000, [AtLeast 5])
                                                       , ("scaleFloatTest", 2000, [AtLeast 6])
                                                       , ("scaleFloatTest2", 2000, [AtLeast 3])
-                                                      , ("floatToDouble", 2000, [AtLeast 4]) ]
+                                                      , ("floatToDouble", 2000, [AtLeast 4])
+                                                      , ("enum", 50000, [Exactly 1]) ]
+    
+    , checkInputOutputs "tests/TestFiles/Word.hs" [ ("addWords", 5000, [Exactly 1])
+                                                  , ("subWords1", 5000, [Exactly 1])
+                                                  , ("subWords2", 5000, [Exactly 2]) ]
 
     , checkInputOutputsInstType "tests/TestFiles/InstTypes1.hs" [ ("lengthList", 200, [AtLeast 1])
                                                         , ("myTuple", 200, [AtLeast 1])
@@ -520,7 +535,8 @@ baseTests = testGroup "Base"
     , checkInputOutputs "tests/BaseTests/ListTests.hs" [ ("test", 1000, [AtLeast 1])
                                                        , ("maxMap", 1000, [AtLeast 4])
                                                        , ("minTest", 1000, [AtLeast 2])
-                                                       , ("foldrTest2", 1000, [AtLeast 1]) ]
+                                                       , ("foldrTest2", 1000, [AtLeast 1])
+                                                       , ("unionTest", 1000, [AtLeast 9]) ]
 
     , checkInputOutput "tests/BaseTests/Tuples.hs" "addTupleElems" 1000 [AtLeast 2]
 

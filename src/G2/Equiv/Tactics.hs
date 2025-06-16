@@ -131,7 +131,7 @@ checkObligations :: S.Solver solver =>
                     HS.HashSet (Expr, Expr) ->
                     IO (S.Result () () ())
 checkObligations solver s1 s2 obligation_set | not $ HS.null obligation_set =
-    case obligationWrap $ modifyASTs stripTicks obligation_set of
+    case obligationWrap $ stripAllTicks obligation_set of
         Nothing -> LA.applySolver solver P.empty s1 s2
         Just allPO -> LA.applySolver solver (P.insert allPO P.empty) s1 s2
   | otherwise = return $ S.UNSAT ()
@@ -589,7 +589,7 @@ replaceMoreRestrictiveSubExpr' solver ns lemma@(Lemma { lemma_lhs = lhs_s, lemma
 lemmaSound :: HS.HashSet Name -> StateET -> Lemma -> Bool
 lemmaSound ns s lem =
   let lkp n s_ = lookupConcOrSymBoth n (expr_env s_) (opp_env $ track s_) in
-  case unApp . modifyASTs stripTicks . LA.inlineEquiv lkp s ns $ getExpr s of
+  case unApp . stripAllTicks . LA.inlineEquiv lkp s ns $ getExpr s of
     Var (Id f _):_ ->
         let
             lem_vars = varNames $ LA.inlineEquiv lkp s ns $ getExpr (lemma_rhs lem)

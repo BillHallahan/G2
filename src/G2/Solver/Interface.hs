@@ -93,7 +93,7 @@ subModel (State { expr_env = eenv
         
         sv = subVar tvnv False m eenv tc sub
     in
-    untilEq (tyVarSubst tvnv . simplifyLams . pushCaseAppArgIn) sv
+    stripAllTicks $ untilEq (tyVarSubst tvnv . simplifyLams . pushCaseAppArgIn) sv
     where
         toVars n = case E.lookup n eenv of
                                 Just e@(Lam _ _ _) -> Just . Var $ Id n (typeOf tvnv e)

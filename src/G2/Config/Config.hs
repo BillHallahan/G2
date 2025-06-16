@@ -7,6 +7,7 @@ module G2.Config.Config ( Mode (..)
                         , HigherOrderSolver (..)
                         , FpHandling (..)
                         , NonRedPathCons (..)
+                        , SMTStrings (..)
                         , IncludePath
                         , Config (..)
                         , BoolDef (..)
@@ -59,6 +60,8 @@ data FpHandling = RealFP | RationalFP deriving (Eq, Show, Read)
 
 data NonRedPathCons = Nrpc | NoNrpc deriving (Eq, Show, Read)
 
+data SMTStrings = UseSMTStrings | NoSMTStrings deriving (Eq, Show, Read)
+
 type IncludePath = FilePath
 
 data Config = Config {
@@ -68,6 +71,7 @@ data Config = Config {
     , extraDefaultInclude :: [IncludePath]
     , extraDefaultMods :: [FilePath]
     , includePaths :: Maybe [FilePath] -- ^ Paths to search for modules
+    , print_output :: Bool -- ^ Print function outputs
     , logStates :: LogMode -- ^ Determines whether to Log states, and if logging states, how to do so.
     , logEveryN :: Int -- ^ If logging states, log every nth state
     , logAfterN :: Int -- ^ Logs state only after the nth state
@@ -85,6 +89,7 @@ data Config = Config {
     , subpath_length :: Int -- ^ When using subpath search strategy, the length of the subpaths.
     , fp_handling :: FpHandling -- ^ Whether to use real floating point values or rationals
     , smt :: SMTSolver -- ^ Sets the SMT solver to solve constraints with
+    , smt_strings :: SMTStrings -- ^ Sets whether the SMT solver should be used to solve string constraints
     , step_limit :: Bool -- ^ Should steps be limited when running states?
     , steps :: Int -- ^ How many steps to take when running States
     , time_solving :: Bool -- ^ Output the amount of time spent checking/solving path constraints
@@ -97,10 +102,13 @@ data Config = Config {
     , print_num_red_rules_per_state :: Bool  -- ^ Output the number of reduction rules per accepted state
     , print_nrpcs :: Bool -- ^ Output generated NRPCs
     , hpc :: Bool -- ^ Should HPC ticks be generated and tracked during execution?
+    , hpc_discard_strat :: Bool -- ^ Discard states that cannot reach any new HPC ticks
     , hpc_print_times :: Bool -- ^ Print the time each HPC tick is reached?
+    , hpc_print_ticks :: Bool -- ^ Print each HPC tick number that was reached?
     , strict :: Bool -- ^ Should the function output be strictly evaluated?
     , timeLimit :: Int -- ^ Seconds
     , validate :: Bool -- ^ If True, run on G2's input, and check against expected output.
+    , measure_coverage :: Bool -- ^ Use HPC to measure code coverage
     , nrpc :: NonRedPathCons -- ^ Whether to execute using non reduced path constraints or not
     , symbolic_func_nrpc :: Bool -- ^ If true, use NRPCs with symbolic functions
     , print_num_nrpc :: Bool -- ^ Output the number of NRPCs for each accepted state
@@ -113,6 +121,7 @@ mkConfig homedir = Config Regular
     <*> mkExtraDefault homedir
     <*> pure []
     <*> mkIncludePaths
+    <*> flag True False (long "no-print-outputs" <> help "Print function outputs")
     <*> mkLogMode
     <*> option auto (long "log-every-n"
                    <> metavar "LN"
@@ -147,6 +156,7 @@ mkConfig homedir = Config Regular
     <*> flag RealFP RationalFP (long "no-real-floats"
                                 <> help "Represent floating point values precisely.  When off, overapproximate as rationals.")
     <*> mkSMTSolver
+    <*> flag NoSMTStrings UseSMTStrings (long "smt-strings" <> help "Sets whether the SMT solver should be used to solve string constraints")
     <*> flag True False (long "no-step-limit" <> help "disable step limit")
     <*> option auto (long "n"
                    <> metavar "N"
@@ -163,13 +173,16 @@ mkConfig homedir = Config Regular
     <*> switch (long "print-nrpc" <> help "output generated nrpcs")
     <*> flag False True (long "hpc"
                       <> help "Generate and report on HPC ticks")
+    <*> flag False True (long "hpc-discard-strat" <> help "Discard states that cannot reach any new HPC ticks")
     <*> switch (long "hpc-print-times" <> help "Print the time each HPC tick is reached?")
+    <*> switch (long "hpc-print-ticks" <> help "Print each HPC tick number that was reached?")
     <*> flag True False (long "no-strict" <> help "do not evaluate the output strictly")
     <*> option auto (long "time"
                    <> metavar "T"
                    <> value 600
                    <> help "time limit, in seconds")
     <*> switch (long "validate" <> help "use GHC to automatically compile and run on generated inputs, and check that generated outputs are correct")
+    <*> switch (long "measure-coverage" <> help "use HPC to measure code coverage")
     <*> flag NoNrpc Nrpc (long "nrpc" <> help "execute with non reduced path constraints")
     <*> flag False True (long "lib-nrpc" <> help "use NRPCs to delay execution of library functions")
     <*> flag False True (long "print-num-nrpc" <> help "output the number of NRPCs for each accepted state")
@@ -270,6 +283,7 @@ mkConfigDirect homedir as m = Config {
     , extraDefaultInclude = extraDefaultIncludePaths (strArg "extra-base-inc" as m id homedir)
     , extraDefaultMods = []
     , includePaths = Nothing
+    , print_output = True
     , logStates = strArg "log-states" as m (Log Raw)
                         (strArg "log-pretty" as m (Log Pretty) NoLog)
     , logEveryN = 0
@@ -288,6 +302,7 @@ mkConfigDirect homedir as m = Config {
     , subpath_length = 4
     , fp_handling = RealFP
     , smt = strArg "smt" as m smtSolverArg ConZ3
+    , smt_strings = NoSMTStrings
     , step_limit = boolArg' "no-step-limit" as True True False
     , steps = strArg "n" as m read 1000
     , time_solving = False
@@ -300,10 +315,13 @@ mkConfigDirect homedir as m = Config {
     , print_num_red_rules_per_state = False
     , print_nrpcs = False
     , hpc = False
+    , hpc_discard_strat = False
     , hpc_print_times = False
+    , hpc_print_ticks = False
     , strict = boolArg "strict" as m On
     , timeLimit = strArg "time" as m read 300
     , validate  = boolArg "validate" as m Off
+    , measure_coverage = False
     , nrpc = NoNrpc
     , symbolic_func_nrpc = False
     , print_num_nrpc = False

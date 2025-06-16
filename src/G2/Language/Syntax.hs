@@ -181,7 +181,6 @@ data Primitive = -- Mathematical and logical operators
                | Negate
                | Abs
 
-
                -- Rational
                | Sqrt
                | Exp
@@ -246,6 +245,8 @@ data Primitive = -- Mathematical and logical operators
                | StrLe
                | StrLen
                | StrAppend
+               | StrAt
+               | StrSubstr
                | Chr
                | OrdChar
                | WGenCat
@@ -265,9 +266,18 @@ data Primitive = -- Mathematical and logical operators
                | ReadMutVar -- ^ `forall d a. MutVar# d a -> State# d -> a`.
                | WriteMutVar -- ^ `forall d a. MutVar# d a -> a -> State# d -> State# d`.
 
+               -- TypeIndex maps types to Int#s:
+               -- 1: String
+               -- 0: Any other type
+               | TypeIndex
+
                -- Errors
                | Error
                | Undefined
+               
+               -- Unspecified Output- when we want to calculate input values that lead to a specific point,
+               -- and then don't want to actually follow through on calculating the output value
+               | UnspecifiedOutput
                deriving (Show, Eq, Read, Generic, Typeable, Data)
 
 pattern IntToFloat :: Primitive
@@ -286,6 +296,7 @@ instance Hashable Primitive
 
 -- | Literals for denoting unwrapped types such as Int#, Double#.
 data Lit = LitInt Integer
+         | LitWord Word
          | LitFloat Float
          | LitDouble Double
          | LitRational Rational
@@ -311,6 +322,7 @@ bvToInteger bv = foldl' (\acc (i,b) -> if b == 1 then setBit acc i else acc)
 -- even in the case that we have NaN.
 instance Eq Lit where
     LitInt x == LitInt y = x == y
+    LitWord x == LitWord y = x == y
     LitFloat x == LitFloat y | isNaN x, isNaN y = True
                              | otherwise = x == y
     LitDouble x == LitDouble y | isNaN x, isNaN y = True
@@ -363,6 +375,7 @@ instance Hashable Coercion
 -- | Types information.
 data Type = TyVar Id -- ^ Polymorphic type variable.
           | TyLitInt -- ^ Unwrapped primitive Int type.
+          | TyLitWord -- ^ Unwrapped primitive Word type.
           | TyLitFP Int Int -- ^ Unwrapped primitive floating point type with the indicated exponent and significand.
           | TyLitBV Int -- ^ Unwrapped primitive BitVector type of the indicated width.
           | TyLitRational -- ^ Unwrapped primitive Rational type.

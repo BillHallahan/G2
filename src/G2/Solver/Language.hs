@@ -118,6 +118,8 @@ data SMTAST = (:>=) !SMTAST !SMTAST
             | StrLeSMT !SMTAST !SMTAST
             | StrGtSMT !SMTAST !SMTAST
             | StrGeSMT !SMTAST !SMTAST
+            | (:!!) !SMTAST !SMTAST -- ^ String index
+            | StrSubstrSMT !SMTAST !SMTAST !SMTAST
 
             | IteSMT !SMTAST !SMTAST !SMTAST
             | SLet (SMTName, SMTAST) !SMTAST
@@ -126,6 +128,7 @@ data SMTAST = (:>=) !SMTAST !SMTAST
             | ToCode !SMTAST
 
             | VInt Integer
+            | VWord Word
             | VFloat Float
             | VDouble Double
             | VReal Rational
@@ -152,6 +155,7 @@ data SMTAST = (:>=) !SMTAST !SMTAST
 
 -- | Every `SMTAST` has a `Sort`
 data Sort = SortInt
+          | SortWord
           | SortFP Int Int -- Floating point with the indicated exponent and significand.
           | SortReal
           | SortBV Int

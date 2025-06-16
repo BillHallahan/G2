@@ -104,6 +104,9 @@ data KnownValues = KnownValues {
                  , orFunc :: Name
                  , notFunc :: Name
 
+                 , typeIndex :: Name
+
+                 -- Useful functions
                  , errorFunc :: Name
                  , errorWithoutStackTraceFunc :: Name
                  , errorEmptyListFunc :: Name

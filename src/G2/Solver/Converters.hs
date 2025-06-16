@@ -307,6 +307,8 @@ isStr' (_ `StrLeSMT` _) = All True
 isStr' (_ `StrGtSMT` _) = All True
 isStr' (_ `StrGeSMT` _) = All True
 isStr' (StrLenSMT _) = All True
+isStr' (_ :!! _) = All True
+isStr' (StrSubstrSMT _ _ _) = All True
 isStr' (FromCode _) = All True
 isStr' (ToCode _) = All True
 isStr' (VString _) = All True
@@ -374,6 +376,7 @@ exprToSMT _ (Var (Id n t)) = V (nameToStr n) (typeToSMT t)
 exprToSMT _ (Lit c) =
     case c of
         LitInt i -> VInt i
+        LitWord i -> VWord i
         LitFloat f -> VFloat f
         LitDouble d -> VDouble d
         LitRational r -> VReal r
@@ -459,6 +462,7 @@ funcToSMT1Prim tv OrdChar e = ToCode (exprToSMT tv e)
 funcToSMT1Prim tv StrLen e = StrLenSMT (exprToSMT tv e)
 funcToSMT1Prim _ err _ = error $ "funcToSMT1Prim: invalid Primitive " ++ show err
 
+
 funcToSMT2Prim :: TV.TyVarEnv -> Primitive -> Expr -> Expr -> SMTAST
 funcToSMT2Prim tv And a1 a2 = SmtAnd [exprToSMT tv a1, exprToSMT tv a2]
 funcToSMT2Prim tv Or a1 a2 = SmtOr [exprToSMT tv a1, exprToSMT tv a2]
@@ -471,7 +475,21 @@ funcToSMT2Prim tv Neq a1 a2 = exprToSMT tv a1 :/= exprToSMT tv a2
 funcToSMT2Prim tv Lt a1 a2 = exprToSMT tv a1 :< exprToSMT tv a2
 funcToSMT2Prim tv Le a1 a2 = exprToSMT tv a1 :<= exprToSMT tv a2
 funcToSMT2Prim tv Plus a1 a2 = exprToSMT tv a1 :+ exprToSMT tv a2
-funcToSMT2Prim tv Minus a1 a2 = exprToSMT tv a1 :- exprToSMT tv a2
+funcToSMT2Prim tv Minus a1 a2
+    | typeOf tv a1 == TyLitWord =
+        let
+            bind1 = "INTERNAL_!!_Minus_1"
+            bind2 = "INTERNAL_!!_Minus_2"
+
+            v1 = V bind1 SortWord
+            v2 = V bind2 SortWord
+
+            mws = VWord maxBound
+        in
+          SLet (bind1, exprToSMT tv a1)
+        . SLet (bind2, exprToSMT tv a2)
+        $ IteSMT (v1 :>= v2) (v1 :- v2) (mws :- ((v2 `Modulo` mws) :- v1 :- VWord 1))
+    | otherwise = exprToSMT tv a1 :- exprToSMT tv a2
 funcToSMT2Prim tv Mult a1 a2 = exprToSMT tv a1 :* exprToSMT tv a2
 funcToSMT2Prim tv Div a1 a2 = exprToSMT tv a1 :/ exprToSMT tv a2
 funcToSMT2Prim tv Exp a1 a2 = exprToSMT tv a1 :^ exprToSMT tv a2
@@ -506,15 +524,18 @@ funcToSMT2Prim tv StrGt a1 a2 = exprToSMT tv a1 `StrGtSMT` exprToSMT tv a2
 funcToSMT2Prim tv StrLt a1 a2 = exprToSMT tv a1 `StrLtSMT` exprToSMT tv a2
 funcToSMT2Prim tv StrLe a1 a2 = exprToSMT tv a1 `StrLeSMT` exprToSMT tv a2
 funcToSMT2Prim tv StrAppend a1 a2  = exprToSMT tv a1 :++ exprToSMT tv a2
-funcToSMT2Prim _ op lhs rhs = error $ "funcToSMT2Prim: invalid case with (op, lhs, rhs): " ++ show (op, lhs, rhs)
+funcToSMT2Prim tv StrAt a1 a2 = exprToSMT tv a1 :!! exprToSMT tv a2
+funcToSMT2Prim tv op lhs rhs = error $ "funcToSMT2Prim: invalid case with (op, lhs, rhs): " ++ show (op, lhs, rhs)
 
 funcToSMT3Prim :: TV.TyVarEnv -> Primitive -> Expr -> Expr -> Expr -> SMTAST
 funcToSMT3Prim tv Fp x y z = FpSMT  (exprToSMT tv x) (exprToSMT tv y) (exprToSMT tv z)
 funcToSMT3Prim tv Ite x y z = IteSMT (exprToSMT tv x) (exprToSMT tv y) (exprToSMT tv z)
+funcToSMT3Prim tv StrSubstr x y z = StrSubstrSMT (exprToSMT tv x) (exprToSMT tv y) (exprToSMT tv z)
 funcToSMT3Prim _ op _ _ _ = error $ "funcToSMT3Prim: invalid case with " ++ show op
 
 altToSMT :: Lit -> Expr -> SMTAST
 altToSMT (LitInt i) _ = VInt i
+altToSMT (LitWord i) _ = VWord i
 altToSMT (LitFloat f) _ = VFloat f
 altToSMT (LitDouble d) _ = VDouble d
 altToSMT (LitChar c) _ = VChar c
@@ -522,6 +543,11 @@ altToSMT am _ = error $ "Unhandled " ++ show am
 
 createUniqVarDecls :: [(Name, Sort)] -> [SMTHeader]
 createUniqVarDecls [] = []
+createUniqVarDecls ((n,SortWord):xs) =
+    let
+        posAssert = Assert $ (V (nameToStr n) SortChar) :> VWord 0
+    in
+    VarDecl (nameToBuilder n) SortWord:posAssert:createUniqVarDecls xs
 createUniqVarDecls ((n,SortChar):xs) =
     let
         lenAssert = Assert $ StrLenSMT (V (nameToStr n) SortChar) := VInt 1
@@ -543,6 +569,7 @@ typeToSMT :: Type -> Sort
 typeToSMT (TyFun TyLitInt _) = SortInt -- TODO: Remove this
 typeToSMT (TyFun (TyLitFP e s) _) = SortFP e s -- TODO: Remove this
 typeToSMT TyLitInt = SortInt
+typeToSMT TyLitWord = SortWord
 typeToSMT (TyLitFP e s) = SortFP e s
 typeToSMT TyLitRational = SortReal
 typeToSMT (TyLitBV w) = SortBV w
@@ -677,6 +704,8 @@ toSolverAST (StrLeSMT x y) = function2 "str.<=" (toSolverAST x) (toSolverAST y)
 toSolverAST (x :++ y) = function2 "str.++" (toSolverAST x) (toSolverAST y)
 toSolverAST (FromInt x) = function1 "str.from_int" $ toSolverAST x
 toSolverAST (StrLenSMT x) = function1 "str.len" $ toSolverAST x
+toSolverAST (x :!! y) = function2 "str.at" (toSolverAST x) (toSolverAST y)
+toSolverAST (StrSubstrSMT x y z) = function3 "str.substr" (toSolverAST x) (toSolverAST y) (toSolverAST z)
 
 toSolverAST (IntToRealSMT x) = function1 "to_real" $ toSolverAST x
 toSolverAST (IntToFPSMT e s x) =
@@ -702,6 +731,7 @@ toSolverAST (FromCode chr) = function1 "str.from_code" (toSolverAST chr)
 toSolverAST (ToCode chr) = function1 "str.to_code" (toSolverAST chr)
 
 toSolverAST (VInt i) = if i >= 0 then showText i else "(- " <> showText (abs i) <> ")"
+toSolverAST (VWord w) = showText w
 toSolverAST (VFloat f) = convertFloating castFloatToWord32 8 f
 toSolverAST (VDouble d) = convertFloating castDoubleToWord64 11 d
 toSolverAST (VReal r) = "(/ " <> showText (numerator r) <> " " <> showText (denominator r) <> ")"
@@ -776,6 +806,7 @@ toSolverVarDecl n s = "(declare-const " <> n <> " " <> sortName s <> ")"
 
 sortName :: Sort -> TB.Builder
 sortName SortInt = "Int"
+sortName SortWord = "Int"
 sortName SortFloat = "Float32"
 sortName SortDouble = "Float64"
 sortName (SortFP e s) = "(_ FloatingPoint " <> showText e <> " " <> showText s <> ")"
@@ -806,6 +837,7 @@ toSolverSetLogic lgc =
 -- | Converts an `SMTAST` to an `Expr`.
 smtastToExpr :: KnownValues -> TypeEnv -> SMTAST -> Expr
 smtastToExpr _ _ (VInt i) = Lit $ LitInt i
+smtastToExpr _ _ (VWord i) = Lit $ LitWord i
 smtastToExpr _ _ (VFloat f) = Lit $ LitFloat f
 smtastToExpr _ _ (VDouble d) = Lit $ LitDouble d
 smtastToExpr _ _ (VReal r) = Lit $ LitRational r
@@ -820,6 +852,7 @@ smtastToExpr _ _ _ = error "Conversion of this SMTAST to an Expr not supported."
 -- | Converts a `Sort` to an `Type`.
 sortToType :: Sort -> Type
 sortToType SortInt = TyLitInt
+sortToType SortWord = TyLitWord
 sortToType SortFloat = TyLitFloat
 sortToType SortDouble = TyLitDouble
 sortToType SortReal = TyLitRational
