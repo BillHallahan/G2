@@ -145,5 +145,4 @@ drop3 :: String -> Int
 drop3 str = case drop 20 str of
                 "" | length str /= 20 -> 1
                    | str /= "" -> 2
-                   | otherwise -> 3
-                _ -> 4  
+                _ -> 3
