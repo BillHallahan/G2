@@ -112,3 +112,38 @@ eq3 :: String -> String -> Int
 eq3 s1 s2 = case "123456789 123456789 123456789" == s1 ++ s2 of
                         True -> 1
                         False -> 0
+
+init1 :: String -> (Int, String)
+init1 xs | length xs < 20 = (1, init xs)
+         | length xs < 40 = (2, init xs)
+         | otherwise = (3, init xs)
+
+null1 :: String -> Int
+null1 xs =
+    case null xs of
+        True -> case null (xs ++ xs) of
+                    True -> 1
+                    False -> error "Impossible"
+        False -> 2
+
+last1 :: String -> (Int, Char)
+last1 xs | length xs > 50 = (1, last xs)
+         | length xs > 30 = (2, last xs)
+         | otherwise = (3, last xs)
+
+drop1 :: String -> (Bool, String)
+drop1 str = case drop 50 str of
+                x@"HelloHelloHelloHelloHelloHello" -> (True, x)
+                y -> (False, y)
+
+drop2 :: String -> (Bool, String)
+drop2 str = case drop 22 str of
+                x@"Hi" -> (True, x)
+                y -> (False, y)
+
+drop3 :: String -> Int
+drop3 str = case drop 20 str of
+                "" | length str /= 20 -> 1
+                   | str /= "" -> 2
+                   | otherwise -> 3
+                _ -> 4  
