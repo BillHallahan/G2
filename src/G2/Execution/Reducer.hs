@@ -159,7 +159,7 @@ import qualified Data.HashMap.Strict as HM
 import qualified Data.Map as M
 import Data.Maybe
 import Data.Monoid hiding (Alt)
-import qualified Data.List as L
+import qualified Data.List as L 
 import qualified Data.Sequence as S
 import qualified Data.Text as T
 import qualified Data.Text.IO as T
@@ -801,11 +801,12 @@ hasMagicTypes kv = getAny . evalASTs hmt
         hmt _ = Any False
 
 allApplyFrames :: Stck.Stack Frame -> ([Expr], Stck.Stack Frame)
-allApplyFrames = go []
+allApplyFrames stck = go [] stck stck
     where
-        go aes stck | Just (ApplyFrame ae, stck') <- Stck.pop stck = go (ae:aes) stck'
-                    | Just (UpdateFrame _, stck') <- Stck.pop stck = go aes stck'
-                    | otherwise = (reverse aes, stck)
+        go aes pop_stck stck_top_ups
+                    | Just (ApplyFrame ae, stck') <- Stck.pop pop_stck = go (ae:aes) stck' stck'
+                    | Just (UpdateFrame _, stck') <- Stck.pop pop_stck = go aes stck' stck_top_ups
+                    | otherwise = (reverse aes, stck_top_ups)
 
 nonRedBlockerTick :: Expr -> Expr
 nonRedBlockerTick = Tick nonRedBlockerTickNL
@@ -906,7 +907,7 @@ strictRed = mkSimpleReducer (\_ -> ())
             where
                 -- To decide when to apply the strictRed, we must 
                 -- (1) remove all update frames from the top of the stack
-                -- (2) check if the top of the stack is a CurrExprFrame (or empty)
+                -- (2) check if the top of the stack is a CurrExprFrame (or if the stack is empty empty)
                 -- We effectively ignore UpdateFrames when checking if we should split up an expression to force strictness
                 -- See Note [Ignore Update Frames].
                 (updates, stck') = pop_updates [] stck

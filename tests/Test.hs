@@ -390,10 +390,10 @@ testFileTests = testGroup "TestFiles"
                                                                        , ("thirdOrder2", 300, [AtLeast 3])
                                                                        , ("tupleTestMono", 175, [AtLeast 2])
                                                                        , ("multiPrim", 300, [AtLeast 2])]
-    , checkInputOutputsNonRedLib "tests/BaseTests/ListTests.hs" [ ("lengthN", 5000, [Exactly 1])
-                                                                , ("lengthBranch", 5000, [Exactly 4])
-                                                                , ("map2", 5000, [Exactly 2])
-                                                                , ("testFib", 300, [AtLeast 2])]
+    , checkInputOutputsNonRedLib "tests/BaseTests/ListTests.hs" [ ("lengthN", 10000, [Exactly 1])
+                                                                , ("lengthBranch", 10000, [Exactly 4])
+                                                                , ("map2", 10000, [Exactly 2])
+                                                                , ("testFib", 2500, [AtLeast 5])]
                                                                 
     , checkInputOutputsNonRedLib "tests/TestFiles/NRPC/EmptyTuple.hs" [ ("main", 1000, [AtLeast 1])]
     , checkExprNRPC "tests/TestFiles/NRPC/Print.hs" 2500 "f" [AtLeast 5]
