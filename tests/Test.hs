@@ -550,7 +550,7 @@ baseTests = testGroup "Base"
     , checkInputOutputs "tests/BaseTests/ListTests.hs" [ ("test", 1000, [AtLeast 1])
                                                        , ("maxMap", 1000, [AtLeast 4])
                                                        , ("minTest", 1000, [AtLeast 2])
-                                                       , ("initsTest", 3000, [AtLeast 6])
+                                                       , ("initsTest", 4000, [AtLeast 6])
                                                        , ("foldrTest2", 1000, [AtLeast 1])
                                                        , ("unionTest", 1000, [AtLeast 9]) ]
 
