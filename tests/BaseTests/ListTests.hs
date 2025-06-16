@@ -51,8 +51,40 @@ map2 xs =
     case map snd xs of
         _:_:ys -> ys
         _:ys -> ys
-        [] -> [] 
+        [] -> []
 
+filterCall1 :: [Int] -> (Int, [Int])
+filterCall1 xs =
+    case filter (\y -> y `mod` 2 == 0) xs of
+        ys@(x:_) | x == 2 -> (1, ys)
+                 | length ys < 2 -> (2, ys)
+                 | length xs == length ys -> (3, ys)
+                 | 2 `elem` ys -> (4, ys)
+                 | any (< 10) ys -> (5, ys)
+                 | otherwise -> (6, ys)
+        [] -> (7, [])
+
+nubCall1 :: [Int] -> (Int, [Int])
+nubCall1 xs =
+    case nub xs of
+        [] -> (1, [])
+        ys | length ys < 2 -> (2, ys)
+           | length xs == length ys -> (3, ys)
+           | otherwise -> (4, ys)  
+
+indexCall1 :: [Int] -> Int -> (Int, Maybe Int)
+indexCall1 xs y | 0 <= y && y < length xs =
+    let x = xs !! y
+        z = if | x < 100 -> 1
+               | x > 200 -> 2
+               | y < 2 -> 3
+               | otherwise -> 4
+
+    in
+    (z, Just x)
+indexCall1 _ y | 0 <= y = (5, Nothing)
+               | otherwise = (6, Nothing)
+               
 -- g2Entry7 :: Int -> [(Int, Int)]
 -- g2Entry7 a = let m = M.fromList [(123456, a)]
 --              in M.toList m

@@ -58,7 +58,7 @@ checkInputOutputsNonRedHigher src tests = do
 checkInputOutputsNonRedLib :: FilePath -> [(String, Int, [Reqs String])] -> TestTree
 checkInputOutputsNonRedLib src tests = do
     checkInputOutput'
-        (do config <- mkConfigTestIO; return (config { lib_nrpc = Nrpc }))
+        (do config <- mkConfigTestIO; return (config { lib_nrpc = Nrpc, search_strat = Subpath }))
         src
         tests
 

@@ -393,6 +393,9 @@ testFileTests = testGroup "TestFiles"
     , checkInputOutputsNonRedLib "tests/BaseTests/ListTests.hs" [ ("lengthN", 10000, [Exactly 1])
                                                                 , ("lengthBranch", 10000, [Exactly 4])
                                                                 , ("map2", 10000, [Exactly 3])
+                                                                , ("filterCall1", 10000, [Exactly 7])
+                                                                , ("nubCall1", 10000, [Exactly 4])
+                                                                , ("indexCall1", 10000, [Exactly 6])
                                                                 , ("testFib", 2500, [AtLeast 5])]
                                                                 
     , checkInputOutputsNonRedLib "tests/TestFiles/NRPC/EmptyTuple.hs" [ ("main", 1000, [AtLeast 1])]
