@@ -218,6 +218,7 @@ primDefs' b c l unit =
               , ("ratioZeroDenominatorError", Prim Error TyBottom)
               , ("undefined", Prim Error TyBottom)
               
+              , ("isSMTRep#", Prim IsSMTRep (TyForAll a (TyFun (TyVar a) (TyCon b TYPE))))
               , ("typeIndex#", Prim TypeIndex (TyForAll a (TyFun (TyVar a) TyLitInt))) ]
               where
                     strTy = (TyApp (TyCon l (TyFun TYPE TYPE)) (TyCon c TYPE))

@@ -66,10 +66,36 @@ strIndex str =
         '2' -> (False, "Two")
         _ -> (False, "None")
 
-taker :: String -> (Bool, String)
-taker str = case take 30 str of
-                "HelloHelloHelloHelloHelloHello" -> error "aaa"
-                _ -> (True, "abcde")
+taker1 :: String -> (Bool, String)
+taker1 str = case take 30 str of
+                x@"HelloHelloHelloHelloHelloHello" -> (True, x)
+                y -> (False, y)
+
+taker2 :: String -> (Bool, String)
+taker2 str = case take 22 str of
+                x@"Hi" -> (True, x)
+                y -> (False, y)
+
+conTaker1 :: String -> String -> (Int, String)
+conTaker1 xs ys =
+    case take 18 xs ++ take 18 ys of
+        zs@"It was a dark and stormy night" | length xs < length ys -> (1, zs)
+                                            | length xs > 18 -> (2, zs)
+                                            | otherwise -> (3, zs)
+        zs -> (4, zs)
+
+conTaker2 :: String -> String -> (Int, String)
+conTaker2 xs ys =
+    case take 10 (xs ++ ys) of
+        zs@"HelloHello" -> (1, zs)
+        zs -> (2, zs)
+
+lengthCon1 :: String -> (Int, Bool)
+lengthCon1 xs = let z = length (xs ++ "!!!") in (z, case z > 5 of True -> False; False -> True)
+
+conIndex1 :: Int -> String -> (Int, Char)
+conIndex1 n xs | 10 <= n, n < 20, length xs > 10 = (n, (xs ++ xs) !! n)
+               | otherwise = (n, (xs ++ xs) !! n)
 
 -- For smt strings, needs a fairly long string for speedup here
 eq1 :: String -> Int
@@ -77,3 +103,12 @@ eq1 s = case "123456789019234623479629031641906590659651902651908560189893412572
             True -> 1
             _ -> 0
 
+eq2 :: String -> Int
+eq2 s = case s of
+            "123456789019234623479629031641906590659651902651908560189893412572348901572902834752389057389057890345789037529803" -> 1
+            _ -> 0
+
+eq3 :: String -> String -> Int
+eq3 s1 s2 = case "123456789 123456789 123456789" == s1 ++ s2 of
+                        True -> 1
+                        False -> 0
