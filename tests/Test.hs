@@ -363,7 +363,13 @@ testFileTests = testGroup "TestFiles"
                                         , ("conIndex1", 2500, [AtLeast 2])
                                         , ("eq1", 5000, [Exactly 2])
                                         , ("eq2", 5000, [Exactly 2])
-                                        , ("eq3", 5000, [Exactly 2])]
+                                        , ("eq3", 5000, [Exactly 2])
+                                        , ("init1", 5000, [Exactly 4])
+                                        , ("null1", 5000, [Exactly 2])
+                                        , ("last1", 5000, [Exactly 4])
+                                        , ("drop1", 5000, [Exactly 2])
+                                        , ("drop2", 5000, [Exactly 2])
+                                        , ("drop3", 5000, [Exactly 3])]
 
     , checkExpr "tests/TestFiles/Strings/Strings1.hs" 1000 "exclaimEq"
         [AtLeast 5, RExists (\[_, _, r] -> dcHasName "True" r)]
@@ -544,6 +550,7 @@ baseTests = testGroup "Base"
     , checkInputOutputs "tests/BaseTests/ListTests.hs" [ ("test", 1000, [AtLeast 1])
                                                        , ("maxMap", 1000, [AtLeast 4])
                                                        , ("minTest", 1000, [AtLeast 2])
+                                                       , ("initsTest", 4000, [AtLeast 6])
                                                        , ("foldrTest2", 1000, [AtLeast 1])
                                                        , ("unionTest", 1000, [AtLeast 9]) ]
 
