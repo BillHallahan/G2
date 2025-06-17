@@ -1,4 +1,4 @@
-{-# LANGUAGE MultiWayIf#-}
+{-# LANGUAGE BangPatterns, MultiWayIf #-}
 
 module ListTests where
 

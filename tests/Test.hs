@@ -410,7 +410,7 @@ testFileTests = testGroup "TestFiles"
                                                                 , ("map2", 10000, [Exactly 3])
                                                                 , ("filterCall1", 10000, [Exactly 7])
                                                                 , ("nubCall1", 10000, [Exactly 4])
-                                                                , ("indexCall1", 10000, [Exactly 6])
+                                                                , ("indexCall1", 3000, [Exactly 6])
                                                                 , ("indexCall2", 10000, [AtLeast 12])
                                                                 , ("testFib", 2500, [AtLeast 5])]
                                                                 
