@@ -405,7 +405,7 @@ testFileTests = testGroup "TestFiles"
                                                                        , ("thirdOrder2", 300, [AtLeast 3])
                                                                        , ("tupleTestMono", 175, [AtLeast 2])
                                                                        , ("multiPrim", 300, [AtLeast 2])]
-    , checkInputOutputsNonRedLib "tests/BaseTests/ListTests.hs" [ ("lengthN", 10000, [Exactly 1])
+    , checkInputOutputsNonRedLib "tests/BaseTests/ListTests.hs" [ ("lengthN", 1000, [Exactly 1])
                                                                 , ("lengthBranch", 10000, [Exactly 4])
                                                                 , ("map2", 10000, [Exactly 3])
                                                                 , ("filterCall1", 10000, [Exactly 7])

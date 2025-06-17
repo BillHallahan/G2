@@ -354,7 +354,7 @@ initRedHaltOrd s mod_name solver simplifier config exec_func_names no_nrpc_names
         case higherOrderSolver config of
             AllFuncs ->
                 ( logger_std_red retReplaceSymbFuncVar .== Finished .--> SomeReducer nonRedPCRed
-                ,  halter_discard
+                , SomeHalter (discardIfAcceptedTagHalter True state_name) .<~> halter_discard
                 , orderer)
             SingleFunc ->
                 ( logger_std_red retReplaceSymbFuncVar .== Finished .--> taggerRed state_name :== Finished --> nonRedPCRed
