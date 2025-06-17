@@ -14,6 +14,8 @@ maxMap a = maximum (map (+1) [1, 2, a, 4, 5])
 minTest :: Int -> Int
 minTest a = minimum [1, 2, 3, a]
 
+initsTest :: [Int] -> [[Int]]
+initsTest xs = inits xs
 
 foldrTest :: Int -> Int
 foldrTest a = foldr (+) 0 [1, a, 3]
