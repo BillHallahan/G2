@@ -247,6 +247,7 @@ data Primitive = -- Mathematical and logical operators
                | StrAppend
                | StrAt
                | StrSubstr
+               | StrIndexOf
                | Chr
                | OrdChar
                | WGenCat

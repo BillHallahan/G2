@@ -201,6 +201,14 @@ primDefs' b c l unit =
                                     (Prim Eq ((TyFun strTy) $ TyFun strTy (TyCon b TYPE)))
                                     (Var $ y strTy))
                                 (Var $ z strTy))
+              , ("strIndexOf#", Lam TypeL (x TYPE) . Lam TermL (y strTy) . Lam TermL (z TyLitInt) . Lam TermL ((dummyId "q") TyLitInt)
+                            $ App
+                                (App
+                                    (App
+                                        (Prim StrIndexOf (TyFun strTy (TyFun strTy (TyFun TyLitInt TyLitInt))))
+                                        (Var $ y strTy))
+                                    (Var $ z strTy))
+                                (Var $ (dummyId "q") TyLitInt))
               , ("intToString#", Prim IntToString (TyFun TyLitInt strTy))
 
               , ("newMutVar##", Prim NewMutVar (TyForAll a (TyForAll d (TyFun tyvarA (TyFun TyUnknown TyUnknown)))))

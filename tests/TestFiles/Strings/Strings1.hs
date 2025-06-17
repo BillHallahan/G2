@@ -148,3 +148,13 @@ drop3 str = case drop 20 str of
                 "" | length str /= 20 -> 1
                    | str /= "" -> 2
                 _ -> 3
+
+elem1 :: String -> Char -> (Bool, String)
+elem1 str ch = case elem ch str of
+                    True -> (False, "Switched")
+                    False -> (True, "Opposite Day!")
+
+infix1 :: String -> String -> Int
+infix1 needle haystack = case isInfixOf needle haystack of
+                            True -> 1
+                            False -> 42
