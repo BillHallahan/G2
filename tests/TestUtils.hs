@@ -32,6 +32,12 @@ mkConfigTestWithMapIO = do
     homedir <- getHomeDirectory
     return $ config { base = base config }
 
+mkConfigTestWithSMTStringsIO :: IO Config
+mkConfigTestWithSMTStringsIO = do
+    config <- mkConfigTestIO
+    homedir <- getHomeDirectory
+    return $ config { smt_strings = UseSMTStrings }
+
 
 eqIgT :: Expr -> Expr -> Bool
 eqIgT (Var n) (Var n') = eqIgIds n n'

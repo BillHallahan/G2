@@ -166,10 +166,10 @@ evalApp s@(State { expr_env = eenv
     , ts <- concatMap getTickish es
     , not (null ts) =
         let e = foldr Tick (stripAllTicks (App e1 e2)) ts in
-        (RuleEvalPrimToNorm, [ (newPCEmpty $ s { curr_expr = CurrExpr Evaluate e })], ng)
-    | Just (new_pc, ng') <- evalPrimWithState s ng (stripAllTicks $ App e1 e2) = (RuleEvalPrimToNorm, [new_pc], ng')
+        (RuleEvalPrimFloatTicks, [ (newPCEmpty $ s { curr_expr = CurrExpr Evaluate e })], ng)
+    | Just (new_pc, ng') <- evalPrimWithState s ng (stripAllTicks $ App e1 e2) = (RuleEvalPrimToNormWithState, [new_pc], ng')
     | Just (e, eenv', pc, ng') <- evalPrimSymbolic eenv tenv ng kv (App e1 e2) =
-        ( RuleEvalPrimToNorm
+        ( RuleEvalPrimToNormSymbolic
         , [ (newPCEmpty $ s { expr_env = eenv'
                             , curr_expr = CurrExpr Evaluate e }) { new_pcs = pc} ]
         , ng')
@@ -574,7 +574,7 @@ createExtCond s ngen mexpr cvar (dcon, bindees, aexpr)
             binds = (cvar, dcon'):zip new_ids bindee_exprs
             aexpr'' = liftCaseBinds binds aexpr'
 
-            res = s { expr_env = eenv', curr_expr = CurrExpr Return aexpr'' }
+            res = s { expr_env = eenv', curr_expr = CurrExpr Evaluate aexpr'' }
         in
         (NewPC { state = res, new_pcs = pcs, concretized = [] }, ngen'')
     | otherwise = error $ "createExtCond: unsupported type" ++ "\n" ++ show (typeOf mexpr) ++ "\n" ++ show dcon
