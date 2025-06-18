@@ -412,7 +412,7 @@ testFileTests = testGroup "TestFiles"
                                                                 , ("nubCall1", 10000, [Exactly 4])
                                                                 , ("indexCall1", 10000, [Exactly 6])
                                                                 , ("indexCall2", 10000, [AtLeast 12])
-                                                                , ("testFib", 2500, [AtLeast 5])]
+                                                                , ("testFib", 10000, [Exactly 4])]
                                                                 
     , checkInputOutputsNonRedLib "tests/TestFiles/NRPC/EmptyTuple.hs" [ ("main", 1000, [AtLeast 1])]
     , checkExprLibNRPC "tests/TestFiles/NRPC/Print.hs" 2500 "f" [AtLeast 5]

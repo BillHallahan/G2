@@ -120,10 +120,13 @@ fibonacci :: [Int]
 fibonacci = let fibs = 0 : 1 : zipWith (+) fibs (tail fibs)  
             in fibs
 
-testFib :: Int -> Bool
-testFib n = case length (take n fibonacci) of
-        3 -> True
-        _ -> False
+testFib :: Int -> ([Int], Bool)
+testFib n =
+    let fib = take n fibonacci in
+    case length fib of
+        7 -> (fib, True)
+        3 -> (fib, True)
+        _ -> (fib, False)
 
 unionTest :: Int -> [Int] -> [Int] -> ([Int], Int)
 unionTest v xs ys | v `notElem` xs
