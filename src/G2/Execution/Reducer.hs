@@ -636,8 +636,9 @@ nonRedLibFuncs exec_names no_nrpc_names
     | 
       -- We are NOT dealing with a symbolic function or a function that should not be put in the NRPCs
       Var (Id n _):_ <- unApp ce
-    , not (n `HS.member` no_nrpc_names)
-    , not (E.isSymbolic n eenv)
+    , Just (Id n' _) <- E.deepLookupVar n eenv
+    , not (n' `HS.member` no_nrpc_names)
+    , not (E.isSymbolic n' eenv)
     , Just (s'@(State { curr_expr = CurrExpr _ _ }), ce', ng') <- createNonRed ng s = 
         let
             (reaches_sym, sym_table') = reachesSymbolic sym_table eenv ce'

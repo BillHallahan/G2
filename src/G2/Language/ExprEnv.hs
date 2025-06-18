@@ -15,6 +15,7 @@ module G2.Language.ExprEnv
     , fromList
     , null
     , size
+    , toId
     , member
     , lookup
     , lookupConcOrSym
@@ -22,6 +23,7 @@ module G2.Language.ExprEnv
     , deepLookup
     , deepLookupExpr
     , deepLookupConcOrSym
+    , deepLookupVar
     , isSymbolic
     , occLookup
     , lookupNameMod
@@ -145,6 +147,9 @@ size = M.size . unwrapExprEnv
 member :: Name -> ExprEnv -> Bool
 member n = M.member n . unwrapExprEnv
 
+toId :: Name -> ExprEnv -> Maybe Id
+toId n eenv = fmap (Id n . typeOf) (lookup n eenv)
+
 -- | Lookup the `Expr` with the given `Name`.
 -- Returns `Nothing` if the `Name` is not in the `ExprEnv`.
 lookup :: Name -> ExprEnv -> Maybe Expr
@@ -187,6 +192,17 @@ deepLookupConcOrSym n eenv =
         Just c@(Conc r) -> Just c
         Just s@(Sym r) -> Just s
         Nothing -> Nothing
+
+-- | Find the deepest buried Var Id from the given Name
+deepLookupVar :: Name -> ExprEnv -> Maybe Id
+deepLookupVar n eenv = go (toId n eenv) n
+    where
+        go lst f = 
+            case lookupConcOrSym f eenv of
+                Just (Conc (Var i@(Id f' _))) -> go (Just i) f'
+                Just (Conc r) -> lst
+                Just (Sym r) -> Just r
+                Nothing -> Nothing
 
 -- | Checks if the given `Name` belongs to a symbolic variable.
 isSymbolic :: Name -> ExprEnv -> Bool
