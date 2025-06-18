@@ -116,6 +116,33 @@ lengthBranch xs =
            | len == 0 -> 3
            | otherwise -> 4
 
+lastCall1 :: [Int] -> (Int, Int, [Int])
+lastCall1 [] = (1, -1, [])
+lastCall1 xs =
+    case last xs of
+        x@7 -> (2, x, [])
+        x | length xs > 8 -> (3, x, [])
+          | otherwise -> (4, x, [])
+
+dropCall1 :: Int -> [Int] -> (Int, [Int])
+dropCall1 n xs =
+    case drop n xs of
+        ys | length xs - length ys > 4 -> (1, ys)
+           | n > 3 && length xs > n -> (2, ys)
+           | n > 3 -> (3, ys)
+           | n == 0 -> (4, ys)
+           | n < 0 -> (5, ys)
+           | otherwise -> (6, ys)
+
+initCall1 :: [Int] -> (Int, [Int])
+initCall1 [] = (1, [])
+initCall1 xs =
+    case init xs of
+        ys | len == 2 -> (2, ys)
+           | len >= 7 -> (3, ys)
+           | otherwise -> (4, ys)
+           where len = length ys
+
 fibonacci :: [Int]
 fibonacci = let fibs = 0 : 1 : zipWith (+) fibs (tail fibs)  
             in fibs

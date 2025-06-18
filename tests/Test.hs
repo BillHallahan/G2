@@ -405,14 +405,17 @@ testFileTests = testGroup "TestFiles"
                                                                        , ("thirdOrder2", 300, [AtLeast 3])
                                                                        , ("tupleTestMono", 175, [AtLeast 2])
                                                                        , ("multiPrim", 300, [AtLeast 2])]
-    , checkInputOutputsNonRedLib "tests/BaseTests/ListTests.hs" [ ("lengthN", 1000, [Exactly 1])
-                                                                , ("lengthBranch", 10000, [Exactly 4])
-                                                                , ("map2", 10000, [Exactly 3])
-                                                                , ("filterCall1", 10000, [Exactly 7])
-                                                                , ("nubCall1", 10000, [Exactly 4])
-                                                                , ("indexCall1", 10000, [Exactly 6])
-                                                                , ("indexCall2", 10000, [AtLeast 12])
-                                                                , ("testFib", 10000, [Exactly 4])]
+    , checkInputOutputsNonRedLib "tests/BaseTests/ListTests.hs" [ ("lengthN", 20000, [Exactly 1])
+                                                                , ("lengthBranch", 20000, [Exactly 4])
+                                                                , ("map2", 20000, [Exactly 3])
+                                                                , ("filterCall1", 20000, [Exactly 7])
+                                                                , ("nubCall1", 20000, [Exactly 4])
+                                                                , ("indexCall1", 20000, [Exactly 6])
+                                                                , ("indexCall2", 20000, [AtLeast 12])
+                                                                , ("lastCall1", 20000, [Exactly 4])
+                                                                , ("dropCall1", 20000, [Exactly 6])
+                                                                , ("initCall1", 20000, [Exactly 4])
+                                                                , ("testFib", 20000, [Exactly 4])]
                                                                 
     , checkInputOutputsNonRedLib "tests/TestFiles/NRPC/EmptyTuple.hs" [ ("main", 1000, [AtLeast 1])]
     , checkExprLibNRPC "tests/TestFiles/NRPC/Print.hs" 2500 "f" [AtLeast 5]
