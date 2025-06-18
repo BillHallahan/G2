@@ -428,7 +428,7 @@ gatherReducerHalterOrderer infconfig config lhconfig solver simplifier = do
     return
         (red .== Finished .--> (taggerRed state_name :== Finished --> nonRedPCRedNoPrune)
         , SomeHalter
-            (discardIfAcceptedTagHalter state_name
+            (discardIfAcceptedTagHalter True state_name
               <~> switchEveryNHalter (switch_after lhconfig)
               <~> swhnfHalter
               <~> timer_halter)
@@ -570,7 +570,7 @@ inferenceReducerHalterOrderer infconfig config lhconfig solver simplifier entry 
             (taggerRed state_name :== Finished --> nonRedPCRedNoPrune) .== Finished .-->
             (taggerRed abs_ret_name :== Finished --> nonRedAbstractReturnsRed)
         , SomeHalter
-            (discardIfAcceptedTagHalter state_name <~> halter)
+            (discardIfAcceptedTagHalter True state_name <~> halter)
         , SomeOrderer (incrAfterN 2000 (quotTrueAssert (ordComb (+) (pcSizeOrderer 0) (adtSizeOrderer 0 (Just instFuncTickName))))))
 
 runLHCExSearch :: MonadIO m
@@ -651,7 +651,7 @@ realCExReducerHalterOrderer infconfig config lhconfig entry modname solver simpl
             (taggerRed state_name :== Finished --> nonRedPCRedNoPrune) .== Finished .-->
             (taggerRed abs_ret_name :== Finished --> nonRedAbstractReturnsRed)
         , SomeHalter
-            (discardIfAcceptedTagHalter state_name <~> halter)
+            (discardIfAcceptedTagHalter True state_name <~> halter)
         , SomeOrderer (incrAfterN 1000 (adtSizeOrderer 0 Nothing)))
 
 

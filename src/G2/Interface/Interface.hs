@@ -306,18 +306,22 @@ initRedHaltOrd s mod_name solver simplifier config exec_func_names no_nrpc_names
                         True ->  SomeReducer on_acc_hpc_red .~> strict_red f 
                         False -> strict_red f
 
-        nrpc_red f = case nrpc config of
-                        Nrpc -> liftSomeReducer
-                                    (SomeReducer (nonRedLibFuncsReducer
-                                                                exec_func_names
-                                                                no_nrpc_names
-                                                                config
-                                                 ) .== Finished .--> hpc_red f)
-                        NoNrpc -> liftSomeReducer (hpc_red f)
+        nrpc_lib_red f = case lib_nrpc config of
+                                Nrpc -> liftSomeReducer
+                                            (SomeReducer (nonRedLibFuncsReducer
+                                                                        exec_func_names
+                                                                        no_nrpc_names
+                                                                        config
+                                                        ) .== Finished .--> hpc_red f)
+                                NoNrpc -> liftSomeReducer (hpc_red f)
+
+        nrpc_higher_red f = case symbolic_func_nrpc config of
+                                Nrpc -> SomeReducer (nonRedHigherOrderReducer config) .== Finished .--> nrpc_lib_red f
+                                NoNrpc -> nrpc_lib_red f
 
         accept_time_red f = case accept_times config of
-                                True -> SomeReducer time_logger .~> nrpc_red f
-                                False -> nrpc_red f
+                                True -> SomeReducer time_logger .~> nrpc_higher_red f
+                                False -> nrpc_higher_red f
 
         num_steps_red f = case print_num_red_rules_per_state config of
                                 True -> SomeReducer numStepsLogger .~> accept_time_red f
@@ -350,15 +354,15 @@ initRedHaltOrd s mod_name solver simplifier config exec_func_names no_nrpc_names
         case higherOrderSolver config of
             AllFuncs ->
                 ( logger_std_red retReplaceSymbFuncVar .== Finished .--> SomeReducer nonRedPCRed
-                ,  halter_discard
+                , SomeHalter (discardIfAcceptedTagHalter True state_name) .<~> halter_discard
                 , orderer)
             SingleFunc ->
                 ( logger_std_red retReplaceSymbFuncVar .== Finished .--> taggerRed state_name :== Finished --> nonRedPCRed
-                , SomeHalter (discardIfAcceptedTagHalter state_name) .<~> halter_discard
+                , SomeHalter (discardIfAcceptedTagHalter True state_name) .<~> halter_discard
                 , orderer)
             SymbolicFunc ->
                 ( logger_std_red retReplaceSymbFuncTemplate .== Finished .--> taggerRed state_name :== Finished --> nonRedPCSymFuncRed
-                , SomeHalter (discardIfAcceptedTagHalter state_name) .<~> halter_discard
+                , SomeHalter (discardIfAcceptedTagHalter True state_name) .<~> halter_discard
                 , orderer)
 
 initSolver :: Config -> IO SomeSolver

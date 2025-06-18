@@ -397,20 +397,28 @@ testFileTests = testGroup "TestFiles"
                                                                        , ("assoc", 200, [AtLeast 5])
                                                                        , ("sf", 175, [AtLeast 5])
                                                                        , ("tupleTest", 175, [AtLeast 8])]
-    , checkInputOutputsNonRedTemp "tests/HigherOrder/HigherOrder.hs" [ ("f", 200, [AtLeast 3])
-                                                                     , ("h", 150, [AtLeast 2])
-                                                                     , ("assoc", 250, [AtLeast 2])
-                                                                     , ("sf", 250, [AtLeast 2])
-                                                                     , ("thirdOrder", 300, [AtLeast 2])
-                                                                     , ("thirdOrder2", 300, [AtLeast 3])
-                                                                     , ("tupleTestMono", 175, [AtLeast 2])
-                                                                     , ("multiPrim", 300, [AtLeast 2])]
-    , checkInputOutputsNonRedLib "tests/BaseTests/ListTests.hs" [ ("lengthN", 800, [AtLeast 5])
-                                                                , ("map2", 150, [AtLeast 2])
-                                                                , ("testFib", 300, [AtLeast 1])]
+    , checkInputOutputsNonRedHigher "tests/HigherOrder/HigherOrder.hs" [ ("f", 200, [AtLeast 3])
+                                                                       , ("h", 150, [AtLeast 2])
+                                                                       , ("assoc", 250, [AtLeast 2])
+                                                                       , ("sf", 250, [AtLeast 2])
+                                                                       , ("thirdOrder", 300, [AtLeast 2])
+                                                                       , ("thirdOrder2", 300, [AtLeast 3])
+                                                                       , ("tupleTestMono", 175, [AtLeast 2])
+                                                                       , ("multiPrim", 300, [AtLeast 2])]
+    , checkInputOutputsNonRedLib "tests/BaseTests/ListTests.hs" [ ("lengthN", 20000, [Exactly 1])
+                                                                , ("lengthBranch", 20000, [Exactly 4])
+                                                                , ("map2", 20000, [Exactly 3])
+                                                                , ("filterCall1", 20000, [Exactly 7])
+                                                                , ("nubCall1", 20000, [Exactly 4])
+                                                                , ("indexCall1", 20000, [Exactly 6])
+                                                                , ("indexCall2", 20000, [AtLeast 12])
+                                                                , ("lastCall1", 20000, [Exactly 4])
+                                                                , ("dropCall1", 20000, [Exactly 6])
+                                                                , ("initCall1", 20000, [Exactly 4])
+                                                                , ("testFib", 20000, [Exactly 4])]
                                                                 
     , checkInputOutputsNonRedLib "tests/TestFiles/NRPC/EmptyTuple.hs" [ ("main", 1000, [AtLeast 1])]
-    , checkExprNRPC "tests/TestFiles/NRPC/Print.hs" 2500 "f" [AtLeast 5]
+    , checkExprLibNRPC "tests/TestFiles/NRPC/Print.hs" 2500 "f" [AtLeast 5]
     -- , checkInputOutput "tests/TestFiles/BadBool.hs" "BadBool" "f" 1400 [AtLeast 1]
     -- , checkExprAssumeAssert "tests/TestFiles/Coercions/GADT.hs" 400 Nothing Nothing "g" 2
     --     [ AtLeast 2
@@ -670,16 +678,16 @@ checkExpr :: String -> Int -> String -> [Reqs ([Expr] -> Bool)] -> TestTree
 checkExpr src stps entry reqList =
     checkExprReaches src stps Nothing Nothing Nothing entry reqList
 
-checkExprNRPC :: String
-              -> Int
-              -> String
-              -> [Reqs ([Expr] -> Bool)]
-              -> TestTree
-checkExprNRPC src stps entry reqList = do
+checkExprLibNRPC :: String
+                 -> Int
+                 -> String
+                 -> [Reqs ([Expr] -> Bool)]
+                 -> TestTree
+checkExprLibNRPC src stps entry reqList = do
     checkExprWithConfig src Nothing Nothing Nothing entry reqList
             (do
                 config <- mkConfigTestWithSetIO
-                return $ config {steps = stps, nrpc = Nrpc})
+                return $ config {steps = stps, lib_nrpc = Nrpc})
 
 checkExprAssume :: String -> Int -> Maybe String -> String -> [Reqs ([Expr] -> Bool)] -> TestTree
 checkExprAssume src stps m_assume entry reqList =
