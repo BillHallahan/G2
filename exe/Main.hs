@@ -49,8 +49,10 @@ runWithArgs as = do
                   tentry simplTranslationConfig config
 
   let (unspecified_output, spec_output) = L.partition (\ExecRes { final_state = s } -> getExpr s == Prim UnspecifiedOutput TyBottom) in_out
-  putStrLn $ "Post call states: " ++ show (length spec_output)
-  putStrLn $ "Func arg states: " ++ show (length unspecified_output)
+  
+  when (print_num_post_call_func_arg config) $ do
+        putStrLn $ "Post call states: " ++ show (length spec_output)
+        putStrLn $ "Func arg states: " ++ show (length unspecified_output)
 
   val_res <- case validate config || measure_coverage config of
                 True -> do
