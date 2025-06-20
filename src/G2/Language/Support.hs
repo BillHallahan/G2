@@ -182,8 +182,9 @@ instance Named t => Named (State t) where
             <> names (exec_stack s)
             <> names (model s)
             <> names (known_values s)
-            <> names (track s)
             <> names (sym_gens s)
+            <> names (tags s)
+            <> names (track s)
 
     rename old new s =
         State { expr_env = rename old new (expr_env s)
