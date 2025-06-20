@@ -351,7 +351,8 @@ testFileTests = testGroup "TestFiles"
                                                               , ("taker2", 2000, [AtLeast 5]) 
                                                               , ("infix1", 1000, [AtLeast 5])
                                                               , ("elem1", 1000, [AtLeast 5])
-                                                              , ("notElem1", 1000, [AtLeast 5]) ]
+                                                              , ("notElem1", 1000, [AtLeast 5])
+                                                              , ("elemIndex1", 1000, [AtLeast 5]) ]
     , checkInputOutputsSMTStrings "tests/TestFiles/Strings/Strings1.hs"
                                         [ ("con", 1000, [Exactly 1])
                                         , ("appendEq", 1000, [Exactly 1])
@@ -375,7 +376,8 @@ testFileTests = testGroup "TestFiles"
                                         , ("drop3", 5000, [Exactly 3])
                                         , ("infix1", 5000, [Exactly 2])
                                         , ("elem1", 5000, [Exactly 2])
-                                        , ("notElem1", 5000, [Exactly 4]) ]
+                                        , ("notElem1", 5000, [Exactly 4])
+                                        , ("elemIndex1", 5000, [Exactly 4]) ]
 
     , checkExpr "tests/TestFiles/Strings/Strings1.hs" 1000 "exclaimEq"
         [AtLeast 5, RExists (\[_, _, r] -> dcHasName "True" r)]

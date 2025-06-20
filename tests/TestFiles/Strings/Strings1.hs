@@ -170,8 +170,8 @@ infix1 needle haystack = case isInfixOf needle haystack of
 
 elemIndex1 :: Char -> String -> Int
 elemIndex1 c s
-            | pos == Just 1 = 1
-            | pos == Just 0 = 0
+            | pos == (Just 1) = 1
+            | pos == (Just 0) = 0 
             | pos == Nothing = -1
             | otherwise = -2
             where pos = elemIndex c s
