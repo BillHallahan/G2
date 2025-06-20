@@ -190,6 +190,8 @@ initStateFromSimpleState s m_mod useAssert mkCurr argTys config =
     , sym_gens = Seq.empty
     , reached_hpc = S.empty
     , tags = S.empty
+
+    , log_path = []
     }
     , Bindings {
       fixed_inputs = f_i

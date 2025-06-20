@@ -225,7 +225,7 @@ data Reducer m rv t = Reducer {
         -- visible.
         -- Errors if the returned list is too short.
         -- If only one state is returned by all reducers, updateWithAll does not run.
-        , updateWithAll :: [(State t, rv)] -> [rv]
+        , updateWithAll :: [State t] -> [State t]
 
         -- Action to run after a State is accepted.
         , onAccept :: State t -> Bindings -> rv -> m (State t, Bindings)
@@ -249,7 +249,7 @@ mkSimpleReducer init_red red_rules =
     Reducer {
       initReducer = init_red
     , redRules = red_rules
-    , updateWithAll = map snd
+    , updateWithAll = id
     , onAccept = \s b _ -> return (s, b)
     , onSolved = return ()
     , onDiscard = \_ _ -> return ()
@@ -553,16 +553,8 @@ r1 .|. r2 =
             }
 {-# INLINE (.|.) #-}
 
-updateWithAllPair :: ([(State t, rv1)] -> [rv1]) -> ([(State t, rv2)] -> [rv2]) -> [(State t, RC rv1 rv2)] -> [RC rv1 rv2]
-updateWithAllPair update1 update2 srv =
-                let
-                    srv1 = map (\(s, RC rv1 _) -> (s, rv1)) srv
-                    srv2 = map (\(s, RC _ rv2) -> (s, rv2)) srv
-
-                    rv1' = update1 srv1
-                    rv2' = update2 srv2
-                in
-                map (uncurry RC) $ zip rv1' rv2'
+updateWithAllPair :: ([State t] -> [State t]) -> ([State t] -> [State t]) -> [State t] -> [State t]
+updateWithAllPair update1 update2 = update2 . update1
 
 {-#INLINE stdRed #-}
 {-# SPECIALIZE stdRed :: (Solver solver, Simplifier simplifier) => Sharing -> SymbolicFuncEval t -> solver -> simplifier -> Reducer IO () t #-}
@@ -1106,34 +1098,35 @@ taggerRedStep n _ s@(State {tags = ts}) b@(Bindings { name_gen = ng }) =
         return (Finished, [(s, ())], b)
 
 
-getLogger :: (MonadIO m, SM.MonadState PrettyGuide m, Show t) => Config -> Maybe (Reducer m [Int] t)
+getLogger :: (MonadIO m, SM.MonadState PrettyGuide m, Show t) => Config -> Maybe (Reducer m () t)
 getLogger config = case logStates config of
                         Log Raw fp -> Just (simpleLogger fp)
                         Log Pretty fp -> Just (prettyLogger fp)
                         NoLog -> Nothing
 
 -- | A Reducer to producer logging output 
-simpleLogger :: (MonadIO m, Show t) => FilePath -> Reducer m [Int] t
+simpleLogger :: (MonadIO m, Show t) => FilePath -> Reducer m () t
 simpleLogger fn =
-    (mkSimpleReducer (const [])
-                     (\li s b -> do
-                        liftIO $ outputState fn li s b pprExecStateStr
-                        return (NoProgress, [(s, li)], b) ))
-                    { updateWithAll = \s -> map (\(l, i) -> l ++ [i]) $ zip (map snd s) [1..] }
+    (mkSimpleReducer (const ())
+                     (\_ s b -> do
+                        liftIO $ outputState fn (log_path s) s b pprExecStateStr
+                        return (NoProgress, [(s, ())], b) ))
+                    { updateWithAll = \s -> map (\(s, i) -> s { log_path = log_path s ++ [i]} ) $ zip s [1..] }
 
 -- | A Reducer to producer logging output 
-prettyLogger :: (MonadIO m, SM.MonadState PrettyGuide m, Show t) => FilePath -> Reducer m [Int] t
+prettyLogger :: (MonadIO m, SM.MonadState PrettyGuide m, Show t) => FilePath -> Reducer m () t
 prettyLogger fp =
     (mkSimpleReducer
-        (const [])
-        (\li s b -> do
+        (const ())
+        (\_ s b -> do
             pg <- SM.get
             let pg' = updatePrettyGuide (s { track = () }) pg
             SM.put pg'
-            liftIO $ outputState fp li s b (\s_ _ -> T.unpack $ prettyState pg' s_)
-            return (NoProgress, [(s, li)], b)
+            liftIO $ outputState fp (log_path s) s b (\s_ _ -> T.unpack $ prettyState pg' s_)
+            return (NoProgress, [(s, ())], b)
         )
-    ) { updateWithAll = \s -> map (\(l, i) -> l ++ [i]) $ zip (map snd s) [1..]
+
+    ) { updateWithAll = \s -> map (\(s, i) -> s { log_path = log_path s ++ [i]} ) $ zip s [1..]
       , onAccept = \s b ll -> do 
                                 liftIO . putStrLn $ "Accepted on path " ++ show ll
                                 return (s,b)
@@ -1235,7 +1228,7 @@ limLoggerConfig fp = LimLogger { every_n = 0
                                , conc_pc_guide = Nothing
                                , lim_output_path = fp }
 
-data LLTracker = LLTracker { ll_count :: Int, ll_offset :: [Int]}
+newtype LLTracker = LLTracker { ll_count :: Int }
 
 getLimLogger :: (MonadIO m, SM.MonadState PrettyGuide m, Show t) => Config -> IO (Maybe (Reducer m LLTracker t))
 getLimLogger config = do
@@ -1261,21 +1254,21 @@ getLimLogger config = do
 
 genLimLogger :: (MonadIO m, Show t) => ([Int] -> State t -> Bindings -> m ()) -> LimLogger -> Reducer m LLTracker t
 genLimLogger out_f ll@(LimLogger { after_n = aft, before_n = bfr, down_path = down, conc_pc_guide = cpg }) =
-    (mkSimpleReducer (const $ LLTracker { ll_count = every_n ll, ll_offset = []}) rr)
+    (mkSimpleReducer (const $ LLTracker { ll_count = every_n ll }) rr)
         { updateWithAll = updateWithAllLL
-        , onAccept = \s b llt -> do
+        , onAccept = \s b _ -> do
                     whenM (liftIO $ maybe (return True) (uncurry (matchesConcPCGuide (input_names b) s)) cpg)
-                          (liftIO $ outputConcPCGuide (lim_output_path ll) (ll_offset llt) s b)
-                    liftIO . putStrLn $ "Accepted on path " ++ show (ll_offset llt)
+                          (liftIO $ outputConcPCGuide (lim_output_path ll) (log_path s) s b)
+                    liftIO . putStrLn $ "Accepted on path " ++ show (log_path s)
                     return (s, b)
-        , onDiscard = \_ llt -> liftIO . putStrLn $ "Discarded path " ++ show (ll_offset llt)}
+        , onDiscard = \s _ -> liftIO . putStrLn $ "Discarded path " ++ show (log_path s)}
     where
-        rr llt@(LLTracker { ll_count = c, ll_offset = off }) s b
-            | down `L.isPrefixOf` off || off `L.isPrefixOf` down
+        rr llt@(LLTracker { ll_count = c }) s b
+            | down `L.isPrefixOf` log_path s || log_path s `L.isPrefixOf` down
             , aft <= length_rules && maybe True (length_rules <=) bfr
             , c <= 1 = do
                 whenM (liftIO $ maybe (return True) (uncurry (matchesConcPCGuide (input_names b) s)) cpg)
-                      (out_f off s b)
+                      (out_f (log_path s) s b)
                 return (NoProgress, [(s, llt { ll_count = every_n ll })], b)
             | c <= 1 =
                 return (NoProgress, [(s, llt { ll_count = every_n ll })], b)
@@ -1284,9 +1277,9 @@ genLimLogger out_f ll@(LimLogger { after_n = aft, before_n = bfr, down_path = do
         rr llt@(LLTracker {ll_count = n}) s b =
             return (NoProgress, [(s, llt { ll_count = n - 1 })], b)
 
-        updateWithAllLL [(_, l)] = [l]
+        updateWithAllLL [s] = [s]
         updateWithAllLL ss =
-            map (\(llt, i) -> llt { ll_offset = ll_offset llt ++ [i] }) $ zip (map snd ss) [1..]
+            map (\(s, i) -> s { log_path = log_path s ++ [i] }) $ zip ss [1..]
 
 limLogger :: (MonadIO m, Show t) => LimLogger -> Reducer m LLTracker t
 limLogger ll = genLimLogger (\off s b -> liftIO $ outputState (lim_output_path ll) off s b pprExecStateStr) ll
@@ -1344,17 +1337,17 @@ getFile dn is n = do
 -- | Output each path and current expression on the command line
 currExprLogger :: (MonadIO m, SM.MonadState PrettyGuide m, Show t) => LimLogger -> Reducer m LLTracker t
 currExprLogger ll@(LimLogger { after_n = aft, before_n = bfr, down_path = down }) = 
-    (mkSimpleReducer (const $ LLTracker { ll_count = every_n ll, ll_offset = []}) rr)
+    (mkSimpleReducer (const $ LLTracker { ll_count = every_n ll }) rr)
         { updateWithAll = updateWithAllLL
-        , onAccept = \s b llt -> do
-                                liftIO . putStrLn $ "Accepted on path " ++ show (ll_offset llt)
+        , onAccept = \s b _ -> do
+                                liftIO . putStrLn $ "Accepted on path " ++ show (log_path s)
                                 return (s, b)
-        , onDiscard = \_ llt -> liftIO . putStrLn $ "Discarded path " ++ show (ll_offset llt)}
+        , onDiscard = \s _ -> liftIO . putStrLn $ "Discarded path " ++ show (log_path s)}
     where
-        rr llt@(LLTracker { ll_count = 0, ll_offset = off }) s b
-            | down `L.isPrefixOf` off || off `L.isPrefixOf` down
+        rr llt@(LLTracker { ll_count = 0  }) s b
+            | down `L.isPrefixOf` log_path s || log_path s `L.isPrefixOf` down
             , aft <= length_rules && maybe True (length_rules <=) bfr = do
-                liftIO $ print off
+                liftIO $ print (log_path s)
                 pg <- SM.get
                 let pg' = updatePrettyGuide (s { track = () }) pg
                 SM.put pg'
@@ -1367,9 +1360,9 @@ currExprLogger ll@(LimLogger { after_n = aft, before_n = bfr, down_path = down }
         rr llt@(LLTracker {ll_count = n}) s b =
             return (NoProgress, [(s, llt { ll_count = n - 1 })], b)
 
-        updateWithAllLL [(_, l)] = [l]
+        updateWithAllLL [s] = [s]
         updateWithAllLL ss =
-            map (\(llt, i) -> llt { ll_offset = ll_offset llt ++ [i] }) $ zip (map snd ss) [1..]
+            map (\(s, i) -> s { log_path = log_path s ++ [i] }) $ zip ss [1..]
 
 acceptTimeLogger :: MonadIO m => IO (Reducer m () t)
 acceptTimeLogger = do
@@ -2184,18 +2177,19 @@ runReducer red hal ord solve_r analyze init_state init_bindings = do
                         switchState pr rs'' b xs'
                     | otherwise -> do
                         (_, reduceds, b') <- redRules red r_val s b
-                        let reduceds' = map (\(r, rv) -> (r {num_steps = num_steps r + 1}, rv)) reduceds
+                        let reduceds' = map (\(r, _) -> r {num_steps = num_steps r + 1 }) reduceds
+                            reduceds'' = if length reduceds' > 1
+                                            then updateWithAll red reduceds' ++ error ("List returned by updateWithAll is too short." ++ show (length (updateWithAll red reduceds')) ++ " " ++ show (length reduceds'))
+                                            else reduceds'
+                            new_states = take (length reduceds') reduceds''
 
-                            r_vals = if length reduceds' > 1
-                                        then updateWithAll red reduceds' ++ error "List returned by updateWithAll is too short."
-                                        else map snd reduceds
+                            r_vals = map snd reduceds
 
-                            reduceds_h_vals = map (\(r, _) -> (r, h_val)) reduceds'
-                            h_vals = if length reduceds' > 1
-                                        then updateHalterWithAll hal reduceds_h_vals ++ error "List returned by updateWithAll is too short."
+                            reduceds_h_vals = map (, h_val) new_states
+                            h_vals = if length new_states > 1
+                                        then updateHalterWithAll hal reduceds_h_vals ++ error "List returned by updateHalterWithAll is too short."
                                         else repeat h_val
 
-                            new_states = map fst reduceds'
                         
                         sequence_ $ analyze <*> pure (StateReduced s new_states) <*> pure pr <*> pure (map state . concat $ M.elems xs)
 
