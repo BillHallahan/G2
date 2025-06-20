@@ -253,7 +253,11 @@ initCheckReaches s@(State { expr_env = eenv
                           , known_values = kv }) m_mod reaches =
     s {expr_env = checkReaches eenv kv reaches m_mod }
 
-type RHOStack m t = SM.StateT [State t] (SM.StateT LengthNTrack (SM.StateT PrettyGuide (SM.StateT HpcTracker (SM.StateT HPCMemoTable m))))
+type RHOStack m t = SM.StateT [State t]
+                        (SM.StateT LengthNTrack
+                            (SM.StateT PrettyGuide
+                                (SM.StateT HpcTracker
+                                    (SM.StateT HPCMemoTable m))))
 
 {-# SPECIALIZE runReducer :: Ord b =>
                              Reducer (RHOStack IO ()) rv ()
@@ -299,6 +303,11 @@ initRedHaltOrd s mod_name solver simplifier config exec_func_names no_nrpc_names
 
         state_name = Name "state" Nothing 0 Nothing
 
+        approx_no_inline = S.fromList
+                         . E.keys
+                         . E.filterConcOrSym (\case E.Conc _ -> True; E.Sym _ -> False)
+                         $ expr_env s
+                         
         strict_red f = case strict config of
                             True -> SomeReducer (stdRed share f solver simplifier ~> instTypeRed ~> strictRed)
                             False -> SomeReducer (stdRed share f solver simplifier ~> instTypeRed)
@@ -320,7 +329,7 @@ initRedHaltOrd s mod_name solver simplifier config exec_func_names no_nrpc_names
         nrpc_higher_red f = case symbolic_func_nrpc config of
                                 Nrpc -> SomeReducer (nonRedHigherOrderReducer config) .== Finished .--> nrpc_lib_red f
                                 NoNrpc -> nrpc_lib_red f
-
+        
         accept_time_red f = case accept_times config of
                                 True -> SomeReducer time_logger .~> nrpc_higher_red f
                                 False -> nrpc_higher_red f
@@ -332,6 +341,11 @@ initRedHaltOrd s mod_name solver simplifier config exec_func_names no_nrpc_names
         logger_std_red f = case m_logger of
                             Just logger -> liftSomeReducer $ liftSomeReducer (logger .~> num_steps_red f)
                             Nothing -> liftSomeReducer $ liftSomeReducer (num_steps_red f)
+
+        nrpc_approx_red f = case approx_nrpc config of
+                                Nrpc -> let nrpc_approx = nrpcApproxReducer solver approx_no_inline no_nrpc_names config in
+                                        SomeReducer nrpc_approx .== Finished .--> logger_std_red f
+                                NoNrpc -> logger_std_red f
 
         halter = switchEveryNHalter 20
                  <~> maxOutputsHalter (maxOutputs config)
@@ -350,11 +364,7 @@ initRedHaltOrd s mod_name solver simplifier config exec_func_names no_nrpc_names
 
         halter_approx_discard = case approx_discard config of
                                     True ->
-                                        let no_inline = S.fromList
-                                                      . E.keys
-                                                      . E.filterConcOrSym (\case E.Conc _ -> True; E.Sym _ -> False)
-                                                      $ expr_env s in
-                                        SomeHalter (hpcApproximationHalter solver no_inline) .<~> halter_hpc_discard
+                                        SomeHalter (hpcApproximationHalter solver approx_no_inline) .<~> halter_hpc_discard
                                     False -> halter_hpc_discard
 
         orderer = case search_strat config of
@@ -364,15 +374,15 @@ initRedHaltOrd s mod_name solver simplifier config exec_func_names no_nrpc_names
     return $
         case higherOrderSolver config of
             AllFuncs ->
-                ( logger_std_red retReplaceSymbFuncVar .== Finished .--> SomeReducer nonRedPCRed
+                ( nrpc_approx_red retReplaceSymbFuncVar .== Finished .--> SomeReducer nonRedPCRed
                 , SomeHalter (discardIfAcceptedTagHalter True state_name) .<~> halter_approx_discard
                 , orderer)
             SingleFunc ->
-                ( logger_std_red retReplaceSymbFuncVar .== Finished .--> taggerRed state_name :== Finished --> nonRedPCRed
+                ( nrpc_approx_red retReplaceSymbFuncVar .== Finished .--> taggerRed state_name :== Finished --> nonRedPCRed
                 , SomeHalter (discardIfAcceptedTagHalter True state_name) .<~> halter_approx_discard
                 , orderer)
             SymbolicFunc ->
-                ( logger_std_red retReplaceSymbFuncTemplate .== Finished .--> taggerRed state_name :== Finished --> nonRedPCSymFuncRed
+                ( nrpc_approx_red retReplaceSymbFuncTemplate .== Finished .--> taggerRed state_name :== Finished --> nonRedPCSymFuncRed
                 , SomeHalter (discardIfAcceptedTagHalter True state_name) .<~> halter_approx_discard
                 , orderer)
 

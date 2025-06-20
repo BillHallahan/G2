@@ -61,6 +61,7 @@ module G2.Execution.Reducer ( Reducer (..)
                             , nonRedPCRed
                             , nonRedPCRedNoPrune
                             , nonRedPCRedConst
+                            , nrpcApproxReducer
                             , strictRed
                             , taggerRed
                             , getLogger
@@ -750,6 +751,65 @@ nonRedHigherOrderFunc
 
                 stck = Stck.singleton $ CurrExprFrame NoAction (CurrExpr Return $ Prim UnspecifiedOutput TyBottom)
 
+-- | When a newly reached function application is approximated by a previously seen (and thus explored) function application,
+-- shift the new function application into the NRPCs.
+nrpcApproxReducer :: (Solver solver, SM.MonadState [State t] m, MonadIO m) =>
+                     solver
+                  -> HS.HashSet Name -- ^ Names of functions that should not be approximated
+                  -> HS.HashSet Name -- ^ Names that should not be inlined (often: top level names from the original source code)
+                  -> Config
+                  -> Reducer m Int t
+nrpcApproxReducer solver no_inline no_nrpc_names config =
+    (mkSimpleReducer (const 0) red)
+            { onAccept = \s b nrpc_count -> do
+            if print_num_nrpc config
+                then liftIO . putStrLn $ "NRPCs Generated: " ++ show nrpc_count
+                else return ()
+            return (s, b) }
+
+    where
+        red rv s@(State { curr_expr = CurrExpr _ ce, expr_env = eenv }) b
+            | maybe True (allowed_frame . fst) (Stck.pop (exec_stack s))
+            
+            , let e = applyWrap (getExpr s) (exec_stack s)
+            , Var (Id n _):_:_ <- unApp e
+
+            , Just (Id n' _) <- E.deepLookupVar n eenv
+            , not (n' `HS.member` no_nrpc_names)
+            , not (E.isSymbolic n' eenv)
+
+            , not . isTyFun . typeOf $ e = do
+                let s' = s { curr_expr = CurrExpr Evaluate e, exec_stack = Stck.empty }
+                xs <- SM.get
+                approx <- liftIO $ findM (\prev -> moreRestrictiveIncludingPC
+                                                        solver
+                                                        mr_cont
+                                                        gen_lemma
+                                                        lookupConcOrSymState
+                                                        no_inline
+                                                        prev
+                                                        s'
+                                                ) xs
+                
+                let nr_s_ng = createNonRed (name_gen b) s
+
+                case nr_s_ng of
+                    Just (nr_s, _, ng') | isJust approx -> return (Finished, [(nr_s, rv + 1)], b { name_gen = ng' })
+                    _ -> do SM.modify (s':); return (Finished, [(s, rv)], b)
+            | Tick nl (Var (Id n _)) <- ce
+            , nl == nonRedBlockerTickNL
+            , Just e <- E.lookup n eenv = return (Finished, [(s { curr_expr = CurrExpr Evaluate e }, rv)], b)
+        red rv s b = return (Finished, [(s, rv)], b)
+        
+        mr_cont _ _ _ _ _ _ _ _ _ = Left []
+        gen_lemma _ _ _ _ _ = ()
+
+        allowed_frame (ApplyFrame _) = False
+        allowed_frame _ = True
+
+        applyWrap e stck | Just (ApplyFrame a, stck') <- Stck.pop stck = applyWrap (App e a) stck'
+                         | otherwise = e
+
 -- If doing so is possible, create an NRPC for the current expression of the passed state
 createNonRed :: NameGen
              -> State t
@@ -873,6 +933,9 @@ strictRed = mkSimpleReducer (\_ -> ())
                               , expr_env = eenv
                               , exec_stack = stck })
                      b@(Bindings { name_gen = ng })
+            -- If the next frame is ensuring equality with another structure, allow it to be handled by the rules
+            -- for EnsureEq, so that we get i.e. pruning of expression which have different central data constructors
+            | Just (CurrExprFrame (EnsureEq _) _, _) <- Stck.pop stck = return (NoProgress, [(s, ())], b)
             | Data d:es@(_:_) <- unApp e
             , exec_done
             -- must_red checks if the expression contains non-fully-reduced subexpressions.
@@ -1611,9 +1674,6 @@ approximationHalter stop_cond solver no_inline = mkSimpleHalter
 
         allowed_frame (ApplyFrame _) = False
         allowed_frame _ = True
-
--- type StopRed m hv r t = hv -> Processed r (State t)  -> State t -> m HaltC
-
 
 type HPCMemoTable = HM.HashMap Name (HS.HashSet (Int, T.Text))
 
