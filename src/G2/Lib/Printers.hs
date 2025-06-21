@@ -451,6 +451,7 @@ mkPrimHaskell pg = pr
         pr StrAppend = "StrAppend"
         pr StrAt = "str.at"
         pr StrSubstr = "str.substr"
+        pr StrIndexOf = "str.indexof"
         pr Chr = "chr"
         pr OrdChar = "ord"
 

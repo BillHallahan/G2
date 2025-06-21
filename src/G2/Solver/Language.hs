@@ -120,6 +120,7 @@ data SMTAST = (:>=) !SMTAST !SMTAST
             | StrGeSMT !SMTAST !SMTAST
             | (:!!) !SMTAST !SMTAST -- ^ String index
             | StrSubstrSMT !SMTAST !SMTAST !SMTAST
+            | StrIndexOfSMT !SMTAST !SMTAST !SMTAST
 
             | IteSMT !SMTAST !SMTAST !SMTAST
             | SLet (SMTName, SMTAST) !SMTAST
