@@ -209,3 +209,21 @@ compare1 x y | length x < 2 = 1
              | LT <- c = 4
              | GT <- c = 5
              where c = compare x y
+
+max1 :: String -> String -> String
+max1 = max
+
+max2 :: String -> String -> (Int, String)
+max2 x y | length x < 2 = (1, max x y)
+         | length y < 2 = (2, max x y)
+         | x == y = (3, max x y)
+         | otherwise = (4, max x y)
+
+min1 :: String -> String -> String
+min1 = min
+
+min2 :: String -> String -> (Int, String)
+min2 x y | length x < 2 = (1, min x y)
+         | length y < 2 = (2, min x y)
+         | x == y = (3, min x y)
+         | otherwise = (4, min x y)

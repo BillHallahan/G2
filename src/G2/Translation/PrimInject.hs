@@ -11,6 +11,7 @@ module G2.Translation.PrimInject
     ) where
 
 import G2.Language.AST
+import G2.Language.Expr
 import G2.Language.Naming
 import G2.Language.Support
 import G2.Language.Syntax
@@ -20,6 +21,7 @@ import G2.Language.TypeEnv
 import qualified Data.HashMap.Lazy as HM
 import Data.List
 import qualified Data.Text as T
+import GHC.Runtime.Eval (Term(Term))
 
 primInject :: ASTContainer p Type => p -> p
 primInject = modifyASTs primInjectT
@@ -224,6 +226,16 @@ primDefs' b c l unit =
               , ("toEnumError", Prim Error TyBottom)
               , ("ratioZeroDenominatorError", Prim Error TyBottom)
               , ("undefined", Prim Error TyBottom)
+
+              , ("ite", Lam TypeL a . Lam TermL (z $ TyCon b TYPE) . Lam TermL (x (TyVar a)) . Lam TermL (y (TyVar a))
+                            $ Case (Var (z $ TyCon b TYPE))
+                                   (binder $ TyCon b TYPE)
+                                   (TyVar a)
+                                   [Alt Default $
+                                        mkApp [ Prim Ite (TyFun (TyCon b TYPE) (TyFun tyvarA (TyFun tyvarA tyvarA)))
+                                                , Var . z $ TyCon b TYPE
+                                                , Var $ x (TyVar a)
+                                                , Var $ y (TyVar a)]])
               
               , ("isSMTRep#", Prim IsSMTRep (TyForAll a (TyFun (TyVar a) (TyCon b TYPE))))
               , ("typeIndex#", Prim TypeIndex (TyForAll a (TyFun (TyVar a) TyLitInt))) ]
