@@ -175,3 +175,37 @@ elemIndex1 c s
             | pos == Nothing = -1
             | otherwise = -2
             where pos = elemIndex c s
+
+strGt :: String -> String -> Int
+strGt x y | length x < 2 = 1
+          | length y < 2 = 2
+          | x > y = 3
+          | otherwise = 4
+
+strGe :: String -> String -> Int
+strGe x y | length x < 2 = 1
+          | length y < 2 = 2
+          | x > y = 3
+          | x >= y = 4
+          | otherwise = 5
+
+strLt :: String -> String -> Int
+strLt x y | length x < 2 = 1
+          | length y < 2 = 2
+          | x < y = 3
+          | otherwise = 4
+
+strLe :: String -> String -> Int
+strLe x y | length x < 2 = 1
+          | length y < 2 = 2
+          | x < y = 3
+          | x <= y = 4
+          | otherwise = 5
+
+compare1 :: String -> String -> Int
+compare1 x y | length x < 2 = 1
+             | length y < 2 = 2
+             | EQ <- c = 3
+             | LT <- c = 4
+             | GT <- c = 5
+             where c = compare x y

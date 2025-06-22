@@ -195,12 +195,11 @@ primDefs' b c l unit =
                                         (Var $ y strTy))
                                     (Var $ z TyLitInt))
                                 (Var $ (dummyId "q") TyLitInt))
-              , ("strEq#", Lam TypeL (x TYPE) . Lam TermL (y strTy) . Lam TermL (z strTy)
-                            $ App 
-                                (App
-                                    (Prim Eq ((TyFun strTy) $ TyFun strTy (TyCon b TYPE)))
-                                    (Var $ y strTy))
-                                (Var $ z strTy))
+              , ("strEq#", strStrBool Eq)
+              , ("strLt#", strStrBool StrLt)
+              , ("strLe#", strStrBool StrLe)
+              , ("strGt#", strStrBool StrGt)
+              , ("strGe#", strStrBool StrGe)
               , ("strIndexOf#", Lam TypeL (x TYPE) . Lam TermL (y strTy) . Lam TermL (z TyLitInt) . Lam TermL ((dummyId "q") TyLitInt)
                             $ App
                                 (App
@@ -231,6 +230,13 @@ primDefs' b c l unit =
               where
                     strTy = (TyApp (TyCon l (TyFun TYPE TYPE)) (TyCon c TYPE))
 
+                    strStrBool op = 
+                        Lam TypeL (x TYPE) . Lam TermL (y strTy) . Lam TermL (z strTy)
+                            $ App 
+                                (App
+                                    (Prim op ((TyFun strTy) $ TyFun strTy (TyCon b TYPE)))
+                                    (Var $ y strTy))
+                                (Var $ z strTy)
 a :: Id
 a = Id (Name "a" Nothing 0 Nothing) TYPE
 
