@@ -16,12 +16,10 @@ import G2.Language.Naming
 import G2.Language.Support
 import G2.Language.Syntax
 import G2.Language.Typing
-import G2.Language.TypeEnv
 
 import qualified Data.HashMap.Lazy as HM
 import Data.List
 import qualified Data.Text as T
-import GHC.Runtime.Eval (Term(Term))
 
 primInject :: ASTContainer p Type => p -> p
 primInject = modifyASTs primInjectT
