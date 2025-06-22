@@ -112,6 +112,10 @@ moreRestrictive' :: MRCont t l -- ^ For special case handling - what to do if we
                  -> Either [l] (HM.HashMap Id Expr, HS.HashSet (Expr, Expr))
 moreRestrictive' mr_cont gen_lemma lkp s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) ns hm active n1 n2 e1 e2 =
   case (e1, e2) of
+    -- (Var i1, Var i2) | idName i1 == idName i2
+    --                  , let m = idName i1
+    --                  , Just (E.Conc (Lam _ _ _)) <- lkp m s1
+    --                  , Just (E.Conc (Lam _ _ _)) <- lkp m s2 -> Right hm
     (Var i, _) | m <- idName i
                , not $ HS.member m ns
                , not $ (m, e2) `elem` n1

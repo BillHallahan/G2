@@ -174,6 +174,8 @@ import Data.Time.Clock
 import System.Clock
 import System.Directory
 
+import Debug.Trace
+
 -- | Used when applying execution rules
 -- Allows tracking extra information to control halting of rule application,
 -- and to reorder states
@@ -779,9 +781,18 @@ nrpcApproxReducer solver no_inline no_nrpc_names config =
             , not (E.isSymbolic n' eenv)
 
             , not . isTyFun . typeOf $ e = do
+                -- liftIO $ do
+                --     putStrLn $ "curr_expr s = " ++ show (getExpr s)
+                --     putStrLn $ "log_path s = " ++ show (log_path s)
+                --     putStrLn $ "num_steps s = " ++ show (num_steps s)
                 let s' = s { curr_expr = CurrExpr Evaluate e, exec_stack = Stck.empty }
                 xs <- SM.get
-                approx <- liftIO $ findM (\prev -> moreRestrictiveIncludingPC
+                approx <- liftIO $ findM (\prev -> do
+                                            -- liftIO $ do
+                                            --      putStrLn $ "curr_expr s = " ++ show (getExpr s)
+                                            --      putStrLn $ "log_path prev = " ++ show (log_path prev)
+                                            --      putStrLn $ "num_steps prev = " ++ show (num_steps prev)
+                                            moreRestrictiveIncludingPC
                                                         solver
                                                         mr_cont
                                                         gen_lemma
