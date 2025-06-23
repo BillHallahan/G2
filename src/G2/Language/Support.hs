@@ -4,6 +4,7 @@
 
 module G2.Language.Support
     ( module G2.Language.AST
+    , module G2.Language.NonRedPathConds
     , module G2.Language.Support
     , module G2.Language.TypeEnv
     , E.ExprEnv
@@ -19,6 +20,7 @@ import qualified G2.Language.ExprEnv as E
 import G2.Language.KnownValues
 import G2.Language.MutVarEnv
 import G2.Language.Naming
+import G2.Language.NonRedPathConds
 import G2.Language.Stack hiding (filter)
 import G2.Language.Syntax
 import G2.Language.TypeClasses
@@ -43,8 +45,8 @@ data State t = State { expr_env :: E.ExprEnv -- ^ Mapping of `Name`s to `Expr`s
                      , type_env :: TypeEnv -- ^ Type information
                      , curr_expr :: CurrExpr -- ^ The expression represented by the state
                      , path_conds :: PathConds -- ^ Path conditions, in SWHNF
-                     , non_red_path_conds :: [(Expr, Expr)] -- ^ Path conditions, in the form of (possibly non-reduced)
-                                                            -- expression pairs that must be proved equivalent
+                     , non_red_path_conds :: NonRedPathConds -- ^ Path conditions, in the form of (possibly non-reduced)
+                                                             -- expression pairs that must be proved equivalent
                      , handles :: HM.HashMap Name Handle -- ^ Each Handle has a name, that appears in `Expr`s within the `Handle` `Primitive`
                      , mutvar_env :: MutVarEnv -- ^ MutVar `Name`s to mappings of names in the `ExprEnv`.
                                                -- See Note [MutVar Env] in G2.Language.MutVarEnv.

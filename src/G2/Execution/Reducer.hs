@@ -579,7 +579,7 @@ nonRedPCSymFunc :: Monad m => RedRules m (Maybe SymFuncTicks) t
 nonRedPCSymFunc _
                 s@(State {curr_expr = cexpr
                          , exec_stack = stck
-                         , non_red_path_conds = (nre1, nre2):nrs
+                         , non_red_path_conds = (nre1, nre2) :*> nrs
                          })
                         b@(Bindings { name_gen = ng }) =
     
@@ -857,7 +857,7 @@ createNonRed ng
         ce'' = mkApp $ nonRedBlockerTick v:es
         s' = s { expr_env = eenv'
                , curr_expr = cexpr'
-               , non_red_path_conds = (ce'', Var new_sym_id):nrs
+               , non_red_path_conds = addNRPC ce'' (Var new_sym_id) nrs
                , exec_stack = stck }
     in
     Just (s', ce'', ng')
@@ -1038,7 +1038,7 @@ nonRedPCRedFunc prune _
                 s@(State { expr_env = eenv
                          , curr_expr = cexpr
                          , exec_stack = stck
-                         , non_red_path_conds = (nre1, nre2):nrs
+                         , non_red_path_conds = (nre1, nre2) :*> nrs
                          , model = m })
                 b@(Bindings { higher_order_inst = inst })
     -- If our goal is to violate assertions, and we haven't violated an assertion yet when
@@ -1128,7 +1128,7 @@ nonRedPCRedConstFunc _
                      s@(State { expr_env = eenv
                               , curr_expr = cexpr
                               , exec_stack = stck
-                              , non_red_path_conds = (nre1, nre2):nrs
+                              , non_red_path_conds = (nre1, nre2) :*> nrs
                               , model = m })
                      b@(Bindings { name_gen = ng })
     | higher_ord <- L.filter (isTyFun . typeOf) $ E.symbolicIds eenv
@@ -2136,14 +2136,14 @@ logStatesAtStep _ _ _ = return ()
 -- | Outputs generated NRPCs.
 logNRPCs :: (MonadIO m, SM.MonadState PrettyGuide m) => AnalyzeStates m r t
 logNRPCs (StateReduced s xs) _ _ = do
-    let s_nrpc = non_red_path_conds s
+    let s_nrpc = toListNRPC $ non_red_path_conds s
         -- Find any added NRPCs
         new_nrpc = filter (not . null)
                  . map (L.\\ s_nrpc)
                  -- Computing the difference is a bit expensive- don't bother if 
                  -- the new list of NRPCs isn't longer than the old list of NRPCs
                  . filter (\nrpc' -> length nrpc' > length s_nrpc)
-                 $ map non_red_path_conds xs
+                 $ map (toListNRPC . non_red_path_conds) xs
     pg <- SM.get
     mapM_ (\nrpc -> liftIO $ do
                 putStrLn "NRPC: "

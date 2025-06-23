@@ -105,6 +105,7 @@ library
                        , G2.Language.Monad.Typing
                        , G2.Language.MutVarEnv
                        , G2.Language.Naming
+                       , G2.Language.NonRedPathConds
                        , G2.Language.PathConds
                        , G2.Language.Primitives
                        , G2.Language.Simplification

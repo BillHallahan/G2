@@ -965,7 +965,7 @@ retCurrExpr s@(State { expr_env = eenv, known_values = kv }) e1 (EnsureEq e2) or
                 in
                 ( RuleReturnCurrExprFr
                 , [NewPC { state = s { curr_expr = orig_ce
-                                    , non_red_path_conds = es ++ non_red_path_conds s
+                                    , non_red_path_conds = foldr (uncurry addNRPC) (non_red_path_conds s) es
                                     , exec_stack = stck}
                         , new_pcs = []
                         , concretized = [] }] )
@@ -1336,7 +1336,7 @@ retReplaceSymbFuncVar _
         Just (RuleReturnReplaceSymbFunc, 
             [s { expr_env = E.insertSymbolic new_sym_id eenv
                , curr_expr = CurrExpr Return (Var new_sym_id)
-               , non_red_path_conds = non_red_path_conds s ++ [(ce, Var new_sym_id)] }]
+               , non_red_path_conds = addNRPC ce (Var new_sym_id) (non_red_path_conds s) }]
             , ng')
     | otherwise = Nothing
     where

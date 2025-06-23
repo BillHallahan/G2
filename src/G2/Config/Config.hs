@@ -88,6 +88,7 @@ data Config = Config {
     , search_strat :: SearchStrategy -- ^ The search strategy for the symbolic executor to use
     , subpath_length :: Int -- ^ When using subpath search strategy, the length of the subpaths.
     , fp_handling :: FpHandling -- ^ Whether to use real floating point values or rationals
+    , print_encode_float :: Bool -- ^ Whether to print floating point numbers directly or via encodeFloat
     , smt :: SMTSolver -- ^ Sets the SMT solver to solve constraints with
     , smt_strings :: SMTStrings -- ^ Sets whether the SMT solver should be used to solve string constraints
     , step_limit :: Bool -- ^ Should steps be limited when running states?
@@ -158,6 +159,7 @@ mkConfig homedir = Config Regular
                    <> help "when using subpath search strategy, the length of the subpaths")
     <*> flag RealFP RationalFP (long "no-real-floats"
                                 <> help "Represent floating point values precisely.  When off, overapproximate as rationals.")
+    <*> switch (long "print-encodeFloat" <> help "use encodeFloat to print floating point numbers")
     <*> mkSMTSolver
     <*> flag NoSMTStrings UseSMTStrings (long "smt-strings" <> help "Sets whether the SMT solver should be used to solve string constraints")
     <*> flag True False (long "no-step-limit" <> help "disable step limit")
@@ -308,6 +310,7 @@ mkConfigDirect homedir as m = Config {
     , search_strat = Iterative
     , subpath_length = 4
     , fp_handling = RealFP
+    , print_encode_float = False
     , smt = strArg "smt" as m smtSolverArg ConZ3
     , smt_strings = NoSMTStrings
     , step_limit = boolArg' "no-step-limit" as True True False
