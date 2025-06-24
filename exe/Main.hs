@@ -105,10 +105,16 @@ printFuncCalls config entry b m_valid exec_res = do
 toEnclodeFloats :: ASTContainer m Expr => m -> m
 toEnclodeFloats = modifyASTs go
     where
-        go (App _ (Lit (LitFloat f)))
+        go (App (Data (DataCon { dc_name = dcn })) (Lit (LitFloat f)))
+            | not (isNaN f), not (isInfinite f), not (isNegativeZero f), nameOcc dcn == "F#" =
+                let (m, n) = decodeFloat f in mkApp [encFloat, iCon $ Lit (LitInteger m), iCon $ Lit (LitInt $ toInteger n)]
+        go (App (Data (DataCon { dc_name = dcn })) (Lit (LitDouble f)))
+            | not (isNaN f), not (isInfinite f), not (isNegativeZero f), nameOcc dcn == "D#" =
+                let (m, n) = decodeFloat f in mkApp [encFloat, iCon $ Lit (LitInteger m), iCon $ Lit (LitInt $ toInteger n)]
+        go (Lit (LitFloat f))
             | not (isNaN f), not (isInfinite f), not (isNegativeZero f) =
                 let (m, n) = decodeFloat f in mkApp [encFloat, iCon $ Lit (LitInteger m), iCon $ Lit (LitInt $ toInteger n)]
-        go (App _ (Lit (LitDouble f)))
+        go (Lit (LitDouble f))
             | not (isNaN f), not (isInfinite f), not (isNegativeZero f) =
                 let (m, n) = decodeFloat f in mkApp [encFloat, iCon $ Lit (LitInteger m), iCon $ Lit (LitInt $ toInteger n)]
         go e = e
