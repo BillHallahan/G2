@@ -175,3 +175,11 @@ elemIndex1 c s
             | pos == Nothing = -1
             | otherwise = -2
             where pos = elemIndex c s
+
+delete1 :: Char -> String -> (Int, String)
+delete1 c s
+    | length s < 3 = (1, d)
+    | length d < length s = (2, d)
+    | otherwise = (3, d)
+    where
+        d = delete c s

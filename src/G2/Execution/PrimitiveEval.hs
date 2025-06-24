@@ -547,7 +547,27 @@ evalPrimADT3 tenv kv StrSubstr str (Lit (LitInt s)) (Lit (LitInt e)) = substr st
         substr (App (App (App (Data _) _) _) xs) st en = substr xs (st - 1) en
         substr _ _ _ = Nothing
 
+evalPrimADT3 tenv kv StrReplace s orig rep = do
+        s' <- toString s
+        orig' <- toString orig
+        rep' <- toString rep
+        return $ toStringExpr kv tenv (replace s' orig' rep')
+    where
+        replace "" _ _ = ""
+        replace xss@(x:xs) o r | Just xss' <- L.stripPrefix o xss = r ++ xss'
+                               | otherwise = x:replace xs o r
+
 evalPrimADT3 _ _ _ _ _ _ = Nothing
+
+toString :: Expr -> Maybe String
+toString (App (Data _) _) = Just []
+toString (App (App (App (Data dc) typ) (App _ (Lit (LitChar c)))) xs) = fmap (c:) $ toString xs
+toString _ = Nothing
+
+toStringExpr :: KnownValues -> TypeEnv -> String -> Expr
+toStringExpr kv tenv =
+    let cons = mkCons kv tenv in
+    foldr (\h t -> mkApp [cons, Type (tyChar kv), Lit (LitChar h), t]) (mkEmpty kv tenv)
 
 evalPrim2 :: KnownValues -> Primitive -> Lit -> Lit -> Maybe Expr
 evalPrim2 kv Ge x y = evalPrim2NumCharBool (>=) kv x y
