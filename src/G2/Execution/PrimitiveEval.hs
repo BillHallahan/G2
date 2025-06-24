@@ -532,7 +532,16 @@ evalPrimADT2 kv Eq f s = fmap (mkBool kv) $ lstEq f s
         lstEq (App (Data _) _) (App (App (App (Data _) _) _) _) = Just False
         lstEq (App (Data dc_f) _) (App (Data dc_s) _) = assert (KV.dcEmpty kv == dcName dc_f && KV.dcEmpty kv == dcName dc_s) (Just True)
         lstEq _ _ = Nothing
-        
+evalPrimADT2 kv StrLe f s = fmap (mkBool kv) $ lstLe f s
+    where
+        lstLe (App (App (App (Data dc_f) _) (App _ (Lit (LitChar c1)))) xs) (App (App (App (Data dc_s) _) (App _ (Lit (LitChar c2)))) ys)
+            | c1 <= c2 = Just True
+            | c1 > c2 = Just False
+            | otherwise = assert (KV.dcCons kv == dcName dc_f && KV.dcCons kv == dcName dc_s) lstLe xs ys
+        lstLe (App (App (App (Data _) _) _) _) (App (Data _) _) = Just False
+        lstLe (App (Data _) _) (App (App (App (Data _) _) _) _) = Just True
+        lstLe (App (Data dc_f) _) (App (Data dc_s) _) = assert (KV.dcEmpty kv == dcName dc_f && KV.dcEmpty kv == dcName dc_s) (Just True)
+        lstLe _ _= Nothing
 evalPrimADT2 _ _ _ _ = Nothing
 
 evalPrimADT3 :: TypeEnv -> KnownValues -> Primitive -> Expr -> Expr -> Expr -> Maybe Expr
@@ -546,7 +555,6 @@ evalPrimADT3 tenv kv StrSubstr str (Lit (LitInt s)) (Lit (LitInt e)) = substr st
             return (App (App (App (Data dc) typ) char) next_substr)
         substr (App (App (App (Data _) _) _) xs) st en = substr xs (st - 1) en
         substr _ _ _ = Nothing
-
 evalPrimADT3 _ _ _ _ _ _ = Nothing
 
 evalPrim2 :: KnownValues -> Primitive -> Lit -> Lit -> Maybe Expr
@@ -683,7 +691,7 @@ evalPrim1Floating _ _ = Nothing
 evalPrim3 :: KnownValues -> Primitive -> Expr -> Expr -> Expr -> Maybe Expr
 evalPrim3 kv Ite (Data (DataCon { dc_name = b })) e1 e2 | b == KV.dcTrue kv = Just e1
                                                         | b == KV.dcFalse kv = Just e2
-evalPrim3 _ p _ _ _ = Nothing
+evalPrim3 _ _ _ _ _ = Nothing
 
 -- | Evaluate certain primitives applied to symbolic expressions, when possible
 evalPrimSymbolic :: ExprEnv -> TypeEnv -> NameGen -> KnownValues -> Expr -> Maybe (Expr, ExprEnv, [PathCond], NameGen)
