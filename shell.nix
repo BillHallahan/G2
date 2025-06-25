@@ -8,6 +8,7 @@ pkgs.mkShell {
   nativeBuildInputs = with pkgs.buildPackages; [ 
     cabal-install
     z3
+    cvc4
     ghc
     git
   ];

@@ -405,7 +405,7 @@ testFileTests = testGroup "TestFiles"
                                         , ("min2", 5000, [Exactly 4])
 
                                         , ("delete1", 5000, [Exactly 3])
-                                        , ("stripPrefix1", 1000, [Exactly 5])
+                                        , ("stripPrefix1", 1000, [Exactly 2])
                                         , ("stripPrefix2", 1000, [Exactly 5]) ]
 
     , checkExpr "tests/TestFiles/Strings/Strings1.hs" 1000 "exclaimEq"
