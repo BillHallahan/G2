@@ -452,6 +452,8 @@ mkPrimHaskell pg = pr
         pr StrAt = "str.at"
         pr StrSubstr = "str.substr"
         pr StrIndexOf = "str.indexof"
+        pr StrPrefixOf = "str.prefixof"
+        pr StrSuffixOf = "str.suffixof"
         pr Chr = "chr"
         pr OrdChar = "ord"
 

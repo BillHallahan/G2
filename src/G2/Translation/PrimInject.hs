@@ -208,6 +208,20 @@ primDefs' b c l unit =
                                         (Var $ y strTy))
                                     (Var $ z strTy))
                                 (Var $ (dummyId "q") TyLitInt))
+              , ("strPrefixOf#", Lam TypeL (x TYPE) . Lam TermL (y strTy) . Lam TermL (z strTy)
+                            $ App
+                                (App
+                                    (Prim StrPrefixOf (TyFun strTy (TyFun strTy (TyCon b TYPE))))
+                                    (Var $ y strTy)
+                                )
+                                (Var $ z strTy))
+              , ("strSuffixOf#", Lam TypeL (x TYPE) . Lam TermL (y strTy) . Lam TermL (z strTy)
+                            $ App
+                                (App
+                                    (Prim StrSuffixOf (TyFun strTy (TyFun strTy (TyCon b TYPE))))
+                                    (Var $ y strTy)
+                                )
+                                (Var $ z strTy))
               , ("intToString#", Prim IntToString (TyFun TyLitInt strTy))
 
               , ("newMutVar##", Prim NewMutVar (TyForAll a (TyForAll d (TyFun tyvarA (TyFun TyUnknown TyUnknown)))))
