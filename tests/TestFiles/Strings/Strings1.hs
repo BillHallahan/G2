@@ -235,3 +235,16 @@ delete1 c s
     | otherwise = (3, d)
     where
         d = delete c s
+
+stripPrefix1 :: String -> String -> Maybe String
+stripPrefix1 = stripPrefix
+
+stripPrefix2 :: String -> String -> (Int, Maybe String)
+stripPrefix2 xs ys
+    | Just zs <- m_zs, length zs > 3 = (1, m_zs)
+    | Just zs <- m_zs, 2 < length xs - length zs = (2, m_zs)
+    | Nothing <- m_zs = (3, m_zs)
+    | length xs > 0 = (4, m_zs)
+    | otherwise = (5, m_zs)
+    where
+        m_zs = stripPrefix xs ys 
