@@ -99,7 +99,7 @@ maybeEvalPrim' tenv kv xs
     , Just e <- evalPrim1 p x' = Just e
     | [Prim p _, x] <- xs
     , Lit x' <- x = evalPrim1' tenv kv p x'
-    -- | [Prim p _, x] <- xs = evalPrimADT1 kv p x
+    | [Prim p _, x] <- xs = evalPrimADT1 kv p x
 
     | [Prim p _, x, y] <- xs
     , Lit x' <- x
