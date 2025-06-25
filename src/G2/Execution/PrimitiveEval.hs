@@ -29,6 +29,7 @@ import qualified G2.Language.ExprEnv as E
 import G2.Language.MutVarEnv
 
 import GHC.Float
+import Debug.Trace (trace)
 
 -- | Evaluates primitives at the root of the passed `Expr` while updating the `ExprEnv`
 -- to share computed results.
@@ -98,6 +99,7 @@ maybeEvalPrim' tenv kv xs
     , Just e <- evalPrim1 p x' = Just e
     | [Prim p _, x] <- xs
     , Lit x' <- x = evalPrim1' tenv kv p x'
+    -- | [Prim p _, x] <- xs = evalPrimADT1 kv p x
 
     | [Prim p _, x, y] <- xs
     , Lit x' <- x
@@ -483,6 +485,12 @@ evalPrim1' _ kv IsNaN (LitDouble x) = Just . mkBool kv $  isNaN x
 evalPrim1' _ kv IsInfinite (LitFloat x) = Just . mkBool kv $ isInfinite x
 evalPrim1' _ kv IsInfinite (LitDouble x) = Just . mkBool kv $  isInfinite x
 evalPrim1' _ _ _ _ = Nothing
+
+evalPrimADT1 :: KnownValues -> Primitive -> Expr -> Maybe Expr
+evalPrimADT1 kv Not (Data (DataCon { dc_name = b })) | b == KV.dcTrue kv = Just (mkFalse kv)
+                                                     | b == KV.dcFalse kv = Just (mkTrue kv)
+
+evalPrimADT1 _ _ _ = Nothing
 
 evalPrim2 :: KnownValues -> Primitive -> Lit -> Lit -> Maybe Expr
 evalPrim2 kv Ge x y = evalPrim2NumCharBool (>=) kv x y
