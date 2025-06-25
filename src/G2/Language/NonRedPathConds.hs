@@ -17,35 +17,53 @@ import Data.Hashable
 import Data.Sequence
 import GHC.Generics (Generic)
 
-newtype NonRedPathConds = NRPC (Seq (Expr, Expr)) deriving (Show, Eq, Read, Generic, Typeable, Data)
+data NRPC = NRPC { expr1 :: Expr, expr2 :: Expr } deriving (Show, Eq, Read, Generic, Typeable, Data)
+
+instance Hashable NRPC
+
+newtype NonRedPathConds = NRPCs (Seq NRPC) deriving (Show, Eq, Read, Generic, Typeable, Data)
 
 instance Hashable NonRedPathConds
 
 emptyNRPC :: NonRedPathConds
-emptyNRPC = NRPC Empty
+emptyNRPC = NRPCs Empty
 
 addNRPC :: Expr -> Expr -> NonRedPathConds -> NonRedPathConds
-addNRPC e1 e2 (NRPC nrpc) = NRPC (nrpc :|> (e1, e2))
+addNRPC e1 e2 (NRPCs nrpc) = NRPCs (nrpc :|> NRPC { expr1 = e1, expr2 = e2 })
 
 getNRPC :: NonRedPathConds -> Maybe ((Expr, Expr), NonRedPathConds)
-getNRPC (NRPC Empty) = Nothing
-getNRPC (NRPC ((e1, e2) :<| nrpc)) = Just ((e1, e2), NRPC nrpc)
+getNRPC (NRPCs Empty) = Nothing
+getNRPC (NRPCs (NRPC { expr1 = e1, expr2 = e2 } :<| nrpc)) = Just ((e1, e2), NRPCs nrpc)
 
 toListNRPC :: NonRedPathConds -> [(Expr, Expr)]
-toListNRPC (NRPC nrpc) = F.toList nrpc
+toListNRPC (NRPCs nrpc) = map (\nrpc -> (expr1 nrpc, expr2 nrpc)) $ F.toList nrpc
 
 pattern (:*>) :: (Expr, Expr) -> NonRedPathConds -> NonRedPathConds
 pattern e1_e2 :*> nrpc <- (getNRPC -> Just (e1_e2, nrpc))
 
+instance ASTContainer NRPC Expr where
+    containedASTs (NRPC { expr1 = e1, expr2 = e2 }) = [e1, e2]
+    modifyContainedASTs f (NRPC { expr1 = e1, expr2 = e2 }) = NRPC { expr1 = f e1, expr2 = f e2 }
+
+instance ASTContainer NRPC Type where
+    containedASTs (NRPC { expr1 = e1, expr2 = e2 }) = containedASTs e1 <> containedASTs e2
+    modifyContainedASTs f (NRPC { expr1 = e1, expr2 = e2 }) =
+        NRPC { expr1 = modifyContainedASTs f e1, expr2 = modifyContainedASTs f e2 }
+
+instance Named NRPC where
+    names (NRPC { expr1 = e1, expr2 = e2 }) = names e1 <> names e2
+    rename old new (NRPC { expr1 = e1, expr2 = e2 }) = NRPC { expr1 = rename old new e1, expr2 = rename old new e2 }
+    renames hm (NRPC { expr1 = e1, expr2 = e2 }) = NRPC { expr1 = renames hm e1, expr2 = renames hm e2 }
+
 instance ASTContainer NonRedPathConds Expr where
-    containedASTs (NRPC nrpc) = containedASTs nrpc
-    modifyContainedASTs f (NRPC nrpc) = NRPC $ modifyContainedASTs f nrpc
+    containedASTs (NRPCs nrpc) = containedASTs nrpc
+    modifyContainedASTs f (NRPCs nrpc) = NRPCs $ modifyContainedASTs f nrpc
 
 instance ASTContainer NonRedPathConds Type where
-    containedASTs (NRPC nrpc) = containedASTs nrpc
-    modifyContainedASTs f (NRPC nrpc) = NRPC $ modifyContainedASTs f nrpc
+    containedASTs (NRPCs nrpc) = containedASTs nrpc
+    modifyContainedASTs f (NRPCs nrpc) = NRPCs $ modifyContainedASTs f nrpc
 
 instance Named NonRedPathConds where
-    names (NRPC nrpc) = names nrpc
-    rename old new (NRPC nrpc) = NRPC (rename old new nrpc)
-    renames hm (NRPC nrpc) = NRPC (renames hm nrpc)
+    names (NRPCs nrpc) = names nrpc
+    rename old new (NRPCs nrpc) = NRPCs (rename old new nrpc)
+    renames hm (NRPCs nrpc) = NRPCs (renames hm nrpc)
