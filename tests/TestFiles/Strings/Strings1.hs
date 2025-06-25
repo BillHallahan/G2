@@ -176,6 +176,58 @@ elemIndex1 c s
             | otherwise = -2
             where pos = elemIndex c s
 
+strGt :: String -> String -> Int
+strGt x y | length x < 2 = 1
+          | length y < 2 = 2
+          | x > y = 3
+          | otherwise = 4
+
+strGe :: String -> String -> Int
+strGe x y | length x < 2 = 1
+          | length y < 2 = 2
+          | x > y = 3
+          | x >= y = 4
+          | otherwise = 5
+
+strLt :: String -> String -> Int
+strLt x y | length x < 2 = 1
+          | length y < 2 = 2
+          | x < y = 3
+          | otherwise = 4
+
+strLe :: String -> String -> Int
+strLe x y | length x < 2 = 1
+          | length y < 2 = 2
+          | x < y = 3
+          | x <= y = 4
+          | otherwise = 5
+
+compare1 :: String -> String -> Int
+compare1 x y | length x < 2 = 1
+             | length y < 2 = 2
+             | EQ <- c = 3
+             | LT <- c = 4
+             | GT <- c = 5
+             where c = compare x y
+
+max1 :: String -> String -> String
+max1 = max
+
+max2 :: String -> String -> (Int, String)
+max2 x y | length x < 2 = (1, max x y)
+         | length y < 2 = (2, max x y)
+         | x == y = (3, max x y)
+         | otherwise = (4, max x y)
+
+min1 :: String -> String -> String
+min1 = min
+
+min2 :: String -> String -> (Int, String)
+min2 x y | length x < 2 = (1, min x y)
+         | length y < 2 = (2, min x y)
+         | x == y = (3, min x y)
+         | otherwise = (4, min x y)
+
 delete1 :: Char -> String -> (Int, String)
 delete1 c s
     | length s < 3 = (1, d)
