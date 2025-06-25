@@ -28,102 +28,11 @@ module G2.Execution.Rules ( module G2.Execution.RuleTypes
 import G2.Config.Config
 import G2.Execution.DataConPCMap
 import G2.Execution.NewPC.Handling
+import G2.Execution.NewPC.Type
 import G2.Execution.NormalForms
 import G2.Execution.PrimitiveEval
 import G2.Execution.RuleTypes
-import G2.Language.AST ( AST(modifyChildren) )
-import G2.Language.Expr
-    ( exprInCasts,
-      simplifyCasts,
-      splitCast,
-      unsafeElimOuterCast,
-      appCenter,
-      isData,
-      isLam,
-      isLit,
-      mkAndExpr,
-      mkApp,
-      mkEqExpr,
-      mkEqPrimExpr,
-      mkFalse,
-      mkGeIntExpr,
-      mkLeIntExpr,
-      replaceVar,
-      stripAllTicks,
-      unApp )
-import G2.Language.MutVarEnv
-    ( MVInfo(MVInfo, mv_origin, mv_val_id), MVOrigin(MVSymbolic) )
-import G2.Language.Naming
-    ( freshId,
-      freshIds,
-      freshNames,
-      freshSeededId,
-      freshSeededName,
-      freshSeededNames,
-      freshSeededString,
-      renameExpr,
-      renameExprs,
-      renamesExprs,
-      NameGen )
-import G2.Language.Primitives ( mkEqPrimType )
-import G2.Language.Support
-    ( dataCon,
-      AlgDataTy(NewTyCon, bound_ids, data_con),
-      KnownValues,
-      AST(modifyChildren),
-      getAlgDataTy,
-      getCastedAlgDataTy,
-      getDataCon,
-      getDataCons,
-      TypeEnv,
-      ExprEnv,
-      PathCond(ExtCond, AltCond),
-      getExpr,
-      Bindings(Bindings, name_gen),
-      CEAction(..),
-      CurrExpr(..),
-      EvalOrReturn(Return, Evaluate),
-      Frame(..),
-      State(State, non_red_path_conds, rules, mutvar_env, reached_hpc,
-            sym_gens, true_assert, assert_ids, type_env, known_values,
-            exec_stack, expr_env, curr_expr) )
-import G2.Language.Syntax
-    ( dcName,
-      idName,
-      Alt(Alt, altMatch),
-      AltMatch(..),
-      Binds,
-      Coercion(..),
-      DataCon(DataCon, dc_univ_tyvars),
-      Expr(..),
-      FuncCall(returns),
-      Id(..),
-      LamUse(..),
-      Lit(LitInt),
-      Name(..),
-      Primitive(MutVar, Undefined, Error),
-      SymLog(..),
-      Tickish(HpcTick),
-      Type(TyFun, TyBottom, TyLitInt, TyVar, TyApp, TyCon, TYPE) )
-import G2.Language.Typing
-    ( anonArgumentTypes,
-      applyTypeHashMap,
-      getTyApps,
-      hasFuncType,
-      isADTType,
-      isPrimType,
-      isTyFun,
-      mkTyFun,
-      returnType,
-      retype,
-      retypeRespectingTyForAll,
-      tyAppCenter,
-      tyAppsToExpr,
-      tyBool,
-      typeToExpr,
-      unTyApp,
-      PresType(PresType),
-      Typed(typeOf) )
+import G2.Language
 import qualified G2.Language.ExprEnv as E
 import qualified G2.Language.Typing as T
 import qualified G2.Language.KnownValues as KV
@@ -140,8 +49,6 @@ import G2.Data.Utils
 import qualified G2.Data.UFMap as UF
 
 import Control.Exception
-import Data.Int (Int)
-import G2.Execution.NewPC.Type
 
 stdReduce :: (Solver solver, Simplifier simplifier) => Sharing -> SymbolicFuncEval t -> solver -> simplifier -> State t -> Bindings -> IO (Rule, [(State t, ())], Bindings)
 stdReduce share symb_func_eval solver simplifier s b@(Bindings {name_gen = ng}) = do
