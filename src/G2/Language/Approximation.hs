@@ -15,7 +15,9 @@ module G2.Language.Approximation ( GenerateLemma
                                  , lookupConcOrSymState
                                  
                                  , stackWrap
-                                 , stateAdjStack) where
+                                 , stateAdjStack
+                                 
+                                 , mrContIgnoreTicks) where
 
 import G2.Execution.NormalForms
 import G2.Language.Expr
@@ -66,7 +68,7 @@ type MRCont t l =  State t
 -------------------------------------------------------------------------------
 
 -- | Check is s1 is an approximation of s2 (if s2 is more restrictive than s1.)
-moreRestrictiveIncludingPCAndNRPC :: S.Solver solver =>
+moreRestrictiveIncludingPCAndNRPC :: (Show l, S.Solver solver) =>
                    solver
                 -> MRCont t l -- ^ For special case handling - what to do if we don't match elsewhere in moreRestrictive
                 -> GenerateLemma t l
@@ -252,7 +254,6 @@ moreRestrictive' mr_cont gen_lemma lkp s1@(State {expr_env = h1}) s2@(State {exp
     (Cast e1' c1, Cast e2' c2) | c1 == c2 ->
         moreRestrictive' mr_cont gen_lemma lkp s1 s2 ns hm active n1 n2 e1' e2'
 
-    -- ignore all Ticks
     _ -> mr_cont s1 s2 ns hm active n1 n2 e1 e2
 
 -- check only the names for DataAlt
@@ -299,7 +300,7 @@ moreRestrictiveAlt mr_cont gen_lemma lkp s1 s2 ns hm active n1 n2 (Alt am1 e1) (
     _ -> moreRestrictive' mr_cont gen_lemma lkp s1 s2 ns hm active n1 n2 e1 e2
   else Left []
 
-moreRestrictiveNRPC :: MRCont t l
+moreRestrictiveNRPC :: Show l => MRCont t l
                     -> GenerateLemma t l
                     -> Lookup t
                     -> State t
@@ -315,16 +316,14 @@ moreRestrictiveNRPC mr_cont gen_lemma lkp s1 s2 ns init_hm nrpc1 nrpc2 = matchNR
     matchNRPCs hm ((eL_1, eR_1):ns1) ns2 = do
         let m_match_rest = selectJust
                               (\(eL_2, eR_2) -> do
-                                    hm' <- moreRestrictiveMaybe hm eL_1 eL_2
-                                    moreRestrictiveMaybe hm' eR_1 eR_2)
+                                    hm' <- moreRes hm eL_1 eL_2
+                                    moreRes hm' eR_1 eR_2)
                            ns2
-        case trace ("s1 = " ++ show (log_path s1) ++
-                      "\ns2 = " ++ show (log_path s2) ++
-                      "\nm_match_rest = " ++ show m_match_rest) m_match_rest of
+        case m_match_rest of
           Just (hm', rest) -> matchNRPCs hm' ns1 rest
           Nothing -> Left []
 
-    moreRestrictiveMaybe hm e1 e2 =
+    moreRes hm e1 e2 =
       case moreRestrictive' mr_cont gen_lemma lkp s1 s2 ns hm True [] [] e1 e2 of
         Left _ -> Nothing
         Right v -> Just v
@@ -427,3 +426,23 @@ stateAdjStack s =
            curr_expr = CurrExpr Evaluate e'
          , exec_stack = stck'
          }
+
+mrContIgnoreTicks :: GenerateLemma t l
+                  -> Lookup t
+                  -> State t
+                  -> State t
+                  -> HS.HashSet Name
+                  -> (HM.HashMap Id Expr, HS.HashSet (Expr, Expr))
+                  -> Bool -- ^ indicates whether this is part of the "active expression"
+                  -> [(Name, Expr)] -- ^ variables inlined previously on the LHS
+                  -> [(Name, Expr)] -- ^ variables inlined previously on the RHS
+                  -> Expr
+                  -> Expr
+                  -> Either [l] (HM.HashMap Id Expr, HS.HashSet (Expr, Expr))
+mrContIgnoreTicks genLemma lkp s1 s2 ns hm active n1 n2 e1 e2 =
+    case (e1, e2) of
+        (Tick _ e1', _) ->
+              moreRestrictive' (mrContIgnoreTicks genLemma lkp) genLemma lkp s1 s2 ns hm active n1 n2 e1' e2
+        (_, Tick _ e2') ->
+              moreRestrictive' (mrContIgnoreTicks genLemma lkp) genLemma lkp s1 s2 ns hm active n1 n2 e1 e2'
+        _ -> Left []

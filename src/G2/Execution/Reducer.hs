@@ -820,7 +820,7 @@ nrpcApproxReducer solver no_inline no_nrpc_names config =
             , Just e <- E.lookup n eenv = return (Finished, [(s { curr_expr = CurrExpr Evaluate e }, rv)], b)
         red rv s b = return (Finished, [(s, rv)], b)
         
-        mr_cont _ _ _ _ _ _ _ _ _ = Left []
+        mr_cont = mrContIgnoreTicks gen_lemma lookupConcOrSymState
         gen_lemma _ _ _ _ _ = ()
 
         allowed_frame (ApplyFrame _) = False
@@ -1676,7 +1676,7 @@ approximationHalter' stop_cond solver no_inline = mkSimpleHalter
             | maybe True (allowed_frame . fst) (Stck.pop (exec_stack s))
             
             , s'@(State { curr_expr = CurrExpr Evaluate e}) <- stateAdjStack s
-            , consideredExp e
+            , Var _:_:_ <- unApp e
 
             , not . isTyFun . typeOf $ e = do
                 xs <- SM.gets ap_halter_states
@@ -1690,19 +1690,15 @@ approximationHalter' stop_cond solver no_inline = mkSimpleHalter
                                                         s'
                                                 ) xs
                 if isJust approx && stop_cond pr s
-                    then return Discard
+                    then do liftIO $ putStrLn $ "log_path approx = " ++ show (log_path $ fromJust approx); return Discard
                     else do SM.modify ((\ap -> ap { ap_halter_states = s':xs })); return Continue
         stop _ _ _ = return Continue
         
-        mr_cont _ _ _ _ _ _ _ _ _ = Left []
-        gen_lemma _ _ _ _ _ = ()
+        mr_cont = mrContIgnoreTicks gen_lemma lookupConcOrSymState
+        gen_lemma _ _ _ e1 e2 = (e1, e2)
 
         allowed_frame (ApplyFrame _) = False
         allowed_frame _ = True
-
-        consideredExp e | Var _:_:_ <- unApp e = True
-                        | Data _:_ <- unApp e = True
-                        | otherwise = False
 
 type HPCMemoTable = HM.HashMap Name (HS.HashSet (Int, T.Text))
 
