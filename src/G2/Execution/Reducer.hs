@@ -133,7 +133,6 @@ module G2.Execution.Reducer ( Reducer (..)
                             , AnalyzeStates
                             , noAnalysis
                             , logStatesAtTime
-                            , logNRPCs
                             , logRedRuleNum
 
                             , LogStatesAtStep
@@ -652,7 +651,7 @@ nonRedLibFuncs exec_names no_nrpc_names
             _ -> return (Finished, [(s, (var_table', sym_table', nrpc_count))], b)
 
     | Tick nl (Var (Id n _)) <- ce
-    , nl == nonRedBlockerTickNL
+    , isNonRedBlockerTick nl
     , Just e <- E.lookup n eenv = return (Finished, [(s { curr_expr = CurrExpr Evaluate e }, rv)], b)
     | otherwise = return (Finished, [(s, rv)], b)
 
@@ -816,11 +815,11 @@ nrpcApproxReducer solver no_inline no_nrpc_names config =
                     Just (nr_s, _, ng') | isJust approx -> return (Finished, [(nr_s, rv + 1)], b { name_gen = ng' })
                     _ -> do SM.modify (\ap -> ap { ap_nrpc_states = s':xs }); return (Finished, [(s, rv)], b)
             | Tick nl (Var (Id n _)) <- ce
-            , nl == nonRedBlockerTickNL
+            , isNonRedBlockerTick nl
             , Just e <- E.lookup n eenv = return (Finished, [(s { curr_expr = CurrExpr Evaluate e }, rv)], b)
         red rv s b = return (Finished, [(s, rv)], b)
         
-        mr_cont = mrContIgnoreTicks gen_lemma lookupConcOrSymState
+        mr_cont = mrContIgnoreNRPCTicks gen_lemma lookupConcOrSymState
         gen_lemma _ _ _ _ _ = ()
 
         allowed_frame (ApplyFrame _) = False
@@ -862,13 +861,17 @@ createNonRed ng
         -- To stop falling into this infinite loop, instead of adding current expression in NRPC
         -- we associate a tick (nonRedBlocker) with the expression and then standard reducer reduces
         -- this tick.
-        ce'' = mkApp $ nonRedBlockerTick v:es
+        (te, ng'') = nonRedBlockerTick ng' v
+        ce'' = mkApp $ te:es
+
+        (ng''', nrs') = addNRPC ng'' ce'' (Var new_sym_id) nrs
+
         s' = s { expr_env = eenv'
                , curr_expr = cexpr'
-               , non_red_path_conds = addNRPC ce'' (Var new_sym_id) nrs
+               , non_red_path_conds = nrs'
                , exec_stack = stck }
     in
-    Just (s', ce'', ng')
+    Just (s', ce'', ng''')
 createNonRed _ _ = Nothing
 
 hasMagicTypes :: ASTContainer c Type => KnownValues -> c -> Bool
@@ -885,11 +888,14 @@ allApplyFrames stck = go [] stck stck
                     | Just (UpdateFrame _, stck') <- Stck.pop pop_stck = go aes stck' stck_top_ups
                     | otherwise = (reverse aes, stck_top_ups)
 
-nonRedBlockerTick :: Expr -> Expr
-nonRedBlockerTick = Tick nonRedBlockerTickNL
+nonRedBlockerTick :: NameGen -> Expr -> (Expr, NameGen)
+nonRedBlockerTick ng e =
+    let (n, ng') = freshSeededName (Name "NonRedBlocker" Nothing 0 Nothing) ng in
+    (Tick (NamedLoc n) e, ng')
 
-nonRedBlockerTickNL :: Tickish
-nonRedBlockerTickNL = NamedLoc (Name "NonRedBlocker" Nothing 0 Nothing)
+isNonRedBlockerTick :: Tickish -> Bool
+isNonRedBlockerTick (NamedLoc n) = nameOcc n == "NonRedBlocker"
+isNonRedBlockerTick _ = False
 
 -- Note [Ignore Update Frames]
 -- In `strictRed`, when deciding whether to split up an expression to force strict evaluation of subexpression,
@@ -1676,10 +1682,16 @@ approximationHalter' stop_cond solver no_inline = mkSimpleHalter
             | maybe True (allowed_frame . fst) (Stck.pop (exec_stack s))
             
             , s'@(State { curr_expr = CurrExpr Evaluate e}) <- stateAdjStack s
-            , Var _:_:_ <- unApp e
+            -- , Stck.null (exec_stack s')
+            , Var _:_:_ <- stripAllTicks $ unApp e 
 
             , not . isTyFun . typeOf $ e = do
+                liftIO $ do
+                    putStrLn $ "approx halter log_path s = " ++ show (log_path s) ++ " " ++ show (num_steps s)
+                    putStrLn $ "curr_expr s = " ++ show (curr_expr s')
+                    putStrLn $ "stack s = " ++ show (exec_stack s')
                 xs <- SM.gets ap_halter_states
+                let xs' = filter (\x -> num_steps x < num_steps s') xs
                 approx <- liftIO $ findM (\prev -> moreRestrictiveIncludingPCAndNRPC
                                                         solver
                                                         mr_cont
@@ -1688,17 +1700,52 @@ approximationHalter' stop_cond solver no_inline = mkSimpleHalter
                                                         no_inline
                                                         prev
                                                         s'
-                                                ) xs
+                                                ) xs'
                 if isJust approx && stop_cond pr s
-                    then do liftIO $ putStrLn $ "log_path approx = " ++ show (log_path $ fromJust approx); return Discard
+                    then do liftIO $ do
+                                putStrLn $ "log_path s = " ++ show (log_path s) ++ " " ++ show (num_steps s)
+                                putStrLn $ "log_path approx = " ++ show (log_path $ fromJust approx) ++ " " ++ show (num_steps $ fromJust approx)
+                                return Discard
                     else do SM.modify ((\ap -> ap { ap_halter_states = s':xs })); return Continue
+        -- stop _ _ s | log_path s == [1, 1, 1, 1]
+        --            , num_steps s == 103
+        --            , s'@(State { curr_expr = CurrExpr _ e}) <- stateAdjStack s = error $
+        --                 "maybe True (allowed_frame . fst) (Stck.pop (exec_stack s)) = "
+        --                     ++ show (maybe True (allowed_frame . fst) (Stck.pop (exec_stack s)))
+        --                 ++ "e = " ++ show (curr_expr s')
+        --                 ++ "not . isTyFun . typeOf $ e = " ++ show (not . isTyFun . typeOf $ e)
         stop _ _ _ = return Continue
         
-        mr_cont = mrContIgnoreTicks gen_lemma lookupConcOrSymState
-        gen_lemma _ _ _ e1 e2 = (e1, e2)
+        -- mr_cont _ _ _ _ _ _ _ _ _ = Left []
+        mr_cont = mrContIgnoreNRPCTicks gen_lemma lookupConcOrSymState
+        gen_lemma s1 s2 _ e1 e2 =
+            trace ("log_path s1 = " ++ show (log_path s1) ++ " " ++ show (num_steps s1)
+                ++ "\nlog_path s2 = " ++ show (log_path s2) ++ " " ++ show (num_steps s2)
+                ++ "\ne1 = " ++ show e1 ++ "\ne2 = " ++ show e2)
+            (e1, e2)
 
         allowed_frame (ApplyFrame _) = False
+        allowed_frame (UpdateFrame _) = False
         allowed_frame _ = True
+
+mrContIgnoreNRPCTicks :: GenerateLemma t l
+                      -> Lookup t
+                      -> State t
+                      -> State t
+                      -> HS.HashSet Name
+                      -> (HM.HashMap Id Expr, HS.HashSet (Expr, Expr))
+                      -> Bool -- ^ indicates whether this is part of the "active expression"
+                      -> [(Name, Expr)] -- ^ variables inlined previously on the LHS
+                      -> [(Name, Expr)] -- ^ variables inlined previously on the RHS
+                      -> Expr
+                      -> Expr
+                      -> Either [l] (HM.HashMap Id Expr, HS.HashSet (Expr, Expr))
+mrContIgnoreNRPCTicks genLemma lkp s1 s2 ns hm active n1 n2 e1 e2 =
+    case (e1, e2) of
+        (Tick t1 e1', Tick t2 e2') | t1 /= t2 ->
+            moreRestrictive' (mrContIgnoreNRPCTicks genLemma lkp) genLemma lkp s1 s2 ns hm active n1 n2 e1' e2'
+        _ -> Left []
+
 
 type HPCMemoTable = HM.HashMap Name (HS.HashSet (Int, T.Text))
 
@@ -2146,24 +2193,6 @@ logStatesAtStep (StateDiscarded _) _ [] = do
                         _ -> return ()
     go m last_count_printed
 logStatesAtStep _ _ _ = return ()
-
--- | Outputs generated NRPCs.
-logNRPCs :: (MonadIO m, SM.MonadState PrettyGuide m) => AnalyzeStates m r t
-logNRPCs (StateReduced s xs) _ _ = do
-    let s_nrpc = toListNRPC $ non_red_path_conds s
-        -- Find any added NRPCs
-        new_nrpc = filter (not . null)
-                 . map (L.\\ s_nrpc)
-                 -- Computing the difference is a bit expensive- don't bother if 
-                 -- the new list of NRPCs isn't longer than the old list of NRPCs
-                 . filter (\nrpc' -> length nrpc' > length s_nrpc)
-                 $ map (toListNRPC . non_red_path_conds) xs
-    pg <- SM.get
-    mapM_ (\nrpc -> liftIO $ do
-                putStrLn "NRPC: "
-                T.putStrLn . prettyNonRedPaths pg $ nrpc)
-          new_nrpc
-logNRPCs _ _ _ = return ()
 
 -- | Outputs the total number of reduction rules after reduction stops.
 logRedRuleNum :: (MonadIO m, SM.MonadState Int m) => AnalyzeStates m r t

@@ -15,9 +15,7 @@ module G2.Language.Approximation ( GenerateLemma
                                  , lookupConcOrSymState
                                  
                                  , stackWrap
-                                 , stateAdjStack
-                                 
-                                 , mrContIgnoreTicks) where
+                                 , stateAdjStack) where
 
 import G2.Execution.NormalForms
 import G2.Language.Expr
@@ -83,13 +81,11 @@ moreRestrictiveIncludingPCAndNRPC solver mr_cont gen_lemma lkp ns s1 s2
   , let min2 = minIndexNRPC (non_red_path_conds s2)
   , max1 < min2 || max1 == -1 = do
     let mr = moreRestrictive' mr_cont gen_lemma lkp s1 s2 ns (HM.empty, HS.empty) True [] [] (getExpr s1) (getExpr s2)
+               >>= \hm -> moreRestrictiveStack mr_cont gen_lemma lkp s1 s2 ns hm (exec_stack s1) (exec_stack s2)
+               >>= \hm' -> moreRestrictiveNRPC mr_cont gen_lemma lkp s1 s2 ns hm' (non_red_path_conds s1) (non_red_path_conds s2)
     case mr of
         Left _ -> return False
-        Right hm -> do
-          let mr' = moreRestrictiveNRPC mr_cont gen_lemma lkp s1 s2 ns hm (non_red_path_conds s1) (non_red_path_conds s2)
-          case mr' of
-            Left _ -> return False
-            Right (sym_var_map, expr_pairs) -> moreRestrictivePC solver s1 s2 sym_var_map expr_pairs
+        Right (sym_var_map, expr_pairs) -> moreRestrictivePC solver s1 s2 sym_var_map expr_pairs
   | otherwise = return False
 
 -- | Check is s1 is an approximation of s2 (if s2 is more restrictive than s1.)
@@ -305,6 +301,31 @@ moreRestrictiveAlt mr_cont gen_lemma lkp s1 s2 ns hm active n1 n2 (Alt am1 e1) (
     _ -> moreRestrictive' mr_cont gen_lemma lkp s1 s2 ns hm active n1 n2 e1 e2
   else Left []
 
+moreRestrictiveStack :: Show l => MRCont t l
+                     -> GenerateLemma t l
+                     -> Lookup t
+                     -> State t
+                     -> State t
+                     -> HS.HashSet Name
+                     -> (HM.HashMap Id Expr, HS.HashSet (Expr, Expr))
+                     -> Stck.Stack Frame
+                     -> Stck.Stack Frame
+                     -> Either [l] (HM.HashMap Id Expr, HS.HashSet (Expr, Expr))
+moreRestrictiveStack mr_cont gen_lemma lkp s1 s2 ns init_hm stck1 stck2
+    | Just (CurrExprFrame ce1 (CurrExpr _ e1), stck1') <- Stck.pop stck1
+    , Just (CurrExprFrame ce2 (CurrExpr _ e2), stck2') <- Stck.pop stck2 = do
+        hm' <- moreRestrictive' mr_cont gen_lemma lkp s1 s2 ns init_hm True [] [] e1 e2
+        hm'' <- case (ce1, ce2) of
+                      (EnsureEq ee1, EnsureEq ee2) -> moreRestrictive' mr_cont gen_lemma lkp s1 s2 ns hm' True [] [] ee1 ee2
+                      (NoAction, NoAction) -> Right hm'
+                      _ -> Left []
+        moreRestrictiveStack mr_cont gen_lemma lkp s1 s2 ns hm'' stck1' stck2'
+    | Nothing <- Stck.pop stck1
+    , Nothing <- Stck.pop stck2 = Right init_hm
+    | otherwise = Left []
+
+
+
 moreRestrictiveNRPC :: Show l => MRCont t l
                     -> GenerateLemma t l
                     -> Lookup t
@@ -420,34 +441,14 @@ stackWrap :: Stck.Stack Frame -> Expr -> (Expr, Stck.Stack Frame)
 stackWrap sk e =
   case Stck.pop sk of
     Nothing -> (e, sk)
-    Just (CurrExprFrame _ _, sk') -> (e, sk')
+    Just (CurrExprFrame _ _, _) -> (e, sk)
     Just (fr, sk') -> stackWrap sk' $ frameWrap fr e
 
 stateAdjStack :: State t -> State t
 stateAdjStack s =
-    let e = getExpr s
+    let CurrExpr er e = curr_expr s
         (e', stck') = stackWrap (exec_stack s) e
     in s {
-           curr_expr = CurrExpr Evaluate e'
+           curr_expr = CurrExpr er e'
          , exec_stack = stck'
          }
-
-mrContIgnoreTicks :: GenerateLemma t l
-                  -> Lookup t
-                  -> State t
-                  -> State t
-                  -> HS.HashSet Name
-                  -> (HM.HashMap Id Expr, HS.HashSet (Expr, Expr))
-                  -> Bool -- ^ indicates whether this is part of the "active expression"
-                  -> [(Name, Expr)] -- ^ variables inlined previously on the LHS
-                  -> [(Name, Expr)] -- ^ variables inlined previously on the RHS
-                  -> Expr
-                  -> Expr
-                  -> Either [l] (HM.HashMap Id Expr, HS.HashSet (Expr, Expr))
-mrContIgnoreTicks genLemma lkp s1 s2 ns hm active n1 n2 e1 e2 =
-    case (e1, e2) of
-        (Tick _ e1', _) ->
-              moreRestrictive' (mrContIgnoreTicks genLemma lkp) genLemma lkp s1 s2 ns hm active n1 n2 e1' e2
-        (_, Tick _ e2') ->
-              moreRestrictive' (mrContIgnoreTicks genLemma lkp) genLemma lkp s1 s2 ns hm active n1 n2 e1 e2'
-        _ -> Left []

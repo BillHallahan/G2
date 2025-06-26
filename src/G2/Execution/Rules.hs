@@ -103,9 +103,9 @@ stdReduce' _ symb_func_eval solver simplifier s@(State { curr_expr = CurrExpr Re
         xs' <- mapMaybeM (reduceNewPC solver simplifier) xs
         return (r, xs', ng')
     | Just (CurrExprFrame act e, stck') <- frstck = do
-        let (r, xs) = retCurrExpr s ce act e stck'
+        let (r, xs, ng') = retCurrExpr s ce act e stck' ng
         xs' <- mapMaybeM (reduceNewPC solver simplifier) xs
-        return (r, xs', ng)
+        return (r, xs', ng')
     | Nothing <- frstck = return (RuleIdentity, [s], ng)
     | otherwise = error $ "stdReduce': Unknown Expr" ++ show ce ++ show (S.pop stck)
         where
@@ -909,17 +909,17 @@ retCastFrame s ng e c stck =
          , exec_stack = stck}]
     , ng)
 
-retCurrExpr :: State t -> Expr -> CEAction -> CurrExpr -> S.Stack Frame -> (Rule, [NewPC t])
-retCurrExpr s@(State { expr_env = eenv, known_values = kv }) e1 (EnsureEq e2) orig_ce stck
+retCurrExpr :: State t -> Expr -> CEAction -> CurrExpr -> S.Stack Frame -> NameGen -> (Rule, [NewPC t], NameGen)
+retCurrExpr s@(State { expr_env = eenv, known_values = kv }) e1 (EnsureEq e2) orig_ce stck ng
     | e1 == e2 =
         ( RuleReturnCurrExprFr
         , [NewPC { state = s { curr_expr = orig_ce
                              , exec_stack = stck }
                     , new_pcs = []
-                    , concretized = [] }] )
+                    , concretized = [] }], ng )
     | Cast e1' c1 <- e1
     , Cast e2' c2 <- e2
-    , c1 == c2 =  retCurrExpr s e1' (EnsureEq e2') orig_ce stck
+    , c1 == c2 =  retCurrExpr s e1' (EnsureEq e2') orig_ce stck ng
 
     | isExprValueForm eenv e1
     , isExprValueForm eenv e2
@@ -934,7 +934,7 @@ retCurrExpr s@(State { expr_env = eenv, known_values = kv }) e1 (EnsureEq e2) or
         , [NewPC { state = s { curr_expr = orig_ce
                              , exec_stack = stck}
                     , new_pcs = [ExtCond (inline eenv HS.empty $ mkEqPrimExpr kv e1 e2) True]
-                    , concretized = [] }] )
+                    , concretized = [] }], ng )
 
     -- Symmetric cases for e1/e2 being  symbolic variables 
     | Var (Id n t) <- e1
@@ -945,7 +945,7 @@ retCurrExpr s@(State { expr_env = eenv, known_values = kv }) e1 (EnsureEq e2) or
                              , expr_env = E.insert n e2 eenv
                              , exec_stack = stck}
                 , new_pcs = []
-                , concretized = [] }] )
+                , concretized = [] }], ng )
     | Var (Id n t) <- e2
     , E.isSymbolic n eenv
     , not (isPrimType t || t == tyBool kv) =
@@ -954,7 +954,7 @@ retCurrExpr s@(State { expr_env = eenv, known_values = kv }) e1 (EnsureEq e2) or
                              , expr_env = E.insert n e1 eenv
                              , exec_stack = stck}
                 , new_pcs = []
-                , concretized = [] }] )
+                , concretized = [] }], ng )
 
     | Data dc1:es1 <- unApp e1
     , Data dc2:es2 <- unApp e2 =
@@ -962,19 +962,20 @@ retCurrExpr s@(State { expr_env = eenv, known_values = kv }) e1 (EnsureEq e2) or
             True ->
                 let
                     es = zip es1 es2
+                    (ng', nrpc) = foldr (\(e1, e2) (ng_, nrpc) -> addNRPC ng_ e1 e2 nrpc) (ng, non_red_path_conds s) es
                 in
                 ( RuleReturnCurrExprFr
                 , [NewPC { state = s { curr_expr = orig_ce
-                                    , non_red_path_conds = foldr (uncurry addNRPC) (non_red_path_conds s) es
+                                    , non_red_path_conds = nrpc
                                     , exec_stack = stck}
                         , new_pcs = []
-                        , concretized = [] }] )
+                        , concretized = [] }], ng')
             False ->
                 ( RuleReturnCurrExprFr
                 , [NewPC { state = s { curr_expr = orig_ce
                                      , exec_stack = stck}
                         , new_pcs = [ExtCond (mkFalse kv) True]
-                        , concretized = [] }] )
+                        , concretized = [] }], ng )
     | otherwise =
         assert (not (isExprValueForm eenv e2))
                 ( RuleReturnCurrExprFr
@@ -982,7 +983,7 @@ retCurrExpr s@(State { expr_env = eenv, known_values = kv }) e1 (EnsureEq e2) or
                                     , non_red_path_conds = non_red_path_conds s
                                     , exec_stack = S.push (CurrExprFrame (EnsureEq e1) orig_ce) stck}
                         , new_pcs = []
-                        , concretized = [] }] )
+                        , concretized = [] }], ng )
     where
         isPrimApp (App e _) = isPrimApp e
         isPrimApp (Prim _ _) = True
@@ -996,12 +997,12 @@ retCurrExpr s@(State { expr_env = eenv, known_values = kv }) e1 (EnsureEq e2) or
             , not (isLam e) = inline h (HS.insert n ns) e
         inline h ns e = modifyChildren (inline h ns) e
 
-retCurrExpr s _ NoAction orig_ce stck = 
+retCurrExpr s _ NoAction orig_ce stck ng = 
     ( RuleReturnCurrExprFr
     , [NewPC { state = s { curr_expr = orig_ce
                          , exec_stack = stck}
              , new_pcs = []
-             , concretized = []}] )
+             , concretized = []}], ng )
 
 retAssumeFrame :: State t -> NameGen -> Expr -> Expr -> S.Stack Frame -> (Rule, [NewPC t], NameGen)
 retAssumeFrame s@(State {known_values = kv
@@ -1332,12 +1333,13 @@ retReplaceSymbFuncVar _
         let
             (new_sym, ng') = freshSeededString "sym" ng
             new_sym_id = Id new_sym t
+            (ng'', nrpc') = addNRPC ng' ce (Var new_sym_id) (non_red_path_conds s)
         in
         Just (RuleReturnReplaceSymbFunc, 
             [s { expr_env = E.insertSymbolic new_sym_id eenv
                , curr_expr = CurrExpr Return (Var new_sym_id)
-               , non_red_path_conds = addNRPC ce (Var new_sym_id) (non_red_path_conds s) }]
-            , ng')
+               , non_red_path_conds = nrpc' }]
+            , ng'')
     | otherwise = Nothing
     where
         notApplyFrame | Just (frm, _) <- S.pop stck = not (isApplyFrame frm)

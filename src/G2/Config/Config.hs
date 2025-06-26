@@ -101,7 +101,6 @@ data Config = Config {
     , states_at_step :: Bool -- ^ Output step and number of states at each step where a state is added/removed
     , print_num_red_rules :: Bool -- ^ Output the total number of reduction rules
     , print_num_red_rules_per_state :: Bool  -- ^ Output the number of reduction rules per accepted state
-    , print_nrpcs :: Bool -- ^ Output generated NRPCs
     , approx_discard :: Bool -- ^ Discard states that are approximated by other states
     , hpc :: Bool -- ^ Should HPC ticks be generated and tracked during execution?
     , hpc_discard_strat :: Bool -- ^ Discard states that cannot reach any new HPC ticks
@@ -175,7 +174,6 @@ mkConfig homedir = Config Regular
     <*> switch (long "states-at-step" <> help "output step and number of states at each step where a state is added/removed")
     <*> switch (long "print-num-red-rules" <> help "output the total number of reduction rules")
     <*> switch (long "print-num-red-rules-per-state" <> help "output the number of reduction rules per accepted state")
-    <*> switch (long "print-nrpc" <> help "output generated nrpcs")
     <*> flag False True (long "approx-discard"
                       <> help "Discard states that are approximated by other states")
     <*> flag False True (long "hpc"
@@ -323,7 +321,6 @@ mkConfigDirect homedir as m = Config {
     , states_at_step = False
     , print_num_red_rules = False
     , print_num_red_rules_per_state = False
-    , print_nrpcs = False
     , approx_discard = False
     , hpc = False
     , hpc_discard_strat = False

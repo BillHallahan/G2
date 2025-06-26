@@ -1,13 +1,15 @@
-{-# LANGUAGE DeriveDataTypeable, DeriveGeneric, MultiParamTypeClasses, PatternSynonyms, ViewPatterns #-}
+{-# LANGUAGE BangPatterns, DeriveDataTypeable, DeriveGeneric, MultiParamTypeClasses, OverloadedStrings, PatternSynonyms, ViewPatterns #-}
 
 module G2.Language.NonRedPathConds ( NonRedPathConds
+                                   , NRPC (..)
                                    , emptyNRPC
                                    , addNRPC
                                    , getNRPC
                                    , toListNRPC
                                    , minIndexNRPC
                                    , maxIndexNRPC
-                                   , pattern (:*>)) where
+                                   , pattern (:*>)
+                                   , toListInternalNRPC) where
 
 import G2.Language.AST
 import G2.Language.Naming
@@ -16,23 +18,10 @@ import G2.Language.Syntax
 import Data.Data (Data, Typeable)
 import qualified Data.Foldable as F
 import Data.Hashable
-import Data.IORef
 import Data.Sequence
 import GHC.Generics (Generic)
-import System.IO.Unsafe
 
--- Used to give NRPCs unique and increasing identifiers
-nrpcIndexIORef :: IORef Int
-nrpcIndexIORef = unsafePerformIO $ newIORef 0
-{-# NOINLINE nrpcIndexIORef #-}
-
-getIndex :: Int
-getIndex = unsafePerformIO $ do
-    i <- readIORef nrpcIndexIORef
-    modifyIORef' nrpcIndexIORef (+ 1)
-    return i
-
-data NRPC = NRPC { nrpc_index :: Int, expr1 :: Expr, expr2 :: Expr } deriving (Show, Eq, Read, Generic, Typeable, Data)
+data NRPC = NRPC { nrpc_index :: !Int, expr1 :: Expr, expr2 :: Expr } deriving (Show, Eq, Read, Generic, Typeable, Data)
 
 instance Hashable NRPC
 
@@ -40,11 +29,15 @@ newtype NonRedPathConds = NRPCs { nrpcs :: Seq NRPC } deriving (Show, Eq, Read, 
 
 instance Hashable NonRedPathConds
 
+
 emptyNRPC :: NonRedPathConds
 emptyNRPC = NRPCs Empty
 
-addNRPC :: Expr -> Expr -> NonRedPathConds -> NonRedPathConds
-addNRPC e1 e2 (NRPCs nrpc) = NRPCs (nrpc :|> NRPC { nrpc_index = getIndex, expr1 = e1, expr2 = e2 })
+addNRPC :: NameGen -> Expr -> Expr -> NonRedPathConds -> (NameGen, NonRedPathConds)
+addNRPC ng e1 e2 (NRPCs nrpc) =
+    -- We use the NameGen as a source of increasing numbers
+    let (Name _ _ i _, ng') = freshSeededName (Name "NRPC" Nothing 0 Nothing) ng in
+    (ng', NRPCs (nrpc :|> NRPC { nrpc_index = i, expr1 = e1, expr2 = e2 }))
 
 getNRPC :: NonRedPathConds -> Maybe ((Expr, Expr), NonRedPathConds)
 getNRPC (NRPCs Empty) = Nothing
@@ -58,6 +51,9 @@ minIndexNRPC = minimum . (-1 :<| ) . fmap nrpc_index . nrpcs
 
 maxIndexNRPC :: NonRedPathConds -> Int
 maxIndexNRPC = maximum . (-1 :<| )  . fmap nrpc_index . nrpcs
+
+toListInternalNRPC :: NonRedPathConds -> [NRPC]
+toListInternalNRPC = F.toList . nrpcs
 
 pattern (:*>) :: (Expr, Expr) -> NonRedPathConds -> NonRedPathConds
 pattern e1_e2 :*> nrpc <- (getNRPC -> Just (e1_e2, nrpc))
