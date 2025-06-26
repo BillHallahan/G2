@@ -1702,8 +1702,8 @@ approximationHalter' stop_cond solver no_inline = mkSimpleHalter
                 if isJust approx && stop_cond pr s
                     then do
                         liftIO $ do
-                            putStrLn $ "log_path s = " ++ show (log_path s) ++ " " ++ show (num_steps s)
-                            putStrLn $ "log_path approx = " ++ show (log_path $ fromJust approx) ++ " " ++ show (num_steps $ fromJust approx)
+                            putStrLn $ "    !!! log_path s = " ++ show (log_path s) ++ " " ++ show (num_steps s)
+                            putStrLn $ "    !!! log_path approx = " ++ show (log_path $ fromJust approx) ++ " " ++ show (num_steps $ fromJust approx)
                         return Discard
                     else do 
                         -- liftIO . putStrLn $ "modifying with " ++ show (log_path s')
