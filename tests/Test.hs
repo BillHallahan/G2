@@ -353,7 +353,7 @@ testFileTests = testGroup "TestFiles"
                                                               , ("elem1", 1000, [AtLeast 5])
                                                               , ("notElem1", 1000, [AtLeast 5])
                                                               , ("elemIndex1", 1000, [AtLeast 5])
-                                                              
+
                                                               , ("strGt", 1000, [AtLeast 5])
                                                               , ("strGe", 1000, [AtLeast 5])
                                                               , ("strLt", 1000, [AtLeast 5])
@@ -362,7 +362,12 @@ testFileTests = testGroup "TestFiles"
                                                               , ("max1", 1000, [AtLeast 5])
                                                               , ("max2", 1000, [AtLeast 5])
                                                               , ("min1", 1000, [AtLeast 5])
-                                                              , ("min2", 1000, [AtLeast 5]) ]
+                                                              , ("min2", 1000, [AtLeast 5])
+                                                              
+                                                              , ("delete1", 2500, [AtLeast 10]) 
+                                                              , ("stripPrefix1", 1000, [AtLeast 5])
+                                                              , ("stripPrefix2", 1000, [AtLeast 10]) ]
+
     , checkInputOutputsSMTStrings "tests/TestFiles/Strings/Strings1.hs"
                                         [ ("con", 1000, [Exactly 1])
                                         , ("appendEq", 1000, [Exactly 1])
@@ -397,7 +402,11 @@ testFileTests = testGroup "TestFiles"
                                         , ("max1", 5000, [Exactly 1]) 
                                         , ("max2", 5000, [Exactly 4])
                                         , ("min1", 5000, [Exactly 1]) 
-                                        , ("min2", 5000, [Exactly 4]) ]
+                                        , ("min2", 5000, [Exactly 4])
+
+                                        , ("delete1", 5000, [Exactly 3])
+                                        , ("stripPrefix1", 1000, [Exactly 2])
+                                        , ("stripPrefix2", 1000, [Exactly 5]) ]
 
     , checkExpr "tests/TestFiles/Strings/Strings1.hs" 1000 "exclaimEq"
         [AtLeast 5, RExists (\[_, _, r] -> dcHasName "True" r)]
