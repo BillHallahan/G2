@@ -1681,17 +1681,15 @@ approximationHalter' stop_cond solver no_inline = mkSimpleHalter
         stop _ pr s
             | maybe True (allowed_frame . fst) (Stck.pop (exec_stack s))
             
-            , s'@(State { curr_expr = CurrExpr Evaluate e}) <- stateAdjStack s
-            -- , Stck.null (exec_stack s')
-            , Var _:_:_ <- stripAllTicks $ unApp e 
+            , s'@(State { curr_expr = CurrExpr er e}) <- stateAdjStack s
+            , Stck.null (exec_stack s')
+            , allowed_expr er $ unApp e 
 
             , not . isTyFun . typeOf $ e = do
                 liftIO $ do
                     putStrLn $ "approx halter log_path s = " ++ show (log_path s) ++ " " ++ show (num_steps s)
-                    putStrLn $ "curr_expr s = " ++ show (curr_expr s')
-                    putStrLn $ "stack s = " ++ show (exec_stack s')
                 xs <- SM.gets ap_halter_states
-                let xs' = filter (\x -> num_steps x < num_steps s') xs
+                -- let xs' = filter (\x -> num_steps x < num_steps s') xs
                 approx <- liftIO $ findM (\prev -> moreRestrictiveIncludingPCAndNRPC
                                                         solver
                                                         mr_cont
@@ -1700,13 +1698,16 @@ approximationHalter' stop_cond solver no_inline = mkSimpleHalter
                                                         no_inline
                                                         prev
                                                         s'
-                                                ) xs'
+                                                ) xs
                 if isJust approx && stop_cond pr s
                     then do liftIO $ do
                                 putStrLn $ "log_path s = " ++ show (log_path s) ++ " " ++ show (num_steps s)
                                 putStrLn $ "log_path approx = " ++ show (log_path $ fromJust approx) ++ " " ++ show (num_steps $ fromJust approx)
                                 return Discard
-                    else do SM.modify ((\ap -> ap { ap_halter_states = s':xs })); return Continue
+                    else do 
+                        liftIO . putStrLn $ "modifying with " ++ show (log_path s')
+                        SM.modify ((\ap -> ap { ap_halter_states = s':xs }))
+                        return Continue
         -- stop _ _ s | log_path s == [1, 1, 1, 1]
         --            , num_steps s == 103
         --            , s'@(State { curr_expr = CurrExpr _ e}) <- stateAdjStack s = error $
@@ -1723,6 +1724,10 @@ approximationHalter' stop_cond solver no_inline = mkSimpleHalter
                 ++ "\nlog_path s2 = " ++ show (log_path s2) ++ " " ++ show (num_steps s2)
                 ++ "\ne1 = " ++ show e1 ++ "\ne2 = " ++ show e2)
             (e1, e2)
+
+        allowed_expr Evaluate (Var _:_:_) = True
+        allowed_expr Return (Data _:_) = True
+        allowed_expr _ _ = False
 
         allowed_frame (ApplyFrame _) = False
         allowed_frame (UpdateFrame _) = False

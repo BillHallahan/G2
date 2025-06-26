@@ -47,7 +47,8 @@ toListNRPC :: NonRedPathConds -> [(Expr, Expr)]
 toListNRPC (NRPCs nrpc) = map (\n -> (expr1 n, expr2 n)) $ F.toList nrpc
 
 minIndexNRPC :: NonRedPathConds -> Int
-minIndexNRPC = minimum . (-1 :<| ) . fmap nrpc_index . nrpcs
+minIndexNRPC (NRPCs Empty) = -1
+minIndexNRPC (NRPCs nrpc) = minimum . fmap nrpc_index $ nrpc
 
 maxIndexNRPC :: NonRedPathConds -> Int
 maxIndexNRPC = maximum . (-1 :<| )  . fmap nrpc_index . nrpcs
