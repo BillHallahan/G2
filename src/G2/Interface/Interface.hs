@@ -253,7 +253,7 @@ initCheckReaches s@(State { expr_env = eenv
                           , known_values = kv }) m_mod reaches =
     s {expr_env = checkReaches eenv kv reaches m_mod }
 
-type RHOStack m t = SM.StateT [State t]
+type RHOStack m t = SM.StateT (ApproxPrevs t)
                         (SM.StateT LengthNTrack
                             (SM.StateT PrettyGuide
                                 (SM.StateT HpcTracker
@@ -364,7 +364,7 @@ initRedHaltOrd s mod_name solver simplifier config exec_func_names no_nrpc_names
 
         halter_approx_discard = case approx_discard config of
                                     True ->
-                                        SomeHalter (hpcApproximationHalter solver approx_no_inline) .<~> halter_hpc_discard
+                                        SomeHalter (approximationHalter solver approx_no_inline) .<~> halter_hpc_discard
                                     False -> halter_hpc_discard
 
         orderer = case search_strat config of
@@ -532,7 +532,7 @@ runG2WithConfig entry_f mb_modname state@(State { expr_env = eenv }) config bind
                                 (SM.evalStateT
                                     (SM.evalStateT
                                         (runG2WithSomes' red hal ord [] solver simplifier state' bindings')
-                                        []
+                                        emptyApproxPrevs
                                     )
                                     lnt
                                 )
@@ -555,7 +555,7 @@ runG2WithConfig entry_f mb_modname state@(State { expr_env = eenv }) config bind
                                         (SM.evalStateT
                                             (SM.evalStateT
                                                 (runG2WithSomes' red hal ord analysis solver simplifier state' bindings')
-                                                []
+                                                emptyApproxPrevs
                                             )
                                             lnt
                                         )

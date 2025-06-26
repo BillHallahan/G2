@@ -2,6 +2,7 @@ module G2.Language.Approximation ( GenerateLemma
                                  , Lookup
                                  , MRCont
                                  
+                                 , moreRestrictiveIncludingPCAndNRPC
                                  , moreRestrictiveIncludingPC
                                  , moreRestrictive
                                  , moreRestrictive'
@@ -63,6 +64,26 @@ type MRCont t l =  State t
 -- the opposite side is not the same as it was when a previous inlining of the
 -- same variable happened.
 -------------------------------------------------------------------------------
+
+-- | Check is s1 is an approximation of s2 (if s2 is more restrictive than s1.)
+moreRestrictiveIncludingPCAndNRPC :: S.Solver solver =>
+                   solver
+                -> MRCont t l -- ^ For special case handling - what to do if we don't match elsewhere in moreRestrictive
+                -> GenerateLemma t l
+                -> Lookup t -- ^ How to lookup variable names
+                -> HS.HashSet Name -- ^ Names that should not be inlined (often: top level names from the original source code)
+                -> State t -- ^ State 1
+                -> State t -- ^ State 2
+                -> IO Bool
+moreRestrictiveIncludingPCAndNRPC solver mr_cont gen_lemma lkp ns s1 s2  = do
+    let mr = moreRestrictive' mr_cont gen_lemma lkp s1 s2 ns (HM.empty, HS.empty) True [] [] (getExpr s1) (getExpr s2)
+    case mr of
+        Left _ -> return False
+        Right hm -> do
+          let mr' = moreRestrictiveNRPC mr_cont gen_lemma lkp s1 s2 ns hm (non_red_path_conds s1) (non_red_path_conds s2)
+          case mr' of
+            Left _ -> return False
+            Right (sym_var_map, expr_pairs) -> moreRestrictivePC solver s1 s2 sym_var_map expr_pairs
 
 -- | Check is s1 is an approximation of s2 (if s2 is more restrictive than s1.)
 moreRestrictiveIncludingPC :: S.Solver solver =>
@@ -277,6 +298,42 @@ moreRestrictiveAlt mr_cont gen_lemma lkp s1 s2 ns hm active n1 n2 (Alt am1 e1) (
                     in moreRestrictive' mr_cont gen_lemma lkp s1 s2 ns' hm active n1 n2 e1 e2
     _ -> moreRestrictive' mr_cont gen_lemma lkp s1 s2 ns hm active n1 n2 e1 e2
   else Left []
+
+moreRestrictiveNRPC :: MRCont t l
+                    -> GenerateLemma t l
+                    -> Lookup t
+                    -> State t
+                    -> State t
+                    -> HS.HashSet Name
+                    -> (HM.HashMap Id Expr, HS.HashSet (Expr, Expr))
+                    -> NonRedPathConds
+                    -> NonRedPathConds
+                    -> Either [l] (HM.HashMap Id Expr, HS.HashSet (Expr, Expr))
+moreRestrictiveNRPC mr_cont gen_lemma lkp s1 s2 ns init_hm nrpc1 nrpc2 = matchNRPCs init_hm (toListNRPC nrpc1) (toListNRPC nrpc2)
+  where
+    matchNRPCs hm [] _ = Right hm
+    matchNRPCs hm ((eL_1, eR_1):ns1) ns2 = do
+        let m_match_rest = selectJust
+                              (\(eL_2, eR_2) -> do
+                                    hm' <- moreRestrictiveMaybe hm eL_1 eL_2
+                                    moreRestrictiveMaybe hm' eR_1 eR_2)
+                           ns2
+        case trace ("s1 = " ++ show (log_path s1) ++
+                      "\ns2 = " ++ show (log_path s2) ++
+                      "\nm_match_rest = " ++ show m_match_rest) m_match_rest of
+          Just (hm', rest) -> matchNRPCs hm' ns1 rest
+          Nothing -> Left []
+
+    moreRestrictiveMaybe hm e1 e2 =
+      case moreRestrictive' mr_cont gen_lemma lkp s1 s2 ns hm True [] [] e1 e2 of
+        Left _ -> Nothing
+        Right v -> Just v
+
+selectJust :: (a -> Maybe b) -> [a] -> Maybe (b, [a])
+selectJust p = sel []
+  where
+    sel _ [] = Nothing
+    sel pre (x:xs) = maybe (sel (x:pre) xs) (\r' -> Just (r', reverse pre ++ xs)) (p x)
 
 -- s1 is old state, s2 is new state
 -- only apply to old-new state pairs for which moreRestrictive' works

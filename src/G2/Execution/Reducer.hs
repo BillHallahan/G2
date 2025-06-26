@@ -61,6 +61,9 @@ module G2.Execution.Reducer ( Reducer (..)
                             , nonRedPCRed
                             , nonRedPCRedNoPrune
                             , nonRedPCRedConst
+
+                            , ApproxPrevs
+                            , emptyApproxPrevs
                             , nrpcApproxReducer
                             , strictRed
                             , taggerRed
@@ -753,9 +756,14 @@ nonRedHigherOrderFunc
 
                 stck = Stck.singleton $ CurrExprFrame NoAction (CurrExpr Return $ Prim UnspecifiedOutput TyBottom)
 
+data ApproxPrevs t = AP { ap_nrpc_states :: [State t], ap_halter_states :: [State t]}
+
+emptyApproxPrevs :: ApproxPrevs t
+emptyApproxPrevs = AP { ap_nrpc_states = [], ap_halter_states = [] }
+
 -- | When a newly reached function application is approximated by a previously seen (and thus explored) function application,
 -- shift the new function application into the NRPCs.
-nrpcApproxReducer :: (Solver solver, SM.MonadState [State t] m, MonadIO m) =>
+nrpcApproxReducer :: (Solver solver, SM.MonadState (ApproxPrevs t) m, MonadIO m) =>
                      solver
                   -> HS.HashSet Name -- ^ Names of functions that should not be approximated
                   -> HS.HashSet Name -- ^ Names that should not be inlined (often: top level names from the original source code)
@@ -786,7 +794,7 @@ nrpcApproxReducer solver no_inline no_nrpc_names config =
                 --     putStrLn $ "log_path s = " ++ show (log_path s)
                 --     putStrLn $ "num_steps s = " ++ show (num_steps s)
                 let s' = s { curr_expr = CurrExpr Evaluate e, exec_stack = Stck.empty }
-                xs <- SM.get
+                xs <- SM.gets ap_nrpc_states
                 approx <- liftIO $ findM (\prev -> do
                                             -- liftIO $ do
                                             --      putStrLn $ "curr_expr s = " ++ show (getExpr s)
@@ -806,7 +814,7 @@ nrpcApproxReducer solver no_inline no_nrpc_names config =
 
                 case nr_s_ng of
                     Just (nr_s, _, ng') | isJust approx -> return (Finished, [(nr_s, rv + 1)], b { name_gen = ng' })
-                    _ -> do SM.modify (s':); return (Finished, [(s, rv)], b)
+                    _ -> do SM.modify (\ap -> ap { ap_nrpc_states = s':xs }); return (Finished, [(s, rv)], b)
             | Tick nl (Var (Id n _)) <- ce
             , nl == nonRedBlockerTickNL
             , Just e <- E.lookup n eenv = return (Finished, [(s { curr_expr = CurrExpr Evaluate e }, rv)], b)
@@ -1637,22 +1645,28 @@ varLookupLimitHalter lim = mkSimpleHalter
         step l _ _ (State { curr_expr = CurrExpr Evaluate (Var _) }) = l - 1
         step l _ _ _ = l
 
-hpcApproximationHalter :: (Solver solver, SM.MonadState [State t] m, MonadIO m) =>
+hpcApproximationHalter :: (Solver solver, SM.MonadState (ApproxPrevs t) m, MonadIO m) =>
                           solver
                        -> HS.HashSet Name -- ^ Names that should not be inlined (often: top level names from the original source code)
                        -> Halter m () (ExecRes  t) t
-hpcApproximationHalter = approximationHalter stop_cond
+hpcApproximationHalter = approximationHalter' stop_cond
     where
         stop_cond pr s =
             let acc_seen_hpc = HS.unions (map (reached_hpc . final_state) $ accepted pr) in
             HS.null $ HS.difference (reached_hpc s) acc_seen_hpc
 
-approximationHalter :: (Solver solver, SM.MonadState [State t] m, MonadIO m) =>
-                       (Processed r (State t) -> State t -> Bool) -- ^ Approximated states are discarded only if they match this condition
-                    -> solver
+approximationHalter :: (Solver solver, SM.MonadState(ApproxPrevs t) m, MonadIO m) =>
+                       solver
                     -> HS.HashSet Name -- ^ Names that should not be inlined (often: top level names from the original source code)
                     -> Halter m () r t
-approximationHalter stop_cond solver no_inline = mkSimpleHalter
+approximationHalter = approximationHalter' (\_ _ -> True)
+
+approximationHalter' :: (Solver solver, SM.MonadState (ApproxPrevs t) m, MonadIO m) =>
+                        (Processed r (State t) -> State t -> Bool) -- ^ Approximated states are discarded only if they match this condition
+                     -> solver
+                     -> HS.HashSet Name -- ^ Names that should not be inlined (often: top level names from the original source code)
+                     -> Halter m () r t
+approximationHalter' stop_cond solver no_inline = mkSimpleHalter
                                                         (const ())
                                                         (\hv _ _ -> hv)
                                                         stop
@@ -1662,11 +1676,11 @@ approximationHalter stop_cond solver no_inline = mkSimpleHalter
             | maybe True (allowed_frame . fst) (Stck.pop (exec_stack s))
             
             , s'@(State { curr_expr = CurrExpr Evaluate e}) <- stateAdjStack s
-            , Var _:_:_ <- unApp e
+            , consideredExp e
 
             , not . isTyFun . typeOf $ e = do
-                xs <- SM.get
-                approx <- liftIO $ findM (\prev -> moreRestrictiveIncludingPC
+                xs <- SM.gets ap_halter_states
+                approx <- liftIO $ findM (\prev -> moreRestrictiveIncludingPCAndNRPC
                                                         solver
                                                         mr_cont
                                                         gen_lemma
@@ -1677,7 +1691,7 @@ approximationHalter stop_cond solver no_inline = mkSimpleHalter
                                                 ) xs
                 if isJust approx && stop_cond pr s
                     then return Discard
-                    else do SM.modify (s':); return Continue
+                    else do SM.modify ((\ap -> ap { ap_halter_states = s':xs })); return Continue
         stop _ _ _ = return Continue
         
         mr_cont _ _ _ _ _ _ _ _ _ = Left []
@@ -1685,6 +1699,10 @@ approximationHalter stop_cond solver no_inline = mkSimpleHalter
 
         allowed_frame (ApplyFrame _) = False
         allowed_frame _ = True
+
+        consideredExp e | Var _:_:_ <- unApp e = True
+                        | Data _:_ <- unApp e = True
+                        | otherwise = False
 
 type HPCMemoTable = HM.HashMap Name (HS.HashSet (Int, T.Text))
 
