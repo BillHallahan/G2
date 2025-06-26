@@ -23,6 +23,7 @@ import G2.Execution.NormalForms
 import G2.Language.Expr
 import qualified G2.Language.ExprEnv as E
 import G2.Language.Naming
+import G2.Language.NonRedPathConds
 import qualified G2.Language.PathConds as P
 import qualified G2.Language.Stack as Stck
 import G2.Language.Support
@@ -77,7 +78,10 @@ moreRestrictiveIncludingPCAndNRPC :: (Show l, S.Solver solver) =>
                 -> State t -- ^ State 1
                 -> State t -- ^ State 2
                 -> IO Bool
-moreRestrictiveIncludingPCAndNRPC solver mr_cont gen_lemma lkp ns s1 s2  = do
+moreRestrictiveIncludingPCAndNRPC solver mr_cont gen_lemma lkp ns s1 s2
+  | let max1 = maxIndexNRPC (non_red_path_conds s1)
+  , let min2 = minIndexNRPC (non_red_path_conds s2)
+  , max1 < min2 || max1 == -1 = do
     let mr = moreRestrictive' mr_cont gen_lemma lkp s1 s2 ns (HM.empty, HS.empty) True [] [] (getExpr s1) (getExpr s2)
     case mr of
         Left _ -> return False
@@ -86,6 +90,7 @@ moreRestrictiveIncludingPCAndNRPC solver mr_cont gen_lemma lkp ns s1 s2  = do
           case mr' of
             Left _ -> return False
             Right (sym_var_map, expr_pairs) -> moreRestrictivePC solver s1 s2 sym_var_map expr_pairs
+  | otherwise = return False
 
 -- | Check is s1 is an approximation of s2 (if s2 is more restrictive than s1.)
 moreRestrictiveIncludingPC :: S.Solver solver =>
