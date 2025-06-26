@@ -228,6 +228,27 @@ min2 x y | length x < 2 = (1, min x y)
          | x == y = (3, min x y)
          | otherwise = (4, min x y)
 
+delete1 :: Char -> String -> (Int, String)
+delete1 c s
+    | length s < 3 = (1, d)
+    | length d < length s = (2, d)
+    | otherwise = (3, d)
+    where
+        d = delete c s
+
+stripPrefix1 :: String -> String -> Maybe String
+stripPrefix1 = stripPrefix
+
+stripPrefix2 :: String -> String -> (Int, Maybe String)
+stripPrefix2 xs ys
+    | Just zs <- m_zs, length zs > 3 = (1, m_zs)
+    | Just zs <- m_zs, 2 < length xs - length zs = (2, m_zs)
+    | Nothing <- m_zs = (3, m_zs)
+    | length xs > 0 = (4, m_zs)
+    | otherwise = (5, m_zs)
+    where
+        m_zs = stripPrefix xs ys 
+
 isPrefixOf1 :: String -> String -> (Int, Bool)
 isPrefixOf1 s1 s2
     | length s1 < 3 = (1, p)

@@ -121,6 +121,7 @@ data SMTAST = (:>=) !SMTAST !SMTAST
             | (:!!) !SMTAST !SMTAST -- ^ String index
             | StrSubstrSMT !SMTAST !SMTAST !SMTAST
             | StrIndexOfSMT !SMTAST !SMTAST !SMTAST
+            | StrReplaceSMT !SMTAST !SMTAST !SMTAST
             | StrPrefixOfSMT !SMTAST !SMTAST
             | StrSuffixOfSMT !SMTAST !SMTAST
 
