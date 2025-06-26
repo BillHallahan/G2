@@ -1686,8 +1686,8 @@ approximationHalter' stop_cond solver no_inline = mkSimpleHalter
             , allowed_expr er $ unApp e 
 
             , not . isTyFun . typeOf $ e = do
-                liftIO $ do
-                    putStrLn $ "approx halter log_path s = " ++ show (log_path s) ++ " " ++ show (num_steps s)
+                -- liftIO $ do
+                --     putStrLn $ "approx halter log_path s = " ++ show (log_path s) ++ " " ++ show (num_steps s)
                 xs <- SM.gets ap_halter_states
                 -- let xs' = filter (\x -> num_steps x < num_steps s') xs
                 approx <- liftIO $ findM (\prev -> moreRestrictiveIncludingPCAndNRPC
@@ -1700,12 +1700,13 @@ approximationHalter' stop_cond solver no_inline = mkSimpleHalter
                                                         s'
                                                 ) xs
                 if isJust approx && stop_cond pr s
-                    then do liftIO $ do
-                                putStrLn $ "log_path s = " ++ show (log_path s) ++ " " ++ show (num_steps s)
-                                putStrLn $ "log_path approx = " ++ show (log_path $ fromJust approx) ++ " " ++ show (num_steps $ fromJust approx)
-                                return Discard
+                    then do
+                        liftIO $ do
+                            putStrLn $ "log_path s = " ++ show (log_path s) ++ " " ++ show (num_steps s)
+                            putStrLn $ "log_path approx = " ++ show (log_path $ fromJust approx) ++ " " ++ show (num_steps $ fromJust approx)
+                        return Discard
                     else do 
-                        liftIO . putStrLn $ "modifying with " ++ show (log_path s')
+                        -- liftIO . putStrLn $ "modifying with " ++ show (log_path s')
                         SM.modify ((\ap -> ap { ap_halter_states = s':xs }))
                         return Continue
         -- stop _ _ s | log_path s == [1, 1, 1, 1]
@@ -1720,9 +1721,9 @@ approximationHalter' stop_cond solver no_inline = mkSimpleHalter
         -- mr_cont _ _ _ _ _ _ _ _ _ = Left []
         mr_cont = mrContIgnoreNRPCTicks gen_lemma lookupConcOrSymState
         gen_lemma s1 s2 _ e1 e2 =
-            trace ("log_path s1 = " ++ show (log_path s1) ++ " " ++ show (num_steps s1)
-                ++ "\nlog_path s2 = " ++ show (log_path s2) ++ " " ++ show (num_steps s2)
-                ++ "\ne1 = " ++ show e1 ++ "\ne2 = " ++ show e2)
+            -- trace ("log_path s1 = " ++ show (log_path s1) ++ " " ++ show (num_steps s1)
+            --     ++ "\nlog_path s2 = " ++ show (log_path s2) ++ " " ++ show (num_steps s2)
+            --     ++ "\ne1 = " ++ show e1 ++ "\ne2 = " ++ show e2)
             (e1, e2)
 
         allowed_expr Evaluate (Var _:_:_) = True
