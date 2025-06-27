@@ -490,6 +490,14 @@ evalPrimADT1 :: KnownValues -> Primitive -> Expr -> Maybe Expr
 evalPrimADT1 kv Not (Data (DataCon { dc_name = b })) | b == KV.dcTrue kv = Just (mkFalse kv)
                                                      | b == KV.dcFalse kv = Just (mkTrue kv)
 
+evalPrimADT1 kv StrLen e = fmap (Lit . LitInt) (compLen e)
+    where
+        -- [] @Char
+        compLen (App (Data dc) _ {- type -}) = assert (KV.dcEmpty kv == dcName dc) Just 0
+        -- (:) @Char head tail
+        compLen (App (App (App (Data dc) _ {- type -}) _ {- char -}) xs) = assert (KV.dcCons kv == dcName dc) fmap (+ 1) (compLen xs)
+        compLen _ = Nothing
+
 evalPrimADT1 _ _ _ = Nothing
 
 evalPrim2 :: KnownValues -> Primitive -> Lit -> Lit -> Maybe Expr
