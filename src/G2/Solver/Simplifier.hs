@@ -96,7 +96,7 @@ data ConstSimplifier = ConstSimplifier
 
 instance Simplifier ConstSimplifier where 
     simplifyPC _ _ pc = [pc]
-    simplifyPCs _ s _ = PC.map (evalPrims (type_env s) (known_values s))
+    simplifyPCs _ s _ = PC.map (evalPrims (expr_env s) (type_env s) (known_values s))
         
 
     reverseSimplification _ _ _ m = m
