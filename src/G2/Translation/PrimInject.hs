@@ -11,11 +11,11 @@ module G2.Translation.PrimInject
     ) where
 
 import G2.Language.AST
+import G2.Language.Expr
 import G2.Language.Naming
 import G2.Language.Support
 import G2.Language.Syntax
 import G2.Language.Typing
-import G2.Language.TypeEnv
 
 import qualified Data.HashMap.Lazy as HM
 import Data.List
@@ -174,6 +174,48 @@ primDefs' b c l unit =
               , ("g2SetPos'", Prim HandleSetPos (TyFun strTy (TyFun TyUnknown (TyCon unit TYPE))))
               , ("g2PutChar'", Prim HandlePutChar (TyFun (TyCon c TYPE) (TyFun TyUnknown (TyCon unit TYPE))))
 
+              , ("strLen#", Lam TypeL (x TYPE) . Lam TermL (y strTy) $ App (Prim StrLen (TyFun strTy TyLitInt)) (Var $ y strTy))
+              , ("strAppend#", Lam TypeL (x TYPE) . Lam TermL (y strTy) . Lam TermL (z strTy)
+                                  $ App 
+                                      (App 
+                                          (Prim StrAppend ((TyFun strTy) $ TyFun strTy strTy))
+                                          (Var $ y strTy))
+                                      (Var $ z strTy))
+              , ("strAt#", Lam TypeL (x TYPE) . Lam TermL (y strTy) . Lam TermL (z TyLitInt)
+                            $ App 
+                                (App 
+                                    (Prim StrAt ((TyFun strTy) $ TyFun TyLitInt strTy))
+                                    (Var $ y strTy))
+                                (Var $ z TyLitInt))
+              , ("strSubstr#", Lam TypeL (x TYPE) . Lam TermL (y strTy) . Lam TermL (z TyLitInt) . Lam TermL ((dummyId "q") TyLitInt)
+                            $ App
+                                (App
+                                    (App
+                                        (Prim StrSubstr (TyFun strTy (TyFun TyLitInt (TyFun TyLitInt strTy))))
+                                        (Var $ y strTy))
+                                    (Var $ z TyLitInt))
+                                (Var $ (dummyId "q") TyLitInt))
+              , ("strEq#", strStrBool Eq)
+              , ("strLt#", strStrBool StrLt)
+              , ("strLe#", strStrBool StrLe)
+              , ("strGt#", strStrBool StrGt)
+              , ("strGe#", strStrBool StrGe)
+              , ("strIndexOf#", Lam TypeL (x TYPE) . Lam TermL (y strTy) . Lam TermL (z TyLitInt) . Lam TermL ((dummyId "q") TyLitInt)
+                            $ App
+                                (App
+                                    (App
+                                        (Prim StrIndexOf (TyFun strTy (TyFun strTy (TyFun TyLitInt TyLitInt))))
+                                        (Var $ y strTy))
+                                    (Var $ z strTy))
+                                (Var $ (dummyId "q") TyLitInt))
+              , ("strReplace#", Lam TypeL (x TYPE) . Lam TermL (y strTy) . Lam TermL (z strTy) . Lam TermL ((dummyId "q") strTy)
+                            $ App
+                                (App
+                                    (App
+                                        (Prim StrReplace (TyFun strTy (TyFun strTy (TyFun strTy strTy))))
+                                        (Var $ y strTy))
+                                    (Var $ z strTy))
+                                (Var $ (dummyId "q") strTy))
               , ("intToString#", Prim IntToString (TyFun TyLitInt strTy))
 
               , ("newMutVar##", Prim NewMutVar (TyForAll a (TyForAll d (TyFun tyvarA (TyFun TyUnknown TyUnknown)))))
@@ -189,10 +231,30 @@ primDefs' b c l unit =
               , ("succError", Prim Error TyBottom)
               , ("toEnumError", Prim Error TyBottom)
               , ("ratioZeroDenominatorError", Prim Error TyBottom)
-              , ("undefined", Prim Error TyBottom) ]
+              , ("undefined", Prim Error TyBottom)
+
+              , ("ite", Lam TypeL a . Lam TermL (z $ TyCon b TYPE) . Lam TermL (x (TyVar a)) . Lam TermL (y (TyVar a))
+                            $ Case (Var (z $ TyCon b TYPE))
+                                   (binder $ TyCon b TYPE)
+                                   (TyVar a)
+                                   [Alt Default $
+                                        mkApp [ Prim Ite (TyFun (TyCon b TYPE) (TyFun tyvarA (TyFun tyvarA tyvarA)))
+                                                , Var . z $ TyCon b TYPE
+                                                , Var $ x (TyVar a)
+                                                , Var $ y (TyVar a)]])
+              
+              , ("isSMTRep#", Prim IsSMTRep (TyForAll a (TyFun (TyVar a) (TyCon b TYPE))))
+              , ("typeIndex#", Prim TypeIndex (TyForAll a (TyFun (TyVar a) TyLitInt))) ]
               where
                     strTy = (TyApp (TyCon l (TyFun TYPE TYPE)) (TyCon c TYPE))
 
+                    strStrBool op = 
+                        Lam TypeL (x TYPE) . Lam TermL (y strTy) . Lam TermL (z strTy)
+                            $ App 
+                                (App
+                                    (Prim op ((TyFun strTy) $ TyFun strTy (TyCon b TYPE)))
+                                    (Var $ y strTy))
+                                (Var $ z strTy)
 a :: Id
 a = Id (Name "a" Nothing 0 Nothing) TYPE
 
@@ -207,6 +269,12 @@ x = Id (Name "x" Nothing 0 Nothing)
 
 y :: Type -> Id
 y = Id (Name "y" Nothing 0 Nothing)
+
+z :: Type -> Id
+z = Id (Name "z" Nothing 0 Nothing)
+
+dummyId :: T.Text -> Type -> Id
+dummyId name = Id (Name name Nothing 0 Nothing) 
 
 binder :: Type -> Id
 binder = Id (Name "b" Nothing 0 Nothing)

@@ -7,6 +7,7 @@ module G2.Config.Config ( Mode (..)
                         , HigherOrderSolver (..)
                         , FpHandling (..)
                         , NonRedPathCons (..)
+                        , SMTStrings (..)
                         , IncludePath
                         , Config (..)
                         , BoolDef (..)
@@ -59,6 +60,8 @@ data FpHandling = RealFP | RationalFP deriving (Eq, Show, Read)
 
 data NonRedPathCons = Nrpc | NoNrpc deriving (Eq, Show, Read)
 
+data SMTStrings = UseSMTStrings | NoSMTStrings deriving (Eq, Show, Read)
+
 type IncludePath = FilePath
 
 data Config = Config {
@@ -86,6 +89,7 @@ data Config = Config {
     , subpath_length :: Int -- ^ When using subpath search strategy, the length of the subpaths.
     , fp_handling :: FpHandling -- ^ Whether to use real floating point values or rationals
     , smt :: SMTSolver -- ^ Sets the SMT solver to solve constraints with
+    , smt_strings :: SMTStrings -- ^ Sets whether the SMT solver should be used to solve string constraints
     , step_limit :: Bool -- ^ Should steps be limited when running states?
     , steps :: Int -- ^ How many steps to take when running States
     , time_solving :: Bool -- ^ Output the amount of time spent checking/solving path constraints
@@ -105,9 +109,10 @@ data Config = Config {
     , timeLimit :: Int -- ^ Seconds
     , validate :: Bool -- ^ If True, run on G2's input, and check against expected output.
     , measure_coverage :: Bool -- ^ Use HPC to measure code coverage
-    , nrpc :: NonRedPathCons -- ^ Whether to execute using non reduced path constraints or not
-    , symbolic_func_nrpc :: Bool -- ^ If true, use NRPCs with symbolic functions
+    , lib_nrpc :: NonRedPathCons -- ^ Whether to use NRPCs for library functions or not
+    , symbolic_func_nrpc :: NonRedPathCons -- ^ Whether to use NRPCs for symbolic functions or not
     , print_num_nrpc :: Bool -- ^ Output the number of NRPCs for each accepted state
+    , print_num_post_call_func_arg :: Bool -- ^ Output the number of post call and function argument states
 }
 
 mkConfig :: String -> Parser Config
@@ -152,6 +157,7 @@ mkConfig homedir = Config Regular
     <*> flag RealFP RationalFP (long "no-real-floats"
                                 <> help "Represent floating point values precisely.  When off, overapproximate as rationals.")
     <*> mkSMTSolver
+    <*> flag NoSMTStrings UseSMTStrings (long "smt-strings" <> help "Sets whether the SMT solver should be used to solve string constraints")
     <*> flag True False (long "no-step-limit" <> help "disable step limit")
     <*> option auto (long "n"
                    <> metavar "N"
@@ -178,9 +184,10 @@ mkConfig homedir = Config Regular
                    <> help "time limit, in seconds")
     <*> switch (long "validate" <> help "use GHC to automatically compile and run on generated inputs, and check that generated outputs are correct")
     <*> switch (long "measure-coverage" <> help "use HPC to measure code coverage")
-    <*> flag NoNrpc Nrpc (long "nrpc" <> help "execute with non reduced path constraints")
-    <*> flag False True (long "lib-nrpc" <> help "use NRPCs to delay execution of library functions")
+    <*> flag NoNrpc Nrpc (long "lib-nrpc" <> help "execute with non reduced path constraints")
+    <*> flag NoNrpc Nrpc (long "higher-nrpc" <> help "use NRPCs to delay execution of library functions")
     <*> flag False True (long "print-num-nrpc" <> help "output the number of NRPCs for each accepted state")
+    <*> flag False True (long "print-num-higher-states" <> help "output the number of post call and function argument states (from higher order coverage checking)")
 
 mkBaseInclude :: String -> Parser [IncludePath]
 mkBaseInclude homedir =
@@ -297,6 +304,7 @@ mkConfigDirect homedir as m = Config {
     , subpath_length = 4
     , fp_handling = RealFP
     , smt = strArg "smt" as m smtSolverArg ConZ3
+    , smt_strings = NoSMTStrings
     , step_limit = boolArg' "no-step-limit" as True True False
     , steps = strArg "n" as m read 1000
     , time_solving = False
@@ -316,9 +324,10 @@ mkConfigDirect homedir as m = Config {
     , timeLimit = strArg "time" as m read 300
     , validate  = boolArg "validate" as m Off
     , measure_coverage = False
-    , nrpc = NoNrpc
-    , symbolic_func_nrpc = False
+    , lib_nrpc = NoNrpc
+    , symbolic_func_nrpc = NoNrpc
     , print_num_nrpc = False
+    , print_num_post_call_func_arg = False
 }
 
 baseIncludeDef :: FilePath -> [FilePath]

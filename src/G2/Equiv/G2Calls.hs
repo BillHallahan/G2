@@ -91,7 +91,7 @@ rewriteRedHaltOrd solver simplifier h_opp track_opp config (NC { use_labeled_err
         Just logger -> logger .~> red             
         Nothing -> red                            
      , SomeHalter
-         (discardIfAcceptedTagHalter state_name
+         (discardIfAcceptedTagHalter True state_name
          <~> enforceProgressHalter
          <~> swhnfHalter
          <~> labeledErrorsHalter)

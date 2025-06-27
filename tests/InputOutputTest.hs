@@ -1,8 +1,9 @@
 {-# LANGUAGE OverloadedStrings #-}
 module InputOutputTest ( checkInputOutput
                        , checkInputOutputs
+                       , checkInputOutputsSMTStrings
                        , checkInputOutputsTemplate
-                       , checkInputOutputsNonRedTemp
+                       , checkInputOutputsNonRedHigher
                        , checkInputOutputsNonRedLib
                        , checkInputOutputsInstType ) where
 
@@ -36,6 +37,10 @@ checkInputOutputs :: FilePath -> [(String, Int, [Reqs String])] -> TestTree
 checkInputOutputs src tests = do
     checkInputOutput' mkConfigTestIO src tests
 
+checkInputOutputsSMTStrings :: FilePath -> [(String, Int, [Reqs String])] -> TestTree
+checkInputOutputsSMTStrings src tests = do
+    checkInputOutput' mkConfigTestWithSMTStringsIO src tests
+
 checkInputOutputsTemplate :: FilePath -> [(String, Int, [Reqs String])] -> TestTree
 checkInputOutputsTemplate src tests = do
     checkInputOutput'
@@ -43,17 +48,17 @@ checkInputOutputsTemplate src tests = do
         src
         tests
 
-checkInputOutputsNonRedTemp :: FilePath -> [(String, Int, [Reqs String])] -> TestTree
-checkInputOutputsNonRedTemp src tests = do
+checkInputOutputsNonRedHigher :: FilePath -> [(String, Int, [Reqs String])] -> TestTree
+checkInputOutputsNonRedHigher src tests = do
     checkInputOutput'
-        (do config <- mkConfigTestIO; return (config { higherOrderSolver = SymbolicFunc, nrpc = Nrpc }))
+        (do config <- mkConfigTestIO; return (config { higherOrderSolver = SymbolicFunc, symbolic_func_nrpc = Nrpc }))
         src
         tests
 
 checkInputOutputsNonRedLib :: FilePath -> [(String, Int, [Reqs String])] -> TestTree
 checkInputOutputsNonRedLib src tests = do
     checkInputOutput'
-        (do config <- mkConfigTestIO; return (config { nrpc = Nrpc }))
+        (do config <- mkConfigTestIO; return (config { lib_nrpc = Nrpc, search_strat = Subpath, higherOrderSolver = SymbolicFunc }))
         src
         tests
 
