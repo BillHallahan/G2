@@ -109,6 +109,8 @@ module G2.Execution.Reducer ( Reducer (..)
                             , HPCMemoTable
                             , noNewHPCHalter
                             , acceptOnlyNewHPC
+
+                            , TimedOut (..)
                             , stdTimerHalter
                             , timerHalter
 
@@ -167,6 +169,7 @@ import qualified Data.HashMap.Strict as HM
 import qualified Data.Map as M
 import Data.Maybe
 import Data.Monoid hiding (Alt)
+import Data.IORef
 import qualified Data.List as L 
 import qualified Data.Sequence as S
 import qualified Data.Text as T
@@ -1820,13 +1823,18 @@ acceptOnlyNewHPC h =
 --                       , stepHalter = stepHalter h
 --                       , updateHalterWithAll = updateHalterWithAll h }
 
+data TimedOut = NoTimeOut | TimedOut deriving (Eq, Show, Read)
+
 {-# INLINE stdTimerHalter #-}
-stdTimerHalter :: (MonadIO m, MonadIO m_run) => NominalDiffTime -> m (Halter m_run Int r t)
-stdTimerHalter ms = timerHalter ms Discard 10
+stdTimerHalter :: (MonadIO m, MonadIO m_run) => NominalDiffTime -> m (Halter m_run Int r t, IORef TimedOut)
+stdTimerHalter ms = do
+    io_timed_out <- liftIO $ newIORef NoTimeOut
+    th <- timerHalter io_timed_out ms Discard 10
+    return (th, io_timed_out)
 
 {-# INLINE timerHalter #-}
-timerHalter :: (MonadIO m, MonadIO m_run) => NominalDiffTime -> HaltC -> Int -> m (Halter m_run Int r t)
-timerHalter ms def ce = do
+timerHalter :: (MonadIO m, MonadIO m_run) => IORef TimedOut -> NominalDiffTime -> HaltC -> Int -> m (Halter m_run Int r t)
+timerHalter io_timed_out ms def ce = do
     curr <- liftIO $ getCurrentTime
     return $ mkSimpleHalter
                 (const 0)
@@ -1840,7 +1848,9 @@ timerHalter ms def ce = do
                 let diff = diffUTCTime curr it
 
                 if diff > ms
-                    then return def
+                    then do
+                        liftIO $ writeIORef io_timed_out TimedOut
+                        return def
                     else return Continue
             | otherwise = return Continue
 

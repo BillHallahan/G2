@@ -5,6 +5,7 @@
 module G2.Interface.Interface ( MkCurrExpr
                               , MkArgTypes
                               , IT.SimpleState
+                              , TimedOut (..)
                               , doTimeout
                               , maybeDoTimeout
 
@@ -73,6 +74,7 @@ import Control.Monad.IO.Class
 import qualified Control.Monad.State as SM
 import qualified Data.HashMap.Lazy as HM
 import qualified Data.HashSet as S
+import Data.IORef
 import Data.Maybe
 import Data.Monoid
 import qualified Data.Sequence as Seq
@@ -279,7 +281,10 @@ type RHOStack m t = SM.StateT (ApproxPrevs t)
                    -> Config
                    -> S.HashSet Name
                    -> S.HashSet Name
-                   -> IO (SomeReducer (RHOStack IO ()) (), SomeHalter (RHOStack IO ()) (ExecRes ()) (), SomeOrderer (RHOStack IO ()) (ExecRes ()) ())
+                   -> IO ( SomeReducer (RHOStack IO ()) ()
+                         , SomeHalter (RHOStack IO ()) (ExecRes ()) ()
+                         , SomeOrderer (RHOStack IO ()) (ExecRes ()) ()
+                         , IORef TimedOut)
     #-}
 initRedHaltOrd :: (MonadIO m, Solver solver, Simplifier simplifier) =>
                   State ()
@@ -290,10 +295,13 @@ initRedHaltOrd :: (MonadIO m, Solver solver, Simplifier simplifier) =>
                -> S.HashSet Name -- ^ Names of functions that may not be added to NRPCs
                -> S.HashSet Name -- ^ Names of functions that should not reesult in a larger expression become EXEC,
                                  -- but should not be added to the NRPC at the top level.
-               -> IO (SomeReducer (RHOStack m ()) (), SomeHalter (RHOStack m ()) (ExecRes ()) (), SomeOrderer (RHOStack m ()) (ExecRes ()) ())
+               -> IO ( SomeReducer (RHOStack m ()) ()
+                     , SomeHalter (RHOStack m ()) (ExecRes ()) ()
+                     , SomeOrderer (RHOStack m ()) (ExecRes ()) ()
+                     , IORef TimedOut)
 initRedHaltOrd s mod_name solver simplifier config exec_func_names no_nrpc_names = do
     time_logger <- acceptTimeLogger
-    time_halter <- stdTimerHalter (fromInteger . toInteger $ timeLimit config)
+    (time_halter, io_timed_out) <- stdTimerHalter (fromInteger . toInteger $ timeLimit config)
 
     m_logger <- fmap SomeReducer <$> getLimLogger config
 
@@ -376,15 +384,18 @@ initRedHaltOrd s mod_name solver simplifier config exec_func_names no_nrpc_names
             AllFuncs ->
                 ( nrpc_approx_red retReplaceSymbFuncVar .== Finished .--> SomeReducer nonRedPCRed
                 , SomeHalter (discardIfAcceptedTagHalter True state_name) .<~> halter_approx_discard
-                , orderer)
+                , orderer
+                , io_timed_out)
             SingleFunc ->
                 ( nrpc_approx_red retReplaceSymbFuncVar .== Finished .--> taggerRed state_name :== Finished --> nonRedPCRed
                 , SomeHalter (discardIfAcceptedTagHalter True state_name) .<~> halter_approx_discard
-                , orderer)
+                , orderer
+                , io_timed_out)
             SymbolicFunc ->
                 ( nrpc_approx_red retReplaceSymbFuncTemplate .== Finished .--> taggerRed state_name :== Finished --> nonRedPCSymFuncRed
                 , SomeHalter (discardIfAcceptedTagHalter True state_name) .<~> halter_approx_discard
-                , orderer)
+                , orderer
+                , io_timed_out)
 
 initSolver :: Config -> IO SomeSolver
 initSolver = initSolver' arbValue
@@ -486,17 +497,21 @@ runG2FromFile :: [FilePath]
               -> StartFunc
               -> TranslationConfig
               -> Config
-              -> IO (([ExecRes ()], Bindings), Id)
+              -> IO ([ExecRes ()], Bindings, TimedOut, Id)
 runG2FromFile proj src m_assume m_assert m_reach def_assert f transConfig config = do
     (init_state, entry_f, bindings, mb_modname) <- initialStateFromFile proj src
                                     m_reach def_assert f (mkCurrExpr m_assume m_assert) (mkArgTys)
                                     transConfig config
 
-    r <- runG2WithConfig (idName entry_f) mb_modname init_state config bindings
+    (er, b, to) <- runG2WithConfig (idName entry_f) mb_modname init_state config bindings
 
-    return (r, entry_f)
+    return (er, b, to, entry_f)
 
-runG2WithConfig :: Name -> [Maybe T.Text] -> State () -> Config -> Bindings -> IO ([ExecRes ()], Bindings)
+runG2WithConfig :: Name -> [Maybe T.Text] -> State () -> Config -> Bindings
+                -> IO ( [ExecRes ()]
+                      , Bindings
+                      , TimedOut -- ^ Did any states timeout?
+                      )
 runG2WithConfig entry_f mb_modname state@(State { expr_env = eenv }) config bindings = do
     SomeSolver solver <- initSolver config
     let (state', bindings') = runG2Pre emptyMemConfig state bindings
@@ -519,18 +534,18 @@ runG2WithConfig entry_f mb_modname state@(State { expr_env = eenv }) config bind
     let analysis2 = if states_at_step config then [\s p xs -> SM.lift . SM.lift . SM.lift . SM.lift . SM.lift $ logStatesAtStep s p xs] else noAnalysis
         analysis3 = if print_num_red_rules config then [\s p xs -> SM.lift . SM.lift . SM.lift . SM.lift . SM.lift . SM.lift $ logRedRuleNum s p xs] else noAnalysis
         analysis = analysis1 ++ analysis2 ++ analysis3
-    
-    (in_out, bindings'') <- case null analysis of
+
+    (in_out, bindings'', timed_out) <- case null analysis of
         True -> do
-            rho <- initRedHaltOrd  state' all_mod_set solver simplifier config (S.fromList executable_funcs) (S.fromList non_rec_funcs)
+            rho <- initRedHaltOrd state' all_mod_set solver simplifier config (S.fromList executable_funcs) (S.fromList non_rec_funcs)
             case rho of
-                (red, hal, ord) ->
+                (red, hal, ord, to) ->
                     SM.evalStateT (
                         SM.evalStateT
                             (SM.evalStateT
                                 (SM.evalStateT
                                     (SM.evalStateT
-                                        (runG2WithSomes' red hal ord [] solver simplifier state' bindings')
+                                        (addTimedOut to $ runG2WithSomes' red hal ord [] solver simplifier state' bindings')
                                         emptyApproxPrevs
                                     )
                                     lnt
@@ -545,7 +560,7 @@ runG2WithConfig entry_f mb_modname state@(State { expr_env = eenv }) config bind
         False -> do
             rho <- initRedHaltOrd state' all_mod_set solver simplifier config (S.fromList executable_funcs) (S.fromList non_rec_funcs)
             case rho of
-                (red, hal, ord) ->
+                (red, hal, ord, to) ->
                     SM.evalStateT (
                         SM.evalStateT (
                             SM.evalStateT (
@@ -553,7 +568,7 @@ runG2WithConfig entry_f mb_modname state@(State { expr_env = eenv }) config bind
                                     (SM.evalStateT
                                         (SM.evalStateT
                                             (SM.evalStateT
-                                                (runG2WithSomes' red hal ord analysis solver simplifier state' bindings')
+                                                (addTimedOut to $ runG2WithSomes' red hal ord analysis solver simplifier state' bindings')
                                                 emptyApproxPrevs
                                             )
                                             lnt
@@ -572,7 +587,13 @@ runG2WithConfig entry_f mb_modname state@(State { expr_env = eenv }) config bind
 
     close solver
 
-    return (in_out, bindings'')
+    return (in_out, bindings'', timed_out)
+
+addTimedOut :: MonadIO m => IORef TimedOut -> m (a, b) -> m (a, b, TimedOut)
+addTimedOut to m = do
+    (er, b) <- m
+    to' <- liftIO $ readIORef to
+    return (er, b, to')
 
 getFuncsByModule :: [Maybe T.Text] -> [Name] -> [Name]
 getFuncsByModule ms reachable_funcs = 
