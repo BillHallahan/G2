@@ -27,6 +27,8 @@ verifyFromFile proj src f transConfig config = do
                            step_limit = False
                          -- For soundness, cannot limit number of outputs explored 
                          , maxOutputs = Nothing
+                         -- Not using hpc ticks
+                         , hpc_discard_strat = False
                          -- Use approximation to add repeated function calls to NRPCs
                          , approx_nrpc = Nrpc
                          -- Use approximation to discard states that are approximated by previously explored states

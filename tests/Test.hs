@@ -641,11 +641,6 @@ ioTests = testGroup "IO"
 verifierTests :: TestTree
 verifierTests = testGroup "Verifier"
     [
-    --   checkExprVerified "tests/Verify/Approx1.hs" "filterCall1"
-    -- , checkExprVerified "tests/Verify/Approx1.hs" "filterCall2"
-    -- , checkExprVerified "tests/Verify/Approx1.hs" "lengthCall1"
-    -- , checkExprVerified "tests/Verify/Approx1.hs" "indexCall1"
-
       checkExprVerified "tests/Verify/Peano1.hs" "p1"
     , checkExprVerified "tests/Verify/Peano1.hs" "p2"
     , checkExprVerified "tests/Verify/Peano1.hs" "p3"
