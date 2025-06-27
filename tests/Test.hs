@@ -409,8 +409,8 @@ testFileTests = testGroup "TestFiles"
                                         , ("delete1", 5000, [Exactly 3])
                                         , ("stripPrefix1", 1000, [Exactly 2])
                                         , ("stripPrefix2", 1000, [Exactly 5])                                         
-                                        , ("isPrefixOf1", 5000, [Exactly 5]) 
-                                        , ("isSuffixOf1", 5000, [Exactly 5]) ]
+                                        , ("isPrefixOf1", 10000, [Exactly 6]) 
+                                        , ("isSuffixOf1", 10000, [Exactly 6]) ]
 
     , checkExpr "tests/TestFiles/Strings/Strings1.hs" 1000 "exclaimEq"
         [AtLeast 5, RExists (\[_, _, r] -> dcHasName "True" r)]
