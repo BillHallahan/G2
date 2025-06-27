@@ -4,13 +4,14 @@ module G2.Verify.Interface ( VerifyResult (..)
 import G2.Config
 import G2.Interface
 import G2.Language
+import qualified G2.Language.ExprEnv as E
 import G2.Translation
 
 import Control.Exception
 
 data VerifyResult t = Verified
                     | Counterexample [ExecRes t]
-                    | TimeOut
+                    | VerifyTimeOut
                     deriving (Show, Read)
 
 verifyFromFile :: [FilePath]
@@ -34,7 +35,7 @@ verifyFromFile proj src f transConfig config = do
     (er, b, to, entry_f) <- runG2FromFile proj src Nothing Nothing Nothing False f transConfig config'
     
     let res = case to of
-                TimedOut -> TimeOut
+                TimedOut -> VerifyTimeOut
                 NoTimeOut | false_er <- filter (isFalse . final_state) er
                           , not (null false_er) -> Counterexample false_er
                           | otherwise -> assert (all (isTrue . final_state) er) Verified
@@ -43,5 +44,5 @@ verifyFromFile proj src f transConfig config = do
         isFalse s | getExpr s == mkFalse (known_values s ) = True
                   | otherwise = False
 
-        isTrue s | getExpr s == mkTrue (known_values s ) = True
-                  | otherwise = False
+        isTrue s | E.deepLookupExpr (getExpr s) (expr_env s) == Just (mkTrue (known_values s)) = True
+                 | otherwise = False
