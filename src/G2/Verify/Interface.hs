@@ -69,7 +69,7 @@ verifyFromFile proj src f transConfig config = do
                           | otherwise -> assert (all (isTrue . final_state) er) Verified
     return (res, b, entry_f)
     where
-        isFalse s | E.deepLookupExpr (getExpr s) (expr_env s) == Just (mkFalse (known_values s ) )= True
+        isFalse s | E.deepLookupExpr (getExpr s) (expr_env s) == Just (mkFalse (known_values s ) ) = True
                   | otherwise = False
 
         isTrue s | E.deepLookupExpr (getExpr s) (expr_env s) == Just (mkTrue (known_values s)) = True

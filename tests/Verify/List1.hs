@@ -1,5 +1,7 @@
 module List1 where
 
+import Data.List
+
 infixr 0 ==>
 
 (==>) :: Bool -> Bool -> Bool
@@ -51,6 +53,16 @@ prop9 x xs ys = (x `elem'` xs) ==> (x `elem'` (xs ++ ys))
 prop10 :: [Int] -> [Int] -> Bool
 prop10 _ [] = True
 prop10 xs ys = last ys == last (xs ++ ys)
+
+prop11 :: Int -> [Int] -> Bool
+prop11 n xs = take n xs ++ drop n xs == xs
+
+prop12 :: Int -> [Int] -> Bool
+prop12 x xs = x `notElem` deleteAll x xs
+
+deleteAll :: Int -> [Int] -> [Int]
+deleteAll x (y:ys) | x == y = deleteAll x ys
+                   | otherwise = y:deleteAll x ys
 
 prop4False :: [Int] -> [Int] -> Bool
 prop4False (_:_:_) _ = True
