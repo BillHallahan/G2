@@ -656,8 +656,13 @@ verifierTests = testGroup "Verifier"
     , checkExprVerified "tests/Verify/List1.hs" "prop4"
     , checkExprVerified "tests/Verify/List1.hs" "prop5"
     , checkExprVerified "tests/Verify/List1.hs" "prop6"
+    , checkExprVerified "tests/Verify/List1.hs" "prop7"
+    , checkExprVerified "tests/Verify/List1.hs" "prop8"
+    , checkExprVerified "tests/Verify/List1.hs" "prop9"
 
     , checkExprNotVerified "tests/Verify/List1.hs" "p6False"
+    , checkExprNotVerified "tests/Verify/List1.hs" "p7False"
+    , checkExprNotVerified "tests/Verify/List1.hs" "p9False"
     ]
 
 -- To Do Tests
@@ -821,7 +826,7 @@ checkExprVerifier vr_check src entry =
         res <- try (do
                 let proj = takeDirectory src
                 config <- mkConfigTestIO
-                let config' = config { higherOrderSolver = SingleFunc, timeLimit = 30 }
+                let config' = config { timeLimit = 30 }
                 verifyFromFile [proj] [src] (T.pack entry) simplTranslationConfig config')
                     :: IO (Either SomeException ((VerifyResult (), Bindings, Id)))
         let res' = case res of

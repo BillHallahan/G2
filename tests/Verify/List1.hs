@@ -1,7 +1,19 @@
 module List1 where
 
+infixr 0 ==>
+
+(==>) :: Bool -> Bool -> Bool
+True ==> False = False
+_ ==> _ = True
+
+
+eqLen :: [()] -> [()] -> Bool
+eqLen [] [] = True
+eqLen (_:xs) (_:ys) = eqLen xs ys
+eqLen _ _ = False
+
 prop1 :: [()] -> Bool
-prop1 xs = xs == xs
+prop1 xs = xs `eqLen` xs
 
 prop2 :: [Int] -> Bool
 prop2 xs = [] ++ xs == xs
@@ -19,5 +31,25 @@ prop5 xs x = xs < xs ++ [x]
 prop6 :: [Int] -> [Int] -> Bool
 prop6 xs ys = xs <= xs ++ ys
 
+prop7 :: [Int] -> [Int] -> [Int] -> Bool
+prop7 xs ys zs = (xs ++ ys) ++ zs == xs ++ (ys ++ zs)
+
+prop8 :: Int -> [Int] -> Bool
+prop8 x xs = x `elem'` xs ==> x `elem'` xs
+
+elem' :: Int -> [Int] -> Bool
+elem' x [] = False
+elem' x (y:ys) = if x == y then True else elem' x ys
+
+prop9 :: Int -> [Int] -> [Int] -> Bool
+prop9 x xs ys = (x `elem'` xs) ==> (x `elem'` (xs ++ ys))
+
 prop6False :: [Int] -> [Int] -> Bool
 prop6False xs ys = xs < xs ++ ys
+
+prop7False :: [Int] -> [Int] -> [Int] -> Bool
+prop7False xs ys zs = (xs ++ ys) ++ zs == xs ++ (zs ++ ys)
+
+prop9False :: Int -> [Int] -> [Int] -> Bool
+prop9False x xs ys = (x `elem'` xs) ==> (x `elem'` ys)
+

@@ -1681,12 +1681,12 @@ approximationHalter' stop_cond solver no_inline = mkSimpleHalter
                                                         stop
                                                         (\hv _ _ _ -> hv)
     where
-        stop _ pr s
-            | maybe True (allowed_frame . fst) (Stck.pop (exec_stack s))
+        stop _ pr s@(State { curr_expr = CurrExpr er _})
+            | -- maybe True (allowed_frame er . fst) 
             
-            , s'@(State { curr_expr = CurrExpr er e}) <- stateAdjStack s
+              s'@(State { curr_expr = CurrExpr _ e}) <- stateAdjStack s
             , Stck.null (exec_stack s')
-            , allowed_expr er $ unApp e 
+            , allowed_expr_frame er (unApp e) (fmap fst $ Stck.pop (exec_stack s))
 
             , not . isTyFun . typeOf $ e = do
                 -- liftIO $ do
@@ -1733,9 +1733,15 @@ approximationHalter' stop_cond solver no_inline = mkSimpleHalter
         allowed_expr Return (Data _:_) = True
         allowed_expr _ _ = False
 
-        allowed_frame (ApplyFrame _) = False
-        allowed_frame (UpdateFrame _) = False
-        allowed_frame _ = True
+        allowed_frame _ (ApplyFrame _) = False
+        allowed_frame Evaluate (UpdateFrame _) = False
+        allowed_frame _ _ = True
+
+        allowed_expr_frame _ _ (Just (ApplyFrame _)) = False
+        allowed_expr_frame Return (Data _:_) (Just (UpdateFrame _)) = False
+        allowed_expr_frame Return (Data _:_) _ = True
+        allowed_expr_frame Evaluate (Var _:_:_) _= True
+        allowed_expr_frame _ _ _ = False
 
 mrContIgnoreNRPCTicks :: GenerateLemma t l
                       -> Lookup t

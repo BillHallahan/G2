@@ -32,7 +32,8 @@ verifyFromFile proj src f transConfig config = do
                          -- Use approximation to add repeated function calls to NRPCs
                          , approx_nrpc = Nrpc
                          -- Use approximation to discard states that are approximated by previously explored states
-                         , approx_discard = True }
+                         , approx_discard = True
+                         , higherOrderSolver = AllFuncs }
 
     (er, b, to, entry_f) <- runG2FromFile proj src Nothing Nothing Nothing False f transConfig config'
     
@@ -43,7 +44,7 @@ verifyFromFile proj src f transConfig config = do
                           | otherwise -> assert (all (isTrue . final_state) er) Verified
     return (res, b, entry_f)
     where
-        isFalse s | getExpr s == mkFalse (known_values s ) = True
+        isFalse s | E.deepLookupExpr (getExpr s) (expr_env s) == Just (mkFalse (known_values s ) )= True
                   | otherwise = False
 
         isTrue s | E.deepLookupExpr (getExpr s) (expr_env s) == Just (mkTrue (known_values s)) = True
