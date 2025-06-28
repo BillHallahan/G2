@@ -50,7 +50,8 @@ verifyFromFile proj src f transConfig config = do
                          -- Use approximation to add repeated function calls to NRPCs
                          , approx_nrpc = Nrpc
                          -- Use approximation to discard states that are approximated by previously explored states
-                         , approx_discard = True }
+                         , approx_discard = True
+                         , higherOrderSolver = AllFuncs }
 
 
     (init_state, entry_f, bindings, mb_modname) <- initialStateFromFile proj src

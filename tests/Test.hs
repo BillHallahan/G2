@@ -826,7 +826,7 @@ checkExprVerifier vr_check src entry =
         res <- try (do
                 let proj = takeDirectory src
                 config <- mkConfigTestIO
-                let config' = config { higherOrderSolver = SingleFunc, timeLimit = 30 }
+                let config' = config { timeLimit = 30 }
                 verifyFromFile [proj] [src] (T.pack entry) simplTranslationConfig config')
                     :: IO (Either SomeException ((VerifyResult (), Bindings, Id)))
         let res' = case res of
