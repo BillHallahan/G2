@@ -247,4 +247,13 @@ stripPrefix2 xs ys
     | length xs > 0 = (4, m_zs)
     | otherwise = (5, m_zs)
     where
-        m_zs = stripPrefix xs ys 
+        m_zs = stripPrefix xs ys
+
+genericLength1 :: String -> (Integer, Char)
+genericLength1 xs
+    | ln < 4 = (ln, 'X')
+    | ln > 15 = (ln, 'L')
+    | ln == 7 = (ln, 'Q')
+    | otherwise = (42, 'A')
+    where
+        ln = genericLength xs
