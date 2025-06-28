@@ -366,7 +366,9 @@ testFileTests = testGroup "TestFiles"
                                                               
                                                               , ("delete1", 2500, [AtLeast 10]) 
                                                               , ("stripPrefix1", 1000, [AtLeast 5])
-                                                              , ("stripPrefix2", 1000, [AtLeast 10]) ]
+                                                              , ("stripPrefix2", 1000, [AtLeast 10]) 
+                                                              , ("isPrefixOf1", 1000, [AtLeast 10]) 
+                                                              , ("isSuffixOf1", 1000, [AtLeast 10]) ]
 
     , checkInputOutputsSMTStrings "tests/TestFiles/Strings/Strings1.hs"
                                         [ ("con", 1000, [Exactly 1])
@@ -403,10 +405,12 @@ testFileTests = testGroup "TestFiles"
                                         , ("max2", 5000, [Exactly 4])
                                         , ("min1", 5000, [Exactly 1]) 
                                         , ("min2", 5000, [Exactly 4])
-
+                                        
                                         , ("delete1", 5000, [Exactly 3])
                                         , ("stripPrefix1", 1000, [Exactly 2])
-                                        , ("stripPrefix2", 1000, [Exactly 5]) ]
+                                        , ("stripPrefix2", 1000, [Exactly 5])                                         
+                                        , ("isPrefixOf1", 10000, [Exactly 6]) 
+                                        , ("isSuffixOf1", 10000, [Exactly 6]) ]
 
     , checkExpr "tests/TestFiles/Strings/Strings1.hs" 1000 "exclaimEq"
         [AtLeast 5, RExists (\[_, _, r] -> dcHasName "True" r)]

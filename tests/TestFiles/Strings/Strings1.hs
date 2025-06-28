@@ -248,3 +248,25 @@ stripPrefix2 xs ys
     | otherwise = (5, m_zs)
     where
         m_zs = stripPrefix xs ys 
+
+isPrefixOf1 :: String -> String -> (Int, Bool)
+isPrefixOf1 s1 s2
+    | length s1 < 3 = (1, p)
+    | length s2 < 3 = (2, p)
+    | length s1 + 3 < length s2, p = (3, p)
+    | p = (4, p)
+    | length s1 + 3 < length s2 = (5, p)
+    | otherwise = (6, p)
+    where
+        p = isPrefixOf s1 s2
+
+isSuffixOf1 :: String -> String -> (Int, Bool)
+isSuffixOf1 s1 s2
+    | length s1 < 3 = (1, p)
+    | length s2 < 3 = (2, p)
+    | length s1 + 3 < length s2, p = (3, p)
+    | p = (4, p)
+    | length s1 + 3 < length s2 = (5, p)
+    | otherwise = (6, p)
+    where
+        p = isSuffixOf s1 s2
