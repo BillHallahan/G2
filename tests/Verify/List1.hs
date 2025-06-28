@@ -6,6 +6,7 @@ infixr 0 ==>
 True ==> False = False
 _ ==> _ = True
 
+infixr 0 `eqLen`
 
 eqLen :: [()] -> [()] -> Bool
 eqLen [] [] = True
@@ -30,6 +31,9 @@ prop5 xs x = xs < xs ++ [x]
 
 prop6 :: [Int] -> [Int] -> Bool
 prop6 xs ys = xs <= xs ++ ys
+
+prop7Simple :: [()] -> [()] -> Bool
+prop7Simple xs ys = xs ++ ys `eqLen` xs ++ ys
 
 prop7 :: [Int] -> [Int] -> [Int] -> Bool
 prop7 xs ys zs = (xs ++ ys) ++ zs == xs ++ (ys ++ zs)

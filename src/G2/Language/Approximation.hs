@@ -447,6 +447,7 @@ frameWrap (CaseFrame i t alts) e = Case e i t alts
 frameWrap (ApplyFrame e') e = App e e'
 frameWrap (UpdateFrame _) e = e
 frameWrap (CastFrame co) e = Cast e co
+frameWrap (AssumeFrame assume) e = Assume Nothing assume e
 frameWrap _ _ = error "unsupported frame"
 
 stackWrap :: Stck.Stack Frame -> Expr -> (Expr, Stck.Stack Frame)
