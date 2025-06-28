@@ -35,6 +35,7 @@ import Control.Monad.IO.Class
 import qualified Data.HashSet as HS
 import qualified Data.HashMap.Lazy as HM
 import Data.Maybe
+import Data.Monoid hiding (Alt)
 
 import Debug.Trace
 
@@ -81,7 +82,7 @@ moreRestrictiveIncludingPCAndNRPC solver mr_cont gen_lemma lkp ns s1 s2
   , let min2 = minIndexNRPC (non_red_path_conds s2)
   , max1 < min2 || max1 == -1 = do
     let mr = moreRestrictive' mr_cont gen_lemma lkp s1 s2 ns (HM.empty, HS.empty) True [] [] (getExpr s1) (getExpr s2)
-               >>= \hm -> moreRestrictiveStack mr_cont gen_lemma lkp s1 s2 ns hm (exec_stack s1) (exec_stack s2)
+              --  >>= \hm -> moreRestrictiveStack mr_cont gen_lemma lkp s1 s2 ns hm (exec_stack s1) (exec_stack s2)
                >>= \hm' -> moreRestrictiveNRPC mr_cont gen_lemma lkp s1 s2 ns hm' (non_red_path_conds s1) (non_red_path_conds s2)
     -- putStrLn $ "log_path s1 = " ++ show (log_path s1) ++ " " ++ show (num_steps s1)
     -- putStrLn $ "log_path s2 = " ++ show (log_path s2) ++ " " ++ show (num_steps s2)
@@ -141,10 +142,6 @@ moreRestrictive' :: MRCont t l -- ^ For special case handling - what to do if we
                  -> Either [l] (HM.HashMap Id Expr, HS.HashSet (Expr, Expr))
 moreRestrictive' mr_cont gen_lemma lkp s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) ns hm active n1 n2 e1 e2 =
   case (e1, e2) of
-    -- (Var i1, Var i2) | idName i1 == idName i2
-    --                  , let m = idName i1
-    --                  , Just (E.Conc (Lam _ _ _)) <- lkp m s1
-    --                  , Just (E.Conc (Lam _ _ _)) <- lkp m s2 -> Right hm
     (Var i, _) | m <- idName i
                , not $ HS.member m ns
                , not $ (m, e2) `elem` n1
@@ -157,6 +154,9 @@ moreRestrictive' mr_cont gen_lemma lkp s1@(State {expr_env = h1}) s2@(State {exp
                  moreRestrictive' mr_cont gen_lemma lkp s1 s2 ns hm active n1 ((m, e1):n2) e1 e
     (Var i1, Var i2) | HS.member (idName i1) ns
                      , idName i1 == idName i2 -> Right hm
+                     | idName i1 == idName i2
+                     , not (reachesSym h1 e1)
+                     , not (reachesSym h2 e2) -> Right hm
                      | HS.member (idName i1) ns -> Left []
                      | HS.member (idName i2) ns -> Left []
     (Var i, _) | Just (E.Sym _) <- lkp (idName i) s1
@@ -261,6 +261,13 @@ moreRestrictive' mr_cont gen_lemma lkp s1@(State {expr_env = h1}) s2@(State {exp
         moreRestrictive' mr_cont gen_lemma lkp s1 s2 ns hm active n1 n2 e1' e2'
 
     _ -> mr_cont s1 s2 ns hm active n1 n2 e1 e2
+    where
+        reachesSym h = getAny . reachesSym' HS.empty h
+        reachesSym' seen h (Var (Id n _)) | n `elem` ns = Any False
+                                          | n `HS.member` seen = Any False
+                                          | (Just (E.Conc e)) <- E.lookupConcOrSym n h = reachesSym' (HS.insert n seen) h e
+                                          | otherwise <- E.lookupConcOrSym n h = Any True
+        reachesSym' seen h e = evalChildren (reachesSym' seen h) e
 
 -- check only the names for DataAlt
 altEquiv :: AltMatch -> AltMatch -> Bool

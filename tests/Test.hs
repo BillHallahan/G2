@@ -649,6 +649,15 @@ verifierTests = testGroup "Verifier"
     , checkExprNotVerified "tests/Verify/Peano1.hs" "p1False"
     , checkExprNotVerified "tests/Verify/Peano1.hs" "p2False"
     , checkExprNotVerified "tests/Verify/Peano1.hs" "p3False"
+
+    , checkExprVerified "tests/Verify/List1.hs" "prop1"
+    , checkExprVerified "tests/Verify/List1.hs" "prop2"
+    , checkExprVerified "tests/Verify/List1.hs" "prop3"
+    , checkExprVerified "tests/Verify/List1.hs" "prop4"
+    , checkExprVerified "tests/Verify/List1.hs" "prop5"
+    , checkExprVerified "tests/Verify/List1.hs" "prop6"
+
+    , checkExprNotVerified "tests/Verify/List1.hs" "p6False"
     ]
 
 -- To Do Tests
