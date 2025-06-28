@@ -48,6 +48,17 @@ elem' x (y:ys) = if x == y then True else elem' x ys
 prop9 :: Int -> [Int] -> [Int] -> Bool
 prop9 x xs ys = (x `elem'` xs) ==> (x `elem'` (xs ++ ys))
 
+prop10 :: [Int] -> [Int] -> Bool
+prop10 _ [] = True
+prop10 xs ys = last ys == last (xs ++ ys)
+
+prop4False :: [Int] -> [Int] -> Bool
+prop4False (_:_:_) _ = True
+prop4False xs ys = xs ++ ys == ys
+
+prop5False :: [Int] -> Int -> Bool
+prop5False xs x = xs < xs
+
 prop6False :: [Int] -> [Int] -> Bool
 prop6False xs ys = xs < xs ++ ys
 
@@ -57,3 +68,6 @@ prop7False xs ys zs = (xs ++ ys) ++ zs == xs ++ (zs ++ ys)
 prop9False :: Int -> [Int] -> [Int] -> Bool
 prop9False x xs ys = (x `elem'` xs) ==> (x `elem'` ys)
 
+prop10False :: [Int] -> [Int] -> Bool
+prop10False _ [] = True
+prop10False xs ys = last ([1, 2, 3, 4, 5, 6, 7, 8, 9] ++ ys) == last (xs ++ [1, 2, 3, 4, 5, 6, 7, 8, 9])

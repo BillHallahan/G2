@@ -656,13 +656,18 @@ verifierTests = testGroup "Verifier"
     , checkExprVerified "tests/Verify/List1.hs" "prop4"
     , checkExprVerified "tests/Verify/List1.hs" "prop5"
     , checkExprVerified "tests/Verify/List1.hs" "prop6"
+    , checkExprVerified "tests/Verify/List1.hs" "prop7Simple"
     , checkExprVerified "tests/Verify/List1.hs" "prop7"
     , checkExprVerified "tests/Verify/List1.hs" "prop8"
     , checkExprVerified "tests/Verify/List1.hs" "prop9"
+    , checkExprVerified "tests/Verify/List1.hs" "prop10"
 
+    , checkExprNotVerified "tests/Verify/List1.hs" "p4False"
+    , checkExprNotVerified "tests/Verify/List1.hs" "p5False"
     , checkExprNotVerified "tests/Verify/List1.hs" "p6False"
     , checkExprNotVerified "tests/Verify/List1.hs" "p7False"
     , checkExprNotVerified "tests/Verify/List1.hs" "p9False"
+    , checkExprCEx "tests/Verify/List1.hs" "prop10False"
     ]
 
 -- To Do Tests
@@ -816,6 +821,9 @@ checkExprWithConfig src m_assume m_assert m_reaches entry reqList config_f = do
 
 checkExprVerified :: String -> String -> TestTree
 checkExprVerified = checkExprVerifier (\case Verified -> True; Counterexample _ -> False; VerifyTimeOut -> False)
+
+checkExprCEx :: String -> String -> TestTree
+checkExprCEx = checkExprVerifier (\case Verified -> False; Counterexample _ -> True; VerifyTimeOut -> False)
 
 checkExprNotVerified :: String -> String -> TestTree
 checkExprNotVerified = checkExprVerifier (\case Verified -> False; Counterexample _ -> True; VerifyTimeOut -> True)
