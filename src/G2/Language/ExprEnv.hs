@@ -149,8 +149,8 @@ size = M.size . unwrapExprEnv
 member :: Name -> ExprEnv -> Bool
 member n = M.member n . unwrapExprEnv
 
-toId :: Name -> ExprEnv -> Maybe Id
-toId n eenv = fmap (Id n . typeOf) (lookup n eenv)
+toId :: TV.TyVarEnv -> Name -> ExprEnv -> Maybe Id
+toId tv n eenv = fmap (Id n . typeOf tv) (lookup n eenv)
 
 -- | Lookup the `Expr` with the given `Name`.
 -- Returns `Nothing` if the `Name` is not in the `ExprEnv`.
@@ -196,8 +196,8 @@ deepLookupConcOrSym n eenv =
         Nothing -> Nothing
 
 -- | Find the deepest buried Var Id from the given Name
-deepLookupVar :: Name -> ExprEnv -> Maybe Id
-deepLookupVar n eenv = go (toId n eenv) n
+deepLookupVar :: TV.TyVarEnv -> Name -> ExprEnv -> Maybe Id
+deepLookupVar tv n eenv = go (toId tv n eenv) n
     where
         go lst f = 
             case lookupConcOrSym f eenv of

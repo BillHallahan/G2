@@ -636,7 +636,7 @@ nonRedLibFuncs exec_names no_nrpc_names
     | 
       -- We are NOT dealing with a symbolic function or a function that should not be put in the NRPCs
       Var (Id n _):_ <- unApp ce
-    , Just (Id n' _) <- E.deepLookupVar n eenv
+    , Just (Id n' _) <- E.deepLookupVar tvnv n eenv
     , not (n' `HS.member` no_nrpc_names)
     , not (E.isSymbolic n' eenv)
     , Just (s'@(State { curr_expr = CurrExpr _ _ }), ce', ng') <- createNonRed ng s = 
@@ -671,6 +671,7 @@ nonRedHigherOrderFunc
                 s@(State { expr_env = eenv
                          , curr_expr = CurrExpr _ ce
                          , known_values = kv
+                         , tyvar_env = tvnv
                          }) 
                 b@(Bindings { name_gen = ng })
     | 
@@ -691,7 +692,7 @@ nonRedHigherOrderFunc
             -- thus cannot clear out the stack
             (ng'', xs_new_g) = if noEnsureEq stck'
                             then L.mapAccumR
-                                    (funcArgState (map typeOf es) (returnType $ PresType t)) ng'
+                                    (funcArgState (map (typeOf tvnv) es) (returnType t)) ng'
                                     $ zip [0..] es
                             else (ng', [])
             xs = mapMaybe (fmap fst) xs_new_g
@@ -764,16 +765,17 @@ createNonRed ng
              s@(State { curr_expr = CurrExpr _ ce
                       , expr_env = eenv
                       , non_red_path_conds = nrs
-                      , known_values = kv })
+                      , known_values = kv 
+                      , tyvar_env = tvnv})
             | v@(Var (Id _ t)):es_ce <- unApp ce
              -- Function is being fully applied 
             , (ae, stck) <- allApplyFrames (exec_stack s)
             , let es = es_ce ++ ae
                   ce' = mkApp (v:es)
-            , hasFuncType (PresType t)
+            , hasFuncType t
             
-            , let ce_ty = typeOf ce'
-            , not . hasFuncType . PresType $ ce_ty
+            , let ce_ty = typeOf tvnv ce'
+            , not $ hasFuncType ce_ty
             -- Don't turn functions manipulating "magic types"- types represented as Primitives, with special handling
             -- (for instance, MutVars, Handles) into NRPC symbolic variables.
             , not (hasMagicTypes kv ce) =
