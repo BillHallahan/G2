@@ -8,7 +8,6 @@ import G2.Initialization.MkCurrExpr
 import G2.Interface
 import G2.Execution
 import G2.Execution.InstTypes
-import G2.Execution.Reducer
 import G2.Execution.HPC
 import G2.Language
 import qualified G2.Language.CallGraph as G
@@ -20,10 +19,8 @@ import G2.Translation
 import Control.Exception
 import Control.Monad.IO.Class
 import qualified Control.Monad.State as SM
-import qualified Data.HashMap.Lazy as HM
 import qualified Data.HashSet as S
 import Data.IORef
-import qualified Data.Text as T
 
 
 data VerifyResult t = Verified
@@ -33,13 +30,10 @@ data VerifyResult t = Verified
 
 type RHOStack m t = SM.StateT (ApproxPrevs t)
                         (SM.StateT LengthNTrack
-                            (SM.StateT PrettyGuide
-                                (SM.StateT HpcTracker
-                                    (SM.StateT HPCMemoTable m))))
+                            (SM.StateT PrettyGuide m))
 
 verifyRedHaltOrd :: (MonadIO m, Solver solver, Simplifier simplifier) =>
                     State ()
-                 -> S.HashSet (Maybe T.Text)
                  -> solver
                  -> simplifier
                  -> Config
@@ -49,7 +43,7 @@ verifyRedHaltOrd :: (MonadIO m, Solver solver, Simplifier simplifier) =>
                        , SomeHalter (RHOStack m ()) (ExecRes ()) ()
                        , SomeOrderer (RHOStack m ()) (ExecRes ()) ()
                        , IORef TimedOut)
-verifyRedHaltOrd s mod_name solver simplifier config no_nrpc_names = do
+verifyRedHaltOrd s solver simplifier config no_nrpc_names = do
     time_logger <- acceptTimeLogger
     (time_halter, io_timed_out) <- stdTimerHalter (fromInteger . toInteger $ timeLimit config)
 
@@ -152,7 +146,7 @@ verifyFromFile proj src f transConfig config = do
                          , higherOrderSolver = AllFuncs }
 
 
-    (init_state, entry_f, bindings, mb_modname) <- initialStateFromFile proj src
+    (init_state, entry_f, bindings, _) <- initialStateFromFile proj src
                                     Nothing False f (mkCurrExpr Nothing Nothing) mkArgTys
                                     transConfig config'
     let (init_state', ng) = wrapCurrExpr (name_gen bindings) init_state
@@ -162,9 +156,7 @@ verifyFromFile proj src f transConfig config = do
     
     SomeSolver solver <- initSolver config
     let (state', bindings'') = runG2Pre emptyMemConfig init_state' bindings'
-        all_mod_set = S.fromList mb_modname
-    hpc_t <- hpcTracker state' all_mod_set (hpc_print_times config) (hpc_print_ticks config)
-    let 
+
         simplifier = FloatSimplifier :>> ArithSimplifier :>> BoolSimplifier :>> StringSimplifier :>> EqualitySimplifier
         --exp_env_names = E.keys . E.filterConcOrSym (\case { E.Sym _ -> False; E.Conc _ -> True }) $ expr_env state
         callGraph = G.getCallGraph $ expr_env state'
@@ -177,14 +169,12 @@ verifyFromFile proj src f transConfig config = do
     --     analysis3 = if print_num_red_rules config then [\s p xs -> SM.lift . SM.lift . SM.lift . SM.lift . SM.lift . SM.lift $ logRedRuleNum s p xs] else noAnalysis
     --     analysis = analysis1 ++ analysis2 ++ analysis3
 
-    rho <- verifyRedHaltOrd state' all_mod_set solver simplifier config' (S.fromList non_rec_funcs)
+    rho <- verifyRedHaltOrd state' solver simplifier config' (S.fromList non_rec_funcs)
     let to = case rho of (_, _, _, to_)-> to_
     (er, bindings''') <-
             case rho of
                 (red, hal, ord, _) ->
-                    SM.evalStateT (
                         SM.evalStateT
-                            (SM.evalStateT
                                 (SM.evalStateT
                                     (SM.evalStateT
                                         (runG2WithSomes' red hal ord [] solver simplifier state' bindings'')
@@ -195,10 +185,6 @@ verifyFromFile proj src f transConfig config = do
                                 (if showType config == Lax 
                                 then mkPrettyGuide ()
                                 else setTypePrinting AggressiveTypes (mkPrettyGuide ())) 
-                            )
-                            hpc_t
-                        )
-                        HM.empty
     
     to' <- readIORef to
     let res = case to' of

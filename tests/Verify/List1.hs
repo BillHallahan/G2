@@ -57,6 +57,18 @@ prop10 xs ys = last ys == last (xs ++ ys)
 prop11 :: Int -> [Int] -> Bool
 prop11 n xs = take n xs ++ drop n xs == xs
 
+prop12 :: Int -> [Int] -> Bool
+prop12 x xs = x `notElem'` deleteAll x xs
+
+deleteAll :: Int -> [Int] -> [Int]
+deleteAll _ [] = []
+deleteAll x (y:ys) | x == y = deleteAll x ys
+                   | otherwise = y:deleteAll x ys
+
+notElem' :: Int -> [Int] -> Bool
+notElem' x [] = True
+notElem' x (y:ys) = if x == y then False else elem' x ys
+
 prop4False :: [Int] -> [Int] -> Bool
 prop4False (_:_:_) _ = True
 prop4False xs ys = xs ++ ys == ys
