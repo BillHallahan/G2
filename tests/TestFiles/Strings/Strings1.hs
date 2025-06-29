@@ -257,3 +257,38 @@ genericLength1 xs
     | otherwise = (42, 'A')
     where
         ln = genericLength xs
+
+genericTake1 :: String -> Integer -> (Maybe String, Int)
+genericTake1 xs n
+    | took == "Hi" = (Nothing, 0)
+    | took == "Bye" = (Just "Yes", 1)
+    | length took > 10 = (Just "Long", 2)
+    | otherwise = (Nothing, 3)
+    where
+        took = genericTake n xs
+
+genericDrop1 :: String -> Integer -> (Integer, String)
+genericDrop1 xs n
+    | dropped == "Drop" = (n, "DD")
+    | length dropped < 2 = (-1, "Short")
+    | otherwise = (n, xs)
+    where
+        dropped = genericDrop n xs
+
+genericSplitAt1 :: String -> Integer -> (String, Bool)
+genericSplitAt1 xs n
+    | length start > length end = (start, True)
+    | start == end = ("Same", False)
+    | start == "Hello" = ("Hello World!", True)
+    | otherwise = ("Okay", False)
+    where
+        (start, end) = genericSplitAt n xs
+
+-- Note that there should be an fourth case here due to an invalid index error
+genericIndex1 :: String -> Integer -> (Char, Int)
+genericIndex1 xs n
+    | chr == 'Z' = (chr, 0) 
+    | chr < 'Q' = (chr, 1)
+    | otherwise = ('!', 2)
+    where 
+        chr = xs `genericIndex` (n + 1)
