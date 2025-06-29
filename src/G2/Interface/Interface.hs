@@ -29,6 +29,7 @@ module G2.Interface.Interface ( MkCurrExpr
                               , runG2FromFile
                               , runG2WithConfig
                               , runG2WithSomes
+                              , runG2WithSomes'
                               , runG2Pre
                               , runG2Post
                               , runExecution
@@ -528,7 +529,7 @@ runG2WithConfig entry_f mb_modname state@(State { expr_env = eenv }) config bind
                                 False -> getFuncsByModule mb_modname reachable_funcs
                                 True -> getFuncsByAssert callGraph reachable_funcs
 
-        non_rec_funcs = filter (isFuncNonRecursive callGraph) reachable_funcs
+        non_rec_funcs = filter (G.isFuncNonRecursive callGraph) reachable_funcs
 
     analysis1 <- if states_at_time config then do l <- logStatesAtTime; return [l] else return noAnalysis
     let analysis2 = if states_at_step config then [\s p xs -> SM.lift . SM.lift . SM.lift . SM.lift . SM.lift $ logStatesAtStep s p xs] else noAnalysis
@@ -607,28 +608,10 @@ getFuncsByAssert g reachable_funcs =
     let
         assert_name = L.find (\x -> nameOcc x == "assert" && nameModule x == Just "G2.Symbolic") reachable_funcs
         exec_funcs = case assert_name of
-                        Just a -> a : getAllCalledBys a g -- Added assert function name too because we want to execute that as well
+                        Just a -> a : G.getAllCalledBys a g -- Added assert function name too because we want to execute that as well
                         Nothing -> []
     in
         exec_funcs
-
--- It gives all the methods that call assert function
-getAllCalledBys :: Name -> G.CallGraph -> [Name]
-getAllCalledBys n g = 
-    let
-        calledbys = G.calledBy n g
-    in
-        calledbys ++ concatMap (`getAllCalledBys` g) calledbys
-
-isFuncNonRecursive :: G.CallGraph -> Name -> Bool
-isFuncNonRecursive g n = 
-    let
-        directFuncs = G.calls n g
-        reach_funcs = case directFuncs of 
-                        Just a -> concatMap (`G.reachable` g) a
-                        _ -> []
-    in
-        not (n `elem` reach_funcs)
 
 {-# SPECIALIZE 
     runG2WithSomes :: ( Solver solver
