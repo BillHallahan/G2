@@ -705,7 +705,7 @@ liftSymDefAlt' s@(State {type_env = tenv}) ng mexpr aexpr cvar alts
             -- add PC restricting range of values for newSymId
             newSymConstraint = restrictSymVal (known_values s') 1 (toInteger $ length dcs'') newId
 
-            eenv' = E.insert (idName i') mexpr' (expr_env s')
+            eenv' = E.insertSymbolic newId $ E.insert (idName i') mexpr' (expr_env s')
             s'' = s' { curr_expr = CurrExpr Evaluate aexpr'
                      , expr_env = eenv'}
         in
