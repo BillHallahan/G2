@@ -247,7 +247,61 @@ stripPrefix2 xs ys
     | length xs > 0 = (4, m_zs)
     | otherwise = (5, m_zs)
     where
-        m_zs = stripPrefix xs ys 
+        m_zs = stripPrefix xs ys
+
+genericLength1 :: String -> (Integer, Char)
+genericLength1 xs
+    | ln < 4 = (ln, 'X')
+    | ln > 15 = (ln, 'L')
+    | ln == 7 = (ln, 'Q')
+    | otherwise = (42, 'A')
+    where
+        ln = genericLength xs
+
+genericTake1 :: String -> Integer -> (Maybe String, Int)
+genericTake1 xs n
+    | took == "Hi" = (Nothing, 0)
+    | took == "Bye" = (Just "Yes", 1)
+    | length took > 10 = (Just "Long", 2)
+    | otherwise = (Nothing, 3)
+    where
+        took = genericTake n xs
+
+genericDrop1 :: String -> Integer -> (Integer, String)
+genericDrop1 xs n
+    | dropped == "Drop" = (n, "DD")
+    | length dropped < 2 = (-1, "Short")
+    | otherwise = (n, xs)
+    where
+        dropped = genericDrop n xs
+
+genericSplitAt1 :: String -> Integer -> (String, Bool)
+genericSplitAt1 xs n
+    | length start > length end = (start, True)
+    | start == end = ("Same", False)
+    | start == "Hello" = ("Hello World!", True)
+    | otherwise = ("Okay", False)
+    where
+        (start, end) = genericSplitAt n xs
+
+-- Note that there should be an fourth case here due to an invalid index error
+genericIndex1 :: String -> Integer -> (Char, Int)
+genericIndex1 xs n
+    | chr == 'Z' = (chr, 0) 
+    | chr < 'Q' = (chr, 1)
+    | otherwise = ('!', 2)
+    where 
+        chr = xs `genericIndex` (n + 1)
+
+-- This doesn't lessen outputs, it only tests whether genericReplicate works with SMT Strings
+genericReplicate1 :: Integer -> Char -> String
+genericReplicate1 = genericReplicate
+
+-- This usually hits the solver outputting a delete character
+bigString :: String -> Int
+bigString s = case length s > 100 of
+                True -> 0
+                False -> 1
 
 isPrefixOf1 :: String -> String -> (Int, Bool)
 isPrefixOf1 s1 s2
