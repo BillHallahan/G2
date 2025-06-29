@@ -203,7 +203,7 @@ cleanupResultsInference solver simplifier config init_id bindings ers = do
           map (\er@(ExecRes { final_state = s }) ->
                 (er { final_state =
                               s {track = 
-                                    mapAbstractedInfoFCs (evalPrims (type_env s) (known_values s)
+                                    mapAbstractedInfoFCs (evalPrims (expr_env s) (type_env s) (known_values s)
                                                          . subVarFuncCall (tyvar_env s) True (model s) (expr_env s) (type_classes s))
                                     $ track s
                                 }
@@ -430,7 +430,7 @@ gatherReducerHalterOrderer infconfig config lhconfig solver simplifier = do
     return
         (red .== Finished .--> (taggerRed state_name :== Finished --> nonRedPCRedNoPrune)
         , SomeHalter
-            (discardIfAcceptedTagHalter state_name
+            (discardIfAcceptedTagHalter True state_name
               <~> switchEveryNHalter (switch_after lhconfig)
               <~> swhnfHalter
               <~> timer_halter)
@@ -574,7 +574,7 @@ inferenceReducerHalterOrderer infconfig config lhconfig solver simplifier entry 
             (taggerRed state_name :== Finished --> nonRedPCRedNoPrune) .== Finished .-->
             (taggerRed abs_ret_name :== Finished --> nonRedAbstractReturnsRed)
         , SomeHalter
-            (discardIfAcceptedTagHalter state_name <~> halter)
+            (discardIfAcceptedTagHalter True state_name <~> halter)
         , SomeOrderer (incrAfterN 2000 (quotTrueAssert (ordComb (+) (pcSizeOrderer 0) (adtSizeOrderer 0 (Just instFuncTickName))))))
 
 runLHCExSearch :: MonadIO m
@@ -655,7 +655,7 @@ realCExReducerHalterOrderer infconfig config lhconfig entry modname solver simpl
             (taggerRed state_name :== Finished --> nonRedPCRedNoPrune) .== Finished .-->
             (taggerRed abs_ret_name :== Finished --> nonRedAbstractReturnsRed)
         , SomeHalter
-            (discardIfAcceptedTagHalter state_name <~> halter)
+            (discardIfAcceptedTagHalter True state_name <~> halter)
         , SomeOrderer (incrAfterN 1000 (adtSizeOrderer 0 Nothing)))
 
 

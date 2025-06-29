@@ -121,6 +121,7 @@ initKnownValues eenv tenv tc =
     , notFunc = exprWithStrName eenv "not"
 
     , typeIndex = exprWithStrName eenv "typeIndex#"
+    , adjStr = exprWithStrName eenv "adjStr"
 
     , errorFunc = exprWithStrName eenv "error"
     , errorEmptyListFunc = exprWithStrName eenv "errorEmptyList"

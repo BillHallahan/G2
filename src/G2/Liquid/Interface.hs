@@ -479,8 +479,8 @@ lhReducerHalterOrderer config lhconfig solver simplifier entry mb_modname cfn st
             ((taggerRed state_name :== Finished --> non_red)) .== Finished .-->
             (taggerRed abs_ret_name :== Finished --> nonRedAbstractReturnsRed)
         , SomeHalter
-            (discardIfAcceptedTagHalter state_name
-              <~> discardIfAcceptedTagHalter abs_ret_name
+            (discardIfAcceptedTagHalter True state_name
+              <~> discardIfAcceptedTagHalter True abs_ret_name
               <~> maxOutputsHalter (maxOutputs config)
               <~> zeroHalter (steps config)
               <~> lhAbsHalter Nothing entry mb_modname (expr_env st)

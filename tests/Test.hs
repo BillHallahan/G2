@@ -336,7 +336,7 @@ testFileTests = testGroup "TestFiles"
 
     , checkExprAssume "tests/TestFiles/Subseq.hs" 1200 (Just "assume") "subseqTest" [AtLeast 1]
 
-    , checkInputOutputs "tests/TestFiles/Strings/Strings1.hs" [ ("con", 300, [AtLeast 10])
+    , checkInputOutputs "tests/TestFiles/Strings/Strings1.hs" [ ("con", 400, [AtLeast 10])
                                                               , ("eq", 700, [AtLeast 10])
                                                               , ("eqGt1", 700, [AtLeast 10])
                                                               , ("capABC", 100, [AtLeast 10])
@@ -347,14 +347,70 @@ testFileTests = testGroup "TestFiles"
                                                               , ("nStringSub3", 2000, [AtLeast 15])
                                                               , ("stringSub4", 7000, [AtLeast 7])
                                                               , ("nStringSub4", 2000, [AtLeast 5])
-                                                              , ("strLen", 1000, [AtLeast 5]) ]
+                                                              , ("strLen", 1000, [AtLeast 5])
+                                                              , ("taker2", 2000, [AtLeast 5]) 
+                                                              , ("infix1", 1000, [AtLeast 5])
+                                                              , ("elem1", 1000, [AtLeast 5])
+                                                              , ("notElem1", 1000, [AtLeast 5])
+                                                              , ("elemIndex1", 1000, [AtLeast 5])
+
+                                                              , ("strGt", 1000, [AtLeast 5])
+                                                              , ("strGe", 1000, [AtLeast 5])
+                                                              , ("strLt", 1000, [AtLeast 5])
+                                                              , ("strLe", 1000, [AtLeast 5])
+                                                              , ("compare1", 1000, [AtLeast 5])
+                                                              , ("max1", 1000, [AtLeast 5])
+                                                              , ("max2", 1000, [AtLeast 5])
+                                                              , ("min1", 1000, [AtLeast 5])
+                                                              , ("min2", 1000, [AtLeast 5])
+                                                              
+                                                              , ("delete1", 2500, [AtLeast 10]) 
+                                                              , ("stripPrefix1", 1000, [AtLeast 5])
+                                                              , ("stripPrefix2", 1000, [AtLeast 10]) 
+                                                              , ("isPrefixOf1", 1000, [AtLeast 10]) 
+                                                              , ("isSuffixOf1", 1000, [AtLeast 10]) ]
+
     , checkInputOutputsSMTStrings "tests/TestFiles/Strings/Strings1.hs"
                                         [ ("con", 1000, [Exactly 1])
                                         , ("appendEq", 1000, [Exactly 1])
                                         , ("strLen", 1000, [Exactly 2])
                                         , ("con2", 1000, [Exactly 3])
                                         , ("strIndex", 1000, [Exactly 4]) 
-                                        , ("eq1", 1000, [Exactly 2])]
+                                        , ("taker1", 5000, [Exactly 2])
+                                        , ("taker2", 5000, [Exactly 2])
+                                        , ("conTaker1", 2500, [Exactly 4])
+                                        , ("conTaker2", 2500, [Exactly 2])
+                                        , ("lengthCon1", 2500, [Exactly 2])
+                                        , ("conIndex1", 2500, [AtLeast 2])
+                                        , ("eq1", 5000, [Exactly 2])
+                                        , ("eq2", 5000, [Exactly 2])
+                                        , ("eq3", 5000, [Exactly 2])
+                                        , ("init1", 5000, [Exactly 4])
+                                        , ("null1", 5000, [Exactly 2])
+                                        , ("last1", 5000, [Exactly 4])
+                                        , ("drop1", 5000, [Exactly 2])
+                                        , ("drop2", 5000, [Exactly 2])
+                                        , ("drop3", 5000, [Exactly 3])
+                                        , ("infix1", 5000, [Exactly 2])
+                                        , ("elem1", 5000, [Exactly 2])
+                                        , ("notElem1", 5000, [Exactly 4])
+                                        , ("elemIndex1", 5000, [Exactly 4])
+
+                                        , ("strGt", 5000, [Exactly 4])
+                                        , ("strGe", 5000, [Exactly 5])
+                                        , ("strLt", 5000, [Exactly 4])
+                                        , ("strLe", 5000, [Exactly 5])
+                                        , ("compare1", 5000, [Exactly 5])
+                                        , ("max1", 5000, [Exactly 1]) 
+                                        , ("max2", 5000, [Exactly 4])
+                                        , ("min1", 5000, [Exactly 1]) 
+                                        , ("min2", 5000, [Exactly 4])
+                                        
+                                        , ("delete1", 5000, [Exactly 3])
+                                        , ("stripPrefix1", 1000, [Exactly 2])
+                                        , ("stripPrefix2", 1000, [Exactly 5])                                         
+                                        , ("isPrefixOf1", 10000, [Exactly 6]) 
+                                        , ("isSuffixOf1", 10000, [Exactly 6]) ]
 
     , checkExpr "tests/TestFiles/Strings/Strings1.hs" 1000 "exclaimEq"
         [AtLeast 5, RExists (\[_, _, r] -> dcHasName "True" r)]
@@ -382,20 +438,28 @@ testFileTests = testGroup "TestFiles"
                                                                        , ("assoc", 200, [AtLeast 5])
                                                                        , ("sf", 175, [AtLeast 5])
                                                                        , ("tupleTest", 175, [AtLeast 8])]
-    , checkInputOutputsNonRedTemp "tests/HigherOrder/HigherOrder.hs" [ ("f", 200, [AtLeast 3])
-                                                                     , ("h", 150, [AtLeast 2])
-                                                                     , ("assoc", 250, [AtLeast 2])
-                                                                     , ("sf", 250, [AtLeast 2])
-                                                                     , ("thirdOrder", 300, [AtLeast 2])
-                                                                     , ("thirdOrder2", 300, [AtLeast 3])
-                                                                     , ("tupleTestMono", 175, [AtLeast 2])
-                                                                     , ("multiPrim", 300, [AtLeast 2])]
-    , checkInputOutputsNonRedLib "tests/BaseTests/ListTests.hs" [ ("lengthN", 800, [AtLeast 5])
-                                                                , ("map2", 150, [AtLeast 2])
-                                                                , ("testFib", 300, [AtLeast 1])]
+    , checkInputOutputsNonRedHigher "tests/HigherOrder/HigherOrder.hs" [ ("f", 200, [AtLeast 3])
+                                                                       , ("h", 150, [AtLeast 2])
+                                                                       , ("assoc", 250, [AtLeast 2])
+                                                                       , ("sf", 250, [AtLeast 2])
+                                                                       , ("thirdOrder", 300, [AtLeast 2])
+                                                                       , ("thirdOrder2", 300, [AtLeast 3])
+                                                                       , ("tupleTestMono", 175, [AtLeast 2])
+                                                                       , ("multiPrim", 300, [AtLeast 2])]
+    , checkInputOutputsNonRedLib "tests/BaseTests/ListTests.hs" [ ("lengthN", 20000, [Exactly 1])
+                                                                , ("lengthBranch", 20000, [Exactly 4])
+                                                                , ("map2", 20000, [Exactly 3])
+                                                                , ("filterCall1", 20000, [Exactly 7])
+                                                                , ("nubCall1", 20000, [Exactly 4])
+                                                                , ("indexCall1", 20000, [Exactly 6])
+                                                                , ("indexCall2", 20000, [AtLeast 12])
+                                                                , ("lastCall1", 20000, [Exactly 4])
+                                                                , ("dropCall1", 20000, [Exactly 6])
+                                                                , ("initCall1", 20000, [Exactly 4])
+                                                                , ("testFib", 20000, [Exactly 4])]
                                                                 
     , checkInputOutputsNonRedLib "tests/TestFiles/NRPC/EmptyTuple.hs" [ ("main", 1000, [AtLeast 1])]
-    , checkExprNRPC "tests/TestFiles/NRPC/Print.hs" 2500 "f" [AtLeast 5]
+    , checkExprLibNRPC "tests/TestFiles/NRPC/Print.hs" 2500 "f" [AtLeast 5]
     -- , checkInputOutput "tests/TestFiles/BadBool.hs" "BadBool" "f" 1400 [AtLeast 1]
     -- , checkExprAssumeAssert "tests/TestFiles/Coercions/GADT.hs" 400 Nothing Nothing "g" 2
     --     [ AtLeast 2
@@ -535,6 +599,7 @@ baseTests = testGroup "Base"
     , checkInputOutputs "tests/BaseTests/ListTests.hs" [ ("test", 1000, [AtLeast 1])
                                                        , ("maxMap", 1000, [AtLeast 4])
                                                        , ("minTest", 1000, [AtLeast 2])
+                                                       , ("initsTest", 4000, [AtLeast 6])
                                                        , ("foldrTest2", 1000, [AtLeast 1])
                                                        , ("unionTest", 1000, [AtLeast 9]) ]
 
@@ -654,16 +719,16 @@ checkExpr :: String -> Int -> String -> [Reqs ([Expr] -> Bool)] -> TestTree
 checkExpr src stps entry reqList =
     checkExprReaches src stps Nothing Nothing Nothing entry reqList
 
-checkExprNRPC :: String
-              -> Int
-              -> String
-              -> [Reqs ([Expr] -> Bool)]
-              -> TestTree
-checkExprNRPC src stps entry reqList = do
+checkExprLibNRPC :: String
+                 -> Int
+                 -> String
+                 -> [Reqs ([Expr] -> Bool)]
+                 -> TestTree
+checkExprLibNRPC src stps entry reqList = do
     checkExprWithConfig src Nothing Nothing Nothing entry reqList
             (do
                 config <- mkConfigTestWithSetIO
-                return $ config {steps = stps, nrpc = Nrpc})
+                return $ config {steps = stps, lib_nrpc = Nrpc})
 
 checkExprAssume :: String -> Int -> Maybe String -> String -> [Reqs ([Expr] -> Bool)] -> TestTree
 checkExprAssume src stps m_assume entry reqList =

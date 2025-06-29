@@ -451,6 +451,10 @@ mkPrimHaskell pg = pr
         pr StrAppend = "StrAppend"
         pr StrAt = "str.at"
         pr StrSubstr = "str.substr"
+        pr StrIndexOf = "str.indexof"
+        pr StrReplace = "str.replace"
+        pr StrPrefixOf = "str.prefixof"
+        pr StrSuffixOf = "str.suffixof"
         pr Chr = "chr"
         pr OrdChar = "ord"
 
@@ -475,6 +479,8 @@ mkPrimHaskell pg = pr
         pr Implies = "pr_implies"
         pr Iff = "pr_iff"
         pr Ite = "pr_ite"
+
+        pr IsSMTRep = "isSMTRep"
 
         pr TypeIndex = "typeIndex"
 
