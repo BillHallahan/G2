@@ -28,7 +28,7 @@ main = do
   case vr of
     Verified -> putStrLn "Verified"
     VerifyTimeOut -> putStrLn "Unknown (Timeout)"
-    Counterexample ce -> do putStrLn "CounterExample"; printFuncCalls config entry_f b ce
+    Counterexample ce -> do putStrLn "Counterexample"; printFuncCalls config entry_f b ce
   
 
 printFuncCalls :: Config -> Id -> Bindings
