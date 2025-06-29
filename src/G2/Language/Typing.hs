@@ -331,7 +331,7 @@ tyVarSubst m = modifyASTs (tyVarSubst' m)
 tyVarSubst' ::  TV.TyVarEnv -> Type -> Type 
 tyVarSubst' m t@(TyVar (Id n _)) =
     case TV.lookup n m of
-        Nothing -> trace("In the nothing case:, the type we can't find in tyvar_env is " ++ show t)t 
+        Nothing -> trace("tyVarSubst': In the nothing case:, the type we can't find in tyvar_env is " ++ show t)t 
         Just t' -> trace("tyVarSubst': we are substing the the type varaible " ++ show n ++ " that have type " ++ show t ++ " with type: " ++ show t')tyVarSubst' m t'
 tyVarSubst' _ t = t
 
@@ -358,7 +358,7 @@ t1 .::. t2 = t1 .:: t2 && t2 .:: t1
 {-# INLINE (.::.) #-}
 
 specializes :: Type -> Type -> Maybe TV.TyVarEnv 
-specializes t1 t2 = specializes' TV.empty t1 t2 
+specializes = specializes' TV.empty 
 
 specializes' :: TV.TyVarEnv -> Type -> Type -> Maybe TV.TyVarEnv 
 specializes' m _ TYPE = Just m

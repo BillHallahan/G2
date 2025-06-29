@@ -7,7 +7,7 @@ import G2.Language.KnownValues
 import G2.Language.Syntax
 import G2.Language.TypeClasses
 import G2.Language.TypeEnv
-import G2.Language.Typing (tyAppCenter, returnType, typeOf)
+import G2.Language.Typing (tyAppCenter, returnType)
 
 import Data.List
 import qualified Data.HashMap.Lazy as HM

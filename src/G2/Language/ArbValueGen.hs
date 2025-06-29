@@ -207,7 +207,7 @@ getADT cutoff m tenv tvnv av adt ts
             ids = bound_ids adt
 
             -- Finds the DataCon for adt with the least arguments
-            min_dc = trace("getADT dcs " ++ show dcs)minimumBy (comparing (length . anonArgumentTypes. typeOf tvnv)) dcs
+            min_dc = minimumBy (comparing (length . anonArgumentTypes. typeOf tvnv)) dcs
 
             m' = foldr (uncurry HM.insert) m $ zip (map idName ids) ts
 
