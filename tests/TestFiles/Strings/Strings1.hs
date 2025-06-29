@@ -292,3 +292,13 @@ genericIndex1 xs n
     | otherwise = ('!', 2)
     where 
         chr = xs `genericIndex` (n + 1)
+
+-- This doesn't lessen outputs, it only tests whether genericReplicate works with SMT Strings
+genericReplicate1 :: Integer -> Char -> String
+genericReplicate1 = genericReplicate
+
+-- This usually hits the solver outputting a delete character
+bigString :: String -> Int
+bigString s = case length s > 100 of
+                True -> 0
+                False -> 1

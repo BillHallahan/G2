@@ -418,7 +418,10 @@ testFileTests = testGroup "TestFiles"
                                         , ("genericTake1", 5000, [Exactly 4])
                                         , ("genericDrop1", 5000, [Exactly 3])
                                         , ("genericSplitAt1", 5000, [Exactly 4])
-                                        , ("genericIndex1", 5000, [Exactly 4]) ]
+                                        , ("genericIndex1", 5000, [Exactly 4])
+                                        , ("genericReplicate1", 1000, [AtLeast 5])
+                                        
+                                        , ("bigString", 1000, [Exactly 2]) ]
 
     , checkExpr "tests/TestFiles/Strings/Strings1.hs" 1000 "exclaimEq"
         [AtLeast 5, RExists (\[_, _, r] -> dcHasName "True" r)]
