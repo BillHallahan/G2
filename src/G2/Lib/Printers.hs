@@ -1,5 +1,4 @@
 {-# LANGUAGE FlexibleContexts, OverloadedStrings #-}
-{-# LANGUAGE LambdaCase #-}
 
 module G2.Lib.Printers ( PrettyGuide
                        , mkPrettyGuide
@@ -665,13 +664,10 @@ prettyPathCond pg (AssumePC i l pc) =
     in
     mkIdHaskell pg i <> " = " <> T.pack (show l) <> "=> (" <> T.intercalate "\nand " (map (prettyPathCond pg) pc') <> ")"
 
-prettyNonRedPaths :: PrettyGuide -> [Maybe (Int, Expr, Expr)] -> T.Text
+prettyNonRedPaths :: PrettyGuide -> [NRPC] -> T.Text
 prettyNonRedPaths pg = T.intercalate "\n"
-                     . map (\case 
-                                    Just (i, e1, e2) ->
-                                            mkDirtyExprHaskell pg e1 <> " == "
-                                        <> mkDirtyExprHaskell pg e2 <> "  ,  #" <> T.pack (show i)
-                                    Nothing -> "Rotate")
+                     . map (\NRPC { nrpc_index = i, expr1 = e1, expr2 = e2} ->
+                            mkDirtyExprHaskell pg e1 <> " == " <> mkDirtyExprHaskell pg e2 <> "  ,  #" <> T.pack (show i))
 
 prettyHandles :: PrettyGuide -> HM.HashMap Name Handle -> T.Text
 prettyHandles pg = T.intercalate "\n" . map (\(n, h) -> printName pg n

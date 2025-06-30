@@ -78,8 +78,9 @@ moreRestrictiveIncludingPCAndNRPC :: (Show l, S.Solver solver) =>
                 -> State t -- ^ State 2
                 -> IO Bool
 moreRestrictiveIncludingPCAndNRPC solver mr_cont gen_lemma lkp ns s1 s2
-  | let indexes1 = allIndexesNRPC (non_red_path_conds s1)
-  , let indexes2 = allIndexesNRPC (non_red_path_conds s2) = do
+  | let max1 = maxIndexNRPC (non_red_path_conds s1)
+  , let min2 = minIndexNRPC (non_red_path_conds s2)
+  , max1 < min2 || max1 == -1 = do
     let mr = moreRestrictive' mr_cont gen_lemma lkp s1 s2 ns (HM.empty, HS.empty) True [] [] (getExpr s1) (getExpr s2)
               --  >>= \hm -> moreRestrictiveStack mr_cont gen_lemma lkp s1 s2 ns hm (exec_stack s1) (exec_stack s2)
                >>= \hm' -> moreRestrictiveNRPC mr_cont gen_lemma lkp s1 s2 ns hm' (non_red_path_conds s1) (non_red_path_conds s2)
@@ -349,7 +350,7 @@ moreRestrictiveNRPC :: Show l => MRCont t l
                     -> Either [l] (HM.HashMap Id Expr, HS.HashSet (Expr, Expr))
 moreRestrictiveNRPC mr_cont gen_lemma lkp s1 s2 ns init_hm nrpc1 nrpc2 = matchNRPCs init_hm (toListNRPC nrpc1) (toListNRPC nrpc2)
   where
-    matchNRPCs hm [] [] = Right hm
+    matchNRPCs hm [] _ = Right hm
     matchNRPCs hm ((eL_1, eR_1):ns1) ns2 = do
         let m_match_rest = selectJust
                               (\(eL_2, eR_2) -> do
@@ -359,7 +360,6 @@ moreRestrictiveNRPC mr_cont gen_lemma lkp s1 s2 ns init_hm nrpc1 nrpc2 = matchNR
         case m_match_rest of
           Just (hm', rest) -> matchNRPCs hm' ns1 rest
           Nothing -> Left []
-    matchNRPCs _ _ _ = Left []
 
     moreRes hm e1 e2 =
       case moreRestrictive' mr_cont gen_lemma lkp s1 s2 ns hm True [] [] e1 e2 of
