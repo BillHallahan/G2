@@ -1222,7 +1222,6 @@ prettyLogger fp =
         (\_ s b -> do
             pg <- SM.get
             let pg' = updatePrettyGuide (s { track = () }) pg
-            let s' = inlineNRPC s
             SM.put pg'
             liftIO $ outputState fp (log_path s) s' b (\s_ _ -> T.unpack $ prettyState pg' s_)
             return (NoProgress, [(s, ())], b)
@@ -1401,8 +1400,9 @@ prettyLimLogger ll =
     genLimLogger (\off s b -> do
                 pg <- SM.get
                 let pg' = updatePrettyGuide (s { track = () }) pg
+                let s' = inlineNRPC s
                 SM.put pg'
-                liftIO $ outputState (lim_output_path ll) off s b (\s_ _ -> T.unpack $ prettyState pg' s_)
+                liftIO $ outputState (lim_output_path ll) off s' b (\s_ _ -> T.unpack $ prettyState pg' s_)
     ) ll
  
 
