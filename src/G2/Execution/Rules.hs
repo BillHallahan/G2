@@ -50,6 +50,7 @@ import qualified G2.Language.TyVarEnv as TV
 
 import Control.Exception
 import Data.Int (Int)
+import Debug.Trace
 
 stdReduce :: (Solver solver, Simplifier simplifier) => Sharing -> SymbolicFuncEval t -> solver -> simplifier -> State t -> Bindings -> IO (Rule, [(State t, ())], Bindings)
 stdReduce share symb_func_eval solver simplifier s b@(Bindings {name_gen = ng}) = do
@@ -692,6 +693,7 @@ liftSymDefAlt' s@(State {type_env = tenv, tyvar_env = tvnv}) ng mexpr aexpr cvar
     | (Var i):_ <- unApp $ unsafeElimOuterCast mexpr
     , isADTType (typeOf tvnv i)
     , (Var i'):_ <- unApp $ exprInCasts mexpr = -- Id with original Type
+    -- this is the location of failure the typeOf of Nothing
         let (adt, bi) = fromJust $ getCastedAlgDataTy (typeOf tvnv i) tenv
             maybeC = case mexpr of
                 (Cast _ c) -> Just c

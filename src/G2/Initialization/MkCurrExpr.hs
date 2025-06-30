@@ -188,7 +188,7 @@ instantitateTypes tc kv ts =
                                     sat = satisfyingTCTypes kv tc i ts''
                                     pt = pickForTyVar kv sat
                                 in
-                                trace("The sat is " ++ show sat)(replaceTyVar (idName i) pt ts'', (i, pt))) ts' tv
+                                 (replaceTyVar (idName i) pt ts'', (i, pt))) ts' tv
 
         -- Get dictionary arguments
         vi = mapMaybe (instantiateTCDict tc tcSat) ts'
