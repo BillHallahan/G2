@@ -5,6 +5,7 @@ module G2.Language.NonRedPathConds ( NonRedPathConds
                                    , emptyNRPC
                                    , addNRPC
                                    , getNRPC
+                                   , nullNRPC
                                    , toListNRPC
                                    , minIndexNRPC
                                    , maxIndexNRPC
@@ -42,6 +43,10 @@ addNRPC ng e1 e2 (NRPCs nrpc) =
 getNRPC :: NonRedPathConds -> Maybe ((Expr, Expr), NonRedPathConds)
 getNRPC (NRPCs Empty) = Nothing
 getNRPC (NRPCs (NRPC { expr1 = e1, expr2 = e2 } :<| nrpc)) = Just ((e1, e2), NRPCs nrpc)
+
+nullNRPC :: NonRedPathConds -> Bool
+nullNRPC (NRPCs Empty) = False
+nullNRPC _ = True
 
 toListNRPC :: NonRedPathConds -> [(Expr, Expr)]
 toListNRPC (NRPCs nrpc) = map (\n -> (expr1 n, expr2 n)) $ F.toList nrpc

@@ -315,6 +315,10 @@ data Halter m hv r t = Halter {
     -- Errors if the returned list is too short.
     -- If only one state is returned, updateHalterWithAll does not run.
     , updateHalterWithAll :: [(State t, hv)] -> [hv]
+
+    -- Runs before selecting a new state to filter down possiblities
+    , filterAllStates :: forall b rv hv sov . M.Map b [ExState rv hv sov t] -> M.Map b [ExState rv hv sov t]
+
     }
 
 -- | A simple, default halter.
@@ -324,7 +328,8 @@ mkSimpleHalter initial update stop step = Halter { initHalt = initial
                                                  , discardOnStart = \_ _ _ -> False
                                                  , stopRed = stop
                                                  , stepHalter = step
-                                                 , updateHalterWithAll = map snd }
+                                                 , updateHalterWithAll = map snd
+                                                 , filterAllStates = id }
 {-# INLINE mkSimpleHalter #-}
 
 -- | Lift a halter from a component monad to a constructed monad. 
@@ -334,7 +339,8 @@ liftHalter h = Halter { initHalt = initHalt h
                       , discardOnStart = discardOnStart h
                       , stopRed = \hv pr s -> SM.lift ((stopRed h) hv pr s)
                       , stepHalter = stepHalter h
-                      , updateHalterWithAll = updateHalterWithAll h }
+                      , updateHalterWithAll = updateHalterWithAll h
+                      , filterAllStates = id }
 
 -- | Lift a SomeHalter from a component monad to a constructed monad. 
 liftSomeHalter :: (Monad m1, SM.MonadTrans m2) => SomeHalter m1 r t -> SomeHalter (m2 m1) r t
@@ -1551,6 +1557,8 @@ h1 <~> h2 =
                     shv2' = updateHalterWithAll h2 shv2
                 in
                 map (uncurry C) $ zip shv1' shv2'
+            
+            , filterAllStates = filterAllStates h2 . filterAllStates h1 
             }
 {-# INLINE (<~>) #-}
 
@@ -2399,7 +2407,7 @@ runReducer red hal ord solve_r analyze init_state init_bindings = do
                 -> M.Map b [ExState rv hv sov t]
                 -> Maybe (ExState rv hv sov t, M.Map b [ExState rv hv sov t])
         minState pr m =
-            case getState m of
+            case getState $ filterAllStates hal m of
             Just (k, x:[]) -> Just (x, M.delete k m)
             Just (k, x:xs) -> Just (x, M.insert k xs m)
             Just (k, []) -> minState pr $ M.delete k m

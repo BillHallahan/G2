@@ -845,7 +845,7 @@ checkExprCEx = checkExprVerifier (\case Verified -> False; Counterexample _ -> T
 checkExprNotVerified :: String -> String -> TestTree
 checkExprNotVerified = checkExprVerifier (\case Verified -> False; Counterexample _ -> True; VerifyTimeOut -> True)
 
-checkExprVerifier :: (VerifyResult () -> Bool) -> String -> String -> TestTree
+checkExprVerifier :: (VerifyResult -> Bool) -> String -> String -> TestTree
 checkExprVerifier vr_check src entry = 
     testCase ("Verifier:" ++ src ++ " " ++ entry) $ do
         res <- try (do
@@ -853,7 +853,7 @@ checkExprVerifier vr_check src entry =
                 config <- mkConfigTestIO
                 let config' = config { timeLimit = 30 }
                 verifyFromFile [proj] [src] (T.pack entry) simplTranslationConfig config')
-                    :: IO (Either SomeException ((VerifyResult (), Bindings, Id)))
+                    :: IO (Either SomeException ((VerifyResult, Bindings, Id)))
         let res' = case res of
                         Left _ -> VerifyTimeOut
                         Right (vr, _, _) -> vr

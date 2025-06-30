@@ -23,26 +23,27 @@ import qualified Control.Monad.State as SM
 import qualified Data.HashSet as S
 import Data.IORef
 
+type VerifierExecRes = ExecRes VerifierTracker
 
-data VerifyResult t = Verified
-                    | Counterexample [ExecRes t]
-                    | VerifyTimeOut
-                    deriving (Show, Read)
+data VerifyResult = Verified
+                  | Counterexample [VerifierExecRes]
+                  | VerifyTimeOut
+                  deriving (Show, Read)
 
-type RHOStack m t = SM.StateT (ApproxPrevs t)
+type VerStack m = SM.StateT (ApproxPrevs VerifierTracker)
                         (SM.StateT LengthNTrack
                             (SM.StateT PrettyGuide m))
 
 verifyRedHaltOrd :: (MonadIO m, Solver solver, Simplifier simplifier) =>
-                    State ()
+                    VerifierState
                  -> solver
                  -> simplifier
                  -> Config
                  -> S.HashSet Name -- ^ Names of functions that should not reesult in a larger expression become EXEC,
                                    -- but should not be added to the NRPC at the top level.
-                 -> IO ( SomeReducer (RHOStack m ()) ()
-                       , SomeHalter (RHOStack m ()) (ExecRes ()) ()
-                       , SomeOrderer (RHOStack m ()) (ExecRes ()) ()
+                 -> IO ( SomeReducer (VerStack m) VerifierTracker
+                       , SomeHalter (VerStack m) (ExecRes VerifierTracker) VerifierTracker
+                       , SomeOrderer (VerStack m) (ExecRes VerifierTracker) VerifierTracker
                        , IORef TimedOut)
 verifyRedHaltOrd s solver simplifier config no_nrpc_names = do
     time_logger <- acceptTimeLogger
@@ -101,7 +102,7 @@ verifyRedHaltOrd s solver simplifier config no_nrpc_names = do
                 , orderer
                 , io_timed_out)
             SymbolicFunc ->
-                ( nrpc_approx_red retReplaceSymbFuncTemplate .== Finished --> nonRedPCSymFuncRed
+                ( nrpc_approx_red retReplaceSymbFuncTemplate .== Finished --> nonRedPCRed
                 , halter_approx_discard
                 , orderer
                 , io_timed_out)
@@ -128,7 +129,7 @@ verifyFromFile :: [FilePath]
                -> StartFunc
                -> TranslationConfig
                -> Config
-               -> IO (VerifyResult (), Bindings, Id)
+               -> IO (VerifyResult, Bindings, Id)
 verifyFromFile proj src f transConfig config = do
     let config' = config {
                          -- For soundness, we must exhaustively search all states that are not discarded via approximation,
@@ -148,13 +149,13 @@ verifyFromFile proj src f transConfig config = do
     (init_state, entry_f, bindings, _) <- initialStateFromFile proj src
                                     Nothing False f (mkCurrExpr Nothing Nothing) mkArgTys
                                     transConfig config'
-    let (init_state', ng) = wrapCurrExpr (name_gen bindings) init_state
+    let init_state' = init_state { track = PropState } 
+        (init_state'', ng) = wrapCurrExpr (name_gen bindings) init_state'
         bindings' = bindings { name_gen = ng }
 
-    -- (er, b, to) <- runG2WithConfig (idName entry_f) mb_modname init_state' config' bindings'
     
     SomeSolver solver <- initSolver config
-    let (state', bindings'') = runG2Pre emptyMemConfig init_state' bindings'
+    let (state', bindings'') = runG2Pre emptyMemConfig init_state'' bindings'
 
         simplifier = FloatSimplifier :>> ArithSimplifier :>> BoolSimplifier :>> StringSimplifier :>> EqualitySimplifier
         --exp_env_names = E.keys . E.filterConcOrSym (\case { E.Sym _ -> False; E.Conc _ -> True }) $ expr_env state
@@ -186,11 +187,12 @@ verifyFromFile proj src f transConfig config = do
                                 else setTypePrinting AggressiveTypes (mkPrettyGuide ())) 
     
     to' <- readIORef to
-    let res = case to' of
+    let prop_er = filter (\ex -> track (final_state ex) == PropState) er
+        res = case to' of
                 TimedOut -> VerifyTimeOut
-                NoTimeOut | false_er <- filter (isFalse . final_state) er
+                NoTimeOut | false_er <- filter (isFalse . final_state) prop_er
                           , not (null false_er) -> Counterexample false_er
-                          | otherwise -> assert (all (isTrue . final_state) er) Verified
+                          | otherwise -> assert (all (isTrue . final_state) prop_er) Verified
     return (res, bindings''', entry_f)
     where
         isFalse s | E.deepLookupExpr (getExpr s) (expr_env s) == Just (mkFalse (known_values s ) ) = True
