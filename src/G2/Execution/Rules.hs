@@ -694,7 +694,7 @@ liftSymDefAlt' s@(State {type_env = tenv, tyvar_env = tvnv}) ng mexpr aexpr cvar
     , isADTType (typeOf tvnv i)
     , (Var i'):_ <- unApp $ exprInCasts mexpr = -- Id with original Type
     -- this is the location of failure the typeOf of Nothing
-        let (adt, bi) = fromJust $ getCastedAlgDataTy (typeOf tvnv i) tenv
+        let (adt, bi) = trace("The id we are failing is " ++ show i)fromJust $ getCastedAlgDataTy (typeOf tvnv i) tenv
             maybeC = case mexpr of
                 (Cast _ c) -> Just c
                 _ -> Nothing
