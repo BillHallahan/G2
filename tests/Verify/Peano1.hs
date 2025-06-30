@@ -47,6 +47,9 @@ h n = if n == S n then S Z else Z
 
 p4 n = S n < S (S n)
 
+p5 n m = ((n + m) - n =:= m)
+
+
 -- False properties
 p1False n = (n - n =:= if n == S (S Z) then S Z else Z)
 

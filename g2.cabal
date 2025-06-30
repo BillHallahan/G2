@@ -159,6 +159,7 @@ library
                        , G2.Translation.TransTypes
 
                        , G2.Verify.Interface
+                       , G2.Verify.Reducer
 
   if flag(support-lh) && impl(ghc < 9.2)
       exposed-modules: 

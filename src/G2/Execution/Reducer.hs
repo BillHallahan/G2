@@ -62,6 +62,10 @@ module G2.Execution.Reducer ( Reducer (..)
                             , nonRedPCRedNoPrune
                             , nonRedPCRedConst
 
+                            -- Helper functions for NRPCs
+                            , createNonRed
+                            , isNonRedBlockerTick
+
                             , ApproxPrevs
                             , emptyApproxPrevs
                             , nrpcApproxReducer
@@ -104,7 +108,7 @@ module G2.Execution.Reducer ( Reducer (..)
                             , varLookupLimitHalter
 
                             , hpcApproximationHalter
-                            , approximationHalter
+                            , approximationHalter'
                             
                             , HPCMemoTable
                             , noNewHPCHalter
@@ -1663,12 +1667,6 @@ hpcApproximationHalter = approximationHalter' stop_cond
         stop_cond pr s =
             let acc_seen_hpc = HS.unions (map (reached_hpc . final_state) $ accepted pr) in
             HS.null $ HS.difference (reached_hpc s) acc_seen_hpc
-
-approximationHalter :: (Solver solver, SM.MonadState(ApproxPrevs t) m, MonadIO m) =>
-                       solver
-                    -> HS.HashSet Name -- ^ Names that should not be inlined (often: top level names from the original source code)
-                    -> Halter m () r t
-approximationHalter = approximationHalter' (\_ _ -> True)
 
 approximationHalter' :: (Solver solver, SM.MonadState (ApproxPrevs t) m, MonadIO m) =>
                         (Processed r (State t) -> State t -> Bool) -- ^ Approximated states are discarded only if they match this condition

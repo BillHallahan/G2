@@ -373,7 +373,7 @@ initRedHaltOrd s mod_name solver simplifier config exec_func_names no_nrpc_names
 
         halter_approx_discard = case approx_discard config of
                                     True ->
-                                        SomeHalter (approximationHalter solver approx_no_inline) .<~> halter_hpc_discard
+                                        SomeHalter (hpcApproximationHalter solver approx_no_inline) .<~> halter_hpc_discard
                                     False -> halter_hpc_discard
 
         orderer = case search_strat config of

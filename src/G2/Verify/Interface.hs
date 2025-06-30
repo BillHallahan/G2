@@ -15,6 +15,7 @@ import G2.Lib.Printers
 import qualified G2.Language.ExprEnv as E
 import G2.Solver
 import G2.Translation
+import G2.Verify.Reducer
 
 import Control.Exception
 import Control.Monad.IO.Class
@@ -74,10 +75,8 @@ verifyRedHaltOrd s solver simplifier config no_nrpc_names = do
                             Just logger -> liftSomeReducer $ liftSomeReducer (logger .~> num_steps_red f)
                             Nothing -> liftSomeReducer $ liftSomeReducer (num_steps_red f)
 
-        nrpc_approx_red f = case approx_nrpc config of
-                                Nrpc -> let nrpc_approx = nrpcApproxReducer solver approx_no_inline no_nrpc_names config in
+        nrpc_approx_red f = let nrpc_approx = nrpcAnyCallReducer no_nrpc_names config in
                                         SomeReducer nrpc_approx .== Finished .--> logger_std_red f
-                                NoNrpc -> logger_std_red f
 
         halter = switchEveryNHalter 20
                  <~> acceptIfViolatedHalter
