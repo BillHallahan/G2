@@ -88,3 +88,7 @@ prop9False x xs ys = (x `elem'` xs) ==> (x `elem'` ys)
 prop10False :: [Int] -> [Int] -> Bool
 prop10False _ [] = True
 prop10False xs ys = last ([1, 2, 3, 4, 5, 6, 7, 8, 9] ++ ys) == last (xs ++ [1, 2, 3, 4, 5, 6, 7, 8, 9])
+
+prop10False2 :: [Int] -> [Int] -> Bool
+prop10False2 _ [] = True
+prop10False2 xs ys = last ([1, 2, 3, 4, 5, 6, 7, 8, 9] ++ ys) == last (xs ++ [1, 2, 3, 4, 5, 6, 7, 8, 9])
