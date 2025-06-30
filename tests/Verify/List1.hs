@@ -67,7 +67,7 @@ deleteAll x (y:ys) | x == y = deleteAll x ys
 
 notElem' :: Int -> [Int] -> Bool
 notElem' x [] = True
-notElem' x (y:ys) = if x == y then False else elem' x ys
+notElem' x (y:ys) = if x == y then False else notElem' x ys
 
 prop4False :: [Int] -> [Int] -> Bool
 prop4False (_:_:_) _ = True
