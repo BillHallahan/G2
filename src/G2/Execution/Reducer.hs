@@ -1222,8 +1222,9 @@ prettyLogger fp =
         (\_ s b -> do
             pg <- SM.get
             let pg' = updatePrettyGuide (s { track = () }) pg
+            let s' = inlineNRPC s
             SM.put pg'
-            liftIO $ outputState fp (log_path s) s b (\s_ _ -> T.unpack $ prettyState pg' s_)
+            liftIO $ outputState fp (log_path s) s' b (\s_ _ -> T.unpack $ prettyState pg' s_)
             return (NoProgress, [(s, ())], b)
         )
 
@@ -1232,6 +1233,16 @@ prettyLogger fp =
                                 liftIO . putStrLn $ "Accepted on path " ++ show ll
                                 return (s,b)
       , onDiscard = \_ ll -> liftIO . putStrLn $ "Discarded path " ++ show ll }
+
+inlineNRPC :: State t -> State t
+inlineNRPC s@(State { expr_env = eenv, non_red_path_conds = nrpc }) =
+    s { non_red_path_conds = modifyContainedASTs inline nrpc }
+    where
+        inline (Var (Id n _)) | Just (E.Conc e) <- E.lookupConcOrSym n eenv
+                              , Data _:_ <- unApp e = inline e
+                              | Just (E.Conc e@(Var _)) <- E.lookupConcOrSym n eenv = inline e
+        inline (App e1 e2) = App (inline e1) (inline e2)
+        inline e = e
 
 -- | Used to restrict the LimLogger to only output paths that could reach or have reached
 -- certain concretization, or that could satisfy certain path constraints.  For example,

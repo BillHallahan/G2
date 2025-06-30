@@ -23,27 +23,25 @@ import qualified Control.Monad.State as SM
 import qualified Data.HashSet as S
 import Data.IORef
 
-type VerifierExecRes = ExecRes VerifierTracker
-
 data VerifyResult = Verified
-                  | Counterexample [VerifierExecRes]
+                  | Counterexample [ExecRes ()]
                   | VerifyTimeOut
                   deriving (Show, Read)
 
-type VerStack m = SM.StateT (ApproxPrevs VerifierTracker)
+type VerStack m = SM.StateT (ApproxPrevs ())
                         (SM.StateT LengthNTrack
                             (SM.StateT PrettyGuide m))
 
 verifyRedHaltOrd :: (MonadIO m, Solver solver, Simplifier simplifier) =>
-                    VerifierState
+                    State ()
                  -> solver
                  -> simplifier
                  -> Config
                  -> S.HashSet Name -- ^ Names of functions that should not result in a larger expression become EXEC,
                                    -- but should not be added to the NRPC at the top level.
-                 -> IO ( SomeReducer (VerStack m) VerifierTracker
-                       , SomeHalter (VerStack m) (ExecRes VerifierTracker) VerifierTracker
-                       , SomeOrderer (VerStack m) (ExecRes VerifierTracker) VerifierTracker
+                 -> IO ( SomeReducer (VerStack m) ()
+                       , SomeHalter (VerStack m) (ExecRes ()) ()
+                       , SomeOrderer (VerStack m) (ExecRes ()) ()
                        , IORef TimedOut)
 verifyRedHaltOrd s solver simplifier config no_nrpc_names = do
     time_logger <- acceptTimeLogger
@@ -76,7 +74,7 @@ verifyRedHaltOrd s solver simplifier config no_nrpc_names = do
                             Just logger -> liftSomeReducer $ liftSomeReducer (logger .~> num_steps_red f)
                             Nothing -> liftSomeReducer $ liftSomeReducer (num_steps_red f)
 
-        nrpc_approx_red f = let nrpc_approx = nrpcApproxReducer solver approx_no_inline no_nrpc_names config in
+        nrpc_approx_red f = let nrpc_approx = nrpcAnyCallReducer no_nrpc_names config {- nrpcApproxReducer solver approx_no_inline no_nrpc_names config -} in
                                         SomeReducer nrpc_approx .== Finished .--> logger_std_red f
 
         halter = switchEveryNHalter 20
@@ -149,13 +147,12 @@ verifyFromFile proj src f transConfig config = do
     (init_state, entry_f, bindings, _) <- initialStateFromFile proj src
                                     Nothing False f (mkCurrExpr Nothing Nothing) mkArgTys
                                     transConfig config'
-    let init_state' = init_state { track = PropState } 
-        (init_state'', ng) = wrapCurrExpr (name_gen bindings) init_state'
+    let (init_state', ng) = wrapCurrExpr (name_gen bindings) init_state
         bindings' = bindings { name_gen = ng }
 
     
     SomeSolver solver <- initSolver config
-    let (state', bindings'') = runG2Pre emptyMemConfig init_state'' bindings'
+    let (state', bindings'') = runG2Pre emptyMemConfig init_state' bindings'
 
         simplifier = FloatSimplifier :>> ArithSimplifier :>> BoolSimplifier :>> StringSimplifier :>> EqualitySimplifier
         --exp_env_names = E.keys . E.filterConcOrSym (\case { E.Sym _ -> False; E.Conc _ -> True }) $ expr_env state
@@ -187,12 +184,11 @@ verifyFromFile proj src f transConfig config = do
                                 else setTypePrinting AggressiveTypes (mkPrettyGuide ())) 
     
     to' <- readIORef to
-    let prop_er = filter (\ex -> track (final_state ex) == PropState) er
-        res = case to' of
+    let res = case to' of
                 TimedOut -> VerifyTimeOut
-                NoTimeOut | false_er <- filter (isFalse . final_state) prop_er
+                NoTimeOut | false_er <- filter (isFalse . final_state) er
                           , not (null false_er) -> Counterexample false_er
-                          | otherwise -> assert (all (isTrue . final_state) prop_er) Verified
+                          | otherwise -> assert (all (isTrue . final_state) er) Verified
     return (res, bindings''', entry_f)
     where
         isFalse s | E.deepLookupExpr (getExpr s) (expr_env s) == Just (mkFalse (known_values s ) ) = True
