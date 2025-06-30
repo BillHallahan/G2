@@ -962,7 +962,11 @@ retCurrExpr s@(State { expr_env = eenv, known_values = kv }) e1 (EnsureEq e2) or
             True ->
                 let
                     es = zip es1 es2
-                    (ng', nrpc) = foldr (\(e1, e2) (ng_, nrpc) -> addNRPC ng_ e1 e2 nrpc) (ng, non_red_path_conds s) es
+                    (ng', nrpc) = foldr (\(e1, e2) (ng_, nrpc) -> addNRPC
+                                                                    ng_
+                                                                    (nonRedBlockerTick e1)
+                                                                    (nonRedBlockerTick e2)
+                                                                    nrpc) (ng, non_red_path_conds s) es
                 in
                 ( RuleReturnCurrExprFr
                 , [NewPC { state = s { curr_expr = orig_ce
@@ -996,6 +1000,13 @@ retCurrExpr s@(State { expr_env = eenv, known_values = kv }) e1 (EnsureEq e2) or
             | Just e <- E.lookup n h
             , not (isLam e) = inline h (HS.insert n ns) e
         inline h ns e = modifyChildren (inline h ns) e
+
+        nonRedBlockerTick :: Expr -> Expr
+        nonRedBlockerTick e | c:es <- unApp e =
+            let n = Name "NonRedBlocker" Nothing 0 Nothing in
+            mkApp $ Tick (NamedLoc n) c:es
+        nonRedBlockerTick e = e
+
 
 retCurrExpr s _ NoAction orig_ce stck ng = 
     ( RuleReturnCurrExprFr

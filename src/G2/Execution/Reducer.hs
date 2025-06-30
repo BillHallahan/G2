@@ -826,7 +826,10 @@ nrpcApproxReducer solver no_inline no_nrpc_names config =
 
                 case nr_s_ng of
                     Just (nr_s, _, ng') | isJust approx -> return (Finished, [(nr_s, rv + 1)], b { name_gen = ng' })
-                    _ -> do SM.modify (\ap -> ap { ap_nrpc_states = s':xs }); return (Finished, [(s, rv)], b)
+                    _ -> do
+                            liftIO . putStrLn $ "MODIFY " ++ show (log_path s')
+                            SM.modify (\ap -> ap { ap_nrpc_states = s':xs })
+                            return (Finished, [(s, rv)], b)
             | Tick nl (Var (Id n _)) <- ce
             , isNonRedBlockerTick nl
             , Just e <- E.lookup n eenv = return (Finished, [(s { curr_expr = CurrExpr Evaluate e }, rv)], b)
@@ -903,8 +906,8 @@ allApplyFrames stck = go [] stck stck
 
 nonRedBlockerTick :: NameGen -> Expr -> (Expr, NameGen)
 nonRedBlockerTick ng e =
-    let (n, ng') = freshSeededName (Name "NonRedBlocker" Nothing 0 Nothing) ng in
-    (Tick (NamedLoc n) e, ng')
+    let n = Name "NonRedBlocker" Nothing 0 Nothing in
+    (Tick (NamedLoc n) e, ng)
 
 isNonRedBlockerTick :: Tickish -> Bool
 isNonRedBlockerTick (NamedLoc n) = nameOcc n == "NonRedBlocker"
@@ -1721,11 +1724,13 @@ approximationHalter' stop_cond solver no_inline = mkSimpleHalter
                 if isJust approx && stop_cond pr s
                     then do
                         liftIO $ do
+                            putStrLn $ "    !!! curr_expr s = " ++ show (curr_expr s)
                             putStrLn $ "    !!! log_path s = " ++ show (log_path s) ++ " " ++ show (num_steps s)
                             putStrLn $ "    !!! log_path approx = " ++ show (log_path $ fromJust approx) ++ " " ++ show (num_steps $ fromJust approx)
                         return Discard
                     else do 
-                        -- liftIO . putStrLn $ "modifying with " ++ show (log_path s')
+                        liftIO . putStrLn $ "modifying with " ++ show (log_path s') ++ " " ++ show (num_steps s)
+                        liftIO . putStrLn $ "    !!! curr_expr s = " ++ show (curr_expr s)
                         SM.modify ((\ap -> ap { ap_halter_states = s':xs }))
                         return Continue
         -- stop _ _ s | log_path s == [1, 1, 1, 1]
@@ -1773,8 +1778,10 @@ mrContIgnoreNRPCTicks :: GenerateLemma t l
                       -> Either [l] (HM.HashMap Id Expr, HS.HashSet (Expr, Expr))
 mrContIgnoreNRPCTicks genLemma lkp s1 s2 ns hm active n1 n2 e1 e2 =
     case (e1, e2) of
-        (Tick t1 e1', Tick t2 e2') | t1 /= t2 ->
-            moreRestrictive' (mrContIgnoreNRPCTicks genLemma lkp) genLemma lkp s1 s2 ns hm active n1 n2 e1' e2'
+        (Tick _ e1', _) ->
+            moreRestrictive' (mrContIgnoreNRPCTicks genLemma lkp) genLemma lkp s1 s2 ns hm active n1 n2 e1' e2
+        (_, Tick _ e2') ->
+            moreRestrictive' (mrContIgnoreNRPCTicks genLemma lkp) genLemma lkp s1 s2 ns hm active n1 n2 e1 e2'
         _ -> Left []
 
 

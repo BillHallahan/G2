@@ -1,6 +1,7 @@
 {-# LANGUAGE FlexibleContexts #-}
 
 module G2.Verify.Reducer ( nrpcAnyCallReducer
+                         , verifierSolverNRPC
                          , approximationHalter ) where
 
 import G2.Config
@@ -63,6 +64,26 @@ nrpcAnyCallReducer no_nrpc_names config =
 
         applyWrap e stck | Just (ApplyFrame a, stck') <- Stck.pop stck = applyWrap (App e a) stck'
                          | otherwise = e
+
+verifierSolverNRPC :: Monad m => Reducer m () t
+verifierSolverNRPC = mkSimpleReducer (\_ -> ())
+                        verifierSolverNRPC'
+
+verifierSolverNRPC' :: Monad m => RedRules m () t
+verifierSolverNRPC' _
+                s@(State {curr_expr = cexpr
+                         , exec_stack = stck
+                         , non_red_path_conds = (nre1, nre2) :*> nrs
+                         })
+                        b@(Bindings { name_gen = ng }) =
+    
+    let
+        stck' = Stck.push (CurrExprFrame (EnsureEq nre2) cexpr) stck
+        s' = s { exec_stack = stck', non_red_path_conds = nrs }
+
+        s'' = s' {curr_expr = CurrExpr Evaluate nre1}
+    in return (InProgress, [(s'', ())], b { name_gen = ng })
+verifierSolverNRPC' _ s b = return (Finished, [(s, ())], b)
 
 -- | If a state S has a current expression, path constraints, and NRPC set that are approximated by some
 -- other state S', discard S. Any counterexample discoverable from S is also discoverable from S'.
