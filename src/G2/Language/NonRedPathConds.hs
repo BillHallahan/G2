@@ -37,8 +37,15 @@ emptyNRPC = NRPCs Empty
 addNRPC :: NameGen -> Expr -> Expr -> NonRedPathConds -> (NameGen, NonRedPathConds)
 addNRPC ng e1 e2 (NRPCs nrpc) =
     -- We use the NameGen as a source of increasing numbers
-    let (Name _ _ i _, ng') = freshSeededName (Name "NRPC" Nothing 0 Nothing) ng in
-    (ng', NRPCs (nrpc :|> NRPC { nrpc_index = i, expr1 = e1, expr2 = e2 }))
+    let
+        (Name _ _ i _, ng') = freshSeededName (Name "NRPC" Nothing 0 Nothing) ng
+        (e1', e2') = varOnRight e1 e2
+    in
+    (ng', NRPCs (nrpc :|> NRPC { nrpc_index = i, expr1 = e1', expr2 = e2' }))
+
+varOnRight :: Expr -> Expr -> (Expr, Expr)
+varOnRight e1@(Var _) e2 = (e2, e1)
+varOnRight e1 e2 = (e1, e2)
 
 getNRPC :: NonRedPathConds -> Maybe ((Expr, Expr), NonRedPathConds)
 getNRPC (NRPCs Empty) = Nothing
