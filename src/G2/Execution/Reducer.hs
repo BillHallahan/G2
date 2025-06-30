@@ -901,11 +901,6 @@ allApplyFrames stck = go [] stck stck
                     | Just (UpdateFrame _, stck') <- Stck.pop pop_stck = go aes stck' stck_top_ups
                     | otherwise = (reverse aes, stck_top_ups)
 
-nonRedBlockerTick :: NameGen -> Expr -> (Expr, NameGen)
-nonRedBlockerTick ng e =
-    let (n, ng') = freshSeededName (Name "NonRedBlocker" Nothing 0 Nothing) ng in
-    (Tick (NamedLoc n) e, ng')
-
 isNonRedBlockerTick :: Tickish -> Bool
 isNonRedBlockerTick (NamedLoc n) = nameOcc n == "NonRedBlocker"
 isNonRedBlockerTick _ = False

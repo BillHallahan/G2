@@ -23,7 +23,9 @@ module G2.Execution.Rules ( module G2.Execution.RuleTypes
                           , freshSymFuncTicks
                           , defSymFuncTicks
                           , retReplaceSymbFuncVar
-                          , retReplaceSymbFuncTemplate) where
+                          , retReplaceSymbFuncTemplate
+                          
+                          , nonRedBlockerTick ) where
 
 import G2.Config.Config
 import G2.Execution.DataConPCMap
@@ -962,7 +964,14 @@ retCurrExpr s@(State { expr_env = eenv, known_values = kv }) e1 (EnsureEq e2) or
             True ->
                 let
                     es = zip es1 es2
-                    (ng', nrpc) = foldr (\(e1, e2) (ng_, nrpc) -> addNRPC ng_ e1 e2 nrpc) (ng, non_red_path_conds s) es
+                    (ng', nrpc) = foldr (\(e1, e2) (ng_, nrpc) ->
+                                            let
+                                                (e1', ng_') = addNRPCTick ng_ e1
+                                                (e2', ng_'') = addNRPCTick ng_' e2
+                                            in
+                                            addNRPC ng_'' e1' e2' nrpc)
+                                        (ng, non_red_path_conds s)
+                                        es
                 in
                 ( RuleReturnCurrExprFr
                 , [NewPC { state = s { curr_expr = orig_ce
@@ -1003,6 +1012,16 @@ retCurrExpr s _ NoAction orig_ce stck ng =
                          , exec_stack = stck}
              , new_pcs = []
              , concretized = []}], ng )
+
+addNRPCTick :: NameGen -> Expr -> (Expr, NameGen)
+addNRPCTick ng e | c@(Var _):es <- unApp e =
+    let (c', ng') = nonRedBlockerTick ng c in (mkApp $ c':es, ng')
+addNRPCTick ng e = (e, ng)
+
+nonRedBlockerTick :: NameGen -> Expr -> (Expr, NameGen)
+nonRedBlockerTick ng e =
+    let (n, ng') = freshSeededName (Name "NonRedBlocker" Nothing 0 Nothing) ng in
+    (Tick (NamedLoc n) e, ng')
 
 retAssumeFrame :: State t -> NameGen -> Expr -> Expr -> S.Stack Frame -> (Rule, [NewPC t], NameGen)
 retAssumeFrame s@(State {known_values = kv
