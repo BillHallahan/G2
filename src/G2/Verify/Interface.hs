@@ -74,7 +74,7 @@ verifyRedHaltOrd s solver simplifier config no_nrpc_names = do
                             Just logger -> liftSomeReducer $ liftSomeReducer (logger .~> num_steps_red f)
                             Nothing -> liftSomeReducer $ liftSomeReducer (num_steps_red f)
 
-        nrpc_approx_red f = let nrpc_approx = nrpcAnyCallReducer no_nrpc_names config {- nrpcApproxReducer solver approx_no_inline no_nrpc_names config -} in
+        nrpc_approx_red f = let nrpc_approx = nrpcAnyCallReducer no_nrpc_names config in
                                         SomeReducer nrpc_approx .== Finished .--> logger_std_red f
 
         halter = switchEveryNHalter 20
@@ -90,17 +90,17 @@ verifyRedHaltOrd s solver simplifier config no_nrpc_names = do
     return $
         case higherOrderSolver config of
             AllFuncs ->
-                ( nrpc_approx_red retReplaceSymbFuncVar .== Finished .--> SomeReducer nonRedPCRed
+                ( nrpc_approx_red retReplaceSymbFuncVar .== Finished .--> SomeReducer verifySolveNRPC
                 , halter_approx_discard
                 , orderer
                 , io_timed_out)
             SingleFunc ->
-                ( nrpc_approx_red retReplaceSymbFuncVar .== Finished --> nonRedPCRed
+                ( nrpc_approx_red retReplaceSymbFuncVar .== Finished --> verifySolveNRPC
                 , halter_approx_discard
                 , orderer
                 , io_timed_out)
             SymbolicFunc ->
-                ( nrpc_approx_red retReplaceSymbFuncTemplate .== Finished --> nonRedPCRed
+                ( nrpc_approx_red retReplaceSymbFuncTemplate .== Finished --> verifySolveNRPC
                 , halter_approx_discard
                 , orderer
                 , io_timed_out)

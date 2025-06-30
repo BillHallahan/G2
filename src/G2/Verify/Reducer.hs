@@ -1,6 +1,7 @@
 {-# LANGUAGE FlexibleContexts #-}
 
 module G2.Verify.Reducer ( nrpcAnyCallReducer
+                         , verifySolveNRPC
                          , approximationHalter ) where
 
 import G2.Config
@@ -46,8 +47,6 @@ nrpcAnyCallReducer no_nrpc_names config =
                 --     putStrLn $ "curr_expr s = " ++ show (getExpr s)
                 --     putStrLn $ "log_path s = " ++ show (log_path s)
                 --     putStrLn $ "num_steps s = " ++ show (num_steps s)
-                let s' = s { curr_expr = CurrExpr Evaluate e, exec_stack = Stck.empty }
-
                 let nr_s_ng = createNonRed (name_gen b) s
 
                 case nr_s_ng of
@@ -63,6 +62,25 @@ nrpcAnyCallReducer no_nrpc_names config =
 
         applyWrap e stck | Just (ApplyFrame a, stck') <- Stck.pop stck = applyWrap (App e a) stck'
                          | otherwise = e
+
+verifySolveNRPC :: Monad m => Reducer m () t
+verifySolveNRPC = mkSimpleReducer (const ()) red
+    where
+        red _
+                        s@(State {curr_expr = cexpr
+                                , exec_stack = stck
+                                , non_red_path_conds = (nre1, nre2) :*> nrs
+                                })
+                                b@(Bindings { name_gen = ng }) =
+            
+            let
+                stck' = Stck.push (CurrExprFrame (EnsureEq nre2) cexpr) stck
+                s' = s { curr_expr = CurrExpr Evaluate nre1
+                    , exec_stack = stck'
+                    , non_red_path_conds = nrs }
+
+                in return (InProgress, [(s', ())], b { name_gen = ng })
+        red _ s b = return (Finished, [(s, ())], b)
 
 -- | If a state S has a current expression, path constraints, and NRPC set that are approximated by some
 -- other state S', discard S. Any counterexample discoverable from S is also discoverable from S'.
