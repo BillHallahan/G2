@@ -645,10 +645,12 @@ verifierTests = testGroup "Verifier"
     , checkExprVerified "tests/Verify/Peano1.hs" "p2"
     , checkExprVerified "tests/Verify/Peano1.hs" "p3"
     , checkExprVerified "tests/Verify/Peano1.hs" "p4"
+    , checkExprVerified "tests/Verify/Peano1.hs" "p5"
 
     , checkExprNotVerified "tests/Verify/Peano1.hs" "p1False"
     , checkExprNotVerified "tests/Verify/Peano1.hs" "p2False"
     , checkExprNotVerified "tests/Verify/Peano1.hs" "p3False"
+    , checkExprNotVerified "tests/Verify/Peano1.hs" "p5False"
 
     , checkExprVerified "tests/Verify/Int1.hs" "p1"
     , checkExprVerified "tests/Verify/Int1.hs" "p2"

@@ -261,6 +261,10 @@ moreRestrictive' mr_cont gen_lemma lkp s1@(State {expr_env = h1}) s2@(State {exp
     (Cast e1' c1, Cast e2' c2) | c1 == c2 ->
         moreRestrictive' mr_cont gen_lemma lkp s1 s2 ns hm active n1 n2 e1' e2'
 
+    (Assume _ am1 ex1, Assume _ am2 ex2) ->
+        moreRestrictive' mr_cont gen_lemma lkp s1 s2 ns hm active n1 n2 am1 am2
+          >>= \hm' -> moreRestrictive' mr_cont gen_lemma lkp s1 s2 ns hm' active n1 n2 ex1 ex2
+
     _ -> mr_cont s1 s2 ns hm active n1 n2 e1 e2
     where
         reachesSym h = getAny . reachesSym' HS.empty h

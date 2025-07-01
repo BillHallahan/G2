@@ -2,6 +2,7 @@
 
 module G2.Verify.Reducer ( nrpcAnyCallReducer
                          , verifySolveNRPC
+                         , verifyHigherOrderHandling
                          , approximationHalter ) where
 
 import G2.Config
@@ -9,12 +10,15 @@ import G2.Execution.Reducer
 import G2.Language
 import G2.Language.Approximation
 import qualified G2.Language.ExprEnv as E
+import G2.Language.KnownValues
 import qualified G2.Language.Stack as Stck
+import qualified G2.Language.Typing as T
 import G2.Solver
 
 import Control.Monad.IO.Class
 import qualified Control.Monad.State as SM
 import qualified Data.HashSet as HS
+import Data.Maybe
 
 
 -- | When a newly reached function application is approximated by a previously seen (and thus explored) function application,
@@ -81,6 +85,49 @@ verifySolveNRPC = mkSimpleReducer (const ()) red
 
                 in return (InProgress, [(s', ())], b { name_gen = ng })
         red _ s b = return (Finished, [(s, ())], b)
+
+verifyHigherOrderHandling :: MonadIO m => Reducer m () t
+verifyHigherOrderHandling = mkSimpleReducer (const ()) red
+    where
+        red _ s@(State { curr_expr = CurrExpr Evaluate (App (Var (Id n ty_fun)) ar)
+                       , expr_env = eenv
+                       , type_env = tenv
+                       , known_values = kv
+                       , type_classes = tc }) b@(Bindings { name_gen = ng })
+            | E.isSymbolic n eenv =
+                let
+                    ty_ar = typeOf ar
+                    (lam_x, ng2) = freshId ty_ar ng
+                    (sym, ng3) = freshId ty_ar ng2
+                    (bindee, ng4) = freshId ty_ar ng3
+
+                    (ret_true, ng5) = freshId (returnType $ PresType ty_fun) ng4
+                    (ret_false, ng6) = freshId ty_fun ng5
+
+                    eq_tc = case lookupTCDict tc (eqTC kv) ty_ar of
+                                Just tc -> tc
+                                Nothing -> error "verifyHigherOrderHandling: unsuported type"
+                    eq_f = eqFunc kv
+                    eq_f_i = Id eq_f (typeOf . fromJust $ E.lookup eq_f eenv)
+
+                    e = mkApp [Var eq_f_i, Type ty_ar, Var eq_tc, Var lam_x, Var sym]
+
+                    func_body =
+                        Lam TermL lam_x $ 
+                            Case e bindee (returnType $ PresType ty_fun)
+                                [ Alt (DataAlt (mkDCTrue kv tenv) []) (Var ret_true)
+                                , Alt (DataAlt (mkDCFalse kv tenv) []) (App (Var ret_false) (Var lam_x))]
+
+                    eenv' = E.insertSymbolic sym
+                          . E.insertSymbolic ret_true
+                          . E.insertSymbolic ret_false
+                          $ E.insert n func_body eenv
+
+                    s' = s { curr_expr = CurrExpr Evaluate (App func_body ar), expr_env = eenv'}
+                in
+                return (InProgress, [(s', ())], b {name_gen = ng6})
+        red _ s b = return (Finished, [(s, ())], b)
+
 
 -- | If a state S has a current expression, path constraints, and NRPC set that are approximated by some
 -- other state S', discard S. Any counterexample discoverable from S is also discoverable from S'.

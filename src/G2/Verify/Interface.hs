@@ -11,6 +11,7 @@ import G2.Execution.InstTypes
 import G2.Execution.HPC
 import G2.Language
 import qualified G2.Language.CallGraph as G
+import qualified G2.Language.KnownValues as KV
 import G2.Lib.Printers
 import qualified G2.Language.ExprEnv as E
 import G2.Solver
@@ -22,6 +23,7 @@ import Control.Monad.IO.Class
 import qualified Control.Monad.State as SM
 import qualified Data.HashSet as S
 import Data.IORef
+import Data.Maybe
 
 data VerifyResult = Verified
                   | Counterexample [ExecRes ()]
@@ -57,7 +59,7 @@ verifyRedHaltOrd s solver simplifier config no_nrpc_names = do
                          $ expr_env s
                          
         strict_red f = case strict config of
-                            True -> SomeReducer (stdRed share f solver simplifier ~> instTypeRed ~> strictRed)
+                            True -> SomeReducer (verifyHigherOrderHandling ~> stdRed share f solver simplifier ~> instTypeRed ~> strictRed)
                             False -> SomeReducer (stdRed share f solver simplifier ~> instTypeRed)
 
         nrpc_higher_red f = liftSomeReducer (strict_red f)
@@ -75,7 +77,7 @@ verifyRedHaltOrd s solver simplifier config no_nrpc_names = do
                             Nothing -> liftSomeReducer $ liftSomeReducer (num_steps_red f)
 
         nrpc_approx_red f = let nrpc_approx = nrpcAnyCallReducer no_nrpc_names config in
-                                        SomeReducer nrpc_approx .== Finished .--> logger_std_red f
+                                        SomeReducer nrpc_approx .~> logger_std_red f
 
         halter = switchEveryNHalter 20
                  <~> acceptIfViolatedHalter
@@ -87,23 +89,10 @@ verifyRedHaltOrd s solver simplifier config no_nrpc_names = do
                         Subpath -> SomeOrderer . liftOrderer $ lengthNSubpathOrderer (subpath_length config)
                         Iterative -> SomeOrderer $ pickLeastUsedOrderer
 
-    return $
-        case higherOrderSolver config of
-            AllFuncs ->
-                ( nrpc_approx_red retReplaceSymbFuncVar .== Finished .--> SomeReducer verifySolveNRPC
-                , halter_approx_discard
-                , orderer
-                , io_timed_out)
-            SingleFunc ->
-                ( nrpc_approx_red retReplaceSymbFuncVar .== Finished --> verifySolveNRPC
-                , halter_approx_discard
-                , orderer
-                , io_timed_out)
-            SymbolicFunc ->
-                ( nrpc_approx_red retReplaceSymbFuncTemplate .== Finished --> verifySolveNRPC
-                , halter_approx_discard
-                , orderer
-                , io_timed_out)
+    return ( nrpc_approx_red (\_ _ _ _ -> Nothing) .== Finished --> verifySolveNRPC
+           , halter_approx_discard
+           , orderer
+           , io_timed_out)
 
 wrapCurrExpr :: NameGen -> State t -> (State t, NameGen)
 wrapCurrExpr ng s@(State { curr_expr = CurrExpr er e, type_env = tenv, known_values = kv }) =
@@ -152,7 +141,9 @@ verifyFromFile proj src f transConfig config = do
 
     
     SomeSolver solver <- initSolver config
-    let (state', bindings'') = runG2Pre emptyMemConfig init_state' bindings'
+    let eq_tc = map (idName . snd)
+              <$> lookupTCDicts (KV.eqTC $ known_values init_state') (type_classes init_state')
+        (state', bindings'') = runG2Pre (addSearchNames (fromMaybe [] eq_tc) $ emptyMemConfig) init_state' bindings'
 
         simplifier = FloatSimplifier :>> ArithSimplifier :>> BoolSimplifier :>> StringSimplifier :>> EqualitySimplifier
         --exp_env_names = E.keys . E.filterConcOrSym (\case { E.Sym _ -> False; E.Conc _ -> True }) $ expr_env state

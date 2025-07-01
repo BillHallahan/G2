@@ -1692,12 +1692,12 @@ approximationHalter' stop_cond solver no_inline = mkSimpleHalter
                                                         stop
                                                         (\hv _ _ _ -> hv)
     where
-        stop _ pr s@(State { curr_expr = CurrExpr er _})
+        stop _ pr s@(State { curr_expr = CurrExpr er init_e})
             | -- maybe True (allowed_frame er . fst) 
             
               s'@(State { curr_expr = CurrExpr _ e}) <- stateAdjStack s
             , Stck.null (exec_stack s')
-            , allowed_expr_frame er (unApp e) (fmap fst $ Stck.pop (exec_stack s))
+            , allowed_expr_frame er (unApp init_e) (unApp e) (fmap fst $ Stck.pop (exec_stack s))
 
             , not . isTyFun . typeOf $ e = do
                 -- liftIO $ do
@@ -1720,7 +1720,7 @@ approximationHalter' stop_cond solver no_inline = mkSimpleHalter
                             putStrLn $ "    !!! log_path approx = " ++ show (log_path $ fromJust approx) ++ " " ++ show (num_steps $ fromJust approx)
                         return Discard
                     else do 
-                        -- liftIO . putStrLn $ "modifying with " ++ show (log_path s')
+                        -- liftIO . putStrLn $ "modifying with " ++ show (log_path s') ++ " " ++ show (num_steps s)
                         SM.modify ((\ap -> ap { ap_halter_states = s':xs }))
                         return Continue
         -- stop _ _ s | log_path s == [1, 1, 1, 1]
@@ -1748,11 +1748,13 @@ approximationHalter' stop_cond solver no_inline = mkSimpleHalter
         allowed_frame Evaluate (UpdateFrame _) = False
         allowed_frame _ _ = True
 
-        allowed_expr_frame _ _ (Just (ApplyFrame _)) = False
-        allowed_expr_frame Return (Data _:_) (Just (UpdateFrame _)) = False
-        allowed_expr_frame Return (Data _:_) _ = True
-        allowed_expr_frame Evaluate (Var _:_:_) _= True
-        allowed_expr_frame _ _ _ = False
+        allowed_expr_frame _ _ _ (Just (ApplyFrame _)) = False
+        allowed_expr_frame Return (Data _:_) _ (Just (UpdateFrame _)) = False
+        allowed_expr_frame Return (Data _:_) _ _ = True
+        allowed_expr_frame Evaluate (Var _:_:_) (Var _:_:_) _ = True
+        allowed_expr_frame Evaluate (Var _:_:_) _ (Just (UpdateFrame _)) = False
+        allowed_expr_frame Evaluate (Var _:_:_) _ _ = True
+        allowed_expr_frame _ _ _ _ = False
 
 mrContIgnoreNRPCTicks :: GenerateLemma t l
                       -> Lookup t

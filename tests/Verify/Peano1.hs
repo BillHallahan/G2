@@ -47,7 +47,10 @@ h n = if n == S n then S Z else Z
 
 p4 n = S n < S (S n)
 
-p5 n m = ((n + m) - n =:= m)
+p5 :: (Int -> Bool) -> Int -> Bool
+p5 f n = f n == f n
+
+p6 n m = ((n + m) - n =:= m)
 
 
 -- False properties
@@ -56,3 +59,6 @@ p1False n = (n - n =:= if n == S (S Z) then S Z else Z)
 p2False n = (n - n =:= if n == intToNat (100 P.* 100) then S Z else Z)
 
 p3False n = n < n
+
+p5False :: (Int -> Bool) -> Int -> Bool
+p5False f n = f n
