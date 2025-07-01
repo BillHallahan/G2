@@ -60,5 +60,7 @@ p2False n = (n - n =:= if n == intToNat (100 P.* 100) then S Z else Z)
 
 p3False n = n < n
 
+p4False n = S (S (S n)) < S (S (S n))
+
 p5False :: (Int -> Bool) -> Int -> Bool
 p5False f n = f n

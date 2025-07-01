@@ -1,6 +1,7 @@
 module List1 where
 
-import Data.List
+import Prelude hiding ((++))
+import Data.List hiding ((++))
 
 infixr 0 ==>
 
@@ -14,6 +15,10 @@ eqLen :: [()] -> [()] -> Bool
 eqLen [] [] = True
 eqLen (_:xs) (_:ys) = eqLen xs ys
 eqLen _ _ = False
+
+(++) :: [a] -> [a] -> [a]
+[] ++ ys = ys
+(x:xs) ++ ys = x:(xs ++ ys)
 
 prop1 :: [()] -> Bool
 prop1 xs = xs `eqLen` xs
@@ -91,4 +96,4 @@ prop10False xs ys = last ([1, 2, 3, 4, 5, 6, 7, 8, 9] ++ ys) == last (xs ++ [1, 
 
 prop10False2 :: [Int] -> [Int] -> Bool
 prop10False2 _ [] = True
-prop10False2 xs ys = last ([1, 2, 3, 4, 5, 6, 7, 8, 9] ++ ys) == last (xs ++ [1, 2, 3, 4, 5, 6, 7, 8, 9])
+prop10False2 xs ys = last ([1, 2, 3, 4, 5, 6] ++ ys) == last (xs ++ [1, 2, 3, 4, 5, 6])
