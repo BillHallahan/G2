@@ -64,6 +64,7 @@ module G2.Execution.Reducer ( Reducer (..)
 
                             -- Helper functions for NRPCs
                             , createNonRed
+                            , createNonRedQueue
                             , isNonRedBlockerTick
 
                             , ApproxPrevs
@@ -594,7 +595,7 @@ nonRedPCSymFunc :: Monad m => RedRules m (Maybe SymFuncTicks) t
 nonRedPCSymFunc _
                 s@(State {curr_expr = cexpr
                          , exec_stack = stck
-                         , non_red_path_conds = (nre1, nre2) :*> nrs
+                         , non_red_path_conds = (nre1, nre2) S.:<| nrs
                          })
                         b@(Bindings { name_gen = ng }) =
     
@@ -841,18 +842,37 @@ nrpcApproxReducer solver no_inline no_nrpc_names config =
         applyWrap e stck | Just (ApplyFrame a, stck') <- Stck.pop stck = applyWrap (App e a) stck'
                          | otherwise = e
 
--- If doing so is possible, create an NRPC for the current expression of the passed state
+data AddPos = AddFront | AddBack deriving Eq
+ 
 createNonRed :: NameGen
              -> State t
              -> Maybe
                       ( State t -- ^ New state with NRPC applied
                       , Expr -- ^ Expression added into the NRPCs (and equated to some symbolic variable)
                       , NameGen)
-createNonRed ng
-             s@(State { curr_expr = CurrExpr _ ce
-                      , expr_env = eenv
-                      , non_red_path_conds = nrs
-                      , known_values = kv })
+createNonRed = createNonRed' AddFront
+
+createNonRedQueue :: NameGen
+                  -> State t
+                  -> Maybe
+                      ( State t -- ^ New state with NRPC applied
+                      , Expr -- ^ Expression added into the NRPCs (and equated to some symbolic variable)
+                      , NameGen)
+createNonRedQueue = createNonRed' AddBack
+
+-- If doing so is possible, create an NRPC for the current expression of the passed state
+createNonRed' :: AddPos
+              -> NameGen
+              -> State t
+              -> Maybe
+                      ( State t -- ^ New state with NRPC applied
+                      , Expr -- ^ Expression added into the NRPCs (and equated to some symbolic variable)
+                      , NameGen)
+createNonRed' add_pos ng
+              s@(State { curr_expr = CurrExpr _ ce
+                       , expr_env = eenv
+                       , non_red_path_conds = nrs
+                       , known_values = kv })
             | v@(Var (Id _ t)):es_ce <- unApp ce
              -- Function is being fully applied 
             , (ae, stck) <- allApplyFrames (exec_stack s)
@@ -877,15 +897,17 @@ createNonRed ng
         (te, ng'') = nonRedBlockerTick ng' v
         ce'' = mkApp $ te:es
 
-        (ng''', nrs') = addNRPC ng'' ce'' (Var new_sym_id) nrs
+        nrs' = if add_pos == AddFront
+                    then (ce'', Var new_sym_id) S.:<| nrs
+                    else nrs S.:|> (ce'', Var new_sym_id)
 
         s' = s { expr_env = eenv'
                , curr_expr = cexpr'
                , non_red_path_conds = nrs'
                , exec_stack = stck }
     in
-    Just (s', ce'', ng''')
-createNonRed _ _ = Nothing
+    Just (s', ce'', ng'')
+createNonRed' _ _ _ = Nothing
 
 hasMagicTypes :: ASTContainer c Type => KnownValues -> c -> Bool
 hasMagicTypes kv = getAny . evalASTs hmt
@@ -1060,7 +1082,7 @@ nonRedPCRedFunc prune _
                 s@(State { expr_env = eenv
                          , curr_expr = cexpr
                          , exec_stack = stck
-                         , non_red_path_conds = (nre1, nre2) :*> nrs
+                         , non_red_path_conds = (nre1, nre2) S.:<| nrs
                          , model = m })
                 b@(Bindings { higher_order_inst = inst })
     -- If our goal is to violate assertions, and we haven't violated an assertion yet when
@@ -1150,7 +1172,7 @@ nonRedPCRedConstFunc _
                      s@(State { expr_env = eenv
                               , curr_expr = cexpr
                               , exec_stack = stck
-                              , non_red_path_conds = (nre1, nre2) :*> nrs
+                              , non_red_path_conds = (nre1, nre2) S.:<| nrs
                               , model = m })
                      b@(Bindings { name_gen = ng })
     | higher_ord <- L.filter (isTyFun . typeOf) $ E.symbolicIds eenv

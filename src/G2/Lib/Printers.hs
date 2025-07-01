@@ -666,8 +666,7 @@ prettyPathCond pg (AssumePC i l pc) =
 
 prettyNonRedPaths :: PrettyGuide -> [NRPC] -> T.Text
 prettyNonRedPaths pg = T.intercalate "\n"
-                     . map (\NRPC { nrpc_index = i, expr1 = e1, expr2 = e2} ->
-                            mkDirtyExprHaskell pg e1 <> " == " <> mkDirtyExprHaskell pg e2 <> "  ,  #" <> T.pack (show i))
+                     . map (\(e1, e2) -> mkDirtyExprHaskell pg e1 <> " == " <> mkDirtyExprHaskell pg e2)
 
 prettyHandles :: PrettyGuide -> HM.HashMap Name Handle -> T.Text
 prettyHandles pg = T.intercalate "\n" . map (\(n, h) -> printName pg n

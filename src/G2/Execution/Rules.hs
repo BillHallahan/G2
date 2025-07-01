@@ -969,7 +969,7 @@ retCurrExpr s@(State { expr_env = eenv, known_values = kv }) e1 (EnsureEq e2) or
                                                 (e1', ng_') = addNRPCTick ng_ e1
                                                 (e2', ng_'') = addNRPCTick ng_' e2
                                             in
-                                            addNRPC ng_'' e1' e2' nrpc)
+                                            (ng_'', nrpc S.|> (e1', e2')))
                                         (ng, non_red_path_conds s)
                                         es
                 in
@@ -1352,13 +1352,13 @@ retReplaceSymbFuncVar _
         let
             (new_sym, ng') = freshSeededString "sym" ng
             new_sym_id = Id new_sym t
-            (ng'', nrpc') = addNRPC ng' ce (Var new_sym_id) (non_red_path_conds s)
+            nrpc' = (ce, Var new_sym_id) S.:<| non_red_path_conds s
         in
         Just (RuleReturnReplaceSymbFunc, 
             [s { expr_env = E.insertSymbolic new_sym_id eenv
                , curr_expr = CurrExpr Return (Var new_sym_id)
                , non_red_path_conds = nrpc' }]
-            , ng'')
+            , ng')
     | otherwise = Nothing
     where
         notApplyFrame | Just (frm, _) <- S.pop stck = not (isApplyFrame frm)
