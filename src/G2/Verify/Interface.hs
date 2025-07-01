@@ -141,14 +141,15 @@ verifyFromFile proj src f transConfig config = do
 
     
     SomeSolver solver <- initSolver config
-    let eq_tc = map (idName . snd)
+    let m_eq_tc = map (idName . snd)
               <$> lookupTCDicts (KV.eqTC $ known_values init_state') (type_classes init_state')
-        (state', bindings'') = runG2Pre (addSearchNames (fromMaybe [] eq_tc) $ emptyMemConfig) init_state' bindings'
+        eq_tc = fromMaybe [] m_eq_tc
+        (state', bindings'') = runG2Pre (addSearchNames eq_tc $ emptyMemConfig) init_state' bindings'
 
         simplifier = FloatSimplifier :>> ArithSimplifier :>> BoolSimplifier :>> StringSimplifier :>> EqualitySimplifier
         --exp_env_names = E.keys . E.filterConcOrSym (\case { E.Sym _ -> False; E.Conc _ -> True }) $ expr_env state
         callGraph = G.getCallGraph $ expr_env state'
-        reachable_funcs = G.reachable (idName entry_f) callGraph
+        reachable_funcs = concatMap (flip G.reachable callGraph) $ idName entry_f:eq_tc
 
         non_rec_funcs = filter (G.isFuncNonRecursive callGraph) reachable_funcs
 
