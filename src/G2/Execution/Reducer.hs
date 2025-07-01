@@ -1692,6 +1692,11 @@ approximationHalter' stop_cond solver no_inline = mkSimpleHalter
                                                         stop
                                                         (\hv _ _ _ -> hv)
     where
+        -- We risk ending up in a situation where:
+        -- (1) we add the state to the list of approximatable previous states
+        -- (2) we then switch to a different state before doing any reduction
+        -- (3) we eventually return to the state, and immediately run the halter
+        -- to avoid this we only allow approximation against states that have taken fewer steps than our current state
         stop _ pr s@(State { curr_expr = CurrExpr er init_e})
             | -- maybe True (allowed_frame er . fst) 
             
@@ -1703,7 +1708,7 @@ approximationHalter' stop_cond solver no_inline = mkSimpleHalter
                 -- liftIO $ do
                 --     putStrLn $ "approx halter log_path s = " ++ show (log_path s) ++ " " ++ show (num_steps s)
                 xs <- SM.gets ap_halter_states
-                -- let xs' = filter (\x -> num_steps x < num_steps s') xs
+                let xs' = filter (\x -> num_steps x < num_steps s') xs
                 approx <- liftIO $ findM (\prev -> moreRestrictiveIncludingPCAndNRPC
                                                         solver
                                                         mr_cont
@@ -1712,7 +1717,7 @@ approximationHalter' stop_cond solver no_inline = mkSimpleHalter
                                                         no_inline
                                                         prev
                                                         s'
-                                                ) xs
+                                                ) xs'
                 if isJust approx && stop_cond pr s
                     then do
                         liftIO $ do

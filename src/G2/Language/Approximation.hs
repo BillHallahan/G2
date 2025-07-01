@@ -77,10 +77,7 @@ moreRestrictiveIncludingPCAndNRPC :: (Show l, S.Solver solver) =>
                 -> State t -- ^ State 1
                 -> State t -- ^ State 2
                 -> IO Bool
-moreRestrictiveIncludingPCAndNRPC solver mr_cont gen_lemma lkp ns s1 s2
-  | let max1 = maxIndexNRPC (non_red_path_conds s1)
-  , let min2 = minIndexNRPC (non_red_path_conds s2)
-  , max1 < min2 || max1 == -1 = do
+moreRestrictiveIncludingPCAndNRPC solver mr_cont gen_lemma lkp ns s1 s2 = do
     let mr = moreRestrictive' mr_cont gen_lemma lkp s1 s2 ns (HM.empty, HS.empty) True [] [] (getExpr s1) (getExpr s2)
               --  >>= \hm -> moreRestrictiveStack mr_cont gen_lemma lkp s1 s2 ns hm (exec_stack s1) (exec_stack s2)
                >>= \hm' -> moreRestrictiveNRPC mr_cont gen_lemma lkp s1 s2 ns hm'
@@ -91,9 +88,6 @@ moreRestrictiveIncludingPCAndNRPC solver mr_cont gen_lemma lkp ns s1 s2
     case mr of
         Left _ -> return False
         Right (sym_var_map, expr_pairs) -> moreRestrictivePC solver s1 s2 sym_var_map expr_pairs
-  | otherwise = do
-    -- putStrLn $ "SKIPPING log_path s1 = " ++ show (log_path s1) ++ " " ++ show (num_steps s1)
-    return False
 
 -- | Check is s1 is an approximation of s2 (if s2 is more restrictive than s1.)
 moreRestrictiveIncludingPC :: S.Solver solver =>

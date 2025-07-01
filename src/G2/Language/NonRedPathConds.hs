@@ -45,6 +45,7 @@ addNRPC ng e1 e2 (NRPCs nrpc) =
 
 varOnRight :: Expr -> Expr -> (Expr, Expr)
 varOnRight e1@(Var _) e2 = (e2, e1)
+varOnRight e1@(Tick _ (Var _)) e2 = (e2, e1)
 varOnRight e1 e2 = (e1, e2)
 
 getNRPC :: NonRedPathConds -> Maybe ((Expr, Expr), NonRedPathConds)

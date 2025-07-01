@@ -89,7 +89,7 @@ verifySolveNRPC = mkSimpleReducer (const ()) red
 verifyHigherOrderHandling :: MonadIO m => Reducer m () t
 verifyHigherOrderHandling = mkSimpleReducer (const ()) red
     where
-        red _ s@(State { curr_expr = CurrExpr Evaluate (App (Var (Id n ty_fun)) ar)
+        red _ s@(State { curr_expr = CurrExpr _ (App (Var (Id n ty_fun)) ar)
                        , expr_env = eenv
                        , type_env = tenv
                        , known_values = kv
