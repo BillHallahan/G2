@@ -1743,11 +1743,17 @@ approximationHalter' stop_cond solver no_inline = mkSimpleHalter
                 if isJust approx && stop_cond pr s
                     then do
                         liftIO $ do
+                            let approx' = fromJust approx
                             putStrLn $ "    !!! log_path s = " ++ show (log_path s) ++ " " ++ show (num_steps s)
-                            putStrLn $ "    !!! log_path approx = " ++ show (log_path $ fromJust approx) ++ " " ++ show (num_steps $ fromJust approx)
+                            putStrLn $ "    !!! log_path approx = " ++ show (log_path approx') ++ " " ++ show (num_steps approx')
+                            -- putStrLn $ "    !!! length nrpc s = " ++ show (length (non_red_path_conds s))
+                            -- putStrLn $ "    !!! length nrpc approx = " ++ show (length (non_red_path_conds approx'))
                         return Discard
                     else do 
-                        -- liftIO . putStrLn $ "modifying with " ++ show (log_path s') ++ " " ++ show (num_steps s)
+                        -- liftIO $ do
+                        --     putStrLn $ "    !!!modifying with " ++ show (log_path s') ++ " " ++ show (num_steps s)
+                        --     putStrLn $ "    !!! stck s = " ++ show (exec_stack s)
+                        --     putStrLn $ "    !!! stck s' = " ++ show (exec_stack s')
                         SM.modify ((\ap -> ap { ap_halter_states = s':xs }))
                         return Continue
         -- stop _ _ s | log_path s == [1, 1, 1, 1]

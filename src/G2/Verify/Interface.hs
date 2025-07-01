@@ -73,7 +73,7 @@ verifyRedHaltOrd s solver simplifier config no_nrpc_names = do
                                 False -> accept_time_red f
 
         logger_std_red f = case m_logger of
-                            Just logger -> liftSomeReducer $ liftSomeReducer (num_steps_red f .~> logger)
+                            Just logger -> liftSomeReducer $ liftSomeReducer (logger .~> num_steps_red f)
                             Nothing -> liftSomeReducer $ liftSomeReducer (num_steps_red f)
 
         nrpc_approx_red f = let nrpc_approx = nrpcAnyCallReducer no_nrpc_names config in
