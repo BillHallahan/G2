@@ -585,6 +585,7 @@ createExtCond s ngen mexpr cvar (dcon, bindees, aexpr)
             res = s { expr_env = eenv', curr_expr = CurrExpr Evaluate aexpr'' }
         in
         (NewPC { state = res, new_pcs = pcs, concretized = [] }, ngen'')
+        -- the issue is located below for concRead 
     | otherwise = error $ "createExtCond: unsupported type" ++ "\n" ++ show (typeOf tvnv mexpr) ++ "\n" ++ show dcon
         where
             kv = known_values s
@@ -693,8 +694,10 @@ liftSymDefAlt' s@(State {type_env = tenv, tyvar_env = tvnv}) ng mexpr aexpr cvar
     | (Var i):_ <- unApp $ unsafeElimOuterCast mexpr
     , isADTType (typeOf tvnv i)
     , (Var i'):_ <- unApp $ exprInCasts mexpr = -- Id with original Type
-    -- this is the location of failure the typeOf of Nothing
-        let (adt, bi) = trace("The id we are failing is " ++ show i)fromJust $ getCastedAlgDataTy (typeOf tvnv i) tenv
+    -- the line below is the location of failure the typeOf of Nothing
+        let (adt, bi) = case getCastedAlgDataTy (typeOf tvnv i) tenv of 
+                            Just adt_bi -> adt_bi
+                            Nothing -> error $ "we are failling on " ++ show i ++ " and typeOf " ++ show i ++ " is \n " ++ show (typeOf tvnv i)
             maybeC = case mexpr of
                 (Cast _ c) -> Just c
                 _ -> Nothing
