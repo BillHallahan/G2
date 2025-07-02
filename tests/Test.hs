@@ -349,7 +349,28 @@ testFileTests = testGroup "TestFiles"
                                                               , ("stringSub4", 7000, [AtLeast 7])
                                                               , ("nStringSub4", 2000, [AtLeast 5])
                                                               , ("strLen", 1000, [AtLeast 5])
-                                                              , ("taker2", 2000, [AtLeast 5]) ]
+                                                              , ("taker2", 2000, [AtLeast 5]) 
+                                                              , ("infix1", 1000, [AtLeast 5])
+                                                              , ("elem1", 1000, [AtLeast 5])
+                                                              , ("notElem1", 1000, [AtLeast 5])
+                                                              , ("elemIndex1", 1000, [AtLeast 5])
+
+                                                              , ("strGt", 1000, [AtLeast 5])
+                                                              , ("strGe", 1000, [AtLeast 5])
+                                                              , ("strLt", 1000, [AtLeast 5])
+                                                              , ("strLe", 1000, [AtLeast 5])
+                                                              , ("compare1", 1000, [AtLeast 5])
+                                                              , ("max1", 1000, [AtLeast 5])
+                                                              , ("max2", 1000, [AtLeast 5])
+                                                              , ("min1", 1000, [AtLeast 5])
+                                                              , ("min2", 1000, [AtLeast 5])
+                                                              
+                                                              , ("delete1", 2500, [AtLeast 10]) 
+                                                              , ("stripPrefix1", 1000, [AtLeast 5])
+                                                              , ("stripPrefix2", 1000, [AtLeast 10]) 
+                                                              , ("isPrefixOf1", 1000, [AtLeast 10]) 
+                                                              , ("isSuffixOf1", 1000, [AtLeast 10]) ]
+
     , checkInputOutputsSMTStrings "tests/TestFiles/Strings/Strings1.hs"
                                         [ ("con", 1000, [Exactly 1])
                                         , ("appendEq", 1000, [Exactly 1])
@@ -370,7 +391,27 @@ testFileTests = testGroup "TestFiles"
                                         , ("last1", 5000, [Exactly 4])
                                         , ("drop1", 5000, [Exactly 2])
                                         , ("drop2", 5000, [Exactly 2])
-                                        , ("drop3", 5000, [Exactly 3])]
+                                        , ("drop3", 5000, [Exactly 3])
+                                        , ("infix1", 5000, [Exactly 2])
+                                        , ("elem1", 5000, [Exactly 2])
+                                        , ("notElem1", 5000, [Exactly 4])
+                                        , ("elemIndex1", 5000, [Exactly 4])
+
+                                        , ("strGt", 5000, [Exactly 4])
+                                        , ("strGe", 5000, [Exactly 5])
+                                        , ("strLt", 5000, [Exactly 4])
+                                        , ("strLe", 5000, [Exactly 5])
+                                        , ("compare1", 5000, [Exactly 5])
+                                        , ("max1", 5000, [Exactly 1]) 
+                                        , ("max2", 5000, [Exactly 4])
+                                        , ("min1", 5000, [Exactly 1]) 
+                                        , ("min2", 5000, [Exactly 4])
+                                        
+                                        , ("delete1", 5000, [Exactly 3])
+                                        , ("stripPrefix1", 1000, [Exactly 2])
+                                        , ("stripPrefix2", 1000, [Exactly 5])                                         
+                                        , ("isPrefixOf1", 10000, [Exactly 6]) 
+                                        , ("isSuffixOf1", 10000, [Exactly 6]) ]
 
     , checkExpr "tests/TestFiles/Strings/Strings1.hs" 1000 "exclaimEq"
         [AtLeast 5, RExists (\[_, _, r] -> dcHasName "True" r)]
