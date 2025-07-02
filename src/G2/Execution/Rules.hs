@@ -922,7 +922,7 @@ retCurrExpr s@(State { expr_env = eenv, known_values = kv }) e1 (EnsureEq e2) or
                                 in
                                 (ng_'', (p_e1', p_e2') S.:<| nrpcs))
                             (ng, non_red_path_conds s)
-                            (reverse new_nrpc_pairs)
+                            new_nrpc_pairs
         in
         ( RuleReturnCurrExprFr
         , [NewPC { state = s { expr_env = eenv'
@@ -1339,7 +1339,7 @@ retReplaceSymbFuncVar _
         let
             (new_sym, ng') = freshSeededString "sym" ng
             new_sym_id = Id new_sym t
-            nrpc' = (ce, Var new_sym_id) S.:<| non_red_path_conds s
+            nrpc' = non_red_path_conds s S.:|> (ce, Var new_sym_id)
         in
         Just (RuleReturnReplaceSymbFunc, 
             [s { expr_env = E.insertSymbolic new_sym_id eenv
