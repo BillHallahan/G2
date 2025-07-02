@@ -21,6 +21,7 @@ import G2.Language.AlgDataTy
 
 import Data.List
 import qualified Data.HashMap.Lazy as M
+import Debug.Trace
 
 -- | The type environment maps names of types to their appropriate types. However
 -- our primary interest with these is for dealing with algebraic data types,
