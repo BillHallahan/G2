@@ -912,7 +912,7 @@ retCastFrame s ng e c stck =
     , ng)
 
 retCurrExpr :: State t -> Expr -> CEAction -> CurrExpr -> S.Stack Frame -> NameGen -> (Rule, [NewPC t], NameGen)
-retCurrExpr s@(State { expr_env = eenv, known_values = kv }) e1 (EnsureEq e2) orig_ce stck ng
+retCurrExpr s@(State { expr_env = eenv, known_values = kv }) e1 (EnsureEq e2) orig_ce@(CurrExpr _ ce) stck ng
     | Just (eenv', new_pc, new_nrpc_pairs) <- matchPairs kv e1 e2 (eenv, [], []) =
         let
             (ng', nrpc) = foldr (\(p_e1, p_e2) (ng_, nrpcs) ->
@@ -926,7 +926,7 @@ retCurrExpr s@(State { expr_env = eenv, known_values = kv }) e1 (EnsureEq e2) or
         in
         ( RuleReturnCurrExprFr
         , [NewPC { state = s { expr_env = eenv'
-                             , curr_expr = orig_ce
+                             , curr_expr = CurrExpr Evaluate ce
                              , exec_stack = stck
                              , non_red_path_conds = nrpc }
                     , new_pcs = new_pc
