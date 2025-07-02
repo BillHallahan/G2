@@ -98,11 +98,10 @@ verifyHigherOrderHandling = mkSimpleReducer (const ()) red
                 let
                     ty_ar = typeOf ar
                     (lam_x, ng2) = freshId ty_ar ng
-                    (sym, ng3) = freshId ty_ar ng2
-                    (bindee, ng4) = freshId ty_ar ng3
+                    (bindee, ng3) = freshId ty_ar ng2
 
-                    (ret_true, ng5) = freshId (returnType $ PresType ty_fun) ng4
-                    (ret_false, ng6) = freshId ty_fun ng5
+                    (ret_true, ng4) = freshId (returnType $ PresType ty_fun) ng3
+                    (ret_false, ng5) = freshId ty_fun ng4
 
                     eq_tc = case lookupTCDict tc (eqTC kv) ty_ar of
                                 Just tc -> tc
@@ -110,7 +109,7 @@ verifyHigherOrderHandling = mkSimpleReducer (const ()) red
                     eq_f = eqFunc kv
                     eq_f_i = Id eq_f (typeOf . fromJust $ E.lookup eq_f eenv)
 
-                    e = mkApp [Var eq_f_i, Type ty_ar, Var eq_tc, Var lam_x, Var sym]
+                    e = mkApp [Var eq_f_i, Type ty_ar, Var eq_tc, Var lam_x, ar]
 
                     func_body =
                         Lam TermL lam_x $ 
@@ -118,14 +117,13 @@ verifyHigherOrderHandling = mkSimpleReducer (const ()) red
                                 [ Alt (DataAlt (mkDCTrue kv tenv) []) (Var ret_true)
                                 , Alt (DataAlt (mkDCFalse kv tenv) []) (App (Var ret_false) (Var lam_x))]
 
-                    eenv' = E.insertSymbolic sym
-                          . E.insertSymbolic ret_true
+                    eenv' = E.insertSymbolic ret_true
                           . E.insertSymbolic ret_false
                           $ E.insert n func_body eenv
 
                     s' = s { curr_expr = CurrExpr Evaluate (App func_body ar), expr_env = eenv'}
                 in
-                return (InProgress, [(s', ())], b {name_gen = ng6})
+                return (InProgress, [(s', ())], b {name_gen = ng5})
         red _ s b = return (Finished, [(s, ())], b)
 
 
