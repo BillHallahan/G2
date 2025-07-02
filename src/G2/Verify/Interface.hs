@@ -10,6 +10,7 @@ import G2.Execution
 import G2.Execution.InstTypes
 import G2.Execution.HPC
 import G2.Language
+import qualified G2.Language.TypeClasses.TypeClasses as TC
 import qualified G2.Language.CallGraph as G
 import qualified G2.Language.KnownValues as KV
 import G2.Lib.Printers
@@ -152,13 +153,15 @@ verifyFromFile proj src f transConfig config = do
         reachable_funcs = concatMap (flip G.reachable callGraph) $ idName entry_f:eq_tc
 
         non_rec_funcs = filter (G.isFuncNonRecursive callGraph) reachable_funcs
+        dicts = map idName $ TC.tcDicts (type_classes state')
+        no_nrpc_names = non_rec_funcs ++ dicts
 
     -- analysis1 <- if states_at_time config then do l <- logStatesAtTime; return [l] else return noAnalysis
     -- let analysis2 = if states_at_step config then [\s p xs -> SM.lift . SM.lift . SM.lift . SM.lift . SM.lift $ logStatesAtStep s p xs] else noAnalysis
     --     analysis3 = if print_num_red_rules config then [\s p xs -> SM.lift . SM.lift . SM.lift . SM.lift . SM.lift . SM.lift $ logRedRuleNum s p xs] else noAnalysis
     --     analysis = analysis1 ++ analysis2 ++ analysis3
 
-    rho <- verifyRedHaltOrd state' solver simplifier config' (S.fromList non_rec_funcs)
+    rho <- verifyRedHaltOrd state' solver simplifier config' (S.fromList no_nrpc_names)
     let to = case rho of (_, _, _, to_)-> to_
     (er, bindings''') <-
             case rho of
