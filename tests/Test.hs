@@ -1,7 +1,4 @@
-{-# LANGUAGE CPP #-}
-{-# LANGUAGE DeriveDataTypeable #-}
-{-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE CPP, DeriveDataTypeable, FlexibleContexts, LambdaCase, OverloadedStrings #-}
 
 module Main where
 
@@ -15,6 +12,8 @@ import G2.Config
 import G2.Interface
 import G2.Language as G2
 import G2.Lib.Printers
+
+import G2.Verify.Interface
 
 import Control.Exception
 import Data.Maybe
@@ -71,6 +70,8 @@ tests = testGroup "Tests"
         , baseTests
         , primTests
         , ioTests
+
+        , verifierTests
 
         , exprTests
         , typingTests
@@ -699,6 +700,60 @@ ioTests = testGroup "IO"
     , checkExpr "tests/IO/Handles1.hs" 3000 "interact1" [AtLeast 10]
     ]
 
+verifierTests :: TestTree
+verifierTests = testGroup "Verifier"
+    [
+      checkExprVerified "tests/Verify/Peano1.hs" "p1"
+    , checkExprVerified "tests/Verify/Peano1.hs" "p2"
+    , checkExprVerified "tests/Verify/Peano1.hs" "p3"
+    , checkExprVerified "tests/Verify/Peano1.hs" "p4"
+    , checkExprVerified "tests/Verify/Peano1.hs" "p5"
+
+    , checkExprCEx "tests/Verify/Peano1.hs" "p1False"
+    -- p2False intentionally requires a large counterexample, and will timeout
+    , checkExprNotVerified "tests/Verify/Peano1.hs" "p2False"
+    , checkExprCEx "tests/Verify/Peano1.hs" "p3False"
+    , checkExprCEx "tests/Verify/Peano1.hs" "p4False"
+    , checkExprCEx "tests/Verify/Peano1.hs" "p5False"
+
+    , checkExprVerified "tests/Verify/Int1.hs" "p1"
+    , checkExprVerified "tests/Verify/Int1.hs" "p2"
+    , checkExprVerified "tests/Verify/Int1.hs" "p2'"
+    , checkExprVerified "tests/Verify/Int1.hs" "p3"
+    , checkExprVerified "tests/Verify/Int1.hs" "p4"
+
+    , checkExprCEx "tests/Verify/Int1.hs" "p1False"
+    , checkExprCEx "tests/Verify/Int1.hs" "p2False"
+    , checkExprCEx "tests/Verify/Int1.hs" "p2False'"
+    , checkExprCEx "tests/Verify/Int1.hs" "p3False"
+
+    , checkExprVerified "tests/Verify/List1.hs" "prop1"
+    , checkExprVerified "tests/Verify/List1.hs" "prop2"
+    , checkExprVerified "tests/Verify/List1.hs" "prop3"
+    , checkExprVerified "tests/Verify/List1.hs" "prop4"
+    , checkExprVerified "tests/Verify/List1.hs" "prop5"
+    , checkExprVerified "tests/Verify/List1.hs" "prop6"
+    , checkExprVerified "tests/Verify/List1.hs" "prop7Simple"
+    , checkExprVerified "tests/Verify/List1.hs" "prop7"
+    , checkExprVerified "tests/Verify/List1.hs" "prop8"
+    , checkExprVerified "tests/Verify/List1.hs" "prop9"
+    , checkExprVerified "tests/Verify/List1.hs" "prop10"
+    , checkExprVerified "tests/Verify/List1.hs" "prop11"
+    , checkExprVerified "tests/Verify/List1.hs" "prop12"
+
+    , checkExprCEx "tests/Verify/List1.hs" "prop4False"
+    , checkExprCEx "tests/Verify/List1.hs" "prop5False"
+    , checkExprCEx "tests/Verify/List1.hs" "prop6False"
+    , checkExprCEx "tests/Verify/List1.hs" "prop7False"
+    , checkExprCEx "tests/Verify/List1.hs" "prop9False"
+    , checkExprCEx "tests/Verify/List1.hs" "prop10False"
+    , checkExprCEx "tests/Verify/List1.hs" "prop10False2"
+
+    , checkExprVerified "tests/Verify/List2.hs" "p1"
+    , checkExprVerified "tests/Verify/List2.hs" "p2"
+    , checkExprCEx "tests/Verify/List2.hs" "p2False"
+    ]
+
 -- To Do Tests
 --------------
 
@@ -848,6 +903,30 @@ checkExprWithConfig src m_assume m_assert m_reaches entry reqList config_f = do
                    (maybe False null reqRes)
         )
 
+checkExprVerified :: String -> String -> TestTree
+checkExprVerified = checkExprVerifier (\case Verified -> True; Counterexample _ -> False; VerifyTimeOut -> False)
+
+checkExprCEx :: String -> String -> TestTree
+checkExprCEx = checkExprVerifier (\case Verified -> False; Counterexample _ -> True; VerifyTimeOut -> False)
+
+checkExprNotVerified :: String -> String -> TestTree
+checkExprNotVerified = checkExprVerifier (\case Verified -> False; Counterexample _ -> True; VerifyTimeOut -> True)
+
+checkExprVerifier :: (VerifyResult -> Bool) -> String -> String -> TestTree
+checkExprVerifier vr_check src entry = 
+    testCase ("Verifier:" ++ src ++ " " ++ entry) $ do
+        res <- try (do
+                let proj = takeDirectory src
+                config <- mkConfigTestIO
+                let config' = config { timeLimit = 30 }
+                verifyFromFile [proj] [src] (T.pack entry) simplTranslationConfig config')
+                    :: IO (Either SomeException ((VerifyResult, Bindings, Id)))
+        let res' = case res of
+                        Left _ -> VerifyTimeOut
+                        Right (vr, _, _) -> vr
+
+        assertBool ("Incorrect verification result for " ++ entry ++ " in " ++ show src) (vr_check res') 
+
 testFile :: String
          -> Maybe String
          -> Maybe String
@@ -879,7 +958,7 @@ testFileWithConfig src m_assume m_assert m_reaches entry config = do
                 simplTranslationConfig
                 config
 
-    return $ maybe (error "Timeout") fst r
+    return $ maybe (error "Timeout") (\(er, b, _, _) -> (er, b)) r
 
 -- For mergeState unit tests
 checkFn :: Either String Bool -> String -> IO TestTree

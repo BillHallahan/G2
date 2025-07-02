@@ -588,7 +588,7 @@ prettyState pg s =
         pretty_stack = prettyStack pg (exec_stack s)
         pretty_eenv = prettyEEnv pg (expr_env s)
         pretty_paths = prettyPathConds pg (path_conds s)
-        pretty_non_red_paths = prettyNonRedPaths pg (non_red_path_conds s)
+        pretty_non_red_paths = prettyNonRedPaths pg . toListInternalNRPC $ non_red_path_conds s
         pretty_handles = prettyHandles pg $ handles s
         pretty_mutvars = prettyMutVars pg . HM.map mv_val_id $ mutvar_env s
         pretty_tenv = prettyTypeEnv pg (type_env s)
@@ -668,8 +668,9 @@ prettyPathCond pg (AssumePC i l pc) =
     in
     mkIdHaskell pg i <> " = " <> T.pack (show l) <> "=> (" <> T.intercalate "\nand " (map (prettyPathCond pg) pc') <> ")"
 
-prettyNonRedPaths :: PrettyGuide -> [(Expr, Expr)] -> T.Text
-prettyNonRedPaths pg = T.intercalate "\n" . map (\(e1, e2) -> mkDirtyExprHaskell pg e1 <> " == " <> mkDirtyExprHaskell pg e2)
+prettyNonRedPaths :: PrettyGuide -> [NRPC] -> T.Text
+prettyNonRedPaths pg = T.intercalate "\n"
+                     . map (\(e1, e2) -> mkDirtyExprHaskell pg e1 <> " == " <> mkDirtyExprHaskell pg e2)
 
 prettyHandles :: PrettyGuide -> HM.HashMap Name Handle -> T.Text
 prettyHandles pg = T.intercalate "\n" . map (\(n, h) -> printName pg n
@@ -731,7 +732,7 @@ pprExecStateStr ex_state b = injNewLine acc_strs
     names_str = pprExecNamesStr (name_gen b)
     input_str = pprInputIdsStr (E.symbolicIds . expr_env $ ex_state)
     paths_str = pprPathsStr (PC.toList $ path_conds ex_state)
-    non_red_paths_str = injNewLine (map show $ non_red_path_conds ex_state)
+    non_red_paths_str = injNewLine (map show . toListNRPC $ non_red_path_conds ex_state)
     tc_str = pprTCStr (type_classes ex_state)
     cleaned_str = pprCleanedNamesStr (cleaned_names b)
     model_str = pprModelStr (model ex_state)

@@ -659,7 +659,7 @@ evalTypeDCPrim2 tenv DataToTag t dc =
                 dcs = dataCon adt
                 dc_names = map dc_name dcs
             in
-                fmap (Lit . LitInt . fst) . L.find ((==) (dc_name dc) . snd) $ zip [1..] dc_names
+                fmap (Lit . LitInt . fst) . L.find ((==) (dc_name dc) . snd) $ zip [0..] dc_names
         _ -> error "evalTypeDCPrim2: Unsupported Primitive Op"
 evalTypeDCPrim2 _ _ _ _ = Nothing
 
