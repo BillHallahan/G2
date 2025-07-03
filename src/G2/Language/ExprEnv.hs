@@ -20,6 +20,7 @@ module G2.Language.ExprEnv
     , lookup
     , lookupConcOrSym
     , lookupEnvObj
+    , lookupNameInExpr
     , deepLookup
     , deepLookupExpr
     , deepLookupConcOrSym
@@ -179,6 +180,22 @@ deepLookup n eenv =
         Just (Conc r) -> Just r
         Just (Sym r) -> Just (Var r)
         Nothing -> Nothing
+
+lookupNameInExpr :: Name -> Expr -> Bool
+lookupNameInExpr n e = case e of 
+                        Var (Id n_ _) -> n == n_
+                        Data dc -> n == dc_name dc
+                        App e1 e2 -> lookupNameInExpr n e1 || lookupNameInExpr n e2
+                        Lam _ (Id n_ _) e_ -> n == n_ || lookupNameInExpr n e_
+                        Let bs e_ -> any (\b -> case fst b of 
+                                            Id n_ _ -> n == n_
+                                        ) bs
+                                  || any (lookupNameInExpr n . snd) bs
+                                  || lookupNameInExpr n e_
+                        Case e_ (Id n_ _) _ as -> n == n_ 
+                                              || lookupNameInExpr n e_ 
+                                              || any (lookupNameInExpr n . altExpr) as
+                        _ -> False
 
 -- | Apply `deepLookup` if passed a `Var`.  Otherwise, just return the passed `Expr`.
 deepLookupExpr :: Expr -> ExprEnv -> Maybe Expr
