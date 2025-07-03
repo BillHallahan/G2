@@ -886,7 +886,7 @@ createNonRed ng
                , exec_stack = stck }
     in
     Just (s', ce'', ng'')
-createNonRed _ _ _ = Nothing
+createNonRed _ _ = Nothing
 
 hasMagicTypes :: ASTContainer c Type => KnownValues -> c -> Bool
 hasMagicTypes kv = getAny . evalASTs hmt
