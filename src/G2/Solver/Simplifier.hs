@@ -101,10 +101,6 @@ instance Simplifier ConstSimplifier where
 
     reverseSimplification _ _ _ m = m
 
--- areLiteralsEq :: Expr -> Expr -> Maybe Bool
--- areLiteralsEq (Lit l) (Lit r) = Just (l == r)
--- areLiteralsEq _ _ = Nothing
-
 -- | Tries to simplify based on simple boolean principles, i.e. x == True -> x
 data BoolSimplifier = BoolSimplifier
 
