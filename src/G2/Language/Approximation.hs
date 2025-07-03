@@ -32,6 +32,7 @@ import qualified G2.Solver as S
 import Control.Exception
 import Control.Monad.Extra
 import Control.Monad.IO.Class
+import Data.Either
 import qualified Data.HashSet as HS
 import qualified Data.HashMap.Lazy as HM
 import Data.Maybe
@@ -351,25 +352,30 @@ moreRestrictiveNRPC mr_cont gen_lemma lkp s1 s2 ns init_hm nrpc1 nrpc2 = matchNR
   where
     matchNRPCs hm [] _ = Right hm
     matchNRPCs hm ((eL_1, eR_1):ns1) ns2 = do
-        let m_match_rest = selectJust
+        let m_match_rest = selectJusts
                               (\(eL_2, eR_2) -> do
                                     hm' <- moreRes hm eL_1 eL_2
                                     moreRes hm' eR_1 eR_2)
                            ns2
-        case m_match_rest of
-          Just (hm', rest) -> matchNRPCs hm' ns1 rest
-          Nothing -> Left []
+        case rights $ map (\(hm', rest) -> matchNRPCs hm' ns1 rest) m_match_rest of
+            r:_ -> Right r
+            [] -> Left []
 
     moreRes hm e1 e2 =
       case moreRestrictive' mr_cont gen_lemma lkp s1 s2 ns hm True [] [] e1 e2 of
         Left _ -> Nothing
         Right v -> Just v
 
-selectJust :: (a -> Maybe b) -> [a] -> Maybe (b, [a])
-selectJust p = sel []
+-- | Return all values in the list for which the passed function returns Just,
+-- pairing each element with the remaining list values.
+selectJusts :: (a -> Maybe b) -> [a] -> [(b, [a])]
+selectJusts p = sel [] []
   where
-    sel _ [] = Nothing
-    sel pre (x:xs) = maybe (sel (x:pre) xs) (\r' -> Just (r', reverse pre ++ xs)) (p x)
+    sel _ opts [] = opts
+    sel pre opts (x:xs) = maybe
+                            (sel (x:pre) opts xs)
+                            (\r' -> let opts' = (r', reverse pre ++ xs):opts in sel (x:pre) opts' xs)
+                            (p x)
 
 -- s1 is old state, s2 is new state
 -- only apply to old-new state pairs for which moreRestrictive' works
