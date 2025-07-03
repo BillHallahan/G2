@@ -310,6 +310,8 @@ isStr' (_ :!! _) = All True
 isStr' (StrSubstrSMT _ _ _) = All True
 isStr' (StrIndexOfSMT _ _ _) = All True
 isStr' (StrReplaceSMT _ _ _) = All True
+isStr' (StrPrefixOfSMT _ _) = All True
+isStr' (StrSuffixOfSMT _ _) = All True
 isStr' (FromCode _) = All True
 isStr' (ToCode _) = All True
 isStr' (VString _) = All True
@@ -525,6 +527,8 @@ funcToSMT2Prim StrLt a1 a2 = exprToSMT a1 `StrLtSMT` exprToSMT a2
 funcToSMT2Prim StrLe a1 a2 = exprToSMT a1 `StrLeSMT` exprToSMT a2
 funcToSMT2Prim StrAppend a1 a2  = exprToSMT a1 :++ exprToSMT a2
 funcToSMT2Prim StrAt a1 a2 = exprToSMT a1 :!! exprToSMT a2
+funcToSMT2Prim StrPrefixOf a1 a2  = StrPrefixOfSMT (exprToSMT a1) (exprToSMT a2)
+funcToSMT2Prim StrSuffixOf a1 a2  = StrSuffixOfSMT (exprToSMT a1) (exprToSMT a2)
 funcToSMT2Prim op lhs rhs = error $ "funcToSMT2Prim: invalid case with (op, lhs, rhs): " ++ show (op, lhs, rhs)
 
 funcToSMT3Prim :: Primitive -> Expr -> Expr -> Expr -> SMTAST
@@ -710,6 +714,8 @@ toSolverAST (x :!! y) = function2 "str.at" (toSolverAST x) (toSolverAST y)
 toSolverAST (StrSubstrSMT x y z) = function3 "str.substr" (toSolverAST x) (toSolverAST y) (toSolverAST z)
 toSolverAST (StrIndexOfSMT x y z) = function3 "str.indexof" (toSolverAST x) (toSolverAST y) (toSolverAST z)
 toSolverAST (StrReplaceSMT x y z) = function3 "str.replace" (toSolverAST x) (toSolverAST y) (toSolverAST z)
+toSolverAST (StrPrefixOfSMT x y) = function2 "str.prefixof" (toSolverAST x) (toSolverAST y)
+toSolverAST (StrSuffixOfSMT x y) = function2 "str.suffixof" (toSolverAST x) (toSolverAST y)
 
 toSolverAST (IntToRealSMT x) = function1 "to_real" $ toSolverAST x
 toSolverAST (IntToFPSMT e s x) =

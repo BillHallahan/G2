@@ -2,28 +2,42 @@ module G2.Language.Approximation ( GenerateLemma
                                  , Lookup
                                  , MRCont
                                  
+                                 , moreRestrictiveIncludingPCAndNRPC
+                                 , moreRestrictiveIncludingPC
                                  , moreRestrictive
                                  , moreRestrictive'
                                  , moreRestrictivePC
 
                                  , applySolver
                                  
-                                 , inlineEquiv) where
+                                 , inlineEquiv
+                                 
+                                 , lookupConcOrSymState
+                                 
+                                 , stackWrap
+                                 , stateAdjStack) where
 
 import G2.Execution.NormalForms
 import G2.Language.Expr
 import qualified G2.Language.ExprEnv as E
 import G2.Language.Naming
+import G2.Language.NonRedPathConds
 import qualified G2.Language.PathConds as P
+import qualified G2.Language.Stack as Stck
 import G2.Language.Support
 import G2.Language.Syntax
 import G2.Language.Typing as T
 import qualified G2.Solver as S
 
+import Control.Exception
 import Control.Monad.Extra
 import Control.Monad.IO.Class
 import qualified Data.HashSet as HS
 import qualified Data.HashMap.Lazy as HM
+import Data.Maybe
+import Data.Monoid hiding (Alt)
+
+import Debug.Trace
 
 type GenerateLemma t l = State t -> State t -> (HM.HashMap Id Expr, HS.HashSet (Expr, Expr)) -> Expr -> Expr -> l
 type Lookup t = Name -> State t -> Maybe E.ConcOrSym
@@ -54,15 +68,58 @@ type MRCont t l =  State t
 -------------------------------------------------------------------------------
 
 -- | Check is s1 is an approximation of s2 (if s2 is more restrictive than s1.)
+moreRestrictiveIncludingPCAndNRPC :: (Show l, S.Solver solver) =>
+                   solver
+                -> MRCont t l -- ^ For special case handling - what to do if we don't match elsewhere in moreRestrictive
+                -> GenerateLemma t l
+                -> Lookup t -- ^ How to lookup variable names
+                -> HS.HashSet Name -- ^ Names that should not be inlined (often: top level names from the original source code)
+                -> State t -- ^ State 1
+                -> State t -- ^ State 2
+                -> IO Bool
+moreRestrictiveIncludingPCAndNRPC solver mr_cont gen_lemma lkp ns s1 s2 = do
+    let mr = moreRestrictive' mr_cont gen_lemma lkp s1 s2 ns (HM.empty, HS.empty) True [] [] (getExpr s1) (getExpr s2)
+              --  >>= \hm -> moreRestrictiveStack mr_cont gen_lemma lkp s1 s2 ns hm (exec_stack s1) (exec_stack s2)
+               >>= \hm' -> moreRestrictiveNRPC mr_cont gen_lemma lkp s1 s2 ns hm'
+                                    (stripAllTicks $ non_red_path_conds s1) (stripAllTicks $ non_red_path_conds s2)
+    -- putStrLn $ "log_path s1 = " ++ show (log_path s1) ++ " " ++ show (num_steps s1)
+    -- putStrLn $ "log_path s2 = " ++ show (log_path s2) ++ " " ++ show (num_steps s2)
+    -- putStrLn $ "mr = " ++ show mr
+    case mr of
+        Left _ -> return False
+        Right (sym_var_map, expr_pairs) -> moreRestrictivePC solver s1 s2 sym_var_map expr_pairs
+
+-- | Check is s1 is an approximation of s2 (if s2 is more restrictive than s1.)
+moreRestrictiveIncludingPC :: S.Solver solver =>
+                   solver
+                -> MRCont t l -- ^ For special case handling - what to do if we don't match elsewhere in moreRestrictive
+                -> GenerateLemma t l
+                -> Lookup t -- ^ How to lookup variable names
+                -> HS.HashSet Name -- ^ Names that should not be inlined (often: top level names from the original source code)
+                -> State t -- ^ State 1
+                -> State t -- ^ State 2
+                -> IO Bool
+moreRestrictiveIncludingPC solver mr_cont gen_lemma lkp ns s1 s2  = do
+    let mr = moreRestrictive' mr_cont gen_lemma lkp s1 s2 ns (HM.empty, HS.empty) True [] [] (getExpr s1) (getExpr s2)
+    case mr of
+        Left _ -> return False
+        Right (sym_var_map, expr_pairs) -> moreRestrictivePC solver s1 s2 sym_var_map expr_pairs
+
+-- | Check is s1 is an approximation of s2 (if s2 is more restrictive than s1.)
 moreRestrictive :: MRCont t l -- ^ For special case handling - what to do if we don't match elsewhere in moreRestrictive
                 -> GenerateLemma t l
                 -> Lookup t -- ^ How to lookup variable names
-                -> State t -- ^ s1
-                -> State t -- ^ s2
+                -> State t -- ^ State 1
+                -> State t -- ^ State 2
                 -> HS.HashSet Name -- ^ Names that should not be inlined (often: top level names from the original source code)
                 -> (HM.HashMap Id Expr, HS.HashSet (Expr, Expr))
-                -> Either [l] (HM.HashMap Id Expr, HS.HashSet (Expr, Expr))
+                -> Either [l] -- ^ Generated lemmas (or other information) from a approxmiation checking failure
+                              ( HM.HashMap Id Expr -- ^ Mapping of symbolic variables in `State` 1 to `Expr`s in `State` 2
+                              , HS.HashSet (Expr, Expr) -- ^ Pairs of `Expr`s from `State` 1 and `State` 2, which must be checked for implication via the SMT solver 
+                              )
 moreRestrictive mr_cont gen_lemma lkp s1 s2 ns hm =
+    assert (Stck.null $ exec_stack s1)
+    assert (Stck.null $ exec_stack s2)
     moreRestrictive' mr_cont gen_lemma lkp s1 s2 ns hm True [] [] (getExpr s1) (getExpr s2)
 
 moreRestrictive' :: MRCont t l -- ^ For special case handling - what to do if we don't match elsewhere in moreRestrictive'
@@ -92,6 +149,9 @@ moreRestrictive' mr_cont gen_lemma lkp s1@(State {expr_env = h1}) s2@(State {exp
                  moreRestrictive' mr_cont gen_lemma lkp s1 s2 ns hm active n1 ((m, e1):n2) e1 e
     (Var i1, Var i2) | HS.member (idName i1) ns
                      , idName i1 == idName i2 -> Right hm
+                     | idName i1 == idName i2
+                     , not (reachesSym h1 e1)
+                     , not (reachesSym h2 e2) -> Right hm
                      | HS.member (idName i1) ns -> Left []
                      | HS.member (idName i2) ns -> Left []
     (Var i, _) | Just (E.Sym _) <- lkp (idName i) s1
@@ -195,8 +255,18 @@ moreRestrictive' mr_cont gen_lemma lkp s1@(State {expr_env = h1}) s2@(State {exp
     (Cast e1' c1, Cast e2' c2) | c1 == c2 ->
         moreRestrictive' mr_cont gen_lemma lkp s1 s2 ns hm active n1 n2 e1' e2'
 
-    -- ignore all Ticks
+    (Assume _ am1 ex1, Assume _ am2 ex2) ->
+        moreRestrictive' mr_cont gen_lemma lkp s1 s2 ns hm active n1 n2 am1 am2
+          >>= \hm' -> moreRestrictive' mr_cont gen_lemma lkp s1 s2 ns hm' active n1 n2 ex1 ex2
+
     _ -> mr_cont s1 s2 ns hm active n1 n2 e1 e2
+    where
+        reachesSym h = getAny . reachesSym' HS.empty h
+        reachesSym' seen h (Var (Id n _)) | n `elem` ns = Any False
+                                          | n `HS.member` seen = Any False
+                                          | (Just (E.Conc e)) <- E.lookupConcOrSym n h = reachesSym' (HS.insert n seen) h e
+                                          | otherwise <- E.lookupConcOrSym n h = Any True
+        reachesSym' seen h e = evalChildren (reachesSym' seen h) e
 
 -- check only the names for DataAlt
 altEquiv :: AltMatch -> AltMatch -> Bool
@@ -242,39 +312,99 @@ moreRestrictiveAlt mr_cont gen_lemma lkp s1 s2 ns hm active n1 n2 (Alt am1 e1) (
     _ -> moreRestrictive' mr_cont gen_lemma lkp s1 s2 ns hm active n1 n2 e1 e2
   else Left []
 
+moreRestrictiveStack :: Show l => MRCont t l
+                     -> GenerateLemma t l
+                     -> Lookup t
+                     -> State t
+                     -> State t
+                     -> HS.HashSet Name
+                     -> (HM.HashMap Id Expr, HS.HashSet (Expr, Expr))
+                     -> Stck.Stack Frame
+                     -> Stck.Stack Frame
+                     -> Either [l] (HM.HashMap Id Expr, HS.HashSet (Expr, Expr))
+moreRestrictiveStack mr_cont gen_lemma lkp s1 s2 ns init_hm stck1 stck2
+    | Just (CurrExprFrame ce1 (CurrExpr _ e1), stck1') <- Stck.pop stck1
+    , Just (CurrExprFrame ce2 (CurrExpr _ e2), stck2') <- Stck.pop stck2 = do
+        hm' <- moreRestrictive' mr_cont gen_lemma lkp s1 s2 ns init_hm True [] [] e1 e2
+        hm'' <- case (ce1, ce2) of
+                      (EnsureEq ee1, EnsureEq ee2) -> moreRestrictive' mr_cont gen_lemma lkp s1 s2 ns hm' True [] [] ee1 ee2
+                      (NoAction, NoAction) -> Right hm'
+                      _ -> Left []
+        moreRestrictiveStack mr_cont gen_lemma lkp s1 s2 ns hm'' stck1' stck2'
+    | Nothing <- Stck.pop stck1
+    , Nothing <- Stck.pop stck2 = Right init_hm
+    | otherwise = Left []
+
+
+
+moreRestrictiveNRPC :: Show l => MRCont t l
+                    -> GenerateLemma t l
+                    -> Lookup t
+                    -> State t
+                    -> State t
+                    -> HS.HashSet Name
+                    -> (HM.HashMap Id Expr, HS.HashSet (Expr, Expr))
+                    -> NonRedPathConds
+                    -> NonRedPathConds
+                    -> Either [l] (HM.HashMap Id Expr, HS.HashSet (Expr, Expr))
+moreRestrictiveNRPC mr_cont gen_lemma lkp s1 s2 ns init_hm nrpc1 nrpc2 = matchNRPCs init_hm (toListNRPC nrpc1) (toListNRPC nrpc2)
+  where
+    matchNRPCs hm [] _ = Right hm
+    matchNRPCs hm ((eL_1, eR_1):ns1) ns2 = do
+        let m_match_rest = selectJust
+                              (\(eL_2, eR_2) -> do
+                                    hm' <- moreRes hm eL_1 eL_2
+                                    moreRes hm' eR_1 eR_2)
+                           ns2
+        case m_match_rest of
+          Just (hm', rest) -> matchNRPCs hm' ns1 rest
+          Nothing -> Left []
+
+    moreRes hm e1 e2 =
+      case moreRestrictive' mr_cont gen_lemma lkp s1 s2 ns hm True [] [] e1 e2 of
+        Left _ -> Nothing
+        Right v -> Just v
+
+selectJust :: (a -> Maybe b) -> [a] -> Maybe (b, [a])
+selectJust p = sel []
+  where
+    sel _ [] = Nothing
+    sel pre (x:xs) = maybe (sel (x:pre) xs) (\r' -> Just (r', reverse pre ++ xs)) (p x)
+
 -- s1 is old state, s2 is new state
 -- only apply to old-new state pairs for which moreRestrictive' works
 moreRestrictivePC :: (MonadIO m, S.Solver solver) =>
                      solver ->
-                     State t ->
-                     State t ->
+                     State t -> -- The more general state (the older state)
+                     State t -> -- ^ The more specific state (the newer state)
                      HM.HashMap Id Expr ->
+                     HS.HashSet (Expr, Expr) ->
                      m Bool
-moreRestrictivePC solver s1 s2 hm = do
+moreRestrictivePC solver s1@(State { known_values = kv }) s2 sym_var_map expr_pairs = do
   let new_conds = map extractCond (P.toList $ path_conds s2)
       old_conds = map extractCond (P.toList $ path_conds s1)
-      l = map (\(i, e) -> (Var i, e)) $ HM.toList hm
-      -- this should only be used with primitive types
-      -- no apparent problems come from using TyUnknown
+      l = map (\(i, e) -> (Var i, e)) $ HM.toList sym_var_map
+      
+      -- Link up variables/expressions between the states, i.e. assert equality
+      -- of some variable from state 1 with some expression in state 2
       l' = map (\(e1, e2) ->
-                  if (T.isPrimType $ typeOf e1) && (T.isPrimType $ typeOf e2)
+                  if T.isPrimType (typeOf e1) && T.isPrimType (typeOf e2)
                   then Just $ App (App (Prim Eq TyUnknown) e1) e2
-                  else Nothing) l
-      l'' = [c | Just c <- l']
+                  else Nothing) (l ++ HS.toList expr_pairs)
+      l'' = catMaybes l'
       new_conds' = l'' ++ new_conds
-      -- not safe to use unless the lists are non-empty
-      conj_new = foldr1 (\o1 o2 -> App (App (Prim And TyUnknown) o1) o2) new_conds'
-      conj_old = foldr1 (\o1 o2 -> App (App (Prim And TyUnknown) o1) o2) old_conds
-
+      
+      -- Form an implication:
+      --    (new path conds) => (old path conds)
+      -- We want to show that this is ALWAYS true- so we negate it, and then check for unsatisfiability
+      conj_new = foldr (App . App (Prim And TyUnknown)) (mkTrue kv) new_conds'
+      conj_old = foldr (App . App (Prim And TyUnknown)) (mkTrue kv) old_conds
       imp = App (App (Prim Implies TyUnknown) conj_new) conj_old
       neg_imp = ExtCond (App (Prim Not TyUnknown) imp) True
-      neg_conj = ExtCond (App (Prim Not TyUnknown) conj_old) True
   
   res <- if null old_conds
          then return $ S.UNSAT ()
-         else if null new_conds'
-                then liftIO $ applySolver solver (P.insert neg_conj P.empty) s1 s2
-                else liftIO $ applySolver solver (P.insert neg_imp P.empty) s1 s2
+         else liftIO $ applySolver solver (P.insert neg_imp P.empty) s1 s2
   case res of
     S.UNSAT () -> return True
     _ -> return False
@@ -293,7 +423,7 @@ applySolver solver extraPC s1 s2 =
         -- adding extraPC in here may be redundant
         allPC = foldr P.insert unionPC (P.toList extraPC)
         newState = s1 { expr_env = unionEnv, path_conds = extraPC }
-    in case (P.toList allPC) of
+    in case P.toList allPC of
       [] -> return $ S.SAT ()
       _ -> S.check solver newState allPC
 
@@ -307,3 +437,30 @@ extractCond (AltCond l e True) =
 extractCond (AltCond l e False) =
   App (App (Prim Neq TyUnknown) e) (Lit l)
 extractCond _ = error "Not Supported"
+
+lookupConcOrSymState :: Name -> State t -> Maybe E.ConcOrSym
+lookupConcOrSymState n = E.lookupConcOrSym n . expr_env
+
+frameWrap :: Frame -> Expr -> Expr
+frameWrap (CaseFrame i t alts) e = Case e i t alts
+frameWrap (ApplyFrame e') e = App e e'
+frameWrap (UpdateFrame _) e = e
+frameWrap (CastFrame co) e = Cast e co
+frameWrap (AssumeFrame assume) e = Assume Nothing assume e
+frameWrap _ _ = error "unsupported frame"
+
+stackWrap :: Stck.Stack Frame -> Expr -> (Expr, Stck.Stack Frame)
+stackWrap sk e =
+  case Stck.pop sk of
+    Nothing -> (e, sk)
+    Just (CurrExprFrame _ _, _) -> (e, sk)
+    Just (fr, sk') -> stackWrap sk' $ frameWrap fr e
+
+stateAdjStack :: State t -> State t
+stateAdjStack s =
+    let CurrExpr er e = curr_expr s
+        (e', stck') = stackWrap (exec_stack s) e
+    in s {
+           curr_expr = CurrExpr er e'
+         , exec_stack = stck'
+         }

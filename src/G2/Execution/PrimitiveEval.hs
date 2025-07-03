@@ -29,7 +29,6 @@ import qualified G2.Language.ExprEnv as E
 import G2.Language.MutVarEnv
 
 import GHC.Float
-import Debug.Trace (trace)
 
 -- | Evaluates primitives at the root of the passed `Expr` while updating the `ExprEnv`
 -- to share computed results.
@@ -526,6 +525,16 @@ evalPrimADT2 kv StrAppend h t = strApp h t
         strApp (App (Data dc) _ {- type -}) ys = assert (KV.dcEmpty kv == dcName dc) (Just ys)
         strApp _ _ = Nothing
 
+evalPrimADT2 kv StrPrefixOf pre s = do
+    pre' <- toString pre
+    s' <- toString s
+    return . mkBool kv $ pre' `L.isPrefixOf` s'
+
+evalPrimADT2 kv StrSuffixOf suf s = do
+    suf' <- toString suf
+    s' <- toString s
+    return . mkBool kv $ suf' `L.isSuffixOf` s'
+
 evalPrimADT2 kv Eq f s = fmap (mkBool kv) $ lstEq f s
     where
         -- List equality, currently used for strings and assumes types can be compared
@@ -652,7 +661,7 @@ evalTypeDCPrim2 tenv DataToTag t dc =
                 dcs = dataCon adt
                 dc_names = map dc_name dcs
             in
-                fmap (Lit . LitInt . fst) . L.find ((==) (dc_name dc) . snd) $ zip [1..] dc_names
+                fmap (Lit . LitInt . fst) . L.find ((==) (dc_name dc) . snd) $ zip [0..] dc_names
         _ -> error "evalTypeDCPrim2: Unsupported Primitive Op"
 evalTypeDCPrim2 _ _ _ _ = Nothing
 
