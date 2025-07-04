@@ -3,6 +3,7 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE InstanceSigs #-}
 
 module G2.Language.PathConds ( PathConds
                              , PCGroup (..)
@@ -32,6 +33,7 @@ module G2.Language.PathConds ( PathConds
                              , join
                              , relatedSets
                              , scc
+                             , scc'
                              , varIdsInPC
                              , varNamesInPC
                              , allIds
@@ -238,11 +240,14 @@ varNamesInPC = P.map idName . varIdsInPC
 allIds :: PathConds -> HS.HashSet Id
 allIds (PathConds pc) = HS.unions . P.map pcs_contains $ UF.elems pc
 
--- | Computes the path constraints that relate to the `Names` in the passed list.
 scc :: [Name] -> PathConds -> PathConds
-scc ns (PathConds pcc) =
+scc ns = scc' (L.map Just ns) 
+
+-- | Computes the path constraints that relate to the `Names` in the passed list.
+scc' :: [Maybe Name] -> PathConds -> PathConds
+scc' ns (PathConds pcc) =
     let
-        ns' = P.map (flip UF.find pcc) (L.map Just ns)
+        ns' = P.map (flip UF.find pcc) ns
     in
     PathConds $ UF.filterWithKey (\k _ -> k `L.elem` ns') pcc
 
@@ -320,6 +325,7 @@ instance ASTContainer PathConds Expr where
 instance ASTContainer PathConds Type where
     containedASTs = containedASTs . toUFMap
 
+    modifyContainedASTs :: (Type -> Type) -> PathConds -> PathConds
     modifyContainedASTs f = fromList . modifyContainedASTs f . toList
 
 instance ASTContainer PathCond Expr where
@@ -329,10 +335,10 @@ instance ASTContainer PathCond Expr where
     containedASTs (SoftPC pc) = containedASTs pc
     containedASTs (AssumePC _ _ pc) = containedASTs pc
 
-    modifyContainedASTs f (ExtCond e b) = ExtCond (modifyContainedASTs f e) b
+    modifyContainedASTs f (ExtCond e b) = ExtCond (f e) b
     modifyContainedASTs f (AltCond a e b) =
-        AltCond (modifyContainedASTs f a) (modifyContainedASTs f e) b
-    modifyContainedASTs f (MinimizePC e) = MinimizePC $ modifyContainedASTs f e
+        AltCond (modifyContainedASTs f a) (f e) b
+    modifyContainedASTs f (MinimizePC e) = MinimizePC $ f e
     modifyContainedASTs f (SoftPC pc) = SoftPC $ modifyContainedASTs f pc
     modifyContainedASTs f (AssumePC i num pc) = AssumePC i num (modifyContainedASTs f pc)
 

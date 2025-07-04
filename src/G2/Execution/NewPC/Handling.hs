@@ -1,17 +1,9 @@
-module G2.Execution.NewPC ( NewPC (..)
-                          , newPCEmpty
-                          , reduceNewPC ) where
+module G2.Execution.NewPC.Handling ( reduceNewPC ) where
 
 import G2.Language
 import qualified G2.Language.PathConds as PC
 import G2.Solver
-
-data NewPC t = NewPC { state :: State t
-                     , new_pcs :: [PathCond]
-                     , concretized :: [Id] }
-
-newPCEmpty :: State t -> NewPC t
-newPCEmpty s = NewPC { state = s, new_pcs = [], concretized = []}
+import G2.Execution.NewPC.Type
 
 reduceNewPC :: (Solver solver, Simplifier simplifier) => solver -> simplifier -> NewPC t -> IO (Maybe (State t))
 reduceNewPC solver simplifier
@@ -39,7 +31,7 @@ reduceNewPC solver simplifier
         let ns = (concatMap PC.varNamesInPC pc) ++ namesList concIds
             rel_pc = case ns of
                 [] -> PC.fromList pc''
-                _ -> PC.scc ns new_pc'
+                _ -> PC.scc' (Nothing:map Just ns) new_pc'
 
         res <- check solver s rel_pc
 

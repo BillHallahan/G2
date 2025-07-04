@@ -29,7 +29,8 @@ module G2.Execution.Rules ( module G2.Execution.RuleTypes
 
 import G2.Config.Config
 import G2.Execution.DataConPCMap
-import G2.Execution.NewPC
+import G2.Execution.NewPC.Handling
+import G2.Execution.NewPC.Type
 import G2.Execution.NormalForms
 import G2.Execution.PrimitiveEval
 import G2.Execution.RuleTypes
@@ -50,7 +51,6 @@ import G2.Data.Utils
 import qualified G2.Data.UFMap as UF
 
 import Control.Exception
-import Data.Int (Int)
 
 stdReduce :: (Solver solver, Simplifier simplifier) => Sharing -> SymbolicFuncEval t -> solver -> simplifier -> State t -> Bindings -> IO (Rule, [(State t, ())], Bindings)
 stdReduce share symb_func_eval solver simplifier s b@(Bindings {name_gen = ng}) = do
