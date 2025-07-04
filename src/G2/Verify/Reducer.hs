@@ -3,7 +3,11 @@
 module G2.Verify.Reducer ( nrpcAnyCallReducer
                          , verifySolveNRPC
                          , verifyHigherOrderHandling
-                         , approximationHalter ) where
+                         , approximationHalter
+                         
+                         , discardOnFalse
+                         , currExprIsFalse
+                         , currExprIsTrue ) where
 
 import G2.Config
 import G2.Execution.Reducer
@@ -135,3 +139,22 @@ approximationHalter :: (Named t, Solver solver, SM.MonadState (ApproxPrevs t) m,
                     -> Halter m () r t
 approximationHalter = approximationHalter' (\_ _ -> True)
 
+-- | Discard all other states if we find a counterexample.
+discardOnFalse :: Monad m => Halter m () (ExecRes t) t
+discardOnFalse = (mkSimpleHalter (\_ -> ())
+                                (\hv _ _ -> hv)
+                                (\_ _ _ -> return Continue)
+                                (\hv _ _ _ -> hv))
+                    { discardOnStart = \_ pr s -> discard s pr }
+    where
+        discard (State { expr_env = eenv, known_values = kv }) (Processed { accepted = acc })
+            = any (currExprIsFalse . final_state) acc
+
+currExprIsBool :: Bool -> State t -> Bool
+currExprIsBool b s = E.deepLookupExpr (getExpr s) (expr_env s) == Just (mkBool (known_values s) b)
+
+currExprIsFalse :: State t -> Bool
+currExprIsFalse = currExprIsBool False
+
+currExprIsTrue :: State t -> Bool
+currExprIsTrue = currExprIsBool False

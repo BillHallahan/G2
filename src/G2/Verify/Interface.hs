@@ -181,13 +181,7 @@ verifyFromFile proj src f transConfig config = do
     to' <- readIORef to
     let res = case to' of
                 TimedOut -> VerifyTimeOut
-                NoTimeOut | false_er <- filter (isFalse . final_state) er
+                NoTimeOut | false_er <- filter (currExprIsFalse . final_state) er
                           , not (null false_er) -> Counterexample false_er
-                          | otherwise -> assert (all (isTrue . final_state) er) Verified
+                          | otherwise -> assert (all (currExprIsTrue . final_state) er) Verified
     return (res, bindings''', entry_f)
-    where
-        isFalse s | E.deepLookupExpr (getExpr s) (expr_env s) == Just (mkFalse (known_values s ) ) = True
-                  | otherwise = False
-
-        isTrue s | E.deepLookupExpr (getExpr s) (expr_env s) == Just (mkTrue (known_values s)) = True
-                 | otherwise = False
