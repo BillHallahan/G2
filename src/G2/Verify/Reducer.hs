@@ -3,10 +3,15 @@
 module G2.Verify.Reducer ( nrpcAnyCallReducer
                          , verifySolveNRPC
                          , verifyHigherOrderHandling
-                         , approximationHalter ) where
+                         , approximationHalter
+                         
+                         , discardOnFalse
+                         , currExprIsFalse
+                         , currExprIsTrue ) where
 
 import G2.Config
 import G2.Execution.Reducer
+import G2.Interface
 import G2.Language
 import G2.Language.Approximation
 import qualified G2.Language.ExprEnv as E
@@ -129,9 +134,28 @@ verifyHigherOrderHandling = mkSimpleReducer (const ()) red
 
 -- | If a state S has a current expression, path constraints, and NRPC set that are approximated by some
 -- other state S', discard S. Any counterexample discoverable from S is also discoverable from S'.
-approximationHalter :: (Solver solver, SM.MonadState (ApproxPrevs t) m, MonadIO m) =>
+approximationHalter :: (Named t, Solver solver, SM.MonadState (ApproxPrevs t) m, MonadIO m) =>
                        solver
                     -> HS.HashSet Name -- ^ Names that should not be inlined (often: top level names from the original source code)
                     -> Halter m () r t
 approximationHalter = approximationHalter' (\_ _ -> True)
 
+-- | Discard all other states if we find a counterexample.
+discardOnFalse :: Monad m => Halter m () (ExecRes t) t
+discardOnFalse = (mkSimpleHalter (\_ -> ())
+                                (\hv _ _ -> hv)
+                                (\_ _ _ -> return Continue)
+                                (\hv _ _ _ -> hv))
+                    { discardOnStart = \_ pr s -> discard s pr }
+    where
+        discard (State { expr_env = eenv, known_values = kv }) (Processed { accepted = acc })
+            = any (currExprIsFalse . final_state) acc
+
+currExprIsBool :: Bool -> State t -> Bool
+currExprIsBool b s = E.deepLookupExpr (getExpr s) (expr_env s) == Just (mkBool (known_values s) b)
+
+currExprIsFalse :: State t -> Bool
+currExprIsFalse = currExprIsBool False
+
+currExprIsTrue :: State t -> Bool
+currExprIsTrue = currExprIsBool False

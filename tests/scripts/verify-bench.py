@@ -18,11 +18,11 @@ def run_verify(filename, thm, time_limit):
 def call_verify_process(filename, thm, time_limit):
     try:
         args = [exe_name, "verify/" + filename, thm, "--time", str(time_limit)]
-        res = subprocess.run(args, universal_newlines=True, capture_output=True);
+        res = subprocess.run(args, universal_newlines=True, capture_output=True, timeout=40);
         return res.stdout
     except subprocess.TimeoutExpired as TimeoutEx:
         # extra line break at end to match the one from normal termination
-        return "Timeout"
+        return "Timeout - Script"
         # return TimeoutEx.stdout.decode('utf-8') + "\nTimeout\n"
 
 def unmodified_theorems():
@@ -59,7 +59,7 @@ def test_suite_csv(timeout):
     return test_suite_general("Zeno.hs", unmodified_theorems(), timeout)
 
 def main():
-    (v, c, t) = test_suite_csv(15)
+    (v, c, t) = test_suite_csv(20)
 
     print("Verified " + str(v))
     print("Counterexample " + str(c))
