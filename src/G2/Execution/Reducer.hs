@@ -64,7 +64,6 @@ module G2.Execution.Reducer ( Reducer (..)
 
                             -- Helper functions for NRPCs
                             , createNonRed
-                            , createNonRedQueue
                             , isNonRedBlockerTick
 
                             , ApproxPrevs
@@ -842,33 +841,15 @@ nrpcApproxReducer solver no_inline no_nrpc_names config =
         applyWrap e stck | Just (ApplyFrame a, stck') <- Stck.pop stck = applyWrap (App e a) stck'
                          | otherwise = e
 
-data AddPos = AddFront | AddBack deriving Eq
  
+-- If doing so is possible, create an NRPC for the current expression of the passed state
 createNonRed :: NameGen
              -> State t
              -> Maybe
                       ( State t -- ^ New state with NRPC applied
                       , Expr -- ^ Expression added into the NRPCs (and equated to some symbolic variable)
                       , NameGen)
-createNonRed = createNonRed' AddFront
-
-createNonRedQueue :: NameGen
-                  -> State t
-                  -> Maybe
-                      ( State t -- ^ New state with NRPC applied
-                      , Expr -- ^ Expression added into the NRPCs (and equated to some symbolic variable)
-                      , NameGen)
-createNonRedQueue = createNonRed' AddBack
-
--- If doing so is possible, create an NRPC for the current expression of the passed state
-createNonRed' :: AddPos
-              -> NameGen
-              -> State t
-              -> Maybe
-                      ( State t -- ^ New state with NRPC applied
-                      , Expr -- ^ Expression added into the NRPCs (and equated to some symbolic variable)
-                      , NameGen)
-createNonRed' add_pos ng
+createNonRed ng
               s@(State { curr_expr = CurrExpr _ ce
                        , expr_env = eenv
                        , non_red_path_conds = nrs
@@ -897,9 +878,7 @@ createNonRed' add_pos ng
         (te, ng'') = nonRedBlockerTick ng' v
         ce'' = mkApp $ te:es
 
-        nrs' = if add_pos == AddFront
-                    then (ce'', Var new_sym_id) S.:<| nrs
-                    else nrs S.:|> (ce'', Var new_sym_id)
+        nrs' = (ce'', Var new_sym_id) S.:<| nrs
 
         s' = s { expr_env = eenv'
                , curr_expr = cexpr'
@@ -907,7 +886,7 @@ createNonRed' add_pos ng
                , exec_stack = stck }
     in
     Just (s', ce'', ng'')
-createNonRed' _ _ _ = Nothing
+createNonRed _ _ = Nothing
 
 hasMagicTypes :: ASTContainer c Type => KnownValues -> c -> Bool
 hasMagicTypes kv = getAny . evalASTs hmt
