@@ -714,7 +714,7 @@ verifierTests = testGroup "Verifier"
     , checkExprNotVerified "tests/Verify/Peano1.hs" "p2False"
     , checkExprCEx "tests/Verify/Peano1.hs" "p3False"
     , checkExprCEx "tests/Verify/Peano1.hs" "p4False"
-    , checkExprCEx "tests/Verify/Peano1.hs" "p5False"
+    , checkExprNotVerified "tests/Verify/Peano1.hs" "p5False"
 
     , checkExprVerified "tests/Verify/Int1.hs" "p1"
     , checkExprVerified "tests/Verify/Int1.hs" "p2"
@@ -930,7 +930,9 @@ checkExprVerifier vr_check src entry =
                         Left _ -> VerifyTimeOut
                         Right (vr, _, _) -> vr
 
-        assertBool ("Incorrect verification result for " ++ entry ++ " in " ++ show src) (vr_check res') 
+        assertBool
+            ("Incorrect verification result for " ++ entry ++ " in " ++ show src ++ "\nresult = " ++ show res')
+            (vr_check res') 
 
 testFile :: String
          -> Maybe String

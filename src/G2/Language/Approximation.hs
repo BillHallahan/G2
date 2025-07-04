@@ -465,7 +465,7 @@ applySolver :: S.Solver solver =>
 applySolver solver extraPC s1 s2 =
     let unionEnv = E.union (expr_env s1) (expr_env s2)
         rightPC = P.toList $ path_conds s2
-        unionPC = foldr P.insert (path_conds s1) rightPC
+        unionPC = P.empty -- foldr P.insert (path_conds s1) rightPC
         -- adding extraPC in here may be redundant
         allPC = foldr P.insert unionPC (P.toList extraPC)
         newState = s1 { expr_env = unionEnv, path_conds = extraPC }

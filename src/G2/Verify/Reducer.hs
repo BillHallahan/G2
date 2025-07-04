@@ -1,4 +1,4 @@
-{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE FlexibleContexts, MultiWayIf, OverloadedStrings #-}
 
 module G2.Verify.Reducer ( nrpcAnyCallReducer
                          , verifySolveNRPC
@@ -23,6 +23,7 @@ import G2.Solver
 import Control.Monad.IO.Class
 import qualified Control.Monad.State as SM
 import qualified Data.HashSet as HS
+import Data.List
 import Data.Maybe
 import Data.Sequence
 
@@ -40,29 +41,68 @@ nrpcAnyCallReducer no_nrpc_names config =
                 else return ()
             return (s, b) }
 
-    where
+    where        
         red rv s@(State { curr_expr = CurrExpr _ ce, expr_env = eenv }) b
             | maybe True (allowed_frame . fst) (Stck.pop (exec_stack s))
             
-            , let e = applyWrap (getExpr s) (exec_stack s)
-            , Var (Id n _):_:_ <- unApp e
+            , let wrapped_ce = applyWrap (getExpr s) (exec_stack s)
+            , v@(Var (Id n _)):es@(_:_) <- unApp . stripNRBT $ wrapped_ce = do
+                let ((s', ng'), es') =
+                        mapAccumR
+                            (\(s_, ng_) e -> if
+                                | Var (Id ne _):_:_ <- unApp e
 
-            , Just (Id n' _) <- E.deepLookupVar n eenv
-            , not (n' `HS.member` no_nrpc_names)
-            , not (E.isSymbolic n' eenv)
+                                , Just (Id n' _) <- E.deepLookupVar ne eenv
+                                , not (n' `HS.member` no_nrpc_names)
+                                , not (E.isSymbolic n' eenv)
 
-            , not . isTyFun . typeOf $ e = do
+                                , not . isTyFun . typeOf $ e
+                                , Just (s_', sym_i, _, ng_') <- createNonRed' ng_ s_ e ->
+                                    ((s_', ng_'), Var sym_i)
+                                | Var (Id ne _):_:_ <- unApp e
+
+                                , Just (Id n' _) <- E.deepLookupVar ne eenv
+                                , not (n' `HS.member` no_nrpc_names)
+                                , not (E.isSymbolic n' eenv)
+
+                                , nameOcc n' == "take"
+
+                                , not . isTyFun . typeOf $ e -> error $ "e = " ++ show e
+                                | otherwise -> ((s_, ng_), e)) (s, name_gen b) es
+                    s'' = s' { curr_expr = CurrExpr Evaluate . mkApp $ v:es' }
+
+                -- liftIO $ do
+                --     putStrLn $ "es = " ++ show es
+                --     putStrLn $ "es' = " ++ show es'
                 -- liftIO $ do
                 --     putStrLn $ "curr_expr s = " ++ show (getExpr s)
                 --     putStrLn $ "log_path s = " ++ show (log_path s)
                 --     putStrLn $ "num_steps s = " ++ show (num_steps s)
-                let nr_s_ng = createNonRed (name_gen b) s
+
+                -- return (Finished, [(s'', rv + 1)], b { name_gen = ng' })
+
+                let e = applyWrap (getExpr s'') (exec_stack s'')
+                    nr_s_ng = if
+                                | not (hasNRBT wrapped_ce)
+                                , Var (Id n _):_:_ <- unApp e
+
+                                , Just (Id n' _) <- E.deepLookupVar n eenv
+                                , not (n' `HS.member` no_nrpc_names)
+                                , not (E.isSymbolic n' eenv)
+
+                                , not . isTyFun . typeOf $ e -> createNonRed ng' (s'' { curr_expr = curr_expr s''})
+                                | otherwise -> Nothing
+                
+                -- liftIO $ print (getExpr s'') 
+                -- liftIO $ print (applyWrap (getExpr s'') (exec_stack s''))
+                -- liftIO $ print (unApp $ stripANT (applyWrap (getExpr s'') (exec_stack s'')))
+                -- liftIO $ print $ fmap (\(_, x, y, _) -> (x, y)) nr_s_ng
 
                 case nr_s_ng of
-                    Just (nr_s, _, ng') -> return (Finished, [(nr_s, rv + 1)], b { name_gen = ng' })
-                    _ -> return (Finished, [(s, rv)], b)
+                    Just (nr_s, _, _, ng''') -> return (Finished, [(addANT nr_s, rv + 1)], b { name_gen = ng''' })
+                    _ -> return (Finished, [(addANT s'', rv)], b { name_gen = ng' })
             | Tick nl (Var (Id n _)) <- ce
-            , isNonRedBlockerTick nl
+            , isNonRedBlockerTick nl || nl == arg_nrpc_tick
             , Just e <- E.lookup n eenv = return (Finished, [(s { curr_expr = CurrExpr Evaluate e }, rv)], b)
         red rv s b = return (Finished, [(s, rv)], b)
         
@@ -71,6 +111,27 @@ nrpcAnyCallReducer no_nrpc_names config =
 
         applyWrap e stck | Just (ApplyFrame a, stck') <- Stck.pop stck = applyWrap (App e a) stck'
                          | otherwise = e
+        
+        arg_nrpc_tick = NamedLoc (Name "ArgNRPC" Nothing 0 Nothing)
+
+        stripNRBT (Tick nl e) | isNonRedBlockerTick nl = e
+        stripNRBT (App e1 e2) = App (stripNRBT e1) e2
+        stripNRBT e = e
+
+        hasNRBT (Tick nl e) | isNonRedBlockerTick nl = True
+                            | otherwise = hasNRBT e
+        hasNRBT (App e1 _) = hasNRBT e1
+        hasNRBT _ = False
+
+        stripANT (Tick nl e) | nl == arg_nrpc_tick = e
+        stripANT (App e1 e2) = App (stripANT e1) e2
+        stripANT e = e
+
+        addANT s_ant = s_ant { curr_expr = CurrExpr Evaluate $ addANT_CE (getExpr s_ant)}
+
+        addANT_CE (App e1 e2) = App (addANT_CE e1) e2
+        addANT_CE e = Tick arg_nrpc_tick e
+
 
 verifySolveNRPC :: Monad m => Reducer m () t
 verifySolveNRPC = mkSimpleReducer (const ()) red
