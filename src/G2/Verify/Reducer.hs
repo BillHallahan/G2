@@ -11,6 +11,7 @@ module G2.Verify.Reducer ( nrpcAnyCallReducer
 
 import G2.Config
 import G2.Execution.Reducer
+import G2.Interface
 import G2.Language
 import G2.Language.Approximation
 import qualified G2.Language.ExprEnv as E
