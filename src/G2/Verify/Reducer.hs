@@ -19,7 +19,7 @@ import Control.Monad.IO.Class
 import qualified Control.Monad.State as SM
 import qualified Data.HashSet as HS
 import Data.Maybe
-
+import Data.Sequence
 
 -- | When a newly reached function application is approximated by a previously seen (and thus explored) function application,
 -- shift the new function application into the NRPCs.
@@ -51,7 +51,7 @@ nrpcAnyCallReducer no_nrpc_names config =
                 --     putStrLn $ "curr_expr s = " ++ show (getExpr s)
                 --     putStrLn $ "log_path s = " ++ show (log_path s)
                 --     putStrLn $ "num_steps s = " ++ show (num_steps s)
-                let nr_s_ng = createNonRedQueue (name_gen b) s
+                let nr_s_ng = createNonRed (name_gen b) s
 
                 case nr_s_ng of
                     Just (nr_s, _, ng') -> return (Finished, [(nr_s, rv + 1)], b { name_gen = ng' })
@@ -73,7 +73,7 @@ verifySolveNRPC = mkSimpleReducer (const ()) red
         red _
                         s@(State {curr_expr = cexpr
                                 , exec_stack = stck
-                                , non_red_path_conds = (nre1, nre2) :*> nrs
+                                , non_red_path_conds = nrs :|> (nre1, nre2)
                                 })
                                 b@(Bindings { name_gen = ng }) =
             
