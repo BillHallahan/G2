@@ -6,6 +6,11 @@ import Prelude hiding ((++), filter)
 [] ++ ys = ys
 (x:xs) ++ ys = x : (xs ++ ys)
 
+eqList :: [Int] -> [Int] -> Bool
+eqList [] [] = False
+eqList (x:xs) (y:ys) | x == y = eqList xs ys
+eqList _ _ = False
+
 filterBad :: (Int -> Bool) -> [Int] -> [Int]
 filterBad _ [] = []
 filterBad p [x] = [x]
@@ -21,7 +26,7 @@ p2False p xs ys
   = (filterBad p (xs ++ ys) == (filterBad p xs) ++ (filterBad p ys))
 
 p3False xs ys
-  = (filterBad (> 0) (xs ++ ys) == (filterBad (> 0) xs) ++ (filterBad (> 0) ys))
+  = (filterBad (> 0) (xs ++ ys) `eqList` ((filterBad (> 0) xs) ++ (filterBad (> 0) ys)))
 
 lastList :: (Int -> Bool) -> [Int] -> [Int]
 lastList _ [] = []
