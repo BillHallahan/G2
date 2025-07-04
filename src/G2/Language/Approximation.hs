@@ -267,7 +267,7 @@ moreRestrictive' mr_cont gen_lemma lkp s1@(State {expr_env = h1}) s2@(State {exp
         reachesSym' seen h (Var (Id n _)) | n `elem` ns = Any False
                                           | n `HS.member` seen = Any False
                                           | (Just (E.Conc e)) <- E.lookupConcOrSym n h = reachesSym' (HS.insert n seen) h e
-                                          | otherwise <- E.lookupConcOrSym n h = Any True
+                                          | otherwise = Any True
         reachesSym' seen h e = evalChildren (reachesSym' seen h) e
 
 -- check only the names for DataAlt
