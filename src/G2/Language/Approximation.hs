@@ -378,6 +378,37 @@ selectJusts p = sel [] []
                             (\r' -> let opts' = (r', reverse pre ++ xs):opts in sel (x:pre) opts' xs)
                             (p x)
 
+-- Note [Renaming in moreRestrictivePC]
+-- We do renaming of variables in s1 (the older state) in moreRestricivePC.  To see why this is needed: consider an “old state" with:
+--  	PC = { not (x = y) }
+-- 	  NRPC = { filter p (x:xs) = y:ys }
+
+-- And “new state" with:
+-- 	  PC = { not (x = y) }
+-- 	  NRPC = { filter p (x':xs) = y:ys }
+
+-- From the NRPCs, we would get a mapping:
+-- 	  x’ -> x, y -> y
+-- And then we would check the following condition:
+-- 	  (equality from mappings) && (new pc) => (old pc)
+--    x’ = x && y = y && not (x = y) => not (x = y)
+-- The above is valid- the way to check this is to note that the negation is unsatisfiable.
+-- But it actually shouldn’t be valid, because x’ in the “new state” NRPC is not the same variable as x in the “new state” PC.
+-- So the “new state” might reach paths not explorable by the old state.
+--
+-- The solution is to rename the symbolic variables in the old state before the NRPC checks.  So we rename x and y only in the old state to get:
+-- 	  PC = { not (x2 = y2) }
+--  	NRPC = { filter p (x2:xs) = y2:ys }
+--
+-- We then check the condition:
+-- 	  x' = x2 && y = y2 && not (x = y) => not (x2 = y2)
+-- This is now not valid- it can be satisfied with:
+-- 	  x' = x2 = x = 0
+-- 	  y = y2 = 1
+-- for example:
+-- 	  0 = 0 && 1 = 1 && not (0 = 1) => not (0 = 1)
+-- So we do not incorrectly discard the new state.
+
 -- s1 is old state, s2 is new state
 -- only apply to old-new state pairs for which moreRestrictive' works
 moreRestrictivePC :: (MonadIO m, S.Solver solver) =>
@@ -388,6 +419,7 @@ moreRestrictivePC :: (MonadIO m, S.Solver solver) =>
                      HS.HashSet (Expr, Expr) ->
                      m Bool
 moreRestrictivePC solver s1@(State { known_values = kv }) s2 sym_var_map expr_pairs = do
+  -- see Note [Renaming in moreRestrictivePC
   let symvar_1 = map idName . E.symbolicIds $ expr_env s1
       ng = mkNameGen (E.symbolicIds $ expr_env s1, E.symbolicIds $ expr_env s2)
       (symvar_re, _) = renameAll symvar_1 ng
