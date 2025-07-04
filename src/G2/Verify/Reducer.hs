@@ -129,7 +129,7 @@ verifyHigherOrderHandling = mkSimpleReducer (const ()) red
 
 -- | If a state S has a current expression, path constraints, and NRPC set that are approximated by some
 -- other state S', discard S. Any counterexample discoverable from S is also discoverable from S'.
-approximationHalter :: (Solver solver, SM.MonadState (ApproxPrevs t) m, MonadIO m) =>
+approximationHalter :: (Named t, Solver solver, SM.MonadState (ApproxPrevs t) m, MonadIO m) =>
                        solver
                     -> HS.HashSet Name -- ^ Names that should not be inlined (often: top level names from the original source code)
                     -> Halter m () r t

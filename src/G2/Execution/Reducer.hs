@@ -1672,7 +1672,7 @@ varLookupLimitHalter lim = mkSimpleHalter
         step l _ _ (State { curr_expr = CurrExpr Evaluate (Var _) }) = l - 1
         step l _ _ _ = l
 
-hpcApproximationHalter :: (Solver solver, SM.MonadState (ApproxPrevs t) m, MonadIO m) =>
+hpcApproximationHalter :: (Named t, Solver solver, SM.MonadState (ApproxPrevs t) m, MonadIO m) =>
                           solver
                        -> HS.HashSet Name -- ^ Names that should not be inlined (often: top level names from the original source code)
                        -> Halter m () (ExecRes  t) t
@@ -1682,7 +1682,7 @@ hpcApproximationHalter = approximationHalter' stop_cond
             let acc_seen_hpc = HS.unions (map (reached_hpc . final_state) $ accepted pr) in
             HS.null $ HS.difference (reached_hpc s) acc_seen_hpc
 
-approximationHalter' :: (Solver solver, SM.MonadState (ApproxPrevs t) m, MonadIO m) =>
+approximationHalter' :: (Named t, Solver solver, SM.MonadState (ApproxPrevs t) m, MonadIO m) =>
                         (Processed r (State t) -> State t -> Bool) -- ^ Approximated states are discarded only if they match this condition
                      -> solver
                      -> HS.HashSet Name -- ^ Names that should not be inlined (often: top level names from the original source code)

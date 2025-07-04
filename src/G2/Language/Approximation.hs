@@ -33,6 +33,7 @@ import Control.Exception
 import Control.Monad.Extra
 import Control.Monad.IO.Class
 import Data.Either
+import qualified Data.Foldable as F
 import qualified Data.HashSet as HS
 import qualified Data.HashMap.Lazy as HM
 import Data.Maybe
@@ -69,7 +70,7 @@ type MRCont t l =  State t
 -------------------------------------------------------------------------------
 
 -- | Check is s1 is an approximation of s2 (if s2 is more restrictive than s1.)
-moreRestrictiveIncludingPCAndNRPC :: (Show l, S.Solver solver) =>
+moreRestrictiveIncludingPCAndNRPC :: (Named t, Show l, S.Solver solver) =>
                    solver
                 -> MRCont t l -- ^ For special case handling - what to do if we don't match elsewhere in moreRestrictive
                 -> GenerateLemma t l
@@ -387,15 +388,22 @@ moreRestrictivePC :: (MonadIO m, S.Solver solver) =>
                      HS.HashSet (Expr, Expr) ->
                      m Bool
 moreRestrictivePC solver s1@(State { known_values = kv }) s2 sym_var_map expr_pairs = do
+  let symvar_1 = map idName . E.symbolicIds $ expr_env s1
+      ng = mkNameGen (E.symbolicIds $ expr_env s1, E.symbolicIds $ expr_env s2)
+      (symvar_re, _) = renameAll symvar_1 ng
+      rename_old :: Named b => b -> b
+      rename_old = renames (HM.fromList $ zip symvar_1 symvar_re)
+      s1' = s1 { expr_env = rename_old $ expr_env s1, path_conds = rename_old $ path_conds s1}
+
   let new_conds = map extractCond (P.toList $ path_conds s2)
-      old_conds = map extractCond (P.toList $ path_conds s1)
+      old_conds = map extractCond (P.toList $ path_conds s1')
       l = map (\(i, e) -> (Var i, e)) $ HM.toList sym_var_map
       
       -- Link up variables/expressions between the states, i.e. assert equality
       -- of some variable from state 1 with some expression in state 2
       l' = map (\(e1, e2) ->
                   if T.isPrimType (typeOf e1) && T.isPrimType (typeOf e2)
-                  then Just $ App (App (Prim Eq TyUnknown) e1) e2
+                  then Just $ App (App (Prim Eq TyUnknown) (rename_old e1)) e2
                   else Nothing) (l ++ HS.toList expr_pairs)
       l'' = catMaybes l'
       new_conds' = l'' ++ new_conds
@@ -410,7 +418,7 @@ moreRestrictivePC solver s1@(State { known_values = kv }) s2 sym_var_map expr_pa
   
   res <- if null old_conds
          then return $ S.UNSAT ()
-         else liftIO $ applySolver solver (P.insert neg_imp P.empty) s1 s2
+         else liftIO $ applySolver solver (P.insert neg_imp P.empty) s1' s2
   case res of
     S.UNSAT () -> return True
     _ -> return False
