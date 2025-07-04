@@ -83,6 +83,7 @@ verifyRedHaltOrd s solver simplifier config no_nrpc_names = do
         halter = switchEveryNHalter 20
                  <~> acceptIfViolatedHalter
                  <~> time_halter
+                 <~> discardOnFalse
 
         halter_approx_discard = SomeHalter (approximationHalter solver approx_no_inline <~> halter)
 
