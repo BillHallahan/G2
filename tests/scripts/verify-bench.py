@@ -17,7 +17,7 @@ def run_verify(filename, thm, time_limit):
 
 def call_verify_process(filename, thm, time_limit):
     try:
-        args = [exe_name, "verify/" + filename, thm, "--time", str(time_limit)]
+        args = [exe_name, "verify/tests/" + filename, thm, "--time", str(time_limit)]
         res = subprocess.run(args, universal_newlines=True, capture_output=True);
         return res.stdout
     except subprocess.TimeoutExpired as TimeoutEx:
@@ -34,7 +34,22 @@ def unmodified_theorems():
             ret.append(("prop_" + str(i), []))
     return ret
 
-def test_suite_general(fname_in,suite, time_limit):
+def read_runnable_benchmarks(setpath, settings) :
+    props = []
+    lines = []
+    file = os.path.join(setpath, "run_props.txt")
+    with open(file, 'r') as file :
+        for line in file:
+            stripped = line.rstrip('\n')
+            if stripped == "--":
+                lines.append(props)
+                props = []
+            else:
+                props.append((stripped, settings))
+        lines.append(props)
+    return lines
+
+def test_suite_general(fname_in, suite, time_limit):
     verified = 0
     cex = 0
     timeout = 0
@@ -55,15 +70,22 @@ def test_suite_general(fname_in,suite, time_limit):
             timeout +=1
     return (verified, cex, timeout)
 
-def test_suite_csv(timeout):
-    return test_suite_general("Zeno.hs", unmodified_theorems(), timeout)
+# def test_suite_csv(filename, properties, timeout):
+#     return test_suite_general(filename, properties, timeout)
 
 def main():
-    (v, c, t) = test_suite_csv(15)
-
-    print("Verified " + str(v))
-    print("Counterexample " + str(c))
-    print("Timeout " + str(t))
+    setpath = os.path.join("verify/tests")
+    all_files_dirs = os.listdir(setpath)
+    run_bench = read_runnable_benchmarks(setpath, [])
+    for benchmark in run_bench :
+        (filename, setting) = benchmark[0]
+        print("\nBenchmark : " + filename + "\n")
+        (v, c, t) = test_suite_general(filename + ".hs", benchmark[1:], 15)
+        print("\nTotal properties: " + str(len(benchmark) - 1))
+        print("Verified :" + str(v))
+        print("Counterexample :" + str(c))
+        print("Timeout :" + str(t))
+        print("\n")
 
 if __name__ == "__main__":
     main()

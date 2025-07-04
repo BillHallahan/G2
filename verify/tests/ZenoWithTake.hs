@@ -129,7 +129,7 @@ drop Z xs = xs
 drop _ [] = []
 drop (S x) (_:xs) = drop x xs
 
--- BUG : Take is behaving like drop
+-- BUG
 take Z _ = []
 take _ [] = []
 take (S (S x)) (y:ys) = y : (take x ys)
