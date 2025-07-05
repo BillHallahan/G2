@@ -39,7 +39,7 @@ reduceNewPC solver simplifier
         let ns = (concatMap PC.varNamesInPC pc) ++ namesList concIds
             rel_pc = case ns of
                 [] -> PC.fromList pc''
-                _ -> PC.scc ns new_pc'
+                _ -> PC.scc' (Nothing:map Just ns) new_pc'
 
         res <- check solver s rel_pc
 
