@@ -48,8 +48,16 @@ nrpcAnyCallReducer no_nrpc_names config =
             , let wrapped_ce = applyWrap (getExpr s) (exec_stack s)
             , v@(Var (Id n _)):es@(_:_) <- unApp . stripNRBT $ wrapped_ce = do
                 -- Given a function call `f x1 ... xn`, we both move
-                -- (1) each argument into a function call and
+                -- (1) each argument that is a function call into an NRPC and
                 -- (2) the entire call to `f` into an NRPC
+                -- In either call, note that createNewCond wraps the function call with a Tick.
+                -- This prevents that same function call from being immediately turned back into an NRPC
+                -- when it is removed from the NRPCs via (2).
+                --
+                -- Note that we consider moving arguments into NRPCs (executing (1)) regardless of whether
+                -- the function comes from an NRPC (is wrapped in a Tick) or not.
+                -- This is because the function call might have itself have been added to the NRPCs via (1),
+                -- and thus not have had the chance introduce its arguments into the NRPCs.
 
                 -- (1)
                 -- Replace each argument which is itself a function call with a NRPC.
@@ -80,7 +88,10 @@ nrpcAnyCallReducer no_nrpc_names config =
                 -- Replace the entire expression with an NRPC
                 let e = applyWrap (getExpr s'') (exec_stack s'')
                     nr_s_ng = if
-                                | not (hasNRBT wrapped_ce)
+                                -- Line (*) make sure we don't add back to NRPCs immediately-
+                                -- note that we have to check the original current expression passed into the reducer-
+                                -- the modified current expression in s'' will definitely not have a Tick
+                                | not (hasNRBT wrapped_ce) -- (*)
                                 , Var (Id n _):_:_ <- unApp e
 
                                 , Just (Id n' _) <- E.deepLookupVar n eenv
@@ -91,10 +102,10 @@ nrpcAnyCallReducer no_nrpc_names config =
                                 | otherwise -> Nothing
                 
                 case nr_s_ng of
-                    Just (nr_s, _, _, ng''') -> return (Finished, [(addANT nr_s, rv + 1)], b { name_gen = ng''' })
-                    _ -> return (Finished, [(addANT s'', rv)], b { name_gen = ng' })
+                    Just (nr_s, _, _, ng''') -> return (Finished, [(nr_s, rv + 1)], b { name_gen = ng''' })
+                    _ -> return (Finished, [(s'', rv)], b { name_gen = ng' })
             | Tick nl (Var (Id n _)) <- ce
-            , isNonRedBlockerTick nl || nl == arg_nrpc_tick
+            , isNonRedBlockerTick nl
             , Just e <- E.lookup n eenv = return (Finished, [(s { curr_expr = CurrExpr Evaluate e }, rv)], b)
         red rv s b = return (Finished, [(s, rv)], b)
         
@@ -104,8 +115,6 @@ nrpcAnyCallReducer no_nrpc_names config =
         applyWrap e stck | Just (ApplyFrame a, stck') <- Stck.pop stck = applyWrap (App e a) stck'
                          | otherwise = e
         
-        arg_nrpc_tick = NamedLoc (Name "ArgNRPC" Nothing 0 Nothing)
-
         stripNRBT (Tick nl e) | isNonRedBlockerTick nl = e
         stripNRBT (App e1 e2) = App (stripNRBT e1) e2
         stripNRBT e = e
@@ -114,16 +123,6 @@ nrpcAnyCallReducer no_nrpc_names config =
                             | otherwise = hasNRBT e
         hasNRBT (App e1 _) = hasNRBT e1
         hasNRBT _ = False
-
-        stripANT (Tick nl e) | nl == arg_nrpc_tick = e
-        stripANT (App e1 e2) = App (stripANT e1) e2
-        stripANT e = e
-
-        addANT s_ant = s_ant { curr_expr = CurrExpr Evaluate $ addANT_CE (getExpr s_ant)}
-
-        addANT_CE (App e1 e2) = App (addANT_CE e1) e2
-        addANT_CE e = Tick arg_nrpc_tick e
-
 
 verifySolveNRPC :: Monad m => Reducer m () t
 verifySolveNRPC = mkSimpleReducer (const ()) red
@@ -152,8 +151,7 @@ verifyHigherOrderHandling = mkSimpleReducer (const ()) red
                        , type_env = tenv
                        , known_values = kv
                        , type_classes = tc }) b@(Bindings { name_gen = ng })
-            -- The symbolic function will be wrapped in a ANT from the nrpcAnyCallReducer
-            | (App (Var (Id n ty_fun)) ar) <- stripAllTicks ce
+            | (App (Var (Id n ty_fun)) ar) <- ce
             , E.isSymbolic n eenv =
                 let
                     ty_ar = typeOf ar
