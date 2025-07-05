@@ -63,16 +63,6 @@ nrpcAnyCallReducer no_nrpc_names config =
                                 | otherwise -> ((s_, ng_), e)) (s, name_gen b) es
                     s'' = s' { curr_expr = CurrExpr Evaluate . mkApp $ v:es' }
 
-                -- liftIO $ do
-                --     putStrLn $ "es = " ++ show es
-                --     putStrLn $ "es' = " ++ show es'
-                -- liftIO $ do
-                --     putStrLn $ "curr_expr s = " ++ show (getExpr s)
-                --     putStrLn $ "log_path s = " ++ show (log_path s)
-                --     putStrLn $ "num_steps s = " ++ show (num_steps s)
-
-                -- return (Finished, [(s'', rv + 1)], b { name_gen = ng' })
-
                 let e = applyWrap (getExpr s'') (exec_stack s'')
                     nr_s_ng = if
                                 | not (hasNRBT wrapped_ce)
@@ -85,11 +75,6 @@ nrpcAnyCallReducer no_nrpc_names config =
                                 , not . isTyFun . typeOf $ e -> createNonRed ng' (s'' { curr_expr = curr_expr s''})
                                 | otherwise -> Nothing
                 
-                -- liftIO $ print (getExpr s'') 
-                -- liftIO $ print (applyWrap (getExpr s'') (exec_stack s''))
-                -- liftIO $ print (unApp $ stripANT (applyWrap (getExpr s'') (exec_stack s'')))
-                -- liftIO $ print $ fmap (\(_, x, y, _) -> (x, y)) nr_s_ng
-
                 case nr_s_ng of
                     Just (nr_s, _, _, ng''') -> return (Finished, [(addANT nr_s, rv + 1)], b { name_gen = ng''' })
                     _ -> return (Finished, [(addANT s'', rv)], b { name_gen = ng' })
