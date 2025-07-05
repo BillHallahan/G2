@@ -47,6 +47,19 @@ nrpcAnyCallReducer no_nrpc_names config =
             
             , let wrapped_ce = applyWrap (getExpr s) (exec_stack s)
             , v@(Var (Id n _)):es@(_:_) <- unApp . stripNRBT $ wrapped_ce = do
+                -- Given a function call `f x1 ... xn`, we both move
+                -- (1) each argument into a function call and
+                -- (2) the entire call to `f` into an NRPC
+
+                -- (1)
+                -- Replace each argument which is itself a function call with a NRPC.
+                -- For instance:
+                --  @ f (g x) y (h z)@
+                -- Will get rewritten to:
+                --  @ f s1 y s2 @
+                -- with new NRPCs:
+                --  @ s1 = g x 
+                --    s2 = h z @
                 let ((s', ng'), es') =
                         mapAccumR
                             (\(s_, ng_) e -> if
@@ -63,6 +76,8 @@ nrpcAnyCallReducer no_nrpc_names config =
                                 | otherwise -> ((s_, ng_), e)) (s, name_gen b) es
                     s'' = s' { curr_expr = CurrExpr Evaluate . mkApp $ v:es' }
 
+                -- (2)
+                -- Replace the entire expression with an NRPC
                 let e = applyWrap (getExpr s'') (exec_stack s'')
                     nr_s_ng = if
                                 | not (hasNRBT wrapped_ce)
