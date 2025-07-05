@@ -147,12 +147,14 @@ verifySolveNRPC = mkSimpleReducer (const ()) red
 verifyHigherOrderHandling :: MonadIO m => Reducer m () t
 verifyHigherOrderHandling = mkSimpleReducer (const ()) red
     where
-        red _ s@(State { curr_expr = CurrExpr _ (App (Var (Id n ty_fun)) ar)
+        red _ s@(State { curr_expr = CurrExpr _ ce
                        , expr_env = eenv
                        , type_env = tenv
                        , known_values = kv
                        , type_classes = tc }) b@(Bindings { name_gen = ng })
-            | E.isSymbolic n eenv =
+            -- The symbolic function will be wrapped in a ANT from the nrpcAnyCallReducer
+            | (App (Var (Id n ty_fun)) ar) <- stripAllTicks ce
+            , E.isSymbolic n eenv =
                 let
                     ty_ar = typeOf ar
                     (lam_x, ng2) = freshId ty_ar ng
