@@ -33,7 +33,6 @@ prop_55
 prop_56
 prop_57
 prop_58
-prop_63
 prop_72
 prop_74
 prop_81
@@ -70,6 +69,7 @@ prop_68
 prop_72
 prop_74
 prop_80
+prop_83
 prop_84
 prop_85
 --
@@ -96,6 +96,7 @@ prop_72
 prop_74
 prop_80
 prop_81
+prop_83
 prop_84
 --
 ZenoWithTakeWhile
@@ -106,4 +107,7 @@ ZenoWithZip
 prop_44
 prop_45
 prop_58
+prop_82
+prop_83
+prop_84
 prop_85

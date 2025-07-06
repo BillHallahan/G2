@@ -424,6 +424,7 @@ prop_62 xs x
   = givenBool (not (null xs))
   ( (last (x:xs) =:= last xs) )
 
+-- Verified
 prop_63 n xs
   = givenBool (n < len xs)
   ( (last (drop n xs) =:= last xs) )

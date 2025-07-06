@@ -490,16 +490,13 @@ prop_80 n xs ys
 prop_81 n m xs {- ys -}
   = (take n (drop m xs) =:= drop m (take (n + m) xs))
 
--- Verified
 prop_82 n xs ys
   = (take n (zip xs ys) =:= zip (take n xs) (take n ys))
 
--- Verified
 prop_83 xs ys zs
   = (zip (xs ++ ys) zs =:=
            zip xs (take (len xs) zs) ++ zip ys (drop (len xs) zs))
 
--- Verified
 prop_84 xs ys zs
   = (zip xs (ys ++ zs) =:=
            zip (take (len ys) xs) ys ++ zip (drop (len ys) xs) zs)
