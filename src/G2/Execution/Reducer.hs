@@ -64,6 +64,7 @@ module G2.Execution.Reducer ( Reducer (..)
 
                             -- Helper functions for NRPCs
                             , createNonRed
+                            , createNonRed'
                             , isNonRedBlockerTick
 
                             , ApproxPrevs
@@ -654,7 +655,7 @@ nonRedLibFuncs exec_names no_nrpc_names
     , Just (Id n' _) <- E.deepLookupVar n eenv
     , not (n' `HS.member` no_nrpc_names)
     , not (E.isSymbolic n' eenv)
-    , Just (s'@(State { curr_expr = CurrExpr _ _ }), ce', ng') <- createNonRed ng s = 
+    , Just (s'@(State { curr_expr = CurrExpr _ _ }), _, ce', ng') <- createNonRed ng s = 
         let
             (reaches_sym, sym_table') = reachesSymbolic sym_table eenv ce'
             (exec_skip, var_table') = if reaches_sym then checkDelayability eenv ce' ng exec_names var_table else (Skip, var_table)
@@ -697,7 +698,7 @@ nonRedHigherOrderFunc
     , (ae, stck') <- allApplyFrames (exec_stack s)
     , let es = es_ce ++ ae
 
-    , Just (s', _, ng') <- createNonRed ng s 
+    , Just (s', _, _, ng') <- createNonRed ng s 
     = 
         let
             -- If we have an EnsureEq on the stack, we do not want to add function argument states because
@@ -825,7 +826,7 @@ nrpcApproxReducer solver no_inline no_nrpc_names config =
                 let nr_s_ng = createNonRed (name_gen b) s
 
                 case nr_s_ng of
-                    Just (nr_s, _, ng') | isJust approx -> return (Finished, [(nr_s, rv + 1)], b { name_gen = ng' })
+                    Just (nr_s, _, _, ng') | isJust approx -> return (Finished, [(nr_s, rv + 1)], b { name_gen = ng' })
                     _ -> do SM.modify (\ap -> ap { ap_nrpc_states = s':xs }); return (Finished, [(s, rv)], b)
             | Tick nl (Var (Id n _)) <- ce
             , isNonRedBlockerTick nl
@@ -842,11 +843,12 @@ nrpcApproxReducer solver no_inline no_nrpc_names config =
                          | otherwise = e
 
  
--- If doing so is possible, create an NRPC for the current expression of the passed state
+ -- If doing so is possible, create an NRPC for the current expression of the passed state
 createNonRed :: NameGen
              -> State t
              -> Maybe
                       ( State t -- ^ New state with NRPC applied
+                      , Id -- ^ New symbolic variable
                       , Expr -- ^ Expression added into the NRPCs (and equated to some symbolic variable)
                       , NameGen)
 createNonRed ng
@@ -854,39 +856,62 @@ createNonRed ng
                        , expr_env = eenv
                        , non_red_path_conds = nrs
                        , known_values = kv })
-            | v@(Var (Id _ t)):es_ce <- unApp ce
-             -- Function is being fully applied 
-            , (ae, stck) <- allApplyFrames (exec_stack s)
-            , let es = es_ce ++ ae
-                  ce' = mkApp (v:es)
+    | v@(Var (Id _ t)):es_ce <- unApp ce
+        -- Function is being fully applied 
+    , (ae, stck) <- allApplyFrames (exec_stack s)
+    , let es = es_ce ++ ae
+          ce' = mkApp (v:es)
+    , Just (s', sym_i, ce_rep, ng') <- createNonRed' ng s ce' =
+    let
+        cexpr' = CurrExpr Return (Var sym_i)
+        s'' = s' { curr_expr = cexpr'
+                 , exec_stack = stck }
+    in
+    Just (s'', sym_i, ce_rep, ng')
+    | otherwise = Nothing
+
+  
+-- If doing so is possible, create an NRPC for passed expression
+createNonRed' :: NameGen
+              -> State t
+              -> Expr
+              -> Maybe
+                      ( State t -- ^ New state with NRPC applied
+                      , Id -- ^ New symbolic variable
+                      , Expr -- ^ Expression added into the NRPCs (and equated to some symbolic variable)
+                      , NameGen)
+createNonRed' ng
+              s@(State { curr_expr = CurrExpr _ ce
+                       , expr_env = eenv
+                       , non_red_path_conds = nrs
+                       , known_values = kv }) e
+            | v@(Var (Id _ t)):es <- unApp e
+
             , hasFuncType (PresType t)
-            
-            , let ce_ty = typeOf ce'
-            , not . hasFuncType . PresType $ ce_ty
+
+            , let e_ty = typeOf e
+            , not . hasFuncType . PresType $ e_ty
             -- Don't turn functions manipulating "magic types"- types represented as Primitives, with special handling
             -- (for instance, MutVars, Handles) into NRPC symbolic variables.
-            , not (hasMagicTypes kv ce) =
+            , not (hasMagicTypes kv e) =
     let
         (new_sym, ng') = freshSeededString "sym" ng
-        new_sym_id = Id new_sym ce_ty
+        new_sym_id = Id new_sym e_ty
         eenv' = E.insertSymbolic new_sym_id eenv
-        cexpr' = CurrExpr Return (Var new_sym_id)
         -- when NRPC moves back to current expression, it immediately gets added as NRPC again.
         -- To stop falling into this infinite loop, instead of adding current expression in NRPC
         -- we associate a tick (nonRedBlocker) with the expression and then standard reducer reduces
         -- this tick.
         (te, ng'') = nonRedBlockerTick ng' v
-        ce'' = mkApp $ te:es
+        e'' = mkApp $ te:es
 
-        nrs' = (ce'', Var new_sym_id) S.:<| nrs
+        nrs' = (e'', Var new_sym_id) S.:<| nrs
 
         s' = s { expr_env = eenv'
-               , curr_expr = cexpr'
-               , non_red_path_conds = nrs'
-               , exec_stack = stck }
+               , non_red_path_conds = nrs' }
     in
-    Just (s', ce'', ng'')
-createNonRed _ _ = Nothing
+    Just (s', new_sym_id, e'', ng'')
+createNonRed' _ _ _ = Nothing
 
 hasMagicTypes :: ASTContainer c Type => KnownValues -> c -> Bool
 hasMagicTypes kv = getAny . evalASTs hmt
