@@ -44,7 +44,12 @@ proveBool lhs = lhs =:= True
 -- everything here mainly copied from HipSpec, with some simplifications
 
 data Nat = S Nat | Z
-  deriving (Eq,Show,Ord)
+  deriving (Show,Ord)
+
+instance Eq Nat where
+  Z == Z = True
+  S p1 == S p2 = p1 == p2
+  _ == _ = False
 
 data Tree a = Leaf | Node (Tree a) a (Tree a)
   deriving (Eq,Ord,Show)
@@ -133,6 +138,7 @@ drop (S x) (_:xs) = drop x xs
 take Z _ = []
 take _ [] = []
 take (S (S x)) (y:ys) = y : (take x ys)
+take (S x) (y:ys) = y : (take x ys)
 
 count :: Nat -> [Nat] -> Nat
 count x [] = Z
@@ -347,9 +353,11 @@ prop_38 n xs
 prop_39 n x xs
   = (count n [x] + count n xs =:= count n (x:xs))
 
+-- Verified
 prop_40 xs
   = (take Z xs =:= [])
 
+-- Verified
 prop_41 n f xs
   = (take n (map f xs) =:= map f (take n xs))
 
@@ -481,13 +489,16 @@ prop_80 n xs ys
 prop_81 n m xs {- ys -}
   = (take n (drop m xs) =:= drop m (take (n + m) xs))
 
+-- Verified
 prop_82 n xs ys
   = (take n (zip xs ys) =:= zip (take n xs) (take n ys))
 
+-- Verified
 prop_83 xs ys zs
   = (zip (xs ++ ys) zs =:=
            zip xs (take (len xs) zs) ++ zip ys (drop (len xs) zs))
 
+-- This should generate a counter-example, for example, xs = ys = [1,1,1,1,1], zs =[]
 prop_84 xs ys zs
   = (zip xs (ys ++ zs) =:=
            zip (take (len ys) xs) ys ++ zip (drop (len ys) xs) zs)

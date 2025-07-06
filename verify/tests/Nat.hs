@@ -3,7 +3,12 @@ module Nat where
 import Prelude hiding ((+),(*),(-),(<),id)
 --import Tip
 
-data Nat = Z | S Nat deriving (Eq,Ord)
+data Nat = Z | S Nat deriving (Show, Ord)
+
+instance Eq Nat where
+  Z == Z = True
+  S p1 == S p2 = p1 == p2
+  _ == _ = False
 
 infix 3 ===
 infix 3 =/=
@@ -56,6 +61,7 @@ S n =:= S m = n =:= m
 plus_idem x = x + x === x
 plus_not_idem x = x + x === x ==> True === False
 plus_inf x =  S x === x
+-- Ask Bill, if this should be verified?
 plus_ninf x =  S x === x ==> True === False
 
 mul_idem  x = x * x === x

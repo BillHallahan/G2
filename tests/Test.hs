@@ -920,10 +920,10 @@ checkExprVerifier vr_check src entry =
                 config <- mkConfigTestIO
                 let config' = config { timeLimit = 30 }
                 verifyFromFile [proj] [src] (T.pack entry) simplTranslationConfig config')
-                    :: IO (Either SomeException ((VerifyResult, Bindings, Id)))
+                    :: IO (Either SomeException ((VerifyResult, Double, Bindings, Id)))
         let res' = case res of
                         Left _ -> VerifyTimeOut
-                        Right (vr, _, _) -> vr
+                        Right (vr, _, _, _) -> vr
 
         assertBool ("Incorrect verification result for " ++ entry ++ " in " ++ show src) (vr_check res') 
 

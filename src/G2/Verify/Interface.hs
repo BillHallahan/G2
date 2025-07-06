@@ -25,6 +25,7 @@ import qualified Control.Monad.State as SM
 import qualified Data.HashSet as S
 import Data.IORef
 import Data.Maybe
+import System.Clock
 
 data VerifyResult = Verified
                   | Counterexample [ExecRes ()]
@@ -117,7 +118,7 @@ verifyFromFile :: [FilePath]
                -> StartFunc
                -> TranslationConfig
                -> Config
-               -> IO (VerifyResult, Bindings, Id)
+               -> IO (VerifyResult, Double, Bindings, Id)
 verifyFromFile proj src f transConfig config = do
     let config' = config {
                          -- For soundness, we must exhaustively search all states that are not discarded via approximation,
@@ -161,6 +162,7 @@ verifyFromFile proj src f transConfig config = do
     --     analysis3 = if print_num_red_rules config then [\s p xs -> SM.lift . SM.lift . SM.lift . SM.lift . SM.lift . SM.lift $ logRedRuleNum s p xs] else noAnalysis
     --     analysis = analysis1 ++ analysis2 ++ analysis3
 
+    init_time <- getTime Realtime
     rho <- verifyRedHaltOrd state' solver simplifier config' (S.fromList no_nrpc_names)
     let to = case rho of (_, _, _, to_)-> to_
     (er, bindings''') <-
@@ -179,12 +181,15 @@ verifyFromFile proj src f transConfig config = do
                                 else setTypePrinting AggressiveTypes (mkPrettyGuide ())) 
     
     to' <- readIORef to
+    accept_time <- getTime Realtime
+    let diff = diffTimeSpec accept_time init_time
+        diff_secs = (fromInteger (toNanoSecs diff)) / (10 ^ (9 :: Int) :: Double)
     let res = case to' of
                 TimedOut -> VerifyTimeOut
                 NoTimeOut | false_er <- filter (isFalse . final_state) er
                           , not (null false_er) -> Counterexample false_er
                           | otherwise -> assert (all (isTrue . final_state) er) Verified
-    return (res, bindings''', entry_f)
+    return (res, diff_secs, bindings''', entry_f)
     where
         isFalse s | E.deepLookupExpr (getExpr s) (expr_env s) == Just (mkFalse (known_values s ) ) = True
                   | otherwise = False

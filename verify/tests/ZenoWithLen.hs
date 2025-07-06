@@ -44,7 +44,12 @@ proveBool lhs = lhs =:= True
 -- everything here mainly copied from HipSpec, with some simplifications
 
 data Nat = S Nat | Z
-  deriving (Eq,Show,Ord)
+  deriving (Show,Ord)
+
+instance Eq Nat where
+  Z == Z = True
+  S p1 == S p2 = p1 == p2
+  _ == _ = False
 
 data Tree a = Leaf | Node (Tree a) a (Tree a)
   deriving (Eq,Ord,Show)
@@ -114,6 +119,7 @@ delete n (x:xs) =
     True -> delete n xs
     False -> x : (delete n xs)
 
+-- BUG
 len :: [a] -> Nat
 len [] = Z
 len (x:x':[]) = S Z
@@ -475,6 +481,7 @@ prop_78 xs
 prop_79 m n k
   = ((S m - n) - S k =:= (m - n) - k)
 
+-- This should definitely generate a counter example but it's not, for example, n = 6, xs = [1,1,1,1,1], ys = [1,2,3,3]
 prop_80 n xs ys
   = (take n (xs ++ ys) =:= take n xs ++ take (n - len xs) ys)
 
@@ -484,14 +491,17 @@ prop_81 n m xs {- ys -}
 prop_82 n xs ys
   = (take n (zip xs ys) =:= zip (take n xs) (take n ys))
 
+-- Verified
 prop_83 xs ys zs
   = (zip (xs ++ ys) zs =:=
            zip xs (take (len xs) zs) ++ zip ys (drop (len xs) zs))
 
+-- This should also generate counter-example, for example, xs = [1,1], ys = [1,1], zs = []
 prop_84 xs ys zs
   = (zip xs (ys ++ zs) =:=
            zip (take (len ys) xs) ys ++ zip (drop (len ys) xs) zs)
 
+-- Ask Bill, I think if this is verified then it's a bug
 prop_85 xs ys
   = (len xs =:= len ys) ==>
     (zip (rev xs) (rev ys) =:= rev (zip xs ys))

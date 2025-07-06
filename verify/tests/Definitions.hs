@@ -41,7 +41,12 @@ not False = True
 
 -- Nats
 
-data Nat = S Nat | Z deriving (Eq,Ord)
+data Nat = S Nat | Z deriving (Show, Ord)
+
+instance Eq Nat where
+  Z == Z = True
+  S p1 == S p2 = p1 == p2
+  _ == _ = False
 
 {-
 instance Partial Nat where

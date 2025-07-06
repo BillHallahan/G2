@@ -44,7 +44,12 @@ proveBool lhs = lhs =:= True
 -- everything here mainly copied from HipSpec, with some simplifications
 
 data Nat = S Nat | Z
-  deriving (Eq,Show,Ord)
+  deriving (Show,Ord)
+
+instance Eq Nat where
+  Z == Z = True
+  S p1 == S p2 = p1 == p2
+  _ == _ = False
 
 data Tree a = Leaf | Node (Tree a) a (Tree a)
   deriving (Eq,Ord,Show)
@@ -308,16 +313,20 @@ prop_26 x xs ys
   = givenBool (x `elem` xs)
   ( proveBool (x `elem` (xs ++ ys)) )
 
+-- Verified
 prop_27 x xs ys
   = givenBool (x `elem` ys)
   ( proveBool (x `elem` (xs ++ ys)) )
 
+-- Verified
 prop_28 x xs
   = proveBool (x `elem` (xs ++ [x]))
 
+-- Verified 
 prop_29 x xs
   = proveBool (x `elem` ins1 x xs)
 
+-- Verified
 prop_30 x xs
   = proveBool (x `elem` ins x xs)
 
