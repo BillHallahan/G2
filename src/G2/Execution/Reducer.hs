@@ -1252,6 +1252,7 @@ getLimLogger config = do
     case logStates config of
             Log Raw _ -> return . Just . limLogger $ ll_config
             Log Pretty _ -> return . Just . prettyLimLogger $ ll_config
+            Log PrettyFiltered _ -> return . Just . prettyFilteredLimLogger $ ll_config
             NoLog -> return Nothing
 
 genLimLogger :: (MonadIO m, Show t) => ([Int] -> State t -> Bindings -> m ()) -> LimLogger -> Reducer m LLTracker t
@@ -1288,6 +1289,17 @@ limLogger ll = genLimLogger (\off s b -> liftIO $ outputState (lim_output_path l
 
 prettyLimLogger :: (MonadIO m, SM.MonadState PrettyGuide m, Show t) => LimLogger -> Reducer m LLTracker t
 prettyLimLogger ll =
+    genLimLogger (\off s b -> do
+                pg <- SM.get
+                let pg' = updatePrettyGuide (s { track = () }) pg
+                SM.put pg'
+                liftIO $ outputState (lim_output_path ll) off s b (\s_ _ -> T.unpack $ prettyState pg' s_)
+    ) ll
+
+-- | Logger that is identical to prettyLimLogger, but prints only environment bindings for names present in the current
+-- expression or stack.
+prettyFilteredLimLogger :: (MonadIO m, SM.MonadState PrettyGuide m, Show t) => LimLogger -> Reducer m LLTracker t
+prettyFilteredLimLogger ll =
     genLimLogger (\off s b -> do
                 pg <- SM.get
                 let pg' = updatePrettyGuide (s { track = () }) pg

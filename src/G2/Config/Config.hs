@@ -37,7 +37,7 @@ data Mode = Regular | Liquid deriving (Eq, Show, Read)
 
 data LogMode = Log LogMethod String | NoLog deriving (Eq, Show, Read)
 
-data LogMethod = Raw | Pretty deriving (Eq, Show, Read)
+data LogMethod = Raw | Pretty | PrettyFiltered deriving (Eq, Show, Read)
 
 -- | Do we use sharing to only reduce variables once?
 data Sharing = Sharing | NoSharing deriving (Eq, Show, Read)
@@ -234,6 +234,12 @@ mkLogMode =
             <> metavar "FOLDER"
             <> value NoLog
             <> help "log all states with pretty printing"))
+    <|>
+    (option (eitherReader (Right . Log PrettyFiltered))
+            (long "log-pretty-fil"
+            <> metavar "FOLDER"
+            <> value NoLog
+            <> help "log all states with pretty printing and limited environment"))
 
 mkMaxOutputs :: Parser (Maybe Int)
 mkMaxOutputs =
