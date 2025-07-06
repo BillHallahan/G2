@@ -287,10 +287,10 @@ genericSplitAt1 xs n
 -- Note that there should be an fourth case here due to an invalid index error
 genericIndex1 :: String -> Integer -> (Char, Int)
 genericIndex1 xs n
-    | chr == 'Z' = (chr, 0) 
+    | chr == 'Z' = (chr, 0)
     | chr < 'Q' = (chr, 1)
     | otherwise = ('!', 2)
-    where 
+    where
         chr = xs `genericIndex` (n + 1)
 
 -- This doesn't lessen outputs, it only tests whether genericReplicate works with SMT Strings
@@ -324,3 +324,15 @@ isSuffixOf1 s1 s2
     | otherwise = (6, p)
     where
         p = isSuffixOf s1 s2
+
+unsnoc1 :: String -> Maybe Int
+unsnoc1 xs
+    | Just (s, e) <- uc, s == "Hello" = Just 0
+    | Nothing == uc = Just 1
+    | Just (s, e) <- uc, length s == 0 = Just 2
+    | otherwise = Nothing
+    where
+        uc = unsnoc xs
+
+unsnoc2 :: String -> Maybe (String, Char)
+unsnoc2 = unsnoc
