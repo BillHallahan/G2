@@ -378,7 +378,8 @@ testFileTests = testGroup "TestFiles"
                                                               , ("genericIndex1", 2000, [AtLeast 10])
 
                                                               , ("unsnoc1", 1000, [AtLeast 5])
-                                                              , ("unsnoc2", 1000, [AtLeast 5]) ]
+                                                              , ("unsnoc2", 1000, [AtLeast 5])
+                                                              , ("splitAt1", 5000, [AtLeast 5]) ]
 
     , checkInputOutputsSMTStrings "tests/TestFiles/Strings/Strings1.hs"
                                         [ ("con", 1000, [Exactly 1])
@@ -436,7 +437,8 @@ testFileTests = testGroup "TestFiles"
                                         , ("isSuffixOf1", 10000, [Exactly 6])
 
                                         , ("unsnoc1", 5000, [Exactly 4])
-                                        , ("unsnoc2", 5000, [Exactly 2]) ]
+                                        , ("unsnoc2", 5000, [Exactly 2])
+                                        , ("splitAt1", 5000, [Exactly 4]) ]
 
     , checkExpr "tests/TestFiles/Strings/Strings1.hs" 1000 "exclaimEq"
         [AtLeast 5, RExists (\[_, _, r] -> dcHasName "True" r)]

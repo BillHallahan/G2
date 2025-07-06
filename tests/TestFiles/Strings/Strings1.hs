@@ -336,3 +336,12 @@ unsnoc1 xs
 
 unsnoc2 :: String -> Maybe (String, Char)
 unsnoc2 = unsnoc
+
+splitAt1 :: String -> Maybe (String, Int)
+splitAt1 xs
+    | a == b = Just (a, 0)
+    | length a < 4 = Just (b, 1)
+    | b == (a ++ a) = Just (b, 2)
+    | otherwise = Nothing
+    where
+        (a, b) = splitAt 10 xs
