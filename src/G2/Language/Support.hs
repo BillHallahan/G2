@@ -132,28 +132,6 @@ data Frame = CaseFrame Id Type [Alt]
            | AssertFrame (Maybe FuncCall) Expr
            deriving (Show, Eq, Read, Generic, Typeable, Data)
 
--- | Determine if a name is present in a specific stack frame. The CurrExprFrame is ignored for clarity and to 
--- avoid a repeat lookup, since the stack lookup is called after the current expression lookup in usage of the 
--- two functions. CastFrames are also ignored as types do not have environment bindings.
-lookupNameInFrame :: Name -> Frame -> Bool
-lookupNameInFrame n f = case f of 
-                            CaseFrame (Id n_ _) _ as -> n == n_ 
-                                                    ||  any (E.lookupNameInExpr n . altExpr) as
-                            ApplyFrame e -> E.lookupNameInExpr n e
-                            UpdateFrame n_ -> n == n_
-                            AssumeFrame e -> E.lookupNameInExpr n e
-                            AssertFrame mfc e -> E.lookupNameInExpr n e
-                                             || case mfc of
-                                                    Nothing -> False
-                                                    Just fc -> n == funcName fc
-                                                            || any (E.lookupNameInExpr n) (arguments fc)
-                                                            || E.lookupNameInExpr n (returns fc)
-                            _ -> False
-
--- | Determine if a name is present in any stack frame.
-lookupNameInStack :: Name -> Stack Frame -> Bool
-lookupNameInStack n s = any (lookupNameInFrame n) (G2.Language.Stack.toList s)
-
 instance Hashable Frame
 
 -- | What to do with the current expression when a @CurrExprFrame@ reaches the

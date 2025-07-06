@@ -1220,6 +1220,7 @@ data LimLogger =
               , down_path :: [Int] -- Output states that have gone down or are going down the given path prefix
               , conc_pc_guide :: Maybe (SomeSolver, ConcPCGuide)
               , lim_output_path :: String
+              , filter_env :: Bool
               }
 
 limLoggerConfig :: FilePath -> LimLogger
@@ -1228,7 +1229,8 @@ limLoggerConfig fp = LimLogger { every_n = 0
                                , before_n = Nothing
                                , down_path = []
                                , conc_pc_guide = Nothing
-                               , lim_output_path = fp }
+                               , lim_output_path = fp
+                               , filter_env = False}
 
 data LLTracker = LLTracker { ll_count :: Int, ll_offset :: [Int]}
 
@@ -1246,13 +1248,13 @@ getLimLogger config = do
                         Log _ fp -> (limLoggerConfig fp) { after_n = logAfterN config
                                                          , every_n = logEveryN config
                                                          , conc_pc_guide = cpg
-                                                         , down_path = logPath config }
+                                                         , down_path = logPath config
+                                                         , filter_env = logFilter config }
                         NoLog -> limLoggerConfig ""
     
     case logStates config of
             Log Raw _ -> return . Just . limLogger $ ll_config
             Log Pretty _ -> return . Just . prettyLimLogger $ ll_config
-            Log PrettyFiltered _ -> return . Just . prettyFilteredLimLogger $ ll_config
             NoLog -> return Nothing
 
 genLimLogger :: (MonadIO m, Show t) => ([Int] -> State t -> Bindings -> m ()) -> LimLogger -> Reducer m LLTracker t
@@ -1285,29 +1287,70 @@ genLimLogger out_f ll@(LimLogger { after_n = aft, before_n = bfr, down_path = do
             map (\(llt, i) -> llt { ll_offset = ll_offset llt ++ [i] }) $ zip (map snd ss) [1..]
 
 limLogger :: (MonadIO m, Show t) => LimLogger -> Reducer m LLTracker t
-limLogger ll = genLimLogger (\off s b -> liftIO $ outputState (lim_output_path ll) off s b pprExecStateStr) ll
+limLogger ll@(LimLogger {filter_env = f_env}) = genLimLogger (\off s b -> liftIO $ outputState (lim_output_path ll) off (if f_env then filterEnvByExprAndStack s else s) b pprExecStateStr) ll
 
 prettyLimLogger :: (MonadIO m, SM.MonadState PrettyGuide m, Show t) => LimLogger -> Reducer m LLTracker t
-prettyLimLogger ll =
-    genLimLogger (\off s b -> do
+prettyLimLogger ll@(LimLogger {filter_env = f_env}) =
+    genLimLogger (\off s@(State {}) b -> do
                 pg <- SM.get
                 let pg' = updatePrettyGuide (s { track = () }) pg
-                SM.put pg'
-                liftIO $ outputState (lim_output_path ll) off s b (\s_ _ -> T.unpack $ prettyState pg' s_)
+                SM.put pg'                   
+                liftIO $ outputState (lim_output_path ll) off (if f_env then filterEnvByExprAndStack s else s) b (\s_ _ -> T.unpack $ prettyState pg' s_)
     ) ll
 
--- | Logger that is identical to prettyLimLogger, but prints only environment bindings for names present in the current
--- expression or stack.
-prettyFilteredLimLogger :: (MonadIO m, SM.MonadState PrettyGuide m, Show t) => LimLogger -> Reducer m LLTracker t
-prettyFilteredLimLogger ll =
-    genLimLogger (\off s b -> do
-                pg <- SM.get
-                let pg' = updatePrettyGuide (s { track = () }) pg
-                SM.put pg'
-                let filtered_s = s {expr_env = E.filterWithKey (\x _ -> E.lookupNameInExpr x (getExpr s) || lookupNameInStack x (exec_stack s)) (expr_env s)}
-                liftIO $ outputState (lim_output_path ll) off filtered_s b (\s_ _ -> T.unpack $ prettyState pg' s_)
-    ) ll
- 
+filterEnvByExprAndStack :: State t -> State t
+filterEnvByExprAndStack s = s {expr_env = E.filterWithKey (\x _ -> lookupNameInExpr x (getExpr s) || lookupNameInStack x (exec_stack s)) (expr_env s)}
+
+-- | Determine if a name is present in a specific expression.
+lookupNameInExpr :: Name -> Expr -> Bool
+lookupNameInExpr n e = case e of 
+                        Var (Id n_ _) -> n == n_
+                        Prim (MutVar n_) _ -> n == n_
+                        Data dc -> n == dc_name dc
+                                     || any (\(Id n_ _) -> n == n_) (dc_univ_tyvars dc ++ dc_exist_tyvars dc)
+                        App e1 e2 -> lookup_ e1 || lookup_ e2
+                        Lam _ (Id n_ _) e_ -> n == n_ || lookup_ e_
+                        Let bs e_ -> any (\(Id n_ _, _) -> n == n_) bs
+                                  || any (lookup_ . snd) bs
+                                  || lookup_ e_
+                        Case e_ (Id n_ _) _ as -> n == n_ 
+                                              || lookup_ e_ 
+                                              || any (lookup_ . altExpr) as
+                        Cast e_ _ -> lookup_ e_
+                        Tick (NamedLoc n_) e_ -> n == n_ || lookup_ e_
+                        NonDet es -> any lookup_ es
+                        Assume mfc e1 e2 -> asm_ast_check mfc e1 e2
+                        G2.Language.Assert mfc e1 e2 -> asm_ast_check mfc e1 e2
+                        _ -> False
+            where lookup_ = lookupNameInExpr n
+                  asm_ast_check mfc e1 e2 = lookup_ e1 || lookup_ e2
+                                         || case mfc of
+                                                    Nothing -> False
+                                                    Just fc -> n == funcName fc
+                                                            || any lookup_ (arguments fc)
+                                                            || lookup_ (returns fc)
+
+-- | Determine if a name is present in any stack frame.
+lookupNameInStack :: Name -> Stck.Stack Frame -> Bool
+lookupNameInStack n s = any (lookupNameInFrame n) (Stck.toList s)
+
+-- | Determine if a name is present in a specific stack frame. The CurrExprFrame is ignored for clarity and to 
+-- avoid a repeat lookup, since the stack lookup is called after the current expression lookup in usage of the 
+-- two functions. CastFrames are also ignored as types do not have environment bindings.
+lookupNameInFrame :: Name -> Frame -> Bool
+lookupNameInFrame n f = case f of 
+                            CaseFrame (Id n_ _) _ as -> n == n_ 
+                                                    ||  any (lookupNameInExpr n . altExpr) as
+                            ApplyFrame e -> lookupNameInExpr n e
+                            UpdateFrame n_ -> n == n_
+                            AssumeFrame e -> lookupNameInExpr n e
+                            AssertFrame mfc e -> lookupNameInExpr n e
+                                             || case mfc of
+                                                    Nothing -> False
+                                                    Just fc -> n == funcName fc
+                                                            || any (lookupNameInExpr n) (arguments fc)
+                                                            || lookupNameInExpr n (returns fc)
+                            _ -> False
 
 outputState :: FilePath -> [Int] -> State t -> Bindings -> (State t -> Bindings -> String) -> IO ()
 outputState dn is s b printer = do

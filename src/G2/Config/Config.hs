@@ -37,7 +37,7 @@ data Mode = Regular | Liquid deriving (Eq, Show, Read)
 
 data LogMode = Log LogMethod String | NoLog deriving (Eq, Show, Read)
 
-data LogMethod = Raw | Pretty | PrettyFiltered deriving (Eq, Show, Read)
+data LogMethod = Raw | Pretty deriving (Eq, Show, Read)
 
 -- | Do we use sharing to only reduce variables once?
 data Sharing = Sharing | NoSharing deriving (Eq, Show, Read)
@@ -77,6 +77,7 @@ data Config = Config {
     , logAfterN :: Int -- ^ Logs state only after the nth state
     , logConcPCGuide :: Maybe String -- ^ Log states only if they match the ConcPCGuide in the provided file
     , logPath :: [Int] -- ^ Log states that are following on or proceed from some path, passed as a list i.e. [1, 2, 1]
+    , logFilter :: Bool
     , sharing :: Sharing
     , instTV :: InstTV -- allow the instantiation of types in the beginning or it's instantiate symbolically by functions
     , showType :: ShowType -- allow user to see more type information when they are logging states for the execution
@@ -141,6 +142,7 @@ mkConfig homedir = Config Regular
                    <> metavar "LP"
                    <> value []
                    <> help "log states that are following on or proceed from some path, passed as a list i.e. [1, 2, 1]")
+    <*> switch (long "log-filter" <> help "log states with a binding environment limited to names in the stack and current expression")
     <*> flag Sharing NoSharing (long "no-sharing" <> help "disable sharing")
     <*> flag InstBefore InstAfter (long "inst-after" <> help "select to instantiate type variables after symbolic execution, rather than before")
     <*> flag Lax Aggressive (long "show-types" <> help "set to show more type information when logging states")
@@ -234,12 +236,6 @@ mkLogMode =
             <> metavar "FOLDER"
             <> value NoLog
             <> help "log all states with pretty printing"))
-    <|>
-    (option (eitherReader (Right . Log PrettyFiltered))
-            (long "log-pretty-fil"
-            <> metavar "FOLDER"
-            <> value NoLog
-            <> help "log all states with pretty printing and limited environment"))
 
 mkMaxOutputs :: Parser (Maybe Int)
 mkMaxOutputs =
@@ -298,6 +294,7 @@ mkConfigDirect homedir as m = Config {
     , logAfterN = 0
     , logConcPCGuide = Nothing
     , logPath = []
+    , logFilter = False
     , sharing = boolArg' "sharing" as Sharing Sharing NoSharing
     , instTV = InstBefore
     , showType = Lax

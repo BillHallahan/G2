@@ -20,7 +20,6 @@ module G2.Language.ExprEnv
     , lookup
     , lookupConcOrSym
     , lookupEnvObj
-    , lookupNameInExpr
     , deepLookup
     , deepLookupExpr
     , deepLookupConcOrSym
@@ -180,36 +179,6 @@ deepLookup n eenv =
         Just (Conc r) -> Just r
         Just (Sym r) -> Just (Var r)
         Nothing -> Nothing
-
--- | Determine if a name is present in a specific expression.
-lookupNameInExpr :: Name -> Expr -> Bool
-lookupNameInExpr n e = case e of 
-                        Var (Id n_ _) -> n == n_
-                        Prim (MutVar n_) _ -> n == n_
-                        Data dc -> n == dc_name dc
-                                     || any (\(Id n_ _) -> n == n_) (dc_univ_tyvars dc ++ dc_exist_tyvars dc)
-                        App e1 e2 -> lookup_ e1 || lookup_ e2
-                        Lam _ (Id n_ _) e_ -> n == n_ || lookup_ e_
-                        Let bs e_ -> any (\(Id n_ _, _) -> n == n_) bs
-                                  || any (lookup_ . snd) bs
-                                  || lookup_ e_
-                        Case e_ (Id n_ _) _ as -> n == n_ 
-                                              || lookup_ e_ 
-                                              || any (lookup_ . altExpr) as
-                        Cast e_ _ -> lookup_ e_
-                        Tick (NamedLoc n_) e_ -> n == n_ || lookup_ e_
-                        NonDet es -> any lookup_ es
-                        Assume mfc e1 e2 -> asm_ast_check mfc e1 e2
-                        Assert mfc e1 e2 -> asm_ast_check mfc e1 e2
-                        _ -> False
-            where lookup_ = lookupNameInExpr n
-                  asm_ast_check mfc e1 e2 = lookup_ e1 || lookup_ e2
-                                         || case mfc of
-                                                    Nothing -> False
-                                                    Just fc -> n == funcName fc
-                                                            || any lookup_ (arguments fc)
-                                                            || lookup_ (returns fc)
-                  
 
 -- | Apply `deepLookup` if passed a `Var`.  Otherwise, just return the passed `Expr`.
 deepLookupExpr :: Expr -> ExprEnv -> Maybe Expr
