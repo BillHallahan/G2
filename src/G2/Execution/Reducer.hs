@@ -1292,7 +1292,7 @@ prettyLimLogger ll =
                 pg <- SM.get
                 let pg' = updatePrettyGuide (s { track = () }) pg
                 SM.put pg'
-                let filtered_s = s {expr_env = E.filterWithKey (\x _ -> E.lookupNameInExpr x (getExpr s)) (expr_env s)}
+                let filtered_s = s {expr_env = E.filterWithKey (\x _ -> E.lookupNameInExpr x (getExpr s) || lookupNameInStack x (exec_stack s)) (expr_env s)}
                 liftIO $ outputState (lim_output_path ll) off filtered_s b (\s_ _ -> T.unpack $ prettyState pg' s_)
     ) ll
  

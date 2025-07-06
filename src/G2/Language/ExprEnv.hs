@@ -181,6 +181,7 @@ deepLookup n eenv =
         Just (Sym r) -> Just (Var r)
         Nothing -> Nothing
 
+-- | Determine if a name is present in a specific expression.
 lookupNameInExpr :: Name -> Expr -> Bool
 lookupNameInExpr n e = case e of 
                         Var (Id n_ _) -> n == n_
