@@ -348,3 +348,8 @@ splitAt1 xs
 
 totalIndex1 :: String -> [Maybe Char]
 totalIndex1 xs = [xs !? (-1), xs !? 0, xs !? 15]
+
+notEq1 :: String -> Int
+notEq1 s = case s /= "verylongstringverylongstringVERYLONGSTRINGVERYLONGSTRING" of
+                True -> 4
+                False -> 2
