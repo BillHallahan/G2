@@ -122,7 +122,6 @@ def main():
         print("Counterexample :" + str(c))
         print("Timeout :" + str(t))
         print("\n")
-    (v) = test_suite_general("Zeno.hs", unmodified_theorems, 15)
     print("Latex for table1 is: \n" + ltx_tbl1)
     print("Latex for table2 is: \n" + latex_tbl2)
 
