@@ -345,3 +345,6 @@ splitAt1 xs
     | otherwise = Nothing
     where
         (a, b) = splitAt 10 xs
+
+totalIndex1 :: String -> [Maybe Char]
+totalIndex1 xs = [xs !? (-1), xs !? 0, xs !? 15]
