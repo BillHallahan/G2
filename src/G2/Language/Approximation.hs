@@ -32,6 +32,8 @@ import qualified G2.Solver as S
 import Control.Exception
 import Control.Monad.Extra
 import Control.Monad.IO.Class
+import Data.Either
+import qualified Data.Foldable as F
 import qualified Data.HashSet as HS
 import qualified Data.HashMap.Lazy as HM
 import Data.Maybe
@@ -68,7 +70,7 @@ type MRCont t l =  State t
 -------------------------------------------------------------------------------
 
 -- | Check is s1 is an approximation of s2 (if s2 is more restrictive than s1.)
-moreRestrictiveIncludingPCAndNRPC :: (Show l, S.Solver solver) =>
+moreRestrictiveIncludingPCAndNRPC :: (Named t, Show l, S.Solver solver) =>
                    solver
                 -> MRCont t l -- ^ For special case handling - what to do if we don't match elsewhere in moreRestrictive
                 -> GenerateLemma t l
@@ -265,7 +267,7 @@ moreRestrictive' mr_cont gen_lemma lkp s1@(State {expr_env = h1}) s2@(State {exp
         reachesSym' seen h (Var (Id n _)) | n `elem` ns = Any False
                                           | n `HS.member` seen = Any False
                                           | (Just (E.Conc e)) <- E.lookupConcOrSym n h = reachesSym' (HS.insert n seen) h e
-                                          | otherwise <- E.lookupConcOrSym n h = Any True
+                                          | otherwise = Any True
         reachesSym' seen h e = evalChildren (reachesSym' seen h) e
 
 -- check only the names for DataAlt
@@ -351,25 +353,61 @@ moreRestrictiveNRPC mr_cont gen_lemma lkp s1 s2 ns init_hm nrpc1 nrpc2 = matchNR
   where
     matchNRPCs hm [] _ = Right hm
     matchNRPCs hm ((eL_1, eR_1):ns1) ns2 = do
-        let m_match_rest = selectJust
+        let m_match_rest = selectJusts
                               (\(eL_2, eR_2) -> do
                                     hm' <- moreRes hm eL_1 eL_2
                                     moreRes hm' eR_1 eR_2)
                            ns2
-        case m_match_rest of
-          Just (hm', rest) -> matchNRPCs hm' ns1 rest
-          Nothing -> Left []
+        case rights $ map (\(hm', rest) -> matchNRPCs hm' ns1 rest) m_match_rest of
+            r:_ -> Right r
+            [] -> Left []
 
     moreRes hm e1 e2 =
       case moreRestrictive' mr_cont gen_lemma lkp s1 s2 ns hm True [] [] e1 e2 of
         Left _ -> Nothing
         Right v -> Just v
 
-selectJust :: (a -> Maybe b) -> [a] -> Maybe (b, [a])
-selectJust p = sel []
+-- | Return all values in the list for which the passed function returns Just,
+-- pairing each element with the remaining list values.
+selectJusts :: (a -> Maybe b) -> [a] -> [(b, [a])]
+selectJusts p = sel [] []
   where
-    sel _ [] = Nothing
-    sel pre (x:xs) = maybe (sel (x:pre) xs) (\r' -> Just (r', reverse pre ++ xs)) (p x)
+    sel _ opts [] = opts
+    sel pre opts (x:xs) = maybe
+                            (sel (x:pre) opts xs)
+                            (\r' -> let opts' = (r', reverse pre ++ xs):opts in sel (x:pre) opts' xs)
+                            (p x)
+
+-- Note [Renaming in moreRestrictivePC]
+-- We do renaming of variables in s1 (the older state) in moreRestricivePC.  To see why this is needed: consider an “old state" with:
+--  	PC = { not (x = y) }
+-- 	  NRPC = { filter p (x:xs) = y:ys }
+
+-- And “new state" with:
+-- 	  PC = { not (x = y) }
+-- 	  NRPC = { filter p (x':xs) = y:ys }
+
+-- From the NRPCs, we would get a mapping:
+-- 	  x’ -> x, y -> y
+-- And then we would check the following condition:
+-- 	  (equality from mappings) && (new pc) => (old pc)
+--    x’ = x && y = y && not (x = y) => not (x = y)
+-- The above is valid- the way to check this is to note that the negation is unsatisfiable.
+-- But it actually shouldn’t be valid, because x’ in the “new state” NRPC is not the same variable as x in the “new state” PC.
+-- So the “new state” might reach paths not explorable by the old state.
+--
+-- The solution is to rename the symbolic variables in the old state before the NRPC checks.  So we rename x and y only in the old state to get:
+-- 	  PC = { not (x2 = y2) }
+--  	NRPC = { filter p (x2:xs) = y2:ys }
+--
+-- We then check the condition:
+-- 	  x' = x2 && y = y2 && not (x = y) => not (x2 = y2)
+-- This is now not valid- it can be satisfied with:
+-- 	  x' = x2 = x = 0
+-- 	  y = y2 = 1
+-- for example:
+-- 	  0 = 0 && 1 = 1 && not (0 = 1) => not (0 = 1)
+-- So we do not incorrectly discard the new state.
 
 -- s1 is old state, s2 is new state
 -- only apply to old-new state pairs for which moreRestrictive' works
@@ -381,15 +419,23 @@ moreRestrictivePC :: (MonadIO m, S.Solver solver) =>
                      HS.HashSet (Expr, Expr) ->
                      m Bool
 moreRestrictivePC solver s1@(State { known_values = kv }) s2 sym_var_map expr_pairs = do
+  -- see Note [Renaming in moreRestrictivePC
+  let symvar_1 = map idName . E.symbolicIds $ expr_env s1
+      ng = mkNameGen (E.symbolicIds $ expr_env s1, E.symbolicIds $ expr_env s2)
+      (symvar_re, _) = renameAll symvar_1 ng
+      rename_old :: Named b => b -> b
+      rename_old = renames (HM.fromList $ zip symvar_1 symvar_re)
+      s1' = s1 { expr_env = rename_old $ expr_env s1, path_conds = rename_old $ path_conds s1}
+
   let new_conds = map extractCond (P.toList $ path_conds s2)
-      old_conds = map extractCond (P.toList $ path_conds s1)
+      old_conds = map extractCond (P.toList $ path_conds s1')
       l = map (\(i, e) -> (Var i, e)) $ HM.toList sym_var_map
       
       -- Link up variables/expressions between the states, i.e. assert equality
       -- of some variable from state 1 with some expression in state 2
       l' = map (\(e1, e2) ->
                   if T.isPrimType (typeOf e1) && T.isPrimType (typeOf e2)
-                  then Just $ App (App (Prim Eq TyUnknown) e1) e2
+                  then Just $ App (App (Prim Eq TyUnknown) (rename_old e1)) e2
                   else Nothing) (l ++ HS.toList expr_pairs)
       l'' = catMaybes l'
       new_conds' = l'' ++ new_conds
@@ -404,7 +450,7 @@ moreRestrictivePC solver s1@(State { known_values = kv }) s2 sym_var_map expr_pa
   
   res <- if null old_conds
          then return $ S.UNSAT ()
-         else liftIO $ applySolver solver (P.insert neg_imp P.empty) s1 s2
+         else liftIO $ applySolver solver (P.insert neg_imp P.empty) s1' s2
   case res of
     S.UNSAT () -> return True
     _ -> return False
@@ -418,14 +464,9 @@ applySolver :: S.Solver solver =>
                IO (S.Result () () ())
 applySolver solver extraPC s1 s2 =
     let unionEnv = E.union (expr_env s1) (expr_env s2)
-        rightPC = P.toList $ path_conds s2
-        unionPC = foldr P.insert (path_conds s1) rightPC
-        -- adding extraPC in here may be redundant
-        allPC = foldr P.insert unionPC (P.toList extraPC)
         newState = s1 { expr_env = unionEnv, path_conds = extraPC }
-    in case P.toList allPC of
-      [] -> return $ S.SAT ()
-      _ -> S.check solver newState allPC
+    in
+    S.check solver newState extraPC
 
 -- All the PathConds that this receives are generated by symbolic execution.
 -- Consequently, non-primitive types are not an issue here.

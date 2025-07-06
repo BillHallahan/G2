@@ -32,6 +32,7 @@ module G2.Language.PathConds ( PathConds
                              , join
                              , relatedSets
                              , scc
+                             , scc'
                              , varIdsInPC
                              , varNamesInPC
                              , allIds
@@ -240,9 +241,12 @@ allIds (PathConds pc) = HS.unions . P.map pcs_contains $ UF.elems pc
 
 -- | Computes the path constraints that relate to the `Names` in the passed list.
 scc :: [Name] -> PathConds -> PathConds
-scc ns (PathConds pcc) =
+scc ns = scc' (L.map Just ns)  
+
+scc' :: [Maybe Name] -> PathConds -> PathConds
+scc' ns (PathConds pcc) =
     let
-        ns' = P.map (flip UF.find pcc) (L.map Just ns)
+        ns' = P.map (flip UF.find pcc) ns
     in
     PathConds $ UF.filterWithKey (\k _ -> k `L.elem` ns') pcc
 

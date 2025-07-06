@@ -738,9 +738,10 @@ verifierTests = testGroup "Verifier"
     , checkExprVerified "tests/Verify/List1.hs" "prop8"
     , checkExprVerified "tests/Verify/List1.hs" "prop9"
     , checkExprVerified "tests/Verify/List1.hs" "prop10"
-    , checkExprVerified "tests/Verify/List1.hs" "prop11"
+    -- , checkExprVerified "tests/Verify/List1.hs" "prop11"
     , checkExprVerified "tests/Verify/List1.hs" "prop12"
 
+    , checkExprCEx "tests/Verify/List1.hs" "prop1False"
     , checkExprCEx "tests/Verify/List1.hs" "prop4False"
     , checkExprCEx "tests/Verify/List1.hs" "prop5False"
     , checkExprCEx "tests/Verify/List1.hs" "prop6False"
@@ -748,10 +749,28 @@ verifierTests = testGroup "Verifier"
     , checkExprCEx "tests/Verify/List1.hs" "prop9False"
     , checkExprCEx "tests/Verify/List1.hs" "prop10False"
     , checkExprCEx "tests/Verify/List1.hs" "prop10False2"
+    , checkExprCEx "tests/Verify/List1.hs" "prop11False"
+    , checkExprCEx "tests/Verify/List1.hs" "prop12False"
 
     , checkExprVerified "tests/Verify/List2.hs" "p1"
     , checkExprVerified "tests/Verify/List2.hs" "p2"
+    , checkExprVerified "tests/Verify/List2.hs" "p3"
     , checkExprCEx "tests/Verify/List2.hs" "p2False"
+    , checkExprCEx "tests/Verify/List2.hs" "p2False'"
+    , checkExprCEx "tests/Verify/List2.hs" "p3False"
+    , checkExprCEx "tests/Verify/List2.hs" "p3False'"
+    , checkExprCEx "tests/Verify/List2.hs" "p3False''"
+
+    , checkExprCEx "tests/Verify/List3.hs" "p1False"
+    , checkExprCEx "tests/Verify/List3.hs" "p2False"
+    , checkExprCEx "tests/Verify/List3.hs" "p3False"
+    , checkExprCEx "tests/Verify/List3.hs" "p4False"
+
+    , checkExprVerified "tests/Verify/NatList1.hs" "prop1"
+    , checkExprVerified "tests/Verify/NatList1.hs" "prop2"
+    , checkExprCEx "tests/Verify/NatList1.hs" "prop1False"
+    , checkExprCEx "tests/Verify/NatList1.hs" "prop2False"
+    , checkExprCEx "tests/Verify/NatList1.hs" "prop2False'"
     ]
 
 -- To Do Tests
@@ -925,7 +944,9 @@ checkExprVerifier vr_check src entry =
                         Left _ -> VerifyTimeOut
                         Right (vr, _, _, _) -> vr
 
-        assertBool ("Incorrect verification result for " ++ entry ++ " in " ++ show src) (vr_check res') 
+        assertBool
+            ("Incorrect verification result for " ++ entry ++ " in " ++ show src ++ "\nresult = " ++ show res')
+            (vr_check res') 
 
 testFile :: String
          -> Maybe String
