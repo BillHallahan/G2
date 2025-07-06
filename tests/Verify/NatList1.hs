@@ -39,3 +39,27 @@ take (S x) (y:ys) = y : (take x ys)
 prop1 n xs = take n xs ++ drop n xs == xs
 
 prop1False n xs = take n xs ++ drop n xs == (case xs of [x, y] -> [x, y, 3]; _ -> xs) 
+
+length :: [a] -> Nat
+length [] = Z
+length [_, _, _] = S (S Z)
+length (_:xs) = S (length xs)
+
+lengthBad :: [a] -> Nat
+lengthBad [] = Z
+lengthBad [_, _, _] = S (S Z)
+lengthBad (_:xs) = S (lengthBad xs)
+
+_     < Z     = False
+Z     < _     = True
+(S x) < (S y) = x < y
+
+Z     <= _     = True
+_     <= Z     = False
+(S x) <= (S y) = x <= y
+
+prop2 xs = length xs <= length xs
+
+prop2False xs = length xs < length xs
+
+prop2False' xs = lengthBad xs < lengthBad (():xs)

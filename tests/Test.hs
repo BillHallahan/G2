@@ -752,9 +752,14 @@ verifierTests = testGroup "Verifier"
     , checkExprCEx "tests/Verify/List1.hs" "prop11False"
     , checkExprCEx "tests/Verify/List1.hs" "prop12False"
 
-    -- , checkExprVerified "tests/Verify/List2.hs" "p1"
-    -- , checkExprVerified "tests/Verify/List2.hs" "p2"
+    , checkExprVerified "tests/Verify/List2.hs" "p1"
+    , checkExprVerified "tests/Verify/List2.hs" "p2"
+    , checkExprVerified "tests/Verify/List2.hs" "p3"
     , checkExprCEx "tests/Verify/List2.hs" "p2False"
+    , checkExprCEx "tests/Verify/List2.hs" "p2False'"
+    , checkExprCEx "tests/Verify/List2.hs" "p3False"
+    , checkExprCEx "tests/Verify/List2.hs" "p3False'"
+    , checkExprCEx "tests/Verify/List2.hs" "p3False''"
 
     , checkExprCEx "tests/Verify/List3.hs" "p1False"
     , checkExprCEx "tests/Verify/List3.hs" "p2False"
@@ -762,7 +767,10 @@ verifierTests = testGroup "Verifier"
     , checkExprCEx "tests/Verify/List3.hs" "p4False"
 
     , checkExprVerified "tests/Verify/NatList1.hs" "prop1"
+    , checkExprVerified "tests/Verify/NatList1.hs" "prop2"
     , checkExprCEx "tests/Verify/NatList1.hs" "prop1False"
+    , checkExprCEx "tests/Verify/NatList1.hs" "prop2False"
+    , checkExprCEx "tests/Verify/NatList1.hs" "prop2False'"
     ]
 
 -- To Do Tests
