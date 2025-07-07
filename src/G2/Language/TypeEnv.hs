@@ -52,10 +52,12 @@ getCastedAlgDataTy t tenv
     | otherwise = Nothing
 
 -- TODO : CHECK CORRECTNESS OF BOUND ARGS
+-- getC is having an issue below
+-- steps to take, paste the below into master and check for the difference 
 getCastedAlgDataTy' :: Name -> [Type] -> TypeEnv -> Maybe (AlgDataTy, [(Id, Type)])
 getCastedAlgDataTy' n ts tenv =
         case M.lookup n tenv of
-            Just (NewTyCon {rep_type = TyCon n' _}) -> trace("1, n' = " ++ show n')getCastedAlgDataTy' n' ts tenv
+            Just (NewTyCon {rep_type = TyCon n' _}) -> trace("1, n' = " ++ show n' ++ " n = " ++ show n)getCastedAlgDataTy' n' ts tenv
             Just (NewTyCon { }) -> trace("2, n = " ++ show n ) Nothing
             (Just dc@(DataTyCon { bound_ids = bi })) -> trace("3, bi = " ++ show bi)Just (dc, zip bi ts)
             _ -> trace("4, n =" ++ show n)Nothing
