@@ -1287,19 +1287,25 @@ genLimLogger out_f ll@(LimLogger { after_n = aft, before_n = bfr, down_path = do
             map (\(llt, i) -> llt { ll_offset = ll_offset llt ++ [i] }) $ zip (map snd ss) [1..]
 
 limLogger :: (MonadIO m, Show t) => LimLogger -> Reducer m LLTracker t
-limLogger ll@(LimLogger {filter_env = f_env}) = genLimLogger (\off s b -> liftIO $ outputState (lim_output_path ll) off (if f_env then filterEnvByExprAndStack s else s) b pprExecStateStr) ll
+limLogger ll@(LimLogger {filter_env = f_env}) = genLimLogger (\off s b -> liftIO $ outputState (lim_output_path ll) off (if f_env then filterStateEnv s else s) b pprExecStateStr) ll
 
 prettyLimLogger :: (MonadIO m, SM.MonadState PrettyGuide m, Show t) => LimLogger -> Reducer m LLTracker t
 prettyLimLogger ll@(LimLogger {filter_env = f_env}) =
     genLimLogger (\off s@(State {}) b -> do
                 pg <- SM.get
                 let pg' = updatePrettyGuide (s { track = () }) pg
-                SM.put pg'                   
-                liftIO $ outputState (lim_output_path ll) off (if f_env then filterEnvByExprAndStack s else s) b (\s_ _ -> T.unpack $ prettyState pg' s_)
+                SM.put pg'
+                let s' = if f_env then filterStateEnv s else s     
+                liftIO $ outputState (lim_output_path ll) off s' b (\s_ _ -> T.unpack $ prettyState pg' s_)
     ) ll
 
-filterEnvByExprAndStack :: State t -> State t
-filterEnvByExprAndStack s = s {expr_env = E.filterWithKey (\x _ -> elem x (exprNames (curr_expr s)) || elem x (exprNames (exec_stack s))) (expr_env s)}
+filterStateEnv :: State t -> State t
+filterStateEnv s@(State {curr_expr=c_expr, exec_stack=e_stack, 
+                                         expr_env=e_env, type_env=t_env}) 
+            = let initNames = names c_expr S.>< names e_stack
+                  hs = activeNames t_env e_env HS.empty initNames
+            in
+                s {expr_env = E.filterWithKey (\x _ -> HS.member x hs) e_env}
 
 outputState :: FilePath -> [Int] -> State t -> Bindings -> (State t -> Bindings -> String) -> IO ()
 outputState dn is s b printer = do
