@@ -24,12 +24,12 @@ main = do
 
   let tentry = T.pack entry
 
-  (vr, b, entry_f) <- verifyFromFile proj [src] tentry simplTranslationConfig config verify_config
+  (vr, time, b, entry_f) <- verifyFromFile proj [src] tentry simplTranslationConfig config verify_config
   
   case vr of
-    Verified -> putStrLn "Verified"
-    VerifyTimeOut -> putStrLn "Unknown (Timeout)"
-    Counterexample ce -> do putStrLn "Counterexample"; printFuncCalls config entry_f b ce
+    Verified -> putStrLn ("Execution Time: " ++ show time ++ "\nVerified")
+    VerifyTimeOut -> putStrLn ("Execution Time: " ++ show time ++ "\nUnknown (Timeout)")
+    Counterexample ce -> do putStrLn ("Execution Time: " ++ show time ++ "\nCounterexample"); printFuncCalls config entry_f b ce
   
 
 printFuncCalls :: Config -> Id -> Bindings
