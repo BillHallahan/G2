@@ -158,6 +158,7 @@ library
                        , G2.Translation.PrimInject
                        , G2.Translation.TransTypes
 
+                       , G2.Verify.Config
                        , G2.Verify.Interface
                        , G2.Verify.Reducer
 

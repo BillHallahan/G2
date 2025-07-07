@@ -13,6 +13,7 @@ import G2.Interface
 import G2.Language as G2
 import G2.Lib.Printers
 
+import G2.Verify.Config
 import G2.Verify.Interface
 
 import Control.Exception
@@ -941,7 +942,7 @@ checkExprVerifier vr_check src entry =
                 let proj = takeDirectory src
                 config <- mkConfigTestIO
                 let config' = config { timeLimit = 30 }
-                verifyFromFile [proj] [src] (T.pack entry) simplTranslationConfig config')
+                verifyFromFile [proj] [src] (T.pack entry) simplTranslationConfig config' defVerifyConfig)
                     :: IO (Either SomeException ((VerifyResult, Bindings, Id)))
         let res' = case res of
                         Left _ -> VerifyTimeOut

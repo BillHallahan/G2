@@ -13,17 +13,18 @@ import G2.Config
 import G2.Interface
 import G2.Language
 import G2.Translation
+import G2.Verify.Config
 import G2.Verify.Interface
 
 main :: IO ()
 main = do
-  (src, entry, _, _, config) <- getConfig
+  (src, entry, verify_config, config) <- getVerifyConfigs
 
   proj <- guessProj (includePaths config) src
 
   let tentry = T.pack entry
 
-  (vr, b, entry_f) <- verifyFromFile proj [src] tentry simplTranslationConfig config
+  (vr, b, entry_f) <- verifyFromFile proj [src] tentry simplTranslationConfig config verify_config
   
   case vr of
     Verified -> putStrLn "Verified"
