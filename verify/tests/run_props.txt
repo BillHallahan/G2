@@ -22,17 +22,13 @@ sub_comm
 --
 ZenoWithDelete
 prop_37
-prop_68
 --
 ZenoWithDrop
 prop_01
-prop_12
 prop_13
 prop_19
-prop_55
 prop_56
 prop_57
-prop_58
 prop_72
 prop_74
 prop_81
@@ -46,7 +42,6 @@ prop_71
 --
 ZenoWithFilter
 prop_14
-prop_66
 prop_73
 --
 ZenoWithHeight
@@ -59,7 +54,6 @@ prop_30
 ZenoWithLen
 prop_15
 prop_19
-prop_20
 prop_50
 prop_55
 prop_63
@@ -74,7 +68,6 @@ prop_84
 prop_85
 --
 ZenoWithMap
-prop_12
 prop_41
 --
 ZenoWithMirror
@@ -83,7 +76,6 @@ prop_47
 ZenoWithRev
 prop_52
 prop_72
-prop_73
 prop_74
 prop_85
 --

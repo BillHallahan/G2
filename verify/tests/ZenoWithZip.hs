@@ -503,7 +503,7 @@ prop_84 xs ys zs
   = (zip xs (ys ++ zs) =:=
            zip (take (len ys) xs) ys ++ zip (drop (len ys) xs) zs)
 
--- I think this should be true, confirm?
+-- This should definetly generate counterexample but it times out
 prop_85 xs ys
   = (len xs =:= len ys) ==>
     (zip (rev xs) (rev ys) =:= rev (zip xs ys))
