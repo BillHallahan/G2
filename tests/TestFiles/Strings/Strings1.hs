@@ -1,3 +1,5 @@
+{-# LANGUAGE CPP #-}
+
 module Strings1 where
 
 import Data.List
@@ -325,6 +327,7 @@ isSuffixOf1 s1 s2
     where
         p = isSuffixOf s1 s2
 
+#if MIN_VERSION_base(4,19,0)
 unsnoc1 :: String -> Maybe Int
 unsnoc1 xs
     | Just (s, e) <- uc, s == "Hello" = Just 0
@@ -337,6 +340,10 @@ unsnoc1 xs
 unsnoc2 :: String -> Maybe (String, Char)
 unsnoc2 = unsnoc
 
+totalIndex1 :: String -> [Maybe Char]
+totalIndex1 xs = [xs !? (-1), xs !? 0, xs !? 15]
+#endif
+
 splitAt1 :: String -> Maybe (String, Int)
 splitAt1 xs
     | a == b = Just (a, 0)
@@ -345,9 +352,6 @@ splitAt1 xs
     | otherwise = Nothing
     where
         (a, b) = splitAt 10 xs
-
-totalIndex1 :: String -> [Maybe Char]
-totalIndex1 xs = [xs !? (-1), xs !? 0, xs !? 15]
 
 notEq1 :: String -> Int
 notEq1 s = case s /= "verylongstringverylongstringVERYLONGSTRINGVERYLONGSTRING" of
