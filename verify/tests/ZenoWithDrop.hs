@@ -266,6 +266,7 @@ prop_10 m
 prop_11 xs
   = (drop Z xs =:= xs)
 
+-- This should be True, but it's timing out
 prop_12 n f xs
   = (drop n (map f xs) =:= map f (drop n xs))
 
@@ -398,6 +399,7 @@ prop_53 n xs
 prop_54 n m
   = ((m + n) - n =:= m)
 
+-- This should be True but it's timing out
 prop_55 n xs ys
   = (drop n (xs ++ ys) =:= drop n xs ++ drop (n - len xs) ys)
 
@@ -407,6 +409,7 @@ prop_56 n m xs
 prop_57 n m xs
   = (drop n (take m xs) =:= take (m - n) (drop n xs))
 
+-- This should be True but it's timing out
 prop_58 n xs ys
   = (drop n (zip xs ys) =:= zip (drop n xs) (drop n ys))
 
@@ -455,6 +458,7 @@ prop_71 x y xs
   = given (x === y =:= False)
   ( (elem x (ins y xs) =:= elem x xs) )
 
+-- This should generate counter-example but it's times out
 prop_72 i xs
   = (rev (drop i xs) =:= take (len xs - i) (rev xs))
 

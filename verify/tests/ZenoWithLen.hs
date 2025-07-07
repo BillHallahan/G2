@@ -291,6 +291,7 @@ prop_18 i m
 prop_19 n xs
   = (len (drop n xs) =:= len xs - n)
 
+-- This will always be true, but it's timing out
 prop_20 xs
   = (len (sort xs) =:= len xs)
 
@@ -498,6 +499,7 @@ prop_84 xs ys zs
   = (zip xs (ys ++ zs) =:=
            zip (take (len ys) xs) ys ++ zip (drop (len ys) xs) zs)
 
+-- I think this can be false, confirm?
 prop_85 xs ys
   = (len xs =:= len ys) ==>
     (zip (rev xs) (rev ys) =:= rev (zip xs ys))

@@ -457,12 +457,14 @@ prop_71 x y xs
   = given (x === y =:= False)
   ( (elem x (ins y xs) =:= elem x xs) )
 
+-- This should generate a counterexample but it's timing out
 prop_72 i xs
   = (rev (drop i xs) =:= take (len xs - i) (rev xs))
 
 prop_73 p xs
   = (rev (filter p xs) =:= filter p (rev xs))
 
+-- This should generate a counterexample but it's timing out
 prop_74 i xs
   = (rev (take i xs) =:= drop (len xs - i) (rev xs))
 

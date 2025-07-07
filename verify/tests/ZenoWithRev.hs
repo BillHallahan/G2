@@ -389,6 +389,7 @@ prop_50 xs
 prop_51 xs x
   = (butlast (xs ++ [x]) =:= xs)
 
+-- This should generate counterexample, but it's timing out
 prop_52 n xs
   = (count n xs =:= count n (rev xs))
 
@@ -457,6 +458,7 @@ prop_71 x y xs
 prop_72 i xs
   = (rev (drop i xs) =:= take (len xs - i) (rev xs))
 
+-- This should always be true, but it's timing out
 prop_73 p xs
   = (rev (filter p xs) =:= filter p (rev xs))
 
@@ -497,6 +499,7 @@ prop_84 xs ys zs
   = (zip xs (ys ++ zs) =:=
            zip (take (len ys) xs) ys ++ zip (drop (len ys) xs) zs)
 
+-- This should generate counterexample, but it times out
 prop_85 xs ys
   = (len xs =:= len ys) ==>
     (zip (rev xs) (rev ys) =:= rev (zip xs ys))

@@ -267,6 +267,7 @@ prop_10 m
 prop_11 xs
   = (drop Z xs =:= xs)
 
+-- This should always be true, but it's timing out
 prop_12 n f xs
   = (drop n (map f xs) =:= map f (drop n xs))
 

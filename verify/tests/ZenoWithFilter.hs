@@ -163,7 +163,7 @@ dropWhile p (x:xs) =
     True -> dropWhile p xs
     _ -> x:xs
 
--- BUG: It's running infinitely, I guess
+-- BUG:
 filter :: (a -> Bool) -> [a] -> [a]
 filter _ [] = []
 filter p [x] = [x]
@@ -435,6 +435,7 @@ prop_64 x xs
 prop_65 i m =
   proveBool (i < S (m + i))
 
+-- This should always be True, but it's timing out
 prop_66 p xs
   = proveBool (len (filter p xs) <= len xs)
 
@@ -458,6 +459,7 @@ prop_71 x y xs
 prop_72 i xs
   = (rev (drop i xs) =:= take (len xs - i) (rev xs))
 
+-- I think this shloud always be true, bbut it's timing out
 prop_73 p xs
   = (rev (filter p xs) =:= filter p (rev xs))
 

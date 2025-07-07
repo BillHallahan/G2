@@ -441,6 +441,7 @@ prop_66 p xs
 prop_67 xs
   = (len (butlast xs) =:= len xs - S Z)
 
+-- This should be true but it's timing out
 prop_68 n xs
   = proveBool (len (delete n xs) <= len xs)
 
