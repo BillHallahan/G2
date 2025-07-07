@@ -377,10 +377,12 @@ testFileTests = testGroup "TestFiles"
                                                               , ("genericSplitAt1", 2000, [AtLeast 10])
                                                               , ("genericIndex1", 2000, [AtLeast 10])
 
+#if MIN_VERSION_base(4,19,0)
                                                               , ("unsnoc1", 1000, [AtLeast 5])
                                                               , ("unsnoc2", 1000, [AtLeast 5])
-                                                              , ("splitAt1", 5000, [AtLeast 5])
                                                               , ("totalIndex1", 10000, [AtLeast 5])
+#endif
+                                                              , ("splitAt1", 5000, [AtLeast 5])
                                                               , ("notEq1", 5000, [AtLeast 10]) ]
 
     , checkInputOutputsSMTStrings "tests/TestFiles/Strings/Strings1.hs"
@@ -438,10 +440,12 @@ testFileTests = testGroup "TestFiles"
                                         , ("isPrefixOf1", 10000, [Exactly 6])
                                         , ("isSuffixOf1", 10000, [Exactly 6])
 
+#if MIN_VERSION_base(4,19,0)
                                         , ("unsnoc1", 5000, [Exactly 4])
                                         , ("unsnoc2", 5000, [Exactly 2])
-                                        , ("splitAt1", 5000, [Exactly 4])
                                         , ("totalIndex1", 5000, [Exactly 3])
+#endif
+                                        , ("splitAt1", 5000, [Exactly 4])
                                         , ("notEq1", 5000, [Exactly 2]) ]
 
     , checkExpr "tests/TestFiles/Strings/Strings1.hs" 1000 "exclaimEq"
