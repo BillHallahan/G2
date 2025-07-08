@@ -10,18 +10,22 @@ exe_name = str(subprocess.run(["cabal", "exec", "which", "Verify"], capture_outp
 latex_tbl1 = ""
 latex_tbl2 = ""
 
-def generate_table1(property, approxTime, nrpcTime, nAppTime) :
+def generate_table1(property, approxTime, nrpcTime, nAppTime, timeout) :
     global latex_tbl1
     common_str = " & "
+    aTime = str(approxTime) if approxTime < timeout else "-"
+    nTime = str(nrpcTime) if nrpcTime < timeout else "-"
+    nATime = str(nAppTime) if nAppTime < timeout else "-"
     prop = re.sub(r"_", r"\\_", property)
-    temp = prop + common_str + str(nAppTime) + common_str + str(approxTime) + common_str + str(nrpcTime)
+    temp = prop + common_str + nATime + common_str + aTime + common_str + nTime
     latex_tbl1 += temp + r"\\ \hline " + "\n"
 
-def generate_table2(property, time) :
+def generate_table2(property, time, timeout) :
     global latex_tbl2
     common_str = " & "
+    runTime = str(time) if time <= timeout else "-"
     prop = re.sub(r"_", r"\\_", property)
-    temp = prop + common_str + str(time)
+    temp = prop + common_str + runTime
     latex_tbl2 += temp + r"\\ \hline " + "\n"
 
 def process_output(out):
@@ -31,17 +35,17 @@ def process_output(out):
         res_num = float(reg.group(1))
     return res_num
 
-def run_verify(filename, thm, time_limit):
+def run_verify(filename, thm, time_limit, var_settings):
     start_time = time.monotonic();
-    res = call_verify_process(filename, thm, time_limit);
+    res = call_verify_process(filename, thm, time_limit, var_settings);
     end_time = time.monotonic();
     elapsed = end_time - start_time;
     return res;
 
-def call_verify_process(filename, thm, time_limit):
+def call_verify_process(filename, thm, time_limit, var_settings):
     try:
         args = [exe_name, "verify/tests/" + filename, thm, "--time", str(time_limit)]
-        res = subprocess.run(args, universal_newlines=True, capture_output=True, timeout=40);
+        res = subprocess.run(args + var_settings, universal_newlines=True, capture_output=True, timeout=40);
         return res.stdout
     except subprocess.TimeoutExpired as TimeoutEx:
         # extra line break at end to match the one from normal termination
@@ -78,20 +82,27 @@ def test_suite_general(fname_in, suite, time_limit):
     timeout = 0
     for (thm, settings) in suite:
         print(thm)
-        res = run_verify(fname_in, thm, time_limit)
-        runTime = round(float(process_output(res)), 2)
-        generate_table1(thm, runTime, runTime, runTime) 
-        if "Verified" in res:
+        res1 = run_verify(fname_in, thm, time_limit, [])
+        runTime1 = round(float(process_output(res1)), 2)
+        if fname_in == "Zeno.hs" :
+            res2 = run_verify(fname_in, thm, time_limit, ["--no-rev-abs"])
+            res3 = run_verify(fname_in, thm, time_limit, ["--no-approx"])
+            runTime2 = round(float(process_output(res2)), 2)
+            runTime3 = round(float(process_output(res3)), 2)
+            generate_table1(thm, runTime2, runTime3, runTime1, time_limit)
+        else:
+            generate_table2(thm, runTime1, time_limit)
+
+        if "Verified" in res1:
             print("Verified")
             verified += 1
-        if "Counterexample" in res:
+        if "Counterexample" in res1:
             print("Counterexample")
             cex += 1
-            generate_table2(thm, runTime)
-        if "Timeout" in res:
+        if "Timeout" in res1:
             print("Timeout")
             timeout +=1
-        if "error" in res:
+        if "error" in res1:
             print("error")
             timeout +=1
     return (verified, cex, timeout)
@@ -99,15 +110,19 @@ def test_suite_general(fname_in, suite, time_limit):
 # def test_suite_csv(filename, properties, timeout):
 #     return test_suite_general(filename, properties, timeout)
 
-def main():
-    global latex_tbl1
-    global latex_tbl2
-    (v, c, t) = test_suite_general("Zeno.hs", unmodified_theorems(), 15)
-    ltx_tbl1 = latex_tbl1
-
+def printRes(v, c, t) :
     print("Verified :" + str(v))
     print("Counterexample :" + str(c))
     print("Timeout :" + str(t))
+
+def main():
+    global latex_tbl1
+    global latex_tbl2
+    (v1, c1, t1) = test_suite_general("Zeno.hs", unmodified_theorems(), 15)
+    printRes(v1, c1, t1)
+    latex_tbl2 += r"\multicolumn{2}{l}{\textbf{ZenoBadProp}}\\ \hline " + "\n"
+    (v2, c2, t2) = test_suite_general("ZenoBadProp.hs", unmodified_theorems(), 15)
+    printRes(v2, c2, t2)
 
     setpath = os.path.join("verify/tests")
     run_bench = read_runnable_benchmarks(setpath, [])
@@ -118,11 +133,9 @@ def main():
         print("\nBenchmark : " + filename + "\n")
         (v, c, t) = test_suite_general(filename + ".hs", benchmark[1:], 15)
         print("\nTotal properties: " + str(len(benchmark) - 1))
-        print("Verified :" + str(v))
-        print("Counterexample :" + str(c))
-        print("Timeout :" + str(t))
+        printRes(v, c, t)
         print("\n")
-    print("Latex for table1 is: \n" + ltx_tbl1)
+    print("Latex for table1 is: \n" + latex_tbl1)
     print("Latex for table2 is: \n" + latex_tbl2)
 
 if __name__ == "__main__":
