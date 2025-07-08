@@ -1221,6 +1221,7 @@ data LimLogger =
               , conc_pc_guide :: Maybe (SomeSolver, ConcPCGuide)
               , lim_output_path :: String
               , filter_env :: Bool
+              , order_env :: EnvOrdering
               }
 
 limLoggerConfig :: FilePath -> LimLogger
@@ -1230,7 +1231,8 @@ limLoggerConfig fp = LimLogger { every_n = 0
                                , down_path = []
                                , conc_pc_guide = Nothing
                                , lim_output_path = fp
-                               , filter_env = False}
+                               , filter_env = False
+                               , order_env = Unordered}
 
 data LLTracker = LLTracker { ll_count :: Int, ll_offset :: [Int]}
 
@@ -1249,7 +1251,9 @@ getLimLogger config = do
                                                          , every_n = logEveryN config
                                                          , conc_pc_guide = cpg
                                                          , down_path = logPath config
-                                                         , filter_env = logFilter config }
+                                                         , filter_env = logFilter config
+                                                         , order_env = if logOrder config then Ordered else Unordered
+                                                         }
                         NoLog -> limLoggerConfig ""
     
     case logStates config of
@@ -1290,13 +1294,14 @@ limLogger :: (MonadIO m, Show t) => LimLogger -> Reducer m LLTracker t
 limLogger ll@(LimLogger {filter_env = f_env}) = genLimLogger (\off s b -> liftIO $ outputState (lim_output_path ll) off (if f_env then filterStateEnv s else s) b pprExecStateStr) ll
 
 prettyLimLogger :: (MonadIO m, SM.MonadState PrettyGuide m, Show t) => LimLogger -> Reducer m LLTracker t
-prettyLimLogger ll@(LimLogger {filter_env = f_env}) =
+prettyLimLogger ll@(LimLogger {filter_env = f_env, order_env = o_env}) =
     genLimLogger (\off s@(State {}) b -> do
                 pg <- SM.get
                 let pg' = updatePrettyGuide (s { track = () }) pg
                 SM.put pg'
                 let s' = if f_env then filterStateEnv s else s     
-                liftIO $ outputState (lim_output_path ll) off s' b (\s_ _ -> T.unpack $ prettyState pg' s_)
+                let pg'' = setEnvOrdering o_env pg'
+                liftIO $ outputState (lim_output_path ll) off s' b (\s_ _ -> T.unpack $ prettyState pg'' s_)
     ) ll
 
 filterStateEnv :: State t -> State t

@@ -42,7 +42,7 @@ instance Show (StateBindingsPair t) where
         let
             pg = mkPrettyGuide (expr_env s, type_env s, curr_expr s)
 
-            eenv_str = prettyEEnv pg (expr_env s)
+            eenv_str = prettyEEnv pg (curr_expr s) (exec_stack s) (expr_env s) 
             tenv_str = prettyTypeEnv pg (type_env s)
             e_str = printHaskellDirtyPG pg (getExpr s)
         in

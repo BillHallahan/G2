@@ -78,6 +78,7 @@ data Config = Config {
     , logConcPCGuide :: Maybe String -- ^ Log states only if they match the ConcPCGuide in the provided file
     , logPath :: [Int] -- ^ Log states that are following on or proceed from some path, passed as a list i.e. [1, 2, 1]
     , logFilter :: Bool
+    , logOrder :: Bool
     , sharing :: Sharing
     , instTV :: InstTV -- allow the instantiation of types in the beginning or it's instantiate symbolically by functions
     , showType :: ShowType -- allow user to see more type information when they are logging states for the execution
@@ -142,7 +143,8 @@ mkConfig homedir = Config Regular
                    <> metavar "LP"
                    <> value []
                    <> help "log states that are following on or proceed from some path, passed as a list i.e. [1, 2, 1]")
-    <*> switch (long "log-filter" <> help "log states with a binding environment limited to names in the stack and current expression")
+    <*> switch (long "log-filter" <> help "log states with an environment limited to names in the stack and current expression")
+    <*> switch (long "log-order" <> help "log states with an environment ordered as [current expression]/[stack]/[other]")
     <*> flag Sharing NoSharing (long "no-sharing" <> help "disable sharing")
     <*> flag InstBefore InstAfter (long "inst-after" <> help "select to instantiate type variables after symbolic execution, rather than before")
     <*> flag Lax Aggressive (long "show-types" <> help "set to show more type information when logging states")
@@ -295,6 +297,7 @@ mkConfigDirect homedir as m = Config {
     , logConcPCGuide = Nothing
     , logPath = []
     , logFilter = False
+    , logOrder = False
     , sharing = boolArg' "sharing" as Sharing Sharing NoSharing
     , instTV = InstBefore
     , showType = Lax
