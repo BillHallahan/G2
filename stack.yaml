@@ -29,3 +29,6 @@ extra-deps:
     - split-0.2.3.5
     - tasty-quickcheck-0.10.1.2
    #- text-2.1                      # language-sygus requires older version
+
+    #   Needed to run unit tests.
+    - tasty-hunit-0.10.0.2
