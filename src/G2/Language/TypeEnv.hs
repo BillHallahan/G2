@@ -48,7 +48,7 @@ getDataCons n tenv = dataCon <$> M.lookup n tenv
 getCastedAlgDataTy :: Type -> TypeEnv -> Maybe (AlgDataTy, [(Id, Type)])
 getCastedAlgDataTy t tenv
     | TyCon n _ <- tyAppCenter t
-    , ts <- tyAppArgs t = trace("The ts in getCastedAlgDataTy is " ++ show ts ++ " \n The coressponding t is " ++ show t )getCastedAlgDataTy' n ts tenv
+    , ts <- tyAppArgs t = getCastedAlgDataTy' n ts tenv
     | otherwise = Nothing
 
 -- TODO : CHECK CORRECTNESS OF BOUND ARGS
