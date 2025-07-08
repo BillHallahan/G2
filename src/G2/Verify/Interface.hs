@@ -17,6 +17,7 @@ import G2.Lib.Printers
 import qualified G2.Language.ExprEnv as E
 import G2.Solver
 import G2.Translation
+import G2.Verify.Config
 import G2.Verify.Reducer
 
 import Control.Exception
@@ -41,13 +42,14 @@ verifyRedHaltOrd :: (MonadIO m, Solver solver, Simplifier simplifier) =>
                  -> solver
                  -> simplifier
                  -> Config
+                 -> VerifyConfig
                  -> S.HashSet Name -- ^ Names of functions that should not result in a larger expression become EXEC,
                                    -- but should not be added to the NRPC at the top level.
                  -> IO ( SomeReducer (VerStack m) ()
                        , SomeHalter (VerStack m) (ExecRes ()) ()
                        , SomeOrderer (VerStack m) (ExecRes ()) ()
                        , IORef TimedOut)
-verifyRedHaltOrd s solver simplifier config no_nrpc_names = do
+verifyRedHaltOrd s solver simplifier config verify_config no_nrpc_names = do
     time_logger <- acceptTimeLogger
     (time_halter, io_timed_out) <- stdTimerHalter (fromInteger . toInteger $ timeLimit config)
 
@@ -78,15 +80,19 @@ verifyRedHaltOrd s solver simplifier config no_nrpc_names = do
                             Just logger -> liftSomeReducer $ liftSomeReducer (logger .~> num_steps_red f)
                             Nothing -> liftSomeReducer $ liftSomeReducer (num_steps_red f)
 
-        nrpc_approx_red f = let nrpc_approx = nrpcAnyCallReducer no_nrpc_names config in
+        nrpc_approx_red f = case rev_abs verify_config of
+                                True -> let nrpc_approx = nrpcAnyCallReducer no_nrpc_names config in
                                         SomeReducer nrpc_approx .~> logger_std_red f
+                                False -> logger_std_red f
 
         halter = switchEveryNHalter 20
                  <~> acceptIfViolatedHalter
                  <~> time_halter
                  <~> discardOnFalse
 
-        halter_approx_discard = SomeHalter (approximationHalter solver approx_no_inline <~> halter)
+        halter_approx_discard = case approx verify_config of
+                                        True -> SomeHalter (approximationHalter solver approx_no_inline <~> halter)
+                                        False -> SomeHalter halter
 
         orderer = case search_strat config of
                         Subpath -> SomeOrderer . liftOrderer $ lengthNSubpathOrderer (subpath_length config)
@@ -119,8 +125,9 @@ verifyFromFile :: [FilePath]
                -> StartFunc
                -> TranslationConfig
                -> Config
+               -> VerifyConfig
                -> IO (VerifyResult, Double, Bindings, Id)
-verifyFromFile proj src f transConfig config = do
+verifyFromFile proj src f transConfig config verify_config = do
     let config' = config {
                          -- For soundness, we must exhaustively search all states that are not discarded via approximation,
                          -- so we disable the step count.
@@ -164,7 +171,7 @@ verifyFromFile proj src f transConfig config = do
     --     analysis = analysis1 ++ analysis2 ++ analysis3
 
     init_time <- getTime Realtime
-    rho <- verifyRedHaltOrd state' solver simplifier config' (S.fromList no_nrpc_names)
+    rho <- verifyRedHaltOrd state' solver simplifier config' verify_config (S.fromList no_nrpc_names)
     let to = case rho of (_, _, _, to_)-> to_
     (er, bindings''') <-
             case rho of

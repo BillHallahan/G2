@@ -1339,6 +1339,7 @@ data LimLogger =
               , before_n :: Maybe Int -- Only output before a certain n
               , down_path :: [Int] -- Output states that have gone down or are going down the given path prefix
               , conc_pc_guide :: Maybe (SomeSolver, ConcPCGuide)
+              , inline_nrpc :: Bool
               , lim_output_path :: String
               }
 
@@ -1348,6 +1349,7 @@ limLoggerConfig fp = LimLogger { every_n = 0
                                , before_n = Nothing
                                , down_path = []
                                , conc_pc_guide = Nothing
+                               , inline_nrpc = False
                                , lim_output_path = fp }
 
 newtype LLTracker = LLTracker { ll_count :: Int }
@@ -1366,7 +1368,8 @@ getLimLogger config = do
                         Log _ fp -> (limLoggerConfig fp) { after_n = logAfterN config
                                                          , every_n = logEveryN config
                                                          , conc_pc_guide = cpg
-                                                         , down_path = logPath config }
+                                                         , down_path = logPath config
+                                                         , inline_nrpc = logInlineNRPC config }
                         NoLog -> limLoggerConfig ""
     
     case logStates config of
@@ -1411,20 +1414,21 @@ prettyLimLogger ll =
     genLimLogger (\off s b -> do
                 pg <- SM.get
                 let pg' = updatePrettyGuide (s { track = () }) pg
-                let s' = inlineNRPC s
+                let s' = if inline_nrpc ll then inlineNRPC s else s
                 SM.put pg'
                 liftIO $ outputState (lim_output_path ll) off s' b (\s_ _ -> T.unpack $ prettyState pg' s_)
     ) ll
 
 inlineNRPC :: State t -> State t
 inlineNRPC s@(State { expr_env = eenv, non_red_path_conds = nrpc }) =
-    s { non_red_path_conds = modifyContainedASTs inline nrpc }
+    s { non_red_path_conds = modifyContainedASTs (inline HS.empty) nrpc }
     where
-        inline (Var (Id n _)) | Just (E.Conc e) <- E.lookupConcOrSym n eenv
-                              , Data _:_ <- unApp e = inline e
-                              | Just (E.Conc e@(Var _)) <- E.lookupConcOrSym n eenv = inline e
-        inline (App e1 e2) = App (inline e1) (inline e2)
-        inline e = e
+        inline seen v@(Var (Id n _)) | n `HS.member` seen = v
+                                     | Just (E.Conc e) <- E.lookupConcOrSym n eenv
+                                     , Data _:_ <- unApp e = inline (HS.insert n seen) e
+                                     | Just (E.Conc e@(Var _)) <- E.lookupConcOrSym n eenv = inline (HS.insert n seen) e
+        inline seen (App e1 e2) = App (inline seen e1) (inline seen e2)
+        inline _ e = e
 
 outputState :: FilePath -> [Int] -> State t -> Bindings -> (State t -> Bindings -> String) -> IO ()
 outputState dn is s b printer = do

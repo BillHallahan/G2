@@ -13,6 +13,7 @@ import G2.Interface
 import G2.Language as G2
 import G2.Lib.Printers
 
+import G2.Verify.Config
 import G2.Verify.Interface
 
 import Control.Exception
@@ -771,6 +772,9 @@ verifierTests = testGroup "Verifier"
     , checkExprCEx "tests/Verify/NatList1.hs" "prop1False"
     , checkExprCEx "tests/Verify/NatList1.hs" "prop2False"
     , checkExprCEx "tests/Verify/NatList1.hs" "prop2False'"
+
+    , checkExprVerified "tests/Verify/Infinite1.hs" "p1"
+    , checkExprCEx "tests/Verify/Infinite1.hs" "p1False"
     ]
 
 -- To Do Tests
@@ -938,7 +942,7 @@ checkExprVerifier vr_check src entry =
                 let proj = takeDirectory src
                 config <- mkConfigTestIO
                 let config' = config { timeLimit = 30 }
-                verifyFromFile [proj] [src] (T.pack entry) simplTranslationConfig config')
+                verifyFromFile [proj] [src] (T.pack entry) simplTranslationConfig config' defVerifyConfig)
                     :: IO (Either SomeException ((VerifyResult, Double, Bindings, Id)))
         let res' = case res of
                         Left _ -> VerifyTimeOut
