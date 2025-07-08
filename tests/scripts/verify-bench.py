@@ -23,7 +23,7 @@ def generate_table1(property, approxTime, nrpcTime, nAppTime, timeout) :
 def generate_table2(property, time, timeout) :
     global latex_tbl2
     common_str = " & "
-    runTime = str(time) if time <= timeout else "-"
+    runTime = str(time) if time < timeout else "-"
     prop = re.sub(r"_", r"\\_", property)
     temp = prop + common_str + runTime
     latex_tbl2 += temp + r"\\ \hline " + "\n"
