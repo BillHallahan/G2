@@ -77,8 +77,8 @@ data Config = Config {
     , logAfterN :: Int -- ^ Logs state only after the nth state
     , logConcPCGuide :: Maybe String -- ^ Log states only if they match the ConcPCGuide in the provided file
     , logPath :: [Int] -- ^ Log states that are following on or proceed from some path, passed as a list i.e. [1, 2, 1]
-    , logFilter :: Bool
-    , logOrder :: Bool
+    , logFilter :: Bool -- ^ Limit the logged environment to names recursively reachable through the current expression or stack
+    , logOrder :: Bool -- ^ Order names in the logged environment: [CurrExpr]/[Stack]/[others]
     , sharing :: Sharing
     , instTV :: InstTV -- allow the instantiation of types in the beginning or it's instantiate symbolically by functions
     , showType :: ShowType -- allow user to see more type information when they are logging states for the execution
@@ -143,7 +143,7 @@ mkConfig homedir = Config Regular
                    <> metavar "LP"
                    <> value []
                    <> help "log states that are following on or proceed from some path, passed as a list i.e. [1, 2, 1]")
-    <*> switch (long "log-filter" <> help "log states with an environment limited to names in the stack and current expression")
+    <*> switch (long "log-filter" <> help "limit the logged environment to names recursively reachable through the current expression or stack")
     <*> switch (long "log-order" <> help "log states with an environment ordered as [current expression]/[stack]/[other]")
     <*> flag Sharing NoSharing (long "no-sharing" <> help "disable sharing")
     <*> flag InstBefore InstAfter (long "inst-after" <> help "select to instantiate type variables after symbolic execution, rather than before")
