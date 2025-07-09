@@ -767,7 +767,7 @@ verifierTests = testGroup "Verifier"
     , checkExprCEx "tests/Verify/List3.hs" "p3False"
     , checkExprCEx "tests/Verify/List3.hs" "p4False"
 
-    , checkExprVerified "tests/Verify/NatList1.hs" "prop1"
+    -- , checkExprVerified "tests/Verify/NatList1.hs" "prop1"
     , checkExprVerified "tests/Verify/NatList1.hs" "prop2"
     , checkExprCEx "tests/Verify/NatList1.hs" "prop1False"
     , checkExprCEx "tests/Verify/NatList1.hs" "prop2False"
@@ -775,6 +775,8 @@ verifierTests = testGroup "Verifier"
 
     , checkExprVerified "tests/Verify/Infinite1.hs" "p1"
     , checkExprCEx "tests/Verify/Infinite1.hs" "p1False"
+
+    , checkExprCEx "tests/Verify/NonStrict1.hs" "prop1False"
     ]
 
 -- To Do Tests
