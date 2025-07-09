@@ -4,7 +4,9 @@ module G2.Language.CallGraph ( CallGraph
                              , calls
                              , calledBy
                              , nameLevels
-                             , reachable ) where
+                             , reachable
+                             , getAllCalledBys
+                             , isFuncNonRecursive ) where
 
 import qualified G2.Language.ExprEnv as E
 import G2.Language.Naming
@@ -85,3 +87,21 @@ nameLevels' callers eds =
 
 removeEdgesTo :: [Name] -> [(Name, Name)] -> [(Name, Name)]
 removeEdgesTo ns = filter (\(_, n2) -> n2 `notElem` ns)
+
+-- | Get all the methods that call a particular function
+getAllCalledBys :: Name -> CallGraph -> [Name]
+getAllCalledBys n g = 
+    let
+        calledbys = calledBy n g
+    in
+        calledbys ++ concatMap (`getAllCalledBys` g) calledbys
+
+isFuncNonRecursive :: CallGraph -> Name -> Bool
+isFuncNonRecursive g n = 
+    let
+        directFuncs = calls n g
+        reach_funcs = case directFuncs of 
+                        Just a -> concatMap (`reachable` g) a
+                        _ -> []
+    in
+        not (n `elem` reach_funcs)

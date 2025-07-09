@@ -79,6 +79,7 @@ data Config = Config {
     , logPath :: [Int] -- ^ Log states that are following on or proceed from some path, passed as a list i.e. [1, 2, 1]
     , logFilter :: Bool -- ^ Limit the logged environment to names recursively reachable through the current expression or stack
     , logOrder :: Bool -- ^ Order names in the logged environment: [CurrExpr]/[Stack]/[others]
+    , logInlineNRPC :: Bool -- ^ Inline variables in the NRPC when logging states
     , sharing :: Sharing
     , instTV :: InstTV -- allow the instantiation of types in the beginning or it's instantiate symbolically by functions
     , showType :: ShowType -- allow user to see more type information when they are logging states for the execution
@@ -90,6 +91,7 @@ data Config = Config {
     , search_strat :: SearchStrategy -- ^ The search strategy for the symbolic executor to use
     , subpath_length :: Int -- ^ When using subpath search strategy, the length of the subpaths.
     , fp_handling :: FpHandling -- ^ Whether to use real floating point values or rationals
+    , print_encode_float :: Bool -- ^ Whether to print floating point numbers directly or via encodeFloat
     , smt :: SMTSolver -- ^ Sets the SMT solver to solve constraints with
     , smt_strings :: SMTStrings -- ^ Sets whether the SMT solver should be used to solve string constraints
     , step_limit :: Bool -- ^ Should steps be limited when running states?
@@ -102,7 +104,7 @@ data Config = Config {
     , states_at_step :: Bool -- ^ Output step and number of states at each step where a state is added/removed
     , print_num_red_rules :: Bool -- ^ Output the total number of reduction rules
     , print_num_red_rules_per_state :: Bool  -- ^ Output the number of reduction rules per accepted state
-    , print_nrpcs :: Bool -- ^ Output generated NRPCs
+    , approx_discard :: Bool -- ^ Discard states that are approximated by other states
     , hpc :: Bool -- ^ Should HPC ticks be generated and tracked during execution?
     , hpc_discard_strat :: Bool -- ^ Discard states that cannot reach any new HPC ticks
     , hpc_print_times :: Bool -- ^ Print the time each HPC tick is reached?
@@ -112,6 +114,7 @@ data Config = Config {
     , validate :: Bool -- ^ If True, run on G2's input, and check against expected output.
     , measure_coverage :: Bool -- ^ Use HPC to measure code coverage
     , lib_nrpc :: NonRedPathCons -- ^ Whether to use NRPCs for library functions or not
+    , approx_nrpc :: NonRedPathCons -- ^ Use approximation and NRPCs to avoid repeated exploration of equivalent function calls
     , symbolic_func_nrpc :: NonRedPathCons -- ^ Whether to use NRPCs for symbolic functions or not
     , print_num_nrpc :: Bool -- ^ Output the number of NRPCs for each accepted state
     , print_num_post_call_func_arg :: Bool -- ^ Output the number of post call and function argument states
@@ -145,6 +148,8 @@ mkConfig homedir = Config Regular
                    <> help "log states that are following on or proceed from some path, passed as a list i.e. [1, 2, 1]")
     <*> switch (long "log-filter" <> help "limit the logged environment to names recursively reachable through the current expression or stack")
     <*> switch (long "log-order" <> help "log states with an environment ordered as [current expression]/[stack]/[other]")
+    <*> flag False True (long "log-inline-nrpc"
+                         <> help "inline variables in the NRPC when logging states")
     <*> flag Sharing NoSharing (long "no-sharing" <> help "disable sharing")
     <*> flag InstBefore InstAfter (long "inst-after" <> help "select to instantiate type variables after symbolic execution, rather than before")
     <*> flag Lax Aggressive (long "show-types" <> help "set to show more type information when logging states")
@@ -160,6 +165,7 @@ mkConfig homedir = Config Regular
                    <> help "when using subpath search strategy, the length of the subpaths")
     <*> flag RealFP RationalFP (long "no-real-floats"
                                 <> help "Represent floating point values precisely.  When off, overapproximate as rationals.")
+    <*> switch (long "print-encodeFloat" <> help "use encodeFloat to print floating point numbers")
     <*> mkSMTSolver
     <*> flag NoSMTStrings UseSMTStrings (long "smt-strings" <> help "Sets whether the SMT solver should be used to solve string constraints")
     <*> flag True False (long "no-step-limit" <> help "disable step limit")
@@ -175,7 +181,8 @@ mkConfig homedir = Config Regular
     <*> switch (long "states-at-step" <> help "output step and number of states at each step where a state is added/removed")
     <*> switch (long "print-num-red-rules" <> help "output the total number of reduction rules")
     <*> switch (long "print-num-red-rules-per-state" <> help "output the number of reduction rules per accepted state")
-    <*> switch (long "print-nrpc" <> help "output generated nrpcs")
+    <*> flag False True (long "approx-discard"
+                      <> help "Discard states that are approximated by other states")
     <*> flag False True (long "hpc"
                       <> help "Generate and report on HPC ticks")
     <*> flag False True (long "hpc-discard-strat" <> help "Discard states that cannot reach any new HPC ticks")
@@ -189,6 +196,7 @@ mkConfig homedir = Config Regular
     <*> switch (long "validate" <> help "use GHC to automatically compile and run on generated inputs, and check that generated outputs are correct")
     <*> switch (long "measure-coverage" <> help "use HPC to measure code coverage")
     <*> flag NoNrpc Nrpc (long "lib-nrpc" <> help "execute with non reduced path constraints")
+    <*> flag NoNrpc Nrpc (long "approx-nrpc" <> help "Use approximation and NRPCs to avoid repeated exploration of equivalent function calls")
     <*> flag NoNrpc Nrpc (long "higher-nrpc" <> help "use NRPCs to delay execution of library functions")
     <*> flag False True (long "print-num-nrpc" <> help "output the number of NRPCs for each accepted state")
     <*> flag False True (long "print-num-higher-states" <> help "output the number of post call and function argument states (from higher order coverage checking)")
@@ -298,6 +306,7 @@ mkConfigDirect homedir as m = Config {
     , logPath = []
     , logFilter = False
     , logOrder = False
+    , logInlineNRPC = False
     , sharing = boolArg' "sharing" as Sharing Sharing NoSharing
     , instTV = InstBefore
     , showType = Lax
@@ -309,6 +318,7 @@ mkConfigDirect homedir as m = Config {
     , search_strat = Iterative
     , subpath_length = 4
     , fp_handling = RealFP
+    , print_encode_float = False
     , smt = strArg "smt" as m smtSolverArg ConZ3
     , smt_strings = NoSMTStrings
     , step_limit = boolArg' "no-step-limit" as True True False
@@ -321,7 +331,7 @@ mkConfigDirect homedir as m = Config {
     , states_at_step = False
     , print_num_red_rules = False
     , print_num_red_rules_per_state = False
-    , print_nrpcs = False
+    , approx_discard = False
     , hpc = False
     , hpc_discard_strat = False
     , hpc_print_times = False
@@ -331,6 +341,7 @@ mkConfigDirect homedir as m = Config {
     , validate  = boolArg "validate" as m Off
     , measure_coverage = False
     , lib_nrpc = NoNrpc
+    , approx_nrpc = NoNrpc
     , symbolic_func_nrpc = NoNrpc
     , print_num_nrpc = False
     , print_num_post_call_func_arg = False

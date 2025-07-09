@@ -175,3 +175,152 @@ elemIndex1 c s
             | pos == Nothing = -1
             | otherwise = -2
             where pos = elemIndex c s
+
+strGt :: String -> String -> Int
+strGt x y | length x < 2 = 1
+          | length y < 2 = 2
+          | x > y = 3
+          | otherwise = 4
+
+strGe :: String -> String -> Int
+strGe x y | length x < 2 = 1
+          | length y < 2 = 2
+          | x > y = 3
+          | x >= y = 4
+          | otherwise = 5
+
+strLt :: String -> String -> Int
+strLt x y | length x < 2 = 1
+          | length y < 2 = 2
+          | x < y = 3
+          | otherwise = 4
+
+strLe :: String -> String -> Int
+strLe x y | length x < 2 = 1
+          | length y < 2 = 2
+          | x < y = 3
+          | x <= y = 4
+          | otherwise = 5
+
+compare1 :: String -> String -> Int
+compare1 x y | length x < 2 = 1
+             | length y < 2 = 2
+             | EQ <- c = 3
+             | LT <- c = 4
+             | GT <- c = 5
+             where c = compare x y
+
+max1 :: String -> String -> String
+max1 = max
+
+max2 :: String -> String -> (Int, String)
+max2 x y | length x < 2 = (1, max x y)
+         | length y < 2 = (2, max x y)
+         | x == y = (3, max x y)
+         | otherwise = (4, max x y)
+
+min1 :: String -> String -> String
+min1 = min
+
+min2 :: String -> String -> (Int, String)
+min2 x y | length x < 2 = (1, min x y)
+         | length y < 2 = (2, min x y)
+         | x == y = (3, min x y)
+         | otherwise = (4, min x y)
+
+delete1 :: Char -> String -> (Int, String)
+delete1 c s
+    | length s < 3 = (1, d)
+    | length d < length s = (2, d)
+    | otherwise = (3, d)
+    where
+        d = delete c s
+
+stripPrefix1 :: String -> String -> Maybe String
+stripPrefix1 = stripPrefix
+
+stripPrefix2 :: String -> String -> (Int, Maybe String)
+stripPrefix2 xs ys
+    | Just zs <- m_zs, length zs > 3 = (1, m_zs)
+    | Just zs <- m_zs, 2 < length xs - length zs = (2, m_zs)
+    | Nothing <- m_zs = (3, m_zs)
+    | length xs > 0 = (4, m_zs)
+    | otherwise = (5, m_zs)
+    where
+        m_zs = stripPrefix xs ys
+
+genericLength1 :: String -> (Integer, Char)
+genericLength1 xs
+    | ln < 4 = (ln, 'X')
+    | ln > 15 = (ln, 'L')
+    | ln == 7 = (ln, 'Q')
+    | otherwise = (42, 'A')
+    where
+        ln = genericLength xs
+
+genericTake1 :: String -> Integer -> (Maybe String, Int)
+genericTake1 xs n
+    | took == "Hi" = (Nothing, 0)
+    | took == "Bye" = (Just "Yes", 1)
+    | length took > 10 = (Just "Long", 2)
+    | otherwise = (Nothing, 3)
+    where
+        took = genericTake n xs
+
+genericDrop1 :: String -> Integer -> (Integer, String)
+genericDrop1 xs n
+    | dropped == "Drop" = (n, "DD")
+    | length dropped < 2 = (-1, "Short")
+    | otherwise = (n, xs)
+    where
+        dropped = genericDrop n xs
+
+genericSplitAt1 :: String -> Integer -> (String, Bool)
+genericSplitAt1 xs n
+    | length start > length end = (start, True)
+    | start == end = ("Same", False)
+    | start == "Hello" = ("Hello World!", True)
+    | otherwise = ("Okay", False)
+    where
+        (start, end) = genericSplitAt n xs
+
+-- Note that there should be an fourth case here due to an invalid index error
+genericIndex1 :: String -> Integer -> (Char, Int)
+genericIndex1 xs n
+    | chr == 'Z' = (chr, 0) 
+    | chr < 'Q' = (chr, 1)
+    | otherwise = ('!', 2)
+    where 
+        chr = xs `genericIndex` (n + 1)
+
+-- This doesn't lessen outputs, it only tests whether genericReplicate works with SMT Strings
+genericReplicate1 :: Integer -> Char -> String
+genericReplicate1 = genericReplicate
+
+-- This usually hits the solver outputting a delete character
+bigString :: String -> Int
+bigString s = case length s > 100 of
+                True -> 0
+                False -> 1
+
+isPrefixOf1 :: String -> String -> (Int, Bool)
+isPrefixOf1 s1 s2
+    | length s1 < 3 = (1, p)
+    | length s2 < 3 = (2, p)
+    | length s1 + 3 < length s2, p = (3, p)
+    | p = (4, p)
+    | length s1 + 3 < length s2 = (5, p)
+    | otherwise = (6, p)
+    where
+        p = isPrefixOf s1 s2
+
+isSuffixOf1 :: String -> String -> (Int, Bool)
+isSuffixOf1 s1 s2
+    | length s1 < 3 = (1, p)
+    | length s2 < 3 = (2, p)
+    | length s1 + 3 < length s2, p = (3, p)
+    | p = (4, p)
+    | length s1 + 3 < length s2 = (5, p)
+    | otherwise = (6, p)
+    where
+        p = isSuffixOf s1 s2

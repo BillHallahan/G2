@@ -29,6 +29,7 @@ import qualified G2.Language.ExprEnv as E
 import G2.Language.MutVarEnv
 
 import GHC.Float
+import Data.ByteString (isPrefixOf)
 
 -- | Evaluates primitives at the root of the passed `Expr` while updating the `ExprEnv`
 -- to share computed results.
@@ -522,6 +523,16 @@ evalPrimADT2 kv StrAppend h t = strApp h t
         strApp (App (Data dc) _ {- type -}) ys = assert (KV.dcEmpty kv == dcName dc) (Just ys)
         strApp _ _ = Nothing
 
+evalPrimADT2 kv StrPrefixOf pre s = do
+    pre' <- toString pre
+    s' <- toString s
+    return . mkBool kv $ pre' `L.isPrefixOf` s'
+
+evalPrimADT2 kv StrSuffixOf suf s = do
+    suf' <- toString suf
+    s' <- toString s
+    return . mkBool kv $ suf' `L.isSuffixOf` s'
+
 evalPrimADT2 kv Eq f s = fmap (mkBool kv) $ lstEq f s
     where
         -- List equality, currently used for strings and assumes types can be compared
@@ -532,7 +543,16 @@ evalPrimADT2 kv Eq f s = fmap (mkBool kv) $ lstEq f s
         lstEq (App (Data _) _) (App (App (App (Data _) _) _) _) = Just False
         lstEq (App (Data dc_f) _) (App (Data dc_s) _) = assert (KV.dcEmpty kv == dcName dc_f && KV.dcEmpty kv == dcName dc_s) (Just True)
         lstEq _ _ = Nothing
-        
+evalPrimADT2 kv StrLe f s = fmap (mkBool kv) $ lstLe f s
+    where
+        lstLe (App (App (App (Data dc_f) _) (App _ (Lit (LitChar c1)))) xs) (App (App (App (Data dc_s) _) (App _ (Lit (LitChar c2)))) ys)
+            | c1 <= c2 = Just True
+            | c1 > c2 = Just False
+            | otherwise = assert (KV.dcCons kv == dcName dc_f && KV.dcCons kv == dcName dc_s) lstLe xs ys
+        lstLe (App (App (App (Data _) _) _) _) (App (Data _) _) = Just False
+        lstLe (App (Data _) _) (App (App (App (Data _) _) _) _) = Just True
+        lstLe (App (Data dc_f) _) (App (Data dc_s) _) = assert (KV.dcEmpty kv == dcName dc_f && KV.dcEmpty kv == dcName dc_s) (Just True)
+        lstLe _ _= Nothing
 evalPrimADT2 _ _ _ _ = Nothing
 
 evalPrimADT3 :: TypeEnv -> KnownValues -> Primitive -> Expr -> Expr -> Expr -> Maybe Expr
@@ -547,7 +567,27 @@ evalPrimADT3 tenv kv StrSubstr str (Lit (LitInt s)) (Lit (LitInt e)) = substr st
         substr (App (App (App (Data _) _) _) xs) st en = substr xs (st - 1) en
         substr _ _ _ = Nothing
 
+evalPrimADT3 tenv kv StrReplace s orig rep = do
+        s' <- toString s
+        orig' <- toString orig
+        rep' <- toString rep
+        return $ toStringExpr kv tenv (replace s' orig' rep')
+    where
+        replace "" _ _ = ""
+        replace xss@(x:xs) o r | Just xss' <- L.stripPrefix o xss = r ++ xss'
+                               | otherwise = x:replace xs o r
+
 evalPrimADT3 _ _ _ _ _ _ = Nothing
+
+toString :: Expr -> Maybe String
+toString (App (Data _) _) = Just []
+toString (App (App (App (Data dc) typ) (App _ (Lit (LitChar c)))) xs) = fmap (c:) $ toString xs
+toString _ = Nothing
+
+toStringExpr :: KnownValues -> TypeEnv -> String -> Expr
+toStringExpr kv tenv =
+    let cons = mkCons kv tenv in
+    foldr (\h t -> mkApp [cons, Type (tyChar kv), Lit (LitChar h), t]) (mkEmpty kv tenv)
 
 evalPrim2 :: KnownValues -> Primitive -> Lit -> Lit -> Maybe Expr
 evalPrim2 kv Ge x y = evalPrim2NumCharBool (>=) kv x y
@@ -619,7 +659,7 @@ evalTypeDCPrim2 tenv DataToTag t dc =
                 dcs = dataCon adt
                 dc_names = map dc_name dcs
             in
-                fmap (Lit . LitInt . fst) . L.find ((==) (dc_name dc) . snd) $ zip [1..] dc_names
+                fmap (Lit . LitInt . fst) . L.find ((==) (dc_name dc) . snd) $ zip [0..] dc_names
         _ -> error "evalTypeDCPrim2: Unsupported Primitive Op"
 evalTypeDCPrim2 _ _ _ _ = Nothing
 
@@ -683,7 +723,7 @@ evalPrim1Floating _ _ = Nothing
 evalPrim3 :: KnownValues -> Primitive -> Expr -> Expr -> Expr -> Maybe Expr
 evalPrim3 kv Ite (Data (DataCon { dc_name = b })) e1 e2 | b == KV.dcTrue kv = Just e1
                                                         | b == KV.dcFalse kv = Just e2
-evalPrim3 _ p _ _ _ = Nothing
+evalPrim3 _ _ _ _ _ = Nothing
 
 -- | Evaluate certain primitives applied to symbolic expressions, when possible
 evalPrimSymbolic :: ExprEnv -> TypeEnv -> NameGen -> KnownValues -> Expr -> Maybe (Expr, ExprEnv, [PathCond], NameGen)

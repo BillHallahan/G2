@@ -15,7 +15,7 @@ import G2.Interface
 
 import qualified Control.Monad.State.Lazy as CM
 
-
+import G2.Language.Approximation
 import qualified G2.Language.ExprEnv as E
 import qualified G2.Language.CallGraph as G
 import qualified G2.Language.Typing as T
@@ -146,19 +146,6 @@ transferTrackerInfo s1 s2 =
       }
   in s2 { track = t2' }
 
-frameWrap :: Frame -> Expr -> Expr
-frameWrap (CaseFrame i t alts) e = Case e i t alts
-frameWrap (ApplyFrame e') e = App e e'
-frameWrap (UpdateFrame _) e = e
-frameWrap (CastFrame co) e = Cast e co
-frameWrap _ _ = error "unsupported frame"
-
-stackWrap :: Stck.Stack Frame -> Expr -> Expr
-stackWrap sk e =
-  case Stck.pop sk of
-    Nothing -> e
-    Just (fr, sk') -> stackWrap sk' $ frameWrap fr e
-
 loc_name :: Name
 loc_name = Name (DT.pack "STACK") Nothing 0 Nothing
 
@@ -232,14 +219,7 @@ wrapAllRecursion cg h n e =
 
 -- stack tick not added here anymore
 prepareState :: StateET -> StateET
-prepareState s =
-  let e = getExpr s
-  in s {
-    curr_expr = CurrExpr Evaluate $ stackWrap (exec_stack s) $ e
-  , num_steps = 0
-  , rules = []
-  , exec_stack = Stck.empty
-  }
+prepareState s = (stateAdjStack s) { num_steps = 0, rules = [] }
 
 -- "stamps" for Case statements enforce induction validity
 stampName :: Int -> Int -> Name
