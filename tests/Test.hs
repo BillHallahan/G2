@@ -775,6 +775,8 @@ verifierTests = testGroup "Verifier"
 
     , checkExprVerified "tests/Verify/Infinite1.hs" "p1"
     , checkExprCEx "tests/Verify/Infinite1.hs" "p1False"
+
+    , checkExprCEx "tests/Verify/NonStrict1.hs" "prop1False"
     ]
 
 -- To Do Tests

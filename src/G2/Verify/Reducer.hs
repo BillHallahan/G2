@@ -68,21 +68,23 @@ nrpcAnyCallReducer no_nrpc_names config =
                 -- with new NRPCs:
                 --  @ s1 = g x 
                 --    s2 = h z @
-                let ((s', ng'), es') =
-                        mapAccumR
-                            (\(s_, ng_) e -> if
-                                | Just buried_e <- E.deepLookupExpr e eenv 
-                                , Var (Id ne _):_:_ <- unApp buried_e
+                -- let ((s', ng'), s')e =
+                --         mapAccumR
+                --             (\(s_, ng_) e -> if
+                --                 | Just buried_e <- E.deepLookupExpr e eenv 
+                --                 , Var (Id ne _):_:_ <- unApp buried_e
 
-                                , Just (Id n' _) <- E.deepLookupVar ne eenv
-                                , not (n' `HS.member` no_nrpc_names)
-                                , not (E.isSymbolic n' eenv)
+                --                 , Just (Id n' _) <- E.deepLookupVar ne eenv
+                --                 , not (n' `HS.member` no_nrpc_names)
+                --                 , not (E.isSymbolic n' eenv)
 
-                                , not . isTyFun . typeOf $ buried_e
-                                , Just (s_', sym_i, _, ng_') <- createNonRed' ng_ s_ buried_e ->
-                                    ((s_', ng_'), Var sym_i)
-                                | otherwise -> ((s_, ng_), e)) (s, name_gen b) es
-                    s'' = s' { curr_expr = CurrExpr Evaluate . mkApp $ v:es' }
+                --                 , not . isTyFun . typeOf $ buried_e
+                --                 , Just (s_', sym_i, _, ng_') <- createNonRed' ng_ s_ buried_e ->
+                --                     ((s_', ng_'), Var sym_i)
+                --                 | otherwise -> ((s_, ng_), e)) (s, name_gen b) es
+                let ng' = name_gen b
+                    es' = es
+                    s'' = s -- s' { curr_expr = CurrExpr Evaluate . mkApp $ v:es' }
 
                 -- (2)
                 -- Replace the entire expression with an NRPC
