@@ -85,10 +85,10 @@ def test_suite_general(fname_in, suite, time_limit):
         res1 = run_verify(fname_in, thm, time_limit, [])
         runTime1 = round(float(process_output(res1)), 2)
         if fname_in == "Zeno.hs" :
-        #     res2 = run_verify(fname_in, thm, time_limit, ["--no-rev-abs"])
-        #     res3 = run_verify(fname_in, thm, time_limit, ["--no-approx"])
-        #     runTime2 = round(float(process_output(res2)), 2)
-        #     runTime3 = round(float(process_output(res3)), 2)
+            res2 = run_verify(fname_in, thm, time_limit, ["--no-rev-abs"])
+            res3 = run_verify(fname_in, thm, time_limit, ["--no-approx"])
+            runTime2 = round(float(process_output(res2)), 2)
+            runTime3 = round(float(process_output(res3)), 2)
             generate_table1(thm, runTime1, runTime1, runTime1, time_limit)
         else:
             generate_table2(thm, runTime1, time_limit)
