@@ -1,7 +1,4 @@
-{-# LANGUAGE CPP #-}
-{-# LANGUAGE DeriveDataTypeable #-}
-{-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE CPP, DeriveDataTypeable, FlexibleContexts, LambdaCase, OverloadedStrings #-}
 
 module Main where
 
@@ -15,6 +12,9 @@ import G2.Config
 import G2.Interface
 import G2.Language as G2
 import G2.Lib.Printers
+
+import G2.Verify.Config
+import G2.Verify.Interface
 
 import Control.Exception
 import Data.Maybe
@@ -71,6 +71,8 @@ tests = testGroup "Tests"
         , baseTests
         , primTests
         , ioTests
+
+        , verifierTests
 
         , exprTests
         , typingTests
@@ -366,9 +368,17 @@ testFileTests = testGroup "TestFiles"
                                                               
                                                               , ("delete1", 2500, [AtLeast 10]) 
                                                               , ("stripPrefix1", 1000, [AtLeast 5])
-                                                              , ("stripPrefix2", 1000, [AtLeast 10]) 
+                                                              , ("stripPrefix2", 1000, [AtLeast 10])
                                                               , ("isPrefixOf1", 1000, [AtLeast 10]) 
-                                                              , ("isSuffixOf1", 1000, [AtLeast 10]) ]
+                                                              , ("isSuffixOf1", 1000, [AtLeast 10])
+
+                                                              , ("genericLength1", 1000, [AtLeast 5]) 
+                                                              , ("genericTake1", 2000, [AtLeast 10])
+                                                              , ("genericDrop1", 1000, [AtLeast 5])
+                                                              , ("genericSplitAt1", 2000, [AtLeast 10])
+                                                              , ("genericIndex1", 2000, [AtLeast 10]) ]
+
+                                                              
 
     , checkInputOutputsSMTStrings "tests/TestFiles/Strings/Strings1.hs"
                                         [ ("con", 1000, [Exactly 1])
@@ -405,6 +415,19 @@ testFileTests = testGroup "TestFiles"
                                         , ("max2", 5000, [Exactly 4])
                                         , ("min1", 5000, [Exactly 1]) 
                                         , ("min2", 5000, [Exactly 4])
+
+                                        , ("delete1", 5000, [Exactly 3])
+                                        , ("stripPrefix1", 1000, [Exactly 2])
+                                        , ("stripPrefix2", 1000, [Exactly 5]) 
+                                        
+                                        , ("genericLength1", 5000, [Exactly 4])
+                                        , ("genericTake1", 5000, [Exactly 4])
+                                        , ("genericDrop1", 5000, [Exactly 3])
+                                        , ("genericSplitAt1", 5000, [Exactly 4])
+                                        , ("genericIndex1", 5000, [Exactly 4])
+                                        , ("genericReplicate1", 1000, [AtLeast 5])
+                                        
+                                        , ("bigString", 1000, [Exactly 2])
                                         
                                         , ("delete1", 5000, [Exactly 3])
                                         , ("stripPrefix1", 1000, [Exactly 2])
@@ -678,6 +701,82 @@ ioTests = testGroup "IO"
     , checkExpr "tests/IO/Handles1.hs" 3000 "interact1" [AtLeast 10]
     ]
 
+verifierTests :: TestTree
+verifierTests = testGroup "Verifier"
+    [
+      checkExprVerified "tests/Verify/Peano1.hs" "p1"
+    , checkExprVerified "tests/Verify/Peano1.hs" "p2"
+    , checkExprVerified "tests/Verify/Peano1.hs" "p3"
+    , checkExprVerified "tests/Verify/Peano1.hs" "p4"
+    , checkExprVerified "tests/Verify/Peano1.hs" "p5"
+
+    , checkExprCEx "tests/Verify/Peano1.hs" "p1False"
+    -- p2False intentionally requires a large counterexample, and will timeout
+    , checkExprNotVerified "tests/Verify/Peano1.hs" "p2False"
+    , checkExprCEx "tests/Verify/Peano1.hs" "p3False"
+    , checkExprCEx "tests/Verify/Peano1.hs" "p4False"
+    , checkExprCEx "tests/Verify/Peano1.hs" "p5False"
+
+    , checkExprVerified "tests/Verify/Int1.hs" "p1"
+    , checkExprVerified "tests/Verify/Int1.hs" "p2"
+    , checkExprVerified "tests/Verify/Int1.hs" "p2'"
+    , checkExprVerified "tests/Verify/Int1.hs" "p3"
+    , checkExprVerified "tests/Verify/Int1.hs" "p4"
+
+    , checkExprCEx "tests/Verify/Int1.hs" "p1False"
+    , checkExprCEx "tests/Verify/Int1.hs" "p2False"
+    , checkExprCEx "tests/Verify/Int1.hs" "p2False'"
+    , checkExprCEx "tests/Verify/Int1.hs" "p3False"
+
+    , checkExprVerified "tests/Verify/List1.hs" "prop1"
+    , checkExprVerified "tests/Verify/List1.hs" "prop2"
+    , checkExprVerified "tests/Verify/List1.hs" "prop3"
+    , checkExprVerified "tests/Verify/List1.hs" "prop4"
+    , checkExprVerified "tests/Verify/List1.hs" "prop5"
+    , checkExprVerified "tests/Verify/List1.hs" "prop6"
+    , checkExprVerified "tests/Verify/List1.hs" "prop7Simple"
+    , checkExprVerified "tests/Verify/List1.hs" "prop7"
+    , checkExprVerified "tests/Verify/List1.hs" "prop8"
+    , checkExprVerified "tests/Verify/List1.hs" "prop9"
+    , checkExprVerified "tests/Verify/List1.hs" "prop10"
+    -- , checkExprVerified "tests/Verify/List1.hs" "prop11"
+    , checkExprVerified "tests/Verify/List1.hs" "prop12"
+
+    , checkExprCEx "tests/Verify/List1.hs" "prop1False"
+    , checkExprCEx "tests/Verify/List1.hs" "prop4False"
+    , checkExprCEx "tests/Verify/List1.hs" "prop5False"
+    , checkExprCEx "tests/Verify/List1.hs" "prop6False"
+    , checkExprCEx "tests/Verify/List1.hs" "prop7False"
+    , checkExprCEx "tests/Verify/List1.hs" "prop9False"
+    , checkExprCEx "tests/Verify/List1.hs" "prop10False"
+    , checkExprCEx "tests/Verify/List1.hs" "prop10False2"
+    , checkExprCEx "tests/Verify/List1.hs" "prop11False"
+    , checkExprCEx "tests/Verify/List1.hs" "prop12False"
+
+    , checkExprVerified "tests/Verify/List2.hs" "p1"
+    , checkExprVerified "tests/Verify/List2.hs" "p2"
+    , checkExprVerified "tests/Verify/List2.hs" "p3"
+    , checkExprCEx "tests/Verify/List2.hs" "p2False"
+    , checkExprCEx "tests/Verify/List2.hs" "p2False'"
+    , checkExprCEx "tests/Verify/List2.hs" "p3False"
+    , checkExprCEx "tests/Verify/List2.hs" "p3False'"
+    , checkExprCEx "tests/Verify/List2.hs" "p3False''"
+
+    , checkExprCEx "tests/Verify/List3.hs" "p1False"
+    , checkExprCEx "tests/Verify/List3.hs" "p2False"
+    , checkExprCEx "tests/Verify/List3.hs" "p3False"
+    , checkExprCEx "tests/Verify/List3.hs" "p4False"
+
+    , checkExprVerified "tests/Verify/NatList1.hs" "prop1"
+    , checkExprVerified "tests/Verify/NatList1.hs" "prop2"
+    , checkExprCEx "tests/Verify/NatList1.hs" "prop1False"
+    , checkExprCEx "tests/Verify/NatList1.hs" "prop2False"
+    , checkExprCEx "tests/Verify/NatList1.hs" "prop2False'"
+
+    , checkExprVerified "tests/Verify/Infinite1.hs" "p1"
+    , checkExprCEx "tests/Verify/Infinite1.hs" "p1False"
+    ]
+
 -- To Do Tests
 --------------
 
@@ -827,6 +926,32 @@ checkExprWithConfig src m_assume m_assert m_reaches entry reqList config_f = do
                    (maybe False null reqRes)
         )
 
+checkExprVerified :: String -> String -> TestTree
+checkExprVerified = checkExprVerifier (\case Verified -> True; Counterexample _ -> False; VerifyTimeOut -> False)
+
+checkExprCEx :: String -> String -> TestTree
+checkExprCEx = checkExprVerifier (\case Verified -> False; Counterexample _ -> True; VerifyTimeOut -> False)
+
+checkExprNotVerified :: String -> String -> TestTree
+checkExprNotVerified = checkExprVerifier (\case Verified -> False; Counterexample _ -> True; VerifyTimeOut -> True)
+
+checkExprVerifier :: (VerifyResult -> Bool) -> String -> String -> TestTree
+checkExprVerifier vr_check src entry = 
+    testCase ("Verifier:" ++ src ++ " " ++ entry) $ do
+        res <- try (do
+                let proj = takeDirectory src
+                config <- mkConfigTestIO
+                let config' = config { timeLimit = 30 }
+                verifyFromFile [proj] [src] (T.pack entry) simplTranslationConfig config' defVerifyConfig)
+                    :: IO (Either SomeException ((VerifyResult, Double, Bindings, Id)))
+        let res' = case res of
+                        Left _ -> VerifyTimeOut
+                        Right (vr, _, _, _) -> vr
+
+        assertBool
+            ("Incorrect verification result for " ++ entry ++ " in " ++ show src ++ "\nresult = " ++ show res')
+            (vr_check res') 
+
 testFile :: String
          -> Maybe String
          -> Maybe String
@@ -858,7 +983,7 @@ testFileWithConfig src m_assume m_assert m_reaches entry config = do
                 simplTranslationConfig
                 config
 
-    return $ maybe (error "Timeout") fst r
+    return $ maybe (error "Timeout") (\(er, b, _, _) -> (er, b)) r
 
 -- For mergeState unit tests
 checkFn :: Either String Bool -> String -> IO TestTree

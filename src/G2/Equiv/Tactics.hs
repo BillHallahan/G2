@@ -179,8 +179,8 @@ moreRestrictivePair solver valid ns prev (s1, s2) | dc_path (track s1) == dc_pat
                                            && not (isSWHNF s2_))
                        $ concat possible_lemmas
 
-      mpc (PrevMatch _ (p1, p2) (hm, _) _) =
-          andM [LA.moreRestrictivePC solver p1 s1 hm, LA.moreRestrictivePC solver p2 s2 hm]
+      mpc (PrevMatch _ (p1, p2) (hm, obs) _) =
+          andM [LA.moreRestrictivePC solver p1 s1 hm obs, LA.moreRestrictivePC solver p2 s2 hm obs]
 
   possible_matches' <- filterM mpc possible_matches
   -- check obligations individually rather than as one big group
@@ -201,7 +201,7 @@ moreRestrictiveSingle solver ns s1 s2 = do
     case restrictHelper s1 s2 ns $ Right (HM.empty, HS.empty) of
         (Left l) -> return $ Left l
         Right (hm, obs) -> do
-            more_res_pc <- LA.moreRestrictivePC solver s1 s2 hm
+            more_res_pc <- LA.moreRestrictivePC solver s1 s2 hm obs
             case more_res_pc of
                 False -> return $ Left []
                 True -> do

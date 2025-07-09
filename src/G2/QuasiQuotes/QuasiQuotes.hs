@@ -337,7 +337,9 @@ moveOutStatePieces tenv_name s = do
              , tags = $(tags_exp) 
              , sym_gens = Seq.empty
              , reached_hpc = HS.empty
-             , track = $(track_exp) } |]
+             , track = $(track_exp)
+             
+             , log_path = [] } |]
 
 -- Returns an Q Exp represeting a [(Name, Expr)] list
 regVarBindings :: TV.TyVarEnv -> [TH.Name] -> TypeEnvName -> CleanedNamesName -> InputIds -> Bindings -> Q Exp
