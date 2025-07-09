@@ -123,6 +123,8 @@ module G2.Execution.Reducer ( Reducer (..)
 
                             -- * Orderers
                             , mkSimpleOrderer
+                            , liftOrderer
+                            , liftSomeOrderer
                             , (<->)
                             , ordComb
                             , nextOrderer
@@ -182,6 +184,7 @@ import Data.Time.Clock
 import System.Clock
 import System.Directory
 import qualified G2.Language.TyVarEnv as TV 
+import G2.Language (State(tyvar_env))
 
 -- | Used when applying execution rules
 -- Allows tracking extra information to control halting of rule application,
@@ -790,17 +793,17 @@ nrpcApproxReducer solver no_inline no_nrpc_names config =
             return (s, b) }
 
     where
-        red rv s@(State { curr_expr = CurrExpr _ ce, expr_env = eenv }) b
+        red rv s@(State { curr_expr = CurrExpr _ ce, expr_env = eenv, tyvar_env = tvnv }) b
             | maybe True (allowed_frame . fst) (Stck.pop (exec_stack s))
             
             , let e = applyWrap (getExpr s) (exec_stack s)
             , Var (Id n _):_:_ <- unApp e
 
-            , Just (Id n' _) <- E.deepLookupVar n eenv
+            , Just (Id n' _) <- E.deepLookupVar tvnv n eenv
             , not (n' `HS.member` no_nrpc_names)
             , not (E.isSymbolic n' eenv)
 
-            , not . isTyFun . typeOf $ e = do
+            , not . isTyFun . (typeOf tvnv) $ e = do
                 -- liftIO $ do
                 --     putStrLn $ "curr_expr s = " ++ show (getExpr s)
                 --     putStrLn $ "log_path s = " ++ show (log_path s)
@@ -851,20 +854,46 @@ createNonRed :: NameGen
                       , Expr -- ^ Expression added into the NRPCs (and equated to some symbolic variable)
                       , NameGen)
 createNonRed ng
-             s@(State { curr_expr = CurrExpr _ ce
-                      , expr_env = eenv
-                      , non_red_path_conds = nrs
-                      , known_values = kv 
-                      , tyvar_env = tvnv})
-            | v@(Var (Id _ t)):es_ce <- unApp ce
-             -- Function is being fully applied 
-            , (ae, stck) <- allApplyFrames (exec_stack s)
-            , let es = es_ce ++ ae
-                  ce' = mkApp (v:es)
-            , hasFuncType (PresType t)
-            
-            , let ce_ty = typeOf ce'
-            , not . hasFuncType . PresType $ ce_ty
+              s@(State { curr_expr = CurrExpr _ ce
+                       , expr_env = eenv
+                       , non_red_path_conds = nrs
+                       , known_values = kv })
+    | v@(Var (Id _ t)):es_ce <- unApp ce
+        -- Function is being fully applied 
+    , (ae, stck) <- allApplyFrames (exec_stack s)
+    , let es = es_ce ++ ae
+          ce' = mkApp (v:es)
+    , Just (s', sym_i, ce_rep, ng') <- createNonRed' ng s ce' =
+    let
+        cexpr' = CurrExpr Return (Var sym_i)
+        s'' = s' { curr_expr = cexpr'
+                 , exec_stack = stck }
+    in
+    Just (s'', sym_i, ce_rep, ng')
+    | otherwise = Nothing
+
+  
+-- If doing so is possible, create an NRPC for passed expression
+createNonRed' :: NameGen
+              -> State t
+              -> Expr
+              -> Maybe
+                      ( State t -- ^ New state with NRPC applied
+                      , Id -- ^ New symbolic variable
+                      , Expr -- ^ Expression added into the NRPCs (and equated to some symbolic variable)
+                      , NameGen)
+createNonRed' ng
+              s@(State { curr_expr = CurrExpr _ ce
+                       , expr_env = eenv
+                       , non_red_path_conds = nrs
+                       , known_values = kv
+                       , tyvar_env = tvnv }) e
+            | v@(Var (Id _ t)):es <- unApp e
+
+            , hasFuncType t
+
+            , let e_ty = typeOf tvnv e
+            , not $ hasFuncType e_ty
             -- Don't turn functions manipulating "magic types"- types represented as Primitives, with special handling
             -- (for instance, MutVars, Handles) into NRPC symbolic variables.
             , not (hasMagicTypes kv e) =
@@ -1706,14 +1735,14 @@ approximationHalter' stop_cond solver no_inline = mkSimpleHalter
         -- (2) we then switch to a different state before doing any reduction
         -- (3) we eventually return to the state, and immediately run the halter
         -- to avoid this we only allow approximation against states that have taken fewer steps than our current state
-        stop _ pr s@(State { curr_expr = CurrExpr er init_e})
+        stop _ pr s@(State { curr_expr = CurrExpr er init_e, tyvar_env = tvnv})
             | -- maybe True (allowed_frame er . fst) 
             
               s'@(State { curr_expr = CurrExpr _ e}) <- stateAdjStack s
             , Stck.null (exec_stack s')
             , allowed_expr_frame er (unApp init_e) (unApp e) (fmap fst $ Stck.pop (exec_stack s))
 
-            , not . isTyFun . typeOf $ e = do
+            , not . isTyFun . (typeOf tvnv) $ e = do
                 -- liftIO $ do
                 --     putStrLn $ "approx halter log_path s = " ++ show (log_path s) ++ " " ++ show (num_steps s)
                 xs <- SM.gets ap_halter_states

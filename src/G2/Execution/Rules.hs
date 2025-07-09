@@ -928,7 +928,7 @@ retCastFrame s ng e c stck =
 
 retCurrExpr :: State t -> Expr -> CEAction -> CurrExpr -> S.Stack Frame -> NameGen -> (Rule, [NewPC t], NameGen)
 retCurrExpr s@(State { expr_env = eenv, known_values = kv, tyvar_env = tvnv }) e1 (EnsureEq e2) orig_ce@(CurrExpr _ ce) stck ng
-    | Just (eenv', new_pc, new_nrpc_pairs) <- matchPairs kv e1 e2 (eenv, [], []) =
+    | Just (eenv', new_pc, new_nrpc_pairs) <- matchPairs tvnv kv e1 e2 (eenv, [], []) =
         let
             (ng', nrpc) = foldr (\(p_e1, p_e2) (ng_, nrpcs) ->
                                 let
@@ -962,16 +962,16 @@ retCurrExpr s _ NoAction orig_ce stck ng =
              , new_pcs = []
              , concretized = []}], ng )
 
-matchPairs :: KnownValues -> Expr -> Expr -> (ExprEnv, [PathCond], [(Expr, Expr)]) -> Maybe (ExprEnv, [PathCond], [(Expr, Expr)])
-matchPairs kv e1 e2 eenv_pc_ee@(eenv, pc, ees)
+matchPairs :: TV.TyVarEnv -> KnownValues -> Expr -> Expr -> (ExprEnv, [PathCond], [(Expr, Expr)]) -> Maybe (ExprEnv, [PathCond], [(Expr, Expr)])
+matchPairs tvnv kv e1 e2 eenv_pc_ee@(eenv, pc, ees)
     | Var (Id n _) <- e1
-    , Just (E.Conc e1') <- E.lookupConcOrSym n eenv = matchPairs kv e1' e2 eenv_pc_ee
+    , Just (E.Conc e1') <- E.lookupConcOrSym n eenv = matchPairs tvnv kv e1' e2 eenv_pc_ee
     | Var (Id n _) <- e2
-    , Just (E.Conc e2') <- E.lookupConcOrSym n eenv = matchPairs kv e1 e2' eenv_pc_ee
+    , Just (E.Conc e2') <- E.lookupConcOrSym n eenv = matchPairs tvnv kv e1 e2' eenv_pc_ee
     | e1 == e2 = Just eenv_pc_ee
     | Cast e1' c1 <- e1
     , Cast e2' c2 <- e2
-    , c1 == c2 =  matchPairs kv e1' e2' eenv_pc_ee
+    , c1 == c2 =  matchPairs tvnv kv e1' e2' eenv_pc_ee
 
     | isExprValueForm eenv e1
     , isExprValueForm eenv e2
@@ -998,7 +998,7 @@ matchPairs kv e1 e2 eenv_pc_ee@(eenv, pc, ees)
     , Data dc2:es2 <- unApp e2 =
         let addPair p (eenv', pc', ees') = (eenv', pc', p:ees') in
         case dcName dc1 == dcName dc2 of
-            True -> Just $ foldr (\es1es2@(es1_, es2_) epe -> fromMaybe (addPair es1es2 epe) (matchPairs kv es1_ es2_ epe)) eenv_pc_ee $ zip es1 es2
+            True -> Just $ foldr (\es1es2@(es1_, es2_) epe -> fromMaybe (addPair es1es2 epe) (matchPairs tvnv kv es1_ es2_ epe)) eenv_pc_ee $ zip es1 es2
             False ->
                 Just (eenv, [ExtCond (mkFalse kv) True], [])
     | otherwise = Nothing

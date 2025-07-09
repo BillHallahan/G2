@@ -84,7 +84,6 @@ import qualified Data.List as L
 import qualified G2.Language.TyVarEnv as TV
 import System.Timeout
 
-import Debug.Trace
 
 type AssumeFunc = T.Text
 type AssertFunc = T.Text
