@@ -131,7 +131,7 @@ def run_verify(filename, thm, time_limit, var_settings):
 def call_verify_process(filename, thm, time_limit, var_settings):
     try:
         args = [exe_name, "verify/tests/" + filename, thm, "--time", str(time_limit)]
-        res = subprocess.run(args + var_settings, universal_newlines=True, capture_output=True, timeout=40);
+        res = subprocess.run(args + var_settings, universal_newlines=True, capture_output=True, timeout=time_limit+2);
         return res.stdout
     except subprocess.TimeoutExpired as TimeoutEx:
         # extra line break at end to match the one from normal termination
@@ -170,7 +170,7 @@ def test_suite_general(fname_in, suite, time_limit, var_settings):
     for (thm, settings) in suite:
         print(thm)
         res = run_verify(fname_in, thm, time_limit, var_settings)
-        runTime = round(float(process_output(res)), 2)
+        runTime = round(float(process_output(res)), 2) if not "Timeout" in res else time_limit
         result[thm] = runTime
 
         if "Verified" in res:
