@@ -77,6 +77,8 @@ data Config = Config {
     , logAfterN :: Int -- ^ Logs state only after the nth state
     , logConcPCGuide :: Maybe String -- ^ Log states only if they match the ConcPCGuide in the provided file
     , logPath :: [Int] -- ^ Log states that are following on or proceed from some path, passed as a list i.e. [1, 2, 1]
+    , logFilter :: Bool -- ^ Limit the logged environment to names recursively reachable through the current expression or stack
+    , logOrder :: Bool -- ^ Order names in the logged environment: [CurrExpr]/[Stack]/[others]
     , logInlineNRPC :: Bool -- ^ Inline variables in the NRPC when logging states
     , sharing :: Sharing
     , instTV :: InstTV -- allow the instantiation of types in the beginning or it's instantiate symbolically by functions
@@ -144,6 +146,8 @@ mkConfig homedir = Config Regular
                    <> metavar "LP"
                    <> value []
                    <> help "log states that are following on or proceed from some path, passed as a list i.e. [1, 2, 1]")
+    <*> switch (long "log-filter" <> help "limit the logged environment to names recursively reachable through the current expression or stack")
+    <*> switch (long "log-order" <> help "log states with an environment ordered as [current expression]/[stack]/[other]")
     <*> flag False True (long "log-inline-nrpc"
                          <> help "inline variables in the NRPC when logging states")
     <*> flag Sharing NoSharing (long "no-sharing" <> help "disable sharing")
@@ -300,6 +304,8 @@ mkConfigDirect homedir as m = Config {
     , logAfterN = 0
     , logConcPCGuide = Nothing
     , logPath = []
+    , logFilter = False
+    , logOrder = False
     , logInlineNRPC = False
     , sharing = boolArg' "sharing" as Sharing Sharing NoSharing
     , instTV = InstBefore

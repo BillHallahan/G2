@@ -29,7 +29,9 @@ module G2.Lib.Printers ( PrettyGuide
                        , prettyGuideNumsStr
                        
                        , TypePrinting(..)
-                       , setTypePrinting) where
+                       , EnvOrdering(..)
+                       , setTypePrinting
+                       , setEnvOrdering) where
 
 import G2.Language.Expr
 import qualified G2.Language.ExprEnv as E
@@ -43,6 +45,7 @@ import G2.Language.Syntax
 import G2.Language.Support
 import Data.Char
 import Data.List as L
+import qualified Data.Foldable as F
 import qualified Data.HashMap.Lazy as HM
 import qualified Data.HashSet as HS
 import qualified Data.Text as T
@@ -586,7 +589,7 @@ prettyState pg s =
     where
         pretty_curr_expr = prettyCurrExpr pg (curr_expr s)
         pretty_stack = prettyStack pg (exec_stack s)
-        pretty_eenv = prettyEEnv pg (expr_env s)
+        pretty_eenv = prettyEEnv pg (curr_expr s) (exec_stack s) (expr_env s) 
         pretty_paths = prettyPathConds pg (path_conds s)
         pretty_non_red_paths = prettyNonRedPaths pg . toListInternalNRPC $ non_red_path_conds s
         pretty_handles = prettyHandles pg $ handles s
@@ -631,14 +634,24 @@ prettyCEAction :: PrettyGuide -> CEAction -> T.Text
 prettyCEAction pg (EnsureEq e) = "EnsureEq " <> mkDirtyExprHaskell pg e
 prettyCEAction _ NoAction = "NoAction"
 
-prettyEEnv :: PrettyGuide -> ExprEnv -> T.Text
-prettyEEnv pg eenv = T.intercalate "\n\n"
+prettyEEnv :: PrettyGuide -> CurrExpr -> Stack Frame -> ExprEnv -> T.Text
+prettyEEnv pg@(PG {env_ordering=e_ord}) cexpr estack eenv = T.intercalate "\n\n"
                    . map (uncurry printFunc)
+                   . (case e_ord of Ordered -> reorder 
+                                    Unordered -> id)
                    . E.toList $ eenv
     where
         printFunc n e = mkNameHaskell pg n <> " :: " <> mkTypeHaskellPG pg (envObjType eenv e)
                             <> "\n" <> mkNameHaskell pg n <> " = " <> printEnvObj pg e
-
+        reorder :: [(Name, E.EnvObj)] -> [(Name, E.EnvObj)]
+        reorder el = let
+                        ce_names = HS.fromList . F.toList . names $ cexpr
+                        es_names = HS.fromList . F.toList . names $ estack
+                    in
+                     L.filter (\(x, _) -> HS.member x ce_names) el
+                  ++ L.filter (\(x, _) -> HS.member x es_names && not (HS.member x ce_names)) el
+                  ++ L.filter (\(x, _) -> not (HS.member x ce_names) && not (HS.member x es_names)) el
+        
 printEnvObj :: PrettyGuide -> E.EnvObj -> T.Text
 printEnvObj pg (E.ExprObj e) = mkDirtyExprHaskell pg e
 printEnvObj pg (E.SymbObj (Id _ t)) = "symbolic " <> mkTypeHaskellPG pg t
@@ -839,6 +852,8 @@ printFuncCallPG pg (FuncCall { funcName = f, arguments = ars, returns = r}) =
 
 data TypePrinting = LaxTypes | AggressiveTypes deriving Eq
 
+data EnvOrdering = Unordered | Ordered deriving Eq
+
 -- | See Note [PrettyGuide AssignedLvl]
 data AssignedLvl = TypeLvl | ValLvl | BothLvl deriving (Eq, Show)
 
@@ -861,6 +876,7 @@ data PrettyGuide = PG { pg_assigned :: HM.HashMap Name T.Text -- ^ Mapping of G2
                                                                         -- as a printable name.
                                                                         -- See also Note [PrettyGuide AssignedLvl].
                       , type_printing :: TypePrinting -- ^ How detailed should the type information we print be?
+                      , env_ordering :: EnvOrdering -- ^ Should the environment be ordered?
                       }
 
 -- Note [PrettyGuide AssignedLvl]
@@ -884,7 +900,7 @@ data PrettyGuide = PG { pg_assigned :: HM.HashMap Name T.Text -- ^ Mapping of G2
 -- | Creates a `PrettyGuide` with mappings for all `Name`s in the `Named` argument.
 -- Does not draw any distinction between type level and value level names.
 mkPrettyGuide :: Named a => a -> PrettyGuide
-mkPrettyGuide = foldr insertPG (PG HM.empty HM.empty LaxTypes) . names
+mkPrettyGuide = foldr insertPG (PG HM.empty HM.empty LaxTypes Unordered) . names
 
 -- | Update the `PrettyGuide` with mappings for all `Name`s in the `Named` argument.
 -- Does not draw any distinction between type level and value level names.
@@ -923,6 +939,9 @@ lookupPG n = HM.lookup n . pg_assigned
 
 setTypePrinting :: TypePrinting -> PrettyGuide -> PrettyGuide
 setTypePrinting tp p = p {type_printing = tp}
+
+setEnvOrdering :: EnvOrdering -> PrettyGuide -> PrettyGuide
+setEnvOrdering eo p = p {env_ordering = eo}
 
 -- | Print `pg_assigned`. Exposes internal of the `PrettyGuide` to aid in debugging.
 prettyGuideStr :: PrettyGuide -> T.Text

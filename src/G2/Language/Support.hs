@@ -34,7 +34,7 @@ import Data.Data (Data, Typeable)
 import Data.Hashable
 import qualified Data.Map as M
 import qualified Data.HashMap.Lazy as HM
-import qualified Data.HashSet as S
+import qualified Data.HashSet as S hiding (empty)
 import qualified Data.Sequence as S
 import qualified Data.Text as T
 
@@ -104,6 +104,24 @@ instance Hashable CurrExpr
 -- | Gets the `Expr` represented by a state.
 getExpr :: State t -> Expr
 getExpr (State { curr_expr = CurrExpr _ e }) = e
+
+activeNames :: TypeEnv -> E.ExprEnv -> S.HashSet Name -> S.Seq Name -> S.HashSet Name
+activeNames tenv eenv explored nss
+    | n S.:< ns <- S.viewl nss =
+        let
+            explored' = S.insert n explored
+            tenv_hits = case HM.lookup n tenv of
+                Nothing -> S.empty
+                Just r -> names r
+            eenv_hits = case E.lookup n eenv of
+                Nothing -> S.empty
+                Just r -> names r
+            ns' = tenv_hits <> eenv_hits <> ns
+        in
+        if S.member n explored
+          then activeNames tenv eenv explored ns
+          else activeNames tenv eenv explored' ns'
+    | otherwise = explored
 
 -- | Tracks whether the `CurrExpr` is being evaluated, or if
 -- it is in some terminal form that is simply returned. Technically we do not
