@@ -695,12 +695,12 @@ liftSymDefAlt' s@(State {type_env = tenv, tyvar_env = tvnv}) ng mexpr aexpr cvar
         (map newPCEmpty (nmv_s':copy_states), ng'')
     -- suspection: the line below is creating a problem 
     | (Var i):_ <- unApp $ unsafeElimOuterCast mexpr
-    , isADTType (typeOf tvnv i)
+    , trace("The i is " ++ show i )isADTType (typeOf tvnv i)
     , (Var i'):_ <- unApp $ exprInCasts mexpr = -- Id with original Type
     -- the line below is the location of failure the typeOf of Nothing
         let (adt, bi) = case getCastedAlgDataTy (typeOf tvnv i) tenv of 
                             Just adt_bi -> adt_bi
-                            Nothing -> error $ "we are failling on " ++ show i' ++ " and typeOf " ++ show i' ++ " is \n " ++ show (typeOf tvnv i')
+                            Nothing -> error $ "we are failling on " ++ show i ++ " and typeOf " ++ show i' ++ " is \n " ++ show (typeOf tvnv i')
             maybeC = case mexpr of
                 (Cast _ c) -> Just c
                 _ -> Nothing

@@ -58,7 +58,7 @@ getCastedAlgDataTy' :: Name -> [Type] -> TypeEnv -> Maybe (AlgDataTy, [(Id, Type
 getCastedAlgDataTy' n ts tenv =
         case M.lookup n tenv of
             Just (NewTyCon {rep_type = TyCon n' _}) -> trace("1, n' = " ++ show n' ++ " n = " ++ show n)getCastedAlgDataTy' n' ts tenv
-            Just (NewTyCon { }) -> trace("2, n = " ++ show n ) Nothing
+            Just (NewTyCon { rep_type = t'}) -> trace("2, n = " ++ show n  ++ " \n rep_type " ++ show t') Nothing
             (Just dc@(DataTyCon { bound_ids = bi })) -> trace("3, bi = " ++ show bi)Just (dc, zip bi ts)
             _ -> trace("4, n =" ++ show n)Nothing
 
