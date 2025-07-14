@@ -384,7 +384,10 @@ testFileTests = testGroup "TestFiles"
                                                               , ("totalIndex1", 10000, [AtLeast 5])
 #endif
                                                               , ("splitAt1", 5000, [AtLeast 5])
-                                                              , ("notEq1", 5000, [AtLeast 10]) ]
+                                                              , ("notEq1", 5000, [AtLeast 10])
+
+                                                              , ("elemIndices1", 1000, [AtLeast 4])
+                                                              , ("lines1", 5000, [AtLeast 4]) ]
 
     , checkInputOutputsSMTStrings "tests/TestFiles/Strings/Strings1.hs"
                                         [ ("con", 1000, [Exactly 1])
@@ -447,7 +450,9 @@ testFileTests = testGroup "TestFiles"
                                         , ("totalIndex1", 5000, [Exactly 3])
 #endif
                                         , ("splitAt1", 5000, [Exactly 4])
-                                        , ("notEq1", 5000, [Exactly 2]) ]
+                                        , ("notEq1", 5000, [Exactly 2])
+
+                                        , ("elemIndices1", 1000, [AtLeast 4]) ]
 
     , checkExpr "tests/TestFiles/Strings/Strings1.hs" 1000 "exclaimEq"
         [AtLeast 5, RExists (\[_, _, r] -> dcHasName "True" r)]
