@@ -360,9 +360,9 @@ notEq1 s = case s /= "verylongstringverylongstringVERYLONGSTRINGVERYLONGSTRING" 
 
 elemIndices1 :: String -> Int
 elemIndices1 s
-    | [1,2,3,4] == matches = 0
-    | [1,3,5] == matches = 1
-    | [20,30] == matches = 2
+    | [1,2,3,4] <- matches = 0
+    | [1,3,5] <- matches = 1
+    | [20,30] <- matches = 2
     | otherwise = 3
     where
         matches = elemIndices 'x' s
