@@ -37,6 +37,7 @@ import G2.Language
 import qualified G2.Language.ExprEnv as E
 import qualified G2.Language.Typing as T
 import qualified G2.Language.KnownValues as KV
+import G2.Language.Simplification
 import qualified G2.Language.Stack as S
 import G2.Preprocessing.NameCleaner
 import G2.Solver hiding (Assert)
@@ -163,6 +164,10 @@ evalApp s@(State { expr_env = eenv
         ng e1 e2
     | ac@(Prim Error _) <- appCenter e1 =
         (RuleError, [newPCEmpty $ s { curr_expr = CurrExpr Return ac }], ng)
+    -- Force evaluation of the expression being quanrified over
+    | (Prim ForAllPr _) <- e1 =
+        let e2' = simplifyExprs eenv eenv e2 in
+        (RuleEvalPrimToNorm, [newPCEmpty $ s { curr_expr = CurrExpr Return (App e1 e2') }], ng)
     -- Float ticks to the top of a prim
     | Prim _ _:es <- unApp (App e1 e2)
     , ts <- concatMap getTickish es
@@ -507,7 +512,7 @@ adjustExprEnvAndPathConds kv tenv eenv ng dc dc_e mexpr params dc_args
         let 
             (eenv''', pcs, ng', _) = applyDCPC ng eenv'' new_ids (Var mexpr) dcpc
         in
-        (eenv''', pcs, ng')
+        (eenv''', pcExprToPC pcs, ng')
     | otherwise = (eenv'', [], ng)
     where
         mexpr_n = idName mexpr
@@ -578,7 +583,7 @@ createExtCond s ngen mexpr cvar (dcon, bindees, aexpr)
 
             res = s { expr_env = eenv', curr_expr = CurrExpr Evaluate aexpr'' }
         in
-        (NewPC { state = res, new_pcs = pcs, concretized = [] }, ngen'')
+        (NewPC { state = res, new_pcs = pcExprToPC pcs, concretized = [] }, ngen'')
     | otherwise = error $ "createExtCond: unsupported type" ++ "\n" ++ show (typeOf mexpr) ++ "\n" ++ show dcon
         where
             kv = known_values s
@@ -691,15 +696,20 @@ liftSymDefAlt' s@(State {type_env = tenv}) ng mexpr aexpr cvar alts
                 (Cast _ c) -> Just c
                 _ -> Nothing
             dcs = dataCon adt
+
+            -- Find DCs already accounted for by other case alts
             badDCs = mapMaybe (\alt -> case alt of
                 (Alt (DataAlt (DataCon dcn _ _ _) _) _) -> Just dcn
                 _ -> Nothing) alts
+            -- Find DCs NOT accounted for by other case alts, i.e. that would go
+            -- down the default path
             dcs' = filter (\(DataCon dcn _ _ _) -> dcn `notElem` badDCs) dcs
 
             (newId, ng') = freshId TyLitInt ng
 
-            ((s', ng''), dcs'') = L.mapAccumL (concretizeSym bi maybeC) (s, ng') dcs'
+            ((s', ng''), dcs'') = L.mapAccumL (concretizeSym bi maybeC cvar) (s,ng') dcs'
 
+            -- Create a case expression to choose on of viable DCs
             mexpr' = createCaseExpr newId (typeOf i) dcs''
             binds = [(cvar, mexpr')]
             aexpr' = liftCaseBinds binds aexpr
@@ -751,28 +761,37 @@ defAltExpr (Alt Default e:_) = Just e
 defAltExpr (_:xs) = defAltExpr xs
 
 -- | Creates and applies new symbolic variables for arguments of Data Constructor
-concretizeSym :: [(Id, Type)] -> Maybe Coercion -> (State t, NameGen) -> DataCon -> ((State t, NameGen), Expr)
--- TODO:: is it safe to ignore the universial and existential type variable?
-concretizeSym bi maybeC (s, ng) dc@(DataCon _ ts _ _) =
-    let dc' = Data dc
-        ts' = anonArgumentTypes $ PresType ts
-        ts'' = foldr (\(i, t) e -> retype i t e) ts' bi
-        (ns, ng') = freshNames (length ts'') ng
-        newParams = map (\(n, t) -> Id n t) (zip ns ts'')
-        ts2 = map snd bi
-        dc'' = mkApp $ dc' : (map Type ts2) ++ (map Var newParams)
-        dc''' = case maybeC of
-            (Just (t1 :~ t2)) -> Cast dc'' (t2 :~ t1)
-            Nothing -> dc''
-        eenv = foldr E.insertSymbolic (expr_env s) newParams
-    in ((s {expr_env = eenv} , ng'), dc''')
+concretizeSym :: [(Id, Type)] -> Maybe Coercion -> Id -> (State t, NameGen) -> DataCon -> ((State t, NameGen), ([PathCondExpr], Expr))
+concretizeSym bi maybeC binder (s@(State { known_values = kv, type_env = tenv }), ng) dc@(DataCon _ ts _ _)
+    | Just dcpcs <- HM.lookup (dcName dc) (dcpcMap kv tenv)
+    , _:ty_args <- unTyApp $ typeOf binder
+    , Just dcpc <- L.lookup ty_args dcpcs =
+        let 
+            (eenv', pcs, ng'', _) = applyDCPC ng' eenv newParams (Var binder) dcpc
+        in
+        ((s { expr_env = eenv' }, ng''), (pcs, dc''))
 
-createCaseExpr :: Id -> Type -> [Expr] -> Expr
-createCaseExpr _ _ [e] = e
+    | otherwise = ((s { expr_env = eenv }, ng'), ([], dc''))
+    where
+        ts' = foldr (\(i, t) e -> retype i t e) (anonArgumentTypes $ PresType ts) bi
+        (newParams, ng') = freshIds ts' ng
+        dc' = mkApp $ Data dc : map (Type . snd) bi ++ map Var newParams
+        dc'' = case maybeC of
+            (Just (t1 :~ t2)) -> Cast dc' (t2 :~ t1)
+            Nothing -> dc'
+        eenv = foldr E.insertSymbolic (expr_env s) newParams
+
+
+
+createCaseExpr :: Id -> Type -> [([PathCondExpr], Expr)] -> Expr
+createCaseExpr _ _ [(pc, e)] = foldr (Assume Nothing) e pc
 createCaseExpr newId t es@(_:_) =
     let
         -- We assume that PathCond restricting newId's range is added elsewhere
-        (_, alts) = bindExprToNum (\num e -> Alt (LitAlt (LitInt num)) e) es
+        (_, alts) = bindExprToNum
+                        (\num (pc, e) ->
+                            let e' = foldr (Assume Nothing) e pc in
+                            Alt (LitAlt (LitInt num)) e') es
     in Case (Var newId) newId t alts
 createCaseExpr _ _ [] = error "No exprs"
 

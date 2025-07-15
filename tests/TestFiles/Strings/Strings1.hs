@@ -357,3 +357,11 @@ notEq1 :: String -> Int
 notEq1 s = case s /= "verylongstringverylongstringVERYLONGSTRINGVERYLONGSTRING" of
                 True -> 4
                 False -> 2
+
+reverse1 :: String -> (Int, String)
+reverse1 xs
+    | length rs < 4 = (1, rs)
+    | xs == rs = (2, rs)
+    | otherwise = (3, rs)
+    where
+        rs = reverse xs

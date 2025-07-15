@@ -463,6 +463,9 @@ funcToSMT1Prim BVToNat e = BVToNatSMT (exprToSMT e)
 funcToSMT1Prim Chr e = FromCode (exprToSMT e)
 funcToSMT1Prim OrdChar e = ToCode (exprToSMT e)
 funcToSMT1Prim StrLen e = StrLenSMT (exprToSMT e)
+
+funcToSMT1Prim ForAllPr (Lam _ (Id n t) e) = ForAll (nameToStr n) (typeToSMT t) (exprToSMT e)
+
 funcToSMT1Prim err _ = error $ "funcToSMT1Prim: invalid Primitive " ++ show err
 
 funcToSMT2Prim :: Primitive -> Expr -> Expr -> SMTAST
@@ -754,7 +757,7 @@ toSolverAST (V n _) = TB.string n
 
 toSolverAST (Named x n) = "(! " <> toSolverAST x <> " :named " <> TB.string n <> ")"
 
-toSolverAST ast = error $ "toSolverAST: invalid SMTAST: " ++ show ast
+toSolverAST (ForAll n srt smt) = "(forall ((" <> TB.string n <> " " <> sortName srt <> "))" <> toSolverAST smt <> ")"
 
 -- | Converts a bit vector to a signed Int.
 -- Z3 has a bv2int function, but uses unsigned integers.
