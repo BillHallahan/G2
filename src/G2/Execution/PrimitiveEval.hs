@@ -48,7 +48,7 @@ evalPrimsSharing' eenv tenv kv a@(App _ _) =
             let
                 (eenv', es') = L.mapAccumR
                                     (\eenv_ e -> let (_, e', eenv_') = evalPrimsSharing' eenv_ tenv kv e in (eenv_', e'))
-                                    eenv es
+                                    eenv $ map (inlineVars eenv) es
                 ev = evalPrim' eenv tenv kv (p:es')
             in
             (Update, ev, eenv')

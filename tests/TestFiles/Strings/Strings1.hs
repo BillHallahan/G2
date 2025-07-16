@@ -51,10 +51,13 @@ nStringSub4 s = if stringSub4 s then "\n" ++ s else s
 strLen :: String -> (Int, Bool)
 strLen xs = let l = length xs in (l, case l > 5 of True -> False; False -> True)
 
-strLen2 :: Char -> String -> (Int, Bool)
-strLen2 c s =
-    let l = length (c:s) in
-    if l > 4 then (l, True) else (l, False)
+strLen2 :: String -> (Int, Bool)
+strLen2 s =
+    case s of
+        (c:s) ->
+            let l = length (c:s) in
+            if l > 4 then (l, True) else (l, False)
+        [] -> (1000, False)
 
 strApp :: String -> String -> Int
 strApp xs ys = case xs ++ ys of
