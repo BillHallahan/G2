@@ -391,7 +391,7 @@ testFileTests = testGroup "TestFiles"
                                         [ ("con", 1000, [Exactly 1])
                                         , ("appendEq", 1000, [Exactly 1])
                                         , ("strLen", 1000, [Exactly 2])
-                                        , ("strLen2", 1000, [Exactly 2])
+                                        , ("strLen2", 1000, [Exactly 3])
                                         , ("con2", 1000, [Exactly 3])
                                         , ("strIndex", 1000, [Exactly 4])
                                         , ("taker1", 5000, [Exactly 2])

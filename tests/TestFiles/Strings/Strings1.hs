@@ -368,8 +368,10 @@ notEq1 s = case s /= "verylongstringverylongstringVERYLONGSTRINGVERYLONGSTRING" 
 
 reverse1 :: String -> (Int, String)
 reverse1 xs
-    | length rs < 4 = (1, rs)
-    | xs == rs = (2, rs)
-    | otherwise = (3, rs)
+    | rs == "ABC" = (1, rs)
+    | rs < "ABCDEFGHIJKLMNOPQRSTUVWXYZ" = (2, rs)
+    | length rs < 7 = (3, rs)
+    | xs == rs = (4, rs)
+    | otherwise = (5, rs)
     where
         rs = reverse xs

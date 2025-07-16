@@ -91,11 +91,11 @@ translateLoaded proj src tr_con config = do
             . adjustAssertGHC f_nm
             . adjustAssume (Just "GHC.Prim") f_nm
             . adjustAssume (Just "G2.Symbolic") f_nm
-            . adjustMkSymbolicPrim "symgen" (Just "GHC.Prim") f_nm
+            . adjustMkSymbolicPrim SNoLog "symgen" (Just "GHC.Prim") f_nm
 #if MIN_VERSION_GLASGOW_HASKELL(9,6,0,0)
-            $ adjustMkSymbolicPrim "symgen_G2_INTERNAL" Nothing f_nm exg2
+            $ adjustMkSymbolicPrim SLog "symgen_G2_INTERNAL" Nothing f_nm exg2
 #else
-            $ adjustMkSymbolicPrim "symgen_G2_INTERNAL" (Just "G2.Symbolic") f_nm exg2
+            $ adjustMkSymbolicPrim SLog "symgen_G2_INTERNAL" (Just "G2.Symbolic") f_nm exg2
 #endif
 
   let merged_exg2 = mergeExtractedG2s [exg2', base_exg2]
@@ -107,13 +107,13 @@ translateLoaded proj src tr_con config = do
 
   return (mb_modname, final_exg2)
 
-adjustMkSymbolicPrim :: T.Text -> Maybe T.Text -> NameMap -> ExtractedG2 -> ExtractedG2
-adjustMkSymbolicPrim occ_n md_nm nm exg2 =
+adjustMkSymbolicPrim :: SymLog -> T.Text -> Maybe T.Text -> NameMap -> ExtractedG2 -> ExtractedG2
+adjustMkSymbolicPrim sym_log occ_n md_nm nm exg2 =
     let
         n = (occ_n, md_nm)
     in
     adjustFunction n nm exg2
-            (let a = Id (Name "a" Nothing 0 Nothing) TYPE in G2.Lam TypeL a (SymGen SLog $ TyVar a))
+            (let a = Id (Name "a" Nothing 0 Nothing) TYPE in G2.Lam TypeL a (SymGen sym_log $ TyVar a))
 
 adjustAssume :: Maybe T.Text -> NameMap -> ExtractedG2 -> ExtractedG2
 adjustAssume mdl nm exg2 =

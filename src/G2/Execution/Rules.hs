@@ -40,7 +40,6 @@ import qualified G2.Language.KnownValues as KV
 import G2.Language.Simplification
 import qualified G2.Language.Stack as S
 import G2.Preprocessing.NameCleaner
-import G2.Language.PathConds (mkAssumePC, hashedPC)
 import G2.Solver hiding (Assert)
 import Control.Monad.Extra
 import Data.Maybe
@@ -661,7 +660,7 @@ liftSymDefAlt s ng mexpr cvar as =
 
 -- | Concretize Symbolic variable to Case Expr on its possible Data Constructors
 liftSymDefAlt' :: State t -> NameGen -> Expr -> Expr -> Id -> [Alt] -> ([NewPC t], NameGen)
-liftSymDefAlt' s@(State {type_env = tenv}) ng mexpr aexpr cvar alts
+liftSymDefAlt' s@(State { type_env = tenv, known_values = kv }) ng mexpr aexpr cvar alts
     | Var i:_ <- unApp mexpr
     , TyApp (TyApp mvt realworld_ty) stored_ty <- typeOf i
     , TyCon n _ <- tyAppCenter mvt
@@ -712,7 +711,7 @@ liftSymDefAlt' s@(State {type_env = tenv}) ng mexpr aexpr cvar alts
             ((s', ng'''), dcs'') = L.mapAccumL (concretizeSym bi maybeC cvar') (s, ng'') dcs'
 
             -- Create a case expression to choose on of viable DCs
-            (mexpr', assume_pc) = createCaseExpr newId (typeOf i) dcs''
+            (mexpr', assume_pc) = createCaseExpr kv newId (typeOf i) dcs''
 
             binds = [(cvar, Var cvar')]
             aexpr' = liftCaseBinds binds aexpr
@@ -786,18 +785,23 @@ concretizeSym bi maybeC binder (s@(State { known_values = kv, type_env = tenv })
             Nothing -> dc'
         eenv = foldr E.insertSymbolic (expr_env s) newParams
 
-
-
-createCaseExpr :: Id -> Type -> [([PathCond], Expr)] -> (Expr, [PathCond])
-createCaseExpr _ _ [(pc, e)] = (e, pc)
-createCaseExpr newId t es@(_:_) =
+createCaseExpr :: KnownValues -> Id -> Type -> [([PathCond], Expr)] -> (Expr, [PathCond])
+createCaseExpr _ _ _ [(pc, e)] = (e, pc)
+createCaseExpr kv newId t es@(_:_) =
     let
         -- We assume that PathCond restricting newId's range is added elsewhere
         alts = zipWith (\num (_, e) ->
                             Alt (LitAlt (LitInt num)) e) [1..] es
-        pcs = zipWith (\num (pc, _) -> mkAssumePC newId num . HS.fromList $ map hashedPC pc) [1..] es
+        pcs = concat $ zipWith (\num (pc, _) -> map (addImp num) pc) [1..] es
     in (Case (Var newId) newId t alts, pcs)
-createCaseExpr _ _ [] = error "No exprs"
+    where
+        addImp num (ExtCond e b) =
+            ExtCond (mkApp
+                        [ mkImpliesPrim kv
+                        , mkApp [mkEqPrimInt kv, Var newId, Lit $ LitInt num]
+                        , e]) b
+        addImp _ _ = error "addImp: Unsupported path constraints"
+createCaseExpr _ _ _ [] = error "No exprs"
 
 -- | Return PathCond restricting value of `newId` to [lower, upper]
 restrictSymVal :: KnownValues -> Integer -> Integer -> Id -> PathCond

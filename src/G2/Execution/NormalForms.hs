@@ -40,7 +40,7 @@ isExprValueForm :: E.ExprEnv -> Expr -> Bool
 isExprValueForm eenv (Var var) =
     E.lookup (idName var) eenv == Nothing || E.isSymbolic (idName var) eenv
 isExprValueForm eenv (App f a) = case unApp (App f a) of
-    (Prim _ _:xs) -> all (isExprValueForm eenv) xs
+    (Prim _ _:xs) -> all (\x -> isExprValueForm eenv x || isLC x) xs
     (Data _:_) -> True
     ((Var _):_) -> False
     _ -> False
@@ -53,6 +53,10 @@ isExprValueForm _ (SymGen _ _) = False
 isExprValueForm _ (Assume _ _ _) = False
 isExprValueForm _ (Assert _ _ _) = False
 isExprValueForm _ _ = True
+
+isLC :: Expr -> Bool
+isLC (Case _ _ _ (Alt (LitAlt _) _:_)) = True
+isLC _ = False
 
 -- | Is the execution state in a value form of some sort? This would entail:
 -- * The `Stack` is empty.
