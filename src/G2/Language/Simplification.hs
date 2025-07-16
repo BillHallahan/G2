@@ -15,8 +15,6 @@ import G2.Language.Typing
 
 import Data.List
 
-import Debug.Trace
-
 simplifyExprs :: ASTContainer t Expr => E.ExprEnv -> E.ExprEnv -> t -> t
 simplifyExprs eenv c_eenv = modifyContainedASTs (simplifyExpr eenv c_eenv)
 
@@ -30,7 +28,7 @@ simplifyExpr eenv c_eenv e =
         --    . inlineFunc eenv
         --    . simplifyAppLambdas $ e
     in
-    trace ("e = " ++ show e ++ "\nb = " ++ show (e == e')) $ if e == e' then e else simplifyExpr eenv c_eenv e'
+    if e == e' then e else simplifyExpr eenv c_eenv e'
 
 -- | Reduce Lambdas that are being passed variables or values in SWHNF.
 -- This AVOIDS reducing a lamba if it could cause us to miss an opportunity for sharing.
