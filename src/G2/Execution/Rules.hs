@@ -701,31 +701,46 @@ liftSymDefAlt' s@(State { type_env = tenv, known_values = kv }) ng mexpr aexpr c
             badDCs = mapMaybe (\alt -> case alt of
                 (Alt (DataAlt (DataCon dcn _ _ _) _) _) -> Just dcn
                 _ -> Nothing) alts
-            -- Find DCs NOT accounted for by other case alts, i.e. that would go
-            -- down the default path
-            dcs' = filter (\(DataCon dcn _ _ _) -> dcn `notElem` badDCs) dcs
-
-            (newId, ng') = freshId TyLitInt ng
-            (cvar', ng'') = freshSeededId cvar (typeOf cvar) ng'
-
-            ((s', ng'''), dcs'') = L.mapAccumL (concretizeSym bi maybeC cvar') (s, ng'') dcs'
-
-            -- Create a case expression to choose on of viable DCs
-            (mexpr', assume_pc) = createCaseExpr kv newId (typeOf i) dcs''
-
-            binds = [(cvar, Var cvar')]
-            aexpr' = liftCaseBinds binds aexpr
-
-            -- add PC restricting range of values for newSymId
-            newSymConstraint = restrictSymVal (known_values s') 1 (toInteger $ length dcs'') newId
-
-            eenv' = E.insertSymbolic newId
-                  . E.insert (idName cvar') mexpr'
-                  $ E.insert (idName i') mexpr' (expr_env s')
-            s'' = s' { curr_expr = CurrExpr Evaluate aexpr'
-                     , expr_env = eenv'}
         in
-        ([NewPC { state = s'', new_pcs = newSymConstraint:assume_pc, concretized = [] }], ng''')
+        case null badDCs of
+            True ->
+                let
+                    (cvar', ng') = freshSeededId cvar (typeOf cvar) ng
+
+                    binds = [(cvar, Var cvar')]
+                    aexpr' = liftCaseBinds binds aexpr
+
+                    s' = s { curr_expr = CurrExpr Evaluate aexpr'
+                           , expr_env = E.insert (idName cvar') mexpr (expr_env s)}
+                in
+                ([NewPC { state = s', new_pcs = [], concretized = [] }], ng')
+            False ->
+                let
+                    -- Find DCs NOT accounted for by other case alts, i.e. that would go
+                    -- down the default path
+                    dcs' = filter (\(DataCon dcn _ _ _) -> dcn `notElem` badDCs) dcs
+
+                    (newId, ng') = freshId TyLitInt ng
+                    (cvar', ng'') = freshSeededId cvar (typeOf cvar) ng'
+
+                    ((s', ng'''), dcs'') = L.mapAccumL (concretizeSym bi maybeC cvar') (s, ng'') dcs'
+
+                    -- Create a case expression to choose on of viable DCs
+                    (mexpr', assume_pc) = createCaseExpr kv newId (typeOf i) dcs''
+
+                    binds = [(cvar, Var cvar')]
+                    aexpr' = liftCaseBinds binds aexpr
+
+                    -- add PC restricting range of values for newSymId
+                    newSymConstraint = restrictSymVal (known_values s') 1 (toInteger $ length dcs'') newId
+
+                    eenv' = E.insertSymbolic newId
+                        . E.insert (idName cvar') mexpr'
+                        $ E.insert (idName i') mexpr' (expr_env s')
+                    s'' = s' { curr_expr = CurrExpr Evaluate aexpr'
+                            , expr_env = eenv'}
+                in
+                ([NewPC { state = s'', new_pcs = newSymConstraint:assume_pc, concretized = [] }], ng''')
     | Prim _ _:_ <- unApp mexpr = (liftSymDefAlt'' s mexpr aexpr cvar alts, ng)
     | isPrimType (typeOf mexpr) = (liftSymDefAlt'' s mexpr aexpr cvar alts, ng)
     | TyVar _ <- (typeOf mexpr) = 
