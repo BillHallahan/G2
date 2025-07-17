@@ -1349,6 +1349,8 @@ data LimLogger =
               , conc_pc_guide :: Maybe (SomeSolver, ConcPCGuide)
               , inline_nrpc :: Bool
               , lim_output_path :: String
+              , filter_env :: Bool
+              , order_env :: EnvOrdering
               }
 
 limLoggerConfig :: FilePath -> LimLogger
@@ -1357,6 +1359,8 @@ limLoggerConfig fp = LimLogger { every_n = 0
                                , before_n = Nothing
                                , down_path = []
                                , conc_pc_guide = Nothing
+                               , filter_env = False
+                               , order_env = Unordered
                                , inline_nrpc = False
                                , lim_output_path = fp }
 
@@ -1377,6 +1381,8 @@ getLimLogger config = do
                                                          , every_n = logEveryN config
                                                          , conc_pc_guide = cpg
                                                          , down_path = logPath config
+                                                         , filter_env = logFilter config
+                                                         , order_env = if logOrder config then Ordered else Unordered     
                                                          , inline_nrpc = logInlineNRPC config }
                         NoLog -> limLoggerConfig ""
     
@@ -1415,17 +1421,27 @@ genLimLogger out_f ll@(LimLogger { after_n = aft, before_n = bfr, down_path = do
             map (\(s, i) -> s { log_path = log_path s ++ [i] }) $ zip ss [1..]
 
 limLogger :: (MonadIO m, Show t) => LimLogger -> Reducer m LLTracker t
-limLogger ll = genLimLogger (\off s b -> liftIO $ outputState (lim_output_path ll) off s b pprExecStateStr) ll
+limLogger ll@(LimLogger {filter_env = f_env}) = genLimLogger (\off s b -> liftIO $ outputState (lim_output_path ll) off (if f_env then filterStateEnv s else s) b pprExecStateStr) ll
 
 prettyLimLogger :: (MonadIO m, SM.MonadState PrettyGuide m, Show t) => LimLogger -> Reducer m LLTracker t
-prettyLimLogger ll =
-    genLimLogger (\off s b -> do
+prettyLimLogger ll@(LimLogger {filter_env = f_env, order_env = o_env}) =
+    genLimLogger (\off s@(State {}) b -> do
                 pg <- SM.get
                 let pg' = updatePrettyGuide (s { track = () }) pg
                 let s' = if inline_nrpc ll then inlineNRPC s else s
                 SM.put pg'
-                liftIO $ outputState (lim_output_path ll) off s' b (\s_ _ -> T.unpack $ prettyState pg' s_)
+                let pg'' = setEnvOrdering o_env pg'
+                let s'' = if f_env then filterStateEnv s' else s'     
+                liftIO $ outputState (lim_output_path ll) off s'' b (\s_ _ -> T.unpack $ prettyState pg'' s_)
     ) ll
+
+filterStateEnv :: State t -> State t
+filterStateEnv s@(State {curr_expr=c_expr, exec_stack=e_stack, 
+                                         expr_env=e_env, type_env=t_env}) 
+            = let initNames = names c_expr S.>< names e_stack
+                  hs = activeNames t_env e_env HS.empty initNames
+            in
+                s {expr_env = E.filterWithKey (\x _ -> HS.member x hs) e_env}
 
 inlineNRPC :: State t -> State t
 inlineNRPC s@(State { expr_env = eenv, non_red_path_conds = nrpc }) =
@@ -1437,6 +1453,7 @@ inlineNRPC s@(State { expr_env = eenv, non_red_path_conds = nrpc }) =
                                      | Just (E.Conc e@(Var _)) <- E.lookupConcOrSym n eenv = inline (HS.insert n seen) e
         inline seen (App e1 e2) = App (inline seen e1) (inline seen e2)
         inline _ e = e
+
 
 outputState :: FilePath -> [Int] -> State t -> Bindings -> (State t -> Bindings -> String) -> IO ()
 outputState dn is s b printer = do
