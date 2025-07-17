@@ -7,6 +7,37 @@ import G2.Language.Monad
 
 import Data.Traversable
 
+-- note [Cons DC]
+-- When using SMT strings, we must ensure that all strings can be represented in the
+-- SMT solver.  To do this, we make use of an adjStr function (in GHC.Prim2) which forces evaluation
+-- of a string.
+-- So we have, for instance:
+--
+--   @ xs == ys = let
+--      ...
+--      in case typeIndex# xs `adjStr` xs `adjStr` ys of
+--          1# -> strEq# xs ys
+--          ... @
+-- to force xs and ys to an SMT representable form, which can then be passed to strEq#. Note that
+-- this relies on being able to share the result of computing `xs` and `ys` between when they are forced
+-- by adjStr and when thet are used in strEq#.
+--
+-- However, suppose we have something like:
+--   @ a:as ++ bs == "hello" @
+-- What happens here is we bind:
+--      xs -> (a:as ++ bs)
+--      ys -> "hello"
+-- and adjStr does walk over xs.  However, because there is no intermediate variable in the tail
+-- of the list `a:as ++ bs`. we do not actuall getting any sharing- and so, adjStr does not have
+-- the desired effect.
+-- The solution is to rewrite cons constructors using lets to ensure that we always getting sharing.
+-- The above is rewritten to:
+--      @ let zs = as ++ bs in a:zs == "hello" @
+-- Allowing sharing to happen via `zs`.
+
+-- | Ensure that all non-trivial arguments to list cons data constructors
+-- are wrapped in arguments.
+-- See note [Cons DC]
 trivializeDCs :: NameGen -> KnownValues -> ExprEnv -> (ExprEnv, NameGen)
 trivializeDCs ng kv eenv =
     runNamingM (trivializeDCs' kv eenv) ng
