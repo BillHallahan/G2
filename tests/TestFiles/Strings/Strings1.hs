@@ -51,6 +51,11 @@ nStringSub4 s = if stringSub4 s then "\n" ++ s else s
 strLen :: String -> (Int, Bool)
 strLen xs = let l = length xs in (l, case l > 5 of True -> False; False -> True)
 
+strLen3 :: Char -> String -> (Int, Bool)
+strLen3 c s =
+    let l = length (c:s) in
+    if l > 4 then (l, True) else (l, False)
+
 strApp :: String -> String -> Int
 strApp xs ys = case xs ++ ys of
                     "Hello World!" -> 2
@@ -62,6 +67,12 @@ con2 xs ys = case xs ++ ys of
     xs@(_:_:_) -> (xs, 3)
     xs@(_:_) -> (xs, 2)
     [] -> ([], 1)
+
+con3 :: String -> (Int, String)
+con3 xs
+    | (y:ys) <- xs
+    , 'a':ys ++ ys == xs = (1, ys)
+    | otherwise = (2, xs)
 
 strIndex :: String -> (Bool, String)
 strIndex str =
