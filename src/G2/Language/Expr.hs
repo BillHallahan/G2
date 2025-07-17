@@ -618,8 +618,8 @@ stripTicks :: Expr -> Expr
 stripTicks (Tick _ e) = e
 stripTicks e = e
 
-inlineVars :: ExprEnv -> Expr -> Expr
-inlineVars = inlineVars' HS.empty
+inlineVars :: ASTContainer c Expr => ExprEnv -> c -> c
+inlineVars eenv = modifyContainedASTs (inlineVars' HS.empty eenv)
 
 inlineVars' :: HS.HashSet Name -> ExprEnv -> Expr -> Expr
 inlineVars' seen eenv (Var (Id n _))
