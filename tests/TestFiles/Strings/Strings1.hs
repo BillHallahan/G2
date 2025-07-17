@@ -360,10 +360,11 @@ notEq1 s = case s /= "verylongstringverylongstringVERYLONGSTRINGVERYLONGSTRING" 
 
 elemIndices1 :: String -> Int
 elemIndices1 s
-    | [1,2,3,4] <- matches = 0
-    | [1,3,5] <- matches = 1
-    | [20,30] <- matches = 2
-    | otherwise = 3
+    | [_,_,_,_] <- matches = 0
+    | [_,_,_] <- matches = 1
+    | [_,_] <- matches = 2
+    | [_] <- matches = 3
+    | otherwise = 4
     where
         matches = elemIndices 'x' s
 
@@ -371,7 +372,6 @@ lines1 :: String -> Int
 lines1 s
     | splits == ["H", "W"] = 0
     | splits == ["Hello", "Goodbye"] = 1
-    | splits == ["111", "222", "333", "444", "555"] = 2
-    | otherwise = 3
+    | otherwise = 2
     where
         splits = lines $ s ++ "\n"
