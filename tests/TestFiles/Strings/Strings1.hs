@@ -58,7 +58,7 @@ strLen2 s =
             let l = length (c:s) in
             if l > 4 then (l, True) else (l, False)
         [] -> (1000, False)
-
+    
 strApp :: String -> String -> Int
 strApp xs ys = case xs ++ ys of
                     "Hello World!" -> 2
