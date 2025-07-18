@@ -42,8 +42,6 @@ import G2.Language.Simplification
 import qualified G2.Language.Stack as S
 import G2.Preprocessing.NameCleaner
 import G2.Solver hiding (Assert)
-import Control.Monad.Extra
-import Data.Maybe
 import qualified Data.HashMap.Lazy as HM
 import qualified Data.HashSet as HS
 import qualified Data.List as L
@@ -52,6 +50,9 @@ import G2.Data.Utils
 import qualified G2.Data.UFMap as UF
 
 import Control.Exception
+import Control.Monad.Extra
+import Data.Maybe
+import Data.Traversable
 import Data.Int (Int)
 
 stdReduce :: (Solver solver, Simplifier simplifier) => Sharing -> SymbolicFuncEval t -> solver -> simplifier -> State t -> Bindings -> IO (Rule, [(State t, ())], Bindings)
@@ -68,13 +69,13 @@ stdReduce' share _ solver simplifier s@(State { curr_expr = CurrExpr Evaluate ce
     , share == NoSharing = return $ evalVarNoSharing s ng i
     | App e1 e2 <- ce = do
         let (r, xs, ng') = evalApp s ng e1 e2
-        xs' <- mapMaybeM (reduceNewPC solver simplifier) xs
-        return (r, xs', ng')
+        (ng'', xs') <- mapAccumMaybeM (reduceNewPC solver simplifier) ng' xs
+        return (r, xs', ng'')
     | Let b e <- ce = return $ evalLet s ng b e
     | Case e i t a <- ce = do
         let (r, xs, ng') = evalCase s ng e i t a
-        xs' <- mapMaybeM (reduceNewPC solver simplifier) xs
-        return (r, xs', ng')
+        (ng'', xs') <- mapAccumMaybeM (reduceNewPC solver simplifier) ng' xs
+        return (r, xs', ng'')
     | Cast e c <- ce = return $ evalCast s ng e c
     | Tick t e <- ce = return $ evalTick s ng t e
     | NonDet es <- ce = return $ evalNonDet s ng es
@@ -100,16 +101,16 @@ stdReduce' _ symb_func_eval solver simplifier s@(State { curr_expr = CurrExpr Re
     | Just (ApplyFrame e, stck') <- S.pop stck = return $ retApplyFrame s ng ce e stck'
     | Just (AssumeFrame e, stck') <- frstck = do
         let (r, xs, ng') = retAssumeFrame s ng ce e stck'
-        xs' <- mapMaybeM (reduceNewPC solver simplifier) xs
-        return (r, xs', ng')
+        (ng'', xs') <- mapAccumMaybeM (reduceNewPC solver simplifier) ng' xs
+        return (r, xs', ng'')
     | Just (AssertFrame ais e, stck') <- frstck = do
         let (r, xs, ng') = retAssertFrame s ng ce ais e stck'
-        xs' <- mapMaybeM (reduceNewPC solver simplifier) xs
-        return (r, xs', ng')
+        (ng'', xs') <- mapAccumMaybeM (reduceNewPC solver simplifier) ng' xs
+        return (r, xs', ng'')
     | Just (CurrExprFrame act e, stck') <- frstck = do
         let (r, xs, ng') = retCurrExpr s ce act e stck' ng
-        xs' <- mapMaybeM (reduceNewPC solver simplifier) xs
-        return (r, xs', ng')
+        (ng'', xs') <- mapAccumMaybeM (reduceNewPC solver simplifier) ng' xs
+        return (r, xs', ng'')
     | Nothing <- frstck = return (RuleIdentity, [s], ng)
     | otherwise = error $ "stdReduce': Unknown Expr" ++ show ce ++ show (S.pop stck)
         where
@@ -118,6 +119,17 @@ stdReduce' _ symb_func_eval solver simplifier s@(State { curr_expr = CurrExpr Re
             isError (Prim Error _) = True
             isError (Prim Undefined _) = True
             isError _ = False
+
+mapAccumMaybeM :: Monad m => (s -> a -> m (Maybe (s, b))) -> s -> [a] -> m (s, [b])
+mapAccumMaybeM f s xs = do
+    (s', xs') <- mapAccumM f' s xs
+    return (s', catMaybes xs')
+    where
+        f' s x = do
+            r <- f s x
+            case r of
+                Just (s', x') -> return (s', Just x')
+                Nothing -> return (s, Nothing)
 
 evalVarSharing :: State t -> NameGen -> Id -> (Rule, [State t], NameGen)
 evalVarSharing s@(State { expr_env = eenv
