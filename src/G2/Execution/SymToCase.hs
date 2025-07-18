@@ -45,7 +45,7 @@ createCaseExpr' kv newId t es@(_:_) =
                         , mkApp [mkEqPrimInt kv, Var newId, Lit $ LitInt num]
                         , e]) b
         addImp _ _ = error "addImp: Unsupported path constraints"
-createCaseExpr' _ _ _ [] = error "No exprs"
+createCaseExpr' kv _ _ [] = (Prim Undefined TyBottom, [ExtCond (mkFalse kv) True])
 
 createCaseExpr :: [(Id, Type)]
                -> Maybe Coercion
