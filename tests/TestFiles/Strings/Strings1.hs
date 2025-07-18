@@ -59,6 +59,11 @@ strLen2 s =
             if l > 4 then (l, True) else (l, False)
         [] -> (1000, False)
     
+strLen3 :: Char -> String -> (Int, Bool)
+strLen3 c s =
+    let l = length (c:s) in
+    if l > 4 then (l, True) else (l, False)
+
 strApp :: String -> String -> Int
 strApp xs ys = case xs ++ ys of
                     "Hello World!" -> 2
