@@ -33,6 +33,7 @@ import G2.Execution.NewPC
 import G2.Execution.NormalForms
 import G2.Execution.PrimitiveEval
 import G2.Execution.RuleTypes
+import G2.Execution.SymToCase
 import G2.Language
 import qualified G2.Language.ExprEnv as E
 import qualified G2.Language.Typing as T
@@ -720,27 +721,20 @@ liftSymDefAlt' s@(State { type_env = tenv, known_values = kv }) ng mexpr aexpr c
                     -- down the default path
                     dcs' = filter (\(DataCon dcn _ _ _) -> dcn `notElem` badDCs) dcs
 
-                    (newId, ng') = freshId TyLitInt ng
-                    (cvar', ng'') = freshSeededId cvar (typeOf cvar) ng'
+                    (cvar', ng') = freshSeededId cvar (typeOf cvar) ng
 
-                    ((s', ng'''), dcs'') = L.mapAccumL (concretizeSym bi maybeC cvar') (s, ng'') dcs'
-
-                    -- Create a case expression to choose on of viable DCs
-                    (mexpr', assume_pc) = createCaseExpr kv newId (typeOf i) dcs''
+                    -- -- Create a case expression to choose on of viable DCs
+                    (_, mexpr', assume_pc, eenv', ng'') = createCaseExpr bi maybeC cvar' (typeOf i) kv tenv (expr_env s) ng' dcs'
 
                     binds = [(cvar, Var cvar')]
                     aexpr' = liftCaseBinds binds aexpr
 
-                    -- add PC restricting range of values for newSymId
-                    newSymConstraint = restrictSymVal (known_values s') 1 (toInteger $ length dcs'') newId
-
-                    eenv' = E.insertSymbolic newId
-                        . E.insert (idName cvar') mexpr'
-                        $ E.insert (idName i') mexpr' (expr_env s')
-                    s'' = s' { curr_expr = CurrExpr Evaluate aexpr'
-                            , expr_env = eenv'}
+                    eenv'' = E.insert (idName cvar') mexpr'
+                           $ E.insert (idName i') mexpr' eenv'
+                    s' = s { curr_expr = CurrExpr Evaluate aexpr'
+                           , expr_env = eenv'' }
                 in
-                ([NewPC { state = s'', new_pcs = newSymConstraint:assume_pc, concretized = [] }], ng''')
+                ([NewPC { state = s', new_pcs = assume_pc, concretized = [] }], ng'')
     | Prim _ _:_ <- unApp mexpr = (liftSymDefAlt'' s mexpr aexpr cvar alts, ng)
     | isPrimType (typeOf mexpr) = (liftSymDefAlt'' s mexpr aexpr cvar alts, ng)
     | TyVar _ <- (typeOf mexpr) = 
@@ -778,52 +772,6 @@ defAltExpr :: [Alt] -> Maybe Expr
 defAltExpr [] = Nothing
 defAltExpr (Alt Default e:_) = Just e
 defAltExpr (_:xs) = defAltExpr xs
-
--- | Creates and applies new symbolic variables for arguments of Data Constructor
-concretizeSym :: [(Id, Type)] -> Maybe Coercion -> Id -> (State t, NameGen) -> DataCon -> ((State t, NameGen), ([PathCond], Expr))
-concretizeSym bi maybeC binder (s@(State { known_values = kv, type_env = tenv }), ng) dc@(DataCon _ ts _ _)
-    | Just dcpcs <- HM.lookup (dcName dc) (dcpcMap kv tenv)
-    , _:ty_args <- unTyApp $ typeOf binder
-    , Just dcpc <- L.lookup ty_args dcpcs =
-        let 
-            (eenv', pcs, ng'', _) = applyDCPC ng' eenv newParams (Var binder) dcpc
-        in
-        ((s { expr_env = eenv' }, ng''), (pcs, dc''))
-
-    | otherwise = ((s { expr_env = eenv }, ng'), ([], dc''))
-    where
-        ts' = foldr (\(i, t) e -> retype i t e) (anonArgumentTypes $ PresType ts) bi
-        (newParams, ng') = freshIds ts' ng
-        dc' = mkApp $ Data dc : map (Type . snd) bi ++ map Var newParams
-        dc'' = case maybeC of
-            (Just (t1 :~ t2)) -> Cast dc' (t2 :~ t1)
-            Nothing -> dc'
-        eenv = foldr E.insertSymbolic (expr_env s) newParams
-
-createCaseExpr :: KnownValues -> Id -> Type -> [([PathCond], Expr)] -> (Expr, [PathCond])
-createCaseExpr _ _ _ [(pc, e)] = (e, pc)
-createCaseExpr kv newId t es@(_:_) =
-    let
-        -- We assume that PathCond restricting newId's range is added elsewhere
-        alts = zipWith (\num (_, e) ->
-                            Alt (LitAlt (LitInt num)) e) [1..] es
-        pcs = concat $ zipWith (\num (pc, _) -> map (addImp num) pc) [1..] es
-    in (Case (Var newId) newId t alts, pcs)
-    where
-        addImp num (ExtCond e b) =
-            ExtCond (mkApp
-                        [ mkImpliesPrim kv
-                        , mkApp [mkEqPrimInt kv, Var newId, Lit $ LitInt num]
-                        , e]) b
-        addImp _ _ = error "addImp: Unsupported path constraints"
-createCaseExpr _ _ _ [] = error "No exprs"
-
--- | Return PathCond restricting value of `newId` to [lower, upper]
-restrictSymVal :: KnownValues -> Integer -> Integer -> Id -> PathCond
-restrictSymVal kv lower upper newId
-    | lower /= upper =
-        ExtCond (mkAndExpr kv (mkGeIntExpr kv (Var newId) lower) (mkLeIntExpr kv (Var newId) upper)) True
-    | otherwise = ExtCond (mkEqExpr kv (Var newId) (Lit $ LitInt lower)) True
 
 ----------------------------------------------------
 
