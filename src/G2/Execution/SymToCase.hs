@@ -19,7 +19,7 @@ concretizeSym bi maybeC binder kv tenv (eenv, ng) dc@(DataCon _ ts _ _)
         in
         ((eenv'', ng''), (pcs, dc''))
 
-    | otherwise = ((eenv, ng'), ([], dc''))
+    | otherwise = ((eenv', ng'), ([], dc''))
     where
         ts' = foldr (\(i, t) e -> retype i t e) (anonArgumentTypes $ PresType ts) bi
         (newParams, ng') = freshIds ts' ng
