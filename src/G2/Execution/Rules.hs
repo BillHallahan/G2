@@ -1,4 +1,5 @@
-{-# LANGUAGE OverloadedStrings,  FlexibleContexts #-}
+{-# LANGUAGE CPP, FlexibleContexts, OverloadedStrings,
+             RankNTypes, ScopedTypeVariables, TypeApplications #-}
 
 module G2.Execution.Rules ( module G2.Execution.RuleTypes
                           , Sharing (..)
@@ -54,6 +55,12 @@ import Control.Monad.Extra
 import Data.Maybe
 import Data.Traversable
 import Data.Int (Int)
+
+#if !(MIN_VERSION_base(4,18,0))
+import qualified Control.Monad.State.Lazy as CM
+import Data.Coerce
+#endif
+
 
 stdReduce :: (Solver solver, Simplifier simplifier) => Sharing -> SymbolicFuncEval t -> solver -> simplifier -> State t -> Bindings -> IO (Rule, [(State t, ())], Bindings)
 stdReduce share symb_func_eval solver simplifier s b@(Bindings {name_gen = ng}) = do
@@ -130,6 +137,44 @@ mapAccumMaybeM f s xs = do
             case r of
                 Just (s', x') -> return (s', Just x')
                 Nothing -> return (s, Nothing)
+
+#if !(MIN_VERSION_base(4,18,0))
+newtype StateT s m a = StateT { runStateT :: s -> m (s, a) }
+
+-- | /Since: 4.18.0.0/
+instance Monad m => Functor (StateT s m) where
+    fmap = liftM
+    {-# INLINE fmap #-}
+
+-- | /Since: 4.18.0.0/
+instance Monad m => Applicative (StateT s m) where
+    pure a = StateT $ \ s -> return (s, a)
+    {-# INLINE pure #-}
+    StateT mf <*> StateT mx = StateT $ \ s -> do
+        (s', f) <- mf s
+        (s'', x) <- mx s'
+        return (s'', f x)
+    {-# INLINE (<*>) #-}
+    m *> k = m >>= \_ -> k
+    {-# INLINE (*>) #-}
+
+(#.) :: Coercible b c => (b -> c) -> (a -> b) -> (a -> c)
+(#.) _f = coerce
+
+-- | /Since: 4.18.0.0/
+instance (Monad m) => Monad (StateT s m) where
+    m >>= k  = StateT $ \ s -> do
+        (s', a) <- runStateT m s
+        runStateT (k a) s'
+    {-# INLINE (>>=) #-}
+    return = pure
+
+mapAccumM
+  :: forall m t s a b. (Monad m, Traversable t)
+  => (s -> a -> m (s, b))
+  -> s -> t a -> m (s, t b)
+mapAccumM f s t = runStateT (mapM (StateT #. flip f) t) s
+#endif
 
 evalVarSharing :: State t -> NameGen -> Id -> (Rule, [State t], NameGen)
 evalVarSharing s@(State { expr_env = eenv
