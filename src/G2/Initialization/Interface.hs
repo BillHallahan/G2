@@ -53,7 +53,7 @@ runInitialization2 config s@(IT.SimpleState { IT.expr_env = eenv
         eenv7 = if quantified_smt_strings config == NoQuantifiers
                         then E.insert (strQuantifiers kv) 
                                       (Lam TermL x $ Lit (LitInt 0)) eenv6
-                        else eenv5
+                        else eenv6
 
         s' = s { IT.expr_env = eenv7
                , IT.type_env = tenv2
