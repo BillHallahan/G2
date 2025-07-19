@@ -15,6 +15,7 @@ import G2.Initialization.FpToRational
 import G2.Initialization.Handles
 import G2.Initialization.InitVarLocs
 import G2.Initialization.Types as IT
+import G2.Translation.GHC (ImportDeclQualifiedStyle(NotQualified))
 
 type MkArgTypes = IT.SimpleState -> [Type]
 
@@ -49,8 +50,12 @@ runInitialization2 config s@(IT.SimpleState { IT.expr_env = eenv
                         then E.insert (adjStr kv) 
                                       (Lam TypeL t . Lam TermL x . Lam TermL str $ Var x) eenv5
                         else eenv5
+        eenv7 = if quantified_smt_strings config == NoQuantifiers
+                        then E.insert (strQuantifiers kv) 
+                                      (Lam TermL x $ Lit (LitInt 0)) eenv6
+                        else eenv5
 
-        s' = s { IT.expr_env = eenv6
+        s' = s { IT.expr_env = eenv7
                , IT.type_env = tenv2
                , IT.name_gen = ng2
                , IT.handles = hs

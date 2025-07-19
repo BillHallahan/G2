@@ -448,6 +448,7 @@ fakeKnownValues =
 
     , typeIndex = Name "" Nothing 0 Nothing
     , adjStr = Name "" Nothing 0 Nothing
+    , strQuantifiers = Name "" Nothing 0 Nothing
 
     , errorFunc = Name "" Nothing 0 Nothing
     , errorWithoutStackTraceFunc = Name "" Nothing 0 Nothing
