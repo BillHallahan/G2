@@ -7,6 +7,7 @@ module G2.Language.Simplification ( simplifyExprs
                                   , inlineFunc
                                   , inlineFuncInCase) where
 
+import G2.Execution.NormalForms
 import G2.Language.AST
 import G2.Language.Expr
 import qualified G2.Language.ExprEnv as E
@@ -22,7 +23,7 @@ simplifyExpr :: E.ExprEnv -> E.ExprEnv -> Expr -> Expr
 simplifyExpr eenv c_eenv e =
     let
         e' = inlineFunc eenv
-           . simplifyDefCase
+           . simplifyDefCase eenv
            . simplifyAppLambdas $ e
         -- e' = caseOfKnownCons
         --    . inlineFuncInCase c_eenv
@@ -49,10 +50,10 @@ safeToInline e@(App _ _) | Data _:_ <- unApp e = True
 safeToInline e@(App _ _) | Prim _ _:_ <- unApp e = True
 safeToInline _ = False
 
-simplifyDefCase :: Expr -> Expr
-simplifyDefCase (Case e i _ [Alt Default e']) =
-    simplifyDefCase $ replaceVar (idName i) e e'
-simplifyDefCase e = modifyChildren simplifyDefCase e
+simplifyDefCase :: E.ExprEnv -> Expr -> Expr
+simplifyDefCase eenv (Case e i _ [Alt Default e']) | isExprValueForm eenv e =
+    simplifyDefCase eenv $ replaceVar (idName i) e e'
+simplifyDefCase eenv e = modifyChildren (simplifyDefCase eenv) e
 
 -- | Inline the functions in the ExprEnv
 inlineFunc :: E.ExprEnv -> Expr -> Expr
