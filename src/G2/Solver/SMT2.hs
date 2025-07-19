@@ -10,7 +10,7 @@
 {-# LANGUAGE RankNTypes #-}
 
 module G2.Solver.SMT2 ( Z3
-                      , CVC4
+                      , CVC5
                       , SomeSMTSolver (..)
                       , getZ3
                       , getSMT
@@ -37,7 +37,7 @@ import System.Process
 type PrintSMT = Bool
 
 data Z3 = Z3 PrintSMT ArbValueFunc (Handle, Handle, ProcessHandle)
-data CVC4 = CVC4 PrintSMT ArbValueFunc (Handle, Handle, ProcessHandle)
+data CVC5 = CVC5 PrintSMT ArbValueFunc (Handle, Handle, ProcessHandle)
 
 data SomeSMTSolver where
     SomeSMTSolver :: forall con
@@ -48,9 +48,9 @@ instance Solver Z3 where
     solve con@(Z3 _ avf _) = checkModelPC avf con
     close = closeIO
 
-instance Solver CVC4 where
+instance Solver CVC5 where
     check solver _ pc = checkConstraintsPC solver pc
-    solve con@(CVC4 _ avf _) = checkModelPC avf con
+    solve con@(CVC5 _ avf _) = checkModelPC avf con
     close = closeIO
 
 getIOZ3 :: Z3 -> (Handle, Handle, ProcessHandle)
@@ -177,34 +177,34 @@ instance SMTConverter Z3 where
         let (h_in, _, _) = getIOZ3 con
         T.hPutStrLn h_in "(pop)"
 
-getIOCVC4 :: CVC4 -> (Handle, Handle, ProcessHandle)
-getIOCVC4 (CVC4 _ _ hhp) = hhp
+getIOCVC5 :: CVC5 -> (Handle, Handle, ProcessHandle)
+getIOCVC5 (CVC5 _ _ hhp) = hhp
 
-instance SMTConverter CVC4 where
-    closeIO (CVC4 _ _ (h_in, h_out, ph)) = do
+instance SMTConverter CVC5 where
+    closeIO (CVC5 _ _ (h_in, h_out, ph)) = do
         hPutStrLn h_in "(exit)"
         _ <- waitForProcess ph
         hClose h_in
         hClose h_out
 
     reset con = do
-        let (h_in, _, _) = getIOCVC4 con
+        let (h_in, _, _) = getIOCVC5 con
         T.hPutStr h_in "(reset)"
 
     checkSatInstr con = do
-        let (h_in, _, _) = getIOCVC4 con
+        let (h_in, _, _) = getIOCVC5 con
         T.hPutStrLn h_in "(check-sat)"
 
     maybeCheckSatResult con = do
-        let (_, h_out, _) = getIOCVC4 con
+        let (_, h_out, _) = getIOCVC5 con
         r <- hReady h_out
         case r of
             True -> return . Just =<< checkSatReadResult h_out
             False -> return Nothing
 
     getModelInstrResult con vs = do
-        let (h_in, h_out, _) = getIOCVC4 con
-        mdl <- getModelCVC4 h_in h_out vs
+        let (h_in, h_out, _) = getIOCVC5 con
+        mdl <- getModelCVC5 h_in h_out vs
         -- putStrLn "======"
         -- putStrLn (show mdl)
         let m = parseModel mdl
@@ -213,18 +213,18 @@ instance SMTConverter CVC4 where
         return m
 
     getUnsatCoreInstrResult con = do
-        let (h_in, h_out, _) = getIOCVC4 con
-        uc <- getUnsatCoreCVC4 h_in h_out
+        let (h_in, h_out, _) = getIOCVC5 con
+        uc <- getUnsatCoreCVC5 h_in h_out
         return (HS.fromList uc)
 
     setProduceUnsatCores _ = return ()
 
     addFormula con form = do
-        let (h_in, _, _) = getIOCVC4 con
+        let (h_in, _, _) = getIOCVC5 con
         T.hPutStrLn h_in (TB.run $ toSolverText form)
 
-    checkSatNoReset con@(CVC4 print_smt _ _) formula = do
-        let (h_in, h_out, _) = getIOCVC4 con
+    checkSatNoReset con@(CVC5 print_smt _ _) formula = do
+        let (h_in, h_out, _) = getIOCVC5 con
         when print_smt $ do
             putStrLn "checkSat"
             T.putStrLn (TB.run $ toSolverText formula)
@@ -236,9 +236,9 @@ instance SMTConverter CVC4 where
 
         return r
 
-    checkSatGetModel con@(CVC4 print_smt _ _) formula vs = do
-        let (h_in, h_out, _) = getIOCVC4 con
-        setUpFormulaCVC4 h_in (TB.run $ toSolverText formula)
+    checkSatGetModel con@(CVC5 print_smt _ _) formula vs = do
+        let (h_in, h_out, _) = getIOCVC5 con
+        setUpFormulaCVC5 h_in (TB.run $ toSolverText formula)
         when print_smt $ do
             putStrLn "checkSatGetModel"
             T.putStrLn (TB.run $ toSolverText formula)
@@ -246,7 +246,7 @@ instance SMTConverter CVC4 where
         when print_smt (putStrLn $ "r =  " ++ show r)
         case r of
             SAT _ -> do
-                mdl <- getModelCVC4 h_in h_out vs
+                mdl <- getModelCVC5 h_in h_out vs
                 -- putStrLn "======"
                 -- putStrLn (show mdl)
                 let m = parseModel mdl
@@ -257,7 +257,7 @@ instance SMTConverter CVC4 where
             Unknown s _ -> return $ Unknown s ()
 
     checkSatGetModelOrUnsatCoreNoReset con formula vs = do
-        let (h_in, h_out, _) = getIOCVC4 con
+        let (h_in, h_out, _) = getIOCVC5 con
         let formula' = TB.run $ toSolverText formula
         T.putStrLn "\n\n checkSatGetModelOrUnsatCore"
         T.putStrLn formula'
@@ -266,7 +266,7 @@ instance SMTConverter CVC4 where
         r <- checkSat' h_in h_out
         putStrLn $ "r =  " ++ show r
         if r == SAT () then do
-            mdl <- getModelCVC4 h_in h_out vs
+            mdl <- getModelCVC5 h_in h_out vs
             -- putStrLn "======"
             -- putStrLn $ "r = " ++ show r
             -- putStrLn $ "mdl = " ++ show mdl
@@ -276,17 +276,17 @@ instance SMTConverter CVC4 where
             -- putStrLn "======"
             return (SAT m)
         else if r == UNSAT () then do
-            uc <- getUnsatCoreCVC4 h_in h_out
+            uc <- getUnsatCoreCVC5 h_in h_out
             return (UNSAT $ HS.fromList uc)
         else do
             return (Unknown "" ())
 
     push con = do
-        let (h_in, _, _) = getIOCVC4 con
+        let (h_in, _, _) = getIOCVC5 con
         T.hPutStrLn h_in "(push)"
 
     pop con = do
-        let (h_in, _, _) = getIOCVC4 con
+        let (h_in, _, _) = getIOCVC5 con
         T.hPutStrLn h_in "(pop)"
 
 -- | getProcessHandles
@@ -322,9 +322,9 @@ getSMTAV :: ArbValueFunc -> Config -> IO SomeSMTSolver
 getSMTAV avf (Config { smt = ConZ3, print_smt = pr }) = do
     hhp <- getZ3ProcessHandles 10000
     return $ SomeSMTSolver (Z3 pr avf hhp)
-getSMTAV avf (Config { smt = ConCVC4, print_smt = pr }) = do
-    hhp <- getCVC4ProcessHandles
-    return $ SomeSMTSolver (CVC4 pr avf hhp)
+getSMTAV avf (Config { smt = ConCVC5, print_smt = pr }) = do
+    hhp <- getCVC5ProcessHandles
+    return $ SomeSMTSolver (CVC5 pr avf hhp)
 
 -- | getZ3ProcessHandles
 -- This calls Z3, and get's it running in command line mode.  Then you can read/write on the
@@ -334,8 +334,8 @@ getSMTAV avf (Config { smt = ConCVC4, print_smt = pr }) = do
 getZ3ProcessHandles :: Int -> IO (Handle, Handle, ProcessHandle)
 getZ3ProcessHandles time_out = getProcessHandles $ proc "z3" ["-smt2", "-in", "-t:" ++ show time_out]
 
-getCVC4ProcessHandles :: IO (Handle, Handle, ProcessHandle)
-getCVC4ProcessHandles = getProcessHandles $ proc "cvc4" ["--lang", "smt2.6", "--produce-models", "--produce-unsat-cores"]
+getCVC5ProcessHandles :: IO (Handle, Handle, ProcessHandle)
+getCVC5ProcessHandles = getProcessHandles $ proc "cvc5" ["--lang", "smt2.6", "--produce-models", "--produce-unsat-cores"]
 
 -- | setUpFormulaZ3
 -- Writes a function to Z3
@@ -344,8 +344,8 @@ setUpFormulaZ3 h_in form = do
     T.hPutStr h_in "(reset)"
     T.hPutStr h_in form
 
-setUpFormulaCVC4 :: Handle -> T.Text -> IO ()
-setUpFormulaCVC4 h_in form = do
+setUpFormulaCVC5 :: Handle -> T.Text -> IO ()
+setUpFormulaCVC5 h_in form = do
     T.hPutStr h_in "(reset)"
     -- hPutStr h_in "(set-logic ALL)\n"
     T.hPutStr h_in form
@@ -409,8 +409,8 @@ getUnsatCoreZ3 h_in h_out = do
         "error":_ -> error "getUnsatCoreZ3: Error producing unsat core"
         w -> return w
 
-getUnsatCoreCVC4 :: Handle -> Handle -> IO [SMTName]
-getUnsatCoreCVC4 h_in h_out = do
+getUnsatCoreCVC5 :: Handle -> Handle -> IO [SMTName]
+getUnsatCoreCVC5 h_in h_out = do
     hPutStr h_in "(get-unsat-core)\n"
     _ <- hWaitForInput h_out (-1)
     -- Read in the opening bracket
@@ -428,8 +428,8 @@ getUnsatCoreCVC4 h_in h_out = do
                 ")" -> return []
                 _ -> return . (:) core =<< getCore
 
-getModelCVC4 :: Handle -> Handle -> [(SMTName, Sort)] -> IO [(SMTName, String, Sort)]
-getModelCVC4 h_in h_out ns = do
+getModelCVC5 :: Handle -> Handle -> [(SMTName, Sort)] -> IO [(SMTName, String, Sort)]
+getModelCVC5 h_in h_out ns = do
     getModel' ns
     where
         getModel' :: [(SMTName, Sort)] -> IO [(SMTName, String, Sort)]

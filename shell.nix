@@ -5,10 +5,10 @@
 # remove all files related to cabal and run nix-shell again
 
 pkgs.mkShell {
-  nativeBuildInputs = with pkgs.buildPackages; [ 
+  nativeBuildInputs = with pkgs.buildPackages; [
     cabal-install
     z3
-    cvc4
+    cvc5
     ghc
     git
   ];

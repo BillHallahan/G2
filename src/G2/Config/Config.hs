@@ -48,7 +48,7 @@ data InstTV = InstBefore | InstAfter deriving (Eq, Show, Read)
 -- Determining whether we want to show more type informations
 data ShowType = Lax | Aggressive deriving (Eq, Show, Read)
 
-data SMTSolver = ConZ3 | ConCVC4 deriving (Eq, Show, Read)
+data SMTSolver = ConZ3 | ConCVC5 deriving (Eq, Show, Read)
 
 data SearchStrategy = Iterative | Subpath deriving (Eq, Show, Read)
 
@@ -271,12 +271,12 @@ mkSMTSolver :: Parser SMTSolver
 mkSMTSolver =
     option (eitherReader (\s -> case s of
                                     "z3" -> Right ConZ3
-                                    "cvc4" -> Right ConCVC4
+                                    "cvc5" -> Right ConCVC5
                                     _ -> Left "Unsupported SMT solver"))
             ( long "smt"
             <> metavar "SMT-SOLVER"
             <> value ConZ3
-            <> help "either z3 or cvc4, to select the solver to use")
+            <> help "either z3 or cvc5, to select the solver to use")
 
 mkSearchStrategy :: Parser SearchStrategy
 mkSearchStrategy =
@@ -372,7 +372,7 @@ smtSolverArg = smtSolverArg' . map toLower
 
 smtSolverArg' :: String -> SMTSolver
 smtSolverArg' "z3" = ConZ3
-smtSolverArg' "cvc4" = ConCVC4
+smtSolverArg' "cvc5" = ConCVC5
 smtSolverArg' _ = error "Unrecognized SMT solver."
 
 higherOrderSolArg :: String -> HigherOrderSolver
