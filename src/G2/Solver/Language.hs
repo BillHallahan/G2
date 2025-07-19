@@ -155,6 +155,8 @@ data SMTAST = (:>=) !SMTAST !SMTAST
             | RealToDouble !SMTAST -- ^ Real to Double
 
             | Named !SMTAST SMTName -- ^ Name a piece of the SMTAST, allowing it to be returned in unsat cores
+
+            | ForAll SMTName Sort !SMTAST
             deriving (Show, Eq)
 
 -- | Every `SMTAST` has a `Sort`

@@ -33,7 +33,8 @@ import qualified Data.Bits as Bits
 import qualified Data.HashMap.Lazy as HM
 import qualified Data.HashSet as HS
 import qualified Data.Map as M
-import Data.Monoid
+import Data.Maybe
+import Data.Monoid hiding (Alt)
 import Data.Ratio
 import qualified Data.Text as T
 import GHC.Float
@@ -415,6 +416,18 @@ exprToSMT a@(App _ _) =
         getArgs :: Expr -> [Expr]
         getArgs (App a1 a2) = getArgs a1 ++ [a2]
         getArgs _ = []
+exprToSMT (Case bindee _ _ as)
+    | m_ls <- map fromLitAlt as
+    , all isJust m_ls
+    , ((_, init_e):ls) <- catMaybes m_ls =
+        let
+            bindee' = exprToSMT bindee
+        in
+        foldr (\(i, e) -> IteSMT (bindee' := VInt i) (exprToSMT e)) (exprToSMT init_e) ls
+    where
+        fromLitAlt (Alt (LitAlt (LitInt i)) e) = Just (i, e)
+        fromLitAlt _ = Nothing
+
 exprToSMT e = error $ "exprToSMT: unhandled Expr: " ++ show e
 
 -- | We split based on whether the passed Expr is a function or known data constructor, or an unknown data constructor
@@ -463,6 +476,9 @@ funcToSMT1Prim BVToNat e = BVToNatSMT (exprToSMT e)
 funcToSMT1Prim Chr e = FromCode (exprToSMT e)
 funcToSMT1Prim OrdChar e = ToCode (exprToSMT e)
 funcToSMT1Prim StrLen e = StrLenSMT (exprToSMT e)
+
+funcToSMT1Prim ForAllPr (Lam _ (Id n t) e) = ForAll (nameToStr n) (typeToSMT t) (exprToSMT e)
+
 funcToSMT1Prim err _ = error $ "funcToSMT1Prim: invalid Primitive " ++ show err
 
 funcToSMT2Prim :: Primitive -> Expr -> Expr -> SMTAST
@@ -754,7 +770,7 @@ toSolverAST (V n _) = TB.string n
 
 toSolverAST (Named x n) = "(! " <> toSolverAST x <> " :named " <> TB.string n <> ")"
 
-toSolverAST ast = error $ "toSolverAST: invalid SMTAST: " ++ show ast
+toSolverAST (ForAll n srt smt) = "(forall ((" <> TB.string n <> " " <> sortName srt <> "))" <> toSolverAST smt <> ")"
 
 -- | Converts a bit vector to a signed Int.
 -- Z3 has a bv2int function, but uses unsigned integers.

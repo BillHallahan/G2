@@ -106,6 +106,7 @@ data KnownValues = KnownValues {
 
                  , typeIndex :: Name
                  , adjStr :: Name
+                 , strQuantifiers :: Name
 
                  -- Useful functions
                  , errorFunc :: Name

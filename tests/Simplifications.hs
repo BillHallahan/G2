@@ -2,6 +2,7 @@
 
 module Simplifications (simplificationTests) where
 
+import qualified G2.Language.ExprEnv as E
 import G2.Language.Simplification
 import G2.Language.Syntax
 
@@ -25,7 +26,7 @@ simplifyAppLambdasTest1 =
                 $ App (Var id1) (Var id2)
         e = App (App le (Var id3)) (Var id4)
     in
-    simplifyAppLambdas e == App (Var id3) (Var id4)
+    simplifyExprs E.empty E.empty e == App (Var id3) (Var id4)
 
 
 simplifyAppLambdasTest2 :: Bool

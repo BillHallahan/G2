@@ -282,7 +282,10 @@ data Primitive = -- Mathematical and logical operators
                -- Errors
                | Error
                | Undefined
-               
+
+               -- Quantifiers- use a lambda to represent bound variable
+               | ForAllPr
+
                -- Unspecified Output- when we want to calculate input values that lead to a specific point,
                -- and then don't want to actually follow through on calculating the output value
                | UnspecifiedOutput

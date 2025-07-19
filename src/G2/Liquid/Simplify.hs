@@ -6,7 +6,6 @@ module G2.Liquid.Simplify ( simplify
 
 import G2.Language
 import qualified G2.Language.ExprEnv as E
-import qualified G2.Language.Simplification as GSimp
 import G2.Language.Monad
 import G2.Liquid.Types
 
@@ -26,16 +25,16 @@ simplify = do
 
     in_eenv <- inlineEnv
     in_case_env <- inlineInCaseEnv
-    mapAssumptionsM (return . GSimp.simplifyExprs in_eenv in_case_env)
-    mapPostM (return . GSimp.simplifyExprs in_eenv in_case_env)
-    mapE (GSimp.simplifyExprs in_eenv in_case_env)
-    mapMeasuresM (return . GSimp.simplifyExprs in_eenv in_case_env)
+    mapAssumptionsM (return . simplifyExprs in_eenv in_case_env)
+    mapPostM (return . simplifyExprs in_eenv in_case_env)
+    mapE (simplifyExprs in_eenv in_case_env)
+    mapMeasuresM (return . simplifyExprs in_eenv in_case_env)
 
 furtherSimplifyCurrExpr :: LHStateM ()
 furtherSimplifyCurrExpr = do
     in_eenv <- inlineEnv
     in_case_env <- inlineInCaseEnv
-    mapCurrExpr (return . GSimp.simplifyExprs in_eenv in_case_env)
+    mapCurrExpr (return . simplifyExprs in_eenv in_case_env)
 
 simplifyExprEnv :: LHStateM ()
 simplifyExprEnv = mapME simplifyExpr
@@ -198,3 +197,35 @@ specFuncs = HS.fromList [ ("+", Just "GHC.Num")
 
                         , ("$", Just "GHC.Base")]
 
+simplifyExprs :: ASTContainer t Expr => E.ExprEnv -> E.ExprEnv -> t -> t
+simplifyExprs eenv c_eenv = modifyContainedASTs (simplifyAL eenv c_eenv)
+
+simplifyAL :: E.ExprEnv -> E.ExprEnv -> Expr -> Expr
+simplifyAL eenv c_eenv e =
+    let
+        e' = simplifyAppLambdas $ e
+    in
+    if e == e' then e else simplifyAL eenv c_eenv e'
+
+-- | Reduce Lambdas that are being passed variables or values in SWHNF.
+-- This AVOIDS reducing a lamba if it could cause us to miss an opportunity for sharing.
+simplifyAppLambdas :: Expr -> Expr
+simplifyAppLambdas (App (Lam TermL i e) e')
+    | safeToInline e' = simplifyAppLambdas $ replaceVar (idName i) e' e
+simplifyAppLambdas (App (Lam TypeL i e) (Var i')) =
+    simplifyAppLambdas $ retype i (TyVar i') e
+simplifyAppLambdas (App (Lam TypeL i e) (Type t)) =
+    simplifyAppLambdas $ retype i t e
+simplifyAppLambdas e@(App (App _ _) _) =
+    let
+        e' = modifyChildren simplifyAppLambdas e
+    in
+    if e == e' then e else simplifyAppLambdas e'
+simplifyAppLambdas e = modifyChildren simplifyAppLambdas e
+
+safeToInline :: Expr -> Bool
+safeToInline (Var _) = True
+safeToInline (Lit _) = True
+safeToInline e@(App _ _) | Data _:_ <- unApp e = True
+safeToInline e@(App _ _) | Prim _ _:_ <- unApp e = True
+safeToInline _ = False
