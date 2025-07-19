@@ -22,6 +22,7 @@ simplifyExpr :: E.ExprEnv -> E.ExprEnv -> Expr -> Expr
 simplifyExpr eenv c_eenv e =
     let
         e' = inlineFunc eenv
+           . simplifyDefCase
            . simplifyAppLambdas $ e
         -- e' = caseOfKnownCons
         --    . inlineFuncInCase c_eenv
@@ -39,11 +40,6 @@ simplifyAppLambdas (App (Lam TypeL i e) (Var i')) =
     simplifyAppLambdas $ retype i (TyVar i') e
 simplifyAppLambdas (App (Lam TypeL i e) (Type t)) =
     simplifyAppLambdas $ retype i t e
--- simplifyAppLambdas e@(App (App _ _) _) =
---     let
---         e' = modifyChildren simplifyAppLambdas e
---     in
---     if e == e' then e else simplifyAppLambdas e'
 simplifyAppLambdas e = modifyChildren simplifyAppLambdas e
 
 safeToInline :: Expr -> Bool
@@ -52,6 +48,11 @@ safeToInline (Lit _) = True
 safeToInline e@(App _ _) | Data _:_ <- unApp e = True
 safeToInline e@(App _ _) | Prim _ _:_ <- unApp e = True
 safeToInline _ = False
+
+simplifyDefCase :: Expr -> Expr
+simplifyDefCase (Case e i _ [Alt Default e']) =
+    simplifyDefCase $ replaceVar (idName i) e e'
+simplifyDefCase e = modifyChildren simplifyDefCase e
 
 -- | Inline the functions in the ExprEnv
 inlineFunc :: E.ExprEnv -> Expr -> Expr
