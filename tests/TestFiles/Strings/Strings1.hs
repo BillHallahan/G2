@@ -76,6 +76,12 @@ con2 xs ys = case xs ++ ys of
     xs@(_:_) -> (xs, 2)
     [] -> ([], 1)
 
+con3 :: String -> (Int, String)
+con3 xs
+    | (y:ys) <- xs
+    , 'a':ys ++ ys == xs = (1, ys)
+    | otherwise = (2, xs)
+
 strIndex :: String -> (Bool, String)
 strIndex str =
     case str !! 50 of
