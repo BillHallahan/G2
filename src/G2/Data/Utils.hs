@@ -1,3 +1,5 @@
+{-# LANGUAGE CPP, TypeApplications, ScopedTypeVariables #-}
+
 module G2.Data.Utils ( uncurry3
                      , uncurry4
 
@@ -6,7 +8,18 @@ module G2.Data.Utils ( uncurry3
                      , thd4
                      , fth4
                      
-                     , (==>)) where
+                     , (==>)
+                     
+#if !(MIN_VERSION_base(4,18,0))
+                     , mapAccumM
+#endif
+
+                     ) where
+
+#if !(MIN_VERSION_base(4,18,0))
+import qualified Control.Monad.State.Lazy as CM
+import Data.Coerce
+#endif
 
 -- * Tuples
 
@@ -34,3 +47,41 @@ infixr 1 ==>
 (==>) :: Bool -> Bool -> Bool
 True ==> False = False
 _ ==> _ = True
+
+#if !(MIN_VERSION_base(4,18,0))
+newtype StateT s m a = StateT { runStateT :: s -> m (s, a) }
+
+-- | /Since: 4.18.0.0/
+instance Monad m => Functor (StateT s m) where
+    fmap = liftM
+    {-# INLINE fmap #-}
+
+-- | /Since: 4.18.0.0/
+instance Monad m => Applicative (StateT s m) where
+    pure a = StateT $ \ s -> return (s, a)
+    {-# INLINE pure #-}
+    StateT mf <*> StateT mx = StateT $ \ s -> do
+        (s', f) <- mf s
+        (s'', x) <- mx s'
+        return (s'', f x)
+    {-# INLINE (<*>) #-}
+    m *> k = m >>= \_ -> k
+    {-# INLINE (*>) #-}
+
+(#.) :: Coercible b c => (b -> c) -> (a -> b) -> (a -> c)
+(#.) _f = coerce
+
+-- | /Since: 4.18.0.0/
+instance (Monad m) => Monad (StateT s m) where
+    m >>= k  = StateT $ \ s -> do
+        (s', a) <- runStateT m s
+        runStateT (k a) s'
+    {-# INLINE (>>=) #-}
+    return = pure
+
+mapAccumM
+  :: forall m t s a b. (Monad m, Traversable t)
+  => (s -> a -> m (s, b))
+  -> s -> t a -> m (s, t b)
+mapAccumM f s t = runStateT (mapM (StateT #. flip f) t) s
+#endif
