@@ -340,7 +340,7 @@ testFileTests = testGroup "TestFiles"
 
     , checkInputOutputs "tests/TestFiles/Strings/Strings1.hs" [ ("con", 400, [AtLeast 10])
                                                               , ("con2", 600, [AtLeast 10])
-                                                              , ("con3", 400, [AtLeast 10])
+                                                              , ("con3", 1000, [AtLeast 10])
                                                               , ("eq", 700, [AtLeast 10])
                                                               , ("eqGt1", 700, [AtLeast 10])
                                                               , ("capABC", 100, [AtLeast 10])
