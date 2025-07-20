@@ -53,7 +53,7 @@ newtype StateT s m a = StateT { runStateT :: s -> m (s, a) }
 
 -- | /Since: 4.18.0.0/
 instance Monad m => Functor (StateT s m) where
-    fmap = liftM
+    fmap = CM.liftM
     {-# INLINE fmap #-}
 
 -- | /Since: 4.18.0.0/
