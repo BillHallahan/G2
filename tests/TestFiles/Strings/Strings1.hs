@@ -78,6 +78,7 @@ con2 xs ys = case xs ++ ys of
 
 con3 :: String -> (Int, String)
 con3 xs
+    | [] <- xs = (0, xs)
     | (y:ys) <- xs
     , 'a':ys ++ ys == xs = (1, ys)
     | otherwise = (2, xs)

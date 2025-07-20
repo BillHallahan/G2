@@ -339,7 +339,7 @@ testFileTests = testGroup "TestFiles"
     , checkExprAssume "tests/TestFiles/Subseq.hs" 1200 (Just "assume") "subseqTest" [AtLeast 1]
 
     , checkInputOutputs "tests/TestFiles/Strings/Strings1.hs" [ ("con", 400, [AtLeast 10])
-                                                              , ("con2", 400, [AtLeast 10])
+                                                              , ("con2", 600, [AtLeast 10])
                                                               , ("con3", 400, [AtLeast 10])
                                                               , ("eq", 700, [AtLeast 10])
                                                               , ("eqGt1", 700, [AtLeast 10])
@@ -398,7 +398,7 @@ testFileTests = testGroup "TestFiles"
                                         , ("strLen2", 1000, [Exactly 3])
                                         , ("strLen3", 1000, [Exactly 2])
                                         , ("con2", 1000, [Exactly 3])
-                                        , ("con3", 1000, [Exactly 2])
+                                        , ("con3", 1000, [Exactly 3])
                                         , ("strIndex", 1000, [Exactly 4])
                                         , ("taker1", 5000, [Exactly 2])
                                         , ("taker2", 5000, [Exactly 2])

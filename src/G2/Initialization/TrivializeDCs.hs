@@ -64,6 +64,13 @@ trivializeDCs' kv = E.mapM (modifyM go)
             where
                 isSimple (Var _) = True
                 isSimple (Lit _) = True
+                isSimple (Data _) = True
+                -- If we have a data constructor application where are arguments are also simple, no need to evaluate.
+                -- We do need to evaluate variable (function) applications, even of simple variables.
+                --
+                --   (:) 1 []    -- OK!
+                --   (++) [] []  -- Must evaluate!
+                isSimple (App e1 e2) | Data _:_ <- unApp e1 = isSimple e1 && isSimple e2
                 isSimple (Prim _ _) = True
                 isSimple (Type _) = True
                 isSimple _ = False
