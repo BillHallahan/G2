@@ -381,7 +381,7 @@ testFileTests = testGroup "TestFiles"
                                                               , ("genericDrop1", 1000, [AtLeast 5])
                                                               , ("genericSplitAt1", 2000, [AtLeast 10])
                                                               , ("genericIndex1", 2000, [AtLeast 10])
-
+                                                              , ("genericReplicate1", 4000, [AtLeast 5])
 #if MIN_VERSION_base(4,19,0)
                                                               , ("unsnoc1", 1000, [AtLeast 5])
                                                               , ("unsnoc2", 1000, [AtLeast 5])
@@ -439,7 +439,7 @@ testFileTests = testGroup "TestFiles"
                                         , ("genericDrop1", 5000, [Exactly 3])
                                         , ("genericSplitAt1", 5000, [Exactly 4])
                                         , ("genericIndex1", 5000, [Exactly 4])
-                                        , ("genericReplicate1", 1000, [AtLeast 5])
+                                        , ("genericReplicate1", 1000, [Exactly 2])
 
                                         , ("bigString", 1000, [Exactly 2])
 

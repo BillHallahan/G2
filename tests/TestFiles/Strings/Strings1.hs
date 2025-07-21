@@ -316,8 +316,12 @@ genericIndex1 xs n
         chr = xs `genericIndex` (n + 1)
 
 -- This doesn't lessen outputs, it only tests whether genericReplicate works with SMT Strings
-genericReplicate1 :: Integer -> Char -> String
-genericReplicate1 = genericReplicate
+genericReplicate1 :: Integer -> Char -> (String, Int)
+genericReplicate1 n c
+    | length rs > 7 = (rs, 1)
+    | otherwise = (rs, 2)
+    where
+        rs = genericReplicate n c
 
 -- This usually hits the solver outputting a delete character
 bigString :: String -> Int
