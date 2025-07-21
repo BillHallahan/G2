@@ -40,7 +40,7 @@ isExprValueForm :: E.ExprEnv -> Expr -> Bool
 isExprValueForm eenv (Var var) =
     E.lookup (idName var) eenv == Nothing || E.isSymbolic (idName var) eenv
 isExprValueForm eenv (App f a) = case unApp (App f a) of
-    (Prim _ _:xs) -> all (\x -> isExprValueForm eenv x) xs
+    (Prim _ _:xs) -> all (isExprValueForm eenv) xs
     (Data _:_) -> True
     ((Var _):_) -> False
     _ -> False
