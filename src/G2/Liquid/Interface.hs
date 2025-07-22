@@ -643,16 +643,6 @@ parseLHOut entry (ExecRes { final_state = s
            , violating = viFunc
            , abstracted = abstr}
 
-inlineVars :: ASTContainer t Expr => ExprEnv -> t -> t
-inlineVars eenv = modifyASTs (inlineVars' eenv)
-
-inlineVars' :: ExprEnv -> Expr -> Expr
-inlineVars' eenv v@(Var (Id n _)) =
-    case E.lookupConcOrSym n eenv of
-        Just (E.Conc e) -> inlineVars' eenv e
-        _ -> v
-inlineVars' _ e = e 
-
 counterExampleToLHReturn :: State t -> CounterExample -> LHReturn
 counterExampleToLHReturn s (DirectCounter fc abstr _) =
     let

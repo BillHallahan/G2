@@ -15,7 +15,7 @@ module G2.Liquid.G2Calls ( G2Call
                          , inline) where
 
 import G2.Config
-import G2.Data.Utils
+import G2.Data.Utils hiding (mapAccumM)
 import G2.Execution
 import G2.Interface
 import G2.Language as G2

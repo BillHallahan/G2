@@ -8,6 +8,7 @@ module G2.Config.Config ( Mode (..)
                         , FpHandling (..)
                         , NonRedPathCons (..)
                         , SMTStrings (..)
+                        , SMTQuantifiers (..)
                         , IncludePath
                         , Config (..)
                         , BoolDef (..)
@@ -62,6 +63,8 @@ data NonRedPathCons = Nrpc | NoNrpc deriving (Eq, Show, Read)
 
 data SMTStrings = UseSMTStrings | NoSMTStrings deriving (Eq, Show, Read)
 
+data SMTQuantifiers = UseQuantifiers | NoQuantifiers deriving (Eq, Show, Read)
+
 type IncludePath = FilePath
 
 data Config = Config {
@@ -94,6 +97,7 @@ data Config = Config {
     , print_encode_float :: Bool -- ^ Whether to print floating point numbers directly or via encodeFloat
     , smt :: SMTSolver -- ^ Sets the SMT solver to solve constraints with
     , smt_strings :: SMTStrings -- ^ Sets whether the SMT solver should be used to solve string constraints
+    , quantified_smt_strings :: SMTQuantifiers -- ^ Sets whether quantifiers should be used to describe SMT functions
     , step_limit :: Bool -- ^ Should steps be limited when running states?
     , steps :: Int -- ^ How many steps to take when running States
     , time_solving :: Bool -- ^ Output the amount of time spent checking/solving path constraints
@@ -168,6 +172,7 @@ mkConfig homedir = Config Regular
     <*> switch (long "print-encodeFloat" <> help "use encodeFloat to print floating point numbers")
     <*> mkSMTSolver
     <*> flag NoSMTStrings UseSMTStrings (long "smt-strings" <> help "Sets whether the SMT solver should be used to solve string constraints")
+    <*> flag UseQuantifiers NoQuantifiers (long "no-quant-smt-strings" <> help "Turn off using quantifiers to represent certain String functions")
     <*> flag True False (long "no-step-limit" <> help "disable step limit")
     <*> option auto (long "n"
                    <> metavar "N"
@@ -321,6 +326,7 @@ mkConfigDirect homedir as m = Config {
     , print_encode_float = False
     , smt = strArg "smt" as m smtSolverArg ConZ3
     , smt_strings = NoSMTStrings
+    , quantified_smt_strings = UseQuantifiers
     , step_limit = boolArg' "no-step-limit" as True True False
     , steps = strArg "n" as m read 1000
     , time_solving = False
