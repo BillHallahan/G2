@@ -1,4 +1,5 @@
 {-# LANGUAGE CPP #-}
+{-# OPTIONS_GHC -Wno-x-partial #-}
 
 module Strings1 where
 
@@ -392,3 +393,23 @@ reverse1 xs
     | otherwise = (6, rs)
     where
         rs = reverse xs
+
+insert1 :: Char -> String -> (Int, String)
+insert1 c xs
+    | xs == [] = (1, rs)
+    | length xs < 9 = (2, rs)
+    | head xs /= head rs = (3, rs)
+    | xs !! 3 /= rs !! 3 = (4, rs)
+    | xs !! 7 /= rs !! 7 = (5, rs)
+    | c `notElem` rs = error "Impossible"
+    | otherwise = (6, rs)
+    where
+        rs = insert c xs
+
+intersperse1 :: Char -> String -> (Int, String)
+intersperse1 c xs
+    | xs == [] = (1, rs)
+    | length xs < 5 = (2, rs)
+    | otherwise = (3, rs)
+    where
+        rs = intersperse c xs

@@ -258,6 +258,7 @@ primDefs' b c l unit =
                                                 , Var $ y (TyVar a)]])
 
               , ("&&#", Prim And . TyFun (TyCon b TYPE) $ TyFun (TyCon b TYPE) (TyCon b TYPE))
+              , ("||#", Prim Or . TyFun (TyCon b TYPE) $ TyFun (TyCon b TYPE) (TyCon b TYPE))
               , ("==>", Prim Implies . TyFun (TyCon b TYPE) $ TyFun (TyCon b TYPE) (TyCon b TYPE))
               
               , ("forAllInt#", Prim ForAllPr ((TyFun
