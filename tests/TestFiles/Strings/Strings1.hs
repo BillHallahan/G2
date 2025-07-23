@@ -413,3 +413,10 @@ intersperse1 c xs
     | otherwise = (3, rs)
     where
         rs = intersperse c xs
+
+replicate1 :: Int -> Char -> (String, Int)
+replicate1 n c
+    | length rs > 7 = (rs, 1)
+    | otherwise = (rs, 2)
+    where
+        rs = replicate n c
