@@ -393,8 +393,8 @@ testFileTests = testGroup "TestFiles"
                                                               , ("insert1", 3000, [AtLeast 10])
                                                               , ("intersperse1", 3000, [AtLeast 10])
                                                               , ("replicate1", 4000, [AtLeast 5])
-                                                              , ("minimum1", 3000, [AtLeast 6])
-                                                              , ("maximum1", 3000, [AtLeast 6])
+                                                              , ("minimum1", 1000, [AtLeast 6])
+                                                              , ("maximum1", 1000, [AtLeast 6])
                                                               , ("elemIndices1", 1000, [AtLeast 10])
                                                               , ("lines1", 1000, [AtLeast 10]) ]
 
