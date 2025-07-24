@@ -392,7 +392,10 @@ testFileTests = testGroup "TestFiles"
                                                               , ("reverse1", 2000, [AtLeast 10])
                                                               , ("insert1", 3000, [AtLeast 10])
                                                               , ("intersperse1", 3000, [AtLeast 10])
-                                                              , ("replicate1", 4000, [AtLeast 5]) ]
+                                                              , ("replicate1", 4000, [AtLeast 5])
+                                                              , ("minimum1", 3000, [AtLeast 6])
+                                                              , ("maximum1", 3000, [AtLeast 6]) ]
+                                                              , ("elemIndices1", 1000, [AtLeast 10])
 
     , checkInputOutputsSMTStrings "tests/TestFiles/Strings/Strings1.hs"
                                         [ ("con", 1000, [Exactly 1])
@@ -462,7 +465,10 @@ testFileTests = testGroup "TestFiles"
                                         , ("reverse1", 5000, [Exactly 6])
                                         , ("insert1", 3000, [Exactly 6])
                                         , ("intersperse1", 3000, [Exactly 3])
-                                        , ("replicate1", 3000, [Exactly 2]) ]
+                                        , ("replicate1", 3000, [Exactly 2])
+                                        , ("minimum1", 3000, [Exactly 6])
+                                        , ("maximum1", 3000, [Exactly 6])
+                                        , ("elemIndices1", 4000, [AtLeast 10]) ]
 
     , checkExpr "tests/TestFiles/Strings/Strings1.hs" 1000 "exclaimEq"
         [AtLeast 5, RExists (\[_, _, r] -> dcHasName "True" r)]

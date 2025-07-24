@@ -420,3 +420,40 @@ replicate1 n c
     | otherwise = (rs, 2)
     where
         rs = replicate n c
+
+minimum1 :: String -> (Char, Int)
+minimum1 xs
+    | xs == [] = ('e', 1)
+    | length xs > 5 = (m, 2)
+    | m == 'b' = (m, 3)
+    | m < 'f' = (m, 4)
+    | 'x' < m = (m, 5)
+    | otherwise = (m, 6)
+    where
+        m = minimum xs
+
+maximum1 :: String -> (Char, Int)
+maximum1 xs
+    | xs == [] = ('e', 1)
+    | length xs > 5 = (m, 2)
+    | m == 'b' = (m, 3)
+    | m < 'f' = (m, 4)
+    | 'x' < m = (m, 5)
+    | otherwise = (m, 6)
+    where
+        m = maximum xs
+
+elemIndices1 :: String -> ([Int], Int)
+elemIndices1 s
+    | [_,_,_,_,_,_,_,_,_] <- matches = (matches, 9)
+    | [_,_,_,_,_,_,_,_] <- matches = (matches, 8)
+    | [_,_,_,_,_,_,_] <- matches = (matches, 7)
+    | [_,_,_,_,_,_] <- matches = (matches, 6)
+    | [_,_,_,_,_] <- matches = (matches, 5)
+    | [_,_,_,_] <- matches = (matches, 4)
+    | [_,_,_] <- matches = (matches, 3)
+    | [_,_] <- matches = (matches, 2)
+    | [_] <- matches = (matches, 1)
+    | otherwise = (matches, 0)
+    where
+        matches = elemIndices 'x' s
