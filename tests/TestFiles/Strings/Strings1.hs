@@ -457,3 +457,19 @@ elemIndices1 s
     | otherwise = (matches, 0)
     where
         matches = elemIndices 'x' s
+
+lines1 :: String -> ([String], Int)
+lines1 s
+    | [_,_,_,"ABC",_,_,_,_,_] <- matches = (matches, 10)
+    | [_,_,_,_,_,_,_,_,_] <- matches = (matches, 9)
+    | [_,_,_,_,_,_,_,_] <- matches = (matches, 8)
+    | [_,_,_,_,_,_,_] <- matches = (matches, 7)
+    | [_,_,_,_,_,_] <- matches = (matches, 6)
+    | [_,_,_,_,_] <- matches = (matches, 5)
+    | [_,_,_,_] <- matches = (matches, 4)
+    | [_,_,_] <- matches = (matches, 3)
+    | [_,_] <- matches = (matches, 2)
+    | [_] <- matches = (matches, 1)
+    | otherwise = (matches, 0)
+    where
+        matches = lines s
