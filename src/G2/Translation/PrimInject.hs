@@ -256,7 +256,16 @@ primDefs' b c l unit =
                                                 , Var . z $ TyCon b TYPE
                                                 , Var $ x (TyVar a)
                                                 , Var $ y (TyVar a)]])
+
+              , ("&&#", Prim And . TyFun (TyCon b TYPE) $ TyFun (TyCon b TYPE) (TyCon b TYPE))
+              , ("==>", Prim Implies . TyFun (TyCon b TYPE) $ TyFun (TyCon b TYPE) (TyCon b TYPE))
               
+              , ("forAllInt#", Prim ForAllPr ((TyFun
+                                                (TyFun TyLitInt (TyCon b TYPE))
+                                                (TyCon b TYPE)
+                                            )
+                                         ))
+
               , ("isSMTRep#", Prim IsSMTRep (TyForAll a (TyFun (TyVar a) (TyCon b TYPE))))
               , ("typeIndex#", Prim TypeIndex (TyForAll a (TyFun (TyVar a) TyLitInt))) ]
               where

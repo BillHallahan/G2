@@ -10,6 +10,7 @@ module G2.Execution.PrimitiveEval ( evalPrimsSharing
                                   , evalPrimSymbolic) where
 
 import G2.Execution.NewPC
+import G2.Execution.SymToCase
 import G2.Language.AST
 import G2.Language.Expr
 import qualified G2.Language.KnownValues as KV
@@ -30,6 +31,7 @@ import G2.Language.MutVarEnv
 
 import GHC.Float
 import Data.ByteString (isPrefixOf)
+import G2.Language.ExprEnv (deepLookupVar)
 
 -- | Evaluates primitives at the root of the passed `Expr` while updating the `ExprEnv`
 -- to share computed results.
@@ -48,7 +50,7 @@ evalPrimsSharing' eenv tenv kv a@(App _ _) =
             let
                 (eenv', es') = L.mapAccumR
                                     (\eenv_ e -> let (_, e', eenv_') = evalPrimsSharing' eenv_ tenv kv e in (eenv_', e'))
-                                    eenv es
+                                    eenv $ map (inlineVars eenv) es
                 ev = evalPrim' eenv tenv kv (p:es')
             in
             (Update, ev, eenv')
@@ -735,6 +737,27 @@ evalPrim3 _ _ _ _ _ = Nothing
 -- | Evaluate certain primitives applied to symbolic expressions, when possible
 evalPrimSymbolic :: ExprEnv -> TypeEnv -> NameGen -> KnownValues -> Expr -> Maybe (Expr, ExprEnv, [PathCond], NameGen)
 evalPrimSymbolic eenv tenv ng kv e
+    | [Prim DataToTag _, type_t, (Var (Id n _))] <- unApp e
+    , Type t <- dig eenv type_t
+    , Just (Id sym_n _) <- deepLookupVar n eenv
+    , E.isSymbolic sym_n eenv
+    , TyCon tn _:_ <- unTyApp t
+    , Just adt <- M.lookup tn tenv =
+        let
+            (_, bi) = fromJust $ getCastedAlgDataTy t tenv
+
+            dcs = dataCon adt
+            num_dcs = zip (map (Lit . LitInt) [0..]) dcs
+
+            (cvar, ng') = freshId t ng
+
+            (ret, cse, assume_pc, eenv', ng'') =
+                createCaseExpr bi Nothing cvar t kv tenv eenv ng' dcs
+
+            eenv'' = E.insertSymbolic ret
+                   $ E.insert sym_n cse eenv'
+        in
+        Just (Var ret, eenv'', assume_pc, ng'')
     | [Prim DataToTag _, type_t, cse] <- unApp e
     , Type t <- dig eenv type_t
     , Case v@(Var _) _ _ alts <- cse
