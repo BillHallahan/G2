@@ -96,39 +96,13 @@ isZero _ = False
 -- | Tries to simplify literal expressions, i.e. 1 == 1 -> True
 data ConstSimplifier = ConstSimplifier
 
--- instance Simplifier ConstSimplifier where 
---     simplifyPC _ _ pc = [pc]
---     simplifyPCs _ s new_pc pcs =
---       case PC.varNamesInPC new_pc of
---           [] -> pcs  
---           (n:_) -> PC.mapPathCondsSCC n (evalPrims (expr_env s) (type_env s) (known_values s)) pcs
-        
-
 instance Simplifier ConstSimplifier where 
     simplifyPC _ _ pc = [pc]
-    simplifyPCs _ s _ pcs = 
-        let simplified = PC.map (evalPrims (expr_env s) (type_env s) (known_values s)) pcs
-            pg = mkPrettyGuide pcs
-            relatedSetLenSimplified = length $ PC.relatedSets simplified
-            relatedSetLenOriginal = length $ PC.relatedSets pcs
-        in simplified
+    simplifyPCs _ s new_pc pcs =
+      case PC.varNamesInPC new_pc of
+          [] -> pcs  
+          (n:_) -> PC.mapPathCondsSCC n (evalPrims (expr_env s) (type_env s) (known_values s)) pcs
         
--- instance Simplifier ConstSimplifier where 
---     simplifyPC _ _ pc = [pc]
---     simplifyPCs _ s _ pcs = 
---         let simplified = PC.map (evalPrims (expr_env s) (type_env s) (known_values s)) pcs
---             pg = mkPrettyGuide pcs
---             relatedSetLenSimplified = length $ PC.relatedSets simplified
---             relatedSetLenOriginal = length $ PC.relatedSets pcs
---         in trace (
---             "\nrelated set len simplified = " ++ show relatedSetLenSimplified ++ 
---             "\nrelated set len original = " ++ show relatedSetLenOriginal ++ 
---             "\nnum_steps: " ++ show (num_steps s) ++
---             "\nsimplified: " ++ show (prettyPathConds pg simplified) ++ 
---             "\noriginal: " ++ show (prettyPathConds pg pcs) ++ 
---             "\nchanged: " ++ show (pcs /= simplified)) simplified
-        
-
     reverseSimplification _ _ _ m = m
 
 -- | Tries to simplify based on simple boolean principles, i.e. x == True -> x

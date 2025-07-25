@@ -492,42 +492,6 @@ evalPrim1' _ kv IsNaN (LitFloat x) = Just . mkBool kv $ isNaN x
 evalPrim1' _ kv IsNaN (LitDouble x) = Just . mkBool kv $  isNaN x
 evalPrim1' _ kv IsInfinite (LitFloat x) = Just . mkBool kv $ isInfinite x
 evalPrim1' _ kv IsInfinite (LitDouble x) = Just . mkBool kv $  isInfinite x
-evalPrim1' tenv kv DecodeFloat (LitFloat x) =
-    let
-        (sig, exponent) = decodeFloat x
-        ty_ex = TyLitInt  -- Exponent type
-        ty_sig = TyLitInt  -- Significand type
-    in
-    Just $ App
-        (App 
-            (App 
-                (App 
-                    (App (App (mkPrimTuple kv tenv) (Type TyUnknown)) (Type TyUnknown))
-                    (Type ty_sig)
-                ) 
-                (Type ty_ex)
-            )
-            (Lit $ LitInt $ toInteger sig)
-        ) 
-        (Lit $ LitInt $ toInteger exponent)
-evalPrim1' tenv kv DecodeFloat (LitDouble x) =
-    let
-        (sig, exponent) = decodeFloat x
-        ty_ex = TyLitInt  -- Exponent type
-        ty_sig = TyLitInt  -- Significand type
-    in
-    Just $ App
-        (App 
-            (App 
-                (App 
-                    (App (App (mkPrimTuple kv tenv) (Type TyUnknown)) (Type TyUnknown))
-                    (Type ty_sig)
-                ) 
-                (Type ty_ex)
-            )
-            (Lit $ LitInt $ toInteger sig)
-        ) 
-        (Lit $ LitInt $ toInteger exponent)
 evalPrim1' _ _ _ _ = Nothing
 
 evalPrimADT1 :: KnownValues -> Primitive -> Expr -> Maybe Expr
