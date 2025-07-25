@@ -344,6 +344,7 @@ testFileTests = testGroup "TestFiles"
                                                               , ("eq", 700, [AtLeast 10])
                                                               , ("eqGt1", 700, [AtLeast 10])
                                                               , ("capABC", 100, [AtLeast 10])
+                                                              , ("quoteChar", 1000, [Exactly 2])
                                                               , ("appendEq", 500, [AtLeast 5])
                                                               , ("stringSub1", 7000, [AtLeast 40])
                                                               , ("stringSub2", 7000, [AtLeast 35])

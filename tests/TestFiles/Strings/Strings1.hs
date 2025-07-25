@@ -21,6 +21,9 @@ capABC ('c':xs) = 'C':capABC xs
 capABC (x:xs) = x:capABC xs
 capABC "" = ""
 
+quoteChar :: Char -> Int 
+quoteChar c = if c == '\'' then 1 else 0
+
 appendEq :: String -> String
 appendEq s = s ++ "!"
 
