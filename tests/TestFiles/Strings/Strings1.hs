@@ -254,6 +254,12 @@ min2 x y | length x < 2 = (1, min x y)
          | x == y = (3, min x y)
          | otherwise = (4, min x y)
 
+maxChar1 :: Char -> Char -> Char
+maxChar1 = max
+
+minChar1 :: Char -> Char -> Char
+minChar1 = min
+
 delete1 :: Char -> String -> (Int, String)
 delete1 c s
     | length s < 3 = (1, d)

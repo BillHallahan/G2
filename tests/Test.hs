@@ -370,6 +370,8 @@ testFileTests = testGroup "TestFiles"
                                                               , ("max2", 1000, [AtLeast 5])
                                                               , ("min1", 1000, [AtLeast 5])
                                                               , ("min2", 1000, [AtLeast 5])
+                                                              , ("maxChar1", 1000, [Exactly 2])
+                                                              , ("minChar1", 1000, [Exactly 2])
 
                                                               , ("delete1", 2500, [AtLeast 10])
                                                               , ("stripPrefix1", 1000, [AtLeast 5])
@@ -437,6 +439,8 @@ testFileTests = testGroup "TestFiles"
                                         , ("max2", 5000, [Exactly 4])
                                         , ("min1", 5000, [Exactly 1])
                                         , ("min2", 5000, [Exactly 4])
+                                        , ("maxChar1", 1000, [Exactly 1])
+                                        , ("minChar1", 1000, [Exactly 1])
 
                                         , ("delete1", 5000, [Exactly 3])
                                         , ("stripPrefix1", 1000, [Exactly 2])
@@ -468,8 +472,8 @@ testFileTests = testGroup "TestFiles"
                                         , ("insert1", 3000, [AtLeast 3, AtMost 6]) -- Quantifier causes SMT failures
                                         , ("intersperse1", 3000, [Exactly 3])
                                         , ("replicate1", 3000, [Exactly 2])
-                                        , ("minimum1", 3000, [Exactly 6])
-                                        , ("maximum1", 3000, [Exactly 6])
+                                        , ("minimum1", 3000, [AtLeast 1, AtMost 6]) -- Quantifier causes SMT failures
+                                        , ("maximum1", 3000, [AtLeast 1, AtMost 6]) -- Quantifier causes SMT failures
                                         , ("elemIndices1", 4000, [AtLeast 10])
                                         , ("lines1", 4000, [AtLeast 10]) ]
 
