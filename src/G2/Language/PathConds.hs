@@ -66,6 +66,7 @@ import qualified Data.List as L
 import Data.Maybe
 import Prelude hiding (map, filter, null)
 import qualified Prelude as P (map)
+import Debug.Trace
 
 -- Conceptually, the path constraints are a graph, with (Maybe Name)'s Nodes.
 -- Edges exist between any names that are in the same path constraint.
