@@ -81,7 +81,9 @@ module G2.Language.Expr ( module G2.Language.Casts
                         , varBetaReduction
                         , etaExpandTo
                         
-                        , stripAllTicks) where
+                        , stripAllTicks
+                        
+                        , inlineVars) where
 
 import G2.Language.AST
 import G2.Language.Casts
@@ -94,6 +96,7 @@ import G2.Language.Typing
 import G2.Language.Primitives
 
 import Data.Foldable
+import qualified Data.HashSet as HS
 import qualified Data.Map as M
 import Data.Maybe
 import Data.Semigroup
@@ -616,3 +619,12 @@ stripAllTicks = modifyASTs stripTicks
 stripTicks :: Expr -> Expr
 stripTicks (Tick _ e) = e
 stripTicks e = e
+
+inlineVars :: ASTContainer c Expr => ExprEnv -> c -> c
+inlineVars eenv = modifyContainedASTs (inlineVars' HS.empty eenv)
+
+inlineVars' :: HS.HashSet Name -> ExprEnv -> Expr -> Expr
+inlineVars' seen eenv (Var (Id n _))
+    | not (n `HS.member` seen)
+    , Just (E.Conc e) <- E.lookupConcOrSym n eenv = inlineVars' (HS.insert n seen) eenv e
+inlineVars' seen eenv e = modifyChildren (inlineVars' seen eenv) e

@@ -630,6 +630,7 @@ instance Named KnownValues where
 
             , typeIndex = ti
             , adjStr = adjN
+            , strQuantifiers = strQ
 
             , errorFunc = errF
             , errorEmptyListFunc = errEmpListF
@@ -651,7 +652,7 @@ instance Named KnownValues where
                 , geF, gtF, ltF, leF
                 , impF, iffF
                 , andF, orF, notF
-                , ti, adjN
+                , ti, adjN, strQ
                 , errF, errEmpListF, errWOST, patE]
 
     rename old new (KnownValues {
@@ -740,6 +741,7 @@ instance Named KnownValues where
 
                    , typeIndex = ti
                    , adjStr = adjN
+                   , strQuantifiers = strQ
 
                    , errorFunc = errF
                    , errorEmptyListFunc = errEmpListF
@@ -832,6 +834,7 @@ instance Named KnownValues where
 
                         , typeIndex = rename old new ti
                         , adjStr = rename old new adjN
+                        , strQuantifiers = rename old new strQ
 
                         , errorFunc = rename old new errF
                         , errorEmptyListFunc = rename old new errEmpListF

@@ -339,6 +339,8 @@ testFileTests = testGroup "TestFiles"
     , checkExprAssume "tests/TestFiles/Subseq.hs" 1200 (Just "assume") "subseqTest" [AtLeast 1]
 
     , checkInputOutputs "tests/TestFiles/Strings/Strings1.hs" [ ("con", 400, [AtLeast 10])
+                                                              , ("con2", 600, [AtLeast 10])
+                                                              , ("con3", 1000, [AtLeast 10])
                                                               , ("eq", 700, [AtLeast 10])
                                                               , ("eqGt1", 700, [AtLeast 10])
                                                               , ("capABC", 100, [AtLeast 10])
@@ -350,6 +352,8 @@ testFileTests = testGroup "TestFiles"
                                                               , ("stringSub4", 7000, [AtLeast 7])
                                                               , ("nStringSub4", 2000, [AtLeast 5])
                                                               , ("strLen", 1000, [AtLeast 5])
+                                                              , ("strLen2", 1000, [AtLeast 5])
+                                                              , ("strLen3", 1000, [AtLeast 5])
                                                               , ("taker2", 2000, [AtLeast 5])
                                                               , ("infix1", 1000, [AtLeast 5])
                                                               , ("elem1", 1000, [AtLeast 5])
@@ -377,20 +381,24 @@ testFileTests = testGroup "TestFiles"
                                                               , ("genericDrop1", 1000, [AtLeast 5])
                                                               , ("genericSplitAt1", 2000, [AtLeast 10])
                                                               , ("genericIndex1", 2000, [AtLeast 10])
-
+                                                              , ("genericReplicate1", 4000, [AtLeast 5])
 #if MIN_VERSION_base(4,19,0)
                                                               , ("unsnoc1", 1000, [AtLeast 5])
                                                               , ("unsnoc2", 1000, [AtLeast 5])
                                                               , ("totalIndex1", 10000, [AtLeast 5])
 #endif
                                                               , ("splitAt1", 5000, [AtLeast 5])
-                                                              , ("notEq1", 5000, [AtLeast 10]) ]
+                                                              , ("notEq1", 5000, [AtLeast 10])
+                                                              , ("reverse1", 2000, [AtLeast 10]) ]
 
     , checkInputOutputsSMTStrings "tests/TestFiles/Strings/Strings1.hs"
                                         [ ("con", 1000, [Exactly 1])
                                         , ("appendEq", 1000, [Exactly 1])
                                         , ("strLen", 1000, [Exactly 2])
+                                        , ("strLen2", 1000, [Exactly 3])
+                                        , ("strLen3", 1000, [Exactly 2])
                                         , ("con2", 1000, [Exactly 3])
+                                        , ("con3", 1000, [Exactly 3])
                                         , ("strIndex", 1000, [Exactly 4])
                                         , ("taker1", 5000, [Exactly 2])
                                         , ("taker2", 5000, [Exactly 2])
@@ -431,7 +439,7 @@ testFileTests = testGroup "TestFiles"
                                         , ("genericDrop1", 5000, [Exactly 3])
                                         , ("genericSplitAt1", 5000, [Exactly 4])
                                         , ("genericIndex1", 5000, [Exactly 4])
-                                        , ("genericReplicate1", 1000, [AtLeast 5])
+                                        , ("genericReplicate1", 1000, [Exactly 2])
 
                                         , ("bigString", 1000, [Exactly 2])
 
@@ -447,7 +455,8 @@ testFileTests = testGroup "TestFiles"
                                         , ("totalIndex1", 5000, [Exactly 3])
 #endif
                                         , ("splitAt1", 5000, [Exactly 4])
-                                        , ("notEq1", 5000, [Exactly 2]) ]
+                                        , ("notEq1", 5000, [Exactly 2])
+                                        , ("reverse1", 5000, [Exactly 6]) ]
 
     , checkExpr "tests/TestFiles/Strings/Strings1.hs" 1000 "exclaimEq"
         [AtLeast 5, RExists (\[_, _, r] -> dcHasName "True" r)]

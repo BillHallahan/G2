@@ -487,6 +487,8 @@ mkPrimHaskell pg = pr
 
         pr TypeIndex = "typeIndex"
 
+        pr ForAllPr = "forall"
+
         pr UnspecifiedOutput = "?"
 
 mkPrimHaskellNoDistFloat :: PrettyGuide -> Primitive -> T.Text

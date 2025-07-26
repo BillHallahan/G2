@@ -51,6 +51,19 @@ nStringSub4 s = if stringSub4 s then "\n" ++ s else s
 strLen :: String -> (Int, Bool)
 strLen xs = let l = length xs in (l, case l > 5 of True -> False; False -> True)
 
+strLen2 :: String -> (Int, Bool)
+strLen2 s =
+    case s of
+        (c:s) ->
+            let l = length (c:s) in
+            if l > 4 then (l, True) else (l, False)
+        [] -> (1000, False)
+    
+strLen3 :: Char -> String -> (Int, Bool)
+strLen3 c s =
+    let l = length (c:s) in
+    if l > 4 then (l, True) else (l, False)
+
 strApp :: String -> String -> Int
 strApp xs ys = case xs ++ ys of
                     "Hello World!" -> 2
@@ -62,6 +75,13 @@ con2 xs ys = case xs ++ ys of
     xs@(_:_:_) -> (xs, 3)
     xs@(_:_) -> (xs, 2)
     [] -> ([], 1)
+
+con3 :: String -> (Int, String)
+con3 xs
+    | [] <- xs = (0, xs)
+    | (y:ys) <- xs
+    , 'a':ys ++ ys == xs = (1, ys)
+    | otherwise = (2, xs)
 
 strIndex :: String -> (Bool, String)
 strIndex str =
@@ -296,8 +316,12 @@ genericIndex1 xs n
         chr = xs `genericIndex` (n + 1)
 
 -- This doesn't lessen outputs, it only tests whether genericReplicate works with SMT Strings
-genericReplicate1 :: Integer -> Char -> String
-genericReplicate1 = genericReplicate
+genericReplicate1 :: Integer -> Char -> (String, Int)
+genericReplicate1 n c
+    | length rs > 7 = (rs, 1)
+    | otherwise = (rs, 2)
+    where
+        rs = genericReplicate n c
 
 -- This usually hits the solver outputting a delete character
 bigString :: String -> Int
@@ -357,3 +381,14 @@ notEq1 :: String -> Int
 notEq1 s = case s /= "verylongstringverylongstringVERYLONGSTRINGVERYLONGSTRING" of
                 True -> 4
                 False -> 2
+
+reverse1 :: String -> (Int, String)
+reverse1 xs
+    | rs == "ABC" = (1, rs)
+    | rs < "ZYXWVUTSRQPONMLKJIHGFEDCBA" = (2, rs)
+    | rs == "ZYXWVUTSRQPONMLKJIHGFEDCBA" = (3, rs)
+    | length rs < 7 = (4, rs)
+    | xs == rs = (5, rs)
+    | otherwise = (6, rs)
+    where
+        rs = reverse xs

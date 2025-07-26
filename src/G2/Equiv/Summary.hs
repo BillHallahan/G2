@@ -15,7 +15,7 @@ module G2.Equiv.Summary
   )
   where
 
-import G2.Language
+import G2.Language hiding (inlineVars)
 
 import qualified G2.Language.ExprEnv as E
 import qualified G2.Language.Expr as X
