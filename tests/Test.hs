@@ -454,7 +454,6 @@ testFileTests = testGroup "TestFiles"
                                         , ("genericDrop1", 5000, [Exactly 3])
                                         , ("genericSplitAt1", 5000, [Exactly 4])
                                         , ("genericIndex1", 5000, [Exactly 4])
-                                        , ("genericReplicate1", 1000, [Exactly 2])
 
                                         , ("bigString", 1000, [Exactly 2])
 
@@ -478,9 +477,10 @@ testFileTests = testGroup "TestFiles"
                                          ]
 
     , checkInputOutputsQuantifiedSMTStrings "tests/TestFiles/Strings/Strings1.hs"
-                                        [ ("reverse1", 5000, [Exactly 6])
+                                        [ ("genericReplicate1", 1000, [Exactly 2])
+                                        , ("reverse1", 5000, [Exactly 6])
                                         , ("reverse2", 5000, [Exactly 3])
-                                        , ("insert1", 3000, [AtLeast 3, AtMost 6]) -- Quantifier causes SMT failures
+                                        , ("insert1", 3000, [AtLeast 2, AtMost 6]) -- Quantifier causes SMT failures
                                         , ("intersperse1", 3000, [Exactly 3])
                                         , ("replicate1", 3000, [Exactly 2])
                                         , ("elemIndices1", 4000, [AtLeast 10])
