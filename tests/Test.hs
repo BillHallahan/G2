@@ -393,6 +393,9 @@ testFileTests = testGroup "TestFiles"
                                                               , ("splitAt1", 5000, [AtLeast 5])
                                                               , ("notEq1", 5000, [AtLeast 10])
                                                               , ("reverse1", 2000, [AtLeast 10])
+                                                              , ("reverse2", 2000, [AtLeast 8])
+                                                              , ("reverse3", 1000, [ AtLeast 2
+                                                                                   , RExists "rev3Returns1"])
                                                               , ("insert1", 1500, [AtLeast 10])
                                                               , ("intersperse1", 3000, [AtLeast 10])
                                                               , ("replicate1", 4000, [AtLeast 5])
@@ -468,13 +471,21 @@ testFileTests = testGroup "TestFiles"
 #endif
                                         , ("splitAt1", 5000, [Exactly 4])
                                         , ("notEq1", 5000, [Exactly 2])
-                                        , ("reverse1", 5000, [Exactly 6])
+                                        , ("reverse1", 3000, [AtLeast 6])
+                                        , ("reverse2", 5000, [Exactly 3])
+                                        , ("reverse3", 1000, [ AtLeast 2
+                                                             , RExists "rev3Returns1"])
+                                         ]
+
+    , checkInputOutputsQuantifiedSMTStrings "tests/TestFiles/Strings/Strings1.hs"
+                                        [ ("reverse1", 5000, [Exactly 6])
+                                        , ("reverse2", 5000, [Exactly 3])
                                         , ("insert1", 3000, [AtLeast 2, AtMost 6]) -- Quantifier causes SMT failures
                                         , ("intersperse1", 3000, [Exactly 3])
                                         , ("replicate1", 3000, [Exactly 2])
+                                        , ("elemIndices1", 4000, [AtLeast 10])
                                         , ("minimum1", 3000, [AtLeast 1, AtMost 6]) -- Quantifier causes SMT failures
                                         , ("maximum1", 3000, [AtLeast 1, AtMost 6]) -- Quantifier causes SMT failures
-                                        , ("elemIndices1", 4000, [AtLeast 10])
                                         , ("lines1", 4000, [AtLeast 10]) ]
 
     , checkExpr "tests/TestFiles/Strings/Strings1.hs" 1000 "exclaimEq"

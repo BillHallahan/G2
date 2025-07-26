@@ -403,6 +403,26 @@ reverse1 xs
     where
         rs = reverse xs
 
+reverse2 :: String -> Int
+reverse2 [] = 1
+reverse2 xs
+    | length xs < 4 = 2
+    | otherwise =
+        if head (reverse xs) == last xs
+            then 3
+            else 4 -- Returning 4 is impossible
+
+reverse3 :: String -> Int
+reverse3 xs
+    | rs == "ABC" = 1
+    | otherwise = 2
+    where
+        rs = reverse xs
+
+rev3Returns1 :: String -> Int -> Bool
+rev3Returns1 _ 1 = True
+rev3Returns1 _ _ = False 
+
 insert1 :: Char -> String -> (Int, String)
 insert1 c xs
     | xs == [] = (1, rs)
