@@ -172,7 +172,7 @@ mkConfig homedir = Config Regular
     <*> switch (long "print-encodeFloat" <> help "use encodeFloat to print floating point numbers")
     <*> mkSMTSolver
     <*> flag NoSMTStrings UseSMTStrings (long "smt-strings" <> help "Sets whether the SMT solver should be used to solve string constraints")
-    <*> flag UseQuantifiers NoQuantifiers (long "no-quant-smt-strings" <> help "Turn off using quantifiers to represent certain String functions")
+    <*> flag NoQuantifiers UseQuantifiers (long "quant-smt-strings" <> help "Use quantifiers to represent certain String functions")
     <*> flag True False (long "no-step-limit" <> help "disable step limit")
     <*> option auto (long "n"
                    <> metavar "N"
@@ -326,7 +326,7 @@ mkConfigDirect homedir as m = Config {
     , print_encode_float = False
     , smt = strArg "smt" as m smtSolverArg ConZ3
     , smt_strings = NoSMTStrings
-    , quantified_smt_strings = UseQuantifiers
+    , quantified_smt_strings = NoQuantifiers
     , step_limit = boolArg' "no-step-limit" as True True False
     , steps = strArg "n" as m read 1000
     , time_solving = False

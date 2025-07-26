@@ -1,6 +1,6 @@
-{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE FlexibleContexts, FlexibleInstances #-}
 {-# LANGUAGE GADTs #-}
-{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE MultiParamTypeClasses, OverloadedStrings #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE TupleSections #-}
 
@@ -17,6 +17,7 @@ module G2.Solver.Solver ( Solver (..)
                         , UndefinedHigherOrder (..)
                         , UnknownSolver (..)
                         , EqualitySolver (..)
+                        , CommonSubExpElim (..)
                         
                         , TimeSolver
                         , timeSolver
@@ -26,12 +27,19 @@ module G2.Solver.Solver ( Solver (..)
                         , callsSomeSolver) where
 
 import G2.Language
+import G2.Language.Monad
 import qualified G2.Language.PathConds as PC
+
+import Data.Coerce
 import Data.Graph
-import Data.List
 import qualified Data.HashMap.Lazy as HM
 import Data.IORef
+import Data.List
+import Data.Monoid
+import Data.Tuple
 import System.Clock
+
+import Debug.Trace
 
 -- | The result of a Solver query
 data Result m u um = SAT m
@@ -357,6 +365,61 @@ instance Solver s => Solver (TimeSolver s) where
         ts <- readIORef io_ts
         let t = (fromInteger (toNanoSecs ts)) / (10 ^ (9 :: Int) :: Double)
         putStrLn $ pre_s ++ " Solving Time: " ++ show t
+
+data CommonSubExpElim s = CommonSubExpElim s
+
+instance Solver s => Solver (CommonSubExpElim s) where
+    check (CommonSubExpElim solver) s = check solver s . elimCommon (known_values s) 2
+    solve (CommonSubExpElim solver) s b is = solve solver s b is . elimCommon (known_values s) 2
+    close (CommonSubExpElim solver) = close solver
+
+elimCommon :: KnownValues
+           -> Int -- ^ Minimal value to consider an expression common
+           -> PathConds
+           -> PathConds
+elimCommon kv threshold pc =
+    let
+        ng = mkNameGen pc
+        app_count = countApps kv pc
+        app_common = HM.filter (>= threshold) app_count
+
+        n = Name "el" Nothing 0 Nothing
+        (app_new, _) = runNamingM (traverse (const (freshSeededNameN n)) app_common) ng
+        app_new_var = HM.mapWithKey (\e vn -> Var (Id vn (typeOf e))) app_new
+
+        var_to_app = map swap $ HM.toList app_new_var
+
+        pc_fr = foldr (uncurry replaceASTs) pc (HM.toList app_new_var)
+
+        pc_new_eq = foldr
+                        (\(e1, e2) ->
+                            let
+                                -- We want to also replace common subexpressions inside other common subexpressions,
+                                -- except the definition of a common subexpression may not refer to itself 
+                                app_new_var' = HM.filter (/= e1) app_new_var
+                                e2' = foldr (uncurry replaceASTs) e2 (HM.toList app_new_var')
+                            in
+                            PC.insert (ExtCond (mkEqExpr kv e1 e2') True))
+                        pc_fr
+                        var_to_app
+    in
+    pc_new_eq
+
+newtype SumHM = SumHM (HM.HashMap Expr Int)
+
+instance Semigroup SumHM where
+    SumHM hm1 <> SumHM hm2 = SumHM $ HM.unionWith (+) hm1 hm2
+
+instance Monoid SumHM where
+    mempty = SumHM HM.empty
+
+countApps :: ASTContainer c Expr => KnownValues -> c -> HM.HashMap Expr Int
+countApps kv = coerce . evalContainedASTs go
+    where
+        go e@(App _ _)
+            | typeOf e == tyString kv =
+                SumHM (HM.singleton e 1) <> evalChildren go e
+        go e = evalChildren go e
 
 -- | A solver to count the number of solver calls
 data CallsSolver s = CallsSolver

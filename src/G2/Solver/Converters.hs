@@ -398,7 +398,10 @@ exprToSMT (App (Data (DataCon (Name "[]" _ _ _) _ _ _)) (Type (TyCon (Name "Char
 exprToSMT e | [ Data (DataCon (Name ":" _ _ _) _ _ _)
               , Type (TyCon (Name "Char" _ _ _) _)
               , App _ e1
-              , e2] <- unApp e = exprToSMT e1 :++ exprToSMT e2
+              , e2] <- unApp e =
+                case e2 of
+                    App (Data (DataCon (Name "[]" _ _ _) _ _ _)) (Type (TyCon (Name "Char" _ _ _) _)) -> exprToSMT e1
+                    _ -> exprToSMT e1 :++ exprToSMT e2
 exprToSMT a@(App _ _) =
     let
         f = getFunc a
