@@ -393,7 +393,7 @@ testFileTests = testGroup "TestFiles"
                                                               , ("splitAt1", 5000, [AtLeast 5])
                                                               , ("notEq1", 5000, [AtLeast 10])
                                                               , ("reverse1", 2000, [AtLeast 10])
-                                                              , ("insert1", 3000, [AtLeast 10])
+                                                              , ("insert1", 1500, [AtLeast 10])
                                                               , ("intersperse1", 3000, [AtLeast 10])
                                                               , ("replicate1", 4000, [AtLeast 5])
                                                               , ("minimum1", 1000, [AtLeast 6])
