@@ -939,9 +939,14 @@ retCurrExpr s@(State { expr_env = eenv, known_values = kv }) e1 (EnsureEq e2) or
                         , concretized = [] }], ng )
 
 retCurrExpr s _ NoAction orig_ce stck ng = 
+    let
+        stck' = case orig_ce of
+                    CurrExpr _ (Var (Id n _)) -> S.push (UpdateFrame n) stck
+                    _ -> stck
+    in
     ( RuleReturnCurrExprFr
     , [NewPC { state = s { curr_expr = orig_ce
-                         , exec_stack = stck}
+                         , exec_stack = stck'}
              , new_pcs = []
              , concretized = []}], ng )
 

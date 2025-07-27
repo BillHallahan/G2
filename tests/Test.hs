@@ -344,6 +344,7 @@ testFileTests = testGroup "TestFiles"
                                                               , ("eq", 700, [AtLeast 10])
                                                               , ("eqGt1", 700, [AtLeast 10])
                                                               , ("capABC", 100, [AtLeast 10])
+                                                              , ("quoteChar", 1000, [Exactly 2])
                                                               , ("appendEq", 500, [AtLeast 5])
                                                               , ("stringSub1", 7000, [AtLeast 40])
                                                               , ("stringSub2", 7000, [AtLeast 35])
@@ -369,6 +370,8 @@ testFileTests = testGroup "TestFiles"
                                                               , ("max2", 1000, [AtLeast 5])
                                                               , ("min1", 1000, [AtLeast 5])
                                                               , ("min2", 1000, [AtLeast 5])
+                                                              , ("maxChar1", 1000, [Exactly 2])
+                                                              , ("minChar1", 1000, [Exactly 2])
 
                                                               , ("delete1", 2500, [AtLeast 10])
                                                               , ("stripPrefix1", 1000, [AtLeast 5])
@@ -389,7 +392,17 @@ testFileTests = testGroup "TestFiles"
 #endif
                                                               , ("splitAt1", 5000, [AtLeast 5])
                                                               , ("notEq1", 5000, [AtLeast 10])
-                                                              , ("reverse1", 2000, [AtLeast 10]) ]
+                                                              , ("reverse1", 2000, [AtLeast 10])
+                                                              , ("reverse2", 2000, [AtLeast 8])
+                                                              , ("reverse3", 1000, [ AtLeast 2
+                                                                                   , RExists "rev3Returns1"])
+                                                              , ("insert1", 3000, [AtLeast 10])
+                                                              , ("intersperse1", 3000, [AtLeast 10])
+                                                              , ("replicate1", 4000, [AtLeast 5])
+                                                              , ("minimum1", 1000, [AtLeast 6])
+                                                              , ("maximum1", 1000, [AtLeast 6])
+                                                              , ("elemIndices1", 1000, [AtLeast 10])
+                                                              , ("lines1", 1500, [AtLeast 10]) ]
 
     , checkInputOutputsSMTStrings "tests/TestFiles/Strings/Strings1.hs"
                                         [ ("con", 1000, [Exactly 1])
@@ -429,6 +442,8 @@ testFileTests = testGroup "TestFiles"
                                         , ("max2", 5000, [Exactly 4])
                                         , ("min1", 5000, [Exactly 1])
                                         , ("min2", 5000, [Exactly 4])
+                                        , ("maxChar1", 1000, [Exactly 1])
+                                        , ("minChar1", 1000, [Exactly 1])
 
                                         , ("delete1", 5000, [Exactly 3])
                                         , ("stripPrefix1", 1000, [Exactly 2])
@@ -439,7 +454,6 @@ testFileTests = testGroup "TestFiles"
                                         , ("genericDrop1", 5000, [Exactly 3])
                                         , ("genericSplitAt1", 5000, [Exactly 4])
                                         , ("genericIndex1", 5000, [Exactly 4])
-                                        , ("genericReplicate1", 1000, [Exactly 2])
 
                                         , ("bigString", 1000, [Exactly 2])
 
@@ -456,7 +470,23 @@ testFileTests = testGroup "TestFiles"
 #endif
                                         , ("splitAt1", 5000, [Exactly 4])
                                         , ("notEq1", 5000, [Exactly 2])
-                                        , ("reverse1", 5000, [Exactly 6]) ]
+                                        , ("reverse1", 3000, [AtLeast 6])
+                                        , ("reverse2", 5000, [Exactly 3])
+                                        , ("reverse3", 1000, [ AtLeast 2
+                                                             , RExists "rev3Returns1"])
+                                         ]
+
+    , checkInputOutputsQuantifiedSMTStrings "tests/TestFiles/Strings/Strings1.hs"
+                                        [ ("genericReplicate1", 1000, [Exactly 2])
+                                        , ("reverse1", 5000, [Exactly 6])
+                                        , ("reverse2", 5000, [Exactly 3])
+                                        , ("insert1", 3000, [AtLeast 2, AtMost 6]) -- Quantifier causes SMT failures
+                                        , ("intersperse1", 3000, [Exactly 3])
+                                        , ("replicate1", 3000, [Exactly 2])
+                                        , ("elemIndices1", 4000, [AtLeast 10])
+                                        , ("minimum1", 3000, [AtLeast 1, AtMost 6]) -- Quantifier causes SMT failures
+                                        , ("maximum1", 3000, [AtLeast 1, AtMost 6]) -- Quantifier causes SMT failures
+                                        , ("lines1", 4000, [AtLeast 10]) ]
 
     , checkExpr "tests/TestFiles/Strings/Strings1.hs" 1000 "exclaimEq"
         [AtLeast 5, RExists (\[_, _, r] -> dcHasName "True" r)]
