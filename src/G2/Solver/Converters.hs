@@ -183,7 +183,7 @@ addSetLogic xs =
              if nra then SetLogic QF_NRA else 
              if nira then SetLogic QF_NIRA else
              if uflia then SetLogic QF_UFLIA else
-             if str then SetLogic QF_S else SetLogic ALL
+             if str then SetLogic QF_SLIA else SetLogic ALL
     in
     sl:xs
 
@@ -858,7 +858,7 @@ toSolverSetLogic lgc =
             QF_NRA -> "QF_NRA"
             QF_NIRA -> "QF_NIRA"
             QF_UFLIA -> "QF_UFLIA"
-            QF_S -> "QF_S"
+            QF_SLIA -> "QF_SLIA"
             _ -> "ALL"
     in
     "(set-logic " <> s <> ")"
