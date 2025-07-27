@@ -711,13 +711,6 @@ liftSymDefAlt' s@(State { type_env = tenv, known_values = kv, tyvar_env = tvnv }
                               ) rel_mutvar
         in
         (map newPCEmpty (nmv_s':copy_states), ng'')
-    -- suspection: the line below is creating a problem 
-    -- ToDo: the next step is remove the unApp $ unsafeElimOuterCast mexpr below
-    -- create a new function(probably don't need to be that complicated)
-    -- the new function should do simply the following: 
-    -- first when you have a cast like (Cast e (t1 :~ t2))
-    -- you only care about what the type is casted to: t2
-    -- otherwise, you just run typeOf on the mexpr
     | (Var i):_ <- unApp $ exprInCasts mexpr = -- Id with original Type
         let cty = case mexpr of
                 Cast _ (_ :~ t2) -> t2
