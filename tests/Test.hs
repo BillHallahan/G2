@@ -474,6 +474,7 @@ testFileTests = testGroup "TestFiles"
                                         , ("reverse2", 5000, [Exactly 3])
                                         , ("reverse3", 1000, [ AtLeast 2
                                                              , RExists "rev3Returns1"])
+                                        , ("insert2", 2000, [AtLeast 3])
                                          ]
 
     , checkInputOutputsQuantifiedSMTStrings "tests/TestFiles/Strings/Strings1.hs"

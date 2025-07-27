@@ -11,6 +11,7 @@ module G2.Language.Expr ( module G2.Language.Casts
                         , mkTrue
                         , mkFalse
                         , mkBool
+                        , toBool
                         , mkDCInt
                         , mkDCInteger
                         , mkDCFloat
@@ -169,6 +170,11 @@ mkFalse kv = Data $ DataCon (KV.dcFalse kv) (TyCon (KV.tyBool kv) TYPE) [] []
 
 mkBool :: KnownValues -> Bool -> Expr
 mkBool kv b = if b then mkTrue kv else mkFalse kv
+
+toBool :: KnownValues -> Expr -> Maybe Bool
+toBool kv (Data dc) | dc_name dc == KV.dcTrue kv = Just True
+                    | dc_name dc == KV.dcFalse kv = Just False
+toBool _ _ = Nothing
 
 mkCons :: KnownValues -> TypeEnv -> Expr
 mkCons kv tenv = Data . fromJust $ getDataCon tenv (KV.tyList kv) (KV.dcCons kv)

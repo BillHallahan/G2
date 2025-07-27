@@ -435,6 +435,13 @@ insert1 c xs
     where
         rs = insert c xs
 
+insert2 :: String -> (Int, String)
+insert2 xs
+    | length xs < 3 = (1, ins)
+    | otherwise = (2, ins)
+    where
+        ins = insert 'f' xs
+
 intersperse1 :: Char -> String -> (Int, String)
 intersperse1 c xs
     | xs == [] = (1, rs)

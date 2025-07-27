@@ -417,7 +417,7 @@ initSolver' avf config = do
 
     let con' = case some_adt_solver' of
                     SomeSolver adt_solver ->
-                        SomeSolver -- . CommonSubExpElim
+                        SomeSolver . CommonSubExpElim
                                    $ GroupRelated avf
                                     ( UndefinedHigherOrder
                                  :?> EqualitySolver
