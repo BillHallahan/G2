@@ -361,9 +361,11 @@ mkLitHaskell use = lit
         lit (LitDouble r) = mkFloat (T.pack (hs ++ hs)) r
         lit (LitRational r) = "(" <> T.pack (show r) <> ")"
         lit (LitBV bv) = "#b" <> T.concat (map (T.pack . show) bv)
-        lit (LitChar c) | isPrint c = T.pack ['\'', c, '\'']
+        lit (LitChar c) | c == '\\' = T.pack "\'\\\\\'"
+                        | c == '\'' = T.pack "\'\\\'\'"
+                        | isPrint c = T.pack ['\'', c, '\'']
                         | otherwise = "(chr " <> T.pack (show $ ord c) <> ")"
-        lit (LitString s) = T.pack s
+        lit (LitString s) = "\"" <> T.pack s <> "\""
 
 mkFloat :: (Show n, RealFloat n) => T.Text -> n -> T.Text
 mkFloat hs r | isNaN r = "(0" <> hs <> " / 0" <> hs <> ")"

@@ -58,7 +58,7 @@ runWithArgs as = do
 
   val_res <- case validate config || measure_coverage config of
                 True -> do
-                    r <- validateStates proj [src] (T.unpack $ fromJust mb_modname) entry [] [Opt_Hpc] b in_out'
+                    (r, _) <- validateStates proj [src] (T.unpack $ fromJust mb_modname) entry [] [] [Opt_Hpc] b in_out'
                     if all isJust r && and (map fromJust r) then putStrLn "Validated" else putStrLn "There was an error during validation."
 
                     if any isNothing r then putStrLn $ "Timeout count: " ++ show (length $ filter isNothing r) else return ()

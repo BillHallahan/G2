@@ -1,7 +1,10 @@
 {-# LANGUAGE OverloadedStrings #-}
 module InputOutputTest ( checkInputOutput
                        , checkInputOutputs
+                       
                        , checkInputOutputsSMTStrings
+                       , checkInputOutputsQuantifiedSMTStrings
+                       
                        , checkInputOutputsTemplate
                        , checkInputOutputsNonRedHigher
                        , checkInputOutputsNonRedLib
@@ -40,6 +43,10 @@ checkInputOutputs src tests = do
 checkInputOutputsSMTStrings :: FilePath -> [(String, Int, [Reqs String])] -> TestTree
 checkInputOutputsSMTStrings src tests = do
     checkInputOutput' mkConfigTestWithSMTStringsIO src tests
+
+checkInputOutputsQuantifiedSMTStrings :: FilePath -> [(String, Int, [Reqs String])] -> TestTree
+checkInputOutputsQuantifiedSMTStrings src tests = do
+    checkInputOutput' mkConfigTestWithQuantifiedSMTStringsIO src tests
 
 checkInputOutputsTemplate :: FilePath -> [(String, Int, [Reqs String])] -> TestTree
 checkInputOutputsTemplate src tests = do
@@ -92,16 +99,16 @@ checkInputOutput' io_config src tests = do
                                 config <- io_config
                                 r <- doTimeout (timeLimit config)
                                                (try (checkInputOutput'' [src] exg2 mb_modname config test)
-                                                    :: IO (Either SomeException ([Bool], Bool, [ExecRes ()], Bindings)))
+                                                    :: IO (Either SomeException ([Bool], Bool, Bool, [ExecRes ()], Bindings)))
                                 let (b, e) = case r of
                                         Nothing -> (False, "\nTimeout")
                                         Just (Left e') -> (False, "\n" ++ show e')
-                                        Just (Right (b_val, b_count, exec_res, bindings)) ->
+                                        Just (Right (b_val, b_count, b_anys, exec_res, bindings)) ->
                                             let pg = mkPrettyGuide exec_res
                                                 res_pretty = map (uncurry (printIO pg entry bindings)) $ zip b_val exec_res
                                                 res_print = map T.unpack $ map (\(chck, (_, inp, out, _)) -> chck <> inp <> " = " <> out) res_pretty
                                             in
-                                            (and b_val && b_count, "\nvalidation = " ++ show (and b_val) ++ ", count = " ++ show b_count ++ "\n" ++ intercalate "\n" res_print)
+                                            (and b_val && b_count && b_anys, "\nvalidation = " ++ show (and b_val) ++ ", count = " ++ show b_count ++ "\n" ++ intercalate "\n" res_print)
 
                                 assertBool ("Input/Output for file " ++ show src ++ " failed on function " ++ entry ++ "." ++ e) b 
                                 )
@@ -114,7 +121,7 @@ checkInputOutput'' :: [FilePath]
                    -> [Maybe T.Text]
                    -> Config
                    -> (String, Int, [Reqs String])
-                   -> IO ([Bool], Bool, [ExecRes ()], Bindings)
+                   -> IO ([Bool], Bool, Bool, [ExecRes ()], Bindings)
 checkInputOutput'' src exg2 mb_modname config (entry, stps, req) = do
     let config' = config { steps = stps }
         (entry_f, init_state, bindings) = initStateWithCall exg2 False (T.pack entry) mb_modname (mkCurrExpr Nothing Nothing) mkArgTys config'
@@ -122,13 +129,14 @@ checkInputOutput'' src exg2 mb_modname config (entry, stps, req) = do
     (r, b, _) <- runG2WithConfig (idName entry_f) mb_modname init_state config' bindings
 
     let chAll = checkExprAll req
+    let chAny = checkExprExists req
     let proj = map takeDirectory src
-    mr <- validateStates proj src (T.unpack . fromJust $ head mb_modname) entry chAll [] b r
+    (mr, anys) <- validateStates proj src (T.unpack . fromJust $ head mb_modname) entry chAll chAny [] b r
     let io = map (\(ExecRes { conc_args = i, conc_out = o}) -> i ++ [o]) r
 
     let chEx = checkExprInOutCount io req
     
-    return (fmap (fromMaybe False) mr, chEx, r, b)
+    return (fmap (fromMaybe False) mr, chEx, anys, r, b)
 
 ------------
 
