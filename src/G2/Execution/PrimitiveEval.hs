@@ -579,13 +579,6 @@ evalPrimADT3 tenv kv StrReplace s orig rep = do
         replace xss@(x:xs) o r | Just xss' <- L.stripPrefix o xss = r ++ xss'
                                | otherwise = x:replace xs o r
 
-evalPrimADT3 tenv kv StrIndexOf haystack needle (Lit (LitInt start)) = do
-        haystack' <- toString haystack
-        let haystack'' = L.genericDrop start haystack'
-        (needle':_) <- toString needle
-        pos <- L.elemIndex needle' haystack''
-        return $ Lit (LitInt $ (toInteger pos) + start)
-
 evalPrimADT3 _ _ _ _ _ _ = Nothing
 
 toString :: Expr -> Maybe String
