@@ -23,9 +23,9 @@ jobs:
                 { test: test-g2q, lh: '-support-lh' },
                 { test: test-lh, lh: 'support-lh' } ]
         exclude:
-          - compiler: { ghc: '9.2.4', cabal: '3.6' }
+          - compiler: { ghc: '9.2.4', cabal: '3.10' }
             test: { test: test-lh }
-          - compiler: { ghc: '9.4.4', cabal: '3.6' }
+          - compiler: { ghc: '9.4.4', cabal: '3.10' }
             test: { test: test-lh }
           - compiler: { ghc: '9.6.1', cabal: '3.10' }
             test: { test: test-lh }
