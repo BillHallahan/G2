@@ -509,3 +509,6 @@ lines1 s
     | otherwise = (matches, 0)
     where
         matches = lines s
+
+lines2 :: String -> [String]
+lines2 = lines
