@@ -5,6 +5,9 @@ module Strings1 where
 
 import Data.List
 
+toEnum1 :: String
+toEnum1 = [toEnum 56089]
+
 con :: String -> String -> String
 con xs ys = xs ++ ys
 
@@ -444,9 +447,6 @@ insert2 xs
 
 insert3 :: String
 insert3 = insert 'a' ""
-
-insert4 :: String
-insert4 = insert (toEnum 56089) ""
 
 intersperse1 :: Char -> String -> (Int, String)
 intersperse1 c xs

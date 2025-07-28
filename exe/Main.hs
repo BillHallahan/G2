@@ -91,7 +91,7 @@ printFuncCalls config entry b m_valid exec_res = do
         let pg = mkPrettyGuide (exprNames $ conc_args execr)
         let (mvp, inp, outp, handles) = printInputOutput pg entry b execr
             sym_gen_out = fmap (printHaskellPG pg s) $ conc_sym_gens execr
-
+        
         let print_method = case print_output config of
                                 True -> \m i o -> m <> i <> " = " <> o 
                                 False -> \m i _ ->  m <> i
