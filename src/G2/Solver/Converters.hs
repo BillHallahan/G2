@@ -30,6 +30,7 @@ module G2.Solver.Converters
     , SMTConverter (..) ) where
 
 import qualified Data.Bits as Bits
+import Data.Char
 import qualified Data.HashMap.Lazy as HM
 import qualified Data.HashSet as HS
 import qualified Data.Map as M
@@ -39,6 +40,7 @@ import Data.Ratio
 import qualified Data.Text as T
 import GHC.Float
 import qualified Text.Builder as TB
+import Numeric
 
 import G2.Language hiding (Assert, vars)
 import qualified G2.Language.ExprEnv as E
@@ -767,7 +769,8 @@ toSolverAST (VReal r) = "(/ " <> showText (numerator r) <> " " <> showText (deno
 toSolverAST (VBitVec b) = "#b" <> foldr (<>) "" (map showText b)
 toSolverAST (VString s) = "\"" <> TB.string s <> "\""
 toSolverAST (VChar '"') = "\"\"\"\""
-toSolverAST (VChar c) = "\"" <> TB.string [c] <> "\""
+toSolverAST (VChar c) | isPrint c = "\"" <> TB.string [c] <> "\""
+                      | otherwise = "\"\\u" <> TB.string (showHex (ord c) "") <> "\""
 toSolverAST (VBool b) = if b then "true" else "false"
 toSolverAST (V n _) = TB.string n
 

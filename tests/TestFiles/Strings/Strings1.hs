@@ -442,6 +442,12 @@ insert2 xs
     where
         ins = insert 'f' xs
 
+insert3 :: String
+insert3 = insert 'a' ""
+
+insert4 :: String
+insert4 = insert (toEnum 56089) ""
+
 intersperse1 :: Char -> String -> (Int, String)
 intersperse1 c xs
     | xs == [] = (1, rs)
