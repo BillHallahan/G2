@@ -3,6 +3,7 @@ module InputOutputTest ( checkInputOutput
                        , checkInputOutputs
                        
                        , checkInputOutputsSMTStrings
+                       , checkInputOutputsSMTStringsWithSubPath
                        , checkInputOutputsQuantifiedSMTStrings
                        
                        , checkInputOutputsTemplate
@@ -43,6 +44,11 @@ checkInputOutputs src tests = do
 checkInputOutputsSMTStrings :: FilePath -> [(String, Int, [Reqs String])] -> TestTree
 checkInputOutputsSMTStrings src tests = do
     checkInputOutput' mkConfigTestWithSMTStringsIO src tests
+
+checkInputOutputsSMTStringsWithSubPath :: FilePath -> [(String, Int, [Reqs String])] -> TestTree
+checkInputOutputsSMTStringsWithSubPath src tests = do
+    let con = (do config <- mkConfigTestWithSMTStringsIO; return $ config { search_strat = Subpath })
+    checkInputOutput' con src tests
 
 checkInputOutputsQuantifiedSMTStrings :: FilePath -> [(String, Int, [Reqs String])] -> TestTree
 checkInputOutputsQuantifiedSMTStrings src tests = do
