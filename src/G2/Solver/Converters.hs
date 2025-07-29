@@ -30,6 +30,7 @@ module G2.Solver.Converters
     , SMTConverter (..) ) where
 
 import qualified Data.Bits as Bits
+import Data.Char
 import qualified Data.HashMap.Lazy as HM
 import qualified Data.HashSet as HS
 import qualified Data.Map as M
