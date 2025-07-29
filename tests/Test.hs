@@ -405,7 +405,8 @@ testFileTests = testGroup "TestFiles"
                                                               , ("lines1", 1500, [AtLeast 10]) ]
 
     , checkInputOutputsSMTStrings "tests/TestFiles/Strings/Strings1.hs"
-                                        [ ("con", 1000, [Exactly 1])
+                                        [ ("toEnum1", 2000, [Exactly 1])
+                                        , ("con", 1000, [Exactly 1])
                                         , ("appendEq", 1000, [Exactly 1])
                                         , ("strLen", 1000, [Exactly 2])
                                         , ("strLen2", 1000, [Exactly 3])
@@ -475,6 +476,7 @@ testFileTests = testGroup "TestFiles"
                                         , ("reverse3", 1000, [ AtLeast 2
                                                              , RExists "rev3Returns1"])
                                         , ("insert2", 2000, [AtLeast 3])
+                                        , ("insert3", 2000, [Exactly 1])
 
                                         , ("lines1", 4000, [AtLeast 10])
                                          ]
