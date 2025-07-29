@@ -1,8 +1,4 @@
-<<<<<<< HEAD
 base_commit=f0bf692
-=======
-base_commit=dbbce4a
->>>>>>> master
 stubs_commit=db1e16c
 
 get_base() {
