@@ -96,6 +96,7 @@ data Config = Config {
     , fp_handling :: FpHandling -- ^ Whether to use real floating point values or rationals
     , print_encode_float :: Bool -- ^ Whether to print floating point numbers directly or via encodeFloat
     , smt :: SMTSolver -- ^ Sets the SMT solver to solve constraints with
+    , smt_path :: Maybe FilePath -- ^ Location of SMT solver
     , smt_strings :: SMTStrings -- ^ Sets whether the SMT solver should be used to solve string constraints
     , quantified_smt_strings :: SMTQuantifiers -- ^ Sets whether quantifiers should be used to describe SMT functions
     , step_limit :: Bool -- ^ Should steps be limited when running states?
@@ -171,6 +172,11 @@ mkConfig homedir = Config Regular
                                 <> help "Represent floating point values precisely.  When off, overapproximate as rationals.")
     <*> switch (long "print-encodeFloat" <> help "use encodeFloat to print floating point numbers")
     <*> mkSMTSolver
+    <*> option (Just <$> str)
+                ( long "smt-path"
+                <> metavar "SMT-PATH"
+                <> value Nothing
+                <> help "path to an SMT solver")
     <*> flag NoSMTStrings UseSMTStrings (long "smt-strings" <> help "Sets whether the SMT solver should be used to solve string constraints")
     <*> flag NoQuantifiers UseQuantifiers (long "quant-smt-strings" <> help "Use quantifiers to represent certain String functions")
     <*> flag True False (long "no-step-limit" <> help "disable step limit")
@@ -326,6 +332,7 @@ mkConfigDirect homedir as m = Config {
     , fp_handling = RealFP
     , print_encode_float = False
     , smt = strArg "smt" as m smtSolverArg ConZ3
+    , smt_path = Nothing
     , smt_strings = NoSMTStrings
     , quantified_smt_strings = NoQuantifiers
     , step_limit = boolArg' "no-step-limit" as True True False

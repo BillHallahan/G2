@@ -33,6 +33,7 @@ import qualified Data.Text.IO as T
 import qualified Text.Builder as TB
 import System.IO
 import System.Process
+import Data.Maybe (fromMaybe)
 
 type PrintSMT = Bool
 
@@ -412,21 +413,22 @@ getProcessHandles pr = do
 
 getZ3 :: PrintSMT -> Int -> IO Z3
 getZ3 pr_smt time_out = do
-    hhp <- getZ3ProcessHandles time_out
+    hhp <- getZ3ProcessHandles Nothing time_out
     return $ Z3 pr_smt arbValue hhp
 
 getSMT :: Config -> IO SomeSMTSolver
 getSMT = getSMTAV arbValue
 
 getSMTAV :: ArbValueFunc -> Config -> IO SomeSMTSolver
-getSMTAV avf (Config { smt = ConZ3, print_smt = pr }) = do
-    hhp <- getZ3ProcessHandles 10000
+getSMTAV avf (Config { smt = ConZ3, smt_path = path, print_smt = pr }) = do
+    print path
+    hhp <- getZ3ProcessHandles path 10000
     return $ SomeSMTSolver (Z3 pr avf hhp)
-getSMTAV avf (Config { smt = ConCVC5, print_smt = pr }) = do
-    hhp <- getCVC5ProcessHandles
+getSMTAV avf (Config { smt = ConCVC5, smt_path = path, print_smt = pr }) = do
+    hhp <- getCVC5ProcessHandles path
     return $ SomeSMTSolver (CVC5 pr avf hhp)
-getSMTAV avf (Config { smt = ConOstrich, print_smt = pr }) = do
-    hhp <- getOstrichProcessHandles 10000
+getSMTAV avf (Config { smt = ConOstrich, smt_path = path, print_smt = pr }) = do
+    hhp <- getOstrichProcessHandles path 10000
     return $ SomeSMTSolver (Ostrich pr avf hhp)
 
 -- | getZ3ProcessHandles
@@ -434,15 +436,17 @@ getSMTAV avf (Config { smt = ConOstrich, print_smt = pr }) = do
 -- returned handles to interact with Z3
 -- Ideally, this function should be called only once, and the same Handles should be used
 -- in all future calls
-getZ3ProcessHandles :: Int -> IO (Handle, Handle, ProcessHandle)
-getZ3ProcessHandles time_out = getProcessHandles $ proc "z3" ["-smt2", "-in", "-t:" ++ show time_out, "model=true"]
+getZ3ProcessHandles :: Maybe FilePath -> Int -> IO (Handle, Handle, ProcessHandle)
+getZ3ProcessHandles m_path time_out = getProcessHandles $ proc (selPath m_path "z3") ["-smt2", "-in", "-t:" ++ show time_out, "model=true"]
 
-getCVC5ProcessHandles :: IO (Handle, Handle, ProcessHandle)
-getCVC5ProcessHandles = getProcessHandles $ proc "cvc5" ["--lang", "smt2.6", "--produce-models", "--produce-unsat-cores"]
+getCVC5ProcessHandles :: Maybe FilePath -> IO (Handle, Handle, ProcessHandle)
+getCVC5ProcessHandles m_path = getProcessHandles $ proc (selPath m_path "cvc5") ["--lang", "smt2.6", "--produce-models", "--produce-unsat-cores"]
 
-getOstrichProcessHandles :: Int -> IO (Handle, Handle, ProcessHandle)
-getOstrichProcessHandles time_out = getProcessHandles $ proc "ostrich" ["+quiet", "+stdin", "+incremental", "-timeoutPer=" ++ show time_out]
+getOstrichProcessHandles :: Maybe FilePath -> Int -> IO (Handle, Handle, ProcessHandle)
+getOstrichProcessHandles m_path time_out = getProcessHandles $ proc (selPath m_path "ostrich") ["+quiet", "+stdin", "+incremental", "-timeoutPer=" ++ show time_out]
 
+selPath :: Maybe FilePath -> FilePath -> FilePath
+selPath = flip fromMaybe
 
 -- | setUpFormulaZ3
 -- Writes a function to Z3
