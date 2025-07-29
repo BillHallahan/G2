@@ -247,25 +247,9 @@ primDefs' b c l unit =
               , ("ratioZeroDenominatorError", Prim Error TyBottom)
               , ("undefined", Prim Error TyBottom)
 
-              , ("ite", Lam TypeL a . Lam TermL (z $ TyCon b TYPE) . Lam TermL (x (TyVar a)) . Lam TermL (y (TyVar a))
-                            $ Case (Var (z $ TyCon b TYPE))
-                                   (binder $ TyCon b TYPE)
-                                   (TyVar a)
-                                   [Alt Default $
-                                        mkApp [ Prim Ite (TyFun (TyCon b TYPE) (TyFun tyvarA (TyFun tyvarA tyvarA)))
-                                                , Var . z $ TyCon b TYPE
-                                                , Var $ x (TyVar a)
-                                                , Var $ y (TyVar a)]])
-
-              , ("iteInt#", Lam TermL (z $ TyCon b TYPE) . Lam TermL (x TyLitInt) . Lam TermL (y TyLitInt)
-                            $ Case (Var (z $ TyCon b TYPE))
-                                   (binder $ TyCon b TYPE)
-                                   TyLitInt
-                                   [Alt Default $
-                                        mkApp [ Prim Ite (TyFun (TyCon b TYPE) (TyFun TyLitInt (TyFun TyLitInt TyLitInt)))
-                                                , Var . z $ TyCon b TYPE
-                                                , Var $ x TyLitInt
-                                                , Var $ y TyLitInt]])
+              , ("ite", iteExpr (TyVar a))
+              , ("iteInt#", iteExpr TyLitInt)
+              , ("iteChar#", iteExpr TyLitChar)
 
               , ("&&#", Prim And . TyFun (TyCon b TYPE) $ TyFun (TyCon b TYPE) (TyCon b TYPE))
               , ("||#", Prim Or . TyFun (TyCon b TYPE) $ TyFun (TyCon b TYPE) (TyCon b TYPE))
@@ -289,6 +273,17 @@ primDefs' b c l unit =
                                     (Prim op ((TyFun strTy) $ TyFun strTy (TyCon b TYPE)))
                                     (Var $ y strTy))
                                 (Var $ z strTy)
+                    
+                    iteExpr t =
+                         Lam TermL (z $ TyCon b TYPE) . Lam TermL (x t) . Lam TermL (y t)
+                            $ Case (Var (z $ TyCon b TYPE))
+                                   (binder $ TyCon b TYPE)
+                                   t
+                                   [Alt Default $
+                                        mkApp [ Prim Ite (TyFun (TyCon b TYPE) (TyFun t (TyFun t t)))
+                                                , Var . z $ TyCon b TYPE
+                                                , Var $ x t
+                                                , Var $ y t]]
 a :: Id
 a = Id (Name "a" Nothing 0 Nothing) TYPE
 
