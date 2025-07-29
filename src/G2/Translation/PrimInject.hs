@@ -247,7 +247,7 @@ primDefs' b c l unit =
               , ("ratioZeroDenominatorError", Prim Error TyBottom)
               , ("undefined", Prim Error TyBottom)
 
-              , ("ite", iteExpr (TyVar a))
+              , ("ite", Lam TypeL a (iteExpr (TyVar a)))
               , ("iteInt#", iteExpr TyLitInt)
               , ("iteChar#", iteExpr TyLitChar)
 
