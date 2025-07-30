@@ -426,6 +426,9 @@ rev3Returns1 :: String -> Int -> Bool
 rev3Returns1 _ 1 = True
 rev3Returns1 _ _ = False 
 
+reverse5 :: Char -> String
+reverse5 x = reverse [x]
+
 insert1 :: Char -> String -> (Int, String)
 insert1 c xs
     | xs == [] = (1, rs)
@@ -526,3 +529,7 @@ lines1 s
 
 lines2 :: String -> [String]
 lines2 = lines
+
+callLast :: String -> Char
+callLast xs | length xs < 5 = 'a'
+            | otherwise = last xs

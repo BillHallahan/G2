@@ -483,7 +483,9 @@ testFileTests = testGroup "TestFiles"
 
                                         , ("lines1", 4000, [AtLeast 10])
                                          ]
-    , checkInputOutputsSMTStringsWithSubPath "tests/TestFiles/Strings/Strings1.hs" [ ("lines2", 2000, [AtLeast 10]) ]
+    , checkInputOutputsSMTStringsWithSubPath "tests/TestFiles/Strings/Strings1.hs"
+                                        [ ("lines2", 2000, [AtLeast 10])
+                                        , ("reverse5", 5000, [Exactly 1])]
     , checkInputOutputsQuantifiedSMTStrings "tests/TestFiles/Strings/Strings1.hs"
                                         [ ("genericReplicate1", 1000, [Exactly 2])
                                         , ("reverse1", 5000, [Exactly 6])
