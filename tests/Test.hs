@@ -478,8 +478,10 @@ testFileTests = testGroup "TestFiles"
                                         , ("reverse4", 5000, [Exactly 1])
                                         , ("insert2", 2000, [AtLeast 3])
                                         , ("insert3", 2000, [Exactly 1])
-                                         ]
 
+                                        , ("lines1", 4000, [AtLeast 10])
+                                         ]
+    , checkInputOutputsSMTStringsWithSubPath "tests/TestFiles/Strings/Strings1.hs" [ ("lines2", 2000, [AtLeast 10]) ]
     , checkInputOutputsQuantifiedSMTStrings "tests/TestFiles/Strings/Strings1.hs"
                                         [ ("genericReplicate1", 1000, [Exactly 2])
                                         , ("reverse1", 5000, [Exactly 6])
@@ -490,7 +492,7 @@ testFileTests = testGroup "TestFiles"
                                         , ("elemIndices1", 4000, [AtLeast 10])
                                         , ("minimum1", 3000, [AtLeast 1, AtMost 6]) -- Quantifier causes SMT failures
                                         , ("maximum1", 3000, [AtLeast 1, AtMost 6]) -- Quantifier causes SMT failures
-                                        , ("lines1", 4000, [AtLeast 10]) ]
+                                        ]
 
     , checkExpr "tests/TestFiles/Strings/Strings1.hs" 1000 "exclaimEq"
         [AtLeast 5, RExists (\[_, _, r] -> dcHasName "True" r)]
