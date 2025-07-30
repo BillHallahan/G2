@@ -349,12 +349,12 @@ evalCase s@(State { expr_env = eenv
   , (length dalts + length lalts + length defs) > 0 =
     let
         (cast, expr) = case mexpr of
-            (Cast e c) -> trace("in the just case") (Just c, e)
-            _ -> trace("in the nothing case") (Nothing, mexpr)
+            (Cast e c) -> (Just c, e)
+            _ -> (Nothing, mexpr)
 
         (dsts_cs, ng') = case unApp $ unsafeElimOuterCast expr of
             (Var i@(Id _ _)):_ -> concretizeVarExpr s ng i bind dalts cast 
-            (Prim _ _):_ -> trace("The expr is " ++ show expr)createExtConds s ng expr bind dalts
+            (Prim _ _):_ -> createExtConds s ng expr bind dalts
             (Lit _):_ -> ([], ng)
             (Data _):_ -> ([], ng)
             _ -> error $ "unmatched expr" ++ show (unApp $ unsafeElimOuterCast mexpr)
