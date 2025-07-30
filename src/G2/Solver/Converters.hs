@@ -30,6 +30,7 @@ module G2.Solver.Converters
     , SMTConverter (..) ) where
 
 import qualified Data.Bits as Bits
+import Data.Char
 import qualified Data.HashMap.Lazy as HM
 import qualified Data.HashSet as HS
 import qualified Data.Map as M
@@ -184,7 +185,7 @@ addSetLogic xs =
              if nra then SetLogic QF_NRA else 
              if nira then SetLogic QF_NIRA else
              if uflia then SetLogic QF_UFLIA else
-             if str then SetLogic QF_S else SetLogic ALL
+             if str then SetLogic QF_SLIA else SetLogic ALL
     in
     sl:xs
 
@@ -399,8 +400,11 @@ exprToSMT _ (App (Data (DataCon (Name "[]" _ _ _) _ _ _)) (Type (TyCon (Name "Ch
 exprToSMT tv e | [ Data (DataCon (Name ":" _ _ _) _ _ _)
               , Type (TyCon (Name "Char" _ _ _) _)
               , App _ e1
-              , e2] <- unApp e = exprToSMT tv e1 :++ exprToSMT tv e2
-exprToSMT tv a@(App _ _) =
+              , e2] <- unApp e = 
+                case e2 of
+                    App (Data (DataCon (Name "[]" _ _ _) _ _ _)) (Type (TyCon (Name "Char" _ _ _) _)) -> exprToSMT tv e1
+                    _ -> exprToSMT tv e1 :++ exprToSMT e2
+exprToSMT a@(App _ _) =
     let
         f = getFunc a
         ars = getArgs a
@@ -857,7 +861,7 @@ toSolverSetLogic lgc =
             QF_NRA -> "QF_NRA"
             QF_NIRA -> "QF_NIRA"
             QF_UFLIA -> "QF_UFLIA"
-            QF_S -> "QF_S"
+            QF_SLIA -> "QF_SLIA"
             _ -> "ALL"
     in
     "(set-logic " <> s <> ")"

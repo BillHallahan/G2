@@ -257,7 +257,18 @@ primDefs' b c l unit =
                                                 , Var $ x (TyVar a)
                                                 , Var $ y (TyVar a)]])
 
+              , ("iteInt#", Lam TermL (z $ TyCon b TYPE) . Lam TermL (x TyLitInt) . Lam TermL (y TyLitInt)
+                            $ Case (Var (z $ TyCon b TYPE))
+                                   (binder $ TyCon b TYPE)
+                                   TyLitInt
+                                   [Alt Default $
+                                        mkApp [ Prim Ite (TyFun (TyCon b TYPE) (TyFun TyLitInt (TyFun TyLitInt TyLitInt)))
+                                                , Var . z $ TyCon b TYPE
+                                                , Var $ x TyLitInt
+                                                , Var $ y TyLitInt]])
+
               , ("&&#", Prim And . TyFun (TyCon b TYPE) $ TyFun (TyCon b TYPE) (TyCon b TYPE))
+              , ("||#", Prim Or . TyFun (TyCon b TYPE) $ TyFun (TyCon b TYPE) (TyCon b TYPE))
               , ("==>", Prim Implies . TyFun (TyCon b TYPE) $ TyFun (TyCon b TYPE) (TyCon b TYPE))
               
               , ("forAllInt#", Prim ForAllPr ((TyFun

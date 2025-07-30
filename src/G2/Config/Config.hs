@@ -49,7 +49,7 @@ data InstTV = InstBefore | InstAfter deriving (Eq, Show, Read)
 -- Determining whether we want to show more type informations
 data ShowType = Lax | Aggressive deriving (Eq, Show, Read)
 
-data SMTSolver = ConZ3 | ConCVC4 deriving (Eq, Show, Read)
+data SMTSolver = ConZ3 | ConCVC5 | ConOstrich deriving (Eq, Show, Read)
 
 data SearchStrategy = Iterative | Subpath deriving (Eq, Show, Read)
 
@@ -96,6 +96,7 @@ data Config = Config {
     , fp_handling :: FpHandling -- ^ Whether to use real floating point values or rationals
     , print_encode_float :: Bool -- ^ Whether to print floating point numbers directly or via encodeFloat
     , smt :: SMTSolver -- ^ Sets the SMT solver to solve constraints with
+    , smt_path :: Maybe FilePath -- ^ Location of SMT solver
     , smt_strings :: SMTStrings -- ^ Sets whether the SMT solver should be used to solve string constraints
     , quantified_smt_strings :: SMTQuantifiers -- ^ Sets whether quantifiers should be used to describe SMT functions
     , step_limit :: Bool -- ^ Should steps be limited when running states?
@@ -171,8 +172,13 @@ mkConfig homedir = Config Regular
                                 <> help "Represent floating point values precisely.  When off, overapproximate as rationals.")
     <*> switch (long "print-encodeFloat" <> help "use encodeFloat to print floating point numbers")
     <*> mkSMTSolver
+    <*> option (Just <$> str)
+                ( long "smt-path"
+                <> metavar "SMT-PATH"
+                <> value Nothing
+                <> help "path to an SMT solver")
     <*> flag NoSMTStrings UseSMTStrings (long "smt-strings" <> help "Sets whether the SMT solver should be used to solve string constraints")
-    <*> flag UseQuantifiers NoQuantifiers (long "no-quant-smt-strings" <> help "Turn off using quantifiers to represent certain String functions")
+    <*> flag NoQuantifiers UseQuantifiers (long "quant-smt-strings" <> help "Use quantifiers to represent certain String functions")
     <*> flag True False (long "no-step-limit" <> help "disable step limit")
     <*> option auto (long "n"
                    <> metavar "N"
@@ -276,12 +282,13 @@ mkSMTSolver :: Parser SMTSolver
 mkSMTSolver =
     option (eitherReader (\s -> case s of
                                     "z3" -> Right ConZ3
-                                    "cvc4" -> Right ConCVC4
+                                    "cvc5" -> Right ConCVC5
+                                    "ostrich" -> Right ConOstrich
                                     _ -> Left "Unsupported SMT solver"))
             ( long "smt"
             <> metavar "SMT-SOLVER"
             <> value ConZ3
-            <> help "either z3 or cvc4, to select the solver to use")
+            <> help "either z3 or cvc5, to select the solver to use")
 
 mkSearchStrategy :: Parser SearchStrategy
 mkSearchStrategy =
@@ -325,8 +332,9 @@ mkConfigDirect homedir as m = Config {
     , fp_handling = RealFP
     , print_encode_float = False
     , smt = strArg "smt" as m smtSolverArg ConZ3
+    , smt_path = Nothing
     , smt_strings = NoSMTStrings
-    , quantified_smt_strings = UseQuantifiers
+    , quantified_smt_strings = NoQuantifiers
     , step_limit = boolArg' "no-step-limit" as True True False
     , steps = strArg "n" as m read 1000
     , time_solving = False
@@ -378,7 +386,7 @@ smtSolverArg = smtSolverArg' . map toLower
 
 smtSolverArg' :: String -> SMTSolver
 smtSolverArg' "z3" = ConZ3
-smtSolverArg' "cvc4" = ConCVC4
+smtSolverArg' "cvc5" = ConCVC5
 smtSolverArg' _ = error "Unrecognized SMT solver."
 
 higherOrderSolArg :: String -> HigherOrderSolver

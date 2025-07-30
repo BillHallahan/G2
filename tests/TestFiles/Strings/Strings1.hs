@@ -1,8 +1,12 @@
 {-# LANGUAGE CPP #-}
+{-# OPTIONS_GHC -Wno-x-partial #-}
 
 module Strings1 where
 
 import Data.List
+
+toEnum1 :: String
+toEnum1 = [toEnum 56089]
 
 con :: String -> String -> String
 con xs ys = xs ++ ys
@@ -19,6 +23,9 @@ capABC ('b':xs) = 'B':capABC xs
 capABC ('c':xs) = 'C':capABC xs
 capABC (x:xs) = x:capABC xs
 capABC "" = ""
+
+quoteChar :: Char -> Int 
+quoteChar c = if c == '\'' then 1 else 0
 
 appendEq :: String -> String
 appendEq s = s ++ "!"
@@ -250,6 +257,12 @@ min2 x y | length x < 2 = (1, min x y)
          | x == y = (3, min x y)
          | otherwise = (4, min x y)
 
+maxChar1 :: Char -> Char -> Char
+maxChar1 = max
+
+minChar1 :: Char -> Char -> Char
+minChar1 = min
+
 delete1 :: Char -> String -> (Int, String)
 delete1 c s
     | length s < 3 = (1, d)
@@ -392,3 +405,116 @@ reverse1 xs
     | otherwise = (6, rs)
     where
         rs = reverse xs
+
+reverse2 :: String -> Int
+reverse2 [] = 1
+reverse2 xs
+    | length xs < 4 = 2
+    | otherwise =
+        if head (reverse xs) == last xs
+            then 3
+            else 4 -- Returning 4 is impossible
+
+reverse3 :: String -> Int
+reverse3 xs
+    | rs == "ABC" = 1
+    | otherwise = 2
+    where
+        rs = reverse xs
+
+rev3Returns1 :: String -> Int -> Bool
+rev3Returns1 _ 1 = True
+rev3Returns1 _ _ = False 
+
+insert1 :: Char -> String -> (Int, String)
+insert1 c xs
+    | xs == [] = (1, rs)
+    | length xs < 9 = (2, rs)
+    | head xs /= head rs = (3, rs)
+    | xs !! 3 /= rs !! 3 = (4, rs)
+    | xs !! 7 /= rs !! 7 = (5, rs)
+    | c `notElem` rs = error "Impossible"
+    | otherwise = (6, rs)
+    where
+        rs = insert c xs
+
+insert2 :: String -> (Int, String)
+insert2 xs
+    | length xs < 3 = (1, ins)
+    | otherwise = (2, ins)
+    where
+        ins = insert 'f' xs
+
+insert3 :: String
+insert3 = insert 'a' ""
+
+intersperse1 :: Char -> String -> (Int, String)
+intersperse1 c xs
+    | xs == [] = (1, rs)
+    | length xs < 5 = (2, rs)
+    | otherwise = (3, rs)
+    where
+        rs = intersperse c xs
+
+replicate1 :: Int -> Char -> (String, Int)
+replicate1 n c
+    | length rs > 7 = (rs, 1)
+    | otherwise = (rs, 2)
+    where
+        rs = replicate n c
+
+minimum1 :: String -> (Char, Int)
+minimum1 xs
+    | xs == [] = ('e', 1)
+    | length xs > 5 = (m, 2)
+    | m == 'b' = (m, 3)
+    | m < 'f' = (m, 4)
+    | 'x' < m = (m, 5)
+    | otherwise = (m, 6)
+    where
+        m = minimum xs
+
+maximum1 :: String -> (Char, Int)
+maximum1 xs
+    | xs == [] = ('e', 1)
+    | length xs > 5 = (m, 2)
+    | m == 'b' = (m, 3)
+    | m < 'f' = (m, 4)
+    | 'x' < m = (m, 5)
+    | otherwise = (m, 6)
+    where
+        m = maximum xs
+
+elemIndices1 :: String -> ([Int], Int)
+elemIndices1 s
+    | [_,_,_,_,_,_,_,_,_] <- matches = (matches, 9)
+    | [_,_,_,_,_,_,_,_] <- matches = (matches, 8)
+    | [_,_,_,_,_,_,_] <- matches = (matches, 7)
+    | [_,_,_,_,_,_] <- matches = (matches, 6)
+    | [_,_,_,_,_] <- matches = (matches, 5)
+    | [_,_,_,_] <- matches = (matches, 4)
+    | [_,_,_] <- matches = (matches, 3)
+    | [_,_] <- matches = (matches, 2)
+    | [_] <- matches = (matches, 1)
+    | otherwise = (matches, 0)
+    where
+        matches = elemIndices 'x' s
+
+lines1 :: String -> ([String], Int)
+lines1 s
+    | [_,_,_,"ABC",_,_,_,_,_] <- matches = (matches, 10)
+    | [_,_,_,_,_,_,_,_,_] <- matches = (matches, 9)
+    | [_,_,_,_,_,_,_,_] <- matches = (matches, 8)
+    | [_,_,_,_,_,_,_] <- matches = (matches, 7)
+    | [_,_,_,_,_,_] <- matches = (matches, 6)
+    | [_,_,_,_,_] <- matches = (matches, 5)
+    | [_,_,_,_] <- matches = (matches, 4)
+    | [_,_,_] <- matches = (matches, 3)
+    | [_,_] <- matches = (matches, 2)
+    | [_] <- matches = (matches, 1)
+    | otherwise = (matches, 0)
+    where
+        matches = lines s
+
+lines2 :: String -> [String]
+lines2 = lines

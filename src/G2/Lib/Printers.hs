@@ -286,27 +286,32 @@ printString pg a =
     let
         maybe_str = printString' a
     in case maybe_str of
-        Just str -> if T.all isPrint str then "\"" <> T.concatMap addEscapeStr str <> "\""
-                    else ("[" <> T.intercalate ", " (map stringToEnum $ T.unpack str) <> "]")
+        Just str ->
+            -- T.Text cannot represent certain unicode Char's that are valid in Strings and that might
+            -- be returned from the SMT solver.  This means we must do the initial conversion of non-printable
+            -- Char's via Haskell Strings, and only convert into Text later.
+            T.pack $ 
+                if all isPrint str then "\"" <> concatMap addEscapeStr str <> "\""
+                else ("[" <> intercalate ", " (map stringToEnum $ str) <> "]")
         Nothing -> printList pg a
     where
         stringToEnum c
             | isPrint c = "\'" <> addEscapeChar c <> "\'"
-            | otherwise = T.pack $ "toEnum " ++ show (ord c)
+            | otherwise = "toEnum " ++ show (ord c)
 
         addEscapeStr '"' = "\\\""
         addEscapeStr '\\' = "\\\\"
-        addEscapeStr c = T.singleton c
+        addEscapeStr c = [c]
 
         addEscapeChar '\'' = "\\'"
         addEscapeChar '\\' = "\\\\"
-        addEscapeChar c = T.singleton c
+        addEscapeChar c = [c]
 
-printString' :: Expr -> Maybe T.Text
+printString' :: Expr -> Maybe String
 printString' (App (App _ (App _ (Lit (LitChar c)))) e') =
     case printString' e' of
         Nothing -> Nothing
-        Just str -> Just (T.cons c str)
+        Just str -> Just (c:str)
 printString' e | Data (DataCon n _ _ _) <- appCenter e
                , nameOcc n == "[]" = Just ""
                | otherwise = Nothing
@@ -361,9 +366,11 @@ mkLitHaskell use = lit
         lit (LitDouble r) = mkFloat (T.pack (hs ++ hs)) r
         lit (LitRational r) = "(" <> T.pack (show r) <> ")"
         lit (LitBV bv) = "#b" <> T.concat (map (T.pack . show) bv)
-        lit (LitChar c) | isPrint c = T.pack ['\'', c, '\'']
+        lit (LitChar c) | c == '\\' = T.pack "\'\\\\\'"
+                        | c == '\'' = T.pack "\'\\\'\'"
+                        | isPrint c = T.pack ['\'', c, '\'']
                         | otherwise = "(chr " <> T.pack (show $ ord c) <> ")"
-        lit (LitString s) = T.pack s
+        lit (LitString s) = "\"" <> T.pack s <> "\""
 
 mkFloat :: (Show n, RealFloat n) => T.Text -> n -> T.Text
 mkFloat hs r | isNaN r = "(0" <> hs <> " / 0" <> hs <> ")"
