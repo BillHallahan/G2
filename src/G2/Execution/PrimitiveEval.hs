@@ -31,7 +31,6 @@ import G2.Language.MutVarEnv
 import qualified G2.Language.TyVarEnv as TV 
 
 import GHC.Float
-
 import G2.Language.ExprEnv (deepLookupVar)
 
 -- | Evaluates primitives at the root of the passed `Expr` while updating the `ExprEnv`
@@ -810,7 +809,7 @@ evalPrimSymbolic tv eenv tenv ng kv e
     , [Prim TagToEnum _, _, pe] <- unApp e
     , typeOf tv (dig eenv pe) == tBool = Just (pe, eenv, [], ng)
     | [Prim TagToEnum _, type_t, pe] <- unApp e
-    , Type t <- dig eenv type_t =
+    , Just t <- TV.deepLookup tv type_t =
         case unTyApp t of
             TyCon n _:_ | Just adt <- M.lookup n tenv ->
                 let

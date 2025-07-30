@@ -16,7 +16,7 @@ import qualified Data.HashMap.Lazy as HM
 import Data.Ord
 import Data.Tuple
 import qualified G2.Language.TyVarEnv as TV 
-import Debug.Trace
+
 -- | A default `ArbValueGen`.
 arbValueInit :: ArbValueGen
 arbValueInit = ArbValueGen { intGen = 0
@@ -115,7 +115,7 @@ arbValue' _ _ TyLitChar _ _ av =
 arbValue' getADTF m (TyVar (Id n _)) tenv tv av
     | Just t <- HM.lookup n m = arbValue' getADTF m t tenv tv av
     | Just t <- TV.lookup n tv = arbValue' getADTF m t tenv tv av
-arbValue' _ _ t _ _ av = trace ("arbValue' = " ++ show t) (Prim Undefined t, av)
+arbValue' _ _ t _ _ av = (Prim Undefined t, av)
 
 
 constArbValue' :: GetADT -> HM.HashMap Name Type -> Type -> TypeEnv -> TV.TyVarEnv -> ArbValueGen -> (Expr, ArbValueGen)

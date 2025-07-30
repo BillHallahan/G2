@@ -121,7 +121,7 @@ adjustDynFlags = do
     _ <- setSessionDynFlags dyn4
     return ()
 
-runCheck :: PrettyGuide -> Maybe T.Text -> String -> [String] -> [String] -> Bindings -> ExecRes t -> Ghc (HValue, [HValue])
+runCheck :: PrettyGuide -> Maybe T.Text -> String -> [String] -> [String] -> Bindings -> ExecRes t -> Ghc (HValue, [HValue], [HValue])
 runCheck init_pg modN entry chAll chAny b er@(ExecRes {final_state = s, conc_args = ars, conc_out = out}) = do
     let Left (v, _) = findFunc (tyvar_env s) (T.pack entry) [modN] (expr_env s)
     let e = mkApp $ Var v:ars
@@ -136,9 +136,6 @@ runCheck init_pg modN entry chAll chAny b er@(ExecRes {final_state = s, conc_arg
     -- before the typeOf in the next line , we want to retype the type variable in the expression 
     -- with the corresponding type find in the tyvar_env 
     -- use tyVarRename and change the map into TyVarEnv 
-
-    -- let e' = tyVarSubst (tyvar_env s) e
-    -- let out' = tyVarSubst (tyvar_env s) out
 
     let arsType = T.unpack $ mkTypeHaskellPG pg (typeOf (tyvar_env s) e)
         outType = T.unpack $ mkTypeHaskellPG pg (typeOf (tyvar_env s) out)

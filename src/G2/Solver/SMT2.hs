@@ -53,7 +53,7 @@ instance Solver Z3 where
     close = closeIO
 
 instance Solver CVC5 where
-    check solver _ pc = checkConstraintsPC solver pc
+    check solver s pc = checkConstraintsPC (tyvar_env s) solver pc
     solve con@(CVC5 _ avf _) = checkModelPC avf con
     close = closeIO
 

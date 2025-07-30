@@ -403,8 +403,8 @@ exprToSMT tv e | [ Data (DataCon (Name ":" _ _ _) _ _ _)
               , e2] <- unApp e = 
                 case e2 of
                     App (Data (DataCon (Name "[]" _ _ _) _ _ _)) (Type (TyCon (Name "Char" _ _ _) _)) -> exprToSMT tv e1
-                    _ -> exprToSMT tv e1 :++ exprToSMT e2
-exprToSMT a@(App _ _) =
+                    _ -> exprToSMT tv e1 :++ exprToSMT tv e2
+exprToSMT tv a@(App _ _) =
     let
         f = getFunc a
         ars = getArgs a
