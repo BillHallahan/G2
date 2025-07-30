@@ -421,7 +421,6 @@ getSMT = getSMTAV arbValue
 
 getSMTAV :: ArbValueFunc -> Config -> IO SomeSMTSolver
 getSMTAV avf (Config { smt = ConZ3, smt_path = path, print_smt = pr }) = do
-    print path
     hhp <- getZ3ProcessHandles path 10000
     return $ SomeSMTSolver (Z3 pr avf hhp)
 getSMTAV avf (Config { smt = ConCVC5, smt_path = path, print_smt = pr }) = do
