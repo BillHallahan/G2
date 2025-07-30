@@ -181,9 +181,9 @@ deepLookup n eenv =
         Nothing -> Nothing
 
 -- | Apply `deepLookup` if passed a `Var`.  Otherwise, just return the passed `Expr`.
-deepLookupExpr :: Expr -> ExprEnv -> Maybe Expr
-deepLookupExpr (Var (Id n _)) eenv = deepLookup n eenv
-deepLookupExpr e _  = Just e
+deepLookupExpr :: Expr -> ExprEnv -> Expr
+deepLookupExpr v@(Var (Id n _)) eenv = fromMaybe v (deepLookup n eenv)
+deepLookupExpr e _  = e
 
 deepLookupConcOrSym :: Name -> ExprEnv -> Maybe ConcOrSym
 deepLookupConcOrSym n eenv =
