@@ -7,6 +7,21 @@ import time
 
 exe_name = str(subprocess.run(["cabal", "exec", "which", "G2"], capture_output = True).stdout.decode('utf-8')).strip()
 
+def calculate_hpc_coverage(hpc_res):
+    rel_hpc_res = list(filter(lambda x: x[0] != "CallForHPC", hpc_res))
+    print("calculate hpc converage")
+    print(hpc_res)
+    print(rel_hpc_res)
+    found = map(lambda x : x[2], rel_hpc_res)
+    total = map(lambda x : x[3], rel_hpc_res)
+    coverage = 0
+    print(list(map(lambda x : ((x[4]), (x[5])), rel_hpc_res)))
+    hpc_branch_nums = sum(map(lambda x : (int(x[4]) + int(x[5])), rel_hpc_res))
+    try:
+        return (sum(found) / sum(total)), hpc_branch_nums
+    except:
+        return 0, hpc_branch_nums
+
 def read_hpc_times(out):
     times = []
     read = False
@@ -34,7 +49,7 @@ def call_g2_process(filename, func, var_settings):
 
 def run_bench(filename, var_settings, timeout):
     # --include nofib-symbolic/common --hpc --hpc-print-times --no-step-limit --search subpath --time 60
-    return run_g2(filename, "main", ["--include", "nofib-symbolic/common", "--hpc", "--hpc-print-times", "--no-step-limit", "--search", "subpath", "--time", str(timeout)] + var_settings)
+    return run_g2(filename, "main", ["--include", "nofib-symbolic/common", "--hpc", "--hpc-print-times", "--no-step-limit", "--search", "subpath", "--measure-coverage", "--time", str(timeout)] + var_settings)
 
 def run_bench_smt(filename, var_settings, timeout):
     return run_bench(filename, ["--smt-strings"] + var_settings, timeout)
@@ -46,12 +61,18 @@ def process_output(out):
 
     all_times = read_hpc_times(out)
 
+    hpc_exp = re.findall(r"module (.*)>-----\n\s*((?:\d)*)% expressions used \(((?:\d)*)/((?:\d)*)\)(?:\n|[^-])*boolean coverage \((?:\d*)/(\d*)\)(?:\n|[^-])*alternatives used \((?:\d*)/(\d*)\)", out)
+    hpc_exp_num = list(map(lambda x : (x[0], int(x[1]), int(x[2]), int(x[3]), (x[4]), (x[5])), hpc_exp))
+    hpc_reached, branch_num = calculate_hpc_coverage(hpc_exp_num)
+    hpc_reached = round(hpc_reached * 100, 1)
+
     if reached != None and total != None and last != None:
         reached_f = float(reached.group(1))
         total_f = float(total.group(1))
         # print(reached.group(1))
         # print(total.group(1))
         print("% reached = " + str(reached_f / total_f))
+        print("hpc reached = " + str(hpc_reached))
         print("last time = " + last.group(1))
         print("all_times = " + str(all_times))
 
@@ -78,6 +99,6 @@ def run_nofib_set(setname, var_settings, timeout):
                     print("SMT:")
                     process_output(res_bench_nrpc)
 
-run_nofib_set("nofib-symbolic/imaginary", [], 60)
-run_nofib_set("nofib-symbolic/spectral", [], 60)
-run_nofib_set("programs", [], 60)
+run_nofib_set("nofib-symbolic/imaginary", [], 120)
+run_nofib_set("nofib-symbolic/spectral", [], 120)
+run_nofib_set("programs", [], 120)
