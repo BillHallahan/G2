@@ -7,6 +7,30 @@ import time
 
 exe_name = str(subprocess.run(["cabal", "exec", "which", "G2"], capture_output = True).stdout.decode('utf-8')).strip()
 
+smt_solvers = ["z3", "cvc5", "ostrich", "z3-noodler"]
+
+# outputting latex
+def generate_latex(res_all):
+    solvers = ["conc"] + smt_solvers
+
+
+    print(r"\begin{tabular}{| l |" + "".join(map(lambda _ : " c | c |", solvers)) + "}")
+    print("\hline")
+    multi_smt = " & ".join(map(lambda s : r"\multicolumn{2}{l|}{" + s + "}", solvers))
+    print(" & " + multi_smt + r"\\ \hline")
+
+    cov_last_lab = " & ".join(map(lambda s : r"Cov (\%) & Last (s)", solvers))
+    print("Benchmark & " + cov_last_lab + r"\\ \hline")
+
+    for (file_dir, bench_res) in res_all:
+        line = file_dir + " & "
+        bench_res = map(lambda rl: str(rl[0]) + " & " + str(rl[1]), bench_res)
+        bench_res = " & ".join(bench_res)
+        print(line + bench_res + r"\\ \hline")
+
+    print(r"\end{tabular}")
+
+# dealing with HPC
 def calculate_hpc_coverage(hpc_res):
     rel_hpc_res = list(filter(lambda x: x[0] != "CallForHPC", hpc_res))
     print("calculate hpc converage")
@@ -35,17 +59,20 @@ def read_hpc_times(out):
     return times
 
 # Calling and reading from G2
-def run_g2(filename, func, var_settings):
+def run_g2(filename, func, var_settings, timeout):
     start_time = time.monotonic();
-    res = call_g2_process(filename, func, var_settings);
+    res = call_g2_process(filename, func, var_settings, timeout);
     end_time = time.monotonic();
     elapsed = end_time - start_time;
     return res
 
-def call_g2_process(filename, func, var_settings):
+def call_g2_process(filename, func, var_settings, to):
     args = [exe_name, filename, func]
-    res = subprocess.run(args + var_settings, universal_newlines=True, capture_output=True);
-    return res.stdout
+    try:
+        res = subprocess.run(args + var_settings, universal_newlines=True, capture_output=True, timeout = to * 5);
+        return res.stdout
+    except subprocess.TimeoutExpired:
+        return ""
 
 def run_bench(filename, var_settings, timeout, solver):
     # --include nofib-symbolic/common --hpc --hpc-print-times --no-step-limit --search subpath --time 60
@@ -54,7 +81,7 @@ def run_bench(filename, var_settings, timeout, solver):
                , "--time", str(timeout)
                , "--smt", solver] + var_settings
     print(*settings)
-    return run_g2(filename, "main", settings)
+    return run_g2(filename, "main", settings, timeout)
 
 def run_bench_smt(filename, var_settings, timeout, solver):
     return run_bench(filename, ["--smt-strings"] + var_settings, timeout, solver)
@@ -80,6 +107,8 @@ def process_output(out):
         print("hpc reached = " + str(hpc_reached))
         print("last time = " + last.group(1))
         print("all_times = " + str(all_times))
+    
+    return (hpc_reached, last)
 
 def run_nofib_set(setname, var_settings, timeout):
         setpath = os.path.join("string-to-smt-benchmark/", setname)
@@ -87,26 +116,35 @@ def run_nofib_set(setname, var_settings, timeout):
 
         okasaki_bench = ["BinaryHeap.hs", "LeftistHeap.hs", "RedBlackTree.hs"]
 
-        smt_solvers = ["z3", "cvc5", "ostrich", "z3-noodler"]
-
         print(setpath)
 
+        res_all = []
+
         for file_dir in all_files_dirs:
+            res_bench = []
             bench_path = os.path.join(setpath, file_dir)
             isOkasaki = True if file_dir in okasaki_bench else False
             if os.path.isdir(bench_path) or file_dir in okasaki_bench:
                 final_path = os.path.join(bench_path, "Main.hs") if not isOkasaki else bench_path
                 if os.path.isfile(final_path):
                     print(file_dir);
-                    res_bench = run_bench(final_path, var_settings, timeout, "z3")
+                    res_base = run_bench(final_path, var_settings, timeout, "z3")
                     print("Baseline:")
-                    process_output(res_bench)
-                    for solver in smt_solvers:
+                    last_reached = process_output(res_base)
+                    res_bench.append(last_reached)
+                    for solver_name in smt_solvers:
+                        solver = "z3" if solver_name == "z3-noodler" else solver_name
                         extra_var = ["--smt-path", "z3-noodler"] if solver == "z3-noodler" else []
-                        res_bench_nrpc = run_bench_smt(final_path, var_settings + extra_var, timeout, solver)
-                        print("SMT " + solver + ":")
-                        process_output(res_bench_nrpc)
+                        res_smt = run_bench_smt(final_path, var_settings + extra_var, timeout, solver)
+                        print("SMT " + solver_name + ":")
+                        last_reached = process_output(res_smt)
+                        res_bench.append(last_reached)
+                res_all.append((file_dir, res_bench))
 
-run_nofib_set("nofib-symbolic/imaginary", [], 10)
-run_nofib_set("nofib-symbolic/spectral", [], 10)
-run_nofib_set("programs", [], 10)
+        return res_all
+
+res_imag = run_nofib_set("nofib-symbolic/imaginary", [], 30)
+res_spec = run_nofib_set("nofib-symbolic/spectral", [], 30)
+res_progs = run_nofib_set("programs", [], 30)
+
+generate_latex(res_imag + res_spec + res_progs)
