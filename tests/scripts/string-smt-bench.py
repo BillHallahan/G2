@@ -23,7 +23,7 @@ def cov_generate_latex(res_all):
 
     for (file_dir, bench_res) in res_all:
         line = file_dir + " & "
-        bench_res = map(lambda rl: rl[0] + " & " + rl[1], bench_res)
+        bench_res = map(lambda rl: str(rl[0]) + " & " + "-" if rl[1] == -1 else str(rl[1]), bench_res)
         bench_res = " & ".join(bench_res)
         print(line + bench_res + r"\\ \hline")
 
@@ -42,6 +42,7 @@ def cex_generate_latex(res_all):
 
     for (file_dir, bench_res) in res_all:
         line = file_dir + " & "
+        bench_res = map(lambda r : "-" if r == -1 else str(r), bench_res)
         bench_res = " & ".join(bench_res)
         print(line + bench_res + r"\\ \hline")
 
@@ -126,19 +127,19 @@ def cov_process_output(out):
         print("all_times = " + str(all_times))
     
     if last != None:
-        last = str(last[1])
+        last = round(float(last[1]), 1)
     else:
-        last = "-"
+        last = -1
     
-    return (str(hpc_reached), last)
+    return (hpc_reached, last)
 
 def cex_process_output(out):
     found = re.search(r"State Accepted Time: ((\d|\.)*)", out)
     if found != None:
         print("Found counterexample = " + str(found[1]))
-        return str(found[1])
+        return round(float(found[1]), 1)
     else:
-        return "-"
+        return -1
 
 def run_nofib_set(setname, var_settings, timeout):
         setpath = os.path.join("string-to-smt-benchmark/", setname)
@@ -204,14 +205,13 @@ def run_properties(setname, filename, var_settings, timeout, properties):
 
         return res_all
 
-time_lim = 2
+time_lim = 120
 
 res_imag = run_nofib_set("nofib-symbolic/imaginary", [], time_lim)
-# res_spec = run_nofib_set("nofib-symbolic/spectral", [], time_lim)
-# res_progs = run_nofib_set("programs", [], time_lim)
+res_spec = run_nofib_set("nofib-symbolic/spectral", [], time_lim)
+res_progs = run_nofib_set("programs", [], time_lim)
 
-cov_generate_latex(res_imag)
-# generate_latex(res_imag + res_spec + res_progs)
+cov_generate_latex(res_imag + res_spec + res_progs)
 
 props = map(lambda x : "prop" + str(x), list(range(1, 15)))
 res_props = run_properties("properties", "ParamProperties", [], time_lim, props)
