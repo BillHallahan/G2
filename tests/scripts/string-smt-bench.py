@@ -143,8 +143,8 @@ def run_nofib_set(setname, var_settings, timeout):
 
         return res_all
 
-res_imag = run_nofib_set("nofib-symbolic/imaginary", [], 120)
-res_spec = run_nofib_set("nofib-symbolic/spectral", [], 120)
-res_progs = run_nofib_set("programs", [], 120)
+res_imag = run_nofib_set("nofib-symbolic/imaginary", [], 10)
+res_spec = run_nofib_set("nofib-symbolic/spectral", [], 10)
+res_progs = run_nofib_set("programs", [], 10)
 
 generate_latex(res_imag + res_spec + res_progs)

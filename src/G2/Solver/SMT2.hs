@@ -107,11 +107,7 @@ instance SMTConverter Z3 where
         let (h_in, _, _) = getIO con
         T.hPutStrLn h_in "(set-option :produce-unsat-cores true)"
 
-    addFormula con@(Z3 print_smt _ _) form = do
-        let (h_in, _, _) = getIO con
-            pr_smt = getPrintSMT con
-        when pr_smt $ T.putStrLn (TB.run $ toSolverText form)
-        T.hPutStrLn h_in (TB.run $ toSolverText form)
+    addFormula = stdAddFormula
 
     checkSatNoReset = stdCheckSatNoReset
 
@@ -141,7 +137,6 @@ instance SMTConverter Z3 where
 
         T.hPutStr h_in formula'
         r <- checkSat' print_smt h_in h_out
-        -- putStrLn $ "r =  " ++ show r
         if r == SAT () then do
             mdl <- getModelZ3 print_smt h_in h_out vs
             -- putStrLn "======"
@@ -204,11 +199,7 @@ instance SMTConverter CVC5 where
 
     setProduceUnsatCores _ = return ()
 
-    addFormula con form = do
-        let (h_in, _, _) = getIO con
-            pr_smt = getPrintSMT con
-        when pr_smt $ T.putStrLn (TB.run $ toSolverText form)
-        T.hPutStrLn h_in (TB.run $ toSolverText form)
+    addFormula = stdAddFormula
 
     checkSatNoReset = stdCheckSatNoReset
 
@@ -239,7 +230,6 @@ instance SMTConverter CVC5 where
 
         T.hPutStr h_in formula'
         r <- checkSat' print_smt h_in h_out
-        putStrLn $ "r =  " ++ show r
         if r == SAT () then do
             mdl <- getModel print_smt h_in h_out vs
             -- putStrLn "======"
@@ -301,11 +291,7 @@ instance SMTConverter Ostrich where
     getUnsatCoreInstrResult _ = error "ostrich: unsat core not supported"
     setProduceUnsatCores _ = error "ostrich: unsat core not supported"
 
-    addFormula con@(Ostrich print_smt _ _) form = do
-        let (h_in, _, _) = getIO con
-            pr_smt = getPrintSMT con
-        when pr_smt $ T.putStrLn (TB.run $ toSolverText form)
-        T.hPutStrLn h_in (TB.run $ toSolverText form)
+    addFormula = stdAddFormula
 
     checkSatNoReset = stdCheckSatNoReset
 
@@ -333,6 +319,14 @@ instance SMTConverter Ostrich where
 
     push = stdPush
     pop = stdPop
+
+stdAddFormula :: SMTConverter con => con -> [SMTHeader] -> IO ()
+stdAddFormula con form = do
+    let (h_in, _, _) = getIO con
+        pr_smt = getPrintSMT con
+    when pr_smt $ T.putStrLn (TB.run $ toSolverText form)
+    T.hPutStrLn h_in (TB.run $ toSolverText form)
+
 
 stdCheckSatNoReset :: SMTConverter con => con -> [SMTHeader] -> IO (Result () () ())
 stdCheckSatNoReset con formula = do
