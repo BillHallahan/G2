@@ -426,8 +426,11 @@ rev3Returns1 :: String -> Int -> Bool
 rev3Returns1 _ 1 = True
 rev3Returns1 _ _ = False 
 
+reverse4 = reverse ['a'..'c']
+
 reverse5 :: Char -> String
 reverse5 x = reverse [x]
+
 
 insert1 :: Char -> String -> (Int, String)
 insert1 c xs
