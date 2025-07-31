@@ -35,8 +35,6 @@ import System.IO
 import System.Process
 import Data.Maybe (fromMaybe)
 
-type PrintSMT = Bool
-
 data Z3 = Z3 PrintSMT ArbValueFunc (Handle, Handle, ProcessHandle)
 data CVC5 = CVC5 PrintSMT ArbValueFunc (Handle, Handle, ProcessHandle)
 data Ostrich = Ostrich PrintSMT ArbValueFunc (Handle, Handle, ProcessHandle)
@@ -60,10 +58,10 @@ instance Solver Ostrich where
     solve con@(Ostrich _ avf _) = checkModelPC avf con
     close = closeIO
 
-getIOZ3 :: Z3 -> (Handle, Handle, ProcessHandle)
-getIOZ3 (Z3 _ _ hhp) = hhp
-
 instance SMTConverter Z3 where
+    getIO (Z3 _ _ hhp) = hhp
+    getPrintSMT (Z3 print_smt _ _) = print_smt
+
     closeIO (Z3 _ _ (h_in, h_out, ph)) = do
 #if MIN_VERSION_process(1,6,4)
         cleanupProcess (Just h_in, Just h_out, Nothing, ph)
@@ -75,23 +73,23 @@ instance SMTConverter Z3 where
 #endif
 
     reset con@(Z3 print_smt _ _) = do
-        let (h_in, _, _) = getIOZ3 con
+        let (h_in, _, _) = getIO con
         when print_smt $ putStrLn "(reset)"
         T.hPutStr h_in "(reset)"
 
     checkSatInstr con = do
-        let (h_in, _, _) = getIOZ3 con
+        let (h_in, _, _) = getIO con
         T.hPutStrLn h_in "(check-sat)"
 
     maybeCheckSatResult con = do
-        let (_, h_out, _) = getIOZ3 con
+        let (_, h_out, _) = getIO con
         r <- hReady h_out
         case r of
             True -> return . Just =<< checkSatReadResult h_out
             False -> return Nothing
 
     getModelInstrResult con@(Z3 print_smt _ _) vs = do
-        let (h_in, h_out, _) = getIOZ3 con
+        let (h_in, h_out, _) = getIO con
         mdl <- getModelZ3 print_smt h_in h_out vs
         -- putStrLn "======"
         -- putStrLn (show mdl)
@@ -101,38 +99,24 @@ instance SMTConverter Z3 where
         return m
 
     getUnsatCoreInstrResult con = do
-        let (h_in, h_out, _) = getIOZ3 con
+        let (h_in, h_out, _) = getIO con
         uc <- getUnsatCoreZ3 h_in h_out
         return (HS.fromList uc)
 
     setProduceUnsatCores con = do
-        let (h_in, _, _) = getIOZ3 con
+        let (h_in, _, _) = getIO con
         T.hPutStrLn h_in "(set-option :produce-unsat-cores true)"
 
     addFormula con@(Z3 print_smt _ _) form = do
-        let (h_in, _, _) = getIOZ3 con
-
-        when print_smt $ do
-            putStrLn "addFormula"
-            T.putStrLn (TB.run $ toSolverText form)
-
+        let (h_in, _, _) = getIO con
+            pr_smt = getPrintSMT con
+        when pr_smt $ T.putStrLn (TB.run $ toSolverText form)
         T.hPutStrLn h_in (TB.run $ toSolverText form)
 
-    checkSatNoReset con@(Z3 print_smt _ _) formula = do
-        let (h_in, h_out, _) = getIOZ3 con
-
-        when print_smt $ do
-            T.putStrLn (TB.run $ toSolverText formula)
-        
-        T.hPutStrLn h_in (TB.run $ toSolverText formula)
-        r <- checkSat' print_smt h_in h_out
-
-        when print_smt (putStrLn $ show r)
-
-        return r
+    checkSatNoReset = stdCheckSatNoReset
 
     checkSatGetModel con@(Z3 print_smt _ _) formula vs = do
-        let (h_in, h_out, _) = getIOZ3 con
+        let (h_in, h_out, _) = getIO con
         reset con        
         when print_smt $ T.putStrLn (TB.run $ toSolverText formula)
         T.hPutStr h_in (TB.run $ toSolverText formula)
@@ -150,7 +134,7 @@ instance SMTConverter Z3 where
             Unknown s _ -> return $ Unknown s ()
 
     checkSatGetModelOrUnsatCoreNoReset con@(Z3 print_smt _ _) formula vs = do
-        let (h_in, h_out, _) = getIOZ3 con
+        let (h_in, h_out, _) = getIO con
         let formula' = TB.run $ toSolverText formula
         T.putStrLn "\n\n checkSatGetModelOrUnsatCore"
         T.putStrLn formula'
@@ -174,18 +158,13 @@ instance SMTConverter Z3 where
         else do
             return (Unknown "" ())
 
-    push con = do
-        let (h_in, _, _) = getIOZ3 con
-        T.hPutStrLn h_in "(push)"
-
-    pop con = do
-        let (h_in, _, _) = getIOZ3 con
-        T.hPutStrLn h_in "(pop)"
-
-getIOCVC5 :: CVC5 -> (Handle, Handle, ProcessHandle)
-getIOCVC5 (CVC5 _ _ hhp) = hhp
+    push = stdPush
+    pop = stdPop
 
 instance SMTConverter CVC5 where
+    getIO (CVC5 _ _ hhp) = hhp
+    getPrintSMT (CVC5 print_smt _ _) = print_smt
+
     closeIO (CVC5 _ _ (h_in, h_out, ph)) = do
         hPutStrLn h_in "(exit)"
         _ <- waitForProcess ph
@@ -193,23 +172,23 @@ instance SMTConverter CVC5 where
         hClose h_out
 
     reset con@(CVC5 print_smt _ _) = do
-        let (h_in, _, _) = getIOCVC5 con
+        let (h_in, _, _) = getIO con
         when print_smt $ putStrLn "(reset)"
         T.hPutStr h_in "(reset)"
 
     checkSatInstr con = do
-        let (h_in, _, _) = getIOCVC5 con
+        let (h_in, _, _) = getIO con
         T.hPutStrLn h_in "(check-sat)"
 
     maybeCheckSatResult con = do
-        let (_, h_out, _) = getIOCVC5 con
+        let (_, h_out, _) = getIO con
         r <- hReady h_out
         case r of
             True -> return . Just =<< checkSatReadResult h_out
             False -> return Nothing
 
     getModelInstrResult con@(CVC5 print_smt _ _) vs = do
-        let (h_in, h_out, _) = getIOCVC5 con
+        let (h_in, h_out, _) = getIO con
         mdl <- getModel print_smt h_in h_out vs
         -- putStrLn "======"
         -- putStrLn (show mdl)
@@ -219,30 +198,22 @@ instance SMTConverter CVC5 where
         return m
 
     getUnsatCoreInstrResult con = do
-        let (h_in, h_out, _) = getIOCVC5 con
+        let (h_in, h_out, _) = getIO con
         uc <- getUnsatCoreCVC5 h_in h_out
         return (HS.fromList uc)
 
     setProduceUnsatCores _ = return ()
 
     addFormula con form = do
-        let (h_in, _, _) = getIOCVC5 con
+        let (h_in, _, _) = getIO con
+            pr_smt = getPrintSMT con
+        when pr_smt $ T.putStrLn (TB.run $ toSolverText form)
         T.hPutStrLn h_in (TB.run $ toSolverText form)
 
-    checkSatNoReset con@(CVC5 print_smt _ _) formula = do
-        let (h_in, h_out, _) = getIOCVC5 con
-        when print_smt $ do
-            T.putStrLn (TB.run $ toSolverText formula)
-        
-        T.hPutStrLn h_in (TB.run $ toSolverText formula)
-        r <- checkSat' print_smt h_in h_out
-
-        when print_smt (putStrLn $ show r)
-
-        return r
+    checkSatNoReset = stdCheckSatNoReset
 
     checkSatGetModel con@(CVC5 print_smt _ _) formula vs = do
-        let (h_in, h_out, _) = getIOCVC5 con
+        let (h_in, h_out, _) = getIO con
         reset con
         when print_smt $ T.putStrLn (TB.run $ toSolverText formula)
         T.hPutStr h_in (TB.run $ toSolverText formula)
@@ -261,7 +232,7 @@ instance SMTConverter CVC5 where
             Unknown s _ -> return $ Unknown s ()
 
     checkSatGetModelOrUnsatCoreNoReset con@(CVC5 print_smt _ _) formula vs = do
-        let (h_in, h_out, _) = getIOCVC5 con
+        let (h_in, h_out, _) = getIO con
         let formula' = TB.run $ toSolverText formula
         T.putStrLn "\n\n checkSatGetModelOrUnsatCore"
         T.putStrLn formula'
@@ -285,18 +256,13 @@ instance SMTConverter CVC5 where
         else do
             return (Unknown "" ())
 
-    push con = do
-        let (h_in, _, _) = getIOCVC5 con
-        T.hPutStrLn h_in "(push)"
-
-    pop con = do
-        let (h_in, _, _) = getIOCVC5 con
-        T.hPutStrLn h_in "(pop)"
-
-getIOOstrich :: Ostrich -> (Handle, Handle, ProcessHandle)
-getIOOstrich (Ostrich _ _ hhp) = hhp
+    push = stdPush
+    pop = stdPop
 
 instance SMTConverter Ostrich where
+    getIO (Ostrich _ _ hhp) = hhp
+    getPrintSMT (Ostrich print_smt _ _) = print_smt
+
     closeIO (Ostrich _ _ (h_in, h_out, ph)) = do
 #if MIN_VERSION_process(1,6,4)
         cleanupProcess (Just h_in, Just h_out, Nothing, ph)
@@ -307,23 +273,23 @@ instance SMTConverter Ostrich where
         hClose h_out
 #endif
     reset con@(Ostrich print_smt _ _) = do
-        let (h_in, _, _) = getIOOstrich con
+        let (h_in, _, _) = getIO con
         when print_smt $ putStrLn "(reset)"
         T.hPutStr h_in "(reset)"
 
     checkSatInstr con = do
-        let (h_in, _, _) = getIOOstrich con
+        let (h_in, _, _) = getIO con
         T.hPutStrLn h_in "(check-sat)"
 
     maybeCheckSatResult con = do
-        let (_, h_out, _) = getIOOstrich con
+        let (_, h_out, _) = getIO con
         r <- hReady h_out
         case r of
             True -> return . Just =<< checkSatReadResult h_out
             False -> return Nothing
 
     getModelInstrResult con@(Ostrich print_smt _ _) vs = do
-        let (h_in, h_out, _) = getIOOstrich con
+        let (h_in, h_out, _) = getIO con
         mdl <- getModel print_smt h_in h_out vs
         -- putStrLn "======"
         -- putStrLn (show mdl)
@@ -336,30 +302,15 @@ instance SMTConverter Ostrich where
     setProduceUnsatCores _ = error "ostrich: unsat core not supported"
 
     addFormula con@(Ostrich print_smt _ _) form = do
-        let (h_in, _, _) = getIOOstrich con
-
-        when print_smt $ do
-            putStrLn "addFormula"
-            T.putStrLn (TB.run $ toSolverText form)
-
+        let (h_in, _, _) = getIO con
+            pr_smt = getPrintSMT con
+        when pr_smt $ T.putStrLn (TB.run $ toSolverText form)
         T.hPutStrLn h_in (TB.run $ toSolverText form)
 
-    checkSatNoReset con@(Ostrich print_smt _ _) formula = do
-        let (h_in, h_out, _) = getIOOstrich con
-
-        when print_smt $ do
-            putStrLn "checkSat"
-            T.putStrLn (TB.run $ toSolverText formula)
-        
-        T.hPutStrLn h_in (TB.run $ toSolverText formula)
-        r <- checkSat' print_smt h_in h_out
-
-        when print_smt (putStrLn $ show r)
-
-        return r
+    checkSatNoReset = stdCheckSatNoReset
 
     checkSatGetModel con@(Ostrich print_smt _ _) formula vs = do
-        let (h_in, h_out, _) = getIOOstrich con
+        let (h_in, h_out, _) = getIO con
         reset con
         T.hPutStr h_in (TB.run $ toSolverText formula)
         
@@ -380,13 +331,33 @@ instance SMTConverter Ostrich where
 
     checkSatGetModelOrUnsatCoreNoReset _ _ _ = error "ostrich: unsat core not supported"
 
-    push con = do
-        let (h_in, _, _) = getIOOstrich con
-        T.hPutStrLn h_in "(push)"
+    push = stdPush
+    pop = stdPop
 
-    pop con = do
-        let (h_in, _, _) = getIOOstrich con
-        T.hPutStrLn h_in "(pop)"
+stdCheckSatNoReset :: SMTConverter con => con -> [SMTHeader] -> IO (Result () () ())
+stdCheckSatNoReset con formula = do
+        let (h_in, h_out, _) = getIO con
+            pr_smt = getPrintSMT con
+
+        when pr_smt $ T.putStrLn (TB.run $ toSolverText formula)
+
+        T.hPutStrLn h_in (TB.run $ toSolverText formula)
+        r <- checkSat' pr_smt h_in h_out
+
+        when pr_smt (putStrLn $ show r)
+
+        return r
+
+stdPush :: SMTConverter con => con -> IO ()
+stdPush con = do
+    let (h_in, _, _) = getIO con
+    T.hPutStrLn h_in "(push)"
+
+stdPop :: SMTConverter con => con -> IO ()
+stdPop con = do
+    let (h_in, _, _) = getIO con
+    T.hPutStrLn h_in "(pop)"
+
 
 -- | getProcessHandles
 -- Ideally, this function should be called only once, and the same Handles should be used
