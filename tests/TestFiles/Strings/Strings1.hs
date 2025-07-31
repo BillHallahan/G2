@@ -426,6 +426,12 @@ rev3Returns1 :: String -> Int -> Bool
 rev3Returns1 _ 1 = True
 rev3Returns1 _ _ = False 
 
+reverse4 = reverse ['a'..'c']
+
+reverse5 :: Char -> String
+reverse5 x = reverse [x]
+
+
 insert1 :: Char -> String -> (Int, String)
 insert1 c xs
     | xs == [] = (1, rs)
@@ -474,6 +480,10 @@ minimum1 xs
     where
         m = minimum xs
 
+minimum2 :: String -> Bool
+minimum2 [] = True
+minimum2 xs = minimum xs == 'a'
+
 maximum1 :: String -> (Char, Int)
 maximum1 xs
     | xs == [] = ('e', 1)
@@ -484,6 +494,10 @@ maximum1 xs
     | otherwise = (m, 6)
     where
         m = maximum xs
+
+maximum2 :: String -> Bool
+maximum2 [] = True
+maximum2 xs = maximum xs == 'a'
 
 elemIndices1 :: String -> ([Int], Int)
 elemIndices1 s
@@ -518,3 +532,10 @@ lines1 s
 
 lines2 :: String -> [String]
 lines2 = lines
+
+callLast :: String -> Char
+callLast xs | length xs < 5 = 'a'
+            | otherwise = last xs
+
+showInt1 :: Int -> String
+showInt1 x = show (x * 2) ++ "!"

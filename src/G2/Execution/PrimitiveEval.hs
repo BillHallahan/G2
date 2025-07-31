@@ -516,21 +516,10 @@ evalPrimADT2 kv _ Or e1 e2
     | Just b1 <- toBool kv e1
     , Just b2 <- toBool kv e2 = Just $ mkBool kv (b1 || b2)
 
-evalPrimADT2 kv _ StrAppend h t = strApp h t
-    where
-        -- Equivalent to: append (x:xs) ys = x:append xs ys
-        --                append [] ys = ys  
-        -- (:) @Char head tail ys
-        strApp (App (App (App (Data dc) typ) char) xs) ys = 
-            let
-                tl = case (strApp xs ys) of
-                    Nothing -> error "wrong nested type in string expr, should be impossible"
-                    Just e -> e
-            in assert (KV.dcCons kv == dcName dc) 
-                (Just (App (App (App (Data dc) typ) char) tl))
-        -- [] @Char ys
-        strApp (App (Data dc) _ {- type -}) ys = assert (KV.dcEmpty kv == dcName dc) (Just ys)
-        strApp _ _ = Nothing
+evalPrimADT2 kv tenv StrAppend xs ys = do
+    xs' <- toString xs
+    ys' <- toString ys
+    return . toStringExpr kv tenv $ xs' ++ ys'
 
 evalPrimADT2 kv tenv StrAt xs (Lit (LitInt i)) = do
     xs' <- toString xs

@@ -195,12 +195,29 @@ evalApp s@(State { expr_env = eenv
         , [ (newPCEmpty $ s { expr_env = eenv'
                             , curr_expr = CurrExpr Evaluate e }) { new_pcs = pc} ]
         , ng')
+    | p@(Prim _ _):es <- unApp (App e1 e2)
+    , (xs, e:ys) <- L.span (isExprValueForm eenv . (flip E.deepLookupExpr) eenv) es =
+        let
+            t = typeOf e
+            (i, ng') = freshId t ng
+            
+            pr_call = mkApp $ p:xs ++ Var i:ys
+            curr_e = Case e i t [Alt Default pr_call]
+        in
+        ( RuleEvalPrimToNorm
+        , [newPCEmpty $ s { expr_env = eenv, curr_expr = CurrExpr Evaluate curr_e }]
+        , ng')
+
     | (Prim _ _):_ <- unApp (App e1 e2) = 
         let
             (exP, eenv') = evalPrimsSharing eenv tenv kv (App e1 e2)
+
+            ts = getNestedTickish exP
+            exP' = foldr Tick (stripAllTicks exP) ts
+            er = if null ts then Return else Evaluate
         in
         ( RuleEvalPrimToNorm
-        , [newPCEmpty $ s { expr_env = eenv', curr_expr = CurrExpr Return exP }]
+        , [newPCEmpty $ s { expr_env = eenv', curr_expr = CurrExpr er exP' }]
         , ng)
     | isExprValueForm eenv (App e1 e2) =
         ( RuleReturnAppSWHNF
@@ -218,6 +235,9 @@ evalApp s@(State { expr_env = eenv
     where
         getTickish (Tick t e) = t:getTickish e
         getTickish _ = []
+
+        getNestedTickish (Tick t e) = t:getNestedTickish e
+        getNestedTickish e = evalChildren getNestedTickish e
 
 evalLam :: State t -> LamUse -> Id -> Expr -> (Rule, [State t])
 evalLam = undefined

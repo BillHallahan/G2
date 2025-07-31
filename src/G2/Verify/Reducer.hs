@@ -209,7 +209,7 @@ discardOnFalse = (mkSimpleHalter (\_ -> ())
             = any (currExprIsFalse . final_state) acc
 
 currExprIsBool :: Bool -> State t -> Bool
-currExprIsBool b s = E.deepLookupExpr (getExpr s) (expr_env s) == Just (mkBool (known_values s) b)
+currExprIsBool b s = E.deepLookupExpr (getExpr s) (expr_env s) == mkBool (known_values s) b
 
 currExprIsFalse :: State t -> Bool
 currExprIsFalse = currExprIsBool False

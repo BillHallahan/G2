@@ -475,12 +475,20 @@ testFileTests = testGroup "TestFiles"
                                         , ("reverse2", 5000, [Exactly 3])
                                         , ("reverse3", 1000, [ AtLeast 2
                                                              , RExists "rev3Returns1"])
+                                        , ("reverse4", 5000, [Exactly 1])
                                         , ("insert2", 2000, [AtLeast 3])
                                         , ("insert3", 2000, [Exactly 1])
 
+                                        , ("minimum2", 1000, [AtLeast 4])
+                                        , ("maximum2", 1000, [AtLeast 4])
+
                                         , ("lines1", 4000, [AtLeast 10])
-                                         ]
-    , checkInputOutputsSMTStringsWithSubPath "tests/TestFiles/Strings/Strings1.hs" [ ("lines2", 2000, [AtLeast 10]) ]
+
+                                        , ("showInt1", 4000, [Exactly 2])
+                                        ]
+    , checkInputOutputsSMTStringsWithSubPath "tests/TestFiles/Strings/Strings1.hs"
+                                        [ ("lines2", 2000, [AtLeast 10])
+                                        , ("reverse5", 5000, [Exactly 1])]
     , checkInputOutputsQuantifiedSMTStrings "tests/TestFiles/Strings/Strings1.hs"
                                         [ ("genericReplicate1", 1000, [Exactly 2])
                                         , ("reverse1", 5000, [Exactly 6])
