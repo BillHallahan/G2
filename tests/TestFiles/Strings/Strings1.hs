@@ -536,3 +536,6 @@ lines2 = lines
 callLast :: String -> Char
 callLast xs | length xs < 5 = 'a'
             | otherwise = last xs
+
+showInt1 :: Int -> String
+showInt1 x = show (x * 2) ++ "!"
