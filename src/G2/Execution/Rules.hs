@@ -198,7 +198,7 @@ evalApp s@(State { expr_env = eenv
     | p@(Prim _ _):es <- unApp (App e1 e2)
     , (xs, e:ys) <- L.span (isExprValueForm eenv . (flip E.deepLookupExpr) eenv) es =
         let
-            t = typeOf e
+            t = typeOf tvnv e
             (i, ng') = freshId t ng
             
             pr_call = mkApp $ p:xs ++ Var i:ys
