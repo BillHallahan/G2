@@ -770,7 +770,7 @@ toSolverAST (VBitVec b) = "#b" <> foldr (<>) "" (map showText b)
 toSolverAST (VString s) = "\"" <> TB.string s <> "\""
 toSolverAST (VChar '"') = "\"\"\"\""
 toSolverAST (VChar c) | isPrint c = "\"" <> TB.string [c] <> "\""
-                      | otherwise = "\"\\u" <> TB.string (showHex (fromEnum c) "") <> "\""
+                      | otherwise = "\"\\u{" <> TB.string (showHex (fromEnum c) "") <> "}\""
 toSolverAST (VBool b) = if b then "true" else "false"
 toSolverAST (V n _) = TB.string n
 
