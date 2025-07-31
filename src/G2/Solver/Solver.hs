@@ -39,8 +39,6 @@ import Data.Monoid
 import Data.Tuple
 import System.Clock
 
-import Debug.Trace
-
 -- | The result of a Solver query
 data Result m u um = SAT m
                    | UNSAT u
