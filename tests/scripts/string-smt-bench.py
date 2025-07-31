@@ -47,12 +47,17 @@ def call_g2_process(filename, func, var_settings):
     res = subprocess.run(args + var_settings, universal_newlines=True, capture_output=True);
     return res.stdout
 
-def run_bench(filename, var_settings, timeout):
+def run_bench(filename, var_settings, timeout, solver):
     # --include nofib-symbolic/common --hpc --hpc-print-times --no-step-limit --search subpath --time 60
-    return run_g2(filename, "main", ["--include", "nofib-symbolic/common", "--hpc", "--hpc-print-times", "--no-step-limit", "--search", "subpath", "--measure-coverage", "--time", str(timeout)] + var_settings)
+    settings = ["--include", "nofib-symbolic/common", "--hpc", "--hpc-print-times"
+               , "--no-step-limit", "--search", "subpath", "--measure-coverage"
+               , "--time", str(timeout)
+               , "--smt", solver] + var_settings
+    print(*settings)
+    return run_g2(filename, "main", settings)
 
-def run_bench_smt(filename, var_settings, timeout):
-    return run_bench(filename, ["--smt-strings"] + var_settings, timeout)
+def run_bench_smt(filename, var_settings, timeout, solver):
+    return run_bench(filename, ["--smt-strings"] + var_settings, timeout, solver)
 
 def process_output(out):
     reached = re.search(r"Ticks reached: (\d*)", out)
@@ -76,12 +81,13 @@ def process_output(out):
         print("last time = " + last.group(1))
         print("all_times = " + str(all_times))
 
-
 def run_nofib_set(setname, var_settings, timeout):
         setpath = os.path.join("string-to-smt-benchmark/", setname)
         all_files_dirs = os.listdir(setpath);
 
         okasaki_bench = ["BinaryHeap.hs", "LeftistHeap.hs", "RedBlackTree.hs"]
+
+        smt_solvers = ["z3", "cvc5", "ostrich", "z3-noodler"]
 
         print(setpath)
 
@@ -92,13 +98,15 @@ def run_nofib_set(setname, var_settings, timeout):
                 final_path = os.path.join(bench_path, "Main.hs") if not isOkasaki else bench_path
                 if os.path.isfile(final_path):
                     print(file_dir);
-                    res_bench = run_bench(final_path, var_settings, timeout)
+                    res_bench = run_bench(final_path, var_settings, timeout, "z3")
                     print("Baseline:")
                     process_output(res_bench)
-                    res_bench_nrpc = run_bench_smt(final_path, var_settings, timeout)
-                    print("SMT:")
-                    process_output(res_bench_nrpc)
+                    for solver in smt_solvers:
+                        extra_var = ["--smt-path", "z3-noodler"] if solver == "z3-noodler" else []
+                        res_bench_nrpc = run_bench_smt(final_path, var_settings + extra_var, timeout, solver)
+                        print("SMT " + solver + ":")
+                        process_output(res_bench_nrpc)
 
-run_nofib_set("nofib-symbolic/imaginary", [], 120)
-run_nofib_set("nofib-symbolic/spectral", [], 120)
-run_nofib_set("programs", [], 120)
+run_nofib_set("nofib-symbolic/imaginary", [], 10)
+run_nofib_set("nofib-symbolic/spectral", [], 10)
+run_nofib_set("programs", [], 10)
