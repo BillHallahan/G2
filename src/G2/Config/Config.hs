@@ -49,7 +49,7 @@ data InstTV = InstBefore | InstAfter deriving (Eq, Show, Read)
 -- Determining whether we want to show more type informations
 data ShowType = Lax | Aggressive deriving (Eq, Show, Read)
 
-data SMTSolver = ConZ3 | ConCVC5 | ConOstrich deriving (Eq, Show, Read)
+data SMTSolver = ConZ3 | ConZ3Str3 | ConCVC5 | ConOstrich deriving (Eq, Show, Read)
 
 data SearchStrategy = Iterative | Subpath deriving (Eq, Show, Read)
 
@@ -103,6 +103,7 @@ data Config = Config {
     , steps :: Int -- ^ How many steps to take when running States
     , time_solving :: Bool -- ^ Output the amount of time spent checking/solving path constraints
     , print_num_solver_calls :: Bool -- ^ Output the number of calls made to check/solve path constraints
+    , print_solver_sol_counts :: Bool -- ^ Output the number of sat/unsat/unknown solver results from the SMT solver
     , print_smt :: Bool -- ^ Output SMT formulas when checking/solving path constraints
     , accept_times :: Bool -- ^ Output the time each state is accepted
     , states_at_time :: Bool -- ^ Output time and number of states each time a state is added/removed
@@ -186,6 +187,7 @@ mkConfig homedir = Config Regular
                    <> help "how many steps to take when running states")
     <*> switch (long "solver-time" <> help "output the amount of time spent checking/solving path constraints")
     <*> switch (long "print-num-solver-calls" <> help "output the number of calls made to check/solve path constraints")
+    <*> switch (long "print-sol-counts" <> help "output the number of sat/unsat/unknown solver results from the SMT solver")
     <*> switch (long "print-smt" <> help "output SMT formulas when checking/solving path constraints")
     <*> switch (long "accept-times" <> help "output the time each state is accepted")
     <*> switch (long "states-at-time" <> help "output time and number of states each time a state is added/removed")
@@ -282,13 +284,14 @@ mkSMTSolver :: Parser SMTSolver
 mkSMTSolver =
     option (eitherReader (\s -> case s of
                                     "z3" -> Right ConZ3
+                                    "z3str3" -> Right ConZ3Str3
                                     "cvc5" -> Right ConCVC5
                                     "ostrich" -> Right ConOstrich
                                     _ -> Left "Unsupported SMT solver"))
             ( long "smt"
             <> metavar "SMT-SOLVER"
             <> value ConZ3
-            <> help "either z3 or cvc5, to select the solver to use")
+            <> help "z3, z3str3, cvc5, or ostrich, to select the solver to use")
 
 mkSearchStrategy :: Parser SearchStrategy
 mkSearchStrategy =
@@ -339,6 +342,7 @@ mkConfigDirect homedir as m = Config {
     , steps = strArg "n" as m read 1000
     , time_solving = False
     , print_num_solver_calls = False
+    , print_solver_sol_counts = False
     , print_smt = False
     , accept_times = boolArg "accept-times" as m Off
     , states_at_time = False
