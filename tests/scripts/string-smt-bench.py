@@ -9,7 +9,7 @@ import shutil
 
 exe_name = str(subprocess.run(["cabal", "exec", "which", "G2"], capture_output = True).stdout.decode('utf-8')).strip()
 
-smt_solvers = ["z3", "z3str3"] # "cvc5", "ostrich", "z3-noodler"]
+smt_solvers = ["z3"] # "z3str3", "cvc5", "ostrich", "z3-noodler"]
 
 # outputting latex
 def cov_generate_latex(res_all):
@@ -34,7 +34,7 @@ def cov_generate_latex(res_all):
 
     print(r"\end{tabular}")
 
-def solver_cov_res_csv(res_all):
+def solver_cov_generate_csv(res_all):
     solvers = ["conc"] + smt_solvers
 
     for (file_dir, bench_res) in res_all:
@@ -74,7 +74,21 @@ def cex_generate_csv(res_all):
         # print(bench_res)
         for (solver, solver_res) in zip(solvers, bench_res):
             # print(solver_res)
-            csv += solver + "," + ",".join(map(str, solver_res["found"])) + "\n"
+            csv += solver + "," + ",".join([str(x["found"]) for x in solver_res]) + "\n"
+    return csv
+
+def solver_cex_generate_csv(res_all):
+    csv = ""
+    for (prop, bench_res) in res_all:
+        csv += prop + "\n"
+        # print(bench_res)
+        for res_list in bench_res:
+            for res in res_list:
+                solving = res["solving_time"]
+                sat_c = res["sat_count"]
+                unsat_c = res["unsat_count"]
+                unknown_c = res["unknown_count"]
+                csv += res["solver"] + "," + res["prop"] + "," + solving + "," + sat_c + "," + unsat_c + "," + unknown_c + "\n"
     return csv
 
 # dealing with HPC
@@ -139,7 +153,7 @@ def cov_process_output(out):
     total = re.search(r"Tick num: (\d*)", out)
     last = re.search(r"Last tick reached: ((\d|\.)*)", out)
 
-    solving_time = re.search(r"SMT Solving Time: ((\d|\.)*)", out)
+    solving_time = re.search(r"SMT Solving Time: ((\d|\.|e|-)*)", out)
     sat_c = re.search(r"# SAT: ((\d|\.)*)", out)
     unsat_c = re.search(r"# UNSAT: ((\d|\.)*)", out)
     unknown_c = re.search(r"# Unknown: ((\d|\.)*)", out)
@@ -178,14 +192,14 @@ def cov_process_output(out):
            , "unsat_count" : unsat_c.group(1)
            , "unknown_count" : unknown_c.group(1) }
 
-def cex_process_output(out):
+def cex_process_output(solver, prop, out):
     found = re.search(r"State Accepted Time: ((\d|\.)*)", out)
     found_float = -1
     if found != None:
         print("Found counterexample = " + str(found[1]))
         found_float = float(found[1])
 
-    solving_time = re.search(r"SMT Solving Time: ((\d|\.)*)", out)
+    solving_time = re.search(r"SMT Solving Time: ((\d|\.|e|-)*)", out)
     sat_c = re.search(r"# SAT: ((\d|\.)*)", out)
     unsat_c = re.search(r"# UNSAT: ((\d|\.)*)", out)
     unknown_c = re.search(r"# Unknown: ((\d|\.)*)", out)
@@ -195,7 +209,9 @@ def cex_process_output(out):
     print("unsat count = " + str(unsat_c.group(1)))
     print("unknown count = " + str(unknown_c.group(1)))
 
-    return { "found" : found_float
+    return { "solver" : solver
+           , "prop" : prop
+           , "found" : found_float
            , "solving_time" : solving_time.group(1)
            , "sat_count" : sat_c.group(1)
            , "unsat_count" : unsat_c.group(1)
@@ -253,14 +269,14 @@ def run_properties(setname, filename, var_settings, timeout, properties):
             res_bench = []
             res_base = run_bench(bench_path, prop, only_one, timeout, "z3")
             print("Baseline:")
-            last_reached = cex_process_output(res_base)
+            last_reached = cex_process_output("Baseline", prop, res_base)
             res_bench.append(last_reached)
             for solver_name in smt_solvers:
                 solver = "z3" if solver_name == "z3-noodler" else solver_name
                 extra_var = ["--smt-path", "z3-noodler"] if solver_name == "z3-noodler" else []
                 res_smt = run_bench_smt(bench_path, prop, only_one + extra_var, timeout, solver)
                 print("SMT " + solver_name + ":")
-                found_cex = cex_process_output(res_smt)
+                found_cex = cex_process_output(solver_name, prop, res_smt)
                 res_bench.append(found_cex)
             res_all.append((prop, res_bench))
 
@@ -296,7 +312,7 @@ def run_param_properties(setname, filename, var_settings, timeout, properties, i
             for i in range(min_param, max_param + incr_by, incr_by):
                 res_base = run_bench(use_bench_path, prop + "_" + str(i), only_one, timeout, "z3")
                 print("Baseline " + str(i) + ":")
-                last_reached = cex_process_output(res_base)
+                last_reached = cex_process_output("Baseline", prop + "_" + str(i), res_base)
                 solver_res_bench.append(last_reached)
             res_for_each_prop.append(solver_res_bench)
 
@@ -307,13 +323,17 @@ def run_param_properties(setname, filename, var_settings, timeout, properties, i
                     extra_var = ["--smt-path", "z3-noodler"] if solver_name == "z3-noodler" else []
                     res_smt = run_bench_smt(use_bench_path, prop + "_" + str(i),  only_one + extra_var, timeout, solver)
                     print("SMT " + solver_name + " " + str(i) + ":")
-                    found_cex = cex_process_output(res_smt)
+                    found_cex = cex_process_output(solver_name, prop + "_" + str(i), res_smt)
                     solver_res_bench.append(found_cex)
                 res_for_each_prop.append(solver_res_bench)
             res_all.append((prop, res_for_each_prop))
 
             file = open("string_cex_results.txt", "a")
             file.write(cex_generate_csv([(prop, res_for_each_prop)]))
+            file.close()
+
+            file = open("string_cex_solver_results.txt", "a")
+            file.write(solver_cex_generate_csv([(prop, res_for_each_prop)]))
             file.close()
 
         return res_all
@@ -326,7 +346,7 @@ time_lim = 6
 
 # cov_generate_latex(res_imag + res_spec + res_progs)
 # cov_generate_latex(res_imag)
-# solver_cov_res_csv(res_imag)
+# solver_cov_generate_csv(res_imag)
 
 time_lim = 30
 
@@ -336,3 +356,4 @@ res_props = run_param_properties("properties", "ParamProperties.hs", [], time_li
 # print(res_props)
 # cex_generate_latex(res_props)
 print(cex_generate_csv(res_props))
+print(solver_cex_generate_csv(res_props))
