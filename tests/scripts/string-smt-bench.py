@@ -74,7 +74,7 @@ def cex_generate_csv(res_all):
         # print(bench_res)
         for (solver, solver_res) in zip(solvers, bench_res):
             # print(solver_res)
-            csv += solver + "," + ",".join(map(str, solver_res)) + "\n"
+            csv += solver + "," + ",".join(map(str, solver_res["found"])) + "\n"
     return csv
 
 # dealing with HPC
@@ -180,11 +180,26 @@ def cov_process_output(out):
 
 def cex_process_output(out):
     found = re.search(r"State Accepted Time: ((\d|\.)*)", out)
+    found_float = -1
     if found != None:
         print("Found counterexample = " + str(found[1]))
-        return float(found[1])
-    else:
-        return -1
+        found_float = float(found[1])
+
+    solving_time = re.search(r"SMT Solving Time: ((\d|\.)*)", out)
+    sat_c = re.search(r"# SAT: ((\d|\.)*)", out)
+    unsat_c = re.search(r"# UNSAT: ((\d|\.)*)", out)
+    unknown_c = re.search(r"# Unknown: ((\d|\.)*)", out)
+
+    print("solving time = " + str(solving_time.group(1)))
+    print("sat count = " + str(sat_c.group(1)))
+    print("unsat count = " + str(unsat_c.group(1)))
+    print("unknown count = " + str(unknown_c.group(1)))
+
+    return { "found" : found_float
+           , "solving_time" : solving_time.group(1)
+           , "sat_count" : sat_c.group(1)
+           , "unsat_count" : unsat_c.group(1)
+           , "unknown_count" : unknown_c.group(1) }
 
 def run_nofib_set(setname, var_settings, timeout):
         setpath = os.path.join("string-to-smt-benchmark/", setname)
@@ -305,17 +320,17 @@ def run_param_properties(setname, filename, var_settings, timeout, properties, i
 
 time_lim = 6
 
-res_imag = run_nofib_set("nofib-symbolic/imaginary", [], time_lim)
+# res_imag = run_nofib_set("nofib-symbolic/imaginary", [], time_lim)
 # res_spec = run_nofib_set("nofib-symbolic/spectral", [], time_lim)
 # res_progs = run_nofib_set("programs", [], time_lim)
 
 # cov_generate_latex(res_imag + res_spec + res_progs)
-cov_generate_latex(res_imag)
-solver_cov_res_csv(res_imag)
+# cov_generate_latex(res_imag)
+# solver_cov_res_csv(res_imag)
 
 time_lim = 30
 
-props = map(lambda x : "prop" + str(x), list(range(1, 25)))
+props = map(lambda x : "prop" + str(x), list(range(1, 3)))
 res_props = run_param_properties("properties", "ParamProperties.hs", [], time_lim, props)
 
 # print(res_props)
