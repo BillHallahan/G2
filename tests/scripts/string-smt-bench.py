@@ -34,6 +34,19 @@ def cov_generate_latex(res_all):
 
     print(r"\end{tabular}")
 
+def solver_cov_res_csv(res_all):
+    solvers = ["conc"] + smt_solvers
+
+    for (file_dir, bench_res) in res_all:
+        print(file_dir)
+        for (solver, bench) in zip(solvers, bench_res):
+            solving = bench["solving_time"]
+            sat_c = bench["sat_count"]
+            unsat_c = bench["unsat_count"]
+            unknown_c = bench["unknown_count"]
+            line = solver + "," + solving + "," + sat_c + "," + unsat_c + "," + unknown_c
+            print(line)
+
 def cex_generate_latex(res_all):
     solvers = ["conc"] + smt_solvers
 
@@ -147,7 +160,12 @@ def cov_process_output(out):
         print("hpc reached = " + str(hpc_reached))
         print("last time = " + last.group(1))
         print("all_times = " + str(all_times))
-    
+
+        print("solving time = " + str(solving_time.group(1)))
+        print("sat count = " + str(sat_c.group(1)))
+        print("unsat count = " + str(unsat_c.group(1)))
+        print("unknown count = " + str(unknown_c.group(1)))
+
     if last != None:
         last = round(float(last[1]), 1)
     else:
@@ -155,10 +173,10 @@ def cov_process_output(out):
     
     return { "reached" : hpc_reached
            , "last" : last
-           , "solving_time" : solving_time
-           , "sat_count" : sat_c
-           , "unsat_count" : unsat_c
-           , "unknown_count" : unknown_c }
+           , "solving_time" : solving_time.group(1)
+           , "sat_count" : sat_c.group(1)
+           , "unsat_count" : unsat_c.group(1)
+           , "unknown_count" : unknown_c.group(1) }
 
 def cex_process_output(out):
     found = re.search(r"State Accepted Time: ((\d|\.)*)", out)
@@ -293,6 +311,7 @@ res_imag = run_nofib_set("nofib-symbolic/imaginary", [], time_lim)
 
 # cov_generate_latex(res_imag + res_spec + res_progs)
 cov_generate_latex(res_imag)
+solver_cov_res_csv(res_imag)
 
 time_lim = 30
 
