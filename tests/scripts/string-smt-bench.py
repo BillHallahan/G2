@@ -5,6 +5,8 @@ import os
 import subprocess
 import time
 
+import shutil
+
 exe_name = str(subprocess.run(["cabal", "exec", "which", "G2"], capture_output = True).stdout.decode('utf-8')).strip()
 
 smt_solvers = ["z3", "cvc5", "ostrich", "z3-noodler"]
@@ -47,6 +49,17 @@ def cex_generate_latex(res_all):
         print(line + bench_res + r"\\ \hline")
 
     print(r"\end{tabular}")
+
+def cex_generate_csv(res_all):
+    csv = ""
+    solvers = ["conc"] + smt_solvers
+    for (prop, bench_res) in res_all:
+        csv += prop + "\n"
+        # print(bench_res)
+        for (solver, solver_res) in zip(solvers, bench_res):
+            # print(solver_res)
+            csv += solver + "," + ",".join(map(str, solver_res)) + "\n"
+    return csv
 
 # dealing with HPC
 def calculate_hpc_coverage(hpc_res):
@@ -137,7 +150,7 @@ def cex_process_output(out):
     found = re.search(r"State Accepted Time: ((\d|\.)*)", out)
     if found != None:
         print("Found counterexample = " + str(found[1]))
-        return round(float(found[1]), 1)
+        return float(found[1])
     else:
         return -1
 
@@ -160,7 +173,7 @@ def run_nofib_set(setname, var_settings, timeout):
             if os.path.isdir(bench_path) or file_dir in okasaki_bench:
                 path1 = os.path.join(bench_path, "Main.hs") if not isOkasaki else bench_path
                 path2 = os.path.join(bench_path, "Main.lhs") if not isOkasaki else bench_path
-                final_path = path1 if os.path.isfile(final_path) else path2
+                final_path = path1 if os.path.isfile(path1) else path2
                 if os.path.isfile(final_path):
                     print(file_dir);
                     res_base = run_bench(final_path, "main", cov_settings, timeout, "z3")
@@ -206,15 +219,67 @@ def run_properties(setname, filename, var_settings, timeout, properties):
 
         return res_all
 
+def writeParamCalls(file_name, prop, incr_by, min_param, max_param):
+    file = open(file_name, "a")
+    file.write("\n")
+    for i in range(min_param, max_param + incr_by, incr_by):
+        file.write(prop + "_" + str(i) + " = " + prop + " " + str(i) + "\n")
+    file.close()
+
+def run_param_properties(setname, filename, var_settings, timeout, properties, incr_by = 10, min_param = 10, max_param = 100):
+        setpath = os.path.join("string-to-smt-benchmark/", setname)
+        param_bench_path = os.path.join(setpath, filename)
+
+        only_one = var_settings + ["--max-outputs", "1", "--accept-times"]
+
+        res_all = []
+
+        for prop in properties:
+            use_bench_path = os.path.join(setpath, "param_" + filename)
+            print(param_bench_path)
+            print(use_bench_path)
+
+            shutil.copy(param_bench_path, use_bench_path)
+            writeParamCalls(use_bench_path, prop, incr_by, min_param, max_param)
+
+            print(prop)
+            res_for_each_prop = []
+
+            solver_res_bench = []
+            for i in range(min_param, max_param + incr_by, incr_by):
+                res_base = run_bench(use_bench_path, prop, only_one, timeout, "z3")
+                print("Baseline " + str(i) + ":")
+                last_reached = cex_process_output(res_base)
+                solver_res_bench.append(last_reached)
+            res_for_each_prop.append(solver_res_bench)
+
+            for solver_name in smt_solvers:
+                solver_res_bench = []
+                for i in range(min_param, max_param + incr_by, incr_by):
+                    solver = "z3" if solver_name == "z3-noodler" else solver_name
+                    extra_var = ["--smt-path", "z3-noodler"] if solver_name == "z3-noodler" else []
+                    res_smt = run_bench_smt(use_bench_path, prop + "_" + str(i),  only_one + extra_var, timeout, solver)
+                    print("SMT " + solver_name + " " + str(i) + ":")
+                    found_cex = cex_process_output(res_smt)
+                    solver_res_bench.append(found_cex)
+                res_for_each_prop.append(solver_res_bench)
+            res_all.append((prop, res_for_each_prop))
+
+        return res_all
+
 time_lim = 120
 
-res_imag = run_nofib_set("nofib-symbolic/imaginary", [], time_lim)
-res_spec = run_nofib_set("nofib-symbolic/spectral", [], time_lim)
-res_progs = run_nofib_set("programs", [], time_lim)
+# res_imag = run_nofib_set("nofib-symbolic/imaginary", [], time_lim)
+# res_spec = run_nofib_set("nofib-symbolic/spectral", [], time_lim)
+# res_progs = run_nofib_set("programs", [], time_lim)
 
-cov_generate_latex(res_imag + res_spec + res_progs)
+# cov_generate_latex(res_imag + res_spec + res_progs)
 
-props = map(lambda x : "prop" + str(x), list(range(1, 15)))
-res_props = run_properties("properties", "ParamProperties", [], time_lim, props)
+time_lim = 30
 
+props = map(lambda x : "prop" + str(x), list(range(1, 3)))
+res_props = run_param_properties("properties", "ParamProperties.hs", [], time_lim, props)
+
+print(res_props)
 cex_generate_latex(res_props)
+print(cex_generate_csv(res_props))
