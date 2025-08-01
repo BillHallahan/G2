@@ -338,7 +338,7 @@ def run_param_properties(setname, filename, var_settings, timeout, properties, i
 
         return res_all
 
-time_lim = 6
+time_lim = 120
 
 res_imag = run_nofib_set("nofib-symbolic/imaginary", [], time_lim)
 res_spec = run_nofib_set("nofib-symbolic/spectral", [], time_lim)
