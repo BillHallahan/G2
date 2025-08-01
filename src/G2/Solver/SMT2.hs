@@ -9,7 +9,8 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RankNTypes #-}
 
-module G2.Solver.SMT2 ( Z3
+module G2.Solver.SMT2 ( Z3StringSolver (..)
+                      , Z3
                       , CVC5
                       , SomeSMTSolver (..)
                       , getZ3
@@ -35,7 +36,10 @@ import System.IO
 import System.Process
 import Data.Maybe (fromMaybe)
 
-data Z3 = Z3 PrintSMT ArbValueFunc (Handle, Handle, ProcessHandle)
+data Z3StringSolver = SeqSolver | Z3Str3 deriving Eq
+data Z3 = Z3 Z3StringSolver PrintSMT ArbValueFunc (Handle, Handle, ProcessHandle)
+
+
 data CVC5 = CVC5 PrintSMT ArbValueFunc (Handle, Handle, ProcessHandle)
 data Ostrich = Ostrich PrintSMT ArbValueFunc (Handle, Handle, ProcessHandle)
 
@@ -45,7 +49,7 @@ data SomeSMTSolver where
 
 instance Solver Z3 where
     check solver _ pc = checkConstraintsPC solver pc
-    solve con@(Z3 _ avf _) = checkModelPC avf con
+    solve con@(Z3 _ _ avf _) = checkModelPC avf con
     close = closeIO
 
 instance Solver CVC5 where
@@ -59,10 +63,10 @@ instance Solver Ostrich where
     close = closeIO
 
 instance SMTConverter Z3 where
-    getIO (Z3 _ _ hhp) = hhp
-    getPrintSMT (Z3 print_smt _ _) = print_smt
+    getIO (Z3 _ _ _ hhp) = hhp
+    getPrintSMT (Z3 _ print_smt _ _) = print_smt
 
-    closeIO (Z3 _ _ (h_in, h_out, ph)) = do
+    closeIO (Z3 _ _ _ (h_in, h_out, ph)) = do
 #if MIN_VERSION_process(1,6,4)
         cleanupProcess (Just h_in, Just h_out, Nothing, ph)
 #else
@@ -72,10 +76,14 @@ instance SMTConverter Z3 where
         hClose h_out
 #endif
 
-    reset con@(Z3 print_smt _ _) = do
+    reset con@(Z3 string_solver print_smt _ _) = do
         let (h_in, _, _) = getIO con
         when print_smt $ putStrLn "(reset)"
         T.hPutStr h_in "(reset)"
+        
+        when (string_solver == Z3Str3) $ do
+            when print_smt $ putStrLn "(set-option :smt.string_solver z3str3)"
+            T.hPutStr h_in "(set-option :smt.string_solver z3str3)"
 
     checkSatInstr con = do
         let (h_in, _, _) = getIO con
@@ -88,7 +96,7 @@ instance SMTConverter Z3 where
             True -> return . Just =<< checkSatReadResult h_out
             False -> return Nothing
 
-    getModelInstrResult con@(Z3 print_smt _ _) vs = do
+    getModelInstrResult con@(Z3 _ print_smt _ _) vs = do
         let (h_in, h_out, _) = getIO con
         mdl <- getModelZ3 print_smt h_in h_out vs
         -- putStrLn "======"
@@ -111,7 +119,7 @@ instance SMTConverter Z3 where
 
     checkSatNoReset = stdCheckSatNoReset
 
-    checkSatGetModel con@(Z3 print_smt _ _) formula vs = do
+    checkSatGetModel con@(Z3 _ print_smt _ _) formula vs = do
         let (h_in, h_out, _) = getIO con
         reset con        
         when print_smt $ T.putStrLn (TB.run $ toSolverText formula)
@@ -129,7 +137,7 @@ instance SMTConverter Z3 where
             UNSAT () -> return $ UNSAT ()
             Unknown s _ -> return $ Unknown s ()
 
-    checkSatGetModelOrUnsatCoreNoReset con@(Z3 print_smt _ _) formula vs = do
+    checkSatGetModelOrUnsatCoreNoReset con@(Z3 _ print_smt _ _) formula vs = do
         let (h_in, h_out, _) = getIO con
         let formula' = TB.run $ toSolverText formula
         T.putStrLn "\n\n checkSatGetModelOrUnsatCore"
@@ -377,7 +385,7 @@ getProcessHandles pr = do
 getZ3 :: PrintSMT -> Int -> IO Z3
 getZ3 pr_smt time_out = do
     hhp <- getZ3ProcessHandles Nothing time_out
-    return $ Z3 pr_smt arbValue hhp
+    return $ Z3 SeqSolver pr_smt arbValue hhp
 
 getSMT :: Config -> IO SomeSMTSolver
 getSMT = getSMTAV arbValue
@@ -385,7 +393,10 @@ getSMT = getSMTAV arbValue
 getSMTAV :: ArbValueFunc -> Config -> IO SomeSMTSolver
 getSMTAV avf (Config { smt = ConZ3, smt_path = path, print_smt = pr }) = do
     hhp <- getZ3ProcessHandles path 10000
-    return $ SomeSMTSolver (Z3 pr avf hhp)
+    return $ SomeSMTSolver (Z3 SeqSolver pr avf hhp)
+getSMTAV avf (Config { smt = ConZ3Str3, smt_path = path, print_smt = pr }) = do
+    hhp <- getZ3ProcessHandles path 10000
+    return $ SomeSMTSolver (Z3 Z3Str3 pr avf hhp)
 getSMTAV avf (Config { smt = ConCVC5, smt_path = path, print_smt = pr }) = do
     hhp <- getCVC5ProcessHandles path 10000
     return $ SomeSMTSolver (CVC5 pr avf hhp)

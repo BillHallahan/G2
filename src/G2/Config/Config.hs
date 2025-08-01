@@ -49,7 +49,7 @@ data InstTV = InstBefore | InstAfter deriving (Eq, Show, Read)
 -- Determining whether we want to show more type informations
 data ShowType = Lax | Aggressive deriving (Eq, Show, Read)
 
-data SMTSolver = ConZ3 | ConCVC5 | ConOstrich deriving (Eq, Show, Read)
+data SMTSolver = ConZ3 | ConZ3Str3 | ConCVC5 | ConOstrich deriving (Eq, Show, Read)
 
 data SearchStrategy = Iterative | Subpath deriving (Eq, Show, Read)
 
@@ -282,13 +282,14 @@ mkSMTSolver :: Parser SMTSolver
 mkSMTSolver =
     option (eitherReader (\s -> case s of
                                     "z3" -> Right ConZ3
+                                    "z3str3" -> Right ConZ3Str3
                                     "cvc5" -> Right ConCVC5
                                     "ostrich" -> Right ConOstrich
                                     _ -> Left "Unsupported SMT solver"))
             ( long "smt"
             <> metavar "SMT-SOLVER"
             <> value ConZ3
-            <> help "either z3 or cvc5, to select the solver to use")
+            <> help "z3, z3str3, cvc5, or ostrich, to select the solver to use")
 
 mkSearchStrategy :: Parser SearchStrategy
 mkSearchStrategy =
