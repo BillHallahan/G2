@@ -9,7 +9,7 @@ import shutil
 
 exe_name = str(subprocess.run(["cabal", "exec", "which", "G2"], capture_output = True).stdout.decode('utf-8')).strip()
 
-smt_solvers = ["z3"] # "z3str3", "cvc5", "ostrich", "z3-noodler"]
+smt_solvers = ["z3", "z3str3", "cvc5", "ostrich", "z3-noodler"]
 
 # outputting latex
 def cov_generate_latex(res_all):
@@ -185,12 +185,17 @@ def cov_process_output(out):
     else:
         last = -1
     
+    solving_time = solving_time[1] if solving_time != None else ""
+    sat_c = sat_c[1] if sat_c != None else ""
+    unsat_c = unsat_c[1] if unsat_c != None else ""
+    unknown_c = unknown_c[1] if unknown_c != None else ""
+
     return { "reached" : hpc_reached
            , "last" : last
-           , "solving_time" : solving_time.group(1)
-           , "sat_count" : sat_c.group(1)
-           , "unsat_count" : unsat_c.group(1)
-           , "unknown_count" : unknown_c.group(1) }
+           , "solving_time" : solving_time
+           , "sat_count" : sat_c
+           , "unsat_count" : unsat_c
+           , "unknown_count" : unknown_c }
 
 def cex_process_output(solver, prop, out):
     found = re.search(r"State Accepted Time: ((\d|\.)*)", out)
