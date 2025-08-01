@@ -158,7 +158,9 @@ def run_nofib_set(setname, var_settings, timeout):
             bench_path = os.path.join(setpath, file_dir)
             isOkasaki = True if file_dir in okasaki_bench else False
             if os.path.isdir(bench_path) or file_dir in okasaki_bench:
-                final_path = os.path.join(bench_path, "Main.hs") if not isOkasaki else bench_path
+                path1 = os.path.join(bench_path, "Main.hs") if not isOkasaki else bench_path
+                path2 = os.path.join(bench_path, "Main.lhs") if not isOkasaki else bench_path
+                final_path = path1 if os.path.isfile(final_path) else path2
                 if os.path.isfile(final_path):
                     print(file_dir);
                     res_base = run_bench(final_path, "main", cov_settings, timeout, "z3")
@@ -179,7 +181,6 @@ def run_nofib_set(setname, var_settings, timeout):
 
 def run_properties(setname, filename, var_settings, timeout, properties):
         setpath = os.path.join("string-to-smt-benchmark/", setname)
-
         bench_path = os.path.join(setpath, filename)
         print(bench_path)
 
