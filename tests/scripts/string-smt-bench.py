@@ -209,18 +209,23 @@ def cex_process_output(solver, prop, out):
     unsat_c = re.search(r"# UNSAT: ((\d|\.)*)", out)
     unknown_c = re.search(r"# Unknown: ((\d|\.)*)", out)
 
-    print("solving time = " + str(solving_time.group(1)))
-    print("sat count = " + str(sat_c.group(1)))
-    print("unsat count = " + str(unsat_c.group(1)))
-    print("unknown count = " + str(unknown_c.group(1)))
+    solving_time = solving_time[1] if solving_time != None else ""
+    sat_c = sat_c[1] if sat_c != None else "-"
+    unsat_c = unsat_c[1] if unsat_c != None else "-"
+    unknown_c = unknown_c[1] if unknown_c != None else "-"
+
+    print("solving time = " + str(solving_time))
+    print("sat count = " + str(sat_c))
+    print("unsat count = " + str(unsat_c))
+    print("unknown count = " + str(unknown_c))
 
     return { "solver" : solver
            , "prop" : prop
            , "found" : found_float
-           , "solving_time" : solving_time.group(1)
-           , "sat_count" : sat_c.group(1)
-           , "unsat_count" : unsat_c.group(1)
-           , "unknown_count" : unknown_c.group(1) }
+           , "solving_time" : solving_time
+           , "sat_count" : sat_c
+           , "unsat_count" : unsat_c
+           , "unknown_count" : unknown_c }
 
 def run_nofib_set(setname, var_settings, timeout):
         setpath = os.path.join("string-to-smt-benchmark/", setname)
