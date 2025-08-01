@@ -9,7 +9,7 @@ import shutil
 
 exe_name = str(subprocess.run(["cabal", "exec", "which", "G2"], capture_output = True).stdout.decode('utf-8')).strip()
 
-smt_solvers = ["z3", "cvc5", "ostrich", "z3-noodler"]
+smt_solvers = ["z3", "z3str3", "cvc5", "ostrich", "z3-noodler"]
 
 # outputting latex
 def cov_generate_latex(res_all):
