@@ -340,20 +340,17 @@ def run_param_properties(setname, filename, var_settings, timeout, properties, i
 
 time_lim = 6
 
-# res_imag = run_nofib_set("nofib-symbolic/imaginary", [], time_lim)
-# res_spec = run_nofib_set("nofib-symbolic/spectral", [], time_lim)
-# res_progs = run_nofib_set("programs", [], time_lim)
+res_imag = run_nofib_set("nofib-symbolic/imaginary", [], time_lim)
+res_spec = run_nofib_set("nofib-symbolic/spectral", [], time_lim)
+res_progs = run_nofib_set("programs", [], time_lim)
 
-# cov_generate_latex(res_imag + res_spec + res_progs)
-# cov_generate_latex(res_imag)
-# solver_cov_generate_csv(res_imag)
+cov_generate_latex(res_imag + res_spec + res_progs)
+solver_cov_generate_csv(res_imag + res_spec + res_progs)
 
 time_lim = 30
 
-props = map(lambda x : "prop" + str(x), list(range(1, 3)))
+props = map(lambda x : "prop" + str(x), list(range(1, 25)))
 res_props = run_param_properties("properties", "ParamProperties.hs", [], time_lim, props)
 
-# print(res_props)
-# cex_generate_latex(res_props)
 print(cex_generate_csv(res_props))
 print(solver_cex_generate_csv(res_props))
