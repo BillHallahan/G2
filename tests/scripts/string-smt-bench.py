@@ -25,10 +25,10 @@ def cov_generate_latex(res_all):
 
     for (file_dir, bench_res) in res_all:
         line = file_dir + " & "
-        best_cov = max([x[0] for x in bench_res])
-        rch_ls_pairs = map(lambda rl: (r"\textbf{" + str(rl[0]) + "}" if rl[0] == best_cov else str(rl[0]))
+        best_cov = max([x["reached"] for x in bench_res])
+        rch_ls_pairs = map(lambda rl: (r"\textbf{" + str(rl["reached"]) + "}" if rl["reached"] == best_cov else str(rl["reached"]))
                                       + " & " 
-                                      + ("-" if rl[1] == -1 else str(rl[1])), bench_res)
+                                      + ("-" if rl["last"] == -1 else str(rl["last"])), bench_res)
         res_line = " & ".join(rch_ls_pairs)
         print(line + res_line + r"\\ \hline")
 
@@ -112,6 +112,7 @@ def run_bench(filename, func, var_settings, timeout, solver):
     # --include nofib-symbolic/common --hpc --hpc-print-times --no-step-limit --search subpath --time 60
     settings = ["--include", "nofib-symbolic/common"
                , "--no-step-limit", "--search", "subpath"
+               , "--print-sol-counts", "--print-num-solver-calls", "--solver-time"
                , "--time", str(timeout)
                , "--smt", solver] + var_settings
     print(*settings)
@@ -124,6 +125,11 @@ def cov_process_output(out):
     reached = re.search(r"Ticks reached: (\d*)", out)
     total = re.search(r"Tick num: (\d*)", out)
     last = re.search(r"Last tick reached: ((\d|\.)*)", out)
+
+    solving_time = re.search(r"SMT Solving Time: ((\d|\.)*)", out)
+    sat_c = re.search(r"# SAT: ((\d|\.)*)", out)
+    unsat_c = re.search(r"# UNSAT: ((\d|\.)*)", out)
+    unknown_c = re.search(r"# Unknown: ((\d|\.)*)", out)
 
     all_times = read_hpc_times(out)
 
@@ -147,7 +153,12 @@ def cov_process_output(out):
     else:
         last = -1
     
-    return (hpc_reached, last)
+    return { "reached" : hpc_reached
+           , "last" : last
+           , "solving_time" : solving_time
+           , "sat_count" : sat_c
+           , "unsat_count" : unsat_c
+           , "unknown_count" : unknown_c }
 
 def cex_process_output(out):
     found = re.search(r"State Accepted Time: ((\d|\.)*)", out)
@@ -274,13 +285,14 @@ def run_param_properties(setname, filename, var_settings, timeout, properties, i
 
         return res_all
 
-time_lim = 120
+time_lim = 6
 
 res_imag = run_nofib_set("nofib-symbolic/imaginary", [], time_lim)
-res_spec = run_nofib_set("nofib-symbolic/spectral", [], time_lim)
-res_progs = run_nofib_set("programs", [], time_lim)
+# res_spec = run_nofib_set("nofib-symbolic/spectral", [], time_lim)
+# res_progs = run_nofib_set("programs", [], time_lim)
 
-cov_generate_latex(res_imag + res_spec + res_progs)
+# cov_generate_latex(res_imag + res_spec + res_progs)
+cov_generate_latex(res_imag)
 
 time_lim = 30
 

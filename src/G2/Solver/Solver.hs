@@ -24,7 +24,11 @@ module G2.Solver.Solver ( Solver (..)
                         , timeSomeSolver
                         , CallsSolver
                         , callsSolver
-                        , callsSomeSolver) where
+                        , callsSomeSolver
+                        
+                        , CountResults
+                        , countResults
+                        , countResultsSomeSolver) where
 
 import G2.Language
 import G2.Language.Monad
@@ -38,6 +42,7 @@ import Data.List
 import Data.Monoid
 import Data.Tuple
 import System.Clock
+import GHC.RTS.Flags (GCFlags(doIdleGC))
 
 -- | The result of a Solver query
 data Result m u um = SAT m
@@ -452,3 +457,60 @@ instance Solver s => Solver (CallsSolver s) where
         close solver
         c <- readIORef io_c
         putStrLn $ pre_s ++ " Solver Calls: " ++ show c
+
+data CountResults solver = CountResults {  cr_solver :: solver, track_count :: IORef TrackResultsCR }
+
+data TrackResultsCR = TRCR { sat_count :: Int
+                           , unsat_count :: Int
+                           , unknown_count :: Int
+                           }
+
+countResults :: solver -> IO (CountResults solver)
+countResults solver = do
+    tr <- newIORef (TRCR { sat_count = 0, unsat_count = 0, unknown_count = 0 })
+    return $ CountResults { cr_solver = solver, track_count = tr }
+
+countResultsSomeSolver :: SomeSolver -> IO SomeSolver
+countResultsSomeSolver (SomeSolver solver) = SomeSolver <$> countResults solver
+
+instance Solver solver => Solver (CountResults solver) where
+    check cr@(CountResults { cr_solver = solver }) s pc = do
+        r <- check solver s pc
+        adjustCountSolver r cr
+        return r
+
+    solve cr@(CountResults { cr_solver = solver }) s b is pc = do
+        r <- solve solver s b is pc
+        adjustCountSolver r cr
+        return r
+    
+    close (CountResults { cr_solver = solver
+                        , track_count = io_tc }) = do
+        close solver
+        tc <- readIORef io_tc
+        putStrLn $ "# SAT: " ++ show (sat_count tc)
+        putStrLn $ "# UNSAT: " ++ show (unsat_count tc)
+        putStrLn $ "# Unknown: " ++ show (unknown_count tc)
+
+adjustCountSolver :: Result m u um -> CountResults solver -> IO ()
+adjustCountSolver r cr = do
+    tc <- readIORef (track_count cr)
+    let tc' = case r of
+                SAT _ -> tc { sat_count = sat_count tc + 1 }
+                UNSAT _ -> tc { unsat_count = unsat_count tc + 1 }
+                Unknown _ _ -> tc { unknown_count = unknown_count tc + 1 }
+    writeIORef (track_count cr) tc'
+
+    -- check (CountResults solver) = 
+
+    --         checkTr :: forall t . solver -> State t -> PathConds -> IO (Result () () (), solver)
+    
+    -- -- | Checks if the given `PathConds` are satisfiable, and, if yes, gives a `Model`
+    -- -- The model must contain, at a minimum, a value for each passed `Id`
+    -- -- Allows modifying the solver, to track some state.
+    -- solveTr :: forall t . solver -> State t -> Bindings -> [Id] -> PathConds -> IO (Result Model () (), solver)
+
+    -- -- | Cleans up when the solver is no longer needed.  Default implementation
+    -- -- does nothing
+    -- closeTr :: solver -> IO ()
+    -- closeTr _ = return ()
