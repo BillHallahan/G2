@@ -230,7 +230,7 @@ def run_param_properties(setname, filename, var_settings, timeout, properties, i
         setpath = os.path.join("string-to-smt-benchmark/", setname)
         param_bench_path = os.path.join(setpath, filename)
 
-        only_one = var_settings + ["--max-outputs", "1", "--accept-times"]
+        only_one = var_settings + ["--check-asserts", "--max-outputs", "1", "--accept-times"]
 
         res_all = []
 
@@ -247,7 +247,7 @@ def run_param_properties(setname, filename, var_settings, timeout, properties, i
 
             solver_res_bench = []
             for i in range(min_param, max_param + incr_by, incr_by):
-                res_base = run_bench(use_bench_path, prop, only_one, timeout, "z3")
+                res_base = run_bench(use_bench_path, prop + "_" + str(i), only_one, timeout, "z3")
                 print("Baseline " + str(i) + ":")
                 last_reached = cex_process_output(res_base)
                 solver_res_bench.append(last_reached)
@@ -269,15 +269,15 @@ def run_param_properties(setname, filename, var_settings, timeout, properties, i
 
 time_lim = 120
 
-# res_imag = run_nofib_set("nofib-symbolic/imaginary", [], time_lim)
-# res_spec = run_nofib_set("nofib-symbolic/spectral", [], time_lim)
-# res_progs = run_nofib_set("programs", [], time_lim)
+res_imag = run_nofib_set("nofib-symbolic/imaginary", [], time_lim)
+res_spec = run_nofib_set("nofib-symbolic/spectral", [], time_lim)
+res_progs = run_nofib_set("programs", [], time_lim)
 
-# cov_generate_latex(res_imag + res_spec + res_progs)
+cov_generate_latex(res_imag + res_spec + res_progs)
 
-time_lim = 30
+time_lim = 60
 
-props = map(lambda x : "prop" + str(x), list(range(1, 3)))
+props = map(lambda x : "prop" + str(x), list(range(1, 25)))
 res_props = run_param_properties("properties", "ParamProperties.hs", [], time_lim, props)
 
 print(res_props)
