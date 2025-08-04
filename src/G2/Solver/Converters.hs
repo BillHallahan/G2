@@ -48,6 +48,7 @@ import qualified G2.Language.PathConds as PC
 import G2.Solver.Language
 import G2.Solver.Solver
 import qualified G2.Language.TyVarEnv as TV
+import Debug.Trace
 
 -- | Used to describe the specific output format required by various solvers
 -- By defining these functions, we can automatically convert from the SMTHeader and SMTAST
@@ -131,7 +132,7 @@ getModelVal avf con (State { expr_env = eenv, type_env = tenv, known_values = kv
 solveNumericConstraintsPC :: SMTConverter con => TV.TyVarEnv -> con -> KnownValues -> TypeEnv -> PathConds -> IO (Result Model () ())
 solveNumericConstraintsPC tv con kv tenv pc = do
     let headers = toSMTHeaders tv pc
-    let vs = map (\(n', srt) -> (nameToStr n', srt)) . HS.toList . pcVars $ pc
+    let vs = map (\(n', srt) -> (nameToStr n', srt)) . HS.toList . pcVars tv $ pc
 
     m <- solveConstraints con headers vs
     case m of
@@ -162,7 +163,7 @@ toSMTHeaders' tv pc  =
     let
         pc' = PC.toList pc
     in 
-    (pcVarDecls pc)
+    (pcVarDecls tv pc)
     ++
     (pathConsToSMTHeaders tv pc')
 
@@ -370,7 +371,7 @@ pathConsToSMT' tv (ExtCond e b) =
     if b then exprSMT else (:!) exprSMT
 pathConsToSMT' tv (AssumePC (Id n t) num pc) =
     let
-        idSMT = V (nameToStr n) (typeToSMT t) -- exprToSMT (Var i)
+        idSMT = V (nameToStr n) (typeToSMT tv t) -- exprToSMT (Var i)
         intSMT = VInt $ toInteger num -- exprToSMT (Lit (LitInt $ toInteger num))
         pcSMT = map ( pathConsToSMT' tv . PC.unhashedPC) $ HS.toList pc
     in
@@ -379,7 +380,7 @@ pathConsToSMT' _ (MinimizePC _) = error "pathConsToSMT': unsupported nesting of 
 pathConsToSMT' _ (SoftPC _) = error "pathConsToSMT': unsupported nesting of SoftPC."
 
 exprToSMT :: TV.TyVarEnv -> Expr -> SMTAST
-exprToSMT _ (Var (Id n t)) = V (nameToStr n) (typeToSMT t)
+exprToSMT tv (Var (Id n t)) = V (nameToStr n) (typeToSMT tv t)
 exprToSMT _ (Lit c) =
     case c of
         LitInt i -> VInt i
@@ -396,7 +397,7 @@ exprToSMT _ (Data (DataCon n (TyCon (Name "Bool" _ _ _) _ ) _ _)) =
         "True" -> VBool True
         "False" -> VBool False
         _ -> error "Invalid bool in exprToSMT"
-exprToSMT _ (Data (DataCon n t _ _)) = V (nameToStr n) (typeToSMT t)
+exprToSMT tv (Data (DataCon n t _ _)) = V (nameToStr n) (typeToSMT tv t)
 exprToSMT _ (App (Data (DataCon (Name "[]" _ _ _) _ _ _)) (Type (TyCon (Name "Char" _ _ _) _))) = VString ""
 exprToSMT tv e | [ Data (DataCon (Name ":" _ _ _) _ _ _)
               , Type (TyCon (Name "Char" _ _ _) _)
@@ -454,7 +455,7 @@ funcToSMT1Prim tv DecimalPart e | typeOf tv e == TyLitFloat = exprToSMT tv e `Fp
 funcToSMT1Prim tv FpIsNegativeZero e =
     let
         nz = "INTERNAL_!!_IsNegZero"
-        smt_srt = typeToSMT (typeOf tv e) 
+        smt_srt = typeToSMT tv (typeOf tv e) 
     in
     SLet (nz, exprToSMT tv e) $ SmtAnd [FpIsNegative (V nz smt_srt), FpIsZero (V nz smt_srt)]
 funcToSMT1Prim tv IsDenormalized e =
@@ -483,7 +484,7 @@ funcToSMT1Prim tv Chr e = FromCode (exprToSMT tv e)
 funcToSMT1Prim tv OrdChar e = ToCode (exprToSMT tv e)
 funcToSMT1Prim tv StrLen e = StrLenSMT (exprToSMT tv e)
 
-funcToSMT1Prim tv ForAllPr (Lam _ (Id n t) e) = ForAll (nameToStr n) (typeToSMT t) (exprToSMT tv e)
+funcToSMT1Prim tv ForAllPr (Lam _ (Id n t) e) = ForAll (nameToStr n) (typeToSMT tv t) (exprToSMT tv e)
 
 funcToSMT1Prim _ err _ = error $ "funcToSMT1Prim: invalid Primitive " ++ show err
 
@@ -584,32 +585,35 @@ createUniqVarDecls ((n,SortChar):xs) =
     VarDecl (nameToBuilder n) SortChar:lenAssert:createUniqVarDecls xs
 createUniqVarDecls ((n,s):xs) = VarDecl (nameToBuilder n) s:createUniqVarDecls xs
 
-pcVarDecls :: PathConds -> [SMTHeader]
-pcVarDecls = createUniqVarDecls . HS.toList . pcVars
+pcVarDecls :: TV.TyVarEnv -> PathConds -> [SMTHeader]
+pcVarDecls tv = createUniqVarDecls . HS.toList . pcVars tv
 
 -- Get's all variable required for a list of `PathCond` 
-pcVars :: PathConds -> HS.HashSet (Name, Sort)
-pcVars = HS.map idToNameSort . PC.allIds
+pcVars :: TV.TyVarEnv -> PathConds -> HS.HashSet (Name, Sort)
+pcVars tv = HS.map (idToNameSort tv) . PC.allIds
 
-idToNameSort :: Id -> (Name, Sort)
-idToNameSort (Id n t) = (n, typeToSMT t)
+idToNameSort :: TV.TyVarEnv -> Id -> (Name, Sort)
+idToNameSort tv (Id n t) = (n, typeToSMT tv t)
 
-typeToSMT :: Type -> Sort
-typeToSMT (TyFun TyLitInt _) = SortInt -- TODO: Remove this
-typeToSMT (TyFun (TyLitFP e s) _) = SortFP e s -- TODO: Remove this
-typeToSMT TyLitInt = SortInt
-typeToSMT TyLitWord = SortWord
-typeToSMT (TyLitFP e s) = SortFP e s
-typeToSMT TyLitRational = SortReal
-typeToSMT (TyLitBV w) = SortBV w
-typeToSMT TyLitChar = SortChar
-typeToSMT (TyCon (Name "Bool" _ _ _) _) = SortBool
+typeToSMT :: TV.TyVarEnv -> Type -> Sort
+typeToSMT _ (TyFun TyLitInt _) = SortInt -- TODO: Remove this
+typeToSMT _ (TyFun (TyLitFP e s) _) = SortFP e s -- TODO: Remove this
+typeToSMT _ TyLitInt = SortInt
+typeToSMT _ TyLitWord = SortWord
+typeToSMT _ (TyLitFP e s) = SortFP e s
+typeToSMT _ TyLitRational = SortReal
+typeToSMT _ (TyLitBV w) = SortBV w
+typeToSMT _ TyLitChar = SortChar
+typeToSMT _ (TyCon (Name "Bool" _ _ _) _) = SortBool
 #if MIN_VERSION_GLASGOW_HASKELL(9,6,0,0)
-typeToSMT (TyApp (TyCon (Name "List" _ _ _) _) (TyCon (Name "Char" _ _ _) _)) = SortString
+typeToSMT _ (TyApp (TyCon (Name "List" _ _ _) _) (TyCon (Name "Char" _ _ _) _)) = SortString
 #else
-typeToSMT (TyApp (TyCon (Name "[]" _ _ _) _) (TyCon (Name "Char" _ _ _) _)) = SortString
+typeToSMT _ (TyApp (TyCon (Name "[]" _ _ _) _) (TyCon (Name "Char" _ _ _) _)) = SortString
 #endif
-typeToSMT t = error $ "Unsupported type in typeToSMT: " ++ show t
+typeToSMT tv t@(TyApp t1 (TyVar (Id n _))) = case TV.deepLookup' tv n of 
+                                                Just t2 -> typeToSMT tv (TyApp t1 t2)
+                                                Nothing -> error $ "typeToSMT: TyVarEnv can't find the type: " ++ show t 
+typeToSMT _ t = error $ "Unsupported type in typeToSMT: " ++ show t
 
 merge :: TB.Builder -> TB.Builder -> TB.Builder
 merge x y = x <> "\n" <> y
