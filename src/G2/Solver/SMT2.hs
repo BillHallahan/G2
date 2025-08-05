@@ -9,7 +9,8 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RankNTypes #-}
 
-module G2.Solver.SMT2 ( Z3
+module G2.Solver.SMT2 ( Z3StringSolver (..)
+                      , Z3
                       , CVC5
                       , SomeSMTSolver (..)
                       , getZ3
@@ -37,9 +38,10 @@ import Data.Maybe (fromMaybe)
 import G2.Language.Support(State(..))
 import qualified G2.Language.TyVarEnv as TV 
 
-type PrintSMT = Bool
 
-data Z3 = Z3 PrintSMT ArbValueFunc (Handle, Handle, ProcessHandle)
+data Z3StringSolver = SeqSolver | Z3Str3 deriving Eq
+data Z3 = Z3 Z3StringSolver PrintSMT ArbValueFunc (Handle, Handle, ProcessHandle)
+
 data CVC5 = CVC5 PrintSMT ArbValueFunc (Handle, Handle, ProcessHandle)
 data Ostrich = Ostrich PrintSMT ArbValueFunc (Handle, Handle, ProcessHandle)
 
@@ -49,7 +51,7 @@ data SomeSMTSolver where
 
 instance Solver Z3 where
     check solver s pc = checkConstraintsPC (tyvar_env s) solver pc
-    solve con@(Z3 _ avf _) = checkModelPC avf con
+    solve con@(Z3 _ _ avf _) = checkModelPC avf con
     close = closeIO
 
 instance Solver CVC5 where
@@ -62,11 +64,11 @@ instance Solver Ostrich where
     solve con@(Ostrich _ avf _) = checkModelPC avf con
     close = closeIO
 
-getIOZ3 :: Z3 -> (Handle, Handle, ProcessHandle)
-getIOZ3 (Z3 _ _ hhp) = hhp
-
 instance SMTConverter Z3 where
-    closeIO (Z3 _ _ (h_in, h_out, ph)) = do
+    getIO (Z3 _ _ _ hhp) = hhp
+    getPrintSMT (Z3 _ print_smt _ _) = print_smt
+
+    closeIO (Z3 _ _ _ (h_in, h_out, ph)) = do
 #if MIN_VERSION_process(1,6,4)
         cleanupProcess (Just h_in, Just h_out, Nothing, ph)
 #else
@@ -76,24 +78,29 @@ instance SMTConverter Z3 where
         hClose h_out
 #endif
 
-    reset con = do
-        let (h_in, _, _) = getIOZ3 con
+    reset con@(Z3 string_solver print_smt _ _) = do
+        let (h_in, _, _) = getIO con
+        when print_smt $ putStrLn "(reset)"
         T.hPutStr h_in "(reset)"
+        
+        when (string_solver == Z3Str3) $ do
+            when print_smt $ putStrLn "(set-option :smt.string_solver z3str3)"
+            T.hPutStr h_in "(set-option :smt.string_solver z3str3)"
 
     checkSatInstr con = do
-        let (h_in, _, _) = getIOZ3 con
+        let (h_in, _, _) = getIO con
         T.hPutStrLn h_in "(check-sat)"
 
     maybeCheckSatResult con = do
-        let (_, h_out, _) = getIOZ3 con
+        let (_, h_out, _) = getIO con
         r <- hReady h_out
         case r of
             True -> return . Just =<< checkSatReadResult h_out
             False -> return Nothing
 
-    getModelInstrResult con vs = do
-        let (h_in, h_out, _) = getIOZ3 con
-        mdl <- getModelZ3 h_in h_out vs
+    getModelInstrResult con@(Z3 _ print_smt _ _) vs = do
+        let (h_in, h_out, _) = getIO con
+        mdl <- getModelZ3 print_smt h_in h_out vs
         -- putStrLn "======"
         -- putStrLn (show mdl)
         let m = parseModel mdl
@@ -102,68 +109,46 @@ instance SMTConverter Z3 where
         return m
 
     getUnsatCoreInstrResult con = do
-        let (h_in, h_out, _) = getIOZ3 con
+        let (h_in, h_out, _) = getIO con
         uc <- getUnsatCoreZ3 h_in h_out
         return (HS.fromList uc)
 
     setProduceUnsatCores con = do
-        let (h_in, _, _) = getIOZ3 con
+        let (h_in, _, _) = getIO con
         T.hPutStrLn h_in "(set-option :produce-unsat-cores true)"
 
-    addFormula con@(Z3 print_smt _ _) form = do
-        let (h_in, _, _) = getIOZ3 con
+    addFormula = stdAddFormula
 
-        when print_smt $ do
-            putStrLn "addFormula"
-            T.putStrLn (TB.run $ toSolverText form)
+    checkSatNoReset = stdCheckSatNoReset
 
-        T.hPutStrLn h_in (TB.run $ toSolverText form)
+    checkSatGetModel con@(Z3 _ print_smt _ _) formula vs = do
+        let (h_in, h_out, _) = getIO con
+        reset con        
+        when print_smt $ T.putStrLn (TB.run $ toSolverText formula)
+        T.hPutStr h_in (TB.run $ toSolverText formula)
 
-    checkSatNoReset con@(Z3 print_smt _ _) formula = do
-        let (h_in, h_out, _) = getIOZ3 con
-
-        when print_smt $ do
-            putStrLn "checkSat"
-            T.putStrLn (TB.run $ toSolverText formula)
-        
-        T.hPutStrLn h_in (TB.run $ toSolverText formula)
-        r <- checkSat' h_in h_out
-
+        r <- checkSat' print_smt h_in h_out
         when print_smt (putStrLn $ show r)
-
-        return r
-
-    checkSatGetModel con@(Z3 print_smt _ _) formula vs = do
-        let (h_in, h_out, _) = getIOZ3 con
-        setUpFormula h_in (TB.run $ toSolverText formula)
-        
-        when print_smt $ do
-            putStrLn "checkSatGetModel"
-            T.putStrLn (TB.run $ toSolverText formula)
-        
-        r <- checkSat' h_in h_out
-        when print_smt (putStrLn $ "r =  " ++ show r)
 
         case r of
             SAT () -> do
-                mdl <- getModelZ3 h_in h_out vs
+                mdl <- getModelZ3 print_smt h_in h_out vs
                 when print_smt (putStrLn $ "model =  " ++ show (map (\(_, v, _) -> v) mdl))
                 let m = parseModel mdl
                 return $ SAT m
             UNSAT () -> return $ UNSAT ()
             Unknown s _ -> return $ Unknown s ()
 
-    checkSatGetModelOrUnsatCoreNoReset con formula vs = do
-        let (h_in, h_out, _) = getIOZ3 con
+    checkSatGetModelOrUnsatCoreNoReset con@(Z3 _ print_smt _ _) formula vs = do
+        let (h_in, h_out, _) = getIO con
         let formula' = TB.run $ toSolverText formula
         T.putStrLn "\n\n checkSatGetModelOrUnsatCore"
         T.putStrLn formula'
 
         T.hPutStr h_in formula'
-        r <- checkSat' h_in h_out
-        -- putStrLn $ "r =  " ++ show r
+        r <- checkSat' print_smt h_in h_out
         if r == SAT () then do
-            mdl <- getModelZ3 h_in h_out vs
+            mdl <- getModelZ3 print_smt h_in h_out vs
             -- putStrLn "======"
             -- putStrLn $ "r = " ++ show r
             -- putStrLn $ "mdl = " ++ show mdl
@@ -178,42 +163,38 @@ instance SMTConverter Z3 where
         else do
             return (Unknown "" ())
 
-    push con = do
-        let (h_in, _, _) = getIOZ3 con
-        T.hPutStrLn h_in "(push)"
-
-    pop con = do
-        let (h_in, _, _) = getIOZ3 con
-        T.hPutStrLn h_in "(pop)"
-
-getIOCVC5 :: CVC5 -> (Handle, Handle, ProcessHandle)
-getIOCVC5 (CVC5 _ _ hhp) = hhp
+    push = stdPush
+    pop = stdPop
 
 instance SMTConverter CVC5 where
+    getIO (CVC5 _ _ hhp) = hhp
+    getPrintSMT (CVC5 print_smt _ _) = print_smt
+
     closeIO (CVC5 _ _ (h_in, h_out, ph)) = do
         hPutStrLn h_in "(exit)"
         _ <- waitForProcess ph
         hClose h_in
         hClose h_out
 
-    reset con = do
-        let (h_in, _, _) = getIOCVC5 con
+    reset con@(CVC5 print_smt _ _) = do
+        let (h_in, _, _) = getIO con
+        when print_smt $ putStrLn "(reset)"
         T.hPutStr h_in "(reset)"
 
     checkSatInstr con = do
-        let (h_in, _, _) = getIOCVC5 con
+        let (h_in, _, _) = getIO con
         T.hPutStrLn h_in "(check-sat)"
 
     maybeCheckSatResult con = do
-        let (_, h_out, _) = getIOCVC5 con
+        let (_, h_out, _) = getIO con
         r <- hReady h_out
         case r of
             True -> return . Just =<< checkSatReadResult h_out
             False -> return Nothing
 
-    getModelInstrResult con vs = do
-        let (h_in, h_out, _) = getIOCVC5 con
-        mdl <- getModelCVC5 h_in h_out vs
+    getModelInstrResult con@(CVC5 print_smt _ _) vs = do
+        let (h_in, h_out, _) = getIO con
+        mdl <- getModel print_smt h_in h_out vs
         -- putStrLn "======"
         -- putStrLn (show mdl)
         let m = parseModel mdl
@@ -222,40 +203,26 @@ instance SMTConverter CVC5 where
         return m
 
     getUnsatCoreInstrResult con = do
-        let (h_in, h_out, _) = getIOCVC5 con
+        let (h_in, h_out, _) = getIO con
         uc <- getUnsatCoreCVC5 h_in h_out
         return (HS.fromList uc)
 
     setProduceUnsatCores _ = return ()
 
-    addFormula con form = do
-        let (h_in, _, _) = getIOCVC5 con
-        T.hPutStrLn h_in (TB.run $ toSolverText form)
+    addFormula = stdAddFormula
 
-    checkSatNoReset con@(CVC5 print_smt _ _) formula = do
-        let (h_in, h_out, _) = getIOCVC5 con
-        when print_smt $ do
-            putStrLn "checkSat"
-            T.putStrLn (TB.run $ toSolverText formula)
-        
-        T.hPutStrLn h_in (TB.run $ toSolverText formula)
-        r <- checkSat' h_in h_out
-
-        when print_smt (putStrLn $ show r)
-
-        return r
+    checkSatNoReset = stdCheckSatNoReset
 
     checkSatGetModel con@(CVC5 print_smt _ _) formula vs = do
-        let (h_in, h_out, _) = getIOCVC5 con
-        setUpFormula h_in (TB.run $ toSolverText formula)
-        when print_smt $ do
-            putStrLn "checkSatGetModel"
-            T.putStrLn (TB.run $ toSolverText formula)
-        r <- checkSat' h_in h_out
-        when print_smt (putStrLn $ "r =  " ++ show r)
+        let (h_in, h_out, _) = getIO con
+        reset con
+        when print_smt $ T.putStrLn (TB.run $ toSolverText formula)
+        T.hPutStr h_in (TB.run $ toSolverText formula)
+        r <- checkSat' print_smt h_in h_out
+        when print_smt (putStrLn $ show r)
         case r of
             SAT _ -> do
-                mdl <- getModelCVC5 h_in h_out vs
+                mdl <- getModel print_smt h_in h_out vs
                 -- putStrLn "======"
                 -- putStrLn (show mdl)
                 let m = parseModel mdl
@@ -265,17 +232,16 @@ instance SMTConverter CVC5 where
             UNSAT _ ->  return $ UNSAT ()
             Unknown s _ -> return $ Unknown s ()
 
-    checkSatGetModelOrUnsatCoreNoReset con formula vs = do
-        let (h_in, h_out, _) = getIOCVC5 con
+    checkSatGetModelOrUnsatCoreNoReset con@(CVC5 print_smt _ _) formula vs = do
+        let (h_in, h_out, _) = getIO con
         let formula' = TB.run $ toSolverText formula
         T.putStrLn "\n\n checkSatGetModelOrUnsatCore"
         T.putStrLn formula'
 
         T.hPutStr h_in formula'
-        r <- checkSat' h_in h_out
-        putStrLn $ "r =  " ++ show r
+        r <- checkSat' print_smt h_in h_out
         if r == SAT () then do
-            mdl <- getModelCVC5 h_in h_out vs
+            mdl <- getModel print_smt h_in h_out vs
             -- putStrLn "======"
             -- putStrLn $ "r = " ++ show r
             -- putStrLn $ "mdl = " ++ show mdl
@@ -290,18 +256,13 @@ instance SMTConverter CVC5 where
         else do
             return (Unknown "" ())
 
-    push con = do
-        let (h_in, _, _) = getIOCVC5 con
-        T.hPutStrLn h_in "(push)"
-
-    pop con = do
-        let (h_in, _, _) = getIOCVC5 con
-        T.hPutStrLn h_in "(pop)"
-
-getIOOstrich :: Ostrich -> (Handle, Handle, ProcessHandle)
-getIOOstrich (Ostrich _ _ hhp) = hhp
+    push = stdPush
+    pop = stdPop
 
 instance SMTConverter Ostrich where
+    getIO (Ostrich _ _ hhp) = hhp
+    getPrintSMT (Ostrich print_smt _ _) = print_smt
+
     closeIO (Ostrich _ _ (h_in, h_out, ph)) = do
 #if MIN_VERSION_process(1,6,4)
         cleanupProcess (Just h_in, Just h_out, Nothing, ph)
@@ -311,24 +272,25 @@ instance SMTConverter Ostrich where
         hClose h_in
         hClose h_out
 #endif
-    reset con = do
-        let (h_in, _, _) = getIOOstrich con
+    reset con@(Ostrich print_smt _ _) = do
+        let (h_in, _, _) = getIO con
+        when print_smt $ putStrLn "(reset)"
         T.hPutStr h_in "(reset)"
 
     checkSatInstr con = do
-        let (h_in, _, _) = getIOOstrich con
+        let (h_in, _, _) = getIO con
         T.hPutStrLn h_in "(check-sat)"
 
     maybeCheckSatResult con = do
-        let (_, h_out, _) = getIOOstrich con
+        let (_, h_out, _) = getIO con
         r <- hReady h_out
         case r of
             True -> return . Just =<< checkSatReadResult h_out
             False -> return Nothing
 
-    getModelInstrResult con vs = do
-        let (h_in, h_out, _) = getIOOstrich con
-        mdl <- getModelCVC5 h_in h_out vs
+    getModelInstrResult con@(Ostrich print_smt _ _) vs = do
+        let (h_in, h_out, _) = getIO con
+        mdl <- getModel print_smt h_in h_out vs
         -- putStrLn "======"
         -- putStrLn (show mdl)
         let m = parseModel mdl
@@ -339,43 +301,24 @@ instance SMTConverter Ostrich where
     getUnsatCoreInstrResult _ = error "ostrich: unsat core not supported"
     setProduceUnsatCores _ = error "ostrich: unsat core not supported"
 
-    addFormula con@(Ostrich print_smt _ _) form = do
-        let (h_in, _, _) = getIOOstrich con
+    addFormula = stdAddFormula
 
-        when print_smt $ do
-            putStrLn "addFormula"
-            T.putStrLn (TB.run $ toSolverText form)
-
-        T.hPutStrLn h_in (TB.run $ toSolverText form)
-
-    checkSatNoReset con@(Ostrich print_smt _ _) formula = do
-        let (h_in, h_out, _) = getIOOstrich con
-
-        when print_smt $ do
-            putStrLn "checkSat"
-            T.putStrLn (TB.run $ toSolverText formula)
-        
-        T.hPutStrLn h_in (TB.run $ toSolverText formula)
-        r <- checkSat' h_in h_out
-
-        when print_smt (putStrLn $ show r)
-
-        return r
+    checkSatNoReset = stdCheckSatNoReset
 
     checkSatGetModel con@(Ostrich print_smt _ _) formula vs = do
-        let (h_in, h_out, _) = getIOOstrich con
-        setUpFormula h_in (TB.run $ toSolverText formula)
+        let (h_in, h_out, _) = getIO con
+        reset con
+        T.hPutStr h_in (TB.run $ toSolverText formula)
         
         when print_smt $ do
-            putStrLn "checkSatGetModel"
             T.putStrLn (TB.run $ toSolverText formula)
         
-        r <- checkSat' h_in h_out
-        when print_smt (putStrLn $ "r =  " ++ show r)
+        r <- checkSat' print_smt h_in h_out
+        when print_smt (putStrLn $ show r)
 
         case r of
             SAT () -> do
-                mdl <- getModelCVC5 h_in h_out vs
+                mdl <- getModel print_smt h_in h_out vs
                 when print_smt (putStrLn $ "model =  " ++ show (map (\(_, v, _) -> v) mdl))
                 let m = parseModel mdl
                 return $ SAT m
@@ -384,13 +327,41 @@ instance SMTConverter Ostrich where
 
     checkSatGetModelOrUnsatCoreNoReset _ _ _ = error "ostrich: unsat core not supported"
 
-    push con = do
-        let (h_in, _, _) = getIOOstrich con
-        T.hPutStrLn h_in "(push)"
+    push = stdPush
+    pop = stdPop
 
-    pop con = do
-        let (h_in, _, _) = getIOOstrich con
-        T.hPutStrLn h_in "(pop)"
+stdAddFormula :: SMTConverter con => con -> [SMTHeader] -> IO ()
+stdAddFormula con form = do
+    let (h_in, _, _) = getIO con
+        pr_smt = getPrintSMT con
+    when pr_smt $ T.putStrLn (TB.run $ toSolverText form)
+    T.hPutStrLn h_in (TB.run $ toSolverText form)
+
+
+stdCheckSatNoReset :: SMTConverter con => con -> [SMTHeader] -> IO (Result () () ())
+stdCheckSatNoReset con formula = do
+        let (h_in, h_out, _) = getIO con
+            pr_smt = getPrintSMT con
+
+        when pr_smt $ T.putStrLn (TB.run $ toSolverText formula)
+
+        T.hPutStrLn h_in (TB.run $ toSolverText formula)
+        r <- checkSat' pr_smt h_in h_out
+
+        when pr_smt (putStrLn $ show r)
+
+        return r
+
+stdPush :: SMTConverter con => con -> IO ()
+stdPush con = do
+    let (h_in, _, _) = getIO con
+    T.hPutStrLn h_in "(push)"
+
+stdPop :: SMTConverter con => con -> IO ()
+stdPop con = do
+    let (h_in, _, _) = getIO con
+    T.hPutStrLn h_in "(pop)"
+
 
 -- | getProcessHandles
 -- Ideally, this function should be called only once, and the same Handles should be used
@@ -416,7 +387,7 @@ getProcessHandles pr = do
 getZ3 :: PrintSMT -> Int -> IO Z3
 getZ3 pr_smt time_out = do
     hhp <- getZ3ProcessHandles Nothing time_out
-    return $ Z3 pr_smt arbValue hhp
+    return $ Z3 SeqSolver pr_smt arbValue hhp
 
 getSMT :: Config -> IO SomeSMTSolver
 getSMT = getSMTAV arbValue
@@ -424,9 +395,12 @@ getSMT = getSMTAV arbValue
 getSMTAV :: ArbValueFunc -> Config -> IO SomeSMTSolver
 getSMTAV avf (Config { smt = ConZ3, smt_path = path, print_smt = pr }) = do
     hhp <- getZ3ProcessHandles path 10000
-    return $ SomeSMTSolver (Z3 pr avf hhp)
+    return $ SomeSMTSolver (Z3 SeqSolver pr avf hhp)
+getSMTAV avf (Config { smt = ConZ3Str3, smt_path = path, print_smt = pr }) = do
+    hhp <- getZ3ProcessHandles path 10000
+    return $ SomeSMTSolver (Z3 Z3Str3 pr avf hhp)
 getSMTAV avf (Config { smt = ConCVC5, smt_path = path, print_smt = pr }) = do
-    hhp <- getCVC5ProcessHandles path
+    hhp <- getCVC5ProcessHandles path 10000
     return $ SomeSMTSolver (CVC5 pr avf hhp)
 getSMTAV avf (Config { smt = ConOstrich, smt_path = path, print_smt = pr }) = do
     hhp <- getOstrichProcessHandles path 10000
@@ -440,8 +414,8 @@ getSMTAV avf (Config { smt = ConOstrich, smt_path = path, print_smt = pr }) = do
 getZ3ProcessHandles :: Maybe FilePath -> Int -> IO (Handle, Handle, ProcessHandle)
 getZ3ProcessHandles m_path time_out = getProcessHandles $ proc (selPath m_path "z3") ["-smt2", "-in", "-t:" ++ show time_out, "model=true"]
 
-getCVC5ProcessHandles :: Maybe FilePath -> IO (Handle, Handle, ProcessHandle)
-getCVC5ProcessHandles m_path = getProcessHandles $ proc (selPath m_path "cvc5") ["--lang", "smt2.6", "--produce-models", "--produce-unsat-cores"]
+getCVC5ProcessHandles :: Maybe FilePath -> Int -> IO (Handle, Handle, ProcessHandle)
+getCVC5ProcessHandles m_path time_out = getProcessHandles $ proc (selPath m_path "cvc5") ["--lang", "smt2.6", "--produce-models", "--produce-unsat-cores", "--tlimit-per=" ++ show time_out]
 
 getOstrichProcessHandles :: Maybe FilePath -> Int -> IO (Handle, Handle, ProcessHandle)
 getOstrichProcessHandles m_path time_out = getProcessHandles $ proc (selPath m_path "ostrich") ["+quiet", "+stdin", "+incremental", "-timeoutPer=" ++ show time_out]
@@ -449,17 +423,11 @@ getOstrichProcessHandles m_path time_out = getProcessHandles $ proc (selPath m_p
 selPath :: Maybe FilePath -> FilePath -> FilePath
 selPath = flip fromMaybe
 
--- | setUpFormulaZ3
--- Writes a function to Z3
-setUpFormula :: Handle -> T.Text -> IO ()
-setUpFormula h_in form = do
-    T.hPutStr h_in "(reset)"
-    T.hPutStr h_in form
-
 -- Checks if a formula, previously written by setUp formula, is SAT
-checkSat' :: Handle -> Handle -> IO (Result () () ())
-checkSat' h_in h_out = do
-    hPutStr h_in "(check-sat)\n"
+checkSat' :: PrintSMT -> Handle -> Handle -> IO (Result () () ())
+checkSat' print_smt h_in h_out = do
+    when print_smt (putStrLn "(check-sat)")
+    hPutStrLn h_in "(check-sat)"
 
     _ <- hWaitForInput h_out (-1)
     checkSatReadResult h_out
@@ -489,19 +457,10 @@ parseToSMTAST str s = correctTypes s . parseGetValues s $ str
         correctTypes SortChar (VString _) = error "Invalid Char from parseToSMTAST"
         correctTypes _ a = a
 
-getModelZ3 :: Handle -> Handle -> [(SMTName, Sort)] -> IO [(SMTName, String, Sort)]
-getModelZ3 h_in h_out ns = do
+getModelZ3 :: PrintSMT -> Handle -> Handle -> [(SMTName, Sort)] -> IO [(SMTName, String, Sort)]
+getModelZ3 print_smt h_in h_out ns = do
     hPutStr h_in "(set-option :model_evaluator.completion true)\n"
-    getModel' ns
-    where
-        getModel' :: [(SMTName, Sort)] -> IO [(SMTName, String, Sort)]
-        getModel' [] = return []
-        getModel' ((n, s):nss) = do
-            hPutStr h_in ("(get-value (" ++ n ++ "))\n") -- hPutStr h_in ("(eval " ++ n ++ " :completion)\n")
-            out <- getLinesMatchParens h_out
-            _ <- evaluate (length out) --Forces reading/avoids problems caused by laziness
-
-            return . (:) (n, out, s) =<< getModel' nss
+    getModel print_smt h_in h_out ns
 
 getUnsatCoreZ3 :: Handle -> Handle -> IO [SMTName]
 getUnsatCoreZ3 h_in h_out = do
@@ -534,14 +493,15 @@ getUnsatCoreCVC5 h_in h_out = do
                 ")" -> return []
                 _ -> return . (:) core =<< getCore
 
-getModelCVC5 :: Handle -> Handle -> [(SMTName, Sort)] -> IO [(SMTName, String, Sort)]
-getModelCVC5 h_in h_out ns = do
+getModel :: PrintSMT -> Handle -> Handle -> [(SMTName, Sort)] -> IO [(SMTName, String, Sort)]
+getModel print_smt h_in h_out ns = do
     getModel' ns
     where
         getModel' :: [(SMTName, Sort)] -> IO [(SMTName, String, Sort)]
         getModel' [] = return []
         getModel' ((n, s):nss) = do
-            hPutStr h_in ("(get-value (" ++ n ++ "))\n")
+            when print_smt (putStrLn $ "(get-value (" ++ n ++ "))")
+            hPutStrLn h_in ("(get-value (" ++ n ++ "))")
             out <- getLinesMatchParens h_out
             _ <- evaluate (length out) --Forces reading/avoids problems caused by laziness
 

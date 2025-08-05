@@ -11,7 +11,8 @@
 -- (2) SMTHeaders/SMTASTs/Sorts to some SMT solver interface
 -- (3) SMTASTs/Sorts to Exprs/Types
 module G2.Solver.Converters
-    ( toSMTHeaders
+    ( PrintSMT
+    , toSMTHeaders
     , toSolverText
     , exprToSMT --WOULD BE NICE NOT TO EXPORT THIS
     , typeToSMT --WOULD BE NICE NOT TO EXPORT THIS
@@ -42,6 +43,9 @@ import GHC.Float
 import qualified Text.Builder as TB
 import Numeric
 
+import qualified System.IO as IO
+import System.Process
+
 import G2.Language hiding (Assert, vars)
 import qualified G2.Language.ExprEnv as E
 import qualified G2.Language.PathConds as PC
@@ -49,10 +53,15 @@ import G2.Solver.Language
 import G2.Solver.Solver
 import qualified G2.Language.TyVarEnv as TV
 
+type PrintSMT = Bool
+
 -- | Used to describe the specific output format required by various solvers
 -- By defining these functions, we can automatically convert from the SMTHeader and SMTAST
 -- datatypes, to a form understandable by the solver.
 class Solver con => SMTConverter con where
+    getIO :: con -> (IO.Handle, IO.Handle, ProcessHandle)
+    getPrintSMT :: con -> PrintSMT
+
     closeIO :: con -> IO ()
 
     reset :: con -> IO ()

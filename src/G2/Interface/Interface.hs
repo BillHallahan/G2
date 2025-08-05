@@ -418,8 +418,11 @@ initSolver' avf config = do
     some_adt_solver' <- case time_solving config of
             True -> timeSomeSolver "SMT" some_adt_solver
             False -> return some_adt_solver
+    some_adt_solver'' <- case print_solver_sol_counts config of
+                                True -> countResultsSomeSolver some_adt_solver'
+                                False -> return some_adt_solver'
 
-    let con' = case some_adt_solver' of
+    let con' = case some_adt_solver'' of
                     SomeSolver adt_solver ->
                         SomeSolver -- . CommonSubExpElim
                                    $ GroupRelated avf
