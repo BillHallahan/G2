@@ -184,7 +184,6 @@ import Data.Time.Clock
 import System.Clock
 import System.Directory
 import qualified G2.Language.TyVarEnv as TV 
-import G2.Language (State(tyvar_env))
 
 -- | Used when applying execution rules
 -- Allows tracking extra information to control halting of rule application,
@@ -1146,18 +1145,20 @@ substHigherOrder tv eenv m ns ce =
                                 Nothing -> Nothing) $ HS.toList ns
 
         higherOrd = filter (isTyFun . typeOf tv) . symbVars eenv $ ce
-        higherOrdSub = map (\v -> (v, mapMaybe (genSubstitutable v) (map (typeOf tv) is) )) higherOrd
+        higherOrdSub = map (\v -> (v, mapMaybe (genSubstitutable v) is)) higherOrd
     in
     substHigherOrder' [(eenv, m, ce)] higherOrdSub
     where
         genSubstitutable v i
-            | Just bm <- specializes (typeOf tv v) (typeOf tv i) =
+            | Just bm <- specializes (typeOf tv v) t_i =
                 let
-                    bnds = map idName $ leadingTyForAllBindings i
+                    bnds = map idName $ leadingTyForAllBindings t_i
                     tys = mapMaybe (\b -> fmap Type $ TV.lookup b bm) bnds
                 in
-                Just . mkApp $ Type i:tys
+                Just . mkApp $ Var i:tys
             | otherwise = Nothing
+            where
+                t_i = typeOf tv i
 
 substHigherOrder' :: [(ExprEnv, Model, CurrExpr)] -> [(Id, [Expr])] -> [(ExprEnv, Model, CurrExpr)]
 substHigherOrder' eenvsice [] = eenvsice
