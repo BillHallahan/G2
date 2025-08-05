@@ -175,7 +175,7 @@ evalApp s@(State { expr_env = eenv
                  , type_env = tenv
                  , known_values = kv
                  , exec_stack = stck
-                 , tyvar_env = tvnv })
+                 , tyvar_env = tv_env })
         ng e1 e2
     | ac@(Prim Error _) <- appCenter e1 =
         (RuleError, [newPCEmpty $ s { curr_expr = CurrExpr Return ac }], ng)
@@ -190,7 +190,7 @@ evalApp s@(State { expr_env = eenv
         let e = foldr Tick (stripAllTicks (App e1 e2)) ts in
        (RuleEvalPrimFloatTicks, [ (newPCEmpty $ s { curr_expr = CurrExpr Evaluate e })], ng)
     | Just (new_pc, ng') <- evalPrimWithState s ng (stripAllTicks $ App e1 e2) = (RuleEvalPrimToNormWithState, [new_pc], ng')
-    | Just (e, eenv', pc, ng') <- evalPrimSymbolic tvnv eenv tenv ng kv (App e1 e2) =
+    | Just (e, eenv', pc, ng') <- evalPrimSymbolic tv_env eenv tenv ng kv (App e1 e2) =
         ( RuleEvalPrimToNormSymbolic
         , [ (newPCEmpty $ s { expr_env = eenv'
                             , curr_expr = CurrExpr Evaluate e }) { new_pcs = pc} ]
@@ -198,7 +198,7 @@ evalApp s@(State { expr_env = eenv
     | p@(Prim _ _):es <- unApp (App e1 e2)
     , (xs, e:ys) <- L.span (isExprValueForm eenv . (flip E.deepLookupExpr) eenv) es =
         let
-            t = typeOf tvnv e
+            t = typeOf tv_env e
             (i, ng') = freshId t ng
             
             pr_call = mkApp $ p:xs ++ Var i:ys
@@ -210,7 +210,7 @@ evalApp s@(State { expr_env = eenv
 
     | (Prim _ _):_ <- unApp (App e1 e2) = 
         let
-            (exP, eenv') = evalPrimsSharing eenv tenv kv (App e1 e2)
+            (exP, eenv') = evalPrimsSharing eenv tenv tv_env kv (App e1 e2)
 
             ts = getNestedTickish exP
             exP' = foldr Tick (stripAllTicks exP) ts
