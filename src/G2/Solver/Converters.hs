@@ -621,6 +621,9 @@ typeToSMT _ (TyApp (TyCon (Name "[]" _ _ _) _) (TyCon (Name "Char" _ _ _) _)) = 
 typeToSMT tv t@(TyApp t1 (TyVar (Id n _))) = case TV.deepLookupName tv n of 
                                                 Just t2 -> typeToSMT tv (TyApp t1 t2)
                                                 Nothing -> error $ "typeToSMT: TyVarEnv can't find the type: " ++ show t 
+typeToSMT tv t@(TyVar (Id n _ )) = case TV.deepLookupName tv n of 
+                                        Just t1 -> typeToSMT tv t1
+                                        Nothing -> error $ "typeToSMT: TyVarEnv can't find the type: " ++ show t 
 typeToSMT _ t = error $ "Unsupported type in typeToSMT: " ++ show t
 
 merge :: TB.Builder -> TB.Builder -> TB.Builder
