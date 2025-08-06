@@ -16,7 +16,7 @@ floodConstantsChecking :: [(Name, Expr)] -> State t -> Maybe (State t)
 floodConstantsChecking ne s =
     case floodConstants ne s of
         Just s' ->
-            if all (pathCondMaybeSatisfiable (expr_env s') (type_env s') (known_values s'))
+            if all (pathCondMaybeSatisfiable (expr_env s') (type_env s') (tyvar_env s) (known_values s'))
                    (PC.toList $ path_conds s')
                 then Just s'
                 else Nothing
@@ -58,17 +58,17 @@ floodConstantList _ _ = Nothing
 -- Attempts to determine if a PathCond is satisfiable.  A return value of False
 -- means the PathCond is definitely unsatisfiable.  A return value of True means
 -- the PathCond may or may not be satisfiable. 
-pathCondMaybeSatisfiable :: ExprEnv -> TypeEnv -> KnownValues -> PathCond -> Bool
-pathCondMaybeSatisfiable _ _ _ (AltCond l1 (Lit l2) b) = (l1 == l2) == b
-pathCondMaybeSatisfiable _ _ _ (AltCond _ _ _) = True
-pathCondMaybeSatisfiable eenv tenv kv (ExtCond e b) =
+pathCondMaybeSatisfiable :: ExprEnv -> TypeEnv -> TyVarEnv -> KnownValues -> PathCond -> Bool
+pathCondMaybeSatisfiable _ _ _ _ (AltCond l1 (Lit l2) b) = (l1 == l2) == b
+pathCondMaybeSatisfiable _ _ _ _ (AltCond _ _ _) = True
+pathCondMaybeSatisfiable eenv tenv tv_env kv (ExtCond e b) =
     let
-        r = evalPrims eenv tenv kv e
+        r = evalPrims eenv tenv tv_env kv e
         
         tr = mkBool kv True
         fal = mkBool kv False
     in
     if (r == tr && not b) || (r == fal && b) then False else True
-pathCondMaybeSatisfiable _ _ _ (SoftPC _) = True
-pathCondMaybeSatisfiable _ _ _ (MinimizePC _) = True
-pathCondMaybeSatisfiable eenv tenv kv (AssumePC _ _ hs) = any (pathCondMaybeSatisfiable eenv tenv kv . PC.unhashedPC) hs
+pathCondMaybeSatisfiable _ _ _ _ (SoftPC _) = True
+pathCondMaybeSatisfiable _ _ _ _ (MinimizePC _) = True
+pathCondMaybeSatisfiable eenv tenv tv_env kv (AssumePC _ _ hs) = any (pathCondMaybeSatisfiable eenv tenv tv_env kv . PC.unhashedPC) hs
