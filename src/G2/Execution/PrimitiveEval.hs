@@ -119,7 +119,7 @@ maybeEvalPrim' eenv tenv tv_env kv xs
     , Just e <- evalTypeAnyArgPrim eenv tv_env kv p t x = Just e
 
     | [Prim p _, Type t, dc_e] <- xs, Data dc:_ <- unApp dc_e =
-        evalTypeDCPrim2 tenv p t dc
+        evalTypeDCPrim2 tenv tv_env p t dc
 
     | [Prim p _, Type t, Lit (LitInt l)] <- xs =
         evalTypeLitPrim2 tenv p t l
@@ -670,9 +670,9 @@ evalTypeAnyArgPrim eenv _ kv IsSMTRep _ e
 evalTypeAnyArgPrim _ _ kv IsSMTRep _ _ = Just (mkFalse kv)
 evalTypeAnyArgPrim _ _ _ _ _ _ = Nothing
 
-evalTypeDCPrim2 :: TypeEnv -> Primitive -> Type -> DataCon -> Maybe Expr
-evalTypeDCPrim2 tenv DataToTag t dc =
-    case unTyApp t of
+evalTypeDCPrim2 :: TypeEnv -> TV.TyVarEnv -> Primitive -> Type -> DataCon -> Maybe Expr
+evalTypeDCPrim2 tenv tv_env DataToTag t dc  =
+    case unTyApp $ tyVarSubst tv_env t of
         TyCon n _:_ | Just adt <- M.lookup n tenv ->
             let
                 dcs = dataCon adt
@@ -680,7 +680,7 @@ evalTypeDCPrim2 tenv DataToTag t dc =
             in
                 fmap (Lit . LitInt . fst) . L.find ((==) (dc_name dc) . snd) $ zip [0..] dc_names
         _ -> error "evalTypeDCPrim2: Unsupported Primitive Op"
-evalTypeDCPrim2 _ _ _ _ = Nothing
+evalTypeDCPrim2 _ _ _ _ _ = Nothing
 
 evalTypeLitPrim2 :: TypeEnv -> Primitive -> Type -> Integer -> Maybe Expr
 evalTypeLitPrim2 tenv TagToEnum t i =
@@ -748,7 +748,7 @@ evalPrim3 _ _ _ _ _ = Nothing
 evalPrimSymbolic ::  TV.TyVarEnv -> ExprEnv -> TypeEnv -> NameGen -> KnownValues -> Expr -> Maybe (Expr, ExprEnv, [PathCond], NameGen)
 evalPrimSymbolic tv eenv tenv ng kv e
     | [Prim DataToTag _, type_t, (Var (Id n _))] <- unApp e
-    , Type t <- dig eenv type_t
+    , Just t <- TV.deepLookup tv type_t
     , Just (Id sym_n _) <- deepLookupVar tv n eenv
     , E.isSymbolic sym_n eenv
     , TyCon tn _:_ <- unTyApp t
@@ -769,7 +769,7 @@ evalPrimSymbolic tv eenv tenv ng kv e
         in
         Just (Var ret, eenv'', assume_pc, ng'')
     | [Prim DataToTag _, type_t, cse] <- unApp e
-    , Type t <- dig eenv type_t
+    , Just t <- TV.deepLookup tv type_t
     , Case v@(Var _) _ _ alts <- cse
     , TyCon tn _:_ <- unTyApp t
     , Just adt <- M.lookup tn tenv =

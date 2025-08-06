@@ -13,7 +13,7 @@ module G2.Language.TyVarEnv (TyVarEnv
                             , tyVarEnvCons
                             , toMap
                             , deepLookup
-                            , deepLookup') where 
+                            , deepLookupName) where 
 
 import Prelude hiding(lookup)
 import GHC.Generics (Generic)
@@ -40,13 +40,14 @@ lookup n (TyVarEnv env) = HM.lookup n env
 
 -- a recursive version of lookup that aim to find the concrete types of type variable
 deepLookup :: TyVarEnv -> Expr -> Maybe Type
+deepLookup tv (Type (TyVar (Id n _))) = deepLookupName tv n
 deepLookup _ (Type t) = Just t
-deepLookup tv (Var (Id n _)) = deepLookup' tv n 
+deepLookup tv (Var (Id n _)) = deepLookupName tv n 
 deepLookup _ _  = Nothing 
 
-deepLookup' :: TyVarEnv -> Name -> Maybe Type
-deepLookup' tv@(TyVarEnv env) n = case HM.lookup n env of
-    Just (TyVar (Id n' _)) -> deepLookup' tv n'
+deepLookupName :: TyVarEnv -> Name -> Maybe Type
+deepLookupName tv@(TyVarEnv env) n = case HM.lookup n env of
+    Just (TyVar (Id n' _)) -> deepLookupName tv n'
     Just t -> Just t 
     Nothing -> Nothing
 

@@ -618,7 +618,7 @@ typeToSMT _ (TyApp (TyCon (Name "List" _ _ _) _) (TyCon (Name "Char" _ _ _) _)) 
 #else
 typeToSMT _ (TyApp (TyCon (Name "[]" _ _ _) _) (TyCon (Name "Char" _ _ _) _)) = SortString
 #endif
-typeToSMT tv t@(TyApp t1 (TyVar (Id n _))) = case TV.deepLookup' tv n of 
+typeToSMT tv t@(TyApp t1 (TyVar (Id n _))) = case TV.deepLookupName tv n of 
                                                 Just t2 -> typeToSMT tv (TyApp t1 t2)
                                                 Nothing -> error $ "typeToSMT: TyVarEnv can't find the type: " ++ show t 
 typeToSMT _ t = error $ "Unsupported type in typeToSMT: " ++ show t
