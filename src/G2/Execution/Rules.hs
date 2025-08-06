@@ -730,7 +730,8 @@ liftSymDefAlt' s@(State { type_env = tenv, known_values = kv, tyvar_env = tvnv }
                               ) rel_mutvar
         in
         (map newPCEmpty (nmv_s':copy_states), ng'')
-    | (Var i):_ <- unApp $ exprInCasts mexpr = -- Id with original Type
+    | (Var i):_ <- unApp $ exprInCasts mexpr
+    , isADTType (typeOf tvnv i) = -- Id with original Type
         let cty = case mexpr of
                 Cast _ (_ :~ t2) -> t2
                 _ -> typeOf tvnv mexpr
