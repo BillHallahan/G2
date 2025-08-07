@@ -78,6 +78,10 @@ logStatesET :: String -> LogMode -> String
 logStatesET pre (Log _ n) = n ++ "/" ++ pre
 logStatesET pre NoLog = "/" ++ pre
 
+adjustLogFolder :: String -> Config -> Config
+adjustLogFolder pre config@(Config { logger_config = log_config@(LoggerConfig { con_log_mode = lm })}) =
+  config { logger_config = log_config { con_log_mode = logStatesFolder pre lm} }
+
 runSymExec :: S.Solver solver =>
               solver ->
               Config ->
@@ -88,7 +92,7 @@ runSymExec :: S.Solver solver =>
               CM.StateT (Bindings, Int) IO [(StateET, StateET)]
 runSymExec solver config nc@(NC { sync = sy }) ns s1 s2 = do
   (bindings, k) <- CM.get
-  let config' = config { logStates = logStatesFolder ("a" ++ show k) (log_states nc) }
+  let config' = adjustLogFolder ("a" ++ show k) config
       t1 = (track s1) { folder_name = logStatesET ("a" ++ show k) (log_states nc) }
       CurrExpr r1 e1 = curr_expr s1
       e1' = addStackTickIfNeeded ns (expr_env s1) e1
@@ -100,7 +104,7 @@ runSymExec solver config nc@(NC { sync = sy }) ns s1 s2 = do
   pairs <- mapM (\s1_ -> do
                     (b_, k_) <- CM.get
                     let s2_ = transferInfo sy s1_ (snd $ syncSymbolic s1_ s2)
-                    let config'' = config { logStates = logStatesFolder ("b" ++ show k_) (log_states nc) }
+                    let config'' = adjustLogFolder ("b" ++ show k_) config
                         t2 = (track s2_) { folder_name = logStatesET ("b" ++ show k_) (log_states nc) }
                         CurrExpr r2 e2 = curr_expr s2_
                         e2' = addStackTickIfNeeded ns (expr_env s2) e2

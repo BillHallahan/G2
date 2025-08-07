@@ -10,7 +10,10 @@ module G2.Config.Config ( Mode (..)
                         , SMTStrings (..)
                         , SMTQuantifiers (..)
                         , IncludePath
+                        
                         , Config (..)
+                        , LoggerConfig (..)
+
                         , BoolDef (..)
                         , InstTV (..)
                         , ShowType (..)
@@ -75,14 +78,7 @@ data Config = Config {
     , extraDefaultMods :: [FilePath]
     , includePaths :: Maybe [FilePath] -- ^ Paths to search for modules
     , print_output :: Bool -- ^ Print function outputs
-    , logStates :: LogMode -- ^ Determines whether to Log states, and if logging states, how to do so.
-    , logEveryN :: Int -- ^ If logging states, log every nth state
-    , logAfterN :: Int -- ^ Logs state only after the nth state
-    , logConcPCGuide :: Maybe String -- ^ Log states only if they match the ConcPCGuide in the provided file
-    , logPath :: [Int] -- ^ Log states that are following on or proceed from some path, passed as a list i.e. [1, 2, 1]
-    , logFilter :: Bool -- ^ Limit the logged environment to names recursively reachable through the current expression or stack
-    , logOrder :: Bool -- ^ Order names in the logged environment: [CurrExpr]/[Stack]/[others]
-    , logInlineNRPC :: Bool -- ^ Inline variables in the NRPC when logging states
+    , logger_config :: LoggerConfig -- ^ Determines whether to Log states, and if logging states, how to do so.
     , sharing :: Sharing
     , instTV :: InstTV -- allow the instantiation of types in the beginning or it's instantiate symbolically by functions
     , showType :: ShowType -- allow user to see more type information when they are logging states for the execution
@@ -126,6 +122,18 @@ data Config = Config {
     , print_num_post_call_func_arg :: Bool -- ^ Output the number of post call and function argument states
 }
 
+data LoggerConfig = LoggerConfig
+                           { con_log_mode :: LogMode -- ^ Determines whether to Log states, and if logging states, how to do so.
+                           , con_every_n :: Int -- ^ If logging states, log every nth state
+                           , con_before_n :: Maybe Int -- ^ Logs state only before the nth state
+                           , con_after_n :: Int  -- ^ Logs state only after the nth state
+                           , con_conc_pc_guide :: Maybe String -- ^ Log states only if they match the ConcPCGuide in the provided file
+                           , con_down_path :: [Int] -- ^ Log states that are following on or proceed from some path, passed as a list i.e. [1, 2, 1]
+                           , con_filter_env :: Bool -- ^ Limit the logged environment to names recursively reachable through the current expression or stack
+                           , con_order_env :: Bool -- ^ Order names in the logged environment: [CurrExpr]/[Stack]/[others]
+                           , con_inline_nrpc :: Bool -- ^ Inline variables in the NRPC when logging states
+                           }
+
 mkConfig :: String -> Parser Config
 mkConfig homedir = Config Regular
     <$> mkBaseInclude homedir
@@ -134,28 +142,7 @@ mkConfig homedir = Config Regular
     <*> pure []
     <*> mkIncludePaths
     <*> flag True False (long "no-print-outputs" <> help "Print function outputs")
-    <*> mkLogMode
-    <*> option auto (long "log-every-n"
-                   <> metavar "LN"
-                   <> value 0
-                   <> help "if logging states, log every nth state")
-    <*> option auto (long "log-after-n"
-                   <> metavar "LA"
-                   <> value 0
-                   <> help "logs state only after the nth state")
-    <*> option (maybeReader (Just . Just))
-                 (long "log-conc-pc"
-                   <> metavar "LCPC"
-                   <> value Nothing
-                   <> help "logs state only if they match the concretizations and path constraints specified in the provided file")
-    <*> option auto (long "log-path"
-                   <> metavar "LP"
-                   <> value []
-                   <> help "log states that are following on or proceed from some path, passed as a list i.e. [1, 2, 1]")
-    <*> switch (long "log-filter" <> help "limit the logged environment to names recursively reachable through the current expression or stack")
-    <*> switch (long "log-order" <> help "log states with an environment ordered as [current expression]/[stack]/[other]")
-    <*> flag False True (long "log-inline-nrpc"
-                         <> help "inline variables in the NRPC when logging states")
+    <*> mkLoggerConfig
     <*> flag Sharing NoSharing (long "no-sharing" <> help "disable sharing")
     <*> flag InstBefore InstAfter (long "inst-after" <> help "select to instantiate type variables after symbolic execution, rather than before")
     <*> flag Lax Aggressive (long "show-types" <> help "set to show more type information when logging states")
@@ -213,6 +200,35 @@ mkConfig homedir = Config Regular
     <*> flag NoNrpc Nrpc (long "higher-nrpc" <> help "use NRPCs to delay execution of library functions")
     <*> flag False True (long "print-num-nrpc" <> help "output the number of NRPCs for each accepted state")
     <*> flag False True (long "print-num-higher-states" <> help "output the number of post call and function argument states (from higher order coverage checking)")
+
+mkLoggerConfig :: Parser LoggerConfig
+mkLoggerConfig = LoggerConfig
+                        <$> mkLogMode
+                        <*> option auto (long "log-every-n"
+                                    <> metavar "LN"
+                                    <> value 0
+                                    <> help "if logging states, log every nth state")
+                        <*> option (maybeReader (Just . readMaybe)) (long "log-before-n"
+                                    <> metavar "LA"
+                                    <> value Nothing
+                                    <> help "logs state only before the nth state")
+                        <*> option auto (long "log-after-n"
+                                    <> metavar "LA"
+                                    <> value 0
+                                    <> help "logs state only after the nth state")
+                        <*> option (maybeReader (Just . Just))
+                                    (long "log-conc-pc"
+                                    <> metavar "LCPC"
+                                    <> value Nothing
+                                    <> help "logs state only if they match the concretizations and path constraints specified in the provided file")
+                        <*> option auto (long "log-path"
+                                    <> metavar "LP"
+                                    <> value []
+                                    <> help "log states that are following on or proceed from some path, passed as a list i.e. [1, 2, 1]")
+                        <*> switch (long "log-filter" <> help "limit the logged environment to names recursively reachable through the current expression or stack")
+                        <*> switch (long "log-order" <> help "log states with an environment ordered as [current expression]/[stack]/[other]")
+                        <*> flag False True (long "log-inline-nrpc"
+                                            <> help "inline variables in the NRPC when logging states")
 
 mkBaseInclude :: String -> Parser [IncludePath]
 mkBaseInclude homedir =
@@ -313,15 +329,18 @@ mkConfigDirect homedir as m = Config {
     , extraDefaultMods = []
     , includePaths = Nothing
     , print_output = True
-    , logStates = strArg "log-states" as m (Log Raw)
-                        (strArg "log-pretty" as m (Log Pretty) NoLog)
-    , logEveryN = 0
-    , logAfterN = 0
-    , logConcPCGuide = Nothing
-    , logPath = []
-    , logFilter = False
-    , logOrder = False
-    , logInlineNRPC = False
+    , logger_config = LoggerConfig
+                             { con_log_mode = strArg "log-states" as m (Log Raw)
+                                               (strArg "log-pretty" as m (Log Pretty) NoLog)
+                             , con_every_n = 0
+                             , con_before_n = Nothing
+                             , con_after_n = 0
+                             , con_conc_pc_guide = Nothing
+                             , con_down_path = []
+                             , con_filter_env = False
+                             , con_order_env = False
+                             , con_inline_nrpc = False
+                             }
     , sharing = boolArg' "sharing" as Sharing Sharing NoSharing
     , instTV = InstBefore
     , showType = Lax

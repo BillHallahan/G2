@@ -1221,7 +1221,7 @@ taggerRedStep n _ s@(State {tags = ts}) b@(Bindings { name_gen = ng }) =
 
 
 getLogger :: (MonadIO m, SM.MonadState PrettyGuide m, Show t) => Config -> Maybe (Reducer m () t)
-getLogger config = case logStates config of
+getLogger config = case  con_log_mode . logger_config $ config of
                         Log Raw fp -> Just (simpleLogger fp)
                         Log Pretty fp -> Just (prettyLogger fp)
                         NoLog -> Nothing
@@ -1367,18 +1367,18 @@ getLimLogger config = do
                     let solver = ADTNumericalSolver arbValue con
                     c <- readFile fp
                     return $ Just (SomeSolver solver, read c))
-                $ logConcPCGuide config
-    let ll_config = case logStates config of
-                        Log _ fp -> (limLoggerConfig fp) { after_n = logAfterN config
-                                                         , every_n = logEveryN config
+                . con_conc_pc_guide $ logger_config config
+    let ll_config = case con_log_mode  . logger_config $ config of
+                        Log _ fp -> (limLoggerConfig fp) { after_n = con_after_n . logger_config $ config
+                                                         , every_n = con_every_n . logger_config $ config
                                                          , conc_pc_guide = cpg
-                                                         , down_path = logPath config
-                                                         , filter_env = logFilter config
-                                                         , order_env = if logOrder config then Ordered else Unordered     
-                                                         , inline_nrpc = logInlineNRPC config }
+                                                         , down_path = con_down_path . logger_config $ config
+                                                         , filter_env = con_filter_env . logger_config $ config
+                                                         , order_env = if con_order_env . logger_config $ config then Ordered else Unordered     
+                                                         , inline_nrpc = con_inline_nrpc . logger_config $ config }
                         NoLog -> limLoggerConfig ""
     
-    case logStates config of
+    case con_log_mode . logger_config $ config of
             Log Raw _ -> return . Just . limLogger $ ll_config
             Log Pretty _ -> return . Just . prettyLimLogger $ ll_config
             NoLog -> return Nothing
