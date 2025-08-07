@@ -89,7 +89,7 @@ type AssertFunc = T.Text
 type ReachFunc = T.Text
 
 type MkCurrExpr = TypeClasses -> NameGen -> ExprEnv -> TypeEnv
-                     -> KnownValues -> Config -> (CurrExprRes, NameGen)
+                     -> KnownValues -> Config -> CurrExprRes
 
 doTimeout :: Int -> IO a -> IO (Maybe a)
 doTimeout secs action = do
@@ -172,10 +172,11 @@ initStateFromSimpleState s m_mod useAssert mkCurr argTys config =
         hs = IT.handles s'
         kv' = IT.known_values s'
         tc' = IT.type_classes s'
-        (CurrExprRes { ce_expr = ce
-                     , fixed_in = f_i
-                     , symbolic_ids = is
-                     , in_coercion = m_coercion }, ng'') = mkCurr tc' ng' eenv' tenv' kv' config
+        CurrExprRes { ce_expr = ce
+                    , fixed_in = f_i
+                    , symbolic_ids = is
+                    , in_coercion = m_coercion
+                    , mkce_namegen = ng'' } = mkCurr tc' ng' eenv' tenv' kv' config
     in
     (State {
       expr_env = foldr E.insertSymbolic eenv' is
@@ -463,18 +464,19 @@ initialStateNoStartFunc proj src transConfig config = do
     let simp_state = initSimpleState exg2
 
         (init_s, bindings) = initStateFromSimpleState simp_state [Nothing] False
-                                 (\_ ng _ _ _ _ -> (noStartFuncCurrExprRes, ng))
+                                 (\_ ng _ _ _ _ -> noStartFuncCurrExprRes ng)
                                  (E.higherOrderExprs . IT.expr_env)
                                  config
 
     return (init_s, bindings)
     where
-        noStartFuncCurrExprRes =
+        noStartFuncCurrExprRes ng =
             CurrExprRes
                 { ce_expr = Prim Undefined TyBottom
                 , fixed_in = []
                 , symbolic_ids = []
-                , in_coercion = Nothing}
+                , in_coercion = Nothing
+                , mkce_namegen = ng }
 
 initialStateFromFile :: [FilePath]
                      -> [FilePath]
