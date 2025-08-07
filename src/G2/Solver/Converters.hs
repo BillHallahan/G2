@@ -406,13 +406,16 @@ exprToSMT _ (Data (DataCon n (TyCon (Name "Bool" _ _ _) _ ) _ _)) =
         "False" -> VBool False
         _ -> error "Invalid bool in exprToSMT"
 exprToSMT tv (Data (DataCon n t _ _)) = V (nameToStr n) (typeToSMT tv t)
-exprToSMT _ (App (Data (DataCon (Name "[]" _ _ _) _ _ _)) (Type (TyCon (Name "Char" _ _ _) _))) = VString ""
+exprToSMT tv (App (Data (DataCon (Name "[]" _ _ _) _ _ _)) type_t)
+    | Just (TyCon (Name "Char" _ _ _) _) <- TV.deepLookup tv type_t = VString ""
 exprToSMT tv e | [ Data (DataCon (Name ":" _ _ _) _ _ _)
-              , Type (TyCon (Name "Char" _ _ _) _)
-              , App _ e1
-              , e2] <- unApp e = 
+                 , type_t
+                 , App _ e1
+                 , e2] <- unApp e
+               , Just (TyCon (Name "Char" _ _ _) _) <- TV.deepLookup tv type_t = 
                 case e2 of
-                    App (Data (DataCon (Name "[]" _ _ _) _ _ _)) (Type (TyCon (Name "Char" _ _ _) _)) -> exprToSMT tv e1
+                    App (Data (DataCon (Name "[]" _ _ _) _ _ _)) type_t'
+                        | Just (TyCon (Name "Char" _ _ _) _) <- TV.deepLookup tv type_t' -> exprToSMT tv e1
                     _ -> exprToSMT tv e1 :++ exprToSMT tv e2
 exprToSMT tv a@(App _ _) =
     let
