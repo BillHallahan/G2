@@ -1,6 +1,7 @@
 {-# LANGUAGE LambdaCase, OverloadedStrings #-}
 
-module G2.Initialization.MkCurrExpr ( mkCurrExpr
+module G2.Initialization.MkCurrExpr ( CurrExprRes (..)
+                                    , mkCurrExpr
                                     , checkReaches
                                     , findFunc
                                     , instantiateArgTypes ) where
@@ -15,9 +16,15 @@ import Data.Maybe
 import qualified Data.Text as T
 import qualified Data.HashMap.Lazy as HM 
 
+data CurrExprRes = CurrExprRes { ce_expr :: Expr
+                               , fixed_in :: [Expr]
+                               , symbolic_ids :: [Id]
+                               , in_coercion ::  Maybe Coercion
+                               }
+
 mkCurrExpr :: Maybe T.Text -> Maybe T.Text -> Id
            -> TypeClasses -> NameGen -> ExprEnv -> TypeEnv
-           -> KnownValues -> Config -> (Expr, [Id], [Expr], Maybe Coercion, NameGen)
+           -> KnownValues -> Config -> (CurrExprRes, NameGen)
 mkCurrExpr m_assume m_assert f@(Id (Name _ m_mod _ _) _) tc ng eenv tenv kv config =
     case E.lookup (idName f) eenv of
         Just ex ->
@@ -44,7 +51,7 @@ mkCurrExpr m_assume m_assert f@(Id (Name _ m_mod _ _) _) tc ng eenv tenv kv conf
 
                 let_ex = Let [(id_name, app_ex)] retsTrue_ex
             in
-            (let_ex, is, typsE, m_coer, ng'')
+            (CurrExprRes { ce_expr = let_ex, fixed_in = typsE, symbolic_ids = is, in_coercion = m_coer}, ng'')
         Nothing -> error "mkCurrExpr: Bad Name"
 -- | If a function we are symbolically executing returns a newtype wrapping a function type, applies a coercion to the function.
 -- For instance, given:

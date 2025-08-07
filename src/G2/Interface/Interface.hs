@@ -3,6 +3,7 @@
 {-# LANGUAGE BangPatterns, FlexibleContexts, LambdaCase, OverloadedStrings #-}
 
 module G2.Interface.Interface ( MkCurrExpr
+                              , CurrExprRes (..)
                               , MkArgTypes
                               , IT.SimpleState
                               , TimedOut (..)
@@ -88,7 +89,7 @@ type AssertFunc = T.Text
 type ReachFunc = T.Text
 
 type MkCurrExpr = TypeClasses -> NameGen -> ExprEnv -> TypeEnv
-                     -> KnownValues -> Config -> (Expr, [Id], [Expr], Maybe Coercion, NameGen)
+                     -> KnownValues -> Config -> (CurrExprRes, NameGen)
 
 doTimeout :: Int -> IO a -> IO (Maybe a)
 doTimeout secs action = do
@@ -171,7 +172,10 @@ initStateFromSimpleState s m_mod useAssert mkCurr argTys config =
         hs = IT.handles s'
         kv' = IT.known_values s'
         tc' = IT.type_classes s'
-        (ce, is, f_i, m_coercion, ng'') = mkCurr tc' ng' eenv' tenv' kv' config
+        (CurrExprRes { ce_expr = ce
+                     , fixed_in = f_i
+                     , symbolic_ids = is
+                     , in_coercion = m_coercion }, ng'') = mkCurr tc' ng' eenv' tenv' kv' config
     in
     (State {
       expr_env = foldr E.insertSymbolic eenv' is
@@ -459,11 +463,18 @@ initialStateNoStartFunc proj src transConfig config = do
     let simp_state = initSimpleState exg2
 
         (init_s, bindings) = initStateFromSimpleState simp_state [Nothing] False
-                                 (\_ ng _ _ _ _ -> (Prim Undefined TyBottom, [], [], Nothing, ng))
+                                 (\_ ng _ _ _ _ -> (noStartFuncCurrExprRes, ng))
                                  (E.higherOrderExprs . IT.expr_env)
                                  config
 
     return (init_s, bindings)
+    where
+        noStartFuncCurrExprRes =
+            CurrExprRes
+                { ce_expr = Prim Undefined TyBottom
+                , fixed_in = []
+                , symbolic_ids = []
+                , in_coercion = Nothing}
 
 initialStateFromFile :: [FilePath]
                      -> [FilePath]
