@@ -1,6 +1,12 @@
+{-# LANGUAGE CPP #-}
+{-# OPTIONS_GHC -Wno-x-partial #-}
+
 module Strings1 where
 
 import Data.List
+
+toEnum1 :: String
+toEnum1 = [toEnum 56089]
 
 con :: String -> String -> String
 con xs ys = xs ++ ys
@@ -17,6 +23,9 @@ capABC ('b':xs) = 'B':capABC xs
 capABC ('c':xs) = 'C':capABC xs
 capABC (x:xs) = x:capABC xs
 capABC "" = ""
+
+quoteChar :: Char -> Int 
+quoteChar c = if c == '\'' then 1 else 0
 
 appendEq :: String -> String
 appendEq s = s ++ "!"
@@ -49,6 +58,19 @@ nStringSub4 s = if stringSub4 s then "\n" ++ s else s
 strLen :: String -> (Int, Bool)
 strLen xs = let l = length xs in (l, case l > 5 of True -> False; False -> True)
 
+strLen2 :: String -> (Int, Bool)
+strLen2 s =
+    case s of
+        (c:s) ->
+            let l = length (c:s) in
+            if l > 4 then (l, True) else (l, False)
+        [] -> (1000, False)
+    
+strLen3 :: Char -> String -> (Int, Bool)
+strLen3 c s =
+    let l = length (c:s) in
+    if l > 4 then (l, True) else (l, False)
+
 strApp :: String -> String -> Int
 strApp xs ys = case xs ++ ys of
                     "Hello World!" -> 2
@@ -60,6 +82,13 @@ con2 xs ys = case xs ++ ys of
     xs@(_:_:_) -> (xs, 3)
     xs@(_:_) -> (xs, 2)
     [] -> ([], 1)
+
+con3 :: String -> (Int, String)
+con3 xs
+    | [] <- xs = (0, xs)
+    | (y:ys) <- xs
+    , 'a':ys ++ ys == xs = (1, ys)
+    | otherwise = (2, xs)
 
 strIndex :: String -> (Bool, String)
 strIndex str =
@@ -228,6 +257,12 @@ min2 x y | length x < 2 = (1, min x y)
          | x == y = (3, min x y)
          | otherwise = (4, min x y)
 
+maxChar1 :: Char -> Char -> Char
+maxChar1 = max
+
+minChar1 :: Char -> Char -> Char
+minChar1 = min
+
 delete1 :: Char -> String -> (Int, String)
 delete1 c s
     | length s < 3 = (1, d)
@@ -287,15 +322,19 @@ genericSplitAt1 xs n
 -- Note that there should be an fourth case here due to an invalid index error
 genericIndex1 :: String -> Integer -> (Char, Int)
 genericIndex1 xs n
-    | chr == 'Z' = (chr, 0) 
+    | chr == 'Z' = (chr, 0)
     | chr < 'Q' = (chr, 1)
     | otherwise = ('!', 2)
-    where 
+    where
         chr = xs `genericIndex` (n + 1)
 
 -- This doesn't lessen outputs, it only tests whether genericReplicate works with SMT Strings
-genericReplicate1 :: Integer -> Char -> String
-genericReplicate1 = genericReplicate
+genericReplicate1 :: Integer -> Char -> (String, Int)
+genericReplicate1 n c
+    | length rs > 7 = (rs, 1)
+    | otherwise = (rs, 2)
+    where
+        rs = genericReplicate n c
 
 -- This usually hits the solver outputting a delete character
 bigString :: String -> Int
@@ -324,3 +363,179 @@ isSuffixOf1 s1 s2
     | otherwise = (6, p)
     where
         p = isSuffixOf s1 s2
+
+#if MIN_VERSION_base(4,19,0)
+unsnoc1 :: String -> Maybe Int
+unsnoc1 xs
+    | Just (s, e) <- uc, s == "Hello" = Just 0
+    | Nothing == uc = Just 1
+    | Just (s, e) <- uc, length s == 0 = Just 2
+    | otherwise = Nothing
+    where
+        uc = unsnoc xs
+
+unsnoc2 :: String -> Maybe (String, Char)
+unsnoc2 = unsnoc
+
+totalIndex1 :: String -> [Maybe Char]
+totalIndex1 xs = [xs !? (-1), xs !? 0, xs !? 15]
+#endif
+
+splitAt1 :: String -> Maybe (String, Int)
+splitAt1 xs
+    | a == b = Just (a, 0)
+    | length a < 4 = Just (b, 1)
+    | b == (a ++ a) = Just (b, 2)
+    | otherwise = Nothing
+    where
+        (a, b) = splitAt 10 xs
+
+notEq1 :: String -> Int
+notEq1 s = case s /= "verylongstringverylongstringVERYLONGSTRINGVERYLONGSTRING" of
+                True -> 4
+                False -> 2
+
+reverse1 :: String -> (Int, String)
+reverse1 xs
+    | rs == "ABC" = (1, rs)
+    | rs < "ZYXWVUTSRQPONMLKJIHGFEDCBA" = (2, rs)
+    | rs == "ZYXWVUTSRQPONMLKJIHGFEDCBA" = (3, rs)
+    | length rs < 7 = (4, rs)
+    | xs == rs = (5, rs)
+    | otherwise = (6, rs)
+    where
+        rs = reverse xs
+
+reverse2 :: String -> Int
+reverse2 [] = 1
+reverse2 xs
+    | length xs < 4 = 2
+    | otherwise =
+        if head (reverse xs) == last xs
+            then 3
+            else 4 -- Returning 4 is impossible
+
+reverse3 :: String -> Int
+reverse3 xs
+    | rs == "ABC" = 1
+    | otherwise = 2
+    where
+        rs = reverse xs
+
+rev3Returns1 :: String -> Int -> Bool
+rev3Returns1 _ 1 = True
+rev3Returns1 _ _ = False 
+
+reverse4 = reverse ['a'..'c']
+
+reverse5 :: Char -> String
+reverse5 x = reverse [x]
+
+
+insert1 :: Char -> String -> (Int, String)
+insert1 c xs
+    | xs == [] = (1, rs)
+    | length xs < 9 = (2, rs)
+    | head xs /= head rs = (3, rs)
+    | xs !! 3 /= rs !! 3 = (4, rs)
+    | xs !! 7 /= rs !! 7 = (5, rs)
+    | c `notElem` rs = error "Impossible"
+    | otherwise = (6, rs)
+    where
+        rs = insert c xs
+
+insert2 :: String -> (Int, String)
+insert2 xs
+    | length xs < 3 = (1, ins)
+    | otherwise = (2, ins)
+    where
+        ins = insert 'f' xs
+
+insert3 :: String
+insert3 = insert 'a' ""
+
+intersperse1 :: Char -> String -> (Int, String)
+intersperse1 c xs
+    | xs == [] = (1, rs)
+    | length xs < 5 = (2, rs)
+    | otherwise = (3, rs)
+    where
+        rs = intersperse c xs
+
+replicate1 :: Int -> Char -> (String, Int)
+replicate1 n c
+    | length rs > 7 = (rs, 1)
+    | otherwise = (rs, 2)
+    where
+        rs = replicate n c
+
+minimum1 :: String -> (Char, Int)
+minimum1 xs
+    | xs == [] = ('e', 1)
+    | length xs > 5 = (m, 2)
+    | m == 'b' = (m, 3)
+    | m < 'f' = (m, 4)
+    | 'x' < m = (m, 5)
+    | otherwise = (m, 6)
+    where
+        m = minimum xs
+
+minimum2 :: String -> Bool
+minimum2 [] = True
+minimum2 xs = minimum xs == 'a'
+
+maximum1 :: String -> (Char, Int)
+maximum1 xs
+    | xs == [] = ('e', 1)
+    | length xs > 5 = (m, 2)
+    | m == 'b' = (m, 3)
+    | m < 'f' = (m, 4)
+    | 'x' < m = (m, 5)
+    | otherwise = (m, 6)
+    where
+        m = maximum xs
+
+maximum2 :: String -> Bool
+maximum2 [] = True
+maximum2 xs = maximum xs == 'a'
+
+elemIndices1 :: String -> ([Int], Int)
+elemIndices1 s
+    | [_,_,_,_,_,_,_,_,_] <- matches = (matches, 9)
+    | [_,_,_,_,_,_,_,_] <- matches = (matches, 8)
+    | [_,_,_,_,_,_,_] <- matches = (matches, 7)
+    | [_,_,_,_,_,_] <- matches = (matches, 6)
+    | [_,_,_,_,_] <- matches = (matches, 5)
+    | [_,_,_,_] <- matches = (matches, 4)
+    | [_,_,_] <- matches = (matches, 3)
+    | [_,_] <- matches = (matches, 2)
+    | [_] <- matches = (matches, 1)
+    | otherwise = (matches, 0)
+    where
+        matches = elemIndices 'x' s
+
+lines1 :: String -> ([String], Int)
+lines1 s
+    | [_,_,_,"ABC",_,_,_,_,_] <- matches = (matches, 10)
+    | [_,_,_,_,_,_,_,_,_] <- matches = (matches, 9)
+    | [_,_,_,_,_,_,_,_] <- matches = (matches, 8)
+    | [_,_,_,_,_,_,_] <- matches = (matches, 7)
+    | [_,_,_,_,_,_] <- matches = (matches, 6)
+    | [_,_,_,_,_] <- matches = (matches, 5)
+    | [_,_,_,_] <- matches = (matches, 4)
+    | [_,_,_] <- matches = (matches, 3)
+    | [_,_] <- matches = (matches, 2)
+    | [_] <- matches = (matches, 1)
+    | otherwise = (matches, 0)
+    where
+        matches = lines s
+
+lines2 :: String -> [String]
+lines2 = lines
+
+callLast :: String -> Char
+callLast xs | length xs < 5 = 'a'
+            | otherwise = last xs
+
+showInt1 :: Int -> String
+showInt1 x = show (x * 2) ++ "!"

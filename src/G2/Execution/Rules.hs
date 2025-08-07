@@ -1,4 +1,4 @@
-{-# LANGUAGE OverloadedStrings,  FlexibleContexts #-}
+{-# LANGUAGE FlexibleContexts, OverloadedStrings, RankNTypes #-}
 
 module G2.Execution.Rules ( module G2.Execution.RuleTypes
                           , Sharing (..)
@@ -34,15 +34,15 @@ import G2.Execution.NewPC.Type
 import G2.Execution.NormalForms
 import G2.Execution.PrimitiveEval
 import G2.Execution.RuleTypes
+import G2.Execution.SymToCase
 import G2.Language
 import qualified G2.Language.ExprEnv as E
 import qualified G2.Language.Typing as T
 import qualified G2.Language.KnownValues as KV
+import G2.Language.Simplification
 import qualified G2.Language.Stack as S
 import G2.Preprocessing.NameCleaner
 import G2.Solver hiding (Assert)
-import Control.Monad.Extra
-import Data.Maybe
 import qualified Data.HashMap.Lazy as HM
 import qualified Data.HashSet as HS
 import qualified Data.List as L
@@ -51,6 +51,10 @@ import G2.Data.Utils
 import qualified G2.Data.UFMap as UF
 
 import Control.Exception
+import Control.Monad.Extra
+import Data.Maybe
+import Data.Traversable
+import Data.Int (Int)
 
 stdReduce :: (Solver solver, Simplifier simplifier) => Sharing -> SymbolicFuncEval t -> solver -> simplifier -> State t -> Bindings -> IO (Rule, [(State t, ())], Bindings)
 stdReduce share symb_func_eval solver simplifier s b@(Bindings {name_gen = ng}) = do
@@ -66,13 +70,13 @@ stdReduce' share _ solver simplifier s@(State { curr_expr = CurrExpr Evaluate ce
     , share == NoSharing = return $ evalVarNoSharing s ng i
     | App e1 e2 <- ce = do
         let (r, xs, ng') = evalApp s ng e1 e2
-        xs' <- mapMaybeM (reduceNewPC solver simplifier) xs
-        return (r, xs', ng')
+        (ng'', xs') <- mapAccumMaybeM (reduceNewPC solver simplifier) ng' xs
+        return (r, xs', ng'')
     | Let b e <- ce = return $ evalLet s ng b e
     | Case e i t a <- ce = do
         let (r, xs, ng') = evalCase s ng e i t a
-        xs' <- mapMaybeM (reduceNewPC solver simplifier) xs
-        return (r, xs', ng')
+        (ng'', xs') <- mapAccumMaybeM (reduceNewPC solver simplifier) ng' xs
+        return (r, xs', ng'')
     | Cast e c <- ce = return $ evalCast s ng e c
     | Tick t e <- ce = return $ evalTick s ng t e
     | NonDet es <- ce = return $ evalNonDet s ng es
@@ -98,16 +102,16 @@ stdReduce' _ symb_func_eval solver simplifier s@(State { curr_expr = CurrExpr Re
     | Just (ApplyFrame e, stck') <- S.pop stck = return $ retApplyFrame s ng ce e stck'
     | Just (AssumeFrame e, stck') <- frstck = do
         let (r, xs, ng') = retAssumeFrame s ng ce e stck'
-        xs' <- mapMaybeM (reduceNewPC solver simplifier) xs
-        return (r, xs', ng')
+        (ng'', xs') <- mapAccumMaybeM (reduceNewPC solver simplifier) ng' xs
+        return (r, xs', ng'')
     | Just (AssertFrame ais e, stck') <- frstck = do
         let (r, xs, ng') = retAssertFrame s ng ce ais e stck'
-        xs' <- mapMaybeM (reduceNewPC solver simplifier) xs
-        return (r, xs', ng')
+        (ng'', xs') <- mapAccumMaybeM (reduceNewPC solver simplifier) ng' xs
+        return (r, xs', ng'')
     | Just (CurrExprFrame act e, stck') <- frstck = do
         let (r, xs, ng') = retCurrExpr s ce act e stck' ng
-        xs' <- mapMaybeM (reduceNewPC solver simplifier) xs
-        return (r, xs', ng')
+        (ng'', xs') <- mapAccumMaybeM (reduceNewPC solver simplifier) ng' xs
+        return (r, xs', ng'')
     | Nothing <- frstck = return (RuleIdentity, [s], ng)
     | otherwise = error $ "stdReduce': Unknown Expr" ++ show ce ++ show (S.pop stck)
         where
@@ -116,6 +120,17 @@ stdReduce' _ symb_func_eval solver simplifier s@(State { curr_expr = CurrExpr Re
             isError (Prim Error _) = True
             isError (Prim Undefined _) = True
             isError _ = False
+
+mapAccumMaybeM :: Monad m => (s -> a -> m (Maybe (s, b))) -> s -> [a] -> m (s, [b])
+mapAccumMaybeM f s xs = do
+    (s', xs') <- mapAccumM f' s xs
+    return (s', catMaybes xs')
+    where
+        f' s x = do
+            r <- f s x
+            case r of
+                Just (s', x') -> return (s', Just x')
+                Nothing -> return (s, Nothing)
 
 evalVarSharing :: State t -> NameGen -> Id -> (Rule, [State t], NameGen)
 evalVarSharing s@(State { expr_env = eenv
@@ -163,6 +178,10 @@ evalApp s@(State { expr_env = eenv
         ng e1 e2
     | ac@(Prim Error _) <- appCenter e1 =
         (RuleError, [newPCEmpty $ s { curr_expr = CurrExpr Return ac }], ng)
+    -- Force evaluation of the expression being quantified over
+    | (Prim ForAllPr _) <- e1 =
+        let e2' = simplifyExprs eenv eenv e2 in
+        (RuleEvalPrimToNorm, [newPCEmpty $ s { curr_expr = CurrExpr Return (App e1 e2') }], ng)
     -- Float ticks to the top of a prim
     | Prim _ _:es <- unApp (App e1 e2)
     , ts <- concatMap getTickish es
@@ -175,12 +194,29 @@ evalApp s@(State { expr_env = eenv
         , [ (newPCEmpty $ s { expr_env = eenv'
                             , curr_expr = CurrExpr Evaluate e }) { new_pcs = pc} ]
         , ng')
+    | p@(Prim _ _):es <- unApp (App e1 e2)
+    , (xs, e:ys) <- L.span (isExprValueForm eenv . (flip E.deepLookupExpr) eenv) es =
+        let
+            t = typeOf e
+            (i, ng') = freshId t ng
+            
+            pr_call = mkApp $ p:xs ++ Var i:ys
+            curr_e = Case e i t [Alt Default pr_call]
+        in
+        ( RuleEvalPrimToNorm
+        , [newPCEmpty $ s { expr_env = eenv, curr_expr = CurrExpr Evaluate curr_e }]
+        , ng')
+
     | (Prim _ _):_ <- unApp (App e1 e2) = 
         let
             (exP, eenv') = evalPrimsSharing eenv tenv kv (App e1 e2)
+
+            ts = getNestedTickish exP
+            exP' = foldr Tick (stripAllTicks exP) ts
+            er = if null ts then Return else Evaluate
         in
         ( RuleEvalPrimToNorm
-        , [newPCEmpty $ s { expr_env = eenv', curr_expr = CurrExpr Return exP }]
+        , [newPCEmpty $ s { expr_env = eenv', curr_expr = CurrExpr er exP' }]
         , ng)
     | isExprValueForm eenv (App e1 e2) =
         ( RuleReturnAppSWHNF
@@ -198,6 +234,9 @@ evalApp s@(State { expr_env = eenv
     where
         getTickish (Tick t e) = t:getTickish e
         getTickish _ = []
+
+        getNestedTickish (Tick t e) = t:getNestedTickish e
+        getNestedTickish e = evalChildren getNestedTickish e
 
 evalLam :: State t -> LamUse -> Id -> Expr -> (Rule, [State t])
 evalLam = undefined
@@ -655,7 +694,7 @@ liftSymDefAlt s ng mexpr cvar as =
 
 -- | Concretize Symbolic variable to Case Expr on its possible Data Constructors
 liftSymDefAlt' :: State t -> NameGen -> Expr -> Expr -> Id -> [Alt] -> ([NewPC t], NameGen)
-liftSymDefAlt' s@(State {type_env = tenv}) ng mexpr aexpr cvar alts
+liftSymDefAlt' s@(State { type_env = tenv, known_values = kv }) ng mexpr aexpr cvar alts
     | Var i:_ <- unApp mexpr
     , TyApp (TyApp mvt realworld_ty) stored_ty <- typeOf i
     , TyCon n _ <- tyAppCenter mvt
@@ -691,27 +730,44 @@ liftSymDefAlt' s@(State {type_env = tenv}) ng mexpr aexpr cvar alts
                 (Cast _ c) -> Just c
                 _ -> Nothing
             dcs = dataCon adt
+
+            -- Find DCs already accounted for by other case alts
             badDCs = mapMaybe (\alt -> case alt of
                 (Alt (DataAlt (DataCon dcn _ _ _) _) _) -> Just dcn
                 _ -> Nothing) alts
-            dcs' = filter (\(DataCon dcn _ _ _) -> dcn `notElem` badDCs) dcs
-
-            (newId, ng') = freshId TyLitInt ng
-
-            ((s', ng''), dcs'') = L.mapAccumL (concretizeSym bi maybeC) (s, ng') dcs'
-
-            mexpr' = createCaseExpr newId (typeOf i) dcs''
-            binds = [(cvar, mexpr')]
-            aexpr' = liftCaseBinds binds aexpr
-
-            -- add PC restricting range of values for newSymId
-            newSymConstraint = restrictSymVal (known_values s') 1 (toInteger $ length dcs'') newId
-
-            eenv' = E.insertSymbolic newId $ E.insert (idName i') mexpr' (expr_env s')
-            s'' = s' { curr_expr = CurrExpr Evaluate aexpr'
-                     , expr_env = eenv'}
         in
-        ([NewPC { state = s'', new_pcs = [newSymConstraint], concretized = [] }], ng'')
+        case null badDCs of
+            True ->
+                let
+                    (cvar', ng') = freshSeededId cvar (typeOf cvar) ng
+
+                    binds = [(cvar, Var cvar')]
+                    aexpr' = liftCaseBinds binds aexpr
+
+                    s' = s { curr_expr = CurrExpr Evaluate aexpr'
+                           , expr_env = E.insert (idName cvar') mexpr (expr_env s)}
+                in
+                ([NewPC { state = s', new_pcs = [], concretized = [] }], ng')
+            False ->
+                let
+                    -- Find DCs NOT accounted for by other case alts, i.e. that would go
+                    -- down the default path
+                    dcs' = filter (\(DataCon dcn _ _ _) -> dcn `notElem` badDCs) dcs
+
+                    (cvar', ng') = freshSeededId cvar (typeOf cvar) ng
+
+                    -- -- Create a case expression to choose on of viable DCs
+                    (_, mexpr', assume_pc, eenv', ng'') = createCaseExpr bi maybeC cvar' (typeOf i) kv tenv (expr_env s) ng' dcs'
+
+                    binds = [(cvar, Var cvar')]
+                    aexpr' = liftCaseBinds binds aexpr
+
+                    eenv'' = E.insert (idName cvar') mexpr'
+                           $ E.insert (idName i') mexpr' eenv'
+                    s' = s { curr_expr = CurrExpr Evaluate aexpr'
+                           , expr_env = eenv'' }
+                in
+                ([NewPC { state = s', new_pcs = assume_pc, concretized = [] }], ng'')
     | Prim _ _:_ <- unApp mexpr = (liftSymDefAlt'' s mexpr aexpr cvar alts, ng)
     | isPrimType (typeOf mexpr) = (liftSymDefAlt'' s mexpr aexpr cvar alts, ng)
     | TyVar _ <- (typeOf mexpr) = 
@@ -749,43 +805,6 @@ defAltExpr :: [Alt] -> Maybe Expr
 defAltExpr [] = Nothing
 defAltExpr (Alt Default e:_) = Just e
 defAltExpr (_:xs) = defAltExpr xs
-
--- | Creates and applies new symbolic variables for arguments of Data Constructor
-concretizeSym :: [(Id, Type)] -> Maybe Coercion -> (State t, NameGen) -> DataCon -> ((State t, NameGen), Expr)
--- TODO:: is it safe to ignore the universial and existential type variable?
-concretizeSym bi maybeC (s, ng) dc@(DataCon _ ts _ _) =
-    let dc' = Data dc
-        ts' = anonArgumentTypes $ PresType ts
-        ts'' = foldr (\(i, t) e -> retype i t e) ts' bi
-        (ns, ng') = freshNames (length ts'') ng
-        newParams = map (\(n, t) -> Id n t) (zip ns ts'')
-        ts2 = map snd bi
-        dc'' = mkApp $ dc' : (map Type ts2) ++ (map Var newParams)
-        dc''' = case maybeC of
-            (Just (t1 :~ t2)) -> Cast dc'' (t2 :~ t1)
-            Nothing -> dc''
-        eenv = foldr E.insertSymbolic (expr_env s) newParams
-    in ((s {expr_env = eenv} , ng'), dc''')
-
-createCaseExpr :: Id -> Type -> [Expr] -> Expr
-createCaseExpr _ _ [e] = e
-createCaseExpr newId t es@(_:_) =
-    let
-        -- We assume that PathCond restricting newId's range is added elsewhere
-        (_, alts) = bindExprToNum (\num e -> Alt (LitAlt (LitInt num)) e) es
-    in Case (Var newId) newId t alts
-createCaseExpr _ _ [] = error "No exprs"
-
-bindExprToNum :: (Integer -> a -> b) -> [a] -> (Integer, [b])
-bindExprToNum f es = L.mapAccumL (\num e -> (num + 1, f num e)) 1 es
-
-
--- | Return PathCond restricting value of `newId` to [lower, upper]
-restrictSymVal :: KnownValues -> Integer -> Integer -> Id -> PathCond
-restrictSymVal kv lower upper newId
-    | lower /= upper =
-        ExtCond (mkAndExpr kv (mkGeIntExpr kv (Var newId) lower) (mkLeIntExpr kv (Var newId) upper)) True
-    | otherwise = ExtCond (mkEqExpr kv (Var newId) (Lit $ LitInt lower)) True
 
 ----------------------------------------------------
 
@@ -941,9 +960,14 @@ retCurrExpr s@(State { expr_env = eenv, known_values = kv }) e1 (EnsureEq e2) or
                         , concretized = [] }], ng )
 
 retCurrExpr s _ NoAction orig_ce stck ng = 
+    let
+        stck' = case orig_ce of
+                    CurrExpr _ (Var (Id n _)) -> S.push (UpdateFrame n) stck
+                    _ -> stck
+    in
     ( RuleReturnCurrExprFr
     , [NewPC { state = s { curr_expr = orig_ce
-                         , exec_stack = stck}
+                         , exec_stack = stck'}
              , new_pcs = []
              , concretized = []}], ng )
 

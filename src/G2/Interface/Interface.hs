@@ -414,10 +414,14 @@ initSolver' avf config = do
     some_adt_solver' <- case time_solving config of
             True -> timeSomeSolver "SMT" some_adt_solver
             False -> return some_adt_solver
+    some_adt_solver'' <- case print_solver_sol_counts config of
+                                True -> countResultsSomeSolver some_adt_solver'
+                                False -> return some_adt_solver'
 
-    let con' = case some_adt_solver' of
+    let con' = case some_adt_solver'' of
                     SomeSolver adt_solver ->
-                        SomeSolver $ GroupRelated avf
+                        SomeSolver -- . CommonSubExpElim
+                                   $ GroupRelated avf
                                     ( UndefinedHigherOrder
                                  :?> EqualitySolver
                                  :?> adt_solver)
@@ -520,7 +524,7 @@ runG2WithConfig entry_f mb_modname state@(State { expr_env = eenv }) config bind
         mod_name = nameModule entry_f
     hpc_t <- hpcTracker state' all_mod_set (hpc_print_times config) (hpc_print_ticks config)
     let 
-        simplifier = FloatSimplifier :>> ArithSimplifier :>> BoolSimplifier :>> StringSimplifier :>> EqualitySimplifier :>> ConstSimplifier
+        simplifier = FloatSimplifier :>> ArithSimplifier :>> BoolSimplifier :>> StringSimplifier :>> EqualitySimplifier :>> CharConc :>> ConstSimplifier
         --exp_env_names = E.keys . E.filterConcOrSym (\case { E.Sym _ -> False; E.Conc _ -> True }) $ expr_env state
         callGraph = G.getCallGraph $ expr_env state'
         reachable_funcs = G.reachable entry_f callGraph

@@ -1,22 +1,34 @@
 module G2.Execution.NewPC.Handling ( reduceNewPC ) where
 
 import G2.Language
+import G2.Execution.NewPC.Types
 import qualified G2.Language.PathConds as PC
 import G2.Solver
-import G2.Execution.NewPC.Type
 
-reduceNewPC :: (Solver solver, Simplifier simplifier) => solver -> simplifier -> NewPC t -> IO (Maybe (State t))
-reduceNewPC solver simplifier
+import Data.List
+
+data NewPC t = NewPC { state :: State t
+                     , new_pcs :: [PathCond]
+                     , concretized :: [Id] }
+
+newPCEmpty :: State t -> NewPC t
+newPCEmpty s = NewPC { state = s, new_pcs = [], concretized = []}
+
+reduceNewPC :: (Solver solver, Simplifier simplifier) => solver -> simplifier -> NameGen -> NewPC t -> IO (Maybe (NameGen, State t))
+reduceNewPC solver simplifier ng
             (NewPC { state = s@(State { expr_env = eenv, path_conds = spc })
                    , new_pcs = pc
                    , concretized = concIds })
     | not (null pc) || not (null concIds) = do
-        let eenv' = foldr (updateExprEnvPC simplifier s) eenv pc
+        let ((ng', eenv'), pc') =
+                mapAccumR (\(ng_, eenv_) pc_ ->
+                                let (ng_', eenv_', pc_') = simplifyPCWithExprEnv simplifier s ng_ eenv_ pc_ in
+                                ((ng_', eenv_'), pc_')) (ng, eenv) pc
 
-        let pc' = map (simplifyPC simplifier s) pc
-            pc'' = concat pc'
+        let pc'' = map (simplifyPC simplifier s) pc'
+            pc''' = concat pc''
 
-        let new_pc = foldr PC.insert spc $ pc''
+        let new_pc = foldr PC.insert spc $ pc'''
             new_pc' = foldr (simplifyPCs simplifier s) new_pc pc
 
             s' = s { expr_env = eenv', path_conds = new_pc' }
@@ -30,13 +42,13 @@ reduceNewPC solver simplifier
         -- For this reason, we extract names for the original (unsimplified) path constraints
         let ns = (concatMap PC.varNamesInPC pc) ++ namesList concIds
             rel_pc = case ns of
-                [] -> PC.fromList pc''
+                [] -> PC.fromList pc'''
                 _ -> PC.scc' (Nothing:map Just ns) new_pc'
 
         res <- check solver s rel_pc
 
         if res == SAT () then
-            return $ Just s'
+            return $ Just (ng', s')
         else
             return Nothing
-    | otherwise = return $ Just s
+    | otherwise = return $ Just (ng, s)

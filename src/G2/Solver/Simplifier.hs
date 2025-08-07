@@ -10,6 +10,7 @@ module G2.Solver.Simplifier ( Simplifier (..)
                             , FloatSimplifier (..)
                             , EqualitySimplifier (..)
                             , ConstSimplifier (..)) where
+                            , CharConc (..)) where
 
 import G2.Execution.PrimitiveEval
 import Data.Text (unpack)
@@ -17,8 +18,12 @@ import G2.Language
 import qualified G2.Language.ExprEnv as E
 import G2.Language.KnownValues
 import qualified G2.Language.PathConds as PC
+<<<<<<< HEAD
 import Debug.Trace
 import G2.Lib.Printers
+=======
+import qualified G2.Language.Typing as T
+>>>>>>> master
 
 class Simplifier simplifier where
     -- | Simplifies a PC, by converting it into one or more path constraints that are easier
@@ -30,10 +35,10 @@ class Simplifier simplifier where
     simplifyPCs :: forall t. simplifier -> State t -> PathCond -> PathConds -> PathConds
     simplifyPCs _ _ _ = id
     
-    {-# INLINE updateExprEnvPC #-}
-    -- | Update the ExprEnv based on a new PathCond
-    updateExprEnvPC :: forall t . simplifier -> State t -> PathCond -> ExprEnv -> ExprEnv
-    updateExprEnvPC _ _ _ = id
+    {-# INLINE simplifyPCWithExprEnv #-}
+    -- | Simplify the PathCond while also updating the ExprEnv
+    simplifyPCWithExprEnv :: forall t . simplifier -> State t -> NameGen -> ExprEnv ->  PathCond -> (NameGen, ExprEnv, PathCond)
+    simplifyPCWithExprEnv _ _ ng eenv pc = (ng, eenv, pc)
 
     -- | Reverses the affect of simplification in the model, if needed.
     reverseSimplification :: forall t . simplifier -> State t -> Bindings -> Model -> Model
@@ -46,7 +51,11 @@ instance (Simplifier simp1, Simplifier simp2) => Simplifier (simp1 :>> simp2) wh
 
     simplifyPCs (simp1 :>> simp2) s pc = simplifyPCs simp2 s pc . simplifyPCs simp1 s pc
 
-    updateExprEnvPC (simp1 :>> simp2) s pc = updateExprEnvPC simp2 s pc . updateExprEnvPC simp1 s pc
+    simplifyPCWithExprEnv (simp1 :>> simp2) s ng eenv pc =
+        let
+            (ng', eenv', pc') = simplifyPCWithExprEnv simp2 s ng eenv pc
+        in 
+        simplifyPCWithExprEnv simp1 s ng' eenv' pc'
 
     reverseSimplification (simp1 :>> simp2) s b m = reverseSimplification simp1 s b $ reverseSimplification simp2 s b m
 
@@ -173,12 +182,12 @@ instance Simplifier EqualitySimplifier where
                            where
                             eq_pc = smallEqPC (known_values s) pc
 
-    updateExprEnvPC _ s pc eenv
+    simplifyPCWithExprEnv _ s ng eenv pc
         | Just (n, e) <- smallEqPC (known_values s) pc =
             case e of
-                Var (Id n' _) | n == n' -> eenv
-                _ -> E.insert n e eenv
-        | otherwise = eenv
+                Var (Id n' _) | n == n' -> (ng, eenv, pc)
+                _ -> (ng, E.insert n e eenv, pc)
+        | otherwise = (ng, eenv, pc)
     
     reverseSimplification _ _ _ m = m
 
@@ -214,3 +223,24 @@ smallEqPC kv (ExtCond (Var (Id n _)) True) = Just (n, mkTrue kv)
 smallEqPC kv (ExtCond (Var (Id n _)) False) = Just (n, mkFalse kv)
 smallEqPC _ (AltCond l (Var (Id n _)) True) = Just (n, Lit l)
 smallEqPC _ _ = Nothing
+
+-- Concretize symbolic Char variables to be (C# c#) for some fresh c#
+data CharConc = CharConc
+
+instance Simplifier CharConc where
+    simplifyPC _ _ pc = [pc]
+
+    simplifyPCWithExprEnv _ s@(State { known_values = kv, type_env = tenv }) ng eenv pc =
+        let
+            cs = map idName . filter (\(Id _ t) -> t == T.tyChar kv) $ varIds pc
+            (cs', ng') = renameAll cs ng
+            conc_c = zip cs $ map (flip Id TyLitChar) cs'
+            eenv' = foldr (\(nC, nL) -> E.insert nC (concChar nL) . E.insertSymbolic nL) eenv conc_c
+            pc' = foldr (\(nC, nL) -> replaceVar nC (concChar nL)) pc conc_c
+        in
+        (ng', eenv', pc')
+        where
+            dc_char = mkDCChar kv tenv
+            concChar n = App dc_char (Var n)
+
+    reverseSimplification _ _ _ m = m

@@ -8,6 +8,7 @@ module G2.Config.Config ( Mode (..)
                         , FpHandling (..)
                         , NonRedPathCons (..)
                         , SMTStrings (..)
+                        , SMTQuantifiers (..)
                         , IncludePath
                         , Config (..)
                         , BoolDef (..)
@@ -48,7 +49,7 @@ data InstTV = InstBefore | InstAfter deriving (Eq, Show, Read)
 -- Determining whether we want to show more type informations
 data ShowType = Lax | Aggressive deriving (Eq, Show, Read)
 
-data SMTSolver = ConZ3 | ConCVC4 deriving (Eq, Show, Read)
+data SMTSolver = ConZ3 | ConZ3Str3 | ConCVC5 | ConOstrich deriving (Eq, Show, Read)
 
 data SearchStrategy = Iterative | Subpath deriving (Eq, Show, Read)
 
@@ -61,6 +62,8 @@ data FpHandling = RealFP | RationalFP deriving (Eq, Show, Read)
 data NonRedPathCons = Nrpc | NoNrpc deriving (Eq, Show, Read)
 
 data SMTStrings = UseSMTStrings | NoSMTStrings deriving (Eq, Show, Read)
+
+data SMTQuantifiers = UseQuantifiers | NoQuantifiers deriving (Eq, Show, Read)
 
 type IncludePath = FilePath
 
@@ -77,6 +80,9 @@ data Config = Config {
     , logAfterN :: Int -- ^ Logs state only after the nth state
     , logConcPCGuide :: Maybe String -- ^ Log states only if they match the ConcPCGuide in the provided file
     , logPath :: [Int] -- ^ Log states that are following on or proceed from some path, passed as a list i.e. [1, 2, 1]
+    , logFilter :: Bool -- ^ Limit the logged environment to names recursively reachable through the current expression or stack
+    , logOrder :: Bool -- ^ Order names in the logged environment: [CurrExpr]/[Stack]/[others]
+    , logInlineNRPC :: Bool -- ^ Inline variables in the NRPC when logging states
     , sharing :: Sharing
     , instTV :: InstTV -- allow the instantiation of types in the beginning or it's instantiate symbolically by functions
     , showType :: ShowType -- allow user to see more type information when they are logging states for the execution
@@ -90,11 +96,14 @@ data Config = Config {
     , fp_handling :: FpHandling -- ^ Whether to use real floating point values or rationals
     , print_encode_float :: Bool -- ^ Whether to print floating point numbers directly or via encodeFloat
     , smt :: SMTSolver -- ^ Sets the SMT solver to solve constraints with
+    , smt_path :: Maybe FilePath -- ^ Location of SMT solver
     , smt_strings :: SMTStrings -- ^ Sets whether the SMT solver should be used to solve string constraints
+    , quantified_smt_strings :: SMTQuantifiers -- ^ Sets whether quantifiers should be used to describe SMT functions
     , step_limit :: Bool -- ^ Should steps be limited when running states?
     , steps :: Int -- ^ How many steps to take when running States
     , time_solving :: Bool -- ^ Output the amount of time spent checking/solving path constraints
     , print_num_solver_calls :: Bool -- ^ Output the number of calls made to check/solve path constraints
+    , print_solver_sol_counts :: Bool -- ^ Output the number of sat/unsat/unknown solver results from the SMT solver
     , print_smt :: Bool -- ^ Output SMT formulas when checking/solving path constraints
     , accept_times :: Bool -- ^ Output the time each state is accepted
     , states_at_time :: Bool -- ^ Output time and number of states each time a state is added/removed
@@ -143,6 +152,10 @@ mkConfig homedir = Config Regular
                    <> metavar "LP"
                    <> value []
                    <> help "log states that are following on or proceed from some path, passed as a list i.e. [1, 2, 1]")
+    <*> switch (long "log-filter" <> help "limit the logged environment to names recursively reachable through the current expression or stack")
+    <*> switch (long "log-order" <> help "log states with an environment ordered as [current expression]/[stack]/[other]")
+    <*> flag False True (long "log-inline-nrpc"
+                         <> help "inline variables in the NRPC when logging states")
     <*> flag Sharing NoSharing (long "no-sharing" <> help "disable sharing")
     <*> flag InstBefore InstAfter (long "inst-after" <> help "select to instantiate type variables after symbolic execution, rather than before")
     <*> flag Lax Aggressive (long "show-types" <> help "set to show more type information when logging states")
@@ -160,7 +173,13 @@ mkConfig homedir = Config Regular
                                 <> help "Represent floating point values precisely.  When off, overapproximate as rationals.")
     <*> switch (long "print-encodeFloat" <> help "use encodeFloat to print floating point numbers")
     <*> mkSMTSolver
+    <*> option (Just <$> str)
+                ( long "smt-path"
+                <> metavar "SMT-PATH"
+                <> value Nothing
+                <> help "path to an SMT solver")
     <*> flag NoSMTStrings UseSMTStrings (long "smt-strings" <> help "Sets whether the SMT solver should be used to solve string constraints")
+    <*> flag NoQuantifiers UseQuantifiers (long "quant-smt-strings" <> help "Use quantifiers to represent certain String functions")
     <*> flag True False (long "no-step-limit" <> help "disable step limit")
     <*> option auto (long "n"
                    <> metavar "N"
@@ -168,6 +187,7 @@ mkConfig homedir = Config Regular
                    <> help "how many steps to take when running states")
     <*> switch (long "solver-time" <> help "output the amount of time spent checking/solving path constraints")
     <*> switch (long "print-num-solver-calls" <> help "output the number of calls made to check/solve path constraints")
+    <*> switch (long "print-sol-counts" <> help "output the number of sat/unsat/unknown solver results from the SMT solver")
     <*> switch (long "print-smt" <> help "output SMT formulas when checking/solving path constraints")
     <*> switch (long "accept-times" <> help "output the time each state is accepted")
     <*> switch (long "states-at-time" <> help "output time and number of states each time a state is added/removed")
@@ -264,12 +284,14 @@ mkSMTSolver :: Parser SMTSolver
 mkSMTSolver =
     option (eitherReader (\s -> case s of
                                     "z3" -> Right ConZ3
-                                    "cvc4" -> Right ConCVC4
+                                    "z3str3" -> Right ConZ3Str3
+                                    "cvc5" -> Right ConCVC5
+                                    "ostrich" -> Right ConOstrich
                                     _ -> Left "Unsupported SMT solver"))
             ( long "smt"
             <> metavar "SMT-SOLVER"
             <> value ConZ3
-            <> help "either z3 or cvc4, to select the solver to use")
+            <> help "z3, z3str3, cvc5, or ostrich, to select the solver to use")
 
 mkSearchStrategy :: Parser SearchStrategy
 mkSearchStrategy =
@@ -297,6 +319,9 @@ mkConfigDirect homedir as m = Config {
     , logAfterN = 0
     , logConcPCGuide = Nothing
     , logPath = []
+    , logFilter = False
+    , logOrder = False
+    , logInlineNRPC = False
     , sharing = boolArg' "sharing" as Sharing Sharing NoSharing
     , instTV = InstBefore
     , showType = Lax
@@ -310,11 +335,14 @@ mkConfigDirect homedir as m = Config {
     , fp_handling = RealFP
     , print_encode_float = False
     , smt = strArg "smt" as m smtSolverArg ConZ3
+    , smt_path = Nothing
     , smt_strings = NoSMTStrings
+    , quantified_smt_strings = NoQuantifiers
     , step_limit = boolArg' "no-step-limit" as True True False
     , steps = strArg "n" as m read 1000
     , time_solving = False
     , print_num_solver_calls = False
+    , print_solver_sol_counts = False
     , print_smt = False
     , accept_times = boolArg "accept-times" as m Off
     , states_at_time = False
@@ -362,7 +390,7 @@ smtSolverArg = smtSolverArg' . map toLower
 
 smtSolverArg' :: String -> SMTSolver
 smtSolverArg' "z3" = ConZ3
-smtSolverArg' "cvc4" = ConCVC4
+smtSolverArg' "cvc5" = ConCVC5
 smtSolverArg' _ = error "Unrecognized SMT solver."
 
 higherOrderSolArg :: String -> HigherOrderSolver

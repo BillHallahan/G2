@@ -62,6 +62,7 @@ library
                        , G2.Execution.Reducer
                        , G2.Execution.Rules
                        , G2.Execution.RuleTypes
+                       , G2.Execution.SymToCase
                        , G2.Execution.ExecSkip
                        , G2.Execution.Internals.ExecSkip
 
@@ -73,6 +74,7 @@ library
                        , G2.Initialization.InitVarLocs
                        , G2.Initialization.KnownValues
                        , G2.Initialization.MkCurrExpr
+                       , G2.Initialization.TrivializeDCs
                        , G2.Initialization.Types
 
                        , G2.Interface
@@ -159,6 +161,7 @@ library
                        , G2.Translation.PrimInject
                        , G2.Translation.TransTypes
 
+                       , G2.Verify.Config
                        , G2.Verify.Interface
                        , G2.Verify.Reducer
 

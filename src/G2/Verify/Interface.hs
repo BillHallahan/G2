@@ -17,6 +17,7 @@ import G2.Lib.Printers
 import qualified G2.Language.ExprEnv as E
 import G2.Solver
 import G2.Translation
+import G2.Verify.Config
 import G2.Verify.Reducer
 
 import Control.Exception
@@ -25,6 +26,7 @@ import qualified Control.Monad.State as SM
 import qualified Data.HashSet as S
 import Data.IORef
 import Data.Maybe
+import System.Clock
 
 data VerifyResult = Verified
                   | Counterexample [ExecRes ()]
@@ -40,13 +42,14 @@ verifyRedHaltOrd :: (MonadIO m, Solver solver, Simplifier simplifier) =>
                  -> solver
                  -> simplifier
                  -> Config
+                 -> VerifyConfig
                  -> S.HashSet Name -- ^ Names of functions that should not result in a larger expression become EXEC,
                                    -- but should not be added to the NRPC at the top level.
                  -> IO ( SomeReducer (VerStack m) ()
                        , SomeHalter (VerStack m) (ExecRes ()) ()
                        , SomeOrderer (VerStack m) (ExecRes ()) ()
                        , IORef TimedOut)
-verifyRedHaltOrd s solver simplifier config no_nrpc_names = do
+verifyRedHaltOrd s solver simplifier config verify_config no_nrpc_names = do
     time_logger <- acceptTimeLogger
     (time_halter, io_timed_out) <- stdTimerHalter (fromInteger . toInteger $ timeLimit config)
 
@@ -77,14 +80,19 @@ verifyRedHaltOrd s solver simplifier config no_nrpc_names = do
                             Just logger -> liftSomeReducer $ liftSomeReducer (logger .~> num_steps_red f)
                             Nothing -> liftSomeReducer $ liftSomeReducer (num_steps_red f)
 
-        nrpc_approx_red f = let nrpc_approx = nrpcAnyCallReducer no_nrpc_names config in
+        nrpc_approx_red f = case rev_abs verify_config of
+                                True -> let nrpc_approx = nrpcAnyCallReducer no_nrpc_names config in
                                         SomeReducer nrpc_approx .~> logger_std_red f
+                                False -> logger_std_red f
 
         halter = switchEveryNHalter 20
                  <~> acceptIfViolatedHalter
                  <~> time_halter
+                 <~> discardOnFalse
 
-        halter_approx_discard = SomeHalter (approximationHalter solver approx_no_inline <~> halter)
+        halter_approx_discard = case approx verify_config of
+                                        True -> SomeHalter (approximationHalter solver approx_no_inline <~> halter)
+                                        False -> SomeHalter halter
 
         orderer = case search_strat config of
                         Subpath -> SomeOrderer . liftOrderer $ lengthNSubpathOrderer (subpath_length config)
@@ -117,8 +125,9 @@ verifyFromFile :: [FilePath]
                -> StartFunc
                -> TranslationConfig
                -> Config
-               -> IO (VerifyResult, Bindings, Id)
-verifyFromFile proj src f transConfig config = do
+               -> VerifyConfig
+               -> IO (VerifyResult, Double, Bindings, Id)
+verifyFromFile proj src f transConfig config verify_config = do
     let config' = config {
                          -- For soundness, we must exhaustively search all states that are not discarded via approximation,
                          -- so we disable the step count.
@@ -161,7 +170,8 @@ verifyFromFile proj src f transConfig config = do
     --     analysis3 = if print_num_red_rules config then [\s p xs -> SM.lift . SM.lift . SM.lift . SM.lift . SM.lift . SM.lift $ logRedRuleNum s p xs] else noAnalysis
     --     analysis = analysis1 ++ analysis2 ++ analysis3
 
-    rho <- verifyRedHaltOrd state' solver simplifier config' (S.fromList no_nrpc_names)
+    init_time <- getTime Realtime
+    rho <- verifyRedHaltOrd state' solver simplifier config' verify_config (S.fromList no_nrpc_names)
     let to = case rho of (_, _, _, to_)-> to_
     (er, bindings''') <-
             case rho of
@@ -179,15 +189,12 @@ verifyFromFile proj src f transConfig config = do
                                 else setTypePrinting AggressiveTypes (mkPrettyGuide ())) 
     
     to' <- readIORef to
+    accept_time <- getTime Realtime
+    let diff = diffTimeSpec accept_time init_time
+        diff_secs = (fromInteger (toNanoSecs diff)) / (10 ^ (9 :: Int) :: Double)
     let res = case to' of
                 TimedOut -> VerifyTimeOut
-                NoTimeOut | false_er <- filter (isFalse . final_state) er
+                NoTimeOut | false_er <- filter (currExprIsFalse . final_state) er
                           , not (null false_er) -> Counterexample false_er
-                          | otherwise -> assert (all (isTrue . final_state) er) Verified
-    return (res, bindings''', entry_f)
-    where
-        isFalse s | E.deepLookupExpr (getExpr s) (expr_env s) == Just (mkFalse (known_values s ) ) = True
-                  | otherwise = False
-
-        isTrue s | E.deepLookupExpr (getExpr s) (expr_env s) == Just (mkTrue (known_values s)) = True
-                 | otherwise = False
+                          | otherwise -> assert (all (currExprIsTrue . final_state) er) Verified
+    return (res, diff_secs, bindings''', entry_f)

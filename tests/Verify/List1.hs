@@ -74,6 +74,9 @@ notElem' :: Int -> [Int] -> Bool
 notElem' x [] = True
 notElem' x (y:ys) = if x == y then False else notElem' x ys
 
+prop1False :: [()] -> Bool
+prop1False xs = (xs ++ [(), (), (), ()]) `eqLen` (xs  ++ [(), (), (), ()] ++ [()])
+
 prop4False :: [Int] -> [Int] -> Bool
 prop4False (_:_:_) _ = True
 prop4False xs ys = xs ++ ys == ys
@@ -97,3 +100,9 @@ prop10False xs ys = last ([1, 2, 3, 4, 5, 6, 7, 8, 9] ++ ys) == last (xs ++ [1, 
 prop10False2 :: [Int] -> [Int] -> Bool
 prop10False2 _ [] = True
 prop10False2 xs ys = last ([1, 2, 3, 4, 5, 6] ++ ys) == last (xs ++ [1, 2, 3, 4, 5, 6])
+
+prop11False :: Int -> [Int] -> Bool
+prop11False n xs = take n xs ++ drop n xs == (case xs of [x, y] -> [x, y, 3]; _ -> xs) 
+
+prop12False :: Int -> [Int] -> Bool
+prop12False x xs = x `notElem'` xs
