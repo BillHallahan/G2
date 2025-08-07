@@ -445,8 +445,7 @@ gatherReducerHalterOrderer infconfig config lhconfig solver simplifier = do
 -- function to just running the symbolic execution, for debugging.
 
 {-# SPECIALISE
-    runLHInferenceAll :: TV.TyVarEnv
-                      -> InferenceConfig
+    runLHInferenceAll :: InferenceConfig
                       -> Config
                       -> LHConfig
                       -> T.Text
@@ -455,15 +454,14 @@ gatherReducerHalterOrderer infconfig config lhconfig solver simplifier = do
                       -> IO (([ExecRes AbstractedInfo], Bindings), Id)
  #-}
 runLHInferenceAll :: MonadIO m
-                  => TV.TyVarEnv
-                  -> InferenceConfig
+                  => InferenceConfig
                   -> Config
                   -> LHConfig
                   -> T.Text
                   -> [FilePath]
                   -> [FilePath]
                   -> m (([ExecRes AbstractedInfo], Bindings), Id)
-runLHInferenceAll tv infconfig config g2lhconfig func proj fp = do
+runLHInferenceAll infconfig config g2lhconfig func proj fp = do
     -- Initialize LiquidHaskell
     (ghci, lhconfig) <- liftIO $ getGHCI infconfig proj fp
 
@@ -472,7 +470,7 @@ runLHInferenceAll tv infconfig config g2lhconfig func proj fp = do
         transConfig = simplTranslationConfig { simpl = False }
     (main_mod, exg2) <- liftIO $ translateLoaded proj fp transConfig g2config
 
-    let (lrs, g2config', g2lhconfig', infconfig') = initStateAndConfig tv exg2 main_mod g2config g2lhconfig infconfig ghci
+    let (lrs, g2config', g2lhconfig', infconfig') = initStateAndConfig exg2 main_mod g2config g2lhconfig infconfig ghci
 
     let configs = Configs { g2_config = g2config', g2lh_config = g2lhconfig', lh_config = lhconfig, inf_config = infconfig'}
 

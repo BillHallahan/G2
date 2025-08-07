@@ -48,7 +48,6 @@ import Data.List
 import Data.Maybe
 import qualified Data.Text as T
 import qualified Data.Text.IO as T
-import qualified G2.Language.TyVarEnv as TV 
 
 -- Run inference, with an extra, final check of correctness at the end.
 -- Assuming inference is working correctly, this check should neve fail.
@@ -120,7 +119,7 @@ getInitState proj fp ghci infconfig config lhconfig = do
         transConfig = simplTranslationConfig { simpl = False }
     (main_mod, exg2) <- translateLoaded proj fp transConfig g2config
     -- TODO: is it safe to include the have TV.empty
-    let (lrs, g2config', lhconfig', infconfig') = initStateAndConfig TV.empty exg2 main_mod g2config lhconfig infconfig ghci
+    let (lrs, g2config', lhconfig', infconfig') = initStateAndConfig exg2 main_mod g2config lhconfig infconfig ghci
     return (lrs, g2config', lhconfig', infconfig', main_mod)
 
 getNameLevels :: Maybe T.Text -> LiquidReadyState -> NameLevels
