@@ -26,7 +26,7 @@ data CurrExprRes = CurrExprRes { ce_expr :: Expr
 
 mkCurrExpr :: TV.TyVarEnv -> Maybe T.Text -> Maybe T.Text -> Id
            -> TypeClasses -> NameGen -> ExprEnv -> TypeEnv
-           -> KnownValues -> Config -> (Expr, [Id], [Expr], Maybe Coercion, NameGen)
+           -> KnownValues -> Config -> CurrExprRes
 mkCurrExpr tv m_assume m_assert f@(Id (Name _ m_mod _ _) _) tc ng eenv tenv kv config =
     case E.lookup (idName f) eenv of
         Just ex ->
