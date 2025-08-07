@@ -352,7 +352,11 @@ processLiquidReadyStateWithCall lrs@(LiquidReadyState { lr_state = lhs@(LHState 
                           Left ie' -> ie'
                           Right errs -> error errs
 
-        (ce, is, f_i, m_c, ng') = mkCurrExpr (tyvar_env s) Nothing Nothing ie (type_classes s) (name_gen bindings)
+        CurrExprRes { ce_expr = ce
+                    , fixed_in = f_i
+                    , symbolic_ids = is
+                    , in_coercion = m_c
+                    , mkce_namegen = ng' } = mkCurrExpr (tyvar_env s) Nothing Nothing ie (type_classes s) (name_gen bindings)
                                       (expr_env s) (type_env s) (known_values s) config
 
         lhs' = lhs { state = s { expr_env = foldr E.insertSymbolic (expr_env s) is

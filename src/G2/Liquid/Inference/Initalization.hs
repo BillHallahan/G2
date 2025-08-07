@@ -43,7 +43,7 @@ createStateForInference simp_s main_mod config lhconfig ghci =
                                 then fmap Just $ addTyVarsEEnvTEnv TV.empty simp_s
                                 else (simp_s, Nothing)
         (s, b) = initStateFromSimpleState simp_s' main_mod True 
-                    (\_ ng _ _ _ _ -> (Prim Undefined TyBottom, [], [], Nothing, ng))
+                    noStartFuncMkCurrExpr
                     ( (E.higherOrderExprs TV.empty) . IT.expr_env)
                     config
     in
