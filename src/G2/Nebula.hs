@@ -70,7 +70,7 @@ nebulaPluginPass' m_entry nebula_config env modguts = do
     let simp_state = initSimpleState injected_exg2
 
         (init_state, bindings) = initStateFromSimpleState simp_state [Nothing] False
-                                     (\_ ng _ _ _ _ -> noStartFuncCurrExprRes ng)
+                                     noStartFuncMkCurrExpr
                                      (E.higherOrderExprs . IT.expr_env)
                                      config
     
@@ -88,14 +88,6 @@ nebulaPluginPass' m_entry nebula_config env modguts = do
             let mod_name = T.pack . moduleNameString . moduleName . mg_module $ modguts
             mapM_ (checkRulePrinting config nebula_config init_state bindings total)
                 $ filter (\r -> L.ru_module r == mod_name) (rewrite_rules bindings)
-    where
-        noStartFuncCurrExprRes ng =
-                    CurrExprRes
-                        { ce_expr = Prim Undefined TyBottom
-                        , fixed_in = []
-                        , symbolic_ids = []
-                        , in_coercion = Nothing
-                        , mkce_namegen = ng }
 
 checkRulePrinting :: (ASTContainer t L.Type, ASTContainer t L.Expr) => Config
                   -> NebulaConfig

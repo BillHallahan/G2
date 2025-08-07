@@ -18,6 +18,7 @@ module G2.Interface.Interface ( MkCurrExpr
                               , initSimpleState
 
                               , mkArgTys
+                              , noStartFuncMkCurrExpr
                               
                               , initRedHaltOrd
                               , initSolver
@@ -464,19 +465,20 @@ initialStateNoStartFunc proj src transConfig config = do
     let simp_state = initSimpleState exg2
 
         (init_s, bindings) = initStateFromSimpleState simp_state [Nothing] False
-                                 (\_ ng _ _ _ _ -> noStartFuncCurrExprRes ng)
+                                 noStartFuncMkCurrExpr
                                  (E.higherOrderExprs . IT.expr_env)
                                  config
 
     return (init_s, bindings)
-    where
-        noStartFuncCurrExprRes ng =
-            CurrExprRes
-                { ce_expr = Prim Undefined TyBottom
-                , fixed_in = []
-                , symbolic_ids = []
-                , in_coercion = Nothing
-                , mkce_namegen = ng }
+
+noStartFuncMkCurrExpr :: a -> NameGen -> b -> c -> d -> e -> CurrExprRes
+noStartFuncMkCurrExpr _ ng _ _ _ _ =
+    CurrExprRes
+        { ce_expr = Prim Undefined TyBottom
+        , fixed_in = []
+        , symbolic_ids = []
+        , in_coercion = Nothing
+        , mkce_namegen = ng }
 
 initialStateFromFile :: [FilePath]
                      -> [FilePath]
