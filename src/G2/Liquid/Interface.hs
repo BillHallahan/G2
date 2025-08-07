@@ -100,8 +100,8 @@ data FuncInfo = FuncInfo { func :: T.Text
 -- | findCounterExamples
 -- Given (several) LH sources, and a string specifying a function name,
 -- attempt to find counterexamples to the functions liquid type
-findCounterExamples :: TV.TyVarEnv -> [FilePath] -> [FilePath] -> T.Text -> Config -> LHConfig -> IO (([ExecRes AbstractedInfo], Bindings), Lang.Id)
-findCounterExamples tv proj fp entry config lhconfig = do
+findCounterExamples :: [FilePath] -> [FilePath] -> T.Text -> Config -> LHConfig -> IO (([ExecRes AbstractedInfo], Bindings), Lang.Id)
+findCounterExamples proj fp entry config lhconfig = do
     let config' = config { mode = Liquid, fp_handling = RationalFP }
 
     lh_config <- getOpts []
@@ -114,21 +114,20 @@ findCounterExamples tv proj fp entry config lhconfig = do
 
     (mb_mod, ex_g2) <- translateLoaded proj fp (simplTranslationConfig { simpl = False }) config'
 
-    runLHCore tv entry (mb_mod, ex_g2) ghci' config' lhconfig
+    runLHCore entry (mb_mod, ex_g2) ghci' config' lhconfig
 
-runLHCore :: TV.TyVarEnv 
-          ->T.Text
+runLHCore :: T.Text
           -> ([Maybe T.Text], ExtractedG2)
           -> [GhcInfo]
           -> Config
           -> LHConfig
           -> IO (([ExecRes AbstractedInfo], Bindings), Lang.Id)
-runLHCore tv entry (mb_modname, exg2) ghci config lhconfig = do
+runLHCore entry (mb_modname, exg2) ghci config lhconfig = do
     LiquidData { ls_state = final_st
                , ls_bindings = bindings
                , ls_id = ifi
                , ls_counterfactual_name = cfn
-               , ls_memconfig = pres_names } <- liquidStateWithCall tv entry (mb_modname, exg2) ghci config lhconfig mempty
+               , ls_memconfig = pres_names } <- liquidStateWithCall entry (mb_modname, exg2) ghci config lhconfig mempty
 
     SomeSolver solver <- initSolver config
     let simplifier = NaNInfBlockSimplifier :>> FloatSimplifier :>> ArithSimplifier
@@ -141,17 +140,17 @@ runLHCore tv entry (mb_modname, exg2) ghci config lhconfig = do
     return ((exec_res, final_bindings), ifi)
 
 {-# INLINE liquidStateWithCall #-}
-liquidStateWithCall :: TV.TyVarEnv -> T.Text -> ([Maybe T.Text], ExtractedG2)
+liquidStateWithCall :: T.Text -> ([Maybe T.Text], ExtractedG2)
                       -> [GhcInfo]
                       -> Config
                       -> LHConfig
                       -> MemConfig
                       -> IO LiquidData
-liquidStateWithCall tv entry (mb_modname, exg2) ghci config lhconfig memconfig =
-    liquidStateWithCall' tv entry (mb_modname, exg2) ghci config lhconfig memconfig (mkCurrExpr tv Nothing Nothing) (mkArgTys tv)
+liquidStateWithCall entry (mb_modname, exg2) ghci config lhconfig memconfig =
+    liquidStateWithCall' entry (mb_modname, exg2) ghci config lhconfig memconfig (mkCurrExpr TV.empty Nothing Nothing) (mkArgTys TV.empty)
 
 {-# INLINE liquidStateWithCall' #-}
-liquidStateWithCall' :: TV.TyVarEnv -> T.Text -> ([Maybe T.Text], ExtractedG2)
+liquidStateWithCall' :: T.Text -> ([Maybe T.Text], ExtractedG2)
                        -> [GhcInfo]
                        -> Config
                        -> LHConfig
@@ -159,13 +158,12 @@ liquidStateWithCall' :: TV.TyVarEnv -> T.Text -> ([Maybe T.Text], ExtractedG2)
                        -> (Lang.Id -> MkCurrExpr)
                        -> (Lang.Expr -> MkArgTypes)
                        -> IO LiquidData
-liquidStateWithCall' tv entry (mb_m, exg2) ghci config lhconfig memconfig mkCurr argTys = do
+liquidStateWithCall' entry (mb_m, exg2) ghci config lhconfig memconfig mkCurr argTys = do
     let simp_s = initSimpleState exg2
-    liquidStateFromSimpleStateWithCall' tv simp_s ghci entry mb_m config lhconfig memconfig mkCurr argTys
+    liquidStateFromSimpleStateWithCall' simp_s ghci entry mb_m config lhconfig memconfig mkCurr argTys
 
 {-# INLINE liquidStateFromSimpleStateWithCall #-}
-liquidStateFromSimpleStateWithCall :: TV.TyVarEnv
-                                   -> SimpleState
+liquidStateFromSimpleStateWithCall :: SimpleState
                                    -> [GhcInfo]
                                    -> T.Text
                                    -> [Maybe T.Text]
@@ -173,12 +171,11 @@ liquidStateFromSimpleStateWithCall :: TV.TyVarEnv
                                    -> LHConfig
                                    -> MemConfig
                                    -> IO LiquidData
-liquidStateFromSimpleStateWithCall tv simp_s ghci entry mb_m config lhconfig memconfig =
-    liquidStateFromSimpleStateWithCall' tv simp_s ghci entry mb_m config lhconfig memconfig (mkCurrExpr tv Nothing Nothing) (mkArgTys tv)
+liquidStateFromSimpleStateWithCall simp_s ghci entry mb_m config lhconfig memconfig =
+    liquidStateFromSimpleStateWithCall' simp_s ghci entry mb_m config lhconfig memconfig (mkCurrExpr TV.empty Nothing Nothing) (mkArgTys TV.empty)
 
 {-# INLINE liquidStateFromSimpleStateWithCall' #-}
-liquidStateFromSimpleStateWithCall' :: TV.TyVarEnv 
-                                    -> SimpleState
+liquidStateFromSimpleStateWithCall' :: SimpleState
                                     -> [GhcInfo]
                                     -> T.Text
                                     -> [Maybe T.Text]
@@ -188,9 +185,9 @@ liquidStateFromSimpleStateWithCall' :: TV.TyVarEnv
                                     -> (Lang.Id -> MkCurrExpr)
                                     -> (Lang.Expr -> MkArgTypes)
                                     -> IO LiquidData
-liquidStateFromSimpleStateWithCall' tv simp_s ghci entry mb_m config lhconfig memconfig mkCurr argTys = do
+liquidStateFromSimpleStateWithCall' simp_s ghci entry mb_m config lhconfig memconfig mkCurr argTys = do
     let (simp_s', ph_tyvars) = if add_tyvars lhconfig
-                                  then fmap Just $ addTyVarsEEnvTEnv tv simp_s
+                                  then fmap Just $ addTyVarsEEnvTEnv TV.empty simp_s
                                   else (simp_s, Nothing)
         (s, i, bindings') = initStateFromSimpleStateWithCall simp_s' True entry mb_m mkCurr argTys config
     

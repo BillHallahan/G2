@@ -442,10 +442,10 @@ hasMod = LH.foldRType (\b rtype -> b || chRty rtype) False
         chExpr (Ref.PAtom _ e1 e2) = chExpr e1 || chExpr e2
         chExpr _ = False
 
-adjustConfigPostLH :: TV.TyVarEnv -> [Maybe T.Text] -> Measures -> TCValues -> S.State t -> [GhcInfo] -> LHConfig -> LHConfig
-adjustConfigPostLH tv main_mod meas tcv (S.State { S.expr_env = eenv, S.known_values = kv }) ghci lhconfig =
+adjustConfigPostLH :: [Maybe T.Text] -> Measures -> TCValues -> S.State t -> [GhcInfo] -> LHConfig -> LHConfig
+adjustConfigPostLH main_mod meas tcv (S.State { S.expr_env = eenv, S.known_values = kv, S.tyvar_env = tv }) ghci lhconfig =
     let
-        ref = refinable tv main_mod meas tcv ghci kv eenv
+        ref = refinable main_mod meas tcv ghci kv eenv tv
         
         ns_mm = map (\(Name n m _ _) -> (n, m))
               . filter (\(Name n m _ _) -> (n, m) `elem` ref)
@@ -454,8 +454,8 @@ adjustConfigPostLH tv main_mod meas tcv (S.State { S.expr_env = eenv, S.known_va
     in
     lhconfig { counterfactual = Counterfactual . CFOnly $ S.fromList ns_mm }
 
-refinable :: TV.TyVarEnv -> [Maybe T.Text] -> Measures -> TCValues -> [GhcInfo] -> S.KnownValues -> ExprEnv -> [(T.Text, Maybe T.Text)]
-refinable tv main_mod meas tcv ghci kv eenv = 
+refinable :: [Maybe T.Text] -> Measures -> TCValues -> [GhcInfo] -> S.KnownValues -> ExprEnv -> TV.TyVarEnv -> [(T.Text, Maybe T.Text)]
+refinable main_mod meas tcv ghci kv eenv tv = 
     let
         ns_mm = E.keys
               . E.filter (\e -> not (tyVarNoMeas tv meas tcv ghci e) || isPrimRetTy tv kv e)
