@@ -1,8 +1,7 @@
-module G2.Execution.NewPC ( NewPC (..)
-                          , newPCEmpty
-                          , reduceNewPC ) where
+module G2.Execution.NewPC.Handling ( reduceNewPC ) where
 
 import G2.Language
+import G2.Execution.NewPC.Types
 import qualified G2.Language.PathConds as PC
 import G2.Solver
 

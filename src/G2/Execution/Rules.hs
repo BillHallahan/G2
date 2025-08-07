@@ -29,7 +29,8 @@ module G2.Execution.Rules ( module G2.Execution.RuleTypes
 
 import G2.Config.Config
 import G2.Execution.DataConPCMap
-import G2.Execution.NewPC
+import G2.Execution.NewPC.Handling
+import G2.Execution.NewPC.Type
 import G2.Execution.NormalForms
 import G2.Execution.PrimitiveEval
 import G2.Execution.RuleTypes

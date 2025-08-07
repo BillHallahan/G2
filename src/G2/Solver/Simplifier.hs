@@ -9,13 +9,21 @@ module G2.Solver.Simplifier ( Simplifier (..)
                             , StringSimplifier (..)
                             , FloatSimplifier (..)
                             , EqualitySimplifier (..)
+                            , ConstSimplifier (..)) where
                             , CharConc (..)) where
 
+import G2.Execution.PrimitiveEval
+import Data.Text (unpack)
 import G2.Language
 import qualified G2.Language.ExprEnv as E
 import G2.Language.KnownValues
 import qualified G2.Language.PathConds as PC
+<<<<<<< HEAD
+import Debug.Trace
+import G2.Lib.Printers
+=======
 import qualified G2.Language.Typing as T
+>>>>>>> master
 
 class Simplifier simplifier where
     -- | Simplifies a PC, by converting it into one or more path constraints that are easier
@@ -93,6 +101,18 @@ isZero :: Expr -> Bool
 isZero (Lit (LitInt 0)) = True
 isZero (Lit (LitRational 0)) = True
 isZero _ = False
+
+-- | Tries to simplify literal expressions, i.e. 1 == 1 -> True
+data ConstSimplifier = ConstSimplifier
+
+instance Simplifier ConstSimplifier where 
+    simplifyPC _ _ pc = [pc]
+    simplifyPCs _ s new_pc pcs =
+      case PC.varNamesInPC new_pc of
+          [] -> pcs  
+          (n:_) -> PC.mapPathCondsSCC n (evalPrims (expr_env s) (type_env s) (known_values s)) pcs
+        
+    reverseSimplification _ _ _ m = m
 
 -- | Tries to simplify based on simple boolean principles, i.e. x == True -> x
 data BoolSimplifier = BoolSimplifier

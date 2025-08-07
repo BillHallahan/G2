@@ -55,7 +55,8 @@ library
                        , G2.Execution.HPC
                        , G2.Execution.Interface
                        , G2.Execution.Memory
-                       , G2.Execution.NewPC
+                       , G2.Execution.NewPC.Handling
+                       , G2.Execution.NewPC.Type
                        , G2.Execution.NormalForms
                        , G2.Execution.PrimitiveEval
                        , G2.Execution.Reducer
