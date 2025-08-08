@@ -130,13 +130,27 @@ letLiftFuncs tv e = do
 letLiftFuncs' :: TV.TyVarEnv -> Expr -> LHStateM Expr
 letLiftFuncs' tv e
     | ars <- passedArgs e
-    , any (\case { Var _ -> False; _ -> True }) ars = do
+    , any (\case { Var _ -> False; Type _ -> False; _ -> True }) ars = do
         let c = appCenter e
-        is <- freshIdsN $ map (typeOf tv) ars
+        (binds, f_ars) <- liftSel tv ars
+        return . Let binds . mkApp $ c:f_ars
+        -- let c = appCenter e
+        -- is <- freshIdsN $ map (typeOf tv) ars
 
-        return . Let (zip is ars) . mkApp $ c:map Var is
+        -- return . Let (zip is ars) . mkApp $ c:map Var is
     | otherwise = return e
 
+liftSel :: TV.TyVarEnv -> [Expr] -> LHStateM ([(Id, Expr)], [Expr])
+liftSel tv = go ([], [])
+    where
+        go (binds, r_es) [] = return (binds, reverse r_es)
+        go (binds, r_es) (e:es) =
+            case e of
+                Var _ -> go (binds, e:r_es) es
+                Type _ -> go (binds, e:r_es) es
+                _ -> do
+                    i <- freshIdN $ typeOf tv e
+                    go ((i, e):binds, Var i:r_es) es
 
 -- | Tries to be more selective then liftLetFuncs, doesn't really work yet...
 letLiftHigherOrder :: TV.TyVarEnv -> Expr -> LHStateM Expr

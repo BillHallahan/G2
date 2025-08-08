@@ -76,6 +76,7 @@ import G2.Language.AST
 import qualified G2.Language.KnownValues as KV
 import G2.Language.Syntax
 
+import qualified Data.HashSet as HS
 import qualified Data.HashMap.Lazy as HM
 import qualified Data.HashMap.Internal as HMI
 import qualified Data.Map as M
@@ -326,24 +327,24 @@ retypeRespectingTyForAll' key new (TyVar test) = if idName key == idName test th
 retypeRespectingTyForAll' key new ty = modifyChildren (retypeRespectingTyForAll' key new) ty
 
 tyVarSubst :: (ASTContainer t Type) => TV.TyVarEnv -> t -> t
-tyVarSubst m = modifyASTs (tyVarSubst' m)
+tyVarSubst m = modifyContainedASTs (tyVarSubst' HS.empty m)
 
-tyVarSubst' ::  TV.TyVarEnv -> Type -> Type 
-tyVarSubst' m t@(TyVar (Id n _)) =
+tyVarSubst' ::  HS.HashSet Name -> TV.TyVarEnv -> Type -> Type 
+tyVarSubst' seen m t@(TyVar (Id n _)) =
     case TV.lookup n m of
-        Nothing -> t 
-        Just t' -> tyVarSubst' m t'
-tyVarSubst' _ t = t
+        Just t' | not (HS.member n seen) -> tyVarSubst' (HS.insert n seen) m t'
+        _ -> t 
+tyVarSubst' seen m t = modifyChildren (tyVarSubst' seen m) t
 
 tyVarRename :: (ASTContainer t Type) => M.Map Name Type -> t -> t
-tyVarRename m = modifyASTs (tyVarRename' m)
+tyVarRename m = modifyContainedASTs (tyVarRename' HS.empty m)
 
-tyVarRename' :: M.Map Name Type -> Type -> Type
-tyVarRename' m t@(TyVar (Id n _)) = 
+tyVarRename' :: HS.HashSet Name -> M.Map Name Type -> Type -> Type
+tyVarRename' seen m t@(TyVar (Id n _)) = 
     case M.lookup n m of
-        Nothing -> t
-        Just t' -> tyVarRename' m t'
-tyVarRename' _ t = t
+        Just t' | not (HS.member n seen) -> tyVarRename' (HS.insert n seen) m t'
+        _ -> t
+tyVarRename' seen m t = modifyChildren (tyVarRename' seen m) t
 
 -- | Returns if the first type given is a specialization of the second,
 -- i.e. if given t1, t2, returns true iff t1 :: t2
