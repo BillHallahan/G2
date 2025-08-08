@@ -434,6 +434,8 @@ instance ExState (LHState, L.Bindings) LHStateM where
     typeEnv = readRecord $ type_env . fst
     putTypeEnv = rep_type_envM
 
+    tyVarEnv = readRecord $ L.tyvar_env . state . fst
+
     knownValues = readRecord $ known_values . fst
     putKnownValues = rep_known_valuesM
 

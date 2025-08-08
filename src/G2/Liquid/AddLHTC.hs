@@ -12,7 +12,6 @@ import G2.Liquid.Types
 import qualified Data.HashMap.Lazy as HM
 import qualified G2.Language.TyVarEnv as TV 
 
-
 -- | Adds the LiquidHaskell typeclass to all functions in the ExprEnv, and to
 -- the current expression.  This requires:
 --   1. Adding Lambda bindings for the LH TC

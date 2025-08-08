@@ -525,8 +525,8 @@ lhPPCall tv lhm fnm t
         i <- freshIdN t
         return . Lam TermL i =<< mkTrueE
     | TyFun _ _ <- t = do
-        let ts = anonArgumentTypes $ typeOf tv t
-            rt = returnType $ typeOf tv t
+        let ts = anonArgumentTypes t
+            rt = returnType t
         let_is <- freshIdsN ts
         bind_i <- freshIdN t
         let bind_app = mkApp $ Var bind_i:map Var let_is

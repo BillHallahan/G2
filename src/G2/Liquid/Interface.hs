@@ -87,7 +87,7 @@ import qualified Data.Text.IO as TI
 
 import G2.Language.Monad
 import G2.Language.Support (Bindings(input_coercion))
-import qualified G2.Language.TyVarEnv as TV 
+import qualified G2.Language.TyVarEnv as TV
 
 data LHReturn = LHReturn { calledFunc :: FuncInfo
                          , violating :: Maybe FuncInfo
