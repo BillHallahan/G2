@@ -210,9 +210,9 @@ data CharConc = CharConc
 instance Simplifier CharConc where
     simplifyPC _ _ pc = [pc]
 
-    simplifyPCWithExprEnv _ s@(State { known_values = kv, type_env = tenv }) ng eenv pc =
+    simplifyPCWithExprEnv _ s@(State { known_values = kv, type_env = tenv, tyvar_env = tv_env }) ng eenv pc =
         let
-            cs = map idName . filter (\(Id _ t) -> t == T.tyChar kv) $ varIds pc
+            cs = map idName . filter (\(Id _ t) -> tyVarSubst tv_env t == T.tyChar kv) $ varIds pc
             (cs', ng') = renameAll cs ng
             conc_c = zip cs $ map (flip Id TyLitChar) cs'
             eenv' = foldr (\(nC, nL) -> E.insert nC (concChar nL) . E.insertSymbolic nL) eenv conc_c
