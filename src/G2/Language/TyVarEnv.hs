@@ -6,6 +6,7 @@
 module G2.Language.TyVarEnv (TyVarEnv
                             , empty
                             , insert
+                            , insertSymbolic
                             , lookup
                             , delete
                             , fromList 
@@ -23,20 +24,33 @@ import qualified Data.HashMap.Lazy as HM
 import qualified Data.Map as M
 import G2.Language.Syntax
 
-newtype TyVarEnv = TyVarEnv (HM.HashMap Name Type) deriving (Show, Eq, Read, Generic, Typeable, Data)
+data TyConcOrSym = TyConc Type
+                 | TySym Id
+                 deriving (Show, Eq, Read, Generic, Typeable, Data)
+
+instance Hashable TyConcOrSym
+
+tyConcOrSymToType :: TyConcOrSym -> Type
+tyConcOrSymToType (TyConc t) = t
+tyConcOrSymToType (TySym i) = TyVar i
+
+newtype TyVarEnv = TyVarEnv (HM.HashMap Name TyConcOrSym) deriving (Show, Eq, Read, Generic, Typeable, Data)
 
 -- ToDo: is this function necessary?
 tyVarEnvCons :: TyVarEnv -> HM.HashMap Name Type
-tyVarEnvCons (TyVarEnv tyvarenv) = tyvarenv
+tyVarEnvCons (TyVarEnv tyvarenv) = HM.map tyConcOrSymToType tyvarenv
 
 empty :: TyVarEnv
 empty = TyVarEnv HM.empty
 
 insert :: Name -> Type -> TyVarEnv -> TyVarEnv
-insert n ty (TyVarEnv env) = TyVarEnv $ HM.insert n ty env
+insert n ty (TyVarEnv env) = TyVarEnv $ HM.insert n (TyConc ty) env
+
+insertSymbolic :: Id -> TyVarEnv -> TyVarEnv
+insertSymbolic ty (TyVarEnv env) = TyVarEnv $ HM.insert (idName ty) (TySym ty) env
 
 lookup :: Name -> TyVarEnv -> Maybe Type
-lookup n (TyVarEnv env) = HM.lookup n env
+lookup n (TyVarEnv env) = tyConcOrSymToType <$> HM.lookup n env
 
 -- a recursive version of lookup that aim to find the concrete types of type variable
 deepLookup :: TyVarEnv -> Expr -> Maybe Type
@@ -46,8 +60,8 @@ deepLookup tv (Var (Id n _)) = deepLookupName tv n
 deepLookup _ _  = Nothing 
 
 deepLookupName :: TyVarEnv -> Name -> Maybe Type
-deepLookupName tv@(TyVarEnv env) n = case HM.lookup n env of
-    Just (TyVar (Id n' _)) -> deepLookupName tv n'
+deepLookupName tv_env n = case lookup n tv_env of
+    Just (TyVar (Id n' _)) -> deepLookupName tv_env n'
     Just t -> Just t 
     Nothing -> Nothing
 
@@ -55,10 +69,10 @@ delete :: Name -> TyVarEnv -> TyVarEnv
 delete n (TyVarEnv env) = TyVarEnv (HM.delete n env)
 
 fromList :: [(Name, Type)] -> TyVarEnv
-fromList = TyVarEnv . HM.fromList
+fromList = TyVarEnv . HM.map TyConc . HM.fromList
 
 toList :: TyVarEnv -> [(Name, Type)]
-toList (TyVarEnv env) = HM.toList env
+toList = HM.toList . tyVarEnvCons
 
 toMap :: TyVarEnv -> M.Map Name Type 
 toMap tvenv = M.fromList $ toList tvenv  
