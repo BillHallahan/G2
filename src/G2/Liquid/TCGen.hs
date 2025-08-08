@@ -196,7 +196,7 @@ createLHTCFuncs' tv lhm n adt = do
     let fs' = map (\f -> mkApp $ f:bt ++ lhdv) fs ++ [ordE]
 
     lhdct <- lhDCType
-    let ue = leadingTyForAllBindings (typeOf tv lhdct)
+    let ue = leadingTyForAllBindings lhdct
     let e = mkApp $ Data (DataCon lh lhdct ue []):Type (TyCon n TyUnknown):fs'
     let e' = foldr (Lam TermL) e lhd
     let e'' = foldr (Lam TypeL) e' bi
