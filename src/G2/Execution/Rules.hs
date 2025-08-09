@@ -331,13 +331,14 @@ evalCase s@(State { expr_env = eenv
       let
           dbind = [(bind, mexpr)]
           expr' = liftCaseBinds dbind expr
-          pbinds = zip params ar'
-          (eenv', expr'', ng', news) = liftBinds tvnv kv pbinds eenv expr' ng
+          (pbinds_exist, pbinds_val) = splitAt (length $ dc_exist_tyvars dcon) $ zip params ar'
+          (tv_env', eenv', expr'', ng') = liftBinds kv pbinds_exist pbinds_val tvnv eenv expr' ng
          
       in 
          assert (length params == length ar')
-         ( RuleEvalCaseData news
+         ( RuleEvalCaseData
          , [newPCEmpty $ s { expr_env = eenv'
+                           , tyvar_env = tv_env'
                            , curr_expr = CurrExpr Evaluate expr''}] 
          , ng')
 
@@ -841,11 +842,11 @@ evalCast s@(State { expr_env = eenv
     , (cast', ng') <- splitCast tvnv ng cast
     , cast /= cast' =
         ( RuleEvalCastSplit
-        , [ s { curr_expr = CurrExpr Evaluate $ simplifyCasts cast' }]
+        , [ s { curr_expr = CurrExpr Evaluate $ simplifyCasts tvnv cast' }]
         , ng')
     | otherwise =
         ( RuleEvalCast
-        , [s { curr_expr = CurrExpr Evaluate $ simplifyCasts e
+        , [s { curr_expr = CurrExpr Evaluate $ simplifyCasts tvnv e
              , exec_stack = S.push frame stck}]
         , ng)
     where
@@ -940,7 +941,7 @@ retCaseFrame s b e i t a stck =
 retCastFrame :: State t -> NameGen -> Expr -> Coercion -> S.Stack Frame -> (Rule, [State t], NameGen)
 retCastFrame s ng e c stck =
     ( RuleReturnCast
-    , [s { curr_expr = CurrExpr Return $ simplifyCasts $ Cast e c
+    , [s { curr_expr = CurrExpr Return $ simplifyCasts (tyvar_env s) $ Cast e c
          , exec_stack = stck}]
     , ng)
 
@@ -1170,19 +1171,24 @@ extractTypes kv (Id _ (TyApp (TyApp (TyApp (TyApp (TyCon n _) _) _) n1) n2)) =
             error "ExtractTypes: the center of the pattern is not a coercion")
 extractTypes _ _ = error "ExtractTypes: The type of the pattern doesn't have four nested TyApp while its corresponding scrutinee is a coercion"
 
-liftBinds :: TV.TyVarEnv -> KnownValues -> [(Id, Expr)] -> E.ExprEnv -> Expr -> NameGen ->
-             (E.ExprEnv, Expr, NameGen, [Name])
-liftBinds tv kv binds eenv expr ngen = (eenv', expr'', ngen', news)
-
+liftBinds :: KnownValues
+          -> [(Id, Expr)] -- ^ Type level variable mapping
+          -> [(Id, Expr)] -- ^ Value level variable mapping
+          -> TV.TyVarEnv
+          -> E.ExprEnv
+          -> Expr
+          -> NameGen
+          -> (TV.TyVarEnv, E.ExprEnv, Expr, NameGen)
+liftBinds kv type_binds value_binds tv_env eenv expr ngen = (tv_env', eenv', expr'', ngen'')
   where
     -- Converts type variables into corresponding types as determined by coercions
     -- For example, in 'E a b c' where 
     -- 'a ~# Int', 'b ~# Float', 'c ~# String'
     -- The code simply does the following:  
     -- 'E a b c' -> 'E Int Float String'
-    (coercion, value_args) = L.partition (\(_, e) -> case e of
+    (coercion, type_args) = L.partition (\(_, e) -> case e of
                                         Coercion _ -> True
-                                        _ -> False) binds
+                                        _ -> False) type_binds
     
     extract_tys = map (extractTypes kv . fst) coercion
 
@@ -1190,20 +1196,24 @@ liftBinds tv kv binds eenv expr ngen = (eenv', expr'', ngen', news)
     
     expr' = case uf_map of
             Nothing -> expr
-            Just uf_map' -> L.foldl' (\e (n,t) -> retype (Id n (typeOf tv t)) t e) expr (HM.toList $ UF.toSimpleMap uf_map')
+            Just uf_map' -> L.foldl' (\e (n,t) -> retype (Id n (typeOf tv_env t)) t e) expr (HM.toList $ UF.toSimpleMap uf_map')
     
-    -- bindsLHS is the pattern
-    -- bindsRHS is the scrutinee 
-    (bindsLHS, bindsRHS) = unzip value_args
-    
-    olds = map idName bindsLHS
-    (news, ngen') = freshSeededNames olds ngen
+    -- Handles type parameters. ty_bindsLHS is the pattern. ty_bindsRHS is the scrutinee.
+    (ty_bindsLHS, ty_bindsRHS) = unzip type_binds
+    ty_olds = map idName ty_bindsLHS
+    (ty_news, ngen') = freshSeededIds ty_bindsLHS ngen
+    ty_olds_news = HM.fromList $ zip ty_olds (map TyVar ty_news)
+    under_tyBindsRHS = map (fromMaybe (error "type not found") . TV.deepLookup tv_env) ty_bindsRHS
+    tv_env' = L.foldr (uncurry TV.insert) tv_env (zip (map idName ty_news) under_tyBindsRHS)
 
-    olds_news = HM.fromList $ zip olds news
+    -- Handles value parameters. val_bindsLHS is the pattern. val_bindsRHS is the scrutinee.
+    (val_bindsLHS, val_bindsRHS) = unzip value_binds
+    val_olds = map idName val_bindsLHS
+    (val_news, ngen'') = freshSeededNames val_olds ngen'
+    val_olds_news = HM.fromList $ zip val_olds val_news
+    eenv' = E.insertExprs (zip val_news val_bindsRHS) eenv
 
-    eenv' = E.insertExprs (zip news bindsRHS) eenv
-
-    expr'' = renamesExprs olds_news expr'
+    expr'' = renamesExprs val_olds_news $ replaceTyVars ty_olds_news expr'
 
 liftBind :: Id -> Expr -> E.ExprEnv -> Expr -> NameGen ->
              (E.ExprEnv, Expr, NameGen, Name)

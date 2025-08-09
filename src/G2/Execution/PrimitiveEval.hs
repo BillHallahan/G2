@@ -37,7 +37,7 @@ import G2.Language.ExprEnv (deepLookupVar)
 -- to share computed results.
 evalPrimsSharing :: ExprEnv -> TypeEnv -> TV.TyVarEnv -> KnownValues -> Expr -> (Expr, ExprEnv)
 evalPrimsSharing eenv tenv tv_env kv e =
-    let (_, e', eenv') = evalPrimsSharing' eenv tenv tv_env kv . simplifyCasts $ e in (e', eenv')
+    let (_, e', eenv') = evalPrimsSharing' eenv tenv tv_env kv . simplifyCasts tv_env $ e in (e', eenv')
 
 -- | Passed back in evalPrimsSharing' to indicate whether a new value has been computed,
 -- and thus indicate whether insertion into the `ExprEnv` is needed.
@@ -75,7 +75,7 @@ repeatedLookup eenv v@(Var (Id n _))
 repeatedLookup _ e = e
 
 evalPrims :: ASTContainer m Expr => ExprEnv -> TypeEnv -> TV.TyVarEnv -> KnownValues -> m -> m
-evalPrims eenv tenv tv_env kv = modifyContainedASTs (evalPrims' eenv tenv tv_env kv . simplifyCasts)
+evalPrims eenv tenv tv_env kv = modifyContainedASTs (evalPrims' eenv tenv tv_env kv . simplifyCasts tv_env)
 
 evalPrims' :: ExprEnv -> TypeEnv -> TV.TyVarEnv -> KnownValues -> Expr -> Expr
 evalPrims' eenv tenv tv_env kv a@(App x y) =

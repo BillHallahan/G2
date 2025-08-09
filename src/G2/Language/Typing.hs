@@ -44,6 +44,7 @@ module G2.Language.Typing
     , numArgs
 
     , replaceTyVar
+    , replaceTyVars
     , applyTypeMap
     , applyTypeHashMap
 
@@ -392,6 +393,13 @@ replaceTyVar n t = modifyASTs (replaceTyVar' n t)
 replaceTyVar' :: Name -> Type -> Type -> Type
 replaceTyVar' n t  (TyVar (Id n' _)) | n == n' = t
 replaceTyVar' _ _ t = t
+
+replaceTyVars :: ASTContainer e Type => HM.HashMap Name Type -> e -> e
+replaceTyVars m = modifyASTs (replaceTyVars' m)
+
+replaceTyVars' ::HM.HashMap Name Type -> Type -> Type
+replaceTyVars' m (TyVar (Id n _)) | Just t <- HM.lookup n m = t
+replaceTyVars' _ t = t
 
 applyTypeMap :: ASTContainer e Type => M.Map Name Type -> e -> e
 applyTypeMap m = modifyASTs (applyTypeMap' m)
