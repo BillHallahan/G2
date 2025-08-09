@@ -4,6 +4,7 @@ module UnionPoly (unionPolyTests) where
 
 import G2.Language
 import qualified G2.Language.ExprEnv as E
+import qualified G2.Language.TyVarEnv as TV
 import G2.Liquid.Inference.UnionPoly
 
 import qualified Data.Text as T
@@ -27,7 +28,7 @@ letTest =
         g = defName "g"
         eenv = letExprEnv f g
         
-        ut = sharedTyConsEE [f, g] eenv
+        ut = sharedTyConsEE TV.empty [f, g] eenv
     in
     case lookupUT g ut of
         Just (TyFun t1@(TyVar _) t2) -> t1 == t2 
@@ -65,7 +66,7 @@ lambdaTest1 =
         h = defName "h"
         eenv = lambdaExprEnv1 f g h
 
-        ut = sharedTyConsEE [f, g, h] eenv
+        ut = sharedTyConsEE TV.empty [f, g, h] eenv
     in
     case lookupUT h ut of
         Just (TyFun t1@(TyVar _) t2) -> t1 == t2 
@@ -101,7 +102,7 @@ lambdaTest2 =
         h = defName "h"
         eenv = lambdaExprEnv2 f g h
 
-        ut = sharedTyConsEE [f, g, h] eenv
+        ut = sharedTyConsEE TV.empty [f, g, h] eenv
     in
     case lookupUT h ut of
         Just (TyFun t1@(TyVar _) t2) -> t1 == t2 

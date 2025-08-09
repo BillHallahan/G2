@@ -131,7 +131,6 @@ import Language.Haskell.Liquid.Types (GhcInfo)
 
 import Language.Haskell.Liquid.Constraint.Types
 import Language.Fixpoint.Types.Constraints
-
 import Data.Monoid ((<>))
 
 -- LiquidHaskell renamed these types.
@@ -434,6 +433,8 @@ instance ExprEnvM (LHState, L.Bindings) LHStateM where
 instance ExState (LHState, L.Bindings) LHStateM where
     typeEnv = readRecord $ type_env . fst
     putTypeEnv = rep_type_envM
+
+    tyVarEnv = readRecord $ L.tyvar_env . state . fst
 
     knownValues = readRecord $ known_values . fst
     putKnownValues = rep_known_valuesM

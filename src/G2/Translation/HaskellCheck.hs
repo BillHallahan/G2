@@ -29,6 +29,7 @@ import qualified Data.HashMap.Lazy as H
 import G2.Initialization.MkCurrExpr
 import G2.Interface.ExecRes as I
 import G2.Language
+import qualified G2.Language.TyVarEnv as TV
 import G2.Translation.Haskell
 import G2.Translation.Interface
 import G2.Translation.TransTypes
@@ -42,6 +43,7 @@ import System.Process
 import System.Timeout
 
 import Control.Monad.IO.Class
+import Debug.Trace
 
 import Debug.Trace
 
@@ -74,9 +76,10 @@ creatDeclStr pg s (x, DataTyCon{data_cons = dcs, bound_ids = is}) =
         x' = T.unpack $ printName pg x
         ids' = T.unpack . T.intercalate " " $ map (printHaskellPG pg s . Var) is
         wrapParens str = "(" <> str <> ")" 
-        dc_decls = map (\dc -> printHaskellPG pg s (Data dc) <> " " <> T.intercalate " " (map (wrapParens . mkTypeHaskellPG pg) (argumentTypes dc))) dcs
+        -- TODO: Is the update I make here due to the changing signature of hasFuncType(i.e Typed to Type) correct?
+        dc_decls = map (\dc -> printHaskellPG pg s (Data dc) <> " " <> T.intercalate " " (map (wrapParens . mkTypeHaskellPG pg) (argumentTypes (typeOf (tyvar_env s) dc)))) dcs
         all_dc_decls = T.unpack $ T.intercalate " | " dc_decls
-        derive_eq = if not (any isTyFun $ concatMap argumentTypes dcs) then " deriving Eq" else ""
+        derive_eq = if not (any isTyFun $ concatMap (argumentTypes . typeOf (tyvar_env s) ) dcs) then " deriving Eq" else ""
     in
     "data " ++ x' ++ " " ++ ids'++ " = " ++ all_dc_decls ++ derive_eq
 creatDeclStr _ _ _ = error "creatDeclStr: unsupported AlgDataTy"
@@ -89,6 +92,7 @@ validateStatesGHC pg modN entry chAll chAny b er@(ExecRes {final_state = s, conc
     v' <- liftIO . timeout (5 * 10 * 1000) $ (unsafeCoerce v :: IO (Either SomeException Bool))
     let outStr = T.unpack $ printHaskell s out
     let v'' = case v' of
+
                     Nothing -> Nothing
                     Just (Left e) | show e == "<<timeout>>" -> Nothing
                                   | otherwise -> Just (outStr == "error" || outStr == "undefined" || outStr == "?")
@@ -119,23 +123,25 @@ adjustDynFlags = do
 
 runCheck :: PrettyGuide -> Maybe T.Text -> String -> [String] -> [String] -> Bindings -> ExecRes t -> Ghc (HValue, [HValue], [HValue])
 runCheck init_pg modN entry chAll chAny b er@(ExecRes {final_state = s, conc_args = ars, conc_out = out}) = do
-    let Left (v, _) = findFunc (T.pack entry) [modN] (expr_env s)
+    let Left (v, _) = findFunc (tyvar_env s) (T.pack entry) [modN] (expr_env s)
     let e = mkApp $ Var v:ars
     let pg = updatePGValAndTypeNames e
            . updatePGValAndTypeNames out
            $ updatePGValAndTypeNames (varIds v) init_pg
-    -- let arsStr = T.unpack $ printHaskellPG pg s e
-    -- let outStr = T.unpack $ printHaskellPG pg s out
+
     let (mvTxt, arsTxt, outTxt, _) = printInputOutput pg v b er 
         mvStr = T.unpack mvTxt
         arsStr = T.unpack arsTxt
         outStr = T.unpack outTxt
+    -- before the typeOf in the next line , we want to retype the type variable in the expression 
+    -- with the corresponding type find in the tyvar_env 
+    -- use tyVarRename and change the map into TyVarEnv 
 
-    let arsType = T.unpack $ mkTypeHaskellPG pg (typeOf e)
-        outType = T.unpack $ mkTypeHaskellPG pg (typeOf out)
+    let arsType = T.unpack $ mkTypeHaskellPG pg (typeOf (tyvar_env s) e)
+        outType = T.unpack $ mkTypeHaskellPG pg (typeOf (tyvar_env s) out)
 
     -- If we are returning a primitive type (Int#, Float#, etc.) wrap in a constructor so that `==` works
-    let pr_con = case typeOf out of
+    let pr_con = case typeOf (tyvar_env s) out of
                         TyLitInt -> "I# "
                         TyLitDouble -> "D# "
                         TyLitFloat -> "F# "
@@ -147,6 +153,7 @@ runCheck init_pg modN entry chAll chAny b er@(ExecRes {final_state = s, conc_arg
                                         ++ outStr ++ " :: " ++ outType ++ ")" ++ ")) :: IO (Either SomeException Bool)"
                     True -> mvStr ++ "Control.Exception.try (evaluate ( (" ++ pr_con ++ "(" ++ arsStr ++ " :: " ++ arsType ++ ")" ++
                                                     ") == " ++ pr_con ++ "(" ++ arsStr ++ "))) :: IO (Either SomeException Bool)"
+    liftIO $ putStrLn chck    
     v' <- compileExpr chck
 
     let chArgs = ars ++ [out] 

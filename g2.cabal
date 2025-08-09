@@ -119,6 +119,7 @@ library
                        , G2.Language.TypeClasses.TypeClasses
                        , G2.Language.TypeEnv
                        , G2.Language.Typing
+                       , G2.Language.TyVarEnv
 
                        , G2.Lib.Printers
 

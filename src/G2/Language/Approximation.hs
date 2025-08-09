@@ -137,7 +137,7 @@ moreRestrictive' :: MRCont t l -- ^ For special case handling - what to do if we
                  -> Expr
                  -> Expr
                  -> Either [l] (HM.HashMap Id Expr, HS.HashSet (Expr, Expr))
-moreRestrictive' mr_cont gen_lemma lkp s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) ns hm active n1 n2 e1 e2 =
+moreRestrictive' mr_cont gen_lemma lkp s1@(State {expr_env = h1, tyvar_env = tv1}) s2@(State {expr_env = h2, tyvar_env = tv2}) ns hm active n1 n2 e1 e2 =
   case (e1, e2) of
     (Var i, _) | m <- idName i
                , not $ HS.member m ns
@@ -173,8 +173,8 @@ moreRestrictive' mr_cont gen_lemma lkp s1@(State {expr_env = h1}) s2@(State {exp
     (App f1 a1, App f2 a2) | Right hm_fa <- moreResFA -> Right hm_fa
                            -- don't just choose the minimal conflicting expressions
                            -- collect all suitable pairs for potential lemmas
-                           | not (hasFuncType e1)
-                           , not (hasFuncType e2)
+                           | not (hasFuncType (typeOf tv1 e1) )
+                           , not (hasFuncType (typeOf tv2 e2) )
                            , not active
                            , Var (Id m1 _):_ <- unApp (stripAllTicks e1)
                            , Var (Id m2 _):_ <- unApp (stripAllTicks e2)
@@ -194,15 +194,15 @@ moreRestrictive' mr_cont gen_lemma lkp s1@(State {expr_env = h1}) s2@(State {exp
     -- we DO NOT want any top level names being preserved- these would just confuse the SMT solver.
     (App _ _, _) | e1':_ <- unApp e1
                  , (Prim _ _) <- inlineEquiv lkp s1 HS.empty e1'
-                 , T.isPrimType $ typeOf e1
-                 , T.isPrimType $ typeOf e2
+                 , T.isPrimType $ typeOf tv1 e1
+                 , T.isPrimType $ typeOf tv1 e2
                  , isSWHNF $ (s2 { curr_expr = CurrExpr Evaluate e2 }) ->
                                   let (hm', hs) = hm
                                   in Right (hm', HS.insert (inlineEquiv lkp s1 HS.empty e1, inlineEquiv lkp s2 HS.empty e2) hs)
     (_, App _ _) | e2':_ <- unApp e2
                  , (Prim _ _) <- inlineEquiv lkp s2 HS.empty e2'
-                 , T.isPrimType $ typeOf e2
-                 , T.isPrimType $ typeOf e1
+                 , T.isPrimType $ typeOf tv2 e2
+                 , T.isPrimType $ typeOf tv1 e1
                  , isSWHNF $ (s1 { curr_expr = CurrExpr Evaluate e1 }) ->
                                   let (hm', hs) = hm
                                   in Right (hm', HS.insert (inlineEquiv lkp s1 HS.empty e1, inlineEquiv lkp s2 HS.empty e2) hs)
@@ -434,7 +434,7 @@ moreRestrictivePC solver s1@(State { known_values = kv }) s2 sym_var_map expr_pa
       -- Link up variables/expressions between the states, i.e. assert equality
       -- of some variable from state 1 with some expression in state 2
       l' = map (\(e1, e2) ->
-                  if T.isPrimType (typeOf e1) && T.isPrimType (typeOf e2)
+                  if T.isPrimType (typeOf (tyvar_env s1) e1) && T.isPrimType (typeOf (tyvar_env s2) e2)
                   then Just $ App (App (Prim Eq TyUnknown) (rename_old e1)) e2
                   else Nothing) (l ++ HS.toList expr_pairs)
       l'' = catMaybes l'

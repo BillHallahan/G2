@@ -7,7 +7,7 @@ import G2.Language.KnownValues
 import G2.Language.Syntax
 import G2.Language.TypeClasses
 import G2.Language.TypeEnv
-import G2.Language.Typing (PresType (..), tyAppCenter, returnType)
+import G2.Language.Typing (tyAppCenter, returnType)
 
 import Data.List
 import qualified Data.HashMap.Lazy as HM
@@ -164,7 +164,7 @@ superClassExtractor tc tc_n sc_n =
     where
         extractsSC (t, _) =
             let
-                t_c = tyAppCenter . returnType . PresType $ t
+                t_c = tyAppCenter $ returnType t
             in
             case t_c of
                 TyCon n _ -> n == sc_n

@@ -20,6 +20,7 @@ import Language.Haskell.Liquid.Types as LH hiding (measures)
 import qualified Language.Fixpoint.Types.Config as FP
 
 import qualified Data.Text as T
+import qualified G2.Language.TyVarEnv as TV 
 
 initStateAndConfig :: ExtractedG2 -> [Maybe T.Text] -> G2.Config -> LHConfig -> InferenceConfig -> [GhcInfo]
                    -> (LiquidReadyState, G2.Config, LHConfig, InferenceConfig)
@@ -39,11 +40,11 @@ createStateForInference :: SimpleState -> [Maybe T.Text] -> G2.Config -> LHConfi
 createStateForInference simp_s main_mod config lhconfig ghci =
     let
         (simp_s', ph_tyvars) = if add_tyvars lhconfig
-                                then fmap Just $ addTyVarsEEnvTEnv simp_s
+                                then fmap Just $ addTyVarsEEnvTEnv TV.empty simp_s
                                 else (simp_s, Nothing)
         (s, b) = initStateFromSimpleState simp_s' main_mod True 
                     noStartFuncMkCurrExpr
-                    (E.higherOrderExprs . IT.expr_env)
+                    ( (E.higherOrderExprs TV.empty) . IT.expr_env)
                     config
     in
     createLiquidReadyState s b ghci ph_tyvars lhconfig

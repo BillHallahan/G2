@@ -15,13 +15,14 @@ module G2.Liquid.AddOrdToNum (addOrdToNum) where
 import G2.Language
 import G2.Language.Monad
 import G2.Liquid.Types
+import qualified G2.Language.TyVarEnv as TV 
 
 -- | Adds an extra field to the Num dict, which contains the Ord
 -- dict for the corresponding type.  Updates all other code accordingly.
 -- Of course, there might be types that have a Num instance, but no Ord
 -- instance.  These types dicts have the field filled in with Prim Undefined
-addOrdToNum :: LHStateM ()
-addOrdToNum = do
+addOrdToNum :: TV.TyVarEnv -> LHStateM ()
+addOrdToNum tv = do
     tc <- typeClasses
     lh_tc <- lhRenamedTCM
     num <- numTCM
@@ -40,14 +41,14 @@ addOrdToNum = do
     mapMeasuresM addOrdToNumCase
 
     -- Rewrite the types of Num DataCons
-    mapME changeNumType
-    mapMeasuresM changeNumType
+    mapME (changeNumType tv)
+    mapMeasuresM (changeNumType tv)
 
     -- Update Type Environment
     changeNumTypeEnv
 
     -- Create a function to extract the Ord Dict
-    ordDictFunc
+    ordDictFunc tv
 
 addOrdToNumDictDec :: (Name -> LHStateM (Maybe Expr))
                    -> (Name -> Expr -> LHStateM ())
@@ -88,22 +89,22 @@ addOrdToNumCase' ce@(Case e i@(Id _ t) ct a@[Alt (DataAlt dc is) ae])
     | otherwise = return ce
 addOrdToNumCase' e = return e
 
-changeNumType :: Expr -> LHStateM Expr
-changeNumType e = do
+changeNumType :: TV.TyVarEnv -> Expr -> LHStateM Expr
+changeNumType tv e = do
     num <- numTCM
-    modifyASTsM (changeNumType' num) e
+    modifyASTsM (changeNumType' tv num) e
 
-changeNumType' :: Name -> Expr -> LHStateM Expr
-changeNumType' num d@(Data dc)
-    | (TyCon n _) <- tyAppCenter $ returnType dc
+changeNumType' :: TV.TyVarEnv -> Name -> Expr -> LHStateM Expr
+changeNumType' tv num d@(Data dc)
+    | (TyCon n _) <- tyAppCenter $ returnType (typeOf tv dc)
     , num == n = return . Data =<< changeNumTypeDC dc
     | otherwise = return d
-changeNumType' num ce@(Case e i@(Id n _) ct [Alt (DataAlt dc is) ae])
+changeNumType' _ num ce@(Case e i@(Id n _) ct [Alt (DataAlt dc is) ae])
     | num == n = do
         dc' <- changeNumTypeDC dc
         return (Case e i ct [Alt (DataAlt dc' is) ae])
     | otherwise = return ce
-changeNumType' _ e = return e
+changeNumType' _ _ e = return e
 
 changeNumTypeDC :: DataCon -> LHStateM DataCon
 changeNumTypeDC (DataCon n t u e) = do
@@ -135,8 +136,8 @@ changeNumTypeEnv = do
 
 -- Must be called after updating the TypeEnv, with changeNumTypeEnv, so that
 -- the Num DataCon has it's correct type
-ordDictFunc :: LHStateM ()
-ordDictFunc = do
+ordDictFunc :: TV.TyVarEnv -> LHStateM ()
+ordDictFunc tv = do
     num <- numTCM
     let numT = TyCon num TYPE
 
@@ -145,7 +146,7 @@ ordDictFunc = do
                     Just ndc -> dataCon ndc
                     Nothing -> error "ordDictFunc: No NumDC"
 
-    let numA = anonArgumentTypes numDC'
+    let numA = anonArgumentTypes (typeOf tv numDC')
 
     lamI <- freshIdN numT
     caseI <- freshIdN numT
@@ -153,7 +154,7 @@ ordDictFunc = do
     binds <- freshIdsN numA
     let cOrdBIs = last binds
 
-    let e = Lam TermL lamI $ Case (Var lamI) caseI (typeOf cOrdBIs) [Alt (DataAlt numDC' binds) (Var cOrdBIs)]
+    let e = Lam TermL lamI $ Case (Var lamI) caseI (typeOf tv cOrdBIs) [Alt (DataAlt numDC' binds) (Var cOrdBIs)]
 
     (Id n _) <- lhNumOrdM
     insertE n e

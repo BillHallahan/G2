@@ -135,13 +135,13 @@ data FloatSimplifier = FloatSimplifier
 instance Simplifier FloatSimplifier where
     -- Ints between -2^24 and 2^24 can be precisely represented as Floats.
     -- Ints between -2^53 and 2^53 can be precisely represented as Doubles.
-    simplifyPC _ (State { known_values = kv })
+    simplifyPC _ (State { known_values = kv, tyvar_env = tv })
                    (ExtCond (App (App (Prim FpEq _) (App (Prim IntToFloat _) v)) (Lit (LitFloat f))) b) | abs f <= 2 ^ (24 :: Integer) =
-                        [ExtCond (mkEqExpr kv v (Lit (LitInt . toInteger $ fromEnum f))) b]
+                        [ExtCond (mkEqExpr tv kv v (Lit (LitInt . toInteger $ fromEnum f))) b]
 
-    simplifyPC _ (State { known_values = kv })
+    simplifyPC _ (State { known_values = kv, tyvar_env = tv })
                    (ExtCond (App (App (Prim FpEq _) (App (Prim IntToDouble _) v)) (Lit (LitDouble d))) b) | abs d <= 2 ^ (53 :: Integer) =
-                        [ExtCond (mkEqExpr kv v (Lit (LitInt . toInteger $ fromEnum d))) b]
+                        [ExtCond (mkEqExpr tv kv v (Lit (LitInt . toInteger $ fromEnum d))) b]
 
     simplifyPC _ _ pc = [pc]
 
@@ -210,9 +210,9 @@ data CharConc = CharConc
 instance Simplifier CharConc where
     simplifyPC _ _ pc = [pc]
 
-    simplifyPCWithExprEnv _ s@(State { known_values = kv, type_env = tenv }) ng eenv pc =
+    simplifyPCWithExprEnv _ s@(State { known_values = kv, type_env = tenv, tyvar_env = tv_env }) ng eenv pc =
         let
-            cs = map idName . filter (\(Id _ t) -> t == T.tyChar kv) $ varIds pc
+            cs = map idName . filter (\(Id _ t) -> tyVarSubst tv_env t == T.tyChar kv) $ varIds pc
             (cs', ng') = renameAll cs ng
             conc_c = zip cs $ map (flip Id TyLitChar) cs'
             eenv' = foldr (\(nC, nL) -> E.insert nC (concChar nL) . E.insertSymbolic nL) eenv conc_c

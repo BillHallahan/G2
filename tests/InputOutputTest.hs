@@ -22,7 +22,7 @@ import Data.Maybe
 import qualified Data.Text as T
 import System.FilePath
 import System.IO.Unsafe
-
+import qualified G2.Language.TyVarEnv as TV
 import G2.Config
 import G2.Initialization.MkCurrExpr
 import G2.Interface
@@ -130,7 +130,7 @@ checkInputOutput'' :: [FilePath]
                    -> IO ([Bool], Bool, Bool, [ExecRes ()], Bindings)
 checkInputOutput'' src exg2 mb_modname config (entry, stps, req) = do
     let config' = config { steps = stps }
-        (entry_f, init_state, bindings) = initStateWithCall exg2 False (T.pack entry) mb_modname (mkCurrExpr Nothing Nothing) mkArgTys config'
+        (entry_f, init_state, bindings) = initStateWithCall exg2 False (T.pack entry) mb_modname (mkCurrExpr TV.empty Nothing Nothing) (mkArgTys TV.empty) config'
     
     (r, b, _) <- runG2WithConfig (idName entry_f) mb_modname init_state config' bindings
 

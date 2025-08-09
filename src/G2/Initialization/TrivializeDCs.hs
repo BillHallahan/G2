@@ -3,6 +3,7 @@ module G2.Initialization.TrivializeDCs where
 import G2.Data.Utils
 import G2.Language
 import qualified G2.Language.ExprEnv as E
+import qualified G2.Language.TyVarEnv as TV
 import G2.Language.KnownValues
 import G2.Language.Monad
 import G2.Data.Utils
@@ -40,12 +41,12 @@ import Data.Traversable
 -- | Ensure that all non-trivial arguments to list cons data constructors
 -- are wrapped in arguments.
 -- See note [Cons DC]
-trivializeDCs :: NameGen -> KnownValues -> ExprEnv -> (ExprEnv, NameGen)
-trivializeDCs ng kv eenv =
-    runNamingM (trivializeDCs' kv eenv) ng
+trivializeDCs :: TV.TyVarEnv -> NameGen -> KnownValues -> ExprEnv -> (ExprEnv, NameGen)
+trivializeDCs tv ng kv eenv =
+    runNamingM (trivializeDCs' tv kv eenv) ng
 
-trivializeDCs' :: KnownValues -> ExprEnv -> NameGenM ExprEnv
-trivializeDCs' kv = E.mapM (modifyM go)
+trivializeDCs' :: TV.TyVarEnv -> KnownValues -> ExprEnv -> NameGenM ExprEnv
+trivializeDCs' tv kv = E.mapM (modifyM go)
     where
         go a@(App _ _)
             | (d@(Data (DataCon { dc_name = dcn}))):es <- unApp a
@@ -55,7 +56,7 @@ trivializeDCs' kv = E.mapM (modifyM go)
                         if isSimple e
                             then return (nbs, e)
                             else do
-                                fr <- freshIdN (typeOf e)
+                                fr <- freshIdN (typeOf tv e)
                                 return ((fr, e):nbs, Var fr)) [] es
                 case new_binds of
                     [] -> return a

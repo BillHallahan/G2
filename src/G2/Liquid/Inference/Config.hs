@@ -69,7 +69,7 @@ import qualified Data.Text as T
 import Data.Time.Clock
 import Options.Applicative
 import System.Directory
-
+import qualified G2.Language.TyVarEnv as TV 
 
 -------------------------------
 -- Progresser
@@ -443,9 +443,9 @@ hasMod = LH.foldRType (\b rtype -> b || chRty rtype) False
         chExpr _ = False
 
 adjustConfigPostLH :: [Maybe T.Text] -> Measures -> TCValues -> S.State t -> [GhcInfo] -> LHConfig -> LHConfig
-adjustConfigPostLH main_mod meas tcv (S.State { S.expr_env = eenv, S.known_values = kv }) ghci lhconfig =
+adjustConfigPostLH main_mod meas tcv (S.State { S.expr_env = eenv, S.known_values = kv, S.tyvar_env = tv }) ghci lhconfig =
     let
-        ref = refinable main_mod meas tcv ghci kv eenv
+        ref = refinable main_mod meas tcv ghci kv eenv tv
         
         ns_mm = map (\(Name n m _ _) -> (n, m))
               . filter (\(Name n m _ _) -> (n, m) `elem` ref)
@@ -454,30 +454,30 @@ adjustConfigPostLH main_mod meas tcv (S.State { S.expr_env = eenv, S.known_value
     in
     lhconfig { counterfactual = Counterfactual . CFOnly $ S.fromList ns_mm }
 
-refinable :: [Maybe T.Text] -> Measures -> TCValues -> [GhcInfo] -> S.KnownValues -> ExprEnv -> [(T.Text, Maybe T.Text)]
-refinable main_mod meas tcv ghci kv eenv = 
+refinable :: [Maybe T.Text] -> Measures -> TCValues -> [GhcInfo] -> S.KnownValues -> ExprEnv -> TV.TyVarEnv -> [(T.Text, Maybe T.Text)]
+refinable main_mod meas tcv ghci kv eenv tv = 
     let
         ns_mm = E.keys
-              . E.filter (\e -> not (tyVarNoMeas meas tcv ghci e) || isPrimRetTy kv e)
-              . E.filter (not . tyVarRetTy)
+              . E.filter (\e -> not (tyVarNoMeas tv meas tcv ghci e) || isPrimRetTy tv kv e)
+              . E.filter (not . (tyVarRetTy tv)) 
               $ E.filterWithKey (\(Name _ m _ _) _ -> m `elem` main_mod) eenv
         ns_mm' = map (\(Name n m _ _) -> (n, m)) ns_mm
     in
     ns_mm'
 
-isPrimRetTy :: S.KnownValues -> Expr -> Bool
-isPrimRetTy kv e =
+isPrimRetTy :: TV.TyVarEnv -> S.KnownValues -> Expr -> Bool
+isPrimRetTy tv kv e =
     let
-        rel_t = extractValues . extractTypePolyBound $ returnType e
+        rel_t = extractValues . extractTypePolyBound $ returnType $ typeOf tv e
     in
     any (\t -> t == tyInt kv || t == tyBool kv) rel_t
 
-tyVarNoMeas :: Measures -> TCValues -> [GhcInfo] -> Expr -> Bool
-tyVarNoMeas meas tcv ghci e =
+tyVarNoMeas :: TV.TyVarEnv -> Measures -> TCValues -> [GhcInfo] -> Expr -> Bool
+tyVarNoMeas tv meas tcv ghci e =
     let
-        rel_t = extractValues . extractTypePolyBound $ returnType e
+        rel_t = extractValues . extractTypePolyBound $ returnType $ typeOf tv e
         rel_meas = E.filter (\e -> 
-                            case filter notLH . argumentTypes . PresType . inTyForAlls $ typeOf e of
+                            case filter notLH . argumentTypes . inTyForAlls $ typeOf tv e of
                                   [t] -> any (\t' -> isJust $ t' `specializes` t) rel_t
                                   _ -> False ) meas'
     in
@@ -491,9 +491,9 @@ tyVarNoMeas meas tcv ghci e =
             | TyCon n _ <- tyAppCenter t = n /= lhTC tcv
             | otherwise = False
 
-tyVarRetTy :: Expr -> Bool
-tyVarRetTy e =
-    case returnType e of
+tyVarRetTy :: TV.TyVarEnv -> Expr -> Bool
+tyVarRetTy tv e =
+    case returnType $ typeOf tv e of
         TyVar _ -> True
         _ -> False
 

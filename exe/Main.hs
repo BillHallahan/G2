@@ -23,7 +23,7 @@ import G2.Config
 import G2.Interface
 import G2.Language
 import G2.Translation
-
+import Debug.Trace
 main :: IO ()
 main = do
   as <- getArgs

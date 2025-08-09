@@ -30,7 +30,7 @@ data Rule = RuleEvalVal
 
           | RuleEvalLet [Name]
 
-          | RuleEvalCaseData [Name]
+          | RuleEvalCaseData
           | RuleEvalCaseLit
           | RuleEvalCaseDefault
           | RuleEvalCaseSym
