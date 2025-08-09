@@ -729,8 +729,11 @@ prettyDCWithType tv pg dc = mkDataConHaskell pg dc <> " :: " <> mkTypeHaskellPG 
 
 prettyTypeVarEnv :: PrettyGuide -> TV.TyVarEnv -> T.Text
 prettyTypeVarEnv pg = T.intercalate "\n"
-                    . map (\(n, t) -> mkNameHaskell pg n <> " -> " <> mkTypeHaskellPG pg t)
-                    . TV.toList
+                    . map (\(n, t) -> mkNameHaskell pg n <> " -> " <> prettyTyConcOrSym t)
+                    . TV.toListConcOrSym
+    where
+        prettyTyConcOrSym (TV.TyConc t) = mkTypeHaskellPG pg t
+        prettyTyConcOrSym (TV.TySym i) = "symbolic " <> mkIdHaskell pg i
 
 prettyTypeClasses :: PrettyGuide -> TypeClasses -> T.Text
 prettyTypeClasses pg = T.intercalate "\n" . map (\(n, tc) -> mkNameHaskell pg n <> " = " <> prettyClass pg tc) . HM.toList . toMap
