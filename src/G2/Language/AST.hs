@@ -366,16 +366,6 @@ instance ASTContainer RewriteRule Type where
            , ru_rhs = modifyContainedASTs f s
            }
 
--- instance (Foldable f, Functor f, ASTContainer c t) => ASTContainer (f c) t where
---     containedASTs = foldMap (containedASTs)
-
---     modifyContainedASTs f = fmap (modifyContainedASTs f)
--- instance ASTContainer TV.TyVarEnv t => ASTContainer TV.TyVarEnv t where
-
---     containedASTs = containedASTs . toList
-
---     modifyContainedASTs f = fmap (modifyContainedASTs f)
-
 instance ASTContainer c t => ASTContainer [c] t where
     containedASTs = foldMap containedASTs
 
@@ -509,16 +499,22 @@ instance ASTContainer AlgDataTy DataCon where
     modifyContainedASTs f (NewTyCon ns dc rt adts) = NewTyCon ns (modifyContainedASTs f dc) rt adts
     modifyContainedASTs _ st@(TypeSynonym _ _ _) = st
 
--- TODO: determine whether the implementation of ASTContainer for TyVarEnv is correct
+instance ASTContainer TV.TyConcOrSym Type where
+    containedASTs (TV.TyConc t) = [t]
+    containedASTs (TV.TySym (Id _ t)) = [t]
+    
+    modifyContainedASTs f (TV.TyConc t) = TV.TyConc (f t)
+    modifyContainedASTs f (TV.TySym (Id n t)) = TV.TySym (Id n (f t))
+
 instance ASTContainer TV.TyVarEnv Type where
     containedASTs = containedASTs . TV.toList
     
-    modifyContainedASTs f c = TV.fromList (modifyContainedASTs f (TV.toList c) )
+    modifyContainedASTs f c = TV.fromListConcOrSym (modifyContainedASTs f (TV.toListConcOrSym c) )
 
 instance ASTContainer TV.TyVarEnv Expr where
-    containedASTs = containedASTs . TV.toList
+    containedASTs _ = []
     
-    modifyContainedASTs f c = TV.fromList (modifyContainedASTs f (TV.toList c) )
+    modifyContainedASTs _ = id
 
 
 

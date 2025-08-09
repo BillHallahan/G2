@@ -107,7 +107,7 @@ checkConstraints = checkSat
 
 -- | Checks if the constraints are satisfiable, and returns a model if they are
 checkModelPC :: SMTConverter con => ArbValueFunc -> con -> State t -> Bindings -> [Id] -> PathConds -> IO (Result Model () ())
-checkModelPC avf con s b is pc = return . liftCasts =<< checkModel' avf con s b is pc
+checkModelPC avf con s b is pc = return . liftCasts (tyvar_env s) =<< checkModel' avf con s b is pc
 
 -- | We split based on whether we are evaluating a ADT or a literal.
 -- ADTs can be solved using our efficient addADTs, while literals require

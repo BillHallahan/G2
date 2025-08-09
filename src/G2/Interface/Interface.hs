@@ -177,14 +177,15 @@ initStateFromSimpleState s m_mod useAssert mkCurr argTys config =
         tc' = IT.type_classes s'
         CurrExprRes { ce_expr = ce
                     , fixed_in = f_i
-                    , symbolic_ids = is
+                    , symbolic_type_ids = typ_is
+                    , symbolic_value_ids = val_is
                     , in_coercion = m_coercion
                     , mkce_namegen = ng'' } = mkCurr tc' ng' eenv' tenv' kv' config
     in
     (State {
-      expr_env = foldr E.insertSymbolic eenv' is
+      expr_env = foldr E.insertSymbolic eenv' val_is
     , type_env = tenv'
-    , tyvar_env = TV.empty
+    , tyvar_env = foldr TV.insertSymbolic TV.empty typ_is
     , curr_expr = CurrExpr Evaluate ce
     , path_conds = PC.fromList []
     , non_red_path_conds = emptyNRPC
@@ -209,7 +210,7 @@ initStateFromSimpleState s m_mod useAssert mkCurr argTys config =
       fixed_inputs = f_i
     , arb_value_gen = arbValueInit
     , cleaned_names = HM.empty
-    , input_names = map idName is
+    , input_names = map idName $ typ_is ++ val_is
     , input_coercion = m_coercion
     , higher_order_inst = S.filter (\n -> nameModule n `elem` m_mod) . S.fromList $ IT.exports s
     , rewrite_rules = IT.rewrite_rules s
@@ -480,7 +481,8 @@ noStartFuncMkCurrExpr _ ng _ _ _ _ =
     CurrExprRes
         { ce_expr = Prim Undefined TyBottom
         , fixed_in = []
-        , symbolic_ids = []
+        , symbolic_type_ids = []
+        , symbolic_value_ids = []
         , in_coercion = Nothing
         , mkce_namegen = ng }
 
@@ -506,8 +508,7 @@ initialStateFromFile proj src m_reach def_assert f mkCurr argTys transConfig con
 
         (init_s, bindings) = initStateFromSimpleState simp_state mb_modname def_assert
                                                   (mkCurr ie) (argTys fe) config
-    -- let (init_s, ent_f, bindings) = initState exg2 def_assert
-    --                                 f mb_modname mkCurr argTys config
+    
         reaches_state = initCheckReaches init_s spec_mod m_reach
 
     return (reaches_state, ie, bindings, mb_modname)
