@@ -371,7 +371,7 @@ processLiquidReadyStateWithCall lrs@(LiquidReadyState { lr_state = lhs@(LHState 
 
         lrs' = lrs { lr_state = lhs'''
                    , lr_binding = bindings' { fixed_inputs = f_i
-                                            , input_names = map idName is
+                                            , input_names = map idName $ ty_is ++ val_is
                                             , input_coercion = m_c
                                             }
                    }
