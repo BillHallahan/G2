@@ -30,6 +30,41 @@ eval (Add x y)     = eval x + eval y
 eval (IsZero x)    = eval x == 0
 eval (If cond t e) = if eval cond then eval t else eval e
 
+exampleConditional :: Expr Int
+exampleConditional = If (IsZero (Lit 0)) (Lit 42) (Lit 0)
+
+evalEC :: Int
+evalEC = eval exampleConditional
+
+exampleExpr1 :: Expr Int
+exampleExpr1 = Add (Lit 5) (Lit 3) -- 5 + 3
+
+evalExpr1 :: Int 
+evalExpr1 = eval exampleExpr1
+
+exampleExpr2 :: Expr Bool
+exampleExpr2 = IsZero (Add (Lit 2) (Lit (-2))) -- 2 + (-2) == 0
+
+evalExpr2 :: Bool
+evalExpr2 = eval exampleExpr2
+
+exampleExpr3 :: Expr Int
+exampleExpr3 = If (IsZero (Lit 0)) (Lit 10) (Lit 20) -- if 0 == 0 then 10 else 20
+
+evalExpr3 ::  Int 
+evalExpr3 = eval exampleExpr3
+
+exampleExpr4 :: Expr Int
+exampleExpr4 = If (IsZero (Lit 1)) (Lit 10) (Lit 20) -- if 1 == 0 then 10 else 20
+
+evalExpr4 :: Int
+evalExpr4 = eval exampleExpr4
+
+exampleExpr5 :: Expr Bool
+exampleExpr5 = IsZero (If (IsZero (Lit 0)) (Lit 0) (Lit 1)) -- isZero (if 0 == 0 then 0 else 1)
+
+evalExpr5 :: Bool
+evalExpr5 = eval exampleExpr5
 
 data Peano = Succ Peano | Zero 
 
