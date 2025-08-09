@@ -88,6 +88,7 @@ import qualified Data.Text.IO as TI
 import G2.Language.Monad
 import G2.Language.Support (Bindings(input_coercion))
 import qualified G2.Language.TyVarEnv as TV
+import G2.Initialization.MkCurrExpr (CurrExprRes(symbolic_type_ids))
 
 data LHReturn = LHReturn { calledFunc :: FuncInfo
                          , violating :: Maybe FuncInfo
@@ -354,12 +355,14 @@ processLiquidReadyStateWithCall lrs@(LiquidReadyState { lr_state = lhs@(LHState 
 
         CurrExprRes { ce_expr = ce
                     , fixed_in = f_i
-                    , symbolic_ids = is
+                    , symbolic_value_ids = val_is
+                    , symbolic_type_ids = ty_is
                     , in_coercion = m_c
                     , mkce_namegen = ng' } = mkCurrExpr (tyvar_env s) Nothing Nothing ie (type_classes s) (name_gen bindings)
                                       (expr_env s) (type_env s) (known_values s) config
 
-        lhs' = lhs { state = s { expr_env = foldr E.insertSymbolic (expr_env s) is
+        lhs' = lhs { state = s { expr_env = foldr E.insertSymbolic (expr_env s) val_is
+                               , tyvar_env = foldr TV.insertSymbolic (tyvar_env s) ty_is
                                , curr_expr = CurrExpr Evaluate ce }
                    }
         (lhs'', bindings') = execLHStateM addLHTCCurrExpr lhs' (bindings { name_gen = ng' })
