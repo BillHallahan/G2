@@ -9,8 +9,6 @@ import qualified G2.Language.Expr as X
 
 import Data.List
 
-import Debug.Trace
-
 initWithRHS :: State t -> Bindings -> RewriteRule -> (State t, Bindings)
 initWithRHS s b r =
   let
