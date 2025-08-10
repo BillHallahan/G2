@@ -535,6 +535,7 @@ exprDepth tv h h' ns n e = case e of
         | m <- idName i
         , not $ m `elem` ns
         , Just e' <- lookupBoth m h h' -> exprDepth tv h h' ns (m:n) e'
+        | Just _ <- TV.lookup (idName i) tv -> 0
         | not $ (idName i) `elem` ns -> error "unmapped variable"
   _ | d@(Data _):l <- unAppNoTicks e
     , not $ null (anonArgumentTypes $ typeOf tv d) ->
