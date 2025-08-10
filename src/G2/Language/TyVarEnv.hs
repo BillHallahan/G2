@@ -10,6 +10,8 @@ module G2.Language.TyVarEnv ( TyVarEnv
                             , insertSymbolic
                             , isSymbolic
                             , lookup
+                            , lookupConcOrSym
+                            , member
                             , delete
                             , fromList 
                             , toList
@@ -67,6 +69,9 @@ lookup n (TyVarEnv env) = tyConcOrSymToType <$> HM.lookup n env
 
 lookupConcOrSym :: Name -> TyVarEnv -> Maybe TyConcOrSym
 lookupConcOrSym n (TyVarEnv env) = HM.lookup n env
+
+member :: Name -> TyVarEnv -> Bool
+member n (TyVarEnv env) = HM.member n env
 
 -- a recursive version of lookup that aim to find the concrete types of type variable
 deepLookup :: TyVarEnv -> Expr -> Maybe Type

@@ -36,7 +36,8 @@ import Data.Monoid
 
 import qualified Control.Monad.State as SM
 import G2.Lib.Printers
-import qualified G2.Language.TyVarEnv as TV 
+import qualified G2.Language.TyVarEnv as TV
+
 -- | The function to actually use for Symbolic Execution
 type G2Call solver simplifier =
     forall m t . ( MonadIO m
@@ -412,7 +413,14 @@ reduceFCExpr :: ( MonadIO m
                 , Named t)
              => G2Call solver simplifier -> SomeReducer m t -> solver -> simplifier -> State t -> Bindings -> Expr -> m ((State t, Bindings), Expr)
 reduceFCExpr g2call reducer solver simplifier s bindings e 
-    | not . isTypeClass (type_classes s) $ (typeOf (tyvar_env s) e) = do
+    | isTypeClass (type_classes s) $ (typeOf (tyvar_env s) e)
+    , TyCon n _:_ <- unTyApp (typeOf (tyvar_env s) e)
+    , _:Type t:_ <- unApp e
+    , Just tc_dict <- typeClassInst (type_classes s) HM.empty n t = 
+          return $ ((s, bindings), tc_dict) 
+    | Var (Id n _) <- e
+    , n `TV.member` (tyvar_env s) = return ((s, bindings), redVar (expr_env s) e) 
+    | otherwise = do
         let s' = elimAssumesExcept
                . elimAsserts
                . pickHead
@@ -437,12 +445,6 @@ reduceFCExpr g2call reducer solver simplifier s bindings e
                            , path_conds = path_conds fs }
                         , bindings { name_gen = name_gen bindings' }), ce)
             _ -> error $ "reduceFCExpr: Bad reduction"
-    | isTypeClass (type_classes s) $ (typeOf (tyvar_env s) e)
-    , TyCon n _:_ <- unTyApp (typeOf (tyvar_env s) e)
-    , _:Type t:_ <- unApp e
-    , Just tc_dict <- typeClassInst (type_classes s) HM.empty n t = 
-          return $ ((s, bindings), tc_dict) 
-    | otherwise = return ((s, bindings), redVar (expr_env s) e) 
 
 
 reduceFuncCallMaybe :: ( MonadIO m
