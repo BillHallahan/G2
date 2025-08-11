@@ -1049,9 +1049,9 @@ formMeasureComps' tv !mx in_t existing ns_me
 chainReturnType :: TV.TyVarEnv -> Type -> [Expr] -> Maybe (Type, [M.Map Name Type])
 chainReturnType tv t ne =
     foldM (\(t', vms) et -> 
-                case filter notLH (anonArgumentTypes $ typeOf tv et) of
+                case filter notLH (anonArgumentTypes et) of
                     [at]
-                        | Just vm <- t' `specializes` at -> Just (applyTypeMap (TV.toMap vm) . returnType $ typeOf tv et, TV.toMap vm : vms )
+                        | Just vm <- t' `specializes` at -> Just (applyTypeMap (TV.toMap vm) . returnType $ et, TV.toMap vm : vms )
                     _ ->  Nothing) (t, []) (map (typeOf tv) $ reverse ne)
 
 notLH :: Type -> Bool
