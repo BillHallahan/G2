@@ -72,7 +72,7 @@ freeTypesToTypeEnv tv nks ng =
 
 freeTypesToTypeEnv' :: TV.TyVarEnv -> (Name, Kind) -> NameGen -> ( (Name, AlgDataTy), NameGen)
 freeTypesToTypeEnv' tv (n,k) ng =
-    let (bids, ng') = freshIds (argumentTypes (typeOf tv k) ) ng 
+    let (bids, ng') = freshIds (argumentTypes k) ng 
         (dcs,ng'') = unknownDC ng' n k bids
         n_adt = (n, DataTyCon {bound_ids = bids,
                                data_cons = [dcs],
@@ -94,7 +94,7 @@ addDataCons :: TV.TyVarEnv -> TypeEnv -> [DataCon] -> TypeEnv
 addDataCons tv = foldl' (addDataCon tv)
 
 addDataCon :: TV.TyVarEnv -> TypeEnv -> DataCon -> TypeEnv
-addDataCon tv te dc | (TyCon n _):_ <- unTyApp $ returnType (typeOf tv dc) = 
+addDataCon tv te dc | (TyCon n _):_ <- unTyApp . returnType $ typeOf tv dc = 
     let dtc = HM.lookup n te
         adt = case dtc of 
                    Just (DataTyCon ids' dcs adts) -> DataTyCon {bound_ids = ids', data_cons = dc : dcs, adt_source = adts}
