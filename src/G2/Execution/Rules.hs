@@ -724,7 +724,7 @@ liftSymDefAlt' s@(State { type_env = tenv, known_values = kv, tyvar_env = tvnv }
             mv_ty = mutVarTy (known_values s) realworld_ty stored_ty
             rel_mutvar = HM.keys
                        $ HM.filter (\MVInfo { mv_val_id = Id _ t
-                                            , mv_origin = org } -> t == stored_ty && org == MVSymbolic) (mutvar_env s)
+                                            , mv_origin = org } -> tyVarSubst tvnv t == stored_ty && org == MVSymbolic) (mutvar_env s)
             copy_states = map (\mv -> s { curr_expr = CurrExpr Evaluate aexpr'
                                         , expr_env = E.insert (idName i) (Prim (MutVar mv) mv_ty) (expr_env s)
                                         }
