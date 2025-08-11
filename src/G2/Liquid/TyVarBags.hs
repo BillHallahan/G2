@@ -35,8 +35,6 @@ import qualified Data.Map.Lazy as M
 import qualified Data.Text as T
 import qualified G2.Language.TyVarEnv as TV
 
-import Debug.Trace
-
 -- | The bag and instantiation functions rely on each other, so we have to make them together
 createBagAndInstFuncs :: TV.TyVarEnv 
                       -> [Name] -- ^ Which types do we need bag functions for?
@@ -177,7 +175,7 @@ extractTyVarCall tv func_names is_fs i e
     | TyCon n tc_t:ts <- unTyApp t
     , Just fn <- M.lookup n func_names = do
         let is = anonArgumentTypes tc_t
-            ty_ars = trace ("ts = " ++ show ts) map Type $ take (length is) ts
+            ty_ars = map Type $ take (length is) ts
             nds = map (\f -> App (mkApp (Var f:ty_ars)) e) fn
         nds' <- mapM (extractTyVarCall tv func_names is_fs i) nds
         return (concat nds')
@@ -244,12 +242,10 @@ createInstFunc tv func_names tn adt
 createInstFunc' :: TV.TyVarEnv -> InstFuncs -> [(Id, Id)] -> AlgDataTy -> LHStateM Expr
 createInstFunc' tv func_names is_fs (DataTyCon { data_cons = dcs }) = do
     dc' <- mapM (\dc -> do
-            let apped_dc = trace ("is_fs = " ++ show is_fs) mkApp (Data dc:map (Type . TyVar . fst) is_fs)
+            let apped_dc =  mkApp (Data dc:map (Type . TyVar . fst) is_fs)
                 ars_ty = anonArgumentTypes (typeOf tv dc)
 
-                is_fs' = is_fs -- zipWith (\i (_, f) -> (i, f)) (leadingTyForAllBindings (typeOf tv dc)) is_fs
-
-            ars <- mapM (instTyVarCall' tv func_names is_fs') ars_ty
+            ars <- mapM (instTyVarCall' tv func_names is_fs) ars_ty
             bnds <- mapM freshIdN ars_ty
             let vrs = map Var bnds
 
@@ -289,12 +285,12 @@ instTyVarCall' tv func_names is_fs t
         flse <- mkFalseE
         return . Assume Nothing flse . Prim Undefined $ TyVar i
 
-    | TyCon n tc_t:ts <- unTyApp t
+    | TyCon n tc_t:_ <- unTyApp t
     , Just fn <- M.lookup n func_names = do
         let tyc_is = anonArgumentTypes tc_t
             ty_ts = map (TyVar . fst) $ take (length tyc_is) is_fs
 
-            ty_ars = trace ("---\nis_fs = " ++ show is_fs ++ "\nty_ts = " ++ show ty_ts ++ "\n---") map Type ty_ts
+            ty_ars = map Type ty_ts
         func_ars <- mapM (\t' -> case t' of
                                     TyVar i
                                         | Just i' <- lookup i is_fs -> return (Var i')
