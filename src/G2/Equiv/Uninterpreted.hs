@@ -94,7 +94,7 @@ addDataCons :: TV.TyVarEnv -> TypeEnv -> [DataCon] -> TypeEnv
 addDataCons tv = foldl' (addDataCon tv)
 
 addDataCon :: TV.TyVarEnv -> TypeEnv -> DataCon -> TypeEnv
-addDataCon tv te dc | (TyCon n _):_ <- unTyApp $ returnType dc = 
+addDataCon tv te dc | (TyCon n _):_ <- unTyApp . returnType $ typeOf tv dc = 
     let dtc = HM.lookup n te
         adt = case dtc of 
                    Just (DataTyCon ids' dcs adts) -> DataTyCon {bound_ids = ids', data_cons = dc : dcs, adt_source = adts}
