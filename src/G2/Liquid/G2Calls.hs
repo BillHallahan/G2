@@ -413,14 +413,10 @@ reduceFCExpr :: ( MonadIO m
                 , Named t)
              => G2Call solver simplifier -> SomeReducer m t -> solver -> simplifier -> State t -> Bindings -> Expr -> m ((State t, Bindings), Expr)
 reduceFCExpr g2call reducer solver simplifier s bindings e 
-    | isTypeClass (type_classes s) $ (typeOf (tyvar_env s) e)
-    , TyCon n _:_ <- unTyApp (typeOf (tyvar_env s) e)
-    , _:Type t:_ <- unApp e
-    , Just tc_dict <- typeClassInst (type_classes s) HM.empty n t = 
-          return $ ((s, bindings), tc_dict) 
     | Var (Id n _) <- e
-    , n `TV.member` (tyvar_env s) = return ((s, bindings), redVar (expr_env s) e) 
-    | otherwise = do
+    , n `TV.member` (tyvar_env s)
+    , Just t <- TV.deepLookup (tyvar_env s) e = return ((s, bindings), Type t) 
+    | not (isTypeClass (type_classes s) $ (typeOf (tyvar_env s) e)) = do
         let s' = elimAssumesExcept
                . elimAsserts
                . pickHead
@@ -445,6 +441,12 @@ reduceFCExpr g2call reducer solver simplifier s bindings e
                            , path_conds = path_conds fs }
                         , bindings { name_gen = name_gen bindings' }), ce)
             _ -> error $ "reduceFCExpr: Bad reduction"
+    -- Must be a typeclass, or would have gotten caught in previous guard
+    | TyCon n _:_ <- unTyApp (typeOf (tyvar_env s) e)
+    , _:Type t:_ <- unApp e
+    , Just tc_dict <- typeClassInst (type_classes s) HM.empty n t = 
+          return $ ((s, bindings), tc_dict) 
+    | otherwise = return ((s, bindings), redVar (expr_env s) e) 
 
 
 reduceFuncCallMaybe :: ( MonadIO m
