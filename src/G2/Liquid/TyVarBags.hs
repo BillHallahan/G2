@@ -35,8 +35,6 @@ import qualified Data.Map.Lazy as M
 import qualified Data.Text as T
 import qualified G2.Language.TyVarEnv as TV
 
-import Debug.Trace
-
 -- | The bag and instantiation functions rely on each other, so we have to make them together
 createBagAndInstFuncs :: TV.TyVarEnv 
                       -> [Name] -- ^ Which types do we need bag functions for?
@@ -235,7 +233,7 @@ createInstFunc tv func_names tn adt
         bi <- freshIdsN $ map (const TYPE) (bound_ids adt)
         inst_fs <- freshIdsN $ map TyVar bi
 
-        cse <- trace ("1\nfn = " ++ show fn ++ "\nbi = " ++ show bi) createInstFunc' tv func_names (zip bi inst_fs) adt
+        cse <- createInstFunc' tv func_names (zip bi inst_fs) adt
         let e = mkLams (map (TypeL,) bi) $ mkLams (map (TermL,) inst_fs) cse
 
         insertE (idName fn) e
@@ -302,7 +300,7 @@ instTyVarCall' tv func_names is_fs t
         let_ids <- freshIdsN $ map (typeOf tv) func_ars
         let bnds = zip let_ids func_ars
 
-        trace ("2\nfn = " ++ show fn ++ "\nt = " ++ show t ++ "\nis_fs = " ++ show is_fs ++ "\n---") return . Let bnds . mkApp $ Var fn:ty_ars ++ map Var let_ids
+        return . Let bnds . mkApp $ Var fn:ty_ars ++ map Var let_ids
     | otherwise = do
         let tfa = leadingTyForAllBindings t
             tfa_is = zipWith (\i1 (i2, _) -> (i1, TyVar i2)) tfa is_fs
