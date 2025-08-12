@@ -247,9 +247,7 @@ createInstFunc' tv func_names is_fs (DataTyCon { data_cons = dcs }) = do
             let apped_dc =  mkApp (Data dc:map (Type . TyVar . fst) is_fs)
                 ars_ty = map (tyVarSubst tv) $ anonArgumentTypes (typeOf tv dc)
 
-                is_fs' = zipWith (\i (_, f) -> (i, f)) (leadingTyForAllBindings $ typeOf tv dc) is_fs
-
-            ars <- mapM (instTyVarCall' tv func_names is_fs') ars_ty
+            ars <- mapM (instTyVarCall' tv func_names is_fs) ars_ty
             bnds <- mapM freshIdN ars_ty
             let vrs = map Var bnds
 
