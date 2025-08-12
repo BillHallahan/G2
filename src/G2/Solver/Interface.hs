@@ -1,4 +1,4 @@
-{-# LANGUAGE FlexibleContexts, MultiParamTypeClasses, OverloadedStrings, TupleSections #-}
+{-# LANGUAGE FlexibleContexts, LambdaCase, MultiParamTypeClasses, OverloadedStrings, TupleSections #-}
 
 module G2.Solver.Interface
     ( Subbed (..)
@@ -122,7 +122,9 @@ subVar' inLam em eenv tc is v@(Var i@(Id n _))
 subVar' inLam mdl eenv tc is cse@(Case e _ _ as) =
     case subVar' inLam mdl eenv tc is e of
         Lit l
-            | Just (Alt _ ae) <- L.find (\(Alt (LitAlt l') _) -> l == l') as ->
+            | Just (Alt _ ae) <- L.find (\case (Alt (LitAlt l') _) -> l == l'; _ -> False) as ->
+                subVar' inLam mdl eenv tc is ae
+            | Just (Alt _ ae) <- L.find (\case (Alt Default _) -> True; _ -> False) as ->
                 subVar' inLam mdl eenv tc is ae
         _ -> modifyChildren (subVar' inLam mdl eenv tc is) cse
 subVar' inLam em eenv tc is e = modifyChildren (subVar' inLam em eenv tc is) e
