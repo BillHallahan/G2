@@ -178,6 +178,7 @@ initStateFromSimpleState s m_mod useAssert mkCurr argTys config =
     , type_env = tenv'
     , curr_expr = CurrExpr Evaluate ce
     , path_conds = PC.fromList []
+    , tyvar_map = HM.empty
     , non_red_path_conds = emptyNRPC
     , handles = hs
     , mutvar_env = HM.empty

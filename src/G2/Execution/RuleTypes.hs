@@ -19,6 +19,7 @@ import GHC.Generics (Generic)
 data Rule = RuleEvalVal
           | RuleEvalVarNonVal Name
           | RuleEvalVarVal Name
+          | RuleEvalVarPoly
           | RuleEvalUnInt
           | RuleEvalApp Expr
 
@@ -27,6 +28,8 @@ data Rule = RuleEvalVal
           | RuleEvalPrimToNormWithState
           | RuleEvalPrimToNormSymbolic
           | RuleEvalPrimToNorm
+
+          | RuleEvalLam
 
           | RuleEvalLet [Name]
 
@@ -60,6 +63,8 @@ data Rule = RuleEvalVal
 
           | RuleReturnCAssume
           | RuleReturnCAssert
+
+          | RuleReturnLamFrame
 
           | RuleIdentity
           | RulePrimError

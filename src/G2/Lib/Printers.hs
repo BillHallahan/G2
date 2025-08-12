@@ -563,6 +563,8 @@ prettyState pg s =
         , pretty_stack
         , "----- [Env] -----------------------"
         , pretty_eenv
+        , "----- [TyVar Map] -----------------"
+        , pretty_tvm
         , "----- [Paths] -----------------------"
         , pretty_paths
         , "----- [Non Red Paths] ---------------------"
@@ -592,6 +594,7 @@ prettyState pg s =
         pretty_curr_expr = prettyCurrExpr pg (curr_expr s)
         pretty_stack = prettyStack pg (exec_stack s)
         pretty_eenv = prettyEEnv pg (curr_expr s) (exec_stack s) (expr_env s) 
+        pretty_tvm = prettyTVM pg (tyvar_map s)
         pretty_paths = prettyPathConds pg (path_conds s)
         pretty_non_red_paths = prettyNonRedPaths pg . toListInternalNRPC $ non_red_path_conds s
         pretty_handles = prettyHandles pg $ handles s
@@ -631,6 +634,8 @@ prettyFrame pg (AssertFrame m_fc e) =
                   Nothing -> ""
     in
     "assert frame: " <> fc <> mkDirtyExprHaskell pg e
+prettyFrame pg (LamFrame TermL i) = "lambda frame: \\" <> mkNameHaskell pg (idName i)
+prettyFrame pg (LamFrame TypeL i) = "lambda frame: /\\" <> mkNameHaskell pg (idName i)
 
 prettyCEAction :: PrettyGuide -> CEAction -> T.Text
 prettyCEAction pg (EnsureEq e) = "EnsureEq " <> mkDirtyExprHaskell pg e
@@ -653,7 +658,15 @@ prettyEEnv pg@(PG {env_ordering=e_ord}) cexpr estack eenv = T.intercalate "\n\n"
                      L.filter (\(x, _) -> HS.member x ce_names) el
                   ++ L.filter (\(x, _) -> HS.member x es_names && not (HS.member x ce_names)) el
                   ++ L.filter (\(x, _) -> not (HS.member x ce_names) && not (HS.member x es_names)) el
-        
+
+prettyTVM :: PrettyGuide -> TVM -> T.Text
+prettyTVM pg tvm = T.intercalate "\n" (map entryText (HM.toList tvm))
+            where
+                entryText :: (Id, HS.HashSet Id) -> T.Text
+                entryText (i, hs) = (mkIdHaskell pg i) <> " -> " <> setText hs
+                setText :: HS.HashSet Id -> T.Text
+                setText hs = "{" <> T.intercalate "," (map (mkIdHaskell pg) (HS.toList hs)) <> "}"
+
 printEnvObj :: PrettyGuide -> E.EnvObj -> T.Text
 printEnvObj pg (E.ExprObj e) = mkDirtyExprHaskell pg e
 printEnvObj pg (E.SymbObj (Id _ t)) = "symbolic " <> mkTypeHaskellPG pg t
@@ -742,6 +755,7 @@ pprExecStateStr ex_state b = injNewLine acc_strs
   where
     eenv_str = pprExecEEnvStr (expr_env ex_state)
     tenv_str = pprTEnvStr (type_env ex_state)
+    tvm_str = pprTVMStr (tyvar_map ex_state)
     estk_str = pprExecStackStr (exec_stack ex_state)
     code_str = pprExecCodeStr (curr_expr ex_state)
     names_str = pprExecNamesStr (name_gen b)
@@ -760,6 +774,8 @@ pprExecStateStr ex_state b = injNewLine acc_strs
                , estk_str
                , "----- [Env] -----------------------"
                , eenv_str
+               , "------ [TyVar Map] ----------------"
+               , tvm_str
                , "----- [TEnv] -----------------------"
                , tenv_str
                , "----- [Names] ---------------------"
@@ -791,6 +807,12 @@ pprExecEEnvStr :: E.ExprEnv -> String
 pprExecEEnvStr eenv = injNewLine kv_strs
   where
     kv_strs = map (show) $ E.toList eenv
+
+pprTVMStr :: TVM -> String
+pprTVMStr tvm = concatMap (\(k, hs) -> show k ++ " -> " ++ showEntry hs) (HM.toList tvm)
+    where
+    showEntry :: HS.HashSet Id -> String
+    showEntry hs = T.unpack $ T.intercalate ", " (map (T.pack . show) $ HS.toList hs)
 
 pprTEnvStr :: TypeEnv -> String
 pprTEnvStr tenv = injNewLine kv_strs

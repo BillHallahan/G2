@@ -62,7 +62,7 @@ stdReduce share symb_func_eval solver simplifier s b@(Bindings {name_gen = ng}) 
     return (r, zip s'' (repeat ()), b { name_gen = ng'})
 
 stdReduce' :: (Solver solver, Simplifier simplifier) => Sharing -> SymbolicFuncEval t -> solver -> simplifier -> State t -> NameGen -> IO (Rule, [State t], NameGen)
-stdReduce' share _ solver simplifier s@(State { curr_expr = CurrExpr Evaluate ce }) ng
+stdReduce' share _ solver simplifier s@(State { curr_expr = CurrExpr Evaluate ce, tyvar_map = tvm }) ng
     | Var i  <- ce
     , share == Sharing = return $ evalVarSharing s ng i
     | Var i <- ce
@@ -71,6 +71,10 @@ stdReduce' share _ solver simplifier s@(State { curr_expr = CurrExpr Evaluate ce
         let (r, xs, ng') = evalApp s ng e1 e2
         (ng'', xs') <- mapAccumMaybeM (reduceNewPC solver simplifier) ng' xs
         return (r, xs', ng'')
+    | Lam TypeL i e <- ce
+    , Just _ <- lookupTVInTVM i tvm = return $ evalLam s ng TypeL i e
+    | Lam TermL i e <- ce
+    , not . null $ tvm = return $ evalLam s ng TermL i e -- TODO: better check here (check i and rec. check e)
     | Let b e <- ce = return $ evalLet s ng b e
     | Case e i t a <- ce = do
         let (r, xs, ng') = evalCase s ng e i t a
@@ -84,7 +88,8 @@ stdReduce' share _ solver simplifier s@(State { curr_expr = CurrExpr Evaluate ce
     | Assert fc e1 e2 <- ce = return $ evalAssert s ng fc e1 e2
     | otherwise = return (RuleReturn, [s { curr_expr = CurrExpr Return ce }], ng)
 stdReduce' _ symb_func_eval solver simplifier s@(State { curr_expr = CurrExpr Return ce
-                                 , exec_stack = stck }) ng
+                                 , exec_stack = stck 
+                                 , tyvar_map = tvm }) ng
     | isError ce
     , Just (AssertFrame is _, stck') <- S.pop stck =
         return (RuleError, [s { exec_stack = stck'
@@ -111,6 +116,8 @@ stdReduce' _ symb_func_eval solver simplifier s@(State { curr_expr = CurrExpr Re
         let (r, xs, ng') = retCurrExpr s ce act e stck' ng
         (ng'', xs') <- mapAccumMaybeM (reduceNewPC solver simplifier) ng' xs
         return (r, xs', ng'')
+    | Just (LamFrame u li, stck') <- S.pop stck 
+    , not . null $ tvm = return $ retLamFrame s ng u li ce stck'
     | Nothing <- frstck = return (RuleIdentity, [s], ng)
     | otherwise = error $ "stdReduce': Unknown Expr" ++ show ce ++ show (S.pop stck)
         where
@@ -133,8 +140,35 @@ mapAccumMaybeM f s xs = do
 
 evalVarSharing :: State t -> NameGen -> Id -> (Rule, [State t], NameGen)
 evalVarSharing s@(State { expr_env = eenv
-                        , exec_stack = stck })
+                        , exec_stack = stck
+                        , tyvar_map = tvm })
                ng i
+    | (Id idN (TyVar tyId)) <- i
+    , True <- E.isSymbolic idN eenv
+    , Just ids <- lookupTVInTVM tyId tvm
+    , not . null $ ids =  -- PM-RET-TV
+        let 
+            -- fresh ids
+            ([tvid, scrut], ng') = freshIds [TyVar tyId, TyLitInt] ng
+            -- create Alt for each LV in id's LV set
+            as = makeAltsForPMRet ids
+            -- case expression from the alts and symbolic Int
+            e' = Case (Var scrut) tvid (TYPE) as 
+            -- new env bindings
+            eenv' = E.insert (idName i) e' eenv
+            eenv'' = E.insertSymbolic scrut eenv'
+        in
+            (RuleEvalVarPoly, [s { curr_expr = CurrExpr Evaluate e'
+                                , expr_env = eenv''}], ng')
+    | (Id _ (TyVar _)) <- i =
+        (RuleEvalVal, [s { curr_expr = CurrExpr Return (Var i)}], ng)
+    | (Id _ t@(TyApp i a)) <- i -- PM-CONC-DC
+    , (Just n, tl) <- extrDCNameAndArgsFromTyApp t =
+        let 
+            e = DataCon {dc_name=n, dc_type=t, dc_univ_tyvars=}
+        in
+            (RuleEvalVal, [s { curr_expr = CurrExpr Return (Var i)}], ng)
+
     | E.isSymbolic (idName i) eenv =
         (RuleEvalVal, [s { curr_expr = CurrExpr Return (Var i)}], ng)
     -- If the target in our environment is already a value form, we do not
@@ -155,9 +189,41 @@ evalVarSharing s@(State { expr_env = eenv
     where
         e = E.lookup (idName i) eenv
 
+{- extrDCNameAndArgsFromTyApp :: Type -> (Maybe Name, [Id])
+extrDCNameAndArgsFromTyApp (TyCon n _) = (n, [])
+extrDCNameAndArgsFromTyApp (TyApp inner (TyVar id)) = let (mn, ids) = extrDCNameAndArgsFromTyApp inner in (mn, id:ids)
+extrDCNameAndArgsFromTyApp (TyApp inner _) = extrDCNameAndArgsFromTyApp inner
+extrDCNameAndArgsFromTyApp _ = (Nothing, []) -}
+
+makeAltsForPMRet :: [Id] -> [Alt]
+makeAltsForPMRet is = go is 1
+    where 
+        go :: [Id] -> Int -> [Alt]
+        go [i] _ = [Alt {altMatch = Default, altExpr = Var i}]
+        go (i:is) l = Alt {altMatch = LitAlt (LitInt $ toInteger l), altExpr = Var i}:go is (l+1)
+        go [] _ = error "makeAltsForPMRet: reached empty list"
+
 evalVarNoSharing :: State t -> NameGen -> Id -> (Rule, [State t], NameGen)
-evalVarNoSharing s@(State { expr_env = eenv })
+evalVarNoSharing s@(State { expr_env = eenv, tyvar_map = tvm })
                  ng i
+    | (Id idN (TyVar tyId)) <- i
+    , True <- E.isSymbolic idN eenv
+    , Just ids <- lookupTVInTVM tyId tvm =  -- PM-RET-TV
+        let 
+
+            -- fresh ids
+            ([tvid], ng') = freshIds [TyVar tyId] ng
+            -- create Alt for each LV in id's LV set
+            as = makeAltsForPMRet ids
+            -- case expression from the alts and symbolic Int
+            e' = Case (SymGen SLog TyLitInt) tvid (TYPE) as -- TODO
+            -- new env bindings
+            eenv' = E.insert (idName i) e' eenv
+        in
+            (RuleEvalVarPoly, [s { curr_expr = CurrExpr Evaluate e'
+                                , expr_env = eenv'}], ng')
+    | (Id _ (TyVar _)) <- i =
+        (RuleEvalVal, [s { curr_expr = CurrExpr Return (Var i)}], ng)
     | E.isSymbolic (idName i) eenv =
         (RuleEvalVal, [s { curr_expr = CurrExpr Return (Var i)}], ng)
     | Just e <- E.lookup (idName i) eenv =
@@ -217,8 +283,29 @@ evalApp s@(State { expr_env = eenv
         getTickish (Tick t e) = t:getTickish e
         getTickish _ = []
 
-evalLam :: State t -> LamUse -> Id -> Expr -> (Rule, [State t])
-evalLam = undefined
+evalLam :: State t -> NameGen -> LamUse -> Id -> Expr -> (Rule, [State t], NameGen)
+evalLam s@(State {exec_stack = stck}) ng u i e =
+        let 
+            stck' = S.push (LamFrame u i) stck
+        in
+        (RuleEvalLam, 
+        [s { curr_expr = CurrExpr Evaluate e
+            , exec_stack = stck' }], 
+        ng)
+
+retLamFrame :: State t -> NameGen -> LamUse -> Id -> Expr -> S.Stack Frame -> (Rule, [State t], NameGen)
+retLamFrame s@(State {tyvar_map = tvm}) ng u li e stck' 
+    | TermL <- u =
+        (RuleReturnLamFrame, [s { curr_expr = CurrExpr Return $ Lam u li e
+                                , exec_stack = stck'} ], ng)
+    | TypeL <- u =
+        let 
+            tvm' = removeTVFromTVM li tvm 
+        in
+            (RuleReturnLamFrame, [s { curr_expr = CurrExpr Return $ Lam u li e
+                                    , exec_stack = stck'
+                                    , tyvar_map = tvm'} ], ng)
+            
 
 retLam :: State t -> NameGen -> LamUse -> Id -> Expr -> Expr -> S.Stack Frame -> (Rule, [State t], NameGen)
 retLam s@(State { expr_env = eenv })
@@ -1217,7 +1304,8 @@ retReplaceSymbFuncTemplate :: SymFuncTicks -> State t -> NameGen -> Expr -> Mayb
 retReplaceSymbFuncTemplate sft
                            s@(State { expr_env = eenv
                                     , type_env = tenv
-                                    , known_values = kv })
+                                    , known_values = kv
+                                    , tyvar_map = tvm })
                            ng ce
 
     -- DC-SPLIT
@@ -1296,6 +1384,49 @@ retReplaceSymbFuncTemplate sft
         curr_expr = CurrExpr Evaluate (mkApp (Var f1Id:es)),
         expr_env = eenv''
     }], ng')
+
+    -- PM-ADD-FA
+    | Var (Id n (TyForAll tyVarId faTy)):es <- unApp ce -- may not be needed/wrong
+    , E.isSymbolic n eenv
+    = let
+        -- insert new empty mapping in M
+        tvm' = insertEmptyInTVM tyVarId tvm
+        -- TODO: rename n in the type (not necessary yet, only needed for rank > 2)
+        -- create name of new sym
+        ([f1Id], ng') = freshIds [faTy] ng
+        -- create type level lambda
+        e = Lam TypeL tyVarId $ Var f1Id 
+        -- new environment bindings
+        eenv' = E.insertSymbolic f1Id eenv
+        eenv'' = E.insert n e eenv'
+    in Just (RuleReturnReplaceSymbFunc, [
+        s {
+        curr_expr = CurrExpr Evaluate e,
+        expr_env = eenv'',
+        tyvar_map = tvm'
+    }], ng')
+
+    -- PM-COLL-TV
+    | Var (Id n (TyFun t1@(TyVar tyVarId) t2)):_ <- unApp ce
+    , E.isSymbolic n eenv
+    = let
+        -- make new id for lambda var
+        ([x, f], ng') = freshIds [t1, t2] ng -- TODO: bad name made 
+        -- insert x into a's set in TVM
+        tvm' = insertLVInTVM tyVarId x tvm
+        -- make new expression
+        e = Lam TermL x (Var f)
+        -- new environment bindings
+        eenv' = E.insertSymbolic f eenv
+        eenv'' = E.insert n e eenv'
+        eenv''' = E.insert (idName x) (Var (Id (idName x) t1)) eenv''
+    in Just (RuleReturnReplaceSymbFunc, [
+        s {
+        curr_expr = CurrExpr Evaluate e,
+        expr_env = eenv''',
+        tyvar_map = tvm'
+    }], ng')
+
     | otherwise = Nothing
 
 argTypes :: Type -> ([Type], Type)
