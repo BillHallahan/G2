@@ -242,12 +242,10 @@ createInstFunc tv func_names tn adt
 createInstFunc' :: TV.TyVarEnv -> InstFuncs -> [(Id, Id)] -> AlgDataTy -> LHStateM Expr
 createInstFunc' tv func_names is_fs (DataTyCon { data_cons = dcs }) = do
     dc' <- mapM (\dc -> do
-            let apped_dc = mkApp (Data dc:map (Type . TyVar . fst) is_fs)
+            let apped_dc =  mkApp (Data dc:map (Type . TyVar . fst) is_fs)
                 ars_ty = anonArgumentTypes (typeOf tv dc)
 
-                is_fs' = zipWith (\i (_, f) -> (i, f)) (leadingTyForAllBindings (typeOf tv dc)) is_fs
-
-            ars <- mapM (instTyVarCall' tv func_names is_fs') ars_ty
+            ars <- mapM (instTyVarCall' tv func_names is_fs) ars_ty
             bnds <- mapM freshIdN ars_ty
             let vrs = map Var bnds
 
@@ -287,10 +285,10 @@ instTyVarCall' tv func_names is_fs t
         flse <- mkFalseE
         return . Assume Nothing flse . Prim Undefined $ TyVar i
 
-    | TyCon n tc_t:ts <- unTyApp t
+    | TyCon n tc_t:_ <- unTyApp t
     , Just fn <- M.lookup n func_names = do
         let tyc_is = anonArgumentTypes tc_t
-            ty_ts = take (length tyc_is) ts
+            ty_ts = map (TyVar . fst) $ take (length tyc_is) is_fs
 
             ty_ars = map Type ty_ts
         func_ars <- mapM (\t' -> case t' of
