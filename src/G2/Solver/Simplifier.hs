@@ -9,7 +9,7 @@ module G2.Solver.Simplifier ( Simplifier (..)
                             , StringSimplifier (..)
                             , FloatSimplifier (..)
                             , EqualitySimplifier (..)
-                            , ConstSimplifier (..)) where
+                            , ConstSimplifier (..) 
                             , CharConc (..)) where
 
 import G2.Execution.PrimitiveEval
@@ -18,12 +18,7 @@ import G2.Language
 import qualified G2.Language.ExprEnv as E
 import G2.Language.KnownValues
 import qualified G2.Language.PathConds as PC
-<<<<<<< HEAD
-import Debug.Trace
-import G2.Lib.Printers
-=======
 import qualified G2.Language.Typing as T
->>>>>>> master
 
 class Simplifier simplifier where
     -- | Simplifies a PC, by converting it into one or more path constraints that are easier
