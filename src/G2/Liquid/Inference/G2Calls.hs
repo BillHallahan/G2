@@ -1046,12 +1046,12 @@ formMeasureComps' tv !mx in_t existing ns_me
 
 -- TODO: chainReturnType currently return a M.Map but probably should be change into TyVarEnv in the future
 -- In addition, I am wondering whether the change I made is correct?
-chainReturnType :: TV.TyVarEnv -> Type -> [Expr] -> Maybe (Type, [M.Map Name Type])
+chainReturnType :: TV.TyVarEnv -> Type -> [Expr] -> Maybe (Type, [TV.TyVarEnv])
 chainReturnType tv t ne =
     foldM (\(t', vms) et -> 
                 case filter notLH (anonArgumentTypes et) of
                     [at]
-                        | Just vm <- t' `specializes` at -> Just (applyTypeMap (TV.toMap vm) . returnType $ et, TV.toMap vm : vms )
+                        | Just vm <- t' `specializes` at -> Just (applyTypeMap (TV.toMap vm) . returnType $ et, vm : vms )
                     _ ->  Nothing) (t, []) (map (typeOf tv) $ reverse ne)
 
 notLH :: Type -> Bool
@@ -1059,7 +1059,7 @@ notLH ty
     | TyCon (Name n _ _ _) _ <- tyAppCenter ty = n /= "lh"
     | otherwise = True
 
-evalMeasuresCE :: State t -> Bindings -> TCValues -> [Id] -> Expr -> [M.Map Name Type] -> Expr
+evalMeasuresCE :: State t -> Bindings -> TCValues -> [Id] -> Expr -> [TV.TyVarEnv] -> Expr
 evalMeasuresCE s bindings tcv is e bound =
     let
         meas_call = map (uncurry tyAppId) $ zip is bound
@@ -1069,7 +1069,10 @@ evalMeasuresCE s bindings tcv is e bound =
         tyAppId i b =
             let
                 bound_names = map idName (tyForAllBindings $ typeOf (tyvar_env s) i) 
-                bound_tys = map (\n -> case M.lookup n b of
+                bound_tys = map (\n -> case TV.lookup n b of
+                                        -- A TyVar doesn't give us any information, and messes up the TyVarEnv when we do a lookup-
+                                        -- so just discard it.
+                                        Just (TyVar _) -> TyUnknown
                                         Just t -> t
                                         Nothing -> TyUnknown) bound_names
                 lh_dcts = map (\t -> case lookupTCDict (type_classes s) (lhTC tcv) t of
