@@ -36,6 +36,7 @@ import qualified Data.HashMap.Lazy as HM
 import qualified Data.HashSet as S
 import qualified Data.Sequence as S
 import qualified Data.Text as T
+import qualified G2.Language.PolyArgMap as PM
 
 -- | `State`s represent an execution state of some (symbolic) Haskell code.
 -- A state can be utilized to  perform execution and SMT solving.
@@ -45,6 +46,7 @@ data State t = State { expr_env :: E.ExprEnv -- ^ Mapping of `Name`s to `Expr`s
                         -- TODO:: we need to figure out how to handle symbolic type variables
                         -- As for now, it's always empty
                      , tyvar_env :: TV.TyVarEnv -- ^ Type variable information
+                     , poly_arg_map :: PM.PolyArgMap -- ^ Type variable to lambda variable mappings 
                      , curr_expr :: CurrExpr -- ^ The expression represented by the state
                      , path_conds :: PathConds -- ^ Path conditions, in SWHNF
                      , non_red_path_conds :: [(Expr, Expr)] -- ^ Path conditions, in the form of (possibly non-reduced)
