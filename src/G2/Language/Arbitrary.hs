@@ -43,7 +43,7 @@ instance Show (StateBindingsPair t) where
         let
             pg = mkPrettyGuide (expr_env s, type_env s, curr_expr s)
 
-            eenv_str = prettyEEnv (tyvar_env s) pg (expr_env s)
+            eenv_str = prettyEEnv (tyvar_env s) pg (curr_expr s) (exec_stack s) (expr_env s)
             tenv_str = prettyTypeEnv (tyvar_env s) pg (type_env s)
             e_str = printHaskellDirtyPG pg (getExpr s)
         in
@@ -449,6 +449,7 @@ fakeKnownValues =
 
     , typeIndex = Name "" Nothing 0 Nothing
     , adjStr = Name "" Nothing 0 Nothing
+    , strQuantifiers = Name "" Nothing 0 Nothing
 
     , errorFunc = Name "" Nothing 0 Nothing
     , errorWithoutStackTraceFunc = Name "" Nothing 0 Nothing

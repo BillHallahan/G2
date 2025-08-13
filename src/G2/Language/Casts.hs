@@ -15,6 +15,7 @@ import G2.Language.Syntax
 import G2.Language.Typing
 import Data.Monoid as M
 import qualified G2.Language.TyVarEnv as TV 
+import Debug.Trace
 
 containsCast :: ASTContainer m Expr => m -> M.Any
 containsCast = evalASTs isCast
@@ -90,22 +91,21 @@ splitCast tv ng (Cast e ((TyForAll ni t2) :~ (TyForAll ni' t2'))) =
 splitCast _ ng e = (e, ng)
 
 -- | Eliminates redundant casts.
-simplifyCasts :: ASTContainer m Expr => m -> m
-simplifyCasts = modifyASTsFix simplifyCasts'
-
-simplifyCasts' :: Expr -> Expr
-simplifyCasts' e
-    | (Cast (Cast e' (t1 :~ _)) (_ :~ t2)) <- e
-        = Cast e' (t1 :~ t2)
-    | (Cast e' (t1 :~ t2)) <- e
-    , t2 .:: t1
-        = e'
-    | otherwise = e
+simplifyCasts :: ASTContainer m Expr => TV.TyVarEnv -> m -> m
+simplifyCasts tv_env = modifyASTsFix simplifyCasts'
+    where
+        simplifyCasts' e
+            | (Cast (Cast e' (t1 :~ _)) (_ :~ t2)) <- e
+                = Cast e' (t1 :~ t2)
+            | (Cast e' (t1 :~ t2)) <- e
+            , tyVarSubst tv_env t2 .:: tyVarSubst tv_env t1
+                = e'
+            | otherwise = e
 
 -- | Changes casts on functions to casts on non-functional values
 -- (As much as possible)
-liftCasts :: ASTContainer m Expr => m -> m 
-liftCasts = simplifyCasts . modifyASTsFix liftCasts'
+liftCasts :: ASTContainer m Expr => TV.TyVarEnv -> m -> m 
+liftCasts tv_env = simplifyCasts tv_env . modifyASTsFix liftCasts'
 
 liftCasts' :: Expr -> Expr
 liftCasts' a@(App _ _) =  liftCasts'' a

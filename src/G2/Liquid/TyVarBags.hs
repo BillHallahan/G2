@@ -233,7 +233,9 @@ createInstFunc tv func_names tn adt
         bi <- freshIdsN $ map (const TYPE) (bound_ids adt)
         inst_fs <- freshIdsN $ map TyVar bi
 
-        cse <- createInstFunc' tv func_names (zip bi inst_fs) adt
+        let tv' = foldr (uncurry TV.insert) tv (zip (map idName $ bound_ids adt) . map TyVar $ bi )
+
+        cse <- createInstFunc' tv' func_names (zip bi inst_fs) adt
         let e = mkLams (map (TypeL,) bi) $ mkLams (map (TermL,) inst_fs) cse
 
         insertE (idName fn) e
@@ -242,12 +244,10 @@ createInstFunc tv func_names tn adt
 createInstFunc' :: TV.TyVarEnv -> InstFuncs -> [(Id, Id)] -> AlgDataTy -> LHStateM Expr
 createInstFunc' tv func_names is_fs (DataTyCon { data_cons = dcs }) = do
     dc' <- mapM (\dc -> do
-            let apped_dc = mkApp (Data dc:map (Type . TyVar . fst) is_fs)
-                ars_ty = anonArgumentTypes (typeOf tv dc)
+            let apped_dc =  mkApp (Data dc:map (Type . TyVar . fst) is_fs)
+                ars_ty = map (tyVarSubst tv) $ anonArgumentTypes (typeOf tv dc)
 
-                is_fs' = zipWith (\i (_, f) -> (i, f)) (leadingTyForAllBindings (typeOf tv dc)) is_fs
-
-            ars <- mapM (instTyVarCall' tv func_names is_fs') ars_ty
+            ars <- mapM (instTyVarCall' tv func_names is_fs) ars_ty
             bnds <- mapM freshIdN ars_ty
             let vrs = map Var bnds
 

@@ -55,16 +55,15 @@ instType s b@(Bindings {name_gen = ng, input_names = ins}) =
 -- Introducing a new type for a type variable and substituting the variable in the curr_expr
 instType' :: ASTContainer t Type => TV.TyVarEnv -> (NameGen, State t) -> Id -> (NameGen, State t)
 instType' tv (ng, st) i 
-    | isSymbolic (idName i) (expr_env st) =
+    | TV.isSymbolic (idName i) (tyvar_env st) =
         let 
             (t,te,ng') = newType tv ng i (type_env st)
             n = idName i
-            eenv' = E.insert n (Type t) (expr_env st)
-            st' = st {expr_env = eenv'
-                     ,type_env = te}
-            st'' = replaceTyVar n t st'
+            tv_env' = TV.insert n t (tyvar_env st)
+            st' = st { tyvar_env = tv_env'
+                     , type_env = te}
         in
-        (ng',st'')
+        (ng',st')
     | otherwise = (ng, st)
         
 -- define a new reducer that calls your instType on your onAccept function

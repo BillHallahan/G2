@@ -1,7 +1,4 @@
-{-# LANGUAGE CPP #-}
-{-# LANGUAGE DeriveDataTypeable #-}
-{-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE CPP, DeriveDataTypeable, FlexibleContexts, LambdaCase, OverloadedStrings #-}
 
 module Main where
 
@@ -15,6 +12,9 @@ import G2.Config
 import G2.Interface
 import G2.Language as G2
 import G2.Lib.Printers
+
+import G2.Verify.Config
+import G2.Verify.Interface
 
 import Control.Exception
 import Data.Maybe
@@ -71,6 +71,8 @@ tests = testGroup "Tests"
         , baseTests
         , primTests
         , ioTests
+
+        , verifierTests
 
         , exprTests
         , typingTests
@@ -337,9 +339,12 @@ testFileTests = testGroup "TestFiles"
     , checkExprAssume "tests/TestFiles/Subseq.hs" 1200 (Just "assume") "subseqTest" [AtLeast 1]
 
     , checkInputOutputs "tests/TestFiles/Strings/Strings1.hs" [ ("con", 400, [AtLeast 10])
+                                                              , ("con2", 600, [AtLeast 10])
+                                                              , ("con3", 1000, [AtLeast 10])
                                                               , ("eq", 700, [AtLeast 10])
                                                               , ("eqGt1", 700, [AtLeast 10])
                                                               , ("capABC", 100, [AtLeast 10])
+                                                              , ("quoteChar", 1000, [Exactly 2])
                                                               , ("appendEq", 500, [AtLeast 5])
                                                               , ("stringSub1", 7000, [AtLeast 40])
                                                               , ("stringSub2", 7000, [AtLeast 35])
@@ -348,7 +353,9 @@ testFileTests = testGroup "TestFiles"
                                                               , ("stringSub4", 7000, [AtLeast 7])
                                                               , ("nStringSub4", 2000, [AtLeast 5])
                                                               , ("strLen", 1000, [AtLeast 5])
-                                                              , ("taker2", 2000, [AtLeast 5]) 
+                                                              , ("strLen2", 1000, [AtLeast 5])
+                                                              , ("strLen3", 1000, [AtLeast 5])
+                                                              , ("taker2", 2000, [AtLeast 5])
                                                               , ("infix1", 1000, [AtLeast 5])
                                                               , ("elem1", 1000, [AtLeast 5])
                                                               , ("notElem1", 1000, [AtLeast 5])
@@ -363,19 +370,50 @@ testFileTests = testGroup "TestFiles"
                                                               , ("max2", 1000, [AtLeast 5])
                                                               , ("min1", 1000, [AtLeast 5])
                                                               , ("min2", 1000, [AtLeast 5])
-                                                              
-                                                              , ("delete1", 2500, [AtLeast 10]) 
+                                                              , ("maxChar1", 1000, [Exactly 2])
+                                                              , ("minChar1", 1000, [Exactly 2])
+
+                                                              , ("delete1", 2500, [AtLeast 10])
                                                               , ("stripPrefix1", 1000, [AtLeast 5])
-                                                              , ("stripPrefix2", 1000, [AtLeast 10]) 
-                                                              , ("isPrefixOf1", 1000, [AtLeast 10]) 
-                                                              , ("isSuffixOf1", 1000, [AtLeast 10]) ]
+                                                              , ("stripPrefix2", 1000, [AtLeast 10])
+                                                              , ("isPrefixOf1", 1000, [AtLeast 10])
+                                                              , ("isSuffixOf1", 1000, [AtLeast 10])
+
+                                                              , ("genericLength1", 1000, [AtLeast 5])
+                                                              , ("genericTake1", 2000, [AtLeast 10])
+                                                              , ("genericDrop1", 1000, [AtLeast 5])
+                                                              , ("genericSplitAt1", 2000, [AtLeast 10])
+                                                              , ("genericIndex1", 2000, [AtLeast 10])
+                                                              , ("genericReplicate1", 4000, [AtLeast 5])
+#if MIN_VERSION_base(4,19,0)
+                                                              , ("unsnoc1", 1000, [AtLeast 5])
+                                                              , ("unsnoc2", 1000, [AtLeast 5])
+                                                              , ("totalIndex1", 10000, [AtLeast 5])
+#endif
+                                                              , ("splitAt1", 5000, [AtLeast 5])
+                                                              , ("notEq1", 5000, [AtLeast 10])
+                                                              , ("reverse1", 2000, [AtLeast 10])
+                                                              , ("reverse2", 2000, [AtLeast 8])
+                                                              , ("reverse3", 1000, [ AtLeast 2
+                                                                                   , RExists "rev3Returns1"])
+                                                              , ("insert1", 1500, [AtLeast 10])
+                                                              , ("intersperse1", 3000, [AtLeast 10])
+                                                              , ("replicate1", 4000, [AtLeast 5])
+                                                              , ("minimum1", 1000, [AtLeast 6])
+                                                              , ("maximum1", 1000, [AtLeast 6])
+                                                              , ("elemIndices1", 1000, [AtLeast 10])
+                                                              , ("lines1", 1500, [AtLeast 10]) ]
 
     , checkInputOutputsSMTStrings "tests/TestFiles/Strings/Strings1.hs"
-                                        [ ("con", 1000, [Exactly 1])
+                                        [ ("toEnum1", 2000, [Exactly 1])
+                                        , ("con", 1000, [Exactly 1])
                                         , ("appendEq", 1000, [Exactly 1])
                                         , ("strLen", 1000, [Exactly 2])
+                                        , ("strLen2", 1000, [Exactly 3])
+                                        , ("strLen3", 1000, [Exactly 2])
                                         , ("con2", 1000, [Exactly 3])
-                                        , ("strIndex", 1000, [Exactly 4]) 
+                                        , ("con3", 1000, [Exactly 3])
+                                        , ("strIndex", 1000, [Exactly 4])
                                         , ("taker1", 5000, [Exactly 2])
                                         , ("taker2", 5000, [Exactly 2])
                                         , ("conTaker1", 2500, [Exactly 4])
@@ -401,16 +439,67 @@ testFileTests = testGroup "TestFiles"
                                         , ("strLt", 5000, [Exactly 4])
                                         , ("strLe", 5000, [Exactly 5])
                                         , ("compare1", 5000, [Exactly 5])
-                                        , ("max1", 5000, [Exactly 1]) 
+                                        , ("max1", 5000, [Exactly 1])
                                         , ("max2", 5000, [Exactly 4])
-                                        , ("min1", 5000, [Exactly 1]) 
+                                        , ("min1", 5000, [Exactly 1])
                                         , ("min2", 5000, [Exactly 4])
-                                        
+                                        , ("maxChar1", 1000, [Exactly 1])
+                                        , ("minChar1", 1000, [Exactly 1])
+
                                         , ("delete1", 5000, [Exactly 3])
                                         , ("stripPrefix1", 1000, [Exactly 2])
-                                        , ("stripPrefix2", 1000, [Exactly 5])                                         
-                                        , ("isPrefixOf1", 10000, [Exactly 6]) 
-                                        , ("isSuffixOf1", 10000, [Exactly 6]) ]
+                                        , ("stripPrefix2", 1000, [Exactly 5])
+
+                                        , ("genericLength1", 5000, [Exactly 4])
+                                        , ("genericTake1", 5000, [Exactly 4])
+                                        , ("genericDrop1", 5000, [Exactly 3])
+                                        , ("genericSplitAt1", 5000, [Exactly 4])
+                                        , ("genericIndex1", 5000, [Exactly 4])
+
+                                        , ("bigString", 1000, [Exactly 2])
+
+                                        , ("delete1", 5000, [Exactly 3])
+                                        , ("stripPrefix1", 1000, [Exactly 2])
+                                        , ("stripPrefix2", 1000, [Exactly 5])
+                                        , ("isPrefixOf1", 10000, [Exactly 6])
+                                        , ("isSuffixOf1", 10000, [Exactly 6])
+
+#if MIN_VERSION_base(4,19,0)
+                                        , ("unsnoc1", 5000, [Exactly 4])
+                                        , ("unsnoc2", 5000, [Exactly 2])
+                                        , ("totalIndex1", 5000, [Exactly 3])
+#endif
+                                        , ("splitAt1", 5000, [Exactly 4])
+                                        , ("notEq1", 5000, [Exactly 2])
+                                        , ("reverse1", 3000, [AtLeast 6])
+                                        , ("reverse2", 5000, [Exactly 3])
+                                        , ("reverse3", 1000, [ AtLeast 2
+                                                             , RExists "rev3Returns1"])
+                                        , ("reverse4", 5000, [Exactly 1])
+                                        , ("insert2", 2000, [AtLeast 3])
+                                        , ("insert3", 2000, [Exactly 1])
+
+                                        , ("minimum2", 1000, [AtLeast 4])
+                                        , ("maximum2", 1000, [AtLeast 4])
+
+                                        , ("lines1", 4000, [AtLeast 10])
+
+                                        , ("showInt1", 4000, [Exactly 2])
+                                        ]
+    , checkInputOutputsSMTStringsWithSubPath "tests/TestFiles/Strings/Strings1.hs"
+                                        [ ("lines2", 2000, [AtLeast 10])
+                                        , ("reverse5", 5000, [Exactly 1])]
+    , checkInputOutputsQuantifiedSMTStrings "tests/TestFiles/Strings/Strings1.hs"
+                                        [ ("genericReplicate1", 1000, [Exactly 2])
+                                        , ("reverse1", 5000, [Exactly 6])
+                                        , ("reverse2", 5000, [Exactly 3])
+                                        , ("insert1", 3000, [AtLeast 2, AtMost 6]) -- Quantifier causes SMT failures
+                                        , ("intersperse1", 3000, [Exactly 3])
+                                        , ("replicate1", 3000, [Exactly 2])
+                                        , ("elemIndices1", 4000, [AtLeast 10])
+                                        , ("minimum1", 3000, [AtLeast 1, AtMost 6]) -- Quantifier causes SMT failures
+                                        , ("maximum1", 3000, [AtLeast 1, AtMost 6]) -- Quantifier causes SMT failures
+                                        ]
 
     , checkExpr "tests/TestFiles/Strings/Strings1.hs" 1000 "exclaimEq"
         [AtLeast 5, RExists (\[_, _, r] -> dcHasName "True" r)]
@@ -678,6 +767,84 @@ ioTests = testGroup "IO"
     , checkExpr "tests/IO/Handles1.hs" 3000 "interact1" [AtLeast 10]
     ]
 
+verifierTests :: TestTree
+verifierTests = testGroup "Verifier"
+    [
+      checkExprVerified "tests/Verify/Peano1.hs" "p1"
+    , checkExprVerified "tests/Verify/Peano1.hs" "p2"
+    , checkExprVerified "tests/Verify/Peano1.hs" "p3"
+    , checkExprVerified "tests/Verify/Peano1.hs" "p4"
+    , checkExprVerified "tests/Verify/Peano1.hs" "p5"
+
+    , checkExprCEx "tests/Verify/Peano1.hs" "p1False"
+    -- p2False intentionally requires a large counterexample, and will timeout
+    , checkExprNotVerified "tests/Verify/Peano1.hs" "p2False"
+    , checkExprCEx "tests/Verify/Peano1.hs" "p3False"
+    , checkExprCEx "tests/Verify/Peano1.hs" "p4False"
+    , checkExprCEx "tests/Verify/Peano1.hs" "p5False"
+
+    , checkExprVerified "tests/Verify/Int1.hs" "p1"
+    , checkExprVerified "tests/Verify/Int1.hs" "p2"
+    , checkExprVerified "tests/Verify/Int1.hs" "p2'"
+    , checkExprVerified "tests/Verify/Int1.hs" "p3"
+    , checkExprVerified "tests/Verify/Int1.hs" "p4"
+
+    , checkExprCEx "tests/Verify/Int1.hs" "p1False"
+    , checkExprCEx "tests/Verify/Int1.hs" "p2False"
+    , checkExprCEx "tests/Verify/Int1.hs" "p2False'"
+    , checkExprCEx "tests/Verify/Int1.hs" "p3False"
+
+    , checkExprVerified "tests/Verify/List1.hs" "prop1"
+    , checkExprVerified "tests/Verify/List1.hs" "prop2"
+    , checkExprVerified "tests/Verify/List1.hs" "prop3"
+    , checkExprVerified "tests/Verify/List1.hs" "prop4"
+    , checkExprVerified "tests/Verify/List1.hs" "prop5"
+    , checkExprVerified "tests/Verify/List1.hs" "prop6"
+    , checkExprVerified "tests/Verify/List1.hs" "prop7Simple"
+    , checkExprVerified "tests/Verify/List1.hs" "prop7"
+    , checkExprVerified "tests/Verify/List1.hs" "prop8"
+    , checkExprVerified "tests/Verify/List1.hs" "prop9"
+    , checkExprVerified "tests/Verify/List1.hs" "prop10"
+    -- , checkExprVerified "tests/Verify/List1.hs" "prop11"
+    , checkExprVerified "tests/Verify/List1.hs" "prop12"
+
+    , checkExprCEx "tests/Verify/List1.hs" "prop1False"
+    , checkExprCEx "tests/Verify/List1.hs" "prop4False"
+    , checkExprCEx "tests/Verify/List1.hs" "prop5False"
+    , checkExprCEx "tests/Verify/List1.hs" "prop6False"
+    , checkExprCEx "tests/Verify/List1.hs" "prop7False"
+    , checkExprCEx "tests/Verify/List1.hs" "prop9False"
+    , checkExprCEx "tests/Verify/List1.hs" "prop10False"
+    , checkExprCEx "tests/Verify/List1.hs" "prop10False2"
+    , checkExprCEx "tests/Verify/List1.hs" "prop11False"
+    , checkExprCEx "tests/Verify/List1.hs" "prop12False"
+
+    , checkExprVerified "tests/Verify/List2.hs" "p1"
+    , checkExprVerified "tests/Verify/List2.hs" "p2"
+    , checkExprVerified "tests/Verify/List2.hs" "p3"
+    , checkExprCEx "tests/Verify/List2.hs" "p2False"
+    , checkExprCEx "tests/Verify/List2.hs" "p2False'"
+    , checkExprCEx "tests/Verify/List2.hs" "p3False"
+    , checkExprCEx "tests/Verify/List2.hs" "p3False'"
+    , checkExprCEx "tests/Verify/List2.hs" "p3False''"
+
+    , checkExprCEx "tests/Verify/List3.hs" "p1False"
+    , checkExprCEx "tests/Verify/List3.hs" "p2False"
+    , checkExprCEx "tests/Verify/List3.hs" "p3False"
+    , checkExprCEx "tests/Verify/List3.hs" "p4False"
+
+    -- , checkExprVerified "tests/Verify/NatList1.hs" "prop1"
+    , checkExprVerified "tests/Verify/NatList1.hs" "prop2"
+    , checkExprCEx "tests/Verify/NatList1.hs" "prop1False"
+    , checkExprCEx "tests/Verify/NatList1.hs" "prop2False"
+    , checkExprCEx "tests/Verify/NatList1.hs" "prop2False'"
+
+    , checkExprVerified "tests/Verify/Infinite1.hs" "p1"
+    , checkExprCEx "tests/Verify/Infinite1.hs" "p1False"
+
+    , checkExprCEx "tests/Verify/NonStrict1.hs" "prop1False"
+    ]
+
 -- To Do Tests
 --------------
 
@@ -827,6 +994,36 @@ checkExprWithConfig src m_assume m_assert m_reaches entry reqList config_f = do
                    (maybe False null reqRes)
         )
 
+checkExprVerified :: String -> String -> TestTree
+checkExprVerified = checkExprVerifier (\case Verified -> True; Counterexample _ -> False; VerifyTimeOut -> False)
+
+checkExprCEx :: String -> String -> TestTree
+checkExprCEx = checkExprVerifier (\case Verified -> False; Counterexample _ -> True; VerifyTimeOut -> False)
+
+checkExprNotVerified :: String -> String -> TestTree
+checkExprNotVerified = checkExprVerifier (\case Verified -> False; Counterexample _ -> True; VerifyTimeOut -> True)
+
+checkExprVerifier :: (VerifyResult -> Bool) -> String -> String -> TestTree
+checkExprVerifier vr_check src entry = 
+    testCase ("Verifier:" ++ src ++ " " ++ entry) $ do
+        res <- try (do
+                let proj = takeDirectory src
+                config <- mkConfigTestIO
+                let config' = config { timeLimit = 30 }
+                verifyFromFile [proj] [src] (T.pack entry) simplTranslationConfig config' defVerifyConfig)
+                    :: IO (Either SomeException ((VerifyResult, Double, Bindings, Id)))
+        let res' = case res of
+                        Left _ -> VerifyTimeOut
+                        Right (vr, _, _, _) -> vr
+
+        assertBool
+            ("Incorrect verification result for " ++ entry ++ " in " ++ show src ++ "\nresult = " ++ resToString res')
+            (vr_check res') 
+        where
+            resToString Verified = "Verified"
+            resToString VerifyTimeOut = "TimeOut"
+            resToString (Counterexample _) = "Counterexample"
+
 testFile :: String
          -> Maybe String
          -> Maybe String
@@ -858,7 +1055,7 @@ testFileWithConfig src m_assume m_assert m_reaches entry config = do
                 simplTranslationConfig
                 config
 
-    return $ maybe (error "Timeout") fst r
+    return $ maybe (error "Timeout") (\(er, b, _, _) -> (er, b)) r
 
 -- For mergeState unit tests
 checkFn :: Either String Bool -> String -> IO TestTree

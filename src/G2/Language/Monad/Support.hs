@@ -38,7 +38,6 @@ import G2.Language.Syntax
 import G2.Language.Support
 import G2.Language.TypeClasses
 import qualified G2.Language.TyVarEnv as TV 
-import qualified G2.Language.TyVarEnv as TV
 
 -- | A wrapper for `State`, allowing it to be used as a monadic context.
 type StateT t m a = SM.StateT (State t, Bindings) m a

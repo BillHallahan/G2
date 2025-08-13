@@ -1,6 +1,7 @@
 {-# LANGUAGE LambdaCase, OverloadedStrings #-}
 
-module G2.Initialization.MkCurrExpr ( mkCurrExpr
+module G2.Initialization.MkCurrExpr ( CurrExprRes (..)
+                                    , mkCurrExpr
                                     , checkReaches
                                     , findFunc
                                     , instantiateArgTypes ) where
@@ -15,11 +16,18 @@ import Data.Maybe
 import qualified Data.Text as T
 import qualified Data.HashMap.Lazy as HM 
 import qualified G2.Language.TyVarEnv as TV 
-import Debug.Trace
+
+data CurrExprRes = CurrExprRes { ce_expr :: Expr
+                               , fixed_in :: [Expr]
+                               , symbolic_type_ids
+                               , symbolic_value_ids :: [Id]
+                               , in_coercion ::  Maybe Coercion
+                               , mkce_namegen :: NameGen
+                               }
 
 mkCurrExpr :: TV.TyVarEnv -> Maybe T.Text -> Maybe T.Text -> Id
            -> TypeClasses -> NameGen -> ExprEnv -> TypeEnv
-           -> KnownValues -> Config -> (Expr, [Id], [Expr], Maybe Coercion, NameGen)
+           -> KnownValues -> Config -> CurrExprRes
 mkCurrExpr tv m_assume m_assert f@(Id (Name _ m_mod _ _) _) tc ng eenv tenv kv config =
     case E.lookup (idName f) eenv of
         Just ex ->
@@ -29,11 +37,11 @@ mkCurrExpr tv m_assume m_assert f@(Id (Name _ m_mod _ _) _) tc ng eenv tenv kv c
 
                 -- -- We refind the type of f, because type synonyms get replaced during the initializaton,
                 -- -- after we first got the type of f.
-                (app_ex, is, typsE, ng') =
+                (app_ex, typ_is, val_is, typsE, ng') =
                     if instTV config == InstBefore
                         then mkMainExpr tv tc kv ng coer_var_ex
                         else mkMainExprNoInstantiateTypes tv coer_var_ex ng
-                var_ids = map Var is
+                var_ids = map Var val_is
 
                 (name, ng'') = freshName ng'
                 id_name = Id name (typeOf tv app_ex)
@@ -46,8 +54,14 @@ mkCurrExpr tv m_assume m_assert f@(Id (Name _ m_mod _ _) _) tc ng eenv tenv kv c
 
                 let_ex = Let [(id_name, app_ex)] retsTrue_ex
             in
-            (let_ex, is, typsE, m_coer, ng'')
+            CurrExprRes { ce_expr = let_ex
+                        , fixed_in = typsE
+                        , symbolic_type_ids = typ_is
+                        , symbolic_value_ids = val_is
+                        , in_coercion = m_coer
+                        , mkce_namegen = ng''}
         Nothing -> error "mkCurrExpr: Bad Name"
+
 -- | If a function we are symbolically executing returns a newtype wrapping a function type, applies a coercion to the function.
 -- For instance, given:
 -- @
@@ -82,7 +96,7 @@ coerceRetNewTypes tv tenv e =
         replace_ret_ty c (TyFun t t') = TyFun t $ replace_ret_ty c t'
         replace_ret_ty c _ = c
 
-mkMainExpr :: TV.TyVarEnv -> TypeClasses -> KnownValues -> NameGen -> Expr -> (Expr, [Id], [Expr], NameGen)
+mkMainExpr :: TV.TyVarEnv -> TypeClasses -> KnownValues -> NameGen -> Expr -> (Expr, [Id], [Id], [Expr], NameGen)
 mkMainExpr tv tc kv ng ex =
     let
         typs = spArgumentTypes (typeOf tv ex)
@@ -93,11 +107,11 @@ mkMainExpr tv tc kv ng ex =
         
         app_ex = foldl' App ex $ typsE ++ var_ids
     in
-    (app_ex, is, typsE, ng')
+    (app_ex, [], is, typsE, ng')
 
 -- | This implementation aims to symbolically execute functions 
 -- treating both types and value level argument as symbolic
-mkMainExprNoInstantiateTypes :: TV.TyVarEnv -> Expr -> NameGen -> (Expr, [Id], [Expr], NameGen)
+mkMainExprNoInstantiateTypes :: TV.TyVarEnv -> Expr -> NameGen -> (Expr, [Id], [Id], [Expr], NameGen)
 mkMainExprNoInstantiateTypes tv e ng = 
     let 
         argts = spArgumentTypes (typeOf tv e)
@@ -121,10 +135,9 @@ mkMainExprNoInstantiateTypes tv e ng =
         (atsToIds,ng'') = freshIds ats' ng'
         atsToIds' = renames ntmap atsToIds
 
-        all_ids = ntids' ++ atsToIds'
         ars = map (Type . TyVar) ntids' ++ map Var atsToIds'
         app_ex = foldl' App (renames ntmap e) ars
-    in  (app_ex, all_ids, [],ng'')
+    in  (app_ex, ntids', atsToIds', [], ng'')
 
 
 mkInputs :: NameGen -> [Type] -> ([Expr], [Id], NameGen)

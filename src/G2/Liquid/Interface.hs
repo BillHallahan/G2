@@ -87,7 +87,8 @@ import qualified Data.Text.IO as TI
 
 import G2.Language.Monad
 import G2.Language.Support (Bindings(input_coercion))
-import qualified G2.Language.TyVarEnv as TV 
+import qualified G2.Language.TyVarEnv as TV
+import G2.Initialization.MkCurrExpr (CurrExprRes(symbolic_type_ids))
 
 data LHReturn = LHReturn { calledFunc :: FuncInfo
                          , violating :: Maybe FuncInfo
@@ -100,8 +101,8 @@ data FuncInfo = FuncInfo { func :: T.Text
 -- | findCounterExamples
 -- Given (several) LH sources, and a string specifying a function name,
 -- attempt to find counterexamples to the functions liquid type
-findCounterExamples :: TV.TyVarEnv -> [FilePath] -> [FilePath] -> T.Text -> Config -> LHConfig -> IO (([ExecRes AbstractedInfo], Bindings), Lang.Id)
-findCounterExamples tv proj fp entry config lhconfig = do
+findCounterExamples :: [FilePath] -> [FilePath] -> T.Text -> Config -> LHConfig -> IO (([ExecRes AbstractedInfo], Bindings), Lang.Id)
+findCounterExamples proj fp entry config lhconfig = do
     let config' = config { mode = Liquid, fp_handling = RationalFP }
 
     lh_config <- getOpts []
@@ -114,21 +115,20 @@ findCounterExamples tv proj fp entry config lhconfig = do
 
     (mb_mod, ex_g2) <- translateLoaded proj fp (simplTranslationConfig { simpl = False }) config'
 
-    runLHCore tv entry (mb_mod, ex_g2) ghci' config' lhconfig
+    runLHCore entry (mb_mod, ex_g2) ghci' config' lhconfig
 
-runLHCore :: TV.TyVarEnv 
-          ->T.Text
+runLHCore :: T.Text
           -> ([Maybe T.Text], ExtractedG2)
           -> [GhcInfo]
           -> Config
           -> LHConfig
           -> IO (([ExecRes AbstractedInfo], Bindings), Lang.Id)
-runLHCore tv entry (mb_modname, exg2) ghci config lhconfig = do
+runLHCore entry (mb_modname, exg2) ghci config lhconfig = do
     LiquidData { ls_state = final_st
                , ls_bindings = bindings
                , ls_id = ifi
                , ls_counterfactual_name = cfn
-               , ls_memconfig = pres_names } <- liquidStateWithCall tv entry (mb_modname, exg2) ghci config lhconfig mempty
+               , ls_memconfig = pres_names } <- liquidStateWithCall entry (mb_modname, exg2) ghci config lhconfig mempty
 
     SomeSolver solver <- initSolver config
     let simplifier = NaNInfBlockSimplifier :>> FloatSimplifier :>> ArithSimplifier
@@ -141,17 +141,17 @@ runLHCore tv entry (mb_modname, exg2) ghci config lhconfig = do
     return ((exec_res, final_bindings), ifi)
 
 {-# INLINE liquidStateWithCall #-}
-liquidStateWithCall :: TV.TyVarEnv -> T.Text -> ([Maybe T.Text], ExtractedG2)
+liquidStateWithCall :: T.Text -> ([Maybe T.Text], ExtractedG2)
                       -> [GhcInfo]
                       -> Config
                       -> LHConfig
                       -> MemConfig
                       -> IO LiquidData
-liquidStateWithCall tv entry (mb_modname, exg2) ghci config lhconfig memconfig =
-    liquidStateWithCall' tv entry (mb_modname, exg2) ghci config lhconfig memconfig (mkCurrExpr tv Nothing Nothing) (mkArgTys tv)
+liquidStateWithCall entry (mb_modname, exg2) ghci config lhconfig memconfig =
+    liquidStateWithCall' entry (mb_modname, exg2) ghci config lhconfig memconfig (mkCurrExpr TV.empty Nothing Nothing) (mkArgTys TV.empty)
 
 {-# INLINE liquidStateWithCall' #-}
-liquidStateWithCall' :: TV.TyVarEnv -> T.Text -> ([Maybe T.Text], ExtractedG2)
+liquidStateWithCall' :: T.Text -> ([Maybe T.Text], ExtractedG2)
                        -> [GhcInfo]
                        -> Config
                        -> LHConfig
@@ -159,13 +159,12 @@ liquidStateWithCall' :: TV.TyVarEnv -> T.Text -> ([Maybe T.Text], ExtractedG2)
                        -> (Lang.Id -> MkCurrExpr)
                        -> (Lang.Expr -> MkArgTypes)
                        -> IO LiquidData
-liquidStateWithCall' tv entry (mb_m, exg2) ghci config lhconfig memconfig mkCurr argTys = do
+liquidStateWithCall' entry (mb_m, exg2) ghci config lhconfig memconfig mkCurr argTys = do
     let simp_s = initSimpleState exg2
-    liquidStateFromSimpleStateWithCall' tv simp_s ghci entry mb_m config lhconfig memconfig mkCurr argTys
+    liquidStateFromSimpleStateWithCall' simp_s ghci entry mb_m config lhconfig memconfig mkCurr argTys
 
 {-# INLINE liquidStateFromSimpleStateWithCall #-}
-liquidStateFromSimpleStateWithCall :: TV.TyVarEnv
-                                   -> SimpleState
+liquidStateFromSimpleStateWithCall :: SimpleState
                                    -> [GhcInfo]
                                    -> T.Text
                                    -> [Maybe T.Text]
@@ -173,12 +172,11 @@ liquidStateFromSimpleStateWithCall :: TV.TyVarEnv
                                    -> LHConfig
                                    -> MemConfig
                                    -> IO LiquidData
-liquidStateFromSimpleStateWithCall tv simp_s ghci entry mb_m config lhconfig memconfig =
-    liquidStateFromSimpleStateWithCall' tv simp_s ghci entry mb_m config lhconfig memconfig (mkCurrExpr tv Nothing Nothing) (mkArgTys tv)
+liquidStateFromSimpleStateWithCall simp_s ghci entry mb_m config lhconfig memconfig =
+    liquidStateFromSimpleStateWithCall' simp_s ghci entry mb_m config lhconfig memconfig (mkCurrExpr TV.empty Nothing Nothing) (mkArgTys TV.empty)
 
 {-# INLINE liquidStateFromSimpleStateWithCall' #-}
-liquidStateFromSimpleStateWithCall' :: TV.TyVarEnv 
-                                    -> SimpleState
+liquidStateFromSimpleStateWithCall' :: SimpleState
                                     -> [GhcInfo]
                                     -> T.Text
                                     -> [Maybe T.Text]
@@ -188,9 +186,9 @@ liquidStateFromSimpleStateWithCall' :: TV.TyVarEnv
                                     -> (Lang.Id -> MkCurrExpr)
                                     -> (Lang.Expr -> MkArgTypes)
                                     -> IO LiquidData
-liquidStateFromSimpleStateWithCall' tv simp_s ghci entry mb_m config lhconfig memconfig mkCurr argTys = do
+liquidStateFromSimpleStateWithCall' simp_s ghci entry mb_m config lhconfig memconfig mkCurr argTys = do
     let (simp_s', ph_tyvars) = if add_tyvars lhconfig
-                                  then fmap Just $ addTyVarsEEnvTEnv tv simp_s
+                                  then fmap Just $ addTyVarsEEnvTEnv TV.empty simp_s
                                   else (simp_s, Nothing)
         (s, i, bindings') = initStateFromSimpleStateWithCall simp_s' True entry mb_m mkCurr argTys config
     
@@ -355,10 +353,16 @@ processLiquidReadyStateWithCall lrs@(LiquidReadyState { lr_state = lhs@(LHState 
                           Left ie' -> ie'
                           Right errs -> error errs
 
-        (ce, is, f_i, m_c, ng') = mkCurrExpr (tyvar_env s) Nothing Nothing ie (type_classes s) (name_gen bindings)
+        CurrExprRes { ce_expr = ce
+                    , fixed_in = f_i
+                    , symbolic_value_ids = val_is
+                    , symbolic_type_ids = ty_is
+                    , in_coercion = m_c
+                    , mkce_namegen = ng' } = mkCurrExpr (tyvar_env s) Nothing Nothing ie (type_classes s) (name_gen bindings)
                                       (expr_env s) (type_env s) (known_values s) config
 
-        lhs' = lhs { state = s { expr_env = foldr E.insertSymbolic (expr_env s) is
+        lhs' = lhs { state = s { expr_env = foldr E.insertSymbolic (expr_env s) val_is
+                               , tyvar_env = foldr TV.insertSymbolic (tyvar_env s) ty_is
                                , curr_expr = CurrExpr Evaluate ce }
                    }
         (lhs'', bindings') = execLHStateM addLHTCCurrExpr lhs' (bindings { name_gen = ng' })
@@ -367,7 +371,7 @@ processLiquidReadyStateWithCall lrs@(LiquidReadyState { lr_state = lhs@(LHState 
 
         lrs' = lrs { lr_state = lhs'''
                    , lr_binding = bindings' { fixed_inputs = f_i
-                                            , input_names = map idName is
+                                            , input_names = map idName $ ty_is ++ val_is
                                             , input_coercion = m_c
                                             }
                    }
@@ -646,16 +650,6 @@ parseLHOut entry (ExecRes { final_state = s
   LHReturn { calledFunc = called
            , violating = viFunc
            , abstracted = abstr}
-
-inlineVars :: ASTContainer t Expr => ExprEnv -> t -> t
-inlineVars eenv = modifyASTs (inlineVars' eenv)
-
-inlineVars' :: ExprEnv -> Expr -> Expr
-inlineVars' eenv v@(Var (Id n _)) =
-    case E.lookupConcOrSym n eenv of
-        Just (E.Conc e) -> inlineVars' eenv e
-        _ -> v
-inlineVars' _ e = e 
 
 counterExampleToLHReturn :: State t -> CounterExample -> LHReturn
 counterExampleToLHReturn s (DirectCounter fc abstr _) =

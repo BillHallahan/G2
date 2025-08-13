@@ -255,7 +255,9 @@ stringExpr = do
 
 stringExpr' :: Parser Char
 stringExpr' = do
-    try parseHexChar <|> try parseUni <|> try parseQuote <|> choice (alphaNum:map char " \\[]{}`#:,;|()'"++ map char ident)
+    try parseHexChar <|> try parseUni <|> try parseQuote
+    -- Recognize any character inside a String except for a quote (which would be ending the string)
+    <|> satisfy (/= '\"')
 
 parseQuote :: Parser Char
 parseQuote = do

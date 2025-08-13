@@ -22,29 +22,29 @@ import qualified Language.Fixpoint.Types.Config as FP
 import qualified Data.Text as T
 import qualified G2.Language.TyVarEnv as TV 
 
-initStateAndConfig :: TV.TyVarEnv -> ExtractedG2 -> [Maybe T.Text] -> G2.Config -> LHConfig -> InferenceConfig -> [GhcInfo]
+initStateAndConfig :: ExtractedG2 -> [Maybe T.Text] -> G2.Config -> LHConfig -> InferenceConfig -> [GhcInfo]
                    -> (LiquidReadyState, G2.Config, LHConfig, InferenceConfig)
-initStateAndConfig tv exg2 main_mod g2config lhconfig infconfig ghci = 
+initStateAndConfig exg2 main_mod g2config lhconfig infconfig ghci = 
     let
         simp_s = initSimpleState exg2
         (g2config', lhconfig', infconfig') = adjustConfig main_mod simp_s g2config lhconfig infconfig ghci
 
-        lrs = createStateForInference tv simp_s main_mod g2config' lhconfig' ghci
+        lrs = createStateForInference simp_s main_mod g2config' lhconfig' ghci
 
         lh_s = lr_state lrs
-        lhconfig'' = adjustConfigPostLH tv main_mod (measures lh_s) (tcvalues lh_s) (state lh_s) ghci lhconfig'
+        lhconfig'' = adjustConfigPostLH main_mod (measures lh_s) (tcvalues lh_s) (state lh_s) ghci lhconfig'
     in
     (lrs, g2config', lhconfig'', infconfig')
 
-createStateForInference :: TV.TyVarEnv -> SimpleState -> [Maybe T.Text] -> G2.Config -> LHConfig -> [GhcInfo] -> LiquidReadyState
-createStateForInference tv simp_s main_mod config lhconfig ghci =
+createStateForInference :: SimpleState -> [Maybe T.Text] -> G2.Config -> LHConfig -> [GhcInfo] -> LiquidReadyState
+createStateForInference simp_s main_mod config lhconfig ghci =
     let
         (simp_s', ph_tyvars) = if add_tyvars lhconfig
-                                then fmap Just $ addTyVarsEEnvTEnv tv simp_s
+                                then fmap Just $ addTyVarsEEnvTEnv TV.empty simp_s
                                 else (simp_s, Nothing)
         (s, b) = initStateFromSimpleState simp_s' main_mod True 
-                    (\_ ng _ _ _ _ -> (Prim Undefined TyBottom, [], [], Nothing, ng))
-                    ( (E.higherOrderExprs tv) . IT.expr_env)
+                    noStartFuncMkCurrExpr
+                    ( (E.higherOrderExprs TV.empty) . IT.expr_env)
                     config
     in
     createLiquidReadyState s b ghci ph_tyvars lhconfig

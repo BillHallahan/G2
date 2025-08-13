@@ -32,5 +32,5 @@ It is capable of generating assertion failure counterexamples and solving for hi
 
 * `--n` number of reduction steps to run
 * `--max-outputs` number of inputs/results to display
-* `--smt` Pass "z3" or "cvc4" to select a solver [Default: Z3]
+* `--smt` Pass "z3" or "cvc5" to select a solver [Default: Z3]
 * `--time` Set a timeout in seconds

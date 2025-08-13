@@ -41,7 +41,7 @@ data Logic = ALL
            | QF_LIRA
            | QF_NIRA
            | QF_UFLIA
-           | QF_S -- ^ Strings   
+           | QF_SLIA -- ^ Strings (with linear integer arithmetic for length)
            deriving (Show, Eq)
 
 -- | These correspond to first order logic, arithmetic operators, and variables, as supported by an SMT Solver
@@ -155,6 +155,8 @@ data SMTAST = (:>=) !SMTAST !SMTAST
             | RealToDouble !SMTAST -- ^ Real to Double
 
             | Named !SMTAST SMTName -- ^ Name a piece of the SMTAST, allowing it to be returned in unsat cores
+
+            | ForAll SMTName Sort !SMTAST
             deriving (Show, Eq)
 
 -- | Every `SMTAST` has a `Sort`

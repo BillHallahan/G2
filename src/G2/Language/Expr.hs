@@ -11,6 +11,7 @@ module G2.Language.Expr ( module G2.Language.Casts
                         , mkTrue
                         , mkFalse
                         , mkBool
+                        , toBool
                         , mkDCInt
                         , mkDCInteger
                         , mkDCFloat
@@ -81,7 +82,9 @@ module G2.Language.Expr ( module G2.Language.Casts
                         , varBetaReduction
                         , etaExpandTo
                         
-                        , stripAllTicks) where
+                        , stripAllTicks
+                        
+                        , inlineVars) where
 
 import G2.Language.AST
 import G2.Language.Casts
@@ -94,6 +97,7 @@ import G2.Language.Typing
 import G2.Language.Primitives
 
 import Data.Foldable
+import qualified Data.HashSet as HS
 import qualified Data.Map as M
 import Data.Maybe
 import Data.Semigroup
@@ -168,6 +172,11 @@ mkFalse kv = Data $ DataCon (KV.dcFalse kv) (TyCon (KV.tyBool kv) TYPE) [] []
 
 mkBool :: KnownValues -> Bool -> Expr
 mkBool kv b = if b then mkTrue kv else mkFalse kv
+
+toBool :: KnownValues -> Expr -> Maybe Bool
+toBool kv (Data dc) | dc_name dc == KV.dcTrue kv = Just True
+                    | dc_name dc == KV.dcFalse kv = Just False
+toBool _ _ = Nothing
 
 mkCons :: KnownValues -> TypeEnv -> Expr
 mkCons kv tenv = Data . fromJust $ getDataCon tenv (KV.tyList kv) (KV.dcCons kv)
@@ -616,3 +625,12 @@ stripAllTicks = modifyASTs stripTicks
 stripTicks :: Expr -> Expr
 stripTicks (Tick _ e) = e
 stripTicks e = e
+
+inlineVars :: ASTContainer c Expr => ExprEnv -> c -> c
+inlineVars eenv = modifyContainedASTs (inlineVars' HS.empty eenv)
+
+inlineVars' :: HS.HashSet Name -> ExprEnv -> Expr -> Expr
+inlineVars' seen eenv (Var (Id n _))
+    | not (n `HS.member` seen)
+    , Just (E.Conc e) <- E.lookupConcOrSym n eenv = inlineVars' (HS.insert n seen) eenv e
+inlineVars' seen eenv e = modifyChildren (inlineVars' seen eenv) e

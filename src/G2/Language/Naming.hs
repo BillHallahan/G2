@@ -68,6 +68,7 @@ import qualified Data.Sequence as S
 import qualified Data.Text as T
 import Data.Tuple
 import qualified Text.Builder as TB
+import G2.Language.TyVarEnv (TyConcOrSym)
 
 -- | Extract the "occurence" from a `Name`.
 --
@@ -630,6 +631,7 @@ instance Named KnownValues where
 
             , typeIndex = ti
             , adjStr = adjN
+            , strQuantifiers = strQ
 
             , errorFunc = errF
             , errorEmptyListFunc = errEmpListF
@@ -651,7 +653,7 @@ instance Named KnownValues where
                 , geF, gtF, ltF, leF
                 , impF, iffF
                 , andF, orF, notF
-                , ti, adjN
+                , ti, adjN, strQ
                 , errF, errEmpListF, errWOST, patE]
 
     rename old new (KnownValues {
@@ -740,6 +742,7 @@ instance Named KnownValues where
 
                    , typeIndex = ti
                    , adjStr = adjN
+                   , strQuantifiers = strQ
 
                    , errorFunc = errF
                    , errorEmptyListFunc = errEmpListF
@@ -832,6 +835,7 @@ instance Named KnownValues where
 
                         , typeIndex = rename old new ti
                         , adjStr = rename old new adjN
+                        , strQuantifiers = rename old new strQ
 
                         , errorFunc = rename old new errF
                         , errorEmptyListFunc = rename old new errEmpListF
@@ -839,10 +843,20 @@ instance Named KnownValues where
                         , patErrorFunc = rename old new patE
                         })
 
+instance Named TyConcOrSym where
+    names (TV.TyConc t) = names t
+    names (TV.TySym i) = names i
+
+    rename old new (TV.TyConc t) = TV.TyConc (rename old new t)
+    rename old new (TV.TySym i) = TV.TySym (rename old new i)
+
+    renames hm (TV.TyConc t) = TV.TyConc (renames hm t)
+    renames hm (TV.TySym i) = TV.TySym (renames hm i)
+
 instance Named TV.TyVarEnv where
     names = names . TV.toList
-    rename old new = TV.fromList . rename old new . TV.toList
-    renames hm = TV.fromList . renames hm . TV.toList
+    rename old new = TV.fromListConcOrSym . rename old new . TV.toListConcOrSym
+    renames hm = TV.fromListConcOrSym . renames hm . TV.toListConcOrSym
 
 instance Named a => Named [a] where
     {-# INLINE names #-}

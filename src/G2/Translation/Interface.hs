@@ -90,8 +90,14 @@ translateLoaded proj src tr_con config = do
   let mb_modname = exg2_mod_names exg2
   let exg2' = adjustAssertG2Symbolic f_nm
             . adjustAssertGHC f_nm
-            . adjustAssume f_nm
-            $ adjustMkSymbolicPrim f_nm exg2
+            . adjustAssume (Just "GHC.Prim") f_nm
+            . adjustAssume (Just "G2.Symbolic") f_nm
+            . adjustMkSymbolicPrim SNoLog "symgen" (Just "GHC.Prim") f_nm
+#if MIN_VERSION_GLASGOW_HASKELL(9,6,0,0)
+            $ adjustMkSymbolicPrim SLog "symgen_G2_INTERNAL" Nothing f_nm exg2
+#else
+            $ adjustMkSymbolicPrim SLog "symgen_G2_INTERNAL" (Just "G2.Symbolic") f_nm exg2
+#endif
 
   let merged_exg2 = mergeExtractedG2s [exg2', base_exg2]
   let injected_exg2@ExtractedG2 { exg2_binds = near_final_prog } = specialInject merged_exg2
@@ -102,21 +108,17 @@ translateLoaded proj src tr_con config = do
 
   return (mb_modname, final_exg2)
 
-adjustMkSymbolicPrim :: NameMap -> ExtractedG2 -> ExtractedG2
-adjustMkSymbolicPrim nm exg2 =
+adjustMkSymbolicPrim :: SymLog -> T.Text -> Maybe T.Text -> NameMap -> ExtractedG2 -> ExtractedG2
+adjustMkSymbolicPrim sym_log occ_n md_nm nm exg2 =
     let
-#if MIN_VERSION_GLASGOW_HASKELL(9,6,0,0)
-        n = ("symgen_G2_INTERNAL", Nothing)
-#else
-        n = ("symgen_G2_INTERNAL", Just "G2.Symbolic")
-#endif
+        n = (occ_n, md_nm)
     in
     adjustFunction n nm exg2
-            (let a = Id (Name "a" Nothing 0 Nothing) TYPE in G2.Lam TypeL a (SymGen SLog $ TyVar a))
+            (let a = Id (Name "a" Nothing 0 Nothing) TYPE in G2.Lam TypeL a (SymGen sym_log $ TyVar a))
 
-adjustAssume :: NameMap -> ExtractedG2 -> ExtractedG2
-adjustAssume nm exg2 =
-    adjustFunction ("assume", Just "G2.Symbolic") nm exg2
+adjustAssume :: Maybe T.Text -> NameMap -> ExtractedG2 -> ExtractedG2
+adjustAssume mdl nm exg2 =
+    adjustFunction ("assume", mdl) nm exg2
             (let a = Id (Name "a" Nothing 0 Nothing) TYPE
                  b = Id (Name "b" Nothing 0 Nothing) TyUnknown
                  x = Id (Name "x" Nothing 0 Nothing) (TyVar a) in

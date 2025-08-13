@@ -10,6 +10,7 @@ module G2.Execution.PrimitiveEval ( evalPrimsSharing
                                   , evalPrimSymbolic) where
 
 import G2.Execution.NewPC
+import G2.Execution.SymToCase
 import G2.Language.AST
 import G2.Language.Expr
 import qualified G2.Language.KnownValues as KV
@@ -30,38 +31,38 @@ import G2.Language.MutVarEnv
 import qualified G2.Language.TyVarEnv as TV 
 
 import GHC.Float
-import Data.ByteString (isPrefixOf)
+import G2.Language.ExprEnv (deepLookupVar)
 
 -- | Evaluates primitives at the root of the passed `Expr` while updating the `ExprEnv`
 -- to share computed results.
-evalPrimsSharing :: ExprEnv -> TypeEnv -> KnownValues -> Expr -> (Expr, ExprEnv)
-evalPrimsSharing eenv tenv kv e =
-    let (_, e', eenv') = evalPrimsSharing' eenv tenv kv . simplifyCasts $ e in (e', eenv')
+evalPrimsSharing :: ExprEnv -> TypeEnv -> TV.TyVarEnv -> KnownValues -> Expr -> (Expr, ExprEnv)
+evalPrimsSharing eenv tenv tv_env kv e =
+    let (_, e', eenv') = evalPrimsSharing' eenv tenv tv_env kv . simplifyCasts tv_env $ e in (e', eenv')
 
 -- | Passed back in evalPrimsSharing' to indicate whether a new value has been computed,
 -- and thus indicate whether insertion into the `ExprEnv` is needed.
 data NeedUpdate = Update | NoUpdate deriving Show
 
-evalPrimsSharing' :: ExprEnv -> TypeEnv -> KnownValues -> Expr -> (NeedUpdate, Expr, ExprEnv)
-evalPrimsSharing' eenv tenv kv a@(App _ _) =
+evalPrimsSharing' :: ExprEnv -> TypeEnv -> TV.TyVarEnv -> KnownValues -> Expr -> (NeedUpdate, Expr, ExprEnv)
+evalPrimsSharing' eenv tenv tv_env kv a@(App _ _) =
     case unApp a of
         p@(Prim _ _):es ->
             let
                 (eenv', es') = L.mapAccumR
-                                    (\eenv_ e -> let (_, e', eenv_') = evalPrimsSharing' eenv_ tenv kv e in (eenv_', e'))
-                                    eenv es
-                ev = evalPrim' eenv tenv kv (p:es')
+                                    (\eenv_ e -> let (_, e', eenv_') = evalPrimsSharing' eenv_ tenv tv_env kv e in (eenv_', e'))
+                                    eenv $ map (inlineVars eenv) es
+                ev = evalPrim' eenv tenv tv_env kv (p:es')
             in
             (Update, ev, eenv')
-        v@(Var _):xs | p@(Prim _ _) <- repeatedLookup eenv v -> evalPrimsSharing' eenv tenv kv (mkApp $ p:xs)
+        v@(Var _):xs | p@(Prim _ _) <- repeatedLookup eenv v -> evalPrimsSharing' eenv tenv tv_env kv (mkApp $ p:xs)
         _ -> (NoUpdate, a, eenv)
-evalPrimsSharing' eenv tenv kv v@(Var (Id n _)) =
+evalPrimsSharing' eenv tenv tv_env kv v@(Var (Id n _)) =
     case E.lookupConcOrSym n eenv of
-        Just (E.Conc e) -> case evalPrimsSharing' eenv tenv kv e of
+        Just (E.Conc e) -> case evalPrimsSharing' eenv tenv tv_env kv e of
                                 (Update, e', eenv') -> (Update, e', E.insert n e' eenv')
                                 r@(NoUpdate, _, _) -> r
         _ -> (NoUpdate, v, eenv)
-evalPrimsSharing' eenv _ _ e = (NoUpdate, e, eenv)
+evalPrimsSharing' eenv _ _ _ e = (NoUpdate, e, eenv)
 
 repeatedLookup :: ExprEnv -> Expr -> Expr
 repeatedLookup eenv v@(Var (Id n _))
@@ -73,28 +74,28 @@ repeatedLookup eenv v@(Var (Id n _))
           Nothing -> v
 repeatedLookup _ e = e
 
-evalPrims :: ASTContainer m Expr => ExprEnv -> TypeEnv -> KnownValues -> m -> m
-evalPrims eenv tenv kv = modifyContainedASTs (evalPrims' eenv tenv kv . simplifyCasts)
+evalPrims :: ASTContainer m Expr => ExprEnv -> TypeEnv -> TV.TyVarEnv -> KnownValues -> m -> m
+evalPrims eenv tenv tv_env kv = modifyContainedASTs (evalPrims' eenv tenv tv_env kv . simplifyCasts tv_env)
 
-evalPrims' :: ExprEnv -> TypeEnv -> KnownValues -> Expr -> Expr
-evalPrims' eenv tenv kv a@(App x y) =
+evalPrims' :: ExprEnv -> TypeEnv -> TV.TyVarEnv -> KnownValues -> Expr -> Expr
+evalPrims' eenv tenv tv_env kv a@(App x y) =
     case unApp a of
-        [p@(Prim _ _), l] -> evalPrim' eenv tenv kv [p, evalPrims' eenv tenv kv l]
+        [p@(Prim _ _), l] -> evalPrim' eenv tenv tv_env kv [p, evalPrims' eenv tenv tv_env kv l]
         [p@(Prim _ _), l1, l2] ->
-            evalPrim' eenv tenv kv [p, evalPrims' eenv tenv kv l1, evalPrims' eenv tenv kv l2]
+            evalPrim' eenv tenv tv_env kv [p, evalPrims' eenv tenv tv_env kv l1, evalPrims' eenv tenv tv_env kv l2]
         [p@(Prim _ _), l1, l2, l3] ->
-            evalPrim' eenv tenv kv [p, evalPrims' eenv tenv kv l1, evalPrims' eenv tenv kv l2, evalPrims' eenv tenv kv l3]
-        _ -> App (evalPrims' eenv tenv kv x) (evalPrims' eenv tenv kv y)
-evalPrims' eenv tenv kv e = modifyChildren (evalPrims' eenv tenv kv) e
+            evalPrim' eenv tenv tv_env kv [p, evalPrims' eenv tenv tv_env kv l1, evalPrims' eenv tenv tv_env kv l2, evalPrims' eenv tenv tv_env kv l3]
+        _ -> App (evalPrims' eenv tenv tv_env kv x) (evalPrims' eenv tenv tv_env kv y)
+evalPrims' eenv tenv tv_env kv e = modifyChildren (evalPrims' eenv tenv tv_env kv) e
 
-evalPrim' :: ExprEnv -> TypeEnv -> KnownValues -> [Expr] -> Expr
-evalPrim' eenv tenv kv xs = fromMaybe (mkApp xs) (maybeEvalPrim' eenv tenv kv xs)
+evalPrim' :: ExprEnv -> TypeEnv -> TV.TyVarEnv -> KnownValues -> [Expr] -> Expr
+evalPrim' eenv tenv tv_env kv xs = fromMaybe (mkApp xs) (maybeEvalPrim' eenv tenv tv_env kv xs)
 
-maybeEvalPrim :: ExprEnv -> TypeEnv -> KnownValues -> Expr -> Maybe Expr
-maybeEvalPrim eenv tenv kv = maybeEvalPrim' eenv tenv kv . unApp
+maybeEvalPrim :: ExprEnv -> TypeEnv -> TV.TyVarEnv -> KnownValues -> Expr -> Maybe Expr
+maybeEvalPrim eenv tenv tv_env kv = maybeEvalPrim' eenv tenv tv_env kv . unApp
 
-maybeEvalPrim' :: ExprEnv -> TypeEnv -> KnownValues -> [Expr] -> Maybe Expr
-maybeEvalPrim' eenv tenv kv xs
+maybeEvalPrim' :: ExprEnv -> TypeEnv -> TV.TyVarEnv -> KnownValues -> [Expr] -> Maybe Expr
+maybeEvalPrim' eenv tenv tv_env kv xs
     | [Prim p _, x] <- xs
     , Lit x' <- x
     , Just e <- evalPrim1 p x' = Just e
@@ -107,7 +108,7 @@ maybeEvalPrim' eenv tenv kv xs
     , Lit x' <- x
     , Lit y' <- y = evalPrim2 kv p x' y'
     | [Prim p _, x, y] <- xs
-    , Just e <- evalPrimADT2 kv p x y = Just e
+    , Just e <- evalPrimADT2 kv tenv p x y = Just e
 
     | [Prim p _, x, y, z] <- xs
     , Just e <- evalPrimADT3 tenv kv p x y z = Just e
@@ -115,10 +116,10 @@ maybeEvalPrim' eenv tenv kv xs
     | [Prim p _, x, y, z] <- xs = evalPrim3 kv p x y z
 
     | [Prim p _, Type t, x] <- xs
-    , Just e <- evalTypeAnyArgPrim eenv kv p t x = Just e
+    , Just e <- evalTypeAnyArgPrim eenv tv_env kv p t x = Just e
 
     | [Prim p _, Type t, dc_e] <- xs, Data dc:_ <- unApp dc_e =
-        evalTypeDCPrim2 tenv p t dc
+        evalTypeDCPrim2 tenv tv_env p t dc
 
     | [Prim p _, Type t, Lit (LitInt l)] <- xs =
         evalTypeLitPrim2 tenv p t l
@@ -507,44 +508,45 @@ evalPrimADT1 kv StrLen e = fmap (Lit . LitInt) (compLen e)
 
 evalPrimADT1 _ _ _ = Nothing
 
-evalPrimADT2 :: KnownValues -> Primitive -> Expr -> Expr -> Maybe Expr
-evalPrimADT2 kv StrAppend h t = strApp h t
-    where
-        -- Equivalent to: append (x:xs) ys = x:append xs ys
-        --                append [] ys = ys  
-        -- (:) @Char head tail ys
-        strApp (App (App (App (Data dc) typ) char) xs) ys = 
-            let
-                tl = case (strApp xs ys) of
-                    Nothing -> error "wrong nested type in string expr, should be impossible"
-                    Just e -> e
-            in assert (KV.dcCons kv == dcName dc) 
-                (Just (App (App (App (Data dc) typ) char) tl))
-        -- [] @Char ys
-        strApp (App (Data dc) _ {- type -}) ys = assert (KV.dcEmpty kv == dcName dc) (Just ys)
-        strApp _ _ = Nothing
+evalPrimADT2 :: KnownValues -> TypeEnv -> Primitive -> Expr -> Expr -> Maybe Expr
+evalPrimADT2 kv _ And e1 e2
+    | Just b1 <- toBool kv e1
+    , Just b2 <- toBool kv e2 = Just $ mkBool kv (b1 && b2)
+evalPrimADT2 kv _ Or e1 e2
+    | Just b1 <- toBool kv e1
+    , Just b2 <- toBool kv e2 = Just $ mkBool kv (b1 || b2)
 
-evalPrimADT2 kv StrPrefixOf pre s = do
+evalPrimADT2 kv tenv StrAppend xs ys = do
+    xs' <- toString xs
+    ys' <- toString ys
+    return . toStringExpr kv tenv $ xs' ++ ys'
+
+evalPrimADT2 kv tenv StrAt xs (Lit (LitInt i)) = do
+    xs' <- toString xs
+    let c = if fromInteger i < length xs' then  [xs' !! (fromInteger i)] else []
+    return $ toStringExpr kv tenv c
+
+evalPrimADT2 kv _ StrPrefixOf pre s = do
     pre' <- toString pre
     s' <- toString s
     return . mkBool kv $ pre' `L.isPrefixOf` s'
 
-evalPrimADT2 kv StrSuffixOf suf s = do
+evalPrimADT2 kv _ StrSuffixOf suf s = do
     suf' <- toString suf
     s' <- toString s
     return . mkBool kv $ suf' `L.isSuffixOf` s'
 
-evalPrimADT2 kv Eq f s = fmap (mkBool kv) $ lstEq f s
+evalPrimADT2 kv _ Eq f s = fmap (mkBool kv) $ lstEq f s
     where
         -- List equality, currently used for strings and assumes types can be compared
-        lstEq (App (App (App (Data dc_f) _) elem_f) xs) (App (App (App (Data dc_s) _) elem_s) ys) = do
+        lstEq (App (App (App (Data dc_f) _) elem_f@(Lit _)) xs) (App (App (App (Data dc_s) _) elem_s@(Lit _)) ys) = do
             nxt <- lstEq xs ys
             assert (KV.dcCons kv == dcName dc_f && KV.dcCons kv == dcName dc_s) (Just (nxt && elem_f == elem_s))
         lstEq (App (App (App (Data _) _) _) _) (App (Data _) _) = Just False
         lstEq (App (Data _) _) (App (App (App (Data _) _) _) _) = Just False
         lstEq (App (Data dc_f) _) (App (Data dc_s) _) = assert (KV.dcEmpty kv == dcName dc_f && KV.dcEmpty kv == dcName dc_s) (Just True)
         lstEq _ _ = Nothing
-evalPrimADT2 kv StrLe f s = fmap (mkBool kv) $ lstLe f s
+evalPrimADT2 kv _ StrLe f s = fmap (mkBool kv) $ lstLe f s
     where
         lstLe (App (App (App (Data dc_f) _) (App _ (Lit (LitChar c1)))) xs) (App (App (App (Data dc_s) _) (App _ (Lit (LitChar c2)))) ys)
             | c1 <= c2 = Just True
@@ -554,7 +556,20 @@ evalPrimADT2 kv StrLe f s = fmap (mkBool kv) $ lstLe f s
         lstLe (App (Data _) _) (App (App (App (Data _) _) _) _) = Just True
         lstLe (App (Data dc_f) _) (App (Data dc_s) _) = assert (KV.dcEmpty kv == dcName dc_f && KV.dcEmpty kv == dcName dc_s) (Just True)
         lstLe _ _= Nothing
-evalPrimADT2 _ _ _ _ = Nothing
+evalPrimADT2 kv _ StrLt f s = do
+    f' <- toString f
+    s' <- toString s
+    return $ mkBool kv (f' < s')
+evalPrimADT2 kv _ StrGt f s = do
+    f' <- toString f
+    s' <- toString s
+    return $ mkBool kv (f' > s')
+evalPrimADT2 kv _ StrGe f s = do
+    f' <- toString f
+    s' <- toString s
+    return $ mkBool kv (f' >= s')
+
+evalPrimADT2 _ _ _ _ _ = Nothing
 
 evalPrimADT3 :: TypeEnv -> KnownValues -> Primitive -> Expr -> Expr -> Expr -> Maybe Expr
 evalPrimADT3 tenv kv StrSubstr str (Lit (LitInt s)) (Lit (LitInt e)) = substr str s e
@@ -588,7 +603,10 @@ toString _ = Nothing
 toStringExpr :: KnownValues -> TypeEnv -> String -> Expr
 toStringExpr kv tenv =
     let cons = mkCons kv tenv in
-    foldr (\h t -> mkApp [cons, Type (tyChar kv), Lit (LitChar h), t]) (mkEmpty kv tenv)
+    foldr (\h t -> mkApp [ cons
+                         , Type (tyChar kv)
+                         , App (mkDCChar kv tenv) (Lit (LitChar h))
+                         , t]) (App (mkEmpty kv tenv) (Type (tyChar kv)))
 
 evalPrim2 :: KnownValues -> Primitive -> Lit -> Lit -> Maybe Expr
 evalPrim2 kv Ge x y = evalPrim2NumCharBool (>=) kv x y
@@ -638,10 +656,10 @@ evalPrim2 _ RationalToDouble (LitInt x) (LitInt y) =
 
 evalPrim2 _ _ _ _ = Nothing
 
-evalTypeAnyArgPrim :: ExprEnv -> KnownValues -> Primitive -> Type -> Expr -> Maybe Expr
-evalTypeAnyArgPrim _ kv TypeIndex t _ | t == tyString kv = Just (Lit (LitInt 1))
+evalTypeAnyArgPrim :: ExprEnv -> TV.TyVarEnv -> KnownValues -> Primitive -> Type -> Expr -> Maybe Expr
+evalTypeAnyArgPrim _ tv kv TypeIndex t _ | (tyVarSubst tv t) == tyString kv = Just (Lit (LitInt 1))
                                       | otherwise = Just (Lit (LitInt 0))
-evalTypeAnyArgPrim eenv kv IsSMTRep _ e
+evalTypeAnyArgPrim eenv _ kv IsSMTRep _ e
     | Just (E.Sym _) <- c_s = Just (mkTrue kv)
     | Just (E.Conc e) <- c_s 
     , Prim _ _:_ <- unApp e = Just (mkTrue kv)
@@ -649,20 +667,20 @@ evalTypeAnyArgPrim eenv kv IsSMTRep _ e
         c_s = case e of
                 Var (Id n _) -> E.deepLookupConcOrSym n eenv
                 _ -> Just (E.Conc e) 
-evalTypeAnyArgPrim _ kv IsSMTRep _ _ = Just (mkFalse kv)
-evalTypeAnyArgPrim _ _ _ _ _ = Nothing
+evalTypeAnyArgPrim _ _ kv IsSMTRep _ _ = Just (mkFalse kv)
+evalTypeAnyArgPrim _ _ _ _ _ _ = Nothing
 
-evalTypeDCPrim2 :: TypeEnv -> Primitive -> Type -> DataCon -> Maybe Expr
-evalTypeDCPrim2 tenv DataToTag t dc =
-    case unTyApp t of
+evalTypeDCPrim2 :: TypeEnv -> TV.TyVarEnv -> Primitive -> Type -> DataCon -> Maybe Expr
+evalTypeDCPrim2 tenv tv_env DataToTag t dc  =
+    case unTyApp $ tyVarSubst tv_env t of
         TyCon n _:_ | Just adt <- M.lookup n tenv ->
             let
                 dcs = dataCon adt
                 dc_names = map dc_name dcs
             in
-                fmap (Lit . LitInt . fst) . L.find ((==) (dc_name dc) . snd) $ zip [1..] dc_names
+                fmap (Lit . LitInt . fst) . L.find ((==) (dc_name dc) . snd) $ zip [0..] dc_names
         _ -> error "evalTypeDCPrim2: Unsupported Primitive Op"
-evalTypeDCPrim2 _ _ _ _ = Nothing
+evalTypeDCPrim2 _ _ _ _ _ = Nothing
 
 evalTypeLitPrim2 :: TypeEnv -> Primitive -> Type -> Integer -> Maybe Expr
 evalTypeLitPrim2 tenv TagToEnum t i =
@@ -727,10 +745,31 @@ evalPrim3 kv Ite (Data (DataCon { dc_name = b })) e1 e2 | b == KV.dcTrue kv = Ju
 evalPrim3 _ _ _ _ _ = Nothing
 
 -- | Evaluate certain primitives applied to symbolic expressions, when possible
-evalPrimSymbolic :: TV.TyVarEnv -> ExprEnv -> TypeEnv -> NameGen -> KnownValues -> Expr -> Maybe (Expr, ExprEnv, [PathCond], NameGen)
+evalPrimSymbolic ::  TV.TyVarEnv -> ExprEnv -> TypeEnv -> NameGen -> KnownValues -> Expr -> Maybe (Expr, ExprEnv, [PathCond], NameGen)
 evalPrimSymbolic tv eenv tenv ng kv e
+    | [Prim DataToTag _, type_t, (Var (Id n _))] <- unApp e
+    , Just t <- TV.deepLookup tv type_t
+    , Just (Id sym_n _) <- deepLookupVar tv n eenv
+    , E.isSymbolic sym_n eenv
+    , TyCon tn _:_ <- unTyApp t
+    , Just adt <- M.lookup tn tenv =
+        let
+            (_, bi) = fromJust $ getCastedAlgDataTy t tenv
+
+            dcs = dataCon adt
+            num_dcs = zip (map (Lit . LitInt) [0..]) dcs
+
+            (cvar, ng') = freshId t ng
+
+            (ret, cse, assume_pc, eenv', ng'') =
+                createCaseExpr tv bi Nothing cvar t kv tenv eenv ng' dcs
+
+            eenv'' = E.insertSymbolic ret
+                   $ E.insert sym_n cse eenv'
+        in
+        Just (Var ret, eenv'', assume_pc, ng'')
     | [Prim DataToTag _, type_t, cse] <- unApp e
-    , Type t <- dig eenv type_t
+    , Just t <- TV.deepLookup tv type_t
     , Case v@(Var _) _ _ alts <- cse
     , TyCon tn _:_ <- unTyApp t
     , Just adt <- M.lookup tn tenv =
@@ -759,7 +798,7 @@ evalPrimSymbolic tv eenv tenv ng kv e
     , [Prim TagToEnum _, _, pe] <- unApp e
     , typeOf tv (dig eenv pe) == tBool = Just (pe, eenv, [], ng)
     | [Prim TagToEnum _, type_t, pe] <- unApp e
-    , Type t <- dig eenv type_t =
+    , Just t <- TV.deepLookup tv type_t =
         case unTyApp t of
             TyCon n _:_ | Just adt <- M.lookup n tenv ->
                 let

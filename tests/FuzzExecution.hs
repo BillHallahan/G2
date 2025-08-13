@@ -33,7 +33,7 @@ fuzzExecution (SB init_state bindings) = do
         config <- mkConfigTestIO
 
         -- Adding a dummy name in place of entry function, this function doesn't use it.
-        (ers, b) <- runG2WithConfig (Name (T.pack "fuzz") Nothing 0 Nothing) [Nothing] init_state config bindings
+        (ers, b, _) <- runG2WithConfig (Name (T.pack "fuzz") Nothing 0 Nothing) [Nothing] init_state config bindings
 
         mr <- runGhc (Just libdir) (do
                 and <$> mapM (\er -> do
@@ -50,7 +50,7 @@ fuzzExecution (SB init_state bindings) = do
                                         Nothing -> return ()
                                     
                                     -- Actually validate
-                                    val <- validateStatesGHC pg Nothing "call" [] b er
+                                    (val, _) <- validateStatesGHC pg Nothing "call" [] [] b er
                                     return $ fromMaybe False val) ers
             )
         

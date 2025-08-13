@@ -8,7 +8,6 @@ module G2.Execution.Interface
 
 import G2.Execution.Reducer
 import G2.Execution.Rules
-import G2.Interface.ExecRes
 import G2.Language.Support
 import Debug.Trace
 

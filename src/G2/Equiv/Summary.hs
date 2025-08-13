@@ -15,7 +15,7 @@ module G2.Equiv.Summary
   )
   where
 
-import G2.Language
+import G2.Language hiding (inlineVars)
 
 import qualified G2.Language.ExprEnv as E
 import qualified G2.Language.Expr as X
@@ -535,6 +535,7 @@ exprDepth tv h h' ns n e = case e of
         | m <- idName i
         , not $ m `elem` ns
         , Just e' <- lookupBoth m h h' -> exprDepth tv h h' ns (m:n) e'
+        | Just _ <- TV.lookup (idName i) tv -> 0
         | not $ (idName i) `elem` ns -> error "unmapped variable"
   _ | d@(Data _):l <- unAppNoTicks e
     , not $ null (anonArgumentTypes $ typeOf tv d) ->

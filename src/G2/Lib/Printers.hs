@@ -29,7 +29,9 @@ module G2.Lib.Printers ( PrettyGuide
                        , prettyGuideNumsStr
                        
                        , TypePrinting(..)
-                       , setTypePrinting) where
+                       , EnvOrdering(..)
+                       , setTypePrinting
+                       , setEnvOrdering) where
 
 import G2.Language.Expr
 import qualified G2.Language.ExprEnv as E
@@ -43,6 +45,7 @@ import G2.Language.Syntax
 import G2.Language.Support
 import Data.Char
 import Data.List as L
+import qualified Data.Foldable as F
 import qualified Data.HashMap.Lazy as HM
 import qualified Data.HashSet as HS
 import qualified Data.Text as T
@@ -284,27 +287,32 @@ printString pg a =
     let
         maybe_str = printString' a
     in case maybe_str of
-        Just str -> if T.all isPrint str then "\"" <> T.concatMap addEscapeStr str <> "\""
-                    else ("[" <> T.intercalate ", " (map stringToEnum $ T.unpack str) <> "]")
+        Just str ->
+            -- T.Text cannot represent certain unicode Char's that are valid in Strings and that might
+            -- be returned from the SMT solver.  This means we must do the initial conversion of non-printable
+            -- Char's via Haskell Strings, and only convert into Text later.
+            T.pack $ 
+                if all isPrint str then "\"" <> concatMap addEscapeStr str <> "\""
+                else ("[" <> intercalate ", " (map stringToEnum $ str) <> "]")
         Nothing -> printList pg a
     where
         stringToEnum c
             | isPrint c = "\'" <> addEscapeChar c <> "\'"
-            | otherwise = T.pack $ "toEnum " ++ show (ord c)
+            | otherwise = "toEnum " ++ show (ord c)
 
         addEscapeStr '"' = "\\\""
         addEscapeStr '\\' = "\\\\"
-        addEscapeStr c = T.singleton c
+        addEscapeStr c = [c]
 
         addEscapeChar '\'' = "\\'"
         addEscapeChar '\\' = "\\\\"
-        addEscapeChar c = T.singleton c
+        addEscapeChar c = [c]
 
-printString' :: Expr -> Maybe T.Text
+printString' :: Expr -> Maybe String
 printString' (App (App _ (App _ (Lit (LitChar c)))) e') =
     case printString' e' of
         Nothing -> Nothing
-        Just str -> Just (T.cons c str)
+        Just str -> Just (c:str)
 printString' e | Data (DataCon n _ _ _) <- appCenter e
                , nameOcc n == "[]" = Just ""
                | otherwise = Nothing
@@ -359,9 +367,11 @@ mkLitHaskell use = lit
         lit (LitDouble r) = mkFloat (T.pack (hs ++ hs)) r
         lit (LitRational r) = "(" <> T.pack (show r) <> ")"
         lit (LitBV bv) = "#b" <> T.concat (map (T.pack . show) bv)
-        lit (LitChar c) | isPrint c = T.pack ['\'', c, '\'']
+        lit (LitChar c) | c == '\\' = T.pack "\'\\\\\'"
+                        | c == '\'' = T.pack "\'\\\'\'"
+                        | isPrint c = T.pack ['\'', c, '\'']
                         | otherwise = "(chr " <> T.pack (show $ ord c) <> ")"
-        lit (LitString s) = T.pack s
+        lit (LitString s) = "\"" <> T.pack s <> "\""
 
 mkFloat :: (Show n, RealFloat n) => T.Text -> n -> T.Text
 mkFloat hs r | isNaN r = "(0" <> hs <> " / 0" <> hs <> ")"
@@ -485,6 +495,8 @@ mkPrimHaskell pg = pr
 
         pr TypeIndex = "typeIndex"
 
+        pr ForAllPr = "forall"
+
         pr UnspecifiedOutput = "?"
 
 mkPrimHaskellNoDistFloat :: PrettyGuide -> Primitive -> T.Text
@@ -591,9 +603,9 @@ prettyState pg s =
     where
         pretty_curr_expr = prettyCurrExpr pg (curr_expr s)
         pretty_stack = prettyStack pg (exec_stack s)
-        pretty_eenv = prettyEEnv (tyvar_env s) pg (expr_env s)
+        pretty_eenv = prettyEEnv (tyvar_env s) pg (curr_expr s) (exec_stack s) (expr_env s)
         pretty_paths = prettyPathConds pg (path_conds s)
-        pretty_non_red_paths = prettyNonRedPaths pg (non_red_path_conds s)
+        pretty_non_red_paths = prettyNonRedPaths pg . toListInternalNRPC $ non_red_path_conds s
         pretty_handles = prettyHandles pg $ handles s
         pretty_mutvars = prettyMutVars pg . HM.map mv_val_id $ mutvar_env s
         pretty_tenv = prettyTypeEnv (tyvar_env s) pg (type_env s)
@@ -638,14 +650,24 @@ prettyCEAction :: PrettyGuide -> CEAction -> T.Text
 prettyCEAction pg (EnsureEq e) = "EnsureEq " <> mkDirtyExprHaskell pg e
 prettyCEAction _ NoAction = "NoAction"
 
-prettyEEnv :: TV.TyVarEnv -> PrettyGuide -> ExprEnv -> T.Text
-prettyEEnv tv pg eenv = T.intercalate "\n\n"
+prettyEEnv :: TV.TyVarEnv -> PrettyGuide -> CurrExpr -> Stack Frame -> ExprEnv -> T.Text
+prettyEEnv tv pg@(PG {env_ordering=e_ord}) cexpr estack eenv = T.intercalate "\n\n"
                    . map (uncurry printFunc)
+                   . (case e_ord of Ordered -> reorder 
+                                    Unordered -> id)
                    . E.toList $ eenv
     where
         printFunc n e = mkNameHaskell pg n <> " :: " <> mkTypeHaskellPG pg (envObjType tv eenv e)
                             <> "\n" <> mkNameHaskell pg n <> " = " <> printEnvObj pg e
-
+        reorder :: [(Name, E.EnvObj)] -> [(Name, E.EnvObj)]
+        reorder el = let
+                        ce_names = HS.fromList . F.toList . names $ cexpr
+                        es_names = HS.fromList . F.toList . names $ estack
+                    in
+                     L.filter (\(x, _) -> HS.member x ce_names) el
+                  ++ L.filter (\(x, _) -> HS.member x es_names && not (HS.member x ce_names)) el
+                  ++ L.filter (\(x, _) -> not (HS.member x ce_names) && not (HS.member x es_names)) el
+        
 printEnvObj :: PrettyGuide -> E.EnvObj -> T.Text
 printEnvObj pg (E.ExprObj e) = mkDirtyExprHaskell pg e
 printEnvObj pg (E.SymbObj (Id _ t)) = "symbolic " <> mkTypeHaskellPG pg t
@@ -675,8 +697,9 @@ prettyPathCond pg (AssumePC i l pc) =
     in
     mkIdHaskell pg i <> " = " <> T.pack (show l) <> "=> (" <> T.intercalate "\nand " (map (prettyPathCond pg) pc') <> ")"
 
-prettyNonRedPaths :: PrettyGuide -> [(Expr, Expr)] -> T.Text
-prettyNonRedPaths pg = T.intercalate "\n" . map (\(e1, e2) -> mkDirtyExprHaskell pg e1 <> " == " <> mkDirtyExprHaskell pg e2)
+prettyNonRedPaths :: PrettyGuide -> [NRPC] -> T.Text
+prettyNonRedPaths pg = T.intercalate "\n"
+                     . map (\(e1, e2) -> mkDirtyExprHaskell pg e1 <> " == " <> mkDirtyExprHaskell pg e2)
 
 prettyHandles :: PrettyGuide -> HM.HashMap Name Handle -> T.Text
 prettyHandles pg = T.intercalate "\n" . map (\(n, h) -> printName pg n
@@ -710,8 +733,11 @@ prettyDCWithType tv pg dc = mkDataConHaskell pg dc <> " :: " <> mkTypeHaskellPG 
 
 prettyTypeVarEnv :: PrettyGuide -> TV.TyVarEnv -> T.Text
 prettyTypeVarEnv pg = T.intercalate "\n"
-                    . map (\(n, t) -> mkNameHaskell pg n <> " -> " <> mkTypeHaskellPG pg t)
-                    . TV.toList
+                    . map (\(n, t) -> mkNameHaskell pg n <> " -> " <> prettyTyConcOrSym t)
+                    . TV.toListConcOrSym
+    where
+        prettyTyConcOrSym (TV.TyConc t) = mkTypeHaskellPG pg t
+        prettyTyConcOrSym (TV.TySym i) = "symbolic " <> mkIdHaskell pg i
 
 prettyPolyArgMap :: PM.PolyArgMap -> PrettyGuide -> T.Text
 prettyPolyArgMap pargm pg = T.intercalate "\n" (map entryText (PM.toList pargm))
@@ -751,8 +777,8 @@ pprExecStateStr ex_state b = injNewLine acc_strs
     names_str = pprExecNamesStr (name_gen b)
     input_str = pprInputIdsStr (E.symbolicIds . expr_env $ ex_state)
     paths_str = pprPathsStr (PC.toList $ path_conds ex_state)
-    non_red_paths_str = injNewLine (map show $ non_red_path_conds ex_state)
     pargm_str = pprPolyArgMapStr (poly_arg_map ex_state)
+    non_red_paths_str = injNewLine (map show . toListNRPC $ non_red_path_conds ex_state)
     tc_str = pprTCStr (type_classes ex_state)
     cleaned_str = pprCleanedNamesStr (cleaned_names b)
     model_str = pprModelStr (model ex_state)
@@ -867,6 +893,8 @@ printFuncCallPG pg (FuncCall { funcName = f, arguments = ars, returns = r}) =
 
 data TypePrinting = LaxTypes | AggressiveTypes deriving Eq
 
+data EnvOrdering = Unordered | Ordered deriving Eq
+
 -- | See Note [PrettyGuide AssignedLvl]
 data AssignedLvl = TypeLvl | ValLvl | BothLvl deriving (Eq, Show)
 
@@ -889,6 +917,7 @@ data PrettyGuide = PG { pg_assigned :: HM.HashMap Name T.Text -- ^ Mapping of G2
                                                                         -- as a printable name.
                                                                         -- See also Note [PrettyGuide AssignedLvl].
                       , type_printing :: TypePrinting -- ^ How detailed should the type information we print be?
+                      , env_ordering :: EnvOrdering -- ^ Should the environment be ordered?
                       }
 
 -- Note [PrettyGuide AssignedLvl]
@@ -912,7 +941,7 @@ data PrettyGuide = PG { pg_assigned :: HM.HashMap Name T.Text -- ^ Mapping of G2
 -- | Creates a `PrettyGuide` with mappings for all `Name`s in the `Named` argument.
 -- Does not draw any distinction between type level and value level names.
 mkPrettyGuide :: Named a => a -> PrettyGuide
-mkPrettyGuide = foldr insertPG (PG HM.empty HM.empty LaxTypes) . names
+mkPrettyGuide = foldr insertPG (PG HM.empty HM.empty LaxTypes Unordered) . names
 
 -- | Update the `PrettyGuide` with mappings for all `Name`s in the `Named` argument.
 -- Does not draw any distinction between type level and value level names.
@@ -951,6 +980,9 @@ lookupPG n = HM.lookup n . pg_assigned
 
 setTypePrinting :: TypePrinting -> PrettyGuide -> PrettyGuide
 setTypePrinting tp p = p {type_printing = tp}
+
+setEnvOrdering :: EnvOrdering -> PrettyGuide -> PrettyGuide
+setEnvOrdering eo p = p {env_ordering = eo}
 
 -- | Print `pg_assigned`. Exposes internal of the `PrettyGuide` to aid in debugging.
 prettyGuideStr :: PrettyGuide -> T.Text

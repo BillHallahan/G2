@@ -91,20 +91,4 @@ markAndSweepPreserving' mc (state@State { expr_env = eenv
     higher_ord = nubBy (.::.) $ argTypesTEnv tenv ++ E.higherOrderExprs tvnv higher_ord_eenv
     higher_ord_rel = E.keys $ E.filter (\e -> any (typeOf tvnv e .::) higher_ord) higher_ord_eenv
 
-activeNames :: TypeEnv -> ExprEnv -> HS.HashSet Name -> S.Seq Name -> HS.HashSet Name
-activeNames tenv eenv explored nss
-    | n S.:< ns <- S.viewl nss =
-        let
-            explored' = HS.insert n explored
-            tenv_hits = case HM.lookup n tenv of
-                Nothing -> S.empty
-                Just r -> names r
-            eenv_hits = case E.lookup n eenv of
-                Nothing -> S.empty
-                Just r -> names r
-            ns' = tenv_hits <> eenv_hits <> ns
-        in
-        if HS.member n explored
-          then activeNames tenv eenv explored ns
-          else activeNames tenv eenv explored' ns'
-    | otherwise = explored
+    

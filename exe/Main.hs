@@ -1,4 +1,4 @@
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE FlexibleContexts, OverloadedStrings #-}
 
 module Main (main) where
 
@@ -42,13 +42,15 @@ runWithArgs as = do
 
   let tentry = T.pack entry
 
-  ((in_out, b), entry_f@(Id (Name _ mb_modname _ _) _)) <-
+  (in_out, b, _, entry_f@(Id (Name _ mb_modname _ _) _)) <-
         runG2FromFile proj [src] (fmap T.pack m_assume)
                   (fmap T.pack m_assert) (fmap T.pack m_reaches) 
                   (isJust m_assert || isJust m_reaches || m_retsTrue) 
                   tentry simplTranslationConfig config
 
-  let (unspecified_output, spec_output) = L.partition (\ExecRes { final_state = s } -> getExpr s == Prim UnspecifiedOutput TyBottom) in_out
+  let in_out' = if print_encode_float config then toEnclodeFloats in_out else in_out
+
+  let (unspecified_output, spec_output) = L.partition (\ExecRes { final_state = s } -> getExpr s == Prim UnspecifiedOutput TyBottom) in_out'
   
   when (print_num_post_call_func_arg config) $ do
         putStrLn $ "Post call states: " ++ show (length spec_output)
@@ -56,20 +58,20 @@ runWithArgs as = do
 
   val_res <- case validate config || measure_coverage config of
                 True -> do
-                    r <- validateStates proj [src] (T.unpack $ fromJust mb_modname) entry [] [Opt_Hpc] b in_out
+                    (r, _) <- validateStates proj [src] (T.unpack $ fromJust mb_modname) entry [] [] [Opt_Hpc] b in_out'
                     if all isJust r && and (map fromJust r) then putStrLn "Validated" else putStrLn "There was an error during validation."
 
                     if any isNothing r then putStrLn $ "Timeout count: " ++ show (length $ filter isNothing r) else return ()
 
-                    printFuncCalls config entry_f b (Just r) in_out
+                    printFuncCalls config entry_f b (Just r) in_out'
                     return (Just r)
                 False -> do
-                    printFuncCalls config entry_f b Nothing in_out
+                    printFuncCalls config entry_f b Nothing in_out'
                     return Nothing
 
   when (measure_coverage config) $
     case val_res of
-        Just vals -> runHPC src (T.unpack $ fromJust mb_modname) entry . map snd . filter (fromMaybe False . fst) $ zip vals in_out
+        Just vals -> runHPC src (T.unpack $ fromJust mb_modname) entry . map snd . filter (fromMaybe False . fst) $ zip vals in_out'
         Nothing -> error "Impossible: validate must have run"
 
 printFuncCalls :: Config -> Id -> Bindings
@@ -89,7 +91,7 @@ printFuncCalls config entry b m_valid exec_res = do
         let pg = mkPrettyGuide (exprNames $ conc_args execr)
         let (mvp, inp, outp, handles) = printInputOutput pg entry b execr
             sym_gen_out = fmap (printHaskellPG pg s) $ conc_sym_gens execr
-
+        
         let print_method = case print_output config of
                                 True -> \m i o -> m <> i <> " = " <> o 
                                 False -> \m i _ ->  m <> i
@@ -98,34 +100,30 @@ printFuncCalls config entry b m_valid exec_res = do
             S.Empty -> T.putStrLn $ print_method mvp inp outp
             _ -> T.putStrLn $ print_method mvp inp outp <> "\t| generated: " <> T.intercalate ", " (toList sym_gen_out)
         if handles /= "" then T.putStrLn handles else return ())
-      $ zip exec_res valid 
+      $ zip exec_res valid
 
-ppStatePiece :: Bool -> String -> String -> IO ()
-ppStatePiece b n res =
-    case b of
-        True -> do
-            putStrLn $ "---" ++ n ++ "---"
-            putStrLn res
-            putStrLn ""
-        False -> return ()
+toEnclodeFloats :: ASTContainer m Expr => m -> m
+toEnclodeFloats = modifyASTs go
+    where
+        go (App (Data (DataCon { dc_name = dcn })) (Lit (LitFloat f)))
+            | not (isNaN f), not (isInfinite f), not (isNegativeZero f), nameOcc dcn == "F#" =
+                let (m, n) = decodeFloat f in mkApp [encFloat, iCon $ Lit (LitInteger m), iCon $ Lit (LitInt $ toInteger n)]
+        go (App (Data (DataCon { dc_name = dcn })) (Lit (LitDouble f)))
+            | not (isNaN f), not (isInfinite f), not (isNegativeZero f), nameOcc dcn == "D#" =
+                let (m, n) = decodeFloat f in mkApp [encFloat, iCon $ Lit (LitInteger m), iCon $ Lit (LitInt $ toInteger n)]
+        go (Lit (LitFloat f))
+            | not (isNaN f), not (isInfinite f), not (isNegativeZero f) =
+                let (m, n) = decodeFloat f in mkApp [encFloat, iCon $ Lit (LitInteger m), iCon $ Lit (LitInt $ toInteger n)]
+        go (Lit (LitDouble f))
+            | not (isNaN f), not (isInfinite f), not (isNegativeZero f) =
+                let (m, n) = decodeFloat f in mkApp [encFloat, iCon $ Lit (LitInteger m), iCon $ Lit (LitInt $ toInteger n)]
+        go e = e
 
-mIDir :: [String] -> Maybe String
-mIDir a = strArg "idir" a M.empty Just Nothing
+        iCon = App (Data (DataCon { dc_name = Name "Z#" Nothing 0 Nothing, dc_type = TyUnknown, dc_exist_tyvars = [], dc_univ_tyvars = [] }))
+        encFloat = Var (Id (Name "encodeFloat" Nothing 0 Nothing) TyUnknown)
 
 mReturnsTrue :: [String] -> Bool
 mReturnsTrue a = boolArg "returns-true" a M.empty Off
 
-mAssume :: [String] -> Maybe String
-mAssume a = strArg "assume" a M.empty Just Nothing
-
-mAssert :: [String] -> Maybe String
-mAssert a = strArg "assert" a M.empty Just Nothing
-
 mReaches :: [String] -> Maybe String
 mReaches a = strArg "reaches" a M.empty Just Nothing
-
-mkLiquid :: [String] -> Maybe String
-mkLiquid a = strArg "liquid" a M.empty Just Nothing
-
-mkLiquidFunc :: [String] -> Maybe String
-mkLiquidFunc a = strArg "liquid-func" a M.empty Just Nothing

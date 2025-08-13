@@ -470,10 +470,10 @@ removeAllTicks :: Expr -> Expr
 removeAllTicks = modifyASTs removeTicks
 
 inlineApp :: ExprEnv -> Expr -> Expr
-inlineApp eenv = mkApp . map (inlineVars eenv) . unApp
+inlineApp eenv = mkApp . map (inlineVarsInApp eenv) . unApp
 
-inlineVars :: ExprEnv -> Expr -> Expr
-inlineVars = inlineVars' HS.empty
+inlineVarsInApp :: ExprEnv -> Expr -> Expr
+inlineVarsInApp = inlineVars' HS.empty
 
 inlineVars' :: HS.HashSet Name -> ExprEnv -> Expr -> Expr
 inlineVars' seen eenv (Var (Id n _))
