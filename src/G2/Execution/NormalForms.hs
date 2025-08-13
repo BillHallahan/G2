@@ -46,7 +46,7 @@ isExprValueForm eenv (App f a) = case unApp (App f a) of
     _ -> False
 isExprValueForm _ (Let _ _) = False
 isExprValueForm _ (Case _ _ _ _) = False
-isExprValueForm eenv (Cast e (t :~ _)) = not (hasFuncType t) && isExprValueForm eenv e
+isExprValueForm eenv (Cast e (t :~ _)) = isExprValueForm eenv e
 isExprValueForm _ (Tick _ _) = False
 isExprValueForm _ (NonDet _) = False
 isExprValueForm _ (SymGen _ _) = False
@@ -88,7 +88,7 @@ normalForm' looked eenv (App f a) = case unApp (App f a) of
     _ -> False
 normalForm' _ _ (Let _ _) = False
 normalForm' _ _ (Case _ _ _ _) = False
-normalForm' looked eenv (Cast e (t :~ _)) = not (hasFuncType t) && normalForm' looked eenv e
+normalForm' looked eenv (Cast e (t :~ _)) = normalForm' looked eenv e
 normalForm' _ _ (Tick _ _) = False
 normalForm' _ _ (NonDet _) = False
 normalForm' _ _ (SymGen _ _) = False
