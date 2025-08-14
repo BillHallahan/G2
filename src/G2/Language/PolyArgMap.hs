@@ -6,9 +6,11 @@ module G2.Language.PolyArgMap ( PolyArgMap
                                , insert
                                , lookup
                                , remove 
-                               , toList ) where 
+                               , toList
+                               , empty ) where 
 
 import G2.Language.Syntax
+import qualified G2.Language.Naming as N
 
 import qualified Data.HashMap.Lazy as HM
 import qualified Data.HashSet as HS
@@ -16,30 +18,49 @@ import Data.Data (Data, Typeable)
 import Data.Hashable(Hashable)
 import GHC.Generics (Generic)
 import Prelude hiding (lookup)
+import Debug.Trace
 
 -- | Interface for the PAM
-newtype PolyArgMap = PolyArgMap (HM.HashMap Id (HS.HashSet Id)) deriving (Show, Eq, Read, Data, Typeable, Generic)
+newtype PolyArgMap = PolyArgMap (HM.HashMap Name (HS.HashSet Name)) deriving (Show, Eq, Read, Data, Typeable, Generic)
 
-insertEmpty :: Id -> PolyArgMap -> PolyArgMap
+insertEmpty :: Name -> PolyArgMap -> PolyArgMap
 insertEmpty i (PolyArgMap pargm) = if not $ HM.member i pargm then PolyArgMap $ HM.insert i HS.empty pargm
                                 else error "PolyArgMap.insertEmpty: inserting empty mapping for already existing tyVar"
 
-insert :: Id -> Id -> PolyArgMap -> PolyArgMap
+insert :: Name -> Name -> PolyArgMap -> PolyArgMap
 insert tv lv (PolyArgMap pargm) = if HM.member tv pargm then PolyArgMap $ HM.adjust (HS.insert lv) tv pargm
                                 else  error "PolyArgMap.insert: trying to into set of TyVar not in map"
 
-lookup :: Id -> PolyArgMap -> Maybe [Id]
+lookup :: Name -> PolyArgMap -> Maybe [Name]
 lookup tv (PolyArgMap pargm) = case HM.lookup tv pargm of
                     Just ns -> Just (HS.toList ns)
                     Nothing -> Nothing
 
-remove :: Id -> PolyArgMap -> PolyArgMap
+remove :: Name -> PolyArgMap -> PolyArgMap
 remove i (PolyArgMap pargm) = let pargm' = HM.delete i pargm in 
             if pargm == pargm' 
             then error "PolyArgMap.remove: removing nonexistent TV"  
             else PolyArgMap $ pargm'
 
-toList :: PolyArgMap -> [(Id, HS.HashSet Id)]
+toList :: PolyArgMap -> [(Name, HS.HashSet Name)]
 toList (PolyArgMap pargm) = HM.toList pargm
 
+empty :: PolyArgMap
+empty = PolyArgMap HM.empty
+
 instance Hashable PolyArgMap
+
+instance N.Named PolyArgMap where
+    names (PolyArgMap pargm) = trace "PolyArgMap.names" N.names pargm
+    rename old new pam@(PolyArgMap pargm) = let
+                                        set = case lookup old pam of
+                                                Just ns -> HS.fromList ns
+                                                Nothing -> trace "PolyArgMap.rename: old not in map" HS.empty
+                                        pargm' = HM.insert new set (HM.delete old pargm)
+                                in 
+                                    trace "PolyArgMap.rename" PolyArgMap pargm'
+    renames hm pargm = trace "PolyArgMap.renames" $ go (HM.toList hm) pargm
+                            where
+                                go :: [(Name, Name)] -> PolyArgMap -> PolyArgMap
+                                go ((old, new):rns) pargm = go rns (N.rename old new pargm)
+                                go [] pargm = pargm
