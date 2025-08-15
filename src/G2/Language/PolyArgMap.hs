@@ -2,6 +2,7 @@
 {-# LANGUAGE DeriveGeneric #-}
 
 module G2.Language.PolyArgMap ( PolyArgMap
+                               , LamRename (..)
                                , insertEmpty
                                , insert
                                , lookup
@@ -19,22 +20,22 @@ import Data.Data (Data, Typeable)
 import Data.Hashable(Hashable)
 import GHC.Generics (Generic)
 import Prelude hiding (lookup)
-import Debug.Trace
 
 -- | Interface for the PAM
-newtype PolyArgMap = PolyArgMap (HM.HashMap Name (HS.HashSet Name)) deriving (Show, Eq, Read, Data, Typeable, Generic)
+data LamRename = LamRename {lam :: Name, rename :: Name} deriving (Show, Eq, Read, Data, Typeable, Generic)
+newtype PolyArgMap = PolyArgMap (HM.HashMap Name (HS.HashSet LamRename)) deriving (Show, Eq, Read, Data, Typeable, Generic)
 
 insertEmpty :: Name -> PolyArgMap -> PolyArgMap
 insertEmpty i (PolyArgMap pargm) = if not $ HM.member i pargm then PolyArgMap $ HM.insert i HS.empty pargm
                                 else error "PolyArgMap.insertEmpty: inserting empty mapping for already existing tyVar"
 
-insert :: Name -> Name -> PolyArgMap -> PolyArgMap
-insert tv lv (PolyArgMap pargm) = if HM.member tv pargm then PolyArgMap $ HM.adjust (HS.insert lv) tv pargm
+insert :: Name -> LamRename -> PolyArgMap -> PolyArgMap
+insert tv lr (PolyArgMap pargm) = if HM.member tv pargm then PolyArgMap $ HM.adjust (HS.insert lr) tv pargm
                                 else  error "PolyArgMap.insert: trying to into set of TyVar not in map"
 
-lookup :: Name -> PolyArgMap -> Maybe [Name]
+lookup :: Name -> PolyArgMap -> Maybe [LamRename]
 lookup tv (PolyArgMap pargm) = case HM.lookup tv pargm of
-                    Just ns -> Just (HS.toList ns)
+                    Just lrs -> Just (HS.toList lrs)
                     Nothing -> Nothing
 
 remove :: Name -> PolyArgMap -> PolyArgMap
@@ -43,19 +44,25 @@ remove i (PolyArgMap pargm) = let pargm' = HM.delete i pargm in
             then error "PolyArgMap.remove: removing nonexistent TV"  
             else PolyArgMap $ pargm'
 
-toList :: PolyArgMap -> [(Name, HS.HashSet Name)]
+toList :: PolyArgMap -> [(Name, HS.HashSet LamRename)]
 toList (PolyArgMap pargm) = HM.toList pargm
 
 empty :: PolyArgMap
 empty = PolyArgMap HM.empty
 
 instance Hashable PolyArgMap
+instance Hashable LamRename
 
 instance N.Named PolyArgMap where  
-    names (PolyArgMap pargm) = S.fromList $ foldr ((\(ty, args) y -> (HS.toList args) ++ (ty:y))) [] (HM.toList pargm) -- TODO: untested
+    names (PolyArgMap pargm) = S.fromList $ foldr ((\(ty, lrs) y -> (lrExpand lrs) ++ (ty:y))) [] (HM.toList pargm) -- TODO: untested
+                                        where lrExpand :: HS.HashSet LamRename -> [Name]
+                                              lrExpand lrs = foldr (\(LamRename l r) xs -> l:r:xs) [] (HS.toList lrs)
     rename old new pam@(PolyArgMap pargm) = case lookup old pam of
                     Just ns -> PolyArgMap $ HM.insert new (HS.fromList ns) (HM.delete old pargm) -- name is key
-                    Nothing -> PolyArgMap $ HM.map (HS.map (\y -> if y==old then new else y)) pargm -- name is value
+                    Nothing -> PolyArgMap $ HM.map (HS.map (renameLR old new)) pargm -- name is value
+                    where 
+                        renameLR :: Name -> Name -> LamRename -> LamRename
+                        renameLR old new (LamRename l r) = LamRename (if l == old then new else old) (if r == old then new else old)
     renames hm pargm = go (HM.toList hm) pargm
                             where
                                 go :: [(Name, Name)] -> PolyArgMap -> PolyArgMap
