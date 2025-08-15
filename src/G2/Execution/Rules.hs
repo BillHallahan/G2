@@ -1271,6 +1271,7 @@ liftBind bindsLHS@(Id _ lhsTy) bindsRHS eenv expr ngen pargm = (eenv', expr', ng
                             _ -> pargm
                 _ -> pargm
 
+
     eenv' = E.insert new bindsRHS eenv
     -- eenv'' = E.insert old (Var (Id new lhsTy)) $ eenv' -- causes: fs'6 -> fs'7 -> 1 in defintion
 
@@ -1432,7 +1433,7 @@ retReplaceSymbFuncTemplate sft
     in Just (RuleReturnReplaceSymbFunc, [
         s {
         curr_expr = CurrExpr Evaluate e,
-        expr_env = eenv'',
+        expr_env = eenv''
     }], ng')
 
     | otherwise = Nothing
