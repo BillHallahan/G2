@@ -9,7 +9,7 @@ module G2.Execution.PrimitiveEval ( evalPrimsSharing
                                   , maybeEvalPrim
                                   , evalPrimSymbolic) where
 
-import G2.Execution.NewPC
+import G2.Execution.NewPC.Type
 import G2.Execution.SymToCase
 import G2.Language.AST
 import G2.Language.Expr
@@ -498,6 +498,9 @@ evalPrim1' _ kv IsInfinite (LitDouble x) = Just . mkBool kv $  isInfinite x
 evalPrim1' _ _ _ _ = Nothing
 
 evalPrimADT1 :: KnownValues -> Primitive -> Expr -> Maybe Expr
+evalPrimADT1 kv Not (Data (DataCon { dc_name = b })) | b == KV.dcTrue kv = Just (mkFalse kv)
+                                                     | b == KV.dcFalse kv = Just (mkTrue kv)
+
 evalPrimADT1 kv StrLen e = fmap (Lit . LitInt) (compLen e)
     where
         -- [] @Char

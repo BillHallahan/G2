@@ -1,16 +1,11 @@
-module G2.Execution.NewPC ( NewPC (..)
-                          , newPCEmpty
-                          , reduceNewPC ) where
+module G2.Execution.NewPC.Handling ( reduceNewPC ) where
 
 import G2.Language
+import G2.Execution.NewPC.Type
 import qualified G2.Language.PathConds as PC
 import G2.Solver
 
 import Data.List
-
-data NewPC t = NewPC { state :: State t
-                     , new_pcs :: [PathCond]
-                     , concretized :: [Id] }
 
 newPCEmpty :: State t -> NewPC t
 newPCEmpty s = NewPC { state = s, new_pcs = [], concretized = []}
