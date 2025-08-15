@@ -140,20 +140,24 @@ evalVarSharing s@(State { expr_env = eenv
                ng i
     | (Id idN (TyVar tyId@(Id tyIdN _))) <- i  -- PM-RETURN
     , True <- E.isSymbolic idN eenv
-    , Just ns <- PM.lookup tyIdN pargm
-    , not . null $ ns = 
+    , Just lrs <- PM.lookup tyIdN pargm
+    , not . null $ lrs = 
         let 
             -- fresh ids
             ([tvid, scrut], ng') = freshIds [TyVar tyId, TyLitInt] ng
-            -- create Alt for each LV in id's LV set
-            as = makeAltsForPMRet ns tyId 
-            -- case expression from the alts and symbolic Int
-            e' = Case (Var scrut) tvid TYPE as 
-            -- new env bindings
-            eenv' = E.insert (idName i) e' eenv
-            eenv'' = E.insertSymbolic scrut eenv'
+
+            -- create Alts using arguments names, make case expr. with Alts and sym Int
+            as = makeAltsForPMRet (map PM.lam lrs) tyId 
+            e' = Case (Var scrut) tvid TYPE as
+            eenv' = E.insertSymbolic scrut eenv
+
+            -- insert expression with argument names into environment as function def for later reuse
+            eenv'' = E.insert (idName i) e' eenv'
+
+            -- rename for current execution path, return as CurrExpr, don't insert in env
+            e'' = renames (HM.fromList (zip (map PM.lam lrs) (map PM.rename lrs))) e'
         in
-            (RuleEvalVarPoly, [s { curr_expr = CurrExpr Evaluate e'
+            (RuleEvalVarPoly, [s { curr_expr = CurrExpr Evaluate e''
                                  , expr_env = eenv''}], ng')
     | (Id _ (TyVar _)) <- i = -- TyVar not in PolyArgMap, cannot create return expression
         (RuleEvalVal, [s { curr_expr = CurrExpr Return (Var i)}], ng)
@@ -301,7 +305,7 @@ retLam s@(State { expr_env = eenv, tyvar_env = tvnv, poly_arg_map = pargm })
         , [s { expr_env = eenv'
              , curr_expr = CurrExpr Evaluate e'
              , exec_stack = stck' 
-             , poly_arg_map = pargm}] -- remove from rule
+             , poly_arg_map = pargm'}]
         , ng' )
 
 traceType :: E.ExprEnv -> Expr -> Maybe Type
@@ -1252,16 +1256,23 @@ liftBinds kv type_binds value_binds tv_env eenv expr ngen = (tv_env', eenv', exp
 
 liftBind :: Id -> Expr -> E.ExprEnv -> Expr -> NameGen -> PM.PolyArgMap ->
              (E.ExprEnv, Expr, NameGen, Name, PM.PolyArgMap)
-liftBind bindsLHS@(Id _ lhsTy) bindsRHS eenv expr ngen pargm = (eenv'', expr', ngen', new, pargm)
+liftBind bindsLHS@(Id _ lhsTy) bindsRHS eenv expr ngen pargm = (eenv', expr', ngen', new, pargm')
   where
     old = idName bindsLHS
     (new, ngen') = freshSeededName old ngen
 
     expr' = renameExpr old new expr
-    -- pargm' = rename old new pargm   -- causes: fs'6 can't be resolved to 1 for return value
+    
+    -- if LHS type is TyVar and in the PAM, then we need to add the LamRename
+    pargm' = case lhsTy of
+                (TyVar (Id lhsTyName _)) -> 
+                        case PM.lookup lhsTyName pargm of 
+                            Just _ -> PM.insert lhsTyName (PM.LamRename old new) pargm
+                            _ -> pargm
+                _ -> pargm
 
     eenv' = E.insert new bindsRHS eenv
-    eenv'' = E.insert old (Var (Id new lhsTy)) $ eenv' -- causes: fs'6 -> fs'7 -> 1 in defintion
+    -- eenv'' = E.insert old (Var (Id new lhsTy)) $ eenv' -- causes: fs'6 -> fs'7 -> 1 in defintion
 
 type SymbolicFuncEval t = SymFuncTicks -> State t -> NameGen -> Expr -> Maybe (Rule, [State t], NameGen)
 
@@ -1412,8 +1423,6 @@ retReplaceSymbFuncTemplate sft
     = let
         -- make new id for lambda var
         ([x, f], ng') = freshIds [t1, t2] ng -- TODO: bad name made 
-        -- insert x into a's set in TVM
-        pargm' = PM.insert idN (idName x) pargm
         -- make new expression
         e = Lam TermL x (Var f)
         -- new environment bindings
@@ -1424,7 +1433,6 @@ retReplaceSymbFuncTemplate sft
         s {
         curr_expr = CurrExpr Evaluate e,
         expr_env = eenv'',
-        poly_arg_map = pargm'
     }], ng')
 
     | otherwise = Nothing
