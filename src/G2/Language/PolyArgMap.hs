@@ -14,6 +14,7 @@ import qualified G2.Language.Naming as N
 
 import qualified Data.HashMap.Lazy as HM
 import qualified Data.HashSet as HS
+import qualified Data.Sequence as S
 import Data.Data (Data, Typeable)
 import Data.Hashable(Hashable)
 import GHC.Generics (Generic)
@@ -50,17 +51,13 @@ empty = PolyArgMap HM.empty
 
 instance Hashable PolyArgMap
 
-instance N.Named PolyArgMap where
-    names (PolyArgMap pargm) = trace "PolyArgMap.names" N.names pargm
-    rename old new pam@(PolyArgMap pargm) = let
-                                        set = case lookup old pam of
-                                                Just ns -> HS.fromList ns
-                                                Nothing -> trace "PolyArgMap.rename: old not in map" HS.empty
-                                        pargm' = HM.insert new set (HM.delete old pargm)
-                                in 
-                                    trace "PolyArgMap.rename" PolyArgMap pargm'
-    renames hm pargm = trace "PolyArgMap.renames" $ go (HM.toList hm) pargm
+instance N.Named PolyArgMap where  
+    names (PolyArgMap pargm) = S.fromList $ foldr ((\(ty, args) y -> (HS.toList args) ++ (ty:y))) [] (HM.toList pargm) -- TODO: untested
+    rename old new pam@(PolyArgMap pargm) = case lookup old pam of
+                    Just ns -> PolyArgMap $ HM.insert new (HS.fromList ns) (HM.delete old pargm) -- name is key
+                    Nothing -> PolyArgMap $ HM.map (HS.map (\y -> if y==old then new else y)) pargm -- name is value
+    renames hm pargm = go (HM.toList hm) pargm
                             where
                                 go :: [(Name, Name)] -> PolyArgMap -> PolyArgMap
-                                go ((old, new):rns) pargm = go rns (N.rename old new pargm)
-                                go [] pargm = pargm
+                                go ((old, new):rns) pargm_ = go rns (N.rename old new pargm_)
+                                go [] pargm_ = pargm_
