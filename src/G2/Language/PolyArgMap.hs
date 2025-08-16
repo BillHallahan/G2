@@ -59,10 +59,10 @@ instance N.Named PolyArgMap where
                                               lrExpand lrs = foldr (\(LamRename l r) xs -> l:r:xs) [] (HS.toList lrs)
     rename old new pam@(PolyArgMap pargm) = case lookup old pam of
                     Just ns -> PolyArgMap $ HM.insert new (HS.fromList ns) (HM.delete old pargm) -- name is key
-                    Nothing -> PolyArgMap $ HM.map (HS.map (renameLR old new)) pargm -- name is value
+                    Nothing -> PolyArgMap $ HM.map (HS.map renameLR) pargm -- name is value
                     where 
-                        renameLR :: Name -> Name -> LamRename -> LamRename
-                        renameLR old new (LamRename l r) = LamRename (if l == old then new else old) (if r == old then new else old)
+                        renameLR :: LamRename -> LamRename
+                        renameLR (LamRename l r) = LamRename (if l == old then new else l) (if r == old then new else r)
     renames hm pargm = go (HM.toList hm) pargm
                             where
                                 go :: [(Name, Name)] -> PolyArgMap -> PolyArgMap
