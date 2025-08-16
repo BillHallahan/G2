@@ -779,7 +779,7 @@ pprExecStateStr ex_state b = injNewLine acc_strs
     names_str = pprExecNamesStr (name_gen b)
     input_str = pprInputIdsStr (E.symbolicIds . expr_env $ ex_state)
     paths_str = pprPathsStr (PC.toList $ path_conds ex_state)
-    -- pargm_str = pprPolyArgMapStr (poly_arg_map ex_state)
+    pargm_str = pprPolyArgMapStr (poly_arg_map ex_state)
     non_red_paths_str = injNewLine (map show . toListNRPC $ non_red_path_conds ex_state)
     tc_str = pprTCStr (type_classes ex_state)
     cleaned_str = pprCleanedNamesStr (cleaned_names b)
@@ -803,8 +803,8 @@ pprExecStateStr ex_state b = injNewLine acc_strs
                , paths_str
                , "----- [Non Red Paths] ---------------------"
                , non_red_paths_str
-{-                , "----- [PolyArgMap] ----------------"
-               , pargm_str  -}
+               , "----- [PolyArgMap] ----------------"
+               , pargm_str 
                , "----- [True Assert] ---------------------"
                , "True Assert = " ++ show (true_assert ex_state)
                , "----- [Assert Ids] ---------------------"
@@ -856,11 +856,11 @@ pprPathsStr paths = injNewLine cond_strs
   where
     cond_strs = map pprPathCondStr paths
 
-{- pprPolyArgMapStr :: PM.PolyArgMap -> String
+pprPolyArgMapStr :: PM.PolyArgMap -> String
 pprPolyArgMapStr pargm = concatMap (\(k, hs) -> show k ++ " -> " ++ showEntry hs) (PM.toList pargm)
     where
-    showEntry :: HS.HashSet Name -> String
-    showEntry hs = T.unpack $ T.intercalate ", " (map (T.pack . show) $ HS.toList hs) -}
+    showEntry :: HS.HashSet PM.LamRename -> String
+    showEntry hs = T.unpack $ T.intercalate ", " (map (T.pack . show) $ HS.toList hs)
 
 pprTCStr :: TypeClasses -> String
 pprTCStr tc = injNewLine cond_strs
