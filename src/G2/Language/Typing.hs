@@ -335,6 +335,7 @@ tyVarSubst' seen m t@(TyVar (Id n _)) =
     case TV.lookup n m of
         Just t' | not (HS.member n seen) -> tyVarSubst' (HS.insert n seen) m t'
         _ -> t 
+tyVarSubst' seen m (TyForAll i@(Id n _) t) = TyForAll i $ tyVarSubst' seen (TV.delete n m) t
 tyVarSubst' seen m t = modifyChildren (tyVarSubst' seen m) t
 
 tyVarRename :: (ASTContainer t Type) => M.Map Name Type -> t -> t
@@ -345,6 +346,7 @@ tyVarRename' seen m t@(TyVar (Id n _)) =
     case M.lookup n m of
         Just t' | not (HS.member n seen) -> tyVarRename' (HS.insert n seen) m t'
         _ -> t
+tyVarRename' seen m (TyForAll i@(Id n _) t) = TyForAll i $ tyVarRename' seen (M.delete n m) t
 tyVarRename' seen m t = modifyChildren (tyVarRename' seen m) t
 
 -- | Returns if the first type given is a specialization of the second,

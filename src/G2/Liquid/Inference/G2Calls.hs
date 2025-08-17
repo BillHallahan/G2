@@ -208,7 +208,10 @@ cleanupResultsInference solver simplifier config init_id bindings ers = do
                                     $ track s
                                 }
                     })) ers6
-    return (ers7, bindings')
+    let ers8 = map (\er@(ExecRes { final_state = s@(State { curr_expr = ce, track = tr }) }) ->
+                                                        er { final_state = s { curr_expr = tyVarSubst (tyvar_env s) ce
+                                                                             , track = tyVarSubst (tyvar_env s) tr } }) ers7
+    return (ers8, bindings')
 
 replaceHigherOrderNames :: Name -> [Name] -> ExecRes LHTracker -> ExecRes LHTracker
 replaceHigherOrderNames init_name input_names er@(ExecRes { final_state = s@(State { expr_env = eenv, track = t, tyvar_env = tvnv })}) =
@@ -1044,8 +1047,6 @@ formMeasureComps' tv !mx in_t existing ns_me
       in
       formMeasureComps' tv (mx - 1) in_t (r ++ existing) ns_me
 
--- TODO: chainReturnType currently return a M.Map but probably should be change into TyVarEnv in the future
--- In addition, I am wondering whether the change I made is correct?
 chainReturnType :: TV.TyVarEnv -> Type -> [Expr] -> Maybe (Type, [TV.TyVarEnv])
 chainReturnType tv t ne =
     foldM (\(t', vms) et -> 
@@ -1069,15 +1070,12 @@ evalMeasuresCE s bindings tcv is e bound =
         tyAppId i b =
             let
                 bound_names = map idName (tyForAllBindings $ typeOf (tyvar_env s) i) 
-                bound_tys = map (\n -> case TV.lookup n b of
-                                        -- A TyVar doesn't give us any information, and messes up the TyVarEnv when we do a lookup-
-                                        -- so just discard it.
-                                        Just (TyVar _) -> TyUnknown
+                bound_tys = map (\n -> case TV.deepLookupName b n of
                                         Just t -> t
                                         Nothing -> TyUnknown) bound_names
                 lh_dcts = map (\t -> case lookupTCDict (type_classes s) (lhTC tcv) t of
                                           Just tc -> Var tc
-                                          Nothing -> Prim Undefined TyBottom) bound_tys -- map (const $ Prim Undefined TyBottom) bound_tys
+                                          Nothing -> Prim Undefined TyBottom) bound_tys
             in
             mkApp $ Var i:map Type bound_tys ++ lh_dcts
 
