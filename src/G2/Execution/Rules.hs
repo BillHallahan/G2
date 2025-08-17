@@ -136,8 +136,27 @@ mapAccumMaybeM f s xs = do
 evalVarSharing :: State t -> NameGen -> Id -> (Rule, [State t], NameGen)
 evalVarSharing s@(State { expr_env = eenv
                         , exec_stack = stck
-                        , poly_arg_map = pargm })
+                        , poly_arg_map = pargm
+                        , tyvar_env = tve })
                ng i
+    -- | The value being evaluated is a symbolic type variable, which will only occur as
+    -- (or in) the return value of a polymorphic function. The type variable must also
+    -- have an entry in the PolyArgMap, which shows how arguments of that type have been
+    -- renamed during execution. A case expression with a symbolic Int as scrutinee is used to select
+    -- which PolyArgMap argument to return. We also lookup the value in the ExprEnv to find
+    -- the original type variable name, prior to renaming for the TVE.
+    --
+    -- Two expressions are involved in this rule:
+    --      1. e' = Case (Var scrut) tvid (TyVar outerTyVar) as
+    --          - Uses the original TyVar name and collected arguments as they appear in
+    --          the environment (pre-renaming)
+    --          - will be added to the environment
+    --      2. e'' - renaming in e'
+    --          - uses the runtime TyVar name and renamed collected arguments
+    --          - will be returned as the current expression
+    --     
+    --          
+
     | (Id idN (TyVar tyId@(Id tyIdN _))) <- i  -- PM-RETURN
     , True <- E.isSymbolic idN eenv
     , Just lrs <- PM.lookup tyIdN pargm
@@ -145,21 +164,27 @@ evalVarSharing s@(State { expr_env = eenv
         let 
             -- fresh ids
             ([tvid, scrut], ng') = freshIds [TyVar tyId, TyLitInt] ng
-
-            -- create Alts using arguments names, make case expr. with Alts and sym Int
-            as = makeAltsForPMRet (map PM.lam lrs) tyId 
-            e' = Case (Var scrut) tvid TYPE as
             eenv' = E.insertSymbolic scrut eenv
 
-            -- insert expression with argument names into environment as function def for later reuse
-            eenv'' = E.insert (idName i) e' eenv'
+            -- lookup original outer (pre-refnaming) type variable 
+            outerTyVar@(Id otvN _) = case E.lookup idN eenv of
+                            Just (Var (Id _ (TyVar envTyId))) -> envTyId
+                            _ -> error "PM-RETURN: env lookup failed"
+
+            -- create environment Alts with lam names and original tyVar, add to environment
+            as = makeAltsForPMRet (map PM.lam lrs) outerTyVar
+            e' = Case (Var scrut) tvid (TyVar outerTyVar) as
+            eenv'' = E.insert (idName i) e' eenv'      
 
             -- rename for current execution path, return as CurrExpr, don't insert in env
-            e'' = renames (HM.fromList (zip (map PM.lam lrs) (map PM.rename lrs))) e'
+            e'' = renames (HM.fromList ((otvN, tyIdN):zip (map PM.lam lrs) (map PM.rename lrs))) e'
         in
             (RuleEvalVarPoly, [s { curr_expr = CurrExpr Evaluate e''
                                  , expr_env = eenv''}], ng')
-    | (Id _ (TyVar _)) <- i = -- TyVar not in PolyArgMap, cannot create return expression
+    | (Id idN (TyVar (Id tyVarN _))) <- i
+    , Just tveType <- TV.deepLookupName tve tyVarN = -- type variable needs type from TVE
+        (RuleEvalVal, [s { curr_expr = CurrExpr Evaluate (Var (Id idN tveType))}], ng)                     
+    | (Id _ (TyVar _)) <- i = -- TyVar not in PolyArgMap or TVE, cannot create return expression
         (RuleEvalVal, [s { curr_expr = CurrExpr Return (Var i)}], ng)
     | E.isSymbolic (idName i) eenv =
         (RuleEvalVal, [s { curr_expr = CurrExpr Return (Var i)}], ng)
@@ -285,6 +310,7 @@ retLam s@(State { expr_env = eenv, tyvar_env = tvnv, poly_arg_map = pargm })
                 (n', ng') = freshSeededName (idName i) ng 
                 e' = rename (idName i) n' e
                 tvnv' = TV.insert n' t tvnv
+                tvnv'' = TV.insert (idName i) (TyVar (Id n' TYPE)) tvnv' -- for lookup in future execution
                 pargm' = rename (idName i) n' pargm
                 -- (eenv', e'', ng'', news) = liftBind i (Type t) eenv e' ng'
 
@@ -293,7 +319,7 @@ retLam s@(State { expr_env = eenv, tyvar_env = tvnv, poly_arg_map = pargm })
             , [ s { expr_env = eenv
                  , curr_expr = CurrExpr Evaluate e'
                  , exec_stack = stck' 
-                 , tyvar_env = tvnv'
+                 , tyvar_env = tvnv''
                  , poly_arg_map = pargm' } ]
             , ng' )
         Nothing -> error $ "retLam: Bad type\ni = " ++ show i
@@ -1419,21 +1445,33 @@ retReplaceSymbFuncTemplate sft
     }], ng')
 
     -- PM-ARG
-    | Var (Id n (TyFun t1@(TyVar (Id idN idTy)) t2)):_ <- unApp ce
+    | Var (Id n (TyFun t1@(TyVar (Id idN _)) t2)):_ <- unApp ce
     , E.isSymbolic n eenv
     = let
         -- make new id for lambda var
-        ([x, f], ng') = freshIds [t1, t2] ng -- TODO: bad name made 
-        -- make new expression
+        ([x@(Id xN xTy), f@(Id fN fTy)], ng') = freshIds [t1, t2] ng -- TODO: bad name made 
+        -- make new expression for CurrExpr
         e = Lam TermL x (Var f)
+
+        -- get forall bound tyVar names
+        (t1Real, t2Real)= case E.lookup n eenv of
+                        Just (Var (Id _ (TyFun t1_ t2_))) -> (t1_, t2_)
+                        _ -> error "PM-ARG: no function binding for current Var"
+
+        -- ([x_, f_], ng'') = trace ("t2Real: " ++ show t2Real) freshIds [t1Real, t2Real] ng'
+
+        e' = Lam TermL (Id xN t1Real) (Var (Id fN t2Real))
+
         -- new environment bindings
-        eenv' = E.insertSymbolic f eenv
-        eenv'' = E.insert n e eenv'
+        eenv' = E.insertSymbolic (Id fN t2Real) eenv
+        eenv'' = E.insert n e' eenv'
+        eenv''' = E.insert xN (Var (Id xN t1Real)) eenv'' -- TODO: don't want this
+
         -- eenv''' = E.insert x eenv''
     in Just (RuleReturnReplaceSymbFunc, [
         s {
         curr_expr = CurrExpr Evaluate e,
-        expr_env = eenv''
+        expr_env = eenv'''
     }], ng')
 
     | otherwise = Nothing
