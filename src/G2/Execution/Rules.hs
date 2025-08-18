@@ -1301,7 +1301,6 @@ liftBind bindsLHS@(Id _ lhsTy) bindsRHS eenv expr ngen pargm = (eenv', expr', ng
 
 
     eenv' = E.insert new bindsRHS eenv
-    -- eenv'' = E.insert old (Var (Id new lhsTy)) $ eenv' -- causes: fs'6 -> fs'7 -> 1 in defintion
 
 type SymbolicFuncEval t = SymFuncTicks -> State t -> NameGen -> Expr -> Maybe (Rule, [State t], NameGen)
 
@@ -1476,12 +1475,13 @@ retReplaceSymbFuncTemplate sft
 
     | otherwise = Nothing
 
-inlineConcInEnv :: Name -> Expr -> E.ExprEnv -> E.ExprEnv -- TODO: this only works for cases I needed so far
-inlineConcInEnv symN conc eenv = E.map inline eenv where 
+-- | Inlines symN with its expression when possible. For use
+-- in solving for PM function defs, so only checks inside lambdas.
+inlineConcInEnv:: Name -> Expr -> E.ExprEnv -> E.ExprEnv 
+inlineConcInEnv symN conc env = E.map inline env where
         inline :: Expr -> Expr
-        inline (Lam TypeL id_ (Var (Id n _))) | symN == n = Lam TypeL id_ conc
-        inline (Lam TypeL id_ (Lam TermL id__ (Var (Id n _)))) | symN == n = (Lam TypeL id_ (Lam TermL id__ conc))
-        inline (Lam TypeL id_ (Lam TermL id__ (Lam TermL id___ (Var (Id n _))))) | symN == n = (Lam TypeL id_ (Lam TermL id__ (Lam TermL id___ conc)))
+        inline (Var (Id n _)) | n == symN = conc
+        inline (Lam u i e) = Lam u i $ inline e
         inline e = e
 
 argTypes :: Type -> ([Type], Type)
