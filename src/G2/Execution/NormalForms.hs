@@ -7,7 +7,7 @@ import qualified G2.Language.Stack as S
 import qualified G2.Language.ExprEnv as E
 
 import qualified Data.HashSet as HS
-
+import Debug.Trace
 -- A Var counts as being in EVF if it's symbolic or if it's unmapped.
 isSWHNF :: State t -> Bool
 isSWHNF (State { expr_env = h, curr_expr = CurrExpr _ e, tyvar_env = tv }) =
