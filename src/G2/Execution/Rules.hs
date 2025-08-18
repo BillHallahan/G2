@@ -55,7 +55,6 @@ import Control.Monad.Extra
 import Data.Maybe
 import Data.Traversable
 import Data.Int (Int)
-import Debug.Trace
 
 stdReduce :: (Solver solver, Simplifier simplifier) => Sharing -> SymbolicFuncEval t -> solver -> simplifier -> State t -> Bindings -> IO (Rule, [(State t, ())], Bindings)
 stdReduce share symb_func_eval solver simplifier s b@(Bindings {name_gen = ng}) = do
@@ -966,7 +965,8 @@ retCurrExpr s@(State { expr_env = eenv, known_values = kv, tyvar_env = tvnv }) e
                              , non_red_path_conds = nrpc }
                     , new_pcs = new_pc
                     , concretized = [] }], ng' )
-    | otherwise = assert (not (isExprValueForm eenv e2))
+    | otherwise = 
+        assert (not (isExprValueForm eenv e2))
                 ( RuleReturnCurrExprFr
                 , [NewPC { state = s { curr_expr = CurrExpr Evaluate e2
                                     , non_red_path_conds = non_red_path_conds s
