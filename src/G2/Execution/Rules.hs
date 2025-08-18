@@ -136,10 +136,9 @@ mapAccumMaybeM f s xs = do
 evalVarSharing :: State t -> NameGen -> Id -> (Rule, [State t], NameGen)
 evalVarSharing s@(State { expr_env = eenv
                         , exec_stack = stck
-                        , poly_arg_map = pargm
-                        , tyvar_env = tve })
+                        , poly_arg_map = pargm })
                ng i
-    -- | The value being evaluated is a symbolic type variable, which will only occur as
+    -- The value being evaluated is a symbolic type variable, which will only occur as
     -- (or in) the return value of a polymorphic function. The type variable must also
     -- have an entry in the PolyArgMap, which shows how arguments of that type have been
     -- renamed during execution. A case expression with a symbolic Int as scrutinee is used to select
@@ -159,8 +158,7 @@ evalVarSharing s@(State { expr_env = eenv
     --
     | (Id idN (TyVar tyId@(Id tyIdN _))) <- i  -- PM-RETURN
     , True <- E.isSymbolic idN eenv
-    , Just lrs <- PM.lookup tyIdN pargm
-    , not . null $ lrs = 
+    , Just lrs@(_:_) <- PM.lookup tyIdN pargm = 
         let 
             -- fresh ids
             ([tvid, scrut], ng') = freshIds [TyVar tyId, TyLitInt] ng
@@ -182,12 +180,7 @@ evalVarSharing s@(State { expr_env = eenv
             eenv''' = inlineConcInEnv idN e' eenv''
         in
             (RuleEvalVarPoly, [s { curr_expr = CurrExpr Evaluate e''
-                                 , expr_env = eenv'''}], ng')
-    | (Id idN (TyVar (Id tyVarN _))) <- i
-    , Just tveType <- TV.deepLookupName tve tyVarN = -- type variable needs type from TVE
-        (RuleEvalVal, [s { curr_expr = CurrExpr Evaluate (Var (Id idN tveType))}], ng)                     
-    | (Id _ (TyVar _)) <- i = -- TyVar not in PolyArgMap or TVE, cannot create return expression
-        (RuleEvalVal, [s { curr_expr = CurrExpr Return (Var i)}], ng)
+                                 , expr_env = eenv'''}], ng')               
     | E.isSymbolic (idName i) eenv =
         (RuleEvalVal, [s { curr_expr = CurrExpr Return (Var i)}], ng)
     -- If the target in our environment is already a value form, we do not
@@ -312,7 +305,6 @@ retLam s@(State { expr_env = eenv, tyvar_env = tvnv, poly_arg_map = pargm })
                 (n', ng') = freshSeededName (idName i) ng 
                 e' = rename (idName i) n' e
                 tvnv' = TV.insert n' t tvnv
-                tvnv'' = TV.insert (idName i) (TyVar (Id n' TYPE)) tvnv' -- for lookup in future execution
                 pargm' = rename (idName i) n' pargm
                 -- (eenv', e'', ng'', news) = liftBind i (Type t) eenv e' ng'
 
@@ -321,7 +313,7 @@ retLam s@(State { expr_env = eenv, tyvar_env = tvnv, poly_arg_map = pargm })
             , [ s { expr_env = eenv
                  , curr_expr = CurrExpr Evaluate e'
                  , exec_stack = stck' 
-                 , tyvar_env = tvnv''
+                 , tyvar_env = tvnv'
                  , poly_arg_map = pargm' } ]
             , ng' )
         Nothing -> error $ "retLam: Bad type\ni = " ++ show i
@@ -1291,7 +1283,9 @@ liftBind bindsLHS@(Id _ lhsTy) bindsRHS eenv expr ngen pargm = (eenv', expr', ng
 
     expr' = renameExpr old new expr
     
-    -- if LHS type is TyVar and in the PAM, then we need to add the LamRename
+    -- if LHS type is a TyVar and in the PAM, then we need to add the LamRename.
+    -- This will only happen during the first instantiation of any particular 
+    -- PM function.
     pargm' = case lhsTy of
                 (TyVar (Id lhsTyName _)) -> 
                         case PM.lookup lhsTyName pargm of 
@@ -1425,7 +1419,7 @@ retReplaceSymbFuncTemplate sft
     }], ng')
 
     -- PM-FORALL
-    | Var (Id n (TyForAll tyVarId@(Id idN idTy) faTy)):es <- unApp ce -- may not be needed/wrong
+    | Var (Id n (TyForAll tyVarId@(Id idN _) faTy)):_ <- unApp ce -- may not be needed/wrong
     , E.isSymbolic n eenv
     = let
         -- insert new empty mapping in M
@@ -1454,11 +1448,10 @@ retReplaceSymbFuncTemplate sft
         -- make new expression for CurrExpr
         e = Lam TermL x (Var f)
 
-        -- get forall bound tyVar names
+        -- get forall bound tyVar names, make lambda for env with types from env
         (t1Real, t2Real)= case E.lookup n eenv of
                         Just (Var (Id _ (TyFun t1_ t2_))) -> (t1_, t2_)
                         _ -> error "PM-ARG: no function binding for current Var"
-
         e' = Lam TermL (Id xN t1Real) (Var (Id fN t2Real))
 
         -- new environment bindings
