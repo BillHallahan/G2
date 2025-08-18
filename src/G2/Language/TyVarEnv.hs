@@ -31,7 +31,6 @@ import qualified Data.HashMap.Lazy as HM
 import qualified Data.Map as M
 import G2.Language.Syntax
 
-import Debug.Trace
 
 data TyConcOrSym = TyConc Type
                  | TySym Id
@@ -47,7 +46,6 @@ newtype TyVarEnv = TyVarEnv (HM.HashMap Name TyConcOrSym) deriving (Show, Eq, Re
 
 instance Hashable TyVarEnv
 
--- ToDo: is this function necessary?
 tyVarEnvCons :: TyVarEnv -> HM.HashMap Name Type
 tyVarEnvCons (TyVarEnv tyvarenv) = HM.map tyConcOrSymToType tyvarenv
 

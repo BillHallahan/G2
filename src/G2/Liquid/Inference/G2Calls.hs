@@ -221,7 +221,6 @@ replaceHigherOrderNames init_name input_names er@(ExecRes { final_state = s@(Sta
         input_names' = filter (hasFuncType . (typeOf tvnv) . (E.!) eenv) input_names
         higher_num_init = zip input_names' (map (higherOrderName (nameOcc init_name)) [1..])
         higher_num_all = concatMap (\fc -> let
-                                        -- TODO: did I use the typeOf correctly in replaceHigherOrderNames?
                                         as = map nameFromVar $ filter (hasFuncType . typeOf tvnv) (arguments fc)
                                      in
                                       zip as (map (higherOrderName (nameOcc $ funcName fc)) [1..]) )

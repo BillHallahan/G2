@@ -51,8 +51,6 @@ getCastedAlgDataTy t tenv
     | otherwise = Nothing
 
 -- TODO : CHECK CORRECTNESS OF BOUND ARGS
--- getC is having an issue below
--- steps to take, paste the below into master and check for the difference 
 getCastedAlgDataTy' :: Name -> [Type] -> TypeEnv -> Maybe (AlgDataTy, [(Id, Type)])
 getCastedAlgDataTy' n ts tenv =
         case M.lookup n tenv of

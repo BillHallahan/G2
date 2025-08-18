@@ -69,7 +69,6 @@ mergeExprPolyBound' :: ExprPolyBound -> ExprPolyBound -> ExprPolyBound
 mergeExprPolyBound' (PolyBound es1 pb1) (PolyBound es2 pb2) =
     PolyBound (es1 ++ es2) (map (uncurry mergeExprPolyBound') $ zip pb1 pb2)
 
--- TODO: whether is safe the use the same TyVarEnv for the map
 extractExprPolyBound' :: TV.TyVarEnv ->Expr -> HM.HashMap Id [Expr]
 extractExprPolyBound' tv e
     | Data dc:es <- unApp e =

@@ -49,7 +49,6 @@ generateSygusProblem ghci lrs evals meas_ex fc ut to_be_ns ns_synth = do
         tenv = type_env . state $ lr_state lrs
         tc = type_classes . state $ lr_state lrs
         meas = lrsMeasures ghci lrs
-        -- TODO: should we extract the tyvar_env from lrs or pass as argument 
         tyvarenv = tyvar_env . state $ lr_state lrs
 
     si <- buildSpecInfo tyvarenv eenv tenv tc meas ghci fc ut to_be_ns ns_synth

@@ -298,7 +298,6 @@ verifyLoop solver num_lems ns lemmas states b config nc sym_ids k n | (n /= 0) |
   W.liftIO $ putStrLn "<Loop Iteration>"
   W.liftIO $ putStrLn $ show n
   -- this printing allows our Python script to report depth stats
-  -- TODO I don't know which states I should use 
   let min_max_depth = minMaxDepth ns sym_ids states
       min_sum_depth = minSumDepth ns sym_ids states
   case states of
@@ -307,14 +306,12 @@ verifyLoop solver num_lems ns lemmas states b config nc sym_ids k n | (n /= 0) |
       W.liftIO $ putStrLn $ "<<Min Max Depth>> " ++ show min_max_depth
       W.liftIO $ putStrLn $ "<<Min Sum Depth>> " ++ show min_sum_depth
   W.liftIO $ hFlush stdout
-  -- TODO: should we insert TV.empty for the TyVarEnv in verifyLoop?
   (b', k', proven, lemmas') <- verifyLoopPropLemmas solver allTactics num_lems ns lemmas b config nc k
  
   -- W.liftIO $ putStrLn $ "proposed_lemmas: " ++ show (length $ proposed_lemmas lemmas')
   -- W.liftIO $ putStrLn $ "proven_lemmas: " ++ show (length $ proven_lemmas lemmas')
   -- W.liftIO $ putStrLn $ "continued_lemmas: " ++ show (length continued_lemmas)
   -- W.liftIO $ putStrLn $ "disproven_lemmas: " ++ show (length $ disproven_lemmas lemmas')
-  -- TODO: is what we doing here for TyVarEnv correct?
   (b'', k'', proven', lemmas'') <- verifyLemmasWithNewProvenLemmas solver allNewLemmaTactics num_lems ns proven lemmas' b' config nc k'
   (pl_sr, b''') <- verifyWithNewProvenLemmas solver allNewLemmaTactics num_lems ns proven' lemmas'' b'' states
 

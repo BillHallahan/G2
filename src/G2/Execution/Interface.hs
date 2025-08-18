@@ -9,7 +9,6 @@ module G2.Execution.Interface
 import G2.Execution.Reducer
 import G2.Execution.Rules
 import G2.Language.Support
-import Debug.Trace
 
 {-# INLINE runExecutionToProcessed #-}
 runExecutionToProcessed :: (Monad m, Ord b) => Reducer m rv t -> Halter m hv r t -> Orderer m sov b r t -> SolveStates m r t -> [AnalyzeStates m r t] -> State t -> Bindings -> m (Processed r (State t), Bindings)

@@ -193,8 +193,6 @@ arbDC tv use_labels tenv ng t n total
                             re_anon = foldr (\(i, ty) -> retype i ty) anon_ts bound_ts
                             (ars, ng_') = freshIds re_anon ng_
                         in
-                            -- TODO: why is this having a problem and 
-                            -- whether the way I am handling it correct?
                         (ng_', (mkApp $ dc:map Var ars, ars))
                     )
                     ng'
