@@ -114,7 +114,8 @@ arbValue' _ _ TyLitChar _ _ av =
     (Lit (LitChar c), av { charGen = cs})
 arbValue' getADTF m (TyVar (Id n _)) tenv tv av
     | Just t <- HM.lookup n m = arbValue' getADTF m t tenv tv av
-    | Just t <- TV.lookup n tv = arbValue' getADTF m t tenv tv av
+    | Just t@(TyVar _) <- TV.deepLookupName tv n = (Prim Undefined t, av)
+    | Just t <- TV.deepLookupName tv n = arbValue' getADTF m t tenv tv av
 arbValue' _ _ t _ _ av = (Prim Undefined t, av)
 
 
@@ -165,7 +166,8 @@ constArbValue' _ _ TyLitChar _ _ av =
     (Lit (LitChar c), av)
 constArbValue' getADTF m (TyVar (Id n _)) tenv tv av
     | Just t <- HM.lookup n m = constArbValue' getADTF m t tenv tv av
-    | Just t <- TV.lookup n tv = arbValue' getADTF m t tenv tv av
+    | Just t@(TyVar _) <- TV.deepLookupName tv n = (Prim Undefined t, av)
+    | Just t <- TV.deepLookupName tv n = arbValue' getADTF m t tenv tv av
 constArbValue' _ _ t _ _ av = (Prim Undefined t, av)
 
 type GetADT = HM.HashMap Name Type -> TypeEnv -> TV.TyVarEnv -> ArbValueGen -> AlgDataTy -> [Type] -> (Expr, ArbValueGen)
