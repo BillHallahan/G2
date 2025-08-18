@@ -154,9 +154,9 @@ evalVarSharing s@(State { expr_env = eenv
     --      2. e'' - renaming in e'
     --          - uses the runtime TyVar name and renamed collected arguments
     --          - will be returned as the current expression
-    --     
-    --          
-
+    -- This allows us to solve for the function definition in the environment while also executing
+    -- the function (renaming TyVars, applying term lambdas, etc).
+    --
     | (Id idN (TyVar tyId@(Id tyIdN _))) <- i  -- PM-RETURN
     , True <- E.isSymbolic idN eenv
     , Just lrs <- PM.lookup tyIdN pargm
@@ -178,9 +178,11 @@ evalVarSharing s@(State { expr_env = eenv
 
             -- rename for current execution path, return as CurrExpr, don't insert in env
             e'' = renames (HM.fromList ((otvN, tyIdN):zip (map PM.lam lrs) (map PM.rename lrs))) e'
+            -- inline in env
+            eenv''' = inlineConcInEnv idN e' eenv''
         in
             (RuleEvalVarPoly, [s { curr_expr = CurrExpr Evaluate e''
-                                 , expr_env = eenv''}], ng')
+                                 , expr_env = eenv'''}], ng')
     | (Id idN (TyVar (Id tyVarN _))) <- i
     , Just tveType <- TV.deepLookupName tve tyVarN = -- type variable needs type from TVE
         (RuleEvalVal, [s { curr_expr = CurrExpr Evaluate (Var (Id idN tveType))}], ng)                     
@@ -1445,7 +1447,7 @@ retReplaceSymbFuncTemplate sft
     }], ng')
 
     -- PM-ARG
-    | Var (Id n (TyFun t1@(TyVar (Id idN _)) t2)):_ <- unApp ce
+    | Var (Id n (TyFun t1@(TyVar (Id _ _)) t2)):_ <- unApp ce
     , E.isSymbolic n eenv
     = let
         -- make new id for lambda var
@@ -1458,16 +1460,14 @@ retReplaceSymbFuncTemplate sft
                         Just (Var (Id _ (TyFun t1_ t2_))) -> (t1_, t2_)
                         _ -> error "PM-ARG: no function binding for current Var"
 
-        -- ([x_, f_], ng'') = trace ("t2Real: " ++ show t2Real) freshIds [t1Real, t2Real] ng'
-
         e' = Lam TermL (Id xN t1Real) (Var (Id fN t2Real))
 
         -- new environment bindings
         eenv' = E.insertSymbolic (Id fN t2Real) eenv
         eenv'' = E.insert n e' eenv'
-        eenv''' = E.insert xN (Var (Id xN t1Real)) eenv'' -- TODO: don't want this
 
-        -- eenv''' = E.insert x eenv''
+        -- inline new expression in top-level function
+        eenv''' = inlineConcInEnv n e' eenv''
     in Just (RuleReturnReplaceSymbFunc, [
         s {
         curr_expr = CurrExpr Evaluate e,
@@ -1475,6 +1475,14 @@ retReplaceSymbFuncTemplate sft
     }], ng')
 
     | otherwise = Nothing
+
+inlineConcInEnv :: Name -> Expr -> E.ExprEnv -> E.ExprEnv -- TODO: this only works for cases I needed so far
+inlineConcInEnv symN conc eenv = E.map inline eenv where 
+        inline :: Expr -> Expr
+        inline (Lam TypeL id_ (Var (Id n _))) | symN == n = Lam TypeL id_ conc
+        inline (Lam TypeL id_ (Lam TermL id__ (Var (Id n _)))) | symN == n = (Lam TypeL id_ (Lam TermL id__ conc))
+        inline (Lam TypeL id_ (Lam TermL id__ (Lam TermL id___ (Var (Id n _))))) | symN == n = (Lam TypeL id_ (Lam TermL id__ (Lam TermL id___ conc)))
+        inline e = e
 
 argTypes :: Type -> ([Type], Type)
 argTypes t = (anonArgumentTypes t, returnType t)
