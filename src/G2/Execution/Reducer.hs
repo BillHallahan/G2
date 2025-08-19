@@ -1065,7 +1065,9 @@ strictRed = mkSimpleReducer (\_ -> ())
 
                 mr_var cont ns n | HS.member n ns = False -- If we have seen a variable already,
                                                           -- we will have already discovered if it needs to be reduced
-                                 | E.isSymbolic n eenv = False
+                                 | E.isSymbolic n eenv = case E.lookup n eenv of 
+                                                        Just (Var (Id _ (TyForAll _ _))) -> True -- n is a symbolic polymorphic function, must be reduced
+                                                        _ -> False
                                  | otherwise = maybe True (cont (HS.insert n ns)) (E.lookup n eenv)
         strict_red _ s b = return (NoProgress, [(s, ())], b)
 
