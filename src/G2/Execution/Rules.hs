@@ -1481,22 +1481,18 @@ retReplaceSymbFuncTemplate sft
     }], ng')
 
     -- PM-ARG
-    | Var (Id n (TyFun t1@(TyVar (Id _ _)) t2)):_ <- unApp ce
+    | Var (Id n (TyFun t1@(TyVar (Id t1N _)) t2@(TyVar (Id t2N _)))):_ <- unApp ce
     , E.isSymbolic n eenv
     = let
         -- make new id for lambda var
-        ([x@(Id xN xTy), f@(Id fN fTy)], ng') = freshIds [t1, t2] ng -- TODO: bad name made 
+        ([x, f], ng') = freshIds [t1, t2] ng -- TODO: bad name made 
         -- make new expression for CurrExpr
         e = Lam TermL x (Var f)
 
-        -- get forall bound tyVar names, make lambda for env with types from env
-        (t1Real, t2Real)= case E.lookup n eenv of
-                        Just (Var (Id _ (TyFun t1_ t2_))) -> (t1_, t2_)
-                        _ -> error "PM-ARG: no function binding for current Var"
-        e' = Lam TermL (Id xN t1Real) (Var (Id fN t2Real))
-
+        (e', _, t2Real) = retypeExprTVsForEnv eenv n t1N t2N e
+        f' = Id (idName f) t2Real
         -- new environment bindings
-        eenv' = E.insertSymbolic (Id fN t2Real) eenv
+        eenv' = E.insertSymbolic f' eenv
         eenv'' = E.insert n e' eenv'
 
         -- inline new expression in top-level function
@@ -1518,6 +1514,15 @@ inlineConcInEnv symN conc env = E.map inline env where
         inline (Lam u i e) = Lam u i $ inline e
         inline e = e
 
+-- | Replaces appearances of runtime tyVars with environment tyVars.
+retypeExprTVsForEnv :: E.ExprEnv -> Name -> Name -> Name -> Expr -> (Expr, Type, Type)
+retypeExprTVsForEnv eenv n t1N t2N run_e = let
+                (t1Real, t2Real) = case E.lookup n eenv of
+                        Just (Var (Id _ (TyFun t1_ t2_))) -> (t1_, t2_)
+                        _ -> error "retypeExprForEnv: no function binding for current Var"
+                in
+                    (replaceTyVar t2N t2Real (replaceTyVar t1N t1Real run_e), t1Real, t2Real)
+                
 argTypes :: Type -> ([Type], Type)
 argTypes t = (anonArgumentTypes t, returnType t)
 
