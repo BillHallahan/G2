@@ -1386,7 +1386,7 @@ retReplaceSymbFuncTemplate sft
                            ng ce
 
     -- DC-SPLIT
-    | Var (Id n (TyFun t1 t2)):es <- unApp ce
+    | Var (Id n nTy@(TyFun t1 t2)):es <- unApp ce
     , TyCon tname _:ts <- unTyApp t1 
     , E.isSymbolic n eenv
     , Just alg_data_ty <- HM.lookup tname tenv
@@ -1411,8 +1411,14 @@ retReplaceSymbFuncTemplate sft
         -- alts = map (\dc -> Alt (Alt)) dcs
         e = Lam TermL x $ Case (Tick (dc_split_tick sft) (Var x)) x' t2 alts
         e' = mkApp (e:es)
-        eenv' = foldr E.insertSymbolic eenv symIds
-        eenv'' = E.insert n e eenv'
+
+        -- get forall bound tyVar names, rename bindings for env
+        hm = getTyHashMap n nTy tve eenv
+        e'' = renames hm e
+        symIds' = map (renames hm) symIds
+
+        eenv' = foldr E.insertSymbolic eenv symIds'
+        eenv'' = E.insert n e'' eenv'
         (constState, ng'''') = mkFuncConst sft s es n t1 t2 ng'''
     in Just (RuleReturnReplaceSymbFunc, [constState, s {
         curr_expr = CurrExpr Evaluate e',
