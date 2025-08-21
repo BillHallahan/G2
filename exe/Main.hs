@@ -23,6 +23,7 @@ import G2.Config
 import G2.Interface
 import G2.Language
 import G2.Translation
+
 main :: IO ()
 main = do
   as <- getArgs
