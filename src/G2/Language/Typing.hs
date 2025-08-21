@@ -403,12 +403,12 @@ replaceTyVars' ::HM.HashMap Name Type -> Type -> Type
 replaceTyVars' m (TyVar (Id n _)) | Just t <- HM.lookup n m = t
 replaceTyVars' _ t = t
 
-applyTypeMap :: ASTContainer e Type => M.Map Name Type -> e -> e
+applyTypeMap :: ASTContainer e Type => TV.TyVarEnv -> e -> e
 applyTypeMap m = modifyASTs (applyTypeMap' m)
 
-applyTypeMap' :: M.Map Name Type -> Type -> Type
+applyTypeMap' :: TV.TyVarEnv -> Type -> Type
 applyTypeMap' m (TyVar (Id n _))
-    | Just t <- M.lookup n m = t
+    | Just t <- TV.lookup n m = t
 applyTypeMap' _ t = t
 
 applyTypeHashMap :: ASTContainer e Type => HM.HashMap Name Type -> e -> e

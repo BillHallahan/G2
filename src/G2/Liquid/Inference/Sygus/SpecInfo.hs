@@ -432,8 +432,7 @@ mkSpecArg tv mx_meas ghci tenv meas symb t =
                     case vm of
                         Just vm' ->
                             let
-                                -- TODO BILL: will it be a good idea to convert the Map Name Type to TyVarEnv
-                                rt' = applyTypeMap (TV.toMap vm') rt
+                                rt' = applyTypeMap vm' rt
                             in
                             fmap (\srt' ->
                                     let

@@ -45,7 +45,6 @@ import qualified Data.Text as T
 -- The t parameter can be used to track extra information during the execution.
 data State t = State { expr_env :: E.ExprEnv -- ^ Mapping of `Name`s to `Expr`s
                      , type_env :: TypeEnv -- ^ Type information
-                        -- TODO BILL:: Did we need to figure out how to handle symbolic type variables in tyvar_env?
                      , tyvar_env :: TV.TyVarEnv -- ^ Type variable information
                      , curr_expr :: CurrExpr -- ^ The expression represented by the state
                      , path_conds :: PathConds -- ^ Path conditions, in SWHNF

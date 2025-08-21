@@ -159,7 +159,6 @@ addTyVarDC unused dc@(DataCon n t u e)
     | Just is <- lookupUP n unused = DataCon n (addTyVarsToType is t) u e
     | otherwise = dc
 
--- TODO BILL: should we include TyVarEnv in addTyVarsToType?
 addTyVarsToType :: [Int] -> Type -> Type
 addTyVarsToType i t =
     let
