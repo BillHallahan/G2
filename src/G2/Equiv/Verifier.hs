@@ -41,7 +41,6 @@ import G2.Execution.Memory
 import Data.Monoid (Any (..))
 
 import qualified G2.Language.Stack as Stck
-import qualified G2.Language.TyVarEnv as TV
 import Control.Monad
 
 import G2.Lib.Printers
@@ -62,7 +61,7 @@ statePairReadyForSolver (s1, s2) =
   in
   exprReadyForSolver (tyvar_env s1) h1 e1 && exprReadyForSolver (tyvar_env s2) h2 e2
 
-exprReadyForSolver :: TV.TyVarEnv -> ExprEnv -> Expr -> Bool
+exprReadyForSolver :: TyVarEnv -> ExprEnv -> Expr -> Bool
 exprReadyForSolver tv h (Tick _ e) = exprReadyForSolver tv h e
 exprReadyForSolver tv h (Var i) = E.isSymbolic (idName i) h && T.isPrimType (typeOf tv i)
 exprReadyForSolver tv h (App f a) = exprReadyForSolver tv h f && exprReadyForSolver tv h a
@@ -307,6 +306,7 @@ verifyLoop solver num_lems ns lemmas states b config nc sym_ids k n | (n /= 0) |
       W.liftIO $ putStrLn $ "<<Min Sum Depth>> " ++ show min_sum_depth
   W.liftIO $ hFlush stdout
   (b', k', proven, lemmas') <- verifyLoopPropLemmas solver allTactics num_lems ns lemmas b config nc k
+
   -- W.liftIO $ putStrLn $ "proposed_lemmas: " ++ show (length $ proposed_lemmas lemmas')
   -- W.liftIO $ putStrLn $ "proven_lemmas: " ++ show (length $ proven_lemmas lemmas')
   -- W.liftIO $ putStrLn $ "continued_lemmas: " ++ show (length continued_lemmas)
