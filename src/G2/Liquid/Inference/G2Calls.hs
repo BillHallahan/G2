@@ -1051,7 +1051,7 @@ chainReturnType tv t ne =
     foldM (\(t', vms) et -> 
                 case filter notLH (anonArgumentTypes et) of
                     [at]
-                        | Just vm <- t' `specializes` at -> Just (applyTypeMap (TV.toMap vm) . returnType $ et, vm : vms )
+                        | Just vm <- t' `specializes` at -> Just (applyTypeMap vm . returnType $ et, vm : vms )
                     _ ->  Nothing) (t, []) (map (typeOf tv) $ reverse ne)
 
 notLH :: Type -> Bool
