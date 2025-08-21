@@ -1,7 +1,4 @@
-{-# LANGUAGE DeriveGeneric #-}
-{-# LANGUAGE DeriveDataTypeable #-}
-{-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE DeriveDataTypeable, DeriveGeneric, FlexibleInstances, MultiParamTypeClasses #-}
 
 module G2.Language.TyVarEnv ( TyVarEnv
                             , TyConcOrSym (..)
@@ -24,13 +21,11 @@ module G2.Language.TyVarEnv ( TyVarEnv
 
 import Prelude hiding(lookup)
 import GHC.Generics (Generic)
-import Data.Coerce
 import Data.Data (Data, Typeable)
 import Data.Hashable(Hashable)
 import qualified Data.HashMap.Lazy as HM
 import qualified Data.Map as M
 import G2.Language.Syntax
-
 
 data TyConcOrSym = TyConc Type
                  | TySym Id
@@ -90,7 +85,6 @@ deepLookupNameConcOrSym tv_env@(TyVarEnv tv) n = case HM.lookup n tv of
     Just (TyConc (TyVar (Id ty_n _))) -> deepLookupNameConcOrSym tv_env ty_n
     Just t@(TyConc _) -> Just t
     Nothing -> Nothing
-deepLookupTypeConcOrSym _ t = Just (TyConc t)
 
 delete :: Name -> TyVarEnv -> TyVarEnv
 delete n (TyVarEnv env) = TyVarEnv (HM.delete n env)

@@ -18,7 +18,7 @@ import qualified Data.HashMap.Lazy as HM
 import Data.Maybe
 
 -- | Returns (1) the Id of the new main function and (2) the functions that need counterfactual variants
-convertCurrExpr :: TV.TyVarEnv -> Id -> Bindings -> LHStateM (Id, [Name])
+convertCurrExpr :: TyVarEnv -> Id -> Bindings -> LHStateM (Id, [Name])
 convertCurrExpr tv ifi bindings = do
     ifi' <- modifyInputExpr tv ifi
     mapWithKeyME (\(Name _ m _ _) e -> if isJust m then letLiftHigherOrder tv e else return e)
@@ -38,7 +38,7 @@ convertCurrExpr tv ifi bindings = do
 --      it'll only be computed once.  This is NOT just for efficiency.
 --      Since the choice is nondeterministic, this is the only way to ensure that
 --      we don't make two different choices, and get two different values.
-modifyInputExpr :: TV.TyVarEnv -> Id -> LHStateM (Id, [Name])
+modifyInputExpr :: TyVarEnv -> Id -> LHStateM (Id, [Name])
 modifyInputExpr tv i@(Id n _) = do
     (CurrExpr er ce) <- currExpr
 
@@ -55,7 +55,7 @@ modifyInputExpr tv i@(Id n _) = do
 
 -- Actually does the work of modify the function for modifyInputExpr
 -- Inserts the new function in the ExprEnv, and returns the Id
-modifyInputExpr' :: TV.TyVarEnv -> Id -> Expr -> LHStateM (Id, [Name])
+modifyInputExpr' :: TyVarEnv -> Id -> Expr -> LHStateM (Id, [Name])
 modifyInputExpr' tv i e = do
     (e', ns) <- rebindFuncs e
     e'' <- letLiftFuncs tv e'
@@ -121,12 +121,12 @@ replaceVarWithName' _ _ e = e
 -- So we gather them up, one by one, and rewrite as we go.
 -- Furthermore, we have to be careful to not move bindings from Lambdas/other Let's
 -- out of scope.
-letLiftFuncs :: TV.TyVarEnv -> Expr -> LHStateM Expr
+letLiftFuncs :: TyVarEnv -> Expr -> LHStateM Expr
 letLiftFuncs tv e = do
     e' <- modifyAppTopE (letLiftFuncs' tv) e
     return $ flattenLets e'
 
-letLiftFuncs' :: TV.TyVarEnv -> Expr -> LHStateM Expr
+letLiftFuncs' :: TyVarEnv -> Expr -> LHStateM Expr
 letLiftFuncs' tv e
     | ars <- passedArgs e
     , any (\case { Var _ -> False; Type _ -> False; _ -> True }) ars = do
@@ -139,7 +139,7 @@ letLiftFuncs' tv e
         -- return . Let (zip is ars) . mkApp $ c:map Var is
     | otherwise = return e
 
-liftSel :: TV.TyVarEnv -> [Expr] -> LHStateM ([(Id, Expr)], [Expr])
+liftSel :: TyVarEnv -> [Expr] -> LHStateM ([(Id, Expr)], [Expr])
 liftSel tv = go ([], [])
     where
         go (binds, r_es) [] = return (binds, reverse r_es)
@@ -152,10 +152,10 @@ liftSel tv = go ([], [])
                     go ((i, e):binds, Var i:r_es) es
 
 -- | Tries to be more selective then liftLetFuncs, doesn't really work yet...
-letLiftHigherOrder :: TV.TyVarEnv -> Expr -> LHStateM Expr
+letLiftHigherOrder :: TyVarEnv -> Expr -> LHStateM Expr
 letLiftHigherOrder tv e = return . shiftLetsOutOfApps =<< insertInLamsE (letLiftHigherOrder' tv) e
 
-letLiftHigherOrder' :: TV.TyVarEnv -> [Id] -> Expr -> LHStateM Expr
+letLiftHigherOrder' :: TyVarEnv -> [Id] -> Expr -> LHStateM Expr
 letLiftHigherOrder' tv is e@(App _ _)
     | Var i <- appCenter e
     , i `elem` is = do
@@ -206,7 +206,7 @@ modifyBottomApp f e = f e
 -- We add an assumption about the inputs to the current expression
 -- This prevents us from finding a violation of the output refinement type
 -- that requires a violation of the input refinement type
-addCurrExprAssumption :: TV.TyVarEnv -> Id -> Bindings -> LHStateM ()
+addCurrExprAssumption :: TyVarEnv -> Id -> Bindings -> LHStateM ()
 addCurrExprAssumption tv ifi (Bindings {fixed_inputs = fi}) = do
     (CurrExpr er ce) <- currExpr
 
