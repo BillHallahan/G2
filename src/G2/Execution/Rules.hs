@@ -165,7 +165,7 @@ evalVarSharing s@(State { expr_env = eenv
             ([tvid, scrut], ng') = freshIds [TyVar tyId, TyLitInt] ng
             eenv' = E.insertSymbolic scrut eenv
 
-            -- TODO: make this match getTyHashMap usage
+            -- TODO: make this match getTyVarRenameMap usage
             -- lookup original outer (pre-refnaming) type variable 
             outerTyVar@(Id otvN _) = case E.lookup idN eenv of
                             Just (Var (Id _ (TyVar envTyId))) -> envTyId
@@ -1372,7 +1372,7 @@ retReplaceSymbFuncTemplate sft
         e' = mkApp (e:es)
 
         -- get forall bound tyVar names, rename bindings for env
-        hm = getTyHashMap n nTy tve eenv
+        hm = getTyVarRenameMap n nTy tve eenv
         e'' = renames hm e
         symIds' = map (renames hm) symIds
 
@@ -1425,7 +1425,7 @@ retReplaceSymbFuncTemplate sft
            , Alt (DataAlt falseDc []) (App (Var f2Id) x)]
 
         -- get forall bound tyVar names, rename bindings for env
-        hm = getTyHashMap n nTy tve eenv
+        hm = getTyVarRenameMap n nTy tve eenv
         e' = renames hm e
         f1Id' = renames hm f1Id
         f2Id' = renames hm f2Id
@@ -1472,7 +1472,7 @@ retReplaceSymbFuncTemplate sft
         e = Lam TermL x (Var f)
 
         -- get forall bound tyVar names, rename bindings for env
-        hm = getTyHashMap n nTy tve eenv
+        hm = getTyVarRenameMap n nTy tve eenv
         e' = renames hm e
         f' = renames hm f
 
@@ -1503,12 +1503,12 @@ inlineConcInEnv symN conc = E.map inline where
         inline e = e
 
 -- | Returns the hashmap needed to retype runtime TyVars to environment TyVars.
-getTyHashMap :: Name -> Type -> TV.TyVarEnv -> E.ExprEnv -> HM.HashMap Name Name
-getTyHashMap n exec_t tve eenv = case E.lookup n eenv of 
-            Just e -> makeTyHashMap exec_t $ typeOf tve e
+getTyVarRenameMap :: Name -> Type -> TV.TyVarEnv -> E.ExprEnv -> HM.HashMap Name Name
+getTyVarRenameMap n exec_t tve eenv = case E.lookup n eenv of 
+            Just e -> makeTyVarRenameMap exec_t $ typeOf tve e
             Nothing -> error "getTyHashMap: lookup failed"
-makeTyHashMap :: Type -> Type -> HM.HashMap Name Name
-makeTyHashMap t1 t2 = go t1 t2 HM.empty
+makeTyVarRenameMap :: Type -> Type -> HM.HashMap Name Name
+makeTyVarRenameMap t1 t2 = go t1 t2 HM.empty
     where
         go (TyVar (Id n1 _)) (TyVar(Id n2 _)) hm = HM.insert n1 n2 hm
         go (TyFun t1_1 t2_1) (TyFun t1_2 t2_2) hm = HM.union (go t1_1 t1_2 hm) (go t2_1 t2_2 hm)
