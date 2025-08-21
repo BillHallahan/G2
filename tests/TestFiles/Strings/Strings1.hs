@@ -157,13 +157,11 @@ null1 xs =
                     False -> error "Impossible"
         False -> 2
 
---this is having an issue
 last1 :: String -> (Int, Char)
 last1 xs | length xs > 50 = (1, last xs)
          | length xs > 30 = (2, last xs)
          | otherwise = (3, last xs)
 
--- drop 1,2,3 is also having an issue 
 drop1 :: String -> (Bool, String)
 drop1 str = case drop 50 str of
                 x@"HelloHelloHelloHelloHelloHello" -> (True, x)

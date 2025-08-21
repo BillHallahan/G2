@@ -3,12 +3,11 @@ module G2.Execution.SymToCase (createCaseExpr) where
 import G2.Execution.DataConPCMap
 import G2.Language
 import qualified G2.Language.ExprEnv as E
-import qualified G2.Language.TyVarEnv as TV
 import qualified Data.HashMap.Lazy as HM
 import qualified Data.List as L
 
 -- | Creates and applies new symbolic variables for arguments of Data Constructor
-concretizeSym :: TV.TyVarEnv -> [(Id, Type)] -> Maybe Coercion -> Id -> KnownValues -> TypeEnv
+concretizeSym :: TyVarEnv -> [(Id, Type)] -> Maybe Coercion -> Id -> KnownValues -> TypeEnv
               -> (ExprEnv, NameGen) -> DataCon -> ((ExprEnv, NameGen), ([PathCond], Expr))
 concretizeSym tv bi maybeC binder kv tenv (eenv, ng) dc@(DataCon _ ts _ _)
     | Just dcpcs <- HM.lookup (dcName dc) (dcpcMap tv kv tenv)
@@ -47,7 +46,7 @@ createCaseExpr' kv newId t es@(_:_) =
         addImp _ _ = error "addImp: Unsupported path constraints"
 createCaseExpr' kv _ _ [] = (Prim Undefined TyBottom, [ExtCond (mkFalse kv) True])
 
-createCaseExpr :: TV.TyVarEnv 
+createCaseExpr :: TyVarEnv 
                -> [(Id, Type)]
                -> Maybe Coercion
                -> Id
@@ -74,7 +73,7 @@ createCaseExpr tv bi maybeC binder ti kv tenv eenv ng dcs =
     (newId, mexpr', newSymConstraint:assume_pc, eenv'', ng'')
 
 -- | Return PathCond restricting value of `newId` to [lower, upper]
-restrictSymVal :: TV.TyVarEnv -> KnownValues -> Integer -> Integer -> Id -> PathCond
+restrictSymVal :: TyVarEnv -> KnownValues -> Integer -> Integer -> Id -> PathCond
 restrictSymVal tv kv lower upper newId
     | lower /= upper =
         ExtCond (mkAndExpr kv (mkGeIntExpr kv (Var newId) lower) (mkLeIntExpr kv (Var newId) upper)) True

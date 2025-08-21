@@ -1135,7 +1135,7 @@ nonRedPCRedFunc _ _ s b = return (Finished, [(s, ())], b)
 -- Substitutes all possible higher order functions for symbolic higher order functions.
 -- We insert the substituted higher order function directly into the model, because, due
 -- to the VAR-RED rule, the function name will (if the function is called) be lost during execution.
-substHigherOrder :: TV.TyVarEnv -> ExprEnv -> Model -> HS.HashSet Name -> CurrExpr -> [(ExprEnv, Model, CurrExpr)]
+substHigherOrder :: TyVarEnv -> ExprEnv -> Model -> HS.HashSet Name -> CurrExpr -> [(ExprEnv, Model, CurrExpr)]
 substHigherOrder tv eenv m ns ce =
     let
         is = mapMaybe (\n -> case E.lookup n eenv of

@@ -86,7 +86,6 @@ import qualified Data.List as L
 import qualified G2.Language.TyVarEnv as TV
 import System.Timeout
 
-
 type AssumeFunc = T.Text
 type AssertFunc = T.Text
 type ReachFunc = T.Text

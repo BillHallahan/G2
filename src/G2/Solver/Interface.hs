@@ -19,7 +19,6 @@ import qualified Data.List as L
 import Data.Maybe (mapMaybe, isJust, fromJust)
 import qualified Data.HashMap.Lazy as HM
 import qualified Data.Sequence as S
-import qualified G2.Language.TyVarEnv as TV 
 
 -- | Concrete instantiations of previously (partially) symbolic values.
 data Subbed = Subbed { s_inputs :: [Expr] -- ^ Concrete `inputNames`
@@ -102,14 +101,14 @@ subModel (State { expr_env = eenv
 
         untilEq f x = let x' = f x in if x == x' then x' else untilEq f x'
 
-subVarFuncCall :: TV.TyVarEnv -> Bool -> Model -> ExprEnv -> TypeClasses -> FuncCall -> FuncCall
+subVarFuncCall :: TyVarEnv -> Bool -> Model -> ExprEnv -> TypeClasses -> FuncCall -> FuncCall
 subVarFuncCall tv inLam em eenv tc fc@(FuncCall {arguments = ars}) =
     subVar tv inLam em eenv tc $ fc {arguments = filter (not . isTC tc) ars}
 
-subVar :: (ASTContainer m Expr) => TV.TyVarEnv -> Bool -> Model -> ExprEnv -> TypeClasses -> m -> m
+subVar :: (ASTContainer m Expr) => TyVarEnv -> Bool -> Model -> ExprEnv -> TypeClasses -> m -> m
 subVar tv inLam em eenv tc = modifyContainedASTs (subVar' tv inLam em eenv tc [])
 
-subVar' :: TV.TyVarEnv -> Bool -> Model -> ExprEnv -> TypeClasses -> [Id] -> Expr -> Expr
+subVar' :: TyVarEnv -> Bool -> Model -> ExprEnv -> TypeClasses -> [Id] -> Expr -> Expr
 subVar' tv inLam em eenv tc is v@(Var i@(Id n _))
     | i `notElem` is
     , Just e <- HM.lookup n em =
@@ -141,7 +140,7 @@ isVar :: Expr -> Bool
 isVar (Var _) = True
 isVar _ = False
 
-isLitCase :: TV.TyVarEnv -> Expr -> Bool
+isLitCase :: TyVarEnv -> Expr -> Bool
 isLitCase tv (Case e _ _ _) = isPrimType (typeOf tv e)
 isLitCase _ _ = False
 

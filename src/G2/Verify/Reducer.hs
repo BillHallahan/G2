@@ -26,7 +26,6 @@ import qualified Data.HashSet as HS
 import Data.List
 import Data.Maybe
 import Data.Sequence
-import G2.Language (State(tyvar_env))
 
 -- | When a newly reached function application is approximated by a previously seen (and thus explored) function application,
 -- shift the new function application into the NRPCs.

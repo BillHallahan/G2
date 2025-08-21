@@ -43,7 +43,6 @@ import Data.Monoid
 import Data.Tuple
 import System.Clock
 import GHC.RTS.Flags (GCFlags(doIdleGC))
-import qualified G2.Language.TyVarEnv as TV 
 
 -- | The result of a Solver query
 data Result m u um = SAT m
@@ -104,7 +103,7 @@ data SomeTrSolver where
 data GroupRelated a = GroupRelated ArbValueFunc a
 
 groupRelatedFinite :: a -> GroupRelated a
-groupRelatedFinite = GroupRelated arbValue 
+groupRelatedFinite = GroupRelated arbValue
 
 groupRelatedInfinite :: a -> GroupRelated a
 groupRelatedInfinite = GroupRelated arbValueInfinite
@@ -377,7 +376,7 @@ instance Solver s => Solver (CommonSubExpElim s) where
     solve (CommonSubExpElim solver) s b is = solve solver s b is . elimCommon (tyvar_env s) (known_values s) 2
     close (CommonSubExpElim solver) = close solver
 
-elimCommon :: TV.TyVarEnv
+elimCommon :: TyVarEnv
            -> KnownValues
            -> Int -- ^ Minimal value to consider an expression common
            -> PathConds
@@ -418,7 +417,7 @@ instance Semigroup SumHM where
 instance Monoid SumHM where
     mempty = SumHM HM.empty
 
-countApps :: ASTContainer c Expr => TV.TyVarEnv -> KnownValues -> c -> HM.HashMap Expr Int
+countApps :: ASTContainer c Expr => TyVarEnv -> KnownValues -> c -> HM.HashMap Expr Int
 countApps tv kv = coerce . evalContainedASTs go
     where
         go e@(App _ _)

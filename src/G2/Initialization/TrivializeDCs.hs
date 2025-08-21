@@ -3,7 +3,6 @@ module G2.Initialization.TrivializeDCs where
 import G2.Data.Utils
 import G2.Language
 import qualified G2.Language.ExprEnv as E
-import qualified G2.Language.TyVarEnv as TV
 import G2.Language.KnownValues
 import G2.Language.Monad
 import G2.Data.Utils
@@ -41,11 +40,11 @@ import Data.Traversable
 -- | Ensure that all non-trivial arguments to list cons data constructors
 -- are wrapped in arguments.
 -- See note [Cons DC]
-trivializeDCs :: TV.TyVarEnv -> NameGen -> KnownValues -> ExprEnv -> (ExprEnv, NameGen)
+trivializeDCs :: TyVarEnv -> NameGen -> KnownValues -> ExprEnv -> (ExprEnv, NameGen)
 trivializeDCs tv ng kv eenv =
     runNamingM (trivializeDCs' tv kv eenv) ng
 
-trivializeDCs' :: TV.TyVarEnv -> KnownValues -> ExprEnv -> NameGenM ExprEnv
+trivializeDCs' :: TyVarEnv -> KnownValues -> ExprEnv -> NameGenM ExprEnv
 trivializeDCs' tv kv = E.mapM (modifyM go)
     where
         go a@(App _ _)

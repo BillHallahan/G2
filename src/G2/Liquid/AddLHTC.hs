@@ -10,14 +10,13 @@ import G2.Language.Monad
 import G2.Liquid.Types
 
 import qualified Data.HashMap.Lazy as HM
-import qualified G2.Language.TyVarEnv as TV 
 
 -- | Adds the LiquidHaskell typeclass to all functions in the ExprEnv, and to
 -- the current expression.  This requires:
 --   1. Adding Lambda bindings for the LH TC
 --   2. Passing the LH TC typeclass to functions
 --   3. Updating all type information
-addLHTC :: TV.TyVarEnv -> LHStateM ()
+addLHTC :: TyVarEnv -> LHStateM ()
 addLHTC tv = do
     mapME (addLHTCExprEnv tv)
     addLHTCCurrExpr
@@ -28,7 +27,7 @@ addLHTCCurrExpr = do
     ce' <- addLHTCExprPasses HM.empty ce
     putCurrExpr (CurrExpr er ce')
 
-addLHTCExprEnv :: TV.TyVarEnv -> Expr -> LHStateM Expr
+addLHTCExprEnv :: TyVarEnv -> Expr -> LHStateM Expr
 addLHTCExprEnv tv e = do
     e' <- addTypeLams tv e
     e'' <- addTypeLamsLet tv e'
@@ -39,7 +38,7 @@ addLHTCExprEnv tv e = do
 -- This is needed so that addLHTCExprEnvLams can insert the LH Dict after the type correctly.
 -- In generally, it's not always correct to eta-expand Haskell functions, but
 -- it is fine here because the type arguments are guaranteed to not be undefined
-addTypeLams :: TV.TyVarEnv -> Expr -> LHStateM Expr
+addTypeLams :: TyVarEnv -> Expr -> LHStateM Expr
 addTypeLams tv e = 
     let
         t = typeOf tv e
@@ -54,10 +53,10 @@ addTypeLams' _ e = return e
 
 -- | Let bindings may be passed Type parameters, but have no type lambdas,
 -- so we have to add Lambdas to Let's as well. 
-addTypeLamsLet :: TV.TyVarEnv -> Expr -> LHStateM Expr
+addTypeLamsLet :: TyVarEnv -> Expr -> LHStateM Expr
 addTypeLamsLet tv = modifyM (addTypeLamsLet' tv)
 
-addTypeLamsLet' :: TV.TyVarEnv -> Expr -> LHStateM Expr
+addTypeLamsLet' :: TyVarEnv -> Expr -> LHStateM Expr
 addTypeLamsLet' tv (Let be e) = do
     be' <- mapM (\(b, e') -> do
             e'' <- addTypeLams tv e' 

@@ -18,7 +18,7 @@ import G2.Liquid.TyVarBags
 
 import qualified Data.HashSet as S
 import Data.List
-import qualified G2.Language.TyVarEnv as TV 
+
 type CounterfactualName = Name
 
 -- Enables finding abstract counterexamples, by adding counterfactual branches
@@ -35,7 +35,7 @@ type CounterfactualName = Name
 --     This is essentially abstracting away the function definition, leaving
 --     only the information that LH also knows (that is, the information in the
 --     refinment type.)
-addCounterfactualBranch :: TV.TyVarEnv
+addCounterfactualBranch :: TyVarEnv
                         -> CFModules
                         -> [Name] -- ^ Which functions to consider abstracting
                         -> LHStateM CounterfactualName
@@ -53,11 +53,11 @@ addCounterfactualBranch tv cf_mod ns = do
     mapWithKeyME (addCounterfactualBranch' tv cfn ns')
     return cfn
 
-addCounterfactualBranch' :: TV.TyVarEnv -> CounterfactualName -> [Name] -> Name -> Expr -> LHStateM Expr
+addCounterfactualBranch' :: TyVarEnv -> CounterfactualName -> [Name] -> Name -> Expr -> LHStateM Expr
 addCounterfactualBranch' tv cfn ns n =
     if n `elem` ns then insertInLamsE (\_ -> addCounterfactualBranch'' tv cfn) else return
 
-addCounterfactualBranch'' :: TV.TyVarEnv -> CounterfactualName -> Expr -> LHStateM Expr
+addCounterfactualBranch'' :: TyVarEnv -> CounterfactualName -> Expr -> LHStateM Expr
 addCounterfactualBranch'' tv cfn
     orig_e@(Let 
             [(b, _)]
@@ -77,7 +77,7 @@ addCounterfactualBranch'' tv cfn
             rt = typeOf tv r
 addCounterfactualBranch'' tv cfn e = modifyChildrenM (addCounterfactualBranch'' tv cfn) e
 
-cfRetValue :: TV.TyVarEnv
+cfRetValue :: TyVarEnv
            -> [Expr] -- ^ Arguments
            -> Type -- ^ Type of return value
            -> LHStateM Expr
@@ -116,14 +116,14 @@ nullNonDet _ = True
 instFuncTickName :: Name
 instFuncTickName = Name "INST_FUNC_TICK" Nothing 0 Nothing
 
-argumentNames :: ExState s m => TV.TyVarEnv -> Name -> m [Name]
+argumentNames :: ExState s m => TyVarEnv -> Name -> m [Name]
 argumentNames tv n = do
     e <- lookupE n
     case e of
         Just e' -> return . concatMap tyConNames $ anonArgumentTypes (typeOf tv e')
         Nothing -> return []
 
-returnNames :: ExState s m => TV.TyVarEnv -> Name -> m [Name]
+returnNames :: ExState s m => TyVarEnv -> Name -> m [Name]
 returnNames tv n = do
     e <- lookupE n
     case e of

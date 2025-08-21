@@ -43,9 +43,6 @@ max2 :: Ord a => CList a -> a
 max2 (Cons x xs) = max' x xs
 max2 _ = error "Invalid index"
 
-mypair :: (a,b) -> a 
-mypair c = fst c
-
 max' :: Ord a => a -> CList a -> a
 max' x (Cons y xs) = if x > y then max' x xs else max' y xs
 max' x _ = x
@@ -58,9 +55,6 @@ sum xs = foldl (+) 0 xs
 
 maxesInt :: CList Int -> CList Int -> Pair Int Int
 maxesInt = maxes
-
-test1 :: CList a -> CList b -> CList a 
-test1 a _ = a 
 
 maxes :: (Ord a, Ord b) => CList a -> CList b -> Pair a b
 maxes xs ys = Pair (max2 xs) (max2 ys)
@@ -92,7 +86,3 @@ getInP = getIn
 
 getInInt :: Holds Int -> Holds Int
 getInInt = getInP
-
--- Function that creates a Pair and applies switchInt
-mypair2 :: Pair Int Int
-mypair2 = switchInt (Pair 1 2)

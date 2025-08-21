@@ -6,7 +6,6 @@
 --   Provides type checking capabilities over G2 Language.
 module G2.Language.Typing
     ( Typed (..)
-    , PresType (..)
 
     , unify
     , unify'
@@ -79,14 +78,11 @@ import G2.Language.Syntax
 
 import qualified Data.HashSet as HS
 import qualified Data.HashMap.Lazy as HM
-import qualified Data.HashMap.Internal as HMI
 import qualified Data.Map as M
 import Data.Maybe
 import qualified Data.List as L
 import Control.Monad
 import qualified G2.Language.TyVarEnv as TV
-import Debug.Trace
-
 
 tyInt :: KV.KnownValues -> Type
 tyInt kv = TyCon (KV.tyInt kv) (tyTYPE kv)
@@ -249,10 +245,10 @@ appTypeOf _ t es = error ("appTypeOf\n" ++ show t ++ "\n" ++ show es ++ "\n\n")
 
 -- | Check if two types unify.  If they do, returns a `UFMap` of type variables to instantiations.
 unify :: Type -> Type -> Maybe (UF.UFMap Name Type)
-unify  = unify' UF.empty
+unify = unify' UF.empty
 
 -- | `unify`, but with a pre-existing (partial) mapping of type variables to instantiations.
-unify' ::   UF.UFMap Name Type -> Type -> Type ->  Maybe (UF.UFMap Name Type)
+unify' :: UF.UFMap Name Type -> Type -> Type ->  Maybe (UF.UFMap Name Type)
 unify' uf (TyVar (Id n1 t1)) (TyVar (Id n2 t2))
     | Just uf_t1 <- UF.lookup n1 uf
     , Just uf_t2 <- UF.lookup n2 uf =
@@ -303,11 +299,6 @@ instance Typed Type where
     typeOf _ TYPE = TYPE
     typeOf _ TyBottom = TyBottom
     typeOf _ TyUnknown = TyUnknown
-
-newtype PresType = PresType Type deriving (Show, Read)
-
-instance Typed PresType where
-    typeOf _ (PresType t) = t
 
 -- | Retyping
 -- We look to see if the type we potentially replace has a TyVar whose Id is a

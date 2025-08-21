@@ -19,7 +19,7 @@ import qualified G2.Language.TyVarEnv as TV
 
 data CurrExprRes = CurrExprRes { ce_expr :: Expr
                                , fixed_in :: [Expr]
-                               , symbolic_type_ids
+                               , symbolic_type_ids:: [Id]
                                , symbolic_value_ids :: [Id]
                                , in_coercion ::  Maybe Coercion
                                , mkce_namegen :: NameGen

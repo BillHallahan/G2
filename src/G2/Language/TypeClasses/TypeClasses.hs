@@ -36,7 +36,6 @@ import Data.Maybe
 import qualified Data.Sequence as S
 import qualified G2.Language.TyVarEnv as TV 
 import GHC.Generics (Generic)
-import Data.Maybe (fromMaybe)
 
 data Class = Class { insts :: [(Type, Id)], typ_ids :: [Id], superclasses :: [(Type, Id)]}
                 deriving (Show, Eq, Read, Typeable, Data, Generic)

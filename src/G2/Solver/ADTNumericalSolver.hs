@@ -9,12 +9,12 @@ import G2.Language.Support
 import G2.Language.Syntax
 import qualified G2.Language.PathConds as PC
 import G2.Solver.Solver
-import qualified G2.Language.TyVarEnv as TV 
+
 -- | Converts constraints about ADTs to numerical constraints before sending them to other solvers
 data ADTNumericalSolver solver = ADTNumericalSolver ArbValueFunc solver
 
 adtNumericalSolFinite :: solver -> ADTNumericalSolver solver
-adtNumericalSolFinite = ADTNumericalSolver arbValue 
+adtNumericalSolFinite = ADTNumericalSolver arbValue
 
 adtNumericalSolInfinite :: solver -> ADTNumericalSolver solver
 adtNumericalSolInfinite = ADTNumericalSolver arbValueInfinite

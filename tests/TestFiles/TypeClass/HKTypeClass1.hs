@@ -38,7 +38,6 @@ extractJ j = extract j
 extractE :: E Int Int -> Int
 extractE e = extract e
 
--- shows validated but doesn't seem to have show the example suspcious about 
 changeJ :: (Int -> Int) -> J Int -> J Int
 changeJ f j = change f j
 

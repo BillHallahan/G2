@@ -16,7 +16,6 @@ import G2.Liquid.Types
 import Control.Monad.Extra
 import qualified Data.HashMap.Lazy as HM
 import Data.Maybe
-import qualified G2.Language.TyVarEnv as TV 
 
 -- | Returns (1) the Id of the new main function and (2) the functions that need counterfactual variants
 convertCurrExpr :: TV.TyVarEnv -> Id -> Bindings -> LHStateM (Id, [Name])

@@ -397,7 +397,6 @@ instance (ASTContainer s t, Hashable s, Eq s) => ASTContainer (HS.HashSet s) t w
 
     modifyContainedASTs f = HS.map (modifyContainedASTs f)
 
-
 instance ASTContainer () Expr where
     containedASTs _ = []
     modifyContainedASTs _ t = t

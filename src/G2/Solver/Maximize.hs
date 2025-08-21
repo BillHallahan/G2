@@ -2,6 +2,7 @@ module G2.Solver.Maximize ( MaximizeSolver
                           , mkMaximizeSolver
                           , getBestFoundResult) where
 
+import G2.Language.Support
 import G2.Solver.Converters
 import G2.Solver.Language
 import G2.Solver.Solver
@@ -11,8 +12,6 @@ import Data.IORef
 import Data.List as L
 import qualified Data.Map as M
 import Text.Builder
-import G2.Language.Support(State(..))
-
 
 data MaxResult = MaxProven (Result () () ()) -- ^ A result known to be correct- if SAT, maximize the number of satisfied soft assertions
                | MaxFound String (Result SMTModel () ()) -- ^ A "best effort" result- there may be a better answer that satisfies more soft assertions.

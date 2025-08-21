@@ -89,7 +89,6 @@ import qualified Data.Text as T
 import qualified Data.Traversable as Trav
 import GHC.Generics (Generic)
 import qualified G2.Language.TyVarEnv as TV 
-import qualified G2.Language.TyVarEnv as TV
 
 data ConcOrSym = Conc Expr
                | Sym Id

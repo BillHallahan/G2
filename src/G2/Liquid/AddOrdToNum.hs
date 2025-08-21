@@ -15,13 +15,12 @@ module G2.Liquid.AddOrdToNum (addOrdToNum) where
 import G2.Language
 import G2.Language.Monad
 import G2.Liquid.Types
-import qualified G2.Language.TyVarEnv as TV 
 
 -- | Adds an extra field to the Num dict, which contains the Ord
 -- dict for the corresponding type.  Updates all other code accordingly.
 -- Of course, there might be types that have a Num instance, but no Ord
 -- instance.  These types dicts have the field filled in with Prim Undefined
-addOrdToNum :: TV.TyVarEnv -> LHStateM ()
+addOrdToNum :: TyVarEnv -> LHStateM ()
 addOrdToNum tv = do
     tc <- typeClasses
     lh_tc <- lhRenamedTCM
@@ -89,12 +88,12 @@ addOrdToNumCase' ce@(Case e i@(Id _ t) ct a@[Alt (DataAlt dc is) ae])
     | otherwise = return ce
 addOrdToNumCase' e = return e
 
-changeNumType :: TV.TyVarEnv -> Expr -> LHStateM Expr
+changeNumType :: TyVarEnv -> Expr -> LHStateM Expr
 changeNumType tv e = do
     num <- numTCM
     modifyASTsM (changeNumType' tv num) e
 
-changeNumType' :: TV.TyVarEnv -> Name -> Expr -> LHStateM Expr
+changeNumType' :: TyVarEnv -> Name -> Expr -> LHStateM Expr
 changeNumType' tv num d@(Data dc)
     | (TyCon n _) <- tyAppCenter $ returnType (typeOf tv dc)
     , num == n = return . Data =<< changeNumTypeDC dc
@@ -136,7 +135,7 @@ changeNumTypeEnv = do
 
 -- Must be called after updating the TypeEnv, with changeNumTypeEnv, so that
 -- the Num DataCon has it's correct type
-ordDictFunc :: TV.TyVarEnv -> LHStateM ()
+ordDictFunc :: TyVarEnv -> LHStateM ()
 ordDictFunc tv = do
     num <- numTCM
     let numT = TyCon num TYPE

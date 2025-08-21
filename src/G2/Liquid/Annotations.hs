@@ -24,8 +24,6 @@ import Data.List
 import qualified Data.Map as M
 import Data.Maybe
 import qualified Data.Text as T
-import qualified G2.Language.TyVarEnv as TV 
-
 
 #if MIN_VERSION_GLASGOW_HASKELL(9,0,2,0)
 import GHC.Types.SrcLoc
@@ -43,23 +41,23 @@ lookupAnnotAtLoc (Name _ _ _ (Just (Span {start = l}))) =
     Just . concatMap snd . find (\(Span {start = l'}, _) -> l == l') . HM.toList . unAnnotMap
 lookupAnnotAtLoc _ = const Nothing
 
-getAnnotations :: TV.TyVarEnv -> [LHOutput] -> LHStateM ()
+getAnnotations :: TyVarEnv -> [LHOutput] -> LHStateM ()
 getAnnotations tv ghci_cg = do
     locM <- return . locLookup =<< exprEnv
 
     let anna = map lhCleanAnnotMaps ghci_cg
     mapM_ (annotMapToExpr tv locM) anna
 
-annotMapToExpr :: TV.TyVarEnv -> M.Map Loc Name -> AnnInfo SpecType ->  LHStateM ()
+annotMapToExpr :: TyVarEnv -> M.Map Loc Name -> AnnInfo SpecType ->  LHStateM ()
 annotMapToExpr tv locM (AI st) = mapM_ (uncurry (valToExpr tv locM)) (HM.toList st)
 
-valToExpr :: TV.TyVarEnv -> M.Map Loc Name -> SrcSpan -> [(Maybe T.Text, SpecType)] -> LHStateM ()
+valToExpr :: TyVarEnv -> M.Map Loc Name -> SrcSpan -> [(Maybe T.Text, SpecType)] -> LHStateM ()
 valToExpr tv locM srcspn =
     case mkSpan srcspn of
         Just spn -> mapM_ (valToExpr' tv locM spn)
         Nothing -> return . const ()
 
-valToExpr' :: TV.TyVarEnv -> M.Map Loc Name -> Span -> (Maybe T.Text, SpecType) -> LHStateM ()
+valToExpr' :: TyVarEnv -> M.Map Loc Name -> Span -> (Maybe T.Text, SpecType) -> LHStateM ()
 valToExpr' tv locM spn@(Span {start = stloc}) (n, ast) = do
     e <- case M.lookup stloc locM of
             Just n' -> lookupE n'

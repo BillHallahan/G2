@@ -45,7 +45,6 @@ import Data.Maybe
 import qualified Data.Text as T
 import qualified G2.Language.TyVarEnv as TV 
 
-
 -- | A mapping of TyVar Name's, to Id's for the LH dict's
 type LHDictMap = HM.HashMap Name Id
 
@@ -428,7 +427,6 @@ convertLHExpr tv m bt rt eapp@(EApp e e') = do
 
             case (ctArgE, f_ar_ts) of
                 (_, Just f_ar_ts') -> do
-                    -- TODO: I change the M.toList to TV.toList, is that correct? I believe it's since specializes now return Maybe TyVarEnv
                     let specTo = concatMap (map snd) $ map TV.toList $ map (fromJust . uncurry specializes) $ zip ts f_ar_ts'
                         te = map Type specTo
 
