@@ -528,7 +528,7 @@ showCycle pg ns sym_ids sh_pair s_pair cm =
 
 -- type arguments do not contribute to the depth of an expression
 -- this takes the opposite side's expression environment into account
-exprDepth :: TV.TyVarEnv -> ExprEnv -> ExprEnv -> HS.HashSet Name -> [Name] -> Expr -> Int
+exprDepth :: TyVarEnv -> ExprEnv -> ExprEnv -> HS.HashSet Name -> [Name] -> Expr -> Int
 exprDepth tv h h' ns n e = case e of
   Tick _ e' -> exprDepth tv h h' ns n e'
   Var i | isSymbolicBoth (idName i) h h' -> 0
@@ -583,7 +583,7 @@ stateSumDepths :: HS.HashSet Name -> [Id] -> (StateH, StateH) -> Int
 stateSumDepths = stateDepthMetric sumArgDepths
 
 minMaxDepth :: HS.HashSet Name -> [Id] -> [(StateH, StateH)] -> Int
-minMaxDepth = minDepthMetric maxArgDepth 
+minMaxDepth = minDepthMetric maxArgDepth
 
 -- correct to sync beforehand for all these
 minSumDepth :: HS.HashSet Name -> [Id] -> [(StateH, StateH)] -> Int

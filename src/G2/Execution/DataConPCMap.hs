@@ -11,7 +11,7 @@ import G2.Language
 import qualified G2.Language.ExprEnv as E
 import qualified G2.Language.KnownValues as KV
 import qualified G2.Language.Typing as T
-import qualified G2.Language.TyVarEnv as TV 
+
 import Data.List
 import qualified Data.HashMap.Lazy as HM
 
@@ -46,13 +46,13 @@ data DataConPCInfo =
 
 -- | Map Name's of DataCons to associations of type arguments to DataConPCInfos
 -- alongside an Expr representing the entire expression (used by IntToString)
-dcpcMap :: TV.TyVarEnv -> KnownValues -> TypeEnv -> HM.HashMap Name [([Type], DataConPCInfo)]
+dcpcMap :: TyVarEnv -> KnownValues -> TypeEnv -> HM.HashMap Name [([Type], DataConPCInfo)]
 dcpcMap tv kv tenv = HM.fromList [
                       ( KV.dcCons kv, [ ([T.tyChar kv], strCons tv kv tenv) ])
                     , ( KV.dcEmpty kv, [ ([T.tyChar kv], strEmpty tv kv) ])
                   ]
 
-strCons :: TV.TyVarEnv -> KnownValues -> TypeEnv -> DataConPCInfo
+strCons :: TyVarEnv -> KnownValues -> TypeEnv -> DataConPCInfo
 strCons tv kv tenv = let
                         hn = Name "h" Nothing 0 Nothing
                         tn = Name "t" Nothing 0 Nothing
@@ -76,7 +76,7 @@ strCons tv kv tenv = let
                       in
                       dcpc
 
-strEmpty :: TV.TyVarEnv -> KnownValues -> DataConPCInfo
+strEmpty :: TyVarEnv -> KnownValues -> DataConPCInfo
 strEmpty tv kv = let
                 asn = Name "as" Nothing 0 Nothing
                 asi = Id asn (TyApp (T.tyList kv) (T.tyChar kv))

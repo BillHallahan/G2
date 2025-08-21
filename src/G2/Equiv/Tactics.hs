@@ -63,7 +63,6 @@ import G2.Execution.NormalForms
 import Control.Monad.Extra
 
 import qualified Control.Monad.Writer.Lazy as W
-import qualified G2.Language.TyVarEnv as TV
 
 -- the Bool value for Failure is True if a cycle has been found
 data TacticResult = Success
@@ -94,7 +93,7 @@ validTotal s1 s2 ns hm =
       check (i, e) = (not $ (idName i) `elem` total_hs) || (totalExpr s2 ns [] e)
   in all check hm_list
 
-validTypes :: TV.TyVarEnv -> HM.HashMap Id Expr -> Bool
+validTypes :: TyVarEnv -> HM.HashMap Id Expr -> Bool
 validTypes tv hm = all (\((Id _ t), e) -> typeOf tv e T..:: t) $ HM.toList hm
 
 restrictHelper :: StateET ->

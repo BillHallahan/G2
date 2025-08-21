@@ -19,6 +19,7 @@ import GHC.Generics (Generic)
 import Data.Data
 import Data.Hashable
 import Data.Maybe
+
 -- The information that comes before the Expr pair is used for checking
 -- the validity of guarded coinduction and also for counterexample
 -- summarization in the event of a SAT output.

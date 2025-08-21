@@ -11,7 +11,6 @@ import qualified Data.Monoid as DM
 import qualified Data.HashMap.Lazy as HM
 import qualified Data.HashSet as HS
 import qualified Data.Text as T
-import qualified G2.Language.TyVarEnv as TV 
 
 -- | Find variables that don't have binding and adjust the epxression environment to treat them as symbolic 
 addFreeVarsAsSymbolic :: ExprEnv -> ExprEnv 
@@ -65,12 +64,12 @@ freeTypes typeEnv t = HM.toList $ HM.difference (HM.fromList $ allTypes t) typeE
 
 -- | we getting "free" typesnames and insert it into the TypeEnv with a "uninterprted" dataCons 
 -- Uninterpreted means there are potentially unlimited amount of datacons for a free type
-freeTypesToTypeEnv :: TV.TyVarEnv ->  [(Name,Kind)] -> NameGen -> (TypeEnv, NameGen)
+freeTypesToTypeEnv :: TyVarEnv ->  [(Name,Kind)] -> NameGen -> (TypeEnv, NameGen)
 freeTypesToTypeEnv tv nks ng = 
     let (adts, ng') = mapNG (freeTypesToTypeEnv' tv) nks ng 
     in  (HM.fromList adts, ng') 
 
-freeTypesToTypeEnv' :: TV.TyVarEnv -> (Name, Kind) -> NameGen -> ( (Name, AlgDataTy), NameGen)
+freeTypesToTypeEnv' :: TyVarEnv -> (Name, Kind) -> NameGen -> ( (Name, AlgDataTy), NameGen)
 freeTypesToTypeEnv' tv (n,k) ng =
     let (bids, ng') = freshIds (argumentTypes k) ng 
         (dcs,ng'') = unknownDC ng' n k bids
@@ -90,10 +89,10 @@ unknownDC ng n@(Name occn _ _ _) k is =
         in (DataCon dc_n tfa is [], ng')
 
 -- | add free Datacons into the TypeEnv at the appriorpate Type)
-addDataCons :: TV.TyVarEnv -> TypeEnv -> [DataCon] -> TypeEnv
+addDataCons :: TyVarEnv -> TypeEnv -> [DataCon] -> TypeEnv
 addDataCons tv = foldl' (addDataCon tv)
 
-addDataCon :: TV.TyVarEnv -> TypeEnv -> DataCon -> TypeEnv
+addDataCon :: TyVarEnv -> TypeEnv -> DataCon -> TypeEnv
 addDataCon tv te dc | (TyCon n _):_ <- unTyApp . returnType $ typeOf tv dc = 
     let dtc = HM.lookup n te
         adt = case dtc of 

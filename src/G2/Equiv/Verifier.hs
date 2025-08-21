@@ -307,11 +307,11 @@ verifyLoop solver num_lems ns lemmas states b config nc sym_ids k n | (n /= 0) |
       W.liftIO $ putStrLn $ "<<Min Sum Depth>> " ++ show min_sum_depth
   W.liftIO $ hFlush stdout
   (b', k', proven, lemmas') <- verifyLoopPropLemmas solver allTactics num_lems ns lemmas b config nc k
- 
   -- W.liftIO $ putStrLn $ "proposed_lemmas: " ++ show (length $ proposed_lemmas lemmas')
   -- W.liftIO $ putStrLn $ "proven_lemmas: " ++ show (length $ proven_lemmas lemmas')
   -- W.liftIO $ putStrLn $ "continued_lemmas: " ++ show (length continued_lemmas)
   -- W.liftIO $ putStrLn $ "disproven_lemmas: " ++ show (length $ disproven_lemmas lemmas')
+
   (b'', k'', proven', lemmas'') <- verifyLemmasWithNewProvenLemmas solver allNewLemmaTactics num_lems ns proven lemmas' b' config nc k'
   (pl_sr, b''') <- verifyWithNewProvenLemmas solver allNewLemmaTactics num_lems ns proven' lemmas'' b'' states
 
@@ -775,7 +775,7 @@ checkRule :: (ASTContainer t Type, ASTContainer t Expr) => Config
           -> RewriteRule
           -> IO (S.Result () () ())
 checkRule config nc init_state bindings total rule = do
-  let (rule' ,mod_state@(State { expr_env = ee}), te_ng) = addFreeTypes rule init_state (name_gen bindings)
+  let (rule' ,mod_state@(State { expr_env = ee }), te_ng) = addFreeTypes rule init_state (name_gen bindings)
       (mod_state', ng') = if symbolic_unmapped nc 
                               then  
                                 ( mod_state { expr_env = addFreeVarsAsSymbolic ee }

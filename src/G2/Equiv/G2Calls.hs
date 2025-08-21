@@ -41,7 +41,6 @@ import qualified Data.Text as T
 import Data.Hashable
 import qualified Data.List as L
 
-import qualified G2.Language.TyVarEnv as TV 
 import GHC.Generics (Generic)
 
 -- get names from symbolic ids in the state
@@ -161,7 +160,7 @@ concSymReducer use_labels = mkSimpleReducer
 -- | Build a case expression with one alt for each data constructor of the given type
 -- and symbolic arguments.  Thus, the case expression could evaluate to any value of the
 -- given type.
-arbDC :: TV.TyVarEnv 
+arbDC :: TyVarEnv 
       -> UseLabeledErrors
       -> TypeEnv
       -> NameGen
