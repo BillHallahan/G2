@@ -11,7 +11,7 @@ import G2.Interface
 
 import G2.Liquid.Config
 import G2.Liquid.Interface
-import G2.Language.TyVarEnv as TV 
+
 main :: IO ()
 main = do
   runSingleLHFun [] []

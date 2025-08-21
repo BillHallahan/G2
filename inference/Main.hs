@@ -21,7 +21,6 @@ import qualified Data.Map as M
 import qualified Data.Text as T
 import Data.Time.Clock
 import System.Environment
-import qualified G2.Language.TyVarEnv as TV 
 
 main :: IO ()
 main = do
