@@ -555,7 +555,7 @@ runG2WithConfig entry_f mb_modname state@(State { expr_env = eenv }) config bind
                                     )
                                     lnt
                                 )
-                                (if showType config == Lax 
+                                (if con_show_types (logger_config config) == Lax 
                                 then (mkPrettyGuide ())
                                 else setTypePrinting AggressiveTypes (mkPrettyGuide ())) 
                             )
@@ -578,7 +578,7 @@ runG2WithConfig entry_f mb_modname state@(State { expr_env = eenv }) config bind
                                             )
                                             lnt
                                         )
-                                        (if showType config == Lax 
+                                        (if con_show_types (logger_config config) == Lax 
                                         then (mkPrettyGuide ())
                                         else setTypePrinting AggressiveTypes (mkPrettyGuide ())) 
                                     )

@@ -184,7 +184,7 @@ verifyFromFile proj src f transConfig config verify_config = do
                                     )
                                     lnt
                                 )
-                                (if showType config == Lax 
+                                (if con_show_types (logger_config config) == Lax 
                                 then mkPrettyGuide ()
                                 else setTypePrinting AggressiveTypes (mkPrettyGuide ())) 
     

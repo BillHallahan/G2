@@ -81,7 +81,6 @@ data Config = Config {
     , logger_config :: LoggerConfig -- ^ Determines whether to Log states, and if logging states, how to do so.
     , sharing :: Sharing
     , instTV :: InstTV -- allow the instantiation of types in the beginning or it's instantiate symbolically by functions
-    , showType :: ShowType -- allow user to see more type information when they are logging states for the execution
     , maxOutputs :: Maybe Int -- ^ Maximum number of examples/counterexamples to output.  TODO: Currently works only with LiquidHaskell
     , returnsTrue :: Bool -- ^ If True, shows only those inputs that do not return True
     , check_asserts :: Bool -- ^ If True, shows only those inputs that violate asserts
@@ -129,6 +128,7 @@ data LoggerConfig = LoggerConfig
                            , con_after_n :: Int  -- ^ Logs state only after the nth state
                            , con_conc_pc_guide :: Maybe String -- ^ Log states only if they match the ConcPCGuide in the provided file
                            , con_down_path :: [Int] -- ^ Log states that are following on or proceed from some path, passed as a list i.e. [1, 2, 1]
+                           , con_show_types :: ShowType -- ^ show more type information when logging states
                            , con_filter_env :: Bool -- ^ Limit the logged environment to names recursively reachable through the current expression or stack
                            , con_order_env :: Bool -- ^ Order names in the logged environment: [CurrExpr]/[Stack]/[others]
                            , con_inline_nrpc :: Bool -- ^ Inline variables in the NRPC when logging states
@@ -145,7 +145,6 @@ mkConfig homedir = Config Regular
     <*> mkLoggerConfig
     <*> flag Sharing NoSharing (long "no-sharing" <> help "disable sharing")
     <*> flag InstBefore InstAfter (long "inst-after" <> help "select to instantiate type variables after symbolic execution, rather than before")
-    <*> flag Lax Aggressive (long "show-types" <> help "set to show more type information when logging states")
     <*> mkMaxOutputs
     <*> switch (long "returns-true" <> help "assert that the function returns true, show only those outputs which return false")
     <*> switch (long "check-asserts" <> help "show only inputs that violate assertions")
@@ -225,6 +224,7 @@ mkLoggerConfig = LoggerConfig
                                     <> metavar "LP"
                                     <> value []
                                     <> help "log states that are following on or proceed from some path, passed as a list i.e. [1, 2, 1]")
+                        <*> flag Lax Aggressive (long "show-types" <> help "set to show more type information when logging states")
                         <*> switch (long "log-filter" <> help "limit the logged environment to names recursively reachable through the current expression or stack")
                         <*> switch (long "log-order" <> help "log states with an environment ordered as [current expression]/[stack]/[other]")
                         <*> flag False True (long "log-inline-nrpc"
@@ -337,13 +337,13 @@ mkConfigDirect homedir as m = Config {
                              , con_after_n = 0
                              , con_conc_pc_guide = Nothing
                              , con_down_path = []
+                             , con_show_types = Lax
                              , con_filter_env = False
                              , con_order_env = False
                              , con_inline_nrpc = False
                              }
     , sharing = boolArg' "sharing" as Sharing Sharing NoSharing
     , instTV = InstBefore
-    , showType = Lax
     , maxOutputs = strArg "max-outputs" as m (Just . read) Nothing
     , returnsTrue = boolArg "returns-true" as m Off
     , check_asserts = boolArg "check-asserts" as m Off
