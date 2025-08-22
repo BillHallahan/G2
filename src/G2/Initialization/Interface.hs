@@ -43,15 +43,17 @@ runInitialization2 config s@(IT.SimpleState { IT.expr_env = eenv
         t = Id (Name "t" Nothing 0 Nothing) TYPE
         str = Id (Name "s" Nothing 0 Nothing) (tyString kv)
         x = Id (Name "x" Nothing 0 Nothing) TyLitInt
-        (eenv5, ng3) = if smt_strings config == NoSMTStrings
+
+        smt_con = smt_config config
+        (eenv5, ng3) = if smt_strings smt_con == NoSMTStrings
                                 then (E.insert (typeIndex kv) 
                                             (Lam TypeL t . Lam TermL x . Lit $ LitInt 0) eenv4, ng2)
                                 else trivializeDCs ng2 kv eenv4
-        eenv6 = if smt_strings config == NoSMTStrings
+        eenv6 = if smt_strings smt_con == NoSMTStrings
                         then E.insert (adjStr kv) 
                                       (Lam TypeL t . Lam TermL x . Lam TermL str $ Var x) eenv5
                         else eenv5
-        eenv7 = if quantified_smt_strings config == NoQuantifiers
+        eenv7 = if quantified_smt_strings smt_con == NoQuantifiers
                         then E.insert (strQuantifiers kv) 
                                       (Lam TermL x $ Lit (LitInt 0)) eenv6
                         else eenv6

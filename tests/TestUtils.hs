@@ -36,13 +36,17 @@ mkConfigTestWithSMTStringsIO :: IO Config
 mkConfigTestWithSMTStringsIO = do
     config <- mkConfigTestIO
     homedir <- getHomeDirectory
-    return $ config { smt_strings = UseSMTStrings }
+    let smt_con = smt_config config
+        smt_con' = smt_con { smt_strings = UseSMTStrings }
+    return $ config { smt_config = smt_con' }
 
 mkConfigTestWithQuantifiedSMTStringsIO :: IO Config
 mkConfigTestWithQuantifiedSMTStringsIO = do
     config <- mkConfigTestIO
     homedir <- getHomeDirectory
-    return $ config { smt_strings = UseSMTStrings, quantified_smt_strings = UseQuantifiers }
+    let smt_con = smt_config config
+        smt_con' = smt_con { smt_strings = UseSMTStrings, quantified_smt_strings = UseQuantifiers }
+    return $ config { smt_config = smt_con' }
 
 
 

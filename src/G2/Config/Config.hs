@@ -13,6 +13,7 @@ module G2.Config.Config ( Mode (..)
                         
                         , Config (..)
                         , LoggerConfig (..)
+                        , SMTConfig (..)
 
                         , BoolDef (..)
                         , InstTV (..)
@@ -78,6 +79,7 @@ data Config = Config {
     , extraDefaultMods :: [FilePath]
     , includePaths :: Maybe [FilePath] -- ^ Paths to search for modules
     , print_output :: Bool -- ^ Print function outputs
+    , smt_config :: SMTConfig -- ^ Configurations options for SMT solver
     , logger_config :: LoggerConfig -- ^ Determines whether to Log states, and if logging states, how to do so.
     , sharing :: Sharing
     , instTV :: InstTV -- allow the instantiation of types in the beginning or it's instantiate symbolically by functions
@@ -90,16 +92,11 @@ data Config = Config {
     , subpath_length :: Int -- ^ When using subpath search strategy, the length of the subpaths.
     , fp_handling :: FpHandling -- ^ Whether to use real floating point values or rationals
     , print_encode_float :: Bool -- ^ Whether to print floating point numbers directly or via encodeFloat
-    , smt :: SMTSolver -- ^ Sets the SMT solver to solve constraints with
-    , smt_path :: Maybe FilePath -- ^ Location of SMT solver
-    , smt_strings :: SMTStrings -- ^ Sets whether the SMT solver should be used to solve string constraints
-    , quantified_smt_strings :: SMTQuantifiers -- ^ Sets whether quantifiers should be used to describe SMT functions
     , step_limit :: Bool -- ^ Should steps be limited when running states?
     , steps :: Int -- ^ How many steps to take when running States
     , time_solving :: Bool -- ^ Output the amount of time spent checking/solving path constraints
     , print_num_solver_calls :: Bool -- ^ Output the number of calls made to check/solve path constraints
     , print_solver_sol_counts :: Bool -- ^ Output the number of sat/unsat/unknown solver results from the SMT solver
-    , print_smt :: Bool -- ^ Output SMT formulas when checking/solving path constraints
     , accept_times :: Bool -- ^ Output the time each state is accepted
     , states_at_time :: Bool -- ^ Output time and number of states each time a state is added/removed
     , states_at_step :: Bool -- ^ Output step and number of states at each step where a state is added/removed
@@ -122,17 +119,25 @@ data Config = Config {
 }
 
 data LoggerConfig = LoggerConfig
-                           { con_log_mode :: LogMode -- ^ Determines whether to Log states, and if logging states, how to do so.
-                           , con_every_n :: Int -- ^ If logging states, log every nth state
-                           , con_before_n :: Maybe Int -- ^ Logs state only before the nth state
-                           , con_after_n :: Int  -- ^ Logs state only after the nth state
-                           , con_conc_pc_guide :: Maybe String -- ^ Log states only if they match the ConcPCGuide in the provided file
-                           , con_down_path :: [Int] -- ^ Log states that are following on or proceed from some path, passed as a list i.e. [1, 2, 1]
-                           , con_show_types :: ShowType -- ^ show more type information when logging states
-                           , con_filter_env :: Bool -- ^ Limit the logged environment to names recursively reachable through the current expression or stack
-                           , con_order_env :: Bool -- ^ Order names in the logged environment: [CurrExpr]/[Stack]/[others]
-                           , con_inline_nrpc :: Bool -- ^ Inline variables in the NRPC when logging states
-                           }
+                            { con_log_mode :: LogMode -- ^ Determines whether to Log states, and if logging states, how to do so.
+                            , con_every_n :: Int -- ^ If logging states, log every nth state
+                            , con_before_n :: Maybe Int -- ^ Logs state only before the nth state
+                            , con_after_n :: Int  -- ^ Logs state only after the nth state
+                            , con_conc_pc_guide :: Maybe String -- ^ Log states only if they match the ConcPCGuide in the provided file
+                            , con_down_path :: [Int] -- ^ Log states that are following on or proceed from some path, passed as a list i.e. [1, 2, 1]
+                            , con_show_types :: ShowType -- ^ show more type information when logging states
+                            , con_filter_env :: Bool -- ^ Limit the logged environment to names recursively reachable through the current expression or stack
+                            , con_order_env :: Bool -- ^ Order names in the logged environment: [CurrExpr]/[Stack]/[others]
+                            , con_inline_nrpc :: Bool -- ^ Inline variables in the NRPC when logging states
+                            }
+
+data SMTConfig = SMTConfig
+                        { smt :: SMTSolver -- ^ Sets the SMT solver to solve constraints with
+                        , smt_path :: Maybe FilePath -- ^ Location of SMT solver
+                        , smt_strings :: SMTStrings -- ^ Sets whether the SMT solver should be used to solve string constraints
+                        , quantified_smt_strings :: SMTQuantifiers -- ^ Sets whether quantifiers should be used to describe SMT functions
+                        , print_smt :: Bool -- ^ Output SMT formulas when checking/solving path constraints
+                        }
 
 mkConfig :: String -> Parser Config
 mkConfig homedir = Config Regular
@@ -142,6 +147,7 @@ mkConfig homedir = Config Regular
     <*> pure []
     <*> mkIncludePaths
     <*> flag True False (long "no-print-outputs" <> help "Print function outputs")
+    <*> mkSMTConfig
     <*> mkLoggerConfig
     <*> flag Sharing NoSharing (long "no-sharing" <> help "disable sharing")
     <*> flag InstBefore InstAfter (long "inst-after" <> help "select to instantiate type variables after symbolic execution, rather than before")
@@ -158,14 +164,6 @@ mkConfig homedir = Config Regular
     <*> flag RealFP RationalFP (long "no-real-floats"
                                 <> help "Represent floating point values precisely.  When off, overapproximate as rationals.")
     <*> switch (long "print-encodeFloat" <> help "use encodeFloat to print floating point numbers")
-    <*> mkSMTSolver
-    <*> option (Just <$> str)
-                ( long "smt-path"
-                <> metavar "SMT-PATH"
-                <> value Nothing
-                <> help "path to an SMT solver")
-    <*> flag NoSMTStrings UseSMTStrings (long "smt-strings" <> help "Sets whether the SMT solver should be used to solve string constraints")
-    <*> flag NoQuantifiers UseQuantifiers (long "quant-smt-strings" <> help "Use quantifiers to represent certain String functions")
     <*> flag True False (long "no-step-limit" <> help "disable step limit")
     <*> option auto (long "n"
                    <> metavar "N"
@@ -174,7 +172,6 @@ mkConfig homedir = Config Regular
     <*> switch (long "solver-time" <> help "output the amount of time spent checking/solving path constraints")
     <*> switch (long "print-num-solver-calls" <> help "output the number of calls made to check/solve path constraints")
     <*> switch (long "print-sol-counts" <> help "output the number of sat/unsat/unknown solver results from the SMT solver")
-    <*> switch (long "print-smt" <> help "output SMT formulas when checking/solving path constraints")
     <*> switch (long "accept-times" <> help "output the time each state is accepted")
     <*> switch (long "states-at-time" <> help "output time and number of states each time a state is added/removed")
     <*> switch (long "states-at-step" <> help "output step and number of states at each step where a state is added/removed")
@@ -229,6 +226,18 @@ mkLoggerConfig = LoggerConfig
                         <*> switch (long "log-order" <> help "log states with an environment ordered as [current expression]/[stack]/[other]")
                         <*> flag False True (long "log-inline-nrpc"
                                             <> help "inline variables in the NRPC when logging states")
+
+mkSMTConfig :: Parser SMTConfig
+mkSMTConfig = SMTConfig
+    <$> mkSMTSolver
+    <*> option (Just <$> str)
+                ( long "smt-path"
+                <> metavar "SMT-PATH"
+                <> value Nothing
+                <> help "path to an SMT solver")
+    <*> flag NoSMTStrings UseSMTStrings (long "smt-strings" <> help "Sets whether the SMT solver should be used to solve string constraints")
+    <*> flag NoQuantifiers UseQuantifiers (long "quant-smt-strings" <> help "Use quantifiers to represent certain String functions")
+    <*> switch (long "print-smt" <> help "output SMT formulas when checking/solving path constraints")
 
 mkBaseInclude :: String -> Parser [IncludePath]
 mkBaseInclude homedir =
@@ -329,6 +338,13 @@ mkConfigDirect homedir as m = Config {
     , extraDefaultMods = []
     , includePaths = Nothing
     , print_output = True
+    , smt_config = SMTConfig
+                        { smt = strArg "smt" as m smtSolverArg ConZ3
+                        , smt_path = Nothing
+                        , smt_strings = NoSMTStrings
+                        , quantified_smt_strings = NoQuantifiers
+                        , print_smt = False
+                        }
     , logger_config = LoggerConfig
                              { con_log_mode = strArg "log-states" as m (Log Raw)
                                                (strArg "log-pretty" as m (Log Pretty) NoLog)
@@ -353,16 +369,11 @@ mkConfigDirect homedir as m = Config {
     , subpath_length = 4
     , fp_handling = RealFP
     , print_encode_float = False
-    , smt = strArg "smt" as m smtSolverArg ConZ3
-    , smt_path = Nothing
-    , smt_strings = NoSMTStrings
-    , quantified_smt_strings = NoQuantifiers
     , step_limit = boolArg' "no-step-limit" as True True False
     , steps = strArg "n" as m read 1000
     , time_solving = False
     , print_num_solver_calls = False
     , print_solver_sol_counts = False
-    , print_smt = False
     , accept_times = boolArg "accept-times" as m Off
     , states_at_time = False
     , states_at_step = False
