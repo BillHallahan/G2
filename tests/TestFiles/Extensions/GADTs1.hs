@@ -1,6 +1,6 @@
 {-# LANGUAGE GADTs, DataKinds, KindSignatures, RankNTypes, TypeFamilies, FlexibleInstances, FlexibleContexts #-}
 
-module GADTS1 where
+module GADTs1 where
 
 import GHC.TypeLits 
 import Data.Kind
