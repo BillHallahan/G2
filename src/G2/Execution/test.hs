@@ -1,0 +1,4 @@
+[DataCon {dc_name = Name "Wrap" (Just "Main") 8214565720323785754 (Just )
+        , dc_type = TyForAll (Id (Name "a" Nothing 6989586621679014752 (Just )) TYPE) (TyFun (TyVar (Id (Name "a" Nothing 6989586621679014752 (Just )) TYPE)) (TyApp (TyCon (Name "Wrap" (Just "Main") 8214565720323785753 (Just)) (TyFun TYPE TYPE)) (TyVar (Id (Name "a" Nothing 6989586621679014752 (Just (Span {start = Loc {line = 60, col = 11, file = "./rnt_tests/pm_test.hs"}, end = Loc {line = 60, col = 12, file = "./rnt_tests/pm_test.hs"}}))) TYPE))))
+        , dc_univ_tyvars = [Id (Name "a" Nothing 6989586621679014752 (Just (Span {start = Loc {line = 60, col = 11, file = "./rnt_tests/pm_test.hs"}, end = Loc {line = 60, col = 12, file = "./rnt_tests/pm_test.hs"}}))) TYPE]
+        , dc_exist_tyvars = []}]

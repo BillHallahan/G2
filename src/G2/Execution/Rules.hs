@@ -162,7 +162,7 @@ evalVarSharing s@(State { expr_env = eenv
     , Just lrs@(_:_) <- PM.lookup tyIdN pargm = 
         let 
             -- fresh ids
-            ([tvid, scrut], ng') = freshIds [TyVar tyId, TyLitInt] ng
+            ([bindee, scrut], ng') = freshIds [TyLitInt, TyLitInt] ng
             eenv' = E.insertSymbolic scrut eenv
 
             -- TODO: make this match getTyVarRenameMap usage
@@ -173,7 +173,7 @@ evalVarSharing s@(State { expr_env = eenv
 
             -- create environment Alts with lam names and original tyVar, add to environment
             as = makeAltsForPMRet (map PM.lam lrs) outerTyVar
-            e' = Case (Var scrut) tvid (TyVar outerTyVar) as
+            e' = Case (Var scrut) bindee (TyVar outerTyVar) as
             eenv'' = E.insert (idName i) e' eenv'      
 
             -- rename for current execution path, return as CurrExpr, don't insert in env
