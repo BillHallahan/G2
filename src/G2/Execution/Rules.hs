@@ -178,11 +178,9 @@ evalVarSharing s@(State { expr_env = eenv
 
             -- rename for current execution path, return as CurrExpr, don't insert in env
             e'' = renames (HM.fromList ((otvN, tyIdN):zip (map PM.lam lrs) (map PM.rename lrs))) e'
-            -- inline in env
-            eenv''' = inlineConcInEnv idN e' eenv''
         in
             (RuleEvalVarPoly, [s { curr_expr = CurrExpr Evaluate e''
-                                 , expr_env = eenv'''}], ng')               
+                                 , expr_env = eenv''}], ng')               
     | E.isSymbolic (idName i) eenv =
         (RuleEvalVal, [s { curr_expr = CurrExpr Return (Var i)}], ng)
     -- If the target in our environment is already a value form, we do not
@@ -1378,14 +1376,10 @@ retReplaceSymbFuncTemplate sft
 
         eenv' = foldr E.insertSymbolic eenv symIds'
         eenv'' = E.insert n e'' eenv'
-
-        -- inline in environment if tyVars in function type
-        eenv''' = if not . null . tyVarIds $ nTy then inlineConcInEnv n e'' eenv'' else eenv''
-
         (constState, ng'''') = mkFuncConst sft s es n t1 t2 ng'''
     in Just (RuleReturnReplaceSymbFunc, [constState, s {
         curr_expr = CurrExpr Evaluate e',
-        expr_env = eenv'''
+        expr_env = eenv''
     }], ng'''')
 
     -- FUNC-APP
@@ -1432,13 +1426,10 @@ retReplaceSymbFuncTemplate sft
 
         eenv' = foldr E.insertSymbolic eenv [f1Id', f2Id']
         eenv'' = E.insert n e' eenv'
-
-        -- inline in environment if tyVars in function type
-        eenv''' = if not . null . tyVarIds $ nTy then inlineConcInEnv n e' eenv'' else eenv''
     in Just (RuleReturnReplaceSymbFunc, [s {
         -- because we are always going down true branch
         curr_expr = CurrExpr Evaluate (mkApp (Var f1Id:es)),
-        expr_env = eenv'''
+        expr_env = eenv''
     }], ng')
 
     -- PM-FORALL
@@ -1479,28 +1470,13 @@ retReplaceSymbFuncTemplate sft
         -- new environment bindings
         eenv' = E.insertSymbolic f' eenv
         eenv'' = E.insert n e' eenv'
-
-        -- inline new expression in top-level function
-        eenv''' = inlineConcInEnv n e' eenv''
     in Just (RuleReturnReplaceSymbFunc, [
         s {
         curr_expr = CurrExpr Evaluate e,
-        expr_env = eenv'''
+        expr_env = eenv''
     }], ng')
 
     | otherwise = Nothing
-
--- | Inlines symN in the environment with its expression.
--- TODO: still some unconsidered expressions
-inlineConcInEnv:: Name -> Expr -> E.ExprEnv -> E.ExprEnv 
-inlineConcInEnv symN conc = E.map inline where
-        inline :: Expr -> Expr
-        inline (Var (Id n _)) | n == symN = conc
-        inline (Lam u i e) = Lam u i $ inline e
-        inline (App e1 e2) = App (inline e1) (inline e2)
-        inline (Case e id_ ty as) = Case (inline e) id_ ty (map (\(Alt am ae) -> Alt am (inline ae)) as)
-        inline (Tick tk e) = Tick tk (inline e)
-        inline e = e
 
 -- | Returns the hashmap needed to retype runtime TyVars to environment TyVars.
 getTyVarRenameMap :: Name -> Type -> TV.TyVarEnv -> E.ExprEnv -> HM.HashMap Name Name
