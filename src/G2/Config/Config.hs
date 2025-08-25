@@ -79,8 +79,6 @@ data Config = Config {
     , extraDefaultMods :: [FilePath]
     , includePaths :: Maybe [FilePath] -- ^ Paths to search for modules
     , print_output :: Bool -- ^ Print function outputs
-    , smt_config :: SMTConfig -- ^ Configurations options for SMT solver
-    , logger_config :: LoggerConfig -- ^ Determines whether to Log states, and if logging states, how to do so.
     , sharing :: Sharing
     , instTV :: InstTV -- allow the instantiation of types in the beginning or it's instantiate symbolically by functions
     , maxOutputs :: Maybe Int -- ^ Maximum number of examples/counterexamples to output.  TODO: Currently works only with LiquidHaskell
@@ -116,6 +114,8 @@ data Config = Config {
     , symbolic_func_nrpc :: NonRedPathCons -- ^ Whether to use NRPCs for symbolic functions or not
     , print_num_nrpc :: Bool -- ^ Output the number of NRPCs for each accepted state
     , print_num_post_call_func_arg :: Bool -- ^ Output the number of post call and function argument states
+    , smt_config :: SMTConfig -- ^ Configurations options for SMT solver
+    , logger_config :: LoggerConfig -- ^ Determines whether to Log states, and if logging states, how to do so.
 }
 
 data LoggerConfig = LoggerConfig
@@ -147,8 +147,6 @@ mkConfig homedir = Config Regular
     <*> pure []
     <*> mkIncludePaths
     <*> flag True False (long "no-print-outputs" <> help "Print function outputs")
-    <*> mkSMTConfig
-    <*> mkLoggerConfig
     <*> flag Sharing NoSharing (long "no-sharing" <> help "disable sharing")
     <*> flag InstBefore InstAfter (long "inst-after" <> help "select to instantiate type variables after symbolic execution, rather than before")
     <*> mkMaxOutputs
@@ -196,6 +194,8 @@ mkConfig homedir = Config Regular
     <*> flag NoNrpc Nrpc (long "higher-nrpc" <> help "use NRPCs to delay execution of library functions")
     <*> flag False True (long "print-num-nrpc" <> help "output the number of NRPCs for each accepted state")
     <*> flag False True (long "print-num-higher-states" <> help "output the number of post call and function argument states (from higher order coverage checking)")
+    <*> parserOptionGroup "SMT" mkSMTConfig
+    <*> parserOptionGroup "Logger" mkLoggerConfig
 
 mkLoggerConfig :: Parser LoggerConfig
 mkLoggerConfig = LoggerConfig
