@@ -137,7 +137,7 @@ lhtcT n adt = do
 lhName :: T.Text -> Name -> LHStateM Name
 lhName t (Name n m _ _) = freshSeededNameN $ Name (t `T.append` n) m 0 Nothing
 
-createLHTCFuncs' ::  LHDictMap -> Name -> AlgDataTy -> LHStateM ()
+createLHTCFuncs' :: LHDictMap -> Name -> AlgDataTy -> LHStateM ()
 createLHTCFuncs' lhm n adt = do
     tv <- tyVarEnv
 
