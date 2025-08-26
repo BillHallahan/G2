@@ -652,7 +652,7 @@ nonRedLibFuncs exec_names no_nrpc_names
     | 
       -- We are NOT dealing with a symbolic function or a function that should not be put in the NRPCs
       Var (Id n _):_ <- unApp ce
-    , Just (Id n' _) <- E.deepLookupVar tvnv n eenv
+    , Just n' <- E.deepLookupVar n eenv
     , not (n' `HS.member` no_nrpc_names)
     , not (E.isSymbolic n' eenv)
     , Just (s'@(State { curr_expr = CurrExpr _ _ }), _, ce', ng') <- createNonRed ng s = 
@@ -798,7 +798,7 @@ nrpcApproxReducer solver no_inline no_nrpc_names config =
             , let e = applyWrap (getExpr s) (exec_stack s)
             , Var (Id n _):_:_ <- unApp e
 
-            , Just (Id n' _) <- E.deepLookupVar tvnv n eenv
+            , Just n' <- E.deepLookupVar n eenv
             , not (n' `HS.member` no_nrpc_names)
             , not (E.isSymbolic n' eenv)
 
