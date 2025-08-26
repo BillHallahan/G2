@@ -327,7 +327,7 @@ initRedHaltOrd s mod_name solver simplifier config exec_func_names no_nrpc_names
                         True ->  SomeReducer on_acc_hpc_red .~> strict_red f 
                         False -> strict_red f
 
-        nrpc_lib_red f = case lib_nrpc config of
+        nrpc_lib_red f = case lib_nrpc sh_config of
                                 Nrpc -> liftSomeReducer
                                             (SomeReducer (nonRedLibFuncsReducer
                                                                         exec_func_names
@@ -336,7 +336,7 @@ initRedHaltOrd s mod_name solver simplifier config exec_func_names no_nrpc_names
                                                         ) .== Finished .--> hpc_red f)
                                 NoNrpc -> liftSomeReducer (hpc_red f)
 
-        nrpc_higher_red f = case symbolic_func_nrpc config of
+        nrpc_higher_red f = case symbolic_func_nrpc sh_config of
                                 Nrpc -> SomeReducer (nonRedHigherOrderReducer config) .== Finished .--> nrpc_lib_red f
                                 NoNrpc -> nrpc_lib_red f
         
@@ -352,7 +352,7 @@ initRedHaltOrd s mod_name solver simplifier config exec_func_names no_nrpc_names
                             Just logger -> liftSomeReducer $ liftSomeReducer (logger .~> num_steps_red f)
                             Nothing -> liftSomeReducer $ liftSomeReducer (num_steps_red f)
 
-        nrpc_approx_red f = case approx_nrpc config of
+        nrpc_approx_red f = case approx_nrpc sh_config of
                                 Nrpc -> let nrpc_approx = nrpcApproxReducer solver approx_no_inline no_nrpc_names config in
                                         SomeReducer nrpc_approx .== Finished .--> logger_std_red f
                                 NoNrpc -> logger_std_red f

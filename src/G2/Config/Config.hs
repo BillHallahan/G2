@@ -102,9 +102,6 @@ data Config = Config {
     , timeLimit :: Int -- ^ Seconds
     , validate :: Bool -- ^ If True, run on G2's input, and check against expected output.
     , measure_coverage :: Bool -- ^ Use HPC to measure code coverage
-    , lib_nrpc :: NonRedPathCons -- ^ Whether to use NRPCs for library functions or not
-    , approx_nrpc :: NonRedPathCons -- ^ Use approximation and NRPCs to avoid repeated exploration of equivalent function calls
-    , symbolic_func_nrpc :: NonRedPathCons -- ^ Whether to use NRPCs for symbolic functions or not
     , print_num_nrpc :: Bool -- ^ Output the number of NRPCs for each accepted state
     , print_num_post_call_func_arg :: Bool -- ^ Output the number of post call and function argument states
     , symex_heuristics :: SymExHeuristics -- ^ Heuristics for symbolic execution
@@ -121,6 +118,9 @@ data SymExHeuristics = SymExHeuristics
                         , fp_handling :: FpHandling -- ^ Whether to use real floating point values or rationals
                         , hpc_discard_strat :: Bool -- ^ Discard states that cannot reach any new HPC ticks
                         , approx_discard :: Bool -- ^ Discard states that are approximated by other states
+                        , lib_nrpc :: NonRedPathCons -- ^ Whether to use NRPCs for library functions or not
+                        , approx_nrpc :: NonRedPathCons -- ^ Use approximation and NRPCs to avoid repeated exploration of equivalent function calls
+                        , symbolic_func_nrpc :: NonRedPathCons -- ^ Whether to use NRPCs for symbolic functions or not
                         }
 
 data LoggerConfig = LoggerConfig
@@ -178,9 +178,6 @@ mkConfig homedir = Config Regular
                    <> help "time limit, in seconds")
     <*> switch (long "validate" <> help "use GHC to automatically compile and run on generated inputs, and check that generated outputs are correct")
     <*> switch (long "measure-coverage" <> help "use HPC to measure code coverage")
-    <*> flag NoNrpc Nrpc (long "lib-nrpc" <> help "execute with non reduced path constraints")
-    <*> flag NoNrpc Nrpc (long "approx-nrpc" <> help "Use approximation and NRPCs to avoid repeated exploration of equivalent function calls")
-    <*> flag NoNrpc Nrpc (long "higher-nrpc" <> help "use NRPCs to delay execution of library functions")
     <*> flag False True (long "print-num-nrpc" <> help "output the number of NRPCs for each accepted state")
     <*> flag False True (long "print-num-higher-states" <> help "output the number of post call and function argument states (from higher order coverage checking)")
     <*> parserOptionGroup "Symbolic Execution Heuristics" mkSymExHeuristics
@@ -205,6 +202,9 @@ mkSymExHeuristics = SymExHeuristics
     <*> flag False True (long "hpc-discard-strat" <> help "Discard states that cannot reach any new HPC ticks")
     <*> flag False True (long "approx-discard"
                       <> help "Discard states that are approximated by other states")
+    <*> flag NoNrpc Nrpc (long "lib-nrpc" <> help "execute with non reduced path constraints")
+    <*> flag NoNrpc Nrpc (long "approx-nrpc" <> help "Use approximation and NRPCs to avoid repeated exploration of equivalent function calls")
+    <*> flag NoNrpc Nrpc (long "higher-nrpc" <> help "use NRPCs to delay execution of library functions")
 
 mkLoggerConfig :: Parser LoggerConfig
 mkLoggerConfig = LoggerConfig
@@ -356,6 +356,9 @@ mkConfigDirect homedir as m = Config {
                             , subpath_length = 4
                             , approx_discard = False
                             , hpc_discard_strat = False
+                            , lib_nrpc = NoNrpc
+                            , approx_nrpc = NoNrpc
+                            , symbolic_func_nrpc = NoNrpc
                             }
     , smt_config = SMTConfig
                         { smt = strArg "smt" as m smtSolverArg ConZ3
@@ -399,9 +402,6 @@ mkConfigDirect homedir as m = Config {
     , timeLimit = strArg "time" as m read 300
     , validate  = boolArg "validate" as m Off
     , measure_coverage = False
-    , lib_nrpc = NoNrpc
-    , approx_nrpc = NoNrpc
-    , symbolic_func_nrpc = NoNrpc
     , print_num_nrpc = False
     , print_num_post_call_func_arg = False
 }

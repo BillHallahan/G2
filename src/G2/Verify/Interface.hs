@@ -136,14 +136,14 @@ verifyFromFile proj src f transConfig config verify_config = do
                         -- Not using hpc ticks
                         , hpc_discard_strat = False
                         -- Use approximation to discard states that are approximated by previously explored states
-                        ,  approx_discard = True
+                        , approx_discard = True
+                        -- Use approximation to add repeated function calls to NRPCs
+                        , approx_nrpc = Nrpc
                         , higher_order_solver = AllFuncs
                         }
         config' = config {
                          -- For soundness, cannot limit number of outputs explored 
                            maxOutputs = Nothing
-                         -- Use approximation to add repeated function calls to NRPCs
-                         , approx_nrpc = Nrpc
                          , symex_heuristics = sh_config'
                          }
 
