@@ -243,7 +243,7 @@ fromLiquidNoCleaning :: State ()
                      -> IO LiquidData
 fromLiquidNoCleaning init_state ifi bindings ghci ph_tyvars lhconfig memconfig = do
     let lrs = createLiquidReadyState init_state bindings ghci ph_tyvars lhconfig
-    processLiquidReadyState (tyvar_env init_state) lrs ifi ghci lhconfig memconfig
+    processLiquidReadyState lrs ifi ghci lhconfig memconfig
 
 createLiquidReadyState :: State () -> Bindings -> [GhcInfo] -> Maybe PhantomTyVars -> LHConfig -> LiquidReadyState
 createLiquidReadyState s bindings ghci ph_tyvars lhconfig =
@@ -255,9 +255,9 @@ createLiquidReadyState s bindings ghci ph_tyvars lhconfig =
         s' = s { track = [] }
         bindings' = bindings { exported_funcs = mexported ++ exported_funcs bindings, name_gen = ng' }
 
-        (lh_state, lh_bindings) = createLHState (tyvar_env s) meenv mkv mtc s' bindings'
+        (lh_state, lh_bindings) = createLHState meenv mkv mtc s' bindings'
 
-        (data_state, data_bindings) = execLHStateM (initializeLHData (tyvar_env s) ghci ph_tyvars lhconfig) lh_state lh_bindings
+        (data_state, data_bindings) = execLHStateM (initializeLHData ghci ph_tyvars lhconfig) lh_state lh_bindings
     in
     LiquidReadyState { lr_state = data_state
                      , lr_binding = data_bindings
@@ -265,17 +265,17 @@ createLiquidReadyState s bindings ghci ph_tyvars lhconfig =
                      , lr_type_classes = mtc
                      , lr_higher_ord_insts = minst } -- (mkv, mtc, minst, data_state, data_bindings)
 
-processLiquidReadyStateCleaning :: TV.TyVarEnv -> LiquidReadyState -> Lang.Id -> [GhcInfo] -> LHConfig -> MemConfig -> IO LiquidData
-processLiquidReadyStateCleaning tv lrs ifi ghci lhconfig memconfig =
+processLiquidReadyStateCleaning :: LiquidReadyState -> Lang.Id -> [GhcInfo] -> LHConfig -> MemConfig -> IO LiquidData
+processLiquidReadyStateCleaning lrs ifi ghci lhconfig memconfig =
     let
         lrs' = cleanReadyState lrs memconfig
     in
-    processLiquidReadyState tv lrs' ifi ghci lhconfig memconfig
+    processLiquidReadyState lrs' ifi ghci lhconfig memconfig
 
-processLiquidReadyState :: TV.TyVarEnv -> LiquidReadyState -> Lang.Id -> [GhcInfo] -> LHConfig -> MemConfig -> IO LiquidData
-processLiquidReadyState tv lrs@(LiquidReadyState { lr_state = lh_state
+processLiquidReadyState :: LiquidReadyState -> Lang.Id -> [GhcInfo] -> LHConfig -> MemConfig -> IO LiquidData
+processLiquidReadyState lrs@(LiquidReadyState { lr_state = lh_state
                                               , lr_binding = lh_bindings }) ifi ghci lhconfig memconfig = do
-    let ((cfn, mc, cff), (merged_state, bindings')) = runLHStateM (initializeLHSpecs tv (counterfactual lhconfig) ghci ifi lh_bindings) lh_state lh_bindings
+    let ((cfn, mc, cff), (merged_state, bindings')) = runLHStateM (initializeLHSpecs (counterfactual lhconfig) ghci ifi lh_bindings) lh_state lh_bindings
         lrs' = lrs { lr_state = merged_state, lr_binding = bindings'}
 
     lhs <- extractWithoutSpecs lrs' ifi ghci memconfig
@@ -376,7 +376,7 @@ processLiquidReadyStateWithCall lrs@(LiquidReadyState { lr_state = lhs@(LHState 
                                             }
                    }
 
-    processLiquidReadyStateCleaning (tyvar_env s) lrs' ie ghci lhconfig memconfig
+    processLiquidReadyStateCleaning lrs' ie ghci lhconfig memconfig
 
 runLHG2 :: (MonadIO m, Solver solver, Simplifier simplifier)
         => Config
@@ -493,8 +493,8 @@ lhReducerHalterOrderer config lhconfig solver simplifier entry mb_modname cfn st
               <~> lhAcceptIfViolatedHalter)
         , SomeOrderer lhLimitByAcceptedOrderer)
 
-initializeLHData :: TV.TyVarEnv -> [GhcInfo] -> Maybe PhantomTyVars -> LHConfig -> LHStateM ()
-initializeLHData tv ghcInfos m_ph_tyvars config = do
+initializeLHData :: [GhcInfo] -> Maybe PhantomTyVars -> LHConfig -> LHStateM ()
+initializeLHData ghcInfos m_ph_tyvars config = do
     addLHTC
     addOrdToNum
 
@@ -509,7 +509,7 @@ initializeLHData tv ghcInfos m_ph_tyvars config = do
     createMeasures lh_measures
 
     case m_ph_tyvars of
-      Just ph_tyvars -> addTyVarsMeasures tv ph_tyvars
+      Just ph_tyvars -> addTyVarsMeasures ph_tyvars
       Nothing -> return ()
 
     meenv' <- measuresM
@@ -517,8 +517,8 @@ initializeLHData tv ghcInfos m_ph_tyvars config = do
 
 -- | Returns the name of the Tick on the counterfactual branches, and the names
 -- of all functions with counterfactual branches
-initializeLHSpecs :: TV.TyVarEnv -> Counterfactual -> [GhcInfo] -> Lang.Id -> Bindings -> LHStateM (Lang.Name, Lang.Id, S.HashSet Lang.Name)
-initializeLHSpecs tv counter ghcInfos ifi bindings = do
+initializeLHSpecs :: Counterfactual -> [GhcInfo] -> Lang.Id -> Bindings -> LHStateM (Lang.Name, Lang.Id, S.HashSet Lang.Name)
+initializeLHSpecs counter ghcInfos ifi bindings = do
     let specs = funcSpecs ghcInfos
     mergeLHSpecState specs
 
@@ -529,12 +529,12 @@ initializeLHSpecs tv counter ghcInfos ifi bindings = do
     -- so we apply the simplification first.  However, we do want to stamp out as much redundancy
     -- from convertCurrExpr as we can, so we do further simplificiation after
     simplify
-    (main_call, ns) <- convertCurrExpr tv ifi bindings
+    (main_call, ns) <- convertCurrExpr ifi bindings
     furtherSimplifyCurrExpr
 
     (cfn, ns') <- case counter of
                     Counterfactual cf_mods ->
-                        return . (,ns) =<< addCounterfactualBranch tv cf_mods ns
+                        return . (,ns) =<< addCounterfactualBranch cf_mods ns
                     NotCounterfactual -> return (Name "" Nothing 0 Nothing, [])
 
     mapME (return . flattenLets)

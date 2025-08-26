@@ -18,12 +18,13 @@ import qualified G2.Language.TyVarEnv as TV
 -- | Creates an LHState.  This involves building a TCValue, and
 -- creating the new LH TC which checks equality, and has a function to
 -- check refinements of polymorphic types
-createLHState :: TV.TyVarEnv -> Measures -> KnownValues -> TypeClasses -> State [FuncCall] -> Bindings -> (LHState, Bindings)
-createLHState tv meenv mkv mtc s b =
+createLHState :: Measures -> KnownValues -> TypeClasses -> State [FuncCall] -> Bindings -> (LHState, Bindings)
+createLHState meenv mkv mtc s b =
     let
         (tcv, (s', b')) = runStateM (createTCValues mkv (type_env s)) s b
 
         lh_s = consLHState s' meenv mkv mtc tcv
+        tv = tyvar_env s
     in
     execLHStateM (do
                     createLHTCFuncs tv
