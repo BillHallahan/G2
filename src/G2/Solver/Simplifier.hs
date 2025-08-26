@@ -16,6 +16,7 @@ import qualified G2.Language.ExprEnv as E
 import G2.Language.KnownValues
 import qualified G2.Language.PathConds as PC
 import qualified G2.Language.Typing as T
+import Debug.Trace
 
 class Simplifier simplifier where
     -- | Simplifies a PC, by converting it into one or more path constraints that are easier
@@ -127,7 +128,22 @@ simplifyString :: Expr -> Expr
 simplifyString e
     | [Prim Eq _, App (Prim StrLen _) v, Lit (LitInt 0) ] <- unApp e = mkApp [Prim Eq TyUnknown, v, Lit (LitString "")]
     | [Prim Eq _, Lit (LitInt 0), App (Prim StrLen _) v ] <- unApp e = mkApp [Prim Eq TyUnknown, v, Lit (LitString "")]
+    -- Remove unneeded length calls to the solver
+    -- length ("abcdef" ++ x) -> length "abcdef" ++ length x -> 6 + length x 
+    | [Prim StrLen slt, App (App (Prim StrAppend _) conc_str) var_str] <- unApp e, isConcStr conc_str = 
+        mkApp [Prim Plus TyUnknown, Lit (LitInt $ concStrLen conc_str), App (Prim StrLen slt) var_str]
+    | [Prim StrLen slt, App (App (Prim StrAppend _) var_str) conc_str] <- unApp e, isConcStr conc_str = 
+        mkApp [Prim Plus TyUnknown, Lit (LitInt $ concStrLen conc_str), App (Prim StrLen slt) var_str]
+    where
+        isConcStr (App (Data _) _) = True
+        isConcStr (App (App (App (Data _) _) _) _) = True
+        isConcStr _ = False
+
+        concStrLen (App (Data _) _) = 0
+        concStrLen (App (App (App (Data _) _) _) str_tail) = 1 + concStrLen str_tail
+        concStrLen e = error $ "expr is not a concrete string:\n" ++ show e
 simplifyString e = e
+--  simplifyString e = trace (show (unApp e) ++ "\n") e
 
 -- | Tries to simplify constraints involving checking if the value of an Int matches a concrete Float.
 data FloatSimplifier = FloatSimplifier

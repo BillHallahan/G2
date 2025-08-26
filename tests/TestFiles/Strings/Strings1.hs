@@ -539,3 +539,9 @@ callLast xs | length xs < 5 = 'a'
 
 showInt1 :: Int -> String
 showInt1 x = show (x * 2) ++ "!"
+
+concatTest :: String -> Int
+concatTest s = let long = "28983742807589023789527389572037987"
+               in case (length $ long ++ s) of
+                   80 -> 0
+                   _ -> -1
