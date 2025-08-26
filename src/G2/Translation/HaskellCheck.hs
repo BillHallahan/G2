@@ -73,7 +73,6 @@ creatDeclStr pg s (x, DataTyCon{data_cons = dcs, bound_ids = is}) =
         x' = T.unpack $ printName pg x
         ids' = T.unpack . T.intercalate " " $ map (printHaskellPG pg s . Var) is
         wrapParens str = "(" <> str <> ")" 
-        -- TODO: Is the update I make here due to the changing signature of hasFuncType(i.e Typed to Type) correct?
         dc_decls = map (\dc -> printHaskellPG pg s (Data dc) <> " " <> T.intercalate " " (map (wrapParens . mkTypeHaskellPG pg) (argumentTypes (typeOf (tyvar_env s) dc)))) dcs
         all_dc_decls = T.unpack $ T.intercalate " | " dc_decls
         derive_eq = if not (any isTyFun $ concatMap (argumentTypes . typeOf (tyvar_env s) ) dcs) then " deriving Eq" else ""
