@@ -20,7 +20,6 @@ import G2.Translation.Haskell
 import G2.Translation.InjectSpecials
 import G2.Translation.PrimInject
 import G2.Translation.TransTypes
-import qualified G2.Language.TyVarEnv as TV 
 
 translateBase :: TranslationConfig
   -> Config
