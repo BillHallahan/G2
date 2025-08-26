@@ -134,10 +134,6 @@ letLiftFuncs' e
         let c = appCenter e
         (binds, f_ars) <- liftSel ars
         return . Let binds . mkApp $ c:f_ars
-        -- let c = appCenter e
-        -- is <- freshIdsN $ map (typeOf tv) ars
-
-        -- return . Let (zip is ars) . mkApp $ c:map Var is
     | otherwise = return e
 
 liftSel :: [Expr] -> LHStateM ([(Id, Expr)], [Expr])
