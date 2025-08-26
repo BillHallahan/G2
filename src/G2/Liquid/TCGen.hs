@@ -14,6 +14,7 @@ import qualified Data.HashMap.Lazy as HM
 import qualified Data.Text as T
 import G2.Language (leadingTyForAllBindings)
 import qualified G2.Language.TyVarEnv as TV 
+import G2.Language.Monad.Support (ExState(tyVarEnv))
 
 -- | Creates an LHState.  This involves building a TCValue, and
 -- creating the new LH TC which checks equality, and has a function to
@@ -24,11 +25,10 @@ createLHState meenv mkv mtc s b =
         (tcv, (s', b')) = runStateM (createTCValues mkv (type_env s)) s b
 
         lh_s = consLHState s' meenv mkv mtc tcv
-        tv = tyvar_env s
     in
     execLHStateM (do
-                    createLHTCFuncs tv
-                    createExtractors tv) lh_s b'
+                    createLHTCFuncs
+                    createExtractors) lh_s b'
     
 
 createTCValues :: KnownValues -> TypeEnv -> StateM [FuncCall] TCValues
@@ -89,8 +89,8 @@ createTCValues kv tenv = do
 
 type PredFunc = LHDictMap -> Name -> AlgDataTy -> DataCon -> [Id] -> LHStateM [Alt]
 
-createLHTCFuncs :: TV.TyVarEnv -> LHStateM ()
-createLHTCFuncs tv = do
+createLHTCFuncs :: LHStateM ()
+createLHTCFuncs = do
     lhm <- mapM (uncurry initalizeLHTC) . HM.toList =<< typeEnv
     let lhm' = HM.fromList lhm
 
@@ -111,7 +111,7 @@ createLHTCFuncs tv = do
     putTypeClasses tc'
 
     -- Now, we do the work of actually generating all the code/functions for the typeclass
-    mapM_ (uncurry (createLHTCFuncs' tv lhm')) . HM.toList =<< typeEnv
+    mapM_ (uncurry (createLHTCFuncs' lhm')) . HM.toList =<< typeEnv
 
 initalizeLHTC :: Name -> AlgDataTy -> LHStateM (Name, Id)
 initalizeLHTC n adt = do
@@ -137,34 +137,36 @@ lhtcT n adt = do
 lhName :: T.Text -> Name -> LHStateM Name
 lhName t (Name n m _ _) = freshSeededNameN $ Name (t `T.append` n) m 0 Nothing
 
-createLHTCFuncs' :: TV.TyVarEnv -> LHDictMap -> Name -> AlgDataTy -> LHStateM ()
-createLHTCFuncs' tv lhm n adt = do
+createLHTCFuncs' ::  LHDictMap -> Name -> AlgDataTy -> LHStateM ()
+createLHTCFuncs' lhm n adt = do
+    tv <- tyVarEnv
+
     eqN <- lhName "lhEq" n
-    eq <- createFunc tv (lhEqFunc tv) n adt
+    eq <- createFunc lhEqFunc n adt
     insertMeasureM eqN eq
 
     neN <- lhName "lhNe" n
-    ne <- createFunc tv (lhNeFunc tv) n adt
+    ne <- createFunc lhNeFunc n adt
     insertMeasureM neN ne
 
     ltN <- lhName "lhLt" n
-    lt <- createLtFunc tv n adt
+    lt <- createLtFunc n adt
     insertMeasureM ltN lt
 
     leN <- lhName "lhLe" n
-    le <- createLeFunc tv n adt
+    le <- createLeFunc n adt
     insertMeasureM leN le
 
     gtN <- lhName "lhGt" n
-    gt <- createGtFunc tv n adt
+    gt <- createGtFunc n adt
     insertMeasureM gtN gt
 
     geN <- lhName "lhGe" n
-    ge <- createGeFunc tv n adt
+    ge <- createGeFunc n adt
     insertMeasureM geN ge
 
     ppN <- lhName "lhPP" n
-    pp <- lhPPFunc tv n adt
+    pp <- lhPPFunc n adt
     insertMeasureM ppN pp
 
     -- We also put the Ord typeclass into the LH TC, if it exists.
@@ -254,8 +256,8 @@ lhDCType = do
                 )
             )
 
-createFunc :: TV.TyVarEnv -> PredFunc -> Name -> AlgDataTy -> LHStateM Expr 
-createFunc tv cf n adt = do
+createFunc :: PredFunc -> Name -> AlgDataTy -> LHStateM Expr 
+createFunc cf n adt = do
     -- Our function needs the following arguments:
     -- Type arguments
     -- A LH typeclass for each type argument
@@ -270,31 +272,35 @@ createFunc tv cf n adt = do
     d2 <- freshIdN (TyCon n TYPE)
 
     let m = HM.fromList $ zip (map idName bi) lhbi
-    e <- mkFirstCase tv cf m d1 d2 n adt
+    e <- mkFirstCase cf m d1 d2 n adt
 
     let e' = mkLams (map (TypeL,) bi ++ map (TermL,) lhbi ++ [(TermL, d1), (TermL, d2)]) e
 
     return e'
 
-mkFirstCase :: TV.TyVarEnv -> PredFunc -> LHDictMap -> Id -> Id -> Name -> AlgDataTy -> LHStateM Expr
-mkFirstCase tv f ldm d1 d2 n adt@(DataTyCon { data_cons = dcs }) = do
+mkFirstCase :: PredFunc -> LHDictMap -> Id -> Id -> Name -> AlgDataTy -> LHStateM Expr
+mkFirstCase f ldm d1 d2 n adt@(DataTyCon { data_cons = dcs }) = do
+    tv <- tyVarEnv
     caseB <- freshIdN (typeOf tv d1)
     boolT <- tyBoolT
-    return . Case (Var d1) caseB boolT =<< mapM (mkFirstCase' tv f ldm d2 n adt) dcs
-mkFirstCase tv f ldm d1 d2 n adt@(NewTyCon { data_con = dc }) = do
+    return . Case (Var d1) caseB boolT =<< mapM (mkFirstCase' f ldm d2 n adt) dcs
+mkFirstCase f ldm d1 d2 n adt@(NewTyCon { data_con = dc }) = do
+    tv <- tyVarEnv
     caseB <- freshIdN (typeOf tv d1)
     boolT <- tyBoolT
-    return . Case (Var d1) caseB boolT . (:[]) =<< mkFirstCase' tv f ldm d2 n adt dc
-mkFirstCase _ _ _ _ _ _ _ = error "mkFirstCase: Unsupported AlgDataTy"
+    return . Case (Var d1) caseB boolT . (:[]) =<< mkFirstCase' f ldm d2 n adt dc
+mkFirstCase _ _ _ _ _ _ = error "mkFirstCase: Unsupported AlgDataTy"
 
-mkFirstCase' :: TV.TyVarEnv -> PredFunc -> LHDictMap -> Id -> Name -> AlgDataTy -> DataCon -> LHStateM Alt
-mkFirstCase' tv f ldm d2 n adt dc = do
+mkFirstCase' :: PredFunc -> LHDictMap -> Id -> Name -> AlgDataTy -> DataCon -> LHStateM Alt
+mkFirstCase' f ldm d2 n adt dc = do
+    tv <- tyVarEnv
     ba <- freshIdsN $ anonArgumentTypes $ typeOf tv dc
 
-    return . Alt (DataAlt dc ba) =<< mkSecondCase tv f ldm d2 n adt dc ba
+    return . Alt (DataAlt dc ba) =<< mkSecondCase f ldm d2 n adt dc ba
 
-mkSecondCase :: TV.TyVarEnv -> PredFunc -> LHDictMap -> Id -> Name -> AlgDataTy -> DataCon -> [Id] -> LHStateM Expr
-mkSecondCase tv f ldm d2 n adt dc ba1 = do
+mkSecondCase :: PredFunc -> LHDictMap -> Id -> Name -> AlgDataTy -> DataCon -> [Id] -> LHStateM Expr
+mkSecondCase f ldm d2 n adt dc ba1 = do
+    tv <- tyVarEnv
     caseB <- freshIdN (typeOf tv dc)
 
     alts <- f ldm n adt dc ba1
@@ -303,8 +309,9 @@ mkSecondCase tv f ldm d2 n adt dc ba1 = do
 
     return $ Case (Var d2) caseB boolT alts
 
-lhEqFunc :: TV.TyVarEnv -> PredFunc
-lhEqFunc tv ldm _ _ dc ba1 = do
+lhEqFunc :: PredFunc
+lhEqFunc ldm _ _ dc ba1 = do
+    tv <- tyVarEnv
     ba2 <- freshIdsN $ anonArgumentTypes $ typeOf tv dc
 
     an <- lhAndE
@@ -365,8 +372,10 @@ eqLHFuncCall tv ldm i1 i2
     where
         t = typeOf tv i1
 
-lhNeFunc :: TV.TyVarEnv -> PredFunc
-lhNeFunc tv ldm _ _ dc ba1 = do
+lhNeFunc :: PredFunc
+lhNeFunc ldm _ _ dc ba1 = do
+    tv <- tyVarEnv
+
     ba2 <- freshIdsN $ anonArgumentTypes $ typeOf tv dc
 
     an <- lhAndE
@@ -388,17 +397,17 @@ lhNeFunc tv ldm _ _ dc ba1 = do
     return [ Alt Default false
            , Alt (DataAlt dc ba2) pr''] 
 
-createLtFunc :: TV.TyVarEnv -> Name -> AlgDataTy -> LHStateM Expr
-createLtFunc tv = createOrdFunc tv Lt FpLt
+createLtFunc :: Name -> AlgDataTy -> LHStateM Expr
+createLtFunc = createOrdFunc Lt FpLt
 
-createLeFunc :: TV.TyVarEnv -> Name -> AlgDataTy -> LHStateM Expr
-createLeFunc tv = createOrdFunc tv Le FpLeq
+createLeFunc :: Name -> AlgDataTy -> LHStateM Expr
+createLeFunc = createOrdFunc Le FpLeq
 
-createGtFunc :: TV.TyVarEnv -> Name -> AlgDataTy -> LHStateM Expr
-createGtFunc tv = createOrdFunc tv Gt FpGt
+createGtFunc :: Name -> AlgDataTy -> LHStateM Expr
+createGtFunc = createOrdFunc Gt FpGt
 
-createGeFunc :: TV.TyVarEnv -> Name -> AlgDataTy -> LHStateM Expr
-createGeFunc tv = createOrdFunc tv Ge FpGeq
+createGeFunc :: Name -> AlgDataTy -> LHStateM Expr
+createGeFunc = createOrdFunc Ge FpGeq
 
 type IntPrimitive = Primitive
 type FpPrimitive = Primitive
@@ -410,8 +419,8 @@ type FpPrimitive = Primitive
 -- for all f :: T -> Int, so this could make us miss some counterexamples.
 -- However, we will never generate an incorrect counterexample.
 -- (i.e. it is sound but incomplete)
-createOrdFunc :: TV.TyVarEnv -> IntPrimitive -> FpPrimitive -> Name -> AlgDataTy -> LHStateM Expr 
-createOrdFunc tv int_prim fp_prim n adt = do
+createOrdFunc :: IntPrimitive -> FpPrimitive -> Name -> AlgDataTy -> LHStateM Expr 
+createOrdFunc int_prim fp_prim n adt = do
     let bi = bound_ids adt
 
     lh <- lhTCM
@@ -421,23 +430,24 @@ createOrdFunc tv int_prim fp_prim n adt = do
     d2 <- freshIdN (TyCon n TYPE)
 
     kv <- knownValues
-    e <- mkOrdCases tv int_prim fp_prim kv d1 d2 n adt
+    e <- mkOrdCases int_prim fp_prim kv d1 d2 n adt
 
     let e' = mkLams (map (TypeL,) bi ++ map (TermL,) lhbi ++ [(TermL, d1), (TermL, d2)]) e
 
     return e'
 
-mkOrdCases :: TV.TyVarEnv -> IntPrimitive -> FpPrimitive -> KnownValues -> Id -> Id -> Name -> AlgDataTy -> LHStateM Expr
-mkOrdCases tv int_prim fp_prim kv i1 i2 n (DataTyCon { data_cons = [dc]})
-    | n == KV.tyInt kv = mkPrimOrdCases tv int_prim TyLitInt i1 i2 dc
-    | n == KV.tyInteger kv = mkPrimOrdCases tv int_prim TyLitInt i1 i2 dc
-    | n == KV.tyFloat kv = mkPrimOrdCases tv fp_prim TyLitFloat i1 i2 dc
-    | n == KV.tyDouble kv = mkPrimOrdCases tv fp_prim TyLitDouble i1 i2 dc
+mkOrdCases :: IntPrimitive -> FpPrimitive -> KnownValues -> Id -> Id -> Name -> AlgDataTy -> LHStateM Expr
+mkOrdCases int_prim fp_prim kv i1 i2 n (DataTyCon { data_cons = [dc]})
+    | n == KV.tyInt kv = mkPrimOrdCases int_prim TyLitInt i1 i2 dc
+    | n == KV.tyInteger kv = mkPrimOrdCases int_prim TyLitInt i1 i2 dc
+    | n == KV.tyFloat kv = mkPrimOrdCases fp_prim TyLitFloat i1 i2 dc
+    | n == KV.tyDouble kv = mkPrimOrdCases fp_prim TyLitDouble i1 i2 dc
     | otherwise = mkTrueE
-mkOrdCases _ _ _ _ _ _ _ _ = mkTrueE
+mkOrdCases _ _ _ _ _ _ _ = mkTrueE
 
-mkPrimOrdCases :: TV.TyVarEnv -> Primitive -> Type -> Id -> Id -> DataCon -> LHStateM Expr
-mkPrimOrdCases tv pr t i1 i2 dc = do
+mkPrimOrdCases :: Primitive -> Type -> Id -> Id -> DataCon -> LHStateM Expr
+mkPrimOrdCases pr t i1 i2 dc = do
+    tv <- tyVarEnv
     i1' <- freshIdN (typeOf tv dc)
     i2' <- freshIdN (typeOf tv dc)
 
@@ -457,8 +467,8 @@ mkPrimOrdCases tv pr t i1 i2 dc = do
 
     return $ Case (Var i1) i1' b [Alt (DataAlt dc [b1]) c2]
 
-lhPPFunc :: TV.TyVarEnv -> Name -> AlgDataTy -> LHStateM Expr
-lhPPFunc tv n adt = do
+lhPPFunc :: Name -> AlgDataTy -> LHStateM Expr
+lhPPFunc n adt = do
     let bi = bound_ids adt
 
     lh <- lhTCM
@@ -473,7 +483,7 @@ lhPPFunc tv n adt = do
 
     let lhm = HM.fromList $ zip (map idName bi) lhbi
     let fnm = HM.fromList $ zip (map idName bi) fs
-    e <- lhPPCase tv lhm fnm adt d
+    e <- lhPPCase lhm fnm adt d
 
     let e' = mkLams (map (TypeL,) bi ++ map (TermL,) lhbi ++ map (TermL,) fs ++ [(TermL, d)]) e
 
@@ -481,42 +491,45 @@ lhPPFunc tv n adt = do
 
 type PPFuncMap = HM.HashMap Name Id
 
-lhPPCase :: TV.TyVarEnv -> LHDictMap -> PPFuncMap -> AlgDataTy -> Id -> LHStateM Expr
-lhPPCase tv lhm fnm (DataTyCon { data_cons = dcs }) i = do
+lhPPCase :: LHDictMap -> PPFuncMap -> AlgDataTy -> Id -> LHStateM Expr
+lhPPCase lhm fnm (DataTyCon { data_cons = dcs }) i = do
+    tv <- tyVarEnv
     ci <- freshIdN (typeOf tv i)
     tBool <- tyBoolT
 
-    return . Case (Var i) ci tBool =<< mapM (lhPPAlt tv lhm fnm) dcs
-lhPPCase tv lhm fnm (NewTyCon { rep_type = rt }) i = do
-    pp <- lhPPCall tv lhm fnm rt
+    return . Case (Var i) ci tBool =<< mapM (lhPPAlt lhm fnm) dcs
+lhPPCase lhm fnm (NewTyCon { rep_type = rt }) i = do
+    tv <- tyVarEnv
+    pp <- lhPPCall lhm fnm rt
     let c = Cast (Var i) (typeOf tv i :~ rt)
     return $ App pp c
 
 
-lhPPAlt :: TV.TyVarEnv -> LHDictMap -> PPFuncMap -> DataCon -> LHStateM Alt
-lhPPAlt tv lhm fnm dc = do
+lhPPAlt :: LHDictMap -> PPFuncMap -> DataCon -> LHStateM Alt
+lhPPAlt lhm fnm dc = do
+    tv <- tyVarEnv
     ba <- freshIdsN $ anonArgumentTypes $ typeOf tv dc
 
     an <- lhAndE
     true <- mkTrueE
 
     pr <- mapM (\i -> do
-                pp <- lhPPCall tv lhm fnm (typeOf tv i)
+                pp <- lhPPCall lhm fnm (typeOf tv i)
                 return $ App pp (Var i)) ba
     let pr' = foldr (\e -> App (App an e)) true pr
 
     return $ Alt (DataAlt dc ba) pr'
 
 -- This returns an Expr with a function type, of the given Type to Bool.
-lhPPCall :: TV.TyVarEnv -> LHDictMap -> PPFuncMap -> Type -> LHStateM Expr
-lhPPCall tv lhm fnm t
+lhPPCall :: LHDictMap -> PPFuncMap -> Type -> LHStateM Expr
+lhPPCall lhm fnm t
     | TyCon _ _ <- tyAppCenter t
     , ts <- tyAppArgs t  = do
         lhpp <- lhPPM
 
         let lhv = Var $ Id lhpp TyUnknown
         dict <- lhTCDict' lhm t
-        undefs <- mapM (lhPPCall tv lhm fnm) ts
+        undefs <- mapM (lhPPCall lhm fnm) ts
 
         return . mkApp $ lhv:[Type t, dict] ++ undefs -- ++ [Var i]
 
@@ -531,7 +544,7 @@ lhPPCall tv lhm fnm t
         let_is <- freshIdsN ts
         bind_i <- freshIdN t
         let bind_app = mkApp $ Var bind_i:map Var let_is
-        pp <- lhPPCall tv lhm fnm rt
+        pp <- lhPPCall lhm fnm rt
         let pp_app = App pp bind_app
         return . Lam TermL bind_i $ Let (zip let_is $ map (SymGen SNoLog) ts) pp_app
         -- i <- freshIdN t
@@ -544,8 +557,8 @@ lhPPCall tv lhm fnm t
         return . Lam TermL i =<< mkTrueE
     | otherwise = error $ "\nError in lhPPCall " ++ show t ++ "\n" ++ show lhm
 
-createExtractors :: TV.TyVarEnv -> LHStateM ()
-createExtractors tv = do
+createExtractors :: LHStateM ()
+createExtractors = do
     lh <- lhTCM
     eq <- lhEqM
 
@@ -559,13 +572,13 @@ createExtractors tv = do
 
     ord <- lhOrdM
 
-    createExtractors' tv lh [eq, ne, lt, le, gt, ge, pp, ord]
+    createExtractors' lh [eq, ne, lt, le, gt, ge, pp, ord]
 
-createExtractors' :: TV.TyVarEnv -> Name -> [Name] -> LHStateM ()
-createExtractors' tv lh ns = mapM_ (uncurry (createExtractors'' tv lh (length ns))) $ zip [0..] ns
+createExtractors' :: Name -> [Name] -> LHStateM ()
+createExtractors' lh ns = mapM_ (uncurry (createExtractors'' lh (length ns))) $ zip [0..] ns
 
-createExtractors'' :: TV.TyVarEnv -> Name -> Int -> Int -> Name -> LHStateM ()
-createExtractors'' tv lh i j n = do
+createExtractors'' :: Name -> Int -> Int -> Name -> LHStateM ()
+createExtractors'' lh i j n = do
     a <- freshIdN TYPE
 
     bi <- freshIdsN $ replicate i TyUnknown
@@ -583,6 +596,7 @@ createExtractors'' tv lh i j n = do
                         )
                         [b]
                         []
+    tv <- tyVarEnv
     let vi = bi !! j
         c = Case (Var li) ci (typeOf tv vi) [Alt (DataAlt d bi) (Var vi)]
     let e = Lam TypeL a $ Lam TermL li c
