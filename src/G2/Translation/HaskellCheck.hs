@@ -75,7 +75,7 @@ creatDeclStr pg s (x, DataTyCon{data_cons = dcs, bound_ids = is}) =
         wrapParens str = "(" <> str <> ")" 
         dc_decls = map (\dc -> printHaskellPG pg s (Data dc) <> " " <> T.intercalate " " (map (wrapParens . mkTypeHaskellPG pg) (argumentTypes (typeOf (tyvar_env s) dc)))) dcs
         all_dc_decls = T.unpack $ T.intercalate " | " dc_decls
-        derive_eq = if not (any isTyFun $ concatMap (argumentTypes . typeOf (tyvar_env s) ) dcs) then " deriving Eq" else ""
+        derive_eq = if not (any isTyFun $ concatMap (argumentTypes . typeOf (tyvar_env s)) dcs) then " deriving Eq" else ""
     in
     "data " ++ x' ++ " " ++ ids'++ " = " ++ all_dc_decls ++ derive_eq
 creatDeclStr _ _ _ = error "creatDeclStr: unsupported AlgDataTy"
@@ -88,7 +88,6 @@ validateStatesGHC pg modN entry chAll chAny b er@(ExecRes {final_state = s, conc
     v' <- liftIO . timeout (5 * 10 * 1000) $ (unsafeCoerce v :: IO (Either SomeException Bool))
     let outStr = T.unpack $ printHaskell s out
     let v'' = case v' of
-
                     Nothing -> Nothing
                     Just (Left e) | show e == "<<timeout>>" -> Nothing
                                   | otherwise -> Just (outStr == "error" || outStr == "undefined" || outStr == "?")
