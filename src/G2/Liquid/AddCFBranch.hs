@@ -39,7 +39,6 @@ addCounterfactualBranch :: CFModules
                         -> [Name] -- ^ Which functions to consider abstracting
                         -> LHStateM CounterfactualName
 addCounterfactualBranch cf_mod ns = do
-    tv <- tyVarEnv
     let ns' = case cf_mod of
                 CFAll -> ns
                 CFOnly mods -> filter (\(Name n m _ _) -> (n, m) `S.member` mods) ns
@@ -50,11 +49,12 @@ addCounterfactualBranch cf_mod ns = do
     createBagAndInstFuncs bag_func_ns inst_func_ns
 
     cfn <- freshSeededStringN "cf"
-    mapWithKeyME (addCounterfactualBranch' tv cfn ns')
+    mapWithKeyME (addCounterfactualBranch' cfn ns')
     return cfn
 
-addCounterfactualBranch' :: TyVarEnv -> CounterfactualName -> [Name] -> Name -> Expr -> LHStateM Expr
-addCounterfactualBranch' tv cfn ns n =
+addCounterfactualBranch' :: CounterfactualName -> [Name] -> Name -> Expr -> LHStateM Expr
+addCounterfactualBranch' cfn ns n = do
+    tv <- tyVarEnv
     if n `elem` ns then insertInLamsE (\_ -> addCounterfactualBranch'' tv cfn) else return
 
 addCounterfactualBranch'' :: TyVarEnv -> CounterfactualName -> Expr -> LHStateM Expr
