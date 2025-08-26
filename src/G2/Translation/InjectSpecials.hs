@@ -8,51 +8,50 @@ module G2.Translation.InjectSpecials
 
 import qualified Data.HashMap.Lazy as HM
 import qualified Data.Text as T
-import qualified G2.Language.TyVarEnv as TV 
 
 import G2.Language
+import qualified G2.Language.TyVarEnv as TV 
 
 _MAX_TUPLE :: Int
 _MAX_TUPLE = 62
 
--- TODO: Are we handling the TyVarEnv argument correctly here?
-specialTypes :: TV.TyVarEnv -> HM.HashMap Name AlgDataTy
-specialTypes tv = HM.fromList $ map (uncurry (specialTypes' tv)) (specials tv) ++ mkPrimTuples tv _MAX_TUPLE
+specialTypes :: HM.HashMap Name AlgDataTy
+specialTypes = HM.fromList $ map (uncurry specialTypes') specials ++ mkPrimTuples _MAX_TUPLE
 
-specialTypes' :: TV.TyVarEnv -> (T.Text, Maybe T.Text, [Name]) -> [(T.Text, Maybe T.Text, [Type])] -> (Name, AlgDataTy)
-specialTypes' tv (n, m, ns) dcn = 
+specialTypes' :: (T.Text, Maybe T.Text, [Name]) -> [(T.Text, Maybe T.Text, [Type])] -> (Name, AlgDataTy)
+specialTypes' (n, m, ns) dcn = 
     let
         tn = Name n m 0 Nothing
-        dc = map (specialDC tv ns tn) dcn
+        dc = map (specialDC ns tn) dcn
     in
     (tn, DataTyCon {bound_ids = map (flip Id TYPE) ns, data_cons = dc, adt_source = ADTSourceCode})
 
-specialDC :: TV.TyVarEnv -> [Name] -> Name -> (T.Text, Maybe T.Text, [Type]) -> DataCon
-specialDC tvnv ns tn (n, m, ts) = 
+specialDC :: [Name] -> Name -> (T.Text, Maybe T.Text, [Type]) -> DataCon
+specialDC ns tn (n, m, ts) = 
     let
         tv = map (TyVar . flip Id TYPE) ns
 
-        t = foldr TyFun (mkFullAppedTyCon tvnv tn tv TYPE) ts
+        t = foldr TyFun (mkFullAppedTyCon TV.empty tn tv TYPE) ts
         is = map (flip Id TYPE) ns
         t' = foldr TyForAll t is
     in
     DataCon (Name n m 0 Nothing) t' is []
 
-specialTypeNames :: TV.TyVarEnv -> HM.HashMap (T.Text, Maybe T.Text) Name
-specialTypeNames tv = -- HM.fromList $ map (\(n, m, _) -> ((n, m), Name n m 0 Nothing)) specialTypeNames'
-      HM.fromList . map (\nm@(Name n m _ _) -> ((n, m), nm)) $ HM.keys (specialTypes tv)
+specialTypeNames :: HM.HashMap (T.Text, Maybe T.Text) Name
+specialTypeNames = -- HM.fromList $ map (\(n, m, _) -> ((n, m), Name n m 0 Nothing)) specialTypeNames'
+      HM.fromList . map (\nm@(Name n m _ _) -> ((n, m), nm)) $ HM.keys specialTypes
 
-specialConstructors :: TV.TyVarEnv -> HM.HashMap (T.Text, Maybe T.Text) Name
-specialConstructors tv =
+specialConstructors :: HM.HashMap (T.Text, Maybe T.Text) Name
+specialConstructors =
     -- GHC 9.4 on use different constructors than our base for Integers, so we add a special mapping
     -- for those constructor (via `integerConstructor` to adjust Names accordingly)
-    HM.fromList $ integerConstructor:map (\(DataCon nm@(Name n m _ _) _ _ _)-> ((n, m), nm)) (specialConstructors' tv)
+    HM.fromList $ integerConstructor:map (\(DataCon nm@(Name n m _ _) _ _ _)-> ((n, m), nm)) specialConstructors'
 
 integerConstructor :: ((T.Text, Maybe T.Text), Name)
 integerConstructor = (("IS", Just "GHC.Num.Integer"), Name "Z#" (Just "GHC.Num.Integer") 0 Nothing)
 
-specialConstructors' :: TV.TyVarEnv -> [DataCon]
-specialConstructors' tv = concatMap data_cons $ HM.elems (specialTypes tv)-- map (\(n, m, _) -> (n, m)) $ concatMap snd specials
+specialConstructors' :: [DataCon]
+specialConstructors' = concatMap data_cons $ HM.elems specialTypes -- map (\(n, m, _) -> (n, m)) $ concatMap snd specials
 
 aName :: Name
 aName = Name "a" Nothing 0 Nothing
@@ -70,12 +69,12 @@ listTypeStr = "[]"
 listName :: Name
 listName = Name listTypeStr (Just "GHC.Types") 0 Nothing
 
-specials :: TV.TyVarEnv ->[((T.Text, Maybe T.Text, [Name]), [(T.Text, Maybe T.Text, [Type])])]
-specials tv =
+specials :: [((T.Text, Maybe T.Text, [Name]), [(T.Text, Maybe T.Text, [Type])])]
+specials =
            [ (( listTypeStr
               , Just "GHC.Types", [aName])
               , [ ("[]", Just "GHC.Types", [])
-                , (":", Just "GHC.Types", [aTyVar, mkFullAppedTyCon tv listName [aTyVar] TYPE])]
+                , (":", Just "GHC.Types", [aTyVar, mkFullAppedTyCon TV.empty listName [aTyVar] TYPE])]
              )
            -- , (("Int", Just "GHC.Types"), [("I#", Just "GHC.Types", [TyLitInt])])
            -- , (("Float", Just "GHC.Types"), [("F#", Just "GHC.Types", [TyLitFloat])])
@@ -120,10 +119,10 @@ mkTuples ls rs m n | n < 0 = []
                         -- ((s, m, []), [(s, m, [])]) : mkTuples (n - 1)
                         ((ty_n, m, ns), [(cons_n, m, tv)]) : mkTuples ls rs m (n - 1)
 
-mkPrimTuples :: TV.TyVarEnv -> Int -> [(Name, AlgDataTy)]
-mkPrimTuples tv k =
+mkPrimTuples :: Int -> [(Name, AlgDataTy)]
+mkPrimTuples k =
     let
-        dcn = mkPrimTuples' tv k
+        dcn = mkPrimTuples' k
     in
     map (\(n, m, ns, dc) -> 
             let
@@ -131,8 +130,8 @@ mkPrimTuples tv k =
             in
             (tn, DataTyCon {bound_ids = map (flip Id TYPE) ns, data_cons = [dc], adt_source = ADTSourceCode})) dcn
 
-mkPrimTuples' :: TV.TyVarEnv -> Int -> [(T.Text, Maybe T.Text, [Name], DataCon)]
-mkPrimTuples' tvnv n | n < 0 = []
+mkPrimTuples' :: Int -> [(T.Text, Maybe T.Text, [Name], DataCon)]
+mkPrimTuples' n | n < 0 = []
                 | otherwise =
                         let
                             s = "(#" `T.append` T.pack (replicate n ',') `T.append` "#)"
@@ -143,7 +142,7 @@ mkPrimTuples' tvnv n | n < 0 = []
                             rt_ns = if n == 0 then [] else map (\i -> Name "rt_" m i Nothing) [0..n]
                             tv = map (TyVar . flip Id TYPE) ns
 
-                            t = foldr (TyFun) (mkFullAppedTyCon tvnv tn tv TYPE) tv
+                            t = foldr (TyFun) (mkFullAppedTyCon TV.empty tn tv TYPE) tv
                             is = map (flip Id TYPE) ns
                             rt_is =  map (flip Id TYPE) rt_ns
                             t' = foldr TyForAll t is
@@ -152,4 +151,4 @@ mkPrimTuples' tvnv n | n < 0 = []
                             dc = DataCon (Name s m 0 Nothing) t'' (rt_is ++ is) []
                         in
                         -- ((s, m, []), [(s, m, [])]) : mkTuples (n - 1)
-                        (s, m, rt_ns ++ ns, dc) : mkPrimTuples' tvnv (n - 1)
+                        (s, m, rt_ns ++ ns, dc) : mkPrimTuples' (n - 1)
