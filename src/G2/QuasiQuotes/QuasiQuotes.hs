@@ -107,12 +107,11 @@ parseHaskellQ str = do
             case elimUnusedCompleted xs b of
                 (xs'@(s:_), b') -> do
                     let xs'' = listE $ map (moveOutStatePieces tenv_name) xs'
-                        -- TODO: is it correct to make TyVarEnv as TV.emtpy here?
-                        xs''' = addCompRegVarPasses TV.empty (varE state_name) tenv_name cleaned_names_name ns (inputIds s b') b'
+                        xs''' = addCompRegVarPasses (tyvar_env s) (varE state_name) tenv_name cleaned_names_name ns (inputIds s b') b'
 
                         b'' = b' { input_names = drop (length regs) (input_names b') }
                         sol = solveStates xs''' (varE bindings_name)
-                        ars = extractArgs TV.empty (inputIds s b'') (cleaned_names b'') tenv_name sol
+                        ars = extractArgs (tyvar_env s) (inputIds s b'') (cleaned_names b'') tenv_name sol
 
                     return (foldr (\n -> lamE [n]) ars ns_pat, xs'', type_env s, b'')
                 ([], _) ->
@@ -134,18 +133,15 @@ parseHaskellQ str = do
 
                 s'' = moveOutStatePieces tenv_name s'
 
-                s''' = addedNonCompRegVarBinds TV.empty (varE state_name) tenv_name cleaned_names_name ns (inputIds s' b) b
+                s''' = addedNonCompRegVarBinds (tyvar_env s') (varE state_name) tenv_name cleaned_names_name ns (inputIds s' b) b
 
                 b' = b { input_names = drop (length regs) (input_names b) }
 
                 sol = executeAndSolveStates s''' (varE bindings_name)
-                -- TODO: is it pass TyVarEnv as an empty hashmap?
-                ars = extractArgs TV.empty (inputIds s b') (cleaned_names b') tenv_name sol
+
+                ars = extractArgs (tyvar_env s') (inputIds s b') (cleaned_names b') tenv_name sol
 
             return (foldr (\n -> lamE [n]) ars ns_pat, s'', type_env s', b')
-
-            -- foldr (\n -> lamE [n]) [|do putStrLn "NONCOMPLETED"; return Nothing;|] ns_pat
-
 
     let tenv_exp = liftDataT tenv `sigE` [t| TypeEnv |]
         bindings_exp = liftDataT bindings_final
