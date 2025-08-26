@@ -169,7 +169,7 @@ class Typed a where
     typeOf :: TV.TyVarEnv -> a -> Type
 
 instance Typed Id where
-    typeOf m (Id _ ty) = tyVarRename (TV.toMap m) ty
+    typeOf m (Id _ ty) = tyVarSubst m ty
 
 instance Typed Lit where
     typeOf _ (LitInt _) = TyLitInt
@@ -198,7 +198,7 @@ instance Typed Expr where
             as = passedArgs a
             t = typeOf m $ appCenter a
         in
-        appTypeOf M.empty t as
+        appTypeOf TV.empty t as
     typeOf m (Lam u b e) =
         case u of
             TypeL -> TyForAll b (typeOf m e)
@@ -206,8 +206,8 @@ instance Typed Expr where
     typeOf m (Let _ expr) = typeOf m expr
     typeOf _ (Case _ _ t _) = t
     typeOf _ (Type _) = TYPE
-    typeOf m (Cast _ (_ :~ t')) = tyVarRename (TV.toMap m) t'
-    typeOf m (Coercion (_ :~ t')) = tyVarRename (TV.toMap m) t'
+    typeOf m (Cast _ (_ :~ t')) = tyVarSubst m t'
+    typeOf m (Coercion (_ :~ t')) = tyVarSubst m t'
     typeOf m (Tick _ e) = typeOf m e
     typeOf m (NonDet (e:_)) = typeOf m e
     typeOf _ (NonDet []) = TyBottom
@@ -226,17 +226,17 @@ appCenter :: Expr -> Expr
 appCenter (App a _) = appCenter a
 appCenter e = e
 
-appTypeOf :: M.Map Name Type -> Type -> [Expr] -> Type
+appTypeOf :: TV.TyVarEnv -> Type -> [Expr] -> Type
 appTypeOf m (TyForAll i t) (Type t':es) =
     let
-        m' = M.insert (idName i) (tyVarRename m t') m
+        m' = TV.insert (idName i) (tyVarSubst m t') m
     in
     appTypeOf m' t es
 appTypeOf m (TyForAll _ t) (_:es) = appTypeOf m t es
 appTypeOf m (TyFun _ t) (_:es) = appTypeOf m t es
-appTypeOf m t [] = tyVarRename m t
+appTypeOf m t [] = tyVarSubst m t
 appTypeOf m (TyVar (Id n _)) es =
-    case M.lookup n m of
+    case TV.lookup n m of
         Just t -> appTypeOf m t es
         Nothing -> error ("appTypeOf: Unknown TyVar")
 appTypeOf _ TyBottom _ = TyBottom
@@ -328,17 +328,6 @@ tyVarSubst' seen m t@(TyVar (Id n _)) =
         _ -> t 
 tyVarSubst' seen m (TyForAll i@(Id n _) t) = TyForAll i $ tyVarSubst' seen (TV.delete n m) t
 tyVarSubst' seen m t = modifyChildren (tyVarSubst' seen m) t
-
-tyVarRename :: (ASTContainer t Type) => M.Map Name Type -> t -> t
-tyVarRename m = modifyContainedASTs (tyVarRename' HS.empty m)
-
-tyVarRename' :: HS.HashSet Name -> M.Map Name Type -> Type -> Type
-tyVarRename' seen m t@(TyVar (Id n _)) = 
-    case M.lookup n m of
-        Just t' | not (HS.member n seen) -> tyVarRename' (HS.insert n seen) m t'
-        _ -> t
-tyVarRename' seen m (TyForAll i@(Id n _) t) = TyForAll i $ tyVarRename' seen (M.delete n m) t
-tyVarRename' seen m t = modifyChildren (tyVarRename' seen m) t
 
 -- | Returns if the first type given is a specialization of the second,
 -- i.e. if given t1, t2, returns true iff t1 :: t2

@@ -53,9 +53,9 @@ addCounterfactualBranch cf_mod ns = do
     return cfn
 
 addCounterfactualBranch' :: CounterfactualName -> [Name] -> Name -> Expr -> LHStateM Expr
-addCounterfactualBranch' cfn ns n = do
+addCounterfactualBranch' cfn ns n e = do
     tv <- tyVarEnv
-    if n `elem` ns then insertInLamsE (\_ -> addCounterfactualBranch'' tv cfn) else return
+    if n `elem` ns then insertInLamsE (\_ -> addCounterfactualBranch'' tv cfn) e else return e
 
 addCounterfactualBranch'' :: TyVarEnv -> CounterfactualName -> Expr -> LHStateM Expr
 addCounterfactualBranch'' tv cfn
