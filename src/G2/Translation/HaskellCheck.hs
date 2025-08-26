@@ -43,9 +43,6 @@ import System.Process
 import System.Timeout
 
 import Control.Monad.IO.Class
-import Debug.Trace
-
-import Debug.Trace
 
 -- | Load the passed module(s) into GHC, and check that the `ExecRes` results are correct.
 validateStates :: [FilePath] -> [FilePath] -> String -> String -> [String] -> [String] -> [GeneralFlag] -> Bindings
@@ -133,9 +130,6 @@ runCheck init_pg modN entry chAll chAny b er@(ExecRes {final_state = s, conc_arg
         mvStr = T.unpack mvTxt
         arsStr = T.unpack arsTxt
         outStr = T.unpack outTxt
-    -- before the typeOf in the next line , we want to retype the type variable in the expression 
-    -- with the corresponding type find in the tyvar_env 
-    -- use tyVarRename and change the map into TyVarEnv 
 
     let arsType = T.unpack $ mkTypeHaskellPG pg (typeOf (tyvar_env s) e)
         outType = T.unpack $ mkTypeHaskellPG pg (typeOf (tyvar_env s) out)
