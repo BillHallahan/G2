@@ -16,9 +16,9 @@ import qualified Data.HashMap.Lazy as HM
 --   1. Adding Lambda bindings for the LH TC
 --   2. Passing the LH TC typeclass to functions
 --   3. Updating all type information
-addLHTC :: TyVarEnv -> LHStateM ()
-addLHTC tv = do
-    mapME (addLHTCExprEnv tv)
+addLHTC :: LHStateM ()
+addLHTC = do
+    mapME addLHTCExprEnv
     addLHTCCurrExpr
 
 addLHTCCurrExpr :: LHStateM ()
@@ -27,10 +27,10 @@ addLHTCCurrExpr = do
     ce' <- addLHTCExprPasses HM.empty ce
     putCurrExpr (CurrExpr er ce')
 
-addLHTCExprEnv :: TyVarEnv -> Expr -> LHStateM Expr
-addLHTCExprEnv tv e = do
-    e' <- addTypeLams tv e
-    e'' <- addTypeLamsLet tv e'
+addLHTCExprEnv :: Expr -> LHStateM Expr
+addLHTCExprEnv e = do
+    e' <- addTypeLams e
+    e'' <- addTypeLamsLet e'
     (e''', m) <- addLHTCExprEnvLams [] e''
     addLHTCExprEnvPasses m e'''
 
@@ -38,11 +38,10 @@ addLHTCExprEnv tv e = do
 -- This is needed so that addLHTCExprEnvLams can insert the LH Dict after the type correctly.
 -- In generally, it's not always correct to eta-expand Haskell functions, but
 -- it is fine here because the type arguments are guaranteed to not be undefined
-addTypeLams :: TyVarEnv -> Expr -> LHStateM Expr
-addTypeLams tv e = 
-    let
-        t = typeOf tv e
-    in
+addTypeLams :: Expr -> LHStateM Expr
+addTypeLams e = do
+    tv <- tyVarEnv
+    let t = typeOf tv e
     addTypeLams' t e
 
 addTypeLams' :: Type -> Expr -> LHStateM Expr
@@ -53,17 +52,17 @@ addTypeLams' _ e = return e
 
 -- | Let bindings may be passed Type parameters, but have no type lambdas,
 -- so we have to add Lambdas to Let's as well. 
-addTypeLamsLet :: TyVarEnv -> Expr -> LHStateM Expr
-addTypeLamsLet tv = modifyM (addTypeLamsLet' tv)
+addTypeLamsLet :: Expr -> LHStateM Expr
+addTypeLamsLet = modifyM addTypeLamsLet'
 
-addTypeLamsLet' :: TyVarEnv -> Expr -> LHStateM Expr
-addTypeLamsLet' tv (Let be e) = do
+addTypeLamsLet' :: Expr -> LHStateM Expr
+addTypeLamsLet' (Let be e) = do
     be' <- mapM (\(b, e') -> do
-            e'' <- addTypeLams tv e' 
+            e'' <- addTypeLams e' 
             return (b, e'')
         ) be
     return (Let be' e)
-addTypeLamsLet' _ e = return e
+addTypeLamsLet' e = return e
 
 -- Updates a function definition with Lambdas to take the LH TC for each type argument.
 addLHTCExprEnvLams :: [Id] -> Expr -> LHStateM (Expr, HM.HashMap Name Id)

@@ -41,37 +41,37 @@ lookupAnnotAtLoc (Name _ _ _ (Just (Span {start = l}))) =
     Just . concatMap snd . find (\(Span {start = l'}, _) -> l == l') . HM.toList . unAnnotMap
 lookupAnnotAtLoc _ = const Nothing
 
-getAnnotations :: TyVarEnv -> [LHOutput] -> LHStateM ()
-getAnnotations tv ghci_cg = do
+getAnnotations :: [LHOutput] -> LHStateM ()
+getAnnotations ghci_cg = do
     locM <- return . locLookup =<< exprEnv
 
     let anna = map lhCleanAnnotMaps ghci_cg
-    mapM_ (annotMapToExpr tv locM) anna
+    mapM_ (annotMapToExpr locM) anna
 
-annotMapToExpr :: TyVarEnv -> M.Map Loc Name -> AnnInfo SpecType ->  LHStateM ()
-annotMapToExpr tv locM (AI st) = mapM_ (uncurry (valToExpr tv locM)) (HM.toList st)
+annotMapToExpr :: M.Map Loc Name -> AnnInfo SpecType ->  LHStateM ()
+annotMapToExpr locM (AI st) = mapM_ (uncurry (valToExpr locM)) (HM.toList st)
 
-valToExpr :: TyVarEnv -> M.Map Loc Name -> SrcSpan -> [(Maybe T.Text, SpecType)] -> LHStateM ()
-valToExpr tv locM srcspn =
+valToExpr :: M.Map Loc Name -> SrcSpan -> [(Maybe T.Text, SpecType)] -> LHStateM ()
+valToExpr locM srcspn =
     case mkSpan srcspn of
-        Just spn -> mapM_ (valToExpr' tv locM spn)
+        Just spn -> mapM_ (valToExpr' locM spn)
         Nothing -> return . const ()
 
-valToExpr' :: TyVarEnv -> M.Map Loc Name -> Span -> (Maybe T.Text, SpecType) -> LHStateM ()
-valToExpr' tv locM spn@(Span {start = stloc}) (n, ast) = do
+valToExpr' :: M.Map Loc Name -> Span -> (Maybe T.Text, SpecType) -> LHStateM ()
+valToExpr' locM spn@(Span {start = stloc}) (n, ast) = do
     e <- case M.lookup stloc locM of
             Just n' -> lookupE n'
             Nothing -> return Nothing
 
-    t <- specTypeToType tv ast
+    t <- specTypeToType ast
 
     case (e, t) of
         (Just e', Just t') -> do
             let i = Id (Name "ret" Nothing 0 Nothing) t'
             let ai = leadingLamUsesIds e'
-            dm <- dictMapFromIds tv (map snd ai)
+            dm <- dictMapFromIds (map snd ai)
 
-            ce <- convertSpecType tv CheckPre dm HM.empty (map snd ai) (Just i) ast
+            ce <- convertSpecType CheckPre dm HM.empty (map snd ai) (Just i) ast
             let ce' = addIds ce (ai ++ [(TermL, i)])
 
             insertAnnotM spn n ce'
