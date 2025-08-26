@@ -12,6 +12,7 @@ module G2.Config.Config ( Mode (..)
                         , IncludePath
                         
                         , Config (..)
+                        , SymExHeuristics (..)
                         , LoggerConfig (..)
                         , SMTConfig (..)
 
@@ -85,13 +86,7 @@ data Config = Config {
     , returnsTrue :: Bool -- ^ If True, shows only those inputs that do not return True
     , check_asserts :: Bool -- ^ If True, shows only those inputs that violate asserts
     , error_asserts :: Bool -- ^ If True, treat error as an assertion violation
-    , higherOrderSolver :: HigherOrderSolver -- ^ How to try and solve higher order functions
-    , search_strat :: SearchStrategy -- ^ The search strategy for the symbolic executor to use
-    , subpath_length :: Int -- ^ When using subpath search strategy, the length of the subpaths.
-    , fp_handling :: FpHandling -- ^ Whether to use real floating point values or rationals
     , print_encode_float :: Bool -- ^ Whether to print floating point numbers directly or via encodeFloat
-    , step_limit :: Bool -- ^ Should steps be limited when running states?
-    , steps :: Int -- ^ How many steps to take when running States
     , time_solving :: Bool -- ^ Output the amount of time spent checking/solving path constraints
     , print_num_solver_calls :: Bool -- ^ Output the number of calls made to check/solve path constraints
     , print_solver_sol_counts :: Bool -- ^ Output the number of sat/unsat/unknown solver results from the SMT solver
@@ -100,9 +95,7 @@ data Config = Config {
     , states_at_step :: Bool -- ^ Output step and number of states at each step where a state is added/removed
     , print_num_red_rules :: Bool -- ^ Output the total number of reduction rules
     , print_num_red_rules_per_state :: Bool  -- ^ Output the number of reduction rules per accepted state
-    , approx_discard :: Bool -- ^ Discard states that are approximated by other states
     , hpc :: Bool -- ^ Should HPC ticks be generated and tracked during execution?
-    , hpc_discard_strat :: Bool -- ^ Discard states that cannot reach any new HPC ticks
     , hpc_print_times :: Bool -- ^ Print the time each HPC tick is reached?
     , hpc_print_ticks :: Bool -- ^ Print each HPC tick number that was reached?
     , strict :: Bool -- ^ Should the function output be strictly evaluated?
@@ -114,9 +107,21 @@ data Config = Config {
     , symbolic_func_nrpc :: NonRedPathCons -- ^ Whether to use NRPCs for symbolic functions or not
     , print_num_nrpc :: Bool -- ^ Output the number of NRPCs for each accepted state
     , print_num_post_call_func_arg :: Bool -- ^ Output the number of post call and function argument states
+    , symex_heuristics :: SymExHeuristics -- ^ Heuristics for symbolic execution
     , smt_config :: SMTConfig -- ^ Configurations options for SMT solver
     , logger_config :: LoggerConfig -- ^ Determines whether to Log states, and if logging states, how to do so.
 }
+
+data SymExHeuristics = SymExHeuristics
+                        { step_limit :: Bool -- ^ Should steps be limited when running states?
+                        , steps :: Int -- ^ How many steps to take when running States
+                        , higher_order_solver :: HigherOrderSolver -- ^ How to try and solve higher order functions
+                        , search_strat :: SearchStrategy -- ^ The search strategy for the symbolic executor to use
+                        , subpath_length :: Int -- ^ When using subpath search strategy, the length of the subpaths.
+                        , fp_handling :: FpHandling -- ^ Whether to use real floating point values or rationals
+                        , hpc_discard_strat :: Bool -- ^ Discard states that cannot reach any new HPC ticks
+                        , approx_discard :: Bool -- ^ Discard states that are approximated by other states
+                        }
 
 data LoggerConfig = LoggerConfig
                             { con_log_mode :: LogMode -- ^ Determines whether to Log states, and if logging states, how to do so.
@@ -153,20 +158,7 @@ mkConfig homedir = Config Regular
     <*> switch (long "returns-true" <> help "assert that the function returns true, show only those outputs which return false")
     <*> switch (long "check-asserts" <> help "show only inputs that violate assertions")
     <*> switch (long "error-asserts" <> help "treat error as an assertion violation")
-    <*> mkHigherOrder
-    <*> mkSearchStrategy
-    <*> option auto (long "subpath-len"
-                   <> metavar "L"
-                   <> value 4
-                   <> help "when using subpath search strategy, the length of the subpaths")
-    <*> flag RealFP RationalFP (long "no-real-floats"
-                                <> help "Represent floating point values precisely.  When off, overapproximate as rationals.")
     <*> switch (long "print-encodeFloat" <> help "use encodeFloat to print floating point numbers")
-    <*> flag True False (long "no-step-limit" <> help "disable step limit")
-    <*> option auto (long "n"
-                   <> metavar "N"
-                   <> value 1000
-                   <> help "how many steps to take when running states")
     <*> switch (long "solver-time" <> help "output the amount of time spent checking/solving path constraints")
     <*> switch (long "print-num-solver-calls" <> help "output the number of calls made to check/solve path constraints")
     <*> switch (long "print-sol-counts" <> help "output the number of sat/unsat/unknown solver results from the SMT solver")
@@ -175,11 +167,8 @@ mkConfig homedir = Config Regular
     <*> switch (long "states-at-step" <> help "output step and number of states at each step where a state is added/removed")
     <*> switch (long "print-num-red-rules" <> help "output the total number of reduction rules")
     <*> switch (long "print-num-red-rules-per-state" <> help "output the number of reduction rules per accepted state")
-    <*> flag False True (long "approx-discard"
-                      <> help "Discard states that are approximated by other states")
     <*> flag False True (long "hpc"
                       <> help "Generate and report on HPC ticks")
-    <*> flag False True (long "hpc-discard-strat" <> help "Discard states that cannot reach any new HPC ticks")
     <*> switch (long "hpc-print-times" <> help "Print the time each HPC tick is reached?")
     <*> switch (long "hpc-print-ticks" <> help "Print each HPC tick number that was reached?")
     <*> flag True False (long "no-strict" <> help "do not evaluate the output strictly")
@@ -194,8 +183,28 @@ mkConfig homedir = Config Regular
     <*> flag NoNrpc Nrpc (long "higher-nrpc" <> help "use NRPCs to delay execution of library functions")
     <*> flag False True (long "print-num-nrpc" <> help "output the number of NRPCs for each accepted state")
     <*> flag False True (long "print-num-higher-states" <> help "output the number of post call and function argument states (from higher order coverage checking)")
+    <*> parserOptionGroup "Symbolic Execution Heuristics" mkSymExHeuristics
     <*> parserOptionGroup "SMT" mkSMTConfig
     <*> parserOptionGroup "Logger" mkLoggerConfig
+
+mkSymExHeuristics :: Parser SymExHeuristics
+mkSymExHeuristics = SymExHeuristics
+    <$> flag True False (long "no-step-limit" <> help "disable step limit")
+    <*> option auto (long "n"
+                   <> metavar "N"
+                   <> value 1000
+                   <> help "how many steps to take when running states")
+    <*> mkHigherOrder
+    <*> mkSearchStrategy
+    <*> option auto (long "subpath-len"
+                   <> metavar "L"
+                   <> value 4
+                   <> help "when using subpath search strategy, the length of the subpaths")
+    <*> flag RealFP RationalFP (long "no-real-floats"
+                                <> help "Represent floating point values precisely.  When off, overapproximate as rationals.")
+    <*> flag False True (long "hpc-discard-strat" <> help "Discard states that cannot reach any new HPC ticks")
+    <*> flag False True (long "approx-discard"
+                      <> help "Discard states that are approximated by other states")
 
 mkLoggerConfig :: Parser LoggerConfig
 mkLoggerConfig = LoggerConfig
@@ -338,6 +347,16 @@ mkConfigDirect homedir as m = Config {
     , extraDefaultMods = []
     , includePaths = Nothing
     , print_output = True
+    , symex_heuristics = SymExHeuristics
+                            { step_limit = boolArg' "no-step-limit" as True True False
+                            , steps = strArg "n" as m read 1000
+                            , higher_order_solver = strArg "higher-order" as m higherOrderSolArg SingleFunc
+                            , fp_handling = RealFP
+                            , search_strat = Iterative
+                            , subpath_length = 4
+                            , approx_discard = False
+                            , hpc_discard_strat = False
+                            }
     , smt_config = SMTConfig
                         { smt = strArg "smt" as m smtSolverArg ConZ3
                         , smt_path = Nothing
@@ -364,13 +383,7 @@ mkConfigDirect homedir as m = Config {
     , returnsTrue = boolArg "returns-true" as m Off
     , check_asserts = boolArg "check-asserts" as m Off
     , error_asserts = boolArg "error-asserts" as m Off
-    , higherOrderSolver = strArg "higher-order" as m higherOrderSolArg SingleFunc
-    , search_strat = Iterative
-    , subpath_length = 4
-    , fp_handling = RealFP
     , print_encode_float = False
-    , step_limit = boolArg' "no-step-limit" as True True False
-    , steps = strArg "n" as m read 1000
     , time_solving = False
     , print_num_solver_calls = False
     , print_solver_sol_counts = False
@@ -379,9 +392,7 @@ mkConfigDirect homedir as m = Config {
     , states_at_step = False
     , print_num_red_rules = False
     , print_num_red_rules_per_state = False
-    , approx_discard = False
     , hpc = False
-    , hpc_discard_strat = False
     , hpc_print_times = False
     , hpc_print_ticks = False
     , strict = boolArg "strict" as m On

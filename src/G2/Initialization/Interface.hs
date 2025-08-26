@@ -64,7 +64,7 @@ runInitialization2 config s@(IT.SimpleState { IT.expr_env = eenv
                , IT.handles = hs
                , IT.type_classes = tc2 }
         
-        s'' = if fp_handling config == RationalFP then substRational s' else s'
+        s'' = if fp_handling (symex_heuristics config) == RationalFP then substRational s' else s'
     in
     s''
 

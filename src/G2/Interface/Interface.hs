@@ -308,7 +308,8 @@ initRedHaltOrd s mod_name solver simplifier config exec_func_names no_nrpc_names
 
     on_acc_hpc_red <- onAcceptHpcReducer s mod_name
 
-    let share = sharing config
+    let sh_config = symex_heuristics config
+        share = sharing config
 
         state_name = Name "state" Nothing 0 Nothing
 
@@ -361,27 +362,27 @@ initRedHaltOrd s mod_name solver simplifier config exec_func_names no_nrpc_names
                  <~> acceptIfViolatedHalter
                  <~> time_halter
 
-        halter_step = case step_limit config of
-                            True -> SomeHalter (zeroHalter (steps config) <~> halter)
+        halter_step = case step_limit sh_config of
+                            True -> SomeHalter (zeroHalter (steps sh_config) <~> halter)
                             False -> SomeHalter halter
         
         -- halter_accept_only = case halter_step of SomeHalter h -> SomeHalter (liftHalter (liftHalter (liftHalter (acceptOnlyNewHPC h))))
 
-        halter_hpc_discard = case hpc_discard_strat config of
+        halter_hpc_discard = case hpc_discard_strat sh_config of
                                     True -> SomeHalter (liftHalter . liftHalter . liftHalter . liftHalter $ noNewHPCHalter mod_name) .<~> halter_step
                                     False -> halter_step
 
-        halter_approx_discard = case approx_discard config of
+        halter_approx_discard = case approx_discard sh_config of
                                     True ->
                                         SomeHalter (hpcApproximationHalter solver approx_no_inline) .<~> halter_hpc_discard
                                     False -> halter_hpc_discard
 
-        orderer = case search_strat config of
-                        Subpath -> SomeOrderer . liftOrderer $ lengthNSubpathOrderer (subpath_length config)
+        orderer = case search_strat sh_config of
+                        Subpath -> SomeOrderer . liftOrderer $ lengthNSubpathOrderer (subpath_length sh_config)
                         Iterative -> SomeOrderer $ pickLeastUsedOrderer
 
     return $
-        case higherOrderSolver config of
+        case higher_order_solver sh_config of
             AllFuncs ->
                 ( nrpc_approx_red retReplaceSymbFuncVar .== Finished .--> SomeReducer nonRedPCRed
                 , SomeHalter (discardIfAcceptedTagHalter True state_name) .<~> halter_approx_discard

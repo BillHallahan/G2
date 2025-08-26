@@ -94,8 +94,8 @@ verifyRedHaltOrd s solver simplifier config verify_config no_nrpc_names = do
                                         True -> SomeHalter (approximationHalter solver approx_no_inline <~> halter)
                                         False -> SomeHalter halter
 
-        orderer = case search_strat config of
-                        Subpath -> SomeOrderer . liftOrderer $ lengthNSubpathOrderer (subpath_length config)
+        orderer = case search_strat (symex_heuristics config) of
+                        Subpath -> SomeOrderer . liftOrderer $ lengthNSubpathOrderer (subpath_length $ symex_heuristics config)
                         Iterative -> SomeOrderer $ pickLeastUsedOrderer
 
     return ( nrpc_approx_red (\_ _ _ _ -> Nothing) .== Finished --> verifySolveNRPC
@@ -128,19 +128,24 @@ verifyFromFile :: [FilePath]
                -> VerifyConfig
                -> IO (VerifyResult, Double, Bindings, Id)
 verifyFromFile proj src f transConfig config verify_config = do
-    let config' = config {
-                         -- For soundness, we must exhaustively search all states that are not discarded via approximation,
-                         -- so we disable the step count.
-                           step_limit = False
+    let sh_config = symex_heuristics config
+        sh_config' = sh_config {
+                        -- For soundness, we must exhaustively search all states that are not discarded via approximation,
+                        -- so we disable the step count.
+                          step_limit = False
+                        -- Not using hpc ticks
+                        , hpc_discard_strat = False
+                        -- Use approximation to discard states that are approximated by previously explored states
+                        ,  approx_discard = True
+                        , higher_order_solver = AllFuncs
+                        }
+        config' = config {
                          -- For soundness, cannot limit number of outputs explored 
-                         , maxOutputs = Nothing
-                         -- Not using hpc ticks
-                         , hpc_discard_strat = False
+                           maxOutputs = Nothing
                          -- Use approximation to add repeated function calls to NRPCs
                          , approx_nrpc = Nrpc
-                         -- Use approximation to discard states that are approximated by previously explored states
-                         , approx_discard = True
-                         , higherOrderSolver = AllFuncs }
+                         , symex_heuristics = sh_config'
+                         }
 
 
     (init_state, entry_f, bindings, _) <- initialStateFromFile proj src
