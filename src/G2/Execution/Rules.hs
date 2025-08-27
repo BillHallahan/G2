@@ -614,7 +614,6 @@ createExtCond s ngen mexpr cvar (dcon, bindees, aexpr)
             res = s { expr_env = eenv', curr_expr = CurrExpr Evaluate aexpr'' }
         in
         (NewPC { state = res, new_pcs = pcs, concretized = [] }, ngen'')
-        -- the issue is located below for concRead 
     | otherwise = error $ "createExtCond: unsupported type" ++ "\n" ++ show (typeOf tvnv mexpr) ++ "\n" ++ show dcon
         where
             kv = known_values s
