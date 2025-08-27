@@ -43,9 +43,6 @@ import System.Process
 import System.Timeout
 
 import Control.Monad.IO.Class
-import Debug.Trace
-
-import Debug.Trace
 
 -- | Load the passed module(s) into GHC, and check that the `ExecRes` results are correct.
 validateStates :: [FilePath] -> [FilePath] -> String -> String -> [String] -> [String] -> [GeneralFlag] -> Bindings
@@ -76,10 +73,9 @@ creatDeclStr pg s (x, DataTyCon{data_cons = dcs, bound_ids = is}) =
         x' = T.unpack $ printName pg x
         ids' = T.unpack . T.intercalate " " $ map (printHaskellPG pg s . Var) is
         wrapParens str = "(" <> str <> ")" 
-        -- TODO: Is the update I make here due to the changing signature of hasFuncType(i.e Typed to Type) correct?
         dc_decls = map (\dc -> printHaskellPG pg s (Data dc) <> " " <> T.intercalate " " (map (wrapParens . mkTypeHaskellPG pg) (argumentTypes (typeOf (tyvar_env s) dc)))) dcs
         all_dc_decls = T.unpack $ T.intercalate " | " dc_decls
-        derive_eq = if not (any isTyFun $ concatMap (argumentTypes . typeOf (tyvar_env s) ) dcs) then " deriving Eq" else ""
+        derive_eq = if not (any isTyFun $ concatMap (argumentTypes . typeOf (tyvar_env s)) dcs) then " deriving Eq" else ""
     in
     "data " ++ x' ++ " " ++ ids'++ " = " ++ all_dc_decls ++ derive_eq
 creatDeclStr _ _ _ = error "creatDeclStr: unsupported AlgDataTy"
@@ -92,7 +88,6 @@ validateStatesGHC pg modN entry chAll chAny b er@(ExecRes {final_state = s, conc
     v' <- liftIO . timeout (5 * 10 * 1000) $ (unsafeCoerce v :: IO (Either SomeException Bool))
     let outStr = T.unpack $ printHaskell s out
     let v'' = case v' of
-
                     Nothing -> Nothing
                     Just (Left e) | show e == "<<timeout>>" -> Nothing
                                   | otherwise -> Just (outStr == "error" || outStr == "undefined" || outStr == "?")
@@ -133,9 +128,6 @@ runCheck init_pg modN entry chAll chAny b er@(ExecRes {final_state = s, conc_arg
         mvStr = T.unpack mvTxt
         arsStr = T.unpack arsTxt
         outStr = T.unpack outTxt
-    -- before the typeOf in the next line , we want to retype the type variable in the expression 
-    -- with the corresponding type find in the tyvar_env 
-    -- use tyVarRename and change the map into TyVarEnv 
 
     let arsType = T.unpack $ mkTypeHaskellPG pg (typeOf (tyvar_env s) e)
         outType = T.unpack $ mkTypeHaskellPG pg (typeOf (tyvar_env s) out)

@@ -20,7 +20,6 @@ import G2.Translation.Haskell
 import G2.Translation.InjectSpecials
 import G2.Translation.PrimInject
 import G2.Translation.TransTypes
-import qualified G2.Language.TyVarEnv as TV 
 
 translateBase :: TranslationConfig
   -> Config
@@ -33,12 +32,12 @@ translateBase tr_con config extra hsc = do
   let base_inc = baseInclude config
   let bases = nub $ base config ++ extra
 
-  (base_exg2, b_nm, b_tnm) <- translateLibPairs (specialConstructors TV.empty) (specialTypeNames TV.empty) tr_con emptyExtractedG2 hsc base_inc bases
+  (base_exg2, b_nm, b_tnm) <- translateLibPairs specialConstructors specialTypeNames tr_con emptyExtractedG2 hsc base_inc bases
 
   let base_prog = exg2_binds base_exg2
       base_tys = exg2_tycons base_exg2
 
-  let base_tys' = base_tys `HM.union` specialTypes TV.empty
+  let base_tys' = base_tys `HM.union` specialTypes
   let base_prog' = addPrimsToBase base_tys' base_prog
   return (base_exg2 { exg2_binds = base_prog', exg2_tycons = base_tys' }, b_nm, b_tnm)
 

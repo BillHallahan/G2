@@ -749,7 +749,7 @@ evalPrimSymbolic ::  TV.TyVarEnv -> ExprEnv -> TypeEnv -> NameGen -> KnownValues
 evalPrimSymbolic tv eenv tenv ng kv e
     | [Prim DataToTag _, type_t, (Var (Id n _))] <- unApp e
     , Just t <- TV.deepLookup tv type_t
-    , Just (Id sym_n _) <- deepLookupVar tv n eenv
+    , Just sym_n <- deepLookupVar n eenv
     , E.isSymbolic sym_n eenv
     , TyCon tn _:_ <- unTyApp t
     , Just adt <- M.lookup tn tenv =

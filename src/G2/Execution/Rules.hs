@@ -188,7 +188,7 @@ evalApp s@(State { expr_env = eenv
     , ts <- concatMap getTickish es
     , not (null ts) =
         let e = foldr Tick (stripAllTicks (App e1 e2)) ts in
-       (RuleEvalPrimFloatTicks, [ (newPCEmpty $ s { curr_expr = CurrExpr Evaluate e })], ng)
+        (RuleEvalPrimFloatTicks, [ (newPCEmpty $ s { curr_expr = CurrExpr Evaluate e })], ng)
     | Just (new_pc, ng') <- evalPrimWithState s ng (stripAllTicks $ App e1 e2) = (RuleEvalPrimToNormWithState, [new_pc], ng')
     | Just (e, eenv', pc, ng') <- evalPrimSymbolic tv_env eenv tenv ng kv (App e1 e2) =
         ( RuleEvalPrimToNormSymbolic
@@ -252,8 +252,6 @@ retLam s@(State { expr_env = eenv, tyvar_env = tvnv })
                 (n', ng') = freshSeededName (idName i) ng 
                 e' = rename (idName i) n' e
                 tvnv' = TV.insert n' t tvnv
-                -- (eenv', e'', ng'', news) = liftBind i (Type t) eenv e' ng'
-
             in 
            ( RuleReturnEApplyLamType [n']
             , [ s { expr_env = eenv
@@ -270,16 +268,7 @@ retLam s@(State { expr_env = eenv, tyvar_env = tvnv })
         , [s { expr_env = eenv'
              , curr_expr = CurrExpr Evaluate e'
              , exec_stack = stck' }]
-        , ng' )
-
-traceType :: E.ExprEnv -> Expr -> Maybe Type
-traceType _ (Type t) = Just t
--- return symoblic type varaible if the varabile we lookup is symoblic in the expression env
-traceType eenv (Var (Id n _)) = case E.lookupConcOrSym n eenv of 
-                                        Just (E.Sym i) -> Just (TyVar i)
-                                        Just (E.Conc e) -> traceType eenv e
-                                        Nothing -> Nothing
-traceType _ _ = Nothing
+        , ng')
 
 evalLet :: State t -> NameGen -> Binds -> Expr -> (Rule, [State t], NameGen)
 evalLet s@(State { expr_env = eenv }) 
@@ -625,7 +614,6 @@ createExtCond s ngen mexpr cvar (dcon, bindees, aexpr)
             res = s { expr_env = eenv', curr_expr = CurrExpr Evaluate aexpr'' }
         in
         (NewPC { state = res, new_pcs = pcs, concretized = [] }, ngen'')
-        -- the issue is located below for concRead 
     | otherwise = error $ "createExtCond: unsupported type" ++ "\n" ++ show (typeOf tvnv mexpr) ++ "\n" ++ show dcon
         where
             kv = known_values s
@@ -965,7 +953,7 @@ retCurrExpr s@(State { expr_env = eenv, known_values = kv, tyvar_env = tvnv }) e
                              , non_red_path_conds = nrpc }
                     , new_pcs = new_pc
                     , concretized = [] }], ng' )
-    | otherwise = 
+    | otherwise =
         assert (not (isExprValueForm eenv e2))
                 ( RuleReturnCurrExprFr
                 , [NewPC { state = s { curr_expr = CurrExpr Evaluate e2

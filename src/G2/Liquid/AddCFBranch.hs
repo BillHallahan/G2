@@ -35,34 +35,34 @@ type CounterfactualName = Name
 --     This is essentially abstracting away the function definition, leaving
 --     only the information that LH also knows (that is, the information in the
 --     refinment type.)
-addCounterfactualBranch :: TyVarEnv
-                        -> CFModules
+addCounterfactualBranch :: CFModules
                         -> [Name] -- ^ Which functions to consider abstracting
                         -> LHStateM CounterfactualName
-addCounterfactualBranch tv cf_mod ns = do
+addCounterfactualBranch cf_mod ns = do
     let ns' = case cf_mod of
                 CFAll -> ns
                 CFOnly mods -> filter (\(Name n m _ _) -> (n, m) `S.member` mods) ns
 
-    bag_func_ns <- return . concat =<< mapM (argumentNames tv) ns'
-    inst_func_ns <- return . concat =<< mapM (returnNames tv) ns'
+    bag_func_ns <- return . concat =<< mapM argumentNames ns'
+    inst_func_ns <- return . concat =<< mapM returnNames ns'
 
-    createBagAndInstFuncs tv bag_func_ns inst_func_ns
+    createBagAndInstFuncs bag_func_ns inst_func_ns
 
     cfn <- freshSeededStringN "cf"
-    mapWithKeyME (addCounterfactualBranch' tv cfn ns')
+    mapWithKeyME (addCounterfactualBranch' cfn ns')
     return cfn
 
-addCounterfactualBranch' :: TyVarEnv -> CounterfactualName -> [Name] -> Name -> Expr -> LHStateM Expr
-addCounterfactualBranch' tv cfn ns n =
-    if n `elem` ns then insertInLamsE (\_ -> addCounterfactualBranch'' tv cfn) else return
+addCounterfactualBranch' :: CounterfactualName -> [Name] -> Name -> Expr -> LHStateM Expr
+addCounterfactualBranch' cfn ns n e = do
+    tv <- tyVarEnv
+    if n `elem` ns then insertInLamsE (\_ -> addCounterfactualBranch'' tv cfn) e else return e
 
 addCounterfactualBranch'' :: TyVarEnv -> CounterfactualName -> Expr -> LHStateM Expr
 addCounterfactualBranch'' tv cfn
     orig_e@(Let 
             [(b, _)]
             (Assert (Just (FuncCall { funcName = fn, arguments = ars, returns = r })) a _)) = do
-        sg <- cfRetValue tv ars rt
+        sg <- cfRetValue ars rt
 
         -- If the type of b is not the same as e's type, we have no assumption,
         -- so we get a new b.  Otherwise, we just keep our current b,
@@ -77,11 +77,10 @@ addCounterfactualBranch'' tv cfn
             rt = typeOf tv r
 addCounterfactualBranch'' tv cfn e = modifyChildrenM (addCounterfactualBranch'' tv cfn) e
 
-cfRetValue :: TyVarEnv
-           -> [Expr] -- ^ Arguments
+cfRetValue :: [Expr] -- ^ Arguments
            -> Type -- ^ Type of return value
            -> LHStateM Expr
-cfRetValue tvnv ars rt
+cfRetValue ars rt
     | tvs <- tyVarIds rt
     , not (null tvs)  = do
         let all_tvs = tvs ++ tyVarIds ars
@@ -90,6 +89,7 @@ cfRetValue tvnv ars rt
         ex_vrs <- freshIdsN (map TyVar all_tvs)
         let ex_tvs_to_vrs = zip all_tvs ex_vrs
 
+        tvnv <- tyVarEnv
         ex_ty_clls <- mapM 
                         (\tv -> wrapExtractCalls
                               . filter nullNonDet
@@ -116,15 +116,17 @@ nullNonDet _ = True
 instFuncTickName :: Name
 instFuncTickName = Name "INST_FUNC_TICK" Nothing 0 Nothing
 
-argumentNames :: ExState s m => TyVarEnv -> Name -> m [Name]
-argumentNames tv n = do
+argumentNames :: ExState s m => Name -> m [Name]
+argumentNames n = do
+    tv <- tyVarEnv
     e <- lookupE n
     case e of
         Just e' -> return . concatMap tyConNames $ anonArgumentTypes (typeOf tv e')
         Nothing -> return []
 
-returnNames :: ExState s m => TyVarEnv -> Name -> m [Name]
-returnNames tv n = do
+returnNames :: ExState s m => Name -> m [Name]
+returnNames n = do
+    tv <- tyVarEnv
     e <- lookupE n
     case e of
         Just e' -> return . tyConNames $ returnType (typeOf tv e')

@@ -20,8 +20,8 @@ import G2.Liquid.Types
 -- dict for the corresponding type.  Updates all other code accordingly.
 -- Of course, there might be types that have a Num instance, but no Ord
 -- instance.  These types dicts have the field filled in with Prim Undefined
-addOrdToNum :: TyVarEnv -> LHStateM ()
-addOrdToNum tv = do
+addOrdToNum :: LHStateM ()
+addOrdToNum = do
     tc <- typeClasses
     lh_tc <- lhRenamedTCM
     num <- numTCM
@@ -40,14 +40,14 @@ addOrdToNum tv = do
     mapMeasuresM addOrdToNumCase
 
     -- Rewrite the types of Num DataCons
-    mapME (changeNumType tv)
-    mapMeasuresM (changeNumType tv)
+    mapME changeNumType
+    mapMeasuresM changeNumType
 
     -- Update Type Environment
     changeNumTypeEnv
 
     -- Create a function to extract the Ord Dict
-    ordDictFunc tv
+    ordDictFunc
 
 addOrdToNumDictDec :: (Name -> LHStateM (Maybe Expr))
                    -> (Name -> Expr -> LHStateM ())
@@ -88,9 +88,10 @@ addOrdToNumCase' ce@(Case e i@(Id _ t) ct a@[Alt (DataAlt dc is) ae])
     | otherwise = return ce
 addOrdToNumCase' e = return e
 
-changeNumType :: TyVarEnv -> Expr -> LHStateM Expr
-changeNumType tv e = do
+changeNumType :: Expr -> LHStateM Expr
+changeNumType e = do
     num <- numTCM
+    tv <- tyVarEnv
     modifyASTsM (changeNumType' tv num) e
 
 changeNumType' :: TyVarEnv -> Name -> Expr -> LHStateM Expr
@@ -135,8 +136,8 @@ changeNumTypeEnv = do
 
 -- Must be called after updating the TypeEnv, with changeNumTypeEnv, so that
 -- the Num DataCon has it's correct type
-ordDictFunc :: TyVarEnv -> LHStateM ()
-ordDictFunc tv = do
+ordDictFunc :: LHStateM ()
+ordDictFunc = do
     num <- numTCM
     let numT = TyCon num TYPE
 
@@ -145,6 +146,7 @@ ordDictFunc tv = do
                     Just ndc -> dataCon ndc
                     Nothing -> error "ordDictFunc: No NumDC"
 
+    tv <- tyVarEnv
     let numA = anonArgumentTypes (typeOf tv numDC')
 
     lamI <- freshIdN numT
