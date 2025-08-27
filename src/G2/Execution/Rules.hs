@@ -953,7 +953,7 @@ retCurrExpr s@(State { expr_env = eenv, known_values = kv, tyvar_env = tvnv }) e
                              , non_red_path_conds = nrpc }
                     , new_pcs = new_pc
                     , concretized = [] }], ng' )
-    | otherwise = 
+    | otherwise =
         assert (not (isExprValueForm eenv e2))
                 ( RuleReturnCurrExprFr
                 , [NewPC { state = s { curr_expr = CurrExpr Evaluate e2
