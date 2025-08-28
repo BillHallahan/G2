@@ -1031,17 +1031,21 @@ strictRed = mkSimpleReducer (\_ -> ())
                 -- To decide when to apply the strictRed, we must 
                 -- (1) remove all update frames from the top of the stack
                 -- (2) check if the top of the stack is a CurrExprFrame (or if the stack is empty empty)
-                -- We effectively ignore UpdateFrames when checking if we should split up an expression to force strictness
-                -- See Note [Ignore Update Frames].
-                (updates, stck') = pop_updates [] stck
+                -- (3) check if the top of the stack is a CurrExprFrame (or empty)
+
+                -- We effectively ignore UpdateFrames and CastFrames when checking if we should split up an expression to force strictness
+                -- The expression `e` wrapped in a cast might be in SWHNF.  In this case, the whole cast is in SWHNF,
+                -- and we do not want to prevent reduction of the subexpressions in `e`.
+                -- For an explanation of UpdateFrames, see Note [Ignore Update Frames].
+                (updates, stck') = pop_updates_casts [] stck
 
                 exec_done | Stck.null stck' = True
                           | Just (CurrExprFrame _ _, _) <- Stck.pop stck' = True
                           | otherwise = False
 
-                pop_updates ns stck | Just (UpdateFrame n, stck_) <- Stck.pop stck = pop_updates (n:ns) stck_
-                                    | otherwise = (ns, stck)
-
+                pop_updates_casts ns stck | Just (UpdateFrame n, stck_) <- Stck.pop stck = pop_updates_casts (n:ns) stck_
+                                          | Just (CastFrame _, stck_) <- Stck.pop stck = pop_updates_casts ns stck_
+                                          | otherwise = (ns, stck)
                 -- | Does the expression contain non-fully-reduced subexpressions?
                 --
                 -- Looks through variables, but tracks seen variable names to avoid an infinite loop.

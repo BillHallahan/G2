@@ -9,3 +9,70 @@ import Data.Kind
 -- When trying to verify GADT code, we always use the flag --inst-after, --validate
 -- It's also recommended that not to try gadt invovle recursion since it's will get pretty complicated pretty quick
 
+data Peano = Succ Peano | Zero 
+
+data Vec :: Peano -> Type -> Type where
+    VNil  :: Vec Zero a
+    VCons :: forall n a. a -> Vec n a -> Vec (Succ n) a
+
+instance Eq a => Eq (Vec Zero a) where
+    VNil == VNil = True
+
+instance (Eq a, Eq (Vec n a)) => Eq (Vec (Succ n) a) where
+    (VCons x xs) == (VCons y ys) = x == y && xs == ys
+
+-- Non-recursive GADTs
+data Value a where 
+    VInt :: Int -> Value Int 
+    VBool :: Bool -> Value Bool
+
+instance Eq (Value a) where
+  VInt x  == VInt y  = x == y
+  VBool x == VBool y = x == y
+  _       == _       = False
+
+-- Convert a Value to a String
+-- G2: evalVar: bad input.Id (Name "$fShowBool" (Just "GHC.Show") 8214565720323787655 Nothing) (TyApp (TyCon (Name "Show" (Just "GHC.Show") 8214565720323803099 Nothing) (TyFun TYPE (TyCon (Name "Constraint" (Just "GHC.Types") 3674937295934324920 Nothing) TYPE))) (TyCon (Name "Bool" (Just "GHC.Types") 0 Nothing) TYPE))
+showValue :: Value a -> String
+showValue (VInt n)  = show n
+showValue (VBool b) = show b
+
+-- Negate a Value Bool
+-- G2: Data constructor not in scope: Co :: Bool
+-- Perhaps you meant `C#' (imported from GHC.Exts)
+notValue :: Value Bool -> Value Bool
+notValue (VBool b) = VBool (not b)
+
+-- Increment a Value Int
+-- G2: Data constructor not in scope: Co :: Int
+-- Perhaps you meant `C#' (imported from GHC.Exts)
+incValue :: Value Int -> Value Int
+incValue (VInt n) = VInt (n + 1)
+
+-- Existential GADTs
+data SomeVec a where
+  SomeVec :: Vec n a -> SomeVec a
+
+instance Eq a => Eq (SomeVec a) where
+  (SomeVec v1) == (SomeVec v2) = eqVec v1 v2
+    where
+      eqVec :: Eq a => Vec n a -> Vec m a -> Bool
+      eqVec VNil VNil = True
+      eqVec (VCons x xs) (VCons y ys) = x == y && eqVec xs ys
+      eqVec _ _ = False
+
+-- Convert SomeVec into a normal list
+toList :: SomeVec a -> [a]
+toList (SomeVec v) = go v
+  where
+    go :: Vec n a -> [a]
+    go VNil         = []
+    go (VCons x xs) = x : go xs
+
+-- Compute the length of SomeVec
+lengthSV :: SomeVec a -> Int
+lengthSV (SomeVec v) = go v
+  where
+    go :: Vec n a -> Int
+    go VNil         = 0
+    go (VCons _ xs) = 1 + go xs
