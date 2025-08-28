@@ -408,8 +408,8 @@ initRedHaltOrd s mod_name solver simplifier config exec_func_names no_nrpc_names
                 , orderer
                 , io_timed_out)
 
-initSolver :: Config -> IO SomeSolver
-initSolver = initSolver' arbValue
+initSolver :: E.ExprEnv -> KnownValues -> Config -> IO SomeSolver
+initSolver eenv kv con = initSolver' (arbValue eenv kv) con
 
 initSolverInfinite :: Config -> IO SomeSolver
 initSolverInfinite con = initSolver' arbValueInfinite con

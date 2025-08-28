@@ -640,9 +640,15 @@ createExtCond s ngen mexpr cvar (dcon, bindees, aexpr)
             (news, dcon', ngen', aexpr') = cleanParamsAndMakeDcon tvnv bindees ngen dcon aexpr mexpr_t tenv
 
             new_ids = zipWith (\(Id _ t) n -> Id n t) bindees news
-            eenv = foldr E.insertSymbolic (expr_env s) new_ids
+            -- TODO GADT: I am wondering whether this is stil needed for GADT 
+            insertSymbolicExceptCoercion i@(Id id_n t) eenv_
+                | TyApp (TyApp (TyApp (TyApp (TyCon tc_n _) _) _) c1) c2 <- t
+                , tc_n == KV.tyCoercion kv = E.insert id_n (Coercion (c1 :~ c2)) eenv_
+                | otherwise = E.insertSymbolic i eenv_
 
-            (eenv', pcs, ngen'', bindee_exprs) = applyDCPC ngen' eenv new_ids mexpr dcpc
+            eenv' = foldr insertSymbolicExceptCoercion (expr_env s) new_ids 
+
+            (eenv'', pcs, ngen'', bindee_exprs) = applyDCPC ngen' eenv' new_ids mexpr dcpc
 
             -- Bind the cvar and bindees
             binds = (cvar, dcon'):zip new_ids bindee_exprs
@@ -1214,11 +1220,11 @@ liftBinds kv type_binds value_binds tv_env eenv expr ngen = (tv_env', eenv', exp
     -- 'a ~# Int', 'b ~# Float', 'c ~# String'
     -- The code simply does the following:  
     -- 'E a b c' -> 'E Int Float String'
-    (coercion, type_args) = L.partition (\(_, e) -> case e of
+    (coercion, value_args) = L.partition (\(_, e) -> case e of
                                         Coercion _ -> True
                                         _ -> False) type_binds
     
-    extract_tys = map (extractTypes kv . fst) coercion
+    extract_tys = concatMap (T.getCoercions kv . typeOf tv_env . fst) coercion
 
     uf_map = foldM (\uf_map' (t1, t2) -> T.unify' uf_map' t1 t2) UF.empty extract_tys
     

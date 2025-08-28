@@ -558,7 +558,8 @@ getTyApps (TyFun t _) = getTyApps t
 getTyApps t@(TyApp _ _) = Just t
 getTyApps _ = Nothing
 
--- This function aims to extract pairs of types being coerced between. Given a coercion t1 :~ t2, the tuple (t1, t2) is returned.
+-- This function aims to extract pairs of types being coerced between.
+-- Given a coercion t1 :~ t2, the tuple (t1, t2) is returned.
 getCoercions :: KV.KnownValues -> Type -> [(Type, Type)]
 getCoercions kv (TyApp(TyApp (TyApp (TyApp (TyCon n _) _) _) t2) t1) =
     if KV.tyCoercion kv == n 
