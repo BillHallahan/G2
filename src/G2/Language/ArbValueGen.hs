@@ -32,7 +32,7 @@ arbValueInit = ArbValueGen { intGen = 0
                            , boolGen = True
                            }
 
-type ArbValueFunc = Type -> TypeEnv -> TV.TyVarEnv -> ArbValueGen -> (Expr, ArbValueGen)
+type ArbValueFunc = Type -> TypeEnv -> TV.TyVarEnv -> E.ExprEnv -> KnownValues -> ArbValueGen -> (Expr, ArbValueGen)
 
 -- [CharGenInit]
 -- Do NOT make this a cycle.  It would simplify arbValue, but causes an infinite loop
