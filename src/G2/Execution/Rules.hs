@@ -640,7 +640,7 @@ createExtCond s ngen mexpr cvar (dcon, bindees, aexpr)
             (news, dcon', ngen', aexpr') = cleanParamsAndMakeDcon tvnv bindees ngen dcon aexpr mexpr_t tenv
 
             new_ids = zipWith (\(Id _ t) n -> Id n t) bindees news
-            -- TODO GADT: I am wondering whether this is stil needed for GADT 
+            -- TODO GADT: I am wondering whether insertSymbolicExceptCoercion is stil needed for GADT 
             insertSymbolicExceptCoercion i@(Id id_n t) eenv_
                 | TyApp (TyApp (TyApp (TyApp (TyCon tc_n _) _) _) c1) c2 <- t
                 , tc_n == KV.tyCoercion kv = E.insert id_n (Coercion (c1 :~ c2)) eenv_
