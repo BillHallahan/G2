@@ -21,6 +21,8 @@ import G2.Language.KnownValues
 import qualified Data.Maybe as MA
 import qualified G2.Data.UFMap as UF
 import Control.Monad (foldM)
+import Control.Exception (assert) 
+
 
 -- | A default `ArbValueGen`.
 arbValueInit :: ArbValueGen
