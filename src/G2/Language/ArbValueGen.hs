@@ -23,7 +23,6 @@ import qualified G2.Data.UFMap as UF
 import Control.Monad (foldM)
 import Control.Exception (assert) 
 
-
 -- | A default `ArbValueGen`.
 arbValueInit :: ArbValueGen
 arbValueInit = ArbValueGen { intGen = 0
