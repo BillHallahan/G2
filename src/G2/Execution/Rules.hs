@@ -647,6 +647,7 @@ createExtCond s ngen mexpr cvar (dcon, bindees, aexpr)
             result = cleanParamsAndMakeDcon tvnv eenv kv bindees ngen dcon aexpr mexpr_t tenv
 
             -- We should never ended up in the Nothing case for cleanParamsAndMakeDcon
+            -- b/c there is no coercion in Bool and [Char]
             (bindees', news, dcon', ngen', aexpr', eenv') = case result of
                                                 Nothing -> error $ "cleanParamsAndMakeDcon: Failed to generate uf_map for " ++ show mexpr
                                                 Just x  -> x
