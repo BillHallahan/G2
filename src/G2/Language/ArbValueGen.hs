@@ -222,7 +222,7 @@ getADT cutoff m tenv tvnv eenv kv av adt ts
             -- Finds the DataCon for adt with the least arguments
             dcs' = MA.mapMaybe (checkDC tvnv eenv) dcs
 
-            (min_dc, exist_ty) = minimumBy (comparing (length . anonArgumentTypes . fst)) dcs'
+            (min_dc, exist_ty) = minimumBy (comparing (length . anonArgumentTypes . typeOf tvnv. fst)) dcs'
 
             m' = foldr (uncurry HM.insert) m $ zip (map idName ids) ts
 
@@ -252,7 +252,7 @@ getADT cutoff m tenv tvnv eenv kv av adt ts
             let
                 coer = eval (getCoercions kv) (dc_type dc)
 
-                leading_ty = (leadingTyForAllBindings . typeOf tvnv) dc 
+                leading_ty = leadingTyForAllBindings (typeOf tvnv' dc)
 
                 tyvar_ids = tyVarIds ts  
                 ts_tys = map (typeOf tvnv') tyvar_ids
