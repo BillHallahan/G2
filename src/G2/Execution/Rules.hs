@@ -644,13 +644,13 @@ createExtCond s ngen mexpr cvar (dcon, bindees, aexpr)
     , Just dcpc <- L.lookup ty_args dcpcs = 
         let
             mexpr_t = typeOf tvnv mexpr
-            result = cleanParamsAndMakeDcon tvnv eenv kv bindees ngen dcon aexpr mexpr_t tenv
 
             -- We should never ended up in the Nothing case for cleanParamsAndMakeDcon
             -- b/c there is no coercion in Bool and [Char]
-            (bindees', news, dcon', ngen', aexpr', eenv') = case result of
-                                                Nothing -> error $ "cleanParamsAndMakeDcon: Failed to generate uf_map for " ++ show mexpr
-                                                Just x  -> x
+            (bindees', news, dcon', ngen', aexpr', eenv') = 
+                            case cleanParamsAndMakeDcon tvnv eenv kv bindees ngen dcon aexpr mexpr_t tenv of
+                                    Nothing -> error $ "cleanParamsAndMakeDcon: Failed to generate uf_map for " ++ show mexpr
+                                    Just x  -> x
             new_ids = zipWith (\(Id _ t) n -> Id n t) bindees' news
             -- TODO GADT: I am wondering whether insertSymbolicExceptCoercion is stil needed for GADT 
             insertSymbolicExceptCoercion i@(Id id_n t) eenv_
