@@ -6,6 +6,7 @@ module G2.Language.PolyArgMap ( PolyArgMap
                                , insertEmpty
                                , insert
                                , lookup
+                               , member
                                , remove 
                                , toList
                                , empty ) where 
@@ -20,6 +21,7 @@ import Data.Data (Data, Typeable)
 import Data.Hashable(Hashable)
 import GHC.Generics (Generic)
 import Prelude hiding (lookup)
+import Data.Maybe (isJust)
 
 -- | Interface for the PAM
 data LamRename = LamRename {lam :: Name, rename :: Name} deriving (Show, Eq, Read, Data, Typeable, Generic)
@@ -37,6 +39,9 @@ lookup :: Name -> PolyArgMap -> Maybe [LamRename]
 lookup tv (PolyArgMap pargm) = case HM.lookup tv pargm of
                     Just lrs -> Just (HS.toList lrs)
                     Nothing -> Nothing
+
+member :: Name -> PolyArgMap -> Bool
+member n pam = isJust (lookup n pam)
 
 remove :: Name -> PolyArgMap -> PolyArgMap
 remove i (PolyArgMap pargm) = let pargm' = HM.delete i pargm in 

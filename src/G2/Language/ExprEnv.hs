@@ -24,6 +24,7 @@ module G2.Language.ExprEnv
     , deepLookupExpr
     , deepLookupConcOrSym
     , deepLookupVar
+    , deepRename
     , isSymbolic
     , occLookup
     , lookupNameMod
@@ -71,6 +72,7 @@ import G2.Language.AST
 import G2.Language.Naming
 import G2.Language.Syntax
 import G2.Language.Typing
+import G2.Language.Ids
 
 import Prelude hiding( filter
                      , lookup
@@ -90,6 +92,7 @@ import qualified Data.Traversable as Trav
 import GHC.Generics (Generic)
 import qualified G2.Language.TyVarEnv as TV 
 import qualified G2.Language.TyVarEnv as TV
+import Debug.Trace
 
 data ConcOrSym = Conc Expr
                | Sym Id
@@ -206,6 +209,23 @@ deepLookupVar tv n eenv = go (toId tv n eenv) n
                 Just (Sym r) -> Just r
                 Nothing -> Nothing
 
+-- TODO: should this be in ExprEnv?
+-- | Rename in all environment entires recursively reachable from the binding of the provided name.
+-- Necessary for managing environment after solving for polymorphic functions, which may have definitions
+-- split across mulitple environment entires.
+deepRename :: Name -> Name -> Name -> ExprEnv -> ExprEnv 
+deepRename old new n eenv | Just binding <- lookup n eenv = let
+        -- TODO: only looks deeper into env through TyVars and TyFuns, change as needed
+        ns = [n_ | (Id n_ t) <- ids binding, (\case
+                        TyVar _ -> True
+                        TyFun _ _ -> True 
+                        _ -> False ) t, not (isSymbolic n_ eenv)]
+        eenv' = foldr (deepRename old new) eenv ns
+                in 
+                    trace ("ids: " ++ show ns) insert n (rename old new binding) eenv'
+        | otherwise = eenv
+            
+                
 -- | Checks if the given `Name` belongs to a symbolic variable.
 isSymbolic :: Name -> ExprEnv -> Bool
 isSymbolic n eenv =

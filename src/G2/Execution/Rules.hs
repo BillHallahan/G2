@@ -306,16 +306,23 @@ retLam s@(State { expr_env = eenv, tyvar_env = tvnv, poly_arg_map = pargm })
                 e' = rename (idName i) n' e
                 tvnv' = TV.insert n' t tvnv
                 pargm' = rename (idName i) n' pargm
-                -- (eenv', e'', ng'', news) = liftBind i (Type t) eenv e' ng'
 
+                -- If the inner expression is a non-symbolic Id (PM function that has been solved for),
+                -- perform renaming/retyping for the current execution.
+                -- TODO: non-symbolic Id being PM function is not guaranteed or future-proof, stronger check here.
+                (e'', eenv', ng'') = case e' of
+                    (Var (Id idN _)) -> if E.isSymbolic idN eenv 
+                        then (e', eenv, ng') 
+                        else newBindingsForExecutionAtType (idName i) n' e' eenv ng'
+                    _ ->  (e', eenv, ng')
             in 
            ( RuleReturnEApplyLamType [n']
-            , [ s { expr_env = eenv
-                 , curr_expr = CurrExpr Evaluate e'
+            , [ s { expr_env = eenv'
+                 , curr_expr = CurrExpr Evaluate e''
                  , exec_stack = stck' 
                  , tyvar_env = tvnv'
                  , poly_arg_map = pargm' } ]
-            , ng' )
+            , ng'' )
         Nothing -> error $ "retLam: Bad type\ni = " ++ show i
     | otherwise =
         let
@@ -327,6 +334,37 @@ retLam s@(State { expr_env = eenv, tyvar_env = tvnv, poly_arg_map = pargm })
              , exec_stack = stck' 
              , poly_arg_map = pargm'}]
         , ng' )
+
+-- TODO: Need to consider more expression types and make this cleaner.
+-- | Create new bindings using an existing polymorphic function body, to be used for a particular execution
+-- of that function. The top-level binding of the body is used to start the renaming/retyping and it is 
+-- returned in its renamed/retyped form.
+newBindingsForExecutionAtType :: Name -> Name -> Expr -> E.ExprEnv -> NameGen -> (Expr, E.ExprEnv, NameGen)
+newBindingsForExecutionAtType old new e eenv ng = case e of
+    -- New Ids of a renamed type are created and bound to the corresponding 
+    -- piece of the definition from the original function. Ids within that
+    -- definition have also been renamed/retyped and bound in the env.
+    Var (Id n t) | Just binding <- E.lookup n eenv, not (E.isSymbolic n eenv) -> let
+            (i', ng') = freshId (rename old new t) ng
+            (e', eenv', ng'') = newBindingsForExecutionAtType old new binding eenv ng' -- get new definition
+            eenv'' = E.insert (idName i') (rename old new e') eenv'
+                    in 
+                        trace ("var: " ++ show n) (Var i', eenv'', ng'')
+    Lam u i ie -> let (ie', eenv', ng') = newBindingsForExecutionAtType old new ie eenv ng
+                    in trace "lam" (Lam u i ie', eenv', ng')
+    Tick ti ie -> let (ie', eenv', ng') = newBindingsForExecutionAtType old new ie eenv ng
+                    in trace "tick" (Tick ti ie', eenv', ng')
+    (Case s b t as) -> let (as', eenv', ng') = foldr (\(Alt am ae) (r_as, r_env, r_ng) -> let 
+                                (curr_e, curr_env, curr_ng) = newBindingsForExecutionAtType old new ae r_env r_ng
+                                in
+                                ((Alt am curr_e):r_as, curr_env, curr_ng))
+                            ([], eenv, ng) as
+                    in trace "case" (Case s b t as', eenv', ng')
+    (App e1 e2) -> let 
+            (e1', eenv', ng') = newBindingsForExecutionAtType old new e1 eenv ng
+            (e2', eenv'', ng'') = newBindingsForExecutionAtType old new e2 eenv' ng'
+                    in trace "app" (App e1' e2', eenv'', ng'')
+    _ -> (e, eenv, ng)
 
 traceType :: E.ExprEnv -> Expr -> Maybe Type
 traceType _ (Type t) = Just t
@@ -1276,13 +1314,27 @@ liftBinds kv type_binds value_binds tv_env eenv expr ngen = (tv_env', eenv', exp
 
 liftBind :: Id -> Expr -> E.ExprEnv -> Expr -> NameGen -> PM.PolyArgMap ->
              (E.ExprEnv, Expr, NameGen, Name, PM.PolyArgMap)
-liftBind bindsLHS@(Id _ lhsTy) bindsRHS eenv expr ngen pargm = (eenv', expr', ngen', new, pargm')
+liftBind bindsLHS@(Id _ lhsTy) bindsRHS eenv expr ngen pargm = (eenv'', expr', ngen', new, pargm')
   where
     old = idName bindsLHS
     (new, ngen') = freshSeededName old ngen
 
     expr' = renameExpr old new expr
+
+    -- Will rename the new binding across environment entries where needed. This is required
+    -- for polymorphic functions, which, after solving, will have definitions split across
+    -- environment entries. It is okay to modify the entires directly, because these entries
+    -- will have been created specifically for this execution of the function when a type was
+    -- applied to the function. See newBindingsForExecutionAtType
+    eenv' | Var (Id exN _) <- expr = 
+                case lhsTy of
+                    TyVar (Id lhsTyName _) -> if PM.member lhsTyName pargm
+                        then eenv 
+                        else E.deepRename old new exN eenv
+                    _ -> E.deepRename old new exN eenv
+           | otherwise = eenv
     
+    -- TODO: clean this up
     -- if LHS type is a TyVar and in the PAM, then we need to add the LamRename.
     -- This will only happen during the first instantiation of any particular 
     -- PM function.
@@ -1294,7 +1346,7 @@ liftBind bindsLHS@(Id _ lhsTy) bindsRHS eenv expr ngen pargm = (eenv', expr', ng
                 _ -> pargm
 
 
-    eenv' = E.insert new bindsRHS eenv
+    eenv'' = E.insert new bindsRHS eenv'
 
 type SymbolicFuncEval t = SymFuncTicks -> State t -> NameGen -> Expr -> Maybe (Rule, [State t], NameGen)
 
@@ -1482,7 +1534,7 @@ retReplaceSymbFuncTemplate sft
 getTyVarRenameMap :: Name -> Type -> TV.TyVarEnv -> E.ExprEnv -> HM.HashMap Name Name
 getTyVarRenameMap n exec_t tve eenv = case E.lookup n eenv of 
             Just e -> makeTyVarRenameMap exec_t $ typeOf tve e
-            Nothing -> error "getTyHashMap: lookup failed"
+            Nothing -> error "getTyVarRenameMap: lookup failed"
 makeTyVarRenameMap :: Type -> Type -> HM.HashMap Name Name
 makeTyVarRenameMap t1 t2 = go t1 t2 HM.empty
     where
