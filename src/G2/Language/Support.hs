@@ -30,6 +30,8 @@ import G2.Language.TypeEnv
 import G2.Language.Typing
 import G2.Language.PathConds hiding (map, filter)
 import G2.Execution.RuleTypes
+import qualified G2.Language.PolyArgMap as PM
+import qualified G2.Language.TypeAppRenameMap as TRM
 
 import GHC.Generics (Generic)
 import Data.Data (Data, Typeable)
@@ -39,7 +41,6 @@ import qualified Data.HashMap.Lazy as HM
 import qualified Data.HashSet as S hiding (empty)
 import qualified Data.Sequence as S
 import qualified Data.Text as T
-import qualified G2.Language.PolyArgMap as PM
 
 -- | `State`s represent an execution state of some (symbolic) Haskell code.
 -- A state can be utilized to  perform execution and SMT solving.
@@ -50,6 +51,7 @@ data State t = State { expr_env :: E.ExprEnv -- ^ Mapping of `Name`s to `Expr`s
                         -- As for now, it's always empty
                      , tyvar_env :: TV.TyVarEnv -- ^ Type variable information
                      , poly_arg_map :: PM.PolyArgMap -- ^ Type variable to lambda variable mappings 
+                     , ty_app_re_map :: TRM.TypeAppRenameMap -- ^ Runtime type variable to environment type variable mappings
                      , curr_expr :: CurrExpr -- ^ The expression represented by the state
                      , path_conds :: PathConds -- ^ Path conditions, in SWHNF
                      , non_red_path_conds :: NonRedPathConds -- ^ Path conditions, in the form of (possibly non-reduced)
@@ -225,6 +227,7 @@ instance Named t => Named (State t) where
                     $ rename old new (type_env s)
                , tyvar_env = rename old new (tyvar_env s)
                , poly_arg_map = rename old new (poly_arg_map s)
+               , ty_app_re_map = (ty_app_re_map s)
                , curr_expr = rename old new (curr_expr s)
                , path_conds = rename old new (path_conds s)
                , non_red_path_conds = rename old new (non_red_path_conds s)
@@ -251,6 +254,7 @@ instance Named t => Named (State t) where
                     $ renames hm (type_env s)
                , tyvar_env = renames hm (tyvar_env s)
                , poly_arg_map = renames hm (poly_arg_map s)
+               , ty_app_re_map = (ty_app_re_map s)
                , curr_expr = renames hm (curr_expr s)
                , path_conds = renames hm (path_conds s)
                , non_red_path_conds = renames hm (non_red_path_conds s)

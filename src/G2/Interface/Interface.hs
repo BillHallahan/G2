@@ -85,6 +85,7 @@ import qualified Data.Text as T
 import qualified Data.List as L
 import qualified G2.Language.TyVarEnv as TV
 import qualified G2.Language.PolyArgMap as PM
+import qualified G2.Language.TypeAppRenameMap as TRM
 import System.Timeout
 
 
@@ -188,6 +189,7 @@ initStateFromSimpleState s m_mod useAssert mkCurr argTys config =
     , type_env = tenv'
     , tyvar_env = foldr TV.insertSymbolic TV.empty typ_is
     , poly_arg_map = PM.empty
+    , ty_app_re_map = TRM.empty
     , curr_expr = CurrExpr Evaluate ce
     , path_conds = PC.fromList []
     , non_red_path_conds = emptyNRPC

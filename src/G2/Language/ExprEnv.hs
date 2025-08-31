@@ -214,7 +214,8 @@ deepLookupVar tv n eenv = go (toId tv n eenv) n
 -- Necessary for managing environment after solving for polymorphic functions, which may have definitions
 -- split across mulitple environment entires.
 deepRename :: Name -> Name -> Name -> ExprEnv -> ExprEnv 
-deepRename old new n eenv | Just binding <- lookup n eenv = let
+deepRename old new n eenv | Just binding <- lookup n eenv
+                          , not (isSymbolic n eenv) = let
         -- TODO: only looks deeper into env through TyVars and TyFuns, change as needed
         ns = [n_ | (Id n_ t) <- ids binding, (\case
                         TyVar _ -> True
