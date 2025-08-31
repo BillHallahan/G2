@@ -3,11 +3,12 @@
 
 module G2.Language.PolyArgMap ( PolyArgMap
                                , LamRename (..)
-                               , insertEmpty
-                               , insert
+                               , insertTV
+                               , insertRename
                                , lookup
                                , member
                                , remove 
+                               , adjustRename
                                , toList
                                , empty ) where 
 
@@ -27,14 +28,17 @@ import Data.Maybe (isJust)
 data LamRename = LamRename {lam :: Name, rename :: Name} deriving (Show, Eq, Read, Data, Typeable, Generic)
 newtype PolyArgMap = PolyArgMap (HM.HashMap Name (HS.HashSet LamRename)) deriving (Show, Eq, Read, Data, Typeable, Generic)
 
-insertEmpty :: Name -> PolyArgMap -> PolyArgMap
-insertEmpty i (PolyArgMap pargm) = if not $ HM.member i pargm then PolyArgMap $ HM.insert i HS.empty pargm
-                                else error "PolyArgMap.insertEmpty: inserting empty mapping for already existing tyVar"
+insertTV :: Name -> PolyArgMap -> PolyArgMap
+insertTV tv pam@(PolyArgMap pargm) 
+    | not $ member tv pam = PolyArgMap $ HM.insert tv HS.empty pargm
+    | otherwise = error "PolyArgMap.insertTV: inserting empty mapping for already existing tyVar"
 
-insert :: Name -> LamRename -> PolyArgMap -> PolyArgMap
-insert tv lr (PolyArgMap pargm) = if HM.member tv pargm then PolyArgMap $ HM.adjust (HS.insert lr) tv pargm
-                                else  error "PolyArgMap.insert: trying to into set of TyVar not in map"
+insertRename :: Name -> Name -> Name -> PolyArgMap -> PolyArgMap
+insertRename tv l r pam@(PolyArgMap pargm) | member tv pam = 
+    PolyArgMap $ HM.adjust (HS.insert (LamRename l r)) tv pargm
+  | otherwise = error "PolyArgMap.insertRename: trying to into set of TyVar not in map"
 
+-- TODO: don't expose LamRenames outside of type
 lookup :: Name -> PolyArgMap -> Maybe [LamRename]
 lookup tv (PolyArgMap pargm) = case HM.lookup tv pargm of
                     Just lrs -> Just (HS.toList lrs)
@@ -47,7 +51,12 @@ remove :: Name -> PolyArgMap -> PolyArgMap
 remove i (PolyArgMap pargm) = let pargm' = HM.delete i pargm in 
             if pargm == pargm' 
             then error "PolyArgMap.remove: removing nonexistent TV"  
-            else PolyArgMap $ pargm'
+            else PolyArgMap pargm'
+
+adjustRename :: Name -> Name -> PolyArgMap -> PolyArgMap
+adjustRename env_n run_N (PolyArgMap pargm) = 
+    PolyArgMap $ HM.map (HS.map (\lr@(LamRename l _) -> 
+        if l == env_n then  lr {rename = run_N} else lr)) pargm
 
 toList :: PolyArgMap -> [(Name, HS.HashSet LamRename)]
 toList (PolyArgMap pargm) = HM.toList pargm
