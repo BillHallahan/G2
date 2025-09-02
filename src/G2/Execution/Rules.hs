@@ -175,12 +175,12 @@ evalVarSharing s@(State { expr_env = eenv
                             _ -> error "PM-RETURN: env lookup failed"
 
             -- create environment Alts with lam names and original tyVar, add to environment
-            as = makeAltsForPMRet (map PM.lam lrs) outerTyVar
+            as = makeAltsForPMRet (map fst lrs) outerTyVar
             e' = Case (Var scrut) bindee (TyVar outerTyVar) as
             eenv'' = E.insert (idName i) e' eenv'      
 
             -- rename for current execution path, return as CurrExpr, don't insert in env
-            e'' = renames (HM.fromList ((otvN, tyIdN):zip (map PM.lam lrs) (map PM.rename lrs))) e'
+            e'' = renames (HM.fromList ((otvN, tyIdN):lrs)) e'
         in
             (RuleEvalVarPoly, [s { curr_expr = CurrExpr Evaluate e''
                                  , expr_env = eenv''}], ng')               
@@ -354,21 +354,21 @@ newBindingsForExecutionAtType old new e eenv ng = case e of
             (e', eenv', ng'') = newBindingsForExecutionAtType old new binding eenv ng' -- get new definition
             eenv'' = E.insert (idName i') (rename old new e') eenv'
                     in 
-                        trace ("var: " ++ show n) (Var i', eenv'', ng'')
+                        (Var i', eenv'', ng'')
     Lam u i ie -> let (ie', eenv', ng') = newBindingsForExecutionAtType old new ie eenv ng
-                    in trace "lam" (Lam u i ie', eenv', ng')
+                    in (Lam u i ie', eenv', ng')
     Tick ti ie -> let (ie', eenv', ng') = newBindingsForExecutionAtType old new ie eenv ng
-                    in trace "tick" (Tick ti ie', eenv', ng')
+                    in (Tick ti ie', eenv', ng')
     (Case s b t as) -> let (as', eenv', ng') = foldr (\(Alt am ae) (r_as, r_env, r_ng) -> let 
                                 (curr_e, curr_env, curr_ng) = newBindingsForExecutionAtType old new ae r_env r_ng
                                 in
                                 ((Alt am curr_e):r_as, curr_env, curr_ng))
                             ([], eenv, ng) as
-                    in trace "case" (Case s b t as', eenv', ng')
+                    in (Case s b t as', eenv', ng')
     (App e1 e2) -> let 
             (e1', eenv', ng') = newBindingsForExecutionAtType old new e1 eenv ng
             (e2', eenv'', ng'') = newBindingsForExecutionAtType old new e2 eenv' ng'
-                    in trace "app" (App e1' e2', eenv'', ng'')
+                    in (App e1' e2', eenv'', ng'')
     _ -> (e, eenv, ng)
 
 traceType :: E.ExprEnv -> Expr -> Maybe Type
@@ -1319,13 +1319,14 @@ liftBinds kv type_binds value_binds tv_env eenv expr ngen = (tv_env', eenv', exp
 
 liftBind :: Id -> Expr -> E.ExprEnv -> Expr -> NameGen -> PM.PolyArgMap -> TRM.TypeAppRenameMap ->
              (E.ExprEnv, Expr, NameGen, Name, PM.PolyArgMap)
-liftBind bindsLHS@(Id _ lhsTy) bindsRHS eenv expr ngen pargm tarm = (eenv'', expr', ngen', new, pargm'')
+liftBind bindsLHS@(Id _ lhsTy) bindsRHS eenv expr ngen pargm tarm = (eenv'', expr', ngen', new, pargm')
   where
     old = idName bindsLHS
     (new, ngen') = freshSeededName old ngen
 
     expr' = renameExpr old new expr
 
+    -- TODO: make sure eenv' and pargm' are correct
     -- Will rename the new binding across environment entries where needed. This is required
     -- for polymorphic functions, which, after solving, will have definitions split across
     -- environment entries. It is okay to modify the entires directly, because these entries
@@ -1333,7 +1334,7 @@ liftBind bindsLHS@(Id _ lhsTy) bindsRHS eenv expr ngen pargm tarm = (eenv'', exp
     -- applied to the function. See newBindingsForExecutionAtType
     eenv' | Var (Id exN _) <- expr = 
                 case lhsTy of
-                    TyVar (Id lhsTyName _) -> if PM.member lhsTyName pargm
+                    TyVar (Id lhsTyName _) -> if PM.member lhsTyName pargm -- TODO: should check TARM
                         then eenv 
                         else E.deepRename old new exN eenv
                     _ -> E.deepRename old new exN eenv
@@ -1342,7 +1343,7 @@ liftBind bindsLHS@(Id _ lhsTy) bindsRHS eenv expr ngen pargm tarm = (eenv'', exp
     -- if LHS type is a TyVar and in the PAM, then we need to add the LamRename.
     -- This will only happen during the first instantiation of any particular 
     -- PM function.
-    pargm'' | TyVar (Id lhsTyName _) <- lhsTy
+    pargm' | TyVar (Id lhsTyName _) <- lhsTy
             , Just envTy <- TRM.lookup lhsTyName tarm
             , PM.member envTy pargm = PM.insertRename envTy old new pargm
             | otherwise = pargm
