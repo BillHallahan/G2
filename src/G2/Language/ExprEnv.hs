@@ -222,7 +222,7 @@ deepRename old new n eenv | Just binding <- lookup n eenv
                         _ -> False ) t, not (isSymbolic n_ eenv)]
         eenv' = foldr (deepRename old new) eenv ns
                 in 
-                    trace ("ids: " ++ show ns) insert n (rename old new binding) eenv'
+                    insert n (rename old new binding) eenv'
         | otherwise = eenv
             
                 

@@ -742,12 +742,12 @@ prettyTypeVarEnv pg = T.intercalate "\n"
 prettyPolyArgMap :: PM.PolyArgMap -> PrettyGuide -> T.Text
 prettyPolyArgMap pargm pg = T.intercalate "\n" (map entryText (PM.toList pargm))
             where
-                entryText :: (Name, HS.HashSet PM.LamRename) -> T.Text
-                entryText (n, hs) = (mkNameHaskell pg n) <> " -> " <> setText hs
-                setText :: HS.HashSet PM.LamRename -> T.Text
-                setText hs = "{" <> T.intercalate "," (map lrText (HS.toList hs)) <> "}"
-                lrText :: PM.LamRename -> T.Text
-                lrText (PM.LamRename l r) = "[" <> (mkNameHaskell pg l) <> " -> " <> (mkNameHaskell pg r) <> "]"
+                entryText :: (Name, [(Name, Name)]) -> T.Text
+                entryText (n, hm) = mkNameHaskell pg n <> " -> " <> setText hm
+                setText :: [(Name, Name)] -> T.Text
+                setText hm = "{" <> T.intercalate "," (map lrText hm) <> "}"
+                lrText :: (Name, Name) -> T.Text
+                lrText (l, r) = "[" <> mkNameHaskell pg l <> " -> " <> mkNameHaskell pg r <> "]"
 
 prettyTypeClasses :: PrettyGuide -> TypeClasses -> T.Text
 prettyTypeClasses pg = T.intercalate "\n" . map (\(n, tc) -> mkNameHaskell pg n <> " = " <> prettyClass pg tc) . HM.toList . toMap
@@ -859,8 +859,8 @@ pprPathsStr paths = injNewLine cond_strs
 pprPolyArgMapStr :: PM.PolyArgMap -> String
 pprPolyArgMapStr pargm = concatMap (\(k, hs) -> show k ++ " -> " ++ showEntry hs) (PM.toList pargm)
     where
-    showEntry :: HS.HashSet PM.LamRename -> String
-    showEntry hs = T.unpack $ T.intercalate ", " (map (T.pack . show) $ HS.toList hs)
+    showEntry :: [(Name, Name)]-> String
+    showEntry hm = T.unpack $ T.intercalate ", " (map (T.pack . show) hm)
 
 pprTCStr :: TypeClasses -> String
 pprTCStr tc = injNewLine cond_strs
