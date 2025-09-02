@@ -1326,27 +1326,31 @@ liftBind bindsLHS@(Id _ lhsTy) bindsRHS eenv expr ngen pargm tarm = (eenv'', exp
 
     expr' = renameExpr old new expr
 
-    -- TODO: make sure eenv' and pargm' are correct
     -- Will rename the new binding across environment entries where needed. This is required
     -- for polymorphic functions, which, after solving, will have definitions split across
     -- environment entries. It is okay to modify the entires directly, because these entries
     -- will have been created specifically for this execution of the function when a type was
     -- applied to the function. See newBindingsForExecutionAtType
-    eenv' | Var (Id exN _) <- expr = 
-                case lhsTy of
-                    TyVar (Id lhsTyName _) -> if PM.member lhsTyName pargm -- TODO: should check TARM
-                        then eenv 
-                        else E.deepRename old new exN eenv
-                    _ -> E.deepRename old new exN eenv
-           | otherwise = eenv
+    -- TODO: currently assumes that a lambda with an argument of TyVar type will 
+    -- have a single Var Id as the inner expression (this is how they are constructed by PM-ARG)
+    eenv' = case expr of
+        Var (Id exN _) -> case lhsTy of
+            TyVar (Id lhsTyName _) -> case TRM.lookup lhsTyName tarm of
+                Just envName -> if PM.member envName pargm
+                    then E.deepRename old new exN eenv
+                    else error "liftBind: TV from TARM not in PAM (env renaming)"
+                _ -> error "liftBind: encountered TV not in TARM (env renaming)"
+            _ -> E.deepRename old new exN eenv
+        _ -> eenv
     
-    -- if LHS type is a TyVar and in the PAM, then we need to add the LamRename.
-    -- This will only happen during the first instantiation of any particular 
-    -- PM function.
-    pargm' | TyVar (Id lhsTyName _) <- lhsTy
-            , Just envTy <- TRM.lookup lhsTyName tarm
-            , PM.member envTy pargm = PM.insertRename envTy old new pargm
-            | otherwise = pargm
+    -- if LHS type is a tyVar, we need to add the env->runtime renaming to the PAM
+    pargm' | TyVar (Id lhsTyName _) <- lhsTy =
+        case TRM.lookup lhsTyName tarm of
+            Just envTy -> if PM.member envTy pargm
+                then PM.insertRename envTy old new pargm
+                else error "liftBind: TV from TARM not in PAM (PAM renaming)"
+            _ -> error "liftBind: encountered TV not in TARM (PAM renaming)"
+        | otherwise = pargm
 
     eenv'' = E.insert new bindsRHS eenv'
 
