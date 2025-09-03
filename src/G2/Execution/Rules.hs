@@ -1380,7 +1380,7 @@ liftBind bindsLHS@(Id _ lhsTy) bindsRHS eenv expr ngen pargm tarm = (eenv'', exp
             TyVar (Id lhsTyName _) -> case TRM.lookup lhsTyName tarm of
                 Just envName -> if PM.member envName pargm
                     then E.deepRename old new exN eenv
-                    else error "liftBind: TV from TARM not in PAM (env renaming)"
+                    else eenv -- only env TVs in PAM will be used in another env entry, so no deep renaming
                 _ -> error "liftBind: encountered TV not in TARM (env renaming)"
             _ -> E.deepRename old new exN eenv
         _ -> eenv
@@ -1390,7 +1390,7 @@ liftBind bindsLHS@(Id _ lhsTy) bindsRHS eenv expr ngen pargm tarm = (eenv'', exp
         case TRM.lookup lhsTyName tarm of
             Just envTy -> if PM.member envTy pargm
                 then PM.insertRename envTy old new pargm
-                else error "liftBind: TV from TARM not in PAM (PAM renaming)"
+                else pargm -- only env TVs in PAM will be needed for future solving, so don't insert renaming into PAM
             _ -> error "liftBind: encountered TV not in TARM (PAM renaming)"
         | otherwise = pargm
 
