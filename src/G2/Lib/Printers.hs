@@ -135,7 +135,8 @@ mkExprHaskell' off_init cleaned pg ex = mkExprHaskell'' off_init ex
         mkExprHaskell'' _ (Var ids) = mkIdHaskell pg ids
         mkExprHaskell'' _ (Lit c) = mkLitHaskell UseHash c
         mkExprHaskell'' _ (Prim p _) = if isCleaned then mkPrimHaskellNoDistFloat pg p else mkPrimHaskell pg p
-        mkExprHaskell'' off (Lam _ ids e) =
+        mkExprHaskell'' off (Lam TypeL _ e) = mkExprHaskell'' off e
+        mkExprHaskell'' off (Lam TermL ids e) =
             "(\\" <> mkIdHaskell pg ids <> " -> " <> mkExprHaskell'' off e <> ")"
 
         mkExprHaskell'' off a@(App ea@(App e1 e2) e3)
