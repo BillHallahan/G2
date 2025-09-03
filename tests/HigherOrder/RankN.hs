@@ -27,8 +27,8 @@ intArgCalledTwice f = case f 2 7 9 of
                 7 -> f 9 10 9
                 _ -> 3
 
-argFromMaybe :: (forall a. (Maybe a) -> a) -> Int 
-argFromMaybe f = f (Just 2)
+fromMaybe :: (forall a. a -> (Maybe a) -> a) -> (Int, Int)
+fromMaybe f = (f 1 (Just 2), f 3 Nothing)
 
 twoFunctions :: (forall a. a -> a -> a) -> (forall a. a -> a -> a) -> (Int, Int)
 twoFunctions f g = (f 1 2, g 3 4)
