@@ -527,9 +527,7 @@ cleanParamsAndMakeDcon tv eenv kv params ngen dcon aexpr mexpr_t tenv =
             -- Is tvnv' being updated correctly:
             -- reminder: foldl' from data.list have this signature:
             -- foldl' :: (b -> a -> b) -> b -> [a] -> b 
-            exist_tys_name = map idName exist_tys
-            exist_tys_t = map (typeOf tvnv) exist_tys
-            exist_tys' =  zip exist_tys_name exist_tys_t
+            exist_tys' =  zip (map idName exist_tys) (map (typeOf tvnv) exist_tys)
             tvnv' = L.foldl' (\acc (k,v) -> TV.insert k v acc) tvnv (univ_args ++ exist_tys')
             eenv' = E.insertExprs (zip (map idName value_args) (map Var value_args)) eenv
 
