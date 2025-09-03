@@ -55,6 +55,7 @@ import Control.Monad.Extra
 import Data.Maybe
 import Data.Traversable
 import Data.Int (Int)
+import Debug.Trace 
 
 stdReduce :: (Solver solver, Simplifier simplifier) => Sharing -> SymbolicFuncEval t -> solver -> simplifier -> State t -> Bindings -> IO (Rule, [(State t, ())], Bindings)
 stdReduce share symb_func_eval solver simplifier s b@(Bindings {name_gen = ng}) = do
@@ -491,7 +492,7 @@ cleanParamsAndMakeDcon :: TV.TyVarEnv -> E.ExprEnv -> KnownValues -> [Id] -> Nam
 cleanParamsAndMakeDcon tv eenv kv params ngen dcon aexpr mexpr_t tenv =
     case uf_map of 
             Nothing -> Nothing 
-            Just uf_map' -> buildNewPC uf_map' ngen
+            Just uf_map' -> buildNewPC tv uf_map' ngen
 
   where
     extract_tys = concatMap (T.getCoercions kv . typeOf tv) params
@@ -499,7 +500,7 @@ cleanParamsAndMakeDcon tv eenv kv params ngen dcon aexpr mexpr_t tenv =
     -- The UFMap is collecting equivalences that must hold between type variables based on coercions
     uf_map = foldM (\uf_map' (t1, t2) -> T.unify' uf_map' t1 t2) UF.empty extract_tys
 
-    buildNewPC uf_map'' namegen =
+    buildNewPC tvnv uf_map'' namegen =
         let
             -- Make sure that the parameters do not conflict in their symbolic reps.
             olds = map idName params
@@ -517,9 +518,21 @@ cleanParamsAndMakeDcon tv eenv kv params ngen dcon aexpr mexpr_t tenv =
                                 $ renameExprs old_new_value (Data dcon, aexpr)
 
             params' = renames (HM.fromList old_new) params
+            univ_args = (HM.toList $ UF.toSimpleMap uf_map'')
+            
             (exist_tys, value_args) = splitAt (length $ dc_exist_tyvars dcon) params'
 
-            univ_args = (HM.toList $ UF.toSimpleMap uf_map'')
+            -- Adding the universal types and existential types now to the TyVarEnv; adding value_args to the ExprEnv
+            -- Why is value argument being treated as Var?
+            -- Is tvnv' being updated correctly:
+            -- reminder: foldl' from data.list have this signature:
+            -- foldl' :: (b -> a -> b) -> b -> [a] -> b 
+            exist_tys_name = map idName exist_tys
+            exist_tys_t = map (typeOf tvnv) exist_tys
+            exist_tys' =  zip exist_tys_name exist_tys_t
+            tvnv' = L.foldl' (\acc (k,v) -> TV.insert k v acc) tvnv (univ_args ++ exist_tys')
+            eenv' = E.insertExprs (zip (map idName value_args) (map Var value_args)) eenv
+
             aexpr'' = L.foldl' (\e (n,t) -> retype (Id n (typeOf tv t)) t e) aexpr' univ_args
 
             -- Introduce universial type with its respective instantiation into the expression environment
@@ -527,7 +540,7 @@ cleanParamsAndMakeDcon tv eenv kv params ngen dcon aexpr mexpr_t tenv =
             -- The universial type might coerce with existential type, 
             -- therefore, we need to rename the univerisal with existential types to avoid conflicting names
             univ_type' = renames (HM.fromList old_new_exists) univ_type
-            eenv' = E.insertExprs (zip univ_name (map Type univ_type')) eenv
+            --eenv' = E.insertExprs (zip univ_name (map Type univ_type')) eenv
 
             -- Get list of Types to concretize polymorphic data constructor and concatenate with other arguments
             univ_ars = mexprTyToExpr mexpr_t tenv

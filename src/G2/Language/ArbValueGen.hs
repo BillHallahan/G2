@@ -258,16 +258,13 @@ getADT cutoff m tenv tvnv eenv kv av adt ts
                 ts_tys = map (typeOf tvnv') tyvar_ids
                 expr = MA.mapMaybe (flip E.lookup  eenv') (map idName tyvar_ids)
                 expr_tys = map (typeOf tvnv') expr 
-                -- now do the retyping 
                 ts' = zip expr_tys ts_tys
                 uf_map = foldM (\uf_map' (t1, t2) -> unify' uf_map' t1 t2) UF.empty ts' 
                 ts'' = case uf_map of
                             Nothing -> ts
                             Just uf_map' -> foldl' (\e (n,t) -> retype (Id n (typeOf tvnv' t)) t e) ts (HM.toList $ UF.toSimpleMap uf_map')
 
-
                 univ_ty_inst = zip (map TyVar leading_ty) ts''
-                -- a'110 bound in the expr environment but we aren't checking it 
                 uf_map_univ = foldr (\(c1, c2) m_uf -> (\uf -> unify' uf c1 c2) =<< m_uf)
                                 (Just UF.empty)
                                 (coer ++ univ_ty_inst)
