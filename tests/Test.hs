@@ -527,6 +527,16 @@ testFileTests = testGroup "TestFiles"
                                                                        , ("assoc", 200, [AtLeast 5])
                                                                        , ("sf", 175, [AtLeast 5])
                                                                        , ("tupleTest", 175, [AtLeast 8])]
+    , checkInputOutputsTemplate "tests/HigherOrder/RankN.hs" [ ("identity", 50, [AtLeast 1])
+                                                             , ("twoArgs", 60, [AtLeast 2])
+                                                             , ("calledInMaybe", 60, [AtLeast 1])
+                                                             , ("twoTVs", 60, [AtLeast 2])
+                                                             , ("nested", 100, [AtLeast 2])
+                                                             , ("calledInTuple", 100, [AtLeast 2])
+                                                             , ("intArg", 100, [AtLeast 1])
+                                                             , ("intArgCalledTwice", 200, [AtLeast 5])
+                                                             , ("argFromMaybe", 100, [AtLeast 2])
+                                                             , ("twoFunctions", 200, [AtLeast 4])] 
     , checkInputOutputsNonRedHigher "tests/HigherOrder/HigherOrder.hs" [ ("f", 200, [AtLeast 3])
                                                                        , ("h", 150, [AtLeast 2])
                                                                        , ("assoc", 250, [AtLeast 2])
