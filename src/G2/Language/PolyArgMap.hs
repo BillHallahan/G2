@@ -8,15 +8,15 @@ module G2.Language.PolyArgMap ( PolyArgMap
                                , member
                                , remove
                                , toList
+                               , fromList
                                , empty ) where
 
 import G2.Language.Syntax
-import qualified G2.Language.Naming as N
 
 import qualified Data.HashMap.Lazy as HM
-import qualified Data.Sequence as S
 import Data.Data (Data, Typeable)
 import Data.Hashable(Hashable)
+import Data.Bifunctor
 import GHC.Generics (Generic)
 import Prelude hiding (lookup)
 import Data.Maybe (isJust)
@@ -49,25 +49,12 @@ remove i (PolyArgMap pargm) = let pargm' = HM.delete i pargm in
             else PolyArgMap pargm'
 
 toList :: PolyArgMap -> [(Name, [(Name, Name)])]
-toList (PolyArgMap pargm) = map (\(tv, rns) -> (tv, HM.toList rns)) (HM.toList pargm)
+toList (PolyArgMap pargm) = map (second HM.toList) (HM.toList pargm)
+
+fromList :: [(Name, [(Name, Name)])] -> PolyArgMap
+fromList l = PolyArgMap . HM.fromList $ map (second HM.fromList) l
 
 empty :: PolyArgMap
 empty = PolyArgMap HM.empty
 
 instance Hashable PolyArgMap
-
-instance N.Named PolyArgMap where
-    names (PolyArgMap pargm) = S.fromList $ foldr (\(ty, lrs) y -> lrExpand lrs ++ (ty:y)) [] (HM.toList pargm) -- TODO: untested
-                                        where lrExpand :: HM.HashMap Name Name -> [Name]
-                                              lrExpand lrs = foldr (\(l, r) xs -> l:r:xs) [] (HM.toList lrs)
-    rename old new pam@(PolyArgMap pargm) = case lookup old pam of
-                    Just ns -> PolyArgMap $ HM.insert new (HM.fromList ns) (HM.delete old pargm) -- name is key
-                    Nothing -> PolyArgMap $ HM.map (HM.fromList . map renameLR . HM.toList) pargm -- name is value
-                    where
-                        renameLR :: (Name, Name) -> (Name, Name)
-                        renameLR (l, r) = (if l == old then new else l, if r == old then new else r)
-    renames hm pargm = go (HM.toList hm) pargm
-                            where
-                                go :: [(Name, Name)] -> PolyArgMap -> PolyArgMap
-                                go ((old, new):rns) pargm_ = go rns (N.rename old new pargm_)
-                                go [] pargm_ = pargm_
