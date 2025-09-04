@@ -42,7 +42,7 @@ nrpcAnyCallReducer no_nrpc_names config =
             return (s, b) }
 
     where        
-        red rv s@(State { curr_expr = CurrExpr _ ce, expr_env = eenv }) b
+        red rv s@(State { curr_expr = CurrExpr _ ce, expr_env = eenv, tyvar_env = tvnv }) b
             | maybe True (allowed_frame . fst) (Stck.pop (exec_stack s))
             
             , let wrapped_ce = applyWrap (getExpr s) (exec_stack s)
@@ -74,11 +74,11 @@ nrpcAnyCallReducer no_nrpc_names config =
                 --                 | Just buried_e <- E.deepLookupExpr e eenv 
                 --                 , Var (Id ne _):_:_ <- unApp buried_e
 
-                --                 , Just (Id n' _) <- E.deepLookupVar ne eenv
+                --                 , Just (Id n' _) <- E.deepLookupVar tvnv ne eenv
                 --                 , not (n' `HS.member` no_nrpc_names)
                 --                 , not (E.isSymbolic n' eenv)
 
-                --                 , not . isTyFun . typeOf $ buried_e
+                --                 , not . isTyFun . typeOf tvnv $ buried_e
                 --                 , Just (s_', sym_i, _, ng_') <- createNonRed' ng_ s_ buried_e ->
                 --                     ((s_', ng_'), Var sym_i)
                 --                 | otherwise -> ((s_, ng_), e)) (s, name_gen b) es
@@ -96,11 +96,11 @@ nrpcAnyCallReducer no_nrpc_names config =
                                 | not (hasNRBT wrapped_ce) -- (*)
                                 , Var (Id n _):_:_ <- unApp e
 
-                                , Just (Id n' _) <- E.deepLookupVar n eenv
+                                , Just n' <- E.deepLookupVar n eenv
                                 , not (n' `HS.member` no_nrpc_names)
                                 , not (E.isSymbolic n' eenv)
 
-                                , not . isTyFun . typeOf $ e -> createNonRed ng' (s'' { curr_expr = curr_expr s''})
+                                , not . isTyFun . typeOf tvnv $ e -> createNonRed ng' (s'' { curr_expr = curr_expr s''})
                                 | otherwise -> Nothing
                 
                 case nr_s_ng of
@@ -152,28 +152,29 @@ verifyHigherOrderHandling = mkSimpleReducer (const ()) red
                        , expr_env = eenv
                        , type_env = tenv
                        , known_values = kv
-                       , type_classes = tc }) b@(Bindings { name_gen = ng })
+                       , type_classes = tc 
+                       , tyvar_env = tvnv }) b@(Bindings { name_gen = ng })
             | (App (Var (Id n ty_fun)) ar) <- ce
             , E.isSymbolic n eenv =
                 let
-                    ty_ar = typeOf ar
+                    ty_ar = typeOf tvnv ar
                     (lam_x, ng2) = freshId ty_ar ng
                     (bindee, ng3) = freshId ty_ar ng2
 
-                    (ret_true, ng4) = freshId (returnType $ PresType ty_fun) ng3
+                    (ret_true, ng4) = freshId (returnType ty_fun) ng3
                     (ret_false, ng5) = freshId ty_fun ng4
 
                     eq_tc = case lookupTCDict tc (eqTC kv) ty_ar of
                                 Just tc -> tc
                                 Nothing -> error "verifyHigherOrderHandling: unsuported type"
                     eq_f = eqFunc kv
-                    eq_f_i = Id eq_f (typeOf . fromJust $ E.lookup eq_f eenv)
+                    eq_f_i = Id eq_f (typeOf tvnv . fromJust $ E.lookup eq_f eenv)
 
                     e = mkApp [Var eq_f_i, Type ty_ar, Var eq_tc, Var lam_x, ar]
 
                     func_body =
                         Lam TermL lam_x $ 
-                            Case e bindee (returnType $ PresType ty_fun)
+                            Case e bindee (returnType ty_fun)
                                 [ Alt (DataAlt (mkDCTrue kv tenv) []) (Var ret_true)
                                 , Alt (DataAlt (mkDCFalse kv tenv) []) (App (Var ret_false) (Var lam_x))]
 

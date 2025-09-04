@@ -16,6 +16,7 @@ import G2.Initialization.FpToRational
 import G2.Initialization.Handles
 import G2.Initialization.InitVarLocs
 import G2.Initialization.Types as IT
+import qualified G2.Language.TyVarEnv as TV
 import G2.Translation.GHC (ImportDeclQualifiedStyle(NotQualified))
 
 type MkArgTypes = IT.SimpleState -> [Type]
@@ -46,7 +47,7 @@ runInitialization2 config s@(IT.SimpleState { IT.expr_env = eenv
         (eenv5, ng3) = if smt_strings config == NoSMTStrings
                                 then (E.insert (typeIndex kv) 
                                             (Lam TypeL t . Lam TermL x . Lit $ LitInt 0) eenv4, ng2)
-                                else trivializeDCs ng2 kv eenv4
+                                else trivializeDCs TV.empty ng2 kv eenv4
         eenv6 = if smt_strings config == NoSMTStrings
                         then E.insert (adjStr kv) 
                                       (Lam TypeL t . Lam TermL x . Lam TermL str $ Var x) eenv5

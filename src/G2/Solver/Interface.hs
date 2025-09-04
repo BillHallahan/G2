@@ -69,10 +69,11 @@ subModel (State { expr_env = eenv
                 , model = m
                 , sym_gens = gens
                 , handles = hs
-                , mutvar_env = mve }) 
+                , mutvar_env = mve
+                , tyvar_env = tvnv }) 
           (Bindings {input_names = inputNames}) = 
     let
-        ais' = fmap (subVarFuncCall True m eenv tc) ais
+        ais' = fmap (subVarFuncCall tvnv True m eenv tc) ais
 
         -- We do not inline all Lambdas, because higher order function arguments
         -- get preinserted into the model.
@@ -89,43 +90,43 @@ subModel (State { expr_env = eenv
                      , s_mutvars = mv
                      , s_handles = map (\(n, hi) -> (n, Var $ h_start hi)) $ HM.toList hs }
         
-        sv = subVar False m eenv tc sub
+        sv = subVar tvnv False m eenv tc sub
     in
-    stripAllTicks $ untilEq (simplifyLams . pushCaseAppArgIn) sv
+    stripAllTicks $ untilEq (tyVarSubst tvnv . simplifyLams . pushCaseAppArgIn) sv
     where
         toVars n = case E.lookup n eenv of
-                                Just e@(Lam _ _ _) -> Just . Var $ Id n (typeOf e)
+                                Just e@(Lam _ _ _) -> Just . Var $ Id n (typeOf tvnv e)
                                 Just e -> Just e
                                 Nothing -> Nothing
 
         untilEq f x = let x' = f x in if x == x' then x' else untilEq f x'
 
-subVarFuncCall :: Bool -> Model -> ExprEnv -> TypeClasses -> FuncCall -> FuncCall
-subVarFuncCall inLam em eenv tc fc@(FuncCall {arguments = ars}) =
-    subVar inLam em eenv tc $ fc {arguments = filter (not . isTC tc) ars}
+subVarFuncCall :: TyVarEnv -> Bool -> Model -> ExprEnv -> TypeClasses -> FuncCall -> FuncCall
+subVarFuncCall tv inLam em eenv tc fc@(FuncCall {arguments = ars}) =
+    subVar tv inLam em eenv tc $ fc {arguments = filter (not . isTC tc) ars}
 
-subVar :: (ASTContainer m Expr) => Bool -> Model -> ExprEnv -> TypeClasses -> m -> m
-subVar inLam em eenv tc = modifyContainedASTs (subVar' inLam em eenv tc [])
+subVar :: (ASTContainer m Expr) => TyVarEnv -> Bool -> Model -> ExprEnv -> TypeClasses -> m -> m
+subVar tv inLam em eenv tc = modifyContainedASTs (subVar' tv inLam em eenv tc [])
 
-subVar' :: Bool -> Model -> ExprEnv -> TypeClasses -> [Id] -> Expr -> Expr
-subVar' inLam em eenv tc is v@(Var i@(Id n _))
+subVar' :: TyVarEnv -> Bool -> Model -> ExprEnv -> TypeClasses -> [Id] -> Expr -> Expr
+subVar' tv inLam em eenv tc is v@(Var i@(Id n _))
     | i `notElem` is
     , Just e <- HM.lookup n em =
-        subVar' inLam em eenv tc (i:is) e
+        subVar' tv inLam em eenv tc (i:is) e
     | i `notElem` is
     , Just e <- E.lookup n eenv
     -- We want to inline a lambda only if inLam is true (we want to inline all lambdas),
     -- or if it's module is Nothing (and its name is likely uninteresting/unknown to the user)
-    , (isExprValueForm eenv e && (notLam e || inLam || nameModule n == Nothing)) || isApp e || isVar e || isLitCase e =
-        subVar' inLam em eenv tc (i:is) e
+    , (isExprValueForm eenv e && (notLam e || inLam || nameModule n == Nothing)) || isApp e || isVar e || isLitCase tv e =
+        subVar' tv inLam em eenv tc (i:is) e
     | otherwise = v
-subVar' inLam mdl eenv tc is cse@(Case e _ _ as) =
-    case subVar' inLam mdl eenv tc is e of
+subVar' tv inLam mdl eenv tc is cse@(Case e _ _ as) =
+    case subVar' tv inLam mdl eenv tc is e of
         Lit l
             | Just (Alt _ ae) <- L.find (\(Alt (LitAlt l') _) -> l == l') as ->
-                subVar' inLam mdl eenv tc is ae
-        _ -> modifyChildren (subVar' inLam mdl eenv tc is) cse
-subVar' inLam em eenv tc is e = modifyChildren (subVar' inLam em eenv tc is) e
+                subVar' tv inLam mdl eenv tc is ae
+        _ -> modifyChildren (subVar' tv inLam mdl eenv tc is) cse
+subVar' tv inLam em eenv tc is e = modifyChildren (subVar' tv inLam em eenv tc is) e
 
 isApp :: Expr -> Bool
 isApp (App _ _) = True
@@ -139,9 +140,9 @@ isVar :: Expr -> Bool
 isVar (Var _) = True
 isVar _ = False
 
-isLitCase :: Expr -> Bool
-isLitCase (Case e _ _ _) = isPrimType (typeOf e)
-isLitCase _ = False
+isLitCase :: TyVarEnv -> Expr -> Bool
+isLitCase tv (Case e _ _ _) = isPrimType (typeOf tv e)
+isLitCase _ _ = False
 
 isTC :: TypeClasses -> Expr -> Bool
 isTC tc (Var (Id _ (TyCon n _))) = isTypeClassNamed n tc

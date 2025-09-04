@@ -13,6 +13,8 @@ import Data.Foldable
 import qualified Data.HashMap.Lazy as HM
 import qualified Data.Text as T
 import G2.Language (leadingTyForAllBindings)
+import qualified G2.Language.TyVarEnv as TV 
+import G2.Language.Monad.Support (ExState(tyVarEnv))
 
 -- | Creates an LHState.  This involves building a TCValue, and
 -- creating the new LH TC which checks equality, and has a function to
@@ -137,6 +139,8 @@ lhName t (Name n m _ _) = freshSeededNameN $ Name (t `T.append` n) m 0 Nothing
 
 createLHTCFuncs' :: LHDictMap -> Name -> AlgDataTy -> LHStateM ()
 createLHTCFuncs' lhm n adt = do
+    tv <- tyVarEnv
+
     eqN <- lhName "lhEq" n
     eq <- createFunc lhEqFunc n adt
     insertMeasureM eqN eq
@@ -185,17 +189,17 @@ createLHTCFuncs' lhm n adt = do
     let lhdv = map Var lhd
 
 
-    let fs = map (\(n', t) -> Var (Id n' t)) [ (eqN, (typeOf eq))
-                                             , (neN, (typeOf ne))
-                                             , (ltN, (typeOf lt))
-                                             , (leN, (typeOf le))
-                                             , (gtN, (typeOf gt))
-                                             , (geN, (typeOf ge))
-                                             , (ppN, (typeOf pp))]
+    let fs = map (\(n', t) -> Var (Id n' t)) [ (eqN, (typeOf tv eq))
+                                             , (neN, (typeOf tv ne))
+                                             , (ltN, (typeOf tv lt))
+                                             , (leN, (typeOf tv le))
+                                             , (gtN, (typeOf tv gt))
+                                             , (geN, (typeOf tv ge))
+                                             , (ppN, (typeOf tv pp))]
     let fs' = map (\f -> mkApp $ f:bt ++ lhdv) fs ++ [ordE]
 
     lhdct <- lhDCType
-    let ue = leadingTyForAllBindings (PresType lhdct)
+    let ue = leadingTyForAllBindings lhdct
     let e = mkApp $ Data (DataCon lh lhdct ue []):Type (TyCon n TyUnknown):fs'
     let e' = foldr (Lam TermL) e lhd
     let e'' = foldr (Lam TypeL) e' bi
@@ -276,24 +280,28 @@ createFunc cf n adt = do
 
 mkFirstCase :: PredFunc -> LHDictMap -> Id -> Id -> Name -> AlgDataTy -> LHStateM Expr
 mkFirstCase f ldm d1 d2 n adt@(DataTyCon { data_cons = dcs }) = do
-    caseB <- freshIdN (typeOf d1)
+    tv <- tyVarEnv
+    caseB <- freshIdN (typeOf tv d1)
     boolT <- tyBoolT
     return . Case (Var d1) caseB boolT =<< mapM (mkFirstCase' f ldm d2 n adt) dcs
 mkFirstCase f ldm d1 d2 n adt@(NewTyCon { data_con = dc }) = do
-    caseB <- freshIdN (typeOf d1)
+    tv <- tyVarEnv
+    caseB <- freshIdN (typeOf tv d1)
     boolT <- tyBoolT
     return . Case (Var d1) caseB boolT . (:[]) =<< mkFirstCase' f ldm d2 n adt dc
 mkFirstCase _ _ _ _ _ _ = error "mkFirstCase: Unsupported AlgDataTy"
 
 mkFirstCase' :: PredFunc -> LHDictMap -> Id -> Name -> AlgDataTy -> DataCon -> LHStateM Alt
 mkFirstCase' f ldm d2 n adt dc = do
-    ba <- freshIdsN $ anonArgumentTypes dc
+    tv <- tyVarEnv
+    ba <- freshIdsN $ anonArgumentTypes $ typeOf tv dc
 
     return . Alt (DataAlt dc ba) =<< mkSecondCase f ldm d2 n adt dc ba
 
 mkSecondCase :: PredFunc -> LHDictMap -> Id -> Name -> AlgDataTy -> DataCon -> [Id] -> LHStateM Expr
 mkSecondCase f ldm d2 n adt dc ba1 = do
-    caseB <- freshIdN (typeOf dc)
+    tv <- tyVarEnv
+    caseB <- freshIdN (typeOf tv dc)
 
     alts <- f ldm n adt dc ba1
 
@@ -303,20 +311,21 @@ mkSecondCase f ldm d2 n adt dc ba1 = do
 
 lhEqFunc :: PredFunc
 lhEqFunc ldm _ _ dc ba1 = do
-    ba2 <- freshIdsN $ anonArgumentTypes dc
+    tv <- tyVarEnv
+    ba2 <- freshIdsN $ anonArgumentTypes $ typeOf tv dc
 
     an <- lhAndE
     true <- mkTrueE
     false <- mkFalseE
 
-    pr <- mapM (uncurry (eqLHFuncCall ldm)) $ zip ba1 ba2
+    pr <- mapM (uncurry (eqLHFuncCall tv ldm)) $ zip ba1 ba2
     let pr' = foldr (\e -> App (App an e)) true pr
 
     return [ Alt Default false
            , Alt (DataAlt dc ba2) pr'] 
 
-eqLHFuncCall :: LHDictMap -> Id -> Id -> LHStateM Expr
-eqLHFuncCall ldm i1 i2
+eqLHFuncCall :: TV.TyVarEnv -> LHDictMap -> Id -> Id -> LHStateM Expr
+eqLHFuncCall tv ldm i1 i2
     | TyCon _ _ <- tyAppCenter t = do
         lhe <- lhEqM
 
@@ -324,7 +333,7 @@ eqLHFuncCall ldm i1 i2
         b <- tyBoolT
 
         lhd <- lhTCDict' ldm t
-        let lhv = App (Var $ Id lhe (TyForAll i (TyFun (typeOf lhd) (TyFun (TyVar i) (TyFun (TyVar i) b))))) (Type t)
+        let lhv = App (Var $ Id lhe (TyForAll i (TyFun (typeOf tv lhd) (TyFun (TyVar i) (TyFun (TyVar i) b))))) (Type t)
 
         return $ foldl' App (App lhv lhd) [Var i1, Var i2]
 
@@ -336,7 +345,7 @@ eqLHFuncCall ldm i1 i2
 
         lhd <- lhTCDict' ldm t
 
-        let lhv = App (Var (Id lhe (TyForAll i (TyFun (typeOf lhd) (TyFun (TyVar i) (TyFun (TyVar i) b)))))) (Type t)
+        let lhv = App (Var (Id lhe (TyForAll i (TyFun (typeOf tv lhd) (TyFun (TyVar i) (TyFun (TyVar i) b)))))) (Type t)
         return $ App (App (App lhv lhd) (Var i1)) (Var i2)
 
     | TyFun _ _ <- t = mkTrueE
@@ -361,11 +370,13 @@ eqLHFuncCall ldm i1 i2
 
     | otherwise = error $ "\nError in eqLHFuncCall " ++ show t ++ "\n" ++ show ldm
     where
-        t = typeOf i1
+        t = typeOf tv i1
 
 lhNeFunc :: PredFunc
 lhNeFunc ldm _ _ dc ba1 = do
-    ba2 <- freshIdsN $ anonArgumentTypes dc
+    tv <- tyVarEnv
+
+    ba2 <- freshIdsN $ anonArgumentTypes $ typeOf tv dc
 
     an <- lhAndE
     true <- mkTrueE
@@ -376,7 +387,7 @@ lhNeFunc ldm _ _ dc ba1 = do
 
     tBool <- tyBoolT
 
-    pr <- mapM (uncurry (eqLHFuncCall ldm)) $ zip ba1 ba2
+    pr <- mapM (uncurry (eqLHFuncCall tv ldm)) $ zip ba1 ba2
     let pr' = foldr (\e -> App (App an e)) true pr
 
     b <- freshIdN =<< tyBoolT
@@ -436,8 +447,9 @@ mkOrdCases _ _ _ _ _ _ _ = mkTrueE
 
 mkPrimOrdCases :: Primitive -> Type -> Id -> Id -> DataCon -> LHStateM Expr
 mkPrimOrdCases pr t i1 i2 dc = do
-    i1' <- freshIdN (typeOf dc)
-    i2' <- freshIdN (typeOf dc)
+    tv <- tyVarEnv
+    i1' <- freshIdN (typeOf tv dc)
+    i2' <- freshIdN (typeOf tv dc)
 
     b1 <- freshIdN t
     b2 <- freshIdN t
@@ -481,25 +493,28 @@ type PPFuncMap = HM.HashMap Name Id
 
 lhPPCase :: LHDictMap -> PPFuncMap -> AlgDataTy -> Id -> LHStateM Expr
 lhPPCase lhm fnm (DataTyCon { data_cons = dcs }) i = do
-    ci <- freshIdN (typeOf i)
+    tv <- tyVarEnv
+    ci <- freshIdN (typeOf tv i)
     tBool <- tyBoolT
 
     return . Case (Var i) ci tBool =<< mapM (lhPPAlt lhm fnm) dcs
 lhPPCase lhm fnm (NewTyCon { rep_type = rt }) i = do
+    tv <- tyVarEnv
     pp <- lhPPCall lhm fnm rt
-    let c = Cast (Var i) (typeOf i :~ rt)
+    let c = Cast (Var i) (typeOf tv i :~ rt)
     return $ App pp c
 
 
 lhPPAlt :: LHDictMap -> PPFuncMap -> DataCon -> LHStateM Alt
 lhPPAlt lhm fnm dc = do
-    ba <- freshIdsN $ anonArgumentTypes dc
+    tv <- tyVarEnv
+    ba <- freshIdsN $ anonArgumentTypes $ typeOf tv dc
 
     an <- lhAndE
     true <- mkTrueE
 
     pr <- mapM (\i -> do
-                pp <- lhPPCall lhm fnm (typeOf i)
+                pp <- lhPPCall lhm fnm (typeOf tv i)
                 return $ App pp (Var i)) ba
     let pr' = foldr (\e -> App (App an e)) true pr
 
@@ -524,8 +539,8 @@ lhPPCall lhm fnm t
         i <- freshIdN t
         return . Lam TermL i =<< mkTrueE
     | TyFun _ _ <- t = do
-        let ts = anonArgumentTypes $ PresType t
-            rt = returnType $ PresType t
+        let ts = anonArgumentTypes t
+            rt = returnType t
         let_is <- freshIdsN ts
         bind_i <- freshIdN t
         let bind_app = mkApp $ Var bind_i:map Var let_is
@@ -581,8 +596,9 @@ createExtractors'' lh i j n = do
                         )
                         [b]
                         []
+    tv <- tyVarEnv
     let vi = bi !! j
-        c = Case (Var li) ci (typeOf vi) [Alt (DataAlt d bi) (Var vi)]
+        c = Case (Var li) ci (typeOf tv vi) [Alt (DataAlt d bi) (Var vi)]
     let e = Lam TypeL a $ Lam TermL li c
 
     insertMeasureM n e 

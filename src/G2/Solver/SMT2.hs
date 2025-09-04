@@ -35,10 +35,12 @@ import qualified Text.Builder as TB
 import System.IO
 import System.Process
 import Data.Maybe (fromMaybe)
+import G2.Language.Support(State(..))
+import qualified G2.Language.TyVarEnv as TV 
+
 
 data Z3StringSolver = SeqSolver | Z3Str3 deriving Eq
 data Z3 = Z3 Z3StringSolver PrintSMT ArbValueFunc (Handle, Handle, ProcessHandle)
-
 
 data CVC5 = CVC5 PrintSMT ArbValueFunc (Handle, Handle, ProcessHandle)
 data Ostrich = Ostrich PrintSMT ArbValueFunc (Handle, Handle, ProcessHandle)
@@ -48,17 +50,17 @@ data SomeSMTSolver where
                    . SMTConverter con => con -> SomeSMTSolver
 
 instance Solver Z3 where
-    check solver _ pc = checkConstraintsPC solver pc
+    check solver s pc = checkConstraintsPC (tyvar_env s) solver pc
     solve con@(Z3 _ _ avf _) = checkModelPC avf con
     close = closeIO
 
 instance Solver CVC5 where
-    check solver _ pc = checkConstraintsPC solver pc
+    check solver s pc = checkConstraintsPC (tyvar_env s) solver pc
     solve con@(CVC5 _ avf _) = checkModelPC avf con
     close = closeIO
 
 instance Solver Ostrich where
-    check solver _ pc = checkConstraintsPC solver pc
+    check solver s pc = checkConstraintsPC (tyvar_env s) solver pc
     solve con@(Ostrich _ avf _) = checkModelPC avf con
     close = closeIO
 

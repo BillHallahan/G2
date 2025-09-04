@@ -40,12 +40,12 @@ import Data.Traversable
 -- | Ensure that all non-trivial arguments to list cons data constructors
 -- are wrapped in arguments.
 -- See note [Cons DC]
-trivializeDCs :: NameGen -> KnownValues -> ExprEnv -> (ExprEnv, NameGen)
-trivializeDCs ng kv eenv =
-    runNamingM (trivializeDCs' kv eenv) ng
+trivializeDCs :: TyVarEnv -> NameGen -> KnownValues -> ExprEnv -> (ExprEnv, NameGen)
+trivializeDCs tv ng kv eenv =
+    runNamingM (trivializeDCs' tv kv eenv) ng
 
-trivializeDCs' :: KnownValues -> ExprEnv -> NameGenM ExprEnv
-trivializeDCs' kv = E.mapM (modifyM go)
+trivializeDCs' :: TyVarEnv -> KnownValues -> ExprEnv -> NameGenM ExprEnv
+trivializeDCs' tv kv = E.mapM (modifyM go)
     where
         go a@(App _ _)
             | (d@(Data (DataCon { dc_name = dcn}))):es <- unApp a
@@ -55,7 +55,7 @@ trivializeDCs' kv = E.mapM (modifyM go)
                         if isSimple e
                             then return (nbs, e)
                             else do
-                                fr <- freshIdN (typeOf e)
+                                fr <- freshIdN (typeOf tv e)
                                 return ((fr, e):nbs, Var fr)) [] es
                 case new_binds of
                     [] -> return a

@@ -39,10 +39,9 @@ addLHTCExprEnv e = do
 -- In generally, it's not always correct to eta-expand Haskell functions, but
 -- it is fine here because the type arguments are guaranteed to not be undefined
 addTypeLams :: Expr -> LHStateM Expr
-addTypeLams e = 
-    let
-        t = typeOf e
-    in
+addTypeLams e = do
+    tv <- tyVarEnv
+    let t = typeOf tv e
     addTypeLams' t e
 
 addTypeLams' :: Type -> Expr -> LHStateM Expr
@@ -59,7 +58,7 @@ addTypeLamsLet = modifyM addTypeLamsLet'
 addTypeLamsLet' :: Expr -> LHStateM Expr
 addTypeLamsLet' (Let be e) = do
     be' <- mapM (\(b, e') -> do
-            e'' <- addTypeLams e'
+            e'' <- addTypeLams e' 
             return (b, e'')
         ) be
     return (Let be' e)

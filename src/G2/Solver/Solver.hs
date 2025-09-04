@@ -132,7 +132,7 @@ solveRelated' avf sol s b m is [] =
         (_, nv) = mapAccumL
             (\av_ (Id n t) ->
                 let 
-                    (av_', v) = avf t (type_env s) av_
+                    (av_', v) = avf t (type_env s) (tyvar_env s) av_
                     in
                     (v, (n, av_'))
             ) (arb_value_gen b) is'
@@ -372,23 +372,24 @@ instance Solver s => Solver (TimeSolver s) where
 data CommonSubExpElim s = CommonSubExpElim s
 
 instance Solver s => Solver (CommonSubExpElim s) where
-    check (CommonSubExpElim solver) s = check solver s . elimCommon (known_values s) 2
-    solve (CommonSubExpElim solver) s b is = solve solver s b is . elimCommon (known_values s) 2
+    check (CommonSubExpElim solver) s = check solver s . elimCommon (tyvar_env s) (known_values s) 2
+    solve (CommonSubExpElim solver) s b is = solve solver s b is . elimCommon (tyvar_env s) (known_values s) 2
     close (CommonSubExpElim solver) = close solver
 
-elimCommon :: KnownValues
+elimCommon :: TyVarEnv
+           -> KnownValues
            -> Int -- ^ Minimal value to consider an expression common
            -> PathConds
            -> PathConds
-elimCommon kv threshold pc =
+elimCommon tv kv threshold pc =
     let
         ng = mkNameGen pc
-        app_count = countApps kv pc
+        app_count = countApps tv kv pc
         app_common = HM.filter (>= threshold) app_count
 
         n = Name "el" Nothing 0 Nothing
         (app_new, _) = runNamingM (traverse (const (freshSeededNameN n)) app_common) ng
-        app_new_var = HM.mapWithKey (\e vn -> Var (Id vn (typeOf e))) app_new
+        app_new_var = HM.mapWithKey (\e vn -> Var (Id vn (typeOf tv e))) app_new
 
         var_to_app = map swap $ HM.toList app_new_var
 
@@ -402,7 +403,7 @@ elimCommon kv threshold pc =
                                 app_new_var' = HM.filter (/= e1) app_new_var
                                 e2' = foldr (uncurry replaceASTs) e2 (HM.toList app_new_var')
                             in
-                            PC.insert (ExtCond (mkEqExpr kv e1 e2') True))
+                            PC.insert (ExtCond (mkEqExpr tv kv e1 e2') True))
                         pc_fr
                         var_to_app
     in
@@ -416,11 +417,11 @@ instance Semigroup SumHM where
 instance Monoid SumHM where
     mempty = SumHM HM.empty
 
-countApps :: ASTContainer c Expr => KnownValues -> c -> HM.HashMap Expr Int
-countApps kv = coerce . evalContainedASTs go
+countApps :: ASTContainer c Expr => TyVarEnv -> KnownValues -> c -> HM.HashMap Expr Int
+countApps tv kv = coerce . evalContainedASTs go
     where
         go e@(App _ _)
-            | typeOf e == tyString kv =
+            | typeOf tv e == tyString kv =
                 SumHM (HM.singleton e 1) <> evalChildren go e
         go e = evalChildren go e
 

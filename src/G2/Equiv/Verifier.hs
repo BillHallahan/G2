@@ -59,15 +59,15 @@ statePairReadyForSolver (s1, s2) =
       CurrExpr _ e1 = curr_expr s1
       CurrExpr _ e2 = curr_expr s2
   in
-  exprReadyForSolver h1 e1 && exprReadyForSolver h2 e2
+  exprReadyForSolver (tyvar_env s1) h1 e1 && exprReadyForSolver (tyvar_env s2) h2 e2
 
-exprReadyForSolver :: ExprEnv -> Expr -> Bool
-exprReadyForSolver h (Tick _ e) = exprReadyForSolver h e
-exprReadyForSolver h (Var i) = E.isSymbolic (idName i) h && T.isPrimType (typeOf i)
-exprReadyForSolver h (App f a) = exprReadyForSolver h f && exprReadyForSolver h a
-exprReadyForSolver _ (Prim _ _) = True
-exprReadyForSolver _ (Lit _) = True
-exprReadyForSolver _ _ = False
+exprReadyForSolver :: TyVarEnv -> ExprEnv -> Expr -> Bool
+exprReadyForSolver tv h (Tick _ e) = exprReadyForSolver tv h e
+exprReadyForSolver tv h (Var i) = E.isSymbolic (idName i) h && T.isPrimType (typeOf tv i)
+exprReadyForSolver tv h (App f a) = exprReadyForSolver tv h f && exprReadyForSolver tv h a
+exprReadyForSolver _ _ (Prim _ _) = True
+exprReadyForSolver _ _ (Lit _) = True
+exprReadyForSolver _ _ _ = False
 
 -- don't log when the base folder name is empty
 logStatesFolder :: String -> LogMode -> LogMode

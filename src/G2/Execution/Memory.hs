@@ -20,7 +20,6 @@ import Data.List
 import qualified Data.HashSet as HS
 import qualified Data.HashMap.Lazy as HM
 import qualified Data.Map as M
-
 import qualified Data.Sequence as S
 
 type PreservingFunc = forall t . State t -> Bindings -> HS.HashSet Name -> HS.HashSet Name
@@ -64,6 +63,7 @@ markAndSweepPreserving' mc (state@State { expr_env = eenv
                                         , curr_expr = cexpr
                                         , path_conds = pc
                                         , exec_stack = es
+                                        , tyvar_env = tvnv
                                         }) (bindings@Bindings { higher_order_inst = inst }) = -- error $ show $ length $ take 20 $ PC.toList path_conds
                                state'
   where
@@ -87,6 +87,7 @@ markAndSweepPreserving' mc (state@State { expr_env = eenv
     tenv' = HM.filterWithKey (\n _ -> isActive n) tenv
 
     higher_ord_eenv = E.filterWithKey (\n _ -> n `HS.member` inst) eenv
-    higher_ord = nubBy (.::.) $ argTypesTEnv tenv ++ E.higherOrderExprs higher_ord_eenv
-    higher_ord_rel = E.keys $ E.filter (\e -> any (e .::) higher_ord) higher_ord_eenv
+    higher_ord = nubBy (.::.) $ argTypesTEnv tenv ++ E.higherOrderExprs tvnv higher_ord_eenv
+    higher_ord_rel = E.keys $ E.filter (\e -> any (typeOf tvnv e .::) higher_ord) higher_ord_eenv
+
     

@@ -83,6 +83,7 @@ import Data.Monoid
 import qualified Data.Sequence as Seq
 import qualified Data.Text as T
 import qualified Data.List as L
+import qualified G2.Language.TyVarEnv as TV
 import System.Timeout
 
 type AssumeFunc = T.Text
@@ -119,7 +120,7 @@ initStateWithCall exg2 useAssert f m_mod mkCurr argTys config =
     let
         s = initSimpleState exg2
 
-        (ie, fe) = case findFunc f m_mod (IT.expr_env s) of
+        (ie, fe) = case findFunc TV.empty f m_mod (IT.expr_env s) of
                         Left ie' -> ie'
                         Right errs -> error errs
         
@@ -149,7 +150,7 @@ initStateFromSimpleStateWithCall :: IT.SimpleState
                                  -> (State (), Id, Bindings)
 initStateFromSimpleStateWithCall simp_s useAssert f m_mod mkCurr argTys config =
     let
-        (ie, fe) = case findFunc f m_mod (IT.expr_env simp_s) of
+        (ie, fe) = case findFunc TV.empty f m_mod (IT.expr_env simp_s) of
                         Left ie' -> ie'
                         Right errs -> error errs
     
@@ -175,13 +176,15 @@ initStateFromSimpleState s m_mod useAssert mkCurr argTys config =
         tc' = IT.type_classes s'
         CurrExprRes { ce_expr = ce
                     , fixed_in = f_i
-                    , symbolic_ids = is
+                    , symbolic_type_ids = typ_is
+                    , symbolic_value_ids = val_is
                     , in_coercion = m_coercion
                     , mkce_namegen = ng'' } = mkCurr tc' ng' eenv' tenv' kv' config
     in
     (State {
-      expr_env = foldr E.insertSymbolic eenv' is
+      expr_env = foldr E.insertSymbolic eenv' val_is
     , type_env = tenv'
+    , tyvar_env = foldr TV.insertSymbolic TV.empty typ_is
     , curr_expr = CurrExpr Evaluate ce
     , path_conds = PC.fromList []
     , non_red_path_conds = emptyNRPC
@@ -206,16 +209,16 @@ initStateFromSimpleState s m_mod useAssert mkCurr argTys config =
       fixed_inputs = f_i
     , arb_value_gen = arbValueInit
     , cleaned_names = HM.empty
-    , input_names = map idName is
+    , input_names = map idName $ typ_is ++ val_is
     , input_coercion = m_coercion
     , higher_order_inst = S.filter (\n -> nameModule n `elem` m_mod) . S.fromList $ IT.exports s
     , rewrite_rules = IT.rewrite_rules s
     , name_gen = ng''
     , exported_funcs = IT.exports s })
 
-mkArgTys :: Expr -> MkArgTypes
-mkArgTys e simp_s =
-    snd $ instantiateArgTypes (IT.type_classes simp_s) (IT.known_values simp_s) e
+mkArgTys :: TV.TyVarEnv -> Expr -> MkArgTypes
+mkArgTys tv e simp_s =
+    snd $ instantiateArgTypes tv (IT.type_classes simp_s) (IT.known_values simp_s) e
 
 {-# INLINE initStateFromSimpleState' #-}
 initStateFromSimpleState' :: IT.SimpleState
@@ -225,11 +228,11 @@ initStateFromSimpleState' :: IT.SimpleState
                           -> (State (), Bindings)
 initStateFromSimpleState' s sf m_mod =
     let
-        (ie, fe) = case findFunc sf m_mod (IT.expr_env s) of
+        (ie, fe) = case findFunc TV.empty sf m_mod (IT.expr_env s) of
                           Left ie' -> ie'
                           Right errs -> error errs
     in
-    initStateFromSimpleState s m_mod False (mkCurrExpr Nothing Nothing ie) (mkArgTys fe)
+    initStateFromSimpleState s m_mod False (mkCurrExpr TV.empty Nothing Nothing ie) (mkArgTys TV.empty fe)
 
 {-# INLINE initSimpleState #-}
 initSimpleState :: ExtractedG2
@@ -242,7 +245,7 @@ initSimpleState (ExtractedG2 { exg2_binds = prog
     let
         eenv = E.fromExprMap prog
         tenv = mkTypeEnv prog_typ
-        tc = initTypeClasses cls
+        tc = initTypeClasses TV.empty cls
         kv = initKnownValues eenv tenv tc
         ng = mkNameGen (prog, prog_typ, rs)
 
@@ -259,8 +262,9 @@ initSimpleState (ExtractedG2 { exg2_binds = prog
 
 initCheckReaches :: State t -> Maybe T.Text -> Maybe ReachFunc -> State t
 initCheckReaches s@(State { expr_env = eenv
-                          , known_values = kv }) m_mod reaches =
-    s {expr_env = checkReaches eenv kv reaches m_mod }
+                          , known_values = kv 
+                          , tyvar_env = tvnv}) m_mod reaches =
+    s {expr_env = checkReaches tvnv eenv kv reaches m_mod }
 
 type RHOStack m t = SM.StateT (ApproxPrevs t)
                         (SM.StateT LengthNTrack
@@ -451,7 +455,7 @@ initialStateFromFileSimple :: [FilePath]
                    -> (Expr -> MkArgTypes)
                    -> Config
                    -> IO (State (), Id, Bindings, [Maybe T.Text])
-initialStateFromFileSimple proj src f mkCurr argTys config =
+initialStateFromFileSimple  proj src f mkCurr argTys config =
     initialStateFromFile proj src Nothing False f mkCurr argTys simplTranslationConfig config
 
 initialStateNoStartFunc :: [FilePath]
@@ -466,7 +470,7 @@ initialStateNoStartFunc proj src transConfig config = do
 
         (init_s, bindings) = initStateFromSimpleState simp_state [Nothing] False
                                  noStartFuncMkCurrExpr
-                                 (E.higherOrderExprs . IT.expr_env)
+                                 (E.higherOrderExprs TV.empty . IT.expr_env)
                                  config
 
     return (init_s, bindings)
@@ -476,7 +480,8 @@ noStartFuncMkCurrExpr _ ng _ _ _ _ =
     CurrExprRes
         { ce_expr = Prim Undefined TyBottom
         , fixed_in = []
-        , symbolic_ids = []
+        , symbolic_type_ids = []
+        , symbolic_value_ids = []
         , in_coercion = Nothing
         , mkce_namegen = ng }
 
@@ -494,7 +499,7 @@ initialStateFromFile proj src m_reach def_assert f mkCurr argTys transConfig con
     (mb_modname, exg2) <- translateLoaded proj src transConfig config
 
     let simp_state = initSimpleState exg2
-        (ie, fe) = case findFunc f mb_modname (IT.expr_env simp_state) of
+        (ie, fe) = case findFunc TV.empty f mb_modname (IT.expr_env simp_state) of
                         Left ie' -> ie'
                         Right errs -> error errs
 
@@ -502,8 +507,7 @@ initialStateFromFile proj src m_reach def_assert f mkCurr argTys transConfig con
 
         (init_s, bindings) = initStateFromSimpleState simp_state mb_modname def_assert
                                                   (mkCurr ie) (argTys fe) config
-    -- let (init_s, ent_f, bindings) = initState exg2 def_assert
-    --                                 f mb_modname mkCurr argTys config
+    
         reaches_state = initCheckReaches init_s spec_mod m_reach
 
     return (reaches_state, ie, bindings, mb_modname)
@@ -519,8 +523,8 @@ runG2FromFile :: [FilePath]
               -> Config
               -> IO ([ExecRes ()], Bindings, TimedOut, Id)
 runG2FromFile proj src m_assume m_assert m_reach def_assert f transConfig config = do
-    (init_state, entry_f, bindings, mb_modname) <- initialStateFromFile proj src
-                                    m_reach def_assert f (mkCurrExpr m_assume m_assert) (mkArgTys)
+    (init_state, entry_f, bindings, mb_modname) <- initialStateFromFile  proj src
+                                    m_reach def_assert f (mkCurrExpr TV.empty m_assume m_assert) (mkArgTys TV.empty)
                                     transConfig config
 
     (er, b, to) <- runG2WithConfig (idName entry_f) mb_modname init_state config bindings
@@ -532,7 +536,7 @@ runG2WithConfig :: Name -> [Maybe T.Text] -> State () -> Config -> Bindings
                       , Bindings
                       , TimedOut -- ^ Did any states timeout?
                       )
-runG2WithConfig entry_f mb_modname state@(State { expr_env = eenv }) config bindings = do
+runG2WithConfig entry_f mb_modname state@(State { expr_env = eenv}) config bindings = do
     SomeSolver solver <- initSolver config
     let (state', bindings') = runG2Pre emptyMemConfig state bindings
         all_mod_set = S.fromList mb_modname
@@ -748,7 +752,7 @@ runG2SubstModel :: Named t =>
                    -> State t
                    -> Bindings
                    -> ExecRes t
-runG2SubstModel m s@(State { expr_env = eenv, type_env = tenv, known_values = kv }) bindings =
+runG2SubstModel m s@(State { expr_env = eenv, type_env = tenv, tyvar_env = tv_env, known_values = kv }) bindings =
     let
         s' = s { model = m }
 
@@ -770,12 +774,12 @@ runG2SubstModel m s@(State { expr_env = eenv, type_env = tenv, known_values = kv
         sm' = runPostprocessing bindings sm
 
         sm'' = ExecRes { final_state = final_state sm'
-                       , conc_args = fixed_inputs bindings ++ evalPrims eenv tenv kv (conc_args sm')
-                       , conc_out = evalPrims eenv tenv kv (conc_out sm')
+                       , conc_args = fixed_inputs bindings ++ evalPrims eenv tenv tv_env kv (conc_args sm')
+                       , conc_out = evalPrims eenv tenv tv_env kv (conc_out sm')
                        , conc_sym_gens = gens
                        , conc_mutvars = mv
                        , conc_handles = conc_handles sm'
-                       , violated = evalPrims eenv tenv kv (violated sm')}
+                       , violated = evalPrims eenv tenv tv_env kv (violated sm')}
     in
     sm''
 

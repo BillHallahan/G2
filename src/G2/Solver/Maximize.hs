@@ -2,6 +2,7 @@ module G2.Solver.Maximize ( MaximizeSolver
                           , mkMaximizeSolver
                           , getBestFoundResult) where
 
+import G2.Language.Support
 import G2.Solver.Converters
 import G2.Solver.Language
 import G2.Solver.Solver
@@ -43,7 +44,7 @@ mkMaximizeSolver vs con = do
     return $ MaxSolver thread_mvar res_mvar headers_io_ref vs con
 
 instance SMTConverter con => Solver (MaximizeSolver con) where
-    check solver _ pc = checkConstraintsPC solver pc
+    check solver s pc = checkConstraintsPC (tyvar_env s) solver pc
     solve (MaxSolver _ _ _ _ con) = solve con
     close = closeIO
 

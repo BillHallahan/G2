@@ -15,7 +15,6 @@ module G2.Language.ExprEnv
     , fromList
     , null
     , size
-    , toId
     , member
     , lookup
     , lookupConcOrSym
@@ -88,6 +87,7 @@ import qualified Data.Sequence as S
 import qualified Data.Text as T
 import qualified Data.Traversable as Trav
 import GHC.Generics (Generic)
+import qualified G2.Language.TyVarEnv as TV 
 
 data ConcOrSym = Conc Expr
                | Sym Id
@@ -147,9 +147,6 @@ size = M.size . unwrapExprEnv
 member :: Name -> ExprEnv -> Bool
 member n = M.member n . unwrapExprEnv
 
-toId :: Name -> ExprEnv -> Maybe Id
-toId n eenv = fmap (Id n . typeOf) (lookup n eenv)
-
 -- | Lookup the `Expr` with the given `Name`.
 -- Returns `Nothing` if the `Name` is not in the `ExprEnv`.
 lookup :: Name -> ExprEnv -> Maybe Expr
@@ -193,15 +190,15 @@ deepLookupConcOrSym n eenv =
         Just s@(Sym r) -> Just s
         Nothing -> Nothing
 
--- | Find the deepest buried Var Id from the given Name
-deepLookupVar :: Name -> ExprEnv -> Maybe Id
-deepLookupVar n eenv = go (toId n eenv) n
+-- | Find the deepest buried Var Name from the given Name
+deepLookupVar :: Name -> ExprEnv -> Maybe Name
+deepLookupVar n eenv = go n
     where
-        go lst f = 
+        go f = 
             case lookupConcOrSym f eenv of
-                Just (Conc (Var i@(Id f' _))) -> go (Just i) f'
-                Just (Conc r) -> lst
-                Just (Sym r) -> Just r
+                Just (Conc (Var i@(Id f' _))) -> go f'
+                Just (Conc r) -> Just f
+                Just (Sym r) -> Just $ idName r
                 Nothing -> Nothing
 
 -- | Checks if the given `Name` belongs to a symbolic variable.
@@ -211,13 +208,12 @@ isSymbolic n eenv =
         Just (Sym _) -> True
         _ -> False
 
--- TODO -- This seems kinda too much like a special case to be here...
-occLookup :: T.Text -> Maybe T.Text -> ExprEnv -> Maybe Expr
-occLookup n m (ExprEnv eenv) = 
+occLookup :: TV.TyVarEnv -> T.Text -> Maybe T.Text -> ExprEnv -> Maybe Expr
+occLookup tv n m (ExprEnv eenv) = 
     let ex = L.find (\(Name n' m' _ _, _) -> n == n' && (m == m' || m' == Just "PrimDefs")) -- TODO: The PrimDefs exception should not be here! 
            . M.toList . M.mapMaybe (\case (ExprObj e) -> Just e; _ -> Nothing) $ eenv
     in
-    fmap (\(n', e) -> Var $ Id n' (typeOf e)) ex
+    fmap (\(n', e) -> Var $ Id n' (typeOf tv e)) ex
 
 lookupNameMod :: T.Text -> Maybe T.Text -> ExprEnv -> Maybe (Name, Expr)
 lookupNameMod ns ms =
@@ -382,8 +378,8 @@ filterToSymbolic = ExprEnv . M.filter (\e -> case e of
                                                 _ -> False) . unwrapExprEnv
 
 -- | Returns the names of all expressions with the given type in the expression environment
-funcsOfType :: Type -> ExprEnv -> [Name]
-funcsOfType t = keys . filter (\e -> t == typeOf e)
+funcsOfType :: TV.TyVarEnv -> Type -> ExprEnv -> [Name]
+funcsOfType tv t = keys . filter (\e -> t == typeOf tv e)
 
 keys :: ExprEnv -> [Name]
 keys = M.keys . unwrapExprEnv
@@ -398,8 +394,8 @@ elems :: ExprEnv -> [Expr]
 elems = exprObjs . M.elems . unwrapExprEnv
 
 -- | Returns a list of all argument function types 
-higherOrderExprs :: ExprEnv -> [Type]
-higherOrderExprs = concatMap (higherOrderFuncs) . elems
+higherOrderExprs :: TV.TyVarEnv -> ExprEnv -> [Type]
+higherOrderExprs tv eenv = concatMap (higherOrderFuncs . typeOf tv ) (elems eenv)
 
 toList :: ExprEnv -> [(Name, EnvObj)]
 toList = M.toList . unwrapExprEnv

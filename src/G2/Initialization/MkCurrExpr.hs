@@ -15,45 +15,53 @@ import qualified Data.Map as M
 import Data.Maybe
 import qualified Data.Text as T
 import qualified Data.HashMap.Lazy as HM 
+import qualified G2.Language.TyVarEnv as TV 
 
 data CurrExprRes = CurrExprRes { ce_expr :: Expr
                                , fixed_in :: [Expr]
-                               , symbolic_ids :: [Id]
+                               , symbolic_type_ids:: [Id]
+                               , symbolic_value_ids :: [Id]
                                , in_coercion ::  Maybe Coercion
                                , mkce_namegen :: NameGen
                                }
 
-mkCurrExpr :: Maybe T.Text -> Maybe T.Text -> Id
+mkCurrExpr :: TV.TyVarEnv -> Maybe T.Text -> Maybe T.Text -> Id
            -> TypeClasses -> NameGen -> ExprEnv -> TypeEnv
            -> KnownValues -> Config -> CurrExprRes
-mkCurrExpr m_assume m_assert f@(Id (Name _ m_mod _ _) _) tc ng eenv tenv kv config =
+mkCurrExpr tv m_assume m_assert f@(Id (Name _ m_mod _ _) _) tc ng eenv tenv kv config =
     case E.lookup (idName f) eenv of
         Just ex ->
             let
-                var_ex = Var (Id (idName f) (typeOf ex))
-                (m_coer, coer_var_ex) = coerceRetNewTypes tenv var_ex
+                var_ex = Var (Id (idName f) (typeOf tv ex))
+                (m_coer, coer_var_ex) = coerceRetNewTypes tv tenv var_ex
 
                 -- -- We refind the type of f, because type synonyms get replaced during the initializaton,
                 -- -- after we first got the type of f.
-                (app_ex, is, typsE, ng') =
+                (app_ex, typ_is, val_is, typsE, ng') =
                     if instTV config == InstBefore
-                        then mkMainExpr tc kv ng coer_var_ex
-                        else mkMainExprNoInstantiateTypes coer_var_ex ng
-                var_ids = map Var is
+                        then mkMainExpr tv tc kv ng coer_var_ex
+                        else mkMainExprNoInstantiateTypes tv coer_var_ex ng
+                var_ids = map Var val_is
 
                 (name, ng'') = freshName ng'
-                id_name = Id name (typeOf app_ex)
+                id_name = Id name (typeOf tv app_ex)
                 var_name = Var id_name
 
-                assume_ex = mkAssumeAssert (Assume Nothing) m_assume m_mod (typsE ++ var_ids) var_name var_name eenv
-                assert_ex = mkAssumeAssert (Assert Nothing) m_assert m_mod (typsE ++ var_ids) assume_ex var_name eenv
+                assume_ex = mkAssumeAssert tv (Assume Nothing) m_assume m_mod (typsE ++ var_ids) var_name var_name eenv
+                assert_ex = mkAssumeAssert tv (Assert Nothing) m_assert m_mod (typsE ++ var_ids) assume_ex var_name eenv
 
                 retsTrue_ex = if returnsTrue config then retsTrue assert_ex else assert_ex
 
                 let_ex = Let [(id_name, app_ex)] retsTrue_ex
             in
-            CurrExprRes { ce_expr = let_ex, fixed_in = typsE, symbolic_ids = is, in_coercion = m_coer, mkce_namegen = ng''}
+            CurrExprRes { ce_expr = let_ex
+                        , fixed_in = typsE
+                        , symbolic_type_ids = typ_is
+                        , symbolic_value_ids = val_is
+                        , in_coercion = m_coer
+                        , mkce_namegen = ng''}
         Nothing -> error "mkCurrExpr: Bad Name"
+
 -- | If a function we are symbolically executing returns a newtype wrapping a function type, applies a coercion to the function.
 -- For instance, given:
 -- @
@@ -67,11 +75,11 @@ mkCurrExpr m_assume m_assert f@(Id (Name _ m_mod _ _) _) tc ng eenv tenv kv conf
 --  @
 -- ((coerce (f :: Int -> F)) :: Int -> Int -> Int) (0) (1) = 1
 -- @
-coerceRetNewTypes :: TypeEnv -> Expr -> (Maybe Coercion, Expr)
-coerceRetNewTypes tenv e =
+coerceRetNewTypes :: TV.TyVarEnv -> TypeEnv -> Expr -> (Maybe Coercion, Expr)
+coerceRetNewTypes tv tenv e =
     let
-        t = typeOf e
-        rt = returnType e
+        t = typeOf tv e
+        rt = returnType (typeOf tv e)
         c = coerce_to rt
         c_rt = replace_ret_ty c t
         coer = t :~ c_rt
@@ -80,7 +88,7 @@ coerceRetNewTypes tenv e =
     where
         coerce_to t | TyCon n _:ts <- unTyApp t
                     , Just (NewTyCon { bound_ids = bis, rep_type = rt }) <- HM.lookup n tenv
-                    , hasFuncType $ PresType rt = 
+                    , hasFuncType rt = 
                         coerce_to $ foldl' (\rt_ (b, bt) -> retype b bt rt_) rt (zip bis ts)
                     | otherwise = t
 
@@ -88,10 +96,10 @@ coerceRetNewTypes tenv e =
         replace_ret_ty c (TyFun t t') = TyFun t $ replace_ret_ty c t'
         replace_ret_ty c _ = c
 
-mkMainExpr :: TypeClasses -> KnownValues -> NameGen -> Expr -> (Expr, [Id], [Expr], NameGen)
-mkMainExpr tc kv ng ex =
+mkMainExpr :: TV.TyVarEnv -> TypeClasses -> KnownValues -> NameGen -> Expr -> (Expr, [Id], [Id], [Expr], NameGen)
+mkMainExpr tv tc kv ng ex =
     let
-        typs = spArgumentTypes ex
+        typs = spArgumentTypes (typeOf tv ex)
 
         (typsE, typs') = instantitateTypes tc kv typs
 
@@ -99,14 +107,14 @@ mkMainExpr tc kv ng ex =
         
         app_ex = foldl' App ex $ typsE ++ var_ids
     in
-    (app_ex, is, typsE, ng')
+    (app_ex, [], is, typsE, ng')
 
 -- | This implementation aims to symbolically execute functions 
 -- treating both types and value level argument as symbolic
-mkMainExprNoInstantiateTypes :: Expr -> NameGen -> (Expr, [Id], [Expr], NameGen)
-mkMainExprNoInstantiateTypes e ng = 
+mkMainExprNoInstantiateTypes :: TV.TyVarEnv -> Expr -> NameGen -> (Expr, [Id], [Id], [Expr], NameGen)
+mkMainExprNoInstantiateTypes tv e ng = 
     let 
-        argts = spArgumentTypes e
+        argts = spArgumentTypes (typeOf tv e)
         anontype argt = 
             case argt of 
                 AnonType _ -> True
@@ -127,10 +135,9 @@ mkMainExprNoInstantiateTypes e ng =
         (atsToIds,ng'') = freshIds ats' ng'
         atsToIds' = renames ntmap atsToIds
 
-        all_ids = ntids' ++ atsToIds'
         ars = map (Type . TyVar) ntids' ++ map Var atsToIds'
         app_ex = foldl' App (renames ntmap e) ars
-    in  (app_ex, all_ids, [],ng'')
+    in  (app_ex, ntids', atsToIds', [], ng'')
 
 
 mkInputs :: NameGen -> [Type] -> ([Expr], [Id], NameGen)
@@ -146,39 +153,39 @@ mkInputs ng (t:ts) =
     in
     (var_id:ev, i:ei, ng'')
 
-mkAssumeAssert :: (Expr -> Expr -> Expr) -> Maybe T.Text -> Maybe T.Text
+mkAssumeAssert :: TV.TyVarEnv -> (Expr -> Expr -> Expr) -> Maybe T.Text -> Maybe T.Text
                -> [Expr] -> Expr -> Expr -> ExprEnv -> Expr
-mkAssumeAssert p (Just f) m_mod var_ids inter pre_ex eenv =
-    case findFunc f [m_mod] eenv of
+mkAssumeAssert tv p (Just f) m_mod var_ids inter pre_ex eenv =
+    case findFunc tv f [m_mod] eenv of
         Left (f', _) -> 
             let
                 app_ex = foldl' App (Var f') (var_ids ++ [pre_ex])
             in
             p app_ex inter
         Right s -> error s
-mkAssumeAssert _ Nothing _ _ e _ _ = e
+mkAssumeAssert _ _ Nothing _ _ e _ _ = e
 
 retsTrue :: Expr -> Expr
 retsTrue e = Assert Nothing e e
 
-findFunc :: T.Text -> [Maybe T.Text] -> ExprEnv -> Either (Id, Expr) String
-findFunc s m_mod eenv =
+findFunc :: TV.TyVarEnv -> T.Text -> [Maybe T.Text] -> ExprEnv -> Either (Id, Expr) String
+findFunc tv s m_mod eenv =
     let
         match = E.toExprList $ E.filterWithKey (\n _ -> nameOcc n == s) eenv
     in
     case match of
         [] -> Right $ "No functions with name " ++ (T.unpack s)
-        [(n, e)] -> Left (Id n (typeOf e) , e)
+        [(n, e)] -> Left (Id n (typeOf tv e) , e)
         pairs -> case filter (\(n, _) -> nameModule n `elem` m_mod) pairs of
-                    [(n, e)] -> Left (Id n (typeOf e), e)
+                    [(n, e)] -> Left (Id n (typeOf tv e), e)
                     [] -> Right $ "No function with name " ++ (T.unpack s) ++ " in available modules"
                     _ -> Right $ "Multiple functions with same name " ++ (T.unpack s) ++
                                 " in available modules"
 
-instantiateArgTypes :: TypeClasses -> KnownValues -> Expr -> ([Expr], [Type])
-instantiateArgTypes tc kv e =
+instantiateArgTypes :: TV.TyVarEnv -> TypeClasses -> KnownValues -> Expr -> ([Expr], [Type])
+instantiateArgTypes tv tc kv e =
     let
-        typs = spArgumentTypes e
+        typs = spArgumentTypes (typeOf tv e)
     in
     instantitateTypes tc kv typs
 
@@ -194,7 +201,7 @@ instantitateTypes tc kv ts =
                                     sat = satisfyingTCTypes kv tc i ts''
                                     pt = pickForTyVar kv sat
                                 in
-                                (replaceTyVar (idName i) pt ts'', (i, pt))) ts' tv
+                                 (replaceTyVar (idName i) pt ts'', (i, pt))) ts' tv
 
         -- Get dictionary arguments
         vi = mapMaybe (instantiateTCDict tc tcSat) ts'
@@ -217,14 +224,14 @@ pickForTyVar kv ts
 instantiateTCDict :: TypeClasses -> [(Id, Type)] -> Type -> Maybe Expr
 instantiateTCDict tc it tyapp@(TyApp _ t) | TyCon n _ <- tyAppCenter tyapp =
     let
-        t' = applyTypeMap (M.fromList $ map (\(Id ni _, ti) -> (ni,ti)) it) t
+        t' = applyTypeMap (TV.fromList $ map (\(Id ni _, ti) -> (ni,ti)) it) t
     in
     return . Var =<< lookupTCDict tc n t'
 instantiateTCDict _ _ _ = Nothing
 
-checkReaches :: ExprEnv -> KnownValues -> Maybe T.Text -> Maybe T.Text -> ExprEnv
-checkReaches eenv _ Nothing _ = eenv
-checkReaches eenv kv (Just s) m_mod =
-    case findFunc s [m_mod] eenv of
+checkReaches :: TV.TyVarEnv -> ExprEnv -> KnownValues -> Maybe T.Text -> Maybe T.Text -> ExprEnv
+checkReaches _ eenv _ Nothing _ = eenv
+checkReaches tv eenv kv (Just s) m_mod =
+    case findFunc tv s [m_mod] eenv of
         Left (Id n _, e) -> E.insert n (Assert Nothing (mkFalse kv) e) eenv
         Right err -> error  err

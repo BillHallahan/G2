@@ -78,6 +78,7 @@ class Monad m => ExprEnvM s m | m -> s where
 -- | Allows access to certain basic components of a state.
 class (ExprEnvM s m, NamingM s m) => ExState s m | m -> s where
     typeEnv :: m TypeEnv
+    tyVarEnv :: m TyVarEnv
     putTypeEnv :: TypeEnv -> m ()
 
     knownValues :: m KnownValues
@@ -128,6 +129,8 @@ instance ExState (State t, Bindings) (SM.State (State t, Bindings)) where
     typeClasses = readRecord (\(s, _) -> type_classes s)
     putTypeClasses = rep_type_classesM
 
+    tyVarEnv = readRecord (\(s, _) -> tyvar_env s)
+
 instance ExState (State t, NameGen) (SM.State (State t, NameGen)) where
     typeEnv = readRecord (\(s, _) -> type_env s)
     putTypeEnv = rep_type_envNG
@@ -137,6 +140,8 @@ instance ExState (State t, NameGen) (SM.State (State t, NameGen)) where
 
     typeClasses = readRecord (\(s, _) -> type_classes s)
     putTypeClasses = rep_type_classesNG
+
+    tyVarEnv = readRecord (\(s, _) -> tyvar_env s)
 
 instance FullState (State t, Bindings) (SM.State (State t, Bindings)) where
     currExpr = readRecord (\(s, _) -> curr_expr s)

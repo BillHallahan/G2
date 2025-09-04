@@ -91,8 +91,9 @@ appKVEEnv :: ExState s m => (KnownValues -> Name) -> m Expr
 appKVEEnv f = do
     n <- return . f =<< knownValues
     e <- lookupE n
+    tvnv <- tyVarEnv
     case e of
-        Just e' -> return . Var $ Id n (typeOf e')
+        Just e' -> return . Var $ Id n (typeOf tvnv e')
         Nothing -> error "appKVEEnv: not found"
 
 appKV :: ExState s m => (KnownValues -> Expr) -> m Expr

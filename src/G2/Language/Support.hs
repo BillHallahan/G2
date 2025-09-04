@@ -8,6 +8,7 @@ module G2.Language.Support
     , module G2.Language.Support
     , module G2.Language.TypeEnv
     , E.ExprEnv
+    , TV.TyVarEnv
     , PathConds
     , KnownValues
     , PathCond (..)
@@ -17,6 +18,7 @@ module G2.Language.Support
 
 import G2.Language.AST
 import qualified G2.Language.ExprEnv as E
+import qualified G2.Language.TyVarEnv as TV
 import G2.Language.KnownValues
 import G2.Language.MutVarEnv
 import G2.Language.Naming
@@ -43,6 +45,7 @@ import qualified Data.Text as T
 -- The t parameter can be used to track extra information during the execution.
 data State t = State { expr_env :: E.ExprEnv -- ^ Mapping of `Name`s to `Expr`s
                      , type_env :: TypeEnv -- ^ Type information
+                     , tyvar_env :: TV.TyVarEnv -- ^ Type variable information
                      , curr_expr :: CurrExpr -- ^ The expression represented by the state
                      , path_conds :: PathConds -- ^ Path conditions, in SWHNF
                      , non_red_path_conds :: NonRedPathConds -- ^ Path conditions, in the form of (possibly non-reduced)
@@ -90,9 +93,9 @@ data Bindings = Bindings { fixed_inputs :: [Expr]
 type InputIds = [Id]
 
 inputIds :: State t -> Bindings -> InputIds
-inputIds (State { expr_env = eenv }) (Bindings { input_names = ns }) =
+inputIds (State { expr_env = eenv, tyvar_env= tv }) (Bindings { input_names = ns }) =
     map (\n -> case E.lookup n eenv of
-                Just e -> Id n (typeOf e)
+                Just e -> Id n (typeOf tv e)
                 Nothing -> error "inputIds: Name not found in ExprEnv") ns
 
 -- | `CurrExpr` is the current expression we have. 
@@ -195,6 +198,7 @@ instance Hashable HandleStatus
 instance Named t => Named (State t) where
     names s = names (expr_env s)
             <> names (type_env s)
+            <> names (tyvar_env s)
             <> names (curr_expr s)
             <> names (path_conds s)
             <> names (non_red_path_conds s)
@@ -214,6 +218,7 @@ instance Named t => Named (State t) where
                , type_env =
                     HM.mapKeys (\k -> if k == old then new else k)
                     $ rename old new (type_env s)
+               , tyvar_env = rename old new (tyvar_env s)
                , curr_expr = rename old new (curr_expr s)
                , path_conds = rename old new (path_conds s)
                , non_red_path_conds = rename old new (non_red_path_conds s)
@@ -238,6 +243,7 @@ instance Named t => Named (State t) where
                , type_env =
                     HM.mapKeys (renames hm)
                     $ renames hm (type_env s)
+               , tyvar_env = renames hm (tyvar_env s)
                , curr_expr = renames hm (curr_expr s)
                , path_conds = renames hm (path_conds s)
                , non_red_path_conds = renames hm (non_red_path_conds s)
@@ -260,6 +266,7 @@ instance Named t => Named (State t) where
 instance ASTContainer t Expr => ASTContainer (State t) Expr where
     containedASTs s = (containedASTs $ type_env s) ++
                       (containedASTs $ expr_env s) ++
+                      (containedASTs $ tyvar_env s) ++
                       (containedASTs $ curr_expr s) ++
                       (containedASTs $ path_conds s) ++
                       (containedASTs $ non_red_path_conds s) ++
@@ -273,6 +280,7 @@ instance ASTContainer t Expr => ASTContainer (State t) Expr where
 
     modifyContainedASTs f s = s { type_env  = modifyContainedASTs f $ type_env s
                                 , expr_env  = modifyContainedASTs f $ expr_env s
+                                , tyvar_env = modifyContainedASTs f $ tyvar_env s
                                 , curr_expr = modifyContainedASTs f $ curr_expr s
                                 , path_conds = modifyContainedASTs f $ path_conds s
                                 , non_red_path_conds = modifyContainedASTs f $ non_red_path_conds s
@@ -287,6 +295,7 @@ instance ASTContainer t Expr => ASTContainer (State t) Expr where
 instance ASTContainer t Type => ASTContainer (State t) Type where
     containedASTs s = ((containedASTs . expr_env) s) ++
                       ((containedASTs . type_env) s) ++
+                      ((containedASTs . tyvar_env) s) ++
                       ((containedASTs . curr_expr) s) ++
                       ((containedASTs . path_conds) s) ++
                       (containedASTs $ non_red_path_conds s) ++
@@ -301,6 +310,7 @@ instance ASTContainer t Type => ASTContainer (State t) Type where
 
     modifyContainedASTs f s = s { type_env  = (modifyContainedASTs f . type_env) s
                                 , expr_env  = (modifyContainedASTs f . expr_env) s
+                                , tyvar_env  = (modifyContainedASTs f . tyvar_env) s
                                 , curr_expr = (modifyContainedASTs f . curr_expr) s
                                 , path_conds = (modifyContainedASTs f . path_conds) s
                                 , non_red_path_conds = modifyContainedASTs f $ non_red_path_conds s

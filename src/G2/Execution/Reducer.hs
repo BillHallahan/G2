@@ -183,8 +183,7 @@ import Data.Tuple
 import Data.Time.Clock
 import System.Clock
 import System.Directory
-
-import Debug.Trace
+import qualified G2.Language.TyVarEnv as TV 
 
 -- | Used when applying execution rules
 -- Allows tracking extra information to control halting of rule application,
@@ -647,12 +646,13 @@ nonRedLibFuncs exec_names no_nrpc_names
                 s@(State { expr_env = eenv
                          , curr_expr = CurrExpr _ ce
                          , known_values = kv
+                         , tyvar_env = tvnv
                          }) 
                 b@(Bindings { name_gen = ng })
     | 
       -- We are NOT dealing with a symbolic function or a function that should not be put in the NRPCs
       Var (Id n _):_ <- unApp ce
-    , Just (Id n' _) <- E.deepLookupVar n eenv
+    , Just n' <- E.deepLookupVar n eenv
     , not (n' `HS.member` no_nrpc_names)
     , not (E.isSymbolic n' eenv)
     , Just (s'@(State { curr_expr = CurrExpr _ _ }), _, ce', ng') <- createNonRed ng s = 
@@ -687,6 +687,7 @@ nonRedHigherOrderFunc
                 s@(State { expr_env = eenv
                          , curr_expr = CurrExpr _ ce
                          , known_values = kv
+                         , tyvar_env = tvnv
                          }) 
                 b@(Bindings { name_gen = ng })
     | 
@@ -707,7 +708,7 @@ nonRedHigherOrderFunc
             -- thus cannot clear out the stack
             (ng'', xs_new_g) = if noEnsureEq stck'
                             then L.mapAccumR
-                                    (funcArgState (map typeOf es) (returnType $ PresType t)) ng'
+                                    (funcArgState (map (typeOf tvnv) es) (returnType t)) ng'
                                     $ zip [0..] es
                             else (ng', [])
             xs = mapMaybe (fmap fst) xs_new_g
@@ -725,13 +726,13 @@ nonRedHigherOrderFunc
 
         -- | Generate `State`s to explore each function argument
         funcArgState all_args_ts ret_ty init_ng (this_arg_num, fa_e)
-            | isTyFun (typeOf fa_e) = 
+            | isTyFun (typeOf tvnv fa_e) = 
                     let
-                        ts = anonArgumentTypes fa_e
+                        ts = anonArgumentTypes (typeOf tvnv fa_e)
                         (is, ng') = freshIds ts ng_args
                         vs = map Var is
                         fa_e' = mkApp $ fa_e:vs
-                        (bindee, ng'') = freshId (typeOf this_arg) ng'
+                        (bindee, ng'') = freshId (typeOf tvnv this_arg) ng'
                         (ret_id, ng''') = freshId ret_ty ng''
 
                         -- Instantiate the symbolic function `n`
@@ -745,11 +746,11 @@ nonRedHigherOrderFunc
                     (ng''', Just $ (s { expr_env = eenv''
                                       , curr_expr = CurrExpr Evaluate fa_e'
                                       , exec_stack = stck }, Nothing))
-            | isPrimType (typeOf fa_e) = (init_ng, Nothing)
+            | isPrimType (typeOf tvnv fa_e) = (init_ng, Nothing)
             | otherwise =
                 let
-                    (g, ng') = freshId (TyFun (typeOf this_arg) ret_ty) ng_args
-                    (bindee, ng'') = freshId (typeOf this_arg) ng'
+                    (g, ng') = freshId (TyFun (typeOf tvnv this_arg) ret_ty) ng_args
+                    (bindee, ng'') = freshId (typeOf tvnv this_arg) ng'
                     g_app = Case (App (Var g) (Var this_arg)) bindee ret_ty [Alt Default  (Var bindee)]
                     f_def = mkLams (zip (repeat TermL) arg_is) g_app
 
@@ -791,17 +792,17 @@ nrpcApproxReducer solver no_inline no_nrpc_names config =
             return (s, b) }
 
     where
-        red rv s@(State { curr_expr = CurrExpr _ ce, expr_env = eenv }) b
+        red rv s@(State { curr_expr = CurrExpr _ ce, expr_env = eenv, tyvar_env = tvnv }) b
             | maybe True (allowed_frame . fst) (Stck.pop (exec_stack s))
             
             , let e = applyWrap (getExpr s) (exec_stack s)
             , Var (Id n _):_:_ <- unApp e
 
-            , Just (Id n' _) <- E.deepLookupVar n eenv
+            , Just n' <- E.deepLookupVar n eenv
             , not (n' `HS.member` no_nrpc_names)
             , not (E.isSymbolic n' eenv)
 
-            , not . isTyFun . typeOf $ e = do
+            , not . isTyFun . (typeOf tvnv) $ e = do
                 -- liftIO $ do
                 --     putStrLn $ "curr_expr s = " ++ show (getExpr s)
                 --     putStrLn $ "log_path s = " ++ show (log_path s)
@@ -884,13 +885,14 @@ createNonRed' ng
               s@(State { curr_expr = CurrExpr _ ce
                        , expr_env = eenv
                        , non_red_path_conds = nrs
-                       , known_values = kv }) e
+                       , known_values = kv
+                       , tyvar_env = tvnv }) e
             | v@(Var (Id _ t)):es <- unApp e
 
-            , hasFuncType (PresType t)
+            , hasFuncType t
 
-            , let e_ty = typeOf e
-            , not . hasFuncType . PresType $ e_ty
+            , let e_ty = typeOf tvnv e
+            , not $ hasFuncType e_ty
             -- Don't turn functions manipulating "magic types"- types represented as Primitives, with special handling
             -- (for instance, MutVars, Handles) into NRPC symbolic variables.
             , not (hasMagicTypes kv e) =
@@ -990,7 +992,8 @@ strictRed = mkSimpleReducer (\_ -> ())
     where
         strict_red _ s@(State { curr_expr = ce@(CurrExpr Return e)
                               , expr_env = eenv
-                              , exec_stack = stck })
+                              , exec_stack = stck
+                              , tyvar_env = tvnv })
                      b@(Bindings { name_gen = ng })
             -- If the next frame is ensuring equality with another structure, allow it to be handled by the rules
             -- for EnsureEq, so that we get i.e. pruning of expression which have different central data constructors
@@ -1009,7 +1012,7 @@ strictRed = mkSimpleReducer (\_ -> ())
                     --   @ D x1 ... xk@
                     -- and inserts @x1 -> e1@, ..., @xk -> ek@ in the heap.  This means we can then evaluate
                     -- `x1, ... xk` and rely on sharing to correctly get a fully evaluated expression.
-                    (is, ng') = freshIds (map typeOf es) ng
+                    (is, ng') = freshIds (map (typeOf tvnv) es) ng
                     eenv' = foldl' (\env (Id n _, e_) -> E.insert n e_ env) eenv $ zip is es
                     ce_expr = mkApp $ Data d:map Var is
                     ce' = CurrExpr Return ce_expr
@@ -1087,7 +1090,8 @@ nonRedPCRedFunc prune _
                          , curr_expr = cexpr
                          , exec_stack = stck
                          , non_red_path_conds = (nre1, nre2) S.:<| nrs
-                         , model = m })
+                         , model = m
+                         , tyvar_env = tvnv })
                 b@(Bindings { higher_order_inst = inst })
     -- If our goal is to violate assertions, and we haven't violated an assertion yet when
     -- we get to NRPCs, just discard the state.
@@ -1096,7 +1100,7 @@ nonRedPCRedFunc prune _
     | not (true_assert s), prune = return (Finished, [], b)
     | Var (Id n t) <- nre2
     , E.isSymbolic n eenv
-    , hasFuncType (PresType t) =
+    , hasFuncType t =
         let
             s' = s { expr_env = E.insert n nre1 eenv
                    , non_red_path_conds  = nrs }
@@ -1104,7 +1108,7 @@ nonRedPCRedFunc prune _
         return (InProgress, [(s', ())], b)
     | Var (Id n t) <- nre1
     , E.isSymbolic n eenv
-    , hasFuncType (PresType t) =
+    , hasFuncType t =
         let
             s' = s { expr_env = E.insert n nre2 eenv
                    , non_red_path_conds  = nrs }
@@ -1115,7 +1119,7 @@ nonRedPCRedFunc prune _
 
         let cexpr' = CurrExpr Evaluate nre1
 
-        let eenv_si_ces = substHigherOrder eenv m inst cexpr'
+        let eenv_si_ces = substHigherOrder tvnv eenv m inst cexpr'
 
         let s' = s { exec_stack = stck'
                    , non_red_path_conds = nrs
@@ -1131,26 +1135,28 @@ nonRedPCRedFunc _ _ s b = return (Finished, [(s, ())], b)
 -- Substitutes all possible higher order functions for symbolic higher order functions.
 -- We insert the substituted higher order function directly into the model, because, due
 -- to the VAR-RED rule, the function name will (if the function is called) be lost during execution.
-substHigherOrder :: ExprEnv -> Model -> HS.HashSet Name -> CurrExpr -> [(ExprEnv, Model, CurrExpr)]
-substHigherOrder eenv m ns ce =
+substHigherOrder :: TyVarEnv -> ExprEnv -> Model -> HS.HashSet Name -> CurrExpr -> [(ExprEnv, Model, CurrExpr)]
+substHigherOrder tv eenv m ns ce =
     let
         is = mapMaybe (\n -> case E.lookup n eenv of
-                                Just e -> Just $ Id n (typeOf e)
+                                Just e -> Just $ Id n (typeOf tv e)
                                 Nothing -> Nothing) $ HS.toList ns
 
-        higherOrd = filter (isTyFun . typeOf) . symbVars eenv $ ce
+        higherOrd = filter (isTyFun . typeOf tv) . symbVars eenv $ ce
         higherOrdSub = map (\v -> (v, mapMaybe (genSubstitutable v) is)) higherOrd
     in
     substHigherOrder' [(eenv, m, ce)] higherOrdSub
     where
         genSubstitutable v i
-            | Just bm <- specializes (typeOf v) (typeOf i) =
+            | Just bm <- specializes (typeOf tv v) t_i =
                 let
-                    bnds = map idName $ leadingTyForAllBindings i
-                    tys = mapMaybe (\b -> fmap Type $ M.lookup b bm) bnds
+                    bnds = map idName $ leadingTyForAllBindings t_i
+                    tys = mapMaybe (\b -> fmap Type $ TV.lookup b bm) bnds
                 in
                 Just . mkApp $ Var i:tys
             | otherwise = Nothing
+            where
+                t_i = typeOf tv i
 
 substHigherOrder' :: [(ExprEnv, Model, CurrExpr)] -> [(Id, [Expr])] -> [(ExprEnv, Model, CurrExpr)]
 substHigherOrder' eenvsice [] = eenvsice
@@ -1177,16 +1183,17 @@ nonRedPCRedConstFunc _
                               , curr_expr = cexpr
                               , exec_stack = stck
                               , non_red_path_conds = (nre1, nre2) S.:<| nrs
-                              , model = m })
+                              , model = m
+                              , tyvar_env = tvnv })
                      b@(Bindings { name_gen = ng })
-    | higher_ord <- L.filter (isTyFun . typeOf) $ E.symbolicIds eenv
+    | higher_ord <- L.filter (isTyFun . typeOf tvnv) $ E.symbolicIds eenv
     , not (null higher_ord) = do
         let stck' = Stck.push (CurrExprFrame (EnsureEq nre2) cexpr) stck
 
         let cexpr' = CurrExpr Evaluate nre1
 
-        let (ng', new_lam_is) = L.mapAccumL (\ng_ ts -> swap $ freshIds ts ng_) ng (map anonArgumentTypes higher_ord)
-            (new_sym_gen, ng'') = freshIds (map returnType higher_ord) ng'
+        let (ng', new_lam_is) = L.mapAccumL (\ng_ ts -> swap $ freshIds ts ng_) ng (map (anonArgumentTypes . typeOf tvnv) higher_ord)
+            (new_sym_gen, ng'') = freshIds (map (returnType . typeOf tvnv) higher_ord) ng'
 
             es = map (\(f_id, lam_i, sg_i) -> (f_id, mkLams (zip (repeat TermL) lam_i) (Var sg_i)) )
                $ zip3 higher_ord new_lam_is new_sym_gen
@@ -1744,14 +1751,14 @@ approximationHalter' stop_cond solver no_inline = mkSimpleHalter
         -- (2) we then switch to a different state before doing any reduction
         -- (3) we eventually return to the state, and immediately run the halter
         -- to avoid this we only allow approximation against states that have taken fewer steps than our current state
-        stop _ pr s@(State { curr_expr = CurrExpr er init_e})
+        stop _ pr s@(State { curr_expr = CurrExpr er init_e, tyvar_env = tvnv})
             | -- maybe True (allowed_frame er . fst) 
             
               s'@(State { curr_expr = CurrExpr _ e}) <- stateAdjStack s
             , Stck.null (exec_stack s')
             , allowed_expr_frame er (unApp init_e) (unApp e) (fmap fst $ Stck.pop (exec_stack s))
 
-            , not . isTyFun . typeOf $ e = do
+            , not . isTyFun . (typeOf tvnv) $ e = do
                 -- liftIO $ do
                 --     putStrLn $ "approx halter log_path s = " ++ show (log_path s) ++ " " ++ show (num_steps s)
                 xs <- SM.gets ap_halter_states

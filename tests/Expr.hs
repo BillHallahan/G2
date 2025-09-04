@@ -7,6 +7,7 @@ import qualified G2.Language.ExprEnv as E
 
 import Test.Tasty
 import Test.Tasty.HUnit
+import qualified G2.Language.TyVarEnv as TV 
 
 exprTests :: TestTree
 exprTests =
@@ -20,7 +21,7 @@ exprTests =
 etaExpandTo1 :: Bool
 etaExpandTo1 =
     let
-        (e, _) = etaExpandTo eenv (mkNameGen ()) 1 idF
+        (e, _) = etaExpandTo TV.empty eenv (mkNameGen ()) 1 idF
     in
     case e of
         (Lam TermL i (App _ (Var i'))) -> i == i'
@@ -29,7 +30,7 @@ etaExpandTo1 =
 etaExpandTo2 :: Bool
 etaExpandTo2 =
     let
-        (e, _) = etaExpandTo eenv (mkNameGen ()) 1 (Var (Id undefinedN (TyFun int int)))
+        (e, _) = etaExpandTo TV.empty eenv (mkNameGen ()) 1 (Var (Id undefinedN (TyFun int int)))
     in
     case e of
         Var (Id n (TyFun _ _)) -> n == undefinedN
@@ -38,7 +39,7 @@ etaExpandTo2 =
 etaExpandTo3 :: Bool
 etaExpandTo3 =
     let
-        (e, _) = etaExpandTo eenv (mkNameGen ()) 1
+        (e, _) = etaExpandTo TV.empty eenv (mkNameGen ()) 1
                 (Let [(fId, (Var (Id idN (TyFun int int))))] (Var fId))
     in
     case e of
@@ -48,7 +49,7 @@ etaExpandTo3 =
 etaExpandTo4 :: Bool
 etaExpandTo4 =
     let
-        (e, _) = etaExpandTo eenv (mkNameGen ()) 1
+        (e, _) = etaExpandTo TV.empty eenv (mkNameGen ()) 1
                 (Let [(fId, (Var (Id undefinedN (TyFun int int))))] (Var fId))
     in
     case e of
@@ -58,7 +59,7 @@ etaExpandTo4 =
 etaExpandToOverSat1 :: Bool
 etaExpandToOverSat1 =
     let
-        (e, _) = etaExpandTo eenv (mkNameGen ()) 3 idF
+        (e, _) = etaExpandTo TV.empty eenv (mkNameGen ()) 3 idF
     in
     case e of
         (Lam TermL i (App _ (Var i'))) -> i == i'

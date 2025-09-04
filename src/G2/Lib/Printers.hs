@@ -50,7 +50,7 @@ import qualified Data.HashMap.Lazy as HM
 import qualified Data.HashSet as HS
 import qualified Data.Text as T
 import Text.Read
-
+import qualified G2.Language.TyVarEnv as TV 
 data Clean = Cleaned | Dirty deriving Eq
 
 mkIdHaskell :: PrettyGuide -> Id -> T.Text
@@ -66,8 +66,8 @@ mkNameHaskell pg n
     | otherwise = nameOcc n
 
 mkUnsugaredExprHaskell :: State t -> Expr -> T.Text
-mkUnsugaredExprHaskell (State {type_classes = tc}) =
-    mkExprHaskell Cleaned (mkPrettyGuide ()) . modifyMaybe (mkCleanExprHaskell' tc)
+mkUnsugaredExprHaskell (State {type_classes = tc, tyvar_env = tvnv }) =
+    mkExprHaskell Cleaned (mkPrettyGuide ()) . modifyMaybe (mkCleanExprHaskell' tvnv tc)
 
 printHaskell :: State t -> Expr -> T.Text
 printHaskell = mkCleanExprHaskell (mkPrettyGuide ())
@@ -82,23 +82,23 @@ printHaskellPG :: PrettyGuide -> State t -> Expr -> T.Text
 printHaskellPG = mkCleanExprHaskell
 
 mkCleanExprHaskell :: PrettyGuide -> State t -> Expr -> T.Text
-mkCleanExprHaskell pg (State {type_classes = tc}) = 
-    mkExprHaskell Cleaned pg . modifyMaybe (mkCleanExprHaskell' tc)
+mkCleanExprHaskell pg (State {type_classes = tc, tyvar_env = tvnv }) = 
+    mkExprHaskell Cleaned pg . modifyMaybe (mkCleanExprHaskell' tvnv tc)
 
-mkCleanExprHaskell' :: TypeClasses -> Expr -> Maybe Expr
-mkCleanExprHaskell' tc e
+mkCleanExprHaskell' :: TV.TyVarEnv -> TypeClasses -> Expr -> Maybe Expr
+mkCleanExprHaskell' tv tc e
     | Case scrut i t [a] <- e = Case scrut i t . (:[]) <$> elimPrimDC a
 
     | (App e' e'') <- e
-    , t <- typeOf e'
+    , t <- typeOf tv e'
     , isTypeClass tc t = Just e''
 
     | (App e' e'') <- e
-    , t <- typeOf e''
+    , t <- typeOf tv e''
     , isTypeClass tc t = Just e'
 
     | (App e' e'') <- e
-    , isTypeClass tc (returnType e'') = Just e'
+    , isTypeClass tc (returnType (typeOf tv e'') ) = Just e'
 
     | (App e' e'') <- e
     , Coercion _ <- e'' = Just e'
@@ -580,6 +580,8 @@ prettyState pg s =
         , pretty_mutvars
         , "----- [Types] ---------------------"
         , pretty_tenv
+        , "----- [TyVars] ---------------------"
+        , pretty_tyvar_env
         , "----- [Typeclasses] ---------------------"
         , pretty_tc
         , "----- [True Assert] ---------------------"
@@ -598,12 +600,13 @@ prettyState pg s =
     where
         pretty_curr_expr = prettyCurrExpr pg (curr_expr s)
         pretty_stack = prettyStack pg (exec_stack s)
-        pretty_eenv = prettyEEnv pg (curr_expr s) (exec_stack s) (expr_env s) 
+        pretty_eenv = prettyEEnv (tyvar_env s) pg (curr_expr s) (exec_stack s) (expr_env s)
         pretty_paths = prettyPathConds pg (path_conds s)
         pretty_non_red_paths = prettyNonRedPaths pg . toListInternalNRPC $ non_red_path_conds s
         pretty_handles = prettyHandles pg $ handles s
         pretty_mutvars = prettyMutVars pg . HM.map mv_val_id $ mutvar_env s
-        pretty_tenv = prettyTypeEnv pg (type_env s)
+        pretty_tenv = prettyTypeEnv (tyvar_env s) pg (type_env s)
+        pretty_tyvar_env = prettyTypeVarEnv pg (tyvar_env s)
         pretty_tc = prettyTypeClasses pg (type_classes s)
         pretty_assert_fcs = maybe "None" (printFuncCallPG pg) (assert_ids s)
         pretty_tags = T.intercalate ", " . map (mkNameHaskell pg) $ HS.toList (tags s)
@@ -643,14 +646,14 @@ prettyCEAction :: PrettyGuide -> CEAction -> T.Text
 prettyCEAction pg (EnsureEq e) = "EnsureEq " <> mkDirtyExprHaskell pg e
 prettyCEAction _ NoAction = "NoAction"
 
-prettyEEnv :: PrettyGuide -> CurrExpr -> Stack Frame -> ExprEnv -> T.Text
-prettyEEnv pg@(PG {env_ordering=e_ord}) cexpr estack eenv = T.intercalate "\n\n"
+prettyEEnv :: TV.TyVarEnv -> PrettyGuide -> CurrExpr -> Stack Frame -> ExprEnv -> T.Text
+prettyEEnv tv pg@(PG {env_ordering=e_ord}) cexpr estack eenv = T.intercalate "\n\n"
                    . map (uncurry printFunc)
                    . (case e_ord of Ordered -> reorder 
                                     Unordered -> id)
                    . E.toList $ eenv
     where
-        printFunc n e = mkNameHaskell pg n <> " :: " <> mkTypeHaskellPG pg (envObjType eenv e)
+        printFunc n e = mkNameHaskell pg n <> " :: " <> mkTypeHaskellPG pg (envObjType tv eenv e)
                             <> "\n" <> mkNameHaskell pg n <> " = " <> printEnvObj pg e
         reorder :: [(Name, E.EnvObj)] -> [(Name, E.EnvObj)]
         reorder el = let
@@ -665,9 +668,9 @@ printEnvObj :: PrettyGuide -> E.EnvObj -> T.Text
 printEnvObj pg (E.ExprObj e) = mkDirtyExprHaskell pg e
 printEnvObj pg (E.SymbObj (Id _ t)) = "symbolic " <> mkTypeHaskellPG pg t
 
-envObjType :: ExprEnv -> E.EnvObj -> Type
-envObjType _ (E.ExprObj e) = typeOf e
-envObjType _ (E.SymbObj (Id _ t)) = t
+envObjType :: TV.TyVarEnv -> ExprEnv -> E.EnvObj -> Type
+envObjType tvnv _ (E.ExprObj e) = typeOf tvnv e
+envObjType _ _ (E.SymbObj (Id _ t)) = t
 
 prettyPathConds :: PrettyGuide -> PathConds -> T.Text
 prettyPathConds pg = T.intercalate "\n" . map (prettyPathCond pg) . PC.toList
@@ -704,25 +707,33 @@ prettyHandles pg = T.intercalate "\n" . map (\(n, h) -> printName pg n
 prettyMutVars :: PrettyGuide -> HM.HashMap Name Id -> T.Text
 prettyMutVars pg = T.intercalate "\n" . map (\(n, i) -> printName pg n <> " , " <> mkIdHaskell pg i) . HM.toList
 
-prettyTypeEnv :: PrettyGuide -> TypeEnv -> T.Text
-prettyTypeEnv pg = T.intercalate "\n" . map (uncurry (prettyADT pg)) . HM.toList
+prettyTypeEnv :: TV.TyVarEnv -> PrettyGuide -> TypeEnv -> T.Text
+prettyTypeEnv tv pg = T.intercalate "\n" . map (uncurry (prettyADT tv pg)) . HM.toList
 
-prettyADT :: PrettyGuide -> Name -> AlgDataTy -> T.Text
-prettyADT pg n DataTyCon { bound_ids = bids, data_cons = dcs } =
+prettyADT :: TV.TyVarEnv -> PrettyGuide -> Name -> AlgDataTy -> T.Text
+prettyADT tv pg n DataTyCon { bound_ids = bids, data_cons = dcs } =
     "data " <> mkNameHaskell pg n <> " "
             <> T.intercalate " " (map (mkIdHaskell pg) bids)
-            <> " = " <> T.intercalate " | " (map (prettyDCWithType pg) dcs)
-prettyADT pg n NewTyCon { bound_ids = bids, data_con = dc } =
+            <> " = " <> T.intercalate " | " (map (prettyDCWithType tv pg) dcs)
+prettyADT tv pg n NewTyCon { bound_ids = bids, data_con = dc } =
     "newtype " <> mkNameHaskell pg n <> " "
                <> T.intercalate " " (map (mkIdHaskell pg) bids)
-               <> " = " <> prettyDCWithType pg dc
-prettyADT pg n TypeSynonym { bound_ids = bids, synonym_of = t } =
+               <> " = " <> prettyDCWithType tv pg dc
+prettyADT _ pg n TypeSynonym { bound_ids = bids, synonym_of = t } =
     "type " <> mkNameHaskell pg n <> " "
             <> T.intercalate " " (map (mkIdHaskell pg) bids)
             <> " = " <> mkTypeHaskellPG pg t
 
-prettyDCWithType :: PrettyGuide -> DataCon -> T.Text
-prettyDCWithType pg dc = mkDataConHaskell pg dc <> " :: " <> mkTypeHaskellPG pg (typeOf dc)
+prettyDCWithType :: TV.TyVarEnv ->  PrettyGuide -> DataCon -> T.Text
+prettyDCWithType tv pg dc = mkDataConHaskell pg dc <> " :: " <> mkTypeHaskellPG pg (typeOf tv dc)
+
+prettyTypeVarEnv :: PrettyGuide -> TV.TyVarEnv -> T.Text
+prettyTypeVarEnv pg = T.intercalate "\n"
+                    . map (\(n, t) -> mkNameHaskell pg n <> " -> " <> prettyTyConcOrSym t)
+                    . TV.toListConcOrSym
+    where
+        prettyTyConcOrSym (TV.TyConc t) = mkTypeHaskellPG pg t
+        prettyTyConcOrSym (TV.TySym i) = "symbolic " <> mkIdHaskell pg i
 
 prettyTypeClasses :: PrettyGuide -> TypeClasses -> T.Text
 prettyTypeClasses pg = T.intercalate "\n" . map (\(n, tc) -> mkNameHaskell pg n <> " = " <> prettyClass pg tc) . HM.toList . toMap

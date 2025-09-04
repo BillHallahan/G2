@@ -27,6 +27,7 @@ import qualified Data.HashSet as S
 import Data.IORef
 import Data.Maybe
 import System.Clock
+import qualified G2.Language.TyVarEnv as TV
 
 data VerifyResult = Verified
                   | Counterexample [ExecRes ()]
@@ -144,7 +145,7 @@ verifyFromFile proj src f transConfig config verify_config = do
 
 
     (init_state, entry_f, bindings, _) <- initialStateFromFile proj src
-                                    Nothing False f (mkCurrExpr Nothing Nothing) mkArgTys
+                                    Nothing False f (mkCurrExpr TV.empty Nothing Nothing) (mkArgTys TV.empty)
                                     transConfig config'
     let (init_state', ng) = wrapCurrExpr (name_gen bindings) init_state
         bindings' = bindings { name_gen = ng }
