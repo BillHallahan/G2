@@ -5,6 +5,8 @@ module G2.Language.TypeAppRenameMap ( TypeAppRenameMap
                                , insert
                                , lookup
                                , member
+                               , toList
+                               , fromList
                                , empty ) where 
 
 import G2.Language.Syntax
@@ -29,5 +31,11 @@ lookup n (TyAppReMap tarm) = HM.lookup n tarm
 
 member :: Name -> TypeAppRenameMap -> Bool 
 member n tarm = isJust (lookup n tarm)
+
+toList :: TypeAppRenameMap -> [(Name, Name)]
+toList (TyAppReMap tarm) = HM.toList tarm
+
+fromList :: [(Name, Name)] -> TypeAppRenameMap
+fromList l = TyAppReMap $ HM.fromList l
 
 instance Hashable TypeAppRenameMap
