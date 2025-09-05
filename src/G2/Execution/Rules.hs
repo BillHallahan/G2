@@ -1567,12 +1567,17 @@ genArgIds (DataCon _ dcty _ _) ng =
     in foldr (\ty (is, ng') -> let (i, ng'') = freshId ty ng' in ((i:is), ng'')) ([], ng) argTys
 
 mkFuncConst :: SymFuncTicks -> State t -> [Expr] -> Name -> Type -> Type -> NameGen -> (State t, NameGen)
-mkFuncConst sft s@(State { expr_env = eenv } ) es n t1 t2 ng =
+mkFuncConst sft s@(State { expr_env = eenv, tyvar_env = tve } ) es n t1 t2 ng =
     let
+        -- make new Ids and runtime expression
         (fId:xId:[], ng') = freshIds [t2, t1] ng
-        eenv' = foldr E.insertSymbolic eenv [fId]
         e = Lam TermL xId . Tick (const_tick sft) $ Var fId
-        eenv'' = E.insert n e eenv'
+        -- get forall bound tyVar names, rename bindings for env
+        hm = getTyVarRenameMap n (TyFun t1 t2) tve eenv
+        fId' = renames hm fId
+        e' = renames hm e
+        eenv' = foldr E.insertSymbolic eenv [fId']
+        eenv'' = E.insert n e' eenv'
     in (s {
         curr_expr = CurrExpr Evaluate $ mkApp (e:es),
         -- symbolic_ids = fId:symbolic_ids state,
