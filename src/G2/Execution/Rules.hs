@@ -1478,18 +1478,10 @@ retReplaceSymbFuncTemplate sft
         eenv' = foldr E.insertSymbolic eenv symIds'
         eenv'' = E.insert n e'' eenv'
         (constState, ng'''') = mkFuncConst sft s es n t1 t2 ng'''
-
-        -- Don't create a constant function if the return type would be a type variable that 
-        -- has no arguments in its PAM entry (can't be realized). The constant function may 
-        -- return undefined or a literal, which should not be in PM function definitions.
-        -- TODO: if TV not in PAM (not from PM function solving), do we still create a constant function?
-        dcSt = s { curr_expr = CurrExpr Evaluate e',
-                   expr_env = eenv'' }
-        (sts, ng''''') | (TyVar (Id retTy _)) <- t2
-                       , Just envTy <- TRM.lookup retTy tarm
-                       , Just [] <- PM.lookup envTy pargm = ([dcSt], ng''')
-                       | otherwise = ([constState, dcSt], ng'''')
-    in Just (RuleReturnReplaceSymbFunc, sts, ng''''')
+        in Just (RuleReturnReplaceSymbFunc, [constState, s {
+            curr_expr = CurrExpr Evaluate e',
+            expr_env = eenv''
+        }], ng'''')
 
     -- FUNC-APP
     | Var (Id n (TyFun t1@(TyFun _ _) t2)):es <- unApp ce

@@ -33,6 +33,11 @@ multiIntArgs f = f 2 3 4
 fromMaybe :: (forall a. a -> (Maybe a) -> a) -> (Int, Int)
 fromMaybe f = (f 1 (Just 2), f 3 Nothing)
 
+-- | Checks that literals are not being generated in definition
+-- TODO: maybe remove this test
+fromMaybeInvalid :: (forall a. (Maybe a) -> a) -> Int 
+fromMaybeInvalid f = f Nothing
+
 fromTuples :: (forall a. (a, a) -> (a, a) -> a) -> Int 
 fromTuples f = f (2, 3) (4, 5)
 
