@@ -535,7 +535,9 @@ testFileTests = testGroup "TestFiles"
                                                              , ("calledInTuple", 100, [Exactly 2])
                                                              , ("intArg", 100, [Exactly 2])
                                                              , ("intArgCalledTwice", 200, [Exactly 5])
+                                                             , ("multiIntArgs", 200, [Exactly 4])
                                                              , ("fromMaybe", 100, [Exactly 3])
+                                                             , ("fromTuples", 100, [Exactly 8])
                                                              , ("twoFunctions", 200, [Exactly 4])] 
     , checkInputOutputsNonRedHigher "tests/HigherOrder/HigherOrder.hs" [ ("f", 200, [AtLeast 3])
                                                                        , ("h", 150, [AtLeast 2])
