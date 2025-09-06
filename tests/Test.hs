@@ -667,7 +667,8 @@ extensionTests = testGroup "Extensions"
                                                                           , ("callG", 400, [AtLeast 1])
                                                                           , ("callG2", 400, [AtLeast 1]) ]
                                                                           
-    , checkInputOutputs "tests/TestFiles/Extensions/GADTs1.hs" [ ("vecZipConc", 400, [Exactly 1])
+    , checkInputOutputs "tests/TestFiles/Extensions/GADTs1.hs" [ -- Concrete GADTs
+                                                                 ("vecZipConc", 400, [Exactly 1])
                                                                , ("vecZipConc2", 400, [Exactly 1])
                                                                , ("vecHeadEx", 400, [Exactly 1])
                                                                , ("doubleVec", 400, [Exactly 1])
@@ -677,7 +678,12 @@ extensionTests = testGroup "Extensions"
                                                                , ("exampleExpr2", 400, [Exactly 1])
                                                                , ("exampleExpr3", 400, [Exactly 1])
                                                                , ("exampleExpr4", 400, [Exactly 1])
-                                                               , ("exampleExpr5", 400, [Exactly 1]) ]
+                                                               , ("exampleExpr5", 400, [Exactly 1])
+                                                               
+                                                               -- Symbolic GADTs
+                                                               , ("vecTail", 1000, [AtLeast 1])
+                                                               , ("vecLength", 1000, [AtLeast 10])
+                                                               ]
     ]
 
 baseTests ::  TestTree
@@ -1017,12 +1023,8 @@ checkExprVerifier vr_check src entry =
                         Right (vr, _, _, _) -> vr
 
         assertBool
-            ("Incorrect verification result for " ++ entry ++ " in " ++ show src ++ "\nresult = " ++ resToString res')
+            ("Incorrect verification result for " ++ entry ++ " in " ++ show src ++ "\nresult = " ++ show res')
             (vr_check res') 
-        where
-            resToString Verified = "Verified"
-            resToString VerifyTimeOut = "TimeOut"
-            resToString (Counterexample _) = "Counterexample"
 
 testFile :: String
          -> Maybe String
