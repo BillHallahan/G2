@@ -222,9 +222,7 @@ getADT cutoff m tenv tvnv eenv kv av adt ts
             -- Finds the DataCon for adt with the least arguments
             dcs' = MA.mapMaybe (checkDC tvnv) dcs
 
-            min_dc = case dcs' of
-                        [] -> error $ "ts = " ++ show ts ++ "\nts' = " ++ show (tyVarSubst tvnv ts)
-                        _ -> minimumBy (comparing (length . anonArgumentTypes . typeOf tvnv)) dcs'
+            min_dc = minimumBy (comparing (length . anonArgumentTypes . typeOf tvnv)) dcs'
 
             m' = foldr (uncurry HM.insert) m $ zip (map idName ids) ts
 
