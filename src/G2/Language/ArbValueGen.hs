@@ -220,7 +220,7 @@ getADT cutoff m tenv tvnv eenv kv av adt ts
             ids = bound_ids adt
 
             -- Finds the DataCon for adt with the least arguments
-            dcs' = MA.mapMaybe (checkDC tvnv) dcs
+            dcs' = MA.mapMaybe checkDC dcs
 
             min_dc = minimumBy (comparing (length . anonArgumentTypes . typeOf tvnv)) dcs'
 
@@ -248,12 +248,12 @@ getADT cutoff m tenv tvnv eenv kv av adt ts
         -- has been instantiated with Bool (we learn this from the ts input parameter), that the CBool
         -- constructor has the (ok) coercion (a ~ Bool) and that CInt has the (disallowed) coercion (a ~ Int) 
 
-        checkDC tvnv' dc = do
+        checkDC dc = do
             let coer = eval (getCoercions kv) (dc_type dc)
 
-                leading_ty = leadingTyForAllBindings (typeOf tvnv' dc)
+                leading_ty = leadingTyForAllBindings (typeOf tvnv dc)
             
-                ts' = tyVarSubst tvnv' ts
+                ts' = tyVarSubst tvnv ts
 
             let unifMapTy = foldM (\uf -> uncurry (unify' uf))
             -- Union the forall type bindings with the passed type arguments
