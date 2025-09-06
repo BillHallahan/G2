@@ -21,6 +21,7 @@ import G2.Language.KnownValues
 import qualified Data.Maybe as MA
 import qualified G2.Data.UFMap as UF
 import Control.Monad (foldM)
+import Control.Exception (assert)
 
 -- | A default `ArbValueGen`.
 arbValueInit :: ArbValueGen
@@ -258,7 +259,9 @@ getADT cutoff m tenv tvnv eenv kv av adt ts
 
             let unifMapTy = foldM (\uf -> uncurry (unify' uf))
             -- Union the forall type bindings with the passed type arguments
-            forall_unif <- unifMapTy UF.empty $ zip (map TyVar leading_ty) ts'
+            forall_unif <- unifMapTy UF.empty
+                         . assert (length leading_ty >= length ts)
+                         $ zip (map TyVar leading_ty) ts'
             -- Incorporate coercions (a ~ Int) into a unification map
             coer_unif <- unifMapTy forall_unif coer
 
