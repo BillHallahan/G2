@@ -55,7 +55,8 @@ instType s b@(Bindings {name_gen = ng, input_names = ins}) =
 -- Introducing a new type for a type variable and substituting the variable in the curr_expr
 instType' :: ASTContainer t Type => TV.TyVarEnv -> (NameGen, State t) -> Id -> (NameGen, State t)
 instType' tv (ng, st) i 
-    | TV.isSymbolic (idName i) (tyvar_env st) =
+    | TV.isSymbolic (idName i) (tyvar_env st)
+    , typeOf tv i == TYPE =
         let 
             (t,te,ng') = newType tv ng i (type_env st)
             n = idName i

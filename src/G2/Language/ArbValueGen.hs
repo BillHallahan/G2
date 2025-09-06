@@ -221,7 +221,9 @@ getADT cutoff m tenv tvnv eenv kv av adt ts
             -- Finds the DataCon for adt with the least arguments
             dcs' = MA.mapMaybe (checkDC tvnv) dcs
 
-            min_dc = minimumBy (comparing (length . anonArgumentTypes . typeOf tvnv)) dcs'
+            min_dc = case dcs' of
+                        [] -> error $ "ts = " ++ show ts ++ "\nts' = " ++ show (tyVarSubst tvnv ts)
+                        _ -> minimumBy (comparing (length . anonArgumentTypes . typeOf tvnv)) dcs'
 
             m' = foldr (uncurry HM.insert) m $ zip (map idName ids) ts
 
@@ -252,9 +254,11 @@ getADT cutoff m tenv tvnv eenv kv av adt ts
 
                 leading_ty = leadingTyForAllBindings (typeOf tvnv' dc)
             
+                ts' = tyVarSubst tvnv' ts
+
             let unifMapTy = foldM (\uf -> uncurry (unify' uf))
             -- Union the forall type bindings with the passed type arguments
-            forall_unif <- unifMapTy UF.empty $ zip (map TyVar leading_ty) ts
+            forall_unif <- unifMapTy UF.empty $ zip (map TyVar leading_ty) ts'
             -- Incorporate coercions (a ~ Int) into a unification map
             coer_unif <- unifMapTy forall_unif coer
 
@@ -263,30 +267,3 @@ getADT cutoff m tenv tvnv eenv kv av adt ts
             let exist_ty = map (\i -> MA.fromMaybe (TyVar i) (UF.lookup (idName i) coer_unif)) (dc_exist_tyvars dc)
 
             return . mkApp $ Data dc:map Type univ_ty ++ map Type exist_ty
-        
-            -- let
-            --     coer = eval (getCoercions kv) (dc_type dc)
-
-            --     leading_ty = leadingTyForAllBindings (typeOf tvnv' dc)
-
-            --     tyvar_ids = tyVarIds ts  
-            --     ts_tys = map (typeOf tvnv') tyvar_ids
-            --     expr = MA.mapMaybe (flip TV.lookup tvnv') (map idName tyvar_ids)
-            --     expr_tys = map (typeOf tvnv') expr 
-            --     ts' = zip expr_tys ts_tys
-            --     uf_map = foldM (\uf_map' (t1, t2) -> unify' uf_map' t1 t2) UF.empty ts' 
-            --     ts'' = case uf_map of
-            --                 Nothing -> ts
-            --                 Just uf_map' -> foldl' (\e (n,t) -> retype (Id n (typeOf tvnv' t)) t e) ts (HM.toList $ UF.toSimpleMap uf_map')
-
-            --     univ_ty_inst = zip (map TyVar leading_ty) ts''
-            --     uf_map_univ = foldr (\(c1, c2) m_uf -> (\uf -> unify' uf c1 c2) =<< m_uf)
-            --                     (Just UF.empty)
-            --                     (coer ++ univ_ty_inst)
-            --     exist_name = map idName (dc_exist_tyvars dc)
-            --     univ_name = map idName (dc_univ_tyvars dc)
-
-            --     dc' = uf_map_univ >>= \uf_map -> Just (dc, map (uf_map UF.!) exist_name, map (uf_map UF.!) univ_name)
-            -- in
-            -- trace ("coer = " ++ show coer ++ "\nts = " ++ show ts ++ "\nts_tys = " ++ show ts_tys ++ "\nts'' = " ++ show ts'' ++ "\nuf_map_univ = " ++ show uf_map_univ)
-            -- assert (length leading_ty >= length ts) dc'
