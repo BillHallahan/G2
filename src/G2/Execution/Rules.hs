@@ -488,17 +488,17 @@ concretizeVarExpr' s@(State {expr_env = eenv, type_env = tenv, known_values = kv
 
 cleanParamsAndMakeDcon :: TV.TyVarEnv -> E.ExprEnv -> KnownValues -> [Id] -> NameGen -> DataCon -> Expr -> Type -> TypeEnv -> Maybe ([Id], [Name], Expr, NameGen, Expr, E.ExprEnv, TV.TyVarEnv)
 cleanParamsAndMakeDcon tv eenv kv params ngen dcon aexpr mexpr_t tenv =
-    case uf_map of 
+    case maybe_uf_map of 
             Nothing -> Nothing 
-            Just uf_map' -> buildNewPC tv uf_map' ngen
+            Just uf_map -> buildNewPC tv uf_map ngen
 
   where
     extract_tys = concatMap (T.getCoercions kv . typeOf tv) params
 
     -- The UFMap is collecting equivalences that must hold between type variables based on coercions
-    uf_map = foldM (\uf_map' (t1, t2) -> T.unify' uf_map' t1 t2) UF.empty extract_tys
+    maybe_uf_map = foldM (\uf_map (t1, t2) -> T.unify' uf_map t1 t2) UF.empty extract_tys
 
-    buildNewPC tvnv uf_map'' namegen =
+    buildNewPC tvnv uf_map namegen =
         let
             -- Make sure that the parameters do not conflict in their symbolic reps.
             olds = map idName params
@@ -516,7 +516,7 @@ cleanParamsAndMakeDcon tv eenv kv params ngen dcon aexpr mexpr_t tenv =
                                 $ renameExprs old_new_value (Data dcon, aexpr)
 
             params' = renames (HM.fromList old_new) params
-            coercion_args = HM.toList $ UF.toSimpleMap uf_map''
+            coercion_args = HM.toList . UF.toSimpleMap $ renames (HM.fromList old_new_exists) uf_map
             
             (exist_tys, value_args) = splitAt (length $ dc_exist_tyvars dcon) params'
 
