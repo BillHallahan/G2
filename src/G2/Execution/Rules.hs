@@ -491,7 +491,6 @@ cleanParamsAndMakeDcon tv eenv kv params ngen dcon aexpr mexpr_t tenv =
     case maybe_uf_map of 
             Nothing -> Nothing 
             Just uf_map -> buildNewPC tv uf_map ngen
-
   where
     extract_tys = concatMap (T.getCoercions kv . typeOf tv) params
 
@@ -1232,7 +1231,7 @@ liftBinds kv type_binds value_binds tv_env eenv expr ngen = (tv_env', eenv', exp
     -- 'a ~# Int', 'b ~# Float', 'c ~# String'
     -- The code simply does the following:  
     -- 'E a b c' -> 'E Int Float String'
-    (coercion, value_args) = L.partition (\(_, e) -> case e of
+    (coercion, type_args) = L.partition (\(_, e) -> case e of
                                         Coercion _ -> True
                                         _ -> False) type_binds
     

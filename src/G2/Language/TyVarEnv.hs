@@ -102,4 +102,4 @@ fromListConcOrSym :: [(Name, TyConcOrSym)] -> TyVarEnv
 fromListConcOrSym = TyVarEnv . HM.fromList
 
 toMap :: TyVarEnv -> M.Map Name Type 
-toMap tvenv = M.fromList $ toList tvenv
+toMap tvenv = M.fromList $ toList tvenv  
