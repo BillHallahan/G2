@@ -54,8 +54,6 @@ import Control.Exception
 import Control.Monad.Extra
 import Data.Maybe
 import Data.Traversable
-import Data.Int (Int)
-import Debug.Trace 
 
 stdReduce :: (Solver solver, Simplifier simplifier) => Sharing -> SymbolicFuncEval t -> solver -> simplifier -> State t -> Bindings -> IO (Rule, [(State t, ())], Bindings)
 stdReduce share symb_func_eval solver simplifier s b@(Bindings {name_gen = ng}) = do
@@ -374,13 +372,12 @@ evalCase s@(State { expr_env = eenv
 
         alt_res = dsts_cs ++ lsts_cs ++ def_sts
       in
-      -- We return exactly one state per branch, unless we are concretizing a MutVar.
+      -- We return at most one state per branch, unless we are concretizing a MutVar.
       -- In that case, we will return at least one state, but might return an unbounded
       -- number more- see Note [MutVar Copy Concretization].
       assert (tyConName (tyAppCenter $ typeOf tvnv mexpr) == Just (KV.tyMutVar kv)
                         ==> length alt_res >= length dalts + length lalts + length defs)
       assert (tyConName (tyAppCenter $ typeOf tvnv mexpr) /= Just (KV.tyMutVar kv)
-      -- We will now get at most one branch per path
                         ==> length alt_res <= length dalts + length lalts + length defs)
       (RuleEvalCaseSym, alt_res, ng'')
 
@@ -440,7 +437,7 @@ defaultAlts alts = [a | a@(Alt Default _) <- alts]
 -- | Lift positive datacon `State`s from symbolic alt matching. This in
 -- part involves erasing all of the parameters from the environment by rename
 -- their occurrence in the aexpr to something fresh.
-concretizeVarExpr :: State t -> NameGen -> Id -> Id -> [(DataCon, [Id], Expr)] -> Maybe Coercion -> ([(NewPC t)], NameGen)
+concretizeVarExpr :: State t -> NameGen -> Id -> Id -> [(DataCon, [Id], Expr)] -> Maybe Coercion -> ([NewPC t], NameGen)
 concretizeVarExpr _ ng _ _ [] _ = ([], ng)
 concretizeVarExpr s ng mexpr_id cvar (x:xs) maybeC = newPCs 
     where
@@ -453,7 +450,7 @@ concretizeVarExpr s ng mexpr_id cvar (x:xs) maybeC = newPCs
                                                 in 
                                                     (x':newPCs', ng'')
 
-concretizeVarExpr' :: State t -> NameGen -> Id -> Id -> (DataCon, [Id], Expr) -> Maybe Coercion -> Maybe ((NewPC t), NameGen)
+concretizeVarExpr' :: State t -> NameGen -> Id -> Id -> (DataCon, [Id], Expr) -> Maybe Coercion -> Maybe (NewPC t, NameGen)
 concretizeVarExpr' s@(State {expr_env = eenv, type_env = tenv, known_values = kv, tyvar_env = tvnv})
                 ngen mexpr_id cvar (dcon, params, aexpr) maybeC =
             -- It is VERY important that we insert the mexpr_id in `concretized`
@@ -486,7 +483,10 @@ concretizeVarExpr' s@(State {expr_env = eenv, type_env = tenv, known_values = kv
                           , new_pcs = pcs
                           , concretized = [mexpr_id]}, ngen'')
 
-cleanParamsAndMakeDcon :: TV.TyVarEnv -> E.ExprEnv -> KnownValues -> [Id] -> NameGen -> DataCon -> Expr -> Type -> TypeEnv -> Maybe ([Id], [Name], Expr, NameGen, Expr, E.ExprEnv, TV.TyVarEnv)
+-- | Generates parameters and expressions to allow concretization to a specific DataCon.
+-- May return Nothing if the DataCon requires coercions to hold that violate existing type restraints.
+cleanParamsAndMakeDcon :: TV.TyVarEnv -> E.ExprEnv -> KnownValues -> [Id] -> NameGen -> DataCon -> Expr -> Type -> TypeEnv
+                       -> Maybe ([Id], [Name], Expr, NameGen, Expr, E.ExprEnv, TV.TyVarEnv)
 cleanParamsAndMakeDcon tv eenv kv params ngen dcon aexpr mexpr_t tenv =
     case maybe_uf_map of 
             Nothing -> Nothing 
@@ -499,13 +499,14 @@ cleanParamsAndMakeDcon tv eenv kv params ngen dcon aexpr mexpr_t tenv =
 
     buildNewPC tvnv uf_map namegen =
         let
-            -- Make sure that the parameters do not conflict in their symbolic reps.
+            -- Make sure that the parameters names do not conflict
             olds = map idName params
             clean_olds = map cleanName olds
 
             (news, ngen') = freshSeededNames clean_olds namegen
 
             old_new = zip olds news
+
             -- Differentiating between the existential type variable and the value level arguments 
             (old_new_exists, old_new_value) = splitAt (length $ dc_exist_tyvars dcon) old_new
 
@@ -519,14 +520,10 @@ cleanParamsAndMakeDcon tv eenv kv params ngen dcon aexpr mexpr_t tenv =
             
             (exist_tys, value_args) = splitAt (length $ dc_exist_tyvars dcon) params'
 
-            -- Adding the universal and existential type variable into the TyVarEnv
-            -- exist_tys' = zip (map idName exist_tys) (map (typeOf tvnv) exist_tys)
-            
+            -- Adding the universal and existential type variable into the TyVarEnv            
             tvnv' = L.foldl' (flip TV.insertSymbolic) tvnv exist_tys
             tvnv'' = L.foldr (uncurry TV.insert) tvnv' coercion_args
             eenv' = E.insertExprs (zip (map idName value_args) (map Var value_args)) eenv
-
-            -- aexpr'' = L.foldl' (\e (n,t) -> retype (Id n (typeOf tv t)) t e) aexpr' coercion_args
 
             -- Get list of Types to concretize polymorphic data constructor and concatenate with other arguments
             univ_ars = mexprTyToExpr mexpr_t tenv

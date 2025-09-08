@@ -24,7 +24,6 @@ instance Eq (Expr a) where
   -- If the constructors are different, the expressions are not equal
   _ == _ = False
 
--- this execution takes too long and even 2000 steps take a few minute
 eval :: Expr a -> a
 eval (Lit n)       = n
 eval (Add x y)     = eval x + eval y
@@ -79,16 +78,10 @@ instance Eq a => Eq (Vec Zero a) where
 instance (Eq a, Eq (Vec n a)) => Eq (Vec (Succ n) a) where
     (VCons x xs) == (VCons y ys) = x == y && xs == ys
 
--- still not working: retLam: bad type problem
--- i = Id (Name "n" Nothing 6989586621679015028 (Just (Span {start = Loc {line = 81, col = 1, file = "tests/TestFiles/Extensions/GADTs1.hs"}, end = Loc {line = 81, col = 28, file = "tests/TestFiles/Extensions/GADTs1.hs"}}))) (TyCon (Name "Peano" (Just "GADTs1") 8214565720323784735 (Just (Span {start = Loc {line = 69, col = 1, file = "tests/TestFiles/Extensions/GADTs1.hs"}, end = Loc {line = 69, col = 31, file = "tests/TestFiles/Extensions/GADTs1.hs"}}))) TYPE)
 vecLength :: Vec n a -> Int
 vecLength VNil         = 0
 vecLength (VCons _ xs) = 1 + vecLength xs
 
--- G2: Data constructor not in scope: Co :: Vec n1_aPKr[tau:1] Peano
--- Perhaps you meant `C#' (imported from GHC.Exts)
--- Data constructor not in scope: Co
--- Perhaps you meant `C#' (imported from GHC.Exts)
 vecHead :: Vec (Succ n) a -> a 
 vecHead (VCons x _) = x
 
@@ -109,7 +102,6 @@ vecMap f (VCons x xs) = VCons (f x) (vecMap f xs)
 vecHeadEx :: Int
 vecHeadEx = vecHead (VCons 1 (VCons 2 VNil))
 
--- have to run 400 steps for the result to show up instead of 200
 doubleVec :: Vec (Succ (Succ Zero)) Int
 doubleVec = vecMap (*2) (VCons 1 (VCons 2 VNil))
 
