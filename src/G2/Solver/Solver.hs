@@ -132,7 +132,7 @@ solveRelated' avf sol s b m is [] =
         (_, nv) = mapAccumL
             (\av_ (Id n t) ->
                 let 
-                    (av_', v) = avf t (type_env s) (tyvar_env s) (expr_env s) (known_values s) av_
+                    (av_', v) = avf t (type_env s) (tyvar_env s) (known_values s) av_
                     in
                     (v, (n, av_'))
             ) (arb_value_gen b) is'
