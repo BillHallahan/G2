@@ -507,12 +507,12 @@ elimSymGens arb s = s { expr_env = E.map esg $ expr_env s }
     -- rewrite an Expr if needed.
     esg e = 
         if hasSymGen e
-            then modify (elimSymGens' (tyvar_env s) (type_env s) arb) e
+            then modify (elimSymGens' (tyvar_env s) (type_env s) (known_values s) arb) e
             else e
 
-elimSymGens' :: TV.TyVarEnv -> TypeEnv -> ArbValueGen -> Expr -> Expr
-elimSymGens' tv tenv arb (SymGen _ t) = fst $ arbValue t tenv tv arb
-elimSymGens' _ _ _ e = e
+elimSymGens' :: TV.TyVarEnv -> TypeEnv -> KnownValues -> ArbValueGen -> Expr -> Expr
+elimSymGens' tv tenv kv arb (SymGen _ t) = fst $ arbValue t tenv tv kv arb
+elimSymGens' _ _ _ _ e = e
 
 hasSymGen :: Expr -> Bool
 hasSymGen = getAny . eval hasSymGen'
