@@ -412,7 +412,7 @@ initSolver :: Config -> IO SomeSolver
 initSolver = initSolver' arbValue
 
 initSolverInfinite :: Config -> IO SomeSolver
-initSolverInfinite con = initSolver' arbValueInfinite con
+initSolverInfinite = initSolver' arbValueInfinite
 
 initSolver' :: ArbValueFunc -> Config -> IO SomeSolver
 initSolver' avf config = do

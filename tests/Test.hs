@@ -667,17 +667,26 @@ extensionTests = testGroup "Extensions"
                                                                           , ("callG", 400, [AtLeast 1])
                                                                           , ("callG2", 400, [AtLeast 1]) ]
                                                                           
-    , checkInputOutputs "tests/TestFiles/Extensions/GADTs1.hs" [ ("vecZipConc", 400, [Exactly 1])
-                                                               , ("vecZipConc2", 400, [Exactly 1])
-                                                               , ("vecHeadEx", 400, [Exactly 1])
-                                                               , ("doubleVec", 400, [Exactly 1])
-                                                               , ("tailVec", 400, [Exactly 1])
-                                                               , ("tailPairVec", 400, [Exactly 1])
-                                                               , ("exampleExpr1", 400, [Exactly 1])
-                                                               , ("exampleExpr2", 400, [Exactly 1])
-                                                               , ("exampleExpr3", 400, [Exactly 1])
-                                                               , ("exampleExpr4", 400, [Exactly 1])
-                                                               , ("exampleExpr5", 400, [Exactly 1]) ]
+    , checkInputOutputsInstType "tests/TestFiles/Extensions/GADTs1.hs"  [ -- Concrete GADTs
+                                                                          ("vecZipConc", 400, [Exactly 1])
+                                                                        , ("vecZipConc2", 400, [Exactly 1])
+                                                                        , ("vecHeadEx", 400, [Exactly 1])
+                                                                        , ("doubleVec", 400, [Exactly 1])
+                                                                        , ("tailVec", 400, [Exactly 1])
+                                                                        , ("tailPairVec", 400, [Exactly 1])
+                                                                        , ("exampleExpr1", 400, [Exactly 1])
+                                                                        , ("exampleExpr2", 400, [Exactly 1])
+                                                                        , ("exampleExpr3", 400, [Exactly 1])
+                                                                        , ("exampleExpr4", 400, [Exactly 1])
+                                                                        , ("exampleExpr5", 400, [Exactly 1])
+                                                                        
+                                                                        -- Symbolic GADTs
+                                                                        , ("eval", 250, [AtLeast 60])
+
+                                                                        , ("vecTail", 1000, [AtLeast 1])
+                                                                        , ("vecLength", 1000, [AtLeast 10])
+                                                                        , ("vecZip", 1000, [AtLeast 10])
+                                                                        ]
     ]
 
 baseTests ::  TestTree

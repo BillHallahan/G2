@@ -130,7 +130,7 @@ getModelVal avf con (State { expr_env = eenv, type_env = tenv, known_values = kv
     case PC.null pc of
                 True -> 
                     let
-                        (e, av) = avf t tenv tvnv (arb_value_gen b)
+                        (e, av) = avf t tenv tvnv kv (arb_value_gen b)
                     in
                     return (SAT $ HM.singleton n' e, av) 
                 False -> do
