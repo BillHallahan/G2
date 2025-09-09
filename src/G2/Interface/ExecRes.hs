@@ -48,7 +48,7 @@ printMutVars pg (ExecRes { final_state = s, conc_mutvars = mv@(_:_) }) =
 printMutVars _ _ = ""
 
 printInputFunc :: PrettyGuide -> Maybe Coercion -> Id -> ExecRes t -> T.Text
-printInputFunc pg m_c i (ExecRes { final_state = s, conc_args = ars }) = printHaskellPG pg s $ mkApp (app_maybe_coer m_c (Var i):ars)
+printInputFunc pg m_c i (ExecRes { final_state = s, conc_args = ars }) = printHaskellPG (setTyLamPrinting Omit pg) s $ mkApp (app_maybe_coer m_c (Var i):ars)
     where
         app_maybe_coer Nothing e = e
         app_maybe_coer (Just c) e = Cast e c
