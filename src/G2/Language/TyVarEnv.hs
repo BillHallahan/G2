@@ -25,7 +25,6 @@ import Data.Bifunctor
 import Data.Data (Data, Typeable)
 import Data.Hashable(Hashable)
 import qualified Data.HashMap.Lazy as HM
-import qualified Data.Map as M
 import Data.Maybe
 import G2.Language.Syntax
 import qualified G2.Data.UFMap as UF
