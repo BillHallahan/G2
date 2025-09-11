@@ -686,6 +686,7 @@ extensionTests = testGroup "Extensions"
                                                                         , ("vecTail", 1000, [AtLeast 1])
                                                                         , ("vecLength", 1000, [AtLeast 10])
                                                                         , ("vecZip", 1000, [AtLeast 10])
+                                                                        , ("vecInit", 1000, [AtLeast 10])
                                                                         ]
     ]
 
