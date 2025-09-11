@@ -72,17 +72,14 @@ module G2.Language.Typing
     , isPrimType
     ) where
 
-import qualified G2.Data.UFMap as UF
 import G2.Language.AST
 import qualified G2.Language.KnownValues as KV
 import G2.Language.Syntax
 
 import qualified Data.HashSet as HS
 import qualified Data.HashMap.Lazy as HM
-import qualified Data.Map as M
 import Data.Maybe
 import qualified Data.List as L
-import Control.Monad
 import qualified G2.Language.TyVarEnv as TV
 
 tyInt :: KV.KnownValues -> Type
@@ -245,23 +242,26 @@ appTypeOf _ TyUnknown _ = TyUnknown
 appTypeOf _ t es = error ("appTypeOf\n" ++ show t ++ "\n" ++ show es ++ "\n\n")
 
 -- | Check if two types unify.  If they do, returns a `UFMap` of type variables to instantiations.
-unify :: Type -> Type -> Maybe (UF.UFMap Name Type)
-unify = unify' UF.empty
+unify :: Type -> Type -> Maybe TV.TyVarEnv
+unify = unify' TV.empty
 
 -- | `unify`, but with a pre-existing (partial) mapping of type variables to instantiations.
-unify' :: UF.UFMap Name Type -> Type -> Type ->  Maybe (UF.UFMap Name Type)
-unify' uf (TyVar (Id n1 t1)) (TyVar (Id n2 t2))
-    | Just uf_t1 <- UF.lookup n1 uf
-    , Just uf_t2 <- UF.lookup n2 uf =
-        UF.join const n1 n2 <$> unify' uf uf_t1 uf_t2
+unify' :: TV.TyVarEnv -> Type -> Type ->  Maybe TV.TyVarEnv
+unify' uf (TyVar (Id n1 t1)) tv2@(TyVar (Id n2 t2))
+    | Just (TV.TyConc uf_t1) <- TV.lookupConcOrSym n1 uf
+    , Just (TV.TyConc uf_t2) <- TV.lookupConcOrSym n2 uf =
+        TV.insert n1 tv2 <$> unify' uf uf_t1 uf_t2
+    | Nothing <- TV.lookup n1 uf
+    , Nothing <- TV.lookup n2 uf =
+        unify' (TV.insert n1 tv2 uf) t1 t2
     | otherwise =
-        UF.join (error "unify': impossible, no need to join") n1 n2 <$> unify' uf t1 t2
+        unify' (TV.insert n1 tv2 uf) t1 t2
 unify' uf (TyVar (Id n _)) t
-    | Just t1 <- UF.lookup n uf = unify' uf t1 t
-    | otherwise = Just (UF.insert n t uf)
+    | Just (TV.TyConc t1) <- TV.lookupConcOrSym n uf = unify' uf t1 t
+    | otherwise = Just (TV.insert n t uf)
 unify' uf t (TyVar (Id n _))
-    | Just t2 <- UF.lookup n uf = unify' uf t t2
-    | otherwise = Just (UF.insert n t uf)
+    | Just (TV.TyConc t2) <- TV.lookupConcOrSym n uf = unify' uf t t2
+    | otherwise = Just (TV.insert n t uf)
 unify' uf (TyFun t1 t2) (TyFun t1' t2') = do
     uf' <- unify' uf t1 t1'
     unify' uf' t2 t2'
@@ -322,12 +322,16 @@ retypeRespectingTyForAll' key new ty = modifyChildren (retypeRespectingTyForAll'
 tyVarSubst :: (ASTContainer t Type) => TV.TyVarEnv -> t -> t
 tyVarSubst m = modifyContainedASTs (tyVarSubst' HS.empty m)
 
-tyVarSubst' ::  HS.HashSet Name -> TV.TyVarEnv -> Type -> Type 
+tyVarSubst' :: HS.HashSet Name -- ^ Variables that should not be replaced- either because they
+                               -- are self recursive, or because they have been shadowed
+            -> TV.TyVarEnv
+            -> Type
+            -> Type 
 tyVarSubst' seen m t@(TyVar (Id n _)) =
     case TV.lookup n m of
         Just t' | not (HS.member n seen) -> tyVarSubst' (HS.insert n seen) m t'
         _ -> t 
-tyVarSubst' seen m (TyForAll i@(Id n _) t) = TyForAll i $ tyVarSubst' seen (TV.delete n m) t
+tyVarSubst' seen m (TyForAll i@(Id n _) t) = TyForAll i $ tyVarSubst' (HS.insert n seen) m t
 tyVarSubst' seen m t = modifyChildren (tyVarSubst' seen m) t
 
 -- | Returns if the first type given is a specialization of the second,
