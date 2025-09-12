@@ -495,7 +495,7 @@ cleanParamsAndMakeDcon tv eenv kv params ngen dcon aexpr mexpr_t tenv =
     extract_tys = concatMap (T.getCoercions kv . typeOf tv) params
 
     -- The UFMap is collecting equivalences that must hold between type variables based on coercions
-    maybe_uf_map = foldM (\uf_map (t1, t2) -> T.unify' uf_map t1 t2) UF.empty extract_tys
+    maybe_uf_map = foldM (\uf_map (t1, t2) -> T.unify' uf_map t1 t2) TV.empty extract_tys
 
     buildNewPC tvnv uf_map namegen =
         let
@@ -516,7 +516,7 @@ cleanParamsAndMakeDcon tv eenv kv params ngen dcon aexpr mexpr_t tenv =
                                 $ renameExprs old_new_value (Data dcon, aexpr)
 
             params' = renames (HM.fromList old_new) params
-            coercion_args = HM.toList . UF.toSimpleMap $ renames (HM.fromList old_new_exists) uf_map
+            coercion_args = HM.toList . UF.toSimpleMap . TV.toTypeUFMap $ renames (HM.fromList old_new_exists) uf_map
             
             (exist_tys, value_args) = splitAt (length $ dc_exist_tyvars dcon) params'
 
@@ -1234,11 +1234,11 @@ liftBinds kv type_binds value_binds tv_env eenv expr ngen = (tv_env', eenv', exp
     
     extract_tys = concatMap (T.getCoercions kv . typeOf tv_env . fst) coercion
 
-    uf_map = foldM (\uf_map' (t1, t2) -> T.unify' uf_map' t1 t2) UF.empty extract_tys
+    uf_map = foldM (\uf_map' (t1, t2) -> T.unify' uf_map' t1 t2) TV.empty extract_tys
     
     expr' = case uf_map of
             Nothing -> expr
-            Just uf_map' -> L.foldl' (\e (n,t) -> retype (Id n (typeOf tv_env t)) t e) expr (HM.toList $ UF.toSimpleMap uf_map')
+            Just uf_map' -> L.foldl' (\e (n,t) -> retype (Id n (typeOf tv_env t)) t e) expr (TV.toList uf_map')
     
     -- Handles type parameters. ty_bindsLHS is the pattern. ty_bindsRHS is the scrutinee.
     (ty_bindsLHS, ty_bindsRHS) = unzip type_binds
