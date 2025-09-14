@@ -183,7 +183,15 @@ evalVarSharing s@(State { expr_env = eenv
             e'' = renames (HM.fromList ((otvN, tyIdN):lrs)) e'
         in
             (RuleEvalVarPoly, [s { curr_expr = CurrExpr Evaluate e''
-                                 , expr_env = eenv''}], ng')               
+                                 , expr_env = eenv''}], ng') 
+    -- If a symbolic tyVar did not match PM-RETURN, then it is unrealizable. If 
+    -- it was not caught here it would be returned as an undefined and crash 
+    -- execution. There are still some unrealizable sym tyVars that can match on PM-RET, 
+    -- but they will only result in infinite function applications, which can be
+    -- mitigated in other ways.
+    -- TODO: this comment talks about changes to PM-RET's guards that have not been implemented yet
+    | E.isSymbolic (idName i) eenv 
+    , (Id _ (TyVar _)) <- i = (RuleEvalVal, [], ng)        
     | E.isSymbolic (idName i) eenv =
         (RuleEvalVal, [s { curr_expr = CurrExpr Return (Var i)}], ng)
     -- If the target in our environment is already a value form, we do not
