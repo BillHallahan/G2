@@ -159,8 +159,8 @@ evalVarSharing s@(State { expr_env = eenv
     -- This allows us to solve for the function definition in the environment while also executing
     -- the function (renaming TyVars, applying term lambdas, etc).
     --
-    | (Id idN (TyVar tyId@(Id tyIdN _))) <- i  -- PM-RETURN
-    , True <- E.isSymbolic idN eenv
+    | (Id idN (TyVar (Id tyIdN _))) <- i  -- PM-RETURN
+    , E.isSymbolic idN eenv
     , Just envTyIdN <- TRM.lookup tyIdN tarm
     , Just ents@(_:_) <- PM.lookup envTyIdN pargm = 
         let 
@@ -193,8 +193,11 @@ evalVarSharing s@(State { expr_env = eenv
     -- but they will only result in infinite function applications, which can be
     -- mitigated in other ways.
     -- TODO: this comment talks about changes to PM-RET's guards that have not been implemented yet
-    | E.isSymbolic (idName i) eenv 
-    , (Id _ (TyVar _)) <- i = (RuleEvalVal, [], ng)        
+    | (Id _ (TyVar (Id tyIdN _))) <- i
+    , E.isSymbolic (idName i) eenv
+    , Just envTyIdN <- TRM.lookup tyIdN tarm
+    , Just [] <- PM.lookup envTyIdN pargm = 
+        (RuleEvalVal, [], ng)      
     | E.isSymbolic (idName i) eenv =
         (RuleEvalVal, [s { curr_expr = CurrExpr Return (Var i)}], ng)
     -- If the target in our environment is already a value form, we do not
@@ -1529,6 +1532,15 @@ retReplaceSymbFuncTemplate sft
         expr_env = eenv'''
     }], ng'''')
 
+    -- FUNC-ARG-TV
+    | Var (Id n (TyFun t1@(TyFun _ _) t2)):es <- unApp ce
+    , E.isSymbolic n eenv
+    , (tfs, tr) <- argTypes t1
+    , not . null $ tyVarIds (tr:tfs) 
+    = let
+        (constState, ng') = mkFuncConst sft s es n t1 t2 ng
+    in Just (RuleReturnReplaceSymbFunc, [constState], ng')
+
     -- LIT-SPLIT
     | Var (Id n nTy@(TyFun t1 t2)):ea:es <- unApp ce
     , isPrimType t1
@@ -1585,36 +1597,6 @@ retReplaceSymbFuncTemplate sft
     = let
         (constState, ng') = mkFuncConst sft s es n t1 t2 ng
     in Just (RuleReturnReplaceSymbFunc, [constState], ng')
-
-{-     -- PM-FUNC-ARG
-    | Var (Id n nTy@(TyFun t1@(TyFun _ _) t2)):_ <- unApp ce
-    , E.isSymbolic n eenv 
-    , (tfs, tr) <- argTypes t1
-    -- , any (\case TyVar _ -> True; _ -> False) tfs = let
-    , not . null $ tyVarIds (tr:tfs) = let
-            
-        -- if the function's return type contains a type variable in the PAM,
-        -- insert the function's name into the TVs local funciton argument set
-        -- and insert the function in the environment
-        ([t1Id, t2Id], ng') = freshIds [t1, t2] ng
-
-        e = Lam TermL t1Id (Var t2Id)
-
-        hm = getTyVarRenameMap n nTy tve eenv
-        e' = renames hm e
-        t2Id' = renames hm t2Id
-
-        eenv' = E.insert n e' eenv -- put ignoring lambda in env
-        eenv'' = E.insertSymbolic t2Id' eenv'
-
-        -- pargm' = foldr (\(Id tvn _) pam -> PM.insertFuncArg tvn (idName funcArgId) pam) pargm (tyVarIds tr)
-
-    in Just (RuleReturnReplaceSymbFunc, [
-        s { 
-            curr_expr = CurrExpr Evaluate e, -- TODO: could skip application and just give (Var t2Id)
-            expr_env = eenv'',
-            poly_arg_map = pargm
-    }], ng') -}
 
     | otherwise = Nothing
 
