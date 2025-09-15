@@ -516,7 +516,7 @@ cleanParamsAndMakeDcon tv eenv kv params ngen dcon aexpr mexpr_t tenv =
                                 $ renameExprs old_new_value (Data dcon, aexpr)
 
             params' = renames (HM.fromList old_new) params
-            coercion_args = HM.toList . UF.toSimpleMap . TV.toTypeUFMap $ renames (HM.fromList old_new_exists) uf_map
+            coercion_args = renames (HM.fromList old_new_exists) . HM.toList . UF.toSimpleMap . TV.toTypeUFMap $ uf_map
             
             (exist_tys, value_args) = splitAt (length $ dc_exist_tyvars dcon) params'
 
