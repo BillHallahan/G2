@@ -33,10 +33,11 @@ insertTV tv pam@(PolyArgMap pargm)
     | not $ member tv pam = PolyArgMap $ HM.insert tv [] pargm
     | otherwise = error "PolyArgMap.insertTV: inserting empty mapping for already existing tyVar"
 
+-- TODO: should there be an option to update type? In PM-RETURN, runtime type will always redirect correctly through TARM.
 insertRename :: Name -> Name -> Name -> Maybe Type -> PolyArgMap -> PolyArgMap
 insertRename tv env ren ty (PolyArgMap pargm) | HM.member tv pargm =
     PolyArgMap $ HM.adjust (modifyPAMEntries env ren ty) tv pargm
-  | otherwise = error ("PolyArgMap.insertRename: trying to insert into set of TyVar not in map: " ++ show tv)
+  | otherwise = PolyArgMap pargm -- TODO: now allowing this, check on it later
   where modifyPAMEntries :: Name -> Name -> Maybe Type -> [PAMEntry] -> [PAMEntry]
         modifyPAMEntries e r mt pes = case find (\pe -> envN pe == e) pes of
             Just pe -> map (\pEnt -> if pEnt == pe then pEnt {runN=r} else pEnt) pes

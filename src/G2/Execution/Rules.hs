@@ -159,6 +159,7 @@ evalVarSharing s@(State { expr_env = eenv
     -- This allows us to solve for the function definition in the environment while also executing
     -- the function (renaming TyVars, applying term lambdas, etc).
     --
+    -- TODO: TARM lookup shouldn't be required maybe
     | (Id idN (TyVar (Id tyIdN _))) <- i  -- PM-RETURN
     , E.isSymbolic idN eenv
     , Just envTyIdN <- TRM.lookup tyIdN tarm
@@ -174,19 +175,21 @@ evalVarSharing s@(State { expr_env = eenv
                             Just (Var (Id _ (TyVar envTyId))) -> envTyId
                             _ -> error "PM-RETURN: env lookup failed"
 
-            -- get vals
-            tvVals = map (\(env, run, _) -> (env, run)) (filter (\(_, _, mt) -> isNothing mt) ents)
-
             -- create environment Alts with lam names and original tyVar, add to environment
-            as = makeAltsForPMRet (map fst tvVals) outerTyVar
-            e' = Case (Var scrut) bindee (TyVar outerTyVar) as
-            eenv'' = E.insert (idName i) e' eenv'      
+            -- TODO: passing in otv should be cleaner
+            (as, symIds, ng'') = makeAltsForPMRet' (map (\(en, _, mt) -> (en, mt)) ents) outerTyVar ng' outerTyVar
+            asRev = reverse as
+            e' = Case (Var scrut) bindee (TyVar outerTyVar) asRev
+            eenv'' = E.insert (idName i) e' eenv' 
+
+            -- insert all symbolic names created for alt expressions
+            eenv''' = foldr E.insertSymbolic eenv'' symIds  
 
             -- rename for current execution path, return as CurrExpr, don't insert in env
-            e'' = renames (HM.fromList ((otvN, tyIdN):tvVals)) e'
+            e'' = renames (HM.fromList ((otvN, tyIdN):map (\(en, r, _) -> (en, r)) ents)) e'
         in
             (RuleEvalVarPoly, [s { curr_expr = CurrExpr Evaluate e''
-                                 , expr_env = eenv''}], ng') 
+                                 , expr_env = eenv'''}], ng'') 
     -- If a symbolic tyVar did not match PM-RETURN, then it is unrealizable. If 
     -- it was not caught here it would be returned as an undefined and crash 
     -- execution. There are still some unrealizable sym tyVars that can match on PM-RET, 
@@ -227,13 +230,22 @@ evalVarNoSharing s@(State { expr_env = eenv })
         (RuleEvalVarNonVal (idName i), [s { curr_expr = CurrExpr Evaluate e }], ng)
     | otherwise = error  $ "evalVar: bad input." ++ show i
 
-makeAltsForPMRet :: [Name] -> Id -> [Alt] -- TODO: Default caused problems
-makeAltsForPMRet ns tyVarId = go ns tyVarId 1
-    where 
-        go :: [Name] -> Id -> Int -> [Alt]
-        go [n] tvid _ = [Alt {altMatch = Default, altExpr = Var (Id n (TyVar tvid))}]
-        go (n:ns) tvid l = Alt {altMatch = LitAlt (LitInt $ toInteger l), altExpr = Var (Id n (TyVar tvid))}:go ns tvid (l+1)
-        go [] _ _ = error "makeAltsForPMRet: reached empty list"
+makeAltsForPMRet' :: [(Name, Maybe Type)] -> Id -> NameGen -> Id -> ([Alt], [Id], NameGen)
+makeAltsForPMRet' es tvid ng otv = (\(a, i, n, _) -> (a, i, n)) $ foldr makeEntryAndNames ([], [], ng, 1) es
+    where makeEntryAndNames :: (Name, Maybe Type) -> ([Alt], [Id], NameGen, Int) -> ([Alt], [Id], NameGen, Int)
+          makeEntryAndNames (n, ty) (as, symIds, ng_, l) =
+            let
+                -- TODO: this could be cleaned up
+                (aExpr, newSymIds, ng') = case ty of
+                    Just typ -> let
+                            neededTypes = TyFun (rename (idName tvid) (idName otv) $ snd . argTypes $ typ) (TyVar tvid):(fst . argTypes $ typ)
+                            (newSyms@(collFunId:faArgIds), ngFA) = freshIds neededTypes ng_
+                        in
+                            (mkApp [Var collFunId, mkApp (Var (Id n typ):map Var faArgIds)], newSyms, ngFA)
+                    Nothing -> (Var (Id n (TyVar tvid)), symIds, ng_)
+            in
+                (Alt {altMatch = if length as >= (len-1) then Default else LitAlt (LitInt $ toInteger l) , altExpr = aExpr}:as, newSymIds ++ symIds, ng', l+1)
+          len = length es
 
 -- | If we have a primitive operator, we are at a point where either:
 --    (1) We can concretely evaluate the operator, or
@@ -1375,7 +1387,7 @@ liftBinds kv type_binds value_binds tv_env eenv expr ngen = (tv_env', eenv', exp
 
 liftBind :: Id -> Expr -> E.ExprEnv -> Expr -> NameGen -> PM.PolyArgMap -> TRM.TypeAppRenameMap ->
              (E.ExprEnv, Expr, NameGen, Name, PM.PolyArgMap)
-liftBind bindsLHS@(Id _ lhsTy) bindsRHS eenv expr ngen pargm tarm = (eenv'', expr', ngen', new, pargm')
+liftBind bindsLHS@(Id _ lhsTy) bindsRHS eenv expr ngen pargm tarm = (eenv'', expr', ngen', new, pargm'')
   where
     old = idName bindsLHS
     (new, ngen') = freshSeededName old ngen
@@ -1406,18 +1418,12 @@ liftBind bindsLHS@(Id _ lhsTy) bindsRHS eenv expr ngen pargm tarm = (eenv'', exp
             _ -> error "liftBind: encountered TV not in TARM (PAM renaming)"
         | otherwise = pargm
 
-    -- if LHS type is a function with return type containing tyVars in the PAM, insert the env-runtime renaming into the PAM entries
-    -- TODO: this needs to get env tvs for inserting renames
-    {- (_, tr) = argTypes lhsTy
-    contTyVars = tyVarIds tr
-    contTyVars' = filter (\tvid -> TRM.member (idName tvid) tarm) contTyVars
-    contTyVarsEnv = map (\ftvid -> case TRM.lookup (idName ftvid) tarm of 
-                                Just envTV -> envTV
-                                Nothing -> error "shouldn't be here"
-                                ) contTyVars'
+    -- if LHS type is a function with return type containing tyVars, insert the env-runtime renaming into PAM entries
+    (_, tr) = argTypes lhsTy
+     -- TODO: this could be one line
+    contTyVarsEnv = foldr (\(Id tvn _) ets -> maybe ets (: ets) (TRM.lookup tvn tarm)) [] (tyVarIds tr)
+    pargm'' = foldr (\tvN pam -> PM.insertRename tvN old new (Just lhsTy) pam) pargm' contTyVarsEnv
 
-    pargm'' = foldr (\tvN pam -> PM.insertRename tvN old new (Just lhsTy) pam) pargm' contTyVarsEnv -}
-    
     eenv'' = E.insert new bindsRHS eenv'
 
 type SymbolicFuncEval t = SymFuncTicks -> State t -> NameGen -> Expr -> Maybe (Rule, [State t], NameGen)
