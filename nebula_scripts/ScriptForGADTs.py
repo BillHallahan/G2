@@ -67,11 +67,11 @@ def starter(directory):
         full_path = os.path.join(directory, filename)
         if full_path.endswith(".tar.gz") and not full_path.endswith("bgzf-0.1.0.0.tar.gz"):
             with tarfile.open(full_path, "r:gz") as tar:
-                tar.extractall(path = "./contain_rules")
-                #I am moving everything into a new folder call contain_rule
+                tar.extractall(path = "./contain_gadt")
+                #I am moving everything into a new folder call contain_gadt
                 tar_name =  os.path.split(tar.name)
                 file_name = tar_name[1]
-                file_path = "./contain_rules/" + file_name[:-7]
+                file_path = "./contain_gadt/" + file_name[:-7]
                 # now I am testing which package contain rules in them 
                 result = reading_info(file_path)
                 if result == False: 
