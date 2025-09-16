@@ -1,4 +1,4 @@
-# Run g2_output script before running this script 
+# Run g2_result.py before running this script 
 # This script analyze the file from g2_result folder
 # This script aim to create a corresponding file for each file in g2_results' folder
 # This scripts will do the following:
