@@ -53,8 +53,8 @@ def reading_file(file_path):
                 if content == None: raise Exception("Need more decoding format.")
                 find = re.search(pattern,content)
                 if find:
-                    with open('hackageRules1.txt', 'a+') as f:
-                        print('we find a rule in ' + file_path + '\n')
+                    with open('hackageGADTs1.txt', 'a+') as f:
+                        print('we find a GADT in ' + file_path + '\n')
                         f.write(file_path + "\n")
                     return True
         return False
