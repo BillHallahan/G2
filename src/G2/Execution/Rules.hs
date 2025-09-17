@@ -1331,17 +1331,15 @@ liftBind bindsLHS@(Id _ lhsTy) bindsRHS eenv expr ngen pargm tarm = (eenv'', exp
     -- environment entries. It is okay to modify the entires directly, because these entries
     -- will have been created specifically for this execution of the function when a type was
     -- applied to the function. See newBindingsForExecutionAtType
-    -- TODO: currently assumes that a lambda with an argument of TyVar type will 
-    -- have a single Var Id as the inner expression (this is how they are constructed by PM-ARG)
-    eenv' = case expr of
-        Var (Id exN _) -> case lhsTy of
-            TyVar (Id lhsTyName _) -> case TRM.lookup lhsTyName tarm of
-                Just envName -> if PM.member envName pargm
-                    then E.deepRename old new exN eenv
-                    else eenv -- only env TVs in PAM will be used in another env entry, so no deep renaming
-                _ -> error "liftBind: encountered TV not in TARM (env renaming)"
-            _ -> E.deepRename old new exN eenv
-        _ -> eenv
+    eenv' = foldr (potentialDeepRename . idName) eenv $ ids expr
+        where potentialDeepRename :: Name -> E.ExprEnv -> E.ExprEnv
+              potentialDeepRename exN_ eenv_ = case lhsTy of
+                (TyVar (Id lhsTyName _)) -> case TRM.lookup lhsTyName tarm of
+                    Just envName -> if PM.member envName pargm
+                        then E.deepRename old new exN_ eenv_
+                        else eenv_ -- only env TVs in PAM will be used in another env entry, so no deep renaming
+                    _ -> error "liftBind: encountered TV not in TARM (env renaming)"
+                _ -> E.deepRename old new exN_ eenv_
     
     -- if LHS type is a tyVar, we need to add the env->runtime renaming to the PAM
     pargm' | TyVar (Id lhsTyName _) <- lhsTy =
@@ -1513,27 +1511,11 @@ retReplaceSymbFuncTemplate sft
     }], ng')
 
     -- PM-ARG
-    | Var (Id n nTy@(TyFun t1@(TyVar (Id _ _)) t2)):_ <- unApp ce
+    | Var (Id n (TyFun t1@(TyVar (Id _ _)) t2)):es <- unApp ce
     , E.isSymbolic n eenv
     = let
-        -- make new id for lambda var
-        ([x, f], ng') = freshIds [t1, t2] ng -- TODO: bad name made 
-        -- make new expression for CurrExpr
-        e = Lam TermL x (Var f)
-
-        -- get forall bound tyVar names, rename bindings for env
-        hm = getTyVarRenameMap n nTy tve eenv
-        e' = renames hm e
-        f' = renames hm f
-
-        -- new environment bindings
-        eenv' = E.insertSymbolic f' eenv
-        eenv'' = E.insert n e' eenv'
-    in Just (RuleReturnReplaceSymbFunc, [
-        s {
-        curr_expr = CurrExpr Evaluate e,
-        expr_env = eenv''
-    }], ng')
+        (constState, ng') = mkFuncConst sft s es n t1 t2 ng
+    in Just (RuleReturnReplaceSymbFunc, [constState], ng')
 
     | otherwise = Nothing
 
