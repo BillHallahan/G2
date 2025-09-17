@@ -1,4 +1,4 @@
-{-# LANGUAGE CPP, FlexibleContexts #-}
+{-# LANGUAGE BangPatterns, CPP, FlexibleContexts #-}
 {-# LANGUAGE MultiWayIf #-}
 {-# LANGUAGE OverloadedStrings #-}
 
@@ -25,6 +25,7 @@ import G2.Language.TypeEnv
 import G2.Liquid.Types
 import G2.Translation.Haskell
 
+
 #if MIN_VERSION_GLASGOW_HASKELL(9,0,2,0)
 import qualified GHC.Types.Var as Var
 #else
@@ -39,11 +40,11 @@ import Language.Haskell.Liquid.Types
 
 import Data.Coerce
 import Data.Foldable
-import qualified Data.HashMap.Lazy as HM
+import qualified Data.HashMap.Strict as HM
 import qualified Data.Map as M
 import Data.Maybe
 import qualified Data.Text as T
-import qualified G2.Language.TyVarEnv as TV 
+import qualified G2.Language.TyVarEnv as TV
 
 -- | A mapping of TyVar Name's, to Id's for the LH dict's
 type LHDictMap = HM.HashMap Name Id
@@ -61,11 +62,11 @@ type FractionalDictMap = HM.HashMap Name Id
 type OrdDictMap = HM.HashMap Name Id
 
 -- | A collection of all DictMaps required to convert LH refinement types to G2 `Expr`@s@
-data DictMaps = DictMaps { lh_dicts :: LHDictMap
-                         , num_dicts :: NumDictMap
-                         , integral_dicts :: IntegralDictMap
-                         , fractional_dicts :: FractionalDictMap
-                         , ord_dicts :: OrdDictMap } deriving (Eq, Show, Read)
+data DictMaps = DictMaps { lh_dicts :: !LHDictMap
+                         , num_dicts :: !NumDictMap
+                         , integral_dicts :: !IntegralDictMap
+                         , fractional_dicts :: !FractionalDictMap
+                         , ord_dicts :: !OrdDictMap } deriving (Eq, Show, Read)
 
 copyIds :: Name -> Name -> DictMaps -> DictMaps
 copyIds n1 n2 dm@(DictMaps { lh_dicts = lhd

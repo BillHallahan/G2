@@ -22,6 +22,7 @@ ufMapQuickcheck =
         , testProperty "insert forces in list" prop_insert_forces_in_list
         , testProperty "after joining two keys, they will return the same result from lookup" join_makes_lookup_match
         , testProperty "lookup j after joining nonpresent j with some k in the map" prop_lookup_after_joining
+        , testProperty "member return true if and only if lookup returns Just" prop_lookup_and_member
         , testProperty "if two keys are joined in the first map, they are joined after merging that map" prop_merge_preserves_joins1
         , testProperty "if two keys are joined in the second map, they are joined after merging that map" prop_merge_preserves_joins2
         , testProperty "if a key is present in two maps being merged, in will be present in the merge" prop_merge_preserves_values
@@ -80,6 +81,10 @@ prop_lookup_after_joining j ufm =
     not (L.null ks) && j `notElem` ks
     ==>
     property $ lookup j (join undefined j k ufm) == lookup k ufm
+
+prop_lookup_and_member :: Integer -> UFMap Integer Integer -> Property
+prop_lookup_and_member x uf =
+    property (isJust (lookup x uf) == member x uf)
 
 prop_merge_preserves_joins1 :: Integer
                             -> Integer
