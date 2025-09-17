@@ -1,6 +1,4 @@
-{-# LANGUAGE CPP #-}
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE TupleSections #-}
+{-# LANGUAGE CPP, MultiWayIf, OverloadedStrings, TupleSections #-}
 
 -- | Haskell Translation
 module G2.Translation.Haskell
@@ -684,37 +682,38 @@ mkTyCon t = do
     (nm, tm) <- SM.get
     let tm' = HM.insert (n', m) n tm
   
-    dc_names <- mapM (valNameLookup . dataConName) $ visibleDataCons (algTyConRhs t)
-    let nm' = foldr (uncurry HM.insert) nm
-            . map (\n_@(G2.Name n'_ m_ _ _) -> ((n'_, m_), n_)) 
-            $ dc_names 
-
     bv <- mapM typeId $ tyConTyVars t
 
-    dcs <-
-        case isAlgTyCon t of
-            True -> do
-                      SM.put (nm', tm')
-                      case algTyConRhs t of
-                            DataTyCon { data_cons = dc} -> do
-                                dcs <- mapM mkData dc
-                                return . Just $ G2.DataTyCon bv dcs ADTSourceCode
-                            NewTyCon { data_con = dc
-                                     , nt_rhs = rhst} -> do
-                                        dc' <- mkData dc
-                                        t' <- mkType rhst
-                                        return .
-                                          Just $ G2.NewTyCon { G2.bound_ids = bv
-                                                             , G2.data_con = dc'
-                                                             , G2.rep_type = t'
-                                                             , G2.adt_source = ADTSourceCode}
-                            AbstractTyCon {} -> error "Unhandled TyCon AbstractTyCon"
-                            -- TupleTyCon {} -> error "Unhandled TyCon TupleTyCon"
-                            TupleTyCon { data_con = dc } -> do
+    dcs <- if
+        | isFamilyTyCon t -> return Nothing
+        | isAlgTyCon t -> do
+            dc_names <- mapM (valNameLookup . dataConName) $ visibleDataCons (algTyConRhs t)
+            let nm' = foldr (uncurry HM.insert) nm
+                    . map (\n_@(G2.Name n'_ m_ _ _) -> ((n'_, m_), n_)) 
+                    $ dc_names 
+
+            SM.put (nm', tm')
+            case algTyConRhs t of
+                  DataTyCon { data_cons = dc} -> do
+                      dcs <- mapM mkData dc
+                      return . Just $ G2.DataTyCon bv dcs ADTSourceCode
+                  NewTyCon { data_con = dc
+                            , nt_rhs = rhst} -> do
                               dc' <- mkData dc
-                              return . Just $ G2.DataTyCon bv [dc'] ADTSourceCode
-                            SumTyCon {} -> error "Unhandled TyCon SumTyCon"
-            False -> case isTypeSynonymTyCon t of
+                              t' <- mkType rhst
+                              return .
+                                Just $ G2.NewTyCon { G2.bound_ids = bv
+                                                    , G2.data_con = dc'
+                                                    , G2.rep_type = t'
+                                                    , G2.adt_source = ADTSourceCode}
+                  AbstractTyCon {} -> error "Unhandled TyCon AbstractTyCon"
+                  -- TupleTyCon {} -> error "Unhandled TyCon TupleTyCon"
+                  TupleTyCon { data_con = dc } -> do
+                    dc' <- mkData dc
+                    return . Just $ G2.DataTyCon bv [dc'] ADTSourceCode
+                  SumTyCon {} -> error "Unhandled TyCon SumTyCon"
+        | otherwise ->
+            case isTypeSynonymTyCon t of
                     True -> do
                         SM.put (nm, tm')
                         let (tv, st) = fromJust $ synTyConDefn_maybe t
