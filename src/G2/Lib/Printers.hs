@@ -54,6 +54,9 @@ import qualified Data.Text as T
 import Text.Read
 import qualified G2.Language.TyVarEnv as TV 
 import qualified G2.Language.PolyArgMap as PM
+import qualified G2.Language.TypeAppRenameMap as TRM
+import Distribution.Pretty (Pretty)
+import qualified G2.Translation.GHC as T
 data Clean = Cleaned | Dirty deriving Eq
 
 mkIdHaskell :: PrettyGuide -> Id -> T.Text
@@ -586,6 +589,8 @@ prettyState pg s =
         , pretty_tyvar_env
         , "----- [PolyArgMap] -----------------"
         , pretty_pargm
+        , "----- [TypeAppRenameMap] -----------"
+        , pretty_tarm
         , "----- [Typeclasses] ---------------------"
         , pretty_tc
         , "----- [True Assert] ---------------------"
@@ -611,6 +616,7 @@ prettyState pg s =
         pretty_mutvars = prettyMutVars pg . HM.map mv_val_id $ mutvar_env s
         pretty_tenv = prettyTypeEnv (tyvar_env s) pg (type_env s)
         pretty_pargm = prettyPolyArgMap (poly_arg_map s) pg
+        pretty_tarm = prettyTypeAppRenameMap (ty_app_re_map s) pg
         pretty_tyvar_env = prettyTypeVarEnv pg (tyvar_env s)
         pretty_tc = prettyTypeClasses pg (type_classes s)
         pretty_assert_fcs = maybe "None" (printFuncCallPG pg) (assert_ids s)
@@ -749,6 +755,10 @@ prettyPolyArgMap pargm pg = T.intercalate "\n" (map entryText (PM.toList pargm))
                 setText hm = "{" <> T.intercalate "," (map lrText hm) <> "}"
                 lrText :: (Name, Name) -> T.Text
                 lrText (l, r) = "[" <> mkNameHaskell pg l <> " -> " <> mkNameHaskell pg r <> "]"
+
+prettyTypeAppRenameMap :: TRM.TypeAppRenameMap -> PrettyGuide -> T.Text
+prettyTypeAppRenameMap tarm pg = T.intercalate "\n" 
+                    . map (\(rTv, eTv) -> mkNameHaskell pg rTv <> " -> " <> mkNameHaskell pg eTv) $ TRM.toList tarm
 
 prettyTypeClasses :: PrettyGuide -> TypeClasses -> T.Text
 prettyTypeClasses pg = T.intercalate "\n" . map (\(n, tc) -> mkNameHaskell pg n <> " = " <> prettyClass pg tc) . HM.toList . toMap
