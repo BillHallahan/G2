@@ -1,7 +1,4 @@
-# This is a script for is a modification from ScriptForHackageRules2.py
-# This script aims to find file that contain GADTs
-# Note: to enable GADTs, one must use langauges extension:
-# For example: {-# LANGUAGE GADTs #-}
+# This is a script for finding Hackages that contain rewrite rules
 
 
 import tarfile  # tar.gz file
@@ -10,7 +7,9 @@ import re  # regular epxression
 import sys  # command line arguments
 import shutil  # removing directory
 # regular expression pattern
-pattern = r'{-#\s*LANGUAGE[\s\S]*?\bGADTs\b[\s\S]*?#-}'
+#regex = r'{.*-#\s*.*RULE.*\s#-.*}'
+#pattern = re.compile(regex, re.DOTALL)
+pattern = r'{-#[\s\S]*?RULES[\s\S]*?#-}'
 
 def reading_info(directory):
     # nested folder
@@ -67,11 +66,11 @@ def starter(directory):
         full_path = os.path.join(directory, filename)
         if full_path.endswith(".tar.gz") and not full_path.endswith("bgzf-0.1.0.0.tar.gz"):
             with tarfile.open(full_path, "r:gz") as tar:
-                tar.extractall(path = "./contain_gadt")
-                #I am moving everything into a new folder call contain_gadt
+                tar.extractall(path = "./contain_rules")
+                #I am moving everything into a new folder call contain_rule
                 tar_name =  os.path.split(tar.name)
                 file_name = tar_name[1]
-                file_path = "./contain_gadt/" + file_name[:-7]
+                file_path = "./contain_rules/" + file_name[:-7]
                 # now I am testing which package contain rules in them 
                 result = reading_info(file_path)
                 if result == False: 
