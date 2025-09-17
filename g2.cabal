@@ -160,6 +160,7 @@ library
                        , G2.Translation.Interface
                        , G2.Translation.PrimInject
                        , G2.Translation.TransTypes
+                       , G2.Translation.ValidateState
 
                        , G2.Verify.Config
                        , G2.Verify.Interface

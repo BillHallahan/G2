@@ -3,6 +3,7 @@
 module G2.Translation.HaskellCheck ( validateStates
                                    , validateStatesGHC
                                    , loadStandard
+                                   , loadToCheck
                                    , createDeclsStr
                                    , createDecls
                                    , runHPC
@@ -81,7 +82,7 @@ creatDeclStr pg s (x, DataTyCon{data_cons = dcs, bound_ids = is}) =
 creatDeclStr _ _ _ = error "creatDeclStr: unsupported AlgDataTy"
 
 -- | Compile with GHC, and check that the output we got is correct for the input
-validateStatesGHC :: PrettyGuide -> Maybe T.Text -> String -> [String] -> [String] -> Bindings -> ExecRes t -> Ghc (Maybe Bool, [Bool])
+validateStatesGHC :: GhcMonad m => PrettyGuide -> Maybe T.Text -> String -> [String] -> [String] -> Bindings -> ExecRes t -> m (Maybe Bool, [Bool])
 validateStatesGHC pg modN entry chAll chAny b er@(ExecRes {final_state = s, conc_out = out}) = do
     (v, chAllR, chAnyR) <- runCheck pg modN entry chAll chAny b er
 
@@ -104,10 +105,10 @@ validateStatesGHC pg modN entry chAll chAny b er@(ExecRes {final_state = s, conc
 createDeclsStr :: PrettyGuide -> State t -> TypeEnv -> [String]
 createDeclsStr pg s = map (creatDeclStr pg s) . H.toList
 
-createDecls :: PrettyGuide -> State t -> TypeEnv -> Ghc ()
+createDecls :: GhcMonad m => PrettyGuide -> State t -> TypeEnv -> m ()
 createDecls pg s = mapM_ runDecls . createDeclsStr pg s
 
-adjustDynFlags :: Ghc ()
+adjustDynFlags :: GhcMonad m => m ()
 adjustDynFlags = do
     dyn <- getSessionDynFlags
     let dyn2 = foldl' xopt_set dyn [MagicHash, UnboxedTuples, DataKinds]
@@ -116,7 +117,7 @@ adjustDynFlags = do
     _ <- setSessionDynFlags dyn4
     return ()
 
-runCheck :: PrettyGuide -> Maybe T.Text -> String -> [String] -> [String] -> Bindings -> ExecRes t -> Ghc (HValue, [HValue], [HValue])
+runCheck :: GhcMonad m => PrettyGuide -> Maybe T.Text -> String -> [String] -> [String] -> Bindings -> ExecRes t -> m (HValue, [HValue], [HValue])
 runCheck init_pg modN entry chAll chAny b er@(ExecRes {final_state = s, conc_args = ars, conc_out = out}) = do
     let Left (v, _) = findFunc (tyvar_env s) (T.pack entry) [modN] (expr_env s)
     let e = mkApp $ Var v:ars
@@ -160,7 +161,7 @@ runCheck init_pg modN entry chAll chAny b er@(ExecRes {final_state = s, conc_arg
 
     return $ (v', chAllR, chAnyR)
 
-loadToCheck :: [FilePath] -> [FilePath] -> String -> [GeneralFlag] -> Ghc ()
+loadToCheck :: GhcMonad m => [FilePath] -> [FilePath] -> String -> [GeneralFlag] -> m ()
 loadToCheck proj src modN gflags = do
         _ <- loadProj Nothing proj src gflags simplTranslationConfig
 
