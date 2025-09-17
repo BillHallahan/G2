@@ -241,7 +241,7 @@ appTypeOf _ TyBottom _ = TyBottom
 appTypeOf _ TyUnknown _ = TyUnknown
 appTypeOf _ t es = error ("appTypeOf\n" ++ show t ++ "\n" ++ show es ++ "\n\n")
 
--- | Check if two types unify.  If they do, returns a `UFMap` of type variables to instantiations.
+-- | Check if two types unify.  If they do, returns a `TyVarEnv` of type variables to instantiations.
 unify :: Type -> Type -> Maybe TV.TyVarEnv
 unify = unify' TV.empty
 
