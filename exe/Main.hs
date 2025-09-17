@@ -40,13 +40,13 @@ runWithArgs as = do
   let m_reaches = mReaches tail_args
   let m_retsTrue = mReturnsTrue tail_args
 
-  let tentry = T.pack entry
+--   let tentry = T.pack entry
 
   (in_out, b, _, entry_f@(Id (Name _ mb_modname _ _) _)) <-
         runG2FromFile proj [src] (fmap T.pack m_assume)
                   (fmap T.pack m_assert) (fmap T.pack m_reaches) 
                   (isJust m_assert || isJust m_reaches || m_retsTrue) 
-                  tentry simplTranslationConfig config
+                  entry simplTranslationConfig config
 
   let in_out' = if print_encode_float config then toEnclodeFloats in_out else in_out
 

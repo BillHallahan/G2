@@ -40,6 +40,9 @@ module G2.Interface.Interface ( MkCurrExpr
                               , runG2
                               , Config) where
 
+import GHC hiding (Name, entry, nameModule, Id, Type)
+import GHC.Paths
+
 import G2.Config.Config
 
 import G2.Language
@@ -63,6 +66,7 @@ import G2.Interface.ExecRes
 import G2.Lib.Printers
 
 import G2.Translation
+import G2.Translation.ValidateState
 
 import G2.Solver
 
@@ -271,11 +275,11 @@ initCheckReaches s@(State { expr_env = eenv
                           , tyvar_env = tvnv}) m_mod reaches =
     s {expr_env = checkReaches tvnv eenv kv reaches m_mod }
 
-type RHOStack m t = SM.StateT (ApproxPrevs t)
+type RHOStack m t = GhcT (SM.StateT (ApproxPrevs t)
                         (SM.StateT LengthNTrack
                             (SM.StateT PrettyGuide
                                 (SM.StateT HpcTracker
-                                    (SM.StateT HPCMemoTable m))))
+                                    (SM.StateT HPCMemoTable m)))))
 
 {-# SPECIALIZE runReducer :: Ord b =>
                              Reducer (RHOStack IO ()) rv ()
@@ -338,7 +342,7 @@ initRedHaltOrd s mod_name solver simplifier config exec_func_names no_nrpc_names
 
         hpc_red f = case hpc config of
                         -- True ->  SomeReducer (immedHpcReducer mod_name) .~> strict_red f 
-                        True ->  SomeReducer on_acc_hpc_red .~> strict_red f 
+                        True ->  (liftSomeReducer $ SomeReducer  on_acc_hpc_red) .~> strict_red f 
                         False -> strict_red f
 
         nrpc_lib_red f = case lib_nrpc config of
@@ -363,7 +367,7 @@ initRedHaltOrd s mod_name solver simplifier config exec_func_names no_nrpc_names
                                 False -> accept_time_red f
 
         logger_std_red f = case m_logger of
-                            Just logger -> liftSomeReducer $ liftSomeReducer (logger .~> num_steps_red f)
+                            Just logger -> liftSomeReducer $ liftSomeReducer (liftSomeReducer logger .~> num_steps_red f)
                             Nothing -> liftSomeReducer $ liftSomeReducer (num_steps_red f)
 
         nrpc_approx_red f = case approx_nrpc config of
@@ -383,7 +387,7 @@ initRedHaltOrd s mod_name solver simplifier config exec_func_names no_nrpc_names
         -- halter_accept_only = case halter_step of SomeHalter h -> SomeHalter (liftHalter (liftHalter (liftHalter (acceptOnlyNewHPC h))))
 
         halter_hpc_discard = case hpc_discard_strat config of
-                                    True -> SomeHalter (liftHalter . liftHalter . liftHalter . liftHalter $ noNewHPCHalter mod_name) .<~> halter_step
+                                    True -> SomeHalter (liftHalter . liftHalter . liftHalter . liftHalter . liftHalter $ noNewHPCHalter mod_name) .<~> halter_step
                                     False -> halter_step
 
         halter_approx_discard = case approx_discard config of
@@ -392,7 +396,7 @@ initRedHaltOrd s mod_name solver simplifier config exec_func_names no_nrpc_names
                                     False -> halter_hpc_discard
 
         orderer = case search_strat config of
-                        Subpath -> SomeOrderer . liftOrderer $ lengthNSubpathOrderer (subpath_length config)
+                        Subpath -> SomeOrderer . liftOrderer . liftOrderer $ lengthNSubpathOrderer (subpath_length config)
                         Iterative -> SomeOrderer $ pickLeastUsedOrderer
 
     return $
@@ -519,29 +523,30 @@ initialStateFromFile proj src m_reach def_assert f mkCurr argTys transConfig con
 
 runG2FromFile :: [FilePath]
               -> [FilePath]
+              -> [GeneralFlag]
               -> Maybe AssumeFunc
               -> Maybe AssertFunc
               -> Maybe ReachFunc
               -> Bool
-              -> StartFunc
+              -> String
               -> TranslationConfig
               -> Config
               -> IO ([ExecRes ()], Bindings, TimedOut, Id)
-runG2FromFile proj src m_assume m_assert m_reach def_assert f transConfig config = do
+runG2FromFile proj src gflags m_assume m_assert m_reach def_assert f transConfig config = do
     (init_state, entry_f, bindings, mb_modname) <- initialStateFromFile  proj src
-                                    m_reach def_assert f (mkCurrExpr TV.empty m_assume m_assert) (mkArgTys TV.empty)
+                                    m_reach def_assert (T.pack f) (mkCurrExpr TV.empty m_assume m_assert) (mkArgTys TV.empty)
                                     transConfig config
 
-    (er, b, to) <- runG2WithConfig (idName entry_f) mb_modname init_state config bindings
+    (er, b, to) <- runG2WithConfig proj src (idName entry_f) f gflags mb_modname init_state config bindings
 
     return (er, b, to, entry_f)
 
-runG2WithConfig :: Name -> [Maybe T.Text] -> State () -> Config -> Bindings
+runG2WithConfig :: [FilePath]-> [FilePath] -> Name -> String -> [GeneralFlag] -> [Maybe T.Text] -> State () -> Config -> Bindings
                 -> IO ( [ExecRes ()]
                       , Bindings
                       , TimedOut -- ^ Did any states timeout?
                       )
-runG2WithConfig entry_f mb_modname state@(State { expr_env = eenv}) config bindings = do
+runG2WithConfig proj src entry_f f gflags mb_modname state@(State { expr_env = eenv}) config bindings = do
     SomeSolver solver <- initSolver config
     let (state', bindings') = runG2Pre emptyMemConfig state bindings
         all_mod_set = S.fromList mb_modname
@@ -560,8 +565,8 @@ runG2WithConfig entry_f mb_modname state@(State { expr_env = eenv}) config bindi
         non_rec_funcs = filter (G.isFuncNonRecursive callGraph) reachable_funcs
 
     analysis1 <- if states_at_time config then do l <- logStatesAtTime; return [l] else return noAnalysis
-    let analysis2 = if states_at_step config then [\s p xs -> SM.lift . SM.lift . SM.lift . SM.lift . SM.lift $ logStatesAtStep s p xs] else noAnalysis
-        analysis3 = if print_num_red_rules config then [\s p xs -> SM.lift . SM.lift . SM.lift . SM.lift . SM.lift . SM.lift $ logRedRuleNum s p xs] else noAnalysis
+    let analysis2 = if states_at_step config then [\s p xs -> SM.lift .  SM.lift . SM.lift . SM.lift . SM.lift . SM.lift $ logStatesAtStep s p xs] else noAnalysis
+        analysis3 = if print_num_red_rules config then [\s p xs -> SM.lift . SM.lift . SM.lift . SM.lift . SM.lift . SM.lift . SM.lift $ logRedRuleNum s p xs] else noAnalysis
         analysis = analysis1 ++ analysis2 ++ analysis3
 
     (in_out, bindings'', timed_out) <- case null analysis of
@@ -574,7 +579,8 @@ runG2WithConfig entry_f mb_modname state@(State { expr_env = eenv}) config bindi
                             (SM.evalStateT
                                 (SM.evalStateT
                                     (SM.evalStateT
-                                        (addTimedOut to $ runG2WithSomes' red hal ord [] solver simplifier state' bindings')
+                                        (runGhcT (Just libdir) 
+                                            (addTimedOut to $ runG2WithSomes' proj src (T.unpack $ fromJust mod_name) f gflags red hal ord [] solver simplifier state' bindings'))
                                         emptyApproxPrevs
                                     )
                                     lnt
@@ -597,7 +603,8 @@ runG2WithConfig entry_f mb_modname state@(State { expr_env = eenv}) config bindi
                                     (SM.evalStateT
                                         (SM.evalStateT
                                             (SM.evalStateT
-                                                (addTimedOut to $ runG2WithSomes' red hal ord analysis solver simplifier state' bindings')
+                                                (runGhcT (Just libdir) 
+                                                    (addTimedOut to $ runG2WithSomes' proj src (T.unpack $ fromJust mod_name) f gflags red hal ord analysis solver simplifier state' bindings'))
                                                 emptyApproxPrevs
                                             )
                                             lnt
@@ -682,7 +689,12 @@ runG2WithSomes' :: ( MonadIO m
                   , ASTContainer t Type
                   , Solver solver
                   , Simplifier simplifier)
-               => SomeReducer m t
+               => [FilePath]
+               -> [FilePath]
+               -> String
+               -> String
+               -> [GeneralFlag]
+               -> SomeReducer m t
                -> SomeHalter m (ExecRes t) t
                -> SomeOrderer m (ExecRes t) t
                -> [AnalyzeStates m (ExecRes t) t]
@@ -691,11 +703,11 @@ runG2WithSomes' :: ( MonadIO m
                -> State t
                -> Bindings
                -> m ([ExecRes t], Bindings)
-runG2WithSomes' red hal ord analyze solver simplifier state bindings =
+runG2WithSomes' proj src modN entry gflags red hal ord analyze solver simplifier state bindings =
     case (red, hal, ord) of
         (SomeReducer red', SomeHalter hal', SomeOrderer ord') ->
             --runG2 red' hal' ord' analyze solver simplifier state bindings
-            runExecution red' hal' ord' (runG2Solving solver simplifier) analyze state bindings
+            runExecution red' hal' ord' (runG2SolvingValidate proj src modN entry gflags solver simplifier) analyze state bindings
 
 runG2Pre :: ( Named t
             , ASTContainer t Expr
@@ -751,6 +763,30 @@ runG2Solving solver simplifier s bindings = do
     case res of
         SAT m -> return $ Just m
         _ -> return Nothing
+
+runG2SolvingValidate :: ( MonadIO m
+                , Named t
+                , Solver solver
+                , Simplifier simplifier) =>
+                [FilePath]
+             -> [FilePath]
+             -> String
+             -> String
+             -> [GeneralFlag]
+             -> solver
+             -> simplifier
+             -> State t
+             -> Bindings
+             -> m (Maybe (ExecRes t))
+runG2SolvingValidate proj src modN entry gflags solver simplifier s bindings = do
+    loadSession proj src modN gflags
+    res <- runG2Solving solver simplifier s bindings
+    val_res <- do
+        case res of
+            Just m -> validateState modN entry [] [] bindings m
+            Nothing -> return Nothing
+    return res
+
 
 runG2SubstModel :: Named t =>
                       Model
