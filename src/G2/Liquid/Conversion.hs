@@ -25,7 +25,6 @@ import G2.Language.TypeEnv
 import G2.Liquid.Types
 import G2.Translation.Haskell
 
-
 #if MIN_VERSION_GLASGOW_HASKELL(9,0,2,0)
 import qualified GHC.Types.Var as Var
 #else
