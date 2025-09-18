@@ -1,4 +1,3 @@
-{-# LANGUAGE BangPatterns #-}
 module G2.Language.Approximation ( GenerateLemma
                                  , Lookup
                                  , MRCont
@@ -422,7 +421,7 @@ moreRestrictivePC :: (MonadIO m, S.Solver solver) =>
 moreRestrictivePC solver s1@(State { known_values = kv }) s2 sym_var_map expr_pairs = do
   -- see Note [Renaming in moreRestrictivePC
   let symvar_1 = map idName . E.symbolicIds $ expr_env s1
-      !ng = mkNameGen (E.symbolicIds $ expr_env s1, E.symbolicIds $ expr_env s2)
+      ng = mkNameGen (E.symbolicIds $ expr_env s1, E.symbolicIds $ expr_env s2)
       (symvar_re, _) = renameAll symvar_1 ng
       rename_old :: Named b => b -> b
       rename_old = renames (HM.fromList $ zip symvar_1 symvar_re)
