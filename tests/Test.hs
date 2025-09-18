@@ -697,8 +697,10 @@ extensionTests = testGroup "Extensions"
                                                                               , ("age2", 400, [Exactly 1])
                                                                               , ("app", 250, [AtLeast 5])
                                                                               ]
-                                                            
-
+    , checkInputOutputsInstType "tests/TestFiles/Extensions/DataFamilies1.hs" [ ("f", 400, [Exactly 2])
+                                                                              , ("app3Char", 400, [AtLeast 1])
+                                                                              , ("app3Unit", 400, [AtLeast 1])
+                                                                              ]
     ]
 
 baseTests ::  TestTree
