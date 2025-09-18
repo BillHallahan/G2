@@ -162,7 +162,8 @@ evalVarSharing s@(State { expr_env = eenv
     | (Id idN (TyVar tyId@(Id tyIdN _))) <- i  -- PM-RETURN
     , True <- E.isSymbolic idN eenv
     , Just envTyIdN <- TRM.lookup tyIdN tarm
-    , Just lrs@(_:_) <- PM.lookup envTyIdN pargm = 
+    , Just (lrs, lfas) <- PM.lookup envTyIdN pargm 
+    , not (null lrs) || not (null lfas) = 
         let 
             -- fresh ids
             ([bindee, scrut], ng') = freshIds [TyLitInt, TyLitInt] ng

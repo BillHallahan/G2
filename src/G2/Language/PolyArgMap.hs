@@ -16,27 +16,27 @@ import G2.Language.Syntax
 import qualified Data.HashMap.Lazy as HM
 import Data.Data (Data, Typeable)
 import Data.Hashable(Hashable)
-import Data.Bifunctor
 import GHC.Generics (Generic)
 import Prelude hiding (lookup)
 import Data.Maybe (isJust)
 
 -- | Interface for the PAM
-newtype PolyArgMap = PolyArgMap (HM.HashMap Name (HM.HashMap Name Name)) deriving (Show, Eq, Read, Data, Typeable, Generic)
+-- TODO: maybe use new type instead of tuples for HM values?
+newtype PolyArgMap = PolyArgMap (HM.HashMap Name (HM.HashMap Name Name, [Name])) deriving (Show, Eq, Read, Data, Typeable, Generic)
 
 insertTV :: Name -> PolyArgMap -> PolyArgMap
 insertTV tv pam@(PolyArgMap pargm)
-    | not $ member tv pam = PolyArgMap $ HM.insert tv HM.empty pargm
+    | not $ member tv pam = PolyArgMap $ HM.insert tv (HM.empty, []) pargm
     | otherwise = error "PolyArgMap.insertTV: inserting empty mapping for already existing tyVar"
 
 insertRename :: Name -> Name -> Name -> PolyArgMap -> PolyArgMap
-insertRename tv l r (PolyArgMap pargm) | Just hm <- HM.lookup tv pargm =
-    PolyArgMap $ HM.insert tv (HM.insert l r hm) pargm
+insertRename tv l r (PolyArgMap pargm) | Just (hm, lfas) <- HM.lookup tv pargm =
+    PolyArgMap $ HM.insert tv (HM.insert l r hm, lfas) pargm
   | otherwise = error "PolyArgMap.insertRename: trying to into set of TyVar not in map"
 
-lookup :: Name -> PolyArgMap -> Maybe [(Name, Name)]
+lookup :: Name -> PolyArgMap -> Maybe ([(Name, Name)], [Name])
 lookup tv (PolyArgMap pargm) = case HM.lookup tv pargm of
-                    Just lrs -> Just (HM.toList lrs)
+                    Just (lrs, lfas) -> Just (HM.toList lrs, lfas)
                     Nothing -> Nothing
 
 member :: Name -> PolyArgMap -> Bool
@@ -48,11 +48,14 @@ remove i (PolyArgMap pargm) = let pargm' = HM.delete i pargm in
             then error "PolyArgMap.remove: removing nonexistent TV"
             else PolyArgMap pargm'
 
-toList :: PolyArgMap -> [(Name, [(Name, Name)])]
-toList (PolyArgMap pargm) = map (second HM.toList) (HM.toList pargm)
+toList :: PolyArgMap -> [(Name, ([(Name, Name)], [Name]))]
+toList (PolyArgMap hm) = [ (tv, (HM.toList lrs, lfas))
+                         | (tv, (lrs, lfas)) <- HM.toList hm]
 
-fromList :: [(Name, [(Name, Name)])] -> PolyArgMap
-fromList l = PolyArgMap . HM.fromList $ map (second HM.fromList) l
+fromList :: [(Name, ([(Name, Name)], [Name]))] -> PolyArgMap
+fromList l = PolyArgMap $ HM.fromList 
+        [(tv, (HM.fromList lrs, lfas)) | 
+         (tv, (lrs, lfas)) <- l] 
 
 empty :: PolyArgMap
 empty = PolyArgMap HM.empty

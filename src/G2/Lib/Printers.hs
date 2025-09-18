@@ -588,9 +588,7 @@ prettyState pg s =
         , "----- [TyVars] ---------------------"
         , pretty_tyvar_env
         , "----- [PolyArgMap] -----------------"
-        , pretty_pargm
-        , "----- [TypeAppRenameMap] -----------"
-        , pretty_tarm
+        --, pretty_pargm
         , "----- [Typeclasses] ---------------------"
         , pretty_tc
         , "----- [True Assert] ---------------------"
@@ -615,7 +613,7 @@ prettyState pg s =
         pretty_handles = prettyHandles pg $ handles s
         pretty_mutvars = prettyMutVars pg . HM.map mv_val_id $ mutvar_env s
         pretty_tenv = prettyTypeEnv (tyvar_env s) pg (type_env s)
-        pretty_pargm = prettyPolyArgMap (poly_arg_map s) pg
+        -- pretty_pargm = prettyPolyArgMap (poly_arg_map s) pg
         pretty_tarm = prettyTypeAppRenameMap (ty_app_re_map s) pg
         pretty_tyvar_env = prettyTypeVarEnv pg (tyvar_env s)
         pretty_tc = prettyTypeClasses pg (type_classes s)
@@ -746,7 +744,7 @@ prettyTypeVarEnv pg = T.intercalate "\n"
         prettyTyConcOrSym (TV.TyConc t) = mkTypeHaskellPG pg t
         prettyTyConcOrSym (TV.TySym i) = "symbolic " <> mkIdHaskell pg i
 
-prettyPolyArgMap :: PM.PolyArgMap -> PrettyGuide -> T.Text
+{- prettyPolyArgMap :: PM.PolyArgMap -> PrettyGuide -> T.Text
 prettyPolyArgMap pargm pg = T.intercalate "\n" (map entryText (PM.toList pargm))
             where
                 entryText :: (Name, [(Name, Name)]) -> T.Text
@@ -754,7 +752,7 @@ prettyPolyArgMap pargm pg = T.intercalate "\n" (map entryText (PM.toList pargm))
                 setText :: [(Name, Name)] -> T.Text
                 setText hm = "{" <> T.intercalate "," (map lrText hm) <> "}"
                 lrText :: (Name, Name) -> T.Text
-                lrText (l, r) = "[" <> mkNameHaskell pg l <> " -> " <> mkNameHaskell pg r <> "]"
+                lrText (l, r) = "[" <> mkNameHaskell pg l <> " -> " <> mkNameHaskell pg r <> "]" -}
 
 prettyTypeAppRenameMap :: TRM.TypeAppRenameMap -> PrettyGuide -> T.Text
 prettyTypeAppRenameMap tarm pg = T.intercalate "\n" 
@@ -790,7 +788,7 @@ pprExecStateStr ex_state b = injNewLine acc_strs
     names_str = pprExecNamesStr (name_gen b)
     input_str = pprInputIdsStr (E.symbolicIds . expr_env $ ex_state)
     paths_str = pprPathsStr (PC.toList $ path_conds ex_state)
-    pargm_str = pprPolyArgMapStr (poly_arg_map ex_state)
+    -- pargm_str = pprPolyArgMapStr (poly_arg_map ex_state)
     non_red_paths_str = injNewLine (map show . toListNRPC $ non_red_path_conds ex_state)
     tc_str = pprTCStr (type_classes ex_state)
     cleaned_str = pprCleanedNamesStr (cleaned_names b)
@@ -815,7 +813,7 @@ pprExecStateStr ex_state b = injNewLine acc_strs
                , "----- [Non Red Paths] ---------------------"
                , non_red_paths_str
                , "----- [PolyArgMap] ----------------"
-               , pargm_str 
+               -- ,  pargm_str 
                , "----- [True Assert] ---------------------"
                , "True Assert = " ++ show (true_assert ex_state)
                , "----- [Assert Ids] ---------------------"
@@ -867,11 +865,11 @@ pprPathsStr paths = injNewLine cond_strs
   where
     cond_strs = map pprPathCondStr paths
 
-pprPolyArgMapStr :: PM.PolyArgMap -> String
+{- pprPolyArgMapStr :: PM.PolyArgMap -> String
 pprPolyArgMapStr pargm = concatMap (\(k, hs) -> show k ++ " -> " ++ showEntry hs) (PM.toList pargm)
     where
     showEntry :: [(Name, Name)]-> String
-    showEntry hm = T.unpack $ T.intercalate ", " (map (T.pack . show) hm)
+    showEntry hm = T.unpack $ T.intercalate ", " (map (T.pack . show) hm) -}
 
 pprTCStr :: TypeClasses -> String
 pprTCStr tc = injNewLine cond_strs
