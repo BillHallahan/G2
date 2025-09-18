@@ -2,7 +2,9 @@
 # This script aims to find file that contain GADTs
 # Note: to enable GADTs, one must use langauges extension:
 # For example: {-# LANGUAGE GADTs #-}
-
+# This script along with nebula_scripts/ScriptForHackageRules2.py
+# should be the first step toward dealing with downloaded Hackage
+# b/c we are openning the tar.gz folder within the scripts
 
 import tarfile  # tar.gz file
 import os  # file reading

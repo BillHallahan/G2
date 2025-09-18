@@ -1,5 +1,7 @@
 # This is a script for finding Hackages that contain rewrite rules
-
+# This script along with nebula_scripts/ScriptForGADTs.py
+# should be the first step toward dealing with downloaded Hackage
+# b/c we are openning the tar.gz folder within the scripts
 
 import tarfile  # tar.gz file
 import os  # file reading
