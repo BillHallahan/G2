@@ -49,6 +49,7 @@ import qualified Data.Sequence as S
 import G2.Data.Utils
 import qualified G2.Data.UFMap as UF
 import qualified G2.Language.TyVarEnv as TV
+import qualified G2.Language.PolyArgMap as PM
 
 import Control.Exception
 import Control.Monad.Extra
@@ -133,8 +134,28 @@ mapAccumMaybeM f s xs = do
 
 evalVarSharing :: State t -> NameGen -> Id -> (Rule, [State t], NameGen)
 evalVarSharing s@(State { expr_env = eenv
-                        , exec_stack = stck })
+                        , exec_stack = stck
+                        , poly_arg_map = pargm })
                ng i
+    | (Id idN (TyVar tyId@(Id tyIdN _))) <- i  -- PM-RETURN
+    , True <- E.isSymbolic idN eenv
+    , Just ns <- PM.lookup tyIdN pargm
+    , not . null $ ns = 
+        let 
+            -- fresh ids
+            ([tvid, scrut], ng') = freshIds [TyVar tyId, TyLitInt] ng
+            -- create Alt for each LV in id's LV set
+            as = makeAltsForPMRet ns tyId 
+            -- case expression from the alts and symbolic Int
+            e' = Case (Var scrut) tvid TYPE as 
+            -- new env bindings
+            eenv' = E.insert (idName i) e' eenv
+            eenv'' = E.insertSymbolic scrut eenv'
+        in
+            (RuleEvalVarPoly, [s { curr_expr = CurrExpr Evaluate e'
+                                 , expr_env = eenv''}], ng')
+    | (Id _ (TyVar _)) <- i = -- TyVar not in PolyArgMap, cannot create return expression
+        (RuleEvalVal, [s { curr_expr = CurrExpr Return (Var i)}], ng)
     | E.isSymbolic (idName i) eenv =
         (RuleEvalVal, [s { curr_expr = CurrExpr Return (Var i)}], ng)
     -- If the target in our environment is already a value form, we do not
@@ -163,6 +184,14 @@ evalVarNoSharing s@(State { expr_env = eenv })
     | Just e <- E.lookup (idName i) eenv =
         (RuleEvalVarNonVal (idName i), [s { curr_expr = CurrExpr Evaluate e }], ng)
     | otherwise = error  $ "evalVar: bad input." ++ show i
+
+makeAltsForPMRet :: [Name] -> Id -> [Alt] -- TODO: Default caused problems
+makeAltsForPMRet ns tyVarId = go ns tyVarId 1
+    where 
+        go :: [Name] -> Id -> Int -> [Alt]
+        go [n] tvid _ = [Alt {altMatch = Default, altExpr = Var (Id n (TyVar tvid))}]
+        go (n:ns) tvid l = Alt {altMatch = LitAlt (LitInt $ toInteger l), altExpr = Var (Id n (TyVar tvid))}:go ns tvid (l+1)
+        go [] _ _ = error "makeAltsForPMRet: reached empty list"
 
 -- | If we have a primitive operator, we are at a point where either:
 --    (1) We can concretely evaluate the operator, or
@@ -242,7 +271,7 @@ evalLam :: State t -> LamUse -> Id -> Expr -> (Rule, [State t])
 evalLam = undefined
 
 retLam :: State t -> NameGen -> LamUse -> Id -> Expr -> Expr -> S.Stack Frame -> (Rule, [State t], NameGen)
-retLam s@(State { expr_env = eenv, tyvar_env = tvnv })
+retLam s@(State { expr_env = eenv, tyvar_env = tvnv, poly_arg_map = pargm })
        ng u i e ae stck'
     | TypeL <- u =
         case TV.deepLookup tvnv ae of
@@ -251,12 +280,16 @@ retLam s@(State { expr_env = eenv, tyvar_env = tvnv })
                 (n', ng') = freshSeededName (idName i) ng 
                 e' = rename (idName i) n' e
                 tvnv' = TV.insert n' t tvnv
+                pargm' = rename (idName i) n' pargm
+                -- (eenv', e'', ng'', news) = liftBind i (Type t) eenv e' ng'
+
             in 
            ( RuleReturnEApplyLamType [n']
             , [ s { expr_env = eenv
                  , curr_expr = CurrExpr Evaluate e'
                  , exec_stack = stck' 
-                 , tyvar_env = tvnv' } ]
+                 , tyvar_env = tvnv'
+                 , poly_arg_map = pargm' } ]
             , ng' )
         Nothing -> error $ "retLam: Bad type\ni = " ++ show i
     | otherwise =
@@ -1309,6 +1342,7 @@ retReplaceSymbFuncTemplate :: SymFuncTicks -> State t -> NameGen -> Expr -> Mayb
 retReplaceSymbFuncTemplate sft
                            s@(State { expr_env = eenv
                                     , type_env = tenv
+                                    , poly_arg_map = pargm
                                     , known_values = kv })
                            ng ce
 
@@ -1388,6 +1422,49 @@ retReplaceSymbFuncTemplate sft
         curr_expr = CurrExpr Evaluate (mkApp (Var f1Id:es)),
         expr_env = eenv''
     }], ng')
+
+    -- PM-FORALL
+    | Var (Id n (TyForAll tyVarId@(Id idN idTy) faTy)):es <- unApp ce -- may not be needed/wrong
+    , E.isSymbolic n eenv
+    = let
+        -- insert new empty mapping in M
+        pargm' = PM.insertEmpty idN pargm
+        -- TODO: rename n in the type (not necessary yet, only needed for rank > 2)
+        -- create name of new sym
+        ([f1Id], ng') = freshIds [faTy] ng
+        -- create type level lambda
+        e = Lam TypeL tyVarId $ Var f1Id
+        -- new environment bindings
+        eenv' = E.insertSymbolic f1Id eenv
+        eenv'' = E.insert n e eenv'
+    in Just (RuleReturnReplaceSymbFunc, [
+        s {
+        curr_expr = CurrExpr Evaluate e,
+        expr_env = eenv'',
+        poly_arg_map = pargm'
+    }], ng')
+
+    -- PM-ARG
+    | Var (Id n (TyFun t1@(TyVar (Id idN idTy)) t2)):_ <- unApp ce
+    , E.isSymbolic n eenv
+    = let
+        -- make new id for lambda var
+        ([x, f], ng') = freshIds [t1, t2] ng -- TODO: bad name made 
+        -- insert x into a's set in TVM
+        pargm' = PM.insert idN (idName x) pargm
+        -- make new expression
+        e = Lam TermL x (Var f)
+        -- new environment bindings
+        eenv' = E.insertSymbolic f eenv
+        eenv'' = E.insert n e eenv'
+        eenv''' = E.insert (idName x) (Var (Id (idName x) t1)) eenv''
+    in Just (RuleReturnReplaceSymbFunc, [
+        s {
+        curr_expr = CurrExpr Evaluate e,
+        expr_env = eenv''',
+        poly_arg_map = pargm'
+    }], ng')
+
     | otherwise = Nothing
 
 argTypes :: Type -> ([Type], Type)
