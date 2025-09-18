@@ -139,7 +139,8 @@ evalVarSharing :: State t -> NameGen -> Id -> (Rule, [State t], NameGen)
 evalVarSharing s@(State { expr_env = eenv
                         , exec_stack = stck
                         , poly_arg_map = pargm
-                        , ty_app_re_map = tarm })
+                        , ty_app_re_map = tarm 
+                        , type_env = tenv })
                ng i
     -- The value being evaluated is a symbolic type variable, which will only occur as
     -- (or in) the return value of a polymorphic function. The type variable must also
@@ -184,6 +185,31 @@ evalVarSharing s@(State { expr_env = eenv
         in
             (RuleEvalVarPoly, [s { curr_expr = CurrExpr Evaluate e''
                                  , expr_env = eenv''}], ng')               
+    | (Id n t) <- i     -- PM-RETURN-ADT TODO: this is hard coded for fs :: forall a. a -> a -> (a, a)
+    , TyCon tname _:ts <- unTyApp t
+    , E.isSymbolic n eenv
+    , Just alg_data_ty <- HM.lookup tname tenv
+    -- any (`PM.member` pargm) [n_ | TyVar (Id n_ _) <- ts]
+    = 
+        let
+            ([bindee, scrut], ng') = freshIds [TyLitInt, TyLitInt] ng
+            eenv' = E.insertSymbolic scrut eenv
+
+            -- ids for the symbolic arguments to the tuple
+            
+            -- get arguments
+            -- construct case with Alts for selecting DC
+            dcs@[dcHead] = dataCon alg_data_ty
+            atv = TyVar $ head $ dc_univ_tyvars dcHead
+            ([sym1, sym2], ng'') = freshIds [atv, atv] ng'
+            as = foldr (\dc@(DataCon {}) as_ -> Alt (LitAlt (LitInt 1)) (mkApp [Data dc, Var sym1, Var sym2]):as_) [] dcs
+            e' = Case (Var scrut) bindee t as
+            eenv'' = foldr E.insertSymbolic eenv' [sym1, sym2] 
+            
+            
+        in
+            (RuleEvalVal, [s { curr_expr = CurrExpr Evaluate e'
+                             , expr_env = eenv''}], ng)
     | E.isSymbolic (idName i) eenv =
         (RuleEvalVal, [s { curr_expr = CurrExpr Return (Var i)}], ng)
     -- If the target in our environment is already a value form, we do not
