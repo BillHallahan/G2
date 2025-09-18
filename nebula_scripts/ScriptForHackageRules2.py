@@ -3,6 +3,18 @@
 # should be the first step toward dealing with downloaded Hackage
 # b/c we are openning the tar.gz folder within the scripts
 
+# The scripting process:
+# First you should run the scripts inside Main.hs for download Hackage.
+
+# Then, you should run ScriptForHackageRules2.py or ScriptForGADTs.py
+# or modification of those scripts for the task you are doing b/c
+# those scripts allow us to filter out Hackage we cares about. 
+
+# Next, you should run Build_cabal_and_project.py for G2 for building.
+
+# Lastly, you should run g2_result to execute G2 on the Hackage and use
+# g2_analysis to analyze the result of g2 on Hackage.
+
 import tarfile  # tar.gz file
 import os  # file reading
 import re  # regular epxression
