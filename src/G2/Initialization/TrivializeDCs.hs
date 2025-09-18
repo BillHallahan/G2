@@ -41,11 +41,11 @@ import Data.Traversable
 -- | Ensure that all non-trivial arguments to list cons data constructors
 -- are wrapped in arguments.
 -- See note [Cons DC]
-trivializeDCs :: TV.TyVarEnv -> NameGen -> KnownValues -> ExprEnv -> (ExprEnv, NameGen)
+trivializeDCs :: TyVarEnv -> NameGen -> KnownValues -> ExprEnv -> (ExprEnv, NameGen)
 trivializeDCs tv ng kv eenv =
     runNamingM (trivializeDCs' tv kv eenv) ng
 
-trivializeDCs' :: TV.TyVarEnv -> KnownValues -> ExprEnv -> NameGenM ExprEnv
+trivializeDCs' :: TyVarEnv -> KnownValues -> ExprEnv -> NameGenM ExprEnv
 trivializeDCs' tv kv = E.mapM (modifyM go)
     where
         go a@(App _ _)

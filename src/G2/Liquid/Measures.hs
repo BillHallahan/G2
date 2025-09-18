@@ -71,6 +71,7 @@ measureTypeMappings tv (M {name = n, sort = srt}) = do
     st <- specTypeToType tv srt
     lh <- lhTCM
 
+    tv <- tyVarEnv
     let t = fmap (addLHDictToType tv lh) st
 
     let n' = symbolName $ val n
@@ -79,11 +80,9 @@ measureTypeMappings tv (M {name = n, sort = srt}) = do
         Just t' -> return $ Just (n', t')
         _ -> return  Nothing
 
-addLHDictToType :: TV.TyVarEnv -> Name -> Type -> Type
+addLHDictToType :: TyVarEnv -> Name -> Type -> Type
 addLHDictToType tv lh t =
-    let
-        lhD = map (\i -> mkFullAppedTyCon tv lh [TyVar i] TYPE) $ tyForAllBindings t
-    in
+    let lhD = map (\i -> mkFullAppedTyCon tv lh [TyVar i] TYPE) $ tyForAllBindings t in
     mapInTyForAlls (\t' -> foldr TyFun t' lhD) t
 
 convertMeasure :: TV.TyVarEnv -> BoundTypes -> Measure SpecType GHC.DataCon -> LHStateM (Maybe (Name, Expr))
@@ -96,6 +95,8 @@ convertMeasure tv bt (M {name = n, sort = srt, eqns = eq}) = do
 
     st <- specTypeToType tv srt
     lh_tc <- lhTCM
+
+    tv <- tyVarEnv
         
     let bnds = tyForAllBindings $ fromJust st
         ds = map (\i -> Name "d" Nothing i Nothing) [1 .. length bnds]

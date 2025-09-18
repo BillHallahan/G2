@@ -19,7 +19,7 @@ import qualified G2.Language.TyVarEnv as TV
 
 data CurrExprRes = CurrExprRes { ce_expr :: Expr
                                , fixed_in :: [Expr]
-                               , symbolic_type_ids
+                               , symbolic_type_ids:: [Id]
                                , symbolic_value_ids :: [Id]
                                , in_coercion ::  Maybe Coercion
                                , mkce_namegen :: NameGen
@@ -224,7 +224,7 @@ pickForTyVar kv ts
 instantiateTCDict :: TypeClasses -> [(Id, Type)] -> Type -> Maybe Expr
 instantiateTCDict tc it tyapp@(TyApp _ t) | TyCon n _ <- tyAppCenter tyapp =
     let
-        t' = applyTypeMap (M.fromList $ map (\(Id ni _, ti) -> (ni,ti)) it) t
+        t' = applyTypeMap (TV.fromList $ map (\(Id ni _, ti) -> (ni,ti)) it) t
     in
     return . Var =<< lookupTCDict tc n t'
 instantiateTCDict _ _ _ = Nothing

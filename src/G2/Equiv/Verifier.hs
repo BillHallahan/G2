@@ -62,7 +62,7 @@ statePairReadyForSolver (s1, s2) =
   in
   exprReadyForSolver (tyvar_env s1) h1 e1 && exprReadyForSolver (tyvar_env s2) h2 e2
 
-exprReadyForSolver :: TV.TyVarEnv -> ExprEnv -> Expr -> Bool
+exprReadyForSolver :: TyVarEnv -> ExprEnv -> Expr -> Bool
 exprReadyForSolver tv h (Tick _ e) = exprReadyForSolver tv h e
 exprReadyForSolver tv h (Var i) = E.isSymbolic (idName i) h && T.isPrimType (typeOf tv i)
 exprReadyForSolver tv h (App f a) = exprReadyForSolver tv h f && exprReadyForSolver tv h a

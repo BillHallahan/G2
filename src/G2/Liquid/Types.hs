@@ -288,6 +288,34 @@ instance L.Named AbstractedInfo where
                                   , ai_all_calls = L.renames hm (ai_all_calls a)
                                   , ai_higher_order_calls = L.renames hm (ai_higher_order_calls a) }
 
+instance L.ASTContainer AbstractedInfo L.Expr where
+    containedASTs ai = L.containedASTs (init_call ai)
+                    <> L.containedASTs (abs_violated ai)
+                    <> L.containedASTs (abs_calls ai)
+                    <> L.containedASTs (ai_all_calls ai)
+                    <> L.containedASTs (ai_higher_order_calls ai)
+    modifyContainedASTs f ai =
+        ai { init_call = L.modifyContainedASTs f (init_call ai)
+           , abs_violated = L.modifyContainedASTs f (abs_violated ai)
+           , abs_calls = L.modifyContainedASTs f (abs_calls ai)
+           , ai_all_calls = L.modifyContainedASTs f (ai_all_calls ai)
+           , ai_higher_order_calls = L.modifyContainedASTs f (ai_higher_order_calls ai)
+           }
+
+instance L.ASTContainer AbstractedInfo L.Type where
+    containedASTs ai = L.containedASTs (init_call ai)
+                    <> L.containedASTs (abs_violated ai)
+                    <> L.containedASTs (abs_calls ai)
+                    <> L.containedASTs (ai_all_calls ai)
+                    <> L.containedASTs (ai_higher_order_calls ai)
+    modifyContainedASTs f ai =
+        ai { init_call = L.modifyContainedASTs f (init_call ai)
+           , abs_violated = L.modifyContainedASTs f (abs_violated ai)
+           , abs_calls = L.modifyContainedASTs f (abs_calls ai)
+           , ai_all_calls = L.modifyContainedASTs f (ai_all_calls ai)
+           , ai_higher_order_calls = L.modifyContainedASTs f (ai_higher_order_calls ai)
+           }
+
 -- | See G2.Liquid.TyVarBags
 type TyVarBags = M.Map L.Name [L.Id]
 type InstFuncs = M.Map L.Name L.Id

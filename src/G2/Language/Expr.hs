@@ -216,11 +216,11 @@ mkIdentity t =
     in
     Lam TermL x (Var x)
 
-mkEqExpr :: TV.TyVarEnv -> KnownValues -> Expr -> Expr -> Expr
+mkEqExpr :: TyVarEnv -> KnownValues -> Expr -> Expr -> Expr
 mkEqExpr tv kv e1 e2 = App (App eq e1) e2
     where eq = mkEqPrimType (typeOf tv e1) kv
 
-mkEqPrimExpr :: TV.TyVarEnv -> KnownValues -> Expr -> Expr -> Expr
+mkEqPrimExpr :: TyVarEnv -> KnownValues -> Expr -> Expr -> Expr
 mkEqPrimExpr tv kv e1 e2 = App (App eq e1) e2
     where eq = mkEqPrimType (typeOf tv e1) kv
 
@@ -532,10 +532,10 @@ alphaReduction' mi l@(Lam u i@(Id (Name n m ii lo) t) e) =
 alphaReduction' m e = (e, m)
 
 -- |  Performs beta reduction, if a Var is being applied 
-varBetaReduction :: ASTContainer m Expr => TV.TyVarEnv ->  m -> m
-varBetaReduction tv m = modifyASTs (varBetaReduction' tv) m 
+varBetaReduction :: ASTContainer m Expr => TyVarEnv -> m -> m
+varBetaReduction tv = modifyASTs (varBetaReduction' tv)
 
-varBetaReduction' :: TV.TyVarEnv -> Expr -> Expr
+varBetaReduction' :: TyVarEnv -> Expr -> Expr
 varBetaReduction' tv a@(App (Lam _ i e) (Var v)) = 
     if not (isTYPE . typeOf tv $ i) then replaceLamIds i v e else a
 varBetaReduction' _ e = e
@@ -571,7 +571,7 @@ replaceLamIds i i' e = modifyChildren (replaceLamIds i i') e
 --      @ (\x -> undefined x) `seq` 1 @
 -- because the first will call undefined, and error, whereas the second will
 -- evaluate to 1.
-etaExpandTo :: TV.TyVarEnv ->  ExprEnv -> NameGen -> Int -> Expr -> (Expr, NameGen)
+etaExpandTo :: TyVarEnv -> ExprEnv -> NameGen -> Int -> Expr -> (Expr, NameGen)
 etaExpandTo tv eenv ng n (Lam u i e) =
     let
         (e', ng') = etaExpandTo tv eenv ng n e
@@ -579,7 +579,7 @@ etaExpandTo tv eenv ng n (Lam u i e) =
     (Lam u i e', ng')
 etaExpandTo tv eenv ng n e = etaExpandTo' tv eenv ng n e
 
-etaExpandTo' :: TV.TyVarEnv -> ExprEnv -> NameGen -> Int -> Expr -> (Expr, NameGen)
+etaExpandTo' :: TyVarEnv -> ExprEnv -> NameGen -> Int -> Expr -> (Expr, NameGen)
 etaExpandTo' tv eenv ng n e = (addLamApps fn (typeOf tv e) e, ng')
     where
         n' = n `min` numArgs (typeOf tv e)

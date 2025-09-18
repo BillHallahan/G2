@@ -53,11 +53,12 @@ addCounterfactualBranch tv cf_mod ns = do
     mapWithKeyME (addCounterfactualBranch' tv cfn ns')
     return cfn
 
-addCounterfactualBranch' :: TV.TyVarEnv -> CounterfactualName -> [Name] -> Name -> Expr -> LHStateM Expr
-addCounterfactualBranch' tv cfn ns n =
-    if n `elem` ns then insertInLamsE (\_ -> addCounterfactualBranch'' tv cfn) else return
+addCounterfactualBranch' :: CounterfactualName -> [Name] -> Name -> Expr -> LHStateM Expr
+addCounterfactualBranch' cfn ns n e = do
+    tv <- tyVarEnv
+    if n `elem` ns then insertInLamsE (\_ -> addCounterfactualBranch'' tv cfn) e else return e
 
-addCounterfactualBranch'' :: TV.TyVarEnv -> CounterfactualName -> Expr -> LHStateM Expr
+addCounterfactualBranch'' :: TyVarEnv -> CounterfactualName -> Expr -> LHStateM Expr
 addCounterfactualBranch'' tv cfn
     orig_e@(Let 
             [(b, _)]
@@ -90,6 +91,7 @@ cfRetValue tvnv ars rt
         ex_vrs <- freshIdsN (map TyVar all_tvs)
         let ex_tvs_to_vrs = zip all_tvs ex_vrs
 
+        tvnv <- tyVarEnv
         ex_ty_clls <- mapM 
                         (\tv -> wrapExtractCalls
                               . filter nullNonDet
@@ -116,15 +118,17 @@ nullNonDet _ = True
 instFuncTickName :: Name
 instFuncTickName = Name "INST_FUNC_TICK" Nothing 0 Nothing
 
-argumentNames :: ExState s m => TV.TyVarEnv -> Name -> m [Name]
-argumentNames tv n = do
+argumentNames :: ExState s m => Name -> m [Name]
+argumentNames n = do
+    tv <- tyVarEnv
     e <- lookupE n
     case e of
         Just e' -> return . concatMap tyConNames $ anonArgumentTypes (typeOf tv e')
         Nothing -> return []
 
-returnNames :: ExState s m => TV.TyVarEnv -> Name -> m [Name]
-returnNames tv n = do
+returnNames :: ExState s m => Name -> m [Name]
+returnNames n = do
+    tv <- tyVarEnv
     e <- lookupE n
     case e of
         Just e' -> return . tyConNames $ returnType (typeOf tv e')

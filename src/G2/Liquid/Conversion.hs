@@ -45,7 +45,6 @@ import Data.Maybe
 import qualified Data.Text as T
 import qualified G2.Language.TyVarEnv as TV 
 
-
 -- | A mapping of TyVar Name's, to Id's for the LH dict's
 type LHDictMap = HM.HashMap Name Id
 
@@ -140,6 +139,7 @@ mergeSpecType :: TV.TyVarEnv -> SpecType -> Name -> Expr -> LHStateM Expr
 mergeSpecType tv st fn e = do
     lh <- lhTCM
 
+    tv <- tyVarEnv
     -- Create new bindings to use in the Ref. Type
     let argT = spArgumentTypes $ typeOf tv e
     is <- mapM argsFromArgT argT
@@ -158,7 +158,7 @@ mergeSpecType tv st fn e = do
     -- lambda for it in the LH Spec
     r <- freshIdN (typeOf tv e')
     let is' = filter (not . isTC lh . (typeOf tv)) is
-    assert <- convertAssertSpecType tv dm (HM.map (typeOf tv) lhm) is' r st
+    assert <- convertAssertSpecType dm (HM.map (typeOf tv) lhm) is' r st
 
     let fc = FuncCall { funcName = fn 
                       , arguments = map Var is
@@ -180,6 +180,7 @@ mergeSpecType tv st fn e = do
 createAssumption :: TV.TyVarEnv -> SpecType -> Expr -> LHStateM ([(LamUse, Id)], [Maybe Expr], Expr)
 createAssumption tv st e = do
     lh <- lhTCM
+    tv <- tyVarEnv
 
     -- Create new bindings to use in the Ref. Type
     let argT = spArgumentTypes $ typeOf tv e
@@ -187,9 +188,9 @@ createAssumption tv st e = do
     let lu = map argTypeToLamUse argT
 
     let is' = filter (not . isTC lh . (typeOf tv)) is
-    dm@(DictMaps {lh_dicts = lhm}) <- dictMapFromIds tv is
+    dm@(DictMaps {lh_dicts = lhm}) <- dictMapFromIds is
 
-    assume <- convertAssumeSpecType tv dm (HM.map (typeOf tv)lhm) is' st
+    assume <- convertAssumeSpecType dm (HM.map (typeOf tv)lhm) is' st
     higher_is <- handleHigherOrderSpecs tv CheckOnlyPost mkHigherAssume lh dm (HM.map (typeOf tv) lhm) is st
 
     let assume' = foldr (uncurry Lam) assume $ zip lu is
@@ -204,6 +205,7 @@ higherOrderTickName = Name "HIGHER_ORDER_FUNC" Nothing 0 Nothing
 createPost :: TV.TyVarEnv -> SpecType -> Expr -> LHStateM Expr
 createPost tv st e = do
     lh <- lhTCM
+    tv <- tyVarEnv
 
     -- Create new bindings to use in the Ref. Type
     let argT = spArgumentTypes $ typeOf tv e
@@ -212,22 +214,21 @@ createPost tv st e = do
 
     r <- freshIdN (returnType $ typeOf tv e)
     let is' = filter (not . isTC lh . (typeOf tv) ) is
-    dm@(DictMaps {lh_dicts = lhm}) <- dictMapFromIds tv is
+    dm@(DictMaps {lh_dicts = lhm}) <- dictMapFromIds is
 
-    pst <- convertPostSpecType tv dm (HM.map (typeOf tv) lhm) is' r st
+    pst <- convertPostSpecType dm (HM.map (typeOf tv) lhm) is' r st
 
     return . foldr (uncurry Lam) pst $ zip (lu ++ [TermL]) (is ++ [r])
 
-
-
-dictMapFromIds :: TV.TyVarEnv -> [Id] -> LHStateM DictMaps
-dictMapFromIds tv is = do
+dictMapFromIds :: [Id] -> LHStateM DictMaps
+dictMapFromIds is = do
     lh <- lhTCM
     num <- lhNumTCM
     int <- return . KV.integralTC =<< knownValues
     frac <- return . KV.fractionalTC =<< knownValues
     ord <- ordTCM
 
+    tv <- tyVarEnv
     let lhm = tcWithNameMap tv lh is
     let nm = tcWithNameMap tv num is
     let im = tcWithNameMap tv int is
@@ -277,6 +278,7 @@ convertSpecType tv _ m bt _ r (RVar {rt_var = (RTV v), rt_reft = ref})
 
         let symbId = convertSymbolT symb (TyVar i)
 
+        tv <- tyVarEnv
         let bt' = HM.insert (idName symbId) (typeOf tv symbId) bt
 
         re <- convertLHExpr tv m bt' Nothing (reftExpr $ ur_reft ref)
@@ -291,6 +293,7 @@ convertSpecType tv cp m bt (i:is) r (RFun {rt_bind = b, rt_in = fin, rt_out = fo
 
     e <- convertSpecType tv cp m bt' is r fout
 
+    tv <- tyVarEnv
     case hasFuncType (typeOf tv i) of
         True -> return $ App (Lam TermL i' e) (Var i)
         False -> do
@@ -304,7 +307,7 @@ convertSpecType tv cp m bt (i:is) r (RFun {rt_bind = b, rt_in = fin, rt_out = fo
 convertSpecType tv cp m bt (i:is) r (RAllT {rt_tvbind = RTVar (RTV v) _, rt_ty = rty}) = do
     let i' = mkIdUnsafe v
 
-
+    tv <- tyVarEnv
     let m' = copyIds (idName i) (idName i') m
     let bt' = HM.insert (idName i') (typeOf tv i) bt
 
@@ -341,7 +344,7 @@ handleHigherOrderSpecs tv check_pre wrap_spec lh dm bt (i:is) st | isTC lh $ typ
     return $ Nothing:es
 handleHigherOrderSpecs tv check_pre wrap_spec lh dm bt (i:is) (RFun {rt_bind = b, rt_in = fin, rt_out = fout })
     | hasFuncType (typeOf tv i) = do
-        t <- unsafeSpecTypeToType tv fin
+        t <- unsafeSpecTypeToType fin
         let i' = convertSymbolT b t
 
         let bt' = HM.insert (idName i') t bt
@@ -349,7 +352,7 @@ handleHigherOrderSpecs tv check_pre wrap_spec lh dm bt (i:is) (RFun {rt_bind = b
 
         ars <- freshIdsN (anonArgumentTypes $ typeOf tv i)
         ret <- freshIdN (returnType $ typeOf tv i)
-        spec <- convertSpecType tv check_pre dm bt' ars (Just ret) fin
+        spec <- convertSpecType check_pre dm bt' ars (Just ret) fin
 
         let let_assert_spec = mkLams (zip (repeat TermL) ars)
                             . Let [(ret, mkApp $ Var i:map Var ars)]
@@ -381,6 +384,7 @@ polyPredFunc tv cp as ty m bt b = do
 
     bool <- tyBoolT
 
+    tv <- tyVarEnv
     let ar1 = Type (typeOf tv b)
         ars = [dict] ++ as' ++ [Var b]
         t = TyForAll b $ foldr1 TyFun $ map (typeOf tv) ars ++ [bool]
@@ -413,6 +417,7 @@ convertLHExpr tv m bt rt eapp@(EApp e e') = do
         Nothing -> do
             f <- convertLHExpr tv m bt Nothing e
 
+            tv <- tyVarEnv
             let at = argumentTypes $ typeOf tv f
                 f_ar_t = case at of
                             (_:_) -> Just $ last at
@@ -428,7 +433,6 @@ convertLHExpr tv m bt rt eapp@(EApp e e') = do
 
             case (ctArgE, f_ar_ts) of
                 (_, Just f_ar_ts') -> do
-                    -- TODO: I change the M.toList to TV.toList, is that correct? I believe it's since specializes now return Maybe TyVarEnv
                     let specTo = concatMap (map snd) $ map TV.toList $ map (fromJust . uncurry specializes) $ zip ts f_ar_ts'
                         te = map Type specTo
 
@@ -444,8 +448,10 @@ convertLHExpr tv m bt rt eapp@(EApp e e') = do
         relTyVars t@(TyVar _) = [t]
         relTyVars t@(TyApp _ _) = tyAppArgs t
         relTyVars _ = []
-convertLHExpr tv m bt t (ENeg e) = do
-    e' <- convertLHExpr tv m bt t e
+convertLHExpr m bt t (ENeg e) = do
+    e' <- convertLHExpr m bt t e
+
+    tv <- tyVarEnv
     let t' = typeOf tv e'
 
     neg <- lhNegateM
@@ -473,6 +479,7 @@ convertLHExpr tv m bt t (EBin b e e') = do
     (e2, e2') <- correctTypes tv m bt t e e'
     b' <- convertBop b
 
+    tv <- tyVarEnv
     let t' = typeOf tv e2
 
     nDict <- bopTCDict b m t'
@@ -491,8 +498,9 @@ convertLHExpr tv m bt t (EIte b e e') = do
 
     bnd <- freshIdN =<< tyBoolT
 
+    tv <- tyVarEnv
     return $ Case b2 bnd (typeOf tv e2) [Alt (DataAlt trueDC []) e2, Alt (DataAlt falseDC []) e2']
-convertLHExpr tv m bt _ (ECst e s) = do
+convertLHExpr m bt _ (ECst e s) = do
     t <- sortToType s
     convertLHExpr tv m bt (Just t) e
 convertLHExpr tv m bt _ (PAnd es) = do
@@ -533,6 +541,7 @@ convertLHExpr tv m bt _ (PAtom brel e1 e2) = do
     (e1', e2') <- correctTypes tv m bt Nothing e1 e2
     brel' <- convertBrel brel
 
+    tv <- tyVarEnv
     let t' = typeOf tv e1'
 
     dict <- brelTCDict m t'
@@ -547,6 +556,9 @@ convertSetExpr tv meas dm bt rt e
     , Just (f_nm, f_e) <- E.lookupNameMod nm nm_mod meas = do
         e1' <- convertLHExpr tv dm bt rt e1
         tyI <- tyIntegerT
+
+        tv <- tyVarEnv
+
         t <- if typeOf tv e1' == tyI then tyIntT else return $ typeOf tv e1'
         e1'' <- if typeOf tv e1' == tyI then correctType tv dm t e1' else return e1'
         return . Just $ mkApp ([ Var (Id f_nm (typeOf tv f_e))
@@ -555,8 +567,10 @@ convertSetExpr tv meas dm bt rt e
     | [EVar v, e1, e2] <- unEApp e
     , Just (nm, nm_mod) <- get_nameTyVarArOrd v
     , Just (f_nm, f_e) <- E.lookupNameMod nm nm_mod meas = do
-        e1' <- convertLHExpr tv dm bt rt e1
-        e2' <- convertLHExpr tv dm bt rt e2
+        e1' <- convertLHExpr dm bt rt e1
+        e2' <- convertLHExpr dm bt rt e2
+        
+        tv <- tyVarEnv
         let TyApp _ t2 = typeOf tv e2'
         e1'' <- correctType tv dm t2 e1'
         let t = typeOf tv e1''
@@ -569,7 +583,9 @@ convertSetExpr tv meas dm bt rt e
     | EVar v:es <- unEApp e
     , Just (nm, nm_mod) <- get_nameSetAr v
     , Just (f_nm, f_e) <- E.lookupNameMod nm nm_mod meas = do
-        es' <- mapM (convertLHExpr tv dm bt rt) es
+        es' <- mapM (convertLHExpr dm bt rt) es
+
+        tv <- tyVarEnv
         case typeOf tv (head es') of
             TyApp _ t -> do
                 return . Just $ mkApp ([ Var (Id f_nm (typeOf tv f_e))
@@ -581,7 +597,9 @@ convertSetExpr tv meas dm bt rt e
     | EVar v:es <- unEApp e
     , Just (nm, nm_mod) <- get_nameSetArOrd v
     , Just (f_nm, f_e) <- E.lookupNameMod nm nm_mod meas = do
-        es' <- mapM (convertLHExpr tv dm bt rt) es
+        es' <- mapM (convertLHExpr dm bt rt) es
+
+        tv <- tyVarEnv
         case typeOf tv (head es') of
             TyApp _ t -> do
                 ord <- ordDict dm t
@@ -660,6 +678,7 @@ correctTypes tv m bt mt re re' = do
     e <- convertLHExpr tv m bt mt re
     e' <- convertLHExpr tv m bt mt re'
 
+    tv <- tyVarEnv
     let t = typeOf tv e
     let t' = typeOf tv e'
 
@@ -788,7 +807,8 @@ convertEVar tv nm@(Name n md _ _) bt mt
         meas <- measuresM
         tenv <- typeEnv
         
-        if | Just (n', e) <- E.lookupNameMod n md meas ->
+        if | Just (n', e) <- E.lookupNameMod n md meas -> do
+                tv <- tyVarEnv
                 return . Var $ Id n' (typeOf tv e)
            | Just dc <- getDataConNameMod' tenv nm -> return $ Data dc
            | Just t <- mt -> return $ Var (Id nm t)
@@ -854,7 +874,9 @@ rTyConType tv rtc sts = do
     let tcn = mkTyConNameUnsafe . rtc_tc $ rtc
         n = nameModMatch tcn tenv
 
-    ts <- mapM (specTypeToType tv) sts
+    ts <- mapM specTypeToType sts
+
+    tv <- tyVarEnv
     
     case (not . any isNothing $ ts) of
         True -> case fmap (\n' -> mkFullAppedTyCon tv n' (catMaybes ts) TYPE) n of

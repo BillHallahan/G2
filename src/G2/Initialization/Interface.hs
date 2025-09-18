@@ -47,7 +47,6 @@ runInitialization2 config s@(IT.SimpleState { IT.expr_env = eenv
         (eenv5, ng3) = if smt_strings config == NoSMTStrings
                                 then (E.insert (typeIndex kv) 
                                             (Lam TypeL t . Lam TermL x . Lit $ LitInt 0) eenv4, ng2)
-                                -- TODO: trivializeDCs required a TyVarEnv b/c the use of TypeOf in the function, is it safe to use TV.empty in runInitialization2?
                                 else trivializeDCs TV.empty ng2 kv eenv4
         eenv6 = if smt_strings config == NoSMTStrings
                         then E.insert (adjStr kv) 

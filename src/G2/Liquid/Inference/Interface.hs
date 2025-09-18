@@ -118,7 +118,6 @@ getInitState proj fp ghci infconfig config lhconfig = do
                           , steps = 2000 }
         transConfig = simplTranslationConfig { simpl = False }
     (main_mod, exg2) <- translateLoaded proj fp transConfig g2config
-    -- TODO: is it safe to include the have TV.empty
     let (lrs, g2config', lhconfig', infconfig') = initStateAndConfig exg2 main_mod g2config lhconfig infconfig ghci
     return (lrs, g2config', lhconfig', infconfig', main_mod)
 

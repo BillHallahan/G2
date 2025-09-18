@@ -18,9 +18,9 @@ import qualified G2.Language.TyVarEnv as TV
 
 addTyVarsEEnvTEnv :: TV.TyVarEnv -> SimpleState -> (SimpleState, PhantomTyVars)
 addTyVarsEEnvTEnv tv s@(SimpleState { expr_env = eenv
-                                 , type_env = tenv
-                                 , known_values = kv
-                                 , name_gen = ng }) =
+                                    , type_env = tenv
+                                    , known_values = kv
+                                    , name_gen = ng }) =
     let
         (new_mjn, ng') = mkNewMaybe kv ng
 
@@ -38,6 +38,7 @@ addTyVarsMeasures :: TV.TyVarEnv -> PhantomTyVars -> LHStateM ()
 addTyVarsMeasures tv PhantomTyVars { ph_unused_poly = unused_poly } = do
     meenv <- measuresM
     ng <- nameGen
+    tv <- tyVarEnv
     putMeasuresM (addTyVarsExpr tv unused_poly meenv ng meenv)
 
 -- | Identifies data constructors with unused polymorphic arguments

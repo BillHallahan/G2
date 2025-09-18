@@ -652,7 +652,7 @@ nonRedLibFuncs exec_names no_nrpc_names
     | 
       -- We are NOT dealing with a symbolic function or a function that should not be put in the NRPCs
       Var (Id n _):_ <- unApp ce
-    , Just (Id n' _) <- E.deepLookupVar tvnv n eenv
+    , Just n' <- E.deepLookupVar n eenv
     , not (n' `HS.member` no_nrpc_names)
     , not (E.isSymbolic n' eenv)
     , Just (s'@(State { curr_expr = CurrExpr _ _ }), _, ce', ng') <- createNonRed ng s = 
@@ -798,7 +798,7 @@ nrpcApproxReducer solver no_inline no_nrpc_names config =
             , let e = applyWrap (getExpr s) (exec_stack s)
             , Var (Id n _):_:_ <- unApp e
 
-            , Just (Id n' _) <- E.deepLookupVar tvnv n eenv
+            , Just n' <- E.deepLookupVar n eenv
             , not (n' `HS.member` no_nrpc_names)
             , not (E.isSymbolic n' eenv)
 
@@ -1031,17 +1031,21 @@ strictRed = mkSimpleReducer (\_ -> ())
                 -- To decide when to apply the strictRed, we must 
                 -- (1) remove all update frames from the top of the stack
                 -- (2) check if the top of the stack is a CurrExprFrame (or if the stack is empty empty)
-                -- We effectively ignore UpdateFrames when checking if we should split up an expression to force strictness
-                -- See Note [Ignore Update Frames].
-                (updates, stck') = pop_updates [] stck
+                -- (3) check if the top of the stack is a CurrExprFrame (or empty)
+
+                -- We effectively ignore UpdateFrames and CastFrames when checking if we should split up an expression to force strictness
+                -- The expression `e` wrapped in a cast might be in SWHNF.  In this case, the whole cast is in SWHNF,
+                -- and we do not want to prevent reduction of the subexpressions in `e`.
+                -- For an explanation of UpdateFrames, see Note [Ignore Update Frames].
+                (updates, stck') = pop_updates_casts [] stck
 
                 exec_done | Stck.null stck' = True
                           | Just (CurrExprFrame _ _, _) <- Stck.pop stck' = True
                           | otherwise = False
 
-                pop_updates ns stck | Just (UpdateFrame n, stck_) <- Stck.pop stck = pop_updates (n:ns) stck_
-                                    | otherwise = (ns, stck)
-
+                pop_updates_casts ns stck | Just (UpdateFrame n, stck_) <- Stck.pop stck = pop_updates_casts (n:ns) stck_
+                                          | Just (CastFrame _, stck_) <- Stck.pop stck = pop_updates_casts ns stck_
+                                          | otherwise = (ns, stck)
                 -- | Does the expression contain non-fully-reduced subexpressions?
                 --
                 -- Looks through variables, but tracks seen variable names to avoid an infinite loop.
@@ -1137,9 +1141,7 @@ nonRedPCRedFunc _ _ s b = return (Finished, [(s, ())], b)
 -- Substitutes all possible higher order functions for symbolic higher order functions.
 -- We insert the substituted higher order function directly into the model, because, due
 -- to the VAR-RED rule, the function name will (if the function is called) be lost during execution.
-
--- TODO: is the update I am doing here due to the change in typeOf correct?
-substHigherOrder :: TV.TyVarEnv -> ExprEnv -> Model -> HS.HashSet Name -> CurrExpr -> [(ExprEnv, Model, CurrExpr)]
+substHigherOrder :: TyVarEnv -> ExprEnv -> Model -> HS.HashSet Name -> CurrExpr -> [(ExprEnv, Model, CurrExpr)]
 substHigherOrder tv eenv m ns ce =
     let
         is = mapMaybe (\n -> case E.lookup n eenv of

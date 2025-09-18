@@ -16,10 +16,6 @@ import G2.Liquid.Types
 import qualified Data.HashSet as S
 import qualified Data.Text as T
 
-import Debug.Trace
-import qualified G2.Language.TyVarEnv as TV
-
-
 -- | Adds an assert of false to the function called when a pattern match fails
 addSpecialAsserts :: LHStateM ()
 addSpecialAsserts = do
@@ -56,8 +52,9 @@ addTrueAsserts' tv ns n e
     | n `elem` ns = addTrueAssert'' tv n e
     | otherwise = return e
 
-addTrueAssert'' :: ExState s m => TV.TyVarEnv -> Name -> Expr -> m Expr 
-addTrueAssert'' tv n e = do
+addTrueAssert'' :: ExState s m => Name -> Expr -> m Expr 
+addTrueAssert'' n e = do
+    tv <- tyVarEnv
     insertInLamsE (\is e' ->
                 case e' of
                     Let [(_, _)] (Assert _ _ _) -> return e'
@@ -75,8 +72,9 @@ addTrueAssert'' tv n e = do
                         return e''
                 ) =<< etaExpandToE (numArgs (typeOf tv e) ) e
 
-tyBindings :: (ExState s m, Typed t) => TV.TyVarEnv -> t -> m [(LamUse, Id)]
-tyBindings tv t = do
+tyBindings :: (ExState s m, Typed t) => t -> m [(LamUse, Id)]
+tyBindings t = do
+    tv <- tyVarEnv
     let at = spArgumentTypes (typeOf tv t)
     fn <- freshNamesN (length at)
     return $ tyBindings' fn at
@@ -87,8 +85,8 @@ tyBindings' ns (NamedType i:ts) = (TypeL, i):tyBindings' ns ts
 tyBindings' (n:ns) (AnonType t:ts) = (TermL, Id n t):tyBindings' ns ts
 tyBindings' [] _ = error "Name list exhausted in tyBindings'"
 
-addTrueAssertsAll :: ExState s m => TV.TyVarEnv -> m ()
-addTrueAssertsAll tv = mapWithKeyME (addTrueAssert'' tv)
+addTrueAssertsAll :: ExState s m => m ()
+addTrueAssertsAll = mapWithKeyME addTrueAssert''
 
 --- [BlockErrors]
 -- | Blocks calling error in the functions specified in the block_errors_in in
@@ -100,9 +98,10 @@ addErrorAssumes tv config = do
     lh_kv <- lhKnownValuesM
     mapMeasuresWithKeyM (addErrorAssumes' tv (block_errors_method config) (block_errors_in config) lh_kv)
 
-addErrorAssumes' :: TV.TyVarEnv -> BlockErrorsMethod -> S.HashSet (T.Text, Maybe T.Text) -> KnownValues -> Name -> Expr -> LHStateM Expr
-addErrorAssumes' tv be ns kv (Name n m _ _) e = do
-    if (n, m) `S.member` ns then addErrorAssumes'' tv be kv (typeOf tv e) e else return e
+addErrorAssumes' :: BlockErrorsMethod -> S.HashSet (T.Text, Maybe T.Text) -> KnownValues -> Name -> Expr -> LHStateM Expr
+addErrorAssumes' be ns kv (Name n m _ _) e = do
+    tv <- tyVarEnv
+    if (n, m) `S.member` ns then addErrorAssumes'' be kv (typeOf tv e) e else return e
 
 addErrorAssumes'' :: TV.TyVarEnv -> BlockErrorsMethod -> KnownValues -> Type -> Expr -> LHStateM Expr
 addErrorAssumes'' tv be kv _ v@(Var (Id n t))
@@ -119,7 +118,7 @@ addErrorAssumes'' tv be kv _ v@(Var (Id n t))
             lam_it = map (\as -> case as of
                                     AnonType at -> (TermL, Id d at)
                                     NamedType i -> (TypeL, i)) ast
-        fr_n <- trace ("ast = " ++ show ast ++ "\nrt = " ++ show rt) freshSeededStringN "t"
+        fr_n <- freshSeededStringN "t"
  
         flse <- mkFalseE
 

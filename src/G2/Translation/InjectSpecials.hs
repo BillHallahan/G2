@@ -11,6 +11,7 @@ import qualified Data.Text as T
 import qualified G2.Language.TyVarEnv as TV 
 
 import G2.Language
+import qualified G2.Language.TyVarEnv as TV 
 
 _MAX_TUPLE :: Int
 _MAX_TUPLE = 62
@@ -32,7 +33,7 @@ specialDC tvnv ns tn (n, m, ts) =
     let
         tv = map (TyVar . flip Id TYPE) ns
 
-        t = foldr TyFun (mkFullAppedTyCon tvnv tn tv TYPE) ts
+        t = foldr TyFun (mkFullAppedTyCon TV.empty tn tv TYPE) ts
         is = map (flip Id TYPE) ns
         t' = foldr TyForAll t is
     in
@@ -75,7 +76,7 @@ specials tv =
            [ (( listTypeStr
               , Just "GHC.Types", [aName])
               , [ ("[]", Just "GHC.Types", [])
-                , (":", Just "GHC.Types", [aTyVar, mkFullAppedTyCon tv listName [aTyVar] TYPE])]
+                , (":", Just "GHC.Types", [aTyVar, mkFullAppedTyCon TV.empty listName [aTyVar] TYPE])]
              )
            -- , (("Int", Just "GHC.Types"), [("I#", Just "GHC.Types", [TyLitInt])])
            -- , (("Float", Just "GHC.Types"), [("F#", Just "GHC.Types", [TyLitFloat])])
@@ -143,7 +144,7 @@ mkPrimTuples' tvnv n | n < 0 = []
                             rt_ns = if n == 0 then [] else map (\i -> Name "rt_" m i Nothing) [0..n]
                             tv = map (TyVar . flip Id TYPE) ns
 
-                            t = foldr (TyFun) (mkFullAppedTyCon tvnv tn tv TYPE) tv
+                            t = foldr (TyFun) (mkFullAppedTyCon TV.empty tn tv TYPE) tv
                             is = map (flip Id TYPE) ns
                             rt_is =  map (flip Id TYPE) rt_ns
                             t' = foldr TyForAll t is

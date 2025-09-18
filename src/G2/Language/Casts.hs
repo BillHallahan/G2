@@ -15,7 +15,6 @@ import G2.Language.Syntax
 import G2.Language.Typing
 import Data.Monoid as M
 import qualified G2.Language.TyVarEnv as TV 
-import Debug.Trace
 
 containsCast :: ASTContainer m Expr => m -> M.Any
 containsCast = evalASTs isCast

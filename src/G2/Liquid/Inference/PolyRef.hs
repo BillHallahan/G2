@@ -45,10 +45,10 @@ data PolyBound v = PolyBound v [PolyBound v] deriving (Eq, Read, Show, Functor, 
 -- ExprPolyBound
 -------------------------------
 
-extractExprPolyBoundWithRoot :: TV.TyVarEnv -> Expr -> ExprPolyBound
+extractExprPolyBoundWithRoot :: TyVarEnv -> Expr -> ExprPolyBound
 extractExprPolyBoundWithRoot tv e = PolyBound [e] $ extractExprPolyBound tv e
 
-extractExprPolyBound :: TV.TyVarEnv -> Expr -> [ExprPolyBound]
+extractExprPolyBound :: TyVarEnv -> Expr -> [ExprPolyBound]
 extractExprPolyBound tv e
     | Data dc:_ <- unApp e =
         let
@@ -69,8 +69,7 @@ mergeExprPolyBound' :: ExprPolyBound -> ExprPolyBound -> ExprPolyBound
 mergeExprPolyBound' (PolyBound es1 pb1) (PolyBound es2 pb2) =
     PolyBound (es1 ++ es2) (map (uncurry mergeExprPolyBound') $ zip pb1 pb2)
 
--- TODO: whether is safe the use the same TyVarEnv for the map
-extractExprPolyBound' :: TV.TyVarEnv ->Expr -> HM.HashMap Id [Expr]
+extractExprPolyBound' :: TyVarEnv ->Expr -> HM.HashMap Id [Expr]
 extractExprPolyBound' tv e
     | Data dc:es <- unApp e =
     let
@@ -110,7 +109,7 @@ substTypes' :: [Type] -> [Expr] -> [Expr]
 substTypes' (t:ts) (Type _:es) = Type t:substTypes' ts es
 substTypes' _ es = es
 
-adjustIndirectTypes :: TV.TyVarEnv -> Expr -> Expr
+adjustIndirectTypes :: TyVarEnv -> Expr -> Expr
 adjustIndirectTypes tv e
     | Data dc:es <- unApp e =
         let

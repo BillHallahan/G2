@@ -15,7 +15,6 @@ module G2.Language.ExprEnv
     , fromList
     , null
     , size
-    , toId
     , member
     , lookup
     , lookupConcOrSym
@@ -91,8 +90,6 @@ import qualified Data.Text as T
 import qualified Data.Traversable as Trav
 import GHC.Generics (Generic)
 import qualified G2.Language.TyVarEnv as TV 
-import qualified G2.Language.TyVarEnv as TV
-import Debug.Trace
 
 data ConcOrSym = Conc Expr
                | Sym Id
@@ -152,9 +149,6 @@ size = M.size . unwrapExprEnv
 member :: Name -> ExprEnv -> Bool
 member n = M.member n . unwrapExprEnv
 
-toId :: TV.TyVarEnv -> Name -> ExprEnv -> Maybe Id
-toId tv n eenv = fmap (Id n . typeOf tv) (lookup n eenv)
-
 -- | Lookup the `Expr` with the given `Name`.
 -- Returns `Nothing` if the `Name` is not in the `ExprEnv`.
 lookup :: Name -> ExprEnv -> Maybe Expr
@@ -198,15 +192,15 @@ deepLookupConcOrSym n eenv =
         Just s@(Sym r) -> Just s
         Nothing -> Nothing
 
--- | Find the deepest buried Var Id from the given Name
-deepLookupVar :: TV.TyVarEnv -> Name -> ExprEnv -> Maybe Id
-deepLookupVar tv n eenv = go (toId tv n eenv) n
+-- | Find the deepest buried Var Name from the given Name
+deepLookupVar :: Name -> ExprEnv -> Maybe Name
+deepLookupVar n eenv = go n
     where
-        go lst f = 
+        go f = 
             case lookupConcOrSym f eenv of
-                Just (Conc (Var i@(Id f' _))) -> go (Just i) f'
-                Just (Conc r) -> lst
-                Just (Sym r) -> Just r
+                Just (Conc (Var i@(Id f' _))) -> go f'
+                Just (Conc r) -> Just f
+                Just (Sym r) -> Just $ idName r
                 Nothing -> Nothing
 
 -- TODO: should this be in ExprEnv?
@@ -234,7 +228,6 @@ isSymbolic n eenv =
         Just (Sym _) -> True
         _ -> False
 
--- TODO: did we handle the TyVarEnv correctly here?
 occLookup :: TV.TyVarEnv -> T.Text -> Maybe T.Text -> ExprEnv -> Maybe Expr
 occLookup tv n m (ExprEnv eenv) = 
     let ex = L.find (\(Name n' m' _ _, _) -> n == n' && (m == m' || m' == Just "PrimDefs")) -- TODO: The PrimDefs exception should not be here! 

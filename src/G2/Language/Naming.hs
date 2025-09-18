@@ -845,7 +845,7 @@ instance Named KnownValues where
                         , patErrorFunc = rename old new patE
                         })
 
-instance Named TyConcOrSym where
+instance Named TV.TyConcOrSym where
     names (TV.TyConc t) = names t
     names (TV.TySym i) = names i
 

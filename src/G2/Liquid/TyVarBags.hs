@@ -75,8 +75,9 @@ createBagFuncs tv func_names tenv = do
     mapM_ (uncurry (createBagFunc tv func_names)) (HM.toList tenv)
 
 -- | Creates a mapping of type names to bag creation function names 
-assignBagFuncNames :: ExState s m => TV.TyVarEnv -> TypeEnv -> m TyVarBags
-assignBagFuncNames tv tenv =
+assignBagFuncNames :: ExState s m => TypeEnv -> m TyVarBags
+assignBagFuncNames tenv = do
+    tv <- tyVarEnv
     return . M.fromList
         =<< mapM
             (\(n@(Name n' m _ _), adt) -> do
@@ -107,7 +108,8 @@ createBagFunc' :: TV.TyVarEnv
                -> Id -- ^ The Id of the function to create
                -> Id -- ^ The Id of the TyVar to extract
                -> LHStateM ()
-createBagFunc' tv func_names tn adt fn tyvar_id = do
+createBagFunc' func_names tn adt fn tyvar_id = do
+    tv <- tyVarEnv
     bi <- freshIdsN $ map (const TYPE) (bound_ids adt)
     adt_i <- freshIdN $ mkFullAppedTyCon tv tn (map TyVar bi) TYPE
 
@@ -127,13 +129,15 @@ createBagFuncCase :: TV.TyVarEnv
                   -> LHStateM Expr
 createBagFuncCase tv func_names adt_i tyvar_id bi (DataTyCon { bound_ids = adt_bi
                                                           , data_cons = dc }) = do
+    tv <- tyVarEnv
     bindee <- freshIdN (typeOf tv adt_i)
     let ty_map = zip adt_bi (map TyVar bi)
     alts <- mapM (createBagFuncCaseAlt tv func_names tyvar_id ty_map) dc
             
     return $ Case (Var adt_i) bindee (typeOf tv $ head alts) alts
-createBagFuncCase tv func_names adt_i tyvar_id bi (NewTyCon { bound_ids = adt_bi
+createBagFuncCase func_names adt_i tyvar_id bi (NewTyCon { bound_ids = adt_bi
                                                          , rep_type = rt }) = do
+    tv <- tyVarEnv
     let rt' = foldr (uncurry retype) rt $ zip adt_bi (map TyVar bi)
         cst = Cast (Var adt_i) (typeOf tv adt_i :~ rt')
     clls <- extractTyVarCall tv func_names todo_emp tyvar_id cst
@@ -141,8 +145,9 @@ createBagFuncCase tv func_names adt_i tyvar_id bi (NewTyCon { bound_ids = adt_bi
 createBagFuncCase _ _ _ _ _ (TypeSynonym {}) =
     error "creatBagFuncCase: TypeSynonyms unsupported"
 
-createBagFuncCaseAlt :: TV.TyVarEnv -> TyVarBags -> Id -> [(Id, Type)] -> DataCon -> LHStateM Alt
-createBagFuncCaseAlt tv func_names tyvar_id ty_map dc = do
+createBagFuncCaseAlt :: TyVarBags -> Id -> [(Id, Type)] -> DataCon -> LHStateM Alt
+createBagFuncCaseAlt func_names tyvar_id ty_map dc = do
+    tv <- tyVarEnv
     let at = anonArgumentTypes (typeOf tv dc)
     is <- freshIdsN at
     let is' = foldr (uncurry retype) is ty_map
@@ -163,7 +168,7 @@ todo_emp = []
 
 -- | Creates a set of expressions to get all TyVars i out of an
 -- expression e. 
-extractTyVarCall :: TV.TyVarEnv
+extractTyVarCall :: TyVarEnv
                  -> TyVarBags
                  -> [(Id, Id)]  -- ^ Mapping of TyVar Ids to Functions to create those TyVars
                  -> Id 
@@ -212,8 +217,9 @@ createInstFuncs tv func_names tenv = do
     mapM_ (uncurry (createInstFunc tv func_names)) (HM.toList tenv)
 
 -- | Creates a mapping of type names to instantatiation function names 
-assignInstFuncNames :: ExState s m => TV.TyVarEnv -> TypeEnv -> m InstFuncs
-assignInstFuncNames tv tenv =
+assignInstFuncNames :: ExState s m => TypeEnv -> m InstFuncs
+assignInstFuncNames tenv = do
+    tv <- tyVarEnv
     return . M.fromList
         =<< mapM
             (\(tn@(Name n m _ _), adt) -> do
@@ -233,6 +239,7 @@ createInstFunc tv func_names tn adt
         bi <- freshIdsN $ map (const TYPE) (bound_ids adt)
         inst_fs <- freshIdsN $ map TyVar bi
 
+        tv <- tyVarEnv
         let tv' = foldr (uncurry TV.insert) tv (zip (map idName $ bound_ids adt) . map TyVar $ bi )
 
         cse <- createInstFunc' tv' func_names (zip bi inst_fs) adt

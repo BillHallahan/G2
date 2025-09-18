@@ -92,9 +92,10 @@ addOrdToNumCase' e = return e
 changeNumType :: TV.TyVarEnv -> Expr -> LHStateM Expr
 changeNumType tv e = do
     num <- numTCM
+    tv <- tyVarEnv
     modifyASTsM (changeNumType' tv num) e
 
-changeNumType' :: TV.TyVarEnv -> Name -> Expr -> LHStateM Expr
+changeNumType' :: TyVarEnv -> Name -> Expr -> LHStateM Expr
 changeNumType' tv num d@(Data dc)
     | (TyCon n _) <- tyAppCenter $ returnType (typeOf tv dc)
     , num == n = return . Data =<< changeNumTypeDC dc
@@ -146,6 +147,7 @@ ordDictFunc tv = do
                     Just ndc -> dataCon ndc
                     Nothing -> error "ordDictFunc: No NumDC"
 
+    tv <- tyVarEnv
     let numA = anonArgumentTypes (typeOf tv numDC')
 
     lamI <- freshIdN numT

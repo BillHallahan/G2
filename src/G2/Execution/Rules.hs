@@ -56,8 +56,6 @@ import Control.Exception
 import Control.Monad.Extra
 import Data.Maybe
 import Data.Traversable
-import Data.Int (Int)
-import Debug.Trace
 
 stdReduce :: (Solver solver, Simplifier simplifier) => Sharing -> SymbolicFuncEval t -> solver -> simplifier -> State t -> Bindings -> IO (Rule, [(State t, ())], Bindings)
 stdReduce share symb_func_eval solver simplifier s b@(Bindings {name_gen = ng}) = do
@@ -371,15 +369,6 @@ newBindingsForExecutionAtType old new e eenv ng = case e of
                     in (App e1' e2', eenv'', ng'')
     _ -> (e, eenv, ng)
 
-traceType :: E.ExprEnv -> Expr -> Maybe Type
-traceType _ (Type t) = Just t
--- return symoblic type varaible if the varabile we lookup is symoblic in the expression env
-traceType eenv (Var (Id n _)) = case E.lookupConcOrSym n eenv of 
-                                        Just (E.Sym i) -> Just (TyVar i)
-                                        Just (E.Conc e) -> traceType eenv e
-                                        Nothing -> Nothing
-traceType _ _ = Nothing
-
 evalLet :: State t -> NameGen -> Binds -> Expr -> (Rule, [State t], NameGen)
 evalLet s@(State { expr_env = eenv }) 
         ng binds e =
@@ -483,13 +472,13 @@ evalCase s@(State { expr_env = eenv
 
         alt_res = dsts_cs ++ lsts_cs ++ def_sts
       in
-      -- We return exactly one state per branch, unless we are concretizing a MutVar.
+      -- We return at most one state per branch, unless we are concretizing a MutVar.
       -- In that case, we will return at least one state, but might return an unbounded
       -- number more- see Note [MutVar Copy Concretization].
       assert (tyConName (tyAppCenter $ typeOf tvnv mexpr) == Just (KV.tyMutVar kv)
                         ==> length alt_res >= length dalts + length lalts + length defs)
       assert (tyConName (tyAppCenter $ typeOf tvnv mexpr) /= Just (KV.tyMutVar kv)
-                        ==> length alt_res == length dalts + length lalts + length defs)
+                        ==> length alt_res <= length dalts + length lalts + length defs)
       (RuleEvalCaseSym, alt_res, ng'')
 
   -- Case evaluation also uses the stack in graph reduction based evaluation
@@ -550,60 +539,101 @@ defaultAlts alts = [a | a@(Alt Default _) <- alts]
 -- their occurrence in the aexpr to something fresh.
 concretizeVarExpr :: State t -> NameGen -> Id -> Id -> [(DataCon, [Id], Expr)] -> Maybe Coercion -> ([NewPC t], NameGen)
 concretizeVarExpr _ ng _ _ [] _ = ([], ng)
-concretizeVarExpr s ng mexpr_id cvar (x:xs) maybeC = 
-        (x':newPCs, ng'') 
+concretizeVarExpr s ng mexpr_id cvar (x:xs) maybeC = newPCs 
     where
-        (x', ng') = concretizeVarExpr' s ng mexpr_id cvar x maybeC
-        (newPCs, ng'') = concretizeVarExpr s ng' mexpr_id cvar xs maybeC
+        pcs = concretizeVarExpr' s ng mexpr_id cvar x maybeC
 
-concretizeVarExpr' :: State t -> NameGen -> Id -> Id -> (DataCon, [Id], Expr) -> Maybe Coercion -> (NewPC t, NameGen)
+        newPCs = case pcs of 
+                            Nothing -> concretizeVarExpr s ng mexpr_id cvar xs maybeC
+                            Just (x', ng') -> let 
+                                                    (newPCs', ng'') = concretizeVarExpr s ng' mexpr_id cvar xs maybeC
+                                                in 
+                                                    (x':newPCs', ng'')
+
+concretizeVarExpr' :: State t -> NameGen -> Id -> Id -> (DataCon, [Id], Expr) -> Maybe Coercion -> Maybe (NewPC t, NameGen)
 concretizeVarExpr' s@(State {expr_env = eenv, type_env = tenv, known_values = kv, tyvar_env = tvnv})
                 ngen mexpr_id cvar (dcon, params, aexpr) maybeC =
-          (NewPC { state =  s { expr_env = eenv''
-                              , curr_expr = CurrExpr Evaluate aexpr''}
-                 -- It is VERY important that we insert the mexpr_id in `concretized`
-                 -- This forces reduceNewPC to check that the concretized data constructor does
-                 -- not violate any path constraints from default cases. 
-                 , new_pcs = pcs
-                 , concretized = [mexpr_id]
-                 }, ngen'')
+            -- It is VERY important that we insert the mexpr_id in `concretized`
+            -- This forces reduceNewPC to check that the concretized data constructor does
+            -- not violate any path constraints from default cases. 
+          case cleanParamsAndMakeDcon tvnv eenv kv params ngen dcon aexpr mexpr_t tenv of 
+            Nothing -> Nothing 
+            Just (params', news, dcon', ngen', aexpr', eenv', tvnv') -> buildNewPC params' news dcon' ngen' aexpr' eenv' tvnv'
+
   where
     mexpr_t = typeOf tvnv mexpr_id
-    (news, dcon', ngen', aexpr') = cleanParamsAndMakeDcon tvnv params ngen dcon aexpr mexpr_t tenv
 
-    -- Apply cast, in opposite direction of unsafeElimOuterCast
-    dcon'' = case maybeC of 
-                (Just (t1 :~ t2)) -> Cast dcon' (t2 :~ t1)
-                Nothing -> dcon'
+    buildNewPC params' news dcon' ngen' aexpr' eenv' tvnv' =
+        let 
+            
+            -- Apply cast, in opposite direction of unsafeElimOuterCast
+            dcon'' = case maybeC of 
+                        (Just (t1 :~ t2)) -> Cast dcon' (t2 :~ t1)
+                        Nothing -> dcon'
 
-    -- Now do a round of rename for binding the cvar.
-    binds = [(cvar, (Var mexpr_id))]
-    aexpr'' = liftCaseBinds binds aexpr'
+            -- Now do a round of rename for binding the cvar.
+            binds = [(cvar, (Var mexpr_id))]
+            aexpr'' = liftCaseBinds binds aexpr'
 
-    (eenv'', pcs, ngen'') = adjustExprEnvAndPathConds tvnv kv tenv eenv ngen' dcon dcon'' mexpr_id params news
+            (eenv''', pcs, ngen'') = adjustExprEnvAndPathConds tvnv' kv tenv eenv' ngen' dcon dcon'' mexpr_id params' news
+        in 
+            Just (NewPC { state = s { expr_env = eenv'''
+                                    , curr_expr = CurrExpr Evaluate aexpr''
+                                    , tyvar_env = tvnv'}
+                          , new_pcs = pcs
+                          , concretized = [mexpr_id]}, ngen'')
 
-cleanParamsAndMakeDcon :: TV.TyVarEnv -> [Id] -> NameGen -> DataCon -> Expr -> Type -> TypeEnv -> ([Name], Expr, NameGen, Expr)
-cleanParamsAndMakeDcon tv params ngen dcon aexpr mexpr_t tenv =
-    let
-        -- Make sure that the parameters do not conflict in their symbolic reps.
-        olds = map idName params
-        clean_olds = map cleanName olds
+-- | Generates parameters and expressions to allow concretization to a specific DataCon.
+-- May return Nothing if the DataCon requires coercions to hold that violate existing type restraints.
+cleanParamsAndMakeDcon :: TV.TyVarEnv -> E.ExprEnv -> KnownValues -> [Id] -> NameGen -> DataCon -> Expr -> Type -> TypeEnv
+                       -> Maybe ([Id], [Name], Expr, NameGen, Expr, E.ExprEnv, TV.TyVarEnv)
+cleanParamsAndMakeDcon tv eenv kv params ngen dcon aexpr mexpr_t tenv =
+    case maybe_uf_map of 
+            Nothing -> Nothing 
+            Just uf_map -> buildNewPC tv uf_map ngen
+  where
+    extract_tys = concatMap (T.getCoercions kv . typeOf tv) params
 
-        (news, ngen') = freshSeededNames clean_olds ngen
+    -- The UFMap is collecting equivalences that must hold between type variables based on coercions
+    maybe_uf_map = foldM (\uf_map (t1, t2) -> T.unify' uf_map t1 t2) UF.empty extract_tys
 
-        (dcon', aexpr') = renameExprs (zip olds news) (Data dcon, aexpr)
+    buildNewPC tvnv uf_map namegen =
+        let
+            -- Make sure that the parameters names do not conflict
+            olds = map idName params
+            clean_olds = map cleanName olds
 
-        newparams = map (uncurry Id) $ zip news (map (typeOf tv) params)
-        dConArgs = (map (Var) newparams)
+            (news, ngen') = freshSeededNames clean_olds namegen
 
-        -- Get list of Types to concretize polymorphic data constructor and concatenate with other arguments
-        type_ars = mexprTyToExpr mexpr_t tenv
-        exprs = [dcon'] ++ type_ars ++ dConArgs
+            old_new = zip olds news
 
-        -- Apply list of types (if present) and DataCon children to DataCon
-        dcon'' = mkApp exprs
-    in
-    (news, dcon'', ngen', aexpr')
+            -- Differentiating between the existential type variable and the value level arguments 
+            (old_new_exists, old_new_value) = splitAt (length $ dc_exist_tyvars dcon) old_new
+
+            -- We use renameExpr as an optimization to rename the value level arguments in `Expr`s,
+            -- since value level arguments cannot appear in types.
+            (dcon', aexpr') = renames (HM.fromList old_new_exists)
+                                $ renameExprs old_new_value (Data dcon, aexpr)
+
+            params' = renames (HM.fromList old_new) params
+            coercion_args = HM.toList . UF.toSimpleMap $ renames (HM.fromList old_new_exists) uf_map
+            
+            (exist_tys, value_args) = splitAt (length $ dc_exist_tyvars dcon) params'
+
+            -- Adding the universal and existential type variable into the TyVarEnv            
+            tvnv' = L.foldl' (flip TV.insertSymbolic) tvnv exist_tys
+            tvnv'' = L.foldr (uncurry TV.insert) tvnv' coercion_args
+            eenv' = E.insertExprs (zip (map idName value_args) (map Var value_args)) eenv
+
+            -- Get list of Types to concretize polymorphic data constructor and concatenate with other arguments
+            univ_ars = mexprTyToExpr mexpr_t tenv
+
+            exprs = [dcon'] ++ univ_ars ++ map (Type . TyVar) exist_tys ++ map Var value_args 
+
+            -- Apply list of types (if present) and DataCon children to DataCon
+            dcon'' = mkApp exprs
+        in
+        Just (params', news, dcon'', ngen', aexpr', eenv', tvnv'')
 
 -- [String Concretizations and Constraints]
 -- Generally speaking, the values of symbolic variable are determined by one of two methods:
@@ -696,7 +726,7 @@ createExtCond s ngen mexpr cvar (dcon, bindees, aexpr)
         let
             -- Get the Bool value specified by the matching DataCon
             -- Throws an error if dcon is not a Bool Data Constructor
-            boolValue = getBoolFromDataCon (known_values s) dcon
+            boolValue = getBoolFromDataCon kv dcon
             cond = ExtCond mexpr boolValue
 
             -- Now do a round of rename for binding the cvar.
@@ -710,26 +740,36 @@ createExtCond s ngen mexpr cvar (dcon, bindees, aexpr)
     , Just dcpc <- L.lookup ty_args dcpcs = 
         let
             mexpr_t = typeOf tvnv mexpr
-            (news, dcon', ngen', aexpr') = cleanParamsAndMakeDcon tvnv bindees ngen dcon aexpr mexpr_t tenv
 
-            new_ids = zipWith (\(Id _ t) n -> Id n t) bindees news
-            eenv = foldr E.insertSymbolic (expr_env s) new_ids
+            -- We should never ended up in the Nothing case for cleanParamsAndMakeDcon
+            -- b/c there is no coercion in Bool and [Char]
+            (bindees', news, dcon', ngen', aexpr', eenv', tvnv') = 
+                            case cleanParamsAndMakeDcon tvnv eenv kv bindees ngen dcon aexpr mexpr_t tenv of
+                                    Nothing -> error $ "cleanParamsAndMakeDcon: Failed to generate uf_map for " ++ show mexpr
+                                    Just x  -> x
+            new_ids = zipWith (\(Id _ t) n -> Id n t) bindees' news
+            -- TODO GADT: I am wondering whether insertSymbolicExceptCoercion is stil needed for GADT 
+            insertSymbolicExceptCoercion i@(Id id_n t) eenv_
+                | TyApp (TyApp (TyApp (TyApp (TyCon tc_n _) _) _) c1) c2 <- t
+                , tc_n == KV.tyCoercion kv = E.insert id_n (Coercion (c1 :~ c2)) eenv_
+                | otherwise = E.insertSymbolic i eenv_
 
-            (eenv', pcs, ngen'', bindee_exprs) = applyDCPC ngen' eenv new_ids mexpr dcpc
+            eenv'' = foldr insertSymbolicExceptCoercion eenv' new_ids 
+
+            (eenv''', pcs, ngen'', bindee_exprs) = applyDCPC ngen' eenv'' new_ids mexpr dcpc
 
             -- Bind the cvar and bindees
             binds = (cvar, dcon'):zip new_ids bindee_exprs
             aexpr'' = liftCaseBinds binds aexpr'
-
-            res = s { expr_env = eenv', curr_expr = CurrExpr Evaluate aexpr'' }
+            res = s { expr_env = eenv''', curr_expr = CurrExpr Evaluate aexpr'', tyvar_env = tvnv'}
         in
-        (NewPC { state = res, new_pcs = pcs, concretized = [] }, ngen'')
-        -- the issue is located below for concRead 
+        (NewPC { state = res, new_pcs = pcs, concretized = []}, ngen'')
     | otherwise = error $ "createExtCond: unsupported type" ++ "\n" ++ show (typeOf tvnv mexpr) ++ "\n" ++ show dcon
         where
             kv = known_values s
             tenv = type_env s
             tvnv = tyvar_env s
+            eenv = expr_env s 
 
 getBoolFromDataCon :: KnownValues -> DataCon -> Bool
 getBoolFromDataCon kv dcon
@@ -1097,7 +1137,7 @@ matchPairs tvnv kv e1 e2 eenv_pc_ee@(eenv, pc, ees)
     | e1 == e2 = Just eenv_pc_ee
     | Cast e1' c1 <- e1
     , Cast e2' c2 <- e2
-    , c1 == c2 =  matchPairs tvnv kv e1' e2' eenv_pc_ee
+    , T.tyVarSubst tvnv c1 == T.tyVarSubst tvnv c2 =  matchPairs tvnv kv e1' e2' eenv_pc_ee
 
     | isExprValueForm eenv e1
     , isExprValueForm eenv e2
@@ -1292,7 +1332,7 @@ liftBinds kv type_binds value_binds tv_env eenv expr ngen = (tv_env', eenv', exp
                                         Coercion _ -> True
                                         _ -> False) type_binds
     
-    extract_tys = map (extractTypes kv . fst) coercion
+    extract_tys = concatMap (T.getCoercions kv . typeOf tv_env . fst) coercion
 
     uf_map = foldM (\uf_map' (t1, t2) -> T.unify' uf_map' t1 t2) UF.empty extract_tys
     

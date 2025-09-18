@@ -161,7 +161,7 @@ concSymReducer use_labels = mkSimpleReducer
 -- | Build a case expression with one alt for each data constructor of the given type
 -- and symbolic arguments.  Thus, the case expression could evaluate to any value of the
 -- given type.
-arbDC :: TV.TyVarEnv 
+arbDC :: TyVarEnv 
       -> UseLabeledErrors
       -> TypeEnv
       -> NameGen

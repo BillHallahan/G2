@@ -2,6 +2,7 @@ module G2.Solver.Maximize ( MaximizeSolver
                           , mkMaximizeSolver
                           , getBestFoundResult) where
 
+import G2.Language.Support
 import G2.Solver.Converters
 import G2.Solver.Language
 import G2.Solver.Solver

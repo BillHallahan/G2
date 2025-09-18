@@ -97,7 +97,7 @@ nrpcAnyCallReducer no_nrpc_names config =
                                 | not (hasNRBT wrapped_ce) -- (*)
                                 , Var (Id n _):_:_ <- unApp e
 
-                                , Just (Id n' _) <- E.deepLookupVar tvnv n eenv
+                                , Just n' <- E.deepLookupVar n eenv
                                 , not (n' `HS.member` no_nrpc_names)
                                 , not (E.isSymbolic n' eenv)
 

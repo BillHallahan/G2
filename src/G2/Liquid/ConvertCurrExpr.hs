@@ -62,6 +62,7 @@ modifyInputExpr' tv i e = do
     e'' <- letLiftFuncs tv e'
     e''' <- replaceLocalAssert i e''
 
+    tv <- tyVarEnv
     newI <- freshSeededIdN (idName i) (typeOf tv i)
     insertE (idName newI) e'''
 
@@ -132,16 +133,12 @@ letLiftFuncs' tv e
     | ars <- passedArgs e
     , any (\case { Var _ -> False; Type _ -> False; _ -> True }) ars = do
         let c = appCenter e
-        (binds, f_ars) <- liftSel tv ars
+        (binds, f_ars) <- liftSel ars
         return . Let binds . mkApp $ c:f_ars
-        -- let c = appCenter e
-        -- is <- freshIdsN $ map (typeOf tv) ars
-
-        -- return . Let (zip is ars) . mkApp $ c:map Var is
     | otherwise = return e
 
-liftSel :: TV.TyVarEnv -> [Expr] -> LHStateM ([(Id, Expr)], [Expr])
-liftSel tv = go ([], [])
+liftSel :: [Expr] -> LHStateM ([(Id, Expr)], [Expr])
+liftSel = go ([], [])
     where
         go (binds, r_es) [] = return (binds, reverse r_es)
         go (binds, r_es) (e:es) =
@@ -149,6 +146,7 @@ liftSel tv = go ([], [])
                 Var _ -> go (binds, e:r_es) es
                 Type _ -> go (binds, e:r_es) es
                 _ -> do
+                    tv <- tyVarEnv
                     i <- freshIdN $ typeOf tv e
                     go ((i, e):binds, Var i:r_es) es
 
@@ -160,11 +158,13 @@ letLiftHigherOrder' :: TV.TyVarEnv -> [Id] -> Expr -> LHStateM Expr
 letLiftHigherOrder' tv is e@(App _ _)
     | Var i <- appCenter e
     , i `elem` is = do
+        tv <- tyVarEnv
         ni <- freshIdN (typeOf tv e)
-        e' <- modifyAppRHSE (letLiftHigherOrder' tv is) e
+        e' <- modifyAppRHSE (letLiftHigherOrder' is) e
         return $ Let [(ni, e')] (Var ni)
     | d@(Data _) <- appCenter e = do
         let ars = passedArgs e
+        tv <- tyVarEnv
         f_is <- freshIdsN $ map (typeOf tv) ars
 
         ars' <- mapM (letLiftHigherOrder' tv f_is) ars
@@ -212,6 +212,7 @@ addCurrExprAssumption tv ifi (Bindings {fixed_inputs = fi}) = do
     (CurrExpr er ce) <- currExpr
 
     lh_tc_n <- lhTCM
+    tv <- tyVarEnv
     let lh_tc = TyCon lh_tc_n (TyFun TYPE TYPE)
     let fi' = filter (\e -> tyAppCenter (typeOf tv e) /= lh_tc) fi
 

@@ -94,7 +94,7 @@ validTotal s1 s2 ns hm =
       check (i, e) = (not $ (idName i) `elem` total_hs) || (totalExpr s2 ns [] e)
   in all check hm_list
 
-validTypes :: TV.TyVarEnv -> HM.HashMap Id Expr -> Bool
+validTypes :: TyVarEnv -> HM.HashMap Id Expr -> Bool
 validTypes tv hm = all (\((Id _ t), e) -> typeOf tv e T..:: t) $ HM.toList hm
 
 restrictHelper :: StateET ->

@@ -7,6 +7,8 @@ import time
 
 import shutil
 
+import psutil
+
 exe_name = str(subprocess.run(["cabal", "exec", "which", "G2"], capture_output = True).stdout.decode('utf-8')).strip()
 
 smt_solvers = ["z3", "z3str3", "cvc5", "ostrich", "z3-noodler"]
@@ -124,6 +126,12 @@ def run_g2(filename, func, var_settings, timeout):
     start_time = time.monotonic();
     res = call_g2_process(filename, func, var_settings, timeout);
     end_time = time.monotonic();
+
+    # avoid problems with z3-noodler not terminating
+    for proc in psutil.process_iter():
+        if proc.name() == "z3-noodler":
+            proc.kill()
+    
     elapsed = end_time - start_time;
     return res
 
