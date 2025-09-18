@@ -90,11 +90,6 @@ import qualified Data.Text as T
 import qualified Data.Traversable as Trav
 import GHC.Generics (Generic)
 import qualified G2.Language.TyVarEnv as TV 
-<<<<<<< HEAD
-=======
-import qualified G2.Language.TyVarEnv as TV
-import Debug.Trace
->>>>>>> ebb83c77c (create exclusive bindings for execution at type application, lambda renaming acts across environment entries)
 
 data ConcOrSym = Conc Expr
                | Sym Id
