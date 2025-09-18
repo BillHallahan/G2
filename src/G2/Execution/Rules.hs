@@ -294,13 +294,14 @@ retLam s@(State { expr_env = eenv, tyvar_env = tvnv, poly_arg_map = pargm })
         Nothing -> error $ "retLam: Bad type\ni = " ++ show i
     | otherwise =
         let
-            (eenv', e', ng', news) = liftBind i ae eenv e ng
+            (eenv', e', ng', news, pargm') = liftBind i ae eenv e ng pargm
         in
         ( RuleReturnEApplyLamExpr [news]
         , [s { expr_env = eenv'
              , curr_expr = CurrExpr Evaluate e'
-             , exec_stack = stck' }]
-        , ng')
+             , exec_stack = stck' 
+             , poly_arg_map = pargm'}] -- remove from rule
+        , ng' )
 
 evalLet :: State t -> NameGen -> Binds -> Expr -> (Rule, [State t], NameGen)
 evalLet s@(State { expr_env = eenv }) 
@@ -1290,16 +1291,18 @@ liftBinds kv type_binds value_binds tv_env eenv expr ngen = (tv_env', eenv', exp
 
     expr'' = renamesExprs val_olds_news $ replaceTyVars ty_olds_news expr'
 
-liftBind :: Id -> Expr -> E.ExprEnv -> Expr -> NameGen ->
-             (E.ExprEnv, Expr, NameGen, Name)
-liftBind bindsLHS bindsRHS eenv expr ngen = (eenv', expr', ngen', new)
+liftBind :: Id -> Expr -> E.ExprEnv -> Expr -> NameGen -> PM.PolyArgMap ->
+             (E.ExprEnv, Expr, NameGen, Name, PM.PolyArgMap)
+liftBind bindsLHS@(Id _ lhsTy) bindsRHS eenv expr ngen pargm = (eenv'', expr', ngen', new, pargm)
   where
     old = idName bindsLHS
     (new, ngen') = freshSeededName old ngen
 
     expr' = renameExpr old new expr
+    -- pargm' = rename old new pargm   -- causes: fs'6 can't be resolved to 1 for return value
 
     eenv' = E.insert new bindsRHS eenv
+    eenv'' = E.insert old (Var (Id new lhsTy)) $ eenv' -- causes: fs'6 -> fs'7 -> 1 in defintion
 
 type SymbolicFuncEval t = SymFuncTicks -> State t -> NameGen -> Expr -> Maybe (Rule, [State t], NameGen)
 
@@ -1457,11 +1460,11 @@ retReplaceSymbFuncTemplate sft
         -- new environment bindings
         eenv' = E.insertSymbolic f eenv
         eenv'' = E.insert n e eenv'
-        eenv''' = E.insert (idName x) (Var (Id (idName x) t1)) eenv''
+        -- eenv''' = E.insert x eenv''
     in Just (RuleReturnReplaceSymbFunc, [
         s {
         curr_expr = CurrExpr Evaluate e,
-        expr_env = eenv''',
+        expr_env = eenv'',
         poly_arg_map = pargm'
     }], ng')
 
