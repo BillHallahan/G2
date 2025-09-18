@@ -37,6 +37,7 @@ module G2.Translation.Haskell
 
 import qualified G2.Language.TypeEnv as G2 (AlgDataTy (..))
 import qualified G2.Language.Syntax as G2
+import qualified G2.Language.Families as G2
 -- import qualified G2.Language.Typing as G2
 import qualified G2.Translation.TransTypes as G2
 
@@ -202,6 +203,7 @@ cgGutsModDetailsClosureToModGutsClosure cg md =
     , G2.mgcc_tycons = G2.cgcc_tycons cg
     , G2.mgcc_breaks = G2.cgcc_breaks cg
     , G2.mgcc_cls_insts = G2.mdcc_cls_insts md
+    , G2.mgcc_fam_insts = G2.mdcc_fam_insts md
     , G2.mgcc_type_env = G2.mdcc_type_env md
     , G2.mgcc_exports = G2.mdcc_exports md
     , G2.mgcc_deps = G2.mdcc_deps md
@@ -281,6 +283,7 @@ mkModDetailsClosure :: Dependencies -> ModDetails -> G2.ModDetailsClosure
 mkModDetailsClosure deps moddet =
   G2.ModDetailsClosure
     { G2.mdcc_cls_insts = getClsInst moddet
+    , G2.mdcc_fam_insts = md_fam_insts moddet
     , G2.mdcc_type_env = md_types moddet
     , G2.mdcc_exports = exportedNames moddet
     , G2.mdcc_deps = getModuleNames deps
@@ -330,6 +333,9 @@ modGutsClosureToG2 mgcc tr_con = do
   -- Do the class
   classes <- mapM mkClass $ G2.mgcc_cls_insts mgcc
 
+  -- Do the data/type families
+  families <- mapM mkFamilyAxioms $ G2.mgcc_fam_insts mgcc
+
   -- Do the rules
   rules <- if G2.load_rewrite_rules tr_con
                   then mapM (mkRewriteRule breaks) $ G2.mgcc_rules mgcc
@@ -343,6 +349,7 @@ modGutsClosureToG2 mgcc tr_con = do
             , G2.exg2_binds = binds
             , G2.exg2_tycons = tycons
             , G2.exg2_classes = classes
+            , G2.exg2_axioms = families
             , G2.exg2_exports = exports
             , G2.exg2_deps = deps
             , G2.exg2_rules = catMaybes rules })
@@ -397,6 +404,7 @@ mkModGutsClosure env modguts = do
       , G2.mgcc_tycons = cg_tycons cgguts
       , G2.mgcc_breaks = cg_modBreaks cgguts
       , G2.mgcc_cls_insts = getClsInst moddets
+      , G2.mgcc_fam_insts = mg_fam_insts modguts
       , G2.mgcc_type_env = md_types moddets
       , G2.mgcc_exports = exportedNames moddets
       , G2.mgcc_deps = getModuleNames $ mg_deps modguts
@@ -429,6 +437,7 @@ mergeExtractedG2s (g2:g2s) =
       , G2.exg2_binds = G2.exg2_binds g2 `HM.union` G2.exg2_binds g2'
       , G2.exg2_tycons = G2.exg2_tycons g2 `HM.union` G2.exg2_tycons g2'
       , G2.exg2_classes = G2.exg2_classes g2 ++ G2.exg2_classes g2'
+      , G2.exg2_axioms = G2.exg2_axioms g2 ++ G2.exg2_axioms g2'
       , G2.exg2_exports = G2.exg2_exports g2 ++ G2.exg2_exports g2'
       , G2.exg2_deps = G2.exg2_deps g2 ++ G2.exg2_deps g2'
       , G2.exg2_rules = G2.exg2_rules g2 ++ G2.exg2_rules g2' }
@@ -771,6 +780,12 @@ mkClass (ClsInst { is_cls = c, is_dfun = dfun }) = do
            , tyvars
            , sctheta_selids)
 
+mkFamilyAxioms :: FamInst -> G2.NamesM (G2.Name, G2.Axiom)
+mkFamilyAxioms fam_inst = do
+    fam_name <- typeNameLookup $ fi_fam fam_inst
+    lhs_ts <- mapM mkType $ fi_tys fam_inst
+    rhs_t <- mkType $ fi_rhs fam_inst
+    return (fam_name, G2.Axiom { G2.lhs_types = lhs_ts, G2.rhs_type = rhs_t })
 
 mkRewriteRule :: Maybe ModBreaks -> CoreRule -> G2.NamesM (Maybe G2.RewriteRule)
 mkRewriteRule breaks (Rule { ru_name = n
