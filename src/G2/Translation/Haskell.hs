@@ -334,7 +334,8 @@ modGutsClosureToG2 mgcc tr_con = do
   classes <- mapM mkClass $ G2.mgcc_cls_insts mgcc
 
   -- Do the data/type families
-  families <- mapM mkFamilyAxioms $ G2.mgcc_fam_insts mgcc
+  fam_tycons <- mapM mkFamilyAxiomsTyCons raw_tycons
+  fam_open <- mapM mkFamilyAxioms (G2.mgcc_fam_insts mgcc)
 
   -- Do the rules
   rules <- if G2.load_rewrite_rules tr_con
@@ -349,7 +350,7 @@ modGutsClosureToG2 mgcc tr_con = do
             , G2.exg2_binds = binds
             , G2.exg2_tycons = tycons
             , G2.exg2_classes = classes
-            , G2.exg2_axioms = families
+            , G2.exg2_axioms = concat fam_tycons ++ fam_open
             , G2.exg2_exports = exports
             , G2.exg2_deps = deps
             , G2.exg2_rules = catMaybes rules })
@@ -786,6 +787,26 @@ mkFamilyAxioms fam_inst = do
     lhs_ts <- mapM mkType $ fi_tys fam_inst
     rhs_t <- mkType $ fi_rhs fam_inst
     return (fam_name, G2.Axiom { G2.lhs_types = lhs_ts, G2.rhs_type = rhs_t })
+
+mkFamilyAxiomsTyCons :: TyCon -> G2.NamesM [(G2.Name, G2.Axiom)]
+mkFamilyAxiomsTyCons t
+    | Just (ClosedSynFamilyTyCon (Just axioms)) <- famTyConFlav_maybe t = do
+        n@(G2.Name n' m _ _) <- typeNameLookup . tyConName $ t
+
+        (nm, tm) <- SM.get
+        let tm' = HM.insert (n', m) n tm
+        SM.put (nm, tm')
+
+        axs <- mapM mkAxiom . fromBranches $ co_ax_branches axioms
+
+        return $ map (n,) axs
+    | otherwise = return []
+    where
+    mkAxiom (CoAxBranch { cab_lhs = lhs, cab_rhs = rhs }) = do
+        lhs_ts <- mapM mkType lhs
+        rhs_t <- mkType rhs
+        return $ G2.Axiom { G2.lhs_types = lhs_ts, G2.rhs_type = rhs_t }
+
 
 mkRewriteRule :: Maybe ModBreaks -> CoreRule -> G2.NamesM (Maybe G2.RewriteRule)
 mkRewriteRule breaks (Rule { ru_name = n
