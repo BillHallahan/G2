@@ -55,6 +55,8 @@ import Control.Exception
 import Control.Monad.Extra
 import Data.Maybe
 import Data.Traversable
+import Data.Int (Int)
+import Debug.Trace
 
 stdReduce :: (Solver solver, Simplifier simplifier) => Sharing -> SymbolicFuncEval t -> solver -> simplifier -> State t -> Bindings -> IO (Rule, [(State t, ())], Bindings)
 stdReduce share symb_func_eval solver simplifier s b@(Bindings {name_gen = ng}) = do
@@ -1379,7 +1381,8 @@ retReplaceSymbFuncTemplate sft
                            s@(State { expr_env = eenv
                                     , type_env = tenv
                                     , poly_arg_map = pargm
-                                    , known_values = kv })
+                                    , known_values = kv
+                                    , tyvar_env = tve })
                            ng ce
 
     -- DC-SPLIT
@@ -1438,7 +1441,7 @@ retReplaceSymbFuncTemplate sft
     }], ng'''')
 
     -- LIT-SPLIT
-    | Var (Id n (TyFun t1 t2)):ea:es <- unApp ce
+    | Var (Id n nTy@(TyFun t1 t2)):ea:es <- unApp ce
     , isPrimType t1
     , E.isSymbolic n eenv
     = let
@@ -1451,8 +1454,15 @@ retReplaceSymbFuncTemplate sft
         e = Lam TermL xId $ Case (Tick (lit_split_tick sft) (mkApp [eqT1, x, ea])) discrimId t2
            [ Alt (DataAlt trueDc []) (Var f1Id)
            , Alt (DataAlt falseDc []) (App (Var f2Id) x)]
-        eenv' = foldr E.insertSymbolic eenv [f1Id, f2Id]
-        eenv'' = E.insert n e eenv'
+
+        -- get forall bound tyVar names, rename bindings for env
+        hm = getTyHashMap n nTy tve eenv
+        e' = renames hm e
+        f1Id' = renames hm f1Id
+        f2Id' = renames hm f2Id
+
+        eenv' = foldr E.insertSymbolic eenv [f1Id', f2Id']
+        eenv'' = E.insert n e' eenv'
     in Just (RuleReturnReplaceSymbFunc, [s {
         -- because we are always going down true branch
         curr_expr = CurrExpr Evaluate (mkApp (Var f1Id:es)),
@@ -1481,7 +1491,7 @@ retReplaceSymbFuncTemplate sft
     }], ng')
 
     -- PM-ARG
-    | Var (Id n (TyFun t1@(TyVar (Id t1N _)) t2@(TyVar (Id t2N _)))):_ <- unApp ce
+    | Var (Id n nTy@(TyFun t1@(TyVar (Id _ _)) t2)):_ <- unApp ce
     , E.isSymbolic n eenv
     = let
         -- make new id for lambda var
@@ -1489,8 +1499,11 @@ retReplaceSymbFuncTemplate sft
         -- make new expression for CurrExpr
         e = Lam TermL x (Var f)
 
-        (e', _, t2Real) = retypeExprTVsForEnv eenv n t1N t2N e
-        f' = Id (idName f) t2Real
+        -- get forall bound tyVar names, rename bindings for env
+        hm = getTyHashMap n nTy tve eenv
+        e' = renames hm e
+        f' = renames hm f
+
         -- new environment bindings
         eenv' = E.insertSymbolic f' eenv
         eenv'' = E.insert n e' eenv'
@@ -1514,15 +1527,19 @@ inlineConcInEnv symN conc env = E.map inline env where
         inline (Lam u i e) = Lam u i $ inline e
         inline e = e
 
--- | Replaces appearances of runtime tyVars with environment tyVars.
-retypeExprTVsForEnv :: E.ExprEnv -> Name -> Name -> Name -> Expr -> (Expr, Type, Type)
-retypeExprTVsForEnv eenv n t1N t2N run_e = let
-                (t1Real, t2Real) = case E.lookup n eenv of
-                        Just (Var (Id _ (TyFun t1_ t2_))) -> (t1_, t2_)
-                        _ -> error "retypeExprForEnv: no function binding for current Var"
-                in
-                    (replaceTyVar t2N t2Real (replaceTyVar t1N t1Real run_e), t1Real, t2Real)
-                
+getTyHashMap :: Name -> Type -> TV.TyVarEnv -> E.ExprEnv -> HM.HashMap Name Name
+getTyHashMap n exec_t tve eenv = case E.lookup n eenv of 
+            Just e -> makeTyHashMap exec_t $ typeOf tve e
+            Nothing -> error "getTyHashMap: lookup failed"
+
+makeTyHashMap :: Type -> Type -> HM.HashMap Name Name
+makeTyHashMap t1 t2 = go t1 t2 HM.empty
+    where
+        go (TyVar (Id n1 _)) (TyVar(Id n2 _)) hm = HM.insert n1 n2 hm
+        go (TyFun t1_1 t2_1) (TyFun t1_2 t2_2) hm = HM.union (go t1_1 t1_2 hm) (go t2_1 t2_2 hm)
+        go (TyApp t1_1 t2_1) (TyApp t1_2 t2_2) hm = HM.union (go t1_1 t1_2 hm) (go t2_1 t2_2 hm)
+        go _ _ hm = hm
+
 argTypes :: Type -> ([Type], Type)
 argTypes t = (anonArgumentTypes t, returnType t)
 
