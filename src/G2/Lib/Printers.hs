@@ -781,7 +781,6 @@ pprExecStateStr ex_state b = injNewLine acc_strs
     paths_str = pprPathsStr (PC.toList $ path_conds ex_state)
     -- pargm_str = pprPolyArgMapStr (poly_arg_map ex_state)
     non_red_paths_str = injNewLine (map show . toListNRPC $ non_red_path_conds ex_state)
-    pargm_str = pprPolyArgMapStr (poly_arg_map ex_state)
     tc_str = pprTCStr (type_classes ex_state)
     cleaned_str = pprCleanedNamesStr (cleaned_names b)
     model_str = pprModelStr (model ex_state)
