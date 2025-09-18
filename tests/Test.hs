@@ -687,6 +687,18 @@ extensionTests = testGroup "Extensions"
                                                                         , ("vecLength", 1000, [AtLeast 10])
                                                                         , ("vecZip", 1000, [AtLeast 10])
                                                                         ]
+
+    , checkInputOutputsInstType "tests/TestFiles/Extensions/TypeFamilies1.hs" [ ("f", 400, [Exactly 2])
+                                                                              , ("f2", 400, [AtLeast 1])
+                                                                              , ("f3", 400, [Exactly 2])
+                                                                              , ("g", 400, [Exactly 2])
+                                                                              , ("h", 400, [Exactly 2])
+                                                                              , ("age1", 400, [Exactly 1])
+                                                                              , ("age2", 400, [Exactly 1])
+                                                                              , ("app", 250, [AtLeast 5])
+                                                                              ]
+                                                            
+
     ]
 
 baseTests ::  TestTree

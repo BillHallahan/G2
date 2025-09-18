@@ -1,6 +1,6 @@
 {-# LANGUAGE DataKinds, TypeFamilies #-}
 
-module TypeFamily where
+module TypeFamilies1 where
 
 import Data.Kind
 
@@ -17,8 +17,12 @@ f I = True
 f B = 0
 
 f2 :: C a -> F a -> F a
-f2 I x = not x
-f2 B x = x + 1
+f2 I x = x
+f2 B x = x
+
+f3 :: C a -> F a -> F a
+f3 I x = not x
+f3 B x = x + 1
 
 type family G a
     
@@ -74,5 +78,13 @@ type family a + b where
     Succ a + b = Succ (a + b)
 
 app :: Vec n a -> Vec m a -> Vec (n + m) a
-Nil `app` v = v
-(x :> xs) `app` v = x :> (xs `app` v)
+Nil `app` ys = ys
+(x :> xs) `app` ys = x :> (xs `app` ys)
+
+zipDouble :: Vec m a -> Vec n a -> Vec (m + n) b -> Vec (m + n) (a, b)
+zipDouble Nil ys v = vecZip ys v
+zipDouble (x :> xs) ys (z :> zs) = (x, z) :> (zipDouble xs ys zs)
+
+vecZip :: Vec n a -> Vec n b -> Vec n (a, b)
+vecZip Nil _ =  Nil 
+vecZip (x :> xs) (y :> ys) = (x, y) :> vecZip xs ys
