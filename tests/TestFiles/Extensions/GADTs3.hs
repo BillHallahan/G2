@@ -44,8 +44,11 @@ data Pairy :: * -> * -> * -> * where
   PInt  :: Int  -> Pairy Int  Bool String
   PBool :: Bool -> Pairy Bool Char Double
 
-deriving instance Eq (Pairy Int Bool String)
-deriving instance Eq (Pairy Bool Char Double)
+instance Eq (Pairy a b c) where
+  (PInt x)  == (PInt y)  = x == y
+  (PBool x) == (PBool y) = x == y
+  _         == _         = False
+
 
 -- G2: evalVar: bad input.Id (Name "$fShowBool" (Just "GHC.Show")
 showPairy :: Pairy a b c -> String
@@ -72,6 +75,28 @@ combinePairy :: Pairy a b c -> Pairy a b c -> Either Int Bool
 combinePairy (PInt x)  (PInt y)  = Left (x + y)      -- sum the Ints
 combinePairy (PBool x) (PBool y) = Right (x && y)     -- logical AND for Bools
 combinePairy _ _ = error "Cannot combine different constructors"
+
+-- GADT that have other GADT as parameter 
+data Wrapper :: * -> * where
+  WrapPairy :: Pairy a b c -> Wrapper (Pairy a b c)
+  WrapInt   :: Int -> Wrapper Int
+
+instance Eq (Wrapper t) where
+  (WrapPairy p1) == (WrapPairy p2) = p1 == p2
+  (WrapInt x)    == (WrapInt y)    = x == y
+  _              == _              = False
+
+-- Extract an Int from Wrapper if possible
+unwrapWrapper :: Wrapper t -> Maybe Int
+unwrapWrapper (WrapPairy (PInt n)) = Just n
+unwrapWrapper (WrapPairy (PBool _)) = Nothing
+unwrapWrapper (WrapInt n) = Just n
+
+-- Increment contained Ints if possible
+incrementWrapper :: Wrapper t -> Wrapper t
+incrementWrapper (WrapPairy (PInt n)) = WrapPairy (PInt (n+1))
+incrementWrapper (WrapPairy p@(PBool _)) = WrapPairy p
+incrementWrapper (WrapInt n) = WrapInt (n+1)
 
 -- Three refined parameters
 data Tripley :: * -> * -> * -> * where
@@ -101,27 +126,27 @@ unwrapMaybe :: WrapPoly Maybe a -> Maybe a
 unwrapMaybe (MkWrap x) = x
 
 -- Refined parameter that is a newtype
-newtype WrapInt = WrapInt Int 
+newtype MyWrapInt = MyWrapInt Int 
     deriving (Eq, Show)
 
 data Newty where
-  MkNew :: WrapInt -> Newty 
+  MkNew :: MyWrapInt -> Newty 
 deriving instance Eq Newty
 
 unwrapNewty :: Newty -> Int
-unwrapNewty (MkNew (WrapInt n)) = n
+unwrapNewty (MkNew (MyWrapInt n)) = n
 
 -- Here's the G2 output:
 -- incrementNewty (MkNew ((coerce (0 :: Int)) :: WrapInt)) = MkNew ((coerce (1 :: Int)) :: WrapInt)
 -- TODO: I know it's correct but is this a valid response we can show to the user?
 incrementNewty :: Newty -> Newty
-incrementNewty (MkNew (WrapInt n)) = MkNew (WrapInt (n + 1))
+incrementNewty (MkNew (MyWrapInt n)) = MkNew (MyWrapInt (n + 1))
 
 scaleNewty :: Int -> Newty -> Newty
-scaleNewty factor (MkNew (WrapInt n)) = MkNew (WrapInt (n * factor))
+scaleNewty factor (MkNew (MyWrapInt n)) = MkNew (MyWrapInt (n * factor))
 
 isEvenNewty :: Newty -> Bool
-isEvenNewty (MkNew (WrapInt n)) = n `mod` 2 == 0
+isEvenNewty (MkNew (MyWrapInt n)) = n `mod` 2 == 0
 
 -- Self-recursive and mutual GADTs
 data Tree a where
