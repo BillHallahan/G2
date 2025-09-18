@@ -331,6 +331,8 @@ retLam s@(State { expr_env = eenv, tyvar_env = tvnv, poly_arg_map = pargm, ty_ap
                         then (e', eenv, ng') 
                         else newBindingsForExecutionAtType (idName i) n' e' eenv ng'
                     _ ->  (e', eenv, ng')
+                
+                -- TODO: should PM.insertTV happen here?
 
                 tarm' = TRM.insert n' (idName i) tarm
             in 
@@ -1406,18 +1408,8 @@ liftBind bindsLHS@(Id _ lhsTy) bindsRHS eenv expr ngen pargm tarm = (eenv'', exp
             _ -> error "liftBind: encountered TV not in TARM (PAM renaming)"
         | otherwise = pargm
 
-    -- if LHS type is a function with return type containing tyVars in the PAM, insert the env-runtime renaming into the PAM entries
-    -- TODO: this needs to get env tvs for inserting renames
-    {- (_, tr) = argTypes lhsTy
-    contTyVars = tyVarIds tr
-    contTyVars' = filter (\tvid -> TRM.member (idName tvid) tarm) contTyVars
-    contTyVarsEnv = map (\ftvid -> case TRM.lookup (idName ftvid) tarm of 
-                                Just envTV -> envTV
-                                Nothing -> error "shouldn't be here"
-                                ) contTyVars'
-
-    pargm'' = foldr (\tvN pam -> PM.insertRename tvN old new (Just lhsTy) pam) pargm' contTyVarsEnv -}
-    
+    -- TODO: collect function arguments
+   
     eenv'' = E.insert new bindsRHS eenv'
 
 type SymbolicFuncEval t = SymFuncTicks -> State t -> NameGen -> Expr -> Maybe (Rule, [State t], NameGen)
@@ -1495,9 +1487,7 @@ retReplaceSymbFuncTemplate sft
         e' = mkApp (e:es)
 
         -- get forall bound tyVar names, rename bindings for env
-        hm = getTyVarRenameMap n nTy tve eenv
-        e'' = renames hm e
-        symIds' = map (renames hm) symIds
+        (e'', symIds') = (retypeToEnvTVs e' tarm, map (`retypeToEnvTVs` tarm) symIds)
 
         eenv' = foldr E.insertSymbolic eenv symIds'
         eenv'' = E.insert n e'' eenv'
@@ -1522,10 +1512,11 @@ retReplaceSymbFuncTemplate sft
         f = Var fId
         (fa, ng''') = freshId t1 ng''
         e = Lam TermL fa . Tick (func_split_tick sft) $ mkApp [f, mkApp (Var fa : xs), Var fa]
-        eenv' = foldr E.insertSymbolic eenv xIds
-        -- eenv'' = E.insertSymbolic (idName fId) fId eenv'
-        eenv'' = E.insertSymbolic fId eenv'
-        eenv''' = E.insert n e eenv''
+        -- get forall bound tyVar names, rename bindings for env
+        (xIds', fId', e') = (map (`retypeToEnvTVs` tarm) xIds, retypeToEnvTVs fId tarm, retypeToEnvTVs e tarm)
+        eenv' = foldr E.insertSymbolic eenv xIds'
+        eenv'' = E.insertSymbolic fId' eenv'
+        eenv''' = E.insert n e' eenv''
         (constState, ng'''') = mkFuncConst sft s es n t1 t2 ng'''
     in Just (RuleReturnReplaceSymbFunc, [constState, s {
         curr_expr = CurrExpr Evaluate $ mkApp (e:es),
@@ -1557,10 +1548,7 @@ retReplaceSymbFuncTemplate sft
            , Alt (DataAlt falseDc []) (App (Var f2Id) x)]
 
         -- get forall bound tyVar names, rename bindings for env
-        hm = getTyVarRenameMap n nTy tve eenv
-        e' = renames hm e
-        f1Id' = renames hm f1Id
-        f2Id' = renames hm f2Id
+        (e', f1Id', f2Id') = (retypeToEnvTVs e tarm, retypeToEnvTVs f1Id tarm, retypeToEnvTVs f2Id tarm)
 
         eenv' = foldr E.insertSymbolic eenv [f1Id', f2Id']
         eenv'' = E.insert n e' eenv'
@@ -1592,6 +1580,7 @@ retReplaceSymbFuncTemplate sft
     }], ng')
 
     -- PM-ARG
+    -- TODO: do TARM/PAM check?
     | Var (Id n (TyFun t1@(TyVar (Id _ _)) t2)):es <- unApp ce
     , E.isSymbolic n eenv
     = let
@@ -1600,18 +1589,8 @@ retReplaceSymbFuncTemplate sft
 
     | otherwise = Nothing
 
--- | Returns the hashmap needed to retype runtime TyVars to environment TyVars.
-getTyVarRenameMap :: Name -> Type -> TV.TyVarEnv -> E.ExprEnv -> HM.HashMap Name Name
-getTyVarRenameMap n exec_t tve eenv = case E.lookup n eenv of 
-            Just e -> makeTyVarRenameMap exec_t $ typeOf tve e
-            Nothing -> error "getTyVarRenameMap: lookup failed"
-makeTyVarRenameMap :: Type -> Type -> HM.HashMap Name Name
-makeTyVarRenameMap t1 t2 = go t1 t2 HM.empty
-    where
-        go (TyVar (Id n1 _)) (TyVar(Id n2 _)) hm = HM.insert n1 n2 hm
-        go (TyFun t1_1 t2_1) (TyFun t1_2 t2_2) hm = HM.union (go t1_1 t1_2 hm) (go t2_1 t2_2 hm)
-        go (TyApp t1_1 t2_1) (TyApp t1_2 t2_2) hm = HM.union (go t1_1 t1_2 hm) (go t2_1 t2_2 hm)
-        go _ _ hm = hm
+retypeToEnvTVs :: (Named a) => a -> TRM.TypeAppRenameMap -> a
+retypeToEnvTVs nd tarm = renames (HM.fromList . TRM.toList $ tarm) nd
 
 argTypes :: Type -> ([Type], Type)
 argTypes t = (anonArgumentTypes t, returnType t)
@@ -1622,15 +1601,13 @@ genArgIds (DataCon _ dcty _ _) ng =
     in foldr (\ty (is, ng') -> let (i, ng'') = freshId ty ng' in ((i:is), ng'')) ([], ng) argTys
 
 mkFuncConst :: SymFuncTicks -> State t -> [Expr] -> Name -> Type -> Type -> NameGen -> (State t, NameGen)
-mkFuncConst sft s@(State { expr_env = eenv, tyvar_env = tve } ) es n t1 t2 ng =
+mkFuncConst sft s@(State { expr_env = eenv, ty_app_re_map = tarm } ) es n t1 t2 ng =
     let
         -- make new Ids and runtime expression
         (fId:xId:[], ng') = freshIds [t2, t1] ng
         e = Lam TermL xId . Tick (const_tick sft) $ Var fId
         -- get forall bound tyVar names, rename bindings for env
-        hm = getTyVarRenameMap n (TyFun t1 t2) tve eenv
-        fId' = renames hm fId
-        e' = renames hm e
+        (e', fId') = (retypeToEnvTVs e tarm, retypeToEnvTVs fId tarm)
         eenv' = foldr E.insertSymbolic eenv [fId']
         eenv'' = E.insert n e' eenv'
     in (s {
