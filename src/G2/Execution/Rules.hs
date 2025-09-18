@@ -162,8 +162,7 @@ evalVarSharing s@(State { expr_env = eenv
     | (Id idN (TyVar tyId@(Id tyIdN _))) <- i  -- PM-RETURN
     , True <- E.isSymbolic idN eenv
     , Just envTyIdN <- TRM.lookup tyIdN tarm
-    , Just (lrs, lfas) <- PM.lookup envTyIdN pargm 
-    , not (null lrs) || not (null lfas) = 
+    , Just ents@(_:_) <- PM.lookup envTyIdN pargm = 
         let 
             -- fresh ids
             ([bindee, scrut], ng') = freshIds [TyLitInt, TyLitInt] ng
@@ -175,13 +174,16 @@ evalVarSharing s@(State { expr_env = eenv
                             Just (Var (Id _ (TyVar envTyId))) -> envTyId
                             _ -> error "PM-RETURN: env lookup failed"
 
+            -- get vals
+            tvVals = map (\(env, run, _) -> (env, run)) (filter (\(_, _, mt) -> isNothing mt) ents)
+
             -- create environment Alts with lam names and original tyVar, add to environment
-            as = makeAltsForPMRet (map fst lrs) outerTyVar
+            as = makeAltsForPMRet (map fst tvVals) outerTyVar
             e' = Case (Var scrut) bindee (TyVar outerTyVar) as
             eenv'' = E.insert (idName i) e' eenv'      
 
             -- rename for current execution path, return as CurrExpr, don't insert in env
-            e'' = renames (HM.fromList ((otvN, tyIdN):lrs)) e'
+            e'' = renames (HM.fromList ((otvN, tyIdN):tvVals)) e'
         in
             (RuleEvalVarPoly, [s { curr_expr = CurrExpr Evaluate e''
                                  , expr_env = eenv''}], ng') 
@@ -1396,11 +1398,23 @@ liftBind bindsLHS@(Id _ lhsTy) bindsRHS eenv expr ngen pargm tarm = (eenv'', exp
     pargm' | TyVar (Id lhsTyName _) <- lhsTy =
         case TRM.lookup lhsTyName tarm of
             Just envTy -> if PM.member envTy pargm
-                then PM.insertRename envTy old new pargm
+                then PM.insertRename envTy old new Nothing pargm
                 else pargm -- only env TVs in PAM will be needed for future solving, so don't insert renaming into PAM
             _ -> error "liftBind: encountered TV not in TARM (PAM renaming)"
         | otherwise = pargm
 
+    -- if LHS type is a function with return type containing tyVars in the PAM, insert the env-runtime renaming into the PAM entries
+    -- TODO: this needs to get env tvs for inserting renames
+    {- (_, tr) = argTypes lhsTy
+    contTyVars = tyVarIds tr
+    contTyVars' = filter (\tvid -> TRM.member (idName tvid) tarm) contTyVars
+    contTyVarsEnv = map (\ftvid -> case TRM.lookup (idName ftvid) tarm of 
+                                Just envTV -> envTV
+                                Nothing -> error "shouldn't be here"
+                                ) contTyVars'
+
+    pargm'' = foldr (\tvN pam -> PM.insertRename tvN old new (Just lhsTy) pam) pargm' contTyVarsEnv -}
+    
     eenv'' = E.insert new bindsRHS eenv'
 
 type SymbolicFuncEval t = SymFuncTicks -> State t -> NameGen -> Expr -> Maybe (Rule, [State t], NameGen)
@@ -1493,8 +1507,12 @@ retReplaceSymbFuncTemplate sft
     -- FUNC-APP
     | Var (Id n (TyFun t1@(TyFun _ _) t2)):es <- unApp ce
     , E.isSymbolic n eenv
+    , (tfs, tr) <- argTypes t1
+    -- don't explore behavior of function arguments with tyVar arguments, cannot 
+    -- reliably create symbolic tyVars until all top-level arguments are processed.
+    -- Functions not matching here are processed by PM-FUNC-ARG
+    , null $ tyVarIds (tr:tfs) -- reject if any tyVars
     = let
-        (tfs, tr) = argTypes t1
         (xIds, ng') = freshIds tfs ng
         xs = map Var xIds
         (fId, ng'') = freshId (TyFun tr $ TyFun t1 t2) ng'
@@ -1567,6 +1585,36 @@ retReplaceSymbFuncTemplate sft
     = let
         (constState, ng') = mkFuncConst sft s es n t1 t2 ng
     in Just (RuleReturnReplaceSymbFunc, [constState], ng')
+
+{-     -- PM-FUNC-ARG
+    | Var (Id n nTy@(TyFun t1@(TyFun _ _) t2)):_ <- unApp ce
+    , E.isSymbolic n eenv 
+    , (tfs, tr) <- argTypes t1
+    -- , any (\case TyVar _ -> True; _ -> False) tfs = let
+    , not . null $ tyVarIds (tr:tfs) = let
+            
+        -- if the function's return type contains a type variable in the PAM,
+        -- insert the function's name into the TVs local funciton argument set
+        -- and insert the function in the environment
+        ([t1Id, t2Id], ng') = freshIds [t1, t2] ng
+
+        e = Lam TermL t1Id (Var t2Id)
+
+        hm = getTyVarRenameMap n nTy tve eenv
+        e' = renames hm e
+        t2Id' = renames hm t2Id
+
+        eenv' = E.insert n e' eenv -- put ignoring lambda in env
+        eenv'' = E.insertSymbolic t2Id' eenv'
+
+        -- pargm' = foldr (\(Id tvn _) pam -> PM.insertFuncArg tvn (idName funcArgId) pam) pargm (tyVarIds tr)
+
+    in Just (RuleReturnReplaceSymbFunc, [
+        s { 
+            curr_expr = CurrExpr Evaluate e, -- TODO: could skip application and just give (Var t2Id)
+            expr_env = eenv'',
+            poly_arg_map = pargm
+    }], ng') -}
 
     | otherwise = Nothing
 
