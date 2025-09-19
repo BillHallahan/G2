@@ -1070,6 +1070,7 @@ evalMeasuresCE s bindings tcv is e bound =
             let
                 bound_names = map idName (tyForAllBindings $ typeOf (tyvar_env s) i) 
                 bound_tys = map (\n -> case TV.deepLookupName b n of
+                                        Just (TyVar _) -> TyUnknown
                                         Just t -> t
                                         Nothing -> TyUnknown) bound_names
                 lh_dcts = map (\t -> case lookupTCDict (type_classes s) (lhTC tcv) t of
