@@ -29,23 +29,17 @@ data Value a where
 instance Eq (Value a) where
   VInt x  == VInt y  = x == y
   VBool x == VBool y = x == y
-  _       == _       = False
 
 -- Convert a Value to a String
--- G2: evalVar: bad input.Id (Name "$fShowBool" (Just "GHC.Show") 8214565720323787655 Nothing) (TyApp (TyCon (Name "Show" (Just "GHC.Show") 8214565720323803099 Nothing) (TyFun TYPE (TyCon (Name "Constraint" (Just "GHC.Types") 3674937295934324920 Nothing) TYPE))) (TyCon (Name "Bool" (Just "GHC.Types") 0 Nothing) TYPE))
 showValue :: Value a -> String
 showValue (VInt n)  = show n
 showValue (VBool b) = show b
 
 -- Negate a Value Bool
--- G2: Data constructor not in scope: Co :: Bool
--- Perhaps you meant `C#' (imported from GHC.Exts)
 notValue :: Value Bool -> Value Bool
 notValue (VBool b) = VBool (not b)
 
 -- Increment a Value Int
--- G2: Data constructor not in scope: Co :: Int
--- Perhaps you meant `C#' (imported from GHC.Exts)
 incValue :: Value Int -> Value Int
 incValue (VInt n) = VInt (n + 1)
 
@@ -62,8 +56,8 @@ instance Eq a => Eq (SomeVec a) where
       eqVec _ _ = False
 
 -- Convert SomeVec into a normal list
-toList :: SomeVec a -> [a]
-toList (SomeVec v) = go v
+someVecToList :: SomeVec a -> [a]
+someVecToList (SomeVec v) = go v
   where
     go :: Vec n a -> [a]
     go VNil         = []
