@@ -174,6 +174,7 @@ initStateFromSimpleState s m_mod useAssert mkCurr argTys config =
         hs = IT.handles s'
         kv' = IT.known_values s'
         tc' = IT.type_classes s'
+        fams = IT.families s'
         CurrExprRes { ce_expr = ce
                     , fixed_in = f_i
                     , symbolic_type_ids = typ_is
@@ -193,6 +194,7 @@ initStateFromSimpleState s m_mod useAssert mkCurr argTys config =
     , true_assert = if useAssert || check_asserts config then False else True
     , assert_ids = Nothing
     , type_classes = tc'
+    , families = fams
     , exec_stack = Stack.empty
     , model = HM.empty
     , known_values = kv'
@@ -240,12 +242,14 @@ initSimpleState :: ExtractedG2
 initSimpleState (ExtractedG2 { exg2_binds = prog
                              , exg2_tycons = prog_typ
                              , exg2_classes = cls
+                             , exg2_axioms = axs
                              , exg2_exports = es
                              , exg2_rules = rs }) =
     let
         eenv = E.fromExprMap prog
         tenv = mkTypeEnv prog_typ
         tc = initTypeClasses TV.empty cls
+        fams = mkFamilies axs
         kv = initKnownValues eenv tenv tc
         ng = mkNameGen (prog, prog_typ, rs)
 
@@ -255,6 +259,7 @@ initSimpleState (ExtractedG2 { exg2_binds = prog
                            , IT.handles = HM.empty
                            , IT.known_values = kv
                            , IT.type_classes = tc
+                           , IT.families = fams
                            , IT.rewrite_rules = rs
                            , IT.exports = es }
     in

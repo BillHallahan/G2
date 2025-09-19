@@ -6,7 +6,9 @@ module G2.Translation.GHC ( module GHC
                           , module GHC.Core
                           , module GHC.Core.Class
                           , module GHC.Core.Coercion
+                          , module GHC.Core.Coercion.Axiom
                           , module GHC.Core.DataCon
+                          , module GHC.Core.FamInstEnv
                           , module GHC.Core.InstEnv
                           , module GHC.Core.TyCo.Rep
                           , module GHC.Core.TyCon
@@ -63,7 +65,9 @@ import GHC.Core ( Alt (..)
                 , bindersOf)
 import GHC.Core.Class (classAllSelIds, className, classSCTheta, classTyVars)
 import GHC.Core.Coercion
+import GHC.Core.Coercion.Axiom
 import GHC.Core.DataCon
+import GHC.Core.FamInstEnv hiding (pprFamInst)
 import GHC.Core.InstEnv
 import GHC.Core.TyCo.Rep
 import GHC.Core.TyCon

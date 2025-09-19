@@ -28,8 +28,9 @@ module G2.Language.AST
     ) where
 
 import qualified G2.Data.UFMap as UF
-import G2.Language.Syntax
 import G2.Language.AlgDataTy
+import G2.Language.Families
+import G2.Language.Syntax
 
 import Data.Hashable
 import qualified Data.HashMap.Lazy as HM
@@ -473,6 +474,23 @@ instance ASTContainer Int Type where
     containedASTs _ = []
     modifyContainedASTs _ t = t
 
+instance ASTContainer Family Expr where
+    containedASTs (Family ax) = containedASTs ax
+    modifyContainedASTs f (Family { axioms = ax }) = Family { axioms = modifyContainedASTs f ax }
+
+instance ASTContainer Family Type where
+    containedASTs (Family ax) = containedASTs ax
+    modifyContainedASTs f (Family { axioms = ax }) = Family { axioms = modifyContainedASTs f ax }
+
+instance ASTContainer Axiom Expr where
+    containedASTs (Axiom lhs rhs) = containedASTs lhs <> containedASTs rhs
+    modifyContainedASTs f (Axiom { lhs_types = lhs, rhs_type = rhs }) =
+        Axiom { lhs_types = modifyContainedASTs f lhs, rhs_type = modifyContainedASTs f rhs }
+
+instance ASTContainer Axiom Type where
+    containedASTs (Axiom lhs rhs) = containedASTs lhs <> containedASTs rhs
+    modifyContainedASTs f (Axiom { lhs_types = lhs, rhs_type = rhs }) =
+        Axiom { lhs_types = modifyContainedASTs f lhs, rhs_type = modifyContainedASTs f rhs }
 
 -- AlgDataTy
 instance ASTContainer AlgDataTy Expr where

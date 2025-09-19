@@ -22,6 +22,7 @@ data SimpleState = SimpleState { expr_env :: L.ExprEnv
                                , handles :: HM.HashMap Name L.Handle
                                , known_values :: L.KnownValues
                                , type_classes :: L.TypeClasses
+                               , families :: L.Families
                                , rewrite_rules :: ![L.RewriteRule]
                                , exports :: [Name] } deriving (Eq, Show, Read)
 
@@ -89,8 +90,9 @@ instance ASTContainer SimpleState Expr where
 
 instance ASTContainer SimpleState Type where
     containedASTs s =
-        containedASTs (expr_env s) ++ containedASTs (type_env s) ++ containedASTs  (rewrite_rules s)
+        containedASTs (expr_env s) ++ containedASTs (type_env s) ++ containedASTs (families s) ++ containedASTs  (rewrite_rules s)
     modifyContainedASTs f s = s { expr_env = modifyContainedASTs f (expr_env s)
                                 , type_env = modifyContainedASTs f (type_env s)
+                                , families = modifyContainedASTs f (families s)
                                 , handles = modifyContainedASTs f (handles s)
                                 , rewrite_rules = modifyContainedASTs f (rewrite_rules s) }

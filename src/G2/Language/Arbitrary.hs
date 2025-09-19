@@ -83,6 +83,7 @@ instance Arbitrary ArbSimpleState where
                                       , IT.name_gen = mkNameGen (tenv, e)
                                       , IT.known_values = fakeKnownValues
                                       , IT.type_classes = initTypeClasses TV.empty []
+                                      , IT.families = HM.empty
                                       , IT.rewrite_rules = []
                                       , IT.exports = []
                                       , IT.handles = HM.empty
