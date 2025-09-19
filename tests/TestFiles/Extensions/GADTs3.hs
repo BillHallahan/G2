@@ -50,11 +50,6 @@ instance Eq (Pairy a b c) where
   _         == _         = False
 
 
--- G2: evalVar: bad input.Id (Name "$fShowBool" (Just "GHC.Show")
-showPairy :: Pairy a b c -> String
-showPairy (PInt n)  = "Int: "  ++ show n
-showPairy (PBool b) = "Bool: " ++ show b
-
 modifyPairy :: Pairy a b c -> Pairy a b c
 modifyPairy (PInt n)  = PInt (n + 1)      -- increment Int
 modifyPairy (PBool b) = PBool (not b)     -- flip Bool
@@ -104,15 +99,6 @@ data Tripley :: * -> * -> * -> * where
   Case2 :: Double -> Tripley Bool   Char   Double
   Case3 :: [a]    -> Tripley [a]    [b]    [c]
 
--- it seems like show is generally having a problem in validation and inst-after
--- currently, almost all the function works beside showPairy and showTripley as well as countLeaves
--- showPairy and showTripley all have G2: evalVar: bad input.Id error 
--- while countLeaves is just executing for too long and the process kills it 
-showTripley :: Show a => Tripley a b c -> String
-showTripley (Case1 ch) = "Char: "   ++ show ch
-showTripley (Case2 d)  = "Double: " ++ show d
-showTripley (Case3 xs) = "List length: " ++ show (length xs)
-
 sizeTripley :: Tripley a b c -> Int
 sizeTripley (Case1 _)  = 1
 sizeTripley (Case2 _)  = 1
@@ -150,28 +136,33 @@ isEvenNewty (MkNew (MyWrapInt n)) = n `mod` 2 == 0
 
 -- Self-recursive and mutual GADTs
 data Tree a where
-  Leaf :: a -> Tree a
-  Node :: Tree a -> Tree a -> Tree a
+  LeafInt  :: Int -> Tree Int
+  LeafBool :: Bool -> Tree Bool
+  Node     :: Tree a -> Tree a -> Tree a
 
 data Forest a where
   FNil  :: Forest a
   FCons :: Tree a -> Forest a -> Forest a
 
--- mutual GADT is running way too long and it have its process being killed 
--- TODO: should we even test this function?
-countLeaves :: Tree a -> Int
-countLeaves (Leaf _)   = 1
-countLeaves (Node l r) = countLeaves l + countLeaves r
+-- Functions for testing
+-- Warning: use small amount of steps fot the function below 
+-- Sum all the Int leaves in a Tree Int
+sumTree :: Tree Int -> Int
+sumTree (LeafInt n)   = n
+sumTree (Node l r)    = sumTree l + sumTree r
 
+-- Count how many Bool leaves are True in a Tree Bool
+countTrue :: Tree Bool -> Int
+countTrue (LeafBool b) = if b then 1 else 0
+countTrue (Node l r)   = countTrue l + countTrue r
+
+-- Count the number of trees in a Forest
 forestSize :: Forest a -> Int
-forestSize FNil         = 0
-forestSize (FCons t ts) = countLeaves t + forestSize ts
+forestSize FNil           = 0
+forestSize (FCons _ rest) = 1 + forestSize rest
 
--- GADT wrapped in a newtype
-data Funny a where
-  FunnyInt :: Int -> Funny Int
-
-newtype NF = NF (Funny Int)
-
-unNF :: NF -> Int
-unNF (NF (FunnyInt n)) = n
+-- Map a function over a Tree (preserving type!)
+mapTree :: (a -> a) -> Tree a -> Tree a
+mapTree f (LeafInt n)     = LeafInt (f n)          -- works only if a ~ Int
+mapTree f (LeafBool b)    = LeafBool (f b)         -- works only if a ~ Bool
+mapTree f (Node l r)      = Node (mapTree f l) (mapTree f r)
