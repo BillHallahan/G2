@@ -1,4 +1,4 @@
-{-# LANGUAGE FlexibleContexts, OverloadedStrings #-}
+{-# LANGUAGE FlexibleContexts, OverloadedStrings, TupleSections #-}
 
 module G2.Lib.Printers ( PrettyGuide
                        , mkPrettyGuide
@@ -734,6 +734,7 @@ prettyDCWithType tv pg dc = mkDataConHaskell pg dc <> " :: " <> mkTypeHaskellPG 
 prettyTypeVarEnv :: PrettyGuide -> TV.TyVarEnv -> T.Text
 prettyTypeVarEnv pg = T.intercalate "\n"
                     . map (\(n, t) -> mkNameHaskell pg n <> " -> " <> prettyTyConcOrSym t)
+                    . concatMap (\(ns, t) -> map (,t) ns)
                     . TV.toListConcOrSym
     where
         prettyTyConcOrSym (TV.TyConc t) = mkTypeHaskellPG pg t

@@ -41,7 +41,7 @@ sharedTyConsEE' tv ns eenv = do
                 =<< E.mapM (assignTyConNames >=> elimTyForAll) rep_eenv'
 
     let union_poly = mconcat . map UF.joinedKeys . HM.elems
-                   . E.map' (fromMaybe UF.empty . checkType tv) 
+                   . E.map' (fromMaybe UF.empty . fmap TV.toTypeUFMap . checkType tv) 
                    $ rep_eenv''
 
         union_tys = fmap (renameFromUnion union_poly) tys
@@ -49,10 +49,10 @@ sharedTyConsEE' tv ns eenv = do
     return . UT $ HM.mapKeys (\(Name n m _ l) -> Name n m 0 l) union_tys
 
 
-checkType :: TV.TyVarEnv -> Expr -> Maybe (UF.UFMap Name Type)
-checkType tv e = check' tv UF.empty e
+checkType :: TV.TyVarEnv -> Expr -> Maybe TV.TyVarEnv
+checkType tv e = check' tv TV.empty e
 
-check' :: TV.TyVarEnv -> UF.UFMap Name Type -> Expr -> Maybe (UF.UFMap Name Type)
+check' :: TV.TyVarEnv -> TV.TyVarEnv -> Expr -> Maybe TV.TyVarEnv
 check' _ uf (Var (Id _ _)) = Just uf
 check' _ uf (Lit _) = Just uf
 check' _ uf (Prim _ _) = Just uf
