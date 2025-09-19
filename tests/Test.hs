@@ -696,6 +696,8 @@ extensionTests = testGroup "Extensions"
                                                                               , ("age1", 400, [Exactly 1])
                                                                               , ("age2", 400, [Exactly 1])
                                                                               , ("app", 250, [AtLeast 5])
+                                                                              , ("vecIntersperse", 400, [AtLeast 5])
+                                                                              , ("vecTake", 400, [AtLeast 5])
                                                                               ]
     , checkInputOutputsInstType "tests/TestFiles/Extensions/DataFamilies1.hs" [ ("f", 400, [Exactly 2])
                                                                               , ("app3Char", 400, [AtLeast 1])
