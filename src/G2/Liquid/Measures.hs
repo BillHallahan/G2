@@ -19,7 +19,6 @@ import Data.Maybe
 import qualified GHC as GHC
 
 import qualified Data.HashMap.Lazy as HM
-import qualified G2.Language.TyVarEnv as TV 
 
 -- | Creates measures from LH measure specifications.
 -- This is required to find all measures that are written in comments.

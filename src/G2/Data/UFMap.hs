@@ -255,7 +255,7 @@ elems :: UFMap k v -> [v]
 elems = M.elems . store
 
 member :: (Eq k, Hashable k) => k -> UFMap k v -> Bool
-member k = M.member k . store
+member k = isJust . lookup k
 
 instance (Eq k, Eq v, Hashable k, Hashable v) => Eq (UFMap k v) where
     x == y = toSet x == toSet y
