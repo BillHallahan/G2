@@ -145,7 +145,6 @@ runCheck init_pg modN entry chAll chAny b er@(ExecRes {final_state = s, conc_arg
                                         ++ outStr ++ " :: " ++ outType ++ ")" ++ ")) :: IO (Either SomeException Bool)"
                     True -> mvStr ++ "Control.Exception.try (evaluate ( (" ++ pr_con ++ "(" ++ arsStr ++ " :: " ++ arsType ++ ")" ++
                                                     ") == " ++ pr_con ++ "(" ++ arsStr ++ "))) :: IO (Either SomeException Bool)"
-    liftIO $ putStrLn chck
     v' <- compileExpr chck
 
     let chArgs = ars ++ [out] 
