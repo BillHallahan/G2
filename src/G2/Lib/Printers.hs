@@ -754,7 +754,7 @@ prettyPolyArgMap pargm pg = T.intercalate "\n" (map entryText (PM.toList pargm))
                 setText hm = "{" <> T.intercalate ", " (map lrText hm) <> "}"
                 lrText :: (Name, Name, Maybe Type) -> T.Text
                 lrText (l, r, mt) = "[" <> mkNameHaskell pg l <> " -> " <> mkNameHaskell pg r <> "] : " 
-                    <> maybe "Val" (\t -> "Func" <> mkTypeHaskell t) mt
+                    <> maybe "Val" (\t -> "Func :: " <> mkTypeHaskellPG pg t) mt
 
 prettyTypeAppRenameMap :: TRM.TypeAppRenameMap -> PrettyGuide -> T.Text
 prettyTypeAppRenameMap tarm pg = T.intercalate "\n" 
