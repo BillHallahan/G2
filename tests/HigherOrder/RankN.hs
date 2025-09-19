@@ -27,6 +27,15 @@ intArgCalledTwice f = case f 2 7 9 of
                 7 -> f 9 10 9
                 _ -> 3
 
+intArgCaseFourCalls :: (forall a. Int -> a -> a -> Int -> a) -> (Int, Int)
+intArgCaseFourCalls f = (case f 2 10 11 12 of 
+                    10 -> 9
+                    _ -> case f 3 10 11 12 of
+                        10 -> 7
+                        _ -> case f 4 10 11 12  of
+                            12 -> 6
+                            _ -> 100 , f 4 10 11 12)
+
 multiIntArgs :: (forall a. Int -> Int -> a -> a) -> Int
 multiIntArgs f = f 2 3 4
 
@@ -43,3 +52,8 @@ fromTuples f = f (2, 3) (4, 5)
 
 twoFunctions :: (forall a. a -> a -> a) -> (forall a. a -> a -> a) -> (Int, Int)
 twoFunctions f g = (f 1 2, g 3 4)
+
+partiallyApply :: (forall a. a -> a -> a) -> (Int, Int)
+partiallyApply f = let pApp = f 1
+                       pApp2 = f 3 in 
+                        (pApp 2, pApp2 4)

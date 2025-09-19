@@ -332,8 +332,9 @@ retLam s@(State { expr_env = eenv, tyvar_env = tvnv, poly_arg_map = pargm, ty_ap
                         else newBindingsForExecutionAtType (idName i) n' e' eenv ng'
                     _ ->  (e', eenv, ng')
                 
-                -- TODO: should PM.insertTV happen here?
-
+                -- make PAM and TARM entries. Collected args for a tyVar from 
+                -- any previous execution of the function are cleared.
+                pargm' = PM.insertTV (idName i) pargm
                 tarm' = TRM.insert n' (idName i) tarm
             in 
            ( RuleReturnEApplyLamType [n']
@@ -341,7 +342,7 @@ retLam s@(State { expr_env = eenv, tyvar_env = tvnv, poly_arg_map = pargm, ty_ap
                  , curr_expr = CurrExpr Evaluate e''
                  , exec_stack = stck' 
                  , tyvar_env = tvnv'
-                 , poly_arg_map = pargm
+                 , poly_arg_map = pargm'
                  , ty_app_re_map = tarm' } ]
             , ng'' )
         Nothing -> error $ "retLam: Bad type\ni = " ++ show i
@@ -359,7 +360,9 @@ retLam s@(State { expr_env = eenv, tyvar_env = tvnv, poly_arg_map = pargm, ty_ap
 -- TODO: Need to consider more expression types and make this cleaner.
 -- | Create new bindings using an existing polymorphic function body, to be used for a particular execution
 -- of that function. The top-level binding of the body is used to start the renaming/retyping and it is 
--- returned in its renamed/retyped form.
+-- returned in its renamed/retyped form. All symbolic (unsovled) parts of the defintion are not renamed, so when they
+-- are potentially solved later in execution, the function definition in the environment for the original tyVar will
+-- be updated with the new expression.
 newBindingsForExecutionAtType :: Name -> Name -> Expr -> E.ExprEnv -> NameGen -> (Expr, E.ExprEnv, NameGen)
 newBindingsForExecutionAtType old new e eenv ng = case e of
     -- New Ids of a renamed type are created and bound to the corresponding 
@@ -1559,12 +1562,10 @@ retReplaceSymbFuncTemplate sft
     }], ng')
 
     -- PM-FORALL
-    | Var (Id n (TyForAll tyVarId@(Id idN _) faTy)):_ <- unApp ce -- may not be needed/wrong
+    -- TODO: maybe call mkFuncConst with LamUse as argument?
+    | Var (Id n (TyForAll tyVarId faTy)):_ <- unApp ce
     , E.isSymbolic n eenv
     = let
-        -- insert new empty mapping in M
-        pargm' = PM.insertTV idN pargm
-        -- TODO: rename n in the type (not necessary yet, only needed for rank > 2)
         -- create name of new sym
         ([f1Id], ng') = freshIds [faTy] ng
         -- create type level lambda
@@ -1575,8 +1576,7 @@ retReplaceSymbFuncTemplate sft
     in Just (RuleReturnReplaceSymbFunc, [
         s {
         curr_expr = CurrExpr Evaluate e,
-        expr_env = eenv'',
-        poly_arg_map = pargm'
+        expr_env = eenv''
     }], ng')
 
     -- PM-ARG

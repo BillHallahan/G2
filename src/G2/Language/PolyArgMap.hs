@@ -29,9 +29,7 @@ data PAMEntry = PAMEntry {envN :: Name, runN :: Name, vOrF :: ValOrFunc} derivin
 newtype PolyArgMap = PolyArgMap (HM.HashMap Name [PAMEntry]) deriving (Show, Eq, Read, Data, Typeable, Generic)
 
 insertTV :: Name -> PolyArgMap -> PolyArgMap
-insertTV tv pam@(PolyArgMap pargm)
-    | not $ member tv pam = PolyArgMap $ HM.insert tv [] pargm
-    | otherwise = error "PolyArgMap.insertTV: inserting empty mapping for already existing tyVar"
+insertTV tv (PolyArgMap pargm) = PolyArgMap $ HM.insert tv [] pargm
 
 insertRename :: Name -> Name -> Name -> Maybe Type -> PolyArgMap -> PolyArgMap
 insertRename tv env ren ty (PolyArgMap pargm) | HM.member tv pargm =
