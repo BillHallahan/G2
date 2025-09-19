@@ -187,9 +187,10 @@ evalVarSharing s@(State { expr_env = eenv
 
             -- rename for current execution path, return as CurrExpr, don't insert in env
             e'' = renames (HM.fromList ((otvN, tyIdN):map (\(en, r, _) -> (en, r)) ents)) e'
+
+            stateOrNull = [s { curr_expr = CurrExpr Evaluate e'', expr_env = eenv'''} | not . null $ as]
         in
-            (RuleEvalVarPoly, [s { curr_expr = CurrExpr Evaluate e''
-                                 , expr_env = eenv'''}], ng'') 
+            (RuleEvalVarPoly, stateOrNull, ng'')
     -- If a symbolic tyVar did not match PM-RETURN, then it is unrealizable. If 
     -- it was not caught here it would be returned as an undefined and crash 
     -- execution. There are still some unrealizable sym tyVars that can match on PM-RET, 
