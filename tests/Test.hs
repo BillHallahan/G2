@@ -531,6 +531,7 @@ testFileTests = testGroup "TestFiles"
                                                              , ("twoArgs", 60, [Exactly 2])
                                                              , ("calledInMaybe", 60, [Exactly 1])
                                                              , ("twoTVs", 60, [Exactly 2])
+                                                             , ("twoTVsMultiCall", 200, [Exactly 1])
                                                              , ("nested", 100, [Exactly 2])
                                                              , ("calledInTuple", 100, [Exactly 2])
                                                              , ("intArg", 100, [Exactly 2])

@@ -57,3 +57,7 @@ partiallyApply :: (forall a. a -> a -> a) -> (Int, Int)
 partiallyApply f = let pApp = f 1
                        pApp2 = f 3 in 
                         (pApp 2, pApp2 4)
+
+twoTVsMultiCall :: (forall a b. a -> b -> b) -> Int 
+twoTVsMultiCall f = case (f 1 2, f 3 4) of 
+                        (2, 4) -> f 5 6

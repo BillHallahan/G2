@@ -203,21 +203,23 @@ deepLookupVar n eenv = go n
                 Just (Sym r) -> Just $ idName r
                 Nothing -> Nothing
 
--- TODO: should this be in ExprEnv?
--- | Rename in all environment entires recursively reachable from the binding of the provided name.
+-- | Rename in environment entires recursively reachable from the binding of the provided name.
 -- Necessary for managing environment after solving for polymorphic functions, which may have definitions
--- split across mulitple environment entires.
+-- split across mulitple environment entires. These environment entries can be directly renamed in because 
+-- they have been created for the current execution of 
 deepRename :: Name -> Name -> Name -> ExprEnv -> ExprEnv 
-deepRename old new n eenv | Just binding <- lookup n eenv
-                          , not (isSymbolic n eenv) = let
-        -- TODO: only looks deeper into env through TyVars and TyFuns, change as needed
-        ns = [n_ | (Id n_ t) <- ids binding, (\case
-                        TyVar _ -> True
-                        TyFun _ _ -> True 
-                        _ -> False ) t, not (isSymbolic n_ eenv)]
-        eenv' = foldr (deepRename old new) eenv ns
-                in 
-                    insert n (rename old new binding) eenv'
+deepRename envArg runArg n eenv 
+        | Just binding <- lookup n eenv
+        , not (isSymbolic n eenv) = let
+            -- TODO: only apply deeper if Id is a tyVar or function
+            ns = [n_ | (Id n_ t) <- ids binding, (\case
+                            TyVar _ -> True
+                            TyFun _ _ -> True 
+                            TyApp _ _ -> True
+                            _ -> False ) t, not (isSymbolic n_ eenv)]
+            eenv' = foldr (deepRename envArg runArg) eenv ns
+                    in 
+                        insert n (rename envArg runArg binding) eenv'
         | otherwise = eenv
             
                 
