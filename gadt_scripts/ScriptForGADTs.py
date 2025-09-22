@@ -33,7 +33,6 @@ def reading_info(directory):
     else:
         return reading_file(directory)
 
-       
 # reading file
 # trying different technique for decoding 
 def decode_file(file_path):
@@ -57,14 +56,14 @@ def reading_file(file_path):
                 content = decode_file(file_path)
                 # if we do find a GADT
                 if content == None: raise Exception("Need more decoding format.")
-                # Case 1: .hs/.lhs/.hsc → search for explicit GADT usage (your old pattern)
+                # Case 1: .hs/.lhs/.hsc → search for explicit GADT usage
                 if file_path.endswith((".hs", ".lhs", ".hsc")):
                     if re.search(pattern, content):
                         found_gadt = True
 
-                # Case 2: .cabal → look for "default-extensions:" line with GADTs in it
+                # Case 2: .cabal -> look for "default-extensions:" line with GADTs in it
                 elif file_path.endswith(".cabal"):
-                    # Regex: match "default-extensions:" followed by anything, then "GADTs", then maybe more
+                    # match "default-extensions:" followed by anything, then "GADTs", then maybe more
                     cabal_pattern = re.compile(r"default-extensions\s*:\s*.*\bGADTs\b.*", re.IGNORECASE)
                     if cabal_pattern.search(content):
                         found_gadt = True
@@ -77,10 +76,11 @@ def reading_file(file_path):
                     package_name = re.sub(r"-\d+(\.\d+)*$", "", package_name)
                     with open('hackageGADTs1.txt', 'a+') as f:
                         print(f"we find a GADT in {file_path}\n")
-                        print(f"The home directory is {package_name}")
+                        print(f"The home directory is {package_name}\n")
                         download_num = get_hackage_downloads(package_name)
                         f.write(f"{file_path} has download number of {download_num}\n")
                     return True       
+                
         return False
 
 def get_hackage_downloads(package: str) -> str:
