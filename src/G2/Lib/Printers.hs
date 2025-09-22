@@ -540,8 +540,11 @@ mkTypeHaskellPG pg (TyCon n _) | nameOcc n == "List"
                                | ("Tuple", k_str) <- T.splitAt 5 (nameOcc n)
                                , nameModule n == Just "GHC.Tuple.Prim"
                                , Just k <- readMaybe (T.unpack k_str) = "(" <> T.pack (replicate (k - 1) ',') <> ")"
+                               | Just (c, _) <- T.uncons (nameOcc n)
+                               , not (isAlphaNum c) = "(" <> mkNameHaskell pg n <> ")"
                                | otherwise = mkNameHaskell pg n
-mkTypeHaskellPG pg (TyApp t1 t2) = "(" <> mkTypeHaskellPG pg t1 <> " " <> mkTypeHaskellPG pg t2 <> ")"
+mkTypeHaskellPG pg ty_app@(TyApp _ _)
+    | ts <- unTyApp ty_app= "(" <> T.intercalate " " (map (mkTypeHaskellPG pg) ts) <> ")"
 mkTypeHaskellPG pg (TyForAll i t) = "forall " <> mkIdHaskell pg i <> " . " <> mkTypeHaskellPG pg t
 mkTypeHaskellPG _ TyBottom = "Bottom"
 mkTypeHaskellPG _ TYPE = "Type"
