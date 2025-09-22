@@ -113,10 +113,12 @@ import GHC.Driver.Ways
 
 module G2.Translation.GHC ( module Avail
                           , module Class
+                          , module CoAxiom
                           , module Coercion
                           , module CoreSyn
                           , module DataCon
                           , module DynFlags
+                          , module FamInstEnv
                           , module FastString
                           , module GHC
                           , module GHC.Paths
@@ -136,10 +138,12 @@ module G2.Translation.GHC ( module Avail
 
 import Avail
 import Class (classAllSelIds, className, classSCTheta, classTyVars)
+import CoAxiom
 import Coercion
 import CoreSyn
 import DataCon
 import DynFlags
+import FamInstEnv hiding (pprFamInst)
 import FastString
 import GHC hiding (AnnKeywordId (..), AnnExpr' (..))
 import GHC.Paths
