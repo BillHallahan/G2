@@ -256,14 +256,14 @@ getADT cutoff m tenv tvnv kv av adt ts
 
             let unifMapTy = foldM (\uf -> uncurry (unify' uf))
             -- Union the forall type bindings with the passed type arguments
-            forall_unif <- unifMapTy UF.empty
+            forall_unif <- unifMapTy TV.empty
                          . assert (length leading_ty >= length ts)
                          $ zip (map TyVar leading_ty) ts'
             -- Incorporate coercions (a ~ Int) into a unification map
             coer_unif <- unifMapTy forall_unif coer
 
             -- Determine required instantiations for type arguments
-            let univ_ty = map (\i -> MA.fromMaybe (TyVar i) (UF.lookup (idName i) coer_unif)) (dc_univ_tyvars dc)
-            let exist_ty = map (\i -> MA.fromMaybe (TyVar i) (UF.lookup (idName i) coer_unif)) (dc_exist_tyvars dc)
+            let univ_ty = map (\i -> MA.fromMaybe (TyVar i) (TV.lookup (idName i) coer_unif)) (dc_univ_tyvars dc)
+            let exist_ty = map (\i -> MA.fromMaybe (TyVar i) (TV.lookup (idName i) coer_unif)) (dc_exist_tyvars dc)
 
             return . mkApp $ Data dc:map Type univ_ty ++ map Type exist_ty

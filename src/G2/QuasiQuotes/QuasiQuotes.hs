@@ -314,13 +314,14 @@ moveOutStatePieces tenv_name s = do
         tags_exp = liftDataT (tags s)
         track_exp = liftDataT (track s)
 
+        tyvar_env_exp = liftDataT . TV.toListConcOrSym $ tyvar_env s
         pc_exp = liftDataT . PC.toList $ path_conds s
 
     [| State { expr_env = $(expr_env_exp)
              , type_env = $(varE tenv_name)
-             , tyvar_env = $(tyvar_env_exp)
              , poly_arg_map = $(poly_arg_map_exp)
              , ty_app_re_map = $(ty_app_re_map_exp)
+             , tyvar_env = TV.fromListConcOrSym $(tyvar_env_exp)
              , curr_expr = $(curr_expr_exp)
              , path_conds = PC.fromList $(pc_exp)
              , non_red_path_conds = $(non_red_path_conds_exp)
