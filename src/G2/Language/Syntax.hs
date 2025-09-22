@@ -1,4 +1,4 @@
-{-# LANGUAGE DeriveDataTypeable, DeriveGeneric, PatternSynonyms #-}
+{-# LANGUAGE BangPatterns, DeriveDataTypeable, DeriveGeneric, PatternSynonyms #-}
 
 -- | Defines most of the central language in G2. This language closely resembles Core Haskell.
 -- The central datatypes are `Expr` and t`Type`.
@@ -35,7 +35,7 @@ data Span = Span { start :: Loc
 instance Hashable Span
 
 -- | A name has three pieces: an occurence name, Maybe a module name, and a Unique Id.
-data Name = Name T.Text (Maybe T.Text) Int (Maybe Span)
+data Name = Name T.Text (Maybe T.Text) !Int (Maybe Span)
             deriving (Show, Read, Generic, Typeable, Data)
 
 -- | Disregards the Span
@@ -54,7 +54,7 @@ instance Hashable Name where
         m `hashWithSalt` i
 
 -- | Pairing of a `Name` with a t`Type`
-data Id = Id Name Type deriving (Show, Eq, Read, Generic, Typeable, Data, Ord)
+data Id = Id !Name Type deriving (Show, Eq, Read, Generic, Typeable, Data, Ord)
 
 instance Hashable Id
 

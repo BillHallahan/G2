@@ -702,7 +702,15 @@ extensionTests = testGroup "Extensions"
                                                                         , ("vecTail", 1000, [AtLeast 1])
                                                                         , ("vecLength", 1000, [AtLeast 10])
                                                                         , ("vecZip", 1000, [AtLeast 10])
+                                                                        , ("vecInit", 1000, [AtLeast 10])
                                                                         ]
+
+    , checkInputOutputsInstType "tests/TestFiles/Extensions/GADTs2.hs"  [ ("notValue", 1000, [Exactly 2])
+                                                                        , ("incValue", 1000, [Exactly 1])
+                                                                        , ("someVecToList", 1000, [AtLeast 10])                                                                        
+                                                                        , ("lengthSV", 1000, [AtLeast 10])
+                                                                        ]
+
     ]
 
 baseTests ::  TestTree
