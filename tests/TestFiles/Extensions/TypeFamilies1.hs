@@ -1,4 +1,6 @@
-{-# LANGUAGE AllowAmbiguousTypes, DataKinds, TypeFamilies, UndecidableInstances #-}
+{-# LANGUAGE AllowAmbiguousTypes, DataKinds, GADTs, RankNTypes, ScopedTypeVariables,
+             StandaloneDeriving, StandaloneKindSignatures, TypeApplications,
+             TypeFamilies, TypeOperators, UndecidableInstances #-}
 
 module TypeFamilies1 where
 
@@ -22,7 +24,7 @@ f2 I x = x
 f2 B x = x
 
 f3 :: C a -> F a -> F a
-f3 I x = not x
+f3 I x = case x of True -> False; False -> True
 f3 B x = x + 1
 
 type family G a
