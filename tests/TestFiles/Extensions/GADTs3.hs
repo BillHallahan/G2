@@ -166,3 +166,6 @@ mapTree :: (a -> a) -> Tree a -> Tree a
 mapTree f (LeafInt n)     = LeafInt (f n)          -- works only if a ~ Int
 mapTree f (LeafBool b)    = LeafBool (f b)         -- works only if a ~ Bool
 mapTree f (Node l r)      = Node (mapTree f l) (mapTree f r)
+
+-- introduce a new gadt that's empty or not empty 
+-- this type basically determine something that's a tree or not
