@@ -1270,7 +1270,7 @@ liftBind bindsLHS bindsRHS eenv expr ngen = (eenv', expr', ngen', new)
 
 type SymbolicFuncEval t = SymFuncTicks -> State t -> NameGen -> Expr -> Maybe (Rule, [State t], NameGen)
 
-hpcTick :: Int -> Tickish
+hpcTick :: Unique -> Tickish
 hpcTick u = HpcTick u "HPC"
 
 freshHpcTick :: NameGen -> (Tickish, NameGen)

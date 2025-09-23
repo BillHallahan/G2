@@ -158,7 +158,7 @@ arbAlgDataTyEmpty = do
     AU ty_n <- arbitrary
     return (ty_n, DataTyCon { bound_ids = [], data_cons = [], adt_source = ADTG2Generated })
 
-arbInstDataCons :: TypeEnv -> Int -> (Name, AlgDataTy) -> Gen (Name, AlgDataTy)
+arbInstDataCons :: TypeEnv -> Unique -> (Name, AlgDataTy) -> Gen (Name, AlgDataTy)
 arbInstDataCons tenv unq (ty_n, adt@(DataTyCon { bound_ids = bi })) = do
     dc_c <- chooseInt (1, 10)
     dcs <- map (\(DataCon n t u e) -> DataCon n (foldr TyForAll t bi) u e) <$> vectorOf dc_c (arbDataCon tenv unq (TyCon ty_n TYPE))
@@ -166,7 +166,7 @@ arbInstDataCons tenv unq (ty_n, adt@(DataTyCon { bound_ids = bi })) = do
     return (ty_n, adt { data_cons = dcs' })
 arbInstDataCons _ _ _ = error "arbInstDataCons: Unsupported AlgDataTy"
 
-arbDataCon :: TypeEnv -> Int -> Type -> Gen DataCon
+arbDataCon :: TypeEnv -> Unique -> Type -> Gen DataCon
 arbDataCon tenv unq ret_ty = do
     n <- chooseEnum ('A', 'Z')
     ar_c <- chooseInt (0, 5)
@@ -295,7 +295,7 @@ arbExpr tenv init_t = sized $ \k -> arbExpr' k HM.empty init_t
         arbAltDC k tm t dc = do
             AN (Name p _ _ _) <- arbitrary
             let ts = anonArgumentTypes $ typeOf TV.empty dc
-                ps = map (\i -> Name p Nothing i Nothing) [1..length ts]
+                ps = map (\i -> Name p Nothing i Nothing) [1..fromIntegral (length ts)]
                 is = zipWith Id ps ts
                 tm' = foldl' (\tm_ (p_, t_) -> HM.insert p_ t_ tm_) tm $ zip ps ts
             e <- arbExpr' k tm' t
