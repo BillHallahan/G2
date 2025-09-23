@@ -1,7 +1,7 @@
 # This is a script for is a modification from ScriptForHackageRules2.py
 # This script aims to find file that contain GADTs
 # Note: to enable GADTs, one must use langauges extension:
-# For example: {-# LANGUAGE GADTs #-}
+# For example: {-# LANGUAGE GADTs #-} or enable it in default-extensions in the cabal file
 # This script along with nebula_scripts/ScriptForHackageRules2.py
 # should be the first step toward dealing with downloaded Hackage
 # b/c we are openning the tar.gz folder within the scripts
