@@ -64,8 +64,9 @@ def reading_file(file_path):
                 # Case 2: .cabal -> look for "default-extensions:" line with GADTs in it
                 elif file_path.endswith(".cabal"):
                     # match "default-extensions:" now catches GADTs even the extension is multi-line
-                    # the key is re.DOTALL which lets . match \n
-                    cabal_pattern = re.compile(r"default-extensions\s*:\s*.*\bGADTs\b.*", re.IGNORECASE)
+                    # the key is re.DOTALL which lets . match \n and it stop tracing after finding GADTs
+                    cabal_pattern = re.compile( r"default-extensions\s*:\s*.*?\bGADTs\b",
+                                                re.IGNORECASE | re.DOTALL )
                     if cabal_pattern.search(content):
                         found_gadt = True
                         
