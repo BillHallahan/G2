@@ -1393,14 +1393,12 @@ liftBind bindsLHS@(Id _ lhsTy) bindsRHS eenv expr ngen pargm tarm = (eenv'', exp
     -- will have been created specifically for this execution of the function when a type was
     -- applied to the function. See newBindingsForExecutionAtType
     eenv' = foldr (potentialDeepRename . idName) eenv $ ids expr
-        where potentialDeepRename :: Name -> E.ExprEnv -> E.ExprEnv
-              potentialDeepRename exN_ eenv_ = case lhsTy of
-                (TyVar (Id lhsTyName _)) -> case TRM.lookup lhsTyName tarm of
-                    Just envName -> if PM.member envName pargm
-                        then E.deepRename old new exN_ eenv_
-                        else eenv_ -- only env TVs in PAM will be used in another env entry, so no deep renaming
-                    _ -> error "liftBind: encountered TV not in TARM (env renaming)"
-                _ -> E.deepRename old new exN_ eenv_
+        where potentialDeepRename :: Name -> E.ExprEnv -> E.ExprEnv 
+              potentialDeepRename exN_ eenv_ 
+                    | (TyVar (Id lhsTyName _)) <- lhsTy 
+                    , Just envName <- TRM.lookup lhsTyName tarm 
+                    , PM.member envName pargm = E.deepRename old new exN_ eenv_
+                | otherwise = eenv_ 
     
     -- if LHS type is a tyVar, we need to add the env->runtime renaming to the PAM
     pargm' | TyVar (Id lhsTyName _) <- lhsTy =
