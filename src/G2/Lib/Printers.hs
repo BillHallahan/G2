@@ -35,6 +35,7 @@ module G2.Lib.Printers ( PrettyGuide
 
 import G2.Language.Expr
 import qualified G2.Language.ExprEnv as E
+import G2.Language.Families
 import G2.Language.MutVarEnv
 import G2.Language.Naming
 import qualified G2.Language.PathConds as PC
@@ -539,8 +540,11 @@ mkTypeHaskellPG pg (TyCon n _) | nameOcc n == "List"
                                | ("Tuple", k_str) <- T.splitAt 5 (nameOcc n)
                                , nameModule n == Just "GHC.Tuple.Prim"
                                , Just k <- readMaybe (T.unpack k_str) = "(" <> T.pack (replicate (k - 1) ',') <> ")"
+                               | Just (c, _) <- T.uncons (nameOcc n)
+                               , not (isAlphaNum c) = "(" <> mkNameHaskell pg n <> ")"
                                | otherwise = mkNameHaskell pg n
-mkTypeHaskellPG pg (TyApp t1 t2) = "(" <> mkTypeHaskellPG pg t1 <> " " <> mkTypeHaskellPG pg t2 <> ")"
+mkTypeHaskellPG pg ty_app@(TyApp _ _)
+    | ts <- unTyApp ty_app= "(" <> T.intercalate " " (map (mkTypeHaskellPG pg) ts) <> ")"
 mkTypeHaskellPG pg (TyForAll i t) = "forall " <> mkIdHaskell pg i <> " . " <> mkTypeHaskellPG pg t
 mkTypeHaskellPG _ TyBottom = "Bottom"
 mkTypeHaskellPG _ TYPE = "Type"
@@ -584,6 +588,8 @@ prettyState pg s =
         , pretty_tyvar_env
         , "----- [Typeclasses] ---------------------"
         , pretty_tc
+        , "----- [Families] ---------------------"
+        , pretty_fams
         , "----- [True Assert] ---------------------"
         , T.pack (show (true_assert s))
         , "----- [Assert FC] ---------------------"
@@ -608,6 +614,7 @@ prettyState pg s =
         pretty_tenv = prettyTypeEnv (tyvar_env s) pg (type_env s)
         pretty_tyvar_env = prettyTypeVarEnv pg (tyvar_env s)
         pretty_tc = prettyTypeClasses pg (type_classes s)
+        pretty_fams = prettyFamilies pg (families s)
         pretty_assert_fcs = maybe "None" (printFuncCallPG pg) (assert_ids s)
         pretty_tags = T.intercalate ", " . map (mkNameHaskell pg) $ HS.toList (tags s)
         pretty_hpc_ticks = T.pack $ show (reached_hpc s)
@@ -749,6 +756,15 @@ prettyClass pg cls =
        "\n\tsuper_classes = " <> sc
     <> "\n\ttype_ids = " <> ti
     <> "\n\tinsts = " <> ins
+
+prettyFamilies :: PrettyGuide -> Families -> T.Text
+prettyFamilies pg = T.intercalate "\n"
+                  . concatMap (\(n, Family { axioms = axs }) -> map (prettyAxiom pg n) axs)
+                  . HM.toList
+
+prettyAxiom :: PrettyGuide -> Name -> Axiom -> T.Text
+prettyAxiom pg n (Axiom { lhs_types = lhs, rhs_type = rhs }) =
+    mkNameHaskell pg n <> " " <> T.intercalate " " (map (mkTypeHaskellPG pg) lhs) <> " = " <> mkTypeHaskellPG pg rhs
 
 -------------------------------------------------------------------------------
 
