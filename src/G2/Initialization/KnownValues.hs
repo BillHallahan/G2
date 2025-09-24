@@ -25,34 +25,35 @@ initKnownValues eenv tenv tc =
   KnownValues {
       tyCoercion = typeWithStrName tenv "~#" 
     , dcCoercion = dcWithStrName tenv "~#" "Co"
-    , tyInt = typeWithStrName tenv "Int"
-    , dcInt = dcWithStrName tenv "Int" "I#"
-    , tyFloat = typeWithStrName tenv "Float"
-    , dcFloat = dcWithStrName tenv "Float" "F#"
+    
+    , tyInt = typeWithStrNameInModule tenv "Int" (Just "GHC.Types")
+    , dcInt = dcWithStrNameInModule tenv "Int" "I#" (Just "GHC.Types")
+    , tyFloat = typeWithStrNameInModule tenv "Float" (Just "GHC.Types")
+    , dcFloat = dcWithStrNameInModule tenv "Float" "F#" (Just "GHC.Types")
 
-    , tyDouble = typeWithStrName tenv "Double"
-    , dcDouble = dcWithStrName tenv "Double" "D#"
+    , tyDouble = typeWithStrNameInModule tenv "Double" (Just "GHC.Types")
+    , dcDouble = dcWithStrNameInModule tenv "Double" "D#" (Just "GHC.Types")
 
     , tyInteger = typeWithStrName tenv "Integer"
     , dcInteger = dcWithStrName tenv "Integer" "Z#"
 
-    , tyChar = typeWithStrName tenv "Char"
-    , dcChar = dcWithStrName tenv "Char" "C#"
+    , tyChar = typeWithStrNameInModule tenv "Char" (Just "GHC.Types")
+    , dcChar = dcWithStrNameInModule tenv "Char" "C#" (Just "GHC.Types")
 
-    , tyBool = typeWithStrName tenv "Bool"
-    , dcTrue = dcWithStrName tenv "Bool" "True"
-    , dcFalse = dcWithStrName tenv "Bool" "False"
+    , tyBool = typeWithStrNameInModule tenv "Bool" (Just "GHC.Types")
+    , dcTrue = dcWithStrNameInModule tenv "Bool" "True" (Just "GHC.Types")
+    , dcFalse = dcWithStrNameInModule tenv "Bool" "False" (Just "GHC.Types")
 
     , tyRational = typeWithStrName tenv "Rational"
 
 #if MIN_VERSION_GLASGOW_HASKELL(9,6,0,0)
-    , tyList = typeWithStrName tenv "List"
-    , dcCons = dcWithStrName tenv "List" ":"
-    , dcEmpty = dcWithStrName tenv "List" "[]"
+    , tyList = typeWithStrNameInModule tenv "List" (Just "GHC.Types")
+    , dcCons = dcWithStrNameInModule tenv "List" ":" (Just "GHC.Types")
+    , dcEmpty = dcWithStrNameInModule tenv "List" "[]" (Just "GHC.Types")
 #else
-    , tyList = typeWithStrName tenv "[]"
-    , dcCons = dcWithStrName tenv "[]" ":"
-    , dcEmpty = dcWithStrName tenv "[]" "[]"
+    , tyList = typeWithStrNameInModule tenv "[]" (Just "GHC.Types")
+    , dcCons = dcWithStrNameInModule tenv "[]" ":" (Just "GHC.Types")
+    , dcEmpty = dcWithStrNameInModule tenv "[]" "[]" (Just "GHC.Types")
 #endif
 
     , tyMaybe = typeWithStrName tenv "Maybe"
@@ -148,6 +149,20 @@ dcWithStrName tenv ts dcs =
     [] -> error $ "No type found in dcWithStrName [" ++
                   (show $ T.unpack ts) ++ "] [" ++ (show $ T.unpack dcs) ++ "]"
     dc -> dcWithStrName' dc dcs
+
+typeWithStrNameInModule :: TypeEnv -> T.Text -> Maybe T.Text -> Name
+typeWithStrNameInModule tenv s s_mod =
+  case HM.toList $ HM.filterWithKey (\(Name n mmod _ _) _ -> n == s && mmod == s_mod) tenv of
+    (n, _):_ -> n
+    _ -> error $ "No type found in typeWithStrName " ++ (show $ T.unpack s)
+
+dcWithStrNameInModule :: TypeEnv -> T.Text -> T.Text -> Maybe T.Text -> Name
+dcWithStrNameInModule tenv ts dcs s_mod =
+  case concatMap dataCon . HM.elems $ HM.filterWithKey (\(Name n mmod _ _) _ -> n == ts && mmod == s_mod) tenv of
+    [] -> error $ "No type found in dcWithStrName [" ++
+                  (show $ T.unpack ts) ++ "] [" ++ (show $ T.unpack dcs) ++ "]"
+    dc -> dcWithStrName' dc dcs
+
 
 dcWithStrName' :: [DataCon] -> T.Text -> Name
 dcWithStrName' (DataCon n@(Name n' _ _ _) _ _ _:xs) s =
