@@ -332,10 +332,17 @@ retLam s@(State { expr_env = eenv, tyvar_env = tvnv, poly_arg_map = pargm, ty_ap
                         else newBindingsForExecutionAtType (idName i) n' e' eenv ng'
                     _ ->  (e', eenv, ng')
                 
-                -- make PAM and TARM entries. Collected args for a tyVar from 
-                -- any previous execution of the function are cleared.
-                pargm' = PM.insertTV (idName i) pargm
-                tarm' = TRM.insert n' (idName i) tarm
+                -- PAM entries will have access to different arguments on different
+                -- branches of the solved function, so it is necessary to clear
+                -- collected arguments for each new execution of the function.
+                --
+                -- If the tyVar is present in the PAM, make TARM entry
+                -- and empty PAM entry. tyVars can only be added to the PAM
+                -- originally through the PM-FORALL rule, so this avoids adding 
+                -- tyVars that are not part of a rank-N-type.
+                (pargm', tarm') = if PM.member (idName i) pargm 
+                    then (PM.insertTV (idName i) pargm, TRM.insert n' (idName i) tarm)
+                    else (pargm, tarm)
             in 
            ( RuleReturnEApplyLamType [n']
             , [ s { expr_env = eenv'
@@ -1561,7 +1568,7 @@ retReplaceSymbFuncTemplate sft
 
     -- PM-FORALL
     -- TODO: maybe call mkFuncConst with LamUse as argument?
-    | Var (Id n (TyForAll tyVarId faTy)):_ <- unApp ce
+    | Var (Id n (TyForAll tyVarId@(Id tyVarN _) faTy)):_ <- unApp ce
     , E.isSymbolic n eenv
     = let
         -- create name of new sym
@@ -1571,10 +1578,13 @@ retReplaceSymbFuncTemplate sft
         -- new environment bindings
         eenv' = E.insertSymbolic f1Id eenv
         eenv'' = E.insert n e eenv'
+        -- insert empty PAM mapping
+        pargm' = PM.insertTV tyVarN pargm
     in Just (RuleReturnReplaceSymbFunc, [
         s {
         curr_expr = CurrExpr Evaluate e,
-        expr_env = eenv''
+        expr_env = eenv'',
+        poly_arg_map = pargm'
     }], ng')
 
     -- PM-ARG

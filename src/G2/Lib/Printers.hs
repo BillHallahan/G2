@@ -55,8 +55,6 @@ import Text.Read
 import qualified G2.Language.TyVarEnv as TV 
 import qualified G2.Language.PolyArgMap as PM
 import qualified G2.Language.TypeAppRenameMap as TRM
-import Distribution.Pretty (Pretty)
-import qualified G2.Translation.GHC as T
 data Clean = Cleaned | Dirty deriving Eq
 
 mkIdHaskell :: PrettyGuide -> Id -> T.Text
@@ -589,6 +587,8 @@ prettyState pg s =
         , pretty_tyvar_env
         , "----- [PolyArgMap] -----------------"
         , pretty_pargm
+        , "----- [TypeAppRenameMap] -----------"
+        , pretty_tarm
         , "----- [Typeclasses] ---------------------"
         , pretty_tc
         , "----- [True Assert] ---------------------"
@@ -614,6 +614,7 @@ prettyState pg s =
         pretty_mutvars = prettyMutVars pg . HM.map mv_val_id $ mutvar_env s
         pretty_tenv = prettyTypeEnv (tyvar_env s) pg (type_env s)
         pretty_pargm = prettyPolyArgMap (poly_arg_map s) pg
+        pretty_tarm = prettyTypeAppRenameMap (ty_app_re_map s) pg
         pretty_tyvar_env = prettyTypeVarEnv pg (tyvar_env s)
         pretty_tc = prettyTypeClasses pg (type_classes s)
         pretty_assert_fcs = maybe "None" (printFuncCallPG pg) (assert_ids s)
