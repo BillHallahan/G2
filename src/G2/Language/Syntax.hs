@@ -48,7 +48,7 @@ instance Eq Name where
 
 -- | Disregards the Span
 instance Ord Name where
-    Name n m i _ `compare` Name n' m' i' _ = (i, n, m) `compare` (i', n', m')
+    Name n m i _ `compare` Name n' m' i' _ = i `compare` i' <> n `compare` n' <> m `compare` m'
 
 -- | Disregards the Span
 instance Hashable Name where
