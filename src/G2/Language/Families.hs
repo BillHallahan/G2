@@ -1,9 +1,10 @@
-{-# LANGUAGE DeriveGeneric, DeriveDataTypeable, MultiParamTypeClasses #-}
+{-# LANGUAGE DeriveGeneric, DeriveDataTypeable, FlexibleContexts, MultiParamTypeClasses #-}
 
 module G2.Language.Families ( Families
                             , Family (..)
                             , Axiom (..)
                             , mkFamilies
+                            , fullyReduceTypeFunctions
                             , reduceTypeFunction ) where
 
 import G2.Language.AST
@@ -41,6 +42,12 @@ mkFamilies = foldl' addAxiom HM.empty
             HM.alter (Just . maybe (Family [ax]) (ins ax)) n fams
         
         ins ax (Family axs) = Family (ax:axs)
+
+fullyReduceTypeFunctions :: Families -> TV.TyVarEnv -> Type -> Type
+fullyReduceTypeFunctions fams tv_env = go
+    where
+        go t | Just t' <- reduceTypeFunction fams tv_env t = go t'
+             | otherwise = t
 
 -- | Applies a single rewrite reducing a type function.
 -- If the passed `Type` is not a type function application, or if the type function application
