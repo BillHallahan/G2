@@ -52,6 +52,7 @@ module G2.Execution.Reducer ( Reducer (..)
                             , RedRules
                             , mkSimpleReducer
                             , liftReducer
+                            , liftReducerGhcT
                             , liftSomeReducer
 
                             , stdRed
@@ -96,6 +97,7 @@ module G2.Execution.Reducer ( Reducer (..)
                             -- * Halters
                             , mkSimpleHalter
                             , liftHalter
+                            , liftHalterGhcT
                             , liftSomeHalter
 
                             , swhnfHalter
@@ -124,6 +126,7 @@ module G2.Execution.Reducer ( Reducer (..)
                             -- * Orderers
                             , mkSimpleOrderer
                             , liftOrderer
+                            , liftOrdererGhcT
                             , liftSomeOrderer
                             , (<->)
                             , ordComb
@@ -181,6 +184,7 @@ import qualified Data.Text as T
 import qualified Data.Text.IO as T
 import Data.Tuple
 import Data.Time.Clock
+import GHC.Driver.Monad
 import System.Clock
 import System.Directory
 import qualified G2.Language.TyVarEnv as TV 
@@ -279,6 +283,16 @@ liftReducer r = Reducer { initReducer = initReducer r
                         , onDiscard = \s rv -> SM.lift ((onDiscard r) s rv)
                         , afterRed = SM.lift (afterRed r)}
 
+-- | Lift a reducer from a component monad to a constructed monad. 
+liftReducerGhcT :: Monad m => Reducer m rv t -> Reducer (GhcT m) rv t
+liftReducerGhcT r = Reducer { initReducer = initReducer r
+                        , redRules = \rv s b -> liftGhcT ((redRules r) rv s b)
+                        , updateWithAll = updateWithAll r
+                        , onAccept = \s b rv -> liftGhcT ((onAccept r) s b rv)
+                        , onSolved = liftGhcT (onSolved r)
+                        , onDiscard = \s rv -> liftGhcT ((onDiscard r) s rv)
+                        , afterRed = liftGhcT (afterRed r)}
+
 -- | Lift a SomeReducer from a component monad to a constructed monad. 
 liftSomeReducer :: (Monad m1, SM.MonadTrans m2) => SomeReducer m1 t -> SomeReducer (m2 m1) t
 liftSomeReducer (SomeReducer r) = SomeReducer (liftReducer r )
@@ -342,6 +356,15 @@ liftHalter h = Halter { initHalt = initHalt h
                       , updateHalterWithAll = updateHalterWithAll h
                       , filterAllStates = id }
 
+liftHalterGhcT :: Monad m => Halter m rv r t -> Halter (GhcT m) rv r t
+liftHalterGhcT h = Halter { initHalt = initHalt h
+                      , updatePerStateHalt = updatePerStateHalt h
+                      , discardOnStart = discardOnStart h
+                      , stopRed = \hv pr s -> liftGhcT ((stopRed h) hv pr s)
+                      , stepHalter = stepHalter h
+                      , updateHalterWithAll = updateHalterWithAll h
+                      , filterAllStates = id }
+
 -- | Lift a SomeHalter from a component monad to a constructed monad. 
 liftSomeHalter :: (Monad m1, SM.MonadTrans m2) => SomeHalter m1 r t -> SomeHalter (m2 m1) r t
 liftSomeHalter (SomeHalter r) = SomeHalter (liftHalter r)
@@ -392,6 +415,13 @@ liftOrderer r = Orderer { initPerStateOrder = initPerStateOrder r
                         , orderStates = \sov pr s -> SM.lift ((orderStates r) sov pr s)
                         , updateSelected = updateSelected r
                         , stepOrderer = \sov pr xs s -> SM.lift ((stepOrderer r) sov pr xs s) }
+
+-- | Lift a Orderer from a component monad to a constructed monad. 
+liftOrdererGhcT :: Monad m => Orderer m sov b r t -> Orderer (GhcT m) sov b r t
+liftOrdererGhcT r = Orderer { initPerStateOrder = initPerStateOrder r
+                        , orderStates = \sov pr s -> liftGhcT ((orderStates r) sov pr s)
+                        , updateSelected = updateSelected r
+                        , stepOrderer = \sov pr xs s -> liftGhcT ((stepOrderer r) sov pr xs s) }
 
 -- | Lift a liftSomeOrderer from a component monad to a constructed monad. 
 liftSomeOrderer :: (Monad m1, SM.MonadTrans m2) => SomeOrderer m1 r t -> SomeOrderer (m2 m1) r t

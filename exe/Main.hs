@@ -43,7 +43,7 @@ runWithArgs as = do
 --   let tentry = T.pack entry
 
   (in_out, b, _, entry_f@(Id (Name _ mb_modname _ _) _)) <-
-        runG2FromFile proj [src] (fmap T.pack m_assume)
+        runG2FromFile proj [src] [Opt_Hpc] (fmap T.pack m_assume)
                   (fmap T.pack m_assert) (fmap T.pack m_reaches) 
                   (isJust m_assert || isJust m_reaches || m_retsTrue) 
                   entry simplTranslationConfig config
