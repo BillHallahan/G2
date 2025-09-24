@@ -696,7 +696,7 @@ extensionTests = testGroup "Extensions"
                                                                         ]
 
     , checkInputOutputsInstType "tests/TestFiles/Extensions/TypeFamilies1.hs" [ ("f", 400, [Exactly 2])
-                                                                              -- , ("f2", 400, [AtLeast 1])
+                                                                              -- , ("f2", 400, [Exactly 2])
                                                                               , ("f3", 400, [Exactly 3])
                                                                               , ("g", 400, [Exactly 2])
                                                                               , ("h", 400, [Exactly 2])
