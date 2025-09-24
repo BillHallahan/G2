@@ -127,9 +127,6 @@ def starter(home_directory,g2_location):
             changing_project(file_path,g2_location)
 
 
-
-
-
 # main:
 args = sys.argv
 if len(args) != 3:
