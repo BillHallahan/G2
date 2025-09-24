@@ -7,8 +7,11 @@ data family A a
 data instance A Int = AI Int
 data instance A Float = AF Float
 
-f :: A Int -> Int
-f (AI x) = x
+f1 :: A Int -> Int
+f1 (AI x) = x
+
+f2 :: A Float -> Float
+f2 (AF x) = x
 
 -- Adapted from https://wiki.haskell.org/index.php?title=GHC/Type_families
 
