@@ -1406,15 +1406,11 @@ liftBind bindsLHS@(Id _ lhsTy) bindsRHS eenv expr ngen pargm tarm = (eenv'', exp
                     , Just envName <- TRM.lookup lhsTyName tarm 
                     , PM.member envName pargm = E.deepRename old new exN_ eenv_
                 | otherwise = eenv_ 
-    
-    -- if LHS type is a tyVar, we need to add the env->runtime renaming to the PAM
-    pargm' | TyVar (Id lhsTyName _) <- lhsTy =
-        case TRM.lookup lhsTyName tarm of
-            Just envTy -> if PM.member envTy pargm
-                then PM.insertRename envTy old new Nothing pargm
-                else pargm -- only env TVs in PAM will be needed for future solving, so don't insert renaming into PAM
-            _ -> error "liftBind: encountered TV not in TARM (PAM renaming)"
-        | otherwise = pargm
+
+    pargm' | TyVar (Id lhsTyName _) <- lhsTy 
+           , Just envTy <- TRM.lookup lhsTyName tarm 
+           , PM.member envTy pargm = PM.insertRename envTy old new Nothing pargm 
+           | otherwise = pargm
 
     -- TODO: collect function arguments
    
