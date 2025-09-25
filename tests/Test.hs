@@ -695,6 +695,22 @@ extensionTests = testGroup "Extensions"
                                                                         , ("lengthSV", 1000, [AtLeast 10])
                                                                         ]
 
+    , checkInputOutputsInstType "tests/TestFiles/Extensions/TypeFamilies1.hs" [ ("f", 400, [Exactly 2])
+                                                                              -- , ("f2", 400, [Exactly 2])
+                                                                              , ("f3", 400, [Exactly 3])
+                                                                              , ("g", 400, [Exactly 2])
+                                                                              , ("h", 400, [Exactly 2])
+                                                                              , ("age1", 400, [Exactly 1])
+                                                                              -- , ("age2", 400, [Exactly 1])
+                                                                              -- , ("app", 250, [AtLeast 5])
+                                                                              -- , ("vecIntersperse", 400, [AtLeast 5])
+                                                                              , ("vecTake", 400, [AtLeast 5])
+                                                                              ]
+    , checkInputOutputsInstType "tests/TestFiles/Extensions/DataFamilies1.hs" [ ("f1", 400, [Exactly 1])
+                                                                              , ("f2", 400, [Exactly 1])
+    --                                                                           , ("app3Char", 400, [AtLeast 1])
+    --                                                                           , ("app3Unit", 400, [AtLeast 1])
+                                                                              ]
     ]
 
 baseTests ::  TestTree

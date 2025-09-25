@@ -10,6 +10,7 @@ import qualified Data.Text as T
 
 import qualified G2.Language.Syntax as G2
 import qualified G2.Language.AlgDataTy as G2
+import qualified G2.Language.Families as G2
 
 type NameMap = HM.HashMap (T.Text, Maybe T.Text) G2.Name
 
@@ -38,6 +39,7 @@ data ModGutsClosure = ModGutsClosure
   , mgcc_tycons :: [TyCon]
   , mgcc_breaks :: Maybe ModBreaks
   , mgcc_cls_insts :: [ClsInst]
+  , mgcc_fam_insts :: [FamInst]
   , mgcc_type_env :: TypeEnv
   , mgcc_exports :: [ExportedName]
   , mgcc_deps :: [String]
@@ -47,6 +49,7 @@ data ModGutsClosure = ModGutsClosure
 
 data ModDetailsClosure = ModDetailsClosure
   { mdcc_cls_insts :: [ClsInst]
+  , mdcc_fam_insts :: [FamInst]
   , mdcc_type_env :: TypeEnv
   , mdcc_exports :: [ExportedName]
   , mdcc_deps :: [String]
@@ -69,6 +72,7 @@ emptyModGutsClosure =
     , mgcc_tycons = []
     , mgcc_breaks = Nothing
     , mgcc_cls_insts = []
+    , mgcc_fam_insts = []
     , mgcc_type_env = emptyTypeEnv
     , mgcc_exports = []
     , mgcc_deps = []
@@ -79,6 +83,7 @@ emptyModDetailsClosure :: ModDetailsClosure
 emptyModDetailsClosure =
   ModDetailsClosure
     { mdcc_cls_insts = []
+    , mdcc_fam_insts = []
     , mdcc_type_env = emptyTypeEnv
     , mdcc_exports = []
     , mdcc_deps = []
@@ -100,6 +105,7 @@ data ExtractedG2 = ExtractedG2
   , exg2_binds :: HM.HashMap G2.Name G2.Expr
   , exg2_tycons :: HM.HashMap G2.Name G2.AlgDataTy
   , exg2_classes :: [(G2.Name, G2.Id, [G2.Id], [(G2.Type, G2.Id)])]
+  , exg2_axioms :: [(G2.Name, G2.Axiom)]
   , exg2_exports :: [ExportedName]
   , exg2_deps :: [T.Text]
   , exg2_rules :: ![G2.RewriteRule]
@@ -112,6 +118,7 @@ emptyExtractedG2 =
     , exg2_binds = HM.empty
     , exg2_tycons = HM.empty
     , exg2_classes = []
+    , exg2_axioms = []
     , exg2_exports = []
     , exg2_deps = []
     , exg2_rules = [] }

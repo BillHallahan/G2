@@ -51,6 +51,7 @@ module G2.Language.Naming
 
 import qualified G2.Data.UFMap as UF
 import G2.Language.AST
+import G2.Language.Families
 import G2.Language.KnownValues
 import G2.Language.Syntax
 import G2.Language.TypeEnv
@@ -533,6 +534,17 @@ instance Named FuncCall where
     renames hm (FuncCall {funcName = n, arguments = as, returns = r} ) =
         FuncCall {funcName = renames hm n, arguments = renames hm as, returns = renames hm r}
 
+instance Named Family where
+    names (Family { axioms = ax }) = names ax
+    rename old new (Family { axioms = ax }) = Family { axioms = rename old new ax }
+    renames hm (Family { axioms = ax }) = Family { axioms = renames hm ax }
+
+instance Named Axiom where
+    names (Axiom lhs_t rhs_t ) = names lhs_t <> names rhs_t
+    rename old new (Axiom { lhs_types = lhs_t, rhs_type = rhs_t }) =
+        Axiom { lhs_types = rename old new lhs_t, rhs_type = rename old new rhs_t }
+    renames hm (Axiom { lhs_types = lhs_t, rhs_type = rhs_t }) =
+        Axiom { lhs_types = renames hm lhs_t, rhs_type = renames hm rhs_t }
 
 instance Named AlgDataTy where
     names (DataTyCon ns dc _) = names ns <> names dc
