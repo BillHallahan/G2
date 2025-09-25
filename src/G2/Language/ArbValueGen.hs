@@ -31,7 +31,7 @@ arbValueInit = ArbValueGen { intGen = 0
                            , boolGen = True
                            }
 
-type ArbValueFunc = forall t . State t -> Type -> ArbValueGen -> (Expr, ArbValueGen)
+type ArbValueFunc = forall t . State t -> Type -> ArbValueGen -> (Expr, TyVarEnv, ArbValueGen)
 
 -- [CharGenInit]
 -- Do NOT make this a cycle.  It would simplify arbValue, but causes an infinite loop
@@ -45,13 +45,13 @@ charGenInit = ['a'..'z'] ++ ['A'..'Z'] ++ ['0'..'9']
 -- Returns a new ArbValueGen that (in the case of the primitives)
 -- will give a different value the next time arbValue is called with
 -- the same Type.
-arbValue :: State t -> Type -> ArbValueGen -> (Expr, ArbValueGen)
+arbValue :: ArbValueFunc
 arbValue = arbValue' getFiniteADT HM.empty
 
 -- | Allows the generation of arbitrary values of the given type.
 -- Cuts off recursive ADTs with a Prim Undefined
 -- Returns a new ArbValueGen that is identical to the passed ArbValueGen
-constArbValue :: State t -> Type -> ArbValueGen -> (Expr, ArbValueGen)
+constArbValue :: ArbValueFunc
 constArbValue = constArbValue' getFiniteADT HM.empty
 
 -- | Allows the generation of arbitrary values of the given type.
@@ -59,23 +59,20 @@ constArbValue = constArbValue' getFiniteADT HM.empty
 -- Returns a new ArbValueGen that (in the case of the primitives)
 -- will give a different value the next time arbValue is called with
 -- the same Type.
-arbValueInfinite :: State t -> Type -> ArbValueGen -> (Expr, ArbValueGen)
+arbValueInfinite :: ArbValueFunc
 arbValueInfinite = arbValueInfinite' cutOffVal HM.empty
 
-arbValueInfinite' :: Int -> HM.HashMap Name Type -> State t -> Type -> ArbValueGen -> (Expr, ArbValueGen)
+arbValueInfinite' :: Int -> HM.HashMap Name Type -> ArbValueFunc
 arbValueInfinite' cutoff = arbValue' (getADT cutoff)
 
 arbValue' :: GetADT t
           -> HM.HashMap Name Type -- ^ Maps TyVar's to Types
-          -> State t
-          -> Type
-          -> ArbValueGen
-          -> (Expr, ArbValueGen)
+          -> ArbValueFunc
 arbValue' getADTF m s (TyFun t t') av =
     let
-      (e, av') = arbValue' getADTF m s t' av
+      (e, tv_env, av') = arbValue' getADTF m s t' av
     in
-    (Lam TermL (Id (Name "_" Nothing 0 Nothing) t) e, av')
+    (Lam TermL (Id (Name "_" Nothing 0 Nothing) t) e, tv_env, av')
 arbValue' getADTF m s@(State { type_env = tenv }) t av
   | TyCon n _ <- tyAppCenter t
   , ts <- tyAppArgs t =
@@ -84,45 +81,45 @@ arbValue' getADTF m s@(State { type_env = tenv }) t av
           (HM.lookup n tenv)
 arbValue' getADTF m s (TyApp t1 t2) av =
   let
-      (e1, av') = arbValue' getADTF m s t1 av
-      (e2, av'') = arbValue' getADTF m s t2 av'
+      (e1, tv_env, av') = arbValue' getADTF m s t1 av
+      (e2, tv_env', av'') = arbValue' getADTF m (s { tyvar_env = tv_env }) t2 av'
   in
-  (App e1 e2, av'')
-arbValue' _ _ _ TyLitInt av =
+  (App e1 e2, tv_env', av'')
+arbValue' _ _ (State { tyvar_env = tv_env }) TyLitInt av =
     let
         i = intGen av
     in
-    (Lit (LitInt i), av { intGen = i + 1 })
-arbValue' _ _ _ TyLitFloat av =
+    (Lit (LitInt i), tv_env, av { intGen = i + 1 })
+arbValue' _ _ (State { tyvar_env = tv_env }) TyLitFloat av =
     let
         f = floatGen av
     in
-    (Lit (LitFloat f), av { floatGen = f + 1 })
-arbValue' _ _ _ TyLitDouble av =
+    (Lit (LitFloat f), tv_env, av { floatGen = f + 1 })
+arbValue' _ _ (State { tyvar_env = tv_env }) TyLitDouble av =
     let
         d = doubleGen av
     in
-    (Lit (LitDouble d), av { doubleGen = d + 1 })
-arbValue' _ _ _ TyLitRational av =
+    (Lit (LitDouble d), tv_env, av { doubleGen = d + 1 })
+arbValue' _ _ (State { tyvar_env = tv_env }) TyLitRational av =
     let
         r = rationalGen av
     in
     (Lit (LitRational r), av { rationalGen = r + 1 })
-arbValue' _ _ _ TyLitChar av =
+arbValue' _ _ (State { tyvar_env = tv_env }) TyLitChar av =
     let
         c:cs = case charGen av of
                 xs@(_:_) -> xs
                 _ -> charGenInit
     in
-    (Lit (LitChar c), av { charGen = cs})
+    (Lit (LitChar c), tv_env, av { charGen = cs})
 arbValue' getADTF m s@(State { tyvar_env = tv }) (TyVar (Id n _)) av
     | Just t <- HM.lookup n m = arbValue' getADTF m s t av
     | Just t@(TyVar _) <- TV.deepLookupName tv n = (Prim Undefined t, av)
     | Just t <- TV.deepLookupName tv n = arbValue' getADTF m s t av
-arbValue' _ _ _ t av = (Prim Undefined t, av)
+arbValue' _ _ (State { tyvar_env = tv_env }) t av = (Prim Undefined t, tv_env, av)
 
 
-constArbValue' :: GetADT t -> HM.HashMap Name Type -> State t -> Type -> ArbValueGen -> (Expr, ArbValueGen)
+constArbValue' :: GetADT t -> HM.HashMap Name Type -> ArbValueFunc
 constArbValue' getADTF m s (TyFun t t') av =
     let
       (e, _) = constArbValue' getADTF m s t' av
