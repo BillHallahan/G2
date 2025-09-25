@@ -41,6 +41,6 @@ checkConsistency solver s pc
     | otherwise = do
         checkTr solver s pc
 
-solve' :: TrSolver solver => ArbValueFunc -> solver -> State t -> Bindings -> [Id] -> PathConds -> IO (Result Model () (), solver)
+solve' :: TrSolver solver => ArbValueFunc -> solver -> State t -> Bindings -> [Id] -> PathConds -> IO (Result SatRes () (), solver)
 solve' _ sol s b is pc = do
     solveTr sol s b is pc

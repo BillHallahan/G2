@@ -702,7 +702,7 @@ extensionTests = testGroup "Extensions"
                                                                               , ("h", 400, [Exactly 2])
                                                                               , ("age1", 400, [Exactly 1])
                                                                               -- , ("age2", 400, [Exactly 1])
-                                                                              -- , ("app", 250, [AtLeast 5])
+                                                                              , ("app", 400, [AtLeast 5])
                                                                               -- , ("vecIntersperse", 400, [AtLeast 5])
                                                                               , ("vecTake", 400, [AtLeast 5])
                                                                               ]

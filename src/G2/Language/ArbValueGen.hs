@@ -14,7 +14,6 @@ import G2.Language.Typing
 import Data.List
 import qualified Data.HashMap.Lazy as HM
 import Data.Ord
-import Data.Tuple
 import qualified G2.Language.TyVarEnv as TV 
 import G2.Language.KnownValues
 import qualified Data.Maybe as MA
@@ -65,7 +64,7 @@ arbValueInfinite = arbValueInfinite' cutOffVal HM.empty
 arbValueInfinite' :: Int -> HM.HashMap Name Type -> ArbValueFunc
 arbValueInfinite' cutoff = arbValue' (getADT cutoff)
 
-arbValue' :: GetADT t
+arbValue' :: GetADT
           -> HM.HashMap Name Type -- ^ Maps TyVar's to Types
           -> ArbValueFunc
 arbValue' getADTF m s (TyFun t t') av =
@@ -73,10 +72,10 @@ arbValue' getADTF m s (TyFun t t') av =
       (e, tv_env, av') = arbValue' getADTF m s t' av
     in
     (Lam TermL (Id (Name "_" Nothing 0 Nothing) t) e, tv_env, av')
-arbValue' getADTF m s@(State { type_env = tenv }) t av
+arbValue' getADTF m s@(State { type_env = tenv, tyvar_env = tv_env }) t av
   | TyCon n _ <- tyAppCenter t
   , ts <- tyAppArgs t =
-    maybe (Prim Undefined TyBottom, av) 
+    maybe (Prim Undefined TyBottom, tv_env, av) 
           (\adt -> getADTF m s av adt ts)
           (HM.lookup n tenv)
 arbValue' getADTF m s (TyApp t1 t2) av =
@@ -104,7 +103,7 @@ arbValue' _ _ (State { tyvar_env = tv_env }) TyLitRational av =
     let
         r = rationalGen av
     in
-    (Lit (LitRational r), av { rationalGen = r + 1 })
+    (Lit (LitRational r), tv_env, av { rationalGen = r + 1 })
 arbValue' _ _ (State { tyvar_env = tv_env }) TyLitChar av =
     let
         c:cs = case charGen av of
@@ -114,72 +113,72 @@ arbValue' _ _ (State { tyvar_env = tv_env }) TyLitChar av =
     (Lit (LitChar c), tv_env, av { charGen = cs})
 arbValue' getADTF m s@(State { tyvar_env = tv }) (TyVar (Id n _)) av
     | Just t <- HM.lookup n m = arbValue' getADTF m s t av
-    | Just t@(TyVar _) <- TV.deepLookupName tv n = (Prim Undefined t, av)
+    | Just t@(TyVar _) <- TV.deepLookupName tv n = (Prim Undefined t, tv, av)
     | Just t <- TV.deepLookupName tv n = arbValue' getADTF m s t av
 arbValue' _ _ (State { tyvar_env = tv_env }) t av = (Prim Undefined t, tv_env, av)
 
 
-constArbValue' :: GetADT t -> HM.HashMap Name Type -> ArbValueFunc
+constArbValue' :: GetADT -> HM.HashMap Name Type -> ArbValueFunc
 constArbValue' getADTF m s (TyFun t t') av =
     let
-      (e, _) = constArbValue' getADTF m s t' av
+      (e, tv_env, _) = constArbValue' getADTF m s t' av
     in
-    (Lam TermL (Id (Name "_" Nothing 0 Nothing) t) e, av)
-constArbValue' getADTF m s@(State { type_env = tenv }) t av
+    (Lam TermL (Id (Name "_" Nothing 0 Nothing) t) e, tv_env, av)
+constArbValue' getADTF m s@(State { type_env = tenv, tyvar_env = tv_env }) t av
   | TyCon n _ <- tyAppCenter t
   , ts <- tyAppArgs t =
-    maybe (Prim Undefined TyBottom, av) 
+    maybe (Prim Undefined TyBottom, tv_env, av) 
           (\adt -> getADTF m s av adt ts)
           (HM.lookup n tenv)
 constArbValue' getADTF m s (TyApp t1 t2) av =
   let
-      (e1, _) = constArbValue' getADTF m s t1 av
-      (e2, _) = constArbValue' getADTF m s t2 av
+      (e1, tv_env, _) = constArbValue' getADTF m s t1 av
+      (e2, tv_env', _) = constArbValue' getADTF m (s { tyvar_env = tv_env }) t2 av
   in
-  (App e1 e2, av)
-constArbValue' _ _ _ TyLitInt av =
+  (App e1 e2, tv_env', av)
+constArbValue' _ _ (State { tyvar_env = tv_env }) TyLitInt av =
     let
         i = intGen av
     in
-    (Lit (LitInt i), av)
-constArbValue' _ _ _ TyLitFloat av =
+    (Lit (LitInt i), tv_env, av)
+constArbValue' _ _ (State { tyvar_env = tv_env }) TyLitFloat av =
     let
         f = floatGen av
     in
-    (Lit (LitFloat f), av)
-constArbValue' _ _ _ TyLitDouble av =
+    (Lit (LitFloat f), tv_env, av)
+constArbValue' _ _ (State { tyvar_env = tv_env }) TyLitDouble av =
     let
         d = doubleGen av
     in
-    (Lit (LitDouble d), av)
-constArbValue' _ _ _ TyLitRational av =
+    (Lit (LitDouble d), tv_env, av)
+constArbValue' _ _ (State { tyvar_env = tv_env }) TyLitRational av =
     let
         r = rationalGen av
     in
-    (Lit (LitRational r), av)
-constArbValue' _ _ _ TyLitChar av =
+    (Lit (LitRational r), tv_env, av)
+constArbValue' _ _ (State { tyvar_env = tv_env }) TyLitChar av =
     let
         c:_ = case charGen av of
                 xs@(_:_) -> xs
                 _ -> charGenInit
     in
-    (Lit (LitChar c), av)
+    (Lit (LitChar c), tv_env, av)
 constArbValue' getADTF m s@(State { tyvar_env = tv }) (TyVar (Id n _)) av
     | Just t <- HM.lookup n m = constArbValue' getADTF m s t av
-    | Just t@(TyVar _) <- TV.deepLookupName tv n = (Prim Undefined t, av)
+    | Just t@(TyVar _) <- TV.deepLookupName tv n = (Prim Undefined t, tv, av)
     | Just t <- TV.deepLookupName tv n = arbValue' getADTF m s t av
-constArbValue' _ _ _ t av = (Prim Undefined t, av)
+constArbValue' _ _ (State { tyvar_env = tv }) t av = (Prim Undefined t, tv, av)
 
-type GetADT t = HM.HashMap Name Type -> State t -> ArbValueGen -> AlgDataTy -> [Type] -> (Expr, ArbValueGen)
+type GetADT = forall t . HM.HashMap Name Type -> State t -> ArbValueGen -> AlgDataTy -> [Type] -> (Expr, TyVarEnv, ArbValueGen)
 
 -- | Generates an arbitrary value of the given ADT,
 -- but will return something containing @(Prim Undefined)@ instead of an infinite Expr.
-getFiniteADT :: HM.HashMap Name Type -> State t -> ArbValueGen -> AlgDataTy -> [Type] -> (Expr, ArbValueGen)
+getFiniteADT :: HM.HashMap Name Type -> State t -> ArbValueGen -> AlgDataTy -> [Type] -> (Expr, TyVarEnv, ArbValueGen)
 getFiniteADT m s av adt ts =
     let
-        (e, av') = getADT cutOffVal m s av adt ts
+        (e, tv_env, av') = getADT cutOffVal m s av adt ts
     in 
-    (cutOff [] e, av')
+    (cutOff [] e, tv_env, av')
 
 -- | How long to go before cutting off finite ADTs?
 cutOffVal :: Int
@@ -201,11 +200,11 @@ cutOff _ e = e
 -- To see why this is needed, suppose we are returning an infinitely large Expr.
 -- This Expr will be returned lazily.  But the return of the ArbValueGen is not lazy-
 -- so we must just cut off and return at some point.
-getADT :: Int -> HM.HashMap Name Type -> State t -> ArbValueGen -> AlgDataTy -> [Type] -> (Expr, ArbValueGen)
+getADT :: Int -> HM.HashMap Name Type -> State t -> ArbValueGen -> AlgDataTy -> [Type] -> (Expr, TyVarEnv, ArbValueGen)
 getADT cutoff m s@(State { tyvar_env = tvnv, known_values = kv }) av adt ts 
     | [dc] <- dataCon adt
     , TyApp (TyApp (TyApp (TyApp (TyCon tc_n _) _) _) c1) c2 <- returnType (typeOf tvnv dc)
-    , tc_n == tyCoercion kv = (Coercion (c1 :~ c2), av)
+    , tc_n == tyCoercion kv = (Coercion (c1 :~ c2), tvnv, av)
     | dcs <- dataCon adt
     , _:_ <- dcs =
         let
@@ -214,17 +213,24 @@ getADT cutoff m s@(State { tyvar_env = tvnv, known_values = kv }) av adt ts
             -- Finds the DataCon for adt with the least arguments
             dcs' = MA.mapMaybe checkDC dcs
 
-            min_dc = minimumBy (comparing (length . anonArgumentTypes . typeOf tvnv)) dcs'
+            (min_dc, tvnv') = minimumBy (comparing (length . anonArgumentTypes . typeOf tvnv . fst)) dcs'
 
             m' = foldr (uncurry HM.insert) m $ zip (map idName ids) ts
 
-            (av', es) = mapAccumL (\av_ t -> swap $ arbValueInfinite' (cutoff - 1) m' s (applyTypeHashMap m' t) av_) av 
-                            $ anonArgumentTypes (typeOf tvnv min_dc)
+            ((tvnv'', av'), es) = mapAccumL
+                            (\(tvnv_, av_) t ->
+                                let (e', tvnv_', av_') =
+                                        arbValueInfinite' (cutoff - 1) m' (s { tyvar_env = tvnv_ }) (applyTypeHashMap m' t) av_
+                                in
+                                ((tvnv_', av_'), e')
+                            )
+                            (tvnv', av) 
+                        $ anonArgumentTypes (typeOf tvnv' min_dc)
 
             final_av = if cutoff >= 0 then av' else av
         in
-        (mkApp $ min_dc:es, final_av)
-    | otherwise = (Prim Undefined TyBottom, av)
+        (mkApp $ min_dc:es, tvnv'', final_av)
+    | otherwise = (Prim Undefined TyBottom, tvnv, av)
     where
         -- Figure out which data constructor are compatible with the required type, based on coercions.
         -- Consider:
@@ -249,7 +255,7 @@ getADT cutoff m s@(State { tyvar_env = tvnv, known_values = kv }) av adt ts
 
             let unifMapTy = foldM (\uf -> uncurry (unify' uf))
             -- Union the forall type bindings with the passed type arguments
-            forall_unif <- unifMapTy TV.empty
+            forall_unif <- unifMapTy tvnv
                          . assert (length leading_ty >= length ts)
                          $ zip (map TyVar leading_ty) ts'
             -- Incorporate coercions (a ~ Int) into a unification map
@@ -259,4 +265,4 @@ getADT cutoff m s@(State { tyvar_env = tvnv, known_values = kv }) av adt ts
             let univ_ty = map (\i -> MA.fromMaybe (TyVar i) (TV.lookup (idName i) coer_unif)) (dc_univ_tyvars dc)
             let exist_ty = map (\i -> MA.fromMaybe (TyVar i) (TV.lookup (idName i) coer_unif)) (dc_exist_tyvars dc)
 
-            return . mkApp $ Data dc:map Type univ_ty ++ map Type exist_ty
+            return (mkApp $ Data dc:map Type univ_ty ++ map Type exist_ty, coer_unif)
