@@ -113,7 +113,7 @@ mkTuples ls rs m n | n < 0 = []
 #else
                             ty_n = cons_n
 #endif
-                            ns = if n == 0 then [] else map (\i -> Name "a" m i Nothing) [0..n]
+                            ns = if n == 0 then [] else map (\i -> Name "a" m i Nothing) [0..fromIntegral n]
                             tv = map (TyVar . flip Id TYPE) ns
                         in
                         -- ((s, m, []), [(s, m, [])]) : mkTuples (n - 1)
@@ -138,8 +138,8 @@ mkPrimTuples' n | n < 0 = []
                             m = Just "GHC.Prim"
                             tn = Name s m 0 Nothing
 
-                            ns = if n == 0 then [] else map (\i -> Name "a" m i Nothing) [0..n]
-                            rt_ns = if n == 0 then [] else map (\i -> Name "rt_" m i Nothing) [0..n]
+                            ns = if n == 0 then [] else map (\i -> Name "a" m i Nothing) [0..fromIntegral n]
+                            rt_ns = if n == 0 then [] else map (\i -> Name "rt_" m i Nothing) [0..fromIntegral n]
                             tv = map (TyVar . flip Id TYPE) ns
 
                             t = foldr (TyFun) (mkFullAppedTyCon TV.empty tn tv TYPE) tv

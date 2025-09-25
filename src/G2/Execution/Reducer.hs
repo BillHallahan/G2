@@ -1844,9 +1844,9 @@ mrContIgnoreNRPCTicks genLemma lkp s1 s2 ns hm active n1 n2 e1 e2 =
         _ -> Left []
 
 
-type HPCMemoTable = HM.HashMap Name (HS.HashSet (Int, T.Text))
+type HPCMemoTable = HM.HashMap Name (HS.HashSet (Unique, T.Text))
 
-noNewHPCHalter :: SM.MonadState HPCMemoTable m => HS.HashSet (Maybe T.Text) -> Halter m Int (ExecRes t) t
+noNewHPCHalter :: SM.MonadState HPCMemoTable m => HS.HashSet (Maybe T.Text) -> Halter m Unique (ExecRes t) t
 noNewHPCHalter mod_name = mkSimpleHalter
                                 (const 0)
                                 (\hv _ _ -> hv)
@@ -1867,10 +1867,10 @@ noNewHPCHalter mod_name = mkSimpleHalter
                     else return Continue
             | otherwise = return Continue
         
-        reachesHPC :: (SM.MonadState HPCMemoTable m, ASTContainer c Expr) => ExprEnv -> c -> m (HS.HashSet (Int, T.Text))
+        reachesHPC :: (SM.MonadState HPCMemoTable m, ASTContainer c Expr) => ExprEnv -> c -> m (HS.HashSet (Unique, T.Text))
         reachesHPC eenv es = mconcat <$> mapM (reaches eenv) (containedASTs es) 
 
-        reaches :: SM.MonadState HPCMemoTable m => ExprEnv -> Expr -> m (HS.HashSet (Int, T.Text))
+        reaches :: SM.MonadState HPCMemoTable m => ExprEnv -> Expr -> m (HS.HashSet (Unique, T.Text))
         reaches eenv (Var (Id n _)) = do
             seen <- SM.get
             case HM.lookup n seen of
