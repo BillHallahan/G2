@@ -33,6 +33,7 @@ import qualified Data.HashMap.Lazy as HM
 import qualified Data.HashSet as HS
 import Data.Maybe
 import Data.Monoid
+import Data.Tuple.Extra
 
 import qualified Control.Monad.State as SM
 import G2.Lib.Printers
@@ -507,12 +508,12 @@ elimSymGens arb s = s { expr_env = E.map esg $ expr_env s }
     -- rewrite an Expr if needed.
     esg e = 
         if hasSymGen e
-            then modify (elimSymGens' (tyvar_env s) (type_env s) (known_values s) arb) e
+            then modify (elimSymGens' s arb) e
             else e
 
-elimSymGens' :: TV.TyVarEnv -> TypeEnv -> KnownValues -> ArbValueGen -> Expr -> Expr
-elimSymGens' tv tenv kv arb (SymGen _ t) = fst $ arbValue t tenv tv kv arb
-elimSymGens' _ _ _ _ e = e
+elimSymGens' :: State t -> ArbValueGen -> Expr -> Expr
+elimSymGens' s arb (SymGen _ t) = fst3 $ arbValue s t arb
+elimSymGens' _ _ e = e
 
 hasSymGen :: Expr -> Bool
 hasSymGen = getAny . eval hasSymGen'
