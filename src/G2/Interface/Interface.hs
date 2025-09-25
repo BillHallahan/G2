@@ -1,6 +1,6 @@
 {-# OPTIONS_GHC -Wno-orphans #-}
 
-{-# LANGUAGE BangPatterns, FlexibleContexts, LambdaCase, OverloadedStrings #-}
+{-# LANGUAGE BangPatterns, FlexibleContexts, LambdaCase, OverloadedStrings, RankNTypes #-}
 
 module G2.Interface.Interface ( MkCurrExpr
                               , CurrExprRes (..)

@@ -1,4 +1,4 @@
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE OverloadedStrings, RankNTypes #-}
 
 module G2.Solver.ADTNumericalSolver ( ADTNumericalSolver (..)
                                     , adtNumericalSolFinite

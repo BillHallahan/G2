@@ -3,8 +3,7 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE FunctionalDependencies #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE UndecidableInstances #-}
+{-# LANGUAGE OverloadedStrings, RankNTypes, UndecidableInstances #-}
 
 -- | This contains functions to switch from
 -- (1) A State/Exprs/Types to SMTHeaders/SMTASTs/Sorts
@@ -124,13 +123,13 @@ checkModel' avf con s b (i:is) pc
             r -> return r
 
 getModelVal :: SMTConverter con => ArbValueFunc -> con -> State t -> Bindings -> Id -> PathConds -> IO (Result Model () (), ArbValueGen)
-getModelVal avf con (State { expr_env = eenv, type_env = tenv, known_values = kv, tyvar_env = tvnv }) b (Id n _) pc = do
+getModelVal avf con s@(State { expr_env = eenv, type_env = tenv, known_values = kv, tyvar_env = tvnv }) b (Id n _) pc = do
     let (Just (Var (Id n' t))) = E.lookup n eenv
      
     case PC.null pc of
                 True -> 
                     let
-                        (e, av) = avf t tenv tvnv kv (arb_value_gen b)
+                        (e, av) = avf s t (arb_value_gen b)
                     in
                     return (SAT $ HM.singleton n' e, av) 
                 False -> do
