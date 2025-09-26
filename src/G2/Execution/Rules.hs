@@ -177,14 +177,18 @@ evalVarSharing s@(State { expr_env = eenv
 
             -- create environment Alts with lam names and original tyVar, add to environment
             -- TODO: passing in otv should be cleaner
-            (as, symIds, ng'') = makeAltsForPMRet' (map (\(en, _, mt) -> (en, mt)) ents) outerTyVar ng' outerTyVar
+            (as, symIds, newBinds, ng'') = makeAltsForPMRet' (map (\(en, _, mt) -> (en, mt)) ents) outerTyVar ng' outerTyVar
             asRev = reverse as
             e' = Case (Var scrut) bindee (TyVar outerTyVar) asRev
             eenv'' = E.insert (idName i) e' eenv' 
+    
 
             -- insert all symbolic names created for alt expressions
             eenv''' = foldr E.insertSymbolic eenv'' symIds  
-
+            
+            -- insert new non-symbolic ids
+            -- eenv'''' = foldr (\(newId, newB) eenv_ -> E.insert (idName newId) newB eenv_) eenv''' newBinds
+            --- eenv'''' = E.insert (idName newN) newB eenv'''
             -- rename for current execution path, return as CurrExpr, don't insert in env
             e'' = renames (HM.fromList ((otvN, tyIdN):map (\(en, r, _) -> (en, r)) ents)) e'
 
@@ -231,21 +235,35 @@ evalVarNoSharing s@(State { expr_env = eenv })
         (RuleEvalVarNonVal (idName i), [s { curr_expr = CurrExpr Evaluate e }], ng)
     | otherwise = error  $ "evalVar: bad input." ++ show i
 
-makeAltsForPMRet' :: [(Name, Maybe Type)] -> Id -> NameGen -> Id -> ([Alt], [Id], NameGen)
-makeAltsForPMRet' es tvid ng otv = (\(a, i, n, _) -> (a, i, n)) $ foldr makeEntryAndNames ([], [], ng, 1) es
-    where makeEntryAndNames :: (Name, Maybe Type) -> ([Alt], [Id], NameGen, Int) -> ([Alt], [Id], NameGen, Int)
-          makeEntryAndNames (n, ty) (as, symIds, ng_, l) =
+makeAltsForPMRet' :: [(Name, Maybe Type)] -> Id -> NameGen -> Id -> ([Alt], [Id], Binds, NameGen)
+makeAltsForPMRet' es tvid ng otv = (\(a, si, bs, n, _) -> (a, si, bs, n)) $ foldr makeEntryAndNames ([], [], [], ng, 1) es
+    where makeEntryAndNames :: (Name, Maybe Type) -> ([Alt], [Id], Binds, NameGen, Int) -> ([Alt], [Id], Binds, NameGen, Int)
+          makeEntryAndNames (n, mty) (as, newSymIds, binds, ng_, l) =
             let
                 -- TODO: this could be cleaned up
-                (aExpr, newSymIds, ng') = case ty of
+                (aExpr, symIds, bind', ng') = case mty of
                     Just typ -> let
-                            neededTypes = TyFun (rename (idName tvid) (idName otv) $ snd . argTypes $ typ) (TyVar tvid):(fst . argTypes $ typ)
-                            (newSyms@(collFunId:faArgIds), ngFA) = freshIds neededTypes ng_
+                            -- get types for collector function and arguments to func arg
+                            (fatys, rty) = argTypes typ
+                            collTy:faArgTys = (TyFun (rename (idName tvid) (idName otv) $ rty) (TyVar tvid)):fatys
+                            -- ids for collector function and arguments to func arg
+                            (newSyms@(collFunId:faArgIds), ngFA) = freshIds (collTy:faArgTys) ng_
+                            -- id for application and bindee
+                            ([appId, bindee], ngFA') = freshIds [rty, TyVar otv] ngFA
+
+                            -- application expr
+                            appScrut = mkApp (Var (Id n typ):map Var faArgIds) -- function arg application 
+                            -- _ -> Coll appId
+                            collAlt = Alt {altMatch = Default, altExpr = mkApp [Var collFunId, Var appId]}
+                            -- Case appId of _ -> (Coll appId)
+                            caseE = Case (Var appId) bindee (TyVar otv) [collAlt]
+                            -- Let appId = func [args] in Case appId of _ -> (Coll appId)
+                            letE = Let [(appId, appScrut)] caseE
                         in
-                            (mkApp [Var collFunId, mkApp (Var (Id n typ):map Var faArgIds)], newSyms, ngFA)
-                    Nothing -> (Var (Id n (TyVar tvid)), symIds, ng_)
+                            (letE, newSyms, [(appId, appScrut)], ngFA') -- Case to force evaluation
+                    Nothing -> (Var (Id n (TyVar tvid)), [], [], ng_)
             in
-                (Alt {altMatch = if length as >= (len-1) then Default else LitAlt (LitInt $ toInteger l) , altExpr = aExpr}:as, newSymIds ++ symIds, ng', l+1)
+                (Alt {altMatch = if length as >= (len-1) then Default else LitAlt (LitInt $ toInteger l) , altExpr = aExpr}:as, newSymIds ++ symIds, bind'++binds, ng', l+1)
           len = length es
 
 -- | If we have a primitive operator, we are at a point where either:
@@ -1417,7 +1435,7 @@ liftBind bindsLHS@(Id _ lhsTy) bindsRHS eenv expr ngen pargm tarm = (eenv'', exp
 -- | Modifications to the ExprEnv and PolyArgMap that are needed when solving for RankNTypes-enabled functions.
 termLamRNTModifs :: Expr -> Type -> Name -> Name -> E.ExprEnv 
     -> PM.PolyArgMap -> TRM.TypeAppRenameMap -> (E.ExprEnv, PM.PolyArgMap)
-termLamRNTModifs expr lhsTy old new eenv pargm tarm = (eenv', pargm') 
+termLamRNTModifs expr lhsTy old new eenv pargm tarm = (eenv', pargm'') 
     where
         -- Will rename the new binding across environment entries where needed. This is required
         -- for polymorphic functions, which, after solving, will have definitions split across
@@ -1434,7 +1452,13 @@ termLamRNTModifs expr lhsTy old new eenv pargm tarm = (eenv', pargm')
             , PM.member envTy pargm = PM.insertRename envTy old new Nothing pargm 
             | otherwise = pargm 
 
-        -- TODO: collect function arguments
+        -- if LHS type is a function with return type containing tyVars, insert the env-runtime renaming into PAM entries
+        pargm'' | (TyFun _ _) <- lhsTy 
+                , (_, tr) <- argTypes lhsTy = let
+            contTyVarsEnv = foldr (\(Id tvn _) ets -> maybe ets (: ets) (TRM.lookup tvn tarm)) [] (tyVarIds tr)
+            in
+            foldr (\tvN pam -> PM.insertRename tvN old new (Just lhsTy) pam) pargm' contTyVarsEnv
+            | otherwise = pargm'
 
 type SymbolicFuncEval t = SymFuncTicks -> State t -> NameGen -> Expr -> Maybe (Rule, [State t], NameGen)
 
