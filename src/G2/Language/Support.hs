@@ -31,6 +31,8 @@ import G2.Language.Typing
 import qualified G2.Language.TyVarEnv as TV
 import G2.Language.PathConds hiding (map, filter)
 import G2.Execution.RuleTypes
+import qualified G2.Language.PolyArgMap as PM
+import qualified G2.Language.TypeAppRenameMap as TRM
 
 import GHC.Generics (Generic)
 import Data.Data (Data, Typeable)
@@ -47,6 +49,8 @@ import qualified Data.Text as T
 data State t = State { expr_env :: E.ExprEnv -- ^ Mapping of `Name`s to `Expr`s
                      , type_env :: TypeEnv -- ^ Type information
                      , tyvar_env :: TV.TyVarEnv -- ^ Type variable information
+                     , poly_arg_map :: PM.PolyArgMap -- ^ Type variable to lambda variable mappings 
+                     , ty_app_re_map :: TRM.TypeAppRenameMap -- ^ Runtime type variable to environment type variable mappings
                      , curr_expr :: CurrExpr -- ^ The expression represented by the state
                      , path_conds :: PathConds -- ^ Path conditions, in SWHNF
                      , non_red_path_conds :: NonRedPathConds -- ^ Path conditions, in the form of (possibly non-reduced)
@@ -201,6 +205,8 @@ instance Named t => Named (State t) where
     names s = names (expr_env s)
             <> names (type_env s)
             <> names (tyvar_env s)
+            <> names (poly_arg_map s)
+            <> names (ty_app_re_map s)
             <> names (curr_expr s)
             <> names (path_conds s)
             <> names (non_red_path_conds s)
@@ -222,6 +228,8 @@ instance Named t => Named (State t) where
                     HM.mapKeys (\k -> if k == old then new else k)
                     $ rename old new (type_env s)
                , tyvar_env = rename old new (tyvar_env s)
+               , poly_arg_map = rename old new (poly_arg_map s)
+               , ty_app_re_map = rename old new (ty_app_re_map s)
                , curr_expr = rename old new (curr_expr s)
                , path_conds = rename old new (path_conds s)
                , non_red_path_conds = rename old new (non_red_path_conds s)
@@ -248,6 +256,8 @@ instance Named t => Named (State t) where
                     HM.mapKeys (renames hm)
                     $ renames hm (type_env s)
                , tyvar_env = renames hm (tyvar_env s)
+               , poly_arg_map = renames hm (poly_arg_map s)
+               , ty_app_re_map = renames hm (ty_app_re_map s)
                , curr_expr = renames hm (curr_expr s)
                , path_conds = renames hm (path_conds s)
                , non_red_path_conds = renames hm (non_red_path_conds s)

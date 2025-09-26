@@ -49,11 +49,15 @@ import qualified Data.Sequence as S
 import G2.Data.Utils
 import qualified G2.Data.UFMap as UF
 import qualified G2.Language.TyVarEnv as TV
+import qualified G2.Language.PolyArgMap as PM
+import qualified G2.Language.TypeAppRenameMap as TRM
 
 import Control.Exception
 import Control.Monad.Extra
 import Data.Maybe
 import Data.Traversable
+import Data.Int (Int)
+import Debug.Trace
 
 stdReduce :: (Solver solver, Simplifier simplifier) => Sharing -> SymbolicFuncEval t -> solver -> simplifier -> State t -> Bindings -> IO (Rule, [(State t, ())], Bindings)
 stdReduce share symb_func_eval solver simplifier s b@(Bindings {name_gen = ng}) = do
@@ -133,8 +137,67 @@ mapAccumMaybeM f s xs = do
 
 evalVarSharing :: State t -> NameGen -> Id -> (Rule, [State t], NameGen)
 evalVarSharing s@(State { expr_env = eenv
-                        , exec_stack = stck })
+                        , exec_stack = stck
+                        , poly_arg_map = pargm
+                        , ty_app_re_map = tarm })
                ng i
+    -- The value being evaluated is a symbolic type variable, which will only occur as
+    -- (or in) the return value of a polymorphic function. The type variable must also
+    -- have an entry in the PolyArgMap, which shows how arguments of that type have been
+    -- renamed during execution. A case expression with a symbolic Int as scrutinee is used to select
+    -- which PolyArgMap argument to return. We also lookup the value in the ExprEnv to find
+    -- the original type variable name, prior to renaming for the TVE.
+    --
+    -- Two expressions are involved in this rule:
+    --      1. e' = Case (Var scrut) tvid (TyVar outerTyVar) as
+    --          - Uses the original TyVar name and collected arguments as they appear in
+    --          the environment (pre-renaming)
+    --          - will be added to the environment
+    --      2. e'' - renaming in e'
+    --          - uses the runtime TyVar name and renamed collected arguments
+    --          - will be returned as the current expression
+    -- This allows us to solve for the function definition in the environment while also executing
+    -- the function (renaming TyVars, applying term lambdas, etc).
+    --
+    | (Id idN (TyVar (Id tyIdN _))) <- i  -- PM-RETURN
+    , E.isSymbolic idN eenv
+    , Just envTyIdN <- TRM.lookup tyIdN tarm
+    , Just ents@(_:_) <- PM.lookup envTyIdN pargm = 
+        let 
+            -- fresh ids
+            ([bindee, scrut], ng') = freshIds [TyLitInt, TyLitInt] ng
+            eenv' = E.insertSymbolic scrut eenv
+
+            -- TODO: make this match getTyVarRenameMap usage
+            -- lookup original outer (pre-refnaming) type variable 
+            outerTyVar@(Id otvN _) = case E.lookup idN eenv of
+                            Just (Var (Id _ (TyVar envTyId))) -> envTyId
+                            _ -> error "PM-RETURN: env lookup failed"
+
+            -- get vals
+            tvVals = map (\(env, run, _) -> (env, run)) (filter (\(_, _, mt) -> isNothing mt) ents)
+
+            -- create environment Alts with lam names and original tyVar, add to environment
+            as = makeAltsForPMRet (map fst tvVals) outerTyVar
+            e' = Case (Var scrut) bindee (TyVar outerTyVar) as
+            eenv'' = E.insert (idName i) e' eenv'      
+
+            -- rename for current execution path, return as CurrExpr, don't insert in env
+            e'' = renames (HM.fromList ((otvN, tyIdN):tvVals)) e'
+        in
+            (RuleEvalVarPoly, [s { curr_expr = CurrExpr Evaluate e''
+                                 , expr_env = eenv''}], ng') 
+    -- If a symbolic tyVar did not match PM-RETURN, then it is unrealizable. If 
+    -- it was not caught here it would be returned as an undefined and crash 
+    -- execution. There are still some unrealizable sym tyVars that can match on PM-RET, 
+    -- but they will only result in infinite function applications, which can be
+    -- mitigated in other ways.
+    -- TODO: this comment talks about changes to PM-RET's guards that have not been implemented yet
+    | (Id _ (TyVar (Id tyIdN _))) <- i
+    , E.isSymbolic (idName i) eenv
+    , Just envTyIdN <- TRM.lookup tyIdN tarm
+    , Just [] <- PM.lookup envTyIdN pargm = 
+        (RuleEvalVal, [], ng)      
     | E.isSymbolic (idName i) eenv =
         (RuleEvalVal, [s { curr_expr = CurrExpr Return (Var i)}], ng)
     -- If the target in our environment is already a value form, we do not
@@ -163,6 +226,14 @@ evalVarNoSharing s@(State { expr_env = eenv })
     | Just e <- E.lookup (idName i) eenv =
         (RuleEvalVarNonVal (idName i), [s { curr_expr = CurrExpr Evaluate e }], ng)
     | otherwise = error  $ "evalVar: bad input." ++ show i
+
+makeAltsForPMRet :: [Name] -> Id -> [Alt] -- TODO: Default caused problems
+makeAltsForPMRet ns tyVarId = go ns tyVarId 1
+    where 
+        go :: [Name] -> Id -> Int -> [Alt]
+        go [n] tvid _ = [Alt {altMatch = Default, altExpr = Var (Id n (TyVar tvid))}]
+        go (n:ns) tvid l = Alt {altMatch = LitAlt (LitInt $ toInteger l), altExpr = Var (Id n (TyVar tvid))}:go ns tvid (l+1)
+        go [] _ _ = error "makeAltsForPMRet: reached empty list"
 
 -- | If we have a primitive operator, we are at a point where either:
 --    (1) We can concretely evaluate the operator, or
@@ -242,7 +313,7 @@ evalLam :: State t -> LamUse -> Id -> Expr -> (Rule, [State t])
 evalLam = undefined
 
 retLam :: State t -> NameGen -> LamUse -> Id -> Expr -> Expr -> S.Stack Frame -> (Rule, [State t], NameGen)
-retLam s@(State { expr_env = eenv, tyvar_env = tvnv })
+retLam s@(State { expr_env = eenv, tyvar_env = tvnv, poly_arg_map = pargm, ty_app_re_map = tarm })
        ng u i e ae stck'
     | TypeL <- u =
         case TV.deepLookup tvnv ae of
@@ -251,23 +322,83 @@ retLam s@(State { expr_env = eenv, tyvar_env = tvnv })
                 (n', ng') = freshSeededName (idName i) ng 
                 e' = rename (idName i) n' e
                 tvnv' = TV.insert n' t tvnv
+
+                (e'', eenv', ng'', pargm', tarm') = typeLamRNTModifs (idName i) n' e' eenv ng' pargm tarm
             in 
            ( RuleReturnEApplyLamType [n']
-            , [ s { expr_env = eenv
-                 , curr_expr = CurrExpr Evaluate e'
+            , [ s { expr_env = eenv'
+                 , curr_expr = CurrExpr Evaluate e''
                  , exec_stack = stck' 
-                 , tyvar_env = tvnv' } ]
-            , ng' )
+                 , tyvar_env = tvnv'
+                 , poly_arg_map = pargm'
+                 , ty_app_re_map = tarm' } ]
+            , ng'' )
         Nothing -> error $ "retLam: Bad type\ni = " ++ show i
     | otherwise =
         let
-            (eenv', e', ng', news) = liftBind i ae eenv e ng
+            (eenv', e', ng', news, pargm') = liftBind i ae eenv e ng pargm tarm
         in
         ( RuleReturnEApplyLamExpr [news]
         , [s { expr_env = eenv'
              , curr_expr = CurrExpr Evaluate e'
-             , exec_stack = stck' }]
-        , ng')
+             , exec_stack = stck' 
+             , poly_arg_map = pargm'}]
+        , ng' )
+
+-- | Modifications to the ExprEnv and PolyArgMap that are needed when solving for RankNTypes-enabled functions.
+typeLamRNTModifs :: Name -> Name -> Expr -> E.ExprEnv -> NameGen 
+    -> PM.PolyArgMap -> TRM.TypeAppRenameMap -> (Expr, E.ExprEnv, NameGen, PM.PolyArgMap, TRM.TypeAppRenameMap)
+typeLamRNTModifs n n' e eenv ng pargm tarm = (e', eenv', ng', pargm', tarm') where
+     -- If the inner expression is a non-symbolic Id (PM function that has been solved for),
+    -- perform renaming/retyping for the current execution.
+    (e', eenv', ng') | PM.member n pargm 
+        = newBindingsForExecutionAtType n n' e eenv ng
+        | otherwise = (e, eenv, ng)
+    
+    -- PAM entries will have access to different arguments on different
+    -- branches of the solved function, so it is necessary to clear
+    -- collected arguments for each new execution of the function.
+    --
+    -- If the tyVar is present in the PAM, make TARM entry
+    -- and empty PAM entry. tyVars can only be added to the PAM
+    -- originally through the PM-FORALL rule, so this avoids adding 
+    -- tyVars that are not part of a rank-N-type.
+    (pargm', tarm') = if PM.member n pargm 
+        then (PM.insertTV n pargm, TRM.insert n' n tarm)
+        else (pargm, tarm)
+
+-- TODO: Need to consider more expression types and make this cleaner.
+-- | Create new bindings using an existing polymorphic function body, to be used for a particular execution
+-- of that function. The top-level binding of the body is used to start the renaming/retyping and it is 
+-- returned in its renamed/retyped form. All symbolic (unsovled) parts of the defintion are not renamed, so when they
+-- are potentially solved later in execution, the function definition in the environment for the original tyVar will
+-- be updated with the new expression.
+newBindingsForExecutionAtType :: Name -> Name -> Expr -> E.ExprEnv -> NameGen -> (Expr, E.ExprEnv, NameGen)
+newBindingsForExecutionAtType old new e eenv ng = case e of
+    -- New Ids of a renamed type are created and bound to the corresponding 
+    -- piece of the definition from the original function. Ids within that
+    -- definition have also been renamed/retyped and bound in the env.
+    Var (Id n t) | Just binding <- E.lookup n eenv, not (E.isSymbolic n eenv) -> let
+            (i', ng') = freshId (rename old new t) ng
+            (e', eenv', ng'') = newBindingsForExecutionAtType old new binding eenv ng' -- get new definition
+            eenv'' = E.insert (idName i') (rename old new e') eenv'
+                    in 
+                        (Var i', eenv'', ng'')
+    Lam u i ie -> let (ie', eenv', ng') = newBindingsForExecutionAtType old new ie eenv ng
+                    in (Lam u i ie', eenv', ng')
+    Tick ti ie -> let (ie', eenv', ng') = newBindingsForExecutionAtType old new ie eenv ng
+                    in (Tick ti ie', eenv', ng')
+    (Case s b t as) -> let (as', eenv', ng') = foldr (\(Alt am ae) (r_as, r_env, r_ng) -> let 
+                                (curr_e, curr_env, curr_ng) = newBindingsForExecutionAtType old new ae r_env r_ng
+                                in
+                                ((Alt am curr_e):r_as, curr_env, curr_ng))
+                            ([], eenv, ng) as
+                    in (Case s b t as', eenv', ng')
+    (App e1 e2) -> let 
+            (e1', eenv', ng') = newBindingsForExecutionAtType old new e1 eenv ng
+            (e2', eenv'', ng'') = newBindingsForExecutionAtType old new e2 eenv' ng'
+                    in (App e1' e2', eenv'', ng'')
+    _ -> (e, eenv, ng)
 
 evalLet :: State t -> NameGen -> Binds -> Expr -> (Rule, [State t], NameGen)
 evalLet s@(State { expr_env = eenv }) 
@@ -1270,16 +1401,39 @@ liftBinds kv type_binds value_binds tv_env eenv expr ngen = (tv_env', eenv', exp
 
     expr'' = renamesExprs val_olds_news $ replaceTyVars ty_olds_news expr'
 
-liftBind :: Id -> Expr -> E.ExprEnv -> Expr -> NameGen ->
-             (E.ExprEnv, Expr, NameGen, Name)
-liftBind bindsLHS bindsRHS eenv expr ngen = (eenv', expr', ngen', new)
+liftBind :: Id -> Expr -> E.ExprEnv -> Expr -> NameGen -> PM.PolyArgMap -> TRM.TypeAppRenameMap ->
+             (E.ExprEnv, Expr, NameGen, Name, PM.PolyArgMap)
+liftBind bindsLHS@(Id _ lhsTy) bindsRHS eenv expr ngen pargm tarm = (eenv'', expr', ngen', new, pargm')
   where
     old = idName bindsLHS
     (new, ngen') = freshSeededName old ngen
 
     expr' = renameExpr old new expr
 
-    eenv' = E.insert new bindsRHS eenv
+    (eenv', pargm') = termLamRNTModifs expr' lhsTy old new eenv pargm tarm
+    eenv'' = E.insert new bindsRHS eenv'
+
+-- | Modifications to the ExprEnv and PolyArgMap that are needed when solving for RankNTypes-enabled functions.
+termLamRNTModifs :: Expr -> Type -> Name -> Name -> E.ExprEnv 
+    -> PM.PolyArgMap -> TRM.TypeAppRenameMap -> (E.ExprEnv, PM.PolyArgMap)
+termLamRNTModifs expr lhsTy old new eenv pargm tarm = (eenv', pargm') 
+    where
+        -- Will rename the new binding across environment entries where needed. This is required
+        -- for polymorphic functions, which, after solving, will have definitions split across
+        -- environment entries. It is okay to modify the entires directly, because these entries
+        -- will have been created specifically for this execution of the function when a type was
+        -- applied to the function. See newBindingsForExecutionAtType
+        eenv' | (TyVar (Id lhsTyName _)) <- lhsTy 
+          , Just envName <- TRM.lookup lhsTyName tarm 
+          , PM.member envName pargm = foldr (E.deepRename old new . idName) eenv $ ids expr
+          | otherwise = eenv
+        -- Collect new argument name and renaming if currently solving an RNT function. 
+        pargm' | TyVar (Id lhsTyName _) <- lhsTy 
+            , Just envTy <- TRM.lookup lhsTyName tarm 
+            , PM.member envTy pargm = PM.insertRename envTy old new Nothing pargm 
+            | otherwise = pargm 
+
+        -- TODO: collect function arguments
 
 type SymbolicFuncEval t = SymFuncTicks -> State t -> NameGen -> Expr -> Maybe (Rule, [State t], NameGen)
 
@@ -1322,11 +1476,14 @@ retReplaceSymbFuncTemplate :: SymFuncTicks -> State t -> NameGen -> Expr -> Mayb
 retReplaceSymbFuncTemplate sft
                            s@(State { expr_env = eenv
                                     , type_env = tenv
-                                    , known_values = kv })
+                                    , poly_arg_map = pargm
+                                    , known_values = kv
+                                    , tyvar_env = tve
+                                    , ty_app_re_map = tarm })
                            ng ce
 
     -- DC-SPLIT
-    | Var (Id n (TyFun t1 t2)):es <- unApp ce
+    | Var (Id n nTy@(TyFun t1 t2)):es <- unApp ce
     , TyCon tname _:ts <- unTyApp t1 
     , E.isSymbolic n eenv
     , Just alg_data_ty <- HM.lookup tname tenv
@@ -1351,37 +1508,55 @@ retReplaceSymbFuncTemplate sft
         -- alts = map (\dc -> Alt (Alt)) dcs
         e = Lam TermL x $ Case (Tick (dc_split_tick sft) (Var x)) x' t2 alts
         e' = mkApp (e:es)
-        eenv' = foldr E.insertSymbolic eenv symIds
-        eenv'' = E.insert n e eenv'
+
+        -- get forall bound tyVar names, rename bindings for env
+        (e'', symIds') = (retypeToEnvTVs e tarm, map (`retypeToEnvTVs` tarm) symIds)
+
+        eenv' = foldr E.insertSymbolic eenv symIds'
+        eenv'' = E.insert n e'' eenv'
         (constState, ng'''') = mkFuncConst sft s es n t1 t2 ng'''
-    in Just (RuleReturnReplaceSymbFunc, [constState, s {
-        curr_expr = CurrExpr Evaluate e',
-        expr_env = eenv''
-    }], ng'''')
+        in Just (RuleReturnReplaceSymbFunc, [constState, s {
+            curr_expr = CurrExpr Evaluate e',
+            expr_env = eenv''
+        }], ng'''')
 
     -- FUNC-APP
     | Var (Id n (TyFun t1@(TyFun _ _) t2)):es <- unApp ce
     , E.isSymbolic n eenv
+    , (tfs, tr) <- argTypes t1
+    -- don't explore behavior of function arguments with tyVar arguments, cannot 
+    -- reliably create symbolic tyVars until all top-level arguments are processed.
+    -- Functions not matching here are processed by PM-FUNC-ARG
+    , null $ tyVarIds (tr:tfs) -- reject if any tyVars
     = let
-        (tfs, tr) = argTypes t1
         (xIds, ng') = freshIds tfs ng
         xs = map Var xIds
         (fId, ng'') = freshId (TyFun tr $ TyFun t1 t2) ng'
         f = Var fId
         (fa, ng''') = freshId t1 ng''
         e = Lam TermL fa . Tick (func_split_tick sft) $ mkApp [f, mkApp (Var fa : xs), Var fa]
-        eenv' = foldr E.insertSymbolic eenv xIds
-        -- eenv'' = E.insertSymbolic (idName fId) fId eenv'
-        eenv'' = E.insertSymbolic fId eenv'
-        eenv''' = E.insert n e eenv''
+        -- get forall bound tyVar names, rename bindings for env
+        (xIds', fId', e') = (map (`retypeToEnvTVs` tarm) xIds, retypeToEnvTVs fId tarm, retypeToEnvTVs e tarm)
+        eenv' = foldr E.insertSymbolic eenv xIds'
+        eenv'' = E.insertSymbolic fId' eenv'
+        eenv''' = E.insert n e' eenv''
         (constState, ng'''') = mkFuncConst sft s es n t1 t2 ng'''
     in Just (RuleReturnReplaceSymbFunc, [constState, s {
         curr_expr = CurrExpr Evaluate $ mkApp (e:es),
         expr_env = eenv'''
     }], ng'''')
 
+    -- FUNC-ARG-TV
+    | Var (Id n (TyFun t1@(TyFun _ _) t2)):es <- unApp ce
+    , E.isSymbolic n eenv
+    , (tfs, tr) <- argTypes t1
+    , not . null $ tyVarIds (tr:tfs) 
+    = let
+        (constState, ng') = mkFuncConst sft s es n t1 t2 ng
+    in Just (RuleReturnReplaceSymbFunc, [constState], ng')
+
     -- LIT-SPLIT
-    | Var (Id n (TyFun t1 t2)):ea:es <- unApp ce
+    | Var (Id n nTy@(TyFun t1 t2)):ea:es <- unApp ce
     , isPrimType t1
     , E.isSymbolic n eenv
     = let
@@ -1394,14 +1569,51 @@ retReplaceSymbFuncTemplate sft
         e = Lam TermL xId $ Case (Tick (lit_split_tick sft) (mkApp [eqT1, x, ea])) discrimId t2
            [ Alt (DataAlt trueDc []) (Var f1Id)
            , Alt (DataAlt falseDc []) (App (Var f2Id) x)]
-        eenv' = foldr E.insertSymbolic eenv [f1Id, f2Id]
-        eenv'' = E.insert n e eenv'
+
+        -- get forall bound tyVar names, rename bindings for env
+        (e', f1Id', f2Id') = (retypeToEnvTVs e tarm, retypeToEnvTVs f1Id tarm, retypeToEnvTVs f2Id tarm)
+
+        eenv' = foldr E.insertSymbolic eenv [f1Id', f2Id']
+        eenv'' = E.insert n e' eenv'
     in Just (RuleReturnReplaceSymbFunc, [s {
         -- because we are always going down true branch
         curr_expr = CurrExpr Evaluate (mkApp (Var f1Id:es)),
         expr_env = eenv''
     }], ng')
+
+    -- PM-FORALL
+    -- TODO: maybe call mkFuncConst with LamUse as argument?
+    | Var (Id n (TyForAll tyVarId@(Id tyVarN _) faTy)):_ <- unApp ce
+    , E.isSymbolic n eenv
+    = let
+        -- create name of new sym
+        ([f1Id], ng') = freshIds [faTy] ng
+        -- create type level lambda
+        e = Lam TypeL tyVarId $ Var f1Id
+        -- new environment bindings
+        eenv' = E.insertSymbolic f1Id eenv
+        eenv'' = E.insert n e eenv'
+        -- insert empty PAM mapping
+        pargm' = PM.insertTV tyVarN pargm
+    in Just (RuleReturnReplaceSymbFunc, [
+        s {
+        curr_expr = CurrExpr Evaluate e,
+        expr_env = eenv'',
+        poly_arg_map = pargm'
+    }], ng')
+
+    -- PM-ARG
+    -- TODO: do TARM/PAM check?
+    | Var (Id n (TyFun t1@(TyVar (Id _ _)) t2)):es <- unApp ce
+    , E.isSymbolic n eenv
+    = let
+        (constState, ng') = mkFuncConst sft s es n t1 t2 ng
+    in Just (RuleReturnReplaceSymbFunc, [constState], ng')
+
     | otherwise = Nothing
+
+retypeToEnvTVs :: (Named a) => a -> TRM.TypeAppRenameMap -> a
+retypeToEnvTVs nd tarm = renames (HM.fromList . TRM.toList $ tarm) nd
 
 argTypes :: Type -> ([Type], Type)
 argTypes t = (anonArgumentTypes t, returnType t)
@@ -1412,12 +1624,15 @@ genArgIds (DataCon _ dcty _ _) ng =
     in foldr (\ty (is, ng') -> let (i, ng'') = freshId ty ng' in ((i:is), ng'')) ([], ng) argTys
 
 mkFuncConst :: SymFuncTicks -> State t -> [Expr] -> Name -> Type -> Type -> NameGen -> (State t, NameGen)
-mkFuncConst sft s@(State { expr_env = eenv } ) es n t1 t2 ng =
+mkFuncConst sft s@(State { expr_env = eenv, ty_app_re_map = tarm } ) es n t1 t2 ng =
     let
+        -- make new Ids and runtime expression
         (fId:xId:[], ng') = freshIds [t2, t1] ng
-        eenv' = foldr E.insertSymbolic eenv [fId]
         e = Lam TermL xId . Tick (const_tick sft) $ Var fId
-        eenv'' = E.insert n e eenv'
+        -- get forall bound tyVar names, rename bindings for env
+        (e', fId') = (retypeToEnvTVs e tarm, retypeToEnvTVs fId tarm)
+        eenv' = foldr E.insertSymbolic eenv [fId']
+        eenv'' = E.insert n e' eenv'
     in (s {
         curr_expr = CurrExpr Evaluate $ mkApp (e:es),
         -- symbolic_ids = fId:symbolic_ids state,

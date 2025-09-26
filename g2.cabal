@@ -121,6 +121,8 @@ library
                        , G2.Language.TypeEnv
                        , G2.Language.Typing
                        , G2.Language.TyVarEnv
+                       , G2.Language.PolyArgMap
+                       , G2.Language.TypeAppRenameMap
 
                        , G2.Lib.Printers
 
