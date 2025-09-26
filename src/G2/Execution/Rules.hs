@@ -325,12 +325,8 @@ retLam s@(State { expr_env = eenv, tyvar_env = tvnv, poly_arg_map = pargm, ty_ap
 
                 -- If the inner expression is a non-symbolic Id (PM function that has been solved for),
                 -- perform renaming/retyping for the current execution.
-                -- TODO: non-symbolic Id being PM function is not guaranteed or future-proof, stronger check here.
-                (e'', eenv', ng'') = case e' of
-                    (Var (Id idN _)) -> if E.isSymbolic idN eenv 
-                        then (e', eenv, ng') 
-                        else newBindingsForExecutionAtType (idName i) n' e' eenv ng'
-                    _ ->  (e', eenv, ng')
+                (e'', eenv', ng'') | PM.member (idName i) pargm = newBindingsForExecutionAtType (idName i) n' e' eenv ng'
+                                   | otherwise = (e', eenv, ng')
                 
                 -- PAM entries will have access to different arguments on different
                 -- branches of the solved function, so it is necessary to clear
@@ -1399,14 +1395,12 @@ liftBind bindsLHS@(Id _ lhsTy) bindsRHS eenv expr ngen pargm tarm = (eenv'', exp
     -- environment entries. It is okay to modify the entires directly, because these entries
     -- will have been created specifically for this execution of the function when a type was
     -- applied to the function. See newBindingsForExecutionAtType
-    eenv' = foldr (potentialDeepRename . idName) eenv $ ids expr
-        where potentialDeepRename :: Name -> E.ExprEnv -> E.ExprEnv 
-              potentialDeepRename exN_ eenv_ 
-                    | (TyVar (Id lhsTyName _)) <- lhsTy 
-                    , Just envName <- TRM.lookup lhsTyName tarm 
-                    , PM.member envName pargm = E.deepRename old new exN_ eenv_
-                | otherwise = eenv_ 
+    eenv' | (TyVar (Id lhsTyName _)) <- lhsTy 
+          , Just envName <- TRM.lookup lhsTyName tarm 
+          , PM.member envName pargm = foldr (E.deepRename old new . idName) eenv $ ids expr
+          | otherwise = eenv
 
+    -- Collect new argument name and renaming if currently solving an RNT function. 
     pargm' | TyVar (Id lhsTyName _) <- lhsTy 
            , Just envTy <- TRM.lookup lhsTyName tarm 
            , PM.member envTy pargm = PM.insertRename envTy old new Nothing pargm 
