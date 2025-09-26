@@ -1,3 +1,5 @@
+{-# LANGUAGE RankNTypes #-}
+
 module RankN where
 
 identity :: (forall a. a -> a) -> Int
