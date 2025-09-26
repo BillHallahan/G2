@@ -1,8 +1,9 @@
-{-# LANGUAGE OverloadedStrings, CPP #-}
+{-# LANGUAGE FlexibleContexts, OverloadedStrings, CPP #-}
 module G2.Translation.ValidateState (
     loadSession,
     validateState,
-    printStateOutput
+    printStateOutput,
+    toEnclodeFloat
 ) where
 
 #if MIN_VERSION_GLASGOW_HASKELL(9,0,2,0)
@@ -76,4 +77,24 @@ printStateOutput config entry b m_valid exec_res@(ExecRes { final_state = s }) =
         _ -> T.putStrLn $ print_method mvp inp outp <> "\t| generated: " <> T.intercalate ", " (toList sym_gen_out)
     if handles /= "" then T.putStrLn handles else return ()
 
+
+toEnclodeFloat :: ASTContainer m Expr => m -> m
+toEnclodeFloat = modifyASTs go
+    where
+        go (App (Data (DataCon { dc_name = dcn })) (Lit (LitFloat f)))
+            | not (isNaN f), not (isInfinite f), not (isNegativeZero f), nameOcc dcn == "F#" =
+                let (m, n) = decodeFloat f in mkApp [encFloat, iCon $ Lit (LitInteger m), iCon $ Lit (LitInt $ toInteger n)]
+        go (App (Data (DataCon { dc_name = dcn })) (Lit (LitDouble f)))
+            | not (isNaN f), not (isInfinite f), not (isNegativeZero f), nameOcc dcn == "D#" =
+                let (m, n) = decodeFloat f in mkApp [encFloat, iCon $ Lit (LitInteger m), iCon $ Lit (LitInt $ toInteger n)]
+        go (Lit (LitFloat f))
+            | not (isNaN f), not (isInfinite f), not (isNegativeZero f) =
+                let (m, n) = decodeFloat f in mkApp [encFloat, iCon $ Lit (LitInteger m), iCon $ Lit (LitInt $ toInteger n)]
+        go (Lit (LitDouble f))
+            | not (isNaN f), not (isInfinite f), not (isNegativeZero f) =
+                let (m, n) = decodeFloat f in mkApp [encFloat, iCon $ Lit (LitInteger m), iCon $ Lit (LitInt $ toInteger n)]
+        go e = e
+
+        iCon = App (Data (DataCon { dc_name = Name "Z#" Nothing 0 Nothing, dc_type = TyUnknown, dc_exist_tyvars = [], dc_univ_tyvars = [] }))
+        encFloat = Var (Id (Name "encodeFloat" Nothing 0 Nothing) TyUnknown)
             

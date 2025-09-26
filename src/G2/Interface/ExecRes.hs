@@ -21,6 +21,7 @@ data ExecRes t = ExecRes { final_state :: State t -- ^ The final state.
                          , conc_mutvars :: [(Name, MVOrigin, Expr)]
                          , conc_handles :: [(Name, Expr)]
                          , violated :: Maybe FuncCall -- ^ A violated assertion
+                         , validated :: Maybe Bool
                          } deriving (Show, Read)
 
 printInputOutput :: PrettyGuide
@@ -124,14 +125,16 @@ instance ASTContainer t Expr => ASTContainer (ExecRes t) Expr where
                                    , conc_sym_gens = g
                                    , conc_mutvars = mv
                                    , conc_handles = h
-                                   , violated = fc }) =
+                                   , violated = fc
+                                   , validated = v }) =
         ExecRes { final_state = modifyContainedASTs f s
                 , conc_args = modifyContainedASTs f es
                 , conc_out = modifyContainedASTs f r
                 , conc_sym_gens = modifyContainedASTs f g
                 , conc_mutvars = modifyContainedASTs f mv
                 , conc_handles = h
-                , violated = modifyContainedASTs f fc}
+                , violated = modifyContainedASTs f fc
+                , validated = v}
 
 instance ASTContainer t Type => ASTContainer (ExecRes t) Type where
     containedASTs (ExecRes { final_state = s
@@ -148,11 +151,13 @@ instance ASTContainer t Type => ASTContainer (ExecRes t) Type where
                                    , conc_sym_gens = g
                                    , conc_mutvars = mv
                                    , conc_handles = h
-                                   , violated = fc }) =
+                                   , violated = fc
+                                   , validated = v }) =
         ExecRes { final_state = modifyContainedASTs f s
                 , conc_args = modifyContainedASTs f es
                 , conc_out = modifyContainedASTs f r
                 , conc_sym_gens = modifyContainedASTs f g
                 , conc_mutvars = modifyContainedASTs f mv
                 , conc_handles = h
-                , violated = modifyContainedASTs f fc }
+                , violated = modifyContainedASTs f fc
+                , validated = v }

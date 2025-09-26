@@ -732,10 +732,11 @@ runG2WithValidate :: ( MonadIO m
 runG2WithValidate proj src modN entry entry_id gflags red hal ord analyze solver simplifier state config bindings =
     runGhcT (Just libdir) (case (red, hal, ord) of
         (SomeReducer red', SomeHalter hal', SomeOrderer ord') -> do
+            loadSession proj src modN gflags
             --runG2 red' hal' ord' analyze solver simplifier state bindings
             let liftGhcT3 f x y z = liftGhcT (f x y z) 
                 analyze' = map liftGhcT3 analyze
-            runExecution (liftReducerGhcT red') (liftHalterGhcT hal') (liftOrdererGhcT ord') (runG2SolvingValidate proj src modN entry entry_id gflags config solver simplifier) analyze' state bindings)
+            runExecution (liftReducerGhcT red') (liftHalterGhcT hal') (liftOrdererGhcT ord') (runG2SolvingValidate modN entry entry_id config solver simplifier) analyze' state bindings)
 
 runG2Pre :: ( Named t
             , ASTContainer t Expr
@@ -795,31 +796,38 @@ runG2Solving solver simplifier s bindings = do
 runG2SolvingValidate :: ( MonadIO m
                         , GhcMonad m
                         , Named t
+                        , ASTContainer t Expr
                         , Solver solver
                         , Simplifier simplifier) =>
-                [FilePath]
-             -> [FilePath]
-             -> String
+                String
              -> String
              -> Id
-             -> [GeneralFlag]
              -> Config
              -> solver
              -> simplifier
              -> State t
              -> Bindings
              -> m (Maybe (ExecRes t))
-runG2SolvingValidate proj src modN entry entry_id gflags config solver simplifier s bindings = do
-    loadSession proj src modN gflags
+runG2SolvingValidate modN entry entry_id config solver simplifier s bindings = do
     res <- runG2Solving solver simplifier s bindings
-    when (validate config) (
-        case res of
-            Just m -> do 
-                r <- validateState modN entry [] [] bindings m
-                liftIO $ printStateOutput config entry_id bindings (Just r) m
-            Nothing -> return () 
-        )
-    return res
+    case res of
+        Just m | validate config -> do
+                let m' = if print_encode_float config then toEnclodeFloat m else m
+                r <- validateState modN entry [] [] bindings m'
+
+                liftIO $ do
+                    if isJust r && fromJust r then putStrLn "Validated" else putStrLn "There was an error during validation."
+                    when (isNothing r) $ putStrLn "Timeout count"
+                    printStateOutput config entry_id bindings (Just r) m
+
+                let res' = m {validated = r}
+                return (Just res')
+        Just m -> do
+            liftIO $ printStateOutput config entry_id bindings Nothing m
+            return res
+        _ -> return res
+
+    
 
 
 runG2SubstModel :: Named t =>
