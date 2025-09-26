@@ -129,14 +129,14 @@ checkInputOutput'' :: [FilePath]
                    -> (String, Int, [Reqs String])
                    -> IO ([Bool], Bool, Bool, [ExecRes ()], Bindings)
 checkInputOutput'' src exg2 mb_modname config (entry, stps, req) = do
+    let proj = map takeDirectory src
     let config' = config { steps = stps }
         (entry_f, init_state, bindings) = initStateWithCall exg2 False (T.pack entry) mb_modname (mkCurrExpr TV.empty Nothing Nothing) (mkArgTys TV.empty) config'
     
-    (r, b, _) <- runG2WithConfig (idName entry_f) mb_modname init_state config' bindings
+    (r, b, _) <- runG2WithConfig proj src entry_f entry [] mb_modname init_state config' bindings
 
     let chAll = checkExprAll req
     let chAny = checkExprExists req
-    let proj = map takeDirectory src
     (mr, anys) <- validateStates proj src (T.unpack . fromJust $ head mb_modname) entry chAll chAny [] b r
     let io = map (\(ExecRes { conc_args = i, conc_out = o}) -> i ++ [o]) r
 
