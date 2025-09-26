@@ -94,7 +94,7 @@ validateStatesGHC pg modN entry chAll chAny b er@(ExecRes {final_state = s, conc
                                   | otherwise -> Just (outStr == "error" || outStr == "undefined" || outStr == "?")
                     Just (Right b) -> Just (b && outStr /= "error" && outStr /= "undefined")
 
-    chAllR' <- liftIO $ (unsafeCoerce chAllR :: IO [Either SomeException Bool])
+    chAllR' <- liftIO $ (mapM unsafeCoerce chAllR :: IO [Either SomeException Bool])
     let chAllR'' = rights chAllR'
 
     chAnyR' <- liftIO $ (mapM unsafeCoerce chAnyR :: IO [Either SomeException Bool])

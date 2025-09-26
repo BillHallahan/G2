@@ -827,8 +827,6 @@ runG2SolvingValidate modN entry entry_id config solver simplifier s bindings = d
             return res
         _ -> return res
 
-    
-
 
 runG2SubstModel :: Named t =>
                       Model
