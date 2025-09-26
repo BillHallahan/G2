@@ -542,7 +542,8 @@ testFileTests = testGroup "TestFiles"
                                                              , ("fromMaybeInvalid", 100, [Exactly 0])
                                                              , ("fromTuples", 100, [Exactly 8])
                                                              , ("twoFunctions", 200, [Exactly 4])
-                                                             , ("partiallyApply", 200, [Exactly 2])] 
+                                                             , ("partiallyApply", 200, [Exactly 2])
+                                                             , ("funcArg", 200, [AtLeast 1])] 
     , checkInputOutputsNonRedHigher "tests/HigherOrder/HigherOrder.hs" [ ("f", 200, [AtLeast 3])
                                                                        , ("h", 150, [AtLeast 2])
                                                                        , ("assoc", 250, [AtLeast 2])

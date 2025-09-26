@@ -1,3 +1,5 @@
+{-# LANGUAGE RankNTypes #-}
+
 module RankN where
 
 identity :: (forall a. a -> a) -> Int
@@ -61,3 +63,16 @@ partiallyApply f = let pApp = f 1
 twoTVsMultiCall :: (forall a b. a -> b -> b) -> Int 
 twoTVsMultiCall f = case (f 1 2, f 3 4) of 
                         (2, 4) -> f 5 6
+
+funcArg :: (forall a. (a -> a) -> a -> a) -> Int 
+funcArg f = f (\x -> x + 1) 2
+
+funcArgSol = (\fs'2 -> (\fs -> let
+      fs'5 = fs'2 fs in case fs'5 of
+      _ -> let
+            fs'6 = fs'2 (let
+                  fs'3 = fs'2 fs in case fs'3 of
+                  _ -> fs'3) in case fs'6 of
+            _ -> fs'5))
+
+funcArgSol_ = (\fs'2 -> (\fs -> fs))
