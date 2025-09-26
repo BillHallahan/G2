@@ -1497,7 +1497,7 @@ retReplaceSymbFuncTemplate sft
         e' = mkApp (e:es)
 
         -- get forall bound tyVar names, rename bindings for env
-        (e'', symIds') = (retypeToEnvTVs e' tarm, map (`retypeToEnvTVs` tarm) symIds)
+        (e'', symIds') = (retypeToEnvTVs e tarm, map (`retypeToEnvTVs` tarm) symIds)
 
         eenv' = foldr E.insertSymbolic eenv symIds'
         eenv'' = E.insert n e'' eenv'
