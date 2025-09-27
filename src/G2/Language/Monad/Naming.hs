@@ -11,8 +11,8 @@ module G2.Language.Monad.Naming ( doRenameN
                                           , freshSeededIdN
                                           , freshIdsN ) where
 
-import G2.Language
-
+import G2.Language.Naming
+import G2.Language.Syntax
 import G2.Language.Monad.Support
 
 import qualified Data.Text as T

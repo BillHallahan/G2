@@ -8,6 +8,7 @@ module G2.Language.ArbValueGen ( ArbValueGen
                                , constArbValue ) where
 
 import G2.Language.Expr
+import G2.Language.Monad
 import G2.Language.Support
 import G2.Language.Syntax
 import G2.Language.Typing
@@ -169,11 +170,11 @@ constArbValue' getADTF m s@(State { tyvar_env = tv }) (TyVar (Id n _)) av
     | Just t <- TV.deepLookupName tv n = arbValue' getADTF m s t av
 constArbValue' _ _ (State { tyvar_env = tv }) t av = (Prim Undefined t, tv, av)
 
-type GetADT = forall t . HM.HashMap Name Type -> State t -> ArbValueGen -> AlgDataTy -> [Type] -> (Expr, TyVarEnv, ArbValueGen)
+type GetADT = forall t . HM.HashMap Name Type -> State t -> ArbValueGen -> AlgDataTy -> [Type] -> NamingM (Expr, TyVarEnv, ArbValueGen)
 
 -- | Generates an arbitrary value of the given ADT,
 -- but will return something containing @(Prim Undefined)@ instead of an infinite Expr.
-getFiniteADT :: HM.HashMap Name Type -> State t -> ArbValueGen -> AlgDataTy -> [Type] -> (Expr, TyVarEnv, ArbValueGen)
+getFiniteADT :: HM.HashMap Name Type -> State t -> ArbValueGen -> AlgDataTy -> [Type] -> NamingM (Expr, TyVarEnv, ArbValueGen)
 getFiniteADT m s av adt ts =
     let
         (e, tv_env, av') = getADT cutOffVal m s av adt ts
@@ -200,7 +201,7 @@ cutOff _ e = e
 -- To see why this is needed, suppose we are returning an infinitely large Expr.
 -- This Expr will be returned lazily.  But the return of the ArbValueGen is not lazy-
 -- so we must just cut off and return at some point.
-getADT :: Int -> HM.HashMap Name Type -> State t -> ArbValueGen -> AlgDataTy -> [Type] -> (Expr, TyVarEnv, ArbValueGen)
+getADT :: Int -> HM.HashMap Name Type -> State t -> ArbValueGen -> AlgDataTy -> [Type] -> NamingM (Expr, TyVarEnv, ArbValueGen)
 getADT cutoff m s@(State { tyvar_env = tvnv, known_values = kv }) av adt ts 
     | [dc] <- dataCon adt
     , TyApp (TyApp (TyApp (TyApp (TyCon tc_n _) _) _) c1) c2 <- returnType (typeOf tvnv dc)
@@ -229,8 +230,8 @@ getADT cutoff m s@(State { tyvar_env = tvnv, known_values = kv }) av adt ts
 
             final_av = if cutoff >= 0 then av' else av
         in
-        (mkApp $ min_dc:es, tvnv'', final_av)
-    | otherwise = (Prim Undefined TyBottom, tvnv, av)
+        return (mkApp $ min_dc:es, tvnv'', final_av)
+    | otherwise = return (Prim Undefined TyBottom, tvnv, av)
     where
         -- Figure out which data constructor are compatible with the required type, based on coercions.
         -- Consider:
