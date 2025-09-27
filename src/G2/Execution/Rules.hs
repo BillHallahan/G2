@@ -182,7 +182,6 @@ evalVarSharing s@(State { expr_env = eenv
             asRev = reverse as
             e' = Case (Var scrut) bindee (TyVar outerTyVar) asRev
             eenv'' = E.insert (idName i) e' eenv' 
-    
 
             -- insert all symbolic names created for alt expressions
             eenv''' = foldr E.insertSymbolic eenv'' symIds  
