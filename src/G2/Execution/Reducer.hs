@@ -189,7 +189,7 @@ import Data.Time.Clock
 #if MIN_VERSION_GLASGOW_HASKELL(9,0,2,0)
 import GHC.Driver.Monad
 #else
-import GHC (GhcT, GhcMonad(..))
+import GHC (GhcT, GhcMonad(liftGhcT))
 #endif
 import System.Clock
 import System.Directory

@@ -45,8 +45,6 @@ import GHC.Paths
 
 #if MIN_VERSION_GLASGOW_HASKELL(9,0,2,0)
 import GHC.Driver.Monad
-#else
-import GHC (GhcT, GhcMonad(..))
 #endif
 
 import GHC.Utils.Exception
