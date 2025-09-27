@@ -177,7 +177,8 @@ evalVarSharing s@(State { expr_env = eenv
 
             -- create environment Alts with lam names and original tyVar, add to environment
             -- TODO: passing in otv should be cleaner
-            (as, symIds, newBinds, ng'') = makeAltsForPMRet' (map (\(en, _, mt) -> (en, mt)) ents) outerTyVar ng' outerTyVar
+            -- third tuple value ignored intentionally
+            (as, symIds, _, ng'') = makeAltsForPMRet' (map (\(en, _, mt) -> (en, mt)) ents) outerTyVar ng' outerTyVar
             asRev = reverse as
             e' = Case (Var scrut) bindee (TyVar outerTyVar) asRev
             eenv'' = E.insert (idName i) e' eenv' 
@@ -260,7 +261,7 @@ makeAltsForPMRet' es tvid ng otv = (\(a, si, bs, n, _) -> (a, si, bs, n)) $ fold
                             -- Let appId = func [args] in Case appId of _ -> (Coll appId)
                             letE = Let [(appId, appScrut)] caseE
                         in
-                            (letE, newSyms, [(appId, appScrut)], ngFA') -- Case to force evaluation
+                            (letE, newSyms, [], ngFA') -- Case to force evaluation
                     Nothing -> (Var (Id n (TyVar tvid)), [], [], ng_)
             in
                 (Alt {altMatch = if length as >= (len-1) then Default else LitAlt (LitInt $ toInteger l) , altExpr = aExpr}:as, newSymIds ++ symIds, bind'++binds, ng', l+1)
