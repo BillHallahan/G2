@@ -138,7 +138,7 @@ mkExprHaskell' off_init cleaned pg ex = mkExprHaskell'' off_init ex
         mkExprHaskell'' _ (Var ids) = mkIdHaskell pg ids
         mkExprHaskell'' _ (Lit c) = mkLitHaskell UseHash c
         mkExprHaskell'' _ (Prim p _) = if isCleaned then mkPrimHaskellNoDistFloat pg p else mkPrimHaskell pg p
-        mkExprHaskell'' off (Lam u ids e) | u == TypeL, ty_lam_printing pg == Omit = mkExprHaskell'' off e
+        mkExprHaskell'' off (Lam u ids e) | u == TypeL, ty_lam_printing pg == OmitTyLam = mkExprHaskell'' off e
             | otherwise = "(\\" <> mkIdHaskell pg ids <> " -> " <> mkExprHaskell'' off e <> ")"
         mkExprHaskell'' off a@(App ea@(App e1 e2) e3)
             | Data (DataCon n _ _ _) <- appCenter a
@@ -908,7 +908,7 @@ data TypePrinting = LaxTypes | AggressiveTypes deriving Eq
 
 data EnvOrdering = Unordered | Ordered deriving Eq
 
-data TyLamPrinting = Show | Omit deriving Eq
+data TyLamPrinting = ShowTyLam | OmitTyLam deriving Eq
 
 -- | See Note [PrettyGuide AssignedLvl]
 data AssignedLvl = TypeLvl | ValLvl | BothLvl deriving (Eq, Show)
@@ -957,7 +957,7 @@ data PrettyGuide = PG { pg_assigned :: HM.HashMap Name T.Text -- ^ Mapping of G2
 -- | Creates a `PrettyGuide` with mappings for all `Name`s in the `Named` argument.
 -- Does not draw any distinction between type level and value level names.
 mkPrettyGuide :: Named a => a -> PrettyGuide
-mkPrettyGuide = foldr insertPG (PG HM.empty HM.empty LaxTypes Unordered Show) . names
+mkPrettyGuide = foldr insertPG (PG HM.empty HM.empty LaxTypes Unordered ShowTyLam) . names
 
 -- | Update the `PrettyGuide` with mappings for all `Name`s in the `Named` argument.
 -- Does not draw any distinction between type level and value level names.
