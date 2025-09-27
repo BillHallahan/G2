@@ -1080,11 +1080,12 @@ testFileWithConfig src m_assume m_assert m_reaches entry config = do
             $ runG2FromFile 
                 [proj]
                 [src]
+                []
                 (fmap T.pack m_assume)
                 (fmap T.pack m_assert)
                 (fmap T.pack m_reaches)
                 (isJust m_assert || isJust m_reaches)
-                (T.pack entry)
+                entry
                 simplTranslationConfig
                 config
 

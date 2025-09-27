@@ -100,7 +100,7 @@ equivMods = HM.fromList
 #endif
             ]
 
-loadProj :: Maybe HscTarget -> [FilePath] -> [FilePath] -> [GeneralFlag] -> G2.TranslationConfig -> Ghc SuccessFlag
+loadProj :: GhcMonad m => Maybe HscTarget -> [FilePath] -> [FilePath] -> [GeneralFlag] -> G2.TranslationConfig -> m SuccessFlag
 loadProj hsc proj src gflags tr_con = do
     beta_flags <- getSessionDynFlags
     let gen_flags = if G2.hpc_ticks tr_con then Opt_Hpc:gflags else gflags
