@@ -186,9 +186,9 @@ redArbErrors = mkSimpleReducer (const ()) rr
         rr _ s@(State { curr_expr = CurrExpr er (Tick tick (Let [(_, Type t)] _)) }) b 
             | tick == arbErrorTickish =
                 let
-                    (arb, _) = arbValue t (type_env s) (tyvar_env s) (known_values s) (arb_value_gen b)
+                    (arb, tv_env', _, ng') = arbValue s (name_gen b) t (arb_value_gen b)
                 in
-                return (InProgress, [(s { curr_expr = CurrExpr er arb }, ())], b)
+                return (InProgress, [(s { curr_expr = CurrExpr er arb, tyvar_env = tv_env' }, ())], b { name_gen = ng' })
         rr _ s b = return (Finished, [(s, ())], b)
 
 -- LHLimitByAcceptedHalter should always be used

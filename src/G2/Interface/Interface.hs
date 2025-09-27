@@ -1,6 +1,6 @@
 {-# OPTIONS_GHC -Wno-orphans #-}
 
-{-# LANGUAGE BangPatterns, FlexibleContexts, LambdaCase, OverloadedStrings #-}
+{-# LANGUAGE BangPatterns, FlexibleContexts, LambdaCase, OverloadedStrings, RankNTypes #-}
 
 module G2.Interface.Interface ( MkCurrExpr
                               , CurrExprRes (..)
@@ -725,13 +725,14 @@ runG2SolvingResult :: ( Named t
                    -> Bindings
                    -> State t
                    -> IO (Result (ExecRes t) () ())
-runG2SolvingResult solver simplifier bindings s
+runG2SolvingResult solver simplifier bindings s@(State { tyvar_env = tv_env })
     | true_assert s = do
         r <- solve solver s bindings (E.symbolicIds . expr_env $ s) (path_conds s)
         case r of
-            SAT m -> do
-                let m' = reverseSimplification simplifier s bindings m
-                return . SAT $ runG2SubstModel m' s bindings
+            SAT (SatRes m tv_env' _) -> do
+                let s' = s { tyvar_env = tv_env `TV.union` tv_env' }
+                    m' = reverseSimplification simplifier s' bindings m
+                return . SAT $ runG2SubstModel m' s' bindings
             UNSAT _ -> return $ UNSAT ()
             Unknown reason _ -> return $ Unknown reason ()
 

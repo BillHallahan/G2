@@ -9,7 +9,8 @@ module G2.Language.TyVarEnv ( TyVarEnv
                             , lookup
                             , lookupConcOrSym
                             , member
-                            , fromList 
+                            , union
+                            , fromList
                             , toList
                             , toListConcOrSym
                             , fromListConcOrSym
@@ -76,6 +77,12 @@ lookupConcOrSym n (TyVarEnv env) = UF.lookup n env
 
 member :: Name -> TyVarEnv -> Bool
 member n (TyVarEnv env) = UF.member n env
+
+union :: TyVarEnv -> TyVarEnv -> TyVarEnv
+union (TyVarEnv env1) (TyVarEnv env2) = TyVarEnv $ UF.unionWith favorConc env1 env2
+    where
+        favorConc t@(TyConc _) _ = t
+        favorConc _ t = t
 
 -- a recursive version of lookup that aim to find the concrete types of type variable
 deepLookup :: TyVarEnv -> Expr -> Maybe Type

@@ -9,6 +9,7 @@ module G2.Language.Support
     , module G2.Language.TypeEnv
     , E.ExprEnv
     , TV.TyVarEnv
+    , NameGen
     , PathConds
     , KnownValues
     , PathCond (..)
