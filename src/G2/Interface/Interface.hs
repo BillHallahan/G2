@@ -48,7 +48,7 @@ import GHC.Driver.Monad
 import GHC.Utils.Exception
 #else
 import GhcMonad (liftGhcT)
-import Exception
+import Control.Exception
 #endif
 
 
