@@ -50,9 +50,8 @@ import GHC.Utils.Exception
 import GhcMonad (liftGhcT)
 import Exception
 import qualified Control.Monad.Trans.State as ST
+import qualified Control.Monad.Catch as MC
 #endif
-
-
 
 import G2.Config.Config
 
@@ -897,9 +896,9 @@ runG2 red hal ord analyze solver simplifier mem is bindings = do
 
 #if __GLASGOW_HASKELL__ < 900
 instance ExceptionMonad m => ExceptionMonad (SM.StateT s m) where
-    gcatch = ST.liftCatch catch
+    gcatch = ST.liftCatch MC.catch
 
-    gmask f = SM.StateT $ \s -> mask $ \u -> SM.runStateT (a $ q u) s
+    gmask a = SM.StateT $ \s -> MC.mask $ \u -> SM.runStateT (a $ q u) s
         where q :: (m (a, s) -> m (a, s)) -> SM.StateT s m a -> SM.StateT s m a
               q u (SM.StateT b) = SM.StateT (u . b)
 #endif
