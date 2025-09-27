@@ -49,6 +49,7 @@ import GHC.Utils.Exception
 #else
 import GhcMonad (liftGhcT)
 import Exception
+import qualified Control.Monad.Trans.State as ST
 #endif
 
 
@@ -893,3 +894,12 @@ runG2 :: ( MonadIO m
 runG2 red hal ord analyze solver simplifier mem is bindings = do
     let (is', bindings') = runG2Pre mem is bindings
     runExecution red hal ord (runG2Solving solver simplifier) analyze is' bindings'
+
+#if __GLASGOW_HASKELL__ < 902
+instance ExceptionMonad m => ExceptionMonad (SM.StateT s m) where
+    gcatch = ST.liftCatch catch
+
+    gmask f = SM.StateT $ \s -> mask $ \u -> SM.runStateT (a $ q u) s
+        where q :: (m (a, s) -> m (a, s)) -> SM.StateT s m a -> SM.StateT s m a
+              q u (SM.StateT b) = SM.StateT (u . b)
+#endif
