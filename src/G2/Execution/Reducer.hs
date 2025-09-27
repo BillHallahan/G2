@@ -6,6 +6,7 @@
 {-# LANGUAGE MultiParamTypeClasses, MultiWayIf, RankNTypes, ScopedTypeVariables #-}
 {-# LANGUAGE TupleSections, UndecidableInstances #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE CPP #-}
 
 {-| Module: G2.Execution.Reducer
 
@@ -184,7 +185,12 @@ import qualified Data.Text as T
 import qualified Data.Text.IO as T
 import Data.Tuple
 import Data.Time.Clock
+
+#if MIN_VERSION_GLASGOW_HASKELL(9,0,2,0)
 import GHC.Driver.Monad
+#else
+import GHC (GhcT, GhcMonad(..))
+#endif
 import System.Clock
 import System.Directory
 import qualified G2.Language.TyVarEnv as TV 

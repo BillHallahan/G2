@@ -1,6 +1,6 @@
 {-# OPTIONS_GHC -Wno-orphans #-}
 
-{-# LANGUAGE BangPatterns, FlexibleContexts, LambdaCase, OverloadedStrings #-}
+{-# LANGUAGE BangPatterns, FlexibleContexts, LambdaCase, OverloadedStrings, CPP #-}
 
 module G2.Interface.Interface ( MkCurrExpr
                               , CurrExprRes (..)
@@ -42,7 +42,13 @@ module G2.Interface.Interface ( MkCurrExpr
 
 import GHC hiding (Name, entry, nameModule, Id, Type)
 import GHC.Paths
+
+#if MIN_VERSION_GLASGOW_HASKELL(9,0,2,0)
 import GHC.Driver.Monad
+#else
+import GHC (GhcT, GhcMonad(..))
+#endif
+
 import GHC.Utils.Exception
 
 import G2.Config.Config
