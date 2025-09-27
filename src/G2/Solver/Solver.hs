@@ -133,13 +133,13 @@ solveRelated' avf sol s b m is [] =
     let 
         is' = filter (\i -> not $ idName i `HM.member` m) is
 
-        ((tv_env', _), nv) = mapAccumL
-            (\(tv_env_, av_) (Id n t) ->
+        ((tv_env', _, ng'), nv) = mapAccumL
+            (\(tv_env_, av_, ng_) (Id n t) ->
                 let 
-                    (v, tv_env_', av_') = avf (s { tyvar_env = tv_env_}) t av_
+                    (v, tv_env_', av_', ng_') = avf (s { tyvar_env = tv_env_}) ng_ t av_
                     in
-                    ((tv_env_', av_'), (n, v))
-            ) (tyvar_env s, arb_value_gen b) is'
+                    ((tv_env_', av_', ng_'), (n, v))
+            ) (tyvar_env s, arb_value_gen b, name_gen b) is'
 
         m' = foldr (\(n, v) -> HM.insert n v) m nv
     in

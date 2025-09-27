@@ -129,7 +129,7 @@ getModelVal avf con s@(State { expr_env = eenv, type_env = tenv, known_values = 
     case PC.null pc of
                 True -> 
                     let
-                        (e, tv_env', av) = avf s t (arb_value_gen b)
+                        (e, tv_env', av, ng') = avf s (name_gen b) t (arb_value_gen b)
                     in
                     return (SAT $ SatRes (HM.singleton n' e) tv_env', av) 
                 False -> do
