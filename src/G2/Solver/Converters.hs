@@ -112,14 +112,15 @@ checkModelPC avf con s b is pc = return . liftCasts (tyvar_env s) =<< checkModel
 -- ADTs can be solved using our efficient addADTs, while literals require
 -- calling an SMT solver.
 checkModel' :: SMTConverter con => ArbValueFunc -> con -> State t -> Bindings -> [Id] -> PathConds -> IO (Result SatRes () ())
-checkModel' _ _ s _ [] _ = do
-    return . SAT $ SatRes (model s) (tyvar_env s)
+checkModel' _ _ s b [] _ = do
+    return . SAT $ SatRes (model s) (tyvar_env s) (name_gen b)
 checkModel' avf con s b (i:is) pc
     | (idName i) `HM.member` (model s) = checkModel' avf con s b is pc
     | otherwise =  do
         (m, av) <- getModelVal avf con s b i pc
         case m of
-            SAT (SatRes m' tv_env) -> checkModel' avf con (s {tyvar_env = tv_env, model = HM.union m' (model s)}) (b {arb_value_gen = av}) is pc
+            SAT (SatRes m' tv_env ng) ->
+                checkModel' avf con (s {tyvar_env = tv_env, model = HM.union m' (model s)}) (b {name_gen = ng, arb_value_gen = av}) is pc
             r -> return r
 
 getModelVal :: SMTConverter con => ArbValueFunc -> con -> State t -> Bindings -> Id -> PathConds -> IO (Result SatRes () (), ArbValueGen)
@@ -131,19 +132,19 @@ getModelVal avf con s@(State { expr_env = eenv, type_env = tenv, known_values = 
                     let
                         (e, tv_env', av, ng') = avf s (name_gen b) t (arb_value_gen b)
                     in
-                    return (SAT $ SatRes (HM.singleton n' e) tv_env', av) 
+                    return (SAT $ SatRes (HM.singleton n' e) tv_env' ng', av) 
                 False -> do
-                    m <- solveNumericConstraintsPC tvnv con kv tenv pc
+                    m <- solveNumericConstraintsPC tvnv con kv tenv pc (name_gen b)
                     return (m, arb_value_gen b)
 
-solveNumericConstraintsPC :: SMTConverter con => TV.TyVarEnv -> con -> KnownValues -> TypeEnv -> PathConds -> IO (Result SatRes () ())
-solveNumericConstraintsPC tv con kv tenv pc = do
+solveNumericConstraintsPC :: SMTConverter con => TV.TyVarEnv -> con -> KnownValues -> TypeEnv -> PathConds -> NameGen -> IO (Result SatRes () ())
+solveNumericConstraintsPC tv con kv tenv pc ng = do
     let headers = toSMTHeaders tv pc
     let vs = map (\(n', srt) -> (nameToStr n', srt)) . HS.toList . pcVars tv $ pc
 
     m <- solveConstraints con headers vs
     case m of
-        SAT m' -> return . SAT $ SatRes (modelAsExpr kv tenv m') tv
+        SAT m' -> return . SAT $ SatRes (modelAsExpr kv tenv m') tv ng
         UNSAT () -> return $ UNSAT ()
         Unknown s () -> return $ Unknown s ()
 

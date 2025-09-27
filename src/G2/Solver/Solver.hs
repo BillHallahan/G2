@@ -52,7 +52,7 @@ data Result m u um = SAT m
                    | Unknown String um
                    deriving (Show, Eq)
 
-data SatRes = SatRes { sr_model :: Model, sr_tve :: TyVarEnv }
+data SatRes = SatRes { sr_model :: Model, sr_tve :: TyVarEnv, sr_namegen :: NameGen }
 
 -- | Defines an interface to interact with Solvers
 class Solver solver where
@@ -143,13 +143,14 @@ solveRelated' avf sol s b m is [] =
 
         m' = foldr (\(n, v) -> HM.insert n v) m nv
     in
-    return (SAT $ SatRes m' tv_env', sol)
+    return (SAT $ SatRes m' tv_env' ng', sol)
 solveRelated' avf sol s b m is (p:ps) = do
     let is' = concat $ PC.map' PC.varIdsInPC p
     let is'' = ids p
     rm <- solveTr sol s b is' p
     case rm of
-        (SAT (SatRes m' tv_env'), sol') -> solveRelated' avf sol' (s { tyvar_env = tv_env' }) b (HM.union m m') (is ++ is'') ps
+        (SAT (SatRes m' tv_env' ng'), sol') ->
+            solveRelated' avf sol' (s { tyvar_env = tv_env' }) (b { name_gen = ng' }) (HM.union m m') (is ++ is'') ps
         rm' -> return rm'
 
 instance Solver solver => Solver (GroupRelated solver) where
@@ -208,8 +209,8 @@ instance Solver UndefinedHigherOrder where
             [Id _ (TyFun _ _)] -> return $ SAT ()
             _ -> return $ Unknown "UndefinedHigherOrder" ()
 
-    solve _ s _ [i@(Id _ (TyFun _ _))] _ =
-        return . SAT $ SatRes (HM.singleton (idName i) (Prim Undefined TyBottom)) (tyvar_env s)
+    solve _ s b [i@(Id _ (TyFun _ _))] _ =
+        return . SAT $ SatRes (HM.singleton (idName i) (Prim Undefined TyBottom)) (tyvar_env s) (name_gen b)
     solve _ _ _ _ _ = return (Unknown "UndefinedHigherOrder" ())
 
 instance (Solver a, Solver b) => Solver (CombineSolvers a b) where
@@ -260,12 +261,12 @@ instance (ASTContainer m e, ASTContainer u e) => ASTContainer (Result m u um) e 
     modifyContainedASTs _ u@(Unknown _ _) = u
 
 instance ASTContainer SatRes Expr where
-    containedASTs (SatRes m tv_env) = containedASTs m <> containedASTs tv_env
-    modifyContainedASTs f (SatRes m tv_env) = SatRes (modifyContainedASTs f m) (modifyContainedASTs f tv_env)
+    containedASTs (SatRes m tv_env _) = containedASTs m <> containedASTs tv_env
+    modifyContainedASTs f (SatRes m tv_env ng) = SatRes (modifyContainedASTs f m) (modifyContainedASTs f tv_env) ng
 
 instance ASTContainer SatRes Type where
-    containedASTs (SatRes m tv_env) = containedASTs m <> containedASTs tv_env
-    modifyContainedASTs f (SatRes m tv_env) = SatRes (modifyContainedASTs f m) (modifyContainedASTs f tv_env)
+    containedASTs (SatRes m tv_env _) = containedASTs m <> containedASTs tv_env
+    modifyContainedASTs f (SatRes m tv_env ng) = SatRes (modifyContainedASTs f m) (modifyContainedASTs f tv_env) ng
 
 -- A solver that returns unknown on all but the most trivial (empty) PCs
 data UnknownSolver = UnknownSolver
@@ -274,8 +275,8 @@ instance Solver UnknownSolver where
     check _ _ pc
         | PC.null pc = return (SAT ())
         | otherwise = return (Unknown "unknown" ())
-    solve _ s _ _ pc
-        | PC.null pc = return (SAT $ SatRes HM.empty TV.empty)
+    solve _ s b _ pc
+        | PC.null pc = return (SAT $ SatRes HM.empty TV.empty (name_gen b))
         | otherwise = return (Unknown "unknown" ())
 
 -- | A solver that handles checking of certain equalities between variables and expressions.

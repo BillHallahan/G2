@@ -729,7 +729,7 @@ runG2SolvingResult solver simplifier bindings s@(State { tyvar_env = tv_env })
     | true_assert s = do
         r <- solve solver s bindings (E.symbolicIds . expr_env $ s) (path_conds s)
         case r of
-            SAT (SatRes m tv_env') -> do
+            SAT (SatRes m tv_env' _) -> do
                 let s' = s { tyvar_env = tv_env `TV.union` tv_env' }
                     m' = reverseSimplification simplifier s' bindings m
                 return . SAT $ runG2SubstModel m' s' bindings
