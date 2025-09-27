@@ -895,7 +895,7 @@ runG2 red hal ord analyze solver simplifier mem is bindings = do
     let (is', bindings') = runG2Pre mem is bindings
     runExecution red hal ord (runG2Solving solver simplifier) analyze is' bindings'
 
-#if __GLASGOW_HASKELL__ < 902
+#if __GLASGOW_HASKELL__ < 900
 instance ExceptionMonad m => ExceptionMonad (SM.StateT s m) where
     gcatch = ST.liftCatch catch
 
