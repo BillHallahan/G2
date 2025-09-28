@@ -182,6 +182,7 @@ evalVarSharing s@(State { expr_env = eenv
             asRev = reverse as
             e' = Case (Var scrut) bindee (TyVar outerTyVar) asRev
             eenv'' = E.insert (idName i) e' eenv' 
+    
 
             -- insert all symbolic names created for alt expressions
             eenv''' = foldr E.insertSymbolic eenv'' symIds  
@@ -261,6 +262,7 @@ makeAltsForPMRet' es tvid ng otv = (\(a, si, bs, n, _) -> (a, si, bs, n)) $ fold
                             letE = Let [(appId, appScrut)] caseE
                         in
                             (letE, newSyms, [], ngFA') -- Case to force evaluation
+
                     Nothing -> (Var (Id n (TyVar tvid)), [], [], ng_)
             in
                 (Alt {altMatch = if length as >= (len-1) then Default else LitAlt (LitInt $ toInteger l) , altExpr = aExpr}:as, newSymIds ++ symIds, bind'++binds, ng', l+1)
