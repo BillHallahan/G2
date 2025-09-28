@@ -811,7 +811,4 @@ runG2 :: ( MonadIO m
          solver -> simplifier -> MemConfig -> State t -> Bindings -> m ([ExecRes t], Bindings)
 runG2 red hal ord analyze solver simplifier mem is bindings = do
     let (is', bindings') = runG2Pre mem is bindings
-    xs <- runExecution red hal ord (runG2Solving solver simplifier) analyze is' bindings'
-    -- liftIO . putStrLn $ "runG2 2 er" ++ show ((Name "a" Nothing 7566047373982658523 Nothing)
-    --                                             `elem` (toList $ names . map (map fst . TV.toList . tyvar_env . final_state) $ fst xs))
-    return xs
+    runExecution red hal ord (runG2Solving solver simplifier) analyze is' bindings'
