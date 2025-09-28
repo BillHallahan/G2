@@ -1,4 +1,4 @@
-{-# LANGUAGE OverloadedStrings, RankNTypes #-}
+{-# LANGUAGE BangPatterns, MultiWayIf, OverloadedStrings, RankNTypes #-}
 
 module G2.Language.ArbValueGen ( ArbValueGen
                                , ArbValueFunc
@@ -76,7 +76,7 @@ arbValueInfinite s ng t avg =
     (e, tv_env, avg', ng')
 
 arbValueInfinite' :: Int -> HM.HashMap Name Type -> ArbValueFuncM
-arbValueInfinite' cutoff = arbValue' (getADT cutoff)
+arbValueInfinite' !cutoff = arbValue' (getADT cutoff)
 
 arbValue' :: GetADT
           -> HM.HashMap Name Type -- ^ Maps TyVar's to Types
@@ -204,7 +204,7 @@ cutOff _ e = e
 -- This Expr will be returned lazily.  But the return of the ArbValueGen is not lazy-
 -- so we must just cut off and return at some point.
 getADT :: Int -> HM.HashMap Name Type -> State t -> ArbValueGen -> AlgDataTy -> [Type] -> NameGenM (Expr, TyVarEnv, ArbValueGen)
-getADT cutoff m s@(State { tyvar_env = tvnv, known_values = kv }) av adt ts 
+getADT !cutoff m s@(State { tyvar_env = tvnv, known_values = kv }) av adt ts 
     | [dc] <- dataCon adt
     , TyApp (TyApp (TyApp (TyApp (TyCon tc_n _) _) _) c1) c2 <- returnType (typeOf tvnv dc)
     , tc_n == tyCoercion kv = return (Coercion (c1 :~ c2), tvnv, av)
@@ -220,9 +220,11 @@ getADT cutoff m s@(State { tyvar_env = tvnv, known_values = kv }) av adt ts
             m' = foldr (uncurry HM.insert) m $ zip (map idName ids) ts
 
         ((tvnv'', av'), es) <- mapAccumM
-                        (\(tvnv_, av_) t -> do
-                            (e', tvnv_', av_') <- arbValueInfinite' (cutoff - 1) m' (s { tyvar_env = tvnv_ }) (applyTypeHashMap m' t) av_
-                            return ((tvnv_', av_'), e')
+                        (\(tvnv_, av_) t -> 
+                            if | 0 <= cutoff -> do
+                                    (e', tvnv_', av_') <- arbValueInfinite' (cutoff - 1) m' (s { tyvar_env = tvnv_ }) (applyTypeHashMap m' t) av_
+                                    return ((tvnv_', av_'), e')
+                               | otherwise -> return ((tvnv_, av_), Prim Undefined TyBottom)
                         )
                         (tvnv', av) 
                     $ anonArgumentTypes (typeOf tvnv' min_dc)
