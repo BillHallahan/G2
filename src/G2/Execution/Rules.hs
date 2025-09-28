@@ -317,7 +317,9 @@ retLam s@(State { expr_env = eenv, tyvar_env = tvnv, poly_arg_map = pargm})
                 e' = rename (idName i) n' e
                 tvnv' = TV.insert n' t tvnv
 
-                (e'', eenv', ng'', pargm') = typeLamRNTModifs (idName i) n' e' eenv ng' pargm
+                (e'', eenv', ng'', pargm') | PM.memberTV (idName i) pargm 
+                    = typeLamRNTModifs (idName i) n' e' eenv ng' pargm
+                    | otherwise = (e', eenv, ng', pargm)
             in 
            ( RuleReturnEApplyLamType [n']
             , [ s { expr_env = eenv'
@@ -342,23 +344,21 @@ retLam s@(State { expr_env = eenv, tyvar_env = tvnv, poly_arg_map = pargm})
 typeLamRNTModifs :: Name -> Name -> Expr -> E.ExprEnv -> NameGen 
     -> PM.PolyArgMap -> (Expr, E.ExprEnv, NameGen, PM.PolyArgMap)
 typeLamRNTModifs n n' e eenv ng pargm = (e', eenv', ng', pargm') where
-     -- If the inner expression is a non-symbolic Id (PM function that has been solved for),
-    -- perform renaming/retyping for the current execution.
-    (e', eenv', ng') | PM.memberTV n pargm 
-        = newBindingsForExecutionAtType n n' e eenv ng
-        | otherwise = (e, eenv, ng)
-    
-    -- PAM entries will have access to different arguments on different
-    -- branches of the solved function, so it is necessary to clear
-    -- collected arguments for each new execution of the function.
-    --
+    -- The expression is the inside of a type lambda involving a TV tracked in
+    -- the PolyArgMap. Perform renaming/retyping for the current execution to
+    -- allow for reuse of a previously solved for definition. Unsolved functions
+    -- will be unchanged.
+    (e', eenv', ng') = newBindingsForExecutionAtType n n' e eenv ng
+
     -- If the tyVar is present in the PAM, make TARM entry
     -- and empty PAM entry. tyVars can only be added to the PAM
     -- originally through the PM-FORALL rule, so this avoids adding 
     -- tyVars that are not part of a rank-N-type.
-    pargm' = if PM.memberTV n pargm 
-        then PM.insertTV n . PM.insertRToE n' n $ pargm 
-        else pargm
+    --
+    -- PAM entries will have access to different arguments on different
+    -- branches of the solved function, so it is necessary to clear
+    -- collected arguments for each new execution of the function.
+    pargm' = PM.insertRToE n' n . PM.insertTV n $ pargm
 
 -- TODO: Need to consider more expression types and make this cleaner.
 -- | Create new bindings using an existing polymorphic function body, to be used for a particular execution
@@ -1390,34 +1390,25 @@ liftBind bindsLHS@(Id _ lhsTy) bindsRHS eenv expr ngen pargm = (eenv'', expr', n
 
     expr' = renameExpr old new expr
 
-    (eenv', pargm') = termLamRNTModifs expr' lhsTy old new eenv pargm
+    (eenv', pargm') | TyVar (Id lhsTyName _) <- lhsTy 
+        , PM.member lhsTyName pargm = termLamRNTModifs expr' lhsTyName old new eenv pargm
+        | otherwise = (eenv, pargm)
+
     eenv'' = E.insert new bindsRHS eenv'
 
 -- | Modifications to the ExprEnv and PolyArgMap that are needed when solving for RankNTypes-enabled functions.
-termLamRNTModifs :: Expr -> Type -> Name -> Name -> E.ExprEnv 
-    -> PM.PolyArgMap -> (E.ExprEnv, PM.PolyArgMap)
-termLamRNTModifs expr lhsTy old new eenv pargm = (eenv', pargm') 
-    where
-        -- Will rename the new binding across environment entries where needed. This is required
-        -- for polymorphic functions, which, after solving, will have definitions split across
-        -- environment entries. It is okay to modify the entires directly, because these entries
-        -- will have been created specifically for this execution of the function when a type was
-        -- applied to the function. See newBindingsForExecutionAtType
-        -- TODO: these should use the same guards
-        eenv' | (TyVar (Id lhsTyName _)) <- lhsTy 
-          , PM.member lhsTyName pargm = foldr (deepRenameRNTArg old new . idName) eenv $ ids expr
-          | otherwise = eenv
-        -- Collect new argument name and renaming if currently solving an RNT function. 
-        pargm' | TyVar (Id lhsTyName _) <- lhsTy 
-            , PM.member lhsTyName pargm = PM.insertRename lhsTyName old new Nothing pargm 
-            | otherwise = pargm 
-
-        -- TODO: collect function arguments
+termLamRNTModifs :: Expr -> Name -> Name -> Name -> E.ExprEnv -> PM.PolyArgMap -> (E.ExprEnv, PM.PolyArgMap)
+termLamRNTModifs expr lhsTyName old new eenv pargm = 
+    -- Will rename the new binding across environment entries where needed.
+    (foldr (deepRenameRNTArg old new . idName) eenv $ ids expr
+    -- Collect new argument name and renaming.
+   , PM.insertRename lhsTyName old new Nothing pargm) 
+    -- TODO: collect function arguments
 
 -- | Rename in environment entires recursively reachable from the binding of the provided name.
 -- Necessary for managing environment after solving for polymorphic functions, which may have definitions
 -- split across mulitple environment entires. These environment entries can be directly renamed in because 
--- they have been created for the current execution of the function.
+-- they have been created for the current execution of the function. see newBindingsForExecutionAtType
 deepRenameRNTArg :: Name -> Name -> Name -> E.ExprEnv -> E.ExprEnv 
 deepRenameRNTArg envArg runArg n eenv 
         | Just binding <- E.lookup n eenv
