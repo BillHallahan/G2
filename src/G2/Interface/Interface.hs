@@ -86,6 +86,8 @@ import qualified Data.List as L
 import qualified G2.Language.TyVarEnv as TV
 import System.Timeout
 
+import Data.Foldable
+
 type AssumeFunc = T.Text
 type AssertFunc = T.Text
 type ReachFunc = T.Text
@@ -281,7 +283,7 @@ type RHOStack m t = SM.StateT (ApproxPrevs t)
                              Reducer (RHOStack IO ()) rv ()
                           -> Halter (RHOStack IO ()) hv (ExecRes ()) ()
                           -> Orderer (RHOStack IO ()) sov b (ExecRes ()) ()
-                          -> (State () -> Bindings -> RHOStack IO () (Maybe (ExecRes ())))
+                          -> SolveStates (RHOStack IO ()) (ExecRes ()) ()
                           -> [AnalyzeStates (RHOStack IO ()) (ExecRes ()) ()]
                           -> State ()
                           -> Bindings
@@ -724,15 +726,15 @@ runG2SolvingResult :: ( Named t
                    -> simplifier
                    -> Bindings
                    -> State t
-                   -> IO (Result (ExecRes t) () ())
+                   -> IO (Result (ExecRes t, NameGen) () ())
 runG2SolvingResult solver simplifier bindings s@(State { tyvar_env = tv_env })
     | true_assert s = do
         r <- solve solver s bindings (E.symbolicIds . expr_env $ s) (path_conds s)
         case r of
-            SAT (SatRes m tv_env' _) -> do
+            SAT (SatRes m tv_env' ng') -> do
                 let s' = s { tyvar_env = tv_env `TV.union` tv_env' }
                     m' = reverseSimplification simplifier s' bindings m
-                return . SAT $ runG2SubstModel m' s' bindings
+                return . SAT $ (runG2SubstModel m' s' bindings, ng')
             UNSAT _ -> return $ UNSAT ()
             Unknown reason _ -> return $ Unknown reason ()
 
@@ -746,7 +748,7 @@ runG2Solving :: ( MonadIO m
              -> simplifier
              -> State t
              -> Bindings
-             -> m (Maybe (ExecRes t))
+             -> m (Maybe (ExecRes t, NameGen))
 runG2Solving solver simplifier s bindings = do
     res <- liftIO $ runG2SolvingResult solver simplifier bindings s
     case res of
@@ -809,4 +811,7 @@ runG2 :: ( MonadIO m
          solver -> simplifier -> MemConfig -> State t -> Bindings -> m ([ExecRes t], Bindings)
 runG2 red hal ord analyze solver simplifier mem is bindings = do
     let (is', bindings') = runG2Pre mem is bindings
-    runExecution red hal ord (runG2Solving solver simplifier) analyze is' bindings'
+    xs <- runExecution red hal ord (runG2Solving solver simplifier) analyze is' bindings'
+    -- liftIO . putStrLn $ "runG2 2 er" ++ show ((Name "a" Nothing 7566047373982658523 Nothing)
+    --                                             `elem` (toList $ names . map (map fst . TV.toList . tyvar_env . final_state) $ fst xs))
+    return xs

@@ -2310,7 +2310,7 @@ logRedRuleNum _ _ _ = return ()
 --------
 
 -- | Solve for concrete values in a fully executed state.
-type SolveStates m r t = State t -> Bindings -> m (Maybe r)
+type SolveStates m r t = State t -> Bindings -> m (Maybe (r, NameGen))
 
 {-# INLINABLE runReducer #-}
 {-# SPECIALIZE runReducer :: Ord b =>
@@ -2368,17 +2368,18 @@ runReducer red hal ord solve_r analyze init_state init_bindings = do
                 ()
                     | hc == Accept -> do
                         (s', b') <- onAccept red s b r_val
-                        er <- solve_r s' b'
+                        er_ng <- solve_r s' b'
                         sequence_ $ analyze <*> pure (StateAccepted s') <*> pure pr <*> pure (map state . concat $ M.elems xs)
-                        pr' <- case er of
-                                    Just er' -> do
-                                        onSolved red
-                                        return $ pr {accepted = er':accepted pr}
-                                    Nothing -> return pr
+                        (pr', ng') <- case er_ng of
+                                        Just (er', ng) -> do
+                                            onSolved red
+                                            return $ (pr {accepted = er':accepted pr}, ng)
+                                        Nothing -> return (pr, name_gen b')
+                        let b'' = b' { name_gen = ng' }
                         let jrs = minState pr' xs
                         case jrs of
-                            Just (rs', xs') -> switchState pr' rs' b' xs'
-                            Nothing -> return (pr', b')
+                            Just (rs', xs') -> switchState pr' rs' b'' xs'
+                            Nothing -> return (pr', b'')
                     | hc == Discard -> do
                         onDiscard red s r_val
                         sequence_ $ analyze <*> pure (StateDiscarded s) <*> pure pr <*> pure (map state . concat $ M.elems xs)
