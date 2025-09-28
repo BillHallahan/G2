@@ -86,7 +86,9 @@ equivMods = HM.fromList
 #endif
             , ("GHC.PrimSMT", "GHC.Prim")
             , ("GHC.Prim2", "GHC.Prim")
-#if MIN_VERSION_GLASGOW_HASKELL(9,6,0,0)
+#if MIN_VERSION_GLASGOW_HASKELL(9,10,0,0)
+            , ("GHC.Tuple2", "GHC.Tuple")
+#elif MIN_VERSION_GLASGOW_HASKELL(9,6,0,0)
             , ("GHC.Tuple2", "GHC.Tuple.Prim")
 #else
             , ("GHC.Tuple2", "GHC.Tuple")
@@ -94,9 +96,18 @@ equivMods = HM.fromList
             , ("GHC.Magic2", "GHC.Magic")
             , ("GHC.CString2", "GHC.CString")
             , ("Data.Map.Base", "Data.Map")
-            
+
 #if MIN_VERSION_GLASGOW_HASKELL(9,0,0,0)
             , ("GHC.IO.Handle.FD", "GHC.IO.StdHandles")
+#endif
+#if MIN_VERSION_GLASGOW_HASKELL(9,10,0,0)
+            , ("GHC.Internal.Enum", "GHC.Enum")
+            , ("GHC.Internal.Err", "GHC.Err")
+            , ("GHC.Internal.Base", "GHC.Base")
+            , ("GHC.Internal.Data.Foldable", "Data.Foldable")
+            , ("GHC.Internal.List", "GHC.List")
+            , ("GHC.Internal.Maybe", "GHC.Maybe")
+            , ("GHC.Internal.Num", "GHC.Num")
 #endif
             ]
 
