@@ -177,12 +177,9 @@ evalVarSharing s@(State { expr_env = eenv
 
             -- create environment Alts with lam names and original tyVar, add to environment
             -- TODO: passing in otv should be cleaner
-            -- third tuple value ignored intentionally
-            (as, symIds, _, ng'') = makeAltsForPMRet' (map (\(en, _, mt) -> (en, mt)) ents) outerTyVar ng' outerTyVar
-            asRev = reverse as
-            e' = Case (Var scrut) bindee (TyVar outerTyVar) asRev
+            (as, symIds, ng'') = makeAltsForPMRet (map (\(en, _, mt) -> (en, mt)) ents) ng' outerTyVar
+            e' = Case (Var scrut) bindee (TyVar outerTyVar) as
             eenv'' = E.insert (idName i) e' eenv' 
-    
 
             -- insert all symbolic names created for alt expressions
             eenv''' = foldr E.insertSymbolic eenv'' symIds  
@@ -236,37 +233,55 @@ evalVarNoSharing s@(State { expr_env = eenv })
         (RuleEvalVarNonVal (idName i), [s { curr_expr = CurrExpr Evaluate e }], ng)
     | otherwise = error  $ "evalVar: bad input." ++ show i
 
-makeAltsForPMRet' :: [(Name, Maybe Type)] -> Id -> NameGen -> Id -> ([Alt], [Id], Binds, NameGen)
-makeAltsForPMRet' es tvid ng otv = (\(a, si, bs, n, _) -> (a, si, bs, n)) $ foldr makeEntryAndNames ([], [], [], ng, 1) es
-    where makeEntryAndNames :: (Name, Maybe Type) -> ([Alt], [Id], Binds, NameGen, Int) -> ([Alt], [Id], Binds, NameGen, Int)
-          makeEntryAndNames (n, mty) (as, newSymIds, binds, ng_, l) =
-            let
-                -- TODO: this could be cleaned up
-                (aExpr, symIds, bind', ng') = case mty of
-                    Just typ -> let
-                            -- get types for collector function and arguments to func arg
-                            (fatys, rty) = argTypes typ
-                            collTy:faArgTys = (TyFun (rename (idName tvid) (idName otv) $ rty) (TyVar tvid)):fatys
-                            -- ids for collector function and arguments to func arg
-                            (newSyms@(collFunId:faArgIds), ngFA) = freshIds (collTy:faArgTys) ng_
-                            -- id for application and bindee
-                            ([appId, bindee], ngFA') = freshIds [rty, TyVar otv] ngFA
+makeAltsForPMRet :: [(Name, Maybe Type)] -> NameGen -> Id -> ([Alt], [Id], NameGen)
+makeAltsForPMRet entries ng otv = (reverse allAlts, allNewSyms, ng')
+    where 
+        valEnts = [n | (n, Nothing) <- entries]
+        faEnts = [(n, t) | (n, (Just t)) <- entries]
+        allNewSyms = faNewSyms
+        ng' = faNG
+        vaExprs = makeValExprs valEnts otv
+        (allFAExprs, faNewSyms, faNG) = makeAllFuncArgExprs faEnts valEnts ng otv
+        len = length (vaExprs ++ allFAExprs)
+        allAlts = fst $ foldr (\aExpr (as, l) -> 
+            (Alt {altMatch = if length as >= (len-1) then Default else LitAlt (LitInt $ toInteger l), 
+                  altExpr = aExpr}:as, l+1)) ([], 1) (vaExprs ++ allFAExprs) 
 
-                            -- application expr
-                            appScrut = mkApp (Var (Id n typ):map Var faArgIds) -- function arg application 
-                            -- _ -> Coll appId
-                            collAlt = Alt {altMatch = Default, altExpr = mkApp [Var collFunId, Var appId]}
-                            -- Case appId of _ -> (Coll appId)
-                            caseE = Case (Var appId) bindee (TyVar otv) [collAlt]
-                            -- Let appId = func [args] in Case appId of _ -> (Coll appId)
-                            letE = Let [(appId, appScrut)] caseE
-                        in
-                            (letE, newSyms, [], ngFA') -- Case to force evaluation
+makeValExprs :: [Name] -> Id -> [Expr]
+makeValExprs ns otv = map (\n -> Var (Id n (TyVar otv))) ns
 
-                    Nothing -> (Var (Id n (TyVar tvid)), [], [], ng_)
-            in
-                (Alt {altMatch = if length as >= (len-1) then Default else LitAlt (LitInt $ toInteger l) , altExpr = aExpr}:as, newSymIds ++ symIds, bind'++binds, ng', l+1)
-          len = length es
+-- TODO: need to check vals against argument types
+makeAllFuncArgExprs :: [(Name, Type)] -> [Name] -> NameGen -> Id -> ([Expr], [Id], NameGen)
+makeAllFuncArgExprs fas vs ng otv = foldr (\(_fa, _ty) (_es, _ids, _ng) -> funcArgExprs _fa _ty _ng) ([], [], ng) fas
+    where
+        -- create all expressions for one function argument
+        funcArgExprs :: Name -> Type -> NameGen -> ([Expr], [Id], NameGen) 
+        funcArgExprs fa faTy ng___ = foldr (\aComb (es, ids__, ng__) -> let (e, newIds, ng__') = funcArgExpr aComb ng__ in (e:es, newIds++ids__, ng__')) ([], [], ng___) argCombs
+            where
+                (faArgTys, retTy) = argTypes faTy 
+                -- make list for all argument types
+                argSets :: [[Name]]
+                -- TODO: vs need to carry type info (what PAM entry they are from)
+                argSets = map (\argTy -> [argN | argN <- vs]) faArgTys
+                -- list comp to make tuple of all possible arg combinations
+                argCombs = cartesian argSets
+                -- fold over list
+                -- find all vals of argument types
+                cartesian :: [[a]] -> [[a]]
+                cartesian []     = [[]]
+                cartesian (xs:xss) = [ x:ys | x <- xs, ys <- cartesian xss ]
+
+                -- call funcArgExpr for all combinations of val arguments, others always symbolic
+                
+                -- create single let - case - alt - app expression
+                funcArgExpr :: [Name] -> NameGen -> (Expr, [Id], NameGen)
+                funcArgExpr ns ng_ = (letE, [collFunId], ng_')
+                    where
+                        ([appId, collFunId, bindee], ng_') = freshIds [retTy, TyFun retTy (TyVar otv), TyVar otv] ng_ 
+                        appScrut = mkApp (Var (Id fa faTy):map (\n -> Var (Id n (TyVar otv))) ns)
+                        collAlt = Alt {altMatch = Default, altExpr = mkApp [Var collFunId, Var appId]}
+                        caseE = Case (Var appId) bindee (TyVar otv) [collAlt]
+                        letE = Let [(appId, appScrut)] caseE
 
 -- | If we have a primitive operator, we are at a point where either:
 --    (1) We can concretely evaluate the operator, or
