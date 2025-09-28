@@ -23,7 +23,6 @@ module G2.Language.ExprEnv
     , deepLookupExpr
     , deepLookupConcOrSym
     , deepLookupVar
-    , deepRename
     , isSymbolic
     , occLookup
     , lookupNameMod
@@ -71,7 +70,6 @@ import G2.Language.AST
 import G2.Language.Naming
 import G2.Language.Syntax
 import G2.Language.Typing
-import G2.Language.Ids
 
 import Prelude hiding( filter
                      , lookup
@@ -85,7 +83,6 @@ import Data.Hashable
 import qualified Data.List as L
 import qualified Data.HashMap.Lazy as M
 import Data.Maybe
-import qualified Data.Sequence as S
 import qualified Data.Text as T
 import qualified Data.Traversable as Trav
 import GHC.Generics (Generic)
@@ -202,27 +199,7 @@ deepLookupVar n eenv = go n
                 Just (Conc r) -> Just f
                 Just (Sym r) -> Just $ idName r
                 Nothing -> Nothing
-
--- | Rename in environment entires recursively reachable from the binding of the provided name.
--- Necessary for managing environment after solving for polymorphic functions, which may have definitions
--- split across mulitple environment entires. These environment entries can be directly renamed in because 
--- they have been created for the current execution of 
-deepRename :: Name -> Name -> Name -> ExprEnv -> ExprEnv 
-deepRename envArg runArg n eenv 
-        | Just binding <- lookup n eenv
-        , not (isSymbolic n eenv) = let
-            -- TODO: only apply deeper if Id is a tyVar or function
-            ns = [n_ | (Id n_ t) <- ids binding, (\case
-                            TyVar _ -> True
-                            TyFun _ _ -> True 
-                            TyApp _ _ -> True
-                            _ -> False ) t, not (isSymbolic n_ eenv)]
-            eenv' = foldr (deepRename envArg runArg) eenv ns
-                    in 
-                        insert n (rename envArg runArg binding) eenv'
-        | otherwise = eenv
-            
-                
+        
 -- | Checks if the given `Name` belongs to a symbolic variable.
 isSymbolic :: Name -> ExprEnv -> Bool
 isSymbolic n eenv =

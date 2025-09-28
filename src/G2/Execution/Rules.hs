@@ -1,4 +1,4 @@
-{-# LANGUAGE FlexibleContexts, OverloadedStrings, RankNTypes #-}
+{-# LANGUAGE FlexibleContexts, OverloadedStrings, RankNTypes, LambdaCase #-}
 
 module G2.Execution.Rules ( module G2.Execution.RuleTypes
                           , Sharing (..)
@@ -1405,7 +1405,7 @@ termLamRNTModifs expr lhsTy old new eenv pargm = (eenv', pargm')
         -- applied to the function. See newBindingsForExecutionAtType
         -- TODO: these should use the same guards
         eenv' | (TyVar (Id lhsTyName _)) <- lhsTy 
-          , PM.member lhsTyName pargm = foldr (E.deepRename old new . idName) eenv $ ids expr
+          , PM.member lhsTyName pargm = foldr (deepRenameRNTArg old new . idName) eenv $ ids expr
           | otherwise = eenv
         -- Collect new argument name and renaming if currently solving an RNT function. 
         pargm' | TyVar (Id lhsTyName _) <- lhsTy 
@@ -1413,6 +1413,25 @@ termLamRNTModifs expr lhsTy old new eenv pargm = (eenv', pargm')
             | otherwise = pargm 
 
         -- TODO: collect function arguments
+
+-- | Rename in environment entires recursively reachable from the binding of the provided name.
+-- Necessary for managing environment after solving for polymorphic functions, which may have definitions
+-- split across mulitple environment entires. These environment entries can be directly renamed in because 
+-- they have been created for the current execution of the function.
+deepRenameRNTArg :: Name -> Name -> Name -> E.ExprEnv -> E.ExprEnv 
+deepRenameRNTArg envArg runArg n eenv 
+        | Just binding <- E.lookup n eenv
+        , not (E.isSymbolic n eenv) = let
+            -- TODO: only apply deeper if Id is a tyVar or function
+            ns = [n_ | (Id n_ t) <- ids binding, (\case
+                            TyVar _ -> True
+                            TyFun _ _ -> True 
+                            TyApp _ _ -> True
+                            _ -> False ) t, not (E.isSymbolic n_ eenv)]
+            eenv' = foldr (deepRenameRNTArg envArg runArg) eenv ns
+                    in 
+                        E.insert n (rename envArg runArg binding) eenv'
+        | otherwise = eenv
 
 type SymbolicFuncEval t = SymFuncTicks -> State t -> NameGen -> Expr -> Maybe (Rule, [State t], NameGen)
 
