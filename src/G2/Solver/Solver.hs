@@ -52,7 +52,7 @@ data Result m u um = SAT m
                    | Unknown String um
                    deriving (Show, Eq)
 
-data SatRes = SatRes { sr_model :: Model, sr_tve :: TyVarEnv, sr_namegen :: NameGen }
+data SatRes = SatRes { sr_model :: Model, sr_tve :: TyVarEnv, sr_namegen :: !NameGen }
 
 -- | Defines an interface to interact with Solvers
 class Solver solver where
