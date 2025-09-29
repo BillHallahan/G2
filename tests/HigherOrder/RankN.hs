@@ -66,3 +66,8 @@ twoTVsMultiCall f = case (f 1 2, f 3 4) of
 
 funcArg :: (forall a. (a -> a) -> a -> a) -> Int 
 funcArg f = f (\x -> x + 1) 2
+
+funcArg2TVs :: (forall a b. (b -> a) -> b -> a) -> Bool 
+funcArg2TVs f = f (\x -> case x of 
+                    2 -> True 
+                    _ -> False ) 2

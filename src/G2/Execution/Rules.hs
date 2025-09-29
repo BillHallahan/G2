@@ -177,18 +177,15 @@ evalVarSharing s@(State { expr_env = eenv
 
             -- create environment Alts with lam names and original tyVar, add to environment
             -- TODO: passing in otv should be cleaner
-            (as, symIds, ng'') = makeAltsForPMRet (map (\(en, _, mt) -> (en, mt)) ents) ng' outerTyVar
+            (as, symIds, ng'') = makeAltsForPMRet (map (\(en, _, mt) -> (en, mt)) ents) ng' outerTyVar pargm
             e' = Case (Var scrut) bindee (TyVar outerTyVar) as
             eenv'' = E.insert (idName i) e' eenv' 
 
             -- insert all symbolic names created for alt expressions
             eenv''' = foldr E.insertSymbolic eenv'' symIds  
-            
-            -- insert new non-symbolic ids
-            -- eenv'''' = foldr (\(newId, newB) eenv_ -> E.insert (idName newId) newB eenv_) eenv''' newBinds
-            --- eenv'''' = E.insert (idName newN) newB eenv'''
+
             -- rename for current execution path, return as CurrExpr, don't insert in env
-            e'' = renames (HM.fromList ((otvN, tyIdN):map (\(en, r, _) -> (en, r)) ents)) e'
+            e'' = renames (PM.toAllRenamingsHM pargm) $ retypeToRunTVs e' tarm
 
             stateOrNull = [s { curr_expr = CurrExpr Evaluate e'', expr_env = eenv'''} | not . null $ as]
         in
@@ -233,47 +230,44 @@ evalVarNoSharing s@(State { expr_env = eenv })
         (RuleEvalVarNonVal (idName i), [s { curr_expr = CurrExpr Evaluate e }], ng)
     | otherwise = error  $ "evalVar: bad input." ++ show i
 
-makeAltsForPMRet :: [(Name, Maybe Type)] -> NameGen -> Id -> ([Alt], [Id], NameGen)
-makeAltsForPMRet entries ng otv = (reverse allAlts, allNewSyms, ng')
-    where 
-        valEnts = [n | (n, Nothing) <- entries]
-        faEnts = [(n, t) | (n, (Just t)) <- entries]
-        allNewSyms = faNewSyms
-        ng' = faNG
-        vaExprs = makeValExprs valEnts otv
-        (allFAExprs, faNewSyms, faNG) = makeAllFuncArgExprs faEnts valEnts ng otv
+makeAltsForPMRet :: [(Name, Maybe Type)] -> NameGen -> Id -> PM.PolyArgMap -> ([Alt], [Id], NameGen)
+makeAltsForPMRet entries ng otv pargm = (allAlts, newSyms, ng')
+    where
+        -- create value Alts
+        valEnts = [(n, TyVar otv) | (n, Nothing) <- entries]
+        vaExprs = makeValExprs (map fst valEnts) otv
+
+        -- create function argument Alts
+        faEnts = [(n, t) | (n, Just t) <- entries]
+        valSets = PM.toListVals pargm
+        (allFAExprs, newSyms, ng') = makeAllFuncArgExprs faEnts valSets ng otv
+
+        -- make Alts from all new expressions
         len = length (vaExprs ++ allFAExprs)
-        allAlts = fst $ foldr (\aExpr (as, l) -> 
-            (Alt {altMatch = if length as >= (len-1) then Default else LitAlt (LitInt $ toInteger l), 
+        allAlts = reverse . fst $ foldr (\aExpr (as, l) -> 
+            (Alt {altMatch = if length as >= (len-1) then Default else LitAlt (LitInt $ toInteger (l::Int)), 
                   altExpr = aExpr}:as, l+1)) ([], 1) (vaExprs ++ allFAExprs) 
 
 makeValExprs :: [Name] -> Id -> [Expr]
 makeValExprs ns otv = map (\n -> Var (Id n (TyVar otv))) ns
 
--- TODO: need to check vals against argument types
-makeAllFuncArgExprs :: [(Name, Type)] -> [Name] -> NameGen -> Id -> ([Expr], [Id], NameGen)
-makeAllFuncArgExprs fas vs ng otv = foldr (\(_fa, _ty) (_es, _ids, _ng) -> funcArgExprs _fa _ty _ng) ([], [], ng) fas
+makeAllFuncArgExprs :: [(Name, Type)] -> [(Name, [Name])] -> NameGen -> Id -> ([Expr], [Id], NameGen)
+makeAllFuncArgExprs fas vss ng otv = foldr (\(_fa, _ty) (_es, _ids, _ng) -> funcArgExprs _fa _ty _ng) ([], [], ng) fas
     where
+        valSetHM = HM.fromList vss
         -- create all expressions for one function argument
         funcArgExprs :: Name -> Type -> NameGen -> ([Expr], [Id], NameGen) 
         funcArgExprs fa faTy ng___ = foldr (\aComb (es, ids__, ng__) -> let (e, newIds, ng__') = funcArgExpr aComb ng__ in (e:es, newIds++ids__, ng__')) ([], [], ng___) argCombs
             where
                 (faArgTys, retTy) = argTypes faTy 
-                -- make list for all argument types
+                -- select val sets that match FA arg types
+                -- TODO: only works when all arguments to function argument are TVs. Excludes other types (Int,..) or ADTs containing TVs (Maybe a). 
                 argSets :: [[Name]]
-                -- TODO: vs need to carry type info (what PAM entry they are from)
-                argSets = map (\argTy -> [argN | argN <- vs]) faArgTys
-                -- list comp to make tuple of all possible arg combinations
-                argCombs = cartesian argSets
-                -- fold over list
-                -- find all vals of argument types
-                cartesian :: [[a]] -> [[a]]
-                cartesian []     = [[]]
-                cartesian (xs:xss) = [ x:ys | x <- xs, ys <- cartesian xss ]
-
-                -- call funcArgExpr for all combinations of val arguments, others always symbolic
+                argSets = map (\(TyVar faArgTy) -> maybe (error $ "bad lookup" ++ show (idName faArgTy)) id (HM.lookup (idName faArgTy) valSetHM) ) faArgTys
+                -- cartesian product producing all combinations of arguments
+                argCombs = sequence argSets
                 
-                -- create single let - case - alt - app expression
+                -- create single let - case - alt - app expression using arguments
                 funcArgExpr :: [Name] -> NameGen -> (Expr, [Id], NameGen)
                 funcArgExpr ns ng_ = (letE, [collFunId], ng_')
                     where
@@ -1470,11 +1464,12 @@ termLamRNTModifs expr lhsTy old new eenv pargm tarm = (eenv', pargm'')
             | otherwise = pargm 
 
         -- if LHS type is a function with return type containing tyVars, insert the env-runtime renaming into PAM entries
+        -- TODO: need to add all functions
         pargm'' | (TyFun _ _) <- lhsTy 
                 , (_, tr) <- argTypes lhsTy = let
             contTyVarsEnv = foldr (\(Id tvn _) ets -> maybe ets (: ets) (TRM.lookup tvn tarm)) [] (tyVarIds tr)
             in
-            foldr (\tvN pam -> PM.insertRename tvN old new (Just lhsTy) pam) pargm' contTyVarsEnv
+                foldr (\tvN pam -> PM.insertRename tvN old new (Just (retypeToEnvTVs lhsTy tarm)) pam) pargm' contTyVarsEnv
             | otherwise = pargm'
 
 type SymbolicFuncEval t = SymFuncTicks -> State t -> NameGen -> Expr -> Maybe (Rule, [State t], NameGen)
@@ -1656,6 +1651,9 @@ retReplaceSymbFuncTemplate sft
 
 retypeToEnvTVs :: (Named a) => a -> TRM.TypeAppRenameMap -> a
 retypeToEnvTVs nd tarm = renames (HM.fromList . TRM.toList $ tarm) nd
+
+retypeToRunTVs :: (Named a) => a -> TRM.TypeAppRenameMap -> a 
+retypeToRunTVs nd tarm = renames (HM.fromList . map (\(r, e) -> (e, r)) $ TRM.toList tarm) nd
 
 argTypes :: Type -> ([Type], Type)
 argTypes t = (anonArgumentTypes t, returnType t)

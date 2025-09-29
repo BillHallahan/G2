@@ -7,6 +7,8 @@ module G2.Language.PolyArgMap ( PolyArgMap
                                , member
                                , remove
                                , toList
+                               , toListVals
+                               , toAllRenamingsHM
                                , fromList
                                , empty ) where
 
@@ -59,6 +61,12 @@ toList :: PolyArgMap -> [(Name, [(Name, Name, Maybe Type)])]
 toList (PolyArgMap pargm) = map (second (map makeEntryTuple)) (HM.toList pargm)
     where makeEntryTuple :: PAMEntry -> (Name, Name, Maybe Type)
           makeEntryTuple (PAMEntry e r vorf) = (e, r, (\case Val -> Nothing; Func t -> Just t) vorf)
+
+toListVals :: PolyArgMap -> [(Name, [Name])]
+toListVals pargm = [(tvN, [valN | (valN, _, Nothing) <- collNs]) | (tvN, collNs) <- toList pargm]
+
+toAllRenamingsHM :: PolyArgMap -> HM.HashMap Name Name
+toAllRenamingsHM pargm = HM.fromList . concatMap (\(_, rns) -> map (\(e, r, _) -> (e, r)) rns) $ toList pargm
 
 fromList :: [(Name, [(Name, Name, Maybe Type)])] -> PolyArgMap
 fromList l = PolyArgMap $ HM.fromList (map (second (map fromEntryTuple)) l)
