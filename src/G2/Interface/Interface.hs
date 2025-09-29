@@ -868,7 +868,9 @@ runG2SubstModel m s@(State { expr_env = eenv, type_env = tenv, tyvar_env = tv_en
                        , conc_sym_gens = gens
                        , conc_mutvars = mv
                        , conc_handles = conc_handles sm'
-                       , violated = evalPrims eenv tenv tv_env kv (violated sm')}
+                       , violated = evalPrims eenv tenv tv_env kv (violated sm')
+                       , validated = Nothing -- when validate runs, it will get updated
+                       }
     in
     sm''
 

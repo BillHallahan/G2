@@ -535,6 +535,9 @@ testFileTests = testGroup "TestFiles"
                                                                        , ("thirdOrder2", 300, [AtLeast 3])
                                                                        , ("tupleTestMono", 175, [AtLeast 2])
                                                                        , ("multiPrim", 300, [AtLeast 2])]
+                                                                    
+    , checkInputOutputsWithValidate "tests/BaseTests/ListTests.hs" [ ("lengthN", 2000, [AtLeast 1])
+                                                                , ("lengthBranch", 2000, [AtLeast 4])]
     , checkInputOutputsNonRedLib "tests/BaseTests/ListTests.hs" [ ("lengthN", 20000, [Exactly 1])
                                                                 , ("lengthBranch", 20000, [Exactly 4])
                                                                 , ("map2", 20000, [Exactly 3])

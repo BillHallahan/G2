@@ -9,7 +9,8 @@ module InputOutputTest ( checkInputOutput
                        , checkInputOutputsTemplate
                        , checkInputOutputsNonRedHigher
                        , checkInputOutputsNonRedLib
-                       , checkInputOutputsInstType ) where
+                       , checkInputOutputsInstType 
+                       , checkInputOutputsWithValidate) where
 
 import Test.Tasty
 import Test.Tasty.HUnit
@@ -79,6 +80,13 @@ checkInputOutputsInstType :: FilePath -> [(String, Int, [Reqs String])] -> TestT
 checkInputOutputsInstType src tests = do
     checkInputOutput'
         (do config <- mkConfigTestIO; return (config { instTV = InstAfter }))
+        src
+        tests
+
+checkInputOutputsWithValidate :: FilePath -> [(String, Int, [Reqs String])] -> TestTree
+checkInputOutputsWithValidate src tests = do
+    checkInputOutput'
+        (do config <- mkConfigTestIO; return (config { validate = True }))
         src
         tests
 

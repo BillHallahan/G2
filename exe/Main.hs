@@ -53,8 +53,9 @@ runWithArgs as = do
   let notValidated = filter (\res@ExecRes{validated = val} -> case val of
                                                                     Just m -> m == False
                                                                     Nothing -> False ) in_out
-  if null notValidated then putStrLn "All states are validated" else putStrLn "One or more validation failed"
-  
+  when (validate config) $ do
+    if null notValidated then putStrLn "All states are validated" else putStrLn "One or more validation failed"
+    
   when (print_num_post_call_func_arg config) $ do
         putStrLn $ "Post call states: " ++ show (length spec_output)
         putStrLn $ "Func arg states: " ++ show (length unspecified_output)
