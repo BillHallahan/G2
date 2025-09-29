@@ -78,3 +78,6 @@ testModAssert a = callOtherMod a
 
 testRecursive :: (Int -> Float -> Int) -> Int
 testRecursive f = testRecursive f -}
+
+polyHigher :: ((a -> a) -> a) -> (a -> a) -> a
+polyHigher g = g
