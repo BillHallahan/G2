@@ -1527,7 +1527,7 @@ retReplaceSymbFuncTemplate sft
     -- don't explore behavior of function arguments with tyVar arguments, cannot 
     -- reliably create symbolic tyVars until all top-level arguments are processed.
     -- Functions not matching here are processed by PM-FUNC-ARG
-    , null $ tyVarIds (tr:tfs) -- reject if any tyVars
+    , not . any (flip PM.member pargm . idName) $ tyVarIds (tr:tfs) -- reject if any tyVars tracked in PolyArgMap
     = let
         (xIds, ng') = freshIds tfs ng
         xs = map Var xIds
@@ -1550,7 +1550,7 @@ retReplaceSymbFuncTemplate sft
     | Var (Id n (TyFun t1@(TyFun _ _) t2)):es <- unApp ce
     , E.isSymbolic n eenv
     , (tfs, tr) <- argTypes t1
-    , not . null $ tyVarIds (tr:tfs) 
+    , any (flip PM.member pargm . idName) $ tyVarIds (tr:tfs) -- collect if containing tyVars tracked in PAM
     = let
         (constState, ng') = mkFuncConst sft s es n t1 t2 ng
     in Just (RuleReturnReplaceSymbFunc, [constState], ng')
