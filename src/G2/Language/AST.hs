@@ -28,8 +28,8 @@ module G2.Language.AST
     ) where
 
 import qualified G2.Data.UFMap as UF
-import G2.Language.Syntax
 import G2.Language.AlgDataTy
+import G2.Language.Syntax
 
 import Data.Hashable
 import qualified Data.HashMap.Lazy as HM
@@ -472,7 +472,6 @@ instance ASTContainer Int Expr where
 instance ASTContainer Int Type where
     containedASTs _ = []
     modifyContainedASTs _ t = t
-
 
 -- AlgDataTy
 instance ASTContainer AlgDataTy Expr where

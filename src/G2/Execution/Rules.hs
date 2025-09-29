@@ -575,7 +575,11 @@ concretizeVarExpr s ng mexpr_id cvar (x:xs) maybeC = newPCs
                                                     (x':newPCs', ng'')
 
 concretizeVarExpr' :: State t -> NameGen -> Id -> Id -> (DataCon, [Id], Expr) -> Maybe Coercion -> Maybe (NewPC t, NameGen)
-concretizeVarExpr' s@(State {expr_env = eenv, type_env = tenv, known_values = kv, tyvar_env = tvnv})
+concretizeVarExpr' s@(State { expr_env = eenv
+                            , type_env = tenv
+                            , known_values = kv
+                            , tyvar_env = tvnv
+                            , families = fams })
                 ngen mexpr_id cvar (dcon, params, aexpr) maybeC =
             -- It is VERY important that we insert the mexpr_id in `concretized`
             -- This forces reduceNewPC to check that the concretized data constructor does
@@ -585,7 +589,7 @@ concretizeVarExpr' s@(State {expr_env = eenv, type_env = tenv, known_values = kv
             Just (params', news, dcon', ngen', aexpr', eenv', tvnv') -> buildNewPC params' news dcon' ngen' aexpr' eenv' tvnv'
 
   where
-    mexpr_t = typeOf tvnv mexpr_id
+    mexpr_t = fullyReduceTypeFunctions fams tvnv $ typeOf tvnv mexpr_id
 
     buildNewPC params' news dcon' ngen' aexpr' eenv' tvnv' =
         let 
@@ -988,7 +992,8 @@ defAltExpr (_:xs) = defAltExpr xs
 evalCast :: State t -> NameGen -> Expr -> Coercion -> (Rule, [State t], NameGen)
 evalCast s@(State { expr_env = eenv
                   , exec_stack = stck 
-                  , tyvar_env = tvnv }) 
+                  , tyvar_env = tvnv
+                  , families = fam }) 
          ng e c@(t1 :~ t2)
     | Var (Id n _) <- e
     , E.isSymbolic n eenv
@@ -1007,6 +1012,14 @@ evalCast s@(State { expr_env = eenv
         ( RuleEvalCastSplit
         , [ s { curr_expr = CurrExpr Evaluate $ simplifyCasts tvnv cast' }]
         , ng')
+    | Just t1' <- reduceTypeFunction fam tvnv t1 =
+        ( RuleEvalCast
+        , [s { curr_expr = CurrExpr Evaluate (Cast e (t1' :~ t2)) }]
+        , ng)
+    | Just t2' <- reduceTypeFunction fam tvnv t2 =
+        ( RuleEvalCast
+        , [s { curr_expr = CurrExpr Evaluate (Cast e (t1 :~ t2')) }]
+        , ng)
     | otherwise =
         ( RuleEvalCast
         , [s { curr_expr = CurrExpr Evaluate $ simplifyCasts tvnv e
