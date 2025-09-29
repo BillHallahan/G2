@@ -176,7 +176,10 @@ runLHG2Inference config red hal ord solver simplifier pres_names init_id final_s
     (ret, final_bindings) <- case (red, hal, ord) of
                                 (SomeReducer red', SomeHalter hal', SomeOrderer ord') -> do
                                     let (s', b') = runG2Pre pres_names final_st bindings
-                                    runExecution red' hal' ord' (\s b -> return . Just $ earlyExecRes b s) noAnalysis s' b'
+                                    runExecution red' hal' ord'
+                                                 (\s b -> return . Just $ (earlyExecRes b s, name_gen b))
+                                                 noAnalysis
+                                                 s' b'
     
     ret' <- filterM (satState solver . final_state) ret
     let ret'' = onlyMinimalStates ret'
@@ -200,7 +203,7 @@ cleanupResultsInference solver simplifier config init_id bindings ers = do
     ers6 <- liftIO $ mapM (runG2SolvingInference solver simplifier bindings') ers5
 
     let ers7 = 
-          map (\er@(ExecRes { final_state = s }) ->
+          map (\(er@(ExecRes { final_state = s }), !_) ->
                 (er { final_state =
                               s {track = 
                                     mapAbstractedInfoFCs (evalPrims (expr_env s) (type_env s) (tyvar_env s) (known_values s)
@@ -251,29 +254,29 @@ runG2ThroughExecutionInference red hal ord _ _ _ pres s b = do
     case (red, hal, ord) of
             (SomeReducer red', SomeHalter hal', SomeOrderer ord') -> do
                     let (s', b') = runG2Pre pres s b
-                    runExecution red' hal' ord' (\s b -> return . Just $ earlyExecRes b s) noAnalysis s' b'
+                    runExecution red' hal' ord' (\s b -> return . Just $ (earlyExecRes b s, name_gen b)) noAnalysis s' b'
 
-runG2SolvingInference :: (MonadIO m, Solver solver, Simplifier simplifier) => solver -> simplifier -> Bindings -> ExecRes AbstractedInfo -> m (ExecRes AbstractedInfo)
+runG2SolvingInference :: (MonadIO m, Solver solver, Simplifier simplifier) => solver -> simplifier -> Bindings -> ExecRes AbstractedInfo -> m (ExecRes AbstractedInfo, NameGen)
 runG2SolvingInference solver simplifier bindings (ExecRes { final_state = s }) = do
     let abs_resemble_real = softAbstractResembleReal s
         pc_with_soft = PC.union abs_resemble_real (path_conds s)
         s_with_soft_pc = s { path_conds = pc_with_soft }
     er_solving <- liftIO $ runG2SolvingResult solver simplifier bindings s_with_soft_pc
     case er_solving of
-        SAT er_solving' -> do
+        SAT (er_solving', ng') -> do
             let er_solving'' = if fmap funcName (violated er_solving') == Just initiallyCalledFuncName
                                               then er_solving' { violated = Nothing }
                                               else er_solving'
-            return er_solving''
+            return (er_solving'', ng')
         UNSAT _ -> error "runG2SolvingInference: solving failed"
         Unknown _ _ -> do
             er_solving_no_min <- liftIO $ runG2SolvingResult solver simplifier bindings s
             case er_solving_no_min of
-                SAT er_solving_no_min' -> do
+                SAT (er_solving_no_min', ng') -> do
                     let er_solving_no_min'' = if fmap funcName (violated er_solving_no_min') == Just initiallyCalledFuncName
                                                       then er_solving_no_min' { violated = Nothing }
                                                       else er_solving_no_min'
-                    return er_solving_no_min''
+                    return (er_solving_no_min'', ng')
                 _ -> error "runG2SolvingInference: solving failed with no minimization"
 
 earlyExecRes :: Bindings -> State t -> ExecRes t
