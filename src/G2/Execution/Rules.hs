@@ -137,9 +137,8 @@ evalVarSharing s@(State { expr_env = eenv
                         , exec_stack = stck
                         , poly_arg_map = pargm })
                ng i
-    -- The value being evaluated is a symbolic type variable, which will only occur as
-    -- (or in) the return value of a polymorphic function. The type variable must also
-    -- have an entry in the PolyArgMap, which shows how arguments of that type have been
+    -- The value being evaluated is a symbolic value with a type that is a type variable. The type
+    -- variable must also have an entry in the PolyArgMap, which shows how arguments of that type have been
     -- renamed during execution. A case expression with a symbolic Int as scrutinee is used to select
     -- which PolyArgMap argument to return. We also lookup the value in the ExprEnv to find
     -- the original type variable name, prior to renaming for the TVE.
