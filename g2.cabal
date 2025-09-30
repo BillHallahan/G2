@@ -157,11 +157,11 @@ library
                        , G2.Translation.Cabal.Cabal
                        , G2.Translation.GHC
                        , G2.Translation.Haskell
-                       , G2.Translation.HaskellCheck
                        , G2.Translation.InjectSpecials
                        , G2.Translation.Interface
                        , G2.Translation.PrimInject
                        , G2.Translation.TransTypes
+                       , G2.Translation.ValidateState
 
                        , G2.Verify.Config
                        , G2.Verify.Interface
@@ -256,6 +256,10 @@ library
   if flag(support-lh) && impl(ghc < 9)
     build-depends:       liquidhaskell == 0.8.10.2
                        , liquid-fixpoint == 0.8.10.2
+
+  if impl(ghc < 9)
+    build-depends:        transformers == 0.5.6.2
+                       ,  exceptions == 0.10.4
 
   default-language:    Haskell2010
   ghc-options:         -Wall

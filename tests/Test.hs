@@ -551,7 +551,9 @@ testFileTests = testGroup "TestFiles"
                                                                        , ("thirdOrder2", 300, [AtLeast 3])
                                                                        , ("tupleTestMono", 175, [AtLeast 2])
                                                                        , ("multiPrim", 300, [AtLeast 2])
-                                                                       , ("polyHigher", 50, [AtLeast 4])]
+                                                                       , ("polyHigher", 50, [AtLeast 4])]                                                                                         
+    , checkInputOutputsWithValidate "tests/BaseTests/ListTests.hs" [ ("lengthN", 2000, [AtLeast 1])
+                                                                , ("lengthBranch", 2000, [AtLeast 4])]
     , checkInputOutputsNonRedLib "tests/BaseTests/ListTests.hs" [ ("lengthN", 20000, [Exactly 1])
                                                                 , ("lengthBranch", 20000, [Exactly 4])
                                                                 , ("map2", 20000, [Exactly 3])
@@ -1097,6 +1099,7 @@ testFileWithConfig src m_assume m_assert m_reaches entry config = do
             $ runG2FromFile 
                 [proj]
                 [src]
+                []
                 (fmap T.pack m_assume)
                 (fmap T.pack m_assert)
                 (fmap T.pack m_reaches)
