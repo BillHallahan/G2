@@ -76,7 +76,6 @@ import G2.Interface.ExecRes
 import G2.Lib.Printers
 
 import G2.Translation
-import G2.Translation.ValidateState
 
 import G2.Solver
 
@@ -539,20 +538,20 @@ runG2FromFile :: [FilePath]
               -> Maybe AssertFunc
               -> Maybe ReachFunc
               -> Bool
-              -> String
+              -> StartFunc
               -> TranslationConfig
               -> Config
               -> IO ([ExecRes ()], Bindings, TimedOut, Id)
 runG2FromFile proj src gflags m_assume m_assert m_reach def_assert f transConfig config = do
     (init_state, entry_f, bindings, mb_modname) <- initialStateFromFile  proj src
-                                    m_reach def_assert (T.pack f) (mkCurrExpr TV.empty m_assume m_assert) (mkArgTys TV.empty)
+                                    m_reach def_assert f (mkCurrExpr TV.empty m_assume m_assert) (mkArgTys TV.empty)
                                     transConfig config
 
     (er, b, to) <- runG2WithConfig proj src entry_f f gflags mb_modname init_state config bindings
 
     return (er, b, to, entry_f)
 
-runG2WithConfig :: [FilePath]-> [FilePath] -> Id -> String -> [GeneralFlag] -> [Maybe T.Text] -> State () -> Config -> Bindings
+runG2WithConfig :: [FilePath]-> [FilePath] -> Id -> StartFunc -> [GeneralFlag] -> [Maybe T.Text] -> State () -> Config -> Bindings
                 -> IO ( [ExecRes ()]
                       , Bindings
                       , TimedOut -- ^ Did any states timeout?
@@ -590,7 +589,7 @@ runG2WithConfig proj src entry_f f gflags mb_modname state@(State { expr_env = e
                                 (SM.evalStateT
                                     (SM.evalStateT
                                         (SM.evalStateT
-                                                (addTimedOut to $ runG2WithValidate proj src (T.unpack $ fromJust mod_name) f entry_f gflags red hal ord [] solver simplifier state' config bindings')
+                                                (addTimedOut to $ runG2WithValidate proj src (T.unpack $ fromJust mod_name) (T.unpack f) entry_f gflags red hal ord [] solver simplifier state' config bindings')
                                             emptyApproxPrevs
                                         )
                                         lnt
@@ -613,7 +612,7 @@ runG2WithConfig proj src entry_f f gflags mb_modname state@(State { expr_env = e
                                         (SM.evalStateT
                                             (SM.evalStateT
                                                 (SM.evalStateT
-                                                        (addTimedOut to $ runG2WithValidate proj src (T.unpack $ fromJust mod_name) f entry_f gflags red hal ord analysis solver simplifier state' config bindings')
+                                                        (addTimedOut to $ runG2WithValidate proj src (T.unpack $ fromJust mod_name) (T.unpack f) entry_f gflags red hal ord analysis solver simplifier state' config bindings')
                                                     emptyApproxPrevs
                                                 )
                                                 lnt
@@ -740,7 +739,7 @@ runG2WithValidate :: ( MonadIO m
 runG2WithValidate proj src modN entry entry_id gflags red hal ord analyze solver simplifier state config bindings =
     runGhcT (Just libdir) (case (red, hal, ord) of
         (SomeReducer red', SomeHalter hal', SomeOrderer ord') -> do
-            loadSession proj src modN gflags
+            when (validate config) (loadSession proj src modN gflags)
             --runG2 red' hal' ord' analyze solver simplifier state bindings
             let liftGhcT3 f x y z = liftGhcT (f x y z) 
                 analyze' = map liftGhcT3 analyze
@@ -824,8 +823,6 @@ runG2SolvingValidate modN entry entry_id config solver simplifier s bindings = d
                 r <- validateState modN entry [] [] bindings m'
 
                 liftIO $ do
-                    if isJust r && fromJust r then putStrLn "Validated" else putStrLn "There was an error during validation."
-                    when (isNothing r) $ putStrLn "Timeout count"
                     printStateOutput config entry_id bindings (Just r) m
 
                 let res' = m {validated = r}

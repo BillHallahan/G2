@@ -156,7 +156,6 @@ library
                        , G2.Translation.Cabal.Cabal
                        , G2.Translation.GHC
                        , G2.Translation.Haskell
-                       , G2.Translation.HaskellCheck
                        , G2.Translation.InjectSpecials
                        , G2.Translation.Interface
                        , G2.Translation.PrimInject

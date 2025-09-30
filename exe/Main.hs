@@ -40,21 +40,26 @@ runWithArgs as = do
   let m_reaches = mReaches tail_args
   let m_retsTrue = mReturnsTrue tail_args
 
+  let tentry = T.pack entry
+
   let gFlags = if measure_coverage config then [Opt_Hpc] else []
 
   (in_out, b, _, entry_f@(Id (Name _ mb_modname _ _) _)) <-
         runG2FromFile proj [src] gFlags (fmap T.pack m_assume)
                   (fmap T.pack m_assert) (fmap T.pack m_reaches) 
                   (isJust m_assert || isJust m_reaches || m_retsTrue) 
-                  entry simplTranslationConfig config
+                  tentry simplTranslationConfig config
 
   let (unspecified_output, spec_output) = L.partition (\ExecRes { final_state = s } -> getExpr s == Prim UnspecifiedOutput TyBottom) in_out
   
   let notValidated = filter (\res@ExecRes{validated = val} -> case val of
                                                                     Just m -> m == False
                                                                     Nothing -> False ) in_out
+  let timeouts = filter (\res@ExecRes{validated = val} -> isNothing val) in_out
+
   when (validate config) $ do
-    if null notValidated then putStrLn "All states are validated" else putStrLn "One or more validation failed"
+    if null notValidated then putStrLn "Validated" else putStrLn "There was an error during validation."
+    unless (null timeouts) $ putStrLn ("Timeout count: " ++ show (length timeouts))
     
   when (print_num_post_call_func_arg config) $ do
         putStrLn $ "Post call states: " ++ show (length spec_output)

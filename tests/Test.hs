@@ -1088,7 +1088,7 @@ testFileWithConfig src m_assume m_assert m_reaches entry config = do
                 (fmap T.pack m_assert)
                 (fmap T.pack m_reaches)
                 (isJust m_assert || isJust m_reaches)
-                entry
+                (T.pack entry)
                 simplTranslationConfig
                 config
 

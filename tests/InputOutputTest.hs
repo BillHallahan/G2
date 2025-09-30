@@ -83,6 +83,8 @@ checkInputOutputsInstType src tests = do
         src
         tests
 
+-- TODO: Remove below method and use validateState method directly. Doing so would
+-- require changes in checkInputOutput'
 checkInputOutputsWithValidate :: FilePath -> [(String, Int, [Reqs String])] -> TestTree
 checkInputOutputsWithValidate src tests = do
     checkInputOutput'
@@ -141,7 +143,7 @@ checkInputOutput'' src exg2 mb_modname config (entry, stps, req) = do
     let config' = config { steps = stps }
         (entry_f, init_state, bindings) = initStateWithCall exg2 False (T.pack entry) mb_modname (mkCurrExpr TV.empty Nothing Nothing) (mkArgTys TV.empty) config'
     
-    (r, b, _) <- runG2WithConfig proj src entry_f entry [] mb_modname init_state config' bindings
+    (r, b, _) <- runG2WithConfig proj src entry_f (T.pack entry) [] mb_modname init_state config' bindings
 
     let chAll = checkExprAll req
     let chAny = checkExprExists req
