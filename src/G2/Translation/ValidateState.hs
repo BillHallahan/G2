@@ -1,12 +1,18 @@
-{-# LANGUAGE OverloadedStrings, CPP #-}
+{-# LANGUAGE OverloadedStrings, CPP, FlexibleContexts #-}
 
-module G2.Translation.HaskellCheck ( validateStates
+module G2.Translation.ValidateState ( validateStates
                                    , validateStatesGHC
                                    , loadStandard
+                                   , loadToCheck
                                    , createDeclsStr
                                    , createDecls
                                    , runHPC
-                                   , adjustDynFlags ) where
+                                   , adjustDynFlags
+                                   , loadSession
+                                   , validateState
+                                   , printStateOutput
+                                   , toEnclodeFloat
+                                    ) where
 
 #if MIN_VERSION_GLASGOW_HASKELL(9,0,2,0)
 import GHC.Driver.Session
@@ -16,20 +22,26 @@ import DynFlags
 import qualified EnumSet as ES
 #endif
 
-import GHC hiding (Name, entry)
+import GHC hiding (Name, entry, Id)
 import GHC.LanguageExtensions
 
 import GHC.Paths
+import Control.Monad
+
+import Data.Foldable (toList)
 import Data.Either
 import Data.List
+import Data.Maybe
 import qualified Data.Text as T
+import qualified Data.Text.IO as T
+import qualified Data.Sequence as S
 import Text.Regex
 import Unsafe.Coerce
 import qualified Data.HashMap.Lazy as H
+import G2.Config
 import G2.Initialization.MkCurrExpr
 import G2.Interface.ExecRes as I
 import G2.Language
-import qualified G2.Language.TyVarEnv as TV
 import G2.Translation.Haskell
 import G2.Translation.Interface
 import G2.Translation.TransTypes
@@ -81,7 +93,7 @@ creatDeclStr pg s (x, DataTyCon{data_cons = dcs, bound_ids = is}) =
 creatDeclStr _ _ _ = error "creatDeclStr: unsupported AlgDataTy"
 
 -- | Compile with GHC, and check that the output we got is correct for the input
-validateStatesGHC :: PrettyGuide -> Maybe T.Text -> String -> [String] -> [String] -> Bindings -> ExecRes t -> Ghc (Maybe Bool, [Bool])
+validateStatesGHC :: GhcMonad m => PrettyGuide -> Maybe T.Text -> String -> [String] -> [String] -> Bindings -> ExecRes t -> m (Maybe Bool, [Bool])
 validateStatesGHC pg modN entry chAll chAny b er@(ExecRes {final_state = s, conc_out = out}) = do
     (v, chAllR, chAnyR) <- runCheck pg modN entry chAll chAny b er
 
@@ -93,7 +105,7 @@ validateStatesGHC pg modN entry chAll chAny b er@(ExecRes {final_state = s, conc
                                   | otherwise -> Just (outStr == "error" || outStr == "undefined" || outStr == "?")
                     Just (Right b) -> Just (b && outStr /= "error" && outStr /= "undefined")
 
-    chAllR' <- liftIO $ (unsafeCoerce chAllR :: IO [Either SomeException Bool])
+    chAllR' <- liftIO $ (mapM unsafeCoerce chAllR :: IO [Either SomeException Bool])
     let chAllR'' = rights chAllR'
 
     chAnyR' <- liftIO $ (mapM unsafeCoerce chAnyR :: IO [Either SomeException Bool])
@@ -104,10 +116,10 @@ validateStatesGHC pg modN entry chAll chAny b er@(ExecRes {final_state = s, conc
 createDeclsStr :: PrettyGuide -> State t -> TypeEnv -> [String]
 createDeclsStr pg s = map (creatDeclStr pg s) . H.toList
 
-createDecls :: PrettyGuide -> State t -> TypeEnv -> Ghc ()
+createDecls :: GhcMonad m => PrettyGuide -> State t -> TypeEnv -> m ()
 createDecls pg s = mapM_ runDecls . createDeclsStr pg s
 
-adjustDynFlags :: Ghc ()
+adjustDynFlags :: GhcMonad m => m ()
 adjustDynFlags = do
     dyn <- getSessionDynFlags
     let dyn2 = foldl' xopt_set dyn [MagicHash, UnboxedTuples, DataKinds]
@@ -116,7 +128,7 @@ adjustDynFlags = do
     _ <- setSessionDynFlags dyn4
     return ()
 
-runCheck :: PrettyGuide -> Maybe T.Text -> String -> [String] -> [String] -> Bindings -> ExecRes t -> Ghc (HValue, [HValue], [HValue])
+runCheck :: GhcMonad m => PrettyGuide -> Maybe T.Text -> String -> [String] -> [String] -> Bindings -> ExecRes t -> m (HValue, [HValue], [HValue])
 runCheck init_pg modN entry chAll chAny b er@(ExecRes {final_state = s, conc_args = ars, conc_out = out}) = do
     let Left (v, _) = findFunc (tyvar_env s) (T.pack entry) [modN] (expr_env s)
     let e = mkApp $ Var v:ars
@@ -160,7 +172,7 @@ runCheck init_pg modN entry chAll chAny b er@(ExecRes {final_state = s, conc_arg
 
     return $ (v', chAllR, chAnyR)
 
-loadToCheck :: [FilePath] -> [FilePath] -> String -> [GeneralFlag] -> Ghc ()
+loadToCheck :: GhcMonad m => [FilePath] -> [FilePath] -> String -> [GeneralFlag] -> m ()
 loadToCheck proj src modN gflags = do
         _ <- loadProj Nothing proj src gflags simplTranslationConfig
 
@@ -265,3 +277,69 @@ toCall entry s ars _ =
         pg = mkPrettyGuide (exprNames e)
     in
     T.unpack . printHaskellPG pg s $ e
+
+loadSession :: GhcMonad m => [FilePath] -> [FilePath] -> String -> [GeneralFlag] -> m ()
+loadSession proj src modN gflags = do 
+    adjustDynFlags
+    loadToCheck (map dirPath src ++ proj) src modN gflags
+
+-- | Load the passed module(s) into GHC, and check that the `ExecRes` results are correct.
+validateState :: GhcMonad m => String -> String -> [String] -> [String] -> Bindings
+               -> ExecRes t
+               -> m ( Maybe Bool -- ^ One bool per input `ExecRes`, indicating whether the results are correct or not
+                                  -- Nothing in the case of a timeout
+                     )
+validateState modN entry chAll chAny b in_out = do
+        let s = final_state in_out
+        let pg = updatePGValNames (concatMap (map Data . dataCon) $ type_env s)
+                       $ updatePGTypeNames (type_env s) $ mkPrettyGuide ()
+        _ <- createDecls pg s (H.filter (\x -> adt_source x == ADTG2Generated) (type_env s))
+        rs_anys <- validateStatesGHC pg (Just $ T.pack modN) entry chAll chAny b in_out
+        
+        return (fst rs_anys)
+
+printStateOutput :: Config -> Id -> Bindings
+               -> Maybe (Maybe Bool)
+               -> ExecRes t
+               -> IO ()
+printStateOutput config entry b m_valid exec_res@(ExecRes { final_state = s }) = do
+    let print_valid = isJust m_valid
+    let val = fromMaybe (Just True) m_valid
+
+    when print_valid (putStr (case val of
+                                        Just True -> "✓ "
+                                        Just False -> "✗ "
+                                        Nothing -> "✗TO "))
+
+    let pg = mkPrettyGuide (exprNames $ conc_args exec_res)
+    let (mvp, inp, outp, handles) = printInputOutput pg entry b exec_res
+        sym_gen_out = fmap (printHaskellPG pg s) $ conc_sym_gens exec_res
+        
+    let print_method = \m i o -> m <> i <> " = " <> o 
+
+    when (print_output config ) (do
+        case sym_gen_out of
+            S.Empty -> T.putStrLn $ print_method mvp inp outp
+            _ -> T.putStrLn $ print_method mvp inp outp <> "\t| generated: " <> T.intercalate ", " (toList sym_gen_out)
+        if handles /= "" then T.putStrLn handles else return ())
+
+
+toEnclodeFloat :: ASTContainer m Expr => m -> m
+toEnclodeFloat = modifyASTs go
+    where
+        go (App (Data (DataCon { dc_name = dcn })) (Lit (LitFloat f)))
+            | not (isNaN f), not (isInfinite f), not (isNegativeZero f), nameOcc dcn == "F#" =
+                let (m, n) = decodeFloat f in mkApp [encFloat, iCon $ Lit (LitInteger m), iCon $ Lit (LitInt $ toInteger n)]
+        go (App (Data (DataCon { dc_name = dcn })) (Lit (LitDouble f)))
+            | not (isNaN f), not (isInfinite f), not (isNegativeZero f), nameOcc dcn == "D#" =
+                let (m, n) = decodeFloat f in mkApp [encFloat, iCon $ Lit (LitInteger m), iCon $ Lit (LitInt $ toInteger n)]
+        go (Lit (LitFloat f))
+            | not (isNaN f), not (isInfinite f), not (isNegativeZero f) =
+                let (m, n) = decodeFloat f in mkApp [encFloat, iCon $ Lit (LitInteger m), iCon $ Lit (LitInt $ toInteger n)]
+        go (Lit (LitDouble f))
+            | not (isNaN f), not (isInfinite f), not (isNegativeZero f) =
+                let (m, n) = decodeFloat f in mkApp [encFloat, iCon $ Lit (LitInteger m), iCon $ Lit (LitInt $ toInteger n)]
+        go e = e
+
+        iCon = App (Data (DataCon { dc_name = Name "Z#" Nothing 0 Nothing, dc_type = TyUnknown, dc_exist_tyvars = [], dc_univ_tyvars = [] }))
+        encFloat = Var (Id (Name "encodeFloat" Nothing 0 Nothing) TyUnknown)

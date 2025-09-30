@@ -21,6 +21,7 @@ data ExecRes t = ExecRes { final_state :: State t -- ^ The final state.
                          , conc_mutvars :: [(Name, MVOrigin, Expr)]
                          , conc_handles :: [(Name, Expr)]
                          , violated :: Maybe FuncCall -- ^ A violated assertion
+                         , validated :: Maybe Bool
                          } deriving (Show, Read)
 
 printInputOutput :: PrettyGuide
@@ -85,14 +86,16 @@ instance Named t => Named (ExecRes t) where
                             , conc_sym_gens = g
                             , conc_mutvars = mv
                             , conc_handles = h
-                            , violated = fc }) =
+                            , violated = fc
+                            , validated = v }) =
       ExecRes { final_state = rename old new s
               , conc_args = rename old new es
               , conc_out = rename old new r
               , conc_sym_gens = rename old new g
               , conc_mutvars = rename old new mv
               , conc_handles = rename old new h
-              , violated = rename old new fc}
+              , violated = rename old new fc
+              , validated = v}
 
     renames hm (ExecRes { final_state = s
                         , conc_args = es
@@ -100,14 +103,16 @@ instance Named t => Named (ExecRes t) where
                         , conc_sym_gens = g
                         , conc_mutvars = mv
                         , conc_handles = h
-                        , violated = fc }) =
+                        , violated = fc
+                        , validated =  v}) =
       ExecRes { final_state = renames hm s
               , conc_args = renames hm es
               , conc_out = renames hm r
               , conc_sym_gens = renames hm g
               , conc_mutvars = renames hm mv
               , conc_handles = renames hm h
-              , violated = renames hm fc }
+              , violated = renames hm fc
+              , validated = v }
 
 instance ASTContainer t Expr => ASTContainer (ExecRes t) Expr where
     containedASTs (ExecRes { final_state = s
@@ -124,14 +129,16 @@ instance ASTContainer t Expr => ASTContainer (ExecRes t) Expr where
                                    , conc_sym_gens = g
                                    , conc_mutvars = mv
                                    , conc_handles = h
-                                   , violated = fc }) =
+                                   , violated = fc
+                                   , validated = v }) =
         ExecRes { final_state = modifyContainedASTs f s
                 , conc_args = modifyContainedASTs f es
                 , conc_out = modifyContainedASTs f r
                 , conc_sym_gens = modifyContainedASTs f g
                 , conc_mutvars = modifyContainedASTs f mv
                 , conc_handles = h
-                , violated = modifyContainedASTs f fc}
+                , violated = modifyContainedASTs f fc
+                , validated = v}
 
 instance ASTContainer t Type => ASTContainer (ExecRes t) Type where
     containedASTs (ExecRes { final_state = s
@@ -148,11 +155,13 @@ instance ASTContainer t Type => ASTContainer (ExecRes t) Type where
                                    , conc_sym_gens = g
                                    , conc_mutvars = mv
                                    , conc_handles = h
-                                   , violated = fc }) =
+                                   , violated = fc
+                                   , validated = v }) =
         ExecRes { final_state = modifyContainedASTs f s
                 , conc_args = modifyContainedASTs f es
                 , conc_out = modifyContainedASTs f r
                 , conc_sym_gens = modifyContainedASTs f g
                 , conc_mutvars = modifyContainedASTs f mv
                 , conc_handles = h
-                , violated = modifyContainedASTs f fc }
+                , violated = modifyContainedASTs f fc
+                , validated = v }

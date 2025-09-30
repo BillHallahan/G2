@@ -1,6 +1,6 @@
 {-# OPTIONS_GHC -Wno-orphans #-}
 
-{-# LANGUAGE BangPatterns, FlexibleContexts, LambdaCase, OverloadedStrings #-}
+{-# LANGUAGE BangPatterns, FlexibleContexts, LambdaCase, OverloadedStrings, CPP #-}
 
 module G2.Interface.Interface ( MkCurrExpr
                               , CurrExprRes (..)
@@ -40,6 +40,19 @@ module G2.Interface.Interface ( MkCurrExpr
                               , runG2
                               , Config) where
 
+import GHC hiding (Name, entry, nameModule, Id, Type)
+import GHC.Paths
+
+#if MIN_VERSION_GLASGOW_HASKELL(9,0,2,0)
+import GHC.Driver.Monad
+import GHC.Utils.Exception
+#else
+import GhcMonad (liftGhcT)
+import Exception
+import qualified Control.Monad.Trans.State as ST
+import qualified Control.Monad.Catch as MC
+#endif
+
 import G2.Config.Config
 
 import G2.Language
@@ -73,6 +86,7 @@ import qualified G2.Language.ExprEnv as E
 import qualified G2.Language.PathConds as PC
 import qualified G2.Language.Stack as Stack
 
+import Control.Monad
 import Control.Monad.IO.Class
 import qualified Control.Monad.State as SM
 import qualified Data.HashMap.Lazy as HM
@@ -519,6 +533,7 @@ initialStateFromFile proj src m_reach def_assert f mkCurr argTys transConfig con
 
 runG2FromFile :: [FilePath]
               -> [FilePath]
+              -> [GeneralFlag]
               -> Maybe AssumeFunc
               -> Maybe AssertFunc
               -> Maybe ReachFunc
@@ -527,31 +542,31 @@ runG2FromFile :: [FilePath]
               -> TranslationConfig
               -> Config
               -> IO ([ExecRes ()], Bindings, TimedOut, Id)
-runG2FromFile proj src m_assume m_assert m_reach def_assert f transConfig config = do
+runG2FromFile proj src gflags m_assume m_assert m_reach def_assert f transConfig config = do
     (init_state, entry_f, bindings, mb_modname) <- initialStateFromFile  proj src
                                     m_reach def_assert f (mkCurrExpr TV.empty m_assume m_assert) (mkArgTys TV.empty)
                                     transConfig config
 
-    (er, b, to) <- runG2WithConfig (idName entry_f) mb_modname init_state config bindings
+    (er, b, to) <- runG2WithConfig proj src entry_f f gflags mb_modname init_state config bindings
 
     return (er, b, to, entry_f)
 
-runG2WithConfig :: Name -> [Maybe T.Text] -> State () -> Config -> Bindings
+runG2WithConfig :: [FilePath]-> [FilePath] -> Id -> StartFunc -> [GeneralFlag] -> [Maybe T.Text] -> State () -> Config -> Bindings
                 -> IO ( [ExecRes ()]
                       , Bindings
                       , TimedOut -- ^ Did any states timeout?
                       )
-runG2WithConfig entry_f mb_modname state@(State { expr_env = eenv}) config bindings = do
+runG2WithConfig proj src entry_f f gflags mb_modname state@(State { expr_env = eenv}) config bindings = do
     SomeSolver solver <- initSolver config
     let (state', bindings') = runG2Pre emptyMemConfig state bindings
         all_mod_set = S.fromList mb_modname
-        mod_name = nameModule entry_f
+        mod_name = nameModule (idName entry_f)
     hpc_t <- hpcTracker state' all_mod_set (hpc_print_times config) (hpc_print_ticks config)
     let 
         simplifier = FloatSimplifier :>> ArithSimplifier :>> BoolSimplifier :>> StringSimplifier :>> EqualitySimplifier :>> CharConc
         --exp_env_names = E.keys . E.filterConcOrSym (\case { E.Sym _ -> False; E.Conc _ -> True }) $ expr_env state
         callGraph = G.getCallGraph $ expr_env state'
-        reachable_funcs = G.reachable entry_f callGraph
+        reachable_funcs = G.reachable (idName entry_f) callGraph
 
         executable_funcs = case check_asserts config of
                                 False -> getFuncsByModule mb_modname reachable_funcs
@@ -560,7 +575,7 @@ runG2WithConfig entry_f mb_modname state@(State { expr_env = eenv}) config bindi
         non_rec_funcs = filter (G.isFuncNonRecursive callGraph) reachable_funcs
 
     analysis1 <- if states_at_time config then do l <- logStatesAtTime; return [l] else return noAnalysis
-    let analysis2 = if states_at_step config then [\s p xs -> SM.lift . SM.lift . SM.lift . SM.lift . SM.lift $ logStatesAtStep s p xs] else noAnalysis
+    let analysis2 = if states_at_step config then [\s p xs -> SM.lift .  SM.lift . SM.lift . SM.lift . SM.lift  $ logStatesAtStep s p xs] else noAnalysis
         analysis3 = if print_num_red_rules config then [\s p xs -> SM.lift . SM.lift . SM.lift . SM.lift . SM.lift . SM.lift $ logRedRuleNum s p xs] else noAnalysis
         analysis = analysis1 ++ analysis2 ++ analysis3
 
@@ -569,50 +584,51 @@ runG2WithConfig entry_f mb_modname state@(State { expr_env = eenv}) config bindi
             rho <- initRedHaltOrd state' all_mod_set solver simplifier config (S.fromList executable_funcs) (S.fromList non_rec_funcs)
             case rho of
                 (red, hal, ord, to) ->
-                    SM.evalStateT (
-                        SM.evalStateT
-                            (SM.evalStateT
+                        SM.evalStateT (
+                            SM.evalStateT
                                 (SM.evalStateT
                                     (SM.evalStateT
-                                        (addTimedOut to $ runG2WithSomes' red hal ord [] solver simplifier state' bindings')
-                                        emptyApproxPrevs
+                                        (SM.evalStateT
+                                                (addTimedOut to $ runG2WithValidate proj src (T.unpack $ fromJust mod_name) (T.unpack f) entry_f gflags red hal ord [] solver simplifier state' config bindings')
+                                            emptyApproxPrevs
+                                        )
+                                        lnt
                                     )
-                                    lnt
+                                    (if showType config == Lax 
+                                    then (mkPrettyGuide ())
+                                    else setTypePrinting AggressiveTypes (mkPrettyGuide ())) 
                                 )
-                                (if showType config == Lax 
-                                then (mkPrettyGuide ())
-                                else setTypePrinting AggressiveTypes (mkPrettyGuide ())) 
+                                hpc_t
                             )
-                            hpc_t
-                        )
-                        HM.empty
+                            HM.empty
         False -> do
             rho <- initRedHaltOrd state' all_mod_set solver simplifier config (S.fromList executable_funcs) (S.fromList non_rec_funcs)
             case rho of
                 (red, hal, ord, to) ->
-                    SM.evalStateT (
                         SM.evalStateT (
                             SM.evalStateT (
-                                SM.evalStateT
-                                    (SM.evalStateT
+                                SM.evalStateT (
+                                    SM.evalStateT
                                         (SM.evalStateT
                                             (SM.evalStateT
-                                                (addTimedOut to $ runG2WithSomes' red hal ord analysis solver simplifier state' bindings')
-                                                emptyApproxPrevs
+                                                (SM.evalStateT
+                                                        (addTimedOut to $ runG2WithValidate proj src (T.unpack $ fromJust mod_name) (T.unpack f) entry_f gflags red hal ord analysis solver simplifier state' config bindings')
+                                                    emptyApproxPrevs
+                                                )
+                                                lnt
                                             )
-                                            lnt
+                                            (if showType config == Lax 
+                                            then (mkPrettyGuide ())
+                                            else setTypePrinting AggressiveTypes (mkPrettyGuide ())) 
                                         )
-                                        (if showType config == Lax 
-                                        then (mkPrettyGuide ())
-                                        else setTypePrinting AggressiveTypes (mkPrettyGuide ())) 
+                                        hpc_t
                                     )
-                                    hpc_t
+                                    HM.empty
                                 )
-                                HM.empty
+                                logStatesAtStepTracker
                             )
-                            logStatesAtStepTracker
-                        )
-                        0
+                            0
+                        
 
     close solver
 
@@ -697,6 +713,38 @@ runG2WithSomes' red hal ord analyze solver simplifier state bindings =
             --runG2 red' hal' ord' analyze solver simplifier state bindings
             runExecution red' hal' ord' (runG2Solving solver simplifier) analyze state bindings
 
+runG2WithValidate :: ( MonadIO m
+                  , ExceptionMonad m
+                  , Named t
+                  , ASTContainer t Expr
+                  , ASTContainer t Type
+                  , Solver solver
+                  , Simplifier simplifier)
+               => [FilePath]
+               -> [FilePath]
+               -> String
+               -> String
+               -> Id
+               -> [GeneralFlag]
+               -> SomeReducer m t
+               -> SomeHalter m (ExecRes t) t
+               -> SomeOrderer m (ExecRes t) t
+               -> [AnalyzeStates m (ExecRes t) t]
+               -> solver
+               -> simplifier
+               -> State t
+               -> Config
+               -> Bindings
+               -> m ([ExecRes t], Bindings)
+runG2WithValidate proj src modN entry entry_id gflags red hal ord analyze solver simplifier state config bindings =
+    runGhcT (Just libdir) (case (red, hal, ord) of
+        (SomeReducer red', SomeHalter hal', SomeOrderer ord') -> do
+            when (validate config) (loadSession proj src modN gflags)
+            --runG2 red' hal' ord' analyze solver simplifier state bindings
+            let liftGhcT3 f x y z = liftGhcT (f x y z) 
+                analyze' = map liftGhcT3 analyze
+            runExecution (liftReducerGhcT red') (liftHalterGhcT hal') (liftOrdererGhcT ord') (runG2SolvingValidate modN entry entry_id config solver simplifier) analyze' state bindings)
+
 runG2Pre :: ( Named t
             , ASTContainer t Expr
             , ASTContainer t Type) => MemConfig -> State t -> Bindings -> (State t, Bindings)
@@ -752,6 +800,39 @@ runG2Solving solver simplifier s bindings = do
         SAT m -> return $ Just m
         _ -> return Nothing
 
+runG2SolvingValidate :: ( MonadIO m
+                        , GhcMonad m
+                        , Named t
+                        , ASTContainer t Expr
+                        , Solver solver
+                        , Simplifier simplifier) =>
+                String
+             -> String
+             -> Id
+             -> Config
+             -> solver
+             -> simplifier
+             -> State t
+             -> Bindings
+             -> m (Maybe (ExecRes t))
+runG2SolvingValidate modN entry entry_id config solver simplifier s bindings = do
+    res <- runG2Solving solver simplifier s bindings
+    case res of
+        Just m | validate config -> do
+                let m' = if print_encode_float config then toEnclodeFloat m else m
+                r <- validateState modN entry [] [] bindings m'
+
+                liftIO $ do
+                    printStateOutput config entry_id bindings (Just r) m
+
+                let res' = m {validated = r}
+                return (Just res')
+        Just m -> do
+            liftIO $ printStateOutput config entry_id bindings Nothing m
+            return res
+        _ -> return res
+
+
 runG2SubstModel :: Named t =>
                       Model
                    -> State t
@@ -784,7 +865,9 @@ runG2SubstModel m s@(State { expr_env = eenv, type_env = tenv, tyvar_env = tv_en
                        , conc_sym_gens = gens
                        , conc_mutvars = mv
                        , conc_handles = conc_handles sm'
-                       , violated = evalPrims eenv tenv tv_env kv (violated sm')}
+                       , violated = evalPrims eenv tenv tv_env kv (violated sm')
+                       , validated = Nothing -- when validate runs, it will get updated
+                       }
     in
     sm''
 
@@ -809,3 +892,12 @@ runG2 :: ( MonadIO m
 runG2 red hal ord analyze solver simplifier mem is bindings = do
     let (is', bindings') = runG2Pre mem is bindings
     runExecution red hal ord (runG2Solving solver simplifier) analyze is' bindings'
+
+#if __GLASGOW_HASKELL__ < 900
+instance (ExceptionMonad m, MC.MonadCatch m, MC.MonadMask m) => ExceptionMonad (SM.StateT s m) where
+    gcatch = ST.liftCatch MC.catch
+
+    gmask a = SM.StateT $ \s -> MC.mask $ \u -> SM.runStateT (a $ q u) s
+        where q :: (m (a, s) -> m (a, s)) -> SM.StateT s m a -> SM.StateT s m a
+              q u (SM.StateT b) = SM.StateT (u . b)
+#endif
