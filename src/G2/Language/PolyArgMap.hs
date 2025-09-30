@@ -3,6 +3,7 @@
 module G2.Language.PolyArgMap ( PolyArgMap
                                , insertTV
                                , insertRename
+                               , insertFunRenameAll
                                , lookup
                                , member
                                , remove
@@ -42,6 +43,9 @@ insertRename tv env ren ty (PolyArgMap pargm) | HM.member tv pargm =
         modifyPAMEntries e r mt pes = case find (\pe -> envN pe == e) pes of
             Just pe -> map (\pEnt -> if pEnt == pe then pEnt {runN=r} else pEnt) pes
             Nothing -> (PAMEntry {envN=e, runN=r, vOrF=maybe Val Func mt}):pes
+
+insertFunRenameAll :: Name -> Name -> Type -> PolyArgMap -> PolyArgMap 
+insertFunRenameAll env ren ty pam@(PolyArgMap pargm) = foldr (\tv pargm_ -> insertRename tv env ren (Just ty) pargm_) pam (HM.keys pargm)
 
 lookup :: Name -> PolyArgMap -> Maybe [(Name, Name, Maybe Type)]
 lookup tv (PolyArgMap pargm) = case HM.lookup tv pargm of

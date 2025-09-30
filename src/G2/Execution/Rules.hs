@@ -186,7 +186,8 @@ evalVarSharing s@(State { expr_env = eenv
 
             -- rename for current execution path, return as CurrExpr, don't insert in env
             e'' = renames (PM.toAllRenamingsHM pargm) $ retypeToRunTVs e' tarm
-
+            
+            -- if no Alts could be created, discard the state. Otherwise, continue.
             stateOrNull = [s { curr_expr = CurrExpr Evaluate e'', expr_env = eenv'''} | not . null $ as]
         in
             (RuleEvalVarPoly, stateOrNull, ng'')
@@ -230,6 +231,7 @@ evalVarNoSharing s@(State { expr_env = eenv })
         (RuleEvalVarNonVal (idName i), [s { curr_expr = CurrExpr Evaluate e }], ng)
     | otherwise = error  $ "evalVar: bad input." ++ show i
 
+-- TODO: maybe move these functions to another file?
 makeAltsForPMRet :: [(Name, Maybe Type)] -> NameGen -> Id -> PM.PolyArgMap -> ([Alt], [Id], NameGen)
 makeAltsForPMRet entries ng otv pargm = (allAlts, newSyms, ng')
     where
@@ -252,19 +254,24 @@ makeValExprs :: [Name] -> Id -> [Expr]
 makeValExprs ns otv = map (\n -> Var (Id n (TyVar otv))) ns
 
 makeAllFuncArgExprs :: [(Name, Type)] -> [(Name, [Name])] -> NameGen -> Id -> ([Expr], [Id], NameGen)
-makeAllFuncArgExprs fas vss ng otv = foldr (\(_fa, _ty) (_es, _ids, _ng) -> funcArgExprs _fa _ty _ng) ([], [], ng) fas
+makeAllFuncArgExprs fas vss ng otv = foldr (\(_fa, _ty) (_es, _ids, _ng) -> 
+            let (_esNew, _idsNew, _ngNew) = funcArgExprs _fa _ty _ng in (_esNew++_es, _idsNew++_ids, _ngNew)) ([], [], ng) fas
     where
         valSetHM = HM.fromList vss
         -- create all expressions for one function argument
         funcArgExprs :: Name -> Type -> NameGen -> ([Expr], [Id], NameGen) 
-        funcArgExprs fa faTy ng___ = foldr (\aComb (es, ids__, ng__) -> let (e, newIds, ng__') = funcArgExpr aComb ng__ in (e:es, newIds++ids__, ng__')) ([], [], ng___) argCombs
+        funcArgExprs fa faTy ng___ = foldr (\aComb (es, ids__, ng__) -> 
+                let (e, newIds, ng__') = funcArgExpr aComb ng__ 
+                in (e:es, newIds++ids__, ng__')) ([], [], ng___) argCombs
             where
                 (faArgTys, retTy) = argTypes faTy 
                 -- select val sets that match FA arg types
                 -- TODO: only works when all arguments to function argument are TVs. Excludes other types (Int,..) or ADTs containing TVs (Maybe a). 
                 argSets :: [[Name]]
                 argSets = map (\(TyVar faArgTy) -> maybe (error $ "bad lookup" ++ show (idName faArgTy)) id (HM.lookup (idName faArgTy) valSetHM) ) faArgTys
-                -- cartesian product producing all combinations of arguments
+                -- Cartesian product producing all combinations of arguments. Because of how 
+                -- sequence works on lists of lists, if one argSet is empty, argCombs is [], 
+                -- so, correctly, no expressions are created for the function argument.
                 argCombs = sequence argSets
                 
                 -- create single let - case - alt - app expression using arguments
@@ -1464,13 +1471,13 @@ termLamRNTModifs expr lhsTy old new eenv pargm tarm = (eenv', pargm'')
             | otherwise = pargm 
 
         -- if LHS type is a function with return type containing tyVars, insert the env-runtime renaming into PAM entries
-        -- TODO: need to add all functions
-        pargm'' | (TyFun _ _) <- lhsTy 
-                , (_, tr) <- argTypes lhsTy = let
-            contTyVarsEnv = foldr (\(Id tvn _) ets -> maybe ets (: ets) (TRM.lookup tvn tarm)) [] (tyVarIds tr)
-            in
-                foldr (\tvN pam -> PM.insertRename tvN old new (Just (retypeToEnvTVs lhsTy tarm)) pam) pargm' contTyVarsEnv
-            | otherwise = pargm'
+        -- TODO: should only add function to entries bound in the same forall
+        -- if LHS type is a function with return type containing any tracked tyVars, insert the env-runtime renaming into all PAM entries
+        pargm'' | (TyFun _ _) <- lhsTy
+                 , (ats, tr) <- argTypes lhsTy 
+                 , any (flip TRM.member tarm . idName) (tyVarIds $ tr:ats) 
+                    = PM.insertFunRenameAll old new (retypeToEnvTVs lhsTy tarm) pargm'
+                 | otherwise = pargm'
 
 type SymbolicFuncEval t = SymFuncTicks -> State t -> NameGen -> Expr -> Maybe (Rule, [State t], NameGen)
 
