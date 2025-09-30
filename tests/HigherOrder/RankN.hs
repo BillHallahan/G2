@@ -79,6 +79,6 @@ funcArg3TVs f = f (\x -> 40.24) (\y -> 10) True
 funcArgFail :: (forall a b. (a -> b -> a) -> b -> a) -> Int 
 funcArgFail f = f (\x y -> 2) 4
 
-funcArgInt :: (forall a. (Int -> a -> a) -> a) -> Int 
-funcArgInt f = f (\x y -> 1)
+funcArgInt :: (forall a. (Int -> a) -> a) -> Int 
+funcArgInt f = f (\x -> 1)
  

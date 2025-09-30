@@ -265,26 +265,26 @@ makeAllFuncArgExprs fas vss ng otv = foldr (\(_fa, _ty) (_es, _ids, _ng) ->
                 in (e:es, newIds++ids__, ng__')) ([], [], ng___) argCombs
             where
                 (faArgTys, retTy) = argTypes faTy 
-                placeHolderName = Name "" Nothing 0 Nothing
                 -- select val sets that match FA arg types
                 -- TODO: only works when all arguments to function argument are TV or concrete types. Exlucdes ADTs containing TVs (Maybe a). 
                 -- TODO: check that TVs are symbolic
-                argSets :: [[Name]]
-                argSets = map (\case (TyVar faArgTy) -> fromMaybe (error $ "bad lookup" ++ show (idName faArgTy)) (HM.lookup (idName faArgTy) valSetHM);
-                                      _ -> [placeHolderName]) faArgTys
+                argSets :: [[Maybe Name]]
+                argSets = map (\case (TyVar faArgTy) -> maybe (error $ "bad lookup" ++ show (idName faArgTy)) 
+                                                              (map Just) (HM.lookup (idName faArgTy) valSetHM);
+                                      _ -> [Nothing]) faArgTys
                 -- Cartesian product producing all combinations of arguments. Because of how 
                 -- sequence works on lists of lists, if one argSet is empty, argCombs is [], 
                 -- so, correctly, no expressions are created for the function argument.
                 argCombs = sequence argSets
                 
                 -- create single let - case - alt - app expression using arguments
-                funcArgExpr :: [Name] -> NameGen -> (Expr, [Id], NameGen)
+                funcArgExpr :: [Maybe Name] -> NameGen -> (Expr, [Id], NameGen)
                 funcArgExpr ns ng_ = (letE, collFunId:newSyms, ng_'')
                     where
                         ([appId, collFunId, bindee], ng_') = freshIds [retTy, TyFun retTy (TyVar otv), TyVar otv] ng_ 
-                        (faArgIds, newSyms, ng_'') = foldr (\(ty_, aN_) (faIds, newSms, ngFAE) -> if aN_ == placeHolderName 
-                                    then let ([newSymArgId], ngFAE') = freshIds [ty_] ngFAE in (Var newSymArgId:faIds, newSymArgId:newSms, ngFAE')
-                                    else (Var (Id aN_ ty_):faIds, newSms, ngFAE)) 
+                        (faArgIds, newSyms, ng_'') = foldr (\(ty_, maN_) (faIds, newSms, ngFAE) -> case maN_ of
+                                    Nothing -> (let ([newSymArgId], ngFAE') = freshIds [ty_] ngFAE in (Var newSymArgId:faIds, newSymArgId:newSms, ngFAE'))
+                                    Just aN_ -> (Var (Id aN_ ty_):faIds, newSms, ngFAE))
                             ([], [], ng_') (zip faArgTys ns)
                         appScrut = mkApp (Var (Id fa faTy):faArgIds)
                         collAlt = Alt {altMatch = Default, altExpr = mkApp [Var collFunId, Var appId]}
