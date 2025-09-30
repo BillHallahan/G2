@@ -43,12 +43,13 @@ runWithArgs as = do
   let tentry = T.pack entry
 
   let gFlags = if measure_coverage config then [Opt_Hpc] else []
+      config' = if measure_coverage config then config { validate = True } else config
 
   (in_out, b, _, entry_f@(Id (Name _ mb_modname _ _) _)) <-
         runG2FromFile proj [src] gFlags (fmap T.pack m_assume)
                   (fmap T.pack m_assert) (fmap T.pack m_reaches) 
                   (isJust m_assert || isJust m_reaches || m_retsTrue) 
-                  tentry simplTranslationConfig config
+                  tentry simplTranslationConfig config'
 
   let (unspecified_output, spec_output) = L.partition (\ExecRes { final_state = s } -> getExpr s == Prim UnspecifiedOutput TyBottom) in_out
   
