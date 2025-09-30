@@ -279,7 +279,8 @@ makeAllFuncArgExprs fas vss ng otv = foldr (\(_fa, _ty) (_es, _ids, _ng) ->
                 funcArgExpr ns ng_ = (letE, [collFunId], ng_')
                     where
                         ([appId, collFunId, bindee], ng_') = freshIds [retTy, TyFun retTy (TyVar otv), TyVar otv] ng_ 
-                        appScrut = mkApp (Var (Id fa faTy):map (\n -> Var (Id n (TyVar otv))) ns)
+                        faArgIds = foldr (\(ty_, aN_) faids -> Var (Id aN_ ty_):faids) [] (zip faArgTys ns)
+                        appScrut = mkApp (Var (Id fa faTy):faArgIds)
                         collAlt = Alt {altMatch = Default, altExpr = mkApp [Var collFunId, Var appId]}
                         caseE = Case (Var appId) bindee (TyVar otv) [collAlt]
                         letE = Let [(appId, appScrut)] caseE
