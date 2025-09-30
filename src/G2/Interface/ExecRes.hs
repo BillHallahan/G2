@@ -86,14 +86,16 @@ instance Named t => Named (ExecRes t) where
                             , conc_sym_gens = g
                             , conc_mutvars = mv
                             , conc_handles = h
-                            , violated = fc }) =
+                            , violated = fc
+                            , validated = v }) =
       ExecRes { final_state = rename old new s
               , conc_args = rename old new es
               , conc_out = rename old new r
               , conc_sym_gens = rename old new g
               , conc_mutvars = rename old new mv
               , conc_handles = rename old new h
-              , violated = rename old new fc}
+              , violated = rename old new fc
+              , validated = v}
 
     renames hm (ExecRes { final_state = s
                         , conc_args = es
@@ -101,14 +103,16 @@ instance Named t => Named (ExecRes t) where
                         , conc_sym_gens = g
                         , conc_mutvars = mv
                         , conc_handles = h
-                        , violated = fc }) =
+                        , violated = fc
+                        , validated =  v}) =
       ExecRes { final_state = renames hm s
               , conc_args = renames hm es
               , conc_out = renames hm r
               , conc_sym_gens = renames hm g
               , conc_mutvars = renames hm mv
               , conc_handles = renames hm h
-              , violated = renames hm fc }
+              , violated = renames hm fc
+              , validated = v }
 
 instance ASTContainer t Expr => ASTContainer (ExecRes t) Expr where
     containedASTs (ExecRes { final_state = s
