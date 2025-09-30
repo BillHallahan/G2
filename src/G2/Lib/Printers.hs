@@ -929,7 +929,7 @@ data PrettyGuide = PG { pg_assigned :: HM.HashMap Name T.Text -- ^ Mapping of G2
 --
 -- The name `X` is bound as both the name of a type (at the type level) and the name of a
 -- data constructor (at the value level.)  When pretty printing- especially for the purpose
--- of showing output to the user, or running validation (G2.Translation.HaskellCheck)
+-- of showing output to the user, or running validation (G2.Translation.ValidateState)
 -- we want/need to be able to print both names as `X`, rather than one as `X` and one as i.e. `X'1`.
 --
 -- To enable this the PrettyGuide keeps track of whether a specific name has been assigned on
