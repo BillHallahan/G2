@@ -1459,7 +1459,7 @@ termLamRNTModifs expr lhsTy old new eenv pargm tarm = (eenv', pargm'')
                 , (_, tr) <- argTypes lhsTy = let
             contTyVarsEnv = foldr (\(Id tvn _) ets -> maybe ets (: ets) (TRM.lookup tvn tarm)) [] (tyVarIds tr)
             in
-            foldr (\tvN pam -> PM.insertRename tvN old new (Just lhsTy) pam) pargm' contTyVarsEnv
+            foldr (\tvN pam -> PM.insertRename tvN old new (Just (retypeToEnvTVs lhsTy tarm)) pam) pargm' contTyVarsEnv
             | otherwise = pargm'
 
 type SymbolicFuncEval t = SymFuncTicks -> State t -> NameGen -> Expr -> Maybe (Rule, [State t], NameGen)
