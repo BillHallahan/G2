@@ -72,11 +72,13 @@ funcArg2TVs f = f (\x -> case x of
                     2 -> True 
                     _ -> False ) 2
 
+funcArg3TVs :: (forall a b c. (b -> a) -> (c -> b) -> c -> a) -> Float 
+funcArg3TVs f = f (\x -> 40.24) (\y -> 10) True
+
 -- | Ensures that no function application is constructed when needed arguments aren't available.
 funcArgFail :: (forall a b. (a -> b -> a) -> b -> a) -> Int 
 funcArgFail f = f (\x y -> 2) 4
 
--- | Currently generates definitions with invalid naming. 
-funcArg3TVs :: (forall a b c. (b -> a) -> (c -> b) -> c -> a) -> Int 
-funcArg3TVs f = f (\x -> x) (\y -> y) 2
+funcArgInt :: (forall a. (Int -> a -> a) -> a) -> Int 
+funcArgInt f = f (\x y -> 1)
  
