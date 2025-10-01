@@ -239,7 +239,7 @@ replaceHigherOrderNames init_name input_names er@(ExecRes { final_state = s@(Sta
         nameFromVar (Var (Id n _)) = n
         nameFromVar e = error $ "nameFromVar: not Var" ++ show e
 
-higherOrderName :: T.Text -> Int -> Name
+higherOrderName :: T.Text -> Unique -> Name
 higherOrderName n i = Name n (Just "HIGHER_ORDER_??_") i Nothing
 
 runG2ThroughExecutionInference :: ( MonadIO m
@@ -810,7 +810,7 @@ checkPreHigherOrder :: (InfConfigM m, MonadIO m) => LiquidData -> [Expr] -> High
 checkPreHigherOrder ld es (FuncCall {funcName = (Name _ _ i _), arguments = as, returns = r }) = do
     config <- g2ConfigM
     SomeSolver solver <- liftIO $ initSolver config
-    let e = es !! (i - 1)
+    let e = es !! fromIntegral (i - 1)
         e' = insertInLams (\_ in_e -> 
                                 case in_e of
                                     Let [(b, _)] le -> Let [(b, r)] le

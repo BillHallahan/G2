@@ -98,7 +98,7 @@ convertMeasure bt (M {name = n, sort = srt, eqns = eq}) = do
     tv <- tyVarEnv
         
     let bnds = tyForAllBindings $ fromJust st
-        ds = map (\i -> Name "d" Nothing i Nothing) [1 .. length bnds]
+        ds = map (\i -> Name "d" Nothing i Nothing) [1 .. fromIntegral (length bnds)]
         nbnds = zip ds $ map TyVar bnds
         as = map (\(d, t) -> Id d $ mkFullAppedTyCon tv lh_tc [t] TYPE) nbnds
         as' = map (TypeL, ) bnds ++ map (TermL,) as
