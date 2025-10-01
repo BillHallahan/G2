@@ -58,15 +58,15 @@ runWithArgs as = do
                                                                     Nothing -> False ) in_out
   let timeouts = filter (\res@ExecRes{validated = val} -> isNothing val) in_out
 
-  when (validate config) $ do
+  when (validate config') $ do
     if null notValidated then putStrLn "Validated" else putStrLn "There was an error during validation."
     unless (null timeouts) $ putStrLn ("Timeout count: " ++ show (length timeouts))
     
-  when (print_num_post_call_func_arg config) $ do
+  when (print_num_post_call_func_arg config') $ do
         putStrLn $ "Post call states: " ++ show (length spec_output)
         putStrLn $ "Func arg states: " ++ show (length unspecified_output)
 
-  when (measure_coverage config) $
+  when (measure_coverage config') $
     runHPC src (T.unpack $ fromJust mb_modname) entry (filter (\x@ExecRes{validated = val} -> fromMaybe False val) in_out)
 
 mReturnsTrue :: [String] -> Bool
