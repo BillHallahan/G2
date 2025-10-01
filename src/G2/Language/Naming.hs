@@ -56,6 +56,7 @@ import G2.Language.KnownValues
 import G2.Language.Syntax
 import G2.Language.TypeEnv
 import qualified G2.Language.TyVarEnv as TV
+import qualified G2.Language.PolyArgMap as PM
 
 import Data.Data (Data, Typeable)
 import Data.Foldable
@@ -868,6 +869,11 @@ instance Named TV.TyVarEnv where
     names = names . TV.toList
     rename old new = TV.fromListConcOrSym . rename old new . TV.toListConcOrSym
     renames hm = TV.fromListConcOrSym . renames hm . TV.toListConcOrSym
+
+instance Named PM.PolyArgMap where
+    names = names . PM.toLists
+    rename old new = PM.fromLists . rename old new . PM.toLists
+    renames hm = PM.fromLists . renames hm . PM.toLists
 
 instance Named a => Named [a] where
     {-# INLINE names #-}
