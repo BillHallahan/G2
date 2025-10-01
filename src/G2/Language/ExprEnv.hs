@@ -83,7 +83,6 @@ import Data.Hashable
 import qualified Data.List as L
 import qualified Data.HashMap.Lazy as M
 import Data.Maybe
-import qualified Data.Sequence as S
 import qualified Data.Text as T
 import qualified Data.Traversable as Trav
 import GHC.Generics (Generic)
@@ -200,7 +199,7 @@ deepLookupVar n eenv = go n
                 Just (Conc r) -> Just f
                 Just (Sym r) -> Just $ idName r
                 Nothing -> Nothing
-
+        
 -- | Checks if the given `Name` belongs to a symbolic variable.
 isSymbolic :: Name -> ExprEnv -> Bool
 isSymbolic n eenv =
