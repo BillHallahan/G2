@@ -19,6 +19,7 @@ import GHC.Generics (Generic)
 data Rule = RuleEvalVal
           | RuleEvalVarNonVal Name
           | RuleEvalVarVal Name
+          | RuleEvalVarPoly
           | RuleEvalUnInt
           | RuleEvalApp Expr
 

@@ -527,6 +527,22 @@ testFileTests = testGroup "TestFiles"
                                                                        , ("assoc", 200, [AtLeast 5])
                                                                        , ("sf", 175, [AtLeast 5])
                                                                        , ("tupleTest", 175, [AtLeast 8])]
+    , checkInputOutputsTemplate "tests/HigherOrder/RankN.hs" [ ("identity", 50, [Exactly 1])
+                                                             , ("twoArgs", 60, [Exactly 2])
+                                                             , ("calledInMaybe", 60, [Exactly 1])
+                                                             , ("twoTVs", 60, [Exactly 2])
+                                                             , ("twoTVsMultiCall", 200, [Exactly 1])
+                                                             , ("nested", 100, [Exactly 2])
+                                                             , ("calledInTuple", 100, [Exactly 2])
+                                                             , ("intArg", 100, [Exactly 2])
+                                                             , ("intArgCalledTwice", 200, [Exactly 5])
+                                                             , ("intArgCaseFourCalls", 500, [Exactly 44])
+                                                             , ("multiIntArgs", 200, [Exactly 4])
+                                                             , ("fromMaybe", 100, [Exactly 3])
+                                                             , ("fromMaybeInvalid", 100, [Exactly 0])
+                                                             , ("fromTuples", 100, [Exactly 8])
+                                                             , ("twoFunctions", 200, [Exactly 4])
+                                                             , ("partiallyApply", 200, [Exactly 2])] 
     , checkInputOutputsNonRedHigher "tests/HigherOrder/HigherOrder.hs" [ ("f", 200, [AtLeast 3])
                                                                        , ("h", 150, [AtLeast 2])
                                                                        , ("assoc", 250, [AtLeast 2])
@@ -534,8 +550,8 @@ testFileTests = testGroup "TestFiles"
                                                                        , ("thirdOrder", 300, [AtLeast 2])
                                                                        , ("thirdOrder2", 300, [AtLeast 3])
                                                                        , ("tupleTestMono", 175, [AtLeast 2])
-                                                                       , ("multiPrim", 300, [AtLeast 2])]
-                                                                    
+                                                                       , ("multiPrim", 300, [AtLeast 2])
+                                                                       , ("polyHigher", 50, [AtLeast 4])]                                                                                         
     , checkInputOutputsWithValidate "tests/BaseTests/ListTests.hs" [ ("lengthN", 2000, [AtLeast 1])
                                                                 , ("lengthBranch", 2000, [AtLeast 4])]
     , checkInputOutputsNonRedLib "tests/BaseTests/ListTests.hs" [ ("lengthN", 20000, [Exactly 1])
