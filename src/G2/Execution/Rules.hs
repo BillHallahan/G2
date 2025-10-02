@@ -162,9 +162,11 @@ evalVarSharing s@(State { expr_env = eenv
     -- TODO: TARM lookup shouldn't be required maybe
     | (Id idN (TyVar (Id tyIdN _))) <- i  -- PM-RETURN
     , E.isSymbolic idN eenv
-    , Just envTyIdN <- TRM.lookup tyIdN tarm
-    , Just ents@(_:_) <- PM.lookup envTyIdN pargm = 
-        let 
+    , mEnts <- case TRM.lookup tyIdN tarm of 
+        Just envTyIdN -> PM.lookup envTyIdN pargm 
+        Nothing -> PM.lookup tyIdN pargm
+    , Just ents@(_:_) <- mEnts =  
+    let 
             -- fresh ids
             ([bindee, scrut], ng') = freshIds [TyLitInt, TyLitInt] ng
             eenv' = E.insertSymbolic scrut eenv
