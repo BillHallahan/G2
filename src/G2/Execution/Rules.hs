@@ -251,19 +251,16 @@ makeAltsForPMRet' es tvid ng otv = (\(a, si, bs, n, _) -> (a, si, bs, n)) $ fold
                             collTy:faArgTys = (TyFun (rename (idName tvid) (idName otv) $ rty) (TyVar tvid)):fatys
                             -- ids for collector function and arguments to func arg
                             (newSyms@(collFunId:faArgIds), ngFA) = freshIds (collTy:faArgTys) ng_
-                            -- id for application and bindee
-                            ([appId, bindee], ngFA') = freshIds [rty, TyVar otv] ngFA
-
+                            -- id for application
+                            ([appId], ngFA') = freshIds [rty] ngFA
                             -- application expr
-                            appScrut = mkApp (Var (Id n typ):map Var faArgIds) -- function arg application 
-                            -- _ -> Coll appId
+                            appScrut = mkApp (Var (Id n typ):map Var faArgIds)
+                            -- alt: coll appId
                             collAlt = Alt {altMatch = Default, altExpr = mkApp [Var collFunId, Var appId]}
-                            -- Case appId of _ -> (Coll appId)
-                            caseE = Case (Var appId) bindee (TyVar otv) [collAlt]
-                            -- Let appId = func [args] in Case appId of _ -> (Coll appId)
-                            letE = Let [(appId, appScrut)] caseE
+                            -- Case fun args of appId -> coll appId
+                            caseE = Case appScrut appId (TyVar otv) [collAlt]
                         in
-                            (letE, newSyms, [], ngFA') -- Case to force evaluation
+                            (caseE, newSyms, [], ngFA') -- Case to force evaluation
 
                     Nothing -> (Var (Id n (TyVar tvid)), [], [], ng_)
             in
