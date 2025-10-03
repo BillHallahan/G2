@@ -422,6 +422,7 @@ higherOrderFuncs' = eval higherOrderFuncs''
 
 higherOrderFuncs'' :: Type -> [Type]
 higherOrderFuncs'' (TyFun t@(TyFun _ _) _) = [t]
+higherOrderFuncs'' (TyApp _ t@(TyFun _ _)) = [t]
 higherOrderFuncs'' _ = []
 
 isTYPE :: Type -> Bool

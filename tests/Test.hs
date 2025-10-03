@@ -521,7 +521,8 @@ testFileTests = testGroup "TestFiles"
                                                                    , ("sf", 175, [AtLeast 5])
                                                                    , ("thirdOrder", 75, [AtLeast 10])
                                                                    , ("tupleTestMono", 175, [AtLeast 10])
-                                                                   , ("multiPrim", 300, [AtLeast 8])]
+                                                                   , ("multiPrim", 300, [AtLeast 8])
+                                                                   , ("inList", 1000, [AtLeast 10])]
     , checkInputOutputsTemplate "tests/HigherOrder/PolyHigherOrder.hs" [ ("f", 50, [AtLeast 5])
                                                                        , ("h", 200, [AtLeast 3])
                                                                        , ("assoc", 200, [AtLeast 5])

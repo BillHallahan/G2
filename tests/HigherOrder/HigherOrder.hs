@@ -81,3 +81,6 @@ testRecursive f = testRecursive f -}
 
 polyHigher :: ((a -> a) -> a) -> (a -> a) -> a
 polyHigher g = g
+
+inList :: [Int -> Int] -> Int -> [Int]
+inList fs x = map (\f -> f x) fs 

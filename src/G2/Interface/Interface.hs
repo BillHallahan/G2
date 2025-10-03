@@ -483,9 +483,9 @@ initialStateNoStartFunc :: [FilePath]
                      -> [FilePath]
                      -> TranslationConfig
                      -> Config
-                     -> IO (State (), Bindings)
+                     -> IO (State (), Bindings, [Maybe T.Text])
 initialStateNoStartFunc proj src transConfig config = do
-    (_, exg2) <- translateLoaded proj src transConfig config
+    (mb_modname, exg2) <- translateLoaded proj src transConfig config
 
     let simp_state = initSimpleState exg2
 
@@ -494,7 +494,7 @@ initialStateNoStartFunc proj src transConfig config = do
                                  (E.higherOrderExprs TV.empty . IT.expr_env)
                                  config
 
-    return (init_s, bindings)
+    return (init_s, bindings, mb_modname)
 
 noStartFuncMkCurrExpr :: a -> NameGen -> b -> c -> d -> e -> CurrExprRes
 noStartFuncMkCurrExpr _ ng _ _ _ _ =
