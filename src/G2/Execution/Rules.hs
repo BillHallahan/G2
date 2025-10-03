@@ -420,12 +420,14 @@ newBindingsForExecutionAtType old new e eenv ng = case e of
                     in (Lam u i ie', eenv', ng')
     Tick ti ie -> let (ie', eenv', ng') = newBindingsForExecutionAtType old new ie eenv ng
                     in (Tick ti ie', eenv', ng')
-    (Case s b t as) -> let (as', eenv', ng') = foldr (\(Alt am ae) (r_as, r_env, r_ng) -> let 
+    (Case s b t as) -> let 
+                            (as', eenv', ng') = foldr (\(Alt am ae) (r_as, r_env, r_ng) -> let 
                                 (curr_e, curr_env, curr_ng) = newBindingsForExecutionAtType old new ae r_env r_ng
                                 in
-                                ((Alt am curr_e):r_as, curr_env, curr_ng))
-                            ([], eenv, ng) as
-                    in (Case s b t as', eenv', ng')
+                                ((Alt am curr_e):r_as, curr_env, curr_ng)) ([], eenv, ng) as
+                            (s', eenv'', ng'') | App _ _ <- s = newBindingsForExecutionAtType old new s eenv' ng'
+                                               | otherwise = (s, eenv', ng')
+                    in (Case s' b t as', eenv'', ng'')
     (App e1 e2) -> let 
             (e1', eenv', ng') = newBindingsForExecutionAtType old new e1 eenv ng
             (e2', eenv'', ng'') = newBindingsForExecutionAtType old new e2 eenv' ng'
@@ -1443,10 +1445,17 @@ termLamRNTModifs expr lhsTy old new eenv pargm tarm = (eenv', pargm'')
         -- environment entries. It is okay to modify the entires directly, because these entries
         -- will have been created specifically for this execution of the function when a type was
         -- applied to the function. See newBindingsForExecutionAtType
-        eenv' | (TyVar (Id lhsTyName _)) <- lhsTy 
-          , Just envName <- TRM.lookup lhsTyName tarm 
-          , PM.member envName pargm = foldr (E.deepRename old new . idName) eenv $ ids expr
-          | otherwise = eenv
+        eenv' 
+            | lhsTyName <- case lhsTy of 
+                    (TyVar (Id lhsTyName _)) -> lhsTyName
+                    (TyFun (TyVar (Id lhsTyName _)) _) -> lhsTyName
+                    _ -> Name "" Nothing 0 Nothing
+            , case TRM.lookup lhsTyName tarm of 
+                        Just envName -> PM.member envName pargm 
+                        Nothing -> PM.member lhsTyName pargm = foldr (E.deepRename old new . idName) eenv $ ids expr
+            -- , Just envName <- TRM.lookup lhsTyName tarm 
+            -- , PM.member envName pargm =
+            | otherwise = eenv
         -- Collect new argument name and renaming if currently solving an RNT function. 
         pargm' | TyVar (Id lhsTyName _) <- lhsTy 
             , Just envTy <- TRM.lookup lhsTyName tarm 
