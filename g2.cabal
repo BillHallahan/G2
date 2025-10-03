@@ -92,6 +92,7 @@ library
                        , G2.Language.Expr
                        , G2.Language.ExprEnv
                        , G2.Language.Families
+                       , G2.Language.HPC
                        , G2.Language.Ids
                        , G2.Language.KnownValues
                        , G2.Language.Located
@@ -493,6 +494,7 @@ executable FindHigherOrder
   build-depends:         g2
                        , base >= 4.8 && < 5
                        , containers
+                       , directory
                        , filepath >= 1.4 && <= 1.5
                        , ghc
                        , text
