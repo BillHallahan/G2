@@ -30,12 +30,12 @@ main = do
 
   (init_state, bindings, mods) <- initialStateNoStartFunc
                                         proj [src]
-                                        (simplTranslationConfig { simpl = True, hpc_ticks = False })
+                                        (simplTranslationConfig { hpc_ticks = False })
                                         config
 
   let rel_eenv = E.filterWithKey (\(Name _ m _ _) _ -> m `elem` mods) $ expr_env init_state
   let rel_funcs_eenv = E.filter isHigherOrderFunc rel_eenv
-  let rel_funcs = map (\(Name n _ _ _) -> n) $ E.keys rel_funcs_eenv
+  let rel_funcs = map formatName $ E.keys rel_funcs_eenv
 
   putStrLn . T.unpack $ T.intercalate "\n" rel_funcs
 
@@ -43,3 +43,7 @@ main = do
 
 isHigherOrderFunc :: Expr -> Bool
 isHigherOrderFunc = not . null . higherOrderFuncs . typeOf TV.empty
+
+formatName :: Name -> T.Text
+formatName (Name n Nothing _ _) = n
+formatName (Name n (Just m) _ _) = m <> "." <> n
