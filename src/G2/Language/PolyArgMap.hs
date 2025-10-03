@@ -12,6 +12,7 @@ module G2.Language.PolyArgMap ( PolyArgMap
                                , toLists
                                , fromLists
                                , rToEHashMap
+                               , removeVal
                                , empty ) where
 
 import G2.Language.Syntax
@@ -74,6 +75,10 @@ memberTV env pam = HM.member env $ arg_map pam
 
 toLists :: PolyArgMap -> ([(Name, [(Name, Name, Maybe Type)])], [(Name, Name)])
 toLists pam = (map (second (map makeEntryTuple)) (HM.toList $ arg_map pam), HM.toList $ run_to_env pam)
+
+-- TODO: okay to remove across all entries?
+removeVal :: Name -> Name -> PolyArgMap -> PolyArgMap 
+removeVal tv n pam = pam {arg_map = HM.adjust (filter (\(PAMEntry e _ _) -> e /= n)) tv (arg_map pam)}
 
 fromLists :: ([(Name, [(Name, Name, Maybe Type)])], [(Name, Name)]) -> PolyArgMap
 fromLists (am, rte) = PolyArgMap { arg_map = HM.fromList (map (second (map fromEntryTuple)) am), 

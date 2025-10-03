@@ -14,6 +14,9 @@ calledInMaybe f = Just (f 2)
 twoTVs :: (forall a b. b-> a -> b -> b) -> Bool
 twoTVs f = f True 25 False
 
+twoTVs_ :: (forall a b. b -> a -> b -> b) -> (Bool, Float)
+twoTVs_ f = (f True 25 False, f 40.0 True 39.9)
+
 nested :: (forall a. a -> a -> a) -> Int
 nested f =  f (f 1 2) 3
 
@@ -66,3 +69,58 @@ twoTVsMultiCall f = case (f 1 2, f 3 4) of
 
 funcArg :: (forall a. (a -> a) -> a -> a) -> Int 
 funcArg f = f (\x -> x + 1) 2
+
+
+funcArg2 :: (forall a. (a -> a) -> a -> a) -> Int 
+funcArg2 f = f (\x -> x) 2
+
+-- FAILING after 170
+funcArg2_ :: (forall a. (a -> a) -> a -> a) -> (Int, Int)
+funcArg2_ f = (f (\x -> x) 2,  f (\x -> x) 3)
+
+funcArg4 :: (forall a. (a -> a) -> a) -> Int 
+funcArg4 f = f (\_ -> 1)
+
+funcArg4Tup :: (forall a. (a -> a) -> a -> a) -> (Int, Int)
+funcArg4Tup f = (f (\_ -> 1) 2 , f (\x->x) 2)
+
+funcArg3 :: (forall a. (a -> a -> a) -> a -> a) -> Int 
+funcArg3 f = f (\x y -> x + y) 1
+
+funcArgSol = (\fs'2 -> (\fs -> let
+      fs'5 = fs'2 fs in case fs'5 of
+      _ -> let
+            fs'6 = fs'2 (let
+                  fs'3 = fs'2 fs in case fs'3 of
+                  _ -> fs'3) in case fs'6 of
+            _ -> fs'5))
+
+funcArgSol_ = (\fs'2 -> (\fs -> fs))
+
+funcArg2TVs :: (forall a b. (b -> a) -> b -> a) -> Bool  
+funcArg2TVs f = f (\x -> case x of 
+                        2 -> True
+                        _ -> False 
+                    ) 2
+
+funcArg2TVsFailing :: (forall a b. (b -> a) -> b -> a) -> Int 
+funcArg2TVsFailing f = f (\x -> case x of 
+                            _ -> 5
+                            ) 2
+
+funcArgBothAsFailing :: (forall a. (a -> a) -> a -> a) -> Int 
+funcArgBothAsFailing f = f (\x -> 1) 2
+
+funcArgNeedsUndef :: (forall a b. (b -> a) -> b -> a) -> Int
+funcArgNeedsUndef g = g (\x -> 1) (let y = y in y)
+
+funcArgNeedsUndef2 :: (forall a b. (b -> a) -> a) -> Int
+funcArgNeedsUndef2 g = g (\x -> 1)
+
+funcArgNeedsEval :: (forall a . (a -> a) -> a) -> Int
+funcArgNeedsEval g = g (\x -> x)
+
+
+-- TESTING
+funcNeedsUndefTuple :: (forall a b. (b -> a) -> b -> a) -> (Int, Int)
+funcNeedsUndefTuple f = (f (\x -> 1) (let y = y in y), f (\x -> x) 2)
