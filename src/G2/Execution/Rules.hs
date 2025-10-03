@@ -1449,13 +1449,6 @@ termLamRNTModifs expr lhsTy old new eenv pargm = (eenv', pargm''') where
     pargm' | TyVar (Id lhsTyName _) <- lhsTy = PM.insertRename lhsTyName old new Nothing pargm
            | otherwise = pargm
     -- if LHS type is a function with return type containing tyVars, insert the env-runtime renaming into PAM entries
-{-     pargm'' | (TyFun _ _) <- lhsTy 
-            , (_, tr) <- argTypes lhsTy = let
-        contTyVarsEnv = foldr (\(Id tvn _) ets -> maybe ets (: ets) (PM.lookupInRToE tvn pargm)) [] (tyVarIds tr)
-        in
-            foldr (\tvN pam -> PM.insertRename tvN old new (Just (retypeToEnvTVs lhsTy pargm)) pam) pargm' contTyVarsEnv
-        | otherwise = pargm' -}
-
     pargm''' | (TyFun _ _) <- lhsTy 
             , (_, tr) <- argTypes lhsTy = foldr (\(Id tvN _) pam -> if PM.member tvN pam 
                     then PM.insertRename tvN old new (Just $ retypeToEnvTVs lhsTy pargm) pam 

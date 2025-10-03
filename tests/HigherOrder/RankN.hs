@@ -75,8 +75,8 @@ funcArg2 :: (forall a. (a -> a) -> a -> a) -> Int
 funcArg2 f = f (\x -> x) 2
 
 -- FAILING after 170
-funcArg2_ :: (forall a. (a -> a) -> a -> a) -> (Int, Int)
-funcArg2_ f = (f (\x -> x) 2,  f (\x -> x) 3)
+funcArgTwice :: (forall a. (a -> a) -> a -> a) -> (Int, Int)
+funcArgTwice f = (f (\x -> x) 2,  f (\x -> x) 3)
 
 funcArg4 :: (forall a. (a -> a) -> a) -> Int 
 funcArg4 f = f (\_ -> 1)
@@ -124,3 +124,9 @@ funcArgNeedsEval g = g (\x -> x)
 -- TESTING
 funcNeedsUndefTuple :: (forall a b. (b -> a) -> b -> a) -> (Int, Int)
 funcNeedsUndefTuple f = (f (\x -> 1) (let y = y in y), f (\x -> x) 2)
+
+
+--- currently working out a possible error invovling executing PM funcs with function arguments multiple times
+--- probably a problem with deepRenaming and newBindings
+--- also considering FA application store to prevent branching, but need to worry about scope as well
+--- merged master
