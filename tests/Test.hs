@@ -544,6 +544,7 @@ testFileTests = testGroup "TestFiles"
                                                              , ("twoFunctions", 200, [Exactly 4])
                                                              , ("partiallyApply", 200, [Exactly 2])
                                                              , ("funcArg", 200, [AtLeast 1])] 
+
     , checkInputOutputsNonRedHigher "tests/HigherOrder/HigherOrder.hs" [ ("f", 200, [AtLeast 3])
                                                                        , ("h", 150, [AtLeast 2])
                                                                        , ("assoc", 250, [AtLeast 2])
@@ -551,7 +552,10 @@ testFileTests = testGroup "TestFiles"
                                                                        , ("thirdOrder", 300, [AtLeast 2])
                                                                        , ("thirdOrder2", 300, [AtLeast 3])
                                                                        , ("tupleTestMono", 175, [AtLeast 2])
-                                                                       , ("multiPrim", 300, [AtLeast 2])]
+                                                                       , ("multiPrim", 300, [AtLeast 2])
+                                                                       , ("polyHigher", 50, [AtLeast 4])]                                                                                         
+    , checkInputOutputsWithValidate "tests/BaseTests/ListTests.hs" [ ("lengthN", 2000, [AtLeast 1])
+                                                                , ("lengthBranch", 2000, [AtLeast 4])]
     , checkInputOutputsNonRedLib "tests/BaseTests/ListTests.hs" [ ("lengthN", 20000, [Exactly 1])
                                                                 , ("lengthBranch", 20000, [Exactly 4])
                                                                 , ("map2", 20000, [Exactly 3])
@@ -712,6 +716,22 @@ extensionTests = testGroup "Extensions"
                                                                         , ("lengthSV", 1000, [AtLeast 10])
                                                                         ]
 
+    , checkInputOutputsInstType "tests/TestFiles/Extensions/TypeFamilies1.hs" [ ("f", 400, [Exactly 2])
+                                                                              -- , ("f2", 400, [Exactly 2])
+                                                                              , ("f3", 400, [Exactly 3])
+                                                                              , ("g", 400, [Exactly 2])
+                                                                              , ("h", 400, [Exactly 2])
+                                                                              , ("age1", 400, [Exactly 1])
+                                                                              -- , ("age2", 400, [Exactly 1])
+                                                                              -- , ("app", 250, [AtLeast 5])
+                                                                              -- , ("vecIntersperse", 400, [AtLeast 5])
+                                                                              , ("vecTake", 400, [AtLeast 5])
+                                                                              ]
+    , checkInputOutputsInstType "tests/TestFiles/Extensions/DataFamilies1.hs" [ ("f1", 400, [Exactly 1])
+                                                                              , ("f2", 400, [Exactly 1])
+    --                                                                           , ("app3Char", 400, [AtLeast 1])
+    --                                                                           , ("app3Unit", 400, [AtLeast 1])
+                                                                              ]
     ]
 
 baseTests ::  TestTree
@@ -1081,6 +1101,7 @@ testFileWithConfig src m_assume m_assert m_reaches entry config = do
             $ runG2FromFile 
                 [proj]
                 [src]
+                []
                 (fmap T.pack m_assume)
                 (fmap T.pack m_assert)
                 (fmap T.pack m_reaches)

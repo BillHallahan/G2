@@ -1,6 +1,4 @@
-{-# LANGUAGE CPP #-}
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE TupleSections #-}
+{-# LANGUAGE CPP, MultiWayIf, OverloadedStrings, TupleSections #-}
 
 -- | Haskell Translation
 module G2.Translation.Haskell
@@ -39,6 +37,7 @@ module G2.Translation.Haskell
 
 import qualified G2.Language.TypeEnv as G2 (AlgDataTy (..))
 import qualified G2.Language.Syntax as G2
+import qualified G2.Language.Families as G2
 -- import qualified G2.Language.Typing as G2
 import qualified G2.Translation.TransTypes as G2
 
@@ -101,7 +100,7 @@ equivMods = HM.fromList
 #endif
             ]
 
-loadProj :: Maybe HscTarget -> [FilePath] -> [FilePath] -> [GeneralFlag] -> G2.TranslationConfig -> Ghc SuccessFlag
+loadProj :: GhcMonad m => Maybe HscTarget -> [FilePath] -> [FilePath] -> [GeneralFlag] -> G2.TranslationConfig -> m SuccessFlag
 loadProj hsc proj src gflags tr_con = do
     beta_flags <- getSessionDynFlags
     let gen_flags = if G2.hpc_ticks tr_con then Opt_Hpc:gflags else gflags
@@ -204,6 +203,7 @@ cgGutsModDetailsClosureToModGutsClosure cg md =
     , G2.mgcc_tycons = G2.cgcc_tycons cg
     , G2.mgcc_breaks = G2.cgcc_breaks cg
     , G2.mgcc_cls_insts = G2.mdcc_cls_insts md
+    , G2.mgcc_fam_insts = G2.mdcc_fam_insts md
     , G2.mgcc_type_env = G2.mdcc_type_env md
     , G2.mgcc_exports = G2.mdcc_exports md
     , G2.mgcc_deps = G2.mdcc_deps md
@@ -283,6 +283,7 @@ mkModDetailsClosure :: Dependencies -> ModDetails -> G2.ModDetailsClosure
 mkModDetailsClosure deps moddet =
   G2.ModDetailsClosure
     { G2.mdcc_cls_insts = getClsInst moddet
+    , G2.mdcc_fam_insts = md_fam_insts moddet
     , G2.mdcc_type_env = md_types moddet
     , G2.mdcc_exports = exportedNames moddet
     , G2.mdcc_deps = getModuleNames deps
@@ -332,6 +333,10 @@ modGutsClosureToG2 mgcc tr_con = do
   -- Do the class
   classes <- mapM mkClass $ G2.mgcc_cls_insts mgcc
 
+  -- Do the data/type families
+  fam_tycons <- mapM mkFamilyAxiomsTyCons raw_tycons
+  fam_open <- mapM mkFamilyAxioms (G2.mgcc_fam_insts mgcc)
+
   -- Do the rules
   rules <- if G2.load_rewrite_rules tr_con
                   then mapM (mkRewriteRule breaks) $ G2.mgcc_rules mgcc
@@ -345,6 +350,7 @@ modGutsClosureToG2 mgcc tr_con = do
             , G2.exg2_binds = binds
             , G2.exg2_tycons = tycons
             , G2.exg2_classes = classes
+            , G2.exg2_axioms = concat fam_tycons ++ fam_open
             , G2.exg2_exports = exports
             , G2.exg2_deps = deps
             , G2.exg2_rules = catMaybes rules })
@@ -399,6 +405,7 @@ mkModGutsClosure env modguts = do
       , G2.mgcc_tycons = cg_tycons cgguts
       , G2.mgcc_breaks = cg_modBreaks cgguts
       , G2.mgcc_cls_insts = getClsInst moddets
+      , G2.mgcc_fam_insts = mg_fam_insts modguts
       , G2.mgcc_type_env = md_types moddets
       , G2.mgcc_exports = exportedNames moddets
       , G2.mgcc_deps = getModuleNames $ mg_deps modguts
@@ -431,6 +438,7 @@ mergeExtractedG2s (g2:g2s) =
       , G2.exg2_binds = G2.exg2_binds g2 `HM.union` G2.exg2_binds g2'
       , G2.exg2_tycons = G2.exg2_tycons g2 `HM.union` G2.exg2_tycons g2'
       , G2.exg2_classes = G2.exg2_classes g2 ++ G2.exg2_classes g2'
+      , G2.exg2_axioms = G2.exg2_axioms g2 ++ G2.exg2_axioms g2'
       , G2.exg2_exports = G2.exg2_exports g2 ++ G2.exg2_exports g2'
       , G2.exg2_deps = G2.exg2_deps g2 ++ G2.exg2_deps g2'
       , G2.exg2_rules = G2.exg2_rules g2 ++ G2.exg2_rules g2' }
@@ -684,37 +692,38 @@ mkTyCon t = do
     (nm, tm) <- SM.get
     let tm' = HM.insert (n', m) n tm
   
-    dc_names <- mapM (valNameLookup . dataConName) $ visibleDataCons (algTyConRhs t)
-    let nm' = foldr (uncurry HM.insert) nm
-            . map (\n_@(G2.Name n'_ m_ _ _) -> ((n'_, m_), n_)) 
-            $ dc_names 
-
     bv <- mapM typeId $ tyConTyVars t
 
-    dcs <-
-        case isAlgTyCon t of
-            True -> do
-                      SM.put (nm', tm')
-                      case algTyConRhs t of
-                            DataTyCon { data_cons = dc} -> do
-                                dcs <- mapM mkData dc
-                                return . Just $ G2.DataTyCon bv dcs ADTSourceCode
-                            NewTyCon { data_con = dc
-                                     , nt_rhs = rhst} -> do
-                                        dc' <- mkData dc
-                                        t' <- mkType rhst
-                                        return .
-                                          Just $ G2.NewTyCon { G2.bound_ids = bv
-                                                             , G2.data_con = dc'
-                                                             , G2.rep_type = t'
-                                                             , G2.adt_source = ADTSourceCode}
-                            AbstractTyCon {} -> error "Unhandled TyCon AbstractTyCon"
-                            -- TupleTyCon {} -> error "Unhandled TyCon TupleTyCon"
-                            TupleTyCon { data_con = dc } -> do
+    dcs <- if
+        | isFamilyTyCon t -> return Nothing
+        | isAlgTyCon t -> do
+            dc_names <- mapM (valNameLookup . dataConName) $ visibleDataCons (algTyConRhs t)
+            let nm' = foldr (uncurry HM.insert) nm
+                    . map (\n_@(G2.Name n'_ m_ _ _) -> ((n'_, m_), n_)) 
+                    $ dc_names 
+
+            SM.put (nm', tm')
+            case algTyConRhs t of
+                  DataTyCon { data_cons = dc} -> do
+                      dcs <- mapM mkData dc
+                      return . Just $ G2.DataTyCon bv dcs ADTSourceCode
+                  NewTyCon { data_con = dc
+                            , nt_rhs = rhst} -> do
                               dc' <- mkData dc
-                              return . Just $ G2.DataTyCon bv [dc'] ADTSourceCode
-                            SumTyCon {} -> error "Unhandled TyCon SumTyCon"
-            False -> case isTypeSynonymTyCon t of
+                              t' <- mkType rhst
+                              return .
+                                Just $ G2.NewTyCon { G2.bound_ids = bv
+                                                    , G2.data_con = dc'
+                                                    , G2.rep_type = t'
+                                                    , G2.adt_source = ADTSourceCode}
+                  AbstractTyCon {} -> error "Unhandled TyCon AbstractTyCon"
+                  -- TupleTyCon {} -> error "Unhandled TyCon TupleTyCon"
+                  TupleTyCon { data_con = dc } -> do
+                    dc' <- mkData dc
+                    return . Just $ G2.DataTyCon bv [dc'] ADTSourceCode
+                  SumTyCon {} -> error "Unhandled TyCon SumTyCon"
+        | otherwise ->
+            case isTypeSynonymTyCon t of
                     True -> do
                         SM.put (nm, tm')
                         let (tv, st) = fromJust $ synTyConDefn_maybe t
@@ -771,6 +780,32 @@ mkClass (ClsInst { is_cls = c, is_dfun = dfun }) = do
            , i
            , tyvars
            , sctheta_selids)
+
+mkFamilyAxioms :: FamInst -> G2.NamesM (G2.Name, G2.Axiom)
+mkFamilyAxioms fam_inst = do
+    fam_name <- typeNameLookup $ fi_fam fam_inst
+    lhs_ts <- mapM mkType $ fi_tys fam_inst
+    rhs_t <- mkType $ fi_rhs fam_inst
+    return (fam_name, G2.Axiom { G2.lhs_types = lhs_ts, G2.rhs_type = rhs_t })
+
+mkFamilyAxiomsTyCons :: TyCon -> G2.NamesM [(G2.Name, G2.Axiom)]
+mkFamilyAxiomsTyCons t
+    | Just (ClosedSynFamilyTyCon (Just axioms)) <- famTyConFlav_maybe t = do
+        n@(G2.Name n' m _ _) <- typeNameLookup . tyConName $ t
+
+        (nm, tm) <- SM.get
+        let tm' = HM.insert (n', m) n tm
+        SM.put (nm, tm')
+
+        axs <- mapM mkAxiom . fromBranches $ co_ax_branches axioms
+
+        return $ map (n,) axs
+    | otherwise = return []
+    where
+    mkAxiom (CoAxBranch { cab_lhs = lhs, cab_rhs = rhs }) = do
+        lhs_ts <- mapM mkType lhs
+        rhs_t <- mkType rhs
+        return $ G2.Axiom { G2.lhs_types = lhs_ts, G2.rhs_type = rhs_t }
 
 
 mkRewriteRule :: Maybe ModBreaks -> CoreRule -> G2.NamesM (Maybe G2.RewriteRule)

@@ -2,12 +2,16 @@
 
 module G2.Language.PolyArgMap ( PolyArgMap
                                , insertTV
+                               , insertRToE
                                , insertRename
                                , lookup
+                               , lookupInRToE
+                               , lookupInBoth
                                , member
-                               , remove
-                               , toList
-                               , fromList
+                               , memberTV
+                               , toLists
+                               , fromLists
+                               , rToEHashMap
                                , empty ) where
 
 import G2.Language.Syntax
@@ -19,54 +23,73 @@ import Data.List (find)
 import Data.Bifunctor (second)
 import GHC.Generics (Generic)
 import Prelude hiding (lookup)
-import Data.Maybe (isJust)
+import Data.Maybe (isJust, fromJust)
 
 -- | Interface for the PAM
 
 -- If the name is a val of the TV type, we already know it's type.
 data ValOrFunc = Val | Func Type deriving (Show, Eq, Read, Data, Typeable, Generic)
 data PAMEntry = PAMEntry {envN :: Name, runN :: Name, vOrF :: ValOrFunc} deriving (Show, Eq, Read, Data, Typeable, Generic)
-newtype PolyArgMap = PolyArgMap (HM.HashMap Name [PAMEntry]) deriving (Show, Eq, Read, Data, Typeable, Generic)
+data PolyArgMap = PolyArgMap {arg_map :: HM.HashMap Name [PAMEntry], run_to_env :: HM.HashMap Name Name} deriving (Show, Eq, Read, Data, Typeable, Generic)
 
 insertTV :: Name -> PolyArgMap -> PolyArgMap
-insertTV tv (PolyArgMap pargm) = PolyArgMap $ HM.insert tv [] pargm
+insertTV tv pam = pam {arg_map = HM.insert tv [] $ arg_map pam}
 
--- TODO: should there be an option to update type? In PM-RETURN, runtime type will always redirect correctly through TARM.
-insertRename :: Name -> Name -> Name -> Maybe Type -> PolyArgMap -> PolyArgMap
-insertRename tv env ren ty (PolyArgMap pargm) | HM.member tv pargm =
-    PolyArgMap $ HM.adjust (modifyPAMEntries env ren ty) tv pargm
-  | otherwise = PolyArgMap pargm -- TODO: now allowing this, check on it later
-  where modifyPAMEntries :: Name -> Name -> Maybe Type -> [PAMEntry] -> [PAMEntry]
-        modifyPAMEntries e r mt pes = case find (\pe -> envN pe == e) pes of
-            Just pe -> map (\pEnt -> if pEnt == pe then pEnt {runN=r} else pEnt) pes
-            Nothing -> (PAMEntry {envN=e, runN=r, vOrF=maybe Val Func mt}):pes
+insertRToE :: Name -> Name -> PolyArgMap -> PolyArgMap 
+insertRToE r e pam = pam {run_to_env = HM.insert r e $ run_to_env pam}
 
+-- TODO: make this better
+-- | Insert a new runtime->environment argument mapping for the envTV that runTV maps to.
+insertRename :: Name -> Name -> Name -> Maybe Type -> PolyArgMap -> PolyArgMap 
+insertRename runTV eArg rArg mty pam | member runTV pam = 
+      pam {arg_map = HM.adjust (modifyPAMEntries eArg rArg mty) (fromJust . HM.lookup runTV $ run_to_env pam) (arg_map pam)} 
+    -- TODO: should this still error
+    | otherwise = error ("PolyArgMap.insertRename: trying to insert into set of TyVar not in map: " ++ show runTV)
+        where modifyPAMEntries :: Name -> Name -> Maybe Type -> [PAMEntry] -> [PAMEntry]
+              modifyPAMEntries e r mt pes = case find (\pe -> envN pe == e) pes of
+                        Just pe -> map (\pEnt -> if pEnt == pe then pEnt {runN=r} else pEnt) pes
+                        Nothing -> (PAMEntry {envN=e, runN=r, vOrF=maybe Val Func mt}):pes
+
+-- | Lookup the entries for an runtime TV using run_to_env.
 lookup :: Name -> PolyArgMap -> Maybe [(Name, Name, Maybe Type)]
-lookup tv (PolyArgMap pargm) = case HM.lookup tv pargm of
-                    Just entries -> Just (map (\ent -> (envN ent, runN ent, (\case Val -> Nothing; Func t -> Just t) (vOrF ent))) entries)
-                    Nothing -> Nothing
+lookup runTV pam = HM.lookup runTV (run_to_env pam) >>= flip HM.lookup (arg_map pam) >>= (Just . map makeEntryTuple)
 
+lookupInRToE :: Name -> PolyArgMap -> Maybe Name
+lookupInRToE tv pam = HM.lookup tv (run_to_env pam)
+
+lookupInBoth :: Name -> PolyArgMap -> Maybe [(Name, Name, Maybe Type)]
+lookupInBoth tv pam = case lookup tv pam of 
+                            Just ents -> Just ents
+                            Nothing -> case HM.lookup tv (arg_map pam) of
+                                Just ents -> Just (map makeEntryTuple ents)
+                                Nothing -> Nothing
+
+-- | Check if a runtime TV is present in the PolyArgMap.
 member :: Name -> PolyArgMap -> Bool
 member n pam = isJust (lookup n pam)
 
-remove :: Name -> PolyArgMap -> PolyArgMap
-remove i (PolyArgMap pargm) = let pargm' = HM.delete i pargm in
-            if pargm == pargm'
-            then error "PolyArgMap.remove: removing nonexistent TV"
-            else PolyArgMap pargm'
+-- | Check directly if an environment TV is mapped in the PolyArgMap. 
+memberTV :: Name -> PolyArgMap -> Bool 
+memberTV env pam = HM.member env $ arg_map pam
 
-toList :: PolyArgMap -> [(Name, [(Name, Name, Maybe Type)])]
-toList (PolyArgMap pargm) = map (second (map makeEntryTuple)) (HM.toList pargm)
-    where makeEntryTuple :: PAMEntry -> (Name, Name, Maybe Type)
-          makeEntryTuple (PAMEntry e r vorf) = (e, r, (\case Val -> Nothing; Func t -> Just t) vorf)
+toLists :: PolyArgMap -> ([(Name, [(Name, Name, Maybe Type)])], [(Name, Name)])
+toLists pam = (map (second (map makeEntryTuple)) (HM.toList $ arg_map pam), HM.toList $ run_to_env pam)
 
-fromList :: [(Name, [(Name, Name, Maybe Type)])] -> PolyArgMap
-fromList l = PolyArgMap $ HM.fromList (map (second (map fromEntryTuple)) l)
+fromLists :: ([(Name, [(Name, Name, Maybe Type)])], [(Name, Name)]) -> PolyArgMap
+fromLists (am, rte) = PolyArgMap { arg_map = HM.fromList (map (second (map fromEntryTuple)) am), 
+                                  run_to_env = HM.fromList rte } 
     where fromEntryTuple :: (Name, Name, Maybe Type) -> PAMEntry
           fromEntryTuple (e, r, mt) = PAMEntry {envN=e, runN=r, vOrF=maybe Val Func mt}
+          
+makeEntryTuple :: PAMEntry -> (Name, Name, Maybe Type)
+makeEntryTuple (PAMEntry e r vorf) = (e, r, (\case Val -> Nothing; Func t -> Just t) vorf)
+
+-- TODO: should we just access the field in Rules.hs?
+rToEHashMap :: PolyArgMap -> HM.HashMap Name Name
+rToEHashMap = run_to_env
 
 empty :: PolyArgMap
-empty = PolyArgMap HM.empty
+empty = PolyArgMap HM.empty HM.empty        
 
 instance Hashable ValOrFunc
 instance Hashable PAMEntry

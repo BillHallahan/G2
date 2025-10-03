@@ -91,6 +91,7 @@ library
                        , G2.Language.CreateFuncs
                        , G2.Language.Expr
                        , G2.Language.ExprEnv
+                       , G2.Language.Families
                        , G2.Language.Ids
                        , G2.Language.KnownValues
                        , G2.Language.Located
@@ -121,8 +122,7 @@ library
                        , G2.Language.Typing
                        , G2.Language.TyVarEnv
                        , G2.Language.PolyArgMap
-                       , G2.Language.TypeAppRenameMap
-
+                       
                        , G2.Lib.Printers
 
                        , G2.Nebula
@@ -157,11 +157,11 @@ library
                        , G2.Translation.Cabal.Cabal
                        , G2.Translation.GHC
                        , G2.Translation.Haskell
-                       , G2.Translation.HaskellCheck
                        , G2.Translation.InjectSpecials
                        , G2.Translation.Interface
                        , G2.Translation.PrimInject
                        , G2.Translation.TransTypes
+                       , G2.Translation.ValidateState
 
                        , G2.Verify.Config
                        , G2.Verify.Interface
@@ -256,6 +256,10 @@ library
   if flag(support-lh) && impl(ghc < 9)
     build-depends:       liquidhaskell == 0.8.10.2
                        , liquid-fixpoint == 0.8.10.2
+
+  if impl(ghc < 9)
+    build-depends:        transformers == 0.5.6.2
+                       ,  exceptions == 0.10.4
 
   default-language:    Haskell2010
   ghc-options:         -Wall

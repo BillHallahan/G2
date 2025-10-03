@@ -18,7 +18,7 @@ module G2.Language.Support
 
 import G2.Language.AST
 import qualified G2.Language.ExprEnv as E
-import qualified G2.Language.TyVarEnv as TV
+import G2.Language.Families
 import G2.Language.KnownValues
 import G2.Language.MutVarEnv
 import G2.Language.Naming
@@ -28,10 +28,10 @@ import G2.Language.Syntax
 import G2.Language.TypeClasses
 import G2.Language.TypeEnv
 import G2.Language.Typing
+import qualified G2.Language.TyVarEnv as TV
 import G2.Language.PathConds hiding (map, filter)
 import G2.Execution.RuleTypes
 import qualified G2.Language.PolyArgMap as PM
-import qualified G2.Language.TypeAppRenameMap as TRM
 
 import GHC.Generics (Generic)
 import Data.Data (Data, Typeable)
@@ -49,7 +49,6 @@ data State t = State { expr_env :: E.ExprEnv -- ^ Mapping of `Name`s to `Expr`s
                      , type_env :: TypeEnv -- ^ Type information
                      , tyvar_env :: TV.TyVarEnv -- ^ Type variable information
                      , poly_arg_map :: PM.PolyArgMap -- ^ Type variable to lambda variable mappings 
-                     , ty_app_re_map :: TRM.TypeAppRenameMap -- ^ Runtime type variable to environment type variable mappings
                      , curr_expr :: CurrExpr -- ^ The expression represented by the state
                      , path_conds :: PathConds -- ^ Path conditions, in SWHNF
                      , non_red_path_conds :: NonRedPathConds -- ^ Path conditions, in the form of (possibly non-reduced)
@@ -61,6 +60,7 @@ data State t = State { expr_env :: E.ExprEnv -- ^ Mapping of `Name`s to `Expr`s
                                            -- When running to violate assertions, an assertion violations flips this from False to True.
                      , assert_ids :: Maybe FuncCall
                      , type_classes :: TypeClasses
+                     , families :: Families
                      , exec_stack :: Stack Frame
                      , model :: Model
                      , known_values :: KnownValues
@@ -204,7 +204,6 @@ instance Named t => Named (State t) where
             <> names (type_env s)
             <> names (tyvar_env s)
             <> names (poly_arg_map s)
-            <> names (ty_app_re_map s)
             <> names (curr_expr s)
             <> names (path_conds s)
             <> names (non_red_path_conds s)
@@ -212,6 +211,7 @@ instance Named t => Named (State t) where
             <> names (mutvar_env s)
             <> names (assert_ids s)
             <> names (type_classes s)
+            <> names (families s)
             <> names (exec_stack s)
             <> names (model s)
             <> names (known_values s)
@@ -226,7 +226,6 @@ instance Named t => Named (State t) where
                     $ rename old new (type_env s)
                , tyvar_env = rename old new (tyvar_env s)
                , poly_arg_map = rename old new (poly_arg_map s)
-               , ty_app_re_map = rename old new (ty_app_re_map s)
                , curr_expr = rename old new (curr_expr s)
                , path_conds = rename old new (path_conds s)
                , non_red_path_conds = rename old new (non_red_path_conds s)
@@ -235,6 +234,7 @@ instance Named t => Named (State t) where
                , true_assert = true_assert s
                , assert_ids = rename old new (assert_ids s)
                , type_classes = rename old new (type_classes s)
+               , families = rename old new (families s)
                , exec_stack = rename old new (exec_stack s)
                , model = rename old new (model s)
                , known_values = rename old new (known_values s)
@@ -253,7 +253,6 @@ instance Named t => Named (State t) where
                     $ renames hm (type_env s)
                , tyvar_env = renames hm (tyvar_env s)
                , poly_arg_map = renames hm (poly_arg_map s)
-               , ty_app_re_map = renames hm (ty_app_re_map s)
                , curr_expr = renames hm (curr_expr s)
                , path_conds = renames hm (path_conds s)
                , non_red_path_conds = renames hm (non_red_path_conds s)
@@ -262,6 +261,7 @@ instance Named t => Named (State t) where
                , true_assert = true_assert s
                , assert_ids = renames hm (assert_ids s)
                , type_classes = renames hm (type_classes s)
+               , families = renames hm (families s)
                , exec_stack = renames hm (exec_stack s)
                , model = renames hm (model s)
                , known_values = renames hm (known_values s)
@@ -313,6 +313,7 @@ instance ASTContainer t Type => ASTContainer (State t) Type where
                       (containedASTs $ mutvar_env s) ++
                       ((containedASTs . assert_ids) s) ++
                       ((containedASTs . type_classes) s) ++
+                      ((containedASTs . families) s) ++
                       ((containedASTs . exec_stack) s) ++
                       (containedASTs $ track s) ++ 
                       (containedASTs $ sym_gens s) ++
@@ -328,6 +329,7 @@ instance ASTContainer t Type => ASTContainer (State t) Type where
                                 , mutvar_env = modifyContainedASTs f $ mutvar_env s
                                 , assert_ids = (modifyContainedASTs f . assert_ids) s
                                 , type_classes = (modifyContainedASTs f . type_classes) s
+                                , families = (modifyContainedASTs f . families) s
                                 , exec_stack = (modifyContainedASTs f . exec_stack) s
                                 , track = modifyContainedASTs f $ track s 
                                 , sym_gens = modifyContainedASTs f $ sym_gens s 
