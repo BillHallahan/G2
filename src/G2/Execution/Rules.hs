@@ -1435,6 +1435,7 @@ liftBind bindsLHS@(Id _ lhsTy) bindsRHS eenv expr ngen pargm = (eenv'', expr', n
 
     expr' = renameExpr old new expr
 
+    -- Applies modifications is LHS type is tracked TyVar or a function type containing tracked TyVars.
     (eenv', pargm') | any (flip PM.member pargm . idName) $ tyVarIds lhsTy = termLamRNTModifs expr' lhsTy old new eenv pargm
                     | otherwise = (eenv, pargm)
 
@@ -1442,18 +1443,18 @@ liftBind bindsLHS@(Id _ lhsTy) bindsRHS eenv expr ngen pargm = (eenv'', expr', n
 
 -- | Modifications to the ExprEnv and PolyArgMap that are needed when solving for RankNTypes-enabled functions.
 termLamRNTModifs :: Expr -> Type -> Name -> Name -> E.ExprEnv -> PM.PolyArgMap -> (E.ExprEnv, PM.PolyArgMap)
-termLamRNTModifs expr lhsTy old new eenv pargm = (eenv', pargm''') where
+termLamRNTModifs expr lhsTy old new eenv pargm = (eenv', pargm') where
     -- Will rename the new binding across environment entries where needed.
     eenv' = foldr (deepRenameRNTArg old new . idName) eenv $ ids expr
-    -- Collect new argument name and renaming.
+            -- If bare TV, collect new argument name and renaming.
     pargm' | TyVar (Id lhsTyName _) <- lhsTy = PM.insertRename lhsTyName old new Nothing pargm
-           | otherwise = pargm
-    -- if LHS type is a function with return type containing tyVars, insert the env-runtime renaming into PAM entries
-    pargm''' | (TyFun _ _) <- lhsTy 
+             -- If function with return type containing tyVars, insert the env-runtime renaming into PAM entries.
+           | (TyFun _ _) <- lhsTy 
             , (_, tr) <- argTypes lhsTy = foldr (\(Id tvN _) pam -> if PM.member tvN pam 
                     then PM.insertRename tvN old new (Just $ retypeToEnvTVs lhsTy pargm) pam 
                     else pam) pargm' (tyVarIds tr)
-             | otherwise = pargm'
+           | otherwise = pargm
+   
 
 -- | Rename in environment entires recursively reachable from the binding of the provided name.
 -- Necessary for managing environment after solving for polymorphic functions, which may have definitions
