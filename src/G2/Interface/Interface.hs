@@ -822,18 +822,47 @@ runG2SolvingValidate modN entry entry_id config solver simplifier s bindings = d
     case res of
         Just m | validate config -> do
                 let m' = if print_encode_float config then toEnclodeFloat m else m
-                r <- validateState modN entry [] [] bindings m'
+                -- r <- trace("Path Condition :" ++ show (path_conds s)) validateState modN entry [] [] bindings m'
+
+                (res', isVal) <- runValidate modN entry solver simplifier s bindings m' 5
+                let res'' = res' {validated = isVal}
 
                 liftIO $ do
-                    printStateOutput config entry_id bindings (Just r) m
+                    printStateOutput config entry_id bindings (Just isVal) m'
 
-                let res' = m {validated = r}
-                return (Just res')
+                return (Just res'')
         Just m -> do
             liftIO $ printStateOutput config entry_id bindings Nothing m
             return res
         _ -> return res
 
+runValidate :: ( MonadIO m
+                    , GhcMonad m
+                    , Named t
+                    , ASTContainer t Expr
+                    , Solver solver
+                    , Simplifier simplifier) =>
+                String 
+                -> String
+                -> solver
+                -> simplifier
+                -> State t 
+                -> Bindings 
+                -> ExecRes t 
+                -> Int 
+                -> m (ExecRes t, Maybe Bool)
+runValidate _ _ _ _ _ _ res 0 = return (res, Nothing)
+runValidate modN entry solver simplifier s@State{path_conds = pc} bindings res@ExecRes{conc_args = ars} runLimit = do
+    isValidated <- validateState modN entry [] [] bindings res 
+    case isValidated of
+        Nothing -> do
+            let pc' = pc
+                s' = s {path_conds = pc'}
+            res' <- runG2Solving solver simplifier s' bindings
+            case res' of
+                Just m -> runValidate modN entry solver simplifier s bindings m (runLimit - 1)
+                Nothing -> return (res, isValidated)
+        _ -> return (res, isValidated)
 
 runG2SubstModel :: Named t =>
                       Model
