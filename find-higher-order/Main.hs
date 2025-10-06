@@ -48,6 +48,10 @@ runAllInFolder src = do
             putStrLn "------"
             printFinalRes ar) all_res
 
+  mapM_ (\ar -> do
+            let ar' = (\(n, fs) -> (n, fmap (filter ((>= 100) . snd)) fs)) ar
+            printInputToScript ar') all_res
+
 runFile :: FilePath -> IO ()
 runFile src =
     printFinalRes . (T.pack src,) . Just =<< outputProj src
@@ -107,3 +111,12 @@ printFinalRes (fl, Just funcs) =
                       "\n"
                       (map (\(n, c) -> formatName n <> ", " <> T.pack (show c)) funcs)
 printFinalRes (fl, Nothing) = putStrLn . T.unpack $ fl <> "\nNOT FOUND"
+
+printInputToScript :: (T.Text, Maybe [(Name, Int)]) -> IO ()
+printInputToScript (fl, Just funcs) =
+    mapM_ (\(n, c) -> 
+      putStrLn $ T.unpack fl
+             <> ","
+             <> T.unpack (formatName n) <> ", " <> show c) funcs
+
+printInputToScript (_, Nothing) = return ()
