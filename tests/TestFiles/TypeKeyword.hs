@@ -1,9 +1,5 @@
 module TypeKeyword where
 
-import Control.Monad
-import Data.Char -- 1.3
-import System.Environment
-
 type Age = Int
 
 yearPasses :: Age -> Age
