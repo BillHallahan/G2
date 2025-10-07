@@ -824,7 +824,7 @@ runG2SolvingValidate modN entry entry_id config solver simplifier s bindings = d
         Just m | validate config -> do
                 let m' = if print_encode_float config then toEnclodeFloat m else m
 
-                (res', isVal) <- runValidate modN entry solver simplifier s bindings m' 5
+                (res', isVal) <- runValidate modN entry solver simplifier bindings m' 5
                 let res'' = res' {validated = isVal}
 
                 liftIO $ do
@@ -845,44 +845,48 @@ runValidate :: ( MonadIO m
                 String 
                 -> String
                 -> solver
-                -> simplifier
-                -> State t 
+                -> simplifier 
                 -> Bindings 
                 -> ExecRes t 
                 -> Int 
                 -> m (ExecRes t, Maybe Bool)
-runValidate _ _ _ _ _ _ res 0 = return (res, Nothing)
-runValidate modN entry solver simplifier 
-        s@State{expr_env = eenv, 
-                tyvar_env = tv, 
-                path_conds = pc}
-        bindings 
+runValidate _ _ _ _ _ res 0 = return (res, Nothing)
+runValidate modN entry solver simplifier bindings 
         res@ExecRes{final_state = fs} runLimit = do
     isValidated <- validateState modN entry [] [] bindings res 
     let currModel = model fs
+        eenv = expr_env fs
+        tv = tyvar_env fs
+        origPc = path_conds fs
     case isValidated of
         Nothing -> do
-            let (eenv', pc') = getNewPathCond (HM.toList currModel) pc tv eenv
-                s' = s {expr_env = eenv', path_conds = pc'}
-            res' <- runG2Solving solver simplifier s' bindings
+            let (eenv', pcs) = getNewPathCond (HM.toList currModel) tv eenv
+                newPc = makePathConds pcs origPc
+                fs' = fs {expr_env = eenv', path_conds = newPc}
+            res' <- runG2Solving solver simplifier fs' bindings
             case res' of
-                Just m -> runValidate modN entry solver simplifier s bindings m (runLimit - 1)
+                Just m -> runValidate modN entry solver simplifier bindings m (runLimit - 1)
                 Nothing -> return (res, isValidated)
         _ -> return (res, isValidated)
 
     where 
-        getNewPathCond ((n, e):nes) pathConds tvenv expEnv = 
-            let ty = typeOf tv e
-                (expEnv', pathConds') =  if TY.isPrimType ty then
+        getNewPathCond ((n, e):nes) tvenv expEnv = 
+            let ty = typeOf tvenv e
+                (expEnv'', pcExprs') = if TY.isPrimType ty then
                                             let
                                                 mexpr = mkApp [Prim Neq TyUnknown, Var (Id n ty), e]
-                                                newPc = PC.insert (PC.ExtCond mexpr True) pathConds
-                                            in (expEnv, newPc)
-                                            else
-                                                (E.insert n e expEnv, pathConds)
-            in getNewPathCond nes pathConds' tvenv expEnv'
-        getNewPathCond [] pathConds _ expEnv = (expEnv, pathConds)
+                                                (expEnv', pcExpr) = getNewPathCond nes tvenv expEnv
+                                            in (expEnv', mexpr : pcExpr)
+                                    else
+                                        let expEnv' = E.insert n e expEnv
+                                        in getNewPathCond nes tvenv expEnv' 
+            in (expEnv'', pcExprs')
+        getNewPathCond [] _ expEnv = (expEnv, [])
 
+        makePathConds [] originalPc = originalPc
+        makePathConds (p:pcs) originalPc =
+            let new_pc = L.foldl' (\p1 p2 -> mkApp [Prim Or TyUnknown, p1, p2]) p pcs in 
+            PC.insert (PC.ExtCond new_pc True) originalPc
 
 runG2SubstModel :: Named t =>
                       Model
