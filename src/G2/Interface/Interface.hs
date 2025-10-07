@@ -85,6 +85,7 @@ import qualified G2.Language.CallGraph as G
 import qualified G2.Language.ExprEnv as E
 import qualified G2.Language.PathConds as PC
 import qualified G2.Language.Stack as Stack
+import qualified G2.Language.Typing as TY
 
 import Control.Monad
 import Control.Monad.IO.Class
@@ -820,7 +821,6 @@ runG2SolvingValidate modN entry entry_id config solver simplifier s bindings = d
     case res of
         Just m | validate config -> do
                 let m' = if print_encode_float config then toEnclodeFloat m else m
-                -- r <- trace("Path Condition :" ++ show (path_conds s)) validateState modN entry [] [] bindings m'
 
                 (res', isVal) <- runValidate modN entry solver simplifier s bindings m' 5
                 let res'' = res' {validated = isVal}
@@ -850,17 +850,38 @@ runValidate :: ( MonadIO m
                 -> Int 
                 -> m (ExecRes t, Maybe Bool)
 runValidate _ _ _ _ _ _ res 0 = return (res, Nothing)
-runValidate modN entry solver simplifier s@State{path_conds = pc} bindings res@ExecRes{conc_args = ars} runLimit = do
+runValidate modN entry solver simplifier 
+        s@State{expr_env = eenv, 
+                tyvar_env = tv, 
+                path_conds = pc}
+        bindings 
+        res@ExecRes{final_state = fs} runLimit = do
     isValidated <- validateState modN entry [] [] bindings res 
+    let currModel = model fs
     case isValidated of
         Nothing -> do
-            let pc' = pc
-                s' = s {path_conds = pc'}
+            let (eenv', pc') = getNewPathCond (HM.toList currModel) pc tv eenv
+                s' = s {expr_env = eenv', path_conds = pc'}
             res' <- runG2Solving solver simplifier s' bindings
             case res' of
                 Just m -> runValidate modN entry solver simplifier s bindings m (runLimit - 1)
                 Nothing -> return (res, isValidated)
         _ -> return (res, isValidated)
+
+    where 
+        getNewPathCond ((n, e):nes) pathConds tvenv expEnv = 
+            let ty = typeOf tv e
+            in 
+                if TY.isPrimType ty then
+                    let
+                        mexpr = mkApp [Prim Neq TyUnknown, Var (Id n ty), e]
+                        newPc = PC.insert (PC.ExtCond mexpr True) pathConds
+                    in (eenv, newPc)
+                else
+                    let expEnv' = E.insert n e expEnv
+                    in getNewPathCond nes pc tvenv expEnv'
+        getNewPathCond _ pathConds _ expEnv = (expEnv, pathConds)
+
 
 runG2SubstModel :: Named t =>
                       Model
