@@ -85,6 +85,7 @@ import qualified G2.Language.CallGraph as G
 import qualified G2.Language.ExprEnv as E
 import qualified G2.Language.PathConds as PC
 import qualified G2.Language.Stack as Stack
+import qualified G2.Language.Typing as TY
 
 import Control.Monad
 import Control.Monad.IO.Class
@@ -822,18 +823,71 @@ runG2SolvingValidate modN entry entry_id config solver simplifier s bindings = d
     case res of
         Just m | validate config -> do
                 let m' = if print_encode_float config then toEnclodeFloat m else m
-                r <- validateState (validate_with config) modN entry [] [] bindings m'
+
+                (res', isVal) <- runValidate modN (validate_with config) entry solver simplifier bindings m' 5
+                let res'' = res' {validated = isVal}
 
                 liftIO $ do
-                    printStateOutput config entry_id bindings (Just r) m
+                    printStateOutput config entry_id bindings (Just isVal) m'
 
-                let res' = m {validated = r}
-                return (Just res')
+                return (Just res'')
         Just m -> do
             liftIO $ printStateOutput config entry_id bindings Nothing m
             return res
         _ -> return res
 
+runValidate :: ( MonadIO m
+                    , GhcMonad m
+                    , Named t
+                    , ASTContainer t Expr
+                    , Solver solver
+                    , Simplifier simplifier) =>
+                   String
+                -> String 
+                -> String
+                -> solver
+                -> simplifier 
+                -> Bindings 
+                -> ExecRes t 
+                -> Int 
+                -> m (ExecRes t, Maybe Bool)
+runValidate _ _ _ _ _ _ res 0 = return (res, Nothing)
+runValidate modN val_with entry solver simplifier bindings 
+        res@ExecRes{final_state = fs} runLimit = do
+    isValidated <- validateState modN val_with entry [] [] bindings res 
+    let currModel = model fs
+        eenv = expr_env fs
+        tv = tyvar_env fs
+        origPc = path_conds fs
+    case isValidated of
+        Nothing -> do
+            let (eenv', pcs) = getNewPathCond (HM.toList currModel) tv eenv
+                newPc = makePathConds pcs origPc
+                fs' = fs {expr_env = eenv', path_conds = newPc}
+            res' <- runG2Solving solver simplifier fs' bindings
+            case res' of
+                Just m -> runValidate modN val_with entry solver simplifier bindings m (runLimit - 1)
+                Nothing -> return (res, isValidated)
+        _ -> return (res, isValidated)
+
+    where 
+        getNewPathCond ((n, e):nes) tvenv expEnv = 
+            let ty = typeOf tvenv e
+                (expEnv'', pcExprs') = if TY.isPrimType ty then
+                                            let
+                                                mexpr = mkApp [Prim Neq TyUnknown, Var (Id n ty), e]
+                                                (expEnv', pcExpr) = getNewPathCond nes tvenv expEnv
+                                            in (expEnv', mexpr : pcExpr)
+                                    else
+                                        let expEnv' = E.insert n e expEnv
+                                        in getNewPathCond nes tvenv expEnv' 
+            in (expEnv'', pcExprs')
+        getNewPathCond [] _ expEnv = (expEnv, [])
+
+        makePathConds [] originalPc = originalPc
+        makePathConds (p:pcs) originalPc =
+            let new_pc = L.foldl' (\p1 p2 -> mkApp [Prim Or TyUnknown, p1, p2]) p pcs in 
+            PC.insert (PC.ExtCond new_pc True) originalPc
 
 runG2SubstModel :: Named t =>
                       Model
