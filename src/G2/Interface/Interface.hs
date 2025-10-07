@@ -824,7 +824,7 @@ runG2SolvingValidate modN entry entry_id config solver simplifier s bindings = d
         Just m | validate config -> do
                 let m' = if print_encode_float config then toEnclodeFloat m else m
 
-                (res', isVal) <- runValidate modN (validate_with config) entry solver simplifier bindings m' 5
+                (res', isVal) <- runValidate (validate_with config) modN entry solver simplifier bindings m' 5
                 let res'' = res' {validated = isVal}
 
                 liftIO $ do
@@ -852,9 +852,9 @@ runValidate :: ( MonadIO m
                 -> Int 
                 -> m (ExecRes t, Maybe Bool)
 runValidate _ _ _ _ _ _ res 0 = return (res, Nothing)
-runValidate modN val_with entry solver simplifier bindings 
+runValidate val_with modN entry solver simplifier bindings 
         res@ExecRes{final_state = fs} runLimit = do
-    isValidated <- validateState modN val_with entry [] [] bindings res 
+    isValidated <- validateState val_with modN entry [] [] bindings res 
     let currModel = model fs
         eenv = expr_env fs
         tv = tyvar_env fs
@@ -866,7 +866,7 @@ runValidate modN val_with entry solver simplifier bindings
                 fs' = fs {expr_env = eenv', path_conds = newPc}
             res' <- runG2Solving solver simplifier fs' bindings
             case res' of
-                Just m -> runValidate modN val_with entry solver simplifier bindings m (runLimit - 1)
+                Just m -> runValidate val_with modN entry solver simplifier bindings m (runLimit - 1)
                 Nothing -> return (res, isValidated)
         _ -> return (res, isValidated)
 
