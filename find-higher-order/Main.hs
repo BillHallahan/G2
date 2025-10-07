@@ -40,7 +40,7 @@ runAllInFolder src = do
                       case m_fl of
                           Just fl -> do
                               res <- outputProj fl
-                              return (T.pack fl, Just res)
+                              return (T.pack path, Just res)
                           Nothing ->
                               return (T.pack path, Nothing))
                           (\(_ :: SomeException) -> return (T.pack path, Nothing))) folders
@@ -103,6 +103,10 @@ formatName :: Name -> T.Text
 formatName (Name n Nothing _ _) = n
 formatName (Name n (Just m) _ _) = m <> "." <> n
 
+formatFile :: Name -> String
+formatFile (Name _ _ _ (Just spn)) = file . start $ spn
+formatFile _ = error "file not found"
+
 printFinalRes :: (T.Text, Maybe [(Name, Int)]) -> IO ()
 printFinalRes (fl, Just funcs) =
   putStrLn . T.unpack
@@ -115,7 +119,7 @@ printFinalRes (fl, Nothing) = putStrLn . T.unpack $ fl <> "\nNOT FOUND"
 printInputToScript :: (T.Text, Maybe [(Name, Int)]) -> IO ()
 printInputToScript (fl, Just funcs) =
     mapM_ (\(n, c) -> 
-      putStrLn $ T.unpack fl
+      putStrLn $ formatFile n
              <> ","
              <> T.unpack (formatName n) <> ", " <> show c) funcs
 
