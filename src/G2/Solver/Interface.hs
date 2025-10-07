@@ -117,7 +117,7 @@ subVar' tv inLam em eenv tc is v@(Var i@(Id n _))
     , Just e <- E.lookup n eenv
     -- We want to inline a lambda only if inLam is true (we want to inline all lambdas),
     -- or if it's module is Nothing (and its name is likely uninteresting/unknown to the user)
-    , (isExprValueForm eenv e && (notLam e || inLam || nameModule n == Nothing)) || isApp e || isVar e || isLitCase tv e =
+    , (isExprValueForm eenv e && (notLam e || inLam || nameModule n == Nothing)) || isApp e || isCase e || isVar e || isLitCase tv e =
         subVar' tv inLam em eenv tc (i:is) e
     | otherwise = v
 subVar' tv inLam mdl eenv tc is cse@(Case e _ _ as) =
@@ -133,6 +133,10 @@ subVar' tv inLam em eenv tc is e = modifyChildren (subVar' tv inLam em eenv tc i
 isApp :: Expr -> Bool
 isApp (App _ _) = True
 isApp _ = False
+
+isCase :: Expr -> Bool
+isCase (Case {}) = True
+isCase _ = False
 
 notLam :: Expr -> Bool
 notLam (Lam _ _ _) = False
