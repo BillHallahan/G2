@@ -195,7 +195,7 @@ getImports src = do
     get srcCode
     where
         get str = do
-            let r = mkRegex "^import *([a-zA-Z0-9.]*)"
+            let r = mkRegex "^import *([a-zA-Z0-9_.]*)"
             case matchRegexAll r str of
                 Just (_, _, after, imps) -> (imps ++) <$> get after
                 Nothing -> return []
@@ -230,7 +230,7 @@ simpVar s = Var (Id (Name s Nothing 0 Nothing) TyBottom)
 
 runHPC :: FilePath -> String -> String -> String -> [ExecRes t] -> IO ()
 runHPC src meas_with modN entry in_out = do
-    let calls = map (\(ExecRes { final_state = s, conc_args = i, conc_out = o })-> toCall entry s i o) in_out
+    let calls = map (\(ExecRes { final_state = s, conc_args = i, conc_out = o })-> toCall modN entry s i o) in_out
 
     runHPC' src meas_with modN calls
 
@@ -275,13 +275,18 @@ runHPC' src meas_with modN ars = do
 
     -- putStrLn mainFunc
 
-toCall :: String -> State t -> [Expr] -> Expr -> String
-toCall entry s ars _ =
+toCall :: String -> String -> State t -> [Expr] -> Expr -> String
+toCall modN entry s ars _ =
     let
-        e = mkApp ((simpVar $ T.pack entry):ars)
+        Left (v, _) = findFunc (tyvar_env s) (T.pack entry) [Just $ T.pack modN] (expr_env s)
+        e = mkApp (Var v:ars)
+        t = typeOf (tyvar_env s) e
         pg = mkPrettyGuide (exprNames e)
+
+        str_e = printHaskellPG pg s $ e
+        str_t = mkTypeHaskellPG pg t
     in
-    T.unpack . printHaskellPG pg s $ e
+    T.unpack $ str_e <> " :: " <> str_t
 
 loadSession :: GhcMonad m => [FilePath] -> [FilePath] -> String -> [GeneralFlag] -> m ()
 loadSession proj src modN gflags = do 
