@@ -336,7 +336,7 @@ def run_nofib_set(setname, var_settings, timeout):
         for (file_dir, func) in benchmarks:
             final_path = file_dir; #os.path.join(setpath, file_dir)
             if os.path.isfile(final_path):
-                print(file_dir);
+                print(file_dir + ", " + func);
                 res_bench = run_nofib_bench(final_path, func, var_settings, timeout)
                 print("Baseline:")
                 base_hpc_cov, base_cov, base_last, avg, base_tick_times, base_total, base_post_call, base_func_args, base_timeouts, branch_num = process_output(res_bench)
@@ -372,9 +372,9 @@ def run_nofib_set(setname, var_settings, timeout):
         print(tabulate(data, headers=headers, tablefmt="grid"))
         print("\n")
 
-run_nofib_set("imaginary", [], 120)
-run_nofib_set("spectral", [], 120)
-run_nofib_set("real", [], 120)
+# run_nofib_set("imaginary", [], 120)
+# run_nofib_set("spectral", [], 120)
+run_nofib_set("real", [], 45)
 
 print("Latex string for coverage table\n")
 print(latex_str_tbl1)

@@ -7,6 +7,7 @@ module InputOutputTest ( checkInputOutput
                        , checkInputOutputsQuantifiedSMTStrings
                        
                        , checkInputOutputsTemplate
+                       , checkInputOutputsWith
                        , checkInputOutputsNonRedHigher
                        , checkInputOutputsNonRedLib
                        , checkInputOutputsInstType 
@@ -59,6 +60,13 @@ checkInputOutputsTemplate :: FilePath -> [(String, Int, [Reqs String])] -> TestT
 checkInputOutputsTemplate src tests = do
     checkInputOutput'
         (do config <- mkConfigTestIO; return (config { higherOrderSolver = SymbolicFunc }))
+        src
+        tests
+
+checkInputOutputsWith :: FilePath -> String -> [(String, Int, [Reqs String])] -> TestTree
+checkInputOutputsWith src comp_with tests = do
+    checkInputOutput'
+        (do config <- mkConfigTestIO; return (config { validate_with = comp_with }))
         src
         tests
 
@@ -147,7 +155,7 @@ checkInputOutput'' src exg2 mb_modname config (entry, stps, req) = do
 
     let chAll = checkExprAll req
     let chAny = checkExprExists req
-    (mr, anys) <- validateStates proj src (T.unpack . fromJust $ head mb_modname) entry chAll chAny [] b r
+    (mr, anys) <- validateStates proj src (T.unpack . fromJust $ head mb_modname) entry chAll chAny [] (validate_with config) b r
     let io = map (\(ExecRes { conc_args = i, conc_out = o}) -> i ++ [o]) r
 
     let chEx = checkExprInOutCount io req

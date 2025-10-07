@@ -118,6 +118,7 @@ data Config = Config {
     , strict :: Bool -- ^ Should the function output be strictly evaluated?
     , timeLimit :: Int -- ^ Seconds
     , validate :: Bool -- ^ If True, run on G2's input, and check against expected output.
+    , validate_with :: String -- ^ Function to use when validating input (defaults to (==)).
     , measure_coverage :: Bool -- ^ Use HPC to measure code coverage
     , lib_nrpc :: NonRedPathCons -- ^ Whether to use NRPCs for library functions or not
     , approx_nrpc :: NonRedPathCons -- ^ Use approximation and NRPCs to avoid repeated exploration of equivalent function calls
@@ -207,6 +208,11 @@ mkConfig homedir = Config Regular
                    <> value 600
                    <> help "time limit, in seconds")
     <*> switch (long "validate" <> help "use GHC to automatically compile and run on generated inputs, and check that generated outputs are correct")
+    <*> strOption
+            ( long "validate-with"
+            <> metavar "F"
+            <> value "=="
+            <> help "function to use when validating input (defaults to (==)).")
     <*> switch (long "measure-coverage" <> help "use HPC to measure code coverage")
     <*> flag NoNrpc Nrpc (long "lib-nrpc" <> help "execute with non reduced path constraints")
     <*> flag NoNrpc Nrpc (long "approx-nrpc" <> help "Use approximation and NRPCs to avoid repeated exploration of equivalent function calls")
@@ -357,6 +363,7 @@ mkConfigDirect homedir as m = Config {
     , strict = boolArg "strict" as m On
     , timeLimit = strArg "time" as m read 300
     , validate  = boolArg "validate" as m Off
+    , validate_with = "=="
     , measure_coverage = False
     , lib_nrpc = NoNrpc
     , approx_nrpc = NoNrpc

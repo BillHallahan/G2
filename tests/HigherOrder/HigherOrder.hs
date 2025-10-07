@@ -84,3 +84,9 @@ polyHigher g = g
 
 inList :: [Int -> Int] -> Int -> [Int]
 inList fs x = map (\f -> f x) fs 
+
+retFunc :: [Int] -> [Int -> Int]
+retFunc xs = map (\r x -> x + r) xs
+
+eqRetFunc :: [Int -> Int] -> [Int -> Int] -> Bool
+eqRetFunc xs ys = map (\f -> f 0) xs == map (\f -> f 0) ys

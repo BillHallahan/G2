@@ -822,7 +822,7 @@ runG2SolvingValidate modN entry entry_id config solver simplifier s bindings = d
     case res of
         Just m | validate config -> do
                 let m' = if print_encode_float config then toEnclodeFloat m else m
-                r <- validateState modN entry [] [] bindings m'
+                r <- validateState (validate_with config) modN entry [] [] bindings m'
 
                 liftIO $ do
                     printStateOutput config entry_id bindings (Just r) m

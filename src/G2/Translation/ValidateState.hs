@@ -57,13 +57,13 @@ import System.Timeout
 import Control.Monad.IO.Class
 
 -- | Load the passed module(s) into GHC, and check that the `ExecRes` results are correct.
-validateStates :: [FilePath] -> [FilePath] -> String -> String -> [String] -> [String] -> [GeneralFlag] -> Bindings
+validateStates :: [FilePath] -> [FilePath] -> String -> String -> [String] -> [String] -> [GeneralFlag] -> String -> Bindings
                -> [ExecRes t]
                -> IO ( [Maybe Bool] -- ^ One bool per input `ExecRes`, indicating whether the results are correct or not
                                   -- Nothing in the case of a timeout
                      , Bool -- ^ Are all "Any" requirements satisfied?
                      )
-validateStates proj src modN entry chAll chAny gflags b in_out = do
+validateStates proj src modN entry chAll chAny gflags comp_func b in_out = do
     runGhc (Just libdir) (do
         adjustDynFlags
         loadToCheck (map dirPath src ++ proj) src modN gflags
@@ -72,7 +72,7 @@ validateStates proj src modN entry chAll chAny gflags b in_out = do
                 let pg = updatePGValNames (concatMap (map Data . dataCon) $ type_env s)
                        $ updatePGTypeNames (type_env s) $ mkPrettyGuide ()
                 _ <- createDecls pg s (H.filter (\x -> adt_source x == ADTG2Generated) (type_env s))
-                validateStatesGHC pg (Just $ T.pack modN) entry chAll chAny b er) in_out
+                validateStatesGHC pg comp_func (Just $ T.pack modN) entry chAll chAny b er) in_out
         let chck_anys = all or . transpose $ map snd rs_anys
         return (map fst rs_anys, chck_anys))
 
@@ -93,9 +93,9 @@ creatDeclStr pg s (x, DataTyCon{data_cons = dcs, bound_ids = is}) =
 creatDeclStr _ _ _ = error "creatDeclStr: unsupported AlgDataTy"
 
 -- | Compile with GHC, and check that the output we got is correct for the input
-validateStatesGHC :: GhcMonad m => PrettyGuide -> Maybe T.Text -> String -> [String] -> [String] -> Bindings -> ExecRes t -> m (Maybe Bool, [Bool])
-validateStatesGHC pg modN entry chAll chAny b er@(ExecRes {final_state = s, conc_out = out}) = do
-    (v, chAllR, chAnyR) <- runCheck pg modN entry chAll chAny b er
+validateStatesGHC :: GhcMonad m => PrettyGuide -> String -> Maybe T.Text -> String -> [String] -> [String] -> Bindings -> ExecRes t -> m (Maybe Bool, [Bool])
+validateStatesGHC pg comp_func modN entry chAll chAny b er@(ExecRes {final_state = s, conc_out = out}) = do
+    (v, chAllR, chAnyR) <- runCheck pg comp_func modN entry chAll chAny b er
 
     v' <- liftIO . timeout (5 * 10 * 1000) $ (unsafeCoerce v :: IO (Either SomeException Bool))
     let outStr = T.unpack $ printHaskell s out
@@ -128,8 +128,8 @@ adjustDynFlags = do
     _ <- setSessionDynFlags dyn4
     return ()
 
-runCheck :: GhcMonad m => PrettyGuide -> Maybe T.Text -> String -> [String] -> [String] -> Bindings -> ExecRes t -> m (HValue, [HValue], [HValue])
-runCheck init_pg modN entry chAll chAny b er@(ExecRes {final_state = s, conc_args = ars, conc_out = out}) = do
+runCheck :: GhcMonad m => PrettyGuide -> String -> Maybe T.Text -> String -> [String] -> [String] -> Bindings -> ExecRes t -> m (HValue, [HValue], [HValue])
+runCheck init_pg comp_func modN entry chAll chAny b er@(ExecRes {final_state = s, conc_args = ars, conc_out = out}) = do
     let Left (v, _) = findFunc (tyvar_env s) (T.pack entry) [modN] (expr_env s)
     let e = mkApp $ Var v:ars
     let pg = updatePGValAndTypeNames e
@@ -152,11 +152,16 @@ runCheck init_pg modN entry chAll chAny b er@(ExecRes {final_state = s, conc_arg
                         TyLitChar -> "C# "
                         _ -> ""
 
+    let comp_func' = case comp_func of
+                        x:_ | 'a' <= x && x <= 'z' -> "`" ++ comp_func ++ "`"
+                        _ -> comp_func
+
     let chck = case outStr == "error" || outStr == "undefined" || outStr == "?" of
-                    False -> mvStr ++ "Control.Exception.try (evaluate (" ++ pr_con ++ "(" ++ arsStr ++ ") == " ++ pr_con ++ "("
+                    False -> mvStr ++ "Control.Exception.try (evaluate (" ++ pr_con ++ "(" ++ arsStr ++ ") " ++ comp_func' ++ " " ++ pr_con ++ "("
                                         ++ outStr ++ " :: " ++ outType ++ ")" ++ ")) :: IO (Either SomeException Bool)"
                     True -> mvStr ++ "Control.Exception.try (evaluate ( (" ++ pr_con ++ "(" ++ arsStr ++ " :: " ++ arsType ++ ")" ++
-                                                    ") == " ++ pr_con ++ "(" ++ arsStr ++ "))) :: IO (Either SomeException Bool)"
+                                                    ") " ++ comp_func' ++ " " ++ pr_con ++ "(" ++ arsStr ++ "))) :: IO (Either SomeException Bool)"
+    liftIO $ putStrLn chck
     v' <- compileExpr chck
 
     let chArgs = ars ++ [out] 
@@ -284,17 +289,17 @@ loadSession proj src modN gflags = do
     loadToCheck (map dirPath src ++ proj) src modN gflags
 
 -- | Load the passed module(s) into GHC, and check that the `ExecRes` results are correct.
-validateState :: GhcMonad m => String -> String -> [String] -> [String] -> Bindings
+validateState :: GhcMonad m => String -> String -> String -> [String] -> [String] -> Bindings
                -> ExecRes t
                -> m ( Maybe Bool -- ^ One bool per input `ExecRes`, indicating whether the results are correct or not
                                   -- Nothing in the case of a timeout
                      )
-validateState modN entry chAll chAny b in_out = do
+validateState comp_func modN entry chAll chAny b in_out = do
         let s = final_state in_out
         let pg = updatePGValNames (concatMap (map Data . dataCon) $ type_env s)
                        $ updatePGTypeNames (type_env s) $ mkPrettyGuide ()
         _ <- createDecls pg s (H.filter (\x -> adt_source x == ADTG2Generated) (type_env s))
-        rs_anys <- validateStatesGHC pg (Just $ T.pack modN) entry chAll chAny b in_out
+        rs_anys <- validateStatesGHC pg comp_func (Just $ T.pack modN) entry chAll chAny b in_out
         
         return (fst rs_anys)
 
