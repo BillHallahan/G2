@@ -11,7 +11,8 @@ module InputOutputTest ( checkInputOutput
                        , checkInputOutputsNonRedHigher
                        , checkInputOutputsNonRedLib
                        , checkInputOutputsInstType 
-                       , checkInputOutputsWithValidate) where
+                       , checkInputOutputsWithValidate
+                       , checkInputOutputsWithTemplatesAndHpc) where
 
 import Test.Tasty
 import Test.Tasty.HUnit
@@ -100,6 +101,13 @@ checkInputOutputsWithValidate src tests = do
         src
         tests
 
+
+checkInputOutputsWithTemplatesAndHpc :: FilePath ->[(String, Int, [Reqs String])] -> TestTree
+checkInputOutputsWithTemplatesAndHpc src tests = do
+    checkInputOutput'
+        (do config <- mkConfigTestIO; return (config { higherOrderSolver = SymbolicFunc, hpc = True }))
+        src
+        tests
 
 checkInputOutput' :: IO Config
                   -> FilePath

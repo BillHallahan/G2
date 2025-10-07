@@ -670,6 +670,8 @@ testFileTests = testGroup "TestFiles"
                                                         , ("triFunc", 200, [AtLeast 1])
                                                         , ("take3", 200, [AtLeast 1])
                                                         , ("takeTri2", 200, [AtLeast 1]) ]
+    , checkInputOutputsWithTemplatesAndHpc "tests/TestFiles/TypeKeyword.hs" [ ("yearPasses", 400, [Exactly 1])
+                                                                            , ("callAlts", 400, [AtLeast 1]) ]
  ]
 
 extensionTests :: TestTree

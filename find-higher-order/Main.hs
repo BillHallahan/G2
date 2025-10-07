@@ -97,7 +97,7 @@ getHigherOrder s mods = do
   return $ E.keys rel_funcs_eenv
 
 isHigherOrderFunc :: Expr -> Bool
-isHigherOrderFunc = not . null . higherOrderFuncs . typeOf TV.empty
+isHigherOrderFunc = any hasFuncType . argumentTypes . typeOf TV.empty
 
 formatName :: Name -> T.Text
 formatName (Name n Nothing _ _) = n
