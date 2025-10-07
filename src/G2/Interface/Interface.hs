@@ -873,16 +873,15 @@ runValidate modN entry solver simplifier
     where 
         getNewPathCond ((n, e):nes) pathConds tvenv expEnv = 
             let ty = typeOf tv e
-            in 
-                if TY.isPrimType ty then
-                    let
-                        mexpr = mkApp [Prim Neq TyUnknown, Var (Id n ty), e]
-                        newPc = PC.insert (PC.ExtCond mexpr True) pathConds
-                    in (eenv, newPc)
-                else
-                    let expEnv' = E.insert n e expEnv
-                    in getNewPathCond nes pc tvenv expEnv'
-        getNewPathCond _ pathConds _ expEnv = (expEnv, pathConds)
+                (expEnv', pathConds') =  if TY.isPrimType ty then
+                                            let
+                                                mexpr = mkApp [Prim Neq TyUnknown, Var (Id n ty), e]
+                                                newPc = PC.insert (PC.ExtCond mexpr True) pathConds
+                                            in (expEnv, newPc)
+                                            else
+                                                (E.insert n e expEnv, pathConds)
+            in getNewPathCond nes pathConds' tvenv expEnv'
+        getNewPathCond [] pathConds _ expEnv = (expEnv, pathConds)
 
 
 runG2SubstModel :: Named t =>
