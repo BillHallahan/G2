@@ -229,15 +229,15 @@ loadStandardSet =
 simpVar :: T.Text -> Expr
 simpVar s = Var (Id (Name s Nothing 0 Nothing) TyBottom)
 
-runHPC :: FilePath -> String -> String -> [ExecRes t] -> IO ()
-runHPC src modN entry in_out = do
+runHPC :: FilePath -> String -> String -> String -> [ExecRes t] -> IO ()
+runHPC src meas_with modN entry in_out = do
     let calls = map (\(ExecRes { final_state = s, conc_args = i, conc_out = o })-> toCall entry s i o) in_out
 
-    runHPC' src modN calls
+    runHPC' src meas_with modN calls
 
 -- Compile with GHC, and check that the output we got is correct for the input
-runHPC' :: FilePath -> String -> [String] -> IO ()
-runHPC' src modN ars = do
+runHPC' :: FilePath -> String -> String -> [String] -> IO ()
+runHPC' src meas_with modN ars = do
     imps <- getImports src
     srcCode <- readFile src
     let ext = dropWhile (/= '.') src
@@ -246,7 +246,8 @@ runHPC' src modN ars = do
 
     let spces = "  "
 
-    let chck = intercalate ("\n" ++ spces) $ map (\s -> "Ex.try (print (" ++ s ++ ")) :: IO (Either Ex.SomeException ())") ars
+    let meas_with' = if meas_with == "" then "" else " $ " ++ meas_with ++ " "
+        chck = intercalate ("\n" ++ spces) $ map (\s -> "Ex.try (print " ++ meas_with' ++ "(" ++ s ++ ")) :: IO (Either Ex.SomeException ())") ars
 
     let mainFunc = "\n\nmain_internal_g2 :: IO ()\nmain_internal_g2 =do\n"
                             ++ spces ++ chck ++ "\n" ++ spces ++  "return ()\n" ++ spces
