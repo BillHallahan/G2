@@ -484,9 +484,9 @@ initialStateNoStartFunc :: [FilePath]
                      -> [FilePath]
                      -> TranslationConfig
                      -> Config
-                     -> IO (State (), Bindings)
+                     -> IO (State (), Bindings, [Maybe T.Text])
 initialStateNoStartFunc proj src transConfig config = do
-    (_, exg2) <- translateLoaded proj src transConfig config
+    (mb_modname, exg2) <- translateLoaded proj src transConfig config
 
     let simp_state = initSimpleState exg2
 
@@ -495,7 +495,7 @@ initialStateNoStartFunc proj src transConfig config = do
                                  (E.higherOrderExprs TV.empty . IT.expr_env)
                                  config
 
-    return (init_s, bindings)
+    return (init_s, bindings, mb_modname)
 
 noStartFuncMkCurrExpr :: a -> NameGen -> b -> c -> d -> e -> CurrExprRes
 noStartFuncMkCurrExpr _ ng _ _ _ _ =
@@ -824,7 +824,7 @@ runG2SolvingValidate modN entry entry_id config solver simplifier s bindings = d
         Just m | validate config -> do
                 let m' = if print_encode_float config then toEnclodeFloat m else m
 
-                (res', isVal) <- runValidate modN entry solver simplifier bindings m' 5
+                (res', isVal) <- runValidate (validate_with config) modN entry solver simplifier bindings m' 5
                 let res'' = res' {validated = isVal}
 
                 liftIO $ do
@@ -842,7 +842,8 @@ runValidate :: ( MonadIO m
                     , ASTContainer t Expr
                     , Solver solver
                     , Simplifier simplifier) =>
-                String 
+                   String
+                -> String 
                 -> String
                 -> solver
                 -> simplifier 
@@ -850,10 +851,10 @@ runValidate :: ( MonadIO m
                 -> ExecRes t 
                 -> Int 
                 -> m (ExecRes t, Maybe Bool)
-runValidate _ _ _ _ _ res 0 = return (res, Nothing)
-runValidate modN entry solver simplifier bindings 
+runValidate _ _ _ _ _ _ res 0 = return (res, Nothing)
+runValidate val_with modN entry solver simplifier bindings 
         res@ExecRes{final_state = fs} runLimit = do
-    isValidated <- validateState modN entry [] [] bindings res 
+    isValidated <- validateState val_with modN entry [] [] bindings res 
     let currModel = model fs
         eenv = expr_env fs
         tv = tyvar_env fs
@@ -865,7 +866,7 @@ runValidate modN entry solver simplifier bindings
                 fs' = fs {expr_env = eenv', path_conds = newPc}
             res' <- runG2Solving solver simplifier fs' bindings
             case res' of
-                Just m -> runValidate modN entry solver simplifier bindings m (runLimit - 1)
+                Just m -> runValidate val_with modN entry solver simplifier bindings m (runLimit - 1)
                 Nothing -> return (res, isValidated)
         _ -> return (res, isValidated)
 

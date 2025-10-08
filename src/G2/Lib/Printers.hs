@@ -549,7 +549,12 @@ mkTypeHaskellPG pg (TyCon n _) | nameOcc n == "List"
                                , not (isAlphaNum c) = "(" <> mkNameHaskell pg n <> ")"
                                | otherwise = mkNameHaskell pg n
 mkTypeHaskellPG pg ty_app@(TyApp _ _)
-    | ts <- unTyApp ty_app= "(" <> T.intercalate " " (map (mkTypeHaskellPG pg) ts) <> ")"
+    | ts <- unTyApp ty_app =
+        let
+            mw t@(TyFun _ _) = "(" <> mkTypeHaskellPG pg t <> ")"
+            mw t = mkTypeHaskellPG pg t
+        in
+        "(" <> T.intercalate " " (map mw ts) <> ")"
 mkTypeHaskellPG pg (TyForAll i t) = "forall " <> mkIdHaskell pg i <> " . " <> mkTypeHaskellPG pg t
 mkTypeHaskellPG _ TyBottom = "Bottom"
 mkTypeHaskellPG _ TYPE = "Type"

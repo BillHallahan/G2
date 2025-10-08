@@ -170,10 +170,7 @@ retsTrue e = Assert Nothing e e
 
 findFunc :: TV.TyVarEnv -> T.Text -> [Maybe T.Text] -> ExprEnv -> Either (Id, Expr) String
 findFunc tv s m_mod eenv =
-    let
-        match = E.toExprList $ E.filterWithKey (\n _ -> nameOcc n == s) eenv
-    in
-    case match of
+    case matchNames of
         [] -> Right $ "No functions with name " ++ (T.unpack s)
         [(n, e)] -> Left (Id n (typeOf tv e) , e)
         pairs -> case filter (\(n, _) -> nameModule n `elem` m_mod) pairs of
@@ -181,6 +178,13 @@ findFunc tv s m_mod eenv =
                     [] -> Right $ "No function with name " ++ (T.unpack s) ++ " in available modules"
                     _ -> Right $ "Multiple functions with same name " ++ (T.unpack s) ++
                                 " in available modules"
+    where
+        matchNames
+            | (spec_mod, period_func) <- T.break (== '.') s
+            , Just (_, func) <- T.uncons period_func =
+                E.toExprList
+                    $ E.filterWithKey (\n _ -> nameOcc n == func && nameModule n == Just spec_mod) eenv
+            | otherwise = E.toExprList $ E.filterWithKey (\n _ -> nameOcc n == s) eenv
 
 instantiateArgTypes :: TV.TyVarEnv -> TypeClasses -> KnownValues -> Expr -> ([Expr], [Type])
 instantiateArgTypes tv tc kv e =

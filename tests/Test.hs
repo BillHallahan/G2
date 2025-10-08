@@ -214,6 +214,7 @@ testFileTests = testGroup "TestFiles"
     , checkInputOutput "tests/TestFiles/ListComp.hs" "list1" 10000 [Exactly 1]
 
     , checkInputOutput "tests/TestFiles/Imports/MakesSound.hs" "makesSound" 1000 [Exactly 3]
+    , checkInputOutput "tests/TestFiles/Imports/Underscore/Main.hs" "call" 1000 [AtLeast 5]
 
     , checkExpr "tests/TestFiles/MultCase.hs" 400 "f"
         [ RExists (\[App _ (Lit (LitInt x)), y] -> x == 2 && getBoolB y id)
@@ -521,7 +522,10 @@ testFileTests = testGroup "TestFiles"
                                                                    , ("sf", 175, [AtLeast 5])
                                                                    , ("thirdOrder", 75, [AtLeast 10])
                                                                    , ("tupleTestMono", 175, [AtLeast 10])
-                                                                   , ("multiPrim", 300, [AtLeast 8])]
+                                                                   , ("multiPrim", 300, [AtLeast 8])
+                                                                   , ("inList", 1000, [AtLeast 10])]
+    , checkInputOutputsWith "tests/HigherOrder/HigherOrder.hs" "eqRetFunc" [ ("retFunc", 500, [AtLeast 5])
+                                                                           , ("retFunc2", 500, [AtLeast 5]) ]
     , checkInputOutputsTemplate "tests/HigherOrder/PolyHigherOrder.hs" [ ("f", 50, [AtLeast 5])
                                                                        , ("h", 200, [AtLeast 3])
                                                                        , ("assoc", 200, [AtLeast 5])
@@ -666,6 +670,8 @@ testFileTests = testGroup "TestFiles"
                                                         , ("triFunc", 200, [AtLeast 1])
                                                         , ("take3", 200, [AtLeast 1])
                                                         , ("takeTri2", 200, [AtLeast 1]) ]
+    , checkInputOutputsWithTemplatesAndHpc "tests/TestFiles/TypeKeyword.hs" [ ("yearPasses", 400, [Exactly 1])
+                                                                            , ("callAlts", 400, [AtLeast 1]) ]
  ]
 
 extensionTests :: TestTree

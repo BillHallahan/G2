@@ -92,6 +92,7 @@ library
                        , G2.Language.Expr
                        , G2.Language.ExprEnv
                        , G2.Language.Families
+                       , G2.Language.HPC
                        , G2.Language.Ids
                        , G2.Language.KnownValues
                        , G2.Language.Located
@@ -240,7 +241,7 @@ library
                        , tasty-quickcheck >= 0.10.1.1 && < 0.11
                        , template-haskell >= 2.12.0.0 && <= 2.21.0.0
                        , temporary-rc >= 1.2 && < 1.3
-                       , text >= 1.2.3.1 && <= 2.1
+                       , text >= 1.2.3.1 && <= 2.2
                        , text-builder >= 0.6.6.1 && < 0.7
                        , time >= 1.6 && <= 1.13
                        , unordered-containers >= 0.2.10.0 && < 0.3
@@ -486,3 +487,20 @@ test-suite test-nebula-plugin
                        -threaded
   -- ghc-prof-options:    -fprof-auto "-with-rtsopts=-p"
   type:                exitcode-stdio-1.0
+
+executable FindHigherOrder
+  -- other-modules:   
+  -- other-extensions:
+  build-depends:         g2
+                       , base >= 4.8 && < 5
+                       , containers
+                       , directory
+                       , filepath >= 1.4 && <= 1.5
+                       , ghc
+                       , text
+                       , unordered-containers >= 0.2 && < 0.3
+  default-language:    Haskell2010
+  ghc-options:         -threaded -Wall
+  -- ghc-prof-options:    -fprof-auto "-with-rtsopts=-p"
+  hs-source-dirs:      find-higher-order
+  main-is:             Main.hs

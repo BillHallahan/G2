@@ -163,6 +163,7 @@ import G2.Execution.ExecSkip
 import G2.Language
 import G2.Language.Approximation
 import G2.Language.KnownValues
+import G2.Language.HPC
 import qualified G2.Language.Monad as MD
 import qualified G2.Language.PathConds as PC
 import qualified G2.Language.Stack as Stck
@@ -1885,9 +1886,6 @@ mrContIgnoreNRPCTicks genLemma lkp s1 s2 ns hm active n1 n2 e1 e2 =
             moreRestrictive' (mrContIgnoreNRPCTicks genLemma lkp) genLemma lkp s1 s2 ns hm active n1 n2 e1' e2'
         _ -> Left []
 
-
-type HPCMemoTable = HM.HashMap Name (HS.HashSet (Int, T.Text))
-
 noNewHPCHalter :: SM.MonadState HPCMemoTable m => HS.HashSet (Maybe T.Text) -> Halter m Int (ExecRes t) t
 noNewHPCHalter mod_name = mkSimpleHalter
                                 (const 0)
@@ -1903,28 +1901,12 @@ noNewHPCHalter mod_name = mkSimpleHalter
 
                 if HS.null diff1
                     then do
-                        reachable_hpc <- reachesHPC (expr_env s) (curr_expr s, exec_stack s, non_red_path_conds s)
+                        reachable_hpc <- reachesHPC' mod_name (expr_env s) (curr_expr s, exec_stack s, non_red_path_conds s)
                         let diff2 = HS.difference reachable_hpc acc_seen_hpc
                         if HS.null diff2 then do return Discard else do return Continue
                     else return Continue
             | otherwise = return Continue
         
-        reachesHPC :: (SM.MonadState HPCMemoTable m, ASTContainer c Expr) => ExprEnv -> c -> m (HS.HashSet (Int, T.Text))
-        reachesHPC eenv es = mconcat <$> mapM (reaches eenv) (containedASTs es) 
-
-        reaches :: SM.MonadState HPCMemoTable m => ExprEnv -> Expr -> m (HS.HashSet (Int, T.Text))
-        reaches eenv (Var (Id n _)) = do
-            seen <- SM.get
-            case HM.lookup n seen of
-                Just hpcs -> return hpcs
-                Nothing -> do
-                    SM.modify (HM.insert n HS.empty)
-                    hpcs <- maybe (return HS.empty) (reaches eenv) (E.lookup n eenv)
-                    SM.modify (HM.insert n hpcs)
-                    return hpcs
-        reaches eenv (Tick (HpcTick i t) e) | Just t `HS.member` mod_name = HS.insert (i, t) <$> reaches eenv e
-        reaches eenv e = mconcat <$> mapM (reaches eenv) (children e)
-
 acceptOnlyNewHPC :: (Monad m1, SM.MonadState HPCMemoTable (m2 m1), SM.MonadTrans m2) => Halter m1 r (ExecRes t) t -> Halter (m2 m1) r (ExecRes t) t
 acceptOnlyNewHPC h = 
         Halter {
