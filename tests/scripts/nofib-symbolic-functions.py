@@ -374,7 +374,7 @@ def run_nofib_set(setname, var_settings, timeout):
 
 # run_nofib_set("imaginary", [], 120)
 # run_nofib_set("spectral", [], 120)
-run_nofib_set("real", [], 45)
+run_nofib_set("real", [], 30)
 
 print("Latex string for coverage table\n")
 print(latex_str_tbl1)

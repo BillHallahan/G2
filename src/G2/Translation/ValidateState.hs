@@ -195,7 +195,7 @@ getImports src = do
     get srcCode
     where
         get str = do
-            let r = mkRegex "^import *([a-zA-Z0-9_.]*)"
+            let r = mkRegex "^import[ \t]*([a-zA-Z0-9_.]*)"
             case matchRegexAll r str of
                 Just (_, _, after, imps) -> (imps ++) <$> get after
                 Nothing -> return []
