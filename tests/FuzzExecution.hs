@@ -10,6 +10,7 @@ import G2.Lib.Printers
 import G2.Translation
 
 import qualified Data.HashMap.Lazy as HM
+import qualified Data.HashSet as HS
 import Data.Maybe
 import qualified Data.Text as T
 
@@ -49,7 +50,8 @@ fuzzExecution (SB init_state bindings) = do
                                         Nothing -> return ()
                                     
                                     -- Actually validate
-                                    (val, _) <- validateStatesGHC pg "==" Nothing "call" [] [] b er
+                                    let mods = HS.singleton Nothing
+                                    (val, _) <- validateStatesGHC pg "==" mods "call" [] [] b er
                                     return $ fromMaybe False val) ers
             )
         
