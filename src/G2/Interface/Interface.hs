@@ -593,7 +593,7 @@ runG2WithConfig proj src entry_f f gflags mb_modname state@(State { expr_env = e
                                 (SM.evalStateT
                                     (SM.evalStateT
                                         (SM.evalStateT
-                                                (addTimedOut to $ runG2WithValidate proj src (T.unpack $ fromJust mod_name) (T.unpack f) entry_f gflags red hal ord [] solver simplifier state' config bindings')
+                                                (addTimedOut to $ runG2WithValidate proj src all_mod_set (T.unpack f) entry_f gflags red hal ord [] solver simplifier state' config bindings')
                                             emptyApproxPrevs
                                         )
                                         lnt
@@ -616,7 +616,7 @@ runG2WithConfig proj src entry_f f gflags mb_modname state@(State { expr_env = e
                                         (SM.evalStateT
                                             (SM.evalStateT
                                                 (SM.evalStateT
-                                                        (addTimedOut to $ runG2WithValidate proj src (T.unpack $ fromJust mod_name) (T.unpack f) entry_f gflags red hal ord analysis solver simplifier state' config bindings')
+                                                        (addTimedOut to $ runG2WithValidate proj src all_mod_set (T.unpack f) entry_f gflags red hal ord analysis solver simplifier state' config bindings')
                                                     emptyApproxPrevs
                                                 )
                                                 lnt
@@ -726,7 +726,7 @@ runG2WithValidate :: ( MonadIO m
                   , Simplifier simplifier)
                => [FilePath]
                -> [FilePath]
-               -> String
+               -> S.HashSet (Maybe T.Text)
                -> String
                -> Id
                -> [GeneralFlag]
@@ -811,7 +811,7 @@ runG2SolvingValidate :: ( MonadIO m
                         , ASTContainer t Expr
                         , Solver solver
                         , Simplifier simplifier) =>
-                String
+                S.HashSet (Maybe T.Text)
              -> String
              -> Id
              -> Config
@@ -845,7 +845,7 @@ runValidate :: ( MonadIO m
                     , Solver solver
                     , Simplifier simplifier) =>
                    String
-                -> String 
+                -> S.HashSet (Maybe T.Text)
                 -> String
                 -> solver
                 -> simplifier 
