@@ -672,7 +672,7 @@ testFileTests = testGroup "TestFiles"
                                                         , ("takeTri2", 200, [AtLeast 1]) ]
     , checkInputOutputsWithTemplatesAndHpc "tests/TestFiles/TypeKeyword.hs" [ ("yearPasses", 400, [Exactly 1])
                                                                             , ("callAlts", 400, [AtLeast 1]) ]
-    , checkInputOutputs "tests/TestFiles/InfLoop.hs" [ ("f", 500, [Exactly 1])
+    , checkInputOutputs "tests/TestFiles/InfLoop.hs" [ ("f", 500, [Exactly 1]) ]
  ]
 
 extensionTests :: TestTree
