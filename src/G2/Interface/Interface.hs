@@ -545,7 +545,7 @@ runG2FromFile :: [FilePath]
               -> StartFunc
               -> TranslationConfig
               -> Config
-              -> IO ([ExecRes ()], Bindings, TimedOut, Id)
+              -> IO ([ExecRes ()], Bindings, TimedOut, Id, S.HashSet (Maybe T.Text))
 runG2FromFile proj src gflags m_assume m_assert m_reach def_assert f transConfig config = do
     (init_state, entry_f, bindings, mb_modname) <- initialStateFromFile  proj src
                                     m_reach def_assert f (mkCurrExpr TV.empty m_assume m_assert) (mkArgTys TV.empty)
@@ -553,7 +553,7 @@ runG2FromFile proj src gflags m_assume m_assert m_reach def_assert f transConfig
 
     (er, b, to) <- runG2WithConfig proj src entry_f f gflags mb_modname init_state config bindings
 
-    return (er, b, to, entry_f)
+    return (er, b, to, entry_f, S.fromList mb_modname)
 
 runG2WithConfig :: [FilePath]-> [FilePath] -> Id -> StartFunc -> [GeneralFlag] -> [Maybe T.Text] -> State () -> Config -> Bindings
                 -> IO ( [ExecRes ()]
