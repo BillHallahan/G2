@@ -1,4 +1,4 @@
-{-# LANGUAGE FlexibleContexts, OverloadedStrings, TupleSections #-}
+{-# LANGUAGE FlexibleContexts, MultiWayIf, OverloadedStrings, TupleSections #-}
 
 module G2.Lib.Printers ( PrettyGuide
                        , mkPrettyGuide
@@ -32,6 +32,7 @@ module G2.Lib.Printers ( PrettyGuide
                        , EnvOrdering(..)
                        , TyLamPrinting(..)
                        , setTypePrinting
+                       , updateQualMods
                        , setEnvOrdering
                        , setTyLamPrinting) where
 
@@ -952,6 +953,7 @@ data PrettyGuide = PG { pg_assigned :: HM.HashMap Name T.Text -- ^ Mapping of G2
                                                                         -- is the greatest Int I such that  X'I has been used
                                                                         -- as a printable name.
                                                                         -- See also Note [PrettyGuide AssignedLvl].
+                      , qual_mods :: HS.HashSet T.Text
                       , type_printing :: TypePrinting -- ^ How detailed should the type information we print be?
                       , env_ordering :: EnvOrdering -- ^ Should the environment be ordered?
                       , ty_lam_printing :: TyLamPrinting -- ^ Should type-level lambdas be printed?
@@ -978,7 +980,12 @@ data PrettyGuide = PG { pg_assigned :: HM.HashMap Name T.Text -- ^ Mapping of G2
 -- | Creates a `PrettyGuide` with mappings for all `Name`s in the `Named` argument.
 -- Does not draw any distinction between type level and value level names.
 mkPrettyGuide :: Named a => a -> PrettyGuide
-mkPrettyGuide = foldr insertPG (PG HM.empty HM.empty LaxTypes Unordered ShowTyLam) . names
+mkPrettyGuide = foldr insertPG (PG { pg_assigned = HM.empty
+                                   , pg_nums = HM.empty
+                                   , qual_mods = HS.empty
+                                   , type_printing = LaxTypes
+                                   , env_ordering = Unordered
+                                   , ty_lam_printing = ShowTyLam }) . names
 
 -- | Update the `PrettyGuide` with mappings for all `Name`s in the `Named` argument.
 -- Does not draw any distinction between type level and value level names.
@@ -996,20 +1003,28 @@ updatePGValNames e pg = foldr (insertPGLvl ValLvl) pg $ exprNames e
 updatePGTypeNames :: ASTContainer a Type => a -> PrettyGuide -> PrettyGuide
 updatePGTypeNames e pg = foldr (insertPGLvl TypeLvl) pg $ typeNames e
 
+updateQualMods :: T.Text -> PrettyGuide -> PrettyGuide
+updateQualMods m pg@(PG { qual_mods = qm }) = pg { qual_mods = HS.insert m qm }
+
 insertPG :: Name -> PrettyGuide -> PrettyGuide
 insertPG = insertPGLvl BothLvl
 
 insertPGLvl :: AssignedLvl -> Name -> PrettyGuide -> PrettyGuide
 insertPGLvl lvl n pg@(PG { pg_assigned = as, pg_nums = nms })
     | not (HM.member n as) =
-        case HM.lookup (nameOcc n) nms of
+        let
+            n' = if | Just m <- nameModule n
+                    , m `HS.member` qual_mods pg -> m <> "." <> nameOcc n
+                    | otherwise -> nameOcc n
+        in
+        case HM.lookup n' nms of
             Just (curr_lvl, i) | lvl == curr_lvl || lvl == BothLvl || curr_lvl == BothLvl ->
                 let  j = i + 1 in
-                pg { pg_assigned = HM.insert n (nameOcc n <> "'" <> T.pack (show j)) as
-                   , pg_nums = HM.insert (nameOcc n) (lvl `unionLvl` curr_lvl, j) nms }
+                pg { pg_assigned = HM.insert n (n' <> "'" <> T.pack (show j)) as
+                   , pg_nums = HM.insert n' (lvl `unionLvl` curr_lvl, j) nms }
             _ ->
-                pg { pg_assigned = HM.insert n (nameOcc n) as
-                   , pg_nums = HM.insert (nameOcc n) (lvl, 1) nms }
+                pg { pg_assigned = HM.insert n n' as
+                   , pg_nums = HM.insert n' (lvl, 1) nms }
     | otherwise = pg
 
 lookupPG :: Name -> PrettyGuide -> Maybe T.Text

@@ -672,6 +672,7 @@ testFileTests = testGroup "TestFiles"
                                                         , ("takeTri2", 200, [AtLeast 1]) ]
     , checkInputOutputsWithTemplatesAndHpc "tests/TestFiles/TypeKeyword.hs" [ ("yearPasses", 400, [Exactly 1])
                                                                             , ("callAlts", 400, [AtLeast 1]) ]
+    , checkInputOutputs "tests/TestFiles/InfLoop.hs" [ ("f", 500, [Exactly 1]) ]
  ]
 
 extensionTests :: TestTree
@@ -727,7 +728,7 @@ extensionTests = testGroup "Extensions"
                                                                               , ("h", 400, [Exactly 2])
                                                                               , ("age1", 400, [Exactly 1])
                                                                               -- , ("age2", 400, [Exactly 1])
-                                                                              -- , ("app", 250, [AtLeast 5])
+                                                                              , ("app", 400, [AtLeast 5])
                                                                               -- , ("vecIntersperse", 400, [AtLeast 5])
                                                                               , ("vecTake", 400, [AtLeast 5])
                                                                               ]

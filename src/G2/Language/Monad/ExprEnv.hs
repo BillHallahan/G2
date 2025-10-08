@@ -6,9 +6,9 @@ module G2.Language.Monad.ExprEnv ( memberE
                                  , mapME
                                  , mapWithKeyME ) where
 
-import G2.Language
-
 import qualified G2.Language.ExprEnv as E
+import G2.Language.ExprEnv (ExprEnv)
+import G2.Language.Syntax
 import G2.Language.Monad.Support
 
 import Prelude hiding ( filter
