@@ -72,7 +72,7 @@ runWithArgs as = do
     case in_out of
         s':_ -> do
           let reachable = reachesHPC all_mods (expr_env $ final_state s') (Var entry_f)
-          putStrLn $ "Reachable ticks = " ++ show (HS.size reachable)
+          putStrLn $ "Reachable ticks: " ++ show (HS.size reachable)
         _ -> return ()
 
 mReturnsTrue :: [String] -> Bool

@@ -215,14 +215,15 @@ def calculate_time_diff(base_tick_times_map, nrpc_tick_times_map):
         
     return base1, base3, base5, nrpc1, nrpc3, nrpc5
 
-def calculate_hpc_coverage(hpc_res):
+def calculate_hpc_coverage(hpc_res, total = -1):
     rel_hpc_res = list(filter(lambda x: x[0] != "CallForHPC", hpc_res))
     print("calculate hpc converage")
     print(hpc_res)
     print(rel_hpc_res)
     found = map(lambda x : x[2], rel_hpc_res)
-    total = map(lambda x : x[3], rel_hpc_res)
+    calc_total = map(lambda x : x[3], rel_hpc_res)
     coverage = 0
+    total = calc_total if total == -1 else [int(total)]
     print(list(map(lambda x : ((x[4]), (x[5])), rel_hpc_res)))
     hpc_branch_nums = sum(map(lambda x : (int(x[4]) + int(x[5])), rel_hpc_res))
     try:
@@ -240,7 +241,7 @@ def read_run_benchmarks(setpath) :
             lines.append((split_line[0], split_line[1]))
     return lines
 
-def process_output(out):
+def process_output(out, use_reach_ticks = False):
     nrpcs = re.findall(r"NRPCs Generated: ((?:\d)*)", out)
     nrpcs_num = list(map(lambda x : int(x), nrpcs))
 
@@ -254,10 +255,12 @@ def process_output(out):
     total = re.search(r"Tick num: (\d*)", out)
     last = re.search(r"Last tick reached: ((\d|\.)*)", out)
 
+    reachable_ticks_search = re.search(r"Reachable ticks: (\d*)", out)
+    reachable_ticks = reachable_ticks_search.group(1) if use_reach_ticks and reachable_ticks_search != None else -1
     hpc_exp = re.findall(r"module (.*)>-----\n\s*((?:\d)*)% expressions used \(((?:\d)*)/((?:\d)*)\)(?:\n|[^-])*boolean coverage \((?:\d*)/(\d*)\)(?:\n|[^-])*alternatives used \((?:\d*)/(\d*)\)", out)
     print("hpc_exp = " + str(hpc_exp))
     hpc_exp_num = list(map(lambda x : (x[0], int(x[1]), int(x[2]), int(x[3]), (x[4]), (x[5])), hpc_exp))
-    hpc_reached, branch_num = calculate_hpc_coverage(hpc_exp_num)
+    hpc_reached, branch_num = calculate_hpc_coverage(hpc_exp_num, total = reachable_ticks)
     hpc_reached = round(hpc_reached * 100, 1)
 
     tick_times_list, all_times = read_hpc_times(out)
@@ -305,7 +308,7 @@ total_nrpc_timeout = 0
 total_programs_with_timeout = 0
 
 
-def run_nofib_set(setname, var_settings, timeout):
+def run_nofib_set(setname, var_settings, timeout, use_reach_ticks = False):
         global total_nrpc_post_call_s 
         global total_nrpc_func_arg_s
         global total_nrpc_timeout
@@ -339,10 +342,10 @@ def run_nofib_set(setname, var_settings, timeout):
                 print(file_dir + ", " + func);
                 res_bench = run_nofib_bench(final_path, func, var_settings, timeout)
                 print("Baseline:")
-                base_hpc_cov, base_cov, base_last, avg, base_tick_times, base_total, base_post_call, base_func_args, base_timeouts, branch_num = process_output(res_bench)
+                base_hpc_cov, base_cov, base_last, avg, base_tick_times, base_total, base_post_call, base_func_args, base_timeouts, branch_num = process_output(res_bench, use_reach_ticks)
                 res_bench_nrpc = run_nofib_bench_nrpc(final_path, func, var_settings, timeout)
                 print("NRPC:")
-                nrpc_hpc_cov, nrpc_cov, nrpc_last, avg_nrpc, nrpc_tick_times, nrpc_total, nrpc_post_call, nrpc_func_args, nrpc_timeout, _  = process_output(res_bench_nrpc)
+                nrpc_hpc_cov, nrpc_cov, nrpc_last, avg_nrpc, nrpc_tick_times, nrpc_total, nrpc_post_call, nrpc_func_args, nrpc_timeout, _  = process_output(res_bench_nrpc, use_reach_ticks)
                 bt1, bt3, bt5, nt1, nt3, nt5 = calculate_time_diff(dict(base_tick_times), dict(nrpc_tick_times))
                 bo1, bo3, bo5, no1, no3, no5 = calculate_order(base_tick_times, nrpc_tick_times)
 
@@ -372,9 +375,9 @@ def run_nofib_set(setname, var_settings, timeout):
         print(tabulate(data, headers=headers, tablefmt="grid"))
         print("\n")
 
-run_nofib_set("imaginary", [], 90)
-run_nofib_set("spectral", [], 90)
-run_nofib_set("real", [], 90)
+run_nofib_set("imaginary", [], 300, use_reach_ticks = False)
+run_nofib_set("spectral", [], 300, use_reach_ticks = False)
+run_nofib_set("real", [], 300, use_reach_ticks = True)
 
 print("Latex string for coverage table\n")
 print(latex_str_tbl1)
