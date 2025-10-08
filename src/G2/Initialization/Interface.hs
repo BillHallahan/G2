@@ -22,22 +22,23 @@ import G2.Translation.GHC (ImportDeclQualifiedStyle(NotQualified))
 type MkArgTypes = IT.SimpleState -> [Type]
 
 runInitialization1 :: IT.SimpleState -> IT.SimpleState
-runInitialization1 = elimBreakpoints . initVarLocs
-
-runInitialization2 :: Config -> IT.SimpleState -> MkArgTypes -> IT.SimpleState
-runInitialization2 config s@(IT.SimpleState { IT.expr_env = eenv
-                                            , IT.type_env = tenv
-                                            , IT.name_gen = ng
-                                            , IT.known_values = kv
-                                            , IT.type_classes = tc }) argTys =
+runInitialization1 s =
     let
+        s'@(IT.SimpleState { expr_env = eenv, IT.type_env = tenv, IT.type_classes = tc }) = elimBreakpoints . initVarLocs $ s
         eenv2 = elimTypeSyms tenv eenv
         tenv2 = elimTypeSymsTEnv tenv
         tc2 = elimTypeSyms tenv tc
+    in
+    s' { IT.expr_env = eenv2, IT.type_env = tenv2, IT.type_classes = tc2}
 
-        ts = argTys (s { IT.expr_env = eenv2, IT.type_env = tenv2, IT.type_classes = tc2 })
+runInitialization2 :: Config -> IT.SimpleState -> MkArgTypes -> IT.SimpleState
+runInitialization2 config s@(IT.SimpleState { IT.expr_env = eenv
+                                            , IT.name_gen = ng
+                                            , IT.known_values = kv }) argTys =
+    let
+        ts = argTys s
 
-        (eenv3, hs, ng2) = mkHandles eenv2 kv ng
+        (eenv3, hs, ng2) = mkHandles eenv kv ng
 
         eenv4 = if error_asserts config then assertFalseOnError kv eenv3 else eenv3
 
@@ -58,10 +59,8 @@ runInitialization2 config s@(IT.SimpleState { IT.expr_env = eenv
                         else eenv6
 
         s' = s { IT.expr_env = eenv7
-               , IT.type_env = tenv2
                , IT.name_gen = ng3
-               , IT.handles = hs
-               , IT.type_classes = tc2 }
+               , IT.handles = hs}
         
         s'' = if fp_handling config == RationalFP then substRational s' else s'
     in

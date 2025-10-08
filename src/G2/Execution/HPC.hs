@@ -12,7 +12,7 @@ module G2.Execution.HPC ( HpcT
                         , onAcceptHpcReducer
                         
                         , lnt
-                        , lengthNSubpathOrderer) where
+                        , lengthNSubpathOrderer ) where
 
 import G2.Execution.Reducer
 import G2.Language

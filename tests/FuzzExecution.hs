@@ -49,7 +49,7 @@ fuzzExecution (SB init_state bindings) = do
                                         Nothing -> return ()
                                     
                                     -- Actually validate
-                                    (val, _) <- validateStatesGHC pg Nothing "call" [] [] b er
+                                    (val, _) <- validateStatesGHC pg "==" Nothing "call" [] [] b er
                                     return $ fromMaybe False val) ers
             )
         

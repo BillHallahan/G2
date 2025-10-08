@@ -66,7 +66,7 @@ runWithArgs as = do
         putStrLn $ "Func arg states: " ++ show (length unspecified_output)
 
   when (measure_coverage config) $
-    runHPC src (T.unpack $ fromJust mb_modname) entry (filter (\x@ExecRes{validated = val} -> fromMaybe False val) in_out)
+    runHPC src (measure_coverage_with config) (T.unpack $ fromJust mb_modname) entry (filter (\x@ExecRes{validated = val} -> fromMaybe False val) in_out)
 
 mReturnsTrue :: [String] -> Bool
 mReturnsTrue a = boolArg "returns-true" a M.empty Off
