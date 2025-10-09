@@ -46,7 +46,7 @@ runWithArgs as = do
 
   let gFlags = if measure_coverage config then [Opt_Hpc] else []
 
-  (in_out, b, _, entry_f@(Id (Name _ mb_modname _ _) _), all_mods) <-
+  (in_out, init_state, b, _, entry_f@(Id (Name _ mb_modname _ _) _), all_mods) <-
         runG2FromFile proj [src] gFlags (fmap T.pack m_assume)
                   (fmap T.pack m_assert) (fmap T.pack m_reaches) 
                   (isJust m_assert || isJust m_reaches || m_retsTrue) 
@@ -71,7 +71,7 @@ runWithArgs as = do
     runHPC src (measure_coverage_with config) (T.unpack $ fromJust mb_modname) entry (filter (\x@ExecRes{validated = val} -> fromMaybe False val) in_out)
     case in_out of
         s':_ -> do
-          let reachable = reachesHPC all_mods (expr_env $ final_state s') (Var entry_f)
+          let reachable = reachesHPC all_mods (expr_env init_state) (Var entry_f)
           putStrLn $ "Reachable ticks: " ++ show (HS.size reachable)
         _ -> return ()
 
