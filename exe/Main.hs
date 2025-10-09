@@ -9,6 +9,7 @@ import System.FilePath
 
 import Control.Monad
 import Data.Foldable (toList)
+import qualified Data.HashSet as HS
 import qualified Data.List as L
 import qualified Data.Map as M
 import Data.Maybe
@@ -22,6 +23,7 @@ import G2.Lib.Printers
 import G2.Config
 import G2.Interface
 import G2.Language
+import G2.Language.HPC
 import G2.Translation
 
 main :: IO ()
@@ -44,7 +46,7 @@ runWithArgs as = do
 
   let gFlags = if measure_coverage config then [Opt_Hpc] else []
 
-  (in_out, b, _, entry_f@(Id (Name _ mb_modname _ _) _)) <-
+  (in_out, b, _, entry_f@(Id (Name _ mb_modname _ _) _), all_mods) <-
         runG2FromFile proj [src] gFlags (fmap T.pack m_assume)
                   (fmap T.pack m_assert) (fmap T.pack m_reaches) 
                   (isJust m_assert || isJust m_reaches || m_retsTrue) 
@@ -65,8 +67,13 @@ runWithArgs as = do
         putStrLn $ "Post call states: " ++ show (length spec_output)
         putStrLn $ "Func arg states: " ++ show (length unspecified_output)
 
-  when (measure_coverage config) $
+  when (measure_coverage config) $ do
     runHPC src (measure_coverage_with config) (T.unpack $ fromJust mb_modname) entry (filter (\x@ExecRes{validated = val} -> fromMaybe False val) in_out)
+    case in_out of
+        s':_ -> do
+          let reachable = reachesHPC all_mods (expr_env $ final_state s') (Var entry_f)
+          putStrLn $ "Reachable ticks: " ++ show (HS.size reachable)
+        _ -> return ()
 
 mReturnsTrue :: [String] -> Bool
 mReturnsTrue a = boolArg "returns-true" a M.empty Off
