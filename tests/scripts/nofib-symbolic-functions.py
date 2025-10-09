@@ -375,9 +375,9 @@ def run_nofib_set(setname, var_settings, timeout, use_reach_ticks = False):
         print(tabulate(data, headers=headers, tablefmt="grid"))
         print("\n")
 
-run_nofib_set("imaginary", [], 300, use_reach_ticks = False)
-run_nofib_set("spectral", [], 300, use_reach_ticks = False)
-run_nofib_set("real", [], 300, use_reach_ticks = True)
+run_nofib_set("imaginary", [], 180, use_reach_ticks = False)
+run_nofib_set("spectral", [], 180, use_reach_ticks = False)
+run_nofib_set("real", [], 180, use_reach_ticks = True)
 
 print("Latex string for coverage table\n")
 print(latex_str_tbl1)

@@ -1115,7 +1115,7 @@ testFileWithConfig src m_assume m_assert m_reaches entry config = do
                 simplTranslationConfig
                 config
 
-    return $ maybe (error "Timeout") (\(er, b, _, _) -> (er, b)) r
+    return $ maybe (error "Timeout") (\(er, b, _, _, _) -> (er, b)) r
 
 -- For mergeState unit tests
 checkFn :: Either String Bool -> String -> IO TestTree
