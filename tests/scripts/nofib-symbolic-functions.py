@@ -223,7 +223,7 @@ def calculate_hpc_coverage(hpc_res, total = -1):
     found = map(lambda x : x[2], rel_hpc_res)
     calc_total = map(lambda x : x[3], rel_hpc_res)
     coverage = 0
-    total = calc_total if total == -1 else [int(total)]
+    total = calc_total if total == -1 else [total]
     print(list(map(lambda x : ((x[4]), (x[5])), rel_hpc_res)))
     hpc_branch_nums = sum(map(lambda x : (int(x[4]) + int(x[5])), rel_hpc_res))
     try:
@@ -256,7 +256,7 @@ def process_output(out, use_reach_ticks = False):
     last = re.search(r"Last tick reached: ((\d|\.)*)", out)
 
     reachable_ticks_search = re.search(r"Reachable ticks: (\d*)", out)
-    reachable_ticks = reachable_ticks_search.group(1) if use_reach_ticks and reachable_ticks_search != None else -1
+    reachable_ticks = int(reachable_ticks_search.group(1)) if use_reach_ticks and reachable_ticks_search != None else -1
     hpc_exp = re.findall(r"module (.*)>-----\n\s*((?:\d)*)% expressions used \(((?:\d)*)/((?:\d)*)\)(?:\n|[^-])*boolean coverage \((?:\d*)/(\d*)\)(?:\n|[^-])*alternatives used \((?:\d*)/(\d*)\)", out)
     print("hpc_exp = " + str(hpc_exp))
     hpc_exp_num = list(map(lambda x : (x[0], int(x[1]), int(x[2]), int(x[3]), (x[4]), (x[5])), hpc_exp))
@@ -277,7 +277,7 @@ def process_output(out, use_reach_ticks = False):
 
     if reached != None and total != None and last != None:
         reached_f = float(reached.group(1))
-        total_f = int(total.group(1))
+        total_f = int(total.group(1)) if reachable_ticks == -1 else reachable_ticks
 
         coverage = round(((reached_f / total_f)*100), 1)
         print("Last time is: "+ last.group(1))
@@ -375,22 +375,31 @@ def run_nofib_set(setname, var_settings, timeout, use_reach_ticks = False):
         print(tabulate(data, headers=headers, tablefmt="grid"))
         print("\n")
 
-run_nofib_set("imaginary", [], 180, use_reach_ticks = False)
-run_nofib_set("spectral", [], 180, use_reach_ticks = False)
-run_nofib_set("real", [], 180, use_reach_ticks = True)
+def print_results():
+    print("Latex string for coverage table\n")
+    print(latex_str_tbl1)
+    print("Latex string for coverage table with Tick count at atleast 1second \n")
+    print(latex_str_tbl4)
+    print("Latex string for coverage table with Tick count at atleast 5second \n")
+    print(latex_str_tbl5)
+    print("\nLatex string for table 2\n")
+    print(latex_str_tbl2)
+    print("\nLatex string for table 3\n")
+    print(latex_str_tbl3)
 
-print("Latex string for coverage table\n")
-print(latex_str_tbl1)
-print("Latex string for coverage table with Tick count at atleast 1second \n")
-print(latex_str_tbl4)
-print("Latex string for coverage table with Tick count at atleast 5second \n")
-print(latex_str_tbl5)
-print("\nLatex string for table 2\n")
-print(latex_str_tbl2)
-print("\nLatex string for table 3\n")
-print(latex_str_tbl3)
+    print("Total NRPC post call states = " + str(total_nrpc_post_call_s))
+    print("Total NRPC func arg states = " + str(total_nrpc_func_arg_s))
+    print("Total NRPC timeouts = " + str(total_nrpc_timeout))
+    print("Total programs with timeout = " + str(total_programs_with_timeout))
 
-print("Total NRPC post call states = " + str(total_nrpc_post_call_s))
-print("Total NRPC func arg states = " + str(total_nrpc_func_arg_s))
-print("Total NRPC timeouts = " + str(total_nrpc_timeout))
-print("Total programs with timeout = " + str(total_programs_with_timeout))
+run_nofib_set("imaginary", [], 300, use_reach_ticks = False)
+
+print_results()
+
+run_nofib_set("spectral", [], 300, use_reach_ticks = False)
+
+print_results()
+
+run_nofib_set("real", [], 300, use_reach_ticks = True)
+
+print_results()
