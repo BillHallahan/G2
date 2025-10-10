@@ -73,6 +73,7 @@ validateStates proj src modN entry chAll chAny gflags comp_func b in_out = do
                 let pg = updatePGValNames (concatMap (map Data . dataCon) $ type_env s)
                        . updatePGTypeNames (type_env s)
                        . flip (foldr updateQualMods) (catMaybes $ HS.toList modN)
+                       . setStrictCase True
                        $ mkPrettyGuide ()
                 _ <- createDecls pg s (H.filter (\x -> adt_source x == ADTG2Generated) (type_env s))
                 validateStatesGHC pg comp_func modN entry chAll chAny b er) in_out
@@ -284,7 +285,7 @@ toCall modN entry s ars _ =
         Left (v, _) = findFunc (tyvar_env s) (T.pack entry) [Just $ T.pack modN] (expr_env s)
         e = mkApp (Var v:ars)
         t = typeOf (tyvar_env s) e
-        pg = mkPrettyGuide (exprNames e)
+        pg = setStrictCase True $ mkPrettyGuide (exprNames e)
 
         str_e = printHaskellPG pg s $ e
         str_t = mkTypeHaskellPG pg t
@@ -307,6 +308,7 @@ validateState comp_func modN entry chAll chAny b in_out = do
         let pg = updatePGValNames (concatMap (map Data . dataCon) $ type_env s)
                        . updatePGTypeNames (type_env s)
                        . flip (foldr updateQualMods) (catMaybes $ HS.toList modN)
+                       . setStrictCase True
                        $ mkPrettyGuide ()
         _ <- createDecls pg s (H.filter (\x -> adt_source x == ADTG2Generated) (type_env s))
         rs_anys <- validateStatesGHC pg comp_func modN entry chAll chAny b in_out
