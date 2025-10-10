@@ -392,14 +392,14 @@ def print_results():
     print("Total NRPC timeouts = " + str(total_nrpc_timeout))
     print("Total programs with timeout = " + str(total_programs_with_timeout))
 
-run_nofib_set("imaginary", [], 180, use_reach_ticks = False)
+run_nofib_set("imaginary", [], 300, use_reach_ticks = False)
 
 print_results()
 
-run_nofib_set("spectral", [], 180, use_reach_ticks = False)
+run_nofib_set("spectral", [], 300, use_reach_ticks = False)
 
 print_results()
 
-run_nofib_set("real", [], 180, use_reach_ticks = True)
+run_nofib_set("real", [], 300, use_reach_ticks = True)
 
 print_results()
