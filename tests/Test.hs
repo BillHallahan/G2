@@ -556,6 +556,7 @@ testFileTests = testGroup "TestFiles"
                                                                        , ("tupleTestMono", 175, [AtLeast 2])
                                                                        , ("multiPrim", 300, [AtLeast 2])
                                                                        , ("polyHigher", 50, [AtLeast 4])]                                                                                         
+    , checkInputOutputsNonRedHigher "tests/Validate/Val1.hs" [("call", 1000, [AtLeast 5])]
     , checkInputOutputsWithValidate "tests/BaseTests/ListTests.hs" [ ("lengthN", 2000, [AtLeast 1])
                                                                 , ("lengthBranch", 2000, [AtLeast 4])]
     , checkInputOutputsNonRedLib "tests/BaseTests/ListTests.hs" [ ("lengthN", 20000, [Exactly 1])
