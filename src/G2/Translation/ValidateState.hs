@@ -126,7 +126,7 @@ createDecls pg s = mapM_ runDecls . createDeclsStr pg s
 adjustDynFlags :: GhcMonad m => m ()
 adjustDynFlags = do
     dyn <- getSessionDynFlags
-    let dyn2 = foldl' xopt_set dyn [MagicHash, UnboxedTuples, DataKinds]
+    let dyn2 = foldl' xopt_set dyn [MagicHash, UnboxedTuples, DataKinds, BangPatterns]
         dyn3 = wopt_unset dyn2 Opt_WarnOverlappingPatterns
         dyn4 = dyn3 { generalFlags = ES.insert Opt_Hpc (generalFlags dyn3) }
     _ <- setSessionDynFlags dyn4
