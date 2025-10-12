@@ -161,7 +161,7 @@ rvTest check src rule_names =
     (\_ -> return ())
     (\isb -> testGroup ("Rules " ++ src)
            $ map (\rule_name -> testCase ("Rule " ++ rule_name) $ do
-                    (init_state, bindings) <- isb
+                    (init_state, bindings, _) <- isb
                     config <- empty_config
                     let rule = findRule (rewrite_rules bindings) rule_name
                     r <- doTimeout 180 $ check config init_state bindings rule

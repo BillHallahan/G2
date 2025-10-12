@@ -1,18 +1,20 @@
-module G2.Language.Monad.Naming ( doRenameN
-                                          , doRenamesN
-                                          , renameAllN
-                                          , freshSeededStringN
-                                          , freshSeededStringsN
-                                          , freshSeededNameN
-                                          , freshSeededNamesN
-                                          , freshNameN
-                                          , freshNamesN
-                                          , freshIdN
-                                          , freshSeededIdN
-                                          , freshIdsN ) where
+module G2.Language.Monad.Naming ( NamingM (..)
+                                , NameGenM
+                                , doRenameN
+                                , doRenamesN
+                                , renameAllN
+                                , freshSeededStringN
+                                , freshSeededStringsN
+                                , freshSeededNameN
+                                , freshSeededNamesN
+                                , freshNameN
+                                , freshNamesN
+                                , freshIdN
+                                , freshSeededIdN
+                                , freshIdsN ) where
 
-import G2.Language
-
+import G2.Language.Naming
+import G2.Language.Syntax
 import G2.Language.Monad.Support
 
 import qualified Data.Text as T

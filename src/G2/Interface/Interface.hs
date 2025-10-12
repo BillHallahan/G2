@@ -1,6 +1,5 @@
-{-# OPTIONS_GHC -Wno-orphans #-}
 
-{-# LANGUAGE BangPatterns, FlexibleContexts, LambdaCase, OverloadedStrings, CPP #-}
+{-# LANGUAGE BangPatterns, FlexibleContexts, LambdaCase, OverloadedStrings, RankNTypes, CPP #-}
 
 module G2.Interface.Interface ( MkCurrExpr
                               , CurrExprRes (..)
@@ -85,6 +84,7 @@ import qualified G2.Language.CallGraph as G
 import qualified G2.Language.ExprEnv as E
 import qualified G2.Language.PathConds as PC
 import qualified G2.Language.Stack as Stack
+import qualified G2.Language.Typing as TY
 
 import Control.Monad
 import Control.Monad.IO.Class
@@ -100,6 +100,8 @@ import qualified Data.List as L
 import qualified G2.Language.TyVarEnv as TV
 import qualified G2.Language.PolyArgMap as PM
 import System.Timeout
+
+import Data.Foldable
 
 type AssumeFunc = T.Text
 type AssertFunc = T.Text
@@ -297,7 +299,7 @@ type RHOStack m t = SM.StateT (ApproxPrevs t)
                              Reducer (RHOStack IO ()) rv ()
                           -> Halter (RHOStack IO ()) hv (ExecRes ()) ()
                           -> Orderer (RHOStack IO ()) sov b (ExecRes ()) ()
-                          -> (State () -> Bindings -> RHOStack IO () (Maybe (ExecRes ())))
+                          -> SolveStates (RHOStack IO ()) (ExecRes ()) ()
                           -> [AnalyzeStates (RHOStack IO ()) (ExecRes ()) ()]
                           -> State ()
                           -> Bindings
@@ -483,9 +485,9 @@ initialStateNoStartFunc :: [FilePath]
                      -> [FilePath]
                      -> TranslationConfig
                      -> Config
-                     -> IO (State (), Bindings)
+                     -> IO (State (), Bindings, [Maybe T.Text])
 initialStateNoStartFunc proj src transConfig config = do
-    (_, exg2) <- translateLoaded proj src transConfig config
+    (mb_modname, exg2) <- translateLoaded proj src transConfig config
 
     let simp_state = initSimpleState exg2
 
@@ -494,7 +496,7 @@ initialStateNoStartFunc proj src transConfig config = do
                                  (E.higherOrderExprs TV.empty . IT.expr_env)
                                  config
 
-    return (init_s, bindings)
+    return (init_s, bindings, mb_modname)
 
 noStartFuncMkCurrExpr :: a -> NameGen -> b -> c -> d -> e -> CurrExprRes
 noStartFuncMkCurrExpr _ ng _ _ _ _ =
@@ -543,7 +545,7 @@ runG2FromFile :: [FilePath]
               -> StartFunc
               -> TranslationConfig
               -> Config
-              -> IO ([ExecRes ()], Bindings, TimedOut, Id)
+              -> IO ([ExecRes ()], State (), Bindings, TimedOut, Id, S.HashSet (Maybe T.Text))
 runG2FromFile proj src gflags m_assume m_assert m_reach def_assert f transConfig config = do
     (init_state, entry_f, bindings, mb_modname) <- initialStateFromFile  proj src
                                     m_reach def_assert f (mkCurrExpr TV.empty m_assume m_assert) (mkArgTys TV.empty)
@@ -551,7 +553,7 @@ runG2FromFile proj src gflags m_assume m_assert m_reach def_assert f transConfig
 
     (er, b, to) <- runG2WithConfig proj src entry_f f gflags mb_modname init_state config bindings
 
-    return (er, b, to, entry_f)
+    return (er, init_state, b, to, entry_f, S.fromList mb_modname)
 
 runG2WithConfig :: [FilePath]-> [FilePath] -> Id -> StartFunc -> [GeneralFlag] -> [Maybe T.Text] -> State () -> Config -> Bindings
                 -> IO ( [ExecRes ()]
@@ -591,7 +593,7 @@ runG2WithConfig proj src entry_f f gflags mb_modname state@(State { expr_env = e
                                 (SM.evalStateT
                                     (SM.evalStateT
                                         (SM.evalStateT
-                                                (addTimedOut to $ runG2WithValidate proj src (T.unpack $ fromJust mod_name) (T.unpack f) entry_f gflags red hal ord [] solver simplifier state' config bindings')
+                                                (addTimedOut to $ runG2WithValidate proj src all_mod_set (T.unpack f) entry_f gflags red hal ord [] solver simplifier state' config bindings')
                                             emptyApproxPrevs
                                         )
                                         lnt
@@ -614,7 +616,7 @@ runG2WithConfig proj src entry_f f gflags mb_modname state@(State { expr_env = e
                                         (SM.evalStateT
                                             (SM.evalStateT
                                                 (SM.evalStateT
-                                                        (addTimedOut to $ runG2WithValidate proj src (T.unpack $ fromJust mod_name) (T.unpack f) entry_f gflags red hal ord analysis solver simplifier state' config bindings')
+                                                        (addTimedOut to $ runG2WithValidate proj src all_mod_set (T.unpack f) entry_f gflags red hal ord analysis solver simplifier state' config bindings')
                                                     emptyApproxPrevs
                                                 )
                                                 lnt
@@ -724,7 +726,7 @@ runG2WithValidate :: ( MonadIO m
                   , Simplifier simplifier)
                => [FilePath]
                -> [FilePath]
-               -> String
+               -> S.HashSet (Maybe T.Text)
                -> String
                -> Id
                -> [GeneralFlag]
@@ -774,14 +776,15 @@ runG2SolvingResult :: ( Named t
                    -> simplifier
                    -> Bindings
                    -> State t
-                   -> IO (Result (ExecRes t) () ())
-runG2SolvingResult solver simplifier bindings s
+                   -> IO (Result (ExecRes t, NameGen) () ())
+runG2SolvingResult solver simplifier bindings s@(State { tyvar_env = tv_env })
     | true_assert s = do
         r <- solve solver s bindings (E.symbolicIds . expr_env $ s) (path_conds s)
         case r of
-            SAT m -> do
-                let m' = reverseSimplification simplifier s bindings m
-                return . SAT $ runG2SubstModel m' s bindings
+            SAT (SatRes m tv_env' ng') -> do
+                let s' = s { tyvar_env = tv_env `TV.union` tv_env' }
+                    m' = reverseSimplification simplifier s' bindings m
+                return . SAT $ (runG2SubstModel m' s' bindings, ng')
             UNSAT _ -> return $ UNSAT ()
             Unknown reason _ -> return $ Unknown reason ()
 
@@ -795,7 +798,7 @@ runG2Solving :: ( MonadIO m
              -> simplifier
              -> State t
              -> Bindings
-             -> m (Maybe (ExecRes t))
+             -> m (Maybe (ExecRes t, NameGen))
 runG2Solving solver simplifier s bindings = do
     res <- liftIO $ runG2SolvingResult solver simplifier bindings s
     case res of
@@ -808,7 +811,7 @@ runG2SolvingValidate :: ( MonadIO m
                         , ASTContainer t Expr
                         , Solver solver
                         , Simplifier simplifier) =>
-                String
+                S.HashSet (Maybe T.Text)
              -> String
              -> Id
              -> Config
@@ -816,24 +819,77 @@ runG2SolvingValidate :: ( MonadIO m
              -> simplifier
              -> State t
              -> Bindings
-             -> m (Maybe (ExecRes t))
+             -> m (Maybe (ExecRes t, NameGen))
 runG2SolvingValidate modN entry entry_id config solver simplifier s bindings = do
     res <- runG2Solving solver simplifier s bindings
     case res of
-        Just m | validate config -> do
+        Just (m, ng) | validate config -> do
                 let m' = if print_encode_float config then toEnclodeFloat m else m
-                r <- validateState modN entry [] [] bindings m'
+
+                (res', isVal) <- runValidate (validate_with config) modN entry solver simplifier bindings m' 5
+                let res'' = res' {validated = isVal}
 
                 liftIO $ do
-                    printStateOutput config entry_id bindings (Just r) m
+                    printStateOutput config entry_id bindings (Just isVal) m'
 
-                let res' = m {validated = r}
-                return (Just res')
-        Just m -> do
+                return (Just( res'', ng))
+        Just (m, _) -> do
             liftIO $ printStateOutput config entry_id bindings Nothing m
             return res
         _ -> return res
 
+runValidate :: ( MonadIO m
+                    , GhcMonad m
+                    , Named t
+                    , ASTContainer t Expr
+                    , Solver solver
+                    , Simplifier simplifier) =>
+                   String
+                -> S.HashSet (Maybe T.Text)
+                -> String
+                -> solver
+                -> simplifier 
+                -> Bindings 
+                -> ExecRes t 
+                -> Int 
+                -> m (ExecRes t, Maybe Bool)
+runValidate _ _ _ _ _ _ res 0 = return (res, Nothing)
+runValidate val_with modN entry solver simplifier bindings 
+        res@ExecRes{final_state = fs} runLimit = do
+    isValidated <- validateState val_with modN entry [] [] bindings res 
+    let currModel = model fs
+        eenv = expr_env fs
+        tv = tyvar_env fs
+        origPc = path_conds fs
+    case isValidated of
+        Nothing -> do
+            let (eenv', pcs) = getNewPathCond (HM.toList currModel) tv eenv
+                newPc = makePathConds pcs origPc
+                fs' = fs {expr_env = eenv', path_conds = newPc}
+            res' <- runG2Solving solver simplifier fs' bindings
+            case res' of
+                Just (m, !_) -> runValidate val_with modN entry solver simplifier bindings m (runLimit - 1)
+                Nothing -> return (res, isValidated)
+        _ -> return (res, isValidated)
+
+    where 
+        getNewPathCond ((n, e):nes) tvenv expEnv = 
+            let ty = typeOf tvenv e
+                (expEnv'', pcExprs') = if TY.isPrimType ty then
+                                            let
+                                                mexpr = mkApp [Prim Neq TyUnknown, Var (Id n ty), e]
+                                                (expEnv', pcExpr) = getNewPathCond nes tvenv expEnv
+                                            in (expEnv', mexpr : pcExpr)
+                                    else
+                                        let expEnv' = E.insert n e expEnv
+                                        in getNewPathCond nes tvenv expEnv' 
+            in (expEnv'', pcExprs')
+        getNewPathCond [] _ expEnv = (expEnv, [])
+
+        makePathConds [] originalPc = originalPc
+        makePathConds (p:pcs) originalPc =
+            let new_pc = L.foldl' (\p1 p2 -> mkApp [Prim Or TyUnknown, p1, p2]) p pcs in 
+            PC.insert (PC.ExtCond new_pc True) originalPc
 
 runG2SubstModel :: Named t =>
                       Model
@@ -857,7 +913,8 @@ runG2SubstModel m s@(State { expr_env = eenv, type_env = tenv, tyvar_env = tv_en
                      , conc_sym_gens = gens
                      , conc_mutvars = mv
                      , conc_handles = h
-                     , violated = ais}
+                     , violated = ais
+                     , validated = Nothing }
 
         sm' = runPostprocessing bindings sm
 

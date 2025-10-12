@@ -7,16 +7,19 @@ module InputOutputTest ( checkInputOutput
                        , checkInputOutputsQuantifiedSMTStrings
                        
                        , checkInputOutputsTemplate
+                       , checkInputOutputsWith
                        , checkInputOutputsNonRedHigher
                        , checkInputOutputsNonRedLib
                        , checkInputOutputsInstType 
-                       , checkInputOutputsWithValidate) where
+                       , checkInputOutputsWithValidate
+                       , checkInputOutputsWithTemplatesAndHpc) where
 
 import Test.Tasty
 import Test.Tasty.HUnit
 
 import Control.Exception
 import Data.IORef
+import qualified Data.HashSet as HS
 import Data.List
 import qualified Data.Map.Lazy as M
 import Data.Maybe
@@ -62,6 +65,13 @@ checkInputOutputsTemplate src tests = do
         src
         tests
 
+checkInputOutputsWith :: FilePath -> String -> [(String, Int, [Reqs String])] -> TestTree
+checkInputOutputsWith src comp_with tests = do
+    checkInputOutput'
+        (do config <- mkConfigTestIO; return (config { validate_with = comp_with }))
+        src
+        tests
+
 checkInputOutputsNonRedHigher :: FilePath -> [(String, Int, [Reqs String])] -> TestTree
 checkInputOutputsNonRedHigher src tests = do
     checkInputOutput'
@@ -92,6 +102,13 @@ checkInputOutputsWithValidate src tests = do
         src
         tests
 
+
+checkInputOutputsWithTemplatesAndHpc :: FilePath ->[(String, Int, [Reqs String])] -> TestTree
+checkInputOutputsWithTemplatesAndHpc src tests = do
+    checkInputOutput'
+        (do config <- mkConfigTestIO; return (config { higherOrderSolver = SymbolicFunc, hpc = True }))
+        src
+        tests
 
 checkInputOutput' :: IO Config
                   -> FilePath
@@ -147,7 +164,7 @@ checkInputOutput'' src exg2 mb_modname config (entry, stps, req) = do
 
     let chAll = checkExprAll req
     let chAny = checkExprExists req
-    (mr, anys) <- validateStates proj src (T.unpack . fromJust $ head mb_modname) entry chAll chAny [] b r
+    (mr, anys) <- validateStates proj src (HS.fromList mb_modname) entry chAll chAny [] (validate_with config) b r
     let io = map (\(ExecRes { conc_args = i, conc_out = o}) -> i ++ [o]) r
 
     let chEx = checkExprInOutCount io req

@@ -25,8 +25,8 @@ main = do
 
   let tentry = T.pack entry
 
-  (init_state, bindings) <- initialStateNoStartFunc proj [src]
-                            (simplTranslationConfig { simpl = True, load_rewrite_rules = True, hpc_ticks = False }) config
+  (init_state, bindings, _) <- initialStateNoStartFunc proj [src]
+                               (simplTranslationConfig { simpl = True, load_rewrite_rules = True, hpc_ticks = False }) config
 
   let rule = find (\r -> tentry == ru_name r) (rewrite_rules bindings)
       rule' = case rule of

@@ -81,3 +81,22 @@ testRecursive f = testRecursive f -}
 
 polyHigher :: ((a -> a) -> a) -> (a -> a) -> a
 polyHigher g = g
+
+inList :: [Int -> Int] -> Int -> [Int]
+inList fs x = map (\f -> f x) fs 
+
+retFunc :: [Int] -> [Int -> Int]
+retFunc xs = map (\r x -> x + r) xs
+
+data D = D Int | E Int
+
+retFunc2 :: Int -> [Int] -> [Int -> Int]
+retFunc2 n =
+    let
+        z = n + n
+        y = if z > 10 then D z else E z
+    in
+    map (\r x -> case y of D z' -> x + r + z'; E _ -> x + r)
+
+eqRetFunc :: [Int -> Int] -> [Int -> Int] -> Bool
+eqRetFunc xs ys = map (\f -> f 0) xs == map (\f -> f 0) ys
