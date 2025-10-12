@@ -6,6 +6,7 @@
 {-# LANGUAGE MultiParamTypeClasses, MultiWayIf, RankNTypes, ScopedTypeVariables #-}
 {-# LANGUAGE TupleSections, UndecidableInstances #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE CPP #-}
 
 {-| Module: G2.Execution.Reducer
 
@@ -52,6 +53,7 @@ module G2.Execution.Reducer ( Reducer (..)
                             , RedRules
                             , mkSimpleReducer
                             , liftReducer
+                            , liftReducerGhcT
                             , liftSomeReducer
 
                             , stdRed
@@ -96,6 +98,7 @@ module G2.Execution.Reducer ( Reducer (..)
                             -- * Halters
                             , mkSimpleHalter
                             , liftHalter
+                            , liftHalterGhcT
                             , liftSomeHalter
 
                             , swhnfHalter
@@ -124,6 +127,7 @@ module G2.Execution.Reducer ( Reducer (..)
                             -- * Orderers
                             , mkSimpleOrderer
                             , liftOrderer
+                            , liftOrdererGhcT
                             , liftSomeOrderer
                             , (<->)
                             , ordComb
@@ -159,6 +163,7 @@ import G2.Execution.ExecSkip
 import G2.Language
 import G2.Language.Approximation
 import G2.Language.KnownValues
+import G2.Language.HPC
 import qualified G2.Language.Monad as MD
 import qualified G2.Language.PathConds as PC
 import qualified G2.Language.Stack as Stck
@@ -181,6 +186,12 @@ import qualified Data.Text as T
 import qualified Data.Text.IO as T
 import Data.Tuple
 import Data.Time.Clock
+
+#if MIN_VERSION_GLASGOW_HASKELL(9,0,2,0)
+import GHC.Driver.Monad
+#else
+import GhcMonad (GhcT, liftGhcT)
+#endif
 import System.Clock
 import System.Directory
 import qualified G2.Language.TyVarEnv as TV 
@@ -279,6 +290,16 @@ liftReducer r = Reducer { initReducer = initReducer r
                         , onDiscard = \s rv -> SM.lift ((onDiscard r) s rv)
                         , afterRed = SM.lift (afterRed r)}
 
+-- | Lift a reducer from a component monad to a constructed monad. 
+liftReducerGhcT :: Monad m => Reducer m rv t -> Reducer (GhcT m) rv t
+liftReducerGhcT r = Reducer { initReducer = initReducer r
+                        , redRules = \rv s b -> liftGhcT ((redRules r) rv s b)
+                        , updateWithAll = updateWithAll r
+                        , onAccept = \s b rv -> liftGhcT ((onAccept r) s b rv)
+                        , onSolved = liftGhcT (onSolved r)
+                        , onDiscard = \s rv -> liftGhcT ((onDiscard r) s rv)
+                        , afterRed = liftGhcT (afterRed r)}
+
 -- | Lift a SomeReducer from a component monad to a constructed monad. 
 liftSomeReducer :: (Monad m1, SM.MonadTrans m2) => SomeReducer m1 t -> SomeReducer (m2 m1) t
 liftSomeReducer (SomeReducer r) = SomeReducer (liftReducer r )
@@ -342,6 +363,15 @@ liftHalter h = Halter { initHalt = initHalt h
                       , updateHalterWithAll = updateHalterWithAll h
                       , filterAllStates = id }
 
+liftHalterGhcT :: Monad m => Halter m rv r t -> Halter (GhcT m) rv r t
+liftHalterGhcT h = Halter { initHalt = initHalt h
+                      , updatePerStateHalt = updatePerStateHalt h
+                      , discardOnStart = discardOnStart h
+                      , stopRed = \hv pr s -> liftGhcT ((stopRed h) hv pr s)
+                      , stepHalter = stepHalter h
+                      , updateHalterWithAll = updateHalterWithAll h
+                      , filterAllStates = id }
+
 -- | Lift a SomeHalter from a component monad to a constructed monad. 
 liftSomeHalter :: (Monad m1, SM.MonadTrans m2) => SomeHalter m1 r t -> SomeHalter (m2 m1) r t
 liftSomeHalter (SomeHalter r) = SomeHalter (liftHalter r)
@@ -392,6 +422,13 @@ liftOrderer r = Orderer { initPerStateOrder = initPerStateOrder r
                         , orderStates = \sov pr s -> SM.lift ((orderStates r) sov pr s)
                         , updateSelected = updateSelected r
                         , stepOrderer = \sov pr xs s -> SM.lift ((stepOrderer r) sov pr xs s) }
+
+-- | Lift a Orderer from a component monad to a constructed monad. 
+liftOrdererGhcT :: Monad m => Orderer m sov b r t -> Orderer (GhcT m) sov b r t
+liftOrdererGhcT r = Orderer { initPerStateOrder = initPerStateOrder r
+                        , orderStates = \sov pr s -> liftGhcT ((orderStates r) sov pr s)
+                        , updateSelected = updateSelected r
+                        , stepOrderer = \sov pr xs s -> liftGhcT ((stepOrderer r) sov pr xs s) }
 
 -- | Lift a liftSomeOrderer from a component monad to a constructed monad. 
 liftSomeOrderer :: (Monad m1, SM.MonadTrans m2) => SomeOrderer m1 r t -> SomeOrderer (m2 m1) r t
@@ -1069,7 +1106,13 @@ strictRed = mkSimpleReducer (\_ -> ())
 
                 mr_var cont ns n | HS.member n ns = False -- If we have seen a variable already,
                                                           -- we will have already discovered if it needs to be reduced
-                                 | E.isSymbolic n eenv = False
+                                 | E.isSymbolic n eenv = case E.lookup n eenv of 
+                                                        -- n is a symbolic polymorphic function, enabled by RankNTypes. 
+                                                        -- Because it's return type may be a type variable bound in it's
+                                                        -- forall, we cannot replace it with a constant function, so it
+                                                        -- must be reduced.
+                                                        Just (Var (Id _ (TyForAll _ _))) -> True
+                                                        _ -> False
                                  | otherwise = maybe True (cont (HS.insert n ns)) (E.lookup n eenv)
         strict_red _ s b = return (NoProgress, [(s, ())], b)
 
@@ -1843,9 +1886,6 @@ mrContIgnoreNRPCTicks genLemma lkp s1 s2 ns hm active n1 n2 e1 e2 =
             moreRestrictive' (mrContIgnoreNRPCTicks genLemma lkp) genLemma lkp s1 s2 ns hm active n1 n2 e1' e2'
         _ -> Left []
 
-
-type HPCMemoTable = HM.HashMap Name (HS.HashSet (Unique, T.Text))
-
 noNewHPCHalter :: SM.MonadState HPCMemoTable m => HS.HashSet (Maybe T.Text) -> Halter m Unique (ExecRes t) t
 noNewHPCHalter mod_name = mkSimpleHalter
                                 (const 0)
@@ -1861,28 +1901,12 @@ noNewHPCHalter mod_name = mkSimpleHalter
 
                 if HS.null diff1
                     then do
-                        reachable_hpc <- reachesHPC (expr_env s) (curr_expr s, exec_stack s, non_red_path_conds s)
+                        reachable_hpc <- reachesHPC' mod_name (expr_env s) (curr_expr s, exec_stack s, non_red_path_conds s)
                         let diff2 = HS.difference reachable_hpc acc_seen_hpc
                         if HS.null diff2 then do return Discard else do return Continue
                     else return Continue
             | otherwise = return Continue
         
-        reachesHPC :: (SM.MonadState HPCMemoTable m, ASTContainer c Expr) => ExprEnv -> c -> m (HS.HashSet (Unique, T.Text))
-        reachesHPC eenv es = mconcat <$> mapM (reaches eenv) (containedASTs es) 
-
-        reaches :: SM.MonadState HPCMemoTable m => ExprEnv -> Expr -> m (HS.HashSet (Unique, T.Text))
-        reaches eenv (Var (Id n _)) = do
-            seen <- SM.get
-            case HM.lookup n seen of
-                Just hpcs -> return hpcs
-                Nothing -> do
-                    SM.modify (HM.insert n HS.empty)
-                    hpcs <- maybe (return HS.empty) (reaches eenv) (E.lookup n eenv)
-                    SM.modify (HM.insert n hpcs)
-                    return hpcs
-        reaches eenv (Tick (HpcTick i t) e) | Just t `HS.member` mod_name = HS.insert (i, t) <$> reaches eenv e
-        reaches eenv e = mconcat <$> mapM (reaches eenv) (children e)
-
 acceptOnlyNewHPC :: (Monad m1, SM.MonadState HPCMemoTable (m2 m1), SM.MonadTrans m2) => Halter m1 r (ExecRes t) t -> Halter (m2 m1) r (ExecRes t) t
 acceptOnlyNewHPC h = 
         Halter {
@@ -2310,7 +2334,7 @@ logRedRuleNum _ _ _ = return ()
 --------
 
 -- | Solve for concrete values in a fully executed state.
-type SolveStates m r t = State t -> Bindings -> m (Maybe r)
+type SolveStates m r t = State t -> Bindings -> m (Maybe (r, NameGen))
 
 {-# INLINABLE runReducer #-}
 {-# SPECIALIZE runReducer :: Ord b =>
@@ -2368,17 +2392,18 @@ runReducer red hal ord solve_r analyze init_state init_bindings = do
                 ()
                     | hc == Accept -> do
                         (s', b') <- onAccept red s b r_val
-                        er <- solve_r s' b'
+                        er_ng <- solve_r s' b'
                         sequence_ $ analyze <*> pure (StateAccepted s') <*> pure pr <*> pure (map state . concat $ M.elems xs)
-                        pr' <- case er of
-                                    Just er' -> do
-                                        onSolved red
-                                        return $ pr {accepted = er':accepted pr}
-                                    Nothing -> return pr
+                        (pr', ng') <- case er_ng of
+                                        Just (er', ng) -> do
+                                            onSolved red
+                                            return $ (pr {accepted = er':accepted pr}, ng)
+                                        Nothing -> return (pr, name_gen b')
+                        let b'' = b' { name_gen = ng' }
                         let jrs = minState pr' xs
                         case jrs of
-                            Just (rs', xs') -> switchState pr' rs' b' xs'
-                            Nothing -> return (pr', b')
+                            Just (rs', xs') -> switchState pr' rs' b'' xs'
+                            Nothing -> return (pr', b'')
                     | hc == Discard -> do
                         onDiscard red s r_val
                         sequence_ $ analyze <*> pure (StateDiscarded s) <*> pure pr <*> pure (map state . concat $ M.elems xs)

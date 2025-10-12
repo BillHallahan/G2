@@ -118,7 +118,9 @@ data Config = Config {
     , strict :: Bool -- ^ Should the function output be strictly evaluated?
     , timeLimit :: Int -- ^ Seconds
     , validate :: Bool -- ^ If True, run on G2's input, and check against expected output.
+    , validate_with :: String -- ^ Function to use when validating input (defaults to (==)).
     , measure_coverage :: Bool -- ^ Use HPC to measure code coverage
+    , measure_coverage_with :: String -- ^ Function to apply before measuring coverage
     , lib_nrpc :: NonRedPathCons -- ^ Whether to use NRPCs for library functions or not
     , approx_nrpc :: NonRedPathCons -- ^ Use approximation and NRPCs to avoid repeated exploration of equivalent function calls
     , symbolic_func_nrpc :: NonRedPathCons -- ^ Whether to use NRPCs for symbolic functions or not
@@ -207,7 +209,16 @@ mkConfig homedir = Config Regular
                    <> value 600
                    <> help "time limit, in seconds")
     <*> switch (long "validate" <> help "use GHC to automatically compile and run on generated inputs, and check that generated outputs are correct")
+    <*> strOption
+            ( long "validate-with"
+            <> metavar "F"
+            <> value "=="
+            <> help "function to use when validating input (defaults to (==)).")
     <*> switch (long "measure-coverage" <> help "use HPC to measure code coverage")
+    <*> strOption (long "measure-coverage-with"
+                    <> metavar "F"
+                    <> value ""
+                    <> help "function to apply to returned value when measuring code coverage")
     <*> flag NoNrpc Nrpc (long "lib-nrpc" <> help "execute with non reduced path constraints")
     <*> flag NoNrpc Nrpc (long "approx-nrpc" <> help "Use approximation and NRPCs to avoid repeated exploration of equivalent function calls")
     <*> flag NoNrpc Nrpc (long "higher-nrpc" <> help "use NRPCs to delay execution of library functions")
@@ -357,7 +368,9 @@ mkConfigDirect homedir as m = Config {
     , strict = boolArg "strict" as m On
     , timeLimit = strArg "time" as m read 300
     , validate  = boolArg "validate" as m Off
+    , validate_with = "=="
     , measure_coverage = False
+    , measure_coverage_with = ""
     , lib_nrpc = NoNrpc
     , approx_nrpc = NoNrpc
     , symbolic_func_nrpc = NoNrpc

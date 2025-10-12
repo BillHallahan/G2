@@ -214,6 +214,7 @@ testFileTests = testGroup "TestFiles"
     , checkInputOutput "tests/TestFiles/ListComp.hs" "list1" 10000 [Exactly 1]
 
     , checkInputOutput "tests/TestFiles/Imports/MakesSound.hs" "makesSound" 1000 [Exactly 3]
+    , checkInputOutput "tests/TestFiles/Imports/Underscore/Main.hs" "call" 1000 [AtLeast 5]
 
     , checkExpr "tests/TestFiles/MultCase.hs" 400 "f"
         [ RExists (\[App _ (Lit (LitInt x)), y] -> x == 2 && getBoolB y id)
@@ -521,12 +522,31 @@ testFileTests = testGroup "TestFiles"
                                                                    , ("sf", 175, [AtLeast 5])
                                                                    , ("thirdOrder", 75, [AtLeast 10])
                                                                    , ("tupleTestMono", 175, [AtLeast 10])
-                                                                   , ("multiPrim", 300, [AtLeast 8])]
+                                                                   , ("multiPrim", 300, [AtLeast 8])
+                                                                   , ("inList", 1000, [AtLeast 10])]
+    , checkInputOutputsWith "tests/HigherOrder/HigherOrder.hs" "eqRetFunc" [ ("retFunc", 500, [AtLeast 5])
+                                                                           , ("retFunc2", 500, [AtLeast 5]) ]
     , checkInputOutputsTemplate "tests/HigherOrder/PolyHigherOrder.hs" [ ("f", 50, [AtLeast 5])
                                                                        , ("h", 200, [AtLeast 3])
                                                                        , ("assoc", 200, [AtLeast 5])
                                                                        , ("sf", 175, [AtLeast 5])
                                                                        , ("tupleTest", 175, [AtLeast 8])]
+    , checkInputOutputsTemplate "tests/HigherOrder/RankN.hs" [ ("identity", 50, [Exactly 1])
+                                                             , ("twoArgs", 60, [Exactly 2])
+                                                             , ("calledInMaybe", 60, [Exactly 1])
+                                                             , ("twoTVs", 60, [Exactly 2])
+                                                             , ("twoTVsMultiCall", 200, [Exactly 1])
+                                                             , ("nested", 100, [Exactly 2])
+                                                             , ("calledInTuple", 100, [Exactly 2])
+                                                             , ("intArg", 100, [Exactly 2])
+                                                             , ("intArgCalledTwice", 200, [Exactly 5])
+                                                             , ("intArgCaseFourCalls", 500, [Exactly 44])
+                                                             , ("multiIntArgs", 200, [Exactly 4])
+                                                             , ("fromMaybe", 100, [Exactly 3])
+                                                             , ("fromMaybeInvalid", 100, [Exactly 0])
+                                                             , ("fromTuples", 100, [Exactly 8])
+                                                             , ("twoFunctions", 200, [Exactly 4])
+                                                             , ("partiallyApply", 200, [Exactly 2])] 
     , checkInputOutputsNonRedHigher "tests/HigherOrder/HigherOrder.hs" [ ("f", 200, [AtLeast 3])
                                                                        , ("h", 150, [AtLeast 2])
                                                                        , ("assoc", 250, [AtLeast 2])
@@ -534,7 +554,11 @@ testFileTests = testGroup "TestFiles"
                                                                        , ("thirdOrder", 300, [AtLeast 2])
                                                                        , ("thirdOrder2", 300, [AtLeast 3])
                                                                        , ("tupleTestMono", 175, [AtLeast 2])
-                                                                       , ("multiPrim", 300, [AtLeast 2])]
+                                                                       , ("multiPrim", 300, [AtLeast 2])
+                                                                       , ("polyHigher", 50, [AtLeast 4])]                                                                                         
+    , checkInputOutputsNonRedHigher "tests/Validate/Val1.hs" [("call", 1000, [AtLeast 5])]
+    , checkInputOutputsWithValidate "tests/BaseTests/ListTests.hs" [ ("lengthN", 2000, [AtLeast 1])
+                                                                , ("lengthBranch", 2000, [AtLeast 4])]
     , checkInputOutputsNonRedLib "tests/BaseTests/ListTests.hs" [ ("lengthN", 20000, [Exactly 1])
                                                                 , ("lengthBranch", 20000, [Exactly 4])
                                                                 , ("map2", 20000, [Exactly 3])
@@ -647,6 +671,9 @@ testFileTests = testGroup "TestFiles"
                                                         , ("triFunc", 200, [AtLeast 1])
                                                         , ("take3", 200, [AtLeast 1])
                                                         , ("takeTri2", 200, [AtLeast 1]) ]
+    , checkInputOutputsWithTemplatesAndHpc "tests/TestFiles/TypeKeyword.hs" [ ("yearPasses", 400, [Exactly 1])
+                                                                            , ("callAlts", 400, [AtLeast 1]) ]
+    , checkInputOutputs "tests/TestFiles/InfLoop.hs" [ ("f", 500, [Exactly 1]) ]
  ]
 
 extensionTests :: TestTree
@@ -702,7 +729,7 @@ extensionTests = testGroup "Extensions"
                                                                               , ("h", 400, [Exactly 2])
                                                                               , ("age1", 400, [Exactly 1])
                                                                               -- , ("age2", 400, [Exactly 1])
-                                                                              -- , ("app", 250, [AtLeast 5])
+                                                                              , ("app", 400, [AtLeast 5])
                                                                               -- , ("vecIntersperse", 400, [AtLeast 5])
                                                                               , ("vecTake", 400, [AtLeast 5])
                                                                               ]
@@ -1080,6 +1107,7 @@ testFileWithConfig src m_assume m_assert m_reaches entry config = do
             $ runG2FromFile 
                 [proj]
                 [src]
+                []
                 (fmap T.pack m_assume)
                 (fmap T.pack m_assert)
                 (fmap T.pack m_reaches)
@@ -1088,7 +1116,7 @@ testFileWithConfig src m_assume m_assert m_reaches entry config = do
                 simplTranslationConfig
                 config
 
-    return $ maybe (error "Timeout") (\(er, b, _, _) -> (er, b)) r
+    return $ maybe (error "Timeout") (\(er, _, b, _, _, _) -> (er, b)) r
 
 -- For mergeState unit tests
 checkFn :: Either String Bool -> String -> IO TestTree
