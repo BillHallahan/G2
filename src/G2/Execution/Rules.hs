@@ -1163,18 +1163,18 @@ retCurrExpr s _ NoAction orig_ce stck ng =
 
 matchPairs :: TV.TyVarEnv -> KnownValues -> Expr -> Expr -> (ExprEnv, [PathCond], [(Expr, Expr)]) -> Maybe (ExprEnv, [PathCond], [(Expr, Expr)])
 matchPairs tvnv kv e1 e2 eenv_pc_ee@(eenv, pc, ees)
+    -- Look up value level variables
     | Var (Id n _) <- e1
     , Just (E.Conc e1') <- E.lookupConcOrSym n eenv = matchPairs tvnv kv e1' e2 eenv_pc_ee
     | Var (Id n _) <- e2
     , Just (E.Conc e2') <- E.lookupConcOrSym n eenv = matchPairs tvnv kv e1 e2' eenv_pc_ee
     | Type _ <- e1
     , Type _ <- e2
-    , TV.deepLookup tvnv e1 == TV.deepLookup tvnv e2 = Just eenv_pc_ee
+    , tyVarSubst tvnv e1 == tyVarSubst tvnv e2 = Just eenv_pc_ee
     | e1 == e2 = Just eenv_pc_ee
     | Cast e1' c1 <- e1
     , Cast e2' c2 <- e2
     , T.tyVarSubst tvnv c1 == T.tyVarSubst tvnv c2 =  matchPairs tvnv kv e1' e2' eenv_pc_ee
-
     | isExprValueForm eenv e1
     , isExprValueForm eenv e2
     , t1 <- typeOf tvnv e1
