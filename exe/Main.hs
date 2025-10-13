@@ -45,12 +45,13 @@ runWithArgs as = do
   let tentry = T.pack entry
 
   let gFlags = if measure_coverage config then [Opt_Hpc] else []
+      config' = if measure_coverage config then config { validate = True } else config
 
   (in_out, init_state, b, _, entry_f@(Id (Name _ mb_modname _ _) _), all_mods) <-
         runG2FromFile proj [src] gFlags (fmap T.pack m_assume)
                   (fmap T.pack m_assert) (fmap T.pack m_reaches) 
                   (isJust m_assert || isJust m_reaches || m_retsTrue) 
-                  tentry simplTranslationConfig config
+                  tentry simplTranslationConfig config'
 
   let (unspecified_output, spec_output) = L.partition (\ExecRes { final_state = s } -> getExpr s == Prim UnspecifiedOutput TyBottom) in_out
   
@@ -59,16 +60,16 @@ runWithArgs as = do
                                                                     Nothing -> False ) in_out
   let timeouts = filter (\res@ExecRes{validated = val} -> isNothing val) in_out
 
-  when (validate config) $ do
+  when (validate config') $ do
     if null notValidated then putStrLn "Validated" else putStrLn "There was an error during validation."
     unless (null timeouts) $ putStrLn ("Timeout count: " ++ show (length timeouts))
     
-  when (print_num_post_call_func_arg config) $ do
+  when (print_num_post_call_func_arg config') $ do
         putStrLn $ "Post call states: " ++ show (length spec_output)
         putStrLn $ "Func arg states: " ++ show (length unspecified_output)
 
-  when (measure_coverage config) $ do
-    runHPC src (measure_coverage_with config) (T.unpack $ fromJust mb_modname) entry (filter (\x@ExecRes{validated = val} -> fromMaybe False val) in_out)
+  when (measure_coverage config') $ do
+    runHPC src (measure_coverage_with config') (T.unpack $ fromJust mb_modname) entry (filter (\x@ExecRes{validated = val} -> fromMaybe False val) in_out)
     case in_out of
         s':_ -> do
           let reachable = reachesHPC all_mods (expr_env init_state) (Var entry_f)
