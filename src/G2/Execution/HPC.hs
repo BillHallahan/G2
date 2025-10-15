@@ -38,7 +38,7 @@ deriving instance Monad m => (SM.MonadState (HS.HashSet (Int, T.Text)) (HpcT m))
 type HpcM a = HpcT Identity a
 
 data HpcTracker = HPC {
-                        hpc_ticks :: HM.HashMap (Int, T.Text) TimeSpec -- ^ The HPC ticks that execution has reached mapped to the time each was reached
+                        hpc_ticks :: HM.HashMap (Unique, T.Text) TimeSpec -- ^ The HPC ticks that execution has reached mapped to the time each was reached
 
                       , tick_count :: Int -- ^ Total number of HPC ticks that we could reach
                       , num_reached :: Int -- ^ Total number of HPC ticks currently reached by execution
@@ -76,7 +76,7 @@ unionHpcTracker hpc1 hpc2 =
         , h_print_times = h_print_times hpc1
         , h_print_ticks = h_print_ticks hpc1 }
 
-hpcInsert :: MonadIO m => Int -> T.Text -> HpcTracker -> m HpcTracker
+hpcInsert :: MonadIO m => Unique -> T.Text -> HpcTracker -> m HpcTracker
 hpcInsert i t hpc@(HPC { hpc_ticks = tr, num_reached = nr }) =
     case HM.member (i, t) tr of
         True -> return hpc
@@ -166,7 +166,7 @@ afterHPC = do
 showTS :: TimeSpec -> String
 showTS (TimeSpec { sec = s, nsec = n }) = let str_n = show n in show s ++ "." ++ replicate (9 - length str_n) '0' ++ show n
 
-getHPCTicks :: HS.HashSet (Maybe T.Text) -> Expr -> [(Int, T.Text)]
+getHPCTicks :: HS.HashSet (Maybe T.Text) -> Expr -> [(Unique, T.Text)]
 getHPCTicks m (Tick (HpcTick i m2) _) | Just m2 `HS.member` m = [(i, m2)]
 getHPCTicks _ _ = []
 
@@ -175,7 +175,7 @@ getHPCTicks _ _ = []
 -- Length N Subpaths
 -------------------------------------------------------------------------------
 
-newtype LengthNTrack = LNT { unLNT :: HM.HashMap [(Int, T.Text)] Int }
+newtype LengthNTrack = LNT { unLNT :: HM.HashMap [(Unique, T.Text)] Int }
 
 -- | State used by `lengthNSubpathOrderer`.
 lnt :: LengthNTrack
@@ -190,7 +190,7 @@ lnt = LNT HM.empty
 --     You Li, Zhendong Su, Linzhang Wang, Xuandong Li
 lengthNSubpathOrderer :: (MonadIO m, SM.MonadState LengthNTrack m) =>
                          Int -- ^ N, the length of the subpaths to track
-                      -> Orderer m [(Int, T.Text)] Int r t
+                      -> Orderer m [(Unique, T.Text)] Int r t
 lengthNSubpathOrderer n = (mkSimpleOrderer initial order update) { stepOrderer  = step }
     where
         initial _ = []
