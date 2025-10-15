@@ -517,7 +517,7 @@ freeVars' _ _ _ = ([], [])
 alphaReduction :: ASTContainer m Expr => m -> m
 alphaReduction = modifyASTsMonoid alphaReduction'
 
-alphaReduction' :: Max Int -> Expr -> (Expr, Max Int)
+alphaReduction' :: Max Unique -> Expr -> (Expr, Max Unique)
 alphaReduction' mi l@(Lam u i@(Id (Name n m ii lo) t) e) =
     let
         mi' = mi + 1
