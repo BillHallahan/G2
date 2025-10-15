@@ -631,7 +631,7 @@ nonRedPCSymFunc :: Monad m => RedRules m (Maybe SymFuncTicks) t
 nonRedPCSymFunc _
                 s@(State {curr_expr = cexpr
                          , exec_stack = stck
-                         , non_red_path_conds = (nre1, nre2) S.:<| nrs
+                         , non_red_path_conds = (nre1, nre2) :*> nrs
                          })
                         b@(Bindings { name_gen = ng }) =
     
@@ -944,12 +944,12 @@ createNonRed' ng
         (te, ng'') = nonRedBlockerTick ng' v
         e'' = mkApp $ te:es
 
-        nrs' = (e'', Var new_sym_id) S.:<| nrs
+        (ng''', nrs') = addFirstNRPC ng'' e'' (Var new_sym_id) nrs
 
         s' = s { expr_env = eenv'
                , non_red_path_conds = nrs' }
     in
-    Just (s', new_sym_id, e'', ng'')
+    Just (s', new_sym_id, e'', ng''')
 createNonRed' _ _ _ = Nothing
 
 hasMagicTypes :: ASTContainer c Type => KnownValues -> c -> Bool

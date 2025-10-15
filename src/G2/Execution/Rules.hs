@@ -1657,13 +1657,13 @@ retReplaceSymbFuncVar _
         let
             (new_sym, ng') = freshSeededString "sym" ng
             new_sym_id = Id new_sym t
-            nrpc' = non_red_path_conds s S.:|> (ce, Var new_sym_id)
+            (ng'', nrpc') = addNRPC ng' ce (Var new_sym_id) (non_red_path_conds s)
         in
         Just (RuleReturnReplaceSymbFunc, 
             [s { expr_env = E.insertSymbolic new_sym_id eenv
                , curr_expr = CurrExpr Return (Var new_sym_id)
                , non_red_path_conds = nrpc' }]
-            , ng')
+            , ng'')
     | otherwise = Nothing
     where
         notApplyFrame | Just (frm, _) <- S.pop stck = not (isApplyFrame frm)
