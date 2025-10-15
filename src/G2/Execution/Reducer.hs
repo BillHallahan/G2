@@ -1136,7 +1136,7 @@ nonRedPCRedFunc prune _
                 s@(State { expr_env = eenv
                          , curr_expr = cexpr
                          , exec_stack = stck
-                         , non_red_path_conds = (nre1, nre2) S.:<| nrs
+                         , non_red_path_conds = (nre1, nre2) :*> nrs
                          , model = m
                          , tyvar_env = tvnv })
                 b@(Bindings { higher_order_inst = inst })
@@ -1229,7 +1229,7 @@ nonRedPCRedConstFunc _
                      s@(State { expr_env = eenv
                               , curr_expr = cexpr
                               , exec_stack = stck
-                              , non_red_path_conds = (nre1, nre2) S.:<| nrs
+                              , non_red_path_conds = (nre1, nre2) :*> nrs
                               , model = m
                               , tyvar_env = tvnv })
                      b@(Bindings { name_gen = ng })

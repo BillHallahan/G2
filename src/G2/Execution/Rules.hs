@@ -1128,8 +1128,10 @@ retCurrExpr s@(State { expr_env = eenv, known_values = kv, tyvar_env = tvnv }) e
                                 let
                                     (p_e1', ng_') = addNRPCTick ng_ p_e1
                                     (p_e2', ng_'') = addNRPCTick ng_' p_e2
+                                    
+                                    (ng_''', nrpcs') = addFirstNRPC ng_'' p_e1' p_e2' nrpcs
                                 in
-                                (ng_'', (p_e1', p_e2') S.:<| nrpcs))
+                                (ng_''', nrpcs'))
                             (ng, non_red_path_conds s)
                             new_nrpc_pairs
         in
