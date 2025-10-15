@@ -1496,6 +1496,7 @@ inlineNRPC s@(State { expr_env = eenv, non_red_path_conds = nrpc }) =
         inline seen v@(Var (Id n _)) | n `HS.member` seen = v
                                      | Just (E.Conc e) <- E.lookupConcOrSym n eenv
                                      , Data _:_ <- unApp e = inline (HS.insert n seen) e
+                                     | Just (E.Conc (Tick t e)) <- E.lookupConcOrSym n eenv = Tick t (inline seen e)
                                      | Just (E.Conc e@(Var _)) <- E.lookupConcOrSym n eenv = inline (HS.insert n seen) e
         inline seen (App e1 e2) = App (inline seen e1) (inline seen e2)
         inline seen (Tick h e) = Tick h (inline seen e)
