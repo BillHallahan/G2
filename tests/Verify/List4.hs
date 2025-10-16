@@ -38,3 +38,5 @@ count x (y:ys) =
     _ -> count x ys
 
 p2 n xs = count n xs == count n (xs ++ [])
+
+p3 n xs ys = count n xs + count n ys == count n (xs ++ ys)

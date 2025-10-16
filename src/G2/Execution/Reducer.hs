@@ -1884,8 +1884,10 @@ mrContIgnoreNRPCTicks :: GenerateLemma t l
                       -> Either [l] (HM.HashMap Id Expr, HS.HashSet (Expr, Expr))
 mrContIgnoreNRPCTicks genLemma lkp s1 s2 ns hm active n1 n2 e1 e2 =
     case (e1, e2) of
-        (Tick t1 e1', Tick t2 e2') ->
-            moreRestrictive' (mrContIgnoreNRPCTicks genLemma lkp) genLemma lkp s1 s2 ns hm active n1 n2 e1' e2'
+        (Tick t1 e1', _) ->
+            moreRestrictive' (mrContIgnoreNRPCTicks genLemma lkp) genLemma lkp s1 s2 ns hm active n1 n2 e1' e2
+        (_, Tick t2 e2') ->
+            moreRestrictive' (mrContIgnoreNRPCTicks genLemma lkp) genLemma lkp s1 s2 ns hm active n1 n2 e1 e2'
         _ -> Left []
 
 noNewHPCHalter :: SM.MonadState HPCMemoTable m => HS.HashSet (Maybe T.Text) -> Halter m Unique (ExecRes t) t
