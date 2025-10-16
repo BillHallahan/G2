@@ -12,7 +12,6 @@ module G2.Language.NonRedPathConds ( NonRedPathConds
                                    , toListNRPC
                                    , pattern (:*>)
                                    , pattern (:<*)
-                                   , toListInternalNRPC
                                    , getNRPCUnique ) where
 
 import G2.Language.AST
@@ -70,11 +69,8 @@ nullNRPC :: NonRedPathConds -> Bool
 nullNRPC (NRPCs Empty _) = True
 nullNRPC _ = False
 
-toListNRPC :: NonRedPathConds -> [(Expr, Expr)]
+toListNRPC :: NonRedPathConds -> [NRPC]
 toListNRPC = F.toList . nrpcs
-
-toListInternalNRPC :: NonRedPathConds -> [NRPC]
-toListInternalNRPC = F.toList . nrpcs
 
 getNRPCUnique :: NonRedPathConds -> Unique
 getNRPCUnique = nrpc_uniq
