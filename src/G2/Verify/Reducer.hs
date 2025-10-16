@@ -1,6 +1,7 @@
 {-# LANGUAGE FlexibleContexts, MultiWayIf, OverloadedStrings #-}
 
-module G2.Verify.Reducer ( nrpcAnyCallReducer
+module G2.Verify.Reducer ( NRPCMemo
+                         , nrpcAnyCallReducer
                          , verifySolveNRPC
                          , verifyHigherOrderHandling
                          , approximationHalter
@@ -22,17 +23,20 @@ import G2.Solver
 
 import Control.Monad.IO.Class
 import qualified Control.Monad.State as SM
+import qualified Data.HashMap.Strict as HM
 import qualified Data.HashSet as HS
 import Data.List
 import Data.Maybe
 import Data.Sequence
+
+type NRPCMemo = HM.HashMap Expr Id
 
 -- | When a newly reached function application is approximated by a previously seen (and thus explored) function application,
 -- shift the new function application into the NRPCs.
 nrpcAnyCallReducer :: MonadIO m =>
                       HS.HashSet Name -- ^ Names of functions that should not be approximated
                    -> Config
-                   -> Reducer m Int t
+                   -> Reducer m Int NRPCMemo
 nrpcAnyCallReducer no_nrpc_names config =
     (mkSimpleReducer (const 0) red)
             { onAccept = \s b nrpc_count -> do
@@ -45,28 +49,32 @@ nrpcAnyCallReducer no_nrpc_names config =
         red rv s@(State { curr_expr = CurrExpr _ ce, expr_env = eenv, tyvar_env = tvnv }) b@(Bindings { name_gen = ng })
             | maybe True (allowed_frame . fst) (Stck.pop (exec_stack s))
             
-            , let wrapped_ce = applyWrap (getExpr s) (exec_stack s)
-            , v@(Var (Id n _)):es@(_:_) <- unApp . stripNRBT $ wrapped_ce = do
+            , let (e, stripped_stack) = applyWrap (getExpr s) (exec_stack s)
+            , v@(Var (Id n _)):es@(_:_) <- unApp . stripNRBT $ e = do
                 -- Given a function call `f x1 ... xn`, we move the entire call to `f` into an NRPC.
                 -- Note that createNewCond wraps the function call with a Tick.
                 -- This prevents that same function call from being immediately turned back into an NRPC
                 -- when it is removed from the NRPCs.
-                let e = applyWrap (getExpr s) (exec_stack s)
-                    nr_s_ng = if
-                                -- Line (*) make sure we don't add back to NRPCs immediately.
-                                | not (hasNRBT wrapped_ce) -- (*)
-                                , Var (Id n _):_:_ <- unApp e
 
-                                , Just n' <- E.deepLookupVar n eenv
-                                , not (n' `HS.member` no_nrpc_names)
-                                , not (E.isSymbolic n' eenv)
+                    -- Line (*) make sure we don't add back to NRPCs immediately.
+                if  | not (hasNRBT e) -- (*)
+                    , Var (Id n _):_:_ <- unApp e
 
-                                , not . isTyFun . typeOf tvnv $ e -> createNonRed ng s
-                                | otherwise -> Nothing
-                
-                case nr_s_ng of
-                    Just (nr_s, _, _, ng') -> return (Finished, [(nr_s, rv + 1)], b { name_gen = ng' })
-                    _ -> return (Finished, [(s, rv)], b)
+                    , Just n' <- E.deepLookupVar n eenv
+                    , not (n' `HS.member` no_nrpc_names)
+                    , not (E.isSymbolic n' eenv)
+
+                    , not . isTyFun . typeOf tvnv $ e ->
+                        case HM.lookup e (track s) of
+                            Just sym -> do
+                                let s' = s { curr_expr = CurrExpr Evaluate (Var sym), exec_stack = stripped_stack }
+                                return (Finished, [(s', rv)], b)
+                            Nothing -> case createNonRed ng s of
+                                            Just (nr_s, new_sym, _, ng') -> do
+                                                let memo = HM.insert e new_sym $ track s
+                                                return (Finished, [(nr_s { track = memo }, rv + 1)], b { name_gen = ng' })
+                                            _ -> return (Finished, [(s, rv)], b)
+                    | otherwise -> return (Finished, [(s, rv)], b)
             | Tick nl (Var (Id n _)) <- ce
             , isNonRedBlockerTick nl
             , Just e <- E.lookup n eenv = return (Finished, [(s { curr_expr = CurrExpr Evaluate e }, rv)], b)
@@ -76,7 +84,7 @@ nrpcAnyCallReducer no_nrpc_names config =
         allowed_frame _ = True
 
         applyWrap e stck | Just (ApplyFrame a, stck') <- Stck.pop stck = applyWrap (App e a) stck'
-                         | otherwise = e
+                         | otherwise = (e, stck)
         
         stripNRBT (Tick nl e) | isNonRedBlockerTick nl = e
         stripNRBT (App e1 e2) = App (stripNRBT e1) e2

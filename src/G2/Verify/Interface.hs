@@ -23,6 +23,7 @@ import G2.Verify.Reducer
 import Control.Exception
 import Control.Monad.IO.Class
 import qualified Control.Monad.State as SM
+import qualified Data.HashMap.Strict as HM
 import qualified Data.HashSet as S
 import Data.IORef
 import Data.Maybe
@@ -30,11 +31,11 @@ import System.Clock
 import qualified G2.Language.TyVarEnv as TV
 
 data VerifyResult = Verified
-                  | Counterexample [ExecRes ()]
+                  | Counterexample [ExecRes NRPCMemo]
                   | VerifyTimeOut
                   deriving (Show, Read)
 
-type VerStack m = SM.StateT (ApproxPrevs ())
+type VerStack m = SM.StateT (ApproxPrevs NRPCMemo)
                         (SM.StateT LengthNTrack
                             (SM.StateT PrettyGuide m))
 
@@ -46,9 +47,9 @@ verifyRedHaltOrd :: (MonadIO m, Solver solver, Simplifier simplifier) =>
                  -> VerifyConfig
                  -> S.HashSet Name -- ^ Names of functions that should not result in a larger expression become EXEC,
                                    -- but should not be added to the NRPC at the top level.
-                 -> IO ( SomeReducer (VerStack m) ()
-                       , SomeHalter (VerStack m) (ExecRes ()) ()
-                       , SomeOrderer (VerStack m) (ExecRes ()) ()
+                 -> IO ( SomeReducer (VerStack m) NRPCMemo
+                       , SomeHalter (VerStack m) (ExecRes NRPCMemo) NRPCMemo
+                       , SomeOrderer (VerStack m) (ExecRes NRPCMemo) NRPCMemo
                        , IORef TimedOut)
 verifyRedHaltOrd s solver simplifier config verify_config no_nrpc_names = do
     time_logger <- acceptTimeLogger
@@ -173,14 +174,15 @@ verifyFromFile proj src f transConfig config verify_config = do
 
     init_time <- getTime Realtime
     rho <- verifyRedHaltOrd state' solver simplifier config' verify_config (S.fromList no_nrpc_names)
-    let to = case rho of (_, _, _, to_)-> to_
+    let state'' = state' { track = HM.empty }
+        to = case rho of (_, _, _, to_)-> to_
     (er, bindings''') <-
             case rho of
                 (red, hal, ord, _) ->
                         SM.evalStateT
                                 (SM.evalStateT
                                     (SM.evalStateT
-                                        (runG2WithSomes' red hal ord [] solver simplifier state' bindings'')
+                                        (runG2WithSomes' red hal ord [] solver simplifier state'' bindings'')
                                         emptyApproxPrevs
                                     )
                                     lnt
