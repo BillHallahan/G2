@@ -198,6 +198,8 @@ initStateFromSimpleState s m_mod useAssert mkCurr argTys config =
                     , symbolic_value_ids = val_is
                     , in_coercion = m_coercion
                     , mkce_namegen = ng'' } = mkCurr tc' ng' eenv' tenv' kv' config
+
+        (empty_nrpc, ng''') = emptyNRPC ng''
     in
     (State {
       expr_env = foldr E.insertSymbolic eenv' val_is
@@ -206,7 +208,7 @@ initStateFromSimpleState s m_mod useAssert mkCurr argTys config =
     , poly_arg_map = PM.empty
     , curr_expr = CurrExpr Evaluate ce
     , path_conds = PC.fromList []
-    , non_red_path_conds = emptyNRPC
+    , non_red_path_conds = empty_nrpc
     , handles = hs
     , mutvar_env = HM.empty
     , true_assert = if useAssert || check_asserts config then False else True
@@ -233,7 +235,7 @@ initStateFromSimpleState s m_mod useAssert mkCurr argTys config =
     , input_coercion = m_coercion
     , higher_order_inst = S.filter (\n -> nameModule n `elem` m_mod) . S.fromList $ IT.exports s
     , rewrite_rules = IT.rewrite_rules s
-    , name_gen = ng''
+    , name_gen = ng'''
     , exported_funcs = IT.exports s })
 
 mkArgTys :: TV.TyVarEnv -> Expr -> MkArgTypes

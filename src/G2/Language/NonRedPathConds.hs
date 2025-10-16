@@ -3,6 +3,7 @@
 module G2.Language.NonRedPathConds ( NonRedPathConds
                                    , NRPC
                                    , emptyNRPC
+                                   , emptyNRPCNonUniq
                                    , addNRPC
                                    , addFirstNRPC
                                    , getNRPC
@@ -24,23 +25,32 @@ import Data.Sequence
 import GHC.Generics
 
 type NRPC = (Expr, Expr)
-newtype NonRedPathConds = NRPCs { nrpcs :: Seq NRPC }
+data NonRedPathConds = NRPCs { nrpcs :: Seq NRPC, nrpc_uniq :: Unique }
                           deriving (Eq, Read, Show, Data, Generic, Typeable)
 
 instance Hashable NonRedPathConds
 
-emptyNRPC :: NonRedPathConds
-emptyNRPC = NRPCs Empty
+emptyNRPC :: NameGen -> (NonRedPathConds, NameGen)
+emptyNRPC ng = let (uniq, ng') = freshUnique ng in (NRPCs Empty uniq, ng')
+
+emptyNRPCNonUniq :: NonRedPathConds
+emptyNRPCNonUniq = NRPCs Empty (-1)
 
 addNRPC :: NameGen -> Expr -> Expr -> NonRedPathConds -> (NameGen, NonRedPathConds)
-addNRPC ng e1 e2 (NRPCs nrpc) =
-    let (e1', e2') = varOnRight e1 e2 in
-    (ng, NRPCs $ nrpc :|> (e1', e2'))
+addNRPC ng e1 e2 (NRPCs nrpc _) =
+    let
+        (e1', e2') = varOnRight e1 e2
+        (uniq, ng') = freshUnique ng
+    in
+    (ng', NRPCs (nrpc :|> (e1', e2')) uniq)
 
 addFirstNRPC :: NameGen -> Expr -> Expr -> NonRedPathConds -> (NameGen, NonRedPathConds)
-addFirstNRPC ng e1 e2 (NRPCs nrpc) =
-    let (e1', e2') = varOnRight e1 e2 in
-    (ng, NRPCs $ (e1', e2') :<| nrpc)
+addFirstNRPC ng e1 e2 (NRPCs nrpc _) =
+    let
+        (e1', e2') = varOnRight e1 e2
+        (uniq, ng') = freshUnique ng
+    in
+    (ng', NRPCs ((e1', e2') :<| nrpc) uniq)
 
 varOnRight :: Expr -> Expr -> (Expr, Expr)
 varOnRight e1@(Var _) e2 = (e2, e1)
@@ -48,15 +58,15 @@ varOnRight e1@(Tick _ (Var _)) e2 = (e2, e1)
 varOnRight e1 e2 = (e1, e2)
 
 getNRPC :: NonRedPathConds -> Maybe ((Expr, Expr), NonRedPathConds)
-getNRPC (NRPCs Empty) = Nothing
-getNRPC (NRPCs ((e1, e2) :<| nrpc)) = Just ((e1, e2), NRPCs nrpc)
+getNRPC (NRPCs Empty _) = Nothing
+getNRPC (NRPCs ((e1, e2) :<| nrpc) uniq) = Just ((e1, e2), NRPCs nrpc uniq)
 
 getLastNRPC :: NonRedPathConds -> Maybe ((Expr, Expr), NonRedPathConds)
-getLastNRPC (NRPCs Empty) = Nothing
-getLastNRPC (NRPCs (nrpc :|> (e1, e2))) = Just ((e1, e2), NRPCs nrpc)
+getLastNRPC (NRPCs Empty _) = Nothing
+getLastNRPC (NRPCs (nrpc :|> (e1, e2)) uniq) = Just ((e1, e2), NRPCs nrpc uniq)
 
 nullNRPC :: NonRedPathConds -> Bool
-nullNRPC (NRPCs Empty) = False
+nullNRPC (NRPCs Empty _) = False
 nullNRPC _ = True
 
 toListNRPC :: NonRedPathConds -> [(Expr, Expr)]
@@ -73,13 +83,13 @@ pattern nrpc :<* e1_e2 <- (getLastNRPC -> Just (e1_e2, nrpc))
 
 instance ASTContainer NonRedPathConds Expr where
     containedASTs = containedASTs . nrpcs
-    modifyContainedASTs f (NRPCs nrpc) = NRPCs { nrpcs = modifyContainedASTs f nrpc } 
+    modifyContainedASTs f (NRPCs nrpc uniq) = NRPCs { nrpcs = modifyContainedASTs f nrpc, nrpc_uniq = uniq } 
 
 instance ASTContainer NonRedPathConds Type where
     containedASTs = containedASTs . nrpcs
-    modifyContainedASTs f (NRPCs nrpc) = NRPCs { nrpcs = modifyContainedASTs f nrpc } 
+    modifyContainedASTs f (NRPCs nrpc uniq) = NRPCs { nrpcs = modifyContainedASTs f nrpc, nrpc_uniq = uniq } 
 
 instance Named NonRedPathConds where
-    names (NRPCs nrpc) = names nrpc
-    rename old new (NRPCs nrpc) = NRPCs (rename old new nrpc)
-    renames hm (NRPCs nrpc) = NRPCs (renames hm nrpc)
+    names (NRPCs nrpc _) = names nrpc
+    rename old new (NRPCs nrpc uniq) = NRPCs (rename old new nrpc) uniq
+    renames hm (NRPCs nrpc uniq) = NRPCs (renames hm nrpc) uniq
