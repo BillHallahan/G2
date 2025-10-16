@@ -631,7 +631,7 @@ nonRedPCSymFunc :: Monad m => RedRules m (Maybe SymFuncTicks) t
 nonRedPCSymFunc _
                 s@(State {curr_expr = cexpr
                          , exec_stack = stck
-                         , non_red_path_conds = (nre1, nre2) S.:<| nrs
+                         , non_red_path_conds = (nre1, nre2) :*> nrs
                          })
                         b@(Bindings { name_gen = ng }) =
     
@@ -944,12 +944,12 @@ createNonRed' ng
         (te, ng'') = nonRedBlockerTick ng' v
         e'' = mkApp $ te:es
 
-        nrs' = (e'', Var new_sym_id) S.:<| nrs
+        (ng''', nrs') = addFirstNRPC ng'' e'' (Var new_sym_id) nrs
 
         s' = s { expr_env = eenv'
                , non_red_path_conds = nrs' }
     in
-    Just (s', new_sym_id, e'', ng'')
+    Just (s', new_sym_id, e'', ng''')
 createNonRed' _ _ _ = Nothing
 
 hasMagicTypes :: ASTContainer c Type => KnownValues -> c -> Bool
@@ -1136,7 +1136,7 @@ nonRedPCRedFunc prune _
                 s@(State { expr_env = eenv
                          , curr_expr = cexpr
                          , exec_stack = stck
-                         , non_red_path_conds = (nre1, nre2) S.:<| nrs
+                         , non_red_path_conds = (nre1, nre2) :*> nrs
                          , model = m
                          , tyvar_env = tvnv })
                 b@(Bindings { higher_order_inst = inst })
@@ -1229,7 +1229,7 @@ nonRedPCRedConstFunc _
                      s@(State { expr_env = eenv
                               , curr_expr = cexpr
                               , exec_stack = stck
-                              , non_red_path_conds = (nre1, nre2) S.:<| nrs
+                              , non_red_path_conds = (nre1, nre2) :*> nrs
                               , model = m
                               , tyvar_env = tvnv })
                      b@(Bindings { name_gen = ng })
@@ -1884,8 +1884,10 @@ mrContIgnoreNRPCTicks :: GenerateLemma t l
                       -> Either [l] (HM.HashMap Id Expr, HS.HashSet (Expr, Expr))
 mrContIgnoreNRPCTicks genLemma lkp s1 s2 ns hm active n1 n2 e1 e2 =
     case (e1, e2) of
-        (Tick t1 e1', Tick t2 e2') | t1 /= t2 ->
-            moreRestrictive' (mrContIgnoreNRPCTicks genLemma lkp) genLemma lkp s1 s2 ns hm active n1 n2 e1' e2'
+        (Tick t1 e1', _) ->
+            moreRestrictive' (mrContIgnoreNRPCTicks genLemma lkp) genLemma lkp s1 s2 ns hm active n1 n2 e1' e2
+        (_, Tick t2 e2') ->
+            moreRestrictive' (mrContIgnoreNRPCTicks genLemma lkp) genLemma lkp s1 s2 ns hm active n1 n2 e1 e2'
         _ -> Left []
 
 noNewHPCHalter :: SM.MonadState HPCMemoTable m => HS.HashSet (Maybe T.Text) -> Halter m Unique (ExecRes t) t

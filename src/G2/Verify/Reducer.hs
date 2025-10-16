@@ -93,7 +93,7 @@ verifySolveNRPC = mkSimpleReducer (const ()) red
         red _
                         s@(State {curr_expr = cexpr
                                 , exec_stack = stck
-                                , non_red_path_conds = nrs :|> (nre1, nre2)
+                                , non_red_path_conds = nrs :<* (nre1, nre2)
                                 })
                                 b@(Bindings { name_gen = ng }) =
             

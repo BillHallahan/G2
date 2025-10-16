@@ -350,7 +350,10 @@ moreRestrictiveNRPC :: Show l => MRCont t l
                     -> NonRedPathConds
                     -> NonRedPathConds
                     -> Either [l] (HM.HashMap Id Expr, HS.HashSet (Expr, Expr))
-moreRestrictiveNRPC mr_cont gen_lemma lkp s1 s2 ns init_hm nrpc1 nrpc2 = matchNRPCs init_hm (toListNRPC nrpc1) (toListNRPC nrpc2)
+moreRestrictiveNRPC mr_cont gen_lemma lkp s1 s2 ns init_hm nrpc1 nrpc2
+  | getNRPCUnique nrpc1 == getNRPCUnique nrpc2
+  , not (nullNRPC nrpc1) || not (nullNRPC nrpc2) = Left []
+  | otherwise = matchNRPCs init_hm (toListNRPC nrpc1) (toListNRPC nrpc2)
   where
     matchNRPCs hm [] _ = Right hm
     matchNRPCs hm ((eL_1, eR_1):ns1) ns2 = do
