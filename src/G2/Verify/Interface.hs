@@ -54,7 +54,13 @@ verifyRedHaltOrd s solver simplifier config verify_config no_nrpc_names = do
     time_logger <- acceptTimeLogger
     (time_halter, io_timed_out) <- stdTimerHalter (fromInteger . toInteger $ timeLimit config)
 
-    m_logger <- fmap SomeReducer <$> getLimLogger config
+    let labelApproxPoints s
+            | Data (DataCon { dc_name = d }) <- getExpr s
+            , d == dc_name (mkDCFalse (known_values s) (type_env s)) =
+                                    "state" ++ show (length $ rules s) ++ "_ap"
+            | otherwise = "state" ++ show (length $ rules s)
+
+    m_logger <- fmap SomeReducer <$> getLimLogger' labelApproxPoints config
 
     let share = sharing config
 
