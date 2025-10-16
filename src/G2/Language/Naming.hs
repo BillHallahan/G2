@@ -984,7 +984,7 @@ instance (Named k, Named v, Eq k, Hashable k) => Named (UF.UFMap k v) where
     renames hm = UF.fromList . renames hm . UF.toList
 
 freshUnique :: NameGen -> (Unique, NameGen)
-freshUnique (NameGen i) = let !i' = i + 1 in (i, NameGen i')
+freshUnique (NameGen i) = let !i' = i + 1 in (i', NameGen i')
 
 freshSeededString :: T.Text -> NameGen -> (Name, NameGen)
 freshSeededString t = freshSeededName (Name t Nothing 0 Nothing)

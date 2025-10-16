@@ -12,7 +12,8 @@ module G2.Language.NonRedPathConds ( NonRedPathConds
                                    , toListNRPC
                                    , pattern (:*>)
                                    , pattern (:<*)
-                                   , toListInternalNRPC) where
+                                   , toListInternalNRPC
+                                   , getNRPCUnique ) where
 
 import G2.Language.AST
 import G2.Language.Naming
@@ -34,7 +35,7 @@ emptyNRPC :: NameGen -> (NonRedPathConds, NameGen)
 emptyNRPC ng = let (uniq, ng') = freshUnique ng in (NRPCs Empty uniq, ng')
 
 emptyNRPCNonUniq :: NonRedPathConds
-emptyNRPCNonUniq = NRPCs Empty (-1)
+emptyNRPCNonUniq = NRPCs Empty 0
 
 addNRPC :: NameGen -> Expr -> Expr -> NonRedPathConds -> (NameGen, NonRedPathConds)
 addNRPC ng e1 e2 (NRPCs nrpc _) =
@@ -66,14 +67,17 @@ getLastNRPC (NRPCs Empty _) = Nothing
 getLastNRPC (NRPCs (nrpc :|> (e1, e2)) uniq) = Just ((e1, e2), NRPCs nrpc uniq)
 
 nullNRPC :: NonRedPathConds -> Bool
-nullNRPC (NRPCs Empty _) = False
-nullNRPC _ = True
+nullNRPC (NRPCs Empty _) = True
+nullNRPC _ = False
 
 toListNRPC :: NonRedPathConds -> [(Expr, Expr)]
 toListNRPC = F.toList . nrpcs
 
 toListInternalNRPC :: NonRedPathConds -> [NRPC]
 toListInternalNRPC = F.toList . nrpcs
+
+getNRPCUnique :: NonRedPathConds -> Unique
+getNRPCUnique = nrpc_uniq
 
 pattern (:*>) :: (Expr, Expr) -> NonRedPathConds -> NonRedPathConds
 pattern e1_e2 :*> nrpc <- (getNRPC -> Just (e1_e2, nrpc))

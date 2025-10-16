@@ -23,7 +23,6 @@ instance Eq Nat where
 Z     + y = y
 (S x) + y = S (x + y)
 
-
 data AB = A | B
 
 instance Eq AB where
