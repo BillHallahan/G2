@@ -57,8 +57,10 @@ verifyRedHaltOrd s solver simplifier config verify_config no_nrpc_names = do
     let labelApproxPoints s
             | Data (DataCon { dc_name = d }) <- getExpr s
             , d == dc_name (mkDCFalse (known_values s) (type_env s)) =
-                                    "state" ++ show (length $ rules s) ++ "_ap"
-            | otherwise = "state" ++ show (length $ rules s)
+                                    "state" ++ show (length $ rules s) ++ lemma ++ "_ap"
+            | otherwise = "state" ++ show (length $ rules s) ++ lemma
+            where
+                lemma = if isLemmaState s then "_lemma"else ""
 
     m_logger <- fmap SomeReducer <$> getLimLogger' labelApproxPoints config
 
@@ -92,7 +94,7 @@ verifyRedHaltOrd s solver simplifier config verify_config no_nrpc_names = do
                                         SomeReducer nrpc_approx .~> logger_std_red f
                                 False -> logger_std_red f
         
-        lemma_red f = SomeReducer (lemmaGen solver no_nrpc_names) .~> nrpc_approx_red f
+        lemma_red f = nrpc_approx_red f
 
         halter = switchEveryNHalter 20
                  <~> acceptIfViolatedHalter

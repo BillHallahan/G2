@@ -1846,7 +1846,8 @@ approximationHalter' stop_cond solver no_inline = mkSimpleHalter
                 --     putStrLn $ "approx halter log_path s = " ++ show (log_path s) ++ " " ++ show (num_steps s)
                 xs <- SM.gets getApproxHalt
                 let xs' = filter (\x -> num_steps x < num_steps s') xs
-                approx <- liftIO $ findM (\prev -> moreRestrictiveIncludingPCAndNRPC
+                approx <- liftIO $ findM (\prev -> do
+                                                mr <- moreRestrictiveIncludingPCAndNRPC
                                                         solver
                                                         mr_cont
                                                         gen_lemma
@@ -1854,8 +1855,9 @@ approximationHalter' stop_cond solver no_inline = mkSimpleHalter
                                                         no_inline
                                                         prev
                                                         s'
+                                                return $ mr && stop_cond pr s prev
                                                 ) xs'
-                if isJust approx && stop_cond pr s (fromJust approx)
+                if isJust approx
                     then do
                         liftIO $ do
                             let approx' = fromJust approx

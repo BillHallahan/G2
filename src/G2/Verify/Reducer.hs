@@ -10,6 +10,8 @@ module G2.Verify.Reducer ( VerifierData
                          , lemmaGen
                          , approximationHalter
                          , lemmaHalter
+
+                        , isLemmaState
                          
                          , discardOnFalse
                          , currExprIsFalse
