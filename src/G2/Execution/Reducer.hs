@@ -7,6 +7,7 @@
 {-# LANGUAGE TupleSections, UndecidableInstances #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE CPP #-}
+{-# LANGUAGE InstanceSigs #-}
 
 {-| Module: G2.Execution.Reducer
 
@@ -48,6 +49,8 @@ module G2.Execution.Reducer ( Reducer (..)
                             , SomeHalter (..)
                             , SomeOrderer (..)
 
+                            , getExState
+
                             -- * Reducers
                             , InitReducer
                             , RedRules
@@ -69,6 +72,7 @@ module G2.Execution.Reducer ( Reducer (..)
                             , createNonRed'
                             , isNonRedBlockerTick
 
+                            , ApproxHalterLog (..)
                             , ApproxPrevs
                             , emptyApproxPrevs
                             , nrpcApproxReducer
@@ -114,6 +118,7 @@ module G2.Execution.Reducer ( Reducer (..)
 
                             , hpcApproximationHalter
                             , approximationHalter'
+                            , mrContIgnoreNRPCTicks
                             
                             , HPCMemoTable
                             , noNewHPCHalter
@@ -207,6 +212,9 @@ data ExState rv hv sov t = ExState { state :: State t
                                    , halter_val :: hv
                                    , order_val :: sov
                                    }
+
+getExState :: ExState rv hv sov t -> State t
+getExState = state
 
 -- | Keeps track of type a's that have either been accepted or dropped
 data Processed acc dis = Processed { accepted :: [acc]
@@ -1788,18 +1796,30 @@ varLookupLimitHalter lim = mkSimpleHalter
         step l _ _ (State { curr_expr = CurrExpr Evaluate (Var _) }) = l - 1
         step l _ _ _ = l
 
-hpcApproximationHalter :: (Named t, Solver solver, SM.MonadState (ApproxPrevs t) m, MonadIO m) =>
+class ApproxHalterLog a t where
+    getApproxHalt :: a -> [State t]
+    putApproxHalt :: State t -> a -> a
+
+instance ApproxHalterLog (ApproxPrevs t) t where
+    getApproxHalt = ap_halter_states
+    putApproxHalt s a = a { ap_halter_states = s:(ap_halter_states a) }
+
+
+hpcApproximationHalter :: (Named t, Solver solver, ApproxHalterLog a t, SM.MonadState a m, MonadIO m) =>
                           solver
                        -> HS.HashSet Name -- ^ Names that should not be inlined (often: top level names from the original source code)
                        -> Halter m () (ExecRes  t) t
 hpcApproximationHalter = approximationHalter' stop_cond
     where
-        stop_cond pr s =
+        stop_cond pr s _ =
             let acc_seen_hpc = HS.unions (map (reached_hpc . final_state) $ accepted pr) in
             HS.null $ HS.difference (reached_hpc s) acc_seen_hpc
 
-approximationHalter' :: (Named t, Solver solver, SM.MonadState (ApproxPrevs t) m, MonadIO m) =>
-                        (Processed r (State t) -> State t -> Bool) -- ^ Approximated states are discarded only if they match this condition
+approximationHalter' :: (Named t, Solver solver, ApproxHalterLog a t, SM.MonadState a m, MonadIO m) =>
+                        (  Processed r (State t)
+                        -> State t -- ^ The state we are considering halting
+                        -> State t -- ^ The approximating state
+                        -> Bool) -- ^ Approximated states are discarded only if they match this condition
                      -> solver
                      -> HS.HashSet Name -- ^ Names that should not be inlined (often: top level names from the original source code)
                      -> Halter m () r t
@@ -1824,7 +1844,7 @@ approximationHalter' stop_cond solver no_inline = mkSimpleHalter
             , not . isTyFun . (typeOf tvnv) $ e = do
                 -- liftIO $ do
                 --     putStrLn $ "approx halter log_path s = " ++ show (log_path s) ++ " " ++ show (num_steps s)
-                xs <- SM.gets ap_halter_states
+                xs <- SM.gets getApproxHalt
                 let xs' = filter (\x -> num_steps x < num_steps s') xs
                 approx <- liftIO $ findM (\prev -> moreRestrictiveIncludingPCAndNRPC
                                                         solver
@@ -1835,7 +1855,7 @@ approximationHalter' stop_cond solver no_inline = mkSimpleHalter
                                                         prev
                                                         s'
                                                 ) xs'
-                if isJust approx && stop_cond pr s
+                if isJust approx && stop_cond pr s (fromJust approx)
                     then do
                         liftIO $ do
                             let approx' = fromJust approx
@@ -1849,7 +1869,7 @@ approximationHalter' stop_cond solver no_inline = mkSimpleHalter
                         --     putStrLn $ "    !!!modifying with " ++ show (log_path s') ++ " " ++ show (num_steps s)
                         --     putStrLn $ "    !!! stck s = " ++ show (exec_stack s)
                         --     putStrLn $ "    !!! stck s' = " ++ show (exec_stack s')
-                        SM.modify ((\ap -> ap { ap_halter_states = s':xs }))
+                        SM.modify (putApproxHalt s')
                         return Continue
         -- stop _ _ s | log_path s == [1, 1, 1, 1]
         --            , num_steps s == 103

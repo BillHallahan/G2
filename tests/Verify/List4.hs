@@ -1,6 +1,6 @@
 module List4 where
 
-import Prelude hiding (Num (..), zip)
+import Prelude hiding (Num (..), Ord (..), zip)
 
 zip [] _ = []
 zip _ [] = []
@@ -13,12 +13,16 @@ zipConcat x xs (y:ys) = (x, y) : zip xs ys
 p1 x xs ys = zip (x:xs) ys == zipConcat x xs ys
 
 data Nat = S Nat | Z
-  deriving (Show,Ord)
+  deriving Show
 
 instance Eq Nat where
   Z == Z = True
   S p1 == S p2 = p1 == p2
   _ == _ = False
+
+Z     <= _     = True
+_     <= Z     = False
+(S x) <= (S y) = x <= y
 
 Z     + y = y
 (S x) + y = S (x + y)
@@ -40,3 +44,13 @@ count x (y:ys) =
 p2 n xs = count n xs == count n (xs ++ [])
 
 p3 n xs ys = count n xs + count n ys == count n (xs ++ ys)
+
+len :: [a] -> Nat
+len [] = Z
+len (_:xs) = S (len xs)
+
+f :: [AB] -> [AB]
+f [] = []
+f (_:xs) = f xs
+
+p4 xs = len (f xs) <= len xs

@@ -34,7 +34,7 @@ data VerifyResult = Verified
                   | VerifyTimeOut
                   deriving (Show, Read)
 
-type VerStack m = SM.StateT (ApproxPrevs ())
+type VerStack m = SM.StateT (VerifierData ())
                         (SM.StateT LengthNTrack
                             (SM.StateT PrettyGuide m))
 
@@ -91,11 +91,14 @@ verifyRedHaltOrd s solver simplifier config verify_config no_nrpc_names = do
                                 True -> let nrpc_approx = nrpcAnyCallReducer no_nrpc_names config in
                                         SomeReducer nrpc_approx .~> logger_std_red f
                                 False -> logger_std_red f
+        
+        lemma_red f = SomeReducer (lemmaGen solver no_nrpc_names) .~> nrpc_approx_red f
 
         halter = switchEveryNHalter 20
                  <~> acceptIfViolatedHalter
                  <~> time_halter
                  <~> discardOnFalse
+                 <~> lemmaHalter
 
         halter_approx_discard = case approx verify_config of
                                         True -> SomeHalter (approximationHalter solver approx_no_inline <~> halter)
@@ -105,7 +108,7 @@ verifyRedHaltOrd s solver simplifier config verify_config no_nrpc_names = do
                         Subpath -> SomeOrderer . liftOrderer $ lengthNSubpathOrderer (subpath_length config)
                         Iterative -> SomeOrderer $ pickLeastUsedOrderer
 
-    return ( nrpc_approx_red (\_ _ _ _ -> Nothing) .== Finished --> verifySolveNRPC
+    return ( lemma_red (\_ _ _ _ -> Nothing) .== Finished --> verifySolveNRPC
            , halter_approx_discard
            , orderer
            , io_timed_out)
@@ -187,7 +190,7 @@ verifyFromFile proj src f transConfig config verify_config = do
                                 (SM.evalStateT
                                     (SM.evalStateT
                                         (runG2WithSomes' red hal ord [] solver simplifier state' bindings'')
-                                        emptyApproxPrevs
+                                        initVerifierData
                                     )
                                     lnt
                                 )
@@ -199,9 +202,12 @@ verifyFromFile proj src f transConfig config verify_config = do
     accept_time <- getTime Realtime
     let diff = diffTimeSpec accept_time init_time
         diff_secs = (fromInteger (toNanoSecs diff)) / (10 ^ (9 :: Int) :: Double)
-    let res = case to' of
+
+    -- Filter out lemma states
+    let main_states = filter (not . S.null . tags . final_state) er
+        res = case to' of
                 TimedOut -> VerifyTimeOut
-                NoTimeOut | false_er <- filter (currExprIsFalse . final_state) er
+                NoTimeOut | false_er <- filter (currExprIsFalse . final_state) main_states
                           , not (null false_er) -> Counterexample false_er
-                          | otherwise -> assert (all (currExprIsTrue . final_state) er) Verified
+                          | otherwise -> assert (all (currExprIsTrue . final_state) main_states) Verified
     return (res, diff_secs, bindings''', entry_f)

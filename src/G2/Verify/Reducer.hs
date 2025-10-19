@@ -1,9 +1,15 @@
-{-# LANGUAGE FlexibleContexts, MultiWayIf, OverloadedStrings #-}
+{-# LANGUAGE FlexibleContexts, FlexibleInstances, MultiParamTypeClasses,
+             MultiWayIf, OverloadedStrings, TupleSections, UndecidableInstances #-}
 
-module G2.Verify.Reducer ( nrpcAnyCallReducer
+module G2.Verify.Reducer ( VerifierData
+                         , initVerifierData
+                         
+                         , nrpcAnyCallReducer
                          , verifySolveNRPC
                          , verifyHigherOrderHandling
+                         , lemmaGen
                          , approximationHalter
+                         , lemmaHalter
                          
                          , discardOnFalse
                          , currExprIsFalse
@@ -16,16 +22,32 @@ import G2.Language
 import G2.Language.Approximation
 import qualified G2.Language.ExprEnv as E
 import G2.Language.KnownValues
+import G2.Language.NonRedPathConds
 import qualified G2.Language.Stack as Stck
 import qualified G2.Language.Typing as T
 import G2.Solver
 
+import Control.Monad
+import Control.Monad.Extra
 import Control.Monad.IO.Class
 import qualified Control.Monad.State as SM
 import qualified Data.HashSet as HS
-import Data.List
+import Data.List as L
+import qualified Data.Map as M
 import Data.Maybe
-import Data.Sequence
+import G2.Language.ExprEnv (lookupConcOrSym)
+
+data VerifierData t = VS { approx_states :: [State t] -- ^ States to check for approximation
+                         , generated_lemmas :: [State t] -- ^ States generated as potential lemmas
+                         }
+
+instance ApproxHalterLog (VerifierData t) t where
+    getApproxHalt = approx_states
+    putApproxHalt s a = a { approx_states = s:(approx_states a) }
+
+initVerifierData :: VerifierData t
+initVerifierData = VS { approx_states = []
+                      , generated_lemmas = [] }
 
 -- | When a newly reached function application is approximated by a previously seen (and thus explored) function application,
 -- shift the new function application into the NRPCs.
@@ -151,11 +173,11 @@ verifyHigherOrderHandling = mkSimpleReducer (const ()) red
 
 -- | If a state S has a current expression, path constraints, and NRPC set that are approximated by some
 -- other state S', discard S. Any counterexample discoverable from S is also discoverable from S'.
-approximationHalter :: (Named t, Solver solver, SM.MonadState (ApproxPrevs t) m, MonadIO m) =>
+approximationHalter :: (Named t, Solver solver, SM.MonadState (VerifierData t) m, MonadIO m) =>
                        solver
                     -> HS.HashSet Name -- ^ Names that should not be inlined (often: top level names from the original source code)
                     -> Halter m () r t
-approximationHalter = approximationHalter' (\_ _ -> True)
+approximationHalter = approximationHalter' (\_ s approx -> tags s == tags approx)
 
 -- | Discard all other states if we find a counterexample.
 discardOnFalse :: Monad m => Halter m () (ExecRes t) t
@@ -166,7 +188,7 @@ discardOnFalse = (mkSimpleHalter (\_ -> ())
                     { discardOnStart = \_ pr s -> discard s pr }
     where
         discard (State { expr_env = eenv, known_values = kv }) (Processed { accepted = acc })
-            = any (currExprIsFalse . final_state) acc
+            = any (\(ExecRes { final_state = s }) -> currExprIsFalse s && not (isLemmaState s)) acc
 
 currExprIsBool :: Bool -> State t -> Bool
 currExprIsBool b s = E.deepLookupExpr (getExpr s) (expr_env s) == mkBool (known_values s) b
@@ -176,3 +198,90 @@ currExprIsFalse = currExprIsBool False
 
 currExprIsTrue :: State t -> Bool
 currExprIsTrue = currExprIsBool False
+
+-------------------------------------------------------------------------------
+-- Lemmas
+-------------------------------------------------------------------------------
+
+isLemmaState :: State t -> Bool
+isLemmaState = not . HS.null . tags
+
+lemmaTag :: Name
+lemmaTag = Name "LEMMA" Nothing 0 Nothing
+
+-- Responsible for generating new potential lemmas
+lemmaGen :: (Solver solver, SM.MonadState (VerifierData t) m, Named t, MonadIO m) =>
+            solver
+         -> HS.HashSet Name -- ^ Variables that should not be inlined
+         -> Reducer m () t
+lemmaGen solver no_inline =
+    mkSimpleReducer (const ()) red
+    where
+        red _ s@(State { expr_env = eenv
+                       , curr_expr = CurrExpr _ e
+                       , known_values = kv
+                       , non_red_path_conds = nrpcs })
+              b@(Bindings { name_gen = ng })
+            -- Only try to generate lemmas when we have hit False as the current expression.
+            -- Slightly arbitrary choice, but we get False pretty often, and it stops us having
+            -- to run these checks every step.
+            | e == mkFalse kv
+            , Stck.null (exec_stack s) = do
+                let cand_nrpc = filter (\(_, e2) -> not . isVar $ E.deepLookupExpr e2 eenv) $ toListNRPC nrpcs
+                    (ng', xs) = mapAccumR (createLemma s) ng cand_nrpc
+                
+                gen_lemmas <- SM.gets generated_lemmas
+                let lemmaIsNew s = allM (\gl -> not <$> lemmaEquiv solver no_inline gl s) gen_lemmas
+                xs' <- filterM lemmaIsNew xs
+
+                SM.modify (\a -> a { generated_lemmas = xs' ++ generated_lemmas a})    
+
+                return (Finished, (s, ()):map (, ()) xs', b { name_gen = ng'})
+            | otherwise = return (Finished, [(s, ())], b)
+        
+        isVar (Tick _ e) = isVar e
+        isVar (Var _) = True
+        isVar _ = False
+
+lemmaEquiv :: (Solver solver, Named t, MonadIO m) =>
+              solver
+           -> HS.HashSet Name -- ^ Variables that should not be inlined
+           -> State t
+           -> State t
+           -> m Bool
+lemmaEquiv solver no_inline s1 s2 = do
+    r1 <- liftIO $ mr s1 s2
+    r2 <- liftIO $ mr s2 s1
+    return $ r1 && r2
+    where
+        mr_cont = mrContIgnoreNRPCTicks (\_ _ _ _ _ -> ()) lookupConcOrSymState
+        mr = moreRestrictiveIncludingPCAndNRPC solver mr_cont (\_ _ _ _ _ -> ()) lookupConcOrSymState no_inline
+
+createLemma :: State t ->  NameGen -> NRPC -> (NameGen, State t)
+createLemma s ng (e1, e2) =
+    let
+        (lemma_tag, ng') = freshSeededName lemmaTag ng
+
+        (empty_nrpc, ng'') = emptyNRPC ng'
+        (ng''', nrpc) = addFirstNRPC ng'' e1 e2 empty_nrpc
+
+        s' = s { curr_expr = CurrExpr Return . mkFalse $ known_values s
+               , exec_stack = Stck.empty
+               , non_red_path_conds = nrpc
+               , tags = HS.insert lemma_tag (tags s) }
+    in
+    (ng''', s')              
+
+-- Kill all lemma state if no non-lemma states remain
+lemmaHalter :: Monad m => Halter m () r t
+lemmaHalter =
+    (mkSimpleHalter
+        (const ())
+        (\_ _ _ -> ())
+        (\_ _ _ ->  return Continue)
+        (\_ _ _ _ -> ())) { filterAllStates = fil }
+    where
+        fil m =
+            if all (isLemmaState . getExState) . concat .  M.elems $ m
+                then M.empty
+                else m
