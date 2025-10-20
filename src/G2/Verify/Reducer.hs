@@ -7,7 +7,7 @@ module G2.Verify.Reducer ( VerifierData
                          , nrpcAnyCallReducer
                          , verifySolveNRPC
                          , verifyHigherOrderHandling
-                         , lemmaGen
+                         , lemmaReducer
                          , approximationHalter
                          , lemmaHalter
 
@@ -33,6 +33,7 @@ import Control.Monad
 import Control.Monad.Extra
 import Control.Monad.IO.Class
 import qualified Control.Monad.State as SM
+import qualified Data.HashMap.Lazy as HM
 import qualified Data.HashSet as HS
 import Data.List as L
 import qualified Data.Map as M
@@ -40,7 +41,7 @@ import Data.Maybe
 import G2.Language.ExprEnv (lookupConcOrSym)
 
 data VerifierData t = VS { approx_states :: [State t] -- ^ States to check for approximation
-                         , generated_lemmas :: [State t] -- ^ States generated as potential lemmas
+                         , generated_lemmas :: HM.HashMap Name (State t) -- ^ Lemma tags to the states generated as potential lemmas
                          }
 
 instance ApproxHalterLog (VerifierData t) t where
@@ -49,7 +50,7 @@ instance ApproxHalterLog (VerifierData t) t where
 
 initVerifierData :: VerifierData t
 initVerifierData = VS { approx_states = []
-                      , generated_lemmas = [] }
+                      , generated_lemmas = HM.empty }
 
 -- | When a newly reached function application is approximated by a previously seen (and thus explored) function application,
 -- shift the new function application into the NRPCs.
@@ -211,12 +212,14 @@ isLemmaState = not . HS.null . tags
 lemmaTag :: Name
 lemmaTag = Name "LEMMA" Nothing 0 Nothing
 
--- Responsible for generating new potential lemmas
-lemmaGen :: (Solver solver, SM.MonadState (VerifierData t) m, Named t, MonadIO m) =>
-            solver
-         -> HS.HashSet Name -- ^ Variables that should not be inlined
-         -> Reducer m () t
-lemmaGen solver no_inline =
+-- Responsible for:
+--  (1) generating new potential lemmas
+--  (2) adding new proven lemmas to the set of approximatable states
+lemmaReducer :: (Solver solver, SM.MonadState (VerifierData t) m, Named t, MonadIO m) =>
+                solver
+             -> HS.HashSet Name -- ^ Variables that should not be inlined
+             -> Reducer m () t
+lemmaReducer solver no_inline =
     mkSimpleReducer (const ()) red
     where
         red _ s@(State { expr_env = eenv
@@ -233,12 +236,12 @@ lemmaGen solver no_inline =
                     (ng', xs) = mapAccumR (createLemma s) ng cand_nrpc
                 
                 gen_lemmas <- SM.gets generated_lemmas
-                let lemmaIsNew s = allM (\gl -> not <$> lemmaEquiv solver no_inline gl s) gen_lemmas
-                xs' <- filterM lemmaIsNew xs
+                let lemmaIsNew ls = allM (\gl -> not <$> lemmaEquiv solver no_inline gl ls) $ HM.elems gen_lemmas
+                xs' <- filterM (lemmaIsNew . snd) xs
 
-                SM.modify (\a -> a { generated_lemmas = xs' ++ generated_lemmas a})    
+                SM.modify (\a -> a { generated_lemmas = foldr (uncurry HM.insert) gen_lemmas xs' })    
 
-                return (Finished, (s, ()):map (, ()) xs', b { name_gen = ng'})
+                return (Finished, (s, ()):map ((, ()) . snd) xs', b { name_gen = ng'})
             | otherwise = return (Finished, [(s, ())], b)
         
         isVar (Tick _ e) = isVar e
@@ -259,7 +262,7 @@ lemmaEquiv solver no_inline s1 s2 = do
         mr_cont = mrContIgnoreNRPCTicks (\_ _ _ _ _ -> ()) lookupConcOrSymState
         mr = moreRestrictiveIncludingPCAndNRPC solver mr_cont (\_ _ _ _ _ -> ()) lookupConcOrSymState no_inline
 
-createLemma :: State t ->  NameGen -> NRPC -> (NameGen, State t)
+createLemma :: State t ->  NameGen -> NRPC -> (NameGen, (Name, State t))
 createLemma s ng (e1, e2) =
     let
         (lemma_tag, ng') = freshSeededName lemmaTag ng
@@ -270,9 +273,10 @@ createLemma s ng (e1, e2) =
         s' = s { curr_expr = CurrExpr Return . mkFalse $ known_values s
                , exec_stack = Stck.empty
                , non_red_path_conds = nrpc
-               , tags = HS.insert lemma_tag (tags s) }
+               , tags = HS.insert lemma_tag (tags s)
+               , num_steps = 0 }
     in
-    (ng''', s')              
+    (ng''', (lemma_tag, s') )             
 
 -- Kill all lemma state if no non-lemma states remain
 lemmaHalter :: Monad m => Halter m () r t
