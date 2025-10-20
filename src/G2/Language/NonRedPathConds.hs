@@ -36,7 +36,46 @@ data NonRedPathConds = NRPCs { nrpcs :: Seq NRPC, nrpc_uniq :: Unique }
 
 instance Hashable NonRedPathConds
 
--- Is evaluation of the NRPC being forced? I.e. does evaluation of the state definitely evaluate the NRPC expression(s)
+-- Note [NRPC Focus]
+-- `Focus` allows for the verifier (Nova) to track NRPCs that we know must be evaluated, versus NRPCs that may or may
+-- not be required to evaluated.  This matters so that we know if we are making progress in reducing the state.
+-- Reducing a focused NRPC is definitely forwarding the states evaluation. Reducing an unfocused NRPC might be helpful
+-- to make approximation work out, but is not actually guaranteed to be forwarding evaluation of the state.
+--
+-- The `Focused` constructor means that we know the expressions must be evaluated and terminate for the states to terminate.
+-- `Unfocused` means there may be some execution paths that do not require evaluating the NRPC expressions.
+--
+-- Suppose we have the expression:
+-- @
+--    case f x of
+--        [] -> g x
+--        y:ys -> h y ys
+-- @
+-- The expression `f x` must be evaluated by the case expression, and so could be added as a focused NRPC.
+-- NRPCs for `g x` or `h y ys` could also be introduced, but only as unfocused NRPCs, because their might be code
+-- paths that do not evaluate these calls to `g` or `h`.  If we would introduce all these NRPCs, we would get the expression:
+-- @
+--    case sym_f of
+--        [] -> sym_g
+--        y:ys -> sym_h
+-- @
+-- with NRPCs:
+-- @
+-- f x = sym_f, focused 
+-- g x = sym_g, unfocused 
+-- h y ys = sym_h, unfocused 
+-- @
+-- Now suppose that the evaluator instantiates `sym_f = z:zs`.  The expression would be reduced to just `sym_h`.
+-- We now know that `sym_h` (and thus, `h y ys`) must be evaluated. We can thus change the NRPC `h y ys = sym_h`
+-- from `unfocused` to `focused`.  This behavior is implemented as part of the `adjustFocusReducer` in "G2.Verify.Reducer".
+--
+-- If we reduce a state's expression to False and have only unfocused NRPCs, then those unfocused NRPCs are not actually
+-- required to fully reduce the state.  If they were, they would have been switched to focused NRPCs by the `adjustFocusReducer`.
+-- As such, the `adjustFocusReducer` also wipes out the NRPCs if the state's expression is false and all are unfocused. 
+
+
+-- | Is evaluation of the NRPC being forced? I.e. does evaluation of the state definitely evaluate the NRPC expression(s).
+-- See Note [NRPC Focus].
 data Focus = Focused | Unfocused
              deriving (Eq, Read, Show, Data, Generic, Typeable)
 

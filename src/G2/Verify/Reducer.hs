@@ -113,8 +113,9 @@ nrpcAnyCallReducer no_nrpc_names config =
         hasNRBT _ = False
 
 -- | Handles NRPC focuses:
---   (1) If we evaluate a variable when in a Focused state, set all NRPCs assigning to that variable to Focused
---   (2) If we have only unfocused NRPCs, empty the NRPCs
+--   (1) If we evaluate a variable when in a Focused state, set all NRPCs assigning to that variable to Focused.
+--   (2) If we have only unfocused NRPCs, empty the NRPCs.
+-- See Note [NRPC Focus] in "G2.Language.NonRedPathConds".
 adjustFocusReducer :: Monad m => Reducer m () t
 adjustFocusReducer = mkSimpleReducer (const ()) red
     where
