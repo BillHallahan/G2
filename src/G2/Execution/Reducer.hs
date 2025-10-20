@@ -880,11 +880,10 @@ nrpcApproxReducer solver no_inline no_nrpc_names config =
 
         applyWrap e stck | Just (ApplyFrame a, stck') <- Stck.pop stck = applyWrap (App e a) stck'
                          | otherwise = e
-
  
  -- If doing so is possible, create an NRPC for the current expression of the passed state
 createNonRed :: NameGen
-             -> Focus
+             -> GenFocus n
              -> State t
              -> Maybe
                       ( State t -- ^ New state with NRPC applied
@@ -913,7 +912,7 @@ createNonRed ng focus
   
 -- If doing so is possible, create an NRPC for passed expression
 createNonRed' :: NameGen
-              -> Focus
+              -> GenFocus n
               -> State t
               -> Expr
               -> Maybe
@@ -948,7 +947,11 @@ createNonRed' ng
         (te, ng'') = nonRedBlockerTick ng' v
         e'' = mkApp $ te:es
 
-        (ng''', nrs') = addFirstNRPC ng'' focus e'' (Var new_sym_id) nrs
+        focus' = case focus of
+                    Focused -> Focused
+                    Unfocused _ -> Unfocused (idName new_sym_id)
+
+        (ng''', nrs') = addFirstNRPC ng'' focus' e'' (Var new_sym_id) nrs
 
         s' = s { expr_env = eenv'
                , non_red_path_conds = nrs' }

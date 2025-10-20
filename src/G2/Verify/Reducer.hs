@@ -11,6 +11,7 @@ module G2.Verify.Reducer ( nrpcAnyCallReducer
                          , currExprIsTrue ) where
 
 import G2.Config
+import qualified G2.Data.UFMap as UF
 import G2.Execution.Reducer
 import G2.Interface
 import G2.Language
@@ -67,7 +68,7 @@ nrpcAnyCallReducer no_nrpc_names config =
                                 , not (E.isSymbolic n' eenv)
 
                                 , not . isTyFun . typeOf tvnv $ buried_e
-                                , Just (s_', sym_i, _, ng_') <- createNonRed' ng_ Unfocused s_ buried_e ->
+                                , Just (s_', sym_i, _, ng_') <- createNonRed' ng_ (Unfocused ()) s_ buried_e ->
                                     ((s_', ng_'), Var sym_i)
                                 | otherwise -> ((s_, ng_), e)) (s, name_gen b) es
                 let s'' = s' { curr_expr = CurrExpr Evaluate . mkApp $ v:es' }
@@ -116,24 +117,41 @@ nrpcAnyCallReducer no_nrpc_names config =
 --   (1) If we evaluate a variable when in a Focused state, set all NRPCs assigning to that variable to Focused.
 --   (2) If we have only unfocused NRPCs, empty the NRPCs.
 -- See Note [NRPC Focus] in "G2.Language.NonRedPathConds".
-adjustFocusReducer :: Monad m => Reducer m () t
-adjustFocusReducer = mkSimpleReducer (const ()) red
+adjustFocusReducer :: Monad m => Reducer m (UF.UFMap Name (HS.HashSet Name)) t
+adjustFocusReducer = mkSimpleReducer (const UF.empty) red
     where
-        red rv s@(State { expr_env = eenv
-                        , curr_expr = CurrExpr _ (Var (Id n _))
-                        , non_red_path_conds = nrpc
-                        , focused = Focused }) b =
+        -- (1) Adjust variable focus
+        red focus_map s@(State { expr_env = eenv
+                               , curr_expr = CurrExpr _ (Var (Id n _))
+                               , non_red_path_conds = nrpc
+                               , focused = Focused }) b =
             let
-                s' = s { non_red_path_conds = setFocus n Focused eenv nrpc }
+                bring_focus = fromMaybe HS.empty (UF.lookup n focus_map)
+                nrpc' = foldr (\n_ -> setFocus n_ Focused eenv) nrpc (HS.insert n bring_focus)
+                s' = s { non_red_path_conds = nrpc' }
             in
-            return (Finished, [(s', rv)], b)
+            return (Finished, [(s', focus_map)], b)
+        red focus_map s@(State { expr_env = eenv
+                               , curr_expr = CurrExpr _ (Var (Id n _))
+                               , non_red_path_conds = nrpc
+                               , focused = Unfocused n' }) b =
+            let
+                focus_map' = UF.join HS.union n n' $ UF.insertWith HS.union n (HS.fromList [n, n']) focus_map
+            in
+            return (Finished, [(s, focus_map')], b)
+
+        -- (2) Empty NRPCs
         red rv s@(State {  non_red_path_conds = nrpc }) b@(Bindings { name_gen = ng } )
-            | currExprIsFalse s, allNRPC (\(focus, _, _) -> focus == Unfocused) nrpc =
+            | currExprIsFalse s, allNRPC (\(focus, _, _) -> isUnfocused focus) nrpc =
                 let (empty_nrpc, ng') = emptyNRPC ng in
                 return (Finished, [(s { non_red_path_conds = empty_nrpc }, rv)], b { name_gen = ng' } )
+            where
+                isUnfocused (Unfocused _) = True
+                isUnfocused Focused = False
+
+        -- Otherwise, do n othhing
         red rv s b =
             return (Finished, [(s, rv)], b)
-
 
 verifySolveNRPC :: Monad m => Reducer m () t
 verifySolveNRPC = mkSimpleReducer (const ()) red

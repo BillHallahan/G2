@@ -1,7 +1,8 @@
 {-# LANGUAGE BangPatterns, DeriveDataTypeable, DeriveGeneric, MultiParamTypeClasses, OverloadedStrings, PatternSynonyms, ViewPatterns #-}
 {-# LANGUAGE InstanceSigs #-}
 
-module G2.Language.NonRedPathConds ( Focus (..)
+module G2.Language.NonRedPathConds ( Focus
+                                   , GenFocus (..)
                                    , NonRedPathConds
                                    , NRPC
                                    , emptyNRPC
@@ -65,21 +66,29 @@ instance Hashable NonRedPathConds
 -- g x = sym_g, unfocused 
 -- h y ys = sym_h, unfocused 
 -- @
--- Now suppose that the evaluator instantiates `sym_f = z:zs`.  The expression would be reduced to just `sym_h`.
--- We now know that `sym_h` (and thus, `h y ys`) must be evaluated. We can thus change the NRPC `h y ys = sym_h`
--- from `unfocused` to `focused`.  This behavior is implemented as part of the `adjustFocusReducer` in "G2.Verify.Reducer".
 --
--- If we reduce a state's expression to False and have only unfocused NRPCs, then those unfocused NRPCs are not actually
+-- There are two further concerns:
+-- (1) Now suppose that the evaluator instantiates `sym_f = z:zs`.  The expression would be reduced to just `sym_h`.
+-- We now know that `sym_h` (and thus, `h y ys`) must be evaluated. We can thus change the NRPC `h y ys = sym_h`
+-- from `unfocused` to `focused`. Further, any NRPCs introduced/that had there symbolic variable evaluated during running h y ys
+-- should also be set to focused.  Thus, we track a mapping of which unfocused symbiolic variables have forced other unfocused symbolic
+-- variables to be run.  All this behavior is implemented as part of the `adjustFocusReducer` in "G2.Verify.Reducer".
+--
+-- (2) If we reduce a state's expression to False and have only unfocused NRPCs, then those unfocused NRPCs are not actually
 -- required to fully reduce the state.  If they were, they would have been switched to focused NRPCs by the `adjustFocusReducer`.
 -- As such, the `adjustFocusReducer` also wipes out the NRPCs if the state's expression is false and all are unfocused. 
 
 
 -- | Is evaluation of the NRPC being forced? I.e. does evaluation of the state definitely evaluate the NRPC expression(s).
--- See Note [NRPC Focus].
-data Focus = Focused | Unfocused
-             deriving (Eq, Read, Show, Data, Generic, Typeable)
+-- See Note [NRPC Focus] and `Focus`.
+data GenFocus n = Focused
+                | Unfocused n
+                deriving (Eq, Read, Show, Data, Generic, Typeable)
 
-instance Hashable Focus
+-- | The Name is used to track the symbolic variable introduced by the NRPC.
+type Focus = GenFocus Name
+
+instance Hashable n => Hashable (GenFocus n)
 
 emptyNRPC :: NameGen -> (NonRedPathConds, NameGen)
 emptyNRPC ng = let (uniq, ng') = freshUnique ng in (NRPCs Empty uniq, ng')
@@ -137,23 +146,28 @@ setFocus n focus eenv (NRPCs nrpc uniq) = NRPCs (fmap set nrpc) uniq
 allNRPC :: (NRPC -> Bool) -> NonRedPathConds -> Bool
 allNRPC p (NRPCs nrpc _) = all p nrpc
 
-pattern (:*>) :: (Focus, Expr, Expr) -> NonRedPathConds -> NonRedPathConds
+pattern (:*>) :: NRPC -> NonRedPathConds -> NonRedPathConds
 pattern e1_e2 :*> nrpc <- (getNRPC -> Just (e1_e2, nrpc))
 
-pattern (:<*) :: NonRedPathConds -> (Focus, Expr, Expr) -> NonRedPathConds
+pattern (:<*) :: NonRedPathConds -> NRPC -> NonRedPathConds
 pattern nrpc :<* e1_e2 <- (getLastNRPC -> Just (e1_e2, nrpc))
 
-instance ASTContainer Focus Expr where
+instance ASTContainer (GenFocus n) Expr where
     containedASTs _ = []
     modifyContainedASTs _ focus = focus
 
-instance ASTContainer Focus Type where
+instance ASTContainer (GenFocus n) Type where
     containedASTs _ = []
     modifyContainedASTs _ focus = focus
 
-instance Named Focus where
+instance Named n => Named (GenFocus n) where
+    names (Unfocused n) = names n
     names _ = Empty
+    
+    rename old new (Unfocused n) = Unfocused $ rename old new n
     rename _ _ focus = focus
+
+    renames hm (Unfocused n) = Unfocused $ renames hm n
     renames _ focus = focus
 
 instance ASTContainer NonRedPathConds Expr where
