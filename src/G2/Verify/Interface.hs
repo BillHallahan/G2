@@ -91,6 +91,8 @@ verifyRedHaltOrd s solver simplifier config verify_config no_nrpc_names = do
                                 True -> let nrpc_approx = nrpcAnyCallReducer no_nrpc_names config in
                                         SomeReducer nrpc_approx .~> logger_std_red f
                                 False -> logger_std_red f
+        
+        set_focus_red f = SomeReducer adjustFocusReducer .~> nrpc_approx_red f
 
         halter = switchEveryNHalter 20
                  <~> acceptIfViolatedHalter
@@ -105,7 +107,7 @@ verifyRedHaltOrd s solver simplifier config verify_config no_nrpc_names = do
                         Subpath -> SomeOrderer . liftOrderer $ lengthNSubpathOrderer (subpath_length config)
                         Iterative -> SomeOrderer $ pickLeastUsedOrderer
 
-    return ( nrpc_approx_red (\_ _ _ _ -> Nothing) .== Finished --> verifySolveNRPC
+    return ( set_focus_red (\_ _ _ _ -> Nothing) .== Finished --> verifySolveNRPC
            , halter_approx_discard
            , orderer
            , io_timed_out)

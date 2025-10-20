@@ -1,6 +1,7 @@
 {-# LANGUAGE FlexibleContexts, MultiWayIf, OverloadedStrings #-}
 
 module G2.Verify.Reducer ( nrpcAnyCallReducer
+                         , adjustFocusReducer
                          , verifySolveNRPC
                          , verifyHigherOrderHandling
                          , approximationHalter
@@ -47,6 +48,30 @@ nrpcAnyCallReducer no_nrpc_names config =
             
             , let wrapped_ce = applyWrap (getExpr s) (exec_stack s)
             , v@(Var (Id n _)):es@(_:_) <- unApp . stripNRBT $ wrapped_ce = do
+                -- Replace each argument which is itself a function call with a NRPC.
+                -- For instance:
+                --  @ f (g x) y (h z)@
+                -- Will get rewritten to:
+                --  @ f s1 y s2 @
+                -- with new NRPCs:
+                --  @ s1 = g x 
+                --    s2 = h z @
+                let ((s', ng'), es') =
+                        mapAccumR
+                            (\(s_, ng_) e -> if
+                                | buried_e <- E.deepLookupExpr e eenv 
+                                , Var (Id ne _):_:_ <- unApp buried_e
+
+                                , Just n' <- E.deepLookupVar ne eenv
+                                , not (n' `HS.member` no_nrpc_names)
+                                , not (E.isSymbolic n' eenv)
+
+                                , not . isTyFun . typeOf tvnv $ buried_e
+                                , Just (s_', sym_i, _, ng_') <- createNonRed' ng_ Unfocused s_ buried_e ->
+                                    ((s_', ng_'), Var sym_i)
+                                | otherwise -> ((s_, ng_), e)) (s, name_gen b) es
+                let s'' = s' { curr_expr = CurrExpr Evaluate . mkApp $ v:es' }
+
                 -- Given a function call `f x1 ... xn`, we move the entire call to `f` into an NRPC.
                 -- Note that createNewCond wraps the function call with a Tick.
                 -- This prevents that same function call from being immediately turned back into an NRPC
@@ -61,12 +86,12 @@ nrpcAnyCallReducer no_nrpc_names config =
                                 , not (n' `HS.member` no_nrpc_names)
                                 , not (E.isSymbolic n' eenv)
 
-                                , not . isTyFun . typeOf tvnv $ e -> createNonRed ng s
+                                , not . isTyFun . typeOf tvnv $ e -> createNonRed ng' (focused s'') s''
                                 | otherwise -> Nothing
                 
                 case nr_s_ng of
-                    Just (nr_s, _, _, ng') -> return (Finished, [(nr_s, rv + 1)], b { name_gen = ng' })
-                    _ -> return (Finished, [(s, rv)], b)
+                    Just (nr_s, _, _, ng'') -> return (Finished, [(nr_s, rv + 1)], b { name_gen = ng'' })
+                    _ -> return (Finished, [(s'', rv)], b)
             | Tick nl (Var (Id n _)) <- ce
             , isNonRedBlockerTick nl
             , Just e <- E.lookup n eenv = return (Finished, [(s { curr_expr = CurrExpr Evaluate e }, rv)], b)
@@ -87,21 +112,44 @@ nrpcAnyCallReducer no_nrpc_names config =
         hasNRBT (App e1 _) = hasNRBT e1
         hasNRBT _ = False
 
+-- | Handles NRPC focuses:
+--   (1) If we evaluate a variable when in a Focused state, set all NRPCs assigning to that variable to Focused
+--   (2) If we have only unfocused NRPCs, empty the NRPCs
+adjustFocusReducer :: Monad m => Reducer m () t
+adjustFocusReducer = mkSimpleReducer (const ()) red
+    where
+        red rv s@(State { expr_env = eenv
+                        , curr_expr = CurrExpr _ (Var (Id n _))
+                        , non_red_path_conds = nrpc
+                        , focused = Focused }) b =
+            let
+                s' = s { non_red_path_conds = setFocus n Focused eenv nrpc }
+            in
+            return (Finished, [(s', rv)], b)
+        red rv s@(State {  non_red_path_conds = nrpc }) b@(Bindings { name_gen = ng } )
+            | currExprIsFalse s, allNRPC (\(focus, _, _) -> focus == Unfocused) nrpc =
+                let (empty_nrpc, ng') = emptyNRPC ng in
+                return (Finished, [(s { non_red_path_conds = empty_nrpc }, rv)], b { name_gen = ng' } )
+        red rv s b =
+            return (Finished, [(s, rv)], b)
+
+
 verifySolveNRPC :: Monad m => Reducer m () t
 verifySolveNRPC = mkSimpleReducer (const ()) red
     where
         red _
                         s@(State {curr_expr = cexpr
                                 , exec_stack = stck
-                                , non_red_path_conds = nrs :<* (nre1, nre2)
+                                , non_red_path_conds = nrs :<* (focus, nre1, nre2)
                                 })
                                 b@(Bindings { name_gen = ng }) =
             
             let
                 stck' = Stck.push (CurrExprFrame (EnsureEq nre2) cexpr) stck
                 s' = s { curr_expr = CurrExpr Evaluate nre1
-                    , exec_stack = stck'
-                    , non_red_path_conds = nrs }
+                       , exec_stack = stck'
+                       , non_red_path_conds = nrs
+                       , focused = focus }
 
                 in return (InProgress, [(s', ())], b { name_gen = ng })
         red _ s b = return (Finished, [(s, ())], b)
