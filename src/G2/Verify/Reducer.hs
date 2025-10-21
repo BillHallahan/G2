@@ -24,6 +24,7 @@ import G2.Language.KnownValues
 import qualified G2.Language.Stack as Stck
 import qualified G2.Language.Typing as T
 import G2.Solver
+import G2.Verify.Config
 
 import Control.Monad.IO.Class
 import qualified Control.Monad.State as SM
@@ -36,9 +37,10 @@ import Data.Sequence
 -- shift the new function application into the NRPCs.
 nrpcAnyCallReducer :: MonadIO m =>
                       HS.HashSet Name -- ^ Names of functions that should not be approximated
+                   -> AbsFuncArgs -- ^ Should we apply abstraction to function arguments?
                    -> Config
                    -> Reducer m Int t
-nrpcAnyCallReducer no_nrpc_names config =
+nrpcAnyCallReducer no_nrpc_names abs_func_args config =
     (mkSimpleReducer (const 0) red)
             { onAccept = \s b nrpc_count -> do
             if print_num_nrpc config
@@ -54,7 +56,7 @@ nrpcAnyCallReducer no_nrpc_names config =
             , v@(Var (Id _ _)):es@(_:_) <- unApp . stripNRBT $ wrapped_ce = do
 
                 -- Convert arguments into NRPCs
-                let (s'', ng') = argsToNRPCs s (name_gen b) v es
+                let (s', ng') = if abs_func_args == AbsFuncArgs then argsToNRPCs s (name_gen b) v es else (s, ng)
 
                 -- Given a function call `f x1 ... xn`, we move the entire call to `f` into an NRPC.
                 -- Note that createNewCond wraps the function call with a Tick.
@@ -64,12 +66,12 @@ nrpcAnyCallReducer no_nrpc_names config =
                     nr_s_ng = if
                                 -- Line (*) make sure we don't add back to NRPCs immediately.
                                 | not (hasNRBT wrapped_ce) -- (*)
-                                , allowedApp e eenv tvnv -> createNonRed ng' (focused s'') s''
+                                , allowedApp e eenv tvnv -> createNonRed ng' (focused s') s'
                                 | otherwise -> Nothing
                 
                 case nr_s_ng of
                     Just (nr_s, _, _, ng'') -> return (Finished, [(nr_s, rv + 1)], b { name_gen = ng'' })
-                    _ -> return (Finished, [(s'', rv)], b)
+                    _ -> return (Finished, [(s', rv)], b)
             | Tick nl (Var (Id n _)) <- ce
             , isNonRedBlockerTick nl
             , Just e <- E.lookup n eenv = return (Finished, [(s { curr_expr = CurrExpr Evaluate e }, rv)], b)
