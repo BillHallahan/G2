@@ -51,30 +51,10 @@ nrpcAnyCallReducer no_nrpc_names config =
             | maybe True (allowed_frame . fst) (Stck.pop (exec_stack s))
             
             , let wrapped_ce = applyWrap (getExpr s) (exec_stack s)
-            , v@(Var (Id n _)):es@(_:_) <- unApp . stripNRBT $ wrapped_ce = do
-                -- Replace each argument which is itself a function call with a NRPC.
-                -- For instance:
-                --  @ f (g x) y (h z)@
-                -- Will get rewritten to:
-                --  @ f s1 y s2 @
-                -- with new NRPCs:
-                --  @ s1 = g x 
-                --    s2 = h z @
-                let ((s', ng'), es') =
-                        mapAccumR
-                            (\(s_, ng_) e -> if
-                                | buried_e <- E.deepLookupExpr e eenv 
-                                , Var (Id ne _):_:_ <- unApp buried_e
+            , v@(Var (Id _ _)):es@(_:_) <- unApp . stripNRBT $ wrapped_ce = do
 
-                                , Just n' <- E.deepLookupVar ne eenv
-                                , not (n' `HS.member` no_nrpc_names)
-                                , not (E.isSymbolic n' eenv)
-
-                                , not . isTyFun . typeOf tvnv $ buried_e
-                                , Just (s_', sym_i, _, ng_') <- createNonRed' ng_ (Unfocused ()) s_ buried_e ->
-                                    ((s_', ng_'), Var sym_i)
-                                | otherwise -> ((s_, ng_), e)) (s, name_gen b) es
-                let s'' = s' { curr_expr = CurrExpr Evaluate . mkApp $ v:es' }
+                -- Convert arguments into NRPCs
+                let (s'', ng') = argsToNRPCs s (name_gen b) v es
 
                 -- Given a function call `f x1 ... xn`, we move the entire call to `f` into an NRPC.
                 -- Note that createNewCond wraps the function call with a Tick.
@@ -84,13 +64,7 @@ nrpcAnyCallReducer no_nrpc_names config =
                     nr_s_ng = if
                                 -- Line (*) make sure we don't add back to NRPCs immediately.
                                 | not (hasNRBT wrapped_ce) -- (*)
-                                , Var (Id n _):_:_ <- unApp e
-
-                                , Just n' <- E.deepLookupVar n eenv
-                                , not (n' `HS.member` no_nrpc_names)
-                                , not (E.isSymbolic n' eenv)
-
-                                , not . isTyFun . typeOf tvnv $ e -> createNonRed ng' (focused s'') s''
+                                , allowedApp e eenv tvnv -> createNonRed ng' (focused s'') s''
                                 | otherwise -> Nothing
                 
                 case nr_s_ng of
@@ -100,7 +74,40 @@ nrpcAnyCallReducer no_nrpc_names config =
             , isNonRedBlockerTick nl
             , Just e <- E.lookup n eenv = return (Finished, [(s { curr_expr = CurrExpr Evaluate e }, rv)], b)
         red rv s b = return (Finished, [(s, rv)], b)
-        
+
+        -- We only abstract if:
+        -- * the function is fully applied (the whole application does not have a function type)
+        -- * the function is not in the list of names to not add to NRPCs
+        -- * we are not applying a symbolic function
+        allowedApp app eenv tvnv
+            | Var (Id n _):_:_ <- unApp app
+            , Just n' <- E.deepLookupVar n eenv
+            , not . isTyFun . typeOf tvnv $ app =
+                not (n' `HS.member` no_nrpc_names) && not (E.isSymbolic n' eenv)
+            | otherwise = False
+
+        -- Replace each argument which is itself a function call with a NRPC.
+        -- For instance:
+        --  @ f (g x) y (h z)@
+        -- Will get rewritten to:
+        --  @ f s1 y s2 @
+        -- with new NRPCs:
+        --  @ s1 = g x 
+        --    s2 = h z @
+        argsToNRPCs s@(State { expr_env = eenv, tyvar_env = tvnv }) ng v es= 
+            let
+                ((s', ng'), es') = mapAccumR
+                    (\(s_, ng_) e -> if
+                        | buried_e <- E.deepLookupExpr e eenv 
+                        , allowedApp buried_e eenv tvnv
+                        , Just (s_', sym_i, _, ng_') <- createNonRed' ng_ (Unfocused ()) s_ buried_e ->
+                            ((s_', ng_'), Var sym_i)
+                        | otherwise -> ((s_, ng_), e)) (s, ng) es
+                s'' = s' { curr_expr = CurrExpr Evaluate . mkApp $ v:es' }
+            in
+            (s'', ng')
+            
+
         allowed_frame (ApplyFrame _) = False
         allowed_frame _ = True
 
