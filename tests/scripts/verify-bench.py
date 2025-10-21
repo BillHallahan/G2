@@ -174,10 +174,10 @@ def test_suite_general(fname_in, suite, time_limit, var_settings):
         result[thm] = runTime
 
         if "Verified" in res:
-            print("Verified")
+            print("Verified - " + str(runTime))
             verified += 1
         if "Counterexample" in res:
-            print("Counterexample")
+            print("Counterexample - " + str(runTime))
             cex += 1
         if "Timeout" in res:
             print("Timeout")
