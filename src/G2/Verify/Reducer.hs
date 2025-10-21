@@ -128,7 +128,7 @@ adjustFocusReducer = mkSimpleReducer (const ()) red
                         , curr_expr = CurrExpr _ (Var (Id n _))
                         , non_red_path_conds = nrpc
                         , focused = Focused 
-                        , track = vt@VT { focus_map = fm }}) b =
+                        , track = VT { focus_map = fm }}) b =
             let
                 bring_focus = fromMaybe HS.empty (UF.lookup n fm)
                 nrpc' = foldr (\n_ -> setFocus n_ Focused eenv) nrpc (HS.insert n bring_focus)
@@ -142,8 +142,11 @@ adjustFocusReducer = mkSimpleReducer (const ()) red
             return (Finished, [(s', rv)], b)
 
         -- (2) Empty NRPCs
-        red rv s@(State {  non_red_path_conds = nrpc }) b@(Bindings { name_gen = ng } )
-            | currExprIsFalse s, allNRPC (\(focus, _, _) -> isUnfocused focus) nrpc =
+        red rv s@(State {  exec_stack = stck, non_red_path_conds = nrpc })
+               b@(Bindings { name_gen = ng } )
+            | currExprIsFalse s
+            , Stck.null stck
+            , allNRPC (\(focus, _, _) -> isUnfocused focus) nrpc =
                 let (empty_nrpc, ng') = emptyNRPC ng in
                 return (Finished, [(s { non_red_path_conds = empty_nrpc }, rv)], b { name_gen = ng' } )
             where

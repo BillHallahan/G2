@@ -1,6 +1,6 @@
 module List4 where
 
-import Prelude hiding (Num (..), zip, takeWhile)
+import Prelude hiding (Num (..), last, null, takeWhile, zip)
 
 zip [] _ = []
 zip _ [] = []
@@ -49,3 +49,18 @@ takeWhile p (x:xs) =
     _ -> []
 
 p4 xs = (takeWhile (\_ -> True) xs == xs)
+
+given :: Bool -> Bool -> Bool
+given pb pa = (not pb) || pa
+
+notnull :: [a] -> Bool
+notnull [] = False
+notnull _  = True
+
+last :: [Nat] -> Nat
+last [] = Z
+last [x] = x
+last (x:xs) = last xs
+
+p5 ys = given (notnull ys)
+              (last ys == last ys)
