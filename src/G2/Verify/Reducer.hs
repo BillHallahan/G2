@@ -1,6 +1,9 @@
-{-# LANGUAGE FlexibleContexts, MultiWayIf, OverloadedStrings #-}
+{-# LANGUAGE FlexibleContexts, MultiParamTypeClasses, MultiWayIf, OverloadedStrings #-}
 
-module G2.Verify.Reducer ( nrpcAnyCallReducer
+module G2.Verify.Reducer ( VerifierTracker
+                         , initVerifierTracker
+                         
+                         , nrpcAnyCallReducer
                          , adjustFocusReducer
                          , verifySolveNRPC
                          , verifyHigherOrderHandling
@@ -117,28 +120,26 @@ nrpcAnyCallReducer no_nrpc_names config =
 --   (1) If we evaluate a variable when in a Focused state, set all NRPCs assigning to that variable to Focused.
 --   (2) If we have only unfocused NRPCs, empty the NRPCs.
 -- See Note [NRPC Focus] in "G2.Language.NonRedPathConds".
-adjustFocusReducer :: Monad m => Reducer m (UF.UFMap Name (HS.HashSet Name)) t
-adjustFocusReducer = mkSimpleReducer (const UF.empty) red
+adjustFocusReducer :: Monad m => Reducer m () VerifierTracker
+adjustFocusReducer = mkSimpleReducer (const ()) red
     where
         -- (1) Adjust variable focus
-        red focus_map s@(State { expr_env = eenv
-                               , curr_expr = CurrExpr _ (Var (Id n _))
-                               , non_red_path_conds = nrpc
-                               , focused = Focused }) b =
+        red rv s@(State { expr_env = eenv
+                        , curr_expr = CurrExpr _ (Var (Id n _))
+                        , non_red_path_conds = nrpc
+                        , focused = Focused 
+                        , track = vt@VT { focus_map = fm }}) b =
             let
-                bring_focus = fromMaybe HS.empty (UF.lookup n focus_map)
+                bring_focus = fromMaybe HS.empty (UF.lookup n fm)
                 nrpc' = foldr (\n_ -> setFocus n_ Focused eenv) nrpc (HS.insert n bring_focus)
                 s' = s { non_red_path_conds = nrpc' }
             in
-            return (Finished, [(s', focus_map)], b)
-        red focus_map s@(State { expr_env = eenv
-                               , curr_expr = CurrExpr _ (Var (Id n _))
-                               , non_red_path_conds = nrpc
-                               , focused = Unfocused n' }) b =
+            return (Finished, [(s', rv)], b)
+        red rv s@(State { curr_expr = CurrExpr _ (Var (Id n _)) }) b =
             let
-                focus_map' = UF.join HS.union n n' $ UF.insertWith HS.union n (HS.fromList [n, n']) focus_map
+                s' = updateFocusMap n s
             in
-            return (Finished, [(s, focus_map')], b)
+            return (Finished, [(s', rv)], b)
 
         -- (2) Empty NRPCs
         red rv s@(State {  non_red_path_conds = nrpc }) b@(Bindings { name_gen = ng } )
@@ -243,3 +244,36 @@ currExprIsFalse = currExprIsBool False
 
 currExprIsTrue :: State t -> Bool
 currExprIsTrue = currExprIsBool False
+
+-------------------------------------------------------------------------------
+type VerifierState = State VerifierTracker
+
+newtype VerifierTracker = VT { focus_map :: FocusMap }
+                          deriving (Show, Read)
+
+type FocusMap = UF.UFMap Name (HS.HashSet Name)
+
+initVerifierTracker :: VerifierTracker
+initVerifierTracker = VT { focus_map = UF.empty }
+
+updateFocusMap :: Name -> VerifierState -> VerifierState
+updateFocusMap n s@(State { focused = Unfocused n'
+                          , track = VT { focus_map = fm } }) =
+            let
+                fm' = UF.join HS.union n n' $ UF.insertWith HS.union n (HS.fromList [n, n']) fm
+            in
+            s { track = VT { focus_map = fm' } }
+updateFocusMap _ s = s
+
+instance ASTContainer VerifierTracker Expr where
+    containedASTs _ = []
+    modifyContainedASTs _ vt = vt
+
+instance ASTContainer VerifierTracker Type where
+    containedASTs _ = []
+    modifyContainedASTs _ vt = vt
+
+instance Named VerifierTracker where
+    names vt = names (focus_map vt)
+    rename old new vt = VT { focus_map = rename old new (focus_map vt) }
+    renames hm vt = VT { focus_map = renames hm (focus_map vt) }

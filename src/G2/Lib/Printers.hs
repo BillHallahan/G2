@@ -727,7 +727,7 @@ prettyNonRedPaths pg =
 
 prettyFocus :: PrettyGuide -> Focus -> T.Text
 prettyFocus _ Focused = "focused"
-prettyFocus pg (Unfocused n) = "unfocused" <> printName pg n
+prettyFocus pg (Unfocused n) = "unfocused " <> printName pg n
 
 prettyHandles :: PrettyGuide -> HM.HashMap Name Handle -> T.Text
 prettyHandles pg = T.intercalate "\n" . map (\(n, h) -> printName pg n

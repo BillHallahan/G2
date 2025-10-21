@@ -1,6 +1,6 @@
 module List4 where
 
-import Prelude hiding (Num (..), zip)
+import Prelude hiding (Num (..), zip, takeWhile)
 
 zip [] _ = []
 zip _ [] = []
@@ -40,3 +40,12 @@ count x (y:ys) =
 p2 n xs = count n xs == count n (xs ++ [])
 
 p3 n xs ys = count n xs + count n ys == count n (xs ++ ys)
+
+takeWhile :: (a -> Bool) -> [a] -> [a]
+takeWhile _ [] = []
+takeWhile p (x:xs) =
+  case p x of
+    True -> x : (takeWhile p xs)
+    _ -> []
+
+p4 xs = (takeWhile (\_ -> True) xs == xs)
