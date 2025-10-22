@@ -48,31 +48,43 @@ instance Hashable NonRedPathConds
 --
 -- Suppose we have the expression:
 -- @
---    case f x of
---        [] -> g x
---        y:ys -> h y ys
+--   f (g a) (h b)
 -- @
--- The expression `f x` must be evaluated by the case expression, and so could be added as a focused NRPC.
--- NRPCs for `g x` or `h y ys` could also be introduced, but only as unfocused NRPCs, because their might be code
--- paths that do not evaluate these calls to `g` or `h`.  If we would introduce all these NRPCs, we would get the expression:
+-- where the function f is defined as:
 -- @
---    case sym_f of
---        [] -> sym_g
---        y:ys -> sym_h
+--   f x y = case y of
+--              [] -> e1 
+--              _:_ -> x
+-- @
+-- The expression `f (g a) (h b)` must be evaluated, and so could be added as a focused NRPC.
+-- NRPCs for `g a` or `h b` could also be introduced, but only as unfocused NRPCs, because there might be code
+-- paths that do not evaluate these calls to `g` or `h`.  If we introduce all these NRPCs, we would get the expression:
+-- @
+--    sym_f
 -- @
 -- with NRPCs:
 -- @
--- f x = sym_f, focused 
--- g x = sym_g, unfocused 
--- h y ys = sym_h, unfocused 
+-- f sym_g sym_h = sym_f, focused 
+-- g a = sym_g, unfocused 
+-- h b = sym_h, unfocused 
 -- @
 --
 -- There are two further concerns:
--- (1) Now suppose that the evaluator instantiates `sym_f = z:zs`.  The expression would be reduced to just `sym_h`.
--- We now know that `sym_h` (and thus, `h y ys`) must be evaluated. We can thus change the NRPC `h y ys = sym_h`
--- from `unfocused` to `focused`. Further, any NRPCs introduced/that had there symbolic variable evaluated during running h y ys
--- should also be set to focused.  Thus, we track a mapping of which unfocused symbiolic variables have forced other unfocused symbolic
--- variables to be run.  All this behavior is implemented as part of the `adjustFocusReducer` in "G2.Verify.Reducer".
+-- (1) Suppose that we go to solve the NRPC for sym_f, and thus evaluate:
+-- @
+--     f sym_g sym_h
+-- @
+-- which reduces to:
+-- @
+--   case sym_h of
+--        [] -> e1 
+--         _:_ -> sym_g
+-- @
+-- The evaluator now knows that `sym_h` (and thus, `h b`) must be evaluated. We can thus change the NRPC `h b = sym_h`
+-- from `unfocused` to `focused`. Further, if we have already done any reduction on `h b`, any NRPCs introduced
+-- that had there symbolic variable evaluated during running `h b` should also be set to focused.  Thus, we track a
+-- mapping of which unfocused symbiolic variables have forced other unfocused symbolic variables to be run.  All this
+-- behavior is implemented as part of the `adjustFocusReducer` in "G2.Verify.Reducer".
 --
 -- (2) If we reduce a state's expression to False and have only unfocused NRPCs, then those unfocused NRPCs are not actually
 -- required to fully reduce the state.  If they were, they would have been switched to focused NRPCs by the `adjustFocusReducer`.
