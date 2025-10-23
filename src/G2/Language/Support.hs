@@ -54,6 +54,7 @@ data State t = State { expr_env :: E.ExprEnv -- ^ Mapping of `Name`s to `Expr`s
                      , path_conds :: PathConds -- ^ Path conditions, in SWHNF
                      , non_red_path_conds :: NonRedPathConds -- ^ Path conditions, in the form of (possibly non-reduced)
                                                              -- expression pairs that must be proved equivalent
+                     , focused :: Focus -- ^ Is the expression that we are currently evaluating in focus (may be unfocused when from NRPC)
                      , handles :: HM.HashMap Name Handle -- ^ Each Handle has a name, that appears in `Expr`s within the `Handle` `Primitive`
                      , mutvar_env :: MutVarEnv -- ^ MutVar `Name`s to mappings of names in the `ExprEnv`.
                                                -- See Note [MutVar Env] in G2.Language.MutVarEnv.
@@ -167,7 +168,7 @@ instance Hashable Frame
 
 -- | What to do with the current expression when a @CurrExprFrame@ reaches the
 -- top of the stack and it is time to replace the `curr_expr`.
-data CEAction = EnsureEq Expr -- ^ `EnsureEq e1` means that we should check if the `curr_expr` is equal to `e1`
+data CEAction = EnsureEq Expr -- ^ `EnsureEq focus e1` means that we should check if the `curr_expr` is equal to `e1`
               | NoAction -- ^ Just replace the curr_expr, no other actions are needed
               deriving (Show, Eq, Read, Generic, Typeable, Data)
 
@@ -230,6 +231,7 @@ instance Named t => Named (State t) where
                , curr_expr = rename old new (curr_expr s)
                , path_conds = rename old new (path_conds s)
                , non_red_path_conds = rename old new (non_red_path_conds s)
+               , focused = focused s
                , handles = rename old new (handles s)
                , mutvar_env = rename old new (mutvar_env s)
                , true_assert = true_assert s
@@ -257,6 +259,7 @@ instance Named t => Named (State t) where
                , curr_expr = renames hm (curr_expr s)
                , path_conds = renames hm (path_conds s)
                , non_red_path_conds = renames hm (non_red_path_conds s)
+               , focused = focused s
                , handles = renames hm (handles s)
                , mutvar_env = renames hm (mutvar_env s)
                , true_assert = true_assert s

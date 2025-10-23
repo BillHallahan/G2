@@ -2,9 +2,13 @@
              MultiWayIf, OverloadedStrings, TupleSections, UndecidableInstances #-}
 
 module G2.Verify.Reducer ( VerifierData
+                         , VerifierTracker
                          , initVerifierData
+                         , initVerifierTracker
                          
                          , nrpcAnyCallReducer
+                         , adjustFocusReducer
+
                          , verifySolveNRPC
                          , verifyHigherOrderHandling
                          , lemmaReducer
@@ -18,6 +22,7 @@ module G2.Verify.Reducer ( VerifierData
                          , currExprIsTrue ) where
 
 import G2.Config
+import qualified G2.Data.UFMap as UF
 import G2.Execution.Reducer
 import G2.Interface
 import G2.Language
@@ -28,6 +33,7 @@ import G2.Language.NonRedPathConds
 import qualified G2.Language.Stack as Stck
 import qualified G2.Language.Typing as T
 import G2.Solver
+import G2.Verify.Config
 
 import Control.Monad
 import Control.Monad.Extra
@@ -56,9 +62,10 @@ initVerifierData = VS { approx_states = []
 -- shift the new function application into the NRPCs.
 nrpcAnyCallReducer :: MonadIO m =>
                       HS.HashSet Name -- ^ Names of functions that should not be approximated
+                   -> AbsFuncArgs -- ^ Should we apply abstraction to function arguments?
                    -> Config
                    -> Reducer m Int t
-nrpcAnyCallReducer no_nrpc_names config =
+nrpcAnyCallReducer no_nrpc_names abs_func_args config =
     (mkSimpleReducer (const 0) red)
             { onAccept = \s b nrpc_count -> do
             if print_num_nrpc config
@@ -71,7 +78,11 @@ nrpcAnyCallReducer no_nrpc_names config =
             | maybe True (allowed_frame . fst) (Stck.pop (exec_stack s))
             
             , let wrapped_ce = applyWrap (getExpr s) (exec_stack s)
-            , v@(Var (Id n _)):es@(_:_) <- unApp . stripNRBT $ wrapped_ce = do
+            , v@(Var (Id _ _)):es@(_:_) <- unApp . stripNRBT $ wrapped_ce = do
+
+                -- Convert arguments into NRPCs
+                let (s', ng') = if abs_func_args == AbsFuncArgs then argsToNRPCs s (name_gen b) v es else (s, ng)
+
                 -- Given a function call `f x1 ... xn`, we move the entire call to `f` into an NRPC.
                 -- Note that createNewCond wraps the function call with a Tick.
                 -- This prevents that same function call from being immediately turned back into an NRPC
@@ -80,23 +91,50 @@ nrpcAnyCallReducer no_nrpc_names config =
                     nr_s_ng = if
                                 -- Line (*) make sure we don't add back to NRPCs immediately.
                                 | not (hasNRBT wrapped_ce) -- (*)
-                                , Var (Id n _):_:_ <- unApp e
-
-                                , Just n' <- E.deepLookupVar n eenv
-                                , not (n' `HS.member` no_nrpc_names)
-                                , not (E.isSymbolic n' eenv)
-
-                                , not . isTyFun . typeOf tvnv $ e -> createNonRed ng s
+                                , allowedApp e eenv tvnv -> createNonRed ng' (focused s') s'
                                 | otherwise -> Nothing
                 
                 case nr_s_ng of
-                    Just (nr_s, _, _, ng') -> return (Finished, [(nr_s, rv + 1)], b { name_gen = ng' })
-                    _ -> return (Finished, [(s, rv)], b)
+                    Just (nr_s, _, _, ng'') -> return (Finished, [(nr_s, rv + 1)], b { name_gen = ng'' })
+                    _ -> return (Finished, [(s', rv)], b)
             | Tick nl (Var (Id n _)) <- ce
             , isNonRedBlockerTick nl
             , Just e <- E.lookup n eenv = return (Finished, [(s { curr_expr = CurrExpr Evaluate e }, rv)], b)
         red rv s b = return (Finished, [(s, rv)], b)
-        
+
+        -- We only abstract if:
+        -- * the function is fully applied (the whole application does not have a function type)
+        -- * the function is not in the list of names to not add to NRPCs
+        -- * we are not applying a symbolic function
+        allowedApp app eenv tvnv
+            | Var (Id n _):_:_ <- unApp app
+            , Just n' <- E.deepLookupVar n eenv
+            , not . isTyFun . typeOf tvnv $ app =
+                not (n' `HS.member` no_nrpc_names) && not (E.isSymbolic n' eenv)
+            | otherwise = False
+
+        -- Replace each argument which is itself a function call with a NRPC.
+        -- For instance:
+        --  @ f (g x) y (h z)@
+        -- Will get rewritten to:
+        --  @ f s1 y s2 @
+        -- with new NRPCs:
+        --  @ s1 = g x 
+        --    s2 = h z @
+        argsToNRPCs s@(State { expr_env = eenv, tyvar_env = tvnv }) ng v es= 
+            let
+                ((s', ng'), es') = mapAccumR
+                    (\(s_, ng_) e -> if
+                        | buried_e <- E.deepLookupExpr e eenv 
+                        , allowedApp buried_e eenv tvnv
+                        , Just (s_', sym_i, _, ng_') <- createNonRed' ng_ (Unfocused ()) s_ buried_e ->
+                            ((s_', ng_'), Var sym_i)
+                        | otherwise -> ((s_, ng_), e)) (s, ng) es
+                s'' = s' { curr_expr = CurrExpr Evaluate . mkApp $ v:es' }
+            in
+            (s'', ng')
+            
+
         allowed_frame (ApplyFrame _) = False
         allowed_frame _ = True
 
@@ -112,21 +150,63 @@ nrpcAnyCallReducer no_nrpc_names config =
         hasNRBT (App e1 _) = hasNRBT e1
         hasNRBT _ = False
 
+-- | Handles NRPC focuses:
+--   (1) If we evaluate a variable when in a Focused state, set all NRPCs assigning to that variable to Focused.
+--   (2) If we have only unfocused NRPCs, empty the NRPCs.
+-- See Note [NRPC Focus] in "G2.Language.NonRedPathConds".
+adjustFocusReducer :: Monad m => Reducer m () VerifierTracker
+adjustFocusReducer = mkSimpleReducer (const ()) red
+    where
+        -- (1) Adjust variable focus
+        red rv s@(State { expr_env = eenv
+                        , curr_expr = CurrExpr _ (Var (Id n _))
+                        , non_red_path_conds = nrpc
+                        , focused = Focused 
+                        , track = VT { focus_map = fm }}) b =
+            let
+                bring_focus = fromMaybe HS.empty (UF.lookup n fm)
+                nrpc' = foldr (\n_ -> setFocus n_ Focused eenv) nrpc (HS.insert n bring_focus)
+                s' = s { non_red_path_conds = nrpc' }
+            in
+            return (Finished, [(s', rv)], b)
+        red rv s@(State { curr_expr = CurrExpr _ (Var (Id n _)) }) b =
+            let
+                s' = updateFocusMap n s
+            in
+            return (Finished, [(s', rv)], b)
+
+        -- (2) Empty NRPCs
+        red rv s@(State {  exec_stack = stck, non_red_path_conds = nrpc })
+               b@(Bindings { name_gen = ng } )
+            | currExprIsFalse s
+            , Stck.null stck
+            , allNRPC (\(focus, _, _) -> isUnfocused focus) nrpc =
+                let (empty_nrpc, ng') = emptyNRPC ng in
+                return (Finished, [(s { non_red_path_conds = empty_nrpc }, rv)], b { name_gen = ng' } )
+            where
+                isUnfocused (Unfocused _) = True
+                isUnfocused Focused = False
+
+        -- Otherwise, do n othhing
+        red rv s b =
+            return (Finished, [(s, rv)], b)
+
 verifySolveNRPC :: Monad m => Reducer m () t
 verifySolveNRPC = mkSimpleReducer (const ()) red
     where
         red _
                         s@(State {curr_expr = cexpr
                                 , exec_stack = stck
-                                , non_red_path_conds = nrs :<* (nre1, nre2)
+                                , non_red_path_conds = nrs :<* (focus, nre1, nre2)
                                 })
                                 b@(Bindings { name_gen = ng }) =
             
             let
                 stck' = Stck.push (CurrExprFrame (EnsureEq nre2) cexpr) stck
                 s' = s { curr_expr = CurrExpr Evaluate nre1
-                    , exec_stack = stck'
-                    , non_red_path_conds = nrs }
+                       , exec_stack = stck'
+                       , non_red_path_conds = nrs
+                       , focused = focus }
 
                 in return (InProgress, [(s', ())], b { name_gen = ng })
         red _ s b = return (Finished, [(s, ())], b)
@@ -232,7 +312,7 @@ lemmaReducer solver no_inline =
             -- to run these checks every step.
             | e == mkFalse kv
             , Stck.null (exec_stack s) = do
-                let cand_nrpc = filter (\(_, e2) -> not . isVar $ E.deepLookupExpr e2 eenv) $ toListNRPC nrpcs
+                let cand_nrpc = filter (\(_, _, e2) -> not . isVar $ E.deepLookupExpr e2 eenv) $ toListNRPC nrpcs
                     (ng', xs) = mapAccumR (createLemma s) ng cand_nrpc
                 
                 gen_lemmas <- SM.gets generated_lemmas
@@ -263,12 +343,12 @@ lemmaEquiv solver no_inline s1 s2 = do
         mr = moreRestrictiveIncludingPCAndNRPC solver mr_cont (\_ _ _ _ _ -> ()) lookupConcOrSymState no_inline
 
 createLemma :: State t ->  NameGen -> NRPC -> (NameGen, (Name, State t))
-createLemma s ng (e1, e2) =
+createLemma s ng (_, e1, e2) =
     let
         (lemma_tag, ng') = freshSeededName lemmaTag ng
 
         (empty_nrpc, ng'') = emptyNRPC ng'
-        (ng''', nrpc) = addFirstNRPC ng'' e1 e2 empty_nrpc
+        (ng''', nrpc) = addFirstNRPC ng'' Focused e1 e2 empty_nrpc
 
         s' = s { curr_expr = CurrExpr Return . mkFalse $ known_values s
                , exec_stack = Stck.empty
@@ -291,3 +371,35 @@ lemmaHalter =
             if all (isLemmaState . getExState) . concat .  M.elems $ m
                 then M.empty
                 else m
+
+type VerifierState = State VerifierTracker
+
+newtype VerifierTracker = VT { focus_map :: FocusMap }
+                          deriving (Show, Read)
+
+type FocusMap = UF.UFMap Name (HS.HashSet Name)
+
+initVerifierTracker :: VerifierTracker
+initVerifierTracker = VT { focus_map = UF.empty }
+
+updateFocusMap :: Name -> VerifierState -> VerifierState
+updateFocusMap n s@(State { focused = Unfocused n'
+                          , track = VT { focus_map = fm } }) =
+            let
+                fm' = UF.join HS.union n n' $ UF.insertWith HS.union n (HS.fromList [n, n']) fm
+            in
+            s { track = VT { focus_map = fm' } }
+updateFocusMap _ s = s
+
+instance ASTContainer VerifierTracker Expr where
+    containedASTs _ = []
+    modifyContainedASTs _ vt = vt
+
+instance ASTContainer VerifierTracker Type where
+    containedASTs _ = []
+    modifyContainedASTs _ vt = vt
+
+instance Named VerifierTracker where
+    names vt = names (focus_map vt)
+    rename old new vt = VT { focus_map = rename old new (focus_map vt) }
+    renames hm vt = VT { focus_map = renames hm (focus_map vt) }

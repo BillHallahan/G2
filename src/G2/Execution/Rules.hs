@@ -1121,7 +1121,7 @@ retCastFrame s ng e c stck =
     , ng)
 
 retCurrExpr :: State t -> Expr -> CEAction -> CurrExpr -> S.Stack Frame -> NameGen -> (Rule, [NewPC t], NameGen)
-retCurrExpr s@(State { expr_env = eenv, known_values = kv, tyvar_env = tvnv }) e1 (EnsureEq e2) orig_ce@(CurrExpr _ ce) stck ng
+retCurrExpr s@(State { expr_env = eenv, known_values = kv, tyvar_env = tvnv, focused = focus }) e1 (EnsureEq e2) orig_ce@(CurrExpr _ ce) stck ng
     | Just (eenv', new_pc, new_nrpc_pairs) <- matchPairs tvnv kv e1 e2 (eenv, [], []) =
         let
             (ng', nrpc) = foldr (\(p_e1, p_e2) (ng_, nrpcs) ->
@@ -1129,7 +1129,7 @@ retCurrExpr s@(State { expr_env = eenv, known_values = kv, tyvar_env = tvnv }) e
                                     (p_e1', ng_') = addNRPCTick ng_ p_e1
                                     (p_e2', ng_'') = addNRPCTick ng_' p_e2
                                     
-                                    (ng_''', nrpcs') = addFirstNRPC ng_'' p_e1' p_e2' nrpcs
+                                    (ng_''', nrpcs') = addFirstNRPC ng_'' focus p_e1' p_e2' nrpcs
                                 in
                                 (ng_''', nrpcs'))
                             (ng, non_red_path_conds s)
@@ -1659,7 +1659,7 @@ retReplaceSymbFuncVar _
         let
             (new_sym, ng') = freshSeededString "sym" ng
             new_sym_id = Id new_sym t
-            (ng'', nrpc') = addNRPC ng' ce (Var new_sym_id) (non_red_path_conds s)
+            (ng'', nrpc') = addNRPC ng' Focused ce (Var new_sym_id) (non_red_path_conds s)
         in
         Just (RuleReturnReplaceSymbFunc, 
             [s { expr_env = E.insertSymbolic new_sym_id eenv

@@ -640,14 +640,14 @@ nonRedPCSymFunc :: Monad m => RedRules m (Maybe SymFuncTicks) t
 nonRedPCSymFunc _
                 s@(State {curr_expr = cexpr
                          , exec_stack = stck
-                         , non_red_path_conds = (nre1, nre2) :*> nrs
+                         , non_red_path_conds = (focus, nre1, nre2) :*> nrs
                          })
                         b@(Bindings { name_gen = ng }) =
     
     let
         sft = defSymFuncTicks
         stck' = Stck.push (CurrExprFrame (EnsureEq nre2) cexpr) stck
-        s' = s { exec_stack = stck', non_red_path_conds = nrs }
+        s' = s { exec_stack = stck', non_red_path_conds = nrs, focused = focus }
 
         stripCenterTick (Tick _ e) = e
         stripCenterTick (App e1 e2) = App (stripCenterTick e1) e2
@@ -701,7 +701,7 @@ nonRedLibFuncs exec_names no_nrpc_names
     , Just n' <- E.deepLookupVar n eenv
     , not (n' `HS.member` no_nrpc_names)
     , not (E.isSymbolic n' eenv)
-    , Just (s'@(State { curr_expr = CurrExpr _ _ }), _, ce', ng') <- createNonRed ng s = 
+    , Just (s'@(State { curr_expr = CurrExpr _ _ }), _, ce', ng') <- createNonRed ng Focused s = 
         let
             (reaches_sym, sym_table') = reachesSymbolic sym_table eenv ce'
             (exec_skip, var_table') = if reaches_sym then checkDelayability eenv ce' ng exec_names var_table else (Skip, var_table)
@@ -745,7 +745,7 @@ nonRedHigherOrderFunc
     , (ae, stck') <- allApplyFrames (exec_stack s)
     , let es = es_ce ++ ae
 
-    , Just (s', _, _, ng') <- createNonRed ng s 
+    , Just (s', _, _, ng') <- createNonRed ng Focused s 
     = 
         let
             -- If we have an EnsureEq on the stack, we do not want to add function argument states because
@@ -870,7 +870,7 @@ nrpcApproxReducer solver no_inline no_nrpc_names config =
                                                         s'
                                                 ) xs
                 
-                let nr_s_ng = createNonRed (name_gen b) s
+                let nr_s_ng = createNonRed (name_gen b) Focused s
 
                 case nr_s_ng of
                     Just (nr_s, _, _, ng') | isJust approx -> return (Finished, [(nr_s, rv + 1)], b { name_gen = ng' })
@@ -888,17 +888,17 @@ nrpcApproxReducer solver no_inline no_nrpc_names config =
 
         applyWrap e stck | Just (ApplyFrame a, stck') <- Stck.pop stck = applyWrap (App e a) stck'
                          | otherwise = e
-
  
  -- If doing so is possible, create an NRPC for the current expression of the passed state
 createNonRed :: NameGen
+             -> GenFocus n
              -> State t
              -> Maybe
                       ( State t -- ^ New state with NRPC applied
                       , Id -- ^ New symbolic variable
                       , Expr -- ^ Expression added into the NRPCs (and equated to some symbolic variable)
                       , NameGen)
-createNonRed ng
+createNonRed ng focus
               s@(State { curr_expr = CurrExpr _ ce
                        , expr_env = eenv
                        , non_red_path_conds = nrs
@@ -908,7 +908,7 @@ createNonRed ng
     , (ae, stck) <- allApplyFrames (exec_stack s)
     , let es = es_ce ++ ae
           ce' = mkApp (v:es)
-    , Just (s', sym_i, ce_rep, ng') <- createNonRed' ng s ce' =
+    , Just (s', sym_i, ce_rep, ng') <- createNonRed' ng focus s ce' =
     let
         cexpr' = CurrExpr Return (Var sym_i)
         s'' = s' { curr_expr = cexpr'
@@ -920,6 +920,7 @@ createNonRed ng
   
 -- If doing so is possible, create an NRPC for passed expression
 createNonRed' :: NameGen
+              -> GenFocus n
               -> State t
               -> Expr
               -> Maybe
@@ -928,6 +929,7 @@ createNonRed' :: NameGen
                       , Expr -- ^ Expression added into the NRPCs (and equated to some symbolic variable)
                       , NameGen)
 createNonRed' ng
+              focus
               s@(State { curr_expr = CurrExpr _ ce
                        , expr_env = eenv
                        , non_red_path_conds = nrs
@@ -953,13 +955,17 @@ createNonRed' ng
         (te, ng'') = nonRedBlockerTick ng' v
         e'' = mkApp $ te:es
 
-        (ng''', nrs') = addFirstNRPC ng'' e'' (Var new_sym_id) nrs
+        focus' = case focus of
+                    Focused -> Focused
+                    Unfocused _ -> Unfocused (idName new_sym_id)
+
+        (ng''', nrs') = addFirstNRPC ng'' focus' e'' (Var new_sym_id) nrs
 
         s' = s { expr_env = eenv'
                , non_red_path_conds = nrs' }
     in
     Just (s', new_sym_id, e'', ng''')
-createNonRed' _ _ _ = Nothing
+createNonRed' _ _ _ _ = Nothing
 
 hasMagicTypes :: ASTContainer c Type => KnownValues -> c -> Bool
 hasMagicTypes kv = getAny . evalASTs hmt
@@ -1145,7 +1151,7 @@ nonRedPCRedFunc prune _
                 s@(State { expr_env = eenv
                          , curr_expr = cexpr
                          , exec_stack = stck
-                         , non_red_path_conds = (nre1, nre2) :*> nrs
+                         , non_red_path_conds = (focus, nre1, nre2) :*> nrs
                          , model = m
                          , tyvar_env = tvnv })
                 b@(Bindings { higher_order_inst = inst })
@@ -1179,6 +1185,7 @@ nonRedPCRedFunc prune _
 
         let s' = s { exec_stack = stck'
                    , non_red_path_conds = nrs
+                   , focused = focus
                    }
             xs = map (\(eenv', m', ce) -> (s' { expr_env = eenv'
                                               , model = m'
@@ -1238,7 +1245,7 @@ nonRedPCRedConstFunc _
                      s@(State { expr_env = eenv
                               , curr_expr = cexpr
                               , exec_stack = stck
-                              , non_red_path_conds = (nre1, nre2) :*> nrs
+                              , non_red_path_conds = (focus, nre1, nre2) :*> nrs
                               , model = m
                               , tyvar_env = tvnv })
                      b@(Bindings { name_gen = ng })
@@ -1259,11 +1266,12 @@ nonRedPCRedConstFunc _
             m' = foldr (\(i, e) -> HM.insert (idName i) e) m es
 
         let s' = s { expr_env = eenv''
-                , curr_expr = cexpr'
-                , model = m'
-                , exec_stack = stck'
-                , non_red_path_conds = nrs
-                }
+                   , curr_expr = cexpr'
+                   , model = m'
+                   , exec_stack = stck'
+                   , non_red_path_conds = nrs
+                   , focused = focus
+                   }
 
         return (InProgress, [(s', ())], b { name_gen = ng'' })
 nonRedPCRedConstFunc _ s b = return (Finished, [], b)
