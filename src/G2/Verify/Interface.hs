@@ -30,25 +30,25 @@ import System.Clock
 import qualified G2.Language.TyVarEnv as TV
 
 data VerifyResult = Verified
-                  | Counterexample [ExecRes ()]
+                  | Counterexample [ExecRes VerifierTracker]
                   | VerifyTimeOut
                   deriving (Show, Read)
 
-type VerStack m = SM.StateT (ApproxPrevs ())
+type VerStack m = SM.StateT (ApproxPrevs VerifierTracker)
                         (SM.StateT LengthNTrack
                             (SM.StateT PrettyGuide m))
 
 verifyRedHaltOrd :: (MonadIO m, Solver solver, Simplifier simplifier) =>
-                    State ()
+                    State VerifierTracker
                  -> solver
                  -> simplifier
                  -> Config
                  -> VerifyConfig
                  -> S.HashSet Name -- ^ Names of functions that should not result in a larger expression become EXEC,
                                    -- but should not be added to the NRPC at the top level.
-                 -> IO ( SomeReducer (VerStack m) ()
-                       , SomeHalter (VerStack m) (ExecRes ()) ()
-                       , SomeOrderer (VerStack m) (ExecRes ()) ()
+                 -> IO ( SomeReducer (VerStack m) VerifierTracker
+                       , SomeHalter (VerStack m) (ExecRes VerifierTracker) VerifierTracker
+                       , SomeOrderer (VerStack m) (ExecRes VerifierTracker) VerifierTracker
                        , IORef TimedOut)
 verifyRedHaltOrd s solver simplifier config verify_config no_nrpc_names = do
     time_logger <- acceptTimeLogger
@@ -87,11 +87,13 @@ verifyRedHaltOrd s solver simplifier config verify_config no_nrpc_names = do
                             Just logger -> liftSomeReducer $ liftSomeReducer (logger .~> num_steps_red f)
                             Nothing -> liftSomeReducer $ liftSomeReducer (num_steps_red f)
 
-        nrpc_approx_red f = case rev_abs verify_config of
-                                True -> let nrpc_approx = nrpcAnyCallReducer no_nrpc_names config in
-                                        SomeReducer nrpc_approx .~> logger_std_red f
-                                False -> logger_std_red f
+        set_focus_red f = SomeReducer adjustFocusReducer .~> logger_std_red f
 
+        nrpc_approx_red f = case rev_abs verify_config of
+                                True -> let nrpc_approx = nrpcAnyCallReducer no_nrpc_names (arg_rev_abs verify_config) config in
+                                        SomeReducer nrpc_approx .~> set_focus_red f
+                                False -> logger_std_red f
+        
         halter = switchEveryNHalter 20
                  <~> acceptIfViolatedHalter
                  <~> time_halter
@@ -177,8 +179,10 @@ verifyFromFile proj src f transConfig config verify_config = do
     --     analysis3 = if print_num_red_rules config then [\s p xs -> SM.lift . SM.lift . SM.lift . SM.lift . SM.lift . SM.lift $ logRedRuleNum s p xs] else noAnalysis
     --     analysis = analysis1 ++ analysis2 ++ analysis3
 
+    let verifier_state = state' { track = initVerifierTracker }
+
     init_time <- getTime Realtime
-    rho <- verifyRedHaltOrd state' solver simplifier config' verify_config (S.fromList no_nrpc_names)
+    rho <- verifyRedHaltOrd verifier_state solver simplifier config' verify_config (S.fromList no_nrpc_names)
     let to = case rho of (_, _, _, to_)-> to_
     (er, bindings''') <-
             case rho of
@@ -186,7 +190,7 @@ verifyFromFile proj src f transConfig config verify_config = do
                         SM.evalStateT
                                 (SM.evalStateT
                                     (SM.evalStateT
-                                        (runG2WithSomes' red hal ord [] solver simplifier state' bindings'')
+                                        (runG2WithSomes' red hal ord [] solver simplifier verifier_state bindings'')
                                         emptyApproxPrevs
                                     )
                                     lnt

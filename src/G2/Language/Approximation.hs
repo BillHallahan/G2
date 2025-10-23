@@ -356,9 +356,9 @@ moreRestrictiveNRPC mr_cont gen_lemma lkp s1 s2 ns init_hm nrpc1 nrpc2
   | otherwise = matchNRPCs init_hm (toListNRPC nrpc1) (toListNRPC nrpc2)
   where
     matchNRPCs hm [] _ = Right hm
-    matchNRPCs hm ((eL_1, eR_1):ns1) ns2 = do
+    matchNRPCs hm ((_, eL_1, eR_1):ns1) ns2 = do
         let m_match_rest = selectJusts
-                              (\(eL_2, eR_2) -> do
+                              (\(_, eL_2, eR_2) -> do
                                     hm' <- moreRes hm eL_1 eL_2
                                     moreRes hm' eR_1 eR_2)
                            ns2

@@ -591,6 +591,8 @@ prettyState pg s =
         , pretty_paths
         , "----- [Non Red Paths] ---------------------"
         , pretty_non_red_paths
+        , "----- [Focused] ---------------------"
+        , prettyFocus pg (focused s)
         , "----- [Handles] ---------------------"
         , pretty_handles
         , "----- [MutVars Env] ---------------------"
@@ -717,8 +719,15 @@ prettyPathCond pg (AssumePC i l pc) =
     mkIdHaskell pg i <> " = " <> T.pack (show l) <> "=> (" <> T.intercalate "\nand " (map (prettyPathCond pg) pc') <> ")"
 
 prettyNonRedPaths :: PrettyGuide -> [NRPC] -> T.Text
-prettyNonRedPaths pg = T.intercalate "\n"
-                     . map (\(e1, e2) -> mkDirtyExprHaskell pg e1 <> " == " <> mkDirtyExprHaskell pg e2)
+prettyNonRedPaths pg =
+    T.intercalate "\n"
+    . map (\(focus, e1, e2) -> mkDirtyExprHaskell pg e1 <> " == "
+                            <> mkDirtyExprHaskell pg e2 <> "\t"
+                            <> prettyFocus pg focus)
+
+prettyFocus :: PrettyGuide -> Focus -> T.Text
+prettyFocus _ Focused = "focused"
+prettyFocus pg (Unfocused n) = "unfocused " <> printName pg n
 
 prettyHandles :: PrettyGuide -> HM.HashMap Name Handle -> T.Text
 prettyHandles pg = T.intercalate "\n" . map (\(n, h) -> printName pg n

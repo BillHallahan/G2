@@ -209,6 +209,7 @@ initStateFromSimpleState s m_mod useAssert mkCurr argTys config =
     , curr_expr = CurrExpr Evaluate ce
     , path_conds = PC.fromList []
     , non_red_path_conds = empty_nrpc
+    , focused = Focused
     , handles = hs
     , mutvar_env = HM.empty
     , true_assert = if useAssert || check_asserts config then False else True
