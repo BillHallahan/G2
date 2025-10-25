@@ -53,10 +53,11 @@ nrpcAnyCallReducer no_nrpc_names abs_func_args config =
             | maybe True (allowed_frame . fst) (Stck.pop (exec_stack s))
             
             , let wrapped_ce = applyWrap (getExpr s) (exec_stack s)
-            , v@(Var (Id _ _)):es@(_:_) <- unApp . stripNRBT $ wrapped_ce = do
+            , stripped_ce <- stripNRBT wrapped_ce
+            , (Var (Id _ _)):(_:_) <- unApp stripped_ce = do
 
                 -- Convert arguments into NRPCs
-                let (s', ng') = if abs_func_args == AbsFuncArgs then argsToNRPCs s (name_gen b) v es else (s, ng)
+                let (s', ng') = if abs_func_args == AbsFuncArgs then argsToNRPCs s (name_gen b) stripped_ce else (s, ng)
 
                 -- Given a function call `f x1 ... xn`, we move the entire call to `f` into an NRPC.
                 -- Note that createNewCond wraps the function call with a Tick.
@@ -96,19 +97,58 @@ nrpcAnyCallReducer no_nrpc_names abs_func_args config =
         -- with new NRPCs:
         --  @ s1 = g x 
         --    s2 = h z @
-        argsToNRPCs s@(State { expr_env = eenv, tyvar_env = tvnv }) ng v es= 
+        --
+        -- If we have nested function applications:
+        -- @ f (g (h x)) @
+        -- we mpve only the outer function application into the NRPC:
+        --  @ f s @
+        -- with NRPC:
+        --  @ s = g (h x) @
+        -- with the logic that `h x` can be moved into an NRPC when reducing `g (h x)` later.
+        -- However, data constructo applications do not get evaluated, and so we eagerly search down through them
+        -- to add to the NRPCs, i.e. something like:
+        --  @ f(g x:h y) @
+        -- would yield the expression:
+        --  @ f (s1:s2) @
+        -- with NRPCs:
+        --  @ s1 = g x @
+        --  @ s2 = h y @
+        -- Some care must be taken to not mess up the tracking of focused variables, see Note [Data Args and NRPCs]
+        argsToNRPCs s ng e 
+            | c:es@(_:_) <- unApp e = argsToNRPCs' s ng c es
+            | otherwise = (s { curr_expr = CurrExpr Evaluate e }, ng)
+
+        argsToNRPCs' s@(State { expr_env = eenv, tyvar_env = tvnv }) ng v es = 
             let
                 ((s', ng'), es') = mapAccumR
-                    (\(s_, ng_) e -> if
-                        | buried_e <- E.deepLookupExpr e eenv 
-                        , allowedApp buried_e eenv tvnv
-                        , Just (s_', sym_i, _, ng_') <- createNonRed' ng_ (Unfocused ()) s_ buried_e ->
-                            ((s_', ng_'), Var sym_i)
-                        | otherwise -> ((s_, ng_), e)) (s, ng) es
+                    (\(s_, ng_) e -> 
+                        if
+                            | buried_e <- E.deepLookupExpr e eenv
+                            , allowedApp buried_e eenv tvnv
+                            , ((s_', ng_'), e') <- dataArgsToNRPCs s_ ng_ buried_e
+                            , Just (s_'', sym_i, _, ng_'') <- createNonRed' ng_' (Unfocused ()) s_' e' ->
+                                ((s_'', ng_''), Var sym_i)
+                            | otherwise -> dataArgsToNRPCs s_ ng_ e                            
+                    ) (s, ng) es
+                       
                 s'' = s' { curr_expr = CurrExpr Evaluate . mkApp $ v:es' }
             in
             (s'', ng')
-            
+        
+        -- See Note [Data Args and NRPCs]
+        dataArgsToNRPCs s@(State { expr_env = eenv }) ng e
+            | buried_e <- E.deepLookupExpr e eenv
+            , Data _:_ <- unApp buried_e =
+                let
+                    (s', ng') = argsToNRPCs s ng buried_e
+                    (eenv', e') = case e of
+                                Var (Id n _)
+                                    | Just n' <- E.deepLookupVar n eenv -> (E.insert n' (getExpr s') (expr_env s'), e)
+                                _  -> (expr_env s', getExpr s')
+                in
+                ((s' { expr_env = eenv' }, ng'), e')
+        dataArgsToNRPCs s ng e = ((s, ng), e)
+
 
         allowed_frame (ApplyFrame _) = False
         allowed_frame _ = True
@@ -124,6 +164,29 @@ nrpcAnyCallReducer no_nrpc_names abs_func_args config =
                             | otherwise = hasNRBT e
         hasNRBT (App e1 _) = hasNRBT e1
         hasNRBT _ = False
+
+-- Note [Data Args and NRPCs]
+--      (See also Note [NRPC Focus] in "G2.Language.NonRedPathConds" for some context on NRPC focus)
+--
+-- Suppose we have two NRPCs:
+--  @ sym3 = h y, unfocused
+--    sym2 = f sym, focused @
+-- with
+--  @ sym -> x:g xs' @
+-- in the expression enivronment. Suppose also that focusing sym implies that sym3 is also focused.
+-- Note that `sym` should become focused if `f` evaluates its first (only) argument.
+--
+-- We may reduce `f sym`.  Because we search through data constructor arguments to add NRPCs, we will want to
+-- rewrite the application of f to be something like:
+--  @ f (x:sym4) @
+-- with a new NRPC:
+--  @ sym4 = g xs' @
+-- However, the problem with this rewrite is that we have now eliminated the chance evaluate sym, and thus
+-- to switch the NRPC for sym3 to focused. Thus we instead want to still add the new NRPC, but leave `f sym`
+-- as it is, and instead update the mapping of `sym` in the environment to:
+--  @ sym -> x:sym4 @.
+-- Thus, we still move the data constructor argument into an NRPC, but we also get to discover that we evaluate `sym`
+
 
 -- | Handles NRPC focuses:
 --   (1) If we evaluate a variable when in a Focused state, set all NRPCs assigning to that variable to Focused.

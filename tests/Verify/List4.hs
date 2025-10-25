@@ -1,6 +1,6 @@
 module List4 where
 
-import Prelude hiding (Num (..), drop, last, null, take, takeWhile, zip)
+import Prelude hiding (Num (..), (++), drop, last, null, take, takeWhile, zip)
 
 zip [] _ = []
 zip _ [] = []
@@ -36,6 +36,10 @@ count x (y:ys) =
   case x == y of
     True -> S (count x ys)
     _ -> count x ys
+
+(++) :: [a] -> [a] -> [a]
+[] ++ ys = ys
+(x:xs) ++ ys = x : (xs ++ ys)
 
 p2 n xs = count n xs == count n (xs ++ [])
 
@@ -74,3 +78,11 @@ take _ [] = []
 take (S x) (y:ys) = y : (take x ys)
 
 p6 n xs = take n xs ++ drop n xs == xs
+
+butlast :: [a] -> [a]
+butlast [] = []
+butlast [x] = []
+butlast (x:xs) = x:(butlast xs)
+
+p7 [] = True
+p7 xs = (butlast xs ++ [last xs] == xs)
