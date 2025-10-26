@@ -113,7 +113,7 @@ nrpcAnyCallReducer no_nrpc_names abs_func_args config =
                     (e', s', ng') = argsToNRPCs' s ng e
                     eenv' = E.insert n e' (expr_env s')
                 in
-                (e', s' { expr_env = eenv' }, ng')
+                (v, s' { expr_env = eenv' }, ng')
         argsToNRPCs' s@(State { expr_env = eenv, tyvar_env = tvnv }) ng e@(App _ _)
             | allowedApp e eenv tvnv
             , v@(Var _):es <- unApp e =
