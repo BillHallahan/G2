@@ -72,7 +72,7 @@ nrpcAnyCallReducer no_nrpc_names abs_func_args config =
                 
                 case nr_s_ng of
                     Just (nr_s, _, _, ng'') -> return (Finished, [(nr_s, rv + 1)], b { name_gen = ng'' })
-                    _ -> return (Finished, [(s', rv)], b)
+                    _ -> return (Finished, [(s', rv)], b { name_gen = ng' })
             | Tick nl (Var (Id n _)) <- ce
             , isNonRedBlockerTick nl
             , Just e <- E.lookup n eenv = return (Finished, [(s { curr_expr = CurrExpr Evaluate e }, rv)], b)
