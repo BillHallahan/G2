@@ -53,7 +53,8 @@ nrpcAnyCallReducer no_nrpc_names abs_func_args config =
             | maybe True (allowed_frame . fst) (Stck.pop (exec_stack s))
             
             , let wrapped_ce = applyWrap (getExpr s) (exec_stack s)
-            , v@(Var (Id _ _)):es@(_:_) <- unApp . stripNRBT $ wrapped_ce = do
+            , let stripped_ce = stripNRBT wrapped_ce
+            , v@(Var (Id _ _)):es@(_:_) <- unApp stripped_ce  = do
 
                 -- Convert arguments into NRPCs
                 let (s', ng') = if abs_func_args == AbsFuncArgs then argsToNRPCs s (name_gen b) v es else (s, ng)
@@ -71,7 +72,7 @@ nrpcAnyCallReducer no_nrpc_names abs_func_args config =
                 
                 case nr_s_ng of
                     Just (nr_s, _, _, ng'') -> return (Finished, [(nr_s, rv + 1)], b { name_gen = ng'' })
-                    _ -> return (Finished, [(s', rv)], b)
+                    _ -> return (Finished, [(s', rv)], b { name_gen = ng' })
             | Tick nl (Var (Id n _)) <- ce
             , isNonRedBlockerTick nl
             , Just e <- E.lookup n eenv = return (Finished, [(s { curr_expr = CurrExpr Evaluate e }, rv)], b)
@@ -96,18 +97,37 @@ nrpcAnyCallReducer no_nrpc_names abs_func_args config =
         -- with new NRPCs:
         --  @ s1 = g x 
         --    s2 = h z @
-        argsToNRPCs s@(State { expr_env = eenv, tyvar_env = tvnv }) ng v es= 
+        argsToNRPCs s ng v es =
             let
-                ((s', ng'), es') = mapAccumR
-                    (\(s_, ng_) e -> if
-                        | buried_e <- E.deepLookupExpr e eenv 
-                        , allowedApp buried_e eenv tvnv
-                        , Just (s_', sym_i, _, ng_') <- createNonRed' ng_ (Unfocused ()) s_ buried_e ->
-                            ((s_', ng_'), Var sym_i)
-                        | otherwise -> ((s_, ng_), e)) (s, ng) es
-                s'' = s' { curr_expr = CurrExpr Evaluate . mkApp $ v:es' }
+                ((s', ng'), es') = mapAccumR (\(s_, ng_) e_ ->
+                                                let
+                                                    (e_', s_', ng_') = argsToNRPCs' s_ ng_ e_
+                                                in
+                                                ((s_', ng_'), e_')) (s, ng) es
             in
-            (s'', ng')
+            (s' { curr_expr = CurrExpr Evaluate . mkApp $ v:es' }, ng')
+        
+        argsToNRPCs' s@(State { expr_env = eenv }) ng v@(Var (Id n _))
+            | Just (E.Conc e) <- E.lookupConcOrSym n eenv =
+                let
+                    (e', s', ng') = argsToNRPCs' s ng e
+                    eenv' = E.insert n e' (expr_env s')
+                in
+                (v, s' { expr_env = eenv' }, ng')
+        argsToNRPCs' s@(State { expr_env = eenv, tyvar_env = tvnv }) ng e@(App _ _)
+            | allowedApp e eenv tvnv
+            , v@(Var _):es <- unApp e =
+                let
+                    ((s', ng'), es') = mapAccumR
+                        (\(s_, ng_) e_ ->
+                            let (e_', s_', ng_') = argsToNRPCs' s_ ng_ e_ in
+                            ((s_', ng_'), e_')) (s, ng) es
+                    e' = mkApp (v:es')
+                in
+                case createNonRed' ng' (Unfocused ()) s' e' of
+                    Just (s'', sym_i, _, ng'') -> (Var sym_i, s'', ng'')
+                    Nothing -> (e', s', ng')
+        argsToNRPCs' s ng e = (e, s, ng)
             
 
         allowed_frame (ApplyFrame _) = False
