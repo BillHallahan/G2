@@ -835,6 +835,7 @@ verifierTests = testGroup "Verifier"
     , checkExprVerified "tests/Verify/Peano1.hs" "p3"
     , checkExprVerified "tests/Verify/Peano1.hs" "p4"
     , checkExprVerified "tests/Verify/Peano1.hs" "p5"
+    , checkExprVerified "tests/Verify/Peano1.hs" "p7"
 
     , checkExprCEx "tests/Verify/Peano1.hs" "p1False"
     -- p2False intentionally requires a large counterexample, and will timeout
