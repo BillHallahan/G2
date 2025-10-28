@@ -191,13 +191,13 @@ data HandleStatus = HOpen | HClosed
                     deriving (Show, Eq, Read, Generic, Typeable, Data)
 
 stdinName :: Name
-stdinName = Name "stdin" Nothing 0 Nothing
+stdinName = Name "stdin" Nothing 0 ProvOther
 
 stdoutName :: Name
-stdoutName = Name "stdout" Nothing 0 Nothing
+stdoutName = Name "stdout" Nothing 0 ProvOther
 
 stderrName :: Name
-stderrName = Name "stderr" Nothing 0 Nothing
+stderrName = Name "stderr" Nothing 0 ProvOther
 
 instance Hashable HandleStatus
 

@@ -113,14 +113,14 @@ adjustMkSymbolicPrim sym_log occ_n md_nm nm exg2 =
         n = (occ_n, md_nm)
     in
     adjustFunction n nm exg2
-            (let a = Id (Name "a" Nothing 0 Nothing) TYPE in G2.Lam TypeL a (SymGen sym_log $ TyVar a))
+            (let a = Id (Name "a" Nothing 0 ProvOther) TYPE in G2.Lam TypeL a (SymGen sym_log $ TyVar a))
 
 adjustAssume :: Maybe T.Text -> NameMap -> ExtractedG2 -> ExtractedG2
 adjustAssume mdl nm exg2 =
     adjustFunction ("assume", mdl) nm exg2
-            (let a = Id (Name "a" Nothing 0 Nothing) TYPE
-                 b = Id (Name "b" Nothing 0 Nothing) TyUnknown
-                 x = Id (Name "x" Nothing 0 Nothing) (TyVar a) in
+            (let a = Id (Name "a" Nothing 0 ProvOther) TYPE
+                 b = Id (Name "b" Nothing 0 ProvOther) TyUnknown
+                 x = Id (Name "x" Nothing 0 ProvOther) (TyVar a) in
                 G2.Lam TypeL a . G2.Lam TermL b . G2.Lam TermL x $ G2.Assume Nothing (G2.Var b) (G2.Var x))
 
 adjustAssertG2Symbolic :: NameMap -> ExtractedG2 -> ExtractedG2
@@ -132,9 +132,9 @@ adjustAssertGHC = adjustAssert "assert" "GHC.Base"
 adjustAssert :: T.Text -> T.Text -> NameMap -> ExtractedG2 -> ExtractedG2
 adjustAssert f m nm exg2 =
     adjustFunction (f, Just m) nm exg2
-            (let a = Id (Name "a" Nothing 0 Nothing) TYPE
-                 b = Id (Name "b" Nothing 0 Nothing) TyUnknown
-                 x = Id (Name "x" Nothing 0 Nothing) (TyVar a) in
+            (let a = Id (Name "a" Nothing 0 ProvOther) TYPE
+                 b = Id (Name "b" Nothing 0 ProvOther) TyUnknown
+                 x = Id (Name "x" Nothing 0 ProvOther) (TyVar a) in
                 G2.Lam TypeL a . G2.Lam TermL b . G2.Lam TermL x $ G2.Assert Nothing (G2.Var b) (G2.Var x))
 
 adjustFunction :: (T.Text, Maybe T.Text) -> NameMap -> ExtractedG2 -> G2.Expr -> ExtractedG2

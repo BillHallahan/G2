@@ -54,12 +54,12 @@ dcpcMap tv kv tenv = HM.fromList [
 
 strCons :: TyVarEnv -> KnownValues -> TypeEnv -> DataConPCInfo
 strCons tv kv tenv = let
-                        hn = Name "h" Nothing 0 Nothing
-                        tn = Name "t" Nothing 0 Nothing
+                        hn = Name "h" Nothing 0 ProvOther
+                        tn = Name "t" Nothing 0 ProvOther
                         ti = Id tn (TyApp (T.tyList kv) (T.tyChar kv))
-                        cn = Name "c" Nothing 0 Nothing
+                        cn = Name "c" Nothing 0 ProvOther
                         ci = Id cn TyLitChar
-                        asn = Name "as" Nothing 0 Nothing
+                        asn = Name "as" Nothing 0 ProvOther
                         asi = Id asn (TyApp (T.tyList kv) (T.tyChar kv))
                         dc_char = App (mkDCChar kv tenv) (Var ci)
                         dcpc = DCPC { dc_as_pattern = asn
@@ -78,7 +78,7 @@ strCons tv kv tenv = let
 
 strEmpty :: TyVarEnv -> KnownValues -> DataConPCInfo
 strEmpty tv kv = let
-                asn = Name "as" Nothing 0 Nothing
+                asn = Name "as" Nothing 0 ProvOther
                 asi = Id asn (TyApp (T.tyList kv) (T.tyChar kv))
                 dcpc = DCPC { dc_as_pattern = asn
                             , dc_args = []

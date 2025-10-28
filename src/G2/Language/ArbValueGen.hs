@@ -83,7 +83,7 @@ arbValue' :: GetADT
           -> ArbValueFuncM
 arbValue' getADTF m s (TyFun t t') av = do
     (e, tv_env, av') <- arbValue' getADTF m s t' av
-    return (Lam TermL (Id (Name "_" Nothing 0 Nothing) t) e, tv_env, av')
+    return (Lam TermL (Id (Name "_" Nothing 0 ProvOther) t) e, tv_env, av')
 arbValue' getADTF m s@(State { type_env = tenv, tyvar_env = tv_env }) t av
   | TyCon n _ <- tyAppCenter t
   , ts <- tyAppArgs t =
@@ -130,7 +130,7 @@ arbValue' _ _ (State { tyvar_env = tv_env }) t av = return (Prim Undefined t, tv
 constArbValue' :: GetADT -> HM.HashMap Name Type -> ArbValueFuncM
 constArbValue' getADTF m s (TyFun t t') av = do
     (e, tv_env, _) <- constArbValue' getADTF m s t' av
-    return (Lam TermL (Id (Name "_" Nothing 0 Nothing) t) e, tv_env, av)
+    return (Lam TermL (Id (Name "_" Nothing 0 ProvOther) t) e, tv_env, av)
 constArbValue' getADTF m s@(State { type_env = tenv, tyvar_env = tv_env }) t av
   | TyCon n _ <- tyAppCenter t
   , ts <- tyAppArgs t =

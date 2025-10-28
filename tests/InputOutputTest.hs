@@ -147,7 +147,7 @@ checkInputOutput' io_config src tests = do
                                 )
                 ) tests
     where
-        printIO pg ent b val er = ((if val then "✓ " else "✗ "), printInputOutput pg (Id (Name (T.pack ent) Nothing 0 Nothing) TyUnknown) b er)
+        printIO pg ent b val er = ((if val then "✓ " else "✗ "), printInputOutput pg (Id (Name (T.pack ent) Nothing 0 ProvOther) TyUnknown) b er)
  
 checkInputOutput'' :: [FilePath]
                    -> ExtractedG2

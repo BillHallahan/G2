@@ -79,7 +79,7 @@ rewriteRedHaltOrd :: (MonadIO m, Solver solver, Simplifier simplifier) =>
 rewriteRedHaltOrd solver simplifier h_opp track_opp config (NC { use_labeled_errors = use_labels }) =
     let
         share = sharing config
-        state_name = Name "state" Nothing 0 Nothing
+        state_name = Name "state" Nothing 0 ProvOther
 
         m_logger = fmap SomeReducer $ getLogger config defPrettyTrack
         some_std_red = enforceProgressRed :== NoProgress --> stdRed share retReplaceSymbFuncVar solver simplifier
@@ -251,7 +251,7 @@ labeledErrorStringSeed :: T.Text
 labeledErrorStringSeed = "__ERROR_LABEL__"
 
 labeledErrorNameSeed :: Name
-labeledErrorNameSeed = Name "__ERROR_LABEL__" Nothing 0 Nothing
+labeledErrorNameSeed = Name "__ERROR_LABEL__" Nothing 0 ProvOther
 
 isLabeledErrorName :: Name -> Bool
 isLabeledErrorName (Name n _ _ _) = n == labeledErrorStringSeed

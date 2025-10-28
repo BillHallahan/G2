@@ -29,14 +29,24 @@ class Spanning l where
 instance Located Span where
     loc = Just . start
 
+instance Located Provenance where
+    loc (ProvFile s) = loc s
+    loc ProvSymNRPC = Nothing
+    loc ProvOther = Nothing
+
 instance Located Name where
-    loc (Name _ _ _ s) = maybe Nothing loc s
+    loc (Name _ _ _ pr) = loc pr
 
 instance Located Id where
     loc (Id n _) = loc n
 
+instance Spanning Provenance where
+    spanning (ProvFile s) = Just s
+    spanning ProvSymNRPC = Nothing
+    spanning ProvOther = Nothing
+
 instance Spanning Name where
-    spanning (Name _ _ _ s) = s
+    spanning = spanning . nameProv
 
 instance Spanning Id where
     spanning (Id n _) = spanning n

@@ -346,7 +346,7 @@ initRedHaltOrd s mod_name solver simplifier config exec_func_names no_nrpc_names
 
     let share = sharing config
 
-        state_name = Name "state" Nothing 0 Nothing
+        state_name = Name "state" Nothing 0 ProvOther
 
         approx_no_inline = S.fromList
                          . E.keys

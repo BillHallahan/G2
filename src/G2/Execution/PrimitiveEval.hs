@@ -145,15 +145,15 @@ evalPrimWithState s@(State { known_values = kv, type_env = tenv, expr_env = eenv
 
         -- Introduce variables for the sign, exponent, and significant of the floating point number.
         -- Also introduces variables to account for shifting (see Note [Scaled decodeFloat])
-        (sign, ng2) = freshSeededId (Name "sign_fp" Nothing 0 Nothing) (TyLitBV 1) ng
-        (ex, ng3) = freshSeededId (Name "exp_fp" Nothing 0 Nothing) ty_ex ng2
-        (sig, ng4) = freshSeededId (Name "sig_fp" Nothing 0 Nothing) ty_sig ng3
+        (sign, ng2) = freshSeededId (Name "sign_fp" Nothing 0 ProvOther) (TyLitBV 1) ng
+        (ex, ng3) = freshSeededId (Name "exp_fp" Nothing 0 ProvOther) ty_ex ng2
+        (sig, ng4) = freshSeededId (Name "sig_fp" Nothing 0 ProvOther) ty_sig ng3
 
-        (exp_r, ng5) = freshSeededId (Name "exp" Nothing 0 Nothing) TyLitInt ng4
-        (sig_r, ng6) = freshSeededId (Name "sig" Nothing 0 Nothing) TyLitInt ng5
+        (exp_r, ng5) = freshSeededId (Name "exp" Nothing 0 ProvOther) TyLitInt ng4
+        (sig_r, ng6) = freshSeededId (Name "sig" Nothing 0 ProvOther) TyLitInt ng5
 
-        (shift_r_v, ng7) = freshSeededId (Name "shift_r" Nothing 0 Nothing) ty_sig ng6
-        (shift_l_v, ng8) = freshSeededId (Name "shift_l" Nothing 0 Nothing) ty_sig ng7
+        (shift_r_v, ng7) = freshSeededId (Name "shift_r" Nothing 0 ProvOther) ty_sig ng6
+        (shift_l_v, ng8) = freshSeededId (Name "shift_l" Nothing 0 ProvOther) ty_sig ng7
 
         -- Setting up the Fp Primitive
         fp_exp = App (App (App (Prim Fp TyUnknown) (Var sign)) (Var ex)) (Var sig)
@@ -290,9 +290,9 @@ evalPrimWithState s@(State { expr_env = eenv }) ng (App (App (Prim EncodeFloat t
         w_sig_bits = w_sig_bits_1 - 1
         ty_ex = TyLitBV w_ex_bits
 
-        (exp_bv, ng') = freshSeededId (Name "exp_bv" Nothing 0 Nothing) ty_ex ng
-        (encoded_m_nan, ng'') = freshSeededId (Name "enc_nan" Nothing 0 Nothing) (TyLitFP w_ex_bits w_sig_bits_1) ng'
-        (encoded, ng''') = freshSeededId (Name "enc" Nothing 0 Nothing) rt ng''
+        (exp_bv, ng') = freshSeededId (Name "exp_bv" Nothing 0 ProvOther) ty_ex ng
+        (encoded_m_nan, ng'') = freshSeededId (Name "enc_nan" Nothing 0 ProvOther) (TyLitFP w_ex_bits w_sig_bits_1) ng'
+        (encoded, ng''') = freshSeededId (Name "enc" Nothing 0 ProvOther) rt ng''
 
         offset = 2^(w_ex_bits - 1) - 1
 
@@ -389,7 +389,7 @@ evalPrimWithState s ng (App (App (Prim HandlePutChar _) c) hnd)
             pos = h_pos hi
             ty_string = typeOf (tyvar_env s) pos
 
-            (new_pos, ng') = freshSeededId (Name "pos" Nothing 0 Nothing) ty_string ng
+            (new_pos, ng') = freshSeededId (Name "pos" Nothing 0 ProvOther) ty_string ng
             e = mkApp [mkCons (known_values s) (type_env s), Type ty_string, c, Var new_pos]
             s' = s { expr_env = E.insert (idName pos) e 
                               $ E.insertSymbolic new_pos (expr_env s)
@@ -443,7 +443,7 @@ newMutVar :: State t
           -> (State t, NameGen)
 newMutVar s ng org ts t e =
     let
-        (mv_n, ng') = freshSeededName (Name "mv" Nothing 0 Nothing) ng
+        (mv_n, ng') = freshSeededName (Name "mv" Nothing 0 ProvOther) ng
         (i, ng'') = freshId t ng'        
         s' = s { curr_expr = CurrExpr Evaluate (Prim (MutVar mv_n) $ mutVarTy (known_values s) ts t)
                , expr_env = E.insert (idName i) e (expr_env s)

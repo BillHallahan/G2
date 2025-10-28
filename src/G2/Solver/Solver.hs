@@ -400,7 +400,7 @@ elimCommon tv kv threshold pc =
         app_count = countApps tv kv pc
         app_common = HM.filter (>= threshold) app_count
 
-        n = Name "el" Nothing 0 Nothing
+        n = Name "el" Nothing 0 ProvOther
         (app_new, _) = runNamingM (traverse (const (freshSeededNameN n)) app_common) ng
         app_new_var = HM.mapWithKey (\e vn -> Var (Id vn (typeOf tv e))) app_new
 

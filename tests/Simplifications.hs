@@ -41,10 +41,10 @@ simplifyAppLambdasTest2 =
 simplifyTyVar1 :: Bool
 simplifyTyVar1 =
     let
-        tyvar_id1 = Id (Name "tv_1" Nothing 0 Nothing) TYPE
-        tyvar_id2 = Id (Name "tv_2" Nothing 0 Nothing) TYPE
+        tyvar_id1 = Id (Name "tv_1" Nothing 0 ProvOther) TYPE
+        tyvar_id2 = Id (Name "tv_2" Nothing 0 ProvOther) TYPE
 
-        v_n = Name "v" Nothing 0 Nothing
+        v_n = Name "v" Nothing 0 ProvOther
         v_id1 = Id v_n (TyVar tyvar_id1)
         v_id2 = Id v_n (TyVar tyvar_id2)
 
@@ -55,13 +55,13 @@ simplifyTyVar1 =
 
 
 id1 :: Id
-id1 = Id (Name "a" Nothing 0 Nothing) TyUnknown
+id1 = Id (Name "a" Nothing 0 ProvOther) TyUnknown
 
 id2 :: Id
-id2 = Id (Name "b" Nothing 0 Nothing) TyUnknown
+id2 = Id (Name "b" Nothing 0 ProvOther) TyUnknown
 
 id3 :: Id
-id3 = Id (Name "c" Nothing 0 Nothing) TyUnknown
+id3 = Id (Name "c" Nothing 0 ProvOther) TyUnknown
 
 id4 :: Id
-id4 = Id (Name "d" Nothing 0 Nothing) TyUnknown
+id4 = Id (Name "d" Nothing 0 ProvOther) TyUnknown

@@ -54,7 +54,7 @@ thNameToQQName n =
 
 -- | Maps a `QQName` to a `Name` with unique 0
 qqNameToName0 :: QQName -> G2.Name
-qqNameToName0 (QQName n m) = Name n m 0 Nothing
+qqNameToName0 (QQName n m) = Name n m 0 ProvOther
 
 qqAlgDataTyLookup :: QQName -> QQMap -> TypeEnv -> Maybe AlgDataTy
 qqAlgDataTyLookup qqn qqm tenv = flip HM.lookup tenv =<< HM.lookup qqn qqm

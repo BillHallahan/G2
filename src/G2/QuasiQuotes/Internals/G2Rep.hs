@@ -137,7 +137,7 @@ qqDataConLookupFallBack tyv_n arg_n qqtn qqdc type_nm_qqm dc_nm_qqm tenv
     | Just dc <- qqDataConLookup qqtn qqdc type_nm_qqm dc_nm_qqm tenv = dc
     | otherwise =
         let
-            n = G2.Name "unknown" Nothing 0 Nothing
+            n = G2.Name "unknown" Nothing 0 ProvOther
             i = Id n TYPE
 
             t = mkTyFun $ replicate (arg_n + 1) (TyCon n TYPE)
@@ -237,7 +237,7 @@ genG2TypeClause tyConName = do
                in
                case n of
                     Just tcn -> TyCon tcn TYPE
-                    Nothing -> TyCon (G2.Name (T.pack "Unknown") Nothing 0 Nothing) TYPE|]
+                    Nothing -> TyCon (G2.Name (T.pack "Unknown") Nothing 0 ProvOther) TYPE|]
 
     clause pats (normalB exn) []
 

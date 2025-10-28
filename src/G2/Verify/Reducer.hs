@@ -31,6 +31,7 @@ import G2.Verify.Config
 import Control.Monad.IO.Class
 import qualified Control.Monad.State as SM
 import qualified Data.HashSet as HS
+import qualified Data.HashMap.Strict as HM
 import Data.List
 import Data.Maybe
 import Data.Sequence
@@ -159,17 +160,27 @@ adjustFocusReducer = mkSimpleReducer (const ()) red
     where
         -- (1) Adjust variable focus
         red rv s@(State { expr_env = eenv
-                        , curr_expr = CurrExpr _ (Var (Id n _))
+                        , curr_expr = CurrExpr _ (Var (Id n@(Name _ _ _ ProvSymNRPC) _))
                         , non_red_path_conds = nrpc
                         , focused = Focused 
                         , track = VT { focus_map = fm }}) b =
             let
-                bring_focus = fromMaybe HS.empty (UF.lookup n fm)
-                nrpc' = foldr (\n_ -> setFocus n_ Focused eenv) nrpc (HS.insert n bring_focus)
+                bring_focus = find_focus (HS.singleton n) (HS.singleton n)
+                nrpc' = foldr (\n_ -> setFocus n_ Focused eenv) nrpc bring_focus
                 s' = s { non_red_path_conds = nrpc' }
             in
             return (Finished, [(s', rv)], b)
-        red rv s@(State { curr_expr = CurrExpr _ (Var (Id n _)) }) b =
+            where
+                find_focus dig found
+                    | HS.null dig = found
+                    | otherwise =
+                        let
+                            found_new = HS.unions . map (fromMaybe HS.empty . flip HM.lookup fm) $ HS.toList dig
+                            new_dig = found_new `HS.difference` found
+                        in
+                        find_focus new_dig (found `HS.union` found_new)
+                    
+        red rv s@(State { curr_expr = CurrExpr _ (Var (Id n@(Name _ _ _ ProvSymNRPC) _)) }) b =
             let
                 s' = updateFocusMap n s
             in
@@ -288,26 +299,25 @@ type VerifierState = State VerifierTracker
 newtype VerifierTracker = VT { focus_map :: FocusMap }
                           deriving (Show, Read)
 
-type FocusMap = UF.UFMap Name (HS.HashSet Name)
+type FocusMap = HM.HashMap Name (HS.HashSet Name)
 
 initVerifierTracker :: VerifierTracker
-initVerifierTracker = VT { focus_map = UF.empty }
+initVerifierTracker = VT { focus_map =HM.empty }
 
 updateFocusMap :: Name -> VerifierState -> VerifierState
 updateFocusMap n s@(State { focused = Unfocused n'
                           , track = VT { focus_map = fm } }) =
             let
-                fm' = UF.join HS.union n n' $ UF.insertWith HS.union n (HS.fromList [n, n']) fm
+                fm' = HM.insertWith HS.union n' (HS.fromList [n]) fm
             in
             s { track = VT { focus_map = fm' } }
 updateFocusMap _ s = s
 
 prettyVerifierTracker :: PrettyGuide -> VerifierTracker -> T.Text
 prettyVerifierTracker pg (VT { focus_map = fm }) =
-    T.intercalate "\n" . map pretty_fm $ UF.toList fm
+    T.intercalate "\n" . map pretty_fm $ HM.toList fm
     where
-        pretty_fm (ks, Just v) = T.intercalate ", " (map (printName pg) ks) <> " -> " <> T.intercalate ", " (map (printName pg) $ HS.toList v)
-        pretty_fm (ks, Nothing) = T.intercalate ", " (map (printName pg) ks) <> " -> Nothing"
+        pretty_fm (k, v) = printName pg k <> " -> " <> T.intercalate ", " (map (printName pg) $ HS.toList v)
 
 instance ASTContainer VerifierTracker Expr where
     containedASTs _ = []

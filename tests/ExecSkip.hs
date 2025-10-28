@@ -26,7 +26,7 @@ execSkipTests =
     ]
 
 name :: T.Text -> Name
-name n = Name n Nothing 0 Nothing
+name n = Name n Nothing 0 ProvOther
 
 -------------------------------------------------------------------------------
 -- checkDelayability Memoization Tests

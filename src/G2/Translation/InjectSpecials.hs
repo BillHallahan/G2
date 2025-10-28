@@ -21,7 +21,7 @@ specialTypes = HM.fromList $ map (uncurry specialTypes') specials ++ mkPrimTuple
 specialTypes' :: (T.Text, Maybe T.Text, [Name]) -> [(T.Text, Maybe T.Text, [Type])] -> (Name, AlgDataTy)
 specialTypes' (n, m, ns) dcn = 
     let
-        tn = Name n m 0 Nothing
+        tn = Name n m 0 ProvOther
         dc = map (specialDC ns tn) dcn
     in
     (tn, DataTyCon {bound_ids = map (flip Id TYPE) ns, data_cons = dc, adt_source = ADTSourceCode})
@@ -35,7 +35,7 @@ specialDC ns tn (n, m, ts) =
         is = map (flip Id TYPE) ns
         t' = foldr TyForAll t is
     in
-    DataCon (Name n m 0 Nothing) t' is []
+    DataCon (Name n m 0 ProvOther) t' is []
 
 specialTypeNames :: HM.HashMap (T.Text, Maybe T.Text) Name
 specialTypeNames = -- HM.fromList $ map (\(n, m, _) -> ((n, m), Name n m 0 Nothing)) specialTypeNames'
@@ -48,13 +48,13 @@ specialConstructors =
     HM.fromList $ integerConstructor:map (\(DataCon nm@(Name n m _ _) _ _ _)-> ((n, m), nm)) specialConstructors'
 
 integerConstructor :: ((T.Text, Maybe T.Text), Name)
-integerConstructor = (("IS", Just "GHC.Num.Integer"), Name "Z#" (Just "GHC.Num.Integer") 0 Nothing)
+integerConstructor = (("IS", Just "GHC.Num.Integer"), Name "Z#" (Just "GHC.Num.Integer") 0 ProvOther)
 
 specialConstructors' :: [DataCon]
 specialConstructors' = concatMap data_cons $ HM.elems specialTypes -- map (\(n, m, _) -> (n, m)) $ concatMap snd specials
 
 aName :: Name
-aName = Name "a" Nothing 0 Nothing
+aName = Name "a" Nothing 0 ProvOther
 
 aTyVar :: Type
 aTyVar = TyVar (Id aName TYPE)
@@ -67,7 +67,7 @@ listTypeStr = "[]"
 #endif
 
 listName :: Name
-listName = Name listTypeStr (Just "GHC.Types") 0 Nothing
+listName = Name listTypeStr (Just "GHC.Types") 0 ProvOther
 
 specials :: [((T.Text, Maybe T.Text, [Name]), [(T.Text, Maybe T.Text, [Type])])]
 specials =
@@ -113,7 +113,7 @@ mkTuples ls rs m n | n < 0 = []
 #else
                             ty_n = cons_n
 #endif
-                            ns = if n == 0 then [] else map (\i -> Name "a" m i Nothing) [0..fromIntegral n]
+                            ns = if n == 0 then [] else map (\i -> Name "a" m i ProvOther) [0..fromIntegral n]
                             tv = map (TyVar . flip Id TYPE) ns
                         in
                         -- ((s, m, []), [(s, m, [])]) : mkTuples (n - 1)
@@ -126,7 +126,7 @@ mkPrimTuples k =
     in
     map (\(n, m, ns, dc) -> 
             let
-                tn = Name n m 0 Nothing
+                tn = Name n m 0 ProvOther
             in
             (tn, DataTyCon {bound_ids = map (flip Id TYPE) ns, data_cons = [dc], adt_source = ADTSourceCode})) dcn
 
@@ -136,10 +136,10 @@ mkPrimTuples' n | n < 0 = []
                         let
                             s = "(#" `T.append` T.pack (replicate n ',') `T.append` "#)"
                             m = Just "GHC.Prim"
-                            tn = Name s m 0 Nothing
+                            tn = Name s m 0 ProvOther
 
-                            ns = if n == 0 then [] else map (\i -> Name "a" m i Nothing) [0..fromIntegral n]
-                            rt_ns = if n == 0 then [] else map (\i -> Name "rt_" m i Nothing) [0..fromIntegral n]
+                            ns = if n == 0 then [] else map (\i -> Name "a" m i ProvOther) [0..fromIntegral n]
+                            rt_ns = if n == 0 then [] else map (\i -> Name "rt_" m i ProvOther) [0..fromIntegral n]
                             tv = map (TyVar . flip Id TYPE) ns
 
                             t = foldr (TyFun) (mkFullAppedTyCon TV.empty tn tv TYPE) tv
@@ -148,7 +148,7 @@ mkPrimTuples' n | n < 0 = []
                             t' = foldr TyForAll t is
                             t'' = foldr TyForAll t' rt_is
                             
-                            dc = DataCon (Name s m 0 Nothing) t'' (rt_is ++ is) []
+                            dc = DataCon (Name s m 0 ProvOther) t'' (rt_is ++ is) []
                         in
                         -- ((s, m, []), [(s, m, [])]) : mkTuples (n - 1)
                         (s, m, rt_ns ++ ns, dc) : mkPrimTuples' (n - 1)

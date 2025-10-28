@@ -937,7 +937,7 @@ createNonRed' ng
             -- (for instance, MutVars, Handles) into NRPC symbolic variables.
             , not (hasMagicTypes kv e) =
     let
-        (new_sym, ng') = freshSeededString "sym" ng
+        (new_sym, ng') = freshSeededName (Name "sym" Nothing 0 ProvSymNRPC) ng
         new_sym_id = Id new_sym e_ty
         eenv' = E.insertSymbolic new_sym_id eenv
         -- when NRPC moves back to current expression, it immediately gets added as NRPC again.

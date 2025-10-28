@@ -147,10 +147,10 @@ transferTrackerInfo s1 s2 =
   in s2 { track = t2' }
 
 loc_name :: Name
-loc_name = Name (DT.pack "STACK") Nothing 0 Nothing
+loc_name = Name (DT.pack "STACK") Nothing 0 ProvOther
 
 rec_name :: Name
-rec_name = Name (DT.pack "REC") Nothing 0 Nothing
+rec_name = Name (DT.pack "REC") Nothing 0 ProvOther
 
 wrapRecursiveCall :: Name -> Expr -> Expr
 -- This first case prevents recursive calls from being wrapped twice
@@ -175,7 +175,7 @@ wrcHelper n e = case e of
 wrapLetRec :: ExprEnv -> Expr -> Expr
 wrapLetRec h (Let binds e) =
   let binds1 = map (\(i, e_) -> (idName i, e_)) binds
-      fresh_name = Name (DT.pack "FRESH") Nothing 0 Nothing
+      fresh_name = Name (DT.pack "FRESH") Nothing 0 ProvOther
       h' = foldr (\(n_, e_) h_ -> E.insert n_ e_ h_) h ((fresh_name, e):binds1)
       wrap_cg = wrapAllRecursion (G.getCallGraph h') h'
       binds2 = map (\(n_, e_) -> (n_, wrap_cg n_ e_)) binds1
@@ -224,7 +224,7 @@ prepareState s = (stateAdjStack s) { num_steps = 0, rules = [] }
 -- "stamps" for Case statements enforce induction validity
 stampName :: Int -> Int -> Name
 stampName x k =
-  Name (DT.pack $ (show x) ++ "STAMP:" ++ (show k)) Nothing 0 Nothing
+  Name (DT.pack $ (show x) ++ "STAMP:" ++ (show k)) Nothing 0 ProvOther
 
 -- leave existing stamp ticks unaffected; don't cover them with more layers
 -- only stamp strings should contain a colon

@@ -91,7 +91,7 @@ instance Arbitrary ArbSimpleState where
         return $ ArbSimple simple_s
 
 nameCall :: Name
-nameCall = Name "call" Nothing 0 Nothing
+nameCall = Name "call" Nothing 0 ProvOther
 
 data ArbSet = ArbSet { arb_type_env :: TypeEnv
                      , arb_expr :: Expr }
@@ -172,7 +172,7 @@ arbDataCon tenv unq ret_ty = do
     n <- chooseEnum ('A', 'Z')
     ar_c <- chooseInt (0, 5)
     ar_ty <- vectorOf ar_c (sized $ \k -> arbType tenv (k `div` ar_c))
-    return $ DataCon (Name (T.singleton n) Nothing unq Nothing) (mkTyFun $ ar_ty ++ [ret_ty]) [] []
+    return $ DataCon (Name (T.singleton n) Nothing unq ProvOther) (mkTyFun $ ar_ty ++ [ret_ty]) [] []
 
 newtype ArbExpr = AE { unAE :: Expr} deriving Show
 newtype ArbType = AT { unAT :: Type} deriving Show
@@ -200,7 +200,7 @@ instance Arbitrary ArbUpperName where
         n2 <- chooseEnum ('A', 'Z')
         let n = T.pack [n1, n2]
             n' = if n `elem` ["IO"] then n <> "'" else n
-        return . AU $ Name n' Nothing 0 Nothing
+        return . AU $ Name n' Nothing 0 ProvOther
 
 instance Arbitrary ArbName where
     arbitrary = do
@@ -208,7 +208,7 @@ instance Arbitrary ArbName where
         n2 <- chooseEnum ('a', 'z')
         let n = T.pack [n1, n2]
             n' = if n `elem` ["do", "if", "in", "of"] then n <> "'" else n
-        return . AN $ Name n' Nothing 0 Nothing
+        return . AN $ Name n' Nothing 0 ProvOther
 
 instance Arbitrary ArbId where
     arbitrary = do
@@ -296,7 +296,7 @@ arbExpr tenv init_t = sized $ \k -> arbExpr' k HM.empty init_t
         arbAltDC k tm t dc = do
             AN (Name p _ _ _) <- arbitrary
             let ts = anonArgumentTypes $ typeOf TV.empty dc
-                ps = map (\i -> Name p Nothing i Nothing) [1..fromIntegral (length ts)]
+                ps = map (\i -> Name p Nothing i ProvOther) [1..fromIntegral (length ts)]
                 is = zipWith Id ps ts
                 tm' = foldl' (\tm_ (p_, t_) -> HM.insert p_ t_ tm_) tm $ zip ps ts
             e <- arbExpr' k tm' t
@@ -380,92 +380,92 @@ errorAlt = Alt Default . Prim Undefined
 fakeKnownValues :: KnownValues
 fakeKnownValues =
     KnownValues {
-      KV.tyCoercion = Name "" Nothing 0 Nothing
-    , dcCoercion = Name "" Nothing 0 Nothing
+      KV.tyCoercion = Name "" Nothing 0 ProvOther
+    , dcCoercion = Name "" Nothing 0 ProvOther
     , KV.tyInt = intTypeName
     , dcInt = intDCName
     , KV.tyFloat = floatTypeName
     , dcFloat = floatDCName
-    , KV.tyDouble = Name "" Nothing 0 Nothing
-    , dcDouble = Name "" Nothing 0 Nothing
-    , KV.tyInteger = Name "" Nothing 0 Nothing
-    , dcInteger = Name "" Nothing 0 Nothing
-    , KV.tyChar  = Name "" Nothing 0 Nothing
-    , dcChar = Name "" Nothing 0 Nothing
-    , KV.tyBool = Name "" Nothing 0 Nothing
-    , dcTrue = Name "" Nothing 0 Nothing
-    , dcFalse = Name "" Nothing 0 Nothing
-    , KV.tyRational = Name "" Nothing 0 Nothing
-    , KV.tyList = Name "" Nothing 0 Nothing
-    , dcCons = Name "" Nothing 0 Nothing
-    , dcEmpty = Name "" Nothing 0 Nothing
-    , KV.tyMaybe = Name "" Nothing 0 Nothing
-    , dcJust = Name "" Nothing 0 Nothing
-    , dcNothing = Name "" Nothing 0 Nothing
-    , KV.tyUnit = Name "" Nothing 0 Nothing
-    , dcUnit = Name "" Nothing 0 Nothing
-    , KV.tyPrimTuple = Name "" Nothing 0 Nothing
-    , dcPrimTuple = Name "" Nothing 0 Nothing
-    , tyMutVar = Name "" Nothing 0 Nothing
-    , dcMutVar = Name "" Nothing 0 Nothing
-    , tyState = Name "" Nothing 0 Nothing
-    , dcState = Name "" Nothing 0 Nothing
-    , tyRealWorld = Name "" Nothing 0 Nothing
-    , dcRealWorld = Name "" Nothing 0 Nothing
-    , tyHandle = Name "" Nothing 0 Nothing
-    , eqTC = Name "" Nothing 0 Nothing
-    , numTC = Name "" Nothing 0 Nothing
-    , ordTC = Name "" Nothing 0 Nothing
-    , integralTC = Name "" Nothing 0 Nothing
-    , realTC = Name "" Nothing 0 Nothing
-    , fractionalTC = Name "" Nothing 0 Nothing
-    , integralExtactReal = Name "" Nothing 0 Nothing
-    , realExtractNum = Name "" Nothing 0 Nothing
-    , realExtractOrd = Name "" Nothing 0 Nothing
-    , ordExtractEq = Name "" Nothing 0 Nothing
-    , eqFunc = Name "" Nothing 0 Nothing
-    , neqFunc = Name "" Nothing 0 Nothing
-    , plusFunc = Name "" Nothing 0 Nothing
-    , minusFunc = Name "" Nothing 0 Nothing
-    , KV.timesFunc = Name "" Nothing 0 Nothing
-    , divFunc = Name "" Nothing 0 Nothing
-    , negateFunc = Name "" Nothing 0 Nothing
-    , modFunc = Name "" Nothing 0 Nothing
-    , fromIntegerFunc = Name "" Nothing 0 Nothing
-    , toIntegerFunc = Name "" Nothing 0 Nothing
-    , toRatioFunc = Name "" Nothing 0 Nothing
-    , fromRationalFunc = Name "" Nothing 0 Nothing
+    , KV.tyDouble = Name "" Nothing 0 ProvOther
+    , dcDouble = Name "" Nothing 0 ProvOther
+    , KV.tyInteger = Name "" Nothing 0 ProvOther
+    , dcInteger = Name "" Nothing 0 ProvOther
+    , KV.tyChar  = Name "" Nothing 0 ProvOther
+    , dcChar = Name "" Nothing 0 ProvOther
+    , KV.tyBool = Name "" Nothing 0 ProvOther
+    , dcTrue = Name "" Nothing 0 ProvOther
+    , dcFalse = Name "" Nothing 0 ProvOther
+    , KV.tyRational = Name "" Nothing 0 ProvOther
+    , KV.tyList = Name "" Nothing 0 ProvOther
+    , dcCons = Name "" Nothing 0 ProvOther
+    , dcEmpty = Name "" Nothing 0 ProvOther
+    , KV.tyMaybe = Name "" Nothing 0 ProvOther
+    , dcJust = Name "" Nothing 0 ProvOther
+    , dcNothing = Name "" Nothing 0 ProvOther
+    , KV.tyUnit = Name "" Nothing 0 ProvOther
+    , dcUnit = Name "" Nothing 0 ProvOther
+    , KV.tyPrimTuple = Name "" Nothing 0 ProvOther
+    , dcPrimTuple = Name "" Nothing 0 ProvOther
+    , tyMutVar = Name "" Nothing 0 ProvOther
+    , dcMutVar = Name "" Nothing 0 ProvOther
+    , tyState = Name "" Nothing 0 ProvOther
+    , dcState = Name "" Nothing 0 ProvOther
+    , tyRealWorld = Name "" Nothing 0 ProvOther
+    , dcRealWorld = Name "" Nothing 0 ProvOther
+    , tyHandle = Name "" Nothing 0 ProvOther
+    , eqTC = Name "" Nothing 0 ProvOther
+    , numTC = Name "" Nothing 0 ProvOther
+    , ordTC = Name "" Nothing 0 ProvOther
+    , integralTC = Name "" Nothing 0 ProvOther
+    , realTC = Name "" Nothing 0 ProvOther
+    , fractionalTC = Name "" Nothing 0 ProvOther
+    , integralExtactReal = Name "" Nothing 0 ProvOther
+    , realExtractNum = Name "" Nothing 0 ProvOther
+    , realExtractOrd = Name "" Nothing 0 ProvOther
+    , ordExtractEq = Name "" Nothing 0 ProvOther
+    , eqFunc = Name "" Nothing 0 ProvOther
+    , neqFunc = Name "" Nothing 0 ProvOther
+    , plusFunc = Name "" Nothing 0 ProvOther
+    , minusFunc = Name "" Nothing 0 ProvOther
+    , KV.timesFunc = Name "" Nothing 0 ProvOther
+    , divFunc = Name "" Nothing 0 ProvOther
+    , negateFunc = Name "" Nothing 0 ProvOther
+    , modFunc = Name "" Nothing 0 ProvOther
+    , fromIntegerFunc = Name "" Nothing 0 ProvOther
+    , toIntegerFunc = Name "" Nothing 0 ProvOther
+    , toRatioFunc = Name "" Nothing 0 ProvOther
+    , fromRationalFunc = Name "" Nothing 0 ProvOther
 
-    , geFunc = Name "" Nothing 0 Nothing
-    , gtFunc = Name "" Nothing 0 Nothing
-    , ltFunc = Name "" Nothing 0 Nothing
-    , leFunc = Name "" Nothing 0 Nothing
+    , geFunc = Name "" Nothing 0 ProvOther
+    , gtFunc = Name "" Nothing 0 ProvOther
+    , ltFunc = Name "" Nothing 0 ProvOther
+    , leFunc = Name "" Nothing 0 ProvOther
 
-    , impliesFunc = Name "" Nothing 0 Nothing
-    , iffFunc = Name "" Nothing 0 Nothing
+    , impliesFunc = Name "" Nothing 0 ProvOther
+    , iffFunc = Name "" Nothing 0 ProvOther
 
-    , andFunc = Name "" Nothing 0 Nothing
-    , orFunc = Name "" Nothing 0 Nothing
-    , notFunc = Name "" Nothing 0 Nothing
+    , andFunc = Name "" Nothing 0 ProvOther
+    , orFunc = Name "" Nothing 0 ProvOther
+    , notFunc = Name "" Nothing 0 ProvOther
 
-    , typeIndex = Name "" Nothing 0 Nothing
-    , adjStr = Name "" Nothing 0 Nothing
-    , strQuantifiers = Name "" Nothing 0 Nothing
+    , typeIndex = Name "" Nothing 0 ProvOther
+    , adjStr = Name "" Nothing 0 ProvOther
+    , strQuantifiers = Name "" Nothing 0 ProvOther
 
-    , errorFunc = Name "" Nothing 0 Nothing
-    , errorWithoutStackTraceFunc = Name "" Nothing 0 Nothing
-    , errorEmptyListFunc = Name "" Nothing 0 Nothing
-    , patErrorFunc = Name "" Nothing 0 Nothing
+    , errorFunc = Name "" Nothing 0 ProvOther
+    , errorWithoutStackTraceFunc = Name "" Nothing 0 ProvOther
+    , errorEmptyListFunc = Name "" Nothing 0 ProvOther
+    , patErrorFunc = Name "" Nothing 0 ProvOther
     }
 
 intDCName :: Name
-intDCName = Name "I#" Nothing 0 Nothing
+intDCName = Name "I#" Nothing 0 ProvOther
 
 intTypeName :: Name
-intTypeName = Name "Int" Nothing 0 Nothing
+intTypeName = Name "Int" Nothing 0 ProvOther
 
 floatDCName :: Name
-floatDCName = Name "F#" Nothing 0 Nothing
+floatDCName = Name "F#" Nothing 0 ProvOther
 
 floatTypeName :: Name
-floatTypeName = Name "Float" Nothing 0 Nothing
+floatTypeName = Name "Float" Nothing 0 ProvOther

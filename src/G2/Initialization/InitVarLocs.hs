@@ -9,11 +9,11 @@ initVarLocs = modifyASTs initVarLocs'
 
 initVarLocs' :: Expr -> Expr
 initVarLocs' (Tick (Breakpoint brs) e)
-    | (Var (Id (Name n m i (Just vs)) t)):xs <- unApp e =
+    | (Var (Id (Name n m i (ProvFile vs)) t)):xs <- unApp e =
     let
         s' = adjustSpanLoc brs vs
     in
-    mkApp (Var (Id (Name n m i (Just s')) t):xs)
+    mkApp (Var (Id (Name n m i (ProvFile s')) t):xs)
 initVarLocs' e = e
 
 -- | Returns a span with the first spans

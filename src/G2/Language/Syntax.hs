@@ -35,8 +35,16 @@ data Span = Span { start :: Loc
 
 instance Hashable Span
 
+-- | Records the provenance of a `Name`.
+data Provenance = ProvFile Span -- ^ A name that occurs at some position in a file
+                | ProvSymNRPC -- ^ A name that is a symbolic variable introduced for an NRPC
+                | ProvOther
+                deriving (Show, Eq, Read, Generic, Typeable, Data)
+
+instance Hashable Provenance
+
 -- | A name has three pieces: an occurence name, Maybe a module name, and a Unique Id.
-data Name = Name T.Text (Maybe T.Text) !Unique (Maybe Span)
+data Name = Name T.Text (Maybe T.Text) !Unique Provenance
             deriving (Show, Read, Generic, Typeable, Data)
 
 -- | A value used to ensure a name is Unique

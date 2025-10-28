@@ -1226,7 +1226,7 @@ addNRPCTick ng e = (e, ng)
 
 nonRedBlockerTick :: NameGen -> Expr -> (Expr, NameGen)
 nonRedBlockerTick ng e =
-    let (n, ng') = freshSeededName (Name "NonRedBlocker" Nothing 0 Nothing) ng in
+    let (n, ng') = freshSeededName (Name "NonRedBlocker" Nothing 0 ProvOther) ng in
     (Tick (NamedLoc n) e, ng')
 
 retAssumeFrame :: State t -> NameGen -> Expr -> Expr -> S.Stack Frame -> (Rule, [NewPC t], NameGen)
@@ -1445,7 +1445,7 @@ hpcTick u = HpcTick u "HPC"
 
 freshHpcTick :: NameGen -> (Tickish, NameGen)
 freshHpcTick ng =
-    let (Name n _ u _, ng') = freshSeededName (Name "HPC" Nothing 0 Nothing) ng in
+    let (Name n _ u _, ng') = freshSeededName (Name "HPC" Nothing 0 ProvOther) ng in
     (HpcTick u "HPC", ng')
 
 data SymFuncTicks = SFT { dc_split_tick :: Tickish
@@ -1502,7 +1502,7 @@ retReplaceSymbFuncTemplate sft
                         let (argIds, ng1') = genArgIds dc ng1
                             data_alt = DataAlt dc argIds
                             sym_fun_ty = mkTyFun $ fst (argTypes dcty) ++ [t2]
-                            (fi, ng1'') = freshSeededId (Name "symFun" Nothing 0 Nothing) sym_fun_ty ng1'
+                            (fi, ng1'') = freshSeededId (Name "symFun" Nothing 0 ProvOther) sym_fun_ty ng1'
                             vargs = map Var argIds
                         in (Alt data_alt (mkApp (Var fi : vargs)) : as, fi : sids, ng1'')
                         ) ([], [], ng'') dcs

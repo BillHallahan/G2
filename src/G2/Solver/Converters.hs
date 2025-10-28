@@ -909,7 +909,7 @@ sortToType SortFloat = TyLitFloat
 sortToType SortDouble = TyLitDouble
 sortToType SortReal = TyLitRational
 sortToType SortChar = TyLitChar
-sortToType SortBool = TyCon (Name "Bool" Nothing 0 Nothing) TYPE
+sortToType SortBool = TyCon (Name "Bool" Nothing 0 ProvOther) TYPE
 sortToType _ = error "Conversion of this Sort to a Type not supported."
 
 -- | Coverts an `SMTModel` to a `Model`.
@@ -920,4 +920,4 @@ certainStrToName :: String -> Name
 certainStrToName s =
     case maybe_StrToName s of
         Just n -> n
-        Nothing -> Name (T.pack s) Nothing 0 Nothing
+        Nothing -> Name (T.pack s) Nothing 0 ProvOther

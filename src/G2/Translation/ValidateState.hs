@@ -230,7 +230,7 @@ loadStandardSet =
     [IIDecl primImD, IIDecl extsImD, IIDecl prImD, IIDecl exImD, IIDecl coerceImD, IIDecl charD]
 
 simpVar :: T.Text -> Expr
-simpVar s = Var (Id (Name s Nothing 0 Nothing) TyBottom)
+simpVar s = Var (Id (Name s Nothing 0 ProvOther) TyBottom)
 
 runHPC :: FilePath -> String -> String -> String -> [ExecRes t] -> IO ()
 runHPC src meas_with modN entry in_out = do
@@ -358,5 +358,5 @@ toEnclodeFloat = modifyASTs go
                 let (m, n) = decodeFloat f in mkApp [encFloat, iCon $ Lit (LitInteger m), iCon $ Lit (LitInt $ toInteger n)]
         go e = e
 
-        iCon = App (Data (DataCon { dc_name = Name "Z#" Nothing 0 Nothing, dc_type = TyUnknown, dc_exist_tyvars = [], dc_univ_tyvars = [] }))
-        encFloat = Var (Id (Name "encodeFloat" Nothing 0 Nothing) TyUnknown)
+        iCon = App (Data (DataCon { dc_name = Name "Z#" Nothing 0 ProvOther, dc_type = TyUnknown, dc_exist_tyvars = [], dc_univ_tyvars = [] }))
+        encFloat = Var (Id (Name "encodeFloat" Nothing 0 ProvOther) TyUnknown)

@@ -42,9 +42,9 @@ runInitialization2 config s@(IT.SimpleState { IT.expr_env = eenv
 
         eenv4 = if error_asserts config then assertFalseOnError kv eenv3 else eenv3
 
-        t = Id (Name "t" Nothing 0 Nothing) TYPE
-        str = Id (Name "s" Nothing 0 Nothing) (tyString kv)
-        x = Id (Name "x" Nothing 0 Nothing) TyLitInt
+        t = Id (Name "t" Nothing 0 ProvOther) TYPE
+        str = Id (Name "s" Nothing 0 ProvOther) (tyString kv)
+        x = Id (Name "x" Nothing 0 ProvOther) TyLitInt
         (eenv5, ng3) = if smt_strings config == NoSMTStrings
                                 then (E.insert (typeIndex kv) 
                                             (Lam TypeL t . Lam TermL x . Lit $ LitInt 0) eenv4, ng2)

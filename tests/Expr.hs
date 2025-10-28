@@ -67,30 +67,30 @@ etaExpandToOverSat1 =
 
 -- DataCons
 intD :: DataCon
-intD = DataCon (Name "Int" Nothing 0 Nothing) int [] []
+intD = DataCon (Name "Int" Nothing 0 ProvOther) int [] []
 
 -- Types
 int :: Type
-int = TyCon (Name "Int" Nothing 0 Nothing) TYPE
+int = TyCon (Name "Int" Nothing 0 ProvOther) TYPE
 
 -- Typed Expr's
 x1N :: Name
-x1N = Name "x1" Nothing 0 Nothing
+x1N = Name "x1" Nothing 0 ProvOther
 
 fId :: Id
-fId = Id (Name "f" Nothing 0 Nothing) (TyFun int int)
+fId = Id (Name "f" Nothing 0 ProvOther) (TyFun int int)
 
 idN :: Name
-idN = Name "id" Nothing 0 Nothing
+idN = Name "id" Nothing 0 ProvOther
 
 idF :: Expr
 idF = Var $ Id idN (TyFun int int)
 
 bN :: Name
-bN = Name "b" Nothing 0 Nothing
+bN = Name "b" Nothing 0 ProvOther
 
 undefinedN :: Name
-undefinedN = Name "undefined" Nothing 0 Nothing
+undefinedN = Name "undefined" Nothing 0 ProvOther
 
 eenv :: ExprEnv
 eenv = E.fromList [ (x1N, App (Data intD) (Lit (LitInt 1))) 

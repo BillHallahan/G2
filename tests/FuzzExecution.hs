@@ -33,7 +33,7 @@ fuzzExecution (SB init_state bindings) = do
     ioProperty (do
         config <- mkConfigTestIO
         -- Adding a dummy name in place of entry function, this function doesn't use it.
-        (ers, b, _) <- runG2WithConfig ["tests/TestFiles/"] ["tests/TestFiles/Fuzz.hs"] (Id (Name (T.pack "fuzz") (Just (T.pack "Fuzz")) 0 Nothing) TyUnknown) "fuzz" [] [Nothing] init_state config bindings
+        (ers, b, _) <- runG2WithConfig ["tests/TestFiles/"] ["tests/TestFiles/Fuzz.hs"] (Id (Name (T.pack "fuzz") (Just (T.pack "Fuzz")) 0 ProvOther) TyUnknown) "fuzz" [] [Nothing] init_state config bindings
 
         mr <- runGhc (Just libdir) (do
                 and <$> mapM (\er -> do
@@ -57,6 +57,6 @@ fuzzExecution (SB init_state bindings) = do
         
         -- Get information about generated input/outputs when test fails
         -- let pg = mkPrettyGuide (map (exprNames . conc_args) ers)
-        --     er_out = map (printInputOutput pg (Id (Name "call" Nothing 0 Nothing) TyUnknown) b) ers
+        --     er_out = map (printInputOutput pg (Id (Name "call" Nothing 0 ProvOther) TyUnknown) b) ers
         
         return {- . counterexample ("er_out = " ++ show er_out) -} $ not (null ers) ==> property mr)

@@ -210,7 +210,7 @@ mkPrimTuple kv tenv = Data . fromJust $ getDataCon tenv (KV.tyPrimTuple kv) (KV.
 mkIdentity :: Type -> Expr
 mkIdentity t =
     let
-        x = Id (Name "x" Nothing 0 Nothing) t
+        x = Id (Name "x" Nothing 0 ProvOther) t
     in
     Lam TermL x (Var x)
 

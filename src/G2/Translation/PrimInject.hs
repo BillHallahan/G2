@@ -285,28 +285,28 @@ primDefs' b c l unit =
                                                 , Var $ x t
                                                 , Var $ y t]]
 a :: Id
-a = Id (Name "a" Nothing 0 Nothing) TYPE
+a = Id (Name "a" Nothing 0 ProvOther) TYPE
 
 tyvarA :: Type
 tyvarA = TyVar a
 
 d :: Id
-d = Id (Name "d" Nothing 0 Nothing) TYPE
+d = Id (Name "d" Nothing 0 ProvOther) TYPE
 
 x :: Type -> Id
-x = Id (Name "x" Nothing 0 Nothing)
+x = Id (Name "x" Nothing 0 ProvOther)
 
 y :: Type -> Id
-y = Id (Name "y" Nothing 0 Nothing)
+y = Id (Name "y" Nothing 0 ProvOther)
 
 z :: Type -> Id
-z = Id (Name "z" Nothing 0 Nothing)
+z = Id (Name "z" Nothing 0 ProvOther)
 
 dummyId :: T.Text -> Type -> Id
-dummyId name = Id (Name name Nothing 0 Nothing) 
+dummyId name = Id (Name name Nothing 0 ProvOther) 
 
 binder :: Type -> Id
-binder = Id (Name "b" Nothing 0 Nothing)
+binder = Id (Name "b" Nothing 0 ProvOther)
 
 tyIntInt :: Type
 tyIntInt = TyFun TyLitInt TyLitInt

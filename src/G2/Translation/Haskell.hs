@@ -485,8 +485,8 @@ createTickish :: Maybe ModBreaks -> Tickish i -> Maybe G2.Tickish
 #endif
 createTickish (Just mb) (Breakpoint {breakpointId = bid}) =
     case mkSpan $ modBreaks_locs mb A.! bid of
-        Just s -> Just $ G2.Breakpoint $ s
-        Nothing -> Nothing
+        G2.ProvFile s -> Just $ G2.Breakpoint $ s
+        _ -> Nothing
 createTickish _ (HpcTick { tickModule = md, tickId = i}) =
     Just . G2.HpcTick (fromIntegral i) . T.pack . moduleNameString $ moduleName md
 createTickish _ _ = Nothing
@@ -560,13 +560,13 @@ convertUnq :: Int -> G2.Unique
 convertUnq = fromIntegral
 #endif
 
-mkSpan :: SrcSpan -> Maybe G2.Span
+mkSpan :: SrcSpan -> G2.Provenance
 #if MIN_VERSION_GLASGOW_HASKELL(9,0,2,0)
-mkSpan (RealSrcSpan s _) = Just $ mkRealSpan s
+mkSpan (RealSrcSpan s _) = G2.ProvFile $ mkRealSpan s
 #else
-mkSpan (RealSrcSpan s) = Just $ mkRealSpan s
+mkSpan (RealSrcSpan s) = G2.ProvFile $ mkRealSpan s
 #endif
-mkSpan _ = Nothing
+mkSpan _ = G2.ProvOther
 
 mkRealSpan :: RealSrcSpan -> G2.Span
 mkRealSpan s =
@@ -856,8 +856,8 @@ absVarLoc :: HM.HashMap G2.Name G2.Expr -> IO (HM.HashMap G2.Name G2.Expr)
 absVarLoc = mapM absVarLoc'
         
 absVarLoc' :: G2.Expr -> IO G2.Expr
-absVarLoc' (G2.Var (G2.Id (G2.Name n m i (Just s)) t)) = do
-    return $ G2.Var $ G2.Id (G2.Name n m i (Just $ s)) t
+absVarLoc' (G2.Var (G2.Id (G2.Name n m i (G2.ProvFile s)) t)) = do
+    return $ G2.Var $ G2.Id (G2.Name n m i (G2.ProvFile s)) t
 absVarLoc' (G2.App e1 e2) = do
     e1' <- absVarLoc' e1
     e2' <- absVarLoc' e2

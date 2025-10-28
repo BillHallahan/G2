@@ -118,7 +118,7 @@ mkCleanExprHaskell' tv tc e
 elimPrimDC :: Alt -> Maybe Alt
 elimPrimDC (Alt (DataAlt dc@(DataCon (Name n _ _ _) t utyvar etyvar) is) e)
     | n == "I#" || n == "W#" || n == "F#" || n == "D#" || n == "Z#" || n == "C#" =
-                        Just $ Alt (DataAlt (DataCon (Name "" Nothing 0 Nothing) t utyvar etyvar) is) (insertLitDC dc e)
+                        Just $ Alt (DataAlt (DataCon (Name "" Nothing 0 ProvOther) t utyvar etyvar) is) (insertLitDC dc e)
 elimPrimDC _ = Nothing
 
 insertLitDC :: DataCon -> Expr -> Expr 

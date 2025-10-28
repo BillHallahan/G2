@@ -85,7 +85,7 @@ specTest3 :: Bool
 specTest3 = typeOf TV.empty f2 .:: typeOf TV.empty f3
 
 specFalseTest1 :: Bool
-specFalseTest1 = not $ typeOf TV.empty (Var (Id (Name "x1" Nothing 0 Nothing) a)) .:: int
+specFalseTest1 = not $ typeOf TV.empty (Var (Id (Name "x1" Nothing 0 ProvOther) a)) .:: int
 
 specFalseTest2 :: Bool
 specFalseTest2 = not $ typeOf TV.empty f3 .:: typeOf TV.empty f2
@@ -93,7 +93,7 @@ specFalseTest2 = not $ typeOf TV.empty f3 .:: typeOf TV.empty f2
 specFalseTest3 :: Bool
 specFalseTest3 =
     let
-        c = Id (Name "c" Nothing 0 Nothing) TYPE
+        c = Id (Name "c" Nothing 0 ProvOther) TYPE
 
         t1 = TyFun (TyVar aid) (TyVar bid)
         t2 = TyFun (TyVar c) (TyVar c)
@@ -102,20 +102,20 @@ specFalseTest3 =
 
 -- Typed Expr's
 x1 :: Expr
-x1 = Var $ Id (Name "x1" Nothing 0 Nothing) int
+x1 = Var $ Id (Name "x1" Nothing 0 ProvOther) int
 
 f1 :: Expr
-f1 = Var $ Id (Name "f1" Nothing 0 Nothing) (TyFun int int)
+f1 = Var $ Id (Name "f1" Nothing 0 ProvOther) (TyFun int int)
 
 f2 :: Expr
-f2 = Var $ Id (Name "f2" Nothing 0 Nothing)
+f2 = Var $ Id (Name "f2" Nothing 0 ProvOther)
                 (TyForAll
                     bid
                     (TyFun b b)
                 )
 
 f3 :: Expr
-f3 = Var $ Id (Name "f3" Nothing 0 Nothing)
+f3 = Var $ Id (Name "f3" Nothing 0 ProvOther)
                 (TyForAll
                     bid
                     (TyForAll
@@ -126,7 +126,7 @@ f3 = Var $ Id (Name "f3" Nothing 0 Nothing)
 
 just :: Expr
 just = Data $ DataCon 
-                    (Name "Just" Nothing 0 Nothing) 
+                    (Name "Just" Nothing 0 ProvOther) 
                     (TyForAll 
                         aid 
                         (TyFun a (TyApp maybe a))
@@ -135,31 +135,31 @@ just = Data $ DataCon
 idDef :: Expr
 idDef = Lam TypeL aid 
             (Lam TermL
-                (Id (Name "x" Nothing 0 Nothing) a)
-                (Var (Id (Name "x" Nothing 0 Nothing) a))
+                (Id (Name "x" Nothing 0 ProvOther) a)
+                (Var (Id (Name "x" Nothing 0 ProvOther) a))
             )
 
 -- Types
 int :: Type
-int = TyCon (Name "Int" Nothing 0 Nothing) TYPE
+int = TyCon (Name "Int" Nothing 0 ProvOther) TYPE
 
 float :: Type
-float = TyCon (Name "Float" Nothing 0 Nothing) TYPE
+float = TyCon (Name "Float" Nothing 0 ProvOther) TYPE
 
 maybe :: Type
-maybe = TyCon (Name "Maybe" Nothing 0 Nothing) (TyFun TYPE TYPE)
+maybe = TyCon (Name "Maybe" Nothing 0 ProvOther) (TyFun TYPE TYPE)
 
 either :: Type
-either = TyCon (Name "Either" Nothing 0 Nothing) (TyFun TYPE (TyFun TYPE TYPE))
+either = TyCon (Name "Either" Nothing 0 ProvOther) (TyFun TYPE (TyFun TYPE TYPE))
 
 a :: Type
 a = TyVar aid
 
 aid :: Id
-aid = Id (Name "a" Nothing 0 Nothing) TYPE
+aid = Id (Name "a" Nothing 0 ProvOther) TYPE
 
 b :: Type
 b = TyVar bid
 
 bid :: Id
-bid = Id (Name "b" Nothing 0 Nothing) TYPE
+bid = Id (Name "b" Nothing 0 ProvOther) TYPE
