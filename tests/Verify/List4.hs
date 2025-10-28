@@ -74,3 +74,11 @@ take _ [] = []
 take (S x) (y:ys) = y : (take x ys)
 
 p6 n xs = take n xs ++ drop n xs == xs
+
+butlast :: [a] -> [a]
+butlast [] = []
+butlast [x] = []
+butlast (x:xs) = x:(butlast xs)
+
+p7 [] = True
+p7 xs = (butlast xs ++ [last xs] == xs)
