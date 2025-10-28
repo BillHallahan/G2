@@ -1282,12 +1282,12 @@ taggerRedStep n _ s@(State {tags = ts}) b@(Bindings { name_gen = ng }) =
     else
         return (Finished, [(s, ())], b)
 
-
-getLogger :: (MonadIO m, SM.MonadState PrettyGuide m, Show t) => Config -> Maybe (Reducer m () t)
-getLogger config = case logStates config of
-                        Log Raw fp -> Just (simpleLogger fp)
-                        Log Pretty fp -> Just (prettyLogger fp)
-                        NoLog -> Nothing
+getLogger :: (MonadIO m, SM.MonadState PrettyGuide m, Show t) => Config -> PrettyTrack t ->  Maybe (Reducer m () t)
+getLogger config pretty_track =
+    case logStates config of
+        Log Raw fp -> Just (simpleLogger fp)
+        Log Pretty fp -> Just (prettyLogger pretty_track fp)
+        NoLog -> Nothing
 
 -- | A Reducer to producer logging output 
 simpleLogger :: (MonadIO m, Show t) => FilePath -> Reducer m () t
@@ -1299,15 +1299,15 @@ simpleLogger fn =
                     { updateWithAll = \s -> map (\(s, i) -> s { log_path = log_path s ++ [i]} ) $ zip s [1..] }
 
 -- | A Reducer to producer logging output 
-prettyLogger :: (MonadIO m, SM.MonadState PrettyGuide m, Show t) => FilePath -> Reducer m () t
-prettyLogger fp =
+prettyLogger :: (MonadIO m, SM.MonadState PrettyGuide m) => PrettyTrack t -> FilePath -> Reducer m () t
+prettyLogger pretty_track fp =
     (mkSimpleReducer
         (const ())
         (\_ s b -> do
             pg <- SM.get
             let pg' = updatePrettyGuide (s { track = () }) pg
             SM.put pg'
-            liftIO $ outputState stdFileNamer fp (log_path s) s b (\s_ _ -> T.unpack $ prettyState pg' s_)
+            liftIO $ outputState stdFileNamer fp (log_path s) s b (\s_ _ -> T.unpack $ prettyState pg' pretty_track s_)
             return (NoProgress, [(s, ())], b)
         )
 
@@ -1423,14 +1423,15 @@ limLoggerConfig fp = LimLogger { every_n = 0
 
 newtype LLTracker = LLTracker { ll_count :: Int }
 
-getLimLogger :: (MonadIO m, SM.MonadState PrettyGuide m, Show t) => Config -> IO (Maybe (Reducer m LLTracker t))
+getLimLogger :: (MonadIO m, SM.MonadState PrettyGuide m, Show t) => Config -> PrettyTrack t -> IO (Maybe (Reducer m LLTracker t))
 getLimLogger = getLimLogger' stdFileNamer
 
 getLimLogger' :: (MonadIO m, SM.MonadState PrettyGuide m, Show t) =>
                  (forall t' . State t' -> FilePath)
               -> Config
+              -> PrettyTrack t
               -> IO (Maybe (Reducer m LLTracker t))
-getLimLogger' out_name config = do
+getLimLogger' out_name config pretty_track = do
     cpg <- maybe
                 (return Nothing)
                 (\fp -> do
@@ -1452,10 +1453,10 @@ getLimLogger' out_name config = do
     
     case logStates config of
             Log Raw _ -> return . Just . limLogger $ ll_config
-            Log Pretty _ -> return . Just . prettyLimLogger $ ll_config
+            Log Pretty _ -> return . Just . prettyLimLogger pretty_track $ ll_config
             NoLog -> return Nothing
 
-genLimLogger :: (MonadIO m, Show t) => ([Int] -> State t -> Bindings -> m ()) -> LimLogger -> Reducer m LLTracker t
+genLimLogger :: MonadIO m => ([Int] -> State t -> Bindings -> m ()) -> LimLogger -> Reducer m LLTracker t
 genLimLogger out_f ll@(LimLogger { after_n = aft, before_n = bfr, down_path = down, conc_pc_guide = cpg }) =
     (mkSimpleReducer (const $ LLTracker { ll_count = every_n ll }) rr)
         { updateWithAll = updateWithAllLL
@@ -1488,8 +1489,8 @@ limLogger :: (MonadIO m, Show t) => LimLogger -> Reducer m LLTracker t
 limLogger ll@(LimLogger {filter_env = f_env}) =
     genLimLogger (\off s b -> liftIO $ outputState (output_name ll) (lim_output_path ll) off (if f_env then filterStateEnv s else s) b pprExecStateStr) ll
 
-prettyLimLogger :: (MonadIO m, SM.MonadState PrettyGuide m, Show t) => LimLogger -> Reducer m LLTracker t
-prettyLimLogger ll@(LimLogger {filter_env = f_env, order_env = o_env}) =
+prettyLimLogger :: (MonadIO m, SM.MonadState PrettyGuide m) => PrettyTrack t -> LimLogger -> Reducer m LLTracker t
+prettyLimLogger pretty_track ll@(LimLogger {filter_env = f_env, order_env = o_env}) =
     genLimLogger (\off s@(State {}) b -> do
                 pg <- SM.get
                 let pg' = updatePrettyGuide (s { track = () }) pg
@@ -1497,7 +1498,7 @@ prettyLimLogger ll@(LimLogger {filter_env = f_env, order_env = o_env}) =
                 SM.put pg'
                 let pg'' = setEnvOrdering o_env pg'
                 let s'' = if f_env then filterStateEnv s' else s'     
-                liftIO $ outputState (output_name ll) (lim_output_path ll) off s'' b (\s_ _ -> T.unpack $ prettyState pg'' s_)
+                liftIO $ outputState (output_name ll) (lim_output_path ll) off s'' b (\s_ _ -> T.unpack $ prettyState pg'' pretty_track s_)
     ) ll
 
 filterStateEnv :: State t -> State t

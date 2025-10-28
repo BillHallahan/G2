@@ -2,6 +2,7 @@
 
 module G2.Verify.Reducer ( VerifierTracker
                          , initVerifierTracker
+                         , prettyVerifierTracker
                          
                          , nrpcAnyCallReducer
                          , adjustFocusReducer
@@ -23,6 +24,7 @@ import qualified G2.Language.ExprEnv as E
 import G2.Language.KnownValues
 import qualified G2.Language.Stack as Stck
 import qualified G2.Language.Typing as T
+import G2.Lib.Printers
 import G2.Solver
 import G2.Verify.Config
 
@@ -32,6 +34,9 @@ import qualified Data.HashSet as HS
 import Data.List
 import Data.Maybe
 import Data.Sequence
+
+import qualified Data.Text as T
+
 
 -- | When a newly reached function application is approximated by a previously seen (and thus explored) function application,
 -- shift the new function application into the NRPCs.
@@ -296,6 +301,13 @@ updateFocusMap n s@(State { focused = Unfocused n'
             in
             s { track = VT { focus_map = fm' } }
 updateFocusMap _ s = s
+
+prettyVerifierTracker :: PrettyGuide -> VerifierTracker -> T.Text
+prettyVerifierTracker pg (VT { focus_map = fm }) =
+    T.intercalate "\n" . map pretty_fm $ UF.toList fm
+    where
+        pretty_fm (ks, Just v) = T.intercalate ", " (map (printName pg) ks) <> " -> " <> T.intercalate ", " (map (printName pg) $ HS.toList v)
+        pretty_fm (ks, Nothing) = T.intercalate ", " (map (printName pg) ks) <> " -> Nothing"
 
 instance ASTContainer VerifierTracker Expr where
     containedASTs _ = []

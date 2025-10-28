@@ -60,7 +60,7 @@ verifyRedHaltOrd s solver simplifier config verify_config no_nrpc_names = do
                                     "state" ++ show (length $ rules s) ++ "_ap"
             | otherwise = "state" ++ show (length $ rules s)
 
-    m_logger <- fmap SomeReducer <$> getLimLogger' labelApproxPoints config
+    m_logger <- fmap SomeReducer <$> getLimLogger' labelApproxPoints config prettyVerifierTracker
 
     let share = sharing config
 
