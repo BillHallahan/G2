@@ -456,7 +456,7 @@ lhReducerHalterOrderer config lhconfig solver simplifier entry mb_modname cfn st
 
         non_red = nonRedPCRedNoPrune .|. nonRedPCRedConst
 
-        m_logger = fmap SomeReducer $ getLogger config
+        m_logger = fmap SomeReducer $ getLogger config defPrettyTrack
 
         lh_std_red = existentialInstRed :== NoProgress .--> lhRed cfn :== Finished --> stdRed share retReplaceSymbFuncVar solver simplifier
         strict_red = case strict config of
