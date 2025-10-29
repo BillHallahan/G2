@@ -44,9 +44,10 @@ import qualified Data.Text as T
 nrpcAnyCallReducer :: MonadIO m =>
                       HS.HashSet Name -- ^ Names of functions that should not be approximated
                    -> AbsFuncArgs -- ^ Should we apply abstraction to function arguments?
+                   -> AbsDataArgs -- ^ Should we search through data args when apply abstraction to function arguments?
                    -> Config
                    -> Reducer m Int t
-nrpcAnyCallReducer no_nrpc_names abs_func_args config =
+nrpcAnyCallReducer no_nrpc_names abs_func_args abs_data_func_args config =
     (mkSimpleReducer (const 0) red)
             { onAccept = \s b nrpc_count -> do
             if print_num_nrpc config
@@ -93,6 +94,9 @@ nrpcAnyCallReducer no_nrpc_names abs_func_args config =
             , Just n' <- E.deepLookupVar n eenv
             , not . isTyFun . typeOf tvnv $ app =
                 not (n' `HS.member` no_nrpc_names) && not (E.isSymbolic n' eenv)
+            | Data _:_:_ <- unApp app
+            , not . isTyFun . typeOf tvnv $ app
+            , abs_data_func_args == AbsDataArgs = True
             | otherwise = False
 
         -- Replace each argument which is itself a function call with a NRPC.
@@ -122,7 +126,7 @@ nrpcAnyCallReducer no_nrpc_names abs_func_args config =
                 (v, s' { expr_env = eenv' }, ng')
         argsToNRPCs' s@(State { expr_env = eenv, tyvar_env = tvnv }) ng e@(App _ _)
             | allowedApp e eenv tvnv
-            , v@(Var _):es <- unApp e =
+            , v:es <- unApp e =
                 let
                     ((s', ng'), es') = mapAccumR
                         (\(s_, ng_) e_ ->
@@ -185,6 +189,22 @@ adjustFocusReducer = mkSimpleReducer (const ()) red
                 s' = updateFocusMap n s
             in
             return (Finished, [(s', rv)], b)
+        red rv s@(State { curr_expr = CurrExpr _ e, exec_stack = stck, focused = Focused }) b
+            | Just (CurrExprFrame (EnsureEq _) _, _) <- Stck.pop stck =
+                let s' = update_ensure_eq e s in
+                return (Finished, [(s', rv)], b)
+            where
+                update_ensure_eq (Var (Id n _)) s_ =
+                    let
+                        s_' = updateFocusMap n 
+                            $ s_ { non_red_path_conds = setFocus n Focused (expr_env s_) $ non_red_path_conds s_ }
+                    in
+                    case E.lookupConcOrSym n (expr_env s_') of
+                        Just (E.Conc ec) -> update_ensure_eq ec s_'
+                        _ -> s_'
+                update_ensure_eq app@(App e1 e2) s_ | Data _:_ <- unApp app =
+                    update_ensure_eq e1 (update_ensure_eq e2 s_)
+                update_ensure_eq _ s_ = s_
 
         -- (2) Empty NRPCs
         red rv s@(State {  exec_stack = stck, non_red_path_conds = nrpc })

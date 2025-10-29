@@ -835,6 +835,7 @@ verifierTests = testGroup "Verifier"
     , checkExprVerified "tests/Verify/Peano1.hs" "p3"
     , checkExprVerified "tests/Verify/Peano1.hs" "p4"
     , checkExprVerified "tests/Verify/Peano1.hs" "p5"
+    , checkExprNotCExWithDataArgs "tests/Verify/Peano1.hs" "p7"
 
     , checkExprCEx "tests/Verify/Peano1.hs" "p1False"
     -- p2False intentionally requires a large counterexample, and will timeout
@@ -898,6 +899,7 @@ verifierTests = testGroup "Verifier"
     , checkExprVerified "tests/Verify/List4.hs" "p4"
     , checkExprVerified "tests/Verify/List4.hs" "p5"
     , checkExprVerified "tests/Verify/List4.hs" "p6"
+    , checkExprVerifiedWithDataArgs "tests/Verify/List4.hs" "p7"
 
     , checkExprCEx "tests/Verify/List5.hs" "p1False"
 
@@ -1065,20 +1067,37 @@ checkExprWithConfig src m_assume m_assert m_reaches entry reqList config_f = do
 checkExprVerified :: String -> String -> TestTree
 checkExprVerified = checkExprVerifier (\case Verified -> True; Counterexample _ -> False; VerifyTimeOut -> False)
 
+checkExprVerifiedWithDataArgs :: String -> String -> TestTree
+checkExprVerifiedWithDataArgs =
+    let
+        vr_config = defVerifyConfig { data_arg_rev_abs = AbsDataArgs }
+    in
+    checkExprVerifierWithConfig vr_config (\case Verified -> True; Counterexample _ -> False; VerifyTimeOut -> False)
+
 checkExprCEx :: String -> String -> TestTree
 checkExprCEx = checkExprVerifier (\case Verified -> False; Counterexample _ -> True; VerifyTimeOut -> False)
 
 checkExprNotVerified :: String -> String -> TestTree
 checkExprNotVerified = checkExprVerifier (\case Verified -> False; Counterexample _ -> True; VerifyTimeOut -> True)
 
+checkExprNotCExWithDataArgs :: String -> String -> TestTree
+checkExprNotCExWithDataArgs =
+    let
+        vr_config = defVerifyConfig { data_arg_rev_abs = AbsDataArgs }
+    in
+    checkExprVerifierWithConfig vr_config (\case Verified -> True; Counterexample _ -> False; VerifyTimeOut -> True)
+
 checkExprVerifier :: (VerifyResult -> Bool) -> String -> String -> TestTree
-checkExprVerifier vr_check src entry = 
+checkExprVerifier = checkExprVerifierWithConfig defVerifyConfig
+
+checkExprVerifierWithConfig :: VerifyConfig -> (VerifyResult -> Bool) -> String -> String -> TestTree
+checkExprVerifierWithConfig vr_config vr_check src entry = 
     testCase ("Verifier:" ++ src ++ " " ++ entry) $ do
         res <- try (do
                 let proj = takeDirectory src
                 config <- mkConfigTestIO
                 let config' = config { timeLimit = 30 }
-                verifyFromFile [proj] [src] (T.pack entry) simplTranslationConfig config' defVerifyConfig)
+                verifyFromFile [proj] [src] (T.pack entry) simplTranslationConfig config' vr_config)
                     :: IO (Either SomeException ((VerifyResult, Double, Bindings, Id)))
         let res' = case res of
                         Left _ -> VerifyTimeOut
