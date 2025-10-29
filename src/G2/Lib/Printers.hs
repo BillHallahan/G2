@@ -19,6 +19,8 @@ module G2.Lib.Printers ( PrettyGuide
                        , pprExecStateStr
                        , printFuncCall
 
+                       , PrettyTrack
+                       , defPrettyTrack
                        , prettyState
                        , prettyEEnv
                        , prettyTypeEnv
@@ -577,8 +579,13 @@ printLoc (Loc ln cl fl) = "(line " <> T.pack (show ln) <> " column " <> T.pack (
 
 -------------------------------------------------------------------------------
 
-prettyState :: Show t => PrettyGuide -> State t -> T.Text
-prettyState pg s =
+type PrettyTrack t = PrettyGuide -> t -> T.Text
+
+defPrettyTrack :: Show t => PrettyTrack t
+defPrettyTrack _ = T.pack . show
+
+prettyState :: PrettyGuide -> PrettyTrack t -> State t -> T.Text
+prettyState pg pretty_track s =
     T.intercalate "\n"
         [ ">>>>> [State] >>>>>>>>>>>>>>>>>>>>>"
         , "----- [Code] ----------------------"
@@ -614,7 +621,7 @@ prettyState pg s =
         , "----- [Tags] ---------------------"
         , pretty_tags
         , "----- [Tracker] ---------------------"
-        , T.pack (show (track s))
+        , pretty_track pg (track s)
         , "----- [HPC] ---------------------"
         , pretty_hpc_ticks
         , "----- [Pretty] ---------------------"

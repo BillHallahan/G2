@@ -424,7 +424,7 @@ gatherReducerHalterOrderer infconfig config lhconfig solver simplifier = do
 
         state_name = Name "state" Nothing 0 Nothing
 
-        m_logger = fmap SomeReducer $ getLogger config
+        m_logger = fmap SomeReducer $ getLogger config defPrettyTrack
 
     (timer_halter, _) <- stdTimerHalter (timeout_se infconfig * 3)
 
@@ -545,7 +545,7 @@ inferenceReducerHalterOrderer infconfig config lhconfig solver simplifier entry 
 
         timeout = timeout_se infconfig + extra_time
 
-        m_logger = fmap SomeReducer $ getLogger config
+        m_logger = fmap SomeReducer $ getLogger config defPrettyTrack
         -- m_logger = if entry == "mapReduce" then Just (SomeReducer $ PrettyLogger ("a_mapReduce" ++ show time) (mkPrettyGuide ())) else getLogger config
 
     liftIO $ putStrLn $ "ce num for " ++ T.unpack entry ++ " is " ++ show ce_num
@@ -638,7 +638,7 @@ realCExReducerHalterOrderer infconfig config lhconfig entry modname solver simpl
         ce_num = max_ce infconfig + extra_ce
         lh_max_outputs = lhMaxOutputsHalter ce_num
 
-        m_logger = fmap SomeReducer $ getLogger config
+        m_logger = fmap SomeReducer $ getLogger config defPrettyTrack
 
     (timer_halter, _) <- liftIO $ stdTimerHalter (timeout_se infconfig)
 
@@ -1118,7 +1118,7 @@ genericG2CallLogging config solver s bindings lg = do
     let simplifier = NaNInfBlockSimplifier :>> FloatSimplifier :>> ArithSimplifier
         share = sharing config
 
-    fslb <- runG2WithSomes (SomeReducer (prettyLogger lg ~> stdRed share retReplaceSymbFuncVar solver simplifier  ~> strictRed))
+    fslb <- runG2WithSomes (SomeReducer (prettyLogger defPrettyTrack lg ~> stdRed share retReplaceSymbFuncVar solver simplifier  ~> strictRed))
                            (SomeHalter swhnfHalter)
                            (SomeOrderer nextOrderer)
                            noAnalysis
