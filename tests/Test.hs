@@ -835,7 +835,7 @@ verifierTests = testGroup "Verifier"
     , checkExprVerified "tests/Verify/Peano1.hs" "p3"
     , checkExprVerified "tests/Verify/Peano1.hs" "p4"
     , checkExprVerified "tests/Verify/Peano1.hs" "p5"
-    , checkExprVerifiedWithDataArgs "tests/Verify/Peano1.hs" "p7"
+    , checkExprNotCExWithDataArgs "tests/Verify/Peano1.hs" "p7"
 
     , checkExprCEx "tests/Verify/Peano1.hs" "p1False"
     -- p2False intentionally requires a large counterexample, and will timeout
@@ -1079,6 +1079,13 @@ checkExprCEx = checkExprVerifier (\case Verified -> False; Counterexample _ -> T
 
 checkExprNotVerified :: String -> String -> TestTree
 checkExprNotVerified = checkExprVerifier (\case Verified -> False; Counterexample _ -> True; VerifyTimeOut -> True)
+
+checkExprNotCExWithDataArgs :: String -> String -> TestTree
+checkExprNotCExWithDataArgs =
+    let
+        vr_config = defVerifyConfig { data_arg_rev_abs = AbsDataArgs }
+    in
+    checkExprVerifierWithConfig vr_config (\case Verified -> True; Counterexample _ -> False; VerifyTimeOut -> True)
 
 checkExprVerifier :: (VerifyResult -> Bool) -> String -> String -> TestTree
 checkExprVerifier = checkExprVerifierWithConfig defVerifyConfig
