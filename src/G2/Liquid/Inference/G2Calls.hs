@@ -1118,7 +1118,7 @@ genericG2CallLogging config solver s bindings lg = do
     let simplifier = NaNInfBlockSimplifier :>> FloatSimplifier :>> ArithSimplifier
         share = sharing config
 
-    fslb <- runG2WithSomes (SomeReducer (prettyLogger lg ~> stdRed share retReplaceSymbFuncVar solver simplifier  ~> strictRed))
+    fslb <- runG2WithSomes (SomeReducer (prettyLogger defPrettyTrack lg ~> stdRed share retReplaceSymbFuncVar solver simplifier  ~> strictRed))
                            (SomeHalter swhnfHalter)
                            (SomeOrderer nextOrderer)
                            noAnalysis
