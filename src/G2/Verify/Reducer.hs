@@ -44,11 +44,10 @@ import qualified Data.Text as T
 -- shift the new function application into the NRPCs.
 nrpcAnyCallReducer :: MonadIO m =>
                       HS.HashSet Name -- ^ Names of functions that should not be approximated
-                   -> AbsFuncArgs -- ^ Should we apply abstraction to function arguments?
-                   -> AbsDataArgs -- ^ Should we search through data args when apply abstraction to function arguments?
+                   -> VerifyConfig
                    -> Config
                    -> Reducer m Int t
-nrpcAnyCallReducer no_nrpc_names abs_func_args abs_data_func_args config =
+nrpcAnyCallReducer no_nrpc_names v_config config =
     (mkSimpleReducer (const 0) red)
             { onAccept = \s b nrpc_count -> do
             if print_num_nrpc config
@@ -65,7 +64,7 @@ nrpcAnyCallReducer no_nrpc_names abs_func_args abs_data_func_args config =
             , v@(Var (Id _ _)):es@(_:_) <- unApp stripped_ce  = do
 
                 -- Convert arguments into NRPCs
-                let (s', ng') = if abs_func_args == AbsFuncArgs then argsToNRPCs s (name_gen b) v es else (s, ng)
+                let (s', ng') = if (arg_rev_abs v_config) == AbsFuncArgs then argsToNRPCs s (name_gen b) v es else (s, ng)
 
                 -- Given a function call `f x1 ... xn`, we move the entire call to `f` into an NRPC.
                 -- Note that createNewCond wraps the function call with a Tick.
@@ -97,7 +96,7 @@ nrpcAnyCallReducer no_nrpc_names abs_func_args abs_data_func_args config =
                 not (n' `HS.member` no_nrpc_names) && not (E.isSymbolic n' eenv)
             | Data _:_:_ <- unApp app
             , not . isTyFun . typeOf tvnv $ app
-            , abs_data_func_args == AbsDataArgs = True
+            , data_arg_rev_abs v_config == AbsDataArgs = True
             | otherwise = False
 
         -- Replace each argument which is itself a function call with a NRPC.
@@ -152,7 +151,7 @@ nrpcAnyCallReducer no_nrpc_names abs_func_args abs_data_func_args config =
         appArgToNRPC s@(State { expr_env = eenv }) ng grace e other_es
             | let e_symb = symbolic_names eenv e
             , let es_symb = HS.unions (grace:map (symbolic_names eenv) other_es)
-            , not . HS.null $ e_symb `HS.intersection` es_symb = 
+            , (not . HS.null $ e_symb `HS.intersection` es_symb) || shared_var_heuristic v_config == NoSharedVarHeuristic = 
                 let (e_', s_', ng_') = argsToNRPCs' s ng es_symb e in
                 ((s_', ng_'), e_')
             | otherwise = ((s, ng), e)
