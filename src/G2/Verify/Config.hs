@@ -51,7 +51,7 @@ mkVerifyConfig = VerifyConfig
             <$> flag True False (long "no-rev-abs" <> help "Do not use reversible abstractions")
             <*> flag AbsFuncArgs NoAbsFuncArgs (long "no-arg-rev-abs" <> help "Do not apply reversible abstractions to function arguments")
             <*> flag NoAbsDataArgs AbsDataArgs (long "data-arg-rev-abs" <> help "Aapply reversible abstraction through data constructors in function arguments")
-            <*> flag SharedVarHeuristic NoSharedVarHeuristic (long "no-shared-var-heuristic" <> help "Apply reversible abstraction to all function arguments, regardless of existence of shared variables")
+            <*> flag NoSharedVarHeuristic SharedVarHeuristic (long "shared-var-heuristic" <> help "Apply reversible abstraction to function argumentsonly if there are shared variables")
             <*> flag True False (long "no-approx" <> help "Do not use approximation")
 
 defVerifyConfig :: VerifyConfig

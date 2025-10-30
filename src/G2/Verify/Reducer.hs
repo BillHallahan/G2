@@ -141,9 +141,9 @@ nrpcAnyCallReducer no_nrpc_names v_config config =
 
         -- (Maybe) converts an argument of an application into an NRPC.
         -- `e` is the argument to possible convert, `es` is all other arguments.
-        -- See Note [Replacing nested function applications]- we replace `e` only if
-        -- some symbolic variable in `e` also occurs in some other argument in `e`.
-        -- The `grace` variable is used to replace arguments through data constructors,
+        -- If using the shared variable heuristic, see Note [Replacing nested function applications]-
+        -- this heuristic means we replace `e` only if some symbolic variable in `e` also occurs in some other
+        -- argument in `e`.  The `grace` variable is used to replace arguments through data constructors,
         -- see Note [Data Constructor Arguments to NRPCs]
         appArgToNRPC s@(State { expr_env = eenv }) ng grace e other_es
             | let e_symb = symbolic_names eenv e
