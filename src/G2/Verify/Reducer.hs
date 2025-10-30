@@ -110,11 +110,8 @@ nrpcAnyCallReducer no_nrpc_names v_config config =
         -- See Note [Replacing nested function applications]
         argsToNRPCs s ng v es =
             let
-                ((s', ng'), es') = mapAccumR (\(s_, ng_) e_ ->
-                                                let
-                                                    (e_', s_', ng_') = argsToNRPCs' s_ ng_ HS.empty e_
-                                                in
-                                                ((s_', ng_'), e_')) (s, ng) es
+                arg_holes = holes es
+                ((s', ng'), es') = mapAccumR (\(s_, ng_)  (e_, other_es) -> appArgToNRPC s_ ng_ HS.empty e_ other_es) (s, ng) arg_holes
             in
             (s' { curr_expr = CurrExpr Evaluate . mkApp $ v:es' }, ng')
         
