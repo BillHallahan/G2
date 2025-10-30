@@ -1,5 +1,6 @@
 module G2.Verify.Config ( VerifyConfig (..)
                         , AbsFuncArgs (..)
+                        , AbsDataArgs (..)
                         , getVerifyConfigs
                         , defVerifyConfig) where
 
@@ -11,9 +12,12 @@ import System.Directory
 
 data VerifyConfig = VerifyConfig { rev_abs :: Bool
                                  , arg_rev_abs :: AbsFuncArgs
+                                 , data_arg_rev_abs :: AbsDataArgs
                                  , approx :: Bool }
 
 data AbsFuncArgs = AbsFuncArgs | NoAbsFuncArgs deriving Eq
+
+data AbsDataArgs = AbsDataArgs | NoAbsDataArgs deriving Eq
 
 getVerifyConfigs :: IO (String, String, VerifyConfig, Config)
 getVerifyConfigs = do
@@ -42,6 +46,7 @@ mkVerifyConfig :: Parser VerifyConfig
 mkVerifyConfig = VerifyConfig
             <$> flag True False (long "no-rev-abs" <> help "Do not use reversible abstractions")
             <*> flag AbsFuncArgs NoAbsFuncArgs (long "no-arg-rev-abs" <> help "Do not apply reversible abstractions to function arguments")
+            <*> flag NoAbsDataArgs AbsDataArgs (long "data-arg-rev-abs" <> help "Apply reversible abstraction through data constructors in function arguments")
             <*> flag True False (long "no-approx" <> help "Do not use approximation")
 
 defVerifyConfig :: VerifyConfig

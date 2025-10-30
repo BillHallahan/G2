@@ -1,10 +1,6 @@
 module List4 where
 
-<<<<<<< HEAD
-import Prelude hiding (Num (..), Ord (..), zip)
-=======
-import Prelude hiding (Num (..), drop, last, null, take, takeWhile, zip)
->>>>>>> master
+import Prelude hiding (Num (..), Ord (..), drop, last, null, take, takeWhile, zip)
 
 zip [] _ = []
 zip _ [] = []
@@ -49,17 +45,6 @@ p2 n xs = count n xs == count n (xs ++ [])
 
 p3 n xs ys = count n xs + count n ys == count n (xs ++ ys)
 
-<<<<<<< HEAD
-len :: [a] -> Nat
-len [] = Z
-len (_:xs) = S (len xs)
-
-f :: [AB] -> [AB]
-f [] = []
-f (_:xs) = f xs
-
-p4 xs = len (f xs) <= len xs
-=======
 takeWhile :: (a -> Bool) -> [a] -> [a]
 takeWhile _ [] = []
 takeWhile p (x:xs) =
@@ -93,4 +78,22 @@ take _ [] = []
 take (S x) (y:ys) = y : (take x ys)
 
 p6 n xs = take n xs ++ drop n xs == xs
->>>>>>> master
+
+butlast :: [a] -> [a]
+butlast [] = []
+butlast [x] = []
+butlast (x:xs) = x:(butlast xs)
+
+p7 [] = True
+p7 xs = (butlast xs ++ [last xs] == xs)
+
+
+len :: [a] -> Nat
+len [] = Z
+len (_:xs) = S (len xs)
+
+f :: [AB] -> [AB]
+f [] = []
+f (_:xs) = f xs
+
+p8 xs = len (f xs) <= len xs

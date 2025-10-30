@@ -340,7 +340,7 @@ initRedHaltOrd s mod_name solver simplifier config exec_func_names no_nrpc_names
     time_logger <- acceptTimeLogger
     (time_halter, io_timed_out) <- stdTimerHalter (fromInteger . toInteger $ timeLimit config)
 
-    m_logger <- fmap SomeReducer <$> getLimLogger config
+    m_logger <- fmap SomeReducer <$> getLimLogger config defPrettyTrack
 
     on_acc_hpc_red <- onAcceptHpcReducer s mod_name
 

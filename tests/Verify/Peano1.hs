@@ -52,6 +52,7 @@ p5 f n = f n == f n
 
 p6 n m = ((n + m) - n =:= m)
 
+p7 n m = ((m + n) - n =:= m)
 
 -- False properties
 p1False n = (n - n =:= if n == S (S Z) then S Z else Z)

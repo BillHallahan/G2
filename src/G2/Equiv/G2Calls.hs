@@ -81,7 +81,7 @@ rewriteRedHaltOrd solver simplifier h_opp track_opp config (NC { use_labeled_err
         share = sharing config
         state_name = Name "state" Nothing 0 Nothing
 
-        m_logger = fmap SomeReducer $ getLogger config
+        m_logger = fmap SomeReducer $ getLogger config defPrettyTrack
         some_std_red = enforceProgressRed :== NoProgress --> stdRed share retReplaceSymbFuncVar solver simplifier
         extra_red = symbolicSwapperRed h_opp track_opp ~> concSymReducer use_labels ~> labeledErrorsRed
         red = equivReducer :== NoProgress .--> extra_red :== NoProgress .--> some_std_red

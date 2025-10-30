@@ -5,6 +5,7 @@ module G2.Verify.Reducer ( VerifierData
                          , VerifierTracker
                          , initVerifierData
                          , initVerifierTracker
+                         , prettyVerifierTracker
                          
                          , nrpcAnyCallReducer
                          , adjustFocusReducer
@@ -32,6 +33,7 @@ import G2.Language.KnownValues
 import G2.Language.NonRedPathConds
 import qualified G2.Language.Stack as Stck
 import qualified G2.Language.Typing as T
+import G2.Lib.Printers
 import G2.Solver
 import G2.Verify.Config
 
@@ -41,10 +43,10 @@ import Control.Monad.IO.Class
 import qualified Control.Monad.State as SM
 import qualified Data.HashMap.Lazy as HM
 import qualified Data.HashSet as HS
-import Data.List as L
-import qualified Data.Map as M
+import Data.List
+import qualified Data.Map.Lazy as M
 import Data.Maybe
-import G2.Language.ExprEnv (lookupConcOrSym)
+import qualified Data.Text as T
 
 data VerifierData t = VS { approx_states :: [State t] -- ^ States to check for approximation
                          , generated_lemmas :: HM.HashMap Name (State t) -- ^ Lemma tags to the states generated as potential lemmas
@@ -63,9 +65,10 @@ initVerifierData = VS { approx_states = []
 nrpcAnyCallReducer :: MonadIO m =>
                       HS.HashSet Name -- ^ Names of functions that should not be approximated
                    -> AbsFuncArgs -- ^ Should we apply abstraction to function arguments?
+                   -> AbsDataArgs -- ^ Should we search through data args when apply abstraction to function arguments?
                    -> Config
                    -> Reducer m Int t
-nrpcAnyCallReducer no_nrpc_names abs_func_args config =
+nrpcAnyCallReducer no_nrpc_names abs_func_args abs_data_func_args config =
     (mkSimpleReducer (const 0) red)
             { onAccept = \s b nrpc_count -> do
             if print_num_nrpc config
@@ -78,7 +81,8 @@ nrpcAnyCallReducer no_nrpc_names abs_func_args config =
             | maybe True (allowed_frame . fst) (Stck.pop (exec_stack s))
             
             , let wrapped_ce = applyWrap (getExpr s) (exec_stack s)
-            , v@(Var (Id _ _)):es@(_:_) <- unApp . stripNRBT $ wrapped_ce = do
+            , let stripped_ce = stripNRBT wrapped_ce
+            , v@(Var (Id _ _)):es@(_:_) <- unApp stripped_ce  = do
 
                 -- Convert arguments into NRPCs
                 let (s', ng') = if abs_func_args == AbsFuncArgs then argsToNRPCs s (name_gen b) v es else (s, ng)
@@ -96,7 +100,7 @@ nrpcAnyCallReducer no_nrpc_names abs_func_args config =
                 
                 case nr_s_ng of
                     Just (nr_s, _, _, ng'') -> return (Finished, [(nr_s, rv + 1)], b { name_gen = ng'' })
-                    _ -> return (Finished, [(s', rv)], b)
+                    _ -> return (Finished, [(s', rv)], b { name_gen = ng' })
             | Tick nl (Var (Id n _)) <- ce
             , isNonRedBlockerTick nl
             , Just e <- E.lookup n eenv = return (Finished, [(s { curr_expr = CurrExpr Evaluate e }, rv)], b)
@@ -111,6 +115,9 @@ nrpcAnyCallReducer no_nrpc_names abs_func_args config =
             , Just n' <- E.deepLookupVar n eenv
             , not . isTyFun . typeOf tvnv $ app =
                 not (n' `HS.member` no_nrpc_names) && not (E.isSymbolic n' eenv)
+            | Data _:_:_ <- unApp app
+            , not . isTyFun . typeOf tvnv $ app
+            , abs_data_func_args == AbsDataArgs = True
             | otherwise = False
 
         -- Replace each argument which is itself a function call with a NRPC.
@@ -121,18 +128,37 @@ nrpcAnyCallReducer no_nrpc_names abs_func_args config =
         -- with new NRPCs:
         --  @ s1 = g x 
         --    s2 = h z @
-        argsToNRPCs s@(State { expr_env = eenv, tyvar_env = tvnv }) ng v es= 
+        argsToNRPCs s ng v es =
             let
-                ((s', ng'), es') = mapAccumR
-                    (\(s_, ng_) e -> if
-                        | buried_e <- E.deepLookupExpr e eenv 
-                        , allowedApp buried_e eenv tvnv
-                        , Just (s_', sym_i, _, ng_') <- createNonRed' ng_ (Unfocused ()) s_ buried_e ->
-                            ((s_', ng_'), Var sym_i)
-                        | otherwise -> ((s_, ng_), e)) (s, ng) es
-                s'' = s' { curr_expr = CurrExpr Evaluate . mkApp $ v:es' }
+                ((s', ng'), es') = mapAccumR (\(s_, ng_) e_ ->
+                                                let
+                                                    (e_', s_', ng_') = argsToNRPCs' s_ ng_ e_
+                                                in
+                                                ((s_', ng_'), e_')) (s, ng) es
             in
-            (s'', ng')
+            (s' { curr_expr = CurrExpr Evaluate . mkApp $ v:es' }, ng')
+        
+        argsToNRPCs' s@(State { expr_env = eenv }) ng v@(Var (Id n _))
+            | Just (E.Conc e) <- E.lookupConcOrSym n eenv =
+                let
+                    (e', s', ng') = argsToNRPCs' s ng e
+                    eenv' = E.insert n e' (expr_env s')
+                in
+                (v, s' { expr_env = eenv' }, ng')
+        argsToNRPCs' s@(State { expr_env = eenv, tyvar_env = tvnv }) ng e@(App _ _)
+            | allowedApp e eenv tvnv
+            , v:es <- unApp e =
+                let
+                    ((s', ng'), es') = mapAccumR
+                        (\(s_, ng_) e_ ->
+                            let (e_', s_', ng_') = argsToNRPCs' s_ ng_ e_ in
+                            ((s_', ng_'), e_')) (s, ng) es
+                    e' = mkApp (v:es')
+                in
+                case createNonRed' ng' (Unfocused ()) s' e' of
+                    Just (s'', sym_i, _, ng'') -> (Var sym_i, s'', ng'')
+                    Nothing -> (e', s', ng')
+        argsToNRPCs' s ng e = (e, s, ng)
             
 
         allowed_frame (ApplyFrame _) = False
@@ -164,16 +190,42 @@ adjustFocusReducer = mkSimpleReducer (const ()) red
                         , focused = Focused 
                         , track = VT { focus_map = fm }}) b =
             let
-                bring_focus = fromMaybe HS.empty (UF.lookup n fm)
-                nrpc' = foldr (\n_ -> setFocus n_ Focused eenv) nrpc (HS.insert n bring_focus)
+                bring_focus = find_focus (HS.singleton n) (HS.singleton n)
+                nrpc' = foldr (\n_ -> setFocus n_ Focused eenv) nrpc bring_focus
                 s' = s { non_red_path_conds = nrpc' }
             in
             return (Finished, [(s', rv)], b)
+            where
+                find_focus dig found
+                    | HS.null dig = found
+                    | otherwise =
+                        let
+                            found_new = HS.unions . map (fromMaybe HS.empty . flip HM.lookup fm) $ HS.toList dig
+                            new_dig = found_new `HS.difference` found
+                        in
+                        find_focus new_dig (found `HS.union` found_new)
+                    
         red rv s@(State { curr_expr = CurrExpr _ (Var (Id n _)) }) b =
             let
                 s' = updateFocusMap n s
             in
             return (Finished, [(s', rv)], b)
+        red rv s@(State { curr_expr = CurrExpr _ e, exec_stack = stck, focused = Focused }) b
+            | Just (CurrExprFrame (EnsureEq _) _, _) <- Stck.pop stck =
+                let s' = update_ensure_eq e s in
+                return (Finished, [(s', rv)], b)
+            where
+                update_ensure_eq (Var (Id n _)) s_ =
+                    let
+                        s_' = updateFocusMap n 
+                            $ s_ { non_red_path_conds = setFocus n Focused (expr_env s_) $ non_red_path_conds s_ }
+                    in
+                    case E.lookupConcOrSym n (expr_env s_') of
+                        Just (E.Conc ec) -> update_ensure_eq ec s_'
+                        _ -> s_'
+                update_ensure_eq app@(App e1 e2) s_ | Data _:_ <- unApp app =
+                    update_ensure_eq e1 (update_ensure_eq e2 s_)
+                update_ensure_eq _ s_ = s_
 
         -- (2) Empty NRPCs
         red rv s@(State {  exec_stack = stck, non_red_path_conds = nrpc })
@@ -377,19 +429,25 @@ type VerifierState = State VerifierTracker
 newtype VerifierTracker = VT { focus_map :: FocusMap }
                           deriving (Show, Read)
 
-type FocusMap = UF.UFMap Name (HS.HashSet Name)
+type FocusMap = HM.HashMap Name (HS.HashSet Name)
 
 initVerifierTracker :: VerifierTracker
-initVerifierTracker = VT { focus_map = UF.empty }
+initVerifierTracker = VT { focus_map =HM.empty }
 
 updateFocusMap :: Name -> VerifierState -> VerifierState
 updateFocusMap n s@(State { focused = Unfocused n'
                           , track = VT { focus_map = fm } }) =
             let
-                fm' = UF.join HS.union n n' $ UF.insertWith HS.union n (HS.fromList [n, n']) fm
+                fm' = HM.insertWith HS.union n' (HS.fromList [n]) fm
             in
             s { track = VT { focus_map = fm' } }
 updateFocusMap _ s = s
+
+prettyVerifierTracker :: PrettyGuide -> VerifierTracker -> T.Text
+prettyVerifierTracker pg (VT { focus_map = fm }) =
+    T.intercalate "\n" . map pretty_fm $ HM.toList fm
+    where
+        pretty_fm (k, v) = printName pg k <> " -> " <> T.intercalate ", " (map (printName pg) $ HS.toList v)
 
 instance ASTContainer VerifierTracker Expr where
     containedASTs _ = []

@@ -62,7 +62,7 @@ verifyRedHaltOrd s solver simplifier config verify_config no_nrpc_names = do
             where
                 lemma = if isLemmaState s then "_lemma"else ""
 
-    m_logger <- fmap SomeReducer <$> getLimLogger' labelApproxPoints config
+    m_logger <- fmap SomeReducer <$> getLimLogger' labelApproxPoints config prettyVerifierTracker
 
     let share = sharing config
 
@@ -92,7 +92,7 @@ verifyRedHaltOrd s solver simplifier config verify_config no_nrpc_names = do
         set_focus_red f = SomeReducer adjustFocusReducer .~> logger_std_red f
 
         nrpc_approx_red f = case rev_abs verify_config of
-                                True -> let nrpc_approx = nrpcAnyCallReducer no_nrpc_names (arg_rev_abs verify_config) config in
+                                True -> let nrpc_approx = nrpcAnyCallReducer no_nrpc_names (arg_rev_abs verify_config) (data_arg_rev_abs verify_config) config in
                                         SomeReducer nrpc_approx .~> set_focus_red f
                                 False -> logger_std_red f
 
