@@ -7,6 +7,8 @@ module G2.Data.Utils ( uncurry3
                      , snd4
                      , thd4
                      , fth4
+
+                     , holes
                      
                      , (==>)
                      
@@ -15,6 +17,8 @@ module G2.Data.Utils ( uncurry3
 #endif
 
                      ) where
+
+import Data.Bifunctor
 
 #if !(MIN_VERSION_base(4,18,0))
 import qualified Control.Monad.State.Lazy as CM
@@ -40,6 +44,15 @@ thd4 (_, _, c, _) = c
 
 fth4 :: (a, b, c, d) -> d
 fth4 (_, _, _, d) = d
+
+-- * Lists
+
+-- | Compute all the ways of removing a single element from a list.
+--
+--  > holes [1,2,3] = [(1, [2,3]), (2, [1,3]), (3, [1,2])]
+holes :: [a] -> [(a, [a])]
+holes []     = []
+holes (x:xs) = (x, xs) : (fmap . second) (x:) (holes xs)
 
 -- * Logic
 

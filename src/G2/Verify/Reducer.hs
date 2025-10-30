@@ -16,6 +16,7 @@ module G2.Verify.Reducer ( VerifierTracker
 
 import G2.Config
 import qualified G2.Data.UFMap as UF
+import G2.Data.Utils
 import G2.Execution.Reducer
 import G2.Interface
 import G2.Language
@@ -128,17 +129,29 @@ nrpcAnyCallReducer no_nrpc_names abs_func_args abs_data_func_args config =
             | allowedApp e eenv tvnv
             , v:es <- unApp e =
                 let
+                    arg_holes = holes es
                     ((s', ng'), es') = mapAccumR
-                        (\(s_, ng_) e_ ->
-                            let (e_', s_', ng_') = argsToNRPCs' s_ ng_ e_ in
-                            ((s_', ng_'), e_')) (s, ng) es
+                        (\(s_, ng_) (e_, other_es) -> appArgToNRPC s_ ng_ e_ other_es) (s, ng) arg_holes
                     e' = mkApp (v:es')
                 in
                 case createNonRed' ng' (Unfocused ()) s' e' of
                     Just (s'', sym_i, _, ng'') -> (Var sym_i, s'', ng'')
                     Nothing -> (e', s', ng')
         argsToNRPCs' s ng e = (e, s, ng)
-            
+
+        appArgToNRPC s@(State { expr_env = eenv }) ng e other_es
+            | let e_symb = symbolic_names eenv e
+            , let es_symb = HS.unions (map (symbolic_names eenv) other_es)
+            , not . HS.null $ e_symb `HS.intersection` es_symb = 
+                let (e_', s_', ng_') = argsToNRPCs' s ng e in
+                ((s_', ng_'), e_')
+            | otherwise = ((s, ng), e)
+
+        symbolic_names eenv (Var (Id n _))
+            | Just (E.Sym _) <- E.lookupConcOrSym n eenv = HS.singleton n
+            | Just (E.Conc e) <- E.lookupConcOrSym n eenv = symbolic_names eenv e
+        symbolic_names eenv (App e1 e2) = symbolic_names eenv e1 `HS.union` symbolic_names eenv e2
+        symbolic_names _ _ = HS.empty
 
         allowed_frame (ApplyFrame _) = False
         allowed_frame _ = True
