@@ -108,42 +108,52 @@ nrpcAnyCallReducer no_nrpc_names abs_func_args abs_data_func_args config =
         -- with new NRPCs:
         --  @ s1 = g x 
         --    s2 = h z @
+        -- See Note [Replacing nested function applications]
         argsToNRPCs s ng v es =
             let
                 ((s', ng'), es') = mapAccumR (\(s_, ng_) e_ ->
                                                 let
-                                                    (e_', s_', ng_') = argsToNRPCs' s_ ng_ e_
+                                                    (e_', s_', ng_') = argsToNRPCs' s_ ng_ HS.empty e_
                                                 in
                                                 ((s_', ng_'), e_')) (s, ng) es
             in
             (s' { curr_expr = CurrExpr Evaluate . mkApp $ v:es' }, ng')
         
-        argsToNRPCs' s@(State { expr_env = eenv }) ng v@(Var (Id n _))
+        argsToNRPCs' s@(State { expr_env = eenv }) ng grace v@(Var (Id n _))
             | Just (E.Conc e) <- E.lookupConcOrSym n eenv =
                 let
-                    (e', s', ng') = argsToNRPCs' s ng e
+                    (e', s', ng') = argsToNRPCs' s ng grace e
                     eenv' = E.insert n e' (expr_env s')
                 in
                 (v, s' { expr_env = eenv' }, ng')
-        argsToNRPCs' s@(State { expr_env = eenv, tyvar_env = tvnv }) ng e@(App _ _)
+        argsToNRPCs' s@(State { expr_env = eenv, tyvar_env = tvnv }) ng grace e@(App _ _)
             | allowedApp e eenv tvnv
             , v:es <- unApp e =
                 let
                     arg_holes = holes es
+                    grace' = case v of
+                                Data _ -> grace
+                                _ -> HS.empty 
                     ((s', ng'), es') = mapAccumR
-                        (\(s_, ng_) (e_, other_es) -> appArgToNRPC s_ ng_ e_ other_es) (s, ng) arg_holes
+                        (\(s_, ng_) (e_, other_es) -> appArgToNRPC s_ ng_ grace' e_ other_es) (s, ng) arg_holes
                     e' = mkApp (v:es')
                 in
                 case createNonRed' ng' (Unfocused ()) s' e' of
                     Just (s'', sym_i, _, ng'') -> (Var sym_i, s'', ng'')
                     Nothing -> (e', s', ng')
-        argsToNRPCs' s ng e = (e, s, ng)
+        argsToNRPCs' s ng _ e = (e, s, ng)
 
-        appArgToNRPC s@(State { expr_env = eenv }) ng e other_es
+        -- (Maybe) converts an argument of an application into an NRPC.
+        -- `e` is the argument to possible convert, `es` is all other arguments.
+        -- See Note [Replacing nested function applications]- we replace `e` only if
+        -- some symbolic variable in `e` also occurs in some other argument in `e`.
+        -- The `grace` variable is used to replace arguments through data constructors,
+        -- see Note [Data Constructor Arguments to NRPCs]
+        appArgToNRPC s@(State { expr_env = eenv }) ng grace e other_es
             | let e_symb = symbolic_names eenv e
-            , let es_symb = HS.unions (map (symbolic_names eenv) other_es)
+            , let es_symb = HS.unions (grace:map (symbolic_names eenv) other_es)
             , not . HS.null $ e_symb `HS.intersection` es_symb = 
-                let (e_', s_', ng_') = argsToNRPCs' s ng e in
+                let (e_', s_', ng_') = argsToNRPCs' s ng es_symb e in
                 ((s_', ng_'), e_')
             | otherwise = ((s, ng), e)
 
@@ -167,6 +177,38 @@ nrpcAnyCallReducer no_nrpc_names abs_func_args abs_data_func_args config =
                             | otherwise = hasNRBT e
         hasNRBT (App e1 _) = hasNRBT e1
         hasNRBT _ = False
+
+-- | Note [Replacing nested function applications]
+-- Suppose we have a function application:
+-- @ f (g xs) (h xs) (j ys) @
+-- where `xs` and `ys` are symbolic.
+-- If evaluating `g xs` or `h xs`, and thus concretizing `xs`, we want to simultaneously
+-- make progress in evaluating BOTH expressions, so that (hopefully) we can eliminate states via an approximation.
+-- That is, if we concretize `xs` to `x:xs'`, we are hoping to end up with something like
+-- `g xs'` and `h xs'`, rather than `g xs'` and `h (x:xs')`.
+--
+-- Thus, because these two arguments have a shared variable, we rewrite the application to be:
+-- @ f sym1 sym2 (j ys) @
+-- with NRPCs:
+-- @ sym1 = g xs
+--   sym2 = h xs @
+-- Note that we do not add an NRPC for `j ys`, because there is only one occurence of the symbolic variable `ys`.
+
+-- Note [Data Constructor Arguments to NRPCs]
+-- (See also Note [Replacing nested function applications])
+--
+-- Consider a function call such as:
+-- @ f xs (D (g xs)) @
+-- (where `D` is a data constructor.)
+-- We never move data constructor applications into NRPCs, but would like to move `g xs` into an NRPC, and get:
+-- @ f xs (D sym) @
+-- with the NRPC
+-- @ sym = g xs @.
+-- to allow this, we pass on used variable names from arguments in application layers "above" data constructors
+-- via the `grace` variable. Note that in `argsToNRPCs'` we pass on `grace` unchanged if we have a data application,
+-- but set it to empty if we have a variable application.  We then include the variables in `grace` when checking
+-- if application arguments share symbolic variables with each other.
+
 
 -- | Handles NRPC focuses:
 --   (1) If we evaluate a variable when in a Focused state, set all NRPCs assigning to that variable to Focused.
