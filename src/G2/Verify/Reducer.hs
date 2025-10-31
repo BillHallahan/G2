@@ -148,7 +148,7 @@ nrpcAnyCallReducer no_nrpc_names v_config config =
         appArgToNRPC s@(State { expr_env = eenv }) ng grace e other_es
             | let e_symb = symbolic_names eenv e
             , let es_symb = HS.unions (grace:map (symbolic_names eenv) other_es)
-            , (not . HS.null $ e_symb `HS.intersection` es_symb) || shared_var_heuristic v_config == NoSharedVarHeuristic = 
+            , shared_var_heuristic v_config == NoSharedVarHeuristic || (not . HS.null $ e_symb `HS.intersection` es_symb) = 
                 let (e_', s_', ng_') = argsToNRPCs' s ng es_symb e in
                 ((s_', ng_'), e_')
             | otherwise = ((s, ng), e)
