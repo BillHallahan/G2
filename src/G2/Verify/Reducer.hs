@@ -153,11 +153,14 @@ nrpcAnyCallReducer no_nrpc_names v_config config =
                 ((s_', ng_'), e_')
             | otherwise = ((s, ng), e)
 
-        symbolic_names eenv (Var (Id n _))
+        symbolic_names = symbolic_names' HS.empty
+
+        symbolic_names' seen eenv (Var (Id n _))
+            | n `HS.member` seen = HS.empty
             | Just (E.Sym _) <- E.lookupConcOrSym n eenv = HS.singleton n
-            | Just (E.Conc e) <- E.lookupConcOrSym n eenv = symbolic_names eenv e
-        symbolic_names eenv (App e1 e2) = symbolic_names eenv e1 `HS.union` symbolic_names eenv e2
-        symbolic_names _ _ = HS.empty
+            | Just (E.Conc e) <- E.lookupConcOrSym n eenv = symbolic_names' (HS.insert n seen) eenv e
+        symbolic_names' seen eenv (App e1 e2) = symbolic_names' seen eenv e1 `HS.union` symbolic_names' seen eenv e2
+        symbolic_names' _ _ _ = HS.empty
 
         allowed_frame (ApplyFrame _) = False
         allowed_frame _ = True
