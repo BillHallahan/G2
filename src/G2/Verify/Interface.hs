@@ -99,9 +99,11 @@ verifyRedHaltOrd s solver simplifier config verify_config no_nrpc_names = do
                  <~> time_halter
                  <~> discardOnFalse
 
+        inconsistent_halter = inconsistentNRPCHalter no_nrpc_names <~> halter
+
         halter_approx_discard = case approx verify_config of
-                                        True -> SomeHalter (approximationHalter solver approx_no_inline <~> halter)
-                                        False -> SomeHalter halter
+                                        True -> SomeHalter (approximationHalter solver approx_no_inline <~> inconsistent_halter)
+                                        False -> SomeHalter inconsistent_halter
 
         orderer = case search_strat config of
                         Subpath -> SomeOrderer . liftOrderer $ lengthNSubpathOrderer (subpath_length config)
