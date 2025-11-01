@@ -15,6 +15,7 @@ data VerifyConfig = VerifyConfig { rev_abs :: Bool
                                  , arg_rev_abs :: AbsFuncArgs
                                  , data_arg_rev_abs :: AbsDataArgs
                                  , shared_var_heuristic :: SharedVarHeuristic
+                                 , contradictory_ra_elim :: Bool
                                  , approx :: Bool }
 
 data AbsFuncArgs = AbsFuncArgs | NoAbsFuncArgs deriving Eq
@@ -52,6 +53,7 @@ mkVerifyConfig = VerifyConfig
             <*> flag AbsFuncArgs NoAbsFuncArgs (long "no-arg-rev-abs" <> help "Do not apply reversible abstractions to function arguments")
             <*> flag NoAbsDataArgs AbsDataArgs (long "data-arg-rev-abs" <> help "Apply reversible abstraction through data constructors in function arguments")
             <*> flag NoSharedVarHeuristic SharedVarHeuristic (long "shared-var-heuristic" <> help "Apply reversible abstraction to function argumentsonly if there are shared variables")
+            <*> flag True False (long "contradictory-ra-elim" <> help "Eliminate states with contradictory reversible abstraction instantiations")
             <*> flag True False (long "no-approx" <> help "Do not use approximation")
 
 defVerifyConfig :: VerifyConfig
