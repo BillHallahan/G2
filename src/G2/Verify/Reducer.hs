@@ -49,15 +49,15 @@ import qualified Data.Map.Lazy as M
 import Data.Maybe
 import qualified Data.Text as T
 
-data VerifierData t = VS { approx_states :: [State t] -- ^ States to check for approximation
-                         , generated_lemmas :: HM.HashMap Name (State t) -- ^ Lemma tags to the states generated as potential lemmas
-                         }
+data VerifierData = VS { approx_states :: [VerifierState] -- ^ States to check for approximation
+                       , generated_lemmas :: HM.HashMap Unique VerifierState -- ^ Lemma uniques to the states generated as potential lemmas
+                       }
 
-instance ApproxHalterLog (VerifierData t) t where
+instance ApproxHalterLog VerifierData VerifierTracker where
     getApproxHalt = approx_states
     putApproxHalt s a = a { approx_states = s:(approx_states a) }
 
-initVerifierData :: VerifierData t
+initVerifierData :: VerifierData
 initVerifierData = VS { approx_states = []
                       , generated_lemmas = HM.empty }
 
@@ -362,14 +362,14 @@ verifyHigherOrderHandling = mkSimpleReducer (const ()) red
 
 -- | If a state S has a current expression, path constraints, and NRPC set that are approximated by some
 -- other state S', discard S. Any counterexample discoverable from S is also discoverable from S'.
-approximationHalter :: (Named t, Solver solver, SM.MonadState (VerifierData t) m, MonadIO m) =>
+approximationHalter :: (Solver solver, SM.MonadState VerifierData m, MonadIO m) =>
                        solver
                     -> HS.HashSet Name -- ^ Names that should not be inlined (often: top level names from the original source code)
-                    -> Halter m () r t
-approximationHalter = approximationHalter' (\_ s approx -> tags s == tags approx)
+                    -> Halter m () r VerifierTracker
+approximationHalter = approximationHalter' (\_ s approx -> goal s == goal approx)
 
 -- | Discard all other states if we find a counterexample.
-discardOnFalse :: Monad m => Halter m () (ExecRes t) t
+discardOnFalse :: Monad m => Halter m () (ExecRes VerifierTracker) t
 discardOnFalse = (mkSimpleHalter (\_ -> ())
                                 (\hv _ _ -> hv)
                                 (\_ _ _ -> return Continue)
@@ -392,19 +392,17 @@ currExprIsTrue = currExprIsBool False
 -- Lemmas
 -------------------------------------------------------------------------------
 
-isLemmaState :: State t -> Bool
-isLemmaState = not . HS.null . tags
-
-lemmaTag :: Name
-lemmaTag = Name "LEMMA" Nothing 0 Nothing
+isLemmaState :: VerifierState -> Bool
+isLemmaState (State { track = VT { vt_goal = LemmaGoal _ } }) = True  
+isLemmaState _ = False
 
 -- Responsible for:
 --  (1) generating new potential lemmas
 --  (2) adding new proven lemmas to the set of approximatable states
-lemmaReducer :: (Solver solver, SM.MonadState (VerifierData t) m, Named t, MonadIO m) =>
+lemmaReducer :: (Solver solver, SM.MonadState VerifierData m, MonadIO m) =>
                 solver
              -> HS.HashSet Name -- ^ Variables that should not be inlined
-             -> Reducer m () t
+             -> Reducer m () VerifierTracker
 lemmaReducer solver no_inline =
     mkSimpleReducer (const ()) red
     where
@@ -448,10 +446,10 @@ lemmaEquiv solver no_inline s1 s2 = do
         mr_cont = mrContIgnoreNRPCTicks (\_ _ _ _ _ -> ()) lookupConcOrSymState
         mr = moreRestrictiveIncludingPCAndNRPC solver mr_cont (\_ _ _ _ _ -> ()) lookupConcOrSymState no_inline
 
-createLemma :: State t ->  NameGen -> NRPC -> (NameGen, (Name, State t))
+createLemma :: VerifierState ->  NameGen -> NRPC -> (NameGen, (Unique, VerifierState))
 createLemma s ng (_, e1, e2) =
     let
-        (lemma_tag, ng') = freshSeededName lemmaTag ng
+        (lemma_tag, ng') = freshUnique ng
 
         (empty_nrpc, ng'') = emptyNRPC ng'
         (ng''', nrpc) = addFirstNRPC ng'' Focused e1 e2 empty_nrpc
@@ -459,13 +457,13 @@ createLemma s ng (_, e1, e2) =
         s' = s { curr_expr = CurrExpr Return . mkFalse $ known_values s
                , exec_stack = Stck.empty
                , non_red_path_conds = nrpc
-               , tags = HS.insert lemma_tag (tags s)
-               , num_steps = 0 }
+               , num_steps = 0
+               , track = (track s) { vt_goal = LemmaGoal lemma_tag } }
     in
     (ng''', (lemma_tag, s') )             
 
 -- Kill all lemma state if no non-lemma states remain
-lemmaHalter :: Monad m => Halter m () r t
+lemmaHalter :: Monad m => Halter m () r VerifierTracker
 lemmaHalter =
     (mkSimpleHalter
         (const ())
@@ -512,6 +510,9 @@ prettyVerifierTracker pg (VT { focus_map = fm, vt_goal = g }) =
 
         pretty_goal MainGoal = "Main"
         pretty_goal (LemmaGoal u) = "lemma " <> T.pack (show u)
+
+goal :: VerifierState -> Goal
+goal = vt_goal . track
 
 instance ASTContainer VerifierTracker Expr where
     containedASTs _ = []

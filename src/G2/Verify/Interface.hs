@@ -34,7 +34,7 @@ data VerifyResult = Verified
                   | VerifyTimeOut
                   deriving (Show, Read)
 
-type VerStack m = SM.StateT (VerifierData VerifierTracker)
+type VerStack m = SM.StateT VerifierData
                         (SM.StateT LengthNTrack
                             (SM.StateT PrettyGuide m))
 
@@ -60,7 +60,7 @@ verifyRedHaltOrd s solver simplifier config verify_config no_nrpc_names = do
                                     "state" ++ show (length $ rules s) ++ lemma ++ "_ap"
             | otherwise = "state" ++ show (length $ rules s) ++ lemma
             where
-                lemma = if isLemmaState s then "_lemma"else ""
+                lemma = if isLemmaState s then "_lemma" else ""
 
     m_logger <- fmap SomeReducer <$> getLimLogger' labelApproxPoints config prettyVerifierTracker
 

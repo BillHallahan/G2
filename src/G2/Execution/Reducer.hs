@@ -1404,7 +1404,7 @@ matchesExprEnvs eenv1 eenv2 hm (Cast e1 _) (Cast e2 _) = matchesExprEnvs eenv1 e
 matchesExprEnvs _ _ _ _ _ = Nothing
 
 -- | A Reducer to producer limited logging output.
-data LimLogger =
+data LimLogger t =
     LimLogger { every_n :: Int -- Output a state every n steps
               , after_n :: Int -- Only begin outputting after passing a certain n
               , before_n :: Maybe Int -- Only output before a certain n
@@ -1414,10 +1414,10 @@ data LimLogger =
               , lim_output_path :: String
               , filter_env :: Bool
               , order_env :: EnvOrdering
-              , output_name :: forall t . State t -> FilePath -- ^ Determine the file name for a particular state
+              , output_name :: State t -> FilePath -- ^ Determine the file name for a particular state
               }
 
-limLoggerConfig :: FilePath -> LimLogger
+limLoggerConfig :: FilePath -> LimLogger t
 limLoggerConfig fp = LimLogger { every_n = 0
                                , after_n = 0
                                , before_n = Nothing
@@ -1435,7 +1435,7 @@ getLimLogger :: (MonadIO m, SM.MonadState PrettyGuide m, Show t) => Config -> Pr
 getLimLogger = getLimLogger' stdFileNamer
 
 getLimLogger' :: (MonadIO m, SM.MonadState PrettyGuide m, Show t) =>
-                 (forall t' . State t' -> FilePath)
+                 (State t -> FilePath)
               -> Config
               -> PrettyTrack t
               -> IO (Maybe (Reducer m LLTracker t))
@@ -1464,7 +1464,7 @@ getLimLogger' out_name config pretty_track = do
             Log Pretty _ -> return . Just . prettyLimLogger pretty_track $ ll_config
             NoLog -> return Nothing
 
-genLimLogger :: MonadIO m => ([Int] -> State t -> Bindings -> m ()) -> LimLogger -> Reducer m LLTracker t
+genLimLogger :: MonadIO m => ([Int] -> State t -> Bindings -> m ()) -> LimLogger t -> Reducer m LLTracker t
 genLimLogger out_f ll@(LimLogger { after_n = aft, before_n = bfr, down_path = down, conc_pc_guide = cpg }) =
     (mkSimpleReducer (const $ LLTracker { ll_count = every_n ll }) rr)
         { updateWithAll = updateWithAllLL
@@ -1493,11 +1493,11 @@ genLimLogger out_f ll@(LimLogger { after_n = aft, before_n = bfr, down_path = do
         updateWithAllLL ss =
             map (\(s, i) -> s { log_path = log_path s ++ [i] }) $ zip ss [1..]
 
-limLogger :: (MonadIO m, Show t) => LimLogger -> Reducer m LLTracker t
+limLogger :: (MonadIO m, Show t) => LimLogger t -> Reducer m LLTracker t
 limLogger ll@(LimLogger {filter_env = f_env}) =
     genLimLogger (\off s b -> liftIO $ outputState (output_name ll) (lim_output_path ll) off (if f_env then filterStateEnv s else s) b pprExecStateStr) ll
 
-prettyLimLogger :: (MonadIO m, SM.MonadState PrettyGuide m) => PrettyTrack t -> LimLogger -> Reducer m LLTracker t
+prettyLimLogger :: (MonadIO m, SM.MonadState PrettyGuide m) => PrettyTrack t -> LimLogger t -> Reducer m LLTracker t
 prettyLimLogger pretty_track ll@(LimLogger {filter_env = f_env, order_env = o_env}) =
     genLimLogger (\off s@(State {}) b -> do
                 pg <- SM.get
@@ -1534,7 +1534,7 @@ inlineNRPC s@(State { expr_env = eenv, non_red_path_conds = nrpc }) =
 stdFileNamer :: State t -> FilePath
 stdFileNamer s = "state" ++ show (length $ rules s)
 
-outputState :: (forall t' . State t' -> FilePath) -> FilePath -> [Int] -> State t -> Bindings -> (State t -> Bindings -> String) -> IO ()
+outputState :: (State t -> FilePath) -> FilePath -> [Int] -> State t -> Bindings -> (State t -> Bindings -> String) -> IO ()
 outputState calc_file_name dn is s b printer = do
     fn <- getFile dn is (calc_file_name s)
 
@@ -1575,7 +1575,7 @@ getFile dn is n = do
     return fn
 
 -- | Output each path and current expression on the command line
-currExprLogger :: (MonadIO m, SM.MonadState PrettyGuide m, Show t) => LimLogger -> Reducer m LLTracker t
+currExprLogger :: (MonadIO m, SM.MonadState PrettyGuide m, Show t) => LimLogger t -> Reducer m LLTracker t
 currExprLogger ll@(LimLogger { after_n = aft, before_n = bfr, down_path = down }) = 
     (mkSimpleReducer (const $ LLTracker { ll_count = every_n ll }) rr)
         { updateWithAll = updateWithAllLL
