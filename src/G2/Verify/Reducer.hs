@@ -480,28 +480,38 @@ lemmaHalter =
 
 type VerifierState = State VerifierTracker
 
-newtype VerifierTracker = VT { focus_map :: FocusMap }
+-- | Is the state associated with the main property we are trying to verify, or with some lemma?
+data Goal = MainGoal
+          | LemmaGoal Unique
+          deriving (Eq, Show, Read)
+
+data VerifierTracker = VT { focus_map :: FocusMap
+                          , vt_goal :: Goal}
                           deriving (Show, Read)
 
 type FocusMap = HM.HashMap Name (HS.HashSet Name)
 
 initVerifierTracker :: VerifierTracker
-initVerifierTracker = VT { focus_map =HM.empty }
+initVerifierTracker = VT { focus_map = HM.empty
+                         , vt_goal = MainGoal }
 
 updateFocusMap :: Name -> VerifierState -> VerifierState
 updateFocusMap n s@(State { focused = Unfocused n'
-                          , track = VT { focus_map = fm } }) =
+                          , track = vt@(VT { focus_map = fm }) }) =
             let
                 fm' = HM.insertWith HS.union n' (HS.fromList [n]) fm
             in
-            s { track = VT { focus_map = fm' } }
+            s { track = vt { focus_map = fm' } }
 updateFocusMap _ s = s
 
 prettyVerifierTracker :: PrettyGuide -> VerifierTracker -> T.Text
-prettyVerifierTracker pg (VT { focus_map = fm }) =
-    T.intercalate "\n" . map pretty_fm $ HM.toList fm
+prettyVerifierTracker pg (VT { focus_map = fm, vt_goal = g }) =
+    (T.intercalate "\n" . map pretty_fm $ HM.toList fm) <> "\ngoal = " <> pretty_goal g
     where
         pretty_fm (k, v) = printName pg k <> " -> " <> T.intercalate ", " (map (printName pg) $ HS.toList v)
+
+        pretty_goal MainGoal = "Main"
+        pretty_goal (LemmaGoal u) = "lemma " <> T.pack (show u)
 
 instance ASTContainer VerifierTracker Expr where
     containedASTs _ = []
@@ -513,5 +523,5 @@ instance ASTContainer VerifierTracker Type where
 
 instance Named VerifierTracker where
     names vt = names (focus_map vt)
-    rename old new vt = VT { focus_map = rename old new (focus_map vt) }
-    renames hm vt = VT { focus_map = renames hm (focus_map vt) }
+    rename old new vt = vt { focus_map = rename old new (focus_map vt) }
+    renames hm vt = vt { focus_map = renames hm (focus_map vt) }
