@@ -17,7 +17,9 @@ module G2.Language.NonRedPathConds ( Focus
                                    , pattern (:<*)
                                    , getNRPCUnique
                                    , setFocus
-                                   , allNRPC ) where
+                                   , allNRPC 
+                                   
+                                   , foldlNRPC' ) where
 
 import G2.Language.AST
 import G2.Language.Naming
@@ -157,6 +159,9 @@ setFocus n focus eenv (NRPCs nrpc uniq) = NRPCs (fmap set nrpc) uniq
 
 allNRPC :: (NRPC -> Bool) -> NonRedPathConds -> Bool
 allNRPC p (NRPCs nrpc _) = all p nrpc
+
+foldlNRPC' :: (a -> NRPC -> a) -> a -> NonRedPathConds -> a
+foldlNRPC' f i = F.foldl' f i . nrpcs
 
 pattern (:*>) :: NRPC -> NonRedPathConds -> NonRedPathConds
 pattern e1_e2 :*> nrpc <- (getNRPC -> Just (e1_e2, nrpc))

@@ -8,6 +8,7 @@ module G2.Verify.Reducer ( VerifierTracker
                          , adjustFocusReducer
                          , verifySolveNRPC
                          , verifyHigherOrderHandling
+                         , inconsistentNRPCHalter
                          , approximationHalter
                          
                          , discardOnFalse
@@ -37,7 +38,6 @@ import Data.List
 import Data.Maybe
 
 import qualified Data.Text as T
-
 
 -- | When a newly reached function application is approximated by a previously seen (and thus explored) function application,
 -- shift the new function application into the NRPCs.
@@ -345,6 +345,58 @@ verifyHigherOrderHandling = mkSimpleReducer (const ()) red
                 return (InProgress, [(s', ())], b {name_gen = ng5})
         red _ s b = return (Finished, [(s, ())], b)
 
+-- | Discard states with inconsistent NRPCs
+inconsistentNRPCHalter :: Monad m =>
+                          HS.HashSet Name -- ^ Names that should not be inlined (often: top level names from the original source code)
+                       -> Halter m () r t
+inconsistentNRPCHalter no_inline = 
+    mkSimpleHalter (\_ -> ())
+                   (\hv _ _ -> hv)
+                   incCheck
+                   (\hv _ _ _ -> hv)
+    where
+        incCheck _ _ s@(State { expr_env = eenv
+                              , non_red_path_conds = nrpc })
+            | currExprIsFalse s
+            , not (checkNRPCConsistent no_inline s eenv nrpc) = return Discard
+            | otherwise = return Continue
+
+
+-- | Check if all NRPCs are syntactically consistent.  Two NRPCs are INconsistent if they:
+-- (1) have syntactically equal (after some inlining) LHS
+-- (2) have different constructors on the RHS
+--
+-- For example, if we have:
+-- @ f x y (1:xs) = a:as
+--   f x y (1:xs) = []
+-- @
+-- clearly these NRPCs are inconsistent because it is not possible that the pure `f` function
+-- returns both a cons and an empty list.
+checkNRPCConsistent :: HS.HashSet Name
+                    -> State t
+                    -> ExprEnv
+                    -> NonRedPathConds
+                    -> Bool
+checkNRPCConsistent no_inline s eenv = snd . foldlNRPC' incCheck ([], True)
+    where
+        incCheck (prev, b) (_, e1, e2) =
+            let
+                b' = any (\(p1, p2) -> eqUpToTypesInline no_inline eenv (stripAllTicks e1) (stripAllTicks p1)
+                                    && diffConstr (center HS.empty e2) (center HS.empty p2)) prev
+            in
+            ((e1, e2):prev, b && not b')
+
+        center seen v@(Var (Id n _))
+            | HS.member n seen = v
+            | Just e <- E.lookup n eenv = center (HS.insert n seen) e
+        center seen e
+            | v@(Var _):_ <- unApp e = center seen v
+        center _ e = e
+
+        diffConstr e1 e2
+            | Data d1:_ <- unApp e1
+            , Data d2:_ <- unApp e2 = dc_name d1 /= dc_name d2
+        diffConstr _ _ = False
 
 -- | If a state S has a current expression, path constraints, and NRPC set that are approximated by some
 -- other state S', discard S. Any counterexample discoverable from S is also discoverable from S'.
