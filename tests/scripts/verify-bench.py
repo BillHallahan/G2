@@ -202,17 +202,17 @@ def printRes(v, c, t) :
 def runAll(filename, suite, time_limit, var_settings = []) :
     global ce_both, ce_approx, ce_ra, ce_none, ver_props_both, ver_props_approx, ver_props_ra
     # Both on
-    print("Running " + filename + " with both approaches" + str(var_settings) + "\n")
+    print("Running " + filename + " with both approaches " + str(var_settings) + "\n")
     (vBoth, cBoth, tBoth, res1) = test_suite_general(filename, suite, time_limit, var_settings)
     printRes(vBoth, cBoth, tBoth)
 
     # Just approximation on
-    print("Running " + filename + " with just approximations" + str(var_settings) + "\n")
+    print("Running " + filename + " with just approximations " + str(var_settings) + "\n")
     (vApp, cApp, tApp, res2) = test_suite_general(filename, suite, 1, var_settings + ["--no-rev-abs"])
     printRes(vApp, cApp, tApp)
 
     # Just rev abs on
-    print("Running " + filename + " with just rev abs" + str(var_settings) + "\n")
+    print("Running " + filename + " with just rev abs " + str(var_settings) + "\n")
     (vRa, cRa, tRa, res3) = test_suite_general(filename, suite, 1, var_settings + ["--no-approx"])
     printRes(vRa, cRa, tRa)
 
@@ -220,7 +220,7 @@ def runAll(filename, suite, time_limit, var_settings = []) :
 
     if not filename == "Zeno.hs":
         # Neither approx nor rev abs
-        print("Running " + filename + " with no optimization" + str(var_settings) + "\n")
+        print("Running " + filename + " with no optimization " + str(var_settings) + "\n")
         (vNone, cNone, tNone, res4) = test_suite_general(filename, suite, time_limit, var_settings + ["--no-approx", "--no-rev-abs"])
         printRes(vNone, cNone, tNone)
         ce_none += cNone
