@@ -157,7 +157,7 @@ nrpcAnyCallReducer no_nrpc_names v_config config =
 
         symbolic_names' seen eenv (Var (Id n _))
             | n `HS.member` seen = HS.empty
-            | Just (E.Sym _) <- E.lookupConcOrSym n eenv = HS.unions $ HS.singleton n:map (symbolic_names' seen eenv) rel_nrpc_e
+            | Just (E.Sym _) <- E.lookupConcOrSym n eenv = HS.singleton n
             | Just (E.Conc e) <- E.lookupConcOrSym n eenv = symbolic_names' (HS.insert n seen) eenv e
         symbolic_names' seen eenv e@(App e1 e2)
             | (Var (Id n _)):es <- unApp e
