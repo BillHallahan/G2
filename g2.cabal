@@ -167,6 +167,7 @@ library
                        , G2.Verify.Config
                        , G2.Verify.Interface
                        , G2.Verify.Reducer
+                       , G2.Verify.StaticArgTrans
 
   if flag(support-lh) && impl(ghc < 9.2)
       exposed-modules: 

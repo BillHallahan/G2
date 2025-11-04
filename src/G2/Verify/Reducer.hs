@@ -29,6 +29,7 @@ import qualified G2.Language.Typing as T
 import G2.Lib.Printers
 import G2.Solver
 import G2.Verify.Config
+import G2.Verify.StaticArgTrans
 
 import Control.Monad.IO.Class
 import qualified Control.Monad.State as SM
@@ -166,7 +167,15 @@ nrpcAnyCallReducer no_nrpc_names v_config config =
                     | n_ == n_' = True
                     | Just (E.Conc e_) <- E.lookupConcOrSym n_' eenv = isVar n_ e_
                 isVar _ _ = False
-        symbolic_names' seen eenv nrpc (App e1 e2) = symbolic_names' seen eenv nrpc e1 `HS.union` symbolic_names' seen eenv nrpc e2
+        symbolic_names' seen eenv nrpc e@(App e1 e2)
+            | (Var (Id n _)):es <- unApp e
+            , Just stat <- if nameOcc n == "countGo" then Just [Static, NonStatic] else fmap (detStatic n) (E.lookup n eenv)
+            , length stat == length es = HS.unions
+                                       . map (symbolic_names' seen eenv nrpc)
+                                       . map snd
+                                       . filter (\(s, _) -> s == NonStatic)
+                                       $ zip stat es
+            | otherwise = symbolic_names' seen eenv nrpc e1 `HS.union` symbolic_names' seen eenv nrpc e2
         symbolic_names' _ _ _ _ = HS.empty
 
         allowed_frame (ApplyFrame _) = False
