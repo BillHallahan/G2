@@ -145,9 +145,9 @@ nrpcAnyCallReducer no_nrpc_names v_config config =
         -- this heuristic means we replace `e` only if some symbolic variable in `e` also occurs in some other
         -- argument in `e`.  The `grace` variable is used to replace arguments through data constructors,
         -- see Note [Data Constructor Arguments to NRPCs]
-        appArgToNRPC s@(State { expr_env = eenv, non_red_path_conds = nrpc }) ng grace e other_es
-            | let e_symb = symbolic_names eenv nrpc e
-            , let es_symb = HS.unions (grace:map (symbolic_names eenv nrpc) other_es)
+        appArgToNRPC s@(State { expr_env = eenv }) ng grace e other_es
+            | let e_symb = symbolic_names eenv e
+            , let es_symb = HS.unions (grace:map (symbolic_names eenv) other_es)
             , shared_var_heuristic v_config == NoSharedVarHeuristic || (not . HS.null $ e_symb `HS.intersection` es_symb) = 
                 let (e_', s_', ng_') = argsToNRPCs' s ng es_symb e in
                 ((s_', ng_'), e_')
@@ -155,28 +155,20 @@ nrpcAnyCallReducer no_nrpc_names v_config config =
 
         symbolic_names = symbolic_names' HS.empty
 
-        symbolic_names' seen eenv nrpc (Var (Id n _))
+        symbolic_names' seen eenv (Var (Id n _))
             | n `HS.member` seen = HS.empty
-            | Just (E.Sym _) <- E.lookupConcOrSym n eenv = HS.unions $ HS.singleton n:map (symbolic_names' seen eenv nrpc) rel_nrpc_e
-            | Just (E.Conc e) <- E.lookupConcOrSym n eenv =
-                HS.unions $ symbolic_names' (HS.insert n seen) eenv nrpc e:map (symbolic_names' seen eenv nrpc) rel_nrpc_e
-            where
-                rel_nrpc_e = map (\(_, e1, _) -> e1) . filter (\(_, _, e2) -> isVar n e2) $ toListNRPC nrpc
-
-                isVar n_ (Var (Id n_' _))
-                    | n_ == n_' = True
-                    | Just (E.Conc e_) <- E.lookupConcOrSym n_' eenv = isVar n_ e_
-                isVar _ _ = False
-        symbolic_names' seen eenv nrpc e@(App e1 e2)
+            | Just (E.Sym _) <- E.lookupConcOrSym n eenv = HS.unions $ HS.singleton n:map (symbolic_names' seen eenv) rel_nrpc_e
+            | Just (E.Conc e) <- E.lookupConcOrSym n eenv = symbolic_names' (HS.insert n seen) eenv e
+        symbolic_names' seen eenv e@(App e1 e2)
             | (Var (Id n _)):es <- unApp e
             , Just stat <- fmap (detStatic n) (E.lookup n eenv)
             , length stat == length es = HS.unions
-                                       . map (symbolic_names' seen eenv nrpc)
+                                       . map (symbolic_names' seen eenv)
                                        . map snd
                                        . filter (\(s, _) -> s == NonStatic)
                                        $ zip stat es
-            | otherwise = symbolic_names' seen eenv nrpc e1 `HS.union` symbolic_names' seen eenv nrpc e2
-        symbolic_names' _ _ _ _ = HS.empty
+            | otherwise = symbolic_names' seen eenv e1 `HS.union` symbolic_names' seen eenv e2
+        symbolic_names' _ _ _ = HS.empty
 
         allowed_frame (ApplyFrame _) = False
         allowed_frame _ = True
