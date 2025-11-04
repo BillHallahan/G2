@@ -141,11 +141,15 @@ moreRestrictive' :: MRCont t l -- ^ For special case handling - what to do if we
 moreRestrictive' mr_cont gen_lemma lkp s1@(State {expr_env = h1, tyvar_env = tv1}) s2@(State {expr_env = h2, tyvar_env = tv2}) ns hm active n1 n2 e1 e2 =
   case (e1, e2) of
     (Var i, _) | m <- idName i
+               , (m, e2) `elem` n1 -> Right hm
+               | m <- idName i
                , not $ HS.member m ns
                , not $ (m, e2) `elem` n1
                , Just (E.Conc e) <- lkp m s1 ->
                  moreRestrictive' mr_cont gen_lemma lkp s1 s2 ns hm active ((m, e2):n1) n2 e e2
     (_, Var i) | m <- idName i
+               , (m, e1) `elem` n2 -> Right hm
+               | m <- idName i
                , not $ HS.member m ns
                , not $ (m, e1) `elem` n2
                , Just (E.Conc e) <- lkp m s2 ->

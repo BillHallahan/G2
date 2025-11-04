@@ -169,7 +169,7 @@ nrpcAnyCallReducer no_nrpc_names v_config config =
                 isVar _ _ = False
         symbolic_names' seen eenv nrpc e@(App e1 e2)
             | (Var (Id n _)):es <- unApp e
-            , Just stat <- if nameOcc n == "countGo" then Just [Static, NonStatic] else fmap (detStatic n) (E.lookup n eenv)
+            , Just stat <- fmap (detStatic n) (E.lookup n eenv)
             , length stat == length es = HS.unions
                                        . map (symbolic_names' seen eenv nrpc)
                                        . map snd

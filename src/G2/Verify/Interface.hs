@@ -19,7 +19,6 @@ import G2.Solver
 import G2.Translation
 import G2.Verify.Config
 import G2.Verify.Reducer
-import G2.Verify.StaticArgTrans
 
 import Control.Exception
 import Control.Monad.IO.Class
@@ -162,8 +161,6 @@ verifyFromFile proj src f transConfig config verify_config = do
                                     transConfig config'
     let (init_state', ng) = wrapCurrExpr (name_gen bindings) init_state
         bindings' = bindings { name_gen = ng }
-
-    mapM_ (\(n, e) -> do print n ; print (detStatic n e)) . E.toExprList $ expr_env init_state
     
     SomeSolver solver <- initSolver config
     let m_eq_tc = map (idName . snd)
@@ -178,7 +175,7 @@ verifyFromFile proj src f transConfig config verify_config = do
 
         non_rec_funcs = filter (G.isFuncNonRecursive callGraph) reachable_funcs
         dicts = map idName $ TC.tcDicts (type_classes state')
-        no_nrpc_names =  dicts
+        no_nrpc_names = non_rec_funcs ++ dicts
 
     -- analysis1 <- if states_at_time config then do l <- logStatesAtTime; return [l] else return noAnalysis
     -- let analysis2 = if states_at_step config then [\s p xs -> SM.lift . SM.lift . SM.lift . SM.lift . SM.lift $ logStatesAtStep s p xs] else noAnalysis
