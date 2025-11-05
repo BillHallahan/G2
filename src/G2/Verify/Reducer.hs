@@ -29,6 +29,7 @@ import qualified G2.Language.Typing as T
 import G2.Lib.Printers
 import G2.Solver
 import G2.Verify.Config
+import G2.Verify.StaticArgTrans
 
 import Control.Monad.IO.Class
 import qualified Control.Monad.State as SM
@@ -36,7 +37,6 @@ import qualified Data.HashSet as HS
 import qualified Data.HashMap.Strict as HM
 import Data.List
 import Data.Maybe
-import Data.Sequence
 
 import qualified Data.Text as T
 
@@ -159,7 +159,15 @@ nrpcAnyCallReducer no_nrpc_names v_config config =
             | n `HS.member` seen = HS.empty
             | Just (E.Sym _) <- E.lookupConcOrSym n eenv = HS.singleton n
             | Just (E.Conc e) <- E.lookupConcOrSym n eenv = symbolic_names' (HS.insert n seen) eenv e
-        symbolic_names' seen eenv (App e1 e2) = symbolic_names' seen eenv e1 `HS.union` symbolic_names' seen eenv e2
+        symbolic_names' seen eenv e@(App e1 e2)
+            | (Var (Id n _)):es <- unApp e
+            , Just stat <- fmap (detStatic n) (E.lookup n eenv)
+            , length stat == length es = HS.unions
+                                       . map (symbolic_names' seen eenv)
+                                       . map snd
+                                       . filter (\(s, _) -> s == NonStatic)
+                                       $ zip stat es
+            | otherwise = symbolic_names' seen eenv e1 `HS.union` symbolic_names' seen eenv e2
         symbolic_names' _ _ _ = HS.empty
 
         allowed_frame (ApplyFrame _) = False
@@ -341,18 +349,21 @@ verifyHigherOrderHandling = mkSimpleReducer (const ()) red
 -- | Discard states with inconsistent NRPCs
 inconsistentNRPCHalter :: Monad m =>
                           HS.HashSet Name -- ^ Names that should not be inlined (often: top level names from the original source code)
-                       -> Halter m () r t
+                       -> Halter m (HS.HashSet (Expr, Expr)) r t
 inconsistentNRPCHalter no_inline = 
-    mkSimpleHalter (\_ -> ())
+    mkSimpleHalter (\_ -> HS.empty)
                    (\hv _ _ -> hv)
-                   incCheck
-                   (\hv _ _ _ -> hv)
+                   inc_check
+                   add_nrpc
     where
-        incCheck _ _ s@(State { expr_env = eenv
-                              , non_red_path_conds = nrpc })
+        inc_check hv _ s@(State { expr_env = eenv })
             | currExprIsFalse s
-            , not (checkNRPCConsistent no_inline s eenv nrpc) = return Discard
+            , not (checkNRPCConsistent no_inline eenv hv) = return Discard
             | otherwise = return Continue
+        
+        add_nrpc hv _ _ s
+            | currExprIsFalse s = foldl' (\hv_ (_, e1, e2) -> HS.insert (e1, e2) hv_) hv (toListNRPC $ non_red_path_conds s)
+            | otherwise = hv
 
 
 -- | Check if all NRPCs are syntactically consistent.  Two NRPCs are INconsistent if they:
@@ -366,13 +377,12 @@ inconsistentNRPCHalter no_inline =
 -- clearly these NRPCs are inconsistent because it is not possible that the pure `f` function
 -- returns both a cons and an empty list.
 checkNRPCConsistent :: HS.HashSet Name
-                    -> State t
                     -> ExprEnv
-                    -> NonRedPathConds
+                    -> HS.HashSet (Expr, Expr)
                     -> Bool
-checkNRPCConsistent no_inline s eenv = snd . foldlNRPC' incCheck ([], True)
+checkNRPCConsistent no_inline eenv = snd . foldl' incCheck ([], True)
     where
-        incCheck (prev, b) (_, e1, e2) =
+        incCheck (prev, b) (e1, e2) =
             let
                 b' = any (\(p1, p2) -> eqUpToTypesInline no_inline eenv (stripAllTicks e1) (stripAllTicks p1)
                                     && diffConstr (center HS.empty e2) (center HS.empty p2)) prev

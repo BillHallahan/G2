@@ -4,6 +4,7 @@
 import os
 import re
 import subprocess
+import sys
 import time
 
 exe_name = str(subprocess.run(["cabal", "exec", "which", "Verify"], capture_output = True).stdout.decode('utf-8')).strip()
@@ -198,29 +199,29 @@ def printRes(v, c, t) :
     print("Timeout :" + str(t))
     print("\n")
 
-def runAll(filename, suite, time_limit) :
+def runAll(filename, suite, time_limit, var_settings = []) :
     global ce_both, ce_approx, ce_ra, ce_none, ver_props_both, ver_props_approx, ver_props_ra
     # Both on
-    print("Running " + filename + " with both approaches\n")
-    (vBoth, cBoth, tBoth, res1) = test_suite_general(filename, suite, time_limit, [])
+    print("Running " + filename + " with both approaches " + str(var_settings) + "\n")
+    (vBoth, cBoth, tBoth, res1) = test_suite_general(filename, suite, time_limit, var_settings)
     printRes(vBoth, cBoth, tBoth)
 
     # Just approximation on
-    print("Running " + filename + " with just approximations\n")
-    (vApp, cApp, tApp, res2) = test_suite_general(filename, suite, 1, ["--no-rev-abs"])
+    print("Running " + filename + " with just approximations " + str(var_settings) + "\n")
+    (vApp, cApp, tApp, res2) = test_suite_general(filename, suite, 1, var_settings + ["--no-rev-abs"])
     printRes(vApp, cApp, tApp)
 
     # Just rev abs on
-    print("Running " + filename + " with just rev abs\n")
-    (vRa, cRa, tRa, res3) = test_suite_general(filename, suite, 1, ["--no-approx"])
+    print("Running " + filename + " with just rev abs " + str(var_settings) + "\n")
+    (vRa, cRa, tRa, res3) = test_suite_general(filename, suite, 1, var_settings + ["--no-approx"])
     printRes(vRa, cRa, tRa)
 
     res4 = {}
 
     if not filename == "Zeno.hs":
         # Neither approx nor rev abs
-        print("Running " + filename + " with no optimization\n")
-        (vNone, cNone, tNone, res4) = test_suite_general(filename, suite, time_limit, ["--no-approx", "--no-rev-abs"])
+        print("Running " + filename + " with no optimization " + str(var_settings) + "\n")
+        (vNone, cNone, tNone, res4) = test_suite_general(filename, suite, time_limit, var_settings + ["--no-approx", "--no-rev-abs"])
         printRes(vNone, cNone, tNone)
         ce_none += cNone
 
@@ -251,11 +252,13 @@ def main():
     global total_ce_time_both, total_ce_time_approx, total_ce_time_ra, total_ce_time_none
     global ce_both, ce_approx, ce_ra, ce_none
 
-    runAll("Zeno.hs", unmodified_theorems(), time_limit)
+    args = sys.argv[1:]
+
+    runAll("Zeno.hs", unmodified_theorems(), time_limit, args)
 
     # Counter-example benchmarks
     latex_tbl2 += r"\multicolumn{2}{l}{\textbf{ZenoBadProp}}\\ \hline " + "\n"
-    runAll("ZenoBadProp.hs", unmodified_theorems(), time_limit)
+    runAll("ZenoBadProp.hs", unmodified_theorems(), time_limit, args)
 
     avg_time_both = total_ver_time_both / ver_props_both if not ver_props_both == 0 else 0
     avg_time_approx = total_ver_time_approx / ver_props_approx if not ver_props_approx == 0 else 0
@@ -268,7 +271,7 @@ def main():
         tempStr = r"\multicolumn{2}{l}{\textbf{" + filename + r"}}\\ \hline " + "\n"
         latex_tbl2 += tempStr
         print("\nBenchmark : " + filename + "\n")
-        runAll(filename + ".hs", benchmark[1:], time_limit)
+        runAll(filename + ".hs", benchmark[1:], time_limit, args)
 
         curr_num_props = len(benchmark) - 1
         total_ce_props += curr_num_props

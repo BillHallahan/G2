@@ -161,7 +161,6 @@ verifyFromFile proj src f transConfig config verify_config = do
                                     transConfig config'
     let (init_state', ng) = wrapCurrExpr (name_gen bindings) init_state
         bindings' = bindings { name_gen = ng }
-
     
     SomeSolver solver <- initSolver config
     let m_eq_tc = map (idName . snd)

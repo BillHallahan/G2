@@ -68,6 +68,10 @@ type MRCont t l =  State t
 -- in practice.  We allow repeated inlinings of a variable as long as the expression on
 -- the opposite side is not the same as it was when a previous inlining of the
 -- same variable happened.
+--
+-- If we see an already seen name/expression pair, we can just assume the equivalence works out-
+-- if the equivalence did not work, it would have been discovered when we initally encountered
+-- the namw/expression pair an added it to the list.
 -------------------------------------------------------------------------------
 
 -- | Check is s1 is an approximation of s2 (if s2 is more restrictive than s1.)
@@ -141,11 +145,15 @@ moreRestrictive' :: MRCont t l -- ^ For special case handling - what to do if we
 moreRestrictive' mr_cont gen_lemma lkp s1@(State {expr_env = h1, tyvar_env = tv1}) s2@(State {expr_env = h2, tyvar_env = tv2}) ns hm active n1 n2 e1 e2 =
   case (e1, e2) of
     (Var i, _) | m <- idName i
+               , (m, e2) `elem` n1 -> Right hm
+               | m <- idName i
                , not $ HS.member m ns
                , not $ (m, e2) `elem` n1
                , Just (E.Conc e) <- lkp m s1 ->
                  moreRestrictive' mr_cont gen_lemma lkp s1 s2 ns hm active ((m, e2):n1) n2 e e2
     (_, Var i) | m <- idName i
+               , (m, e1) `elem` n2 -> Right hm
+               | m <- idName i
                , not $ HS.member m ns
                , not $ (m, e1) `elem` n2
                , Just (E.Conc e) <- lkp m s2 ->
