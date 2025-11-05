@@ -695,7 +695,7 @@ nonRedLibFuncs exec_names no_nrpc_names
     , not (E.isSymbolic n' eenv)
     , Just (s'@(State { curr_expr = CurrExpr _ _ }), _, ce', ng') <- createNonRed ng Focused s = 
         let
-            (reaches_sym, sym_table') = reachesSymbolic sym_table eenv ce'
+            (reaches_sym, sym_table') = reachesSymbolicMemo sym_table eenv ce'
             (exec_skip, var_table') = if reaches_sym then checkDelayability eenv ce' ng exec_names var_table else (Skip, var_table)
         in
         case (reaches_sym, exec_skip) of
