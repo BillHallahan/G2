@@ -68,6 +68,10 @@ type MRCont t l =  State t
 -- in practice.  We allow repeated inlinings of a variable as long as the expression on
 -- the opposite side is not the same as it was when a previous inlining of the
 -- same variable happened.
+--
+-- If we see an already seen name/expression pair, we can just assume the equivalence works out-
+-- if the equivalence did not work, it would have been discovered when we initally encountered
+-- the namw/expression pair an added it to the list.
 -------------------------------------------------------------------------------
 
 -- | Check is s1 is an approximation of s2 (if s2 is more restrictive than s1.)
