@@ -23,6 +23,7 @@ import G2.Interface
 import G2.Language
 import G2.Language.Approximation
 import qualified G2.Language.ExprEnv as E
+import G2.Language.ReachesSym
 import G2.Language.KnownValues
 import qualified G2.Language.Stack as Stck
 import qualified G2.Language.Typing as T
@@ -74,7 +75,7 @@ nrpcAnyCallReducer no_nrpc_names v_config config =
                     nr_s_ng = if
                                 -- Line (*) make sure we don't add back to NRPCs immediately.
                                 | not (hasNRBT wrapped_ce) -- (*)
-                                , allowedApp e eenv tvnv -> createNonRed ng' (focused s') s'
+                                , allowedApp e eenv tvnv -> createRA ng' (focused s') s'
                                 | otherwise -> Nothing
                 
                 case nr_s_ng of
@@ -134,7 +135,7 @@ nrpcAnyCallReducer no_nrpc_names v_config config =
                         (\(s_, ng_) (e_, other_es) -> appArgToNRPC s_ ng_ grace' e_ other_es) (s, ng) arg_holes
                     e' = mkApp (v:es')
                 in
-                case createNonRed' ng' (Unfocused ()) s' e' of
+                case createRAExpr ng' (Unfocused ()) s' e' of
                     Just (s'', sym_i, _, ng'') -> (Var sym_i, s'', ng'')
                     Nothing -> (e', s', ng')
         argsToNRPCs' s ng _ e = (e, s, ng)
@@ -184,6 +185,19 @@ nrpcAnyCallReducer no_nrpc_names v_config config =
                             | otherwise = hasNRBT e
         hasNRBT (App e1 _) = hasNRBT e1
         hasNRBT _ = False
+
+-- | Create a NRPC if heuristics apply.
+createRA :: NameGen -> GenFocus n -> State t -> Maybe (State t, Id, Expr, NameGen)
+createRA ng f s | nrpcHeuristics (expr_env s) (getExpr s) = createNonRed ng f s
+                | otherwise = Nothing
+
+createRAExpr :: NameGen -> GenFocus n -> State t -> Expr -> Maybe (State t, Id, Expr, NameGen)
+createRAExpr ng f s e | nrpcHeuristics (expr_env s) e = createNonRed' ng f s e
+                      | otherwise = Nothing
+
+-- | Only add RAs if they have an argument that is non-concrete
+nrpcHeuristics :: ExprEnv -> Expr -> Bool
+nrpcHeuristics eenv = any (reachesSymbolic eenv) . unApp
 
 -- | Note [Replacing nested function applications]
 -- Suppose we have a function application:

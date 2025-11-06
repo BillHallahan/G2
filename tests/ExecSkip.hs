@@ -125,7 +125,7 @@ reachesSymLookup1 =
         e = Var (Id x TyLitInt)
         memo = HM.fromList [(x, NotReachesSym)]
     in
-    not . fst $ reachesSymbolic memo eenv e
+    not . fst $ reachesSymbolicMemo memo eenv e
 
 -- | x, y, z, and f are all ReachesSymbolic and not in SWHNF, so should just be able to look in memo table
 reachesSymLookup2 :: Bool
@@ -145,7 +145,7 @@ reachesSymLookup2 =
         e = Var (Id x TyLitInt)
         memo = HM.fromList [(x, ReachesSym (Just y)), (y, ReachesSym (Just z)), (z, ReachesSym (Just f))]
     in
-    fst $ reachesSymbolic memo eenv e
+    fst $ reachesSymbolicMemo memo eenv e
 
 -- | x, y, and f are all ReachesSymbolic in the memo table, but z has been rewritten and is now NotReachesSymbolic.
 -- Based on this, we should figure out that x is NotReachesSymbolic.  We should then have memoized that y
@@ -168,7 +168,7 @@ reachesSymLookup3 =
         e = Var (Id x TyLitInt)
         memo = HM.fromList [(x, ReachesSym (Just y)), (y, ReachesSym (Just z)), (z, ReachesSym (Just f))]
 
-        (x_rs, memo') = reachesSymbolic memo eenv e
+        (x_rs, memo') = reachesSymbolicMemo memo eenv e
 
         -- Now do checks with y- memoization result for y should have been updated
         eenv' = E.fromList [ (x, err_e)
@@ -177,6 +177,6 @@ reachesSymLookup3 =
                            , (f, err_e)]
         e' = Var (Id y TyLitInt)
 
-        (y_rs, _) = reachesSymbolic memo' eenv' e'
+        (y_rs, _) = reachesSymbolicMemo memo' eenv' e'
     in
     not x_rs && not y_rs

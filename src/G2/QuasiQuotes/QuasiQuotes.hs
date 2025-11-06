@@ -337,6 +337,7 @@ moveOutStatePieces tenv_name s = do
              , sym_gens = Seq.empty
              , reached_hpc = HS.empty
              , track = $(track_exp)
+             , focused = Focused
              
              , log_path = [] } |]
 
