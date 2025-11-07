@@ -19,7 +19,7 @@ moreRestrictive s1 s2 =
     let
         lkp n s = lookupConcOrSymBoth n (expr_env s) (opp_env $ track s)
     in
-    A.moreRestrictive moreRestrictiveCont generateLemma lkp s1 s2
+    A.moreRestrictive moreRestrictiveCont (Just generateLemma) lkp s1 s2
 
 moreRestrictiveCont :: StateET
                     -> StateET
@@ -37,11 +37,11 @@ moreRestrictiveCont s1 s2 ns hm active n1 n2 e1 e2 =
     in
     case (e1, e2) of
         (Tick t1 e1', Tick t2 e2') | labeledErrorName t1 == labeledErrorName t2 ->
-              A.moreRestrictive' moreRestrictiveCont generateLemma lkp s1 s2 ns hm active n1 n2 e1' e2'
+              A.moreRestrictive' moreRestrictiveCont (Just generateLemma) lkp s1 s2 ns hm active n1 n2 e1' e2'
         (Tick t e1', _) | isNothing $ labeledErrorName t ->
-              A.moreRestrictive' moreRestrictiveCont generateLemma lkp s1 s2 ns hm active n1 n2 e1' e2
+              A.moreRestrictive' moreRestrictiveCont (Just generateLemma) lkp s1 s2 ns hm active n1 n2 e1' e2
         (_, Tick t e2') | isNothing $ labeledErrorName t ->
-              A.moreRestrictive' moreRestrictiveCont generateLemma lkp s1 s2 ns hm active n1 n2 e1 e2'
+              A.moreRestrictive' moreRestrictiveCont (Just generateLemma) lkp s1 s2 ns hm active n1 n2 e1 e2'
         _ -> Left []
 
 -- When we make the two sides for a new lemma, if the two expressions

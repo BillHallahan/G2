@@ -75,10 +75,10 @@ type MRCont t l =  State t
 -------------------------------------------------------------------------------
 
 -- | Check is s1 is an approximation of s2 (if s2 is more restrictive than s1.)
-moreRestrictiveIncludingPCAndNRPC :: (Named t, Show l, S.Solver solver) =>
+moreRestrictiveIncludingPCAndNRPC :: (Named t, S.Solver solver) =>
                    solver
                 -> MRCont t l -- ^ For special case handling - what to do if we don't match elsewhere in moreRestrictive
-                -> GenerateLemma t l
+                -> Maybe (GenerateLemma t l)
                 -> Lookup t -- ^ How to lookup variable names
                 -> HS.HashSet Name -- ^ Names that should not be inlined (often: top level names from the original source code)
                 -> State t -- ^ State 1
@@ -100,7 +100,7 @@ moreRestrictiveIncludingPCAndNRPC solver mr_cont gen_lemma lkp ns s1 s2 = do
 moreRestrictiveIncludingPC :: S.Solver solver =>
                    solver
                 -> MRCont t l -- ^ For special case handling - what to do if we don't match elsewhere in moreRestrictive
-                -> GenerateLemma t l
+                -> Maybe (GenerateLemma t l)
                 -> Lookup t -- ^ How to lookup variable names
                 -> HS.HashSet Name -- ^ Names that should not be inlined (often: top level names from the original source code)
                 -> State t -- ^ State 1
@@ -114,7 +114,7 @@ moreRestrictiveIncludingPC solver mr_cont gen_lemma lkp ns s1 s2  = do
 
 -- | Check is s1 is an approximation of s2 (if s2 is more restrictive than s1.)
 moreRestrictive :: MRCont t l -- ^ For special case handling - what to do if we don't match elsewhere in moreRestrictive
-                -> GenerateLemma t l
+                -> Maybe (GenerateLemma t l)
                 -> Lookup t -- ^ How to lookup variable names
                 -> State t -- ^ State 1
                 -> State t -- ^ State 2
@@ -130,7 +130,7 @@ moreRestrictive mr_cont gen_lemma lkp s1 s2 ns hm =
     moreRestrictive' mr_cont gen_lemma lkp s1 s2 ns hm True [] [] (getExpr s1) (getExpr s2)
 
 moreRestrictive' :: MRCont t l -- ^ For special case handling - what to do if we don't match elsewhere in moreRestrictive'
-                 -> GenerateLemma t l
+                 -> Maybe (GenerateLemma t l)
                  -> Lookup t
                  -> State t
                  -> State t
@@ -142,142 +142,145 @@ moreRestrictive' :: MRCont t l -- ^ For special case handling - what to do if we
                  -> Expr
                  -> Expr
                  -> Either [l] (HM.HashMap Id Expr, HS.HashSet (Expr, Expr))
-moreRestrictive' mr_cont gen_lemma lkp s1@(State {expr_env = h1, tyvar_env = tv1}) s2@(State {expr_env = h2, tyvar_env = tv2}) ns hm active n1 n2 e1 e2 =
-  case (e1, e2) of
-    (Var i, _) | m <- idName i
-               , (m, e2) `elem` n1 -> Right hm
-               | m <- idName i
-               , not $ HS.member m ns
-               , not $ (m, e2) `elem` n1
-               , Just (E.Conc e) <- lkp m s1 ->
-                 moreRestrictive' mr_cont gen_lemma lkp s1 s2 ns hm active ((m, e2):n1) n2 e e2
-    (_, Var i) | m <- idName i
-               , (m, e1) `elem` n2 -> Right hm
-               | m <- idName i
-               , not $ HS.member m ns
-               , not $ (m, e1) `elem` n2
-               , Just (E.Conc e) <- lkp m s2 ->
-                 moreRestrictive' mr_cont gen_lemma lkp s1 s2 ns hm active n1 ((m, e1):n2) e1 e
-    (Var i1, Var i2) | HS.member (idName i1) ns
-                     , idName i1 == idName i2 -> Right hm
-                     | idName i1 == idName i2
-                     , not (reachesSym h1 e1)
-                     , not (reachesSym h2 e2) -> Right hm
-                     | HS.member (idName i1) ns -> Left []
-                     | HS.member (idName i2) ns -> Left []
-    (Var i, _) | Just (E.Sym _) <- lkp (idName i) s1
-               , (hm', hs) <- hm
-               , Nothing <- HM.lookup i hm' -> Right (HM.insert i (inlineEquiv lkp s2 ns e2) hm', hs)
-               | Just (E.Sym _) <- lkp (idName i) s1
-               , Just e <- HM.lookup i (fst hm)
-               , e == inlineEquiv lkp s2 ns e2 -> Right hm
-               -- this last case means there's a mismatch
-               | Just (E.Sym _) <- lkp (idName i) s1 -> Left []
-               | not $ (idName i, e2) `elem` n1
-               , not $ HS.member (idName i) ns -> error $ "unmapped variable " ++ (show i)
-    (_, Var i) | Just (E.Sym _) <- lkp (idName i) s2 -> Left [] -- sym replaces non-sym
-               | not $ (idName i, e1) `elem` n2
-               , not $ HS.member (idName i) ns -> error $ "unmapped variable " ++ (show i)
-  
-    (App f1 a1, App f2 a2) | Right hm_fa <- moreResFA -> Right hm_fa
-                           -- don't just choose the minimal conflicting expressions
-                           -- collect all suitable pairs for potential lemmas
-                           | not (hasFuncType (typeOf tv1 e1) )
-                           , not (hasFuncType (typeOf tv2 e2) )
-                           , not active
-                           , Var (Id m1 _):_ <- unApp (stripAllTicks e1)
-                           , Var (Id m2 _):_ <- unApp (stripAllTicks e2)
-                           , nameOcc m1 == nameOcc m2
-                           , Left lems <- moreResFA ->
-                                Left $ (gen_lemma s1 s2 hm e1 e2):lems
-                            | Left (_:_) <- moreResFA -> moreResFA
-        where
-            moreResFA = do
-                hm_f <- moreRestrictive' mr_cont gen_lemma lkp s1 s2 ns hm active n1 n2 f1 f2
-                moreRestrictive' mr_cont gen_lemma lkp s1 s2 ns hm_f False n1 n2 a1 a2
-    -- These two cases should come after the main App-App case.  If an
-    -- expression pair fits both patterns, then discharging it in a way that
-    -- does not add any extra proof obligations is preferable.
-    --
-    -- We use an empty HashSet when inlining because when generating a path constraint
-    -- we DO NOT want any top level names being preserved- these would just confuse the SMT solver.
-    (App _ _, _) | e1':_ <- unApp e1
-                 , (Prim _ _) <- inlineEquiv lkp s1 HS.empty e1'
-                 , T.isPrimType $ typeOf tv1 e1
-                 , T.isPrimType $ typeOf tv1 e2
-                 , isSWHNF $ (s2 { curr_expr = CurrExpr Evaluate e2 }) ->
-                                  let (hm', hs) = hm
-                                  in Right (hm', HS.insert (inlineEquiv lkp s1 HS.empty e1, inlineEquiv lkp s2 HS.empty e2) hs)
-    (_, App _ _) | e2':_ <- unApp e2
-                 , (Prim _ _) <- inlineEquiv lkp s2 HS.empty e2'
-                 , T.isPrimType $ typeOf tv2 e2
-                 , T.isPrimType $ typeOf tv1 e1
-                 , isSWHNF $ (s1 { curr_expr = CurrExpr Evaluate e1 }) ->
-                                  let (hm', hs) = hm
-                                  in Right (hm', HS.insert (inlineEquiv lkp s1 HS.empty e1, inlineEquiv lkp s2 HS.empty e2) hs)
-    -- We just compare the names of the DataCons, not the types of the DataCons.
-    -- This is because (1) if two DataCons share the same name, they must share the
-    -- same type, but (2) "the same type" may be represented in different syntactic
-    -- ways, most significantly bound variable names may differ
-    -- "forall a . a" is the same type as "forall b . b", but fails a syntactic check.
-    (Data (DataCon d1 _ _ _), Data (DataCon d2 _ _ _))
-                                  | d1 == d2 -> Right hm
-                                  | otherwise -> Left []
-    -- We neglect to check type equality here for the same reason.
-    (Prim p1 _, Prim p2 _) | p1 == p2 -> Right hm
-                           | otherwise -> Left []
-    (Lit l1, Lit l2) | l1 == l2 -> Right hm
-                     | otherwise -> Left []
-    (Lam lu1 i1 b1, Lam lu2 i2 b2)
-                | lu1 == lu2
-                , i1 == i2 ->
-                  let ns' = HS.insert (idName i1) ns
-                  -- no need to insert twice over because they're equal
-                  in moreRestrictive' mr_cont gen_lemma lkp s1 s2 ns' hm active n1 n2 b1 b2
-                | otherwise -> Left []
-    -- ignore types, like in exprPairing
-    (Type _, Type _) -> Right hm
-    -- only works if both binding lists are the same length
-    (Let binds1 e1', Let binds2 e2') ->
-                let pairs = (e1', e2'):(zip (map snd binds1) (map snd binds2))
-                    ins (i_, e_) h_ = E.insert (idName i_) e_ h_
-                    h1_ = foldr ins h1 binds1
-                    h2_ = foldr ins h2 binds2
-                    s1' = s1 { expr_env = h1_ }
-                    s2' = s2 { expr_env = h2_ }
-                    mf hm_ (e1_, e2_) = moreRestrictive' mr_cont gen_lemma lkp s1' s2' ns hm_ active n1 n2 e1_ e2_
-                in
-                if length binds1 == length binds2
-                then foldM mf hm pairs
-                else Left []
-    -- id equality never checked directly, but it's covered indirectly
-    (Case e1' i1 _ a1, Case e2' i2 _ a2)
-                | Right hm' <- b_mr ->
-                  let h1_ = E.insert (idName i1) e1' h1
-                      h2_ = E.insert (idName i2) e2' h2
-                      s1' = s1 { expr_env = h1_ }
-                      s2' = s2 { expr_env = h2_ }
-                      mf hm_ (e1_, e2_) = moreRestrictiveAlt mr_cont gen_lemma lkp s1' s2' ns hm_ False n1 n2 e1_ e2_
-                      l = zip a1 a2
-                  in foldM mf hm' l
-                | otherwise -> b_mr
-                where
-                    b_mr = moreRestrictive' mr_cont gen_lemma lkp s1 s2 ns hm active n1 n2 e1' e2'
-    (Cast e1' c1, Cast e2' c2) | c1 == c2 ->
-        moreRestrictive' mr_cont gen_lemma lkp s1 s2 ns hm active n1 n2 e1' e2'
+moreRestrictive' mr_cont m_gen_lemma lkp = go 
+  where
+    go s1@(State {expr_env = h1, tyvar_env = tv1}) s2@(State {expr_env = h2, tyvar_env = tv2}) ns hm active n1 n2 e1 e2 =
+        case (e1, e2) of
+          (Var i, _) | m <- idName i
+                    , (m, e2) `elem` n1 -> Right hm
+                    | m <- idName i
+                    , not $ HS.member m ns
+                    , not $ (m, e2) `elem` n1
+                    , Just (E.Conc e) <- lkp m s1 ->
+                      go s1 s2 ns hm active ((m, e2):n1) n2 e e2
+          (_, Var i) | m <- idName i
+                    , (m, e1) `elem` n2 -> Right hm
+                    | m <- idName i
+                    , not $ HS.member m ns
+                    , not $ (m, e1) `elem` n2
+                    , Just (E.Conc e) <- lkp m s2 ->
+                      go s1 s2 ns hm active n1 ((m, e1):n2) e1 e
+          (Var i1, Var i2) | HS.member (idName i1) ns
+                          , idName i1 == idName i2 -> Right hm
+                          | idName i1 == idName i2
+                          , not (reachesSym h1 e1)
+                          , not (reachesSym h2 e2) -> Right hm
+                          | HS.member (idName i1) ns -> Left []
+                          | HS.member (idName i2) ns -> Left []
+          (Var i, _) | Just (E.Sym _) <- lkp (idName i) s1
+                    , (hm', hs) <- hm
+                    , Nothing <- HM.lookup i hm' -> Right (HM.insert i (inlineEquiv lkp s2 ns e2) hm', hs)
+                    | Just (E.Sym _) <- lkp (idName i) s1
+                    , Just e <- HM.lookup i (fst hm)
+                    , e == inlineEquiv lkp s2 ns e2 -> Right hm
+                    -- this last case means there's a mismatch
+                    | Just (E.Sym _) <- lkp (idName i) s1 -> Left []
+                    | not $ (idName i, e2) `elem` n1
+                    , not $ HS.member (idName i) ns -> error $ "unmapped variable " ++ (show i)
+          (_, Var i) | Just (E.Sym _) <- lkp (idName i) s2 -> Left [] -- sym replaces non-sym
+                    | not $ (idName i, e1) `elem` n2
+                    , not $ HS.member (idName i) ns -> error $ "unmapped variable " ++ (show i)
+        
+          (App f1 a1, App f2 a2) | Right hm_fa <- moreResFA -> Right hm_fa
+                                -- don't just choose the minimal conflicting expressions
+                                -- collect all suitable pairs for potential lemmas
+                                | Just gen_lemma <- m_gen_lemma
+                                , not (hasFuncType (typeOf tv1 e1) )
+                                , not (hasFuncType (typeOf tv2 e2) )
+                                , not active
+                                , Var (Id m1 _):_ <- unApp (stripAllTicks e1)
+                                , Var (Id m2 _):_ <- unApp (stripAllTicks e2)
+                                , nameOcc m1 == nameOcc m2
+                                , Left lems <- moreResFA ->
+                                      Left $ (gen_lemma s1 s2 hm e1 e2):lems
+                                | Left (_:_) <- moreResFA -> moreResFA
+              where
+                  moreResFA = do
+                      hm_f <- go s1 s2 ns hm active n1 n2 f1 f2
+                      go s1 s2 ns hm_f False n1 n2 a1 a2
+          -- These two cases should come after the main App-App case.  If an
+          -- expression pair fits both patterns, then discharging it in a way that
+          -- does not add any extra proof obligations is preferable.
+          --
+          -- We use an empty HashSet when inlining because when generating a path constraint
+          -- we DO NOT want any top level names being preserved- these would just confuse the SMT solver.
+          (App _ _, _) | e1':_ <- unApp e1
+                       , T.isPrimType . returnType $ typeOf tv1 e1'
+                       , T.isPrimType $ typeOf tv1 e2
+                       , (Prim _ _) <- inlineEquiv lkp s1 HS.empty e1'
+                       , isSWHNF $ (s2 { curr_expr = CurrExpr Evaluate e2 }) ->
+                                        let (hm', hs) = hm
+                                        in Right (hm', HS.insert (inlineEquiv lkp s1 HS.empty e1, inlineEquiv lkp s2 HS.empty e2) hs)
+          (_, App _ _) | e2':_ <- unApp e2
+                       , T.isPrimType . returnType $ typeOf tv2 e2'
+                       , T.isPrimType $ typeOf tv1 e1
+                       , (Prim _ _) <- inlineEquiv lkp s2 HS.empty e2'
+                       , isSWHNF $ (s1 { curr_expr = CurrExpr Evaluate e1 }) ->
+                                        let (hm', hs) = hm
+                                        in Right (hm', HS.insert (inlineEquiv lkp s1 HS.empty e1, inlineEquiv lkp s2 HS.empty e2) hs)
+          -- We just compare the names of the DataCons, not the types of the DataCons.
+          -- This is because (1) if two DataCons share the same name, they must share the
+          -- same type, but (2) "the same type" may be represented in different syntactic
+          -- ways, most significantly bound variable names may differ
+          -- "forall a . a" is the same type as "forall b . b", but fails a syntactic check.
+          (Data (DataCon d1 _ _ _), Data (DataCon d2 _ _ _))
+                                        | d1 == d2 -> Right hm
+                                        | otherwise -> Left []
+          -- We neglect to check type equality here for the same reason.
+          (Prim p1 _, Prim p2 _) | p1 == p2 -> Right hm
+                                | otherwise -> Left []
+          (Lit l1, Lit l2) | l1 == l2 -> Right hm
+                          | otherwise -> Left []
+          (Lam lu1 i1 b1, Lam lu2 i2 b2)
+                      | lu1 == lu2
+                      , i1 == i2 ->
+                        let ns' = HS.insert (idName i1) ns
+                        -- no need to insert twice over because they're equal
+                        in go s1 s2 ns' hm active n1 n2 b1 b2
+                      | otherwise -> Left []
+          -- ignore types, like in exprPairing
+          (Type _, Type _) -> Right hm
+          -- only works if both binding lists are the same length
+          (Let binds1 e1', Let binds2 e2') ->
+                      let pairs = (e1', e2'):(zip (map snd binds1) (map snd binds2))
+                          ins (i_, e_) h_ = E.insert (idName i_) e_ h_
+                          h1_ = foldr ins h1 binds1
+                          h2_ = foldr ins h2 binds2
+                          s1' = s1 { expr_env = h1_ }
+                          s2' = s2 { expr_env = h2_ }
+                          mf hm_ (e1_, e2_) = go s1' s2' ns hm_ active n1 n2 e1_ e2_
+                      in
+                      if length binds1 == length binds2
+                      then foldM mf hm pairs
+                      else Left []
+          -- id equality never checked directly, but it's covered indirectly
+          (Case e1' i1 _ a1, Case e2' i2 _ a2)
+                      | Right hm' <- b_mr ->
+                        let h1_ = E.insert (idName i1) e1' h1
+                            h2_ = E.insert (idName i2) e2' h2
+                            s1' = s1 { expr_env = h1_ }
+                            s2' = s2 { expr_env = h2_ }
+                            mf hm_ (e1_, e2_) = moreRestrictiveAlt mr_cont m_gen_lemma lkp s1' s2' ns hm_ False n1 n2 e1_ e2_
+                            l = zip a1 a2
+                        in foldM mf hm' l
+                      | otherwise -> b_mr
+                      where
+                          b_mr = go s1 s2 ns hm active n1 n2 e1' e2'
+          (Cast e1' c1, Cast e2' c2) | c1 == c2 ->
+              go s1 s2 ns hm active n1 n2 e1' e2'
 
-    (Assume _ am1 ex1, Assume _ am2 ex2) ->
-        moreRestrictive' mr_cont gen_lemma lkp s1 s2 ns hm active n1 n2 am1 am2
-          >>= \hm' -> moreRestrictive' mr_cont gen_lemma lkp s1 s2 ns hm' active n1 n2 ex1 ex2
+          (Assume _ am1 ex1, Assume _ am2 ex2) ->
+              go s1 s2 ns hm active n1 n2 am1 am2
+                >>= \hm' -> go s1 s2 ns hm' active n1 n2 ex1 ex2
 
-    _ -> mr_cont s1 s2 ns hm active n1 n2 e1 e2
-    where
-        reachesSym h = getAny . reachesSym' HS.empty h
-        reachesSym' seen h (Var (Id n _)) | n `elem` ns = Any False
-                                          | n `HS.member` seen = Any False
-                                          | (Just (E.Conc e)) <- E.lookupConcOrSym n h = reachesSym' (HS.insert n seen) h e
-                                          | otherwise = Any True
-        reachesSym' seen h e = evalChildren (reachesSym' seen h) e
+          _ -> mr_cont s1 s2 ns hm active n1 n2 e1 e2
+          where
+              reachesSym h = getAny . reachesSym' HS.empty h
+              reachesSym' seen h (Var (Id n _)) | n `elem` ns = Any False
+                                                | n `HS.member` seen = Any False
+                                                | (Just (E.Conc e)) <- E.lookupConcOrSym n h = reachesSym' (HS.insert n seen) h e
+                                                | otherwise = Any True
+              reachesSym' seen h e = evalChildren (reachesSym' seen h) e
 
 -- check only the names for DataAlt
 altEquiv :: AltMatch -> AltMatch -> Bool
@@ -303,7 +306,7 @@ inlineEquiv lkp s ns e = modifyChildren (inlineEquiv lkp s ns) e
 
 -- ids are the same between both sides; no need to insert twice
 moreRestrictiveAlt :: MRCont t l
-                   -> GenerateLemma t l
+                   -> Maybe (GenerateLemma t l)
                    -> Lookup t
                    -> State t
                    -> State t
@@ -324,7 +327,7 @@ moreRestrictiveAlt mr_cont gen_lemma lkp s1 s2 ns hm active n1 n2 (Alt am1 e1) (
   else Left []
 
 moreRestrictiveStack :: Show l => MRCont t l
-                     -> GenerateLemma t l
+                     -> Maybe (GenerateLemma t l)
                      -> Lookup t
                      -> State t
                      -> State t
@@ -348,8 +351,8 @@ moreRestrictiveStack mr_cont gen_lemma lkp s1 s2 ns init_hm stck1 stck2
 
 
 
-moreRestrictiveNRPC :: Show l => MRCont t l
-                    -> GenerateLemma t l
+moreRestrictiveNRPC :: MRCont t l
+                    -> Maybe (GenerateLemma t l)
                     -> Lookup t
                     -> State t
                     -> State t
@@ -361,6 +364,9 @@ moreRestrictiveNRPC :: Show l => MRCont t l
 moreRestrictiveNRPC mr_cont gen_lemma lkp s1 s2 ns init_hm nrpc1 nrpc2
   | getNRPCUnique nrpc1 == getNRPCUnique nrpc2
   , not (nullNRPC nrpc1) || not (nullNRPC nrpc2) = Left []
+  -- We are looking to match each nrpc in nrpc1 to an nrpc in nrpc2- this is clearly impossible
+  -- if nrpc1 has more nrpcs then nrpc2
+  | numNRPC nrpc1 > numNRPC nrpc2 = Left []
   | otherwise = matchNRPCs init_hm (toListNRPC nrpc1) (toListNRPC nrpc2)
   where
     matchNRPCs hm [] _ = Right hm

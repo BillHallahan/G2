@@ -855,7 +855,7 @@ nrpcApproxReducer solver no_inline no_nrpc_names config =
                                             moreRestrictiveIncludingPC
                                                         solver
                                                         mr_cont
-                                                        gen_lemma
+                                                        Nothing
                                                         lookupConcOrSymState
                                                         no_inline
                                                         prev
@@ -872,8 +872,7 @@ nrpcApproxReducer solver no_inline no_nrpc_names config =
             , Just e <- E.lookup n eenv = return (Finished, [(s { curr_expr = CurrExpr Evaluate e }, rv)], b)
         red rv s b = return (Finished, [(s, rv)], b)
         
-        mr_cont = mrContIgnoreNRPCTicks gen_lemma lookupConcOrSymState
-        gen_lemma _ _ _ _ _ = ()
+        mr_cont = mrContIgnoreNRPCTicks Nothing lookupConcOrSymState
 
         allowed_frame (ApplyFrame _) = False
         allowed_frame _ = True
@@ -1838,7 +1837,7 @@ approximationHalter' stop_cond solver no_inline = mkSimpleHalter
                 approx <- liftIO $ findM (\prev -> moreRestrictiveIncludingPCAndNRPC
                                                         solver
                                                         mr_cont
-                                                        gen_lemma
+                                                        Nothing
                                                         lookupConcOrSymState
                                                         no_inline
                                                         prev
@@ -1870,12 +1869,7 @@ approximationHalter' stop_cond solver no_inline = mkSimpleHalter
         stop _ _ _ = return Continue
         
         -- mr_cont _ _ _ _ _ _ _ _ _ = Left []
-        mr_cont = mrContIgnoreNRPCTicks gen_lemma lookupConcOrSymState
-        gen_lemma s1 s2 _ e1 e2 =
-            -- trace ("log_path s1 = " ++ show (log_path s1) ++ " " ++ show (num_steps s1)
-            --     ++ "\nlog_path s2 = " ++ show (log_path s2) ++ " " ++ show (num_steps s2)
-            --     ++ "\ne1 = " ++ show e1 ++ "\ne2 = " ++ show e2)
-            (e1, e2)
+        mr_cont = mrContIgnoreNRPCTicks Nothing lookupConcOrSymState
 
         allowed_expr Evaluate (Var _:_:_) = True
         allowed_expr Return (Data _:_) = True
@@ -1893,7 +1887,7 @@ approximationHalter' stop_cond solver no_inline = mkSimpleHalter
         allowed_expr_frame Evaluate (Var _:_:_) _ _ = True
         allowed_expr_frame _ _ _ _ = False
 
-mrContIgnoreNRPCTicks :: GenerateLemma t l
+mrContIgnoreNRPCTicks :: Maybe (GenerateLemma t l)
                       -> Lookup t
                       -> State t
                       -> State t

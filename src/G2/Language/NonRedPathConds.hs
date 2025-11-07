@@ -12,6 +12,7 @@ module G2.Language.NonRedPathConds ( Focus
                                    , getNRPC
                                    , getLastNRPC
                                    , nullNRPC
+                                   , numNRPC
                                    , toListNRPC
                                    , pattern (:*>)
                                    , pattern (:<*)
@@ -29,7 +30,7 @@ import qualified G2.Language.ExprEnv as E
 import Data.Data
 import qualified Data.Foldable as F
 import Data.Hashable
-import Data.Sequence
+import Data.Sequence as S
 import GHC.Generics
 import G2.Language.ExprEnv (deepLookupVar)
 
@@ -142,6 +143,9 @@ getLastNRPC (NRPCs (nrpc :|> (focus, e1, e2)) uniq) = Just ((focus, e1, e2), NRP
 nullNRPC :: NonRedPathConds -> Bool
 nullNRPC (NRPCs Empty _) = True
 nullNRPC _ = False
+
+numNRPC :: NonRedPathConds -> Int
+numNRPC = S.length . nrpcs
 
 toListNRPC :: NonRedPathConds -> [NRPC]
 toListNRPC = F.toList . nrpcs
