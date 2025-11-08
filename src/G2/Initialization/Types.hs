@@ -24,7 +24,8 @@ data SimpleState = SimpleState { expr_env :: L.ExprEnv
                                , type_classes :: L.TypeClasses
                                , families :: L.Families
                                , rewrite_rules :: ![L.RewriteRule]
-                               , exports :: [Name] } deriving (Eq, Show, Read)
+                               , exports :: [Name]
+                               , demand :: HM.HashMap Name L.Demand } deriving (Eq, Show, Read)
 
 newtype SimpleStateM a = SimpleStateM { unSM :: (SM.State SimpleState a) } deriving (Applicative, Functor, Monad)
 

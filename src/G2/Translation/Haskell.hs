@@ -37,6 +37,7 @@ module G2.Translation.Haskell
 
 import qualified G2.Language.TypeEnv as G2 (AlgDataTy (..))
 import qualified G2.Language.Syntax as G2
+import qualified G2.Language.Support as G2
 import qualified G2.Language.Families as G2
 -- import qualified G2.Language.Typing as G2
 import qualified G2.Translation.TransTypes as G2
@@ -318,12 +319,12 @@ modGutsClosureToG2 :: G2.ModGutsClosure
 modGutsClosureToG2 mgcc tr_con = do
   let breaks = G2.mgcc_breaks mgcc
   -- Do the binds
-  binds <- foldM (\bs b -> do
-                          bs' <- mkBinds breaks b
-                          return $ bs `HM.union` bs')
-                 HM.empty
-                 (G2.mgcc_binds mgcc)
-  -- Do the tycons
+  (binds, demands) <- foldM (\(bs, dmd) b -> do
+                                (bs', dmd') <- mkBinds breaks b
+                                return $ (bs `HM.union` bs', dmd `HM.union` dmd'))
+                          (HM.empty, HM.empty)
+                          (G2.mgcc_binds mgcc)
+            -- Do the tycons
   let raw_tycons = G2.mgcc_tycons mgcc ++ typeEnvTyCons (G2.mgcc_type_env mgcc)
   tycons <- foldM (\tcs tc -> do
                         (n, mb_t) <- mkTyCon tc
@@ -348,6 +349,7 @@ modGutsClosureToG2 mgcc tr_con = do
   return (G2.ExtractedG2
             { G2.exg2_mod_names = [fmap T.pack $ G2.mgcc_mod_name mgcc]
             , G2.exg2_binds = binds
+            , G2.exg2_demand = demands
             , G2.exg2_tycons = tycons
             , G2.exg2_classes = classes
             , G2.exg2_axioms = concat fam_tycons ++ fam_open
@@ -436,6 +438,7 @@ mergeExtractedG2s (g2:g2s) =
     G2.ExtractedG2
       { G2.exg2_mod_names = G2.exg2_mod_names g2 ++ G2.exg2_mod_names g2' -- order matters
       , G2.exg2_binds = G2.exg2_binds g2 `HM.union` G2.exg2_binds g2'
+      , G2.exg2_demand = G2.exg2_demand g2 `HM.union` G2.exg2_demand g2'
       , G2.exg2_tycons = G2.exg2_tycons g2 `HM.union` G2.exg2_tycons g2'
       , G2.exg2_classes = G2.exg2_classes g2 ++ G2.exg2_classes g2'
       , G2.exg2_axioms = G2.exg2_axioms g2 ++ G2.exg2_axioms g2'
@@ -446,17 +449,31 @@ mergeExtractedG2s (g2:g2s) =
 ----------------
 -- Translating the individual components in CoreSyn, etc into G2 Core
 
-mkBinds :: Maybe ModBreaks -> CoreBind -> G2.NamesM (HM.HashMap G2.Name G2.Expr)
+mkBinds :: Maybe ModBreaks -> CoreBind -> G2.NamesM (HM.HashMap G2.Name G2.Expr, HM.HashMap G2.Name G2.Demand)
 mkBinds mb (NonRec var expr) = do
     i <- mkIdLookup var
     e <- mkExpr mb expr
-    return $ HM.singleton (G2.idName i) e
-mkBinds mb (Rec ves) =
-    return . HM.fromList =<<
-        mapM (\(v, expr) -> do
-                  i <- mkIdLookup v
-                  e <- mkExpr mb expr
-                  return (G2.idName i, e)) ves
+    return $ (HM.singleton (G2.idName i) e, HM.singleton (G2.idName i) (mkDemand var))
+mkBinds mb (Rec ves) = do
+    funcs <- mapM (\(v, expr) -> do
+                        i <- mkIdLookup v
+                        e <- mkExpr mb expr
+                        return (G2.idName i, e)) ves
+    dems <- mapM (\(v, _) -> do
+                        i <- mkIdLookup v
+                        return (G2.idName i, mkDemand v)) ves
+    return $ (HM.fromList funcs, HM.fromList dems)
+        
+mkDemand :: Var -> G2.Demand
+mkDemand = map (\(c :* _) -> card c) . fst . splitDmdSig . idDmdSig
+  where
+    card C_00 = G2.C00
+    card C_01 = G2.C01
+    card C_0N = G2.C0N
+    card C_10 = G2.C10
+    card C_11 = G2.C11 
+    card C_1N = G2.C1N
+
 
 mkExpr :: Maybe ModBreaks -> CoreExpr -> G2.NamesM G2.Expr
 mkExpr _ (Var var) = return . G2.Var =<< mkIdLookup var

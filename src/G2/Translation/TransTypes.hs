@@ -8,8 +8,8 @@ import G2.Translation.GHC
 import qualified Data.HashMap.Lazy as HM
 import qualified Data.Text as T
 
+import qualified G2.Language.Support as G2
 import qualified G2.Language.Syntax as G2
-import qualified G2.Language.AlgDataTy as G2
 import qualified G2.Language.Families as G2
 
 type NameMap = HM.HashMap (T.Text, Maybe T.Text) G2.Name
@@ -103,6 +103,7 @@ emptyCgGutsClosure =
 data ExtractedG2 = ExtractedG2
   { exg2_mod_names :: [Maybe T.Text]
   , exg2_binds :: HM.HashMap G2.Name G2.Expr
+  , exg2_demand :: HM.HashMap G2.Name G2.Demand
   , exg2_tycons :: HM.HashMap G2.Name G2.AlgDataTy
   , exg2_classes :: [(G2.Name, G2.Id, [G2.Id], [(G2.Type, G2.Id)])]
   , exg2_axioms :: [(G2.Name, G2.Axiom)]
@@ -116,6 +117,7 @@ emptyExtractedG2 =
   ExtractedG2
     { exg2_mod_names = []
     , exg2_binds = HM.empty
+    , exg2_demand = HM.empty
     , exg2_tycons = HM.empty
     , exg2_classes = []
     , exg2_axioms = []

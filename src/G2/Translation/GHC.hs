@@ -19,6 +19,8 @@ module G2.Translation.GHC ( module GHC
                           , module GHC.Iface.Tidy
                           , module GHC.Paths
                           , module GHC.Types.Avail
+                          , module GHC.Types.Demand
+                          , module GHC.Types.Id
                           , module GHC.Types.Id.Info
                           , module GHC.Types.Literal
                           , module GHC.Types.Name
@@ -78,6 +80,8 @@ import GHC.Driver.Session
 import GHC.Iface.Tidy
 import GHC.Paths
 import GHC.Types.Avail
+import GHC.Types.Demand
+import GHC.Types.Id (idDmdSig)
 import GHC.Types.Id.Info
 import GHC.Types.Literal
 import GHC.Types.Name hiding (varName)

@@ -92,6 +92,7 @@ data Bindings = Bindings { fixed_inputs :: [Expr]
                          , rewrite_rules :: ![RewriteRule]
                          , name_gen :: NameGen
                          , exported_funcs :: [Name]
+                         , demand :: HM.HashMap Name Demand
                          } deriving (Show, Eq, Read, Typeable, Data)
 
 -- | The `InputIds` are a list of the variable names passed as input to the
@@ -200,6 +201,24 @@ stderrName :: Name
 stderrName = Name "stderr" Nothing 0 Nothing
 
 instance Hashable HandleStatus
+
+-- | Strictness analysis information
+data Card = C00 -- ^ Not used
+          | C01 -- ^ Used 0 or 1 time
+          | C0N -- ^ Used an unknown number of times
+          | C10 -- ^ Bottom
+          | C11 -- ^ Used once
+          | C1N -- ^ Used at least once
+          deriving (Eq, Show, Read, Generic, Data, Typeable)
+
+instance Hashable Card
+
+isStrict :: Card -> Bool
+isStrict C11 = True
+isStrict C1N = True
+isStrict _ = False
+
+type Demand = [Card]
 
 instance Named t => Named (State t) where
     names s = names (expr_env s)
@@ -358,6 +377,7 @@ instance Named Bindings where
                  , rewrite_rules = rename old new (rewrite_rules b)
                  , name_gen = name_gen b
                  , exported_funcs = rename old new (exported_funcs b)
+                 , demand = rename old new (demand b)
                  }
 
     renames hm b =
@@ -370,6 +390,7 @@ instance Named Bindings where
                , rewrite_rules = renames hm (rewrite_rules b)
                , name_gen = name_gen b
                , exported_funcs = renames hm (exported_funcs b)
+               , demand = renames hm (demand b)
                }
 
 instance ASTContainer Bindings Expr where
@@ -476,3 +497,7 @@ instance ASTContainer Handle Type where
 
     modifyContainedASTs f h@(HandleInfo { h_start = s, h_pos = p }) =
         h { h_start = modifyContainedASTs f s, h_pos = modifyContainedASTs f p }
+
+instance Named Card where
+    names _ = mempty
+    rename _ _ c = c

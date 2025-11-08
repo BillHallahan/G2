@@ -237,7 +237,8 @@ initStateFromSimpleState s m_mod useAssert mkCurr argTys config =
     , higher_order_inst = S.filter (\n -> nameModule n `elem` m_mod) . S.fromList $ IT.exports s
     , rewrite_rules = IT.rewrite_rules s
     , name_gen = ng'''
-    , exported_funcs = IT.exports s })
+    , exported_funcs = IT.exports s
+    , demand = IT.demand s })
 
 mkArgTys :: TV.TyVarEnv -> Expr -> MkArgTypes
 mkArgTys tv e simp_s =
@@ -261,6 +262,7 @@ initStateFromSimpleState' s sf m_mod =
 initSimpleState :: ExtractedG2
                 -> IT.SimpleState
 initSimpleState (ExtractedG2 { exg2_binds = prog
+                             , exg2_demand = dmd
                              , exg2_tycons = prog_typ
                              , exg2_classes = cls
                              , exg2_axioms = axs
@@ -282,7 +284,8 @@ initSimpleState (ExtractedG2 { exg2_binds = prog
                            , IT.type_classes = tc
                            , IT.families = fams
                            , IT.rewrite_rules = rs
-                           , IT.exports = es }
+                           , IT.exports = es
+                           , IT.demand = dmd }
     in
     runInitialization1 s
 

@@ -40,6 +40,7 @@ import Data.List
 import Data.Maybe
 
 import qualified Data.Text as T
+import G2.Language.ExprEnv (deepLookupVar)
 
 -- | When a newly reached function application is approximated by a previously seen (and thus explored) function application,
 -- shift the new function application into the NRPCs.
@@ -162,12 +163,14 @@ nrpcAnyCallReducer no_nrpc_names v_config config =
             | Just (E.Conc e) <- E.lookupConcOrSym n eenv = symbolic_names' (HS.insert n seen) eenv e
         symbolic_names' seen eenv e@(App e1 e2)
             | (Var (Id n _)):es <- unApp e
-            , Just stat <- fmap (detStatic n) (E.lookup n eenv)
-            , length stat == length es = HS.unions
-                                       . map (symbolic_names' seen eenv)
-                                       . map snd
-                                       . filter (\(s, _) -> s == NonStatic)
-                                       $ zip stat es
+            , Just n' <- deepLookupVar n eenv
+            , Just stat <- fmap (detStatic n') (E.lookup n' eenv)
+            , length stat == length es =
+                    HS.unions
+                  . map (symbolic_names' seen eenv)
+                  . map snd
+                  . filter (\(s, _) -> s == NonStatic)
+                  $ zip stat es
             | otherwise = symbolic_names' seen eenv e1 `HS.union` symbolic_names' seen eenv e2
         symbolic_names' _ _ _ = HS.empty
 

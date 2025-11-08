@@ -87,6 +87,7 @@ instance Arbitrary ArbSimpleState where
                                       , IT.rewrite_rules = []
                                       , IT.exports = []
                                       , IT.handles = HM.empty
+                                      , IT.demand = HM.empty
                                       }
         return $ ArbSimple simple_s
 
