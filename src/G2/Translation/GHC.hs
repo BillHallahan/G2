@@ -10,6 +10,7 @@ module G2.Translation.GHC ( module GHC
                           , module GHC.Core.DataCon
                           , module GHC.Core.FamInstEnv
                           , module GHC.Core.InstEnv
+                          , module GHC.Core.Opt.DmdAnal
                           , module GHC.Core.TyCo.Rep
                           , module GHC.Core.TyCon
                           , module GHC.Data.FastString
@@ -78,6 +79,7 @@ import GHC.Data.Pair
 import GHC.Driver.Main
 import GHC.Driver.Session
 import GHC.Iface.Tidy
+import GHC.Core.Opt.DmdAnal
 import GHC.Paths
 import GHC.Types.Avail
 import GHC.Types.Demand

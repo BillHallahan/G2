@@ -107,7 +107,7 @@ loadProj hsc proj src gflags tr_con = do
     let gen_flags = if G2.hpc_ticks tr_con then Opt_Hpc:gflags else gflags
         gen_flags' = Opt_IgnoreAsserts:gen_flags
 
-    let init_beta_flags = gopt_unset beta_flags Opt_StaticArgumentTransformation
+    let init_beta_flags = gopt_set (gopt_unset beta_flags Opt_StaticArgumentTransformation) Opt_Strictness
 
     let beta_flags' = foldl' gopt_set init_beta_flags gen_flags'
     let dflags = beta_flags' {
@@ -147,7 +147,7 @@ loadProj hsc proj src gflags tr_con = do
                              , simplPhases = if G2.simpl tr_con then simplPhases beta_flags' else 0
                              , maxSimplIterations = if G2.simpl tr_con then maxSimplIterations beta_flags' else 0
 
-                             , hpcDir = head proj}    
+                             , hpcDir = head proj }    
         dflags' = setIncludePaths proj dflags
 
     _ <- setSessionDynFlags dflags'
