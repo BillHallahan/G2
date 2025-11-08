@@ -8,6 +8,9 @@ module G2.Data.Utils ( uncurry3
                      , thd4
                      , fth4
 
+                     , mapFst
+                     , mapFst3
+
                      , holes
                      
                      , (==>)
@@ -44,6 +47,12 @@ thd4 (_, _, c, _) = c
 
 fth4 :: (a, b, c, d) -> d
 fth4 (_, _, _, d) = d
+
+mapFst :: (a -> c) -> (a, b) -> (c, b)
+mapFst f (x, y) = (f x, y)
+
+mapFst3 :: (a -> d) -> (a, b, c) -> (d, b, c)
+mapFst3 f (x, y, z) = (f x, y, z)
 
 -- * Lists
 
