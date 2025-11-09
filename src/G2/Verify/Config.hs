@@ -51,8 +51,8 @@ mkVerifyConfig :: Parser VerifyConfig
 mkVerifyConfig = VerifyConfig
             <$> flag True False (long "no-rev-abs" <> help "Do not use reversible abstractions")
             <*> flag AbsFuncArgs NoAbsFuncArgs (long "no-arg-rev-abs" <> help "Do not apply reversible abstractions to function arguments")
-            <*> flag NoAbsDataArgs AbsDataArgs (long "data-arg-rev-abs" <> help "Apply reversible abstraction through data constructors in function arguments")
-            <*> flag NoSharedVarHeuristic SharedVarHeuristic (long "shared-var-heuristic" <> help "Apply reversible abstraction to function argumentsonly if there are shared variables")
+            <*> flag AbsDataArgs NoAbsDataArgs (long "no-data-arg-rev-abs" <> help "Do not apply reversible abstraction through data constructors in function arguments")
+            <*> flag SharedVarHeuristic NoSharedVarHeuristic (long "no-shared-var-heuristic" <> help "Do not apply reversible abstraction to function arguments only if there are shared variables")
             <*> flag True False (long "contradictory-ra-elim" <> help "Eliminate states with contradictory reversible abstraction instantiations")
             <*> flag True False (long "no-approx" <> help "Do not use approximation")
 

@@ -208,12 +208,12 @@ def runAll(filename, suite, time_limit, var_settings = []) :
 
     # Just approximation on
     print("Running " + filename + " with just approximations " + str(var_settings) + "\n")
-    (vApp, cApp, tApp, res2) = test_suite_general(filename, suite, 1, var_settings + ["--no-rev-abs"])
+    (vApp, cApp, tApp, res2) = test_suite_general(filename, suite, time_limit, var_settings + ["--no-rev-abs"])
     printRes(vApp, cApp, tApp)
 
     # Just rev abs on
     print("Running " + filename + " with just rev abs " + str(var_settings) + "\n")
-    (vRa, cRa, tRa, res3) = test_suite_general(filename, suite, 1, var_settings + ["--no-approx"])
+    (vRa, cRa, tRa, res3) = test_suite_general(filename, suite, time_limit, var_settings + ["--no-approx"])
     printRes(vRa, cRa, tRa)
 
     res4 = {}
