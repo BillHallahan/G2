@@ -375,6 +375,8 @@ unifyNRPCReducer no_inline = mkSimpleReducer (const ()) red
             in
             return (Finished, [(s', rv)], b)
 
+-- | If two NRPCs have syntactically equal LHS and consistent (i.e. concretized to the same constructor(s)) RHS,
+-- we can unify them. This makes it easier to find approximations because we have to match up fewer NRPCs. 
 unifyNRPCs :: HS.HashSet Name
            -> ExprEnv
            -> FocusMap
