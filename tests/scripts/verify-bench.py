@@ -89,8 +89,9 @@ def generate_table(filename, property, approxTime, raTime, raAppTime, noneTime, 
 def generateMetricLatex():
     ltx = r"\multirow{5}{*}{Verified}"
     for (n, _) in settings():
+        c = ver_res[n]
         t = ver_time[n]
-        ltx += r"& Avg. Time (" + n + ") & " +  str(round(t, 2)) + r" \\ \cline{2-3} " + "\n"
+        ltx += r"& Avg. Time (" + n + ") & " +  str(round(t / c, 2)) + r" \\ \cline{2-3} " + "\n"
     
     for (n, _) in settings():
         c = ver_res[n]
@@ -98,8 +99,9 @@ def generateMetricLatex():
 
     ltx += r"\multirow{6}{*}{Counterexamples}"
     for (n, _) in settings():
+        c = cex_res[n]
         t = cex_time[n]
-        ltx += r"& Avg. Time (" + n + ") & " +  str(round(t, 2)) + r" \\ \cline{2-3} " + "\n"
+        ltx += r"& Avg. Time (" + n + ") & " +  str(round(t / c, 2)) + r" \\ \cline{2-3} " + "\n"
 
     for (n, _) in settings():
         c = cex_res[n]
