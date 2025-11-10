@@ -14,6 +14,7 @@ module G2.Language.NonRedPathConds ( Focus
                                    , nullNRPC
                                    , numNRPC
                                    , toListNRPC
+                                   , pattern EmpNRPC
                                    , pattern (:*>)
                                    , pattern (:<*)
                                    , getNRPCUnique
@@ -167,11 +168,19 @@ allNRPC p (NRPCs nrpc _) = all p nrpc
 foldlNRPC' :: (a -> NRPC -> a) -> a -> NonRedPathConds -> a
 foldlNRPC' f i = F.foldl' f i . nrpcs
 
+pattern EmpNRPC :: NonRedPathConds
+pattern EmpNRPC <- (nullNRPC -> True)
+
 pattern (:*>) :: NRPC -> NonRedPathConds -> NonRedPathConds
 pattern e1_e2 :*> nrpc <- (getNRPC -> Just (e1_e2, nrpc))
+    where e1_e2 :*> nrpc = NRPCs { nrpcs = e1_e2 :<| nrpcs nrpc , nrpc_uniq = nrpc_uniq nrpc}
 
 pattern (:<*) :: NonRedPathConds -> NRPC -> NonRedPathConds
 pattern nrpc :<* e1_e2 <- (getLastNRPC -> Just (e1_e2, nrpc))
+    where nrpc :<* e1_e2 = NRPCs { nrpcs = nrpcs nrpc :|> e1_e2 , nrpc_uniq = nrpc_uniq nrpc}
+
+{-# COMPLETE EmpNRPC, (:*>) #-}
+{-# COMPLETE EmpNRPC, (:<*) #-}
 
 instance ASTContainer (GenFocus n) Expr where
     containedASTs _ = []
