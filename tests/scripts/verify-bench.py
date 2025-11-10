@@ -223,10 +223,6 @@ def runAll(filename, suite, time_limit, var_settings = []) :
         runTime2 = res2[thm] # runTime just with approx
         runTime3 = res3[thm] # runTime just with ra
         runTime4 = res4[thm] if thm in res4 else  0.0 # runTime with no optimization
-        print("runTime " + str(runTime))
-        print("runTime2 " + str(runTime2))
-        print("runTime3 " + str(runTime3))
-        print("runTime4 " + str(runTime4))
         generate_table(filename, thm, runTime2, runTime3, runTime, runTime4, time_limit)
         generate_graph_coordinatinates(filename, runTime, runTime2, runTime3, runTime4)
 
