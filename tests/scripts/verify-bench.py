@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 # Tests Verify on the Zeno suite
 
+from multiprocessing import Pool
 import os
 import re
 import subprocess
@@ -159,6 +160,11 @@ def read_runnable_benchmarks(setpath, settings) :
         lines.append(props)
     return lines
 
+def run_theorem(arg):
+    fname_in, time_limit, var_settings, thm = arg
+    res = run_verify(fname_in, thm, time_limit, var_settings)
+    return (thm, res)
+
 def test_suite_general(fname_in, suite, time_limit, var_settings):
     verified = 0
     cex = 0
@@ -168,26 +174,26 @@ def test_suite_general(fname_in, suite, time_limit, var_settings):
     total_ver_time = 0
     total_cex_time = 0
 
-    for (thm, settings) in suite:
-        print(thm)
-        res = run_verify(fname_in, thm, time_limit, var_settings)
-        runTime = round(float(process_output(res)), 2) if not "Timeout" in res else time_limit
-        result[thm] = runTime
-
-        if "Verified" in res:
-            print("Verified - " + str(runTime))
-            verified += 1
-            total_ver_time += float(process_output(res))
-        if "Counterexample" in res:
-            print("Counterexample - " + str(runTime))
-            cex += 1
-            total_cex_time += float(process_output(res))
-        if "Timeout" in res:
-            print("Timeout")
-            timeout +=1
-        if "error" in res:
-            print("error")
-            timeout +=1
+    with Pool(processes=8) as pool:
+        arg_suite = [(fname_in, time_limit, var_settings, s) for (s, _) in suite]
+        for (thm, res) in pool.imap(run_theorem, arg_suite):
+            print(thm)
+            runTime = round(float(process_output(res)), 2) if not "Timeout" in res else time_limit
+            result[thm] = runTime
+            if "Verified" in res:
+                print("Verified - " + str(runTime))
+                verified += 1
+                total_ver_time += float(process_output(res))
+            if "Counterexample" in res:
+                print("Counterexample - " + str(runTime))
+                cex += 1
+                total_cex_time += float(process_output(res))
+            if "Timeout" in res:
+                print("Timeout")
+                timeout +=1
+            if "error" in res:
+                print("error")
+                timeout +=1
 
     print("\n")
     return (verified, cex, timeout, total_ver_time, total_cex_time, result)
