@@ -12,7 +12,9 @@ module G2.Language.NonRedPathConds ( Focus
                                    , getNRPC
                                    , getLastNRPC
                                    , nullNRPC
+                                   , numNRPC
                                    , toListNRPC
+                                   , pattern EmpNRPC
                                    , pattern (:*>)
                                    , pattern (:<*)
                                    , getNRPCUnique
@@ -29,7 +31,7 @@ import qualified G2.Language.ExprEnv as E
 import Data.Data
 import qualified Data.Foldable as F
 import Data.Hashable
-import Data.Sequence
+import Data.Sequence as S
 import GHC.Generics
 import G2.Language.ExprEnv (deepLookupVar)
 
@@ -143,6 +145,9 @@ nullNRPC :: NonRedPathConds -> Bool
 nullNRPC (NRPCs Empty _) = True
 nullNRPC _ = False
 
+numNRPC :: NonRedPathConds -> Int
+numNRPC = S.length . nrpcs
+
 toListNRPC :: NonRedPathConds -> [NRPC]
 toListNRPC = F.toList . nrpcs
 
@@ -163,11 +168,19 @@ allNRPC p (NRPCs nrpc _) = all p nrpc
 foldlNRPC' :: (a -> NRPC -> a) -> a -> NonRedPathConds -> a
 foldlNRPC' f i = F.foldl' f i . nrpcs
 
+pattern EmpNRPC :: NonRedPathConds
+pattern EmpNRPC <- (nullNRPC -> True)
+
 pattern (:*>) :: NRPC -> NonRedPathConds -> NonRedPathConds
 pattern e1_e2 :*> nrpc <- (getNRPC -> Just (e1_e2, nrpc))
+    where e1_e2 :*> nrpc = NRPCs { nrpcs = e1_e2 :<| nrpcs nrpc , nrpc_uniq = nrpc_uniq nrpc}
 
 pattern (:<*) :: NonRedPathConds -> NRPC -> NonRedPathConds
 pattern nrpc :<* e1_e2 <- (getLastNRPC -> Just (e1_e2, nrpc))
+    where nrpc :<* e1_e2 = NRPCs { nrpcs = nrpcs nrpc :|> e1_e2 , nrpc_uniq = nrpc_uniq nrpc}
+
+{-# COMPLETE EmpNRPC, (:*>) #-}
+{-# COMPLETE EmpNRPC, (:<*) #-}
 
 instance ASTContainer (GenFocus n) Expr where
     containedASTs _ = []

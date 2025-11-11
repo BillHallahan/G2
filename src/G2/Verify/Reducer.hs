@@ -1,4 +1,4 @@
-{-# LANGUAGE FlexibleContexts, MultiParamTypeClasses, MultiWayIf, OverloadedStrings #-}
+{-# LANGUAGE FlexibleContexts, MultiParamTypeClasses, MultiWayIf, OverloadedStrings, TupleSections #-}
 
 module G2.Verify.Reducer ( VerifierTracker
                          , initVerifierTracker
@@ -8,6 +8,7 @@ module G2.Verify.Reducer ( VerifierTracker
                          , adjustFocusReducer
                          , verifySolveNRPC
                          , verifyHigherOrderHandling
+                         , unifyNRPCReducer
                          , inconsistentNRPCHalter
                          , approximationHalter
                          
@@ -263,7 +264,7 @@ adjustFocusReducer = mkSimpleReducer (const ()) red
                     
         red rv s@(State { curr_expr = CurrExpr _ (Var (Id n _)) }) b =
             let
-                s' = updateFocusMap n s
+                s' = updateStateFocusMap n s
             in
             return (Finished, [(s', rv)], b)
         red rv s@(State { curr_expr = CurrExpr _ e, exec_stack = stck, focused = Focused }) b
@@ -273,7 +274,7 @@ adjustFocusReducer = mkSimpleReducer (const ()) red
             where
                 update_ensure_eq seen (Var (Id n _)) s_ | n `notElem` seen =
                     let
-                        s_' = updateFocusMap n 
+                        s_' = updateStateFocusMap n 
                             $ s_ { non_red_path_conds = setFocus n Focused (expr_env s_) $ non_red_path_conds s_ }
                     in
                     case E.lookupConcOrSym n (expr_env s_') of
@@ -360,6 +361,69 @@ verifyHigherOrderHandling = mkSimpleReducer (const ()) red
                 in
                 return (InProgress, [(s', ())], b {name_gen = ng5})
         red _ s b = return (Finished, [(s, ())], b)
+
+unifyNRPCReducer :: Monad m =>
+                    HS.HashSet Name -- ^ Names that should not be inlined (often: top level names from the original source code)
+                 -> Reducer m () VerifierTracker
+unifyNRPCReducer no_inline = mkSimpleReducer (const ()) red
+    where
+        red rv s@(State { expr_env = eenv, non_red_path_conds = nrpc, track = VT { focus_map = fm } }) b =
+            let
+                (nrpc', fm', eenv') = unifyNRPCs no_inline eenv fm nrpc
+                s' = s { expr_env = eenv'
+                       , non_red_path_conds = nrpc'
+                       , track = VT { focus_map = fm' } }
+            in
+            return (Finished, [(s', rv)], b)
+
+-- | If two NRPCs have syntactically equal LHS and consistent (i.e. concretized to the same constructor(s)) RHS,
+-- we can unify them. This makes it easier to find approximations because we have to match up fewer NRPCs. 
+unifyNRPCs :: HS.HashSet Name
+           -> ExprEnv
+           -> FocusMap
+           -> NonRedPathConds
+           -> (NonRedPathConds, FocusMap, ExprEnv)
+unifyNRPCs _ eenv fm nrpc@EmpNRPC = (nrpc, fm, eenv)
+unifyNRPCs no_inline eenv fm (nrpc@(focus1, e1, v1) :*> nrpcs) =
+    let
+        con_nrpc = listToMaybe
+                 $ mapMaybe (\(focus2, e2, v2) ->
+                    case eqUpToTypesInline no_inline eenv (stripAllTicks e1) (stripAllTicks e2) of
+                        True -> (, focus2) <$> alignVar HS.empty HS.empty eenv v1 v2
+                        False -> Nothing)
+                 $ toListNRPC nrpcs
+    in
+    case con_nrpc of
+        Just (eenv', focus2) ->
+            let
+                (fm', nrpcs') = case (focus1, focus2) of
+                                    (_, Focused) -> (fm, nrpcs)
+                                    (Unfocused n1, Unfocused n2) -> (updateFocusMap n1 n2 fm, nrpcs)
+                                    (Focused, Unfocused n) -> (fm, setFocus n Focused eenv nrpcs)
+            in
+            unifyNRPCs no_inline eenv' fm' nrpcs'
+        Nothing -> mapFst3 (nrpc :*>) $ unifyNRPCs no_inline eenv fm nrpcs
+
+alignVar :: HS.HashSet Name -> HS.HashSet Name -> ExprEnv -> Expr -> Expr -> Maybe ExprEnv
+alignVar _ _ eenv (Var (Id n1 _)) v@(Var (Id n2 _))
+    | n1 == n2 = Just eenv
+alignVar _ _ eenv (Var (Id n1 _)) e2
+    | E.isSymbolic n1 eenv = Just $ E.insert n1 e2 eenv
+alignVar _ _ eenv e1 (Var (Id n2 _))
+    | E.isSymbolic n2 eenv = Just $ E.insert n2 e1 eenv
+alignVar seen1 seen2 eenv (Var (Id n1 _)) e2
+    | not (n1 `elem` seen1)
+    , Just e1 <- E.lookup n1 eenv = alignVar (HS.insert n1 seen1) seen2 eenv e1 e2
+alignVar seen1 seen2 eenv e1 (Var (Id n2 _))
+    | not (n2 `elem` seen2)
+    , Just e2 <- E.lookup n2 eenv = alignVar seen1 (HS.insert n2 seen2) eenv e1 e2
+
+alignVar _ _ eenv (Data d1) (Data d2) | dcName d1 == dcName d2 = Just eenv
+alignVar seen1 seen2 eenv (App a1 a2) (App a1' a2') = do
+    eenv' <- alignVar seen1 seen2 eenv a1 a1'
+    alignVar seen1 seen2 eenv' a2 a2'
+
+alignVar _ _ _ _ _ = Nothing
 
 -- | Discard states with inconsistent NRPCs
 inconsistentNRPCHalter :: Monad m =>
@@ -455,14 +519,21 @@ type FocusMap = HM.HashMap Name (HS.HashSet Name)
 initVerifierTracker :: VerifierTracker
 initVerifierTracker = VT { focus_map =HM.empty }
 
-updateFocusMap :: Name -> VerifierState -> VerifierState
-updateFocusMap n s@(State { focused = Unfocused n'
-                          , track = VT { focus_map = fm } }) =
+updateStateFocusMap :: Name -> VerifierState -> VerifierState
+updateStateFocusMap n s@(State { focused = Unfocused n'
+                               , track = VT { focus_map = fm } }) =
             let
-                fm' = HM.insertWith HS.union n' (HS.fromList [n]) fm
+                fm' = updateFocusMap n' n fm
             in
             s { track = VT { focus_map = fm' } }
-updateFocusMap _ s = s
+updateStateFocusMap _ s = s
+
+-- | When Name1 is switched to focused, Name2 should also then be switched to focused
+updateFocusMap :: Name -- Name1
+               -> Name -- Name2
+               -> FocusMap
+               -> FocusMap
+updateFocusMap n1 n2 = HM.insertWith HS.union n1 (HS.fromList [n2])
 
 prettyVerifierTracker :: PrettyGuide -> VerifierTracker -> T.Text
 prettyVerifierTracker pg (VT { focus_map = fm }) =

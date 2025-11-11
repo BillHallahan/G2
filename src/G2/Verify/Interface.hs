@@ -1,4 +1,6 @@
 {-# LANGUAGE FlexibleContexts, LambdaCase, OverloadedStrings #-}
+{-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
+{-# HLINT ignore "Use if" #-}
 
 module G2.Verify.Interface ( VerifyResult (..)
                            , verifyFromFile) where
@@ -91,7 +93,9 @@ verifyRedHaltOrd s solver simplifier config verify_config no_nrpc_names = do
 
         nrpc_approx_red f = case rev_abs verify_config of
                                 True -> let nrpc_approx = nrpcAnyCallReducer no_nrpc_names verify_config config in
-                                        SomeReducer nrpc_approx .~> set_focus_red f
+                                            SomeReducer nrpc_approx
+                                        .~> SomeReducer (unifyNRPCReducer no_nrpc_names)
+                                        .~> set_focus_red f
                                 False -> logger_std_red f
         
         halter = switchEveryNHalter 20
