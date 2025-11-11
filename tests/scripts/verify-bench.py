@@ -140,7 +140,7 @@ def call_verify_process(filename, thm, time_limit, var_settings):
 
 def unmodified_theorems():
     ret = []
-    for i in range(1, 3):
+    for i in range(1, 86):
         if i < 10:
             ret.append(("prop_0" + str(i), []))
         else:
