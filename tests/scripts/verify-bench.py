@@ -72,27 +72,28 @@ def generate_graph_coordinatinates(filename, timeBoth, timeApprox, timeRA, timeN
         latex_coordinates_7 += str(coordinates2) + "\n"
         latex_coordinates_12 += str(coordinates3) + "\n"
 
-def generate_table(filename, property, approxTime, raTime, raAppTime, noneTime, timeout) :
+def generate_table(filename, property, timeout, runtimes):
     global latex_tbl1, latex_tbl2
     common_str = " & "
-    aTime = str(approxTime) if approxTime < timeout else "-"
-    nTime = str(raTime) if raTime < timeout else "-"
-    nATime = str(raAppTime) if raAppTime < timeout else "-"
-    noneOpti = str(noneTime) if noneTime < timeout else "-"
     prop = re.sub(r"_", r"\\_", property)
-    temp = prop + common_str + nATime + common_str + aTime + common_str + nTime
+    temp = prop
+    for (s, _) in settings():
+        time = runtimes[s][property]
+        print_time = str(time) if time < timeout else "-"
+        temp += common_str + print_time
 
     if filename == "Zeno.hs" :
         latex_tbl1 += temp + r"\\ \hline " + "\n"
     else:
-        latex_tbl2 += temp + common_str + noneOpti + r"\\ \hline " + "\n"
+        latex_tbl2 += temp + common_str + r"\\ \hline " + "\n"
 
 def generateMetricLatex():
     ltx = r"\multirow{5}{*}{Verified}"
     for (n, _) in settings():
         c = ver_res[n]
         t = ver_time[n]
-        ltx += r"& Avg. Time (" + n + ") & " +  str(round(t / c, 2)) + r" \\ \cline{2-3} " + "\n"
+        avg = str(round(t / c, 2)) if c != 0 else "-"
+        ltx += r"& Avg. Time (" + n + ") & " + avg + r" \\ \cline{2-3} " + "\n"
     
     for (n, _) in settings():
         c = ver_res[n]
@@ -102,7 +103,8 @@ def generateMetricLatex():
     for (n, _) in settings():
         c = cex_res[n]
         t = cex_time[n]
-        ltx += r"& Avg. Time (" + n + ") & " +  str(round(t / c, 2)) + r" \\ \cline{2-3} " + "\n"
+        avg = str(round(t / c, 2)) if c != 0 else "-"
+        ltx += r"& Avg. Time (" + n + ") & " +  avg + r" \\ \cline{2-3} " + "\n"
 
     for (n, _) in settings():
         c = cex_res[n]
@@ -138,7 +140,7 @@ def call_verify_process(filename, thm, time_limit, var_settings):
 
 def unmodified_theorems():
     ret = []
-    for i in range(1, 86):
+    for i in range(1, 3):
         if i < 10:
             ret.append(("prop_0" + str(i), []))
         else:
@@ -229,7 +231,7 @@ def runAll(filename, suite, time_limit, var_settings = []) :
         runTime2 = res2[thm] # runTime just with approx
         runTime3 = res3[thm] # runTime just with ra
         runTime4 = res4[thm] if thm in res4 else  0.0 # runTime with no optimization
-        generate_table(filename, thm, runTime2, runTime3, runTime, runTime4, time_limit)
+        generate_table(filename, thm, time_limit, runtimes) #runTime2, runTime3, runTime, runTime4, time_limit)
         generate_graph_coordinatinates(filename, runTime, runTime2, runTime3, runTime4)
 
 def main():
