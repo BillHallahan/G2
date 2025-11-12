@@ -304,6 +304,7 @@ inlineEquiv lkp s ns v@(Var (Id n _))
         cs = lkp n s
 inlineEquiv lkp s ns e = modifyChildren (inlineEquiv lkp s ns) e
 
+
 -- ids are the same between both sides; no need to insert twice
 moreRestrictiveAlt :: MRCont t l
                    -> Maybe (GenerateLemma t l)
@@ -373,8 +374,8 @@ moreRestrictiveNRPC mr_cont gen_lemma lkp s1 s2 ns init_hm nrpc1 nrpc2
     matchNRPCs hm ((_, eL_1, eR_1):ns1) ns2 = do
         let m_match_rest = selectJusts
                               (\(_, eL_2, eR_2) -> do
-                                    hm' <- moreRes hm eL_1 eL_2
-                                    moreRes hm' eR_1 eR_2)
+                                    hm' <- moreRes hm eR_1 eR_2
+                                    moreRes hm' eL_1 eL_2)
                            ns2
         case rights $ map (\(hm', rest) -> matchNRPCs hm' ns1 rest) m_match_rest of
             r:_ -> Right r
