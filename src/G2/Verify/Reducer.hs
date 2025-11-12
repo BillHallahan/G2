@@ -95,7 +95,7 @@ nrpcAnyCallReducer no_nrpc_names v_config config =
             | Var (Id n _):_:_ <- unApp app
             , Just n' <- E.deepLookupVar n eenv
             , not . isTyFun . typeOf tvnv $ app =
-                not (n' `HS.member` no_nrpc_names) && not (E.isSymbolic n' eenv)
+                not (n' `HS.member` no_nrpc_names)
             | Data _:_:_ <- unApp app
             , not . isTyFun . typeOf tvnv $ app
             , data_arg_rev_abs v_config == AbsDataArgs = True
@@ -304,21 +304,46 @@ verifySolveNRPC :: Monad m => Reducer m () t
 verifySolveNRPC = mkSimpleReducer (const ()) red
     where
         red _
-                        s@(State {curr_expr = cexpr
-                                , exec_stack = stck
-                                , non_red_path_conds = nrs :<* (focus, nre1, nre2)
-                                })
-                                b@(Bindings { name_gen = ng }) =
+                        s@(State { expr_env = eenv
+                                 , curr_expr = cexpr
+                                 , exec_stack = stck
+                                 , non_red_path_conds = nrs :<* nr@(focus, nre1, nre2)
+                                 })
+                                b
             
+            | not (isNRPCSymFun eenv nr) || allNRPC (isNRPCSymFun eenv) nrs =
             let
                 stck' = Stck.push (CurrExprFrame (EnsureEq nre2) cexpr) stck
-                s' = s { curr_expr = CurrExpr Evaluate nre1
+
+                -- Inline variables at the center of the app. Required for soundness. Suppose the heap is:
+                -- @ g = f ; f = symbolic Int -> Int @
+                -- and we have a lone NRPC:
+                -- @ g 1 = False @
+                -- We must avoid removing @ g 1 @ from the NRPCs, reducing it to `f 1`, and then concluding that
+                -- `f 1` is approximated by `g 1` (and so can be discarded)
+                nre1' = inlineInner eenv nre1
+                s' = s { curr_expr = CurrExpr Evaluate nre1'
                        , exec_stack = stck'
                        , non_red_path_conds = nrs
                        , focused = focus }
 
-                in return (InProgress, [(s', ())], b { name_gen = ng })
+                in return (InProgress, [(s', ())], b)
+            | otherwise = 
+                let s' = s { non_red_path_conds = nr :*> nrs} in
+                return (InProgress, [(s', ())], b)
         red _ s b = return (Finished, [(s, ())], b)
+
+isNRPCSymFun :: ExprEnv -> NRPC -> Bool
+isNRPCSymFun eenv (_, e1, _)
+    | Tick _ (Var (Id n _)):_ <- unApp e1
+    , Just (E.Sym _) <- E.deepLookupConcOrSym n eenv = True
+    | otherwise = False
+
+inlineInner :: ExprEnv -> Expr -> Expr
+inlineInner eenv e
+    | (Tick tick (Var (Id n t))):es <- unApp e
+    , Just v <- E.deepLookupVar n eenv = mkApp (Tick tick (Var (Id v t)):es)
+inlineInner _ e = e
 
 verifyHigherOrderHandling :: MonadIO m => Reducer m () t
 verifyHigherOrderHandling = mkSimpleReducer (const ()) red
@@ -329,7 +354,7 @@ verifyHigherOrderHandling = mkSimpleReducer (const ()) red
                        , known_values = kv
                        , type_classes = tc 
                        , tyvar_env = tvnv }) b@(Bindings { name_gen = ng })
-            | (App (Var (Id n ty_fun)) ar) <- ce
+            | (App (Var (Id n ty_fun)) ar) <- stripAllTicks ce
             , E.isSymbolic n eenv =
                 let
                     ty_ar = typeOf tvnv ar

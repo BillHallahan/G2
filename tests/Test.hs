@@ -899,7 +899,8 @@ verifierTests = testGroup "Verifier"
     , checkExprVerified "tests/Verify/List4.hs" "p4"
     , checkExprVerified "tests/Verify/List4.hs" "p5"
     , checkExprVerified "tests/Verify/List4.hs" "p6"
-    , checkExprVerifiedWithDataArgs "tests/Verify/List4.hs" "p7"
+    , checkExprVerified "tests/Verify/List4.hs" "p7"
+    , checkExprCExWithNoArgRevAbs "tests/Verify/List4.hs" "p1False"
 
     , checkExprCEx "tests/Verify/List5.hs" "p1False"
 
@@ -1067,13 +1068,6 @@ checkExprWithConfig src m_assume m_assert m_reaches entry reqList config_f = do
 checkExprVerified :: String -> String -> TestTree
 checkExprVerified = checkExprVerifier (\case Verified -> True; Counterexample _ -> False; VerifyTimeOut -> False)
 
-checkExprVerifiedWithDataArgs :: String -> String -> TestTree
-checkExprVerifiedWithDataArgs =
-    let
-        vr_config = defVerifyConfig { data_arg_rev_abs = AbsDataArgs }
-    in
-    checkExprVerifierWithConfig vr_config (\case Verified -> True; Counterexample _ -> False; VerifyTimeOut -> False)
-
 checkExprCEx :: String -> String -> TestTree
 checkExprCEx = checkExprVerifier (\case Verified -> False; Counterexample _ -> True; VerifyTimeOut -> False)
 
@@ -1086,6 +1080,13 @@ checkExprNotCExWithDataArgs =
         vr_config = defVerifyConfig { data_arg_rev_abs = AbsDataArgs }
     in
     checkExprVerifierWithConfig vr_config (\case Verified -> True; Counterexample _ -> False; VerifyTimeOut -> True)
+
+checkExprCExWithNoArgRevAbs :: String -> String -> TestTree
+checkExprCExWithNoArgRevAbs =
+    let
+        vr_config = defVerifyConfig { arg_rev_abs = NoAbsFuncArgs }
+    in
+    checkExprVerifierWithConfig vr_config (\case Verified -> False; Counterexample _ -> True; VerifyTimeOut -> False)
 
 checkExprVerifier :: (VerifyResult -> Bool) -> String -> String -> TestTree
 checkExprVerifier = checkExprVerifierWithConfig defVerifyConfig
