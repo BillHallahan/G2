@@ -1,6 +1,6 @@
 module List4 where
 
-import Prelude hiding (Num (..), drop, last, null, take, takeWhile, zip)
+import Prelude hiding (Num (..), drop, dropWhile, last, null, take, takeWhile, zip)
 
 zip [] _ = []
 zip _ [] = []
@@ -82,3 +82,20 @@ butlast (x:xs) = x:(butlast xs)
 
 p7 [] = True
 p7 xs = (butlast xs ++ [last xs] == xs)
+
+f :: (a -> Bool) -> [a] -> [a]
+f _ [] = []
+f p (x:xs) =
+  case p x of
+    False -> x : (f p xs)
+    _ -> []
+
+dropWhile :: (a -> Bool) -> [a] -> [a]
+dropWhile _ [] = []
+dropWhile p (x:xs) =
+  case p x of
+    True -> dropWhile p xs
+    _ -> x:xs
+
+p1False p xs
+  = (f p xs ++ dropWhile p xs == xs)
