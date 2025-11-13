@@ -32,7 +32,7 @@ def settings():
              ("No approx", ["--no-approx"]),
              ("No shared variables", ["--no-shared-var-heuristic"]),
              ("No argument RAs", ["--no-arg-rev-abs"]),
-             ("No syntactic equality", ["--no-syntactic-eq-ra"])
+             ("No syntactic equality", ["--no-syntactic-eq-ra"]),
              ("No RAs", ["--no-rev-abs"]),
              ("No RAs or approx", ["--no-approx", "--no-rev-abs"])
            ]
