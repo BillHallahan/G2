@@ -29,12 +29,12 @@ total_ce_props = 85 # of properties checked for counterexamples
 
 def settings():
     return [ ("All", []),
-             ("No approx", ["--no-approx"]),
-             ("No shared variables", ["--no-shared-var-heuristic"]),
-             ("No argument RAs", ["--no-arg-rev-abs"]),
-             ("No syntactic equality", ["--no-syntactic-eq-ra"]),
+             ("No \\approxR", ["--no-approx"]),
+             ("No SVH", ["--no-shared-var-heuristic"]),
+             ("No Arg RAs", ["--no-arg-rev-abs"]),
+             ("No Syn Eq", ["--no-syntactic-eq-ra"]),
              ("No RAs", ["--no-rev-abs"]),
-             ("No RAs or approx", ["--no-approx", "--no-rev-abs"])
+             ("No RAs or \\approxR", ["--no-approx", "--no-rev-abs"])
            ]
 
 ver_res = { n : 0 for (n, _) in settings() }
@@ -89,7 +89,51 @@ def generate_table(filename, property, timeout, runtimes):
         latex_tbl2 += temp + common_str + r"\\ \hline " + "\n"
 
 def generateMetricLatex():
-    ltx = r"\multirow{5}{*}{Verified}"
+    n_ver_res = [(ver_res[n], n) for n, _ in settings()]
+    n_in_order = [n for _, n in sorted(n_ver_res)][::-1]
+
+    ltx = "Form 1:\n"
+    ltx += "Running Mode"
+    for n in n_in_order:
+        ltx += " & " + n
+    ltx += r"\\ \hline" + "\n"
+
+    ltx += "\# Verified"
+    for n in n_in_order:
+        ltx += " & " + str(ver_res[n])
+    ltx += r"\\ \hline" + "\n"
+
+    ltx += "Avg. Time (s)"
+    for n in n_in_order:
+        c = ver_res[n]
+        t = ver_time[n]
+        avg = str(round(t / c, 2)) if c != 0 else "-"
+        ltx += " & " + str(avg)
+    ltx += r"\\ \hline" + "\n"
+
+    ltx += "\n"
+
+    ltx += "Running Mode"
+    for n in n_in_order:
+        ltx += " & " + n
+    ltx += r"\\ \hline" + "\n"
+
+    ltx += "\# Refuted" 
+    for n in n_in_order:
+        ltx += " & " + str(cex_res[n])
+    ltx += r"\\ \hline" + "\n"
+
+    ltx += "Avg. Time (s)"
+    for n in n_in_order:
+        c = cex_res[n]
+        t = cex_time[n]
+        avg = str(round(t / c, 2)) if c != 0 else "-"
+        ltx += " & " + str(avg)
+    ltx += r"\\ \hline" + "\n"
+
+
+    ltx += "\nForm 2:\n"
+    ltx += r"\multirow{5}{*}{Verified}"
     for (n, _) in settings():
         c = ver_res[n]
         t = ver_time[n]
@@ -226,8 +270,8 @@ def runAll(filename, suite, time_limit, var_settings = []) :
 
     res1 = runtimes["All"]
     res2 = runtimes["No RAs"]
-    res3 = runtimes["No approx"]
-    res4 = runtimes["No RAs or approx"]    
+    res3 = runtimes["No \\approxR"]
+    res4 = runtimes["No RAs or \\approxR"]    
     for thm, runTime in res1.items() :
         runTime2 = res2[thm] # runTime just with approx
         runTime3 = res3[thm] # runTime just with ra
