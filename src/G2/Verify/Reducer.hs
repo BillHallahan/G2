@@ -95,7 +95,7 @@ nrpcAnyCallReducer no_nrpc_names v_config config =
             | Var (Id n _):_:_ <- unApp app
             , Just n' <- E.deepLookupVar n eenv
             , not . isTyFun . typeOf tvnv $ app =
-                not (n' `HS.member` no_nrpc_names) && not (E.isSymbolic n' eenv)
+                not (n' `HS.member` no_nrpc_names)
             | Data _:_:_ <- unApp app
             , not . isTyFun . typeOf tvnv $ app
             , data_arg_rev_abs v_config == AbsDataArgs = True
@@ -113,18 +113,19 @@ nrpcAnyCallReducer no_nrpc_names v_config config =
         argsToNRPCs s ng v es =
             let
                 arg_holes = holes es
-                ((s', ng'), es') = mapAccumR (\(s_, ng_)  (e_, other_es) -> appArgToNRPC s_ ng_ HS.empty e_ other_es) (s, ng) arg_holes
+                ((s', ng'), es') = mapAccumR (\(s_, ng_)  (e_, other_es) -> appArgToNRPC HS.empty s_ ng_ HS.empty e_ other_es) (s, ng) arg_holes
             in
             (s' { curr_expr = CurrExpr Evaluate . mkApp $ v:es' }, ng')
         
-        argsToNRPCs' s@(State { expr_env = eenv }) ng grace v@(Var (Id n _))
-            | Just (E.Conc e) <- E.lookupConcOrSym n eenv =
+        argsToNRPCs' seen s@(State { expr_env = eenv }) ng grace v@(Var (Id n _))
+            | n `notElem` seen
+            , Just (E.Conc e) <- E.lookupConcOrSym n eenv =
                 let
-                    (e', s', ng') = argsToNRPCs' s ng grace e
+                    (e', s', ng') = argsToNRPCs' (HS.insert n seen) s ng grace e
                     eenv' = E.insert n e' (expr_env s')
                 in
                 (v, s' { expr_env = eenv' }, ng')
-        argsToNRPCs' s@(State { expr_env = eenv, tyvar_env = tvnv }) ng grace e@(App _ _)
+        argsToNRPCs' seen s@(State { expr_env = eenv, tyvar_env = tvnv }) ng grace e@(App _ _)
             | allowedApp e eenv tvnv
             , v:es <- unApp e =
                 let
@@ -133,13 +134,13 @@ nrpcAnyCallReducer no_nrpc_names v_config config =
                                 Data _ -> grace
                                 _ -> HS.empty 
                     ((s', ng'), es') = mapAccumR
-                        (\(s_, ng_) (e_, other_es) -> appArgToNRPC s_ ng_ grace' e_ other_es) (s, ng) arg_holes
+                        (\(s_, ng_) (e_, other_es) -> appArgToNRPC seen s_ ng_ grace' e_ other_es) (s, ng) arg_holes
                     e' = mkApp (v:es')
                 in
                 case createRAExpr ng' (Unfocused ()) s' e' of
                     Just (s'', sym_i, _, ng'') -> (Var sym_i, s'', ng'')
                     Nothing -> (e', s', ng')
-        argsToNRPCs' s ng _ e = (e, s, ng)
+        argsToNRPCs' _ s ng _ e = (e, s, ng)
 
         -- (Maybe) converts an argument of an application into an NRPC.
         -- `e` is the argument to possible convert, `es` is all other arguments.
@@ -147,11 +148,11 @@ nrpcAnyCallReducer no_nrpc_names v_config config =
         -- this heuristic means we replace `e` only if some symbolic variable in `e` also occurs in some other
         -- argument in `e`.  The `grace` variable is used to replace arguments through data constructors,
         -- see Note [Data Constructor Arguments to NRPCs]
-        appArgToNRPC s@(State { expr_env = eenv }) ng grace e other_es
+        appArgToNRPC seen s@(State { expr_env = eenv }) ng grace e other_es
             | let e_symb = symbolic_names eenv e
             , let es_symb = HS.unions (grace:map (symbolic_names eenv) other_es)
             , shared_var_heuristic v_config == NoSharedVarHeuristic || (not . HS.null $ e_symb `HS.intersection` es_symb) = 
-                let (e_', s_', ng_') = argsToNRPCs' s ng es_symb e in
+                let (e_', s_', ng_') = argsToNRPCs' seen s ng es_symb e in
                 ((s_', ng_'), e_')
             | otherwise = ((s, ng), e)
 
@@ -268,20 +269,20 @@ adjustFocusReducer = mkSimpleReducer (const ()) red
             return (Finished, [(s', rv)], b)
         red rv s@(State { curr_expr = CurrExpr _ e, exec_stack = stck, focused = Focused }) b
             | Just (CurrExprFrame (EnsureEq _) _, _) <- Stck.pop stck =
-                let s' = update_ensure_eq e s in
+                let s' = update_ensure_eq HS.empty e s in
                 return (Finished, [(s', rv)], b)
             where
-                update_ensure_eq (Var (Id n _)) s_ =
+                update_ensure_eq seen (Var (Id n _)) s_ | n `notElem` seen =
                     let
                         s_' = updateStateFocusMap n 
                             $ s_ { non_red_path_conds = setFocus n Focused (expr_env s_) $ non_red_path_conds s_ }
                     in
                     case E.lookupConcOrSym n (expr_env s_') of
-                        Just (E.Conc ec) -> update_ensure_eq ec s_'
+                        Just (E.Conc ec) -> update_ensure_eq (HS.insert n seen) ec s_'
                         _ -> s_'
-                update_ensure_eq app@(App e1 e2) s_ | Data _:_ <- unApp app =
-                    update_ensure_eq e1 (update_ensure_eq e2 s_)
-                update_ensure_eq _ s_ = s_
+                update_ensure_eq seen app@(App e1 e2) s_ | Data _:_ <- unApp app =
+                    update_ensure_eq seen e1 (update_ensure_eq seen e2 s_)
+                update_ensure_eq _ _ s_ = s_
 
         -- (2) Empty NRPCs
         red rv s@(State {  exec_stack = stck, non_red_path_conds = nrpc })
@@ -303,21 +304,46 @@ verifySolveNRPC :: Monad m => Reducer m () t
 verifySolveNRPC = mkSimpleReducer (const ()) red
     where
         red _
-                        s@(State {curr_expr = cexpr
-                                , exec_stack = stck
-                                , non_red_path_conds = nrs :<* (focus, nre1, nre2)
-                                })
-                                b@(Bindings { name_gen = ng }) =
+                        s@(State { expr_env = eenv
+                                 , curr_expr = cexpr
+                                 , exec_stack = stck
+                                 , non_red_path_conds = nrs :<* nr@(focus, nre1, nre2)
+                                 })
+                                b
             
+            | not (isNRPCSymFun eenv nr) || allNRPC (isNRPCSymFun eenv) nrs =
             let
                 stck' = Stck.push (CurrExprFrame (EnsureEq nre2) cexpr) stck
-                s' = s { curr_expr = CurrExpr Evaluate nre1
+
+                -- Inline variables at the center of the app. Required for soundness. Suppose the heap is:
+                -- @ g = f ; f = symbolic Int -> Int @
+                -- and we have a lone NRPC:
+                -- @ g 1 = False @
+                -- We must avoid removing @ g 1 @ from the NRPCs, reducing it to `f 1`, and then concluding that
+                -- `f 1` is approximated by `g 1` (and so can be discarded)
+                nre1' = inlineInner eenv nre1
+                s' = s { curr_expr = CurrExpr Evaluate nre1'
                        , exec_stack = stck'
                        , non_red_path_conds = nrs
                        , focused = focus }
 
-                in return (InProgress, [(s', ())], b { name_gen = ng })
+                in return (InProgress, [(s', ())], b)
+            | otherwise = 
+                let s' = s { non_red_path_conds = nr :*> nrs} in
+                return (InProgress, [(s', ())], b)
         red _ s b = return (Finished, [(s, ())], b)
+
+isNRPCSymFun :: ExprEnv -> NRPC -> Bool
+isNRPCSymFun eenv (_, e1, _)
+    | Tick _ (Var (Id n _)):_ <- unApp e1
+    , Just (E.Sym _) <- E.deepLookupConcOrSym n eenv = True
+    | otherwise = False
+
+inlineInner :: ExprEnv -> Expr -> Expr
+inlineInner eenv e
+    | (Tick tick (Var (Id n t))):es <- unApp e
+    , Just v <- E.deepLookupVar n eenv = mkApp (Tick tick (Var (Id v t)):es)
+inlineInner _ e = e
 
 verifyHigherOrderHandling :: MonadIO m => Reducer m () t
 verifyHigherOrderHandling = mkSimpleReducer (const ()) red
@@ -328,7 +354,7 @@ verifyHigherOrderHandling = mkSimpleReducer (const ()) red
                        , known_values = kv
                        , type_classes = tc 
                        , tyvar_env = tvnv }) b@(Bindings { name_gen = ng })
-            | (App (Var (Id n ty_fun)) ar) <- ce
+            | (App (Var (Id n ty_fun)) ar) <- stripAllTicks ce
             , E.isSymbolic n eenv =
                 let
                     ty_ar = typeOf tvnv ar
