@@ -91,11 +91,14 @@ verifyRedHaltOrd s solver simplifier config verify_config no_nrpc_names = do
 
         set_focus_red f = SomeReducer adjustFocusReducer .~> logger_std_red f
 
+        syntactic_eq_red f = case syntactic_eq_ra verify_config of
+                                True -> SomeReducer (unifyNRPCReducer no_nrpc_names) .~> set_focus_red f
+                                False -> set_focus_red f
+
         nrpc_approx_red f = case rev_abs verify_config of
                                 True -> let nrpc_approx = nrpcAnyCallReducer no_nrpc_names verify_config config in
                                             SomeReducer nrpc_approx
-                                        .~> SomeReducer (unifyNRPCReducer no_nrpc_names)
-                                        .~> set_focus_red f
+                                        .~> syntactic_eq_red f
                                 False -> logger_std_red f
         
         halter = switchEveryNHalter 20
@@ -103,7 +106,7 @@ verifyRedHaltOrd s solver simplifier config verify_config no_nrpc_names = do
                  <~> time_halter
                  <~> discardOnFalse
 
-        inconsistent_halter = case contradictory_ra_elim verify_config of
+        inconsistent_halter = case syntactic_eq_ra verify_config of
                                     True -> SomeHalter (inconsistentNRPCHalter no_nrpc_names <~> halter)
                                     False -> SomeHalter halter
 

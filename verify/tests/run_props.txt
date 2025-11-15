@@ -65,7 +65,6 @@ prop_74
 prop_80
 prop_83
 prop_84
-prop_85
 --
 ZenoWithMap
 prop_41
@@ -77,7 +76,6 @@ ZenoWithRev
 prop_52
 prop_72
 prop_74
-prop_85
 --
 ZenoWithTake
 prop_01
