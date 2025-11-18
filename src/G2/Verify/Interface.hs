@@ -1,4 +1,6 @@
 {-# LANGUAGE FlexibleContexts, LambdaCase, OverloadedStrings #-}
+{-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
+{-# HLINT ignore "Use if" #-}
 
 module G2.Verify.Interface ( VerifyResult (..)
                            , verifyFromFile) where
@@ -30,31 +32,37 @@ import System.Clock
 import qualified G2.Language.TyVarEnv as TV
 
 data VerifyResult = Verified
-                  | Counterexample [ExecRes ()]
+                  | Counterexample [ExecRes VerifierTracker]
                   | VerifyTimeOut
                   deriving (Show, Read)
 
-type VerStack m = SM.StateT (ApproxPrevs ())
+type VerStack m = SM.StateT (ApproxPrevs VerifierTracker)
                         (SM.StateT LengthNTrack
                             (SM.StateT PrettyGuide m))
 
 verifyRedHaltOrd :: (MonadIO m, Solver solver, Simplifier simplifier) =>
-                    State ()
+                    State VerifierTracker
                  -> solver
                  -> simplifier
                  -> Config
                  -> VerifyConfig
                  -> S.HashSet Name -- ^ Names of functions that should not result in a larger expression become EXEC,
                                    -- but should not be added to the NRPC at the top level.
-                 -> IO ( SomeReducer (VerStack m) ()
-                       , SomeHalter (VerStack m) (ExecRes ()) ()
-                       , SomeOrderer (VerStack m) (ExecRes ()) ()
+                 -> IO ( SomeReducer (VerStack m) VerifierTracker
+                       , SomeHalter (VerStack m) (ExecRes VerifierTracker) VerifierTracker
+                       , SomeOrderer (VerStack m) (ExecRes VerifierTracker) VerifierTracker
                        , IORef TimedOut)
 verifyRedHaltOrd s solver simplifier config verify_config no_nrpc_names = do
     time_logger <- acceptTimeLogger
     (time_halter, io_timed_out) <- stdTimerHalter (fromInteger . toInteger $ timeLimit config)
 
-    m_logger <- fmap SomeReducer <$> getLimLogger config
+    let labelApproxPoints s
+            | Data (DataCon { dc_name = d }) <- getExpr s
+            , d == dc_name (mkDCFalse (known_values s) (type_env s)) =
+                                    "state" ++ show (length $ rules s) ++ "_ap"
+            | otherwise = "state" ++ show (length $ rules s)
+
+    m_logger <- fmap SomeReducer <$> getLimLogger' labelApproxPoints config prettyVerifierTracker
 
     let share = sharing config
 
@@ -81,19 +89,30 @@ verifyRedHaltOrd s solver simplifier config verify_config no_nrpc_names = do
                             Just logger -> liftSomeReducer $ liftSomeReducer (logger .~> num_steps_red f)
                             Nothing -> liftSomeReducer $ liftSomeReducer (num_steps_red f)
 
-        nrpc_approx_red f = case rev_abs verify_config of
-                                True -> let nrpc_approx = nrpcAnyCallReducer no_nrpc_names config in
-                                        SomeReducer nrpc_approx .~> logger_std_red f
-                                False -> logger_std_red f
+        set_focus_red f = SomeReducer adjustFocusReducer .~> logger_std_red f
 
+        syntactic_eq_red f = case syntactic_eq_ra verify_config of
+                                True -> SomeReducer (unifyNRPCReducer no_nrpc_names) .~> set_focus_red f
+                                False -> set_focus_red f
+
+        nrpc_approx_red f = case rev_abs verify_config of
+                                True -> let nrpc_approx = nrpcAnyCallReducer no_nrpc_names verify_config config in
+                                            SomeReducer nrpc_approx
+                                        .~> syntactic_eq_red f
+                                False -> logger_std_red f
+        
         halter = switchEveryNHalter 20
                  <~> acceptIfViolatedHalter
                  <~> time_halter
                  <~> discardOnFalse
 
+        inconsistent_halter = case syntactic_eq_ra verify_config of
+                                    True -> SomeHalter (inconsistentNRPCHalter no_nrpc_names <~> halter)
+                                    False -> SomeHalter halter
+
         halter_approx_discard = case approx verify_config of
-                                        True -> SomeHalter (approximationHalter solver approx_no_inline <~> halter)
-                                        False -> SomeHalter halter
+                                        True -> SomeHalter (approximationHalter solver approx_no_inline) .<~> inconsistent_halter
+                                        False -> inconsistent_halter
 
         orderer = case search_strat config of
                         Subpath -> SomeOrderer . liftOrderer $ lengthNSubpathOrderer (subpath_length config)
@@ -149,7 +168,6 @@ verifyFromFile proj src f transConfig config verify_config = do
                                     transConfig config'
     let (init_state', ng) = wrapCurrExpr (name_gen bindings) init_state
         bindings' = bindings { name_gen = ng }
-
     
     SomeSolver solver <- initSolver config
     let m_eq_tc = map (idName . snd)
@@ -171,8 +189,10 @@ verifyFromFile proj src f transConfig config verify_config = do
     --     analysis3 = if print_num_red_rules config then [\s p xs -> SM.lift . SM.lift . SM.lift . SM.lift . SM.lift . SM.lift $ logRedRuleNum s p xs] else noAnalysis
     --     analysis = analysis1 ++ analysis2 ++ analysis3
 
+    let verifier_state = state' { track = initVerifierTracker }
+
     init_time <- getTime Realtime
-    rho <- verifyRedHaltOrd state' solver simplifier config' verify_config (S.fromList no_nrpc_names)
+    rho <- verifyRedHaltOrd verifier_state solver simplifier config' verify_config (S.fromList no_nrpc_names)
     let to = case rho of (_, _, _, to_)-> to_
     (er, bindings''') <-
             case rho of
@@ -180,7 +200,7 @@ verifyFromFile proj src f transConfig config verify_config = do
                         SM.evalStateT
                                 (SM.evalStateT
                                     (SM.evalStateT
-                                        (runG2WithSomes' red hal ord [] solver simplifier state' bindings'')
+                                        (runG2WithSomes' red hal ord [] solver simplifier verifier_state bindings'')
                                         emptyApproxPrevs
                                     )
                                     lnt

@@ -64,7 +64,6 @@ runG2ForNebula solver state h_opp track_opp config nc bindings = do
                 (red, hal, ord) ->
                     SM.evalStateT (runG2WithSomes red hal ord noAnalysis solver simplifier sym_config state' bindings) (mkPrettyGuide ())
 
-
     return (in_out, bindings')
 
 rewriteRedHaltOrd :: (MonadIO m, Solver solver, Simplifier simplifier) =>
@@ -82,7 +81,7 @@ rewriteRedHaltOrd solver simplifier h_opp track_opp config (NC { use_labeled_err
         share = sharing config
         state_name = Name "state" Nothing 0 Nothing
 
-        m_logger = fmap SomeReducer $ getLogger config
+        m_logger = fmap SomeReducer $ getLogger config defPrettyTrack
         some_std_red = enforceProgressRed :== NoProgress --> stdRed share retReplaceSymbFuncVar solver simplifier
         extra_red = symbolicSwapperRed h_opp track_opp ~> concSymReducer use_labels ~> labeledErrorsRed
         red = equivReducer :== NoProgress .--> extra_red :== NoProgress .--> some_std_red

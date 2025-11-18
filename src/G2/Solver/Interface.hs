@@ -1,4 +1,4 @@
-{-# LANGUAGE FlexibleContexts, MultiParamTypeClasses, OverloadedStrings, TupleSections #-}
+{-# LANGUAGE FlexibleContexts, LambdaCase, MultiParamTypeClasses, OverloadedStrings, TupleSections #-}
 
 module G2.Solver.Interface
     ( Subbed (..)
@@ -115,15 +115,18 @@ subVar' tv inLam em eenv tc is v@(Var i@(Id n _))
         subVar' tv inLam em eenv tc (i:is) e
     | i `notElem` is
     , Just e <- E.lookup n eenv
+    , let e' = stripAllTicks e
     -- We want to inline a lambda only if inLam is true (we want to inline all lambdas),
     -- or if it's module is Nothing (and its name is likely uninteresting/unknown to the user)
-    , (isExprValueForm eenv e && (notLam e || inLam || nameModule n == Nothing)) || isApp e || isVar e || isLitCase tv e =
-        subVar' tv inLam em eenv tc (i:is) e
+    , (isExprValueForm eenv e' && (notLam e' || inLam || nameModule n == Nothing)) || isApp e' || isCase e' || isVar e' || isLitCase tv e' =
+        subVar' tv inLam em eenv tc (i:is) e'
     | otherwise = v
 subVar' tv inLam mdl eenv tc is cse@(Case e _ _ as) =
     case subVar' tv inLam mdl eenv tc is e of
         Lit l
-            | Just (Alt _ ae) <- L.find (\(Alt (LitAlt l') _) -> l == l') as ->
+            | Just (Alt _ ae) <- L.find (\case (Alt (LitAlt l') _) -> l == l'; _ -> False) as ->
+                subVar' tv inLam mdl eenv tc is ae
+            | Just (Alt _ ae) <- L.find (\case (Alt Default _) -> True; _ -> False) as ->
                 subVar' tv inLam mdl eenv tc is ae
         _ -> modifyChildren (subVar' tv inLam mdl eenv tc is) cse
 subVar' tv inLam em eenv tc is e = modifyChildren (subVar' tv inLam em eenv tc is) e
@@ -131,6 +134,10 @@ subVar' tv inLam em eenv tc is e = modifyChildren (subVar' tv inLam em eenv tc i
 isApp :: Expr -> Bool
 isApp (App _ _) = True
 isApp _ = False
+
+isCase :: Expr -> Bool
+isCase (Case {}) = True
+isCase _ = False
 
 notLam :: Expr -> Bool
 notLam (Lam _ _ _) = False

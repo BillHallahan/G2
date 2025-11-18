@@ -7,15 +7,19 @@ module InputOutputTest ( checkInputOutput
                        , checkInputOutputsQuantifiedSMTStrings
                        
                        , checkInputOutputsTemplate
+                       , checkInputOutputsWith
                        , checkInputOutputsNonRedHigher
                        , checkInputOutputsNonRedLib
-                       , checkInputOutputsInstType ) where
+                       , checkInputOutputsInstType 
+                       , checkInputOutputsWithValidate
+                       , checkInputOutputsWithTemplatesAndHpc) where
 
 import Test.Tasty
 import Test.Tasty.HUnit
 
 import Control.Exception
 import Data.IORef
+import qualified Data.HashSet as HS
 import Data.List
 import qualified Data.Map.Lazy as M
 import Data.Maybe
@@ -61,6 +65,13 @@ checkInputOutputsTemplate src tests = do
         src
         tests
 
+checkInputOutputsWith :: FilePath -> String -> [(String, Int, [Reqs String])] -> TestTree
+checkInputOutputsWith src comp_with tests = do
+    checkInputOutput'
+        (do config <- mkConfigTestIO; return (config { validate_with = comp_with }))
+        src
+        tests
+
 checkInputOutputsNonRedHigher :: FilePath -> [(String, Int, [Reqs String])] -> TestTree
 checkInputOutputsNonRedHigher src tests = do
     checkInputOutput'
@@ -82,6 +93,22 @@ checkInputOutputsInstType src tests = do
         src
         tests
 
+-- TODO: Remove below method and use validateState method directly. Doing so would
+-- require changes in checkInputOutput'
+checkInputOutputsWithValidate :: FilePath -> [(String, Int, [Reqs String])] -> TestTree
+checkInputOutputsWithValidate src tests = do
+    checkInputOutput'
+        (do config <- mkConfigTestIO; return (config { validate = True }))
+        src
+        tests
+
+
+checkInputOutputsWithTemplatesAndHpc :: FilePath ->[(String, Int, [Reqs String])] -> TestTree
+checkInputOutputsWithTemplatesAndHpc src tests = do
+    checkInputOutput'
+        (do config <- mkConfigTestIO; return (config { higherOrderSolver = SymbolicFunc, hpc = True }))
+        src
+        tests
 
 checkInputOutput' :: IO Config
                   -> FilePath
@@ -129,15 +156,15 @@ checkInputOutput'' :: [FilePath]
                    -> (String, Int, [Reqs String])
                    -> IO ([Bool], Bool, Bool, [ExecRes ()], Bindings)
 checkInputOutput'' src exg2 mb_modname config (entry, stps, req) = do
+    let proj = map takeDirectory src
     let config' = config { steps = stps }
         (entry_f, init_state, bindings) = initStateWithCall exg2 False (T.pack entry) mb_modname (mkCurrExpr TV.empty Nothing Nothing) (mkArgTys TV.empty) config'
     
-    (r, b, _) <- runG2WithConfig (idName entry_f) mb_modname init_state config' bindings
+    (r, b, _) <- runG2WithConfig proj src entry_f (T.pack entry) [] mb_modname init_state config' bindings
 
     let chAll = checkExprAll req
     let chAny = checkExprExists req
-    let proj = map takeDirectory src
-    (mr, anys) <- validateStates proj src (T.unpack . fromJust $ head mb_modname) entry chAll chAny [] b r
+    (mr, anys) <- validateStates proj src (HS.fromList mb_modname) entry chAll chAny [] (validate_with config) b r
     let io = map (\(ExecRes { conc_args = i, conc_out = o}) -> i ++ [o]) r
 
     let chEx = checkExprInOutCount io req

@@ -33,6 +33,7 @@ import qualified Data.HashMap.Lazy as HM
 import qualified Data.HashSet as HS
 import Data.Maybe
 import Data.Monoid
+import Data.Tuple.Extra
 
 import qualified Control.Monad.State as SM
 import G2.Lib.Printers
@@ -121,7 +122,7 @@ checkAbstracted' g2call solver simplifier share s bindings abs_fc@(FuncCall { fu
         -- See [BlockErrors] in G2.Liquid.SpecialAsserts
         let s' = elimAssumesExcept
                . pickHead
-               . elimSymGens (arb_value_gen bindings)
+               . elimSymGens (arb_value_gen bindings) (name_gen bindings)
                . modelToExprEnv $
                     s { curr_expr = CurrExpr Evaluate e'
                       , track = False }
@@ -177,7 +178,7 @@ getAbstracted g2call solver simplifier share s bindings abs_fc@(FuncCall { funcN
         let s' = mkAssertsTrue (known_values s)
                . elimAssumesExcept
                . pickHead
-               . elimSymGens (arb_value_gen bindings)
+               . elimSymGens (arb_value_gen bindings) (name_gen bindings)
                . modelToExprEnv $
                     s { curr_expr = CurrExpr Evaluate e'
                       , track = ([] :: [FuncCall], False)}
@@ -420,7 +421,7 @@ reduceFCExpr g2call reducer solver simplifier s bindings e
         let s' = elimAssumesExcept
                . elimAsserts
                . pickHead
-               . elimSymGens (arb_value_gen bindings)
+               . elimSymGens (arb_value_gen bindings) (name_gen bindings)
                . modelToExprEnv $
                    s { curr_expr = CurrExpr Evaluate e}
 
@@ -500,19 +501,19 @@ mkAssertsTrue' :: Expr -> Expr -> Expr
 mkAssertsTrue' tre (G2.Assert fc _ e) = G2.Assert fc tre e
 mkAssertsTrue' _ e = e
 
-elimSymGens :: ArbValueGen -> State t -> State t
-elimSymGens arb s = s { expr_env = E.map esg $ expr_env s }
+elimSymGens :: ArbValueGen -> NameGen -> State t -> State t
+elimSymGens arb ng s = s { expr_env = E.map esg $ expr_env s }
   where
     -- Rewriting the whole ExprEnv is slow, so we only
     -- rewrite an Expr if needed.
     esg e = 
         if hasSymGen e
-            then modify (elimSymGens' (tyvar_env s) (type_env s) (known_values s) arb) e
+            then modify (elimSymGens' s arb ng) e
             else e
 
-elimSymGens' :: TV.TyVarEnv -> TypeEnv -> KnownValues -> ArbValueGen -> Expr -> Expr
-elimSymGens' tv tenv kv arb (SymGen _ t) = fst $ arbValue t tenv tv kv arb
-elimSymGens' _ _ _ _ e = e
+elimSymGens' :: State t -> ArbValueGen -> NameGen -> Expr -> Expr
+elimSymGens' s arb ng (SymGen _ t) = fst4 $ arbValue s ng t arb
+elimSymGens' _ _ _ e = e
 
 hasSymGen :: Expr -> Bool
 hasSymGen = getAny . eval hasSymGen'

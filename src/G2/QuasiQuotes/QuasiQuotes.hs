@@ -235,7 +235,7 @@ runExecutionQ s b config = do
         (SomeReducer red, SomeHalter hal, SomeOrderer ord) -> do
             let (s'', b'') = runG2Pre emptyMemConfig s' b'
                 hal' = hal <~> zeroHalter 2000 <~> lemmingsHalter
-            (xs, b''') <- runExecutionToProcessed red hal' ord (\s b -> return $ Just s) noAnalysis s'' b''
+            (xs, b''') <- runExecutionToProcessed red hal' ord (\s b -> return $ Just (s, name_gen b)) noAnalysis s'' b''
 
             case xs of
                 Processed { accepted = acc, discarded = [] } -> do
@@ -298,6 +298,7 @@ moveOutStatePieces tenv_name s = do
 
         expr_env_exp = liftDataT (expr_env s)
         curr_expr_exp = liftDataT (curr_expr s)
+        poly_arg_map_exp = liftDataT (poly_arg_map s)
         non_red_path_conds_exp = liftDataT (non_red_path_conds s)
         mutvar_env_exp = liftDataT (mutvar_env s)
         true_assert_exp = liftDataT (true_assert s)
@@ -311,12 +312,12 @@ moveOutStatePieces tenv_name s = do
         num_steps_exp = liftDataT (num_steps s)
         tags_exp = liftDataT (tags s)
         track_exp = liftDataT (track s)
-
         tyvar_env_exp = liftDataT . TV.toListConcOrSym $ tyvar_env s
         pc_exp = liftDataT . PC.toList $ path_conds s
 
     [| State { expr_env = $(expr_env_exp)
              , type_env = $(varE tenv_name)
+             , poly_arg_map = $(poly_arg_map_exp)
              , tyvar_env = TV.fromListConcOrSym $(tyvar_env_exp)
              , curr_expr = $(curr_expr_exp)
              , path_conds = PC.fromList $(pc_exp)
@@ -336,6 +337,7 @@ moveOutStatePieces tenv_name s = do
              , sym_gens = Seq.empty
              , reached_hpc = HS.empty
              , track = $(track_exp)
+             , focused = Focused
              
              , log_path = [] } |]
 
@@ -436,7 +438,7 @@ solveStates xs b = do
 
 solveStates' :: ( Named t
                 , ASTContainer t Expr
-                , ASTContainer t G2.Type) => Bindings -> [State t] -> IO (Maybe (ExecRes t))
+                , ASTContainer t G2.Type) => Bindings -> [State t] -> IO (Maybe (ExecRes t, NameGen))
 solveStates' b xs = do
     config <- qqConfig
     SomeSolver solver <- initSolverInfinite config
@@ -447,7 +449,7 @@ solveStates'' :: ( Named t
                  , ASTContainer t Expr
                  , ASTContainer t G2.Type
                  , Solver solver
-                 , Simplifier simplifier) => solver -> simplifier -> Bindings -> [State t] -> IO (Maybe (ExecRes t))
+                 , Simplifier simplifier) => solver -> simplifier -> Bindings -> [State t] -> IO (Maybe (ExecRes t, NameGen))
 solveStates'' _ _ _ [] = return Nothing
 solveStates'' sol simplifier b (s:xs) = do
     m_ex_res <- runG2Solving sol simplifier s b

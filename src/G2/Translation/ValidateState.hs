@@ -1,12 +1,18 @@
-{-# LANGUAGE OverloadedStrings, CPP #-}
+{-# LANGUAGE OverloadedStrings, CPP, FlexibleContexts #-}
 
-module G2.Translation.HaskellCheck ( validateStates
+module G2.Translation.ValidateState ( validateStates
                                    , validateStatesGHC
                                    , loadStandard
+                                   , loadToCheck
                                    , createDeclsStr
                                    , createDecls
                                    , runHPC
-                                   , adjustDynFlags ) where
+                                   , adjustDynFlags
+                                   , loadSession
+                                   , validateState
+                                   , printStateOutput
+                                   , toEnclodeFloat
+                                    ) where
 
 #if MIN_VERSION_GLASGOW_HASKELL(9,0,2,0)
 import GHC.Driver.Session
@@ -16,20 +22,27 @@ import DynFlags
 import qualified EnumSet as ES
 #endif
 
-import GHC hiding (Name, entry)
+import GHC hiding (Name, entry, Id)
 import GHC.LanguageExtensions
 
 import GHC.Paths
+import Control.Monad
+
+import Data.Foldable (toList)
 import Data.Either
+import qualified Data.HashSet as HS
 import Data.List
+import Data.Maybe
 import qualified Data.Text as T
+import qualified Data.Text.IO as T
+import qualified Data.Sequence as S
 import Text.Regex
 import Unsafe.Coerce
 import qualified Data.HashMap.Lazy as H
+import G2.Config
 import G2.Initialization.MkCurrExpr
 import G2.Interface.ExecRes as I
 import G2.Language
-import qualified G2.Language.TyVarEnv as TV
 import G2.Translation.Haskell
 import G2.Translation.Interface
 import G2.Translation.TransTypes
@@ -45,22 +58,25 @@ import System.Timeout
 import Control.Monad.IO.Class
 
 -- | Load the passed module(s) into GHC, and check that the `ExecRes` results are correct.
-validateStates :: [FilePath] -> [FilePath] -> String -> String -> [String] -> [String] -> [GeneralFlag] -> Bindings
+validateStates :: [FilePath] -> [FilePath] -> HS.HashSet (Maybe T.Text) -> String -> [String] -> [String] -> [GeneralFlag] -> String -> Bindings
                -> [ExecRes t]
                -> IO ( [Maybe Bool] -- ^ One bool per input `ExecRes`, indicating whether the results are correct or not
                                   -- Nothing in the case of a timeout
                      , Bool -- ^ Are all "Any" requirements satisfied?
                      )
-validateStates proj src modN entry chAll chAny gflags b in_out = do
+validateStates proj src modN entry chAll chAny gflags comp_func b in_out = do
     runGhc (Just libdir) (do
         adjustDynFlags
         loadToCheck (map dirPath src ++ proj) src modN gflags
         rs_anys <- mapM (\er -> do
                 let s = final_state er
                 let pg = updatePGValNames (concatMap (map Data . dataCon) $ type_env s)
-                       $ updatePGTypeNames (type_env s) $ mkPrettyGuide ()
+                       . updatePGTypeNames (type_env s)
+                       . flip (foldr updateQualMods) (catMaybes $ HS.toList modN)
+                       . setStrictCase True
+                       $ mkPrettyGuide ()
                 _ <- createDecls pg s (H.filter (\x -> adt_source x == ADTG2Generated) (type_env s))
-                validateStatesGHC pg (Just $ T.pack modN) entry chAll chAny b er) in_out
+                validateStatesGHC pg comp_func modN entry chAll chAny b er) in_out
         let chck_anys = all or . transpose $ map snd rs_anys
         return (map fst rs_anys, chck_anys))
 
@@ -81,9 +97,9 @@ creatDeclStr pg s (x, DataTyCon{data_cons = dcs, bound_ids = is}) =
 creatDeclStr _ _ _ = error "creatDeclStr: unsupported AlgDataTy"
 
 -- | Compile with GHC, and check that the output we got is correct for the input
-validateStatesGHC :: PrettyGuide -> Maybe T.Text -> String -> [String] -> [String] -> Bindings -> ExecRes t -> Ghc (Maybe Bool, [Bool])
-validateStatesGHC pg modN entry chAll chAny b er@(ExecRes {final_state = s, conc_out = out}) = do
-    (v, chAllR, chAnyR) <- runCheck pg modN entry chAll chAny b er
+validateStatesGHC :: GhcMonad m => PrettyGuide -> String -> HS.HashSet (Maybe T.Text) -> String -> [String] -> [String] -> Bindings -> ExecRes t -> m (Maybe Bool, [Bool])
+validateStatesGHC pg comp_func modN entry chAll chAny b er@(ExecRes {final_state = s, conc_out = out}) = do
+    (v, chAllR, chAnyR) <- runCheck pg comp_func modN entry chAll chAny b er
 
     v' <- liftIO . timeout (5 * 10 * 1000) $ (unsafeCoerce v :: IO (Either SomeException Bool))
     let outStr = T.unpack $ printHaskell s out
@@ -93,7 +109,7 @@ validateStatesGHC pg modN entry chAll chAny b er@(ExecRes {final_state = s, conc
                                   | otherwise -> Just (outStr == "error" || outStr == "undefined" || outStr == "?")
                     Just (Right b) -> Just (b && outStr /= "error" && outStr /= "undefined")
 
-    chAllR' <- liftIO $ (unsafeCoerce chAllR :: IO [Either SomeException Bool])
+    chAllR' <- liftIO $ (mapM unsafeCoerce chAllR :: IO [Either SomeException Bool])
     let chAllR'' = rights chAllR'
 
     chAnyR' <- liftIO $ (mapM unsafeCoerce chAnyR :: IO [Either SomeException Bool])
@@ -104,21 +120,21 @@ validateStatesGHC pg modN entry chAll chAny b er@(ExecRes {final_state = s, conc
 createDeclsStr :: PrettyGuide -> State t -> TypeEnv -> [String]
 createDeclsStr pg s = map (creatDeclStr pg s) . H.toList
 
-createDecls :: PrettyGuide -> State t -> TypeEnv -> Ghc ()
+createDecls :: GhcMonad m => PrettyGuide -> State t -> TypeEnv -> m ()
 createDecls pg s = mapM_ runDecls . createDeclsStr pg s
 
-adjustDynFlags :: Ghc ()
+adjustDynFlags :: GhcMonad m => m ()
 adjustDynFlags = do
     dyn <- getSessionDynFlags
-    let dyn2 = foldl' xopt_set dyn [MagicHash, UnboxedTuples, DataKinds]
+    let dyn2 = foldl' xopt_set dyn [MagicHash, UnboxedTuples, DataKinds, BangPatterns]
         dyn3 = wopt_unset dyn2 Opt_WarnOverlappingPatterns
         dyn4 = dyn3 { generalFlags = ES.insert Opt_Hpc (generalFlags dyn3) }
     _ <- setSessionDynFlags dyn4
     return ()
 
-runCheck :: PrettyGuide -> Maybe T.Text -> String -> [String] -> [String] -> Bindings -> ExecRes t -> Ghc (HValue, [HValue], [HValue])
-runCheck init_pg modN entry chAll chAny b er@(ExecRes {final_state = s, conc_args = ars, conc_out = out}) = do
-    let Left (v, _) = findFunc (tyvar_env s) (T.pack entry) [modN] (expr_env s)
+runCheck :: GhcMonad m => PrettyGuide -> String -> HS.HashSet (Maybe T.Text) -> String -> [String] -> [String] -> Bindings -> ExecRes t -> m (HValue, [HValue], [HValue])
+runCheck init_pg comp_func modN entry chAll chAny b er@(ExecRes {final_state = s, conc_args = ars, conc_out = out}) = do
+    let Left (v, _) = findFunc (tyvar_env s) (T.pack entry) (HS.toList modN) (expr_env s)
     let e = mkApp $ Var v:ars
     let pg = updatePGValAndTypeNames e
            . updatePGValAndTypeNames out
@@ -140,11 +156,15 @@ runCheck init_pg modN entry chAll chAny b er@(ExecRes {final_state = s, conc_arg
                         TyLitChar -> "C# "
                         _ -> ""
 
+    let comp_func' = case comp_func of
+                        x:_ | 'a' <= x && x <= 'z' -> "`" ++ comp_func ++ "`"
+                        _ -> comp_func
+
     let chck = case outStr == "error" || outStr == "undefined" || outStr == "?" of
-                    False -> mvStr ++ "Control.Exception.try (evaluate (" ++ pr_con ++ "(" ++ arsStr ++ ") == " ++ pr_con ++ "("
+                    False -> mvStr ++ "Control.Exception.try (evaluate (" ++ pr_con ++ "(" ++ arsStr ++ ") " ++ comp_func' ++ " " ++ pr_con ++ "("
                                         ++ outStr ++ " :: " ++ outType ++ ")" ++ ")) :: IO (Either SomeException Bool)"
                     True -> mvStr ++ "Control.Exception.try (evaluate ( (" ++ pr_con ++ "(" ++ arsStr ++ " :: " ++ arsType ++ ")" ++
-                                                    ") == " ++ pr_con ++ "(" ++ arsStr ++ "))) :: IO (Either SomeException Bool)"
+                                                    ") " ++ comp_func' ++ " " ++ pr_con ++ "(" ++ arsStr ++ "))) :: IO (Either SomeException Bool)"
     v' <- compileExpr chck
 
     let chArgs = ars ++ [out] 
@@ -160,18 +180,18 @@ runCheck init_pg modN entry chAll chAny b er@(ExecRes {final_state = s, conc_arg
 
     return $ (v', chAllR, chAnyR)
 
-loadToCheck :: [FilePath] -> [FilePath] -> String -> [GeneralFlag] -> Ghc ()
+loadToCheck :: GhcMonad m => [FilePath] -> [FilePath] -> HS.HashSet (Maybe T.Text) -> [GeneralFlag] -> m ()
 loadToCheck proj src modN gflags = do
         _ <- loadProj Nothing proj src gflags simplTranslationConfig
 
-        let mdN = mkModuleName modN
-        let imD = simpleImportDecl mdN
+        let mdN = map (mkModuleName . T.unpack) . catMaybes $ HS.toList modN
+        let imD = map simpleImportDecl mdN
 
         imps <- liftIO $ concat <$> mapM getImports src
 
         let imp_decls = map (IIDecl . simpleImportDecl . mkModuleName) imps
 
-        setContext (IIDecl imD:loadStandardSet ++ imp_decls)
+        setContext (map IIDecl imD ++ loadStandardSet ++ imp_decls)
 
 getImports :: FilePath -> IO [String]
 getImports src = do
@@ -179,7 +199,7 @@ getImports src = do
     get srcCode
     where
         get str = do
-            let r = mkRegex "^import *([a-zA-Z0-9.]*)"
+            let r = mkRegex "^import[ \t]*([a-zA-Z0-9_.]*)"
             case matchRegexAll r str of
                 Just (_, _, after, imps) -> (imps ++) <$> get after
                 Nothing -> return []
@@ -212,15 +232,15 @@ loadStandardSet =
 simpVar :: T.Text -> Expr
 simpVar s = Var (Id (Name s Nothing 0 Nothing) TyBottom)
 
-runHPC :: FilePath -> String -> String -> [ExecRes t] -> IO ()
-runHPC src modN entry in_out = do
-    let calls = map (\(ExecRes { final_state = s, conc_args = i, conc_out = o })-> toCall entry s i o) in_out
+runHPC :: FilePath -> String -> String -> String -> [ExecRes t] -> IO ()
+runHPC src meas_with modN entry in_out = do
+    let calls = map (\(ExecRes { final_state = s, conc_args = i, conc_out = o })-> toCall modN entry s i o) in_out
 
-    runHPC' src modN calls
+    runHPC' src meas_with modN calls
 
 -- Compile with GHC, and check that the output we got is correct for the input
-runHPC' :: FilePath -> String -> [String] -> IO ()
-runHPC' src modN ars = do
+runHPC' :: FilePath -> String -> String -> [String] -> IO ()
+runHPC' src meas_with modN ars = do
     imps <- getImports src
     srcCode <- readFile src
     let ext = dropWhile (/= '.') src
@@ -229,7 +249,8 @@ runHPC' src modN ars = do
 
     let spces = "  "
 
-    let chck = intercalate ("\n" ++ spces) $ map (\s -> "Ex.try (print (" ++ s ++ ")) :: IO (Either Ex.SomeException ())") ars
+    let meas_with' = if meas_with == "" then "" else " $ " ++ meas_with ++ " "
+        chck = intercalate ("\n" ++ spces) $ map (\s -> "Ex.try (print " ++ meas_with' ++ "(" ++ s ++ ")) :: IO (Either Ex.SomeException ())") ars
 
     let mainFunc = "\n\nmain_internal_g2 :: IO ()\nmain_internal_g2 =do\n"
                             ++ spces ++ chck ++ "\n" ++ spces ++  "return ()\n" ++ spces
@@ -258,10 +279,84 @@ runHPC' src modN ars = do
 
     -- putStrLn mainFunc
 
-toCall :: String -> State t -> [Expr] -> Expr -> String
-toCall entry s ars _ =
+toCall :: String -> String -> State t -> [Expr] -> Expr -> String
+toCall modN entry s ars _ =
     let
-        e = mkApp ((simpVar $ T.pack entry):ars)
-        pg = mkPrettyGuide (exprNames e)
+        Left (v, _) = findFunc (tyvar_env s) (T.pack entry) [Just $ T.pack modN] (expr_env s)
+        e = mkApp (Var v:ars)
+        t = typeOf (tyvar_env s) e
+        pg = setStrictCase True $ mkPrettyGuide (exprNames e)
+
+        str_e = printHaskellPG pg s $ e
+        str_t = mkTypeHaskellPG pg t
     in
-    T.unpack . printHaskellPG pg s $ e
+    T.unpack $ str_e <> " :: " <> str_t
+
+loadSession :: GhcMonad m => [FilePath] -> [FilePath] -> HS.HashSet (Maybe T.Text) -> [GeneralFlag] -> m ()
+loadSession proj src modN gflags = do 
+    adjustDynFlags
+    loadToCheck (map dirPath src ++ proj) src modN gflags
+
+-- | Load the passed module(s) into GHC, and check that the `ExecRes` results are correct.
+validateState :: GhcMonad m => String -> HS.HashSet (Maybe T.Text) -> String -> [String] -> [String] -> Bindings
+               -> ExecRes t
+               -> m ( Maybe Bool -- ^ One bool per input `ExecRes`, indicating whether the results are correct or not
+                                  -- Nothing in the case of a timeout
+                     )
+validateState comp_func modN entry chAll chAny b in_out = do
+        let s = final_state in_out
+        let pg = updatePGValNames (concatMap (map Data . dataCon) $ type_env s)
+                       . updatePGTypeNames (type_env s)
+                       . flip (foldr updateQualMods) (catMaybes $ HS.toList modN)
+                       . setStrictCase True
+                       $ mkPrettyGuide ()
+        _ <- createDecls pg s (H.filter (\x -> adt_source x == ADTG2Generated) (type_env s))
+        rs_anys <- validateStatesGHC pg comp_func modN entry chAll chAny b in_out
+        
+        return (fst rs_anys)
+
+printStateOutput :: Config -> Id -> Bindings
+               -> Maybe (Maybe Bool)
+               -> ExecRes t
+               -> IO ()
+printStateOutput config entry b m_valid exec_res@(ExecRes { final_state = s }) = do
+    let print_valid = isJust m_valid
+    let val = fromMaybe (Just True) m_valid
+
+    when print_valid (putStr (case val of
+                                        Just True -> "✓ "
+                                        Just False -> "✗ "
+                                        Nothing -> "✗TO "))
+
+    let pg = mkPrettyGuide (exprNames $ conc_args exec_res)
+    let (mvp, inp, outp, handles) = printInputOutput pg entry b exec_res
+        sym_gen_out = fmap (printHaskellPG pg s) $ conc_sym_gens exec_res
+        
+    let print_method = \m i o -> m <> i <> " = " <> o 
+
+    when (print_output config ) (do
+        case sym_gen_out of
+            S.Empty -> T.putStrLn $ print_method mvp inp outp
+            _ -> T.putStrLn $ print_method mvp inp outp <> "\t| generated: " <> T.intercalate ", " (toList sym_gen_out)
+        if handles /= "" then T.putStrLn handles else return ())
+
+
+toEnclodeFloat :: ASTContainer m Expr => m -> m
+toEnclodeFloat = modifyASTs go
+    where
+        go (App (Data (DataCon { dc_name = dcn })) (Lit (LitFloat f)))
+            | not (isNaN f), not (isInfinite f), not (isNegativeZero f), nameOcc dcn == "F#" =
+                let (m, n) = decodeFloat f in mkApp [encFloat, iCon $ Lit (LitInteger m), iCon $ Lit (LitInt $ toInteger n)]
+        go (App (Data (DataCon { dc_name = dcn })) (Lit (LitDouble f)))
+            | not (isNaN f), not (isInfinite f), not (isNegativeZero f), nameOcc dcn == "D#" =
+                let (m, n) = decodeFloat f in mkApp [encFloat, iCon $ Lit (LitInteger m), iCon $ Lit (LitInt $ toInteger n)]
+        go (Lit (LitFloat f))
+            | not (isNaN f), not (isInfinite f), not (isNegativeZero f) =
+                let (m, n) = decodeFloat f in mkApp [encFloat, iCon $ Lit (LitInteger m), iCon $ Lit (LitInt $ toInteger n)]
+        go (Lit (LitDouble f))
+            | not (isNaN f), not (isInfinite f), not (isNegativeZero f) =
+                let (m, n) = decodeFloat f in mkApp [encFloat, iCon $ Lit (LitInteger m), iCon $ Lit (LitInt $ toInteger n)]
+        go e = e
+
+        iCon = App (Data (DataCon { dc_name = Name "Z#" Nothing 0 Nothing, dc_type = TyUnknown, dc_exist_tyvars = [], dc_univ_tyvars = [] }))
+        encFloat = Var (Id (Name "encodeFloat" Nothing 0 Nothing) TyUnknown)

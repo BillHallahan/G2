@@ -63,7 +63,7 @@ isExecValueForm :: State t -> Bool
 isExecValueForm state@(State { expr_env = eenv, curr_expr = CurrExpr _ e})
     | Nothing <- S.pop (exec_stack state)
     , CurrExpr Return _ <- curr_expr state
-    , non_red_path_conds state == emptyNRPC =
+    , nullNRPC (non_red_path_conds state) =
         case unApp e of
             [_] -> True
             Var (Id _ _):_ -> False
@@ -71,7 +71,7 @@ isExecValueForm state@(State { expr_env = eenv, curr_expr = CurrExpr _ e})
     | otherwise = False
 
 isExecValueFormDisNonRedPC :: State t -> Bool
-isExecValueFormDisNonRedPC s = isExecValueForm $ s {non_red_path_conds = emptyNRPC}
+isExecValueFormDisNonRedPC s = isExecValueForm $ s {non_red_path_conds = emptyNRPCNonUniq}
 
 normalForm :: E.ExprEnv -> Expr -> Bool
 normalForm = normalForm' HS.empty

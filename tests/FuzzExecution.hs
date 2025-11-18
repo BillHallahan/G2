@@ -10,6 +10,7 @@ import G2.Lib.Printers
 import G2.Translation
 
 import qualified Data.HashMap.Lazy as HM
+import qualified Data.HashSet as HS
 import Data.Maybe
 import qualified Data.Text as T
 
@@ -31,9 +32,8 @@ fuzzExecution :: StateBindingsPair () -> Property
 fuzzExecution (SB init_state bindings) = do
     ioProperty (do
         config <- mkConfigTestIO
-
         -- Adding a dummy name in place of entry function, this function doesn't use it.
-        (ers, b, _) <- runG2WithConfig (Name (T.pack "fuzz") Nothing 0 Nothing) [Nothing] init_state config bindings
+        (ers, b, _) <- runG2WithConfig ["tests/TestFiles/"] ["tests/TestFiles/Fuzz.hs"] (Id (Name (T.pack "fuzz") (Just (T.pack "Fuzz")) 0 Nothing) TyUnknown) "fuzz" [] [Nothing] init_state config bindings
 
         mr <- runGhc (Just libdir) (do
                 and <$> mapM (\er -> do
@@ -50,7 +50,8 @@ fuzzExecution (SB init_state bindings) = do
                                         Nothing -> return ()
                                     
                                     -- Actually validate
-                                    (val, _) <- validateStatesGHC pg Nothing "call" [] [] b er
+                                    let mods = HS.singleton Nothing
+                                    (val, _) <- validateStatesGHC pg "==" mods "call" [] [] b er
                                     return $ fromMaybe False val) ers
             )
         

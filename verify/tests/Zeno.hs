@@ -230,8 +230,6 @@ mirror :: Tree a -> Tree a
 mirror Leaf = Leaf
 mirror (Node l x r) = Node (mirror r) x (mirror l)
 
-
-
 prop_01 n xs
   = (take n xs ++ drop n xs =:= xs)
 

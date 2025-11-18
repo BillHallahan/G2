@@ -111,7 +111,7 @@ equivMods = HM.fromList
 #endif
             ]
 
-loadProj :: Maybe HscTarget -> [FilePath] -> [FilePath] -> [GeneralFlag] -> G2.TranslationConfig -> Ghc SuccessFlag
+loadProj :: GhcMonad m => Maybe HscTarget -> [FilePath] -> [FilePath] -> [GeneralFlag] -> G2.TranslationConfig -> m SuccessFlag
 loadProj hsc proj src gflags tr_con = do
     beta_flags <- getSessionDynFlags
     let gen_flags = if G2.hpc_ticks tr_con then Opt_Hpc:gflags else gflags
@@ -499,7 +499,7 @@ createTickish (Just mb) (Breakpoint {breakpointId = bid}) =
         Just s -> Just $ G2.Breakpoint $ s
         Nothing -> Nothing
 createTickish _ (HpcTick { tickModule = md, tickId = i}) =
-    Just . G2.HpcTick i . T.pack . moduleNameString $ moduleName md
+    Just . G2.HpcTick (fromIntegral i) . T.pack . moduleNameString $ moduleName md
 createTickish _ _ = Nothing
 
 mkLamUse :: Id -> G2.LamUse
@@ -564,11 +564,11 @@ nameLookup nm name = do
 
 {-# INLINE convertUnq #-}
 #if MIN_VERSION_GLASGOW_HASKELL(9,8,0,0)
-convertUnq :: Word64 -> Int
-convertUnq = word64ToInt
-#else
-convertUnq :: Int -> Int
+convertUnq :: Word64 -> G2.Unique
 convertUnq = id
+#else
+convertUnq :: Int -> G2.Unique
+convertUnq = fromIntegral
 #endif
 
 mkSpan :: SrcSpan -> Maybe G2.Span
