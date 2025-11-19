@@ -546,7 +546,7 @@ mkTypeHaskellPG pg (TyFun t1 t2)
 mkTypeHaskellPG pg (TyCon n _) | nameOcc n == "List"
                                , nameModule n == Just "GHC.Types" = "[]"
                                | nameOcc n == "Unit"
-                               , nameModule n == Just "GHC.Tuple.Prim" = "()"
+                               , nameModule n == Just "GHC.Tuple" || nameModule n == Just "GHC.Tuple.Prim" = "()"
                                | ("Tuple", k_str) <- T.splitAt 5 (nameOcc n)
                                , nameModule n == Just "GHC.Tuple" || nameModule n == Just "GHC.Tuple.Prim"
                                , Just k <- readMaybe (T.unpack k_str) = "(" <> T.pack (replicate (k - 1) ',') <> ")"
