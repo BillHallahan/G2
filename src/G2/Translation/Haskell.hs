@@ -101,6 +101,7 @@ equivMods = HM.fromList
             , ("GHC.IO.Handle.FD", "GHC.IO.StdHandles")
 #endif
 #if MIN_VERSION_GLASGOW_HASKELL(9,10,0,0)
+            , ("Control.Monad", "GHC.Internal.Control.Monad")
             , ("GHC.Internal.Enum", "GHC.Enum")
             , ("GHC.Internal.Err", "GHC.Err")
             , ("GHC.Internal.Base", "GHC.Base")
