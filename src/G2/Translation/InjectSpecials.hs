@@ -137,7 +137,11 @@ mkPrimTuples' n | n < 0 = []
                 | otherwise =
                         let
                             s = "(#" `T.append` T.pack (replicate n ',') `T.append` "#)"
+#if MIN_VERSION_GLASGOW_HASKELL(9,10,0,0)
+                            m = Just "GHC.Types"
+#else
                             m = Just "GHC.Prim"
+#endif
                             tn = Name s m 0 Nothing
 
                             ns = if n == 0 then [] else map (\i -> Name "a" m i Nothing) [0..fromIntegral n]
