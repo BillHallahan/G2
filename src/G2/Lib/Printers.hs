@@ -548,7 +548,7 @@ mkTypeHaskellPG pg (TyCon n _) | nameOcc n == "List"
                                | nameOcc n == "Unit"
                                , nameModule n == Just "GHC.Tuple.Prim" = "()"
                                | ("Tuple", k_str) <- T.splitAt 5 (nameOcc n)
-                               , nameModule n == Just "GHC.Tuple.Prim"
+                               , nameModule n == Just "GHC.Tuple" || nameModule n == Just "GHC.Tuple.Prim"
                                , Just k <- readMaybe (T.unpack k_str) = "(" <> T.pack (replicate (k - 1) ',') <> ")"
                                | Just (c, _) <- T.uncons (nameOcc n)
                                , not (isAlphaNum c) = "(" <> mkNameHaskell pg n <> ")"

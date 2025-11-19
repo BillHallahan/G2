@@ -102,6 +102,7 @@ equivMods = HM.fromList
 #endif
 #if MIN_VERSION_GLASGOW_HASKELL(9,10,0,0)
             , ("Control.Monad", "GHC.Internal.Control.Monad")
+            , ("Data.Tuple", "GHC.Internal.Data.Tuple")
             , ("GHC.Internal.Enum", "GHC.Enum")
             , ("GHC.Internal.Err", "GHC.Err")
             , ("GHC.Internal.Base", "GHC.Base")
@@ -109,6 +110,8 @@ equivMods = HM.fromList
             , ("GHC.Internal.List", "GHC.List")
             , ("GHC.Internal.Maybe", "GHC.Maybe")
             , ("GHC.Internal.Num", "GHC.Num")
+            , ("GHC.Internal.Show", "GHC.Show")
+            , ("GHC.Arr", "GHC.Internal.Arr")
             , ("GHC.Float", "GHC.Internal.Float")
             , ("GHC.Real", "GHC.Internal.Real")
 #endif
