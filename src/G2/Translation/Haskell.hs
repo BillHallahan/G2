@@ -108,6 +108,8 @@ equivMods = HM.fromList
             , ("GHC.Internal.List", "GHC.List")
             , ("GHC.Internal.Maybe", "GHC.Maybe")
             , ("GHC.Internal.Num", "GHC.Num")
+            , ("GHC.Float", "GHC.Internal.Float")
+            , ("GHC.Real", "GHC.Internal.Real")
 #endif
             ]
 
