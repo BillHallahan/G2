@@ -116,6 +116,7 @@ equivMods = HM.fromList
             , ("GHC.Internal.Show", "GHC.Show")
             , ("GHC.Arr", "GHC.Internal.Arr")
             , ("GHC.Char", "GHC.Internal.Char")
+            , ("Data.Either", "GHC.Internal.Data.Either")
             , ("GHC.Float", "GHC.Internal.Float")
             , ("GHC.IO.Handle.Text", "GHC.Internal.IO.Handle.Text")
             , ("GHC.IO.Handle.FD", "GHC.Internal.IO.StdHandles")
