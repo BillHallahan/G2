@@ -121,6 +121,7 @@ equivMods = HM.fromList
             , ("GHC.Read", "GHC.Internal.Read")
             , ("GHC.Real", "GHC.Internal.Real")
             , ("GHC.Unicode", "GHC.Internal.Unicode")
+            , ("System.IO", "GHC.Internal.System.IO")
             , ("Text.Read", "GHC.Internal.Text.Read")
 #endif
             ]
