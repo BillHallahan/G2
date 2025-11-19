@@ -117,6 +117,8 @@ equivMods = HM.fromList
             , ("GHC.Arr", "GHC.Internal.Arr")
             , ("GHC.Char", "GHC.Internal.Char")
             , ("GHC.Float", "GHC.Internal.Float")
+            , ("GHC.IO.Handle.Text", "GHC.Internal.IO.Handle.Text")
+            , ("GHC.IO.Handle.FD", "GHC.Internal.IO.StdHandles")
             , ("GHC.IORef", "GHC.Internal.IORef")
             , ("GHC.IO.Unsafe", "GHC.Internal.IO.Unsafe")
             , ("GHC.Ix", "GHC.Internal.Ix")
