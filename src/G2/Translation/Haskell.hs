@@ -86,7 +86,9 @@ equivMods = HM.fromList
 #endif
             , ("GHC.PrimSMT", "GHC.Prim")
             , ("GHC.Prim2", "GHC.Prim")
-#if MIN_VERSION_GLASGOW_HASKELL(9,6,0,0)
+#if MIN_VERSION_GLASGOW_HASKELL(9,10,0,0)
+            , ("GHC.Tuple2", "GHC.Tuple")
+#elif MIN_VERSION_GLASGOW_HASKELL(9,6,0,0)
             , ("GHC.Tuple2", "GHC.Tuple.Prim")
 #else
             , ("GHC.Tuple2", "GHC.Tuple")
@@ -94,9 +96,40 @@ equivMods = HM.fromList
             , ("GHC.Magic2", "GHC.Magic")
             , ("GHC.CString2", "GHC.CString")
             , ("Data.Map.Base", "Data.Map")
-            
+
 #if MIN_VERSION_GLASGOW_HASKELL(9,0,0,0)
             , ("GHC.IO.Handle.FD", "GHC.IO.StdHandles")
+#endif
+#if MIN_VERSION_GLASGOW_HASKELL(9,10,0,0)
+            , ("Control.Monad", "GHC.Internal.Control.Monad")
+            , ("Control.Exception.Base", "GHC.Internal.Control.Exception.Base")
+            , ("Data.IORef", "GHC.Internal.Data.IORef")
+            , ("Data.OldList", "GHC.Internal.Data.OldList")
+            , ("Data.Tuple", "GHC.Internal.Data.Tuple")
+            , ("GHC.Internal.Enum", "GHC.Enum")
+            , ("GHC.Internal.Err", "GHC.Err")
+            , ("GHC.Internal.Base", "GHC.Base")
+            , ("GHC.Internal.Data.Foldable", "Data.Foldable")
+            , ("GHC.Internal.List", "GHC.List")
+            , ("GHC.Internal.Maybe", "GHC.Maybe")
+            , ("GHC.Internal.Num", "GHC.Num")
+            , ("GHC.Internal.Show", "GHC.Show")
+            , ("GHC.Arr", "GHC.Internal.Arr")
+            , ("GHC.Char", "GHC.Internal.Char")
+            , ("Data.Either", "GHC.Internal.Data.Either")
+            , ("GHC.Float", "GHC.Internal.Float")
+            , ("GHC.IO.Handle.Text", "GHC.Internal.IO.Handle.Text")
+            , ("GHC.IO.Handle.FD", "GHC.Internal.IO.StdHandles")
+            , ("GHC.IORef", "GHC.Internal.IORef")
+            , ("GHC.IO.Unsafe", "GHC.Internal.IO.Unsafe")
+            , ("GHC.Ix", "GHC.Internal.Ix")
+            , ("GHC.Read", "GHC.Internal.Read")
+            , ("GHC.Real", "GHC.Internal.Real")
+            , ("GHC.ST", "GHC.Internal.ST")
+            , ("GHC.STRef", "GHC.Internal.STRef")
+            , ("GHC.Unicode", "GHC.Internal.Unicode")
+            , ("System.IO", "GHC.Internal.System.IO")
+            , ("Text.Read", "GHC.Internal.Text.Read")
 #endif
             ]
 

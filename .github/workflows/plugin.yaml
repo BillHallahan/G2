@@ -18,7 +18,8 @@ jobs:
                     { ghc: '9.2.4', cabal: '3.10' },
                     { ghc: '9.4.4', cabal: '3.10' },
                     { ghc: '9.6.1', cabal: '3.10' },
-                    { ghc: '9.8.4', cabal: '3.10' } ]
+                    { ghc: '9.8.4', cabal: '3.10' },
+                    { ghc: '9.10.3', cabal: '3.10' } ]
     steps:
     - uses: actions/checkout@v3
     - uses: haskell-actions/setup@v2
