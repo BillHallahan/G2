@@ -16,27 +16,29 @@ import G2.Initialization.FpToRational
 import G2.Initialization.Handles
 import G2.Initialization.InitVarLocs
 import G2.Initialization.Types as IT
+import qualified G2.Language.TyVarEnv as TV
 import G2.Translation.GHC (ImportDeclQualifiedStyle(NotQualified))
 
 type MkArgTypes = IT.SimpleState -> [Type]
 
 runInitialization1 :: IT.SimpleState -> IT.SimpleState
-runInitialization1 = elimBreakpoints . initVarLocs
-
-runInitialization2 :: Config -> IT.SimpleState -> MkArgTypes -> IT.SimpleState
-runInitialization2 config s@(IT.SimpleState { IT.expr_env = eenv
-                                            , IT.type_env = tenv
-                                            , IT.name_gen = ng
-                                            , IT.known_values = kv
-                                            , IT.type_classes = tc }) argTys =
+runInitialization1 s =
     let
+        s'@(IT.SimpleState { expr_env = eenv, IT.type_env = tenv, IT.type_classes = tc }) = elimBreakpoints . initVarLocs $ s
         eenv2 = elimTypeSyms tenv eenv
         tenv2 = elimTypeSymsTEnv tenv
         tc2 = elimTypeSyms tenv tc
+    in
+    s' { IT.expr_env = eenv2, IT.type_env = tenv2, IT.type_classes = tc2}
 
-        ts = argTys (s { IT.expr_env = eenv2, IT.type_env = tenv2, IT.type_classes = tc2 })
+runInitialization2 :: Config -> IT.SimpleState -> MkArgTypes -> IT.SimpleState
+runInitialization2 config s@(IT.SimpleState { IT.expr_env = eenv
+                                            , IT.name_gen = ng
+                                            , IT.known_values = kv }) argTys =
+    let
+        ts = argTys s
 
-        (eenv3, hs, ng2) = mkHandles eenv2 kv ng
+        (eenv3, hs, ng2) = mkHandles eenv kv ng
 
         eenv4 = if error_asserts config then assertFalseOnError kv eenv3 else eenv3
 
@@ -48,7 +50,7 @@ runInitialization2 config s@(IT.SimpleState { IT.expr_env = eenv
         (eenv5, ng3) = if smt_strings smt_con == NoSMTStrings
                                 then (E.insert (typeIndex kv) 
                                             (Lam TypeL t . Lam TermL x . Lit $ LitInt 0) eenv4, ng2)
-                                else trivializeDCs ng2 kv eenv4
+                                else trivializeDCs TV.empty ng2 kv eenv4
         eenv6 = if smt_strings smt_con == NoSMTStrings
                         then E.insert (adjStr kv) 
                                       (Lam TypeL t . Lam TermL x . Lam TermL str $ Var x) eenv5
@@ -59,10 +61,8 @@ runInitialization2 config s@(IT.SimpleState { IT.expr_env = eenv
                         else eenv6
 
         s' = s { IT.expr_env = eenv7
-               , IT.type_env = tenv2
                , IT.name_gen = ng3
-               , IT.handles = hs
-               , IT.type_classes = tc2 }
+               , IT.handles = hs}
         
         s'' = if fp_handling (symex_heuristics config) == RationalFP then substRational s' else s'
     in

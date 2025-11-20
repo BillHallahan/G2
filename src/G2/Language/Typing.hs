@@ -6,7 +6,6 @@
 --   Provides type checking capabilities over G2 Language.
 module G2.Language.Typing
     ( Typed (..)
-    , PresType (..)
 
     , unify
     , unify'
@@ -44,6 +43,7 @@ module G2.Language.Typing
     , numArgs
 
     , replaceTyVar
+    , replaceTyVars
     , applyTypeMap
     , applyTypeHashMap
 
@@ -60,26 +60,27 @@ module G2.Language.Typing
     , splitTyFuns
     , retype
     , retypeRespectingTyForAll
+    , tyVarSubst
     , mapInTyForAlls
     , inTyForAlls
     , numTypeArgs
     , typeToExpr
     , getTyApps
+    , getCoercions
     , tyAppsToExpr
     , isADTType
     , isPrimType
     ) where
 
-import qualified G2.Data.UFMap as UF
 import G2.Language.AST
 import qualified G2.Language.KnownValues as KV
 import G2.Language.Syntax
 
+import qualified Data.HashSet as HS
 import qualified Data.HashMap.Lazy as HM
-import qualified Data.Map as M
 import Data.Maybe
 import qualified Data.List as L
-import Control.Monad
+import qualified G2.Language.TyVarEnv as TV
 
 tyInt :: KV.KnownValues -> Type
 tyInt kv = TyCon (KV.tyInt kv) (tyTYPE kv)
@@ -145,13 +146,14 @@ mkTyCon n ts k = mkTyApp $ TyCon n k:ts
 -- | Makes a fully applied TyCon.
 -- Since the TyCon is fully applied, we can figure out its kind based on it's
 -- arguments and result kind.
-mkFullAppedTyCon :: Name
+mkFullAppedTyCon :: TV.TyVarEnv
+                 -> Name
                  -> [Type] -- ^ Type arguments
                  -> Kind -- ^ Result kind
                  -> Type
-mkFullAppedTyCon n ts k =
+mkFullAppedTyCon tv n ts k =
     let
-        tsk = mkTyFun $ map typeOf ts ++ [k]
+        tsk = mkTyFun $ map (typeOf tv) ts ++ [k]
     in
     mkTyApp $ TyCon n tsk:ts
 
@@ -162,61 +164,54 @@ unTyApp t = [t]
 
 -- | Typeclass for things that have type information.
 class Typed a where
-    typeOf :: a -> Type
-    typeOf = typeOf' M.empty
-
-    typeOf' :: M.Map Name Type -- ^ Map of type variables to instantiations
-            -> a
-            -> Type
+    typeOf :: TV.TyVarEnv -> a -> Type
 
 instance Typed Id where
-    typeOf' m (Id _ ty) = tyVarRename m ty
+    typeOf m (Id _ ty) = tyVarSubst m ty
 
 instance Typed Lit where
-    typeOf (LitInt _) = TyLitInt
-    typeOf (LitWord _) = TyLitWord
-    typeOf (LitFloat _) = TyLitFloat
-    typeOf (LitDouble _) = TyLitDouble
-    typeOf (LitRational _) = TyLitRational
-    typeOf (LitBV bv) = TyLitBV (length bv)
-    typeOf (LitChar _)   = TyLitChar
-    typeOf (LitString _) = TyLitString
-    typeOf (LitInteger _) = TyLitInt
-
-    typeOf' _ t = typeOf t
+    typeOf _ (LitInt _) = TyLitInt
+    typeOf _ (LitWord _) = TyLitWord
+    typeOf _ (LitFloat _) = TyLitFloat
+    typeOf _ (LitDouble _) = TyLitDouble
+    typeOf _ (LitRational _) = TyLitRational
+    typeOf _ (LitBV bv) = TyLitBV (length bv)
+    typeOf _ (LitChar _)   = TyLitChar
+    typeOf _ (LitString _) = TyLitString
+    typeOf _ (LitInteger _) = TyLitInt
 
 instance Typed DataCon where
-    typeOf' _ (DataCon _ ty _ _) = ty
+    typeOf _ (DataCon _ ty _ _) = ty
 
 instance Typed Alt where
-    typeOf' m (Alt _ expr) = typeOf' m expr
+    typeOf m (Alt _ expr) = typeOf m expr
 
 instance Typed Expr where
-    typeOf' m (Var v) = typeOf' m v
-    typeOf' m (Lit lit) = typeOf' m lit
-    typeOf' _ (Prim _ ty) = ty
-    typeOf' m (Data dcon) = typeOf' m dcon
-    typeOf' m a@(App _ _) =
+    typeOf m (Var v) = typeOf m v
+    typeOf m (Lit lit) = typeOf m lit
+    typeOf _ (Prim _ ty) = ty
+    typeOf m (Data dcon) = typeOf m dcon
+    typeOf m a@(App _ _) =
         let
             as = passedArgs a
-            t = typeOf' m $ appCenter a
+            t = typeOf m $ appCenter a
         in
-        appTypeOf M.empty t as
-    typeOf' m (Lam u b e) =
+        appTypeOf TV.empty t as
+    typeOf m (Lam u b e) =
         case u of
-            TypeL -> TyForAll b (typeOf' m e)
-            TermL -> TyFun (typeOf' m b) (typeOf' m e)
-    typeOf' m (Let _ expr) = typeOf' m expr
-    typeOf' _ (Case _ _ t _) = t
-    typeOf' _ (Type _) = TYPE
-    typeOf' m (Cast _ (_ :~ t')) = tyVarRename m t'
-    typeOf' m (Coercion (_ :~ t')) = tyVarRename m t'
-    typeOf' m (Tick _ e) = typeOf' m e
-    typeOf' m (NonDet (e:_)) = typeOf' m e
-    typeOf' _ (NonDet []) = TyBottom
-    typeOf' _ (SymGen _ t) = t
-    typeOf' m (Assert _ _ e) = typeOf' m e
-    typeOf' m (Assume _ _ e) = typeOf' m e
+            TypeL -> TyForAll b (typeOf m e)
+            TermL -> TyFun (typeOf m b) (typeOf m e)
+    typeOf m (Let _ expr) = typeOf m expr
+    typeOf _ (Case _ _ t _) = t
+    typeOf _ (Type _) = TYPE
+    typeOf m (Cast _ (_ :~ t')) = tyVarSubst m t'
+    typeOf m (Coercion (_ :~ t')) = tyVarSubst m t'
+    typeOf m (Tick _ e) = typeOf m e
+    typeOf m (NonDet (e:_)) = typeOf m e
+    typeOf _ (NonDet []) = TyBottom
+    typeOf _ (SymGen _ t) = t
+    typeOf m (Assert _ _ e) = typeOf m e
+    typeOf m (Assume _ _ e) = typeOf m e
 
 passedArgs :: Expr -> [Expr]
 passedArgs = reverse . passedArgs'
@@ -229,41 +224,44 @@ appCenter :: Expr -> Expr
 appCenter (App a _) = appCenter a
 appCenter e = e
 
-appTypeOf :: M.Map Name Type -> Type -> [Expr] -> Type
+appTypeOf :: TV.TyVarEnv -> Type -> [Expr] -> Type
 appTypeOf m (TyForAll i t) (Type t':es) =
     let
-        m' = M.insert (idName i) (tyVarRename m t') m
+        m' = TV.insert (idName i) (tyVarSubst m t') m
     in
     appTypeOf m' t es
 appTypeOf m (TyForAll _ t) (_:es) = appTypeOf m t es
 appTypeOf m (TyFun _ t) (_:es) = appTypeOf m t es
-appTypeOf m t [] = tyVarRename m t
+appTypeOf m t [] = tyVarSubst m t
 appTypeOf m (TyVar (Id n _)) es =
-    case M.lookup n m of
+    case TV.lookup n m of
         Just t -> appTypeOf m t es
         Nothing -> error ("appTypeOf: Unknown TyVar")
 appTypeOf _ TyBottom _ = TyBottom
 appTypeOf _ TyUnknown _ = TyUnknown
 appTypeOf _ t es = error ("appTypeOf\n" ++ show t ++ "\n" ++ show es ++ "\n\n")
 
--- | Check if two types unify.  If they do, returns a `UFMap` of type variables to instantiations.
-unify :: Type -> Type ->  Maybe (UF.UFMap Name Type)
-unify = unify' UF.empty
+-- | Check if two types unify.  If they do, returns a `TyVarEnv` of type variables to instantiations.
+unify :: Type -> Type -> Maybe TV.TyVarEnv
+unify = unify' TV.empty
 
 -- | `unify`, but with a pre-existing (partial) mapping of type variables to instantiations.
-unify' :: UF.UFMap Name Type -> Type -> Type ->  Maybe (UF.UFMap Name Type)
-unify' uf (TyVar (Id n1 t1)) (TyVar (Id n2 t2))
-    | Just uf_t1 <- UF.lookup n1 uf
-    , Just uf_t2 <- UF.lookup n2 uf =
-        UF.join const n1 n2 <$> unify' uf uf_t1 uf_t2
+unify' :: TV.TyVarEnv -> Type -> Type ->  Maybe TV.TyVarEnv
+unify' uf (TyVar (Id n1 t1)) tv2@(TyVar (Id n2 t2))
+    | Just (TV.TyConc uf_t1) <- TV.lookupConcOrSym n1 uf
+    , Just (TV.TyConc uf_t2) <- TV.lookupConcOrSym n2 uf =
+        TV.insert n1 tv2 <$> unify' uf uf_t1 uf_t2
+    | Nothing <- TV.lookup n1 uf
+    , Nothing <- TV.lookup n2 uf =
+        unify' (TV.insert n1 tv2 uf) t1 t2
     | otherwise =
-        UF.join (error "unify': impossible, no need to join") n1 n2 <$> unify' uf t1 t2
+        unify' (TV.insert n1 tv2 uf) t1 t2
 unify' uf (TyVar (Id n _)) t
-    | Just t1 <- UF.lookup n uf = unify' uf t1 t
-    | otherwise = Just (UF.insert n t uf)
+    | Just (TV.TyConc t1) <- TV.lookupConcOrSym n uf = unify' uf t1 t
+    | otherwise = Just (TV.insert n t uf)
 unify' uf t (TyVar (Id n _))
-    | Just t2 <- UF.lookup n uf = unify' uf t t2
-    | otherwise = Just (UF.insert n t uf)
+    | Just (TV.TyConc t2) <- TV.lookupConcOrSym n uf = unify' uf t t2
+    | otherwise = Just (TV.insert n t uf)
 unify' uf (TyFun t1 t2) (TyFun t1' t2') = do
     uf' <- unify' uf t1 t1'
     unify' uf' t2 t2'
@@ -271,42 +269,37 @@ unify' uf (TyApp t1 t2) (TyApp t1' t2') = do
     uf' <- unify' uf t1 t1'
     unify' uf' t2 t2'
 unify' uf (TyCon n1 k1) (TyCon n2 k2) | n1 == n2 = unify' uf k1 k2
-unify' uf (TyForAll i1 t1) (TyForAll i2 t2) = do
-    uf' <- unify' uf (typeOf i1) (typeOf i2)
+unify' uf (TyForAll (Id _ it1) t1) (TyForAll (Id _ it2) t2) = do
+    uf' <- unify' uf it1 it2
     unify' uf' t1 t2
 unify' uf (TyFun _ _) TYPE = Just uf
 unify' uf t1 t2 | t1 == t2 = return uf
                 | otherwise = Nothing
 
 instance Typed Type where
-    typeOf' _ (TyVar (Id _ t)) = t
-    typeOf' _ (TyFun _ _) = TYPE
-    typeOf' m (TyApp t1 t2) =
+    typeOf _ (TyVar (Id _ t)) = t
+    typeOf _ (TyFun _ _) = TYPE
+    typeOf m (TyApp t1 t2) =
         let
-            ft = typeOf' m t1
-            at = typeOf' m t2
+            ft = typeOf m t1
+            at = typeOf m t2
         in
         case (ft, at) of
             ((TyForAll _ t2'), _) -> t2'
             ((TyFun _ t2'), _) -> t2'
             ((TyApp t1' _), _) -> t1'
             _ -> error $ "Overapplied Type\n" ++ show t1 ++ "\n" ++ show t2 ++ "\n\n" ++ show ft ++ "\n" ++ show at
-    typeOf' _ (TyCon _ t) = t
-    typeOf' m (TyForAll b t) = TyApp (typeOf b) (typeOf' m t)
-    typeOf' _ TyLitInt = TYPE
-    typeOf' _ (TyLitFP _ _) = TYPE
-    typeOf' _ TyLitRational = TYPE
-    typeOf' _ (TyLitBV _) = TYPE
-    typeOf' _ TyLitChar = TYPE
-    typeOf' _ TyLitString = TYPE
-    typeOf' _ TYPE = TYPE
-    typeOf' _ TyBottom = TyBottom
-    typeOf' _ TyUnknown = TyUnknown
-
-newtype PresType = PresType Type deriving (Show, Read)
-
-instance Typed PresType where
-    typeOf' _ (PresType t) = t
+    typeOf _ (TyCon _ t) = t
+    typeOf m (TyForAll b t) = TyApp (typeOf m b) (typeOf m t)
+    typeOf _ TyLitInt = TYPE
+    typeOf _ (TyLitFP _ _) = TYPE
+    typeOf _ TyLitRational = TYPE
+    typeOf _ (TyLitBV _) = TYPE
+    typeOf _ TyLitChar = TYPE
+    typeOf _ TyLitString = TYPE
+    typeOf _ TYPE = TYPE
+    typeOf _ TyBottom = TyBottom
+    typeOf _ TyUnknown = TyUnknown
 
 -- | Retyping
 -- We look to see if the type we potentially replace has a TyVar whose Id is a
@@ -326,35 +319,43 @@ retypeRespectingTyForAll' i _ t@(TyForAll ni _) | i == ni = t
 retypeRespectingTyForAll' key new (TyVar test) = if idName key == idName test then new else TyVar test
 retypeRespectingTyForAll' key new ty = modifyChildren (retypeRespectingTyForAll' key new) ty
 
-tyVarRename :: (ASTContainer t Type) => M.Map Name Type -> t -> t
-tyVarRename m = modifyASTs (tyVarRename' m)
+tyVarSubst :: (ASTContainer t Type) => TV.TyVarEnv -> t -> t
+tyVarSubst m = modifyContainedASTs (tyVarSubst' HS.empty m)
 
-tyVarRename' :: M.Map Name Type -> Type -> Type
-tyVarRename' m t@(TyVar (Id n _)) = M.findWithDefault t n m
-tyVarRename' _ t = t
+tyVarSubst' :: HS.HashSet Name -- ^ Variables that should not be replaced- either because they
+                               -- are self recursive, or because they have been shadowed
+            -> TV.TyVarEnv
+            -> Type
+            -> Type 
+tyVarSubst' seen m t@(TyVar (Id n _)) =
+    case TV.lookup n m of
+        Just t' | not (HS.member n seen) -> tyVarSubst' (HS.insert n seen) m t'
+        _ -> t 
+tyVarSubst' seen m (TyForAll i@(Id n _) t) = TyForAll i $ tyVarSubst' (HS.insert n seen) m t
+tyVarSubst' seen m t = modifyChildren (tyVarSubst' seen m) t
 
 -- | Returns if the first type given is a specialization of the second,
 -- i.e. if given t1, t2, returns true iff t1 :: t2
-(.::) :: Typed t => t -> Type -> Bool
-t1 .:: t2 = isJust $ specializes (typeOf t1) t2
+(.::) :: Type -> Type -> Bool
+t1 .:: t2 = isJust $ specializes t1 t2
 {-# INLINE (.::) #-}
 
 -- | Checks if the first type is equivalent to the second type.
 -- That is, @e@ has type @t1@ iff @e@ has type @t2@.
 (.::.) :: Type -> Type -> Bool
-t1 .::. t2 = PresType t1 .:: t2 && PresType t2 .:: t1
+t1 .::. t2 = t1 .:: t2 && t2 .:: t1
 {-# INLINE (.::.) #-}
 
-specializes :: Type -> Type -> Maybe (M.Map Name Type)
-specializes = specializes' M.empty
+specializes :: Type -> Type -> Maybe TV.TyVarEnv 
+specializes = specializes' TV.empty 
 
-specializes' :: M.Map Name Type -> Type -> Type -> Maybe (M.Map Name Type)
+specializes' :: TV.TyVarEnv -> Type -> Type -> Maybe TV.TyVarEnv 
 specializes' m _ TYPE = Just m
 specializes' m t (TyVar (Id n vt)) =
-    case M.lookup n m of
+    case TV.lookup n m of
         Just t' | t == t' -> Just m
                 | otherwise -> Nothing
-        Nothing -> M.insert n t <$> specializes' m (typeOf t) vt
+        Nothing -> TV.insert n t <$> specializes' m (typeOf m t) vt
 specializes' m (TyFun t1 t2) (TyFun t1' t2') = do
     m' <- specializes' m t1 t1'
     specializes' m' t2 t2'
@@ -380,12 +381,19 @@ replaceTyVar' :: Name -> Type -> Type -> Type
 replaceTyVar' n t  (TyVar (Id n' _)) | n == n' = t
 replaceTyVar' _ _ t = t
 
-applyTypeMap :: ASTContainer e Type => M.Map Name Type -> e -> e
+replaceTyVars :: ASTContainer e Type => HM.HashMap Name Type -> e -> e
+replaceTyVars m = modifyASTs (replaceTyVars' m)
+
+replaceTyVars' ::HM.HashMap Name Type -> Type -> Type
+replaceTyVars' m (TyVar (Id n _)) | Just t <- HM.lookup n m = t
+replaceTyVars' _ t = t
+
+applyTypeMap :: ASTContainer e Type => TV.TyVarEnv -> e -> e
 applyTypeMap m = modifyASTs (applyTypeMap' m)
 
-applyTypeMap' :: M.Map Name Type -> Type -> Type
+applyTypeMap' :: TV.TyVarEnv -> Type -> Type
 applyTypeMap' m (TyVar (Id n _))
-    | Just t <- M.lookup n m = t
+    | Just t <- TV.lookup n m = t
 applyTypeMap' _ t = t
 
 applyTypeHashMap :: ASTContainer e Type => HM.HashMap Name Type -> e -> e
@@ -397,23 +405,26 @@ applyTypeHashMap' m (TyVar (Id n _))
 applyTypeHashMap' _ t = t
 
 
-hasFuncType :: (Typed t) => t -> Bool
+hasFuncType :: Type -> Bool
 hasFuncType t =
-    case typeOf t of
+    case t of
         (TyFun _ _) -> True
         (TyForAll _ _)  -> True
         _ -> False
 
 -- | higherOrderFuncs
 -- Returns all internal higher order function types
-higherOrderFuncs :: Typed t => t -> [Type]
-higherOrderFuncs = higherOrderFuncs' . typeOf
+higherOrderFuncs :: Type -> [Type]
+higherOrderFuncs = higherOrderFuncs'
 
 higherOrderFuncs' :: Type -> [Type]
 higherOrderFuncs' = eval higherOrderFuncs''
 
 higherOrderFuncs'' :: Type -> [Type]
+higherOrderFuncs'' (TyFun t@(TyForAll _ _) _) = [t]
 higherOrderFuncs'' (TyFun t@(TyFun _ _) _) = [t]
+higherOrderFuncs'' (TyApp _ t@(TyForAll _ _)) = [t]
+higherOrderFuncs'' (TyApp _ t@(TyFun _ _)) = [t]
 higherOrderFuncs'' _ = []
 
 isTYPE :: Type -> Bool
@@ -449,14 +460,14 @@ tyVarNames :: ASTContainer m Type => m -> [Name]
 tyVarNames = map idName . tyVarIds
 
 -- | Computes the number of type and value level arguments 
-numArgs :: Typed t => t -> Int
+numArgs :: Type -> Int
 numArgs = length . argumentTypes
 
 data ArgType = AnonType Type | NamedType Id deriving (Show, Read)
 
 -- | Gives the types of the arguments of the functions
-argumentTypes :: Typed t => t -> [Type]
-argumentTypes = argumentTypes' . typeOf
+argumentTypes :: Type -> [Type]
+argumentTypes = argumentTypes'
 
 argumentTypes' :: Type -> [Type]
 argumentTypes' (TyForAll _ t2) = TYPE:argumentTypes' t2
@@ -471,31 +482,31 @@ argTypeToLamUse :: ArgType -> LamUse
 argTypeToLamUse (AnonType _) = TermL
 argTypeToLamUse (NamedType _) = TypeL
 
-spArgumentTypes :: Typed t => t -> [ArgType]
-spArgumentTypes = spArgumentTypes' . typeOf
+spArgumentTypes :: Type -> [ArgType]
+spArgumentTypes = spArgumentTypes' 
 
 spArgumentTypes' :: Type -> [ArgType]
 spArgumentTypes' (TyForAll i t2) = NamedType i:spArgumentTypes' t2
 spArgumentTypes' (TyFun t1 t2) = AnonType t1:spArgumentTypes' t2
 spArgumentTypes' _ = []
 
-leadingTyForAllBindings :: Typed t => t -> [Id]
-leadingTyForAllBindings = leadingTyForAllBindings' . typeOf
+leadingTyForAllBindings :: Type -> [Id]
+leadingTyForAllBindings = leadingTyForAllBindings' 
 
 leadingTyForAllBindings' :: Type -> [Id]
 leadingTyForAllBindings' (TyForAll i t) = i:leadingTyForAllBindings' t
 leadingTyForAllBindings' _ = []
 
-tyForAllBindings :: Typed t => t -> [Id]
-tyForAllBindings = tyForAllBindings' . typeOf
+tyForAllBindings :: Type -> [Id]
+tyForAllBindings = tyForAllBindings'
 
 tyForAllBindings' :: Type -> [Id]
 tyForAllBindings' (TyForAll i t) = i:tyForAllBindings' t
 tyForAllBindings' (TyFun t t') = tyForAllBindings' t ++ tyForAllBindings t'
 tyForAllBindings' _ = []
 
-anonArgumentTypes :: Typed t => t -> [Type]
-anonArgumentTypes = anonArgumentTypes' . typeOf
+anonArgumentTypes :: Type -> [Type]
+anonArgumentTypes = anonArgumentTypes'
 
 anonArgumentTypes' :: Type -> [Type]
 anonArgumentTypes' (TyForAll _ t) = anonArgumentTypes' t
@@ -503,8 +514,8 @@ anonArgumentTypes' (TyFun t1 t2) = t1:anonArgumentTypes' t2
 anonArgumentTypes' _ = []
 
 -- | Gives the return type if the given function type is fully saturated
-returnType :: Typed t => t -> Type
-returnType = returnType' . typeOf
+returnType :: Type -> Type
+returnType = returnType'
 
 returnType' :: Type -> Type
 returnType' (TyForAll _ t) = returnType' t
@@ -535,8 +546,8 @@ inTyForAlls :: Type -> Type
 inTyForAlls (TyForAll _ t) = inTyForAlls t
 inTyForAlls t = t
 
-numTypeArgs :: Typed t => t -> Int
-numTypeArgs = numTypeArgs' . typeOf
+numTypeArgs :: Type -> Int
+numTypeArgs = numTypeArgs'
 
 numTypeArgs' :: Type -> Int
 numTypeArgs' (TyForAll _ t) = 1 + numTypeArgs' t
@@ -553,6 +564,17 @@ getTyApps (TyForAll _ t) = getTyApps t
 getTyApps (TyFun t _) = getTyApps t
 getTyApps t@(TyApp _ _) = Just t
 getTyApps _ = Nothing
+
+-- This function aims to extract pairs of types being coerced between.
+-- Given a coercion t1 :~ t2, the tuple (t1, t2) is returned.
+getCoercions :: KV.KnownValues -> Type -> [(Type, Type)]
+getCoercions kv (TyApp(TyApp (TyApp (TyApp (TyCon n _) _) _) t2) t1) =
+    if KV.tyCoercion kv == n 
+    then 
+        [(t1, t2)]
+    else 
+       []
+getCoercions _ _ = []
 
 -- | Given sequence of nested tyApps e.g. tyApp (tyApp ...) ...), returns list of expr level Types, searching through [Id,Type] list in the process
 tyAppsToExpr :: Type -> [(Id, Type)] -> [Expr]

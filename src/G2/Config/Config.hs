@@ -101,7 +101,9 @@ data Config = Config {
     , strict :: Bool -- ^ Should the function output be strictly evaluated?
     , timeLimit :: Int -- ^ Seconds
     , validate :: Bool -- ^ If True, run on G2's input, and check against expected output.
+    , validate_with :: String -- ^ Function to use when validating input (defaults to (==)).
     , measure_coverage :: Bool -- ^ Use HPC to measure code coverage
+    , measure_coverage_with :: String -- ^ Function to apply before measuring coverage
     , print_num_nrpc :: Bool -- ^ Output the number of NRPCs for each accepted state
     , print_num_post_call_func_arg :: Bool -- ^ Output the number of post call and function argument states
     , symex_heuristics :: SymExHeuristics -- ^ Heuristics for symbolic execution
@@ -177,7 +179,16 @@ mkConfig homedir = Config Regular
                    <> value 600
                    <> help "time limit, in seconds")
     <*> switch (long "validate" <> help "use GHC to automatically compile and run on generated inputs, and check that generated outputs are correct")
+    <*> strOption
+            ( long "validate-with"
+            <> metavar "F"
+            <> value "=="
+            <> help "function to use when validating input (defaults to (==)).")
     <*> switch (long "measure-coverage" <> help "use HPC to measure code coverage")
+    <*> strOption (long "measure-coverage-with"
+                    <> metavar "F"
+                    <> value ""
+                    <> help "function to apply to returned value when measuring code coverage")
     <*> flag False True (long "print-num-nrpc" <> help "output the number of NRPCs for each accepted state")
     <*> flag False True (long "print-num-higher-states" <> help "output the number of post call and function argument states (from higher order coverage checking)")
     <*> parserOptionGroup "Symbolic Execution Heuristics" mkSymExHeuristics
@@ -401,7 +412,9 @@ mkConfigDirect homedir as m = Config {
     , strict = boolArg "strict" as m On
     , timeLimit = strArg "time" as m read 300
     , validate  = boolArg "validate" as m Off
+    , validate_with = "=="
     , measure_coverage = False
+    , measure_coverage_with = ""
     , print_num_nrpc = False
     , print_num_post_call_func_arg = False
 }

@@ -10,6 +10,7 @@ import qualified Data.HashMap.Lazy as HM
 import qualified Data.Text as T
 
 import G2.Language
+import qualified G2.Language.TyVarEnv as TV 
 
 _MAX_TUPLE :: Int
 _MAX_TUPLE = 62
@@ -30,7 +31,7 @@ specialDC ns tn (n, m, ts) =
     let
         tv = map (TyVar . flip Id TYPE) ns
 
-        t = foldr TyFun (mkFullAppedTyCon tn tv TYPE) ts
+        t = foldr TyFun (mkFullAppedTyCon TV.empty tn tv TYPE) ts
         is = map (flip Id TYPE) ns
         t' = foldr TyForAll t is
     in
@@ -73,7 +74,7 @@ specials =
            [ (( listTypeStr
               , Just "GHC.Types", [aName])
               , [ ("[]", Just "GHC.Types", [])
-                , (":", Just "GHC.Types", [aTyVar, mkFullAppedTyCon listName [aTyVar] TYPE])]
+                , (":", Just "GHC.Types", [aTyVar, mkFullAppedTyCon TV.empty listName [aTyVar] TYPE])]
              )
            -- , (("Int", Just "GHC.Types"), [("I#", Just "GHC.Types", [TyLitInt])])
            -- , (("Float", Just "GHC.Types"), [("F#", Just "GHC.Types", [TyLitFloat])])
@@ -89,7 +90,9 @@ specials =
            --                                    , ("GT", Just "GHC.Types", [])])
            ]
            ++
-#if MIN_VERSION_GLASGOW_HASKELL(9,6,0,0)
+#if MIN_VERSION_GLASGOW_HASKELL(9,10,0,0)
+           mkTuples "(" ")" (Just "GHC.Tuple") _MAX_TUPLE
+#elif MIN_VERSION_GLASGOW_HASKELL(9,6,0,0)
            mkTuples "(" ")" (Just "GHC.Tuple.Prim") _MAX_TUPLE
 #else
            mkTuples "(" ")" (Just "GHC.Tuple") _MAX_TUPLE
@@ -112,7 +115,7 @@ mkTuples ls rs m n | n < 0 = []
 #else
                             ty_n = cons_n
 #endif
-                            ns = if n == 0 then [] else map (\i -> Name "a" m i Nothing) [0..n]
+                            ns = if n == 0 then [] else map (\i -> Name "a" m i Nothing) [0..fromIntegral n]
                             tv = map (TyVar . flip Id TYPE) ns
                         in
                         -- ((s, m, []), [(s, m, [])]) : mkTuples (n - 1)
@@ -134,14 +137,18 @@ mkPrimTuples' n | n < 0 = []
                 | otherwise =
                         let
                             s = "(#" `T.append` T.pack (replicate n ',') `T.append` "#)"
+#if MIN_VERSION_GLASGOW_HASKELL(9,10,0,0)
+                            m = Just "GHC.Types"
+#else
                             m = Just "GHC.Prim"
+#endif
                             tn = Name s m 0 Nothing
 
-                            ns = if n == 0 then [] else map (\i -> Name "a" m i Nothing) [0..n]
-                            rt_ns = if n == 0 then [] else map (\i -> Name "rt_" m i Nothing) [0..n]
+                            ns = if n == 0 then [] else map (\i -> Name "a" m i Nothing) [0..fromIntegral n]
+                            rt_ns = if n == 0 then [] else map (\i -> Name "rt_" m i Nothing) [0..fromIntegral n]
                             tv = map (TyVar . flip Id TYPE) ns
 
-                            t = foldr (TyFun) (mkFullAppedTyCon tn tv TYPE) tv
+                            t = foldr (TyFun) (mkFullAppedTyCon TV.empty tn tv TYPE) tv
                             is = map (flip Id TYPE) ns
                             rt_is =  map (flip Id TYPE) rt_ns
                             t' = foldr TyForAll t is

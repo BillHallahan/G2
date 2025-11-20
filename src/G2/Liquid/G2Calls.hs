@@ -33,10 +33,11 @@ import qualified Data.HashMap.Lazy as HM
 import qualified Data.HashSet as HS
 import Data.Maybe
 import Data.Monoid
+import Data.Tuple.Extra
 
 import qualified Control.Monad.State as SM
 import G2.Lib.Printers
-import G2.Solver.Language (ASTContainer(modifyContainedASTs))
+import qualified G2.Language.TyVarEnv as TV
 
 -- | The function to actually use for Symbolic Execution
 type G2Call solver simplifier =
@@ -111,7 +112,7 @@ checkAbstracted' :: (Solver solver, Simplifier simplifier)
 checkAbstracted' g2call solver simplifier share s bindings abs_fc@(FuncCall { funcName = n, arguments = ars, returns = r })
     | Just e <- E.lookup n $ expr_env s = do
         let 
-            e' = mkApp $ Var (Id n (typeOf e)):ars
+            e' = mkApp $ Var (Id n (typeOf (tyvar_env s) e)):ars
 
         -- We leave assertions in the code, and set true_assert to false so we can
         -- tell if an assertion was violated.
@@ -121,7 +122,7 @@ checkAbstracted' g2call solver simplifier share s bindings abs_fc@(FuncCall { fu
         -- See [BlockErrors] in G2.Liquid.SpecialAsserts
         let s' = elimAssumesExcept
                . pickHead
-               . elimSymGens (arb_value_gen bindings)
+               . elimSymGens (arb_value_gen bindings) (name_gen bindings)
                . modelToExprEnv $
                     s { curr_expr = CurrExpr Evaluate e'
                       , track = False }
@@ -144,8 +145,8 @@ checkAbstracted' g2call solver simplifier share s bindings abs_fc@(FuncCall { fu
                 }] -> case not $ ce `eqUpToTypes` r of
                         True -> do
                             let ar = AbstractRes 
-                                        ( Abstracted { abstract = repTCsFC (type_classes s) $ modifyContainedASTs (inline (expr_env fs) HS.empty) abs_fc
-                                                     , real = repTCsFC (type_classes s) $ abs_fc { returns = inline (expr_env fs) HS.empty ce }
+                                        ( Abstracted { abstract = repTCsFC (tyvar_env s) (type_classes s) $ modifyContainedASTs (inline (expr_env fs) HS.empty) abs_fc
+                                                     , real = repTCsFC (tyvar_env s) (type_classes s) $ abs_fc { returns = inline (expr_env fs) HS.empty ce }
                                                      , hits_lib_err_in_real = t
                                                      , func_calls_in_real = [] }
                                         ) m
@@ -170,14 +171,14 @@ getAbstracted :: (Solver solver, Simplifier simplifier)
 getAbstracted g2call solver simplifier share s bindings abs_fc@(FuncCall { funcName = n, arguments = ars })
     | Just e <- E.lookup n $ expr_env s = do
         let 
-            v = Var (Id n (typeOf e))
+            v = Var (Id n (typeOf (tyvar_env s) e))
             v' = maybe v (Cast v) (input_coercion bindings)
             e' = mkApp $ v':ars
 
         let s' = mkAssertsTrue (known_values s)
                . elimAssumesExcept
                . pickHead
-               . elimSymGens (arb_value_gen bindings)
+               . elimSymGens (arb_value_gen bindings) (name_gen bindings)
                . modelToExprEnv $
                     s { curr_expr = CurrExpr Evaluate e'
                       , track = ([] :: [FuncCall], False)}
@@ -199,8 +200,8 @@ getAbstracted g2call solver simplifier share s bindings abs_fc@(FuncCall { funcN
                 }] -> do
                   let fs' = modelToExprEnv fs
                   (fs'', bindings'', gfc') <- reduceFuncCallMaybeList g2call solver simplifier share bindings' fs' gfc
-                  let ar = Abstracted { abstract = repTCsFC (type_classes s) $ modifyContainedASTs (inline (expr_env fs'') HS.empty) abs_fc
-                                      , real = repTCsFC (type_classes s) $ abs_fc { returns = (inline (expr_env fs'') HS.empty ce) }
+                  let ar = Abstracted { abstract = repTCsFC (tyvar_env s) (type_classes s) $ modifyContainedASTs (inline (expr_env fs'') HS.empty) abs_fc
+                                      , real = repTCsFC (tyvar_env s) (type_classes s) $ abs_fc { returns = (inline (expr_env fs'') HS.empty ce) }
                                       , hits_lib_err_in_real = hle
                                       , func_calls_in_real = gfc' }
                   return ( s { expr_env = expr_env fs''
@@ -211,14 +212,14 @@ getAbstracted g2call solver simplifier share s bindings abs_fc@(FuncCall { funcN
             _ -> error $ "checkAbstracted': Bad return from g2call"
     | otherwise = error $ "getAbstracted: Bad lookup in g2call" ++ show n
 
-repTCsFC :: TypeClasses -> FuncCall -> FuncCall 
-repTCsFC tc fc = fc { arguments = map (repTCs tc) (arguments fc)
-                    , returns = repTCs tc (returns fc) }
+repTCsFC :: TV.TyVarEnv -> TypeClasses -> FuncCall -> FuncCall 
+repTCsFC tv tc fc = fc { arguments = map (repTCs tv tc) (arguments fc)
+                    , returns = repTCs tv tc (returns fc) }
 
-repTCs :: TypeClasses -> Expr -> Expr
-repTCs tc e
-    | isTypeClass tc $ (typeOf e)
-    , TyCon n _:t:_ <- unTyApp (typeOf e)
+repTCs :: TV.TyVarEnv -> TypeClasses -> Expr -> Expr
+repTCs tv tc e
+    | isTypeClass tc $ (typeOf tv e)
+    , TyCon n _:t:_ <- unTyApp (typeOf tv e)
     , Just tc_dict <- typeClassInst tc HM.empty n t = tc_dict
     | otherwise = e
 
@@ -413,11 +414,14 @@ reduceFCExpr :: ( MonadIO m
                 , Named t)
              => G2Call solver simplifier -> SomeReducer m t -> solver -> simplifier -> State t -> Bindings -> Expr -> m ((State t, Bindings), Expr)
 reduceFCExpr g2call reducer solver simplifier s bindings e 
-    | not . isTypeClass (type_classes s) $ (typeOf e) = do
+    | Var (Id n _) <- e
+    , n `TV.member` (tyvar_env s)
+    , Just t <- TV.deepLookup (tyvar_env s) e = return ((s, bindings), Type t) 
+    | not (isTypeClass (type_classes s) $ (typeOf (tyvar_env s) e)) = do
         let s' = elimAssumesExcept
                . elimAsserts
                . pickHead
-               . elimSymGens (arb_value_gen bindings)
+               . elimSymGens (arb_value_gen bindings) (name_gen bindings)
                . modelToExprEnv $
                    s { curr_expr = CurrExpr Evaluate e}
 
@@ -438,8 +442,8 @@ reduceFCExpr g2call reducer solver simplifier s bindings e
                            , path_conds = path_conds fs }
                         , bindings { name_gen = name_gen bindings' }), ce)
             _ -> error $ "reduceFCExpr: Bad reduction"
-    | isTypeClass (type_classes s) $ (typeOf e)
-    , TyCon n _:_ <- unTyApp (typeOf e)
+    -- Must be a typeclass, or would have gotten caught in previous guard
+    | TyCon n _:_ <- unTyApp (typeOf (tyvar_env s) e)
     , _:Type t:_ <- unApp e
     , Just tc_dict <- typeClassInst (type_classes s) HM.empty n t = 
           return $ ((s, bindings), tc_dict) 
@@ -497,19 +501,19 @@ mkAssertsTrue' :: Expr -> Expr -> Expr
 mkAssertsTrue' tre (G2.Assert fc _ e) = G2.Assert fc tre e
 mkAssertsTrue' _ e = e
 
-elimSymGens :: ArbValueGen -> State t -> State t
-elimSymGens arb s = s { expr_env = E.map esg $ expr_env s }
+elimSymGens :: ArbValueGen -> NameGen -> State t -> State t
+elimSymGens arb ng s = s { expr_env = E.map esg $ expr_env s }
   where
     -- Rewriting the whole ExprEnv is slow, so we only
     -- rewrite an Expr if needed.
     esg e = 
         if hasSymGen e
-            then modify (elimSymGens' (type_env s) arb) e
+            then modify (elimSymGens' s arb ng) e
             else e
 
-elimSymGens' :: TypeEnv -> ArbValueGen -> Expr -> Expr
-elimSymGens' tenv arb (SymGen _ t) = fst $ arbValue t tenv arb
-elimSymGens' _ _ e = e
+elimSymGens' :: State t -> ArbValueGen -> NameGen -> Expr -> Expr
+elimSymGens' s arb ng (SymGen _ t) = fst4 $ arbValue s ng t arb
+elimSymGens' _ _ _ e = e
 
 hasSymGen :: Expr -> Bool
 hasSymGen = getAny . eval hasSymGen'

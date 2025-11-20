@@ -4,6 +4,7 @@
 
 module G2.Language.Expr ( module G2.Language.Casts
                         , eqUpToTypes
+                        , eqUpToTypesInline
                         , unApp
                         , mkApp
                         , mkDCTrue
@@ -103,27 +104,47 @@ import Data.Maybe
 import Data.Semigroup
 
 eqUpToTypes :: Expr -> Expr -> Bool
-eqUpToTypes (Var (Id n _)) (Var (Id n' _)) = n == n'
-eqUpToTypes (Lit l) (Lit l') = l == l'
-eqUpToTypes (Prim p _) (Prim p' _) = p == p'
-eqUpToTypes (Data (DataCon n _ _ _)) (Data (DataCon n' _ _ _)) = n == n'
-eqUpToTypes (App e1 e2) (App e1' e2') = e1 `eqUpToTypes` e1' && e2 `eqUpToTypes` e2'
-eqUpToTypes (Lam lu (Id n _) e) (Lam lu' (Id n' _) e') = lu == lu' && n == n' && e `eqUpToTypes` e'
-eqUpToTypes (Let b e) (Let b' e') =
-    let
-        be_eq = all (\((Id n _, be), (Id n' _, be')) -> n == n' && be `eqUpToTypes` be') $ zip b b'
-    in
-    be_eq && e `eqUpToTypes` e'
-eqUpToTypes (Case _ _ _ _) (Case _ _ _ _) = error "Case not supported"
-eqUpToTypes (Type _) (Type _) = True
-eqUpToTypes (Cast e _) (Cast e' _) = e `eqUpToTypes` e'
-eqUpToTypes (Coercion _) (Coercion _) = True
-eqUpToTypes (Tick _ e) (Tick _ e') = e `eqUpToTypes` e'
-eqUpToTypes (NonDet es) (NonDet es') = all (uncurry eqUpToTypes) $ zip es es'
-eqUpToTypes (SymGen _ _) (SymGen _ _) = True
-eqUpToTypes (Assume _ _ _) (Assume _ _ _) = True
-eqUpToTypes (Assert _ _ _) (Assert _ _ _) = True
-eqUpToTypes _ _ = False
+eqUpToTypes = eqUpToTypesInline HS.empty E.empty
+
+eqUpToTypesInline :: HS.HashSet Name -- ^ Names not to inline
+                  -> ExprEnv
+                  -> Expr
+                  -> Expr
+                  -> Bool
+eqUpToTypesInline no_inline eenv = go no_inline no_inline
+    where
+        go _ _ (Var (Id n _)) (Var (Id n' _))
+            | n == n' = True
+        go seen1 seen2 (Var (Id n _)) e2
+            | HS.member n seen1 = False
+            | Just (E.Conc e1) <- E.lookupConcOrSym n eenv = go (HS.insert n seen1) seen2 e1 e2
+        go seen1 seen2 e1 (Var (Id n _))
+            | HS.member n seen2 = False
+            | Just (E.Conc e2) <- E.lookupConcOrSym n eenv = go seen1 (HS.insert n seen2) e1 e2
+        go _ _ (Lit l) (Lit l') = l == l'
+        go _ _ (Prim p _) (Prim p' _) = p == p'
+        go _ _ (Data (DataCon n _ _ _)) (Data (DataCon n' _ _ _)) = n == n'
+        go seen1 seen2 (App e1 e2) (App e1' e2') = go seen1 seen2 e1 e1' && go seen1 seen2 e2 e2'
+        go seen1 seen2 (Lam lu (Id n _) e) (Lam lu' (Id n' _) e') = lu == lu' && n == n' && go seen1 seen2 e e'
+        go seen1 seen2 (Let b e) (Let b' e') =
+            let
+                be_eq = all (\((Id n _, be), (Id n' _, be')) -> n == n' && go seen1 seen2 be be') $ zip b b'
+            in
+            be_eq && go seen1 seen2 e e'
+        go seen1 seen2 (Case e1 _ _ as1) (Case e2 _ _ as2) =
+            go seen1 seen2 e1 e2 && all (uncurry (goAlt seen1 seen2)) (zip as1 as2)
+        go _ _ (Type _) (Type _) = True
+        go seen1 seen2 (Cast e _) (Cast e' _) = go seen1 seen2 e e'
+        go _ _ (Coercion _) (Coercion _) = True
+        go seen1 seen2 (Tick _ e) (Tick _ e') = go seen1 seen2 e e'
+        go seen1 seen2 (NonDet es) (NonDet es') = all (uncurry (go seen1 seen2)) $ zip es es'
+        go _ _ (SymGen _ _) (SymGen _ _) = True
+        go _ _ (Assume _ _ _) (Assume _ _ _) = True
+        go _ _ (Assert _ _ _) (Assert _ _ _) = True
+        go _ _ _ _ = False
+
+        goAlt seen1 seen2 (Alt match1 e1) (Alt match2 e2) = match1 == match2 && go seen1 seen2 e1 e2
+
 
 -- | Unravels the application spine.
 unApp :: Expr -> [Expr]
@@ -214,13 +235,13 @@ mkIdentity t =
     in
     Lam TermL x (Var x)
 
-mkEqExpr :: KnownValues -> Expr -> Expr -> Expr
-mkEqExpr kv e1 e2 = App (App eq e1) e2
-    where eq = mkEqPrimType (typeOf e1) kv
+mkEqExpr :: TyVarEnv -> KnownValues -> Expr -> Expr -> Expr
+mkEqExpr tv kv e1 e2 = App (App eq e1) e2
+    where eq = mkEqPrimType (typeOf tv e1) kv
 
-mkEqPrimExpr :: KnownValues -> Expr -> Expr -> Expr
-mkEqPrimExpr kv e1 e2 = App (App eq e1) e2
-    where eq = mkEqPrimType (typeOf e1) kv
+mkEqPrimExpr :: TyVarEnv -> KnownValues -> Expr -> Expr -> Expr
+mkEqPrimExpr tv kv e1 e2 = App (App eq e1) e2
+    where eq = mkEqPrimType (typeOf tv e1) kv
 
 mkGeIntExpr :: KnownValues -> Expr -> Integer -> Expr
 mkGeIntExpr kv e num = App (App ge e) (Lit (LitInt num))
@@ -517,7 +538,7 @@ freeVars' _ _ _ = ([], [])
 alphaReduction :: ASTContainer m Expr => m -> m
 alphaReduction = modifyASTsMonoid alphaReduction'
 
-alphaReduction' :: Max Int -> Expr -> (Expr, Max Int)
+alphaReduction' :: Max Unique -> Expr -> (Expr, Max Unique)
 alphaReduction' mi l@(Lam u i@(Id (Name n m ii lo) t) e) =
     let
         mi' = mi + 1
@@ -530,13 +551,13 @@ alphaReduction' mi l@(Lam u i@(Id (Name n m ii lo) t) e) =
 alphaReduction' m e = (e, m)
 
 -- |  Performs beta reduction, if a Var is being applied 
-varBetaReduction :: ASTContainer m Expr => m -> m
-varBetaReduction = modifyASTs varBetaReduction'
+varBetaReduction :: ASTContainer m Expr => TyVarEnv ->  m -> m
+varBetaReduction tv m = modifyASTs (varBetaReduction' tv) m 
 
-varBetaReduction' :: Expr -> Expr
-varBetaReduction' a@(App (Lam _ i e) (Var v)) = 
-    if not (isTYPE . typeOf $ i) then replaceLamIds i v e else a
-varBetaReduction' e = e
+varBetaReduction' :: TyVarEnv -> Expr -> Expr
+varBetaReduction' tv a@(App (Lam _ i e) (Var v)) = 
+    if not (isTYPE . typeOf tv $ i) then replaceLamIds i v e else a
+varBetaReduction' _ e = e
 
 replaceLamIds :: Id -> Id -> Expr -> Expr
 replaceLamIds i i' v@(Var v') = if i == v' then Var i' else v
@@ -569,18 +590,18 @@ replaceLamIds i i' e = modifyChildren (replaceLamIds i i') e
 --      @ (\x -> undefined x) `seq` 1 @
 -- because the first will call undefined, and error, whereas the second will
 -- evaluate to 1.
-etaExpandTo :: ExprEnv -> NameGen -> Int -> Expr -> (Expr, NameGen)
-etaExpandTo eenv ng n (Lam u i e) =
+etaExpandTo :: TyVarEnv ->  ExprEnv -> NameGen -> Int -> Expr -> (Expr, NameGen)
+etaExpandTo tv eenv ng n (Lam u i e) =
     let
-        (e', ng') = etaExpandTo eenv ng n e
+        (e', ng') = etaExpandTo tv eenv ng n e
     in
     (Lam u i e', ng')
-etaExpandTo eenv ng n e = etaExpandTo' eenv ng n e
+etaExpandTo tv eenv ng n e = etaExpandTo' tv eenv ng n e
 
-etaExpandTo' :: ExprEnv -> NameGen -> Int -> Expr -> (Expr, NameGen)
-etaExpandTo' eenv ng n e = (addLamApps fn (typeOf e) e, ng')
+etaExpandTo' :: TyVarEnv -> ExprEnv -> NameGen -> Int -> Expr -> (Expr, NameGen)
+etaExpandTo' tv eenv ng n e = (addLamApps fn (typeOf tv e) e, ng')
     where
-        n' = n `min` numArgs e
+        n' = n `min` numArgs (typeOf tv e)
         n'' = validN eenv M.empty n' e
 
         (fn, ng') = freshNames n'' ng

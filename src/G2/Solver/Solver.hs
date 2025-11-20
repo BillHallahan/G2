@@ -7,6 +7,7 @@
 module G2.Solver.Solver ( Solver (..)
                         , TrSolver (..)
                         , Tr (..)
+                        , SatRes (..)
                         , SomeSolver (..)
                         , SomeTrSolver (..)
                         , Result (..)
@@ -33,6 +34,7 @@ module G2.Solver.Solver ( Solver (..)
 import G2.Language
 import G2.Language.Monad
 import qualified G2.Language.PathConds as PC
+import qualified G2.Language.TyVarEnv as TV
 
 import Data.Coerce
 import Data.Graph
@@ -50,6 +52,8 @@ data Result m u um = SAT m
                    | Unknown String um
                    deriving (Show, Eq)
 
+data SatRes = SatRes { sr_model :: Model, sr_tve :: TyVarEnv, sr_namegen :: !NameGen }
+
 -- | Defines an interface to interact with Solvers
 class Solver solver where
     -- | Checks if the given `PathConds` are satisfiable.
@@ -57,7 +61,7 @@ class Solver solver where
     
     -- | Checks if the given `PathConds` are satisfiable, and, if yes, gives a `Model`
     -- The model must contain, at a minimum, a value for each passed `Id`
-    solve :: forall t . solver -> State t -> Bindings -> [Id] -> PathConds -> IO (Result Model () ())
+    solve :: forall t . solver -> State t -> Bindings -> [Id] -> PathConds -> IO (Result SatRes () ())
 
     -- | Cleans up when the solver is no longer needed.  Default implementation
     -- does nothing
@@ -76,7 +80,7 @@ class TrSolver solver where
     -- | Checks if the given `PathConds` are satisfiable, and, if yes, gives a `Model`
     -- The model must contain, at a minimum, a value for each passed `Id`
     -- Allows modifying the solver, to track some state.
-    solveTr :: forall t . solver -> State t -> Bindings -> [Id] -> PathConds -> IO (Result Model () (), solver)
+    solveTr :: forall t . solver -> State t -> Bindings -> [Id] -> PathConds -> IO (Result SatRes () (), solver)
 
     -- | Cleans up when the solver is no longer needed.  Default implementation
     -- does nothing
@@ -120,32 +124,33 @@ checkRelated' sol s (p:ps) = do
         SAT _ -> checkRelated' sol' s ps
         r -> return (r, sol')
 
-solveRelated :: TrSolver a => ArbValueFunc -> a -> State t -> Bindings -> [Id] -> PathConds -> IO (Result Model () (), a)
+solveRelated :: TrSolver a => ArbValueFunc -> a -> State t -> Bindings -> [Id] -> PathConds -> IO (Result SatRes () (), a)
 solveRelated avf sol s b is pc = do
     solveRelated' avf sol s b HM.empty is $ PC.relatedSets pc
 
-solveRelated' :: TrSolver a => ArbValueFunc -> a -> State t -> Bindings -> Model -> [Id] -> [PathConds] -> IO (Result Model () (), a)
+solveRelated' :: TrSolver a => ArbValueFunc -> a -> State t -> Bindings -> Model -> [Id] -> [PathConds] -> IO (Result SatRes () (), a)
 solveRelated' avf sol s b m is [] =
     let 
         is' = filter (\i -> not $ idName i `HM.member` m) is
 
-        (_, nv) = mapAccumL
-            (\av_ (Id n t) ->
+        ((tv_env', _, ng'), nv) = mapAccumL
+            (\(tv_env_, av_, ng_) (Id n t) ->
                 let 
-                    (av_', v) = avf t (type_env s) av_
+                    (v, tv_env_', av_', ng_') = avf (s { tyvar_env = tv_env_}) ng_ t av_
                     in
-                    (v, (n, av_'))
-            ) (arb_value_gen b) is'
+                    ((tv_env_', av_', ng_'), (n, v))
+            ) (tyvar_env s, arb_value_gen b, name_gen b) is'
 
         m' = foldr (\(n, v) -> HM.insert n v) m nv
     in
-    return (SAT m', sol)
+    return (SAT $ SatRes m' tv_env' ng', sol)
 solveRelated' avf sol s b m is (p:ps) = do
     let is' = concat $ PC.map' PC.varIdsInPC p
     let is'' = ids p
     rm <- solveTr sol s b is' p
     case rm of
-        (SAT m', sol') -> solveRelated' avf sol' s b (HM.union m m') (is ++ is'') ps
+        (SAT (SatRes m' tv_env' ng'), sol') ->
+            solveRelated' avf sol' (s { tyvar_env = tv_env' }) (b { name_gen = ng' }) (HM.union m m') (is ++ is'') ps
         rm' -> return rm'
 
 instance Solver solver => Solver (GroupRelated solver) where
@@ -180,7 +185,7 @@ checkWithEither a b s pc = do
                 Unknown ub _ -> return $ (Unknown (ua ++ ",\n" ++ ub) (), a' :?> b')
                 rb' -> return (rb', a' :?> b')
 
-solveWithEither :: (TrSolver a, TrSolver b) => a -> b -> State t -> Bindings -> [Id] -> PathConds -> IO (Result Model () (), CombineSolvers a b)
+solveWithEither :: (TrSolver a, TrSolver b) => a -> b -> State t -> Bindings -> [Id] -> PathConds -> IO (Result SatRes () (), CombineSolvers a b)
 solveWithEither a b s binds is pc = do
     ra <- solveTr a s binds is pc 
     case ra of
@@ -204,8 +209,8 @@ instance Solver UndefinedHigherOrder where
             [Id _ (TyFun _ _)] -> return $ SAT ()
             _ -> return $ Unknown "UndefinedHigherOrder" ()
 
-    solve _ _ _ [i@(Id _ (TyFun _ _))] _ =
-        return $ SAT (HM.singleton (idName i) (Prim Undefined TyBottom))
+    solve _ s b [i@(Id _ (TyFun _ _))] _ =
+        return . SAT $ SatRes (HM.singleton (idName i) (Prim Undefined TyBottom)) (tyvar_env s) (name_gen b)
     solve _ _ _ _ _ = return (Unknown "UndefinedHigherOrder" ())
 
 instance (Solver a, Solver b) => Solver (CombineSolvers a b) where
@@ -255,6 +260,14 @@ instance (ASTContainer m e, ASTContainer u e) => ASTContainer (Result m u um) e 
     modifyContainedASTs f (UNSAT u) = UNSAT (modifyContainedASTs f u)
     modifyContainedASTs _ u@(Unknown _ _) = u
 
+instance ASTContainer SatRes Expr where
+    containedASTs (SatRes m tv_env _) = containedASTs m <> containedASTs tv_env
+    modifyContainedASTs f (SatRes m tv_env ng) = SatRes (modifyContainedASTs f m) (modifyContainedASTs f tv_env) ng
+
+instance ASTContainer SatRes Type where
+    containedASTs (SatRes m tv_env _) = containedASTs m <> containedASTs tv_env
+    modifyContainedASTs f (SatRes m tv_env ng) = SatRes (modifyContainedASTs f m) (modifyContainedASTs f tv_env) ng
+
 -- A solver that returns unknown on all but the most trivial (empty) PCs
 data UnknownSolver = UnknownSolver
 
@@ -262,8 +275,8 @@ instance Solver UnknownSolver where
     check _ _ pc
         | PC.null pc = return (SAT ())
         | otherwise = return (Unknown "unknown" ())
-    solve _ _ _ _ pc
-        | PC.null pc = return (SAT HM.empty)
+    solve _ s b _ pc
+        | PC.null pc = return (SAT $ SatRes HM.empty TV.empty (name_gen b))
         | otherwise = return (Unknown "unknown" ())
 
 -- | A solver that handles checking of certain equalities between variables and expressions.
@@ -372,23 +385,24 @@ instance Solver s => Solver (TimeSolver s) where
 data CommonSubExpElim s = CommonSubExpElim s
 
 instance Solver s => Solver (CommonSubExpElim s) where
-    check (CommonSubExpElim solver) s = check solver s . elimCommon (known_values s) 2
-    solve (CommonSubExpElim solver) s b is = solve solver s b is . elimCommon (known_values s) 2
+    check (CommonSubExpElim solver) s = check solver s . elimCommon (tyvar_env s) (known_values s) 2
+    solve (CommonSubExpElim solver) s b is = solve solver s b is . elimCommon (tyvar_env s) (known_values s) 2
     close (CommonSubExpElim solver) = close solver
 
-elimCommon :: KnownValues
+elimCommon :: TyVarEnv
+           -> KnownValues
            -> Int -- ^ Minimal value to consider an expression common
            -> PathConds
            -> PathConds
-elimCommon kv threshold pc =
+elimCommon tv kv threshold pc =
     let
         ng = mkNameGen pc
-        app_count = countApps kv pc
+        app_count = countApps tv kv pc
         app_common = HM.filter (>= threshold) app_count
 
         n = Name "el" Nothing 0 Nothing
         (app_new, _) = runNamingM (traverse (const (freshSeededNameN n)) app_common) ng
-        app_new_var = HM.mapWithKey (\e vn -> Var (Id vn (typeOf e))) app_new
+        app_new_var = HM.mapWithKey (\e vn -> Var (Id vn (typeOf tv e))) app_new
 
         var_to_app = map swap $ HM.toList app_new_var
 
@@ -402,7 +416,7 @@ elimCommon kv threshold pc =
                                 app_new_var' = HM.filter (/= e1) app_new_var
                                 e2' = foldr (uncurry replaceASTs) e2 (HM.toList app_new_var')
                             in
-                            PC.insert (ExtCond (mkEqExpr kv e1 e2') True))
+                            PC.insert (ExtCond (mkEqExpr tv kv e1 e2') True))
                         pc_fr
                         var_to_app
     in
@@ -416,11 +430,11 @@ instance Semigroup SumHM where
 instance Monoid SumHM where
     mempty = SumHM HM.empty
 
-countApps :: ASTContainer c Expr => KnownValues -> c -> HM.HashMap Expr Int
-countApps kv = coerce . evalContainedASTs go
+countApps :: ASTContainer c Expr => TyVarEnv -> KnownValues -> c -> HM.HashMap Expr Int
+countApps tv kv = coerce . evalContainedASTs go
     where
         go e@(App _ _)
-            | typeOf e == tyString kv =
+            | typeOf tv e == tyString kv =
                 SumHM (HM.singleton e 1) <> evalChildren go e
         go e = evalChildren go e
 

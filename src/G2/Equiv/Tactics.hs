@@ -93,8 +93,8 @@ validTotal s1 s2 ns hm =
       check (i, e) = (not $ (idName i) `elem` total_hs) || (totalExpr s2 ns [] e)
   in all check hm_list
 
-validTypes :: HM.HashMap Id Expr -> Bool
-validTypes hm = all (\((Id _ t), e) -> e T..:: t) $ HM.toList hm
+validTypes :: TyVarEnv -> HM.HashMap Id Expr -> Bool
+validTypes tv hm = all (\((Id _ t), e) -> typeOf tv e T..:: t) $ HM.toList hm
 
 restrictHelper :: StateET ->
                   StateET ->
@@ -102,7 +102,7 @@ restrictHelper :: StateET ->
                   Either [Lemma] (HM.HashMap Id Expr, HS.HashSet (Expr, Expr)) ->
                   Either [Lemma] (HM.HashMap Id Expr, HS.HashSet (Expr, Expr))
 restrictHelper s1 s2 ns hm_hs =
-    (\(hm, hs) -> if (validTotal s1 s2 ns hm) && (validTypes hm)
+    (\(hm, hs) -> if (validTotal s1 s2 ns hm) && (validTypes (tyvar_env s2) hm)
                               then Right (hm, hs)
                               else Left [])
     =<< A.moreRestrictive s1 s2 ns =<< hm_hs

@@ -6,6 +6,7 @@
 {-# LANGUAGE MultiParamTypeClasses, MultiWayIf, RankNTypes, ScopedTypeVariables #-}
 {-# LANGUAGE TupleSections, UndecidableInstances #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE CPP #-}
 
 {-| Module: G2.Execution.Reducer
 
@@ -52,6 +53,7 @@ module G2.Execution.Reducer ( Reducer (..)
                             , RedRules
                             , mkSimpleReducer
                             , liftReducer
+                            , liftReducerGhcT
                             , liftSomeReducer
 
                             , stdRed
@@ -79,6 +81,7 @@ module G2.Execution.Reducer ( Reducer (..)
                             , LimLogger (..)
                             , limLoggerConfig
                             , getLimLogger
+                            , getLimLogger'
 
                             , acceptTimeLogger
                             , numStepsLogger
@@ -96,6 +99,7 @@ module G2.Execution.Reducer ( Reducer (..)
                             -- * Halters
                             , mkSimpleHalter
                             , liftHalter
+                            , liftHalterGhcT
                             , liftSomeHalter
 
                             , swhnfHalter
@@ -124,6 +128,7 @@ module G2.Execution.Reducer ( Reducer (..)
                             -- * Orderers
                             , mkSimpleOrderer
                             , liftOrderer
+                            , liftOrdererGhcT
                             , liftSomeOrderer
                             , (<->)
                             , ordComb
@@ -159,6 +164,7 @@ import G2.Execution.ExecSkip
 import G2.Language
 import G2.Language.Approximation
 import G2.Language.KnownValues
+import G2.Language.HPC
 import qualified G2.Language.Monad as MD
 import qualified G2.Language.PathConds as PC
 import qualified G2.Language.Stack as Stck
@@ -181,10 +187,15 @@ import qualified Data.Text as T
 import qualified Data.Text.IO as T
 import Data.Tuple
 import Data.Time.Clock
+
+#if MIN_VERSION_GLASGOW_HASKELL(9,0,2,0)
+import GHC.Driver.Monad
+#else
+import GhcMonad (GhcT, liftGhcT)
+#endif
 import System.Clock
 import System.Directory
-
-import Debug.Trace
+import qualified G2.Language.TyVarEnv as TV 
 
 -- | Used when applying execution rules
 -- Allows tracking extra information to control halting of rule application,
@@ -280,6 +291,16 @@ liftReducer r = Reducer { initReducer = initReducer r
                         , onDiscard = \s rv -> SM.lift ((onDiscard r) s rv)
                         , afterRed = SM.lift (afterRed r)}
 
+-- | Lift a reducer from a component monad to a constructed monad. 
+liftReducerGhcT :: Monad m => Reducer m rv t -> Reducer (GhcT m) rv t
+liftReducerGhcT r = Reducer { initReducer = initReducer r
+                        , redRules = \rv s b -> liftGhcT ((redRules r) rv s b)
+                        , updateWithAll = updateWithAll r
+                        , onAccept = \s b rv -> liftGhcT ((onAccept r) s b rv)
+                        , onSolved = liftGhcT (onSolved r)
+                        , onDiscard = \s rv -> liftGhcT ((onDiscard r) s rv)
+                        , afterRed = liftGhcT (afterRed r)}
+
 -- | Lift a SomeReducer from a component monad to a constructed monad. 
 liftSomeReducer :: (Monad m1, SM.MonadTrans m2) => SomeReducer m1 t -> SomeReducer (m2 m1) t
 liftSomeReducer (SomeReducer r) = SomeReducer (liftReducer r )
@@ -343,6 +364,15 @@ liftHalter h = Halter { initHalt = initHalt h
                       , updateHalterWithAll = updateHalterWithAll h
                       , filterAllStates = id }
 
+liftHalterGhcT :: Monad m => Halter m rv r t -> Halter (GhcT m) rv r t
+liftHalterGhcT h = Halter { initHalt = initHalt h
+                      , updatePerStateHalt = updatePerStateHalt h
+                      , discardOnStart = discardOnStart h
+                      , stopRed = \hv pr s -> liftGhcT ((stopRed h) hv pr s)
+                      , stepHalter = stepHalter h
+                      , updateHalterWithAll = updateHalterWithAll h
+                      , filterAllStates = id }
+
 -- | Lift a SomeHalter from a component monad to a constructed monad. 
 liftSomeHalter :: (Monad m1, SM.MonadTrans m2) => SomeHalter m1 r t -> SomeHalter (m2 m1) r t
 liftSomeHalter (SomeHalter r) = SomeHalter (liftHalter r)
@@ -393,6 +423,13 @@ liftOrderer r = Orderer { initPerStateOrder = initPerStateOrder r
                         , orderStates = \sov pr s -> SM.lift ((orderStates r) sov pr s)
                         , updateSelected = updateSelected r
                         , stepOrderer = \sov pr xs s -> SM.lift ((stepOrderer r) sov pr xs s) }
+
+-- | Lift a Orderer from a component monad to a constructed monad. 
+liftOrdererGhcT :: Monad m => Orderer m sov b r t -> Orderer (GhcT m) sov b r t
+liftOrdererGhcT r = Orderer { initPerStateOrder = initPerStateOrder r
+                        , orderStates = \sov pr s -> liftGhcT ((orderStates r) sov pr s)
+                        , updateSelected = updateSelected r
+                        , stepOrderer = \sov pr xs s -> liftGhcT ((stepOrderer r) sov pr xs s) }
 
 -- | Lift a liftSomeOrderer from a component monad to a constructed monad. 
 liftSomeOrderer :: (Monad m1, SM.MonadTrans m2) => SomeOrderer m1 r t -> SomeOrderer (m2 m1) r t
@@ -595,14 +632,14 @@ nonRedPCSymFunc :: Monad m => RedRules m (Maybe SymFuncTicks) t
 nonRedPCSymFunc _
                 s@(State {curr_expr = cexpr
                          , exec_stack = stck
-                         , non_red_path_conds = (nre1, nre2) S.:<| nrs
+                         , non_red_path_conds = (focus, nre1, nre2) :*> nrs
                          })
                         b@(Bindings { name_gen = ng }) =
     
     let
         sft = defSymFuncTicks
         stck' = Stck.push (CurrExprFrame (EnsureEq nre2) cexpr) stck
-        s' = s { exec_stack = stck', non_red_path_conds = nrs }
+        s' = s { exec_stack = stck', non_red_path_conds = nrs, focused = focus }
 
         stripCenterTick (Tick _ e) = e
         stripCenterTick (App e1 e2) = App (stripCenterTick e1) e2
@@ -647,17 +684,18 @@ nonRedLibFuncs exec_names no_nrpc_names
                 s@(State { expr_env = eenv
                          , curr_expr = CurrExpr _ ce
                          , known_values = kv
+                         , tyvar_env = tvnv
                          }) 
                 b@(Bindings { name_gen = ng })
     | 
       -- We are NOT dealing with a symbolic function or a function that should not be put in the NRPCs
       Var (Id n _):_ <- unApp ce
-    , Just (Id n' _) <- E.deepLookupVar n eenv
+    , Just n' <- E.deepLookupVar n eenv
     , not (n' `HS.member` no_nrpc_names)
     , not (E.isSymbolic n' eenv)
-    , Just (s'@(State { curr_expr = CurrExpr _ _ }), _, ce', ng') <- createNonRed ng s = 
+    , Just (s'@(State { curr_expr = CurrExpr _ _ }), _, ce', ng') <- createNonRed ng Focused s = 
         let
-            (reaches_sym, sym_table') = reachesSymbolic sym_table eenv ce'
+            (reaches_sym, sym_table') = reachesSymbolicMemo sym_table eenv ce'
             (exec_skip, var_table') = if reaches_sym then checkDelayability eenv ce' ng exec_names var_table else (Skip, var_table)
         in
         case (reaches_sym, exec_skip) of
@@ -687,6 +725,7 @@ nonRedHigherOrderFunc
                 s@(State { expr_env = eenv
                          , curr_expr = CurrExpr _ ce
                          , known_values = kv
+                         , tyvar_env = tvnv
                          }) 
                 b@(Bindings { name_gen = ng })
     | 
@@ -698,7 +737,7 @@ nonRedHigherOrderFunc
     , (ae, stck') <- allApplyFrames (exec_stack s)
     , let es = es_ce ++ ae
 
-    , Just (s', _, _, ng') <- createNonRed ng s 
+    , Just (s', _, _, ng') <- createNonRed ng Focused s 
     = 
         let
             -- If we have an EnsureEq on the stack, we do not want to add function argument states because
@@ -707,7 +746,7 @@ nonRedHigherOrderFunc
             -- thus cannot clear out the stack
             (ng'', xs_new_g) = if noEnsureEq stck'
                             then L.mapAccumR
-                                    (funcArgState (map typeOf es) (returnType $ PresType t)) ng'
+                                    (funcArgState (map (typeOf tvnv) es) (returnType t)) ng'
                                     $ zip [0..] es
                             else (ng', [])
             xs = mapMaybe (fmap fst) xs_new_g
@@ -725,13 +764,13 @@ nonRedHigherOrderFunc
 
         -- | Generate `State`s to explore each function argument
         funcArgState all_args_ts ret_ty init_ng (this_arg_num, fa_e)
-            | isTyFun (typeOf fa_e) = 
+            | isTyFun (typeOf tvnv fa_e) = 
                     let
-                        ts = anonArgumentTypes fa_e
+                        ts = anonArgumentTypes (typeOf tvnv fa_e)
                         (is, ng') = freshIds ts ng_args
                         vs = map Var is
                         fa_e' = mkApp $ fa_e:vs
-                        (bindee, ng'') = freshId (typeOf this_arg) ng'
+                        (bindee, ng'') = freshId (typeOf tvnv this_arg) ng'
                         (ret_id, ng''') = freshId ret_ty ng''
 
                         -- Instantiate the symbolic function `n`
@@ -745,11 +784,11 @@ nonRedHigherOrderFunc
                     (ng''', Just $ (s { expr_env = eenv''
                                       , curr_expr = CurrExpr Evaluate fa_e'
                                       , exec_stack = stck }, Nothing))
-            | isPrimType (typeOf fa_e) = (init_ng, Nothing)
+            | isPrimType (typeOf tvnv fa_e) = (init_ng, Nothing)
             | otherwise =
                 let
-                    (g, ng') = freshId (TyFun (typeOf this_arg) ret_ty) ng_args
-                    (bindee, ng'') = freshId (typeOf this_arg) ng'
+                    (g, ng') = freshId (TyFun (typeOf tvnv this_arg) ret_ty) ng_args
+                    (bindee, ng'') = freshId (typeOf tvnv this_arg) ng'
                     g_app = Case (App (Var g) (Var this_arg)) bindee ret_ty [Alt Default  (Var bindee)]
                     f_def = mkLams (zip (repeat TermL) arg_is) g_app
 
@@ -791,17 +830,17 @@ nrpcApproxReducer solver no_inline no_nrpc_names config =
             return (s, b) }
 
     where
-        red rv s@(State { curr_expr = CurrExpr _ ce, expr_env = eenv }) b
+        red rv s@(State { curr_expr = CurrExpr _ ce, expr_env = eenv, tyvar_env = tvnv }) b
             | maybe True (allowed_frame . fst) (Stck.pop (exec_stack s))
             
             , let e = applyWrap (getExpr s) (exec_stack s)
             , Var (Id n _):_:_ <- unApp e
 
-            , Just (Id n' _) <- E.deepLookupVar n eenv
+            , Just n' <- E.deepLookupVar n eenv
             , not (n' `HS.member` no_nrpc_names)
             , not (E.isSymbolic n' eenv)
 
-            , not . isTyFun . typeOf $ e = do
+            , not . isTyFun . (typeOf tvnv) $ e = do
                 -- liftIO $ do
                 --     putStrLn $ "curr_expr s = " ++ show (getExpr s)
                 --     putStrLn $ "log_path s = " ++ show (log_path s)
@@ -816,14 +855,14 @@ nrpcApproxReducer solver no_inline no_nrpc_names config =
                                             moreRestrictiveIncludingPC
                                                         solver
                                                         mr_cont
-                                                        gen_lemma
+                                                        Nothing
                                                         lookupConcOrSymState
                                                         no_inline
                                                         prev
                                                         s'
                                                 ) xs
                 
-                let nr_s_ng = createNonRed (name_gen b) s
+                let nr_s_ng = createNonRed (name_gen b) Focused s
 
                 case nr_s_ng of
                     Just (nr_s, _, _, ng') | isJust approx -> return (Finished, [(nr_s, rv + 1)], b { name_gen = ng' })
@@ -833,25 +872,24 @@ nrpcApproxReducer solver no_inline no_nrpc_names config =
             , Just e <- E.lookup n eenv = return (Finished, [(s { curr_expr = CurrExpr Evaluate e }, rv)], b)
         red rv s b = return (Finished, [(s, rv)], b)
         
-        mr_cont = mrContIgnoreNRPCTicks gen_lemma lookupConcOrSymState
-        gen_lemma _ _ _ _ _ = ()
+        mr_cont = mrContIgnoreNRPCTicks Nothing lookupConcOrSymState
 
         allowed_frame (ApplyFrame _) = False
         allowed_frame _ = True
 
         applyWrap e stck | Just (ApplyFrame a, stck') <- Stck.pop stck = applyWrap (App e a) stck'
                          | otherwise = e
-
  
  -- If doing so is possible, create an NRPC for the current expression of the passed state
 createNonRed :: NameGen
+             -> GenFocus n
              -> State t
              -> Maybe
                       ( State t -- ^ New state with NRPC applied
                       , Id -- ^ New symbolic variable
                       , Expr -- ^ Expression added into the NRPCs (and equated to some symbolic variable)
                       , NameGen)
-createNonRed ng
+createNonRed ng focus
               s@(State { curr_expr = CurrExpr _ ce
                        , expr_env = eenv
                        , non_red_path_conds = nrs
@@ -861,7 +899,7 @@ createNonRed ng
     , (ae, stck) <- allApplyFrames (exec_stack s)
     , let es = es_ce ++ ae
           ce' = mkApp (v:es)
-    , Just (s', sym_i, ce_rep, ng') <- createNonRed' ng s ce' =
+    , Just (s', sym_i, ce_rep, ng') <- createNonRed' ng focus s ce' =
     let
         cexpr' = CurrExpr Return (Var sym_i)
         s'' = s' { curr_expr = cexpr'
@@ -873,6 +911,7 @@ createNonRed ng
   
 -- If doing so is possible, create an NRPC for passed expression
 createNonRed' :: NameGen
+              -> GenFocus n
               -> State t
               -> Expr
               -> Maybe
@@ -881,21 +920,23 @@ createNonRed' :: NameGen
                       , Expr -- ^ Expression added into the NRPCs (and equated to some symbolic variable)
                       , NameGen)
 createNonRed' ng
+              focus
               s@(State { curr_expr = CurrExpr _ ce
                        , expr_env = eenv
                        , non_red_path_conds = nrs
-                       , known_values = kv }) e
+                       , known_values = kv
+                       , tyvar_env = tvnv }) e
             | v@(Var (Id _ t)):es <- unApp e
 
-            , hasFuncType (PresType t)
+            , hasFuncType t
 
-            , let e_ty = typeOf e
-            , not . hasFuncType . PresType $ e_ty
+            , let e_ty = typeOf tvnv e
+            , not $ hasFuncType e_ty
             -- Don't turn functions manipulating "magic types"- types represented as Primitives, with special handling
             -- (for instance, MutVars, Handles) into NRPC symbolic variables.
             , not (hasMagicTypes kv e) =
     let
-        (new_sym, ng') = freshSeededString "sym" ng
+        (new_sym, ng') = freshSeededName (Name "sym" Nothing 0 Nothing) ng
         new_sym_id = Id new_sym e_ty
         eenv' = E.insertSymbolic new_sym_id eenv
         -- when NRPC moves back to current expression, it immediately gets added as NRPC again.
@@ -905,13 +946,17 @@ createNonRed' ng
         (te, ng'') = nonRedBlockerTick ng' v
         e'' = mkApp $ te:es
 
-        nrs' = (e'', Var new_sym_id) S.:<| nrs
+        focus' = case focus of
+                    Focused -> Focused
+                    Unfocused _ -> Unfocused (idName new_sym_id)
+
+        (ng''', nrs') = addFirstNRPC ng'' focus' e'' (Var new_sym_id) nrs
 
         s' = s { expr_env = eenv'
                , non_red_path_conds = nrs' }
     in
-    Just (s', new_sym_id, e'', ng'')
-createNonRed' _ _ _ = Nothing
+    Just (s', new_sym_id, e'', ng''')
+createNonRed' _ _ _ _ = Nothing
 
 hasMagicTypes :: ASTContainer c Type => KnownValues -> c -> Bool
 hasMagicTypes kv = getAny . evalASTs hmt
@@ -990,7 +1035,8 @@ strictRed = mkSimpleReducer (\_ -> ())
     where
         strict_red _ s@(State { curr_expr = ce@(CurrExpr Return e)
                               , expr_env = eenv
-                              , exec_stack = stck })
+                              , exec_stack = stck
+                              , tyvar_env = tvnv })
                      b@(Bindings { name_gen = ng })
             -- If the next frame is ensuring equality with another structure, allow it to be handled by the rules
             -- for EnsureEq, so that we get i.e. pruning of expression which have different central data constructors
@@ -1009,7 +1055,7 @@ strictRed = mkSimpleReducer (\_ -> ())
                     --   @ D x1 ... xk@
                     -- and inserts @x1 -> e1@, ..., @xk -> ek@ in the heap.  This means we can then evaluate
                     -- `x1, ... xk` and rely on sharing to correctly get a fully evaluated expression.
-                    (is, ng') = freshIds (map typeOf es) ng
+                    (is, ng') = freshIds (map (typeOf tvnv) es) ng
                     eenv' = foldl' (\env (Id n _, e_) -> E.insert n e_ env) eenv $ zip is es
                     ce_expr = mkApp $ Data d:map Var is
                     ce' = CurrExpr Return ce_expr
@@ -1028,17 +1074,21 @@ strictRed = mkSimpleReducer (\_ -> ())
                 -- To decide when to apply the strictRed, we must 
                 -- (1) remove all update frames from the top of the stack
                 -- (2) check if the top of the stack is a CurrExprFrame (or if the stack is empty empty)
-                -- We effectively ignore UpdateFrames when checking if we should split up an expression to force strictness
-                -- See Note [Ignore Update Frames].
-                (updates, stck') = pop_updates [] stck
+                -- (3) check if the top of the stack is a CurrExprFrame (or empty)
+
+                -- We effectively ignore UpdateFrames and CastFrames when checking if we should split up an expression to force strictness
+                -- The expression `e` wrapped in a cast might be in SWHNF.  In this case, the whole cast is in SWHNF,
+                -- and we do not want to prevent reduction of the subexpressions in `e`.
+                -- For an explanation of UpdateFrames, see Note [Ignore Update Frames].
+                (updates, stck') = pop_updates_casts [] stck
 
                 exec_done | Stck.null stck' = True
                           | Just (CurrExprFrame _ _, _) <- Stck.pop stck' = True
                           | otherwise = False
 
-                pop_updates ns stck | Just (UpdateFrame n, stck_) <- Stck.pop stck = pop_updates (n:ns) stck_
-                                    | otherwise = (ns, stck)
-
+                pop_updates_casts ns stck | Just (UpdateFrame n, stck_) <- Stck.pop stck = pop_updates_casts (n:ns) stck_
+                                          | Just (CastFrame _, stck_) <- Stck.pop stck = pop_updates_casts ns stck_
+                                          | otherwise = (ns, stck)
                 -- | Does the expression contain non-fully-reduced subexpressions?
                 --
                 -- Looks through variables, but tracks seen variable names to avoid an infinite loop.
@@ -1062,7 +1112,13 @@ strictRed = mkSimpleReducer (\_ -> ())
 
                 mr_var cont ns n | HS.member n ns = False -- If we have seen a variable already,
                                                           -- we will have already discovered if it needs to be reduced
-                                 | E.isSymbolic n eenv = False
+                                 | E.isSymbolic n eenv = case E.lookup n eenv of 
+                                                        -- n is a symbolic polymorphic function, enabled by RankNTypes. 
+                                                        -- Because it's return type may be a type variable bound in it's
+                                                        -- forall, we cannot replace it with a constant function, so it
+                                                        -- must be reduced.
+                                                        Just (Var (Id _ (TyForAll _ _))) -> True
+                                                        _ -> False
                                  | otherwise = maybe True (cont (HS.insert n ns)) (E.lookup n eenv)
         strict_red _ s b = return (NoProgress, [(s, ())], b)
 
@@ -1086,8 +1142,9 @@ nonRedPCRedFunc prune _
                 s@(State { expr_env = eenv
                          , curr_expr = cexpr
                          , exec_stack = stck
-                         , non_red_path_conds = (nre1, nre2) S.:<| nrs
-                         , model = m })
+                         , non_red_path_conds = (focus, nre1, nre2) :*> nrs
+                         , model = m
+                         , tyvar_env = tvnv })
                 b@(Bindings { higher_order_inst = inst })
     -- If our goal is to violate assertions, and we haven't violated an assertion yet when
     -- we get to NRPCs, just discard the state.
@@ -1096,7 +1153,7 @@ nonRedPCRedFunc prune _
     | not (true_assert s), prune = return (Finished, [], b)
     | Var (Id n t) <- nre2
     , E.isSymbolic n eenv
-    , hasFuncType (PresType t) =
+    , hasFuncType t =
         let
             s' = s { expr_env = E.insert n nre1 eenv
                    , non_red_path_conds  = nrs }
@@ -1104,7 +1161,7 @@ nonRedPCRedFunc prune _
         return (InProgress, [(s', ())], b)
     | Var (Id n t) <- nre1
     , E.isSymbolic n eenv
-    , hasFuncType (PresType t) =
+    , hasFuncType t =
         let
             s' = s { expr_env = E.insert n nre2 eenv
                    , non_red_path_conds  = nrs }
@@ -1115,10 +1172,11 @@ nonRedPCRedFunc prune _
 
         let cexpr' = CurrExpr Evaluate nre1
 
-        let eenv_si_ces = substHigherOrder eenv m inst cexpr'
+        let eenv_si_ces = substHigherOrder tvnv eenv m inst cexpr'
 
         let s' = s { exec_stack = stck'
                    , non_red_path_conds = nrs
+                   , focused = focus
                    }
             xs = map (\(eenv', m', ce) -> (s' { expr_env = eenv'
                                               , model = m'
@@ -1131,26 +1189,28 @@ nonRedPCRedFunc _ _ s b = return (Finished, [(s, ())], b)
 -- Substitutes all possible higher order functions for symbolic higher order functions.
 -- We insert the substituted higher order function directly into the model, because, due
 -- to the VAR-RED rule, the function name will (if the function is called) be lost during execution.
-substHigherOrder :: ExprEnv -> Model -> HS.HashSet Name -> CurrExpr -> [(ExprEnv, Model, CurrExpr)]
-substHigherOrder eenv m ns ce =
+substHigherOrder :: TyVarEnv -> ExprEnv -> Model -> HS.HashSet Name -> CurrExpr -> [(ExprEnv, Model, CurrExpr)]
+substHigherOrder tv eenv m ns ce =
     let
         is = mapMaybe (\n -> case E.lookup n eenv of
-                                Just e -> Just $ Id n (typeOf e)
+                                Just e -> Just $ Id n (typeOf tv e)
                                 Nothing -> Nothing) $ HS.toList ns
 
-        higherOrd = filter (isTyFun . typeOf) . symbVars eenv $ ce
+        higherOrd = filter (isTyFun . typeOf tv) . symbVars eenv $ ce
         higherOrdSub = map (\v -> (v, mapMaybe (genSubstitutable v) is)) higherOrd
     in
     substHigherOrder' [(eenv, m, ce)] higherOrdSub
     where
         genSubstitutable v i
-            | Just bm <- specializes (typeOf v) (typeOf i) =
+            | Just bm <- specializes (typeOf tv v) t_i =
                 let
-                    bnds = map idName $ leadingTyForAllBindings i
-                    tys = mapMaybe (\b -> fmap Type $ M.lookup b bm) bnds
+                    bnds = map idName $ leadingTyForAllBindings t_i
+                    tys = mapMaybe (\b -> fmap Type $ TV.lookup b bm) bnds
                 in
                 Just . mkApp $ Var i:tys
             | otherwise = Nothing
+            where
+                t_i = typeOf tv i
 
 substHigherOrder' :: [(ExprEnv, Model, CurrExpr)] -> [(Id, [Expr])] -> [(ExprEnv, Model, CurrExpr)]
 substHigherOrder' eenvsice [] = eenvsice
@@ -1176,17 +1236,18 @@ nonRedPCRedConstFunc _
                      s@(State { expr_env = eenv
                               , curr_expr = cexpr
                               , exec_stack = stck
-                              , non_red_path_conds = (nre1, nre2) S.:<| nrs
-                              , model = m })
+                              , non_red_path_conds = (focus, nre1, nre2) :*> nrs
+                              , model = m
+                              , tyvar_env = tvnv })
                      b@(Bindings { name_gen = ng })
-    | higher_ord <- L.filter (isTyFun . typeOf) $ E.symbolicIds eenv
+    | higher_ord <- L.filter (isTyFun . typeOf tvnv) $ E.symbolicIds eenv
     , not (null higher_ord) = do
         let stck' = Stck.push (CurrExprFrame (EnsureEq nre2) cexpr) stck
 
         let cexpr' = CurrExpr Evaluate nre1
 
-        let (ng', new_lam_is) = L.mapAccumL (\ng_ ts -> swap $ freshIds ts ng_) ng (map anonArgumentTypes higher_ord)
-            (new_sym_gen, ng'') = freshIds (map returnType higher_ord) ng'
+        let (ng', new_lam_is) = L.mapAccumL (\ng_ ts -> swap $ freshIds ts ng_) ng (map (anonArgumentTypes . typeOf tvnv) higher_ord)
+            (new_sym_gen, ng'') = freshIds (map (returnType . typeOf tvnv) higher_ord) ng'
 
             es = map (\(f_id, lam_i, sg_i) -> (f_id, mkLams (zip (repeat TermL) lam_i) (Var sg_i)) )
                $ zip3 higher_ord new_lam_is new_sym_gen
@@ -1196,11 +1257,12 @@ nonRedPCRedConstFunc _
             m' = foldr (\(i, e) -> HM.insert (idName i) e) m es
 
         let s' = s { expr_env = eenv''
-                , curr_expr = cexpr'
-                , model = m'
-                , exec_stack = stck'
-                , non_red_path_conds = nrs
-                }
+                   , curr_expr = cexpr'
+                   , model = m'
+                   , exec_stack = stck'
+                   , non_red_path_conds = nrs
+                   , focused = focus
+                   }
 
         return (InProgress, [(s', ())], b { name_gen = ng'' })
 nonRedPCRedConstFunc _ s b = return (Finished, [], b)
@@ -1219,32 +1281,32 @@ taggerRedStep n _ s@(State {tags = ts}) b@(Bindings { name_gen = ng }) =
     else
         return (Finished, [(s, ())], b)
 
-
-getLogger :: (MonadIO m, SM.MonadState PrettyGuide m, Show t) => Config -> Maybe (Reducer m () t)
-getLogger config = case  con_log_mode . logger_config $ config of
-                        Log Raw fp -> Just (simpleLogger fp)
-                        Log Pretty fp -> Just (prettyLogger fp)
-                        NoLog -> Nothing
+getLogger :: (MonadIO m, SM.MonadState PrettyGuide m, Show t) => Config -> PrettyTrack t ->  Maybe (Reducer m () t)
+getLogger config pretty_track =
+    case con_log_mode . logger_config $ config of
+        Log Raw fp -> Just (simpleLogger fp)
+        Log Pretty fp -> Just (prettyLogger pretty_track fp)
+        NoLog -> Nothing
 
 -- | A Reducer to producer logging output 
 simpleLogger :: (MonadIO m, Show t) => FilePath -> Reducer m () t
 simpleLogger fn =
     (mkSimpleReducer (const ())
                      (\_ s b -> do
-                        liftIO $ outputState fn (log_path s) s b pprExecStateStr
+                        liftIO $ outputState stdFileNamer fn (log_path s) s b pprExecStateStr
                         return (NoProgress, [(s, ())], b) ))
                     { updateWithAll = \s -> map (\(s, i) -> s { log_path = log_path s ++ [i]} ) $ zip s [1..] }
 
 -- | A Reducer to producer logging output 
-prettyLogger :: (MonadIO m, SM.MonadState PrettyGuide m, Show t) => FilePath -> Reducer m () t
-prettyLogger fp =
+prettyLogger :: (MonadIO m, SM.MonadState PrettyGuide m) => PrettyTrack t -> FilePath -> Reducer m () t
+prettyLogger pretty_track fp =
     (mkSimpleReducer
         (const ())
         (\_ s b -> do
             pg <- SM.get
             let pg' = updatePrettyGuide (s { track = () }) pg
             SM.put pg'
-            liftIO $ outputState fp (log_path s) s b (\s_ _ -> T.unpack $ prettyState pg' s_)
+            liftIO $ outputState stdFileNamer fp (log_path s) s b (\s_ _ -> T.unpack $ prettyState pg' pretty_track s_)
             return (NoProgress, [(s, ())], b)
         )
 
@@ -1343,6 +1405,7 @@ data LimLogger =
               , lim_output_path :: String
               , filter_env :: Bool
               , order_env :: EnvOrdering
+              , output_name :: forall t . State t -> FilePath -- ^ Determine the file name for a particular state
               }
 
 limLoggerConfig :: FilePath -> LimLogger
@@ -1354,12 +1417,20 @@ limLoggerConfig fp = LimLogger { every_n = 0
                                , filter_env = False
                                , order_env = Unordered
                                , inline_nrpc = False
-                               , lim_output_path = fp }
+                               , lim_output_path = fp
+                               , output_name = \s -> "state" ++ show (length $ rules s) }
 
 newtype LLTracker = LLTracker { ll_count :: Int }
 
-getLimLogger :: (MonadIO m, SM.MonadState PrettyGuide m, Show t) => Config -> IO (Maybe (Reducer m LLTracker t))
-getLimLogger config = do
+getLimLogger :: (MonadIO m, SM.MonadState PrettyGuide m, Show t) => Config -> PrettyTrack t -> IO (Maybe (Reducer m LLTracker t))
+getLimLogger = getLimLogger' stdFileNamer
+
+getLimLogger' :: (MonadIO m, SM.MonadState PrettyGuide m, Show t) =>
+                 (forall t' . State t' -> FilePath)
+              -> Config
+              -> PrettyTrack t
+              -> IO (Maybe (Reducer m LLTracker t))
+getLimLogger' out_name config pretty_track = do
     cpg <- maybe
                 (return Nothing)
                 (\fp -> do
@@ -1375,15 +1446,16 @@ getLimLogger config = do
                                                          , down_path = con_down_path . logger_config $ config
                                                          , filter_env = con_filter_env . logger_config $ config
                                                          , order_env = if con_order_env . logger_config $ config then Ordered else Unordered     
-                                                         , inline_nrpc = con_inline_nrpc . logger_config $ config }
+                                                         , inline_nrpc = con_inline_nrpc . logger_config $ config
+                                                         , output_name = out_name }
                         NoLog -> limLoggerConfig ""
     
     case con_log_mode . logger_config $ config of
             Log Raw _ -> return . Just . limLogger $ ll_config
-            Log Pretty _ -> return . Just . prettyLimLogger $ ll_config
+            Log Pretty _ -> return . Just . prettyLimLogger pretty_track $ ll_config
             NoLog -> return Nothing
 
-genLimLogger :: (MonadIO m, Show t) => ([Int] -> State t -> Bindings -> m ()) -> LimLogger -> Reducer m LLTracker t
+genLimLogger :: MonadIO m => ([Int] -> State t -> Bindings -> m ()) -> LimLogger -> Reducer m LLTracker t
 genLimLogger out_f ll@(LimLogger { after_n = aft, before_n = bfr, down_path = down, conc_pc_guide = cpg }) =
     (mkSimpleReducer (const $ LLTracker { ll_count = every_n ll }) rr)
         { updateWithAll = updateWithAllLL
@@ -1413,10 +1485,11 @@ genLimLogger out_f ll@(LimLogger { after_n = aft, before_n = bfr, down_path = do
             map (\(s, i) -> s { log_path = log_path s ++ [i] }) $ zip ss [1..]
 
 limLogger :: (MonadIO m, Show t) => LimLogger -> Reducer m LLTracker t
-limLogger ll@(LimLogger {filter_env = f_env}) = genLimLogger (\off s b -> liftIO $ outputState (lim_output_path ll) off (if f_env then filterStateEnv s else s) b pprExecStateStr) ll
+limLogger ll@(LimLogger {filter_env = f_env}) =
+    genLimLogger (\off s b -> liftIO $ outputState (output_name ll) (lim_output_path ll) off (if f_env then filterStateEnv s else s) b pprExecStateStr) ll
 
-prettyLimLogger :: (MonadIO m, SM.MonadState PrettyGuide m, Show t) => LimLogger -> Reducer m LLTracker t
-prettyLimLogger ll@(LimLogger {filter_env = f_env, order_env = o_env}) =
+prettyLimLogger :: (MonadIO m, SM.MonadState PrettyGuide m) => PrettyTrack t -> LimLogger -> Reducer m LLTracker t
+prettyLimLogger pretty_track ll@(LimLogger {filter_env = f_env, order_env = o_env}) =
     genLimLogger (\off s@(State {}) b -> do
                 pg <- SM.get
                 let pg' = updatePrettyGuide (s { track = () }) pg
@@ -1424,7 +1497,7 @@ prettyLimLogger ll@(LimLogger {filter_env = f_env, order_env = o_env}) =
                 SM.put pg'
                 let pg'' = setEnvOrdering o_env pg'
                 let s'' = if f_env then filterStateEnv s' else s'     
-                liftIO $ outputState (lim_output_path ll) off s'' b (\s_ _ -> T.unpack $ prettyState pg'' s_)
+                liftIO $ outputState (output_name ll) (lim_output_path ll) off s'' b (\s_ _ -> T.unpack $ prettyState pg'' pretty_track s_)
     ) ll
 
 filterStateEnv :: State t -> State t
@@ -1440,16 +1513,21 @@ inlineNRPC s@(State { expr_env = eenv, non_red_path_conds = nrpc }) =
     s { non_red_path_conds = modifyContainedASTs (inline HS.empty) nrpc }
     where
         inline seen v@(Var (Id n _)) | n `HS.member` seen = v
-                                     | Just (E.Conc e) <- E.lookupConcOrSym n eenv
-                                     , Data _:_ <- unApp e = inline (HS.insert n seen) e
-                                     | Just (E.Conc e@(Var _)) <- E.lookupConcOrSym n eenv = inline (HS.insert n seen) e
+                                     | Just (E.Conc e) <- E.lookupConcOrSym n eenv =
+                                        if | Data _:_ <- unApp e -> inline (HS.insert n seen) e
+                                           | Var _:_ <- unApp e -> inline (HS.insert n seen) e
+                                           | Tick t te <- e -> Tick t (inline seen te)
+                                           | otherwise -> v
         inline seen (App e1 e2) = App (inline seen e1) (inline seen e2)
+        inline seen (Tick h e) = Tick h (inline seen e)
         inline _ e = e
 
+stdFileNamer :: State t -> FilePath
+stdFileNamer s = "state" ++ show (length $ rules s)
 
-outputState :: FilePath -> [Int] -> State t -> Bindings -> (State t -> Bindings -> String) -> IO ()
-outputState dn is s b printer = do
-    fn <- getFile dn is ("state" ++ show (length $ rules s))
+outputState :: (forall t' . State t' -> FilePath) -> FilePath -> [Int] -> State t -> Bindings -> (State t -> Bindings -> String) -> IO ()
+outputState calc_file_name dn is s b printer = do
+    fn <- getFile dn is (calc_file_name s)
 
     -- Don't re-output states that  already exist
     exists <- doesPathExist fn
@@ -1744,14 +1822,14 @@ approximationHalter' stop_cond solver no_inline = mkSimpleHalter
         -- (2) we then switch to a different state before doing any reduction
         -- (3) we eventually return to the state, and immediately run the halter
         -- to avoid this we only allow approximation against states that have taken fewer steps than our current state
-        stop _ pr s@(State { curr_expr = CurrExpr er init_e})
+        stop _ pr s@(State { curr_expr = CurrExpr er init_e, tyvar_env = tvnv})
             | -- maybe True (allowed_frame er . fst) 
             
               s'@(State { curr_expr = CurrExpr _ e}) <- stateAdjStack s
             , Stck.null (exec_stack s')
             , allowed_expr_frame er (unApp init_e) (unApp e) (fmap fst $ Stck.pop (exec_stack s))
 
-            , not . isTyFun . typeOf $ e = do
+            , not . isTyFun . (typeOf tvnv) $ e = do
                 -- liftIO $ do
                 --     putStrLn $ "approx halter log_path s = " ++ show (log_path s) ++ " " ++ show (num_steps s)
                 xs <- SM.gets ap_halter_states
@@ -1759,7 +1837,7 @@ approximationHalter' stop_cond solver no_inline = mkSimpleHalter
                 approx <- liftIO $ findM (\prev -> moreRestrictiveIncludingPCAndNRPC
                                                         solver
                                                         mr_cont
-                                                        gen_lemma
+                                                        Nothing
                                                         lookupConcOrSymState
                                                         no_inline
                                                         prev
@@ -1791,12 +1869,7 @@ approximationHalter' stop_cond solver no_inline = mkSimpleHalter
         stop _ _ _ = return Continue
         
         -- mr_cont _ _ _ _ _ _ _ _ _ = Left []
-        mr_cont = mrContIgnoreNRPCTicks gen_lemma lookupConcOrSymState
-        gen_lemma s1 s2 _ e1 e2 =
-            -- trace ("log_path s1 = " ++ show (log_path s1) ++ " " ++ show (num_steps s1)
-            --     ++ "\nlog_path s2 = " ++ show (log_path s2) ++ " " ++ show (num_steps s2)
-            --     ++ "\ne1 = " ++ show e1 ++ "\ne2 = " ++ show e2)
-            (e1, e2)
+        mr_cont = mrContIgnoreNRPCTicks Nothing lookupConcOrSymState
 
         allowed_expr Evaluate (Var _:_:_) = True
         allowed_expr Return (Data _:_) = True
@@ -1814,7 +1887,7 @@ approximationHalter' stop_cond solver no_inline = mkSimpleHalter
         allowed_expr_frame Evaluate (Var _:_:_) _ _ = True
         allowed_expr_frame _ _ _ _ = False
 
-mrContIgnoreNRPCTicks :: GenerateLemma t l
+mrContIgnoreNRPCTicks :: Maybe (GenerateLemma t l)
                       -> Lookup t
                       -> State t
                       -> State t
@@ -1828,14 +1901,13 @@ mrContIgnoreNRPCTicks :: GenerateLemma t l
                       -> Either [l] (HM.HashMap Id Expr, HS.HashSet (Expr, Expr))
 mrContIgnoreNRPCTicks genLemma lkp s1 s2 ns hm active n1 n2 e1 e2 =
     case (e1, e2) of
-        (Tick t1 e1', Tick t2 e2') | t1 /= t2 ->
-            moreRestrictive' (mrContIgnoreNRPCTicks genLemma lkp) genLemma lkp s1 s2 ns hm active n1 n2 e1' e2'
+        (Tick t1 e1', _) ->
+            moreRestrictive' (mrContIgnoreNRPCTicks genLemma lkp) genLemma lkp s1 s2 ns hm active n1 n2 e1' e2
+        (_, Tick t2 e2') ->
+            moreRestrictive' (mrContIgnoreNRPCTicks genLemma lkp) genLemma lkp s1 s2 ns hm active n1 n2 e1 e2'
         _ -> Left []
 
-
-type HPCMemoTable = HM.HashMap Name (HS.HashSet (Int, T.Text))
-
-noNewHPCHalter :: SM.MonadState HPCMemoTable m => HS.HashSet (Maybe T.Text) -> Halter m Int (ExecRes t) t
+noNewHPCHalter :: SM.MonadState HPCMemoTable m => HS.HashSet (Maybe T.Text) -> Halter m Unique (ExecRes t) t
 noNewHPCHalter mod_name = mkSimpleHalter
                                 (const 0)
                                 (\hv _ _ -> hv)
@@ -1850,28 +1922,12 @@ noNewHPCHalter mod_name = mkSimpleHalter
 
                 if HS.null diff1
                     then do
-                        reachable_hpc <- reachesHPC (expr_env s) (curr_expr s, exec_stack s, non_red_path_conds s)
+                        reachable_hpc <- reachesHPC' mod_name (expr_env s) (curr_expr s, exec_stack s, non_red_path_conds s)
                         let diff2 = HS.difference reachable_hpc acc_seen_hpc
                         if HS.null diff2 then do return Discard else do return Continue
                     else return Continue
             | otherwise = return Continue
         
-        reachesHPC :: (SM.MonadState HPCMemoTable m, ASTContainer c Expr) => ExprEnv -> c -> m (HS.HashSet (Int, T.Text))
-        reachesHPC eenv es = mconcat <$> mapM (reaches eenv) (containedASTs es) 
-
-        reaches :: SM.MonadState HPCMemoTable m => ExprEnv -> Expr -> m (HS.HashSet (Int, T.Text))
-        reaches eenv (Var (Id n _)) = do
-            seen <- SM.get
-            case HM.lookup n seen of
-                Just hpcs -> return hpcs
-                Nothing -> do
-                    SM.modify (HM.insert n HS.empty)
-                    hpcs <- maybe (return HS.empty) (reaches eenv) (E.lookup n eenv)
-                    SM.modify (HM.insert n hpcs)
-                    return hpcs
-        reaches eenv (Tick (HpcTick i t) e) | Just t `HS.member` mod_name = HS.insert (i, t) <$> reaches eenv e
-        reaches eenv e = mconcat <$> mapM (reaches eenv) (children e)
-
 acceptOnlyNewHPC :: (Monad m1, SM.MonadState HPCMemoTable (m2 m1), SM.MonadTrans m2) => Halter m1 r (ExecRes t) t -> Halter (m2 m1) r (ExecRes t) t
 acceptOnlyNewHPC h = 
         Halter {
@@ -2299,7 +2355,7 @@ logRedRuleNum _ _ _ = return ()
 --------
 
 -- | Solve for concrete values in a fully executed state.
-type SolveStates m r t = State t -> Bindings -> m (Maybe r)
+type SolveStates m r t = State t -> Bindings -> m (Maybe (r, NameGen))
 
 {-# INLINABLE runReducer #-}
 {-# SPECIALIZE runReducer :: Ord b =>
@@ -2357,17 +2413,18 @@ runReducer red hal ord solve_r analyze init_state init_bindings = do
                 ()
                     | hc == Accept -> do
                         (s', b') <- onAccept red s b r_val
-                        er <- solve_r s' b'
+                        er_ng <- solve_r s' b'
                         sequence_ $ analyze <*> pure (StateAccepted s') <*> pure pr <*> pure (map state . concat $ M.elems xs)
-                        pr' <- case er of
-                                    Just er' -> do
-                                        onSolved red
-                                        return $ pr {accepted = er':accepted pr}
-                                    Nothing -> return pr
+                        (pr', ng') <- case er_ng of
+                                        Just (er', ng) -> do
+                                            onSolved red
+                                            return $ (pr {accepted = er':accepted pr}, ng)
+                                        Nothing -> return (pr, name_gen b')
+                        let b'' = b' { name_gen = ng' }
                         let jrs = minState pr' xs
                         case jrs of
-                            Just (rs', xs') -> switchState pr' rs' b' xs'
-                            Nothing -> return (pr', b')
+                            Just (rs', xs') -> switchState pr' rs' b'' xs'
+                            Nothing -> return (pr', b'')
                     | hc == Discard -> do
                         onDiscard red s r_val
                         sequence_ $ analyze <*> pure (StateDiscarded s) <*> pure pr <*> pure (map state . concat $ M.elems xs)

@@ -10,8 +10,8 @@ import qualified Data.HashSet as HS
 
 -- A Var counts as being in EVF if it's symbolic or if it's unmapped.
 isSWHNF :: State t -> Bool
-isSWHNF (State { expr_env = h, curr_expr = CurrExpr _ e }) =
-  let t = typeOf e
+isSWHNF (State { expr_env = h, curr_expr = CurrExpr _ e, tyvar_env = tv }) =
+  let t = typeOf tv e
   in case e of
     Var _ -> (isPrimType t || not (concretizable t)) && isExprValueForm h e
     _ -> isExprValueForm h e
@@ -46,7 +46,7 @@ isExprValueForm eenv (App f a) = case unApp (App f a) of
     _ -> False
 isExprValueForm _ (Let _ _) = False
 isExprValueForm _ (Case _ _ _ _) = False
-isExprValueForm eenv (Cast e (t :~ _)) = not (hasFuncType t) && isExprValueForm eenv e
+isExprValueForm eenv (Cast e (t :~ _)) = isExprValueForm eenv e
 isExprValueForm _ (Tick _ _) = False
 isExprValueForm _ (NonDet _) = False
 isExprValueForm _ (SymGen _ _) = False
@@ -63,7 +63,7 @@ isExecValueForm :: State t -> Bool
 isExecValueForm state@(State { expr_env = eenv, curr_expr = CurrExpr _ e})
     | Nothing <- S.pop (exec_stack state)
     , CurrExpr Return _ <- curr_expr state
-    , non_red_path_conds state == emptyNRPC =
+    , nullNRPC (non_red_path_conds state) =
         case unApp e of
             [_] -> True
             Var (Id _ _):_ -> False
@@ -71,7 +71,7 @@ isExecValueForm state@(State { expr_env = eenv, curr_expr = CurrExpr _ e})
     | otherwise = False
 
 isExecValueFormDisNonRedPC :: State t -> Bool
-isExecValueFormDisNonRedPC s = isExecValueForm $ s {non_red_path_conds = emptyNRPC}
+isExecValueFormDisNonRedPC s = isExecValueForm $ s {non_red_path_conds = emptyNRPCNonUniq}
 
 normalForm :: E.ExprEnv -> Expr -> Bool
 normalForm = normalForm' HS.empty
@@ -88,7 +88,7 @@ normalForm' looked eenv (App f a) = case unApp (App f a) of
     _ -> False
 normalForm' _ _ (Let _ _) = False
 normalForm' _ _ (Case _ _ _ _) = False
-normalForm' looked eenv (Cast e (t :~ _)) = not (hasFuncType t) && normalForm' looked eenv e
+normalForm' looked eenv (Cast e (t :~ _)) = normalForm' looked eenv e
 normalForm' _ _ (Tick _ _) = False
 normalForm' _ _ (NonDet _) = False
 normalForm' _ _ (SymGen _ _) = False

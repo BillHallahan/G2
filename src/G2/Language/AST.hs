@@ -28,8 +28,8 @@ module G2.Language.AST
     ) where
 
 import qualified G2.Data.UFMap as UF
-import G2.Language.Syntax
 import G2.Language.AlgDataTy
+import G2.Language.Syntax
 
 import Data.Hashable
 import qualified Data.HashMap.Lazy as HM
@@ -37,6 +37,7 @@ import qualified Data.HashSet as HS
 import qualified Data.Map as M
 import qualified Data.Sequence as S
 import qualified Data.Text as T
+import qualified G2.Language.TyVarEnv as TV 
 
 -- | Describes data types that define an AST.
 class AST t where
@@ -365,11 +366,6 @@ instance ASTContainer RewriteRule Type where
            , ru_rhs = modifyContainedASTs f s
            }
 
--- instance (Foldable f, Functor f, ASTContainer c t) => ASTContainer (f c) t where
---     containedASTs = foldMap (containedASTs)
-
---     modifyContainedASTs f = fmap (modifyContainedASTs f)
-
 instance ASTContainer c t => ASTContainer [c] t where
     containedASTs = foldMap containedASTs
 
@@ -477,7 +473,6 @@ instance ASTContainer Int Type where
     containedASTs _ = []
     modifyContainedASTs _ t = t
 
-
 -- AlgDataTy
 instance ASTContainer AlgDataTy Expr where
     containedASTs _ = []
@@ -501,6 +496,25 @@ instance ASTContainer AlgDataTy DataCon where
     modifyContainedASTs f (DataTyCon ns dcs adts) = DataTyCon ns (modifyContainedASTs f dcs) adts
     modifyContainedASTs f (NewTyCon ns dc rt adts) = NewTyCon ns (modifyContainedASTs f dc) rt adts
     modifyContainedASTs _ st@(TypeSynonym _ _ _) = st
+
+instance ASTContainer TV.TyConcOrSym Type where
+    containedASTs (TV.TyConc t) = [t]
+    containedASTs (TV.TySym (Id _ t)) = [t]
+    
+    modifyContainedASTs f (TV.TyConc t) = TV.TyConc (f t)
+    modifyContainedASTs f (TV.TySym (Id n t)) = TV.TySym (Id n (f t))
+
+instance ASTContainer TV.TyVarEnv Type where
+    containedASTs = containedASTs . TV.toList
+    
+    modifyContainedASTs f c = TV.fromListConcOrSym (modifyContainedASTs f (TV.toListConcOrSym c) )
+
+instance ASTContainer TV.TyVarEnv Expr where
+    containedASTs _ = []
+    
+    modifyContainedASTs _ = id
+
+
 
 instance (ASTContainer k t, ASTContainer v t, Eq k, Hashable k) => ASTContainer (UF.UFMap k v) t where
     containedASTs = containedASTs . UF.toList

@@ -1,4 +1,7 @@
 module G2.Verify.Config ( VerifyConfig (..)
+                        , AbsFuncArgs (..)
+                        , AbsDataArgs (..)
+                        , SharedVarHeuristic (..)
                         , getVerifyConfigs
                         , defVerifyConfig) where
 
@@ -9,7 +12,17 @@ import Options.Applicative
 import System.Directory
 
 data VerifyConfig = VerifyConfig { rev_abs :: Bool
+                                 , arg_rev_abs :: AbsFuncArgs
+                                 , data_arg_rev_abs :: AbsDataArgs
+                                 , shared_var_heuristic :: SharedVarHeuristic
+                                 , syntactic_eq_ra :: Bool
                                  , approx :: Bool }
+
+data AbsFuncArgs = AbsFuncArgs | NoAbsFuncArgs deriving Eq
+
+data AbsDataArgs = AbsDataArgs | NoAbsDataArgs deriving Eq
+
+data SharedVarHeuristic = SharedVarHeuristic | NoSharedVarHeuristic deriving Eq
 
 getVerifyConfigs :: IO (String, String, VerifyConfig, Config)
 getVerifyConfigs = do
@@ -37,6 +50,10 @@ mkVerifyConfigInfo = info
 mkVerifyConfig :: Parser VerifyConfig
 mkVerifyConfig = VerifyConfig
             <$> flag True False (long "no-rev-abs" <> help "Do not use reversible abstractions")
+            <*> flag AbsFuncArgs NoAbsFuncArgs (long "no-arg-rev-abs" <> help "Do not apply reversible abstractions to function arguments")
+            <*> flag AbsDataArgs NoAbsDataArgs (long "no-data-arg-rev-abs" <> help "Do not apply reversible abstraction through data constructors in function arguments")
+            <*> flag SharedVarHeuristic NoSharedVarHeuristic (long "no-shared-var-heuristic" <> help "Do not apply reversible abstraction to function arguments only if there are shared variables")
+            <*> flag True False (long "no-syntactic-eq-ra" <> help "Do not take advantage of syntactically equivalent expressions to unify reversible abstractions or discard states")
             <*> flag True False (long "no-approx" <> help "Do not use approximation")
 
 defVerifyConfig :: VerifyConfig

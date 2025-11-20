@@ -14,19 +14,20 @@ import Control.Monad
 import qualified Data.HashMap.Lazy as HM
 import Data.Maybe
 import qualified Data.Text as T
+import qualified G2.Language.TyVarEnv as TV
 
 newtype UnionedTypes = UT (HM.HashMap Name Type) deriving Show
 
 lookupUT :: Name -> UnionedTypes -> Maybe Type
 lookupUT (Name n m _ l) (UT ut) = HM.lookup (Name n m 0 l) ut
 
-sharedTyConsEE :: [Name] -> ExprEnv -> UnionedTypes
-sharedTyConsEE ns eenv = fst $ runNamingM (sharedTyConsEE' ns eenv) (mkNameGen eenv)
+sharedTyConsEE :: TV.TyVarEnv -> [Name] -> ExprEnv -> UnionedTypes
+sharedTyConsEE tv ns eenv = fst $ runNamingM (sharedTyConsEE' tv ns eenv) (mkNameGen eenv)
 
-sharedTyConsEE' :: [Name] -> ExprEnv -> NameGenM UnionedTypes
-sharedTyConsEE' ns eenv = do
+sharedTyConsEE' :: TV.TyVarEnv -> [Name] -> ExprEnv -> NameGenM UnionedTypes
+sharedTyConsEE' tv ns eenv = do
     let f_eenv = E.filterWithKey (\n _ -> n `elem` ns) eenv
-        typeOf_eenv = E.map' typeOf f_eenv
+        typeOf_eenv = E.map' (typeOf tv) f_eenv
     tys <- mapM assignTyConNames typeOf_eenv
 
     let rep_eenv = E.map (repVars tys) f_eenv
@@ -34,13 +35,13 @@ sharedTyConsEE' ns eenv = do
     -- We want to try and be clever with passed in functions/lamdas to unify types when required,
     -- but we can do too much if we unify non-function types or inner lambdas.
     -- This is very much a heuristic.
-    rep_eenv'' <-   E.mapM (scrambleNonFuncLams >=> scrambleNonFuncLets)
+    rep_eenv'' <-   E.mapM (scrambleNonFuncLams >=> scrambleNonFuncLets tv)
                   . substLams
-                  . adjustLetTypes
+                  . adjustLetTypes tv
                 =<< E.mapM (assignTyConNames >=> elimTyForAll) rep_eenv'
 
     let union_poly = mconcat . map UF.joinedKeys . HM.elems
-                   . E.map' (fromMaybe UF.empty . checkType)
+                   . E.map' (fromMaybe UF.empty . fmap TV.toTypeUFMap . checkType tv) 
                    $ rep_eenv''
 
         union_tys = fmap (renameFromUnion union_poly) tys
@@ -48,34 +49,34 @@ sharedTyConsEE' ns eenv = do
     return . UT $ HM.mapKeys (\(Name n m _ l) -> Name n m 0 l) union_tys
 
 
-checkType :: Expr -> Maybe (UF.UFMap Name Type)
-checkType = check' UF.empty
+checkType :: TV.TyVarEnv -> Expr -> Maybe TV.TyVarEnv
+checkType tv e = check' tv TV.empty e
 
-check' :: UF.UFMap Name Type -> Expr -> Maybe (UF.UFMap Name Type)
-check' uf (Var (Id _ _)) = Just uf
-check' uf (Lit _) = Just uf
-check' uf (Prim _ _) = Just uf
-check' uf (Data _) = Just uf
-check' uf (App e1 e2) =
+check' :: TV.TyVarEnv -> TV.TyVarEnv -> Expr -> Maybe TV.TyVarEnv
+check' _ uf (Var (Id _ _)) = Just uf
+check' _ uf (Lit _) = Just uf
+check' _ uf (Prim _ _) = Just uf
+check' _ uf (Data _) = Just uf
+check' tv uf (App e1 e2) =
     let
-        t1 = case typeOf e1 of
+        t1 = case typeOf tv e1 of
                 TyFun t _ -> t
                 TyForAll (Id _ t) _ -> t
                 _ -> error "check: Unexpected type in App"
-        t2 = typeOf e2
+        t2 = typeOf tv e2
     in
-    unify' uf t1 t2 >>= flip check' e1 >>= flip check' e2
-check' uf (Lam _ _ e) = check' uf e
-check' uf (Let b e) = foldM check' uf (map snd b) >>= flip check' e
-check' uf (Case e _ _ alts) = foldM check' uf (map altExpr alts) >>= flip check' e
-check' uf (Type _) = Just uf
-check' uf (Cast e (t :~ _)) = unify' uf (typeOf e) t >>= flip check' e
-check' uf (Coercion (_ :~ _)) = Just uf
-check' uf (Tick _ t) = check' uf t
-check' uf (NonDet es) = foldM check' uf es
-check' uf (SymGen _ _) = Just uf
-check' uf (Assert _ e1 e2) = check' uf e1 >>= flip check' e2
-check' uf (Assume _ e1 e2) = check' uf e1 >>= flip check' e2
+    unify' uf t1 t2 >>= flip (check' tv) e1 >>= flip (check' tv) e2
+check' tv uf (Lam _ _ e) = check' tv uf e
+check' tv uf (Let b e) = foldM (check' tv) uf (map snd b) >>= flip (check' tv) e
+check' tv uf (Case e _ _ alts) = foldM (check' tv) uf (map altExpr alts) >>= flip (check' tv) e
+check' _ uf (Type _) = Just uf
+check' tv uf (Cast e (t :~ _)) = unify' uf (typeOf tv e) t >>= flip (check' tv) e
+check' _ uf (Coercion (_ :~ _)) = Just uf
+check' tv uf (Tick _ t) = check' tv uf t
+check' tv uf (NonDet es) = foldM (check' tv) uf es
+check' _ uf (SymGen _ _) = Just uf
+check' tv uf (Assert _ e1 e2) = check' tv uf e1 >>= flip (check' tv) e2
+check' tv uf (Assume _ e1 e2) = check' tv uf e1 >>= flip (check' tv) e2
 
 g2UnionNameText :: T.Text
 g2UnionNameText = "__G2__UNION__NAME__"
@@ -120,17 +121,17 @@ elimTypes' (Lam TypeL _ e) = elimTypes' e
 elimTypes' (App e (Type _)) = elimTypes' e
 elimTypes' e = e
 
-adjustLetTypes :: ASTContainer m Expr => m -> m
-adjustLetTypes = modifyASTs adjustLetTypes'
+adjustLetTypes :: ASTContainer m Expr => TV.TyVarEnv -> m -> m
+adjustLetTypes tv = modifyASTs (adjustLetTypes' tv)
 
-adjustLetTypes' :: Expr -> Expr
-adjustLetTypes' (Let ie e) =
+adjustLetTypes' :: TV.TyVarEnv -> Expr -> Expr
+adjustLetTypes' tv (Let ie e) =
     let
-        ie' = map (\(Id n _, le) -> (Id n (typeOf le), le)) ie
+        ie' = map (\(Id n _, le) -> (Id n (typeOf tv le), le)) ie
         f ((i_old, _), (i_new, _)) fe = modifyASTs (repVar (idName i_old) (Var i_new)) fe
     in
     foldr f (Let ie' e) (zip ie ie')
-adjustLetTypes' e = e
+adjustLetTypes' _ e = e
 
 substLams :: ASTContainer m Expr => m -> m
 substLams = modifyASTs substLams'
@@ -145,14 +146,14 @@ scrambleNonFuncLams (Lam u i@(Id n t) e) | not $ isTyFun t = do
 scrambleNonFuncLams (Lam u i e) = Lam u i <$> scrambleNonFuncLams e
 scrambleNonFuncLams e = return e
 
-scrambleNonFuncLets :: ASTContainerM m Expr => m -> NameGenM m
-scrambleNonFuncLets = modifyASTsM scrambleNonFuncLets'
+scrambleNonFuncLets :: ASTContainerM m Expr => TV.TyVarEnv -> m -> NameGenM m
+scrambleNonFuncLets tv = modifyASTsM (scrambleNonFuncLets' tv)
 
-scrambleNonFuncLets' :: Expr -> NameGenM Expr
-scrambleNonFuncLets' (Let b e) = do
-    let b' = map idName . filter (not . isTyFun . typeOf) . map fst $ b
+scrambleNonFuncLets' :: TV.TyVarEnv -> Expr -> NameGenM Expr
+scrambleNonFuncLets' tv (Let b e) = do
+    let b' = map idName . filter (not . isTyFun . typeOf tv) . map fst $ b
     foldM (flip scrambleNonFuncLamLetIds) (Let b e) b'
-scrambleNonFuncLets' e = return e
+scrambleNonFuncLets' _ e = return e
 
 scrambleNonFuncLamLetIds :: Name -> Expr -> NameGenM Expr
 scrambleNonFuncLamLetIds n = modifyASTsM (scrambleNonFuncLamLetIds' n)

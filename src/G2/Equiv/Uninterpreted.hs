@@ -19,15 +19,15 @@ addFreeVarsAsSymbolic eenv = let xs = freeVars eenv eenv
 
 -- we want to modify the rewrite-rules passed in checkrule and then apply subvars to the rule 
 addFreeTypes :: (ASTContainer c Expr, ASTContainer c Type, ASTContainer t Expr, ASTContainer t Type) => c -> State t -> NameGen -> (c, State t, NameGen) 
-addFreeTypes c s@(State {type_env = tenv }) ng =
+addFreeTypes c s@(State {type_env = tenv, tyvar_env = tvnv }) ng =
     let 
-        (tenv', ng') = freeTypesToTypeEnv (freeTypes tenv s) ng
+        (tenv', ng') = freeTypesToTypeEnv tvnv (freeTypes tenv s) ng
         tenv'' = HM.union tenv tenv'
         free_dc = HS.toList $ freeDC tenv'' s
         m = dataConMapping free_dc
         s' = subVars m s
         c' = subVars m c
-        n_te = addDataCons tenv'' free_dc
+        n_te = addDataCons tvnv tenv'' free_dc
     in (c', s' { type_env = n_te }, ng')
 
 allDC :: ASTContainer t Expr => t -> HS.HashSet DataCon
@@ -64,14 +64,14 @@ freeTypes typeEnv t = HM.toList $ HM.difference (HM.fromList $ allTypes t) typeE
 
 -- | we getting "free" typesnames and insert it into the TypeEnv with a "uninterprted" dataCons 
 -- Uninterpreted means there are potentially unlimited amount of datacons for a free type
-freeTypesToTypeEnv :: [(Name,Kind)] -> NameGen -> (TypeEnv, NameGen)
-freeTypesToTypeEnv nks ng = 
-    let (adts, ng') = mapNG freeTypesToTypeEnv' nks ng 
+freeTypesToTypeEnv :: TyVarEnv ->  [(Name,Kind)] -> NameGen -> (TypeEnv, NameGen)
+freeTypesToTypeEnv tv nks ng = 
+    let (adts, ng') = mapNG (freeTypesToTypeEnv' tv) nks ng 
     in  (HM.fromList adts, ng') 
 
-freeTypesToTypeEnv' :: (Name, Kind) -> NameGen -> ( (Name, AlgDataTy), NameGen)
-freeTypesToTypeEnv' (n,k) ng =
-    let (bids, ng') = freshIds (argumentTypes $ PresType k) ng 
+freeTypesToTypeEnv' :: TyVarEnv -> (Name, Kind) -> NameGen -> ( (Name, AlgDataTy), NameGen)
+freeTypesToTypeEnv' tv (n,k) ng =
+    let (bids, ng') = freshIds (argumentTypes k) ng 
         (dcs,ng'') = unknownDC ng' n k bids
         n_adt = (n, DataTyCon {bound_ids = bids,
                                data_cons = [dcs],
@@ -89,18 +89,18 @@ unknownDC ng n@(Name occn _ _ _) k is =
         in (DataCon dc_n tfa is [], ng')
 
 -- | add free Datacons into the TypeEnv at the appriorpate Type)
-addDataCons :: TypeEnv -> [DataCon] -> TypeEnv
-addDataCons = foldl' addDataCon
+addDataCons :: TyVarEnv -> TypeEnv -> [DataCon] -> TypeEnv
+addDataCons tv = foldl' (addDataCon tv)
 
-addDataCon :: TypeEnv -> DataCon -> TypeEnv
-addDataCon te dc | (TyCon n _):_ <- unTyApp $ returnType dc = 
+addDataCon :: TyVarEnv -> TypeEnv -> DataCon -> TypeEnv
+addDataCon tv te dc | (TyCon n _):_ <- unTyApp . returnType $ typeOf tv dc = 
     let dtc = HM.lookup n te
         adt = case dtc of 
                    Just (DataTyCon ids' dcs adts) -> DataTyCon {bound_ids = ids', data_cons = dc : dcs, adt_source = adts}
                    Nothing -> error "addDataCons: cannot find corresponding Name in TypeEnv"
                    Just _ -> error "addDataCons: Not DataTyCon AlgDataTy found"
         in HM.insert n adt te 
-addDataCon _ _ = error "addDataCon: Type of DataCon had incorrect form"
+addDataCon _ _ _ = error "addDataCon: Type of DataCon had incorrect form"
 
 -- | addMapping will handle classification between the DataCon and Type
 addMapping :: [DataCon] -> ExprEnv -> ExprEnv 

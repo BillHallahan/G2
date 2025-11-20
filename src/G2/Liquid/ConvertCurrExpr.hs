@@ -61,7 +61,8 @@ modifyInputExpr' i e = do
     e'' <- letLiftFuncs e'
     e''' <- replaceLocalAssert i e''
 
-    newI <- freshSeededIdN (idName i) (typeOf i)
+    tv <- tyVarEnv
+    newI <- freshSeededIdN (idName i) (typeOf tv i)
     insertE (idName newI) e'''
 
     return (newI, ns)
@@ -129,13 +130,24 @@ letLiftFuncs e = do
 letLiftFuncs' :: Expr -> LHStateM Expr
 letLiftFuncs' e
     | ars <- passedArgs e
-    , any (\case { Var _ -> False; _ -> True }) ars = do
+    , any (\case { Var _ -> False; Type _ -> False; _ -> True }) ars = do
         let c = appCenter e
-        is <- freshIdsN $ map typeOf ars
-
-        return . Let (zip is ars) . mkApp $ c:map Var is
+        (binds, f_ars) <- liftSel ars
+        return . Let binds . mkApp $ c:f_ars
     | otherwise = return e
 
+liftSel :: [Expr] -> LHStateM ([(Id, Expr)], [Expr])
+liftSel = go ([], [])
+    where
+        go (binds, r_es) [] = return (binds, reverse r_es)
+        go (binds, r_es) (e:es) =
+            case e of
+                Var _ -> go (binds, e:r_es) es
+                Type _ -> go (binds, e:r_es) es
+                _ -> do
+                    tv <- tyVarEnv
+                    i <- freshIdN $ typeOf tv e
+                    go ((i, e):binds, Var i:r_es) es
 
 -- | Tries to be more selective then liftLetFuncs, doesn't really work yet...
 letLiftHigherOrder :: Expr -> LHStateM Expr
@@ -145,12 +157,14 @@ letLiftHigherOrder' :: [Id] -> Expr -> LHStateM Expr
 letLiftHigherOrder' is e@(App _ _)
     | Var i <- appCenter e
     , i `elem` is = do
-        ni <- freshIdN (typeOf e)
+        tv <- tyVarEnv
+        ni <- freshIdN (typeOf tv e)
         e' <- modifyAppRHSE (letLiftHigherOrder' is) e
         return $ Let [(ni, e')] (Var ni)
     | d@(Data _) <- appCenter e = do
         let ars = passedArgs e
-        f_is <- freshIdsN $ map typeOf ars
+        tv <- tyVarEnv
+        f_is <- freshIdsN $ map (typeOf tv) ars
 
         ars' <- mapM (letLiftHigherOrder' f_is) ars
 
@@ -197,14 +211,15 @@ addCurrExprAssumption ifi (Bindings {fixed_inputs = fi}) = do
     (CurrExpr er ce) <- currExpr
 
     lh_tc_n <- lhTCM
+    tv <- tyVarEnv
     let lh_tc = TyCon lh_tc_n (TyFun TYPE TYPE)
-    let fi' = filter (\e -> tyAppCenter (typeOf e) /= lh_tc) fi
+    let fi' = filter (\e -> tyAppCenter (typeOf tv e) /= lh_tc) fi
 
     assumpt <- lookupAssumptionM (idName ifi)
     -- fi <- fixedInputs
     eenv <- exprEnv
     inames <- inputNames
-    let inames' = take (length $ argumentTypes ifi) inames
+    let inames' = take (length $ argumentTypes $ typeOf tv ifi) inames
 
     lh <- mapM (lhTCDict' HM.empty) $ mapMaybe typeType fi'
 
@@ -219,7 +234,7 @@ addCurrExprAssumption ifi (Bindings {fixed_inputs = fi}) = do
             inputs <- inputNames
             let matching = zipWith (\n (i, hi) -> (n, i, hi)) inputs $ drop (length higher_is - length inputs) $ zip assumpt_is higher_is
                 matching_higher = mapMaybe (\(n, i, hi) -> maybe Nothing (Just . (n, i,)) hi) matching
-                let_expr = Let (map (\(n, i, _) -> (snd i, Var (Id n . typeOf $ snd i))) matching_higher)
+                let_expr = Let (map (\(n, i, _) -> (snd i, Var (Id n . typeOf tv $ snd i))) matching_higher)
 
             let ce' = let_expr
                     . flip (foldr (uncurry replaceAssumeFC)) (map (\(n, (_, i), _) -> (idName i, n)) matching_higher)

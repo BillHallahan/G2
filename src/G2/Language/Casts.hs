@@ -14,6 +14,7 @@ import G2.Language.Naming
 import G2.Language.Syntax
 import G2.Language.Typing
 import Data.Monoid as M
+import qualified G2.Language.TyVarEnv as TV 
 
 containsCast :: ASTContainer m Expr => m -> M.Any
 containsCast = evalASTs isCast
@@ -52,8 +53,8 @@ unsafeElimOuterCast e = e
 -- we change the cast to be (t1 ~ t3) (t3 ~ t2).
 --
 -- Given any other expression, acts as the identity function
-splitCast :: NameGen -> Expr -> (Expr, NameGen)
-splitCast ng (Cast e ((TyFun t1 t2) :~ (TyFun t1' t2'))) =
+splitCast :: TV.TyVarEnv -> NameGen -> Expr -> (Expr, NameGen)
+splitCast _ ng (Cast e ((TyFun t1 t2) :~ (TyFun t1' t2'))) =
     let
         (i, ng') = freshId t1 ng
 
@@ -67,10 +68,10 @@ splitCast ng (Cast e ((TyFun t1 t2) :~ (TyFun t1' t2'))) =
                 )
     in
     (e', ng')
-splitCast ng (Cast e ((TyForAll ni t2) :~ (TyForAll ni' t2'))) =
+splitCast tv ng (Cast e ((TyForAll ni t2) :~ (TyForAll ni' t2'))) =
     let
-        t1 = typeOf ni
-        t1' = typeOf ni'
+        t1 = typeOf tv ni
+        t1' = typeOf tv ni'
 
         (i, ng') = freshId t1 ng
 
@@ -86,25 +87,24 @@ splitCast ng (Cast e ((TyForAll ni t2) :~ (TyForAll ni' t2'))) =
     (e', ng')
 -- splitCast ng c@(Cast e (t1 :~ t2)) =
 --     if hasFuncType (PresType t1) || hasFuncType (PresType t2) then (e, ng) else (c, ng)
-splitCast ng e = (e, ng)
+splitCast _ ng e = (e, ng)
 
 -- | Eliminates redundant casts.
-simplifyCasts :: ASTContainer m Expr => m -> m
-simplifyCasts = modifyASTsFix simplifyCasts'
-
-simplifyCasts' :: Expr -> Expr
-simplifyCasts' e
-    | (Cast (Cast e' (t1 :~ _)) (_ :~ t2)) <- e
-        = Cast e' (t1 :~ t2)
-    | (Cast e' (t1 :~ t2)) <- e
-    , PresType t2 .:: t1
-        = e'
-    | otherwise = e
+simplifyCasts :: ASTContainer m Expr => TV.TyVarEnv -> m -> m
+simplifyCasts tv_env = modifyASTsFix simplifyCasts'
+    where
+        simplifyCasts' e
+            | (Cast (Cast e' (t1 :~ _)) (_ :~ t2)) <- e
+                = Cast e' (t1 :~ t2)
+            | (Cast e' (t1 :~ t2)) <- e
+            , tyVarSubst tv_env t2 .:: tyVarSubst tv_env t1
+                = e'
+            | otherwise = e
 
 -- | Changes casts on functions to casts on non-functional values
 -- (As much as possible)
-liftCasts :: ASTContainer m Expr => m -> m 
-liftCasts = simplifyCasts . modifyASTsFix liftCasts'
+liftCasts :: ASTContainer m Expr => TV.TyVarEnv -> m -> m 
+liftCasts tv_env = simplifyCasts tv_env . modifyASTsFix liftCasts'
 
 liftCasts' :: Expr -> Expr
 liftCasts' a@(App _ _) =  liftCasts'' a
@@ -132,5 +132,5 @@ exprInCasts (Cast e _) = exprInCasts e
 exprInCasts e = e
 
 -- | Gets the type of an `Expr`, ignoring Casts.
-typeInCasts :: Expr -> Type
-typeInCasts = typeOf . exprInCasts
+typeInCasts :: TV.TyVarEnv -> Expr -> Type
+typeInCasts tv e = typeOf tv $ exprInCasts e

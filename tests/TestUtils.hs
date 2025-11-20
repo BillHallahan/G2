@@ -21,7 +21,9 @@ mkConfigTestIO = do
             -- , baseInclude = [ "./base-4.9.1.0/Control/Exception/"
             --                 , "./base-4.9.1.0/" ]
             , base = baseSimple homedir
-            , extraDefaultMods = [] }
+            , extraDefaultMods = []
+            , print_output = False 
+            }
 
 mkConfigTestWithSetIO :: IO Config
 mkConfigTestWithSetIO = mkConfigTestWithMapIO

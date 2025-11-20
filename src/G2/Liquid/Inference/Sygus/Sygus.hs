@@ -29,6 +29,7 @@ import qualified Data.Map as M
 import Data.Maybe
 import Data.Ratio
 import qualified Data.Text as T
+import qualified G2.Language.TyVarEnv as TV 
 
 import Language.Haskell.Liquid.Types as LH hiding (SP, ms, isBool)
 
@@ -48,14 +49,15 @@ generateSygusProblem ghci lrs evals meas_ex fc ut to_be_ns ns_synth = do
         tenv = type_env . state $ lr_state lrs
         tc = type_classes . state $ lr_state lrs
         meas = lrsMeasures ghci lrs
+        tyvarenv = tyvar_env . state $ lr_state lrs
 
-    si <- buildSpecInfo eenv tenv tc meas ghci fc ut to_be_ns ns_synth
+    si <- buildSpecInfo tyvarenv eenv tenv tc meas ghci fc ut to_be_ns ns_synth
 
     let grammar = buildGrammars si
 
     let eval_ids = assignIds evals
         to_be_consts = createToBeConsts si eval_ids
-    constraints <- constraintsToSygus eenv tenv meas meas_ex eval_ids si fc
+    constraints <- constraintsToSygus tyvarenv eenv tenv meas meas_ex eval_ids si fc
 
     let cmds = [ SmtCmd (Sy.SetLogic "ALL")] ++ to_be_consts ++ grammar ++ constraints ++ [CheckSynth]
 
@@ -121,7 +123,8 @@ buildGrammar' sy_spec =
 -------------------------------
 
 constraintsToSygus :: (InfConfigM m, ProgresserM m) =>
-                      NMExprEnv
+                      TV.TyVarEnv
+                   -> NMExprEnv
                    -> TypeEnv
                    -> Measures
                    -> MeasureExs
@@ -129,9 +132,9 @@ constraintsToSygus :: (InfConfigM m, ProgresserM m) =>
                    -> M.Map Name SpecInfo
                    -> FuncConstraints
                    -> m [Cmd]
-constraintsToSygus eenv tenv meas meas_ex evals si fc =
+constraintsToSygus tv eenv tenv meas meas_ex evals si fc =
     return . map Constraint =<<
-        convertConstraints 
+        convertConstraints tv
                     convertExprToTerm
                     (ifNotNull mkSygusAnd (TermLit (LitBool True)))
                     (ifNotNull mkSygusOr (TermLit (LitBool False)))

@@ -44,19 +44,19 @@ data PolyBound v = PolyBound v [PolyBound v] deriving (Eq, Read, Show, Functor, 
 -- ExprPolyBound
 -------------------------------
 
-extractExprPolyBoundWithRoot :: Expr -> ExprPolyBound
-extractExprPolyBoundWithRoot e = PolyBound [e] $ extractExprPolyBound e
+extractExprPolyBoundWithRoot :: TyVarEnv -> Expr -> ExprPolyBound
+extractExprPolyBoundWithRoot tv e = PolyBound [e] $ extractExprPolyBound tv e
 
-extractExprPolyBound :: Expr -> [ExprPolyBound]
-extractExprPolyBound e
+extractExprPolyBound :: TyVarEnv -> Expr -> [ExprPolyBound]
+extractExprPolyBound tv e
     | Data dc:_ <- unApp e =
         let
-            bound = leadingTyForAllBindings dc
-            m = extractExprPolyBound' e
+            bound = leadingTyForAllBindings (typeOf tv dc)
+            m = extractExprPolyBound' tv e
 
             bound_es = map (\i -> HM.lookupDefault [] i m) bound
         in
-        map (\es -> PolyBound es (mergeExprPolyBound . transpose $ map extractExprPolyBound es)) bound_es
+        map (\es -> PolyBound es (mergeExprPolyBound . transpose $ map (extractExprPolyBound tv) es)) bound_es
     | otherwise = []
 
 mergeExprPolyBound :: [[ExprPolyBound]] -> [ExprPolyBound]
@@ -68,13 +68,13 @@ mergeExprPolyBound' :: ExprPolyBound -> ExprPolyBound -> ExprPolyBound
 mergeExprPolyBound' (PolyBound es1 pb1) (PolyBound es2 pb2) =
     PolyBound (es1 ++ es2) (map (uncurry mergeExprPolyBound') $ zip pb1 pb2)
 
-extractExprPolyBound' :: Expr -> HM.HashMap Id [Expr]
-extractExprPolyBound' e
+extractExprPolyBound' :: TyVarEnv ->Expr -> HM.HashMap Id [Expr]
+extractExprPolyBound' tv e
     | Data dc:es <- unApp e =
     let
         es' = filter (not . isType) es
 
-        argtys = argumentTypes . PresType . inTyForAlls $ typeOf dc
+        argtys = argumentTypes . inTyForAlls $ typeOf tv dc
 
         argtys_es = zip argtys es'
 
@@ -85,7 +85,7 @@ extractExprPolyBound' e
         direct_hm = foldr (HM.unionWith (++)) HM.empty
                         $ map (\(i, e_) -> uncurry HM.singleton (i, e_:[])) direct'
     in
-    foldr (HM.unionWith (++)) direct_hm $ map (extractExprPolyBound' . adjustIndirectTypes) indirect'
+    foldr (HM.unionWith (++)) direct_hm $ map (extractExprPolyBound' tv . adjustIndirectTypes tv) indirect'
     | otherwise = HM.empty
     where
         isType (Type _) = True
@@ -108,14 +108,14 @@ substTypes' :: [Type] -> [Expr] -> [Expr]
 substTypes' (t:ts) (Type _:es) = Type t:substTypes' ts es
 substTypes' _ es = es
 
-adjustIndirectTypes :: Expr -> Expr
-adjustIndirectTypes e
+adjustIndirectTypes :: TyVarEnv -> Expr -> Expr
+adjustIndirectTypes tv e
     | Data dc:es <- unApp e =
         let
             tyses = filter (isType) es
             tyses' = map (\(Type t) -> t) tyses
 
-            bound = leadingTyForAllBindings dc
+            bound = leadingTyForAllBindings (typeOf tv dc)
             bound_tyses = zip bound tyses'
         in
         mkApp $ Data (foldr (uncurry retype) dc $ bound_tyses):es

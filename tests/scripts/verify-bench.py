@@ -1,9 +1,11 @@
 #!/usr/bin/env python
 # Tests Verify on the Zeno suite
 
+from multiprocessing import Pool
 import os
 import re
 import subprocess
+import sys
 import time
 
 exe_name = str(subprocess.run(["cabal", "exec", "which", "Verify"], capture_output = True).stdout.decode('utf-8')).strip()
@@ -23,22 +25,23 @@ latex_coordinates_11 = "" # for graph11: TIP with both vs none
 latex_coordinates_12 = "" # for graph12: Zeno buggy with both vs none
 latex_coordinates_13 = "" # for graph13: Combine three benchmarks with both vs none
 
-ver_props_both = 0 # total number of properties verified with no ablation
-ver_props_approx = 0 # total number of properties verified with approx
-ver_props_ra = 0 # total number of properties verified with rev abs
-ce_both = 0 # total number of counterexamples found
-ce_approx = 0
-ce_ra = 0
-ce_none = 0
 total_ce_props = 85 # of properties checked for counterexamples
-total_ver_time_both = 0.0
-total_ver_time_approx = 0.0
-total_ver_time_ra = 0.0
 
-total_ce_time_both = 0.0
-total_ce_time_approx = 0.0
-total_ce_time_ra = 0.0
-total_ce_time_none = 0.0
+def settings():
+    return [ ("All", []),
+             ("No \\approxR", ["--no-approx"]),
+             ("No SVH", ["--no-shared-var-heuristic"]),
+             ("No Arg RAs", ["--no-arg-rev-abs"]),
+             ("No Syn Eq", ["--no-syntactic-eq-ra"]),
+             ("No RAs", ["--no-rev-abs"]),
+             ("No RAs or \\approxR", ["--no-approx", "--no-rev-abs"])
+           ]
+
+ver_res = { n : 0 for (n, _) in settings() }
+cex_res = { n : 0 for (n, _) in settings() }
+
+ver_time = { n : 0 for (n, _) in settings() }
+cex_time = { n : 0 for (n, _) in settings() }
 
 def generate_graph_coordinatinates(filename, timeBoth, timeApprox, timeRA, timeNone) :
     coordinates1 = (timeBoth, timeApprox)
@@ -70,47 +73,89 @@ def generate_graph_coordinatinates(filename, timeBoth, timeApprox, timeRA, timeN
         latex_coordinates_7 += str(coordinates2) + "\n"
         latex_coordinates_12 += str(coordinates3) + "\n"
 
-def generate_table(filename, property, approxTime, raTime, raAppTime, noneTime, timeout) :
+def generate_table(filename, property, timeout, runtimes):
     global latex_tbl1, latex_tbl2
-    global total_ver_time_approx, total_ver_time_ra, total_ver_time_both
-    global total_ce_time_both, total_ce_time_approx, total_ce_time_ra, total_ce_time_none
     common_str = " & "
-    aTime = str(approxTime) if approxTime < timeout else "-"
-    nTime = str(raTime) if raTime < timeout else "-"
-    nATime = str(raAppTime) if raAppTime < timeout else "-"
-    noneOpti = str(noneTime) if noneTime < timeout else "-"
     prop = re.sub(r"_", r"\\_", property)
-    temp = prop + common_str + nATime + common_str + aTime + common_str + nTime
+    temp = prop
+    for (s, _) in settings():
+        time = runtimes[s][property]
+        print_time = str(time) if time < timeout else "-"
+        temp += common_str + print_time
 
     if filename == "Zeno.hs" :
         latex_tbl1 += temp + r"\\ \hline " + "\n"
-        # doing this to calculate average, only needed for Zeno
-        total_ver_time_approx += approxTime if approxTime < timeout  else 0.0
-        total_ver_time_ra += raTime if raTime < timeout  else 0.0
-        total_ver_time_both += raAppTime if raAppTime < timeout  else 0.0
     else:
-        latex_tbl2 += temp + common_str + noneOpti + r"\\ \hline " + "\n"
-        total_ce_time_both += raAppTime if raAppTime < timeout  else 0.0
-        total_ce_time_approx += approxTime if approxTime < timeout  else 0.0
-        total_ce_time_ra += raTime if raTime < timeout  else 0.0
-        total_ce_time_none += noneTime if noneTime < timeout else 0.0
+        latex_tbl2 += temp + common_str + r"\\ \hline " + "\n"
 
-def generateMetricLatex(avgVerBoth, avgVerApprox, avgVerRa, avgCeBoth, avgCeApprox, avgCeRa, avgCeNone):
-    ltx = r"\multirow{5}{*}{Verified} & Avg. Time (Both) & " +  str(avgVerBoth) + r" \\ \cline{2-3} " + "\n" \
-    + r"& Avg. Time (Approximation) & " + str(avgVerApprox) + r"\\ \cline{2-3}" + "\n" \
-    + r"& Avg. Time (Rev. Abs.) & " + str(avgVerRa) + r" \\ \cline{2-3}" + "\n" \
-    + r"& Num of prop (Both) & " + str(ver_props_both) + r" \\ \cline{2-3}" + "\n" \
-    + r"& Num of props (Approximation) & " + str(ver_props_approx) + r"\\ \cline{2-3}" + "\n" \
-    + r"& Num of prop (Rev. Abs.) & " + str(ver_props_ra) + r"\\ \hline" + "\n" \
-    + r"\multirow{6}{*}{Counterexamples} & Avg. Time (Both) & " + str(avgCeBoth) + r" \\ \cline{2-3} " + "\n" \
-    + r"& Avg. Time (Approximation) & " + str(avgCeApprox) + r" \\ \cline{2-3}" + "\n" \
-    + r"& Avg. Time (Rev. Abs.) & "  + str(avgCeRa) + r"\\ \cline{2-3}" + "\n" \
-    + r"& Avg. Time (None) & "  + str(avgCeNone) + r"\\ \cline{2-3}" + "\n" \
-    + r"& Num of CE generated (Both) & " + str(ce_both) + r" \\ \cline{2-3}" + "\n" \
-    + r"& Num of CE generated (Approximation) & " + str(ce_approx) + r" \\ \cline{2-3}" + "\n" \
-    + r"& Num of CE generated (Rev. Abs.) & " + str(ce_ra) + r"\\ \cline{2-3}" + "\n" \
-    + r"& Num of CE generated (None) & " + str(ce_none) + r"\\ \cline{2-3}" + "\n" \
-    + r"& Total Num of Properties & " + str(total_ce_props) + r"\\ \hline"
+def generateMetricLatex():
+    n_ver_res = [(ver_res[n], n) for n, _ in settings()]
+    n_in_order = [n for _, n in sorted(n_ver_res)][::-1]
+
+    ltx = "Form 1:\n"
+    ltx += "Running Mode"
+    for n in n_in_order:
+        ltx += " & " + n
+    ltx += r"\\ \hline" + "\n"
+
+    ltx += "\# Verified"
+    for n in n_in_order:
+        ltx += " & " + str(ver_res[n])
+    ltx += r"\\ \hline" + "\n"
+
+    ltx += "Avg. Time (s)"
+    for n in n_in_order:
+        c = ver_res[n]
+        t = ver_time[n]
+        avg = str(round(t / c, 2)) if c != 0 else "-"
+        ltx += " & " + str(avg)
+    ltx += r"\\ \hline" + "\n"
+
+    ltx += "\n"
+
+    ltx += "Running Mode"
+    for n in n_in_order:
+        ltx += " & " + n
+    ltx += r"\\ \hline" + "\n"
+
+    ltx += "\# Refuted" 
+    for n in n_in_order:
+        ltx += " & " + str(cex_res[n])
+    ltx += r"\\ \hline" + "\n"
+
+    ltx += "Avg. Time (s)"
+    for n in n_in_order:
+        c = cex_res[n]
+        t = cex_time[n]
+        avg = str(round(t / c, 2)) if c != 0 else "-"
+        ltx += " & " + str(avg)
+    ltx += r"\\ \hline" + "\n"
+
+
+    ltx += "\nForm 2:\n"
+    ltx += r"\multirow{5}{*}{Verified}"
+    for (n, _) in settings():
+        c = ver_res[n]
+        t = ver_time[n]
+        avg = str(round(t / c, 2)) if c != 0 else "-"
+        ltx += r"& Avg. Time (" + n + ") & " + avg + r" \\ \cline{2-3} " + "\n"
+    
+    for (n, _) in settings():
+        c = ver_res[n]
+        ltx += r"& Num of prop (" + n + ") & " +  str(c) + r" \\ \cline{2-3} " + "\n"
+
+    ltx += r"\multirow{6}{*}{Counterexamples}"
+    for (n, _) in settings():
+        c = cex_res[n]
+        t = cex_time[n]
+        avg = str(round(t / c, 2)) if c != 0 else "-"
+        ltx += r"& Avg. Time (" + n + ") & " +  avg + r" \\ \cline{2-3} " + "\n"
+
+    for (n, _) in settings():
+        c = cex_res[n]
+        ltx += r"& Num of CE generated (" + n + ") & " +  str(c) + r" \\ \cline{2-3} " + "\n"
+
+    ltx += "& Total Num of Properties & " + str(total_ce_props) + "\\ \hline"
 
     return ltx
 
@@ -162,32 +207,43 @@ def read_runnable_benchmarks(setpath, settings) :
         lines.append(props)
     return lines
 
+def run_theorem(arg):
+    fname_in, time_limit, var_settings, thm = arg
+    res = run_verify(fname_in, thm, time_limit, var_settings)
+    return (thm, res)
+
 def test_suite_general(fname_in, suite, time_limit, var_settings):
     verified = 0
     cex = 0
     timeout = 0
     result = {}
-    for (thm, settings) in suite:
-        print(thm)
-        res = run_verify(fname_in, thm, time_limit, var_settings)
-        runTime = round(float(process_output(res)), 2) if not "Timeout" in res else time_limit
-        result[thm] = runTime
 
-        if "Verified" in res:
-            print("Verified")
-            verified += 1
-        if "Counterexample" in res:
-            print("Counterexample")
-            cex += 1
-        if "Timeout" in res:
-            print("Timeout")
-            timeout +=1
-        if "error" in res:
-            print("error")
-            timeout +=1
+    total_ver_time = 0
+    total_cex_time = 0
+
+    with Pool(processes=8) as pool:
+        arg_suite = [(fname_in, time_limit, var_settings, s) for (s, _) in suite]
+        for (thm, res) in pool.imap(run_theorem, arg_suite):
+            print(thm)
+            runTime = round(float(process_output(res)), 2) if not "Timeout" in res else time_limit
+            result[thm] = runTime
+            if "Verified" in res:
+                print("Verified - " + str(runTime))
+                verified += 1
+                total_ver_time += float(process_output(res))
+            if "Counterexample" in res:
+                print("Counterexample - " + str(runTime))
+                cex += 1
+                total_cex_time += float(process_output(res))
+            if "Timeout" in res:
+                print("Timeout")
+                timeout +=1
+            if "error" in res:
+                print("error")
+                timeout +=1
 
     print("\n")
-    return (verified, cex, timeout, result)
+    return (verified, cex, timeout, total_ver_time, total_cex_time, result)
 
 # def test_suite_csv(filename, properties, timeout):
 #     return test_suite_general(filename, properties, timeout)
@@ -198,46 +254,29 @@ def printRes(v, c, t) :
     print("Timeout :" + str(t))
     print("\n")
 
-def runAll(filename, suite, time_limit) :
-    global ce_both, ce_approx, ce_ra, ce_none, ver_props_both, ver_props_approx, ver_props_ra
-    # Both on
-    print("Running " + filename + " with both approaches\n")
-    (vBoth, cBoth, tBoth, res1) = test_suite_general(filename, suite, time_limit, [])
-    printRes(vBoth, cBoth, tBoth)
+def runAll(filename, suite, time_limit, var_settings = []) :
+    global ver_res, cex_res
+    runtimes = {}
+    for (name, flags) in settings():
+        print("Running " + filename + " with " + str(flags + var_settings) + "\n")
+        (ver, cex, timeouts, v_time, c_time, runtime) = test_suite_general(filename, suite, time_limit, flags + var_settings)
+        printRes(ver, cex, timeouts)
 
-    # Just approximation on
-    print("Running " + filename + " with just approximations\n")
-    (vApp, cApp, tApp, res2) = test_suite_general(filename, suite, 1, ["--no-rev-abs"])
-    printRes(vApp, cApp, tApp)
+        ver_res[name] += ver
+        cex_res[name] += cex
+        ver_time[name] += v_time
+        cex_time[name] += c_time
+        runtimes[name] = runtime
 
-    # Just rev abs on
-    print("Running " + filename + " with just rev abs\n")
-    (vRa, cRa, tRa, res3) = test_suite_general(filename, suite, 1, ["--no-approx"])
-    printRes(vRa, cRa, tRa)
-
-    res4 = {}
-
-    if not filename == "Zeno.hs":
-        # Neither approx nor rev abs
-        print("Running " + filename + " with no optimization\n")
-        (vNone, cNone, tNone, res4) = test_suite_general(filename, suite, time_limit, ["--no-approx", "--no-rev-abs"])
-        printRes(vNone, cNone, tNone)
-        ce_none += cNone
-
-
-    ce_both += cBoth
-    ce_approx += cApp
-    ce_ra += cRa
-
-    ver_props_both += vBoth
-    ver_props_approx += vApp
-    ver_props_ra += vRa
-
+    res1 = runtimes["All"]
+    res2 = runtimes["No RAs"]
+    res3 = runtimes["No \\approxR"]
+    res4 = runtimes["No RAs or \\approxR"]    
     for thm, runTime in res1.items() :
         runTime2 = res2[thm] # runTime just with approx
         runTime3 = res3[thm] # runTime just with ra
         runTime4 = res4[thm] if thm in res4 else  0.0 # runTime with no optimization
-        generate_table(filename, thm, runTime2, runTime3, runTime, runTime4, time_limit)
+        generate_table(filename, thm, time_limit, runtimes) #runTime2, runTime3, runTime, runTime4, time_limit)
         generate_graph_coordinatinates(filename, runTime, runTime2, runTime3, runTime4)
 
 def main():
@@ -246,20 +285,17 @@ def main():
     global latex_tbl2
     global latex_coordinates_1, latex_coordinates_2, latex_coordinates_3, latex_coordinates_4
     global latex_coordinates_5, latex_coordinates_6, latex_coordinates_7, latex_coordinates_8, latex_coordinates_9
-    global total_ce_props, total_ver_time_both, total_ver_time_approx, total_ver_time_ra
-    global ver_props_both, ver_props_approx, ver_props_ra
-    global total_ce_time_both, total_ce_time_approx, total_ce_time_ra, total_ce_time_none
-    global ce_both, ce_approx, ce_ra, ce_none
+    global total_ce_props
 
-    runAll("Zeno.hs", unmodified_theorems(), time_limit)
+    global ver_res, cex_res
+
+    args = sys.argv[1:]
+
+    runAll("Zeno.hs", unmodified_theorems(), time_limit, args)
 
     # Counter-example benchmarks
     latex_tbl2 += r"\multicolumn{2}{l}{\textbf{ZenoBadProp}}\\ \hline " + "\n"
-    runAll("ZenoBadProp.hs", unmodified_theorems(), time_limit)
-
-    avg_time_both = total_ver_time_both / ver_props_both if not ver_props_both == 0 else 0
-    avg_time_approx = total_ver_time_approx / ver_props_approx if not ver_props_approx == 0 else 0
-    avg_time_ra = total_ver_time_ra / ver_props_ra if not ver_props_ra == 0 else 0
+    runAll("ZenoBadProp.hs", unmodified_theorems(), time_limit, args)
 
     setpath = os.path.join("verify/tests")
     run_bench = read_runnable_benchmarks(setpath, [])
@@ -268,7 +304,7 @@ def main():
         tempStr = r"\multicolumn{2}{l}{\textbf{" + filename + r"}}\\ \hline " + "\n"
         latex_tbl2 += tempStr
         print("\nBenchmark : " + filename + "\n")
-        runAll(filename + ".hs", benchmark[1:], time_limit)
+        runAll(filename + ".hs", benchmark[1:], time_limit, args)
 
         curr_num_props = len(benchmark) - 1
         total_ce_props += curr_num_props
@@ -276,14 +312,7 @@ def main():
         print("\nTotal properties: " + str(len(benchmark) - 1))
         print("\n")
 
-    avg_time_ce_both = total_ce_time_both / ce_both if not ce_both == 0 else 0
-    avg_time_ce_approx = total_ce_time_approx / ce_approx if not ce_approx == 0 else 0
-    avg_time_ce_ra = total_ce_time_ra / ce_ra if not ce_ra == 0 else 0
-    avg_time_ce_none = total_ce_time_none / ce_none if not ce_none == 0 else 0
-
-    metricLtx = generateMetricLatex(round(avg_time_both, 2), round(avg_time_approx, 2), round(avg_time_ra, 2), 
-                                    round(avg_time_ce_both, 2), round(avg_time_ce_approx, 2), round(avg_time_ce_ra, 2),
-                                    round(avg_time_ce_none, 2))
+    metricLtx = generateMetricLatex()
 
     print("Latex for table1 is: \n" + latex_tbl1)
     print("Latex for table2 is: \n" + latex_tbl2)

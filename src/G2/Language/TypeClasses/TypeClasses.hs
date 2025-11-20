@@ -34,6 +34,7 @@ import qualified Data.Map.Lazy as MM
 import qualified Data.HashMap.Lazy as M
 import Data.Maybe
 import qualified Data.Sequence as S
+import qualified G2.Language.TyVarEnv as TV 
 import GHC.Generics (Generic)
 
 data Class = Class { insts :: [(Type, Id)], typ_ids :: [Id], superclasses :: [(Type, Id)]}
@@ -47,13 +48,13 @@ newtype TypeClasses = TypeClasses TCType
 
 instance Hashable TypeClasses
 
-initTypeClasses :: [(Name, Id, [Id], [(Type, Id)])] -> TypeClasses
-initTypeClasses nsi =
+initTypeClasses :: TV.TyVarEnv -> [(Name, Id, [Id], [(Type, Id)])] -> TypeClasses
+initTypeClasses tv nsi =
     let
         ns = map (\(n, _, i, sc) -> (n, i, sc)) nsi
         nsi' = filter (not . null . insts . snd)
              $ map (\(n, i, sc) -> 
-                (n, Class { insts = nub $ mapMaybe (nameIdToTypeId n) nsi
+                (n, Class { insts = nub $ mapMaybe (nameIdToTypeId tv n) nsi
                           , typ_ids = i
                           , superclasses = sc } )) ns
     in
@@ -65,10 +66,10 @@ insertClass n c (TypeClasses tc) = TypeClasses (M.insert n c tc)
 unionTypeClasses :: TypeClasses -> TypeClasses -> TypeClasses
 unionTypeClasses (TypeClasses tc) (TypeClasses tc') = TypeClasses (M.union tc tc')
 
-nameIdToTypeId :: Name -> (Name, Id, [Id], [(Type, Id)]) -> Maybe (Type, Id)
-nameIdToTypeId nm (n, i, _, _) =
+nameIdToTypeId :: TV.TyVarEnv -> Name -> (Name, Id, [Id], [(Type, Id)]) -> Maybe (Type, Id)
+nameIdToTypeId tv nm (n, i, _, _) =
     let
-        t = affectedType $ returnType i
+        t = affectedType $ returnType (typeOf tv i)
     in
     if n == nm then fmap (, i) t else Nothing
 
@@ -94,23 +95,23 @@ lookupTCDict :: TypeClasses
              -> Maybe Id
 lookupTCDict tc n t =
     case fmap insts $ M.lookup n (toMap tc) of
-        Just c -> fmap snd $ find (\(t', _) -> PresType t .:: t') c
+        Just c -> fmap snd $ find (\(t', _) -> t .:: t') c
         Nothing -> Nothing
 
 -- | Given a typeclass `Name`, gives an association list of
 -- `Type`s that have instances of that typeclass, and the
 -- typeclass dictionaries.
 lookupTCDicts :: Name -> TypeClasses -> Maybe [(Type, Id)]
-lookupTCDicts n = fmap insts . M.lookup n . coerce
+lookupTCDicts n = fmap insts . M.lookup n . coerce 
 
 lookupTCClass :: Name -> TypeClasses -> Maybe Class
 lookupTCClass n = M.lookup n . coerce
 
-tcWithNameMap :: Name -> [Id] -> M.HashMap Name Id
-tcWithNameMap n =
+tcWithNameMap :: TV.TyVarEnv -> Name -> [Id] -> M.HashMap Name Id
+tcWithNameMap tv n =
     M.fromList
-        . map (\i -> (forType $ typeOf i, i))
-        . filter (isTC . typeOf)
+        . map (\i -> (forType $ typeOf tv i, i))
+        . filter (isTC . typeOf tv)
     where
         forType :: Type -> Name
         forType (TyApp _ (TyVar (Id n' _))) = n'
@@ -166,7 +167,7 @@ satisfyingTCTypes kv tc i ts =
         xs -> substKind i $ foldr1 intersect xs
     where
         lookupTCDictsTypes (TyApp t1 t2) =
-              fmap (mapMaybe (\t' -> MM.lookup (idName i) =<< specializes t' t2))
+              fmap (mapMaybe (\t' -> TV.lookup (idName i) =<< specializes t' t2))
             . fmap (map fst)
             . flip lookupTCDicts tc
             =<< (tyConAppName . tyAppCenter $ t1)

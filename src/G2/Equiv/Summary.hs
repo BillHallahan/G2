@@ -34,6 +34,7 @@ import G2.Equiv.G2Calls
 import G2.Equiv.Tactics
 
 import G2.Lib.Printers
+import qualified G2.Language.TyVarEnv as TV 
 
 sideName :: Side -> String
 sideName ILeft = "Left"
@@ -527,21 +528,22 @@ showCycle pg ns sym_ids sh_pair s_pair cm =
 
 -- type arguments do not contribute to the depth of an expression
 -- this takes the opposite side's expression environment into account
-exprDepth :: ExprEnv -> ExprEnv -> HS.HashSet Name -> [Name] -> Expr -> Int
-exprDepth h h' ns n e = case e of
-  Tick _ e' -> exprDepth h h' ns n e'
+exprDepth :: TyVarEnv -> ExprEnv -> ExprEnv -> HS.HashSet Name -> [Name] -> Expr -> Int
+exprDepth tv h h' ns n e = case e of
+  Tick _ e' -> exprDepth tv h h' ns n e'
   Var i | isSymbolicBoth (idName i) h h' -> 0
         | m <- idName i
         , not $ m `elem` ns
-        , Just e' <- lookupBoth m h h' -> exprDepth h h' ns (m:n) e'
+        , Just e' <- lookupBoth m h h' -> exprDepth tv h h' ns (m:n) e'
+        | Just _ <- TV.lookup (idName i) tv -> 0
         | not $ (idName i) `elem` ns -> error "unmapped variable"
   _ | d@(Data _):l <- unAppNoTicks e
-    , not $ null (anonArgumentTypes d) ->
-      1 + (maximum $ 0:(map (exprDepth h h' ns n) l))
+    , not $ null (anonArgumentTypes $ typeOf tv d) ->
+      1 + (maximum $ 0:(map (exprDepth tv h h' ns n) l))
     | otherwise -> 0
 
 getDepth :: StateET -> HS.HashSet Name -> Id -> Int
-getDepth s ns i = exprDepth (expr_env s) (opp_env $ track s) ns [] (Var i)
+getDepth s ns i = exprDepth (tyvar_env s) (expr_env s) (opp_env $ track s) ns [] (Var i)
 
 maxArgDepth :: HS.HashSet Name -> [Id] -> StateET -> Int
 maxArgDepth ns sym_ids s = case sym_ids of

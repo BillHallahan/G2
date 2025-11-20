@@ -1,4 +1,4 @@
-{-# LANGUAGE DeriveDataTypeable, DeriveGeneric, PatternSynonyms #-}
+{-# LANGUAGE BangPatterns, DeriveDataTypeable, DeriveGeneric, PatternSynonyms #-}
 
 -- | Defines most of the central language in G2. This language closely resembles Core Haskell.
 -- The central datatypes are `Expr` and t`Type`.
@@ -13,6 +13,7 @@ import Data.Data
 import Data.Foldable
 import Data.Hashable
 import qualified Data.Text as T
+import Data.Word
 
 -- | Binds `Id`s to `Expr`s, primarily in @let@ `Expr`s
 type Binds = [(Id, Expr)]
@@ -35,16 +36,19 @@ data Span = Span { start :: Loc
 instance Hashable Span
 
 -- | A name has three pieces: an occurence name, Maybe a module name, and a Unique Id.
-data Name = Name T.Text (Maybe T.Text) Int (Maybe Span)
+data Name = Name T.Text (Maybe T.Text) !Unique (Maybe Span)
             deriving (Show, Read, Generic, Typeable, Data)
+
+-- | A value used to ensure a name is Unique
+type Unique = Word64
 
 -- | Disregards the Span
 instance Eq Name where
-    Name n m i _ == Name n' m' i' _ = n == n' && m == m' && i == i'
+    Name n m i _ == Name n' m' i' _ = i == i' && n == n' && m == m'
 
 -- | Disregards the Span
 instance Ord Name where
-    Name n m i _ `compare` Name n' m' i' _ = (n, m, i) `compare` (n', m', i')
+    Name n m i _ `compare` Name n' m' i' _ = i `compare` i' <> n `compare` n' <> m `compare` m'
 
 -- | Disregards the Span
 instance Hashable Name where
@@ -54,7 +58,7 @@ instance Hashable Name where
         m `hashWithSalt` i
 
 -- | Pairing of a `Name` with a t`Type`
-data Id = Id Name Type deriving (Show, Eq, Read, Generic, Typeable, Data, Ord)
+data Id = Id !Name Type deriving (Show, Eq, Read, Generic, Typeable, Data, Ord)
 
 instance Hashable Id
 
@@ -414,9 +418,9 @@ instance Hashable Type
 
 -- | A `Tickish` allows storing extra information in a `Tick`.
 data Tickish = Breakpoint Span -- ^ A breakpoint for the GHC Debugger
-             | HpcTick !Int T.Text -- ^ A tick used by HPC to track each subexpression in the original source code.
-                                   --
-                                   -- Together, the `Int` identifier and the Module Name indicate a unique location.
+             | HpcTick !Unique T.Text -- ^ A tick used by HPC to track each subexpression in the original source code.
+                                      --
+                                      -- Together, the `Int` identifier and the Module Name indicate a unique location.
              | NamedLoc Name -- ^ A G2 specific tick, intended to allow,
                              -- in concert with a @`G2.Execution.Reducer.Reducer`@, for domain
                              -- specific modifications to a

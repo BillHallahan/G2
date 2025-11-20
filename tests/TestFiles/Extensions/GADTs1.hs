@@ -1,6 +1,6 @@
 {-# LANGUAGE GADTs, DataKinds, KindSignatures, RankNTypes, TypeFamilies, FlexibleInstances, FlexibleContexts #-}
 
-module GADTS1 where
+module GADTs1 where
 
 import GHC.TypeLits 
 import Data.Kind
@@ -102,7 +102,6 @@ vecMap f (VCons x xs) = VCons (f x) (vecMap f xs)
 vecHeadEx :: Int
 vecHeadEx = vecHead (VCons 1 (VCons 2 VNil))
 
--- have to run 400 steps for the result to show up instead of 200
 doubleVec :: Vec (Succ (Succ Zero)) Int
 doubleVec = vecMap (*2) (VCons 1 (VCons 2 VNil))
 

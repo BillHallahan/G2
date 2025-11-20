@@ -9,7 +9,7 @@ module G2.Execution.ExecSkip
         checkDelayability,
 
         ReachesSymMemoTable,
-        reachesSymbolic
+        reachesSymbolicMemo
     ) where
 
 import G2.Execution.Internals.ExecSkip

@@ -28,41 +28,41 @@ import qualified Data.List as L
 import Data.Maybe
 import qualified G2.Language.ExprEnv as E
 import G2.Language.MutVarEnv
+import qualified G2.Language.TyVarEnv as TV 
 
 import GHC.Float
-
 import G2.Language.ExprEnv (deepLookupVar)
 
 -- | Evaluates primitives at the root of the passed `Expr` while updating the `ExprEnv`
 -- to share computed results.
-evalPrimsSharing :: ExprEnv -> TypeEnv -> KnownValues -> Expr -> (Expr, ExprEnv)
-evalPrimsSharing eenv tenv kv e =
-    let (_, e', eenv') = evalPrimsSharing' eenv tenv kv . simplifyCasts $ e in (e', eenv')
+evalPrimsSharing :: ExprEnv -> TypeEnv -> TV.TyVarEnv -> KnownValues -> Expr -> (Expr, ExprEnv)
+evalPrimsSharing eenv tenv tv_env kv e =
+    let (_, e', eenv') = evalPrimsSharing' eenv tenv tv_env kv . simplifyCasts tv_env $ e in (e', eenv')
 
 -- | Passed back in evalPrimsSharing' to indicate whether a new value has been computed,
 -- and thus indicate whether insertion into the `ExprEnv` is needed.
 data NeedUpdate = Update | NoUpdate deriving Show
 
-evalPrimsSharing' :: ExprEnv -> TypeEnv -> KnownValues -> Expr -> (NeedUpdate, Expr, ExprEnv)
-evalPrimsSharing' eenv tenv kv a@(App _ _) =
+evalPrimsSharing' :: ExprEnv -> TypeEnv -> TV.TyVarEnv -> KnownValues -> Expr -> (NeedUpdate, Expr, ExprEnv)
+evalPrimsSharing' eenv tenv tv_env kv a@(App _ _) =
     case unApp a of
         p@(Prim _ _):es ->
             let
                 (eenv', es') = L.mapAccumR
-                                    (\eenv_ e -> let (_, e', eenv_') = evalPrimsSharing' eenv_ tenv kv e in (eenv_', e'))
+                                    (\eenv_ e -> let (_, e', eenv_') = evalPrimsSharing' eenv_ tenv tv_env kv e in (eenv_', e'))
                                     eenv $ map (inlineVars eenv) es
-                ev = evalPrim' eenv tenv kv (p:es')
+                ev = evalPrim' eenv tenv tv_env kv (p:es')
             in
             (Update, ev, eenv')
-        v@(Var _):xs | p@(Prim _ _) <- repeatedLookup eenv v -> evalPrimsSharing' eenv tenv kv (mkApp $ p:xs)
+        v@(Var _):xs | p@(Prim _ _) <- repeatedLookup eenv v -> evalPrimsSharing' eenv tenv tv_env kv (mkApp $ p:xs)
         _ -> (NoUpdate, a, eenv)
-evalPrimsSharing' eenv tenv kv v@(Var (Id n _)) =
+evalPrimsSharing' eenv tenv tv_env kv v@(Var (Id n _)) =
     case E.lookupConcOrSym n eenv of
-        Just (E.Conc e) -> case evalPrimsSharing' eenv tenv kv e of
+        Just (E.Conc e) -> case evalPrimsSharing' eenv tenv tv_env kv e of
                                 (Update, e', eenv') -> (Update, e', E.insert n e' eenv')
                                 r@(NoUpdate, _, _) -> r
         _ -> (NoUpdate, v, eenv)
-evalPrimsSharing' eenv _ _ e = (NoUpdate, e, eenv)
+evalPrimsSharing' eenv _ _ _ e = (NoUpdate, e, eenv)
 
 repeatedLookup :: ExprEnv -> Expr -> Expr
 repeatedLookup eenv v@(Var (Id n _))
@@ -74,28 +74,28 @@ repeatedLookup eenv v@(Var (Id n _))
           Nothing -> v
 repeatedLookup _ e = e
 
-evalPrims :: ASTContainer m Expr => ExprEnv -> TypeEnv -> KnownValues -> m -> m
-evalPrims eenv tenv kv = modifyContainedASTs (evalPrims' eenv tenv kv . simplifyCasts)
+evalPrims :: ASTContainer m Expr => ExprEnv -> TypeEnv -> TV.TyVarEnv -> KnownValues -> m -> m
+evalPrims eenv tenv tv_env kv = modifyContainedASTs (evalPrims' eenv tenv tv_env kv . simplifyCasts tv_env)
 
-evalPrims' :: ExprEnv -> TypeEnv -> KnownValues -> Expr -> Expr
-evalPrims' eenv tenv kv a@(App x y) =
+evalPrims' :: ExprEnv -> TypeEnv -> TV.TyVarEnv -> KnownValues -> Expr -> Expr
+evalPrims' eenv tenv tv_env kv a@(App x y) =
     case unApp a of
-        [p@(Prim _ _), l] -> evalPrim' eenv tenv kv [p, evalPrims' eenv tenv kv l]
+        [p@(Prim _ _), l] -> evalPrim' eenv tenv tv_env kv [p, evalPrims' eenv tenv tv_env kv l]
         [p@(Prim _ _), l1, l2] ->
-            evalPrim' eenv tenv kv [p, evalPrims' eenv tenv kv l1, evalPrims' eenv tenv kv l2]
+            evalPrim' eenv tenv tv_env kv [p, evalPrims' eenv tenv tv_env kv l1, evalPrims' eenv tenv tv_env kv l2]
         [p@(Prim _ _), l1, l2, l3] ->
-            evalPrim' eenv tenv kv [p, evalPrims' eenv tenv kv l1, evalPrims' eenv tenv kv l2, evalPrims' eenv tenv kv l3]
-        _ -> App (evalPrims' eenv tenv kv x) (evalPrims' eenv tenv kv y)
-evalPrims' eenv tenv kv e = modifyChildren (evalPrims' eenv tenv kv) e
+            evalPrim' eenv tenv tv_env kv [p, evalPrims' eenv tenv tv_env kv l1, evalPrims' eenv tenv tv_env kv l2, evalPrims' eenv tenv tv_env kv l3]
+        _ -> App (evalPrims' eenv tenv tv_env kv x) (evalPrims' eenv tenv tv_env kv y)
+evalPrims' eenv tenv tv_env kv e = modifyChildren (evalPrims' eenv tenv tv_env kv) e
 
-evalPrim' :: ExprEnv -> TypeEnv -> KnownValues -> [Expr] -> Expr
-evalPrim' eenv tenv kv xs = fromMaybe (mkApp xs) (maybeEvalPrim' eenv tenv kv xs)
+evalPrim' :: ExprEnv -> TypeEnv -> TV.TyVarEnv -> KnownValues -> [Expr] -> Expr
+evalPrim' eenv tenv tv_env kv xs = fromMaybe (mkApp xs) (maybeEvalPrim' eenv tenv tv_env kv xs)
 
-maybeEvalPrim :: ExprEnv -> TypeEnv -> KnownValues -> Expr -> Maybe Expr
-maybeEvalPrim eenv tenv kv = maybeEvalPrim' eenv tenv kv . unApp
+maybeEvalPrim :: ExprEnv -> TypeEnv -> TV.TyVarEnv -> KnownValues -> Expr -> Maybe Expr
+maybeEvalPrim eenv tenv tv_env kv = maybeEvalPrim' eenv tenv tv_env kv . unApp
 
-maybeEvalPrim' :: ExprEnv -> TypeEnv -> KnownValues -> [Expr] -> Maybe Expr
-maybeEvalPrim' eenv tenv kv xs
+maybeEvalPrim' :: ExprEnv -> TypeEnv -> TV.TyVarEnv -> KnownValues -> [Expr] -> Maybe Expr
+maybeEvalPrim' eenv tenv tv_env kv xs
     | [Prim p _, x] <- xs
     , Lit x' <- x
     , Just e <- evalPrim1 p x' = Just e
@@ -116,10 +116,10 @@ maybeEvalPrim' eenv tenv kv xs
     | [Prim p _, x, y, z] <- xs = evalPrim3 kv p x y z
 
     | [Prim p _, Type t, x] <- xs
-    , Just e <- evalTypeAnyArgPrim eenv kv p t x = Just e
+    , Just e <- evalTypeAnyArgPrim eenv tv_env kv p t x = Just e
 
     | [Prim p _, Type t, dc_e] <- xs, Data dc:_ <- unApp dc_e =
-        evalTypeDCPrim2 tenv p t dc
+        evalTypeDCPrim2 tenv tv_env p t dc
 
     | [Prim p _, Type t, Lit (LitInt l)] <- xs =
         evalTypeLitPrim2 tenv p t l
@@ -132,13 +132,13 @@ evalPrimWithState :: State t -- ^ Context to evaluate expression `e` in
                   -> NameGen
                   -> Expr -- ^ The expression `e` to evaluate
                   -> Maybe (NewPC t, NameGen) -- ^ `Just` if `e` is a primitive operation that this function reduces, `Nothing` otherwise
-evalPrimWithState s@(State { known_values = kv, type_env = tenv, expr_env = eenv }) ng (App (Prim DecodeFloat _) e_arg) | e <- deepLookupExprPastTicks e_arg eenv =
+evalPrimWithState s@(State { known_values = kv, type_env = tenv, expr_env = eenv, tyvar_env = tvnv }) ng (App (Prim DecodeFloat _) e_arg) | e <- deepLookupExprPastTicks e_arg eenv =
     let
 
         -- The decodeFloat function returns a (signed and scaled) significand and exponent from a float.
         -- More details on scaling are in Note [Scaled decodeFloat], below.
 
-        (ex_bits, sig_bits_1) = expSigBits (typeOf e)
+        (ex_bits, sig_bits_1) = expSigBits (typeOf tvnv e)
         sig_bits = sig_bits_1 - 1
         ty_ex = TyLitBV ex_bits
         ty_sig = TyLitBV sig_bits
@@ -275,7 +275,7 @@ evalPrimWithState s@(State { expr_env = eenv }) ng (App (App (Prim EncodeFloat t
         --  (1) setting the exponent bits to the signed representation of (n + bias) and the significand to 0. (For exponents which fit in the exponent bits.)
         --  (2) setting the exponent field to all 0s, and having a single significand bit set to 1 (for powers of 2 representable as denormalized numbers.)
 
-        rt = returnType (PresType t)
+        rt = returnType t
 
         m = deepLookupExprPastTicks m_arg eenv
         n = deepLookupExprPastTicks n_arg eenv
@@ -387,7 +387,7 @@ evalPrimWithState s ng (App (App (Prim HandlePutChar _) c) hnd)
     , Just hi <- M.lookup n (handles s) =
         let
             pos = h_pos hi
-            ty_string = typeOf pos
+            ty_string = typeOf (tyvar_env s) pos
 
             (new_pos, ng') = freshSeededId (Name "pos" Nothing 0 Nothing) ty_string ng
             e = mkApp [mkCons (known_values s) (type_env s), Type ty_string, c, Var new_pos]
@@ -656,10 +656,10 @@ evalPrim2 _ RationalToDouble (LitInt x) (LitInt y) =
 
 evalPrim2 _ _ _ _ = Nothing
 
-evalTypeAnyArgPrim :: ExprEnv -> KnownValues -> Primitive -> Type -> Expr -> Maybe Expr
-evalTypeAnyArgPrim _ kv TypeIndex t _ | t == tyString kv = Just (Lit (LitInt 1))
+evalTypeAnyArgPrim :: ExprEnv -> TV.TyVarEnv -> KnownValues -> Primitive -> Type -> Expr -> Maybe Expr
+evalTypeAnyArgPrim _ tv kv TypeIndex t _ | (tyVarSubst tv t) == tyString kv = Just (Lit (LitInt 1))
                                       | otherwise = Just (Lit (LitInt 0))
-evalTypeAnyArgPrim eenv kv IsSMTRep _ e
+evalTypeAnyArgPrim eenv _ kv IsSMTRep _ e
     | Just (E.Sym _) <- c_s = Just (mkTrue kv)
     | Just (E.Conc e) <- c_s 
     , Prim _ _:_ <- unApp e = Just (mkTrue kv)
@@ -667,12 +667,12 @@ evalTypeAnyArgPrim eenv kv IsSMTRep _ e
         c_s = case e of
                 Var (Id n _) -> E.deepLookupConcOrSym n eenv
                 _ -> Just (E.Conc e) 
-evalTypeAnyArgPrim _ kv IsSMTRep _ _ = Just (mkFalse kv)
-evalTypeAnyArgPrim _ _ _ _ _ = Nothing
+evalTypeAnyArgPrim _ _ kv IsSMTRep _ _ = Just (mkFalse kv)
+evalTypeAnyArgPrim _ _ _ _ _ _ = Nothing
 
-evalTypeDCPrim2 :: TypeEnv -> Primitive -> Type -> DataCon -> Maybe Expr
-evalTypeDCPrim2 tenv DataToTag t dc =
-    case unTyApp t of
+evalTypeDCPrim2 :: TypeEnv -> TV.TyVarEnv -> Primitive -> Type -> DataCon -> Maybe Expr
+evalTypeDCPrim2 tenv tv_env DataToTag t dc  =
+    case unTyApp $ tyVarSubst tv_env t of
         TyCon n _:_ | Just adt <- M.lookup n tenv ->
             let
                 dcs = dataCon adt
@@ -680,7 +680,7 @@ evalTypeDCPrim2 tenv DataToTag t dc =
             in
                 fmap (Lit . LitInt . fst) . L.find ((==) (dc_name dc) . snd) $ zip [0..] dc_names
         _ -> error "evalTypeDCPrim2: Unsupported Primitive Op"
-evalTypeDCPrim2 _ _ _ _ = Nothing
+evalTypeDCPrim2 _ _ _ _ _ = Nothing
 
 evalTypeLitPrim2 :: TypeEnv -> Primitive -> Type -> Integer -> Maybe Expr
 evalTypeLitPrim2 tenv TagToEnum t i =
@@ -745,11 +745,11 @@ evalPrim3 kv Ite (Data (DataCon { dc_name = b })) e1 e2 | b == KV.dcTrue kv = Ju
 evalPrim3 _ _ _ _ _ = Nothing
 
 -- | Evaluate certain primitives applied to symbolic expressions, when possible
-evalPrimSymbolic :: ExprEnv -> TypeEnv -> NameGen -> KnownValues -> Expr -> Maybe (Expr, ExprEnv, [PathCond], NameGen)
-evalPrimSymbolic eenv tenv ng kv e
+evalPrimSymbolic ::  TV.TyVarEnv -> ExprEnv -> TypeEnv -> NameGen -> KnownValues -> Expr -> Maybe (Expr, ExprEnv, [PathCond], NameGen)
+evalPrimSymbolic tv eenv tenv ng kv e
     | [Prim DataToTag _, type_t, (Var (Id n _))] <- unApp e
-    , Type t <- dig eenv type_t
-    , Just (Id sym_n _) <- deepLookupVar n eenv
+    , Just t <- TV.deepLookup tv type_t
+    , Just sym_n <- deepLookupVar n eenv
     , E.isSymbolic sym_n eenv
     , TyCon tn _:_ <- unTyApp t
     , Just adt <- M.lookup tn tenv =
@@ -762,14 +762,14 @@ evalPrimSymbolic eenv tenv ng kv e
             (cvar, ng') = freshId t ng
 
             (ret, cse, assume_pc, eenv', ng'') =
-                createCaseExpr bi Nothing cvar t kv tenv eenv ng' dcs
+                createCaseExpr tv bi Nothing cvar t kv tenv eenv ng' dcs
 
             eenv'' = E.insertSymbolic ret
                    $ E.insert sym_n cse eenv'
         in
         Just (Var ret, eenv'', assume_pc, ng'')
     | [Prim DataToTag _, type_t, cse] <- unApp e
-    , Type t <- dig eenv type_t
+    , Just t <- TV.deepLookup tv type_t
     , Case v@(Var _) _ _ alts <- cse
     , TyCon tn _:_ <- unTyApp t
     , Just adt <- M.lookup tn tenv =
@@ -796,9 +796,9 @@ evalPrimSymbolic eenv tenv ng kv e
     -- (which has type Int# -> a).  Instead, we simply return the Bool directly.
     | tBool <- tyBool kv
     , [Prim TagToEnum _, _, pe] <- unApp e
-    , typeOf (dig eenv pe) == tBool = Just (pe, eenv, [], ng)
+    , typeOf tv (dig eenv pe) == tBool = Just (pe, eenv, [], ng)
     | [Prim TagToEnum _, type_t, pe] <- unApp e
-    , Type t <- dig eenv type_t =
+    , Just t <- TV.deepLookup tv type_t =
         case unTyApp t of
             TyCon n _:_ | Just adt <- M.lookup n tenv ->
                 let
@@ -811,7 +811,7 @@ evalPrimSymbolic eenv tenv ng kv e
             _ -> error "evalTypeLitPrim2: Unsupported Primitive Op"
     | otherwise = Nothing
     where
-        eq e1 = App (App (mkEqPrimType (typeOf e1) kv) e1)
+        eq e1 = App (App (mkEqPrimType (typeOf tv e1) kv) e1)
 
 dig :: ExprEnv -> Expr -> Expr
 dig eenv (Var (Id n _)) | Just (E.Conc e) <- E.lookupConcOrSym n eenv = dig eenv e

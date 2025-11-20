@@ -214,6 +214,7 @@ testFileTests = testGroup "TestFiles"
     , checkInputOutput "tests/TestFiles/ListComp.hs" "list1" 10000 [Exactly 1]
 
     , checkInputOutput "tests/TestFiles/Imports/MakesSound.hs" "makesSound" 1000 [Exactly 3]
+    , checkInputOutput "tests/TestFiles/Imports/Underscore/Main.hs" "call" 1000 [AtLeast 5]
 
     , checkExpr "tests/TestFiles/MultCase.hs" 400 "f"
         [ RExists (\[App _ (Lit (LitInt x)), y] -> x == 2 && getBoolB y id)
@@ -521,12 +522,31 @@ testFileTests = testGroup "TestFiles"
                                                                    , ("sf", 175, [AtLeast 5])
                                                                    , ("thirdOrder", 75, [AtLeast 10])
                                                                    , ("tupleTestMono", 175, [AtLeast 10])
-                                                                   , ("multiPrim", 300, [AtLeast 8])]
+                                                                   , ("multiPrim", 300, [AtLeast 8])
+                                                                   , ("inList", 1000, [AtLeast 10])]
+    , checkInputOutputsWith "tests/HigherOrder/HigherOrder.hs" "eqRetFunc" [ ("retFunc", 500, [AtLeast 5])
+                                                                           , ("retFunc2", 500, [AtLeast 5]) ]
     , checkInputOutputsTemplate "tests/HigherOrder/PolyHigherOrder.hs" [ ("f", 50, [AtLeast 5])
                                                                        , ("h", 200, [AtLeast 3])
                                                                        , ("assoc", 200, [AtLeast 5])
                                                                        , ("sf", 175, [AtLeast 5])
                                                                        , ("tupleTest", 175, [AtLeast 8])]
+    , checkInputOutputsTemplate "tests/HigherOrder/RankN.hs" [ ("identity", 50, [Exactly 1])
+                                                             , ("twoArgs", 60, [Exactly 2])
+                                                             , ("calledInMaybe", 60, [Exactly 1])
+                                                             , ("twoTVs", 60, [Exactly 2])
+                                                             , ("twoTVsMultiCall", 200, [Exactly 1])
+                                                             , ("nested", 100, [Exactly 2])
+                                                             , ("calledInTuple", 100, [Exactly 2])
+                                                             , ("intArg", 100, [Exactly 2])
+                                                             , ("intArgCalledTwice", 200, [Exactly 5])
+                                                             , ("intArgCaseFourCalls", 500, [Exactly 44])
+                                                             , ("multiIntArgs", 200, [Exactly 4])
+                                                             , ("fromMaybe", 100, [Exactly 3])
+                                                             , ("fromMaybeInvalid", 100, [Exactly 0])
+                                                             , ("fromTuples", 100, [Exactly 8])
+                                                             , ("twoFunctions", 200, [Exactly 4])
+                                                             , ("partiallyApply", 200, [Exactly 2])] 
     , checkInputOutputsNonRedHigher "tests/HigherOrder/HigherOrder.hs" [ ("f", 200, [AtLeast 3])
                                                                        , ("h", 150, [AtLeast 2])
                                                                        , ("assoc", 250, [AtLeast 2])
@@ -534,7 +554,11 @@ testFileTests = testGroup "TestFiles"
                                                                        , ("thirdOrder", 300, [AtLeast 2])
                                                                        , ("thirdOrder2", 300, [AtLeast 3])
                                                                        , ("tupleTestMono", 175, [AtLeast 2])
-                                                                       , ("multiPrim", 300, [AtLeast 2])]
+                                                                       , ("multiPrim", 300, [AtLeast 2])
+                                                                       , ("polyHigher", 50, [AtLeast 4])]                                                                                         
+    , checkInputOutputsNonRedHigher "tests/Validate/Val1.hs" [("call", 1000, [AtLeast 5])]
+    , checkInputOutputsWithValidate "tests/BaseTests/ListTests.hs" [ ("lengthN", 2000, [AtLeast 1])
+                                                                , ("lengthBranch", 2000, [AtLeast 4])]
     , checkInputOutputsNonRedLib "tests/BaseTests/ListTests.hs" [ ("lengthN", 20000, [Exactly 1])
                                                                 , ("lengthBranch", 20000, [Exactly 4])
                                                                 , ("map2", 20000, [Exactly 3])
@@ -647,6 +671,9 @@ testFileTests = testGroup "TestFiles"
                                                         , ("triFunc", 200, [AtLeast 1])
                                                         , ("take3", 200, [AtLeast 1])
                                                         , ("takeTri2", 200, [AtLeast 1]) ]
+    , checkInputOutputsWithTemplatesAndHpc "tests/TestFiles/TypeKeyword.hs" [ ("yearPasses", 400, [Exactly 1])
+                                                                            , ("callAlts", 400, [AtLeast 1]) ]
+    , checkInputOutputs "tests/TestFiles/InfLoop.hs" [ ("f", 500, [Exactly 1]) ]
  ]
 
 extensionTests :: TestTree
@@ -667,17 +694,50 @@ extensionTests = testGroup "Extensions"
                                                                           , ("callG", 400, [AtLeast 1])
                                                                           , ("callG2", 400, [AtLeast 1]) ]
                                                                           
-    , checkInputOutputs "tests/TestFiles/Extensions/GADTs1.hs" [ ("vecZipConc", 400, [Exactly 1])
-                                                               , ("vecZipConc2", 400, [Exactly 1])
-                                                               , ("vecHeadEx", 400, [Exactly 1])
-                                                               , ("doubleVec", 400, [Exactly 1])
-                                                               , ("tailVec", 400, [Exactly 1])
-                                                               , ("tailPairVec", 400, [Exactly 1])
-                                                               , ("exampleExpr1", 400, [Exactly 1])
-                                                               , ("exampleExpr2", 400, [Exactly 1])
-                                                               , ("exampleExpr3", 400, [Exactly 1])
-                                                               , ("exampleExpr4", 400, [Exactly 1])
-                                                               , ("exampleExpr5", 400, [Exactly 1]) ]
+    , checkInputOutputsInstType "tests/TestFiles/Extensions/GADTs1.hs"  [ -- Concrete GADTs
+                                                                          ("vecZipConc", 400, [Exactly 1])
+                                                                        , ("vecZipConc2", 400, [Exactly 1])
+                                                                        , ("vecHeadEx", 400, [Exactly 1])
+                                                                        , ("doubleVec", 400, [Exactly 1])
+                                                                        , ("tailVec", 400, [Exactly 1])
+                                                                        , ("tailPairVec", 400, [Exactly 1])
+                                                                        , ("exampleExpr1", 400, [Exactly 1])
+                                                                        , ("exampleExpr2", 400, [Exactly 1])
+                                                                        , ("exampleExpr3", 400, [Exactly 1])
+                                                                        , ("exampleExpr4", 400, [Exactly 1])
+                                                                        , ("exampleExpr5", 400, [Exactly 1])
+                                                                        
+                                                                        -- Symbolic GADTs
+                                                                        , ("eval", 250, [AtLeast 60])
+
+                                                                        , ("vecTail", 1000, [AtLeast 1])
+                                                                        , ("vecLength", 1000, [AtLeast 10])
+                                                                        , ("vecZip", 1000, [AtLeast 10])
+                                                                        , ("vecInit", 1000, [AtLeast 10])
+                                                                        ]
+
+    , checkInputOutputsInstType "tests/TestFiles/Extensions/GADTs2.hs"  [ ("notValue", 1000, [Exactly 2])
+                                                                        , ("incValue", 1000, [Exactly 1])
+                                                                        , ("someVecToList", 1000, [AtLeast 10])                                                                        
+                                                                        , ("lengthSV", 1000, [AtLeast 10])
+                                                                        ]
+
+    , checkInputOutputsInstType "tests/TestFiles/Extensions/TypeFamilies1.hs" [ ("f", 400, [Exactly 2])
+                                                                              -- , ("f2", 400, [Exactly 2])
+                                                                              , ("f3", 400, [Exactly 3])
+                                                                              , ("g", 400, [Exactly 2])
+                                                                              , ("h", 400, [Exactly 2])
+                                                                              , ("age1", 400, [Exactly 1])
+                                                                              -- , ("age2", 400, [Exactly 1])
+                                                                              , ("app", 400, [AtLeast 5])
+                                                                              -- , ("vecIntersperse", 400, [AtLeast 5])
+                                                                              , ("vecTake", 400, [AtLeast 5])
+                                                                              ]
+    , checkInputOutputsInstType "tests/TestFiles/Extensions/DataFamilies1.hs" [ ("f1", 400, [Exactly 1])
+                                                                              , ("f2", 400, [Exactly 1])
+    --                                                                           , ("app3Char", 400, [AtLeast 1])
+    --                                                                           , ("app3Unit", 400, [AtLeast 1])
+                                                                              ]
     ]
 
 baseTests ::  TestTree
@@ -775,6 +835,7 @@ verifierTests = testGroup "Verifier"
     , checkExprVerified "tests/Verify/Peano1.hs" "p3"
     , checkExprVerified "tests/Verify/Peano1.hs" "p4"
     , checkExprVerified "tests/Verify/Peano1.hs" "p5"
+    , checkExprNotCExWithDataArgs "tests/Verify/Peano1.hs" "p7"
 
     , checkExprCEx "tests/Verify/Peano1.hs" "p1False"
     -- p2False intentionally requires a large counterexample, and will timeout
@@ -832,6 +893,16 @@ verifierTests = testGroup "Verifier"
     , checkExprCEx "tests/Verify/List3.hs" "p2False"
     , checkExprCEx "tests/Verify/List3.hs" "p3False"
     , checkExprCEx "tests/Verify/List3.hs" "p4False"
+
+    , checkExprVerified "tests/Verify/List4.hs" "p1"
+    , checkExprVerified "tests/Verify/List4.hs" "p2"
+    , checkExprVerified "tests/Verify/List4.hs" "p4"
+    , checkExprVerified "tests/Verify/List4.hs" "p5"
+    , checkExprVerified "tests/Verify/List4.hs" "p6"
+    , checkExprVerified "tests/Verify/List4.hs" "p7"
+    , checkExprCExWithNoArgRevAbs "tests/Verify/List4.hs" "p1False"
+
+    , checkExprCEx "tests/Verify/List5.hs" "p1False"
 
     -- , checkExprVerified "tests/Verify/NatList1.hs" "prop1"
     , checkExprVerified "tests/Verify/NatList1.hs" "prop2"
@@ -1003,22 +1074,43 @@ checkExprCEx = checkExprVerifier (\case Verified -> False; Counterexample _ -> T
 checkExprNotVerified :: String -> String -> TestTree
 checkExprNotVerified = checkExprVerifier (\case Verified -> False; Counterexample _ -> True; VerifyTimeOut -> True)
 
+checkExprNotCExWithDataArgs :: String -> String -> TestTree
+checkExprNotCExWithDataArgs =
+    let
+        vr_config = defVerifyConfig { data_arg_rev_abs = AbsDataArgs }
+    in
+    checkExprVerifierWithConfig vr_config (\case Verified -> True; Counterexample _ -> False; VerifyTimeOut -> True)
+
+checkExprCExWithNoArgRevAbs :: String -> String -> TestTree
+checkExprCExWithNoArgRevAbs =
+    let
+        vr_config = defVerifyConfig { arg_rev_abs = NoAbsFuncArgs }
+    in
+    checkExprVerifierWithConfig vr_config (\case Verified -> False; Counterexample _ -> True; VerifyTimeOut -> False)
+
 checkExprVerifier :: (VerifyResult -> Bool) -> String -> String -> TestTree
-checkExprVerifier vr_check src entry = 
+checkExprVerifier = checkExprVerifierWithConfig defVerifyConfig
+
+checkExprVerifierWithConfig :: VerifyConfig -> (VerifyResult -> Bool) -> String -> String -> TestTree
+checkExprVerifierWithConfig vr_config vr_check src entry = 
     testCase ("Verifier:" ++ src ++ " " ++ entry) $ do
         res <- try (do
                 let proj = takeDirectory src
                 config <- mkConfigTestIO
                 let config' = config { timeLimit = 30 }
-                verifyFromFile [proj] [src] (T.pack entry) simplTranslationConfig config' defVerifyConfig)
+                verifyFromFile [proj] [src] (T.pack entry) simplTranslationConfig config' vr_config)
                     :: IO (Either SomeException ((VerifyResult, Double, Bindings, Id)))
         let res' = case res of
                         Left _ -> VerifyTimeOut
                         Right (vr, _, _, _) -> vr
 
         assertBool
-            ("Incorrect verification result for " ++ entry ++ " in " ++ show src ++ "\nresult = " ++ show res')
+            ("Incorrect verification result for " ++ entry ++ " in " ++ show src ++ "\nresult = " ++ resToString res')
             (vr_check res') 
+        where
+            resToString Verified = "Verified"
+            resToString VerifyTimeOut = "TimeOut"
+            resToString (Counterexample _) = "Counterexample"
 
 testFile :: String
          -> Maybe String
@@ -1043,6 +1135,7 @@ testFileWithConfig src m_assume m_assert m_reaches entry config = do
             $ runG2FromFile 
                 [proj]
                 [src]
+                []
                 (fmap T.pack m_assume)
                 (fmap T.pack m_assert)
                 (fmap T.pack m_reaches)
@@ -1051,7 +1144,7 @@ testFileWithConfig src m_assume m_assert m_reaches entry config = do
                 simplTranslationConfig
                 config
 
-    return $ maybe (error "Timeout") (\(er, b, _, _) -> (er, b)) r
+    return $ maybe (error "Timeout") (\(er, _, b, _, _, _) -> (er, b)) r
 
 -- For mergeState unit tests
 checkFn :: Either String Bool -> String -> IO TestTree

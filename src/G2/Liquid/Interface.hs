@@ -87,6 +87,8 @@ import qualified Data.Text.IO as TI
 
 import G2.Language.Monad
 import G2.Language.Support (Bindings(input_coercion))
+import qualified G2.Language.TyVarEnv as TV
+import G2.Initialization.MkCurrExpr (CurrExprRes(symbolic_type_ids))
 
 data LHReturn = LHReturn { calledFunc :: FuncInfo
                          , violating :: Maybe FuncInfo
@@ -146,7 +148,7 @@ liquidStateWithCall :: T.Text -> ([Maybe T.Text], ExtractedG2)
                       -> MemConfig
                       -> IO LiquidData
 liquidStateWithCall entry (mb_modname, exg2) ghci config lhconfig memconfig =
-    liquidStateWithCall' entry (mb_modname, exg2) ghci config lhconfig memconfig (mkCurrExpr Nothing Nothing) mkArgTys
+    liquidStateWithCall' entry (mb_modname, exg2) ghci config lhconfig memconfig (mkCurrExpr TV.empty Nothing Nothing) (mkArgTys TV.empty)
 
 {-# INLINE liquidStateWithCall' #-}
 liquidStateWithCall' :: T.Text -> ([Maybe T.Text], ExtractedG2)
@@ -171,7 +173,7 @@ liquidStateFromSimpleStateWithCall :: SimpleState
                                    -> MemConfig
                                    -> IO LiquidData
 liquidStateFromSimpleStateWithCall simp_s ghci entry mb_m config lhconfig memconfig =
-    liquidStateFromSimpleStateWithCall' simp_s ghci entry mb_m config lhconfig memconfig (mkCurrExpr Nothing Nothing) mkArgTys
+    liquidStateFromSimpleStateWithCall' simp_s ghci entry mb_m config lhconfig memconfig (mkCurrExpr TV.empty Nothing Nothing) (mkArgTys TV.empty)
 
 {-# INLINE liquidStateFromSimpleStateWithCall' #-}
 liquidStateFromSimpleStateWithCall' :: SimpleState
@@ -186,7 +188,7 @@ liquidStateFromSimpleStateWithCall' :: SimpleState
                                     -> IO LiquidData
 liquidStateFromSimpleStateWithCall' simp_s ghci entry mb_m config lhconfig memconfig mkCurr argTys = do
     let (simp_s', ph_tyvars) = if add_tyvars lhconfig
-                                  then fmap Just $ addTyVarsEEnvTEnv simp_s
+                                  then fmap Just $ addTyVarsEEnvTEnv TV.empty simp_s
                                   else (simp_s, Nothing)
         (s, i, bindings') = initStateFromSimpleStateWithCall simp_s' True entry mb_m mkCurr argTys config
     
@@ -347,14 +349,20 @@ processLiquidReadyStateWithCall lrs@(LiquidReadyState { lr_state = lhs@(LHState 
                                                       , lr_binding = bindings})
                                                                 ghci f m_mod config lhconfig memconfig = do
 
-    let (ie, _) = case findFunc f [m_mod] (expr_env s) of
+    let (ie, _) = case findFunc (tyvar_env s) f [m_mod] (expr_env s) of
                           Left ie' -> ie'
                           Right errs -> error errs
 
-        (ce, is, f_i, m_c, ng') = mkCurrExpr Nothing Nothing ie (type_classes s) (name_gen bindings)
+        CurrExprRes { ce_expr = ce
+                    , fixed_in = f_i
+                    , symbolic_value_ids = val_is
+                    , symbolic_type_ids = ty_is
+                    , in_coercion = m_c
+                    , mkce_namegen = ng' } = mkCurrExpr (tyvar_env s) Nothing Nothing ie (type_classes s) (name_gen bindings)
                                       (expr_env s) (type_env s) (known_values s) config
 
-        lhs' = lhs { state = s { expr_env = foldr E.insertSymbolic (expr_env s) is
+        lhs' = lhs { state = s { expr_env = foldr E.insertSymbolic (expr_env s) val_is
+                               , tyvar_env = foldr TV.insertSymbolic (tyvar_env s) ty_is
                                , curr_expr = CurrExpr Evaluate ce }
                    }
         (lhs'', bindings') = execLHStateM addLHTCCurrExpr lhs' (bindings { name_gen = ng' })
@@ -363,7 +371,7 @@ processLiquidReadyStateWithCall lrs@(LiquidReadyState { lr_state = lhs@(LHState 
 
         lrs' = lrs { lr_state = lhs'''
                    , lr_binding = bindings' { fixed_inputs = f_i
-                                            , input_names = map idName is
+                                            , input_names = map idName $ ty_is ++ val_is
                                             , input_coercion = m_c
                                             }
                    }
@@ -419,7 +427,7 @@ cleanupResults solver simplifier config init_id init_state bindings ers = do
           map (\er@(ExecRes { final_state = s }) ->
                 (er { final_state =
                               s {track = 
-                                    mapAbstractedInfoFCs (subVarFuncCall True (model s) (expr_env init_state) (type_classes s))
+                                    mapAbstractedInfoFCs (subVarFuncCall (tyvar_env s) True (model s) (expr_env init_state) (type_classes s))
                                     $ track s
                                 }
                     })) ers5
@@ -448,7 +456,7 @@ lhReducerHalterOrderer config lhconfig solver simplifier entry mb_modname cfn st
 
         non_red = nonRedPCRedNoPrune .|. nonRedPCRedConst
 
-        m_logger = fmap SomeReducer $ getLogger config
+        m_logger = fmap SomeReducer $ getLogger config defPrettyTrack
 
         lh_std_red = existentialInstRed :== NoProgress .--> lhRed cfn :== Finished --> stdRed share retReplaceSymbFuncVar solver simplifier
         strict_red = case strict config of
@@ -678,7 +686,7 @@ lhStateToCE (ExecRes { final_state = State { track = t } })
 parseLHFuncTuple :: State t -> FuncCall -> FuncInfo
 parseLHFuncTuple s (FuncCall {funcName = n, arguments = ars, returns = out}) =
     let
-        t = case fmap typeOf $ E.lookup n (expr_env s) of
+        t = case fmap (typeOf (tyvar_env s)) $ E.lookup n (expr_env s) of
                   Just t' -> t'
                   Nothing -> error $ "Unknown type for abstracted function " ++ show n
     in

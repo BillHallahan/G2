@@ -91,19 +91,20 @@ addOrdToNumCase' e = return e
 changeNumType :: Expr -> LHStateM Expr
 changeNumType e = do
     num <- numTCM
-    modifyASTsM (changeNumType' num) e
+    tv <- tyVarEnv
+    modifyASTsM (changeNumType' tv num) e
 
-changeNumType' :: Name -> Expr -> LHStateM Expr
-changeNumType' num d@(Data dc)
-    | (TyCon n _) <- tyAppCenter $ returnType dc
+changeNumType' :: TyVarEnv -> Name -> Expr -> LHStateM Expr
+changeNumType' tv num d@(Data dc)
+    | (TyCon n _) <- tyAppCenter $ returnType (typeOf tv dc)
     , num == n = return . Data =<< changeNumTypeDC dc
     | otherwise = return d
-changeNumType' num ce@(Case e i@(Id n _) ct [Alt (DataAlt dc is) ae])
+changeNumType' _ num ce@(Case e i@(Id n _) ct [Alt (DataAlt dc is) ae])
     | num == n = do
         dc' <- changeNumTypeDC dc
         return (Case e i ct [Alt (DataAlt dc' is) ae])
     | otherwise = return ce
-changeNumType' _ e = return e
+changeNumType' _ _ e = return e
 
 changeNumTypeDC :: DataCon -> LHStateM DataCon
 changeNumTypeDC (DataCon n t u e) = do
@@ -145,7 +146,8 @@ ordDictFunc = do
                     Just ndc -> dataCon ndc
                     Nothing -> error "ordDictFunc: No NumDC"
 
-    let numA = anonArgumentTypes numDC'
+    tv <- tyVarEnv
+    let numA = anonArgumentTypes (typeOf tv numDC')
 
     lamI <- freshIdN numT
     caseI <- freshIdN numT
@@ -153,7 +155,7 @@ ordDictFunc = do
     binds <- freshIdsN numA
     let cOrdBIs = last binds
 
-    let e = Lam TermL lamI $ Case (Var lamI) caseI (typeOf cOrdBIs) [Alt (DataAlt numDC' binds) (Var cOrdBIs)]
+    let e = Lam TermL lamI $ Case (Var lamI) caseI (typeOf tv cOrdBIs) [Alt (DataAlt numDC' binds) (Var cOrdBIs)]
 
     (Id n _) <- lhNumOrdM
     insertE n e
