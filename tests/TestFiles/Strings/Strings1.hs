@@ -539,3 +539,6 @@ callLast xs | length xs < 5 = 'a'
 
 showInt1 :: Int -> String
 showInt1 x = show (x * 2) ++ "!"
+
+repeat1 :: Int -> String
+repeat1 n = take n (repeat 'a')
