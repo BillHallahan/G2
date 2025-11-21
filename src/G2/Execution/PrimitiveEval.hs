@@ -663,12 +663,29 @@ evalTypeAnyArgPrim eenv _ kv IsSMTRep _ e
     | Just (E.Sym _) <- c_s = Just (mkTrue kv)
     | Just (E.Conc e) <- c_s 
     , Prim _ _:_ <- unApp e = Just (mkTrue kv)
+    | Just (E.Conc e) <- c_s 
+    , isSymString kv eenv e = Just (mkTrue kv)
     where
         c_s = case e of
                 Var (Id n _) -> E.deepLookupConcOrSym n eenv
                 _ -> Just (E.Conc e) 
 evalTypeAnyArgPrim _ _ kv IsSMTRep _ _ = Just (mkFalse kv)
 evalTypeAnyArgPrim _ _ _ _ _ _ = Nothing
+
+-- | Is the expression a symbolically representable string?
+isSymString :: KnownValues -> ExprEnv -> Expr -> Bool
+isSymString kv eenv = go
+    where
+        go (Var (Id n _))
+            | Just (E.Sym _) <- E.deepLookupConcOrSym n eenv = True
+            | Just (E.Conc e) <- E.deepLookupConcOrSym n eenv = go e
+        go (Data dc) | dc_name dc == KV.dcCons kv = True
+                     | dc_name dc == KV.dcEmpty kv = True
+                     | dc_name dc == KV.dcChar kv = True
+        go (App e1 e2) = go e1 && go e2
+        go (Type _) = True
+        go (Tick _ e) = go e
+        go _ = False
 
 evalTypeDCPrim2 :: TypeEnv -> TV.TyVarEnv -> Primitive -> Type -> DataCon -> Maybe Expr
 evalTypeDCPrim2 tenv tv_env DataToTag t dc  =
