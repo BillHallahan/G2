@@ -486,6 +486,9 @@ testFileTests = testGroup "TestFiles"
                                         , ("lines1", 4000, [AtLeast 10])
 
                                         , ("showInt1", 4000, [Exactly 2])
+
+                                        , ("test1", 800, [ AtLeast 1
+                                                         , RExists "test1InitTailEq"])
                                         ]
     , checkInputOutputsSMTStringsWithSubPath "tests/TestFiles/Strings/Strings1.hs"
                                         [ ("lines2", 2000, [AtLeast 10])
