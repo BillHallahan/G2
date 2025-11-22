@@ -24,6 +24,7 @@ import Control.Exception
 import Data.Char
 import Data.Foldable
 import qualified Data.HashMap.Lazy as M
+import qualified Data.HashSet as HS
 import qualified Data.List as L
 import Data.Maybe
 import qualified G2.Language.ExprEnv as E
@@ -674,19 +675,21 @@ evalTypeAnyArgPrim _ _ _ _ _ _ = Nothing
 
 -- | Is the expression a symbolically representable string?
 isSymString :: KnownValues -> ExprEnv -> Expr -> Bool
-isSymString kv eenv = go
+isSymString kv eenv = go HS.empty
     where
-        go (Var (Id n _))
+        go seen (Var (Id n _))
+            | HS.member n seen = True
             | Just (E.Sym _) <- E.deepLookupConcOrSym n eenv = True
-            | Just (E.Conc e) <- E.deepLookupConcOrSym n eenv = go e
-        go (Data dc) | dc_name dc == KV.dcCons kv = True
-                     | dc_name dc == KV.dcEmpty kv = True
-                     | dc_name dc == KV.dcChar kv = True
-        go (App e1 e2) = go e1 && go e2
-        go (Lit (LitChar _)) = True
-        go (Type _) = True
-        go (Tick _ e) = go e
-        go _ = False
+            | Just (E.Conc e) <- E.deepLookupConcOrSym n eenv = go (HS.insert n seen) e
+        go _ (Data dc) | dc_name dc == KV.dcCons kv = True
+                       | dc_name dc == KV.dcEmpty kv = True
+                       | dc_name dc == KV.dcChar kv = True
+        go seen (App e1 e2)
+            | Data _:_ <- unApp e1 = go seen e1 && go seen e2
+        go _ (Lit (LitChar _)) = True
+        go _ (Type _) = True
+        go seen (Tick _ e) = go seen e
+        go _ _ = False
 
 evalTypeDCPrim2 :: TypeEnv -> TV.TyVarEnv -> Primitive -> Type -> DataCon -> Maybe Expr
 evalTypeDCPrim2 tenv tv_env DataToTag t dc  =

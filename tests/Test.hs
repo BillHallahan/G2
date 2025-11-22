@@ -487,6 +487,8 @@ testFileTests = testGroup "TestFiles"
 
                                         , ("showInt1", 4000, [Exactly 2])
 
+                                        , ("repeat1", 1000, [AtLeast 5])
+
                                         , ("test1", 800, [ AtLeast 1
                                                          , RExists "test1InitTailEq"])
                                         ]
