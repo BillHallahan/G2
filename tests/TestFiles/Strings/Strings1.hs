@@ -540,15 +540,16 @@ callLast xs | length xs < 5 = 'a'
 showInt1 :: Int -> String
 showInt1 x = show (x * 2) ++ "!"
 
-<<<<<<< HEAD
+
 repeat1 :: Int -> String
 repeat1 n = take n (repeat 'a')
-=======
+
 -- Other tests
+
 test1 :: String -> (Bool, Int)
 test1 [] = (False, 0)
 test1 xs = (length (map id xs) > 3, if init xs == tail xs then 1 else 0)
 
 test1InitTailEq :: String -> (Bool, Int) -> Bool
 test1InitTailEq _ (b, i) = b && i == 1
->>>>>>> sym-strings
+
