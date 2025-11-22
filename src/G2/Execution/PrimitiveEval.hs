@@ -683,6 +683,7 @@ isSymString kv eenv = go
                      | dc_name dc == KV.dcEmpty kv = True
                      | dc_name dc == KV.dcChar kv = True
         go (App e1 e2) = go e1 && go e2
+        go (Lit (LitChar _)) = True
         go (Type _) = True
         go (Tick _ e) = go e
         go _ = False
