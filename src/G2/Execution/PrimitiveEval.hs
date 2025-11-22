@@ -678,7 +678,10 @@ isSymString :: KnownValues -> ExprEnv -> Expr -> Bool
 isSymString kv eenv = go HS.empty
     where
         go seen (Var (Id n _))
-            | HS.member n seen = True
+            -- If we have already seen a variable, we have an infinite list, i.e.:
+            -- @ xs = x:xs @
+            -- this will cause problems for the SMT solver, so reject
+            | HS.member n seen = False
             | Just (E.Sym _) <- E.deepLookupConcOrSym n eenv = True
             | Just (E.Conc e) <- E.deepLookupConcOrSym n eenv = go (HS.insert n seen) e
         go _ (Data dc) | dc_name dc == KV.dcCons kv = True
