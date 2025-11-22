@@ -7,8 +7,11 @@ module G2.Config.Config ( Mode (..)
                         , HigherOrderSolver (..)
                         , FpHandling (..)
                         , NonRedPathCons (..)
-                        , SMTStrings (..)
+                        
+                        , UseSMTStrings (..)
+                        , SMTStringsEval (..)
                         , SMTQuantifiers (..)
+
                         , IncludePath
                         , Config (..)
                         , BoolDef (..)
@@ -61,7 +64,9 @@ data FpHandling = RealFP | RationalFP deriving (Eq, Show, Read)
 
 data NonRedPathCons = Nrpc | NoNrpc deriving (Eq, Show, Read)
 
-data SMTStrings = UseSMTStrings | NoSMTStrings deriving (Eq, Show, Read)
+data UseSMTStrings = UseSMTStrings | NoSMTStrings deriving (Eq, Show, Read)
+
+data SMTStringsEval = StrictSMTStrings | LazySMTStrings deriving (Eq, Show, Read)
 
 data SMTQuantifiers = UseQuantifiers | NoQuantifiers deriving (Eq, Show, Read)
 
@@ -97,7 +102,8 @@ data Config = Config {
     , print_encode_float :: Bool -- ^ Whether to print floating point numbers directly or via encodeFloat
     , smt :: SMTSolver -- ^ Sets the SMT solver to solve constraints with
     , smt_path :: Maybe FilePath -- ^ Location of SMT solver
-    , smt_strings :: SMTStrings -- ^ Sets whether the SMT solver should be used to solve string constraints
+    , smt_strings :: UseSMTStrings -- ^ Sets whether the SMT solver should be used to solve string constraints
+    , smt_strings_strictness :: SMTStringsEval -- ^ Force strict evaluation of strings to allow more use of SMT reasoning
     , quantified_smt_strings :: SMTQuantifiers -- ^ Sets whether quantifiers should be used to describe SMT functions
     , step_limit :: Bool -- ^ Should steps be limited when running states?
     , steps :: Int -- ^ How many steps to take when running States
@@ -181,6 +187,7 @@ mkConfig homedir = Config Regular
                 <> value Nothing
                 <> help "path to an SMT solver")
     <*> flag NoSMTStrings UseSMTStrings (long "smt-strings" <> help "Sets whether the SMT solver should be used to solve string constraints")
+    <*> flag LazySMTStrings StrictSMTStrings (long "strict-strings" <> help "Force evaluation of strings, to allow more strings to be handled via SMT reasoning")
     <*> flag NoQuantifiers UseQuantifiers (long "quant-smt-strings" <> help "Use quantifiers to represent certain String functions")
     <*> flag True False (long "no-step-limit" <> help "disable step limit")
     <*> option auto (long "n"
@@ -348,6 +355,7 @@ mkConfigDirect homedir as m = Config {
     , smt = strArg "smt" as m smtSolverArg ConZ3
     , smt_path = Nothing
     , smt_strings = NoSMTStrings
+    , smt_strings_strictness = LazySMTStrings
     , quantified_smt_strings = NoQuantifiers
     , step_limit = boolArg' "no-step-limit" as True True False
     , steps = strArg "n" as m read 1000

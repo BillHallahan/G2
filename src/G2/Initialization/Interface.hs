@@ -53,12 +53,16 @@ runInitialization2 config s@(IT.SimpleState { IT.expr_env = eenv
                         then E.insert (adjStr kv) 
                                       (Lam TypeL t . Lam TermL x . Lam TermL str $ Var x) eenv5
                         else eenv5
-        eenv7 = if quantified_smt_strings config == NoQuantifiers
-                        then E.insert (strQuantifiers kv) 
-                                      (Lam TermL x $ Lit (LitInt 0)) eenv6
+        eenv7 = if smt_strings_strictness config == LazySMTStrings
+                        then E.insert (adjStr kv) 
+                                      (Var (Id (checkStrLazy kv) TyUnknown)) eenv6
                         else eenv6
+        eenv8 = if quantified_smt_strings config == NoQuantifiers
+                        then E.insert (strQuantifiers kv) 
+                                      (Lam TermL x $ Lit (LitInt 0)) eenv7
+                        else eenv7
 
-        s' = s { IT.expr_env = eenv7
+        s' = s { IT.expr_env = eenv8
                , IT.name_gen = ng3
                , IT.handles = hs}
         
