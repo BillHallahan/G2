@@ -471,7 +471,7 @@ testFileTests = testGroup "TestFiles"
 #endif
                                         , ("splitAt1", 5000, [Exactly 4])
                                         , ("notEq1", 5000, [Exactly 2])
-                                        , ("reverse1", 3000, [AtLeast 6])
+                                        , ("reverse1", 2000, [AtLeast 20])
                                         , ("reverse2", 5000, [Exactly 3])
                                         , ("reverse3", 1000, [ AtLeast 2
                                                              , RExists "rev3Returns1"])
