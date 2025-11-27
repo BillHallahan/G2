@@ -3,8 +3,10 @@ module InputOutputTest ( checkInputOutput
                        , checkInputOutputs
                        
                        , checkInputOutputsSMTStrings
+                       , checkInputOutputsSMTStringsStrict
                        , checkInputOutputsSMTStringsWithSubPath
                        , checkInputOutputsQuantifiedSMTStrings
+                       , checkInputOutputsQuantifiedSMTStringsStrict
                        
                        , checkInputOutputsTemplate
                        , checkInputOutputsWith
@@ -49,6 +51,11 @@ checkInputOutputsSMTStrings :: FilePath -> [(String, Int, [Reqs String])] -> Tes
 checkInputOutputsSMTStrings src tests = do
     checkInputOutput' mkConfigTestWithSMTStringsIO src tests
 
+checkInputOutputsSMTStringsStrict :: FilePath -> [(String, Int, [Reqs String])] -> TestTree
+checkInputOutputsSMTStringsStrict src tests = do
+    let con = (do config <- mkConfigTestWithSMTStringsIO; return $ config { smt_strings_strictness = StrictSMTStrings })
+    checkInputOutput' con src tests
+
 checkInputOutputsSMTStringsWithSubPath :: FilePath -> [(String, Int, [Reqs String])] -> TestTree
 checkInputOutputsSMTStringsWithSubPath src tests = do
     let con = (do config <- mkConfigTestWithSMTStringsIO; return $ config { search_strat = Subpath })
@@ -57,6 +64,11 @@ checkInputOutputsSMTStringsWithSubPath src tests = do
 checkInputOutputsQuantifiedSMTStrings :: FilePath -> [(String, Int, [Reqs String])] -> TestTree
 checkInputOutputsQuantifiedSMTStrings src tests = do
     checkInputOutput' mkConfigTestWithQuantifiedSMTStringsIO src tests
+
+checkInputOutputsQuantifiedSMTStringsStrict :: FilePath -> [(String, Int, [Reqs String])] -> TestTree
+checkInputOutputsQuantifiedSMTStringsStrict src tests = do
+    let con = (do config <- mkConfigTestWithQuantifiedSMTStringsIO; return $ config { smt_strings_strictness = StrictSMTStrings })
+    checkInputOutput' con src tests
 
 checkInputOutputsTemplate :: FilePath -> [(String, Int, [Reqs String])] -> TestTree
 checkInputOutputsTemplate src tests = do
