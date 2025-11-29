@@ -20,6 +20,7 @@ module G2.Language.PathConds ( PathConds
                              , fromHashedList
                              , map
                              , mapHashedPCs
+                             , concatMapHashedPCs
                              , mapPathCondsSCC
                              , map'
                              , filter
@@ -153,6 +154,9 @@ map f = fromList . L.map f . toList
 
 mapHashedPCs :: (HashedPathCond -> HashedPathCond) -> PathConds -> PathConds
 mapHashedPCs f = fromHashedList . L.map f . toHashedList
+
+concatMapHashedPCs :: (HashedPathCond -> [HashedPathCond]) -> PathConds -> PathConds
+concatMapHashedPCs f = fromHashedList . L.concatMap f . toHashedList
 
 -- | Apply a mapping to all PathConds that are in the same SCC as PathConds with some `Name`.
 mapPathCondsSCC :: Name -> (PathCond -> PathCond) -> PathConds -> PathConds

@@ -68,7 +68,9 @@ data UseSMTStrings = UseSMTStrings | NoSMTStrings deriving (Eq, Show, Read)
 
 data SMTStringsEval = StrictSMTStrings | LazySMTStrings deriving (Eq, Show, Read)
 
-data SMTQuantifiers = UseQuantifiers | NoQuantifiers deriving (Eq, Show, Read)
+data SMTQuantifiers = UseQuantifiers -- ^ Leave quantifiers in SMT formulas
+                    | UnrollQuant Integer -- ^ Unroll quantifiers to the specified depth
+                    deriving (Eq, Show, Read)
 
 type IncludePath = FilePath
 
@@ -104,7 +106,7 @@ data Config = Config {
     , smt_path :: Maybe FilePath -- ^ Location of SMT solver
     , smt_strings :: UseSMTStrings -- ^ Sets whether the SMT solver should be used to solve string constraints
     , smt_strings_strictness :: SMTStringsEval -- ^ Force strict evaluation of strings to allow more use of SMT reasoning
-    , quantified_smt_strings :: SMTQuantifiers -- ^ Sets whether quantifiers should be used to describe SMT functions
+    , quantified_smt_strings :: SMTQuantifiers -- ^ Sets how quantifiers should be used in SMT functions
     , step_limit :: Bool -- ^ Should steps be limited when running states?
     , steps :: Int -- ^ How many steps to take when running States
     , time_solving :: Bool -- ^ Output the amount of time spent checking/solving path constraints
@@ -188,7 +190,7 @@ mkConfig homedir = Config Regular
                 <> help "path to an SMT solver")
     <*> flag NoSMTStrings UseSMTStrings (long "smt-strings" <> help "Sets whether the SMT solver should be used to solve string constraints")
     <*> flag LazySMTStrings StrictSMTStrings (long "strict-strings" <> help "Force evaluation of strings, to allow more strings to be handled via SMT reasoning")
-    <*> flag NoQuantifiers UseQuantifiers (long "quant-smt-strings" <> help "Use quantifiers to represent certain String functions")
+    <*> option (maybeReader quantStrings) (long "quant-smt-strings" <> help "Either `-` to indicate that quantifiers should be used in SMT formulas, or a depth to unroll quantifiers to")
     <*> flag True False (long "no-step-limit" <> help "disable step limit")
     <*> option auto (long "n"
                    <> metavar "N"
@@ -298,6 +300,10 @@ mkHigherOrder =
             <> value SingleFunc
             <> help "either all or single, to specify whether all possible higher order instantiations should be searched for, or just a single instantiation")
 
+quantStrings :: String -> Maybe SMTQuantifiers
+quantStrings "-" = Just UseQuantifiers
+quantStrings n = fmap UnrollQuant (readMaybe n)
+
 mkSMTSolver :: Parser SMTSolver
 mkSMTSolver =
     option (eitherReader (\s -> case s of
@@ -356,7 +362,7 @@ mkConfigDirect homedir as m = Config {
     , smt_path = Nothing
     , smt_strings = NoSMTStrings
     , smt_strings_strictness = LazySMTStrings
-    , quantified_smt_strings = NoQuantifiers
+    , quantified_smt_strings = UnrollQuant 30
     , step_limit = boolArg' "no-step-limit" as True True False
     , steps = strArg "n" as m read 1000
     , time_solving = False
