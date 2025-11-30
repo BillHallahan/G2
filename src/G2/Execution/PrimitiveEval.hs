@@ -24,6 +24,7 @@ import Control.Exception
 import Data.Char
 import Data.Foldable
 import qualified Data.HashMap.Lazy as M
+import qualified Data.HashSet as HS
 import qualified Data.List as L
 import Data.Maybe
 import qualified G2.Language.ExprEnv as E
@@ -663,12 +664,35 @@ evalTypeAnyArgPrim eenv _ kv IsSMTRep _ e
     | Just (E.Sym _) <- c_s = Just (mkTrue kv)
     | Just (E.Conc e) <- c_s 
     , Prim _ _:_ <- unApp e = Just (mkTrue kv)
+    | Just (E.Conc e) <- c_s 
+    , isSymString kv eenv e = Just (mkTrue kv)
     where
         c_s = case e of
                 Var (Id n _) -> E.deepLookupConcOrSym n eenv
                 _ -> Just (E.Conc e) 
 evalTypeAnyArgPrim _ _ kv IsSMTRep _ _ = Just (mkFalse kv)
 evalTypeAnyArgPrim _ _ _ _ _ _ = Nothing
+
+-- | Is the expression a symbolically representable string?
+isSymString :: KnownValues -> ExprEnv -> Expr -> Bool
+isSymString kv eenv = go HS.empty
+    where
+        go seen (Var (Id n _))
+            -- If we have already seen a variable, we have an infinite list, i.e.:
+            -- @ xs = x:xs @
+            -- this will cause problems for the SMT solver, so reject
+            | HS.member n seen = False
+            | Just (E.Sym _) <- E.deepLookupConcOrSym n eenv = True
+            | Just (E.Conc e) <- E.deepLookupConcOrSym n eenv = go (HS.insert n seen) e
+        go _ (Data dc) | dc_name dc == KV.dcCons kv = True
+                       | dc_name dc == KV.dcEmpty kv = True
+                       | dc_name dc == KV.dcChar kv = True
+        go seen (App e1 e2)
+            | Data _:_ <- unApp e1 = go seen e1 && go seen e2
+        go _ (Lit (LitChar _)) = True
+        go _ (Type _) = True
+        go seen (Tick _ e) = go seen e
+        go _ _ = False
 
 evalTypeDCPrim2 :: TypeEnv -> TV.TyVarEnv -> Primitive -> Type -> DataCon -> Maybe Expr
 evalTypeDCPrim2 tenv tv_env DataToTag t dc  =

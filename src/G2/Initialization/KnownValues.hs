@@ -123,6 +123,7 @@ initKnownValues eenv tenv tc =
 
     , typeIndex = exprWithStrName eenv "typeIndex#"
     , adjStr = exprWithStrName eenv "adjStr"
+    , checkStrLazy = exprWithStrName eenv "checkStrLazy"
     , strQuantifiers = exprWithStrName eenv "strQuantifiers"
 
     , errorFunc = exprWithStrName eenv "error"
