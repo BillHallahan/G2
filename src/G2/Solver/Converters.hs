@@ -445,6 +445,7 @@ exprToSMT tv (Case bindee _ _ as)
     where
         fromLitAlt (Alt (LitAlt (LitInt i)) e) = Just (i, e)
         fromLitAlt _ = Nothing
+exprToSMT tv (Tick _ e) = exprToSMT tv e
 
 exprToSMT _ e = error $ "exprToSMT: unhandled Expr: " ++ show e
 
@@ -571,7 +572,7 @@ funcToSMT3Prim tv StrSubstr x y z = StrSubstrSMT (exprToSMT tv x) (exprToSMT tv 
 funcToSMT3Prim tv StrIndexOf x y z = StrIndexOfSMT (exprToSMT tv x) (exprToSMT tv y) (exprToSMT tv z)
 funcToSMT3Prim tv StrReplace x y z = StrReplaceSMT (exprToSMT tv x) (exprToSMT tv y) (exprToSMT tv z)
 
-funcToSMT3Prim tv ForAllBoundPr lower upper (Lam _ (Id n t) e) =
+funcToSMT3Prim tv ForAllBoundPr lower upper e_body | (Lam _ (Id n t) e) <- stripAllTicks e_body =
     let
         lower_smt = exprToSMT tv lower
         upper_smt = exprToSMT tv upper
