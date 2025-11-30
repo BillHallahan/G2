@@ -190,7 +190,10 @@ mkConfig homedir = Config Regular
                 <> help "path to an SMT solver")
     <*> flag NoSMTStrings UseSMTStrings (long "smt-strings" <> help "Sets whether the SMT solver should be used to solve string constraints")
     <*> flag LazySMTStrings StrictSMTStrings (long "strict-strings" <> help "Force evaluation of strings, to allow more strings to be handled via SMT reasoning")
-    <*> option (maybeReader quantStrings) (long "quant-smt-strings" <> help "Either `-` to indicate that quantifiers should be used in SMT formulas, or a depth to unroll quantifiers to")
+    <*> option (maybeReader quantStrings) (long "quant-smt-strings"
+                                          <> metavar "Q"
+                                          <> value (UnrollQuant 20)
+                                          <> help "Either `-` to indicate that quantifiers should be used in SMT formulas, or a depth to unroll quantifiers to")
     <*> flag True False (long "no-step-limit" <> help "disable step limit")
     <*> option auto (long "n"
                    <> metavar "N"
@@ -362,7 +365,7 @@ mkConfigDirect homedir as m = Config {
     , smt_path = Nothing
     , smt_strings = NoSMTStrings
     , smt_strings_strictness = LazySMTStrings
-    , quantified_smt_strings = UnrollQuant 30
+    , quantified_smt_strings = UnrollQuant 26
     , step_limit = boolArg' "no-step-limit" as True True False
     , steps = strArg "n" as m read 1000
     , time_solving = False
