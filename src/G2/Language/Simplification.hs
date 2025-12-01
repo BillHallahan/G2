@@ -24,7 +24,8 @@ simplifyExpr eenv c_eenv e =
     let
         e' = inlineFunc eenv
            . simplifyDefCase eenv
-           . simplifyAppLambdas $ e
+           . simplifyAppLambdas
+           . stripAllTicks $ e
         -- e' = caseOfKnownCons
         --    . inlineFuncInCase c_eenv
         --    . inlineFunc eenv
