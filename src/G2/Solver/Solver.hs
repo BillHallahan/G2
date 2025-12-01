@@ -351,6 +351,9 @@ instance Solver solver => Solver (UnrollBoundedQuant solver) where
     check (UnrollBoundedQuant n solver) s pc = check solver s (unroll n pc)
     solve (UnrollBoundedQuant n solver) s b is pc = solve solver s b is (unroll n pc)
 
+    close (UnrollBoundedQuant _ solver) = close solver
+
+
 unroll :: Integer -> PathConds -> PathConds
 unroll k = PC.concatMapHashedPCs unroll'
     where
