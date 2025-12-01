@@ -471,11 +471,7 @@ testFileTests = testGroup "TestFiles"
 #endif
                                         , ("splitAt1", 5000, [Exactly 4])
                                         , ("notEq1", 5000, [Exactly 2])
-<<<<<<< HEAD
                                         , ("reverse1", 2000, [Exactly 6])
-=======
-                                        , ("reverse1", 2000, [AtLeast 20])
->>>>>>> master
                                         , ("reverse2", 5000, [Exactly 3])
                                         , ("reverse3", 1000, [ AtLeast 2
                                                              , RExists "rev3Returns1"])
