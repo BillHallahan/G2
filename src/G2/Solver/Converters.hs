@@ -582,7 +582,7 @@ funcToSMT3Prim tv ForAllBoundPr lower upper e_body | (Lam _ (Id n t) e) <- strip
         n_sort = typeToSMT tv t
         n_var = V n_smt n_sort
 
-        cond = SmtAnd [lower_smt :<= n_var, n_var :<= upper_smt]
+        cond = SmtAnd [lower_smt :<= n_var, n_var :< upper_smt]
     in
     ForAll n_smt n_sort (cond :=> e_smt)
 
