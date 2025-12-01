@@ -646,7 +646,6 @@ instance Named KnownValues where
             , typeIndex = ti
             , adjStr = adjN
             , checkStrLazy = checkStrLN
-
             , errorFunc = errF
             , errorEmptyListFunc = errEmpListF
             , errorWithoutStackTraceFunc = errWOST
