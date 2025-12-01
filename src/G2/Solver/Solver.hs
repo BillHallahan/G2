@@ -370,7 +370,7 @@ unroll k = PC.concatMapHashedPCs unroll'
                                                                 e
                                             in
                                             mkApp [Prim Implies TyUnknown, cond, e']
-                                        ) [0..k]
+                                        ) [0..k - 1]
                         in
                         map (PC.hashedPC . flip ExtCond True) $ lim_upper:per_j
                     | otherwise = [hpc]
