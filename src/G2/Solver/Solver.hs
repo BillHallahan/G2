@@ -364,7 +364,7 @@ unroll k = PC.concatMapHashedPCs unroll'
                             per_j = map (\j ->
                                             let
                                                 ind = mkApp [ Prim Plus TyUnknown, lower, Lit (LitInt j) ]
-                                                cond = mkApp [Prim Le TyUnknown, ind, upper]
+                                                cond = mkApp [Prim Lt TyUnknown, ind, upper]
                                                 e' = replaceVar (idName i)
                                                                 ind
                                                                 e
