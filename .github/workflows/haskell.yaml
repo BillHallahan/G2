@@ -19,7 +19,8 @@ jobs:
                     { ghc: '9.4.4', cabal: '3.10' },
                     { ghc: '9.6.1', cabal: '3.10' },
                     { ghc: '9.8.4', cabal: '3.10' },
-                    { ghc: '9.10.3', cabal: '3.10' } ]
+                    { ghc: '9.10.3', cabal: '3.10' },
+                    { ghc: '9.12.2', cabal: '3.12' } ]
         test: [ { test: test, lh: '-support-lh' },
                 { test: test-g2q, lh: '-support-lh' },
                 { test: test-lh, lh: 'support-lh' } ]
@@ -33,6 +34,8 @@ jobs:
           - compiler: { ghc: '9.8.4', cabal: '3.10' }
             test: { test: test-lh }
           - compiler: { ghc: '9.10.3', cabal: '3.10' }
+            test: { test: test-lh }
+          - compiler: { ghc: '9.12.2', cabal: '3.12' }
             test: { test: test-lh }
     steps:
     - uses: actions/checkout@v3
