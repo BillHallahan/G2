@@ -49,8 +49,7 @@ checkInputOutputs src tests = do
 
 checkInputOutputsSMTStrings :: FilePath -> [(String, Int, [Reqs String])] -> TestTree
 checkInputOutputsSMTStrings src tests = do
-    let con = (do config <- mkConfigTestWithSMTStringsIO; return $ config { smt_timeout = 30, print_smt = True })
-    checkInputOutput' con src tests
+    checkInputOutput' mkConfigTestWithSMTStringsIO src tests
 
 checkInputOutputsSMTStringsStrict :: FilePath -> [(String, Int, [Reqs String])] -> TestTree
 checkInputOutputsSMTStringsStrict src tests = do
