@@ -353,17 +353,20 @@ instance Solver solver => Solver (UnrollBoundedQuant solver) where
 
     close (UnrollBoundedQuant _ solver) = close solver
 
-
+-- | Eliminate bounded foralls from the path constraints by unrolling to some fixed upper bound.
+-- This sacrifices completeness, but is likely to improve solver performance.
 unroll :: Integer -> PathConds -> PathConds
 unroll k = PC.concatMapHashedPCs unroll'
     where
         unroll' hpc | ExtCond e True <- PC.unhashedPC hpc
                     , [Prim ForAllBoundPr _, lower, upper, Lam _ i e] <- unApp e =
                         let
+                            -- Enforce an upper bound based on the number of times we are unrolling.
                             lim_upper = mkApp [ Prim Le TyUnknown
                                               , upper
                                               , mkApp [ Prim Plus TyUnknown, lower, Lit (LitInt k) ]
                                               ]
+                            -- Unroll the body of the forall.
                             per_j = map (\j ->
                                             let
                                                 ind = mkApp [ Prim Plus TyUnknown, lower, Lit (LitInt j) ]
