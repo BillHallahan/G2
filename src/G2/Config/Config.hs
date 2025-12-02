@@ -103,6 +103,7 @@ data Config = Config {
     , fp_handling :: FpHandling -- ^ Whether to use real floating point values or rationals
     , print_encode_float :: Bool -- ^ Whether to print floating point numbers directly or via encodeFloat
     , smt :: SMTSolver -- ^ Sets the SMT solver to solve constraints with
+    , smt_timeout :: Int -- ^ Sets the timeout (in seconds) for the SMT solver
     , smt_path :: Maybe FilePath -- ^ Location of SMT solver
     , smt_strings :: UseSMTStrings -- ^ Sets whether the SMT solver should be used to solve string constraints
     , smt_strings_strictness :: SMTStringsEval -- ^ Force strict evaluation of strings to allow more use of SMT reasoning
@@ -183,6 +184,10 @@ mkConfig homedir = Config Regular
                                 <> help "Represent floating point values precisely.  When off, overapproximate as rationals.")
     <*> switch (long "print-encodeFloat" <> help "use encodeFloat to print floating point numbers")
     <*> mkSMTSolver
+    <*> option auto (long "smt-timeout"
+                   <> metavar "T"
+                   <> value 10
+                   <> help "sets the timeout (in seconds) for the SMT solver")
     <*> option (Just <$> str)
                 ( long "smt-path"
                 <> metavar "SMT-PATH"
@@ -362,6 +367,7 @@ mkConfigDirect homedir as m = Config {
     , fp_handling = RealFP
     , print_encode_float = False
     , smt = strArg "smt" as m smtSolverArg ConZ3
+    , smt_timeout = 10
     , smt_path = Nothing
     , smt_strings = NoSMTStrings
     , smt_strings_strictness = LazySMTStrings
