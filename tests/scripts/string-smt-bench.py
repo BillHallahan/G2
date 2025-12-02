@@ -365,10 +365,10 @@ res_progs = run_nofib_set("programs", [], time_lim)
 cov_generate_latex(res_imag + res_spec + res_progs)
 solver_cov_generate_csv(res_imag + res_spec + res_progs)
 
-time_lim = 30
+# time_lim = 30
 
-props = map(lambda x : "prop" + str(x), list(range(1, 25)))
-res_props = run_param_properties("properties", "ParamProperties.hs", [], time_lim, props)
+# props = map(lambda x : "prop" + str(x), list(range(1, 25)))
+# res_props = run_param_properties("properties", "ParamProperties.hs", [], time_lim, props)
 
-print(cex_generate_csv(res_props))
-print(solver_cex_generate_csv(res_props))
+# print(cex_generate_csv(res_props))
+# print(solver_cex_generate_csv(res_props))

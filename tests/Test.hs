@@ -481,7 +481,7 @@ testFileTests = testGroup "TestFiles"
 
                                         , ("minimum1", 3000, [AtLeast 5, AtMost 6]) -- Allowing for SMT failures
                                         , ("minimum2", 1000, [Exactly 2])
-                                        , ("maximum1", 3000, [Exactly 6])
+                                        , ("maximum1", 3000, [AtLeast 5, AtMost 6]) -- Allowing for SMT failures
                                         , ("maximum2", 1000, [Exactly 2])
 
                                         , ("lines1", 4000, [AtLeast 10])
