@@ -18,6 +18,7 @@ module G2.Solver.Solver ( Solver (..)
                         , UndefinedHigherOrder (..)
                         , UnknownSolver (..)
                         , EqualitySolver (..)
+                        , UnrollBoundedQuant (..)
                         , CommonSubExpElim (..)
                         
                         , TimeSolver
@@ -44,7 +45,6 @@ import Data.List
 import Data.Monoid
 import Data.Tuple
 import System.Clock
-import GHC.RTS.Flags (GCFlags(doIdleGC))
 
 -- | The result of a Solver query
 data Result m u um = SAT m
@@ -342,6 +342,44 @@ uniq = comp . sort
         comp (x:y:xs) 
             | x == y = False
             | otherwise = comp (y : xs)
+
+-- | A solver to unroll bounded quantifiers
+data UnrollBoundedQuant solver = UnrollBoundedQuant Integer -- ^ Number of times to unroll
+                                                    solver
+
+instance Solver solver => Solver (UnrollBoundedQuant solver) where
+    check (UnrollBoundedQuant n solver) s pc = check solver s (unroll n pc)
+    solve (UnrollBoundedQuant n solver) s b is pc = solve solver s b is (unroll n pc)
+
+    close (UnrollBoundedQuant _ solver) = close solver
+
+-- | Eliminate bounded foralls from the path constraints by unrolling to some fixed upper bound.
+-- This sacrifices completeness, but is likely to improve solver performance.
+unroll :: Integer -> PathConds -> PathConds
+unroll k = PC.concatMapHashedPCs unroll'
+    where
+        unroll' hpc | ExtCond e True <- PC.unhashedPC hpc
+                    , [Prim ForAllBoundPr _, lower, upper, Lam _ i e] <- unApp e =
+                        let
+                            -- Enforce an upper bound based on the number of times we are unrolling.
+                            lim_upper = mkApp [ Prim Le TyUnknown
+                                              , upper
+                                              , mkApp [ Prim Plus TyUnknown, lower, Lit (LitInt k) ]
+                                              ]
+                            -- Unroll the body of the forall.
+                            per_j = map (\j ->
+                                            let
+                                                ind = mkApp [ Prim Plus TyUnknown, lower, Lit (LitInt j) ]
+                                                cond = mkApp [Prim Lt TyUnknown, ind, upper]
+                                                e' = replaceVar (idName i)
+                                                                ind
+                                                                e
+                                            in
+                                            mkApp [Prim Implies TyUnknown, cond, e']
+                                        ) [0..k - 1]
+                        in
+                        map (PC.hashedPC . flip ExtCond True) $ lim_upper:per_j
+                    | otherwise = [hpc]
 
 -- | A solver to time the runtime of other solvers
 data TimeSolver s = TimeSolver

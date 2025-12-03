@@ -445,6 +445,7 @@ exprToSMT tv (Case bindee _ _ as)
     where
         fromLitAlt (Alt (LitAlt (LitInt i)) e) = Just (i, e)
         fromLitAlt _ = Nothing
+exprToSMT tv (Tick _ e) = exprToSMT tv e
 
 exprToSMT _ e = error $ "exprToSMT: unhandled Expr: " ++ show e
 
@@ -494,8 +495,6 @@ funcToSMT1Prim tv BVToNat e = BVToNatSMT (exprToSMT tv e)
 funcToSMT1Prim tv Chr e = FromCode (exprToSMT tv e)
 funcToSMT1Prim tv OrdChar e = ToCode (exprToSMT tv e)
 funcToSMT1Prim tv StrLen e = StrLenSMT (exprToSMT tv e)
-
-funcToSMT1Prim tv ForAllPr (Lam _ (Id n t) e) = ForAll (nameToStr n) (typeToSMT tv t) (exprToSMT tv e)
 
 funcToSMT1Prim _ err _ = error $ "funcToSMT1Prim: invalid Primitive " ++ show err
 
@@ -572,6 +571,21 @@ funcToSMT3Prim tv Ite x y z = IteSMT (exprToSMT tv x) (exprToSMT tv y) (exprToSM
 funcToSMT3Prim tv StrSubstr x y z = StrSubstrSMT (exprToSMT tv x) (exprToSMT tv y) (exprToSMT tv z)
 funcToSMT3Prim tv StrIndexOf x y z = StrIndexOfSMT (exprToSMT tv x) (exprToSMT tv y) (exprToSMT tv z)
 funcToSMT3Prim tv StrReplace x y z = StrReplaceSMT (exprToSMT tv x) (exprToSMT tv y) (exprToSMT tv z)
+
+funcToSMT3Prim tv ForAllBoundPr lower upper e_body | (Lam _ (Id n t) e) <- stripAllTicks e_body =
+    let
+        lower_smt = exprToSMT tv lower
+        upper_smt = exprToSMT tv upper
+        e_smt = exprToSMT tv e
+
+        n_smt = nameToStr n
+        n_sort = typeToSMT tv t
+        n_var = V n_smt n_sort
+
+        cond = SmtAnd [lower_smt :<= n_var, n_var :< upper_smt]
+    in
+    ForAll n_smt n_sort (cond :=> e_smt)
+
 funcToSMT3Prim _ op _ _ _ = error $ "funcToSMT3Prim: invalid case with " ++ show op
 
 altToSMT :: Lit -> Expr -> SMTAST

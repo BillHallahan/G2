@@ -243,7 +243,7 @@ evalApp s@(State { expr_env = eenv
     | ac@(Prim Error _) <- appCenter e1 =
         (RuleError, [newPCEmpty $ s { curr_expr = CurrExpr Return ac }], ng)
     -- Force evaluation of the expression being quantified over
-    | (Prim ForAllPr _) <- e1 =
+    | [Prim ForAllBoundPr _, _ {- lower -}, _ {- upper -} ] <- unApp e1 =
         let e2' = simplifyExprs eenv eenv e2 in
         (RuleEvalPrimToNorm, [newPCEmpty $ s { curr_expr = CurrExpr Return (App e1 e2') }], ng)
     -- Float ticks to the top of a prim

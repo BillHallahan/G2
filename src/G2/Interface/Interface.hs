@@ -454,7 +454,12 @@ initSolver' avf config = do
                                 True -> countResultsSomeSolver some_adt_solver'
                                 False -> return some_adt_solver'
 
-    let con' = case some_adt_solver'' of
+    let quant_solver = case quantified_smt_strings config of
+                            UseQuantifiers -> some_adt_solver''
+                            UnrollQuant n -> case some_adt_solver'' of
+                                                SomeSolver adt_solver -> SomeSolver (UnrollBoundedQuant n adt_solver)
+
+    let con' = case quant_solver of
                     SomeSolver adt_solver ->
                         SomeSolver -- . CommonSubExpElim
                                    $ GroupRelated avf

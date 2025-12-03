@@ -646,8 +646,6 @@ instance Named KnownValues where
             , typeIndex = ti
             , adjStr = adjN
             , checkStrLazy = checkStrLN
-            , strQuantifiers = strQ
-
             , errorFunc = errF
             , errorEmptyListFunc = errEmpListF
             , errorWithoutStackTraceFunc = errWOST
@@ -668,7 +666,7 @@ instance Named KnownValues where
                 , geF, gtF, ltF, leF
                 , impF, iffF
                 , andF, orF, notF
-                , ti, adjN, checkStrLN, strQ
+                , ti, adjN, checkStrLN
                 , errF, errEmpListF, errWOST, patE]
 
     rename old new (KnownValues {
@@ -758,7 +756,6 @@ instance Named KnownValues where
                    , typeIndex = ti
                    , adjStr = adjN
                    , checkStrLazy = checkStrLN
-                   , strQuantifiers = strQ
 
                    , errorFunc = errF
                    , errorEmptyListFunc = errEmpListF
@@ -852,7 +849,6 @@ instance Named KnownValues where
                         , typeIndex = rename old new ti
                         , adjStr = rename old new adjN
                         , checkStrLazy = rename old new checkStrLN
-                        , strQuantifiers = rename old new strQ
 
                         , errorFunc = rename old new errF
                         , errorEmptyListFunc = rename old new errEmpListF
