@@ -295,6 +295,16 @@ data Primitive = -- Mathematical and logical operators
                | UnspecifiedOutput
                deriving (Show, Eq, Read, Generic, Typeable, Data)
 
+isErrorExpr :: Expr -> Bool
+isErrorExpr (Prim p _) = isErrorPrim p
+isErrorExpr _ = False
+
+isErrorPrim :: Primitive -> Bool
+isErrorPrim Error = True
+isErrorPrim Undefined = True
+isErrorPrim _ = False
+
+
 pattern IntToFloat :: Primitive
 pattern IntToFloat = IntToFP 8 24
 

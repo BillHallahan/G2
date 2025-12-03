@@ -662,8 +662,9 @@ evalTypeAnyArgPrim _ tv kv TypeIndex t _ | (tyVarSubst tv t) == tyString kv = Ju
                                       | otherwise = Just (Lit (LitInt 0))
 evalTypeAnyArgPrim eenv _ kv IsSMTRep _ e
     | Just (E.Sym _) <- c_s = Just (mkTrue kv)
-    | Just (E.Conc e) <- c_s 
-    , Prim _ _:_ <- unApp e = Just (mkTrue kv)
+    | Just (E.Conc e) <- c_s
+    , Prim p _:_ <- unApp e
+    , not (isErrorPrim p) = Just (mkTrue kv)
     | Just (E.Conc e) <- c_s 
     , isSymString kv eenv e = Just (mkTrue kv)
     where

@@ -86,14 +86,14 @@ stdReduce' share _ solver simplifier s@(State { curr_expr = CurrExpr Evaluate ce
     | otherwise = return (RuleReturn, [s { curr_expr = CurrExpr Return ce }], ng)
 stdReduce' _ symb_func_eval solver simplifier s@(State { curr_expr = CurrExpr Return ce
                                  , exec_stack = stck }) ng
-    | isError ce
+    | isErrorExpr ce
     , Just (AssertFrame is _, stck') <- S.pop stck =
         return (RuleError, [s { exec_stack = stck'
                               , true_assert = True
                               , assert_ids = fmap (\fc -> fc { returns = Prim Error TyBottom }) is }], ng)
     | Just rs <- symb_func_eval defSymFuncTicks s ng ce = return rs
     | Just (UpdateFrame n, stck') <- frstck = return $ retUpdateFrame s ng n stck'
-    | isError ce
+    | isErrorExpr ce
     , Just (_, stck') <- S.pop stck = return (RuleError, [s { exec_stack = stck' }], ng)
     | Just (CaseFrame i t a, stck') <- frstck = return $ retCaseFrame s ng ce i t a stck'
     | Just (CastFrame c, stck') <- frstck = return $ retCastFrame s ng ce c stck'
@@ -116,10 +116,6 @@ stdReduce' _ symb_func_eval solver simplifier s@(State { curr_expr = CurrExpr Re
     | otherwise = error $ "stdReduce': Unknown Expr" ++ show ce ++ show (S.pop stck)
         where
             frstck = S.pop stck
-
-            isError (Prim Error _) = True
-            isError (Prim Undefined _) = True
-            isError _ = False
 
 mapAccumMaybeM :: Monad m => (s -> a -> m (Maybe (s, b))) -> s -> [a] -> m (s, [b])
 mapAccumMaybeM f s xs = do
@@ -258,18 +254,18 @@ evalApp s@(State { expr_env = eenv
         , [ (newPCEmpty $ s { expr_env = eenv'
                             , curr_expr = CurrExpr Evaluate e }) { new_pcs = pc} ]
         , ng')
-    | p@(Prim _ _):es <- unApp (App e1 e2)
-    , (xs, e:ys) <- L.span (isExprValueForm eenv . (flip E.deepLookupExpr) eenv) es =
-        let
-            t = typeOf tv_env e
-            (i, ng') = freshId t ng
+    -- | p@(Prim _ _):es <- unApp (App e1 e2)
+    -- , (xs, e:ys) <- L.span (isExprValueForm eenv . (flip E.deepLookupExpr) eenv) es =
+    --     let
+    --         t = typeOf tv_env e
+    --         (i, ng') = freshId t ng
             
-            pr_call = mkApp $ p:xs ++ Var i:ys
-            curr_e = Case e i t [Alt Default pr_call]
-        in
-        ( RuleEvalPrimToNorm
-        , [newPCEmpty $ s { expr_env = eenv, curr_expr = CurrExpr Evaluate curr_e }]
-        , ng')
+    --         pr_call = mkApp $ p:xs ++ Var i:ys
+    --         curr_e = Case e i t [Alt Default pr_call]
+    --     in
+    --     ( RuleEvalPrimToNorm
+    --     , [newPCEmpty $ s { expr_env = eenv, curr_expr = CurrExpr Evaluate curr_e }]
+    --     , ng')
 
     | (Prim _ _):_ <- unApp (App e1 e2) = 
         let
