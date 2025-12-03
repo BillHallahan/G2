@@ -194,7 +194,9 @@ testFileTests = testGroup "TestFiles"
     , checkInputOutputs "tests/TestFiles/Char.hs" [ ("char", 400, [Exactly 2])
                                                   , ("f", 1000, [AtLeast 3])
                                                   , ("g", 1000, [AtLeast 8])
-                                                  , ("isDigitTest", 1000, [AtLeast 2]) ]
+                                                  , ("isDigitTest", 1000, [AtLeast 2])
+                                                  , ("toUp", 5000, [Exactly 6])
+                                                  , ("toLow", 5000, [Exactly 6]) ]
 
     , checkExpr "tests/TestFiles/CheckSq.hs" 400 "checkSq"
         [AtLeast 2, RExists (\[x, _] -> isInt x (\x' -> x' == 3 || x' == -3))]
