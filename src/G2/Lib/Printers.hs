@@ -505,7 +505,7 @@ mkPrimHaskell pg = pr
 
         pr TypeIndex = "typeIndex"
 
-        pr ForAllPr = "forall"
+        pr ForAllBoundPr = "forall_bound"
 
         pr UnspecifiedOutput = "?"
 

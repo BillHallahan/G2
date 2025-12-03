@@ -393,17 +393,17 @@ getSMT :: Config -> IO SomeSMTSolver
 getSMT = getSMTAV arbValue
 
 getSMTAV :: ArbValueFunc -> Config -> IO SomeSMTSolver
-getSMTAV avf (Config { smt = ConZ3, smt_path = path, print_smt = pr }) = do
-    hhp <- getZ3ProcessHandles path 10000
+getSMTAV avf (Config { smt = ConZ3, smt_timeout = to, smt_path = path, print_smt = pr }) = do
+    hhp <- getZ3ProcessHandles path (to * 1000)
     return $ SomeSMTSolver (Z3 SeqSolver pr avf hhp)
-getSMTAV avf (Config { smt = ConZ3Str3, smt_path = path, print_smt = pr }) = do
-    hhp <- getZ3ProcessHandles path 10000
+getSMTAV avf (Config { smt = ConZ3Str3, smt_timeout = to, smt_path = path, print_smt = pr }) = do
+    hhp <- getZ3ProcessHandles path (to * 1000)
     return $ SomeSMTSolver (Z3 Z3Str3 pr avf hhp)
-getSMTAV avf (Config { smt = ConCVC5, smt_path = path, print_smt = pr }) = do
-    hhp <- getCVC5ProcessHandles path 10000
+getSMTAV avf (Config { smt = ConCVC5, smt_timeout = to, smt_path = path, print_smt = pr }) = do
+    hhp <- getCVC5ProcessHandles path (to * 1000)
     return $ SomeSMTSolver (CVC5 pr avf hhp)
-getSMTAV avf (Config { smt = ConOstrich, smt_path = path, print_smt = pr }) = do
-    hhp <- getOstrichProcessHandles path 10000
+getSMTAV avf (Config { smt = ConOstrich, smt_timeout = to, smt_path = path, print_smt = pr }) = do
+    hhp <- getOstrichProcessHandles path (to * 1000)
     return $ SomeSMTSolver (Ostrich pr avf hhp)
 
 -- | getZ3ProcessHandles
