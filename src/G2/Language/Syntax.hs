@@ -277,6 +277,11 @@ data Primitive = -- Mathematical and logical operators
 
                -- True if passed an expression that can be converted into an SMT formula, false otherwise
                | IsSMTRep
+               -- True if passed an expression that when evaluated
+               --   (1) will definitely terminate with some e that
+               --   (2) can definitely be converted into an SMT formula
+               -- false otherwise
+               | EvalsToSMTRep
 
                -- TypeIndex maps types to Int#s:
                -- 1: String

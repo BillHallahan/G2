@@ -660,19 +660,25 @@ evalPrim2 _ _ _ _ = Nothing
 evalTypeAnyArgPrim :: ExprEnv -> TV.TyVarEnv -> KnownValues -> Primitive -> Type -> Expr -> Maybe Expr
 evalTypeAnyArgPrim _ tv kv TypeIndex t _ | (tyVarSubst tv t) == tyString kv = Just (Lit (LitInt 1))
                                       | otherwise = Just (Lit (LitInt 0))
-evalTypeAnyArgPrim eenv _ kv IsSMTRep _ e
-    | Just (E.Sym _) <- c_s = Just (mkTrue kv)
+evalTypeAnyArgPrim eenv _ kv IsSMTRep _ e = Just $ mkBool kv (isSMTRep eenv kv e)
+evalTypeAnyArgPrim eenv _ kv EvalsToSMTRep _ e
+    | isSMTRep eenv kv e = Just (mkTrue kv)
+    | otherwise = Just (mkFalse kv)
+evalTypeAnyArgPrim _ _ _ _ _ _ = Nothing
+
+isSMTRep :: ExprEnv -> KnownValues -> Expr -> Bool
+isSMTRep eenv kv e
+    | Just (E.Sym _) <- c_s = True
     | Just (E.Conc e) <- c_s
     , Prim p _:_ <- unApp e
-    , not (isErrorPrim p) = Just (mkTrue kv)
+    , not (isErrorPrim p) = True
     | Just (E.Conc e) <- c_s 
-    , isSymString kv eenv e = Just (mkTrue kv)
+    , isSymString kv eenv e = True
+    | otherwise = False
     where
         c_s = case e of
                 Var (Id n _) -> E.deepLookupConcOrSym n eenv
-                _ -> Just (E.Conc e) 
-evalTypeAnyArgPrim _ _ kv IsSMTRep _ _ = Just (mkFalse kv)
-evalTypeAnyArgPrim _ _ _ _ _ _ = Nothing
+                _ -> Just (E.Conc e)
 
 -- | Is the expression a symbolically representable string?
 isSymString :: KnownValues -> ExprEnv -> Expr -> Bool

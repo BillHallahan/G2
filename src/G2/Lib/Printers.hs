@@ -502,6 +502,7 @@ mkPrimHaskell pg = pr
         pr Ite = "pr_ite"
 
         pr IsSMTRep = "isSMTRep"
+        pr EvalsToSMTRep = "evalsToSMTRep"
 
         pr TypeIndex = "typeIndex"
 
