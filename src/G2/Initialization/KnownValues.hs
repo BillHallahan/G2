@@ -2,6 +2,7 @@
 
 module G2.Initialization.KnownValues (initKnownValues) where
 
+import G2.Language.AST
 import qualified G2.Language.ExprEnv as E
 import G2.Language.KnownValues
 import G2.Language.Syntax
@@ -10,7 +11,9 @@ import G2.Language.TypeEnv
 import G2.Language.Typing (tyAppCenter, returnType)
 
 import Data.List
+import qualified Data.HashSet as HS
 import qualified Data.HashMap.Lazy as HM
+import Data.Monoid
 import qualified Data.Text as T
 
 initKnownValues :: E.ExprEnv -> TypeEnv -> TypeClasses -> KnownValues
@@ -21,6 +24,8 @@ initKnownValues eenv tenv tc =
     realT = typeWithStrName tenv "Real"
     eqT = typeWithStrName tenv "Eq"
     ordT = typeWithStrName tenv "Ord"
+
+    type_index = exprWithStrName eenv "typeIndex#"
   in
   KnownValues {
       tyCoercion = typeWithStrName tenv "~#" 
@@ -121,7 +126,7 @@ initKnownValues eenv tenv tc =
     , orFunc = exprWithStrName eenv "||"
     , notFunc = exprWithStrName eenv "not"
 
-    , typeIndex = exprWithStrName eenv "typeIndex#"
+    , typeIndex = type_index
     , adjStr = exprWithStrName eenv "adjStr"
     , checkStrLazy = exprWithStrName eenv "checkStrLazy"
 
@@ -129,6 +134,8 @@ initKnownValues eenv tenv tc =
     , errorEmptyListFunc = exprWithStrName eenv "errorEmptyList"
     , errorWithoutStackTraceFunc = exprWithStrName eenv "errorWithoutStackTrace"
     , patErrorFunc = exprWithStrName eenv "patError"
+
+    , smtStringFuncs = mkSmtStringFuncs type_index eenv
     }
 
 exprWithStrName :: E.ExprEnv -> T.Text -> Name
@@ -184,3 +191,9 @@ superClassExtractor tc tc_n sc_n =
             case t_c of
                 TyCon n _ -> n == sc_n
                 _ -> False
+
+mkSmtStringFuncs :: Name -> E.ExprEnv -> HS.HashSet Name
+mkSmtStringFuncs ty_ind = HS.fromList . E.keys . E.filter (getAny . evalASTs go)
+  where
+    go (Var (Id n _)) | n == ty_ind = Any True
+    go _ = Any False

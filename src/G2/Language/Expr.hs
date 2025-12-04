@@ -651,5 +651,6 @@ inlineVars eenv = modifyContainedASTs (inlineVars' HS.empty eenv)
 inlineVars' :: HS.HashSet Name -> ExprEnv -> Expr -> Expr
 inlineVars' seen eenv (Var (Id n _))
     | not (n `HS.member` seen)
-    , Just (E.Conc e) <- E.lookupConcOrSym n eenv = inlineVars' (HS.insert n seen) eenv e
+    , Just (E.Conc e) <- E.lookupConcOrSym n eenv
+    , not (isLam e) = inlineVars' (HS.insert n seen) eenv e
 inlineVars' seen eenv e = modifyChildren (inlineVars' seen eenv) e

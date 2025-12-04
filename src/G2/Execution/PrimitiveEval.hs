@@ -33,6 +33,7 @@ import qualified G2.Language.TyVarEnv as TV
 
 import GHC.Float
 import G2.Language.ExprEnv (deepLookupVar)
+import G2.Language.KnownValues (KnownValues(smtStringFuncs))
 
 -- | Evaluates primitives at the root of the passed `Expr` while updating the `ExprEnv`
 -- to share computed results.
@@ -660,10 +661,8 @@ evalPrim2 _ _ _ _ = Nothing
 evalTypeAnyArgPrim :: ExprEnv -> TV.TyVarEnv -> KnownValues -> Primitive -> Type -> Expr -> Maybe Expr
 evalTypeAnyArgPrim _ tv kv TypeIndex t _ | (tyVarSubst tv t) == tyString kv = Just (Lit (LitInt 1))
                                       | otherwise = Just (Lit (LitInt 0))
-evalTypeAnyArgPrim eenv _ kv IsSMTRep _ e = Just $ mkBool kv (isSMTRep eenv kv e)
-evalTypeAnyArgPrim eenv _ kv EvalsToSMTRep _ e
-    | isSMTRep eenv kv e = Just (mkTrue kv)
-    | otherwise = Just (mkFalse kv)
+evalTypeAnyArgPrim eenv _ kv IsSMTRep _ e = Just . mkBool kv $ isSMTRep eenv kv e
+evalTypeAnyArgPrim eenv _ kv EvalsToSMTRep _ e = Just . mkBool kv $ evalsToSMTRep eenv kv e
 evalTypeAnyArgPrim _ _ _ _ _ _ = Nothing
 
 isSMTRep :: ExprEnv -> KnownValues -> Expr -> Bool
@@ -673,16 +672,28 @@ isSMTRep eenv kv e
     , Prim p _:_ <- unApp e
     , not (isErrorPrim p) = True
     | Just (E.Conc e) <- c_s 
-    , isSymString kv eenv e = True
+    , isSymString eenv kv e = True
     | otherwise = False
     where
         c_s = case e of
                 Var (Id n _) -> E.deepLookupConcOrSym n eenv
                 _ -> Just (E.Conc e)
 
+evalsToSMTRep :: ExprEnv -> KnownValues -> Expr -> Bool
+evalsToSMTRep eenv kv (Var (Id n _))
+    | n `elem` smtStringFuncs kv = True
+    | E.isSymbolic n eenv = True
+    | Just e' <- E.lookup n eenv = evalsToSMTRep eenv kv e'
+evalsToSMTRep _ _ (Data _) = True
+evalsToSMTRep _ _ (Lit _) = True
+evalsToSMTRep eenv kv (App e1 e2) = evalsToSMTRep eenv kv e1 && evalsToSMTRep eenv kv e2
+evalsToSMTRep _ _ (Type _) = True
+evalsToSMTRep eenv kv e | isSMTRep eenv kv e = True
+evalsToSMTRep _ _ e = False
+
 -- | Is the expression a symbolically representable string?
-isSymString :: KnownValues -> ExprEnv -> Expr -> Bool
-isSymString kv eenv = go HS.empty
+isSymString :: ExprEnv -> KnownValues ->  Expr -> Bool
+isSymString eenv kv = go HS.empty
     where
         go seen (Var (Id n _))
             -- If we have already seen a variable, we have an infinite list, i.e.:

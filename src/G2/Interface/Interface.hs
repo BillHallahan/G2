@@ -102,6 +102,7 @@ import qualified G2.Language.PolyArgMap as PM
 import System.Timeout
 
 import Data.Foldable
+import G2.Language.KnownValues (KnownValues(smtStringFuncs))
 
 type AssumeFunc = T.Text
 type AssertFunc = T.Text

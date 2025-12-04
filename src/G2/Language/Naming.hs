@@ -650,8 +650,10 @@ instance Named KnownValues where
             , errorEmptyListFunc = errEmpListF
             , errorWithoutStackTraceFunc = errWOST
             , patErrorFunc = patE
+
+            , smtStringFuncs = smt_string
             }) =
-            S.fromList
+            S.fromList $
                 [dI, dF, dD, dI2, dcCh, tI, tI2, tF, tD, tCh, tB, dcT, dcF, tR
                 , tList, tCons, tEmp
                 , tMaybe, dJust, dNothing
@@ -667,7 +669,7 @@ instance Named KnownValues where
                 , impF, iffF
                 , andF, orF, notF
                 , ti, adjN, checkStrLN
-                , errF, errEmpListF, errWOST, patE]
+                , errF, errEmpListF, errWOST, patE] ++ HS.toList smt_string
 
     rename old new (KnownValues {
                      dcCoercion = dcC
@@ -761,6 +763,8 @@ instance Named KnownValues where
                    , errorEmptyListFunc = errEmpListF
                    , errorWithoutStackTraceFunc = errWOST
                    , patErrorFunc = patE
+                   
+                   , smtStringFuncs = smt_string
                    }) =
                     (KnownValues {
                           dcCoercion = rename old new dcC
@@ -854,6 +858,8 @@ instance Named KnownValues where
                         , errorEmptyListFunc = rename old new errEmpListF
                         , errorWithoutStackTraceFunc = rename old new errWOST
                         , patErrorFunc = rename old new patE
+
+                        , smtStringFuncs = rename old new smt_string
                         })
 
 instance Named TV.TyConcOrSym where
