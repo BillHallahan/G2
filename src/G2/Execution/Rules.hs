@@ -234,7 +234,8 @@ evalApp s@(State { expr_env = eenv
                  , type_env = tenv
                  , known_values = kv
                  , exec_stack = stck
-                 , tyvar_env = tv_env })
+                 , tyvar_env = tv_env 
+                 , type_classes = tc })
         ng e1 e2
     | ac@(Prim Error _) <- appCenter e1 =
         (RuleError, [newPCEmpty $ s { curr_expr = CurrExpr Return ac }], ng)
@@ -269,7 +270,7 @@ evalApp s@(State { expr_env = eenv
 
     | (Prim _ _):_ <- unApp (App e1 e2) = 
         let
-            (exP, eenv') = evalPrimsSharing eenv tenv tv_env kv (App e1 e2)
+            (exP, eenv') = evalPrimsSharing eenv tenv tv_env kv tc (App e1 e2)
 
             ts = getNestedTickish exP
             exP' = foldr Tick (stripAllTicks exP) ts
