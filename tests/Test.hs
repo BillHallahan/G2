@@ -418,6 +418,7 @@ testFileTests = testGroup "TestFiles"
                                         , ("strIndex", 1000, [Exactly 4])
                                         , ("taker1", 5000, [Exactly 2])
                                         , ("taker2", 5000, [Exactly 2])
+                                        , ("takeUndefined", 5000, [Exactly 1])
                                         , ("conTaker1", 2500, [Exactly 4])
                                         , ("conTaker2", 2500, [Exactly 2])
                                         , ("lengthCon1", 2500, [Exactly 2])
@@ -480,6 +481,8 @@ testFileTests = testGroup "TestFiles"
                                         , ("reverse4", 5000, [Exactly 1])
                                         , ("insert2", 2000, [Exactly 2])
                                         , ("insert3", 2000, [Exactly 1])
+
+                                        , ("intersperse1", 3000, [Exactly 3])
 
                                         , ("minimum1", 3000, [AtLeast 5, AtMost 6]) -- Allowing for SMT failures
                                         , ("minimum2", 1000, [Exactly 2])

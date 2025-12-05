@@ -29,6 +29,7 @@ import Control.Monad
 import Data.Bifunctor
 import Data.Foldable
 import Data.Function
+import qualified Data.HashSet as HS
 import qualified Data.HashMap.Lazy as HM
 import Data.List
 import qualified Data.Map as M
@@ -456,6 +457,7 @@ fakeKnownValues =
     , errorWithoutStackTraceFunc = Name "" Nothing 0 Nothing
     , errorEmptyListFunc = Name "" Nothing 0 Nothing
     , patErrorFunc = Name "" Nothing 0 Nothing
+    , smtStringFuncs = HS.empty
     }
 
 intDCName :: Name

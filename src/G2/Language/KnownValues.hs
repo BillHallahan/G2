@@ -8,9 +8,10 @@ module G2.Language.KnownValues where
 import G2.Language.Syntax
 import Data.Data (Data, Typeable)
 import Data.Hashable
+import qualified Data.HashSet as HS
 import GHC.Generics (Generic)
 
--- | A `KnownValues` tracks the names of  data types we know should
+-- | A `KnownValues` tracks the names of functions and data types we know should
 -- exist, and that we care about for some special reason.
 data KnownValues = KnownValues {
                    tyCoercion :: Name
@@ -113,6 +114,9 @@ data KnownValues = KnownValues {
                  , errorWithoutStackTraceFunc :: Name
                  , errorEmptyListFunc :: Name
                  , patErrorFunc :: Name
+
+                 -- Functions that create strings that have an SMT-LIB translation
+                 , smtStringFuncs :: HS.HashSet Name
                  } deriving (Show, Eq, Read, Typeable, Data, Generic)
 
 instance Hashable KnownValues

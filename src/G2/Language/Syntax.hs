@@ -277,6 +277,11 @@ data Primitive = -- Mathematical and logical operators
 
                -- True if passed an expression that can be converted into an SMT formula, false otherwise
                | IsSMTRep
+               -- True if passed an expression that when evaluated
+               --   (1) will definitely terminate with some e that
+               --   (2) can definitely be converted into an SMT formula
+               -- false otherwise
+               | EvalsToSMTRep
 
                -- TypeIndex maps types to Int#s:
                -- 1: String
@@ -294,6 +299,16 @@ data Primitive = -- Mathematical and logical operators
                -- and then don't want to actually follow through on calculating the output value
                | UnspecifiedOutput
                deriving (Show, Eq, Read, Generic, Typeable, Data)
+
+isErrorExpr :: Expr -> Bool
+isErrorExpr (Prim p _) = isErrorPrim p
+isErrorExpr _ = False
+
+isErrorPrim :: Primitive -> Bool
+isErrorPrim Error = True
+isErrorPrim Undefined = True
+isErrorPrim _ = False
+
 
 pattern IntToFloat :: Primitive
 pattern IntToFloat = IntToFP 8 24
