@@ -1,6 +1,7 @@
 {-# LANGUAGE CPP, OverloadedStrings #-}
 
-module G2.Initialization.KnownValues (initKnownValues) where
+module G2.Initialization.KnownValues ( initKnownValues
+                                     , recalcSmtStringFuncs ) where
 
 import G2.Language.AST
 import qualified G2.Language.ExprEnv as E
@@ -191,6 +192,9 @@ superClassExtractor tc tc_n sc_n =
             case t_c of
                 TyCon n _ -> n == sc_n
                 _ -> False
+
+recalcSmtStringFuncs :: E.ExprEnv -> KnownValues -> KnownValues
+recalcSmtStringFuncs eenv kv = kv { smtStringFuncs = mkSmtStringFuncs (typeIndex kv) eenv }
 
 mkSmtStringFuncs :: Name -> E.ExprEnv -> HS.HashSet Name
 mkSmtStringFuncs ty_ind = HS.fromList . E.keys . E.filter (getAny . evalASTs go)

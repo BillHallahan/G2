@@ -9,6 +9,7 @@ module G2.Execution.Memory
   , markAndSweepPreserving
   ) where
 
+import G2.Language.KnownValues
 import G2.Language.Syntax
 import G2.Language.Support
 import G2.Language.Naming
@@ -54,7 +55,7 @@ markAndSweepIgnoringKnownValues = markAndSweepPreserving' emptyMemConfig
 
 markAndSweepPreserving :: MemConfig -> State t -> Bindings -> State t
 markAndSweepPreserving mc s =
-    markAndSweepPreserving' (toList (names (known_values s)) `addSearchNames` mc) s
+    markAndSweepPreserving' (toList (names ((known_values s) { smtStringFuncs = HS.empty })) `addSearchNames` mc) s
 
 markAndSweepPreserving' :: MemConfig -> State t -> Bindings -> State t
 markAndSweepPreserving' PreserveAllMC s _ = s
