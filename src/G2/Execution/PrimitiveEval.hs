@@ -697,7 +697,7 @@ evalsToSMTRep eenv kv tc (Var (Id n t))
     | E.isSymbolic n eenv = True
     | isTypeClass tc (returnType t) = True
     | Just e' <- E.lookup n eenv = evalsToSMTRep eenv kv tc e'
-evalsToSMTRep eenv kv tc (Case e _ _ alts) = evalsToSMTRep eenv kv tc e && all (altEvals) alts
+evalsToSMTRep eenv kv tc (Case e _ _ alts) = evalsToSMTRep eenv kv tc e && all altEvals alts
     where
         altEvals (Alt (DataAlt _ is) ae) = evalsToSMTRep (foldr E.insertSymbolic eenv is) kv tc ae
         altEvals (Alt _ ae) = evalsToSMTRep eenv kv tc ae
@@ -706,7 +706,7 @@ evalsToSMTRep _ _ _ (Lit _) = True
 evalsToSMTRep eenv kv tc (App e1 e2) = evalsToSMTRep eenv kv tc e1 && evalsToSMTRep eenv kv tc e2
 evalsToSMTRep _ _ _ (Type _) = True
 evalsToSMTRep eenv kv _ e | isSMTRep eenv kv e = True
-evalsToSMTRep _ _ _ e = False
+evalsToSMTRep _ _ _ _ = False
 
 -- | Is the expression a symbolically representable string?
 isSymString :: ExprEnv -> KnownValues ->  Expr -> Bool

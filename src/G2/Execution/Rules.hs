@@ -255,19 +255,6 @@ evalApp s@(State { expr_env = eenv
         , [ (newPCEmpty $ s { expr_env = eenv'
                             , curr_expr = CurrExpr Evaluate e }) { new_pcs = pc} ]
         , ng')
-    -- | p@(Prim _ _):es <- unApp (App e1 e2)
-    -- , (xs, e:ys) <- L.span (isExprValueForm eenv . (flip E.deepLookupExpr) eenv) es =
-    --     let
-    --         t = typeOf tv_env e
-    --         (i, ng') = freshId t ng
-            
-    --         pr_call = mkApp $ p:xs ++ Var i:ys
-    --         curr_e = Case e i t [Alt Default pr_call]
-    --     in
-    --     ( RuleEvalPrimToNorm
-    --     , [newPCEmpty $ s { expr_env = eenv, curr_expr = CurrExpr Evaluate curr_e }]
-    --     , ng')
-
     | (Prim _ _):_ <- unApp (App e1 e2) = 
         let
             (exP, eenv') = evalPrimsSharing eenv tenv tv_env kv tc (App e1 e2)
