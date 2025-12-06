@@ -697,6 +697,9 @@ evalsToSMTRep eenv kv tc (Var (Id n t))
     | E.isSymbolic n eenv = True
     | isTypeClass tc (returnType t) = True
     | Just e' <- E.lookup n eenv = evalsToSMTRep eenv kv tc e'
+evalsToSMTRep eenv kv tc (Let binds e) =
+    let eenv' = foldr E.insertSymbolic eenv $ map fst binds in
+    all (evalsToSMTRep eenv' kv tc . snd) binds && evalsToSMTRep eenv' kv tc e
 evalsToSMTRep eenv kv tc (Case e _ _ alts) = evalsToSMTRep eenv kv tc e && all altEvals alts
     where
         altEvals (Alt (DataAlt _ is) ae) = evalsToSMTRep (foldr E.insertSymbolic eenv is) kv tc ae
