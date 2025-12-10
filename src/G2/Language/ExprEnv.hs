@@ -82,6 +82,7 @@ import Data.Data (Data, Typeable)
 import Data.Hashable
 import qualified Data.List as L
 import qualified Data.HashMap.Lazy as M
+import qualified Data.HashSet as HS
 import Data.Maybe
 import qualified Data.Text as T
 import qualified Data.Traversable as Trav
@@ -181,13 +182,17 @@ deepLookupExpr :: Expr -> ExprEnv -> Expr
 deepLookupExpr v@(Var (Id n _)) eenv = fromMaybe v (deepLookup n eenv)
 deepLookupExpr e _  = e
 
+-- | Lookup the given `Name`, recursively searching through concrete variables.
+-- May return a concrete variable if there is an infinite loop in the concrete code (i.e. if a variable points to itself).
 deepLookupConcOrSym :: Name -> ExprEnv -> Maybe ConcOrSym
-deepLookupConcOrSym n eenv =
-    case lookupConcOrSym n eenv of
-        Just (Conc (Var (Id n' _))) -> deepLookupConcOrSym n' eenv
-        Just c@(Conc r) -> Just c
-        Just s@(Sym r) -> Just s
-        Nothing -> Nothing
+deepLookupConcOrSym n_ eenv = go HS.empty n_
+    where
+        go seen n = case lookupConcOrSym n eenv of
+                        Just c@(Conc (Var (Id n' _))) | n `elem` seen -> Just c
+                                                      | otherwise -> go (HS.insert n seen) n'
+                        Just c@(Conc r) -> Just c
+                        Just s@(Sym r) -> Just s
+                        Nothing -> Nothing
 
 -- | Find the deepest buried Var Name from the given Name
 deepLookupVar :: Name -> ExprEnv -> Maybe Name

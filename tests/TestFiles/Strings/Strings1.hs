@@ -107,6 +107,12 @@ taker2 str = case take 22 str of
                 x@"Hi" -> (True, x)
                 y -> (False, y)
 
+inf :: String
+inf = inf
+
+takeInf :: Int -> String
+takeInf _ = take 0 inf
+
 takeUndefined :: Int -> String
 takeUndefined _ = take 0 undefined
 
