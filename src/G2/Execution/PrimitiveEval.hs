@@ -80,16 +80,6 @@ inlineVarsForPrim' seen eenv tc (Var (Id n t))
     , not (isLam e) = inlineVarsForPrim' (HS.insert n seen) eenv tc e
 inlineVarsForPrim' seen eenv tc e = modifyChildren (inlineVarsForPrim' seen eenv tc) e
 
-repeatedLookup :: ExprEnv -> Expr -> Expr
-repeatedLookup eenv v@(Var (Id n _))
-    | E.isSymbolic n eenv = v
-    | otherwise = 
-        case E.lookup n eenv of
-          Just v'@(Var _) -> repeatedLookup eenv v'
-          Just e -> e
-          Nothing -> v
-repeatedLookup _ e = e
-
 evalPrims :: ASTContainer m Expr => ExprEnv -> TypeEnv -> TV.TyVarEnv -> KnownValues -> TypeClasses -> m -> m
 evalPrims eenv tenv tv_env kv tc = modifyContainedASTs (evalPrims' eenv tenv tv_env kv tc . simplifyCasts tv_env)
 
