@@ -271,7 +271,7 @@ library
                        -- -ddump-rule-rewrites
                        -- -ddump-splices
                        -- -fexternal-interpreter
-  -- ghc-prof-options:    -fprof-auto
+  ghc-prof-options:    -fprof-auto
   other-extensions:    CPP
   if flag(support-lh) && impl(ghc < 9)
     cpp-options: -DSUPPORT_LH
@@ -291,7 +291,7 @@ executable G2
   default-language:    Haskell2010
   ghc-options:         -threaded -Wall
                        -- -fexternal-interpreter -opti+RTS -opti-p
-  -- ghc-prof-options:    -fprof-auto "-with-rtsopts=-p"
+  ghc-prof-options:    -fprof-auto "-with-rtsopts=-p"
   hs-source-dirs:      exe
   main-is:             Main.hs
 
