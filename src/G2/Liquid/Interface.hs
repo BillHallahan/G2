@@ -85,6 +85,7 @@ import qualified Data.Map as M
 import qualified Data.Text as T
 import qualified Data.Text.IO as TI
 
+import G2.Initialization.KnownValues
 import G2.Language.Monad
 import G2.Language.Support (Bindings(input_coercion))
 import qualified G2.Language.TyVarEnv as TV
@@ -205,7 +206,8 @@ fromLiquidReadyState :: State ()
                      -> IO LiquidData
 fromLiquidReadyState init_state ifi bindings ghci ph_tyvars lhconfig memconfig = do
     let init_state' = (markAndSweepPreserving (reqNames init_state `mappend` memconfig) init_state bindings)
-        cleaned_state = init_state' { type_env = type_env init_state } 
+        cleaned_state = init_state' { type_env = type_env init_state }
+        cleaned_state' = cleaned_state { known_values = recalcSmtStringFuncs (expr_env cleaned_state) (known_values cleaned_state) }
     fromLiquidNoCleaning cleaned_state ifi bindings ghci ph_tyvars lhconfig memconfig
 
 data LiquidReadyState = LiquidReadyState { lr_state :: LHState

@@ -6,7 +6,6 @@ module InputOutputTest ( checkInputOutput
                        , checkInputOutputsSMTStringsStrict
                        , checkInputOutputsSMTStringsWithSubPath
                        , checkInputOutputsQuantifiedSMTStrings
-                       , checkInputOutputsQuantifiedSMTStringsStrict
                        
                        , checkInputOutputsTemplate
                        , checkInputOutputsWith
@@ -64,11 +63,6 @@ checkInputOutputsSMTStringsWithSubPath src tests = do
 checkInputOutputsQuantifiedSMTStrings :: FilePath -> [(String, Int, [Reqs String])] -> TestTree
 checkInputOutputsQuantifiedSMTStrings src tests = do
     checkInputOutput' mkConfigTestWithQuantifiedSMTStringsIO src tests
-
-checkInputOutputsQuantifiedSMTStringsStrict :: FilePath -> [(String, Int, [Reqs String])] -> TestTree
-checkInputOutputsQuantifiedSMTStringsStrict src tests = do
-    let con = (do config <- mkConfigTestWithQuantifiedSMTStringsIO; return $ config { smt_strings_strictness = StrictSMTStrings })
-    checkInputOutput' con src tests
 
 checkInputOutputsTemplate :: FilePath -> [(String, Int, [Reqs String])] -> TestTree
 checkInputOutputsTemplate src tests = do

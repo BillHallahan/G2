@@ -206,7 +206,7 @@ cleanupResultsInference solver simplifier config init_id bindings ers = do
           map (\(er@(ExecRes { final_state = s }), !_) ->
                 (er { final_state =
                               s {track = 
-                                    mapAbstractedInfoFCs (evalPrims (expr_env s) (type_env s) (tyvar_env s) (known_values s)
+                                    mapAbstractedInfoFCs (evalPrims (expr_env s) (type_env s) (tyvar_env s) (known_values s) (type_classes s)
                                                          . subVarFuncCall (tyvar_env s) True (model s) (expr_env s) (type_classes s))
                                     $ track s
                                 }

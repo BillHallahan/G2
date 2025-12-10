@@ -415,9 +415,11 @@ testFileTests = testGroup "TestFiles"
                                         , ("strLen2", 1000, [Exactly 3])
                                         , ("strLen3", 1000, [Exactly 2])
                                         , ("con2", 1000, [Exactly 3])
+                                        , ("con3", 1000, [Exactly 3])
                                         , ("strIndex", 1000, [Exactly 4])
                                         , ("taker1", 5000, [Exactly 2])
                                         , ("taker2", 5000, [Exactly 2])
+                                        , ("takeUndefined", 5000, [Exactly 1])
                                         , ("conTaker1", 2500, [Exactly 4])
                                         , ("conTaker2", 2500, [Exactly 2])
                                         , ("lengthCon1", 2500, [Exactly 2])
@@ -481,6 +483,8 @@ testFileTests = testGroup "TestFiles"
                                         , ("insert2", 2000, [Exactly 2])
                                         , ("insert3", 2000, [Exactly 1])
 
+                                        , ("intersperse1", 3000, [Exactly 3])
+
                                         , ("minimum1", 3000, [AtLeast 5, AtMost 6]) -- Allowing for SMT failures
                                         , ("minimum2", 1000, [Exactly 2])
                                         , ("maximum1", 3000, [AtLeast 5, AtMost 6]) -- Allowing for SMT failures
@@ -491,8 +495,7 @@ testFileTests = testGroup "TestFiles"
                                         , ("repeat1", 1000, [AtLeast 5])
                                         ]
     , checkInputOutputsSMTStringsStrict "tests/TestFiles/Strings/Strings1.hs"
-                                        [ ("con3", 1000, [Exactly 3])
-                                        , ("showInt1", 4000, [Exactly 2])
+                                        [ ("showInt1", 4000, [Exactly 2])
                                         , ("test1", 800, [ AtLeast 1
                                                          , RExists "test1InitTailEq"])
                                         ]
@@ -501,6 +504,7 @@ testFileTests = testGroup "TestFiles"
                                         , ("reverse5", 5000, [Exactly 1])]
     , checkInputOutputsQuantifiedSMTStrings "tests/TestFiles/Strings/Strings1.hs"
                                         [ ("genericReplicate1", 1000, [Exactly 2])
+                                        , ("reverse1", 5000, [Exactly 6]) 
                                         , ("reverse2", 5000, [Exactly 3])
                                         , ("insert1", 3000, [AtLeast 2, AtMost 6]) -- Quantifier causes SMT failures
                                         , ("intersperse1", 3000, [Exactly 3])
@@ -509,8 +513,6 @@ testFileTests = testGroup "TestFiles"
                                         , ("minimum1", 3000, [AtLeast 1, AtMost 6]) -- Quantifier causes SMT failures
                                         , ("maximum1", 3000, [AtLeast 1, AtMost 6]) -- Quantifier causes SMT failures
                                         ]
-    , checkInputOutputsQuantifiedSMTStringsStrict "tests/TestFiles/Strings/Strings1.hs"
-                                        [ ("reverse1", 5000, [Exactly 6]) ]
 
     , checkExpr "tests/TestFiles/Strings/Strings1.hs" 1000 "exclaimEq"
         [AtLeast 5, RExists (\[_, _, r] -> dcHasName "True" r)]

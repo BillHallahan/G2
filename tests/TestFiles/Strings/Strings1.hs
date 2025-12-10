@@ -107,6 +107,9 @@ taker2 str = case take 22 str of
                 x@"Hi" -> (True, x)
                 y -> (False, y)
 
+takeUndefined :: Int -> String
+takeUndefined _ = take 0 undefined
+
 conTaker1 :: String -> String -> (Int, String)
 conTaker1 xs ys =
     case take 18 xs ++ take 18 ys of

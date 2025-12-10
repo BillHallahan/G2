@@ -33,37 +33,50 @@ import qualified G2.Language.TyVarEnv as TV
 
 import GHC.Float
 import G2.Language.ExprEnv (deepLookupVar)
+import G2.Language.KnownValues (KnownValues(smtStringFuncs))
+import G2.Language.TypeClasses.TypeClasses
 
 -- | Evaluates primitives at the root of the passed `Expr` while updating the `ExprEnv`
 -- to share computed results.
-evalPrimsSharing :: ExprEnv -> TypeEnv -> TV.TyVarEnv -> KnownValues -> Expr -> (Expr, ExprEnv)
-evalPrimsSharing eenv tenv tv_env kv e =
-    let (_, e', eenv') = evalPrimsSharing' eenv tenv tv_env kv . simplifyCasts tv_env $ e in (e', eenv')
+evalPrimsSharing :: ExprEnv -> TypeEnv -> TV.TyVarEnv -> KnownValues -> TypeClasses -> Expr -> (Expr, ExprEnv)
+evalPrimsSharing eenv tenv tv_env kv tc e =
+    let (_, e', eenv') = evalPrimsSharing' eenv tenv tv_env kv tc . simplifyCasts tv_env $ e in (e', eenv')
 
 -- | Passed back in evalPrimsSharing' to indicate whether a new value has been computed,
 -- and thus indicate whether insertion into the `ExprEnv` is needed.
 data NeedUpdate = Update | NoUpdate deriving Show
 
-evalPrimsSharing' :: ExprEnv -> TypeEnv -> TV.TyVarEnv -> KnownValues -> Expr -> (NeedUpdate, Expr, ExprEnv)
-evalPrimsSharing' eenv tenv tv_env kv a@(App _ _) =
+evalPrimsSharing' :: ExprEnv -> TypeEnv -> TV.TyVarEnv -> KnownValues -> TypeClasses -> Expr -> (NeedUpdate, Expr, ExprEnv)
+evalPrimsSharing' eenv tenv tv_env kv tc a@(App _ _) =
     case unApp a of
         p@(Prim _ _):es ->
             let
                 (eenv', es') = L.mapAccumR
-                                    (\eenv_ e -> let (_, e', eenv_') = evalPrimsSharing' eenv_ tenv tv_env kv e in (eenv_', e'))
-                                    eenv $ map (inlineVars eenv) es
-                ev = evalPrim' eenv tenv tv_env kv (p:es')
+                                    (\eenv_ e -> let (_, e', eenv_') = evalPrimsSharing' eenv_ tenv tv_env kv tc e in (eenv_', e'))
+                                    eenv $ map (inlineVarsForPrim eenv tc) es
+                ev = evalPrim' eenv tenv tv_env kv tc (p:es')
             in
             (Update, ev, eenv')
-        v@(Var _):xs | p@(Prim _ _) <- repeatedLookup eenv v -> evalPrimsSharing' eenv tenv tv_env kv (mkApp $ p:xs)
+        v@(Var _):xs | p@(Prim _ _) <- repeatedLookup eenv v -> evalPrimsSharing' eenv tenv tv_env kv tc (mkApp $ p:xs)
         _ -> (NoUpdate, a, eenv)
-evalPrimsSharing' eenv tenv tv_env kv v@(Var (Id n _)) =
+evalPrimsSharing' eenv tenv tv_env kv tc v@(Var (Id n _)) =
     case E.lookupConcOrSym n eenv of
-        Just (E.Conc e) -> case evalPrimsSharing' eenv tenv tv_env kv e of
+        Just (E.Conc e) -> case evalPrimsSharing' eenv tenv tv_env kv tc e of
                                 (Update, e', eenv') -> (Update, e', E.insert n e' eenv')
                                 r@(NoUpdate, _, _) -> r
         _ -> (NoUpdate, v, eenv)
-evalPrimsSharing' eenv _ _ _ e = (NoUpdate, e, eenv)
+evalPrimsSharing' eenv _ _ _ _ e = (NoUpdate, e, eenv)
+
+inlineVarsForPrim :: ASTContainer c Expr => ExprEnv -> TypeClasses -> c -> c
+inlineVarsForPrim eenv tc = modifyContainedASTs (inlineVarsForPrim' HS.empty eenv tc)
+
+inlineVarsForPrim' :: HS.HashSet Name -> ExprEnv -> TypeClasses -> Expr -> Expr
+inlineVarsForPrim' seen eenv tc (Var (Id n t))
+    | not (n `HS.member` seen)
+    , not (isTypeClass tc (returnType t))
+    , Just (E.Conc e) <- E.lookupConcOrSym n eenv
+    , not (isLam e) = inlineVarsForPrim' (HS.insert n seen) eenv tc e
+inlineVarsForPrim' seen eenv tc e = modifyChildren (inlineVarsForPrim' seen eenv tc) e
 
 repeatedLookup :: ExprEnv -> Expr -> Expr
 repeatedLookup eenv v@(Var (Id n _))
@@ -75,28 +88,28 @@ repeatedLookup eenv v@(Var (Id n _))
           Nothing -> v
 repeatedLookup _ e = e
 
-evalPrims :: ASTContainer m Expr => ExprEnv -> TypeEnv -> TV.TyVarEnv -> KnownValues -> m -> m
-evalPrims eenv tenv tv_env kv = modifyContainedASTs (evalPrims' eenv tenv tv_env kv . simplifyCasts tv_env)
+evalPrims :: ASTContainer m Expr => ExprEnv -> TypeEnv -> TV.TyVarEnv -> KnownValues -> TypeClasses -> m -> m
+evalPrims eenv tenv tv_env kv tc = modifyContainedASTs (evalPrims' eenv tenv tv_env kv tc . simplifyCasts tv_env)
 
-evalPrims' :: ExprEnv -> TypeEnv -> TV.TyVarEnv -> KnownValues -> Expr -> Expr
-evalPrims' eenv tenv tv_env kv a@(App x y) =
+evalPrims' :: ExprEnv -> TypeEnv -> TV.TyVarEnv -> KnownValues -> TypeClasses -> Expr -> Expr
+evalPrims' eenv tenv tv_env kv tc a@(App x y) =
     case unApp a of
-        [p@(Prim _ _), l] -> evalPrim' eenv tenv tv_env kv [p, evalPrims' eenv tenv tv_env kv l]
+        [p@(Prim _ _), l] -> evalPrim' eenv tenv tv_env kv tc [p, evalPrims' eenv tenv tv_env kv tc l]
         [p@(Prim _ _), l1, l2] ->
-            evalPrim' eenv tenv tv_env kv [p, evalPrims' eenv tenv tv_env kv l1, evalPrims' eenv tenv tv_env kv l2]
+            evalPrim' eenv tenv tv_env kv tc [p, evalPrims' eenv tenv tv_env kv tc l1, evalPrims' eenv tenv tv_env kv tc l2]
         [p@(Prim _ _), l1, l2, l3] ->
-            evalPrim' eenv tenv tv_env kv [p, evalPrims' eenv tenv tv_env kv l1, evalPrims' eenv tenv tv_env kv l2, evalPrims' eenv tenv tv_env kv l3]
-        _ -> App (evalPrims' eenv tenv tv_env kv x) (evalPrims' eenv tenv tv_env kv y)
-evalPrims' eenv tenv tv_env kv e = modifyChildren (evalPrims' eenv tenv tv_env kv) e
+            evalPrim' eenv tenv tv_env kv tc [p, evalPrims' eenv tenv tv_env kv tc l1, evalPrims' eenv tenv tv_env kv tc l2, evalPrims' eenv tenv tv_env kv tc l3]
+        _ -> App (evalPrims' eenv tenv tv_env kv tc x) (evalPrims' eenv tenv tv_env kv tc y)
+evalPrims' eenv tenv tv_env kv tc e = modifyChildren (evalPrims' eenv tenv tv_env kv tc) e
 
-evalPrim' :: ExprEnv -> TypeEnv -> TV.TyVarEnv -> KnownValues -> [Expr] -> Expr
-evalPrim' eenv tenv tv_env kv xs = fromMaybe (mkApp xs) (maybeEvalPrim' eenv tenv tv_env kv xs)
+evalPrim' :: ExprEnv -> TypeEnv -> TV.TyVarEnv -> KnownValues -> TypeClasses -> [Expr] -> Expr
+evalPrim' eenv tenv tv_env kv tc xs = fromMaybe (mkApp xs) (maybeEvalPrim' eenv tenv tv_env kv tc xs)
 
-maybeEvalPrim :: ExprEnv -> TypeEnv -> TV.TyVarEnv -> KnownValues -> Expr -> Maybe Expr
-maybeEvalPrim eenv tenv tv_env kv = maybeEvalPrim' eenv tenv tv_env kv . unApp
+maybeEvalPrim :: ExprEnv -> TypeEnv -> TV.TyVarEnv -> KnownValues -> TypeClasses -> Expr -> Maybe Expr
+maybeEvalPrim eenv tenv tv_env kv tc = maybeEvalPrim' eenv tenv tv_env kv tc . unApp
 
-maybeEvalPrim' :: ExprEnv -> TypeEnv -> TV.TyVarEnv -> KnownValues -> [Expr] -> Maybe Expr
-maybeEvalPrim' eenv tenv tv_env kv xs
+maybeEvalPrim' :: ExprEnv -> TypeEnv -> TV.TyVarEnv -> KnownValues -> TypeClasses -> [Expr] -> Maybe Expr
+maybeEvalPrim' eenv tenv tv_env kv tc xs
     | [Prim p _, x] <- xs
     , Lit x' <- x
     , Just e <- evalPrim1 p x' = Just e
@@ -117,7 +130,7 @@ maybeEvalPrim' eenv tenv tv_env kv xs
     | [Prim p _, x, y, z] <- xs = evalPrim3 kv p x y z
 
     | [Prim p _, Type t, x] <- xs
-    , Just e <- evalTypeAnyArgPrim eenv tv_env kv p t x = Just e
+    , Just e <- evalTypeAnyArgPrim eenv tv_env kv tc p t x = Just e
 
     | [Prim p _, Type t, dc_e] <- xs, Data dc:_ <- unApp dc_e =
         evalTypeDCPrim2 tenv tv_env p t dc
@@ -657,25 +670,50 @@ evalPrim2 _ RationalToDouble (LitInt x) (LitInt y) =
 
 evalPrim2 _ _ _ _ = Nothing
 
-evalTypeAnyArgPrim :: ExprEnv -> TV.TyVarEnv -> KnownValues -> Primitive -> Type -> Expr -> Maybe Expr
-evalTypeAnyArgPrim _ tv kv TypeIndex t _ | (tyVarSubst tv t) == tyString kv = Just (Lit (LitInt 1))
-                                      | otherwise = Just (Lit (LitInt 0))
-evalTypeAnyArgPrim eenv _ kv IsSMTRep _ e
-    | Just (E.Sym _) <- c_s = Just (mkTrue kv)
+evalTypeAnyArgPrim :: ExprEnv -> TV.TyVarEnv -> KnownValues -> TypeClasses -> Primitive -> Type -> Expr -> Maybe Expr
+evalTypeAnyArgPrim _ tv kv _ TypeIndex t _ | (tyVarSubst tv t) == tyString kv = Just (Lit (LitInt 1))
+                                           | otherwise = Just (Lit (LitInt 0))
+evalTypeAnyArgPrim eenv _ kv _ IsSMTRep _ e = Just . mkBool kv $ isSMTRep eenv kv e
+evalTypeAnyArgPrim eenv _ kv tc EvalsToSMTRep _ e = Just . mkBool kv $ evalsToSMTRep eenv kv tc e
+evalTypeAnyArgPrim _ _ _ _ _ _ _ = Nothing
+
+isSMTRep :: ExprEnv -> KnownValues -> Expr -> Bool
+isSMTRep eenv kv e
+    | Just (E.Sym _) <- c_s = True
+    | Just (E.Conc e) <- c_s
+    , Prim p _:_ <- unApp e
+    , not (isErrorPrim p) = True
     | Just (E.Conc e) <- c_s 
-    , Prim _ _:_ <- unApp e = Just (mkTrue kv)
-    | Just (E.Conc e) <- c_s 
-    , isSymString kv eenv e = Just (mkTrue kv)
+    , isSymString eenv kv e = True
+    | otherwise = False
     where
         c_s = case e of
                 Var (Id n _) -> E.deepLookupConcOrSym n eenv
-                _ -> Just (E.Conc e) 
-evalTypeAnyArgPrim _ _ kv IsSMTRep _ _ = Just (mkFalse kv)
-evalTypeAnyArgPrim _ _ _ _ _ _ = Nothing
+                _ -> Just (E.Conc e)
+
+evalsToSMTRep :: ExprEnv -> KnownValues -> TypeClasses -> Expr -> Bool
+evalsToSMTRep eenv kv tc (Var (Id n t))
+    | n `elem` smtStringFuncs kv = True
+    | E.isSymbolic n eenv = True
+    | isTypeClass tc (returnType t) = True
+    | Just e' <- E.lookup n eenv = evalsToSMTRep eenv kv tc e'
+evalsToSMTRep eenv kv tc (Let binds e) =
+    let eenv' = foldr E.insertSymbolic eenv $ map fst binds in
+    all (evalsToSMTRep eenv' kv tc . snd) binds && evalsToSMTRep eenv' kv tc e
+evalsToSMTRep eenv kv tc (Case e _ _ alts) = evalsToSMTRep eenv kv tc e && all altEvals alts
+    where
+        altEvals (Alt (DataAlt _ is) ae) = evalsToSMTRep (foldr E.insertSymbolic eenv is) kv tc ae
+        altEvals (Alt _ ae) = evalsToSMTRep eenv kv tc ae
+evalsToSMTRep _ _ _ (Data _) = True
+evalsToSMTRep _ _ _ (Lit _) = True
+evalsToSMTRep eenv kv tc (App e1 e2) = evalsToSMTRep eenv kv tc e1 && evalsToSMTRep eenv kv tc e2
+evalsToSMTRep _ _ _ (Type _) = True
+evalsToSMTRep eenv kv _ e | isSMTRep eenv kv e = True
+evalsToSMTRep _ _ _ _ = False
 
 -- | Is the expression a symbolically representable string?
-isSymString :: KnownValues -> ExprEnv -> Expr -> Bool
-isSymString kv eenv = go HS.empty
+isSymString :: ExprEnv -> KnownValues ->  Expr -> Bool
+isSymString eenv kv = go HS.empty
     where
         go seen (Var (Id n _))
             -- If we have already seen a variable, we have an infinite list, i.e.:
