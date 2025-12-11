@@ -170,12 +170,15 @@ lookupEnvObj n = M.lookup n . unwrapExprEnv
 -- If the name is bound to a @Var@, recursively searches that @Vars@ name.
 -- Returns `Nothing` if the `Name` is not in the `ExprEnv`.
 deepLookup :: Name -> ExprEnv -> Maybe Expr
-deepLookup n eenv =
-    case lookupConcOrSym n eenv of
-        Just (Conc (Var (Id n' _))) -> deepLookup n' eenv
-        Just (Conc r) -> Just r
-        Just (Sym r) -> Just (Var r)
-        Nothing -> Nothing
+deepLookup n_ eenv = go HS.empty n_
+    where
+        go seen n = 
+            case lookupConcOrSym n eenv of
+                Just (Conc e@(Var (Id n' _))) | n `elem` seen -> Just e
+                                              | otherwise -> go (HS.insert n seen) n'
+                Just (Conc r) -> Just r
+                Just (Sym r) -> Just (Var r)
+                Nothing -> Nothing
 
 -- | Apply `deepLookup` if passed a `Var`.  Otherwise, just return the passed `Expr`.
 deepLookupExpr :: Expr -> ExprEnv -> Expr
@@ -196,11 +199,12 @@ deepLookupConcOrSym n_ eenv = go HS.empty n_
 
 -- | Find the deepest buried Var Name from the given Name
 deepLookupVar :: Name -> ExprEnv -> Maybe Name
-deepLookupVar n eenv = go n
+deepLookupVar n eenv = go HS.empty n
     where
-        go f = 
+        go seen f = 
             case lookupConcOrSym f eenv of
-                Just (Conc (Var i@(Id f' _))) -> go f'
+                Just (Conc (Var i@(Id f' _))) | f' `elem` seen -> Just f'
+                                              | otherwise -> go (HS.insert f' seen) f'
                 Just (Conc r) -> Just f
                 Just (Sym r) -> Just $ idName r
                 Nothing -> Nothing
