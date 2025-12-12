@@ -40,32 +40,34 @@ import G2.Language.TypeClasses.TypeClasses
 -- to share computed results.
 evalPrimsSharing :: ExprEnv -> TypeEnv -> TV.TyVarEnv -> KnownValues -> TypeClasses -> Expr -> (Expr, ExprEnv)
 evalPrimsSharing eenv tenv tv_env kv tc e =
-    let (_, e', eenv') = evalPrimsSharing' eenv tenv tv_env kv tc . simplifyCasts tv_env $ e in (e', eenv')
+    let (_, e', eenv') = evalPrimsSharing' HS.empty eenv tenv tv_env kv tc . simplifyCasts tv_env $ e in (e', eenv')
 
 -- | Passed back in evalPrimsSharing' to indicate whether a new value has been computed,
 -- and thus indicate whether insertion into the `ExprEnv` is needed.
 data NeedUpdate = Update | NoUpdate deriving Show
 
-evalPrimsSharing' :: ExprEnv -> TypeEnv -> TV.TyVarEnv -> KnownValues -> TypeClasses -> Expr -> (NeedUpdate, Expr, ExprEnv)
-evalPrimsSharing' eenv tenv tv_env kv tc a@(App _ _) =
+evalPrimsSharing' :: HS.HashSet Name -> ExprEnv -> TypeEnv -> TV.TyVarEnv -> KnownValues -> TypeClasses -> Expr -> (NeedUpdate, Expr, ExprEnv)
+evalPrimsSharing' seen eenv tenv tv_env kv tc a@(App _ _) =
     case unApp a of
         p@(Prim _ _):es ->
             let
                 (eenv', es') = L.mapAccumR
-                                    (\eenv_ e -> let (_, e', eenv_') = evalPrimsSharing' eenv_ tenv tv_env kv tc e in (eenv_', e'))
+                                    (\eenv_ e -> let (_, e', eenv_') = evalPrimsSharing' seen eenv_ tenv tv_env kv tc e in (eenv_', e'))
                                     eenv $ map (inlineVarsForPrim eenv tc) es
                 ev = evalPrim' eenv tenv tv_env kv tc (p:es')
             in
             (Update, ev, eenv')
-        v@(Var _):xs | p@(Prim _ _) <- repeatedLookup eenv v -> evalPrimsSharing' eenv tenv tv_env kv tc (mkApp $ p:xs)
+        (Var (Id n _) ):xs | Just p@(Prim _ _) <- E.deepLookup n eenv -> evalPrimsSharing' seen eenv tenv tv_env kv tc (mkApp $ p:xs)
         _ -> (NoUpdate, a, eenv)
-evalPrimsSharing' eenv tenv tv_env kv tc v@(Var (Id n _)) =
-    case E.lookupConcOrSym n eenv of
-        Just (E.Conc e) -> case evalPrimsSharing' eenv tenv tv_env kv tc e of
-                                (Update, e', eenv') -> (Update, e', E.insert n e' eenv')
-                                r@(NoUpdate, _, _) -> r
-        _ -> (NoUpdate, v, eenv)
-evalPrimsSharing' eenv _ _ _ _ e = (NoUpdate, e, eenv)
+evalPrimsSharing' seen eenv tenv tv_env kv tc v@(Var (Id n _))
+    | n `elem` seen = (NoUpdate, v, eenv)
+    | otherwise =
+        case E.lookupConcOrSym n eenv of
+            Just (E.Conc e) -> case evalPrimsSharing' (HS.insert n seen) eenv tenv tv_env kv tc e of
+                                    (Update, e', eenv') -> (Update, e', E.insert n e' eenv')
+                                    r@(NoUpdate, _, _) -> r
+            _ -> (NoUpdate, v, eenv)
+evalPrimsSharing' _ eenv _ _ _ _ e = (NoUpdate, e, eenv)
 
 inlineVarsForPrim :: ASTContainer c Expr => ExprEnv -> TypeClasses -> c -> c
 inlineVarsForPrim eenv tc = modifyContainedASTs (inlineVarsForPrim' HS.empty eenv tc)
@@ -77,16 +79,6 @@ inlineVarsForPrim' seen eenv tc (Var (Id n t))
     , Just (E.Conc e) <- E.lookupConcOrSym n eenv
     , not (isLam e) = inlineVarsForPrim' (HS.insert n seen) eenv tc e
 inlineVarsForPrim' seen eenv tc e = modifyChildren (inlineVarsForPrim' seen eenv tc) e
-
-repeatedLookup :: ExprEnv -> Expr -> Expr
-repeatedLookup eenv v@(Var (Id n _))
-    | E.isSymbolic n eenv = v
-    | otherwise = 
-        case E.lookup n eenv of
-          Just v'@(Var _) -> repeatedLookup eenv v'
-          Just e -> e
-          Nothing -> v
-repeatedLookup _ e = e
 
 evalPrims :: ASTContainer m Expr => ExprEnv -> TypeEnv -> TV.TyVarEnv -> KnownValues -> TypeClasses -> m -> m
 evalPrims eenv tenv tv_env kv tc = modifyContainedASTs (evalPrims' eenv tenv tv_env kv tc . simplifyCasts tv_env)
@@ -674,7 +666,7 @@ evalTypeAnyArgPrim :: ExprEnv -> TV.TyVarEnv -> KnownValues -> TypeClasses -> Pr
 evalTypeAnyArgPrim _ tv kv _ TypeIndex t _ | (tyVarSubst tv t) == tyString kv = Just (Lit (LitInt 1))
                                            | otherwise = Just (Lit (LitInt 0))
 evalTypeAnyArgPrim eenv _ kv _ IsSMTRep _ e = Just . mkBool kv $ isSMTRep eenv kv e
-evalTypeAnyArgPrim eenv _ kv tc EvalsToSMTRep _ e = Just . mkBool kv $ evalsToSMTRep eenv kv tc e
+evalTypeAnyArgPrim eenv _ kv tc EvalsToSMTRep _ e = Just . mkBool kv $ evalsToSMTRep HS.empty eenv kv tc e
 evalTypeAnyArgPrim _ _ _ _ _ _ _ = Nothing
 
 isSMTRep :: ExprEnv -> KnownValues -> Expr -> Bool
@@ -691,25 +683,28 @@ isSMTRep eenv kv e
                 Var (Id n _) -> E.deepLookupConcOrSym n eenv
                 _ -> Just (E.Conc e)
 
-evalsToSMTRep :: ExprEnv -> KnownValues -> TypeClasses -> Expr -> Bool
-evalsToSMTRep eenv kv tc (Var (Id n t))
-    | n `elem` smtStringFuncs kv = True
-    | E.isSymbolic n eenv = True
-    | isTypeClass tc (returnType t) = True
-    | Just e' <- E.lookup n eenv = evalsToSMTRep eenv kv tc e'
-evalsToSMTRep eenv kv tc (Let binds e) =
-    let eenv' = foldr E.insertSymbolic eenv $ map fst binds in
-    all (evalsToSMTRep eenv' kv tc . snd) binds && evalsToSMTRep eenv' kv tc e
-evalsToSMTRep eenv kv tc (Case e _ _ alts) = evalsToSMTRep eenv kv tc e && all altEvals alts
+evalsToSMTRep :: HS.HashSet Name -> ExprEnv -> KnownValues -> TypeClasses -> Expr -> Bool
+evalsToSMTRep seen eenv kv tc = go
     where
-        altEvals (Alt (DataAlt _ is) ae) = evalsToSMTRep (foldr E.insertSymbolic eenv is) kv tc ae
-        altEvals (Alt _ ae) = evalsToSMTRep eenv kv tc ae
-evalsToSMTRep _ _ _ (Data _) = True
-evalsToSMTRep _ _ _ (Lit _) = True
-evalsToSMTRep eenv kv tc (App e1 e2) = evalsToSMTRep eenv kv tc e1 && evalsToSMTRep eenv kv tc e2
-evalsToSMTRep _ _ _ (Type _) = True
-evalsToSMTRep eenv kv _ e | isSMTRep eenv kv e = True
-evalsToSMTRep _ _ _ _ = False
+        go (Var (Id n t))
+            | n `elem` smtStringFuncs kv = True
+            | E.isSymbolic n eenv = True
+            | isTypeClass tc (returnType t) = True
+            | n `elem` seen = False
+            | Just e' <- E.lookup n eenv = evalsToSMTRep (HS.insert n seen) eenv kv tc e'
+        go (Let binds e) =
+            let eenv' = foldr E.insertSymbolic eenv $ map fst binds in
+            all (evalsToSMTRep seen eenv' kv tc . snd) binds && evalsToSMTRep seen eenv' kv tc e
+        go (Case e _ _ alts) = go e && all altEvals alts
+            where
+                altEvals (Alt (DataAlt _ is) ae) = evalsToSMTRep seen (foldr E.insertSymbolic eenv is) kv tc ae
+                altEvals (Alt _ ae) = go ae
+        go (Data _) = True
+        go (Lit _) = True
+        go (App e1 e2) = go e1 && go e2
+        go (Type _) = True
+        go e | isSMTRep eenv kv e = True
+        go _ = False
 
 -- | Is the expression a symbolically representable string?
 isSymString :: ExprEnv -> KnownValues ->  Expr -> Bool

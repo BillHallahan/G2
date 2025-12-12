@@ -419,6 +419,7 @@ testFileTests = testGroup "TestFiles"
                                         , ("strIndex", 1000, [Exactly 4])
                                         , ("taker1", 5000, [Exactly 2])
                                         , ("taker2", 5000, [Exactly 2])
+                                        , ("takeInf", 5000, [Exactly 1])
                                         , ("takeUndefined", 5000, [Exactly 1])
                                         , ("conTaker1", 2500, [Exactly 4])
                                         , ("conTaker2", 2500, [Exactly 2])

@@ -82,6 +82,7 @@ import Data.Data (Data, Typeable)
 import Data.Hashable
 import qualified Data.List as L
 import qualified Data.HashMap.Lazy as M
+import qualified Data.HashSet as HS
 import Data.Maybe
 import qualified Data.Text as T
 import qualified Data.Traversable as Trav
@@ -169,33 +170,41 @@ lookupEnvObj n = M.lookup n . unwrapExprEnv
 -- If the name is bound to a @Var@, recursively searches that @Vars@ name.
 -- Returns `Nothing` if the `Name` is not in the `ExprEnv`.
 deepLookup :: Name -> ExprEnv -> Maybe Expr
-deepLookup n eenv =
-    case lookupConcOrSym n eenv of
-        Just (Conc (Var (Id n' _))) -> deepLookup n' eenv
-        Just (Conc r) -> Just r
-        Just (Sym r) -> Just (Var r)
-        Nothing -> Nothing
+deepLookup n_ eenv = go HS.empty n_
+    where
+        go seen n = 
+            case lookupConcOrSym n eenv of
+                Just (Conc e@(Var (Id n' _))) | n `elem` seen -> Just e
+                                              | otherwise -> go (HS.insert n seen) n'
+                Just (Conc r) -> Just r
+                Just (Sym r) -> Just (Var r)
+                Nothing -> Nothing
 
 -- | Apply `deepLookup` if passed a `Var`.  Otherwise, just return the passed `Expr`.
 deepLookupExpr :: Expr -> ExprEnv -> Expr
 deepLookupExpr v@(Var (Id n _)) eenv = fromMaybe v (deepLookup n eenv)
 deepLookupExpr e _  = e
 
+-- | Lookup the given `Name`, recursively searching through concrete variables.
+-- May return a concrete variable if there is an infinite loop in the concrete code (i.e. if a variable points to itself).
 deepLookupConcOrSym :: Name -> ExprEnv -> Maybe ConcOrSym
-deepLookupConcOrSym n eenv =
-    case lookupConcOrSym n eenv of
-        Just (Conc (Var (Id n' _))) -> deepLookupConcOrSym n' eenv
-        Just c@(Conc r) -> Just c
-        Just s@(Sym r) -> Just s
-        Nothing -> Nothing
+deepLookupConcOrSym n_ eenv = go HS.empty n_
+    where
+        go seen n = case lookupConcOrSym n eenv of
+                        Just c@(Conc (Var (Id n' _))) | n `elem` seen -> Just c
+                                                      | otherwise -> go (HS.insert n seen) n'
+                        Just c@(Conc r) -> Just c
+                        Just s@(Sym r) -> Just s
+                        Nothing -> Nothing
 
 -- | Find the deepest buried Var Name from the given Name
 deepLookupVar :: Name -> ExprEnv -> Maybe Name
-deepLookupVar n eenv = go n
+deepLookupVar n eenv = go HS.empty n
     where
-        go f = 
+        go seen f = 
             case lookupConcOrSym f eenv of
-                Just (Conc (Var i@(Id f' _))) -> go f'
+                Just (Conc (Var i@(Id f' _))) | f' `elem` seen -> Just f'
+                                              | otherwise -> go (HS.insert f' seen) f'
                 Just (Conc r) -> Just f
                 Just (Sym r) -> Just $ idName r
                 Nothing -> Nothing
