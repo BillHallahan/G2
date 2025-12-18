@@ -59,6 +59,7 @@ import G2.Language
 import G2.Initialization.Interface
 import G2.Initialization.KnownValues
 import G2.Execution.InstTypes
+import G2.Execution.DataConPCMap
 import G2.Initialization.MkCurrExpr
 import qualified G2.Initialization.Types as IT
 import G2.Preprocessing.Interface
@@ -198,11 +199,13 @@ initStateFromSimpleState s m_mod useAssert mkCurr argTys config =
                     , mkce_namegen = ng'' } = mkCurr tc' ng' eenv' tenv' kv' config
 
         (empty_nrpc, ng''') = emptyNRPC ng''
+
+        tv_env = foldr TV.insertSymbolic TV.empty typ_is
     in
     (State {
       expr_env = foldr E.insertSymbolic eenv' val_is
     , type_env = tenv'
-    , tyvar_env = foldr TV.insertSymbolic TV.empty typ_is
+    , tyvar_env = tv_env
     , poly_arg_map = PM.empty
     , curr_expr = CurrExpr Evaluate ce
     , path_conds = PC.fromList []
@@ -232,6 +235,7 @@ initStateFromSimpleState s m_mod useAssert mkCurr argTys config =
     , cleaned_names = HM.empty
     , input_names = map idName $ typ_is ++ val_is
     , input_coercion = m_coercion
+    , data_con_pc_map = dcpcMap tv_env kv' tenv'
     , higher_order_inst = S.filter (\n -> nameModule n `elem` m_mod) . S.fromList $ IT.exports s
     , rewrite_rules = IT.rewrite_rules s
     , name_gen = ng'''

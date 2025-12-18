@@ -89,12 +89,15 @@ module G2.Language.Expr ( module G2.Language.Casts
 
 import G2.Language.AST
 import G2.Language.Casts
+import G2.Language.ExprEnv (ExprEnv)
 import qualified G2.Language.ExprEnv as E
+import G2.Language.KnownValues (KnownValues)
 import qualified G2.Language.KnownValues as KV
 import G2.Language.Naming
-import G2.Language.Support
 import G2.Language.Syntax
 import G2.Language.Typing
+import G2.Language.TypeEnv
+import G2.Language.TyVarEnv
 import G2.Language.Primitives
 
 import Data.Foldable

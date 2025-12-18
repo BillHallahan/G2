@@ -13,6 +13,7 @@ module G2.Language.Support
     , PathConds
     , KnownValues
     , PathCond (..)
+    , DataConPCInfo
     , Constraint
     , Assertion
     ) where
@@ -31,8 +32,10 @@ import G2.Language.TypeEnv
 import G2.Language.Typing
 import qualified G2.Language.TyVarEnv as TV
 import G2.Language.PathConds hiding (map, filter)
-import G2.Execution.RuleTypes
 import qualified G2.Language.PolyArgMap as PM
+
+import G2.Execution.DataConPCMap
+import G2.Execution.RuleTypes
 
 import GHC.Generics (Generic)
 import Data.Data (Data, Typeable)
@@ -88,6 +91,8 @@ data Bindings = Bindings { fixed_inputs :: [Expr]
 
                          , input_names :: [Name] -- ^ Names of input symbolic arguments
                          , input_coercion :: Maybe Coercion -- ^ Coercion wrapping the initial function call
+
+                         , data_con_pc_map :: DataConPCMap -- ^ Mapping of DataCons to associated path constraints
                          
                          , rewrite_rules :: ![RewriteRule]
                          , name_gen :: NameGen
@@ -355,6 +360,7 @@ instance Named Bindings where
                  , higher_order_inst = rename old new (higher_order_inst b)
                  , input_names = rename old new (input_names b)
                  , input_coercion = rename old new (input_coercion b)
+                 , data_con_pc_map = data_con_pc_map b
                  , rewrite_rules = rename old new (rewrite_rules b)
                  , name_gen = name_gen b
                  , exported_funcs = rename old new (exported_funcs b)
@@ -367,6 +373,7 @@ instance Named Bindings where
                , higher_order_inst = renames hm (higher_order_inst b)
                , input_names = renames hm (input_names b)
                , input_coercion = renames hm (input_coercion b)
+               , data_con_pc_map = data_con_pc_map b
                , rewrite_rules = renames hm (rewrite_rules b)
                , name_gen = name_gen b
                , exported_funcs = renames hm (exported_funcs b)
