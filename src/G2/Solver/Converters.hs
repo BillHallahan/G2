@@ -13,6 +13,9 @@ module G2.Solver.Converters
     ( PrintSMT
     , toSMTHeaders
     , toSolverText
+    , toSolverASTString
+    , toSolverASTSeq
+
     , exprToSMT --WOULD BE NICE NOT TO EXPORT THIS
     , typeToSMT --WOULD BE NICE NOT TO EXPORT THIS
     , toSolverAST --WOULD BE NICE NOT TO EXPORT THIS
@@ -51,6 +54,7 @@ import qualified G2.Language.PathConds as PC
 import G2.Solver.Language
 import G2.Solver.Solver
 import qualified G2.Language.TyVarEnv as TV
+import GHC.Stg.Lift.Analysis (goodToLift)
 
 type PrintSMT = Bool
 
@@ -643,9 +647,6 @@ typeToSMT tv t@(TyVar (Id n _ )) = case TV.deepLookupName tv n of
                                         Nothing -> error $ "typeToSMT: TyVarEnv can't find the type: " ++ show t 
 typeToSMT _ t = error $ "Unsupported type in typeToSMT: " ++ show t
 
-merge :: TB.Builder -> TB.Builder -> TB.Builder
-merge x y = x <> "\n" <> y
-
 comment :: String -> TB.Builder
 comment s = "; " <> TB.string s
 
@@ -653,11 +654,11 @@ assertSoftSolver :: TB.Builder -> Maybe T.Text -> TB.Builder
 assertSoftSolver ast Nothing = function1 "assert-soft" ast
 assertSoftSolver ast (Just lab) = "(assert-soft " <> ast <> " :id " <> TB.text lab <> ")"
 
-defineFun :: String -> [(String, Sort)] -> Sort -> SMTAST -> TB.Builder
-defineFun fn ars ret body =
+defineFun :: (SMTAST -> TB.Builder) -> String -> [(String, Sort)] -> Sort -> SMTAST -> TB.Builder
+defineFun str_seq fn ars ret body =
     "(define-fun " <> (TB.string fn) <> " ("
         <> TB.intercalate " " (map (\(n, s) -> "(" <> TB.string n <> " " <> sortName s <> ")") ars) <> ")"
-        <> " (" <> sortName ret <> ") " <> toSolverAST body <> ")"
+        <> " (" <> sortName ret <> ") " <> toSolverAST str_seq body <> ")"
 
 declareFun :: String -> [Sort] -> Sort -> TB.Builder
 declareFun fn ars ret =
@@ -665,152 +666,175 @@ declareFun fn ars ret =
         <> TB.intercalate " " (map sortName ars) <> ")"
         <> " (" <> sortName ret <> "))"
 
-toSolverText :: [SMTHeader] -> TB.Builder
-toSolverText [] = ""
-toSolverText (Assert ast:xs) = 
-    merge (function1 "assert" $ toSolverAST ast) (toSolverText xs)
-toSolverText (AssertSoft ast lab:xs) = 
-    merge (assertSoftSolver (toSolverAST ast) lab) (toSolverText xs)
-toSolverText (Minimize ast:xs) =
-    merge (function1 "minimize" $ toSolverAST ast) (toSolverText xs)
-toSolverText (DefineFun f ars ret body:xs) =
-    merge (defineFun f ars ret body) (toSolverText xs)
-toSolverText (DeclareFun f ars ret:xs) =
-    merge (declareFun f ars ret) (toSolverText xs)
-toSolverText (VarDecl n s:xs) = merge (toSolverVarDecl n s) (toSolverText xs)
-toSolverText (SetLogic lgc:xs) = merge (toSolverSetLogic lgc) (toSolverText xs)
-toSolverText (Comment c:xs) = merge (comment c) (toSolverText xs)
+toSolverText :: (SMTAST -> TB.Builder) -> [SMTHeader] -> TB.Builder
+toSolverText str_seq = TB.intercalate "\n" . map go
+    where
+        go (Assert ast) = function1 "assert" $ toSolverAST str_seq ast
+        go (AssertSoft ast lab) = assertSoftSolver (toSolverAST str_seq ast) lab
+        go (Minimize ast) = function1 "minimize" $ toSolverAST str_seq ast
+        go (DefineFun f ars ret body) = defineFun str_seq f ars ret body
+        go (DeclareFun f ars ret) = declareFun f ars ret
+        go (VarDecl n s) = toSolverVarDecl n s
+        go (SetLogic lgc) = toSolverSetLogic lgc
+        go (Comment c) = comment c
 
-toSolverAST :: SMTAST -> TB.Builder
-toSolverAST (x :>= y) = function2 ">=" (toSolverAST x) (toSolverAST y)
-toSolverAST (x :> y) = function2 ">" (toSolverAST x) (toSolverAST y)
-toSolverAST (x := y) = function2 "=" (toSolverAST x) (toSolverAST y)
-toSolverAST (x :/= y) = function1 "not" $ function2 "=" (toSolverAST x) (toSolverAST y)
-toSolverAST (x :< y) = function2 "<" (toSolverAST x) (toSolverAST y)
-toSolverAST (x :<= y) = function2 "<=" (toSolverAST x) (toSolverAST y)
+toSolverAST :: (SMTAST -> TB.Builder) -- ^ Handling of String/Seq primitives
+            -> SMTAST
+            -> TB.Builder
+toSolverAST str_seq = go
+    where
+        go (x :>= y) = function2 ">=" (go x) (go y)
+        go (x :> y) = function2 ">" (go x) (go y)
+        go (x := y) = function2 "=" (go x) (go y)
+        go (x :/= y) = function1 "not" $ function2 "=" (go x) (go y)
+        go (x :< y) = function2 "<" (go x) (go y)
+        go (x :<= y) = function2 "<=" (go x) (go y)
 
-toSolverAST (SmtAnd []) = "true"
-toSolverAST (SmtAnd [x]) = toSolverAST x
-toSolverAST (SmtAnd xs) = functionList "and" $ map (toSolverAST) xs
-toSolverAST (SmtOr []) = "false"
-toSolverAST (SmtOr [x]) = toSolverAST x
-toSolverAST (SmtOr xs) =  functionList "or" $ map (toSolverAST) xs
+        go (SmtAnd []) = "true"
+        go (SmtAnd [x]) = go x
+        go (SmtAnd xs) = functionList "and" $ map (go) xs
+        go (SmtOr []) = "false"
+        go (SmtOr [x]) = go x
+        go (SmtOr xs) =  functionList "or" $ map (go) xs
 
-toSolverAST ((:!) x) = function1 "not" $ toSolverAST x
-toSolverAST (x :=> y) = function2 "=>" (toSolverAST x) (toSolverAST y)
-toSolverAST (x :<=> y) = function2 "=" (toSolverAST x) (toSolverAST y)
+        go ((:!) x) = function1 "not" $ go x
+        go (x :=> y) = function2 "=>" (go x) (go y)
+        go (x :<=> y) = function2 "=" (go x) (go y)
 
-toSolverAST (x :+ y) = function2 "+" (toSolverAST x) (toSolverAST y)
-toSolverAST (x :- y) = function2 "-" (toSolverAST x) (toSolverAST y)
-toSolverAST (x :* y) = function2 "*" (toSolverAST x) (toSolverAST y)
-toSolverAST (x :/ y) = function2 "/" (toSolverAST x) (toSolverAST y)
-toSolverAST (x :^ y) = function2 "^" (toSolverAST x) (toSolverAST y)
-toSolverAST (x `QuotSMT` y) = function2 "div" (toSolverAST x) (toSolverAST y)
-toSolverAST (x `Modulo` y) = function2 "mod" (toSolverAST x) (toSolverAST y)
-toSolverAST (AbsSMT x) = "(abs " <> toSolverAST x <> ")"
-toSolverAST (SqrtSMT x) = "(^ " <> toSolverAST x <> " 0.5)"
-toSolverAST (Neg x) = function1 "-" $ toSolverAST x
+        go (x :+ y) = function2 "+" (go x) (go y)
+        go (x :- y) = function2 "-" (go x) (go y)
+        go (x :* y) = function2 "*" (go x) (go y)
+        go (x :/ y) = function2 "/" (go x) (go y)
+        go (x :^ y) = function2 "^" (go x) (go y)
+        go (x `QuotSMT` y) = function2 "div" (go x) (go y)
+        go (x `Modulo` y) = function2 "mod" (go x) (go y)
+        go (AbsSMT x) = "(abs " <> go x <> ")"
+        go (SqrtSMT x) = "(^ " <> go x <> " 0.5)"
+        go (Neg x) = function1 "-" $ go x
 
-toSolverAST (x `BVAdd` y) = function2 "bvadd" (toSolverAST x) (toSolverAST y)
-toSolverAST (BVNeg x) = function1 "bvneg" (toSolverAST x)
-toSolverAST (x `BVMult` y) = function2 "bvmul" (toSolverAST x) (toSolverAST y)
-toSolverAST (x `Concat` y) = function2 "concat" (toSolverAST x) (toSolverAST y)
-toSolverAST (x `ShiftL` y) = function2 "bvshl" (toSolverAST x) (toSolverAST y)
-toSolverAST (x `ShiftR` y) = function2 "bvlshr" (toSolverAST x) (toSolverAST y)
+        go (x `BVAdd` y) = function2 "bvadd" (go x) (go y)
+        go (BVNeg x) = function1 "bvneg" (go x)
+        go (x `BVMult` y) = function2 "bvmul" (go x) (go y)
+        go (x `Concat` y) = function2 "concat" (go x) (go y)
+        go (x `ShiftL` y) = function2 "bvshl" (go x) (go y)
+        go (x `ShiftR` y) = function2 "bvlshr" (go x) (go y)
 
-toSolverAST (FpSMT x y z) = function3 "fp" (toSolverAST x) (toSolverAST y) (toSolverAST z)
-toSolverAST (FpNegSMT x) = function1 "fp.neg" (toSolverAST x)
-toSolverAST (FpAddSMT x y) = function3 "fp.add" "RNE" (toSolverAST x) (toSolverAST y)
-toSolverAST (FpSubSMT x y) = function3 "fp.sub" "RNE" (toSolverAST x) (toSolverAST y)
-toSolverAST (FpMulSMT x y) = function3 "fp.mul" "RNE" (toSolverAST x) (toSolverAST y)
-toSolverAST (FpDivSMT x y) = function3 "fp.div" "RNE" (toSolverAST x) (toSolverAST y)
+        go (FpSMT x y z) = function3 "fp" (go x) (go y) (go z)
+        go (FpNegSMT x) = function1 "fp.neg" (go x)
+        go (FpAddSMT x y) = function3 "fp.add" "RNE" (go x) (go y)
+        go (FpSubSMT x y) = function3 "fp.sub" "RNE" (go x) (go y)
+        go (FpMulSMT x y) = function3 "fp.mul" "RNE" (go x) (go y)
+        go (FpDivSMT x y) = function3 "fp.div" "RNE" (go x) (go y)
 
-toSolverAST (FpLeqSMT x y) = function2 "fp.leq" (toSolverAST x) (toSolverAST y)
-toSolverAST (FpLtSMT x y) = function2 "fp.lt" (toSolverAST x) (toSolverAST y)
-toSolverAST (FpGeqSMT x y) = function2 "fp.geq" (toSolverAST x) (toSolverAST y)
-toSolverAST (FpGtSMT x y) = function2 "fp.gt" (toSolverAST x) (toSolverAST y)
-toSolverAST (FpEqSMT x y) = function2 "fp.eq" (toSolverAST x) (toSolverAST y)
+        go (FpLeqSMT x y) = function2 "fp.leq" (go x) (go y)
+        go (FpLtSMT x y) = function2 "fp.lt" (go x) (go y)
+        go (FpGeqSMT x y) = function2 "fp.geq" (go x) (go y)
+        go (FpGtSMT x y) = function2 "fp.gt" (go x) (go y)
+        go (FpEqSMT x y) = function2 "fp.eq" (go x) (go y)
 
-toSolverAST (FpIsZero x) = function1 "fp.isZero" (toSolverAST x)
-toSolverAST (FpIsNegative x) = function1 "fp.isNegative" (toSolverAST x)
+        go (FpIsZero x) = function1 "fp.isZero" (go x)
+        go (FpIsNegative x) = function1 "fp.isNegative" (go x)
 
-toSolverAST (FpSqrtSMT x) = function2 "fp.sqrt" "RNE" (toSolverAST x)
-toSolverAST (TruncZeroSMT x) = function2 "fp.roundToIntegral" "RTZ" (toSolverAST x)
+        go (FpSqrtSMT x) = function2 "fp.sqrt" "RNE" (go x)
+        go (TruncZeroSMT x) = function2 "fp.roundToIntegral" "RTZ" (go x)
 
-toSolverAST (IsNormalSMT x) = function1 "fp.isNormal" (toSolverAST x)
-toSolverAST (IsNaNSMT x) = function1 "fp.isNaN" (toSolverAST x)
-toSolverAST (IsInfiniteSMT x) = function1 "fp.isInfinite" (toSolverAST x)
+        go (IsNormalSMT x) = function1 "fp.isNormal" (go x)
+        go (IsNaNSMT x) = function1 "fp.isNaN" (go x)
+        go (IsInfiniteSMT x) = function1 "fp.isInfinite" (go x)
 
-toSolverAST (ArrayConst v indS valS) =
-    let
-        sort_arr = "(Array " <> sortName indS <> " " <> sortName valS <> ")"
-    in
-    "((as const " <> sort_arr <> ") " <> (toSolverAST v) <> ")"
+        go (ArrayConst v indS valS) =
+            let
+                sort_arr = "(Array " <> sortName indS <> " " <> sortName valS <> ")"
+            in
+            "((as const " <> sort_arr <> ") " <> (go v) <> ")"
 
-toSolverAST (ArraySelect arr ind) =
-    function2 "select" (toSolverAST arr) (toSolverAST ind)
+        go (ArraySelect arr ind) =
+            function2 "select" (go arr) (go ind)
 
-toSolverAST (ArrayStore arr ind val) =
-    function3 "store" (toSolverAST arr) (toSolverAST ind) (toSolverAST val)
+        go (ArrayStore arr ind val) =
+            function3 "store" (go arr) (go ind) (go val)
 
-toSolverAST (Func n xs) = smtFunc n $ map (toSolverAST) xs
+        go (Func n xs) = smtFunc n $ map (go) xs
 
--- Note: arguments flipped because SMTLIB does not have str.>= or str.>
-toSolverAST (StrGeSMT x y) = function2 "str.<=" (toSolverAST y) (toSolverAST x)
-toSolverAST (StrGtSMT x y) = function2 "str.<" (toSolverAST y) (toSolverAST x)
 
-toSolverAST (StrLtSMT x y) = function2 "str.<" (toSolverAST x) (toSolverAST y)
-toSolverAST (StrLeSMT x y) = function2 "str.<=" (toSolverAST x) (toSolverAST y)
+        go (IntToRealSMT x) = function1 "to_real" $ go x
+        go (IntToFPSMT e s x) =
+            function2 ("(_ to_fp " <> showText e <> " " <> showText s <> ")") "RNE" . function1 ("(_ int2bv " <> showText (e + s) <> ")") $ go x
+        go (FPToFPSMT e s x) = function2 ("(_ to_fp " <> showText e <> " " <> showText s <> ")") "RNE" $ go x
 
-toSolverAST (x :++ y) = function2 "str.++" (toSolverAST x) (toSolverAST y)
-toSolverAST (FromInt x) = function1 "str.from_int" $ toSolverAST x
-toSolverAST (StrLenSMT x) = function1 "str.len" $ toSolverAST x
-toSolverAST (x :!! y) = function2 "str.at" (toSolverAST x) (toSolverAST y)
-toSolverAST (StrSubstrSMT x y z) = function3 "str.substr" (toSolverAST x) (toSolverAST y) (toSolverAST z)
-toSolverAST (StrIndexOfSMT x y z) = function3 "str.indexof" (toSolverAST x) (toSolverAST y) (toSolverAST z)
-toSolverAST (StrReplaceSMT x y z) = function3 "str.replace" (toSolverAST x) (toSolverAST y) (toSolverAST z)
-toSolverAST (StrPrefixOfSMT x y) = function2 "str.prefixof" (toSolverAST x) (toSolverAST y)
-toSolverAST (StrSuffixOfSMT x y) = function2 "str.suffixof" (toSolverAST x) (toSolverAST y)
+        go (RealToFloat x) = function2 "(_ to_fp 8 24)" "RNE" (function1 "(_ int2bv 32)" $ go x)
+        go (RealToDouble x) = function2 "(_ to_fp 11 53)" "RNE" (function1 "(_ int2bv 64)" $ go x)
 
-toSolverAST (IntToRealSMT x) = function1 "to_real" $ toSolverAST x
-toSolverAST (IntToFPSMT e s x) =
-    function2 ("(_ to_fp " <> showText e <> " " <> showText s <> ")") "RNE" . function1 ("(_ int2bv " <> showText (e + s) <> ")") $ toSolverAST x
-toSolverAST (FPToFPSMT e s x) = function2 ("(_ to_fp " <> showText e <> " " <> showText s <> ")") "RNE" $ toSolverAST x
+        go (FloatToIntSMT x) = bvToSignedInt 32 (function2 "(_ fp.to_sbv 32)" "RNE" $ go x)
+        go (DoubleToIntSMT x) = bvToSignedInt 64 (function2 "(_ fp.to_sbv 64)" "RNE" $ go x)
+        go (BVToNatSMT x) = function1 "bv2nat" (go x)
+        go (BVToIntSMT w x) = bvToSignedInt w (go x)
+        go (IntToBVSMT w x) = function1 ("(_ int2bv " <> showText w <> ")") (go x)
 
-toSolverAST (RealToFloat x) = function2 "(_ to_fp 8 24)" "RNE" (function1 "(_ int2bv 32)" $ toSolverAST x)
-toSolverAST (RealToDouble x) = function2 "(_ to_fp 11 53)" "RNE" (function1 "(_ int2bv 64)" $ toSolverAST x)
+        go (IteSMT x y z) =
+            function3 "ite" (go x) (go y) (go z)
 
-toSolverAST (FloatToIntSMT x) = bvToSignedInt 32 (function2 "(_ fp.to_sbv 32)" "RNE" $ toSolverAST x)
-toSolverAST (DoubleToIntSMT x) = bvToSignedInt 64 (function2 "(_ fp.to_sbv 64)" "RNE" $ toSolverAST x)
-toSolverAST (BVToNatSMT x) = function1 "bv2nat" (toSolverAST x)
-toSolverAST (BVToIntSMT w x) = bvToSignedInt w (toSolverAST x)
-toSolverAST (IntToBVSMT w x) = function1 ("(_ int2bv " <> showText w <> ")") (toSolverAST x)
+        go (SLet (n, e) body_e) =
+            "(let ((" <> TB.string n <> " " <> go e <> "))" <> go body_e <> ")"
 
-toSolverAST (IteSMT x y z) =
-    function3 "ite" (toSolverAST x) (toSolverAST y) (toSolverAST z)
+        -- Note: arguments flipped because SMTLIB does not have str.>= or str.>
+        go (StrGeSMT x y) = function2 "str.<=" (go y) (go x)
+        go (StrGtSMT x y) = function2 "str.<" (go y) (go x)
 
-toSolverAST (SLet (n, e) body_e) =
-    "(let ((" <> TB.string n <> " " <> toSolverAST e <> "))" <> toSolverAST body_e <> ")"
+        go (StrLtSMT x y) = function2 "str.<" (go x) (go y)
+        go (StrLeSMT x y) = function2 "str.<=" (go x) (go y)
 
-toSolverAST (FromCode chr) = function1 "str.from_code" (toSolverAST chr)
-toSolverAST (ToCode chr) = function1 "str.to_code" (toSolverAST chr)
+        go (FromInt x) = function1 "str.from_int" $ go x
+        go (FromCode chr) = function1 "str.from_code" (go chr)
+        go (ToCode chr) = function1 "str.to_code" (go chr)
 
-toSolverAST (VInt i) = if i >= 0 then showText i else "(- " <> showText (abs i) <> ")"
-toSolverAST (VWord w) = showText w
-toSolverAST (VFloat f) = convertFloating castFloatToWord32 8 f
-toSolverAST (VDouble d) = convertFloating castDoubleToWord64 11 d
-toSolverAST (VReal r) = "(/ " <> showText (numerator r) <> " " <> showText (denominator r) <> ")"
-toSolverAST (VBitVec b) = "#b" <> foldr (<>) "" (map showText b)
-toSolverAST (VString s) = "\"" <> TB.string s <> "\""
-toSolverAST (VChar '"') = "\"\"\"\""
-toSolverAST (VChar c) | isPrint c = "\"" <> TB.string [c] <> "\""
-                      | otherwise = "\"\\u{" <> TB.string (showHex (fromEnum c) "") <> "}\""
-toSolverAST (VBool b) = if b then "true" else "false"
-toSolverAST (V n _) = TB.string n
+        go (VInt i) = if i >= 0 then showText i else "(- " <> showText (abs i) <> ")"
+        go (VWord w) = showText w
+        go (VFloat f) = convertFloating castFloatToWord32 8 f
+        go (VDouble d) = convertFloating castDoubleToWord64 11 d
+        go (VReal r) = "(/ " <> showText (numerator r) <> " " <> showText (denominator r) <> ")"
+        go (VBitVec b) = "#b" <> foldr (<>) "" (map showText b)
+        go (VString s) = "\"" <> TB.string s <> "\""
+        go (VChar '"') = "\"\"\"\""
+        go (VChar c) | isPrint c = "\"" <> TB.string [c] <> "\""
+                            | otherwise = "\"\\u{" <> TB.string (showHex (fromEnum c) "") <> "}\""
+        go (VBool b) = if b then "true" else "false"
+        go (V n _) = TB.string n
 
-toSolverAST (Named x n) = "(! " <> toSolverAST x <> " :named " <> TB.string n <> ")"
+        go (Named x n) = "(! " <> go x <> " :named " <> TB.string n <> ")"
 
-toSolverAST (ForAll n srt smt) = "(forall ((" <> TB.string n <> " " <> sortName srt <> "))" <> toSolverAST smt <> ")"
+        go (ForAll n srt smt) = "(forall ((" <> TB.string n <> " " <> sortName srt <> "))" <> go smt <> ")"
+        go pr = str_seq pr
+
+toSolverASTString :: SMTAST -> TB.Builder
+toSolverASTString = go
+    where
+        go (x :++ y) = function2 "str.++" (goBack x) (goBack y)
+        go (StrLenSMT x) = function1 "str.len" $ goBack x
+        go (x :!! y) = function2 "str.at" (goBack x) (goBack y)
+        go (StrSubstrSMT x y z) = function3 "str.substr" (goBack x) (goBack y) (goBack z)
+        go (StrIndexOfSMT x y z) = function3 "str.indexof" (goBack x) (goBack y) (goBack z)
+        go (StrReplaceSMT x y z) = function3 "str.replace" (goBack x) (goBack y) (goBack z)
+        go (StrPrefixOfSMT x y) = function2 "str.prefixof" (goBack x) (goBack y)
+        go (StrSuffixOfSMT x y) = function2 "str.suffixof" (goBack x) (goBack y)
+        go _ = error "toSolverASTString: primitive not handled"
+
+        goBack = toSolverAST toSolverASTString
+
+toSolverASTSeq :: SMTAST -> TB.Builder
+toSolverASTSeq = go
+    where
+        go (x :++ y) = function2 "seq.++" (goBack x) (goBack y)
+        go (StrLenSMT x) = function1 "seq.len" $ goBack x
+        go (x :!! y) = function2 "seq.at" (goBack x) (goBack y)
+        go (StrSubstrSMT x y z) = function3 "seq.extract" (goBack x) (goBack y) (goBack z)
+        go (StrIndexOfSMT x y z) = function3 "seq.indexof" (goBack x) (goBack y) (goBack z)
+        go (StrReplaceSMT x y z) = function3 "seq.replace" (goBack x) (goBack y) (goBack z)
+        go (StrPrefixOfSMT x y) = function2 "seq.prefixof" (goBack x) (goBack y)
+        go (StrSuffixOfSMT x y) = function2 "seq.suffixof" (goBack x) (goBack y)
+        go _ = error "toSolverASTString: primitive not handled"
+
+        goBack = toSolverAST toSolverASTSeq
 
 -- | Converts a bit vector to a signed Int.
 -- Z3 has a bv2int function, but uses unsigned integers.
