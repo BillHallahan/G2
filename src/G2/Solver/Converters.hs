@@ -831,7 +831,7 @@ toSolverASTSeq = go
         go (StrReplaceSMT x y z) = function3 "seq.replace" (goBack x) (goBack y) (goBack z)
         go (StrPrefixOfSMT x y) = function2 "seq.prefixof" (goBack x) (goBack y)
         go (StrSuffixOfSMT x y) = function2 "seq.suffixof" (goBack x) (goBack y)
-        go _ = error "toSolverASTString: primitive not handled"
+        go _ = error "toSolverASTSeq: primitive not handled"
 
         goBack = toSolverAST toSolverASTSeq
 
