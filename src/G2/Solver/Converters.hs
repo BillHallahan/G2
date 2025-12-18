@@ -54,7 +54,6 @@ import qualified G2.Language.PathConds as PC
 import G2.Solver.Language
 import G2.Solver.Solver
 import qualified G2.Language.TyVarEnv as TV
-import GHC.Stg.Lift.Analysis (goodToLift)
 
 type PrintSMT = Bool
 
