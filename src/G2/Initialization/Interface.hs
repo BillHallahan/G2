@@ -10,6 +10,7 @@ import G2.Language.KnownValues
 import G2.Language.Syntax
 import G2.Language.Support hiding (State (..))
 import G2.Language.Typing
+import G2.Initialization.AddDCPC
 import G2.Initialization.ElimTicks
 import G2.Initialization.ElimTypeSynonyms
 import G2.Initialization.FpToRational
@@ -18,6 +19,7 @@ import G2.Initialization.InitVarLocs
 import G2.Initialization.Types as IT
 import qualified G2.Language.TyVarEnv as TV
 import G2.Translation.GHC (ImportDeclQualifiedStyle(NotQualified))
+import G2.Execution.DataConPCMap
 
 type MkArgTypes = IT.SimpleState -> [Type]
 
@@ -31,8 +33,9 @@ runInitialization1 s =
     in
     s' { IT.expr_env = eenv2, IT.type_env = tenv2, IT.type_classes = tc2}
 
-runInitialization2 :: Config -> IT.SimpleState -> MkArgTypes -> IT.SimpleState
+runInitialization2 :: Config -> IT.SimpleState -> MkArgTypes -> (IT.SimpleState, DataConPCMap)
 runInitialization2 config s@(IT.SimpleState { IT.expr_env = eenv
+                                            , IT.type_env = tenv
                                             , IT.name_gen = ng
                                             , IT.known_values = kv }) argTys =
     let
@@ -63,8 +66,10 @@ runInitialization2 config s@(IT.SimpleState { IT.expr_env = eenv
                , IT.handles = hs}
         
         s'' = if fp_handling config == RationalFP then substRational s' else s'
+
+        dcpc = addToDCPC config s'' (dcpcMap TV.empty kv tenv)
     in
-    s''
+    (s'', dcpc)
 
 -- | Wraps all error primitives in `Assert False`.
 assertFalseOnError :: ASTContainer m Expr => KnownValues -> m -> m
