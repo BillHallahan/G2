@@ -692,7 +692,7 @@ adjustExprEnvAndPathConds tv kv tenv eenv ng dcpm dc dc_e mexpr params dc_args
     , _:ty_args <- unTyApp $ typeOf tv mexpr
     , Just dcpc <- L.lookup ty_args dcpcs = 
         let 
-            (eenv''', pcs, ng', _) = applyDCPC ng eenv'' new_ids (Var mexpr) dcpc
+            (eenv''', pcs, ng', _) = applyDCPC ng eenv new_ids (Var mexpr) dcpc
         in
         (eenv''', pcs, ng')
     | otherwise = (eenv'', [], ng)
