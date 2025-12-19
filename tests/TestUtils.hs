@@ -46,6 +46,11 @@ mkConfigTestWithQuantifiedSMTStringsIO = do
     homedir <- getHomeDirectory
     return $ config { smt_strings = UseSMTStrings, quantified_smt_strings = UseQuantifiers }
 
+mkConfigTestWithSMTListsIO :: IO Config
+mkConfigTestWithSMTListsIO = do
+    config <- mkConfigTestIO
+    return $ config { smt_prim_lists = UseSMTSeq }
+
 
 
 eqIgT :: Expr -> Expr -> Bool
