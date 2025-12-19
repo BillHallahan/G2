@@ -111,7 +111,7 @@ data SMTAST = (:>=) !SMTAST !SMTAST
             | Func SMTName ![SMTAST] -- ^ Interpreted function
 
             -- Strings
-            | (:++) !SMTAST !SMTAST -- ^ String append
+            | StrAppendSMT [SMTAST] -- ^ String append
             | FromInt !SMTAST -- ^ Convert Ints to Strings
             | StrLenSMT !SMTAST
             | StrLtSMT !SMTAST !SMTAST
@@ -124,6 +124,9 @@ data SMTAST = (:>=) !SMTAST !SMTAST
             | StrReplaceSMT !SMTAST !SMTAST !SMTAST
             | StrPrefixOfSMT !SMTAST !SMTAST
             | StrSuffixOfSMT !SMTAST !SMTAST
+
+            | SeqEmptySMT
+            | SeqUnitSMT !SMTAST
 
             | IteSMT !SMTAST !SMTAST !SMTAST
             | SLet (SMTName, SMTAST) !SMTAST
@@ -167,6 +170,7 @@ data Sort = SortInt
           | SortBV Int
           | SortChar
           | SortString
+          | SortSeq Sort
           | SortBool
           | SortArray Sort Sort
           | SortFunc [Sort] Sort

@@ -12,13 +12,13 @@ import qualified G2.Language.TyVarEnv as TV
 
 addToDCPC :: Config -> IT.SimpleState -> DataConPCMap -> DataConPCMap
 addToDCPC (Config { smt_prim_lists = UseSMTSeq }) (IT.SimpleState { IT.known_values = kv, IT.type_env = tenv }) dcpc =
-      addListToDCPCMap kv (mkDCDouble kv tenv) (T.tyDouble kv) 
-    . addListToDCPCMap kv (mkDCFloat kv tenv) (T.tyFloat kv) 
-    . addListToDCPCMap kv (mkDCInteger kv tenv) (T.tyInteger kv)
-    . addListToDCPCMap kv (mkDCInt kv tenv) (T.tyInt kv) $ dcpc
+      addListToDCPCMap kv (mkDCDouble kv tenv) TyLitDouble
+    . addListToDCPCMap kv (mkDCFloat kv tenv) TyLitFloat 
+    . addListToDCPCMap kv (mkDCInteger kv tenv) TyLitInt
+    . addListToDCPCMap kv (mkDCInt kv tenv) TyLitInt $ dcpc
 addToDCPC _ _ dcpc = dcpc
 
 addListToDCPCMap :: KV.KnownValues -> Expr -> Type -> DataConPCMap -> DataConPCMap
 addListToDCPCMap kv dc t =
-      addToDCPCMap (KV.dcEmpty kv) [t] (listEmpty t kv TV.empty)
-    . addToDCPCMap (KV.dcCons kv) [t] (listCons dc t kv TV.empty)
+      addToDCPCMap (KV.dcEmpty kv) [T.returnType $ T.typeOf TV.empty dc] (listEmpty t kv TV.empty)
+    . addToDCPCMap (KV.dcCons kv) [T.returnType $ T.typeOf TV.empty dc] (listCons dc t kv TV.empty)

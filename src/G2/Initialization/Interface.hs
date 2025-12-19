@@ -18,7 +18,6 @@ import G2.Initialization.Handles
 import G2.Initialization.InitVarLocs
 import G2.Initialization.Types as IT
 import qualified G2.Language.TyVarEnv as TV
-import G2.Translation.GHC (ImportDeclQualifiedStyle(NotQualified))
 import G2.Execution.DataConPCMap
 
 type MkArgTypes = IT.SimpleState -> [Type]
