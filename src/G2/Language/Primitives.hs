@@ -31,7 +31,9 @@ module G2.Language.Primitives ( mkGe
                               , mkNotPrim
                               
                               , mkStringAppend
-                              , mkStringLen) where
+                              , mkSeqAppend
+                              , mkStringLen
+                              , mkSeqLen) where
 
 import qualified G2.Language.ExprEnv as E
 import G2.Language.KnownValues as KV
@@ -139,9 +141,15 @@ mkImpliesPrim kv = Prim Implies $ TyFun t (TyFun t t)
     where t = (TyCon (KV.tyBool kv) TYPE)
 
 mkStringAppend :: KnownValues -> Expr
-mkStringAppend kv = Prim StrAppend $ TyFun t (TyFun t t)
-    where t = TyApp (T.tyList kv) (T.tyChar kv)
+mkStringAppend kv = mkSeqAppend (T.tyChar kv) kv
+
+mkSeqAppend :: Type -> KnownValues -> Expr
+mkSeqAppend t kv = Prim StrAppend $ TyFun pt (TyFun pt pt)
+    where pt = TyApp (T.tyList kv) t
 
 mkStringLen :: KnownValues -> Expr
-mkStringLen kv = Prim StrLen $ TyFun t TyLitInt
-    where t = TyApp (T.tyList kv) (T.tyChar kv)
+mkStringLen kv = mkSeqLen (T.tyChar kv) kv
+
+mkSeqLen :: Type -> KnownValues -> Expr
+mkSeqLen t kv = Prim StrLen $ TyFun pt TyLitInt
+    where pt = TyApp (T.tyList kv) t

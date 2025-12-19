@@ -481,6 +481,8 @@ mkPrimHaskell pg = pr
 
         pr WGenCat = "wgencat"
 
+        pr SeqUnit = "Unit"
+
         pr (Handle n) = "(Handle " <> mkNameHaskell pg n <> ")"
         pr HandleGetPos = "handle_getPos"
         pr HandleSetPos = "handle_setPos"

@@ -315,7 +315,7 @@ isStr :: (ASTContainer m SMTAST) => m -> Bool
 isStr = getAll . evalASTs isStr'
 
 isStr' :: SMTAST -> All
-isStr' (_ :++ _) = All True
+isStr' (StrAppendSMT _) = All True
 isStr' (FromInt _) = All True
 isStr' (_ `StrLtSMT` _) = All True
 isStr' (_ `StrLeSMT` _) = All True
@@ -419,7 +419,7 @@ exprToSMT tv e | [ Data (DataCon (Name ":" _ _ _) _ _ _)
                 case e2 of
                     App (Data (DataCon (Name "[]" _ _ _) _ _ _)) type_t'
                         | Just (TyCon (Name "Char" _ _ _) _) <- TV.deepLookup tv type_t' -> exprToSMT tv e1
-                    _ -> exprToSMT tv e1 :++ exprToSMT tv e2
+                    _ -> StrAppendSMT [exprToSMT tv e1, exprToSMT tv e2]
 exprToSMT tv a@(App _ _) =
     let
         f = getFunc a
@@ -498,6 +498,7 @@ funcToSMT1Prim tv BVToNat e = BVToNatSMT (exprToSMT tv e)
 funcToSMT1Prim tv Chr e = FromCode (exprToSMT tv e)
 funcToSMT1Prim tv OrdChar e = ToCode (exprToSMT tv e)
 funcToSMT1Prim tv StrLen e = StrLenSMT (exprToSMT tv e)
+funcToSMT1Prim tv SeqUnit e = SeqUnitSMT (exprToSMT tv e)
 
 funcToSMT1Prim _ err _ = error $ "funcToSMT1Prim: invalid Primitive " ++ show err
 
@@ -562,7 +563,7 @@ funcToSMT2Prim tv StrGe a1 a2 = exprToSMT tv a1 `StrGeSMT` exprToSMT tv a2
 funcToSMT2Prim tv StrGt a1 a2 = exprToSMT tv a1 `StrGtSMT` exprToSMT tv a2
 funcToSMT2Prim tv StrLt a1 a2 = exprToSMT tv a1 `StrLtSMT` exprToSMT tv a2
 funcToSMT2Prim tv StrLe a1 a2 = exprToSMT tv a1 `StrLeSMT` exprToSMT tv a2
-funcToSMT2Prim tv StrAppend a1 a2  = exprToSMT tv a1 :++ exprToSMT tv a2
+funcToSMT2Prim tv StrAppend a1 a2  = StrAppendSMT [exprToSMT tv a1, exprToSMT tv a2]
 funcToSMT2Prim tv StrAt a1 a2 = exprToSMT tv a1 :!! exprToSMT tv a2
 funcToSMT2Prim tv StrPrefixOf a1 a2  = StrPrefixOfSMT (exprToSMT tv a1) (exprToSMT tv a2)
 funcToSMT2Prim tv StrSuffixOf a1 a2  = StrSuffixOfSMT (exprToSMT tv a1) (exprToSMT tv a2)
@@ -635,8 +636,10 @@ typeToSMT _ TyLitChar = SortChar
 typeToSMT _ (TyCon (Name "Bool" _ _ _) _) = SortBool
 #if MIN_VERSION_GLASGOW_HASKELL(9,6,0,0)
 typeToSMT _ (TyApp (TyCon (Name "List" _ _ _) _) (TyCon (Name "Char" _ _ _) _)) = SortString
+typeToSMT tv (TyApp (TyCon (Name "List" _ _ _) _) t) = SortSeq (adtTypeToSMT tv t)
 #else
 typeToSMT _ (TyApp (TyCon (Name "[]" _ _ _) _) (TyCon (Name "Char" _ _ _) _)) = SortString
+typeToSMT tv (TyApp (TyCon (Name "[]" _ _ _) _) t) = SortSeq (adtTypeToSMT tv t)
 #endif
 typeToSMT tv t@(TyApp t1 (TyVar (Id n _))) = case TV.deepLookupName tv n of 
                                                 Just t2 -> typeToSMT tv (TyApp t1 t2)
@@ -645,6 +648,13 @@ typeToSMT tv t@(TyVar (Id n _ )) = case TV.deepLookupName tv n of
                                         Just t1 -> typeToSMT tv t1
                                         Nothing -> error $ "typeToSMT: TyVarEnv can't find the type: " ++ show t 
 typeToSMT _ t = error $ "Unsupported type in typeToSMT: " ++ show t
+
+adtTypeToSMT :: TyVarEnv -> Type -> Sort
+adtTypeToSMT _ (TyCon (Name "Int" _ _ _) _) = SortInt
+adtTypeToSMT _ (TyCon (Name "Float" _ _ _) _) = SortFloat
+adtTypeToSMT _ (TyCon (Name "Double" _ _ _) _) = SortDouble
+adtTypeToSMT tv (TyVar (Id n _)) | Just t <- TV.deepLookupName tv n = adtTypeToSMT tv t
+adtTypeToSMT _ t = error $ "Unsupported type in adtTypeToSMT: " ++ show t
 
 comment :: String -> TB.Builder
 comment s = "; " <> TB.string s
@@ -803,12 +813,15 @@ toSolverAST str_seq = go
         go (Named x n) = "(! " <> go x <> " :named " <> TB.string n <> ")"
 
         go (ForAll n srt smt) = "(forall ((" <> TB.string n <> " " <> sortName srt <> "))" <> go smt <> ")"
+
+        go (SeqUnitSMT e) = "(seq.unit " <> go e <> ")"
+
         go pr = str_seq pr
 
 toSolverASTString :: SMTAST -> TB.Builder
 toSolverASTString = go
     where
-        go (x :++ y) = function2 "str.++" (goBack x) (goBack y)
+        go (StrAppendSMT xs) = functionList "str.++" (map goBack xs)
         go (StrLenSMT x) = function1 "str.len" $ goBack x
         go (x :!! y) = function2 "str.at" (goBack x) (goBack y)
         go (StrSubstrSMT x y z) = function3 "str.substr" (goBack x) (goBack y) (goBack z)
@@ -823,7 +836,7 @@ toSolverASTString = go
 toSolverASTSeq :: SMTAST -> TB.Builder
 toSolverASTSeq = go
     where
-        go (x :++ y) = function2 "seq.++" (goBack x) (goBack y)
+        go (StrAppendSMT xs) = functionList "seq.++" (map goBack xs)
         go (StrLenSMT x) = function1 "seq.len" $ goBack x
         go (x :!! y) = function2 "seq.at" (goBack x) (goBack y)
         go (StrSubstrSMT x y z) = function3 "seq.extract" (goBack x) (goBack y) (goBack z)
@@ -902,6 +915,7 @@ sortName (SortFP e s) = "(_ FloatingPoint " <> showText e <> " " <> showText s <
 sortName SortReal = "Real"
 sortName (SortBV w) = "(_ BitVec " <> showText w <> ")"
 sortName SortString = "String"
+sortName (SortSeq s) = "(Seq " <> sortName s <> ")"
 sortName SortChar = "String"
 sortName SortBool = "Bool"
 sortName (SortArray ind val) = "(Array " <> sortName ind <> " " <> sortName val <> ")"
@@ -936,6 +950,18 @@ smtastToExpr kv _ (VBool False) = mkFalse kv
 smtastToExpr kv tenv (VString cs) = mkG2List kv tenv (tyChar kv) $ map (App (mkDCChar kv tenv) . Lit . LitChar) cs
 smtastToExpr _ _ (VChar c) = Lit $ LitChar c
 smtastToExpr _ _ (V n s) = Var $ Id (certainStrToName n) (sortToType s)
+smtastToExpr kv tenv SeqEmptySMT = App (mkEmpty kv tenv) (Type TyUnknown)
+smtastToExpr kv tenv (SeqUnitSMT s) = mkApp [ mkCons kv tenv
+                                            , Type TyUnknown
+                                            , smtastToExpr kv tenv s
+                                            , App (mkEmpty kv tenv) (Type TyUnknown) ]
+smtastToExpr kv tenv (StrAppendSMT xs) = mkG2List kv tenv TyUnknown $ map (smtastToExpr kv tenv . fromUnit) xs
+    where
+        fromUnit (SeqUnitSMT s) = s
+
+        app s1 s2 = mkApp [ Prim StrAppend TyUnknown
+                          , smtastToExpr kv tenv s1
+                          , s2]
 smtastToExpr _ _ _ = error "Conversion of this SMTAST to an Expr not supported."
 
 -- | Converts a `Sort` to an `Type`.

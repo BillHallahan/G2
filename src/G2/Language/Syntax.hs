@@ -260,6 +260,9 @@ data Primitive = -- Mathematical and logical operators
                | OrdChar
                | WGenCat
 
+               -- Sequence Handling
+               | SeqUnit
+
                -- IO Handles
                | Handle Name -- ^ An IO Handle, the `Name` corresponds to a `HandleInfo` via a `State`s `handles` field
                | HandleGetPos -- ^ Handle -> String

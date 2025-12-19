@@ -125,8 +125,10 @@ instance Simplifier StringSimplifier where
 
 simplifyString :: Expr -> Expr
 simplifyString e
-    | [Prim Eq _, App (Prim StrLen _) v, Lit (LitInt 0) ] <- unApp e = mkApp [Prim Eq TyUnknown, v, Lit (LitString "")]
-    | [Prim Eq _, Lit (LitInt 0), App (Prim StrLen _) v ] <- unApp e = mkApp [Prim Eq TyUnknown, v, Lit (LitString "")]
+    | [Prim Eq _, App (Prim StrLen t) v, Lit (LitInt 0) ] <- unApp e
+    , TyFun (TyApp _ (TyCon (Name "Char" _ _ _) _)) _ <- t = mkApp [Prim Eq TyUnknown, v, Lit (LitString "")]
+    | [Prim Eq _, Lit (LitInt 0), App (Prim StrLen t) v ] <- unApp e
+    , TyFun (TyApp _ (TyCon (Name "Char" _ _ _) _)) _ <- t = mkApp [Prim Eq TyUnknown, v, Lit (LitString "")]
 simplifyString e = e
 
 -- | Tries to simplify constraints involving checking if the value of an Int matches a concrete Float.
