@@ -1,21 +1,35 @@
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE DeriveDataTypeable, OverloadedStrings #-}
 
 module G2.Execution.DataConPCMap ( DCArgBind (..)
                                  , DataConPCInfo (..)
+                                 , DataConPCMap
+                                 -- * Constructing/using the DCPC Map
                                  , dcpcMap
                                  , applyDCPC
+
+                                 -- * Helpers for constructing the DCPC Map
+                                 , listCons
+                                 , listEmpty
                                  ) where
 
 import G2.Language.Naming
-import G2.Language
+import G2.Language.Syntax
+import G2.Language.Expr
+import G2.Language.ExprEnv (ExprEnv)
 import qualified G2.Language.ExprEnv as E
+import G2.Language.KnownValues (KnownValues)
 import qualified G2.Language.KnownValues as KV
+import G2.Language.PathConds (PathCond (..))
+import G2.Language.Primitives
+import G2.Language.TypeEnv (TypeEnv)
 import qualified G2.Language.Typing as T
+import G2.Language.TyVarEnv (TyVarEnv)
 
 import Data.List
 import qualified Data.HashMap.Lazy as HM
 
 import Control.Exception
+import Data.Data (Data, Typeable)
 
 data DCArgBind =
       -- | A new symbolic argument
@@ -26,6 +40,7 @@ data DCArgBind =
         , fresh_vars :: [Id] -- ^ New symbolic variables to introduce, used in the Expr
         , arg_expr :: Expr -- ^ Instantiation of the argument
         }
+    deriving (Show, Eq, Read, Typeable, Data)
 
 -- | When adding a data constructor, we can also add path constraints, to enable
 -- reasoning via the SMT solver.  For example, Strings can be manipulated via concretization,
@@ -43,25 +58,31 @@ data DataConPCInfo =
     , dc_pc :: [PathCond] -- ^ Path constraints to generate, written over the DCPC
     , dc_bindee_exprs :: [Expr] -- ^ Expressions corresponding to the args
     }
+    deriving (Show, Eq, Read, Typeable, Data)
+
+type DataConPCMap = HM.HashMap Name [([Type], DataConPCInfo)]
 
 -- | Map Name's of DataCons to associations of type arguments to DataConPCInfos
 -- alongside an Expr representing the entire expression (used by IntToString)
 dcpcMap :: TyVarEnv -> KnownValues -> TypeEnv -> HM.HashMap Name [([Type], DataConPCInfo)]
 dcpcMap tv kv tenv = HM.fromList [
-                      ( KV.dcCons kv, [ ([T.tyChar kv], strCons tv kv tenv) ])
-                    , ( KV.dcEmpty kv, [ ([T.tyChar kv], strEmpty tv kv) ])
+                      ( KV.dcCons kv, [ ([T.tyChar kv], strCons kv tenv tv) ])
+                    , ( KV.dcEmpty kv, [ ([T.tyChar kv], strEmpty kv tv) ])
                   ]
 
-strCons :: TyVarEnv -> KnownValues -> TypeEnv -> DataConPCInfo
-strCons tv kv tenv = let
+strCons :: KnownValues -> TypeEnv -> TyVarEnv -> DataConPCInfo
+strCons kv tenv = listCons (mkDCChar kv tenv) (T.tyChar kv) kv
+
+listCons :: Expr -> Type -> KnownValues -> TyVarEnv -> DataConPCInfo
+listCons dc t kv tv = let
                         hn = Name "h" Nothing 0 Nothing
                         tn = Name "t" Nothing 0 Nothing
-                        ti = Id tn (TyApp (T.tyList kv) (T.tyChar kv))
+                        ti = Id tn (TyApp (T.tyList kv) t)
                         cn = Name "c" Nothing 0 Nothing
                         ci = Id cn TyLitChar
                         asn = Name "as" Nothing 0 Nothing
-                        asi = Id asn (TyApp (T.tyList kv) (T.tyChar kv))
-                        dc_char = App (mkDCChar kv tenv) (Var ci)
+                        asi = Id asn (TyApp (T.tyList kv) t)
+                        dc_char = App dc (Var ci)
                         dcpc = DCPC { dc_as_pattern = asn
                                     , dc_args = [ArgConcretize { binder_name = hn
                                                             , fresh_vars = [ ci ]
@@ -76,10 +97,13 @@ strCons tv kv tenv = let
                       in
                       dcpc
 
-strEmpty :: TyVarEnv -> KnownValues -> DataConPCInfo
-strEmpty tv kv = let
+strEmpty :: KnownValues -> TyVarEnv -> DataConPCInfo
+strEmpty kv = listEmpty (T.tyChar kv) kv
+
+listEmpty :: Type -> KnownValues -> TyVarEnv -> DataConPCInfo
+listEmpty t kv tv = let
                 asn = Name "as" Nothing 0 Nothing
-                asi = Id asn (TyApp (T.tyList kv) (T.tyChar kv))
+                asi = Id asn (TyApp (T.tyList kv) t)
                 dcpc = DCPC { dc_as_pattern = asn
                             , dc_args = []
                             , dc_pc = [ExtCond (mkEqExpr tv kv

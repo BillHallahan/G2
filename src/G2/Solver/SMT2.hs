@@ -117,15 +117,15 @@ instance SMTConverter Z3 where
         let (h_in, _, _) = getIO con
         T.hPutStrLn h_in "(set-option :produce-unsat-cores true)"
 
-    addFormula = stdAddFormula
+    addFormula = stdAddFormula toSolverASTSeq
 
-    checkSatNoReset = stdCheckSatNoReset
+    checkSatNoReset = stdCheckSatNoReset toSolverASTSeq
 
     checkSatGetModel con@(Z3 _ print_smt _ _) formula vs = do
         let (h_in, h_out, _) = getIO con
         reset con        
-        when print_smt $ T.putStrLn (TB.run $ toSolverText formula)
-        T.hPutStr h_in (TB.run $ toSolverText formula)
+        when print_smt $ T.putStrLn (TB.run $ toSolverText toSolverASTSeq formula)
+        T.hPutStr h_in (TB.run $ toSolverText toSolverASTSeq formula)
 
         r <- checkSat' print_smt h_in h_out
         when print_smt (putStrLn $ show r)
@@ -141,7 +141,7 @@ instance SMTConverter Z3 where
 
     checkSatGetModelOrUnsatCoreNoReset con@(Z3 _ print_smt _ _) formula vs = do
         let (h_in, h_out, _) = getIO con
-        let formula' = TB.run $ toSolverText formula
+        let formula' = TB.run $ toSolverText toSolverASTSeq formula
         T.putStrLn "\n\n checkSatGetModelOrUnsatCore"
         T.putStrLn formula'
 
@@ -209,15 +209,15 @@ instance SMTConverter CVC5 where
 
     setProduceUnsatCores _ = return ()
 
-    addFormula = stdAddFormula
+    addFormula = stdAddFormula toSolverASTSeq
 
-    checkSatNoReset = stdCheckSatNoReset
+    checkSatNoReset = stdCheckSatNoReset toSolverASTSeq
 
     checkSatGetModel con@(CVC5 print_smt _ _) formula vs = do
         let (h_in, h_out, _) = getIO con
         reset con
-        when print_smt $ T.putStrLn (TB.run $ toSolverText formula)
-        T.hPutStr h_in (TB.run $ toSolverText formula)
+        when print_smt $ T.putStrLn (TB.run $ toSolverText toSolverASTSeq formula)
+        T.hPutStr h_in (TB.run $ toSolverText toSolverASTSeq formula)
         r <- checkSat' print_smt h_in h_out
         when print_smt (putStrLn $ show r)
         case r of
@@ -234,7 +234,7 @@ instance SMTConverter CVC5 where
 
     checkSatGetModelOrUnsatCoreNoReset con@(CVC5 print_smt _ _) formula vs = do
         let (h_in, h_out, _) = getIO con
-        let formula' = TB.run $ toSolverText formula
+        let formula' = TB.run $ toSolverText toSolverASTSeq formula
         T.putStrLn "\n\n checkSatGetModelOrUnsatCore"
         T.putStrLn formula'
 
@@ -301,17 +301,17 @@ instance SMTConverter Ostrich where
     getUnsatCoreInstrResult _ = error "ostrich: unsat core not supported"
     setProduceUnsatCores _ = error "ostrich: unsat core not supported"
 
-    addFormula = stdAddFormula
+    addFormula = stdAddFormula toSolverASTString
 
-    checkSatNoReset = stdCheckSatNoReset
+    checkSatNoReset = stdCheckSatNoReset toSolverASTString
 
     checkSatGetModel con@(Ostrich print_smt _ _) formula vs = do
         let (h_in, h_out, _) = getIO con
         reset con
-        T.hPutStr h_in (TB.run $ toSolverText formula)
+        T.hPutStr h_in (TB.run $ toSolverText toSolverASTString formula)
         
         when print_smt $ do
-            T.putStrLn (TB.run $ toSolverText formula)
+            T.putStrLn (TB.run $ toSolverText toSolverASTString formula)
         
         r <- checkSat' print_smt h_in h_out
         when print_smt (putStrLn $ show r)
@@ -330,22 +330,22 @@ instance SMTConverter Ostrich where
     push = stdPush
     pop = stdPop
 
-stdAddFormula :: SMTConverter con => con -> [SMTHeader] -> IO ()
-stdAddFormula con form = do
+stdAddFormula :: SMTConverter con => (SMTAST -> TB.Builder) -> con -> [SMTHeader] -> IO ()
+stdAddFormula str_seq con form = do
     let (h_in, _, _) = getIO con
         pr_smt = getPrintSMT con
-    when pr_smt $ T.putStrLn (TB.run $ toSolverText form)
-    T.hPutStrLn h_in (TB.run $ toSolverText form)
+    when pr_smt $ T.putStrLn (TB.run $ toSolverText str_seq form)
+    T.hPutStrLn h_in (TB.run $ toSolverText str_seq form)
 
 
-stdCheckSatNoReset :: SMTConverter con => con -> [SMTHeader] -> IO (Result () () ())
-stdCheckSatNoReset con formula = do
+stdCheckSatNoReset :: SMTConverter con => (SMTAST -> TB.Builder) -> con -> [SMTHeader] -> IO (Result () () ())
+stdCheckSatNoReset str_seq con formula = do
         let (h_in, h_out, _) = getIO con
             pr_smt = getPrintSMT con
 
-        when pr_smt $ T.putStrLn (TB.run $ toSolverText formula)
+        when pr_smt $ T.putStrLn (TB.run $ toSolverText str_seq formula)
 
-        T.hPutStrLn h_in (TB.run $ toSolverText formula)
+        T.hPutStrLn h_in (TB.run $ toSolverText str_seq formula)
         r <- checkSat' pr_smt h_in h_out
 
         when pr_smt (putStrLn $ show r)
