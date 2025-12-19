@@ -4,6 +4,7 @@ module G2.Execution.DataConPCMap ( DCArgBind (..)
                                  , DataConPCInfo (..)
                                  , DataConPCMap
                                  -- * Constructing/using the DCPC Map
+                                 , addToDCPCMap
                                  , dcpcMap
                                  , applyDCPC
 
@@ -61,6 +62,9 @@ data DataConPCInfo =
     deriving (Show, Eq, Read, Typeable, Data)
 
 type DataConPCMap = HM.HashMap Name [([Type], DataConPCInfo)]
+
+addToDCPCMap :: Name -> [Type] -> DataConPCInfo -> DataConPCMap -> DataConPCMap
+addToDCPCMap n ts dcpi = HM.insertWith (++) n [(ts, dcpi)]
 
 -- | Map Name's of DataCons to associations of type arguments to DataConPCInfos
 -- alongside an Expr representing the entire expression (used by IntToString)

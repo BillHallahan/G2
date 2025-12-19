@@ -183,7 +183,7 @@ initStateFromSimpleState :: IT.SimpleState
                          -> (State (), Bindings)
 initStateFromSimpleState s m_mod useAssert mkCurr argTys config =
     let
-        s' = runInitialization2 config s argTys
+        (s', dcpc) = runInitialization2 config s argTys
         eenv' = IT.expr_env s'
         tenv' = IT.type_env s'
         ng' = IT.name_gen s'
@@ -235,7 +235,7 @@ initStateFromSimpleState s m_mod useAssert mkCurr argTys config =
     , cleaned_names = HM.empty
     , input_names = map idName $ typ_is ++ val_is
     , input_coercion = m_coercion
-    , data_con_pc_map = dcpcMap tv_env kv' tenv'
+    , data_con_pc_map = dcpc
     , higher_order_inst = S.filter (\n -> nameModule n `elem` m_mod) . S.fromList $ IT.exports s
     , rewrite_rules = IT.rewrite_rules s
     , name_gen = ng'''
