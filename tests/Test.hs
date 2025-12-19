@@ -515,6 +515,8 @@ testFileTests = testGroup "TestFiles"
                                         , ("maximum1", 3000, [AtLeast 1, AtMost 6]) -- Quantifier causes SMT failures
                                         ]
 
+    , checkInputOutputsSMTLists "tests/TestFiles/Seq/Seq1.hs" [ ("con", 1000, [AtLeast 1]) ]
+
     , checkExpr "tests/TestFiles/Strings/Strings1.hs" 1000 "exclaimEq"
         [AtLeast 5, RExists (\[_, _, r] -> dcHasName "True" r)]
 

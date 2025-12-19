@@ -955,13 +955,13 @@ smtastToExpr kv tenv (SeqUnitSMT s) = mkApp [ mkCons kv tenv
                                             , Type TyUnknown
                                             , smtastToExpr kv tenv s
                                             , App (mkEmpty kv tenv) (Type TyUnknown) ]
-smtastToExpr kv tenv (StrAppendSMT xs) = mkG2List kv tenv TyUnknown $ map (smtastToExpr kv tenv . fromUnit) xs
+smtastToExpr kv tenv (StrAppendSMT xs) = mkG2List kv tenv TyUnknown $ map (wrapDC . smtastToExpr kv tenv . fromUnit) xs
     where
         fromUnit (SeqUnitSMT s) = s
+        fromUnit _ = error "fromUnit: unsupported case"
 
-        app s1 s2 = mkApp [ Prim StrAppend TyUnknown
-                          , smtastToExpr kv tenv s1
-                          , s2]
+        wrapDC i@(Lit (LitInt _)) = App (mkDCInt kv tenv) i
+        wrapDC e = e
 smtastToExpr _ _ _ = error "Conversion of this SMTAST to an Expr not supported."
 
 -- | Converts a `Sort` to an `Type`.

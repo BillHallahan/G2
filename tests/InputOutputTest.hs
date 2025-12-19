@@ -64,6 +64,10 @@ checkInputOutputsQuantifiedSMTStrings :: FilePath -> [(String, Int, [Reqs String
 checkInputOutputsQuantifiedSMTStrings src tests = do
     checkInputOutput' mkConfigTestWithQuantifiedSMTStringsIO src tests
 
+checkInputOutputsSMTLists :: FilePath -> [(String, Int, [Reqs String])] -> TestTree
+checkInputOutputsSMTLists src tests = do
+    checkInputOutput' mkConfigTestWithSMTListsIO src tests
+
 checkInputOutputsTemplate :: FilePath -> [(String, Int, [Reqs String])] -> TestTree
 checkInputOutputsTemplate src tests = do
     checkInputOutput'
