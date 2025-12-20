@@ -953,16 +953,18 @@ smtastToExpr _ _ (V n s) = Var $ Id (certainStrToName n) (sortToType s)
 smtastToExpr kv tenv SeqEmptySMT = App (mkEmpty kv tenv) (Type TyUnknown)
 smtastToExpr kv tenv (SeqUnitSMT s) = mkApp [ mkCons kv tenv
                                             , Type TyUnknown
-                                            , smtastToExpr kv tenv s
+                                            , wrapDC kv tenv $ smtastToExpr kv tenv s
                                             , App (mkEmpty kv tenv) (Type TyUnknown) ]
-smtastToExpr kv tenv (StrAppendSMT xs) = mkG2List kv tenv TyUnknown $ map (wrapDC . smtastToExpr kv tenv . fromUnit) xs
+smtastToExpr kv tenv (StrAppendSMT xs) = mkG2List kv tenv TyUnknown $ map (wrapDC kv tenv . smtastToExpr kv tenv . fromUnit) xs
     where
         fromUnit (SeqUnitSMT s) = s
         fromUnit _ = error "fromUnit: unsupported case"
-
-        wrapDC i@(Lit (LitInt _)) = App (mkDCInt kv tenv) i
-        wrapDC e = e
 smtastToExpr _ _ _ = error "Conversion of this SMTAST to an Expr not supported."
+
+
+wrapDC :: KnownValues -> TypeEnv -> Expr -> Expr
+wrapDC kv tenv i@(Lit (LitInt _)) = App (mkDCInt kv tenv) i
+wrapDC _ _ e = e
 
 -- | Converts a `Sort` to an `Type`.
 sortToType :: Sort -> Type
