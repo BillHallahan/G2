@@ -636,9 +636,13 @@ typeToSMT _ TyLitChar = SortChar
 typeToSMT _ (TyCon (Name "Bool" _ _ _) _) = SortBool
 #if MIN_VERSION_GLASGOW_HASKELL(9,6,0,0)
 typeToSMT _ (TyApp (TyCon (Name "List" _ _ _) _) (TyCon (Name "Char" _ _ _) _)) = SortString
+typeToSMT tv (TyApp (TyCon (Name "List" _ _ _) _) (TyVar (Id n _)))
+    | Just (TyCon (Name "Char" _ _ _) _) <- TV.deepLookupName tv n = SortString
 typeToSMT tv (TyApp (TyCon (Name "List" _ _ _) _) t) = SortSeq (adtTypeToSMT tv t)
 #else
 typeToSMT _ (TyApp (TyCon (Name "[]" _ _ _) _) (TyCon (Name "Char" _ _ _) _)) = SortString
+typeToSMT tv (TyApp (TyCon (Name "[]" _ _ _) _) (TyVar (Id n _)))
+    | Just (TyCon (Name "Char" _ _ _) _) <- TV.deepLookupName tv n = SortString
 typeToSMT tv (TyApp (TyCon (Name "[]" _ _ _) _) t) = SortSeq (adtTypeToSMT tv t)
 #endif
 typeToSMT tv t@(TyApp t1 (TyVar (Id n _))) = case TV.deepLookupName tv n of 

@@ -75,7 +75,7 @@ dcpcMap tv kv tenv = HM.fromList [
                   ]
 
 strCons :: KnownValues -> TypeEnv -> TyVarEnv -> DataConPCInfo
-strCons kv tenv = listCons' id (mkDCChar kv tenv) (T.tyChar kv) kv
+strCons kv tenv = listCons' id (mkDCChar kv tenv) TyLitChar kv
 
 listCons :: Expr -> Type -> KnownValues -> TyVarEnv -> DataConPCInfo
 listCons = listCons' (App (Prim SeqUnit TyUnknown))
