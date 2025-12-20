@@ -6,6 +6,8 @@ module InputOutputTest ( checkInputOutput
                        , checkInputOutputsSMTStringsStrict
                        , checkInputOutputsSMTStringsWithSubPath
                        , checkInputOutputsQuantifiedSMTStrings
+
+                       , checkInputOutputsSMTLists
                        
                        , checkInputOutputsTemplate
                        , checkInputOutputsWith
