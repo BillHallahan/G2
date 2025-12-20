@@ -70,12 +70,12 @@ stdReduce' share _ solver simplifier s@(State { curr_expr = CurrExpr Evaluate ce
     , share == NoSharing = return $ evalVarNoSharing s ng i
     | App e1 e2 <- ce = do
         let (r, xs, ng') = evalApp s ng e1 e2
-        (ng'', xs') <- mapAccumMaybeM (reduceNewPC solver simplifier) ng' xs
+        (ng'', xs') <- reduceNewPC solver simplifier ng' xs
         return (r, xs', ng'')
     | Let b e <- ce = return $ evalLet s ng b e
     | Case e i t a <- ce = do
         let (r, xs, ng') = evalCase s b e i t a
-        (ng'', xs') <- mapAccumMaybeM (reduceNewPC solver simplifier) ng' xs
+        (ng'', xs') <- reduceNewPC solver simplifier ng' xs
         return (r, xs', ng'')
     | Cast e c <- ce = return $ evalCast s ng e c
     | Tick t e <- ce = return $ evalTick s ng t e
@@ -102,31 +102,20 @@ stdReduce' _ symb_func_eval solver simplifier s@(State { curr_expr = CurrExpr Re
     | Just (ApplyFrame e, stck') <- S.pop stck = return $ retApplyFrame s ng ce e stck'
     | Just (AssumeFrame e, stck') <- frstck = do
         let (r, xs, ng') = retAssumeFrame s ng ce e stck'
-        (ng'', xs') <- mapAccumMaybeM (reduceNewPC solver simplifier) ng' xs
+        (ng'', xs') <- reduceNewPC solver simplifier ng' xs
         return (r, xs', ng'')
     | Just (AssertFrame ais e, stck') <- frstck = do
         let (r, xs, ng') = retAssertFrame s ng ce ais e stck'
-        (ng'', xs') <- mapAccumMaybeM (reduceNewPC solver simplifier) ng' xs
+        (ng'', xs') <- reduceNewPC solver simplifier ng' xs
         return (r, xs', ng'')
     | Just (CurrExprFrame act e, stck') <- frstck = do
         let (r, xs, ng') = retCurrExpr s ce act e stck' ng
-        (ng'', xs') <- mapAccumMaybeM (reduceNewPC solver simplifier) ng' xs
+        (ng'', xs') <- reduceNewPC solver simplifier ng' xs
         return (r, xs', ng'')
     | Nothing <- frstck = return (RuleIdentity, [s], ng)
     | otherwise = error $ "stdReduce': Unknown Expr" ++ show ce ++ show (S.pop stck)
         where
             frstck = S.pop stck
-
-mapAccumMaybeM :: Monad m => (s -> a -> m (Maybe (s, b))) -> s -> [a] -> m (s, [b])
-mapAccumMaybeM f s xs = do
-    (s', xs') <- mapAccumM f' s xs
-    return (s', catMaybes xs')
-    where
-        f' s x = do
-            r <- f s x
-            case r of
-                Just (s', x') -> return (s', Just x')
-                Nothing -> return (s, Nothing)
 
 evalVarSharing :: State t -> NameGen -> Id -> (Rule, [State t], NameGen)
 evalVarSharing s@(State { expr_env = eenv
