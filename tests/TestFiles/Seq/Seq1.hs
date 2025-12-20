@@ -1,4 +1,4 @@
-module Strings1 where
+module Seq1 where
 
 import Data.List
 
