@@ -74,9 +74,9 @@ stdReduce' share _ solver simplifier s@(State { curr_expr = CurrExpr Evaluate ce
         return (r, states, ng'')
     | Let b e <- ce = return $ evalLet s ng b e
     | Case e i t a <- ce = do
-        let (r, xs, ng') = evalCase s b e i t a
-        (ng'', xs') <- reduceNewPC solver simplifier ng' xs
-        return (r, xs', ng'')
+        let (r, new_pc, ng') = evalCase s b e i t a
+        (ng'', states) <- reduceNewPC solver simplifier ng' new_pc
+        return (r, states, ng'')
     | Cast e c <- ce = return $ evalCast s ng e c
     | Tick t e <- ce = return $ evalTick s ng t e
     | NonDet es <- ce = return $ evalNonDet s ng es
@@ -101,17 +101,17 @@ stdReduce' _ symb_func_eval solver simplifier s@(State { curr_expr = CurrExpr Re
     , Just (ApplyFrame ae, stck') <- S.pop stck = return $ retLam s ng u i e ae stck'
     | Just (ApplyFrame e, stck') <- S.pop stck = return $ retApplyFrame s ng ce e stck'
     | Just (AssumeFrame e, stck') <- frstck = do
-        let (r, xs, ng') = retAssumeFrame s ng ce e stck'
-        (ng'', xs') <- reduceNewPC solver simplifier ng' xs
-        return (r, xs', ng'')
+        let (r, new_pc, ng') = retAssumeFrame s ng ce e stck'
+        (ng'', states) <- reduceNewPC solver simplifier ng' new_pc
+        return (r, states, ng'')
     | Just (AssertFrame ais e, stck') <- frstck = do
-        let (r, xs, ng') = retAssertFrame s ng ce ais e stck'
-        (ng'', xs') <- reduceNewPC solver simplifier ng' xs
-        return (r, xs', ng'')
+        let (r, new_pc, ng') = retAssertFrame s ng ce ais e stck'
+        (ng'', states) <- reduceNewPC solver simplifier ng' new_pc
+        return (r, states, ng'')
     | Just (CurrExprFrame act e, stck') <- frstck = do
-        let (r, xs, ng') = retCurrExpr s ce act e stck' ng
-        (ng'', xs') <- reduceNewPC solver simplifier ng' xs
-        return (r, xs', ng'')
+        let (r, new_pc, ng') = retCurrExpr s ce act e stck' ng
+        (ng'', states) <- reduceNewPC solver simplifier ng' new_pc
+        return (r, states, ng'')
     | Nothing <- frstck = return (RuleIdentity, [s], ng)
     | otherwise = error $ "stdReduce': Unknown Expr" ++ show ce ++ show (S.pop stck)
         where
@@ -391,7 +391,7 @@ evalLet s@(State { expr_env = eenv })
                      , ng')
 
 -- | Handle the Case forms of Evaluate.
-evalCase :: State t -> Bindings -> Expr -> Id -> Type -> [Alt] -> (Rule, [NewPC t], NameGen)
+evalCase :: State t -> Bindings -> Expr -> Id -> Type -> [Alt] -> (Rule, NewPC t, NameGen)
 evalCase s@(State { expr_env = eenv
                   , exec_stack = stck
                   , known_values = kv
@@ -405,8 +405,8 @@ evalCase s@(State { expr_env = eenv
           binds = [(bind, Lit lit)]
           expr' = liftCaseBinds binds expr
       in ( RuleEvalCaseLit
-         , [newPCEmpty $ s { expr_env = eenv
-                           , curr_expr = CurrExpr Evaluate expr' }], ng)
+         , newPCEmpty $ s { expr_env = eenv
+                           , curr_expr = CurrExpr Evaluate expr' }, ng)
 
   -- Is the current expression able to match a data consturctor based `Alt`?
   -- If so, then we bind all the parameters to the appropriate arguments and
@@ -428,9 +428,9 @@ evalCase s@(State { expr_env = eenv
       in 
          assert (length params == length ar')
          ( RuleEvalCaseData
-         , [newPCEmpty $ s { expr_env = eenv'
-                           , tyvar_env = tv_env'
-                           , curr_expr = CurrExpr Evaluate expr''}] 
+         , newPCEmpty $ s { expr_env = eenv'
+                          , tyvar_env = tv_env'
+                          , curr_expr = CurrExpr Evaluate expr''}
          , ng')
 
   -- We are not able to match any constructor but don't have a symbolic variable?
@@ -447,8 +447,10 @@ evalCase s@(State { expr_env = eenv
           binds = [(bind, mexpr)]
           expr' = liftCaseBinds binds expr
       in ( RuleEvalCaseDefault
-         , [newPCEmpty $ s { expr_env = eenv
-                           , curr_expr = CurrExpr Evaluate expr' }], ng)
+         , newPCEmpty $ s { expr_env = eenv
+                          , curr_expr = CurrExpr Evaluate expr' }, ng)
+
+  -- TODO: fix this branch to return NewPC instead of [NewPC]
 
   -- If we are pointing to something in expr value form, that is not addressed
   -- by some previous case, we handle it by branching on every `Alt`, and adding
@@ -501,7 +503,7 @@ evalCase s@(State { expr_env = eenv
   -- never then actually try to branch on the case.  However, the executor might reach
   -- this put if NRPCs are being used, as a bottoming expression may be replaced by a
   -- symbolic variable.
-  | [] <- alts = (RuleEvalCaseBottom, [newPCEmpty $ s { curr_expr = CurrExpr Evaluate (Prim Error TyBottom) }], ng)
+  | [] <- alts = (RuleEvalCaseBottom, newPCEmpty $ s { curr_expr = CurrExpr Evaluate (Prim Error TyBottom) }, ng)
 
   | otherwise = error $ "reduceCase: bad case passed in\n" ++ show mexpr ++ "\n" ++ show alts
   where
@@ -1101,7 +1103,7 @@ retCastFrame s ng e c stck =
          , exec_stack = stck}]
     , ng)
 
-retCurrExpr :: State t -> Expr -> CEAction -> CurrExpr -> S.Stack Frame -> NameGen -> (Rule, [NewPC t], NameGen)
+retCurrExpr :: State t -> Expr -> CEAction -> CurrExpr -> S.Stack Frame -> NameGen -> (Rule, NewPC t, NameGen)
 retCurrExpr s@(State { expr_env = eenv, known_values = kv, tyvar_env = tvnv, focused = focus }) e1 (EnsureEq e2) orig_ce@(CurrExpr _ ce) stck ng
     | Just (eenv', new_pc, new_nrpc_pairs) <- matchPairs tvnv kv e1 e2 (eenv, [], []) =
         let
@@ -1117,20 +1119,24 @@ retCurrExpr s@(State { expr_env = eenv, known_values = kv, tyvar_env = tvnv, foc
                             new_nrpc_pairs
         in
         ( RuleReturnCurrExprFr
-        , [NewPC { state = s { expr_env = eenv'
-                             , curr_expr = CurrExpr Evaluate ce
-                             , exec_stack = stck
-                             , non_red_path_conds = nrpc }
-                    , new_pcs = new_pc
-                    , concretized = [] }], ng' )
+        , NewPC (SplitStatePieces (s { expr_env = eenv'
+                                     , curr_expr = CurrExpr Evaluate ce
+                                     , exec_stack = stck
+                                     , non_red_path_conds = nrpc })
+                                  [SD { new_conc_entries = []
+                                      , new_sym_entries = []
+                                      , new_path_conds = new_pc
+                                      , concretized = []
+                                      , new_true_assert = true_assert s
+                                      , new_assert_ids = assert_ids s}])
+        , ng' )
     | otherwise =
         assert (not (isExprValueForm eenv e2))
                 ( RuleReturnCurrExprFr
-                , [NewPC { state = s { curr_expr = CurrExpr Evaluate e2
+                , newPCEmpty $ s { curr_expr = CurrExpr Evaluate e2
                                     , non_red_path_conds = non_red_path_conds s
                                     , exec_stack = S.push (CurrExprFrame (EnsureEq e1) orig_ce) stck}
-                        , new_pcs = []
-                        , concretized = [] }], ng )
+                , ng )
 
 retCurrExpr s _ NoAction orig_ce stck ng = 
     let
@@ -1139,10 +1145,9 @@ retCurrExpr s _ NoAction orig_ce stck ng =
                     _ -> stck
     in
     ( RuleReturnCurrExprFr
-    , [NewPC { state = s { curr_expr = orig_ce
-                         , exec_stack = stck'}
-             , new_pcs = []
-             , concretized = []}], ng )
+    , newPCEmpty $ s { curr_expr = orig_ce
+                     , exec_stack = stck'}
+    , ng )
 
 matchPairs :: TV.TyVarEnv -> KnownValues -> Expr -> Expr -> (ExprEnv, [PathCond], [(Expr, Expr)]) -> Maybe (ExprEnv, [PathCond], [(Expr, Expr)])
 matchPairs tvnv kv e1 e2 eenv_pc_ee@(eenv, pc, ees)
