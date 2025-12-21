@@ -69,9 +69,9 @@ stdReduce' share _ solver simplifier s@(State { curr_expr = CurrExpr Evaluate ce
     | Var i <- ce
     , share == NoSharing = return $ evalVarNoSharing s ng i
     | App e1 e2 <- ce = do
-        let (r, xs, ng') = evalApp s ng e1 e2
-        (ng'', xs') <- reduceNewPC solver simplifier ng' xs
-        return (r, xs', ng'')
+        let (r, new_pc, ng') = evalApp s ng e1 e2
+        (ng'', states) <- reduceNewPC solver simplifier ng' new_pc
+        return (r, states, ng'')
     | Let b e <- ce = return $ evalLet s ng b e
     | Case e i t a <- ce = do
         let (r, xs, ng') = evalCase s b e i t a
@@ -218,7 +218,7 @@ makeAltsForPMRet ns tyVarId = go ns tyVarId 1
 --    (2) We have a symbolic value, and no evaluation is possible, so we return
 -- If we do not have a primitive operator, we go into the center of the apps,
 -- to evaluate the function call
-evalApp :: State t -> NameGen -> Expr -> Expr -> (Rule, [NewPC t], NameGen)
+evalApp :: State t -> NameGen -> Expr -> Expr -> (Rule, NewPC t, NameGen)
 evalApp s@(State { expr_env = eenv
                  , type_env = tenv
                  , known_values = kv
@@ -227,22 +227,29 @@ evalApp s@(State { expr_env = eenv
                  , type_classes = tc })
         ng e1 e2
     | ac@(Prim Error _) <- appCenter e1 =
-        (RuleError, [newPCEmpty $ s { curr_expr = CurrExpr Return ac }], ng)
+        (RuleError, newPCEmpty $ s { curr_expr = CurrExpr Return ac }, ng)
     -- Force evaluation of the expression being quantified over
     | [Prim ForAllBoundPr _, _ {- lower -}, _ {- upper -} ] <- unApp e1 =
         let e2' = simplifyExprs eenv eenv e2 in
-        (RuleEvalPrimToNorm, [newPCEmpty $ s { curr_expr = CurrExpr Return (App e1 e2') }], ng)
+        (RuleEvalPrimToNorm, newPCEmpty $ s { curr_expr = CurrExpr Return (App e1 e2') }, ng)
     -- Float ticks to the top of a prim
     | Prim _ _:es <- unApp (App e1 e2)
     , ts <- concatMap getTickish es
     , not (null ts) =
         let e = foldr Tick (stripAllTicks (App e1 e2)) ts in
-        (RuleEvalPrimFloatTicks, [ (newPCEmpty $ s { curr_expr = CurrExpr Evaluate e })], ng)
-    | Just (new_pc, ng') <- evalPrimWithState s ng (stripAllTicks $ App e1 e2) = (RuleEvalPrimToNormWithState, [new_pc], ng')
+        (RuleEvalPrimFloatTicks, (newPCEmpty $ s { curr_expr = CurrExpr Evaluate e }), ng)
+    | Just (new_pc, ng') <- evalPrimWithState s ng (stripAllTicks $ App e1 e2) = (RuleEvalPrimToNormWithState, new_pc, ng')
     | Just (e, eenv', pc, ng') <- evalPrimSymbolic tv_env eenv tenv ng kv (App e1 e2) =
         ( RuleEvalPrimToNormSymbolic
-        , [ (newPCEmpty $ s { expr_env = eenv'
-                            , curr_expr = CurrExpr Evaluate e }) { new_pcs = pc} ]
+        , (SplitStatePieces
+            (s { expr_env = eenv', curr_expr = CurrExpr Evaluate e })
+            SD { new_conc_entries = []
+               , new_sym_entries = []
+               , new_path_conds = pc
+               , concretized = []
+               , new_true_assert = true_assert s
+               , new_assert_ids = assert_ids s }
+          )
         , ng')
     | (Prim _ _):_ <- unApp (App e1 e2) = 
         let
@@ -253,11 +260,11 @@ evalApp s@(State { expr_env = eenv
             er = if null ts then Return else Evaluate
         in
         ( RuleEvalPrimToNorm
-        , [newPCEmpty $ s { expr_env = eenv', curr_expr = CurrExpr er exP' }]
+        , newPCEmpty $ s { expr_env = eenv', curr_expr = CurrExpr er exP' }
         , ng)
     | isExprValueForm eenv (App e1 e2) =
         ( RuleReturnAppSWHNF
-        , [newPCEmpty $ s { curr_expr = CurrExpr Return (App e1 e2) }]
+        , newPCEmpty $ s { curr_expr = CurrExpr Return (App e1 e2) }
         , ng)
     | otherwise =
         let
@@ -265,8 +272,8 @@ evalApp s@(State { expr_env = eenv
             stck' = S.push frame stck
         in
         ( RuleEvalApp e2
-        , [newPCEmpty $ s { curr_expr = CurrExpr Evaluate e1
-                          , exec_stack = stck' }]
+        , newPCEmpty $ s { curr_expr = CurrExpr Evaluate e1
+                         , exec_stack = stck' }
         , ng)
     where
         getTickish (Tick t e) = t:getTickish e
