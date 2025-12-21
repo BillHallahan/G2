@@ -165,8 +165,6 @@ evalPrimWithState s@(State { known_values = kv, type_env = tenv, expr_env = eenv
         fp_exp = App (App (App (Prim Fp TyUnknown) (Var sign)) (Var ex)) (Var sig)
         fp_pc = ExtCond (App (App (Prim Eq TyUnknown) fp_exp) e) True
 
-        eenv' = foldl' (flip E.insertSymbolic) (expr_env s) [sign, ex, sig, exp_r, sig_r, shift_r_v, shift_l_v]
-
         -- Note [Scaled decodeFloat]
         -- The output significand includes the hidden bit, which is 1 for a normal float and 0 for a denormalized float.
         -- Further, the significand bits are shifted (the significand is scaled) to make the greatest bit 1
@@ -266,11 +264,16 @@ evalPrimWithState s@(State { known_values = kv, type_env = tenv, expr_env = eenv
                     ) 
                     (Var exp_r)
     in
-    Just ( NewPC { state = s { expr_env = eenv'
-                             , curr_expr = CurrExpr Return curr' }
-                 , new_pcs = [ fp_pc, shift_pc1, shift_pc2, exp_pc, sig_pc ]
-                 , concretized = [] }
-         , ng8)
+    Just ( (SplitStatePieces 
+             (s { curr_expr = CurrExpr Return curr' })
+             [SD { new_conc_entries = []
+                 , new_sym_entries = [sign, ex, sig, exp_r, sig_r, shift_r_v, shift_l_v]
+                 , new_path_conds = [fp_pc, shift_pc1, shift_pc2, exp_pc, sig_pc]
+                 , concretized = []
+                 , new_true_assert = true_assert s
+                 , new_assert_ids = assert_ids s
+             }]), ng8
+         )
 evalPrimWithState s@(State { expr_env = eenv }) ng (App (App (Prim EncodeFloat t) m_arg) n_arg) =
     let
         -- `encodeFloat m n` returns one of the two closest representable floating-point numbers closest to m*b^^n, generally the closer,
@@ -368,14 +371,18 @@ evalPrimWithState s@(State { expr_env = eenv }) ng (App (App (Prim EncodeFloat t
                          , mkApp [ Prim (FPToFP f_ex_bits f_sig_bits_1) TyUnknown, enc_sel ]
                          ]
 
-        eenv' = E.insertSymbolic encoded . E.insertSymbolic encoded_m_nan . E.insertSymbolic exp_bv $ eenv
         curr' = Var encoded
     in
-    Just ( NewPC { state = s { expr_env = eenv'
-                             , curr_expr = CurrExpr Return curr' }
-                 , new_pcs = [ exp_pc, ExtCond enc_m_nan_expr True, ExtCond enc_expr True ]
-                 , concretized = [] }
-         , ng''')
+    Just ( (SplitStatePieces 
+             (s { curr_expr = CurrExpr Return curr' })
+             [SD { new_conc_entries = []
+                 , new_sym_entries = [encoded, encoded_m_nan, exp_bv]
+                 , new_path_conds = [exp_pc, ExtCond enc_m_nan_expr True, ExtCond enc_expr True]
+                 , concretized = []
+                 , new_true_assert = true_assert s
+                 , new_assert_ids = assert_ids s
+             }]), ng'''
+         )
 evalPrimWithState s ng (App (Prim HandleGetPos _) hnd)
     | (Prim (Handle n) _) <- deepLookupExprPastTicks hnd (expr_env s)
     , Just (HandleInfo { h_pos = pos }) <- M.lookup n (handles s) =

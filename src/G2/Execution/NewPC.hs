@@ -1,4 +1,5 @@
 module G2.Execution.NewPC ( NewPC (..)
+                          , StateDiff (..)
                           , newPCEmpty
                           , reduceNewPC ) where
 
@@ -23,6 +24,7 @@ data StateDiff = SD { new_conc_entries :: EEDiff -- ^ New concrete entries for t
                     , new_path_conds :: [PathCond] -- ^ New path constraints
                     , concretized :: [Id]
                     , new_true_assert :: Bool
+                    , new_assert_ids :: Maybe FuncCall
                     }
 
 newPCEmpty :: State t -> NewPC t
@@ -39,7 +41,12 @@ reduceNewPC solver simplifier ng (SplitStatePieces state state_diffs) =
 reduceNewPC' :: (Solver solver, Simplifier simplifier) => solver -> simplifier -> NameGen -> State t -> StateDiff -> IO (Maybe (NameGen, State t))
 reduceNewPC' solver simplifier ng 
              init_state@(State { expr_env = init_eenv, path_conds = state_pc }) 
-             (SD {new_conc_entries = nce, new_sym_entries = nse, new_path_conds = pc, concretized = concIds, new_true_assert = nta}) 
+             (SD { new_conc_entries = nce
+                 , new_sym_entries = nse
+                 , new_path_conds = pc
+                 , concretized = concIds
+                 , new_true_assert = nta
+                 , new_assert_ids = nai}) 
     | not (null pc) || not (null concIds) = do
         let ((ng', eenv'), pc') =
                 mapAccumR (\(ng_, eenv_) pc_ ->
@@ -75,7 +82,7 @@ reduceNewPC' solver simplifier ng
     | otherwise = return $ Just (ng, s)
     where
         eenv = E.insertExprs nce $ foldl' (flip E.insertSymbolic) init_eenv nse
-        s = init_state { expr_env = eenv, true_assert = nta }
+        s = init_state { expr_env = eenv, true_assert = nta, assert_ids = nai }
 
 mapAccumMaybeM :: Monad m => (s -> a -> m (Maybe (s, b))) -> s -> [a] -> m (s, [b])
 mapAccumMaybeM f s xs = do
