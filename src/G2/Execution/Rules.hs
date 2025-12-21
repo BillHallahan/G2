@@ -1250,18 +1250,14 @@ retAssertFrame s@(State {known_values = kv
         (newPC, ng') = case unApp $ unsafeElimOuterCast e1 of
             [Data (DataCon dcn _ _ _)]
                 | dcn == KV.dcFalse kv ->
-                    ( [NewPC { state = s { curr_expr = CurrExpr Evaluate e2
-                                         , exec_stack = stck
-                                         , true_assert = True
-                                         , assert_ids = ais } 
-                             , new_pcs = []
-                             , concretized = [] }]
+                    ((newPCEmpty $ s { curr_expr = CurrExpr Evaluate e2
+                                     , exec_stack = stck
+                                     , true_assert = True
+                                     , assert_ids = ais })
                     , ng)
                 | dcn == KV.dcTrue kv ->
-                    ( [NewPC { state = s { curr_expr = CurrExpr Evaluate e2
-                                         , exec_stack = stck }
-                             , new_pcs = []
-                             , concretized = [] }]
+                    ((newPCEmpty $ s { curr_expr = CurrExpr Evaluate e2
+                                     , exec_stack = stck })
                     , ng)
             (Var i@(Id _ _)):_ -> concretizeExprToBool s ng i dalts e2 stck
             _ -> addExtConds s ng e1 ais e2 stck
@@ -1269,32 +1265,34 @@ retAssertFrame s@(State {known_values = kv
       in
       (RuleReturnCAssert, newPC, ng')
 
-concretizeExprToBool :: State t -> NameGen -> Id -> [DataCon] -> Expr -> S.Stack Frame -> ([NewPC t], NameGen)
-concretizeExprToBool _ ng _ [] _ _ = ([], ng)
-concretizeExprToBool s ng mexpr_id (x:xs) e2 stck = 
-        (x':newPCs, ng'') 
+concretizeExprToBool :: State t -> NameGen -> Id -> [DataCon] -> Expr -> S.Stack Frame -> (NewPC t, NameGen)
+concretizeExprToBool s name_gen mexpr_id dcons e2 stck = 
+        (new_pc, name_gen') 
     where
-        (x', ng') = concretizeExprToBool' s ng mexpr_id x e2 stck
-        (newPCs, ng'') = concretizeExprToBool s ng' mexpr_id xs e2 stck
+        go _ ng _ [] _ _ = ([], ng)
+        go state ng me_id (x:xs) expr2 stack = let (sd, ng') = concretizeExprToBool' state ng me_id x expr2 stack
+                                                   (sd_lst, ng'') = go state ng' me_id xs expr2 stack
+                                               in (sd:sd_lst, ng'')
+        
+        (sds, name_gen') = go s name_gen mexpr_id dcons e2 stck
+        new_pc = SplitStatePieces (s { exec_stack = stck, curr_expr = CurrExpr Evaluate e2 }) sds
 
-concretizeExprToBool' :: State t -> NameGen -> Id -> DataCon -> Expr -> S.Stack Frame -> (NewPC t, NameGen)
+concretizeExprToBool' :: State t -> NameGen -> Id -> DataCon -> Expr -> S.Stack Frame -> (StateDiff, NameGen)
 concretizeExprToBool' s@(State {expr_env = eenv
                         , known_values = kv})
-                ngen mexpr_id dcon@(DataCon dconName _ _ _) e2 stck = 
-        (NewPC { state = s { expr_env = eenv'
-                        , exec_stack = stck
-                        , curr_expr = CurrExpr Evaluate e2
-                        , true_assert = assertVal}
-               , new_pcs = []
-               , concretized = [] }
+                ngen mexpr_id dcon@(DataCon dconName _ _ _) e2 stck =
+        (SD { new_conc_entries = new_conc_ents
+            , new_sym_entries = []
+            , new_path_conds = []
+            , concretized = []
+            , new_true_assert = assert_val
+            , new_assert_ids = assert_ids s }
         , ngen)
     where
         mexpr_n = idName mexpr_id
-
         -- concretize the mexpr to the DataCon specified
-        eenv' = E.insert mexpr_n (Data dcon) eenv
-
-        assertVal = if (dconName == (KV.dcTrue kv))
+        new_conc_ents = [(mexpr_n, Data dcon)]
+        assert_val = if (dconName == (KV.dcTrue kv))
                         then False
                         else True
 
