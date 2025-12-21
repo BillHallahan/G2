@@ -655,6 +655,7 @@ typeToSMT _ t = error $ "Unsupported type in typeToSMT: " ++ show t
 
 adtTypeToSMT :: TyVarEnv -> Type -> Sort
 adtTypeToSMT _ (TyCon (Name "Int" _ _ _) _) = SortInt
+adtTypeToSMT _ (TyCon (Name "Integer" _ _ _) _) = SortInt
 adtTypeToSMT _ (TyCon (Name "Float" _ _ _) _) = SortFloat
 adtTypeToSMT _ (TyCon (Name "Double" _ _ _) _) = SortDouble
 adtTypeToSMT tv (TyVar (Id n _)) | Just t <- TV.deepLookupName tv n = adtTypeToSMT tv t
@@ -968,6 +969,8 @@ smtastToExpr _ _ _ = error "Conversion of this SMTAST to an Expr not supported."
 
 wrapDC :: KnownValues -> TypeEnv -> Expr -> Expr
 wrapDC kv tenv i@(Lit (LitInt _)) = App (mkDCInt kv tenv) i
+wrapDC kv tenv i@(Lit (LitFloat _)) = App (mkDCFloat kv tenv) i
+wrapDC kv tenv i@(Lit (LitDouble _)) = App (mkDCDouble kv tenv) i
 wrapDC _ _ e = e
 
 -- | Converts a `Sort` to an `Type`.

@@ -256,7 +256,28 @@ instance AST SMTAST where
     children (x :- y) = [x, y]
     children (x :* y) = [x, y]
     children (x :/ y) = [x, y]
+    children(x :^ y) = [x, y]
+
+    children (AbsSMT x) = [x]
+    children (SqrtSMT x) = [x]
+    children (QuotSMT x y) = [x, y]
+    children (Modulo x y) = [x, y]
     children (Neg x) = [x]
+
+    children (StrAppendSMT xs) = xs
+    children (FromInt x) = [x]
+    children (StrLenSMT x) = [x]
+    children (StrLtSMT x y) = [x, y]
+    children (StrLeSMT x y) = [x, y]
+    children (StrGtSMT x y) = [x, y]
+    children (StrGeSMT x y) = [x, y]
+    children (x :!! y) = [x, y]
+    children (StrSubstrSMT x y z) = [x, y, z]
+    children (StrIndexOfSMT x y z) = [x, y, z]
+    children (StrReplaceSMT x y z) = [x, y, z]
+    children (StrPrefixOfSMT x y) = [x, y]
+    children (StrSuffixOfSMT x y) = [x, y]
+    children (SeqUnitSMT x) = [x]
 
     children (IteSMT x x' x'') = [x, x', x'']
     children (SLet (_, x) x') = [x, x']
