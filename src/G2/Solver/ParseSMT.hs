@@ -60,7 +60,7 @@ getValuesParser srt = parens (parens (identifier >> (sExpr srt)))
 
 sExpr :: Maybe Sort -> Parser SMTAST
 sExpr srt = try boolExpr <|> parens (sExpr srt) <|> letExpr <|> try realExpr <|> try (doubleFloatExpr srt)
-                         <|> try doubleFloatExprDec <|> stringExpr <|> intExpr <|> bvExpr
+                         <|> try doubleFloatExprDec <|> stringExpr <|> intExpr <|> bvExpr <|> seqExpr
 
 letExpr :: Parser SMTAST
 letExpr = do
@@ -103,6 +103,25 @@ intExpr = do
 
 bvExpr :: Parser SMTAST
 bvExpr = VBitVec <$> parseBitVec
+
+seqExpr :: Parser SMTAST
+seqExpr = (do
+    reserved "as"
+    ex <- identifier
+    _ <- parens (many1 identifier)
+    case ex of
+        "seq.empty" -> return SeqEmptySMT
+        _ -> fail "not seq")
+    <|>
+    (do
+        ex <- identifier
+        case ex of
+            "seq.unit" -> SeqUnitSMT <$> sExpr Nothing
+            "seq.++" -> do
+                xs <- many1 (sExpr Nothing)
+                return (StrAppendSMT xs)
+            _ -> fail "not seq")
+
 
 realExpr :: Parser SMTAST
 realExpr = try realExprNeg <|> realExprRat

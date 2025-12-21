@@ -111,7 +111,7 @@ data SMTAST = (:>=) !SMTAST !SMTAST
             | Func SMTName ![SMTAST] -- ^ Interpreted function
 
             -- Strings
-            | (:++) !SMTAST !SMTAST -- ^ String append
+            | StrAppendSMT [SMTAST] -- ^ String append
             | FromInt !SMTAST -- ^ Convert Ints to Strings
             | StrLenSMT !SMTAST
             | StrLtSMT !SMTAST !SMTAST
@@ -124,6 +124,9 @@ data SMTAST = (:>=) !SMTAST !SMTAST
             | StrReplaceSMT !SMTAST !SMTAST !SMTAST
             | StrPrefixOfSMT !SMTAST !SMTAST
             | StrSuffixOfSMT !SMTAST !SMTAST
+
+            | SeqEmptySMT
+            | SeqUnitSMT !SMTAST
 
             | IteSMT !SMTAST !SMTAST !SMTAST
             | SLet (SMTName, SMTAST) !SMTAST
@@ -167,6 +170,7 @@ data Sort = SortInt
           | SortBV Int
           | SortChar
           | SortString
+          | SortSeq Sort
           | SortBool
           | SortArray Sort Sort
           | SortFunc [Sort] Sort
@@ -252,7 +256,28 @@ instance AST SMTAST where
     children (x :- y) = [x, y]
     children (x :* y) = [x, y]
     children (x :/ y) = [x, y]
+    children(x :^ y) = [x, y]
+
+    children (AbsSMT x) = [x]
+    children (SqrtSMT x) = [x]
+    children (QuotSMT x y) = [x, y]
+    children (Modulo x y) = [x, y]
     children (Neg x) = [x]
+
+    children (StrAppendSMT xs) = xs
+    children (FromInt x) = [x]
+    children (StrLenSMT x) = [x]
+    children (StrLtSMT x y) = [x, y]
+    children (StrLeSMT x y) = [x, y]
+    children (StrGtSMT x y) = [x, y]
+    children (StrGeSMT x y) = [x, y]
+    children (x :!! y) = [x, y]
+    children (StrSubstrSMT x y z) = [x, y, z]
+    children (StrIndexOfSMT x y z) = [x, y, z]
+    children (StrReplaceSMT x y z) = [x, y, z]
+    children (StrPrefixOfSMT x y) = [x, y]
+    children (StrSuffixOfSMT x y) = [x, y]
+    children (SeqUnitSMT x) = [x]
 
     children (IteSMT x x' x'') = [x, x', x'']
     children (SLet (_, x) x') = [x, x']

@@ -6,6 +6,9 @@ module InputOutputTest ( checkInputOutput
                        , checkInputOutputsSMTStringsStrict
                        , checkInputOutputsSMTStringsWithSubPath
                        , checkInputOutputsQuantifiedSMTStrings
+
+                       , checkInputOutputsSMTLists
+                       , checkInputOutputsSMTListsWith
                        
                        , checkInputOutputsTemplate
                        , checkInputOutputsWith
@@ -63,6 +66,17 @@ checkInputOutputsSMTStringsWithSubPath src tests = do
 checkInputOutputsQuantifiedSMTStrings :: FilePath -> [(String, Int, [Reqs String])] -> TestTree
 checkInputOutputsQuantifiedSMTStrings src tests = do
     checkInputOutput' mkConfigTestWithQuantifiedSMTStringsIO src tests
+
+checkInputOutputsSMTLists :: FilePath -> [(String, Int, [Reqs String])] -> TestTree
+checkInputOutputsSMTLists src tests = do
+    checkInputOutput' mkConfigTestWithSMTListsIO src tests
+
+checkInputOutputsSMTListsWith :: FilePath -> String -> [(String, Int, [Reqs String])] -> TestTree
+checkInputOutputsSMTListsWith src comp_with tests = do
+    checkInputOutput'
+        (do config <- mkConfigTestWithSMTListsIO; return (config { validate_with = comp_with }))
+        src
+        tests
 
 checkInputOutputsTemplate :: FilePath -> [(String, Int, [Reqs String])] -> TestTree
 checkInputOutputsTemplate src tests = do
