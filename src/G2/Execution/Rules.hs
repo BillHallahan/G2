@@ -1215,7 +1215,7 @@ nonRedBlockerTick ng e =
     let (n, ng') = freshSeededName (Name "NonRedBlocker" Nothing 0 Nothing) ng in
     (Tick (NamedLoc n) e, ng')
 
-retAssumeFrame :: State t -> NameGen -> Expr -> Expr -> S.Stack Frame -> (Rule, [NewPC t], NameGen)
+retAssumeFrame :: State t -> NameGen -> Expr -> Expr -> S.Stack Frame -> (Rule, NewPC t, NameGen)
 retAssumeFrame s@(State {known_values = kv
                         , type_env = tenv}) 
                ng e1 e2 stck =
@@ -1229,10 +1229,8 @@ retAssumeFrame s@(State {known_values = kv
             [Data (DataCon dcn _ _ _)]
                 | dcn == KV.dcFalse kv -> ([], ng)
                 | dcn == KV.dcTrue kv ->
-                    ( [NewPC { state = s { curr_expr = CurrExpr Evaluate e2
-                                         , exec_stack = stck }
-                             , new_pcs = []
-                             , concretized = [] }]
+                    ( newPCEmpty $ s { curr_expr = CurrExpr Evaluate e2
+                                     , exec_stack = stck }
                     , ng)
             (Var i@(Id _ _)):_ -> concretizeExprToBool s ng i dalt e2 stck
             _ -> addExtCond s ng e1 e2 stck
