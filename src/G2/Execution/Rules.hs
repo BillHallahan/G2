@@ -1237,7 +1237,7 @@ retAssumeFrame s@(State {known_values = kv
     in
     (RuleReturnCAssume, newPCs, ng')
 
-retAssertFrame :: State t -> NameGen -> Expr -> Maybe (FuncCall) -> Expr -> S.Stack Frame -> (Rule, [NewPC t], NameGen)
+retAssertFrame :: State t -> NameGen -> Expr -> Maybe (FuncCall) -> Expr -> S.Stack Frame -> (Rule, NewPC t, NameGen)
 retAssertFrame s@(State {known_values = kv
                         , type_env = tenv}) 
                ng e1 ais e2 stck =
@@ -1247,7 +1247,7 @@ retAssertFrame s@(State {known_values = kv
             Just dcs -> dcs
             _ -> []
         -- Special handling in case we just have a concrete DataCon, or a lone Var
-        (newPCs, ng') = case unApp $ unsafeElimOuterCast e1 of
+        (newPC, ng') = case unApp $ unsafeElimOuterCast e1 of
             [Data (DataCon dcn _ _ _)]
                 | dcn == KV.dcFalse kv ->
                     ( [NewPC { state = s { curr_expr = CurrExpr Evaluate e2
@@ -1267,7 +1267,7 @@ retAssertFrame s@(State {known_values = kv
             _ -> addExtConds s ng e1 ais e2 stck
             
       in
-      (RuleReturnCAssert, newPCs, ng')
+      (RuleReturnCAssert, newPC, ng')
 
 concretizeExprToBool :: State t -> NameGen -> Id -> [DataCon] -> Expr -> S.Stack Frame -> ([NewPC t], NameGen)
 concretizeExprToBool _ ng _ [] _ _ = ([], ng)
@@ -1298,14 +1298,19 @@ concretizeExprToBool' s@(State {expr_env = eenv
                         then False
                         else True
 
-addExtCond :: State t -> NameGen -> Expr -> Expr -> S.Stack Frame -> ([NewPC t], NameGen)
-addExtCond s ng e1 e2 stck = 
-    ([NewPC { state = s { curr_expr = CurrExpr Evaluate e2
-                         , exec_stack = stck}
-             , new_pcs = [ExtCond e1 True]
-             , concretized = [] }], ng)
+addExtCond :: State t -> NameGen -> Expr -> Expr -> S.Stack Frame -> (NewPC t, NameGen)
+addExtCond s ng e1 e2 stck =
+    (NewPC 
+        (s { curr_expr = CurrExpr Evaluate e2, exec_stack = stck})
+        SD { new_conc_entries = []
+           , new_sym_entries = []
+           , new_path_conds = [ExtCond e1 True]
+           , concretized = []
+           , new_true_assert = true_assert s
+           , new_assert_ids = assert_ids s}
+    , ng)
 
-addExtConds :: State t -> NameGen -> Expr -> Maybe (FuncCall) -> Expr -> S.Stack Frame -> ([NewPC t], NameGen)
+addExtConds :: State t -> NameGen -> Expr -> Maybe (FuncCall) -> Expr -> S.Stack Frame -> (NewPC t, NameGen)
 addExtConds s ng e1 ais e2 stck =
     let
         s' = s { curr_expr = CurrExpr Evaluate e2
@@ -1314,16 +1319,21 @@ addExtConds s ng e1 ais e2 stck =
         condt = [ExtCond e1 True]
         condf = [ExtCond e1 False]
 
-        strue = NewPC { state = s'
-                      , new_pcs = condt
-                      , concretized = []}
+        strue = SD { new_conc_entries = []
+                   , new_sym_entries = []
+                   , new_path_conds = condt
+                   , concretized = []
+                   , new_true_assert = true_assert s
+                   , new_assert_ids = assert_ids s }
 
-        sfalse = NewPC { state = s' { true_assert = True
-                                    , assert_ids = ais }
-                       , new_pcs = condf
-                       , concretized = []}
+        sfalse = SD { new_conc_entries = []
+                    , new_sym_entries = []
+                    , new_path_conds = condf
+                    , concretized = []
+                    , new_true_assert = True
+                    , new_assert_ids = ais }
     in
-    ([strue, sfalse], ng)
+    (SplitStatePieces s' [strue, sfalse], ng)
 
 -- This function aims to extract pairs of types being coerced between. Given a coercion t1 :~ t2, the tuple (t1, t2) is returned.
 extractTypes :: KnownValues -> Id -> (Type, Type)
