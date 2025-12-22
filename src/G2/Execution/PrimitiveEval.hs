@@ -265,13 +265,14 @@ evalPrimWithState s@(State { known_values = kv, type_env = tenv, expr_env = eenv
                     (Var exp_r)
     in
     Just ( (SplitStatePieces 
-             (s { curr_expr = CurrExpr Return curr' })
+             s
              [SD { new_conc_entries = []
                  , new_sym_entries = [sign, ex, sig, exp_r, sig_r, shift_r_v, shift_l_v]
                  , new_path_conds = [fp_pc, shift_pc1, shift_pc2, exp_pc, sig_pc]
                  , concretized = []
                  , new_true_assert = true_assert s
                  , new_assert_ids = assert_ids s
+                 , new_curr_expr = CurrExpr Return curr'
                  , new_conc_types = []
                  , new_sym_types = [] }
              ]), ng8
@@ -376,13 +377,14 @@ evalPrimWithState s@(State { expr_env = eenv }) ng (App (App (Prim EncodeFloat t
         curr' = Var encoded
     in
     Just ( (SplitStatePieces 
-             (s { curr_expr = CurrExpr Return curr' })
+             s
              [SD { new_conc_entries = []
                  , new_sym_entries = [encoded, encoded_m_nan, exp_bv]
                  , new_path_conds = [exp_pc, ExtCond enc_m_nan_expr True, ExtCond enc_expr True]
                  , concretized = []
                  , new_true_assert = true_assert s
                  , new_assert_ids = assert_ids s
+                 , new_curr_expr = CurrExpr Return curr'
                  , new_conc_types = []
                  , new_sym_types = [] }
              ]), ng'''

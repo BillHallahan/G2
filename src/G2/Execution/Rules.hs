@@ -242,13 +242,14 @@ evalApp s@(State { expr_env = eenv
     | Just (e, eenv', pc, ng') <- evalPrimSymbolic tv_env eenv tenv ng kv (App e1 e2) =
         ( RuleEvalPrimToNormSymbolic
         , (SplitStatePieces
-            (s { expr_env = eenv', curr_expr = CurrExpr Evaluate e })
+            (s { expr_env = eenv' })
             SD { new_conc_entries = []
                , new_sym_entries = []
                , new_path_conds = pc
                , concretized = []
                , new_true_assert = true_assert s
                , new_assert_ids = assert_ids s
+               , new_curr_expr = CurrExpr Evaluate e
                , new_conc_types = []
                , new_sym_types = [] }
           )
@@ -486,7 +487,7 @@ evalCase s@(State { expr_env = eenv
                         ==> length alt_res >= length dalts + length lalts + length defs)
       assert (tyConName (tyAppCenter $ typeOf tvnv mexpr) /= Just (KV.tyMutVar kv)
                         ==> length alt_res <= length dalts + length lalts + length defs)
-      (RuleEvalCaseSym, alt_res, ng'')
+      (RuleEvalCaseSym, SplitStatePieces s alt_res, ng'')
 
   -- Case evaluation also uses the stack in graph reduction based evaluation
   -- semantics. The case's binding variable and alts are pushed onto the stack
@@ -1122,7 +1123,6 @@ retCurrExpr s@(State { expr_env = eenv, known_values = kv, tyvar_env = tvnv, foc
         in
         ( RuleReturnCurrExprFr
         , NewPC (SplitStatePieces (s { expr_env = eenv'
-                                     , curr_expr = CurrExpr Evaluate ce
                                      , exec_stack = stck
                                      , non_red_path_conds = nrpc })
                                   [SD { new_conc_entries = []
@@ -1131,6 +1131,7 @@ retCurrExpr s@(State { expr_env = eenv, known_values = kv, tyvar_env = tvnv, foc
                                       , concretized = []
                                       , new_true_assert = true_assert s
                                       , new_assert_ids = assert_ids s
+                                      , new_curr_expr = CurrExpr Evaluate ce
                                       , new_conc_types = []
                                       , new_sym_types = [] }])
         , ng' )
@@ -1291,6 +1292,7 @@ concretizeExprToBool' s@(State {expr_env = eenv
             , concretized = []
             , new_true_assert = assert_val
             , new_assert_ids = assert_ids s
+            , new_curr_expr = curr_expr s
             , new_conc_types = []
             , new_sym_types = [] }
         , ngen)
@@ -1305,13 +1307,14 @@ concretizeExprToBool' s@(State {expr_env = eenv
 addExtCond :: State t -> NameGen -> Expr -> Expr -> S.Stack Frame -> (NewPC t, NameGen)
 addExtCond s ng e1 e2 stck =
     (NewPC 
-        (s { curr_expr = CurrExpr Evaluate e2, exec_stack = stck})
+        (s { exec_stack = stck })
         SD { new_conc_entries = []
            , new_sym_entries = []
            , new_path_conds = [ExtCond e1 True]
            , concretized = []
            , new_true_assert = true_assert s
            , new_assert_ids = assert_ids s
+           , new_curr_expr = CurrExpr Evaluate e2
            , new_conc_types = []
            , new_sym_types = [] }
     , ng)
@@ -1329,8 +1332,9 @@ addExtConds s ng e1 ais e2 stck =
                    , new_sym_entries = []
                    , new_path_conds = condt
                    , concretized = []
-                   , new_true_assert = true_assert s
-                   , new_assert_ids = assert_ids s
+                   , new_true_assert = true_assert s'
+                   , new_assert_ids = assert_ids s'
+                   , new_curr_expr = curr_expr s'
                    , new_conc_types = []
                    , new_sym_types = [] }
 
@@ -1340,6 +1344,7 @@ addExtConds s ng e1 ais e2 stck =
                     , concretized = []
                     , new_true_assert = True
                     , new_assert_ids = ais
+                    , new_curr_expr = curr_expr s'
                     , new_conc_types = []
                     , new_sym_types = [] }
     in

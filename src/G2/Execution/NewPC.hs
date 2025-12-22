@@ -28,8 +28,9 @@ data StateDiff = SD { new_conc_entries :: EEDiff -- ^ New concrete entries for t
                     , concretized :: [Id]
                     , new_true_assert :: Bool
                     , new_assert_ids :: Maybe FuncCall
-                    , new_conc_types :: TVEDiff
-                    , new_sym_types :: TVESymDiff
+                    , new_curr_expr :: CurrExpr
+                    , new_conc_types :: TVEDiff -- ^ New concrete entries for the tyvar_env
+                    , new_sym_types :: TVESymDiff -- ^ New symbolic entries for the tyvar_env
                     }
 
 newPCEmpty :: State t -> NewPC t
@@ -52,6 +53,7 @@ reduceNewPC' solver simplifier ng
                  , concretized = concIds
                  , new_true_assert = nta
                  , new_assert_ids = nai
+                 , new_curr_expr = n_curre
                  , new_conc_types = nct
                  , new_sym_types = nst }) 
     | not (null pc) || not (null concIds) = do
@@ -90,7 +92,10 @@ reduceNewPC' solver simplifier ng
     where
         eenv = E.insertExprs nce $ foldl' (flip E.insertSymbolic) init_eenv nse
         tvenv = TV.insertTypes nct $ foldl' (flip TV.insertSymbolic) init_tvenv nst 
-        s = init_state { expr_env = eenv, tyvar_env = tvenv,true_assert = nta, assert_ids = nai }
+        s = init_state { 
+            expr_env = eenv, tyvar_env = tvenv, 
+            true_assert = nta, assert_ids = nai, 
+            curr_expr = n_curre }
 
 mapAccumMaybeM :: Monad m => (s -> a -> m (Maybe (s, b))) -> s -> [a] -> m (s, [b])
 mapAccumMaybeM f s xs = do
