@@ -248,7 +248,9 @@ evalApp s@(State { expr_env = eenv
                , new_path_conds = pc
                , concretized = []
                , new_true_assert = true_assert s
-               , new_assert_ids = assert_ids s }
+               , new_assert_ids = assert_ids s
+               , new_conc_types = []
+               , new_sym_types = [] }
           )
         , ng')
     | (Prim _ _):_ <- unApp (App e1 e2) = 
@@ -1128,7 +1130,9 @@ retCurrExpr s@(State { expr_env = eenv, known_values = kv, tyvar_env = tvnv, foc
                                       , new_path_conds = new_pc
                                       , concretized = []
                                       , new_true_assert = true_assert s
-                                      , new_assert_ids = assert_ids s}])
+                                      , new_assert_ids = assert_ids s
+                                      , new_conc_types = []
+                                      , new_sym_types = [] }])
         , ng' )
     | otherwise =
         assert (not (isExprValueForm eenv e2))
@@ -1286,7 +1290,9 @@ concretizeExprToBool' s@(State {expr_env = eenv
             , new_path_conds = []
             , concretized = []
             , new_true_assert = assert_val
-            , new_assert_ids = assert_ids s }
+            , new_assert_ids = assert_ids s
+            , new_conc_types = []
+            , new_sym_types = [] }
         , ngen)
     where
         mexpr_n = idName mexpr_id
@@ -1305,7 +1311,9 @@ addExtCond s ng e1 e2 stck =
            , new_path_conds = [ExtCond e1 True]
            , concretized = []
            , new_true_assert = true_assert s
-           , new_assert_ids = assert_ids s}
+           , new_assert_ids = assert_ids s
+           , new_conc_types = []
+           , new_sym_types = [] }
     , ng)
 
 addExtConds :: State t -> NameGen -> Expr -> Maybe (FuncCall) -> Expr -> S.Stack Frame -> (NewPC t, NameGen)
@@ -1322,14 +1330,18 @@ addExtConds s ng e1 ais e2 stck =
                    , new_path_conds = condt
                    , concretized = []
                    , new_true_assert = true_assert s
-                   , new_assert_ids = assert_ids s }
+                   , new_assert_ids = assert_ids s
+                   , new_conc_types = []
+                   , new_sym_types = [] }
 
         sfalse = SD { new_conc_entries = []
                     , new_sym_entries = []
                     , new_path_conds = condf
                     , concretized = []
                     , new_true_assert = True
-                    , new_assert_ids = ais }
+                    , new_assert_ids = ais
+                    , new_conc_types = []
+                    , new_sym_types = [] }
     in
     (SplitStatePieces s' [strue, sfalse], ng)
 

@@ -6,6 +6,7 @@ module G2.Execution.NewPC ( NewPC (..)
 import G2.Language
 import qualified G2.Language.PathConds as PC
 import qualified G2.Language.ExprEnv as E
+import qualified G2.Language.TyVarEnv as TV
 import G2.Solver
 
 import Data.List
@@ -15,6 +16,8 @@ import Data.Traversable
 
 type EEDiff = [(Name, Expr)] -- concrete values to insert in ExprEnv
 type EESymDiff = [Id] -- symbolic variables to insert in ExprEnv
+type TVEDiff = [(Name, Type)] -- concrete types to insert in TyVarEnv
+type TVESymDiff = [Id] -- symbolic variables to insert in TyVarEnv
 
 data NewPC t = SingleState (State t)
              | SplitStatePieces (State t) [StateDiff]
@@ -25,6 +28,8 @@ data StateDiff = SD { new_conc_entries :: EEDiff -- ^ New concrete entries for t
                     , concretized :: [Id]
                     , new_true_assert :: Bool
                     , new_assert_ids :: Maybe FuncCall
+                    , new_conc_types :: TVEDiff
+                    , new_sym_types :: TVESymDiff
                     }
 
 newPCEmpty :: State t -> NewPC t
@@ -40,13 +45,15 @@ reduceNewPC solver simplifier ng (SplitStatePieces state state_diffs) =
 -- Make a new State from a StateDiff and a starting State, if the State is reachable
 reduceNewPC' :: (Solver solver, Simplifier simplifier) => solver -> simplifier -> NameGen -> State t -> StateDiff -> IO (Maybe (NameGen, State t))
 reduceNewPC' solver simplifier ng 
-             init_state@(State { expr_env = init_eenv, path_conds = state_pc }) 
+             init_state@(State { expr_env = init_eenv, tyvar_env = init_tvenv, path_conds = state_pc }) 
              (SD { new_conc_entries = nce
                  , new_sym_entries = nse
                  , new_path_conds = pc
                  , concretized = concIds
                  , new_true_assert = nta
-                 , new_assert_ids = nai}) 
+                 , new_assert_ids = nai
+                 , new_conc_types = nct
+                 , new_sym_types = nst }) 
     | not (null pc) || not (null concIds) = do
         let ((ng', eenv'), pc') =
                 mapAccumR (\(ng_, eenv_) pc_ ->
@@ -82,7 +89,8 @@ reduceNewPC' solver simplifier ng
     | otherwise = return $ Just (ng, s)
     where
         eenv = E.insertExprs nce $ foldl' (flip E.insertSymbolic) init_eenv nse
-        s = init_state { expr_env = eenv, true_assert = nta, assert_ids = nai }
+        tvenv = TV.insertTypes nct $ foldl' (flip TV.insertSymbolic) init_tvenv nst 
+        s = init_state { expr_env = eenv, tyvar_env = tvenv,true_assert = nta, assert_ids = nai }
 
 mapAccumMaybeM :: Monad m => (s -> a -> m (Maybe (s, b))) -> s -> [a] -> m (s, [b])
 mapAccumMaybeM f s xs = do

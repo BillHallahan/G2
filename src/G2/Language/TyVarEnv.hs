@@ -5,6 +5,7 @@ module G2.Language.TyVarEnv ( TyVarEnv
                             , empty
                             , insert
                             , insertSymbolic
+                            , insertTypes
                             , isSymbolic
                             , lookup
                             , lookupConcOrSym
@@ -64,6 +65,9 @@ insert n ty (TyVarEnv env) = TyVarEnv $ UF.insert n (TyConc ty) env
 
 insertSymbolic :: Id -> TyVarEnv -> TyVarEnv
 insertSymbolic ty (TyVarEnv env) = TyVarEnv $ UF.insert (idName ty) (TySym ty) env
+
+insertTypes :: [(Name, Type)] -> TyVarEnv -> TyVarEnv
+insertTypes kvs scope = foldr (uncurry insert) scope kvs
 
 isSymbolic :: Name -> TyVarEnv -> Bool
 isSymbolic n tv_env | Just (TySym _) <- lookupConcOrSym n tv_env = True

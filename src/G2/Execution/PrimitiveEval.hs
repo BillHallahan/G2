@@ -272,7 +272,9 @@ evalPrimWithState s@(State { known_values = kv, type_env = tenv, expr_env = eenv
                  , concretized = []
                  , new_true_assert = true_assert s
                  , new_assert_ids = assert_ids s
-             }]), ng8
+                 , new_conc_types = []
+                 , new_sym_types = [] }
+             ]), ng8
          )
 evalPrimWithState s@(State { expr_env = eenv }) ng (App (App (Prim EncodeFloat t) m_arg) n_arg) =
     let
@@ -381,7 +383,9 @@ evalPrimWithState s@(State { expr_env = eenv }) ng (App (App (Prim EncodeFloat t
                  , concretized = []
                  , new_true_assert = true_assert s
                  , new_assert_ids = assert_ids s
-             }]), ng'''
+                 , new_conc_types = []
+                 , new_sym_types = [] }
+             ]), ng'''
          )
 evalPrimWithState s ng (App (Prim HandleGetPos _) hnd)
     | (Prim (Handle n) _) <- deepLookupExprPastTicks hnd (expr_env s)
