@@ -37,7 +37,7 @@ newPCEmpty :: State t -> NewPC t
 newPCEmpty s = SingleState s
 
 -- This will now return a list of States: one for each StateDiff applied to the starting state. The
--- end goal here is to be able to check whether the diffs are able to be used with a Literal Table
+-- end goal here is to be able to check whether the diffs are able to be used with a literal table
 reduceNewPC :: (Solver solver, Simplifier simplifier) => solver -> simplifier -> NameGen -> NewPC t -> IO (NameGen, [State t])
 reduceNewPC _ _ ng (SingleState state) = return (ng, [state])
 reduceNewPC solver simplifier ng (SplitStatePieces state state_diffs) =

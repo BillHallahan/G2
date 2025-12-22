@@ -794,20 +794,27 @@ getBoolFromDataCon kv dcon
     , dconName == (KV.dcFalse kv) = False
     | otherwise = error $ "getBoolFromDataCon: invalid DataCon passed in\n" ++ show dcon ++ "\n"
 
-liftSymLitAlt :: State t -> Expr -> Id -> [(Lit, Expr)] -> [NewPC t]
+liftSymLitAlt :: State t -> Expr -> Id -> [(Lit, Expr)] -> [StateDiff]
 liftSymLitAlt s mexpr cvar = map (liftSymLitAlt' s mexpr cvar)
 
 -- | Lift literal alts found in symbolic case matching.
-liftSymLitAlt' :: State t -> Expr -> Id -> (Lit, Expr) -> NewPC t
+liftSymLitAlt' :: State t -> Expr -> Id -> (Lit, Expr) -> StateDiff
 liftSymLitAlt' s mexpr cvar (lit, aexpr) =
-    NewPC { state = res, new_pcs = [cond] , concretized = [] }
+    SD { new_conc_entries = []
+       , new_sym_entries = []
+       , new_path_conds = [cond]
+       , concretized = []
+       , new_true_assert = true_assert s
+       , new_assert_ids = assert_ids s
+       , new_curr_expr = CurrExpr Evaluate aexpr'
+       , new_conc_types = []
+       , new_sym_types = [] }
   where
     -- Condition that was matched.
     cond = AltCond lit mexpr True
     -- Bind the cvar.
     binds = [(cvar, Lit lit)]
     aexpr' = liftCaseBinds binds aexpr
-    res = s { curr_expr = CurrExpr Evaluate aexpr' }
 
 ----------------------------------------------------
 -- Default Alternatives
