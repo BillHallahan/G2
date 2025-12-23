@@ -36,8 +36,6 @@ import G2.Language.ExprEnv (deepLookupVar)
 import G2.Language.KnownValues (KnownValues(smtStringFuncs))
 import G2.Language.TypeClasses.TypeClasses
 
-import Debug.Trace
-
 -- | Evaluates primitives at the root of the passed `Expr` while updating the `ExprEnv`
 -- to share computed results.
 evalPrimsSharing :: ExprEnv -> TypeEnv -> TV.TyVarEnv -> KnownValues -> TypeClasses -> Expr -> (Expr, ExprEnv)
@@ -694,7 +692,7 @@ evalTypeAnyArgPrim _ tv kv _ (TypeIndex tyh) t _ | tyh_strings tyh
                                                  || t_a == tyInteger kv
                                                  || t_a == tyFloat kv
                                                  || t_a == tyDouble kv = Just (Lit (LitInt 2 ))
-                                                 | otherwise = trace ("t = " ++ show t ++ "\ntv t = " ++ show (tyVarSubst tv t) ++ "\ntyList = " ++ show (tyList kv) ++ "\ntyDouble = " ++ show (tyDouble kv)) Just (Lit (LitInt 0))
+                                                 | otherwise = Just (Lit (LitInt 0))
 evalTypeAnyArgPrim eenv _ kv _ IsSMTRep _ e = Just . mkBool kv $ isSMTRep eenv kv e
 evalTypeAnyArgPrim eenv _ kv tc EvalsToSMTRep _ e = Just . mkBool kv $ evalsToSMTRep HS.empty eenv kv tc e
 evalTypeAnyArgPrim _ _ _ _ _ _ _ = Nothing
