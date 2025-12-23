@@ -525,9 +525,10 @@ evalPrimADT2 kv _ Or e1 e2
     , Just b2 <- toBool kv e2 = Just $ mkBool kv (b1 || b2)
 
 evalPrimADT2 kv tenv StrAppend xs ys = do
-    xs' <- toString xs
-    ys' <- toString ys
-    return . toStringExpr kv tenv $ xs' ++ ys'
+    t <- listType xs
+    xs' <- toExprList xs
+    ys' <- toExprList ys
+    return . toListExpr kv tenv t $ xs' ++ ys'
 
 evalPrimADT2 kv tenv StrAt xs (Lit (LitInt i)) = do
     xs' <- toString xs
@@ -603,10 +604,21 @@ evalPrimADT3 tenv kv StrReplace s orig rep = do
 
 evalPrimADT3 _ _ _ _ _ _ = Nothing
 
+listType :: Expr -> Maybe Type
+listType (App (Data _) (Type t)) = Just t
+listType (App (App (App (Data _) (Type t)) _) _) = Just t
+listType _ = Nothing
+
 toString :: Expr -> Maybe String
 toString (App (Data _) _) = Just []
 toString (App (App (App (Data dc) typ) (App _ (Lit (LitChar c)))) xs) = fmap (c:) $ toString xs
 toString _ = Nothing
+
+toExprList :: Expr -> Maybe [Expr]
+toExprList (App (Data _) _) = Just []
+toExprList (App (App (App (Data dc) typ) (App _ l)) xs) = fmap (l:) $ toExprList xs
+toExprList _ = Nothing
+
 
 toStringExpr :: KnownValues -> TypeEnv -> String -> Expr
 toStringExpr kv tenv =
@@ -615,6 +627,14 @@ toStringExpr kv tenv =
                          , Type (tyChar kv)
                          , App (mkDCChar kv tenv) (Lit (LitChar h))
                          , t]) (App (mkEmpty kv tenv) (Type (tyChar kv)))
+
+toListExpr :: KnownValues -> TypeEnv -> Type -> [Expr] -> Expr
+toListExpr kv tenv t =
+    let cons = mkCons kv tenv in
+    foldr (\h tl -> mkApp [ cons
+                          , Type t
+                          , h
+                          , tl]) (App (mkEmpty kv tenv) (Type t))
 
 evalPrim2 :: KnownValues -> Primitive -> Lit -> Lit -> Maybe Expr
 evalPrim2 kv Ge x y = evalPrim2NumCharBool (>=) kv x y
