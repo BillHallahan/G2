@@ -189,7 +189,7 @@ instance Typed Alt where
 instance Typed Expr where
     typeOf m (Var v) = typeOf m v
     typeOf m (Lit lit) = typeOf m lit
-    typeOf _ (Prim _ ty) = ty
+    typeOf m (Prim _ ty) = tyVarSubst m ty
     typeOf m (Data dcon) = typeOf m dcon
     typeOf m a@(App _ _) =
         let

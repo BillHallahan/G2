@@ -267,6 +267,7 @@ instance Named Expr where
       where
         go :: Expr -> Expr
         go (Var i) = Var (rename old new i)
+        go (Prim p t) = Prim p (rename old new t)
         go (Data d) = Data (rename old new d)
         go (Lam u i e) = Lam u (rename old new i) e
         go (Let b e) =
@@ -290,6 +291,7 @@ instance Named Expr where
         where
             go :: Expr -> Expr
             go (Var i) = Var (renames hm i)
+            go (Prim p t) = Prim p (renames hm t)
             go (Data d) = Data (renames hm d)
             go (Lam u i e) = Lam u (renames hm i) e
             go (Let b e) = 
