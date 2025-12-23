@@ -609,14 +609,13 @@ listType _ = Nothing
 
 toString :: Expr -> Maybe String
 toString (App (Data _) _) = Just []
-toString (App (App (App (Data dc) typ) (App _ (Lit (LitChar c)))) xs) = fmap (c:) $ toString xs
+toString (App (App (App (Data _) _) (App _ (Lit (LitChar c)))) xs) = fmap (c:) $ toString xs
 toString _ = Nothing
 
 toExprList :: Expr -> Maybe [Expr]
 toExprList (App (Data _) _) = Just []
-toExprList (App (App (App (Data dc) typ) (App _ l)) xs) = fmap (l:) $ toExprList xs
+toExprList (App (App (App (Data _) _) l) xs) = fmap (l:) $ toExprList xs
 toExprList _ = Nothing
-
 
 toStringExpr :: KnownValues -> TypeEnv -> String -> Expr
 toStringExpr kv tenv =
