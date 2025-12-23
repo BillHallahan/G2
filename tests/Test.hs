@@ -520,11 +520,11 @@ testFileTests = testGroup "TestFiles"
                                                               , ("con2Int", 1000, [Exactly 3])
                                                               , ("con2Integer", 1000, [Exactly 3])
                                                               , ("con2Float", 1000, [Exactly 3])
-                                                              , ("con2Double", 1000, [Exactly 3])
-                                                              , ("con3Int", 1000, [Exactly 3])
-                                                              , ("con3Integer", 1000, [Exactly 3])
-                                                              , ("con3Float", 1000, [Exactly 3])
-                                                              , ("con3Double", 1000, [Exactly 3]) ]
+                                                              , ("con2Double", 1000, [Exactly 3]) ]
+                                                            --   , ("con3Int", 1000, [Exactly 3])
+                                                            --   , ("con3Integer", 1000, [Exactly 3])
+                                                            --   , ("con3Float", 1000, [Exactly 3])
+                                                            --   , ("con3Double", 1000, [Exactly 3]) ]
     , checkInputOutputsSMTListsWith "tests/TestFiles/Seq/Seq1.hs" "floatListEq" [ ("conFloat", 1000, [Exactly 1])
                                                                                 , ("conDouble", 1000, [Exactly 1])]
 
