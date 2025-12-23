@@ -3,6 +3,7 @@
 module G2.Initialization.Interface (MkArgTypes, runInitialization1, runInitialization2) where
 
 import G2.Config
+import G2.Data.Utils
 import G2.Initialization.TrivializeDCs
 import qualified G2.Language.ExprEnv as E
 import G2.Language.Expr
@@ -47,10 +48,10 @@ runInitialization2 config s@(IT.SimpleState { IT.expr_env = eenv
         t = Id (Name "t" Nothing 0 Nothing) TYPE
         str = Id (Name "s" Nothing 0 Nothing) (tyString kv)
         x = Id (Name "x" Nothing 0 Nothing) TyLitInt
-        (eenv5, ng3) = if smt_strings config == NoSMTStrings
+        (eenv5, ng3) = if smt_strings config == NoSMTStrings && smt_prim_lists config == NoSMTSeq
                                 then (E.insert (typeIndex kv) 
                                             (Lam TypeL t . Lam TermL x . Lit $ LitInt 0) eenv4, ng2)
-                                else trivializeDCs TV.empty ng2 kv eenv4
+                                else mapFst adjTyH $ trivializeDCs TV.empty ng2 kv eenv4
         eenv6 = if smt_strings config == NoSMTStrings
                         then E.insert (adjStr kv) 
                                       (Lam TypeL t . Lam TermL x . Lam TermL str $ Var x) eenv5
@@ -69,6 +70,13 @@ runInitialization2 config s@(IT.SimpleState { IT.expr_env = eenv
         dcpc = addToDCPC config s'' (dcpcMap TV.empty kv tenv)
     in
     (s'', dcpc)
+    where
+        adjTyH = E.insert (typeIndex kv) . modifyASTs adjTyH' $ eenv E.! typeIndex kv
+
+        adjTyH' (Prim (TypeIndex _) t) = Prim (TypeIndex $ TyH { tyh_strings = smt_strings config == UseSMTStrings
+                                                               , tyh_prim_lists = smt_prim_lists config == UseSMTSeq })
+                                              t
+        adjTyH' e = e
 
 -- | Wraps all error primitives in `Assert False`.
 assertFalseOnError :: ASTContainer m Expr => KnownValues -> m -> m

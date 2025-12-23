@@ -506,7 +506,7 @@ mkPrimHaskell pg = pr
         pr IsSMTRep = "isSMTRep"
         pr EvalsToSMTRep = "evalsToSMTRep"
 
-        pr TypeIndex = "typeIndex"
+        pr (TypeIndex _) = "typeIndex"
 
         pr ForAllBoundPr = "forall_bound"
 

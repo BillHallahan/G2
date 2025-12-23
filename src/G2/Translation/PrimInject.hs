@@ -175,12 +175,12 @@ primDefs' b c l unit =
               , ("g2PutChar'", Prim HandlePutChar (TyFun (TyCon c TYPE) (TyFun TyUnknown (TyCon unit TYPE))))
 
               , ("strLen#", Lam TypeL (x TYPE) . Lam TermL (y strTy) $ App (Prim StrLen (TyFun strTy TyLitInt)) (Var $ y strTy))
-              , ("strAppend#", Lam TypeL (x TYPE) . Lam TermL (y strTy) . Lam TermL (z strTy)
+              , ("strAppend#", Lam TypeL (x TYPE) . Lam TermL (y seqTyX) . Lam TermL (z seqTyX)
                                   $ App 
                                       (App 
-                                          (Prim StrAppend ((TyFun strTy) $ TyFun strTy strTy))
-                                          (Var $ y strTy))
-                                      (Var $ z strTy))
+                                          (Prim StrAppend ((TyFun (seqTy seqTyX)) $ TyFun seqTyX seqTyX))
+                                          (Var $ y seqTyX))
+                                      (Var $ z seqTyX))
               , ("strAt#", Lam TypeL (x TYPE) . Lam TermL (y strTy) . Lam TermL (z TyLitInt)
                             $ App 
                                 (App 
@@ -262,9 +262,11 @@ primDefs' b c l unit =
 
               , ("isSMTRep#", Prim IsSMTRep (TyForAll a (TyFun (TyVar a) (TyCon b TYPE))))
               , ("evalsToSMTRep#", Prim EvalsToSMTRep (TyForAll a (TyFun (TyVar a) (TyCon b TYPE))))
-              , ("typeIndex#", Prim TypeIndex (TyForAll a (TyFun (TyVar a) TyLitInt))) ]
+              , ("typeIndex#", Prim (TypeIndex (TyH { tyh_strings = False, tyh_prim_lists = False })) (TyForAll a (TyFun (TyVar a) TyLitInt))) ]
               where
-                    strTy = (TyApp (TyCon l (TyFun TYPE TYPE)) (TyCon c TYPE))
+                    seqTy v = (TyApp (TyCon l (TyFun TYPE TYPE)) v)
+                    seqTyX = seqTy (TyVar (x TYPE))
+                    strTy = seqTy (TyCon c TYPE)
 
                     strStrBool op = 
                         Lam TypeL (x TYPE) . Lam TermL (y strTy) . Lam TermL (z strTy)
