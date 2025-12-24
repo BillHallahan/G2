@@ -876,10 +876,13 @@ liftSymDefAlt' s@(State { type_env = tenv, known_values = kv, tyvar_env = tvnv }
 
             -- Create a new mutable variable with a symbolic stored value
             (stored_var, ng') = freshSeededId (idName i) stored_ty ng
-            (nmv_s, ng'') = newMutVar s ng' MVSymbolic realworld_ty stored_ty (Var stored_var)
-            
-            eenv' = E.insertSymbolic stored_var $ E.insert (idName i) (getExpr nmv_s) (expr_env nmv_s)
-            nmv_s' = nmv_s { curr_expr = CurrExpr Evaluate aexpr', expr_env = eenv' }
+            nmv_diff = SD { new_conc_entries = [((idName i), (getExpr nmv_s))], new_sym_entries = [stored_var]
+                          , new_path_conds = [], concretized = []
+                          , new_true_assert = true_assert s, new_assert_ids = assert_ids s
+                          , new_curr_expr = CurrExpr Evaluate aexpr'
+                          , new_conc_types = [], new_sym_types = []
+                          , new_mut_vars = [(MVSymbolic, realworld_ty, stored_ty, (Var stored_var))]
+                          }
 
             -- Consider that the new mutable variable might be some existing mutable variable.
             -- See Note [MutVar Copy Concretization].
@@ -887,12 +890,16 @@ liftSymDefAlt' s@(State { type_env = tenv, known_values = kv, tyvar_env = tvnv }
             rel_mutvar = HM.keys
                        $ HM.filter (\MVInfo { mv_val_id = Id _ t
                                             , mv_origin = org } -> tyVarSubst tvnv t == stored_ty && org == MVSymbolic) (mutvar_env s)
-            copy_states = map (\mv -> s { curr_expr = CurrExpr Evaluate aexpr'
-                                        , expr_env = E.insert (idName i) (Prim (MutVar mv) mv_ty) (expr_env s)
+            copy_diffs = map (\mv -> SD { new_conc_entries = [((idName i), (Prim (MutVar mv) mv_ty))], new_sym_entries = []
+                                        , new_path_conds = [], concretized = []
+                                        , new_true_assert = true_assert s, new_assert_ids = assert_ids s
+                                        , new_curr_expr = CurrExpr Evaluate aexpr'
+                                        , new_conc_types = [], new_sym_types = []
+                                        , new_mut_vars = []
                                         }
-                              ) rel_mutvar
+                             ) rel_mutvar
         in
-        (map newPCEmpty (nmv_s':copy_states), ng'')
+        (nmv_diff:copy_diffs, ng'')
     | (Var i):_ <- unApp $ exprInCasts mexpr
     , isADTType (typeOf tvnv i) = -- Id with original Type
         let cty = case mexpr of
@@ -919,11 +926,14 @@ liftSymDefAlt' s@(State { type_env = tenv, known_values = kv, tyvar_env = tvnv }
 
                     binds = [(cvar, Var cvar')]
                     aexpr' = liftCaseBinds binds aexpr
-
-                    s' = s { curr_expr = CurrExpr Evaluate aexpr'
-                           , expr_env = E.insert (idName cvar') mexpr (expr_env s)}
                 in
-                ([NewPC { state = s', new_pcs = [], concretized = [] }], ng')
+                ([SD { new_conc_entries = [(idName cvar', mexpr)], new_sym_entries = []
+                     , new_path_conds = [], concretized = []
+                     , new_true_assert = true_assert s, new_assert_ids = assert_ids s
+                     , new_curr_expr = CurrExpr Evaluate aexpr'
+                     , new_conc_types = [], new_sym_types = []
+                     , new_mut_vars = []
+                }], ng')
             False ->
                 let
                     -- Find DCs NOT accounted for by other case alts, i.e. that would go
@@ -943,17 +953,27 @@ liftSymDefAlt' s@(State { type_env = tenv, known_values = kv, tyvar_env = tvnv }
                     s' = s { curr_expr = CurrExpr Evaluate aexpr'
                            , expr_env = eenv'' }
                 in
+                -- ([SD { new_conc_entries = [], new_sym_entries = []
+                --      , new_path_conds = assume_pc, concretized = []
+                --      , new_true_assert = true_assert s, new_assert_ids = assert_ids s
+                --      , new_curr_expr = CurrExpr Evaluate aexpr'
+                --      , new_conc_types = [], new_sym_types = []
+                --      , new_mut_vars = []
+                -- }], ng'')
                 ([NewPC { state = s', new_pcs = assume_pc, concretized = [] }], ng'')
     | Prim _ _:_ <- unApp mexpr = (liftSymDefAlt'' s mexpr aexpr cvar alts, ng)
     | isPrimType (typeOf tvnv mexpr) = (liftSymDefAlt'' s mexpr aexpr cvar alts, ng)
     | TyVar _ <- (typeOf tvnv mexpr) = 
                 let
                     (cvar', ng') = freshId (typeOf tvnv cvar) ng 
-                    eenv' =  E.insert (idName cvar') mexpr (expr_env s)
                     aexpr' = replaceVar (idName cvar) (Var cvar') aexpr
-                    s' = s {curr_expr = CurrExpr Evaluate aexpr', expr_env = eenv'}
-
-                in ([NewPC {state = s', new_pcs = [], concretized = []}], ng')
+                in ([SD { new_conc_entries = [(idName cvar', mexpr)], new_sym_entries = []
+                        , new_path_conds = [], concretized = []
+                        , new_true_assert = true_assert s, new_assert_ids = assert_ids s
+                        , new_curr_expr = CurrExpr Evaluate aexpr'
+                        , new_conc_types = [], new_sym_types = []
+                        , new_mut_vars = []
+                }], ng')
     | otherwise = error $ "liftSymDefAlt': unhandled Expr" ++ "\n" ++ show mexpr
 
 liftSymDefAlt'' :: State t -> Expr -> Expr -> Id -> [Alt] -> [NewPC t]
@@ -964,9 +984,13 @@ liftSymDefAlt'' s mexpr aexpr cvar as =
         binds = [(cvar, mexpr)]
         aexpr' = liftCaseBinds binds aexpr
     in
-    [NewPC { state = s { curr_expr = CurrExpr Evaluate aexpr' }
-           , new_pcs = conds
-           , concretized = [] }]
+    [SD { new_conc_entries = [], new_sym_entries = []
+        , new_path_conds = conds, concretized = []
+        , new_true_assert = true_assert s, new_assert_ids = assert_ids s
+        , new_curr_expr = CurrExpr Evaluate aexpr'
+        , new_conc_types = [], new_sym_types = []
+        , new_mut_vars = []
+    }]
 
 liftSymDefAltPCs :: KnownValues -> Expr -> AltMatch -> Maybe PathCond
 liftSymDefAltPCs kv mexpr (DataAlt dc _) = -- Only DataAlts would be True/False
