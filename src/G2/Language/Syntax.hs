@@ -288,8 +288,9 @@ data Primitive = -- Mathematical and logical operators
 
                -- TypeIndex maps types to Int#s:
                -- 1: String
+               -- 1: Lists of Ints, Integers, Floats, or Doubles
                -- 0: Any other type
-               | TypeIndex
+               | TypeIndex TypeHandling
 
                -- Errors
                | Error
@@ -302,6 +303,12 @@ data Primitive = -- Mathematical and logical operators
                -- and then don't want to actually follow through on calculating the output value
                | UnspecifiedOutput
                deriving (Show, Eq, Read, Generic, Typeable, Data)
+
+-- | Do we want to use special handling to support a particular type?
+data TypeHandling = TyH { tyh_strings :: Bool, tyh_prim_lists :: Bool }
+                    deriving (Show, Eq, Read, Generic, Typeable, Data)
+
+instance Hashable TypeHandling
 
 isErrorExpr :: Expr -> Bool
 isErrorExpr (Prim p _) = isErrorPrim p
