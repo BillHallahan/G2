@@ -13,6 +13,7 @@ import Data.List
 import Data.Maybe
 import G2.Data.Utils
 import Data.Traversable
+import G2.Execution.MutVar
 
 type EEDiff = [(Name, Expr)] -- concrete values to insert in ExprEnv
 type EESymDiff = [Id] -- symbolic variables to insert in ExprEnv
@@ -31,6 +32,7 @@ data StateDiff = SD { new_conc_entries :: EEDiff -- ^ New concrete entries for t
                     , new_curr_expr :: CurrExpr
                     , new_conc_types :: TVEDiff -- ^ New concrete entries for the tyvar_env
                     , new_sym_types :: TVESymDiff -- ^ New symbolic entries for the tyvar_env
+                    , new_mut_vars :: [(MVOrigin, Type, Type, Expr)] -- ^ New mutable variables
                     }
 
 newPCEmpty :: State t -> NewPC t
@@ -46,7 +48,8 @@ reduceNewPC solver simplifier ng (SplitStatePieces state state_diffs) =
 -- Make a new State from a StateDiff and a starting State, if the State is reachable
 reduceNewPC' :: (Solver solver, Simplifier simplifier) => solver -> simplifier -> NameGen -> State t -> StateDiff -> IO (Maybe (NameGen, State t))
 reduceNewPC' solver simplifier ng 
-             init_state@(State { expr_env = init_eenv, tyvar_env = init_tvenv, path_conds = state_pc }) 
+             init_state@(State { expr_env = init_eenv, tyvar_env = init_tvenv
+                               , path_conds = state_pc }) 
              (SD { new_conc_entries = nce
                  , new_sym_entries = nse
                  , new_path_conds = pc
@@ -55,7 +58,8 @@ reduceNewPC' solver simplifier ng
                  , new_assert_ids = nai
                  , new_curr_expr = n_curre
                  , new_conc_types = nct
-                 , new_sym_types = nst }) 
+                 , new_sym_types = nst
+                 , new_mut_vars = nmv }) 
     | not (null pc) || not (null concIds) = do
         let ((ng', eenv'), pc') =
                 mapAccumR (\(ng_, eenv_) pc_ ->
@@ -92,7 +96,8 @@ reduceNewPC' solver simplifier ng
     where
         eenv = E.insertExprs nce $ foldl' (flip E.insertSymbolic) init_eenv nse
         tvenv = TV.insertTypes nct $ foldl' (flip TV.insertSymbolic) init_tvenv nst 
-        s = init_state { 
+        (state, name_gen) = newMutVars init_state ng nmv
+        s = state { 
             expr_env = eenv, tyvar_env = tvenv, 
             true_assert = nta, assert_ids = nai, 
             curr_expr = n_curre }

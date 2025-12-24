@@ -10,6 +10,7 @@ module G2.Execution.PrimitiveEval ( evalPrimsSharing
                                   , evalPrimSymbolic) where
 
 import G2.Execution.NewPC
+import G2.Execution.MutVar
 import G2.Execution.SymToCase
 import G2.Language.AST
 import G2.Language.Expr
@@ -446,29 +447,6 @@ deepLookupExprPastTicks (Var i@(Id n _)) eenv =
         _ -> Var i
 deepLookupExprPastTicks (Tick _ e) eenv = deepLookupExprPastTicks e eenv
 deepLookupExprPastTicks e _ = e
-
-mutVarTy :: KnownValues
-         -> Type -- ^ The State type
-         -> Type -- ^ The stored type
-         -> Type
-mutVarTy kv ts ta = TyApp (TyApp (TyCon (KV.tyMutVar kv) (TyFun TYPE (TyFun TYPE TYPE))) ts) ta
-
-newMutVar :: State t
-          -> NameGen
-          -> MVOrigin
-          -> Type -- ^ The State type
-          -> Type -- ^ The stored type
-          -> Expr
-          -> (State t, NameGen)
-newMutVar s ng org ts t e =
-    let
-        (mv_n, ng') = freshSeededName (Name "mv" Nothing 0 Nothing) ng
-        (i, ng'') = freshId t ng'        
-        s' = s { curr_expr = CurrExpr Evaluate (Prim (MutVar mv_n) $ mutVarTy (known_values s) ts t)
-               , expr_env = E.insert (idName i) e (expr_env s)
-               , mutvar_env = insertMvVal mv_n i org (mutvar_env s)}
-    in
-    (s', ng'')
 
 expSigBits :: Type -> (Int, Int)
 expSigBits (TyLitFP e s) =  (e, s)
