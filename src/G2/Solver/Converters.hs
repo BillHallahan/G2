@@ -409,9 +409,9 @@ exprToSMT _ (Data (DataCon n (TyCon (Name "Bool" _ _ _) _ ) _ _)) =
         "False" -> VBool False
         _ -> error "Invalid bool in exprToSMT"
 exprToSMT tv (Data (DataCon n t _ _)) = V (nameToStr n) (typeToSMT tv t)
-exprToSMT tv (App (Data (DataCon (Name "[]" _ _ _) _ _ _)) type_t)
+exprToSMT tv (App (Data (DataCon (Name "[]" _ _ _) _ _ _)) type_t@(Type t))
     | Just (TyCon (Name "Char" _ _ _) _) <- TV.deepLookup tv type_t = VString ""
-    | otherwise = SeqEmptySMT
+    | otherwise = SeqEmptySMT (adtTypeToSMT tv t)
 exprToSMT tv e | [ Data (DataCon (Name ":" _ _ _) _ _ _)
                  , type_t
                  , App _ e1
@@ -853,6 +853,7 @@ toSolverASTSeq = go
         go (StrReplaceSMT x y z) = function3 "seq.replace" (goBack x) (goBack y) (goBack z)
         go (StrPrefixOfSMT x y) = function2 "seq.prefixof" (goBack x) (goBack y)
         go (StrSuffixOfSMT x y) = function2 "seq.suffixof" (goBack x) (goBack y)
+        go (SeqEmptySMT s) = "(as seq.empty (Seq " <> sortName s <> "))"
         go _ = error "toSolverASTSeq: primitive not handled"
 
         goBack = toSolverAST toSolverASTSeq
@@ -959,7 +960,7 @@ smtastToExpr kv _ (VBool False) = mkFalse kv
 smtastToExpr kv tenv (VString cs) = mkG2List kv tenv (tyChar kv) $ map (App (mkDCChar kv tenv) . Lit . LitChar) cs
 smtastToExpr _ _ (VChar c) = Lit $ LitChar c
 smtastToExpr _ _ (V n s) = Var $ Id (certainStrToName n) (sortToType s)
-smtastToExpr kv tenv SeqEmptySMT = App (mkEmpty kv tenv) (Type TyUnknown)
+smtastToExpr kv tenv (SeqEmptySMT _) = App (mkEmpty kv tenv) (Type TyUnknown)
 smtastToExpr kv tenv (SeqUnitSMT s) = mkApp [ mkCons kv tenv
                                             , Type TyUnknown
                                             , wrapDC kv tenv $ smtastToExpr kv tenv s
