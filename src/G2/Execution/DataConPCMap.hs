@@ -115,35 +115,32 @@ listEmpty t kv tv = let
               dcpc
 
 applyDCPC :: NameGen
-          -> ExprEnv
           -> [Id] -- ^ Newly generated arguments for the data constructor
           -> Expr -- ^ Expr to replace as pattern name with
           -> DataConPCInfo
-          -> (ExprEnv, [PathCond], NameGen, [Expr])
-applyDCPC ng eenv new_ids as_expr (DCPC { dc_as_pattern = as_p, dc_args = ars, dc_pc = pc, dc_bindee_exprs = be }) =
+          -> ([PathCond], NameGen, [Expr], [(Name, Expr)], [Id])
+applyDCPC ng new_ids as_expr (DCPC { dc_as_pattern = as_p, dc_args = ars, dc_pc = pc, dc_bindee_exprs = be }) =
     let
-        (ng', eenv', pc', be') = foldl' mkDCArg (ng, eenv, pc, be) (zip ars new_ids)
+        (pc', ng', be', concs, syms) = foldl' mkDCArg (pc, ng, be, [], []) (zip ars new_ids)
         -- Replace expr corresponding to as pattern in PathCond list
         pc'' = replaceVar as_p as_expr pc'
     in
     assert (length ars == length new_ids)
-    (eenv', pc'', ng', be')
+    (pc'', ng', be', concs, syms)
 
-mkDCArg :: (NameGen, ExprEnv, [PathCond], [Expr]) -> (DCArgBind, Id) -> (NameGen, ExprEnv, [PathCond], [Expr])
-mkDCArg (ng, eenv, pc, be) (ArgSymb bi, i) =
+mkDCArg :: ([PathCond], NameGen, [Expr], [(Name, Expr)], [Id]) -> (DCArgBind, Id) -> ([PathCond], NameGen, [Expr], [(Name, Expr)], [Id])
+mkDCArg (pc, ng, be, concs, syms) (ArgSymb bi, i) =
     let
-        eenv' = E.insertSymbolic i eenv
         pc' = rename bi (idName i) pc
         be' = map (rename bi (idName i)) be
     in
-    (ng, eenv', pc', be')
-mkDCArg (ng, eenv, pc, be) (ArgConcretize { binder_name = bn, fresh_vars = fv, arg_expr = e}, i) =
+    (pc', ng, be', concs, i:syms)
+mkDCArg (pc, ng, be, concs, syms) (ArgConcretize { binder_name = bn, fresh_vars = fv, arg_expr = e}, i) =
     let
         (fv', ng') = freshSeededIds fv ng
         rn_hm = HM.fromList $ (bn, idName i):zip (map idName fv) (map idName fv')
         e' = renames rn_hm e
         pc' = renames rn_hm pc
         be' = map (renames rn_hm) be
-        eenv' = E.insert (idName i) e' $ foldl' (flip E.insertSymbolic) eenv fv'
     in
-    (ng', eenv', pc', be')
+    (pc', ng', be', (idName i, e'):concs, fv' ++ syms)

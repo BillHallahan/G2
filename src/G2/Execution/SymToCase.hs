@@ -14,7 +14,8 @@ concretizeSym tv bi maybeC binder kv tenv (eenv, ng) dc@(DataCon _ ts _ _)
     , _:ty_args <- unTyApp $ typeOf tv binder
     , Just dcpc <- L.lookup ty_args dcpcs =
         let 
-            (eenv'', pcs, ng'', _) = applyDCPC ng' eenv' newParams (Var binder) dcpc
+            (pcs, ng'', _, concs, syms) = applyDCPC ng' newParams (Var binder) dcpc
+            eenv'' = E.insertExprs concs $ foldl' (flip E.insertSymbolic) eenv' syms
         in
         ((eenv'', ng''), (pcs, dc''))
 
