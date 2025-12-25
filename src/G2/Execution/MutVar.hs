@@ -35,10 +35,8 @@ newMutVar s ng org ts t e =
     (s', ng'')
 
 newMutVars :: State t
-        -> NameGen
-        -> [(MVOrigin, Type, Type, Expr)]
-        -> (State t, NameGen)
-newMutVars state ng items = DL.foldl' go (state, ng) items
+        -> [(Name, Id, MVOrigin)]
+        -> (State t)
+newMutVars state items = DL.foldl' go state items
   where
-    go (s, ng') (origin, stateType, storedType, expr) =
-      newMutVar s ng' origin stateType storedType expr
+    go s (n, i, origin) = s { mutvar_env = insertMvVal n i origin (mutvar_env s) }

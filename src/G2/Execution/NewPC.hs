@@ -9,8 +9,9 @@ module G2.Execution.NewPC ( NewPC (..)
                           , reduceNewPC ) where
 
 import G2.Language
-import qualified G2.Language.PathConds as PC
 import qualified G2.Language.ExprEnv as E
+import qualified G2.Language.PathConds as PC
+import qualified G2.Language.Stack as S
 import qualified G2.Language.TyVarEnv as TV
 import G2.Solver
 
@@ -37,7 +38,8 @@ data StateDiff = SD { new_conc_entries :: EEDiff -- ^ New concrete entries for t
                     , new_curr_expr :: CurrExpr
                     , new_conc_types :: TVEDiff -- ^ New concrete entries for the tyvar_env
                     , new_sym_types :: TVESymDiff -- ^ New symbolic entries for the tyvar_env
-                    , new_mut_vars :: [(MVOrigin, Type, Type, Expr)] -- ^ New mutable variables
+                    , new_mut_vars :: [(Name, Id, MVOrigin)] -- ^ New mutable variables for the mutvar_env
+                    , new_exec_stack :: S.Stack Frame
                     }
 
 newPCEmpty :: State t -> NewPC t
@@ -105,8 +107,8 @@ reduceNewPC' solver simplifier ng
     where
         eenv = E.insertExprs nce $ foldl' (flip E.insertSymbolic) init_eenv nse
         tvenv = TV.insertTypes nct $ foldl' (flip TV.insertSymbolic) init_tvenv nst 
-        (state, name_gen) = newMutVars init_state ng nmv
-        s = state { 
+        state = newMutVars init_state nmv
+        s = state {
             expr_env = eenv, tyvar_env = tvenv, 
             true_assert = nta, assert_ids = nai, 
             curr_expr = n_curre }

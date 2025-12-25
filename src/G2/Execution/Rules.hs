@@ -252,7 +252,8 @@ evalApp s@(State { expr_env = eenv
                , new_curr_expr = CurrExpr Evaluate e
                , new_conc_types = []
                , new_sym_types = []
-               , new_mut_vars = [] }]
+               , new_mut_vars = []
+               , new_exec_stack = exec_stack s }]
           )
         , ng')
     | (Prim _ _):_ <- unApp (App e1 e2) = 
@@ -582,14 +583,14 @@ concretizeVarExpr' s@(State { type_env = tenv
             binds = [(cvar, (Var mexpr_id))]
             aexpr'' = liftCaseBinds binds aexpr'
 
-            (pcs, ngen'', concs, syms) = adjustExprEnvAndPathConds tvnv kv tenv ngen' dcpm dcon dcon'' mexpr_id params' news
+            (pcs, ngen'', concs, syms) = adjustExprEnvAndPathConds tvnv ngen' dcpm dcon dcon'' mexpr_id params' news
         in 
             Just (SD { new_conc_entries = ee_diff ++ concs, new_sym_entries = syms
                      , new_path_conds = pcs, concretized = [mexpr_id]
                      , new_true_assert = true_assert s, new_assert_ids = assert_ids s
                      , new_curr_expr = CurrExpr Evaluate aexpr''
                      , new_conc_types = tve_diff, new_sym_types = tve_sym_diff
-                     , new_mut_vars = [] }, ngen'')
+                     , new_mut_vars = [], new_exec_stack = exec_stack s }, ngen'')
 
 -- | Generates parameters and expressions to allow concretization to a specific DataCon.
 -- May return Nothing if the DataCon requires coercions to hold that violate existing type restraints.
@@ -670,8 +671,6 @@ cleanParamsAndMakeDcon tv kv params ngen dcon aexpr mexpr_t tenv =
 -- | Determines an ExprEnv and Path Constraints from following a particular branch of symbolic execution.
 -- Has special handling for Strings- see [String Concretizations and Constraints]
 adjustExprEnvAndPathConds :: TV.TyVarEnv 
-                  -> KnownValues
-                  -> TypeEnv
                   -> NameGen
                   -> DataConPCMap
                   -> DataCon -- ^ The data con in the scrutinee (as in `case scrutinee of ...`)
@@ -680,7 +679,7 @@ adjustExprEnvAndPathConds :: TV.TyVarEnv
                   -> [Id] -- ^ Constructor Argument Ids
                   -> [Name]
                   -> ([PathCond], NameGen, EEDiff, EESymDiff)
-adjustExprEnvAndPathConds tv kv tenv ng dcpm dc dc_e mexpr params dc_args
+adjustExprEnvAndPathConds tv ng dcpm dc dc_e mexpr params dcargs
     | Just dcpcs <- HM.lookup (dcName dc) dcpm
     , _:ty_args <- unTyApp $ typeOf tv mexpr
     , Just dcpc <- L.lookup ty_args dcpcs = 
@@ -690,7 +689,7 @@ adjustExprEnvAndPathConds tv kv tenv ng dcpm dc dc_e mexpr params dc_args
     where
         mexpr_n = idName mexpr
         -- Update the expr environment
-        new_ids = zipWith (\(Id _ t) n -> Id n t) params dc_args
+        new_ids = zipWith (\(Id _ t) n -> Id n t) params dcargs
         -- Concretizes the mexpr to have same form as the DataCon specified
         mexpr_dc = [(mexpr_n, dc_e)]
 
@@ -740,7 +739,7 @@ createExtCond s ngen dcpm mexpr cvar (dcon, bindees, aexpr)
             , new_true_assert = true_assert s, new_assert_ids = assert_ids s
             , new_curr_expr = CurrExpr Evaluate aexpr'
             , new_conc_types = [], new_sym_types = []
-            , new_mut_vars = [] }, ngen)
+            , new_mut_vars = [], new_exec_stack = exec_stack s }, ngen)
     | Just dcpcs <- HM.lookup (dcName dcon) dcpm
     , _:ty_args <- unTyApp $ typeOf tvnv mexpr
     , Just dcpc <- L.lookup ty_args dcpcs = 
@@ -756,7 +755,7 @@ createExtCond s ngen dcpm mexpr cvar (dcon, bindees, aexpr)
             new_ids = zipWith (\(Id _ t) n -> Id n t) bindees' news
 
             -- TODO GADT: Maybe coercion checking isn't needed?
-            isCoercion i@(Id id_n t)
+            isCoercion (Id _ t)
                 | TyApp (TyApp (TyApp (TyApp (TyCon tc_n _) _) _) c1) c2 <- t
                 , tc_n == KV.tyCoercion kv = Just (c1, c2)
                 | otherwise = Nothing
@@ -775,7 +774,7 @@ createExtCond s ngen dcpm mexpr cvar (dcon, bindees, aexpr)
             , new_true_assert = true_assert s, new_assert_ids = assert_ids s
             , new_curr_expr = CurrExpr Evaluate aexpr''
             , new_conc_types = tve_diff, new_sym_types = tve_sym_diff
-            , new_mut_vars = [] }, ngen'')
+            , new_mut_vars = [], new_exec_stack = exec_stack s }, ngen'')
     | otherwise = error $ "createExtCond: unsupported type" ++ "\n" ++ show (typeOf tvnv mexpr) ++ "\n" ++ show dcon
         where
             kv = known_values s
@@ -807,7 +806,8 @@ liftSymLitAlt' s mexpr cvar (lit, aexpr) =
        , new_curr_expr = CurrExpr Evaluate aexpr'
        , new_conc_types = []
        , new_sym_types = []
-       , new_mut_vars = [] }
+       , new_mut_vars = []
+       , new_exec_stack = exec_stack s }
   where
     -- Condition that was matched.
     cond = AltCond lit mexpr True
@@ -867,17 +867,22 @@ liftSymDefAlt' s@(State { type_env = tenv, known_values = kv, tyvar_env = tvnv }
     , TyCon n _ <- tyAppCenter mvt
     , n == KV.tyMutVar (known_values s) =
         let
-            binds = [(cvar, getExpr nmv_s)]
+            -- Make a new mut var, without inserting into the State
+            (mv_n, ng') = freshSeededName (Name "mv" Nothing 0 Nothing) ng
+            (mv_i, ng'') = freshId stored_ty ng'
+            mv_expr = (Prim (MutVar mv_n) $ mutVarTy (known_values s) realworld_ty stored_ty)
+
+            binds = [(cvar, mv_expr)]
             aexpr' = liftCaseBinds binds aexpr
 
-            -- Create a new mutable variable with a symbolic stored value
-            (stored_var, ng') = freshSeededId (idName i) stored_ty ng
-            nmv_diff = SD { new_conc_entries = [((idName i), (getExpr nmv_s))], new_sym_entries = [stored_var]
+            (stored_var, ng''') = freshSeededId (idName i) stored_ty ng''
+            nmv_diff = SD { new_conc_entries = [(idName mv_i, (Var stored_var)), (idName i, mv_expr)], new_sym_entries = [stored_var]
                           , new_path_conds = [], concretized = []
                           , new_true_assert = true_assert s, new_assert_ids = assert_ids s
                           , new_curr_expr = CurrExpr Evaluate aexpr'
                           , new_conc_types = [], new_sym_types = []
-                          , new_mut_vars = [(MVSymbolic, realworld_ty, stored_ty, (Var stored_var))]
+                          , new_mut_vars = [(mv_n, mv_i, MVSymbolic)]
+                          , new_exec_stack = exec_stack s
                           }
 
             -- Consider that the new mutable variable might be some existing mutable variable.
@@ -891,11 +896,11 @@ liftSymDefAlt' s@(State { type_env = tenv, known_values = kv, tyvar_env = tvnv }
                                         , new_true_assert = true_assert s, new_assert_ids = assert_ids s
                                         , new_curr_expr = CurrExpr Evaluate aexpr'
                                         , new_conc_types = [], new_sym_types = []
-                                        , new_mut_vars = []
+                                        , new_mut_vars = [], new_exec_stack = exec_stack s
                                         }
                              ) rel_mutvar
         in
-        (nmv_diff:copy_diffs, ng'')
+        (nmv_diff:copy_diffs, ng''')
     | (Var i):_ <- unApp $ exprInCasts mexpr
     , isADTType (typeOf tvnv i) = -- Id with original Type
         let cty = case mexpr of
@@ -928,7 +933,7 @@ liftSymDefAlt' s@(State { type_env = tenv, known_values = kv, tyvar_env = tvnv }
                      , new_true_assert = true_assert s, new_assert_ids = assert_ids s
                      , new_curr_expr = CurrExpr Evaluate aexpr'
                      , new_conc_types = [], new_sym_types = []
-                     , new_mut_vars = []
+                     , new_mut_vars = [], new_exec_stack = exec_stack s
                 }], ng')
             False ->
                 let
@@ -951,7 +956,7 @@ liftSymDefAlt' s@(State { type_env = tenv, known_values = kv, tyvar_env = tvnv }
                      , new_true_assert = true_assert s, new_assert_ids = assert_ids s
                      , new_curr_expr = CurrExpr Evaluate aexpr'
                      , new_conc_types = [], new_sym_types = []
-                     , new_mut_vars = []
+                     , new_mut_vars = [], new_exec_stack = exec_stack s
                 }], ng'')
     | Prim _ _:_ <- unApp mexpr = (liftSymDefAlt'' s mexpr aexpr cvar alts, ng)
     | isPrimType (typeOf tvnv mexpr) = (liftSymDefAlt'' s mexpr aexpr cvar alts, ng)
@@ -964,7 +969,7 @@ liftSymDefAlt' s@(State { type_env = tenv, known_values = kv, tyvar_env = tvnv }
                         , new_true_assert = true_assert s, new_assert_ids = assert_ids s
                         , new_curr_expr = CurrExpr Evaluate aexpr'
                         , new_conc_types = [], new_sym_types = []
-                        , new_mut_vars = []
+                        , new_mut_vars = [], new_exec_stack = exec_stack s
                 }], ng')
     | otherwise = error $ "liftSymDefAlt': unhandled Expr" ++ "\n" ++ show mexpr
 
@@ -981,7 +986,7 @@ liftSymDefAlt'' s mexpr aexpr cvar as =
         , new_true_assert = true_assert s, new_assert_ids = assert_ids s
         , new_curr_expr = CurrExpr Evaluate aexpr'
         , new_conc_types = [], new_sym_types = []
-        , new_mut_vars = []
+        , new_mut_vars = [], new_exec_stack = exec_stack s
     }]
 
 liftSymDefAltPCs :: KnownValues -> Expr -> AltMatch -> Maybe PathCond
@@ -1160,7 +1165,8 @@ retCurrExpr s@(State { expr_env = eenv, known_values = kv, tyvar_env = tvnv, foc
                                , new_curr_expr = CurrExpr Evaluate ce
                                , new_conc_types = []
                                , new_sym_types = []
-                               , new_mut_vars = [] }]
+                               , new_mut_vars = []
+                               , new_exec_stack = exec_stack s }]
         , ng' )
     | otherwise =
         assert (not (isExprValueForm eenv e2))
@@ -1298,20 +1304,19 @@ retAssertFrame s@(State {known_values = kv
       (RuleReturnCAssert, newPC, ng')
 
 concretizeExprToBool :: State t -> NameGen -> Id -> [DataCon] -> Expr -> S.Stack Frame -> (NewPC t, NameGen)
-concretizeExprToBool s name_gen mexpr_id dcons e2 stck = 
-        (new_pc, name_gen') 
+concretizeExprToBool s namegen mexpr_id dcons e2 stck = 
+        (new_pc, namegen') 
     where
         go _ ng _ [] _ _ = ([], ng)
         go state ng me_id (x:xs) expr2 stack = let (sd, ng') = concretizeExprToBool' state ng me_id x expr2 stack
                                                    (sd_lst, ng'') = go state ng' me_id xs expr2 stack
                                                in (sd:sd_lst, ng'')
         
-        (sds, name_gen') = go s name_gen mexpr_id dcons e2 stck
+        (sds, namegen') = go s namegen mexpr_id dcons e2 stck
         new_pc = SplitStatePieces (s { exec_stack = stck, curr_expr = CurrExpr Evaluate e2 }) sds
 
 concretizeExprToBool' :: State t -> NameGen -> Id -> DataCon -> Expr -> S.Stack Frame -> (StateDiff, NameGen)
-concretizeExprToBool' s@(State {expr_env = eenv
-                        , known_values = kv})
+concretizeExprToBool' s@(State {known_values = kv})
                 ngen mexpr_id dcon@(DataCon dconName _ _ _) e2 stck =
         (SD { new_conc_entries = new_conc_ents
             , new_sym_entries = []
@@ -1319,10 +1324,11 @@ concretizeExprToBool' s@(State {expr_env = eenv
             , concretized = []
             , new_true_assert = assert_val
             , new_assert_ids = assert_ids s
-            , new_curr_expr = curr_expr s
+            , new_curr_expr = CurrExpr Evaluate e2
             , new_conc_types = []
             , new_sym_types = []
-            , new_mut_vars = [] }
+            , new_mut_vars = []
+            , new_exec_stack = stck }
         , ngen)
     where
         mexpr_n = idName mexpr_id
@@ -1335,7 +1341,7 @@ concretizeExprToBool' s@(State {expr_env = eenv
 addExtCond :: State t -> NameGen -> Expr -> Expr -> S.Stack Frame -> (NewPC t, NameGen)
 addExtCond s ng e1 e2 stck =
     (SplitStatePieces 
-        (s { exec_stack = stck })
+        s
         [SD { new_conc_entries = []
            , new_sym_entries = []
            , new_path_conds = [ExtCond e1 True]
@@ -1345,14 +1351,14 @@ addExtCond s ng e1 e2 stck =
            , new_curr_expr = CurrExpr Evaluate e2
            , new_conc_types = []
            , new_sym_types = [] 
-           , new_mut_vars = [] }]
+           , new_mut_vars = []
+           , new_exec_stack = exec_stack s }]
     , ng)
 
 addExtConds :: State t -> NameGen -> Expr -> Maybe (FuncCall) -> Expr -> S.Stack Frame -> (NewPC t, NameGen)
 addExtConds s ng e1 ais e2 stck =
     let
-        s' = s { curr_expr = CurrExpr Evaluate e2
-               , exec_stack = stck}
+        s' = s { curr_expr = CurrExpr Evaluate e2 }
 
         condt = [ExtCond e1 True]
         condf = [ExtCond e1 False]
@@ -1366,7 +1372,8 @@ addExtConds s ng e1 ais e2 stck =
                    , new_curr_expr = curr_expr s'
                    , new_conc_types = []
                    , new_sym_types = []
-                   , new_mut_vars = [] }
+                   , new_mut_vars = []
+                   , new_exec_stack = stck }
 
         sfalse = SD { new_conc_entries = []
                     , new_sym_entries = []
@@ -1377,7 +1384,8 @@ addExtConds s ng e1 ais e2 stck =
                     , new_curr_expr = curr_expr s'
                     , new_conc_types = []
                     , new_sym_types = []
-                    , new_mut_vars = [] }
+                    , new_mut_vars = []
+                    , new_exec_stack = stck }
     in
     (SplitStatePieces s' [strue, sfalse], ng)
 

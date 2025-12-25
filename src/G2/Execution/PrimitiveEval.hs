@@ -275,7 +275,9 @@ evalPrimWithState s@(State { known_values = kv, type_env = tenv, expr_env = eenv
                  , new_assert_ids = assert_ids s
                  , new_curr_expr = CurrExpr Return curr'
                  , new_conc_types = []
-                 , new_sym_types = [] }
+                 , new_sym_types = []
+                 , new_mut_vars = []
+                 , new_exec_stack = exec_stack s }
              ]), ng8
          )
 evalPrimWithState s@(State { expr_env = eenv }) ng (App (App (Prim EncodeFloat t) m_arg) n_arg) =
@@ -387,7 +389,9 @@ evalPrimWithState s@(State { expr_env = eenv }) ng (App (App (Prim EncodeFloat t
                  , new_assert_ids = assert_ids s
                  , new_curr_expr = CurrExpr Return curr'
                  , new_conc_types = []
-                 , new_sym_types = [] }
+                 , new_sym_types = []
+                 , new_mut_vars = []
+                 , new_exec_stack = exec_stack s }
              ]), ng'''
          )
 evalPrimWithState s ng (App (Prim HandleGetPos _) hnd)
