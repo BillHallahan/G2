@@ -423,9 +423,7 @@ exprToSMT tv e | [ Data (DataCon (Name ":" _ _ _) _ _ _)
                             App (Data (DataCon (Name "[]" _ _ _) _ _ _)) type_t'
                                 | Just (TyCon (Name "Char" _ _ _) _) <- TV.deepLookup tv type_t' -> exprToSMT tv e1
                             _ -> StrAppendSMT [exprToSMT tv e1, exprToSMT tv e2]
-                    _ -> StrAppendSMT [SeqUnitSMT (exprToSMT tv e1), exprToSMT tv e2]
-                where
-                    
+                    _ -> StrAppendSMT [SeqUnitSMT (exprToSMT tv e1), exprToSMT tv e2]                    
 exprToSMT tv a@(App _ _) =
     let
         f = getFunc a
