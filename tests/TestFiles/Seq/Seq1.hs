@@ -1,3 +1,5 @@
+{-# LANGUAGE MultiWayIf #-}
+
 module Seq1 where
 
 import Data.List
@@ -58,10 +60,10 @@ listLen3 c s =
     if l > 4 then (l, True) else (l, False)
 
 listApp :: [Int] -> [Int] -> Int
-listApp xs ys = case xs ++ ys of
-                    [1, 2, 3, 4, 5, 6, 7, 8, 9] -> 2
-                    [9, 8, 7, 6, 5, 4] -> 1
-                    _ -> 0
+listApp xs ys = let cs = xs ++ ys in
+                if | cs == [1, 2, 3, 4, 5, 6, 7, 8, 9] -> 2
+                   | cs == [9, 8, 7, 6, 5, 4] -> 1
+                   | otherwise -> 0
 
 con2 :: Num a => [a] -> [a] -> (Int, [a])
 con2 xs ys = case xs ++ ys of
