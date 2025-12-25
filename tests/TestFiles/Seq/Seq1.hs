@@ -38,9 +38,34 @@ conFloat xs ys = xs ++ ys
 conDouble :: [Double] -> [Double] -> [Double]
 conDouble xs ys = xs ++ ys
 
+appendEq :: [Int] -> [Int]
+appendEq s = s ++ [1]
 
-appendEqInt :: [Int] -> [Int]
-appendEqInt s = s ++ [1]
+strIndex :: [Integer] -> (Bool, String)
+strIndex str =
+    case str !! 50 of
+        3 -> (True, "Three")
+        3 -> (False, "Two")
+        _ -> (False, "None")
+
+taker1 :: String -> (Bool, String)
+taker1 str = case take 30 str of
+                x@[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 1, 1, 1, 1, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16] -> (True, x)
+                y -> (False, y)
+
+taker2 :: String -> (Bool, String)
+taker2 str = case take 22 str of
+                x@[1, 42] -> (True, x)
+                y -> (False, y)
+
+inf :: String
+inf = inf
+
+takeInf :: Int -> String
+takeInf _ = take 0 inf
+
+takeUndefined :: Int -> String
+takeUndefined _ = take 0 undefined
 
 -- ...
 
