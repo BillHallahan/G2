@@ -41,34 +41,6 @@ conDouble xs ys = xs ++ ys
 appendEq :: [Int] -> [Int]
 appendEq s = s ++ [1]
 
-strIndex :: [Integer] -> (Bool, String)
-strIndex str =
-    case str !! 50 of
-        3 -> (True, "Three")
-        3 -> (False, "Two")
-        _ -> (False, "None")
-
-taker1 :: String -> (Bool, String)
-taker1 str = case take 30 str of
-                x@[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 1, 1, 1, 1, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16] -> (True, x)
-                y -> (False, y)
-
-taker2 :: String -> (Bool, String)
-taker2 str = case take 22 str of
-                x@[1, 42] -> (True, x)
-                y -> (False, y)
-
-inf :: String
-inf = inf
-
-takeInf :: Int -> String
-takeInf _ = take 0 inf
-
-takeUndefined :: Int -> String
-takeUndefined _ = take 0 undefined
-
--- ...
-
 listLen :: [Int] -> (Int, Bool)
 listLen xs = let l = length xs in (l, case l > 5 of True -> False; False -> True)
 
@@ -85,7 +57,11 @@ listLen3 c s =
     let l = length (c:s) in
     if l > 4 then (l, True) else (l, False)
 
--- ...
+listApp :: [Int] -> [Int] -> Int
+listApp xs ys = case xs ++ ys of
+                    [1, 2, 3, 4, 5, 6, 7, 8, 9] -> 2
+                    [9, 8, 7, 6, 5, 4] -> 1
+                    _ -> 0
 
 con2 :: Num a => [a] -> [a] -> (Int, [a])
 con2 xs ys = case xs ++ ys of
@@ -117,6 +93,32 @@ con3Float :: [Float] -> (Int, NIE Float)
 con3Float = nieWrapSnd . con3
 con3Double :: [Double] -> (Int, NIE Double)
 con3Double = nieWrapSnd . con3
+
+strIndex :: [Integer] -> (Bool, String)
+strIndex str =
+    case str !! 50 of
+        3 -> (True, "Three")
+        3 -> (False, "Two")
+        _ -> (False, "None")
+
+taker1 :: String -> (Bool, String)
+taker1 str = case take 30 str of
+                x@[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 1, 1, 1, 1, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16] -> (True, x)
+                y -> (False, y)
+
+taker2 :: String -> (Bool, String)
+taker2 str = case take 22 str of
+                x@[1, 42] -> (True, x)
+                y -> (False, y)
+
+inf :: String
+inf = inf
+
+takeInf :: Int -> String
+takeInf _ = take 0 inf
+
+takeUndefined :: Int -> String
+takeUndefined _ = take 0 undefined
 
 -- ...
 
