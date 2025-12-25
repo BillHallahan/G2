@@ -181,18 +181,18 @@ primDefs' b c l unit =
                                           (Prim StrAppend ((TyFun seqTyX) $ TyFun seqTyX seqTyX))
                                           (Var $ y seqTyX))
                                       (Var $ z seqTyX))
-              , ("strAt#", Lam TypeL (x TYPE) . Lam TermL (y strTy) . Lam TermL (z TyLitInt)
+              , ("strAt#", Lam TypeL (x TYPE) . Lam TermL (y seqTyX) . Lam TermL (z TyLitInt)
                             $ App 
                                 (App 
-                                    (Prim StrAt ((TyFun strTy) $ TyFun TyLitInt strTy))
-                                    (Var $ y strTy))
+                                    (Prim StrAt ((TyFun seqTyX) $ TyFun TyLitInt seqTyX))
+                                    (Var $ y seqTyX))
                                 (Var $ z TyLitInt))
-              , ("strSubstr#", Lam TypeL (x TYPE) . Lam TermL (y strTy) . Lam TermL (z TyLitInt) . Lam TermL ((dummyId "q") TyLitInt)
+              , ("strSubstr#", Lam TypeL (x TYPE) . Lam TermL (y seqTyX) . Lam TermL (z TyLitInt) . Lam TermL ((dummyId "q") TyLitInt)
                             $ App
                                 (App
                                     (App
-                                        (Prim StrSubstr (TyFun strTy (TyFun TyLitInt (TyFun TyLitInt strTy))))
-                                        (Var $ y strTy))
+                                        (Prim StrSubstr (TyFun seqTyX (TyFun TyLitInt (TyFun TyLitInt seqTyX))))
+                                        (Var $ y seqTyX))
                                     (Var $ z TyLitInt))
                                 (Var $ (dummyId "q") TyLitInt))
               , ("strEq#", strStrBool Eq)
@@ -200,36 +200,36 @@ primDefs' b c l unit =
               , ("strLe#", strStrBool StrLe)
               , ("strGt#", strStrBool StrGt)
               , ("strGe#", strStrBool StrGe)
-              , ("strIndexOf#", Lam TypeL (x TYPE) . Lam TermL (y strTy) . Lam TermL (z TyLitInt) . Lam TermL ((dummyId "q") TyLitInt)
+              , ("strIndexOf#", Lam TypeL (x TYPE) . Lam TermL (y seqTyX) . Lam TermL (z seqTyX) . Lam TermL ((dummyId "q") TyLitInt)
                             $ App
                                 (App
                                     (App
-                                        (Prim StrIndexOf (TyFun strTy (TyFun strTy (TyFun TyLitInt TyLitInt))))
-                                        (Var $ y strTy))
-                                    (Var $ z strTy))
+                                        (Prim StrIndexOf (TyFun seqTyX (TyFun seqTyX (TyFun TyLitInt TyLitInt))))
+                                        (Var $ y seqTyX))
+                                    (Var $ z seqTyX))
                                 (Var $ (dummyId "q") TyLitInt))
-              , ("strReplace#", Lam TypeL (x TYPE) . Lam TermL (y strTy) . Lam TermL (z strTy) . Lam TermL ((dummyId "q") strTy)
+              , ("strReplace#", Lam TypeL (x TYPE) . Lam TermL (y seqTyX) . Lam TermL (z seqTyX) . Lam TermL ((dummyId "q") seqTyX)
                             $ App
                                 (App
                                     (App
-                                        (Prim StrReplace (TyFun strTy (TyFun strTy (TyFun strTy strTy))))
-                                        (Var $ y strTy))
-                                    (Var $ z strTy))
-                                (Var $ (dummyId "q") strTy))
-              , ("strPrefixOf#", Lam TypeL (x TYPE) . Lam TermL (y strTy) . Lam TermL (z strTy)
+                                        (Prim StrReplace (TyFun seqTyX (TyFun seqTyX (TyFun seqTyX seqTyX))))
+                                        (Var $ y seqTyX))
+                                    (Var $ z seqTyX))
+                                (Var $ (dummyId "q") seqTyX))
+              , ("strPrefixOf#", Lam TypeL (x TYPE) . Lam TermL (y seqTyX) . Lam TermL (z seqTyX)
                             $ App
                                 (App
-                                    (Prim StrPrefixOf (TyFun strTy (TyFun strTy (TyCon b TYPE))))
-                                    (Var $ y strTy)
+                                    (Prim StrPrefixOf (TyFun seqTyX (TyFun seqTyX (TyCon b TYPE))))
+                                    (Var $ y seqTyX)
                                 )
-                                (Var $ z strTy))
-              , ("strSuffixOf#", Lam TypeL (x TYPE) . Lam TermL (y strTy) . Lam TermL (z strTy)
+                                (Var $ z seqTyX))
+              , ("strSuffixOf#", Lam TypeL (x TYPE) . Lam TermL (y seqTyX) . Lam TermL (z seqTyX)
                             $ App
                                 (App
-                                    (Prim StrSuffixOf (TyFun strTy (TyFun strTy (TyCon b TYPE))))
-                                    (Var $ y strTy)
+                                    (Prim StrSuffixOf (TyFun seqTyX (TyFun seqTyX (TyCon b TYPE))))
+                                    (Var $ y seqTyX)
                                 )
-                                (Var $ z strTy))
+                                (Var $ z seqTyX))
               , ("intToString#", Prim IntToString (TyFun TyLitInt strTy))
 
               , ("newMutVar##", Prim NewMutVar (TyForAll a (TyForAll d (TyFun tyvarA (TyFun TyUnknown TyUnknown)))))
