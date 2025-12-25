@@ -547,6 +547,17 @@ testFileTests = testGroup "TestFiles"
                                                               , ("elem1", 5000, [Exactly 2])
                                                               , ("notElem1", 5000, [Exactly 4])
                                                               , ("elemIndex1", 5000, [Exactly 4])
+                                                              , ("delete1", 5000, [Exactly 3])
+                                                              , ("stripPrefix1", 1000, [Exactly 2])
+                                                              , ("stripPrefix2", 1000, [Exactly 5])
+                                                              , ("isPrefixOf1", 10000, [Exactly 6])
+                                                              , ("isSuffixOf1", 10000, [Exactly 6])
+#if MIN_VERSION_base(4,19,0)
+                                                              , ("unsnoc1", 5000, [Exactly 4])
+                                                              , ("unsnoc2", 5000, [Exactly 2])
+                                                              , ("totalIndex1", 5000, [Exactly 3])
+#endif
+
                                                               ]
 
     , checkInputOutputsSMTListsWith "tests/TestFiles/Seq/Seq1.hs" "floatListEq" [ ("conFloat", 1000, [Exactly 1])

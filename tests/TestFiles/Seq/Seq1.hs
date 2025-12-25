@@ -192,3 +192,68 @@ elemIndex1 c s
             | pos == Nothing = -1
             | otherwise = -2
             where pos = elemIndex c s
+
+-- ...
+
+delete1 :: Integer -> [Integer] -> (Int, [Integer])
+delete1 c s
+    | length s < 3 = (1, d)
+    | length d < length s = (2, d)
+    | otherwise = (3, d)
+    where
+        d = delete c s
+
+stripPrefix1 :: [Int] -> [Int] -> Maybe [Int]
+stripPrefix1 = stripPrefix
+
+stripPrefix2 :: [Int] -> [Int] -> (Int, Maybe [Int])
+stripPrefix2 xs ys
+    | Just zs <- m_zs, length zs > 3 = (1, m_zs)
+    | Just zs <- m_zs, 2 < length xs - length zs = (2, m_zs)
+    | Nothing <- m_zs = (3, m_zs)
+    | length xs > 0 = (4, m_zs)
+    | otherwise = (5, m_zs)
+    where
+        m_zs = stripPrefix xs ys
+
+-- ...
+
+isPrefixOf1 :: [Float] -> [Float] -> (Int, Bool)
+isPrefixOf1 s1 s2
+    | length s1 < 3 = (1, p)
+    | length s2 < 3 = (2, p)
+    | length s1 + 3 < length s2, p = (3, p)
+    | p = (4, p)
+    | length s1 + 3 < length s2 = (5, p)
+    | otherwise = (6, p)
+    where
+        p = isPrefixOf s1 s2
+
+isSuffixOf1 :: [Double] -> [Double] -> (Int, Bool)
+isSuffixOf1 s1 s2
+    | length s1 < 3 = (1, p)
+    | length s2 < 3 = (2, p)
+    | length s1 + 3 < length s2, p = (3, p)
+    | p = (4, p)
+    | length s1 + 3 < length s2 = (5, p)
+    | otherwise = (6, p)
+    where
+        p = isSuffixOf s1 s2
+
+#if MIN_VERSION_base(4,19,0)
+unsnoc1 :: [Int] -> Maybe Int
+unsnoc1 xs
+    | Just (s, e) <- uc, s == [1, 2, 3] = Just 0
+    | Nothing == uc = Just 1
+    | Just (s, e) <- uc, length s == 0 = Just 2
+    | otherwise = Nothing
+    where
+        uc = unsnoc xs
+
+unsnoc2 :: [Int] -> Maybe ([Int], Int)
+unsnoc2 = unsnoc
+
+totalIndex1 :: [Int] -> [Maybe Int]
+totalIndex1 xs = [xs !? (-1), xs !? 0, xs !? 15]
+#endif
+
