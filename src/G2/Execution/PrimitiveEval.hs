@@ -591,12 +591,13 @@ evalPrimADT3 tenv kv StrSubstr str (Lit (LitInt s)) (Lit (LitInt e)) = substr st
         substr _ _ _ = Nothing
 
 evalPrimADT3 tenv kv StrReplace s orig rep = do
-        s' <- toString s
-        orig' <- toString orig
-        rep' <- toString rep
-        return $ toStringExpr kv tenv (replace s' orig' rep')
+        t <- listType orig
+        s' <- toExprList s
+        orig' <- toExprList orig
+        rep' <- toExprList rep
+        return $ toListExpr kv tenv t (replace s' orig' rep')
     where
-        replace "" _ _ = ""
+        replace [] _ _ = []
         replace xss@(x:xs) o r | Just xss' <- L.stripPrefix o xss = r ++ xss'
                                | otherwise = x:replace xs o r
 
