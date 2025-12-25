@@ -1,5 +1,9 @@
 module G2.Execution.NewPC ( NewPC (..)
                           , StateDiff (..)
+                          , EEDiff
+                          , EESymDiff
+                          , TVEDiff
+                          , TVESymDiff
                           , newPCEmpty
                           , reduceNewPC ) where
 
