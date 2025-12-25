@@ -515,7 +515,8 @@ testFileTests = testGroup "TestFiles"
                                         , ("maximum1", 3000, [AtLeast 1, AtMost 6]) -- Quantifier causes SMT failures
                                         ]
 
-    , checkInputOutputsSMTLists "tests/TestFiles/Seq/Seq1.hs" [ ("conInt", 1000, [Exactly 1]) 
+    , checkInputOutputsSMTLists "tests/TestFiles/Seq/Seq1.hs" [ ("toEnum1", 2000, [Exactly 1])
+                                                              , ("conInt", 1000, [Exactly 1]) 
                                                               , ("conInteger", 1000, [Exactly 1])
                                                               , ("listLen", 1000, [Exactly 2])
                                                               , ("listLen2", 1000, [Exactly 3])
@@ -523,11 +524,23 @@ testFileTests = testGroup "TestFiles"
                                                               , ("con2Int", 1000, [Exactly 3])
                                                               , ("con2Integer", 1000, [Exactly 3])
                                                               , ("con2Float", 1000, [Exactly 3])
-                                                              , ("con2Double", 1000, [Exactly 3]) ]
+                                                              , ("con2Double", 1000, [Exactly 3])
                                                             --   , ("con3Int", 1000, [Exactly 3])
                                                             --   , ("con3Integer", 1000, [Exactly 3])
                                                             --   , ("con3Float", 1000, [Exactly 3])
-                                                            --   , ("con3Double", 1000, [Exactly 3]) ]
+                                                            --   , ("con3Double", 1000, [Exactly 3])
+                                                              , ("init1", 5000, [Exactly 4])
+                                                              , ("null1", 5000, [Exactly 2])
+                                                              , ("last1", 5000, [Exactly 4])
+                                                              , ("drop1", 5000, [Exactly 2])
+                                                              , ("drop2", 5000, [Exactly 2])
+                                                              , ("drop3", 5000, [Exactly 3])
+                                                              , ("infix1", 5000, [Exactly 2])
+                                                              , ("elem1", 5000, [Exactly 2])
+                                                              , ("notElem1", 5000, [Exactly 4])
+                                                              , ("elemIndex1", 5000, [Exactly 4])
+                                                              ]
+
     , checkInputOutputsSMTListsWith "tests/TestFiles/Seq/Seq1.hs" "floatListEq" [ ("conFloat", 1000, [Exactly 1])
                                                                                 , ("conDouble", 1000, [Exactly 1])]
 
