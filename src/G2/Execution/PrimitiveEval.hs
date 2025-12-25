@@ -534,13 +534,13 @@ evalPrimADT2 kv tenv StrAt xs (Lit (LitInt i)) = do
     return $ toStringExpr kv tenv c
 
 evalPrimADT2 kv _ StrPrefixOf pre s = do
-    pre' <- toString pre
-    s' <- toString s
+    pre' <- toExprList pre
+    s' <- toExprList s
     return . mkBool kv $ pre' `L.isPrefixOf` s'
 
 evalPrimADT2 kv _ StrSuffixOf suf s = do
-    suf' <- toString suf
-    s' <- toString s
+    suf' <- toExprList suf
+    s' <- toExprList s
     return . mkBool kv $ suf' `L.isSuffixOf` s'
 
 evalPrimADT2 kv _ Eq f s = fmap (mkBool kv) $ lstEq f s
