@@ -943,24 +943,20 @@ liftSymDefAlt' s@(State { type_env = tenv, known_values = kv, tyvar_env = tvnv }
                     (cvar', ng') = freshSeededId cvar (typeOf tvnv cvar) ng
 
                     -- -- Create a case expression to choose on of viable DCs
-                    (_, mexpr', assume_pc, eenv', ng'') = createCaseExpr tvnv bi maybeC cvar' (typeOf tvnv i) kv tenv (expr_env s) ng' dcs'
+                    (_, mexpr', assume_pc, ng'', concs, syms) = 
+                        createCaseExprInsertless tvnv bi maybeC cvar' (typeOf tvnv i) kv tenv ng' dcs'
 
                     binds = [(cvar, Var cvar')]
                     aexpr' = liftCaseBinds binds aexpr
-
-                    eenv'' = E.insert (idName cvar') mexpr'
-                           $ E.insert (idName i) mexpr' eenv'
-                    s' = s { curr_expr = CurrExpr Evaluate aexpr'
-                           , expr_env = eenv'' }
                 in
-                -- ([SD { new_conc_entries = [], new_sym_entries = []
-                --      , new_path_conds = assume_pc, concretized = []
-                --      , new_true_assert = true_assert s, new_assert_ids = assert_ids s
-                --      , new_curr_expr = CurrExpr Evaluate aexpr'
-                --      , new_conc_types = [], new_sym_types = []
-                --      , new_mut_vars = []
-                -- }], ng'')
-                ([NewPC { state = s', new_pcs = assume_pc, concretized = [] }], ng'')
+                ([SD { new_conc_entries = (idName cvar', mexpr'):(idName i, mexpr'):concs
+                     , new_sym_entries = syms
+                     , new_path_conds = assume_pc, concretized = []
+                     , new_true_assert = true_assert s, new_assert_ids = assert_ids s
+                     , new_curr_expr = CurrExpr Evaluate aexpr'
+                     , new_conc_types = [], new_sym_types = []
+                     , new_mut_vars = []
+                }], ng'')
     | Prim _ _:_ <- unApp mexpr = (liftSymDefAlt'' s mexpr aexpr cvar alts, ng)
     | isPrimType (typeOf tvnv mexpr) = (liftSymDefAlt'' s mexpr aexpr cvar alts, ng)
     | TyVar _ <- (typeOf tvnv mexpr) = 
