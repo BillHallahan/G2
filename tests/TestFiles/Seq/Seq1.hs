@@ -102,14 +102,18 @@ strIndex str =
         _ -> (False, "None")
 
 taker1 :: [Int] -> (Bool, [Int])
-taker1 str = case take 30 str of
-                x@[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 1, 1, 1, 1, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16] -> (True, x)
-                y -> (False, y)
+taker1 str = case t == [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 1, 1, 1, 1, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16] of
+                True -> (False, t)
+                False -> (True, t)
+    where
+        t = take 30 str
 
 taker2 :: [Int] -> (Bool, [Int])
-taker2 str = case take 22 str of
-                x@[1, 42] -> (True, x)
-                y -> (False, y)
+taker2 str = case t == [1, 42] of
+                True -> (False, t)
+                False -> (True, t)
+    where
+        t = take 22 str
 
 inf :: [Int]
 inf = inf
@@ -141,14 +145,18 @@ last1 xs | length xs > 50 = (1, last xs)
          | otherwise = (3, last xs)
 
 drop1 :: [Int] -> (Bool, [Int])
-drop1 str = case drop 50 str of
-                x@[1, 2, 3, 4, 5, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10] -> (True, x)
-                y -> (False, y)
+drop1 str = case d == [1, 2, 3, 4, 5, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10] of
+                False -> (True, d)
+                True -> (False, d)
+    where
+        d = drop 50 str
 
 drop2 :: [Int] -> (Bool, [Int])
-drop2 str = case drop 22 str of
-                x@[100, 200] -> (True, x)
-                y -> (False, y)
+drop2 str = case d == [100, 200] of
+                True -> (False, d)
+                False -> (True, d)
+    where
+        d = drop 22 str
 
 drop3 :: [Float] -> Int
 drop3 str = case drop 20 str of
