@@ -1,4 +1,4 @@
-module G2.Execution.SymToCase (createCaseExpr) where
+module G2.Execution.SymToCase (createCaseExpr, createCaseExprInsertless) where
 
 import G2.Execution.DataConPCMap
 import G2.Language

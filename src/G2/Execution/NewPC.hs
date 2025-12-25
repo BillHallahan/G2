@@ -5,6 +5,7 @@ module G2.Execution.NewPC ( NewPC (..)
                           , TVEDiff
                           , TVESymDiff
                           , newPCEmpty
+                          , newPCNoStates
                           , reduceNewPC ) where
 
 import G2.Language
@@ -41,6 +42,10 @@ data StateDiff = SD { new_conc_entries :: EEDiff -- ^ New concrete entries for t
 
 newPCEmpty :: State t -> NewPC t
 newPCEmpty s = SingleState s
+
+-- A NewPC that corresponds to no states to look for, as opposed to newPCEmpty which returns one state
+newPCNoStates :: State t -> NewPC t
+newPCNoStates s = SplitStatePieces s []
 
 -- This will now return a list of States: one for each StateDiff applied to the starting state. The
 -- end goal here is to be able to check whether the diffs are able to be used with a literal table
