@@ -237,7 +237,7 @@ instance Simplifier LitConc where
                 | t' == T.tyFloat kv = concFloat i
                 | t' == T.tyDouble kv = concDouble i
                 | t' == T.tyChar kv = concChar i
-                | otherwise = error $ "concApprop: impossible - unhandled type" ++ show t ++ "\n" ++ show t'
+                | otherwise = error $ "concApprop: impossible - unhandled type"
                 where
                     t' = tyVarSubst tv_env t
             
