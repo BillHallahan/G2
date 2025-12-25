@@ -1,4 +1,4 @@
-{-# LANGUAGE MultiWayIf #-}
+{-# LANGUAGE CPP, MultiWayIf #-}
 
 module Seq1 where
 
