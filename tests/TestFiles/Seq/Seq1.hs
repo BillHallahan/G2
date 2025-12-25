@@ -44,6 +44,24 @@ appendEqInt s = s ++ [1]
 
 -- ...
 
+listLen :: [Int] -> (Int, Bool)
+listLen xs = let l = length xs in (l, case l > 5 of True -> False; False -> True)
+
+listLen2 :: [Float] -> (Int, Bool)
+listLen2 s =
+    case s of
+        (c:s) ->
+            let l = length (c:s) in
+            if l > 4 then (l, True) else (l, False)
+        [] -> (1000, False)
+    
+listLen3 :: Double -> [Double] -> (Int, Bool)
+listLen3 c s =
+    let l = length (c:s) in
+    if l > 4 then (l, True) else (l, False)
+
+-- ...
+
 con2 :: Num a => [a] -> [a] -> (Int, [a])
 con2 xs ys = case xs ++ ys of
     xs@(_:_:_) -> (3, xs)

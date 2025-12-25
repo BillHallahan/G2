@@ -517,6 +517,9 @@ testFileTests = testGroup "TestFiles"
 
     , checkInputOutputsSMTLists "tests/TestFiles/Seq/Seq1.hs" [ ("conInt", 1000, [Exactly 1]) 
                                                               , ("conInteger", 1000, [Exactly 1])
+                                                              , ("listLen", 1000, [Exactly 2])
+                                                              , ("listLen2", 1000, [Exactly 3])
+                                                              , ("listLen3", 1000, [Exactly 2])
                                                               , ("con2Int", 1000, [Exactly 3])
                                                               , ("con2Integer", 1000, [Exactly 3])
                                                               , ("con2Float", 1000, [Exactly 3])

@@ -411,15 +411,21 @@ exprToSMT _ (Data (DataCon n (TyCon (Name "Bool" _ _ _) _ ) _ _)) =
 exprToSMT tv (Data (DataCon n t _ _)) = V (nameToStr n) (typeToSMT tv t)
 exprToSMT tv (App (Data (DataCon (Name "[]" _ _ _) _ _ _)) type_t)
     | Just (TyCon (Name "Char" _ _ _) _) <- TV.deepLookup tv type_t = VString ""
+    | otherwise = SeqEmptySMT
 exprToSMT tv e | [ Data (DataCon (Name ":" _ _ _) _ _ _)
                  , type_t
                  , App _ e1
                  , e2] <- unApp e
-               , Just (TyCon (Name "Char" _ _ _) _) <- TV.deepLookup tv type_t = 
-                case e2 of
-                    App (Data (DataCon (Name "[]" _ _ _) _ _ _)) type_t'
-                        | Just (TyCon (Name "Char" _ _ _) _) <- TV.deepLookup tv type_t' -> exprToSMT tv e1
-                    _ -> StrAppendSMT [exprToSMT tv e1, exprToSMT tv e2]
+               , Just t <- TV.deepLookup tv type_t =
+                case t of
+                    (TyCon (Name "Char" _ _ _) _) ->
+                        case e2 of
+                            App (Data (DataCon (Name "[]" _ _ _) _ _ _)) type_t'
+                                | Just (TyCon (Name "Char" _ _ _) _) <- TV.deepLookup tv type_t' -> exprToSMT tv e1
+                            _ -> StrAppendSMT [exprToSMT tv e1, exprToSMT tv e2]
+                    _ -> StrAppendSMT [SeqUnitSMT (exprToSMT tv e1), exprToSMT tv e2]
+                where
+                    
 exprToSMT tv a@(App _ _) =
     let
         f = getFunc a
