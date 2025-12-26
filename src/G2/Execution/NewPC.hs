@@ -70,7 +70,8 @@ reduceNewPC' solver simplifier ng
                  , new_curr_expr = n_curre
                  , new_conc_types = nct
                  , new_sym_types = nst
-                 , new_mut_vars = nmv }) 
+                 , new_mut_vars = nmv
+                 , new_exec_stack = n_stck }) 
     | not (null pc) || not (null concIds) = do
         let ((ng', eenv'), pc') =
                 mapAccumR (\(ng_, eenv_) pc_ ->
@@ -111,7 +112,7 @@ reduceNewPC' solver simplifier ng
         s = state {
             expr_env = eenv, tyvar_env = tvenv, 
             true_assert = nta, assert_ids = nai, 
-            curr_expr = n_curre }
+            curr_expr = n_curre, exec_stack = n_stck }
 
 mapAccumMaybeM :: Monad m => (s -> a -> m (Maybe (s, b))) -> s -> [a] -> m (s, [b])
 mapAccumMaybeM f s xs = do

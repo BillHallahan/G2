@@ -1154,7 +1154,6 @@ retCurrExpr s@(State { expr_env = eenv, known_values = kv, tyvar_env = tvnv, foc
         in
         ( RuleReturnCurrExprFr
         , SplitStatePieces (s { expr_env = eenv'
-                              , exec_stack = stck
                               , non_red_path_conds = nrpc })
                            [SD { new_conc_entries = []
                                , new_sym_entries = []
@@ -1166,7 +1165,7 @@ retCurrExpr s@(State { expr_env = eenv, known_values = kv, tyvar_env = tvnv, foc
                                , new_conc_types = []
                                , new_sym_types = []
                                , new_mut_vars = []
-                               , new_exec_stack = exec_stack s }]
+                               , new_exec_stack = stck }]
         , ng' )
     | otherwise =
         assert (not (isExprValueForm eenv e2))
