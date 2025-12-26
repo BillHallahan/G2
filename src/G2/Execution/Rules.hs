@@ -768,8 +768,8 @@ createExtCond s ngen dcpm mexpr cvar (dcon, bindees, aexpr)
             binds = (cvar, dcon'):zip new_ids bindee_exprs
             aexpr'' = liftCaseBinds binds aexpr'
         in
-        (SD { new_conc_entries = ee_diff ++ new_id_concs ++ dcpc_concs
-            , new_sym_entries = new_id_syms ++ dcpc_syms
+        (SD { new_conc_entries = dcpc_concs ++ new_id_concs ++ ee_diff 
+            , new_sym_entries = dcpc_syms ++ new_id_syms
             , new_path_conds = pcs, concretized = []
             , new_true_assert = true_assert s, new_assert_ids = assert_ids s
             , new_curr_expr = CurrExpr Evaluate aexpr''
@@ -1352,7 +1352,7 @@ addExtCond s ng e1 e2 stck =
            , new_conc_types = []
            , new_sym_types = [] 
            , new_mut_vars = []
-           , new_exec_stack = exec_stack s }]
+           , new_exec_stack = stck }]
     , ng)
 
 addExtConds :: State t -> NameGen -> Expr -> Maybe (FuncCall) -> Expr -> S.Stack Frame -> (NewPC t, NameGen)
