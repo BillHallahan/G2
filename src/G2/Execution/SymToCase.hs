@@ -13,11 +13,8 @@ concretizeSym tv bi maybeC binder kv tenv (concs, syms, ng) dc@(DataCon _ ts _ _
     | Just dcpcs <- HM.lookup (dcName dc) (dcpcMap tv kv tenv)
     , _:ty_args <- unTyApp $ typeOf tv binder
     , Just dcpc <- L.lookup ty_args dcpcs =
-        let
-
-            (pcs, ng'', _, dcpc_concs, dcpc_syms) = applyDCPC ng' new_params (Var binder) dcpc
-        in
-        ((concs ++ dcpc_concs, syms ++ dcpc_syms ++ new_params, ng''), (pcs, dc''))
+        let (pcs, ng'', _, dcpc_concs, dcpc_syms) = applyDCPC ng' new_params (Var binder) dcpc
+        in ((concs ++ dcpc_concs, syms ++ dcpc_syms ++ new_params, ng''), (pcs, dc''))
 
     | otherwise = ((concs, syms ++ new_params, ng'), ([], dc''))
     where

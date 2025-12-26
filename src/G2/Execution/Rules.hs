@@ -585,7 +585,7 @@ concretizeVarExpr' s@(State { type_env = tenv
 
             (pcs, ngen'', concs, syms) = adjustExprEnvAndPathConds tvnv ngen' dcpm dcon dcon'' mexpr_id params' news
         in 
-            Just (SD { new_conc_entries = ee_diff ++ concs, new_sym_entries = syms
+            Just (SD { new_conc_entries = concs ++ ee_diff, new_sym_entries = syms
                      , new_path_conds = pcs, concretized = [mexpr_id]
                      , new_true_assert = true_assert s, new_assert_ids = assert_ids s
                      , new_curr_expr = CurrExpr Evaluate aexpr''
