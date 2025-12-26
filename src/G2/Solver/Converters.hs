@@ -144,10 +144,11 @@ solveNumericConstraintsPC :: SMTConverter con => TV.TyVarEnv -> con -> KnownValu
 solveNumericConstraintsPC tv con kv tenv pc ng = do
     let headers = toSMTHeaders tv pc
     let vs = map (\(n', srt) -> (nameToStr n', srt)) . HS.toList . pcVars tv $ pc
+    let ty_map = HM.fromList . map (\(Id n t) -> (nameToStr n, t)) . HS.toList $ PC.allIds pc
 
     m <- solveConstraints con headers vs
     case m of
-        SAT m' -> return . SAT $ SatRes (modelAsExpr kv tenv m') tv ng
+        SAT m' -> return . SAT $ SatRes (modelAsExpr kv tenv ty_map m') tv ng
         UNSAT () -> return $ UNSAT ()
         Unknown s () -> return $ Unknown s ()
 
@@ -948,35 +949,39 @@ toSolverSetLogic lgc =
     "(set-logic " <> s <> ")"
 
 -- | Converts an `SMTAST` to an `Expr`.
-smtastToExpr :: KnownValues -> TypeEnv -> SMTAST -> Expr
-smtastToExpr _ _ (VInt i) = Lit $ LitInt i
-smtastToExpr _ _ (VWord i) = Lit $ LitWord i
-smtastToExpr _ _ (VFloat f) = Lit $ LitFloat f
-smtastToExpr _ _ (VDouble d) = Lit $ LitDouble d
-smtastToExpr _ _ (VReal r) = Lit $ LitRational r
-smtastToExpr _ _ (VBitVec bv) = Lit $ LitBV bv
-smtastToExpr kv _ (VBool True) = mkTrue kv
-smtastToExpr kv _ (VBool False) = mkFalse kv
-smtastToExpr kv tenv (VString cs) = mkG2List kv tenv (tyChar kv) $ map (App (mkDCChar kv tenv) . Lit . LitChar) cs
-smtastToExpr _ _ (VChar c) = Lit $ LitChar c
-smtastToExpr _ _ (V n s) = Var $ Id (certainStrToName n) (sortToType s)
-smtastToExpr kv tenv (SeqEmptySMT _) = App (mkEmpty kv tenv) (Type TyUnknown)
-smtastToExpr kv tenv (SeqUnitSMT s) = mkApp [ mkCons kv tenv
-                                            , Type TyUnknown
-                                            , wrapDC kv tenv $ smtastToExpr kv tenv s
-                                            , App (mkEmpty kv tenv) (Type TyUnknown) ]
-smtastToExpr kv tenv (StrAppendSMT xs) = mkG2List kv tenv TyUnknown $ map (wrapDC kv tenv . smtastToExpr kv tenv . fromUnit) xs
+smtastToExpr :: KnownValues -> TypeEnv -> HM.HashMap SMTName Type -> SMTName -> SMTAST -> Expr
+smtastToExpr _ _ _ _ (VInt i) = Lit $ LitInt i
+smtastToExpr _ _ _ _ (VWord i) = Lit $ LitWord i
+smtastToExpr _ _ _ _ (VFloat f) = Lit $ LitFloat f
+smtastToExpr _ _ _ _ (VDouble d) = Lit $ LitDouble d
+smtastToExpr _ _ _ _ (VReal r) = Lit $ LitRational r
+smtastToExpr _ _ _ _ (VBitVec bv) = Lit $ LitBV bv
+smtastToExpr kv _ _ _ (VBool True) = mkTrue kv
+smtastToExpr kv _ _ _ (VBool False) = mkFalse kv
+smtastToExpr kv tenv _ _ (VString cs) = mkG2List kv tenv (tyChar kv) $ map (App (mkDCChar kv tenv) . Lit . LitChar) cs
+smtastToExpr _ _ _ _ (VChar c) = Lit $ LitChar c
+smtastToExpr _ _ _ _ (V n s) = Var $ Id (certainStrToName n) (sortToType s)
+smtastToExpr kv tenv _ _ (SeqEmptySMT _) = App (mkEmpty kv tenv) (Type TyUnknown)
+smtastToExpr kv tenv ty_map n (SeqUnitSMT s) = mkApp [ mkCons kv tenv
+                                                     , Type TyUnknown
+                                                     , wrapDC kv tenv ty_map n $ smtastToExpr kv tenv ty_map n s
+                                                     , App (mkEmpty kv tenv) (Type TyUnknown) ]
+smtastToExpr kv tenv ty_map n (StrAppendSMT xs) =
+    mkG2List kv tenv TyUnknown $ map (wrapDC kv tenv ty_map n . smtastToExpr kv tenv ty_map n . fromUnit) xs
     where
         fromUnit (SeqUnitSMT s) = s
         fromUnit _ = error "fromUnit: unsupported case"
-smtastToExpr _ _ _ = error "Conversion of this SMTAST to an Expr not supported."
+smtastToExpr _ _ _ _ _ = error "Conversion of this SMTAST to an Expr not supported."
 
 
-wrapDC :: KnownValues -> TypeEnv -> Expr -> Expr
-wrapDC kv tenv i@(Lit (LitInt _)) = App (mkDCInt kv tenv) i
-wrapDC kv tenv i@(Lit (LitFloat _)) = App (mkDCFloat kv tenv) i
-wrapDC kv tenv i@(Lit (LitDouble _)) = App (mkDCDouble kv tenv) i
-wrapDC _ _ e = e
+wrapDC :: KnownValues -> TypeEnv -> HM.HashMap SMTName Type -> SMTName -> Expr -> Expr
+wrapDC kv tenv ty_map n i@(Lit (LitInt _))
+    | Just (TyApp _ t) <- HM.lookup n ty_map
+    , t == tyInteger kv = App (mkDCInteger kv tenv) i
+    | otherwise = App (mkDCInt kv tenv) i
+wrapDC kv tenv _ _ i@(Lit (LitFloat _)) = App (mkDCFloat kv tenv) i
+wrapDC kv tenv _ _ i@(Lit (LitDouble _)) = App (mkDCDouble kv tenv) i
+wrapDC _ _ _ _ e = e
 
 -- | Converts a `Sort` to an `Type`.
 sortToType :: Sort -> Type
@@ -990,8 +995,8 @@ sortToType SortBool = TyCon (Name "Bool" Nothing 0 Nothing) TYPE
 sortToType _ = error "Conversion of this Sort to a Type not supported."
 
 -- | Coverts an `SMTModel` to a `Model`.
-modelAsExpr :: KnownValues -> TypeEnv ->SMTModel -> Model
-modelAsExpr kv tenv = HM.fromList . M.toList . M.mapKeys strToName . M.map (smtastToExpr kv tenv)
+modelAsExpr :: KnownValues -> TypeEnv -> HM.HashMap SMTName Type -> SMTModel -> Model
+modelAsExpr kv tenv ty_map = HM.fromList . M.toList . M.mapKeys strToName . M.mapWithKey (smtastToExpr kv tenv ty_map)
 
 certainStrToName :: String -> Name
 certainStrToName s =
