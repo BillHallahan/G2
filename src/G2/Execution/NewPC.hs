@@ -106,8 +106,9 @@ reduceNewPC' solver simplifier ng
             return Nothing
     | otherwise = return $ Just (ng, s)
     where
-        eenv = E.insertExprs nce $ foldl' (flip E.insertSymbolic) init_eenv nse
-        tvenv = TV.insertTypes nct $ foldl' (flip TV.insertSymbolic) init_tvenv nst 
+        insertInOrder inserter exprs_ eenv_ = foldl' (flip $ uncurry inserter) eenv_ exprs_
+        eenv = insertInOrder E.insert nce $ foldl' (flip E.insertSymbolic) init_eenv nse
+        tvenv = insertInOrder TV.insert nct $ foldl' (flip TV.insertSymbolic) init_tvenv nst 
         state = newMutVars init_state nmv
         s = state {
             expr_env = eenv, tyvar_env = tvenv, 

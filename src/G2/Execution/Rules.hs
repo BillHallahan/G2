@@ -585,7 +585,7 @@ concretizeVarExpr' s@(State { type_env = tenv
 
             (pcs, ngen'', concs, syms) = adjustExprEnvAndPathConds tvnv ngen' dcpm dcon dcon'' mexpr_id params' news
         in 
-            Just (SD { new_conc_entries = concs ++ ee_diff, new_sym_entries = syms
+            Just (SD { new_conc_entries = ee_diff ++ concs, new_sym_entries = syms
                      , new_path_conds = pcs, concretized = [mexpr_id]
                      , new_true_assert = true_assert s, new_assert_ids = assert_ids s
                      , new_curr_expr = CurrExpr Evaluate aexpr''
@@ -768,8 +768,8 @@ createExtCond s ngen dcpm mexpr cvar (dcon, bindees, aexpr)
             binds = (cvar, dcon'):zip new_ids bindee_exprs
             aexpr'' = liftCaseBinds binds aexpr'
         in
-        (SD { new_conc_entries = dcpc_concs ++ new_id_concs ++ ee_diff 
-            , new_sym_entries = dcpc_syms ++ new_id_syms
+        (SD { new_conc_entries = ee_diff ++ new_id_concs ++ dcpc_concs
+            , new_sym_entries = new_id_syms ++ dcpc_syms
             , new_path_conds = pcs, concretized = []
             , new_true_assert = true_assert s, new_assert_ids = assert_ids s
             , new_curr_expr = CurrExpr Evaluate aexpr''
@@ -876,7 +876,8 @@ liftSymDefAlt' s@(State { type_env = tenv, known_values = kv, tyvar_env = tvnv }
             aexpr' = liftCaseBinds binds aexpr
 
             (stored_var, ng''') = freshSeededId (idName i) stored_ty ng''
-            nmv_diff = SD { new_conc_entries = [(idName mv_i, (Var stored_var)), (idName i, mv_expr)], new_sym_entries = [stored_var]
+            nmv_diff = SD { new_conc_entries = [(idName i, mv_expr), (idName mv_i, Var stored_var)]
+                          , new_sym_entries = [stored_var]
                           , new_path_conds = [], concretized = []
                           , new_true_assert = true_assert s, new_assert_ids = assert_ids s
                           , new_curr_expr = CurrExpr Evaluate aexpr'
@@ -891,7 +892,7 @@ liftSymDefAlt' s@(State { type_env = tenv, known_values = kv, tyvar_env = tvnv }
             rel_mutvar = HM.keys
                        $ HM.filter (\MVInfo { mv_val_id = Id _ t
                                             , mv_origin = org } -> tyVarSubst tvnv t == stored_ty && org == MVSymbolic) (mutvar_env s)
-            copy_diffs = map (\mv -> SD { new_conc_entries = [((idName i), (Prim (MutVar mv) mv_ty))], new_sym_entries = []
+            copy_diffs = map (\mv -> SD { new_conc_entries = [(idName i, Prim (MutVar mv) mv_ty)], new_sym_entries = []
                                         , new_path_conds = [], concretized = []
                                         , new_true_assert = true_assert s, new_assert_ids = assert_ids s
                                         , new_curr_expr = CurrExpr Evaluate aexpr'
@@ -950,7 +951,7 @@ liftSymDefAlt' s@(State { type_env = tenv, known_values = kv, tyvar_env = tvnv }
                     binds = [(cvar, Var cvar')]
                     aexpr' = liftCaseBinds binds aexpr
                 in
-                ([SD { new_conc_entries = (idName cvar', mexpr'):(idName i, mexpr'):concs
+                ([SD { new_conc_entries = concs ++ [(idName i, mexpr'), (idName cvar', mexpr')]
                      , new_sym_entries = syms
                      , new_path_conds = assume_pc, concretized = []
                      , new_true_assert = true_assert s, new_assert_ids = assert_ids s
@@ -1342,16 +1343,16 @@ addExtCond s ng e1 e2 stck =
     (SplitStatePieces 
         s
         [SD { new_conc_entries = []
-           , new_sym_entries = []
-           , new_path_conds = [ExtCond e1 True]
-           , concretized = []
-           , new_true_assert = true_assert s
-           , new_assert_ids = assert_ids s
-           , new_curr_expr = CurrExpr Evaluate e2
-           , new_conc_types = []
-           , new_sym_types = [] 
-           , new_mut_vars = []
-           , new_exec_stack = stck }]
+            , new_sym_entries = []
+            , new_path_conds = [ExtCond e1 True]
+            , concretized = []
+            , new_true_assert = true_assert s
+            , new_assert_ids = assert_ids s
+            , new_curr_expr = CurrExpr Evaluate e2
+            , new_conc_types = []
+            , new_sym_types = [] 
+            , new_mut_vars = []
+            , new_exec_stack = stck }]
     , ng)
 
 addExtConds :: State t -> NameGen -> Expr -> Maybe (FuncCall) -> Expr -> S.Stack Frame -> (NewPC t, NameGen)
