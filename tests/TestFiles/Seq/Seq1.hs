@@ -229,7 +229,7 @@ isPrefixOf1 s1 s2
     where
         p = isPrefixOf s1 s2
 
-isSuffixOf1Int :: [Double] -> [Double] -> (Int, Bool)
+isSuffixOf1Int :: [Int] -> [Int] -> (Int, Bool)
 isSuffixOf1Int s1 s2
     | length s1 < 3 = (1, p)
     | length s2 < 3 = (2, p)
