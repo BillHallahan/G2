@@ -461,6 +461,7 @@ testFileTests = testGroup "TestFiles"
                                         , ("genericDrop1", 5000, [Exactly 3])
                                         , ("genericSplitAt1", 5000, [Exactly 4])
                                         , ("genericIndex1", 5000, [Exactly 4])
+                                        , ("genericReplicate1", 1000, [Exactly 2])
 
                                         , ("bigString", 1000, [Exactly 2])
 
@@ -553,7 +554,7 @@ testFileTests = testGroup "TestFiles"
                                                               , ("genericDrop1", 5000, [Exactly 3])
                                                               , ("genericSplitAt1", 5000, [Exactly 4])
                                                               , ("genericIndex1", 5000, [Exactly 4])
-                                                              , ("genericReplicate1", 4000, [AtLeast 5])
+                                                              , ("genericReplicate1", 4000, [Exactly 2])
 
                                                               , ("delete1", 5000, [Exactly 3])
                                                               , ("stripPrefix1", 1000, [Exactly 2])
