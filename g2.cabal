@@ -66,6 +66,7 @@ library
                        , G2.Execution.ExecSkip
                        , G2.Execution.Internals.ExecSkip
 
+                       , G2.Initialization.AddDCPC
                        , G2.Initialization.FpToRational
                        , G2.Initialization.Interface
                        , G2.Initialization.ElimTicks

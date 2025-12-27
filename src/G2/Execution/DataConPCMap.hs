@@ -4,6 +4,7 @@ module G2.Execution.DataConPCMap ( DCArgBind (..)
                                  , DataConPCInfo (..)
                                  , DataConPCMap
                                  -- * Constructing/using the DCPC Map
+                                 , addToDCPCMap
                                  , dcpcMap
                                  , applyDCPC
 
@@ -62,6 +63,9 @@ data DataConPCInfo =
 
 type DataConPCMap = HM.HashMap Name [([Type], DataConPCInfo)]
 
+addToDCPCMap :: Name -> [Type] -> DataConPCInfo -> DataConPCMap -> DataConPCMap
+addToDCPCMap n ts dcpi = HM.insertWith (++) n [(ts, dcpi)]
+
 -- | Map Name's of DataCons to associations of type arguments to DataConPCInfos
 -- alongside an Expr representing the entire expression (used by IntToString)
 dcpcMap :: TyVarEnv -> KnownValues -> TypeEnv -> HM.HashMap Name [([Type], DataConPCInfo)]
@@ -71,28 +75,31 @@ dcpcMap tv kv tenv = HM.fromList [
                   ]
 
 strCons :: KnownValues -> TypeEnv -> TyVarEnv -> DataConPCInfo
-strCons kv tenv = listCons (mkDCChar kv tenv) (T.tyChar kv) kv
+strCons kv tenv = listCons' id (mkDCChar kv tenv) TyLitChar kv
 
 listCons :: Expr -> Type -> KnownValues -> TyVarEnv -> DataConPCInfo
-listCons dc t kv tv = let
+listCons = listCons' (App (Prim SeqUnit TyUnknown))
+
+listCons' :: (Expr -> Expr) -> Expr -> Type -> KnownValues -> TyVarEnv -> DataConPCInfo
+listCons' f dc t kv tv = let
                         hn = Name "h" Nothing 0 Nothing
                         tn = Name "t" Nothing 0 Nothing
-                        ti = Id tn (TyApp (T.tyList kv) t)
+                        ti = Id tn (TyApp (T.tyList kv) (T.returnType $ T.typeOf tv dc))
                         cn = Name "c" Nothing 0 Nothing
-                        ci = Id cn TyLitChar
+                        ci = Id cn t
                         asn = Name "as" Nothing 0 Nothing
-                        asi = Id asn (TyApp (T.tyList kv) t)
-                        dc_char = App dc (Var ci)
+                        asi = Id asn (TyApp (T.tyList kv) (T.returnType $ T.typeOf tv dc))
+                        dc_e = App dc (Var ci)
                         dcpc = DCPC { dc_as_pattern = asn
                                     , dc_args = [ArgConcretize { binder_name = hn
-                                                            , fresh_vars = [ ci ]
-                                                            , arg_expr = dc_char
+                                                               , fresh_vars = [ ci ]
+                                                               , arg_expr = dc_e
                                                             }
                                                 , ArgSymb tn]
                                     , dc_pc = [ExtCond (mkEqExpr tv kv
-                                                    (App (App (mkStringAppend kv) (Var ci)) (Var ti))
+                                                    (App (App (mkSeqAppend t kv) (f (Var ci))) (Var ti))
                                                     (Var asi)) True]
-                                    , dc_bindee_exprs = [dc_char, (Var ti)]
+                                    , dc_bindee_exprs = [dc_e, (Var ti)]
                                     }
                       in
                       dcpc
@@ -107,7 +114,7 @@ listEmpty t kv tv = let
                 dcpc = DCPC { dc_as_pattern = asn
                             , dc_args = []
                             , dc_pc = [ExtCond (mkEqExpr tv kv
-                                (App (mkStringLen kv) (Var asi))
+                                (App (mkSeqLen t kv) (Var asi))
                                 (Lit (LitInt 0))) True]
                             , dc_bindee_exprs = []
                             }

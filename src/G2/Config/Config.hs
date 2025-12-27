@@ -11,6 +11,7 @@ module G2.Config.Config ( Mode (..)
                         , UseSMTStrings (..)
                         , SMTStringsEval (..)
                         , SMTQuantifiers (..)
+                        , UseSMTSeq (..)
 
                         , IncludePath
                         , Config (..)
@@ -72,6 +73,8 @@ data SMTQuantifiers = UseQuantifiers -- ^ Leave quantifiers in SMT formulas
                     | UnrollQuant Integer -- ^ Unroll quantifiers to the specified depth
                     deriving (Eq, Show, Read)
 
+data UseSMTSeq = UseSMTSeq | NoSMTSeq deriving (Eq, Show, Read)
+
 type IncludePath = FilePath
 
 data Config = Config {
@@ -108,6 +111,7 @@ data Config = Config {
     , smt_strings :: UseSMTStrings -- ^ Sets whether the SMT solver should be used to solve string constraints
     , smt_strings_strictness :: SMTStringsEval -- ^ Force strict evaluation of strings to allow more use of SMT reasoning
     , quantified_smt_strings :: SMTQuantifiers -- ^ Sets how quantifiers should be used in SMT functions
+    , smt_prim_lists :: UseSMTSeq -- ^ Sets whether the SMT solver should be used to solve lists containing primitive type wrappers (Int, Float, etc.)
     , step_limit :: Bool -- ^ Should steps be limited when running states?
     , steps :: Int -- ^ How many steps to take when running States
     , time_solving :: Bool -- ^ Output the amount of time spent checking/solving path constraints
@@ -199,6 +203,7 @@ mkConfig homedir = Config Regular
                                           <> metavar "Q"
                                           <> value (UnrollQuant 10)
                                           <> help "Either `-` to indicate that quantifiers should be used in SMT formulas, or a depth to unroll quantifiers to")
+    <*> flag NoSMTSeq UseSMTSeq (long "smt-lists" <> help "Sets whether the SMT solver should be used to solve list constraints for primitive types")
     <*> flag True False (long "no-step-limit" <> help "disable step limit")
     <*> option auto (long "n"
                    <> metavar "N"
@@ -372,6 +377,7 @@ mkConfigDirect homedir as m = Config {
     , smt_strings = NoSMTStrings
     , smt_strings_strictness = LazySMTStrings
     , quantified_smt_strings = UnrollQuant 10
+    , smt_prim_lists = NoSMTSeq
     , step_limit = boolArg' "no-step-limit" as True True False
     , steps = strArg "n" as m read 1000
     , time_solving = False

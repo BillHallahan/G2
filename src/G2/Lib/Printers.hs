@@ -481,6 +481,8 @@ mkPrimHaskell pg = pr
 
         pr WGenCat = "wgencat"
 
+        pr SeqUnit = "Unit"
+
         pr (Handle n) = "(Handle " <> mkNameHaskell pg n <> ")"
         pr HandleGetPos = "handle_getPos"
         pr HandleSetPos = "handle_setPos"
@@ -504,7 +506,7 @@ mkPrimHaskell pg = pr
         pr IsSMTRep = "isSMTRep"
         pr EvalsToSMTRep = "evalsToSMTRep"
 
-        pr TypeIndex = "typeIndex"
+        pr (TypeIndex _) = "typeIndex"
 
         pr ForAllBoundPr = "forall_bound"
 
