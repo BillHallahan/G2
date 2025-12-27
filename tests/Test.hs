@@ -566,6 +566,11 @@ testFileTests = testGroup "TestFiles"
                                                               , ("unsnoc2", 5000, [Exactly 2])
                                                               , ("totalIndex1", 5000, [Exactly 3])
 #endif
+                                                              , ("insert1", 3000, [AtLeast 2, AtMost 6]) -- Quantifier causes SMT failures
+                                                              , ("insert2", 2000, [Exactly 2])
+                                                              , ("insert3", 2000, [Exactly 1])
+
+                                                              , ("intersperse1", 3000, [Exactly 3])
 
                                                               ]
 

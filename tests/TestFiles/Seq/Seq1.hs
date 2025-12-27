@@ -268,6 +268,36 @@ genericReplicate1 n c
     where
         rs = genericReplicate n c
 
+insert1 :: Char -> String -> (Int, String)
+insert1 c xs
+    | xs == [] = (1, rs)
+    | length xs < 9 = (2, rs)
+    | head xs /= head rs = (3, rs)
+    | xs !! 3 /= rs !! 3 = (4, rs)
+    | xs !! 7 /= rs !! 7 = (5, rs)
+    | c `notElem` rs = error "Impossible"
+    | otherwise = (6, rs)
+    where
+        rs = insert c xs
+
+insert2 :: String -> (Int, String)
+insert2 xs
+    | length xs < 3 = (1, ins)
+    | otherwise = (2, ins)
+    where
+        ins = insert 'f' xs
+
+insert3 :: String
+insert3 = insert 'a' ""
+
+intersperse1 :: Int -> [Int] -> (Int, [Int])
+intersperse1 c xs
+    | xs == [] = (1, rs)
+    | length xs < 5 = (2, rs)
+    | otherwise = (3, rs)
+    where
+        rs = intersperse c xs
+
 isPrefixOf1 :: [Float] -> [Float] -> (Int, Bool)
 isPrefixOf1 s1 s2
     | length s1 < 3 = (1, p)
