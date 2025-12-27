@@ -56,7 +56,7 @@ createCaseExpr :: TyVarEnv
                -> (Id, Expr, [PathCond], ExprEnv, NameGen)
 createCaseExpr tv bi maybeC binder ti kv tenv eenv ng dcs =
     let (new_id, mexpr, pcs, ng', concs, syms) = createCaseExprInsertless tv bi maybeC binder ti kv tenv ng dcs
-        eenv' = E.insertExprs concs $ foldl' (flip E.insertSymbolic) eenv syms
+        eenv' = E.insertExprs concs $ L.foldl' (flip E.insertSymbolic) eenv syms
     in (new_id, mexpr, pcs, eenv', ng')
 
 -- Make a case expression, returning lists of what to insert instead of inserting
