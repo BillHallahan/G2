@@ -234,10 +234,10 @@ genericTake1 xs n
     where
         took = genericTake n xs
 
-genericDrop1 :: [Int] -> Integer -> (Integer, String)
+genericDrop1 :: [Int] -> Integer -> (Integer, [Int])
 genericDrop1 xs n
-    | dropped == [10, 9, 4] = (n, "DD")
-    | length dropped < 2 = (-1, "Short")
+    | dropped == [10, 9, 4] = (n, [1, 2, 3])
+    | length dropped < 2 = (-1, [4, 5, 6])
     | otherwise = (n, xs)
     where
         dropped = genericDrop n xs
@@ -247,18 +247,18 @@ genericSplitAt1 xs n
     | length start > length end = (start, True)
     | start == end = (start, False)
     | start == [4, 7, 8] = (start, True)
-    | otherwise = ("Okay", False)
+    | otherwise = ([0], False)
     where
         (start, end) = genericSplitAt n xs
 
 -- Note that there should be an fourth case here due to an invalid index error
 genericIndex1 :: [Int] -> Integer -> (Int, Int)
 genericIndex1 xs n
-    | chr == 'Z' = (chr, 0)
-    | chr < 'Q' = (chr, 1)
-    | otherwise = (chr, 2)
+    | i == 4 = (i, 0)
+    | i < 18 = (i, 1)
+    | otherwise = (i, 2)
     where
-        chr = xs `genericIndex` (n + 1)
+        i = xs `genericIndex` (n + 1)
 
 -- This doesn't lessen outputs, it only tests whether genericReplicate works with SMT Strings
 genericReplicate1 :: Integer -> Int -> ([Int], Int)
