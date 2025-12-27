@@ -565,13 +565,13 @@ concretizeVarExpr' s@(State { type_env = tenv
             -- not violate any path constraints from default cases.
           case cleanParamsAndMakeDcon tvnv kv params ngen dcon aexpr mexpr_t tenv of
             Nothing -> Nothing
-            Just (params', news, dcon', ngen', aexpr', tve_diff, tve_sym_diff, ee_diff)
-                -> buildNewPC params' news dcon' ngen' aexpr' tve_diff tve_sym_diff ee_diff
+            Just (params', news, dcon', ngen', aexpr', tve_diff, tve_sym_diff)
+                -> buildNewPC params' news dcon' ngen' aexpr' tve_diff tve_sym_diff
 
   where
     mexpr_t = fullyReduceTypeFunctions fams tvnv $ typeOf tvnv mexpr_id
 
-    buildNewPC params' news dcon' ngen' aexpr' tve_diff tve_sym_diff ee_diff =
+    buildNewPC params' news dcon' ngen' aexpr' tve_diff tve_sym_diff =
         let
             -- Apply cast, in opposite direction of unsafeElimOuterCast
             dcon'' = case maybeC of
@@ -584,7 +584,7 @@ concretizeVarExpr' s@(State { type_env = tenv
 
             (pcs, ngen'', concs, syms) = adjustExprEnvAndPathConds tvnv ngen' dcpm dcon dcon'' mexpr_id params' news
         in
-            Just (SD { new_conc_entries = ee_diff ++ concs, new_sym_entries = syms
+            Just (SD { new_conc_entries = concs, new_sym_entries = syms
                      , new_path_conds = pcs, concretized = [mexpr_id]
                      , new_true_assert = true_assert s, new_assert_ids = assert_ids s
                      , new_curr_expr = CurrExpr Evaluate aexpr''
@@ -594,7 +594,7 @@ concretizeVarExpr' s@(State { type_env = tenv
 -- | Generates parameters and expressions to allow concretization to a specific DataCon.
 -- May return Nothing if the DataCon requires coercions to hold that violate existing type restraints.
 cleanParamsAndMakeDcon :: TV.TyVarEnv -> KnownValues -> [Id] -> NameGen -> DataCon -> Expr -> Type -> TypeEnv
-                       -> Maybe ([Id], [Name], Expr, NameGen, Expr, TVEDiff, TVESymDiff, EEDiff)
+                       -> Maybe ([Id], [Name], Expr, NameGen, Expr, TVEDiff, TVESymDiff)
 cleanParamsAndMakeDcon tv kv params ngen dcon aexpr mexpr_t tenv =
     case maybe_uf_map of
             Nothing -> Nothing
@@ -637,8 +637,7 @@ cleanParamsAndMakeDcon tv kv params ngen dcon aexpr mexpr_t tenv =
             dcon'' = mkApp exprs
         in
         -- Adding the universal and existential type variable into the TyVarEnv diffs
-        Just (params', news, dcon'', ngen', aexpr',
-            coercion_args, exist_tys, (zip (map idName value_args) (map Var value_args)))
+        Just (params', news, dcon'', ngen', aexpr', coercion_args, exist_tys)
 
 -- [String Concretizations and Constraints]
 -- Generally speaking, the values of symbolic variable are determined by one of two methods:
@@ -747,7 +746,7 @@ createExtCond s ngen dcpm mexpr cvar (dcon, bindees, aexpr)
 
             -- We should never ended up in the Nothing case for cleanParamsAndMakeDcon
             -- b/c there is no coercion in Bool and [Char]
-            (bindees', news, dcon', ngen', aexpr', tve_diff, tve_sym_diff, ee_diff) =
+            (bindees', news, dcon', ngen', aexpr', tve_diff, tve_sym_diff) =
                             case cleanParamsAndMakeDcon tvnv kv bindees ngen dcon aexpr mexpr_t tenv of
                                     Nothing -> error $ "cleanParamsAndMakeDcon: Failed to generate uf_map for " ++ show mexpr
                                     Just x  -> x
@@ -767,7 +766,7 @@ createExtCond s ngen dcpm mexpr cvar (dcon, bindees, aexpr)
             binds = (cvar, dcon'):zip new_ids bindee_exprs
             aexpr'' = liftCaseBinds binds aexpr'
         in
-        (SD { new_conc_entries = ee_diff ++ new_id_concs ++ dcpc_concs
+        (SD { new_conc_entries = new_id_concs ++ dcpc_concs
             , new_sym_entries = new_id_syms ++ dcpc_syms
             , new_path_conds = pcs, concretized = []
             , new_true_assert = true_assert s, new_assert_ids = assert_ids s
