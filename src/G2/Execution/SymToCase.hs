@@ -14,7 +14,7 @@ concretizeSym tv bi maybeC binder kv tenv (concs, syms, ng) dc@(DataCon _ ts _ _
     , _:ty_args <- unTyApp $ typeOf tv binder
     , Just dcpc <- L.lookup ty_args dcpcs =
         let (pcs, ng'', _, dcpc_concs, dcpc_syms) = applyDCPC ng' new_params (Var binder) dcpc
-        in ((concs ++ dcpc_concs, syms ++ dcpc_syms ++ new_params, ng''), (pcs, dc''))
+        in ((concs ++ dcpc_concs, syms ++ new_params ++ dcpc_syms, ng''), (pcs, dc''))
 
     | otherwise = ((concs, syms ++ new_params, ng'), ([], dc''))
     where

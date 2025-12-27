@@ -28,7 +28,7 @@ type TVESymDiff = [Id] -- symbolic variables to insert in TyVarEnv
 
 data NewPC t = SingleState (State t)
              | SplitStatePieces (State t) [StateDiff]
-                
+
 data StateDiff = SD { new_conc_entries :: EEDiff -- ^ New concrete entries for the expr_env
                     , new_sym_entries :: EESymDiff -- ^ New symbolic entries for the expr_env
                     , new_path_conds :: [PathCond] -- ^ New path constraints
@@ -58,9 +58,9 @@ reduceNewPC solver simplifier ng (SplitStatePieces state state_diffs) =
 
 -- Make a new State from a StateDiff and a starting State, if the State is reachable
 reduceNewPC' :: (Solver solver, Simplifier simplifier) => solver -> simplifier -> NameGen -> State t -> StateDiff -> IO (Maybe (NameGen, State t))
-reduceNewPC' solver simplifier ng 
+reduceNewPC' solver simplifier ng
              init_state@(State { expr_env = init_eenv, tyvar_env = init_tvenv
-                               , path_conds = state_pc }) 
+                               , path_conds = state_pc })
              (SD { new_conc_entries = nce
                  , new_sym_entries = nse
                  , new_path_conds = pc
@@ -71,7 +71,7 @@ reduceNewPC' solver simplifier ng
                  , new_conc_types = nct
                  , new_sym_types = nst
                  , new_mut_vars = nmv
-                 , new_exec_stack = n_stck }) 
+                 , new_exec_stack = n_stck })
     | not (null pc) || not (null concIds) = do
         let ((ng', eenv'), pc') =
                 mapAccumR (\(ng_, eenv_) pc_ ->
@@ -107,12 +107,16 @@ reduceNewPC' solver simplifier ng
     | otherwise = return $ Just (ng, s)
     where
         insertInOrder inserter exprs_ eenv_ = foldl' (flip $ uncurry inserter) eenv_ exprs_
-        eenv = insertInOrder E.insert nce $ foldl' (flip E.insertSymbolic) init_eenv nse
-        tvenv = insertInOrder TV.insert nct $ foldl' (flip TV.insertSymbolic) init_tvenv nst 
+        insertSymInOrder inserter syms_ eenv_ = foldl' (flip inserter) eenv_ syms_
+
+        -- For some reason, the order of insertion here matters. This means
+        -- there are likely some concrete values in the EEDiff that should not be there!
+        eenv = insertSymInOrder E.insertSymbolic nse $ insertInOrder E.insert nce init_eenv
+        tvenv = insertSymInOrder TV.insertSymbolic nst $ insertInOrder TV.insert nct init_tvenv
         state = newMutVars init_state nmv
         s = state {
-            expr_env = eenv, tyvar_env = tvenv, 
-            true_assert = nta, assert_ids = nai, 
+            expr_env = eenv, tyvar_env = tvenv,
+            true_assert = nta, assert_ids = nai,
             curr_expr = n_curre, exec_stack = n_stck }
 
 mapAccumMaybeM :: Monad m => (s -> a -> m (Maybe (s, b))) -> s -> [a] -> m (s, [b])
