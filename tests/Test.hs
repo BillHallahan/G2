@@ -547,6 +547,14 @@ testFileTests = testGroup "TestFiles"
                                                               , ("elem1", 5000, [Exactly 2])
                                                               , ("notElem1", 5000, [Exactly 4])
                                                               , ("elemIndex1", 5000, [Exactly 4])
+
+                                                              , ("genericLength1", 5000, [Exactly 4])
+                                                              , ("genericTake1", 5000, [Exactly 4])
+                                                              , ("genericDrop1", 5000, [Exactly 3])
+                                                              , ("genericSplitAt1", 5000, [Exactly 4])
+                                                              , ("genericIndex1", 5000, [Exactly 4])
+                                                              , ("genericReplicate1", 4000, [AtLeast 5])
+
                                                               , ("delete1", 5000, [Exactly 3])
                                                               , ("stripPrefix1", 1000, [Exactly 2])
                                                               , ("stripPrefix2", 1000, [Exactly 5])

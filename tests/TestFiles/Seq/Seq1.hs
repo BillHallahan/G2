@@ -216,7 +216,57 @@ stripPrefix2 xs ys
     where
         m_zs = stripPrefix xs ys
 
--- ...
+genericLength1 :: [Int] -> (Integer, Char)
+genericLength1 xs
+    | ln < 4 = (ln, 'X')
+    | ln > 15 = (ln, 'L')
+    | ln == 7 = (ln, 'Q')
+    | otherwise = (42, 'A')
+    where
+        ln = genericLength xs
+
+genericTake1 :: [Int] -> Integer -> (Maybe String, Int)
+genericTake1 xs n
+    | took == [1, 2, 3, 4, 5] = (Nothing, 0)
+    | took == [3, 4, 5] = (Just "Yes", 1)
+    | length took > 10 = (Just "Long", 2)
+    | otherwise = (Nothing, 3)
+    where
+        took = genericTake n xs
+
+genericDrop1 :: [Int] -> Integer -> (Integer, String)
+genericDrop1 xs n
+    | dropped == [10, 9, 4] = (n, "DD")
+    | length dropped < 2 = (-1, "Short")
+    | otherwise = (n, xs)
+    where
+        dropped = genericDrop n xs
+
+genericSplitAt1 :: [Int] -> Integer -> ([Int], Bool)
+genericSplitAt1 xs n
+    | length start > length end = (start, True)
+    | start == end = (start, False)
+    | start == [4, 7, 8] = (start, True)
+    | otherwise = ("Okay", False)
+    where
+        (start, end) = genericSplitAt n xs
+
+-- Note that there should be an fourth case here due to an invalid index error
+genericIndex1 :: [Int] -> Integer -> (Int, Int)
+genericIndex1 xs n
+    | chr == 'Z' = (chr, 0)
+    | chr < 'Q' = (chr, 1)
+    | otherwise = (chr, 2)
+    where
+        chr = xs `genericIndex` (n + 1)
+
+-- This doesn't lessen outputs, it only tests whether genericReplicate works with SMT Strings
+genericReplicate1 :: Integer -> Int -> ([Int], Int)
+genericReplicate1 n c
+    | length rs > 7 = (rs, 1)
+    | otherwise = (rs, 2)
+    where
+        rs = genericReplicate n c
 
 isPrefixOf1 :: [Float] -> [Float] -> (Int, Bool)
 isPrefixOf1 s1 s2
