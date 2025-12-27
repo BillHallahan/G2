@@ -39,7 +39,6 @@ data StateDiff = SD { new_conc_entries :: EEDiff -- ^ New concrete entries for t
                     , new_conc_types :: TVEDiff -- ^ New concrete entries for the tyvar_env
                     , new_sym_types :: TVESymDiff -- ^ New symbolic entries for the tyvar_env
                     , new_mut_vars :: [(Name, Id, MVOrigin)] -- ^ New mutable variables for the mutvar_env
-                    , new_exec_stack :: S.Stack Frame
                     }
 
 newPCEmpty :: State t -> NewPC t
@@ -70,8 +69,7 @@ reduceNewPC' solver simplifier ng
                  , new_curr_expr = n_curre
                  , new_conc_types = nct
                  , new_sym_types = nst
-                 , new_mut_vars = nmv
-                 , new_exec_stack = n_stck })
+                 , new_mut_vars = nmv })
     | not (null pc) || not (null concIds) = do
         let ((ng', eenv'), pc') =
                 mapAccumR (\(ng_, eenv_) pc_ ->
@@ -117,7 +115,7 @@ reduceNewPC' solver simplifier ng
         s = state {
             expr_env = eenv, tyvar_env = tvenv,
             true_assert = nta, assert_ids = nai,
-            curr_expr = n_curre, exec_stack = n_stck }
+            curr_expr = n_curre }
 
 mapAccumMaybeM :: Monad m => (s -> a -> m (Maybe (s, b))) -> s -> [a] -> m (s, [b])
 mapAccumMaybeM f s xs = do
