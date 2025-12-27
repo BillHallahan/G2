@@ -9,7 +9,7 @@ module G2.Solver.Simplifier ( Simplifier (..)
                             , StringSimplifier (..)
                             , FloatSimplifier (..)
                             , EqualitySimplifier (..)
-                            , CharConc (..)) where
+                            , LitConc (..)) where
 
 import G2.Language
 import qualified G2.Language.ExprEnv as E
@@ -207,22 +207,55 @@ smallEqPC _ (AltCond l (Var (Id n _)) True) = Just (n, Lit l)
 smallEqPC _ _ = Nothing
 
 -- Concretize symbolic Char variables to be (C# c#) for some fresh c#
-data CharConc = CharConc
+data LitConc = LitConc
 
-instance Simplifier CharConc where
+instance Simplifier LitConc where
     simplifyPC _ _ pc = [pc]
 
     simplifyPCWithExprEnv _ s@(State { known_values = kv, type_env = tenv, tyvar_env = tv_env }) ng eenv pc =
         let
-            cs = map idName . filter (\(Id _ t) -> tyVarSubst tv_env t == T.tyChar kv) $ varIds pc
-            (cs', ng') = renameAll cs ng
-            conc_c = zip cs $ map (flip Id TyLitChar) cs'
-            eenv' = foldr (\(nC, nL) -> E.insert nC (concChar nL) . E.insertSymbolic nL) eenv conc_c
-            pc' = foldr (\(nC, nL) -> replaceVar nC (concChar nL)) pc conc_c
+            cs = filter replacable_type $ varIds pc
+            (cs', ng') = doRenames (map idName cs) ng cs
+            conc_c = zip cs $ map toPrim cs'
+            eenv' = foldr (\(Id nC t, nL) -> E.insert nC (concApprop t nL) . E.insertSymbolic nL) eenv conc_c
+            pc' = foldr (\(Id nC t, nL) -> replaceVar nC (concApprop t nL)) pc conc_c
         in
         (ng', eenv', pc')
         where
-            dc_char = mkDCChar kv tenv
-            concChar n = App dc_char (Var n)
+            replacable_type (Id _ t) =
+                   t' == T.tyChar kv
+                || t' == T.tyInt kv
+                || t' == T.tyInteger kv
+                || t' == T.tyFloat kv
+                || t' == T.tyDouble kv
+                where
+                    t' = tyVarSubst tv_env t
+
+            concApprop t i
+                | t' == T.tyInt kv = concInt i
+                | t' == T.tyInteger kv = concInteger i
+                | t' == T.tyFloat kv = concFloat i
+                | t' == T.tyDouble kv = concDouble i
+                | t' == T.tyChar kv = concChar i
+                | otherwise = error $ "concApprop: impossible - unhandled type"
+                where
+                    t' = tyVarSubst tv_env t
+            
+            toPrim (Id n t)
+                | t' == T.tyInt kv = Id n TyLitInt
+                | t' == T.tyInteger kv = Id n TyLitInt
+                | t' == T.tyFloat kv = Id n TyLitFloat
+                | t' == T.tyDouble kv = Id n TyLitDouble
+                | t' == T.tyChar kv = Id n TyLitChar
+                | otherwise = error "concApprop: impossible - unhandled type"
+                where
+                    t' = tyVarSubst tv_env t
+
+
+            concInt n = App (mkDCInt kv tenv) (Var n)
+            concInteger n = App (mkDCInteger kv tenv) (Var n)
+            concFloat n = App (mkDCFloat kv tenv) (Var n)
+            concDouble n = App (mkDCDouble kv tenv) (Var n)
+            concChar n = App (mkDCChar kv tenv) (Var n)
 
     reverseSimplification _ _ _ m = m

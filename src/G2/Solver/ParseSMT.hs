@@ -110,7 +110,7 @@ seqExpr srt = (do
     ex <- identifier
     _ <- parens (many1 identifier)
     case ex of
-        "seq.empty" -> return SeqEmptySMT
+        "seq.empty" -> return (SeqEmptySMT (SortSeq $ error "type unknown"))
         _ -> fail "not seq")
     <|>
     (do

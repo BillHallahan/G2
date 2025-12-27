@@ -577,7 +577,7 @@ runG2WithConfig proj src entry_f f gflags mb_modname state@(State { expr_env = e
         mod_name = nameModule (idName entry_f)
     hpc_t <- hpcTracker state' all_mod_set (hpc_print_times config) (hpc_print_ticks config)
     let 
-        simplifier = FloatSimplifier :>> ArithSimplifier :>> BoolSimplifier :>> StringSimplifier :>> EqualitySimplifier :>> CharConc
+        simplifier = FloatSimplifier :>> ArithSimplifier :>> BoolSimplifier :>> StringSimplifier :>> EqualitySimplifier :>> LitConc
         --exp_env_names = E.keys . E.filterConcOrSym (\case { E.Sym _ -> False; E.Conc _ -> True }) $ expr_env state
         callGraph = G.getCallGraph $ expr_env state'
         reachable_funcs = G.reachable (idName entry_f) callGraph
