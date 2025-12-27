@@ -268,7 +268,7 @@ genericReplicate1 n c
     where
         rs = genericReplicate n c
 
-insert1 :: Char -> String -> (Int, String)
+insert1 :: Int -> [Int] -> (Int, [Int])
 insert1 c xs
     | xs == [] = (1, rs)
     | length xs < 9 = (2, rs)
@@ -280,15 +280,15 @@ insert1 c xs
     where
         rs = insert c xs
 
-insert2 :: String -> (Int, String)
+insert2 :: [Int] -> (Int, [Int])
 insert2 xs
     | length xs < 3 = (1, ins)
     | otherwise = (2, ins)
     where
-        ins = insert 'f' xs
+        ins = insert 5 xs
 
-insert3 :: String
-insert3 = insert 'a' ""
+insert3 :: [Int]
+insert3 = insert 1 []
 
 intersperse1 :: Int -> [Int] -> (Int, [Int])
 intersperse1 c xs
