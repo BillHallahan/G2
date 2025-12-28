@@ -753,12 +753,13 @@ createExtCond s ngen dcpm mexpr cvar (dcon, bindees, aexpr)
             new_ids = zipWith (\(Id _ t) n -> Id n t) bindees' news
 
             -- TODO GADT: Maybe coercion checking isn't needed?
-            isCoercion (Id _ t)
+            getCoercion (Id n t)
                 | TyApp (TyApp (TyApp (TyApp (TyCon tc_n _) _) _) c1) c2 <- t
-                , tc_n == KV.tyCoercion kv = Just (c1, c2)
+                , tc_n == KV.tyCoercion kv = Just (n, c1, c2)
                 | otherwise = Nothing
-            new_id_concs = [(idName i, (Coercion (c1 :~ c2))) | i <- new_ids, (c1, c2) <- maybeToList (isCoercion i)]
-            new_id_syms = [i | i <- new_ids, isCoercion i == Nothing]
+            new_id_coers = [(i, getCoercion i) | i <- new_ids]
+            new_id_concs = [(n, (Coercion (c1 :~ c2))) | (_, Just (n, c1, c2)) <- new_id_coers]
+            new_id_syms = [i | (i, Nothing) <- new_id_coers]
 
             (pcs, ngen'', bindee_exprs, dcpc_concs, dcpc_syms) = applyDCPC ngen' new_ids mexpr dcpc
 
@@ -1169,8 +1170,7 @@ retCurrExpr s@(State { expr_env = eenv, known_values = kv, tyvar_env = tvnv, foc
         assert (not (isExprValueForm eenv e2))
                 ( RuleReturnCurrExprFr
                 , newPCEmpty $ s { curr_expr = CurrExpr Evaluate e2
-                                    , non_red_path_conds = non_red_path_conds s
-                                    , exec_stack = S.push (CurrExprFrame (EnsureEq e1) orig_ce) stck}
+                                 , exec_stack = S.push (CurrExprFrame (EnsureEq e1) orig_ce) stck}
                 , ng )
 
 retCurrExpr s _ NoAction orig_ce stck ng =
