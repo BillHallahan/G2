@@ -682,14 +682,14 @@ adjustExprEnvAndPathConds tv ng dcpm dc dc_e mexpr params dcargs
     , _:ty_args <- unTyApp $ typeOf tv mexpr
     , Just dcpc <- L.lookup ty_args dcpcs =
         let (pcs, ng', _, concs, syms) = applyDCPC ng new_ids (Var mexpr) dcpc
-        in (pcs, ng', concs, syms)
-    | otherwise = ([], ng, mexpr_dc, new_ids)
+        in (pcs, ng', mexpr_dc:concs, syms)
+    | otherwise = ([], ng, [mexpr_dc], new_ids)
     where
         mexpr_n = idName mexpr
         -- Update the expr environment
         new_ids = zipWith (\(Id _ t) n -> Id n t) params dcargs
         -- Concretizes the mexpr to have same form as the DataCon specified
-        mexpr_dc = [(mexpr_n, dc_e)]
+        mexpr_dc = (mexpr_n, dc_e)
 
 -- | Given the Type of the matched Expr, looks for Type in the TypeEnv, and returns Expr level representation of the Type
 mexprTyToExpr :: Type -> TypeEnv -> [Expr]
