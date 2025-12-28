@@ -55,6 +55,7 @@ library
                        , G2.Execution.HPC
                        , G2.Execution.Interface
                        , G2.Execution.Memory
+                       , G2.Execution.MutVar
                        , G2.Execution.NewPC
                        , G2.Execution.NormalForms
                        , G2.Execution.PrimitiveEval
