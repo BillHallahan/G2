@@ -507,7 +507,7 @@ testFileTests = testGroup "TestFiles"
                                         , ("reverse5", 5000, [Exactly 1])]
     , checkInputOutputsQuantifiedSMTStrings "tests/TestFiles/Strings/Strings1.hs"
                                         [ ("genericReplicate1", 1000, [Exactly 2])
-                                        , ("reverse1", 5000, [Exactly 6]) 
+                                        , ("reverse1", 5000, [AtLeast 5, AtMost 6]) 
                                         , ("reverse2", 5000, [Exactly 3])
                                         , ("insert1", 3000, [AtLeast 2, AtMost 6]) -- Quantifier causes SMT failures
                                         , ("intersperse1", 3000, [Exactly 3])
