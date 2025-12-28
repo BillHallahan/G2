@@ -107,10 +107,8 @@ reduceNewPC' solver simplifier ng
         insertInOrder inserter exprs_ eenv_ = foldl' (flip $ uncurry inserter) eenv_ exprs_
         insertSymInOrder inserter syms_ eenv_ = foldl' (flip inserter) eenv_ syms_
 
-        -- For some reason, the order of insertion here matters. This means
-        -- there are likely some concrete values in the EEDiff that should not be there!
-        eenv = insertSymInOrder E.insertSymbolic nse $ insertInOrder E.insert nce init_eenv
-        tvenv = insertSymInOrder TV.insertSymbolic nst $ insertInOrder TV.insert nct init_tvenv
+        eenv = insertInOrder E.insert nce $ insertSymInOrder E.insertSymbolic nse init_eenv
+        tvenv = insertInOrder TV.insert nct $ insertSymInOrder TV.insertSymbolic nst init_tvenv
         state = newMutVars init_state nmv
         s = state {
             expr_env = eenv, tyvar_env = tvenv,
