@@ -15,7 +15,7 @@ jobs:
       matrix:
         compiler: [ { ghc: '8.10.7', cabal: '3.10' },
                     { ghc: '9.0.2', cabal: '3.10' },
-                    { ghc: '9.2.4', cabal: '3.10' },
+                    { ghc: '9.2.8', cabal: '3.10' },
                     { ghc: '9.4.4', cabal: '3.10' },
                     { ghc: '9.6.1', cabal: '3.10' },
                     { ghc: '9.8.4', cabal: '3.10' },
