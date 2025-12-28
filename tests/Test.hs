@@ -478,7 +478,7 @@ testFileTests = testGroup "TestFiles"
 #endif
                                         , ("splitAt1", 5000, [Exactly 4])
                                         , ("notEq1", 5000, [Exactly 2])
-                                        , ("reverse1", 2000, [AtLeast 4, AtMost 6]) -- Allowing for SMT failures
+                                        , ("reverse1", 2000, [Exactly 6])
                                         , ("reverse2", 5000, [Exactly 3])
                                         , ("reverse3", 1000, [ AtLeast 2
                                                              , RExists "rev3Returns1"])
@@ -489,9 +489,9 @@ testFileTests = testGroup "TestFiles"
                                         , ("intersperse1", 3000, [Exactly 3])
 
                                         , ("minimum1", 3000, [AtLeast 5, AtMost 6]) -- Allowing for SMT failures
-                                        , ("minimum2", 1000, [AtLeast 1, AtMost 2]) -- Allowing for SMT failures
+                                        , ("minimum2", 1000, [Exactly 2])
                                         , ("maximum1", 3000, [AtLeast 5, AtMost 6]) -- Allowing for SMT failures
-                                        , ("maximum2", 1000, [AtLeast 1, AtMost 2]) -- Allowing for SMT failures
+                                        , ("maximum2", 1000, [Exactly 2])
 
                                         , ("lines1", 4000, [AtLeast 10])
 
