@@ -10,6 +10,7 @@ module G2.Execution.PrimitiveEval ( evalPrimsSharing
                                   , evalPrimSymbolic) where
 
 import G2.Execution.NewPC
+import G2.Execution.MutVar
 import G2.Execution.SymToCase
 import G2.Language.AST
 import G2.Language.Expr
@@ -165,8 +166,6 @@ evalPrimWithState s@(State { known_values = kv, type_env = tenv, expr_env = eenv
         fp_exp = App (App (App (Prim Fp TyUnknown) (Var sign)) (Var ex)) (Var sig)
         fp_pc = ExtCond (App (App (Prim Eq TyUnknown) fp_exp) e) True
 
-        eenv' = foldl' (flip E.insertSymbolic) (expr_env s) [sign, ex, sig, exp_r, sig_r, shift_r_v, shift_l_v]
-
         -- Note [Scaled decodeFloat]
         -- The output significand includes the hidden bit, which is 1 for a normal float and 0 for a denormalized float.
         -- Further, the significand bits are shifted (the significand is scaled) to make the greatest bit 1
@@ -266,11 +265,20 @@ evalPrimWithState s@(State { known_values = kv, type_env = tenv, expr_env = eenv
                     ) 
                     (Var exp_r)
     in
-    Just ( NewPC { state = s { expr_env = eenv'
-                             , curr_expr = CurrExpr Return curr' }
-                 , new_pcs = [ fp_pc, shift_pc1, shift_pc2, exp_pc, sig_pc ]
-                 , concretized = [] }
-         , ng8)
+    Just ( (SplitStatePieces 
+             s
+             [SD { new_conc_entries = []
+                 , new_sym_entries = [sign, ex, sig, exp_r, sig_r, shift_r_v, shift_l_v]
+                 , new_path_conds = [fp_pc, shift_pc1, shift_pc2, exp_pc, sig_pc]
+                 , concretized = []
+                 , new_true_assert = true_assert s
+                 , new_assert_ids = assert_ids s
+                 , new_curr_expr = CurrExpr Return curr'
+                 , new_conc_types = []
+                 , new_sym_types = []
+                 , new_mut_vars = [] }
+             ]), ng8
+         )
 evalPrimWithState s@(State { expr_env = eenv }) ng (App (App (Prim EncodeFloat t) m_arg) n_arg) =
     let
         -- `encodeFloat m n` returns one of the two closest representable floating-point numbers closest to m*b^^n, generally the closer,
@@ -368,14 +376,22 @@ evalPrimWithState s@(State { expr_env = eenv }) ng (App (App (Prim EncodeFloat t
                          , mkApp [ Prim (FPToFP f_ex_bits f_sig_bits_1) TyUnknown, enc_sel ]
                          ]
 
-        eenv' = E.insertSymbolic encoded . E.insertSymbolic encoded_m_nan . E.insertSymbolic exp_bv $ eenv
         curr' = Var encoded
     in
-    Just ( NewPC { state = s { expr_env = eenv'
-                             , curr_expr = CurrExpr Return curr' }
-                 , new_pcs = [ exp_pc, ExtCond enc_m_nan_expr True, ExtCond enc_expr True ]
-                 , concretized = [] }
-         , ng''')
+    Just ( (SplitStatePieces 
+             s
+             [SD { new_conc_entries = []
+                 , new_sym_entries = [encoded, encoded_m_nan, exp_bv]
+                 , new_path_conds = [exp_pc, ExtCond enc_m_nan_expr True, ExtCond enc_expr True]
+                 , concretized = []
+                 , new_true_assert = true_assert s
+                 , new_assert_ids = assert_ids s
+                 , new_curr_expr = CurrExpr Return curr'
+                 , new_conc_types = []
+                 , new_sym_types = []
+                 , new_mut_vars = [] }
+             ]), ng'''
+         )
 evalPrimWithState s ng (App (Prim HandleGetPos _) hnd)
     | (Prim (Handle n) _) <- deepLookupExprPastTicks hnd (expr_env s)
     , Just (HandleInfo { h_pos = pos }) <- M.lookup n (handles s) =
@@ -433,29 +449,6 @@ deepLookupExprPastTicks (Var i@(Id n _)) eenv =
         _ -> Var i
 deepLookupExprPastTicks (Tick _ e) eenv = deepLookupExprPastTicks e eenv
 deepLookupExprPastTicks e _ = e
-
-mutVarTy :: KnownValues
-         -> Type -- ^ The State type
-         -> Type -- ^ The stored type
-         -> Type
-mutVarTy kv ts ta = TyApp (TyApp (TyCon (KV.tyMutVar kv) (TyFun TYPE (TyFun TYPE TYPE))) ts) ta
-
-newMutVar :: State t
-          -> NameGen
-          -> MVOrigin
-          -> Type -- ^ The State type
-          -> Type -- ^ The stored type
-          -> Expr
-          -> (State t, NameGen)
-newMutVar s ng org ts t e =
-    let
-        (mv_n, ng') = freshSeededName (Name "mv" Nothing 0 Nothing) ng
-        (i, ng'') = freshId t ng'        
-        s' = s { curr_expr = CurrExpr Evaluate (Prim (MutVar mv_n) $ mutVarTy (known_values s) ts t)
-               , expr_env = E.insert (idName i) e (expr_env s)
-               , mutvar_env = insertMvVal mv_n i org (mutvar_env s)}
-    in
-    (s', ng'')
 
 expSigBits :: Type -> (Int, Int)
 expSigBits (TyLitFP e s) =  (e, s)
@@ -845,13 +838,12 @@ evalPrimSymbolic tv eenv tenv ng kv e
 
             (cvar, ng') = freshId t ng
 
-            (ret, cse, assume_pc, eenv', ng'') =
-                createCaseExpr tv bi Nothing cvar t kv tenv eenv ng' dcs
+            (ret, cse, assume_pc, ng'', concs, syms) = createCaseExpr tv bi Nothing cvar t kv tenv ng' dcs
 
-            eenv'' = E.insertSymbolic ret
-                   $ E.insert sym_n cse eenv'
+            eenv' = E.insertSymbolic ret . E.insert sym_n cse . E.insertExprs concs
+                        $ L.foldl' (flip E.insertSymbolic) eenv syms
         in
-        Just (Var ret, eenv'', assume_pc, ng'')
+        Just (Var ret, eenv', assume_pc, ng'')
     | [Prim DataToTag _, type_t, cse] <- unApp e
     , Just t <- TV.deepLookup tv type_t
     , Case v@(Var _) _ _ alts <- cse
