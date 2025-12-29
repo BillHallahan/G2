@@ -566,12 +566,12 @@ concretizeVarExpr' s@(State { type_env = tenv
           case cleanParamsAndMakeDcon tvnv kv params ngen dcon aexpr mexpr_t tenv of
             Nothing -> Nothing
             Just (params', news, dcon', ngen', aexpr', tve_diff, tve_sym_diff)
-                -> buildNewPC params' news dcon' ngen' aexpr' tve_diff tve_sym_diff
+                -> buildStateDiff params' news dcon' ngen' aexpr' tve_diff tve_sym_diff
 
   where
     mexpr_t = fullyReduceTypeFunctions fams tvnv $ typeOf tvnv mexpr_id
 
-    buildNewPC params' news dcon' ngen' aexpr' tve_diff tve_sym_diff =
+    buildStateDiff params' news dcon' ngen' aexpr' tve_diff tve_sym_diff =
         let
             -- Apply cast, in opposite direction of unsafeElimOuterCast
             dcon'' = case maybeC of
@@ -598,14 +598,14 @@ cleanParamsAndMakeDcon :: TV.TyVarEnv -> KnownValues -> [Id] -> NameGen -> DataC
 cleanParamsAndMakeDcon tv kv params ngen dcon aexpr mexpr_t tenv =
     case maybe_uf_map of
             Nothing -> Nothing
-            Just uf_map -> buildNewPC uf_map ngen
+            Just uf_map -> buildStateDiff uf_map ngen
   where
     extract_tys = concatMap (T.getCoercions kv . typeOf tv) params
 
     -- The UFMap is collecting equivalences that must hold between type variables based on coercions
     maybe_uf_map = foldM (\uf_map (t1, t2) -> T.unify' uf_map t1 t2) TV.empty extract_tys
 
-    buildNewPC uf_map namegen =
+    buildStateDiff uf_map namegen =
         let
             -- Make sure that the parameters names do not conflict
             olds = map idName params
