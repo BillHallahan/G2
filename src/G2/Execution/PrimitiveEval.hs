@@ -838,13 +838,12 @@ evalPrimSymbolic tv eenv tenv ng kv e
 
             (cvar, ng') = freshId t ng
 
-            (ret, cse, assume_pc, eenv', ng'') =
-                createCaseExpr tv bi Nothing cvar t kv tenv eenv ng' dcs
+            (ret, cse, assume_pc, ng'', concs, syms) = createCaseExpr tv bi Nothing cvar t kv tenv ng' dcs
 
-            eenv'' = E.insertSymbolic ret
-                   $ E.insert sym_n cse eenv'
+            eenv' = E.insertSymbolic ret . E.insert sym_n cse . E.insertExprs concs
+                        $ L.foldl' (flip E.insertSymbolic) eenv syms
         in
-        Just (Var ret, eenv'', assume_pc, ng'')
+        Just (Var ret, eenv', assume_pc, ng'')
     | [Prim DataToTag _, type_t, cse] <- unApp e
     , Just t <- TV.deepLookup tv type_t
     , Case v@(Var _) _ _ alts <- cse

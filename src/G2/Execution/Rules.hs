@@ -943,7 +943,7 @@ liftSymDefAlt' s@(State { type_env = tenv, known_values = kv, tyvar_env = tvnv }
 
                     -- -- Create a case expression to choose on of viable DCs
                     (_, mexpr', assume_pc, ng'', concs, syms) =
-                        createCaseExprInsertless tvnv bi maybeC cvar' (typeOf tvnv i) kv tenv ng' dcs'
+                        createCaseExpr tvnv bi maybeC cvar' (typeOf tvnv i) kv tenv ng' dcs'
 
                     binds = [(cvar, Var cvar')]
                     aexpr' = liftCaseBinds binds aexpr

@@ -1,4 +1,4 @@
-module G2.Execution.SymToCase (createCaseExpr, createCaseExprInsertless) where
+module G2.Execution.SymToCase (createCaseExpr) where
 
 import G2.Execution.DataConPCMap
 import G2.Language
@@ -43,34 +43,18 @@ createCaseExpr' kv new_id t es@(_:_) =
         addImp _ _ = error "addImp: Unsupported path constraints"
 createCaseExpr' kv _ _ [] = (Prim Undefined TyBottom, [ExtCond (mkFalse kv) True])
 
-createCaseExpr :: TyVarEnv 
+-- Make a case expression, returning lists of what to insert instead of inserting
+createCaseExpr :: TyVarEnv
                -> [(Id, Type)]
                -> Maybe Coercion
                -> Id
                -> Type -- ^ Return type of case expression
                -> KnownValues
                -> TypeEnv
-               -> ExprEnv
                -> NameGen
                -> [DataCon]
-               -> (Id, Expr, [PathCond], ExprEnv, NameGen)
-createCaseExpr tv bi maybeC binder ti kv tenv eenv ng dcs =
-    let (new_id, mexpr, pcs, ng', concs, syms) = createCaseExprInsertless tv bi maybeC binder ti kv tenv ng dcs
-        eenv' = E.insertExprs concs $ L.foldl' (flip E.insertSymbolic) eenv syms
-    in (new_id, mexpr, pcs, eenv', ng')
-
--- Make a case expression, returning lists of what to insert instead of inserting
-createCaseExprInsertless :: TyVarEnv 
-                         -> [(Id, Type)]
-                         -> Maybe Coercion
-                         -> Id
-                         -> Type -- ^ Return type of case expression
-                         -> KnownValues
-                         -> TypeEnv
-                         -> NameGen
-                         -> [DataCon]
-                         -> (Id, Expr, [PathCond], NameGen, [(Name, Expr)], [Id])
-createCaseExprInsertless tv bi maybeC binder ti kv tenv ng dcs =
+               -> (Id, Expr, [PathCond], NameGen, [(Name, Expr)], [Id])
+createCaseExpr tv bi maybeC binder ti kv tenv ng dcs =
     let
         (new_id, ng') = freshId TyLitInt ng
         ((concs, syms, ng''), dcs') = L.mapAccumL (concretizeSym tv bi maybeC binder kv tenv) ([], [], ng') dcs
