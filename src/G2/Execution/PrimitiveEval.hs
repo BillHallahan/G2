@@ -527,13 +527,13 @@ evalPrimADT2 kv tenv StrAt xs (Lit (LitInt i)) = do
     return $ toStringExpr kv tenv c
 
 evalPrimADT2 kv _ StrPrefixOf pre s = do
-    pre' <- toString pre
-    s' <- toString s
+    pre' <- toExprList pre
+    s' <- toExprList s
     return . mkBool kv $ pre' `L.isPrefixOf` s'
 
 evalPrimADT2 kv _ StrSuffixOf suf s = do
-    suf' <- toString suf
-    s' <- toString s
+    suf' <- toExprList suf
+    s' <- toExprList s
     return . mkBool kv $ suf' `L.isSuffixOf` s'
 
 evalPrimADT2 kv _ Eq f s = fmap (mkBool kv) $ lstEq f s
@@ -584,12 +584,13 @@ evalPrimADT3 tenv kv StrSubstr str (Lit (LitInt s)) (Lit (LitInt e)) = substr st
         substr _ _ _ = Nothing
 
 evalPrimADT3 tenv kv StrReplace s orig rep = do
-        s' <- toString s
-        orig' <- toString orig
-        rep' <- toString rep
-        return $ toStringExpr kv tenv (replace s' orig' rep')
+        t <- listType orig
+        s' <- toExprList s
+        orig' <- toExprList orig
+        rep' <- toExprList rep
+        return $ toListExpr kv tenv t (replace s' orig' rep')
     where
-        replace "" _ _ = ""
+        replace [] _ _ = []
         replace xss@(x:xs) o r | Just xss' <- L.stripPrefix o xss = r ++ xss'
                                | otherwise = x:replace xs o r
 

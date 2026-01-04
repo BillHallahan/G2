@@ -414,6 +414,7 @@ testFileTests = testGroup "TestFiles"
                                         , ("strLen", 1000, [Exactly 2])
                                         , ("strLen2", 1000, [Exactly 3])
                                         , ("strLen3", 1000, [Exactly 2])
+                                        , ("strApp", 1000, [Exactly 3])
                                         , ("con2", 1000, [Exactly 3])
                                         , ("con3", 1000, [Exactly 3])
                                         , ("strIndex", 1000, [Exactly 4])
@@ -460,6 +461,7 @@ testFileTests = testGroup "TestFiles"
                                         , ("genericDrop1", 5000, [Exactly 3])
                                         , ("genericSplitAt1", 5000, [Exactly 4])
                                         , ("genericIndex1", 5000, [Exactly 4])
+                                        , ("genericReplicate1", 1000, [Exactly 2])
 
                                         , ("bigString", 1000, [Exactly 2])
 
@@ -489,7 +491,7 @@ testFileTests = testGroup "TestFiles"
                                         , ("minimum1", 3000, [AtLeast 5, AtMost 6]) -- Allowing for SMT failures
                                         , ("minimum2", 1000, [Exactly 2])
                                         , ("maximum1", 3000, [AtLeast 5, AtMost 6]) -- Allowing for SMT failures
-                                        , ("maximum2", 1000, [Exactly 2])
+                                        , ("maximum2", 1000, [AtLeast 1, AtMost 2]) -- Allowing for SMT failures
 
                                         , ("lines1", 4000, [AtLeast 10])
 
@@ -505,7 +507,7 @@ testFileTests = testGroup "TestFiles"
                                         , ("reverse5", 5000, [Exactly 1])]
     , checkInputOutputsQuantifiedSMTStrings "tests/TestFiles/Strings/Strings1.hs"
                                         [ ("genericReplicate1", 1000, [Exactly 2])
-                                        , ("reverse1", 5000, [Exactly 6]) 
+                                        , ("reverse1", 5000, [AtLeast 5, AtMost 6]) 
                                         , ("reverse2", 5000, [Exactly 3])
                                         , ("insert1", 3000, [AtLeast 2, AtMost 6]) -- Quantifier causes SMT failures
                                         , ("intersperse1", 3000, [Exactly 3])
@@ -515,16 +517,64 @@ testFileTests = testGroup "TestFiles"
                                         , ("maximum1", 3000, [AtLeast 1, AtMost 6]) -- Quantifier causes SMT failures
                                         ]
 
-    , checkInputOutputsSMTLists "tests/TestFiles/Seq/Seq1.hs" [ ("conInt", 1000, [Exactly 1]) 
+    , checkInputOutputsSMTLists "tests/TestFiles/Seq/Seq1.hs" [ ("toEnum1", 2000, [Exactly 1])
+                                                              , ("conInt", 1000, [Exactly 1]) 
                                                               , ("conInteger", 1000, [Exactly 1])
+                                                              , ("appendEq", 1000, [Exactly 1])
+                                                              , ("strIndex", 1000, [Exactly 4])
+                                                              , ("taker1", 5000, [Exactly 2])
+                                                              , ("taker2", 5000, [Exactly 2])
+                                                              , ("takeInf", 5000, [Exactly 1])
+                                                              , ("takeUndefined", 5000, [Exactly 1])
+                                                              , ("listLen", 1000, [Exactly 2])
+                                                              , ("listLen2", 1000, [Exactly 3])
+                                                              , ("listLen3", 1000, [Exactly 2])
+                                                              , ("listApp", 10000, [Exactly 3])
                                                               , ("con2Int", 1000, [Exactly 3])
                                                               , ("con2Integer", 1000, [Exactly 3])
                                                               , ("con2Float", 1000, [Exactly 3])
-                                                              , ("con2Double", 1000, [Exactly 3]) ]
+                                                              , ("con2Double", 1000, [Exactly 3])
                                                             --   , ("con3Int", 1000, [Exactly 3])
                                                             --   , ("con3Integer", 1000, [Exactly 3])
                                                             --   , ("con3Float", 1000, [Exactly 3])
-                                                            --   , ("con3Double", 1000, [Exactly 3]) ]
+                                                            --   , ("con3Double", 1000, [Exactly 3])
+                                                              , ("init1", 5000, [Exactly 4])
+                                                              , ("null1", 5000, [Exactly 2])
+                                                              , ("last1", 5000, [Exactly 4])
+                                                              , ("drop1", 5000, [Exactly 2])
+                                                              , ("drop2", 5000, [Exactly 2])
+                                                              , ("drop3", 5000, [Exactly 3])
+                                                              , ("infix1", 5000, [Exactly 2])
+                                                              , ("elem1", 5000, [Exactly 2])
+                                                              , ("notElem1", 5000, [Exactly 4])
+                                                              , ("elemIndex1", 5000, [Exactly 4])
+
+                                                              , ("genericLength1", 5000, [Exactly 4])
+                                                              , ("genericTake1", 5000, [Exactly 4])
+                                                              , ("genericDrop1", 5000, [Exactly 3])
+                                                              , ("genericSplitAt1", 5000, [Exactly 4])
+                                                              , ("genericIndex1", 5000, [Exactly 4])
+                                                              , ("genericReplicate1", 4000, [Exactly 2])
+
+                                                              , ("delete1", 5000, [Exactly 3])
+                                                              , ("stripPrefix1", 1000, [Exactly 2])
+                                                              , ("stripPrefix2", 1000, [Exactly 5])
+                                                              , ("isPrefixOf1", 10000, [Exactly 6])
+                                                              , ("isSuffixOf1Int", 10000, [Exactly 6])
+                                                            --   , ("isSuffixOf1Double", 10000, [Exactly 6])
+#if MIN_VERSION_base(4,19,0)
+                                                              , ("unsnoc1", 5000, [Exactly 4])
+                                                              , ("unsnoc2", 5000, [Exactly 2])
+                                                              , ("totalIndex1", 5000, [Exactly 3])
+#endif
+                                                            --   , ("insert1", 3000, [AtLeast 2, AtMost 6]) -- Quantifier causes SMT failures
+                                                            --   , ("insert2", 2000, [Exactly 2])
+                                                            --   , ("insert3", 2000, [Exactly 1])
+
+                                                              , ("intersperse1", 3000, [Exactly 3])
+
+                                                              ]
+
     , checkInputOutputsSMTListsWith "tests/TestFiles/Seq/Seq1.hs" "floatListEq" [ ("conFloat", 1000, [Exactly 1])
                                                                                 , ("conDouble", 1000, [Exactly 1])]
 

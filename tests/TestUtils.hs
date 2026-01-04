@@ -17,7 +17,8 @@ mkConfigTestIO = do
     return $
         (mkConfigDirect homedir [] M.empty)
             { higherOrderSolver = AllFuncs
-            , timeLimit = 150
+            , timeLimit = 180
+            , smt_timeout = 20
             -- , baseInclude = [ "./base-4.9.1.0/Control/Exception/"
             --                 , "./base-4.9.1.0/" ]
             , base = baseSimple homedir

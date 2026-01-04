@@ -125,7 +125,7 @@ data SMTAST = (:>=) !SMTAST !SMTAST
             | StrPrefixOfSMT !SMTAST !SMTAST
             | StrSuffixOfSMT !SMTAST !SMTAST
 
-            | SeqEmptySMT
+            | SeqEmptySMT Sort
             | SeqUnitSMT !SMTAST
 
             | IteSMT !SMTAST !SMTAST !SMTAST
