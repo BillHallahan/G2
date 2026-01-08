@@ -14,26 +14,26 @@ jobs:
     strategy:
       matrix:
         compiler: [ { ghc: '8.10.7', cabal: '3.10' },
-                    { ghc: '9.0.2', cabal: '3.10' },
-                    { ghc: '9.2.8', cabal: '3.10' },
-                    { ghc: '9.4.4', cabal: '3.10' },
-                    { ghc: '9.6.1', cabal: '3.10' },
-                    { ghc: '9.8.4', cabal: '3.10' },
-                    { ghc: '9.10.3', cabal: '3.10' },
+                    { ghc: '9.0.2', cabal: '3.12' },
+                    { ghc: '9.2.8', cabal: '3.12' },
+                    { ghc: '9.4.4', cabal: '3.12' },
+                    { ghc: '9.6.1', cabal: '3.12' },
+                    { ghc: '9.8.4', cabal: '3.12' },
+                    { ghc: '9.10.3', cabal: '3.12' },
                     { ghc: '9.12.2', cabal: '3.12' } ]
         test: [ { test: test, lh: '-support-lh' },
                 { test: test-g2q, lh: '-support-lh' },
                 { test: test-lh, lh: 'support-lh' } ]
         exclude:
-          - compiler: { ghc: '9.2.8', cabal: '3.10' }
+          - compiler: { ghc: '9.2.8', cabal: '3.12' }
             test: { test: test-lh }
-          - compiler: { ghc: '9.4.4', cabal: '3.10' }
+          - compiler: { ghc: '9.4.4', cabal: '3.12' }
             test: { test: test-lh }
-          - compiler: { ghc: '9.6.1', cabal: '3.10' }
+          - compiler: { ghc: '9.6.1', cabal: '3.12' }
             test: { test: test-lh }
-          - compiler: { ghc: '9.8.4', cabal: '3.10' }
+          - compiler: { ghc: '9.8.4', cabal: '3.12' }
             test: { test: test-lh }
-          - compiler: { ghc: '9.10.3', cabal: '3.10' }
+          - compiler: { ghc: '9.10.3', cabal: '3.12' }
             test: { test: test-lh }
           - compiler: { ghc: '9.12.2', cabal: '3.12' }
             test: { test: test-lh }
