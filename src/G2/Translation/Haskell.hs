@@ -585,7 +585,7 @@ nameLookup nm name = do
         sp = mkSpan $ getSrcSpan name
 
 {-# INLINE convertUnq #-}
-#if MIN_VERSION_GLASGOW_HASKELL(9,8,0,0)
+#if MIN_VERSION_GLASGOW_HASKELL(9,8,4,0) || (MIN_VERSION_GLASGOW_HASKELL(9,6,7,0) && !MIN_VERSION_GLASGOW_HASKELL(9,8,0,0))
 convertUnq :: Word64 -> G2.Unique
 convertUnq = id
 #else
