@@ -45,7 +45,6 @@ jobs:
         ghc-version: ${{ matrix.compiler.ghc }}
         cabal-version: ${{ matrix.compiler.cabal }}
 
-    - run: cabal update
     - run: cabal configure --enable-tests -f ${{ matrix.test.lh }}
     - run: cabal freeze
     - uses: actions/cache@v3
