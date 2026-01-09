@@ -48,14 +48,14 @@ jobs:
     - run: cabal update
     - run: cabal configure --enable-tests -f ${{ matrix.test.lh }}
     - run: cabal freeze
-    - uses: actions/cache@v3
-      with:
-        path: |
-          ${{ steps.setup-haskell-cabal.outputs.cabal-store }}
-          dist-newstyle
-        key: cabal-${{ runner.os }}-${{ matrix.compiler.ghc }}-${{ hashFiles('cabal.project.freeze') }}
-        restore-keys: |
-          cabal-${{ runner.os }}-${{ matrix.compiler.ghc }}-
+    # - uses: actions/cache@v3
+    #   with:
+    #     path: |
+    #       ${{ steps.setup-haskell-cabal.outputs.cabal-store }}
+    #       dist-newstyle
+    #     key: cabal-${{ runner.os }}-${{ matrix.compiler.ghc }}-${{ hashFiles('cabal.project.freeze') }}
+    #     restore-keys: |
+    #       cabal-${{ runner.os }}-${{ matrix.compiler.ghc }}-
 
     - name: Install Z3
       uses: pavpanchekha/setup-z3@0.2.0
