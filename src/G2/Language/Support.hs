@@ -80,6 +80,25 @@ data State t = State { expr_env :: E.ExprEnv -- ^ Mapping of `Name`s to `Expr`s
                      , track :: t
                      } deriving (Show, Eq, Read, Generic, Typeable, Data)
 
+type EEDiff = [(Name, Expr)] -- concrete values to insert in ExprEnv
+type EESymDiff = [Id] -- symbolic variables to insert in ExprEnv
+type TVEDiff = [(Name, Type)] -- concrete types to insert in TyVarEnv
+type TVESymDiff = [Id] -- symbolic variables to insert in TyVarEnv
+
+data StateDiff = SD { new_conc_entries :: EEDiff -- ^ New concrete entries for the expr_env
+                    , new_sym_entries :: EESymDiff -- ^ New symbolic entries for the expr_env
+                    , new_path_conds :: [PathCond] -- ^ New path constraints
+                    , concretized :: [Id]
+                    , new_true_assert :: Bool
+                    , new_assert_ids :: Maybe FuncCall
+                    , new_curr_expr :: CurrExpr
+                    , new_conc_types :: TVEDiff -- ^ New concrete entries for the tyvar_env
+                    , new_sym_types :: TVESymDiff -- ^ New symbolic entries for the tyvar_env
+                    , new_mut_vars :: [(Name, Id, MVOrigin)] -- ^ New mutable variables for the mutvar_env
+                    }
+                    deriving (Show, Eq, Read, Generic, Typeable, Data)
+
+instance Hashable StateDiff
 
 instance Hashable t => Hashable (State t)
 
@@ -167,6 +186,7 @@ data Frame = CaseFrame Id Type [Alt]
            | CurrExprFrame CEAction CurrExpr
            | AssumeFrame Expr
            | AssertFrame (Maybe FuncCall) Expr
+           | LitTableFrame LitTableCond
            deriving (Show, Eq, Read, Generic, Typeable, Data)
 
 instance Hashable Frame
@@ -483,3 +503,16 @@ instance ASTContainer Handle Type where
 
     modifyContainedASTs f h@(HandleInfo { h_start = s, h_pos = p }) =
         h { h_start = modifyContainedASTs f s, h_pos = modifyContainedASTs f p }
+
+data TableCond = Conds PathConds
+               | LTCall Name Char -- ^ `LTCall n c` checks that the table `n` returns the character `c`. 
+               deriving (Show, Eq, Read, Generic, Typeable, Data)
+
+instance Hashable TableCond
+
+data LitTableCond = Exploring TableCond
+                  | Diff StateDiff
+                  | StartedBuilding Name
+                  deriving (Show, Eq, Read, Generic, Typeable, Data)
+
+instance Hashable LitTableCond

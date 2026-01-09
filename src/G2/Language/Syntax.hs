@@ -302,6 +302,9 @@ data Primitive = -- Mathematical and logical operators
                -- Unspecified Output- when we want to calculate input values that lead to a specific point,
                -- and then don't want to actually follow through on calculating the output value
                | UnspecifiedOutput
+
+               -- Literal table handling
+               | LitTableApp Name
                deriving (Show, Eq, Read, Generic, Typeable, Data)
 
 -- | Do we want to use special handling to support a particular type?

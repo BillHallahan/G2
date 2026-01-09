@@ -1,9 +1,4 @@
 module G2.Execution.NewPC ( NewPC (..)
-                          , StateDiff (..)
-                          , EEDiff
-                          , EESymDiff
-                          , TVEDiff
-                          , TVESymDiff
                           , newPCEmpty
                           , newPCNoStates
                           , reduceNewPC ) where
@@ -21,25 +16,8 @@ import G2.Data.Utils
 import Data.Traversable
 import G2.Execution.MutVar
 
-type EEDiff = [(Name, Expr)] -- concrete values to insert in ExprEnv
-type EESymDiff = [Id] -- symbolic variables to insert in ExprEnv
-type TVEDiff = [(Name, Type)] -- concrete types to insert in TyVarEnv
-type TVESymDiff = [Id] -- symbolic variables to insert in TyVarEnv
-
 data NewPC t = SingleState (State t)
              | SplitStatePieces (State t) [StateDiff]
-
-data StateDiff = SD { new_conc_entries :: EEDiff -- ^ New concrete entries for the expr_env
-                    , new_sym_entries :: EESymDiff -- ^ New symbolic entries for the expr_env
-                    , new_path_conds :: [PathCond] -- ^ New path constraints
-                    , concretized :: [Id]
-                    , new_true_assert :: Bool
-                    , new_assert_ids :: Maybe FuncCall
-                    , new_curr_expr :: CurrExpr
-                    , new_conc_types :: TVEDiff -- ^ New concrete entries for the tyvar_env
-                    , new_sym_types :: TVESymDiff -- ^ New symbolic entries for the tyvar_env
-                    , new_mut_vars :: [(Name, Id, MVOrigin)] -- ^ New mutable variables for the mutvar_env
-                    }
 
 newPCEmpty :: State t -> NewPC t
 newPCEmpty s = SingleState s
