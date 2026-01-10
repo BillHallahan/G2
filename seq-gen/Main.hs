@@ -35,27 +35,29 @@ main = do
     (src, entry, _, _, config) <- getConfig
     let f = T.pack entry
 
-    _ <- genSMTFunc src f Nothing config
+    _ <- genSMTFunc [] src f Nothing config
     return ()
 
 -- | Use a CEGIS loop to generate an SMT conversion of a function
-genSMTFunc :: FilePath -- ^ Filepath containing function
+genSMTFunc :: [ExecRes ()] -- ^ Generated states 
+           -> FilePath -- ^ Filepath containing function
            -> T.Text -- ^ Function name
            -> Maybe (Id, String) -- ^ Possible (SyGuS generated) function definition, along with the Id of the function being generated
            -> Config
            -> IO String
-genSMTFunc src f smt_def config = do
+genSMTFunc constraints src f smt_def config = do
     (entry_f@(Id _ f_ty), ers) <- runFunc src f smt_def config
     case ers of
         [] | Just (_, smt_def') <- smt_def -> return smt_def'
         (er:_) -> do
-            smt_cmd <- runSygus ers
+            let new_constraints = ers ++ constraints
+            smt_cmd <- runSygus new_constraints
             print smt_cmd
             case smt_cmd of
                 Just (DefineFun _ vars _ t) -> do
                     let new_smt_def = sygusToHaskell (known_values $ final_state er) f_ty vars t
                     putStrLn new_smt_def
-                    genSMTFunc src f (Just (entry_f, new_smt_def)) config
+                    genSMTFunc new_constraints src f (Just (entry_f, new_smt_def)) config
                 _ -> error "genSMTFunc: no SMT function generated"
 
 runFunc :: FilePath -- ^ Filepath containing function
@@ -166,6 +168,7 @@ runSygus er@(ExecRes { final_state = s, conc_args = args, conc_out = out_e}:_) =
 
         intSort = IdentSort (ISymb "Int")
         strSort = IdentSort (ISymb "String")
+        boolSort = IdentSort (ISymb "Bool")
 
         args_sort = map (typeToSort kv . typeOf (tyvar_env s)) args
         arg_vars = map (uncurry SortedVar) $ zip (varList "x") args_sort
@@ -173,19 +176,32 @@ runSygus er@(ExecRes { final_state = s, conc_args = args, conc_out = out_e}:_) =
 
         intIdent = BfIdentifier (ISymb "IntPr")
         strIdent = BfIdentifier (ISymb "StrPr")
+        boolIdent = BfIdentifier (ISymb "BoolPr")
 
         -------------------------------
         -- Grammar
         -------------------------------
         grmString = [ GVariable strSort
                     , GBfTerm (BfIdentifierBfs (ISymb "str.++") [ strIdent, strIdent])
-                    , GBfTerm (BfIdentifierBfs (ISymb "str.replace") [ strIdent, strIdent, strIdent]) ]
+                    , GBfTerm (BfIdentifierBfs (ISymb "str.replace") [ strIdent, strIdent, strIdent])
+                    ]
         grmInt = [ GVariable intSort
+                 , GBfTerm (BfLiteral (LitNum 0))
+                 , GBfTerm (BfLiteral (LitNum (-1)))
+                 , GBfTerm (BfIdentifierBfs (ISymb "str.indexof") [ strIdent, strIdent, intIdent ])
                  , GBfTerm (BfIdentifierBfs (ISymb "str.len") [ strIdent ])
-                 , GBfTerm (BfIdentifierBfs (ISymb "+") [ intIdent, intIdent]) ]
+                 , GBfTerm (BfIdentifierBfs (ISymb "+") [ intIdent, intIdent])
+                 ]
+        grmBool = [ GBfTerm (BfIdentifierBfs (ISymb "str.prefixof") [ strIdent, strIdent ])
+                  , GBfTerm (BfIdentifierBfs (ISymb "str.suffixof") [ strIdent, strIdent ])
+                  , GBfTerm (BfIdentifierBfs (ISymb "=") [ strIdent, strIdent ])
+                  , GBfTerm (BfIdentifierBfs (ISymb "=") [ intIdent, intIdent ])
+                  ]
+
 
         gram_defs = [ GroupedRuleList "StrPr" strSort grmString
-                    , GroupedRuleList "IntPr" intSort grmInt]
+                    , GroupedRuleList "IntPr" intSort grmInt
+                    , GroupedRuleList "BoolPr" boolSort grmBool]
         find_start_gram = findElem (\(GroupedRuleList _ sort _) -> sort == ret_sort) gram_defs
         gram_defs' = case find_start_gram of
                             Just (start_sym, other_sym) -> start_sym:other_sym
@@ -223,11 +239,14 @@ execResToConstraints h_in (ExecRes { final_state = s, conc_args = args, conc_out
 
 exprToTerm :: KnownValues -> Expr -> Term
 exprToTerm _ (App (Data _) (Lit (LitInt x))) = TermLit (LitNum x)
+exprToTerm kv dc | dc == mkTrue kv = TermLit (LitBool True)
+                 | dc == mkFalse kv = TermLit (LitBool False)
 exprToTerm _ e | Just s <- toString e = TermLit (LitStr s)
 exprToTerm _ _ = error "exprToTerm: unsupported Expr"
 
 typeToSort :: KnownValues -> Type -> Sort
 typeToSort kv t_list | t_list == tyInt kv = IdentSort (ISymb "Int")
+typeToSort kv t_list | t_list == tyBool kv = IdentSort (ISymb "Bool")
 typeToSort kv (TyApp t_list _) | t_list == tyList kv = IdentSort (ISymb "String")
 typeToSort _ _ = error "typeToSort: unsupported Type"
 
@@ -287,7 +306,11 @@ termToHaskell t =
 
 smtFuncToPrim :: String -> String
 smtFuncToPrim "str.++" = "strAppend#"
+smtFuncToPrim "str.indexof" = "strIndexOf#"
 smtFuncToPrim "str.len" = "strLen#"
+smtFuncToPrim "str.prefixof" = "strPrefixOf#"
+smtFuncToPrim "str.replace" = "strReplace#"
+smtFuncToPrim "str.suffixof" = "strSuffixOf#"
 smtFuncToPrim "=" = "strEq#"
 smtFuncToPrim f = error $ "smtFuncToPrim: unsupported " ++ f
 
