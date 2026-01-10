@@ -26,16 +26,43 @@ main = do
     (src, entry, _, _, config) <- getConfig
     let f = T.pack entry
 
-    er <- runFunc src f config
-    putStrLn "HERE"
-    smt_cmd <- runSygus er
-    print smt_cmd
-    case smt_cmd of
-        Just (DefineFun _ vars _ t) -> putStrLn $ sygusToHaskell vars t
-        _ -> return ()
+    _ <- genSMTFunc src f Nothing config
+    return ()
+    -- er <- runFunc src f Nothing config
+    -- putStrLn "HERE"
+    -- smt_cmd <- runSygus er
+    -- print smt_cmd
+    -- case smt_cmd of
+    --     Just (DefineFun _ vars _ t) -> putStrLn $ sygusToHaskell vars t
+    --     _ -> return ()
 
-runFunc :: FilePath -> T.Text -> Config -> IO [ExecRes ()]
-runFunc src f config = do
+genSMTFunc :: FilePath -- ^ Filepath containing function
+           -> T.Text -- ^ Function name
+           -> Maybe String -- ^ Possible (SyGuS generated) function definition 
+           -> Config
+           -> IO String
+genSMTFunc src f smt_def config = do
+    ers <- runFunc src f smt_def config
+    case null ers of
+        True | Just smt_def' <- smt_def -> return smt_def'
+        _ -> do
+            smt_cmd <- runSygus ers
+            print smt_cmd
+            case smt_cmd of
+                Just (DefineFun _ vars _ t) -> do
+                    let new_smt_def = sygusToHaskell vars t
+                    putStrLn new_smt_def
+                    genSMTFunc src f (Just new_smt_def) config
+                _ -> error "genSMTFunc: no SMT function generated"
+  
+        
+
+runFunc :: FilePath -- ^ Filepath containing function
+        -> T.Text -- ^ Function name
+        -> Maybe String -- ^ Possible (SyGuS generated) function definition
+        -> Config
+        -> IO [ExecRes ()]
+runFunc src f Nothing config = do
     proj <- guessProj (includePaths config) src
 
     (init_state, entry_f, bindings, mb_modname) <- initialStateFromFile proj [src]
@@ -46,6 +73,9 @@ runFunc src f config = do
 
     return er
 
+-------------------------------------------------------------------------------
+-- Calling/reading from SyGuS solver
+-------------------------------------------------------------------------------
 runSygus :: [ExecRes t] -> IO (Maybe SmtCmd)
 runSygus [] = return Nothing
 runSygus er@(ExecRes { final_state = s, conc_args = args, conc_out = out_e}:_) = do
@@ -117,6 +147,9 @@ typeToSort :: KnownValues -> Type -> Sort
 typeToSort kv (TyApp t_list _) | t_list == tyList kv = IdentSort (ISymb "String")
 typeToSort _ _ = error "typeToSort: unsupported Type"
 
+-------------------------------------------------------------------------------
+-- Turning a SyGuS solution into Haskell code
+-------------------------------------------------------------------------------
 sygusToHaskell :: [SortedVar] -> Term -> String
 sygusToHaskell vars t =
     let
