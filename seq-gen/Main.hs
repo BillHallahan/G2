@@ -11,6 +11,7 @@ import qualified G2.Language.ExprEnv as E
 import qualified G2.Language.KnownValues as KV
 import qualified G2.Language.TyVarEnv as TV
 import G2.Lib.Printers
+import G2.Solver.Converters
 import G2.Solver.SMT2
 import G2.Translation
 
@@ -66,7 +67,7 @@ runFunc src f smt_def config = do
     withSystemTempFile "SpecTemp.hs" (\temp handle -> do
         setUpSpec handle smt_def
 
-        let config' = config { base = base config ++ [temp]}
+        let config' = config { base = base config ++ [temp], maxOutputs = Just 10}
 
         proj <- guessProj (includePaths config') src
 
@@ -134,21 +135,19 @@ findInconsistent s@(State { expr_env = eenv
 runSygus :: [ExecRes t] -> IO (Maybe SmtCmd)
 runSygus [] = return Nothing
 runSygus er@(ExecRes { final_state = s, conc_args = args, conc_out = out_e}:_) = do
-    -- let grmString = [ GBfTerm (BfIdentifierBfs (ISymb "str.++") [ strIdent, strIdent])
-    --                 , GBfTerm (BfIdentifierBfs (ISymb "str.replace") [ strIdent, strIdent, strIdent]) ]
-    --     grmInt = [ GBfTerm (BfIdentifierBfs (ISymb "str.len") [ strIdent ])
-    --              , GBfTerm (BfIdentifierBfs (ISymb "+") [ intIdent, intIdent]) ]
+    let 
 
-    -- let grm =
-    --         GrammarDef [SortedVar "StrPr" stringSort, SortedVar "IntPr" intSort]
-    --             [ GroupedRuleList "StrPr" stringSort grmString
-    --             , GroupedRuleList "IntPr" intSort grmInt]
+    let grm = GrammarDef pre_dec gram_defs'
+
     (h_in, h_out, _) <- getCVC5Sygus 60
     T.hPutStrLn h_in $ printSygus (SetLogic "ALL")
-    let synthFun = SynthFun "spec" arg_vars ret_sort Nothing -- (Just grm)
+    T.putStrLn $ printSygus (SetLogic "ALL")
+    let synthFun = SynthFun "spec" arg_vars ret_sort (Just grm)
     T.hPutStrLn h_in $ printSygus synthFun
+    T.putStrLn $ printSygus synthFun
     mapM (execResToConstraints h_in) er
     T.hPutStrLn h_in $ printSygus CheckSynth
+    T.putStrLn $ printSygus CheckSynth
     _ <- hWaitForInput h_out 70
     out <- getLinesMatchParens h_out
     -- putStrLn $ "Z3 out: " ++ out
@@ -165,19 +164,47 @@ runSygus er@(ExecRes { final_state = s, conc_args = args, conc_out = out_e}:_) =
     where
         kv = known_values s
 
-        -- intSort = IdentSort (ISymb "Int")
+        intSort = IdentSort (ISymb "Int")
+        strSort = IdentSort (ISymb "String")
+
         args_sort = map (typeToSort kv . typeOf (tyvar_env s)) args
         arg_vars = map (uncurry SortedVar) $ zip (varList "x") args_sort
         ret_sort = typeToSort kv $ typeOf (tyvar_env s) out_e
 
-    --     intIdent = BfIdentifier (ISymb "IntPr")
-    --     strIdent = BfIdentifier (ISymb "StrPr")
+        intIdent = BfIdentifier (ISymb "IntPr")
+        strIdent = BfIdentifier (ISymb "StrPr")
+
+        -------------------------------
+        -- Grammar
+        -------------------------------
+        grmString = [ GVariable strSort
+                    , GBfTerm (BfIdentifierBfs (ISymb "str.++") [ strIdent, strIdent])
+                    , GBfTerm (BfIdentifierBfs (ISymb "str.replace") [ strIdent, strIdent, strIdent]) ]
+        grmInt = [ GVariable intSort
+                 , GBfTerm (BfIdentifierBfs (ISymb "str.len") [ strIdent ])
+                 , GBfTerm (BfIdentifierBfs (ISymb "+") [ intIdent, intIdent]) ]
+
+        gram_defs = [ GroupedRuleList "StrPr" strSort grmString
+                    , GroupedRuleList "IntPr" intSort grmInt]
+        find_start_gram = findElem (\(GroupedRuleList _ sort _) -> sort == ret_sort) gram_defs
+        gram_defs' = case find_start_gram of
+                            Just (start_sym, other_sym) -> start_sym:other_sym
+                            Nothing -> error "runSygus: no start symbol"
+        pre_dec = map (\(GroupedRuleList n sort _) -> SortedVar n sort) gram_defs'
+
+findElem       :: (a -> Bool) -> [a] -> Maybe (a, [a])
+findElem p     = find' id
+    where
+      find' _ []         = Nothing
+      find' prefix (x : xs)
+          | p x          = Just (x, prefix xs)
+          | otherwise    = find' (prefix . (x:)) xs
 
 varList :: String -> [String]
 varList x = map ((++) x . show) [1 :: Integer ..]
 
 getCVC5Sygus :: Int -> IO (Handle, Handle, ProcessHandle)
-getCVC5Sygus time_out = getProcessHandles $ proc "cvc5" ["--lang", "sygus", "--tlimit-per=" ++ show time_out]
+getCVC5Sygus time_out = getProcessHandles $ proc "cvc5" ["--lang", "sygus", "--no-sygus-pbe", "--tlimit-per=" ++ show time_out]
 
 parseSygus :: String -> [Cmd]
 parseSygus = Sy.parse . Sy.lexSygus
@@ -190,8 +217,9 @@ execResToConstraints h_in (ExecRes { final_state = s, conc_args = args, conc_out
         call = TermCall (ISymb "spec") (map (exprToTerm kv) args)
         out_t = exprToTerm kv out_e
         cons = Constraint $ TermCall (ISymb "=") [call, out_t]
-    in
+    in do
     T.hPutStrLn h_in $ printSygus cons
+    T.putStrLn $ printSygus cons
 
 exprToTerm :: KnownValues -> Expr -> Term
 exprToTerm _ (App (Data _) (Lit (LitInt x))) = TermLit (LitNum x)
@@ -199,6 +227,7 @@ exprToTerm _ e | Just s <- toString e = TermLit (LitStr s)
 exprToTerm _ _ = error "exprToTerm: unsupported Expr"
 
 typeToSort :: KnownValues -> Type -> Sort
+typeToSort kv t_list | t_list == tyInt kv = IdentSort (ISymb "Int")
 typeToSort kv (TyApp t_list _) | t_list == tyList kv = IdentSort (ISymb "String")
 typeToSort _ _ = error "typeToSort: unsupported Type"
 
@@ -237,10 +266,27 @@ termToHaskell t =
                 )
               )
         go !x (TermIdent (ISymb s)) = (x, (s, []))
-        go !x (TermCall (ISymb "str.++") ts) =
+        go !x (TermCall (ISymb f) ts) =
             let
                 (x', vl_args, arg_binds) = mapGo x ts
                 vars = intercalate " " vl_args
             in
-            (x' + 1, ("y" ++ show x', arg_binds ++ ["!y" ++ show x' ++ " = strAppend#" ++ " " ++ vars]))
-        go !_ _ = error "termToHaskell: unsupported term"
+            (x' + 1, ("y" ++ show x', arg_binds ++ ["!y" ++ show x' ++ " = " ++ smtFuncToPrim f ++ " " ++ vars]))
+        go !x (TermLet ls t) =
+            let
+                (x', tss) = mapAccumL (\x_ (VarBinding n t) -> let (x_', (tc, ts)) = go x_ t in (x_', ts ++ ["!" ++ n ++ " = " ++ tc])) x ls
+                (x'', (r, tss')) = go x' t
+            in
+            (x'', (r, concat tss ++ tss'))
+        go !x (TermLit l) = (x, (goLit l, []))
+        go !_ t = error $ "termToHaskell: unsupported term" ++ "\n" ++ show t
+
+        goLit (LitStr s) = "\"" ++ s ++ "\""
+        goLit (LitNum i) = show i
+        goLit _ = error "termToHaskell: unsupported lit"
+
+smtFuncToPrim :: String -> String
+smtFuncToPrim "str.++" = "strAppend#"
+smtFuncToPrim "str.len" = "strLen#"
+smtFuncToPrim "=" = "strEq#"
+smtFuncToPrim f = error $ "smtFuncToPrim: unsupported " ++ f
