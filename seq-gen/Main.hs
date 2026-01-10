@@ -74,11 +74,11 @@ runFunc src f smt_def config = do
                                         Nothing False f (mkCurrExpr TV.empty Nothing Nothing) (mkArgTys TV.empty)
                                         simplTranslationConfig config'
         
-        let comp_state = if isJust smt_def then findInconsistent init_state bindings else init_state
+        let (comp_state, bindings') = if isJust smt_def then findInconsistent init_state bindings else (init_state, bindings)
         -- let config'' = if isJust smt_def then config' { logStates = Log Pretty "a_smt"} else config'
         T.putStrLn $ printHaskellPG (mkPrettyGuide $ getExpr comp_state) comp_state (getExpr comp_state)
 
-        (er, b, to) <- runG2WithConfig proj [src] entry_f f [] mb_modname comp_state config' bindings
+        (er, b, to) <- runG2WithConfig proj [src] entry_f f [] mb_modname comp_state config' bindings'
 
         return (entry_f, er)
         )
@@ -95,11 +95,11 @@ setUpSpec h (Just (Id _ t, spec)) = do
     hClose h
 
 
-findInconsistent :: State t -> Bindings -> State t
+findInconsistent :: State t -> Bindings -> (State t, Bindings)
 findInconsistent s@(State { expr_env = eenv
                           , known_values = kv
                           , type_classes = tc
-                          , tyvar_env = tv_env }) b
+                          , tyvar_env = tv_env }) b@(Bindings { name_gen = ng })
     | Just (smt_def, e) <- E.lookupNameMod "spec" (Just "Spec") eenv =
     let
         
@@ -111,13 +111,20 @@ findInconsistent s@(State { expr_env = eenv
     case m_eq_dict of
         Just eq_dict ->
             let
-                new_curr_expr = mkApp [Var (Id (KV.neqFunc kv) TyUnknown)
-                                      , Type ret_type
-                                      , eq_dict
-                                      , app_smt_def
-                                      , getExpr s]
+                (val_name, ng') = freshSeededString "val" ng
+                (comp_name, ng'') = freshSeededString "comp" ng'
+
+                comp_e = mkApp [Var (Id (KV.eqFunc kv) TyUnknown)
+                              , Type ret_type
+                              , eq_dict
+                              , app_smt_def
+                              , Var (Id val_name TyUnknown)]
+                new_curr_expr = Let [ (Id val_name TyUnknown, getExpr s)
+                                    , (Id comp_name TyUnknown, comp_e)
+                                    ] $ Assert Nothing (Var (Id comp_name TyUnknown)) (Var (Id val_name TyUnknown))
             in
-            s { curr_expr = CurrExpr Evaluate new_curr_expr }
+            ( s { curr_expr = CurrExpr Evaluate new_curr_expr, true_assert = False }
+            , b { name_gen = ng'' })
         Nothing -> error $ "findInconsistent: no Eq dict" ++ show ret_type
     | otherwise = error $ "findInconsistent: spec not found"
 
