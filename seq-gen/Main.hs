@@ -1,4 +1,4 @@
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE BangPatterns, OverloadedStrings #-}
 
 module Main where
 
@@ -216,26 +216,31 @@ sygusToHaskell vars t =
 termToHaskell :: Term -> String
 termToHaskell t =
     let
-        (r, bind_p) = go t
+        (r, bind_p) = snd $ go 1 t
         binds = intercalate "; " bind_p
     in
     "let " ++ binds ++ " in " ++ r
     where
-        mapGo :: [Term] -> ([String], [String])
-        mapGo ts =
-            let (rs, bs) = unzip . map go $ ts in (rs, concat bs)
-
-        go :: Term
-           -> ( String -- ^ Final value to be returned
-              , [String] -- ^ Let value pieces
-              )
-        go (TermIdent (ISymb s)) = (s, [])
-        go (TermCall (ISymb "str.++") ts) =
+        mapGo :: Int -> [Term] -> (Int, [String], [String])
+        mapGo x ts =
             let
-                (vl_args, arg_binds) = mapGo ts
+                (x', rs_bs) = mapAccumL go x $ ts
+                (rs, bs) = unzip rs_bs
+            in
+            (x', rs, concat bs)
 
-                binds = map (\(v, ar) -> "!" ++ v ++ " = " ++ ar) $ zip (varList "y") vl_args
+        go :: Int
+           -> Term
+           -> ( Int
+              , ( String -- ^ Final value to be returned
+                , [String] -- ^ Let value pieces
+                )
+              )
+        go !x (TermIdent (ISymb s)) = (x, (s, []))
+        go !x (TermCall (ISymb "str.++") ts) =
+            let
+                (x', vl_args, arg_binds) = mapGo x ts
                 vars = intercalate " " vl_args
             in
-            ("strAppend#" ++ " " ++ vars, arg_binds ++ binds)
-        go _ = error "termToHaskell: unsupported term"
+            (x' + 1, ("y" ++ show x', arg_binds ++ ["!y" ++ show x' ++ " = strAppend#" ++ " " ++ vars]))
+        go !_ _ = error "termToHaskell: unsupported term"
