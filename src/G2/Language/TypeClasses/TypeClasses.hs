@@ -139,7 +139,7 @@ typeClassInst tc m tcn t
     , ts <- tyAppArgs t
     , tcs <- map (typeClassInst tc m tcn) ts
     , all isJust tcs =
-        case lookupTCDict tc tcn tca of
+        case lookupTCDict tc tcn t of
             Just i -> Just (foldl' App (Var i) $ map Type ts ++ map fromJust tcs)
             Nothing -> Nothing
     | (TyVar (Id n _)) <- tyAppCenter t

@@ -517,6 +517,7 @@ executable SeqGen
                        , containers
                        , language-sygus >= 0.1.1.3 && < 0.2
                        , process
+                       , temporary-rc
                        , text
                        , unordered-containers >= 0.2 && < 0.3
   default-language:    Haskell2010

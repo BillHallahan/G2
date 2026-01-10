@@ -1,3 +1,5 @@
+{-# LANGUAGE OverloadedStrings #-}
+
 module Main where
 
 import G2.Config
@@ -5,7 +7,10 @@ import G2.Execution.PrimitiveEval
 import G2.Initialization.MkCurrExpr
 import G2.Interface
 import G2.Language hiding (Handle)
+import qualified G2.Language.ExprEnv as E
+import qualified G2.Language.KnownValues as KV
 import qualified G2.Language.TyVarEnv as TV
+import G2.Lib.Printers
 import G2.Solver.SMT2
 import G2.Translation
 
@@ -15,10 +20,13 @@ import Sygus.Syntax
 import Sygus.Print
 
 import Control.Exception.Base (evaluate)
+import qualified Data.HashMap.Lazy as HM
 import Data.List
+import Data.Maybe
 import qualified Data.Text as T
 import qualified Data.Text.IO as T
 import System.IO
+import System.IO.Temp
 import System.Process
 
 main :: IO ()
@@ -28,23 +36,17 @@ main = do
 
     _ <- genSMTFunc src f Nothing config
     return ()
-    -- er <- runFunc src f Nothing config
-    -- putStrLn "HERE"
-    -- smt_cmd <- runSygus er
-    -- print smt_cmd
-    -- case smt_cmd of
-    --     Just (DefineFun _ vars _ t) -> putStrLn $ sygusToHaskell vars t
-    --     _ -> return ()
 
+-- | Use a CEGIS loop to generate an SMT conversion of a function
 genSMTFunc :: FilePath -- ^ Filepath containing function
            -> T.Text -- ^ Function name
-           -> Maybe String -- ^ Possible (SyGuS generated) function definition 
+           -> Maybe (Id, String) -- ^ Possible (SyGuS generated) function definition, along with the Id of the function being generated
            -> Config
            -> IO String
 genSMTFunc src f smt_def config = do
-    ers <- runFunc src f smt_def config
+    (entry_f, ers) <- runFunc src f smt_def config
     case null ers of
-        True | Just smt_def' <- smt_def -> return smt_def'
+        True | Just (_, smt_def') <- smt_def -> return smt_def'
         _ -> do
             smt_cmd <- runSygus ers
             print smt_cmd
@@ -52,26 +54,72 @@ genSMTFunc src f smt_def config = do
                 Just (DefineFun _ vars _ t) -> do
                     let new_smt_def = sygusToHaskell vars t
                     putStrLn new_smt_def
-                    genSMTFunc src f (Just new_smt_def) config
+                    genSMTFunc src f (Just (entry_f, new_smt_def)) config
                 _ -> error "genSMTFunc: no SMT function generated"
-  
-        
 
 runFunc :: FilePath -- ^ Filepath containing function
         -> T.Text -- ^ Function name
-        -> Maybe String -- ^ Possible (SyGuS generated) function definition
+        -> Maybe (Id, String) -- ^ Possible (SyGuS generated) function definition, along with the Id of the function being generated
         -> Config
-        -> IO [ExecRes ()]
-runFunc src f Nothing config = do
-    proj <- guessProj (includePaths config) src
+        -> IO (Id, [ExecRes ()])
+runFunc src f smt_def config = do
+    withSystemTempFile "SpecTemp.hs" (\temp handle -> do
+        setUpSpec handle smt_def
 
-    (init_state, entry_f, bindings, mb_modname) <- initialStateFromFile proj [src]
-                                    Nothing False f (mkCurrExpr TV.empty Nothing Nothing) (mkArgTys TV.empty)
-                                    simplTranslationConfig config
+        let config' = config { base = base config ++ [temp]}
 
-    (er, b, to) <- runG2WithConfig proj [src] entry_f f [] mb_modname init_state config bindings
+        proj <- guessProj (includePaths config') src
 
-    return er
+        (init_state, entry_f, bindings, mb_modname) <- initialStateFromFile proj [src]
+                                        Nothing False f (mkCurrExpr TV.empty Nothing Nothing) (mkArgTys TV.empty)
+                                        simplTranslationConfig config'
+        
+        let comp_state = if isJust smt_def then findInconsistent init_state bindings else init_state
+        -- let config'' = if isJust smt_def then config' { logStates = Log Pretty "a_smt"} else config'
+        T.putStrLn $ printHaskellPG (mkPrettyGuide $ getExpr comp_state) comp_state (getExpr comp_state)
+
+        (er, b, to) <- runG2WithConfig proj [src] entry_f f [] mb_modname comp_state config' bindings
+
+        return (entry_f, er)
+        )
+
+setUpSpec :: Handle -> Maybe (Id, String) -> IO ()
+setUpSpec h Nothing = hClose h
+setUpSpec h (Just (Id _ t, spec)) = do
+    let contents = "{-# LANGUAGE MagicHash#-}\nmodule Spec where\nimport GHC.Prim2\n"
+                    ++ "spec :: " ++ T.unpack (mkTypeHaskell t) ++ "\n"
+                    ++ spec
+    putStrLn contents
+    hPutStrLn h contents
+    hFlush h
+    hClose h
+
+
+findInconsistent :: State t -> Bindings -> State t
+findInconsistent s@(State { expr_env = eenv
+                          , known_values = kv
+                          , type_classes = tc
+                          , tyvar_env = tv_env }) b
+    | Just (smt_def, e) <- E.lookupNameMod "spec" (Just "Spec") eenv =
+    let
+        
+        app_smt_def = mkApp $ Var (Id smt_def (typeOf tv_env e)):map Var (inputIds s b)
+
+        ret_type = returnType $ typeOf tv_env e
+        m_eq_dict = typeClassInst tc HM.empty (KV.eqTC kv) ret_type
+    in
+    case m_eq_dict of
+        Just eq_dict ->
+            let
+                new_curr_expr = mkApp [Var (Id (KV.neqFunc kv) TyUnknown)
+                                      , Type ret_type
+                                      , eq_dict
+                                      , app_smt_def
+                                      , getExpr s]
+            in
+            s { curr_expr = CurrExpr Evaluate new_curr_expr }
+        Nothing -> error $ "findInconsistent: no Eq dict" ++ show ret_type
+    | otherwise = error $ "findInconsistent: spec not found"
 
 -------------------------------------------------------------------------------
 -- Calling/reading from SyGuS solver
