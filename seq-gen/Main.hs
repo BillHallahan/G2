@@ -45,15 +45,15 @@ genSMTFunc :: FilePath -- ^ Filepath containing function
            -> Config
            -> IO String
 genSMTFunc src f smt_def config = do
-    (entry_f, ers) <- runFunc src f smt_def config
-    case null ers of
-        True | Just (_, smt_def') <- smt_def -> return smt_def'
-        _ -> do
+    (entry_f@(Id _ f_ty), ers) <- runFunc src f smt_def config
+    case ers of
+        [] | Just (_, smt_def') <- smt_def -> return smt_def'
+        (er:_) -> do
             smt_cmd <- runSygus ers
             print smt_cmd
             case smt_cmd of
                 Just (DefineFun _ vars _ t) -> do
-                    let new_smt_def = sygusToHaskell vars t
+                    let new_smt_def = sygusToHaskell (known_values $ final_state er) f_ty vars t
                     putStrLn new_smt_def
                     genSMTFunc src f (Just (entry_f, new_smt_def)) config
                 _ -> error "genSMTFunc: no SMT function generated"
@@ -234,13 +234,13 @@ typeToSort _ _ = error "typeToSort: unsupported Type"
 -------------------------------------------------------------------------------
 -- Turning a SyGuS solution into Haskell code
 -------------------------------------------------------------------------------
-sygusToHaskell :: [SortedVar] -> Term -> String
-sygusToHaskell vars t =
+sygusToHaskell :: KnownValues -> Type -> [SortedVar] -> Term -> String
+sygusToHaskell kv ty vars term =
     let
         header = "spec " ++ intercalate " " (map (\(SortedVar n _) -> n) vars) ++ " = "
-        body = termToHaskell t
+        body = termToHaskell term
     in
-    header ++ body
+    header ++ wrapReturn kv (returnType ty) body
 
 termToHaskell :: Term -> String
 termToHaskell t =
@@ -290,3 +290,17 @@ smtFuncToPrim "str.++" = "strAppend#"
 smtFuncToPrim "str.len" = "strLen#"
 smtFuncToPrim "=" = "strEq#"
 smtFuncToPrim f = error $ "smtFuncToPrim: unsupported " ++ f
+
+-- | If an argument is a value that we need to wrap in a constructor, do so.
+wrapArg :: KnownValues -> Type -> String -> String
+wrapArg kv t s | Just w <- wrap kv t = "(" ++ w ++ " " ++ s ++ ")"
+               | otherwise = s
+                  
+-- | If a return value is a type that we need to wrap in a constructor, do so.
+wrapReturn :: KnownValues -> Type -> String -> String
+wrapReturn kv t s | Just w <- wrap kv t = w ++ " (" ++ s ++ ")"
+                  | otherwise = s
+
+wrap :: KnownValues -> Type -> Maybe String
+wrap kv t | t == tyInt kv = Just "I#"
+          | otherwise = Nothing
