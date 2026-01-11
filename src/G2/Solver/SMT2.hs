@@ -13,6 +13,9 @@ module G2.Solver.SMT2 ( Z3StringSolver (..)
                       , Z3
                       , CVC5
                       , SomeSMTSolver (..)
+                      , getProcessHandles
+                      , getLinesMatchParens
+
                       , getZ3
                       , getSMT
                       , getSMTAV) where

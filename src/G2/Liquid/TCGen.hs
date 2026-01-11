@@ -101,7 +101,7 @@ createLHTCFuncs = do
                                 case adt of
                                     Just adt' -> do
                                         let bnvK = mkTyApp $ map (const TYPE) $ bound_ids adt'
-                                        return (TyCon n bnvK, f)
+                                        return (mkTyApp $ TyCon n bnvK:(map TyVar $ bound_ids adt'), f)
                                     Nothing -> error $ "No LH Dict name for " ++ show n) lhm
 
     tc <- typeClasses
