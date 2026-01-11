@@ -95,7 +95,7 @@ lookupTCDict :: TypeClasses
              -> Maybe Id
 lookupTCDict tc n t =
     case fmap insts $ M.lookup n (toMap tc) of
-        Just c -> fmap snd $ find (\(t', _) -> t .:: t') c
+        Just c -> fmap snd $ find (\(t', _) -> t .:: tyAppCenter t') c
         Nothing -> Nothing
 
 -- | Given a typeclass `Name`, gives an association list of
@@ -139,7 +139,7 @@ typeClassInst tc m tcn t
     , ts <- tyAppArgs t
     , tcs <- map (typeClassInst tc m tcn) ts
     , all isJust tcs =
-        case lookupTCDict tc tcn t of
+        case lookupTCDict tc tcn tca of
             Just i -> Just (foldl' App (Var i) $ map Type ts ++ map fromJust tcs)
             Nothing -> Nothing
     | (TyVar (Id n _)) <- tyAppCenter t

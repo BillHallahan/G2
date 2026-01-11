@@ -89,7 +89,7 @@ runFunc src f smt_def config = do
 setUpSpec :: Handle -> Maybe (Id, String) -> IO ()
 setUpSpec h Nothing = hClose h
 setUpSpec h (Just (Id _ t, spec)) = do
-    let contents = "{-# LANGUAGE MagicHash#-}\nmodule Spec where\nimport GHC.Prim2\n"
+    let contents = "{-# LANGUAGE BangPatterns, MagicHash#-}\nmodule Spec where\nimport GHC.Prim2\n"
                     ++ "spec :: " ++ T.unpack (mkTypeHaskell t) ++ "\n"
                     ++ spec
     putStrLn contents
