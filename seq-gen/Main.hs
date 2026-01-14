@@ -12,7 +12,6 @@ import qualified G2.Language.KnownValues as KV
 import G2.Language.Monad
 import qualified G2.Language.TyVarEnv as TV
 import G2.Lib.Printers
-import G2.Solver.Converters
 import G2.Solver.SMT2
 import G2.Translation
 
@@ -43,16 +42,16 @@ main = do
 -------------------------------------------------------------------------------
 -- CEGIS Loop
 -------------------------------------------------------------------------------
-
+g
 -- | Use a CEGIS loop to generate an SMT conversion of a function
-genSMTFunc :: [[ExecRes ()]] -- ^ Generated states 
+genSMTFunc :: [[ExecRes ()]] -- ^ Generated states
            -> FilePath -- ^ Filepath containing function
            -> T.Text -- ^ Function name
            -> Maybe (Id, String) -- ^ Possible (SyGuS generated) function definition, along with the Id of the function being generated
            -> Config
            -> IO String
 genSMTFunc constraints src f smt_def config = do
-    (entry_f@(Id _ f_ty), ers, ng) <- runFunc src f smt_def config
+    (entry_f, ers, ng) <- runFunc src f smt_def config
     case ers of
         [] | Just (_, smt_def') <- smt_def -> return smt_def'
            | otherwise -> error "genSMTFunc: no SMT function generated" 
@@ -64,20 +63,22 @@ genSMTFunc constraints src f smt_def config = do
 
             let pg = mkPrettyGuide is
             new_pieces <- mapM (\(i, constraints_) -> do
-                                    smt_cmd <- runSygus constraints_
-                                    print smt_cmd
-                                    case smt_cmd of
-                                        Just (DefineFun _ vars _ t) -> do
-                                            let new_smt_def_ = sygusToHaskell "spec" (known_values $ final_state er) f_ty vars t
-                                            putStrLn new_smt_def_
-                                            return $ "!" ++ T.unpack (printName pg (idName i)) ++ " = (" ++ new_smt_def_ ++ ")"
-                                        _ -> error "genSMTFunc: no SMT function generated")
+                                    new_smt_def <- computeProdPieces constraints_
+                                    return $ "!" ++ T.unpack (printName pg (idName i)) ++ " = (" ++ new_smt_def ++ ")")
                               is_constraints
-            let vs = zipWith const (varList "z") (conc_args er)
+            let vs = zipWith const argList (conc_args er)
                 new_smt_def = "spec " ++ intercalate " " vs
                            ++ " = let " ++ intercalate "; " new_pieces ++ " in "
                            ++ T.unpack (printHaskellPG pg (final_state er) varred_form)
             genSMTFunc new_constraints src f (Just (entry_f, new_smt_def)) config
+
+computeProdPieces :: [ExecRes t] -> IO String
+computeProdPieces constraints = do
+    smt_cmd <- synthFunc constraints
+    print smt_cmd
+    case smt_cmd of
+        Just (DefineFun _ _ _ t) -> return $ termToHaskell t
+        _ -> error "genSMTFunc: no SMT function generated"
 
 groupNonAdj :: (a -> a -> Bool) -> [a] -> [[a]]
 groupNonAdj _ [] = []
@@ -153,17 +154,6 @@ collectLits e = SM.execState (modifyLits rep e) []
         rep l = do
             SM.modify (l:)
             return l
-
-
--- foldLits :: (a -> G2.Lit -> a) -> a -> Expr -> a
--- foldLits _ x (Var _) = x
--- foldLits f x (Lit l) = f x l
--- foldLits _ x (Prim _ _) = x
--- foldLits _ x (Data _) = x
--- foldLits f x (App e1 e2) = foldLits f (foldLits f x e2) e1
--- foldLits f x (Lam _ _ e) = foldLits f x e
--- foldLits f x (Let b e) = foldr f (foldLits f x e) (map snd b)
--- foldLits
 
 -------------------------------------------------------------------------------
 -- Calling G2
@@ -243,25 +233,18 @@ findInconsistent s@(State { expr_env = eenv
 -------------------------------------------------------------------------------
 -- Calling/reading from SyGuS solver
 -------------------------------------------------------------------------------
-runSygus :: [ExecRes t] -> IO (Maybe SmtCmd)
-runSygus [] = return Nothing
-runSygus er@(ExecRes { final_state = s, conc_args = args, conc_out = out_e}:_) = do
-    let 
+synthFunc :: [ExecRes t] -> IO (Maybe SmtCmd)
+synthFunc er = runSygus $ sygusCmds er
 
-    let grm = GrammarDef pre_dec gram_defs'
-
+runSygus :: [Cmd] -> IO (Maybe SmtCmd)
+runSygus sygus_cmds = do
     (h_in, h_out, _) <- getCVC5Sygus 60
-    T.hPutStrLn h_in $ printSygus (SetLogic "ALL")
-    T.putStrLn $ printSygus (SetLogic "ALL")
-    let synthFun = SynthFun "spec" arg_vars ret_sort (Just grm)
-    T.hPutStrLn h_in $ printSygus synthFun
-    T.putStrLn $ printSygus synthFun
-    mapM (execResToConstraints h_in) er
-    T.hPutStrLn h_in $ printSygus CheckSynth
-    T.putStrLn $ printSygus CheckSynth
+    mapM_ (\c -> do
+            T.hPutStrLn h_in $ printSygus c
+            T.putStrLn $ printSygus c
+        ) sygus_cmds
     _ <- hWaitForInput h_out 70
     out <- getLinesMatchParens h_out
-    -- putStrLn $ "Z3 out: " ++ out
     _ <- evaluate (length out)
     putStrLn out
     -- We get back something of the form:
@@ -272,6 +255,15 @@ runSygus er@(ExecRes { final_state = s, conc_args = args, conc_out = out_e}:_) =
     case sy_out of
         [SmtCmd def_fun] -> return $ Just def_fun
         _ -> return Nothing
+
+sygusCmds :: [ExecRes t] -> [Cmd]
+sygusCmds [] = []
+sygusCmds er@(ExecRes { final_state = s, conc_args = args, conc_out = out_e}:_) = 
+    let grm = GrammarDef pre_dec gram_defs' in
+    [ SmtCmd $ SetLogic "ALL"
+    , SynthFun "spec" arg_vars ret_sort (Just grm)]
+    ++ map execResToConstraints er ++
+    [CheckSynth]
     where
         kv = known_values s
 
@@ -280,7 +272,7 @@ runSygus er@(ExecRes { final_state = s, conc_args = args, conc_out = out_e}:_) =
         boolSort = IdentSort (ISymb "Bool")
 
         args_sort = map (typeToSort kv . typeOf (tyvar_env s)) args
-        arg_vars = map (uncurry SortedVar) $ zip (varList "z") args_sort
+        arg_vars = map (uncurry SortedVar) $ zip argList args_sort
         ret_sort = typeToSort kv $ typeOf (tyvar_env s) out_e
 
         intIdent = BfIdentifier (ISymb "IntPr")
@@ -311,11 +303,11 @@ runSygus er@(ExecRes { final_state = s, conc_args = args, conc_out = out_e}:_) =
         gram_defs = [ GroupedRuleList "StrPr" strSort grmString
                     , GroupedRuleList "IntPr" intSort grmInt
                     , GroupedRuleList "BoolPr" boolSort grmBool]
-        find_start_gram = findElem (\(GroupedRuleList _ sort _) -> sort == ret_sort) gram_defs
+        find_start_gram = findElem (\(GroupedRuleList _ srt _) -> srt == ret_sort) gram_defs
         gram_defs' = case find_start_gram of
                             Just (start_sym, other_sym) -> start_sym:other_sym
                             Nothing -> error "runSygus: no start symbol"
-        pre_dec = map (\(GroupedRuleList n sort _) -> SortedVar n sort) gram_defs'
+        pre_dec = map (\(GroupedRuleList n srt _) -> SortedVar n srt) gram_defs'
 
 findElem       :: (a -> Bool) -> [a] -> Maybe (a, [a])
 findElem p     = find' id
@@ -328,23 +320,25 @@ findElem p     = find' id
 varList :: String -> [String]
 varList x = map ((++) x . show) [1 :: Integer ..]
 
+argList :: [String]
+argList = varList "z"
+
 getCVC5Sygus :: Int -> IO (Handle, Handle, ProcessHandle)
 getCVC5Sygus time_out = getProcessHandles $ proc "cvc5" ["--lang", "sygus", "--no-sygus-pbe", "--tlimit-per=" ++ show time_out]
 
 parseSygus :: String -> [Cmd]
 parseSygus = Sy.parse . Sy.lexSygus
 
-execResToConstraints :: Handle -> ExecRes t -> IO ()
-execResToConstraints h_in (ExecRes { final_state = s, conc_args = args, conc_out = out_e }) =
+execResToConstraints :: ExecRes t -> Cmd
+execResToConstraints (ExecRes { final_state = s, conc_args = ars, conc_out = out_e }) =
     let
         kv = known_values s
 
-        call = TermCall (ISymb "spec") (map (exprToTerm kv) args)
+        call = TermCall (ISymb "spec") (map (exprToTerm kv) ars)
         out_t = exprToTerm kv out_e
         cons = Constraint $ TermCall (ISymb "=") [call, out_t]
-    in do
-    T.hPutStrLn h_in $ printSygus cons
-    T.putStrLn $ printSygus cons
+    in
+        cons
 
 exprToTerm :: KnownValues -> Expr -> Term
 exprToTerm _ (Lit (LitInt x)) = TermLit (LitNum x)
@@ -354,7 +348,7 @@ exprToTerm _ e | Just s <- toString e = TermLit (LitStr s)
 exprToTerm _ e = error $ "exprToTerm: unsupported Expr" ++ "\n" ++ show e
 
 typeToSort :: KnownValues -> Type -> Sort
-typeToSort kv t | t == TyLitInt = IdentSort (ISymb "Int")
+typeToSort _ t | t == TyLitInt = IdentSort (ISymb "Int")
 typeToSort kv t | t == tyBool kv = IdentSort (ISymb "Bool")
 typeToSort kv (TyApp t _) | t == tyList kv = IdentSort (ISymb "String")
 typeToSort _ s = error $ "typeToSort: unsupported Type" ++ "\n" ++ show s
@@ -362,23 +356,10 @@ typeToSort _ s = error $ "typeToSort: unsupported Type" ++ "\n" ++ show s
 -------------------------------------------------------------------------------
 -- Turning a SyGuS solution into Haskell code
 -------------------------------------------------------------------------------
-sygusToHaskell :: String -- ^ Binding name
-               -> KnownValues
-               -> Type
-               -> [SortedVar]
-               -> Term
-               -> String
-sygusToHaskell bn kv ty vars term =
-    let
-        -- binding = bn ++ " " ++ intercalate " " (map (\(SortedVar n _) -> n) vars) ++ " = "
-        body = termToHaskell term
-    in
-    body
-
 termToHaskell :: Term -> String
-termToHaskell t =
+termToHaskell trm =
     let
-        (r, bind_p) = snd $ go 1 t
+        (r, bind_p) = snd $ go 1 trm
         binds = intercalate "; " bind_p
     in
     "let " ++ binds ++ " in " ++ r
@@ -402,13 +383,13 @@ termToHaskell t =
         go !x (TermCall (ISymb f) ts) =
             let
                 (x', vl_args, arg_binds) = mapGo x ts
-                vars = intercalate " " vl_args
+                vrs = intercalate " " vl_args
             in
-            (x' + 1, ("y" ++ show x', arg_binds ++ ["!y" ++ show x' ++ " = " ++ smtFuncToPrim f ++ " " ++ vars]))
-        go !x (TermLet ls t) =
+            (x' + 1, ("y" ++ show x', arg_binds ++ ["!y" ++ show x' ++ " = " ++ smtFuncToPrim f ++ " " ++ vrs]))
+        go !x (TermLet ls trm_l) =
             let
                 (x', tss) = mapAccumL (\x_ (VarBinding n t) -> let (x_', (tc, ts)) = go x_ t in (x_', ts ++ ["!" ++ n ++ " = " ++ tc])) x ls
-                (x'', (r, tss')) = go x' t
+                (x'', (r, tss')) = go x' trm_l
             in
             (x'', (r, concat tss ++ tss'))
         go !x (TermLit l) = (x, (goLit l, []))
@@ -427,17 +408,3 @@ smtFuncToPrim "str.replace" = "strReplace#"
 smtFuncToPrim "str.suffixof" = "strSuffixOf#"
 smtFuncToPrim "=" = "strEq#"
 smtFuncToPrim f = error $ "smtFuncToPrim: unsupported " ++ f
-
--- | If an argument is a value that we need to wrap in a constructor, do so.
-wrapArg :: KnownValues -> Type -> String -> String
-wrapArg kv t s | Just w <- wrap kv t = "(" ++ w ++ " " ++ s ++ ")"
-               | otherwise = s
-                  
--- | If a return value is a type that we need to wrap in a constructor, do so.
-wrapReturn :: KnownValues -> Type -> String -> String
-wrapReturn kv t s | Just w <- wrap kv t = w ++ " (" ++ s ++ ")"
-                  | otherwise = s
-
-wrap :: KnownValues -> Type -> Maybe String
-wrap kv t | t == tyInt kv = Just "I#"
-          | otherwise = Nothing
