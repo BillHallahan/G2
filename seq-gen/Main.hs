@@ -1,14 +1,15 @@
-{-# LANGUAGE BangPatterns, OverloadedStrings #-}
+{-# LANGUAGE BangPatterns, FlexibleContexts, OverloadedStrings #-}
 
-module Main where
+module Main (main) where
 
 import G2.Config
 import G2.Execution.PrimitiveEval
 import G2.Initialization.MkCurrExpr
 import G2.Interface
-import G2.Language hiding (Handle)
+import G2.Language as G2 hiding (Handle)
 import qualified G2.Language.ExprEnv as E
 import qualified G2.Language.KnownValues as KV
+import G2.Language.Monad
 import qualified G2.Language.TyVarEnv as TV
 import G2.Lib.Printers
 import G2.Solver.Converters
@@ -21,6 +22,7 @@ import Sygus.Syntax
 import Sygus.Print
 
 import Control.Exception.Base (evaluate)
+import qualified Control.Monad.State as SM
 import qualified Data.HashMap.Lazy as HM
 import Data.List
 import Data.Maybe
@@ -38,33 +40,140 @@ main = do
     _ <- genSMTFunc [] src f Nothing config
     return ()
 
+-------------------------------------------------------------------------------
+-- CEGIS Loop
+-------------------------------------------------------------------------------
+
 -- | Use a CEGIS loop to generate an SMT conversion of a function
-genSMTFunc :: [ExecRes ()] -- ^ Generated states 
+genSMTFunc :: [[ExecRes ()]] -- ^ Generated states 
            -> FilePath -- ^ Filepath containing function
            -> T.Text -- ^ Function name
            -> Maybe (Id, String) -- ^ Possible (SyGuS generated) function definition, along with the Id of the function being generated
            -> Config
            -> IO String
 genSMTFunc constraints src f smt_def config = do
-    (entry_f@(Id _ f_ty), ers) <- runFunc src f smt_def config
+    (entry_f@(Id _ f_ty), ers, ng) <- runFunc src f smt_def config
     case ers of
         [] | Just (_, smt_def') <- smt_def -> return smt_def'
+           | otherwise -> error "genSMTFunc: no SMT function generated" 
         (er:_) -> do
-            let new_constraints = ers ++ constraints
-            smt_cmd <- runSygus new_constraints
-            print smt_cmd
-            case smt_cmd of
-                Just (DefineFun _ vars _ t) -> do
-                    let new_smt_def = sygusToHaskell (known_values $ final_state er) f_ty vars t
-                    putStrLn new_smt_def
-                    genSMTFunc new_constraints src f (Just (entry_f, new_smt_def)) config
-                _ -> error "genSMTFunc: no SMT function generated"
+            let (varred_form, is, ng') = replaceLitsWithVars ng (conc_out er)
+                lit_ers = transpose $ map execResCollectLits ers
+            let new_constraints = zipWithDef (++) lit_ers constraints
+                is_constraints = zip is new_constraints
+
+            let pg = mkPrettyGuide is
+            new_pieces <- mapM (\(i, constraints_) -> do
+                                    smt_cmd <- runSygus constraints_
+                                    print smt_cmd
+                                    case smt_cmd of
+                                        Just (DefineFun _ vars _ t) -> do
+                                            let new_smt_def_ = sygusToHaskell "spec" (known_values $ final_state er) f_ty vars t
+                                            putStrLn new_smt_def_
+                                            return $ "!" ++ T.unpack (printName pg (idName i)) ++ " = (" ++ new_smt_def_ ++ ")"
+                                        _ -> error "genSMTFunc: no SMT function generated")
+                              is_constraints
+            let vs = zipWith const (varList "z") (conc_args er)
+                new_smt_def = "spec " ++ intercalate " " vs
+                           ++ " = let " ++ intercalate "; " new_pieces ++ " in "
+                           ++ T.unpack (printHaskellPG pg (final_state er) varred_form)
+            genSMTFunc new_constraints src f (Just (entry_f, new_smt_def)) config
+
+groupNonAdj :: (a -> a -> Bool) -> [a] -> [[a]]
+groupNonAdj _ [] = []
+groupNonAdj p (x:xs) = let (g, n) = partition (p x) xs in (x:g):groupNonAdj p n
+
+zipWithDef :: (a -> a -> a) -> [a] -> [a] -> [a]
+zipWithDef _ [] [] = []
+zipWithDef _ xs [] = xs
+zipWithDef _ [] ys = ys
+zipWithDef f (x:xs) (y:ys) = f x y:zipWithDef f xs ys
+
+isString :: Expr -> Bool
+isString (App (Data dc) (Type (TyCon n _)))
+    | nameOcc (dcName dc) == "[]"
+    , nameOcc n == "Char" = True
+isString (App (App (App (Data dc) _) _) _)
+    | nameOcc (dcName dc) == ":" = True
+isString _ = False
+
+-- | Check that two Expr's are equal, disregarding specific values of (1) literals and (2) strings.
+equalStruct :: Expr -> Expr -> Bool
+equalStruct e1 e2 = modify repLit e1 == modify repLit e2
+    where
+        -- Replaces all literal values/concrete strings with "default" values
+        repLit (Lit l) = Lit $ rep l
+        repLit e | isString e = Var (Id (Name "!!__G2__!!_STRING" Nothing 0 Nothing) TyUnknown)
+                 | otherwise = e
+
+        rep (LitInt _) = LitInt 0
+        rep (LitWord _) = LitWord 0
+        rep (LitFloat _) = LitFloat 0
+        rep (LitDouble _) = LitDouble 0
+        rep (LitRational _) = LitRational 0
+        rep (LitBV _) = LitBV []
+        rep (LitChar _) = LitChar 'a'
+        rep (LitString _) = LitString ""
+        rep (LitInteger _) = LitInteger 0
+
+modifyLits :: Monad m => (Expr -> m Expr) -> Expr -> m Expr
+modifyLits f e@(Lit _) = f e
+modifyLits f e | isString e = f e
+               | Data dc <- e
+               , nameOcc (dc_name dc) == "True" || nameOcc (dc_name dc) == "False" = f e
+               | otherwise = modifyChildrenM (modifyLits f) e
+
+-- | Return the passed expression, but with all literals replaced with fresh symbolic variables
+replaceLitsWithVars :: NameGen -> Expr -> ( Expr
+                                          , [Id] -- ^ The introduced variables
+                                          , NameGen
+                                          )
+replaceLitsWithVars ng e =
+    let ((e', ng'), xs) = SM.runState (runNamingT (modifyLits rep e) ng) [] in
+    (e', xs, ng')
+    where
+        rep l = do
+            x <- freshSeededStringN "x"
+            let i = Id x $ typeOf TV.empty l
+            SM.lift $ SM.modify (i:)
+            return $ Var i
+
+execResCollectLits :: ExecRes t -> [ExecRes t]
+execResCollectLits er@(ExecRes { final_state = s }) =
+    let
+        e = conc_out er
+        ls = collectLits e
+    in
+    map (\l -> er { final_state = s { curr_expr = CurrExpr Evaluate l }, conc_out = l }) ls
+
+-- | Return all literals in the expression.
+collectLits :: Expr -> [Expr]
+collectLits e = SM.execState (modifyLits rep e) [] 
+    where
+        rep l = do
+            SM.modify (l:)
+            return l
+
+
+-- foldLits :: (a -> G2.Lit -> a) -> a -> Expr -> a
+-- foldLits _ x (Var _) = x
+-- foldLits f x (Lit l) = f x l
+-- foldLits _ x (Prim _ _) = x
+-- foldLits _ x (Data _) = x
+-- foldLits f x (App e1 e2) = foldLits f (foldLits f x e2) e1
+-- foldLits f x (Lam _ _ e) = foldLits f x e
+-- foldLits f x (Let b e) = foldr f (foldLits f x e) (map snd b)
+-- foldLits
+
+-------------------------------------------------------------------------------
+-- Calling G2
+-------------------------------------------------------------------------------
 
 runFunc :: FilePath -- ^ Filepath containing function
         -> T.Text -- ^ Function name
         -> Maybe (Id, String) -- ^ Possible (SyGuS generated) function definition, along with the Id of the function being generated
         -> Config
-        -> IO (Id, [ExecRes ()])
+        -> IO (Id, [ExecRes ()], NameGen)
 runFunc src f smt_def config = do
     withSystemTempFile "SpecTemp.hs" (\temp handle -> do
         setUpSpec handle smt_def
@@ -83,7 +192,7 @@ runFunc src f smt_def config = do
 
         (er, b, to) <- runG2WithConfig proj [src] entry_f f [] mb_modname comp_state config' bindings'
 
-        return (entry_f, er)
+        return (entry_f, er, name_gen bindings)
         )
 
 setUpSpec :: Handle -> Maybe (Id, String) -> IO ()
@@ -97,7 +206,7 @@ setUpSpec h (Just (Id _ t, spec)) = do
     hFlush h
     hClose h
 
-
+-- | Find inputs that violate a found SMT definition
 findInconsistent :: State t -> Bindings -> (State t, Bindings)
 findInconsistent s@(State { expr_env = eenv
                           , known_values = kv
@@ -171,7 +280,7 @@ runSygus er@(ExecRes { final_state = s, conc_args = args, conc_out = out_e}:_) =
         boolSort = IdentSort (ISymb "Bool")
 
         args_sort = map (typeToSort kv . typeOf (tyvar_env s)) args
-        arg_vars = map (uncurry SortedVar) $ zip (varList "x") args_sort
+        arg_vars = map (uncurry SortedVar) $ zip (varList "z") args_sort
         ret_sort = typeToSort kv $ typeOf (tyvar_env s) out_e
 
         intIdent = BfIdentifier (ISymb "IntPr")
@@ -238,28 +347,33 @@ execResToConstraints h_in (ExecRes { final_state = s, conc_args = args, conc_out
     T.putStrLn $ printSygus cons
 
 exprToTerm :: KnownValues -> Expr -> Term
-exprToTerm _ (App (Data _) (Lit (LitInt x))) = TermLit (LitNum x)
+exprToTerm _ (Lit (LitInt x)) = TermLit (LitNum x)
 exprToTerm kv dc | dc == mkTrue kv = TermLit (LitBool True)
                  | dc == mkFalse kv = TermLit (LitBool False)
 exprToTerm _ e | Just s <- toString e = TermLit (LitStr s)
-exprToTerm _ _ = error "exprToTerm: unsupported Expr"
+exprToTerm _ e = error $ "exprToTerm: unsupported Expr" ++ "\n" ++ show e
 
 typeToSort :: KnownValues -> Type -> Sort
-typeToSort kv t_list | t_list == tyInt kv = IdentSort (ISymb "Int")
-typeToSort kv t_list | t_list == tyBool kv = IdentSort (ISymb "Bool")
-typeToSort kv (TyApp t_list _) | t_list == tyList kv = IdentSort (ISymb "String")
-typeToSort _ _ = error "typeToSort: unsupported Type"
+typeToSort kv t | t == TyLitInt = IdentSort (ISymb "Int")
+typeToSort kv t | t == tyBool kv = IdentSort (ISymb "Bool")
+typeToSort kv (TyApp t _) | t == tyList kv = IdentSort (ISymb "String")
+typeToSort _ s = error $ "typeToSort: unsupported Type" ++ "\n" ++ show s
 
 -------------------------------------------------------------------------------
 -- Turning a SyGuS solution into Haskell code
 -------------------------------------------------------------------------------
-sygusToHaskell :: KnownValues -> Type -> [SortedVar] -> Term -> String
-sygusToHaskell kv ty vars term =
+sygusToHaskell :: String -- ^ Binding name
+               -> KnownValues
+               -> Type
+               -> [SortedVar]
+               -> Term
+               -> String
+sygusToHaskell bn kv ty vars term =
     let
-        header = "spec " ++ intercalate " " (map (\(SortedVar n _) -> n) vars) ++ " = "
+        -- binding = bn ++ " " ++ intercalate " " (map (\(SortedVar n _) -> n) vars) ++ " = "
         body = termToHaskell term
     in
-    header ++ wrapReturn kv (returnType ty) body
+    body
 
 termToHaskell :: Term -> String
 termToHaskell t =
