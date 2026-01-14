@@ -42,7 +42,7 @@ main = do
 -------------------------------------------------------------------------------
 -- CEGIS Loop
 -------------------------------------------------------------------------------
-g
+
 -- | Use a CEGIS loop to generate an SMT conversion of a function
 genSMTFunc :: [[ExecRes ()]] -- ^ Generated states
            -> FilePath -- ^ Filepath containing function
