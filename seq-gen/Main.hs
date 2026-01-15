@@ -79,18 +79,16 @@ genSMTFunc :: [PatternRes] -- ^ Generated states
            -> Config
            -> IO String
 genSMTFunc pls src f smt_def config = do
+    putStrLn "\n--- Running function --- "
     (entry_f, ers, ng) <- runFunc src f smt_def config
     case ers of
         [] | Just (_, smt_def') <- smt_def -> return smt_def'
            | otherwise -> error "genSMTFunc: no SMT function generated" 
         (er:_) -> do
+            putStrLn "\n--- Synthesizing --- "
             let pls' = foldr (insertER ng) pls ers
 
             new_smt_piece <- formFunction (known_values . final_state $ er) pls'
-
-            putStrLn "HERE"
-            -- branches <- solveBranchConditions (known_values . final_state $ er) pls'
-            putStrLn "OVER"
 
             let vs = zipWith const argList (conc_args er)
                 new_smt_def = "spec " ++ intercalate " " vs ++ " = " ++ new_smt_piece
@@ -100,7 +98,9 @@ formFunction :: KnownValues -> [PatternRes] -> IO String
 formFunction _ [] = error "formFunction: empty list"
 formFunction _ [pr] = solveOnePattern pr
 formFunction kv (pr:prs) = do
+    putStrLn "\n* Solving Branch Condition"
     br <- solveBranchConditions kv pr prs
+    putStrLn "\n* Solving Pattern"
     r1 <- solveOnePattern pr
     r2 <- formFunction kv prs
     return $ "if " ++ br ++ " then " ++ r1 ++ " else " ++ r2
@@ -159,14 +159,18 @@ isString (App (App (App (Data dc) _) _) _)
     | nameOcc (dcName dc) == ":" = True
 isString _ = False
 
--- | Check that two Expr's are equal, disregarding specific values of (1) literals and (2) strings.
+-- | Check that two Expr's are equal, disregarding specific values of (1) literals, (2) strings, and (3) DC uniques.
 eqIgnoringLits :: Expr -> Expr -> Bool
-eqIgnoringLits e1 e2 = modify repLit e1 == modify repLit e2
+eqIgnoringLits e1 e2 =
+    case modify repLit e1 `eqUpToTypes` modify repLit e2 of
+        True -> True
+        False -> False
     where
         -- Replaces all literal values/concrete strings with "default" values
         repLit (Lit l) = Lit $ rep l
         repLit (Data dc)
             | nameOcc (dc_name dc) == "True" || nameOcc (dc_name dc) == "False" = Var (Id (Name "!!__G2__!!_BOOL" Nothing 0 Nothing) TyUnknown)
+            | otherwise = Data (dc { dc_name = Name (nameOcc (dc_name dc)) Nothing 0 Nothing})
         repLit e | isString e = Var (Id (Name "!!__G2__!!_STRING" Nothing 0 Nothing) TyUnknown)
                  | otherwise = e
 
