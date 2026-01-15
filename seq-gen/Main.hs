@@ -43,10 +43,16 @@ main = do
 -- CEGIS Loop
 -------------------------------------------------------------------------------
 
-data PatternRes = PL { pattern :: Expr, lit_expr :: Expr, pat_ids :: [Id], lit_vals :: [[ExecRes ()]] }
+-- | A `PatternRes`(ult) is a particular "shape" of expression that we are returning from a function.
+-- A single pattern might involve multiple literal values, each of which we can individually synthesize a
+-- specification for.  For example:
+-- * a tuple `(x, y) :: (String, String)` would need a string expression to be synthesized for both `x` and `y`.
+-- * a function returning `Maybe String` would (likely) have two patterns, one for the case where we return
+-- `Just s` (for some String s) and one for the case where we return `Nothing`.
+data PatternRes = PL { pattern :: Expr, lit_expr :: Expr, pat_ids :: [Id], orig_exec_res :: [ExecRes ()], lit_vals :: [[ExecRes ()]] }
 
 mergePatternRes :: PatternRes -> PatternRes -> PatternRes
-mergePatternRes pl@(PL _ le1 _ lv1) (PL _ le2 _ lv2) =
+mergePatternRes pl@(PL { lit_expr = le1, lit_vals = lv1 }) (PL { lit_expr = le2, lit_vals = lv2 }) =
     assert (eqIgnoringLits le1 le2)
     $ pl { lit_vals = zipWithDef (++) lv1 lv2 }
 
@@ -56,13 +62,13 @@ insertER ng er [] =
         (varred_form, is, ng') = replaceLitsWithVars ng (conc_out er)
         lit_ers = execResCollectLits er
     in
-    [PL { pattern = varred_form, lit_expr = conc_out er, pat_ids = is, lit_vals = map (:[]) lit_ers }]
+    [PL { pattern = varred_form, lit_expr = conc_out er, pat_ids = is, orig_exec_res = [er], lit_vals = map (:[]) lit_ers }]
 insertER ng er (pl:pls)
     | eqIgnoringLits (conc_out er) (lit_expr pl) =
         let
             lit_ers = execResCollectLits er
         in
-        pl { lit_vals = zipWith (:) lit_ers (lit_vals pl) }:pls
+        pl { orig_exec_res = er:orig_exec_res pl, lit_vals = zipWith (:) lit_ers (lit_vals pl) }:pls
     | otherwise = pl:insertER ng er pls
 
 -- | Use a CEGIS loop to generate an SMT conversion of a function
@@ -80,16 +86,27 @@ genSMTFunc pls src f smt_def config = do
         (er:_) -> do
             let pls' = foldr (insertER ng) pls ers
 
-            new_smt_piece <- mapM solveOnePattern pls'
+            new_smt_piece <- formFunction (known_values . final_state $ er) pls'
+
+            putStrLn "HERE"
+            -- branches <- solveBranchConditions (known_values . final_state $ er) pls'
+            putStrLn "OVER"
 
             let vs = zipWith const argList (conc_args er)
-                new_smt_def =  case new_smt_piece of
-                                    [new_smt_piece'] -> "spec " ++ intercalate " " vs ++ " = " ++ new_smt_piece'
-                                    _ -> error "MORE THAN ONE - TODO"
+                new_smt_def = "spec " ++ intercalate " " vs ++ " = " ++ new_smt_piece
             genSMTFunc pls' src f (Just (entry_f, new_smt_def)) config
 
+formFunction :: KnownValues -> [PatternRes] -> IO String
+formFunction _ [] = error "formFunction: empty list"
+formFunction _ [pr] = solveOnePattern pr
+formFunction kv (pr:prs) = do
+    br <- solveBranchConditions kv pr prs
+    r1 <- solveOnePattern pr
+    r2 <- formFunction kv prs
+    return $ "if " ++ br ++ " then " ++ r1 ++ " else " ++ r2
+
 solveOnePattern :: PatternRes -> IO String
-solveOnePattern (PL varred_form _ is constraints@((er:_):_)) = do
+solveOnePattern (PL { pattern = varred_form, pat_ids = is, lit_vals = constraints@((er:_):_) }) = do
     let is_constraints = zip is constraints
 
     let pg = mkPrettyGuide is
@@ -101,9 +118,20 @@ solveOnePattern (PL varred_form _ is constraints@((er:_):_)) = do
         new_smt_def = "let " ++ intercalate "; " new_pieces ++ " in "
                     ++ T.unpack (printHaskellPG pg (final_state er) varred_form)
     return new_smt_def
-solveOnePattern (PL varred_form _ is _) = do
+solveOnePattern (PL { pattern = varred_form, pat_ids = is }) = do
     let pg = mkPrettyGuide is
     return . T.unpack $ printHaskellDirtyPG pg varred_form
+
+solveBranchConditions :: KnownValues -> PatternRes -> [PatternRes] -> IO String
+solveBranchConditions kv pr prs = do
+    let true_lv = map (setBool True) (orig_exec_res pr)
+        false_lv = map (setBool False) (concatMap orig_exec_res prs)
+        pat_id = Id (Name "g2__BOOL_ID" Nothing 0 Nothing) TyUnknown
+        bool_pr = pr { pattern = Var pat_id, pat_ids = [pat_id], lit_vals = [true_lv ++ false_lv] }
+    solveOnePattern bool_pr
+    where
+        setBool b er = er { final_state = (final_state er) {curr_expr = CurrExpr Return (mkBool kv b)}, conc_out = mkBool kv b }
+
 
 computeProdPieces :: [ExecRes t] -> IO String
 computeProdPieces constraints = do
@@ -294,9 +322,17 @@ runSygus sygus_cmds = do
 sygusCmds :: [ExecRes t] -> [Cmd]
 sygusCmds [] = []
 sygusCmds er@(ExecRes { final_state = s, conc_args = args, conc_out = out_e}:_) = 
-    let grm = GrammarDef pre_dec gram_defs' in
+    let 
+        define_eq n srt = SmtCmd $ DefineFun n
+                                             [SortedVar "x" srt, SortedVar "y" srt]
+                                             boolSort
+                                             (TermCall (ISymb "=") [TermIdent (ISymb "x"), TermIdent (ISymb "y")])
+        grm = GrammarDef pre_dec gram_defs'
+    in
     [ SmtCmd $ SetLogic "ALL"
-    , SynthFun "spec" arg_vars ret_sort (Just grm)]
+    , define_eq "strEq" strSort
+    , define_eq "intEq" intSort
+    , SynthFun "spec" arg_vars ret_sort (Just grm) ]
     ++ map execResToConstraints er ++
     [CheckSynth]
     where
@@ -330,8 +366,8 @@ sygusCmds er@(ExecRes { final_state = s, conc_args = args, conc_out = out_e}:_) 
                  , GBfTerm (BfIdentifierBfs (ISymb "str.len") [ strIdent ])
                  , GBfTerm (BfIdentifierBfs (ISymb "+") [ intIdent, intIdent])
                  ]
-        grmBool = [ GBfTerm (BfIdentifierBfs (ISymb "=") [ strIdent, strIdent ])
-                  , GBfTerm (BfIdentifierBfs (ISymb "=") [ intIdent, intIdent ])
+        grmBool = [ GBfTerm (BfIdentifierBfs (ISymb "strEq") [ strIdent, strIdent ])
+                  , GBfTerm (BfIdentifierBfs (ISymb "intEq") [ intIdent, intIdent ])
                   , GBfTerm (BfIdentifierBfs (ISymb "str.<") [ strIdent, strIdent ])
                   , GBfTerm (BfIdentifierBfs (ISymb "str.prefixof") [ strIdent, strIdent ])
                   , GBfTerm (BfIdentifierBfs (ISymb "str.suffixof") [ strIdent, strIdent ])
@@ -418,6 +454,7 @@ termToHaskell trm =
                 )
               )
         go !x (TermIdent (ISymb s)) = (x, (s, []))
+        go !x (TermCall (ISymb "-") [TermLit (LitNum y)]) =(x, ("-" ++ show y ++ "#", []))
         go !x (TermCall (ISymb f) ts) =
             let
                 (x', vl_args, arg_binds) = mapGo x ts
@@ -434,15 +471,18 @@ termToHaskell trm =
         go !_ t = error $ "termToHaskell: unsupported term" ++ "\n" ++ show t
 
         goLit (LitStr s) = "\"" ++ s ++ "\""
-        goLit (LitNum i) = show i
+        goLit (LitNum i) = show i ++ "#"
         goLit _ = error "termToHaskell: unsupported lit"
 
 smtFuncToPrim :: String -> String
 smtFuncToPrim "str.++" = "strAppend#"
-smtFuncToPrim "str.indexof" = "strIndexOf#"
 smtFuncToPrim "str.len" = "strLen#"
+smtFuncToPrim "str.substr" = "strSubstr#"
 smtFuncToPrim "str.prefixof" = "strPrefixOf#"
-smtFuncToPrim "str.replace" = "strReplace#"
 smtFuncToPrim "str.suffixof" = "strSuffixOf#"
-smtFuncToPrim "=" = "strEq#"
+smtFuncToPrim "str.indexof" = "strIndexOf#"
+smtFuncToPrim "str.replace" = "strReplace#"
+smtFuncToPrim "strEq" = "strEq#"
+smtFuncToPrim "intEq" = "($==#)"
+smtFuncToPrim "+" = "(+#)"
 smtFuncToPrim f = error $ "smtFuncToPrim: unsupported " ++ f
