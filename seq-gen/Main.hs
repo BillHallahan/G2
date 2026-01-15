@@ -20,7 +20,7 @@ import qualified Sygus.ParseSygus as Sy
 import Sygus.Syntax
 import Sygus.Print
 
-import Control.Exception.Base (evaluate)
+import Control.Exception (assert, evaluate)
 import qualified Control.Monad.State as SM
 import qualified Data.HashMap.Lazy as HM
 import Data.List
@@ -43,34 +43,67 @@ main = do
 -- CEGIS Loop
 -------------------------------------------------------------------------------
 
+data PatternRes = PL { pattern :: Expr, lit_expr :: Expr, pat_ids :: [Id], lit_vals :: [[ExecRes ()]] }
+
+mergePatternRes :: PatternRes -> PatternRes -> PatternRes
+mergePatternRes pl@(PL _ le1 _ lv1) (PL _ le2 _ lv2) =
+    assert (eqIgnoringLits le1 le2)
+    $ pl { lit_vals = zipWithDef (++) lv1 lv2 }
+
+insertER :: NameGen -> ExecRes () -> [PatternRes] -> [PatternRes]
+insertER ng er [] =
+    let
+        (varred_form, is, ng') = replaceLitsWithVars ng (conc_out er)
+        lit_ers = execResCollectLits er
+    in
+    [PL { pattern = varred_form, lit_expr = conc_out er, pat_ids = is, lit_vals = map (:[]) lit_ers }]
+insertER ng er (pl:pls)
+    | eqIgnoringLits (conc_out er) (lit_expr pl) =
+        let
+            lit_ers = execResCollectLits er
+        in
+        pl { lit_vals = zipWith (:) lit_ers (lit_vals pl) }:pls
+    | otherwise = pl:insertER ng er pls
+
 -- | Use a CEGIS loop to generate an SMT conversion of a function
-genSMTFunc :: [[ExecRes ()]] -- ^ Generated states
+genSMTFunc :: [PatternRes] -- ^ Generated states
            -> FilePath -- ^ Filepath containing function
            -> T.Text -- ^ Function name
            -> Maybe (Id, String) -- ^ Possible (SyGuS generated) function definition, along with the Id of the function being generated
            -> Config
            -> IO String
-genSMTFunc constraints src f smt_def config = do
+genSMTFunc pls src f smt_def config = do
     (entry_f, ers, ng) <- runFunc src f smt_def config
     case ers of
         [] | Just (_, smt_def') <- smt_def -> return smt_def'
            | otherwise -> error "genSMTFunc: no SMT function generated" 
         (er:_) -> do
-            let (varred_form, is, ng') = replaceLitsWithVars ng (conc_out er)
-                lit_ers = transpose $ map execResCollectLits ers
-            let new_constraints = zipWithDef (++) lit_ers constraints
-                is_constraints = zip is new_constraints
+            let pls' = foldr (insertER ng) pls ers
 
-            let pg = mkPrettyGuide is
-            new_pieces <- mapM (\(i, constraints_) -> do
-                                    new_smt_def <- computeProdPieces constraints_
-                                    return $ "!" ++ T.unpack (printName pg (idName i)) ++ " = (" ++ new_smt_def ++ ")")
-                              is_constraints
+            new_smt_piece <- mapM solveOnePattern pls'
+
             let vs = zipWith const argList (conc_args er)
-                new_smt_def = "spec " ++ intercalate " " vs
-                           ++ " = let " ++ intercalate "; " new_pieces ++ " in "
-                           ++ T.unpack (printHaskellPG pg (final_state er) varred_form)
-            genSMTFunc new_constraints src f (Just (entry_f, new_smt_def)) config
+                new_smt_def =  case new_smt_piece of
+                                    [new_smt_piece'] -> "spec " ++ intercalate " " vs ++ " = " ++ new_smt_piece'
+                                    _ -> error "MORE THAN ONE - TODO"
+            genSMTFunc pls' src f (Just (entry_f, new_smt_def)) config
+
+solveOnePattern :: PatternRes -> IO String
+solveOnePattern (PL varred_form _ is constraints@((er:_):_)) = do
+    let is_constraints = zip is constraints
+
+    let pg = mkPrettyGuide is
+    new_pieces <- mapM (\(i, constraints_) -> do
+                            new_smt_def <- computeProdPieces constraints_
+                            return $ "!" ++ T.unpack (printName pg (idName i)) ++ " = (" ++ new_smt_def ++ ")")
+                        is_constraints
+    let vs = zipWith const argList (conc_args er)
+        new_smt_def = "let " ++ intercalate "; " new_pieces ++ " in "
+                    ++ T.unpack (printHaskellPG pg (final_state er) varred_form)
+    return new_smt_def
+solveOnePattern (PL varred_form _ is _) = do
+    let pg = mkPrettyGuide is
+    return . T.unpack $ printHaskellDirtyPG pg varred_form
 
 computeProdPieces :: [ExecRes t] -> IO String
 computeProdPieces constraints = do
@@ -99,11 +132,13 @@ isString (App (App (App (Data dc) _) _) _)
 isString _ = False
 
 -- | Check that two Expr's are equal, disregarding specific values of (1) literals and (2) strings.
-equalStruct :: Expr -> Expr -> Bool
-equalStruct e1 e2 = modify repLit e1 == modify repLit e2
+eqIgnoringLits :: Expr -> Expr -> Bool
+eqIgnoringLits e1 e2 = modify repLit e1 == modify repLit e2
     where
         -- Replaces all literal values/concrete strings with "default" values
         repLit (Lit l) = Lit $ rep l
+        repLit (Data dc)
+            | nameOcc (dc_name dc) == "True" || nameOcc (dc_name dc) == "False" = Var (Id (Name "!!__G2__!!_BOOL" Nothing 0 Nothing) TyUnknown)
         repLit e | isString e = Var (Id (Name "!!__G2__!!_STRING" Nothing 0 Nothing) TyUnknown)
                  | otherwise = e
 
@@ -284,7 +319,9 @@ sygusCmds er@(ExecRes { final_state = s, conc_args = args, conc_out = out_e}:_) 
         -------------------------------
         grmString = [ GVariable strSort
                     , GBfTerm (BfIdentifierBfs (ISymb "str.++") [ strIdent, strIdent])
+                    , GBfTerm (BfIdentifierBfs (ISymb "str.substr") [ strIdent, intIdent, intIdent])
                     , GBfTerm (BfIdentifierBfs (ISymb "str.replace") [ strIdent, strIdent, strIdent])
+                    , GBfTerm (BfIdentifierBfs (ISymb "str.replace_all") [ strIdent, strIdent, strIdent])
                     ]
         grmInt = [ GVariable intSort
                  , GBfTerm (BfLiteral (LitNum 0))
@@ -293,10 +330,11 @@ sygusCmds er@(ExecRes { final_state = s, conc_args = args, conc_out = out_e}:_) 
                  , GBfTerm (BfIdentifierBfs (ISymb "str.len") [ strIdent ])
                  , GBfTerm (BfIdentifierBfs (ISymb "+") [ intIdent, intIdent])
                  ]
-        grmBool = [ GBfTerm (BfIdentifierBfs (ISymb "str.prefixof") [ strIdent, strIdent ])
-                  , GBfTerm (BfIdentifierBfs (ISymb "str.suffixof") [ strIdent, strIdent ])
-                  , GBfTerm (BfIdentifierBfs (ISymb "=") [ strIdent, strIdent ])
+        grmBool = [ GBfTerm (BfIdentifierBfs (ISymb "=") [ strIdent, strIdent ])
                   , GBfTerm (BfIdentifierBfs (ISymb "=") [ intIdent, intIdent ])
+                  , GBfTerm (BfIdentifierBfs (ISymb "str.<") [ strIdent, strIdent ])
+                  , GBfTerm (BfIdentifierBfs (ISymb "str.prefixof") [ strIdent, strIdent ])
+                  , GBfTerm (BfIdentifierBfs (ISymb "str.suffixof") [ strIdent, strIdent ])
                   ]
 
 
