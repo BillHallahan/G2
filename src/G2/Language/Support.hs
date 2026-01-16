@@ -77,9 +77,10 @@ data State t = State { expr_env :: E.ExprEnv -- ^ Mapping of `Name`s to `Expr`s
 
                      , log_path :: [Int]
 
-                     , track :: t
-
+                     , lit_tables :: HM.HashMap Name LitTable -- ^ Mapping of name to literal table
                      , lit_table_stack :: Stack LitTable -- ^ Stack for nested literal tables
+
+                     , track :: t
                      } deriving (Show, Eq, Read, Generic, Typeable, Data)
 
 type EEDiff = [(Name, Expr)] -- concrete values to insert in ExprEnv
@@ -275,7 +276,8 @@ instance Named t => Named (State t) where
                , reached_hpc = reached_hpc s
                , tags = tags s
                , log_path = log_path s
-               , lit_table_stack = rename old new (lit_table_stack s) }
+               , lit_tables = rename old new $ lit_tables s
+               , lit_table_stack = rename old new $ lit_table_stack s }
 
     renames hm s =
         State { expr_env = renames hm (expr_env s)
@@ -304,7 +306,8 @@ instance Named t => Named (State t) where
                , reached_hpc = reached_hpc s
                , tags = tags s
                , log_path = log_path s
-               , lit_table_stack = renames hm (lit_table_stack s) }
+               , lit_tables = renames hm $ lit_tables s
+               , lit_table_stack = renames hm $ lit_table_stack s }
 
 instance ASTContainer t Expr => ASTContainer (State t) Expr where
     containedASTs s = (containedASTs $ type_env s) ++

@@ -627,12 +627,14 @@ prettyState pg pretty_track s =
         , pretty_track pg (track s)
         , "----- [HPC] ---------------------"
         , pretty_hpc_ticks
+        , "----- [LitTable Stack] ---------------------"
+        , pretty_lit_table_stack
         , "----- [Pretty] ---------------------"
         , pretty_names
         ]
     where
         pretty_curr_expr = prettyCurrExpr pg (curr_expr s)
-        pretty_stack = prettyStack pg (exec_stack s)
+        pretty_stack = prettyExecStack pg (exec_stack s)
         pretty_eenv = prettyEEnv (tyvar_env s) pg (curr_expr s) (exec_stack s) (expr_env s)
         pretty_paths = prettyPathConds pg (path_conds s)
         pretty_non_red_paths = prettyNonRedPaths pg . toListNRPC $ non_red_path_conds s
@@ -646,6 +648,7 @@ prettyState pg pretty_track s =
         pretty_assert_fcs = maybe "None" (printFuncCallPG pg) (assert_ids s)
         pretty_tags = T.intercalate ", " . map (mkNameHaskell pg) $ HS.toList (tags s)
         pretty_hpc_ticks = T.pack $ show (reached_hpc s)
+        pretty_lit_table_stack = prettyLitTableStack pg $ lit_table_stack s
         pretty_names = prettyGuideStr pg
 
 
@@ -658,8 +661,14 @@ prettyCurrExpr pg (CurrExpr er e) =
         Evaluate -> "evaluate: " <> e_str
         Return -> "return: " <> e_str
 
-prettyStack :: PrettyGuide -> Stack Frame -> T.Text
-prettyStack pg = T.intercalate "\n" . map (prettyFrame pg) . toList
+prettyStack :: PrettyGuide -> (PrettyGuide -> a -> T.Text) -> Stack a -> T.Text
+prettyStack pg f = T.intercalate "\n" . map (f pg) . toList
+
+prettyExecStack :: PrettyGuide -> Stack Frame -> T.Text
+prettyExecStack pg = prettyStack pg prettyFrame
+
+prettyLitTableStack :: PrettyGuide -> Stack LitTable -> T.Text
+prettyLitTableStack pg = prettyStack pg prettyLitTable
 
 prettyFrame :: PrettyGuide -> Frame -> T.Text
 prettyFrame pg (CaseFrame i _ as) =
@@ -676,6 +685,10 @@ prettyFrame pg (AssertFrame m_fc e) =
                   Nothing -> ""
     in
     "assert frame: " <> fc <> mkDirtyExprHaskell pg e
+prettyFrame pg (LitTableFrame ltc) = undefined
+
+prettyLitTable :: PrettyGuide -> LitTable -> T.Text
+prettyLitTable pg lt = undefined
 
 prettyCEAction :: PrettyGuide -> CEAction -> T.Text
 prettyCEAction pg (EnsureEq e) = "EnsureEq " <> mkDirtyExprHaskell pg e
