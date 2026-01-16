@@ -78,6 +78,8 @@ data State t = State { expr_env :: E.ExprEnv -- ^ Mapping of `Name`s to `Expr`s
                      , log_path :: [Int]
 
                      , track :: t
+
+                     , lit_table_stack :: Stack LitTable -- ^ Stack for nested literal tables
                      } deriving (Show, Eq, Read, Generic, Typeable, Data)
 
 type EEDiff = [(Name, Expr)] -- concrete values to insert in ExprEnv
@@ -272,7 +274,8 @@ instance Named t => Named (State t) where
                , sym_gens = rename old new (sym_gens s)
                , reached_hpc = reached_hpc s
                , tags = tags s
-               , log_path = log_path s }
+               , log_path = log_path s
+               , lit_table_stack = rename old new (lit_table_stack s) }
 
     renames hm s =
         State { expr_env = renames hm (expr_env s)
@@ -300,7 +303,8 @@ instance Named t => Named (State t) where
                , sym_gens = renames hm (sym_gens s)
                , reached_hpc = reached_hpc s
                , tags = tags s
-               , log_path = log_path s }
+               , log_path = log_path s
+               , lit_table_stack = renames hm (lit_table_stack s) }
 
 instance ASTContainer t Expr => ASTContainer (State t) Expr where
     containedASTs s = (containedASTs $ type_env s) ++
@@ -458,6 +462,19 @@ instance Named CurrExpr where
     rename old new (CurrExpr er e) = CurrExpr er $ rename old new e
     renames hm (CurrExpr er e) = CurrExpr er $ renames hm e
 
+instance Named LitTableCond where
+    names (Exploring tc) = undefined 
+    names (Diff sd) = undefined
+    names (StartedBuilding n) = undefined
+
+    rename old new (Exploring tc) = undefined 
+    rename old new (Diff sd) = undefined
+    rename old new (StartedBuilding n) = undefined
+
+    renames hm (Exploring tc) = undefined 
+    renames hm (Diff sd) = undefined
+    renames hm (StartedBuilding n) = undefined
+
 instance Named Frame where
     names (CaseFrame i t a) = names i <> names t <> names a
     names (ApplyFrame e) = names e
@@ -466,6 +483,7 @@ instance Named Frame where
     names (CurrExprFrame _ e) = names e
     names (AssumeFrame e) = names e
     names (AssertFrame is e) = names is <> names e
+    names (LitTableFrame ltc) = names ltc
 
     rename old new (CaseFrame i t a) = CaseFrame (rename old new i) (rename old new t) (rename old new a)
     rename old new (ApplyFrame e) = ApplyFrame (rename old new e)
@@ -474,6 +492,7 @@ instance Named Frame where
     rename old new (CurrExprFrame act e) = CurrExprFrame act (rename old new e)
     rename old new (AssumeFrame e) = AssumeFrame (rename old new e)
     rename old new (AssertFrame is e) = AssertFrame (rename old new is) (rename old new e)
+    rename old new (LitTableFrame ltc) = LitTableFrame (rename old new ltc)
 
     renames hm (CaseFrame i t a) = CaseFrame (renames hm i) (renames hm t) (renames hm a)
     renames hm (ApplyFrame e) = ApplyFrame (renames hm e)
@@ -482,6 +501,7 @@ instance Named Frame where
     renames hm (CurrExprFrame act e) = CurrExprFrame act (renames hm e)
     renames hm (AssumeFrame e) = AssumeFrame (renames hm e)
     renames hm (AssertFrame is e) = AssertFrame (renames hm is) (renames hm e)
+    renames hm (LitTableFrame ltc) = LitTableFrame (renames hm ltc)
 
 instance Named Handle where
     names (HandleInfo { h_start = s, h_pos = p }) = names s <> names p
@@ -516,3 +536,5 @@ data LitTableCond = Exploring TableCond
                   deriving (Show, Eq, Read, Generic, Typeable, Data)
 
 instance Hashable LitTableCond
+
+type LitTable = HM.HashMap [TableCond] Expr
