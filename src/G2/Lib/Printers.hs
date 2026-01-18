@@ -707,7 +707,7 @@ prettyStateDiff pg (SD { new_conc_entries = nce
                        , new_sym_types = nst
                        , new_mut_vars = nmv }) =
     T.intercalate "\n"
-        [ "state diff: "
+        [ "--- state diff: "
         , "  concrete entries -> " <> T.intercalate ", " (map prettyConc nce)
         , "  symbolic entries -> " <> T.intercalate ", " (map (mkIdHaskell pg) nse)
         , "  path conds -> " <> T.intercalate ", " (map (prettyPathCond pg) pc)
@@ -718,7 +718,7 @@ prettyStateDiff pg (SD { new_conc_entries = nce
         , "  new_conc_types -> " <> T.intercalate ", " (map prettyConcType nct)
         , "  new_sym_types -> " <> T.intercalate ", " (map (mkIdHaskell pg) nst)
         , "  new_mut_vars -> " <> T.intercalate ", " (map prettyMutVar nmv)
-        , "}"
+        , "---"
         ]
     where
         prettyConc (n, e) = mkNameHaskell pg n <> " = " <> mkDirtyExprHaskell pg e
@@ -728,9 +728,9 @@ prettyStateDiff pg (SD { new_conc_entries = nce
 prettyLitTable :: PrettyGuide -> LitTable -> T.Text
 prettyLitTable pg lt
     | HM.null lt = "empty literal table"
-    | otherwise = 
-        "---\n" <> T.intercalate "\n" 
-            (map (\(conds, e) -> "  " <> prettyTableConds pg conds <> " : " <> mkDirtyExprHaskell pg e) 
+    | otherwise =
+        "---\n" <> T.intercalate "\n"
+            (map (\(conds, e) -> "  " <> prettyTableConds pg conds <> " : " <> mkDirtyExprHaskell pg e)
                  (HM.toList lt))
         <> "\n---"
 

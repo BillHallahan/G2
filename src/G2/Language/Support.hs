@@ -248,6 +248,8 @@ instance Named t => Named (State t) where
             <> names (sym_gens s)
             <> names (tags s)
             <> names (track s)
+            <> names (lit_tables s)
+            <> names (lit_table_stack s)
 
     rename old new s =
         State { expr_env = rename old new (expr_env s)
@@ -465,19 +467,6 @@ instance Named CurrExpr where
     rename old new (CurrExpr er e) = CurrExpr er $ rename old new e
     renames hm (CurrExpr er e) = CurrExpr er $ renames hm e
 
-instance Named LitTableCond where
-    names (Exploring tc) = undefined 
-    names (Diff sd) = undefined
-    names (StartedBuilding n) = undefined
-
-    rename old new (Exploring tc) = undefined 
-    rename old new (Diff sd) = undefined
-    rename old new (StartedBuilding n) = undefined
-
-    renames hm (Exploring tc) = undefined 
-    renames hm (Diff sd) = undefined
-    renames hm (StartedBuilding n) = undefined
-
 instance Named Frame where
     names (CaseFrame i t a) = names i <> names t <> names a
     names (ApplyFrame e) = names e
@@ -541,3 +530,63 @@ data LitTableCond = Exploring TableCond
 instance Hashable LitTableCond
 
 type LitTable = HM.HashMap [TableCond] Expr
+
+instance Named LitTableCond where
+    names (Exploring tc) = names tc 
+    names (Diff sd) = names sd
+    names (StartedBuilding n) = names n
+
+    rename old new (Exploring tc) = Exploring $ rename old new tc 
+    rename old new (Diff sd) = Diff $ rename old new sd
+    rename old new (StartedBuilding n) = StartedBuilding $ rename old new n
+
+    renames hm (Exploring tc) = Exploring $ renames hm tc
+    renames hm (Diff sd) = Diff $ renames hm sd
+    renames hm (StartedBuilding n) = StartedBuilding $ renames hm n
+
+instance Named TableCond where
+    names (Conds pc) = names pc
+    names (LTCall n _) = names n
+
+    rename old new (Conds pc) = Conds $ rename old new pc
+    rename old new (LTCall n c) = LTCall (rename old new n) c
+
+    renames hm (Conds pc) = Conds $ renames hm pc
+    renames hm (LTCall n c) = LTCall (renames hm n) c
+
+instance Named StateDiff where
+    names sd = names (new_conc_entries sd)
+            <> names (new_sym_entries sd)
+            <> names (new_path_conds sd)
+            <> names (concretized sd)
+            <> names (new_assert_ids sd)
+            <> names (new_curr_expr sd)
+            <> names (new_conc_types sd)
+            <> names (new_sym_types sd)
+            <> names (new_mut_vars sd)
+
+    rename old new sd =
+        SD { new_conc_entries = rename old new (new_conc_entries sd)
+           , new_sym_entries = rename old new (new_sym_entries sd)
+           , new_path_conds = rename old new (new_path_conds sd)
+           , concretized = rename old new (concretized sd)
+           , new_true_assert = new_true_assert sd
+           , new_assert_ids = rename old new (new_assert_ids sd)
+           , new_curr_expr = rename old new (new_curr_expr sd)
+           , new_conc_types = rename old new (new_conc_types sd)
+           , new_sym_types = rename old new (new_sym_types sd)
+           , new_mut_vars = rename old new (new_mut_vars sd)
+           }
+
+    renames hm sd =
+        SD { new_conc_entries = renames hm (new_conc_entries sd)
+           , new_sym_entries = renames hm (new_sym_entries sd)
+           , new_path_conds = renames hm (new_path_conds sd)
+           , concretized = renames hm (concretized sd)
+           , new_true_assert = new_true_assert sd
+           , new_assert_ids = renames hm (new_assert_ids sd)
+           , new_curr_expr = renames hm (new_curr_expr sd)
+           , new_conc_types = renames hm (new_conc_types sd)
+           , new_sym_types = renames hm (new_sym_types sd)
+           , new_mut_vars = renames hm (new_mut_vars sd)
+           }
