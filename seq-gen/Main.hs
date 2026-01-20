@@ -33,9 +33,9 @@ import System.IO.Temp
 import System.Process
 import Data.Char (isAscii)
 
--- ----------------------------------------------------------------------------
+-------------------------------------------------------------------------------
 -- Methodology
--- ----------------------------------------------------------------------------
+-------------------------------------------------------------------------------
 -- If we have a Haskell function like:
 -- @
 -- f1 :: String -> String -> String -> String
@@ -69,6 +69,25 @@ import Data.Char (isAscii)
 -- @
 -- spec z1 z2 z3 = let !x = (let !y1 = strAppend# z2 z3; !y2 = strAppend# z1 y1 in y2) in x
 -- @
+--
+-- See also Note [Return patterns].
+
+-- Note [Return patterns]
+-- If a function has a non-string return type:
+-- @ f :: String -> Maybe String @
+-- We will likely get return values of both the "shape" `Nothing`, and the "shape" `Just s` (for some String s.)
+-- However, the SyGuS solver can only handle Strings, not Maybes (or other ADTs). Thus, we group outputs with common
+-- shapes, and synthesize both predicates to select which shape to return, and well as expressions to fill each string
+-- (or other literal) value in each shape. For instance, for the function f we would form:
+-- @
+-- f_smt x = case p x of
+--                 True -> Just (f_smt x)
+--                 False -> Nothing
+-- @
+-- And then synthesize both a `p` and a `f_smt` function.
+--
+-- See the PatternRes type.
+
 
 main :: IO ()
 main = do
@@ -88,6 +107,7 @@ main = do
 -- * a tuple `(x, y) :: (String, String)` would need a string expression to be synthesized for both `x` and `y`.
 -- * a function returning `Maybe String` would (likely) have two patterns, one for the case where we return
 -- `Just s` (for some String s) and one for the case where we return `Nothing`.
+-- See Note [Return patterns]
 data PatternRes = PL { pattern :: Expr, lit_expr :: Expr, pat_ids :: [Id], orig_exec_res :: [ExecRes ()], lit_vals :: [[ExecRes ()]] }
 
 mergePatternRes :: PatternRes -> PatternRes -> PatternRes
