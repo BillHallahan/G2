@@ -22,6 +22,7 @@ import Sygus.Print
 
 import Control.Exception (assert, evaluate)
 import qualified Control.Monad.State as SM
+import Data.Char
 import qualified Data.HashMap.Lazy as HM
 import Data.List
 import Data.Maybe
@@ -30,6 +31,7 @@ import qualified Data.Text.IO as T
 import System.IO
 import System.IO.Temp
 import System.Process
+import Data.Char (isAscii)
 
 main :: IO ()
 main = do
@@ -235,7 +237,7 @@ runFunc src f smt_def config = do
     withSystemTempFile "SpecTemp.hs" (\temp handle -> do
         setUpSpec handle smt_def
 
-        let config' = config { base = base config ++ [temp], maxOutputs = Just 10}
+        let config' = config { base = base config ++ [src, temp], maxOutputs = Just 10}
 
         proj <- guessProj (includePaths config') src
 
@@ -422,8 +424,23 @@ exprToTerm :: KnownValues -> Expr -> Term
 exprToTerm _ (Lit (LitInt x)) = TermLit (LitNum x)
 exprToTerm kv dc | dc == mkTrue kv = TermLit (LitBool True)
                  | dc == mkFalse kv = TermLit (LitBool False)
-exprToTerm _ e | Just s <- toString e = TermLit (LitStr s)
+exprToTerm _ e | Just t <- toStringTerm e = t
 exprToTerm _ e = error $ "exprToTerm: unsupported Expr" ++ "\n" ++ show e
+
+toStringTerm :: Expr -> Maybe Term
+toStringTerm e | Just s <- toString e =
+    Just $ case go s of
+                [x] -> x
+                ys -> TermCall (ISymb "str.++") ys
+    where
+        go s = let (pre, post) = span isPrint s in
+               case post of
+                    "" -> [TermLit (LitStr pre)]
+                    (non_pr:post') ->
+                        let non_pr_t = TermCall (ISymb "str.from_code") [TermLit . LitNum . toInteger $ fromEnum non_pr] in
+                        [TermLit (LitStr pre), non_pr_t] ++ go post'
+toStringTerm _ = Nothing
+
 
 typeToSort :: KnownValues -> Type -> Sort
 typeToSort _ t | t == TyLitInt = IdentSort (ISymb "Int")
@@ -481,6 +498,7 @@ termToHaskell trm =
 smtFuncToPrim :: String -> String
 smtFuncToPrim "str.++" = "strAppend#"
 smtFuncToPrim "str.len" = "strLen#"
+smtFuncToPrim "str.<" = "strLt#"
 smtFuncToPrim "str.substr" = "strSubstr#"
 smtFuncToPrim "str.prefixof" = "strPrefixOf#"
 smtFuncToPrim "str.suffixof" = "strSuffixOf#"
