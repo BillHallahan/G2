@@ -28,10 +28,15 @@ newPCNoStates s = SplitStatePieces s []
 
 -- This will now return a list of States: one for each StateDiff applied to the starting state. The
 -- end goal here is to be able to check whether the diffs are able to be used with a literal table
+-- When in literal table building mode (lit table stack is nonempty), this will take the first reachable
+-- diff and put it onto the stack as an Exploring (leaving the rest of the states as Diffs on the stack)
 reduceNewPC :: (Solver solver, Simplifier simplifier) => solver -> simplifier -> NameGen -> NewPC t -> IO (NameGen, [State t])
 reduceNewPC _ _ ng (SingleState state) = return (ng, [state])
-reduceNewPC solver simplifier ng (SplitStatePieces state state_diffs) =
-    mapAccumMaybeM (\ng' sd -> reduceNewPC' solver simplifier ng' state sd) ng state_diffs
+reduceNewPC solver simplifier ng (SplitStatePieces state state_diffs)
+    | Just (_, _) <- S.pop (exec_stack state) =
+        undefined
+    | otherwise =
+        mapAccumMaybeM (\ng' sd -> reduceNewPC' solver simplifier ng' state sd) ng state_diffs
 
 -- Make a new State from a StateDiff and a starting State, if the State is reachable
 reduceNewPC' :: (Solver solver, Simplifier simplifier) => solver -> simplifier -> NameGen -> State t -> StateDiff -> IO (Maybe (NameGen, State t))

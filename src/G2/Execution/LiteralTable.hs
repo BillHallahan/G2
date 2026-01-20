@@ -1,9 +1,11 @@
 module G2.Execution.LiteralTable 
     ( introduceLitTable
+    , pushDiffs
     ) where
 
 import qualified G2.Language.Stack as S
-import G2.Language
+import G2.Language.Syntax
+import G2.Language.Support
 import qualified Data.HashMap.Lazy as HM
 
 introduceLitTable :: State t -> Name -> State t
