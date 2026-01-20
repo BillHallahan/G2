@@ -1,6 +1,5 @@
 module G2.Execution.LiteralTable 
     ( introduceLitTable
-    , pushDiffs
     ) where
 
 import qualified G2.Language.Stack as S

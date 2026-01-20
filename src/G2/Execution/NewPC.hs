@@ -28,19 +28,53 @@ newPCNoStates s = SplitStatePieces s []
 
 -- This will now return a list of States: one for each StateDiff applied to the starting state. The
 -- end goal here is to be able to check whether the diffs are able to be used with a literal table
--- When in literal table building mode (lit table stack is nonempty), this will take the first reachable
+-- When in literal table building mode (lit table stack is non-empty), this will take the first reachable
 -- diff and put it onto the stack as an Exploring (leaving the rest of the states as Diffs on the stack)
-reduceNewPC :: (Solver solver, Simplifier simplifier) => solver -> simplifier -> NameGen -> NewPC t -> IO (NameGen, [State t])
+reduceNewPC :: (Solver solver, Simplifier simplifier) 
+            => solver -> simplifier 
+            -> NameGen 
+            -> NewPC t 
+            -> IO (NameGen, [State t])
 reduceNewPC _ _ ng (SingleState state) = return (ng, [state])
 reduceNewPC solver simplifier ng (SplitStatePieces state state_diffs)
-    | Just (_, _) <- S.pop (exec_stack state) =
-        undefined
+    | non_empty $ lit_table_stack state = do
+        res <- reduceToFirstDiff solver simplifier ng state state_diffs
+        case res of
+            Just (ng', first_s, pcs, other_diffs) -> 
+                let prev_stck = exec_stack first_s
+                    wrap diff = LitTableFrame $ Diff diff
+                    diffs_pushed = foldr S.push prev_stck $ map wrap other_diffs
+                    expl_pushed = S.push (LitTableFrame $ Exploring (Conds pcs))
+                in return (ng, [first_s { exec_stack = expl_pushed }])
+            Nothing -> (ng, [])
     | otherwise =
-        mapAccumMaybeM (\ng' sd -> reduceNewPC' solver simplifier ng' state sd) ng state_diffs
+        mapAccumMaybeM (\ng' sd -> reduceStateDiff solver simplifier ng' state sd) ng state_diffs
+        non_empty stck = S.pop stck != Nothing
+
+-- Find the first diff to explore, when in literal table building mode
+reduceToFirstDiff :: (Solver solver, Simplifier simplifier) 
+                  => solver 
+                  -> simplifier 
+                  -> NameGen 
+                  -> State t 
+                  -> [StateDiff] 
+                  -> IO (Maybe (NameGen, State t, [PathCond], [StateDiff]))
+reduceToFirstDiff _ _ _ _ [] = return Nothing
+reduceToFirstDiff solver simplifier ng state (diff:diffs) = do
+    res <- reduceStateDiff solver simplifier ng state diff
+    case res of
+        Just (ng', s') -> return $ Just (ng', s', new_path_conds diff, diffs)
+        Nothing -> reduceToFirstDiff solver simplifier ng state diffs
 
 -- Make a new State from a StateDiff and a starting State, if the State is reachable
-reduceNewPC' :: (Solver solver, Simplifier simplifier) => solver -> simplifier -> NameGen -> State t -> StateDiff -> IO (Maybe (NameGen, State t))
-reduceNewPC' solver simplifier ng
+reduceStateDiff :: (Solver solver, Simplifier simplifier) 
+                => solver 
+                -> simplifier 
+                -> NameGen 
+                -> State t 
+                -> StateDiff 
+                -> IO (Maybe (NameGen, State t))
+reduceStateDiff solver simplifier ng
              init_state@(State { expr_env = init_eenv, tyvar_env = init_tvenv
                                , path_conds = state_pc })
              (SD { new_conc_entries = nce
