@@ -112,6 +112,7 @@ stdReduce' _ symb_func_eval solver simplifier s@(State { curr_expr = CurrExpr Re
         let (r, new_pc, ng') = retCurrExpr s ce act e stck' ng
         (ng'', states) <- reduceNewPC solver simplifier ng' new_pc
         return (r, states, ng'')
+    | Just (LitTableFrame ltc, stck') <- frstck = return $ retLitTableFrame s ng ltc stck'
     | Nothing <- frstck = return (RuleIdentity, [s], ng)
     | otherwise = error $ "stdReduce': Unknown Expr" ++ show ce ++ show (S.pop stck)
         where
@@ -1720,3 +1721,9 @@ retReplaceSymbFuncVar _
 isApplyFrame :: Frame -> Bool
 isApplyFrame (ApplyFrame _) = True
 isApplyFrame _ = False
+
+retLitTableFrame :: State t -> NameGen -> LitTableCond -> S.Stack Frame -> (Rule, [State t], NameGen)
+retLitTableFrame s ng ltc stck = case ltc of
+    Exploring tc -> undefined
+    Diff sd -> undefined
+    StartedBuilding n -> undefined
