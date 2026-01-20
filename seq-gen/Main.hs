@@ -33,6 +33,43 @@ import System.IO.Temp
 import System.Process
 import Data.Char (isAscii)
 
+-- ----------------------------------------------------------------------------
+-- Methodology
+-- ----------------------------------------------------------------------------
+-- If we have a Haskell function like:
+-- @
+-- f1 :: String -> String -> String -> String
+-- f1 xs ys zs = xs ++ ys ++ zs
+-- @
+-- we give that to the symbolic executor, and get input/output pairs like:
+-- @
+-- f1 "A" "" "" = "A"
+-- f1 "ABC" "D" "" = "ABCD"
+-- @
+-- We then give these to a SyGuS solver to automatically generate an SMT translation of the (observed) function behavior:
+-- @
+-- ((define-fun spec ((z1 String) (z2 String) (z3 String)) String (str.++ z1 z2)))
+-- @
+-- which can then be turned back into Haskell code:
+-- @
+-- spec z1 z2 z3 = let !x = (let !y1 = strAppend# z1 z2 in y1) in x
+-- @
+-- We then run the following in the symbolic executor, to look for input pairs on which f1 and spec return different outputs:
+-- @
+-- let
+--       val = let
+--             fs'4 = f1 fs'3 fs'2 fs in fs'4
+--       comp = (spec fs'3 fs'2 fs) == val in assert (comp) (val)
+-- @
+-- (Note that we are looking for assertion VIOLATIONS, so places where `comp` returns False)
+--
+-- Here, we will find that val and comp differ on, for instance:
+-- @ f1 "" "" ("A") = "A" @
+-- and so we add this as an example for the synthesizer... and repeat until we get a correct SMT translation of the function:
+-- @
+-- spec z1 z2 z3 = let !x = (let !y1 = strAppend# z2 z3; !y2 = strAppend# z1 y1 in y2) in x
+-- @
+
 main :: IO ()
 main = do
     (src, entry, _, _, config) <- getConfig
