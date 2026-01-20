@@ -11,7 +11,8 @@ module G2.Language.Stack
     , push
     , pop
     , toList
-    , filter) where
+    , filter
+    , modifyTop ) where
 
 import Prelude hiding (null, filter)
 import GHC.Generics (Generic)
@@ -54,6 +55,10 @@ toList (Stack xs) = xs
 
 filter :: (a -> Bool) -> Stack a -> Stack a
 filter p (Stack stck) = Stack (L.filter p stck)
+
+modifyTop :: (a -> a) -> Stack a -> Stack a
+modifyTop _ (Stack []) = error "modifyTop called on empty stack"
+modifyTop f (Stack (x:xs)) = Stack ((f x):xs)
 
 instance ASTContainer a Expr => ASTContainer (Stack a) Expr where
     containedASTs (Stack s) = containedASTs s
