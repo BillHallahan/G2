@@ -1733,10 +1733,12 @@ retLitTableFrame :: (Solver solver, Simplifier simplifier)
                  -> IO (Rule, [State t], NameGen)
 retLitTableFrame solver simplifier s ng ltc stck = case ltc of
     -- Take the table conds for the current expression and insert them in the literal table
-    -- TODO - change this to scan down the stack for explorings
+    -- We also want to insert table conds for previously pushed `Exploring`s, so we scan the stack
     Exploring tc -> let lts = lit_table_stack updated_state
                         e = get_expr $ curr_expr updated_state
-                        lts' = S.modifyTop (HM.insert [tc] e) lts
+                        frames = S.toList $ exec_stack updated_state
+                        explorings = filterJust $ map get_expl frames
+                        lts' = S.modifyTop (HM.insert (tc:explorings) e) lts
                     in return (RuleReturnLitTable, [updated_state { lit_table_stack = lts' }], ng)
     Diff sd -> do
         res <- reduceStateDiff solver simplifier ng updated_state sd
@@ -1760,6 +1762,14 @@ retLitTableFrame solver simplifier s ng ltc stck = case ltc of
                          in return (RuleReturnLitTable, [new_state], ng)
     where
         updated_state = s { exec_stack = stck }
+
         make_exploring sd_ = (LitTableFrame $ Exploring (Conds $ PC.fromList (new_path_conds sd_)))
         get_expr (CurrExpr _ e) = e
+
+        filterJust [] = []
+        filterJust x = map fromJust (filter (isJust) x)
+
+        get_expl (LitTableFrame (Exploring tc_)) = Just tc_
+        get_expl _ = Nothing
+
                              
