@@ -62,6 +62,8 @@ data Rule = RuleEvalVal
           | RuleReturnCAssume
           | RuleReturnCAssert
 
+          | RuleReturnLitTable
+
           | RuleIdentity
           | RulePrimError
 

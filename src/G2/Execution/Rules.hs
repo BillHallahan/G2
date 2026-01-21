@@ -1733,4 +1733,16 @@ retLitTableFrame :: (Solver solver, Simplifier simplifier)
 retLitTableFrame solver simplifier s ng ltc stck = case ltc of
     Exploring tc -> undefined
     Diff sd -> undefined
-    StartedBuilding n -> undefined
+    StartedBuilding n -> let lts = lit_table_stack s
+                             -- We just finished updating the lit table at the top of
+                             -- the stack so it should never be empty here
+                             (table, lts') = case S.pop lts of
+                                                Just (t, l) -> (t, l)
+                                                Nothing -> error "empty lit table stack"
+                             table_map = lit_tables s
+                             table_map' = HM.insert n table table_map
+                             new_s = s { exec_stack = stck
+                                       , lit_tables = table_map'
+                                       }
+                         in return (RuleReturnLitTable, [new_s], ng)
+                             
