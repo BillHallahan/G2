@@ -308,9 +308,6 @@ u = Id (Name "u" Nothing 0 Nothing)
 v :: Type -> Id
 v = Id (Name "v" Nothing 0 Nothing)
 
-w :: Type -> Id
-w = Id (Name "w" Nothing 0 Nothing)
-
 x :: Type -> Id
 x = Id (Name "x" Nothing 0 Nothing)
 
@@ -411,10 +408,6 @@ unitName = find ((==) "Unit" . nameOcc) . HM.keys
 #else
 unitName = find ((==) "()" . nameOcc) . HM.keys
 #endif
-
-typeRepName :: HM.HashMap Name AlgDataTy -> Maybe Name
-typeRepName = find ((==) "TypeRep" . nameOcc) . HM.keys
-
 
 replaceFromPD :: HM.HashMap Name AlgDataTy -> Name -> Expr -> Expr
 replaceFromPD pt n e =
