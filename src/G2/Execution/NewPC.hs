@@ -15,6 +15,7 @@ import Data.Maybe
 import G2.Data.Utils
 import Data.Traversable
 import G2.Execution.MutVar
+import G2.Execution.LiteralTable
 
 data NewPC t = SingleState (State t)
              | SplitStatePieces (State t) [StateDiff]
@@ -35,9 +36,15 @@ reduceNewPC :: (Solver solver, Simplifier simplifier)
             -> NameGen 
             -> NewPC t 
             -> IO (NameGen, [State t])
-reduceNewPC _ _ ng (SingleState state) = return (ng, [state])
+reduceNewPC _ _ ng (SingleState state)
+    | inLitTableMode state = 
+        return (ng, [state { exec_stack = 
+                                S.push (LitTableFrame $ Exploring (Conds $ path_conds state)) 
+                                (exec_stack state) 
+                           }])
+    | otherwise = return (ng, [state])
 reduceNewPC solver simplifier ng (SplitStatePieces state state_diffs)
-    | non_empty $ lit_table_stack state = do
+    | inLitTableMode state = do
         res <- reduceToFirstDiff solver simplifier ng state state_diffs
         case res of
             Just (ng', first_s, pcs, other_diffs) -> 
@@ -49,7 +56,6 @@ reduceNewPC solver simplifier ng (SplitStatePieces state state_diffs)
     | otherwise =
         mapAccumMaybeM (\ng' sd -> reduceStateDiff solver simplifier ng' state sd) ng state_diffs
     where
-        non_empty stck = isJust $ S.pop stck
         wrap diff = LitTableFrame $ Diff diff
 
 -- Find the first diff to explore, when in literal table building mode

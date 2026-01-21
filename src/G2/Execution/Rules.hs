@@ -87,19 +87,19 @@ stdReduce' share _ solver simplifier s@(State { curr_expr = CurrExpr Evaluate ce
 stdReduce' _ symb_func_eval solver simplifier s@(State { curr_expr = CurrExpr Return ce
                                  , exec_stack = stck })  (Bindings { name_gen = ng })
     | isErrorExpr ce
-    , Just (AssertFrame is _, stck') <- S.pop stck =
+    , Just (AssertFrame is _, stck') <- frstck =
         return (RuleError, [s { exec_stack = stck'
                               , true_assert = True
                               , assert_ids = fmap (\fc -> fc { returns = Prim Error TyBottom }) is }], ng)
     | Just rs <- symb_func_eval defSymFuncTicks s ng ce = return rs
     | Just (UpdateFrame n, stck') <- frstck = return $ retUpdateFrame s ng n stck'
     | isErrorExpr ce
-    , Just (_, stck') <- S.pop stck = return (RuleError, [s { exec_stack = stck' }], ng)
+    , Just (_, stck') <- frstck = return (RuleError, [s { exec_stack = stck' }], ng)
     | Just (CaseFrame i t a, stck') <- frstck = return $ retCaseFrame s ng ce i t a stck'
     | Just (CastFrame c, stck') <- frstck = return $ retCastFrame s ng ce c stck'
     | Lam u i e <- ce
-    , Just (ApplyFrame ae, stck') <- S.pop stck = return $ retLam s ng u i e ae stck'
-    | Just (ApplyFrame e, stck') <- S.pop stck = return $ retApplyFrame s ng ce e stck'
+    , Just (ApplyFrame ae, stck') <- frstck = return $ retLam s ng u i e ae stck'
+    | Just (ApplyFrame e, stck') <- frstck = return $ retApplyFrame s ng ce e stck'
     | Just (AssumeFrame e, stck') <- frstck = do
         let (r, new_pc, ng') = retAssumeFrame s ng ce e stck'
         (ng'', states) <- reduceNewPC solver simplifier ng' new_pc
@@ -112,7 +112,7 @@ stdReduce' _ symb_func_eval solver simplifier s@(State { curr_expr = CurrExpr Re
         let (r, new_pc, ng') = retCurrExpr s ce act e stck' ng
         (ng'', states) <- reduceNewPC solver simplifier ng' new_pc
         return (r, states, ng'')
-    | Just (LitTableFrame ltc, stck') <- frstck = return $ retLitTableFrame s ng ltc stck'
+    | Just (LitTableFrame ltc, stck') <- frstck = retLitTableFrame solver simplifier s ng ltc stck'
     | Nothing <- frstck = return (RuleIdentity, [s], ng)
     | otherwise = error $ "stdReduce': Unknown Expr" ++ show ce ++ show (S.pop stck)
         where
@@ -1722,8 +1722,15 @@ isApplyFrame :: Frame -> Bool
 isApplyFrame (ApplyFrame _) = True
 isApplyFrame _ = False
 
-retLitTableFrame :: State t -> NameGen -> LitTableCond -> S.Stack Frame -> (Rule, [State t], NameGen)
-retLitTableFrame s ng ltc stck = case ltc of
+retLitTableFrame :: (Solver solver, Simplifier simplifier)
+                 => solver
+                 -> simplifier
+                 -> State t
+                 -> NameGen
+                 -> LitTableCond
+                 -> S.Stack Frame
+                 -> IO (Rule, [State t], NameGen)
+retLitTableFrame solver simplifier s ng ltc stck = case ltc of
     Exploring tc -> undefined
     Diff sd -> undefined
     StartedBuilding n -> undefined
