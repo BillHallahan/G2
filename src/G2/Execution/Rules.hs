@@ -38,6 +38,7 @@ import G2.Language
 import qualified G2.Language.ExprEnv as E
 import qualified G2.Language.Typing as T
 import qualified G2.Language.KnownValues as KV
+import qualified G2.Language.PathConds as PC
 import G2.Language.Simplification
 import qualified G2.Language.Stack as S
 import G2.Preprocessing.NameCleaner
@@ -1731,18 +1732,34 @@ retLitTableFrame :: (Solver solver, Simplifier simplifier)
                  -> S.Stack Frame
                  -> IO (Rule, [State t], NameGen)
 retLitTableFrame solver simplifier s ng ltc stck = case ltc of
-    Exploring tc -> undefined
-    Diff sd -> undefined
-    StartedBuilding n -> let lts = lit_table_stack s
+    -- Take the table conds for the current expression and insert them in the literal table
+    -- TODO - change this to scan down the stack for explorings
+    Exploring tc -> let lts = lit_table_stack updated_state
+                        e = get_expr $ curr_expr updated_state
+                        lts' = S.modifyTop (HM.insert [tc] e) lts
+                    in return (RuleReturnLitTable, [updated_state { lit_table_stack = lts' }], ng)
+    Diff sd -> do
+        res <- reduceStateDiff solver simplifier ng updated_state sd
+        case res of
+            -- Nothing can be done with this diff - try the next
+            Nothing -> return (RuleReturnLitTable, [updated_state], ng)
+            -- Turn this diff into an Exploring
+            Just (ng', new_state) -> return
+                ( RuleReturnLitTable
+                , [ new_state { exec_stack = S.push (make_exploring sd) (exec_stack s) } ]
+                , ng' )
+    StartedBuilding n -> let lts = lit_table_stack updated_state
                              -- We just finished updating the lit table at the top of
                              -- the stack so it should never be empty here
                              (table, lts') = case S.pop lts of
                                                 Just (t, l) -> (t, l)
                                                 Nothing -> error "empty lit table stack"
-                             table_map = lit_tables s
+                             table_map = lit_tables updated_state
                              table_map' = HM.insert n table table_map
-                             new_s = s { exec_stack = stck
-                                       , lit_tables = table_map'
-                                       }
-                         in return (RuleReturnLitTable, [new_s], ng)
+                             new_state = updated_state { lit_tables = table_map' }
+                         in return (RuleReturnLitTable, [new_state], ng)
+    where
+        updated_state = s { exec_stack = stck }
+        make_exploring sd_ = (LitTableFrame $ Exploring (Conds $ PC.fromList (new_path_conds sd_)))
+        get_expr (CurrExpr _ e) = e
                              

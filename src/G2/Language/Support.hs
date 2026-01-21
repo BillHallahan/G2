@@ -544,7 +544,7 @@ instance Hashable LitTableCond
 type LitTable = HM.HashMap [TableCond] Expr
 
 instance Named LitTableCond where
-    names (Exploring tc) = names tc 
+    names (Exploring tc) = names tc
     names (Diff sd) = names sd
     names (StartedBuilding n) = names n
 

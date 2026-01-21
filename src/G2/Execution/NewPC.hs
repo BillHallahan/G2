@@ -1,7 +1,8 @@
 module G2.Execution.NewPC ( NewPC (..)
                           , newPCEmpty
                           , newPCNoStates
-                          , reduceNewPC ) where
+                          , reduceNewPC
+                          , reduceStateDiff ) where
 
 import G2.Language
 import qualified G2.Language.ExprEnv as E
@@ -31,10 +32,11 @@ newPCNoStates s = SplitStatePieces s []
 -- end goal here is to be able to check whether the diffs are able to be used with a literal table
 -- When in literal table building mode (lit table stack is non-empty), this will take the first reachable
 -- diff and put it onto the stack as an Exploring (leaving the rest of the states as Diffs on the stack)
-reduceNewPC :: (Solver solver, Simplifier simplifier) 
-            => solver -> simplifier 
-            -> NameGen 
-            -> NewPC t 
+reduceNewPC :: (Solver solver, Simplifier simplifier)
+            => solver
+            -> simplifier
+            -> NameGen
+            -> NewPC t
             -> IO (NameGen, [State t])
 reduceNewPC _ _ ng (SingleState state)
     | inLitTableMode state = 
@@ -59,12 +61,12 @@ reduceNewPC solver simplifier ng (SplitStatePieces state state_diffs)
         wrap diff = LitTableFrame $ Diff diff
 
 -- Find the first diff to explore, when in literal table building mode
-reduceToFirstDiff :: (Solver solver, Simplifier simplifier) 
-                  => solver 
-                  -> simplifier 
-                  -> NameGen 
-                  -> State t 
-                  -> [StateDiff] 
+reduceToFirstDiff :: (Solver solver, Simplifier simplifier)
+                  => solver
+                  -> simplifier
+                  -> NameGen
+                  -> State t
+                  -> [StateDiff]
                   -> IO (Maybe (NameGen, State t, [PathCond], [StateDiff]))
 reduceToFirstDiff _ _ _ _ [] = return Nothing
 reduceToFirstDiff solver simplifier ng state (diff:diffs) = do
