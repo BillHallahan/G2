@@ -331,9 +331,9 @@ testFileTests = testGroup "TestFiles"
                                                              , ("badCastInt", 1000, [Exactly 1]) 
                                                              , ("castMaybeInt", 1000, [Exactly 2])
                                                              , ("castFunc", 1000, [Exactly 1])
-                                                             , ("callType1", 1000, [Exactly 4])
-                                                             , ("callType2", 1000, [AtLeast 4])
-                                                             , ("callType3", 1000, [Exactly 1]) ]
+                                                             , ("callTypeOf1", 1000, [Exactly 4])
+                                                             , ("callTypeOf2", 1000, [AtLeast 4])
+                                                             , ("callTypeOf3", 1000, [Exactly 1]) ]
     , checkInputOutputs "tests/TestFiles/Coercions/NewType1.hs" [ ("add1N4", 400, [Exactly 1])
                                                                 , ("f", 400, [Exactly 1])
                                                                 , ("g", 400, [Exactly 1])
