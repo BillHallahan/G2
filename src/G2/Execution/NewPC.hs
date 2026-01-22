@@ -38,14 +38,7 @@ reduceNewPC :: (Solver solver, Simplifier simplifier)
             -> NameGen
             -> NewPC t
             -> IO (NameGen, [State t])
-reduceNewPC _ _ ng (SingleState state)
-    | inLitTableMode state = 
-        return (ng, [state { exec_stack = 
-                                -- Should this be PC.empty? Or not even an Exploring?
-                                S.push (LitTableFrame $ Exploring (Conds $ path_conds state)) 
-                                (exec_stack state) 
-                           }])
-    | otherwise = return (ng, [state])
+reduceNewPC _ _ ng (SingleState state) = return (ng, [state])
 reduceNewPC solver simplifier ng (SplitStatePieces state state_diffs)
     | inLitTableMode state = do
         res <- reduceToFirstDiff solver simplifier ng state state_diffs

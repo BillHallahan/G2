@@ -29,6 +29,7 @@ module G2.Execution.Rules ( module G2.Execution.RuleTypes
 
 import G2.Config.Config
 import G2.Execution.DataConPCMap
+import G2.Execution.LiteralTable
 import G2.Execution.NewPC
 import G2.Execution.NormalForms
 import G2.Execution.PrimitiveEval
@@ -496,7 +497,15 @@ evalCase s@(State { expr_env = eenv
   -- is only done when the matching expression is NOT in value form. Value
   -- forms should be handled by other RuleEvalCase* rules.
 
-  -- TODO: literal table handling here!
+  -- When in literal table mode, we want to introduce another literal table here
+  -- and call it later, so 
+  | inLitTableMode s && not (isExprValueForm eenv mexpr) =
+      let case_frame = CaseFrame bind t alts
+          (n, ng') = freshName ng
+          s' = introduceLitTable s { exec_stack = S.push case_frame stck } n
+      in ( RuleEvalCaseNonVal
+         , newPCEmpty $ s' { expr_env = eenv
+                           , curr_expr = CurrExpr Evaluate mexpr }, ng')
   | not (isExprValueForm eenv mexpr) =
       let frame = CaseFrame bind t alts
       in ( RuleEvalCaseNonVal
