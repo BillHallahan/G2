@@ -495,6 +495,8 @@ evalCase s@(State { expr_env = eenv
   -- as a `CaseFrame` along with their appropriate `ExecExprEnv`. However this
   -- is only done when the matching expression is NOT in value form. Value
   -- forms should be handled by other RuleEvalCase* rules.
+
+  -- TODO: literal table handling here!
   | not (isExprValueForm eenv mexpr) =
       let frame = CaseFrame bind t alts
       in ( RuleEvalCaseNonVal
@@ -1733,7 +1735,7 @@ retLitTableFrame :: (Solver solver, Simplifier simplifier)
                  -> IO (Rule, [State t], NameGen)
 retLitTableFrame solver simplifier s ng ltc stck = case ltc of
     -- Take the table conds for the current expression and insert them in the literal table
-    -- We also want to insert table conds for previously pushed `Exploring`s, so we scan the stack
+    -- We also want to include for previously pushed `Exploring`s, so we scan the stack
     Exploring tc -> let lts = lit_table_stack updated_state
                         e = get_expr $ curr_expr updated_state
                         frames = S.toList $ exec_stack updated_state
@@ -1758,7 +1760,13 @@ retLitTableFrame solver simplifier s ng ltc stck = case ltc of
                                                 Nothing -> error "empty lit table stack"
                              table_map = lit_tables updated_state
                              table_map' = HM.insert n table table_map
-                             new_state = updated_state { lit_tables = table_map' }
+                             -- After the literal table is created, the current expression
+                             -- will simply be an application of the literal table
+                             ce = get_expr $ curr_expr updated_state
+                             ce' = CurrExpr Return (App (Prim (LitTableApp n) TyUnknown) ce)
+                             new_state = updated_state { lit_tables = table_map'
+                                                       , lit_table_stack = lts'
+                                                       , curr_expr = ce' }
                          in return (RuleReturnLitTable, [new_state], ng)
     where
         updated_state = s { exec_stack = stck }
@@ -1771,5 +1779,3 @@ retLitTableFrame solver simplifier s ng ltc stck = case ltc of
 
         get_expl (LitTableFrame (Exploring tc_)) = Just tc_
         get_expl _ = Nothing
-
-                             

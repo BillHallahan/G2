@@ -41,6 +41,7 @@ reduceNewPC :: (Solver solver, Simplifier simplifier)
 reduceNewPC _ _ ng (SingleState state)
     | inLitTableMode state = 
         return (ng, [state { exec_stack = 
+                                -- Should this be PC.empty? Or not even an Exploring?
                                 S.push (LitTableFrame $ Exploring (Conds $ path_conds state)) 
                                 (exec_stack state) 
                            }])
