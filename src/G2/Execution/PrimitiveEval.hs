@@ -7,7 +7,9 @@ module G2.Execution.PrimitiveEval ( evalPrimsSharing
                                   , evalPrimWithState
                                   , newMutVar
                                   , maybeEvalPrim
-                                  , evalPrimSymbolic) where
+                                  , evalPrimSymbolic
+                                  
+                                  , toString) where
 
 import G2.Execution.NewPC
 import G2.Execution.MutVar

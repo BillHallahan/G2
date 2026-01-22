@@ -139,7 +139,7 @@ typeClassInst tc m tcn t
     , ts <- tyAppArgs t
     , tcs <- map (typeClassInst tc m tcn) ts
     , all isJust tcs =
-        case lookupTCDict tc tcn tca of
+        case lookupTCDictCenter tc tcn tca of
             Just i -> Just (foldl' App (Var i) $ map Type ts ++ map fromJust tcs)
             Nothing -> Nothing
     | (TyVar (Id n _)) <- tyAppCenter t
@@ -150,6 +150,17 @@ typeClassInst tc m tcn t
             Just i -> Just (foldl' App (Var i) $ map Type ts ++ map fromJust tcs)
             Nothing -> Nothing
 typeClassInst _ _ _ _ = Nothing
+
+-- | Returns the dictionary for the given typeclass and Type,
+-- if one exists.
+lookupTCDictCenter :: TypeClasses
+                   -> Name -- ^ `Name` of the typeclass to look for
+                   -> Type -- ^ The `Type` you want a dictionary for
+                   -> Maybe Id
+lookupTCDictCenter tc n t =
+    case fmap insts $ M.lookup n (toMap tc) of
+        Just c -> fmap snd $ find (\(t', _) -> t .:: tyAppCenter t') c
+        Nothing -> Nothing
 
 -- | Finds `Type`s that satisfy the given typeclass requirements for the given polymorphic argument.
 -- Returns "Int" by default if there are no typeclass requirements.
