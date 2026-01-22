@@ -531,11 +531,13 @@ checkForCEx :: MonadIO m =>
             -> LiquidReadyState
             -> T.Text
             -> InfStack m [CounterExample]
-checkForCEx ghci m lrs n = do
-    liftIO . putStrLn $ "Checking CEx for " ++ T.unpack n
-    ((exec_res, _), _) <- runLHCExSearch n m lrs ghci
-    let exec_res' = filter (true_assert . final_state) exec_res
-    return $ map lhStateToCE exec_res'
+checkForCEx ghci m lrs n
+    |  T.take 1 n /= "$" = do
+        liftIO . putStrLn $ "Checking CEx for " ++ T.unpack n
+        ((exec_res, _), _) <- runLHCExSearch n m lrs ghci
+        let exec_res' = filter (true_assert . final_state) exec_res
+        return $ map lhStateToCE exec_res'
+    | otherwise = return []
 
 checkNewConstraints :: (InfConfigM m, MonadIO m) => [GhcInfo] -> LiquidReadyState -> [CounterExample] -> m (Either [CounterExample] FuncConstraints)
 checkNewConstraints ghci lrs cexs = do
