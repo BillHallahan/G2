@@ -116,7 +116,7 @@ stdReduce' _ symb_func_eval solver simplifier s@(State { curr_expr = CurrExpr Re
         return (r, states, ng'')
     | Just (LitTableFrame ltc, stck') <- frstck = retLitTableFrame solver simplifier s ng ltc stck'
     | Nothing <- frstck = return (RuleIdentity, [s], ng)
-    | otherwise = error $ "stdReduce': Unknown Expr" ++ show ce ++ show (S.pop stck)
+    | otherwise = error $ "stdReduce': Unknown Expr" ++ show ce ++ show frstck
         where
             frstck = S.pop stck
 
@@ -1743,14 +1743,7 @@ retLitTableFrame :: (Solver solver, Simplifier simplifier)
                  -> S.Stack Frame
                  -> IO (Rule, [State t], NameGen)
 retLitTableFrame solver simplifier s ng ltc stck = case ltc of
-    -- Take the table conds for the current expression and insert them in the literal table
-    -- We also want to include for previously pushed `Exploring`s, so we scan the stack
-    Exploring tc -> let lts = lit_table_stack updated_state
-                        e = get_expr $ curr_expr updated_state
-                        frames = S.toList $ exec_stack updated_state
-                        explorings = filterJust $ map get_expl frames
-                        lts' = S.modifyTop (HM.insert (tc:explorings) e) lts
-                    in return (RuleReturnLitTable, [updated_state { lit_table_stack = lts' }], ng)
+    Exploring _ -> return (RuleReturnLitTable, [updated_state], ng)
     Diff sd -> do
         res <- reduceStateDiff solver simplifier ng updated_state sd
         case res of
@@ -1778,13 +1771,21 @@ retLitTableFrame solver simplifier s ng ltc stck = case ltc of
                                                        , curr_expr = ce' }
                          in return (RuleReturnLitTable, [new_state], ng)
     where
-        updated_state = s { exec_stack = stck }
+        -- We're returning from evaluation, so we need to take the table conds
+        -- for the current expression and insert them in the literal table
+        -- We also want to include for previously pushed `Exploring`s, 
+        -- so we scan the stack
+        lts_ = lit_table_stack s
+        e = get_expr $ curr_expr s
+        frames = S.toList $ exec_stack s
+        explorings = filterJust $ map get_expl frames
+        lts_' = S.modifyTop (HM.insert explorings e) lts_
+
+        updated_state = s { exec_stack = stck, lit_table_stack = lts_' }
 
         make_exploring sd_ = (LitTableFrame $ Exploring (Conds $ PC.fromList (new_path_conds sd_)))
-        get_expr (CurrExpr _ e) = e
-
+        get_expr (CurrExpr _ e_) = e_
         filterJust [] = []
         filterJust x = map fromJust (filter (isJust) x)
-
         get_expl (LitTableFrame (Exploring tc_)) = Just tc_
         get_expl _ = Nothing
