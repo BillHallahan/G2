@@ -232,6 +232,12 @@ primDefs' b c l unit =
                                 (Var $ z seqTyX))
               , ("intToString#", Prim IntToString (TyFun TyLitInt strTy))
 
+              , ("unsafeCoerce#", Lam TypeL (u TYPE)
+                                . Lam TypeL (v TYPE)
+                                . Lam TermL (x (TyVar (u TYPE)))
+                              $ (Var (x (TyVar (v TYPE))))
+                )
+
               , ("newMutVar##", Prim NewMutVar (TyForAll a (TyForAll d (TyFun tyvarA (TyFun TyUnknown TyUnknown)))))
               , ("readMutVar##", Prim ReadMutVar (TyForAll d (TyForAll a (TyFun TyUnknown (TyFun TyUnknown tyvarA)))))
               , ("writeMutVar##", Prim WriteMutVar (TyForAll d (TyForAll a (TyFun tyvarA (TyFun TyUnknown TyUnknown)))))
@@ -286,6 +292,7 @@ primDefs' b c l unit =
                                                 , Var . z $ TyCon b TYPE
                                                 , Var $ x t
                                                 , Var $ y t]]
+                    
 a :: Id
 a = Id (Name "a" Nothing 0 Nothing) TYPE
 
@@ -294,6 +301,12 @@ tyvarA = TyVar a
 
 d :: Id
 d = Id (Name "d" Nothing 0 Nothing) TYPE
+
+u :: Type -> Id
+u = Id (Name "u" Nothing 0 Nothing)
+
+v :: Type -> Id
+v = Id (Name "v" Nothing 0 Nothing)
 
 x :: Type -> Id
 x = Id (Name "x" Nothing 0 Nothing)

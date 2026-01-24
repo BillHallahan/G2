@@ -33,6 +33,7 @@ import qualified Data.HashMap.Lazy as HM
 import qualified Data.HashSet as HS
 import Data.Maybe
 import Data.Monoid
+import qualified Data.Text as T
 import Data.Tuple.Extra
 
 import qualified Control.Monad.State as SM
@@ -157,7 +158,7 @@ checkAbstracted' g2call solver simplifier share s bindings abs_fc@(FuncCall { fu
                                    , ar)
                         False -> return ((s, bindings), NotAbstractRes)
             _ -> error $ "checkAbstracted': Bad return from g2call"
-    | otherwise = error $ "checkAbstracted': Bad lookup in g2call"
+    | otherwise = return ((s, bindings), NotAbstractRes)
 
 getAbstracted :: (Solver solver, Simplifier simplifier)
               => G2Call solver simplifier

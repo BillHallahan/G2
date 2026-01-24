@@ -326,6 +326,14 @@ testFileTests = testGroup "TestFiles"
                                                            , ("age", 400, [AtLeast 1])
                                                            , ("diffAge", 400, [AtLeast 1])
                                                            , ("yearBefore", 400, [AtLeast 5])]
+    , checkInputOutputsTemplate "tests/TestFiles/Coercions/Cast1.hs"
+                                                             [ ("castInt", 1000, [Exactly 1]) 
+                                                             , ("badCastInt", 1000, [Exactly 1]) 
+                                                             , ("castMaybeInt", 1000, [Exactly 2])
+                                                             , ("castFunc", 1000, [Exactly 1])
+                                                             , ("callTypeOf1", 1000, [Exactly 4])
+                                                             , ("callTypeOf2", 1000, [AtLeast 4])
+                                                             , ("callTypeOf3", 1000, [Exactly 1]) ]
     , checkInputOutputs "tests/TestFiles/Coercions/NewType1.hs" [ ("add1N4", 400, [Exactly 1])
                                                                 , ("f", 400, [Exactly 1])
                                                                 , ("g", 400, [Exactly 1])

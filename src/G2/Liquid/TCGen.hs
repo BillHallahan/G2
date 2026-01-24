@@ -555,7 +555,7 @@ lhPPCall lhm fnm t
     | isPrimType t = do
         i <- freshIdN t
         return . Lam TermL i =<< mkTrueE
-    | otherwise = error $ "\nError in lhPPCall " ++ show t ++ "\n" ++ show lhm
+    | otherwise = return $ Prim Undefined TyUnknown
 
 createExtractors :: LHStateM ()
 createExtractors = do

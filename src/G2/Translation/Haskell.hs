@@ -105,6 +105,8 @@ equivMods = HM.fromList
             , ("Control.Exception.Base", "GHC.Internal.Control.Exception.Base")
             , ("Data.IORef", "GHC.Internal.Data.IORef")
             , ("Data.OldList", "GHC.Internal.Data.OldList")
+            , ("Data.Typeable", "GHC.Internal.Data.Typeable")
+            , ("Data.Typeable.Internal", "GHC.Internal.Data.Typeable.Internal")
             , ("Data.Tuple", "GHC.Internal.Data.Tuple")
             , ("GHC.Internal.Enum", "GHC.Enum")
             , ("GHC.Internal.Err", "GHC.Err")

@@ -957,7 +957,7 @@ lhTCDict' m t = do
     tc <- typeClassInstTC m lh t
     case tc of
         Just e -> return e
-        Nothing -> error $ "No lh dict " ++ show lh ++ "\n" ++ show t ++ "\n" ++ show m
+        Nothing -> return $ Prim Undefined TyUnknown
 
 maybeOrdDict :: DictMaps -> Type -> LHStateM (Maybe Expr)
 maybeOrdDict m t = do
