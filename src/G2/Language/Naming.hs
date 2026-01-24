@@ -875,7 +875,7 @@ instance Named TV.TyConcOrSym where
     renames hm (TV.TySym i) = TV.TySym (renames hm i)
 
 instance Named TV.TyVarEnv where
-    names = names . TV.toList
+    names = names . TV.toUFMap
     rename old new = TV.fromListConcOrSym . rename old new . TV.toListConcOrSym
     renames hm = TV.fromListConcOrSym . renames hm . TV.toListConcOrSym
 
