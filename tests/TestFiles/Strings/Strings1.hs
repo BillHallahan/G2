@@ -4,6 +4,7 @@
 module Strings1 where
 
 import Data.List
+import qualified GHC.List as L
 
 toEnum1 :: String
 toEnum1 = [toEnum 56089]
@@ -561,4 +562,13 @@ test1 xs = (length (map id xs) > 3, if init xs == tail xs then 1 else 0)
 
 test1InitTailEq :: String -> (Bool, Int) -> Bool
 test1InitTailEq _ (b, i) = b && i == 1
+
+litTableTest :: String -> Bool
+litTableTest s = L.all f s
+    where f x = case (case x of
+                    'a' -> 'b'
+                    'b' -> 'c'
+                    _ -> x) of
+                'b' -> True
+                _ -> False
 

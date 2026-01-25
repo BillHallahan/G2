@@ -512,7 +512,8 @@ mkPrimHaskell pg = pr
 
         pr UnspecifiedOutput = "?"
 
-        pr (LitTableApp n) = "(litTableApp " <> mkNameHaskell pg n <> ")"
+        pr (LitTableRef n) = "(litTableRef " <> mkNameHaskell pg n <> ")"
+        pr (BuildLitTable) = "buildLitTable"
 
 mkPrimHaskellNoDistFloat :: PrettyGuide -> Primitive -> T.Text
 mkPrimHaskellNoDistFloat pg = pr
