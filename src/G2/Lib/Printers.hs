@@ -630,8 +630,10 @@ prettyState pg pretty_track s =
         , pretty_track pg (track s)
         , "----- [HPC] ---------------------"
         , pretty_hpc_ticks
-        , "----- [LitTable Stack] ---------------------"
+        , "----- [Lit Table Stack] ---------------------"
         , pretty_lit_table_stack
+        , "----- [Lit Tables] ---------------------"
+        , pretty_lit_tables
         , "----- [Pretty] ---------------------"
         , pretty_names
         ]
@@ -652,8 +654,8 @@ prettyState pg pretty_track s =
         pretty_tags = T.intercalate ", " . map (mkNameHaskell pg) $ HS.toList (tags s)
         pretty_hpc_ticks = T.pack $ show (reached_hpc s)
         pretty_lit_table_stack = prettyLitTableStack pg $ lit_table_stack s
+        pretty_lit_tables = prettyLitTables pg $ lit_tables s
         pretty_names = prettyGuideStr pg
-
 
 prettyCurrExpr :: PrettyGuide -> CurrExpr -> T.Text
 prettyCurrExpr pg (CurrExpr er e) =
@@ -734,6 +736,10 @@ prettyLitTable pg lt
             (map (\(conds, e) -> "  " <> prettyTableConds pg conds <> " : " <> mkDirtyExprHaskell pg e)
                  (HM.toList lt))
         <> "\n---"
+
+prettyLitTables :: PrettyGuide -> HM.HashMap Name LitTable -> T.Text
+prettyLitTables pg lts = map pair $ HM.toList lts
+    pair (n, lt) = "table name: " <> mkNameHaskell pg n <> "\n" <> prettyLitTable pg lt <> "\n"
 
 prettyTableConds :: PrettyGuide -> [TableCond] -> T.Text
 prettyTableConds pg conds = "table conds -> " <> T.intercalate ", " (map (prettyTableCond pg) conds)
