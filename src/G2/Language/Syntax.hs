@@ -304,7 +304,8 @@ data Primitive = -- Mathematical and logical operators
                | UnspecifiedOutput
 
                -- Literal table handling
-               | LitTableApp Name
+               | BuildLitTable -- ^ Build a literal table from a function
+               | LitTableRef Name -- ^ A reference to a literal table
                deriving (Show, Eq, Read, Generic, Typeable, Data)
 
 -- | Do we want to use special handling to support a particular type?

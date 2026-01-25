@@ -498,7 +498,7 @@ evalCase s@(State { expr_env = eenv
   -- forms should be handled by other RuleEvalCase* rules.
 
   -- When in literal table mode, we want to introduce another literal table here
-  -- and call it later, so 
+  -- and call it later
   | inLitTableMode s && not (isExprValueForm eenv mexpr) =
       let case_frame = CaseFrame bind t alts
           (n, ng') = freshName ng
@@ -1765,7 +1765,7 @@ retLitTableFrame solver simplifier s ng ltc stck = case ltc of
                              -- After the literal table is created, the current expression
                              -- will simply be an application of the literal table
                              ce = get_expr $ curr_expr updated_state
-                             ce' = CurrExpr Return (App (Prim (LitTableApp n) TyUnknown) ce)
+                             ce' = CurrExpr Return (App (Prim (LitTableRef n) TyUnknown) ce)
                              new_state = updated_state { lit_tables = table_map'
                                                        , lit_table_stack = lts'
                                                        , curr_expr = ce' }
@@ -1775,13 +1775,12 @@ retLitTableFrame solver simplifier s ng ltc stck = case ltc of
         -- for the current expression and insert them in the literal table
         -- We also want to include for previously pushed `Exploring`s, 
         -- so we scan the stack
-        lts_ = lit_table_stack s
         e = get_expr $ curr_expr s
         frames = S.toList $ exec_stack s
         explorings = filterJust $ map get_expl frames
-        lts_' = S.modifyTop (HM.insert explorings e) lts_
+        lts_ = S.modifyTop (HM.insert explorings e) (lit_table_stack s)
 
-        updated_state = s { exec_stack = stck, lit_table_stack = lts_' }
+        updated_state = s { exec_stack = stck, lit_table_stack = lts_ }
 
         make_exploring sd_ = (LitTableFrame $ Exploring (Conds $ PC.fromList (new_path_conds sd_)))
         get_expr (CurrExpr _ e_) = e_
