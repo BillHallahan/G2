@@ -83,6 +83,7 @@ stdReduce' share _ solver simplifier s@(State { curr_expr = CurrExpr Evaluate ce
     | SymGen sl t <- ce = return $ evalSymGen s ng sl t
     | Assume fc e1 e2 <- ce = return $ evalAssume s ng fc e1 e2
     | Assert fc e1 e2 <- ce = return $ evalAssert s ng fc e1 e2
+    | Prim Error _ <- ce = return (RuleReturn, [s { curr_expr = CurrExpr Return ce, error_raised = True }], ng)
     | otherwise = return (RuleReturn, [s { curr_expr = CurrExpr Return ce }], ng)
 stdReduce' _ symb_func_eval solver simplifier s@(State { curr_expr = CurrExpr Return ce
                                  , exec_stack = stck })  (Bindings { name_gen = ng })
@@ -258,7 +259,7 @@ evalApp s@(State { expr_env = eenv
                , new_mut_vars = [] }]
           )
         , ng')
-    | (Prim _ _):_ <- unApp (App e1 e2) =
+    | (Prim pr _):_ <- unApp (App e1 e2) =
         let
             (exP, eenv') = evalPrimsSharing eenv tenv tv_env kv tc (App e1 e2)
 
@@ -267,7 +268,7 @@ evalApp s@(State { expr_env = eenv
             er = if null ts then Return else Evaluate
         in
         ( RuleEvalPrimToNorm
-        , newPCEmpty $ s { expr_env = eenv', curr_expr = CurrExpr er exP' }
+        , newPCEmpty $ s { expr_env = eenv', curr_expr = CurrExpr er exP', error_raised = isError pr || (error_raised s) }
         , ng)
     | isExprValueForm eenv (App e1 e2) =
         ( RuleReturnAppSWHNF
@@ -288,6 +289,9 @@ evalApp s@(State { expr_env = eenv
 
         getNestedTickish (Tick t e) = t:getNestedTickish e
         getNestedTickish e = evalChildren getNestedTickish e
+
+        isError Error = True
+        isError _ = False
 
 evalLam :: State t -> LamUse -> Id -> Expr -> (Rule, [State t])
 evalLam = undefined

@@ -1780,7 +1780,7 @@ discardIfAcceptedTagHalter non_erroring (Name n m _ _) =
                     matchCurrState = HS.intersection ts allAccTags
                 in
                 HS.filter (\(Name n' m' _ _) -> n == n' && m == m') matchCurrState
-g
+
 -- | Counts the number of variable lookups are made, and switches the state
 -- whenever we've hit a threshold
 varLookupLimitHalter :: Monad m => Int -> Halter m Int r t
