@@ -5,6 +5,7 @@ module LHReqs ( Reqs (..)
 
 import G2.Language
 import G2.Liquid.Interface
+import G2.Interface.ExecRes
 
 -- | Requirements
 -- We use these to define checks on tests returning function inputs
@@ -27,10 +28,16 @@ data TestErrors = BadArgCount [Int]
                 | ArgsExistFailed 
                 | Time deriving (Show)
 
+toExprList :: ExecRes t -> [Expr]
+toExprList (ExecRes { final_state = State { error_raised = True }, conc_args = inp }) = inp ++ [Prim Error TyBottom]
+toExprList (ExecRes { conc_args = inp, conc_out = out }) = inp ++ [out]
+
 -- | Checks conditions on given expressions
-checkExprGen :: [[Expr]] -> [Reqs ([Expr] -> Bool)] -> [TestErrors]
-checkExprGen exprs reqList =
+checkExprGen :: [ExecRes t] -> [Reqs ([Expr] -> Bool)] -> [TestErrors]
+checkExprGen ers reqList =
     let
+        exprs = map toExprList ers
+
         argChecksAll = if and . map (\f -> all f exprs) $ [f | RForAll f <- reqList]
                         then []
                         else [ArgsForAllFailed]

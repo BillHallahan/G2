@@ -490,11 +490,9 @@ checkLiquidWithConfig fp tests config_f lhconfig_f =
                             let (ch, r) = case res of
                                         Nothing -> (False, Right [Time])
                                         Just (Left e) -> (False, Left e)
-                                        Just (Right exprs) ->
+                                        Just (Right ers) ->
                                             let
-                                                r_ = checkExprGen
-                                                        (map (\(ExecRes { conc_args = inp, conc_out = out}) -> inp ++ [out]) exprs)
-                                                        reqList
+                                                r_ = checkExprGen ers reqList
                                             in
                                             (null r_, Right r_)
 

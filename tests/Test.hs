@@ -1133,9 +1133,7 @@ checkExprWithConfig src m_assume m_assert m_reaches entry reqList config_f = do
                     Left _ -> (Nothing, [])
                     Right (exec_res, b) ->
                             let
-                                reqs = checkExprGen
-                                            (map (\ExecRes { conc_args = inp, conc_out = out} -> inp ++ [out]) exec_res)
-                                            $ reqList
+                                reqs = checkExprGen exec_res reqList
 
                                 pg = mkPrettyGuide exec_res
                                 res_pretty = map (printInputOutput pg (Id (Name (T.pack entry) Nothing 0 Nothing) TyUnknown) b) exec_res
