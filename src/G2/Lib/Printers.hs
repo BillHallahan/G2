@@ -738,8 +738,9 @@ prettyLitTable pg lt
         <> "\n---"
 
 prettyLitTables :: PrettyGuide -> HM.HashMap Name LitTable -> T.Text
-prettyLitTables pg lts = map pair $ HM.toList lts
-    pair (n, lt) = "table name: " <> mkNameHaskell pg n <> "\n" <> prettyLitTable pg lt <> "\n"
+prettyLitTables pg lts = T.concat (map pair $ HM.toList lts)
+    where
+        pair (n, lt) = "table name: " <> mkNameHaskell pg n <> "\n" <> prettyLitTable pg lt <> "\n"
 
 prettyTableConds :: PrettyGuide -> [TableCond] -> T.Text
 prettyTableConds pg conds = "table conds -> " <> T.intercalate ", " (map (prettyTableCond pg) conds)

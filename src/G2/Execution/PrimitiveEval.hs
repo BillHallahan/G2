@@ -9,6 +9,7 @@ module G2.Execution.PrimitiveEval ( evalPrimsSharing
                                   , maybeEvalPrim
                                   , evalPrimSymbolic) where
 
+import G2.Execution.LiteralTable
 import G2.Execution.NewPC
 import G2.Execution.MutVar
 import G2.Execution.SymToCase
@@ -440,6 +441,23 @@ evalPrimWithState s ng (App (App (App (App (App (Prim WriteMutVar _) _) (Type t)
     in
     Just (newPCEmpty s', ng')
 evalPrimWithState _ _ e | [Prim WriteMutVar _, _, _, _, _, _] <- unApp e = Nothing
+evalPrimWithState s ng (App (Prim BuildLitTable _) func_e)
+    | (TyFun fst_t _) <- typeOf (tyvar_env s) func_e =
+    -- When starting to build a literal table, we need to insert a literal table frame,
+    -- put an empty table on the literal table stack, and create a new symbolic var
+    -- to evaluate the function with
+    let (new_var, ng') = freshId fst_t ng
+        new_ce = CurrExpr Evaluate (App func_e (Var new_var))
+        new_eenv = E.insertSymbolic new_var $ expr_env s
+
+        (lt_name, ng'') = freshName ng'
+        s' = introduceLitTable s lt_name
+
+        s'' = s' { curr_expr = new_ce
+                 , expr_env = new_eenv
+                 }
+    in
+    Just (newPCEmpty s'', ng'')
 evalPrimWithState _ _ _ = Nothing
 
 deepLookupExprPastTicks :: Expr -> ExprEnv -> Expr
