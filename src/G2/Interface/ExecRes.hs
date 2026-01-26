@@ -55,6 +55,7 @@ printInputFunc pg m_c i (ExecRes { final_state = s, conc_args = ars }) = printHa
         app_maybe_coer (Just c) e = Cast e c
 
 printOutput :: PrettyGuide -> ExecRes t -> T.Text
+printOutput _ (ExecRes { final_state = State { error_raised = True } }) = "error"
 printOutput pg (ExecRes { final_state = s, conc_out = e }) = printHaskellPG pg s e
 
 remMutVarPrim :: Expr -> Expr

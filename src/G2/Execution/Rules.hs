@@ -86,15 +86,18 @@ stdReduce' share _ solver simplifier s@(State { curr_expr = CurrExpr Evaluate ce
     | otherwise = return (RuleReturn, [s { curr_expr = CurrExpr Return ce }], ng)
 stdReduce' _ symb_func_eval solver simplifier s@(State { curr_expr = CurrExpr Return ce
                                  , exec_stack = stck })  (Bindings { name_gen = ng })
-    | isErrorExpr ce
+    | error_raised s
     , Just (AssertFrame is _, stck') <- S.pop stck =
         return (RuleError, [s { exec_stack = stck'
                               , true_assert = True
                               , assert_ids = fmap (\fc -> fc { returns = Prim Error TyBottom }) is }], ng)
     | Just rs <- symb_func_eval defSymFuncTicks s ng ce = return rs
     | Just (UpdateFrame n, stck') <- frstck = return $ retUpdateFrame s ng n stck'
-    | isErrorExpr ce
-    , Just (_, stck') <- S.pop stck = return (RuleError, [s { exec_stack = stck' }], ng)
+    
+    | error_raised s = return $ retErrorState s ng
+    -- | Ignore a catch frame if there is no error
+    | Just (CatchFrame _, stck') <- frstck = return (RuleIdentity, [s { exec_stack = stck' }], ng)
+
     | Just (CaseFrame i t a, stck') <- frstck = return $ retCaseFrame s ng ce i t a stck'
     | Just (CastFrame c, stck') <- frstck = return $ retCastFrame s ng ce c stck'
     | Lam u i e <- ce
@@ -1108,6 +1111,18 @@ retUpdateFrame s@(State { expr_env = eenv
         , [s { expr_env = E.insert un e eenv
              , exec_stack = stck }]
         , ng)
+
+-- | Returning a state that has encountered an error.
+retErrorState :: State t -> NameGen -> (Rule, [State t], NameGen)
+retErrorState s@(State { curr_expr = CurrExpr _ ce, exec_stack = stck }) ng
+    -- Catch errors
+    | Just (CatchFrame e, stck') <- S.pop stck =
+        (RuleError, [s { curr_expr = CurrExpr Evaluate (App e ce)
+                       , exec_stack = stck'
+                       , error_raised = False }], ng)
+    -- Discard all non-catch frames if in an error state
+    | Just (_, stck') <- S.pop stck = (RuleError, [s { exec_stack = stck' }], ng)
+    | otherwise = (RuleError, [s], ng)
 
 retApplyFrame :: State t -> NameGen -> Expr -> Expr -> S.Stack Frame -> (Rule, [State t], NameGen)
 retApplyFrame s@(State { expr_env = eenv }) ng e1 e2 stck'

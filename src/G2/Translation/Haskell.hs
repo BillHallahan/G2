@@ -99,6 +99,7 @@ equivMods = HM.fromList
 
 #if MIN_VERSION_GLASGOW_HASKELL(9,0,0,0)
             , ("GHC.IO.Handle.FD", "GHC.IO.StdHandles")
+            , ("GHC.Exception.Type", "GHC.Exception")
 #endif
 #if MIN_VERSION_GLASGOW_HASKELL(9,10,0,0)
             , ("Control.Monad", "GHC.Internal.Control.Monad")
@@ -751,7 +752,7 @@ mkTyCon t = do
                                                     , G2.data_con = dc'
                                                     , G2.rep_type = t'
                                                     , G2.adt_source = ADTSourceCode}
-                  AbstractTyCon {} -> error "Unhandled TyCon AbstractTyCon"
+                  AbstractTyCon {} -> return Nothing
                   -- TupleTyCon {} -> error "Unhandled TyCon TupleTyCon"
                   TupleTyCon { data_con = dc } -> do
                     dc' <- mkData dc

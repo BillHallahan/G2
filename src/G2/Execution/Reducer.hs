@@ -1047,7 +1047,8 @@ strictRed = mkSimpleReducer (\_ -> ())
             -- Without this check, the strictRed might repeatedly fire, fruitlessly arranging for already reduced
             -- subexpressions to be repeatedly reduced over and over, and preventing the involved `State` from
             -- being halted.
-            , must_red HS.empty e =
+            , must_red HS.empty e 
+            , not (error_raised s) =
                 let
                     -- Given a `curr_expr` of the form:
                     --   @ D e1 ... ek @

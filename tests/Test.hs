@@ -277,6 +277,8 @@ testFileTests = testGroup "TestFiles"
                                                           , ("f", 400, [AtLeast 1])
                                                           , ("f", 400, [AtLeast 1])
                                                           , ("g", 400, [AtLeast 1]) ]
+    , checkInputOutputs "tests/TestFiles/Error/Catch1.hs" [ ("f", 1000, [Exactly 1])
+                                                          , ("g", 1000, [Exactly 2]) ]
     , checkInputOutputs "tests/TestFiles/Error/Undefined1.hs" [ ("undefined1", 400, [AtLeast 1])
                                                               , ("undefined2", 400, [AtLeast 1])]
     , checkInputOutput "tests/TestFiles/Error/IrrefutError.hs" "f" 400 [AtLeast 2]
