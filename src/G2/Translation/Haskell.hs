@@ -113,6 +113,8 @@ equivMods = HM.fromList
             , ("GHC.Internal.Err", "GHC.Err")
             , ("GHC.Internal.Base", "GHC.Base")
             , ("GHC.Internal.Data.Foldable", "Data.Foldable")
+            , ("GHC.Internal.Exception.Type", "GHC.Exception")
+            , ("GHC.Internal.IO", "GHC.IO")
             , ("GHC.Internal.List", "GHC.List")
             , ("GHC.Internal.Maybe", "GHC.Maybe")
             , ("GHC.Internal.Num", "GHC.Num")
