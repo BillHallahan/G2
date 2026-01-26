@@ -15,7 +15,7 @@ import G2.Language.Expr
 import qualified G2.Language.ExprEnv as E
 import G2.Language.Naming
 import G2.Language.Support
-import G2.Language.Syntax
+import G2.Language.Syntax hiding (Raise)
 import G2.Language.Typing
 import G2.Liquid.Config
 import G2.Liquid.ConvertCurrExpr
