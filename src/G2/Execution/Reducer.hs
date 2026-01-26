@@ -1774,17 +1774,13 @@ discardIfAcceptedTagHalter non_erroring (Name n m _ _) =
             (State {tags = ts}) =
                 let
                     acc_states = case non_erroring of
-                                    True -> filter (not . isError . getExpr . final_state) acc
+                                    True -> filter (not . error_raised . final_state) acc
                                     False -> acc
                     allAccTags = HS.unions $ map (tags . final_state) acc_states
                     matchCurrState = HS.intersection ts allAccTags
                 in
                 HS.filter (\(Name n' m' _ _) -> n == n' && m == m') matchCurrState
-            
-        isError (Prim Error _) = True
-        isError (Prim Undefined _) = True
-        isError _ = False
-
+g
 -- | Counts the number of variable lookups are made, and switches the state
 -- whenever we've hit a threshold
 varLookupLimitHalter :: Monad m => Int -> Halter m Int r t

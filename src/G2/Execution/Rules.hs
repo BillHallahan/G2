@@ -230,7 +230,7 @@ evalApp s@(State { expr_env = eenv
                  , type_classes = tc })
         ng e1 e2
     | ac@(Prim Error _) <- appCenter e1 =
-        (RuleError, newPCEmpty $ s { curr_expr = CurrExpr Return ac }, ng)
+        (RuleError, newPCEmpty $ s { curr_expr = CurrExpr Return ac, error_raised = True }, ng)
     -- Force evaluation of the expression being quantified over
     | [Prim ForAllBoundPr _, _ {- lower -}, _ {- upper -} ] <- unApp e1 =
         let e2' = simplifyExprs eenv eenv e2 in
