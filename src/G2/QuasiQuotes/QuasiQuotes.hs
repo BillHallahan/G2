@@ -326,6 +326,7 @@ moveOutStatePieces tenv_name s = do
              , mutvar_env = $(mutvar_env_exp)
              , true_assert = $(true_assert_exp) 
              , assert_ids = $(assert_ids_exp)
+             , error_raised = False
              , type_classes = $(type_classes_exp)
              , families = $(families_exp)
              , exec_stack = $(exec_stack_exp)
