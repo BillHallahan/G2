@@ -267,7 +267,7 @@ primDefs' b c l unit =
               , ("buildLitTable", Lam TypeL (x TYPE)
                                 . Lam TypeL (y TYPE)
                                 . Lam TermL (z funTyXY)
-                                $ App (Prim BuildLitTable TyUnknown) (Var $ z funTyXY)
+                                $ App (Prim BuildLitTable (TyFun funTyXY TyUnknown)) (Var $ z funTyXY)
                 )
               ]
               where

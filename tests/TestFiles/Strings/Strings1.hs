@@ -568,6 +568,7 @@ litTableTest s = L.all f s
     where f x = case (case x of
                     'a' -> 'b'
                     'b' -> 'c'
+                    'c' -> 'b'
                     _ -> x) of
                 'b' -> True
                 _ -> False

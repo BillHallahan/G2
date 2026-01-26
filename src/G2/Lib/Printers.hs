@@ -732,10 +732,10 @@ prettyLitTable :: PrettyGuide -> LitTable -> T.Text
 prettyLitTable pg lt
     | HM.null lt = "empty literal table"
     | otherwise =
-        "---\n" <> T.intercalate "\n"
-            (map (\(conds, e) -> "  " <> prettyTableConds pg conds <> " : " <> mkDirtyExprHaskell pg e)
+        T.intercalate "\n"
+            (map (\(conds, e) -> "  " <> prettyTableConds pg conds <> ": " <> mkDirtyExprHaskell pg e)
                  (HM.toList lt))
-        <> "\n---"
+        <> "\n-- end lit table --"
 
 prettyLitTables :: PrettyGuide -> HM.HashMap Name LitTable -> T.Text
 prettyLitTables pg lts = T.concat (map pair $ HM.toList lts)
@@ -743,7 +743,7 @@ prettyLitTables pg lts = T.concat (map pair $ HM.toList lts)
         pair (n, lt) = "table name: " <> mkNameHaskell pg n <> "\n" <> prettyLitTable pg lt <> "\n"
 
 prettyTableConds :: PrettyGuide -> [TableCond] -> T.Text
-prettyTableConds pg conds = "table conds -> " <> T.intercalate ", " (map (prettyTableCond pg) conds)
+prettyTableConds pg conds = "table conds [" <> T.intercalate ", " (map (prettyTableCond pg) conds) <> "]"
 
 prettyTableCond :: PrettyGuide -> TableCond -> T.Text
 prettyTableCond pg (Conds pcs) = "path conds " <> prettyPathConds pg pcs
