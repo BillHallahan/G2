@@ -253,7 +253,7 @@ runG2ThroughExecutionInference :: ( MonadIO m
 runG2ThroughExecutionInference red hal ord _ _ _ pres s b = do
     case (red, hal, ord) of
             (SomeReducer red', SomeHalter hal', SomeOrderer ord') -> do
-                    let (s', b') = runG2Pre pres s b
+                    let (s', b') = runG2Pre pres (s { error_raised = False }) b
                     runExecution red' hal' ord' (\s b -> return . Just $ (earlyExecRes b s, name_gen b)) noAnalysis s' b'
 
 runG2SolvingInference :: (MonadIO m, Solver solver, Simplifier simplifier) => solver -> simplifier -> Bindings -> ExecRes AbstractedInfo -> m (ExecRes AbstractedInfo, NameGen)
@@ -1103,7 +1103,7 @@ genericG2Call config solver s bindings = do
                            (SomeHalter swhnfHalter)
                            (SomeOrderer nextOrderer)
                            noAnalysis
-                           solver simplifier PreserveAllMC s bindings
+                           solver simplifier PreserveAllMC (s { error_raised = False }) bindings
 
     return fslb
 
@@ -1127,6 +1127,6 @@ genericG2CallLogging config solver s bindings lg = do
                            (SomeHalter swhnfHalter)
                            (SomeOrderer nextOrderer)
                            noAnalysis
-                           solver simplifier PreserveAllMC s bindings
+                           solver simplifier PreserveAllMC (s { error_raised = False }) bindings
 
     return fslb

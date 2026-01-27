@@ -1,3 +1,5 @@
+{-# LANGUAGE OverloadedStrings #-}
+
 module G2.Liquid.Inference.Initalization ( initStateAndConfig
                                          , createStateForInference
                                          , getGHCI ) where
@@ -31,10 +33,16 @@ initStateAndConfig exg2 main_mod g2config lhconfig infconfig ghci =
 
         lrs = createStateForInference simp_s main_mod g2config' lhconfig' ghci
 
-        lh_s = lr_state lrs
+        lh_s = modifyASTs adjustErrs $ lr_state lrs
         lhconfig'' = adjustConfigPostLH main_mod (measures lh_s) (tcvalues lh_s) (state lh_s) ghci lhconfig'
     in
-    (lrs, g2config', lhconfig'', infconfig')
+    (lrs { lr_state = lh_s}, g2config', lhconfig'', infconfig')
+    where
+        adjustErrs (App (Var (Id n _)) _) | nameOcc n == "raise#" = Prim Error TyBottom
+        adjustErrs (Prim Raise _) = Prim Error TyBottom
+        adjustErrs e | Data dc:_ <- unApp e
+                     , nameOcc (dc_name dc) == "SomeException" = Prim Error TyBottom
+        adjustErrs e = e
 
 createStateForInference :: SimpleState -> [Maybe T.Text] -> G2.Config -> LHConfig -> [GhcInfo] -> LiquidReadyState
 createStateForInference simp_s main_mod config lhconfig ghci =

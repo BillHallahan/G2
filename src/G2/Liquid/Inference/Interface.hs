@@ -769,7 +769,7 @@ hasArgError :: FuncCall -> Bool
 hasArgError = any isError . arguments
 
 isError :: Expr -> Bool
-isError (App (Prim Error _) _) = True
+isError e | Prim Error _:_ <- unApp e = True
 isError _ = False
 
 erHigherOrder :: ExecRes AbstractedInfo -> [HigherOrderFuncCall]
