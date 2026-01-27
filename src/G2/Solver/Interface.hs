@@ -19,6 +19,7 @@ import qualified Data.List as L
 import Data.Maybe (mapMaybe, isJust, fromJust)
 import qualified Data.HashMap.Lazy as HM
 import qualified Data.Sequence as S
+import Network.Browser (err)
 
 -- | Concrete instantiations of previously (partially) symbolic values.
 data Subbed = Subbed { s_inputs :: [Expr] -- ^ Concrete `inputNames`
@@ -70,8 +71,7 @@ subModel (State { expr_env = eenv
                 , sym_gens = gens
                 , handles = hs
                 , mutvar_env = mve
-                , tyvar_env = tvnv
-                , error_raised = errored }) 
+                , tyvar_env = tvnv }) 
           (Bindings {input_names = inputNames}) = 
     let
         ais' = fmap (subVarFuncCall tvnv True m eenv tc) ais
@@ -85,8 +85,8 @@ subModel (State { expr_env = eenv
         mv = mapMaybe (\(n, mvi) -> fmap (n, mv_origin mvi,) . toVars . idName $ mv_initial mvi) (HM.toList mve)
 
         sub = Subbed { s_inputs = is
-                     , s_output = if errored then Prim Error TyBottom else cexpr
-                     , s_violated = ais'
+                     , s_output = simpErrors cexpr
+                     , s_violated = simpErrors ais'
                      , s_sym_gens = gs
                      , s_mutvars = mv
                      , s_handles = map (\(n, hi) -> (n, Var $ h_start hi)) $ HM.toList hs }
@@ -101,6 +101,11 @@ subModel (State { expr_env = eenv
                                 Nothing -> Nothing
 
         untilEq f x = let x' = f x in if x == x' then x' else untilEq f x'
+
+        simpErrors :: ASTContainer c Expr => c -> c
+        simpErrors = modifyASTs se
+        se (App e@(Prim Error _) _) = e
+        se e = e
 
 subVarFuncCall :: TyVarEnv -> Bool -> Model -> ExprEnv -> TypeClasses -> FuncCall -> FuncCall
 subVarFuncCall tv inLam em eenv tc fc@(FuncCall {arguments = ars}) =

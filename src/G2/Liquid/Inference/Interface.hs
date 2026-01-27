@@ -46,8 +46,10 @@ import qualified Data.HashSet as S
 import qualified Data.HashMap.Lazy as HM
 import Data.List
 import Data.Maybe
+import Data.Monoid (Any (..))
 import qualified Data.Text as T
 import qualified Data.Text.IO as T
+import Data.Bool (Bool(True))
 
 -- Run inference, with an extra, final check of correctness at the end.
 -- Assuming inference is working correctly, this check should neve fail.
@@ -767,8 +769,7 @@ hasArgError :: FuncCall -> Bool
 hasArgError = any isError . arguments
 
 isError :: Expr -> Bool
-isError (Prim Error _) = True
-isError (Prim Undefined _) = True
+isError (App (Prim Error _) _) = True
 isError _ = False
 
 erHigherOrder :: ExecRes AbstractedInfo -> [HigherOrderFuncCall]

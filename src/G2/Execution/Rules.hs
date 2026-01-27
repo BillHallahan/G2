@@ -230,8 +230,8 @@ evalApp s@(State { expr_env = eenv
                  , tyvar_env = tv_env
                  , type_classes = tc })
         ng e1 e2
-    | ac@(Prim Error _) <- appCenter e1 =
-        (RuleError, newPCEmpty $ s { curr_expr = CurrExpr Return ac, error_raised = True }, ng)
+    | (Prim Error _) <- appCenter e1 =
+        (RuleError, newPCEmpty $ s { curr_expr = CurrExpr Return (App e1 e2), error_raised = True }, ng)
     -- Force evaluation of the expression being quantified over
     | [Prim ForAllBoundPr _, _ {- lower -}, _ {- upper -} ] <- unApp e1 =
         let e2' = simplifyExprs eenv eenv e2 in
@@ -1118,12 +1118,13 @@ retUpdateFrame s@(State { expr_env = eenv
 
 -- | Returning a state that has encountered an error.
 retErrorState :: State t -> NameGen -> (Rule, [State t], NameGen)
-retErrorState s@(State { curr_expr = CurrExpr _ ce, exec_stack = stck }) ng
+retErrorState s@(State { curr_expr = CurrExpr _ (App (Prim Error _) ce), exec_stack = stck }) ng
     -- Catch errors
     | Just (CatchFrame e, stck') <- S.pop stck =
         (RuleError, [s { curr_expr = CurrExpr Evaluate (App e ce)
                        , exec_stack = stck'
                        , error_raised = False }], ng)
+retErrorState s@(State { exec_stack = stck }) ng
     -- Discard all non-catch frames if in an error state
     | Just (_, stck') <- S.pop stck = (RuleError, [s { exec_stack = stck' }], ng)
     | otherwise = (RuleError, [s], ng)

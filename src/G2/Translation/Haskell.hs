@@ -77,6 +77,7 @@ equivMods :: HM.HashMap T.Text T.Text
 equivMods = HM.fromList
             [ ("GHC.BaseMonad", "GHC.Base")
             , ("GHC.Classes2", "GHC.Classes")
+            , ("GHC.Exception.Type", "GHC.Exception")
             , ("GHC.Types2", "GHC.Types")
             , ("GHC.Integer2", "GHC.Integer")
 #if MIN_VERSION_GLASGOW_HASKELL(9,0,2,0)
@@ -99,7 +100,6 @@ equivMods = HM.fromList
 
 #if MIN_VERSION_GLASGOW_HASKELL(9,0,0,0)
             , ("GHC.IO.Handle.FD", "GHC.IO.StdHandles")
-            , ("GHC.Exception.Type", "GHC.Exception")
 #endif
 #if MIN_VERSION_GLASGOW_HASKELL(9,10,0,0)
             , ("Control.Monad", "GHC.Internal.Control.Monad")
