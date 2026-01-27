@@ -214,7 +214,6 @@ initStateFromSimpleState s m_mod useAssert mkCurr argTys config =
     , handles = hs
     , mutvar_env = HM.empty
     , true_assert = if useAssert || check_asserts config then False else True
-    , error_raised = False
     , assert_ids = Nothing
     , type_classes = tc'
     , families = fams

@@ -83,11 +83,11 @@ stdReduce' share _ solver simplifier s@(State { curr_expr = CurrExpr Evaluate ce
     | SymGen sl t <- ce = return $ evalSymGen s ng sl t
     | Assume fc e1 e2 <- ce = return $ evalAssume s ng fc e1 e2
     | Assert fc e1 e2 <- ce = return $ evalAssert s ng fc e1 e2
-    | Prim Error _ <- ce = return (RuleReturn, [s { curr_expr = CurrExpr Return ce, error_raised = True }], ng)
+    | Prim Error _:_ <- unApp ce = return (RuleReturn, [s { curr_expr = CurrExpr Return ce }], ng)
     | otherwise = return (RuleReturn, [s { curr_expr = CurrExpr Return ce }], ng)
 stdReduce' _ symb_func_eval solver simplifier s@(State { curr_expr = CurrExpr Return ce
                                  , exec_stack = stck })  (Bindings { name_gen = ng })
-    | error_raised s
+    | errorRaised s
     , Just (AssertFrame is _, stck') <- S.pop stck =
         return (RuleError, [s { exec_stack = stck'
                               , true_assert = True
@@ -95,7 +95,7 @@ stdReduce' _ symb_func_eval solver simplifier s@(State { curr_expr = CurrExpr Re
     | Just rs <- symb_func_eval defSymFuncTicks s ng ce = return rs
     | Just (UpdateFrame n, stck') <- frstck = return $ retUpdateFrame s ng n stck'
     
-    | error_raised s = return $ retErrorState s ng
+    | errorRaised s = return $ retErrorState s ng
     -- | Ignore a catch frame if there is no error
     | Just (CatchFrame _, stck') <- frstck = return (RuleIdentity, [s { exec_stack = stck' }], ng)
 
@@ -231,7 +231,7 @@ evalApp s@(State { expr_env = eenv
                  , type_classes = tc })
         ng e1 e2
     | (Prim Error _) <- appCenter e1 =
-        (RuleError, newPCEmpty $ s { curr_expr = CurrExpr Return (App e1 e2), error_raised = True }, ng)
+        (RuleError, newPCEmpty $ s { curr_expr = CurrExpr Return (App e1 e2) }, ng)
     -- Force evaluation of the expression being quantified over
     | [Prim ForAllBoundPr _, _ {- lower -}, _ {- upper -} ] <- unApp e1 =
         let e2' = simplifyExprs eenv eenv e2 in
@@ -268,7 +268,7 @@ evalApp s@(State { expr_env = eenv
             er = if null ts then Return else Evaluate
         in
         ( RuleEvalPrimToNorm
-        , newPCEmpty $ s { expr_env = eenv', curr_expr = CurrExpr er exP', error_raised = isError pr || (error_raised s) }
+        , newPCEmpty $ s { expr_env = eenv', curr_expr = CurrExpr er exP' }
         , ng)
     | isExprValueForm eenv (App e1 e2) =
         ( RuleReturnAppSWHNF
@@ -1122,8 +1122,7 @@ retErrorState s@(State { curr_expr = CurrExpr _ (App (Prim Error _) ce), exec_st
     -- Catch errors
     | Just (CatchFrame e, stck') <- S.pop stck =
         (RuleError, [s { curr_expr = CurrExpr Evaluate (App e ce)
-                       , exec_stack = stck'
-                       , error_raised = False }], ng)
+                       , exec_stack = stck' }], ng)
 retErrorState s@(State { exec_stack = stck }) ng
     -- Discard all non-catch frames if in an error state
     | Just (_, stck') <- S.pop stck = (RuleError, [s { exec_stack = stck' }], ng)
