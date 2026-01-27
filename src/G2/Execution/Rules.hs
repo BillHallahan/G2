@@ -1126,7 +1126,7 @@ retErrorState s@(State { curr_expr = CurrExpr _ ce, exec_stack = stck }) ng
                        , error_raised = False }], ng)
     -- Discard all non-catch frames if in an error state
     | Just (_, stck') <- S.pop stck = (RuleError, [s { exec_stack = stck' }], ng)
-    | otherwise = (RuleError, [s], ng)
+    | otherwise = (RuleIdentity, [s], ng)
 
 retApplyFrame :: State t -> NameGen -> Expr -> Expr -> S.Stack Frame -> (Rule, [State t], NameGen)
 retApplyFrame s@(State { expr_env = eenv }) ng e1 e2 stck'
