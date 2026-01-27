@@ -1765,7 +1765,7 @@ retLitTableFrame solver simplifier s ng ltc stck = case ltc of
                              -- After the literal table is created, the current expression
                              -- will simply be an application of the literal table
                              ce = get_expr $ curr_expr updated_state
-                             ce' = CurrExpr Return (App (Prim (LitTableRef n) TyUnknown) ce)
+                             ce' = CurrExpr Evaluate (App (Prim (LitTableRef n) TyUnknown) ce)
                              new_state = updated_state { lit_tables = table_map'
                                                        , lit_table_stack = lts'
                                                        , curr_expr = ce' }

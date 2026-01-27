@@ -565,11 +565,14 @@ test1InitTailEq _ (b, i) = b && i == 1
 
 litTableTest :: String -> Bool
 litTableTest s = L.all f s
-    where f x = case (case x of
-                    'a' -> 'b'
-                    'b' -> 'c'
-                    'c' -> 'b'
-                    _ -> x) of
+    where f x = case inner x of
                 'b' -> True
                 _ -> False
 
+{-# NOINLINE inner #-}
+inner :: Char -> Char
+inner x = case x of
+            'a' -> 'b'
+            'b' -> 'c'
+            'c' -> 'b'
+            _ -> x
