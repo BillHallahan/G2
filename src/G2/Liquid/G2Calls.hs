@@ -323,14 +323,11 @@ elimAssumesExcept' e = e
 
 reduceCalls :: (Solver solver, Simplifier simplifier) => G2Call solver simplifier -> solver -> simplifier -> Config -> Bindings -> ExecRes LHTracker -> IO (Bindings, ExecRes LHTracker)
 reduceCalls g2call solver simplifier config bindings er = do
-    (bindings', er') <- reduceAbstracted g2call solver simplifier (sharing config) bindings no_err_er
+    (bindings', er') <- reduceAbstracted g2call solver simplifier (sharing config) bindings er
     (bindings'', er'') <- reduceAllCalls g2call solver simplifier (sharing config) bindings' er'
     (bindings''', er''') <- reduceHigherOrderCalls g2call solver simplifier (sharing config) bindings'' er''
 
     return (bindings''', er''')
-    where
-        simpErrors (App err@(Prim Error _) _) = err
-        simpErrors e = e
 
 reduceViolated :: (Solver solver, Simplifier simplifier) => G2Call solver simplifier -> solver -> simplifier -> Sharing -> Bindings -> ExecRes LHTracker -> IO (Bindings, ExecRes LHTracker)
 reduceViolated g2call solver simplifier share bindings er@(ExecRes { final_state = s, violated = Just v }) = do

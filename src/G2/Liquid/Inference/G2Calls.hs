@@ -511,9 +511,14 @@ runLHInferenceCore entry m lrs ghci = do
     -- liftIO is important so that we specialize runLHG2Inference
     (exec_res, final_bindings) <- liftIO $ SM.evalStateT (runLHG2Inference g2config red hal ord solver simplifier pres_names ifi final_st' bindings) (mkPrettyGuide ())
 
+    let exec_res' = modifyASTs simpErrors exec_res
+
     liftIO $ close solver
 
-    return ((exec_res, final_bindings), ifi)
+    return ((exec_res', final_bindings), ifi)
+    where
+        simpErrors (App err@(Prim Error _) _) = err
+        simpErrors e = e
 
 inferenceReducerHalterOrderer :: (MonadIO m, MonadIO m_run, Solver solver, Simplifier simplifier)
                               => InferenceConfig
