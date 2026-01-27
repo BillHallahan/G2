@@ -63,7 +63,6 @@ data State t = State { expr_env :: E.ExprEnv -- ^ Mapping of `Name`s to `Expr`s
                                                -- See Note [MutVar Env] in G2.Language.MutVarEnv.
                      , true_assert :: Bool -- ^ Do we want to output the state?  True if yes, false if no.
                                            -- When running to violate assertions, an assertion violations flips this from False to True.
-                     , error_raised :: Bool -- ^ Has an error been raised?
                      , assert_ids :: Maybe FuncCall
                      , type_classes :: TypeClasses
                      , families :: Families
@@ -99,6 +98,13 @@ data Bindings = Bindings { fixed_inputs :: [Expr]
                          , name_gen :: NameGen
                          , exported_funcs :: [Name]
                          } deriving (Show, Eq, Read, Typeable, Data)
+
+errorRaised :: State t -> Bool
+errorRaised (State { curr_expr = CurrExpr _ ce}) | Prim Error _ <- center ce = True
+    where
+        center (App e _) = center e
+        center e = e
+errorRaised _ = False
 
 -- | The `InputIds` are a list of the variable names passed as input to the
 -- function being symbolically executed
@@ -242,7 +248,6 @@ instance Named t => Named (State t) where
                , handles = rename old new (handles s)
                , mutvar_env = rename old new (mutvar_env s)
                , true_assert = true_assert s
-               , error_raised = error_raised s
                , assert_ids = rename old new (assert_ids s)
                , type_classes = rename old new (type_classes s)
                , families = rename old new (families s)
@@ -271,7 +276,6 @@ instance Named t => Named (State t) where
                , handles = renames hm (handles s)
                , mutvar_env = renames hm (mutvar_env s)
                , true_assert = true_assert s
-               , error_raised = error_raised s
                , assert_ids = renames hm (assert_ids s)
                , type_classes = renames hm (type_classes s)
                , families = renames hm (families s)

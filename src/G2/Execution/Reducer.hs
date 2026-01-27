@@ -1048,7 +1048,7 @@ strictRed = mkSimpleReducer (\_ -> ())
             -- subexpressions to be repeatedly reduced over and over, and preventing the involved `State` from
             -- being halted.
             , must_red HS.empty e 
-            , not (error_raised s) =
+            , not (errorRaised s) =
                 let
                     -- Given a `curr_expr` of the form:
                     --   @ D e1 ... ek @
@@ -1774,7 +1774,7 @@ discardIfAcceptedTagHalter non_erroring (Name n m _ _) =
             (State {tags = ts}) =
                 let
                     acc_states = case non_erroring of
-                                    True -> filter (not . error_raised . final_state) acc
+                                    True -> filter (not . errorRaised . final_state) acc
                                     False -> acc
                     allAccTags = HS.unions $ map (tags . final_state) acc_states
                     matchCurrState = HS.intersection ts allAccTags

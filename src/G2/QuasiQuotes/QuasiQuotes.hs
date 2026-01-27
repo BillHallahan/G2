@@ -326,7 +326,6 @@ moveOutStatePieces tenv_name s = do
              , mutvar_env = $(mutvar_env_exp)
              , true_assert = $(true_assert_exp) 
              , assert_ids = $(assert_ids_exp)
-             , error_raised = False
              , type_classes = $(type_classes_exp)
              , families = $(families_exp)
              , exec_stack = $(exec_stack_exp)
@@ -410,7 +409,7 @@ errorHalter = mkSimpleHalter
                     stop
                     (\_ _ _ _ -> ())
     where
-        stop _ _ (State { error_raised = True }) = return Discard
+        stop _ _ s | errorRaised s = return Discard
         stop _ _ _ = return Continue
 
 executeAndSolveStates :: StateExp -> BindingsExp -> Q Exp
