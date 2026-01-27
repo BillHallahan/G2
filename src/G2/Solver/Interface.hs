@@ -70,7 +70,8 @@ subModel (State { expr_env = eenv
                 , sym_gens = gens
                 , handles = hs
                 , mutvar_env = mve
-                , tyvar_env = tvnv }) 
+                , tyvar_env = tvnv
+                , error_raised = errored }) 
           (Bindings {input_names = inputNames}) = 
     let
         ais' = fmap (subVarFuncCall tvnv True m eenv tc) ais
@@ -84,7 +85,7 @@ subModel (State { expr_env = eenv
         mv = mapMaybe (\(n, mvi) -> fmap (n, mv_origin mvi,) . toVars . idName $ mv_initial mvi) (HM.toList mve)
 
         sub = Subbed { s_inputs = is
-                     , s_output = cexpr
+                     , s_output = if errored then Prim Error TyBottom else cexpr
                      , s_violated = ais'
                      , s_sym_gens = gs
                      , s_mutvars = mv
