@@ -444,7 +444,7 @@ evalPrimWithState s ng (App (App (App (App (App (Prim WriteMutVar _) _) (Type t)
     Just (newPCEmpty s', ng')
 evalPrimWithState _ _ e | [Prim WriteMutVar _, _, _, _, _, _] <- unApp e = Nothing
 evalPrimWithState s ng (App (Prim Raise _) e2) = Just (
-                                                   (newPCEmpty $ s { curr_expr = CurrExpr Evaluate (App (Prim Error TyBottom) e2)
+                                                   (newPCEmpty $ s { curr_expr = CurrExpr Evaluate e2
                                                                    , error_raised = True })
                                                    , ng)
 evalPrimWithState s ng (App (App (Prim Catch _) run) hand) = Just (

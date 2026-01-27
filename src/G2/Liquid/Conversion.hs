@@ -164,7 +164,8 @@ mergeSpecType st fn e = do
                       , arguments = map Var is
                       , returns = Var r }
         e'' = modifyASTs (repAssertFC fc) e'
-    let rLet = Let [(r, e'')] $ Assert (Just fc) assert (Var r)
+    b <- freshIdN (typeOf tv e')
+    let rLet = Let [(r, e'')] $ Assert (Just fc) (Case (Var r) b (typeOf tv e') [Alt Default assert]) (Var r)
     
     let e''' = foldr (uncurry Lam) rLet $ zip lu is
 

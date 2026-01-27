@@ -1118,13 +1118,12 @@ retUpdateFrame s@(State { expr_env = eenv
 
 -- | Returning a state that has encountered an error.
 retErrorState :: State t -> NameGen -> (Rule, [State t], NameGen)
-retErrorState s@(State { curr_expr = CurrExpr _ (App (Prim Error _) ce), exec_stack = stck }) ng
+retErrorState s@(State { curr_expr = CurrExpr _ ce, exec_stack = stck }) ng
     -- Catch errors
     | Just (CatchFrame e, stck') <- S.pop stck =
         (RuleError, [s { curr_expr = CurrExpr Evaluate (App e ce)
                        , exec_stack = stck'
                        , error_raised = False }], ng)
-retErrorState s@(State { exec_stack = stck }) ng
     -- Discard all non-catch frames if in an error state
     | Just (_, stck') <- S.pop stck = (RuleError, [s { exec_stack = stck' }], ng)
     | otherwise = (RuleError, [s], ng)
