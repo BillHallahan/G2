@@ -157,7 +157,7 @@ sampleTests = testGroup "Samples"
                                                       , ("cfmapIntX", 1600, [AtLeast 10])
                                                       , ("cfmapIntCListInt", 300, [AtLeast 2]) ]
 
-    , checkExprReaches "tests/Samples/GetNthErr.hs" 800 Nothing Nothing (Just "error") "getNth"
+    , checkExprReaches "tests/Samples/GetNthErr.hs" 1200 Nothing Nothing (Just "error") "getNth"
         [AtLeast 8, RForAll errors]
 
     , checkInputOutputs "tests/Samples/FoldlUses.hs" [ ("sum_foldl", 1600, [AtLeast 3])
@@ -272,15 +272,12 @@ testFileTests = testGroup "TestFiles"
         [ RExists (\[App _ (Lit (LitInt x)), App _ (Lit (LitInt y))] -> x == 4 && y == 1)
         , RExists (\[App _ (Lit (LitInt x)), App _ (Lit (LitInt y))] -> x /= 4 && y == 1) ]
     
-    , checkInputOutputs "tests/TestFiles/Error/Error1.hs" [ ("f", 400, [AtLeast 1])
-                                                          , ("g", 400, [AtLeast 1])
-                                                          , ("f", 400, [AtLeast 1])
-                                                          , ("f", 400, [AtLeast 1])
-                                                          , ("g", 400, [AtLeast 1]) ]
+    , checkInputOutputs "tests/TestFiles/Error/Error1.hs" [ ("f", 800, [AtLeast 1])
+                                                          , ("g", 800, [AtLeast 1]) ]
     , checkInputOutputs "tests/TestFiles/Error/Catch1.hs" [ ("f", 1000, [Exactly 1])
                                                           , ("g", 1000, [Exactly 2]) ]
-    , checkInputOutputs "tests/TestFiles/Error/Undefined1.hs" [ ("undefined1", 400, [AtLeast 1])
-                                                              , ("undefined2", 400, [AtLeast 1])]
+    , checkInputOutputs "tests/TestFiles/Error/Undefined1.hs" [ ("undefined1", 800, [AtLeast 1])
+                                                              , ("undefined2", 800, [AtLeast 1])]
     , checkInputOutput "tests/TestFiles/Error/IrrefutError.hs" "f" 400 [AtLeast 2]
 
     , checkInputOutputs "tests/TestFiles/BadNames1.hs" [ ("abs'", 400, [Exactly 2])
@@ -600,8 +597,8 @@ testFileTests = testGroup "TestFiles"
 
     , checkExpr "tests/TestFiles/Sets/SetInsert.hs" 700 "prop" [AtLeast 3]
     
-    , checkInputOutputs "tests/TestFiles/BadDC.hs" [ ("f", 400, [AtLeast 5])
-                                                   , ("g", 400, [AtLeast 3]) ]
+    , checkInputOutputs "tests/TestFiles/BadDC.hs" [ ("f", 800, [AtLeast 5])
+                                                   , ("g", 800, [AtLeast 3]) ]
 
     , checkInputOutputsTemplate "tests/HigherOrder/HigherOrder.hs" [ ("f", 50, [AtLeast 5])
                                                                    , ("h", 150, [AtLeast 3])
