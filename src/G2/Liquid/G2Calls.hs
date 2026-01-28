@@ -40,9 +40,6 @@ import qualified Control.Monad.State as SM
 import G2.Lib.Printers
 import qualified G2.Language.TyVarEnv as TV
 
-import Data.Time.Clock
-import Data.Time (getCurrentTime)
-
 -- | The function to actually use for Symbolic Execution
 type G2Call solver simplifier =
     forall m t . ( MonadIO m
@@ -429,9 +426,8 @@ reduceFCExpr g2call reducer solver simplifier s bindings e
                . modelToExprEnv $
                    s { curr_expr = CurrExpr Evaluate e }
 
-        time <- liftIO getCurrentTime
         (er, bindings') <- g2call 
-                              reducer -- (SomeReducer (simpleLogger $ "a_" ++ show time) .~> reducer)
+                              reducer
                               (SomeHalter (acceptOnlyOneHalter <~> swhnfHalter <~> switchEveryNHalter 200))
                               (SomeOrderer (incrAfterN 2000 (adtSizeOrderer 0 Nothing)))
                               noAnalysis
