@@ -275,7 +275,9 @@ testFileTests = testGroup "TestFiles"
     , checkInputOutputs "tests/TestFiles/Error/Error1.hs" [ ("f", 800, [AtLeast 1])
                                                           , ("g", 800, [AtLeast 1]) ]
     , checkInputOutputs "tests/TestFiles/Error/Catch1.hs" [ ("f", 1000, [Exactly 1])
-                                                          , ("g", 1000, [Exactly 2]) ]
+                                                          , ("g", 1000, [Exactly 2])
+                                                          , ("patOrCall1", 3000, [Exactly 2])
+                                                          , ("patOrCall2", 3000, [Exactly 2]) ]
     , checkInputOutputs "tests/TestFiles/Error/Undefined1.hs" [ ("undefined1", 800, [AtLeast 1])
                                                               , ("undefined2", 800, [AtLeast 1])]
     , checkInputOutput "tests/TestFiles/Error/IrrefutError.hs" "f" 400 [AtLeast 2]

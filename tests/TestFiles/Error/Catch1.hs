@@ -15,3 +15,17 @@ g x = unsafePerformIO $ do
                 True -> return 5
                 False -> error "Negative")
           (\(_ :: SomeException) -> return x)
+
+patOrCall1 :: Maybe Int -> Int
+patOrCall1 x = unsafePerformIO $ do
+    catch (h x) (\(_ :: PatternMatchFail) -> return 5)
+    where
+        h (Just y) | y >= 0 = return y
+                   | otherwise = error "Negative"
+
+patOrCall2 :: Maybe Int -> Int
+patOrCall2 x = unsafePerformIO $ do
+    catch (catch (h x) (\(_ :: PatternMatchFail) -> return 5)) (\(_ :: ErrorCall) -> return 50)
+    where
+        h (Just y) | y >= 0 = return y
+                   | otherwise = error "Negative"
