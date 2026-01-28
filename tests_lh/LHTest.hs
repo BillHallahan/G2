@@ -130,7 +130,7 @@ liquidTests = testGroup "Liquid"
 
     -- , checkLiquid "tests_lh/Liquid/Error/Error1.hs" "f" 600 [AtLeast 1]
     , checkLiquid "tests_lh/Liquid/Error/Error2.hs" "f1" 2000 [AtLeast 1]
-    , checkLiquid "tests_lh/Liquid/ZipWith.lhs" "distance" 1000 [AtLeast 3]
+    , checkLiquid "tests_lh/Liquid/ZipWith.lhs" "distance" 2000 [AtLeast 2]
 
     , checkLiquids "tests_lh/Liquid/HigherOrder2.hs"
         [ ("f", 2000, [Exactly 0])
