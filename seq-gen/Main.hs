@@ -175,11 +175,16 @@ solveOnePattern (PL { pattern = varred_form, pat_ids = is, lit_vals = constraint
                         is_constraints
     let vs = zipWith const argList (conc_args er)
         new_smt_def = "let " ++ intercalate "; " new_pieces ++ " in "
-                    ++ T.unpack (printHaskellPG pg (final_state er) varred_form)
+                    ++ T.unpack (toHaskellCode (Just $ final_state er) pg varred_form)
     return new_smt_def
 solveOnePattern (PL { pattern = varred_form, pat_ids = is }) = do
     let pg = mkPrettyGuide is
-    return . T.unpack $ printHaskellDirtyPG pg varred_form
+    return . T.unpack $ toHaskellCode Nothing pg varred_form
+
+toHaskellCode :: Maybe (State t) -> PrettyGuide -> Expr -> T.Text
+toHaskellCode _ _ e | Prim Error _:_ <- unApp e = "error \"\""
+toHaskellCode (Just s) pg e = printHaskellPG pg s e
+toHaskellCode Nothing pg e = printHaskellDirtyPG pg e
 
 solveBranchConditions :: KnownValues -> PatternRes -> [PatternRes] -> IO String
 solveBranchConditions kv pr prs = do
@@ -314,7 +319,13 @@ runFunc src f smt_def config = do
 setUpSpec :: Handle -> Maybe (Id, String) -> IO ()
 setUpSpec h Nothing = hClose h
 setUpSpec h (Just (Id _ t, spec)) = do
-    let contents = "{-# LANGUAGE BangPatterns, MagicHash#-}\nmodule Spec where\nimport GHC.Prim2\n"
+    let contents = "{-# LANGUAGE BangPatterns, MagicHash, ScopedTypeVariables #-}\nmodule Spec where\nimport GHC.Prim2\n"
+                    ++ "import Control.Exception\n"
+                    ++ "import System.IO.Unsafe\n\n"
+                    ++ "tryMaybe :: IO a -> IO (Maybe a)\n"
+                    ++ "tryMaybe x = try x >>= (return . either (\\(_ :: SomeException) -> Nothing) Just)\n\n"
+                    ++ "tryMaybeUnsafe :: a -> Maybe a\n"
+                    ++ "tryMaybeUnsafe x = unsafePerformIO $ tryMaybe (let !y = x in return y)\n\n"
                     ++ "spec :: " ++ T.unpack (mkTypeHaskell t) ++ "\n"
                     ++ spec
     putStrLn contents
@@ -328,13 +339,16 @@ findInconsistent s@(State { expr_env = eenv
                           , known_values = kv
                           , type_classes = tc
                           , tyvar_env = tv_env }) b@(Bindings { name_gen = ng })
-    | Just (smt_def, e) <- E.lookupNameMod "spec" (Just "Spec") eenv =
+    | Just (smt_def, smt_def_e) <- E.lookupNameMod "spec" (Just "Spec") eenv
+    , Just (try_unsafe, try_unsafe_e) <- E.lookupNameMod "tryMaybeUnsafe" (Just "Spec") eenv =
     let
         
-        app_smt_def = mkApp $ Var (Id smt_def (typeOf tv_env e)):map Var (inputIds s b)
+        app_smt_def = mkApp $ Var (Id smt_def (typeOf tv_env smt_def_e)):map Var (inputIds s b)
 
-        ret_type = returnType $ typeOf tv_env e
-        m_eq_dict = typeClassInst tc HM.empty (KV.eqTC kv) ret_type
+        try_unsafe_var = Var . Id try_unsafe $ typeOf tv_env try_unsafe_e
+
+        ret_type = returnType $ typeOf tv_env smt_def_e
+        m_eq_dict = typeClassInst tc HM.empty (KV.eqTC kv) $ TyApp (tyMaybe kv) ret_type
     in
     case m_eq_dict of
         Just eq_dict ->
@@ -345,8 +359,8 @@ findInconsistent s@(State { expr_env = eenv
                 comp_e = mkApp [Var (Id (KV.eqFunc kv) TyUnknown)
                               , Type ret_type
                               , eq_dict
-                              , app_smt_def
-                              , Var (Id val_name TyUnknown)]
+                              , App (App try_unsafe_var (Type ret_type)) app_smt_def
+                              , App (App try_unsafe_var  (Type ret_type)) (Var $ Id val_name TyUnknown)]
                 new_curr_expr = Let [ (Id val_name TyUnknown, getExpr s)
                                     , (Id comp_name TyUnknown, comp_e)
                                     ] $ Assert Nothing (Var (Id comp_name TyUnknown)) (Var (Id val_name TyUnknown))
