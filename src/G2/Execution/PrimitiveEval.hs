@@ -446,8 +446,8 @@ evalPrimWithState _ _ e | [Prim WriteMutVar _, _, _, _, _, _] <- unApp e = Nothi
 evalPrimWithState s ng (App (Prim Raise _) e2) = Just (
                                                    (newPCEmpty $ s { curr_expr = CurrExpr Evaluate (App (Prim Error TyBottom) e2) })
                                                    , ng)
-evalPrimWithState s ng (App (App (Prim Catch _) run) hand) = Just (
-                                                   (newPCEmpty $ s { curr_expr = CurrExpr Evaluate run
+evalPrimWithState s ng (App (App (App (Prim Catch _) run) hand) rw) = Just (
+                                                   (newPCEmpty $ s { curr_expr = CurrExpr Evaluate (App run rw)
                                                                    , exec_stack = Stck.push (CatchFrame hand) (exec_stack s)
                                                                    })
                                                    , ng)
