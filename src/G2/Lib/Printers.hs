@@ -53,7 +53,7 @@ import G2.Language.Support
 import Data.Char
 import Data.List as L
 import qualified Data.Foldable as F
-import qualified Data.HashMap.Lazy as HM
+import qualified Data.HashMap.Strict as HM
 import qualified Data.HashSet as HS
 import qualified Data.Text as T
 import Text.Read
@@ -961,6 +961,8 @@ unionLvl TypeLvl TypeLvl = TypeLvl
 unionLvl ValLvl ValLvl = ValLvl
 unionLvl _ _ = BothLvl
 
+data PrintInfo = PI { assigned_lvl :: !AssignedLvl, print_num :: !Int }
+
 -- | Maps G2 `Name`s to printable `String`s uniquely and consistently
 -- (two `Name`s will not map to the same `String`, unless one `Name` is on the
 -- type level and one is on the value level.  Further, on a per `PrettyGuide`
@@ -968,8 +970,8 @@ unionLvl _ _ = BothLvl
 -- The `PrettyGuide` will only work on `Name`s it "knows" about.
 -- It "knows" about names in the `Named` value it is passed in it's creation
 -- (via `mkPrettyGuide`) and all `Name`s that it is passed via `updatePrettyGuide`.
-data PrettyGuide = PG { pg_assigned :: HM.HashMap Name T.Text -- ^ Mapping of G2 `Name`s to printable `T.Text`
-                      , pg_nums :: HM.HashMap T.Text (AssignedLvl, Int) -- ^ Tracking information to ensure distinct
+data PrettyGuide = PG { pg_assigned :: !(HM.HashMap Name T.Text) -- ^ Mapping of G2 `Name`s to printable `T.Text`
+                      , pg_nums :: !(HM.HashMap T.Text PrintInfo) -- ^ Tracking information to ensure distinct
                                                                         -- name assignments. For a given text X, the Int
                                                                         -- is the greatest Int I such that  X'I has been used
                                                                         -- as a printable name.
@@ -1044,13 +1046,13 @@ insertPGLvl lvl n pg@(PG { pg_assigned = as, pg_nums = nms })
                     | otherwise -> nameOcc n
         in
         case HM.lookup n' nms of
-            Just (curr_lvl, i) | lvl == curr_lvl || lvl == BothLvl || curr_lvl == BothLvl ->
+            Just (PI curr_lvl i) | lvl == curr_lvl || lvl == BothLvl || curr_lvl == BothLvl ->
                 let  j = i + 1 in
                 pg { pg_assigned = HM.insert n (n' <> "'" <> T.pack (show j)) as
-                   , pg_nums = HM.insert n' (lvl `unionLvl` curr_lvl, j) nms }
+                   , pg_nums = HM.insert n' (PI (lvl `unionLvl` curr_lvl) j) nms }
             _ ->
                 pg { pg_assigned = HM.insert n n' as
-                   , pg_nums = HM.insert n' (lvl, 1) nms }
+                   , pg_nums = HM.insert n' (PI lvl 1) nms }
     | otherwise = pg
 
 lookupPG :: Name -> PrettyGuide -> Maybe T.Text
@@ -1067,8 +1069,10 @@ setTyLamPrinting tlp p = p {ty_lam_printing = tlp}
 
 -- | Print `pg_assigned`. Exposes internal of the `PrettyGuide` to aid in debugging.
 prettyGuideStr :: PrettyGuide -> T.Text
-prettyGuideStr = T.intercalate "\n" . map (\(n, s) -> s <> " <-> " <> T.pack (show n)) . HM.toList . pg_assigned
+prettyGuideStr = T.intercalate "\n" . map (\(n, s) -> s <> " <-> " <> T.pack (show $ locToNothing n)) . HM.toList . pg_assigned
+    where
+        locToNothing (Name n m u _) = Name n m u Nothing
 
 -- | Print `pg_nums`. Exposes internal of the `PrettyGuide` to aid in debugging.
 prettyGuideNumsStr :: PrettyGuide -> T.Text
-prettyGuideNumsStr = T.intercalate "\n" . map (\(n, (al, i)) -> n <> " -> " <> T.pack (show al) <> ", " <> T.pack (show i)) . HM.toList . pg_nums
+prettyGuideNumsStr = T.intercalate "\n" . map (\(n, PI al i) -> n <> " -> " <> T.pack (show al) <> ", " <> T.pack (show i)) . HM.toList . pg_nums
