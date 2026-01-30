@@ -20,6 +20,7 @@ import G2.Language.Naming
 import qualified G2.Language.PathConds as PC
 import G2.Language.Primitives
 import G2.Language.Support
+import qualified G2.Language.Stack as S
 import G2.Language.Syntax
 import G2.Language.Typing
 
@@ -476,9 +477,15 @@ evalPrimWithState s ng (App (Prim (LitTableRef lt_name) _) (Var sym_i)) =
                                     , new_conc_types = []
                                     , new_sym_types = []
                                     , new_mut_vars = [] }
-        diffs = map (Diff . make_diff) $ M.toList table
-        
-    in error "todo: lit table eval"
+        diffs = map (LitTableFrame . Diff . make_diff) $ M.toList table
+        split_at_last p xs = let (after, last_prev) = span (not . p) (reverse xs)
+                             in (reverse last_prev, reverse after)
+        is_sb (LitTableFrame (StartedBuilding _)) = True
+        is_sb _ = False
+        (before, after) = split_at_last is_sb diffs
+        stack_with_diff diff = after ++ [diff] 
+        new_stack = before ++ concatMap stack_with_diff diffs
+    in Just (newPCEmpty $ s { exec_stack = S.fromList new_stack }, ng)
 evalPrimWithState _ _ _ = Nothing
 
 deepLookupExprPastTicks :: Expr -> ExprEnv -> Expr

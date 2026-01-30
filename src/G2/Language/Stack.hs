@@ -11,6 +11,7 @@ module G2.Language.Stack
     , push
     , pop
     , toList
+    , fromList
     , filter
     , modifyTop ) where
 
@@ -52,6 +53,10 @@ pop (Stack (x:xs)) = Just (x, Stack xs)
 -- | Convert a `Stack` to a list.
 toList :: Stack a -> [a]
 toList (Stack xs) = xs
+
+-- | Convert a list to a `Stack`
+fromList :: [a] -> Stack a
+fromList xs = Stack xs
 
 filter :: (a -> Bool) -> Stack a -> Stack a
 filter p (Stack stck) = Stack (L.filter p stck)
