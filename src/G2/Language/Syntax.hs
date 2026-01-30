@@ -242,6 +242,10 @@ data Primitive = -- Mathematical and logical operators
                | BVToInt Int -- ^ Signed conversion, takes the width of the bit vector
                | BVToNat -- ^ Unsigned conversion
                
+               -- Exceptions
+               | Raise
+               | Catch
+
                -- String Handling
                | StrGt
                | StrGe
@@ -310,15 +314,10 @@ data TypeHandling = TyH { tyh_strings :: Bool, tyh_prim_lists :: Bool }
 
 instance Hashable TypeHandling
 
-isErrorExpr :: Expr -> Bool
-isErrorExpr (Prim p _) = isErrorPrim p
-isErrorExpr _ = False
-
 isErrorPrim :: Primitive -> Bool
 isErrorPrim Error = True
 isErrorPrim Undefined = True
 isErrorPrim _ = False
-
 
 pattern IntToFloat :: Primitive
 pattern IntToFloat = IntToFP 8 24

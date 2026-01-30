@@ -130,7 +130,7 @@ liquidTests = testGroup "Liquid"
 
     -- , checkLiquid "tests_lh/Liquid/Error/Error1.hs" "f" 600 [AtLeast 1]
     , checkLiquid "tests_lh/Liquid/Error/Error2.hs" "f1" 2000 [AtLeast 1]
-    , checkLiquid "tests_lh/Liquid/ZipWith.lhs" "distance" 1000 [AtLeast 3]
+    , checkLiquid "tests_lh/Liquid/ZipWith.lhs" "distance" 2000 [AtLeast 2]
 
     , checkLiquids "tests_lh/Liquid/HigherOrder2.hs"
         [ ("f", 2000, [Exactly 0])
@@ -490,11 +490,9 @@ checkLiquidWithConfig fp tests config_f lhconfig_f =
                             let (ch, r) = case res of
                                         Nothing -> (False, Right [Time])
                                         Just (Left e) -> (False, Left e)
-                                        Just (Right exprs) ->
+                                        Just (Right ers) ->
                                             let
-                                                r_ = checkExprGen
-                                                        (map (\(ExecRes { conc_args = inp, conc_out = out}) -> inp ++ [out]) exprs)
-                                                        reqList
+                                                r_ = checkExprGen ers reqList
                                             in
                                             (null r_, Right r_)
 

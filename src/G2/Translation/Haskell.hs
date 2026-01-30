@@ -77,6 +77,8 @@ equivMods :: HM.HashMap T.Text T.Text
 equivMods = HM.fromList
             [ ("GHC.BaseMonad", "GHC.Base")
             , ("GHC.Classes2", "GHC.Classes")
+            , ("GHC.Exception.Type", "GHC.Exception")
+            , ("GHC.Stack.Types2", "GHC.Stack.Types")
             , ("GHC.Types2", "GHC.Types")
             , ("GHC.Integer2", "GHC.Integer")
 #if MIN_VERSION_GLASGOW_HASKELL(9,0,2,0)
@@ -110,12 +112,16 @@ equivMods = HM.fromList
             , ("Data.Tuple", "GHC.Internal.Data.Tuple")
             , ("GHC.Internal.Enum", "GHC.Enum")
             , ("GHC.Internal.Err", "GHC.Err")
+            , ("GHC.Internal.Exception", "GHC.Exception")
             , ("GHC.Internal.Base", "GHC.Base")
             , ("GHC.Internal.Data.Foldable", "Data.Foldable")
+            , ("GHC.Internal.Exception.Type", "GHC.Exception")
+            , ("GHC.Internal.IO", "GHC.IO")
             , ("GHC.Internal.List", "GHC.List")
             , ("GHC.Internal.Maybe", "GHC.Maybe")
             , ("GHC.Internal.Num", "GHC.Num")
             , ("GHC.Internal.Show", "GHC.Show")
+            , ("GHC.Internal.Stack.Types", "GHC.Stack.Types")
             , ("GHC.Arr", "GHC.Internal.Arr")
             , ("GHC.Char", "GHC.Internal.Char")
             , ("Data.Either", "GHC.Internal.Data.Either")
@@ -751,7 +757,7 @@ mkTyCon t = do
                                                     , G2.data_con = dc'
                                                     , G2.rep_type = t'
                                                     , G2.adt_source = ADTSourceCode}
-                  AbstractTyCon {} -> error "Unhandled TyCon AbstractTyCon"
+                  AbstractTyCon {} -> return Nothing
                   -- TupleTyCon {} -> error "Unhandled TyCon TupleTyCon"
                   TupleTyCon { data_con = dc } -> do
                     dc' <- mkData dc

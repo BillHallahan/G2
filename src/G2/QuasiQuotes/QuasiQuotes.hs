@@ -409,7 +409,7 @@ errorHalter = mkSimpleHalter
                     stop
                     (\_ _ _ _ -> ())
     where
-        stop _ _ (State { curr_expr = CurrExpr _ (G2.Prim Error _)}) = return Discard
+        stop _ _ s | errorRaised s = return Discard
         stop _ _ _ = return Continue
 
 executeAndSolveStates :: StateExp -> BindingsExp -> Q Exp

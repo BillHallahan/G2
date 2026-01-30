@@ -15,7 +15,7 @@ import G2.Language.Expr
 import qualified G2.Language.ExprEnv as E
 import G2.Language.Naming
 import G2.Language.Support
-import G2.Language.Syntax
+import G2.Language.Syntax hiding (Raise)
 import G2.Language.Typing
 import G2.Liquid.Config
 import G2.Liquid.ConvertCurrExpr
@@ -46,8 +46,10 @@ import qualified Data.HashSet as S
 import qualified Data.HashMap.Lazy as HM
 import Data.List
 import Data.Maybe
+import Data.Monoid (Any (..))
 import qualified Data.Text as T
 import qualified Data.Text.IO as T
+import Data.Bool (Bool(True))
 
 -- Run inference, with an extra, final check of correctness at the end.
 -- Assuming inference is working correctly, this check should neve fail.
@@ -767,8 +769,7 @@ hasArgError :: FuncCall -> Bool
 hasArgError = any isError . arguments
 
 isError :: Expr -> Bool
-isError (Prim Error _) = True
-isError (Prim Undefined _) = True
+isError e | Prim Error _:_ <- unApp e = True
 isError _ = False
 
 erHigherOrder :: ExecRes AbstractedInfo -> [HigherOrderFuncCall]

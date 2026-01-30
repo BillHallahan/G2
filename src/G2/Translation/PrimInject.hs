@@ -167,6 +167,9 @@ primDefs' b c l unit =
 
                             ])
               
+              , ("raise##", Lam TypeL a . Lam TypeL (Id b TYPE) $ Prim Raise (TyFun tyvarA (TyVar (Id b TYPE))))
+              , ("catch#", Lam TypeL a . Lam TypeL (Id b TYPE) $ Prim Catch TyUnknown)
+              
               , ("stdin", Prim (Handle stdinName) TyUnknown)
               , ("stdout", Prim (Handle stdoutName) TyUnknown)
               , ("stderr", Prim (Handle stderrName) TyUnknown)
@@ -241,17 +244,6 @@ primDefs' b c l unit =
               , ("newMutVar##", Prim NewMutVar (TyForAll a (TyForAll d (TyFun tyvarA (TyFun TyUnknown TyUnknown)))))
               , ("readMutVar##", Prim ReadMutVar (TyForAll d (TyForAll a (TyFun TyUnknown (TyFun TyUnknown tyvarA)))))
               , ("writeMutVar##", Prim WriteMutVar (TyForAll d (TyForAll a (TyFun tyvarA (TyFun TyUnknown TyUnknown)))))
-
-              , ("absentErr", Prim Error TyBottom)
-              , ("error", Prim Error TyBottom)
-              , ("errorWithoutStackTrace", Prim Error TyBottom)
-              , ("divZeroError", Prim Error TyBottom)
-              , ("overflowError", Prim Error TyBottom)
-              , ("patError", Prim Error TyBottom)
-              , ("succError", Prim Error TyBottom)
-              , ("toEnumError", Prim Error TyBottom)
-              , ("ratioZeroDenominatorError", Prim Error TyBottom)
-              , ("undefined", Prim Error TyBottom)
 
               , ("ite", Lam TypeL a (iteExpr (TyVar a)))
               , ("iteInt#", iteExpr TyLitInt)

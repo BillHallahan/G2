@@ -83,18 +83,22 @@ stdReduce' share _ solver simplifier s@(State { curr_expr = CurrExpr Evaluate ce
     | SymGen sl t <- ce = return $ evalSymGen s ng sl t
     | Assume fc e1 e2 <- ce = return $ evalAssume s ng fc e1 e2
     | Assert fc e1 e2 <- ce = return $ evalAssert s ng fc e1 e2
+    | errorRaised s = return (RuleReturn, [s { curr_expr = CurrExpr Return ce }], ng)
     | otherwise = return (RuleReturn, [s { curr_expr = CurrExpr Return ce }], ng)
 stdReduce' _ symb_func_eval solver simplifier s@(State { curr_expr = CurrExpr Return ce
                                  , exec_stack = stck })  (Bindings { name_gen = ng })
-    | isErrorExpr ce
+    | errorRaised s
     , Just (AssertFrame is _, stck') <- S.pop stck =
         return (RuleError, [s { exec_stack = stck'
                               , true_assert = True
                               , assert_ids = fmap (\fc -> fc { returns = Prim Error TyBottom }) is }], ng)
     | Just rs <- symb_func_eval defSymFuncTicks s ng ce = return rs
     | Just (UpdateFrame n, stck') <- frstck = return $ retUpdateFrame s ng n stck'
-    | isErrorExpr ce
-    , Just (_, stck') <- S.pop stck = return (RuleError, [s { exec_stack = stck' }], ng)
+    
+    | errorRaised s = return $ retErrorState s ng
+    -- | Ignore a catch frame if there is no error
+    | Just (CatchFrame _, stck') <- frstck = return (RuleIdentity, [s { exec_stack = stck' }], ng)
+
     | Just (CaseFrame i t a, stck') <- frstck = return $ retCaseFrame s ng ce i t a stck'
     | Just (CastFrame c, stck') <- frstck = return $ retCastFrame s ng ce c stck'
     | Lam u i e <- ce
@@ -226,8 +230,8 @@ evalApp s@(State { expr_env = eenv
                  , tyvar_env = tv_env
                  , type_classes = tc })
         ng e1 e2
-    | ac@(Prim Error _) <- appCenter e1 =
-        (RuleError, newPCEmpty $ s { curr_expr = CurrExpr Return ac }, ng)
+    | (Prim Error _) <- appCenter e1 =
+        (RuleError, newPCEmpty $ s { curr_expr = CurrExpr Return (App e1 e2) }, ng)
     -- Force evaluation of the expression being quantified over
     | [Prim ForAllBoundPr _, _ {- lower -}, _ {- upper -} ] <- unApp e1 =
         let e2' = simplifyExprs eenv eenv e2 in
@@ -255,7 +259,7 @@ evalApp s@(State { expr_env = eenv
                , new_mut_vars = [] }]
           )
         , ng')
-    | (Prim _ _):_ <- unApp (App e1 e2) =
+    | (Prim pr _):_ <- unApp (App e1 e2) =
         let
             (exP, eenv') = evalPrimsSharing eenv tenv tv_env kv tc (App e1 e2)
 
@@ -285,6 +289,9 @@ evalApp s@(State { expr_env = eenv
 
         getNestedTickish (Tick t e) = t:getNestedTickish e
         getNestedTickish e = evalChildren getNestedTickish e
+
+        isError Error = True
+        isError _ = False
 
 evalLam :: State t -> LamUse -> Id -> Expr -> (Rule, [State t])
 evalLam = undefined
@@ -1108,6 +1115,22 @@ retUpdateFrame s@(State { expr_env = eenv
         , [s { expr_env = E.insert un e eenv
              , exec_stack = stck }]
         , ng)
+
+-- | Returning a state that has encountered an error.
+retErrorState :: State t -> NameGen -> (Rule, [State t], NameGen)
+retErrorState s@(State { curr_expr = CurrExpr _ (App (Prim Error _) ce), exec_stack = stck, type_env = tenv, known_values = kv }) ng
+    -- Catch errors
+    | Just (CatchFrame e, stck') <- S.pop stck =
+        let st = Data . fromJust $ getDataCon tenv (KV.tyState kv) (KV.dcState kv)
+            rw = Data . fromJust $ getDataCon tenv (KV.tyRealWorld kv) (KV.dcRealWorld kv)
+            st_rw = App (App st (Type (TyCon (KV.tyRealWorld kv) TYPE))) rw
+        in
+        (RuleError, [s { curr_expr = CurrExpr Evaluate (App (App e ce) st_rw)
+                       , exec_stack = stck'  }], ng)
+retErrorState s@(State { exec_stack = stck }) ng
+    -- Discard all non-catch frames if in an error state
+    | Just (_, stck') <- S.pop stck = (RuleError, [s { exec_stack = stck' }], ng)
+    | otherwise = (RuleIdentity, [s], ng)
 
 retApplyFrame :: State t -> NameGen -> Expr -> Expr -> S.Stack Frame -> (Rule, [State t], NameGen)
 retApplyFrame s@(State { expr_env = eenv }) ng e1 e2 stck'

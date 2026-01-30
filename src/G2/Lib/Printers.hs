@@ -464,6 +464,9 @@ mkPrimHaskell pg = pr
         pr BVToNat = "bvToNat"
         pr (IntToBV w) = "(intToBV " <> T.pack (show w) <> ")"
 
+        pr Raise = "raise#"
+        pr Catch = "catch#"
+
         pr StrGt = "str.>"
         pr StrGe = "str.>="
         pr StrLt = "str.<"
@@ -667,6 +670,7 @@ prettyFrame pg (CaseFrame i _ as) =
 prettyFrame pg (ApplyFrame e) = "apply frame: " <> mkDirtyExprHaskell pg e
 prettyFrame pg (UpdateFrame n) = "update frame: " <> mkNameHaskell pg n
 prettyFrame pg (CastFrame (t1 :~ t2)) = "cast frame: " <> mkTypeHaskellPG pg t1 <> " ~ " <> mkTypeHaskellPG pg t2
+prettyFrame pg (CatchFrame e) = "catch frame: " <> mkDirtyExprHaskell pg e
 prettyFrame pg (CurrExprFrame act ce) = "curr_expr frame: " <> prettyCEAction pg act <> " " <> prettyCurrExpr pg ce
 prettyFrame pg (AssumeFrame e) = "assume frame: " <> mkDirtyExprHaskell pg e
 prettyFrame pg (AssertFrame m_fc e) =

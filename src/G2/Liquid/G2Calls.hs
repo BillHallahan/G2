@@ -182,7 +182,7 @@ getAbstracted g2call solver simplifier share s bindings abs_fc@(FuncCall { funcN
                . elimSymGens (arb_value_gen bindings) (name_gen bindings)
                . modelToExprEnv $
                     s { curr_expr = CurrExpr Evaluate e'
-                      , track = ([] :: [FuncCall], False)}
+                      , track = ([] :: [FuncCall], False) }
 
         (er, bindings') <- g2call 
                               (((hitsLibErrorGatherer ~> stdRed share retReplaceSymbFuncVar solver simplifier ~> strictRed) :== Finished
@@ -424,7 +424,7 @@ reduceFCExpr g2call reducer solver simplifier s bindings e
                . pickHead
                . elimSymGens (arb_value_gen bindings) (name_gen bindings)
                . modelToExprEnv $
-                   s { curr_expr = CurrExpr Evaluate e}
+                   s { curr_expr = CurrExpr Evaluate e }
 
         (er, bindings') <- g2call 
                               reducer
