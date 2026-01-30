@@ -323,7 +323,7 @@ setUpSpec h (Just (Id _ t, spec)) = do
                     ++ "import Control.Exception\n"
                     ++ "import System.IO.Unsafe\n\n"
                     ++ "tryMaybe :: IO a -> IO (Maybe a)\n"
-                    ++ "tryMaybe x = try x >>= (return . either (\\(_ :: SomeException) -> Nothing) Just)\n\n"
+                    ++ "tryMaybe a = catch (a >>= \\v -> return (Just v)) (\\(e :: SomeException) -> return Nothing)\n\n"
                     ++ "tryMaybeUnsafe :: a -> Maybe a\n"
                     ++ "tryMaybeUnsafe x = unsafePerformIO $ tryMaybe (let !y = x in return y)\n\n"
                     ++ "spec :: " ++ T.unpack (mkTypeHaskell t) ++ "\n"
