@@ -459,9 +459,10 @@ evalPrimWithState s ng (App (Prim BuildLitTable _) func_e)
     in
     Just (newPCEmpty s'', ng'')
 evalPrimWithState s ng (App (Prim (LitTableRef lt_name) _) (Var sym_i)) =
-    let table = case M.lookup lt_name $ lit_tables s of
-                    Just t -> t
-                    _ -> error $ "table " ++ (show lt_name) ++ " not present"
+    -- For each mapping (table cond, literal) in the literal table - we need to create a diff with
+    -- `sym_i` concretized to the literal and the table cond / conds present
+    let table = fromJust (M.lookup lt_name $ lit_tables s)
+        
     in error "todo: lit table eval"
 evalPrimWithState _ _ _ = Nothing
 

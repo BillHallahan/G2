@@ -694,7 +694,7 @@ prettyFrame pg (LitTableFrame ltc) = "literal table frame: " <> printLiteralTabl
 
 printLiteralTableCond :: PrettyGuide -> LitTableCond -> T.Text
 printLiteralTableCond pg ltc
-    | (Exploring tc) <- ltc = "exploring " <> prettyTableCond pg tc
+    | (Exploring pc) <- ltc = "exploring " <> prettyPathConds pg pc
     | (Diff sd) <- ltc = prettyStateDiff pg sd
     | (StartedBuilding n) <- ltc = "started building " <> mkNameHaskell pg n
 
@@ -733,7 +733,7 @@ prettyLitTable pg lt
     | HM.null lt = "empty literal table"
     | otherwise =
         T.intercalate "\n"
-            (map (\(conds, e) -> "  " <> prettyTableConds pg conds <> ": " <> mkDirtyExprHaskell pg e)
+            (map (\(conds, e) -> "  " <> prettyPathConds pg conds <> ": " <> mkDirtyExprHaskell pg e)
                  (HM.toList lt))
         <> "\n-- end lit table --"
 
@@ -741,13 +741,6 @@ prettyLitTables :: PrettyGuide -> HM.HashMap Name LitTable -> T.Text
 prettyLitTables pg lts = T.concat (map pair $ HM.toList lts)
     where
         pair (n, lt) = "table name: " <> mkNameHaskell pg n <> "\n" <> prettyLitTable pg lt <> "\n"
-
-prettyTableConds :: PrettyGuide -> [TableCond] -> T.Text
-prettyTableConds pg conds = "table conds [" <> T.intercalate ", " (map (prettyTableCond pg) conds) <> "]"
-
-prettyTableCond :: PrettyGuide -> TableCond -> T.Text
-prettyTableCond pg (Conds pcs) = "path conds " <> prettyPathConds pg pcs
-prettyTableCond pg (LTCall n c) = "literal table call " <> mkNameHaskell pg n <> " with char " <> T.singleton c
 
 prettyCEAction :: PrettyGuide -> CEAction -> T.Text
 prettyCEAction pg (EnsureEq e) = "EnsureEq " <> mkDirtyExprHaskell pg e

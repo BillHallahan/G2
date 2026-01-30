@@ -1757,9 +1757,7 @@ retLitTableFrame solver simplifier s ng ltc stck = case ltc of
     StartedBuilding n -> let lts = lit_table_stack updated_state
                              -- We just finished updating the lit table at the top of
                              -- the stack so it should never be empty here
-                             (table, lts') = case S.pop lts of
-                                                Just (t, l) -> (t, l)
-                                                Nothing -> error "empty lit table stack"
+                             (table, lts') = fromJust $ S.pop lts
                              table_map = lit_tables updated_state
                              table_map' = HM.insert n table table_map
                              -- After the literal table is created, the current expression
@@ -1778,13 +1776,14 @@ retLitTableFrame solver simplifier s ng ltc stck = case ltc of
         e = get_expr $ curr_expr s
         frames = S.toList $ exec_stack s
         explorings = filterJust $ map get_expl frames
-        lts_ = S.modifyTop (HM.insert explorings e) (lit_table_stack s)
+        all_pcs = foldl' PC.union PC.empty explorings
+        lts_ = S.modifyTop (HM.insert all_pcs e) (lit_table_stack s)
 
         updated_state = s { exec_stack = stck, lit_table_stack = lts_ }
 
-        make_exploring sd_ = (LitTableFrame $ Exploring (Conds $ PC.fromList (new_path_conds sd_)))
+        make_exploring sd_ = (LitTableFrame $ Exploring (PC.fromList $ new_path_conds sd_))
         get_expr (CurrExpr _ e_) = e_
         filterJust [] = []
-        filterJust x = map fromJust (filter (isJust) x)
-        get_expl (LitTableFrame (Exploring tc_)) = Just tc_
+        filterJust x = map fromJust $ filter isJust x
+        get_expl (LitTableFrame (Exploring pc_)) = Just pc_
         get_expl _ = Nothing

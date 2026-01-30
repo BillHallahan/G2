@@ -528,43 +528,27 @@ instance ASTContainer Handle Type where
     modifyContainedASTs f h@(HandleInfo { h_start = s, h_pos = p }) =
         h { h_start = modifyContainedASTs f s, h_pos = modifyContainedASTs f p }
 
-data TableCond = Conds PathConds
-               | LTCall Name Char -- ^ `LTCall n c` checks that the table `n` returns the character `c`. 
-               deriving (Show, Eq, Read, Generic, Typeable, Data)
-
-instance Hashable TableCond
-
-data LitTableCond = Exploring TableCond
+data LitTableCond = Exploring PathConds
                   | Diff StateDiff
                   | StartedBuilding Name
                   deriving (Show, Eq, Read, Generic, Typeable, Data)
 
 instance Hashable LitTableCond
 
-type LitTable = HM.HashMap [TableCond] Expr
+type LitTable = HM.HashMap PathConds Expr
 
 instance Named LitTableCond where
-    names (Exploring tc) = names tc
+    names (Exploring pc) = names pc
     names (Diff sd) = names sd
     names (StartedBuilding n) = names n
 
-    rename old new (Exploring tc) = Exploring $ rename old new tc 
+    rename old new (Exploring pc) = Exploring $ rename old new pc 
     rename old new (Diff sd) = Diff $ rename old new sd
     rename old new (StartedBuilding n) = StartedBuilding $ rename old new n
 
-    renames hm (Exploring tc) = Exploring $ renames hm tc
+    renames hm (Exploring pc) = Exploring $ renames hm pc
     renames hm (Diff sd) = Diff $ renames hm sd
     renames hm (StartedBuilding n) = StartedBuilding $ renames hm n
-
-instance Named TableCond where
-    names (Conds pc) = names pc
-    names (LTCall n _) = names n
-
-    rename old new (Conds pc) = Conds $ rename old new pc
-    rename old new (LTCall n c) = LTCall (rename old new n) c
-
-    renames hm (Conds pc) = Conds $ renames hm pc
-    renames hm (LTCall n c) = LTCall (renames hm n) c
 
 instance Named StateDiff where
     names sd = names (new_conc_entries sd)
@@ -604,36 +588,22 @@ instance Named StateDiff where
            }
 
 instance ASTContainer LitTableCond Type where
-    containedASTs (Exploring tc) = containedASTs tc
+    containedASTs (Exploring pc) = containedASTs pc
     containedASTs (Diff sd) = containedASTs sd
     containedASTs (StartedBuilding n) = containedASTs n
 
-    modifyContainedASTs f (Exploring tc) = Exploring $ modifyContainedASTs f tc
+    modifyContainedASTs f (Exploring pc) = Exploring $ modifyContainedASTs f pc
     modifyContainedASTs f (Diff sd) = Diff $ modifyContainedASTs f sd
     modifyContainedASTs f (StartedBuilding n) = StartedBuilding $ modifyContainedASTs f n
 
 instance ASTContainer LitTableCond Expr where
-    containedASTs (Exploring tc) = containedASTs tc
+    containedASTs (Exploring pc) = containedASTs pc
     containedASTs (Diff sd) = containedASTs sd
     containedASTs (StartedBuilding n) = containedASTs n
 
-    modifyContainedASTs f (Exploring tc) = Exploring $ modifyContainedASTs f tc
+    modifyContainedASTs f (Exploring pc) = Exploring $ modifyContainedASTs f pc
     modifyContainedASTs f (Diff sd) = Diff $ modifyContainedASTs f sd
     modifyContainedASTs f (StartedBuilding n) = StartedBuilding $ modifyContainedASTs f n
-
-instance ASTContainer TableCond Type where
-    containedASTs (Conds pc) = containedASTs pc
-    containedASTs (LTCall n c) = containedASTs n <> containedASTs c
-
-    modifyContainedASTs f (Conds pc) = Conds $ modifyContainedASTs f pc
-    modifyContainedASTs f (LTCall n c) = LTCall (modifyContainedASTs f n) (modifyContainedASTs f c)
-
-instance ASTContainer TableCond Expr where
-    containedASTs (Conds pc) = containedASTs pc
-    containedASTs (LTCall n c) = containedASTs n <> containedASTs c
-
-    modifyContainedASTs f (Conds pc) = Conds $ modifyContainedASTs f pc
-    modifyContainedASTs f (LTCall n c) = LTCall (modifyContainedASTs f n) (modifyContainedASTs f c)
 
 instance ASTContainer StateDiff Type where
     containedASTs sd = containedASTs (new_conc_entries sd)
