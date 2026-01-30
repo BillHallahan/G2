@@ -17,6 +17,7 @@ import G2.Language.AST
 import G2.Language.Expr
 import qualified G2.Language.KnownValues as KV
 import G2.Language.Naming
+import qualified G2.Language.PathConds as PC
 import G2.Language.Primitives
 import G2.Language.Support
 import G2.Language.Syntax
@@ -459,9 +460,23 @@ evalPrimWithState s ng (App (Prim BuildLitTable _) func_e)
     in
     Just (newPCEmpty s'', ng'')
 evalPrimWithState s ng (App (Prim (LitTableRef lt_name) _) (Var sym_i)) =
-    -- For each mapping (table cond, literal) in the literal table - we need to create a diff with
-    -- `sym_i` concretized to the literal and the table cond / conds present
+    -- For each mapping (path conds, literal) in the literal table - we need to create a diff with
+    -- `sym_i` concretized to the literal and the path conds present
+    -- We then push both each diff and the entire previous stack down to the last StartedBuilding
+    -- frame, which will always exist as applications of lit table references only are created
+    -- for nested lit tables
     let table = fromJust (M.lookup lt_name $ lit_tables s)
+        make_diff (conds, lit) = SD { new_conc_entries = []
+                                    , new_sym_entries = []
+                                    , new_path_conds = PC.toList conds
+                                    , concretized = []
+                                    , new_true_assert = true_assert s
+                                    , new_assert_ids = assert_ids s
+                                    , new_curr_expr = CurrExpr Return lit
+                                    , new_conc_types = []
+                                    , new_sym_types = []
+                                    , new_mut_vars = [] }
+        diffs = map (Diff . make_diff) $ M.toList table
         
     in error "todo: lit table eval"
 evalPrimWithState _ _ _ = Nothing
