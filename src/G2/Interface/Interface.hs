@@ -571,7 +571,7 @@ runG2WithConfig :: [FilePath]-> [FilePath] -> Id -> StartFunc -> [GeneralFlag] -
                       , TimedOut -- ^ Did any states timeout?
                       )
 runG2WithConfig proj src entry_f f gflags mb_modname state@(State { expr_env = eenv}) config bindings = do
-    SomeSolver solver <- initSolver config
+    SomeSolver solver <- initSolver (if nameOcc (idName entry_f) == "minimum2" then config { print_smt = True } else config)
     let (state', bindings') = runG2Pre emptyMemConfig state bindings
         all_mod_set = S.fromList mb_modname
         mod_name = nameModule (idName entry_f)
