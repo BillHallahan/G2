@@ -241,9 +241,9 @@ initStateFromSimpleState s m_mod useAssert mkCurr argTys config =
     , name_gen = ng'''
     , exported_funcs = IT.exports s })
 
-mkArgTys :: TV.TyVarEnv -> Expr -> MkArgTypes
-mkArgTys tv e simp_s =
-    snd $ instantiateArgTypes tv (IT.type_classes simp_s) (IT.known_values simp_s) e
+mkArgTys :: Config -> TV.TyVarEnv -> Expr -> MkArgTypes
+mkArgTys config tv e simp_s =
+    snd $ instantiateArgTypes config tv (IT.type_classes simp_s) (IT.known_values simp_s) e
 
 {-# INLINE initStateFromSimpleState' #-}
 initStateFromSimpleState' :: IT.SimpleState
@@ -251,13 +251,13 @@ initStateFromSimpleState' :: IT.SimpleState
                           -> [Maybe T.Text]
                           -> Config
                           -> (State (), Bindings)
-initStateFromSimpleState' s sf m_mod =
+initStateFromSimpleState' s sf m_mod config =
     let
         (ie, fe) = case findFunc TV.empty sf m_mod (IT.expr_env s) of
                           Left ie' -> ie'
                           Right errs -> error errs
     in
-    initStateFromSimpleState s m_mod False (mkCurrExpr TV.empty Nothing Nothing ie) (mkArgTys TV.empty fe)
+    initStateFromSimpleState s m_mod False (mkCurrExpr TV.empty Nothing Nothing ie) (mkArgTys config TV.empty fe) config
 
 {-# INLINE initSimpleState #-}
 initSimpleState :: ExtractedG2
@@ -558,7 +558,7 @@ runG2FromFile :: [FilePath]
               -> IO ([ExecRes ()], State (), Bindings, TimedOut, Id, S.HashSet (Maybe T.Text))
 runG2FromFile proj src gflags m_assume m_assert m_reach def_assert f transConfig config = do
     (init_state, entry_f, bindings, mb_modname) <- initialStateFromFile  proj src
-                                    m_reach def_assert f (mkCurrExpr TV.empty m_assume m_assert) (mkArgTys TV.empty)
+                                    m_reach def_assert f (mkCurrExpr TV.empty m_assume m_assert) (mkArgTys config TV.empty)
                                     transConfig config
 
     (er, b, to) <- runG2WithConfig proj src entry_f f gflags mb_modname init_state config bindings

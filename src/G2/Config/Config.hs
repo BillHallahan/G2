@@ -95,6 +95,7 @@ data Config = Config {
     , logInlineNRPC :: Bool -- ^ Inline variables in the NRPC when logging states
     , sharing :: Sharing
     , instTV :: InstTV -- allow the instantiation of types in the beginning or it's instantiate symbolically by functions
+    , favor_chars :: Bool -- ^ By default, we favor instantiating tyvars with Int- prefer instantiating with Char instead
     , showType :: ShowType -- allow user to see more type information when they are logging states for the execution
     , maxOutputs :: Maybe Int -- ^ Maximum number of examples/counterexamples to output.  TODO: Currently works only with LiquidHaskell
     , returnsTrue :: Bool -- ^ If True, shows only those inputs that do not return True
@@ -173,6 +174,7 @@ mkConfig homedir = Config Regular
                          <> help "inline variables in the NRPC when logging states")
     <*> flag Sharing NoSharing (long "no-sharing" <> help "disable sharing")
     <*> flag InstBefore InstAfter (long "inst-after" <> help "select to instantiate type variables after symbolic execution, rather than before")
+    <*> flag False True (long "favor-chars" <> help "select to instantiate type variables with Char, rather than Int")
     <*> flag Lax Aggressive (long "show-types" <> help "set to show more type information when logging states")
     <*> mkMaxOutputs
     <*> switch (long "returns-true" <> help "assert that the function returns true, show only those outputs which return false")
@@ -361,6 +363,7 @@ mkConfigDirect homedir as m = Config {
     , logInlineNRPC = False
     , sharing = boolArg' "sharing" as Sharing Sharing NoSharing
     , instTV = InstBefore
+    , favor_chars = False
     , showType = Lax
     , maxOutputs = strArg "max-outputs" as m (Just . read) Nothing
     , returnsTrue = boolArg "returns-true" as m Off

@@ -91,7 +91,7 @@ parseHaskellQ str = do
     exG2 <- parseHaskellQ' qext
     config <- runIO qqConfig
     let (_, init_s, init_b) = initStateWithCall' exG2 (T.pack functionName) [Just $ T.pack moduleName]
-                                        (mkCurrExpr TV.empty Nothing Nothing) (mkArgTys TV.empty) config
+                                        (mkCurrExpr TV.empty Nothing Nothing) (mkArgTys config TV.empty) config
 
     runIO $ releaseIORefLock
 

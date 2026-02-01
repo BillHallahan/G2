@@ -39,7 +39,7 @@ mkCurrExpr tv m_assume m_assert f@(Id (Name _ m_mod _ _) _) tc ng eenv tenv kv c
                 -- -- after we first got the type of f.
                 (app_ex, typ_is, val_is, typsE, ng') =
                     if instTV config == InstBefore
-                        then mkMainExpr tv tc kv ng coer_var_ex
+                        then mkMainExpr config tv tc kv ng coer_var_ex
                         else mkMainExprNoInstantiateTypes tv coer_var_ex ng
                 var_ids = map Var val_is
 
@@ -96,12 +96,12 @@ coerceRetNewTypes tv tenv e =
         replace_ret_ty c (TyFun t t') = TyFun t $ replace_ret_ty c t'
         replace_ret_ty c _ = c
 
-mkMainExpr :: TV.TyVarEnv -> TypeClasses -> KnownValues -> NameGen -> Expr -> (Expr, [Id], [Id], [Expr], NameGen)
-mkMainExpr tv tc kv ng ex =
+mkMainExpr :: Config -> TV.TyVarEnv -> TypeClasses -> KnownValues -> NameGen -> Expr -> (Expr, [Id], [Id], [Expr], NameGen)
+mkMainExpr config tv tc kv ng ex =
     let
         typs = spArgumentTypes (typeOf tv ex)
 
-        (typsE, typs') = instantitateTypes tc kv typs
+        (typsE, typs') = instantitateTypes config tc kv typs
 
         (var_ids, is, ng') = mkInputs ng typs'
         
@@ -186,15 +186,15 @@ findFunc tv s m_mod eenv =
                     $ E.filterWithKey (\n _ -> nameOcc n == func && nameModule n == Just spec_mod) eenv
             | otherwise = E.toExprList $ E.filterWithKey (\n _ -> nameOcc n == s) eenv
 
-instantiateArgTypes :: TV.TyVarEnv -> TypeClasses -> KnownValues -> Expr -> ([Expr], [Type])
-instantiateArgTypes tv tc kv e =
+instantiateArgTypes :: Config -> TV.TyVarEnv -> TypeClasses -> KnownValues -> Expr -> ([Expr], [Type])
+instantiateArgTypes config tv tc kv e =
     let
         typs = spArgumentTypes (typeOf tv e)
     in
-    instantitateTypes tc kv typs
+    instantitateTypes config tc kv typs
 
-instantitateTypes :: TypeClasses -> KnownValues -> [ArgType] -> ([Expr], [Type])
-instantitateTypes tc kv ts = 
+instantitateTypes :: Config -> TypeClasses -> KnownValues -> [ArgType] -> ([Expr], [Type])
+instantitateTypes config tc kv ts = 
     let
         tv = mapMaybe (\case NamedType i -> Just i; AnonType _ -> Nothing) ts
 
@@ -203,7 +203,7 @@ instantitateTypes tc kv ts =
         tcSat = snd $ mapAccumL (\ts'' i ->
                                 let
                                     sat = satisfyingTCTypes kv tc i ts''
-                                    pt = pickForTyVar kv sat
+                                    pt = pickForTyVar config kv sat
                                 in
                                  (replaceTyVar (idName i) pt ts'', (i, pt))) ts' tv
 
@@ -218,12 +218,13 @@ instantitateTypes tc kv ts =
     (ex, tss)
 
 -- From the given list, selects the Type to instantiate a TyVar with
-pickForTyVar :: KnownValues -> [Type] -> Type
-pickForTyVar kv ts
-    | Just t <- find ((==) (tyInt kv)) ts = t
+pickForTyVar :: Config -> KnownValues -> [Type] -> Type
+pickForTyVar config kv ts
+    | Just t <- find ((==) pref_t) ts = t
     | t:_ <- ts = t
     | otherwise = error "No type found in pickForTyVar"
-
+    where
+        pref_t = if favor_chars config then tyChar kv else tyInt kv 
 
 instantiateTCDict :: TypeClasses -> [(Id, Type)] -> Type -> Maybe Expr
 instantiateTCDict tc it tyapp@(TyApp _ t) | TyCon n _ <- tyAppCenter tyapp =
