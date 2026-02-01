@@ -203,6 +203,12 @@ primDefs' b c l unit =
               , ("strLe#", strStrBool StrLe)
               , ("strGt#", strStrBool StrGt)
               , ("strGe#", strStrBool StrGe)
+              , ("strContains#", Lam TypeL (x TYPE) . Lam TermL (y seqTyX) . Lam TermL (z seqTyX) . Lam TermL ((dummyId "q") TyLitInt)
+                            $ App
+                                (App
+                                    (Prim StrContains (TyFun seqTyX (TyFun seqTyX (TyFun TyLitInt TyLitInt))))
+                                    (Var $ y seqTyX))
+                                (Var $ z seqTyX))
               , ("strIndexOf#", Lam TypeL (x TYPE) . Lam TermL (y seqTyX) . Lam TermL (z seqTyX) . Lam TermL ((dummyId "q") TyLitInt)
                             $ App
                                 (App

@@ -492,6 +492,7 @@ sygusCmds er@(ExecRes { final_state = s@(State { tyvar_env = tv_env }), conc_arg
                   , GBfTerm (BfIdentifierBfs (ISymb "str.<") [ strIdent, strIdent ])
                   , GBfTerm (BfIdentifierBfs (ISymb "str.prefixof") [ strIdent, strIdent ])
                   , GBfTerm (BfIdentifierBfs (ISymb "str.suffixof") [ strIdent, strIdent ])
+                  , GBfTerm (BfIdentifierBfs (ISymb "str.contains") [ strIdent, strIdent ])
                   ]
 
 
@@ -600,9 +601,8 @@ termToHaskell trm =
         go !x (TermCall (ISymb f) ts) =
             let
                 (x', vl_args, arg_binds) = mapGo x ts
-                vrs = intercalate " " vl_args
             in
-            (x' + 1, ("y" ++ show x', arg_binds ++ ["!y" ++ show x' ++ " = " ++ smtFuncToPrim f ++ " " ++ vrs]))
+            (x' + 1, ("y" ++ show x', arg_binds ++ ["!y" ++ show x' ++ " = " ++ smtFuncToPrim f vl_args]))
         go !x (TermLet ls trm_l) =
             let
                 (x', tss) = mapAccumL (\x_ (VarBinding n t) -> let (x_', (tc, ts)) = go x_ t in (x_', ts ++ ["!" ++ n ++ " = " ++ tc])) x ls
@@ -616,16 +616,26 @@ termToHaskell trm =
         goLit (LitNum i) = show i ++ "#"
         goLit _ = error "termToHaskell: unsupported lit"
 
-smtFuncToPrim :: String -> String
-smtFuncToPrim "str.++" = "strAppend#"
-smtFuncToPrim "str.len" = "strLen#"
-smtFuncToPrim "str.<" = "strLt#"
-smtFuncToPrim "str.substr" = "strSubstr#"
-smtFuncToPrim "str.prefixof" = "strPrefixOf#"
-smtFuncToPrim "str.suffixof" = "strSuffixOf#"
-smtFuncToPrim "str.indexof" = "strIndexOf#"
-smtFuncToPrim "str.replace" = "strReplace#"
-smtFuncToPrim "strEq" = "strEq#"
-smtFuncToPrim "intEq" = "($==#)"
-smtFuncToPrim "+" = "(+#)"
-smtFuncToPrim f = error $ "smtFuncToPrim: unsupported " ++ f
+smtFuncToPrim :: String -> [String] -> String
+smtFuncToPrim s vl_args = conv s ++ conv_args
+    where
+        conv "str.++" = "strAppend# "
+        conv "str.len" = "strLen#"
+        conv "str.<" = "strLt#"
+        conv "str.substr" = "strSubstr#"
+        conv "str.prefixof" = "strPrefixOf#"
+        conv "str.suffixof" = "strSuffixOf#"
+        conv "str.contains" = "strContains#"
+        conv "str.indexof" = "strIndexOf#"
+        conv "str.replace" = "strReplace#"
+        conv "strEq" = "strEq#"
+        conv "intEq" = "($==#)"
+        conv "+" = "(+#)"
+        conv "ite" = ""
+        conv f = error $ "smtFuncToPrim: unsupported " ++ f
+        
+        conv_args = case s of
+                        "ite" | [a1, a2, a3] <- vl_args -> "(if " ++ a1 ++ " then " ++ a2 ++ " else " ++ a3 ++ ")"
+                              | otherwise -> error "smtFuncToPrim: ite wrong arg count"
+                        _ -> " " ++ intercalate " " vl_args
+

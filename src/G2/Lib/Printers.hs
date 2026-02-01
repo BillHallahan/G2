@@ -476,6 +476,7 @@ mkPrimHaskell pg = pr
         pr StrAt = "str.at"
         pr StrSubstr = "str.substr"
         pr StrIndexOf = "str.indexof"
+        pr StrContains = "str.contains"
         pr StrReplace = "str.replace"
         pr StrPrefixOf = "str.prefixof"
         pr StrSuffixOf = "str.suffixof"
