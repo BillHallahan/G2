@@ -166,14 +166,14 @@ insertER ng er (pl:pls)
 genSMTFunc :: [PatternRes] -- ^ Generated states
            -> [FilePath] -- ^ Filepath containing function
            -> T.Text -- ^ Function name
-           -> Maybe (Id, String) -- ^ Possible (SyGuS generated) function definition, along with the Id of the function being generated
+           -> Maybe (State t, Id, String) -- ^ Possible (SyGuS generated) function definition, along with the Id of the function being generated
            -> Config
            -> IO String
 genSMTFunc pls src f smt_def config = do
     putStrLn "\n--- Running function --- "
     (entry_f, ers, ng) <- runFunc src f smt_def config
     case ers of
-        [] | Just (_, smt_def') <- smt_def -> return smt_def'
+        [] | Just (_, _, smt_def') <- smt_def -> return smt_def'
            | otherwise -> error "genSMTFunc: no SMT function generated" 
         (er:_) -> do
             putStrLn "\n--- Synthesizing --- "
@@ -181,9 +181,9 @@ genSMTFunc pls src f smt_def config = do
 
             new_smt_piece <- formFunction (known_values . final_state $ er) pls'
 
-            let vs = zipWith const argList (relArgs $ conc_args er)
+            let vs = zipWith const argList (relArgs (final_state er) $ conc_args er)
                 new_smt_def = "spec " ++ intercalate " " vs ++ " = " ++ new_smt_piece
-            genSMTFunc pls' src f (Just (entry_f, new_smt_def)) config
+            genSMTFunc pls' src f (Just (final_state er, entry_f, new_smt_def)) config
 
 formFunction :: KnownValues -> [PatternRes] -> IO String
 formFunction _ [] = error "formFunction: empty list"
@@ -323,7 +323,7 @@ collectLits e = SM.execState (modifyLits rep e) []
 
 runFunc :: [FilePath] -- ^ Filepath containing function
         -> T.Text -- ^ Function name
-        -> Maybe (Id, String) -- ^ Possible (SyGuS generated) function definition, along with the Id of the function being generated
+        -> Maybe (State t, Id, String) -- ^ Possible (SyGuS generated) function definition, along with the Id of the function being generated
         -> Config
         -> IO (Id, [ExecRes ()], NameGen)
 runFunc src f smt_def config = do
@@ -349,10 +349,15 @@ runFunc src f smt_def config = do
         return (entry_f, er, name_gen bindings)
         )
 
-setUpSpec :: Handle -> Maybe (Id, String) -> IO ()
+setUpSpec :: Handle -> Maybe (State t, Id, String) -> IO ()
 setUpSpec h Nothing = hClose h
-setUpSpec h (Just (Id _ t, spec)) = do
-    let (_, t')= splitTyForAlls $ repAllTyVarsWithChar t
+setUpSpec h (Just (s, Id _ t, spec)) = do
+    let t' = repAllTyVarsWithChar
+           . foldr1 TyFun
+           . filter (not . isTypeClass (type_classes s))
+           . splitTyFuns
+           . snd
+           $ splitTyForAlls t
         contents = "{-# LANGUAGE BangPatterns, MagicHash, ScopedTypeVariables #-}\nmodule Spec where\nimport GHC.Prim2\n"
                     ++ "import Control.Exception\n"
                     ++ "import System.IO.Unsafe\n\n"
@@ -455,7 +460,7 @@ sygusCmds er@(ExecRes { final_state = s@(State { tyvar_env = tv_env }), conc_arg
         strSort = IdentSort (ISymb "String")
         boolSort = IdentSort (ISymb "Bool")
 
-        args_sort = map (typeToSort kv . typeOf tv_env) $ filter (not . isTYPE . typeOf tv_env) args
+        args_sort = map (typeToSort kv . typeOf tv_env) $ relArgs s args
         arg_vars = map (uncurry SortedVar) $ zip argList args_sort
         ret_sort = typeToSort kv $ typeOf tv_env out_e
 
@@ -467,19 +472,22 @@ sygusCmds er@(ExecRes { final_state = s@(State { tyvar_env = tv_env }), conc_arg
         -- Grammar
         -------------------------------
         grmString = [ GVariable strSort
+                    , GBfTerm (BfIdentifierBfs (ISymb "ite") [ boolIdent, strIdent, strIdent])
                     , GBfTerm (BfIdentifierBfs (ISymb "str.++") [ strIdent, strIdent])
                     , GBfTerm (BfIdentifierBfs (ISymb "str.substr") [ strIdent, intIdent, intIdent])
                     , GBfTerm (BfIdentifierBfs (ISymb "str.replace") [ strIdent, strIdent, strIdent])
-                    , GBfTerm (BfIdentifierBfs (ISymb "str.replace_all") [ strIdent, strIdent, strIdent])
+                    -- , GBfTerm (BfIdentifierBfs (ISymb "str.replace_all") [ strIdent, strIdent, strIdent])
                     ]
         grmInt = [ GVariable intSort
+                 , GBfTerm (BfIdentifierBfs (ISymb "ite") [ boolIdent, intIdent, intIdent])
                  , GBfTerm (BfLiteral (LitNum 0))
                  , GBfTerm (BfLiteral (LitNum (-1)))
                  , GBfTerm (BfIdentifierBfs (ISymb "str.indexof") [ strIdent, strIdent, intIdent ])
                  , GBfTerm (BfIdentifierBfs (ISymb "str.len") [ strIdent ])
                  , GBfTerm (BfIdentifierBfs (ISymb "+") [ intIdent, intIdent])
                  ]
-        grmBool = [ GBfTerm (BfIdentifierBfs (ISymb "strEq") [ strIdent, strIdent ])
+        grmBool = [ GBfTerm (BfIdentifierBfs (ISymb "ite") [ boolIdent, boolIdent, boolIdent])
+                  , GBfTerm (BfIdentifierBfs (ISymb "strEq") [ strIdent, strIdent ])
                   , GBfTerm (BfIdentifierBfs (ISymb "intEq") [ intIdent, intIdent ])
                   , GBfTerm (BfIdentifierBfs (ISymb "str.<") [ strIdent, strIdent ])
                   , GBfTerm (BfIdentifierBfs (ISymb "str.prefixof") [ strIdent, strIdent ])
@@ -521,14 +529,14 @@ execResToConstraints (ExecRes { final_state = s, conc_args = ars, conc_out = out
     let
         kv = known_values s
 
-        call = TermCall (ISymb "spec") (map (exprToTerm kv) $ relArgs ars)
+        call = TermCall (ISymb "spec") (map (exprToTerm kv) $ relArgs s ars)
         out_t = exprToTerm kv out_e
         cons = Constraint $ TermCall (ISymb "=") [call, out_t]
     in
     cons
 
-relArgs :: [Expr] -> [Expr]
-relArgs =  filter (not . isType)
+relArgs :: State t -> [Expr] -> [Expr]
+relArgs s = filter (not . isTypeClass (type_classes s) . typeOf (tyvar_env s)) . filter (not . isType)
     where 
         isType (Type _) = True
         isType _ = False
