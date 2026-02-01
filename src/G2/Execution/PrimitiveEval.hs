@@ -460,12 +460,13 @@ evalPrimWithState s ng (App (Prim BuildLitTable _) func_e)
                  }
     in
     Just (newPCEmpty s'', ng'')
-evalPrimWithState s ng (App (Prim (LitTableRef lt_name) _) (Var sym_i)) =
+evalPrimWithState s ng expr@(App (Prim (LitTableRef lt_name) _) (Var sym_i)) =
     -- For each mapping (path conds, literal) in the literal table - we need to create a diff with
     -- `sym_i` concretized to the literal and the path conds present
     -- We then push both each diff and the entire previous stack down to the last StartedBuilding
     -- frame, which will always exist as applications of lit table references only are created
     -- for nested lit tables
+    -- The first diff will then immediately become an Exploring
     let table = fromJust (M.lookup lt_name $ lit_tables s)
         make_diff (conds, lit) = SD { new_conc_entries = []
                                     , new_sym_entries = []
@@ -477,16 +478,19 @@ evalPrimWithState s ng (App (Prim (LitTableRef lt_name) _) (Var sym_i)) =
                                     , new_conc_types = []
                                     , new_sym_types = []
                                     , new_mut_vars = [] }
+        -- Note that stacks pop from the front here
         diffs = map (LitTableFrame . Diff . make_diff) $ M.toList table
-        split_at_last p xs = let (after, last_prev) = span (not . p) (reverse xs)
-                             in (reverse last_prev, reverse after)
-        is_sb (LitTableFrame (StartedBuilding _)) = True
-        is_sb _ = False
-        (before, after) = split_at_last is_sb diffs
-        stack_with_diff diff = after ++ [diff] 
-        new_stack = before ++ concatMap stack_with_diff diffs
-    in Just (newPCEmpty $ s { exec_stack = S.fromList new_stack }, ng)
+        -- `Unneeded` refers to the stack frames we do not need to copy 
+        (needed, unneeded) = break isSB $ S.toList (exec_stack s)
+        stack_with_diff diff = [diff] ++ needed
+        new_stack = (concatMap stack_with_diff diffs) ++ unneeded
+    in Just (newPCEmpty $ s { exec_stack = S.fromList new_stack
+                            , curr_expr = CurrExpr Return expr }, ng)
 evalPrimWithState _ _ _ = Nothing
+
+isSB :: Frame -> Bool
+isSB (LitTableFrame (StartedBuilding _)) = True
+isSB _ = False
 
 deepLookupExprPastTicks :: Expr -> ExprEnv -> Expr
 deepLookupExprPastTicks (Var i@(Id n _)) eenv =

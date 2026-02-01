@@ -1752,7 +1752,7 @@ retLitTableFrame solver simplifier s ng ltc stck = case ltc of
             -- Turn this diff into an Exploring
             Just (ng', new_state) -> return
                 ( RuleReturnLitTable
-                , [ new_state { exec_stack = S.push (make_exploring sd) (exec_stack s) } ]
+                , [ new_state { exec_stack = S.push (make_exploring sd) (exec_stack updated_state) } ]
                 , ng' )
     StartedBuilding n -> let lts = lit_table_stack updated_state
                              -- We just finished updating the lit table at the top of
