@@ -732,7 +732,7 @@ prettyLitTable :: PrettyGuide -> LitTable -> T.Text
 prettyLitTable pg lt
     | HM.null lt = "empty literal table"
     | otherwise =
-        T.intercalate "\n"
+        T.intercalate "\n>>>>>>>>>>>>>>>\n"
             (map (\(conds, e) -> "  " <> prettyPathConds pg conds <> ": " <> mkDirtyExprHaskell pg e)
                  (HM.toList lt))
         <> "\n-- end lit table --"

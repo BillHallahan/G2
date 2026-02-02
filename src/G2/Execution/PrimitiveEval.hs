@@ -466,10 +466,12 @@ evalPrimWithState s ng expr@(App (Prim (LitTableRef lt_name) _) (Var sym_i)) =
     -- We then push both each diff and the entire previous stack down to the last StartedBuilding
     -- frame, which will always exist as applications of lit table references only are created
     -- for nested lit tables
-    -- The first diff will then immediately become an Exploring
+    -- The first diff will then immediately become an `Exploring`
     let table = fromJust (M.lookup lt_name $ lit_tables s)
         make_diff (conds, lit) = SD { new_conc_entries = []
-                                    , new_sym_entries = []
+                                    -- We need to make sure the argument is still symbolic
+                                    -- after exploring other paths, since it can get concretized
+                                    , new_sym_entries = [sym_i]
                                     , new_path_conds = PC.toList conds
                                     , concretized = []
                                     , new_true_assert = true_assert s
@@ -478,11 +480,12 @@ evalPrimWithState s ng expr@(App (Prim (LitTableRef lt_name) _) (Var sym_i)) =
                                     , new_conc_types = []
                                     , new_sym_types = []
                                     , new_mut_vars = [] }
-        -- Note that stacks pop from the front here
+        -- Note that stacks pop from the front here!
         diffs = map (LitTableFrame . Diff . make_diff) $ M.toList table
         -- `Unneeded` refers to the stack frames we do not need to copy 
         (needed, unneeded) = break isSB $ S.toList (exec_stack s)
-        stack_with_diff diff = [diff] ++ needed
+        -- Stack frames used to explore more are put after the diff`
+        stack_with_diff diff = diff : needed
         new_stack = (concatMap stack_with_diff diffs) ++ unneeded
     in Just (newPCEmpty $ s { exec_stack = S.fromList new_stack
                             , curr_expr = CurrExpr Return expr }, ng)

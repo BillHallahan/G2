@@ -2,7 +2,8 @@ module G2.Execution.NewPC ( NewPC (..)
                           , newPCEmpty
                           , newPCNoStates
                           , reduceNewPC
-                          , reduceStateDiff ) where
+                          , reduceStateDiff
+                          , reduceToFirstDiff ) where
 
 import G2.Language
 import qualified G2.Language.ExprEnv as E
@@ -47,7 +48,7 @@ reduceNewPC solver simplifier ng (SplitStatePieces state state_diffs)
                 let prev_stck = exec_stack first_s
                     diffs_pushed = foldr S.push prev_stck $ map wrap other_diffs
                     expl_pushed = S.push (LitTableFrame $ Exploring (PC.fromList pcs)) diffs_pushed
-                in return (ng, [first_s { exec_stack = expl_pushed }])
+                in return (ng', [first_s { exec_stack = expl_pushed }])
             Nothing -> return (ng, [])
     | otherwise =
         mapAccumMaybeM (\ng' sd -> reduceStateDiff solver simplifier ng' state sd) ng state_diffs

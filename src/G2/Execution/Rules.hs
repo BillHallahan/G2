@@ -1745,45 +1745,67 @@ retLitTableFrame :: (Solver solver, Simplifier simplifier)
 retLitTableFrame solver simplifier s ng ltc stck = case ltc of
     Exploring _ -> return (RuleReturnLitTable, [updated_state], ng)
     Diff sd -> do
-        res <- reduceStateDiff solver simplifier ng updated_state sd
+        res <- reduceStateDiff solver simplifier ng diff_state sd
         case res of
             -- Nothing can be done with this diff - try the next
-            Nothing -> return (RuleReturnLitTable, [updated_state], ng)
+            Nothing -> return (RuleReturnLitTable, [diff_state], ng)
             -- Turn this diff into an Exploring
             Just (ng', new_state) -> return
                 ( RuleReturnLitTable
-                , [ new_state { exec_stack = S.push (make_exploring sd) (exec_stack updated_state) } ]
+                , [ new_state { exec_stack = S.push (makeExploring sd) (exec_stack diff_state) } ]
                 , ng' )
-    StartedBuilding n -> let lts = lit_table_stack updated_state
-                             -- We just finished updating the lit table at the top of
-                             -- the stack so it should never be empty here
-                             (table, lts') = fromJust $ S.pop lts
-                             table_map = lit_tables updated_state
-                             table_map' = HM.insert n table table_map
-                             -- After the literal table is created, the current expression
-                             -- will simply be an application of the literal table
-                             ce = get_expr $ curr_expr updated_state
-                             ce' = CurrExpr Evaluate (App (Prim (LitTableRef n) TyUnknown) ce)
-                             new_state = updated_state { lit_tables = table_map'
-                                                       , lit_table_stack = lts'
-                                                       , curr_expr = ce' }
-                         in return (RuleReturnLitTable, [new_state], ng)
+    StartedBuilding n -> let 
+        lts = lit_table_stack updated_state
+        -- We just finished updating the lit table at the top of
+        -- the stack so it should never be empty here
+
+        (table, lts') = fromJust $ S.pop lts
+        table_map = lit_tables updated_state
+        table_map' = HM.insert n table table_map
+
+        -- After the literal table is created, the current expression
+        -- will simply be an application of the literal table
+        -- When returning the final literal table - we want to leave
+        -- the literal table itself as the final expression
+
+        ce = unwrapCurrExpr $ curr_expr updated_state
+        table_e = Prim (LitTableRef n) TyUnknown
+        app_table_e = App table_e ce
+        lt_done = not $ isJust (S.pop lts')
+
+        new_state = updated_state { lit_tables = table_map'
+                                  , lit_table_stack = lts'
+                                  , curr_expr = if lt_done 
+                                                    then CurrExpr Return table_e
+                                                    else CurrExpr Evaluate app_table_e
+                                  }
+        in return (RuleReturnLitTable, [new_state], ng)
     where
-        -- We're returning from evaluation, so we need to take the table conds
-        -- for the current expression and insert them in the literal table
+        -- When we return from a StartedBuilding or Exploring, we're returning 
+        -- from evaluation, so we need to take the table conds for the current 
+        -- expression and insert them in the literal table
         -- We also want to include for previously pushed `Exploring`s, 
         -- so we scan the stack
-        e = get_expr $ curr_expr s
+
+        e = unwrapCurrExpr $ curr_expr s
         frames = S.toList $ exec_stack s
-        explorings = filterJust $ map get_expl frames
+        explorings = filterJust $ map getExploringConds frames
         all_pcs = foldl' PC.union PC.empty explorings
-        lts_ = S.modifyTop (HM.insert all_pcs e) (lit_table_stack s)
+        updated_lts = S.modifyTop (HM.insert all_pcs e) (lit_table_stack s)
 
-        updated_state = s { exec_stack = stck, lit_table_stack = lts_ }
+        diff_state = s { exec_stack = stck }
+        updated_state = s { exec_stack = stck, lit_table_stack = updated_lts }
 
-        make_exploring sd_ = (LitTableFrame $ Exploring (PC.fromList $ new_path_conds sd_))
-        get_expr (CurrExpr _ e_) = e_
-        filterJust [] = []
-        filterJust x = map fromJust $ filter isJust x
-        get_expl (LitTableFrame (Exploring pc_)) = Just pc_
-        get_expl _ = Nothing
+unwrapCurrExpr :: CurrExpr -> Expr
+unwrapCurrExpr (CurrExpr _ e) = e
+
+filterJust :: [Maybe a] -> [a]
+filterJust [] = []
+filterJust x = map fromJust $ filter isJust x
+
+getExploringConds :: Frame -> Maybe PathConds
+getExploringConds (LitTableFrame (Exploring pc)) = Just pc
+getExploringConds _ = Nothing
+
+makeExploring :: StateDiff -> Frame
+makeExploring sd = (LitTableFrame $ Exploring (PC.fromList $ new_path_conds sd))
