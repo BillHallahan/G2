@@ -107,8 +107,23 @@ main = do
         where
             run con f = do
                 let spl_f = T.splitOn "." f
+                    dir_name = map T.unpack $ init spl_f
                     f_name = last spl_f
-                genSMTFunc [] [] f_name Nothing con
+                def <- genSMTFunc [] [] f_name Nothing con
+                createAppend dir_name def
+                return ()
+            
+            createAppend path str = do
+                let dir = "spec/" ++ intercalate "/" (init path)
+                    fle = dir ++ "/" ++ last path ++ "_Specs.hs"
+                    mdl = intercalate "." path ++ "_Specs"
+                exists <- doesFileExist fle
+                case exists of
+                    True -> return ()
+                    False -> do
+                        createDirectoryIfMissing True dir
+                        writeFile fle ("module " ++ mdl ++ " where\n\n")
+                appendFile fle (str ++ "\n\n")
 
 getSeqGenConfig :: IO (String, Maybe String, Config)
 getSeqGenConfig = do
@@ -182,7 +197,7 @@ genSMTFunc pls src f smt_def config = do
             new_smt_piece <- formFunction (known_values . final_state $ er) pls'
 
             let vs = zipWith const argList (relArgs (final_state er) $ conc_args er)
-                new_smt_def = "spec " ++ intercalate " " vs ++ " = " ++ new_smt_piece
+                new_smt_def = T.unpack (specName f) ++ " " ++ intercalate " " vs ++ " = " ++ new_smt_piece
             genSMTFunc pls' src f (Just (final_state er, entry_f, new_smt_def)) config
 
 formFunction :: KnownValues -> [PatternRes] -> IO String
@@ -340,7 +355,7 @@ runFunc src f smt_def config = do
                                         Nothing False f (mkCurrExpr TV.empty Nothing Nothing) (mkArgTys config' TV.empty)
                                         simplTranslationConfig config'
         
-        let (comp_state, bindings') = if isJust smt_def then findInconsistent init_state bindings else (init_state, bindings)
+        let (comp_state, bindings') = if isJust smt_def then findInconsistent (idName entry_f) init_state bindings else (init_state, bindings)
         -- let config'' = if isJust smt_def then config' { logStates = Log Pretty "a_smt"} else config'
         T.putStrLn $ printHaskellPG (mkPrettyGuide $ getExpr comp_state) comp_state (getExpr comp_state)
 
@@ -349,9 +364,12 @@ runFunc src f smt_def config = do
         return (entry_f, er, name_gen bindings)
         )
 
+specName :: T.Text -> T.Text
+specName n = n <> "_spec"
+
 setUpSpec :: Handle -> Maybe (State t, Id, String) -> IO ()
 setUpSpec h Nothing = hClose h
-setUpSpec h (Just (s, Id _ t, spec)) = do
+setUpSpec h (Just (s, Id n t, spec)) = do
     let t' = repAllTyVarsWithChar
            . foldr1 TyFun
            . filter (not . isTypeClass (type_classes s))
@@ -365,7 +383,7 @@ setUpSpec h (Just (s, Id _ t, spec)) = do
                     ++ "tryMaybe a = catch (a >>= \\v -> return (Just v)) (\\(e :: SomeException) -> return Nothing)\n\n"
                     ++ "tryMaybeUnsafe :: a -> Maybe a\n"
                     ++ "tryMaybeUnsafe x = unsafePerformIO $ tryMaybe (let !y = x in return y)\n\n"
-                    ++ "spec :: " ++ T.unpack (mkTypeHaskell t') ++ "\n"
+                    ++ T.unpack (specName $ nameOcc n) ++ " :: " ++ T.unpack (mkTypeHaskell t') ++ "\n"
                     ++ spec
     putStrLn contents
     hPutStrLn h contents
@@ -376,12 +394,12 @@ setUpSpec h (Just (s, Id _ t, spec)) = do
         repAllTyVarsWithChar t_ = modifyChildren repAllTyVarsWithChar t_
 
 -- | Find inputs that violate a found SMT definition
-findInconsistent :: State t -> Bindings -> (State t, Bindings)
-findInconsistent s@(State { expr_env = eenv
-                          , known_values = kv
-                          , type_classes = tc
-                          , tyvar_env = tv_env }) b@(Bindings { name_gen = ng })
-    | Just (smt_def, smt_def_e) <- E.lookupNameMod "spec" (Just "Spec") eenv
+findInconsistent :: Name -> State t -> Bindings -> (State t, Bindings)
+findInconsistent entry_f s@(State { expr_env = eenv
+                                  , known_values = kv
+                                  , type_classes = tc
+                                  , tyvar_env = tv_env }) b@(Bindings { name_gen = ng })
+    | Just (smt_def, smt_def_e) <- E.lookupNameMod (specName $ nameOcc entry_f) (Just "Spec") eenv
     , Just (try_unsafe, try_unsafe_e) <- E.lookupNameMod "tryMaybeUnsafe" (Just "Spec") eenv =
     let
         app_smt_def = mkApp $ Var (Id smt_def (typeOf tv_env smt_def_e)):map Var (inputIds s b)
