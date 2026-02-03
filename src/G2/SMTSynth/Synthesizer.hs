@@ -153,31 +153,32 @@ genSMTFunc pls src f smt_def config = do
     putStrLn "\n--- Running function --- "
     (entry_f, ers, ng) <- runFunc src f smt_def config
     case ers of
-        [] | Just (_, (Id _ smt_t), smt_def') <- smt_def -> return (T.unpack (mkTypeHaskell smt_t), smt_def')
+        [] | Just (s, (Id _ smt_t), smt_def') <- smt_def ->
+                return (T.unpack (mkTypeHaskellDictArrows (mkPrettyGuide ()) (type_classes s) smt_t), smt_def')
            | otherwise -> error "genSMTFunc: no SMT function generated" 
         (er:_) -> do
             putStrLn "\n--- Synthesizing --- "
             let pls' = foldr (insertER ng) pls ers
 
-            new_smt_piece <- formFunction (known_values . final_state $ er) pls'
+            new_smt_piece <- formFunction (final_state er) pls'
 
             let vs = zipWith const argList (relArgs (final_state er) $ conc_args er)
                 new_smt_def = T.unpack (smtName f) ++ " " ++ intercalate " " vs ++ " = " ++ new_smt_piece
             genSMTFunc pls' src f (Just (final_state er, entry_f, new_smt_def)) config
 
-formFunction :: KnownValues -> [PatternRes] -> IO String
+formFunction :: State t -> [PatternRes] -> IO String
 formFunction _ [] = error "formFunction: empty list"
-formFunction _ [pr] = solveOnePattern pr
-formFunction kv (pr:prs) = do
+formFunction s [pr] = solveOnePattern s pr
+formFunction s (pr:prs) = do
     putStrLn "\n* Solving Branch Condition"
-    br <- solveBranchConditions kv pr prs
+    br <- solveBranchConditions s pr prs
     putStrLn "\n* Solving Pattern"
-    r1 <- solveOnePattern pr
-    r2 <- formFunction kv prs
+    r1 <- solveOnePattern s pr
+    r2 <- formFunction s prs
     return $ "if " ++ br ++ " then " ++ r1 ++ " else " ++ r2
 
-solveOnePattern :: PatternRes -> IO String
-solveOnePattern (PL { pattern = varred_form, pat_ids = is, lit_vals = constraints@((er:_):_) }) = do
+solveOnePattern :: State t -> PatternRes -> IO String
+solveOnePattern s (PL { pattern = varred_form, pat_ids = is, lit_vals = constraints }) = do
     let is_constraints = zip is constraints
 
     let pg = mkPrettyGuide is
@@ -186,24 +187,20 @@ solveOnePattern (PL { pattern = varred_form, pat_ids = is, lit_vals = constraint
                             return $ "!" ++ T.unpack (printName pg (idName i)) ++ " = (" ++ new_smt_def ++ ")")
                         is_constraints
     let new_smt_def = "let " ++ intercalate "; " new_pieces ++ " in "
-                    ++ T.unpack (toHaskellCode (Just $ final_state er) pg varred_form)
+                    ++ T.unpack (toHaskellCode s pg varred_form)
     return new_smt_def
-solveOnePattern (PL { pattern = varred_form, pat_ids = is }) = do
-    let pg = mkPrettyGuide is
-    return . T.unpack $ toHaskellCode Nothing pg varred_form
 
-toHaskellCode :: Maybe (State t) -> PrettyGuide -> Expr -> T.Text
+toHaskellCode :: State t -> PrettyGuide -> Expr -> T.Text
 toHaskellCode _ _ e | Prim Error _:_ <- unApp e = "error \"\""
-toHaskellCode (Just s) pg e = printHaskellPG pg s e
-toHaskellCode Nothing pg e = printHaskellDirtyPG pg e
+toHaskellCode s pg e = printHaskellPG pg s e
 
-solveBranchConditions :: KnownValues -> PatternRes -> [PatternRes] -> IO String
-solveBranchConditions kv pr prs = do
+solveBranchConditions :: State t -> PatternRes -> [PatternRes] -> IO String
+solveBranchConditions s@(State { known_values = kv }) pr prs = do
     let true_lv = map (setBool True) (orig_exec_res pr)
         false_lv = map (setBool False) (concatMap orig_exec_res prs)
         pat_id = Id (Name "g2__BOOL_ID" Nothing 0 Nothing) TyUnknown
         bool_pr = pr { pattern = Var pat_id, pat_ids = [pat_id], lit_vals = [true_lv ++ false_lv] }
-    solveOnePattern bool_pr
+    solveOnePattern s bool_pr
     where
         setBool b er = er { final_state = (final_state er) {curr_expr = CurrExpr Return (mkBool kv b)}, conc_out = mkBool kv b }
 
