@@ -139,6 +139,7 @@ library
 
                        , G2.Postprocessing.NameSwitcher
 
+                       , G2.SMTSynth.Integrate
                        , G2.SMTSynth.Synthesizer
 
                        , G2.Solver

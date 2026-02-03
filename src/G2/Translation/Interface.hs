@@ -72,7 +72,7 @@ translateLoaded :: [FilePath]
   -> [FilePath]
   -> TranslationConfig
   -> Config
-  -> IO ([Maybe T.Text], ExtractedG2)
+  -> IO ([Maybe T.Text], ExtractedG2, NameMap, TypeNameMap)
 translateLoaded proj src tr_con config = do
   let tr_con' = tr_con { hpc_ticks = hpc config || search_strat config == Subpath || hpc_discard_strat config }
   -- Stuff with the actual target
@@ -113,7 +113,7 @@ translateLoaded proj src tr_con config = do
 
   let final_exg2 = injected_exg2 { exg2_binds = final_prog }
 
-  return (mb_modname, final_exg2)
+  return (mb_modname, final_exg2, f_nm, f_tm)
 
 adjustMkSymbolicPrim :: SymLog -> T.Text -> Maybe T.Text -> NameMap -> ExtractedG2 -> ExtractedG2
 adjustMkSymbolicPrim sym_log occ_n md_nm nm exg2 =

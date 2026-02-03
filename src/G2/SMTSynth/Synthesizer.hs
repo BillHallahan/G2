@@ -148,12 +148,12 @@ genSMTFunc :: [PatternRes] -- ^ Generated states
            -> T.Text -- ^ Function name
            -> Maybe (State t, Id, String) -- ^ Possible (SyGuS generated) function definition, along with the Id of the function being generated
            -> Config
-           -> IO String
+           -> IO (String, String) -- ^ (Type of generated function, definition of generated function)
 genSMTFunc pls src f smt_def config = do
     putStrLn "\n--- Running function --- "
     (entry_f, ers, ng) <- runFunc src f smt_def config
     case ers of
-        [] | Just (_, _, smt_def') <- smt_def -> return smt_def'
+        [] | Just (_, (Id _ smt_t), smt_def') <- smt_def -> return (T.unpack (mkTypeHaskell smt_t), smt_def')
            | otherwise -> error "genSMTFunc: no SMT function generated" 
         (er:_) -> do
             putStrLn "\n--- Synthesizing --- "
@@ -330,7 +330,7 @@ runFunc src f smt_def config = do
         )
 
 smtName :: T.Text -> T.Text
-smtName n = n <> "_smt"
+smtName n = "smt_" <> n
 
 setUpSpec :: Handle -> Maybe (State t, Id, String) -> IO ()
 setUpSpec h Nothing = hClose h

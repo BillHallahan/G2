@@ -3,6 +3,8 @@
 
 module G2.Initialization.Types ( SimpleState (..)
                                , SimpleStateM (..)
+                               , NameMap
+                               , TypeNameMap
                                , runSimpleStateM
                                , evalSimpleStateM
                                , execSimpleStateM
@@ -15,6 +17,7 @@ import qualified G2.Language as L
 import G2.Language.AST
 import G2.Language.Monad
 import G2.Language.Syntax
+import G2.Translation.TransTypes
 
 data SimpleState = SimpleState { expr_env :: L.ExprEnv
                                , type_env :: L.TypeEnv
@@ -24,7 +27,10 @@ data SimpleState = SimpleState { expr_env :: L.ExprEnv
                                , type_classes :: L.TypeClasses
                                , families :: L.Families
                                , rewrite_rules :: ![L.RewriteRule]
-                               , exports :: [Name] } deriving (Eq, Show, Read)
+                               , exports :: [Name]
+                               
+                               , name_map :: NameMap
+                               , type_name_map :: TypeNameMap } deriving (Eq, Show, Read)
 
 newtype SimpleStateM a = SimpleStateM { unSM :: (SM.State SimpleState a) } deriving (Applicative, Functor, Monad)
 

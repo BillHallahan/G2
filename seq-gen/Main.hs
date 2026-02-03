@@ -27,8 +27,9 @@ main = do
                 let spl_f = T.splitOn "." f
                     dir_name = map T.unpack $ init spl_f
                     f_name = last spl_f
-                def <- genSMTFunc [] [] f_name Nothing con
+                (ty, def) <- genSMTFunc [] [] f_name Nothing con
                 updateMainSMT $ "SMT":dir_name
+                createAppend ("SMT":dir_name) $ "smt_" ++ T.unpack f_name ++ " :: " ++ ty
                 createAppend ("SMT":dir_name) def
                 return ()
             

@@ -125,6 +125,8 @@ maybeDoTimeout Nothing = fmap Just
 
 {-# INLINE initStateWithCall #-}
 initStateWithCall :: ExtractedG2
+                  -> NameMap
+                  -> TypeNameMap
                   -> Bool
                   -> StartFunc
                   -> [Maybe T.Text]
@@ -132,9 +134,9 @@ initStateWithCall :: ExtractedG2
                   -> (Expr -> MkArgTypes)
                   -> Config
                   -> (Id, State (), Bindings)
-initStateWithCall exg2 useAssert f m_mod mkCurr argTys config =
+initStateWithCall exg2 nm tnm useAssert f m_mod mkCurr argTys config =
     let
-        s = initSimpleState exg2
+        s = initSimpleState exg2 nm tnm
 
         (ie, fe) = case findFunc TV.empty f m_mod (IT.expr_env s) of
                         Left ie' -> ie'
@@ -146,14 +148,16 @@ initStateWithCall exg2 useAssert f m_mod mkCurr argTys config =
 
 {-# INLINE initStateWithCall' #-}
 initStateWithCall' :: ExtractedG2
+                   -> NameMap
+                   -> TypeNameMap
                    -> StartFunc
                    -> [Maybe T.Text]
                    -> (Id -> MkCurrExpr)
                    -> (Expr -> MkArgTypes)
                    -> Config
                    -> (Id, State (), Bindings)
-initStateWithCall' exg2 =
-    initStateWithCall exg2 False
+initStateWithCall' exg2 nm tnm =
+    initStateWithCall exg2 nm tnm False
 
 {-# INLINE initStateFromSimpleStateWithCall #-}
 initStateFromSimpleStateWithCall :: IT.SimpleState
@@ -261,13 +265,16 @@ initStateFromSimpleState' s sf m_mod config =
 
 {-# INLINE initSimpleState #-}
 initSimpleState :: ExtractedG2
+                -> NameMap
+                -> TypeNameMap
                 -> IT.SimpleState
 initSimpleState (ExtractedG2 { exg2_binds = prog
                              , exg2_tycons = prog_typ
                              , exg2_classes = cls
                              , exg2_axioms = axs
                              , exg2_exports = es
-                             , exg2_rules = rs }) =
+                             , exg2_rules = rs })
+                nm tnm=
     let
         eenv = E.fromExprMap prog
         tenv = mkTypeEnv prog_typ
@@ -284,7 +291,10 @@ initSimpleState (ExtractedG2 { exg2_binds = prog
                            , IT.type_classes = tc
                            , IT.families = fams
                            , IT.rewrite_rules = rs
-                           , IT.exports = es }
+                           , IT.exports = es
+                           
+                           , IT.name_map = nm
+                           , IT.type_name_map = tnm }
     in
     runInitialization1 s
 
@@ -497,9 +507,9 @@ initialStateNoStartFunc :: [FilePath]
                      -> Config
                      -> IO (State (), Bindings, [Maybe T.Text])
 initialStateNoStartFunc proj src transConfig config = do
-    (mb_modname, exg2) <- translateLoaded proj src transConfig config
+    (mb_modname, exg2, nm, tnm) <- translateLoaded proj src transConfig config
 
-    let simp_state = initSimpleState exg2
+    let simp_state = initSimpleState exg2 nm tnm
 
         (init_s, bindings) = initStateFromSimpleState simp_state [Nothing] False
                                  noStartFuncMkCurrExpr
@@ -529,9 +539,9 @@ initialStateFromFile :: [FilePath]
                      -> Config
                      -> IO (State (), Id, Bindings, [Maybe T.Text])
 initialStateFromFile proj src m_reach def_assert f mkCurr argTys transConfig config = do
-    (mb_modname, exg2) <- translateLoaded proj src transConfig config
+    (mb_modname, exg2, nm, tnm) <- translateLoaded proj src transConfig config
 
-    let simp_state = initSimpleState exg2
+    let simp_state = initSimpleState exg2 nm tnm
         (ie, fe) = case findFunc TV.empty f mb_modname (IT.expr_env simp_state) of
                         Left ie' -> ie'
                         Right errs -> error errs
