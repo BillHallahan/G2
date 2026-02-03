@@ -1,4 +1,7 @@
-module G2.SMTSynth.Synthesizer where
+{-# LANGUAGE BangPatterns, FlexibleContexts, OverloadedStrings #-}
+
+module G2.SMTSynth.Synthesizer ( getSeqGenConfig
+                               , genSMTFunc) where
 
 import G2.Config
 import G2.Execution.PrimitiveEval
@@ -27,6 +30,7 @@ import Data.Maybe
 import qualified Data.Text as T
 import qualified Data.Text.IO as T
 import Options.Applicative
+import System.Directory
 import System.IO
 import System.IO.Temp
 import System.Process

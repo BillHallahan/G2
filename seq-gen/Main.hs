@@ -1,9 +1,12 @@
-{-# LANGUAGE BangPatterns, FlexibleContexts, OverloadedStrings #-}
+{-# LANGUAGE OverloadedStrings #-}
 
 module Main (main) where
 
 import G2.Config
 import G2.SMTSynth.Synthesizer
+
+import Data.List
+import qualified Data.Text as T
 import System.Directory
 
 main :: IO ()
