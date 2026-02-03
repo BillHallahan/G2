@@ -139,6 +139,8 @@ library
 
                        , G2.Postprocessing.NameSwitcher
 
+                       , G2.SMTSynth.Synthesizer
+
                        , G2.Solver
                        , G2.Solver.ADTNumericalSolver
                        , G2.Solver.Converters

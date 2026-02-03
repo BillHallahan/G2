@@ -81,8 +81,16 @@ translateLoaded proj src tr_con config = do
   let imports = envModSumModGutsImports tar_ems
   extra_imp <- return . catMaybes =<< mapM (findImports (baseInclude config)) imports
 
+  -- If we are using SMT strings/sequences, set up base to load in SMT definitions
+  extra_imp' <- if smt_strings config == UseSMTStrings
+                   || smt_prim_lists config == UseSMTSeq
+                      then do
+                        root <- getHomeDirectory
+                        return $ (root ++ "/.g2/smt/SMT.hs"):extra_imp
+                      else return extra_imp
+
   -- Stuff with the base library
-  (base_exg2, b_nm, b_tnm) <- translateBase tr_con' config extra_imp Nothing
+  (base_exg2, b_nm, b_tnm) <- translateBase tr_con' config extra_imp' Nothing
 
   -- Now the stuff with the actual target
   (f_nm, f_tm, exg2) <- hskToG2ViaEMS tr_con'  tar_ems b_nm b_tnm
