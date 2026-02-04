@@ -185,7 +185,9 @@ findFunc tv s m_mod eenv =
                 spec_mod = T.intercalate "." (init splits)
                 func = last splits
             in
-            E.toExprList $ E.filterWithKey (\n _ -> nameOcc n == func && nameModule n == Just spec_mod) eenv
+            case spec_mod of
+                "" -> E.toExprList $ E.filterWithKey (\n _ -> nameOcc n == s) eenv
+                _ -> E.toExprList $ E.filterWithKey (\n _ -> nameOcc n == func && nameModule n == Just spec_mod) eenv
 
 instantiateArgTypes :: Config -> TV.TyVarEnv -> TypeClasses -> KnownValues -> Expr -> ([Expr], [Type])
 instantiateArgTypes config tv tc kv e =
