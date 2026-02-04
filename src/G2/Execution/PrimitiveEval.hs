@@ -453,7 +453,7 @@ evalPrimWithState s ng (App (Prim BuildLitTable _) func_e)
         new_eenv = E.insertSymbolic new_var $ expr_env s
 
         (lt_name, ng'') = freshName ng'
-        s' = introduceLitTable s lt_name
+        s' = introduceLitTable s lt_name new_var
 
         s'' = s' { curr_expr = new_ce
                  , expr_env = new_eenv
@@ -481,7 +481,7 @@ evalPrimWithState s ng expr@(App (Prim (LitTableRef lt_name) _) (Var sym_i)) =
                                     , new_sym_types = []
                                     , new_mut_vars = [] }
         -- Note that stacks pop from the front here!
-        diffs = map (LitTableFrame . Diff . make_diff) $ M.toList table
+        diffs = map (LitTableFrame . Diff . make_diff) $ M.toList (lt_mapping table)
         -- `Unneeded` refers to the stack frames we do not need to copy 
         (needed, unneeded) = break isSB $ S.toList (exec_stack s)
         -- Stack frames used to explore more are put after the diff`

@@ -502,10 +502,12 @@ evalCase s@(State { expr_env = eenv
   | inLitTableMode s && not (isExprValueForm eenv mexpr) =
       let case_frame = CaseFrame bind t alts
           (n, ng') = freshName ng
-          s' = introduceLitTable s { exec_stack = S.push case_frame stck } n
+          -- This id will likely never be used
+          (sym_id, ng'') = freshId TyUnknown ng'
+          s' = introduceLitTable s { exec_stack = S.push case_frame stck } n sym_id
       in ( RuleEvalCaseNonVal
          , newPCEmpty $ s' { expr_env = eenv
-                           , curr_expr = CurrExpr Evaluate mexpr }, ng')
+                           , curr_expr = CurrExpr Evaluate mexpr }, ng'')
   | not (isExprValueForm eenv mexpr) =
       let frame = CaseFrame bind t alts
       in ( RuleEvalCaseNonVal
@@ -1745,7 +1747,12 @@ retLitTableFrame :: (Solver solver, Simplifier simplifier)
 retLitTableFrame solver simplifier s ng ltc stck = case ltc of
     Exploring _ -> return (RuleReturnLitTable, [updated_state], ng)
     Diff sd -> do
-        res <- reduceStateDiff solver simplifier ng diff_state sd
+        let (lt, _) = fromJust $ S.pop (lit_table_stack diff_state)
+            sym_id = lt_arg lt
+            sd' = sd { new_sym_entries = (new_sym_entries sd) ++ [sym_id] }
+        -- We need to make sure the argument is still symbolic
+        -- after exploring other paths, since it can get concretized
+        res <- reduceStateDiff solver simplifier ng diff_state sd'
         case res of
             -- Nothing can be done with this diff - try the next
             Nothing -> return (RuleReturnLitTable, [diff_state], ng)
@@ -1754,7 +1761,7 @@ retLitTableFrame solver simplifier s ng ltc stck = case ltc of
                 ( RuleReturnLitTable
                 , [ new_state { exec_stack = S.push (makeExploring sd) (exec_stack diff_state) } ]
                 , ng' )
-    StartedBuilding n -> let 
+    StartedBuilding n -> let
         lts = lit_table_stack updated_state
         -- We just finished updating the lit table at the top of
         -- the stack so it should never be empty here
@@ -1791,7 +1798,7 @@ retLitTableFrame solver simplifier s ng ltc stck = case ltc of
         frames = S.toList $ exec_stack s
         explorings = filterJust $ map getExploringConds frames
         all_pcs = foldl' PC.union PC.empty explorings
-        updated_lts = S.modifyTop (HM.insert all_pcs e) (lit_table_stack s)
+        updated_lts = S.modifyTop (updateLiteralTable all_pcs e) $ lit_table_stack s
 
         diff_state = s { exec_stack = stck }
         updated_state = s { exec_stack = stck, lit_table_stack = updated_lts }
