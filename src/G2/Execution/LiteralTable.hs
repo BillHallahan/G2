@@ -10,12 +10,12 @@ import G2.Language.Support
 import qualified Data.HashMap.Lazy as HM
 import Data.Maybe
 
-introduceLitTable :: State t -> Name -> Id -> State t
-introduceLitTable s n i = s { lit_table_stack = lts
-                            , exec_stack = es }
+introduceLitTable :: State t -> Name -> Id -> LTUpdate -> State t
+introduceLitTable s n i up = s { lit_table_stack = lts
+                               , exec_stack = es }
     where lts = S.push lt (lit_table_stack s)
           lt = LitTable { lt_arg = i, lt_mapping = HM.empty }
-          es = S.push (LitTableFrame $ StartedBuilding n) (exec_stack s)
+          es = S.push (LitTableFrame (StartedBuilding n) up) (exec_stack s)
 
 inLitTableMode :: State t -> Bool
 inLitTableMode s = let lit_stack = lit_table_stack s

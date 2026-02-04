@@ -690,7 +690,10 @@ prettyFrame pg (AssertFrame m_fc e) =
                   Nothing -> ""
     in
     "assert frame: " <> fc <> mkDirtyExprHaskell pg e
-prettyFrame pg (LitTableFrame ltc) = "literal table frame:\n" <> printLiteralTableCond pg ltc
+prettyFrame pg (LitTableFrame ltc up) = header <> update_str <> ":\n" <> printLiteralTableCond pg ltc
+    where
+        header = "literal table frame, updating = "
+        update_str = (T.pack $ show up)
 
 printLiteralTableCond :: PrettyGuide -> LitTableCond -> T.Text
 printLiteralTableCond pg ltc

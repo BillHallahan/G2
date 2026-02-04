@@ -47,13 +47,13 @@ reduceNewPC solver simplifier ng (SplitStatePieces state state_diffs)
             Just (ng', first_s, pcs, other_diffs) -> 
                 let prev_stck = exec_stack first_s
                     diffs_pushed = foldr S.push prev_stck $ map wrap other_diffs
-                    expl_pushed = S.push (LitTableFrame $ Exploring (PC.fromList pcs)) diffs_pushed
+                    expl_pushed = S.push (LitTableFrame (Exploring (PC.fromList pcs)) True) diffs_pushed
                 in return (ng', [first_s { exec_stack = expl_pushed }])
             Nothing -> return (ng, [])
     | otherwise =
         mapAccumMaybeM (\ng' sd -> reduceStateDiff solver simplifier ng' state sd) ng state_diffs
     where
-        wrap diff = LitTableFrame $ Diff diff
+        wrap diff = LitTableFrame (Diff diff) True
 
 -- Find the first diff to explore, when in literal table building mode
 reduceToFirstDiff :: (Solver solver, Simplifier simplifier)

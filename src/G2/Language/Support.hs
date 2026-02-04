@@ -189,8 +189,11 @@ data Frame = CaseFrame Id Type [Alt]
            | CurrExprFrame CEAction CurrExpr
            | AssumeFrame Expr
            | AssertFrame (Maybe FuncCall) Expr
-           | LitTableFrame LitTableCond
+           | LitTableFrame LitTableCond LTUpdate
            deriving (Show, Eq, Read, Generic, Typeable, Data)
+
+-- Whether we need to update the current literal table when this frame is popped off
+type LTUpdate = Bool
 
 instance Hashable Frame
 
@@ -445,7 +448,7 @@ instance ASTContainer Frame Expr where
     containedASTs (CurrExprFrame _ e) = containedASTs e
     containedASTs (AssumeFrame e) = [e]
     containedASTs (AssertFrame _ e) = [e]
-    containedASTs (LitTableFrame ltc) = containedASTs ltc
+    containedASTs (LitTableFrame ltc _) = containedASTs ltc
     containedASTs _ = []
 
     modifyContainedASTs f (CaseFrame i t a) = CaseFrame i t (modifyContainedASTs f a)
@@ -453,7 +456,7 @@ instance ASTContainer Frame Expr where
     modifyContainedASTs f (CurrExprFrame act e) = CurrExprFrame act (modifyContainedASTs f e)
     modifyContainedASTs f (AssumeFrame e) = AssumeFrame (f e)
     modifyContainedASTs f (AssertFrame is e) = AssertFrame is (f e)
-    modifyContainedASTs f (LitTableFrame ltc) = LitTableFrame $ modifyContainedASTs f ltc
+    modifyContainedASTs f (LitTableFrame ltc up) = LitTableFrame (modifyContainedASTs f ltc) up
     modifyContainedASTs _ fr = fr
 
 instance ASTContainer Frame Type where
@@ -462,7 +465,7 @@ instance ASTContainer Frame Type where
     containedASTs (CurrExprFrame _ e) = containedASTs e
     containedASTs (AssumeFrame e) = containedASTs e
     containedASTs (AssertFrame _ e) = containedASTs e
-    containedASTs (LitTableFrame ltc) = containedASTs ltc
+    containedASTs (LitTableFrame ltc _) = containedASTs ltc
     containedASTs _ = []
 
     modifyContainedASTs f (CaseFrame i t a) =
@@ -471,7 +474,7 @@ instance ASTContainer Frame Type where
     modifyContainedASTs f (CurrExprFrame act e) = CurrExprFrame act (modifyContainedASTs f e)
     modifyContainedASTs f (AssumeFrame e) = AssumeFrame (modifyContainedASTs f e)
     modifyContainedASTs f (AssertFrame is e) = AssertFrame (modifyContainedASTs f is) (modifyContainedASTs f e)
-    modifyContainedASTs f (LitTableFrame ltc) = LitTableFrame $ modifyContainedASTs f ltc
+    modifyContainedASTs f (LitTableFrame ltc up) = LitTableFrame (modifyContainedASTs f ltc) up
     modifyContainedASTs _ fr = fr
 
 instance Named CurrExpr where
@@ -487,7 +490,7 @@ instance Named Frame where
     names (CurrExprFrame _ e) = names e
     names (AssumeFrame e) = names e
     names (AssertFrame is e) = names is <> names e
-    names (LitTableFrame ltc) = names ltc
+    names (LitTableFrame ltc _) = names ltc
 
     rename old new (CaseFrame i t a) = CaseFrame (rename old new i) (rename old new t) (rename old new a)
     rename old new (ApplyFrame e) = ApplyFrame (rename old new e)
@@ -496,7 +499,7 @@ instance Named Frame where
     rename old new (CurrExprFrame act e) = CurrExprFrame act (rename old new e)
     rename old new (AssumeFrame e) = AssumeFrame (rename old new e)
     rename old new (AssertFrame is e) = AssertFrame (rename old new is) (rename old new e)
-    rename old new (LitTableFrame ltc) = LitTableFrame (rename old new ltc)
+    rename old new (LitTableFrame ltc up) = LitTableFrame (rename old new ltc) up
 
     renames hm (CaseFrame i t a) = CaseFrame (renames hm i) (renames hm t) (renames hm a)
     renames hm (ApplyFrame e) = ApplyFrame (renames hm e)
@@ -505,7 +508,7 @@ instance Named Frame where
     renames hm (CurrExprFrame act e) = CurrExprFrame act (renames hm e)
     renames hm (AssumeFrame e) = AssumeFrame (renames hm e)
     renames hm (AssertFrame is e) = AssertFrame (renames hm is) (renames hm e)
-    renames hm (LitTableFrame ltc) = LitTableFrame (renames hm ltc)
+    renames hm (LitTableFrame ltc up) = LitTableFrame (renames hm ltc) up
 
 instance Named Handle where
     names (HandleInfo { h_start = s, h_pos = p }) = names s <> names p

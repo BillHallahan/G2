@@ -114,7 +114,7 @@ stdReduce' _ symb_func_eval solver simplifier s@(State { curr_expr = CurrExpr Re
         let (r, new_pc, ng') = retCurrExpr s ce act e stck' ng
         (ng'', states) <- reduceNewPC solver simplifier ng' new_pc
         return (r, states, ng'')
-    | Just (LitTableFrame ltc, stck') <- frstck = retLitTableFrame solver simplifier s ng ltc stck'
+    | Just (LitTableFrame ltc up, stck') <- frstck = retLitTableFrame solver simplifier s ng ltc up stck'
     | Nothing <- frstck = return (RuleIdentity, [s], ng)
     | otherwise = error $ "stdReduce': Unknown Expr" ++ show ce ++ show frstck
         where
@@ -504,7 +504,7 @@ evalCase s@(State { expr_env = eenv
           (n, ng') = freshName ng
           -- This id will likely never be used
           (sym_id, ng'') = freshId TyUnknown ng'
-          s' = introduceLitTable s { exec_stack = S.push case_frame stck } n sym_id
+          s' = introduceLitTable s { exec_stack = S.push case_frame stck } n sym_id True
       in ( RuleEvalCaseNonVal
          , newPCEmpty $ s' { expr_env = eenv
                            , curr_expr = CurrExpr Evaluate mexpr }, ng'')
@@ -1742,9 +1742,10 @@ retLitTableFrame :: (Solver solver, Simplifier simplifier)
                  -> State t
                  -> NameGen
                  -> LitTableCond
+                 -> LTUpdate
                  -> S.Stack Frame
                  -> IO (Rule, [State t], NameGen)
-retLitTableFrame solver simplifier s ng ltc stck = case ltc of
+retLitTableFrame solver simplifier s ng ltc up stck = case ltc of
     Exploring _ -> return (RuleReturnLitTable, [updated_state], ng)
     Diff sd -> do
         let (lt, _) = fromJust $ S.pop (lit_table_stack diff_state)
@@ -1759,7 +1760,7 @@ retLitTableFrame solver simplifier s ng ltc stck = case ltc of
             -- Turn this diff into an Exploring
             Just (ng', new_state) -> return
                 ( RuleReturnLitTable
-                , [ new_state { exec_stack = S.push (makeExploring sd) (exec_stack diff_state) } ]
+                , [ new_state { exec_stack = S.push (makeExploring up sd) (exec_stack diff_state) } ]
                 , ng' )
     StartedBuilding n -> let
         lts = lit_table_stack updated_state
@@ -1798,7 +1799,9 @@ retLitTableFrame solver simplifier s ng ltc stck = case ltc of
         frames = S.toList $ exec_stack s
         explorings = filterJust $ map getExploringConds frames
         all_pcs = foldl' PC.union PC.empty explorings
-        updated_lts = S.modifyTop (updateLiteralTable all_pcs e) $ lit_table_stack s
+        updated_lts = if up
+            then S.modifyTop (updateLiteralTable all_pcs e) $ lit_table_stack s
+            else lit_table_stack s
 
         diff_state = s { exec_stack = stck }
         updated_state = s { exec_stack = stck, lit_table_stack = updated_lts }
@@ -1811,8 +1814,8 @@ filterJust [] = []
 filterJust x = map fromJust $ filter isJust x
 
 getExploringConds :: Frame -> Maybe PathConds
-getExploringConds (LitTableFrame (Exploring pc)) = Just pc
+getExploringConds (LitTableFrame (Exploring pc) _) = Just pc
 getExploringConds _ = Nothing
 
-makeExploring :: StateDiff -> Frame
-makeExploring sd = (LitTableFrame $ Exploring (PC.fromList $ new_path_conds sd))
+makeExploring :: LTUpdate -> StateDiff -> Frame
+makeExploring up sd = (LitTableFrame (Exploring (PC.fromList $ new_path_conds sd)) up)
