@@ -179,12 +179,13 @@ findFunc tv s m_mod eenv =
                     _ -> Right $ "Multiple functions with same name " ++ (T.unpack s) ++
                                 " in available modules"
     where
-        matchNames
-            | (spec_mod, period_func) <- T.break (== '.') s
-            , Just (_, func) <- T.uncons period_func =
-                E.toExprList
-                    $ E.filterWithKey (\n _ -> nameOcc n == func && nameModule n == Just spec_mod) eenv
-            | otherwise = E.toExprList $ E.filterWithKey (\n _ -> nameOcc n == s) eenv
+        matchNames =
+            let
+                splits = T.splitOn "." s
+                spec_mod = T.intercalate "." (init splits)
+                func = last splits
+            in
+            E.toExprList $ E.filterWithKey (\n _ -> nameOcc n == func && nameModule n == Just spec_mod) eenv
 
 instantiateArgTypes :: Config -> TV.TyVarEnv -> TypeClasses -> KnownValues -> Expr -> ([Expr], [Type])
 instantiateArgTypes config tv tc kv e =
