@@ -31,3 +31,6 @@ f8 :: String -> String -> Either String String
 f8  x y | x < y = Left x
         | y < x = Right y
         | otherwise = error "f8"
+
+f9 :: [a] -> [a] -> [a] -> [a]
+f9 xs ys zs = xs ++ ys ++ zs

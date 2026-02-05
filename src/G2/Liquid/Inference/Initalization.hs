@@ -24,11 +24,11 @@ import qualified Language.Fixpoint.Types.Config as FP
 import qualified Data.Text as T
 import qualified G2.Language.TyVarEnv as TV 
 
-initStateAndConfig :: ExtractedG2 -> [Maybe T.Text] -> G2.Config -> LHConfig -> InferenceConfig -> [GhcInfo]
+initStateAndConfig :: ExtractedG2 -> NameMap -> TypeNameMap -> [Maybe T.Text] -> G2.Config -> LHConfig -> InferenceConfig -> [GhcInfo]
                    -> (LiquidReadyState, G2.Config, LHConfig, InferenceConfig)
-initStateAndConfig exg2 main_mod g2config lhconfig infconfig ghci = 
+initStateAndConfig exg2 nm tnm main_mod g2config lhconfig infconfig ghci = 
     let
-        simp_s = initSimpleState exg2
+        simp_s = initSimpleState exg2 nm tnm
         (g2config', lhconfig', infconfig') = adjustConfig main_mod simp_s g2config lhconfig infconfig ghci
 
         lrs = createStateForInference simp_s main_mod g2config' lhconfig' ghci
