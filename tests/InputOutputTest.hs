@@ -148,10 +148,10 @@ checkInputOutput' io_config src tests = do
                 src
                 $ map (\test@(entry, _, _) -> do
                         testCase (src ++ " " ++ entry) ( do
-                                (mb_modname, exg2) <- loadedExG2
+                                (mb_modname, exg2, nm, tnm) <- loadedExG2
                                 config <- io_config
                                 r <- doTimeout (timeLimit config)
-                                               (try (checkInputOutput'' [src] exg2 mb_modname config test)
+                                               (try (checkInputOutput'' [src] exg2 nm tnm mb_modname config test)
                                                     :: IO (Either SomeException ([Bool], Bool, Bool, [ExecRes ()], Bindings)))
                                 let (b, e) = case r of
                                         Nothing -> (False, "\nTimeout")
@@ -171,14 +171,16 @@ checkInputOutput' io_config src tests = do
  
 checkInputOutput'' :: [FilePath]
                    -> ExtractedG2
+                   -> NameMap
+                   -> TypeNameMap
                    -> [Maybe T.Text]
                    -> Config
                    -> (String, Int, [Reqs String])
                    -> IO ([Bool], Bool, Bool, [ExecRes ()], Bindings)
-checkInputOutput'' src exg2 mb_modname config (entry, stps, req) = do
+checkInputOutput'' src exg2 nm tnm mb_modname config (entry, stps, req) = do
     let proj = map takeDirectory src
     let config' = config { steps = stps }
-        (entry_f, init_state, bindings) = initStateWithCall exg2 False (T.pack entry) mb_modname (mkCurrExpr TV.empty Nothing Nothing) (mkArgTys TV.empty) config'
+        (entry_f, init_state, bindings) = initStateWithCall exg2 nm tnm False (T.pack entry) mb_modname (mkCurrExpr TV.empty Nothing Nothing) (mkArgTys config TV.empty) config'
     
     (r, b, _) <- runG2WithConfig proj src entry_f (T.pack entry) [] mb_modname init_state config' bindings
 

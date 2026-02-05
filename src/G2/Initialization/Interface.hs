@@ -20,6 +20,7 @@ import G2.Initialization.InitVarLocs
 import G2.Initialization.Types as IT
 import qualified G2.Language.TyVarEnv as TV
 import G2.Execution.DataConPCMap
+import G2.SMTSynth.Integrate
 
 type MkArgTypes = IT.SimpleState -> [Type]
 
@@ -60,16 +61,19 @@ runInitialization2 config s@(IT.SimpleState { IT.expr_env = eenv
                         then E.insert (adjStr kv) 
                                       (Var (Id (checkStrLazy kv) TyUnknown)) eenv6
                         else eenv6
-
         s' = s { IT.expr_env = eenv7
                , IT.name_gen = ng3
                , IT.handles = hs}
         
         s'' = if fp_handling config == RationalFP then substRational s' else s'
 
-        dcpc = addToDCPC config s'' (dcpcMap TV.empty kv tenv)
+        s''' = if smt_strings config == UseSMTStrings || smt_prim_lists config == UseSMTSeq
+                    then integrateSMTDef s''
+                    else s''
+
+        dcpc = addToDCPC config s''' (dcpcMap TV.empty kv tenv)
     in
-    (s'', dcpc)
+    (s''', dcpc)
     where
         adjTyH = E.insert (typeIndex kv) . modifyASTs adjTyH' $ eenv E.! typeIndex kv
 

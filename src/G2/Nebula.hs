@@ -68,7 +68,7 @@ nebulaPluginPass' m_entry nebula_config env modguts = do
         injected_exg2 = specialInject merged_exg2
     writeIORef compiledModules $ Just (merged_exg2, new_nm, new_tm)
 
-    let simp_state = initSimpleState injected_exg2
+    let simp_state = initSimpleState injected_exg2 new_nm new_tm
 
         (init_state, bindings) = initStateFromSimpleState simp_state [Nothing] False
                                      noStartFuncMkCurrExpr

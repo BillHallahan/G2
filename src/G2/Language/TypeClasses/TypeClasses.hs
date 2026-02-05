@@ -174,7 +174,7 @@ satisfyingTCTypes kv tc i ts =
         tcReq = satisfyTCReq tc i ts
     in
     case mapMaybe lookupTCDictsTypes tcReq of
-        [] -> [tyInt kv]
+        [] -> [tyInt kv, tyChar kv]
         xs -> substKind i $ foldr1 intersect xs
     where
         lookupTCDictsTypes (TyApp t1 t2) =

@@ -114,22 +114,22 @@ findCounterExamples proj fp entry config lhconfig = do
                   Right g_c -> g_c
                   Left e -> error $ "ERROR OCCURRED IN LIQUIDHASKELL\n" ++ show e
 
-    (mb_mod, ex_g2) <- translateLoaded proj fp (simplTranslationConfig { simpl = False }) config'
+    mb_mod_ex_g2 <- translateLoaded proj fp (simplTranslationConfig { simpl = False }) config'
 
-    runLHCore entry (mb_mod, ex_g2) ghci' config' lhconfig
+    runLHCore entry mb_mod_ex_g2 ghci' config' lhconfig
 
 runLHCore :: T.Text
-          -> ([Maybe T.Text], ExtractedG2)
+          -> ([Maybe T.Text], ExtractedG2, NameMap, TypeNameMap)
           -> [GhcInfo]
           -> Config
           -> LHConfig
           -> IO (([ExecRes AbstractedInfo], Bindings), Lang.Id)
-runLHCore entry (mb_modname, exg2) ghci config lhconfig = do
+runLHCore entry mb_modname_exg2 ghci config lhconfig = do
     LiquidData { ls_state = final_st
                , ls_bindings = bindings
                , ls_id = ifi
                , ls_counterfactual_name = cfn
-               , ls_memconfig = pres_names } <- liquidStateWithCall entry (mb_modname, exg2) ghci config lhconfig mempty
+               , ls_memconfig = pres_names } <- liquidStateWithCall entry mb_modname_exg2 ghci config lhconfig mempty
 
     SomeSolver solver <- initSolver config
     let simplifier = NaNInfBlockSimplifier :>> FloatSimplifier :>> ArithSimplifier
@@ -142,26 +142,28 @@ runLHCore entry (mb_modname, exg2) ghci config lhconfig = do
     return ((exec_res, final_bindings), ifi)
 
 {-# INLINE liquidStateWithCall #-}
-liquidStateWithCall :: T.Text -> ([Maybe T.Text], ExtractedG2)
-                      -> [GhcInfo]
-                      -> Config
-                      -> LHConfig
-                      -> MemConfig
-                      -> IO LiquidData
-liquidStateWithCall entry (mb_modname, exg2) ghci config lhconfig memconfig =
-    liquidStateWithCall' entry (mb_modname, exg2) ghci config lhconfig memconfig (mkCurrExpr TV.empty Nothing Nothing) (mkArgTys TV.empty)
+liquidStateWithCall :: T.Text
+                    -> ([Maybe T.Text], ExtractedG2, NameMap, TypeNameMap)
+                    -> [GhcInfo]
+                    -> Config
+                    -> LHConfig
+                    -> MemConfig
+                    -> IO LiquidData
+liquidStateWithCall entry mb_modname_exg2 ghci config lhconfig memconfig =
+    liquidStateWithCall' entry mb_modname_exg2 ghci config lhconfig memconfig (mkCurrExpr TV.empty Nothing Nothing) (mkArgTys config TV.empty)
 
 {-# INLINE liquidStateWithCall' #-}
-liquidStateWithCall' :: T.Text -> ([Maybe T.Text], ExtractedG2)
-                       -> [GhcInfo]
-                       -> Config
-                       -> LHConfig
-                       -> MemConfig
-                       -> (Lang.Id -> MkCurrExpr)
-                       -> (Lang.Expr -> MkArgTypes)
-                       -> IO LiquidData
-liquidStateWithCall' entry (mb_m, exg2) ghci config lhconfig memconfig mkCurr argTys = do
-    let simp_s = initSimpleState exg2
+liquidStateWithCall' :: T.Text
+                     -> ([Maybe T.Text], ExtractedG2, NameMap, TypeNameMap)
+                     -> [GhcInfo]
+                     -> Config
+                     -> LHConfig
+                     -> MemConfig
+                     -> (Lang.Id -> MkCurrExpr)
+                     -> (Lang.Expr -> MkArgTypes)
+                     -> IO LiquidData
+liquidStateWithCall' entry (mb_m, exg2, nm, tnm) ghci config lhconfig memconfig mkCurr argTys = do
+    let simp_s = initSimpleState exg2 nm tnm
     liquidStateFromSimpleStateWithCall' simp_s ghci entry mb_m config lhconfig memconfig mkCurr argTys
 
 {-# INLINE liquidStateFromSimpleStateWithCall #-}
@@ -174,7 +176,7 @@ liquidStateFromSimpleStateWithCall :: SimpleState
                                    -> MemConfig
                                    -> IO LiquidData
 liquidStateFromSimpleStateWithCall simp_s ghci entry mb_m config lhconfig memconfig =
-    liquidStateFromSimpleStateWithCall' simp_s ghci entry mb_m config lhconfig memconfig (mkCurrExpr TV.empty Nothing Nothing) (mkArgTys TV.empty)
+    liquidStateFromSimpleStateWithCall' simp_s ghci entry mb_m config lhconfig memconfig (mkCurrExpr TV.empty Nothing Nothing) (mkArgTys config TV.empty)
 
 {-# INLINE liquidStateFromSimpleStateWithCall' #-}
 liquidStateFromSimpleStateWithCall' :: SimpleState
