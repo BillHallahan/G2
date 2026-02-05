@@ -2,6 +2,7 @@ module G2.Execution.LiteralTable
     ( introduceLitTable
     , inLitTableMode
     , updateLiteralTable
+    , getLTArg
     ) where
 
 import qualified G2.Language.Stack as S
@@ -24,3 +25,9 @@ inLitTableMode s = let lit_stack = lit_table_stack s
 
 updateLiteralTable :: PathConds -> Expr -> LitTable -> LitTable
 updateLiteralTable pcs e lt@(LitTable { lt_mapping = ltm }) = lt { lt_mapping = HM.insert pcs e ltm }
+
+getLTArg :: State t -> Id
+getLTArg s = let (table, _) = case S.pop $ lit_table_stack s of
+                                  Just x -> x
+                                  Nothing -> error "not in literal table mode"
+             in lt_arg table

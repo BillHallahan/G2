@@ -471,7 +471,7 @@ evalPrimWithState s ng expr@(App (Prim (LitTableRef lt_name) _) (Var sym_i)) =
         make_diff (conds, lit) = SD { new_conc_entries = []
                                     -- We need to make sure the argument is still symbolic
                                     -- after exploring other paths, since it can get concretized
-                                    , new_sym_entries = [sym_i]
+                                    , new_sym_entries = []
                                     , new_path_conds = PC.toList conds
                                     , concretized = []
                                     , new_true_assert = true_assert s

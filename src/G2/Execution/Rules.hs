@@ -1746,14 +1746,11 @@ retLitTableFrame :: (Solver solver, Simplifier simplifier)
                  -> S.Stack Frame
                  -> IO (Rule, [State t], NameGen)
 retLitTableFrame solver simplifier s ng ltc up stck = case ltc of
-    Exploring _ -> return (RuleReturnLitTable, [updated_state], ng)
+    Exploring _ -> return (RuleReturnLitTable, [updated_state { curr_expr = CurrExpr Return (Var sym_id) } ], ng)
     Diff sd -> do
-        let (lt, _) = fromJust $ S.pop (lit_table_stack diff_state)
-            sym_id = lt_arg lt
-            sd' = sd { new_sym_entries = (new_sym_entries sd) ++ [sym_id] }
         -- We need to make sure the argument is still symbolic
         -- after exploring other paths, since it can get concretized
-        res <- reduceStateDiff solver simplifier ng diff_state sd'
+        res <- reduceStateDiff solver simplifier ng diff_state sd
         case res of
             -- Nothing can be done with this diff - try the next
             Nothing -> return (RuleReturnLitTable, [diff_state], ng)
@@ -1764,10 +1761,10 @@ retLitTableFrame solver simplifier s ng ltc up stck = case ltc of
                 , ng' )
     StartedBuilding n -> let
         lts = lit_table_stack updated_state
+        (table, lts') = fromJust $ S.pop lts
         -- We just finished updating the lit table at the top of
         -- the stack so it should never be empty here
 
-        (table, lts') = fromJust $ S.pop lts
         table_map = lit_tables updated_state
         table_map' = HM.insert n table table_map
 
@@ -1803,8 +1800,11 @@ retLitTableFrame solver simplifier s ng ltc up stck = case ltc of
             then S.modifyTop (updateLiteralTable all_pcs e) $ lit_table_stack s
             else lit_table_stack s
 
-        diff_state = s { exec_stack = stck }
-        updated_state = s { exec_stack = stck, lit_table_stack = updated_lts }
+        -- Make sure the argument is always symbolic
+        sym_id = getLTArg s
+        s' = s { expr_env = E.insertSymbolic sym_id (expr_env s) }
+        diff_state = s' { exec_stack = stck }
+        updated_state = s' { exec_stack = stck, lit_table_stack = updated_lts }
 
 unwrapCurrExpr :: CurrExpr -> Expr
 unwrapCurrExpr (CurrExpr _ e) = e
