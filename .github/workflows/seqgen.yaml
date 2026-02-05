@@ -1,4 +1,4 @@
-name: SMT Synth
+name: Seq Gen
 
 on:
   push:
@@ -51,6 +51,6 @@ jobs:
       run: |
         cabal install --only-dependencies
     - name: Build
-      run: cabal build G2
-    # - name: Run tests
-    #   run: cabal run test-nebula-plugin
+      run: cabal build test-seq-gen
+    - name: Run tests
+      run: cabal run test-seq-gen

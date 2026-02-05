@@ -12,16 +12,15 @@ import System.Directory
 main :: IO ()
 main = do
     (src, m_entry, config) <- getSeqGenConfig
-    let config' = config { favor_chars = True }
     case m_entry of
         Just entry -> do
             let f = T.pack entry
-            _ <- genSMTFunc [] [src] f Nothing config'
+            _ <- genSMTFunc [] [src] f Nothing config
             return ()
         Nothing -> do
             cnt <- readFile src
             let lns = lines cnt
-            mapM_ (run config') $ map T.pack lns
+            mapM_ (run config) $ map T.pack lns
         where
             run con f = do
                 let spl_f = T.splitOn "." f

@@ -1,7 +1,8 @@
 {-# LANGUAGE BangPatterns, FlexibleContexts, OverloadedStrings #-}
 
 module G2.SMTSynth.Synthesizer ( getSeqGenConfig
-                               , genSMTFunc) where
+                               , genSMTFunc
+                               , seqGenConfig) where
 
 import G2.Config
 import G2.Execution.PrimitiveEval
@@ -93,7 +94,8 @@ import System.Process
 getSeqGenConfig :: IO (String, Maybe String, Config)
 getSeqGenConfig = do
     homedir <- getHomeDirectory
-    execParser (seqGenConfig homedir)
+    (fle, f, config) <- execParser (seqGenConfig homedir)
+    return (fle, f, config { favor_chars = True })
 
 seqGenConfig :: String -> ParserInfo (String, Maybe String, Config)
 seqGenConfig homedir =
