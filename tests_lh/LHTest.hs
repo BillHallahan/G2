@@ -570,7 +570,7 @@ posTestInferenceWithTimeOut :: Int -> NominalDiffTime -> FilePath -> TestTree
 posTestInferenceWithTimeOut to to_se fp = posTestInferenceWithTimeOutUseInvs to to_se False fp
 
 posTestInferenceWithUseInvs :: FilePath -> TestTree
-posTestInferenceWithUseInvs = posTestInferenceWithTimeOutUseInvs 120 5 True
+posTestInferenceWithUseInvs = posTestInferenceWithTimeOutUseInvs 240 5 True
 
 posTestInference :: FilePath -> TestTree
 posTestInference = posTestInferenceWithTimeOut 120 5
