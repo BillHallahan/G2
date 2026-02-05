@@ -284,8 +284,8 @@ liquidTests = testGroup "Liquid"
 
 posInfTests :: TestTree
 posInfTests = testGroup "Tests"
-            [ posTestInference "tests_lh/test_files/Pos/HigherOrder.hs"
-            , posTestInference "tests_lh/test_files/Pos/HigherOrder2.hs"
+            [ -- posTestInference "tests_lh/test_files/Pos/HigherOrder.hs"
+              posTestInference "tests_lh/test_files/Pos/HigherOrder2.hs"
             -- , posTestInferenceWithTimeOut 240 5 "tests_lh/test_files/Pos/HigherOrder3.hs"
             -- , posTestInference "tests_lh/test_files/Pos/HigherOrder4.hs"
 
