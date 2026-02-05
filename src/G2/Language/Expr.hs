@@ -1,4 +1,3 @@
-{-# LANGUAGE IncoherentInstances #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE OverloadedStrings #-}
 

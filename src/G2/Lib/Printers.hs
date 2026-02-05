@@ -16,6 +16,7 @@ module G2.Lib.Printers ( PrettyGuide
                        , mkUnsugaredExprHaskell
                        , mkTypeHaskell
                        , mkTypeHaskellPG
+                       , mkTypeHaskellDictArrows
                        , pprExecStateStr
                        , printFuncCall
 
@@ -59,6 +60,7 @@ import qualified Data.Text as T
 import Text.Read
 import qualified G2.Language.TyVarEnv as TV 
 import qualified G2.Language.PolyArgMap as PM
+
 data Clean = Cleaned | Dirty deriving Eq
 
 mkIdHaskell :: PrettyGuide -> Id -> T.Text
@@ -476,6 +478,7 @@ mkPrimHaskell pg = pr
         pr StrAt = "str.at"
         pr StrSubstr = "str.substr"
         pr StrIndexOf = "str.indexof"
+        pr StrContains = "str.contains"
         pr StrReplace = "str.replace"
         pr StrPrefixOf = "str.prefixof"
         pr StrSuffixOf = "str.suffixof"
@@ -536,40 +539,52 @@ mkTypeHaskell :: Type -> T.Text
 mkTypeHaskell = mkTypeHaskellPG (mkPrettyGuide ())
 
 mkTypeHaskellPG :: PrettyGuide -> Type -> T.Text
-mkTypeHaskellPG pg (TyVar i) = mkIdHaskell pg i
-mkTypeHaskellPG _ TyLitInt = "Int#"
-mkTypeHaskellPG _ TyLitWord = "Word#"
-mkTypeHaskellPG _ TyLitFloat = "Float#"
-mkTypeHaskellPG _ TyLitDouble = "Double#"
-mkTypeHaskellPG _ (TyLitFP e s) = "(FP#" <> T.pack (show e) <> " " <> T.pack (show s) <> ")"
-mkTypeHaskellPG _ TyLitRational = "Rational#"
-mkTypeHaskellPG _ (TyLitBV w) = "BV# " <> T.pack (show w)
-mkTypeHaskellPG _ TyLitChar = "Char#"
-mkTypeHaskellPG _ TyLitString = "String#"
-mkTypeHaskellPG pg (TyFun t1 t2)
-    | isTyFun t1 = "(" <> mkTypeHaskellPG pg t1 <> ") -> " <> mkTypeHaskellPG pg t2
-    | otherwise = mkTypeHaskellPG pg t1 <> " -> " <> mkTypeHaskellPG pg t2
-mkTypeHaskellPG pg (TyCon n _) | nameOcc n == "List"
-                               , nameModule n == Just "GHC.Types" = "[]"
-                               | nameOcc n == "Unit"
-                               , nameModule n == Just "GHC.Tuple" || nameModule n == Just "GHC.Tuple.Prim" = "()"
-                               | ("Tuple", k_str) <- T.splitAt 5 (nameOcc n)
-                               , nameModule n == Just "GHC.Tuple" || nameModule n == Just "GHC.Tuple.Prim"
-                               , Just k <- readMaybe (T.unpack k_str) = "(" <> T.pack (replicate (k - 1) ',') <> ")"
-                               | Just (c, _) <- T.uncons (nameOcc n)
-                               , not (isAlphaNum c) = "(" <> mkNameHaskell pg n <> ")"
-                               | otherwise = mkNameHaskell pg n
-mkTypeHaskellPG pg ty_app@(TyApp _ _)
-    | ts <- unTyApp ty_app =
-        let
-            mw t@(TyFun _ _) = "(" <> mkTypeHaskellPG pg t <> ")"
-            mw t = mkTypeHaskellPG pg t
-        in
-        "(" <> T.intercalate " " (map mw ts) <> ")"
-mkTypeHaskellPG pg (TyForAll i t) = "forall " <> mkIdHaskell pg i <> " . " <> mkTypeHaskellPG pg t
-mkTypeHaskellPG _ TyBottom = "Bottom"
-mkTypeHaskellPG _ TYPE = "Type"
-mkTypeHaskellPG _ (TyUnknown) = "Unknown"
+mkTypeHaskellPG pg = mkTypeHaskellPG' pg Nothing
+
+mkTypeHaskellDictArrows :: PrettyGuide -> TypeClasses -> Type -> T.Text
+mkTypeHaskellDictArrows pg tc = mkTypeHaskellPG' pg (Just tc)
+
+mkTypeHaskellPG' :: PrettyGuide -> Maybe TypeClasses -> Type -> T.Text
+mkTypeHaskellPG' pg m_tc = go
+    where
+        go (TyVar i) = mkIdHaskell pg i
+        go TyLitInt = "Int#"
+        go TyLitWord = "Word#"
+        go TyLitFloat = "Float#"
+        go TyLitDouble = "Double#"
+        go (TyLitFP e s) = "(FP#" <> T.pack (show e) <> " " <> T.pack (show s) <> ")"
+        go TyLitRational = "Rational#"
+        go (TyLitBV w) = "BV# " <> T.pack (show w)
+        go TyLitChar = "Char#"
+        go TyLitString = "String#"
+        go (TyFun t1 t2)
+            | isTyFun t1 = "(" <> go t1 <> ") -> " <> go t2
+            | Just tc <- m_tc
+            , isTypeClass tc t1 = go t1 <> " => " <> go t2
+            | otherwise = go t1 <> " -> " <> go t2
+        go (TyCon n _) | nameOcc n == "List"
+                                    , nameModule n == Just "GHC.Types" = "[]"
+                                    | nameOcc n == "Unit"
+                                    , nameModule n == Just "GHC.Tuple" || nameModule n == Just "GHC.Tuple.Prim" = "()"
+                                    | ("Tuple", k_str) <- T.splitAt 5 (nameOcc n)
+                                    , nameModule n == Just "GHC.Tuple" || nameModule n == Just "GHC.Tuple.Prim"
+                                    , Just k <- readMaybe (T.unpack k_str) = "(" <> T.pack (replicate (k - 1) ',') <> ")"
+                                    | Just (c, _) <- T.uncons (nameOcc n)
+                                    , not (isAlphaNum c) = "(" <> mkNameHaskell pg n <> ")"
+                                    | otherwise = mkNameHaskell pg n
+        go ty_app@(TyApp _ _)
+            | ts <- unTyApp ty_app =
+                let
+                    mw t@(TyFun _ _) = "(" <> go t <> ")"
+                    mw t = go t
+                in
+                "(" <> T.intercalate " " (map mw ts) <> ")"
+        go (TyForAll i t) = "forall " <> mkIdHaskell pg i <> " . " <> go t
+        go TyBottom = "Bottom"
+        go TYPE = "Type"
+        go (TyUnknown) = "Unknown"
+
+
 
 duplicate :: T.Text -> Int -> T.Text
 duplicate _ 0 = ""

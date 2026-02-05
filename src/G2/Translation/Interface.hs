@@ -72,7 +72,7 @@ translateLoaded :: [FilePath]
   -> [FilePath]
   -> TranslationConfig
   -> Config
-  -> IO ([Maybe T.Text], ExtractedG2)
+  -> IO ([Maybe T.Text], ExtractedG2, NameMap, TypeNameMap)
 translateLoaded proj src tr_con config = do
   let tr_con' = tr_con { hpc_ticks = hpc config || search_strat config == Subpath || hpc_discard_strat config }
   -- Stuff with the actual target
@@ -81,8 +81,18 @@ translateLoaded proj src tr_con config = do
   let imports = envModSumModGutsImports tar_ems
   extra_imp <- return . catMaybes =<< mapM (findImports (baseInclude config)) imports
 
+  -- If we are using SMT strings/sequences, set up base to load in SMT definitions
+  extra_imp' <- if smt_strings config == UseSMTStrings
+                   || smt_prim_lists config == UseSMTSeq
+                      then do
+                        root <- getHomeDirectory
+                        let smt_fle = root ++ "/.g2/smt/SMT.hs"
+                        smt_fle_exists <- doesFileExist smt_fle
+                        return $ if smt_fle_exists then smt_fle:extra_imp else extra_imp
+                      else return extra_imp
+
   -- Stuff with the base library
-  (base_exg2, b_nm, b_tnm) <- translateBase tr_con' config extra_imp Nothing
+  (base_exg2, b_nm, b_tnm) <- translateBase tr_con' config extra_imp' Nothing
 
   -- Now the stuff with the actual target
   (f_nm, f_tm, exg2) <- hskToG2ViaEMS tr_con'  tar_ems b_nm b_tnm
@@ -105,7 +115,7 @@ translateLoaded proj src tr_con config = do
 
   let final_exg2 = injected_exg2 { exg2_binds = final_prog }
 
-  return (mb_modname, final_exg2)
+  return (mb_modname, final_exg2, f_nm, f_tm)
 
 adjustMkSymbolicPrim :: SymLog -> T.Text -> Maybe T.Text -> NameMap -> ExtractedG2 -> ExtractedG2
 adjustMkSymbolicPrim sym_log occ_n md_nm nm exg2 =
