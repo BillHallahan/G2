@@ -1,4 +1,4 @@
-name: Nebula Plugin
+name: SMT Synth
 
 on:
   push:
