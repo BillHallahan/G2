@@ -178,6 +178,8 @@ genSMTFunc pls src f smt_def config = do
 formArg :: KnownValues -> TyVarEnv -> String -> Expr -> String
 formArg kv tv nm e
     | typeOf tv e == tyChar kv = "(C# " ++ nm ++ ")"
+    | typeOf tv e == tyInt kv = "(I# " ++ nm ++ ")"
+    | typeOf tv e == tyInteger kv = "(Z# " ++ nm ++ ")"
     | otherwise = nm
 
 formFunction :: State t -> [PatternRes] -> IO String
@@ -576,6 +578,7 @@ relArgs s = filter (not . isTypeClass (type_classes s) . typeOf (tyvar_env s)) .
 exprToTerm :: KnownValues -> Expr -> Term
 exprToTerm _ (Lit (LitInt x)) = TermLit (LitNum x)
 exprToTerm _ (Lit (LitChar x)) = TermLit (LitStr [x])
+exprToTerm _ (App _ (Lit (LitInt x))) = TermLit (LitNum x)
 exprToTerm _ (App _ (Lit (LitChar x))) = TermLit (LitStr [x])
 exprToTerm kv dc | dc == mkTrue kv = TermLit (LitBool True)
                  | dc == mkFalse kv = TermLit (LitBool False)
@@ -602,6 +605,8 @@ typeToSort _ t | t == TyLitInt = IdentSort (ISymb "Int")
 typeToSort _ t | t == TyLitChar = IdentSort (ISymb "String")
 typeToSort kv t | t == tyBool kv = IdentSort (ISymb "Bool")
 typeToSort kv (TyApp t _) | t == tyList kv = IdentSort (ISymb "String")
+typeToSort kv t | t == tyInt kv = IdentSort (ISymb "Int")
+typeToSort kv t | t == tyInteger kv = IdentSort (ISymb "Int")
 typeToSort kv t | t == tyChar kv = IdentSort (ISymb "String")
 typeToSort _ s = error $ "typeToSort: unsupported Type" ++ "\n" ++ show s
 
