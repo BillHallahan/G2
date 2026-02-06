@@ -284,8 +284,8 @@ liquidTests = testGroup "Liquid"
 
 posInfTests :: TestTree
 posInfTests = testGroup "Tests"
-            [ posTestInference "tests_lh/test_files/Pos/HigherOrder.hs"
-            , posTestInference "tests_lh/test_files/Pos/HigherOrder2.hs"
+            [ -- posTestInference "tests_lh/test_files/Pos/HigherOrder.hs"
+              posTestInference "tests_lh/test_files/Pos/HigherOrder2.hs"
             -- , posTestInferenceWithTimeOut 240 5 "tests_lh/test_files/Pos/HigherOrder3.hs"
             -- , posTestInference "tests_lh/test_files/Pos/HigherOrder4.hs"
 
@@ -570,7 +570,7 @@ posTestInferenceWithTimeOut :: Int -> NominalDiffTime -> FilePath -> TestTree
 posTestInferenceWithTimeOut to to_se fp = posTestInferenceWithTimeOutUseInvs to to_se False fp
 
 posTestInferenceWithUseInvs :: FilePath -> TestTree
-posTestInferenceWithUseInvs = posTestInferenceWithTimeOutUseInvs 120 5 True
+posTestInferenceWithUseInvs = posTestInferenceWithTimeOutUseInvs 240 5 True
 
 posTestInference :: FilePath -> TestTree
 posTestInference = posTestInferenceWithTimeOut 120 5

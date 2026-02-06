@@ -43,6 +43,7 @@ module G2.Lib.Printers ( PrettyGuide
 import G2.Language.Expr
 import qualified G2.Language.ExprEnv as E
 import G2.Language.Families
+import G2.Language.KnownValues
 import G2.Language.MutVarEnv
 import G2.Language.Naming
 import qualified G2.Language.PathConds as PC
@@ -76,8 +77,8 @@ mkNameHaskell pg n
     | otherwise = nameOcc n
 
 mkUnsugaredExprHaskell :: State t -> Expr -> T.Text
-mkUnsugaredExprHaskell (State {type_classes = tc, tyvar_env = tvnv }) =
-    mkExprHaskell Cleaned (mkPrettyGuide ()) . modifyMaybe (mkCleanExprHaskell' tvnv tc)
+mkUnsugaredExprHaskell (State {known_values = kv, type_classes = tc, tyvar_env = tvnv }) =
+    mkExprHaskell Cleaned (mkPrettyGuide ()) . modifyMaybe (mkCleanExprHaskell' tvnv kv tc)
 
 printHaskell :: State t -> Expr -> T.Text
 printHaskell = mkCleanExprHaskell (mkPrettyGuide ())
@@ -92,11 +93,11 @@ printHaskellPG :: PrettyGuide -> State t -> Expr -> T.Text
 printHaskellPG = mkCleanExprHaskell
 
 mkCleanExprHaskell :: PrettyGuide -> State t -> Expr -> T.Text
-mkCleanExprHaskell pg (State {type_classes = tc, tyvar_env = tvnv }) = 
-    mkExprHaskell Cleaned pg . modifyMaybe (mkCleanExprHaskell' tvnv tc)
+mkCleanExprHaskell pg (State {known_values = kv,type_classes = tc, tyvar_env = tvnv }) = 
+    mkExprHaskell Cleaned pg . modifyMaybe (mkCleanExprHaskell' tvnv kv tc)
 
-mkCleanExprHaskell' :: TV.TyVarEnv -> TypeClasses -> Expr -> Maybe Expr
-mkCleanExprHaskell' tv tc e
+mkCleanExprHaskell' :: TV.TyVarEnv -> KnownValues -> TypeClasses -> Expr -> Maybe Expr
+mkCleanExprHaskell' tv kv tc e
     | Case scrut i t [a] <- e = Case scrut i t . (:[]) <$> elimPrimDC a
 
     | (App e' e'') <- e
@@ -109,6 +110,10 @@ mkCleanExprHaskell' tv tc e
 
     | (App e' e'') <- e
     , isTypeClass tc (returnType (typeOf tv e'') ) = Just e'
+
+    | (App e' e'') <- e
+    , TyCon n _:_ <- unTyApp $ typeOf tv e''
+    , n == tyIP kv = Just e'
 
     | (App e' e'') <- e
     , Coercion _ <- e'' = Just e'

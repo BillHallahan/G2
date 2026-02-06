@@ -63,6 +63,9 @@ data KnownValues = KnownValues {
 
                  , tyHandle :: Name
 
+                 -- Implicit parameter wrapper
+                 , tyIP :: Name
+
                  -- Typeclasses
                  , eqTC :: Name
                  , numTC :: Name
