@@ -200,13 +200,7 @@ solveOnePattern s (PL { pattern = varred_form, pat_ids = is, lit_vals = constrai
     let pg = mkPrettyGuide is
     new_pieces <- mapM (\(i@(Id _ t), constraints_) -> do
                             new_smt_def <- computeProdPieces constraints_
-                            -- If we have a TyLitChar, we are guaranteed (by the structure of the SyGuS grammar)
-                            -- to have generated code that is returning a single character string. We thus
-                            -- need to get that single character out of the string to return it.
-                            let smt_def = if t == TyLitChar
-                                            then "case " ++ new_smt_def ++ " of [C# c] -> c"
-                                            else new_smt_def
-                            return $ "!" ++ T.unpack (printName pg (idName i)) ++ " = (" ++ smt_def ++ ")")
+                            return $ "!" ++ T.unpack (printName pg (idName i)) ++ " = (" ++ new_smt_def ++ ")")
                         is_constraints
     let new_smt_def = "let " ++ intercalate "; " new_pieces ++ " in "
                     ++ T.unpack (toHaskellCode s pg varred_form)
@@ -681,6 +675,6 @@ smtFuncToPrim s vl_args = conv s ++ conv_args
                               | otherwise -> error "smtFuncToPrim: ite wrong arg count"
                         "fromChar" | [a] <- vl_args -> "[C# " ++ a ++ "]"
                                    | otherwise -> error "smtFuncToPrim: fromChar wrong arg count"
-                        "toChar" | [a] <- vl_args -> "(ite (strLen# " ++ a ++ " $>=# 0#) (strAt# " ++ a ++ " 0#) \"!\")"
+                        "toChar" | [a] <- vl_args -> "case (ite (strLen# " ++ a ++ " $>=# 0#) (strAt# " ++ a ++ " 0#) \"!\") of [C# c] -> c"
                         _ -> " " ++ intercalate " " vl_args
 
