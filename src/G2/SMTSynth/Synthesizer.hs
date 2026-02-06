@@ -1,7 +1,9 @@
 {-# LANGUAGE BangPatterns, FlexibleContexts, OverloadedStrings #-}
 
 module G2.SMTSynth.Synthesizer ( getSeqGenConfig
-                               , genSMTFunc) where
+                               , genSMTFunc
+                               , adjustConfig
+                               , seqGenConfig) where
 
 import G2.Config
 import G2.Execution.PrimitiveEval
@@ -93,7 +95,11 @@ import System.Process
 getSeqGenConfig :: IO (String, Maybe String, Config)
 getSeqGenConfig = do
     homedir <- getHomeDirectory
-    execParser (seqGenConfig homedir)
+    (fle, f, config) <- execParser (seqGenConfig homedir)
+    return (fle, f, adjustConfig config )
+
+adjustConfig :: Config -> Config
+adjustConfig c = c { favor_chars = True, search_strat = Subpath }
 
 seqGenConfig :: String -> ParserInfo (String, Maybe String, Config)
 seqGenConfig homedir =
@@ -404,10 +410,11 @@ runSygus sygus_cmds = do
             T.hPutStrLn h_in $ printSygus c
             T.putStrLn $ printSygus c
         ) sygus_cmds
-    _ <- hWaitForInput h_out 70
+    _ <- hWaitForInput h_out 1000
     out <- getLinesMatchParens h_out
     _ <- evaluate (length out)
     putStrLn out
+    T.hPutStrLn h_in "(exit)"
     -- We get back something of the form:
     --  ((define-fun ... ))
     -- The parseSygus function does not like having the extra "("/")" at the beginning/end-
@@ -500,7 +507,7 @@ argList :: [String]
 argList = varList "z"
 
 getCVC5Sygus :: Int -> IO (Handle, Handle, ProcessHandle)
-getCVC5Sygus time_out = getProcessHandles $ proc "cvc5" ["--lang", "sygus", "--no-sygus-pbe", "--tlimit-per=" ++ show time_out]
+getCVC5Sygus time_out = getProcessHandles $ proc "cvc5" ["--lang", "sygus", "--tlimit-per=" ++ show time_out]
 
 parseSygus :: String -> [Cmd]
 parseSygus = Sy.parse . Sy.lexSygus
