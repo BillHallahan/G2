@@ -87,6 +87,8 @@ initKnownValues eenv tenv tc =
 
     , tyHandle = typeWithStrName tenv "Handle"
 
+    , tyIP = typeWithStrName tenv "IP"
+
     , eqTC = eqT
     , numTC = numT
     , ordTC = ordT
