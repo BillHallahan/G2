@@ -162,15 +162,23 @@ genSMTFunc pls src f smt_def config = do
         [] | Just (s, (Id _ smt_t), smt_def') <- smt_def ->
                 return (T.unpack (mkTypeHaskellDictArrows (mkPrettyGuide ()) (type_classes s) smt_t), smt_def')
            | otherwise -> error "genSMTFunc: no SMT function generated" 
-        (er:_) -> do
+        (er@(ExecRes { final_state = s }):_) -> do
             putStrLn "\n--- Synthesizing --- "
             let pls' = foldr (insertER ng) pls ers
 
-            new_smt_piece <- formFunction (final_state er) pls'
+            new_smt_piece <- formFunction s pls'
 
-            let vs = zipWith const argList (relArgs (final_state er) $ conc_args er)
+            let kv = known_values s
+                tv_env = tyvar_env s 
+                
+                vs = zipWith (formArg kv tv_env) argList (relArgs (final_state er) $ conc_args er)
                 new_smt_def = T.unpack (smtName f) ++ " " ++ intercalate " " vs ++ " = " ++ new_smt_piece
             genSMTFunc pls' src f (Just (final_state er, entry_f, new_smt_def)) config
+
+formArg :: KnownValues -> TyVarEnv -> String -> Expr -> String
+formArg kv tv nm e
+    | typeOf tv e == tyChar kv = "(C# " ++ nm ++ ")"
+    | otherwise = nm
 
 formFunction :: State t -> [PatternRes] -> IO String
 formFunction _ [] = error "formFunction: empty list"
@@ -188,9 +196,15 @@ solveOnePattern s (PL { pattern = varred_form, pat_ids = is, lit_vals = constrai
     let is_constraints = zip is constraints
 
     let pg = mkPrettyGuide is
-    new_pieces <- mapM (\(i, constraints_) -> do
+    new_pieces <- mapM (\(i@(Id _ t), constraints_) -> do
                             new_smt_def <- computeProdPieces constraints_
-                            return $ "!" ++ T.unpack (printName pg (idName i)) ++ " = (" ++ new_smt_def ++ ")")
+                            -- If we have a TyLitChar, we are guaranteed (by the structure of the SyGuS grammar)
+                            -- to have generated code that is returning a single character string. We thus
+                            -- need to get that single character out of the string to return it.
+                            let smt_def = if t == TyLitChar
+                                            then "case " ++ new_smt_def ++ " of [C# c] -> c"
+                                            else new_smt_def
+                            return $ "!" ++ T.unpack (printName pg (idName i)) ++ " = (" ++ smt_def ++ ")")
                         is_constraints
     let new_smt_def = "let " ++ intercalate "; " new_pieces ++ " in "
                     ++ T.unpack (toHaskellCode s pg varred_form)
@@ -345,6 +359,7 @@ setUpSpec h (Just (s, Id n t, spec)) = do
            . snd
            $ splitTyForAlls t
         contents = "{-# LANGUAGE BangPatterns, MagicHash, ScopedTypeVariables #-}\nmodule Spec where\nimport GHC.Prim2\n"
+                    ++ "import GHC.Types2\n"
                     ++ "import Control.Exception\n"
                     ++ "import System.IO.Unsafe\n\n"
                     ++ "tryMaybe :: IO a -> IO (Maybe a)\n"
@@ -432,11 +447,27 @@ sygusCmds er@(ExecRes { final_state = s@(State { tyvar_env = tv_env }), conc_arg
                                              [SortedVar "x" srt, SortedVar "y" srt]
                                              boolSort
                                              (TermCall (ISymb "=") [TermIdent (ISymb "x"), TermIdent (ISymb "y")])
+        from_char = SmtCmd $ DefineFun "fromChar"
+                                        [SortedVar "x" strSort]
+                                        strSort
+                                        (TermIdent (ISymb "x"))
+        -- toChar returns the first character of a non-empty string, or "!" if passed an empty string.
+        -- "!" is an arbitary choice- we just need SOME behavior that can be made consistent with the Haskell translation.
+        to_char = SmtCmd $ DefineFun "toChar"
+                                        [SortedVar "x" strSort]
+                                        strSort
+                                        (TermCall (ISymb "ite")
+                                            [ TermCall (ISymb ">")
+                                                [ TermCall (ISymb "str.len") [ TermIdent (ISymb "x") ], TermLit (LitNum 0) ]
+                                            , TermCall (ISymb "str.at") [TermIdent (ISymb "x"), TermLit (LitNum 0)]
+                                            , TermLit (LitStr "!")])
         grm = GrammarDef pre_dec gram_defs'
     in
     [ SmtCmd $ SetLogic "ALL"
     , define_eq "strEq" strSort
     , define_eq "intEq" intSort
+    , from_char
+    , to_char
     , SynthFun "spec" arg_vars ret_sort (Just grm) ]
     ++ map execResToConstraints er ++
     [CheckSynth]
@@ -447,24 +478,36 @@ sygusCmds er@(ExecRes { final_state = s@(State { tyvar_env = tv_env }), conc_arg
         strSort = IdentSort (ISymb "String")
         boolSort = IdentSort (ISymb "Bool")
 
-        args_sort = map (typeToSort kv . typeOf tv_env) $ relArgs s args
-        arg_vars = map (uncurry SortedVar) $ zip argList args_sort
-        ret_sort = typeToSort kv $ typeOf tv_env out_e
+        arg_types = map (typeOf tv_env) $ relArgs s args
+        args_sort = map (typeToSort kv) arg_types
+        arg_vars = zipWith SortedVar argList args_sort
+
+        ret_type = typeOf tv_env out_e
+        ret_sort = typeToSort kv ret_type
+
+        char_args = map fst . filter ((==) (tyChar kv) . snd) $ zip argList arg_types
+        str_args = map fst . filter ((==) (tyString kv) . snd) $ zip argList arg_types
 
         intIdent = BfIdentifier (ISymb "IntPr")
+        charIdent = BfIdentifier (ISymb "CharPr")
         strIdent = BfIdentifier (ISymb "StrPr")
         boolIdent = BfIdentifier (ISymb "BoolPr")
 
         -------------------------------
         -- Grammar
         -------------------------------
-        grmString = [ GVariable strSort
-                    , GBfTerm (BfIdentifierBfs (ISymb "ite") [ boolIdent, strIdent, strIdent])
+        grmString = map (GBfTerm . BfIdentifier . ISymb) str_args
+                    ++
+                    [ GBfTerm (BfIdentifierBfs (ISymb "ite") [ boolIdent, strIdent, strIdent])
                     , GBfTerm (BfIdentifierBfs (ISymb "str.++") [ strIdent, strIdent])
                     , GBfTerm (BfIdentifierBfs (ISymb "str.substr") [ strIdent, intIdent, intIdent])
                     , GBfTerm (BfIdentifierBfs (ISymb "str.replace") [ strIdent, strIdent, strIdent])
+                    , GBfTerm (BfIdentifierBfs (ISymb "fromChar") [ charIdent ])
                     -- , GBfTerm (BfIdentifierBfs (ISymb "str.replace_all") [ strIdent, strIdent, strIdent])
                     ]
+        grmChar = map (GBfTerm . BfIdentifier . ISymb) char_args
+                  ++
+                  [ GBfTerm (BfIdentifierBfs (ISymb "toChar") [ strIdent ])]
         grmInt = [ GVariable intSort
                  , GBfTerm (BfIdentifierBfs (ISymb "ite") [ boolIdent, intIdent, intIdent])
                  , GBfTerm (BfLiteral (LitNum 0))
@@ -483,12 +526,13 @@ sygusCmds er@(ExecRes { final_state = s@(State { tyvar_env = tv_env }), conc_arg
                   ]
 
 
-        gram_defs = [ GroupedRuleList "StrPr" strSort grmString
-                    , GroupedRuleList "IntPr" intSort grmInt
-                    , GroupedRuleList "BoolPr" boolSort grmBool]
-        find_start_gram = findElem (\(GroupedRuleList _ srt _) -> srt == ret_sort) gram_defs
+        ty_gram_defs = [ (tyString kv, GroupedRuleList "StrPr" strSort grmString)
+                       , (TyLitChar, GroupedRuleList "CharPr" strSort grmChar)
+                       , (TyLitInt, GroupedRuleList "IntPr" intSort grmInt)
+                       , (tyBool kv, GroupedRuleList "BoolPr" boolSort grmBool)]
+        find_start_gram = findElem (\(ty, _) -> ty == ret_type) ty_gram_defs
         gram_defs' = case find_start_gram of
-                            Just (start_sym, other_sym) -> start_sym:other_sym
+                            Just (start_sym, other_sym) -> map snd $ start_sym:other_sym
                             Nothing -> error "runSygus: no start symbol"
         pre_dec = map (\(GroupedRuleList n srt _) -> SortedVar n srt) gram_defs'
 
@@ -531,6 +575,8 @@ relArgs s = filter (not . isTypeClass (type_classes s) . typeOf (tyvar_env s)) .
 
 exprToTerm :: KnownValues -> Expr -> Term
 exprToTerm _ (Lit (LitInt x)) = TermLit (LitNum x)
+exprToTerm _ (Lit (LitChar x)) = TermLit (LitStr [x])
+exprToTerm _ (App _ (Lit (LitChar x))) = TermLit (LitStr [x])
 exprToTerm kv dc | dc == mkTrue kv = TermLit (LitBool True)
                  | dc == mkFalse kv = TermLit (LitBool False)
 exprToTerm _ e | Just t <- toStringTerm e = t
@@ -553,8 +599,10 @@ toStringTerm _ = Nothing
 
 typeToSort :: KnownValues -> Type -> Sort
 typeToSort _ t | t == TyLitInt = IdentSort (ISymb "Int")
+typeToSort _ t | t == TyLitChar = IdentSort (ISymb "String")
 typeToSort kv t | t == tyBool kv = IdentSort (ISymb "Bool")
 typeToSort kv (TyApp t _) | t == tyList kv = IdentSort (ISymb "String")
+typeToSort kv t | t == tyChar kv = IdentSort (ISymb "String")
 typeToSort _ s = error $ "typeToSort: unsupported Type" ++ "\n" ++ show s
 
 -------------------------------------------------------------------------------
@@ -617,6 +665,8 @@ smtFuncToPrim s vl_args = conv s ++ conv_args
         conv "str.replace" = "strReplace#"
         conv "strEq" = "strEq#"
         conv "intEq" = "($==#)"
+        conv "fromChar" = ""
+        conv "toChar" = ""
         conv "+" = "(+#)"
         conv "ite" = ""
         conv f = error $ "smtFuncToPrim: unsupported " ++ f
@@ -624,5 +674,8 @@ smtFuncToPrim s vl_args = conv s ++ conv_args
         conv_args = case s of
                         "ite" | [a1, a2, a3] <- vl_args -> "(if " ++ a1 ++ " then " ++ a2 ++ " else " ++ a3 ++ ")"
                               | otherwise -> error "smtFuncToPrim: ite wrong arg count"
+                        "fromChar" | [a] <- vl_args -> "[C# " ++ a ++ "]"
+                                   | otherwise -> error "smtFuncToPrim: fromChar wrong arg count"
+                        "toChar" | [a] <- vl_args -> "(ite (strLen# " ++ a ++ " $>=# 0#) (strAt# " ++ a ++ " 0#) \"!\")"
                         _ -> " " ++ intercalate " " vl_args
 
