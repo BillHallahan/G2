@@ -124,17 +124,26 @@ stdReduce' _ symb_func_eval solver simplifier s@(State { curr_expr = CurrExpr Re
 
 -- | Separate a type into what is required for some RankNTypes rules.
 sepTypeForRNT :: Type -> ([Type], Maybe Type, [Type], Maybe Type)
-sepTypeForRNT full_type = (vs, t, tms, tr)
+sepTypeForRNT full_type = trace (show (vs, t, tms, tr)) (vs, t, tms, tr)
     where 
         (vs, remain) = getVs full_type
         (t, remain') = getT remain
         (tms, tr) = getTms remain'
 
-        getVs :: Type -> ([Type], Maybe Type)
+        {- getVs :: Type -> ([Type], Maybe Type)
         getVs (TyForAll v _vs) = let 
             (vs', rest) = getVs _vs 
                 in (TyVar v:vs', rest)
+        getVs notFA = ([], Just notFA) -}
+
+        -- TODO: expected difference between this and above implementation
+        -- on forall a b. b -> b, but behaved the same. Make sure this impl. is needed.
+        getVs :: Type -> ([Type], Maybe Type) 
+        getVs (TyForAll (Id vn _) _vs) = let 
+            (vs', rest) = getVs _vs 
+                in (TyVar (Id vn TYPE):vs', rest)
         getVs notFA = ([], Just notFA)
+        
 
         getT :: Maybe Type -> (Maybe Type, Maybe Type)
         getT (Just (TyFun first rest)) = (Just first, Just rest)
@@ -146,6 +155,9 @@ sepTypeForRNT full_type = (vs, t, tms, tr)
                 in (tm1:tms', rest)
         getTms mtr = ([], mtr) -- ignore last in tms, return as tr
 
+mkNestedTypeLam :: [Id] -> Expr -> Expr
+mkNestedTypeLam vs e = foldr (Lam TypeL) e vs
+
 evalVarSharing :: State t -> NameGen -> Id -> (Rule, [State t], NameGen)
 evalVarSharing s@(State { expr_env = eenv
                         , exec_stack = stck })
@@ -153,17 +165,14 @@ evalVarSharing s@(State { expr_env = eenv
 
     | E.isSymbolic (idName i) eenv             -- PM-INST-VAR
     , Id _ iTy <- i
-    , (vs@[_], mt, tms, mtr) <- sepTypeForRNT iTy
-    , trace (show (vs, mt, tms, mtr)) isJust mt
-    , isJust mtr
-    , t <- fromJust mt
-    , tr <- fromJust mtr
+    , (as@(_:_), Just t, tms, Just tr) <- sepTypeForRNT iTy
     , t == tr
-    , tr `elem` vs
+    , tr `elem` as
       =
         let
-            ([v, x], ng') = freshIds [head vs, t] ng
-            e' = Lam TypeL v (Lam TermL x (Var x))
+            (x:vs, ng') = freshIds (t:as) ng
+            inner = Lam TermL x (Var x)
+            e' = mkNestedTypeLam vs inner
             eenv' = E.insert (idName i) e' eenv 
             in
                 trace "hit tyforall" 
