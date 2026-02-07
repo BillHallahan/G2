@@ -99,7 +99,6 @@ import qualified Data.Sequence as Seq
 import qualified Data.Text as T
 import qualified Data.List as L
 import qualified G2.Language.TyVarEnv as TV
-import qualified G2.Language.PolyArgMap as PM
 import System.Timeout
 
 type AssumeFunc = T.Text
@@ -210,7 +209,6 @@ initStateFromSimpleState s m_mod useAssert mkCurr argTys config =
       expr_env = foldr E.insertSymbolic eenv' val_is
     , type_env = tenv'
     , tyvar_env = tv_env
-    , poly_arg_map = PM.empty
     , curr_expr = CurrExpr Evaluate ce
     , path_conds = PC.fromList []
     , non_red_path_conds = empty_nrpc
