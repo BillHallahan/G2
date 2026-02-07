@@ -155,30 +155,31 @@ sepTypeForRNT full_type = trace (show (vs, t, tms, tr)) (vs, t, tms, tr)
                 in (tm1:tms', rest)
         getTms mtr = ([], mtr) -- ignore last in tms, return as tr
 
-mkNestedTypeLam :: [Id] -> Expr -> Expr
-mkNestedTypeLam vs e = foldr (Lam TypeL) e vs
+mkNestedLam :: LamUse -> [Id] -> Expr -> Expr
+mkNestedLam lu vs e = foldr (Lam lu) e vs
 
 evalVarSharing :: State t -> NameGen -> Id -> (Rule, [State t], NameGen)
 evalVarSharing s@(State { expr_env = eenv
                         , exec_stack = stck })
                ng i
 
-    | E.isSymbolic (idName i) eenv             -- PM-INST-VAR
+    | E.isSymbolic (idName i) eenv              -- PM-INST-VAR
     , Id _ iTy <- i
     , (as@(_:_), Just t, tms, Just tr) <- sepTypeForRNT iTy
     , t == tr
     , tr `elem` as
       =
         let
-            (x:vs, ng') = freshIds (t:as) ng
-            inner = Lam TermL x (Var x)
-            e' = mkNestedTypeLam vs inner
+            (vs, ng') = freshIds as ng
+            (term_args@(x:_), ng'') = freshIds (t:tms) ng'
+            innerEx = mkNestedLam TermL term_args (Var x)
+            e' = mkNestedLam TypeL vs innerEx
             eenv' = E.insert (idName i) e' eenv 
             in
                 trace "hit tyforall" 
             (RuleEvalVal, 
             [s { curr_expr = CurrExpr Return e'
-               , expr_env = eenv' }], ng')
+               , expr_env = eenv' }], ng'')
 
 
     | E.isSymbolic (idName i) eenv =
