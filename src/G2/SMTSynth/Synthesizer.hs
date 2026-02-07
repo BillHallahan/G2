@@ -675,6 +675,6 @@ smtFuncToPrim s vl_args = conv s ++ conv_args
                               | otherwise -> error "smtFuncToPrim: ite wrong arg count"
                         "fromChar" | [a] <- vl_args -> "[C# " ++ a ++ "]"
                                    | otherwise -> error "smtFuncToPrim: fromChar wrong arg count"
-                        "toChar" | [a] <- vl_args -> "case (ite (strLen# " ++ a ++ " $>=# 0#) (strAt# " ++ a ++ " 0#) \"!\") of [C# c] -> c"
+                        "toChar" | [a] <- vl_args -> "(case (ite (strLen# " ++ a ++ " $>=# 0#) (strAt# " ++ a ++ " 0#) \"!\") of [C# c] -> c)"
                         _ -> " " ++ intercalate " " vl_args
 
