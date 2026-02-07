@@ -60,7 +60,6 @@ import qualified Data.HashSet as HS
 import qualified Data.Text as T
 import Text.Read
 import qualified G2.Language.TyVarEnv as TV 
-import qualified G2.Language.PolyArgMap as PM
 
 data Clean = Cleaned | Dirty deriving Eq
 
@@ -634,8 +633,6 @@ prettyState pg pretty_track s =
         , pretty_tenv
         , "----- [TyVars] ---------------------"
         , pretty_tyvar_env
-        , "----- [PolyArgMap] -----------------"
-        , pretty_pargm
         , "----- [Typeclasses] ---------------------"
         , pretty_tc
         , "----- [Families] ---------------------"
@@ -662,7 +659,6 @@ prettyState pg pretty_track s =
         pretty_handles = prettyHandles pg $ handles s
         pretty_mutvars = prettyMutVars pg . HM.map mv_val_id $ mutvar_env s
         pretty_tenv = prettyTypeEnv (tyvar_env s) pg (type_env s)
-        pretty_pargm = prettyPolyArgMap (poly_arg_map s) pg
         pretty_tyvar_env = prettyTypeVarEnv pg (tyvar_env s)
         pretty_tc = prettyTypeClasses pg (type_classes s)
         pretty_fams = prettyFamilies pg (families s)
@@ -802,21 +798,6 @@ prettyTypeVarEnv pg = T.intercalate "\n"
         prettyTyConcOrSym (TV.TyConc t) = mkTypeHaskellPG pg t
         prettyTyConcOrSym (TV.TySym i) = "symbolic " <> mkIdHaskell pg i
 
-prettyPolyArgMap :: PM.PolyArgMap -> PrettyGuide -> T.Text
-prettyPolyArgMap pargm pg = "-- Arg_Map --\n" `T.append` T.intercalate "\n" (map entryText (fst . PM.toLists $ pargm)) `T.append` 
-        "\n-- Run_to_Env --\n" `T.append` runToEnvText (snd . PM.toLists $ pargm)
-            where
-                entryText :: (Name, [(Name, Name, Maybe Type)]) -> T.Text
-                entryText (n, sets) = mkNameHaskell pg n <> " -> " <> setText sets
-                setText :: [(Name, Name, Maybe Type)] -> T.Text
-                setText hm = "{" <> T.intercalate ", " (map lrText hm) <> "}"
-                lrText :: (Name, Name, Maybe Type) -> T.Text
-                lrText (l, r, mt) = "[" <> mkNameHaskell pg l <> " -> " <> mkNameHaskell pg r <> "] : " 
-                    <> maybe "Val" (\t -> "Func" <> mkTypeHaskell t) mt
-                runToEnvText :: [(Name, Name)] -> T.Text
-                runToEnvText = T.intercalate "\n" . map (\(rTv, eTv) -> 
-                    mkNameHaskell pg rTv <> " -> " <> mkNameHaskell pg eTv)
-
 prettyTypeClasses :: PrettyGuide -> TypeClasses -> T.Text
 prettyTypeClasses pg = T.intercalate "\n" . map (\(n, tc) -> mkNameHaskell pg n <> " = " <> prettyClass pg tc) . HM.toList . toMap
 
@@ -856,7 +837,6 @@ pprExecStateStr ex_state b = injNewLine acc_strs
     names_str = pprExecNamesStr (name_gen b)
     input_str = pprInputIdsStr (E.symbolicIds . expr_env $ ex_state)
     paths_str = pprPathsStr (PC.toList $ path_conds ex_state)
-    pargm_str = pprPolyArgMapStr (poly_arg_map ex_state)
     non_red_paths_str = injNewLine (map show . toListNRPC $ non_red_path_conds ex_state)
     tc_str = pprTCStr (type_classes ex_state)
     cleaned_str = pprCleanedNamesStr (cleaned_names b)
@@ -880,8 +860,6 @@ pprExecStateStr ex_state b = injNewLine acc_strs
                , paths_str
                , "----- [Non Red Paths] ---------------------"
                , non_red_paths_str
-               , "----- [PolyArgMap] ----------------"
-               , pargm_str 
                , "----- [True Assert] ---------------------"
                , "True Assert = " ++ show (true_assert ex_state)
                , "----- [Assert Ids] ---------------------"
@@ -932,13 +910,6 @@ pprPathsStr :: [PathCond] -> String
 pprPathsStr paths = injNewLine cond_strs
   where
     cond_strs = map pprPathCondStr paths
-
-pprPolyArgMapStr :: PM.PolyArgMap -> String
-pprPolyArgMapStr pargm = "-- Arg_Map --\n" ++ concatMap (\(k, ents) -> show k ++ " -> " ++ showEntry ents) (fst . PM.toLists $ pargm)
-        ++ "\n-- Run_to_Env --\n" ++ concatMap (\(k, v) -> show k ++ " -> " ++ show v) (snd . PM.toLists $ pargm)
-    where
-    showEntry :: [(Name, Name, Maybe Type)]-> String
-    showEntry hm = T.unpack $ T.intercalate ", " (map (T.pack . show) hm)
 
 pprTCStr :: TypeClasses -> String
 pprTCStr tc = injNewLine cond_strs
