@@ -832,7 +832,7 @@ baseTests = testGroup "Base"
     [
       checkInputOutput "tests/Samples/Peano.hs" "add" 400 [AtLeast 4]
 
-    , checkInputOutput "tests/BaseTests/HasCallStack.hs" "f" 1000 [Exactly 2]
+    , checkInputOutputsADTHeight "tests/Samples/Peano.hs" [ ("add", 6, [Exactly 6]) ]
 
     , checkInputOutputs "tests/BaseTests/ListTests.hs" [ ("test", 1000, [AtLeast 1])
                                                        , ("maxMap", 1000, [AtLeast 4])

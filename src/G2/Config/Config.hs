@@ -113,8 +113,12 @@ data Config = Config {
     , smt_strings_strictness :: SMTStringsEval -- ^ Force strict evaluation of strings to allow more use of SMT reasoning
     , quantified_smt_strings :: SMTQuantifiers -- ^ Sets how quantifiers should be used in SMT functions
     , smt_prim_lists :: UseSMTSeq -- ^ Sets whether the SMT solver should be used to solve lists containing primitive type wrappers (Int, Float, etc.)
+    
     , step_limit :: Bool -- ^ Should steps be limited when running states?
     , steps :: Int -- ^ How many steps to take when running States
+
+    , height_limit :: Maybe Int -- ^ What is the ADT height limit?
+
     , time_solving :: Bool -- ^ Output the amount of time spent checking/solving path constraints
     , print_num_solver_calls :: Bool -- ^ Output the number of calls made to check/solve path constraints
     , print_solver_sol_counts :: Bool -- ^ Output the number of sat/unsat/unknown solver results from the SMT solver
@@ -206,11 +210,19 @@ mkConfig homedir = Config Regular
                                           <> value (UnrollQuant 10)
                                           <> help "Either `-` to indicate that quantifiers should be used in SMT formulas, or a depth to unroll quantifiers to")
     <*> flag NoSMTSeq UseSMTSeq (long "smt-lists" <> help "Sets whether the SMT solver should be used to solve list constraints for primitive types")
+    
     <*> flag True False (long "no-step-limit" <> help "disable step limit")
     <*> option auto (long "n"
                    <> metavar "N"
                    <> value 1000
                    <> help "how many steps to take when running states")
+
+    <*> option (maybeReader (Just . readMaybe))
+            ( long "height-limit"
+            <> metavar "H"
+            <> value Nothing
+            <> help "the maximum height of a concretized symbolic variable")
+
     <*> switch (long "solver-time" <> help "output the amount of time spent checking/solving path constraints")
     <*> switch (long "print-num-solver-calls" <> help "output the number of calls made to check/solve path constraints")
     <*> switch (long "print-sol-counts" <> help "output the number of sat/unsat/unknown solver results from the SMT solver")
@@ -381,8 +393,12 @@ mkConfigDirect homedir as m = Config {
     , smt_strings_strictness = LazySMTStrings
     , quantified_smt_strings = UnrollQuant 10
     , smt_prim_lists = NoSMTSeq
+    
     , step_limit = boolArg' "no-step-limit" as True True False
     , steps = strArg "n" as m read 1000
+
+    , height_limit = Nothing
+
     , time_solving = False
     , print_num_solver_calls = False
     , print_solver_sol_counts = False

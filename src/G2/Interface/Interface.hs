@@ -424,6 +424,11 @@ initRedHaltOrd s mod_name solver simplifier config exec_func_names no_nrpc_names
                                         SomeHalter (hpcApproximationHalter solver approx_no_inline) .<~> halter_hpc_discard
                                     False -> halter_hpc_discard
 
+        halter_height = case height_limit config of
+                                    Just lim ->
+                                        SomeHalter (adtHeightHalter lim) .<~> halter_approx_discard
+                                    Nothing -> halter_hpc_discard
+
         orderer = case search_strat config of
                         Subpath -> SomeOrderer . liftOrderer $ lengthNSubpathOrderer (subpath_length config)
                         Iterative -> SomeOrderer $ pickLeastUsedOrderer
@@ -432,17 +437,17 @@ initRedHaltOrd s mod_name solver simplifier config exec_func_names no_nrpc_names
         case higherOrderSolver config of
             AllFuncs ->
                 ( nrpc_approx_red retReplaceSymbFuncVar .== Finished .--> SomeReducer nonRedPCRed
-                , SomeHalter (discardIfAcceptedTagHalter True state_name) .<~> halter_approx_discard
+                , SomeHalter (discardIfAcceptedTagHalter True state_name) .<~> halter_height
                 , orderer
                 , io_timed_out)
             SingleFunc ->
                 ( nrpc_approx_red retReplaceSymbFuncVar .== Finished .--> taggerRed state_name :== Finished --> nonRedPCRed
-                , SomeHalter (discardIfAcceptedTagHalter True state_name) .<~> halter_approx_discard
+                , SomeHalter (discardIfAcceptedTagHalter True state_name) .<~> halter_height
                 , orderer
                 , io_timed_out)
             SymbolicFunc ->
                 ( nrpc_approx_red retReplaceSymbFuncTemplate .== Finished .--> taggerRed state_name :== Finished --> nonRedPCSymFuncRed
-                , SomeHalter (discardIfAcceptedTagHalter True state_name) .<~> halter_approx_discard
+                , SomeHalter (discardIfAcceptedTagHalter True state_name) .<~> halter_height
                 , orderer
                 , io_timed_out)
 
