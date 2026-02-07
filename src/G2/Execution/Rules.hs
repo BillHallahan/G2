@@ -55,6 +55,8 @@ import Control.Monad.Extra
 import Data.Maybe
 import Data.Traversable
 
+import Debug.Trace
+
 stdReduce :: (Solver solver, Simplifier simplifier) => Sharing -> SymbolicFuncEval t -> solver -> simplifier -> State t -> Bindings -> IO (Rule, [(State t, ())], Bindings)
 stdReduce share symb_func_eval solver simplifier s b = do
     (r, s', ng') <- stdReduce' share symb_func_eval solver simplifier s b
@@ -120,10 +122,56 @@ stdReduce' _ symb_func_eval solver simplifier s@(State { curr_expr = CurrExpr Re
         where
             frstck = S.pop stck
 
+-- | Separate a type into what is required for some RankNTypes rules.
+sepTypeForRNT :: Type -> ([Type], Maybe Type, [Type], Maybe Type)
+sepTypeForRNT full_type = (vs, t, tms, tr)
+    where 
+        (vs, remain) = getVs full_type
+        (t, remain') = getT remain
+        (tms, tr) = getTms remain'
+
+        getVs :: Type -> ([Type], Maybe Type)
+        getVs (TyForAll v _vs) = let 
+            (vs', rest) = getVs _vs 
+                in (TyVar v:vs', rest)
+        getVs notFA = ([], Just notFA)
+
+        getT :: Maybe Type -> (Maybe Type, Maybe Type)
+        getT (Just (TyFun first rest)) = (Just first, Just rest)
+        getT notFirst = (Nothing, notFirst)
+
+        getTms :: Maybe Type -> ([Type], Maybe Type)
+        getTms (Just (TyFun tm1 tm_rest)) = let
+            (tms', rest) = getTms (Just tm_rest)
+                in (tm1:tms', rest)
+        getTms mtr = ([], mtr) -- ignore last in tms, return as tr
+
 evalVarSharing :: State t -> NameGen -> Id -> (Rule, [State t], NameGen)
 evalVarSharing s@(State { expr_env = eenv
                         , exec_stack = stck })
                ng i
+
+    | E.isSymbolic (idName i) eenv             -- PM-INST-VAR
+    , Id _ iTy <- i
+    , (vs@[_], mt, tms, mtr) <- sepTypeForRNT iTy
+    , trace (show (vs, mt, tms, mtr)) isJust mt
+    , isJust mtr
+    , t <- fromJust mt
+    , tr <- fromJust mtr
+    , t == tr
+    , tr `elem` vs
+      =
+        let
+            ([v, x], ng') = freshIds [head vs, t] ng
+            e' = Lam TypeL v (Lam TermL x (Var x))
+            eenv' = E.insert (idName i) e' eenv 
+            in
+                trace "hit tyforall" 
+            (RuleEvalVal, 
+            [s { curr_expr = CurrExpr Return e'
+               , expr_env = eenv' }], ng')
+
+
     | E.isSymbolic (idName i) eenv =
         (RuleEvalVal, [s { curr_expr = CurrExpr Return (Var i)}], ng)
     -- If the target in our environment is already a value form, we do not
@@ -152,14 +200,6 @@ evalVarNoSharing s@(State { expr_env = eenv })
     | Just e <- E.lookup (idName i) eenv =
         (RuleEvalVarNonVal (idName i), [s { curr_expr = CurrExpr Evaluate e }], ng)
     | otherwise = error  $ "evalVar: bad input." ++ show i
-
-makeAltsForPMRet :: [Name] -> Id -> [Alt] -- TODO: Default caused problems
-makeAltsForPMRet ns tyVarId = go ns tyVarId 1
-    where
-        go :: [Name] -> Id -> Int -> [Alt]
-        go [n] tvid _ = [Alt {altMatch = Default, altExpr = Var (Id n (TyVar tvid))}]
-        go (n:ns) tvid l = Alt {altMatch = LitAlt (LitInt $ toInteger l), altExpr = Var (Id n (TyVar tvid))}:go ns tvid (l+1)
-        go [] _ _ = error "makeAltsForPMRet: reached empty list"
 
 -- | If we have a primitive operator, we are at a point where either:
 --    (1) We can concretely evaluate the operator, or
