@@ -177,7 +177,6 @@ genSMTFunc pls src f smt_def config = do
 
 formArg :: KnownValues -> TyVarEnv -> String -> Expr -> String
 formArg kv tv nm e
-    | typeOf tv e == tyChar kv = "(C# " ++ nm ++ ")"
     | typeOf tv e == tyInt kv = "(I# " ++ nm ++ ")"
     | typeOf tv e == tyInteger kv = "(Z# " ++ nm ++ ")"
     | otherwise = nm
@@ -258,6 +257,7 @@ eqIgnoringLits e1 e2 =
         repLit (Lit l) = Lit $ rep l
         repLit (Data dc)
             | nameOcc (dc_name dc) == "True" || nameOcc (dc_name dc) == "False" = Var (Id (Name "!!__G2__!!_BOOL" Nothing 0 Nothing) TyUnknown)
+            | nameOcc (dc_name dc) == "C#" = Var (Id (Name "!!__G2__!!_CHAR" Nothing 0 Nothing) TyUnknown)
             | otherwise = Data (dc { dc_name = Name (nameOcc (dc_name dc)) Nothing 0 Nothing})
         repLit e | isString e = Var (Id (Name "!!__G2__!!_STRING" Nothing 0 Nothing) TyUnknown)
                  | otherwise = e
@@ -274,6 +274,7 @@ eqIgnoringLits e1 e2 =
 
 modifyLits :: Monad m => (Expr -> m Expr) -> Expr -> m Expr
 modifyLits f e@(Lit _) = f e
+modifyLits f e@(App (Data dc) _) | nameOcc (dc_name dc) == "C#" = f e
 modifyLits f e | isString e = f e
                | Data dc <- e
                , nameOcc (dc_name dc) == "True" || nameOcc (dc_name dc) == "False" = f e
@@ -523,7 +524,7 @@ sygusCmds er@(ExecRes { final_state = s@(State { tyvar_env = tv_env }), conc_arg
 
 
         ty_gram_defs = [ (tyString kv, GroupedRuleList "StrPr" strSort grmString)
-                       , (TyLitChar, GroupedRuleList "CharPr" strSort grmChar)
+                       , (tyChar kv, GroupedRuleList "CharPr" strSort grmChar)
                        , (TyLitInt, GroupedRuleList "IntPr" intSort grmInt)
                        , (tyBool kv, GroupedRuleList "BoolPr" boolSort grmBool)]
         find_start_gram = findElem (\(ty, _) -> ty == ret_type) ty_gram_defs
@@ -673,8 +674,8 @@ smtFuncToPrim s vl_args = conv s ++ conv_args
         conv_args = case s of
                         "ite" | [a1, a2, a3] <- vl_args -> "(if " ++ a1 ++ " then " ++ a2 ++ " else " ++ a3 ++ ")"
                               | otherwise -> error "smtFuncToPrim: ite wrong arg count"
-                        "fromChar" | [a] <- vl_args -> "[C# " ++ a ++ "]"
+                        "fromChar" | [a] <- vl_args -> "[" ++ a ++ "]"
                                    | otherwise -> error "smtFuncToPrim: fromChar wrong arg count"
-                        "toChar" | [a] <- vl_args -> "(case (ite (strLen# " ++ a ++ " $>=# 0#) (strAt# " ++ a ++ " 0#) \"!\") of [C# c] -> c)"
+                        "toChar" | [a] <- vl_args -> "(case (ite (strLen# " ++ a ++ " $>=# 0#) (strAt# " ++ a ++ " 0#) \"!\") of [x] -> x)"
                         _ -> " " ++ intercalate " " vl_args
 
