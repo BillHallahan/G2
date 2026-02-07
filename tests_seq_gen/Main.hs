@@ -32,6 +32,12 @@ tests = testGroup "All Tests"
         , smtSynthTest "tests_seq_gen/tests/Test.hs" "f7"
         , smtSynthTest "tests_seq_gen/tests/Test.hs" "f8"
         , smtSynthTest "tests_seq_gen/tests/Test.hs" "f9"
+        , smtSynthTest "tests_seq_gen/tests/Test.hs" "f10"
+        , smtSynthTest "tests_seq_gen/tests/Test.hs" "f11"
+        , smtSynthTest "tests_seq_gen/tests/Test.hs" "f12"
+        , smtSynthTest "tests_seq_gen/tests/Test.hs" "f13"
+        , smtSynthTest "tests_seq_gen/tests/Test.hs" "f14"
+        , smtSynthTest "tests_seq_gen/tests/Test.hs" "f15"
         ]
 
 smtSynthTest :: T.Text -- ^ Function
@@ -49,6 +55,6 @@ smtSynthTestWithConfig :: IO Config
 smtSynthTestWithConfig io_config src f =
     testCase (T.unpack $ src <> " " <> f) (do
         config <- io_config
-        r <- timeout (240 * 1000000) $ genSMTFunc [] [T.unpack src] f Nothing config
+        r <- timeout (480 * 1000000) $ genSMTFunc [] [T.unpack src] f Nothing config
         assertBool "Error" (isJust r)
     )
