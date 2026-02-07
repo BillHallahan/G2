@@ -294,7 +294,7 @@ parseHexChar = do
     str <- many (choice . map char $ ['0'..'9'] ++ ['a'..'f'])
     case readHex str of
         [(c, _)] -> return $ chr c
-        _ -> error $ "stringExpr': Bad string"
+        _ -> error $ "parseHexChar': Bad string " ++ str
 
 parseUni :: Parser Char
 parseUni = do
@@ -305,7 +305,7 @@ parseUni = do
     _ <- char '}'
     case readHex str of
         [(c, _)] -> return $ chr c
-        _ -> error $ "stringExpr': Bad string"
+        _ -> error $ "parseUni': Bad string " ++ str
 
 parseSMT :: Sort -> String -> SMTAST
 parseSMT srt s = case parse (smtParser (Just srt)) s s of
