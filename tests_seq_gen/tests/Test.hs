@@ -59,3 +59,7 @@ f14 _ xs = length xs
 f15 :: Integer -> String -> Integer
 f15 x [] = x
 f15 _ xs = genericLength xs
+
+f16 :: Eq a => a -> [a] -> [a]
+f16  _ [] = []
+f16 x (y:ys) = if x == y then ys else y : f16 x ys

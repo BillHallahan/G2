@@ -178,7 +178,7 @@ genSMTFunc pls src f smt_def config = do
                 tv_env = tyvar_env s 
                 
                 vs = zipWith (formArg kv tv_env) argList (relArgs (final_state er) $ conc_args er)
-                new_smt_def = T.unpack (smtName f) ++ " " ++ intercalate " " vs ++ " = " ++ new_smt_piece
+                new_smt_def = T.unpack (smtName . nameOcc $ idName entry_f) ++ " " ++ intercalate " " vs ++ " = " ++ new_smt_piece
             genSMTFunc pls' src f (Just (final_state er, entry_f, new_smt_def)) config
 
 formArg :: KnownValues -> TyVarEnv -> String -> Expr -> String
@@ -513,7 +513,9 @@ sygusCmds er@(ExecRes { final_state = s@(State { tyvar_env = tv_env }), conc_arg
         grmString = map (GBfTerm . BfIdentifier . ISymb) str_args
                     ++
                     [ GBfTerm (BfIdentifierBfs (ISymb "ite") [ boolIdent, strIdent, strIdent])
+                    , GBfTerm (BfLiteral (LitStr ""))
                     , GBfTerm (BfIdentifierBfs (ISymb "str.++") [ strIdent, strIdent])
+                    , GBfTerm (BfIdentifierBfs (ISymb "str.at") [ strIdent, intIdent])
                     , GBfTerm (BfIdentifierBfs (ISymb "str.substr") [ strIdent, intIdent, intIdent])
                     , GBfTerm (BfIdentifierBfs (ISymb "str.replace") [ strIdent, strIdent, strIdent])
                     , GBfTerm (BfIdentifierBfs (ISymb "fromChar") [ charIdent ])
@@ -534,6 +536,7 @@ sygusCmds er@(ExecRes { final_state = s@(State { tyvar_env = tv_env }), conc_arg
                   , GBfTerm (BfIdentifierBfs (ISymb "strEq") [ strIdent, strIdent ])
                   , GBfTerm (BfIdentifierBfs (ISymb "intEq") [ intIdent, intIdent ])
                   , GBfTerm (BfIdentifierBfs (ISymb "str.<") [ strIdent, strIdent ])
+                  , GBfTerm (BfIdentifierBfs (ISymb "str.<=") [ strIdent, strIdent ])
                   , GBfTerm (BfIdentifierBfs (ISymb "str.prefixof") [ strIdent, strIdent ])
                   , GBfTerm (BfIdentifierBfs (ISymb "str.suffixof") [ strIdent, strIdent ])
                   , GBfTerm (BfIdentifierBfs (ISymb "str.contains") [ strIdent, strIdent ])
@@ -589,16 +592,20 @@ relArgs s = filter (not . isTypeClass (type_classes s) . typeOf (tyvar_env s)) .
 
 exprToTerm :: KnownValues -> Expr -> Term
 exprToTerm _ (Lit (LitInt x)) = TermLit (LitNum x)
-exprToTerm _ (Lit (LitChar x)) = TermLit (LitStr [x])
+exprToTerm _ (Lit (LitChar x)) | Just t <- toStringTerm [x] = t
 exprToTerm _ (App _ (Lit (LitInt x))) = TermLit (LitNum x)
-exprToTerm _ (App _ (Lit (LitChar x))) = TermLit (LitStr [x])
+exprToTerm _ (App _ (Lit (LitChar x))) | Just t <- toStringTerm [x] = t
 exprToTerm kv dc | dc == mkTrue kv = TermLit (LitBool True)
                  | dc == mkFalse kv = TermLit (LitBool False)
-exprToTerm _ e | Just t <- toStringTerm e = t
+exprToTerm _ e | Just t <- toStringTermFromExpr e = t
 exprToTerm _ e = error $ "exprToTerm: unsupported Expr" ++ "\n" ++ show e
 
-toStringTerm :: Expr -> Maybe Term
-toStringTerm e | Just s <- toString e =
+toStringTermFromExpr :: Expr -> Maybe Term
+toStringTermFromExpr e | Just s <- toString e = toStringTerm s
+                       | otherwise = Nothing
+
+toStringTerm :: String -> Maybe Term
+toStringTerm s =
     Just $ case go s of
                 [x] -> x
                 ys -> TermCall (ISymb "str.++") ys
@@ -674,6 +681,8 @@ smtFuncToPrim s vl_args = conv s ++ conv_args
         conv "str.++" = "strAppend# "
         conv "str.len" = "strLen#"
         conv "str.<" = "strLt#"
+        conv "str.<=" = "strLe#"
+        conv "str.at" = "strAt#"
         conv "str.substr" = "strSubstr#"
         conv "str.prefixof" = "strPrefixOf#"
         conv "str.suffixof" = "strSuffixOf#"
