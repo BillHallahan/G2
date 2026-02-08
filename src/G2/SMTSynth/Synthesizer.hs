@@ -3,7 +3,8 @@
 module G2.SMTSynth.Synthesizer ( getSeqGenConfig
                                , genSMTFunc
                                , adjustConfig
-                               , seqGenConfig) where
+                               , seqGenConfig
+                               , runFunc) where
 
 import G2.Config
 import G2.Execution.PrimitiveEval
@@ -92,11 +93,11 @@ import System.Process
 --
 -- See the PatternRes type.
 
-getSeqGenConfig :: IO (String, Maybe String, Config)
+getSeqGenConfig :: IO (String, Maybe String, Bool, Config)
 getSeqGenConfig = do
     homedir <- getHomeDirectory
-    (fle, f, config) <- execParser (seqGenConfig homedir)
-    return (fle, f, adjustConfig config )
+    (fle, f, run_symex, config) <- execParser (seqGenConfig homedir)
+    return (fle, f, run_symex, adjustConfig config )
 
 adjustConfig :: Config -> Config
 adjustConfig c = c { step_limit = False
@@ -105,15 +106,16 @@ adjustConfig c = c { step_limit = False
                    , favor_chars = True
                    , search_strat = Subpath }
 
-seqGenConfig :: String -> ParserInfo (String, Maybe String, Config)
+seqGenConfig :: String -> ParserInfo (String, Maybe String, Bool, Config)
 seqGenConfig homedir =
-    info (((,,)
+    info (((,,,)
                 <$> argument str (metavar "FILE")
                 <*> option (eitherReader (Right . Just))
                    (long "function"
                    <> metavar "F"
                    <> value Nothing
                    <> help "a function to synthesize an SMT definition for")
+                <*> flag False True (long "run-symex" <> help "Run symbolic execution on the passed function, rather than synthesis")
                 <*> mkConfig homedir) <**> helper)
           ( fullDesc
           <> progDesc "Synthesis of equivalent SMT definitions"
@@ -161,7 +163,7 @@ genSMTFunc :: [PatternRes] -- ^ Generated states
            -> IO (String, String) -- ^ (Type of generated function, definition of generated function)
 genSMTFunc pls src f smt_def config = do
     putStrLn "\n--- Running function --- "
-    (entry_f, ers, ng) <- runFunc src f smt_def config
+    (entry_f, ers, ng) <- runFuncWithTemp src f smt_def config
     case ers of
         [] | Just (s, (Id _ smt_t), smt_def') <- smt_def ->
                 return (T.unpack (mkTypeHaskellDictArrows (mkPrettyGuide ()) (type_classes s) smt_t), smt_def')
@@ -319,33 +321,44 @@ collectLits e = SM.execState (modifyLits rep e) []
 -- Calling G2
 -------------------------------------------------------------------------------
 
-runFunc :: [FilePath] -- ^ Filepath containing function
+runFuncWithTemp :: [FilePath] -- ^ Filepath containing function
+                -> T.Text -- ^ Function name
+                -> Maybe (State t, Id, String) -- ^ Possible (SyGuS generated) function definition, along with the Id of the function being generated
+                -> Config
+                -> IO (Id, [ExecRes ()], NameGen)
+runFuncWithTemp src f smt_def config = do
+    withSystemTempFile "SpecTemp.hs" (\temp handle -> do
+        setUpSpec handle smt_def
+
+        runFunc temp src f smt_def config
+        )    
+
+runFunc :: FilePath
+        -> [FilePath] -- ^ Filepath containing function
         -> T.Text -- ^ Function name
         -> Maybe (State t, Id, String) -- ^ Possible (SyGuS generated) function definition, along with the Id of the function being generated
         -> Config
         -> IO (Id, [ExecRes ()], NameGen)
-runFunc src f smt_def config = do
-    withSystemTempFile "SpecTemp.hs" (\temp handle -> do
-        setUpSpec handle smt_def
+runFunc temp src f smt_def config = do
 
-        let config' = config { base = base config ++ temp:src, maxOutputs = Just 10}
+    let config' = config { base = base config ++ temp:src, maxOutputs = Just 10}
 
-        proj <- case src of
-                    src':_ -> guessProj (includePaths config') src'
-                    _ -> return []
+    proj <- case src of
+                src':_ -> guessProj (includePaths config') src'
+                _ -> return []
 
-        (init_state, entry_f, bindings, mb_modname) <- initialStateFromFile proj src
-                                        Nothing False f (mkCurrExpr TV.empty Nothing Nothing) (mkArgTys config' TV.empty)
-                                        simplTranslationConfig config'
-        
-        let (comp_state, bindings') = if isJust smt_def then findInconsistent (idName entry_f) init_state bindings else (init_state, bindings)
-        -- let config'' = if isJust smt_def then config' { logStates = Log Pretty "a_smt"} else config'
-        T.putStrLn $ printHaskellPG (mkPrettyGuide $ getExpr comp_state) comp_state (getExpr comp_state)
+    (init_state, entry_f, bindings, mb_modname) <- initialStateFromFile proj src
+                                    Nothing False f (mkCurrExpr TV.empty Nothing Nothing) (mkArgTys config' TV.empty)
+                                    simplTranslationConfig config'
+    
+    let (comp_state, bindings') = if isJust smt_def then findInconsistent (idName entry_f) init_state bindings else (init_state, bindings)
+    -- let config'' = if isJust smt_def then config' { logStates = Log Pretty "a_smt"} else config'
+    T.putStrLn $ printHaskellPG (mkPrettyGuide $ getExpr comp_state) comp_state (getExpr comp_state)
 
-        (er, b, to) <- runG2WithConfig proj src entry_f f [] mb_modname comp_state config' bindings'
+    (er, b, to) <- runG2WithConfig proj src entry_f f [] mb_modname comp_state config' bindings'
 
-        return (entry_f, er, name_gen bindings)
-        )    
+    return (entry_f, er, name_gen bindings)
+
 
 smtName :: T.Text -> T.Text
 smtName n = "smt_" <> n
@@ -680,6 +693,12 @@ smtFuncToPrim s vl_args = conv s ++ conv_args
                               | otherwise -> error "smtFuncToPrim: ite wrong arg count"
                         "fromChar" | [a] <- vl_args -> "[" ++ a ++ "]"
                                    | otherwise -> error "smtFuncToPrim: fromChar wrong arg count"
-                        "toChar" | [a] <- vl_args -> "(case (ite (strLen# " ++ a ++ " $># 0#) (strAt# " ++ a ++ " 0#) \"!\") of [x] -> x)"
+                        "toChar" | [a] <- vl_args ->
+                                            let
+                                                b1 = "!len__G2__INT = strLen# " ++ a
+                                                b2 = "!at_G2_STR = (strAt# " ++ a ++ " 0#)"
+                                                let_b = "let " ++ b1 ++ ";" ++ b2 ++ "in"
+                                            in
+                                            "(case (" ++ let_b ++ " (ite (len__G2__INT $># 0#) at_G2_STR \"!\")) of [x] -> x)"
                         _ -> " " ++ intercalate " " vl_args
 

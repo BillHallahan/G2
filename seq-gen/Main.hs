@@ -11,11 +11,13 @@ import System.Directory
 
 main :: IO ()
 main = do
-    (src, m_entry, config) <- getSeqGenConfig
+    (src, m_entry, run_symex, config) <- getSeqGenConfig
     case m_entry of
         Just entry -> do
             let f = T.pack entry
-            _ <- genSMTFunc [] [src] f Nothing config
+            _ <- case run_symex of
+                        False -> do genSMTFunc [] [src] f Nothing config; return ()
+                        True -> do runFunc src [] f Nothing config; return ()
             return ()
         Nothing -> do
             cnt <- readFile src
