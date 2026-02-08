@@ -345,7 +345,7 @@ runFunc src f smt_def config = do
         (er, b, to) <- runG2WithConfig proj src entry_f f [] mb_modname comp_state config' bindings'
 
         return (entry_f, er, name_gen bindings)
-        )
+        )    
 
 smtName :: T.Text -> T.Text
 smtName n = "smt_" <> n
@@ -680,6 +680,6 @@ smtFuncToPrim s vl_args = conv s ++ conv_args
                               | otherwise -> error "smtFuncToPrim: ite wrong arg count"
                         "fromChar" | [a] <- vl_args -> "[" ++ a ++ "]"
                                    | otherwise -> error "smtFuncToPrim: fromChar wrong arg count"
-                        "toChar" | [a] <- vl_args -> "(case (ite (strLen# " ++ a ++ " $>=# 0#) (strAt# " ++ a ++ " 0#) \"!\") of [x] -> x)"
+                        "toChar" | [a] <- vl_args -> "(case (ite (strLen# " ++ a ++ " $># 0#) (strAt# " ++ a ++ " 0#) \"!\") of [x] -> x)"
                         _ -> " " ++ intercalate " " vl_args
 
