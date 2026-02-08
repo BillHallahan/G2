@@ -224,10 +224,12 @@ instantitateTypes config tc kv ts =
 pickForTyVar :: Config -> KnownValues -> [Type] -> Type
 pickForTyVar config kv ts
     | Just t <- find ((==) pref_t) ts = t
+    -- If we are favoring Chars, we still want Ints as our second choice
+    | Just t <- find ((==) (tyInteger kv)) ts = t
     | t:_ <- ts = t
     | otherwise = error "No type found in pickForTyVar"
     where
-        pref_t = if favor_chars config then tyChar kv else tyInt kv 
+        pref_t = if favor_chars config then tyChar kv else tyInteger kv 
 
 instantiateTCDict :: TypeClasses -> [(Id, Type)] -> Type -> Maybe Expr
 instantiateTCDict tc it tyapp@(TyApp _ t) | TyCon n _ <- tyAppCenter tyapp =

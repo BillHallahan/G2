@@ -95,7 +95,7 @@ data Config = Config {
     , logInlineNRPC :: Bool -- ^ Inline variables in the NRPC when logging states
     , sharing :: Sharing
     , instTV :: InstTV -- allow the instantiation of types in the beginning or it's instantiate symbolically by functions
-    , favor_chars :: Bool -- ^ By default, we favor instantiating tyvars with Int- prefer instantiating with Char instead
+    , favor_chars :: Bool -- ^ By default, we favor instantiating tyvars with Integer- prefer instantiating with Char instead
     , showType :: ShowType -- allow user to see more type information when they are logging states for the execution
     , maxOutputs :: Maybe Int -- ^ Maximum number of examples/counterexamples to output.  TODO: Currently works only with LiquidHaskell
     , returnsTrue :: Bool -- ^ If True, shows only those inputs that do not return True

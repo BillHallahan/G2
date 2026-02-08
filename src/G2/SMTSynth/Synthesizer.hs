@@ -143,9 +143,10 @@ insertER :: NameGen -> ExecRes () -> [PatternRes] -> [PatternRes]
 insertER ng er [] =
     let
         (varred_form, is, ng') = replaceLitsWithVars ng (conc_out er)
+        varred_form' = addFromInteger varred_form
         lit_ers = execResCollectLits er
     in
-    [PL { pattern = varred_form, lit_expr = conc_out er, pat_ids = is, orig_exec_res = [er], lit_vals = map (:[]) lit_ers }]
+    [PL { pattern = varred_form', lit_expr = conc_out er, pat_ids = is, orig_exec_res = [er], lit_vals = map (:[]) lit_ers }]
 insertER ng er (pl:pls)
     | eqIgnoringLits (conc_out er) (lit_expr pl) =
         let
@@ -317,6 +318,10 @@ collectLits e = SM.execState (modifyLits rep e) []
             SM.modify (l:)
             return l
 
+addFromInteger :: Expr -> Expr
+addFromInteger e@(App (Data dc) _) | nameOcc (dc_name dc) == "Z#" = App (Var $ Id (Name "fromInteger" Nothing 0 Nothing) TyUnknown) e
+addFromInteger e = modifyChildren addFromInteger e
+
 -------------------------------------------------------------------------------
 -- Calling G2
 -------------------------------------------------------------------------------
@@ -366,9 +371,8 @@ smtName n = "smt_" <> n
 setUpSpec :: Handle -> Maybe (State t, Id, String) -> IO ()
 setUpSpec h Nothing = hClose h
 setUpSpec h (Just (s, Id n t, spec)) = do
-    let t' = repAllTyVarsWithChar
-           . foldr1 TyFun
-           . filter (not . isTypeClass (type_classes s))
+    let t' = foldr1 TyFun
+        --    . filter (not . isTypeClass (type_classes s))
            . splitTyFuns
            . snd
            $ splitTyForAlls t
@@ -380,7 +384,7 @@ setUpSpec h (Just (s, Id n t, spec)) = do
                     ++ "tryMaybe a = catch (a >>= \\v -> return (Just v)) (\\(e :: SomeException) -> return Nothing)\n\n"
                     ++ "tryMaybeUnsafe :: a -> Maybe a\n"
                     ++ "tryMaybeUnsafe x = unsafePerformIO $ tryMaybe (let !y = x in return y)\n\n"
-                    ++ T.unpack (smtName $ nameOcc n) ++ " :: " ++ T.unpack (mkTypeHaskell t') ++ "\n"
+                    ++ T.unpack (smtName $ nameOcc n) ++ " :: " ++ T.unpack (mkTypeHaskellDictArrows (mkPrettyGuide ()) (type_classes s) t') ++ "\n"
                     ++ spec
     putStrLn contents
     hPutStrLn h contents
@@ -393,17 +397,18 @@ setUpSpec h (Just (s, Id n t, spec)) = do
 -- | Find inputs that violate a found SMT definition
 findInconsistent :: Name -> State t -> Bindings -> (State t, Bindings)
 findInconsistent entry_f s@(State { expr_env = eenv
+                                  , curr_expr = CurrExpr _ cexpr
                                   , known_values = kv
                                   , type_classes = tc
                                   , tyvar_env = tv_env }) b@(Bindings { name_gen = ng })
     | Just (smt_def, smt_def_e) <- E.lookupNameMod (smtName $ nameOcc entry_f) (Just "Spec") eenv
     , Just (try_unsafe, try_unsafe_e) <- E.lookupNameMod "tryMaybeUnsafe" (Just "Spec") eenv =
     let
-        app_smt_def = mkApp $ Var (Id smt_def (typeOf tv_env smt_def_e)):map Var (inputIds s b)
+        app_smt_def = mkApp $ Var (Id smt_def (typeOf tv_env smt_def_e)):fixed_inputs b ++ map Var (inputIds s b)
 
         try_unsafe_var = Var . Id try_unsafe $ typeOf tv_env try_unsafe_e
 
-        ret_type = returnType $ typeOf tv_env smt_def_e
+        ret_type = returnType $ typeOf tv_env cexpr
         m_eq_dict = typeClassInst tc HM.empty (KV.eqTC kv) $ TyApp (tyMaybe kv) ret_type
     in
     case m_eq_dict of

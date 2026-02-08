@@ -63,3 +63,6 @@ f15 _ xs = genericLength xs
 f16 :: Eq a => a -> [a] -> [a]
 f16  _ [] = []
 f16 x (y:ys) = if x == y then ys else y : f16 x ys
+
+f17 :: Num a => Integer -> a
+f17 x = fromInteger x + fromInteger x
