@@ -99,7 +99,11 @@ getSeqGenConfig = do
     return (fle, f, adjustConfig config )
 
 adjustConfig :: Config -> Config
-adjustConfig c = c { favor_chars = True, search_strat = Subpath }
+adjustConfig c = c { step_limit = False
+                   , height_limit = Just $ fromMaybe 5 (height_limit c)
+
+                   , favor_chars = True
+                   , search_strat = Subpath }
 
 seqGenConfig :: String -> ParserInfo (String, Maybe String, Config)
 seqGenConfig homedir =
