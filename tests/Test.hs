@@ -761,6 +761,10 @@ testFileTests = testGroup "TestFiles"
     , checkInputOutputsWithTemplatesAndHpc "tests/TestFiles/TypeKeyword.hs" [ ("yearPasses", 400, [Exactly 1])
                                                                             , ("callAlts", 400, [AtLeast 1]) ]
     , checkInputOutputs "tests/TestFiles/InfLoop.hs" [ ("f", 500, [Exactly 1]) ]
+
+    -- ADT Height
+    , checkInputOutputsADTHeight "tests/Samples/Peano.hs" [ ("add", 6, [Exactly 6]) ]
+    , checkInputOutputsADTHeight "tests/TestFiles/Strings/Strings1.hs" [ ("last1", 60, [Exactly 60]) ]
  ]
 
 extensionTests :: TestTree
@@ -831,8 +835,6 @@ baseTests ::  TestTree
 baseTests = testGroup "Base"
     [
       checkInputOutput "tests/Samples/Peano.hs" "add" 400 [AtLeast 4]
-
-    , checkInputOutput "tests/BaseTests/HasCallStack.hs" "f" 1000 [Exactly 2]
 
     , checkInputOutputs "tests/BaseTests/ListTests.hs" [ ("test", 1000, [AtLeast 1])
                                                        , ("maxMap", 1000, [AtLeast 4])

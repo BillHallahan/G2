@@ -1,5 +1,7 @@
 module Test where
 
+import Data.List
+
 f1 :: String -> String -> String -> String
 f1 xs ys zs = xs ++ ys ++ zs
 
@@ -34,3 +36,26 @@ f8  x y | x < y = Left x
 
 f9 :: [a] -> [a] -> [a] -> [a]
 f9 xs ys zs = xs ++ ys ++ zs
+
+f10 :: Char -> [Char] -> [Char]
+f10 x xs = x:xs
+
+f11 :: Char -> [Char] -> [Char]
+f11 x xs = xs ++ [x]
+
+f12 :: [Char] -> Maybe Char
+f12 [] = Nothing
+f12 (x:_) = Just x
+
+f13 :: [Char] -> Maybe Char
+f13 [] = Nothing
+f13 [x] = Just x
+f13 (_:xs) = f13 xs
+
+f14 :: Int -> String -> Int
+f14 x [] = x
+f14 _ xs = length xs
+
+f15 :: Integer -> String -> Integer
+f15 x [] = x
+f15 _ xs = genericLength xs
