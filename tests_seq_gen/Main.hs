@@ -39,6 +39,7 @@ tests = testGroup "All Tests"
         , smtSynthTest "tests_seq_gen/tests/Test.hs" "f14"
         , smtSynthTest "tests_seq_gen/tests/Test.hs" "f15"
         , smtSynthTest "tests_seq_gen/tests/Test.hs" "f16"
+        , smtSynthTest "tests_seq_gen/tests/Test.hs" "f17g"
         ]
 
 smtSynthTest :: T.Text -- ^ Function
