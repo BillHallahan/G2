@@ -158,29 +158,64 @@ sepTypeForRNT full_type = trace (show (vs, t, tms, tr)) (vs, t, tms, tr)
 mkNestedLam :: LamUse -> [Id] -> Expr -> Expr
 mkNestedLam lu vs e = foldr (Lam lu) e vs
 
+-- TODO: this may need TyCon
+mkNestedForAll :: [Type] -> Type -> Type
+mkNestedForAll ((TyVar i):is) t = TyForAll i $ mkNestedForAll is t
+mkNestedForAll [] t = t
+mkNestedForAll _ _ = error "mkNestedForAll: list Types not in correct form"
+
+evalForAll :: [Type] -> Type -> [Type] -> Type 
+    -> State t -> E.ExprEnv -> NameGen -> Id -> (Rule, [State t], NameGen)
+evalForAll as t tms tr s eenv ng i =
+    let 
+        -- PM-INST-VAR
+        (instState, ng_instState)  
+            | t == tr
+            , tr `elem` as
+            = let 
+                (vs, ng') = freshIds as ng
+                (term_args@(x:_), ng'') = freshIds (t:tms) ng'
+
+                innerEx = mkNestedLam TermL term_args (Var x)
+                e' = mkNestedLam TypeL vs innerEx
+
+                eenv' = E.insert (idName i) e' eenv  -- TODO: type mismatch between i and e'
+            in
+                trace "PM-INST-VAR" (Just s { curr_expr = CurrExpr Return e'
+                        , expr_env = eenv' }, ng'') 
+                 
+            | otherwise = (Nothing, ng)
+        
+        (cycleState, ng_final)
+            | (_:_) <- tms
+            , t `elem` as
+            = let 
+                (vs, ng') = freshIds as ng_instState
+                (term_args@(x:ys), ng'') = freshIds (t:tms) ng'
+                (f, ng''')= freshId (mkNestedForAll as $ mkTyFun (tms++[t]++[tr])) ng''
+
+                cycle_expr = mkApp . map Var $ [f] ++ vs ++ ys ++ [x]
+                termLams = mkNestedLam TermL term_args cycle_expr
+                e' = mkNestedLam TypeL vs termLams
+                
+                eenv' = E.insertSymbolic f eenv -- TODO: type mismatch between i and e'
+                eenv'' = E.insert (idName i) e' eenv'
+            in 
+                trace "PM-CYCLE" (Just s { curr_expr = CurrExpr Return e'
+                                         , expr_env = eenv'' }, ng''')
+            | otherwise = (Nothing, ng_instState)
+        in
+        (RuleEvalVal, catMaybes [instState, cycleState], ng_final)
+
 evalVarSharing :: State t -> NameGen -> Id -> (Rule, [State t], NameGen)
 evalVarSharing s@(State { expr_env = eenv
                         , exec_stack = stck })
                ng i
 
-    | E.isSymbolic (idName i) eenv              -- PM-INST-VAR
+    | E.isSymbolic (idName i) eenv              
     , Id _ iTy <- i
     , (as@(_:_), Just t, tms, Just tr) <- sepTypeForRNT iTy
-    , t == tr
-    , tr `elem` as
-      =
-        let
-            (vs, ng') = freshIds as ng
-            (term_args@(x:_), ng'') = freshIds (t:tms) ng'
-            innerEx = mkNestedLam TermL term_args (Var x)
-            e' = mkNestedLam TypeL vs innerEx
-            eenv' = E.insert (idName i) e' eenv 
-            in
-                trace "hit tyforall" 
-            (RuleEvalVal, 
-            [s { curr_expr = CurrExpr Return e'
-               , expr_env = eenv' }], ng'')
-
+        =  evalForAll as t tms tr s eenv ng i
 
     | E.isSymbolic (idName i) eenv =
         (RuleEvalVal, [s { curr_expr = CurrExpr Return (Var i)}], ng)
