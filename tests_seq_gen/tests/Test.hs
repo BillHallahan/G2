@@ -66,3 +66,6 @@ f16 x (y:ys) = if x == y then ys else y : f16 x ys
 
 f17 :: Num a => Integer -> a
 f17 x = fromInteger x + fromInteger x
+
+f18 :: Integral a => a -> Integer
+f18 x = toInteger x + toInteger x

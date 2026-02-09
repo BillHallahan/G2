@@ -185,7 +185,7 @@ genSMTFunc pls src f smt_def config = do
 formArg :: KnownValues -> TyVarEnv -> String -> Expr -> String
 formArg kv tv nm e
     | typeOf tv e == tyInt kv = "(I# " ++ nm ++ ")"
-    | typeOf tv e == tyInteger kv = "(Z# " ++ nm ++ ")"
+    | typeOf tv e == tyInteger kv = "(toInteger -> Z# " ++ nm ++ ")"
     | otherwise = nm
 
 formFunction :: State t -> [PatternRes] -> IO String
@@ -376,7 +376,7 @@ setUpSpec h (Just (s, Id n t, spec)) = do
            . splitTyFuns
            . snd
            $ splitTyForAlls t
-        contents = "{-# LANGUAGE BangPatterns, MagicHash, ScopedTypeVariables #-}\nmodule Spec where\nimport GHC.Prim2\n"
+        contents = "{-# LANGUAGE BangPatterns, MagicHash, ScopedTypeVariables, ViewPatterns #-}\nmodule Spec where\nimport GHC.Prim2\n"
                     ++ "import GHC.Types2\n"
                     ++ "import Control.Exception\n"
                     ++ "import System.IO.Unsafe\n\n"
