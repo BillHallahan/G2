@@ -124,7 +124,7 @@ stdReduce' _ symb_func_eval solver simplifier s@(State { curr_expr = CurrExpr Re
 
 -- | Separate a type into what is required for some RankNTypes rules.
 sepTypeForRNT :: Type -> ([Type], Maybe Type, [Type], Maybe Type)
-sepTypeForRNT full_type = trace (show (vs, t, tms, tr)) (vs, t, tms, tr)
+sepTypeForRNT full_type = {-trace (show (vs, t, tms, tr))-} (vs, t, tms, tr)
     where 
         (vs, remain) = getVs full_type
         (t, remain') = getT remain
@@ -164,12 +164,18 @@ mkNestedForAll ((TyVar i):is) t = TyForAll i $ mkNestedForAll is t
 mkNestedForAll [] t = t
 mkNestedForAll _ _ = error "mkNestedForAll: list Types not in correct form"
 
+-- TODO: only looks deeper in TyApp's
+contTyVars :: Type -> HS.HashSet Id
+contTyVars (TyApp t1 t2) = HS.union (contTyVars t1) (contTyVars t2)
+contTyVars (TyVar i) = HS.singleton i
+contTyVars _ = HS.empty
+
 evalForAll :: [Type] -> Type -> [Type] -> Type 
     -> State t -> E.ExprEnv -> NameGen -> Id -> (Rule, [State t], NameGen)
 evalForAll as t tms tr s eenv ng i =
     let 
         -- PM-INST-VAR
-        (instState, ng_instState)  
+        (inst_state, ng_inst_state)  
             | t == tr
             , tr `elem` as
             = let 
@@ -179,18 +185,19 @@ evalForAll as t tms tr s eenv ng i =
                 innerEx = mkNestedLam TermL term_args (Var x)
                 e' = mkNestedLam TypeL vs innerEx
 
-                eenv' = E.insert (idName i) e' eenv  -- TODO: type mismatch between i and e'
+                eenv' = E.insert (idName i) e' eenv  -- TODO: type mismatch between i and e', maybe NameGen problem, maybe reusing names
             in
                 trace "PM-INST-VAR" (Just s { curr_expr = CurrExpr Return e'
                         , expr_env = eenv' }, ng'') 
                  
             | otherwise = (Nothing, ng)
         
-        (cycleState, ng_final)
+        -- PM-CYCLE
+        (cycle_state, ng_cycle_state) 
             | (_:_) <- tms
             , t `elem` as
             = let 
-                (vs, ng') = freshIds as ng_instState
+                (vs, ng') = freshIds as ng_inst_state
                 (term_args@(x:ys), ng'') = freshIds (t:tms) ng'
                 (f, ng''')= freshId (mkNestedForAll as $ mkTyFun (tms++[t]++[tr])) ng''
 
@@ -203,9 +210,29 @@ evalForAll as t tms tr s eenv ng i =
             in 
                 trace "PM-CYCLE" (Just s { curr_expr = CurrExpr Return e'
                                          , expr_env = eenv'' }, ng''')
-            | otherwise = (Nothing, ng_instState)
+            | otherwise = (Nothing, ng_inst_state)
+
+        -- PM-NON-CONT
+        (non_cont_state, ng_non_cont_state)
+            | contTyVars t == HS.empty
+            , (_:_) <- tms
+            = let
+                (vs, ng') = freshIds as ng_cycle_state
+                (term_args@(x:ys), ng'') = freshIds (t:tms) ng'
+                (f, ng''') = freshId (TyFun t (mkNestedForAll as $ mkTyFun $ tms ++ [tr])) ng''
+
+                non_cont_expr = mkApp . map Var $ [f] ++ [x] ++ vs ++ ys
+                termLams = mkNestedLam TermL term_args non_cont_expr
+                e' = mkNestedLam TypeL vs termLams
+
+                eenv' = E.insertSymbolic f eenv
+                eenv'' = E.insert (idName i) e' eenv'
+            in 
+                trace "PM-NONCONT" (Just s { curr_expr = CurrExpr Return e'
+                                           , expr_env = eenv'' }, ng''')
+            | otherwise = (Nothing, ng_cycle_state)
         in
-        (RuleEvalVal, catMaybes [instState, cycleState], ng_final)
+        (RuleEvalVal, catMaybes [inst_state, cycle_state, non_cont_state], ng_non_cont_state)
 
 evalVarSharing :: State t -> NameGen -> Id -> (Rule, [State t], NameGen)
 evalVarSharing s@(State { expr_env = eenv
