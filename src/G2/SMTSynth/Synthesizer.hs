@@ -676,6 +676,7 @@ termToHaskell trm =
         go !x (TermLit l) = (x, (goLit l, []))
         go !_ t = error $ "termToHaskell: unsupported term" ++ "\n" ++ show t
 
+        goLit (LitStr []) = "[]"
         goLit (LitStr s) = "\"" ++ s ++ "\""
         goLit (LitNum i) = show i ++ "#"
         goLit _ = error "termToHaskell: unsupported lit"
