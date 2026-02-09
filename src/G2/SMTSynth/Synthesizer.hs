@@ -460,7 +460,7 @@ runSygus sygus_cmds = do
 
 sygusCmds :: [ExecRes t] -> [Cmd]
 sygusCmds [] = []
-sygusCmds er@(ExecRes { final_state = s@(State { tyvar_env = tv_env }), conc_args = args, conc_out = out_e}:_) = 
+sygusCmds er@(ExecRes { final_state = s@(State { tyvar_env = tv_env, known_values = kv }), conc_args = args, conc_out = out_e}:_) = 
     let 
         define_eq n srt = SmtCmd $ DefineFun n
                                              [SortedVar "x" srt, SortedVar "y" srt]
@@ -470,16 +470,15 @@ sygusCmds er@(ExecRes { final_state = s@(State { tyvar_env = tv_env }), conc_arg
                                         [SortedVar "x" strSort]
                                         strSort
                                         (TermIdent (ISymb "x"))
-        -- toChar returns the first character of a non-empty string, or "!" if passed an empty string.
-        -- "!" is an arbitary choice- we just need SOME behavior that can be made consistent with the Haskell translation.
+        -- toChar returns the first character of a non-empty string, or "" if passed an empty string.
+        -- This is not possible to reflect in the actual Haskell code, where a Char must be exactly one character.
+        -- Thus, we carefully arrange the grammar so that `toChar` can only appear as the outermost function.
+        -- If it returns an empty string, this will be different than the Haskell code, which must have some other behavior-
+        -- and so our CEGIS synthesizer will have an error to loop on.
         to_char = SmtCmd $ DefineFun "toChar"
                                         [SortedVar "x" strSort]
                                         strSort
-                                        (TermCall (ISymb "ite")
-                                            [ TermCall (ISymb ">")
-                                                [ TermCall (ISymb "str.len") [ TermIdent (ISymb "x") ], TermLit (LitNum 0) ]
-                                            , TermCall (ISymb "str.at") [TermIdent (ISymb "x"), TermLit (LitNum 0)]
-                                            , TermLit (LitStr "!")])
+                                        ( TermCall (ISymb "str.at") [TermIdent (ISymb "x"), TermLit (LitNum 0)] )
         grm = GrammarDef pre_dec gram_defs'
     in
     [ SmtCmd $ SetLogic "ALL"
@@ -508,7 +507,7 @@ sygusCmds er@(ExecRes { final_state = s@(State { tyvar_env = tv_env }), conc_arg
         str_args = map fst . filter ((==) (tyString kv) . snd) $ zip argList arg_types
 
         intIdent = BfIdentifier (ISymb "IntPr")
-        charIdent = BfIdentifier (ISymb "CharPr")
+        charArgIdent = BfIdentifier (ISymb "CharArgPr")
         strIdent = BfIdentifier (ISymb "StrPr")
         boolIdent = BfIdentifier (ISymb "BoolPr")
 
@@ -523,12 +522,12 @@ sygusCmds er@(ExecRes { final_state = s@(State { tyvar_env = tv_env }), conc_arg
                     , GBfTerm (BfIdentifierBfs (ISymb "str.at") [ strIdent, intIdent])
                     , GBfTerm (BfIdentifierBfs (ISymb "str.substr") [ strIdent, intIdent, intIdent])
                     , GBfTerm (BfIdentifierBfs (ISymb "str.replace") [ strIdent, strIdent, strIdent])
-                    , GBfTerm (BfIdentifierBfs (ISymb "fromChar") [ charIdent ])
                     -- , GBfTerm (BfIdentifierBfs (ISymb "str.replace_all") [ strIdent, strIdent, strIdent])
                     ]
-        grmChar = map (GBfTerm . BfIdentifier . ISymb) char_args
-                  ++
-                  [ GBfTerm (BfIdentifierBfs (ISymb "toChar") [ strIdent ])]
+                    ++
+                    if not (null char_args) then [GBfTerm (BfIdentifierBfs (ISymb "fromChar") [ charArgIdent ])] else []
+        grmCharArgs = map (GBfTerm . BfIdentifier . ISymb) char_args
+        grmCharRet = [ GBfTerm (BfIdentifierBfs (ISymb "toChar") [ strIdent ])]
         grmInt = [ GVariable intSort
                  , GBfTerm (BfIdentifierBfs (ISymb "ite") [ boolIdent, intIdent, intIdent])
                  , GBfTerm (BfLiteral (LitNum 0))
@@ -548,8 +547,9 @@ sygusCmds er@(ExecRes { final_state = s@(State { tyvar_env = tv_env }), conc_arg
                   ]
 
 
-        ty_gram_defs = [ (tyString kv, GroupedRuleList "StrPr" strSort grmString)
-                       , (tyChar kv, GroupedRuleList "CharPr" strSort grmChar)
+        ty_gram_defs = (if ret_type == tyChar kv then ((tyChar kv, GroupedRuleList "CharRetPr" strSort grmCharRet):) else id) $
+                       (if not (null char_args) then ((tyChar kv, GroupedRuleList "CharArgPr" strSort grmCharArgs):) else id)           
+                       [ (tyString kv, GroupedRuleList "StrPr" strSort grmString)
                        , (TyLitInt, GroupedRuleList "IntPr" intSort grmInt)
                        , (tyBool kv, GroupedRuleList "BoolPr" boolSort grmBool)]
         find_start_gram = findElem (\(ty, _) -> ty == ret_type) ty_gram_defs
@@ -714,6 +714,6 @@ smtFuncToPrim s vl_args = conv s ++ conv_args
                                                 b2 = "!at_G2_STR = (strAt# " ++ a ++ " 0#)"
                                                 let_b = "let " ++ b1 ++ ";" ++ b2 ++ "in"
                                             in
-                                            "(case (" ++ let_b ++ " (ite (len__G2__INT $># 0#) at_G2_STR \"!\")) of [x] -> x)"
+                                            "(case (" ++ let_b ++ " at_G2_STR) of [x] -> x)"
                         _ -> " " ++ intercalate " " vl_args
 
