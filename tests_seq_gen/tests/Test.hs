@@ -1,6 +1,7 @@
 module Test where
 
 import Data.List
+import GHC.Stack
 
 f1 :: String -> String -> String -> String
 f1 xs ys zs = xs ++ ys ++ zs
@@ -69,3 +70,7 @@ f17 x = fromInteger x + fromInteger x
 
 f18 :: Integral a => a -> Integer
 f18 x = toInteger x + toInteger x
+
+f19 :: HasCallStack => String -> String
+f19 "" = error "negative"
+f19 x = x

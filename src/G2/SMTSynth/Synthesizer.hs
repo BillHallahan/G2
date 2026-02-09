@@ -370,9 +370,9 @@ smtName n = "smt_" <> n
 
 setUpSpec :: Handle -> Maybe (State t, Id, String) -> IO ()
 setUpSpec h Nothing = hClose h
-setUpSpec h (Just (s, Id n t, spec)) = do
+setUpSpec h (Just (s@(State { known_values = kv }), Id n t, spec)) = do
     let t' = foldr1 TyFun
-        --    . filter (not . isTypeClass (type_classes s))
+           . filter (not . isCallStack)
            . splitTyFuns
            . snd
            $ splitTyForAlls t
@@ -390,9 +390,10 @@ setUpSpec h (Just (s, Id n t, spec)) = do
     hPutStrLn h contents
     hFlush h
     hClose h
-    where
-        repAllTyVarsWithChar (TyVar _) = (TyCon (Name "Char" Nothing 0 Nothing) TYPE)
-        repAllTyVarsWithChar t_ = modifyChildren repAllTyVarsWithChar t_
+
+isCallStack :: Type -> Bool
+isCallStack ty | TyCon tn _:_ <- unTyApp ty = nameOcc tn == "IP"
+               | otherwise = False
 
 -- | Find inputs that violate a found SMT definition
 findInconsistent :: Name -> State t -> Bindings -> (State t, Bindings)
@@ -404,9 +405,11 @@ findInconsistent entry_f s@(State { expr_env = eenv
     | Just (smt_def, smt_def_e) <- E.lookupNameMod (smtName $ nameOcc entry_f) (Just "Spec") eenv
     , Just (try_unsafe, try_unsafe_e) <- E.lookupNameMod "tryMaybeUnsafe" (Just "Spec") eenv =
     let
-        app_smt_def = mkApp $ Var (Id smt_def (typeOf tv_env smt_def_e)):fixed_inputs b ++ map Var (inputIds s b)
+        app_smt_def = mkApp $ Var (Id smt_def TyUnknown)
+                            :fixed_inputs b
+                            ++ filter (not . isCallStack . typeOf tv_env) (map Var (inputIds s b))
 
-        try_unsafe_var = Var . Id try_unsafe $ typeOf tv_env try_unsafe_e
+        try_unsafe_var = Var . Id try_unsafe $ typeOf tv_env $ try_unsafe_e
 
         ret_type = returnType $ typeOf tv_env cexpr
         m_eq_dict = typeClassInst tc HM.empty (KV.eqTC kv) $ TyApp (tyMaybe kv) ret_type
@@ -490,8 +493,6 @@ sygusCmds er@(ExecRes { final_state = s@(State { tyvar_env = tv_env, known_value
     ++ map execResToConstraints er ++
     [CheckSynth]
     where
-        kv = known_values s
-
         intSort = IdentSort (ISymb "Int")
         strSort = IdentSort (ISymb "String")
         boolSort = IdentSort (ISymb "Bool")
@@ -590,7 +591,9 @@ execResToConstraints (ExecRes { final_state = s, conc_args = ars, conc_out = out
     cons
 
 relArgs :: State t -> [Expr] -> [Expr]
-relArgs s = filter (not . isTypeClass (type_classes s) . typeOf (tyvar_env s)) . filter (not . isType)
+relArgs s = filter (not . isCallStack . typeOf (tyvar_env s))
+          . filter (not . isTypeClass (type_classes s) . typeOf (tyvar_env s))
+          . filter (not . isType)
     where 
         isType (Type _) = True
         isType _ = False
