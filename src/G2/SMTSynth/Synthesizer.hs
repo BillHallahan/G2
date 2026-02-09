@@ -103,7 +103,7 @@ adjustConfig :: Config -> Config
 adjustConfig c = c { step_limit = False
                    , height_limit = Just $ fromMaybe 5 (height_limit c)
 
-                   , favor_chars = True
+                   , favor_tys = ["Char", "Integer"]
                    , search_strat = Subpath }
 
 seqGenConfig :: String -> ParserInfo (String, Maybe String, Bool, Config)

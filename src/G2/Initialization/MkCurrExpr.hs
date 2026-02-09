@@ -206,7 +206,7 @@ instantitateTypes config tc kv ts =
         tcSat = snd $ mapAccumL (\ts'' i ->
                                 let
                                     sat = satisfyingTCTypes kv tc i ts''
-                                    pt = pickForTyVar config kv sat
+                                    pt = pickForTyVar (favor_tys config) sat
                                 in
                                  (replaceTyVar (idName i) pt ts'', (i, pt))) ts' tv
 
@@ -221,15 +221,15 @@ instantitateTypes config tc kv ts =
     (ex, tss)
 
 -- From the given list, selects the Type to instantiate a TyVar with
-pickForTyVar :: Config -> KnownValues -> [Type] -> Type
-pickForTyVar config kv ts
-    | Just t <- find ((==) pref_t) ts = t
-    -- If we are favoring Chars, we still want Ints as our second choice
-    | Just t <- find ((==) (tyInteger kv)) ts = t
-    | t:_ <- ts = t
-    | otherwise = error "No type found in pickForTyVar"
+pickForTyVar :: [String] -> [Type] -> Type
+pickForTyVar (pref:others) ts
+    | Just t <- find ((==) (Just pref) . fmap T.unpack . getNameOcc) ts = t
+    | otherwise = pickForTyVar others ts
     where
-        pref_t = if favor_chars config then tyChar kv else tyInteger kv 
+        getNameOcc (TyCon n _) = Just $ nameOcc n
+        getNameOcc _ = Nothing
+pickForTyVar [] ts  | t:_ <- ts = t
+pickForTyVar _ _ = error "No type found in pickForTyVar"
 
 instantiateTCDict :: TypeClasses -> [(Id, Type)] -> Type -> Maybe Expr
 instantiateTCDict tc it tyapp@(TyApp _ t) | TyCon n _ <- tyAppCenter tyapp =
