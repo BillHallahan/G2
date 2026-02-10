@@ -224,8 +224,41 @@ evalForAll as t tms tr s@(State {type_env = tenv}) eenv ng i =
                 trace "PM-NONCONT" (Just s { curr_expr = CurrExpr Return e'
                                            , expr_env = eenv'' }, ng'')
             | otherwise = (Nothing, ng_cycle_state)
+
+        -- PM-UNWRAP
+        (unwrap_state, ng_unwrap_state) 
+            | not . HS.null $ contTyVars t
+            , t `notElem` as
+            , TyCon tname _:ts <- unTyApp t
+            , Just alg_data_ty <- HM.lookup tname tenv
+            = let
+                (x', ng'') = freshId t ng_non_cont_state
+
+                ty_map = HM.fromList $ zip (map idName bound) ts
+                dcs = applyTypeHashMap ty_map $ dataCon alg_data_ty
+                bound = applyTypeHashMap ty_map $ bound_ids alg_data_ty
+
+                (alts, symIds, ng''') =
+                    foldr (\dc@(DataCon _ dcty _ _) (all_alts, sids, ng1) ->
+                                let (argIds, ng1') = genArgIds dc ng1
+                                    data_alt = DataAlt dc argIds
+                                    sym_fun_ty = mkNestedForAll as . mkTyFun $ fst (argTypes dcty) ++ tms ++ [tr]
+                                    (fi, ng1'') = freshSeededId (Name "symFun" Nothing 0 Nothing) sym_fun_ty ng1'
+                                    vargs = map Var argIds
+                                in (Alt data_alt 
+                            (mkApp $ [Var fi] ++ map Var as_ids ++ vargs ++ map Var ys) : all_alts, fi : sids, ng1'')
+                                ) ([], [], ng'') dcs
+                e' = e_template $ Case (Var x) x' tr alts
+
+                eenv' = foldr E.insertSymbolic eenv symIds
+                eenv'' = E.insert (idName i) e' eenv'
+            in
+                trace "PM-UNWRAP" (Just s { curr_expr = CurrExpr Return e'
+                        , expr_env = eenv'' }, ng''')
+
+            | otherwise = (Nothing, ng_non_cont_state)
         in
-        (RuleEvalVal, catMaybes [inst_state, cycle_state, non_cont_state], ng_non_cont_state)
+        (RuleEvalVal, catMaybes [inst_state, cycle_state, non_cont_state, unwrap_state], ng_unwrap_state)
 
 evalVarSharing :: State t -> NameGen -> Id -> (Rule, [State t], NameGen)
 evalVarSharing s@(State { expr_env = eenv
