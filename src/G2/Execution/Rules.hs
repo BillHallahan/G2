@@ -174,56 +174,49 @@ evalForAll :: [Type] -> Type -> [Type] -> Type
     -> State t -> E.ExprEnv -> NameGen -> Id -> (Rule, [State t], NameGen)
 evalForAll as t tms tr s@(State {type_env = tenv}) eenv ng i =
     let 
+        (term_args@(x:ys), ng') = freshIds (t:tms) ng
+        as_ids = map (\case (TyVar tvi) -> tvi; _ -> error "evalForAll: non-type variable in as") as
+        e_template :: Expr -> Expr
+        e_template ex = mkNestedLam TypeL as_ids $ mkNestedLam TermL term_args ex
+
         -- PM-INST-VAR
-        (inst_state, ng_inst_state)  
+        inst_state  
             | t == tr
             , tr `elem` as
             = let 
-                (term_args@(x:_), ng'') = freshIds (t:tms) ng
+                e' = e_template $ Var x
 
-                innerEx = mkNestedLam TermL term_args (Var x)
-                as_ids = map (\case (TyVar tvi) -> tvi; _ -> error "PM-INST-VAR non type variable in as") as
-                e' = mkNestedLam TypeL as_ids innerEx
-
-                eenv' = E.insert (idName i) e' eenv  -- TODO: type mismatch between i and e', maybe NameGen problem, maybe reusing names
+                eenv' = E.insert (idName i) e' eenv
             in
-                trace "PM-INST-VAR" (Just s { curr_expr = CurrExpr Return e'
-                        , expr_env = eenv' }, ng'') 
+                trace "PM-INST-VAR" $ Just s { curr_expr = CurrExpr Return e'
+                        , expr_env = eenv' } 
                  
-            | otherwise = (Nothing, ng)
+            | otherwise = Nothing
         
         -- PM-CYCLE
         (cycle_state, ng_cycle_state) 
             | (_:_) <- tms
             , t `elem` as
             = let 
-                (term_args@(x:ys), ng') = freshIds (t:tms) ng_inst_state
-                (f, ng'')= freshId (mkNestedForAll as $ mkTyFun (tms++[t]++[tr])) ng'
+                (f, ng'') = freshId (mkNestedForAll as $ mkTyFun (tms++[t]++[tr])) ng'
 
-                as_ids = map (\case (TyVar tvi) -> tvi; _ -> error "PM-CYCLE non type variable in as") as
-                cycle_expr = mkApp . map Var $ [f] ++ as_ids ++ ys ++ [x]
-                termLams = mkNestedLam TermL term_args cycle_expr
-                e' = mkNestedLam TypeL as_ids termLams
+                e' = e_template $ mkApp . map Var $ [f] ++ as_ids ++ ys ++ [x]
                 
-                eenv' = E.insertSymbolic f eenv -- TODO: type mismatch between i and e'
+                eenv' = E.insertSymbolic f eenv
                 eenv'' = E.insert (idName i) e' eenv'
             in 
                 trace "PM-CYCLE" (Just s { curr_expr = CurrExpr Return e'
                                          , expr_env = eenv'' }, ng'')
-            | otherwise = (Nothing, ng_inst_state)
+            | otherwise = (Nothing, ng')
 
         -- PM-NON-CONT
         (non_cont_state, ng_non_cont_state)
             | HS.null $ contTyVars t
             , (_:_) <- tms
             = let
-                (term_args@(x:ys), ng') = freshIds (t:tms) ng_cycle_state
-                (f, ng'') = freshId (TyFun t (mkNestedForAll as $ mkTyFun $ tms ++ [tr])) ng'
+                (f, ng'') = freshId (TyFun t (mkNestedForAll as $ mkTyFun $ tms ++ [tr])) ng_cycle_state
 
-                as_ids = map (\case (TyVar tvi) -> tvi; _ -> error "PM-NON-CONT non type variable in as") as
-                non_cont_expr = mkApp . map Var $ [f] ++ [x] ++ as_ids ++ ys
-                termLams = mkNestedLam TermL term_args non_cont_expr
-                e' = mkNestedLam TypeL as_ids termLams
+                e' = e_template $ mkApp . map Var $ [f] ++ [x] ++ as_ids ++ ys
 
                 eenv' = E.insertSymbolic f eenv
                 eenv'' = E.insert (idName i) e' eenv'
