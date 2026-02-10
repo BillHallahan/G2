@@ -170,10 +170,22 @@ contTyVars (TyApp t1 t2) = HS.union (contTyVars t1) (contTyVars t2)
 contTyVars (TyVar i) = HS.singleton i
 contTyVars _ = HS.empty
 
+-- Make Alts from the Exprs in the form:
+--  1 -> Expr1; 2 -> Expr2; ... ; _ -> ExprN
+mkSymIntAlts :: [Expr] -> [Alt]
+mkSymIntAlts exprs = go exprs 1
+    where
+        go :: [Expr] -> Int -> [Alt]
+        go [e] _ = [Alt {altMatch = Default, altExpr = e}]
+        go (e:es) l = Alt {altMatch = LitAlt (LitInt $ toInteger l), altExpr = e}:go es (l+1)
+        go [] _ = error "mkSymIntAlts: empty list"
+
 evalForAll :: [Type] -> Type -> [Type] -> Type 
     -> State t -> E.ExprEnv -> NameGen -> Id -> (Rule, [State t], NameGen)
 evalForAll as t tms tr s@(State {type_env = tenv}) eenv ng i =
     let 
+        log_rules = False -- toggle for logging rules
+
         (term_args@(x:ys), ng') = freshIds (t:tms) ng
         as_ids = map (\case (TyVar tvi) -> tvi; _ -> error "evalForAll: non-type variable in as") as
         e_template :: Expr -> Expr
@@ -187,9 +199,10 @@ evalForAll as t tms tr s@(State {type_env = tenv}) eenv ng i =
                 e' = e_template $ Var x
 
                 eenv' = E.insert (idName i) e' eenv
+
+                s' = Just s { curr_expr = CurrExpr Return e', expr_env = eenv' }
             in
-                trace "PM-INST-VAR" $ Just s { curr_expr = CurrExpr Return e'
-                        , expr_env = eenv' } 
+                if log_rules then trace "PM-INST-VAR" $ s' else s'
                  
             | otherwise = Nothing
         
@@ -204,9 +217,11 @@ evalForAll as t tms tr s@(State {type_env = tenv}) eenv ng i =
                 
                 eenv' = E.insertSymbolic f eenv
                 eenv'' = E.insert (idName i) e' eenv'
-            in 
-                trace "PM-CYCLE" (Just s { curr_expr = CurrExpr Return e'
+
+                s' = (Just s { curr_expr = CurrExpr Return e'
                                          , expr_env = eenv'' }, ng'')
+            in 
+                if log_rules then trace "PM-CYCLE" s' else s'
             | otherwise = (Nothing, ng')
 
         -- PM-NON-CONT
@@ -220,9 +235,11 @@ evalForAll as t tms tr s@(State {type_env = tenv}) eenv ng i =
 
                 eenv' = E.insertSymbolic f eenv
                 eenv'' = E.insert (idName i) e' eenv'
-            in 
-                trace "PM-NONCONT" (Just s { curr_expr = CurrExpr Return e'
+
+                s' = (Just s { curr_expr = CurrExpr Return e'
                                            , expr_env = eenv'' }, ng'')
+            in 
+                if log_rules then trace "PM-NON-CONT" s' else s'
             | otherwise = (Nothing, ng_cycle_state)
 
         -- PM-UNWRAP
@@ -252,13 +269,56 @@ evalForAll as t tms tr s@(State {type_env = tenv}) eenv ng i =
 
                 eenv' = foldr E.insertSymbolic eenv symIds
                 eenv'' = E.insert (idName i) e' eenv'
-            in
-                trace "PM-UNWRAP" (Just s { curr_expr = CurrExpr Return e'
+
+                s' = (Just s { curr_expr = CurrExpr Return e'
                         , expr_env = eenv'' }, ng''')
+            in
+                if log_rules then trace "PM-UNWRAP" s' else s'
 
             | otherwise = (Nothing, ng_non_cont_state)
+
+        -- PM-INST-ADT
+        (inst_adt_states, ng_inst_adt_state)
+            | not . null $ (t:tms)
+            , not . HS.null $ contTyVars tr `HS.intersection` HS.fromList as_ids -- TODO: change this later
+            , TyCon tname _:ts <- unTyApp tr
+            , Just alg_data_ty <- HM.lookup tname tenv
+            = let
+                ty_map = HM.fromList $ zip (map idName bound) ts
+                dcs = applyTypeHashMap ty_map $ dataCon alg_data_ty
+                bound = applyTypeHashMap ty_map $ bound_ids alg_data_ty
+
+                (alt_exprs, symIds, ng'') =
+                    foldr (\dc@(DataCon _ dcty _ _) (all_alts, sids, ng1) ->
+                                let 
+                                    (di_args, _) = argTypes dcty
+
+                                    -- make functions fDi_1..fDi_mDi for this constructor
+                                    (fd_apps, fd_symIds, ng1') = foldr (\di_arg (all_fd_apps, _fd_syms, ng2) -> 
+                                        let 
+                                            (fdi, ng2') = freshId (mkNestedForAll as . mkTyFun $ (t:tms) ++ [di_arg]) ng2
+                                            fd_app :: Expr
+                                            fd_app = mkApp . map Var $ [fdi] ++ as_ids ++ term_args
+                                        in
+                                        (fd_app:all_fd_apps, fdi:_fd_syms, ng2')) ([], [], ng1) di_args
+                                    
+                                    
+                                in (mkApp (Data dc:fd_apps) : all_alts, sids ++ fd_symIds, ng1')
+                                ) ([], [], ng_unwrap_state) dcs
+
+                ([scrut, bindee], ng''') = freshIds [TyLitInt, TyLitInt] ng''
+                e' = e_template (Case (Var scrut) bindee tr $ mkSymIntAlts alt_exprs)
+
+                eenv' = foldr E.insertSymbolic eenv $ scrut:symIds
+                eenv'' = E.insert (idName i) e' eenv'
+
+                s' = (Just s {curr_expr = CurrExpr Return e', expr_env = eenv''}, ng''')
+            in
+                 if log_rules then trace "PM-INST-ADT" s' else s'
+            | otherwise = (Nothing, ng_unwrap_state)
+
         in
-        (RuleEvalVal, catMaybes [inst_state, cycle_state, non_cont_state, unwrap_state], ng_unwrap_state)
+        (RuleEvalVal, catMaybes [inst_state, cycle_state, non_cont_state, unwrap_state, inst_adt_states], ng_inst_adt_state)
 
 evalVarSharing :: State t -> NameGen -> Id -> (Rule, [State t], NameGen)
 evalVarSharing s@(State { expr_env = eenv
