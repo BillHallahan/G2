@@ -192,26 +192,35 @@ evalForAll as t tms tr s@(State {type_env = tenv}) eenv ng i =
         e_template ex = mkNestedLam TypeL as_ids $ mkNestedLam TermL term_args ex
 
         -- PM-INST-VAR
-        inst_state  
-            | t == tr
-            , tr `elem` as
+        (inst_state, ng_inst_state)
+            | tr `elem` (t:tms) -- return type in arguments
+            , tr `elem` as -- return type is a type variable
             = let 
-                e' = e_template $ Var x
+                ([scrut, bindee], ng'') = freshIds [TyLitInt, TyLitInt] ng'
 
-                eenv' = E.insert (idName i) e' eenv
+                e' = e_template $ Case (Var scrut) bindee tr 
+                    (mkSymIntAlts . map (Var . fst) . filter ((== tr) . snd) $ zip term_args (t:tms))
 
-                s' = Just s { curr_expr = CurrExpr Return e', expr_env = eenv' }
+                eenv' = E.insertSymbolic scrut eenv
+                eenv'' = E.insert (idName i) e' eenv'
+
+                s' = (Just s { curr_expr = CurrExpr Return e', expr_env = eenv'' }, ng'')
             in
-                if log_rules then trace "PM-INST-VAR" $ s' else s'
+                if log_rules then trace "PM-INST-VAR" s' else s'
                  
-            | otherwise = Nothing
+            | otherwise = (Nothing, ng')
         
         -- PM-CYCLE
         (cycle_state, ng_cycle_state) 
             | (_:_) <- tms
+            -- Since PM-CYCLE is only needed to access arguments of types 
+            -- that require applications of PM-UNWRAP or PM-NON-CONT, we 
+            -- check if all arguments are bare type variables to avoid 
+            -- unneeded cycling.
+            , not $ all isTyVar (t:tms)
             , t `elem` as
             = let 
-                (f, ng'') = freshId (mkNestedForAll as $ mkTyFun (tms++[t]++[tr])) ng'
+                (f, ng'') = freshId (mkNestedForAll as $ mkTyFun (tms++[t]++[tr])) ng_inst_state
 
                 e' = e_template $ mkApp . map Var $ [f] ++ as_ids ++ ys ++ [x]
                 
@@ -222,7 +231,7 @@ evalForAll as t tms tr s@(State {type_env = tenv}) eenv ng i =
                                          , expr_env = eenv'' }, ng'')
             in 
                 if log_rules then trace "PM-CYCLE" s' else s'
-            | otherwise = (Nothing, ng')
+            | otherwise = (Nothing, ng_inst_state)
 
         -- PM-NON-CONT
         (non_cont_state, ng_non_cont_state)
