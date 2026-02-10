@@ -18,8 +18,8 @@ data Tree a = Leaf a | Inter (Tree a) (Tree a)
 data Boxed a = Box a
 
 
-adt_arg :: (forall a. Boxed a -> a -> a) -> Int
-adt_arg f = f (Box 1) 4
+adt_arg :: (forall a. a -> Boxed a -> a) -> Int
+adt_arg f = f 4 (Box 1)
 
 adt_arg2 :: (forall a. Boxed a -> Boxed a -> a) -> Int
 adt_arg2 f = f (Box 1) (Box 2)
