@@ -365,12 +365,12 @@ runFunc temp src f smt_def config = do
     return (entry_f, er, name_gen bindings)
 
 smtNameWrap :: T.Text -> T.Text
-smtNameWrap n | c T.:< _ <- n
+smtNameWrap n | Just (c, _) <- T.uncons n
               , isAlpha c = n
               | otherwise = "(" <> n <> ")"
 
 smtName :: T.Text -> T.Text
-smtName n | c T.:< _ <- n
+smtName n | Just (c, _) <- T.uncons n
           , isAlpha c = "smt_" <> n
           | otherwise = "$!+$" <> n
 
