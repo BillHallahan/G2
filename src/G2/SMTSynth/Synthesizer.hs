@@ -103,7 +103,7 @@ adjustConfig :: Config -> Config
 adjustConfig c = c { step_limit = False
                    , height_limit = Just $ fromMaybe 5 (height_limit c)
 
-                   , favor_chars = True
+                   , favor_tys = ["Char", "Integer"]
                    , search_strat = Subpath }
 
 seqGenConfig :: String -> ParserInfo (String, Maybe String, Bool, Config)
@@ -143,9 +143,10 @@ insertER :: NameGen -> ExecRes () -> [PatternRes] -> [PatternRes]
 insertER ng er [] =
     let
         (varred_form, is, ng') = replaceLitsWithVars ng (conc_out er)
+        varred_form' = addFromInteger varred_form
         lit_ers = execResCollectLits er
     in
-    [PL { pattern = varred_form, lit_expr = conc_out er, pat_ids = is, orig_exec_res = [er], lit_vals = map (:[]) lit_ers }]
+    [PL { pattern = varred_form', lit_expr = conc_out er, pat_ids = is, orig_exec_res = [er], lit_vals = map (:[]) lit_ers }]
 insertER ng er (pl:pls)
     | eqIgnoringLits (conc_out er) (lit_expr pl) =
         let
@@ -178,13 +179,13 @@ genSMTFunc pls src f smt_def config = do
                 tv_env = tyvar_env s 
                 
                 vs = zipWith (formArg kv tv_env) argList (relArgs (final_state er) $ conc_args er)
-                new_smt_def = T.unpack (smtName f) ++ " " ++ intercalate " " vs ++ " = " ++ new_smt_piece
+                new_smt_def = T.unpack (smtName . nameOcc $ idName entry_f) ++ " " ++ intercalate " " vs ++ " = " ++ new_smt_piece
             genSMTFunc pls' src f (Just (final_state er, entry_f, new_smt_def)) config
 
 formArg :: KnownValues -> TyVarEnv -> String -> Expr -> String
 formArg kv tv nm e
     | typeOf tv e == tyInt kv = "(I# " ++ nm ++ ")"
-    | typeOf tv e == tyInteger kv = "(Z# " ++ nm ++ ")"
+    | typeOf tv e == tyInteger kv = "(toInteger -> Z# " ++ nm ++ ")"
     | otherwise = nm
 
 formFunction :: State t -> [PatternRes] -> IO String
@@ -317,6 +318,10 @@ collectLits e = SM.execState (modifyLits rep e) []
             SM.modify (l:)
             return l
 
+addFromInteger :: Expr -> Expr
+addFromInteger e@(App (Data dc) _) | nameOcc (dc_name dc) == "Z#" = App (Var $ Id (Name "fromInteger" Nothing 0 Nothing) TyUnknown) e
+addFromInteger e = modifyChildren addFromInteger e
+
 -------------------------------------------------------------------------------
 -- Calling G2
 -------------------------------------------------------------------------------
@@ -365,14 +370,13 @@ smtName n = "smt_" <> n
 
 setUpSpec :: Handle -> Maybe (State t, Id, String) -> IO ()
 setUpSpec h Nothing = hClose h
-setUpSpec h (Just (s, Id n t, spec)) = do
-    let t' = repAllTyVarsWithChar
-           . foldr1 TyFun
-           . filter (not . isTypeClass (type_classes s))
+setUpSpec h (Just (s@(State { known_values = kv }), Id n t, spec)) = do
+    let t' = foldr1 TyFun
+           . filter (not . isCallStack)
            . splitTyFuns
            . snd
            $ splitTyForAlls t
-        contents = "{-# LANGUAGE BangPatterns, MagicHash, ScopedTypeVariables #-}\nmodule Spec where\nimport GHC.Prim2\n"
+        contents = "{-# LANGUAGE BangPatterns, MagicHash, ScopedTypeVariables, ViewPatterns #-}\nmodule Spec where\nimport GHC.Prim2\n"
                     ++ "import GHC.Types2\n"
                     ++ "import Control.Exception\n"
                     ++ "import System.IO.Unsafe\n\n"
@@ -380,30 +384,34 @@ setUpSpec h (Just (s, Id n t, spec)) = do
                     ++ "tryMaybe a = catch (a >>= \\v -> return (Just v)) (\\(e :: SomeException) -> return Nothing)\n\n"
                     ++ "tryMaybeUnsafe :: a -> Maybe a\n"
                     ++ "tryMaybeUnsafe x = unsafePerformIO $ tryMaybe (let !y = x in return y)\n\n"
-                    ++ T.unpack (smtName $ nameOcc n) ++ " :: " ++ T.unpack (mkTypeHaskell t') ++ "\n"
+                    ++ T.unpack (smtName $ nameOcc n) ++ " :: " ++ T.unpack (mkTypeHaskellDictArrows (mkPrettyGuide ()) (type_classes s) t') ++ "\n"
                     ++ spec
     putStrLn contents
     hPutStrLn h contents
     hFlush h
     hClose h
-    where
-        repAllTyVarsWithChar (TyVar _) = (TyCon (Name "Char" Nothing 0 Nothing) TYPE)
-        repAllTyVarsWithChar t_ = modifyChildren repAllTyVarsWithChar t_
+
+isCallStack :: Type -> Bool
+isCallStack ty | TyCon tn _:_ <- unTyApp ty = nameOcc tn == "IP"
+               | otherwise = False
 
 -- | Find inputs that violate a found SMT definition
 findInconsistent :: Name -> State t -> Bindings -> (State t, Bindings)
 findInconsistent entry_f s@(State { expr_env = eenv
+                                  , curr_expr = CurrExpr _ cexpr
                                   , known_values = kv
                                   , type_classes = tc
                                   , tyvar_env = tv_env }) b@(Bindings { name_gen = ng })
     | Just (smt_def, smt_def_e) <- E.lookupNameMod (smtName $ nameOcc entry_f) (Just "Spec") eenv
     , Just (try_unsafe, try_unsafe_e) <- E.lookupNameMod "tryMaybeUnsafe" (Just "Spec") eenv =
     let
-        app_smt_def = mkApp $ Var (Id smt_def (typeOf tv_env smt_def_e)):map Var (inputIds s b)
+        app_smt_def = mkApp $ Var (Id smt_def TyUnknown)
+                            :fixed_inputs b
+                            ++ filter (not . isCallStack . typeOf tv_env) (map Var (inputIds s b))
 
-        try_unsafe_var = Var . Id try_unsafe $ typeOf tv_env try_unsafe_e
+        try_unsafe_var = Var . Id try_unsafe $ typeOf tv_env $ try_unsafe_e
 
-        ret_type = returnType $ typeOf tv_env smt_def_e
+        ret_type = returnType $ typeOf tv_env cexpr
         m_eq_dict = typeClassInst tc HM.empty (KV.eqTC kv) $ TyApp (tyMaybe kv) ret_type
     in
     case m_eq_dict of
@@ -455,7 +463,7 @@ runSygus sygus_cmds = do
 
 sygusCmds :: [ExecRes t] -> [Cmd]
 sygusCmds [] = []
-sygusCmds er@(ExecRes { final_state = s@(State { tyvar_env = tv_env }), conc_args = args, conc_out = out_e}:_) = 
+sygusCmds er@(ExecRes { final_state = s@(State { tyvar_env = tv_env, known_values = kv }), conc_args = args, conc_out = out_e}:_) = 
     let 
         define_eq n srt = SmtCmd $ DefineFun n
                                              [SortedVar "x" srt, SortedVar "y" srt]
@@ -465,16 +473,15 @@ sygusCmds er@(ExecRes { final_state = s@(State { tyvar_env = tv_env }), conc_arg
                                         [SortedVar "x" strSort]
                                         strSort
                                         (TermIdent (ISymb "x"))
-        -- toChar returns the first character of a non-empty string, or "!" if passed an empty string.
-        -- "!" is an arbitary choice- we just need SOME behavior that can be made consistent with the Haskell translation.
+        -- toChar returns the first character of a non-empty string, or "" if passed an empty string.
+        -- This is not possible to reflect in the actual Haskell code, where a Char must be exactly one character.
+        -- Thus, we carefully arrange the grammar so that `toChar` can only appear as the outermost function.
+        -- If it returns an empty string, this will be different than the Haskell code, which must have some other behavior-
+        -- and so our CEGIS synthesizer will have an error to loop on.
         to_char = SmtCmd $ DefineFun "toChar"
                                         [SortedVar "x" strSort]
                                         strSort
-                                        (TermCall (ISymb "ite")
-                                            [ TermCall (ISymb ">")
-                                                [ TermCall (ISymb "str.len") [ TermIdent (ISymb "x") ], TermLit (LitNum 0) ]
-                                            , TermCall (ISymb "str.at") [TermIdent (ISymb "x"), TermLit (LitNum 0)]
-                                            , TermLit (LitStr "!")])
+                                        ( TermCall (ISymb "str.at") [TermIdent (ISymb "x"), TermLit (LitNum 0)] )
         grm = GrammarDef pre_dec gram_defs'
     in
     [ SmtCmd $ SetLogic "ALL"
@@ -486,8 +493,6 @@ sygusCmds er@(ExecRes { final_state = s@(State { tyvar_env = tv_env }), conc_arg
     ++ map execResToConstraints er ++
     [CheckSynth]
     where
-        kv = known_values s
-
         intSort = IdentSort (ISymb "Int")
         strSort = IdentSort (ISymb "String")
         boolSort = IdentSort (ISymb "Bool")
@@ -503,7 +508,7 @@ sygusCmds er@(ExecRes { final_state = s@(State { tyvar_env = tv_env }), conc_arg
         str_args = map fst . filter ((==) (tyString kv) . snd) $ zip argList arg_types
 
         intIdent = BfIdentifier (ISymb "IntPr")
-        charIdent = BfIdentifier (ISymb "CharPr")
+        charArgIdent = BfIdentifier (ISymb "CharArgPr")
         strIdent = BfIdentifier (ISymb "StrPr")
         boolIdent = BfIdentifier (ISymb "BoolPr")
 
@@ -513,15 +518,17 @@ sygusCmds er@(ExecRes { final_state = s@(State { tyvar_env = tv_env }), conc_arg
         grmString = map (GBfTerm . BfIdentifier . ISymb) str_args
                     ++
                     [ GBfTerm (BfIdentifierBfs (ISymb "ite") [ boolIdent, strIdent, strIdent])
+                    , GBfTerm (BfLiteral (LitStr ""))
                     , GBfTerm (BfIdentifierBfs (ISymb "str.++") [ strIdent, strIdent])
+                    , GBfTerm (BfIdentifierBfs (ISymb "str.at") [ strIdent, intIdent])
                     , GBfTerm (BfIdentifierBfs (ISymb "str.substr") [ strIdent, intIdent, intIdent])
                     , GBfTerm (BfIdentifierBfs (ISymb "str.replace") [ strIdent, strIdent, strIdent])
-                    , GBfTerm (BfIdentifierBfs (ISymb "fromChar") [ charIdent ])
                     -- , GBfTerm (BfIdentifierBfs (ISymb "str.replace_all") [ strIdent, strIdent, strIdent])
                     ]
-        grmChar = map (GBfTerm . BfIdentifier . ISymb) char_args
-                  ++
-                  [ GBfTerm (BfIdentifierBfs (ISymb "toChar") [ strIdent ])]
+                    ++
+                    if not (null char_args) then [GBfTerm (BfIdentifierBfs (ISymb "fromChar") [ charArgIdent ])] else []
+        grmCharArgs = map (GBfTerm . BfIdentifier . ISymb) char_args
+        grmCharRet = [ GBfTerm (BfIdentifierBfs (ISymb "toChar") [ strIdent ])]
         grmInt = [ GVariable intSort
                  , GBfTerm (BfIdentifierBfs (ISymb "ite") [ boolIdent, intIdent, intIdent])
                  , GBfTerm (BfLiteral (LitNum 0))
@@ -534,14 +541,16 @@ sygusCmds er@(ExecRes { final_state = s@(State { tyvar_env = tv_env }), conc_arg
                   , GBfTerm (BfIdentifierBfs (ISymb "strEq") [ strIdent, strIdent ])
                   , GBfTerm (BfIdentifierBfs (ISymb "intEq") [ intIdent, intIdent ])
                   , GBfTerm (BfIdentifierBfs (ISymb "str.<") [ strIdent, strIdent ])
+                  , GBfTerm (BfIdentifierBfs (ISymb "str.<=") [ strIdent, strIdent ])
                   , GBfTerm (BfIdentifierBfs (ISymb "str.prefixof") [ strIdent, strIdent ])
                   , GBfTerm (BfIdentifierBfs (ISymb "str.suffixof") [ strIdent, strIdent ])
                   , GBfTerm (BfIdentifierBfs (ISymb "str.contains") [ strIdent, strIdent ])
                   ]
 
 
-        ty_gram_defs = [ (tyString kv, GroupedRuleList "StrPr" strSort grmString)
-                       , (tyChar kv, GroupedRuleList "CharPr" strSort grmChar)
+        ty_gram_defs = (if ret_type == tyChar kv then ((tyChar kv, GroupedRuleList "CharRetPr" strSort grmCharRet):) else id) $
+                       (if not (null char_args) then ((tyChar kv, GroupedRuleList "CharArgPr" strSort grmCharArgs):) else id)           
+                       [ (tyString kv, GroupedRuleList "StrPr" strSort grmString)
                        , (TyLitInt, GroupedRuleList "IntPr" intSort grmInt)
                        , (tyBool kv, GroupedRuleList "BoolPr" boolSort grmBool)]
         find_start_gram = findElem (\(ty, _) -> ty == ret_type) ty_gram_defs
@@ -582,23 +591,29 @@ execResToConstraints (ExecRes { final_state = s, conc_args = ars, conc_out = out
     cons
 
 relArgs :: State t -> [Expr] -> [Expr]
-relArgs s = filter (not . isTypeClass (type_classes s) . typeOf (tyvar_env s)) . filter (not . isType)
+relArgs s = filter (not . isCallStack . typeOf (tyvar_env s))
+          . filter (not . isTypeClass (type_classes s) . typeOf (tyvar_env s))
+          . filter (not . isType)
     where 
         isType (Type _) = True
         isType _ = False
 
 exprToTerm :: KnownValues -> Expr -> Term
 exprToTerm _ (Lit (LitInt x)) = TermLit (LitNum x)
-exprToTerm _ (Lit (LitChar x)) = TermLit (LitStr [x])
+exprToTerm _ (Lit (LitChar x)) | Just t <- toStringTerm [x] = t
 exprToTerm _ (App _ (Lit (LitInt x))) = TermLit (LitNum x)
-exprToTerm _ (App _ (Lit (LitChar x))) = TermLit (LitStr [x])
+exprToTerm _ (App _ (Lit (LitChar x))) | Just t <- toStringTerm [x] = t
 exprToTerm kv dc | dc == mkTrue kv = TermLit (LitBool True)
                  | dc == mkFalse kv = TermLit (LitBool False)
-exprToTerm _ e | Just t <- toStringTerm e = t
+exprToTerm _ e | Just t <- toStringTermFromExpr e = t
 exprToTerm _ e = error $ "exprToTerm: unsupported Expr" ++ "\n" ++ show e
 
-toStringTerm :: Expr -> Maybe Term
-toStringTerm e | Just s <- toString e =
+toStringTermFromExpr :: Expr -> Maybe Term
+toStringTermFromExpr e | Just s <- toString e = toStringTerm s
+                       | otherwise = Nothing
+
+toStringTerm :: String -> Maybe Term
+toStringTerm s =
     Just $ case go s of
                 [x] -> x
                 ys -> TermCall (ISymb "str.++") ys
@@ -664,6 +679,7 @@ termToHaskell trm =
         go !x (TermLit l) = (x, (goLit l, []))
         go !_ t = error $ "termToHaskell: unsupported term" ++ "\n" ++ show t
 
+        goLit (LitStr []) = "[]"
         goLit (LitStr s) = "\"" ++ s ++ "\""
         goLit (LitNum i) = show i ++ "#"
         goLit _ = error "termToHaskell: unsupported lit"
@@ -674,6 +690,8 @@ smtFuncToPrim s vl_args = conv s ++ conv_args
         conv "str.++" = "strAppend# "
         conv "str.len" = "strLen#"
         conv "str.<" = "strLt#"
+        conv "str.<=" = "strLe#"
+        conv "str.at" = "strAt#"
         conv "str.substr" = "strSubstr#"
         conv "str.prefixof" = "strPrefixOf#"
         conv "str.suffixof" = "strSuffixOf#"
@@ -699,6 +717,6 @@ smtFuncToPrim s vl_args = conv s ++ conv_args
                                                 b2 = "!at_G2_STR = (strAt# " ++ a ++ " 0#)"
                                                 let_b = "let " ++ b1 ++ ";" ++ b2 ++ "in"
                                             in
-                                            "(case (" ++ let_b ++ " (ite (len__G2__INT $># 0#) at_G2_STR \"!\")) of [x] -> x)"
+                                            "(case (" ++ let_b ++ " at_G2_STR) of [x] -> x)"
                         _ -> " " ++ intercalate " " vl_args
 
