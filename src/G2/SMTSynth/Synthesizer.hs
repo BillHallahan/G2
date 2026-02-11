@@ -104,6 +104,7 @@ adjustConfig c = c { step_limit = False
                    , height_limit = Just $ fromMaybe 5 (height_limit c)
 
                    , favor_tys = ["Char", "Integer"]
+                   , smt_prim_lists = UseSMTSeq
                    , search_strat = Subpath }
 
 seqGenConfig :: String -> ParserInfo (String, Maybe String, Bool, Config)
@@ -245,13 +246,12 @@ zipWithDef _ xs [] = xs
 zipWithDef _ [] ys = ys
 zipWithDef f (x:xs) (y:ys) = f x y:zipWithDef f xs ys
 
-isString :: Expr -> Bool
-isString (App (Data dc) (Type (TyCon n _)))
-    | nameOcc (dcName dc) == "[]"
-    , nameOcc n == "Char" = True
-isString (App (App (App (Data dc) _) _) _)
+isList :: Expr -> Bool
+isList (App (Data dc) (Type (TyCon n _)))
+    | nameOcc (dcName dc) == "[]" = True
+isList (App (App (App (Data dc) _) _) _)
     | nameOcc (dcName dc) == ":" = True
-isString _ = False
+isList _ = False
 
 -- | Check that two Expr's are equal, disregarding specific values of (1) literals, (2) strings, and (3) DC uniques.
 eqIgnoringLits :: Expr -> Expr -> Bool
@@ -266,7 +266,7 @@ eqIgnoringLits e1 e2 =
             | nameOcc (dc_name dc) == "True" || nameOcc (dc_name dc) == "False" = Var (Id (Name "!!__G2__!!_BOOL" Nothing 0 Nothing) TyUnknown)
             | nameOcc (dc_name dc) == "C#" = Var (Id (Name "!!__G2__!!_CHAR" Nothing 0 Nothing) TyUnknown)
             | otherwise = Data (dc { dc_name = Name (nameOcc (dc_name dc)) Nothing 0 Nothing})
-        repLit e | isString e = Var (Id (Name "!!__G2__!!_STRING" Nothing 0 Nothing) TyUnknown)
+        repLit e | isList e = Var (Id (Name "!!__G2__!!_LIST" Nothing 0 Nothing) TyUnknown)
                  | otherwise = e
 
         rep (LitInt _) = LitInt 0
@@ -282,7 +282,7 @@ eqIgnoringLits e1 e2 =
 modifyLits :: Monad m => (Expr -> m Expr) -> Expr -> m Expr
 modifyLits f e@(Lit _) = f e
 modifyLits f e@(App (Data dc) _) | nameOcc (dc_name dc) == "C#" = f e
-modifyLits f e | isString e = f e
+modifyLits f e | isList e = f e
                | Data dc <- e
                , nameOcc (dc_name dc) == "True" || nameOcc (dc_name dc) == "False" = f e
                | otherwise = modifyChildrenM (modifyLits f) e
@@ -486,6 +486,7 @@ sygusCmds er@(ExecRes { final_state = s@(State { tyvar_env = tv_env, known_value
     in
     [ SmtCmd $ SetLogic "ALL"
     , define_eq "strEq" strSort
+    , define_eq "seqIntEq" seq_int_sort
     , define_eq "intEq" intSort
     , from_char
     , to_char
@@ -510,6 +511,7 @@ sygusCmds er@(ExecRes { final_state = s@(State { tyvar_env = tv_env, known_value
         intIdent = BfIdentifier (ISymb "IntPr")
         charArgIdent = BfIdentifier (ISymb "CharArgPr")
         strIdent = BfIdentifier (ISymb "StrPr")
+        seqIntIdent = BfIdentifier (ISymb "SeqIntPr")
         boolIdent = BfIdentifier (ISymb "BoolPr")
 
         -------------------------------
@@ -519,10 +521,10 @@ sygusCmds er@(ExecRes { final_state = s@(State { tyvar_env = tv_env, known_value
                     ++
                     [ GBfTerm (BfIdentifierBfs (ISymb "ite") [ boolIdent, strIdent, strIdent])
                     , GBfTerm (BfLiteral (LitStr ""))
-                    , GBfTerm (BfIdentifierBfs (ISymb "str.++") [ strIdent, strIdent])
-                    , GBfTerm (BfIdentifierBfs (ISymb "str.at") [ strIdent, intIdent])
-                    , GBfTerm (BfIdentifierBfs (ISymb "str.substr") [ strIdent, intIdent, intIdent])
-                    , GBfTerm (BfIdentifierBfs (ISymb "str.replace") [ strIdent, strIdent, strIdent])
+                    , GBfTerm (BfIdentifierBfs (ISymb "seq.++") [ strIdent, strIdent])
+                    , GBfTerm (BfIdentifierBfs (ISymb "seq.at") [ strIdent, intIdent])
+                    , GBfTerm (BfIdentifierBfs (ISymb "seq.extract") [ strIdent, intIdent, intIdent])
+                    , GBfTerm (BfIdentifierBfs (ISymb "seq.replace") [ strIdent, strIdent, strIdent])
                     -- , GBfTerm (BfIdentifierBfs (ISymb "str.replace_all") [ strIdent, strIdent, strIdent])
                     ]
                     ++
@@ -533,24 +535,47 @@ sygusCmds er@(ExecRes { final_state = s@(State { tyvar_env = tv_env, known_value
                  , GBfTerm (BfIdentifierBfs (ISymb "ite") [ boolIdent, intIdent, intIdent])
                  , GBfTerm (BfLiteral (LitNum 0))
                  , GBfTerm (BfLiteral (LitNum (-1)))
-                 , GBfTerm (BfIdentifierBfs (ISymb "str.indexof") [ strIdent, strIdent, intIdent ])
-                 , GBfTerm (BfIdentifierBfs (ISymb "str.len") [ strIdent ])
                  , GBfTerm (BfIdentifierBfs (ISymb "+") [ intIdent, intIdent])
                  ]
+                 ++ intOpForIdent strIdent
+                 ++ intOpForIdent seqIntIdent
+        intOpForIdent ident =
+                 [
+                   GBfTerm (BfIdentifierBfs (ISymb "seq.indexof") [ ident, ident, intIdent ])
+                 , GBfTerm (BfIdentifierBfs (ISymb "seq.len") [ ident ])
+                 ]
+
         grmBool = [ GBfTerm (BfIdentifierBfs (ISymb "ite") [ boolIdent, boolIdent, boolIdent])
-                  , GBfTerm (BfIdentifierBfs (ISymb "strEq") [ strIdent, strIdent ])
                   , GBfTerm (BfIdentifierBfs (ISymb "intEq") [ intIdent, intIdent ])
                   , GBfTerm (BfIdentifierBfs (ISymb "str.<") [ strIdent, strIdent ])
                   , GBfTerm (BfIdentifierBfs (ISymb "str.<=") [ strIdent, strIdent ])
-                  , GBfTerm (BfIdentifierBfs (ISymb "str.prefixof") [ strIdent, strIdent ])
-                  , GBfTerm (BfIdentifierBfs (ISymb "str.suffixof") [ strIdent, strIdent ])
-                  , GBfTerm (BfIdentifierBfs (ISymb "str.contains") [ strIdent, strIdent ])
+                  ]
+                  ++ boolOpForIdent "strEq" strIdent
+                  ++ boolOpForIdent "seqIntEq" seqIntIdent
+        boolOpForIdent comp ident = 
+                  [ GBfTerm (BfIdentifierBfs (ISymb comp) [ ident, ident ])
+                  , GBfTerm (BfIdentifierBfs (ISymb "seq.prefixof") [ ident, ident ])
+                  , GBfTerm (BfIdentifierBfs (ISymb "seq.suffixof") [ ident, ident ])
+                  , GBfTerm (BfIdentifierBfs (ISymb "seq.contains") [ ident, ident ])
                   ]
 
+        grmSeq srt srtIdent =
+                     [ GVariable srt
+                     , GBfTerm (BfIdentifierBfs (ISymb "ite") [ boolIdent, srtIdent, srtIdent])
+                     , GBfTerm (BfIdentifierBfs (ISymb "as") [BfIdentifier (ISymb "seq.empty"), BfIdentifier (ISymb . T.unpack $ printSygus srt) ])
+                     , GBfTerm (BfIdentifierBfs (ISymb "seq.++") [ srtIdent, srtIdent])
+                     , GBfTerm (BfIdentifierBfs (ISymb "seq.at") [ srtIdent, intIdent])
+                     , GBfTerm (BfIdentifierBfs (ISymb "seq.extract") [ srtIdent, intIdent, intIdent])
+                     , GBfTerm (BfIdentifierBfs (ISymb "seq.replace") [ srtIdent, srtIdent, srtIdent])
+                     -- , GBfTerm (BfIdentifierBfs (ISymb "str.replace_all") [ strIdent, strIdent, strIdent])
+                     ]
+
+        seq_int_sort = IdentSortSort (ISymb "Seq") [IdentSort (ISymb "Int")]
 
         ty_gram_defs = (if ret_type == tyChar kv then ((tyChar kv, GroupedRuleList "CharRetPr" strSort grmCharRet):) else id) $
                        (if not (null char_args) then ((tyChar kv, GroupedRuleList "CharArgPr" strSort grmCharArgs):) else id)           
                        [ (tyString kv, GroupedRuleList "StrPr" strSort grmString)
+                       , (TyApp (tyList kv) (tyInt kv), GroupedRuleList "SeqIntPr" seq_int_sort (grmSeq seq_int_sort seqIntIdent))
                        , (TyLitInt, GroupedRuleList "IntPr" intSort grmInt)
                        , (tyBool kv, GroupedRuleList "BoolPr" boolSort grmBool)]
         find_start_gram = findElem (\(ty, _) -> ty == ret_type) ty_gram_defs
@@ -600,23 +625,24 @@ relArgs s = filter (not . isCallStack . typeOf (tyvar_env s))
 
 exprToTerm :: KnownValues -> Expr -> Term
 exprToTerm _ (Lit (LitInt x)) = TermLit (LitNum x)
-exprToTerm _ (Lit (LitChar x)) | Just t <- toStringTerm [x] = t
+exprToTerm _ (Lit (LitChar x)) = toStringTerm [x]
 exprToTerm _ (App _ (Lit (LitInt x))) = TermLit (LitNum x)
-exprToTerm _ (App _ (Lit (LitChar x))) | Just t <- toStringTerm [x] = t
+exprToTerm _ (App _ (Lit (LitChar x))) = toStringTerm [x]
 exprToTerm kv dc | dc == mkTrue kv = TermLit (LitBool True)
                  | dc == mkFalse kv = TermLit (LitBool False)
+exprToTerm kv e | Just t <- toSeqTermFromExpr kv e = t
 exprToTerm _ e | Just t <- toStringTermFromExpr e = t
 exprToTerm _ e = error $ "exprToTerm: unsupported Expr" ++ "\n" ++ show e
 
 toStringTermFromExpr :: Expr -> Maybe Term
-toStringTermFromExpr e | Just s <- toString e = toStringTerm s
+toStringTermFromExpr e | Just s <- toString e = Just $ toStringTerm s
                        | otherwise = Nothing
 
-toStringTerm :: String -> Maybe Term
+toStringTerm :: String -> Term
 toStringTerm s =
-    Just $ case go s of
-                [x] -> x
-                ys -> TermCall (ISymb "str.++") ys
+    case go s of
+            [x] -> x
+            ys -> TermCall (ISymb "seq.++") ys
     where
         go s = let (pre, post) = span isPrint s in
                case post of
@@ -624,17 +650,37 @@ toStringTerm s =
                     (non_pr:post') ->
                         let non_pr_t = TermCall (ISymb "str.from_code") [TermLit . LitNum . toInteger $ fromEnum non_pr] in
                         [TermLit (LitStr pre), non_pr_t] ++ go post'
-toStringTerm _ = Nothing
 
+toSeqTermFromExpr :: KnownValues -> Expr -> Maybe Term
+toSeqTermFromExpr kv e | Just s <- toExprList e = Just $ toSeqTerm kv (exprListType e) s
+                       | otherwise = Nothing
+
+exprListType :: Expr -> Type
+exprListType e | _:Type t:_ <- unApp e = t
+exprListType _ = error "exprListType: Not a list"
+
+toSeqTerm :: KnownValues -> Type -> [Expr] -> Term
+toSeqTerm kv t [] =
+    let
+        sortToTerm (IdentSort (ISymb "String")) = TermIdent (ISymb "String")
+        sortToTerm (IdentSort s) = TermCall (ISymb "Seq") [ TermIdent s]
+        sortToTerm (IdentSortSort s xs) = TermCall s $ map sortToTerm xs
+    in
+    TermCall (ISymb "as") [ TermIdent (ISymb "seq.empty"), sortToTerm $ typeToSort kv t ]
+toSeqTerm kv t (x:xs) = TermCall (ISymb "seq.++") [ TermCall (ISymb "seq.unit") [ exprToTerm kv x ]
+                                                  , toSeqTerm kv t xs]
 
 typeToSort :: KnownValues -> Type -> Sort
 typeToSort _ t | t == TyLitInt = IdentSort (ISymb "Int")
 typeToSort _ t | t == TyLitChar = IdentSort (ISymb "String")
 typeToSort kv t | t == tyBool kv = IdentSort (ISymb "Bool")
-typeToSort kv (TyApp t _) | t == tyList kv = IdentSort (ISymb "String")
+typeToSort kv (TyApp t1 t2) | t1 == tyList kv
+                            , t2 == tyChar kv = IdentSort (ISymb "String")
+typeToSort kv (TyApp t1 t2) | t1 == tyList kv = IdentSortSort (ISymb "Seq") [ typeToSort kv t2 ]
 typeToSort kv t | t == tyInt kv = IdentSort (ISymb "Int")
 typeToSort kv t | t == tyInteger kv = IdentSort (ISymb "Int")
 typeToSort kv t | t == tyChar kv = IdentSort (ISymb "String")
+typeToSort _ TyUnknown = IdentSort (ISymb ("Unknown"))
 typeToSort _ s = error $ "typeToSort: unsupported Type" ++ "\n" ++ show s
 
 -------------------------------------------------------------------------------
@@ -665,6 +711,7 @@ termToHaskell trm =
               )
         go !x (TermIdent (ISymb s)) = (x, (s, []))
         go !x (TermCall (ISymb "-") [TermLit (LitNum y)]) =(x, ("-" ++ show y ++ "#", []))
+        go !x (TermCall (ISymb "as") (TermIdent (ISymb "seq.empty"):_)) = (x, ("[]", []))
         go !x (TermCall (ISymb f) ts) =
             let
                 (x', vl_args, arg_binds) = mapGo x ts
@@ -699,11 +746,24 @@ smtFuncToPrim s vl_args = conv s ++ conv_args
         conv "str.indexof" = "strIndexOf#"
         conv "str.replace" = "strReplace#"
         conv "strEq" = "strEq#"
+
+        conv "seq.++" = "strAppend# "
+        conv "seq.len" = "strLen#"
+        conv "seq.at" = "strAt#"
+        conv "seq.extract" = "strSubstr#"
+        conv "seq.prefixof" = "strPrefixOf#"
+        conv "seq.suffixof" = "strSuffixOf#"
+        conv "seq.contains" = "strContains#"
+        conv "seq.indexof" = "strIndexOf#"
+        conv "seq.replace" = "strReplace#"
+        conv "seqIntEq" = "strEq#"
+
         conv "intEq" = "($==#)"
         conv "fromChar" = ""
         conv "toChar" = ""
         conv "+" = "(+#)"
         conv "ite" = ""
+
         conv f = error $ "smtFuncToPrim: unsupported " ++ f
         
         conv_args = case s of
