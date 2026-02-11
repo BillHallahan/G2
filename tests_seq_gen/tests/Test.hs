@@ -74,3 +74,6 @@ f18 x = toInteger x + toInteger x
 f19 :: HasCallStack => String -> String
 f19 "" = error "negative"
 f19 x = x
+
+(@@) :: String -> String -> String
+xs @@ ys = xs ++ ys ++ xs

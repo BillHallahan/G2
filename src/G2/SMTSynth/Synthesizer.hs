@@ -180,7 +180,7 @@ genSMTFunc pls src f smt_def config = do
                 tv_env = tyvar_env s 
                 
                 vs = zipWith (formArg kv tv_env) argList (relArgs (final_state er) $ conc_args er)
-                new_smt_def = T.unpack (smtName . nameOcc $ idName entry_f) ++ " " ++ intercalate " " vs ++ " = " ++ new_smt_piece
+                new_smt_def = T.unpack (smtNameWrap . smtName . nameOcc $ idName entry_f) ++ " " ++ intercalate " " vs ++ " = " ++ new_smt_piece
             genSMTFunc pls' src f (Just (final_state er, entry_f, new_smt_def)) config
 
 formArg :: KnownValues -> TyVarEnv -> String -> Expr -> String
@@ -364,9 +364,15 @@ runFunc temp src f smt_def config = do
 
     return (entry_f, er, name_gen bindings)
 
+smtNameWrap :: T.Text -> T.Text
+smtNameWrap n | Just (c, _) <- T.uncons n
+              , isAlpha c = n
+              | otherwise = "(" <> n <> ")"
 
 smtName :: T.Text -> T.Text
-smtName n = "smt_" <> n
+smtName n | Just (c, _) <- T.uncons n
+          , isAlpha c = "smt_" <> n
+          | otherwise = "$!+$" <> n
 
 setUpSpec :: Handle -> Maybe (State t, Id, String) -> IO ()
 setUpSpec h Nothing = hClose h
@@ -384,7 +390,7 @@ setUpSpec h (Just (s@(State { known_values = kv }), Id n t, spec)) = do
                     ++ "tryMaybe a = catch (a >>= \\v -> return (Just v)) (\\(e :: SomeException) -> return Nothing)\n\n"
                     ++ "tryMaybeUnsafe :: a -> Maybe a\n"
                     ++ "tryMaybeUnsafe x = unsafePerformIO $ tryMaybe (let !y = x in return y)\n\n"
-                    ++ T.unpack (smtName $ nameOcc n) ++ " :: " ++ T.unpack (mkTypeHaskellDictArrows (mkPrettyGuide ()) (type_classes s) t') ++ "\n"
+                    ++ T.unpack (smtNameWrap . smtName $ nameOcc n) ++ " :: " ++ T.unpack (mkTypeHaskellDictArrows (mkPrettyGuide ()) (type_classes s) t') ++ "\n"
                     ++ spec
     putStrLn contents
     hPutStrLn h contents
