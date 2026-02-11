@@ -630,8 +630,8 @@ exprToTerm _ (App _ (Lit (LitInt x))) = TermLit (LitNum x)
 exprToTerm _ (App _ (Lit (LitChar x))) = toStringTerm [x]
 exprToTerm kv dc | dc == mkTrue kv = TermLit (LitBool True)
                  | dc == mkFalse kv = TermLit (LitBool False)
-exprToTerm kv e | Just t <- toSeqTermFromExpr kv e = t
 exprToTerm _ e | Just t <- toStringTermFromExpr e = t
+exprToTerm kv e | Just t <- toSeqTermFromExpr kv e = t
 exprToTerm _ e = error $ "exprToTerm: unsupported Expr" ++ "\n" ++ show e
 
 toStringTermFromExpr :: Expr -> Maybe Term

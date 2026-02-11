@@ -29,9 +29,9 @@ main = do
                     dir_name = map T.unpack $ init spl_f
                     f_name = last spl_f
                 (ty, def) <- genSMTFunc [] [] f Nothing con
-                updateMainSMT $ "SMT":dir_name
-                createAppend ("SMT":dir_name) $ "smt_" ++ T.unpack f_name ++ " :: " ++ ty
-                createAppend ("SMT":dir_name) def
+                updateMainSMT $ "SMT":"String":dir_name
+                createAppend ("SMT":"String":dir_name) $ "smt_" ++ T.unpack f_name ++ " :: " ++ ty
+                createAppend ("SMT":"String":dir_name) def
                 return ()
             
             createAppend path def = do

@@ -615,8 +615,8 @@ listType (App (App (App (Data _) (Type t)) _) _) = Just t
 listType _ = Nothing
 
 toString :: Expr -> Maybe String
-toString (App (Data _) _) = Just []
-toString (App (App (App (Data _) _) (App _ (Lit (LitChar c)))) xs) = fmap (c:) $ toString xs
+toString (App (Data _) (Type (TyCon n _))) | nameOcc n == "Char" = Just []
+toString (App (App (App (Data _) (Type (TyCon n _))) (App _ (Lit (LitChar c)))) xs) | nameOcc n == "Char" = fmap (c:) $ toString xs
 toString _ = Nothing
 
 toExprList :: Expr -> Maybe [Expr]

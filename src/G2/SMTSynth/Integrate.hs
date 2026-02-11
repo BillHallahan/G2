@@ -11,7 +11,9 @@ import qualified G2.Language.TyVarEnv as TV
 
 import Data.Foldable
 import qualified Data.HashMap.Strict as HM
+import Data.List
 import Data.Maybe
+import Data.Monoid hiding (Alt)
 import qualified Data.Text as T
 
 integrateSMTDef :: IT.SimpleState -> IT.SimpleState
@@ -24,18 +26,23 @@ integrateSMTDef s@(IT.SimpleState { IT.expr_env = orig_eenv, IT.known_values = k
         go eenv smt_n@(Name occ_name md _ _) =
             let
                 -- Get occurrence name/module of the original function. Requires dropping "smt_" from the start of the function
-                -- name, and "SMT." from the start of the module name. 
-                orig_nm = (T.drop 4 occ_name, fmap (T.drop 4) md)
+                -- name, and "SMT." from the start of the module name.
+                (ti, a_md) = adjMod md
+                orig_nm = (T.drop 4 occ_name, a_md)
             in
             case HM.lookup orig_nm nm of
-                Just n | Just e <- E.lookup n eenv -> E.insert n (adjust smt_n e) eenv
+                Just n | Just e <- E.lookup n eenv -> E.insert n (adjust smt_n ti e) eenv
                 _ -> eenv
         
-        adjust smt_n e =
+        adjust smt_n ti e =
             let is = leadingLamIds e in
-            insertInLams (\_ -> adjust' is smt_n) e
+            insertInLams (\_ -> adjust' is smt_n ti) e
 
-        adjust' is smt_n e =
+        adjust' is smt_n ti e
+            | containsTypeIndex e = addTypeIndexAlt is smt_n ti e
+            | otherwise = addTypeIndexCase is smt_n ti e
+
+        addTypeIndexCase is smt_n ti e =
             let
                 list_is = filter (\(Id _ t) -> is_rel_list t) is
             in
@@ -49,9 +56,20 @@ integrateSMTDef s@(IT.SimpleState { IT.expr_env = orig_eenv, IT.known_values = k
                     Case bindee
                         (Id placeholder TyUnknown)
                         (typeOf TV.empty e)
-                        [ Alt (LitAlt (LitInt 1)) . mkApp $ Var (Id smt_n TyUnknown):map Var is
+                        [ Alt (LitAlt (LitInt ti)) . mkApp $ Var (Id smt_n TyUnknown):map Var is
                         , Alt Default e]
         
+        addTypeIndexAlt is smt_n ti = modify at_go
+            where
+                at_go (Case bindee i t as) | containsTypeIndex bindee =
+                    let new_alt = Alt (LitAlt (LitInt ti)) . mkApp $ Var (Id smt_n TyUnknown):map Var is in
+                    Case bindee i t (new_alt:as)
+                at_go e = e
+        
+        containsTypeIndex = getAny . eval containsTypeIndex'
+        containsTypeIndex' (Var (Id n _)) = Any $ n == KV.typeIndex kv
+        containsTypeIndex' _ = Any False
+
         is_rel_list (TyApp (TyCon n _) (TyVar _)) = n == KV.tyList kv
         is_rel_list _ = False
 
@@ -66,3 +84,10 @@ integrateSMTDef s@(IT.SimpleState { IT.expr_env = orig_eenv, IT.known_values = k
         type_index = toId (KV.typeIndex kv)
 
         toId n = Id n . fromMaybe TyUnknown . fmap (typeOf TV.empty) $ E.lookup n orig_eenv
+
+adjMod :: Maybe T.Text -> (Integer, Maybe T.Text)
+adjMod (Just md)
+    | md'@(Just _) <- T.stripPrefix "SMT.String" md = (1, md')
+    | md'@(Just _) <- T.stripPrefix "SMT.SeqInt" md = (2, md')
+    | otherwise = error "adjMod: Module not recognized"
+adjMod Nothing = error "adjMod: Module not recognized"
