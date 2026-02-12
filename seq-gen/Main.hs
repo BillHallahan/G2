@@ -6,6 +6,7 @@ import G2.Config
 import G2.SMTSynth.Synthesizer
 
 import Data.List
+import Data.Maybe
 import qualified Data.Text as T
 import System.Directory
 
@@ -24,14 +25,21 @@ main = do
             let lns = lines cnt
             mapM_ (run config) $ map T.pack lns
         where
-            run con f = do
-                let spl_f = T.splitOn "." f
+            run con gen_f = do
+                let (f, gen_for_ty) = T.break (== ';') gen_f
+                    gen_for_ty' = T.unpack $ T.tail gen_for_ty
+                    spl_f = T.splitOn "." f
                     dir_name = map T.unpack $ init spl_f
                     f_name = last spl_f
-                (ty, def) <- genSMTFunc [] [] f Nothing con
-                updateMainSMT $ "SMT":"String":dir_name
-                createAppend ("SMT":"String":dir_name) $ "smt_" ++ T.unpack f_name ++ " :: " ++ ty
-                createAppend ("SMT":"String":dir_name) def
+
+                    con' = setSynthMode (fromMaybe (error $ "error: " ++ gen_for_ty' ++ " not recognized")
+                                      $ lookup gen_for_ty' synthModeMapping) con
+
+                (ty, def) <- genSMTFunc [] [] f Nothing con'
+                updateMainSMT $ "SMT":gen_for_ty':dir_name
+                createAppend ("SMT":gen_for_ty':dir_name) $ (T.unpack . smtNameWrap . smtName $ f_name) ++ " :: " ++ ty
+                createAppend ("SMT":gen_for_ty':dir_name) def
+                createAppend ("SMT":gen_for_ty':dir_name) "\n"
                 return ()
             
             createAppend path def = do
@@ -45,7 +53,7 @@ main = do
                         createDirectoryIfMissing True dir
                         writeFile fle ("{-# LANGUAGE MagicHash, ViewPatterns #-}\n\n")
                         appendFile fle ("module " ++ mdl ++ " where\n\nimport GHC.Prim2\n\n")
-                appendFile fle (def ++ "\n\n")
+                appendFile fle (def ++ "\n")
             
             updateMainSMT path = do
                 let smt_file = "smt/SMT.hs" 

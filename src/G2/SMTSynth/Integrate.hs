@@ -16,6 +16,7 @@ import Data.Maybe
 import Data.Monoid hiding (Alt)
 import qualified Data.Text as T
 
+
 integrateSMTDef :: IT.SimpleState -> IT.SimpleState
 integrateSMTDef s@(IT.SimpleState { IT.expr_env = orig_eenv, IT.known_values = kv, IT.name_map = nm }) =
     let
@@ -87,7 +88,7 @@ integrateSMTDef s@(IT.SimpleState { IT.expr_env = orig_eenv, IT.known_values = k
 
 adjMod :: Maybe T.Text -> (Integer, Maybe T.Text)
 adjMod (Just md)
-    | md'@(Just _) <- T.stripPrefix "SMT.String" md = (1, md')
-    | md'@(Just _) <- T.stripPrefix "SMT.SeqInt" md = (2, md')
+    | md'@(Just _) <- T.stripPrefix "SMT.String." md = (1, md')
+    | md'@(Just _) <- T.stripPrefix "SMT.SeqInt." md = (2, md')
     | otherwise = error "adjMod: Module not recognized"
 adjMod Nothing = error "adjMod: Module not recognized"

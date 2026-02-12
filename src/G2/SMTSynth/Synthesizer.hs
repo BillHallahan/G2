@@ -4,7 +4,12 @@ module G2.SMTSynth.Synthesizer ( getSeqGenConfig
                                , genSMTFunc
                                , adjustConfig
                                , seqGenConfig
-                               , runFunc) where
+                               , setSynthMode
+                               , synthModeMapping
+                               , runFunc
+                               
+                               , smtName
+                               , smtNameWrap) where
 
 import G2.Config
 import G2.Execution.PrimitiveEval
@@ -96,31 +101,46 @@ import System.Process
 getSeqGenConfig :: IO (String, Maybe String, Bool, Config)
 getSeqGenConfig = do
     homedir <- getHomeDirectory
-    (fle, f, run_symex, config) <- execParser (seqGenConfig homedir)
-    return (fle, f, run_symex, adjustConfig config )
+    (fle, f, synth_mode, run_symex, config) <- execParser (seqGenConfig homedir)
+    return (fle, f, run_symex, adjustConfig synth_mode config )
 
-adjustConfig :: Config -> Config
-adjustConfig c = c { step_limit = False
-                   , height_limit = Just $ fromMaybe 5 (height_limit c)
+adjustConfig :: SynthMode -> Config -> Config
+adjustConfig sm c =
+    setSynthMode sm $ 
+        c { step_limit = False
+        , height_limit = Just $ fromMaybe 5 (height_limit c)
 
-                   , favor_tys = ["Char", "Integer"]
-                   , smt_prim_lists = UseSMTSeq
-                   , search_strat = Subpath }
+        , smt_prim_lists = UseSMTSeq
+        , search_strat = Subpath }
 
-seqGenConfig :: String -> ParserInfo (String, Maybe String, Bool, Config)
+setSynthMode :: SynthMode -> Config -> Config
+setSynthMode SynthString c = c { favor_tys = ["Char", "Integer"] }
+setSynthMode SynthSeqInt c = c { favor_tys = ["Integer"] }
+
+seqGenConfig :: String -> ParserInfo (String, Maybe String, SynthMode, Bool, Config)
 seqGenConfig homedir =
-    info (((,,,)
+    info (((,,,,)
                 <$> argument str (metavar "FILE")
                 <*> option (eitherReader (Right . Just))
                    (long "function"
                    <> metavar "F"
                    <> value Nothing
                    <> help "a function to synthesize an SMT definition for")
+                <*> option (maybeReader (flip lookup synthModeMapping))
+                   (long "synth-mode"
+                   <> metavar "M"
+                   <> value SynthString
+                   <> help ("synthesize functions for a specific type/using a specific SMT theory. Options: " ++ intercalate ", " (map fst synthModeMapping)))
                 <*> flag False True (long "run-symex" <> help "Run symbolic execution on the passed function, rather than synthesis")
                 <*> mkConfig homedir) <**> helper)
           ( fullDesc
           <> progDesc "Synthesis of equivalent SMT definitions"
           <> header "The G2 Synthesizer" )
+
+data SynthMode = SynthString | SynthSeqInt
+
+synthModeMapping :: [(String, SynthMode)]
+synthModeMapping = [("string", SynthString), ("seq-int", SynthSeqInt)]
 
 -------------------------------------------------------------------------------
 -- CEGIS Loop
