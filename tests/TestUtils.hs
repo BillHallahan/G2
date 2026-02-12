@@ -50,7 +50,7 @@ mkConfigTestWithQuantifiedSMTStringsIO = do
 mkConfigTestWithSMTListsIO :: IO Config
 mkConfigTestWithSMTListsIO = do
     config <- mkConfigTestIO
-    return $ config { smt_prim_lists = UseSMTSeq }
+    return $ config { smt_prim_lists = UseSMTSeq True True }
 
 
 

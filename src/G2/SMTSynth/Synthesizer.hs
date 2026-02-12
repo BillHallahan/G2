@@ -1,6 +1,7 @@
 {-# LANGUAGE BangPatterns, FlexibleContexts, OverloadedStrings #-}
 
-module G2.SMTSynth.Synthesizer ( SynthMode (..)
+module G2.SMTSynth.Synthesizer ( SynthConfig (..)
+                               , SynthMode (..)
                                
                                , getSeqGenConfig
                                , genSMTFunc
@@ -102,11 +103,24 @@ import qualified Text.Builder as TB
 --
 -- See the PatternRes type.
 
-getSeqGenConfig :: IO (String, Maybe String, Bool, Config)
+-- | Synthesizer specific configurations
+data SynthConfig = SynthConfig { run_file :: String
+                               , synth_func :: Maybe String -- ^ Synthesize a definition for a specific function
+                               , eq_check :: String -- ^ Option to use as an equality check
+                               , synth_mode :: SynthMode
+                               , run_symex :: Bool -- ^ If true, run symbolic execution rather than synthesis
+                               , g2_config :: Config
+                               }
+
+data SynthMode = SynthString | SynthSeqInt
+
+synthModeMapping :: [(String, SynthMode)]
+synthModeMapping = [("string", SynthString), ("seq-int", SynthSeqInt)]
+
+getSeqGenConfig :: IO SynthConfig
 getSeqGenConfig = do
     homedir <- getHomeDirectory
-    (fle, f, synth_mode, run_symex, config) <- execParser (seqGenConfig homedir)
-    return (fle, f, run_symex, adjustConfig synth_mode config )
+    execParser (seqGenConfig homedir)
 
 adjustConfig :: SynthMode -> Config -> Config
 adjustConfig sm c =
@@ -121,15 +135,20 @@ setSynthMode :: SynthMode -> Config -> Config
 setSynthMode SynthString c = c { favor_tys = ["Char", "Integer"] }
 setSynthMode SynthSeqInt c = c { favor_tys = ["Integer"] }
 
-seqGenConfig :: String -> ParserInfo (String, Maybe String, SynthMode, Bool, Config)
+seqGenConfig :: String -> ParserInfo SynthConfig
 seqGenConfig homedir =
-    info (((,,,,)
+    info ((SynthConfig
                 <$> argument str (metavar "FILE")
                 <*> option (eitherReader (Right . Just))
                    (long "function"
                    <> metavar "F"
                    <> value Nothing
                    <> help "a function to synthesize an SMT definition for")
+                <*> option auto
+                   (long "eq-check"
+                   <> metavar "C"
+                   <> value "=="
+                   <> help "a function to use as an equality check")
                 <*> option (maybeReader (flip lookup synthModeMapping))
                    (long "synth-mode"
                    <> metavar "M"
@@ -140,11 +159,6 @@ seqGenConfig homedir =
           ( fullDesc
           <> progDesc "Synthesis of equivalent SMT definitions"
           <> header "The G2 Synthesizer" )
-
-data SynthMode = SynthString | SynthSeqInt
-
-synthModeMapping :: [(String, SynthMode)]
-synthModeMapping = [("string", SynthString), ("seq-int", SynthSeqInt)]
 
 -------------------------------------------------------------------------------
 -- CEGIS Loop

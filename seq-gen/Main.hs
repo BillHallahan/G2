@@ -12,11 +12,11 @@ import System.Directory
 
 main :: IO ()
 main = do
-    (src, m_entry, run_symex, config) <- getSeqGenConfig
+    SynthConfig {run_file = src, synth_func = m_entry, run_symex = run_sym, g2_config = config} <- getSeqGenConfig
     case m_entry of
         Just entry -> do
             let f = T.pack entry
-            _ <- case run_symex of
+            _ <- case run_sym of
                         False -> do genSMTFunc [] [src] f Nothing config; return ()
                         True -> do runFunc src [] f Nothing config; return ()
             return ()
