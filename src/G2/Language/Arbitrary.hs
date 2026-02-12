@@ -88,6 +88,9 @@ instance Arbitrary ArbSimpleState where
                                       , IT.rewrite_rules = []
                                       , IT.exports = []
                                       , IT.handles = HM.empty
+
+                                      , IT.name_map = HM.empty
+                                      , IT.type_name_map = HM.empty
                                       }
         return $ ArbSimple simple_s
 
@@ -414,6 +417,7 @@ fakeKnownValues =
     , tyRealWorld = Name "" Nothing 0 Nothing
     , dcRealWorld = Name "" Nothing 0 Nothing
     , tyHandle = Name "" Nothing 0 Nothing
+    , tyIP = Name "" Nothing 0 Nothing
     , eqTC = Name "" Nothing 0 Nothing
     , numTC = Name "" Nothing 0 Nothing
     , ordTC = Name "" Nothing 0 Nothing

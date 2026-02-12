@@ -167,6 +167,9 @@ primDefs' b c l unit =
 
                             ])
               
+              , ("raise##", Lam TypeL a . Lam TypeL (Id b TYPE) $ Prim Raise (TyFun tyvarA (TyVar (Id b TYPE))))
+              , ("catch#", Lam TypeL a . Lam TypeL (Id b TYPE) $ Prim Catch TyUnknown)
+              
               , ("stdin", Prim (Handle stdinName) TyUnknown)
               , ("stdout", Prim (Handle stdoutName) TyUnknown)
               , ("stderr", Prim (Handle stderrName) TyUnknown)
@@ -200,6 +203,12 @@ primDefs' b c l unit =
               , ("strLe#", strStrBool StrLe)
               , ("strGt#", strStrBool StrGt)
               , ("strGe#", strStrBool StrGe)
+              , ("strContains#", Lam TypeL (x TYPE) . Lam TermL (y seqTyX) . Lam TermL (z seqTyX)
+                            $ App
+                                (App
+                                    (Prim StrContains (TyFun seqTyX (TyFun seqTyX (TyCon b TYPE))))
+                                    (Var $ y seqTyX))
+                                (Var $ z seqTyX))
               , ("strIndexOf#", Lam TypeL (x TYPE) . Lam TermL (y seqTyX) . Lam TermL (z seqTyX) . Lam TermL ((dummyId "q") TyLitInt)
                             $ App
                                 (App
@@ -232,20 +241,15 @@ primDefs' b c l unit =
                                 (Var $ z seqTyX))
               , ("intToString#", Prim IntToString (TyFun TyLitInt strTy))
 
+              , ("unsafeCoerce#", Lam TypeL (u TYPE)
+                                . Lam TypeL (v TYPE)
+                                . Lam TermL (x (TyVar (u TYPE)))
+                              $ (Var (x (TyVar (v TYPE))))
+                )
+
               , ("newMutVar##", Prim NewMutVar (TyForAll a (TyForAll d (TyFun tyvarA (TyFun TyUnknown TyUnknown)))))
               , ("readMutVar##", Prim ReadMutVar (TyForAll d (TyForAll a (TyFun TyUnknown (TyFun TyUnknown tyvarA)))))
               , ("writeMutVar##", Prim WriteMutVar (TyForAll d (TyForAll a (TyFun tyvarA (TyFun TyUnknown TyUnknown)))))
-
-              , ("absentErr", Prim Error TyBottom)
-              , ("error", Prim Error TyBottom)
-              , ("errorWithoutStackTrace", Prim Error TyBottom)
-              , ("divZeroError", Prim Error TyBottom)
-              , ("overflowError", Prim Error TyBottom)
-              , ("patError", Prim Error TyBottom)
-              , ("succError", Prim Error TyBottom)
-              , ("toEnumError", Prim Error TyBottom)
-              , ("ratioZeroDenominatorError", Prim Error TyBottom)
-              , ("undefined", Prim Error TyBottom)
 
               , ("ite", Lam TypeL a (iteExpr (TyVar a)))
               , ("iteInt#", iteExpr TyLitInt)
@@ -294,6 +298,7 @@ primDefs' b c l unit =
                                                 , Var . z $ TyCon b TYPE
                                                 , Var $ x t
                                                 , Var $ y t]]
+                    
 a :: Id
 a = Id (Name "a" Nothing 0 Nothing) TYPE
 
@@ -302,6 +307,12 @@ tyvarA = TyVar a
 
 d :: Id
 d = Id (Name "d" Nothing 0 Nothing) TYPE
+
+u :: Type -> Id
+u = Id (Name "u" Nothing 0 Nothing)
+
+v :: Type -> Id
+v = Id (Name "v" Nothing 0 Nothing)
 
 x :: Type -> Id
 x = Id (Name "x" Nothing 0 Nothing)

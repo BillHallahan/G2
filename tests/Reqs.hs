@@ -3,6 +3,7 @@ module Reqs ( Reqs (..)
             , checkExprGen ) where
 
 import G2.Language
+import G2.Interface.ExecRes
 
 -- | Requirements
 -- We use these to define checks on tests returning function inputs
@@ -26,9 +27,11 @@ data TestErrors = BadArgCount [Int]
                 | Time deriving (Show)
 
 -- | Checks conditions on given expressions
-checkExprGen :: [[Expr]] -> [Reqs ([Expr] -> Bool)] -> [TestErrors]
-checkExprGen exprs reqList =
+checkExprGen :: [ExecRes t] -> [Reqs ([Expr] -> Bool)] -> [TestErrors]
+checkExprGen ers reqList =
     let
+        exprs = map (\(ExecRes { conc_args = inp, conc_out = out }) -> inp ++ [out]) ers
+
         argChecksAll = if and . map (\f -> all f exprs) $ [f | RForAll f <- reqList]
                         then []
                         else [ArgsForAllFailed]

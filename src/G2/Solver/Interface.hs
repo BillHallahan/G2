@@ -62,15 +62,15 @@ instance ASTContainer Subbed Type where
                , s_handles = modifyContainedASTs f (s_handles sub) }
 
 subModel :: State t -> Bindings -> Subbed
-subModel (State { expr_env = eenv
-                , curr_expr = CurrExpr _ cexpr
-                , assert_ids = ais
-                , type_classes = tc
-                , model = m
-                , sym_gens = gens
-                , handles = hs
-                , mutvar_env = mve
-                , tyvar_env = tvnv }) 
+subModel s@(State { expr_env = eenv
+                  , curr_expr = CurrExpr _ cexpr
+                  , assert_ids = ais
+                  , type_classes = tc
+                  , model = m
+                  , sym_gens = gens
+                  , handles = hs
+                  , mutvar_env = mve
+                  , tyvar_env = tvnv }) 
           (Bindings {input_names = inputNames}) = 
     let
         ais' = fmap (subVarFuncCall tvnv True m eenv tc) ais
@@ -84,7 +84,7 @@ subModel (State { expr_env = eenv
         mv = mapMaybe (\(n, mvi) -> fmap (n, mv_origin mvi,) . toVars . idName $ mv_initial mvi) (HM.toList mve)
 
         sub = Subbed { s_inputs = is
-                     , s_output = cexpr
+                     , s_output = if errorRaised s then Prim Error TyBottom else cexpr
                      , s_violated = ais'
                      , s_sym_gens = gs
                      , s_mutvars = mv

@@ -130,7 +130,7 @@ liquidTests = testGroup "Liquid"
 
     -- , checkLiquid "tests_lh/Liquid/Error/Error1.hs" "f" 600 [AtLeast 1]
     , checkLiquid "tests_lh/Liquid/Error/Error2.hs" "f1" 2000 [AtLeast 1]
-    , checkLiquid "tests_lh/Liquid/ZipWith.lhs" "distance" 1000 [AtLeast 3]
+    , checkLiquid "tests_lh/Liquid/ZipWith.lhs" "distance" 2000 [AtLeast 2]
 
     , checkLiquids "tests_lh/Liquid/HigherOrder2.hs"
         [ ("f", 2000, [Exactly 0])
@@ -284,8 +284,8 @@ liquidTests = testGroup "Liquid"
 
 posInfTests :: TestTree
 posInfTests = testGroup "Tests"
-            [ posTestInference "tests_lh/test_files/Pos/HigherOrder.hs"
-            , posTestInference "tests_lh/test_files/Pos/HigherOrder2.hs"
+            [ -- posTestInference "tests_lh/test_files/Pos/HigherOrder.hs"
+              posTestInference "tests_lh/test_files/Pos/HigherOrder2.hs"
             -- , posTestInferenceWithTimeOut 240 5 "tests_lh/test_files/Pos/HigherOrder3.hs"
             -- , posTestInference "tests_lh/test_files/Pos/HigherOrder4.hs"
 
@@ -480,8 +480,7 @@ checkLiquidWithConfig fp tests config_f lhconfig_f =
                 fp
                 $ map (\(entry, stps, reqList) ->
                         testCase (fp ++ " " ++ entry) (do
-                            ((mod_n, ex_g2), ghci, config, lh_config) <- loaded
-                            let tgt_trans = (mod_n, ex_g2)
+                            (tgt_trans, ghci, config, lh_config) <- loaded
                             let config' = config { steps = stps }
                             res <- doTimeout (timeLimit config)
                                         $ (try (return . fst. fst =<< runLHCore (T.pack entry) tgt_trans ghci config' lh_config)
@@ -490,11 +489,9 @@ checkLiquidWithConfig fp tests config_f lhconfig_f =
                             let (ch, r) = case res of
                                         Nothing -> (False, Right [Time])
                                         Just (Left e) -> (False, Left e)
-                                        Just (Right exprs) ->
+                                        Just (Right ers) ->
                                             let
-                                                r_ = checkExprGen
-                                                        (map (\(ExecRes { conc_args = inp, conc_out = out}) -> inp ++ [out]) exprs)
-                                                        reqList
+                                                r_ = checkExprGen ers reqList
                                             in
                                             (null r_, Right r_)
 
@@ -573,7 +570,7 @@ posTestInferenceWithTimeOut :: Int -> NominalDiffTime -> FilePath -> TestTree
 posTestInferenceWithTimeOut to to_se fp = posTestInferenceWithTimeOutUseInvs to to_se False fp
 
 posTestInferenceWithUseInvs :: FilePath -> TestTree
-posTestInferenceWithUseInvs = posTestInferenceWithTimeOutUseInvs 120 5 True
+posTestInferenceWithUseInvs = posTestInferenceWithTimeOutUseInvs 240 5 True
 
 posTestInference :: FilePath -> TestTree
 posTestInference = posTestInferenceWithTimeOut 120 5

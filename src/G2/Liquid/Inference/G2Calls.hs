@@ -473,9 +473,9 @@ runLHInferenceAll infconfig config g2lhconfig func proj fp = do
     let g2config = config { mode = Liquid
                           , steps = 2000 }
         transConfig = simplTranslationConfig { simpl = False }
-    (main_mod, exg2) <- liftIO $ translateLoaded proj fp transConfig g2config
+    (main_mod, exg2, nm, tnm) <- liftIO $ translateLoaded proj fp transConfig g2config
 
-    let (lrs, g2config', g2lhconfig', infconfig') = initStateAndConfig exg2 main_mod g2config g2lhconfig infconfig ghci
+    let (lrs, g2config', g2lhconfig', infconfig') = initStateAndConfig exg2 nm tnm main_mod g2config g2lhconfig infconfig ghci
 
     let configs = Configs { g2_config = g2config', g2lh_config = g2lhconfig', lh_config = lhconfig, inf_config = infconfig'}
 
@@ -511,9 +511,14 @@ runLHInferenceCore entry m lrs ghci = do
     -- liftIO is important so that we specialize runLHG2Inference
     (exec_res, final_bindings) <- liftIO $ SM.evalStateT (runLHG2Inference g2config red hal ord solver simplifier pres_names ifi final_st' bindings) (mkPrettyGuide ())
 
+    let exec_res' = modifyASTs simpErrors exec_res
+
     liftIO $ close solver
 
-    return ((exec_res, final_bindings), ifi)
+    return ((exec_res', final_bindings), ifi)
+    where
+        simpErrors (App err@(Prim Error _) _) = err
+        simpErrors e = e
 
 inferenceReducerHalterOrderer :: (MonadIO m, MonadIO m_run, Solver solver, Simplifier simplifier)
                               => InferenceConfig
@@ -957,7 +962,7 @@ evalMeasures init_meas lrs ghci es = do
             in
             foldr HS.insert hs eenv_meas_names
     
-        isError (Prim Error _) = True
+        isError (App (Prim Error _) _) = True
         isError _ = False
 
 isTotal :: TV.TyVarEnv -> TypeEnv -> Expr -> Bool

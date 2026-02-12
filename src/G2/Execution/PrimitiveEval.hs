@@ -7,7 +7,9 @@ module G2.Execution.PrimitiveEval ( evalPrimsSharing
                                   , evalPrimWithState
                                   , newMutVar
                                   , maybeEvalPrim
-                                  , evalPrimSymbolic) where
+                                  , evalPrimSymbolic
+                                  
+                                  , toString) where
 
 import G2.Execution.LiteralTable
 import G2.Execution.NewPC
@@ -33,6 +35,7 @@ import qualified Data.List as L
 import Data.Maybe
 import qualified G2.Language.ExprEnv as E
 import G2.Language.MutVarEnv
+import qualified G2.Language.Stack as Stck
 import qualified G2.Language.TyVarEnv as TV 
 
 import GHC.Float
@@ -490,6 +493,15 @@ evalPrimWithState s ng expr@(App (Prim (LitTableRef lt_name) _) (Var sym_i)) =
         new_stack = (concatMap stack_with_diff diffs) ++ unneeded
     in Just (newPCEmpty $ s { exec_stack = S.fromList new_stack
                             , curr_expr = CurrExpr Return expr }, ng)
+evalPrimWithState s ng (App (Prim Raise _) e2) = Just (
+                                                   (newPCEmpty $ s { curr_expr = CurrExpr Evaluate (App (Prim Error TyBottom) e2) })
+                                                   , ng)
+evalPrimWithState s ng (App (App (App (Prim Catch _) run) hand) rw) = Just (
+                                                   (newPCEmpty $ s { curr_expr = CurrExpr Evaluate (App run rw)
+                                                                   , exec_stack = Stck.push (CatchFrame hand) (exec_stack s)
+                                                                   })
+                                                   , ng)
+
 evalPrimWithState _ _ _ = Nothing
 
 isSB :: Frame -> Bool

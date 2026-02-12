@@ -16,6 +16,7 @@ module G2.Lib.Printers ( PrettyGuide
                        , mkUnsugaredExprHaskell
                        , mkTypeHaskell
                        , mkTypeHaskellPG
+                       , mkTypeHaskellDictArrows
                        , pprExecStateStr
                        , printFuncCall
 
@@ -42,6 +43,7 @@ module G2.Lib.Printers ( PrettyGuide
 import G2.Language.Expr
 import qualified G2.Language.ExprEnv as E
 import G2.Language.Families
+import G2.Language.KnownValues
 import G2.Language.MutVarEnv
 import G2.Language.Naming
 import qualified G2.Language.PathConds as PC
@@ -53,12 +55,13 @@ import G2.Language.Support
 import Data.Char
 import Data.List as L
 import qualified Data.Foldable as F
-import qualified Data.HashMap.Lazy as HM
+import qualified Data.HashMap.Strict as HM
 import qualified Data.HashSet as HS
 import qualified Data.Text as T
 import Text.Read
 import qualified G2.Language.TyVarEnv as TV 
 import qualified G2.Language.PolyArgMap as PM
+
 data Clean = Cleaned | Dirty deriving Eq
 
 mkIdHaskell :: PrettyGuide -> Id -> T.Text
@@ -74,8 +77,8 @@ mkNameHaskell pg n
     | otherwise = nameOcc n
 
 mkUnsugaredExprHaskell :: State t -> Expr -> T.Text
-mkUnsugaredExprHaskell (State {type_classes = tc, tyvar_env = tvnv }) =
-    mkExprHaskell Cleaned (mkPrettyGuide ()) . modifyMaybe (mkCleanExprHaskell' tvnv tc)
+mkUnsugaredExprHaskell (State {known_values = kv, type_classes = tc, tyvar_env = tvnv }) =
+    mkExprHaskell Cleaned (mkPrettyGuide ()) . modifyMaybe (mkCleanExprHaskell' tvnv kv tc)
 
 printHaskell :: State t -> Expr -> T.Text
 printHaskell = mkCleanExprHaskell (mkPrettyGuide ())
@@ -90,11 +93,11 @@ printHaskellPG :: PrettyGuide -> State t -> Expr -> T.Text
 printHaskellPG = mkCleanExprHaskell
 
 mkCleanExprHaskell :: PrettyGuide -> State t -> Expr -> T.Text
-mkCleanExprHaskell pg (State {type_classes = tc, tyvar_env = tvnv }) = 
-    mkExprHaskell Cleaned pg . modifyMaybe (mkCleanExprHaskell' tvnv tc)
+mkCleanExprHaskell pg (State {known_values = kv,type_classes = tc, tyvar_env = tvnv }) = 
+    mkExprHaskell Cleaned pg . modifyMaybe (mkCleanExprHaskell' tvnv kv tc)
 
-mkCleanExprHaskell' :: TV.TyVarEnv -> TypeClasses -> Expr -> Maybe Expr
-mkCleanExprHaskell' tv tc e
+mkCleanExprHaskell' :: TV.TyVarEnv -> KnownValues -> TypeClasses -> Expr -> Maybe Expr
+mkCleanExprHaskell' tv kv tc e
     | Case scrut i t [a] <- e = Case scrut i t . (:[]) <$> elimPrimDC a
 
     | (App e' e'') <- e
@@ -107,6 +110,10 @@ mkCleanExprHaskell' tv tc e
 
     | (App e' e'') <- e
     , isTypeClass tc (returnType (typeOf tv e'') ) = Just e'
+
+    | (App e' e'') <- e
+    , TyCon n _:_ <- unTyApp $ typeOf tv e''
+    , n == tyIP kv = Just e'
 
     | (App e' e'') <- e
     , Coercion _ <- e'' = Just e'
@@ -464,6 +471,9 @@ mkPrimHaskell pg = pr
         pr BVToNat = "bvToNat"
         pr (IntToBV w) = "(intToBV " <> T.pack (show w) <> ")"
 
+        pr Raise = "raise#"
+        pr Catch = "catch#"
+
         pr StrGt = "str.>"
         pr StrGe = "str.>="
         pr StrLt = "str.<"
@@ -473,6 +483,7 @@ mkPrimHaskell pg = pr
         pr StrAt = "str.at"
         pr StrSubstr = "str.substr"
         pr StrIndexOf = "str.indexof"
+        pr StrContains = "str.contains"
         pr StrReplace = "str.replace"
         pr StrPrefixOf = "str.prefixof"
         pr StrSuffixOf = "str.suffixof"
@@ -536,40 +547,52 @@ mkTypeHaskell :: Type -> T.Text
 mkTypeHaskell = mkTypeHaskellPG (mkPrettyGuide ())
 
 mkTypeHaskellPG :: PrettyGuide -> Type -> T.Text
-mkTypeHaskellPG pg (TyVar i) = mkIdHaskell pg i
-mkTypeHaskellPG _ TyLitInt = "Int#"
-mkTypeHaskellPG _ TyLitWord = "Word#"
-mkTypeHaskellPG _ TyLitFloat = "Float#"
-mkTypeHaskellPG _ TyLitDouble = "Double#"
-mkTypeHaskellPG _ (TyLitFP e s) = "(FP#" <> T.pack (show e) <> " " <> T.pack (show s) <> ")"
-mkTypeHaskellPG _ TyLitRational = "Rational#"
-mkTypeHaskellPG _ (TyLitBV w) = "BV# " <> T.pack (show w)
-mkTypeHaskellPG _ TyLitChar = "Char#"
-mkTypeHaskellPG _ TyLitString = "String#"
-mkTypeHaskellPG pg (TyFun t1 t2)
-    | isTyFun t1 = "(" <> mkTypeHaskellPG pg t1 <> ") -> " <> mkTypeHaskellPG pg t2
-    | otherwise = mkTypeHaskellPG pg t1 <> " -> " <> mkTypeHaskellPG pg t2
-mkTypeHaskellPG pg (TyCon n _) | nameOcc n == "List"
-                               , nameModule n == Just "GHC.Types" = "[]"
-                               | nameOcc n == "Unit"
-                               , nameModule n == Just "GHC.Tuple" || nameModule n == Just "GHC.Tuple.Prim" = "()"
-                               | ("Tuple", k_str) <- T.splitAt 5 (nameOcc n)
-                               , nameModule n == Just "GHC.Tuple" || nameModule n == Just "GHC.Tuple.Prim"
-                               , Just k <- readMaybe (T.unpack k_str) = "(" <> T.pack (replicate (k - 1) ',') <> ")"
-                               | Just (c, _) <- T.uncons (nameOcc n)
-                               , not (isAlphaNum c) = "(" <> mkNameHaskell pg n <> ")"
-                               | otherwise = mkNameHaskell pg n
-mkTypeHaskellPG pg ty_app@(TyApp _ _)
-    | ts <- unTyApp ty_app =
-        let
-            mw t@(TyFun _ _) = "(" <> mkTypeHaskellPG pg t <> ")"
-            mw t = mkTypeHaskellPG pg t
-        in
-        "(" <> T.intercalate " " (map mw ts) <> ")"
-mkTypeHaskellPG pg (TyForAll i t) = "forall " <> mkIdHaskell pg i <> " . " <> mkTypeHaskellPG pg t
-mkTypeHaskellPG _ TyBottom = "Bottom"
-mkTypeHaskellPG _ TYPE = "Type"
-mkTypeHaskellPG _ (TyUnknown) = "Unknown"
+mkTypeHaskellPG pg = mkTypeHaskellPG' pg Nothing
+
+mkTypeHaskellDictArrows :: PrettyGuide -> TypeClasses -> Type -> T.Text
+mkTypeHaskellDictArrows pg tc = mkTypeHaskellPG' pg (Just tc)
+
+mkTypeHaskellPG' :: PrettyGuide -> Maybe TypeClasses -> Type -> T.Text
+mkTypeHaskellPG' pg m_tc = go
+    where
+        go (TyVar i) = mkIdHaskell pg i
+        go TyLitInt = "Int#"
+        go TyLitWord = "Word#"
+        go TyLitFloat = "Float#"
+        go TyLitDouble = "Double#"
+        go (TyLitFP e s) = "(FP#" <> T.pack (show e) <> " " <> T.pack (show s) <> ")"
+        go TyLitRational = "Rational#"
+        go (TyLitBV w) = "BV# " <> T.pack (show w)
+        go TyLitChar = "Char#"
+        go TyLitString = "String#"
+        go (TyFun t1 t2)
+            | isTyFun t1 = "(" <> go t1 <> ") -> " <> go t2
+            | Just tc <- m_tc
+            , isTypeClass tc t1 = go t1 <> " => " <> go t2
+            | otherwise = go t1 <> " -> " <> go t2
+        go (TyCon n _) | nameOcc n == "List"
+                                    , nameModule n == Just "GHC.Types" = "[]"
+                                    | nameOcc n == "Unit"
+                                    , nameModule n == Just "GHC.Tuple" || nameModule n == Just "GHC.Tuple.Prim" = "()"
+                                    | ("Tuple", k_str) <- T.splitAt 5 (nameOcc n)
+                                    , nameModule n == Just "GHC.Tuple" || nameModule n == Just "GHC.Tuple.Prim"
+                                    , Just k <- readMaybe (T.unpack k_str) = "(" <> T.pack (replicate (k - 1) ',') <> ")"
+                                    | Just (c, _) <- T.uncons (nameOcc n)
+                                    , not (isAlphaNum c) = "(" <> mkNameHaskell pg n <> ")"
+                                    | otherwise = mkNameHaskell pg n
+        go ty_app@(TyApp _ _)
+            | ts <- unTyApp ty_app =
+                let
+                    mw t@(TyFun _ _) = "(" <> go t <> ")"
+                    mw t = go t
+                in
+                "(" <> T.intercalate " " (map mw ts) <> ")"
+        go (TyForAll i t) = "forall " <> mkIdHaskell pg i <> " . " <> go t
+        go TyBottom = "Bottom"
+        go TYPE = "Type"
+        go (TyUnknown) = "Unknown"
+
+
 
 duplicate :: T.Text -> Int -> T.Text
 duplicate _ 0 = ""
@@ -681,6 +704,7 @@ prettyFrame pg (CaseFrame i _ as) =
 prettyFrame pg (ApplyFrame e) = "apply frame: " <> mkDirtyExprHaskell pg e
 prettyFrame pg (UpdateFrame n) = "update frame: " <> mkNameHaskell pg n
 prettyFrame pg (CastFrame (t1 :~ t2)) = "cast frame: " <> mkTypeHaskellPG pg t1 <> " ~ " <> mkTypeHaskellPG pg t2
+prettyFrame pg (CatchFrame e) = "catch frame: " <> mkDirtyExprHaskell pg e
 prettyFrame pg (CurrExprFrame act ce) = "curr_expr frame: " <> prettyCEAction pg act <> " " <> prettyCurrExpr pg ce
 prettyFrame pg (AssumeFrame e) = "assume frame: " <> mkDirtyExprHaskell pg e
 prettyFrame pg (AssertFrame m_fc e) =
@@ -1032,6 +1056,8 @@ unionLvl TypeLvl TypeLvl = TypeLvl
 unionLvl ValLvl ValLvl = ValLvl
 unionLvl _ _ = BothLvl
 
+data PrintInfo = PI { assigned_lvl :: !AssignedLvl, print_num :: !Int }
+
 -- | Maps G2 `Name`s to printable `String`s uniquely and consistently
 -- (two `Name`s will not map to the same `String`, unless one `Name` is on the
 -- type level and one is on the value level.  Further, on a per `PrettyGuide`
@@ -1039,8 +1065,8 @@ unionLvl _ _ = BothLvl
 -- The `PrettyGuide` will only work on `Name`s it "knows" about.
 -- It "knows" about names in the `Named` value it is passed in it's creation
 -- (via `mkPrettyGuide`) and all `Name`s that it is passed via `updatePrettyGuide`.
-data PrettyGuide = PG { pg_assigned :: HM.HashMap Name T.Text -- ^ Mapping of G2 `Name`s to printable `T.Text`
-                      , pg_nums :: HM.HashMap T.Text (AssignedLvl, Int) -- ^ Tracking information to ensure distinct
+data PrettyGuide = PG { pg_assigned :: !(HM.HashMap Name T.Text) -- ^ Mapping of G2 `Name`s to printable `T.Text`
+                      , pg_nums :: !(HM.HashMap T.Text PrintInfo) -- ^ Tracking information to ensure distinct
                                                                         -- name assignments. For a given text X, the Int
                                                                         -- is the greatest Int I such that  X'I has been used
                                                                         -- as a printable name.
@@ -1115,13 +1141,13 @@ insertPGLvl lvl n pg@(PG { pg_assigned = as, pg_nums = nms })
                     | otherwise -> nameOcc n
         in
         case HM.lookup n' nms of
-            Just (curr_lvl, i) | lvl == curr_lvl || lvl == BothLvl || curr_lvl == BothLvl ->
+            Just (PI curr_lvl i) | lvl == curr_lvl || lvl == BothLvl || curr_lvl == BothLvl ->
                 let  j = i + 1 in
                 pg { pg_assigned = HM.insert n (n' <> "'" <> T.pack (show j)) as
-                   , pg_nums = HM.insert n' (lvl `unionLvl` curr_lvl, j) nms }
+                   , pg_nums = HM.insert n' (PI (lvl `unionLvl` curr_lvl) j) nms }
             _ ->
                 pg { pg_assigned = HM.insert n n' as
-                   , pg_nums = HM.insert n' (lvl, 1) nms }
+                   , pg_nums = HM.insert n' (PI lvl 1) nms }
     | otherwise = pg
 
 lookupPG :: Name -> PrettyGuide -> Maybe T.Text
@@ -1138,8 +1164,10 @@ setTyLamPrinting tlp p = p {ty_lam_printing = tlp}
 
 -- | Print `pg_assigned`. Exposes internal of the `PrettyGuide` to aid in debugging.
 prettyGuideStr :: PrettyGuide -> T.Text
-prettyGuideStr = T.intercalate "\n" . map (\(n, s) -> s <> " <-> " <> T.pack (show n)) . HM.toList . pg_assigned
+prettyGuideStr = T.intercalate "\n" . map (\(n, s) -> s <> " <-> " <> T.pack (show $ locToNothing n)) . HM.toList . pg_assigned
+    where
+        locToNothing (Name n m u _) = Name n m u Nothing
 
 -- | Print `pg_nums`. Exposes internal of the `PrettyGuide` to aid in debugging.
 prettyGuideNumsStr :: PrettyGuide -> T.Text
-prettyGuideNumsStr = T.intercalate "\n" . map (\(n, (al, i)) -> n <> " -> " <> T.pack (show al) <> ", " <> T.pack (show i)) . HM.toList . pg_nums
+prettyGuideNumsStr = T.intercalate "\n" . map (\(n, PI al i) -> n <> " -> " <> T.pack (show al) <> ", " <> T.pack (show i)) . HM.toList . pg_nums

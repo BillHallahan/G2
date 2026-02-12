@@ -1,6 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 module InputOutputTest ( checkInputOutput
                        , checkInputOutputs
+                       , checkInputOutputsADTHeight
                        
                        , checkInputOutputsSMTStrings
                        , checkInputOutputsSMTStringsStrict
@@ -48,6 +49,14 @@ checkInputOutput src entry stps req = do
 checkInputOutputs :: FilePath -> [(String, Int, [Reqs String])] -> TestTree
 checkInputOutputs src tests = do
     checkInputOutput' mkConfigTestIO src tests
+
+checkInputOutputsADTHeight :: FilePath -> [(String, Int, [Reqs String])] -> TestTree
+checkInputOutputsADTHeight src tests = do
+    checkInputOutput''
+        (\j c -> c { height_limit = Just j })
+        (do config <- mkConfigTestIO; return config { step_limit = False })
+        src
+        tests
 
 checkInputOutputsSMTStrings :: FilePath -> [(String, Int, [Reqs String])] -> TestTree
 checkInputOutputsSMTStrings src tests = do
@@ -134,7 +143,15 @@ checkInputOutput' :: IO Config
                   -> FilePath
                   -> [(String, Int, [Reqs String])]
                   -> TestTree
-checkInputOutput' io_config src tests = do
+checkInputOutput' = checkInputOutput'' (\j c -> c { steps = j })
+
+
+checkInputOutput'' :: (Int -> Config -> Config)
+                   -> IO Config
+                   -> FilePath
+                   -> [(String, Int, [Reqs String])]
+                   -> TestTree
+checkInputOutput'' adj_config io_config src tests = do
     let proj = takeDirectory src
     
     withResource
@@ -148,10 +165,10 @@ checkInputOutput' io_config src tests = do
                 src
                 $ map (\test@(entry, _, _) -> do
                         testCase (src ++ " " ++ entry) ( do
-                                (mb_modname, exg2) <- loadedExG2
+                                (mb_modname, exg2, nm, tnm) <- loadedExG2
                                 config <- io_config
                                 r <- doTimeout (timeLimit config)
-                                               (try (checkInputOutput'' [src] exg2 mb_modname config test)
+                                               (try (checkInputOutput''' adj_config [src] exg2 nm tnm mb_modname config test)
                                                     :: IO (Either SomeException ([Bool], Bool, Bool, [ExecRes ()], Bindings)))
                                 let (b, e) = case r of
                                         Nothing -> (False, "\nTimeout")
@@ -169,16 +186,19 @@ checkInputOutput' io_config src tests = do
     where
         printIO pg ent b val er = ((if val then "✓ " else "✗ "), printInputOutput pg (Id (Name (T.pack ent) Nothing 0 Nothing) TyUnknown) b er)
  
-checkInputOutput'' :: [FilePath]
+checkInputOutput''' :: (Int -> Config -> Config)
+                   -> [FilePath]
                    -> ExtractedG2
+                   -> NameMap
+                   -> TypeNameMap
                    -> [Maybe T.Text]
                    -> Config
                    -> (String, Int, [Reqs String])
                    -> IO ([Bool], Bool, Bool, [ExecRes ()], Bindings)
-checkInputOutput'' src exg2 mb_modname config (entry, stps, req) = do
+checkInputOutput''' adj_config src exg2 nm tnm mb_modname config (entry, stps, req) = do
     let proj = map takeDirectory src
-    let config' = config { steps = stps }
-        (entry_f, init_state, bindings) = initStateWithCall exg2 False (T.pack entry) mb_modname (mkCurrExpr TV.empty Nothing Nothing) (mkArgTys TV.empty) config'
+    let config' = adj_config stps config
+        (entry_f, init_state, bindings) = initStateWithCall exg2 nm tnm False (T.pack entry) mb_modname (mkCurrExpr TV.empty Nothing Nothing) (mkArgTys config TV.empty) config'
     
     (r, b, _) <- runG2WithConfig proj src entry_f (T.pack entry) [] mb_modname init_state config' bindings
 

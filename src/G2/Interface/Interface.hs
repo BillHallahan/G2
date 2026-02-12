@@ -125,6 +125,8 @@ maybeDoTimeout Nothing = fmap Just
 
 {-# INLINE initStateWithCall #-}
 initStateWithCall :: ExtractedG2
+                  -> NameMap
+                  -> TypeNameMap
                   -> Bool
                   -> StartFunc
                   -> [Maybe T.Text]
@@ -132,9 +134,9 @@ initStateWithCall :: ExtractedG2
                   -> (Expr -> MkArgTypes)
                   -> Config
                   -> (Id, State (), Bindings)
-initStateWithCall exg2 useAssert f m_mod mkCurr argTys config =
+initStateWithCall exg2 nm tnm useAssert f m_mod mkCurr argTys config =
     let
-        s = initSimpleState exg2
+        s = initSimpleState exg2 nm tnm
 
         (ie, fe) = case findFunc TV.empty f m_mod (IT.expr_env s) of
                         Left ie' -> ie'
@@ -146,14 +148,16 @@ initStateWithCall exg2 useAssert f m_mod mkCurr argTys config =
 
 {-# INLINE initStateWithCall' #-}
 initStateWithCall' :: ExtractedG2
+                   -> NameMap
+                   -> TypeNameMap
                    -> StartFunc
                    -> [Maybe T.Text]
                    -> (Id -> MkCurrExpr)
                    -> (Expr -> MkArgTypes)
                    -> Config
                    -> (Id, State (), Bindings)
-initStateWithCall' exg2 =
-    initStateWithCall exg2 False
+initStateWithCall' exg2 nm tnm =
+    initStateWithCall exg2 nm tnm False
 
 {-# INLINE initStateFromSimpleStateWithCall #-}
 initStateFromSimpleStateWithCall :: IT.SimpleState
@@ -243,9 +247,9 @@ initStateFromSimpleState s m_mod useAssert mkCurr argTys config =
     , name_gen = ng'''
     , exported_funcs = IT.exports s })
 
-mkArgTys :: TV.TyVarEnv -> Expr -> MkArgTypes
-mkArgTys tv e simp_s =
-    snd $ instantiateArgTypes tv (IT.type_classes simp_s) (IT.known_values simp_s) e
+mkArgTys :: Config -> TV.TyVarEnv -> Expr -> MkArgTypes
+mkArgTys config tv e simp_s =
+    snd $ instantiateArgTypes config tv (IT.type_classes simp_s) (IT.known_values simp_s) e
 
 {-# INLINE initStateFromSimpleState' #-}
 initStateFromSimpleState' :: IT.SimpleState
@@ -253,23 +257,26 @@ initStateFromSimpleState' :: IT.SimpleState
                           -> [Maybe T.Text]
                           -> Config
                           -> (State (), Bindings)
-initStateFromSimpleState' s sf m_mod =
+initStateFromSimpleState' s sf m_mod config =
     let
         (ie, fe) = case findFunc TV.empty sf m_mod (IT.expr_env s) of
                           Left ie' -> ie'
                           Right errs -> error errs
     in
-    initStateFromSimpleState s m_mod False (mkCurrExpr TV.empty Nothing Nothing ie) (mkArgTys TV.empty fe)
+    initStateFromSimpleState s m_mod False (mkCurrExpr TV.empty Nothing Nothing ie) (mkArgTys config TV.empty fe) config
 
 {-# INLINE initSimpleState #-}
 initSimpleState :: ExtractedG2
+                -> NameMap
+                -> TypeNameMap
                 -> IT.SimpleState
 initSimpleState (ExtractedG2 { exg2_binds = prog
                              , exg2_tycons = prog_typ
                              , exg2_classes = cls
                              , exg2_axioms = axs
                              , exg2_exports = es
-                             , exg2_rules = rs }) =
+                             , exg2_rules = rs })
+                nm tnm=
     let
         eenv = E.fromExprMap prog
         tenv = mkTypeEnv prog_typ
@@ -286,7 +293,10 @@ initSimpleState (ExtractedG2 { exg2_binds = prog
                            , IT.type_classes = tc
                            , IT.families = fams
                            , IT.rewrite_rules = rs
-                           , IT.exports = es }
+                           , IT.exports = es
+                           
+                           , IT.name_map = nm
+                           , IT.type_name_map = tnm }
     in
     runInitialization1 s
 
@@ -416,6 +426,11 @@ initRedHaltOrd s mod_name solver simplifier config exec_func_names no_nrpc_names
                                         SomeHalter (hpcApproximationHalter solver approx_no_inline) .<~> halter_hpc_discard
                                     False -> halter_hpc_discard
 
+        halter_height = case height_limit config of
+                                    Just lim ->
+                                        SomeHalter (adtHeightHalter lim) .<~> halter_approx_discard
+                                    Nothing -> halter_hpc_discard
+
         orderer = case search_strat config of
                         Subpath -> SomeOrderer . liftOrderer $ lengthNSubpathOrderer (subpath_length config)
                         Iterative -> SomeOrderer $ pickLeastUsedOrderer
@@ -424,17 +439,17 @@ initRedHaltOrd s mod_name solver simplifier config exec_func_names no_nrpc_names
         case higherOrderSolver config of
             AllFuncs ->
                 ( nrpc_approx_red retReplaceSymbFuncVar .== Finished .--> SomeReducer nonRedPCRed
-                , SomeHalter (discardIfAcceptedTagHalter True state_name) .<~> halter_approx_discard
+                , SomeHalter (discardIfAcceptedTagHalter True state_name) .<~> halter_height
                 , orderer
                 , io_timed_out)
             SingleFunc ->
                 ( nrpc_approx_red retReplaceSymbFuncVar .== Finished .--> taggerRed state_name :== Finished --> nonRedPCRed
-                , SomeHalter (discardIfAcceptedTagHalter True state_name) .<~> halter_approx_discard
+                , SomeHalter (discardIfAcceptedTagHalter True state_name) .<~> halter_height
                 , orderer
                 , io_timed_out)
             SymbolicFunc ->
                 ( nrpc_approx_red retReplaceSymbFuncTemplate .== Finished .--> taggerRed state_name :== Finished --> nonRedPCSymFuncRed
-                , SomeHalter (discardIfAcceptedTagHalter True state_name) .<~> halter_approx_discard
+                , SomeHalter (discardIfAcceptedTagHalter True state_name) .<~> halter_height
                 , orderer
                 , io_timed_out)
 
@@ -499,9 +514,9 @@ initialStateNoStartFunc :: [FilePath]
                      -> Config
                      -> IO (State (), Bindings, [Maybe T.Text])
 initialStateNoStartFunc proj src transConfig config = do
-    (mb_modname, exg2) <- translateLoaded proj src transConfig config
+    (mb_modname, exg2, nm, tnm) <- translateLoaded proj src transConfig config
 
-    let simp_state = initSimpleState exg2
+    let simp_state = initSimpleState exg2 nm tnm
 
         (init_s, bindings) = initStateFromSimpleState simp_state [Nothing] False
                                  noStartFuncMkCurrExpr
@@ -531,9 +546,9 @@ initialStateFromFile :: [FilePath]
                      -> Config
                      -> IO (State (), Id, Bindings, [Maybe T.Text])
 initialStateFromFile proj src m_reach def_assert f mkCurr argTys transConfig config = do
-    (mb_modname, exg2) <- translateLoaded proj src transConfig config
+    (mb_modname, exg2, nm, tnm) <- translateLoaded proj src transConfig config
 
-    let simp_state = initSimpleState exg2
+    let simp_state = initSimpleState exg2 nm tnm
         (ie, fe) = case findFunc TV.empty f mb_modname (IT.expr_env simp_state) of
                         Left ie' -> ie'
                         Right errs -> error errs
@@ -560,7 +575,7 @@ runG2FromFile :: [FilePath]
               -> IO ([ExecRes ()], State (), Bindings, TimedOut, Id, S.HashSet (Maybe T.Text))
 runG2FromFile proj src gflags m_assume m_assert m_reach def_assert f transConfig config = do
     (init_state, entry_f, bindings, mb_modname) <- initialStateFromFile  proj src
-                                    m_reach def_assert f (mkCurrExpr TV.empty m_assume m_assert) (mkArgTys TV.empty)
+                                    m_reach def_assert f (mkCurrExpr TV.empty m_assume m_assert) (mkArgTys config TV.empty)
                                     transConfig config
 
     (er, b, to) <- runG2WithConfig proj src entry_f f gflags mb_modname init_state config bindings

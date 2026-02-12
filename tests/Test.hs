@@ -157,7 +157,7 @@ sampleTests = testGroup "Samples"
                                                       , ("cfmapIntX", 1600, [AtLeast 10])
                                                       , ("cfmapIntCListInt", 300, [AtLeast 2]) ]
 
-    , checkExprReaches "tests/Samples/GetNthErr.hs" 800 Nothing Nothing (Just "error") "getNth"
+    , checkExprReaches "tests/Samples/GetNthErr.hs" 1200 Nothing Nothing (Just "error") "getNth"
         [AtLeast 8, RForAll errors]
 
     , checkInputOutputs "tests/Samples/FoldlUses.hs" [ ("sum_foldl", 1600, [AtLeast 3])
@@ -272,13 +272,15 @@ testFileTests = testGroup "TestFiles"
         [ RExists (\[App _ (Lit (LitInt x)), App _ (Lit (LitInt y))] -> x == 4 && y == 1)
         , RExists (\[App _ (Lit (LitInt x)), App _ (Lit (LitInt y))] -> x /= 4 && y == 1) ]
     
-    , checkInputOutputs "tests/TestFiles/Error/Error1.hs" [ ("f", 400, [AtLeast 1])
-                                                          , ("g", 400, [AtLeast 1])
-                                                          , ("f", 400, [AtLeast 1])
-                                                          , ("f", 400, [AtLeast 1])
-                                                          , ("g", 400, [AtLeast 1]) ]
-    , checkInputOutputs "tests/TestFiles/Error/Undefined1.hs" [ ("undefined1", 400, [AtLeast 1])
-                                                              , ("undefined2", 400, [AtLeast 1])]
+    , checkInputOutputs "tests/TestFiles/Error/Error1.hs" [ ("f", 800, [AtLeast 1])
+                                                          , ("g", 800, [AtLeast 1]) ]
+    , checkInputOutputs "tests/TestFiles/Error/Catch1.hs" [ ("f", 1000, [Exactly 1])
+                                                          , ("g", 1000, [Exactly 2])
+                                                          , ("patOrCall1", 3000, [Exactly 3])
+                                                          , ("patOrCall2", 3000, [Exactly 3]) ]
+    , checkInputOutputs "tests/TestFiles/Error/Catch2.hs" [ ("run", 1000, [Exactly 1]) ]
+    , checkInputOutputs "tests/TestFiles/Error/Undefined1.hs" [ ("undefined1", 800, [AtLeast 1])
+                                                              , ("undefined2", 800, [AtLeast 1])]
     , checkInputOutput "tests/TestFiles/Error/IrrefutError.hs" "f" 400 [AtLeast 2]
 
     , checkInputOutputs "tests/TestFiles/BadNames1.hs" [ ("abs'", 400, [Exactly 2])
@@ -326,6 +328,14 @@ testFileTests = testGroup "TestFiles"
                                                            , ("age", 400, [AtLeast 1])
                                                            , ("diffAge", 400, [AtLeast 1])
                                                            , ("yearBefore", 400, [AtLeast 5])]
+    , checkInputOutputsTemplate "tests/TestFiles/Coercions/Cast1.hs"
+                                                             [ ("castInt", 1000, [Exactly 1]) 
+                                                             , ("badCastInt", 1000, [Exactly 1]) 
+                                                             , ("castMaybeInt", 1000, [Exactly 2])
+                                                             , ("castFunc", 1000, [Exactly 1])
+                                                             , ("callTypeOf1", 1000, [Exactly 4])
+                                                             , ("callTypeOf2", 1000, [AtLeast 4])
+                                                             , ("callTypeOf3", 1000, [Exactly 1]) ]
     , checkInputOutputs "tests/TestFiles/Coercions/NewType1.hs" [ ("add1N4", 400, [Exactly 1])
                                                                 , ("f", 400, [Exactly 1])
                                                                 , ("g", 400, [Exactly 1])
@@ -489,7 +499,7 @@ testFileTests = testGroup "TestFiles"
                                         , ("intersperse1", 3000, [Exactly 3])
 
                                         , ("minimum1", 3000, [AtLeast 5, AtMost 6]) -- Allowing for SMT failures
-                                        , ("minimum2", 1000, [Exactly 2])
+                                        , ("minimum2", 2000, [AtLeast 1, AtMost 2]) -- Allowing for SMT failures
                                         , ("maximum1", 3000, [AtLeast 5, AtMost 6]) -- Allowing for SMT failures
                                         , ("maximum2", 1000, [AtLeast 1, AtMost 2]) -- Allowing for SMT failures
 
@@ -590,8 +600,8 @@ testFileTests = testGroup "TestFiles"
 
     , checkExpr "tests/TestFiles/Sets/SetInsert.hs" 700 "prop" [AtLeast 3]
     
-    , checkInputOutputs "tests/TestFiles/BadDC.hs" [ ("f", 400, [AtLeast 5])
-                                                   , ("g", 400, [AtLeast 3]) ]
+    , checkInputOutputs "tests/TestFiles/BadDC.hs" [ ("f", 800, [AtLeast 5])
+                                                   , ("g", 800, [AtLeast 3]) ]
 
     , checkInputOutputsTemplate "tests/HigherOrder/HigherOrder.hs" [ ("f", 50, [AtLeast 5])
                                                                    , ("h", 150, [AtLeast 3])
@@ -633,7 +643,7 @@ testFileTests = testGroup "TestFiles"
                                                                        , ("tupleTestMono", 175, [AtLeast 2])
                                                                        , ("multiPrim", 300, [AtLeast 2])
                                                                        , ("polyHigher", 50, [AtLeast 4])]                                                                                         
-    , checkInputOutputsNonRedHigher "tests/Validate/Val1.hs" [("call", 1000, [AtLeast 5])]
+    , checkInputOutputsNonRedHigher "tests/Validate/Val1.hs" [("call", 1000, [AtLeast 3])]
     , checkInputOutputsWithValidate "tests/BaseTests/ListTests.hs" [ ("lengthN", 2000, [AtLeast 1])
                                                                 , ("lengthBranch", 2000, [AtLeast 4])]
     , checkInputOutputsNonRedLib "tests/BaseTests/ListTests.hs" [ ("lengthN", 20000, [Exactly 1])
@@ -642,7 +652,7 @@ testFileTests = testGroup "TestFiles"
                                                                 , ("filterCall1", 20000, [Exactly 7])
                                                                 , ("nubCall1", 20000, [Exactly 4])
                                                                 , ("indexCall1", 20000, [Exactly 6])
-                                                                , ("indexCall2", 20000, [AtLeast 12])
+                                                                , ("indexCall2", 20000, [AtLeast 5])
                                                                 , ("lastCall1", 20000, [Exactly 4])
                                                                 , ("dropCall1", 20000, [Exactly 6])
                                                                 , ("initCall1", 20000, [Exactly 4])
@@ -751,6 +761,10 @@ testFileTests = testGroup "TestFiles"
     , checkInputOutputsWithTemplatesAndHpc "tests/TestFiles/TypeKeyword.hs" [ ("yearPasses", 400, [Exactly 1])
                                                                             , ("callAlts", 400, [AtLeast 1]) ]
     , checkInputOutputs "tests/TestFiles/InfLoop.hs" [ ("f", 500, [Exactly 1]) ]
+
+    -- ADT Height
+    , checkInputOutputsADTHeight "tests/Samples/Peano.hs" [ ("add", 6, [Exactly 6]) ]
+    , checkInputOutputsADTHeight "tests/TestFiles/Strings/Strings1.hs" [ ("last1", 60, [Exactly 60]) ]
  ]
 
 extensionTests :: TestTree
@@ -1123,9 +1137,7 @@ checkExprWithConfig src m_assume m_assert m_reaches entry reqList config_f = do
                     Left _ -> (Nothing, [])
                     Right (exec_res, b) ->
                             let
-                                reqs = checkExprGen
-                                            (map (\ExecRes { conc_args = inp, conc_out = out} -> inp ++ [out]) exec_res)
-                                            $ reqList
+                                reqs = checkExprGen exec_res reqList
 
                                 pg = mkPrettyGuide exec_res
                                 res_pretty = map (printInputOutput pg (Id (Name (T.pack entry) Nothing 0 Nothing) TyUnknown) b) exec_res

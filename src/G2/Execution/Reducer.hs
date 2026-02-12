@@ -111,6 +111,7 @@ module G2.Execution.Reducer ( Reducer (..)
                             , maxOutputsHalter
                             , switchEveryNHalter
                             , varLookupLimitHalter
+                            , adtHeightHalter
 
                             , hpcApproximationHalter
                             , approximationHalter'
@@ -1047,7 +1048,8 @@ strictRed = mkSimpleReducer (\_ -> ())
             -- Without this check, the strictRed might repeatedly fire, fruitlessly arranging for already reduced
             -- subexpressions to be repeatedly reduced over and over, and preventing the involved `State` from
             -- being halted.
-            , must_red HS.empty e =
+            , must_red HS.empty e 
+            , not (errorRaised s) =
                 let
                     -- Given a `curr_expr` of the form:
                     --   @ D e1 ... ek @
@@ -1773,16 +1775,12 @@ discardIfAcceptedTagHalter non_erroring (Name n m _ _) =
             (State {tags = ts}) =
                 let
                     acc_states = case non_erroring of
-                                    True -> filter (not . isError . getExpr . final_state) acc
+                                    True -> filter (not . errorRaised . final_state) acc
                                     False -> acc
                     allAccTags = HS.unions $ map (tags . final_state) acc_states
                     matchCurrState = HS.intersection ts allAccTags
                 in
                 HS.filter (\(Name n' m' _ _) -> n == n' && m == m') matchCurrState
-            
-        isError (Prim Error _) = True
-        isError (Prim Undefined _) = True
-        isError _ = False
 
 -- | Counts the number of variable lookups are made, and switches the state
 -- whenever we've hit a threshold
@@ -1795,6 +1793,22 @@ varLookupLimitHalter lim = mkSimpleHalter
     where
         step l _ _ (State { curr_expr = CurrExpr Evaluate (Var _) }) = l - 1
         step l _ _ _ = l
+
+-- | Discard a state if some previously symbolic ADT has been concretized to a depth of greater than some limit. 
+adtHeightHalter :: Monad m =>
+                   Int -- ^ Limit
+                -> Halter m (HS.HashSet Name) r t
+adtHeightHalter lim = mkSimpleHalter init
+                                     (\sym _ _ -> sym)
+                                     stop
+                                     (\sym _ _ _ -> sym)
+    where
+        init = HS.fromList . map idName . E.symbolicIds . expr_env
+        stop sym _ s =
+            let
+                m = maximum $ (-1):(HS.toList $ HS.map (flip adtHeight s) sym)
+            in
+            return $ if m > lim then Discard else Continue
 
 hpcApproximationHalter :: (Named t, Solver solver, SM.MonadState (ApproxPrevs t) m, MonadIO m) =>
                           solver

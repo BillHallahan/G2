@@ -95,6 +95,7 @@ data Config = Config {
     , logInlineNRPC :: Bool -- ^ Inline variables in the NRPC when logging states
     , sharing :: Sharing
     , instTV :: InstTV -- allow the instantiation of types in the beginning or it's instantiate symbolically by functions
+    , favor_tys :: [String] -- ^ Which types (in order) to prefer instantiating type variables with
     , showType :: ShowType -- allow user to see more type information when they are logging states for the execution
     , maxOutputs :: Maybe Int -- ^ Maximum number of examples/counterexamples to output.  TODO: Currently works only with LiquidHaskell
     , returnsTrue :: Bool -- ^ If True, shows only those inputs that do not return True
@@ -112,8 +113,12 @@ data Config = Config {
     , smt_strings_strictness :: SMTStringsEval -- ^ Force strict evaluation of strings to allow more use of SMT reasoning
     , quantified_smt_strings :: SMTQuantifiers -- ^ Sets how quantifiers should be used in SMT functions
     , smt_prim_lists :: UseSMTSeq -- ^ Sets whether the SMT solver should be used to solve lists containing primitive type wrappers (Int, Float, etc.)
+    
     , step_limit :: Bool -- ^ Should steps be limited when running states?
     , steps :: Int -- ^ How many steps to take when running States
+
+    , height_limit :: Maybe Int -- ^ What is the ADT height limit?
+
     , time_solving :: Bool -- ^ Output the amount of time spent checking/solving path constraints
     , print_num_solver_calls :: Bool -- ^ Output the number of calls made to check/solve path constraints
     , print_solver_sol_counts :: Bool -- ^ Output the number of sat/unsat/unknown solver results from the SMT solver
@@ -173,6 +178,10 @@ mkConfig homedir = Config Regular
                          <> help "inline variables in the NRPC when logging states")
     <*> flag Sharing NoSharing (long "no-sharing" <> help "disable sharing")
     <*> flag InstBefore InstAfter (long "inst-after" <> help "select to instantiate type variables after symbolic execution, rather than before")
+    <*> option auto (long "favor-types"
+                    <> metavar "FT"
+                    <> value ["Int"]
+                    <> help "which types (in order) to prefer instantiating type variables with")
     <*> flag Lax Aggressive (long "show-types" <> help "set to show more type information when logging states")
     <*> mkMaxOutputs
     <*> switch (long "returns-true" <> help "assert that the function returns true, show only those outputs which return false")
@@ -204,11 +213,19 @@ mkConfig homedir = Config Regular
                                           <> value (UnrollQuant 10)
                                           <> help "Either `-` to indicate that quantifiers should be used in SMT formulas, or a depth to unroll quantifiers to")
     <*> flag NoSMTSeq UseSMTSeq (long "smt-lists" <> help "Sets whether the SMT solver should be used to solve list constraints for primitive types")
+    
     <*> flag True False (long "no-step-limit" <> help "disable step limit")
     <*> option auto (long "n"
                    <> metavar "N"
                    <> value 1000
                    <> help "how many steps to take when running states")
+
+    <*> option (maybeReader (Just . readMaybe))
+            ( long "height-limit"
+            <> metavar "H"
+            <> value Nothing
+            <> help "the maximum height of a concretized symbolic variable")
+
     <*> switch (long "solver-time" <> help "output the amount of time spent checking/solving path constraints")
     <*> switch (long "print-num-solver-calls" <> help "output the number of calls made to check/solve path constraints")
     <*> switch (long "print-sol-counts" <> help "output the number of sat/unsat/unknown solver results from the SMT solver")
@@ -361,6 +378,7 @@ mkConfigDirect homedir as m = Config {
     , logInlineNRPC = False
     , sharing = boolArg' "sharing" as Sharing Sharing NoSharing
     , instTV = InstBefore
+    , favor_tys = ["Int"]
     , showType = Lax
     , maxOutputs = strArg "max-outputs" as m (Just . read) Nothing
     , returnsTrue = boolArg "returns-true" as m Off
@@ -378,8 +396,12 @@ mkConfigDirect homedir as m = Config {
     , smt_strings_strictness = LazySMTStrings
     , quantified_smt_strings = UnrollQuant 10
     , smt_prim_lists = NoSMTSeq
+    
     , step_limit = boolArg' "no-step-limit" as True True False
     , steps = strArg "n" as m read 1000
+
+    , height_limit = Nothing
+
     , time_solving = False
     , print_num_solver_calls = False
     , print_solver_sol_counts = False
@@ -412,6 +434,7 @@ baseIncludeDef root =
     [ root ++ "/.g2/base-4.9.1.0/Control/Exception/"
     , root ++ "/.g2/base-4.9.1.0/"
     , root ++ "/.g2/base-4.9.1.0/Data/Internal/"
+    , root ++ "/.g2/smt/"
     ]
 
 baseDef :: FilePath -> [FilePath]

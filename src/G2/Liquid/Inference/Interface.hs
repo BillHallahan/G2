@@ -15,7 +15,7 @@ import G2.Language.Expr
 import qualified G2.Language.ExprEnv as E
 import G2.Language.Naming
 import G2.Language.Support
-import G2.Language.Syntax
+import G2.Language.Syntax hiding (Raise)
 import G2.Language.Typing
 import G2.Liquid.Config
 import G2.Liquid.ConvertCurrExpr
@@ -46,8 +46,10 @@ import qualified Data.HashSet as S
 import qualified Data.HashMap.Lazy as HM
 import Data.List
 import Data.Maybe
+import Data.Monoid (Any (..))
 import qualified Data.Text as T
 import qualified Data.Text.IO as T
+import Data.Bool (Bool(True))
 
 -- Run inference, with an extra, final check of correctness at the end.
 -- Assuming inference is working correctly, this check should neve fail.
@@ -117,8 +119,8 @@ getInitState proj fp ghci infconfig config lhconfig = do
     let g2config = config { mode = Liquid
                           , steps = 2000 }
         transConfig = simplTranslationConfig { simpl = False }
-    (main_mod, exg2) <- translateLoaded proj fp transConfig g2config
-    let (lrs, g2config', lhconfig', infconfig') = initStateAndConfig exg2 main_mod g2config lhconfig infconfig ghci
+    (main_mod, exg2, nm, tnm) <- translateLoaded proj fp transConfig g2config
+    let (lrs, g2config', lhconfig', infconfig') = initStateAndConfig exg2 nm tnm main_mod g2config lhconfig infconfig ghci
     return (lrs, g2config', lhconfig', infconfig', main_mod)
 
 getNameLevels :: Maybe T.Text -> LiquidReadyState -> NameLevels
@@ -531,11 +533,13 @@ checkForCEx :: MonadIO m =>
             -> LiquidReadyState
             -> T.Text
             -> InfStack m [CounterExample]
-checkForCEx ghci m lrs n = do
-    liftIO . putStrLn $ "Checking CEx for " ++ T.unpack n
-    ((exec_res, _), _) <- runLHCExSearch n m lrs ghci
-    let exec_res' = filter (true_assert . final_state) exec_res
-    return $ map lhStateToCE exec_res'
+checkForCEx ghci m lrs n
+    |  T.take 1 n /= "$" = do
+        liftIO . putStrLn $ "Checking CEx for " ++ T.unpack n
+        ((exec_res, _), _) <- runLHCExSearch n m lrs ghci
+        let exec_res' = filter (true_assert . final_state) exec_res
+        return $ map lhStateToCE exec_res'
+    | otherwise = return []
 
 checkNewConstraints :: (InfConfigM m, MonadIO m) => [GhcInfo] -> LiquidReadyState -> [CounterExample] -> m (Either [CounterExample] FuncConstraints)
 checkNewConstraints ghci lrs cexs = do
@@ -765,8 +769,7 @@ hasArgError :: FuncCall -> Bool
 hasArgError = any isError . arguments
 
 isError :: Expr -> Bool
-isError (Prim Error _) = True
-isError (Prim Undefined _) = True
+isError e | Prim Error _:_ <- unApp e = True
 isError _ = False
 
 erHigherOrder :: ExecRes AbstractedInfo -> [HigherOrderFuncCall]

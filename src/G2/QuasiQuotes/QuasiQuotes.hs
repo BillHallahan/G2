@@ -88,10 +88,10 @@ parseHaskellQ str = do
     let ns_pat = map varP ns
 
     -- Get names for the lambdas for the regular inputs
-    exG2 <- parseHaskellQ' qext
+    (exG2, nm, tnm) <- parseHaskellQ' qext
     config <- runIO qqConfig
-    let (_, init_s, init_b) = initStateWithCall' exG2 (T.pack functionName) [Just $ T.pack moduleName]
-                                        (mkCurrExpr TV.empty Nothing Nothing) (mkArgTys TV.empty) config
+    let (_, init_s, init_b) = initStateWithCall' exG2 nm tnm (T.pack functionName) [Just $ T.pack moduleName]
+                                        (mkCurrExpr TV.empty Nothing Nothing) (mkArgTys config TV.empty) config
 
     runIO $ releaseIORefLock
 
@@ -165,7 +165,7 @@ liftDataT = dataToExpQ (\a -> case liftText <$> cast a of
         liftMaybeSpan _ = conE 'Nothing
         intE i = [| i |]
 
-parseHaskellQ' :: QuotedExtract-> Q ExtractedG2
+parseHaskellQ' :: QuotedExtract-> Q (ExtractedG2, NameMap, TypeNameMap)
 parseHaskellQ' qext = do
   (ModuleInfo mods) <- reifyModule =<< thisModule
   -- runIO $ mapM putStrLn =<< guessModules mods
@@ -175,12 +175,12 @@ parseHaskellQ' qext = do
 -- | Turn the Haskell into a G2 Expr.  All variables- both those that the user
 -- marked to be passed into the Expr as real values, and those that the user
 -- wants to solve for- are treated as symbolic here.
-parseHaskellIO :: [Module] -> QuotedExtract -> IO ExtractedG2
+parseHaskellIO :: [Module] -> QuotedExtract -> IO (ExtractedG2, NameMap, TypeNameMap)
 parseHaskellIO mods qext = do
     -- cwd <- getCurrentDirectory
     -- let cwd' = cwd ++ "/quasiquote/"
     let hskStr = quotedEx2Hsk qext
-    (_, exG2) <- withSystemTempFile fileName
+    (_, exG2, nm, tnm) <- withSystemTempFile fileName
             (\filepath handle -> do
                 let contents = "module " ++ moduleName ++ " where\n"
                                 ++ intercalate "\n" modImports ++ "\n"
@@ -201,7 +201,7 @@ parseHaskellIO mods qext = do
                 translateLoaded projs [filepath]
                     (simplTranslationConfig { interpreter = True })
                     config)
-    return exG2
+    return (exG2, nm, tnm)
     where
         modImports = map ("import " ++) 
                    . filter (`notElem` badImports)
@@ -409,7 +409,7 @@ errorHalter = mkSimpleHalter
                     stop
                     (\_ _ _ _ -> ())
     where
-        stop _ _ (State { curr_expr = CurrExpr _ (G2.Prim Error _)}) = return Discard
+        stop _ _ s | errorRaised s = return Discard
         stop _ _ _ = return Continue
 
 executeAndSolveStates :: StateExp -> BindingsExp -> Q Exp

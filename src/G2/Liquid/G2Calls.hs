@@ -33,6 +33,7 @@ import qualified Data.HashMap.Lazy as HM
 import qualified Data.HashSet as HS
 import Data.Maybe
 import Data.Monoid
+import qualified Data.Text as T
 import Data.Tuple.Extra
 
 import qualified Control.Monad.State as SM
@@ -157,7 +158,7 @@ checkAbstracted' g2call solver simplifier share s bindings abs_fc@(FuncCall { fu
                                    , ar)
                         False -> return ((s, bindings), NotAbstractRes)
             _ -> error $ "checkAbstracted': Bad return from g2call"
-    | otherwise = error $ "checkAbstracted': Bad lookup in g2call"
+    | otherwise = return ((s, bindings), NotAbstractRes)
 
 getAbstracted :: (Solver solver, Simplifier simplifier)
               => G2Call solver simplifier
@@ -181,7 +182,7 @@ getAbstracted g2call solver simplifier share s bindings abs_fc@(FuncCall { funcN
                . elimSymGens (arb_value_gen bindings) (name_gen bindings)
                . modelToExprEnv $
                     s { curr_expr = CurrExpr Evaluate e'
-                      , track = ([] :: [FuncCall], False)}
+                      , track = ([] :: [FuncCall], False) }
 
         (er, bindings') <- g2call 
                               (((hitsLibErrorGatherer ~> stdRed share retReplaceSymbFuncVar solver simplifier ~> strictRed) :== Finished
@@ -423,7 +424,7 @@ reduceFCExpr g2call reducer solver simplifier s bindings e
                . pickHead
                . elimSymGens (arb_value_gen bindings) (name_gen bindings)
                . modelToExprEnv $
-                   s { curr_expr = CurrExpr Evaluate e}
+                   s { curr_expr = CurrExpr Evaluate e }
 
         (er, bindings') <- g2call 
                               reducer

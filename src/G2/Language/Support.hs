@@ -121,6 +121,13 @@ data Bindings = Bindings { fixed_inputs :: [Expr]
                          , exported_funcs :: [Name]
                          } deriving (Show, Eq, Read, Typeable, Data)
 
+errorRaised :: State t -> Bool
+errorRaised (State { curr_expr = CurrExpr _ ce}) | Prim Error _ <- center ce = True
+    where
+        center (App e _) = center e
+        center e = e
+errorRaised _ = False
+
 -- | The `InputIds` are a list of the variable names passed as input to the
 -- function being symbolically executed
 type InputIds = [Id]
@@ -186,6 +193,7 @@ data Frame = CaseFrame Id Type [Alt]
            | ApplyFrame Expr
            | UpdateFrame Name
            | CastFrame Coercion
+           | CatchFrame Expr -- ^ Catching exceptions
            | CurrExprFrame CEAction CurrExpr
            | AssumeFrame Expr
            | AssertFrame (Maybe FuncCall) Expr
@@ -445,6 +453,7 @@ instance ASTContainer CurrExpr Type where
 instance ASTContainer Frame Expr where
     containedASTs (CaseFrame _ _ a) = containedASTs a
     containedASTs (ApplyFrame e) = [e]
+    containedASTs (CatchFrame e) = containedASTs e
     containedASTs (CurrExprFrame _ e) = containedASTs e
     containedASTs (AssumeFrame e) = [e]
     containedASTs (AssertFrame _ e) = [e]
@@ -453,6 +462,7 @@ instance ASTContainer Frame Expr where
 
     modifyContainedASTs f (CaseFrame i t a) = CaseFrame i t (modifyContainedASTs f a)
     modifyContainedASTs f (ApplyFrame e) = ApplyFrame (f e)
+    modifyContainedASTs f (CatchFrame e) = CatchFrame (f e)
     modifyContainedASTs f (CurrExprFrame act e) = CurrExprFrame act (modifyContainedASTs f e)
     modifyContainedASTs f (AssumeFrame e) = AssumeFrame (f e)
     modifyContainedASTs f (AssertFrame is e) = AssertFrame is (f e)
@@ -487,6 +497,7 @@ instance Named Frame where
     names (ApplyFrame e) = names e
     names (UpdateFrame n) = names n
     names (CastFrame c) = names c
+    names (CatchFrame e) = names e
     names (CurrExprFrame _ e) = names e
     names (AssumeFrame e) = names e
     names (AssertFrame is e) = names is <> names e
@@ -496,6 +507,7 @@ instance Named Frame where
     rename old new (ApplyFrame e) = ApplyFrame (rename old new e)
     rename old new (UpdateFrame n) = UpdateFrame (rename old new n)
     rename old new (CastFrame c) = CastFrame (rename old new c)
+    rename old new (CatchFrame e) = CatchFrame (rename old new e)
     rename old new (CurrExprFrame act e) = CurrExprFrame act (rename old new e)
     rename old new (AssumeFrame e) = AssumeFrame (rename old new e)
     rename old new (AssertFrame is e) = AssertFrame (rename old new is) (rename old new e)
@@ -505,6 +517,7 @@ instance Named Frame where
     renames hm (ApplyFrame e) = ApplyFrame (renames hm e)
     renames hm (UpdateFrame n) = UpdateFrame (renames hm n)
     renames hm (CastFrame c) = CastFrame (renames hm c)
+    renames hm (CatchFrame c) = CatchFrame (renames hm c)
     renames hm (CurrExprFrame act e) = CurrExprFrame act (renames hm e)
     renames hm (AssumeFrame e) = AssumeFrame (renames hm e)
     renames hm (AssertFrame is e) = AssertFrame (renames hm is) (renames hm e)

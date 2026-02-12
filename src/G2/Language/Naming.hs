@@ -605,6 +605,9 @@ instance Named KnownValues where
             , tyRealWorld = tRW
             , dcRealWorld = dRW
 
+            , tyHandle = ty_handle
+            , tyIP = ty_ip
+
             , eqTC = eqT
             , numTC = numT
             , ordTC = ordT
@@ -662,6 +665,7 @@ instance Named KnownValues where
                 , tUnit, dUnit
                 , tPrimTuple, dPrimTuple
                 , tMV, dMV, tSt, dSt, tRW, dRW
+                , ty_handle, ty_ip
                 , eqT, numT, ordT, integralT, realT, fractionalT
                 , integralEReal, realENum, realEOrd, ordEEq
                 , eqF, neqF, plF, minusF, tmsF, divF, negF, modF
@@ -716,6 +720,8 @@ instance Named KnownValues where
                    , dcRealWorld = dRW
 
                    , tyHandle = ty_handle
+
+                   , tyIP = ty_ip
 
                    , eqTC = eqT
                    , numTC = numT
@@ -812,6 +818,8 @@ instance Named KnownValues where
 
                         , tyHandle = rename old new ty_handle
 
+                        , tyIP = rename old new ty_ip
+
                         , eqTC = rename old new eqT
                         , numTC = rename old new numT
                         , ordTC = rename old new ordT
@@ -875,7 +883,7 @@ instance Named TV.TyConcOrSym where
     renames hm (TV.TySym i) = TV.TySym (renames hm i)
 
 instance Named TV.TyVarEnv where
-    names = names . TV.toList
+    names = names . TV.toUFMap
     rename old new = TV.fromListConcOrSym . rename old new . TV.toListConcOrSym
     renames hm = TV.fromListConcOrSym . renames hm . TV.toListConcOrSym
 

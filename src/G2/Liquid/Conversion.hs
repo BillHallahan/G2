@@ -164,7 +164,8 @@ mergeSpecType st fn e = do
                       , arguments = map Var is
                       , returns = Var r }
         e'' = modifyASTs (repAssertFC fc) e'
-    let rLet = Let [(r, e'')] $ Assert (Just fc) assert (Var r)
+    b <- freshIdN (typeOf tv e')
+    let rLet = Let [(r, e'')] $ Assert (Just fc) (Case (Var r) b (typeOf tv e') [Alt Default assert]) (Var r)
     
     let e''' = foldr (uncurry Lam) rLet $ zip lu is
 
@@ -957,7 +958,7 @@ lhTCDict' m t = do
     tc <- typeClassInstTC m lh t
     case tc of
         Just e -> return e
-        Nothing -> error $ "No lh dict " ++ show lh ++ "\n" ++ show t ++ "\n" ++ show m
+        Nothing -> return $ Prim Undefined TyUnknown
 
 maybeOrdDict :: DictMaps -> Type -> LHStateM (Maybe Expr)
 maybeOrdDict m t = do
