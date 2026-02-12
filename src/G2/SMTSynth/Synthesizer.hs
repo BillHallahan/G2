@@ -47,7 +47,6 @@ import System.IO
 import System.IO.Temp
 import System.Process
 import qualified Text.Builder as TB
-import GHC.Plugins (IdDetails)
 
 -------------------------------------------------------------------------------
 -- Methodology
@@ -391,11 +390,19 @@ runFunc temp src f smt_def (SynthConfig { g2_config = config }) = do
                 src':_ -> guessProj (includePaths config') src'
                 _ -> return []
 
-    (init_state, entry_f, bindings, mb_modname) <- initialStateFromFile proj src
-                                    Nothing False f (mkCurrExpr TV.empty Nothing Nothing) (mkArgTys config' TV.empty)
+    let f' = if isJust smt_def then "comp" else f
+    (init_state, func, bindings, mb_modname) <- initialStateFromFile proj src
+                                    Nothing False f' (mkCurrExpr TV.empty Nothing Nothing) (mkArgTys config' TV.empty)
                                     simplTranslationConfig config'
     
-    let comp_state = if isJust smt_def then findInconsistent entry_f init_state bindings else init_state
+    let (comp_state, entry_f) = case smt_def of
+                        Just (_, i@(Id n _), _) | Just (entry_f_n, entry_f_def) <- E.lookupNameMod (nameOcc n) (nameModule n) (expr_env init_state) ->
+                                            let
+                                                new_i = Id entry_f_n $ typeOf (tyvar_env init_state) entry_f_def
+                                            in
+                                            (findInconsistent new_i init_state bindings, new_i)
+                                       | otherwise -> error "runFunc: func not found" 
+                        Nothing -> (init_state, func)
     -- let config'' = if isJust smt_def then config' { logStates = Log Pretty "a_smt"} else config'
     T.putStrLn $ printHaskellPG (mkPrettyGuide $ getExpr comp_state) comp_state (getExpr comp_state)
 
@@ -435,11 +442,13 @@ setUpSpec sc h (Just (s@(State { known_values = kv }), Id n t, spec)) = do
                     ++ "tryMaybeUnsafe x = unsafePerformIO $ tryMaybe (let !y = x in return y)\n\n"
                     ++ smt_name ++ " :: " ++ T.unpack (mkTypeHaskellDictArrows (mkPrettyGuide ()) (type_classes s) t') ++ "\n"
                     ++ spec
-                    ++ "\n\ncomp :: ("
-                            ++ T.unpack (mkTypeHaskellDictArrows (mkPrettyGuide ()) (type_classes s) t')
-                            ++ ") -> "
-                            ++ T.unpack (mkTypeHaskellDictArrows (mkPrettyGuide ()) (type_classes s) t') ++ "\n"
-                    ++ "comp f " ++ vs_str ++ " = " ++ "\n    let val = f " ++ vs_str ++ ""  ++ " in\n"
+                    ++ "\n\nplaceholder" ++ " :: " ++ T.unpack (mkTypeHaskellDictArrows (mkPrettyGuide ()) (type_classes s) t') ++ "\n"
+                    ++ "placeholder = undefined\n\n"
+                    -- ++ "\n\ncomp :: ("
+                    --         ++ T.unpack (mkTypeHaskellDictArrows (mkPrettyGuide ()) (type_classes s) t')
+                    --         ++ ") -> "
+                    --         ++ T.unpack (mkTypeHaskellDictArrows (mkPrettyGuide ()) (type_classes s) t') ++ "\n"
+                    ++ "comp " ++ vs_str ++ " = " ++ "\n    let val = placeholder " ++ vs_str ++ ""  ++ " in\n"
                                                    ++ "    assert (tryMaybeUnsafe (" ++ smt_name ++ " " ++ vs_str ++ ") "
                                    ++ eq_check sc ++ " tryMaybeUnsafe val) val"
     putStrLn contents
@@ -453,14 +462,9 @@ isCallStack ty | TyCon tn _:_ <- unTyApp ty = nameOcc tn == "IP"
 
 -- | Find inputs that violate a found SMT definition
 findInconsistent :: Id -> State t -> Bindings -> State t
-findInconsistent entry_f s@(State { expr_env = eenv
-                                  , tyvar_env = tv_env }) b
-    | Just (comp_name, _) <- E.lookupNameMod "comp" (Just "Spec") eenv =
-        let
-            new_curr_expr = mkApp $ Var (Id comp_name TyUnknown):Var entry_f:fixed_inputs b
-                            ++ filter (not . isCallStack . typeOf tv_env) (map Var (inputIds s b))
-        in
-        s { curr_expr = CurrExpr Evaluate new_curr_expr
+findInconsistent entry_f s@(State { expr_env = eenv  }) b
+    | Just (ph_name, _) <- E.lookupNameMod "placeholder" (Just "Spec") eenv =
+        s { expr_env = E.insert ph_name (Var entry_f) eenv
           , true_assert = False }
     | otherwise = error $ "findInconsistent: spec not found"
 
