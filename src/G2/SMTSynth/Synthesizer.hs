@@ -45,7 +45,7 @@ import System.Directory
 import System.IO
 import System.IO.Temp
 import System.Process
-import qualified TextBuilder as TB
+import qualified Text.Builder as TB
 
 -------------------------------------------------------------------------------
 -- Methodology
