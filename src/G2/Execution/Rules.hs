@@ -220,7 +220,9 @@ evalForAll as t tms tr s@(State {type_env = tenv}) eenv ng i =
             , not $ all isTyVar (t:tms)
             , t `elem` as
             = let 
-                (f, ng'') = freshId (mkNestedForAll as $ mkTyFun (tms++[t]++[tr])) ng_inst_state
+                (new_as, ng'') = freshSeededIds as_ids ng_inst_state
+                (f, ng''') = freshId (renames (HM.fromList (zip (map idName as_ids) (map idName new_as))) -- TODO: map after zip?
+                                $ mkNestedForAll as $ mkTyFun (tms++[t]++[tr])) ng''
 
                 e' = e_template $ mkApp . map Var $ [f] ++ as_ids ++ ys ++ [x]
                 
@@ -228,7 +230,7 @@ evalForAll as t tms tr s@(State {type_env = tenv}) eenv ng i =
                 eenv'' = E.insert (idName i) e' eenv'
 
                 s' = (Just s { curr_expr = CurrExpr Return e'
-                                         , expr_env = eenv'' }, ng'')
+                                         , expr_env = eenv'' }, ng''')
             in 
                 if log_rules then trace "PM-CYCLE" s' else s'
             | otherwise = (Nothing, ng_inst_state)
@@ -238,7 +240,9 @@ evalForAll as t tms tr s@(State {type_env = tenv}) eenv ng i =
             | HS.null $ contTyVars t
             , (_:_) <- tms
             = let
-                (f, ng'') = freshId (TyFun t (mkNestedForAll as $ mkTyFun $ tms ++ [tr])) ng_cycle_state
+                (new_as, ng'') = freshSeededIds as_ids ng_cycle_state
+                (f, ng''') = freshId (renames (HM.fromList (zip (map idName as_ids) (map idName new_as)))
+                                $ TyFun t (mkNestedForAll as $ mkTyFun $ tms ++ [tr])) ng''
 
                 e' = e_template $ mkApp . map Var $ [f] ++ [x] ++ as_ids ++ ys
 
@@ -246,7 +250,7 @@ evalForAll as t tms tr s@(State {type_env = tenv}) eenv ng i =
                 eenv'' = E.insert (idName i) e' eenv'
 
                 s' = (Just s { curr_expr = CurrExpr Return e'
-                                           , expr_env = eenv'' }, ng'')
+                                           , expr_env = eenv'' }, ng''')
             in 
                 if log_rules then trace "PM-NON-CONT" s' else s'
             | otherwise = (Nothing, ng_cycle_state)
@@ -268,11 +272,13 @@ evalForAll as t tms tr s@(State {type_env = tenv}) eenv ng i =
                     foldr (\dc@(DataCon _ dcty _ _) (all_alts, sids, ng1) ->
                                 let (argIds, ng1') = genArgIds dc ng1
                                     data_alt = DataAlt dc argIds
-                                    sym_fun_ty = mkNestedForAll as . mkTyFun $ fst (argTypes dcty) ++ tms ++ [tr]
-                                    (fi, ng1'') = freshSeededId (Name "symFun" Nothing 0 Nothing) sym_fun_ty ng1'
+                                    (new_as, ng1'') = freshSeededIds as_ids ng1'
+                                    arg_fun_ty = renames (HM.fromList (zip (map idName as_ids) (map idName new_as)))
+                                                    $ mkNestedForAll as . mkTyFun $ fst (argTypes dcty) ++ tms ++ [tr]
+                                    (fi, ng1''') = freshId arg_fun_ty ng1''
                                     vargs = map Var argIds
                                 in (Alt data_alt 
-                            (mkApp $ [Var fi] ++ map Var as_ids ++ vargs ++ map Var ys) : all_alts, fi : sids, ng1'')
+                            (mkApp $ [Var fi] ++ map Var as_ids ++ vargs ++ map Var ys) : all_alts, fi : sids, ng1''')
                                 ) ([], [], ng'') dcs
                 e' = e_template $ Case (Var x) x' tr alts
 
@@ -287,7 +293,7 @@ evalForAll as t tms tr s@(State {type_env = tenv}) eenv ng i =
             | otherwise = (Nothing, ng_non_cont_state)
 
         -- PM-INST-ADT
-        (inst_adt_states, ng_inst_adt_state)
+        (inst_adt_state, ng_inst_adt_state)
             | not . null $ (t:tms)
             , not . HS.null $ contTyVars tr `HS.intersection` HS.fromList as_ids -- TODO: change this later
             , TyCon tname _:ts <- unTyApp tr
@@ -305,11 +311,13 @@ evalForAll as t tms tr s@(State {type_env = tenv}) eenv ng i =
                                     -- make functions fDi_1..fDi_mDi for this constructor
                                     (fd_apps, fd_symIds, ng1') = foldr (\di_arg (all_fd_apps, _fd_syms, ng2) -> 
                                         let 
-                                            (fdi, ng2') = freshId (mkNestedForAll as . mkTyFun $ (t:tms) ++ [di_arg]) ng2
-                                            fd_app :: Expr
+                                            (new_as, ng2') = freshSeededIds as_ids ng2
+                                            fdi_ty = renames (HM.fromList (zip (map idName as_ids) (map idName new_as)))
+                                                        $ mkNestedForAll as . mkTyFun $ (t:tms) ++ [di_arg]
+                                            (fdi, ng2'') = freshId fdi_ty ng2'
                                             fd_app = mkApp . map Var $ [fdi] ++ as_ids ++ term_args
                                         in
-                                        (fd_app:all_fd_apps, fdi:_fd_syms, ng2')) ([], [], ng1) di_args
+                                        (fd_app:all_fd_apps, fdi:_fd_syms, ng2'')) ([], [], ng1) di_args
                                     
                                     
                                 in (mkApp (Data dc:fd_apps) : all_alts, sids ++ fd_symIds, ng1')
@@ -327,7 +335,7 @@ evalForAll as t tms tr s@(State {type_env = tenv}) eenv ng i =
             | otherwise = (Nothing, ng_unwrap_state)
 
         in
-        (RuleEvalVal, catMaybes [inst_state, cycle_state, non_cont_state, unwrap_state, inst_adt_states], ng_inst_adt_state)
+        (RuleEvalVal, catMaybes [inst_state, cycle_state, non_cont_state, unwrap_state, inst_adt_state], ng_inst_adt_state)
 
 evalVarSharing :: State t -> NameGen -> Id -> (Rule, [State t], NameGen)
 evalVarSharing s@(State { expr_env = eenv
