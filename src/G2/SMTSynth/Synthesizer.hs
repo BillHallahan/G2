@@ -668,7 +668,7 @@ exprToTerm :: KnownValues -> Expr -> Term
 exprToTerm _ (Lit (LitInt x)) = TermLit (LitNum x)
 exprToTerm _ (Lit (LitChar x)) = toStringTerm [x]
 exprToTerm _ (App _ (Lit (LitInt x))) = TermLit (LitNum x)
-exprToTerm _ (App _ (Lit (LitFloat x))) = TermIdent . ISymb . T.unpack . TB.toText $ convertFloating castFloatToWord32 8 x
+exprToTerm _ (App _ (Lit (LitFloat x))) = TermIdent . ISymb . T.unpack . TB.run $ convertFloating castFloatToWord32 8 x
 exprToTerm _ (App _ (Lit (LitChar x))) = toStringTerm [x]
 exprToTerm kv dc | dc == mkTrue kv = TermLit (LitBool True)
                  | dc == mkFalse kv = TermLit (LitBool False)
