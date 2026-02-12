@@ -47,6 +47,7 @@ import System.IO
 import System.IO.Temp
 import System.Process
 import qualified Text.Builder as TB
+import GHC.Plugins (IdDetails)
 
 -------------------------------------------------------------------------------
 -- Methodology
@@ -120,7 +121,8 @@ synthModeMapping = [("string", SynthString), ("seq-int", SynthSeqInt)]
 getSeqGenConfig :: IO SynthConfig
 getSeqGenConfig = do
     homedir <- getHomeDirectory
-    execParser (seqGenConfig homedir)
+    sc <- execParser (seqGenConfig homedir)
+    return $ sc { g2_config = adjustConfig (synth_mode sc) (g2_config sc)}
 
 adjustConfig :: SynthMode -> Config -> Config
 adjustConfig sm c =
@@ -371,7 +373,7 @@ runFuncWithTemp :: [FilePath] -- ^ Filepath containing function
                 -> IO (Id, [ExecRes ()], NameGen)
 runFuncWithTemp src f smt_def config = do
     withSystemTempFile "SpecTemp.hs" (\temp handle -> do
-        setUpSpec handle smt_def
+        setUpSpec config handle smt_def
 
         runFunc temp src f smt_def config
         )    
@@ -383,7 +385,6 @@ runFunc :: FilePath
         -> SynthConfig
         -> IO (Id, [ExecRes ()], NameGen)
 runFunc temp src f smt_def (SynthConfig { g2_config = config }) = do
-
     let config' = config { base = base config ++ temp:src, maxOutputs = Just 10}
 
     proj <- case src of
@@ -394,11 +395,11 @@ runFunc temp src f smt_def (SynthConfig { g2_config = config }) = do
                                     Nothing False f (mkCurrExpr TV.empty Nothing Nothing) (mkArgTys config' TV.empty)
                                     simplTranslationConfig config'
     
-    let (comp_state, bindings') = if isJust smt_def then findInconsistent (idName entry_f) init_state bindings else (init_state, bindings)
+    let comp_state = if isJust smt_def then findInconsistent entry_f init_state bindings else init_state
     -- let config'' = if isJust smt_def then config' { logStates = Log Pretty "a_smt"} else config'
     T.putStrLn $ printHaskellPG (mkPrettyGuide $ getExpr comp_state) comp_state (getExpr comp_state)
 
-    (er, b, to) <- runG2WithConfig proj src entry_f f [] mb_modname comp_state config' bindings'
+    (er, b, to) <- runG2WithConfig proj src entry_f f [] mb_modname comp_state config' bindings
 
     return (entry_f, er, name_gen bindings)
 
@@ -412,14 +413,18 @@ smtName n | Just (c, _) <- T.uncons n
           , isAlpha c = "smt_" <> n
           | otherwise = "$!+$" <> n
 
-setUpSpec :: Handle -> Maybe (State t, Id, String) -> IO ()
-setUpSpec h Nothing = hClose h
-setUpSpec h (Just (s@(State { known_values = kv }), Id n t, spec)) = do
-    let t' = foldr1 TyFun
-           . filter (not . isCallStack)
-           . splitTyFuns
+setUpSpec :: SynthConfig -> Handle -> Maybe (State t, Id, String) -> IO ()
+setUpSpec _ h Nothing = hClose h
+setUpSpec sc h (Just (s@(State { known_values = kv }), Id n t, spec)) = do
+    let ts = splitTyFuns
            . snd
            $ splitTyForAlls t
+        t' = foldr1 TyFun
+           . filter (not . isCallStack)
+           $ ts
+        vs = take (length ts - 1) argList
+        vs_str = intercalate " " vs
+        smt_name = T.unpack . smtNameWrap . smtName $ nameOcc n
         contents = "{-# LANGUAGE BangPatterns, MagicHash, ScopedTypeVariables, ViewPatterns #-}\nmodule Spec where\nimport GHC.Prim2\n"
                     ++ "import GHC.Types2\n"
                     ++ "import Control.Exception\n"
@@ -428,8 +433,15 @@ setUpSpec h (Just (s@(State { known_values = kv }), Id n t, spec)) = do
                     ++ "tryMaybe a = catch (a >>= \\v -> return (Just v)) (\\(e :: SomeException) -> return Nothing)\n\n"
                     ++ "tryMaybeUnsafe :: a -> Maybe a\n"
                     ++ "tryMaybeUnsafe x = unsafePerformIO $ tryMaybe (let !y = x in return y)\n\n"
-                    ++ T.unpack (smtNameWrap . smtName $ nameOcc n) ++ " :: " ++ T.unpack (mkTypeHaskellDictArrows (mkPrettyGuide ()) (type_classes s) t') ++ "\n"
+                    ++ smt_name ++ " :: " ++ T.unpack (mkTypeHaskellDictArrows (mkPrettyGuide ()) (type_classes s) t') ++ "\n"
                     ++ spec
+                    ++ "\n\ncomp :: ("
+                            ++ T.unpack (mkTypeHaskellDictArrows (mkPrettyGuide ()) (type_classes s) t')
+                            ++ ") -> "
+                            ++ T.unpack (mkTypeHaskellDictArrows (mkPrettyGuide ()) (type_classes s) t') ++ "\n"
+                    ++ "comp f " ++ vs_str ++ " = " ++ "\n    let val = f " ++ vs_str ++ ""  ++ " in\n"
+                                                   ++ "    assert (tryMaybeUnsafe (" ++ smt_name ++ " " ++ vs_str ++ ") "
+                                   ++ eq_check sc ++ " tryMaybeUnsafe val) val"
     putStrLn contents
     hPutStrLn h contents
     hFlush h
@@ -440,42 +452,16 @@ isCallStack ty | TyCon tn _:_ <- unTyApp ty = nameOcc tn == "IP"
                | otherwise = False
 
 -- | Find inputs that violate a found SMT definition
-findInconsistent :: Name -> State t -> Bindings -> (State t, Bindings)
+findInconsistent :: Id -> State t -> Bindings -> State t
 findInconsistent entry_f s@(State { expr_env = eenv
-                                  , curr_expr = CurrExpr _ cexpr
-                                  , known_values = kv
-                                  , type_classes = tc
-                                  , tyvar_env = tv_env }) b@(Bindings { name_gen = ng })
-    | Just (smt_def, smt_def_e) <- E.lookupNameMod (smtName $ nameOcc entry_f) (Just "Spec") eenv
-    , Just (try_unsafe, try_unsafe_e) <- E.lookupNameMod "tryMaybeUnsafe" (Just "Spec") eenv =
-    let
-        app_smt_def = mkApp $ Var (Id smt_def TyUnknown)
-                            :fixed_inputs b
+                                  , tyvar_env = tv_env }) b
+    | Just (comp_name, _) <- E.lookupNameMod "comp" (Just "Spec") eenv =
+        let
+            new_curr_expr = mkApp $ Var (Id comp_name TyUnknown):Var entry_f:fixed_inputs b
                             ++ filter (not . isCallStack . typeOf tv_env) (map Var (inputIds s b))
-
-        try_unsafe_var = Var . Id try_unsafe $ typeOf tv_env $ try_unsafe_e
-
-        ret_type = returnType $ typeOf tv_env cexpr
-        m_eq_dict = typeClassInst tc HM.empty (KV.eqTC kv) $ TyApp (tyMaybe kv) ret_type
-    in
-    case m_eq_dict of
-        Just eq_dict ->
-            let
-                (val_name, ng') = freshSeededString "val" ng
-                (comp_name, ng'') = freshSeededString "comp" ng'
-
-                comp_e = mkApp [Var (Id (KV.eqFunc kv) TyUnknown)
-                              , Type ret_type
-                              , eq_dict
-                              , App (App try_unsafe_var (Type ret_type)) app_smt_def
-                              , App (App try_unsafe_var  (Type ret_type)) (Var $ Id val_name TyUnknown)]
-                new_curr_expr = Let [ (Id val_name TyUnknown, getExpr s)
-                                    , (Id comp_name TyUnknown, comp_e)
-                                    ] $ Assert Nothing (Var (Id comp_name TyUnknown)) (Var (Id val_name TyUnknown))
-            in
-            ( s { curr_expr = CurrExpr Evaluate new_curr_expr, true_assert = False }
-            , b { name_gen = ng'' })
-        Nothing -> error $ "findInconsistent: no Eq dict" ++ show ret_type
+        in
+        s { curr_expr = CurrExpr Evaluate new_curr_expr
+          , true_assert = False }
     | otherwise = error $ "findInconsistent: spec not found"
 
 -------------------------------------------------------------------------------

@@ -11,6 +11,7 @@ import G2.SMTSynth.Synthesizer
 import qualified Data.Map as M
 import Data.Maybe
 import qualified Data.Text as T
+import Options.Applicative
 import System.Directory
 import System.Timeout
 import G2.Language.Support (State(num_steps))
@@ -47,12 +48,17 @@ tests = testGroup "All Tests"
         , smtSynthTest "tests_seq_gen/tests/TestInt.hs" "f1"
         ]
 
-smtSynthTest :: T.Text -- ^ Function
+getSeqGenConfigDir :: T.Text -> IO SynthConfig
+getSeqGenConfigDir file = do
+    homedir <- getHomeDirectory
+    handleParseResult $ execParserPure (prefs mempty) (seqGenConfig homedir) [T.unpack file]
+
+smtSynthTest :: T.Text -- ^ Filer
              -> T.Text -- ^ Function
              -> TestTree
-smtSynthTest = smtSynthTestWithConfig (do
-                                        synth_config@(SynthConfig { g2_config = config }) <- getSeqGenConfig
-                                        return $ synth_config { g2_config = adjustConfig SynthString $ config { smt = ConCVC5, steps = 2000 } })
+smtSynthTest file = smtSynthTestWithConfig (do
+                                        synth_config@(SynthConfig { synth_mode = sy_m, g2_config = config }) <- getSeqGenConfigDir file
+                                        return $ synth_config { g2_config = adjustConfig sy_m $ config { smt = ConCVC5, steps = 2000 } }) file
 
 smtSynthTestWithConfig :: IO SynthConfig
                        -> T.Text -- ^ Function
