@@ -16,7 +16,6 @@ import Data.Maybe
 import Data.Monoid hiding (Alt)
 import qualified Data.Text as T
 
-
 integrateSMTDef :: IT.SimpleState -> IT.SimpleState
 integrateSMTDef s@(IT.SimpleState { IT.expr_env = orig_eenv, IT.known_values = kv, IT.name_map = nm }) =
     let

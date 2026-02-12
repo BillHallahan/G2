@@ -434,7 +434,7 @@ baseIncludeDef root =
     [ root ++ "/.g2/base-4.9.1.0/Control/Exception/"
     , root ++ "/.g2/base-4.9.1.0/"
     , root ++ "/.g2/base-4.9.1.0/Data/Internal/"
-    , root ++ "/.g2/smt/"
+    , root ++ "/.g2/G2Stubs/smt/"
     ]
 
 baseDef :: FilePath -> [FilePath]

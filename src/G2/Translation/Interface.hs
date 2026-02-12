@@ -86,7 +86,7 @@ translateLoaded proj src tr_con config = do
                    || smt_prim_lists config == UseSMTSeq
                       then do
                         root <- getHomeDirectory
-                        let smt_fle = root ++ "/.g2/smt/SMT.hs"
+                        let smt_fle = root ++ "/.g2/G2Stubs/smt/SMT.hs"
                         smt_fle_exists <- doesFileExist smt_fle
                         return $ if smt_fle_exists then smt_fle:extra_imp else extra_imp
                       else return extra_imp
