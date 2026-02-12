@@ -797,7 +797,14 @@ smtFuncToPrim s vl_args = conv s ++ conv_args
         conv_args = case s of
                         "ite" | [a1, a2, a3] <- vl_args -> "(if " ++ a1 ++ " then " ++ a2 ++ " else " ++ a3 ++ ")"
                               | otherwise -> error "smtFuncToPrim: ite wrong arg count"
-                        "fromChar" | [a] <- vl_args -> "[" ++ a ++ "]"
+                        -- We wrap list values in id to ensure that strict let expressions do not get shifted into variable args.
+                        -- GHC may rewrite:
+                        --     @ let !x = ['a'] in strAppend# x y @
+                        -- to 
+                        --     @ strAppend# (let !x = ['a'] in x) y @
+                        -- because ['a'] is already in WHNF.  But this then breaks G2, because strAppend# cannot handle its
+                        -- first argument being a let expression.
+                        "fromChar" | [a] <- vl_args -> "id [" ++ a ++ "]"
                                    | otherwise -> error "smtFuncToPrim: fromChar wrong arg count"
                         "toChar" | [a] <- vl_args ->
                                             let
