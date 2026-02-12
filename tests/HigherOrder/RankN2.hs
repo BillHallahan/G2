@@ -38,3 +38,6 @@ ret_tree f = f 5 7
 
 ret_list :: (forall a. a -> a -> [a]) -> [Int]
 ret_list f = f 4 5
+
+func_arg :: (forall a. (a -> a) -> a -> a) -> Int
+func_arg f = f (\x -> x + 1) 3
