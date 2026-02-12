@@ -67,7 +67,7 @@ runInitialization2 config s@(IT.SimpleState { IT.expr_env = eenv
         
         s'' = if fp_handling config == RationalFP then substRational s' else s'
 
-        s''' = if smt_strings config == UseSMTStrings || smt_prim_lists config == UseSMTSeq
+        s''' = if smt_strings config == UseSMTStrings || useSMTSeqFuncs (smt_prim_lists config)
                     then integrateSMTDef s''
                     else s''
 
@@ -78,7 +78,7 @@ runInitialization2 config s@(IT.SimpleState { IT.expr_env = eenv
         adjTyH = E.insert (typeIndex kv) . modifyASTs adjTyH' $ eenv E.! typeIndex kv
 
         adjTyH' (Prim (TypeIndex _) t) = Prim (TypeIndex $ TyH { tyh_strings = smt_strings config == UseSMTStrings
-                                                               , tyh_prim_lists = smt_prim_lists config == UseSMTSeq })
+                                                               , tyh_prim_lists = useSMTSeqFuncs (smt_prim_lists config) })
                                               t
         adjTyH' e = e
 

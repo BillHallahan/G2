@@ -112,10 +112,10 @@ adjustConfig :: SynthMode -> Config -> Config
 adjustConfig sm c =
     setSynthMode sm $ 
         c { step_limit = False
-        , height_limit = Just $ fromMaybe 5 (height_limit c)
+          , height_limit = Just $ fromMaybe 5 (height_limit c)
 
-        , smt_prim_lists = UseSMTSeq
-        , search_strat = Subpath }
+          , smt_prim_lists = UseSMTSeq { add_to_dcs = True, add_to_funcs = False }
+          , search_strat = Subpath }
 
 setSynthMode :: SynthMode -> Config -> Config
 setSynthMode SynthString c = c { favor_tys = ["Char", "Integer"] }

@@ -12,6 +12,8 @@ module G2.Config.Config ( Mode (..)
                         , SMTStringsEval (..)
                         , SMTQuantifiers (..)
                         , UseSMTSeq (..)
+                        , useSMTSeqDCs
+                        , useSMTSeqFuncs
 
                         , IncludePath
                         , Config (..)
@@ -73,7 +75,15 @@ data SMTQuantifiers = UseQuantifiers -- ^ Leave quantifiers in SMT formulas
                     | UnrollQuant Integer -- ^ Unroll quantifiers to the specified depth
                     deriving (Eq, Show, Read)
 
-data UseSMTSeq = UseSMTSeq | NoSMTSeq deriving (Eq, Show, Read)
+data UseSMTSeq = UseSMTSeq { add_to_dcs :: Bool, add_to_funcs :: Bool } | NoSMTSeq deriving (Eq, Show, Read)
+
+useSMTSeqDCs ::  UseSMTSeq -> Bool
+useSMTSeqDCs (UseSMTSeq { add_to_dcs = a }) = a
+useSMTSeqDCs NoSMTSeq = False
+
+useSMTSeqFuncs ::  UseSMTSeq -> Bool
+useSMTSeqFuncs (UseSMTSeq { add_to_funcs = a }) = a
+useSMTSeqFuncs NoSMTSeq = False
 
 type IncludePath = FilePath
 
@@ -212,7 +222,7 @@ mkConfig homedir = Config Regular
                                           <> metavar "Q"
                                           <> value (UnrollQuant 10)
                                           <> help "Either `-` to indicate that quantifiers should be used in SMT formulas, or a depth to unroll quantifiers to")
-    <*> flag NoSMTSeq UseSMTSeq (long "smt-lists" <> help "Sets whether the SMT solver should be used to solve list constraints for primitive types")
+    <*> flag NoSMTSeq (UseSMTSeq True True) (long "smt-lists" <> help "Sets whether the SMT solver should be used to solve list constraints for primitive types")
     
     <*> flag True False (long "no-step-limit" <> help "disable step limit")
     <*> option auto (long "n"

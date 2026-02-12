@@ -83,7 +83,7 @@ translateLoaded proj src tr_con config = do
 
   -- If we are using SMT strings/sequences, set up base to load in SMT definitions
   extra_imp' <- if smt_strings config == UseSMTStrings
-                   || smt_prim_lists config == UseSMTSeq
+                   || useSMTSeqFuncs (smt_prim_lists config)
                       then do
                         root <- getHomeDirectory
                         let smt_fle = root ++ "/.g2/G2Stubs/smt/SMT.hs"
