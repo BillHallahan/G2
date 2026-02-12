@@ -30,6 +30,9 @@ module G2.Solver.Converters
     , solveConstraints
     , constraintsToModelOrUnsatCore
     , constraintsToModelOrUnsatCoreNoReset
+
+    , convertFloating
+    , castFloatToWord32
     , SMTConverter (..) ) where
 
 import qualified Data.Bits as Bits

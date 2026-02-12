@@ -23,6 +23,7 @@ import qualified G2.Language.KnownValues as KV
 import G2.Language.Monad
 import qualified G2.Language.TyVarEnv as TV
 import G2.Lib.Printers
+import G2.Solver.Converters
 import G2.Solver.SMT2
 import G2.Translation
 
@@ -44,6 +45,7 @@ import System.Directory
 import System.IO
 import System.IO.Temp
 import System.Process
+import qualified TextBuilder as TB
 
 -------------------------------------------------------------------------------
 -- Methodology
@@ -523,6 +525,7 @@ sygusCmds er@(ExecRes { final_state = s@(State { tyvar_env = tv_env, known_value
     [CheckSynth]
     where
         intSort = IdentSort (ISymb "Int")
+        floatSort = IdentSort (ISymb "Float32")
         strSort = IdentSort (ISymb "String")
         boolSort = IdentSort (ISymb "Bool")
 
@@ -537,9 +540,11 @@ sygusCmds er@(ExecRes { final_state = s@(State { tyvar_env = tv_env, known_value
         str_args = map fst . filter ((==) (tyString kv) . snd) $ zip argList arg_types
 
         intIdent = BfIdentifier (ISymb "IntPr")
+        floatIdent = BfIdentifier (ISymb "FloatPr")
         charArgIdent = BfIdentifier (ISymb "CharArgPr")
         strIdent = BfIdentifier (ISymb "StrPr")
         seqIntIdent = BfIdentifier (ISymb "SeqIntPr")
+        seqFloatIdent = BfIdentifier (ISymb "SeqFloatPr")
         boolIdent = BfIdentifier (ISymb "BoolPr")
 
         -------------------------------
@@ -572,6 +577,12 @@ sygusCmds er@(ExecRes { final_state = s@(State { tyvar_env = tv_env, known_value
                    GBfTerm (BfIdentifierBfs (ISymb "seq.indexof") [ ident, ident, intIdent ])
                  , GBfTerm (BfIdentifierBfs (ISymb "seq.len") [ ident ])
                  ]
+        grmFloat = [ GVariable floatSort
+                   , GBfTerm (BfIdentifierBfs (ISymb "ite") [ boolIdent, floatIdent, floatIdent])
+                   , GBfTerm (BfLiteral (LitNum 0))
+                   , GBfTerm (BfLiteral (LitNum (-1)))
+                   , GBfTerm (BfIdentifierBfs (ISymb "+") [ floatIdent, floatIdent])
+                   ]
 
         grmBool = [ GBfTerm (BfIdentifierBfs (ISymb "ite") [ boolIdent, boolIdent, boolIdent])
                   , GBfTerm (BfIdentifierBfs (ISymb "intEq") [ intIdent, intIdent ])
@@ -599,11 +610,13 @@ sygusCmds er@(ExecRes { final_state = s@(State { tyvar_env = tv_env, known_value
                      ]
 
         seq_int_sort = IdentSortSort (ISymb "Seq") [IdentSort (ISymb "Int")]
+        seq_float_sort = IdentSortSort (ISymb "Seq") [IdentSort (ISymb "Float32")]
 
         ty_gram_defs = (if ret_type == tyChar kv then ((tyChar kv, GroupedRuleList "CharRetPr" strSort grmCharRet):) else id) $
                        (if not (null char_args) then ((tyChar kv, GroupedRuleList "CharArgPr" strSort grmCharArgs):) else id)           
                        [ (tyString kv, GroupedRuleList "StrPr" strSort grmString)
                        , (TyApp (tyList kv) (tyInt kv), GroupedRuleList "SeqIntPr" seq_int_sort (grmSeq seq_int_sort seqIntIdent))
+                       , (TyApp (tyList kv) (tyFloat kv), GroupedRuleList "SeqFloatPr" seq_float_sort (grmSeq seq_float_sort seqFloatIdent))
                        , (TyLitInt, GroupedRuleList "IntPr" intSort grmInt)
                        , (tyBool kv, GroupedRuleList "BoolPr" boolSort grmBool)]
         find_start_gram = findElem (\(ty, _) -> ty == ret_type) ty_gram_defs
@@ -655,6 +668,7 @@ exprToTerm :: KnownValues -> Expr -> Term
 exprToTerm _ (Lit (LitInt x)) = TermLit (LitNum x)
 exprToTerm _ (Lit (LitChar x)) = toStringTerm [x]
 exprToTerm _ (App _ (Lit (LitInt x))) = TermLit (LitNum x)
+exprToTerm _ (App _ (Lit (LitFloat x))) = TermIdent . ISymb . T.unpack . TB.toText $ convertFloating castFloatToWord32 8 x
 exprToTerm _ (App _ (Lit (LitChar x))) = toStringTerm [x]
 exprToTerm kv dc | dc == mkTrue kv = TermLit (LitBool True)
                  | dc == mkFalse kv = TermLit (LitBool False)
@@ -685,7 +699,7 @@ toSeqTermFromExpr kv e | Just s <- toExprList e = Just $ toSeqTerm kv (exprListT
 
 exprListType :: Expr -> Type
 exprListType e | _:Type t:_ <- unApp e = t
-exprListType _ = error "exprListType: Not a list"
+exprListType e = error $ "exprListType: Not a list" ++ show e
 
 toSeqTerm :: KnownValues -> Type -> [Expr] -> Term
 toSeqTerm kv t [] =
@@ -707,6 +721,7 @@ typeToSort kv (TyApp t1 t2) | t1 == tyList kv
 typeToSort kv (TyApp t1 t2) | t1 == tyList kv = IdentSortSort (ISymb "Seq") [ typeToSort kv t2 ]
 typeToSort kv t | t == tyInt kv = IdentSort (ISymb "Int")
 typeToSort kv t | t == tyInteger kv = IdentSort (ISymb "Int")
+typeToSort kv t | t == tyFloat kv = IdentSort (ISymb "Float32")
 typeToSort kv t | t == tyChar kv = IdentSort (ISymb "String")
 typeToSort _ TyUnknown = IdentSort (ISymb ("Unknown"))
 typeToSort _ s = error $ "typeToSort: unsupported Type" ++ "\n" ++ show s
