@@ -345,22 +345,28 @@ evalForAll as t tms tr s@(State {type_env = tenv}) eenv ng i =
             , f_tr <- last f_ts
             , (_:_) <- tms
             = let
-                (f, ng'') = freshId (mkNestedForAll as $ mkTyFun $ f_tr:t:tms) ng_inst_adt_state
+                (new_as, ng'') = freshSeededIds as_ids ng_inst_adt_state
+                f_ty = renames (HM.fromList (zip (map idName as_ids) (map idName new_as))) 
+                                    $ mkNestedForAll as $ mkTyFun ((f_tr:t:tms) ++ [tr])
+                (f, ng''') = freshId f_ty ng''
 
-                (fa_exprs, symIds, ng''') = foldr (\fa_ti (faes, _symIds, ng1) -> -- TODO: assuming function arguments contain type variables
+                (fa_exprs, symIds, ng'''') = foldr (\fa_ti (faes, _symIds, ng1) -> -- TODO: assuming function arguments only have type variable arguments
                     let 
-                        (fa_id, ng1') = freshId (mkNestedForAll as $ mkTyFun $ (tms) ++ [fa_ti]) ng1
+                        (fa_id_new_as, ng1') = freshSeededIds as_ids ng1
+                        fa_id_ty = renames (HM.fromList (zip (map idName as_ids) (map idName fa_id_new_as)))
+                                    $ mkNestedForAll as $ mkTyFun $ (tms) ++ [fa_ti]
+                        (fa_id, ng1'') = freshId fa_id_ty ng1'
                         fa_expr = mkApp . map Var $ ([fa_id] ++ as_ids ++ ys) -- Leaving out function itself for now
                         in
-                    (fa_expr:faes, fa_id:_symIds, ng1')) ([], [], ng'') f_targs
+                    (fa_expr:faes, fa_id:_symIds, ng1'')) ([], [], ng''') f_targs
 
                 -- TODO: should immediately cycle the function argument itself
-                e' = e_template . mkApp $ ((Var f):(map Var as_ids)) ++ [mkApp (Var x:fa_exprs)] ++ (map Var $ ys ++ [x])
+                e' = e_template . mkApp $ ((Var f):(map Var as_ids)) ++ [mkApp (Var x:fa_exprs)] ++ (map Var $ x:ys)
 
                 eenv' = foldr E.insertSymbolic eenv (f:symIds)
                 eenv'' = E.insert (idName i) e' eenv'
 
-                s' = {- trace (show e') -} (Just s {curr_expr = CurrExpr Return e', expr_env = eenv''}, ng''')
+                s' = (Just s {curr_expr = CurrExpr Return e', expr_env = eenv''}, ng'''')
             in
                 if log_rules then trace "PM-FUN-ARG" s' else s'
             

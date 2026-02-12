@@ -5,6 +5,9 @@ module RankN2 where
 identity :: (forall a. a -> a) -> Int
 identity f = f 1
 
+identity_in_tuple :: (forall a. a -> (a, a)) -> (forall a. a -> a) -> ((Int, Int), Int)
+identity_in_tuple f g = (f 3, g 5)
+
 twoArgs :: (forall a. a -> a -> a) -> Int
 twoArgs f = f 1 2
 
