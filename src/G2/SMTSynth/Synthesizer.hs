@@ -1,6 +1,8 @@
 {-# LANGUAGE BangPatterns, FlexibleContexts, OverloadedStrings #-}
 
-module G2.SMTSynth.Synthesizer ( getSeqGenConfig
+module G2.SMTSynth.Synthesizer ( SynthMode (..)
+                               
+                               , getSeqGenConfig
                                , genSMTFunc
                                , adjustConfig
                                , seqGenConfig

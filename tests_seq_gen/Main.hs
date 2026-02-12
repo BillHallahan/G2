@@ -51,7 +51,7 @@ smtSynthTest :: T.Text -- ^ Function
 smtSynthTest = smtSynthTestWithConfig (do
                                         homedir <- getHomeDirectory
                                         let config = mkConfigDirect homedir [] M.empty
-                                        return . adjustConfig $ config { smt = ConCVC5, steps = 2000 })
+                                        return . adjustConfig SynthString $ config { smt = ConCVC5, steps = 2000 })
 
 smtSynthTestWithConfig :: IO Config
                        -> T.Text -- ^ Function
