@@ -51,11 +51,10 @@ smtSynthTest :: T.Text -- ^ Function
              -> T.Text -- ^ Function
              -> TestTree
 smtSynthTest = smtSynthTestWithConfig (do
-                                        homedir <- getHomeDirectory
-                                        let config = mkConfigDirect homedir [] M.empty
-                                        return . adjustConfig SynthString $ config { smt = ConCVC5, steps = 2000 })
+                                        synth_config@(SynthConfig { g2_config = config }) <- getSeqGenConfig
+                                        return $ synth_config { g2_config = adjustConfig SynthString $ config { smt = ConCVC5, steps = 2000 } })
 
-smtSynthTestWithConfig :: IO Config
+smtSynthTestWithConfig :: IO SynthConfig
                        -> T.Text -- ^ Function
                        -> T.Text -- ^ Function
                        -> TestTree

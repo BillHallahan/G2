@@ -199,11 +199,11 @@ genSMTFunc :: [PatternRes] -- ^ Generated states
            -> [FilePath] -- ^ Filepath containing function
            -> T.Text -- ^ Function name
            -> Maybe (State t, Id, String) -- ^ Possible (SyGuS generated) function definition, along with the Id of the function being generated
-           -> Config
+           -> SynthConfig
            -> IO (String, String) -- ^ (Type of generated function, definition of generated function)
-genSMTFunc pls src f smt_def config = do
+genSMTFunc pls src f smt_def sc@(SynthConfig { g2_config = config }) = do
     putStrLn "\n--- Running function --- "
-    (entry_f, ers, ng) <- runFuncWithTemp src f smt_def config
+    (entry_f, ers, ng) <- runFuncWithTemp src f smt_def sc
     case ers of
         [] | Just (s, (Id _ smt_t), smt_def') <- smt_def ->
                 return (T.unpack (mkTypeHaskellDictArrows (mkPrettyGuide ()) (type_classes s) smt_t), smt_def')
@@ -219,7 +219,7 @@ genSMTFunc pls src f smt_def config = do
                 
                 vs = zipWith (formArg kv tv_env) argList (relArgs (final_state er) $ conc_args er)
                 new_smt_def = T.unpack (smtNameWrap . smtName . nameOcc $ idName entry_f) ++ " " ++ intercalate " " vs ++ " = " ++ new_smt_piece
-            genSMTFunc pls' src f (Just (final_state er, entry_f, new_smt_def)) config
+            genSMTFunc pls' src f (Just (final_state er, entry_f, new_smt_def)) sc
 
 formArg :: KnownValues -> TyVarEnv -> String -> Expr -> String
 formArg kv tv nm e
@@ -367,7 +367,7 @@ addFromInteger e = modifyChildren addFromInteger e
 runFuncWithTemp :: [FilePath] -- ^ Filepath containing function
                 -> T.Text -- ^ Function name
                 -> Maybe (State t, Id, String) -- ^ Possible (SyGuS generated) function definition, along with the Id of the function being generated
-                -> Config
+                -> SynthConfig
                 -> IO (Id, [ExecRes ()], NameGen)
 runFuncWithTemp src f smt_def config = do
     withSystemTempFile "SpecTemp.hs" (\temp handle -> do
@@ -380,9 +380,9 @@ runFunc :: FilePath
         -> [FilePath] -- ^ Filepath containing function
         -> T.Text -- ^ Function name
         -> Maybe (State t, Id, String) -- ^ Possible (SyGuS generated) function definition, along with the Id of the function being generated
-        -> Config
+        -> SynthConfig
         -> IO (Id, [ExecRes ()], NameGen)
-runFunc temp src f smt_def config = do
+runFunc temp src f smt_def (SynthConfig { g2_config = config }) = do
 
     let config' = config { base = base config ++ temp:src, maxOutputs = Just 10}
 
