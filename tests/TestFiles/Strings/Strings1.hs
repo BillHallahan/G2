@@ -564,7 +564,7 @@ test1InitTailEq :: String -> (Bool, Int) -> Bool
 test1InitTailEq _ (b, i) = b && i == 1
 
 litTableTest :: String -> Bool
-litTableTest s = L.all f s
+litTableTest s = L.strAll f s
     where f x = case inner x of
                 'b' -> True
                 _ -> False
