@@ -167,6 +167,7 @@ mkNestedForAll _ _ = error "mkNestedForAll: list Types not in correct form"
 -- TODO: only looks deeper in TyApp's
 contTyVars :: Type -> HS.HashSet Id
 contTyVars (TyApp t1 t2) = HS.union (contTyVars t1) (contTyVars t2)
+contTyVars (TyFun t1 t2) = HS.union (contTyVars t1) (contTyVars t2)
 contTyVars (TyVar i) = HS.singleton i
 contTyVars _ = HS.empty
 
@@ -334,8 +335,39 @@ evalForAll as t tms tr s@(State {type_env = tenv}) eenv ng i =
                  if log_rules then trace "PM-INST-ADT" s' else s'
             | otherwise = (Nothing, ng_unwrap_state)
 
+        -- PM-FUN-ARG
+        -- TODO: better naming in let bindings
+        -- TODO: selecting from all available functions instead of cycling
+        (fun_arg_state, ng_fun_arg_state)
+            | TyFun _ _ <- t
+            , f_ts <- splitTyFuns t
+            , f_targs <- init f_ts
+            , f_tr <- last f_ts
+            , (_:_) <- tms
+            = let
+                (f, ng'') = freshId (mkNestedForAll as $ mkTyFun $ f_tr:t:tms) ng_inst_adt_state
+
+                (fa_exprs, symIds, ng''') = foldr (\fa_ti (faes, _symIds, ng1) -> -- TODO: assuming function arguments contain type variables
+                    let 
+                        (fa_id, ng1') = freshId (mkNestedForAll as $ mkTyFun $ (tms) ++ [fa_ti]) ng1
+                        fa_expr = mkApp . map Var $ ([fa_id] ++ as_ids ++ ys) -- Leaving out function itself for now
+                        in
+                    (fa_expr:faes, fa_id:_symIds, ng1')) ([], [], ng'') f_targs
+
+                -- TODO: should immediately cycle the function argument itself
+                e' = e_template . mkApp $ ((Var f):(map Var as_ids)) ++ [mkApp (Var x:fa_exprs)] ++ (map Var $ ys ++ [x])
+
+                eenv' = foldr E.insertSymbolic eenv (f:symIds)
+                eenv'' = E.insert (idName i) e' eenv'
+
+                s' = {- trace (show e') -} (Just s {curr_expr = CurrExpr Return e', expr_env = eenv''}, ng''')
+            in
+                if log_rules then trace "PM-FUN-ARG" s' else s'
+            
+            | otherwise = (Nothing, ng_inst_adt_state)
+
         in
-        (RuleEvalVal, catMaybes [inst_state, cycle_state, non_cont_state, unwrap_state, inst_adt_state], ng_inst_adt_state)
+        (RuleEvalVal, catMaybes [inst_state, cycle_state, non_cont_state, unwrap_state, inst_adt_state, fun_arg_state], ng_fun_arg_state)
 
 evalVarSharing :: State t -> NameGen -> Id -> (Rule, [State t], NameGen)
 evalVarSharing s@(State { expr_env = eenv
