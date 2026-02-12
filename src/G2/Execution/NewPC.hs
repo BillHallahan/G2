@@ -45,7 +45,7 @@ reduceNewPC solver simplifier ng (SplitStatePieces state state_diffs)
         res <- reduceToFirstDiff solver simplifier ng state state_diffs
         case res of
             Just (ng', first_s, pcs, other_diffs) -> 
-                let prev_stck = exec_stack first_s
+                let prev_stck = stopUpdateLastExpl $ exec_stack first_s
                     diffs_pushed = foldr S.push prev_stck $ map wrap other_diffs
                     expl_pushed = S.push (LitTableFrame (Exploring (PC.fromList pcs)) True) diffs_pushed
                 in return (ng', [first_s { exec_stack = expl_pushed }])

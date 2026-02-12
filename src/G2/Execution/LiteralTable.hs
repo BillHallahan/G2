@@ -3,6 +3,7 @@ module G2.Execution.LiteralTable
     , inLitTableMode
     , updateLiteralTable
     , getLTArg
+    , stopUpdateLastExpl
     ) where
 
 import qualified G2.Language.Stack as S
@@ -31,3 +32,10 @@ getLTArg s = let (table, _) = case S.pop $ lit_table_stack s of
                                   Just x -> x
                                   Nothing -> error "not in literal table mode"
              in lt_arg table
+
+stopUpdateLastExpl :: S.Stack Frame -> S.Stack Frame
+stopUpdateLastExpl stck = case S.pop stck of
+                              Just ((LitTableFrame (Exploring pcs) True), rest) ->
+                                  S.push (LitTableFrame (Exploring pcs) False) rest
+                              Just (f, rest) -> S.push f (stopUpdateLastExpl rest)
+                              Nothing -> stck
