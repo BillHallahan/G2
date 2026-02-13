@@ -289,7 +289,7 @@ posInfTests = testGroup "Tests"
             -- , posTestInferenceWithTimeOut 240 5 "tests_lh/test_files/Pos/HigherOrder3.hs"
             -- , posTestInference "tests_lh/test_files/Pos/HigherOrder4.hs"
 
-            , posTestInference "tests_lh/test_files/Pos/Test1.hs" 
+              posTestInference "tests_lh/test_files/Pos/Test1.hs" 
             , posTestInference "tests_lh/test_files/Pos/Test2.hs"
             , posTestInference "tests_lh/test_files/Pos/Test3.hs"
             , posTestInference "tests_lh/test_files/Pos/Test4.hs"
