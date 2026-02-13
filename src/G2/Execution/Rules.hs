@@ -158,13 +158,12 @@ sepTypeForRNT full_type = {-trace (show (vs, t, tms, tr))-} (vs, t, tms, tr)
 mkNestedLam :: LamUse -> [Id] -> Expr -> Expr
 mkNestedLam lu vs e = foldr (Lam lu) e vs
 
--- TODO: this may need TyCon
 mkNestedForAll :: [Type] -> Type -> Type
 mkNestedForAll ((TyVar i):is) t = TyForAll i $ mkNestedForAll is t
 mkNestedForAll [] t = t
 mkNestedForAll _ _ = error "mkNestedForAll: list Types not in correct form"
 
--- TODO: only looks deeper in TyApp's
+-- TODO: only looks deeper in some Types
 contTyVars :: Type -> HS.HashSet Id
 contTyVars (TyApp t1 t2) = HS.union (contTyVars t1) (contTyVars t2)
 contTyVars (TyFun t1 t2) = HS.union (contTyVars t1) (contTyVars t2)
@@ -234,7 +233,7 @@ evalForAll as t tms tr s@(State {type_env = tenv}) eenv ng i =
                 (f, ng''') = freshId (renames (HM.fromList (zip (map idName as_ids) (map idName new_as))) -- TODO: map after zip?
                                 $ mkNestedForAll as $ mkTyFun (tms++[t]++[tr])) ng''
 
-                e' = e_template $ mkApp . map Var $ [f] ++ as_ids ++ ys ++ [x]
+                e' = e_template $ mkApp $ [Var f] ++ map (Type . TyVar) as_ids ++ map Var ys ++ [Var x]
                 
                 eenv' = E.insertSymbolic f eenv
                 eenv'' = E.insert (idName i) e' eenv'
@@ -254,7 +253,7 @@ evalForAll as t tms tr s@(State {type_env = tenv}) eenv ng i =
                 (f, ng''') = freshId (renames (HM.fromList (zip (map idName as_ids) (map idName new_as)))
                                 $ TyFun t (mkNestedForAll as $ mkTyFun $ tms ++ [tr])) ng''
 
-                e' = e_template $ mkApp . map Var $ [f] ++ [x] ++ as_ids ++ ys
+                e' = e_template . mkApp $ [Var f] ++ [Var x] ++ map (Type . TyVar) as_ids ++ map Var ys
 
                 eenv' = E.insertSymbolic f eenv
                 eenv'' = E.insert (idName i) e' eenv'
@@ -288,7 +287,7 @@ evalForAll as t tms tr s@(State {type_env = tenv}) eenv ng i =
                                     (fi, ng1''') = freshId arg_fun_ty ng1''
                                     vargs = map Var argIds
                                 in (Alt data_alt 
-                            (mkApp $ [Var fi] ++ map Var as_ids ++ vargs ++ map Var ys) : all_alts, fi : sids, ng1''')
+                            (mkApp $ [Var fi] ++ map (Type . TyVar) as_ids ++ vargs ++ map Var ys) : all_alts, fi : sids, ng1''')
                                 ) ([], [], ng'') dcs
                 e' = e_template $ Case (Var x) x' tr alts
 
@@ -329,11 +328,11 @@ evalForAll as t tms tr s@(State {type_env = tenv}) eenv ng i =
                                             fdi_ty = renames (HM.fromList (zip (map idName as_ids) (map idName new_as)))
                                                         $ mkNestedForAll as . mkTyFun $ (t:tms) ++ [di_arg]
                                             (fdi, ng2'') = freshId fdi_ty ng2'
-                                            fd_app = mkApp . map Var $ [fdi] ++ as_ids ++ term_args
+                                            fd_app = mkApp $ [Var fdi] ++ map (Type . TyVar) as_ids ++ map Var term_args
                                         in
                                         (fd_app:all_fd_apps, fdi:_fd_syms, ng2'')) ([], [], ng1) di_args
 
-                                in (mkApp (Data dc:(map Var $ HS.toList dc_tvids) ++ fd_apps) : all_alts, sids ++ fd_symIds, ng1')
+                                in (mkApp (Data dc:map (Type . TyVar) (HS.toList dc_tvids) ++ fd_apps) : all_alts, sids ++ fd_symIds, ng1')
                                 ) ([], [], ng_unwrap_state) dcs
 
                 ([scrut, bindee], ng''') = freshIds [TyLitInt, TyLitInt] ng''
@@ -368,12 +367,12 @@ evalForAll as t tms tr s@(State {type_env = tenv}) eenv ng i =
                         fa_id_ty = renames (HM.fromList (zip (map idName as_ids) (map idName fa_id_new_as)))
                                     $ mkNestedForAll as $ mkTyFun $ (tms) ++ [fa_ti]
                         (fa_id, ng1'') = freshId fa_id_ty ng1'
-                        fa_expr = mkApp . map Var $ ([fa_id] ++ as_ids ++ ys) -- Leaving out function itself for now
+                        fa_expr = mkApp $ ([Var fa_id] ++ map (Type . TyVar) as_ids ++ map Var ys) -- Leaving out function itself for now
                         in
                     (fa_expr:faes, fa_id:_symIds, ng1'')) ([], [], ng''') f_targs
 
                 -- TODO: should immediately cycle the function argument itself
-                e' = e_template . mkApp $ ((Var f):(map Var as_ids)) ++ [mkApp (Var x:fa_exprs)] ++ (map Var $ x:ys)
+                e' = e_template . mkApp $ (Var f:map (Type . TyVar) as_ids) ++ [mkApp (Var x:fa_exprs)] ++ map Var term_args
 
                 eenv' = foldr E.insertSymbolic eenv (f:symIds)
                 eenv'' = E.insert (idName i) e' eenv'
