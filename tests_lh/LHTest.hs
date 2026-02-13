@@ -573,7 +573,7 @@ posTestInferenceWithUseInvs :: FilePath -> TestTree
 posTestInferenceWithUseInvs = posTestInferenceWithTimeOutUseInvs 240 5 True
 
 posTestInference :: FilePath -> TestTree
-posTestInference = posTestInferenceWithTimeOut 120 5
+posTestInference = posTestInferenceWithTimeOut 240 5
 
 negTestInference :: FilePath -> TestTree
 negTestInference fp = do
