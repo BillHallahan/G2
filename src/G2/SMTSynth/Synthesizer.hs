@@ -428,11 +428,13 @@ setUpSpec sc h (Just (s@(State { known_values = kv, type_classes = tc }), Id n t
            $ splitTyForAlls t
         t' = foldr1 TyFun
            $ filter (not . isCallStack) ts
-        vs = take (length (filter (not . isTypeClass tc) ts) - 1) argList
+        t_with_cs = foldr1 TyFun ts
+        vs = take (length (filter (not . isTypeClass tc) . filter (not . isCallStack) $ ts) - 1) argList
         vs_str = intercalate " " vs
         smt_name = T.unpack . smtNameWrap . smtName $ nameOcc n
         contents = "{-# LANGUAGE BangPatterns, MagicHash, ScopedTypeVariables, ViewPatterns #-}\nmodule Spec where\nimport GHC.Prim2\n"
                     ++ "import GHC.Types2\n"
+                    ++ "import GHC.Stack\n"
                     ++ "import Control.Exception\n"
                     ++ "import System.IO.Unsafe\n\n"
                     ++ "tryMaybe :: IO a -> IO (Maybe a)\n"
@@ -441,7 +443,7 @@ setUpSpec sc h (Just (s@(State { known_values = kv, type_classes = tc }), Id n t
                     ++ "tryMaybeUnsafe x = unsafePerformIO $ tryMaybe (let !y = x in return y)\n\n"
                     ++ smt_name ++ " :: " ++ T.unpack (mkTypeHaskellDictArrows (mkPrettyGuide ()) (type_classes s) t') ++ "\n"
                     ++ spec
-                    ++ "\n\nplaceholder" ++ " :: " ++ T.unpack (mkTypeHaskellDictArrows (mkPrettyGuide ()) (type_classes s) t') ++ "\n"
+                    ++ "\n\nplaceholder" ++ " :: " ++ T.unpack (mkTypeHaskellDictArrows (mkPrettyGuide ()) (type_classes s) t_with_cs) ++ "\n"
                     ++ "placeholder = undefined\n\n"
                     -- ++ "\n\ncomp :: ("
                     --         ++ T.unpack (mkTypeHaskellDictArrows (mkPrettyGuide ()) (type_classes s) t')
