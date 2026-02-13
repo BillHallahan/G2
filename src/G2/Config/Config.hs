@@ -29,6 +29,7 @@ module G2.Config.Config ( Mode (..)
                         , boolArg
                         , boolArg'
 
+                        , baseIncludeDef
                         , baseDef
                         , baseSimple) where
 
@@ -454,7 +455,8 @@ baseSimple :: FilePath -> [FilePath]
 baseSimple root =
     [ root ++ "/.g2/base-4.9.1.0/Control/Exception/Base.hs"
     , root ++ "/.g2/base-4.9.1.0/Prelude.hs"
-    , root ++ "/.g2/base-4.9.1.0/Control/Monad.hs" ]
+    , root ++ "/.g2/base-4.9.1.0/Control/Monad.hs"
+    , root ++ "/.g2/G2Stubs/smt/SMT.hs" ]
 
 extraDefaultIncludePaths :: FilePath -> [FilePath]
 extraDefaultIncludePaths root =
