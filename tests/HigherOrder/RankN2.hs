@@ -44,3 +44,6 @@ ret_list f = f 4 5
 
 func_arg :: (forall a. (a -> a) -> a -> a) -> Int
 func_arg f = f (\x -> x + 1) 3
+
+func_arg_adt :: (forall a. (Boxed a -> a) -> Boxed a -> a) -> Int
+func_arg_adt f = f (\(Box x) -> x) (Box 3)
