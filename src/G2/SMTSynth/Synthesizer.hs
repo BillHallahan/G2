@@ -422,14 +422,13 @@ smtName n | Just (c, _) <- T.uncons n
 
 setUpSpec :: SynthConfig -> Handle -> Maybe (State t, Id, String) -> IO ()
 setUpSpec _ h Nothing = hClose h
-setUpSpec sc h (Just (s@(State { known_values = kv }), Id n t, spec)) = do
+setUpSpec sc h (Just (s@(State { known_values = kv, type_classes = tc }), Id n t, spec)) = do
     let ts = splitTyFuns
            . snd
            $ splitTyForAlls t
         t' = foldr1 TyFun
-           . filter (not . isCallStack)
-           $ ts
-        vs = take (length ts - 1) argList
+           $ filter (not . isCallStack) ts
+        vs = take (length (filter (not . isTypeClass tc) ts) - 1) argList
         vs_str = intercalate " " vs
         smt_name = T.unpack . smtNameWrap . smtName $ nameOcc n
         contents = "{-# LANGUAGE BangPatterns, MagicHash, ScopedTypeVariables, ViewPatterns #-}\nmodule Spec where\nimport GHC.Prim2\n"
