@@ -43,6 +43,7 @@ import qualified Data.Text as T
 import qualified Data.Text.IO as T
 import Options.Applicative
 import System.Directory
+import System.FilePath
 import System.IO
 import System.IO.Temp
 import System.Process
@@ -106,7 +107,8 @@ import qualified Text.Builder as TB
 -- | Synthesizer specific configurations
 data SynthConfig = SynthConfig { run_file :: String
                                , synth_func :: Maybe String -- ^ Synthesize a definition for a specific function
-                               , eq_check :: String -- ^ Option to use as an equality check
+                               , eq_check :: String -- ^ Function to use as an equality check
+                               , eq_file :: Maybe FilePath -- ^ File containing function to use as an equality check
                                , synth_mode :: SynthMode
                                , run_symex :: Bool -- ^ If true, run symbolic execution rather than synthesis
                                , g2_config :: Config
@@ -145,11 +147,16 @@ seqGenConfig homedir =
                    <> metavar "F"
                    <> value Nothing
                    <> help "a function to synthesize an SMT definition for")
-                <*> option auto
+                <*> option (eitherReader (Right))
                    (long "eq-check"
                    <> metavar "C"
                    <> value "=="
                    <> help "a function to use as an equality check")
+                <*> option (maybeReader (Just . Just))
+                   (long "eq-file"
+                   <> metavar "F"
+                   <> value Nothing
+                   <> help "a file containing an equality check")
                 <*> option (maybeReader (flip lookup synthModeMapping))
                    (long "synth-mode"
                    <> metavar "M"
@@ -383,8 +390,11 @@ runFunc :: FilePath
         -> Maybe (State t, Id, String) -- ^ Possible (SyGuS generated) function definition, along with the Id of the function being generated
         -> SynthConfig
         -> IO (Id, [ExecRes ()], NameGen)
-runFunc temp src f smt_def (SynthConfig { g2_config = config }) = do
-    let config' = config { base = base config ++ temp:src, maxOutputs = Just 10}
+runFunc temp src f smt_def (SynthConfig { eq_file = eq_f, g2_config = config }) = do
+    let extra_fp = maybeToList eq_f
+        config' = config { base = base config ++ extra_fp ++ temp:src
+                         , baseInclude = map takeDirectory extra_fp ++ baseInclude config
+                         , maxOutputs = Just 10}
 
     proj <- case src of
                 src':_ -> guessProj (includePaths config') src'
@@ -432,11 +442,19 @@ setUpSpec sc h (Just (s@(State { known_values = kv, type_classes = tc }), Id n t
         vs = take (length (filter (not . isTypeClass tc) . filter (not . isCallStack) $ ts) - 1) argList
         vs_str = intercalate " " vs
         smt_name = T.unpack . smtNameWrap . smtName $ nameOcc n
+        eq_ch = case eq_check sc of
+                    "==" -> "(==)"
+                    x:_ | isAlphaNum x -> "(liftEq " ++ eq_check sc ++ ")"
+                    _ -> "(liftEq (" ++ eq_check sc ++ "))"
+
         contents = "{-# LANGUAGE BangPatterns, MagicHash, ScopedTypeVariables, ViewPatterns #-}\nmodule Spec where\nimport GHC.Prim2\n"
                     ++ "import GHC.Types2\n"
                     ++ "import GHC.Stack\n"
                     ++ "import Control.Exception\n"
-                    ++ "import System.IO.Unsafe\n\n"
+                    ++ "import Data.Functor.Classes\n"
+                    ++ "import System.IO.Unsafe\n"
+                    ++ fromMaybe "\n" (fmap (\f -> "import " ++ f ++ "\n") . fmap (dropExtension . takeFileName) $ eq_file sc)
+                    ++ "\n"
                     ++ "tryMaybe :: IO a -> IO (Maybe a)\n"
                     ++ "tryMaybe a = catch (a >>= \\v -> return (Just v)) (\\(e :: SomeException) -> return Nothing)\n\n"
                     ++ "tryMaybeUnsafe :: a -> Maybe a\n"
@@ -450,8 +468,8 @@ setUpSpec sc h (Just (s@(State { known_values = kv, type_classes = tc }), Id n t
                     --         ++ ") -> "
                     --         ++ T.unpack (mkTypeHaskellDictArrows (mkPrettyGuide ()) (type_classes s) t') ++ "\n"
                     ++ "comp " ++ vs_str ++ " = " ++ "\n    let val = placeholder " ++ vs_str ++ ""  ++ " in\n"
-                                                   ++ "    assert (tryMaybeUnsafe (" ++ smt_name ++ " " ++ vs_str ++ ") "
-                                   ++ eq_check sc ++ " tryMaybeUnsafe val) val"
+                                                   ++ "    assert (" ++ eq_ch ++
+                                                            " (tryMaybeUnsafe (" ++ smt_name ++ " " ++ vs_str ++ ")) (tryMaybeUnsafe val)) val"
     putStrLn contents
     hPutStrLn h contents
     hFlush h
