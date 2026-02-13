@@ -33,9 +33,14 @@ getLTArg s = let (table, _) = case S.pop $ lit_table_stack s of
                                   Nothing -> error "not in literal table mode"
              in lt_arg table
 
+-- When we hit another case frame, the last exploring (or started building)
+-- should not update the state when popped, as we only want the `child` nodes
+-- of the tree we create on this hacky stack machine to update state
 stopUpdateLastExpl :: S.Stack Frame -> S.Stack Frame
 stopUpdateLastExpl stck = case S.pop stck of
-                              Just ((LitTableFrame (Exploring pcs) True), rest) ->
-                                  S.push (LitTableFrame (Exploring pcs) False) rest
+                              Just ((LitTableFrame (StartedBuilding n) True), rest)
+                                  -> S.push (LitTableFrame (StartedBuilding n) False) rest
+                              Just ((LitTableFrame (Exploring pcs) True), rest)
+                                  -> S.push (LitTableFrame (Exploring pcs) False) rest
                               Just (f, rest) -> S.push f (stopUpdateLastExpl rest)
                               Nothing -> stck
