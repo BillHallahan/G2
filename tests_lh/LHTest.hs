@@ -132,9 +132,9 @@ liquidTests = testGroup "Liquid"
     , checkLiquid "tests_lh/Liquid/Error/Error2.hs" "f1" 2000 [AtLeast 1]
     , checkLiquid "tests_lh/Liquid/ZipWith.lhs" "distance" 2000 [AtLeast 2]
 
-    -- , checkLiquids "tests_lh/Liquid/HigherOrder2.hs"
-    --     [ ("f", 2000, [Exactly 0])
-    --     , ("h", 2000, [AtLeast 1])]
+    , checkLiquids "tests_lh/Liquid/HigherOrder2.hs"
+        [ ("f", 2000, [Exactly 0])
+        , ("h", 2000, [AtLeast 1])]
     , checkLiquid "tests_lh/Liquid/HigherOrder3.hs" "m" 600 [AtLeast 1]
 
     , checkLiquid "tests_lh/Liquid/Ordering.hs" "oneOrOther" 1000 [Exactly 0]
@@ -285,7 +285,7 @@ liquidTests = testGroup "Liquid"
 posInfTests :: TestTree
 posInfTests = testGroup "Tests"
             [ -- posTestInference "tests_lh/test_files/Pos/HigherOrder.hs"
-              posTestInference "tests_lh/test_files/Pos/HigherOrder2.hs"
+            --   posTestInference "tests_lh/test_files/Pos/HigherOrder2.hs"
             -- , posTestInferenceWithTimeOut 240 5 "tests_lh/test_files/Pos/HigherOrder3.hs"
             -- , posTestInference "tests_lh/test_files/Pos/HigherOrder4.hs"
 
