@@ -1,5 +1,5 @@
 base_commit=3f4b379
-stubs_commit=5b3f93e
+stubs_commit=4ff1c36
 
 get_base() {
 	printf "Updating $2\n"

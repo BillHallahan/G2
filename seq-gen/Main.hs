@@ -51,7 +51,7 @@ main = do
                     True -> return ()
                     False -> do
                         createDirectoryIfMissing True dir
-                        writeFile fle ("{-# LANGUAGE MagicHash, ViewPatterns #-}\n\n")
+                        writeFile fle ("{-# LANGUAGE BangPatterns, MagicHash, RankNTypes, ViewPatterns #-}\n\n")
                         appendFile fle ("module " ++ mdl ++ " where\n\nimport GHC.Prim2\n\n")
                 appendFile fle (def ++ "\n")
             

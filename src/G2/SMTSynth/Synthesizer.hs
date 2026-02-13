@@ -115,7 +115,7 @@ data SynthConfig = SynthConfig { run_file :: String
 data SynthMode = SynthString | SynthSeqInt
 
 synthModeMapping :: [(String, SynthMode)]
-synthModeMapping = [("string", SynthString), ("seq-int", SynthSeqInt)]
+synthModeMapping = [("String", SynthString), ("SeqInt", SynthSeqInt)]
 
 getSeqGenConfig :: IO SynthConfig
 getSeqGenConfig = do
@@ -133,8 +133,8 @@ adjustConfig sm c =
           , search_strat = Subpath }
 
 setSynthMode :: SynthMode -> Config -> Config
-setSynthMode SynthString c = c { favor_tys = ["Char", "Integer"] }
-setSynthMode SynthSeqInt c = c { favor_tys = ["Integer"] }
+setSynthMode SynthString c = c { favor_tys = ["Char", "Int"] }
+setSynthMode SynthSeqInt c = c { favor_tys = ["Int"] }
 
 seqGenConfig :: String -> ParserInfo SynthConfig
 seqGenConfig homedir =
