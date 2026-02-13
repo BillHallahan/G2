@@ -135,8 +135,8 @@ adjustConfig sm c =
           , search_strat = Subpath }
 
 setSynthMode :: SynthMode -> Config -> Config
-setSynthMode SynthString c = c { favor_tys = ["Char", "Int"] }
-setSynthMode SynthSeqInt c = c { favor_tys = ["Int"] }
+setSynthMode SynthString c = c { favor_tys = ["Char", "Integer"] }
+setSynthMode SynthSeqInt c = c { favor_tys = ["Integer"] }
 
 seqGenConfig :: String -> ParserInfo SynthConfig
 seqGenConfig homedir =
@@ -635,14 +635,14 @@ sygusCmds er@(ExecRes { final_state = s@(State { tyvar_env = tv_env, known_value
         seq_int_sort = IdentSortSort (ISymb "Seq") [IdentSort (ISymb "Int")]
         seq_float_sort = IdentSortSort (ISymb "Seq") [IdentSort (ISymb "Float32")]
 
-        ty_gram_defs = (if ret_type == tyChar kv then ((tyChar kv, GroupedRuleList "CharRetPr" strSort grmCharRet):) else id) $
-                       (if not (null char_args) then ((tyChar kv, GroupedRuleList "CharArgPr" strSort grmCharArgs):) else id)           
-                       [ (tyString kv, GroupedRuleList "StrPr" strSort grmString)
-                       , (TyApp (tyList kv) (tyInt kv), GroupedRuleList "SeqIntPr" seq_int_sort (grmSeq seq_int_sort seqIntIdent))
-                       , (TyApp (tyList kv) (tyFloat kv), GroupedRuleList "SeqFloatPr" seq_float_sort (grmSeq seq_float_sort seqFloatIdent))
-                       , (TyLitInt, GroupedRuleList "IntPr" intSort grmInt)
-                       , (tyBool kv, GroupedRuleList "BoolPr" boolSort grmBool)]
-        find_start_gram = findElem (\(ty, _) -> ty == ret_type) ty_gram_defs
+        ty_gram_defs = (if ret_type == tyChar kv then (([tyChar kv], GroupedRuleList "CharRetPr" strSort grmCharRet):) else id) $
+                       (if not (null char_args) then (([tyChar kv], GroupedRuleList "CharArgPr" strSort grmCharArgs):) else id)           
+                       [ ([tyString kv], GroupedRuleList "StrPr" strSort grmString)
+                       , ([TyApp (tyList kv) (tyInt kv), TyApp (tyList kv) (tyInteger kv)], GroupedRuleList "SeqIntPr" seq_int_sort (grmSeq seq_int_sort seqIntIdent))
+                       , ([TyApp (tyList kv) (tyFloat kv)], GroupedRuleList "SeqFloatPr" seq_float_sort (grmSeq seq_float_sort seqFloatIdent))
+                       , ([TyLitInt], GroupedRuleList "IntPr" intSort grmInt)
+                       , ([tyBool kv], GroupedRuleList "BoolPr" boolSort grmBool)]
+        find_start_gram = findElem (\(ty, _) -> ret_type `elem` ty) ty_gram_defs
         gram_defs' = case find_start_gram of
                             Just (start_sym, other_sym) -> map snd $ start_sym:other_sym
                             Nothing -> error "runSygus: no start symbol"
