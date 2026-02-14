@@ -193,7 +193,7 @@ evalForAll :: [Type] -> Type -> [Type] -> Type
     -> State t -> E.ExprEnv -> NameGen -> Id -> (Rule, [State t], NameGen)
 evalForAll as t tms tr s@(State {type_env = tenv}) eenv ng i =
     let 
-        log_rules = False -- toggle for logging rules
+        log_rules = True -- toggle for logging rules
 
         (term_args@(x:ys), ng') = freshIds (t:tms) ng
         as_ids = map (\case (TyVar tvi) -> tvi; _ -> error "evalForAll: non-type variable in as") as
@@ -303,7 +303,8 @@ evalForAll as t tms tr s@(State {type_env = tenv}) eenv ng i =
 
         -- PM-INST-ADT
         (inst_adt_state, ng_inst_adt_state)
-            | not . null $ (t:tms)
+            | not . null $ contTyVars tr
+            , not . null $ (t:tms)
             , not . HS.null $ contTyVars tr `HS.intersection` HS.fromList as_ids -- TODO: change this later
             , TyCon tname _:ts <- unTyApp tr
             , Just alg_data_ty <- HM.lookup tname tenv
@@ -383,8 +384,23 @@ evalForAll as t tms tr s@(State {type_env = tenv}) eenv ng i =
             
             | otherwise = (Nothing, ng_inst_adt_state)
 
+        -- PM-CONST
+        (const_state, ng_const_state)
+            | null . contTyVars $ tr
+            = let 
+                (x_tr, ng'') = freshId tr ng_fun_arg_state
+                e' = e_template $ Var x_tr
+
+                eenv' = E.insertSymbolic x_tr eenv
+                eenv'' = E.insert (idName i) e' eenv'
+                s' = (Just s {curr_expr = CurrExpr Return e', expr_env = eenv''}, ng'')
+            in
+                if log_rules then trace "PM-CONST" s' else s'
+            
+            | otherwise = (Nothing, ng_fun_arg_state)
+                
         in
-        (RuleEvalVal, catMaybes [inst_state, cycle_state, non_cont_state, unwrap_state, inst_adt_state, fun_arg_state], ng_fun_arg_state)
+        (RuleEvalVal, catMaybes [inst_state, cycle_state, non_cont_state, unwrap_state, inst_adt_state, fun_arg_state, const_state], ng_const_state)
 
 evalVarSharing :: State t -> NameGen -> Id -> (Rule, [State t], NameGen)
 evalVarSharing s@(State { expr_env = eenv
