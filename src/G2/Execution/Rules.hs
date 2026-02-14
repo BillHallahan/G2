@@ -180,14 +180,16 @@ mkSymIntAlts exprs = go exprs 1
         go (e:es) l = Alt {altMatch = LitAlt (LitInt $ toInteger l), altExpr = e}:go es (l+1)
         go [] _ = error "mkSymIntAlts: empty list"
 
-dataConTyVarArgs :: DataCon -> HS.HashSet Id
-dataConTyVarArgs (DataCon _ t _ _) = go t
-    where go :: Type -> HS.HashSet Id
+-- For DataCon types in form:
+-- forall <tvs> . t1 -> .. -> tn -> (Con t1..tn)
+-- Returns the type arguments in order.
+-- TODO: may need to modify to handle more complex types
+dataConTypeArgs :: DataCon -> [Type]
+dataConTypeArgs (DataCon _ t _ _) = go t
+    where go :: Type -> [Type]
           go (TyForAll _ ty) = go ty
-          go (TyFun (TyVar tvid) ty) = HS.singleton tvid `HS.union` go ty
-          go (TyApp t1 t2) = go t1 `HS.union` go t2
-          go (TyVar tvid) = HS.singleton tvid
-          go _ = HS.empty
+          go (TyFun t1 t2) =  t1:go t2
+          go _ = []
 
 evalForAll :: [Type] -> Type -> [Type] -> Type 
     -> State t -> E.ExprEnv -> NameGen -> Id -> (Rule, [State t], NameGen)
@@ -305,7 +307,11 @@ evalForAll as t tms tr s@(State {type_env = tenv}) eenv ng i =
         (inst_adt_state, ng_inst_adt_state)
             | not . null $ contTyVars tr
             , not . null $ (t:tms)
-            , not . HS.null $ contTyVars tr `HS.intersection` HS.fromList as_ids -- TODO: change this later
+            -- if the below guard is null, the function is returning an ADT applied at its lowest levels
+            -- to literal types, so no new behavior will be found by using this rule to instantiate it.
+            -- ex. forall a. a -> Maybe Int. 
+            -- PM-CONST will apply instead and allow the arbitrary value generator to instantiate the value.
+            , not . HS.null $ contTyVars tr `HS.intersection` HS.fromList as_ids
             , TyCon tname _:ts <- unTyApp tr
             , Just alg_data_ty <- HM.lookup tname tenv
             = let
@@ -321,7 +327,7 @@ evalForAll as t tms tr s@(State {type_env = tenv}) eenv ng i =
                                     -- have not been previously renamed to match those in the current TyForAll, 
                                     -- but those in the DataCon's dc_type have been renamed. These are what
                                     -- dataConTyVarArgs finds.
-                                    dc_tvids = dataConTyVarArgs dc
+                                    dc_ty_args = dataConTypeArgs dc
                                     -- make functions fDi_1..fDi_mDi for this constructor
                                     (fd_apps, fd_symIds, ng1') = foldr (\di_arg (all_fd_apps, _fd_syms, ng2) -> 
                                         let 
@@ -333,7 +339,7 @@ evalForAll as t tms tr s@(State {type_env = tenv}) eenv ng i =
                                         in
                                         (fd_app:all_fd_apps, fdi:_fd_syms, ng2'')) ([], [], ng1) di_args
 
-                                in (mkApp (Data dc:map (Type . TyVar) (HS.toList dc_tvids) ++ fd_apps) : all_alts, sids ++ fd_symIds, ng1')
+                                in (mkApp ((Data dc:map Type dc_ty_args) ++ fd_apps) : all_alts, sids ++ fd_symIds, ng1')
                                 ) ([], [], ng_unwrap_state) dcs
 
                 ([scrut, bindee], ng''') = freshIds [TyLitInt, TyLitInt] ng''
