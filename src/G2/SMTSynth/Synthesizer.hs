@@ -540,7 +540,9 @@ sygusCmds er@(ExecRes { final_state = s@(State { tyvar_env = tv_env, known_value
     [ SmtCmd $ SetLogic "ALL"
     , define_eq "strEq" strSort
     , define_eq "seqIntEq" seq_int_sort
+    , define_eq "seqFloatEq" seq_float_sort
     , define_eq "intEq" intSort
+    , define_eq "floatEq" floatSort
     , from_char
     , to_char
     , SynthFun "spec" arg_vars ret_sort (Just grm) ]
@@ -602,18 +604,20 @@ sygusCmds er@(ExecRes { final_state = s@(State { tyvar_env = tv_env, known_value
                  ]
         grmFloat = [ GVariable floatSort
                    , GBfTerm (BfIdentifierBfs (ISymb "ite") [ boolIdent, floatIdent, floatIdent])
-                   , GBfTerm (BfLiteral (LitNum 0))
-                   , GBfTerm (BfLiteral (LitNum (-1)))
-                   , GBfTerm (BfIdentifierBfs (ISymb "+") [ floatIdent, floatIdent])
                    ]
 
         grmBool = [ GBfTerm (BfIdentifierBfs (ISymb "ite") [ boolIdent, boolIdent, boolIdent])
+                  , GBfTerm (BfIdentifierBfs (ISymb "and") [ boolIdent, boolIdent])
+                  , GBfTerm (BfIdentifierBfs (ISymb "or") [ boolIdent, boolIdent])
+                  , GBfTerm (BfIdentifierBfs (ISymb "not") [ boolIdent ])
+
                   , GBfTerm (BfIdentifierBfs (ISymb "intEq") [ intIdent, intIdent ])
                   , GBfTerm (BfIdentifierBfs (ISymb "str.<") [ strIdent, strIdent ])
                   , GBfTerm (BfIdentifierBfs (ISymb "str.<=") [ strIdent, strIdent ])
                   ]
                   ++ boolOpForIdent "strEq" strIdent
                   ++ boolOpForIdent "seqIntEq" seqIntIdent
+                  ++ boolOpForIdent "seqFloatEq" seqFloatIdent
         boolOpForIdent comp ident = 
                   [ GBfTerm (BfIdentifierBfs (ISymb comp) [ ident, ident ])
                   , GBfTerm (BfIdentifierBfs (ISymb "seq.prefixof") [ ident, ident ])
@@ -641,6 +645,7 @@ sygusCmds er@(ExecRes { final_state = s@(State { tyvar_env = tv_env, known_value
                        , ([TyApp (tyList kv) (tyInt kv), TyApp (tyList kv) (tyInteger kv)], GroupedRuleList "SeqIntPr" seq_int_sort (grmSeq seq_int_sort seqIntIdent))
                        , ([TyApp (tyList kv) (tyFloat kv)], GroupedRuleList "SeqFloatPr" seq_float_sort (grmSeq seq_float_sort seqFloatIdent))
                        , ([TyLitInt], GroupedRuleList "IntPr" intSort grmInt)
+                       , ([TyLitFloat], GroupedRuleList "FloatPr" floatSort grmFloat)
                        , ([tyBool kv], GroupedRuleList "BoolPr" boolSort grmBool)]
         find_start_gram = findElem (\(ty, _) -> ret_type `elem` ty) ty_gram_defs
         gram_defs' = case find_start_gram of
@@ -823,8 +828,10 @@ smtFuncToPrim s vl_args = conv s ++ conv_args
         conv "seq.indexof" = "strIndexOf#"
         conv "seq.replace" = "strReplace#"
         conv "seqIntEq" = "strEq#"
+        conv "seqFloatEq" = "strEq#"
 
         conv "intEq" = "($==#)"
+        conv "floatEq" = "smtEqFloat#"
         conv "fromChar" = ""
         conv "toChar" = ""
         conv "+" = "(+#)"
