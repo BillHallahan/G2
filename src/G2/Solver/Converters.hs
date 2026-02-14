@@ -30,6 +30,9 @@ module G2.Solver.Converters
     , solveConstraints
     , constraintsToModelOrUnsatCore
     , constraintsToModelOrUnsatCoreNoReset
+
+    , convertFloating
+    , castFloatToWord32
     , SMTConverter (..) ) where
 
 import qualified Data.Bits as Bits
@@ -965,18 +968,21 @@ smtastToExpr kv _ _ _ (VBool False) = mkFalse kv
 smtastToExpr kv tenv _ _ (VString cs) = mkG2List kv tenv (tyChar kv) $ map (App (mkDCChar kv tenv) . Lit . LitChar) cs
 smtastToExpr _ _ _ _ (VChar c) = Lit $ LitChar c
 smtastToExpr _ _ _ _ (V n s) = Var $ Id (certainStrToName n) (sortToType s)
-smtastToExpr kv tenv _ _ (SeqEmptySMT _) = App (mkEmpty kv tenv) (Type TyUnknown)
+smtastToExpr kv tenv ty_map n (SeqEmptySMT _) = App (mkEmpty kv tenv) (Type $ getTypeForList ty_map n)
 smtastToExpr kv tenv ty_map n (SeqUnitSMT s) = mkApp [ mkCons kv tenv
-                                                     , Type TyUnknown
+                                                     , Type $ getTypeForList ty_map n
                                                      , wrapDC kv tenv ty_map n $ smtastToExpr kv tenv ty_map n s
-                                                     , App (mkEmpty kv tenv) (Type TyUnknown) ]
+                                                     , App (mkEmpty kv tenv) (Type $ getTypeForList ty_map n) ]
 smtastToExpr kv tenv ty_map n (StrAppendSMT xs) =
-    mkG2List kv tenv TyUnknown $ map (wrapDC kv tenv ty_map n . smtastToExpr kv tenv ty_map n . fromUnit) xs
+    mkG2List kv tenv (getTypeForList ty_map n) $ map (wrapDC kv tenv ty_map n . smtastToExpr kv tenv ty_map n . fromUnit) xs
     where
         fromUnit (SeqUnitSMT s) = s
         fromUnit _ = error "fromUnit: unsupported case"
 smtastToExpr _ _ _ _ _ = error "Conversion of this SMTAST to an Expr not supported."
 
+getTypeForList :: HM.HashMap SMTName Type -> SMTName -> Type
+getTypeForList ty_map n | Just (TyApp _ t) <- HM.lookup n ty_map = t
+getTypeForList _ _ = TyUnknown
 
 wrapDC :: KnownValues -> TypeEnv -> HM.HashMap SMTName Type -> SMTName -> Expr -> Expr
 wrapDC kv tenv ty_map n i@(Lit (LitInt _))

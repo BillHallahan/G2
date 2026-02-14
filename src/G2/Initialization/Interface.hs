@@ -17,6 +17,7 @@ import G2.Initialization.ElimTypeSynonyms
 import G2.Initialization.FpToRational
 import G2.Initialization.Handles
 import G2.Initialization.InitVarLocs
+import G2.Initialization.KnownValues
 import G2.Initialization.Types as IT
 import qualified G2.Language.TyVarEnv as TV
 import G2.Execution.DataConPCMap
@@ -27,12 +28,12 @@ type MkArgTypes = IT.SimpleState -> [Type]
 runInitialization1 :: IT.SimpleState -> IT.SimpleState
 runInitialization1 s =
     let
-        s'@(IT.SimpleState { expr_env = eenv, IT.type_env = tenv, IT.type_classes = tc }) = elimBreakpoints . initVarLocs $ s
+        s1@(IT.SimpleState { expr_env = eenv, IT.type_env = tenv, IT.type_classes = tc }) = elimBreakpoints . initVarLocs $ s
         eenv2 = elimTypeSyms tenv eenv
         tenv2 = elimTypeSymsTEnv tenv
         tc2 = elimTypeSyms tenv tc
     in
-    s' { IT.expr_env = eenv2, IT.type_env = tenv2, IT.type_classes = tc2}
+    s1 { IT.expr_env = eenv2, IT.type_env = tenv2, IT.type_classes = tc2}
 
 runInitialization2 :: Config -> IT.SimpleState -> MkArgTypes -> (IT.SimpleState, DataConPCMap)
 runInitialization2 config s@(IT.SimpleState { IT.expr_env = eenv
@@ -61,24 +62,29 @@ runInitialization2 config s@(IT.SimpleState { IT.expr_env = eenv
                         then E.insert (adjStr kv) 
                                       (Var (Id (checkStrLazy kv) TyUnknown)) eenv6
                         else eenv6
-        s' = s { IT.expr_env = eenv7
+        s1 = s { IT.expr_env = eenv7
                , IT.name_gen = ng3
                , IT.handles = hs}
         
-        s'' = if fp_handling config == RationalFP then substRational s' else s'
+        s2 = if fp_handling config == RationalFP then substRational s1 else s1
 
-        s''' = if smt_strings config == UseSMTStrings || smt_prim_lists config == UseSMTSeq
-                    then integrateSMTDef s''
-                    else s''
+        -- Add SMT definitions to string/sequence functions, then recalculate the set of functions
+        -- (as stored in the KnownValues) containing such definitions
+        s3 = if smt_strings config == UseSMTStrings || useSMTSeqFuncs (smt_prim_lists config)
+                    then integrateSMTDef s2
+                    else s2
+        kv' = recalcSmtStringFuncs (expr_env s3) (known_values s3)
+        s4 = s3 { known_values = kv' }
+        
 
-        dcpc = addToDCPC config s''' (dcpcMap TV.empty kv tenv)
+        dcpc = addToDCPC config s4 (dcpcMap TV.empty kv tenv)
     in
-    (s''', dcpc)
+    (s4, dcpc)
     where
         adjTyH = E.insert (typeIndex kv) . modifyASTs adjTyH' $ eenv E.! typeIndex kv
 
         adjTyH' (Prim (TypeIndex _) t) = Prim (TypeIndex $ TyH { tyh_strings = smt_strings config == UseSMTStrings
-                                                               , tyh_prim_lists = smt_prim_lists config == UseSMTSeq })
+                                                               , tyh_prim_lists = useSMTSeqFuncs (smt_prim_lists config) })
                                               t
         adjTyH' e = e
 

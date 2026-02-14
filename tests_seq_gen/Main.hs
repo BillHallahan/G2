@@ -11,6 +11,7 @@ import G2.SMTSynth.Synthesizer
 import qualified Data.Map as M
 import Data.Maybe
 import qualified Data.Text as T
+import Options.Applicative
 import System.Directory
 import System.Timeout
 import G2.Language.Support (State(num_steps))
@@ -43,17 +44,38 @@ tests = testGroup "All Tests"
         , smtSynthTest "tests_seq_gen/tests/Test.hs" "f18"
         , smtSynthTest "tests_seq_gen/tests/Test.hs" "f19"
         , smtSynthTest "tests_seq_gen/tests/Test.hs" "@@"
+
+        , smtSynthTest "tests_seq_gen/tests/TestInt.hs" "f1"
+
+        , smtSynthTestWithEqCheck "tests_seq_gen/tests/TestFloat.hs" "f1" "seq-gen/FloatEq.hs" "eqFloatList"
         ]
 
-smtSynthTest :: T.Text -- ^ Function
+getSeqGenConfigDir :: T.Text -> IO SynthConfig
+getSeqGenConfigDir file = do
+    homedir <- getHomeDirectory
+    handleParseResult $ execParserPure (prefs mempty) (seqGenConfig homedir) [T.unpack file]
+
+smtSynthTest :: T.Text -- ^ Filer
              -> T.Text -- ^ Function
              -> TestTree
-smtSynthTest = smtSynthTestWithConfig (do
-                                        homedir <- getHomeDirectory
-                                        let config = mkConfigDirect homedir [] M.empty
-                                        return . adjustConfig $ config { smt = ConCVC5, steps = 2000 })
+smtSynthTest file = smtSynthTestWithConfig (do
+                                        synth_config@(SynthConfig { synth_mode = sy_m, g2_config = config }) <- getSeqGenConfigDir file
+                                        return $ synth_config { g2_config = adjustConfig sy_m $ config { smt = ConCVC5, steps = 2000 } }) file
 
-smtSynthTestWithConfig :: IO Config
+smtSynthTestWithEqCheck :: T.Text -- ^ Filer
+                        -> T.Text -- ^ Function
+                        -> FilePath -- ^ eq-file
+                        -> String -- ^ eq-check
+                        -> TestTree
+smtSynthTestWithEqCheck file func eq_f eq_c =
+    smtSynthTestWithConfig (do
+                    synth_config@(SynthConfig { synth_mode = sy_m, g2_config = config }) <- getSeqGenConfigDir file
+                    let synth_config' = synth_config { eq_file = Just eq_f
+                                                     , eq_check = eq_c
+                                                     , g2_config = adjustConfig sy_m $ config { smt = ConZ3, steps = 2000 } }
+                    return $ synth_config') file func
+
+smtSynthTestWithConfig :: IO SynthConfig
                        -> T.Text -- ^ Function
                        -> T.Text -- ^ Function
                        -> TestTree
