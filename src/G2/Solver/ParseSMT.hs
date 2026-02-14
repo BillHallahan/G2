@@ -108,7 +108,8 @@ seqExpr :: Maybe Sort -> Parser SMTAST
 seqExpr srt = (do
     reserved "as"
     ex <- identifier
-    _ <- parens (many1 identifier)
+    -- Just ignoring sort information, i.e. "Float32" or "(Seq (_ FloatingPoint 8 24))"
+    _ <- parens (many1 (identifier <|> parens (do _ <- many1 (identifier <|> (do _ <- integer; return "")); return "")))
     case ex of
         "seq.empty" -> return (SeqEmptySMT (SortSeq $ error "type unknown"))
         _ -> fail "not seq - empty")
@@ -130,6 +131,7 @@ seqExpr srt = (do
     where
         getElemSrt (Just (SortSeq s)) = Just s
         getElemSrt _ = Nothing
+
 
 realExpr :: Parser SMTAST
 realExpr = try realExprNeg <|> realExprRat
