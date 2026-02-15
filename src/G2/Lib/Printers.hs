@@ -583,7 +583,7 @@ mkTypeHaskellPG' pg m_tc = go
                     mw t = go t
                 in
                 "(" <> T.intercalate " " (map mw ts) <> ")"
-        go (TyForAll i t) = "forall " <> mkIdHaskell pg i <> " . " <> go t
+        go (TyForAll i t) = "(" <> "forall " <> mkIdHaskell pg i <> " . " <> go t <> ")"
         go TyBottom = "Bottom"
         go TYPE = "Type"
         go (TyUnknown) = "Unknown"
