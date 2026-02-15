@@ -191,11 +191,12 @@ dataConTypeArgs (DataCon _ t _ _) = go t
           go (TyFun t1 t2) =  t1:go t2
           go _ = []
 
+-- TODO: way to order both funcion type and and application expression together
 evalForAll :: [Type] -> Type -> [Type] -> Type 
     -> State t -> E.ExprEnv -> NameGen -> Id -> (Rule, [State t], NameGen)
 evalForAll as t tms tr s@(State {type_env = tenv}) eenv ng i =
     let 
-        log_rules = True -- toggle for logging rules
+        log_rules = False -- toggle for logging rules
 
         (term_args@(x:ys), ng') = freshIds (t:tms) ng
         as_ids = map (\case (TyVar tvi) -> tvi; _ -> error "evalForAll: non-type variable in as") as
@@ -365,10 +366,10 @@ evalForAll as t tms tr s@(State {type_env = tenv}) eenv ng i =
             = let
                 (new_as, ng'') = freshSeededIds as_ids ng_inst_adt_state
                 f_ty = renames (HM.fromList (zip (map idName as_ids) (map idName new_as))) 
-                                    $ mkNestedForAll as $ mkTyFun ((f_tr:t:tms) ++ [tr])
+                                    $ mkNestedForAll as $ mkTyFun ((f_tr:tms) ++ [t] ++ [tr])
                 (f, ng''') = freshId f_ty ng''
 
-                (fa_exprs, symIds, ng'''') = foldr (\fa_ti (faes, _symIds, ng1) -> -- TODO: assuming function arguments only have type variable arguments
+                (fa_exprs, symIds, ng'''') = foldr (\fa_ti (faes, _symIds, ng1) ->
                     let 
                         (fa_id_new_as, ng1') = freshSeededIds as_ids ng1
                         fa_id_ty = renames (HM.fromList (zip (map idName as_ids) (map idName fa_id_new_as)))
@@ -378,8 +379,7 @@ evalForAll as t tms tr s@(State {type_env = tenv}) eenv ng i =
                         in
                     (fa_expr:faes, fa_id:_symIds, ng1'')) ([], [], ng''') f_targs
 
-                -- TODO: should immediately cycle the function argument itself
-                e' = e_template . mkApp $ (Var f:map (Type . TyVar) as_ids) ++ [mkApp (Var x:fa_exprs)] ++ map Var term_args
+                e' = e_template . mkApp $ (Var f:map (Type . TyVar) as_ids) ++ [mkApp (Var x:fa_exprs)] ++ map Var (ys ++ [x])
 
                 eenv' = foldr E.insertSymbolic eenv (f:symIds)
                 eenv'' = E.insert (idName i) e' eenv'
