@@ -180,17 +180,6 @@ mkSymIntAlts exprs = go exprs 1
         go (e:es) l = Alt {altMatch = LitAlt (LitInt $ toInteger l), altExpr = e}:go es (l+1)
         go [] _ = error "mkSymIntAlts: empty list"
 
--- For DataCon types in form:
--- forall <tvs> . t1 -> .. -> tn -> (Con t1..tn)
--- Returns the type arguments in order.
--- TODO: may need to modify to handle more complex types
-dataConTypeArgs :: DataCon -> [Type]
-dataConTypeArgs (DataCon _ t _ _) = go t
-    where go :: Type -> [Type]
-          go (TyForAll _ ty) = go ty
-          go (TyFun t1 t2) =  t1:go t2
-          go _ = []
-
 -- TODO: way to order both funcion type and and application expression together
 evalForAll :: [Type] -> Type -> [Type] -> Type 
     -> State t -> E.ExprEnv -> NameGen -> Id -> (Rule, [State t], NameGen)
@@ -324,11 +313,7 @@ evalForAll as t tms tr s@(State {type_env = tenv}) eenv ng i =
                     foldr (\dc@(DataCon _ dcty _ _) (all_alts, sids, ng1) ->
                                 let 
                                     (di_args, _) = argTypes dcty
-                                    -- type variables stored in the DataCon's dc_univ_tyvars and dc_exist_tyvars 
-                                    -- have not been previously renamed to match those in the current TyForAll, 
-                                    -- but those in the DataCon's dc_type have been renamed. These are what
-                                    -- dataConTyVarArgs finds.
-                                    dc_ty_args = dataConTypeArgs dc
+
                                     -- make functions fDi_1..fDi_mDi for this constructor
                                     (fd_apps, fd_symIds, ng1') = foldr (\di_arg (all_fd_apps, _fd_syms, ng2) -> 
                                         let 
@@ -340,7 +325,7 @@ evalForAll as t tms tr s@(State {type_env = tenv}) eenv ng i =
                                         in
                                         (fd_app:all_fd_apps, fdi:_fd_syms, ng2'')) ([], [], ng1) di_args
 
-                                in (mkApp ((Data dc:map Type dc_ty_args) ++ fd_apps) : all_alts, sids ++ fd_symIds, ng1')
+                                in (mkApp ((Data dc:map Type ts) ++ fd_apps) : all_alts, sids ++ fd_symIds, ng1')
                                 ) ([], [], ng_unwrap_state) dcs
 
                 ([scrut, bindee], ng''') = freshIds [TyLitInt, TyLitInt] ng''
