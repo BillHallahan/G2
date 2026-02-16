@@ -1703,7 +1703,7 @@ retReplaceSymbFuncTemplate sft
         e' = mkApp (e:es)
 
         eenv' = foldr E.insertSymbolic eenv symIds
-        eenv'' = E.insert n e' eenv'
+        eenv'' = E.insert n e eenv'
         (constState, ng'''') = mkFuncConst sft s es n t1 t2 ng'''
         in Just (RuleReturnReplaceSymbFunc, [constState, s {
             curr_expr = CurrExpr Evaluate e',
