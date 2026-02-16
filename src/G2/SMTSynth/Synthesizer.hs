@@ -463,10 +463,6 @@ setUpSpec sc h (Just (s@(State { known_values = kv, type_classes = tc }), Id n t
                     ++ spec
                     ++ "\n\nplaceholder" ++ " :: " ++ T.unpack (mkTypeHaskellDictArrows (mkPrettyGuide ()) (type_classes s) t_with_cs) ++ "\n"
                     ++ "placeholder = undefined\n\n"
-                    -- ++ "\n\ncomp :: ("
-                    --         ++ T.unpack (mkTypeHaskellDictArrows (mkPrettyGuide ()) (type_classes s) t')
-                    --         ++ ") -> "
-                    --         ++ T.unpack (mkTypeHaskellDictArrows (mkPrettyGuide ()) (type_classes s) t') ++ "\n"
                     ++ "comp " ++ vs_str ++ " = " ++ "\n    let val = placeholder " ++ vs_str ++ ""  ++ " in\n"
                                                    ++ "    assert (" ++ eq_ch ++
                                                             " (tryMaybeUnsafe (" ++ smt_name ++ " " ++ vs_str ++ ")) (tryMaybeUnsafe val)) val"
