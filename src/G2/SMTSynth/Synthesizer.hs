@@ -16,6 +16,7 @@ module G2.SMTSynth.Synthesizer ( SynthConfig (..)
 
 import G2.Config
 import G2.Execution.PrimitiveEval
+import G2.Initialization.KnownValues
 import G2.Initialization.MkCurrExpr
 import G2.Interface
 import G2.Language as G2 hiding (Handle)
@@ -106,6 +107,7 @@ import qualified Text.Builder as TB
 
 -- | Synthesizer specific configurations
 data SynthConfig = SynthConfig { run_file :: String
+                               , checking :: Checking
                                , synth_func :: Maybe String -- ^ Synthesize a definition for a specific function
                                , eq_check :: String -- ^ Function to use as an equality check
                                , eq_file :: Maybe FilePath -- ^ File containing function to use as an equality check
@@ -114,7 +116,9 @@ data SynthConfig = SynthConfig { run_file :: String
                                , g2_config :: Config
                                }
 
-data SynthMode = SynthString | SynthSeqInt
+data SynthMode = SynthString | SynthSeqInt deriving Eq
+
+data Checking = Verify | ADTHeight deriving Eq
 
 synthModeMapping :: [(String, SynthMode)]
 synthModeMapping = [("String", SynthString), ("SeqInt", SynthSeqInt)]
@@ -123,13 +127,13 @@ getSeqGenConfig :: IO SynthConfig
 getSeqGenConfig = do
     homedir <- getHomeDirectory
     sc <- execParser (seqGenConfig homedir)
-    return $ sc { g2_config = adjustConfig (synth_mode sc) (g2_config sc)}
+    return $ sc { g2_config = adjustConfig sc (g2_config sc)}
 
-adjustConfig :: SynthMode -> Config -> Config
-adjustConfig sm c =
-    setSynthMode sm $ 
+adjustConfig :: SynthConfig -> Config -> Config
+adjustConfig sc c =
+    setSynthMode (synth_mode sc) $ 
         c { step_limit = False
-          , height_limit = Just $ fromMaybe 5 (height_limit c)
+          , height_limit = if checking sc == ADTHeight then Just $ fromMaybe 5 (height_limit c) else Nothing
 
           , smt_prim_lists = UseSMTSeq { add_to_dcs = True, add_to_funcs = False }
           , search_strat = Subpath }
@@ -142,6 +146,9 @@ seqGenConfig :: String -> ParserInfo SynthConfig
 seqGenConfig homedir =
     info ((SynthConfig
                 <$> argument str (metavar "FILE")
+                <*> flag ADTHeight Verify
+                   (long "verify"
+                   <> help "a function to synthesize an SMT definition for")
                 <*> option (eitherReader (Right . Just))
                    (long "function"
                    <> metavar "F"
@@ -390,7 +397,7 @@ runFunc :: FilePath
         -> Maybe (State t, Id, String) -- ^ Possible (SyGuS generated) function definition, along with the Id of the function being generated
         -> SynthConfig
         -> IO (Id, [ExecRes ()], NameGen)
-runFunc temp src f smt_def (SynthConfig { eq_file = eq_f, g2_config = config }) = do
+runFunc temp src f smt_def sc@(SynthConfig { eq_file = eq_f, g2_config = config }) = do
     let extra_fp = maybeToList eq_f
         config' = config { base = base config ++ extra_fp ++ temp:src
                          , baseInclude = map takeDirectory extra_fp ++ baseInclude config
@@ -416,9 +423,20 @@ runFunc temp src f smt_def (SynthConfig { eq_file = eq_f, g2_config = config }) 
     -- let config'' = if isJust smt_def then config' { logStates = Log Pretty "a_smt"} else config'
     T.putStrLn $ printHaskellPG (mkPrettyGuide $ getExpr comp_state) comp_state (getExpr comp_state)
 
-    (er, b, to) <- runG2WithConfig proj src entry_f f [] mb_modname comp_state config' bindings
+    let comp_state' = if checking sc == Verify then setUpVerification (idName entry_f) comp_state else comp_state
+
+    (er, b, to) <- runG2WithConfig proj src entry_f f [] mb_modname comp_state' config' bindings
 
     return (entry_f, er, name_gen bindings)
+
+setUpVerification :: Name -> State t -> State t
+setUpVerification entry_n s@(State { expr_env = eenv, known_values = kv  })
+    | Just (smt_n, _) <- E.lookupNameMod (smtName $ nameOcc entry_n) (Just "Spec") eenv
+    , Just f_e <- E.lookup entry_n eenv =
+        let f_e' = renameVars entry_n smt_n f_e in
+        s { expr_env = E.insert entry_n f_e' eenv
+          , known_values = addSmtStringFunc smt_n kv }
+    | otherwise = s
 
 smtNameWrap :: T.Text -> T.Text
 smtNameWrap n | Just (c, _) <- T.uncons n

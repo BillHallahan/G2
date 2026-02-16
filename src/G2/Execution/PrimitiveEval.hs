@@ -737,6 +737,7 @@ evalsToSMTRep seen eenv kv tc = go
         go (Lit _) = True
         go (App e1 e2) = go e1 && go e2
         go (Type _) = True
+        go (Tick _ e) = go e
         go e | isSMTRep eenv kv e = True
         go _ = False
 
