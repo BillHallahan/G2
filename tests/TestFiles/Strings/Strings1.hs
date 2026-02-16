@@ -107,6 +107,14 @@ taker2 str = case take 22 str of
                 x@"Hi" -> (True, x)
                 y -> (False, y)
 
+take1 :: Int -> String -> (Int, String)
+take1 z1 z2 | z1 >= 0 = (0, [])
+take1 z1 z2 = 
+    let val = take z1 z2 in
+    case "A" == val of
+        False -> (1, val)
+        True -> (2, val)
+
 inf :: String
 inf = inf
 
