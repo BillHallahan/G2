@@ -1,13 +1,23 @@
 {-# LANGUAGE BangPatterns, FlexibleContexts, OverloadedStrings #-}
 
-module G2.SMTSynth.Synthesizer ( getSeqGenConfig
+module G2.SMTSynth.Synthesizer ( SynthConfig (..)
+                               , SynthMode (..)
+                               , Checking (..)
+                               
+                               , getSeqGenConfig
                                , genSMTFunc
                                , adjustConfig
                                , seqGenConfig
-                               , runFunc) where
+                               , setSynthMode
+                               , synthModeMapping
+                               , runFunc
+                               
+                               , smtName
+                               , smtNameWrap) where
 
 import G2.Config
 import G2.Execution.PrimitiveEval
+import G2.Initialization.KnownValues
 import G2.Initialization.MkCurrExpr
 import G2.Interface
 import G2.Language as G2 hiding (Handle)
@@ -16,6 +26,7 @@ import qualified G2.Language.KnownValues as KV
 import G2.Language.Monad
 import qualified G2.Language.TyVarEnv as TV
 import G2.Lib.Printers
+import G2.Solver.Converters
 import G2.Solver.SMT2
 import G2.Translation
 
@@ -34,9 +45,11 @@ import qualified Data.Text as T
 import qualified Data.Text.IO as T
 import Options.Applicative
 import System.Directory
+import System.FilePath
 import System.IO
 import System.IO.Temp
 import System.Process
+import qualified Text.Builder as TB
 
 -------------------------------------------------------------------------------
 -- Methodology
@@ -93,28 +106,70 @@ import System.Process
 --
 -- See the PatternRes type.
 
-getSeqGenConfig :: IO (String, Maybe String, Bool, Config)
+-- | Synthesizer specific configurations
+data SynthConfig = SynthConfig { run_file :: String
+                               , checking :: Checking
+                               , synth_func :: Maybe String -- ^ Synthesize a definition for a specific function
+                               , eq_check :: String -- ^ Function to use as an equality check
+                               , eq_file :: Maybe FilePath -- ^ File containing function to use as an equality check
+                               , synth_mode :: SynthMode
+                               , run_symex :: Bool -- ^ If true, run symbolic execution rather than synthesis
+                               , g2_config :: Config
+                               }
+
+data SynthMode = SynthString | SynthSeqInt deriving Eq
+
+data Checking = Verify | ADTHeight deriving Eq
+
+synthModeMapping :: [(String, SynthMode)]
+synthModeMapping = [("String", SynthString), ("SeqInt", SynthSeqInt)]
+
+getSeqGenConfig :: IO SynthConfig
 getSeqGenConfig = do
     homedir <- getHomeDirectory
-    (fle, f, run_symex, config) <- execParser (seqGenConfig homedir)
-    return (fle, f, run_symex, adjustConfig config )
+    sc <- execParser (seqGenConfig homedir)
+    return $ sc { g2_config = adjustConfig sc (g2_config sc)}
 
-adjustConfig :: Config -> Config
-adjustConfig c = c { step_limit = False
-                   , height_limit = Just $ fromMaybe 5 (height_limit c)
+adjustConfig :: SynthConfig -> Config -> Config
+adjustConfig sc c =
+    setSynthMode (synth_mode sc) $ 
+        c { step_limit = False
+          , height_limit = if checking sc == ADTHeight then Just $ fromMaybe 5 (height_limit c) else Nothing
 
-                   , favor_tys = ["Char", "Integer"]
-                   , search_strat = Subpath }
+          , smt_prim_lists = UseSMTSeq { add_to_dcs = True, add_to_funcs = False }
+          , search_strat = Subpath }
 
-seqGenConfig :: String -> ParserInfo (String, Maybe String, Bool, Config)
+setSynthMode :: SynthMode -> Config -> Config
+setSynthMode SynthString c = c { favor_tys = ["Char", "Integer"] }
+setSynthMode SynthSeqInt c = c { favor_tys = ["Integer"] }
+
+seqGenConfig :: String -> ParserInfo SynthConfig
 seqGenConfig homedir =
-    info (((,,,)
+    info ((SynthConfig
                 <$> argument str (metavar "FILE")
+                <*> flag ADTHeight Verify
+                   (long "verify"
+                   <> help "a function to synthesize an SMT definition for")
                 <*> option (eitherReader (Right . Just))
                    (long "function"
                    <> metavar "F"
                    <> value Nothing
                    <> help "a function to synthesize an SMT definition for")
+                <*> option (eitherReader (Right))
+                   (long "eq-check"
+                   <> metavar "C"
+                   <> value "=="
+                   <> help "a function to use as an equality check")
+                <*> option (maybeReader (Just . Just))
+                   (long "eq-file"
+                   <> metavar "F"
+                   <> value Nothing
+                   <> help "a file containing an equality check")
+                <*> option (maybeReader (flip lookup synthModeMapping))
+                   (long "synth-mode"
+                   <> metavar "M"
+                   <> value SynthString
+                   <> help ("synthesize functions for a specific type/using a specific SMT theory. Options: " ++ intercalate ", " (map fst synthModeMapping)))
                 <*> flag False True (long "run-symex" <> help "Run symbolic execution on the passed function, rather than synthesis")
                 <*> mkConfig homedir) <**> helper)
           ( fullDesc
@@ -160,11 +215,11 @@ genSMTFunc :: [PatternRes] -- ^ Generated states
            -> [FilePath] -- ^ Filepath containing function
            -> T.Text -- ^ Function name
            -> Maybe (State t, Id, String) -- ^ Possible (SyGuS generated) function definition, along with the Id of the function being generated
-           -> Config
+           -> SynthConfig
            -> IO (String, String) -- ^ (Type of generated function, definition of generated function)
-genSMTFunc pls src f smt_def config = do
+genSMTFunc pls src f smt_def sc@(SynthConfig { g2_config = config }) = do
     putStrLn "\n--- Running function --- "
-    (entry_f, ers, ng) <- runFuncWithTemp src f smt_def config
+    (entry_f, ers, ng) <- runFuncWithTemp src f smt_def sc
     case ers of
         [] | Just (s, (Id _ smt_t), smt_def') <- smt_def ->
                 return (T.unpack (mkTypeHaskellDictArrows (mkPrettyGuide ()) (type_classes s) smt_t), smt_def')
@@ -180,7 +235,7 @@ genSMTFunc pls src f smt_def config = do
                 
                 vs = zipWith (formArg kv tv_env) argList (relArgs (final_state er) $ conc_args er)
                 new_smt_def = T.unpack (smtNameWrap . smtName . nameOcc $ idName entry_f) ++ " " ++ intercalate " " vs ++ " = " ++ new_smt_piece
-            genSMTFunc pls' src f (Just (final_state er, entry_f, new_smt_def)) config
+            genSMTFunc pls' src f (Just (final_state er, entry_f, new_smt_def)) sc
 
 formArg :: KnownValues -> TyVarEnv -> String -> Expr -> String
 formArg kv tv nm e
@@ -245,13 +300,12 @@ zipWithDef _ xs [] = xs
 zipWithDef _ [] ys = ys
 zipWithDef f (x:xs) (y:ys) = f x y:zipWithDef f xs ys
 
-isString :: Expr -> Bool
-isString (App (Data dc) (Type (TyCon n _)))
-    | nameOcc (dcName dc) == "[]"
-    , nameOcc n == "Char" = True
-isString (App (App (App (Data dc) _) _) _)
+isList :: Expr -> Bool
+isList (App (Data dc) (Type (TyCon n _)))
+    | nameOcc (dcName dc) == "[]" = True
+isList (App (App (App (Data dc) _) _) _)
     | nameOcc (dcName dc) == ":" = True
-isString _ = False
+isList _ = False
 
 -- | Check that two Expr's are equal, disregarding specific values of (1) literals, (2) strings, and (3) DC uniques.
 eqIgnoringLits :: Expr -> Expr -> Bool
@@ -266,7 +320,7 @@ eqIgnoringLits e1 e2 =
             | nameOcc (dc_name dc) == "True" || nameOcc (dc_name dc) == "False" = Var (Id (Name "!!__G2__!!_BOOL" Nothing 0 Nothing) TyUnknown)
             | nameOcc (dc_name dc) == "C#" = Var (Id (Name "!!__G2__!!_CHAR" Nothing 0 Nothing) TyUnknown)
             | otherwise = Data (dc { dc_name = Name (nameOcc (dc_name dc)) Nothing 0 Nothing})
-        repLit e | isString e = Var (Id (Name "!!__G2__!!_STRING" Nothing 0 Nothing) TyUnknown)
+        repLit e | isList e = Var (Id (Name "!!__G2__!!_LIST" Nothing 0 Nothing) TyUnknown)
                  | otherwise = e
 
         rep (LitInt _) = LitInt 0
@@ -282,7 +336,7 @@ eqIgnoringLits e1 e2 =
 modifyLits :: Monad m => (Expr -> m Expr) -> Expr -> m Expr
 modifyLits f e@(Lit _) = f e
 modifyLits f e@(App (Data dc) _) | nameOcc (dc_name dc) == "C#" = f e
-modifyLits f e | isString e = f e
+modifyLits f e | isList e = f e
                | Data dc <- e
                , nameOcc (dc_name dc) == "True" || nameOcc (dc_name dc) == "False" = f e
                | otherwise = modifyChildrenM (modifyLits f) e
@@ -329,11 +383,11 @@ addFromInteger e = modifyChildren addFromInteger e
 runFuncWithTemp :: [FilePath] -- ^ Filepath containing function
                 -> T.Text -- ^ Function name
                 -> Maybe (State t, Id, String) -- ^ Possible (SyGuS generated) function definition, along with the Id of the function being generated
-                -> Config
+                -> SynthConfig
                 -> IO (Id, [ExecRes ()], NameGen)
 runFuncWithTemp src f smt_def config = do
     withSystemTempFile "SpecTemp.hs" (\temp handle -> do
-        setUpSpec handle smt_def
+        setUpSpec config handle smt_def
 
         runFunc temp src f smt_def config
         )    
@@ -342,27 +396,48 @@ runFunc :: FilePath
         -> [FilePath] -- ^ Filepath containing function
         -> T.Text -- ^ Function name
         -> Maybe (State t, Id, String) -- ^ Possible (SyGuS generated) function definition, along with the Id of the function being generated
-        -> Config
+        -> SynthConfig
         -> IO (Id, [ExecRes ()], NameGen)
-runFunc temp src f smt_def config = do
-
-    let config' = config { base = base config ++ temp:src, maxOutputs = Just 10}
+runFunc temp src f smt_def sc@(SynthConfig { eq_file = eq_f, g2_config = config }) = do
+    let extra_fp = maybeToList eq_f
+        config' = config { base = base config ++ extra_fp ++ temp:src
+                         , baseInclude = map takeDirectory extra_fp ++ baseInclude config
+                         , maxOutputs = Just 10}
 
     proj <- case src of
                 src':_ -> guessProj (includePaths config') src'
                 _ -> return []
 
-    (init_state, entry_f, bindings, mb_modname) <- initialStateFromFile proj src
-                                    Nothing False f (mkCurrExpr TV.empty Nothing Nothing) (mkArgTys config' TV.empty)
+    let f' = if isJust smt_def then "comp" else f
+    (init_state, func, bindings, mb_modname) <- initialStateFromFile proj src
+                                    Nothing False f' (mkCurrExpr TV.empty Nothing Nothing) (mkArgTys config' TV.empty)
                                     simplTranslationConfig config'
     
-    let (comp_state, bindings') = if isJust smt_def then findInconsistent (idName entry_f) init_state bindings else (init_state, bindings)
+    let (comp_state, entry_f) = case smt_def of
+                        Just (_, i@(Id n _), _) | Just (entry_f_n, entry_f_def) <- E.lookupNameMod (nameOcc n) (nameModule n) (expr_env init_state) ->
+                                            let
+                                                new_i = Id entry_f_n $ typeOf (tyvar_env init_state) entry_f_def
+                                            in
+                                            (findInconsistent new_i init_state bindings, new_i)
+                                       | otherwise -> error "runFunc: func not found" 
+                        Nothing -> (init_state, func)
     -- let config'' = if isJust smt_def then config' { logStates = Log Pretty "a_smt"} else config'
     T.putStrLn $ printHaskellPG (mkPrettyGuide $ getExpr comp_state) comp_state (getExpr comp_state)
 
-    (er, b, to) <- runG2WithConfig proj src entry_f f [] mb_modname comp_state config' bindings'
+    let comp_state' = if checking sc == Verify then setUpVerification (idName entry_f) comp_state else comp_state
+
+    (er, b, to) <- runG2WithConfig proj src entry_f f [] mb_modname comp_state' config' bindings
 
     return (entry_f, er, name_gen bindings)
+
+setUpVerification :: Name -> State t -> State t
+setUpVerification entry_n s@(State { expr_env = eenv, known_values = kv  })
+    | Just (smt_n, _) <- E.lookupNameMod (smtName $ nameOcc entry_n) (Just "Spec") eenv
+    , Just f_e <- E.lookup entry_n eenv =
+        let f_e' = renameVars entry_n smt_n f_e in
+        s { expr_env = E.insert entry_n f_e' eenv
+          , known_values = addSmtStringFunc smt_n kv }
+    | otherwise = s
 
 smtNameWrap :: T.Text -> T.Text
 smtNameWrap n | Just (c, _) <- T.uncons n
@@ -374,24 +449,46 @@ smtName n | Just (c, _) <- T.uncons n
           , isAlpha c = "smt_" <> n
           | otherwise = "$!+$" <> n
 
-setUpSpec :: Handle -> Maybe (State t, Id, String) -> IO ()
-setUpSpec h Nothing = hClose h
-setUpSpec h (Just (s@(State { known_values = kv }), Id n t, spec)) = do
-    let t' = foldr1 TyFun
-           . filter (not . isCallStack)
-           . splitTyFuns
+setUpSpec :: SynthConfig -> Handle -> Maybe (State t, Id, String) -> IO ()
+setUpSpec _ h Nothing = hClose h
+setUpSpec sc h (Just (s@(State { known_values = kv, type_classes = tc }), Id n t, spec)) = do
+    let ts = splitTyFuns
            . snd
            $ splitTyForAlls t
+        t' = foldr1 TyFun
+           $ filter (not . isCallStack) ts
+        t_with_cs = foldr1 TyFun ts
+        vs = take (length (filter (not . isTypeClass tc) . filter (not . isCallStack) $ ts) - 1) argList
+        vs_str = intercalate " " vs
+        smt_name = T.unpack . smtNameWrap . smtName $ nameOcc n
+        eq_ch = case eq_check sc of
+                    "==" -> "(==)"
+                    x:_ | isAlphaNum x -> "(liftEq " ++ eq_check sc ++ ")"
+                    _ -> "(liftEq (" ++ eq_check sc ++ "))"
+
         contents = "{-# LANGUAGE BangPatterns, MagicHash, ScopedTypeVariables, ViewPatterns #-}\nmodule Spec where\nimport GHC.Prim2\n"
                     ++ "import GHC.Types2\n"
+                    ++ "import GHC.Stack\n"
                     ++ "import Control.Exception\n"
-                    ++ "import System.IO.Unsafe\n\n"
+                    ++ "import Data.Functor.Classes\n"
+                    ++ "import System.IO.Unsafe\n"
+                    ++ fromMaybe "\n" (fmap (\f -> "import " ++ f ++ "\n") . fmap (dropExtension . takeFileName) $ eq_file sc)
+                    ++ "\n"
                     ++ "tryMaybe :: IO a -> IO (Maybe a)\n"
                     ++ "tryMaybe a = catch (a >>= \\v -> return (Just v)) (\\(e :: SomeException) -> return Nothing)\n\n"
                     ++ "tryMaybeUnsafe :: a -> Maybe a\n"
                     ++ "tryMaybeUnsafe x = unsafePerformIO $ tryMaybe (let !y = x in return y)\n\n"
-                    ++ T.unpack (smtNameWrap . smtName $ nameOcc n) ++ " :: " ++ T.unpack (mkTypeHaskellDictArrows (mkPrettyGuide ()) (type_classes s) t') ++ "\n"
+                    ++ smt_name ++ " :: " ++ T.unpack (mkTypeHaskellDictArrows (mkPrettyGuide ()) (type_classes s) t') ++ "\n"
                     ++ spec
+                    ++ "\n\nplaceholder" ++ " :: " ++ T.unpack (mkTypeHaskellDictArrows (mkPrettyGuide ()) (type_classes s) t_with_cs) ++ "\n"
+                    ++ "placeholder = undefined\n\n"
+                    -- ++ "\n\ncomp :: ("
+                    --         ++ T.unpack (mkTypeHaskellDictArrows (mkPrettyGuide ()) (type_classes s) t')
+                    --         ++ ") -> "
+                    --         ++ T.unpack (mkTypeHaskellDictArrows (mkPrettyGuide ()) (type_classes s) t') ++ "\n"
+                    ++ "comp " ++ vs_str ++ " = " ++ "\n    let val = placeholder " ++ vs_str ++ ""  ++ " in\n"
+                                                   ++ "    assert (" ++ eq_ch ++
+                                                            " (tryMaybeUnsafe (" ++ smt_name ++ " " ++ vs_str ++ ")) (tryMaybeUnsafe val)) val"
     putStrLn contents
     hPutStrLn h contents
     hFlush h
@@ -402,42 +499,11 @@ isCallStack ty | TyCon tn _:_ <- unTyApp ty = nameOcc tn == "IP"
                | otherwise = False
 
 -- | Find inputs that violate a found SMT definition
-findInconsistent :: Name -> State t -> Bindings -> (State t, Bindings)
-findInconsistent entry_f s@(State { expr_env = eenv
-                                  , curr_expr = CurrExpr _ cexpr
-                                  , known_values = kv
-                                  , type_classes = tc
-                                  , tyvar_env = tv_env }) b@(Bindings { name_gen = ng })
-    | Just (smt_def, smt_def_e) <- E.lookupNameMod (smtName $ nameOcc entry_f) (Just "Spec") eenv
-    , Just (try_unsafe, try_unsafe_e) <- E.lookupNameMod "tryMaybeUnsafe" (Just "Spec") eenv =
-    let
-        app_smt_def = mkApp $ Var (Id smt_def TyUnknown)
-                            :fixed_inputs b
-                            ++ filter (not . isCallStack . typeOf tv_env) (map Var (inputIds s b))
-
-        try_unsafe_var = Var . Id try_unsafe $ typeOf tv_env $ try_unsafe_e
-
-        ret_type = returnType $ typeOf tv_env cexpr
-        m_eq_dict = typeClassInst tc HM.empty (KV.eqTC kv) $ TyApp (tyMaybe kv) ret_type
-    in
-    case m_eq_dict of
-        Just eq_dict ->
-            let
-                (val_name, ng') = freshSeededString "val" ng
-                (comp_name, ng'') = freshSeededString "comp" ng'
-
-                comp_e = mkApp [Var (Id (KV.eqFunc kv) TyUnknown)
-                              , Type ret_type
-                              , eq_dict
-                              , App (App try_unsafe_var (Type ret_type)) app_smt_def
-                              , App (App try_unsafe_var  (Type ret_type)) (Var $ Id val_name TyUnknown)]
-                new_curr_expr = Let [ (Id val_name TyUnknown, getExpr s)
-                                    , (Id comp_name TyUnknown, comp_e)
-                                    ] $ Assert Nothing (Var (Id comp_name TyUnknown)) (Var (Id val_name TyUnknown))
-            in
-            ( s { curr_expr = CurrExpr Evaluate new_curr_expr, true_assert = False }
-            , b { name_gen = ng'' })
-        Nothing -> error $ "findInconsistent: no Eq dict" ++ show ret_type
+findInconsistent :: Id -> State t -> Bindings -> State t
+findInconsistent entry_f s@(State { expr_env = eenv  }) b
+    | Just (ph_name, _) <- E.lookupNameMod "placeholder" (Just "Spec") eenv =
+        s { expr_env = E.insert ph_name (Var entry_f) eenv
+          , true_assert = False }
     | otherwise = error $ "findInconsistent: spec not found"
 
 -------------------------------------------------------------------------------
@@ -492,7 +558,10 @@ sygusCmds er@(ExecRes { final_state = s@(State { tyvar_env = tv_env, known_value
     in
     [ SmtCmd $ SetLogic "ALL"
     , define_eq "strEq" strSort
+    , define_eq "seqIntEq" seq_int_sort
+    , define_eq "seqFloatEq" seq_float_sort
     , define_eq "intEq" intSort
+    , define_eq "floatEq" floatSort
     , from_char
     , to_char
     , SynthFun "spec" arg_vars ret_sort (Just grm) ]
@@ -500,6 +569,7 @@ sygusCmds er@(ExecRes { final_state = s@(State { tyvar_env = tv_env, known_value
     [CheckSynth]
     where
         intSort = IdentSort (ISymb "Int")
+        floatSort = IdentSort (ISymb "Float32")
         strSort = IdentSort (ISymb "String")
         boolSort = IdentSort (ISymb "Bool")
 
@@ -514,8 +584,11 @@ sygusCmds er@(ExecRes { final_state = s@(State { tyvar_env = tv_env, known_value
         str_args = map fst . filter ((==) (tyString kv) . snd) $ zip argList arg_types
 
         intIdent = BfIdentifier (ISymb "IntPr")
+        floatIdent = BfIdentifier (ISymb "FloatPr")
         charArgIdent = BfIdentifier (ISymb "CharArgPr")
         strIdent = BfIdentifier (ISymb "StrPr")
+        seqIntIdent = BfIdentifier (ISymb "SeqIntPr")
+        seqFloatIdent = BfIdentifier (ISymb "SeqFloatPr")
         boolIdent = BfIdentifier (ISymb "BoolPr")
 
         -------------------------------
@@ -525,10 +598,10 @@ sygusCmds er@(ExecRes { final_state = s@(State { tyvar_env = tv_env, known_value
                     ++
                     [ GBfTerm (BfIdentifierBfs (ISymb "ite") [ boolIdent, strIdent, strIdent])
                     , GBfTerm (BfLiteral (LitStr ""))
-                    , GBfTerm (BfIdentifierBfs (ISymb "str.++") [ strIdent, strIdent])
-                    , GBfTerm (BfIdentifierBfs (ISymb "str.at") [ strIdent, intIdent])
-                    , GBfTerm (BfIdentifierBfs (ISymb "str.substr") [ strIdent, intIdent, intIdent])
-                    , GBfTerm (BfIdentifierBfs (ISymb "str.replace") [ strIdent, strIdent, strIdent])
+                    , GBfTerm (BfIdentifierBfs (ISymb "seq.++") [ strIdent, strIdent])
+                    , GBfTerm (BfIdentifierBfs (ISymb "seq.at") [ strIdent, intIdent])
+                    , GBfTerm (BfIdentifierBfs (ISymb "seq.extract") [ strIdent, intIdent, intIdent])
+                    , GBfTerm (BfIdentifierBfs (ISymb "seq.replace") [ strIdent, strIdent, strIdent])
                     -- , GBfTerm (BfIdentifierBfs (ISymb "str.replace_all") [ strIdent, strIdent, strIdent])
                     ]
                     ++
@@ -539,27 +612,61 @@ sygusCmds er@(ExecRes { final_state = s@(State { tyvar_env = tv_env, known_value
                  , GBfTerm (BfIdentifierBfs (ISymb "ite") [ boolIdent, intIdent, intIdent])
                  , GBfTerm (BfLiteral (LitNum 0))
                  , GBfTerm (BfLiteral (LitNum (-1)))
-                 , GBfTerm (BfIdentifierBfs (ISymb "str.indexof") [ strIdent, strIdent, intIdent ])
-                 , GBfTerm (BfIdentifierBfs (ISymb "str.len") [ strIdent ])
                  , GBfTerm (BfIdentifierBfs (ISymb "+") [ intIdent, intIdent])
                  ]
+                 ++ intOpForIdent strIdent
+                 ++ intOpForIdent seqIntIdent
+        intOpForIdent ident =
+                 [
+                   GBfTerm (BfIdentifierBfs (ISymb "seq.indexof") [ ident, ident, intIdent ])
+                 , GBfTerm (BfIdentifierBfs (ISymb "seq.len") [ ident ])
+                 ]
+        grmFloat = [ GVariable floatSort
+                   , GBfTerm (BfIdentifierBfs (ISymb "ite") [ boolIdent, floatIdent, floatIdent])
+                   ]
+
         grmBool = [ GBfTerm (BfIdentifierBfs (ISymb "ite") [ boolIdent, boolIdent, boolIdent])
-                  , GBfTerm (BfIdentifierBfs (ISymb "strEq") [ strIdent, strIdent ])
+                  , GBfTerm (BfIdentifierBfs (ISymb "and") [ boolIdent, boolIdent])
+                  , GBfTerm (BfIdentifierBfs (ISymb "or") [ boolIdent, boolIdent])
+                  , GBfTerm (BfIdentifierBfs (ISymb "not") [ boolIdent ])
+
                   , GBfTerm (BfIdentifierBfs (ISymb "intEq") [ intIdent, intIdent ])
                   , GBfTerm (BfIdentifierBfs (ISymb "str.<") [ strIdent, strIdent ])
                   , GBfTerm (BfIdentifierBfs (ISymb "str.<=") [ strIdent, strIdent ])
-                  , GBfTerm (BfIdentifierBfs (ISymb "str.prefixof") [ strIdent, strIdent ])
-                  , GBfTerm (BfIdentifierBfs (ISymb "str.suffixof") [ strIdent, strIdent ])
-                  , GBfTerm (BfIdentifierBfs (ISymb "str.contains") [ strIdent, strIdent ])
+                  ]
+                  ++ boolOpForIdent "strEq" strIdent
+                  ++ boolOpForIdent "seqIntEq" seqIntIdent
+                  ++ boolOpForIdent "seqFloatEq" seqFloatIdent
+        boolOpForIdent comp ident = 
+                  [ GBfTerm (BfIdentifierBfs (ISymb comp) [ ident, ident ])
+                  , GBfTerm (BfIdentifierBfs (ISymb "seq.prefixof") [ ident, ident ])
+                  , GBfTerm (BfIdentifierBfs (ISymb "seq.suffixof") [ ident, ident ])
+                  , GBfTerm (BfIdentifierBfs (ISymb "seq.contains") [ ident, ident ])
                   ]
 
+        grmSeq srt srtIdent =
+                     [ GVariable srt
+                     , GBfTerm (BfIdentifierBfs (ISymb "ite") [ boolIdent, srtIdent, srtIdent])
+                     , GBfTerm (BfIdentifierBfs (ISymb "as") [BfIdentifier (ISymb "seq.empty"), BfIdentifier (ISymb . T.unpack $ printSygus srt) ])
+                     , GBfTerm (BfIdentifierBfs (ISymb "seq.++") [ srtIdent, srtIdent])
+                     , GBfTerm (BfIdentifierBfs (ISymb "seq.at") [ srtIdent, intIdent])
+                     , GBfTerm (BfIdentifierBfs (ISymb "seq.extract") [ srtIdent, intIdent, intIdent])
+                     , GBfTerm (BfIdentifierBfs (ISymb "seq.replace") [ srtIdent, srtIdent, srtIdent])
+                     -- , GBfTerm (BfIdentifierBfs (ISymb "str.replace_all") [ strIdent, strIdent, strIdent])
+                     ]
 
-        ty_gram_defs = (if ret_type == tyChar kv then ((tyChar kv, GroupedRuleList "CharRetPr" strSort grmCharRet):) else id) $
-                       (if not (null char_args) then ((tyChar kv, GroupedRuleList "CharArgPr" strSort grmCharArgs):) else id)           
-                       [ (tyString kv, GroupedRuleList "StrPr" strSort grmString)
-                       , (TyLitInt, GroupedRuleList "IntPr" intSort grmInt)
-                       , (tyBool kv, GroupedRuleList "BoolPr" boolSort grmBool)]
-        find_start_gram = findElem (\(ty, _) -> ty == ret_type) ty_gram_defs
+        seq_int_sort = IdentSortSort (ISymb "Seq") [IdentSort (ISymb "Int")]
+        seq_float_sort = IdentSortSort (ISymb "Seq") [IdentSort (ISymb "Float32")]
+
+        ty_gram_defs = (if ret_type == tyChar kv then (([tyChar kv], GroupedRuleList "CharRetPr" strSort grmCharRet):) else id) $
+                       (if not (null char_args) then (([tyChar kv], GroupedRuleList "CharArgPr" strSort grmCharArgs):) else id)           
+                       [ ([tyString kv], GroupedRuleList "StrPr" strSort grmString)
+                       , ([TyApp (tyList kv) (tyInt kv), TyApp (tyList kv) (tyInteger kv)], GroupedRuleList "SeqIntPr" seq_int_sort (grmSeq seq_int_sort seqIntIdent))
+                       , ([TyApp (tyList kv) (tyFloat kv)], GroupedRuleList "SeqFloatPr" seq_float_sort (grmSeq seq_float_sort seqFloatIdent))
+                       , ([TyLitInt], GroupedRuleList "IntPr" intSort grmInt)
+                       , ([TyLitFloat], GroupedRuleList "FloatPr" floatSort grmFloat)
+                       , ([tyBool kv], GroupedRuleList "BoolPr" boolSort grmBool)]
+        find_start_gram = findElem (\(ty, _) -> ret_type `elem` ty) ty_gram_defs
         gram_defs' = case find_start_gram of
                             Just (start_sym, other_sym) -> map snd $ start_sym:other_sym
                             Nothing -> error "runSygus: no start symbol"
@@ -606,23 +713,25 @@ relArgs s = filter (not . isCallStack . typeOf (tyvar_env s))
 
 exprToTerm :: KnownValues -> Expr -> Term
 exprToTerm _ (Lit (LitInt x)) = TermLit (LitNum x)
-exprToTerm _ (Lit (LitChar x)) | Just t <- toStringTerm [x] = t
+exprToTerm _ (Lit (LitChar x)) = toStringTerm [x]
 exprToTerm _ (App _ (Lit (LitInt x))) = TermLit (LitNum x)
-exprToTerm _ (App _ (Lit (LitChar x))) | Just t <- toStringTerm [x] = t
+exprToTerm _ (App _ (Lit (LitFloat x))) = TermIdent . ISymb . T.unpack . TB.run $ convertFloating castFloatToWord32 8 x
+exprToTerm _ (App _ (Lit (LitChar x))) = toStringTerm [x]
 exprToTerm kv dc | dc == mkTrue kv = TermLit (LitBool True)
                  | dc == mkFalse kv = TermLit (LitBool False)
 exprToTerm _ e | Just t <- toStringTermFromExpr e = t
+exprToTerm kv e | Just t <- toSeqTermFromExpr kv e = t
 exprToTerm _ e = error $ "exprToTerm: unsupported Expr" ++ "\n" ++ show e
 
 toStringTermFromExpr :: Expr -> Maybe Term
-toStringTermFromExpr e | Just s <- toString e = toStringTerm s
+toStringTermFromExpr e | Just s <- toString e = Just $ toStringTerm s
                        | otherwise = Nothing
 
-toStringTerm :: String -> Maybe Term
+toStringTerm :: String -> Term
 toStringTerm s =
-    Just $ case go s of
-                [x] -> x
-                ys -> TermCall (ISymb "str.++") ys
+    case go s of
+            [x] -> x
+            ys -> TermCall (ISymb "seq.++") ys
     where
         go s = let (pre, post) = span isPrint s in
                case post of
@@ -630,17 +739,38 @@ toStringTerm s =
                     (non_pr:post') ->
                         let non_pr_t = TermCall (ISymb "str.from_code") [TermLit . LitNum . toInteger $ fromEnum non_pr] in
                         [TermLit (LitStr pre), non_pr_t] ++ go post'
-toStringTerm _ = Nothing
 
+toSeqTermFromExpr :: KnownValues -> Expr -> Maybe Term
+toSeqTermFromExpr kv e | Just s <- toExprList e = Just $ toSeqTerm kv (exprListType e) s
+                       | otherwise = Nothing
+
+exprListType :: Expr -> Type
+exprListType e | _:Type t:_ <- unApp e = t
+exprListType e = error $ "exprListType: Not a list" ++ show e
+
+toSeqTerm :: KnownValues -> Type -> [Expr] -> Term
+toSeqTerm kv t [] =
+    let
+        sortToTerm (IdentSort (ISymb "String")) = TermIdent (ISymb "String")
+        sortToTerm (IdentSort s) = TermCall (ISymb "Seq") [ TermIdent s]
+        sortToTerm (IdentSortSort s xs) = TermCall s $ map sortToTerm xs
+    in
+    TermCall (ISymb "as") [ TermIdent (ISymb "seq.empty"), sortToTerm $ typeToSort kv t ]
+toSeqTerm kv t (x:xs) = TermCall (ISymb "seq.++") [ TermCall (ISymb "seq.unit") [ exprToTerm kv x ]
+                                                  , toSeqTerm kv t xs]
 
 typeToSort :: KnownValues -> Type -> Sort
 typeToSort _ t | t == TyLitInt = IdentSort (ISymb "Int")
 typeToSort _ t | t == TyLitChar = IdentSort (ISymb "String")
 typeToSort kv t | t == tyBool kv = IdentSort (ISymb "Bool")
-typeToSort kv (TyApp t _) | t == tyList kv = IdentSort (ISymb "String")
+typeToSort kv (TyApp t1 t2) | t1 == tyList kv
+                            , t2 == tyChar kv = IdentSort (ISymb "String")
+typeToSort kv (TyApp t1 t2) | t1 == tyList kv = IdentSortSort (ISymb "Seq") [ typeToSort kv t2 ]
 typeToSort kv t | t == tyInt kv = IdentSort (ISymb "Int")
 typeToSort kv t | t == tyInteger kv = IdentSort (ISymb "Int")
+typeToSort kv t | t == tyFloat kv = IdentSort (ISymb "Float32")
 typeToSort kv t | t == tyChar kv = IdentSort (ISymb "String")
+typeToSort _ TyUnknown = IdentSort (ISymb ("Unknown"))
 typeToSort _ s = error $ "typeToSort: unsupported Type" ++ "\n" ++ show s
 
 -------------------------------------------------------------------------------
@@ -671,6 +801,7 @@ termToHaskell trm =
               )
         go !x (TermIdent (ISymb s)) = (x, (s, []))
         go !x (TermCall (ISymb "-") [TermLit (LitNum y)]) =(x, ("-" ++ show y ++ "#", []))
+        go !x (TermCall (ISymb "as") (TermIdent (ISymb "seq.empty"):_)) = (x, ("[]", []))
         go !x (TermCall (ISymb f) ts) =
             let
                 (x', vl_args, arg_binds) = mapGo x ts
@@ -705,17 +836,39 @@ smtFuncToPrim s vl_args = conv s ++ conv_args
         conv "str.indexof" = "strIndexOf#"
         conv "str.replace" = "strReplace#"
         conv "strEq" = "strEq#"
+
+        conv "seq.++" = "strAppend# "
+        conv "seq.len" = "strLen#"
+        conv "seq.at" = "strAt#"
+        conv "seq.extract" = "strSubstr#"
+        conv "seq.prefixof" = "strPrefixOf#"
+        conv "seq.suffixof" = "strSuffixOf#"
+        conv "seq.contains" = "strContains#"
+        conv "seq.indexof" = "strIndexOf#"
+        conv "seq.replace" = "strReplace#"
+        conv "seqIntEq" = "strEq#"
+        conv "seqFloatEq" = "strEq#"
+
         conv "intEq" = "($==#)"
+        conv "floatEq" = "smtEqFloat#"
         conv "fromChar" = ""
         conv "toChar" = ""
         conv "+" = "(+#)"
         conv "ite" = ""
+
         conv f = error $ "smtFuncToPrim: unsupported " ++ f
         
         conv_args = case s of
                         "ite" | [a1, a2, a3] <- vl_args -> "(if " ++ a1 ++ " then " ++ a2 ++ " else " ++ a3 ++ ")"
                               | otherwise -> error "smtFuncToPrim: ite wrong arg count"
-                        "fromChar" | [a] <- vl_args -> "[" ++ a ++ "]"
+                        -- We wrap list values in id to ensure that strict let expressions do not get shifted into variable args.
+                        -- GHC may rewrite:
+                        --     @ let !x = ['a'] in strAppend# x y @
+                        -- to 
+                        --     @ strAppend# (let !x = ['a'] in x) y @
+                        -- because ['a'] is already in WHNF.  But this then breaks G2, because strAppend# cannot handle its
+                        -- first argument being a let expression.
+                        "fromChar" | [a] <- vl_args -> "id [" ++ a ++ "]"
                                    | otherwise -> error "smtFuncToPrim: fromChar wrong arg count"
                         "toChar" | [a] <- vl_args ->
                                             let

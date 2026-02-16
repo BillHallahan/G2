@@ -501,6 +501,7 @@ test-suite test-seq-gen
                        , base >= 4.8 && < 5
                        , containers
                        , directory
+                       , optparse-applicative
                        , tasty >= 1.0 && < 2.0
                        , tasty-hunit >= 0.10 && < 0.10.0.3
                        , text

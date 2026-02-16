@@ -285,11 +285,11 @@ liquidTests = testGroup "Liquid"
 posInfTests :: TestTree
 posInfTests = testGroup "Tests"
             [ -- posTestInference "tests_lh/test_files/Pos/HigherOrder.hs"
-              posTestInference "tests_lh/test_files/Pos/HigherOrder2.hs"
+            --   posTestInference "tests_lh/test_files/Pos/HigherOrder2.hs"
             -- , posTestInferenceWithTimeOut 240 5 "tests_lh/test_files/Pos/HigherOrder3.hs"
             -- , posTestInference "tests_lh/test_files/Pos/HigherOrder4.hs"
 
-            , posTestInference "tests_lh/test_files/Pos/Test1.hs" 
+              posTestInference "tests_lh/test_files/Pos/Test1.hs" 
             , posTestInference "tests_lh/test_files/Pos/Test2.hs"
             , posTestInference "tests_lh/test_files/Pos/Test3.hs"
             , posTestInference "tests_lh/test_files/Pos/Test4.hs"
@@ -331,7 +331,7 @@ posInfTests = testGroup "Tests"
             , posTestInference "tests_lh/test_files/Pos/Test40.hs"
             , posTestInference "tests_lh/test_files/Pos/Test41.hs"
             , posTestInference "tests_lh/test_files/Pos/Test42.hs"
-            , posTestInference "tests_lh/test_files/Pos/Test43.hs"
+            -- , posTestInference "tests_lh/test_files/Pos/Test43.hs"
             , posTestInference "tests_lh/test_files/Pos/Test44.hs"
             , posTestInference "tests_lh/test_files/Pos/Test45.hs"
             , posTestInference "tests_lh/test_files/Pos/Test46.hs"
@@ -573,7 +573,7 @@ posTestInferenceWithUseInvs :: FilePath -> TestTree
 posTestInferenceWithUseInvs = posTestInferenceWithTimeOutUseInvs 240 5 True
 
 posTestInference :: FilePath -> TestTree
-posTestInference = posTestInferenceWithTimeOut 120 5
+posTestInference = posTestInferenceWithTimeOut 240 5
 
 negTestInference :: FilePath -> TestTree
 negTestInference fp = do

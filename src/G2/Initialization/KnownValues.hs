@@ -1,6 +1,7 @@
 {-# LANGUAGE CPP, OverloadedStrings #-}
 
 module G2.Initialization.KnownValues ( initKnownValues
+                                     , addSmtStringFunc
                                      , recalcSmtStringFuncs ) where
 
 import G2.Language.AST
@@ -138,7 +139,7 @@ initKnownValues eenv tenv tc =
     , errorWithoutStackTraceFunc = exprWithStrName eenv "errorWithoutStackTrace"
     , patErrorFunc = exprWithStrName eenv "patError"
 
-    , smtStringFuncs = mkSmtStringFuncs type_index eenv
+    , smtStringFuncs = HS.empty
     }
 
 exprWithStrName :: E.ExprEnv -> T.Text -> Name
@@ -194,6 +195,9 @@ superClassExtractor tc tc_n sc_n =
             case t_c of
                 TyCon n _ -> n == sc_n
                 _ -> False
+
+addSmtStringFunc :: Name -> KnownValues -> KnownValues
+addSmtStringFunc n kv = kv { smtStringFuncs = HS.insert n (smtStringFuncs kv) }
 
 recalcSmtStringFuncs :: E.ExprEnv -> KnownValues -> KnownValues
 recalcSmtStringFuncs eenv kv = kv { smtStringFuncs = mkSmtStringFuncs (typeIndex kv) eenv }
