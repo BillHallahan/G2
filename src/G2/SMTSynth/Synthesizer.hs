@@ -2,6 +2,7 @@
 
 module G2.SMTSynth.Synthesizer ( SynthConfig (..)
                                , SynthMode (..)
+                               , Checking (..)
                                
                                , getSeqGenConfig
                                , genSMTFunc
