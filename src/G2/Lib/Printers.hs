@@ -565,6 +565,9 @@ mkTypeHaskellPG' pg m_tc = go
         go (TyFun t1 t2)
             | isTyFun t1 = "(" <> go t1 <> ") -> " <> go t2
             | Just tc <- m_tc
+            , TyCon n _:_<- unTyApp t1
+            , nameOcc n == "IP" = "HasCallStack => " <> go t2
+            | Just tc <- m_tc
             , isTypeClass tc t1 = go t1 <> " => " <> go t2
             | otherwise = go t1 <> " -> " <> go t2
         go (TyCon n _) | nameOcc n == "List"

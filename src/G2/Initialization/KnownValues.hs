@@ -138,7 +138,7 @@ initKnownValues eenv tenv tc =
     , errorWithoutStackTraceFunc = exprWithStrName eenv "errorWithoutStackTrace"
     , patErrorFunc = exprWithStrName eenv "patError"
 
-    , smtStringFuncs = mkSmtStringFuncs type_index eenv
+    , smtStringFuncs = HS.empty
     }
 
 exprWithStrName :: E.ExprEnv -> T.Text -> Name
