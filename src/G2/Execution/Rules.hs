@@ -1818,7 +1818,7 @@ retLitTableFrame solver simplifier s ng ltc up stck = case ltc of
         e = unwrapCurrExpr $ curr_expr s
         frames = S.toList $ exec_stack s
         explorings = filterJust $ map getExploringConds frames
-        all_pcs = foldl' PC.union PC.empty explorings
+        all_pcs = L.foldl' PC.union PC.empty explorings
         updated_lts = if up
             then S.modifyTop (updateLiteralTable all_pcs e) $ lit_table_stack s
             else lit_table_stack s
