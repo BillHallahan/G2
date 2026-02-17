@@ -1824,6 +1824,7 @@ retLitTableFrame solver simplifier s ng ltc up stck = case ltc of
             else lit_table_stack s
 
         -- Make sure the argument is always symbolic
+        -- TODO: make the nested ids also symbolic here!
         sym_id = getLTArg s
         s' = s { expr_env = E.insertSymbolic sym_id (expr_env s) }
         diff_state = s' { exec_stack = stck }

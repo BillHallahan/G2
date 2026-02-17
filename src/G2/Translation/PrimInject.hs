@@ -268,7 +268,8 @@ primDefs' b c l unit =
               , ("evalsToSMTRep#", Prim EvalsToSMTRep (TyForAll a (TyFun (TyVar a) (TyCon b TYPE))))
               , ("typeIndex#", Prim (TypeIndex (TyH { tyh_strings = False, tyh_prim_lists = False })) (TyForAll a (TyFun (TyVar a) TyLitInt)))
 
-              , ("buildLitTable", Lam TypeL (x TYPE)
+              , ("buildLitTable", Lam TypeL (u TYPE)
+                                . Lam TypeL (x TYPE)
                                 . Lam TypeL (y TYPE)
                                 . Lam TermL (z funTyXY)
                                 $ App (Prim BuildLitTable (TyFun funTyXY TyUnknown)) (Var $ z funTyXY)

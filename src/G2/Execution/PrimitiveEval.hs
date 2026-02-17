@@ -471,9 +471,7 @@ evalPrimWithState s ng expr@(App (Prim (LitTableRef lt_name) _) (Var sym_i)) =
     -- for nested lit tables
     -- The first diff will then immediately become an `Exploring`
     let table = fromJust (M.lookup lt_name $ lit_tables s)
-        make_diff (conds, lit) = SD { new_conc_entries = []
-                                    -- We need to make sure the argument is still symbolic
-                                    -- after exploring other paths, since it can get concretized
+        make_diff (conds, lit) = SD { new_conc_entries = [(idName sym_i, lit)]
                                     , new_sym_entries = []
                                     , new_path_conds = PC.toList conds
                                     , concretized = []
