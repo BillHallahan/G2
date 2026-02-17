@@ -1,4 +1,4 @@
-{-# LANGUAGE FlexibleContexts, OverloadedStrings, RankNTypes, LambdaCase #-}
+{-# LANGUAGE FlexibleContexts, OverloadedStrings, RankNTypes, LambdaCase, TupleSections #-}
 
 module G2.Execution.Rules ( module G2.Execution.RuleTypes
                           , Sharing (..)
@@ -1731,7 +1731,7 @@ retReplaceSymbFuncTemplate sft
     }], ng'''')
 
     -- SF-FUNC-FORALL
-    -- matches polymorphic functions binding a single type variable with no typeclass constraints
+    -- matches polymorphic functions with no typeclass constraints
     -- applies the function with all TVs bound to Integer
     -- all arguments to the function are symbolic with types either found in the function type or Integer
     | Var (Id n (TyFun t1 t2)):es <- unApp ce
@@ -1742,13 +1742,10 @@ retReplaceSymbFuncTemplate sft
     = let
         applying_type = tyInteger kv -- Binding all type variables to Integer
         (fa, ng') = freshId t1 ng
-        (f, ng'') = freshId (TyFun (retype (head as) applying_type tr) $ TyFun t1 t2) ng'
+        (f, ng'') = freshId (TyFun (retypes (map (, applying_type) as) tr) $ TyFun t1 t2) ng'
         t_vs = replicate (length as) (Type applying_type)
         
-        -- TODO: only retyping first a
-        -- TOOD: pull out TyLitInt into a variable and use Integer
-        -- TODO: does retype work over lists without map?
-        (xIds, ng''') = freshIds (map (retype (head as) applying_type) tfs) ng''
+        (xIds, ng''') = freshIds (retypes (map (, applying_type) as) tfs) ng''
         e = Lam TermL fa $ mkApp [Var f, mkApp (Var fa:(t_vs ++ map Var xIds)), Var fa]
         
         eenv' = foldr E.insertSymbolic eenv xIds
