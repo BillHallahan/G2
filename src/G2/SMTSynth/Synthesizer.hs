@@ -117,9 +117,8 @@ data SynthConfig = SynthConfig { run_file :: String
                                , g2_config :: Config
                                }
 
-data SynthMode = SynthString | SynthSeqInt deriving Eq
-
 data Checking = Verify | ADTHeight deriving Eq
+data SynthMode = SynthString | SynthSeqInt deriving Eq
 
 synthModeMapping :: [(String, SynthMode)]
 synthModeMapping = [("String", SynthString), ("SeqInt", SynthSeqInt)]
