@@ -50,6 +50,7 @@ tests = testGroup "All Tests"
         , smtSynthTestVerify "tests_seq_gen/tests/Verify1.hs" "app"
         , smtSynthTestVerify "tests_seq_gen/tests/Verify1.hs" "eq"
         , smtSynthTestVerify "tests_seq_gen/tests/Verify1.hs" "myTake"
+        , smtSynthTestVerify "tests_seq_gen/tests/Verify1.hs" "myDelete"
         
         , smtSynthTestRunSymexSMTStrings "tests_seq_gen/tests_symex/Test1.hs" "myDelete"
         ]
