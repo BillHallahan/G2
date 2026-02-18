@@ -52,7 +52,7 @@ tests = testGroup "All Tests"
         , smtSynthTestVerify "tests_seq_gen/tests/Verify1.hs" "myTake"
         , smtSynthTestVerify "tests_seq_gen/tests/Verify1.hs" "myDelete"
         
-        , smtSynthTestRunSymexSMTStrings "tests_seq_gen/tests_symex/Test1.hs" "myDelete"
+        , smtSynthTestRunSymexSMTStrings "tests_seq_gen/tests_symex/Test1.hs" "comp" 2
         ]
 
 getSeqGenConfigDir :: T.Text -> IO SynthConfig
@@ -106,6 +106,7 @@ smtSynthTestWithConfig io_config src f =
 
 smtSynthTestRunSymexSMTStrings :: T.Text -- ^ Filer
                                -> T.Text -- ^ Function
+                               -> Int -- ^ Minimum number of outputs
                                -> TestTree
 smtSynthTestRunSymexSMTStrings file = smtSynthTestRunSymexWithConfig (do
                                         synth_config@(SynthConfig { g2_config = config }) <- getSeqGenConfigDir file
@@ -114,10 +115,11 @@ smtSynthTestRunSymexSMTStrings file = smtSynthTestRunSymexWithConfig (do
 smtSynthTestRunSymexWithConfig :: IO SynthConfig
                                -> T.Text -- ^ Function
                                -> T.Text -- ^ Function
+                               -> Int -- ^ Minimum number of outputs
                                -> TestTree
-smtSynthTestRunSymexWithConfig io_config src f =
+smtSynthTestRunSymexWithConfig io_config src f num_out =
     testCase (T.unpack $ src <> " " <> f) (do
         config <- io_config
         r <- timeout (480 * 1000000) $ runFunc (T.unpack src) [] f Nothing config
-        assertBool "Error" (isJust r)
+        assertBool "Error" (maybe False (\(_, er, _) -> num_out <= length er) r)
     )
