@@ -193,12 +193,15 @@ evalForAll as t tms tr s@(State {type_env = tenv, known_values = kv}) eenv ng i 
         e_template :: Expr -> Expr
         e_template ex = mkNestedLam TypeL as_ids $ mkNestedLam TermL term_args ex
 
+        (mstates, ng_eval_forall) = foldr (\ruleF (mss, ng_fold) -> let (ms, ng_fold') = ruleF ng_fold 
+            in (ms:mss, ng_fold')) ([], ng') [pmInstVar, pmCycle, pmNonCont, pmUnwrap, pmInstADT, pmFun, pmFunForall, pmConst]
+
         -- PM-INST-VAR
-        (inst_state, ng_inst_state)
+        pmInstVar ng_in
             | tr `elem` (t:tms) -- return type in arguments
             , tr `elem` as -- return type is a type variable
             = let 
-                ([scrut, bindee], ng'') = freshIds [TyLitInt, TyLitInt] ng'
+                ([scrut, bindee], ng'') = freshIds [TyLitInt, TyLitInt] ng_in
 
                 e' = e_template $ Case (Var scrut) bindee tr 
                     (mkSymIntAlts . map (Var . fst) . filter ((== tr) . snd) $ zip term_args (t:tms))
@@ -210,10 +213,10 @@ evalForAll as t tms tr s@(State {type_env = tenv, known_values = kv}) eenv ng i 
             in
                 if log_rules then trace "PM-INST-VAR" s' else s'
                  
-            | otherwise = (Nothing, ng')
+            | otherwise = (Nothing, ng_in)
         
         -- PM-CYCLE
-        (cycle_state, ng_cycle_state) 
+        pmCycle ng_in
             | (_:_) <- tms
             -- Since PM-CYCLE is only needed to access arguments of types 
             -- that require applications of PM-UNWRAP or PM-NON-CONT, we 
@@ -222,7 +225,7 @@ evalForAll as t tms tr s@(State {type_env = tenv, known_values = kv}) eenv ng i 
             , not $ all isTyVar (t:tms)
             , t `elem` as
             = let 
-                (new_as, ng'') = freshSeededIds as_ids ng_inst_state
+                (new_as, ng'') = freshSeededIds as_ids ng_in
                 (f, ng''') = freshId (renames (HM.fromList (zip (map idName as_ids) (map idName new_as))) -- TODO: map after zip?
                                 $ mkNestedForAll as $ mkTyFun (tms++[t]++[tr])) ng''
 
@@ -235,14 +238,14 @@ evalForAll as t tms tr s@(State {type_env = tenv, known_values = kv}) eenv ng i 
                                          , expr_env = eenv'' }, ng''')
             in 
                 if log_rules then trace "PM-CYCLE" s' else s'
-            | otherwise = (Nothing, ng_inst_state)
+            | otherwise = (Nothing, ng_in)
 
         -- PM-NON-CONT
-        (non_cont_state, ng_non_cont_state)
+        pmNonCont ng_in
             | HS.null $ contTyVars t
             , (_:_) <- tms
             = let
-                (new_as, ng'') = freshSeededIds as_ids ng_cycle_state
+                (new_as, ng'') = freshSeededIds as_ids ng_in
                 (f, ng''') = freshId (renames (HM.fromList (zip (map idName as_ids) (map idName new_as)))
                                 $ TyFun t (mkNestedForAll as $ mkTyFun $ tms ++ [tr])) ng''
 
@@ -255,16 +258,16 @@ evalForAll as t tms tr s@(State {type_env = tenv, known_values = kv}) eenv ng i 
                                            , expr_env = eenv'' }, ng''')
             in 
                 if log_rules then trace "PM-NON-CONT" s' else s'
-            | otherwise = (Nothing, ng_cycle_state)
+            | otherwise = (Nothing, ng_in)
 
         -- PM-UNWRAP
-        (unwrap_state, ng_unwrap_state) 
+        pmUnwrap ng_in
             | not . HS.null $ contTyVars t
             , t `notElem` as
             , TyCon tname _:ts <- unTyApp t
             , Just alg_data_ty <- HM.lookup tname tenv
             = let
-                (x', ng'') = freshId t ng_non_cont_state
+                (x', ng'') = freshId t ng_in
 
                 ty_map = HM.fromList $ zip (map idName bound) ts
                 dcs = applyTypeHashMap ty_map $ dataCon alg_data_ty
@@ -292,10 +295,10 @@ evalForAll as t tms tr s@(State {type_env = tenv, known_values = kv}) eenv ng i 
             in
                 if log_rules then trace "PM-UNWRAP" s' else s'
 
-            | otherwise = (Nothing, ng_non_cont_state)
+            | otherwise = (Nothing, ng_in)
 
         -- PM-INST-ADT
-        (inst_adt_state, ng_inst_adt_state)
+        pmInstADT ng_in
             | not . null $ contTyVars tr
             , not . null $ (t:tms)
             -- if the below guard is null, the function is returning an ADT applied at its lowest levels
@@ -327,7 +330,7 @@ evalForAll as t tms tr s@(State {type_env = tenv, known_values = kv}) eenv ng i 
                                         (fd_app:all_fd_apps, fdi:_fd_syms, ng2'')) ([], [], ng1) di_args
 
                                 in (mkApp ((Data dc:map Type ts) ++ fd_apps) : all_alts, sids ++ fd_symIds, ng1')
-                                ) ([], [], ng_unwrap_state) dcs
+                                ) ([], [], ng_in) dcs
 
                 ([scrut, bindee], ng''') = freshIds [TyLitInt, TyLitInt] ng''
                 e' = e_template (Case (Var scrut) bindee tr $ mkSymIntAlts alt_exprs)
@@ -338,19 +341,19 @@ evalForAll as t tms tr s@(State {type_env = tenv, known_values = kv}) eenv ng i 
                 s' = (Just s {curr_expr = CurrExpr Return e', expr_env = eenv''}, ng''')
             in
                  if log_rules then trace "PM-INST-ADT" s' else s'
-            | otherwise = (Nothing, ng_unwrap_state)
+            | otherwise = (Nothing, ng_in)
 
         -- PM-FUN-ARG
         -- TODO: better naming in let bindings
         -- TODO: selecting from all available functions instead of cycling
-        (fun_arg_state, ng_fun_arg_state)
+        pmFun ng_in
             | TyFun _ _ <- t
             , f_ts <- splitTyFuns t
             , f_targs <- init f_ts
             , f_tr <- last f_ts
             , (_:_) <- tms
             = let
-                (new_as, ng'') = freshSeededIds as_ids ng_inst_adt_state
+                (new_as, ng'') = freshSeededIds as_ids ng_in
                 f_ty = renames (HM.fromList (zip (map idName as_ids) (map idName new_as))) 
                                     $ mkNestedForAll as $ mkTyFun ((f_tr:tms) ++ [t] ++ [tr])
                 (f, ng''') = freshId f_ty ng''
@@ -374,17 +377,17 @@ evalForAll as t tms tr s@(State {type_env = tenv, known_values = kv}) eenv ng i 
             in
                 if log_rules then trace "PM-FUN-ARG" s' else s'
             
-            | otherwise = (Nothing, ng_inst_adt_state)
+            | otherwise = (Nothing, ng_in)
 
         -- PM-FUN-ARG-FORALL
-        (fun_arg_forall_state, ng_fun_arg_forall_state)
+        pmFunForall ng_in
             | fa_as@(_:_) <- leadingTyForAllBindings t
             , fa_t@(TyFun _ _) <- inTyForAlls t
             , (_:_, _) <- argTypes fa_t
             , (_:_) <- tms
             = let
                 applying_type = tyInteger kv
-                (f_as, ng'') = freshSeededIds as_ids ng_fun_arg_state
+                (f_as, ng'') = freshSeededIds as_ids ng_in
                 (fa_ts_subst, fa_tr_subst) = argTypes $ retypes (map (, applying_type) fa_as) fa_t
                 f_ty = renames (HM.fromList (zip (map idName as_ids) (map idName f_as))) 
                                     $ mkNestedForAll as $ mkTyFun ((fa_tr_subst:tms) ++ [t] ++ [tr])
@@ -416,13 +419,13 @@ evalForAll as t tms tr s@(State {type_env = tenv, known_values = kv}) eenv ng i 
             in
                 if log_rules then trace "PM-FUN-FORALL" s' else s'
             
-            | otherwise = (Nothing, ng_fun_arg_state)
+            | otherwise = (Nothing, ng_in)
 
         -- PM-CONST
-        (const_state, ng_const_state)
+        pmConst ng_in
             | null . contTyVars $ tr
             = let 
-                (x_tr, ng'') = freshId tr ng_fun_arg_forall_state
+                (x_tr, ng'') = freshId tr ng_in
                 e' = e_template $ Var x_tr
 
                 eenv' = E.insertSymbolic x_tr eenv
@@ -431,10 +434,10 @@ evalForAll as t tms tr s@(State {type_env = tenv, known_values = kv}) eenv ng i 
             in
                 if log_rules then trace "PM-CONST" s' else s'
             
-            | otherwise = (Nothing, ng_fun_arg_forall_state)
+            | otherwise = (Nothing, ng_in)
                 
         in
-        (RuleEvalVal, catMaybes [inst_state, cycle_state, non_cont_state, unwrap_state, inst_adt_state, fun_arg_state, fun_arg_forall_state, const_state], ng_const_state)
+        (RuleEvalVal, catMaybes mstates, ng_eval_forall)
 
 evalVarSharing :: State t -> NameGen -> Id -> (Rule, [State t], NameGen)
 evalVarSharing s@(State { expr_env = eenv
