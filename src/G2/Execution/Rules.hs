@@ -165,6 +165,7 @@ mkNestedForAll _ _ = error "mkNestedForAll: list Types not in correct form"
 
 -- TODO: only looks deeper in some Types
 contTyVars :: Type -> HS.HashSet Id
+contTyVars (TyForAll i t) = HS.insert i (contTyVars t)
 contTyVars (TyApp t1 t2) = HS.union (contTyVars t1) (contTyVars t2)
 contTyVars (TyFun t1 t2) = HS.union (contTyVars t1) (contTyVars t2)
 contTyVars (TyVar i) = HS.singleton i
@@ -183,7 +184,7 @@ mkSymIntAlts exprs = go exprs 1
 -- TODO: way to order both funcion type and and application expression together
 evalForAll :: [Type] -> Type -> [Type] -> Type 
     -> State t -> E.ExprEnv -> NameGen -> Id -> (Rule, [State t], NameGen)
-evalForAll as t tms tr s@(State {type_env = tenv}) eenv ng i =
+evalForAll as t tms tr s@(State {type_env = tenv, known_values = kv}) eenv ng i =
     let 
         log_rules = False -- toggle for logging rules
 
@@ -375,11 +376,53 @@ evalForAll as t tms tr s@(State {type_env = tenv}) eenv ng i =
             
             | otherwise = (Nothing, ng_inst_adt_state)
 
+        -- PM-FUN-ARG-FORALL
+        (fun_arg_forall_state, ng_fun_arg_forall_state)
+            | fa_as@(_:_) <- leadingTyForAllBindings t
+            , fa_t@(TyFun _ _) <- inTyForAlls t
+            , (_:_, _) <- argTypes fa_t
+            , (_:_) <- tms
+            = let
+                applying_type = tyInteger kv
+                (f_as, ng'') = freshSeededIds as_ids ng_fun_arg_state
+                (fa_ts_subst, fa_tr_subst) = argTypes $ retypes (map (, applying_type) fa_as) fa_t
+                f_ty = renames (HM.fromList (zip (map idName as_ids) (map idName f_as))) 
+                                    $ mkNestedForAll as $ mkTyFun ((fa_tr_subst:tms) ++ [t] ++ [tr])
+                (f, ng''') = freshId f_ty ng''
+
+                (fa_exprs, symIds, ng'''') = foldr go ([], [], ng''') fa_ts_subst
+                    where
+                        go :: Type -> ([Expr], [Id], NameGen) -> ([Expr], [Id], NameGen)
+                        go fa_ti (faes, _symIds, ng1) | not . null $ contTyVars fa_ti 
+                            -- Need to make argument with symbolic function
+                            = let 
+                                (fa_id_new_as, ng1') = freshSeededIds as_ids ng1
+                                fa_id_ty = renames (HM.fromList (zip (map idName as_ids) (map idName fa_id_new_as)))
+                                            $ mkNestedForAll as $ mkTyFun $ tms ++ [fa_ti]
+                                (fa_id, ng1'') = freshId fa_id_ty ng1'
+                                fa_expr = mkApp $ ([Var fa_id] ++ map (Type . TyVar) as_ids ++ map Var ys) -- Leaving out function itself for now
+                            in 
+                                (fa_expr:faes, fa_id:_symIds, ng1'')
+                            -- Can make symbolic argument directly
+                            | otherwise = let (xi, ng1') = freshId fa_ti ng1 in (Var xi:faes, xi:_symIds, ng1')
+
+                t_vs = replicate (length fa_as) (Type applying_type)
+                e' = e_template . mkApp $ (Var f:map (Type . TyVar) as_ids) ++ [mkApp $ (Var x:t_vs) ++ fa_exprs] ++ map Var (ys ++ [x])
+
+                eenv' = foldr E.insertSymbolic eenv (f:symIds)
+                eenv'' = E.insert (idName i) e' eenv'
+
+                s' = (Just s {curr_expr = CurrExpr Return e', expr_env = eenv''}, ng'''')
+            in
+                if log_rules then trace "PM-FUN-FORALL" s' else s'
+            
+            | otherwise = (Nothing, ng_fun_arg_state)
+
         -- PM-CONST
         (const_state, ng_const_state)
             | null . contTyVars $ tr
             = let 
-                (x_tr, ng'') = freshId tr ng_fun_arg_state
+                (x_tr, ng'') = freshId tr ng_fun_arg_forall_state
                 e' = e_template $ Var x_tr
 
                 eenv' = E.insertSymbolic x_tr eenv
@@ -388,10 +431,10 @@ evalForAll as t tms tr s@(State {type_env = tenv}) eenv ng i =
             in
                 if log_rules then trace "PM-CONST" s' else s'
             
-            | otherwise = (Nothing, ng_fun_arg_state)
+            | otherwise = (Nothing, ng_fun_arg_forall_state)
                 
         in
-        (RuleEvalVal, catMaybes [inst_state, cycle_state, non_cont_state, unwrap_state, inst_adt_state, fun_arg_state, const_state], ng_const_state)
+        (RuleEvalVal, catMaybes [inst_state, cycle_state, non_cont_state, unwrap_state, inst_adt_state, fun_arg_state, fun_arg_forall_state, const_state], ng_const_state)
 
 evalVarSharing :: State t -> NameGen -> Id -> (Rule, [State t], NameGen)
 evalVarSharing s@(State { expr_env = eenv
