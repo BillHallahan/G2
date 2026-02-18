@@ -619,7 +619,7 @@ testFileTests = testGroup "TestFiles"
                                                                        , ("assoc", 200, [AtLeast 5])
                                                                        , ("sf", 175, [AtLeast 5])
                                                                        , ("tupleTest", 175, [AtLeast 8])]
-    , checkInputOutputsTemplate "tests/HigherOrder/RankN.hs" [ ("identity", 50, [AtLeast 1])
+    , checkInputOutputsTemplate "tests/HigherOrder/Rank2A.hs" [ ("identity", 50, [AtLeast 1])
                                                              , ("twoArgs", 60, [AtLeast 2])
                                                              , ("calledInMaybe", 60, [AtLeast 1])
                                                              , ("twoTVs", 60, [AtLeast 2])
@@ -635,7 +635,7 @@ testFileTests = testGroup "TestFiles"
                                                              , ("fromTuples", 100, [AtLeast 8])
                                                              , ("twoFunctions", 200, [AtLeast 4])
                                                              , ("partiallyApply", 200, [AtLeast 2])]
-    , checkInputOutputsTemplate "tests/HigherOrder/RankN2.hs" [ ("identityInTuple", 100, [AtLeast 1])
+    , checkInputOutputsTemplate "tests/HigherOrder/Rank2B.hs" [ ("identityInTuple", 100, [AtLeast 1])
                                                               , ("identityTwoTvs", 100, [AtLeast 1])
                                                               , ("boxedArg", 100, [AtLeast 2]) 
                                                               , ("treeArg", 100, [AtLeast 3]) 
@@ -649,6 +649,16 @@ testFileTests = testGroup "TestFiles"
                                                               , ("funcArgBoxedArg", 100, [AtLeast 6])
                                                               , ("funcArgBoxedLitArg", 100, [AtLeast 6])
                                                               , ("twoApplicationsNeeded", 200, [AtLeast 6])] 
+    , checkInputOutputsTemplate "tests/HigherOrder/Rank3AndGreater.hs" [ ("polyFuncArg", 100, [AtLeast 10])
+                                                                       , ("polyFuncArgTwoTVs", 100, [AtLeast 10])
+                                                                       , ("polyFuncArgADT", 100, [AtLeast 10])
+                                                                       , ("polyFuncArgWithFuncArg", 100, [AtLeast 10])
+                                                                       , ("polyFuncArgWithPolyFuncArg", 100, [AtLeast 10])
+                                                                       , ("polyFuncArgWithPolyFuncArg2", 100, [AtLeast 10])
+                                                                       , ("forallWithPolyFuncArg", 100, [AtLeast 10])
+                                                                       , ("forallWithPolyFuncArg2", 100, [AtLeast 10])
+                                                                       , ("forallWithPolyFuncArgBox", 100, [AtLeast 10])
+                                                                       , ("forallWithPolyFuncArgTup", 200, [AtLeast 10])]
     , checkInputOutputsNonRedHigher "tests/HigherOrder/HigherOrder.hs" [ ("f", 200, [AtLeast 3])
                                                                        , ("h", 150, [AtLeast 2])
                                                                        , ("assoc", 250, [AtLeast 2])
