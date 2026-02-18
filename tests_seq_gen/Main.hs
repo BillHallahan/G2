@@ -50,6 +50,8 @@ tests = testGroup "All Tests"
         , smtSynthTestVerify "tests_seq_gen/tests/Verify1.hs" "app"
         , smtSynthTestVerify "tests_seq_gen/tests/Verify1.hs" "eq"
         , smtSynthTestVerify "tests_seq_gen/tests/Verify1.hs" "myTake"
+        
+        , smtSynthTestRunSymexSMTStrings "tests_seq_gen/tests_symex/Test1.hs" "myDelete"
         ]
 
 getSeqGenConfigDir :: T.Text -> IO SynthConfig
@@ -57,7 +59,7 @@ getSeqGenConfigDir file = do
     homedir <- getHomeDirectory
     handleParseResult $ execParserPure (prefs mempty) (seqGenConfig homedir) [T.unpack file]
 
-smtSynthTestHeight :: T.Text -- ^ Filer
+smtSynthTestHeight :: T.Text -- ^ File
                    -> T.Text -- ^ Function
                    -> TestTree
 smtSynthTestHeight file = smtSynthTestWithConfig (do
@@ -65,7 +67,7 @@ smtSynthTestHeight file = smtSynthTestWithConfig (do
                                         return $ synth_config { checking = ADTHeight
                                                               , g2_config = adjustConfig synth_config $ config { smt = ConCVC5, steps = 2000 } }) file
 
-smtSynthTestVerify :: T.Text -- ^ Filer
+smtSynthTestVerify :: T.Text -- ^ File
                    -> T.Text -- ^ Function
                    -> TestTree
 smtSynthTestVerify file = smtSynthTestWithConfig (do
@@ -77,7 +79,7 @@ smtSynthTestVerify file = smtSynthTestWithConfig (do
                                         return $ synth_config { checking = Verify
                                                               , g2_config = adjustConfig synth_config config' }) file
 
-smtSynthTestWithEqCheck :: T.Text -- ^ Filer
+smtSynthTestWithEqCheck :: T.Text -- ^ File
                         -> T.Text -- ^ Function
                         -> FilePath -- ^ eq-file
                         -> String -- ^ eq-check
@@ -98,5 +100,23 @@ smtSynthTestWithConfig io_config src f =
     testCase (T.unpack $ src <> " " <> f) (do
         config <- io_config
         r <- timeout (480 * 1000000) $ genSMTFunc [] [T.unpack src] f Nothing config
+        assertBool "Error" (isJust r)
+    )
+
+smtSynthTestRunSymexSMTStrings :: T.Text -- ^ Filer
+                               -> T.Text -- ^ Function
+                               -> TestTree
+smtSynthTestRunSymexSMTStrings file = smtSynthTestRunSymexWithConfig (do
+                                        synth_config@(SynthConfig { g2_config = config }) <- getSeqGenConfigDir file
+                                        return $ synth_config { run_symex = True, g2_config = adjustConfig synth_config $ config { smt = ConCVC5, steps = 2000, smt_strings = UseSMTStrings } }) file
+
+smtSynthTestRunSymexWithConfig :: IO SynthConfig
+                               -> T.Text -- ^ Function
+                               -> T.Text -- ^ Function
+                               -> TestTree
+smtSynthTestRunSymexWithConfig io_config src f =
+    testCase (T.unpack $ src <> " " <> f) (do
+        config <- io_config
+        r <- timeout (480 * 1000000) $ runFunc (T.unpack src) [] f Nothing config
         assertBool "Error" (isJust r)
     )

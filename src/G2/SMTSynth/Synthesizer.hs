@@ -431,10 +431,12 @@ runFunc temp src f smt_def sc@(SynthConfig { eq_file = eq_f, g2_config = config 
 
 setUpVerification :: Name -> State t -> State t
 setUpVerification entry_n s@(State { expr_env = eenv, known_values = kv  })
-    | Just (smt_n, _) <- E.lookupNameMod (smtName $ nameOcc entry_n) (Just "Spec") eenv
-    , Just f_e <- E.lookup entry_n eenv =
-        let f_e' = renameVars entry_n smt_n f_e in
-        s { expr_env = E.insert entry_n f_e' eenv
+    | Just (smt_n, entry_e) <- E.lookupNameMod (smtName $ nameOcc entry_n) (Just "Spec") eenv
+    , Just (placeholder_n, place_e) <- E.lookupNameMod "placeholder" (Just "Spec") eenv
+    ,  Just (placeholder_ret_n, _) <- E.lookupNameMod "placeholderRet" (Just "Spec") eenv =
+        let place_e' = renameVars entry_n smt_n place_e in
+        s { expr_env = E.insert placeholder_ret_n entry_e
+                     $ E.insert placeholder_n place_e' eenv
           , known_values = addSmtStringFunc smt_n kv }
     | otherwise = s
 
@@ -465,6 +467,13 @@ setUpSpec sc h (Just (s@(State { known_values = kv, type_classes = tc }), Id n t
                     x:_ | isAlphaNum x -> "(liftEq " ++ eq_check sc ++ ")"
                     _ -> "(liftEq (" ++ eq_check sc ++ "))"
 
+        placeHolderRet | checking sc == Verify =
+            "placeholderRet" ++ " :: " ++ T.unpack (mkTypeHaskellDictArrows (mkPrettyGuide ()) (type_classes s) t_with_cs) ++ "\n"
+                         ++ "placeholderRet = undefined\n\n"
+                       | otherwise = "" 
+        retVal | checking sc == Verify = "(placeholderRet " ++ vs_str ++ ")"
+               | otherwise = "val"
+
         contents = "{-# LANGUAGE BangPatterns, MagicHash, ScopedTypeVariables, ViewPatterns #-}\nmodule Spec where\nimport GHC.Prim2\n"
                     ++ "import GHC.Types2\n"
                     ++ "import GHC.Stack\n"
@@ -481,9 +490,10 @@ setUpSpec sc h (Just (s@(State { known_values = kv, type_classes = tc }), Id n t
                     ++ spec
                     ++ "\n\nplaceholder" ++ " :: " ++ T.unpack (mkTypeHaskellDictArrows (mkPrettyGuide ()) (type_classes s) t_with_cs) ++ "\n"
                     ++ "placeholder = undefined\n\n"
+                    ++ placeHolderRet
                     ++ "comp " ++ vs_str ++ " = " ++ "\n    let val = placeholder " ++ vs_str ++ ""  ++ " in\n"
                                                    ++ "    assert (" ++ eq_ch ++
-                                                            " (tryMaybeUnsafe (" ++ smt_name ++ " " ++ vs_str ++ ")) (tryMaybeUnsafe val)) val"
+                                                            " (tryMaybeUnsafe (" ++ smt_name ++ " " ++ vs_str ++ ")) (tryMaybeUnsafe val)) " ++ retVal
     putStrLn contents
     hPutStrLn h contents
     hFlush h
@@ -496,8 +506,9 @@ isCallStack ty | TyCon tn _:_ <- unTyApp ty = nameOcc tn == "IP"
 -- | Find inputs that violate a found SMT definition
 findInconsistent :: Id -> State t -> Bindings -> State t
 findInconsistent entry_f s@(State { expr_env = eenv  }) b
-    | Just (ph_name, _) <- E.lookupNameMod "placeholder" (Just "Spec") eenv =
-        s { expr_env = E.insert ph_name (Var entry_f) eenv
+    | Just (ph_name, _) <- E.lookupNameMod "placeholder" (Just "Spec") eenv 
+    , Just entry_e <- E.lookup (idName entry_f) eenv =
+        s { expr_env = E.insert ph_name entry_e eenv
           , true_assert = False }
     | otherwise = error $ "findInconsistent: spec not found"
 
@@ -832,7 +843,7 @@ smtFuncToPrim s vl_args = conv s ++ conv_args
         conv "str.replace" = "strReplace#"
         conv "strEq" = "strEq#"
 
-        conv "seq.++" = "strAppend# "
+        conv "seq.++" = "strAppend#"
         conv "seq.len" = "strLen#"
         conv "seq.at" = "strAt#"
         conv "seq.extract" = "strSubstr#"
@@ -850,6 +861,9 @@ smtFuncToPrim s vl_args = conv s ++ conv_args
         conv "toChar" = ""
         conv "+" = "(+#)"
         conv "ite" = ""
+        conv "and" = "(&&)"
+        conv "or" = "(||)"
+        conv "not" = "not"
 
         conv f = error $ "smtFuncToPrim: unsupported " ++ f
         

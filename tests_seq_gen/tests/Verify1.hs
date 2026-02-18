@@ -13,3 +13,8 @@ myTake :: Int -> [a] -> [a]
 myTake n _ | n <= 0 = []
 myTake n [] = []
 myTake n (x:xs) = x:myTake (n - 1) xs
+
+myDelete :: Eq a => a -> [a] -> [a]
+myDelete _ [] = []
+myDelete y (x:xs) | x == y = xs
+                  | otherwise = x:myDelete y xs
