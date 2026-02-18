@@ -1731,9 +1731,11 @@ retReplaceSymbFuncTemplate sft
     }], ng'''')
 
     -- SF-FUNC-FORALL
-    -- matches polymorphic functions with no typeclass constraints
-    -- applies the function with all TVs bound to Integer
-    -- all arguments to the function are symbolic with types either found in the function type or Integer
+    -- Similar to FUNC-APP, but is applied when t1 is a polymorphic function. 
+    -- All type variables are bound to Integer and symbolic arguments are created
+    -- and applied which match the type variables.
+    -- ex. T1 -> T2, T1 = (forall a. a -> a)
+    -- e = (\fa -> f (f <@Integer for all type apps> x) fa), where x is a symbolic Integer
     | Var (Id n (TyFun t1 t2)):es <- unApp ce
     , as@(_:_) <- leadingTyForAllBindings t1
     , tf@(TyFun _ _) <- inTyForAlls t1
