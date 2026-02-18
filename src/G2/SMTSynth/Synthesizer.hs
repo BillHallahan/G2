@@ -431,7 +431,8 @@ runFunc temp src f smt_def sc@(SynthConfig { eq_file = eq_f, g2_config = config 
 
 setUpVerification :: Name -> State t -> State t
 setUpVerification entry_n s@(State { expr_env = eenv, known_values = kv  })
-    | Just (smt_n, entry_e) <- E.lookupNameMod (smtName $ nameOcc entry_n) (Just "Spec") eenv
+    | Just entry_e <- E.lookup entry_n eenv
+    , Just (smt_n, _) <- E.lookupNameMod (smtName $ nameOcc entry_n) (Just "Spec") eenv
     , Just (placeholder_n, place_e) <- E.lookupNameMod "placeholder" (Just "Spec") eenv
     ,  Just (placeholder_ret_n, _) <- E.lookupNameMod "placeholderRet" (Just "Spec") eenv =
         let place_e' = renameVars entry_n smt_n place_e in
@@ -491,9 +492,9 @@ setUpSpec sc h (Just (s@(State { known_values = kv, type_classes = tc }), Id n t
                     ++ "\n\nplaceholder" ++ " :: " ++ T.unpack (mkTypeHaskellDictArrows (mkPrettyGuide ()) (type_classes s) t_with_cs) ++ "\n"
                     ++ "placeholder = undefined\n\n"
                     ++ placeHolderRet
-                    ++ "comp " ++ vs_str ++ " = " ++ "\n    let val = placeholder " ++ vs_str ++ ""  ++ " in\n"
-                                                   ++ "    assert (" ++ eq_ch ++
-                                                            " (tryMaybeUnsafe (" ++ smt_name ++ " " ++ vs_str ++ ")) (tryMaybeUnsafe val)) " ++ retVal
+                    ++ "comp " ++ vs_str ++ " = " ++ "\n    let val = placeholder " ++ vs_str ++
+                            "; cond = " ++ eq_ch ++ " (tryMaybeUnsafe (" ++ smt_name ++ " " ++ vs_str ++ ")) (tryMaybeUnsafe val)" ++ " in\n"
+                                                   ++ " case cond of True -> val; False -> assert False " ++ retVal
     putStrLn contents
     hPutStrLn h contents
     hFlush h
