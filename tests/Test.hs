@@ -656,8 +656,9 @@ testFileTests = testGroup "TestFiles"
                                                                        , ("polyFuncArgWithFuncArg", 100, [AtLeast 10])
                                                                        , ("polyFuncArgWithPolyFuncArg", 100, [AtLeast 10])
                                                                        , ("polyFuncArgWithPolyFuncArg2", 100, [AtLeast 10])
-                                                                       , ("forallWithPolyFuncArg", 100, [AtLeast 10])
-                                                                       , ("forallWithPolyFuncArg2", 100, [AtLeast 10])
+                                                                       , ("forallWithPolyFuncArg", 200, [AtLeast 10])
+                                                                       , ("forallWithPolyFuncArg2", 200, [AtLeast 10])
+                                                                       , ("forallWithPolyFuncArg3", 200, [AtLeast 10])
                                                                        , ("forallWithPolyFuncArgBox", 100, [AtLeast 10])
                                                                        , ("forallWithPolyFuncArgTup", 200, [AtLeast 10])]
     , checkInputOutputsNonRedHigher "tests/HigherOrder/HigherOrder.hs" [ ("f", 200, [AtLeast 3])
