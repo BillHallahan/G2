@@ -188,13 +188,25 @@ evalForAll as t tms tr s@(State {type_env = tenv, known_values = kv}) eenv ng i 
     let 
         log_rules = False -- toggle for logging rules
 
+        -- Collect all matching states while threading NameGen and optionally logging rule names
+        (states, ng_eval_forall) = foldr (\(ruleF, ruleS) (ss, ng_before) -> 
+            case ruleF ng_before of
+                Nothing -> (ss, ng_before)
+                Just (expr', eenv', ng_after) -> 
+                    let newState = s {curr_expr = CurrExpr Return expr', expr_env = eenv'}
+                        result = (newState:ss, ng_after)
+                    in 
+                        if log_rules then trace ruleS result else result) ([], ng') rules_with_names
+
+        rules_with_names = [ (pmInstVar, "PM-INST-VAR"), (pmCycle, "PM-CYCLE"), (pmNonCont, "PM-NON-CONT"), (pmUnwrap, "PM-UNWRAP"), 
+                             (pmInstADT, "PM-INST-ADT"), (pmFun, "PM-FUN"), (pmFunForall, "PM-FUN-FORALL"), (pmConst, "PM-CONST") ]
+    in
+        (RuleEvalVal, states, ng_eval_forall)
+    where
         (term_args@(x:ys), ng') = freshIds (t:tms) ng
         as_ids = map (\case (TyVar tvi) -> tvi; _ -> error "evalForAll: non-type variable in as") as
         e_template :: Expr -> Expr
         e_template ex = mkNestedLam TypeL as_ids $ mkNestedLam TermL term_args ex
-
-        (mstates, ng_eval_forall) = foldr (\ruleF (mss, ng_fold) -> let (ms, ng_fold') = ruleF ng_fold 
-            in (ms:mss, ng_fold')) ([], ng') [pmInstVar, pmCycle, pmNonCont, pmUnwrap, pmInstADT, pmFun, pmFunForall, pmConst]
 
         -- PM-INST-VAR
         pmInstVar ng_in
@@ -209,11 +221,8 @@ evalForAll as t tms tr s@(State {type_env = tenv, known_values = kv}) eenv ng i 
                 eenv' = E.insertSymbolic scrut eenv
                 eenv'' = E.insert (idName i) e' eenv'
 
-                s' = (Just s { curr_expr = CurrExpr Return e', expr_env = eenv'' }, ng'')
-            in
-                if log_rules then trace "PM-INST-VAR" s' else s'
-                 
-            | otherwise = (Nothing, ng_in)
+            in Just (e', eenv'', ng'')
+            | otherwise = Nothing
         
         -- PM-CYCLE
         pmCycle ng_in
@@ -234,11 +243,8 @@ evalForAll as t tms tr s@(State {type_env = tenv, known_values = kv}) eenv ng i 
                 eenv' = E.insertSymbolic f eenv
                 eenv'' = E.insert (idName i) e' eenv'
 
-                s' = (Just s { curr_expr = CurrExpr Return e'
-                                         , expr_env = eenv'' }, ng''')
-            in 
-                if log_rules then trace "PM-CYCLE" s' else s'
-            | otherwise = (Nothing, ng_in)
+            in Just (e', eenv'', ng''')
+            | otherwise = Nothing
 
         -- PM-NON-CONT
         pmNonCont ng_in
@@ -254,11 +260,8 @@ evalForAll as t tms tr s@(State {type_env = tenv, known_values = kv}) eenv ng i 
                 eenv' = E.insertSymbolic f eenv
                 eenv'' = E.insert (idName i) e' eenv'
 
-                s' = (Just s { curr_expr = CurrExpr Return e'
-                                           , expr_env = eenv'' }, ng''')
-            in 
-                if log_rules then trace "PM-NON-CONT" s' else s'
-            | otherwise = (Nothing, ng_in)
+            in Just (e', eenv'', ng''')
+            | otherwise = Nothing
 
         -- PM-UNWRAP
         pmUnwrap ng_in
@@ -290,12 +293,8 @@ evalForAll as t tms tr s@(State {type_env = tenv, known_values = kv}) eenv ng i 
                 eenv' = foldr E.insertSymbolic eenv symIds
                 eenv'' = E.insert (idName i) e' eenv'
 
-                s' = (Just s { curr_expr = CurrExpr Return e'
-                        , expr_env = eenv'' }, ng''')
-            in
-                if log_rules then trace "PM-UNWRAP" s' else s'
-
-            | otherwise = (Nothing, ng_in)
+            in Just (e', eenv'', ng''')
+            | otherwise = Nothing
 
         -- PM-INST-ADT
         pmInstADT ng_in
@@ -338,10 +337,8 @@ evalForAll as t tms tr s@(State {type_env = tenv, known_values = kv}) eenv ng i 
                 eenv' = foldr E.insertSymbolic eenv $ scrut:symIds
                 eenv'' = E.insert (idName i) e' eenv'
 
-                s' = (Just s {curr_expr = CurrExpr Return e', expr_env = eenv''}, ng''')
-            in
-                 if log_rules then trace "PM-INST-ADT" s' else s'
-            | otherwise = (Nothing, ng_in)
+            in Just (e', eenv'', ng''')
+            | otherwise = Nothing
 
         -- PM-FUN-ARG
         -- TODO: better naming in let bindings
@@ -373,11 +370,8 @@ evalForAll as t tms tr s@(State {type_env = tenv, known_values = kv}) eenv ng i 
                 eenv' = foldr E.insertSymbolic eenv (f:symIds)
                 eenv'' = E.insert (idName i) e' eenv'
 
-                s' = (Just s {curr_expr = CurrExpr Return e', expr_env = eenv''}, ng'''')
-            in
-                if log_rules then trace "PM-FUN-ARG" s' else s'
-            
-            | otherwise = (Nothing, ng_in)
+            in Just (e', eenv'', ng'''')
+            | otherwise = Nothing
 
         -- PM-FUN-ARG-FORALL
         pmFunForall ng_in
@@ -415,11 +409,8 @@ evalForAll as t tms tr s@(State {type_env = tenv, known_values = kv}) eenv ng i 
                 eenv' = foldr E.insertSymbolic eenv (f:symIds)
                 eenv'' = E.insert (idName i) e' eenv'
 
-                s' = (Just s {curr_expr = CurrExpr Return e', expr_env = eenv''}, ng'''')
-            in
-                if log_rules then trace "PM-FUN-FORALL" s' else s'
-            
-            | otherwise = (Nothing, ng_in)
+            in Just (e', eenv'', ng'''')
+            | otherwise = Nothing
 
         -- PM-CONST
         pmConst ng_in
@@ -430,14 +421,8 @@ evalForAll as t tms tr s@(State {type_env = tenv, known_values = kv}) eenv ng i 
 
                 eenv' = E.insertSymbolic x_tr eenv
                 eenv'' = E.insert (idName i) e' eenv'
-                s' = (Just s {curr_expr = CurrExpr Return e', expr_env = eenv''}, ng'')
-            in
-                if log_rules then trace "PM-CONST" s' else s'
-            
-            | otherwise = (Nothing, ng_in)
-                
-        in
-        (RuleEvalVal, catMaybes mstates, ng_eval_forall)
+            in Just (e', eenv'', ng'')
+            | otherwise = Nothing
 
 evalVarSharing :: State t -> NameGen -> Id -> (Rule, [State t], NameGen)
 evalVarSharing s@(State { expr_env = eenv
