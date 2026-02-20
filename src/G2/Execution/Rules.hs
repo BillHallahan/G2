@@ -199,7 +199,7 @@ evalForAll as t tms tr s@(State {type_env = tenv, known_values = kv}) eenv ng i 
                         if log_rules then trace ruleS result else result) ([], ng') rules_with_names
 
         rules_with_names = [ (pmInstVar, "PM-INST-VAR"), (pmCycle, "PM-CYCLE"), (pmNonCont, "PM-NON-CONT"), (pmUnwrap, "PM-UNWRAP"), 
-                             (pmInstADT, "PM-INST-ADT"), (pmFun, "PM-FUN"), (pmFunForall, "PM-FUN-FORALL"), (pmConst, "PM-CONST") ]
+                             (pmInstADT, "PM-INST-ADT"), (pmFun, "PM-FUNC"), (pmFunForall, "PM-FUNC-FORALL"), (pmConst, "PM-CONST") ]
     in
         (RuleEvalVal, states, ng_eval_forall)
     where
@@ -340,30 +340,19 @@ evalForAll as t tms tr s@(State {type_env = tenv, known_values = kv}) eenv ng i 
             in Just (e', eenv'', ng''')
             | otherwise = Nothing
 
-        -- PM-FUN-ARG
+        -- PM-FUNC
         -- TODO: better naming in let bindings
         -- TODO: selecting from all available functions instead of cycling
         pmFun ng_in
             | TyFun _ _ <- t
-            , f_ts <- splitTyFuns t
-            , f_targs <- init f_ts
-            , f_tr <- last f_ts
-            , (_:_) <- tms
+            , (f_targs, f_tr) <- argTypes t
             = let
                 (new_as, ng'') = freshSeededIds as_ids ng_in
                 f_ty = renames (HM.fromList (zip (map idName as_ids) (map idName new_as))) 
                                     $ mkNestedForAll as $ mkTyFun ((f_tr:tms) ++ [t] ++ [tr])
                 (f, ng''') = freshId f_ty ng''
 
-                (fa_exprs, symIds, ng'''') = foldr (\fa_ti (faes, _symIds, ng1) ->
-                    let 
-                        (fa_id_new_as, ng1') = freshSeededIds as_ids ng1
-                        fa_id_ty = renames (HM.fromList (zip (map idName as_ids) (map idName fa_id_new_as)))
-                                    $ mkNestedForAll as $ mkTyFun $ (tms) ++ [fa_ti]
-                        (fa_id, ng1'') = freshId fa_id_ty ng1'
-                        fa_expr = mkApp $ ([Var fa_id] ++ map (Type . TyVar) as_ids ++ map Var ys) -- Leaving out function itself for now
-                        in
-                    (fa_expr:faes, fa_id:_symIds, ng1'')) ([], [], ng''') f_targs
+                (fa_exprs, symIds, ng'''') = funcArgArgumentExprs ng''' f_targs
 
                 e' = e_template . mkApp $ (Var f:map (Type . TyVar) as_ids) ++ [mkApp (Var x:fa_exprs)] ++ map Var (ys ++ [x])
 
@@ -373,12 +362,10 @@ evalForAll as t tms tr s@(State {type_env = tenv, known_values = kv}) eenv ng i 
             in Just (e', eenv'', ng'''')
             | otherwise = Nothing
 
-        -- PM-FUN-ARG-FORALL
+        -- PM-FUNC-FORALL
         pmFunForall ng_in
             | fa_as@(_:_) <- leadingTyForAllBindings t
             , fa_t@(TyFun _ _) <- inTyForAlls t
-            , (_:_, _) <- argTypes fa_t
-            , (_:_) <- tms
             = let
                 applying_type = tyInteger kv
                 (f_as, ng'') = freshSeededIds as_ids ng_in
@@ -387,21 +374,7 @@ evalForAll as t tms tr s@(State {type_env = tenv, known_values = kv}) eenv ng i 
                                     $ mkNestedForAll as $ mkTyFun ((fa_tr_subst:tms) ++ [t] ++ [tr])
                 (f, ng''') = freshId f_ty ng''
 
-                (fa_exprs, symIds, ng'''') = foldr go ([], [], ng''') fa_ts_subst
-                    where
-                        go :: Type -> ([Expr], [Id], NameGen) -> ([Expr], [Id], NameGen)
-                        go fa_ti (faes, _symIds, ng1) | not . null $ contTyVars fa_ti 
-                            -- Need to make argument with symbolic function
-                            = let 
-                                (fa_id_new_as, ng1') = freshSeededIds as_ids ng1
-                                fa_id_ty = renames (HM.fromList (zip (map idName as_ids) (map idName fa_id_new_as)))
-                                            $ mkNestedForAll as $ mkTyFun $ tms ++ [fa_ti]
-                                (fa_id, ng1'') = freshId fa_id_ty ng1'
-                                fa_expr = mkApp $ ([Var fa_id] ++ map (Type . TyVar) as_ids ++ map Var ys) -- Leaving out function itself for now
-                            in 
-                                (fa_expr:faes, fa_id:_symIds, ng1'')
-                            -- Can make symbolic argument directly
-                            | otherwise = let (xi, ng1') = freshId fa_ti ng1 in (Var xi:faes, xi:_symIds, ng1')
+                (fa_exprs, symIds, ng'''') = funcArgArgumentExprs ng''' fa_ts_subst
 
                 t_vs = replicate (length fa_as) (Type applying_type)
                 e' = e_template . mkApp $ (Var f:map (Type . TyVar) as_ids) ++ [mkApp $ (Var x:t_vs) ++ fa_exprs] ++ map Var (ys ++ [x])
@@ -423,6 +396,28 @@ evalForAll as t tms tr s@(State {type_env = tenv, known_values = kv}) eenv ng i 
                 eenv'' = E.insert (idName i) e' eenv'
             in Just (e', eenv'', ng'')
             | otherwise = Nothing
+
+        -----
+        -- Creates arguments for a function argument. The arguments may be:
+        --      1. Direct symbolic values (for types Int, [Maybe Bool], etc.)
+        --      2. Created by application of a symbolic function (for types a, (a, b), etc.)
+        --         which are of polymorphic type and cannot be instantiated directly.
+        funcArgArgumentExprs :: NameGen -> [Type] -> ([Expr], [Id], NameGen)
+        funcArgArgumentExprs ng_prior = foldr go ([], [], ng_prior)
+            where
+                go :: Type -> ([Expr], [Id], NameGen) -> ([Expr], [Id], NameGen)
+                go fa_ti (faes, _symIds, ng1) | not . null $ contTyVars fa_ti 
+                    -- Need to make argument with symbolic function
+                    = let 
+                        (fa_id_new_as, ng1') = freshSeededIds as_ids ng1
+                        fa_id_ty = renames (HM.fromList (zip (map idName as_ids) (map idName fa_id_new_as)))
+                                    $ mkNestedForAll as $ mkTyFun $ tms ++ [fa_ti]
+                        (fa_id, ng1'') = freshId fa_id_ty ng1'
+                        fa_expr = mkApp $ ([Var fa_id] ++ map (Type . TyVar) as_ids ++ map Var ys) -- Leaving out function itself for now
+                    in 
+                        (fa_expr:faes, fa_id:_symIds, ng1'')
+                    -- Can make symbolic argument directly
+                    | otherwise = let (xi, ng1') = freshId fa_ti ng1 in (Var xi:faes, xi:_symIds, ng1')
 
 evalVarSharing :: State t -> NameGen -> Id -> (Rule, [State t], NameGen)
 evalVarSharing s@(State { expr_env = eenv
