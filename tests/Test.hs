@@ -1209,7 +1209,7 @@ checkExprVerifierWithConfig vr_config vr_check src entry =
             resToString (Counterexample _) = "Counterexample"
 
 checkRuleVerified :: String -> String -> TestTree
-checkRuleVerified = checkExprVerifier (\case Verified -> True; Counterexample _ -> False; VerifyTimeOut -> False)
+checkRuleVerified = checkRuleVerifier (\case Verified -> True; Counterexample _ -> False; VerifyTimeOut -> False)
 
 checkRuleVerifier :: (VerifyResult -> Bool) -> String -> String -> TestTree
 checkRuleVerifier = checkRuleVerifierWithConfig defVerifyConfig
