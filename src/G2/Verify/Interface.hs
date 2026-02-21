@@ -21,12 +21,14 @@ import G2.Solver
 import G2.Translation
 import G2.Verify.Config
 import G2.Verify.Reducer
+import G2.Verify.InitRewrite
 
 import Control.Exception
 import Control.Monad.IO.Class
 import qualified Control.Monad.State as SM
 import qualified Data.HashSet as S
 import Data.IORef
+import qualified Data.List as L
 import Data.Maybe
 import System.Clock
 import qualified G2.Language.TyVarEnv as TV
@@ -163,9 +165,10 @@ verifyFromFile proj src f transConfig config verify_config = do
                          , higherOrderSolver = AllFuncs }
 
 
-    (init_state, entry_f, bindings, _) <- initialStateFromFile proj src
-                                    Nothing False f (mkCurrExpr TV.empty Nothing Nothing) (mkArgTys config' TV.empty)
-                                    transConfig config'
+    -- (init_state, entry_f, bindings, _) <- initialStateFromFile proj src
+    --                                 Nothing False f (mkCurrExpr TV.empty Nothing Nothing) (mkArgTys config' TV.empty)
+    --                                 transConfig config'
+    (init_state, entry_f, bindings) <- setUpState proj src f transConfig config' verify_config
     let (init_state', ng) = wrapCurrExpr (name_gen bindings) init_state
         bindings' = bindings { name_gen = ng }
     
@@ -219,3 +222,20 @@ verifyFromFile proj src f transConfig config verify_config = do
                           , not (null false_er) -> Counterexample false_er
                           | otherwise -> assert (all (currExprIsTrue . final_state) er) Verified
     return (res, diff_secs, bindings''', entry_f)
+
+setUpState :: [FilePath]
+           -> [FilePath]
+           -> StartFunc
+           -> TranslationConfig
+           -> Config
+           -> VerifyConfig
+           -> IO (State (), Id, Bindings)
+setUpState proj src f transConfig config (VerifyConfig { rewrite_rule = False }) = do
+    (s, i, b, _) <- initialStateFromFile proj src
+                                  Nothing False f (mkCurrExpr TV.empty Nothing Nothing) (mkArgTys config TV.empty)
+                                  transConfig config
+    return (s, i, b)
+setUpState proj src f transConfig config (VerifyConfig { rewrite_rule = True }) = do
+    (s, b, _) <- initialStateNoStartFunc proj src (transConfig { load_rewrite_rules = True }) config
+    let rule = L.find (\r -> ru_name r == f) $ rewrite_rules b
+    return $ initRule s b $ fromMaybe (error "rule not found") rule
