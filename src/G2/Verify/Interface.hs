@@ -238,4 +238,4 @@ setUpState proj src f transConfig config (VerifyConfig { rewrite_rule = False })
 setUpState proj src f transConfig config (VerifyConfig { rewrite_rule = True }) = do
     (s, b, _) <- initialStateNoStartFunc proj src (transConfig { load_rewrite_rules = True }) config
     let rule = L.find (\r -> ru_name r == f) $ rewrite_rules b
-    return $ initRule s b $ fromMaybe (error "rule not found") rule
+    return $ initRule s b $ fromMaybe (error $ "rule not found" ++ "\n" ++ show  (map (ru_name) (rewrite_rules b))) rule

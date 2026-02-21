@@ -1,4 +1,4 @@
-module G2.Equiv.InitRewrite (initWithRHS, initWithLHS, updateExprEnvAndTyVarEnv) where
+module G2.Equiv.InitRewrite (initWithRHS, initWithLHS) where
 
 import G2.Execution.Memory
 import G2.Language
