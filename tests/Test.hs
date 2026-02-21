@@ -1008,6 +1008,10 @@ verifierTests = testGroup "Verifier"
     , checkExprCEx "tests/Verify/NonStrict1.hs" "prop1False"
 
     , checkExprVerified "tests/Verify/HigherOrder.hs" "prop1"
+
+    , checkRuleVerified "tests/Verify/Rules1.hs" "justJust"
+    , checkRuleVerified "tests/Verify/Rules1.hs" "justJust2"
+    , checkRuleVerified "tests/Verify/Rules1.hs" "polyJustJust"
     ]
 
 -- To Do Tests
@@ -1203,6 +1207,16 @@ checkExprVerifierWithConfig vr_config vr_check src entry =
             resToString Verified = "Verified"
             resToString VerifyTimeOut = "TimeOut"
             resToString (Counterexample _) = "Counterexample"
+
+checkRuleVerified :: String -> String -> TestTree
+checkRuleVerified = checkExprVerifier (\case Verified -> True; Counterexample _ -> False; VerifyTimeOut -> False)
+
+checkRuleVerifier :: (VerifyResult -> Bool) -> String -> String -> TestTree
+checkRuleVerifier = checkRuleVerifierWithConfig defVerifyConfig
+
+checkRuleVerifierWithConfig :: VerifyConfig -> (VerifyResult -> Bool) -> String -> String -> TestTree
+checkRuleVerifierWithConfig vr_config vr_check src entry =
+    checkExprVerifierWithConfig (vr_config { rewrite_rule = True }) vr_check src entry
 
 testFile :: String
          -> Maybe String
