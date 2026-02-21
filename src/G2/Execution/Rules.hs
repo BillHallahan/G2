@@ -1249,6 +1249,10 @@ matchPairs tvnv kv e1 e2 eenv_pc_ee@(eenv, pc, ees)
             True -> Just $ foldr (\es1es2@(es1_, es2_) epe -> fromMaybe (addPair es1es2 epe) (matchPairs tvnv kv es1_ es2_ epe)) eenv_pc_ee $ zip es1 es2
             False ->
                 Just (eenv, [ExtCond (mkFalse kv) True], [])
+    
+    | Tick _ e1' <- e1 = matchPairs tvnv kv e1' e2 eenv_pc_ee
+    | Tick _ e2' <- e2 = matchPairs tvnv kv e1 e2' eenv_pc_ee
+    
     | otherwise = Nothing
     where
         isPrimApp (App e _) = isPrimApp e
