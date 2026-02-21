@@ -361,7 +361,9 @@ verifyHigherOrderHandling = mkSimpleReducer (const ()) red
                     (lam_x, ng2) = freshId ty_ar ng
                     (bindee, ng3) = freshId ty_ar ng2
 
-                    (ret_true, ng4) = freshId (returnType ty_fun) ng3
+                    (ret_true, ng4) = freshId (case ty_fun of
+                                                TyFun _ t2 -> t2
+                                                _ -> error "verifyHigherOrderHandling: not tyfun") ng3
                     (ret_false, ng5) = freshId ty_fun ng4
 
                     eq_tc = case lookupTCDict tc (eqTC kv) ty_ar of
