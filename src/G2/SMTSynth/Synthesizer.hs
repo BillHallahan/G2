@@ -2,6 +2,7 @@
 
 module G2.SMTSynth.Synthesizer ( SynthConfig (..)
                                , SynthMode (..)
+                               , Checking (..)
                                
                                , getSeqGenConfig
                                , genSMTFunc
@@ -16,6 +17,7 @@ module G2.SMTSynth.Synthesizer ( SynthConfig (..)
 
 import G2.Config
 import G2.Execution.PrimitiveEval
+import G2.Initialization.KnownValues
 import G2.Initialization.MkCurrExpr
 import G2.Interface
 import G2.Language as G2 hiding (Handle)
@@ -106,6 +108,7 @@ import qualified Text.Builder as TB
 
 -- | Synthesizer specific configurations
 data SynthConfig = SynthConfig { run_file :: String
+                               , checking :: Checking
                                , synth_func :: Maybe String -- ^ Synthesize a definition for a specific function
                                , eq_check :: String -- ^ Function to use as an equality check
                                , eq_file :: Maybe FilePath -- ^ File containing function to use as an equality check
@@ -114,7 +117,8 @@ data SynthConfig = SynthConfig { run_file :: String
                                , g2_config :: Config
                                }
 
-data SynthMode = SynthString | SynthSeqInt
+data Checking = Verify | ADTHeight deriving Eq
+data SynthMode = SynthString | SynthSeqInt deriving Eq
 
 synthModeMapping :: [(String, SynthMode)]
 synthModeMapping = [("String", SynthString), ("SeqInt", SynthSeqInt)]
@@ -123,13 +127,13 @@ getSeqGenConfig :: IO SynthConfig
 getSeqGenConfig = do
     homedir <- getHomeDirectory
     sc <- execParser (seqGenConfig homedir)
-    return $ sc { g2_config = adjustConfig (synth_mode sc) (g2_config sc)}
+    return $ sc { g2_config = adjustConfig sc (g2_config sc)}
 
-adjustConfig :: SynthMode -> Config -> Config
-adjustConfig sm c =
-    setSynthMode sm $ 
+adjustConfig :: SynthConfig -> Config -> Config
+adjustConfig sc c =
+    setSynthMode (synth_mode sc) $ 
         c { step_limit = False
-          , height_limit = Just $ fromMaybe 5 (height_limit c)
+          , height_limit = if checking sc == ADTHeight then Just $ fromMaybe 5 (height_limit c) else Nothing
 
           , smt_prim_lists = UseSMTSeq { add_to_dcs = True, add_to_funcs = False }
           , search_strat = Subpath }
@@ -142,6 +146,9 @@ seqGenConfig :: String -> ParserInfo SynthConfig
 seqGenConfig homedir =
     info ((SynthConfig
                 <$> argument str (metavar "FILE")
+                <*> flag ADTHeight Verify
+                   (long "verify"
+                   <> help "a function to synthesize an SMT definition for")
                 <*> option (eitherReader (Right . Just))
                    (long "function"
                    <> metavar "F"
@@ -390,7 +397,7 @@ runFunc :: FilePath
         -> Maybe (State t, Id, String) -- ^ Possible (SyGuS generated) function definition, along with the Id of the function being generated
         -> SynthConfig
         -> IO (Id, [ExecRes ()], NameGen)
-runFunc temp src f smt_def (SynthConfig { eq_file = eq_f, g2_config = config }) = do
+runFunc temp src f smt_def sc@(SynthConfig { eq_file = eq_f, g2_config = config }) = do
     let extra_fp = maybeToList eq_f
         config' = config { base = base config ++ extra_fp ++ temp:src
                          , baseInclude = map takeDirectory extra_fp ++ baseInclude config
@@ -416,9 +423,23 @@ runFunc temp src f smt_def (SynthConfig { eq_file = eq_f, g2_config = config }) 
     -- let config'' = if isJust smt_def then config' { logStates = Log Pretty "a_smt"} else config'
     T.putStrLn $ printHaskellPG (mkPrettyGuide $ getExpr comp_state) comp_state (getExpr comp_state)
 
-    (er, b, to) <- runG2WithConfig proj src entry_f f [] mb_modname comp_state config' bindings
+    let comp_state' = if checking sc == Verify then setUpVerification (idName entry_f) comp_state else comp_state
+
+    (er, b, to) <- runG2WithConfig proj src entry_f f [] mb_modname comp_state' config' bindings
 
     return (entry_f, er, name_gen bindings)
+
+setUpVerification :: Name -> State t -> State t
+setUpVerification entry_n s@(State { expr_env = eenv, known_values = kv  })
+    | Just entry_e <- E.lookup entry_n eenv
+    , Just (smt_n, _) <- E.lookupNameMod (smtName $ nameOcc entry_n) (Just "Spec") eenv
+    , Just (placeholder_n, place_e) <- E.lookupNameMod "placeholder" (Just "Spec") eenv
+    ,  Just (placeholder_ret_n, _) <- E.lookupNameMod "placeholderRet" (Just "Spec") eenv =
+        let place_e' = renameVars entry_n smt_n place_e in
+        s { expr_env = E.insert placeholder_ret_n entry_e
+                     $ E.insert placeholder_n place_e' eenv
+          , known_values = addSmtStringFunc smt_n kv }
+    | otherwise = s
 
 smtNameWrap :: T.Text -> T.Text
 smtNameWrap n | Just (c, _) <- T.uncons n
@@ -447,6 +468,13 @@ setUpSpec sc h (Just (s@(State { known_values = kv, type_classes = tc }), Id n t
                     x:_ | isAlphaNum x -> "(liftEq " ++ eq_check sc ++ ")"
                     _ -> "(liftEq (" ++ eq_check sc ++ "))"
 
+        placeHolderRet | checking sc == Verify =
+            "placeholderRet" ++ " :: " ++ T.unpack (mkTypeHaskellDictArrows (mkPrettyGuide ()) (type_classes s) t_with_cs) ++ "\n"
+                         ++ "placeholderRet = undefined\n\n"
+                       | otherwise = "" 
+        retVal | checking sc == Verify = "(placeholderRet " ++ vs_str ++ ")"
+               | otherwise = "val"
+
         contents = "{-# LANGUAGE BangPatterns, MagicHash, ScopedTypeVariables, ViewPatterns #-}\nmodule Spec where\nimport GHC.Prim2\n"
                     ++ "import GHC.Types2\n"
                     ++ "import GHC.Stack\n"
@@ -463,9 +491,10 @@ setUpSpec sc h (Just (s@(State { known_values = kv, type_classes = tc }), Id n t
                     ++ spec
                     ++ "\n\nplaceholder" ++ " :: " ++ T.unpack (mkTypeHaskellDictArrows (mkPrettyGuide ()) (type_classes s) t_with_cs) ++ "\n"
                     ++ "placeholder = undefined\n\n"
-                    ++ "comp " ++ vs_str ++ " = " ++ "\n    let val = placeholder " ++ vs_str ++ ""  ++ " in\n"
-                                                   ++ "    assert (" ++ eq_ch ++
-                                                            " (tryMaybeUnsafe (" ++ smt_name ++ " " ++ vs_str ++ ")) (tryMaybeUnsafe val)) val"
+                    ++ placeHolderRet
+                    ++ "comp " ++ vs_str ++ " = " ++ "\n    let val = placeholder " ++ vs_str ++
+                            "; cond = " ++ eq_ch ++ " (tryMaybeUnsafe (" ++ smt_name ++ " " ++ vs_str ++ ")) (tryMaybeUnsafe val)" ++ " in\n"
+                                                   ++ " case cond of True -> val; False -> assert False " ++ retVal
     putStrLn contents
     hPutStrLn h contents
     hFlush h
@@ -478,8 +507,9 @@ isCallStack ty | TyCon tn _:_ <- unTyApp ty = nameOcc tn == "IP"
 -- | Find inputs that violate a found SMT definition
 findInconsistent :: Id -> State t -> Bindings -> State t
 findInconsistent entry_f s@(State { expr_env = eenv  }) b
-    | Just (ph_name, _) <- E.lookupNameMod "placeholder" (Just "Spec") eenv =
-        s { expr_env = E.insert ph_name (Var entry_f) eenv
+    | Just (ph_name, _) <- E.lookupNameMod "placeholder" (Just "Spec") eenv 
+    , Just entry_e <- E.lookup (idName entry_f) eenv =
+        s { expr_env = E.insert ph_name entry_e eenv
           , true_assert = False }
     | otherwise = error $ "findInconsistent: spec not found"
 
@@ -814,7 +844,7 @@ smtFuncToPrim s vl_args = conv s ++ conv_args
         conv "str.replace" = "strReplace#"
         conv "strEq" = "strEq#"
 
-        conv "seq.++" = "strAppend# "
+        conv "seq.++" = "strAppend#"
         conv "seq.len" = "strLen#"
         conv "seq.at" = "strAt#"
         conv "seq.extract" = "strSubstr#"
@@ -832,6 +862,9 @@ smtFuncToPrim s vl_args = conv s ++ conv_args
         conv "toChar" = ""
         conv "+" = "(+#)"
         conv "ite" = ""
+        conv "and" = "(&&)"
+        conv "or" = "(||)"
+        conv "not" = "not"
 
         conv f = error $ "smtFuncToPrim: unsupported " ++ f
         
