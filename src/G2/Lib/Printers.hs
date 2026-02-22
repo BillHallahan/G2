@@ -758,7 +758,7 @@ prettyPathCond pg (AssumePC i l pc) =
 prettyNonRedPaths :: PrettyGuide -> [NRPC] -> T.Text
 prettyNonRedPaths pg =
     T.intercalate "\n"
-    . map (\(focus, e1, e2) -> mkDirtyExprHaskell pg e1 <> " == "
+    . map (\(NRPC focus e1 e2) -> mkDirtyExprHaskell pg e1 <> " == "
                             <> mkDirtyExprHaskell pg e2 <> "\t"
                             <> prettyFocus pg focus)
 

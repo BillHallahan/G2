@@ -633,7 +633,7 @@ nonRedPCSymFunc :: Monad m => RedRules m (Maybe SymFuncTicks) t
 nonRedPCSymFunc _
                 s@(State {curr_expr = cexpr
                          , exec_stack = stck
-                         , non_red_path_conds = (focus, nre1, nre2) :*> nrs
+                         , non_red_path_conds = (NRPC focus nre1 nre2) :*> nrs
                          })
                         b@(Bindings { name_gen = ng }) =
     
@@ -1144,7 +1144,7 @@ nonRedPCRedFunc prune _
                 s@(State { expr_env = eenv
                          , curr_expr = cexpr
                          , exec_stack = stck
-                         , non_red_path_conds = (focus, nre1, nre2) :*> nrs
+                         , non_red_path_conds = (NRPC focus nre1 nre2) :*> nrs
                          , model = m
                          , tyvar_env = tvnv })
                 b@(Bindings { higher_order_inst = inst })
@@ -1238,7 +1238,7 @@ nonRedPCRedConstFunc _
                      s@(State { expr_env = eenv
                               , curr_expr = cexpr
                               , exec_stack = stck
-                              , non_red_path_conds = (focus, nre1, nre2) :*> nrs
+                              , non_red_path_conds = (NRPC focus nre1 nre2) :*> nrs
                               , model = m
                               , tyvar_env = tvnv })
                      b@(Bindings { name_gen = ng })

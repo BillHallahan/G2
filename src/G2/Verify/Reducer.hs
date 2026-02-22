@@ -289,7 +289,7 @@ adjustFocusReducer = mkSimpleReducer (const ()) red
                b@(Bindings { name_gen = ng } )
             | currExprIsFalse s
             , Stck.null stck
-            , allNRPC (\(focus, _, _) -> isUnfocused focus) nrpc =
+            , allNRPC (\(NRPC focus _ _) -> isUnfocused focus) nrpc =
                 let (empty_nrpc, ng') = emptyNRPC ng in
                 return (Finished, [(s { non_red_path_conds = empty_nrpc }, rv)], b { name_gen = ng' } )
             where
@@ -307,7 +307,7 @@ verifySolveNRPC = mkSimpleReducer (const ()) red
                         s@(State { expr_env = eenv
                                  , curr_expr = cexpr
                                  , exec_stack = stck
-                                 , non_red_path_conds = nrs :<* nr@(focus, nre1, nre2)
+                                 , non_red_path_conds = nrs :<* nr@(NRPC focus nre1 nre2)
                                  })
                                 b
             
@@ -334,7 +334,7 @@ verifySolveNRPC = mkSimpleReducer (const ()) red
         red _ s b = return (Finished, [(s, ())], b)
 
 isNRPCSymFun :: ExprEnv -> NRPC -> Bool
-isNRPCSymFun eenv (_, e1, _)
+isNRPCSymFun eenv (NRPC _ e1 _)
     | Tick _ (Var (Id n _)):_ <- unApp e1
     , Just (E.Sym _) <- E.deepLookupConcOrSym n eenv = True
     | otherwise = False
@@ -411,10 +411,10 @@ unifyNRPCs :: HS.HashSet Name
            -> NonRedPathConds
            -> (NonRedPathConds, FocusMap, ExprEnv)
 unifyNRPCs _ eenv fm nrpc@EmpNRPC = (nrpc, fm, eenv)
-unifyNRPCs no_inline eenv fm (nrpc@(focus1, e1, v1) :*> nrpcs) =
+unifyNRPCs no_inline eenv fm (nrpc@(NRPC focus1 e1 v1) :*> nrpcs) =
     let
         con_nrpc = listToMaybe
-                 $ mapMaybe (\(focus2, e2, v2) ->
+                 $ mapMaybe (\(NRPC focus2 e2 v2) ->
                     case eqUpToTypesInline no_inline eenv (stripAllTicks e1) (stripAllTicks e2) of
                         True -> (, focus2) <$> alignVar HS.empty HS.empty eenv v1 v2
                         False -> Nothing)
@@ -468,7 +468,7 @@ inconsistentNRPCHalter no_inline =
             | otherwise = return Continue
         
         add_nrpc hv _ _ s
-            | currExprIsFalse s = foldl' (\hv_ (_, e1, e2) -> HS.insert (e1, e2) hv_) hv (toListNRPC $ non_red_path_conds s)
+            | currExprIsFalse s = foldl' (\hv_ (NRPC _ e1 e2) -> HS.insert (e1, e2) hv_) hv (toListNRPC $ non_red_path_conds s)
             | otherwise = hv
 
 

@@ -40,8 +40,6 @@ import qualified Data.HashMap.Lazy as HM
 import Data.Maybe
 import Data.Monoid hiding (Alt)
 
-import Debug.Trace
-
 type GenerateLemma t l = State t -> State t -> (HM.HashMap Id Expr, HS.HashSet (Expr, Expr)) -> Expr -> Expr -> l
 type Lookup t = Name -> State t -> Maybe E.ConcOrSym
 
@@ -371,9 +369,9 @@ moreRestrictiveNRPC mr_cont gen_lemma lkp s1 s2 ns init_hm nrpc1 nrpc2
   | otherwise = matchNRPCs init_hm (toListNRPC nrpc1) (toListNRPC nrpc2)
   where
     matchNRPCs hm [] _ = Right hm
-    matchNRPCs hm ((_, eL_1, eR_1):ns1) ns2 = do
+    matchNRPCs hm ((NRPC _ eL_1 eR_1):ns1) ns2 = do
         let m_match_rest = selectJusts
-                              (\(_, eL_2, eR_2) -> do
+                              (\(NRPC _ eL_2 eR_2) -> do
                                     hm' <- moreRes hm eR_1 eR_2
                                     moreRes hm' eL_1 eL_2)
                            ns2
