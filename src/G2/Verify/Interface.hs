@@ -165,9 +165,6 @@ verifyFromFile proj src f transConfig config verify_config = do
                          , higherOrderSolver = AllFuncs }
 
 
-    -- (init_state, entry_f, bindings, _) <- initialStateFromFile proj src
-    --                                 Nothing False f (mkCurrExpr TV.empty Nothing Nothing) (mkArgTys config' TV.empty)
-    --                                 transConfig config'
     (init_state, entry_f, bindings) <- setUpState proj src f transConfig config' verify_config
     let (init_state', ng) = wrapCurrExpr (name_gen bindings) init_state
         bindings' = bindings { name_gen = ng }
