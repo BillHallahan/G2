@@ -211,7 +211,7 @@ evalForAll as t tms tr s@(State {type_env = tenv, known_values = kv}) eenv ng i 
         -- PM-INST-VAR
         pmInstVar ng_in
             | tr `elem` (t:tms) -- return type in arguments
-            , tr `elem` as -- return type is a type variable
+            , not . null $ contTyVars tr -- return type contains a bound type variable, otherwise can rely on arb. value gen.
             = let 
                 ([scrut, bindee], ng'') = freshIds [TyLitInt, TyLitInt] ng_in
 
@@ -397,6 +397,7 @@ evalForAll as t tms tr s@(State {type_env = tenv, known_values = kv}) eenv ng i 
         --         which are of polymorphic type and cannot be instantiated directly.
         -- There is an option to omit forwarding the first argument, in the case of 
         -- PM-FUNC(-FORALL), or to keep it, in the case of PM-INST-ADT.
+        -- TODO: change names here
         argumentExprs :: Bool -> NameGen -> [Type] -> ([Expr], [Id], NameGen)
         argumentExprs fwd_fst_arg ng_prior = foldr go ([], [], ng_prior)
             where
