@@ -51,6 +51,9 @@ module G2.Execution.Reducer ( Reducer (..)
                             -- * Reducers
                             , InitReducer
                             , RedRules
+
+                            , exStateToState
+
                             , mkSimpleReducer
                             , liftReducer
                             , liftReducerGhcT
@@ -71,6 +74,8 @@ module G2.Execution.Reducer ( Reducer (..)
 
                             , ApproxPrevs
                             , emptyApproxPrevs
+                            , addApproxPrevs
+
                             , nrpcApproxReducer
                             , strictRed
                             , taggerRed
@@ -209,6 +214,9 @@ data ExState rv hv sov t = ExState { state :: State t
                                    , order_val :: sov
                                    }
 
+exStateToState :: ExState rv hv sov t -> State t
+exStateToState = state
+
 -- | Keeps track of type a's that have either been accepted or dropped
 data Processed acc dis = Processed { accepted :: [acc]
                                    , discarded :: [dis] }
@@ -259,7 +267,7 @@ data Reducer m rv t = Reducer {
         , onSolved :: m ()
 
         -- Action to run after a State is discared.
-        , onDiscard :: State t -> rv -> m ()
+        , onDiscard :: forall b rv1 hv sov . M.Map b [ExState rv1 hv sov t] -> State t -> rv -> m ()
 
         -- | Action to run after execution of all states has terminated.
         , afterRed :: m ()
@@ -277,7 +285,7 @@ mkSimpleReducer init_red red_rules =
     , updateWithAll = id
     , onAccept = \s b _ -> return (s, b)
     , onSolved = return ()
-    , onDiscard = \_ _ -> return ()
+    , onDiscard = \_ _ _ -> return ()
     , afterRed = return ()
     }
 {-# INLINE mkSimpleReducer #-}
@@ -289,7 +297,7 @@ liftReducer r = Reducer { initReducer = initReducer r
                         , updateWithAll = updateWithAll r
                         , onAccept = \s b rv -> SM.lift ((onAccept r) s b rv)
                         , onSolved = SM.lift (onSolved r)
-                        , onDiscard = \s rv -> SM.lift ((onDiscard r) s rv)
+                        , onDiscard = \s xs rv -> SM.lift ((onDiscard r) s xs rv)
                         , afterRed = SM.lift (afterRed r)}
 
 -- | Lift a reducer from a component monad to a constructed monad. 
@@ -299,7 +307,7 @@ liftReducerGhcT r = Reducer { initReducer = initReducer r
                         , updateWithAll = updateWithAll r
                         , onAccept = \s b rv -> liftGhcT ((onAccept r) s b rv)
                         , onSolved = liftGhcT (onSolved r)
-                        , onDiscard = \s rv -> liftGhcT ((onDiscard r) s rv)
+                        , onDiscard = \s xs rv -> liftGhcT ((onDiscard r) s xs rv)
                         , afterRed = liftGhcT (afterRed r)}
 
 -- | Lift a SomeReducer from a component monad to a constructed monad. 
@@ -499,9 +507,9 @@ r1 ~> r2 =
                 onSolved r1
                 onSolved r2
 
-            , onDiscard = \s (RC rv1 rv2) -> do
-                onDiscard r1 s rv1
-                onDiscard r2 s rv2
+            , onDiscard = \xs s (RC rv1 rv2) -> do
+                onDiscard r1 xs s rv1
+                onDiscard r2 xs s rv2
 
             , afterRed = do
                 afterRed r1
@@ -542,9 +550,9 @@ SomeReducer r1 .~> SomeReducer r2 = SomeReducer (r1 ~> r2)
                     onSolved r1
                     onSolved r2
 
-                , onDiscard = \s (RC rv1 rv2) -> do
-                    onDiscard r1 s rv1
-                    onDiscard r2 s rv2
+                , onDiscard = \xs s (RC rv1 rv2) -> do
+                    onDiscard r1 xs s rv1
+                    onDiscard r2 xs s rv2
 
                 , afterRed = do
                     afterRed r1
@@ -599,9 +607,9 @@ r1 .|. r2 =
                 onSolved r1
                 onSolved r2
 
-            , onDiscard = \s (RC rv1 rv2) -> do
-                onDiscard r1 s rv1
-                onDiscard r2 s rv2
+            , onDiscard = \xs s (RC rv1 rv2) -> do
+                onDiscard r1 xs s rv1
+                onDiscard r2 xs s rv2
 
             , afterRed = do
                 afterRed r1
@@ -694,7 +702,7 @@ nonRedLibFuncs exec_names no_nrpc_names
     , Just n' <- E.deepLookupVar n eenv
     , not (n' `HS.member` no_nrpc_names)
     , not (E.isSymbolic n' eenv)
-    , Just (s'@(State { curr_expr = CurrExpr _ _ }), _, ce', ng') <- createNonRed ng Focused s = 
+    , Just (s'@(State { curr_expr = CurrExpr _ _ }), _, NRPC { nrpc_lhs = ce' }, ng') <- createNonRed ng Focused s = 
         let
             (reaches_sym, sym_table') = reachesSymbolicMemo sym_table eenv ce'
             (exec_skip, var_table') = if reaches_sym then checkDelayability eenv ce' ng exec_names var_table else (Skip, var_table)
@@ -814,6 +822,11 @@ data ApproxPrevs t = AP { ap_nrpc_states :: [State t], ap_halter_states :: [Stat
 emptyApproxPrevs :: ApproxPrevs t
 emptyApproxPrevs = AP { ap_nrpc_states = [], ap_halter_states = [] }
 
+addApproxPrevs :: SM.MonadState (ApproxPrevs t) m => State t -> m ()
+addApproxPrevs s = do
+    xs <- SM.gets ap_halter_states
+    SM.modify (\a -> a { ap_halter_states = s:xs })
+
 -- | When a newly reached function application is approximated by a previously seen (and thus explored) function application,
 -- shift the new function application into the NRPCs.
 nrpcApproxReducer :: (Solver solver, SM.MonadState (ApproxPrevs t) m, MonadIO m) =>
@@ -888,7 +901,7 @@ createNonRed :: NameGen
              -> Maybe
                       ( State t -- ^ New state with NRPC applied
                       , Id -- ^ New symbolic variable
-                      , Expr -- ^ Expression added into the NRPCs (and equated to some symbolic variable)
+                      , NRPC -- ^ New NRPC
                       , NameGen)
 createNonRed ng focus
               s@(State { curr_expr = CurrExpr _ ce
@@ -900,13 +913,13 @@ createNonRed ng focus
     , (ae, stck) <- allApplyFrames (exec_stack s)
     , let es = es_ce ++ ae
           ce' = mkApp (v:es)
-    , Just (s', sym_i, ce_rep, ng') <- createNonRed' ng focus s ce' =
+    , Just (s', sym_i, new_nrpc, ng') <- createNonRed' ng focus s ce' =
     let
         cexpr' = CurrExpr Return (Var sym_i)
         s'' = s' { curr_expr = cexpr'
                  , exec_stack = stck }
     in
-    Just (s'', sym_i, ce_rep, ng')
+    Just (s'', sym_i, new_nrpc, ng')
     | otherwise = Nothing
 
   
@@ -918,7 +931,7 @@ createNonRed' :: NameGen
               -> Maybe
                       ( State t -- ^ New state with NRPC applied
                       , Id -- ^ New symbolic variable
-                      , Expr -- ^ Expression added into the NRPCs (and equated to some symbolic variable)
+                      , NRPC -- ^ New NRPC
                       , NameGen)
 createNonRed' ng
               focus
@@ -956,7 +969,7 @@ createNonRed' ng
         s' = s { expr_env = eenv'
                , non_red_path_conds = nrs' }
     in
-    Just (s', new_sym_id, e'', ng''')
+    Just (s', new_sym_id, NRPC focus' (Var new_sym_id) e'', ng''')
 createNonRed' _ _ _ _ = Nothing
 
 hasMagicTypes :: ASTContainer c Type => KnownValues -> c -> Bool
@@ -1316,7 +1329,7 @@ prettyLogger pretty_track fp =
       , onAccept = \s b ll -> do 
                                 liftIO . putStrLn $ "Accepted on path " ++ show ll
                                 return (s,b)
-      , onDiscard = \_ ll -> liftIO . putStrLn $ "Discarded path " ++ show ll }
+      , onDiscard = \_ _ ll -> liftIO . putStrLn $ "Discarded path " ++ show ll }
 
 -- | Used to restrict the LimLogger to only output paths that could reach or have reached
 -- certain concretization, or that could satisfy certain path constraints.  For example,
@@ -1424,10 +1437,10 @@ limLoggerConfig fp = LimLogger { every_n = 0
 
 newtype LLTracker = LLTracker { ll_count :: Int }
 
-getLimLogger :: (MonadIO m, SM.MonadState PrettyGuide m, Show t) => Config -> PrettyTrack t -> IO (Maybe (Reducer m LLTracker t))
+getLimLogger :: (MonadIO m, SM.MonadState PrettyGuide m, Named t, Show t) => Config -> PrettyTrack t -> IO (Maybe (Reducer m LLTracker t))
 getLimLogger = getLimLogger' stdFileNamer
 
-getLimLogger' :: (MonadIO m, SM.MonadState PrettyGuide m, Show t) =>
+getLimLogger' :: (MonadIO m, SM.MonadState PrettyGuide m, Named t, Show t) =>
                  (forall t' . State t' -> FilePath)
               -> Config
               -> PrettyTrack t
@@ -1466,7 +1479,7 @@ genLimLogger out_f ll@(LimLogger { after_n = aft, before_n = bfr, down_path = do
                           (liftIO $ outputConcPCGuide (lim_output_path ll) (log_path s) s b)
                     liftIO . putStrLn $ "Accepted on path " ++ show (log_path s)
                     return (s, b)
-        , onDiscard = \s _ -> liftIO . putStrLn $ "Discarded path " ++ show (log_path s)}
+        , onDiscard = \_ s _ -> liftIO . putStrLn $ "Discarded path " ++ show (log_path s)}
     where
         rr llt@(LLTracker { ll_count = c }) s b
             | down `L.isPrefixOf` log_path s || log_path s `L.isPrefixOf` down
@@ -1490,11 +1503,11 @@ limLogger :: (MonadIO m, Show t) => LimLogger -> Reducer m LLTracker t
 limLogger ll@(LimLogger {filter_env = f_env}) =
     genLimLogger (\off s b -> liftIO $ outputState (output_name ll) (lim_output_path ll) off (if f_env then filterStateEnv s else s) b pprExecStateStr) ll
 
-prettyLimLogger :: (MonadIO m, SM.MonadState PrettyGuide m) => PrettyTrack t -> LimLogger -> Reducer m LLTracker t
+prettyLimLogger :: (MonadIO m, SM.MonadState PrettyGuide m, Named t) => PrettyTrack t -> LimLogger -> Reducer m LLTracker t
 prettyLimLogger pretty_track ll@(LimLogger {filter_env = f_env, order_env = o_env}) =
     genLimLogger (\off s@(State {}) b -> do
                 pg <- SM.get
-                let pg' = updatePrettyGuide (s { track = () }) pg
+                let pg' = updatePrettyGuide s pg
                 let s' = if inline_nrpc ll then inlineNRPC s else s
                 SM.put pg'
                 let pg'' = setEnvOrdering o_env pg'
@@ -1575,7 +1588,7 @@ currExprLogger ll@(LimLogger { after_n = aft, before_n = bfr, down_path = down }
         , onAccept = \s b _ -> do
                                 liftIO . putStrLn $ "Accepted on path " ++ show (log_path s)
                                 return (s, b)
-        , onDiscard = \s _ -> liftIO . putStrLn $ "Discarded path " ++ show (log_path s)}
+        , onDiscard = \_ s _ -> liftIO . putStrLn $ "Discarded path " ++ show (log_path s)}
     where
         rr llt@(LLTracker { ll_count = 0  }) s b
             | down `L.isPrefixOf` log_path s || log_path s `L.isPrefixOf` down
@@ -1816,12 +1829,13 @@ hpcApproximationHalter :: (Named t, Solver solver, SM.MonadState (ApproxPrevs t)
                        -> Halter m () (ExecRes  t) t
 hpcApproximationHalter = approximationHalter' stop_cond
     where
-        stop_cond pr s =
+        stop_cond pr _ s =
             let acc_seen_hpc = HS.unions (map (reached_hpc . final_state) $ accepted pr) in
             HS.null $ HS.difference (reached_hpc s) acc_seen_hpc
 
 approximationHalter' :: (Named t, Solver solver, SM.MonadState (ApproxPrevs t) m, MonadIO m) =>
-                        (Processed r (State t) -> State t -> Bool) -- ^ Approximated states are discarded only if they match this condition
+                        (Processed r (State t) -> State t -> State t -> Bool) -- ^ Approximated states are discarded only if they match this condition
+                                                                              -- Args: all accepted states, approximated (old) state, approximating (new) state
                      -> solver
                      -> HS.HashSet Name -- ^ Names that should not be inlined (often: top level names from the original source code)
                      -> Halter m () r t
@@ -1848,17 +1862,19 @@ approximationHalter' stop_cond solver no_inline = mkSimpleHalter
                 --     putStrLn $ "approx halter log_path s = " ++ show (log_path s) ++ " " ++ show (num_steps s)
                 xs <- SM.gets ap_halter_states
                 let xs' = filter (\x -> num_steps x < num_steps s') xs
-                approx <- liftIO $ findM (\prev -> moreRestrictiveIncludingPCAndNRPC
-                                                        solver
-                                                        mr_cont
-                                                        Nothing
-                                                        lookupConcOrSymState
-                                                        no_inline
-                                                        prev
-                                                        s'
+                approx <- liftIO $ findM (\prev -> do
+                                                more_res_s <- moreRestrictiveIncludingPCAndNRPC
+                                                                solver
+                                                                mr_cont
+                                                                Nothing
+                                                                lookupConcOrSymState
+                                                                no_inline
+                                                                prev
+                                                                s'
+                                                return $ more_res_s && stop_cond pr prev s
                                                 ) xs'
-                if isJust approx && stop_cond pr s
-                    then do
+                case approx of
+                    Just _ ->  do
                         liftIO $ do
                             let approx' = fromJust approx
                             putStrLn $ "    !!! log_path s = " ++ show (log_path s) ++ " " ++ show (num_steps s)
@@ -1866,7 +1882,7 @@ approximationHalter' stop_cond solver no_inline = mkSimpleHalter
                             -- putStrLn $ "    !!! length nrpc s = " ++ show (length (non_red_path_conds s))
                             -- putStrLn $ "    !!! length nrpc approx = " ++ show (length (non_red_path_conds approx'))
                         return Discard
-                    else do 
+                    _ -> do 
                         -- liftIO $ do
                         --     putStrLn $ "    !!!modifying with " ++ show (log_path s') ++ " " ++ show (num_steps s)
                         --     putStrLn $ "    !!! stck s = " ++ show (exec_stack s)
@@ -2440,7 +2456,7 @@ runReducer red hal ord solve_r analyze init_state init_bindings = do
                             Just (rs', xs') -> switchState pr' rs' b'' xs'
                             Nothing -> return (pr', b'')
                     | hc == Discard -> do
-                        onDiscard red s r_val
+                        onDiscard red xs s r_val
                         sequence_ $ analyze <*> pure (StateDiscarded s) <*> pure pr <*> pure (map state . concat $ M.elems xs)
                         let pr' = pr {discarded = state rs:discarded pr}
                             jrs = minState pr' xs
