@@ -2477,8 +2477,9 @@ runReducer red hal ord solve_r analyze init_state init_bindings = do
                     | hc == Switch -> do
                         let rs' = rs { order_val = updateSelected ord (order_val rs) pr (state rs) }
                         k <- orderStates ord (order_val rs') pr (state rs)
-                        let Just (rs'', xs') = minState pr (M.insertWith (++) k [rs'] xs)
-                        switchState pr rs'' b xs'
+                        case minState pr (M.insertWith (++) k [rs'] xs) of
+                            Just (rs'', xs') -> switchState pr rs'' b xs'
+                            Nothing -> return (pr, b)
                     | otherwise -> do
                         (_, reduceds, b') <- redRules red r_val s b
                         let reduceds' = map (\(r, _) -> r {num_steps = num_steps r + 1 }) reduceds
