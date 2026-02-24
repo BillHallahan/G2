@@ -54,6 +54,7 @@ import Control.Exception
 import Control.Monad.Extra
 import Data.Maybe
 import Data.Traversable
+import Data.List
 
 import Debug.Trace
 
@@ -184,7 +185,7 @@ mkSymIntAlts exprs = go exprs 1
 -- TODO: way to order both funcion type and and application expression together
 evalForAll :: [Type] -> Type -> [Type] -> Type 
     -> State t -> E.ExprEnv -> NameGen -> Id -> (Rule, [State t], NameGen)
-evalForAll as t tms tr s@(State {type_env = tenv, known_values = kv}) eenv ng i =
+evalForAll as t tms tr s@(State {type_env = tenv, known_values = kv, tyvar_env = tvenv}) eenv ng i =
     let 
         log_rules = False -- toggle for logging rules
 
@@ -216,7 +217,7 @@ evalForAll as t tms tr s@(State {type_env = tenv, known_values = kv}) eenv ng i 
                 ([scrut, bindee], ng'') = freshIds [TyLitInt, TyLitInt] ng_in
 
                 e' = e_template $ Case (Var scrut) bindee tr 
-                    (mkSymIntAlts . map (Var . fst) . filter ((== tr) . snd) $ zip term_args (t:tms))
+                    (mkSymIntAlts . map (Var . fst) . filter ((== tr) . snd) $ zip term_args (t:tms)) -- replace snd with typeOf
 
                 eenv' = E.insertSymbolic scrut eenv
                 eenv'' = E.insert (idName i) e' eenv'
@@ -250,14 +251,16 @@ evalForAll as t tms tr s@(State {type_env = tenv, known_values = kv}) eenv ng i 
 
         -- PM-NON-CONT
         pmNonCont ng_in
-            | HS.null $ contTyVars t
-            , (_:_) <- tms
+            -- There is at least one non-containing argument type
+            | (non_cont_args@(_:_), cont_args) <- partition (HS.null . contTyVars . typeOf tvenv) term_args
             = let
                 (new_as, ng'') = freshSeededIds as_ids ng_in
-                (f, ng''') = freshId (renames (HM.fromList (zip (map idName as_ids) (map idName new_as)))
-                                $ TyFun t (mkNestedForAll as $ mkTyFun $ tms ++ [tr])) ng''
+                -- f rearranges s's type with non-containing types floated out of the forall
+                f_ty =  renames (HM.fromList (zip (map idName as_ids) (map idName new_as))) 
+                            (mkTyFun $ map (typeOf tvenv) non_cont_args ++ [mkNestedForAll as . mkTyFun $ (map (typeOf tvenv) cont_args ++ [tr])])
+                (f, ng''') = freshId f_ty ng''
 
-                e' = e_template . mkApp $ [Var f] ++ [Var x] ++ map (Type . TyVar) as_ids ++ map Var ys
+                e' = e_template $ mkApp $ ([Var f] ++ map Var non_cont_args ++ map (Type . TyVar) as_ids ++ map Var cont_args)
 
                 eenv' = E.insertSymbolic f eenv
                 eenv'' = E.insert (idName i) e' eenv'
