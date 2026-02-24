@@ -465,21 +465,22 @@ alignVar _ _ _ _ _ = Nothing
 -- | Discard states with inconsistent NRPCs
 inconsistentNRPCHalter :: Monad m =>
                           HS.HashSet Name -- ^ Names that should not be inlined (often: top level names from the original source code)
-                       -> Halter m (HS.HashSet (Expr, Expr)) r t
+                       -> Halter m (HS.HashSet (Expr, Expr), Goal) r VerifierTracker
 inconsistentNRPCHalter no_inline = 
-    mkSimpleHalter (\_ -> HS.empty)
+    mkSimpleHalter (\_ -> (HS.empty, Theorem))
                    (\hv _ _ -> hv)
                    inc_check
                    add_nrpc
     where
-        inc_check hv _ s@(State { expr_env = eenv })
+        inc_check (hv, _) _ s@(State { expr_env = eenv })
             | currExprIsFalse s
-            , not (checkNRPCConsistent no_inline eenv hv) = return Discard
+            , not (checkNRPCConsistent no_inline eenv hv) = return (Discard "inconsistentNRPCHalter")
             | otherwise = return Continue
         
-        add_nrpc hv _ _ s
-            | currExprIsFalse s = foldl' (\hv_ (NRPC _ e1 e2) -> HS.insert (e1, e2) hv_) hv (toListNRPC $ non_red_path_conds s)
-            | otherwise = hv
+        add_nrpc (hv, g) _ _ s
+            | not (g `isSameGoal` (goal . track $ s)) = (HS.empty, goal . track $ s)
+            | currExprIsFalse s = foldl' (\(hv_, g) (NRPC _ e1 e2) -> (HS.insert (e1, e2) hv_, g)) (hv, g) (toListNRPC $ non_red_path_conds s)
+            | otherwise = (hv, g)
 
 
 -- | Check if all NRPCs are syntactically consistent.  Two NRPCs are INconsistent if they:
@@ -585,10 +586,10 @@ genLemmaReducer no_inline solver = (mkSimpleReducer (const ()) red) { onDiscard 
                 return (NoProgress, (s, rv):map (,rv) lem_s, b')
             | otherwise = return (NoProgress, [(s, rv)], b)
         
-        dis _ (State { track = VT { goal = Lemma _ lem_s } }) _ = do
+        dis _ _ (State { track = VT { goal = Lemma _ lem_s } }) _ = do
             lem_info <- SM.get
             SM.put $ addDiscarded [lem_s] lem_info
-        dis _ _ _ = return ()
+        dis _ _ _ _ = return ()
    
 genLemmaState :: (MonadIO m, Solver solver) => HS.HashSet Name -> solver -> LemmaInfo -> VerifierState -> Bindings -> NRPC -> m (Bindings, Maybe VerifierState)
 genLemmaState no_inline solver (LI { generated_lem = gen_lems, discarded_lem = dis_lems }) s@(State { expr_env = eenv, known_values = kv }) b nrpc = do
@@ -645,10 +646,10 @@ mrContIgnoreNRPCTicks genLemma lkp s1 s2 ns hm active n1 n2 e1 e2 =
 acceptLemmaReducer :: (MonadIO m, SM.MonadState (ApproxPrevs VerifierTracker) m) => Reducer m () VerifierTracker
 acceptLemmaReducer = (mkSimpleReducer (const ()) (\rv s b -> return (NoProgress, [(s, rv)], b))) { onDiscard = dis }
     where
-        dis all_states s _
+        dis _ all_states s _
             | not . any (isSameGoal (goal $ track s) . goal . track . exStateToState) . concat . M.elems $ all_states
             , Lemma _ lem_s <- goal $ track s = do
-                -- liftIO $ putStrLn ("adding " ++ show (getExpr s))
+                liftIO $ putStrLn ("adding\n" ++ T.unpack (prettyNonRedPaths (mkPrettyGuide ()) (non_red_path_conds $ inlineNRPC s)))
                 addApproxPrevs (lem_s { track = (track lem_s) { goal = Proven } })
             | otherwise = return ()
 
