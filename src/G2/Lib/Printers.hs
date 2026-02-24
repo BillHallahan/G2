@@ -661,7 +661,7 @@ prettyState pg pretty_track s =
         pretty_stack = prettyStack pg (exec_stack s)
         pretty_eenv = prettyEEnv (tyvar_env s) pg (curr_expr s) (exec_stack s) (expr_env s)
         pretty_paths = prettyPathConds pg (path_conds s)
-        pretty_non_red_paths = prettyNonRedPaths pg . toListNRPC $ non_red_path_conds s
+        pretty_non_red_paths = prettyNonRedPaths pg $ non_red_path_conds s
         pretty_handles = prettyHandles pg $ handles s
         pretty_mutvars = prettyMutVars pg . HM.map mv_val_id $ mutvar_env s
         pretty_tenv = prettyTypeEnv (tyvar_env s) pg (type_env s)
@@ -755,12 +755,17 @@ prettyPathCond pg (AssumePC i l pc) =
     in
     mkIdHaskell pg i <> " = " <> T.pack (show l) <> "=> (" <> T.intercalate "\nand " (map (prettyPathCond pg) pc') <> ")"
 
-prettyNonRedPaths :: PrettyGuide -> [NRPC] -> T.Text
-prettyNonRedPaths pg =
-    T.intercalate "\n"
+prettyNonRedPaths :: PrettyGuide -> NonRedPathConds -> T.Text
+prettyNonRedPaths pg nrpc =
+    "unique = " <> (T.pack . show $ getNRPCUnique nrpc)
+    <>
+    "\n"
+    <>
+    (T.intercalate "\n"
     . map (\(NRPC focus e1 e2) -> mkDirtyExprHaskell pg e1 <> " == "
                             <> mkDirtyExprHaskell pg e2 <> "\t"
                             <> prettyFocus pg focus)
+    $ toListNRPC nrpc)
 
 prettyFocus :: PrettyGuide -> Focus -> T.Text
 prettyFocus _ Focused = "focused"

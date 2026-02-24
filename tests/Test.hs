@@ -1008,6 +1008,7 @@ verifierTests = testGroup "Verifier"
     , checkExprCEx "tests/Verify/NonStrict1.hs" "prop1False"
 
     , checkExprVerified "tests/Verify/HigherOrder.hs" "prop1"
+    , checkExprVerified "tests/Verify/HigherOrder.hs" "prop2"
 
     , checkRuleVerified "tests/Verify/Rules1.hs" "justJust"
     , checkRuleVerified "tests/Verify/Rules1.hs" "justJust2"

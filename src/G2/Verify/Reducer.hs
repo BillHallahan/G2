@@ -52,8 +52,6 @@ import qualified Data.Sequence as Seq
 import qualified Data.Text as T
 import Data.Traversable
 
-import Debug.Trace
-
 -- | When a newly reached function application is approximated by a previously seen (and thus explored) function application,
 -- shift the new function application into the NRPCs.
 nrpcAnyCallReducer :: MonadIO m =>
@@ -544,9 +542,7 @@ discardOnFalse = (mkSimpleHalter (\_ -> ())
         
         -- Continue running if we have any states left trying to prove the main theorem.
         -- Otherwise, drop all states.
-        filterAll all_states | any (isTheorem . goal . track . exStateToState). concat . M.elems $ all_states =
-                                trace ("goal = " ++ show (length (filter (isTheorem . goal . track . exStateToState). concat . M.elems $ all_states)))
-                                all_states
+        filterAll all_states | any (isTheorem . goal . track . exStateToState). concat . M.elems $ all_states = all_states
                              | otherwise = M.empty
 
 currExprIsBool :: Bool -> State t -> Bool
@@ -586,7 +582,6 @@ genLemmaReducer no_inline solver = (mkSimpleReducer (const ()) red) { onDiscard 
                 let lem_s = catMaybes m_lem_s
                     lem_info' = addGenerated lem_s lem_info
                 SM.put lem_info'
-                liftIO . putStrLn $ "len = " ++ show (length lem_s)
                 return (NoProgress, (s, rv):map (,rv) lem_s, b')
             | otherwise = return (NoProgress, [(s, rv)], b)
         
@@ -596,7 +591,7 @@ genLemmaReducer no_inline solver = (mkSimpleReducer (const ()) red) { onDiscard 
         dis _ _ _ = return ()
    
 genLemmaState :: (MonadIO m, Solver solver) => HS.HashSet Name -> solver -> LemmaInfo -> VerifierState -> Bindings -> NRPC -> m (Bindings, Maybe VerifierState)
-genLemmaState no_inline solver (LI { generated_lem = gen_lems, discarded_lem = dis_lems }) s@(State { known_values = kv }) b nrpc = do
+genLemmaState no_inline solver (LI { generated_lem = gen_lems, discarded_lem = dis_lems }) s@(State { expr_env = eenv, known_values = kv }) b nrpc = do
     let (lemma_name, ng2) = freshSeededString "lemma" (name_gen b)
         (emp_nrpc, ng3) = emptyNRPC ng2
         (ng4, nrpcs) = addExistingNRPC ng3 (nrpc { nrpc_focus = Focused }) emp_nrpc
@@ -616,9 +611,14 @@ genLemmaState no_inline solver (LI { generated_lem = gen_lems, discarded_lem = d
     equiv_lemma <-liftIO $ findM (\prev -> liftM2 (&&) (res_check prev lem_s) (res_check lem_s prev)) gen_lems
     dis_lemma <-liftIO $ findM (\s -> res_check s lem_s) dis_lems
 
-    case (equiv_lemma, dis_lemma) of
-        (Nothing, Nothing) -> do
-            liftIO . putStrLn . T.unpack . printHaskellDirty $ nrpc_lhs nrpc
+    -- No point in generating a lemma where the RHS is symbolic, as this would be trivially false
+    let non_sym_rhs = case nrpc_rhs $ nrpc of
+                        Var (Id n _) | Just (E.Conc _) <- E.deepLookupConcOrSym n eenv -> True
+                        _ -> False
+
+    case (non_sym_rhs, equiv_lemma, dis_lemma) of
+        (True, Nothing, Nothing) -> do
+            -- liftIO . putStrLn . T.unpack . printHaskellDirty $ nrpc_lhs nrpc
             return ( b { name_gen = ng4 }, Just lem_s )
         _ -> return ( b { name_gen = ng4 }, Nothing )
 
@@ -648,7 +648,7 @@ acceptLemmaReducer = (mkSimpleReducer (const ()) (\rv s b -> return (NoProgress,
         dis all_states s _
             | not . any (isSameGoal (goal $ track s) . goal . track . exStateToState) . concat . M.elems $ all_states
             , Lemma _ lem_s <- goal $ track s = do
-                liftIO $ putStrLn ("adding " ++ show (getExpr s))
+                -- liftIO $ putStrLn ("adding " ++ show (getExpr s))
                 addApproxPrevs (lem_s { track = (track lem_s) { goal = Proven } })
             | otherwise = return ()
 

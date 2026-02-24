@@ -1874,11 +1874,10 @@ approximationHalter' stop_cond solver no_inline = mkSimpleHalter
                                                 return $ more_res_s && stop_cond pr prev s
                                                 ) xs'
                 case approx of
-                    Just _ ->  do
+                    Just approx' ->  do
                         liftIO $ do
-                            let approx' = fromJust approx
-                            putStrLn $ "    !!! log_path s = " ++ show (log_path s) ++ " " ++ show (num_steps s)
-                            putStrLn $ "    !!! log_path approx = " ++ show (log_path approx') ++ " " ++ show (num_steps approx')
+                            putStrLn $ "    !!! log_path s = " ++ show (log_path s) ++ " " ++ show (num_steps s) ++ "   " ++ show (getNRPCUnique . non_red_path_conds $ s)
+                            putStrLn $ "    !!! log_path approx = " ++ show (log_path approx') ++ " " ++ show (num_steps approx') ++ "   " ++ show (getNRPCUnique . non_red_path_conds $ approx')
                             -- putStrLn $ "    !!! length nrpc s = " ++ show (length (non_red_path_conds s))
                             -- putStrLn $ "    !!! length nrpc approx = " ++ show (length (non_red_path_conds approx'))
                         return Discard
@@ -2506,7 +2505,7 @@ runReducer red hal ord solve_r analyze init_state init_bindings = do
                                 let xs' = foldr (\(or_b, s') -> M.insertWith (++) or_b [s']) xs b_ss_tail
 
                                 runReducer' pr s_h b' xs'
-                            [] -> runReducerList pr xs b'
+                            [] -> runReducerListSwitching pr xs b'
 
         {-# INLINABLE switchState #-}
         switchState :: (Monad m, Ord b)
