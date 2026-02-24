@@ -77,3 +77,9 @@ f19 x = x
 
 (@@) :: String -> String -> String
 xs @@ ys = xs ++ ys ++ xs
+
+f20 :: Char -> Char -> String -> String
+f20 x _ [] = []
+f20 x z (y:ys) | x == y = z:ys
+               | otherwise = x:ys
+
