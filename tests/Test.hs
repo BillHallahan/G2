@@ -996,6 +996,8 @@ verifierTests = testGroup "Verifier"
 
     , checkExprCEx "tests/Verify/List5.hs" "p1False"
 
+    , checkExprCEx "tests/Verify/List6.hs" "p1False"
+
     -- , checkExprVerified "tests/Verify/NatList1.hs" "prop1"
     , checkExprVerified "tests/Verify/NatList1.hs" "prop2"
     , checkExprCEx "tests/Verify/NatList1.hs" "prop1False"

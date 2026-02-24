@@ -62,8 +62,10 @@ verifyRedHaltOrd s solver simplifier config verify_config no_nrpc_names = do
     let labelApproxPoints s
             | Data (DataCon { dc_name = d }) <- getExpr s
             , d == dc_name (mkDCFalse (known_values s) (type_env s)) =
-                                    "state" ++ show (length $ rules s) ++ "_ap"
-            | otherwise = "state" ++ show (length $ rules s)
+                "state" ++ show (length $ rules s) ++ lem_ind ++ "_ap"
+            | otherwise = "state" ++ lem_ind ++ show (length $ rules s)
+            where
+                lem_ind = if isTheorem (goal $ track s) then "" else "_lem"
 
     m_logger <- fmap SomeReducer <$> getLimLogger' labelApproxPoints config prettyVerifierTracker
 
