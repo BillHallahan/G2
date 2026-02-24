@@ -105,7 +105,11 @@ verifyRedHaltOrd s solver simplifier config verify_config no_nrpc_names = do
                                             SomeReducer nrpc_approx
                                         .~> syntactic_eq_red f
                                 False -> logger_std_red f
-        lemma_gen f = SomeReducer (genLemmaReducer no_nrpc_names solver) .~> liftSomeReducer (SomeReducer acceptLemmaReducer) .~> nrpc_approx_red f
+        lemma_gen f = case use_lemmas verify_config of
+                            True -> SomeReducer (genLemmaReducer no_nrpc_names solver)
+                                .~> liftSomeReducer (SomeReducer acceptLemmaReducer)
+                                .~> nrpc_approx_red f
+                            False -> nrpc_approx_red f
         
         halter = switchEveryNHalter 20
                  <~> acceptIfViolatedHalter

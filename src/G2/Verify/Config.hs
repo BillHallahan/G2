@@ -14,6 +14,7 @@ import System.Directory
 data VerifyConfig = VerifyConfig { rev_abs :: Bool
                                  , arg_rev_abs :: AbsFuncArgs
                                  , data_arg_rev_abs :: AbsDataArgs
+                                 , use_lemmas :: Bool
                                  , shared_var_heuristic :: SharedVarHeuristic
                                  , syntactic_eq_ra :: Bool
                                  , approx :: Bool 
@@ -53,6 +54,7 @@ mkVerifyConfig = VerifyConfig
             <$> flag True False (long "no-rev-abs" <> help "Do not use reversible abstractions")
             <*> flag AbsFuncArgs NoAbsFuncArgs (long "no-arg-rev-abs" <> help "Do not apply reversible abstractions to function arguments")
             <*> flag AbsDataArgs NoAbsDataArgs (long "no-data-arg-rev-abs" <> help "Do not apply reversible abstraction through data constructors in function arguments")
+            <*> flag True False (long "no-lemmas" <> help "Do not generate or use lemmas")
             <*> flag SharedVarHeuristic NoSharedVarHeuristic (long "no-shared-var-heuristic" <> help "Do not apply reversible abstraction to function arguments only if there are shared variables")
             <*> flag True False (long "no-syntactic-eq-ra" <> help "Do not take advantage of syntactically equivalent expressions to unify reversible abstractions or discard states")
             <*> flag True False (long "no-approx" <> help "Do not use approximation")
