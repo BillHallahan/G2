@@ -619,7 +619,11 @@ genLemmaState no_inline solver (LI { generated_lem = gen_lems, discarded_lem = d
 
     case (non_sym_rhs, equiv_lemma, dis_lemma) of
         (True, Nothing, Nothing) -> do
-            -- liftIO . putStrLn . T.unpack . printHaskellDirty $ nrpc_lhs nrpc
+            let pretty_nrpc = inlinePretty eenv nrpc
+            liftIO . putStrLn $ "Try to prove "
+                            <> (T.unpack . printHaskellDirty $ nrpc_lhs pretty_nrpc)
+                            <> " = "
+                            <> (T.unpack . printHaskellDirty $ nrpc_rhs pretty_nrpc)
             return ( b { name_gen = ng4 }, Just lem_s )
         _ -> return ( b { name_gen = ng4 }, Nothing )
 

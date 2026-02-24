@@ -38,7 +38,9 @@ module G2.Lib.Printers ( PrettyGuide
                        , updateQualMods
                        , setStrictCase
                        , setEnvOrdering
-                       , setTyLamPrinting) where
+                       , setTyLamPrinting
+                       
+                       , inlinePretty) where
 
 import G2.Language.Expr
 import qualified G2.Language.ExprEnv as E
@@ -1108,3 +1110,21 @@ prettyGuideStr = T.intercalate "\n" . map (\(n, s) -> s <> " <-> " <> T.pack (sh
 -- | Print `pg_nums`. Exposes internal of the `PrettyGuide` to aid in debugging.
 prettyGuideNumsStr :: PrettyGuide -> T.Text
 prettyGuideNumsStr = T.intercalate "\n" . map (\(n, PI al i) -> n <> " -> " <> T.pack (show al) <> ", " <> T.pack (show i)) . HM.toList . pg_nums
+
+-------------------------------------------------------------------------------
+-- Inlining
+-------------------------------------------------------------------------------
+
+inlinePretty :: ASTContainer c Expr => ExprEnv -> c -> c
+inlinePretty eenv = modifyContainedASTs (go HS.empty)
+    where
+        go seen v@(Var (Id n _)) | n `HS.member` seen = v
+                                        | Just (E.Conc e) <- E.lookupConcOrSym n eenv =
+                                        if | Data _:_ <- unApp e -> go (HS.insert n seen) e
+                                            | Var _:_ <- unApp e -> go (HS.insert n seen) e
+                                            | Tick t te <- e -> Tick t (go seen te)
+                                            | otherwise -> v
+        go seen (App e1 e2) = App (go seen e1) (go seen e2)
+        go seen (Tick h e) = Tick h (go seen e)
+        go _ e = e
+

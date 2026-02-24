@@ -1534,17 +1534,7 @@ filterStateEnv s@(State {curr_expr=c_expr, exec_stack=e_stack,
 
 inlineNRPC :: State t -> State t
 inlineNRPC s@(State { expr_env = eenv, non_red_path_conds = nrpc }) =
-    s { non_red_path_conds = modifyContainedASTs (inline HS.empty) nrpc }
-    where
-        inline seen v@(Var (Id n _)) | n `HS.member` seen = v
-                                     | Just (E.Conc e) <- E.lookupConcOrSym n eenv =
-                                        if | Data _:_ <- unApp e -> inline (HS.insert n seen) e
-                                           | Var _:_ <- unApp e -> inline (HS.insert n seen) e
-                                           | Tick t te <- e -> Tick t (inline seen te)
-                                           | otherwise -> v
-        inline seen (App e1 e2) = App (inline seen e1) (inline seen e2)
-        inline seen (Tick h e) = Tick h (inline seen e)
-        inline _ e = e
+    s { non_red_path_conds = inlinePretty eenv nrpc }
 
 stdFileNamer :: State t -> FilePath
 stdFileNamer s = "state" ++ show (length $ rules s)
