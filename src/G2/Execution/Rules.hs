@@ -225,14 +225,16 @@ evalForAll as t tms tr s@(State {type_env = tenv, known_values = kv}) eenv ng i 
             | otherwise = Nothing
         
         -- PM-CYCLE
+        -- TODO: remove cycling entirely, since we're selecting from argument directly
         pmCycle ng_in
             | (_:_) <- tms
             -- Since PM-CYCLE is only needed to access arguments of types 
             -- that require applications of PM-UNWRAP or PM-NON-CONT, we 
             -- check if all arguments are bare type variables to avoid 
             -- unneeded cycling.
+            -- TODO: bare tv special casing doesn't make sense
             , not $ all isTyVar (t:tms)
-            , t `elem` as
+            , not . null $ contTyVars t
             = let 
                 (new_as, ng'') = freshSeededIds as_ids ng_in
                 (f, ng''') = freshId (renames (HM.fromList (zip (map idName as_ids) (map idName new_as))) -- TODO: map after zip?
