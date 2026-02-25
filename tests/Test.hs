@@ -646,10 +646,13 @@ testFileTests = testGroup "TestFiles"
                                                               , ("listRet", 200, [AtLeast 5])
                                                               , ("literalRet", 100, [AtLeast 6])
                                                               , ("literalAndBoxedRet", 100, [AtLeast 1])
+                                                              , ("mIntMaybe", 100, [AtLeast 2])
                                                               , ("funcArg", 100, [AtLeast 5])
                                                               , ("funcArgBoxedArg", 100, [AtLeast 6])
                                                               , ("funcArgBoxedLitArg", 100, [AtLeast 6])
-                                                              , ("twoApplicationsNeeded", 200, [AtLeast 6])] 
+                                                              , ("funcArgWithTyToTyArg", 100, [AtLeast 15])
+                                                              , ("twoApplicationsNeeded", 200, [AtLeast 6])
+                                                              , ("twoKindsToFrom", 200, [AtLeast 15])] 
     , checkInputOutputsTemplate "tests/HigherOrder/Rank3AndGreater.hs" [ ("polyFuncArg", 100, [AtLeast 10])
                                                                        , ("polyFuncArgTwoTVs", 100, [AtLeast 10])
                                                                        , ("polyFuncArgADT", 100, [AtLeast 10])
