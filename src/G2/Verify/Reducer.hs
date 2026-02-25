@@ -68,7 +68,17 @@ nrpcAnyCallReducer no_nrpc_names v_config config =
             return (s, b) }
 
     where        
-        red rv s@(State { curr_expr = CurrExpr _ ce, expr_env = eenv, tyvar_env = tvnv }) b@(Bindings { name_gen = ng })
+        red rv s@(State { curr_expr = CurrExpr _ ce, expr_env = eenv, tyvar_env = tvnv, track = vt }) b@(Bindings { name_gen = ng })
+            | Stck.null . popEnsureEq $ exec_stack s
+            , let stripped_ce = stripNRBT ce
+            , (Var (Id vn _)):(_:_) <- unApp stripped_ce
+            , let tcf = tail_called_funcs vt
+            , vn `notElem` tcf =
+                let
+                    s' = s { track = vt { tail_called_funcs = HS.insert vn tcf }}
+                in
+                return (Finished, [(s', rv)], b)
+
             | maybe True (allowed_frame . fst) (Stck.pop (exec_stack s))
             
             , let wrapped_ce = applyWrap (getExpr s) (exec_stack s)
@@ -198,6 +208,9 @@ nrpcAnyCallReducer no_nrpc_names v_config config =
         hasNRBT (App e1 _) = hasNRBT e1
         hasNRBT _ = False
 
+        popEnsureEq stck | Just (CurrExprFrame (EnsureEq _) _, stck') <- Stck.pop stck= popEnsureEq stck'
+                         | otherwise = stck
+
 -- | Create a NRPC if heuristics apply.
 createRA :: NameGen -> GenFocus n -> State t -> Maybe (State t, Id, NRPC, NameGen)
 createRA ng f s | nrpcHeuristics (expr_env s) (getExpr s) = createNonRed ng f s
@@ -310,7 +323,7 @@ adjustFocusReducer = mkSimpleReducer (const ()) red
         red rv s b =
             return (Finished, [(s, rv)], b)
 
-verifySolveNRPC :: Monad m => Reducer m () t
+verifySolveNRPC :: Monad m => Reducer m () VerifierTracker
 verifySolveNRPC = mkSimpleReducer (const ()) red
     where
         red _
@@ -318,6 +331,7 @@ verifySolveNRPC = mkSimpleReducer (const ()) red
                                  , curr_expr = cexpr
                                  , exec_stack = stck
                                  , non_red_path_conds = nrs :<* nr@(NRPC focus nre1 nre2)
+                                 , track = vt
                                  })
                                 b
             
@@ -335,7 +349,8 @@ verifySolveNRPC = mkSimpleReducer (const ()) red
                 s' = s { curr_expr = CurrExpr Evaluate nre1'
                        , exec_stack = stck'
                        , non_red_path_conds = nrs
-                       , focused = focus }
+                       , focused = focus
+                       , track = vt {tail_called_funcs = HS.empty } }
 
                 in return (InProgress, [(s', ())], b)
             | otherwise = 
@@ -600,7 +615,7 @@ genLemmaState no_inline solver (LI { generated_lem = gen_lems, discarded_lem = d
         lem_s = s { curr_expr = CurrExpr Evaluate (mkFalse kv)
                   , exec_stack = Stck.empty
                   , non_red_path_conds = nrpcs
-                  , track = (track s) { goal = Lemma lemma_name lem_s }}
+                  , track = (track s) { tail_called_funcs = HS.empty, goal = Lemma lemma_name lem_s }}
     
     let mr_cont = mrContIgnoreNRPCTicks Nothing lookupConcOrSymState
         res_check = moreRestrictiveIncludingPCAndNRPC
@@ -685,13 +700,15 @@ Lemma n1 _ `isSameGoal` Lemma n2 _ = n1 == n2
 Proven `isSameGoal` Proven = True
 _ `isSameGoal` _ = False
 
-data VerifierTracker = VT { goal :: Goal, focus_map :: FocusMap }
+data VerifierTracker = VT { goal :: Goal
+                          , tail_called_funcs :: TailCalls -- ^ Functions called while in tail position 
+                          , focus_map :: FocusMap }
                           deriving (Show, Read)
-
+type TailCalls = HS.HashSet Name
 type FocusMap = HM.HashMap Name (HS.HashSet Name)
 
 initVerifierTracker :: VerifierTracker
-initVerifierTracker = VT { goal = Theorem, focus_map = HM.empty }
+initVerifierTracker = VT { goal = Theorem, tail_called_funcs = HS.empty, focus_map = HM.empty }
 
 updateStateFocusMap :: Name -> VerifierState -> VerifierState
 updateStateFocusMap n s@(State { focused = Unfocused n'
@@ -720,6 +737,7 @@ prettyVerifierTracker pg (VT { focus_map = fm, goal = g}) =
 
         prettyGoal Theorem = "Theorem"
         prettyGoal (Lemma n _) = "Lemma " <> printName pg n
+        prettyGoal Proven = "Proven"
 
 instance ASTContainer VerifierTracker Expr where
     containedASTs _ = []
@@ -731,15 +749,18 @@ instance ASTContainer VerifierTracker Type where
 
 instance Named VerifierTracker where
     names vt = names (goal vt) <> names (focus_map vt)
-    rename old new vt = VT { goal = rename old new (goal vt), focus_map = rename old new (focus_map vt) }
-    renames hm vt = VT { goal = renames hm (goal vt), focus_map = renames hm (focus_map vt) }
+    rename old new vt = VT { goal = rename old new (goal vt), tail_called_funcs = rename old new (tail_called_funcs vt), focus_map = rename old new (focus_map vt) }
+    renames hm vt = VT { goal = renames hm (goal vt), tail_called_funcs = renames hm (tail_called_funcs vt), focus_map = renames hm (focus_map vt) }
 
 instance Named Goal where
     names Theorem = mempty
     names (Lemma n _) = Seq.singleton n
+    names Proven = mempty
 
     rename _ _ Theorem = Theorem
     rename old new (Lemma n s) = Lemma (rename old new n) s
+    rename _ _ Proven = Proven
 
     renames _ Theorem = Theorem
     renames hm (Lemma n s) = Lemma (renames hm n) s
+    renames _ Proven = Proven
