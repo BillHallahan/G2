@@ -711,11 +711,10 @@ nonRedLibFuncs exec_names no_nrpc_names
     , Just n' <- E.deepLookupVar n eenv
     , not (n' `HS.member` no_nrpc_names)
     , not (E.isSymbolic n' eenv)
-    , Just (s'@(State { curr_expr = CurrExpr _ _ }), _, NRPC { nrpc_lhs = ce' }, ng') <- createNonRed ng Focused s = 
+    , Just (s'@(State { curr_expr = CurrExpr _ _ }), _, NRPC { nrpc_lhs = ce' }, ng') <- createNonRed ng Focused s =  do
         let
             (reaches_sym, sym_table') = reachesSymbolicMemo sym_table eenv ce'
             (exec_skip, var_table') = if reaches_sym then checkDelayability eenv ce' ng exec_names var_table else (Skip, var_table)
-        in
         case (reaches_sym, exec_skip) of
             (True, Skip) -> return (Finished, [(s', (var_table', sym_table', nrpc_count + 1))], b {name_gen = ng'})
             _ -> return (Finished, [(s, (var_table', sym_table', nrpc_count))], b)
@@ -978,7 +977,7 @@ createNonRed' ng
         s' = s { expr_env = eenv'
                , non_red_path_conds = nrs' }
     in
-    Just (s', new_sym_id, NRPC focus' (Var new_sym_id) e'', ng''')
+    Just (s', new_sym_id, NRPC focus' e'' (Var new_sym_id), ng''')
 createNonRed' _ _ _ _ = Nothing
 
 hasMagicTypes :: ASTContainer c Type => KnownValues -> c -> Bool
