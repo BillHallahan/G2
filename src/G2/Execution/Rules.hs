@@ -131,20 +131,13 @@ sepTypeForRNT full_type = {-trace (show (vs, t, tms, tr))-} (vs, t, tms, tr)
         (t, remain') = getT remain
         (tms, tr) = getTms remain'
 
-        {- getVs :: Type -> ([Type], Maybe Type)
-        getVs (TyForAll v _vs) = let 
-            (vs', rest) = getVs _vs 
-                in (TyVar v:vs', rest)
-        getVs notFA = ([], Just notFA) -}
-
         -- TODO: expected difference between this and above implementation
         -- on forall a b. b -> b, but behaved the same. Make sure this impl. is needed.
         getVs :: Type -> ([Type], Maybe Type) 
-        getVs (TyForAll (Id vn _) _vs) = let 
+        getVs (TyForAll tvid _vs) = let 
             (vs', rest) = getVs _vs 
-                in (TyVar (Id vn TYPE):vs', rest)
+                in (TyVar tvid:vs', rest)
         getVs notFA = ([], Just notFA)
-        
 
         getT :: Maybe Type -> (Maybe Type, Maybe Type)
         getT (Just (TyFun first rest)) = (Just first, Just rest)
@@ -164,13 +157,9 @@ mkNestedForAll ((TyVar i):is) t = TyForAll i $ mkNestedForAll is t
 mkNestedForAll [] t = t
 mkNestedForAll _ _ = error "mkNestedForAll: list Types not in correct form"
 
--- TODO: only looks deeper in some Types
-contTyVars :: Type -> HS.HashSet Id
-contTyVars (TyForAll i t) = HS.insert i (contTyVars t)
-contTyVars (TyApp t1 t2) = HS.union (contTyVars t1) (contTyVars t2)
-contTyVars (TyFun t1 t2) = HS.union (contTyVars t1) (contTyVars t2)
-contTyVars (TyVar i) = HS.singleton i
-contTyVars _ = HS.empty
+-- Checks if the type t contains the type variables as.
+containsTyVars :: Type -> [Id] -> Bool
+containsTyVars t as = not . null $ as `intersect` tyVarIds t
 
 -- Make Alts from the Exprs in the form:
 --  1 -> Expr1; 2 -> Expr2; ... ; _ -> ExprN
@@ -212,7 +201,7 @@ evalForAll as t tms tr s@(State {type_env = tenv, known_values = kv, tyvar_env =
         -- PM-INST-VAR
         pmInstVar ng_in
             | tr `elem` (t:tms) -- return type in arguments
-            , not . null $ contTyVars tr -- return type contains a bound type variable, otherwise can rely on arb. value gen.
+            , containsTyVars tr as_ids -- return type contains a bound type variable, otherwise can rely on arb. value gen.
             = let 
                 ([scrut, bindee], ng'') = freshIds [TyLitInt, TyLitInt] ng_in
 
@@ -235,7 +224,7 @@ evalForAll as t tms tr s@(State {type_env = tenv, known_values = kv, tyvar_env =
             -- unneeded cycling.
             -- TODO: bare tv special casing doesn't make sense
             , not $ all isTyVar (t:tms)
-            , not . null $ contTyVars t
+            , containsTyVars t as_ids
             = let 
                 (new_as, ng'') = freshSeededIds as_ids ng_in
                 (f, ng''') = freshId (renames (HM.fromList (zip (map idName as_ids) (map idName new_as))) -- TODO: map after zip?
@@ -252,7 +241,7 @@ evalForAll as t tms tr s@(State {type_env = tenv, known_values = kv, tyvar_env =
         -- PM-NON-CONT
         pmNonCont ng_in
             -- There is at least one non-containing argument type
-            | (non_cont_args@(_:_), cont_args) <- partition (HS.null . contTyVars . typeOf tvenv) term_args
+            | (non_cont_args@(_:_), cont_args) <- partition (not . flip containsTyVars as_ids . typeOf tvenv) term_args
             = let
                 (new_as, ng'') = freshSeededIds as_ids ng_in
                 -- f rearranges s's type with non-containing types floated out of the forall
@@ -270,7 +259,7 @@ evalForAll as t tms tr s@(State {type_env = tenv, known_values = kv, tyvar_env =
 
         -- PM-UNWRAP
         pmUnwrap ng_in
-            | not . HS.null $ contTyVars t
+            | containsTyVars t as_ids
             , t `notElem` as
             , TyCon tname _:ts <- unTyApp t
             , Just alg_data_ty <- HM.lookup tname tenv
@@ -303,13 +292,12 @@ evalForAll as t tms tr s@(State {type_env = tenv, known_values = kv, tyvar_env =
 
         -- PM-INST-ADT
         pmInstADT ng_in
-            | not . null $ contTyVars tr
+            | containsTyVars tr as_ids
             , not . null $ (t:tms)
             -- if the below guard is null, the function is returning an ADT applied at its lowest levels
             -- to literal types, so no new behavior will be found by using this rule to instantiate it.
             -- ex. forall a. a -> Maybe Int. 
             -- PM-CONST will apply instead and allow the arbitrary value generator to instantiate the value.
-            , not . HS.null $ contTyVars tr `HS.intersection` HS.fromList as_ids
             , TyCon adt_name _:adt_ts <- unTyApp tr
             , Just alg_data_ty <- HM.lookup adt_name tenv
             = let
@@ -385,7 +373,7 @@ evalForAll as t tms tr s@(State {type_env = tenv, known_values = kv, tyvar_env =
 
         -- PM-CONST
         pmConst ng_in
-            | null . contTyVars $ tr
+            | not $ containsTyVars tr as_ids
             = let 
                 (x_tr, ng'') = freshId tr ng_in
                 e' = e_template $ Var x_tr
@@ -407,7 +395,7 @@ evalForAll as t tms tr s@(State {type_env = tenv, known_values = kv, tyvar_env =
         argumentExprs fwd_fst_arg ng_prior = foldr go ([], [], ng_prior)
             where
                 go :: Type -> ([Expr], [Id], NameGen) -> ([Expr], [Id], NameGen)
-                go fa_ti (faes, _symIds, ng1) | not . null $ contTyVars fa_ti 
+                go fa_ti (faes, _symIds, ng1) | containsTyVars fa_ti as_ids
                     -- Need to make argument with symbolic function
                     = let 
                         (fa_id_new_as, ng1') = freshSeededIds as_ids ng1
