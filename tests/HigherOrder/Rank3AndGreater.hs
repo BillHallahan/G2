@@ -45,3 +45,7 @@ forallWithPolyFuncArgBox f = f (\x -> Box x) True
 --     existing (a, b) will not be used.
 forallWithPolyFuncArgTup :: (forall a b. (forall c d. c -> d -> (c, d)) -> a -> b -> (a, b)) -> (Bool, Int)
 forallWithPolyFuncArgTup f = f (\x y -> (x, y)) True 7
+
+-- TODO: think partial application
+adtForall :: (forall a. (forall m. a -> a -> m a) -> a -> (a -> ma)) -> (Int -> Boxed Int)
+adtForall f = f (\x wx -> wx) 4
