@@ -536,7 +536,7 @@ evalPrimADT2 kv tenv StrAppend xs ys = do
 
 evalPrimADT2 kv tenv StrAt xs (Lit (LitInt i)) = do
     xs' <- toString xs
-    let c = if fromInteger i < length xs' then  [xs' !! (fromInteger i)] else []
+    let c = if 0 <= i && fromInteger i < length xs' then  [xs' !! (fromInteger i)] else []
     return $ toStringExpr kv tenv c
 
 evalPrimADT2 kv _ StrPrefixOf pre s = do
@@ -744,6 +744,7 @@ evalsToSMTRep seen eenv kv tc = go
         go (Lit _) = True
         go (App e1 e2) = go e1 && go e2
         go (Type _) = True
+        go (Tick _ e) = go e
         go e | isSMTRep eenv kv e = True
         go _ = False
 
