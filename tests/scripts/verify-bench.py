@@ -30,6 +30,7 @@ total_ce_props = 85 # of properties checked for counterexamples
 def settings():
     return [ ("All", []),
              ("No \\approxR", ["--no-approx"]),
+             ("No Lemmas", ["--no-lemmas"]),
              ("No SVH", ["--no-shared-var-heuristic"]),
              ("No Arg RAs", ["--no-arg-rev-abs"]),
              ("No Syn Eq", ["--no-syntactic-eq-ra"]),
