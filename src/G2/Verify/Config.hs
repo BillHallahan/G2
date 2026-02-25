@@ -16,7 +16,8 @@ data VerifyConfig = VerifyConfig { rev_abs :: Bool
                                  , data_arg_rev_abs :: AbsDataArgs
                                  , shared_var_heuristic :: SharedVarHeuristic
                                  , syntactic_eq_ra :: Bool
-                                 , approx :: Bool }
+                                 , approx :: Bool 
+                                 , rewrite_rule :: Bool}
 
 data AbsFuncArgs = AbsFuncArgs | NoAbsFuncArgs deriving Eq
 
@@ -55,6 +56,7 @@ mkVerifyConfig = VerifyConfig
             <*> flag SharedVarHeuristic NoSharedVarHeuristic (long "no-shared-var-heuristic" <> help "Do not apply reversible abstraction to function arguments only if there are shared variables")
             <*> flag True False (long "no-syntactic-eq-ra" <> help "Do not take advantage of syntactically equivalent expressions to unify reversible abstractions or discard states")
             <*> flag True False (long "no-approx" <> help "Do not use approximation")
+            <*> flag False True (long "rewrite-rule" <> help "The input name is a rewrite rule")
 
 defVerifyConfig :: VerifyConfig
 defVerifyConfig = fromJust . getParseResult $ execParserPure defaultPrefs mkVerifyConfigInfo []
