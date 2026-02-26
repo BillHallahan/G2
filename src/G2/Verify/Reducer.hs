@@ -359,10 +359,18 @@ verifySolveNRPC = mkSimpleReducer (const ()) red
         red _ s b = return (Finished, [(s, ())], b)
 
 isNRPCSymFun :: ExprEnv -> NRPC -> Bool
-isNRPCSymFun eenv (NRPC _ e1 _)
-    | Tick _ (Var (Id n _)):_ <- unApp e1
-    , Just (E.Sym _) <- E.deepLookupConcOrSym n eenv = True
-    | otherwise = False
+isNRPCSymFun eenv (NRPC _ e1 _) = is_sym_fun HS.empty e1
+    where
+        is_sym_fun seen e
+            | (Var (Id n _)):_ <- es
+            , n `elem` seen = False
+            | (Var (Id n _)):_ <- es
+            , Just (E.Sym _) <- E.deepLookupConcOrSym n eenv = True
+            | (Var (Id n _)):_ <- es
+            , Just (E.Conc e_c) <- E.deepLookupConcOrSym n eenv = is_sym_fun (HS.insert n seen) e_c
+            | otherwise = False
+            where
+                es = stripAllTicks $ unApp e
 
 inlineInner :: ExprEnv -> Expr -> Expr
 inlineInner eenv e
