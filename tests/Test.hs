@@ -1013,7 +1013,7 @@ verifierTests = testGroup "Verifier"
     , checkExprVerified "tests/Verify/HigherOrder.hs" "prop2"
 
     , checkExprVerified "tests/Verify/IdCall.hs" "idCall"
-    , checkExprVerified "tests/Verify/IdCall.hs" "idCall2x"
+    , checkExprVerified "tests/Verify/IdCall.hs" "idCall2"
 
     , checkRuleVerified "tests/Verify/Rules1.hs" "justJust"
     , checkRuleVerified "tests/Verify/Rules1.hs" "justJust2"
