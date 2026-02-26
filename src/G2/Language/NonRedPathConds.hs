@@ -8,6 +8,7 @@ module G2.Language.NonRedPathConds ( Focus
                                    , emptyNRPC
                                    , emptyNRPCNonUniq
                                    , addNRPC
+                                   , addExistingNRPC
                                    , addFirstNRPC
                                    , getNRPC
                                    , getLastNRPC
@@ -122,6 +123,9 @@ addNRPC ng focus e1 e2 (NRPCs nrpc curr_uniq) =
         (uniq, ng') = if focus == Focused then freshUnique ng else (curr_uniq, ng)
     in
     (ng', NRPCs (nrpc :|> NRPC { nrpc_focus = focus, nrpc_lhs = e1', nrpc_rhs = e2' }) uniq)
+
+addExistingNRPC :: NameGen -> NRPC -> NonRedPathConds -> (NameGen, NonRedPathConds)
+addExistingNRPC ng (NRPC focus e1 e2) = addNRPC ng focus e1 e2
 
 addFirstNRPC :: NameGen -> Focus -> Expr -> Expr -> NonRedPathConds -> (NameGen, NonRedPathConds)
 addFirstNRPC ng focus e1 e2 (NRPCs nrpc curr_uniq) =

@@ -1,6 +1,8 @@
 {-# LANGUAGE FlexibleContexts, MultiParamTypeClasses, MultiWayIf, OverloadedStrings, TupleSections #-}
 
-module G2.Verify.Reducer ( VerifierTracker
+module G2.Verify.Reducer ( VerifierTracker (..)
+                         , Goal (..)
+                         , isTheorem
                          , initVerifierTracker
                          , prettyVerifierTracker
                          
@@ -11,6 +13,11 @@ module G2.Verify.Reducer ( VerifierTracker
                          , unifyNRPCReducer
                          , inconsistentNRPCHalter
                          , approximationHalter
+
+                         , LemmaInfo
+                         , emptyLemmaInfo
+                         , genLemmaReducer
+                         , acceptLemmaReducer
                          
                          , discardOnFalse
                          , currExprIsFalse
@@ -33,14 +40,17 @@ import G2.Solver
 import G2.Verify.Config
 import G2.Verify.StaticArgTrans
 
+import Control.Monad.Extra
 import Control.Monad.IO.Class
 import qualified Control.Monad.State as SM
 import qualified Data.HashSet as HS
 import qualified Data.HashMap.Strict as HM
 import Data.List
+import qualified Data.Map.Lazy as M
 import Data.Maybe
-
+import qualified Data.Sequence as Seq
 import qualified Data.Text as T
+import Data.Traversable
 
 -- | When a newly reached function application is approximated by a previously seen (and thus explored) function application,
 -- shift the new function application into the NRPCs.
@@ -48,7 +58,7 @@ nrpcAnyCallReducer :: MonadIO m =>
                       HS.HashSet Name -- ^ Names of functions that should not be approximated
                    -> VerifyConfig
                    -> Config
-                   -> Reducer m Int t
+                   -> Reducer m Int VerifierTracker
 nrpcAnyCallReducer no_nrpc_names v_config config =
     (mkSimpleReducer (const 0) red)
             { onAccept = \s b nrpc_count -> do
@@ -189,11 +199,11 @@ nrpcAnyCallReducer no_nrpc_names v_config config =
         hasNRBT _ = False
 
 -- | Create a NRPC if heuristics apply.
-createRA :: NameGen -> GenFocus n -> State t -> Maybe (State t, Id, Expr, NameGen)
+createRA :: NameGen -> GenFocus n -> State t -> Maybe (State t, Id, NRPC, NameGen)
 createRA ng f s | nrpcHeuristics (expr_env s) (getExpr s) = createNonRed ng f s
                 | otherwise = Nothing
 
-createRAExpr :: NameGen -> GenFocus n -> State t -> Expr -> Maybe (State t, Id, Expr, NameGen)
+createRAExpr :: NameGen -> GenFocus n -> State t -> Expr -> Maybe (State t, Id, NRPC, NameGen)
 createRAExpr ng f s e | nrpcHeuristics (expr_env s) e = createNonRed' ng f s e
                       | otherwise = Nothing
 
@@ -394,12 +404,12 @@ unifyNRPCReducer :: Monad m =>
                  -> Reducer m () VerifierTracker
 unifyNRPCReducer no_inline = mkSimpleReducer (const ()) red
     where
-        red rv s@(State { expr_env = eenv, non_red_path_conds = nrpc, track = VT { focus_map = fm } }) b =
+        red rv s@(State { expr_env = eenv, non_red_path_conds = nrpc, track = vt@VT { focus_map = fm } }) b =
             let
                 (nrpc', fm', eenv') = unifyNRPCs no_inline eenv fm nrpc
                 s' = s { expr_env = eenv'
                        , non_red_path_conds = nrpc'
-                       , track = VT { focus_map = fm' } }
+                       , track = vt { focus_map = fm' } }
             in
             return (Finished, [(s', rv)], b)
 
@@ -455,21 +465,22 @@ alignVar _ _ _ _ _ = Nothing
 -- | Discard states with inconsistent NRPCs
 inconsistentNRPCHalter :: Monad m =>
                           HS.HashSet Name -- ^ Names that should not be inlined (often: top level names from the original source code)
-                       -> Halter m (HS.HashSet (Expr, Expr)) r t
+                       -> Halter m (HS.HashSet (Expr, Expr), Goal) r VerifierTracker
 inconsistentNRPCHalter no_inline = 
-    mkSimpleHalter (\_ -> HS.empty)
+    mkSimpleHalter (\_ -> (HS.empty, Theorem))
                    (\hv _ _ -> hv)
                    inc_check
                    add_nrpc
     where
-        inc_check hv _ s@(State { expr_env = eenv })
+        inc_check (hv, _) _ s@(State { expr_env = eenv })
             | currExprIsFalse s
-            , not (checkNRPCConsistent no_inline eenv hv) = return Discard
+            , not (checkNRPCConsistent no_inline eenv hv) = return (Discard "inconsistentNRPCHalter")
             | otherwise = return Continue
         
-        add_nrpc hv _ _ s
-            | currExprIsFalse s = foldl' (\hv_ (NRPC _ e1 e2) -> HS.insert (e1, e2) hv_) hv (toListNRPC $ non_red_path_conds s)
-            | otherwise = hv
+        add_nrpc (hv, g) _ _ s
+            | not (g `isSameGoal` (goal . track $ s)) = (HS.empty, goal . track $ s)
+            | currExprIsFalse s = foldl' (\(hv_, g) (NRPC _ e1 e2) -> (HS.insert (e1, e2) hv_, g)) (hv, g) (toListNRPC $ non_red_path_conds s)
+            | otherwise = (hv, g)
 
 
 -- | Check if all NRPCs are syntactically consistent.  Two NRPCs are INconsistent if they:
@@ -509,22 +520,31 @@ checkNRPCConsistent no_inline eenv = snd . foldl' incCheck ([], True)
 
 -- | If a state S has a current expression, path constraints, and NRPC set that are approximated by some
 -- other state S', discard S. Any counterexample discoverable from S is also discoverable from S'.
-approximationHalter :: (Named t, Solver solver, SM.MonadState (ApproxPrevs t) m, MonadIO m) =>
+approximationHalter :: (Solver solver, SM.MonadState (ApproxPrevs VerifierTracker) m, MonadIO m) =>
                        solver
                     -> HS.HashSet Name -- ^ Names that should not be inlined (often: top level names from the original source code)
-                    -> Halter m () r t
-approximationHalter = approximationHalter' (\_ _ -> True)
+                    -> Halter m () r VerifierTracker
+approximationHalter = approximationHalter' (\_ old_state new_state -> goal (track old_state) `isValidFor` goal (track new_state))
 
 -- | Discard all other states if we find a counterexample.
-discardOnFalse :: Monad m => Halter m () (ExecRes t) t
+discardOnFalse :: Monad m => Halter m () (ExecRes VerifierTracker) VerifierTracker
 discardOnFalse = (mkSimpleHalter (\_ -> ())
                                 (\hv _ _ -> hv)
                                 (\_ _ _ -> return Continue)
                                 (\hv _ _ _ -> hv))
-                    { discardOnStart = \_ pr s -> discard s pr }
+                    { discardOnStart = \_ pr s -> discard s pr
+                    , filterAllStates = filterAll }
     where
-        discard (State { expr_env = eenv, known_values = kv }) (Processed { accepted = acc })
-            = any (currExprIsFalse . final_state) acc
+        discard curr_state (Processed { accepted = acc }) = any checkShouldDiscard acc
+            where
+                checkShouldDiscard (ExecRes { final_state = prev_s })
+                    | currExprIsFalse prev_s = goal (track prev_s) `isSameGoal` goal (track curr_state) 
+                    | otherwise = False
+        
+        -- Continue running if we have any states left trying to prove the main theorem.
+        -- Otherwise, drop all states.
+        filterAll all_states | any (isTheorem . goal . track . exStateToState). concat . M.elems $ all_states = all_states
+                             | otherwise = M.empty
 
 currExprIsBool :: Bool -> State t -> Bool
 currExprIsBool b s = E.deepLookupExpr (getExpr s) (expr_env s) == mkBool (known_values s) b
@@ -536,23 +556,150 @@ currExprIsTrue :: State t -> Bool
 currExprIsTrue = currExprIsBool False
 
 -------------------------------------------------------------------------------
+-- Lemmas
+-------------------------------------------------------------------------------
+
+data LemmaInfo = LI { generated_lem :: [VerifierState] -- ^ Previously generated potential lemmas
+                    , discarded_lem :: [VerifierState] -- ^ Lemmas proven to be false
+                    }
+
+emptyLemmaInfo :: LemmaInfo
+emptyLemmaInfo = LI { generated_lem = [], discarded_lem = [] }
+
+addGenerated :: [VerifierState] -> LemmaInfo -> LemmaInfo
+addGenerated new_lem lem_info@(LI { generated_lem = gen }) = lem_info { generated_lem = new_lem ++ gen }
+
+addDiscarded :: [VerifierState] -> LemmaInfo -> LemmaInfo
+addDiscarded new_dis lem_info@(LI { discarded_lem = dis }) = lem_info { discarded_lem = new_dis ++ dis }
+
+genLemmaReducer :: (MonadIO m, SM.MonadState LemmaInfo m,  Solver solver) => HS.HashSet Name -> solver -> Reducer m () VerifierTracker
+genLemmaReducer no_inline solver = (mkSimpleReducer (const ()) red) { onDiscard = dis }
+    where
+        red rv s b
+            | CurrExpr Return (Data (DataCon { dc_name = d })) <- curr_expr s
+            , d == dc_name (mkDCFalse (known_values s) (type_env s)) = do
+                lem_info <- SM.get
+                (b', m_lem_s) <- mapAccumM (genLemmaState no_inline solver lem_info s) b (toListNRPC $ non_red_path_conds s)
+                let lem_s = catMaybes m_lem_s
+                    lem_info' = addGenerated lem_s lem_info
+                SM.put lem_info'
+                return (NoProgress, (s, rv):map (,rv) lem_s, b')
+            | otherwise = return (NoProgress, [(s, rv)], b)
+        
+        dis _ _ (State { track = VT { goal = Lemma _ lem_s } }) _ = do
+            lem_info <- SM.get
+            SM.put $ addDiscarded [lem_s] lem_info
+        dis _ _ _ _ = return ()
+   
+genLemmaState :: (MonadIO m, Solver solver) => HS.HashSet Name -> solver -> LemmaInfo -> VerifierState -> Bindings -> NRPC -> m (Bindings, Maybe VerifierState)
+genLemmaState no_inline solver (LI { generated_lem = gen_lems, discarded_lem = dis_lems }) s@(State { expr_env = eenv, known_values = kv }) b nrpc = do
+    let (lemma_name, ng2) = freshSeededString "lemma" (name_gen b)
+        (emp_nrpc, ng3) = emptyNRPC ng2
+        (ng4, nrpcs) = addExistingNRPC ng3 (nrpc { nrpc_focus = Focused }) emp_nrpc
+
+        lem_s = s { curr_expr = CurrExpr Evaluate (mkFalse kv)
+                  , exec_stack = Stck.empty
+                  , non_red_path_conds = nrpcs
+                  , track = (track s) { goal = Lemma lemma_name lem_s }}
+    
+    let mr_cont = mrContIgnoreNRPCTicks Nothing lookupConcOrSymState
+        res_check = moreRestrictiveIncludingPCAndNRPC
+                                                        solver
+                                                        mr_cont
+                                                        Nothing
+                                                        lookupConcOrSymState
+                                                        no_inline
+    equiv_lemma <-liftIO $ findM (\prev -> liftM2 (&&) (res_check prev lem_s) (res_check lem_s prev)) gen_lems
+    dis_lemma <-liftIO $ findM (\s -> res_check s lem_s) dis_lems
+
+    -- No point in generating a lemma where the RHS is symbolic, as this would be trivially false
+    let non_sym_rhs = case nrpc_rhs $ nrpc of
+                        Var (Id n _) | Just (E.Conc _) <- E.deepLookupConcOrSym n eenv -> True
+                        _ -> False
+
+    case (non_sym_rhs, equiv_lemma, dis_lemma) of
+        (True, Nothing, Nothing) -> do
+            let pretty_nrpc = inlinePretty eenv nrpc
+            liftIO . putStrLn $ "Try to prove "
+                            <> (T.unpack . printHaskellDirty $ nrpc_lhs pretty_nrpc)
+                            <> " = "
+                            <> (T.unpack . printHaskellDirty $ nrpc_rhs pretty_nrpc)
+            return ( b { name_gen = ng4 }, Just lem_s )
+        _ -> return ( b { name_gen = ng4 }, Nothing )
+
+mrContIgnoreNRPCTicks :: Maybe (GenerateLemma t l)
+                      -> Lookup t
+                      -> State t
+                      -> State t
+                      -> HS.HashSet Name
+                      -> (HM.HashMap Id Expr, HS.HashSet (Expr, Expr))
+                      -> Bool -- ^ indicates whether this is part of the "active expression"
+                      -> [(Name, Expr)] -- ^ variables inlined previously on the LHS
+                      -> [(Name, Expr)] -- ^ variables inlined previously on the RHS
+                      -> Expr
+                      -> Expr
+                      -> Either [l] (HM.HashMap Id Expr, HS.HashSet (Expr, Expr))
+mrContIgnoreNRPCTicks genLemma lkp s1 s2 ns hm active n1 n2 e1 e2 =
+    case (e1, e2) of
+        (Tick t1 e1', _) ->
+            moreRestrictive' (mrContIgnoreNRPCTicks genLemma lkp) genLemma lkp s1 s2 ns hm active n1 n2 e1' e2
+        (_, Tick t2 e2') ->
+            moreRestrictive' (mrContIgnoreNRPCTicks genLemma lkp) genLemma lkp s1 s2 ns hm active n1 n2 e1 e2'
+        _ -> Left []
+
+acceptLemmaReducer :: (MonadIO m, SM.MonadState (ApproxPrevs VerifierTracker) m) => Reducer m () VerifierTracker
+acceptLemmaReducer = (mkSimpleReducer (const ()) (\rv s b -> return (NoProgress, [(s, rv)], b))) { onDiscard = dis }
+    where
+        dis _ all_states s _
+            | not . any (isSameGoal (goal $ track s) . goal . track . exStateToState) . concat . M.elems $ all_states
+            , Lemma _ lem_s <- goal $ track s = do
+                liftIO $ putStrLn ("adding\n" ++ T.unpack (prettyNonRedPaths (mkPrettyGuide ()) (non_red_path_conds $ inlineNRPC s)))
+                addApproxPrevs (lem_s { track = (track lem_s) { goal = Proven } })
+            | otherwise = return ()
+
+-------------------------------------------------------------------------------
+-- Verifier Tracker
+-------------------------------------------------------------------------------
 type VerifierState = State VerifierTracker
 
-newtype VerifierTracker = VT { focus_map :: FocusMap }
+data Goal = Theorem -- ^ The state is for the main theorem/property we are trying to prove
+          | Lemma Name VerifierState -- ^ The state is for a helper lemma we are trying to prove
+          | Proven -- ^ The state corresponds to a property that has been proven correct
+            deriving (Show, Read)
+
+isTheorem :: Goal -> Bool
+isTheorem Theorem = True
+isTheorem _ = False
+
+-- | `evidence isValidFor objective` checks if `evidence` can be used to discharge objective
+isValidFor :: Goal -> Goal -> Bool
+Theorem `isValidFor` Theorem = True
+Lemma n1 _ `isValidFor` Lemma n2 _ = n1 == n2
+Proven `isValidFor` _ = True
+_ `isValidFor` _ = False
+
+-- | `evidence isSameGoal objective` checks if both Goals are for the theorem, both for the same lemma, or both proven
+isSameGoal :: Goal -> Goal -> Bool
+Theorem `isSameGoal` Theorem = True
+Lemma n1 _ `isSameGoal` Lemma n2 _ = n1 == n2
+Proven `isSameGoal` Proven = True
+_ `isSameGoal` _ = False
+
+data VerifierTracker = VT { goal :: Goal, focus_map :: FocusMap }
                           deriving (Show, Read)
 
 type FocusMap = HM.HashMap Name (HS.HashSet Name)
 
 initVerifierTracker :: VerifierTracker
-initVerifierTracker = VT { focus_map =HM.empty }
+initVerifierTracker = VT { goal = Theorem, focus_map = HM.empty }
 
 updateStateFocusMap :: Name -> VerifierState -> VerifierState
 updateStateFocusMap n s@(State { focused = Unfocused n'
-                               , track = VT { focus_map = fm } }) =
+                               , track = vt@VT { focus_map = fm } }) =
             let
                 fm' = updateFocusMap n' n fm
             in
-            s { track = VT { focus_map = fm' } }
+            s { track = vt { focus_map = fm' } }
 updateStateFocusMap _ s = s
 
 -- | When Name1 is switched to focused, Name2 should also then be switched to focused
@@ -563,10 +710,16 @@ updateFocusMap :: Name -- Name1
 updateFocusMap n1 n2 = HM.insertWith HS.union n1 (HS.fromList [n2])
 
 prettyVerifierTracker :: PrettyGuide -> VerifierTracker -> T.Text
-prettyVerifierTracker pg (VT { focus_map = fm }) =
-    T.intercalate "\n" . map pretty_fm $ HM.toList fm
+prettyVerifierTracker pg (VT { focus_map = fm, goal = g}) =
+    "Goal:\n"
+    <> prettyGoal g
+    <> "\nFocus:\n" <>
+    (T.intercalate "\n" . map pretty_fm $ HM.toList fm)
     where
         pretty_fm (k, v) = printName pg k <> " -> " <> T.intercalate ", " (map (printName pg) $ HS.toList v)
+
+        prettyGoal Theorem = "Theorem"
+        prettyGoal (Lemma n _) = "Lemma " <> printName pg n
 
 instance ASTContainer VerifierTracker Expr where
     containedASTs _ = []
@@ -577,6 +730,16 @@ instance ASTContainer VerifierTracker Type where
     modifyContainedASTs _ vt = vt
 
 instance Named VerifierTracker where
-    names vt = names (focus_map vt)
-    rename old new vt = VT { focus_map = rename old new (focus_map vt) }
-    renames hm vt = VT { focus_map = renames hm (focus_map vt) }
+    names vt = names (goal vt) <> names (focus_map vt)
+    rename old new vt = VT { goal = rename old new (goal vt), focus_map = rename old new (focus_map vt) }
+    renames hm vt = VT { goal = renames hm (goal vt), focus_map = renames hm (focus_map vt) }
+
+instance Named Goal where
+    names Theorem = mempty
+    names (Lemma n _) = Seq.singleton n
+
+    rename _ _ Theorem = Theorem
+    rename old new (Lemma n s) = Lemma (rename old new n) s
+
+    renames _ Theorem = Theorem
+    renames hm (Lemma n s) = Lemma (renames hm n) s

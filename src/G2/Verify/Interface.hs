@@ -38,9 +38,10 @@ data VerifyResult = Verified
                   | VerifyTimeOut
                   deriving (Show, Read)
 
-type VerStack m = SM.StateT (ApproxPrevs VerifierTracker)
+type VerStack m = SM.StateT LemmaInfo
+                    (SM.StateT (ApproxPrevs VerifierTracker)
                         (SM.StateT LengthNTrack
-                            (SM.StateT PrettyGuide m))
+                            (SM.StateT PrettyGuide m)))
 
 verifyRedHaltOrd :: (MonadIO m, Solver solver, Simplifier simplifier) =>
                     State VerifierTracker
@@ -61,8 +62,10 @@ verifyRedHaltOrd s solver simplifier config verify_config no_nrpc_names = do
     let labelApproxPoints s
             | Data (DataCon { dc_name = d }) <- getExpr s
             , d == dc_name (mkDCFalse (known_values s) (type_env s)) =
-                                    "state" ++ show (length $ rules s) ++ "_ap"
-            | otherwise = "state" ++ show (length $ rules s)
+                "state" ++ show (length $ rules s) ++ lem_ind ++ "_ap"
+            | otherwise = "state" ++ show (length $ rules s) ++ lem_ind
+            where
+                lem_ind = if isTheorem (goal $ track s) then "" else "_lem"
 
     m_logger <- fmap SomeReducer <$> getLimLogger' labelApproxPoints config prettyVerifierTracker
 
@@ -88,8 +91,8 @@ verifyRedHaltOrd s solver simplifier config verify_config no_nrpc_names = do
                                 False -> accept_time_red f
 
         logger_std_red f = case m_logger of
-                            Just logger -> liftSomeReducer $ liftSomeReducer (logger .~> num_steps_red f)
-                            Nothing -> liftSomeReducer $ liftSomeReducer (num_steps_red f)
+                            Just logger -> liftSomeReducer . liftSomeReducer $ liftSomeReducer (logger .~> num_steps_red f)
+                            Nothing -> liftSomeReducer . liftSomeReducer $ liftSomeReducer (num_steps_red f)
 
         set_focus_red f = SomeReducer adjustFocusReducer .~> logger_std_red f
 
@@ -102,6 +105,11 @@ verifyRedHaltOrd s solver simplifier config verify_config no_nrpc_names = do
                                             SomeReducer nrpc_approx
                                         .~> syntactic_eq_red f
                                 False -> logger_std_red f
+        lemma_gen f = case use_lemmas verify_config of
+                            True -> SomeReducer (genLemmaReducer no_nrpc_names solver)
+                                .~> liftSomeReducer (SomeReducer acceptLemmaReducer)
+                                .~> nrpc_approx_red f
+                            False -> nrpc_approx_red f
         
         halter = switchEveryNHalter 20
                  <~> acceptIfViolatedHalter
@@ -113,14 +121,14 @@ verifyRedHaltOrd s solver simplifier config verify_config no_nrpc_names = do
                                     False -> SomeHalter halter
 
         halter_approx_discard = case approx verify_config of
-                                        True -> SomeHalter (approximationHalter solver approx_no_inline) .<~> inconsistent_halter
+                                        True -> SomeHalter (liftHalter $ approximationHalter solver approx_no_inline) .<~> inconsistent_halter
                                         False -> inconsistent_halter
 
         orderer = case search_strat config of
-                        Subpath -> SomeOrderer . liftOrderer $ lengthNSubpathOrderer (subpath_length config)
+                        Subpath -> SomeOrderer . liftOrderer . liftOrderer $ lengthNSubpathOrderer (subpath_length config)
                         Iterative -> SomeOrderer $ pickLeastUsedOrderer
 
-    return ( nrpc_approx_red (\_ _ _ _ -> Nothing) .== Finished --> verifySolveNRPC
+    return ( lemma_gen (\_ _ _ _ -> Nothing) .== Finished --> verifySolveNRPC
            , halter_approx_discard
            , orderer
            , io_timed_out)
@@ -200,7 +208,10 @@ verifyFromFile proj src f transConfig config verify_config = do
                         SM.evalStateT
                                 (SM.evalStateT
                                     (SM.evalStateT
-                                        (runG2WithSomes' red hal ord [] solver simplifier verifier_state bindings'')
+                                        (SM.evalStateT
+                                            (runG2WithSomes' red hal ord [] solver simplifier verifier_state bindings'')
+                                            emptyLemmaInfo
+                                        )
                                         emptyApproxPrevs
                                     )
                                     lnt
@@ -213,11 +224,12 @@ verifyFromFile proj src f transConfig config verify_config = do
     accept_time <- getTime Realtime
     let diff = diffTimeSpec accept_time init_time
         diff_secs = (fromInteger (toNanoSecs diff)) / (10 ^ (9 :: Int) :: Double)
+        theorem_er = filter (isTheorem . goal . track . final_state) er
     let res = case to' of
                 TimedOut -> VerifyTimeOut
-                NoTimeOut | false_er <- filter (currExprIsFalse . final_state) er
+                NoTimeOut | false_er <- filter (currExprIsFalse . final_state) theorem_er
                           , not (null false_er) -> Counterexample false_er
-                          | otherwise -> assert (all (currExprIsTrue . final_state) er) Verified
+                          | otherwise -> assert (all (currExprIsTrue . final_state) theorem_er) Verified
     return (res, diff_secs, bindings''', entry_f)
 
 setUpState :: [FilePath]

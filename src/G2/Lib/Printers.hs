@@ -38,7 +38,9 @@ module G2.Lib.Printers ( PrettyGuide
                        , updateQualMods
                        , setStrictCase
                        , setEnvOrdering
-                       , setTyLamPrinting) where
+                       , setTyLamPrinting
+                       
+                       , inlinePretty) where
 
 import G2.Language.Expr
 import qualified G2.Language.ExprEnv as E
@@ -661,7 +663,7 @@ prettyState pg pretty_track s =
         pretty_stack = prettyStack pg (exec_stack s)
         pretty_eenv = prettyEEnv (tyvar_env s) pg (curr_expr s) (exec_stack s) (expr_env s)
         pretty_paths = prettyPathConds pg (path_conds s)
-        pretty_non_red_paths = prettyNonRedPaths pg . toListNRPC $ non_red_path_conds s
+        pretty_non_red_paths = prettyNonRedPaths pg $ non_red_path_conds s
         pretty_handles = prettyHandles pg $ handles s
         pretty_mutvars = prettyMutVars pg . HM.map mv_val_id $ mutvar_env s
         pretty_tenv = prettyTypeEnv (tyvar_env s) pg (type_env s)
@@ -755,12 +757,17 @@ prettyPathCond pg (AssumePC i l pc) =
     in
     mkIdHaskell pg i <> " = " <> T.pack (show l) <> "=> (" <> T.intercalate "\nand " (map (prettyPathCond pg) pc') <> ")"
 
-prettyNonRedPaths :: PrettyGuide -> [NRPC] -> T.Text
-prettyNonRedPaths pg =
-    T.intercalate "\n"
+prettyNonRedPaths :: PrettyGuide -> NonRedPathConds -> T.Text
+prettyNonRedPaths pg nrpc =
+    "unique = " <> (T.pack . show $ getNRPCUnique nrpc)
+    <>
+    "\n"
+    <>
+    (T.intercalate "\n"
     . map (\(NRPC focus e1 e2) -> mkDirtyExprHaskell pg e1 <> " == "
                             <> mkDirtyExprHaskell pg e2 <> "\t"
                             <> prettyFocus pg focus)
+    $ toListNRPC nrpc)
 
 prettyFocus :: PrettyGuide -> Focus -> T.Text
 prettyFocus _ Focused = "focused"
@@ -1103,3 +1110,21 @@ prettyGuideStr = T.intercalate "\n" . map (\(n, s) -> s <> " <-> " <> T.pack (sh
 -- | Print `pg_nums`. Exposes internal of the `PrettyGuide` to aid in debugging.
 prettyGuideNumsStr :: PrettyGuide -> T.Text
 prettyGuideNumsStr = T.intercalate "\n" . map (\(n, PI al i) -> n <> " -> " <> T.pack (show al) <> ", " <> T.pack (show i)) . HM.toList . pg_nums
+
+-------------------------------------------------------------------------------
+-- Inlining
+-------------------------------------------------------------------------------
+
+inlinePretty :: ASTContainer c Expr => ExprEnv -> c -> c
+inlinePretty eenv = modifyContainedASTs (go HS.empty)
+    where
+        go seen v@(Var (Id n _)) | n `HS.member` seen = v
+                                        | Just (E.Conc e) <- E.lookupConcOrSym n eenv =
+                                        if | Data _:_ <- unApp e -> go (HS.insert n seen) e
+                                            | Var _:_ <- unApp e -> go (HS.insert n seen) e
+                                            | Tick t te <- e -> Tick t (go seen te)
+                                            | otherwise -> v
+        go seen (App e1 e2) = App (go seen e1) (go seen e2)
+        go seen (Tick h e) = Tick h (go seen e)
+        go _ e = e
+
