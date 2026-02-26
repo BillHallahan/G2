@@ -1,4 +1,4 @@
-{-# LANGUAGE FlexibleContexts, OverloadedStrings, RankNTypes, LambdaCase, TupleSections #-}
+{-# LANGUAGE FlexibleContexts, OverloadedStrings, RankNTypes, LambdaCase, TupleSections, ScopedTypeVariables #-}
 
 module G2.Execution.Rules ( module G2.Execution.RuleTypes
                           , Sharing (..)
@@ -171,25 +171,35 @@ mkSymIntAlts exprs = go exprs 1
         go (e:es) l = Alt {altMatch = LitAlt (LitInt $ toInteger l), altExpr = e}:go es (l+1)
         go [] _ = error "mkSymIntAlts: empty list"
 
+type FARuleF = NameGen -> Maybe (Expr, E.ExprEnv, NameGen)
 -- TODO: way to order both funcion type and and application expression together
-evalForAll :: [Type] -> Type -> [Type] -> Type 
+evalForAll :: forall t. [Type] -> Type -> [Type] -> Type 
     -> State t -> E.ExprEnv -> NameGen -> Id -> (Rule, [State t], NameGen)
 evalForAll as t tms tr s@(State {type_env = tenv, known_values = kv, tyvar_env = tvenv}) eenv ng i =
     let 
         log_rules = False -- toggle for logging rules
+        
+        -- Prioritize certain rules before others. '->' means: if no states from before rule, only then attempt to apply the next one.
+        -- Current priority sets:
+        --      PM-NON-CONT -> PM-UNWRAP -> PM-CYCLE -> {PM-INST-DIRECT, PM-INST-DC, PM-FUNC, PM-FUNC-FORALL, PM-CONST}
+        rule_priority_list = [[(pmNonCont, "PM-NON-CONT")], 
+                              [(pmUnwrap, "PM-UNWRAP")], 
+                              [(pmCycle, "PM-CYCLE")], 
+                              [(pmInstVar, "PM-INST-VAR"), (pmInstADT, "PM-INST-ADT"), (pmFun, "PM-FUNC"), (pmFunForall, "PM-FUNC-FORALL"), (pmConst, "PM-CONST")]]
+        -- Extract the states and the NameGen from the highest priority rule list with a non-empty set of resulting states. (find returns leftmost)
+        (states, ng_eval_forall) = fromMaybe ([], ng) 
+            (find (not . null . fst) $ map priorityLevelFold rule_priority_list)
 
-        -- Collect all matching states while threading NameGen and optionally logging rule names
-        (states, ng_eval_forall) = foldr (\(ruleF, ruleS) (ss, ng_before) -> 
-            case ruleF ng_before of
-                Nothing -> (ss, ng_before)
-                Just (expr', eenv', ng_after) -> 
-                    let newState = s {curr_expr = CurrExpr Return expr', expr_env = eenv'}
-                        result = (newState:ss, ng_after)
-                    in 
-                        if log_rules then trace ruleS result else result) ([], ng') rules_with_names
-
-        rules_with_names = [ (pmInstVar, "PM-INST-VAR"), (pmCycle, "PM-CYCLE"), (pmNonCont, "PM-NON-CONT"), (pmUnwrap, "PM-UNWRAP"), 
-                             (pmInstADT, "PM-INST-ADT"), (pmFun, "PM-FUNC"), (pmFunForall, "PM-FUNC-FORALL"), (pmConst, "PM-CONST") ]
+        -- Collect all matching states in a priority level while threading NameGen and optionally logging rule names
+        priorityLevelFold :: [(FARuleF, String)] -> ([State t], NameGen)
+        priorityLevelFold = foldr (\(ruleF, ruleS) (ss, ng_before) -> 
+                    case ruleF ng_before of
+                        Nothing -> (ss, ng_before)
+                        Just (expr', eenv', ng_after) -> 
+                            let newState = s {curr_expr = CurrExpr Return expr', expr_env = eenv'}
+                                result = (newState:ss, ng_after)
+                            in 
+                                if log_rules then trace ruleS result else result) ([], ng')
     in
         (RuleEvalVal, states, ng_eval_forall)
     where
