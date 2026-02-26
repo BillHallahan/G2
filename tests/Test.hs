@@ -1015,6 +1015,8 @@ verifierTests = testGroup "Verifier"
     , checkExprVerified "tests/Verify/IdCall.hs" "idCall"
     , checkExprVerified "tests/Verify/IdCall.hs" "idCall2"
 
+    , checkExprVerified "tests/Verify/Maybe1.hs" "p1"
+
     , checkRuleVerified "tests/Verify/Rules1.hs" "justJust"
     , checkRuleVerified "tests/Verify/Rules1.hs" "justJust2"
     , checkRuleVerified "tests/Verify/Rules1.hs" "polyJustJust"
