@@ -399,28 +399,31 @@ verifyHigherOrderHandling = mkSimpleReducer (const ()) red
                                                 TyFun _ t2 -> t2
                                                 _ -> error "verifyHigherOrderHandling: not tyfun") ng3
                     (ret_false, ng5) = freshId ty_fun ng4
-
-                    eq_tc = case lookupTCDict tc (eqTC kv) ty_ar of
-                                Just tc -> tc
-                                Nothing -> error "verifyHigherOrderHandling: unsuported type"
-                    eq_f = eqFunc kv
-                    eq_f_i = Id eq_f (typeOf tvnv . fromJust $ E.lookup eq_f eenv)
-
-                    e = mkApp [Var eq_f_i, Type ty_ar, Var eq_tc, Var lam_x, ar]
-
-                    func_body =
-                        Lam TermL lam_x $ 
-                            Case e bindee (returnType ty_fun)
-                                [ Alt (DataAlt (mkDCTrue kv tenv) []) (Var ret_true)
-                                , Alt (DataAlt (mkDCFalse kv tenv) []) (App (Var ret_false) (Var lam_x))]
-
-                    eenv' = E.insertSymbolic ret_true
-                          . E.insertSymbolic ret_false
-                          $ E.insert n func_body eenv
-
-                    s' = s { curr_expr = CurrExpr Evaluate (App func_body ar), expr_env = eenv'}
                 in
-                return (InProgress, [(s', ())], b {name_gen = ng5})
+                case ty_ar of
+                    TyFun _ _ -> error "verifyHigherOrderHandling: function type arguments not supported"
+                    _ -> let
+                            eq_tc = case lookupTCDict tc (eqTC kv) ty_ar of
+                                    Just tc -> tc
+                                    Nothing -> error "verifyHigherOrderHandling: unsupported type"
+                            eq_f = eqFunc kv
+                            eq_f_i = Id eq_f (typeOf tvnv . fromJust $ E.lookup eq_f eenv)
+
+                            e = mkApp [Var eq_f_i, Type ty_ar, Var eq_tc, Var lam_x, ar]
+
+                            func_body =
+                                Lam TermL lam_x $ 
+                                    Case e bindee (returnType ty_fun)
+                                        [ Alt (DataAlt (mkDCTrue kv tenv) []) (Var ret_true)
+                                        , Alt (DataAlt (mkDCFalse kv tenv) []) (App (Var ret_false) (Var lam_x))]
+
+                            eenv' = E.insertSymbolic ret_true
+                                . E.insertSymbolic ret_false
+                                $ E.insert n func_body eenv
+
+                            s' = s { curr_expr = CurrExpr Evaluate (App func_body ar), expr_env = eenv'}
+                        in
+                        return (InProgress, [(s', ())], b {name_gen = ng5})
         red _ s b = return (Finished, [(s, ())], b)
 
 unifyNRPCReducer :: Monad m =>
