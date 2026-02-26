@@ -588,16 +588,22 @@ currExprIsTrue = currExprIsBool False
 
 data LemmaInfo = LI { generated_lem :: [VerifierState] -- ^ Previously generated potential lemmas
                     , discarded_lem :: [VerifierState] -- ^ Lemmas proven to be false
+
+                    , unique_higher_remove :: HS.HashSet Unique -- ^ Uniques of NRPCs that have had higher order functions removed
                     }
 
 emptyLemmaInfo :: LemmaInfo
-emptyLemmaInfo = LI { generated_lem = [], discarded_lem = [] }
+emptyLemmaInfo = LI { generated_lem = [], discarded_lem = [], unique_higher_remove = HS.empty }
 
 addGenerated :: [VerifierState] -> LemmaInfo -> LemmaInfo
 addGenerated new_lem lem_info@(LI { generated_lem = gen }) = lem_info { generated_lem = new_lem ++ gen }
 
 addDiscarded :: [VerifierState] -> LemmaInfo -> LemmaInfo
 addDiscarded new_dis lem_info@(LI { discarded_lem = dis }) = lem_info { discarded_lem = new_dis ++ dis }
+
+addUniqueHigher :: VerifierState -> LemmaInfo -> LemmaInfo
+addUniqueHigher (State { non_red_path_conds = nrpc } ) li@(LI { unique_higher_remove = uhr }) =
+    li { unique_higher_remove = HS.insert (getNRPCUnique nrpc) uhr }
 
 genLemmaReducer :: (MonadIO m, SM.MonadState LemmaInfo m,  Solver solver) => HS.HashSet Name -> solver -> Reducer m () VerifierTracker
 genLemmaReducer no_inline solver = (mkSimpleReducer (const ()) red) { onDiscard = dis }
@@ -611,15 +617,16 @@ genLemmaReducer no_inline solver = (mkSimpleReducer (const ()) red) { onDiscard 
                 (b', m_lem_s_no_symfun) <- genLemmaRemovingSymFun no_inline solver lem_info s b
                 let lem_s_symfun = maybeToList m_lem_s_no_symfun
                     lem_info' = addGenerated lem_s_symfun lem_info
+                    lem_info'' = addUniqueHigher s lem_info'
 
                 -- Generate lemmas by taking individual NRPCs
-                (b'', m_lem_s_singleton) <- mapAccumM (genLemmaStateSingleton no_inline solver lem_info' s) b' (toListNRPC $ non_red_path_conds s)
+                (b'', m_lem_s_singleton) <- mapAccumM (genLemmaStateSingleton no_inline solver lem_info'' s) b' (toListNRPC $ non_red_path_conds s)
                 let lem_s_singleton = catMaybes m_lem_s_singleton
-                    lem_info'' = addGenerated lem_s_singleton lem_info'
+                    lem_info''' = addGenerated lem_s_singleton lem_info''
                 
                 let lem_s = lem_s_symfun ++ lem_s_singleton
                 
-                SM.put lem_info''
+                SM.put lem_info'''
                 return (NoProgress, (s, rv):map (,rv) lem_s, b'')
             | otherwise = return (NoProgress, [(s, rv)], b)
         
@@ -629,7 +636,8 @@ genLemmaReducer no_inline solver = (mkSimpleReducer (const ()) red) { onDiscard 
         dis _ _ _ _ = return ()
    
 genLemmaStateSingleton :: (MonadIO m, Solver solver) => HS.HashSet Name -> solver -> LemmaInfo -> VerifierState -> Bindings -> NRPC -> m (Bindings, Maybe VerifierState)
-genLemmaStateSingleton no_inline solver (LI { generated_lem = gen_lems, discarded_lem = dis_lems }) s@(State { expr_env = eenv, known_values = kv }) b nrpc = do
+genLemmaStateSingleton no_inline solver (LI { generated_lem = gen_lems, discarded_lem = dis_lems }) s@(State { expr_env = eenv, known_values = kv }) b nrpc
+    | numNRPC (non_red_path_conds s) > 1 = do
     let (lemma_name, ng2) = freshSeededString "lemma" (name_gen b)
         (emp_nrpc, ng3) = emptyNRPC ng2
         (ng4, nrpcs) = addExistingNRPC ng3 (nrpc { nrpc_focus = Focused }) emp_nrpc
@@ -647,7 +655,7 @@ genLemmaStateSingleton no_inline solver (LI { generated_lem = gen_lems, discarde
                                                         lookupConcOrSymState
                                                         no_inline
     equiv_lemma <-liftIO $ findM (\prev -> liftM2 (&&) (res_check prev lem_s) (res_check lem_s prev)) gen_lems
-    dis_lemma <-liftIO $ findM (\s -> res_check s lem_s) dis_lems
+    dis_lemma <-liftIO $ findM (\s -> res_check lem_s s) dis_lems
 
     -- No point in generating a lemma where the RHS is symbolic, as this would be trivially false
     let non_sym_rhs = case nrpc_rhs $ nrpc of
@@ -664,13 +672,15 @@ genLemmaStateSingleton no_inline solver (LI { generated_lem = gen_lems, discarde
                             <> (T.unpack . printHaskellDirtyPG pg $ nrpc_rhs pretty_nrpc)
             return ( b { name_gen = ng4 }, Just lem_s )
         _ -> return ( b { name_gen = ng4 }, Nothing )
+    | otherwise = return (b, Nothing)
 
 genLemmaRemovingSymFun  :: (MonadIO m, Solver solver) => HS.HashSet Name -> solver -> LemmaInfo -> VerifierState -> Bindings -> m (Bindings, Maybe VerifierState)
 genLemmaRemovingSymFun no_inline solver
-                        (LI { generated_lem = gen_lems, discarded_lem = dis_lems })
+                        (LI { generated_lem = gen_lems, discarded_lem = dis_lems, unique_higher_remove = uhr })
                         s@(State { expr_env = eenv, known_values = kv, non_red_path_conds = nrpcs })
                         b
-    | anyNRPC (isNRPCSymFun eenv) nrpcs
+    | getNRPCUnique nrpcs `notElem` uhr
+    , anyNRPC (isNRPCSymFun eenv) nrpcs
     , let fil_nrpc = filterNRPC (not . isNRPCSymFun eenv) nrpcs
     , not . nullNRPC $ fil_nrpc = do
     let (lemma_name, ng2) = freshSeededString "lemma" (name_gen b)
@@ -727,7 +737,7 @@ acceptLemmaReducer = (mkSimpleReducer (const ()) (\rv s b -> return (NoProgress,
         dis _ all_states s _
             | not . any (isSameGoal (goal $ track s) . goal . track . exStateToState) . concat . M.elems $ all_states
             , Lemma _ lem_s <- goal $ track s = do
-                liftIO $ putStrLn ("adding\n" ++ T.unpack (prettyNonRedPaths (mkPrettyGuide ()) (non_red_path_conds $ inlineNRPC s)))
+                liftIO $ putStrLn ("adding\n" ++ T.unpack (prettyNonRedPaths (mkPrettyGuide ()) (non_red_path_conds $ inlineNRPC lem_s)))
                 addApproxPrevs (lem_s { track = (track lem_s) { goal = Proven } })
             | otherwise = return ()
 
