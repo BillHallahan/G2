@@ -123,6 +123,7 @@ stdReduce' _ symb_func_eval solver simplifier s@(State { curr_expr = CurrExpr Re
         where
             frstck = S.pop stck
 
+-- TODO: probably change to forall a1..an. tm -> tr, tm = t_1..t_r-1
 -- | Separate a type into what is required for some RankNTypes rules.
 sepTypeForRNT :: Type -> ([Type], Maybe Type, [Type], Maybe Type)
 sepTypeForRNT full_type = {-trace (show (vs, t, tms, tr))-} (vs, t, tms, tr)
@@ -267,14 +268,28 @@ evalForAll as t tms tr s@(State {type_env = tenv, known_values = kv, tyvar_env =
             in Just (e', eenv'', ng''')
             | otherwise = Nothing
 
+        -- | Partition the list into (<leftmost element satisfying predicate>, <others>). <others> is in original ordering.
+        partitionFirst :: Eq a => (a -> Bool) -> [a] -> (Maybe a, [a])
+        partitionFirst predicate l = case find predicate l of
+            Nothing -> (Nothing, l)
+            Just found_elem -> (Just found_elem, filter (/= found_elem) l) 
+
+        isUnwrapable :: Type -> Bool
+        isUnwrapable possUW = containsTyVars possUW as_ids && possUW `notElem` as  
+                           && (case unTyApp possUW of 
+                                TyCon tname _:_ -> case HM.lookup tname tenv of
+                                    Just _ -> True
+                                    Nothing -> False
+                                _ -> False)
+
         -- PM-UNWRAP
         pmUnwrap ng_in
-            | containsTyVars t as_ids
-            , t `notElem` as
-            , TyCon tname _:ts <- unTyApp t
+            | (Just dc_arg, other_args) <- partitionFirst (isUnwrapable . typeOf tvenv) term_args
+            , dc_arg_ty <- typeOf tvenv dc_arg
+            , TyCon tname _:ts <- unTyApp dc_arg_ty
             , Just alg_data_ty <- HM.lookup tname tenv
             = let
-                (x', ng'') = freshId t ng_in
+                (dc_arg', ng'') = freshId dc_arg_ty ng_in
 
                 ty_map = HM.fromList $ zip (map idName bound) ts
                 dcs = applyTypeHashMap ty_map $ dataCon alg_data_ty
@@ -286,13 +301,13 @@ evalForAll as t tms tr s@(State {type_env = tenv, known_values = kv, tyvar_env =
                                     data_alt = DataAlt dc argIds
                                     (new_as, ng1'') = freshSeededIds as_ids ng1'
                                     arg_fun_ty = renames (HM.fromList (zip (map idName as_ids) (map idName new_as)))
-                                                    $ mkNestedForAll as . mkTyFun $ fst (argTypes dcty) ++ tms ++ [tr]
+                                                    $ mkNestedForAll as . mkTyFun $ fst (argTypes dcty) ++ map (typeOf tvenv) other_args ++ [tr]
                                     (fi, ng1''') = freshId arg_fun_ty ng1''
                                     vargs = map Var argIds
                                 in (Alt data_alt 
-                            (mkApp $ [Var fi] ++ map (Type . TyVar) as_ids ++ vargs ++ map Var ys) : all_alts, fi : sids, ng1''')
+                            (mkApp $ [Var fi] ++ map (Type . TyVar) as_ids ++ vargs ++ map Var other_args) : all_alts, fi : sids, ng1''')
                                 ) ([], [], ng'') dcs
-                e' = e_template $ Case (Var x) x' tr alts
+                e' = e_template $ Case (Var dc_arg) dc_arg' tr alts
 
                 eenv' = foldr E.insertSymbolic eenv symIds
                 eenv'' = E.insert (idName i) e' eenv'
