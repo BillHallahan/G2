@@ -54,8 +54,8 @@ monadAssociativity m x k h = (m >>= (\x -> k x >>= h)) == ((m >>= k) >>= h)
 monoidRightIdentityList :: Eq a => [a] -> Bool
 monoidRightIdentityList = monoidRightIdentity
 
-monoidLeftIdentityyList :: Eq a => [a] -> Bool
-monoidLeftIdentityyList = monoidLeftIdentity
+monoidLeftIdentityList :: Eq a => [a] -> Bool
+monoidLeftIdentityList = monoidLeftIdentity
 
 monoidAssociativityList :: Eq a => [a] -> [a] -> [a] -> Bool
 monoidAssociativityList = monoidAssociativity
@@ -97,8 +97,8 @@ monadAssociativityList = monadAssociativity
 monoidRightIdentityMaybe :: (Semigroup a, Eq a) => Maybe a -> Bool
 monoidRightIdentityMaybe = monoidRightIdentity
 
-monoidLeftIdentityyMaybe :: (Semigroup a, Eq a) => Maybe a -> Bool
-monoidLeftIdentityyMaybe = monoidLeftIdentity
+monoidLeftIdentityMaybe :: (Semigroup a, Eq a) => Maybe a -> Bool
+monoidLeftIdentityMaybe = monoidLeftIdentity
 
 monoidAssociativityMaybe :: (Semigroup a, Eq a) => Maybe a -> Maybe a -> Maybe a -> Bool
 monoidAssociativityMaybe = monoidAssociativity

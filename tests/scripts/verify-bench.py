@@ -194,7 +194,7 @@ def unmodified_theorems():
     return ret
 
 def typeclass_funcs():
-    monoidLaws = ["monoidRightIdentity", "monoidLeftIdentity", "monoidAssociativity", "concatenation"]
+    monoidLaws = ["monoidRightIdentity", "monoidLeftIdentity", "monoidAssociativity", "monoidConcatenation"]
     functorLaws = ["fmapId", "fmapComposition"]
     applicativeLaws = ["appIdentity", "appComposition", "appHomomorphism", "appInterchange"]
     monadLaws = ["monadLeftIdentity", "monadRightIdentity", "monadAssociativity"]
