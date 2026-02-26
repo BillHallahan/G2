@@ -172,7 +172,8 @@ mkSymIntAlts exprs = go exprs 1
         go (e:es) l = Alt {altMatch = LitAlt (LitInt $ toInteger l), altExpr = e}:go es (l+1)
         go [] _ = error "mkSymIntAlts: empty list"
 
-type FARuleF = NameGen -> Maybe (Expr, E.ExprEnv, NameGen)
+-- A rule function can produce multiple states but must produce one NameGen.
+type FARuleF = NameGen -> Maybe ([(Expr, E.ExprEnv)], NameGen)
 -- TODO: way to order both funcion type and and application expression together
 evalForAll :: forall t. [Type] -> Type -> [Type] -> Type 
     -> State t -> E.ExprEnv -> NameGen -> Id -> (Rule, [State t], NameGen)
@@ -196,9 +197,9 @@ evalForAll as t tms tr s@(State {type_env = tenv, known_values = kv, tyvar_env =
         priorityLevelFold = foldr (\(ruleF, ruleS) (ss, ng_before) -> 
                     case ruleF ng_before of
                         Nothing -> (ss, ng_before)
-                        Just (expr', eenv', ng_after) -> 
-                            let newState = s {curr_expr = CurrExpr Return expr', expr_env = eenv'}
-                                result = (newState:ss, ng_after)
+                        Just (res_tups, ng_after) -> 
+                            let newStates = map (\(ex, env) -> s {curr_expr = CurrExpr Return ex, expr_env = env}) res_tups
+                                result = (newStates ++ ss, ng_after)
                             in 
                                 if log_rules then trace ruleS result else result) ([], ng')
     in
@@ -213,16 +214,13 @@ evalForAll as t tms tr s@(State {type_env = tenv, known_values = kv, tyvar_env =
         pmInstVar ng_in
             | tr `elem` (t:tms) -- return type in arguments
             , containsTyVars tr as_ids -- return type contains a bound type variable, otherwise can rely on arb. value gen.
-            = let 
-                ([scrut, bindee], ng'') = freshIds [TyLitInt, TyLitInt] ng_in
+            = let
+                ret_x_ids = filter ((== tr) . typeOf tvenv) term_args
+                es' = map (e_template . Var) ret_x_ids
+                eenvs' = map (\ex -> E.insert (idName i) ex eenv) es'
 
-                e' = e_template $ Case (Var scrut) bindee tr 
-                    (mkSymIntAlts . map (Var . fst) . filter ((== tr) . snd) $ zip term_args (t:tms)) -- replace snd with typeOf
-
-                eenv' = E.insertSymbolic scrut eenv
-                eenv'' = E.insert (idName i) e' eenv'
-
-            in Just (e', eenv'', ng'')
+                state_tups = zip es' eenvs'
+            in Just (state_tups, ng_in)
             | otherwise = Nothing
         
         -- PM-CYCLE
@@ -246,7 +244,7 @@ evalForAll as t tms tr s@(State {type_env = tenv, known_values = kv, tyvar_env =
                 eenv' = E.insertSymbolic f eenv
                 eenv'' = E.insert (idName i) e' eenv'
 
-            in Just (e', eenv'', ng''')
+            in Just ([(e', eenv'')], ng''')
             | otherwise = Nothing
 
         -- PM-NON-CONT
@@ -265,7 +263,7 @@ evalForAll as t tms tr s@(State {type_env = tenv, known_values = kv, tyvar_env =
                 eenv' = E.insertSymbolic f eenv
                 eenv'' = E.insert (idName i) e' eenv'
 
-            in Just (e', eenv'', ng''')
+            in Just ([(e', eenv'')], ng''')
             | otherwise = Nothing
 
         -- | Partition the list into (<leftmost element satisfying predicate>, <others>). <others> is in original ordering.
@@ -312,7 +310,7 @@ evalForAll as t tms tr s@(State {type_env = tenv, known_values = kv, tyvar_env =
                 eenv' = foldr E.insertSymbolic eenv symIds
                 eenv'' = E.insert (idName i) e' eenv'
 
-            in Just (e', eenv'', ng''')
+            in Just ([(e', eenv'')], ng''')
             | otherwise = Nothing
 
         -- PM-INST-ADT
@@ -348,14 +346,14 @@ evalForAll as t tms tr s@(State {type_env = tenv, known_values = kv, tyvar_env =
                 eenv' = foldr E.insertSymbolic eenv $ scrut:symIds
                 eenv'' = E.insert (idName i) e' eenv'
 
-            in Just (e', eenv'', ng''')
+            in Just ([(e', eenv'')], ng''')
             | otherwise = Nothing
 
         -- PM-FUNC
         -- TODO: better naming in let bindings
         -- TODO: selecting from all available functions instead of cycling
         pmFun ng_in
-            | TyFun _ _ <- t
+            | (Just fun_id, other_ids) <- partitionFirst ((\case (TyFun _ _) -> True; _ -> False) . typeOf tvenv) term_args
             , (f_targs, f_tr) <- argTypes t
             = let
                 (new_as, ng'') = freshSeededIds as_ids ng_in
@@ -370,7 +368,7 @@ evalForAll as t tms tr s@(State {type_env = tenv, known_values = kv, tyvar_env =
                 eenv' = foldr E.insertSymbolic eenv (f:symIds)
                 eenv'' = E.insert (idName i) e' eenv'
 
-            in Just (e', eenv'', ng'''')
+            in Just ([(e', eenv'')], ng'''')
             | otherwise = Nothing
 
         -- PM-FUNC-FORALL
@@ -393,7 +391,7 @@ evalForAll as t tms tr s@(State {type_env = tenv, known_values = kv, tyvar_env =
                 eenv' = foldr E.insertSymbolic eenv (f:symIds)
                 eenv'' = E.insert (idName i) e' eenv'
 
-            in Just (e', eenv'', ng'''')
+            in Just ([(e', eenv'')], ng'''')
             | otherwise = Nothing
 
         -- PM-CONST
@@ -405,7 +403,7 @@ evalForAll as t tms tr s@(State {type_env = tenv, known_values = kv, tyvar_env =
 
                 eenv' = E.insertSymbolic x_tr eenv
                 eenv'' = E.insert (idName i) e' eenv'
-            in Just (e', eenv'', ng'')
+            in Just ([(e', eenv'')], ng'')
             | otherwise = Nothing
 
         -----
