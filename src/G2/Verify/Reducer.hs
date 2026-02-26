@@ -606,11 +606,21 @@ genLemmaReducer no_inline solver = (mkSimpleReducer (const ()) red) { onDiscard 
             | CurrExpr Return (Data (DataCon { dc_name = d })) <- curr_expr s
             , d == dc_name (mkDCFalse (known_values s) (type_env s)) = do
                 lem_info <- SM.get
-                (b', m_lem_s) <- mapAccumM (genLemmaState no_inline solver lem_info s) b (toListNRPC $ non_red_path_conds s)
-                let lem_s = catMaybes m_lem_s
-                    lem_info' = addGenerated lem_s lem_info
-                SM.put lem_info'
-                return (NoProgress, (s, rv):map (,rv) lem_s, b')
+                
+                -- Generate lemmas by removing symbolic functions
+                (b', m_lem_s_no_symfun) <- genLemmaRemovingSymFun no_inline solver lem_info s b
+                let lem_s_symfun = maybeToList m_lem_s_no_symfun
+                    lem_info' = addGenerated lem_s_symfun lem_info
+
+                -- Generate lemmas by taking individual NRPCs
+                (b'', m_lem_s_singleton) <- mapAccumM (genLemmaStateSingleton no_inline solver lem_info' s) b' (toListNRPC $ non_red_path_conds s)
+                let lem_s_singleton = catMaybes m_lem_s_singleton
+                    lem_info'' = addGenerated lem_s_singleton lem_info'
+                
+                let lem_s = lem_s_symfun ++ lem_s_singleton
+                
+                SM.put lem_info''
+                return (NoProgress, (s, rv):map (,rv) lem_s, b'')
             | otherwise = return (NoProgress, [(s, rv)], b)
         
         dis _ _ (State { track = VT { goal = Lemma _ lem_s } }) _ = do
@@ -618,8 +628,8 @@ genLemmaReducer no_inline solver = (mkSimpleReducer (const ()) red) { onDiscard 
             SM.put $ addDiscarded [lem_s] lem_info
         dis _ _ _ _ = return ()
    
-genLemmaState :: (MonadIO m, Solver solver) => HS.HashSet Name -> solver -> LemmaInfo -> VerifierState -> Bindings -> NRPC -> m (Bindings, Maybe VerifierState)
-genLemmaState no_inline solver (LI { generated_lem = gen_lems, discarded_lem = dis_lems }) s@(State { expr_env = eenv, known_values = kv }) b nrpc = do
+genLemmaStateSingleton :: (MonadIO m, Solver solver) => HS.HashSet Name -> solver -> LemmaInfo -> VerifierState -> Bindings -> NRPC -> m (Bindings, Maybe VerifierState)
+genLemmaStateSingleton no_inline solver (LI { generated_lem = gen_lems, discarded_lem = dis_lems }) s@(State { expr_env = eenv, known_values = kv }) b nrpc = do
     let (lemma_name, ng2) = freshSeededString "lemma" (name_gen b)
         (emp_nrpc, ng3) = emptyNRPC ng2
         (ng4, nrpcs) = addExistingNRPC ng3 (nrpc { nrpc_focus = Focused }) emp_nrpc
@@ -647,12 +657,49 @@ genLemmaState no_inline solver (LI { generated_lem = gen_lems, discarded_lem = d
     case (non_sym_rhs, equiv_lemma, dis_lemma) of
         (True, Nothing, Nothing) -> do
             let pretty_nrpc = inlinePretty eenv nrpc
+                pg = mkPrettyGuide pretty_nrpc
             liftIO . putStrLn $ "Try to prove "
-                            <> (T.unpack . printHaskellDirty $ nrpc_lhs pretty_nrpc)
+                            <> (T.unpack . printHaskellDirtyPG pg $ nrpc_lhs pretty_nrpc)
                             <> " = "
-                            <> (T.unpack . printHaskellDirty $ nrpc_rhs pretty_nrpc)
+                            <> (T.unpack . printHaskellDirtyPG pg $ nrpc_rhs pretty_nrpc)
             return ( b { name_gen = ng4 }, Just lem_s )
         _ -> return ( b { name_gen = ng4 }, Nothing )
+
+genLemmaRemovingSymFun  :: (MonadIO m, Solver solver) => HS.HashSet Name -> solver -> LemmaInfo -> VerifierState -> Bindings -> m (Bindings, Maybe VerifierState)
+genLemmaRemovingSymFun no_inline solver
+                        (LI { generated_lem = gen_lems, discarded_lem = dis_lems })
+                        s@(State { expr_env = eenv, known_values = kv, non_red_path_conds = nrpcs })
+                        b
+    | anyNRPC (isNRPCSymFun eenv) nrpcs
+    , let fil_nrpc = filterNRPC (not . isNRPCSymFun eenv) nrpcs
+    , not . nullNRPC $ fil_nrpc = do
+    let (lemma_name, ng2) = freshSeededString "lemma" (name_gen b)
+
+        (ng3, scram_nrpc) = scrambleUnique ng2 fil_nrpc
+        lem_s = s { curr_expr = CurrExpr Evaluate (mkFalse kv)
+                  , exec_stack = Stck.empty
+                  , non_red_path_conds = scram_nrpc
+                  , track = (track s) { tail_called_funcs = HS.empty, goal = Lemma lemma_name lem_s }}
+    
+    let mr_cont = mrContIgnoreNRPCTicks Nothing lookupConcOrSymState
+        res_check = moreRestrictiveIncludingPCAndNRPC
+                                                        solver
+                                                        mr_cont
+                                                        Nothing
+                                                        lookupConcOrSymState
+                                                        no_inline
+    equiv_lemma <-liftIO $ findM (\prev -> liftM2 (&&) (res_check prev lem_s) (res_check lem_s prev)) gen_lems
+    dis_lemma <-liftIO $ findM (\s -> res_check lem_s s) dis_lems
+
+    liftIO . putStrLn $ "equiv_lemma = " ++ show (fmap log_path equiv_lemma) ++ "    dis_lemma = " ++ show (fmap log_path dis_lemma)
+    case (equiv_lemma, dis_lemma) of
+        (Nothing, Nothing) -> do
+            let pretty_nrpc = inlinePretty eenv (non_red_path_conds lem_s)
+            liftIO . putStrLn $ "Try to prove "
+                            <> (T.unpack . prettyNonRedPaths (mkPrettyGuide pretty_nrpc) $ pretty_nrpc)
+            return ( b { name_gen = ng3 }, Just lem_s )
+        _ -> return ( b { name_gen = ng3 }, Nothing )
+    | otherwise = return (b, Nothing)
 
 mrContIgnoreNRPCTicks :: Maybe (GenerateLemma t l)
                       -> Lookup t

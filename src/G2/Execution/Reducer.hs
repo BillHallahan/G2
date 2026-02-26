@@ -2506,7 +2506,9 @@ runReducer red hal ord solve_r analyze init_state init_bindings = do
                                 let xs' = foldr (\(or_b, s') -> M.insertWith (++) or_b [s']) xs b_ss_tail
 
                                 runReducer' pr s_h b' xs'
-                            [] -> runReducerListSwitching pr xs b'
+                            [] -> do
+                                onDiscard red "reducer empty" xs s r_val
+                                runReducerListSwitching pr xs b'
 
         {-# INLINABLE switchState #-}
         switchState :: (Monad m, Ord b)

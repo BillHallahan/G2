@@ -8,3 +8,6 @@ prop2 f x = g f x == f x
 
 g :: (Int -> [Int]) -> Int -> [Int]
 g h n = h n
+
+prop3 :: Int -> (Int -> [Int]) -> Bool
+prop3 a k = [y | y <- k a] == k a

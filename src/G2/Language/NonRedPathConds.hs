@@ -7,6 +7,7 @@ module G2.Language.NonRedPathConds ( Focus
                                    , NRPC (..)
                                    , emptyNRPC
                                    , emptyNRPCNonUniq
+                                   , scrambleUnique
                                    , addNRPC
                                    , addExistingNRPC
                                    , addFirstNRPC
@@ -20,9 +21,11 @@ module G2.Language.NonRedPathConds ( Focus
                                    , pattern (:<*)
                                    , getNRPCUnique
                                    , setFocus
-                                   , allNRPC 
+                                   , allNRPC
+                                   , anyNRPC
                                    
-                                   , foldlNRPC' ) where
+                                   , foldlNRPC'
+                                   , filterNRPC ) where
 
 import G2.Language.AST
 import G2.Language.Naming
@@ -116,6 +119,10 @@ emptyNRPC ng = let (uniq, ng') = freshUnique ng in (NRPCs Empty uniq, ng')
 emptyNRPCNonUniq :: NonRedPathConds
 emptyNRPCNonUniq = NRPCs Empty 0
 
+-- | Replace the unique in the NonRedPathConds (unsafe: use caution!) 
+scrambleUnique :: NameGen -> NonRedPathConds -> (NameGen, NonRedPathConds)
+scrambleUnique ng (NRPCs nrpc _) = let (unq, ng') = freshUnique ng in (ng', NRPCs nrpc unq)
+
 addNRPC :: NameGen -> Focus -> Expr -> Expr -> NonRedPathConds -> (NameGen, NonRedPathConds)
 addNRPC ng focus e1 e2 (NRPCs nrpc curr_uniq) =
     let
@@ -172,8 +179,14 @@ setFocus n focus eenv (NRPCs nrpc uniq) = NRPCs (fmap set nrpc) uniq
 allNRPC :: (NRPC -> Bool) -> NonRedPathConds -> Bool
 allNRPC p (NRPCs nrpc _) = all p nrpc
 
+anyNRPC :: (NRPC -> Bool) -> NonRedPathConds -> Bool
+anyNRPC p (NRPCs nrpc _) = any p nrpc
+
 foldlNRPC' :: (a -> NRPC -> a) -> a -> NonRedPathConds -> a
 foldlNRPC' f i = F.foldl' f i . nrpcs
+
+filterNRPC :: (NRPC -> Bool) -> NonRedPathConds -> NonRedPathConds
+filterNRPC p (NRPCs nrpc uniq) = NRPCs (S.filter p nrpc) uniq
 
 pattern EmpNRPC :: NonRedPathConds
 pattern EmpNRPC <- (nullNRPC -> True)
