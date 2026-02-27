@@ -1021,6 +1021,9 @@ verifierTests = testGroup "Verifier"
 
     , checkExprVerified "tests/Verify/Maybe1.hs" "p1"
 
+    , checkExprVerified "tests/Verify/Tree1.hs" "fmapIdTree"
+    , checkExprVerified "tests/Verify/Tree1.hs" "fmapCompositionTree"
+
     , checkRuleVerified "tests/Verify/Rules1.hs" "justJust"
     , checkRuleVerified "tests/Verify/Rules1.hs" "justJust2"
     , checkRuleVerified "tests/Verify/Rules1.hs" "polyJustJust"
