@@ -1162,19 +1162,28 @@ retCurrExpr :: State t -> Expr -> CEAction -> CurrExpr -> S.Stack Frame -> NameG
 retCurrExpr s@(State { expr_env = eenv, known_values = kv, tyvar_env = tvnv, focused = focus }) e1 (EnsureEq e2) orig_ce@(CurrExpr _ ce) stck ng
     | Just (eenv', new_pc, new_nrpc_pairs) <- matchPairs tvnv kv e1 e2 (eenv, [], []) =
         let
-            (ng', nrpc) = foldr (\(p_e1, p_e2) (ng_, nrpcs) ->
+            ((ng', eenv''), nrpc) = foldr (\(p_e1, p_e2) ((ng_, eenv_), nrpcs) ->
                                 let
-                                    (p_e1', ng_') = addNRPCTick ng_ p_e1
-                                    (p_e2', ng_'') = addNRPCTick ng_' p_e2
+                                    (p_e1', p_e2', eenv_', ng_2) = case typeOf tvnv p_e1 of
+                                                                        -- If we are trying to equate functions, apply them to arguments
+                                                                        TyFun t1 _ ->
+                                                                            let
+                                                                                (x, ng_t) = freshId t1 ng_
+                                                                            in
+                                                                            (App p_e1 (Var x), App p_e2 (Var x), E.insertSymbolic x eenv_, ng_t)
+                                                                        _ -> (p_e1, p_e2, eenv_, ng_)
 
-                                    (ng_''', nrpcs') = addFirstNRPC ng_'' focus p_e1' p_e2' nrpcs
+                                    (p_e1'', ng_3) = addNRPCTick ng_2 p_e1'
+                                    (p_e2'', ng_4) = addNRPCTick ng_3 p_e2'
+
+                                    (ng_5, nrpcs') = addFirstNRPC ng_4 focus p_e1'' p_e2'' nrpcs
                                 in
-                                (ng_''', nrpcs'))
-                            (ng, non_red_path_conds s)
+                                ((ng_5, eenv_'), nrpcs'))
+                            ((ng, eenv'), non_red_path_conds s)
                             new_nrpc_pairs
         in
         ( RuleReturnCurrExprFr
-        , SplitStatePieces (s { expr_env = eenv'
+        , SplitStatePieces (s { expr_env = eenv''
                               , non_red_path_conds = nrpc
                               , exec_stack = stck })
                            [SD { new_conc_entries = []
@@ -1249,10 +1258,13 @@ matchPairs tvnv kv e1 e2 eenv_pc_ee@(eenv, pc, ees)
             True -> Just $ foldr (\es1es2@(es1_, es2_) epe -> fromMaybe (addPair es1es2 epe) (matchPairs tvnv kv es1_ es2_ epe)) eenv_pc_ee $ zip es1 es2
             False ->
                 Just (eenv, [ExtCond (mkFalse kv) True], [])
-    
+
+    | Lam _ _ _ <- e1
+    , Lam _ _ _ <- e2 = Just (eenv, pc, [(e1, e2)])
+
     | Tick _ e1' <- e1 = matchPairs tvnv kv e1' e2 eenv_pc_ee
     | Tick _ e2' <- e2 = matchPairs tvnv kv e1 e2' eenv_pc_ee
-    
+
     | otherwise = Nothing
     where
         isPrimApp (App e _) = isPrimApp e

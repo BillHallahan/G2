@@ -950,7 +950,7 @@ createNonRed' ng
                        , tyvar_env = tvnv }) e
             | v@(Var (Id _ t)):es <- unApp e
 
-            , hasFuncType t
+            , hasFuncType (tyVarSubst tvnv t)
 
             , let e_ty = typeOf tvnv e
             , not $ hasFuncType e_ty

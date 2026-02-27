@@ -23,3 +23,13 @@ ds = (\ds1 -> case ds1 of
 
 idCall2 :: ([] Int) -> Bool
 idCall2 = (\xs -> (==) ( ds'2 xs) ( ds xs))
+
+data A = A deriving Eq
+
+p1 :: [A -> A] -> [A -> A] -> [A] -> Bool
+p1 u v w = ( (repeat (.)) <**> u <**> v <**> w) == (u <**> (v <**> w))
+
+(<**>) :: [a -> b] -> [a] -> [b]
+fs <**> xs = zipWith id fs xs
+
+infixl 4 <**>

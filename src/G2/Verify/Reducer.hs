@@ -68,7 +68,7 @@ nrpcAnyCallReducer no_nrpc_names v_config config =
             return (s, b) }
 
     where        
-        red rv s@(State { curr_expr = CurrExpr _ ce, expr_env = eenv, tyvar_env = tvnv, track = vt }) b@(Bindings { name_gen = ng })
+        red rv s@(State { curr_expr = CurrExpr er ce, expr_env = eenv, tyvar_env = tvnv, track = vt }) b@(Bindings { name_gen = ng })
             | Stck.null . popEnsureEq $ exec_stack s
             , let stripped_ce = stripNRBT ce
             , (Var (Id vn _)):(_:_) <- unApp stripped_ce
@@ -81,27 +81,30 @@ nrpcAnyCallReducer no_nrpc_names v_config config =
 
             | maybe True (allowed_frame . fst) (Stck.pop (exec_stack s))
             
-            , let wrapped_ce = applyWrap (getExpr s) (exec_stack s)
+            -- Check if we have a symbolic function at the center of the app
+            , Var (Id cn _):_ <- unApp $ getExpr s
+            , let is_symbolic = case E.deepLookupConcOrSym cn eenv of Just (E.Sym _) -> True; _ -> False
+
+            , let (wrapped_ce, stck') = applyWrap is_symbolic (getExpr s) (exec_stack s)
             , let stripped_ce = stripNRBT wrapped_ce
             , v@(Var (Id _ _)):es@(_:_) <- unApp stripped_ce  = do
-
                 -- Convert arguments into NRPCs
-                let (s', ng') = if (arg_rev_abs v_config) == AbsFuncArgs then argsToNRPCs s (name_gen b) v es else (s, ng)
+                let s' = s { curr_expr = CurrExpr er wrapped_ce, exec_stack = stck' }
+                    (s'', ng') = if (arg_rev_abs v_config) == AbsFuncArgs then argsToNRPCs s' (name_gen b) v es else (s', ng)
 
                 -- Given a function call `f x1 ... xn`, we move the entire call to `f` into an NRPC.
                 -- Note that createNewCond wraps the function call with a Tick.
                 -- This prevents that same function call from being immediately turned back into an NRPC
                 -- when it is removed from the NRPCs.
-                let e = applyWrap (getExpr s) (exec_stack s)
-                    nr_s_ng = if
+                let nr_s_ng = if
                                 -- Line (*) make sure we don't add back to NRPCs immediately.
                                 | not (hasNRBT wrapped_ce) -- (*)
-                                , allowedApp e eenv tvnv -> createRA ng' (focused s') s'
+                                , allowedApp wrapped_ce eenv tvnv -> createRA ng' (focused s'') s''
                                 | otherwise -> Nothing
-                
+
                 case nr_s_ng of
                     Just (nr_s, _, _, ng'') -> return (Finished, [(nr_s, rv + 1)], b { name_gen = ng'' })
-                    _ -> return (Finished, [(s', rv)], b { name_gen = ng' })
+                    _ -> return (Finished, [(s'', rv)], b { name_gen = ng' })
             | Tick nl (Var (Id n _)) <- ce
             , isNonRedBlockerTick nl
             , Just e <- E.lookup n eenv = return (Finished, [(s { curr_expr = CurrExpr Evaluate e }, rv)], b)
@@ -120,7 +123,7 @@ nrpcAnyCallReducer no_nrpc_names v_config config =
             , not . isTyFun . typeOf tvnv $ app
             , data_arg_rev_abs v_config == AbsDataArgs = True
             | otherwise = False
-
+        
         -- Replace each argument which is itself a function call with a NRPC.
         -- For instance:
         --  @ f (g x) y (h z)@
@@ -196,8 +199,9 @@ nrpcAnyCallReducer no_nrpc_names v_config config =
         allowed_frame (ApplyFrame _) = False
         allowed_frame _ = True
 
-        applyWrap e stck | Just (ApplyFrame a, stck') <- Stck.pop stck = applyWrap (App e a) stck'
-                         | otherwise = e
+        applyWrap is_symbolic e stck | Just (ApplyFrame a, stck') <- Stck.pop stck = applyWrap is_symbolic (App e a) stck'
+                                     | is_symbolic, Just (UpdateFrame _, stck') <- Stck.pop stck = applyWrap is_symbolic e stck'
+                                     | otherwise = (e, stck)
         
         stripNRBT (Tick nl e) | isNonRedBlockerTick nl = e
         stripNRBT (App e1 e2) = App (stripNRBT e1) e2
@@ -393,19 +397,30 @@ verifyHigherOrderHandling = mkSimpleReducer (const ()) red
                 let
                     ty_ar = typeOf tvnv ar
                     (lam_x, ng2) = freshId ty_ar ng
-                    (bindee, ng3) = freshId ty_ar ng2
-
-                    (ret_true, ng4) = freshId (case ty_fun of
-                                                TyFun _ t2 -> t2
-                                                _ -> error "verifyHigherOrderHandling: not tyfun") ng3
-                    (ret_false, ng5) = freshId ty_fun ng4
                 in
-                case ty_ar of
-                    TyFun _ _ -> error "verifyHigherOrderHandling: function type arguments not supported"
+                case ty_fun of
+                    TyFun (TyFun t1 t2) t3 ->
+                        let
+                            (pass, ng3) = freshId t1 ng2
+                            (wrapper, ng4) = freshId (TyFun t2 t3) ng3
+                            func_body = Lam TermL lam_x . App (Var wrapper) . App (Var lam_x) $ Var pass
+                            eenv' = E.insertSymbolic wrapper
+                                  . E.insertSymbolic pass
+                                  $ E.insert n func_body eenv
+                            
+                            s' = s { curr_expr = CurrExpr Evaluate (App func_body ar), expr_env = eenv' }
+                        in
+                        return (InProgress, [(s', ())], b { name_gen = ng4 })
                     _ -> let
+                            (bindee, ng3) = freshId ty_ar ng2
+                            (ret_true, ng4) = freshId (case ty_fun of
+                                                        TyFun _ t2 -> t2
+                                                        _ -> error "verifyHigherOrderHandling: not tyfun") ng3
+                            (ret_false, ng5) = freshId ty_fun ng4
+
                             eq_tc = case lookupTCDict tc (eqTC kv) ty_ar of
                                     Just tc -> tc
-                                    Nothing -> error "verifyHigherOrderHandling: unsupported type"
+                                    Nothing -> error $ "verifyHigherOrderHandling: unsupported type" ++ "\n" ++ show ty_fun ++ "\n" ++ show ty_ar
                             eq_f = eqFunc kv
                             eq_f_i = Id eq_f (typeOf tvnv . fromJust $ E.lookup eq_f eenv)
 
@@ -680,7 +695,7 @@ acceptLemmaReducer = (mkSimpleReducer (const ()) (\rv s b -> return (NoProgress,
         dis _ all_states s _
             | not . any (isSameGoal (goal $ track s) . goal . track . exStateToState) . concat . M.elems $ all_states
             , Lemma _ lem_s <- goal $ track s = do
-                liftIO $ putStrLn ("adding\n" ++ T.unpack (prettyNonRedPaths (mkPrettyGuide ()) (non_red_path_conds $ inlineNRPC s)))
+                liftIO $ putStrLn ("adding\n" ++ T.unpack (prettyNonRedPaths (mkPrettyGuide ()) (non_red_path_conds $ inlineNRPC lem_s)))
                 addApproxPrevs (lem_s { track = (track lem_s) { goal = Proven } })
             | otherwise = return ()
 
