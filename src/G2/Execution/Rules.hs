@@ -266,20 +266,6 @@ evalForAll as t tms tr s@(State {type_env = tenv, known_values = kv, tyvar_env =
             in Just ([(e', eenv'')], ng''')
             | otherwise = Nothing
 
-        -- | Partition the list into (<leftmost element satisfying predicate>, <others>). <others> is in original ordering.
-        partitionFirst :: Eq a => (a -> Bool) -> [a] -> (Maybe a, [a])
-        partitionFirst predicate l = case find predicate l of
-            Nothing -> (Nothing, l)
-            Just found_elem -> (Just found_elem, filter (/= found_elem) l) 
-
-        isUnwrapable :: Type -> Bool
-        isUnwrapable possUW = containsTyVars possUW as_ids && possUW `notElem` as  
-                           && (case unTyApp possUW of 
-                                TyCon tname _:_ -> case HM.lookup tname tenv of
-                                    Just _ -> True
-                                    Nothing -> False
-                                _ -> False)
-
         -- PM-UNWRAP
         pmUnwrap ng_in
             | (Just dc_arg, other_args) <- partitionFirst (isUnwrapable . typeOf tvenv) term_args
@@ -328,25 +314,26 @@ evalForAll as t tms tr s@(State {type_env = tenv, known_values = kv, tyvar_env =
                 dcs = applyTypeHashMap ty_map $ dataCon alg_data_ty
                 bound = applyTypeHashMap ty_map $ bound_ids alg_data_ty
 
-                -- Create Alt expressions for each DC
-                (alt_exprs, symIds, ng'') =
-                    foldr (\dc@(DataCon _ dcty _ _) (all_alt_exprs, sids, ng1) ->
+                -- Create an expression for each data constructor, paired with the symbolic Ids for that
+                -- expression, while threading a NameGen.
+                (dc_exprs_with_sym_ids :: [(Expr, [Id])], ng'') = 
+                    foldr (\dc@(DataCon _ dcty _ _) (all_a_exprs_sym_ids, ng1) ->
                         let 
                             (di_arg_ts, _) = argTypes dcty
                             -- Create arguments to be applied to the DC
-                            (fd_apps, fd_symIds, ng1') = argumentExprs True ng1 di_arg_ts
+                            (fd_apps, fd_symIds, ng1') = argumentExprs True ng1 (x, ys) di_arg_ts
                             di_alt_expr = mkApp ((Data dc:map Type adt_ts) ++ fd_apps)
                         in 
-                            (di_alt_expr : all_alt_exprs, sids ++ fd_symIds, ng1')
-                    ) ([], [], ng_in) dcs
+                            ((di_alt_expr, fd_symIds) : all_a_exprs_sym_ids, ng1')
+                    ) ([], ng_in) dcs
 
-                ([scrut, bindee], ng''') = freshIds [TyLitInt, TyLitInt] ng''
-                e' = e_template (Case (Var scrut) bindee tr $ mkSymIntAlts alt_exprs)
+                es' = map (e_template . fst) dc_exprs_with_sym_ids
 
-                eenv' = foldr E.insertSymbolic eenv $ scrut:symIds
-                eenv'' = E.insert (idName i) e' eenv'
+                eenvs' = map (foldr E.insertSymbolic eenv . snd) dc_exprs_with_sym_ids
+                eenvs'' = zipWith (E.insert (idName i)) es' eenvs'
+                inst_adt_tups = zip es' eenvs''
 
-            in Just ([(e', eenv'')], ng''')
+            in Just (inst_adt_tups, ng'')
             | otherwise = Nothing
 
         -- PM-FUNC
@@ -361,7 +348,7 @@ evalForAll as t tms tr s@(State {type_env = tenv, known_values = kv, tyvar_env =
                                     $ mkNestedForAll as $ mkTyFun ((f_tr:tms) ++ [t] ++ [tr])
                 (f, ng''') = freshId f_ty ng''
 
-                (fa_exprs, symIds, ng'''') = argumentExprs False ng''' f_targs
+                (fa_exprs, symIds, ng'''') = argumentExprs False ng''' (fun_id, other_ids) f_targs
 
                 e' = e_template . mkApp $ (Var f:map (Type . TyVar) as_ids) ++ [mkApp (Var x:fa_exprs)] ++ map Var (ys ++ [x])
 
@@ -383,7 +370,7 @@ evalForAll as t tms tr s@(State {type_env = tenv, known_values = kv, tyvar_env =
                                     $ mkNestedForAll as $ mkTyFun ((fa_tr_subst:tms) ++ [t] ++ [tr])
                 (f, ng''') = freshId f_ty ng''
 
-                (fa_exprs, symIds, ng'''') = argumentExprs False ng''' fa_ts_subst
+                (fa_exprs, symIds, ng'''') = argumentExprs False ng''' (x, ys) fa_ts_subst
 
                 t_vs = replicate (length fa_as) (Type applying_type)
                 e' = e_template . mkApp $ (Var f:map (Type . TyVar) as_ids) ++ [mkApp $ (Var x:t_vs) ++ fa_exprs] ++ map Var (ys ++ [x])
@@ -407,6 +394,20 @@ evalForAll as t tms tr s@(State {type_env = tenv, known_values = kv, tyvar_env =
             | otherwise = Nothing
 
         -----
+        -- | Partition the list into (<leftmost element satisfying predicate>, <others>). <others> is in original ordering.
+        partitionFirst :: Eq a => (a -> Bool) -> [a] -> (Maybe a, [a])
+        partitionFirst predicate l = case find predicate l of
+            Nothing -> (Nothing, l)
+            Just found_elem -> (Just found_elem, filter (/= found_elem) l) 
+
+        isUnwrapable :: Type -> Bool
+        isUnwrapable possUW = containsTyVars possUW as_ids && possUW `notElem` as  
+                           && (case unTyApp possUW of 
+                                TyCon tname _:_ -> case HM.lookup tname tenv of
+                                    Just _ -> True
+                                    Nothing -> False
+                                _ -> False)
+
         -- Creates arguments for a function argument or data constructor. The arguments may be:
         --      1. Direct symbolic values (for types Int, [Maybe Bool], etc.)
         --      2. Created by application of a symbolic function (for types a, (a, b), etc.)
@@ -414,8 +415,8 @@ evalForAll as t tms tr s@(State {type_env = tenv, known_values = kv, tyvar_env =
         -- There is an option to omit forwarding the first argument, in the case of 
         -- PM-FUNC(-FORALL), or to keep it, in the case of PM-INST-ADT.
         -- TODO: change names here
-        argumentExprs :: Bool -> NameGen -> [Type] -> ([Expr], [Id], NameGen)
-        argumentExprs fwd_fst_arg ng_prior = foldr go ([], [], ng_prior)
+        argumentExprs :: Bool -> NameGen -> (Id, [Id]) -> [Type] -> ([Expr], [Id], NameGen)
+        argumentExprs fwd_selected_arg ng_prior (selected_id, other_ids) = foldr go ([], [], ng_prior)
             where
                 go :: Type -> ([Expr], [Id], NameGen) -> ([Expr], [Id], NameGen)
                 go fa_ti (faes, _symIds, ng1) | containsTyVars fa_ti as_ids
@@ -423,9 +424,9 @@ evalForAll as t tms tr s@(State {type_env = tenv, known_values = kv, tyvar_env =
                     = let 
                         (fa_id_new_as, ng1') = freshSeededIds as_ids ng1
                         fa_id_ty = renames (HM.fromList (zip (map idName as_ids) (map idName fa_id_new_as)))
-                                    $ mkNestedForAll as $ mkTyFun $ [t | fwd_fst_arg] ++ tms ++ [fa_ti]
+                                    $ mkNestedForAll as $ mkTyFun $ [typeOf tvenv x | fwd_selected_arg] ++ map (typeOf tvenv) other_ids ++ [fa_ti]
                         (fa_id, ng1'') = freshId fa_id_ty ng1'
-                        fa_expr = mkApp $ [Var fa_id] ++ map (Type . TyVar) as_ids ++ map Var ([x | fwd_fst_arg] ++ ys)
+                        fa_expr = mkApp $ [Var fa_id] ++ map (Type . TyVar) as_ids ++ map Var ([selected_id | fwd_selected_arg] ++ other_ids)
                     in 
                         (fa_expr:faes, fa_id:_symIds, ng1'')
                     -- Can make symbolic argument directly
