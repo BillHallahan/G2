@@ -193,6 +193,19 @@ def unmodified_theorems():
             ret.append(("prop_" + str(i), []))
     return ret
 
+def typeclass_funcs():
+    monoidLaws = ["monoidRightIdentity", "monoidLeftIdentity", "monoidAssociativity", "monoidConcatenation"]
+    functorLaws = ["fmapId", "fmapComposition"]
+    applicativeLaws = ["appIdentity", "appComposition", "appHomomorphism", "appInterchange"]
+    monadLaws = ["monadLeftIdentity", "monadRightIdentity", "monadAssociativity"]
+
+    all_laws = monoidLaws + functorLaws + applicativeLaws + monadLaws
+
+    list_laws = [(law + "List", []) for law in all_laws]
+    maybe_laws = [(law + "Maybe", [])for law in all_laws]
+
+    return list_laws + maybe_laws
+
 def read_runnable_benchmarks(setpath, settings) :
     props = []
     lines = []
@@ -291,6 +304,8 @@ def main():
     global ver_res, cex_res
 
     args = sys.argv[1:]
+
+    runAll("Typeclasses.hs", typeclass_funcs(), time_limit, args)
 
     runAll("Zeno.hs", unmodified_theorems(), time_limit, args)
 

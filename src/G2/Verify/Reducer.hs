@@ -68,7 +68,17 @@ nrpcAnyCallReducer no_nrpc_names v_config config =
             return (s, b) }
 
     where        
-        red rv s@(State { curr_expr = CurrExpr _ ce, expr_env = eenv, tyvar_env = tvnv }) b@(Bindings { name_gen = ng })
+        red rv s@(State { curr_expr = CurrExpr _ ce, expr_env = eenv, tyvar_env = tvnv, track = vt }) b@(Bindings { name_gen = ng })
+            | Stck.null . popEnsureEq $ exec_stack s
+            , let stripped_ce = stripNRBT ce
+            , (Var (Id vn _)):(_:_) <- unApp stripped_ce
+            , let tcf = tail_called_funcs vt
+            , vn `notElem` tcf =
+                let
+                    s' = s { track = vt { tail_called_funcs = HS.insert vn tcf }}
+                in
+                return (Finished, [(s', rv)], b)
+
             | maybe True (allowed_frame . fst) (Stck.pop (exec_stack s))
             
             , let wrapped_ce = applyWrap (getExpr s) (exec_stack s)
@@ -198,6 +208,9 @@ nrpcAnyCallReducer no_nrpc_names v_config config =
         hasNRBT (App e1 _) = hasNRBT e1
         hasNRBT _ = False
 
+        popEnsureEq stck | Just (CurrExprFrame (EnsureEq _) _, stck') <- Stck.pop stck= popEnsureEq stck'
+                         | otherwise = stck
+
 -- | Create a NRPC if heuristics apply.
 createRA :: NameGen -> GenFocus n -> State t -> Maybe (State t, Id, NRPC, NameGen)
 createRA ng f s | nrpcHeuristics (expr_env s) (getExpr s) = createNonRed ng f s
@@ -310,7 +323,7 @@ adjustFocusReducer = mkSimpleReducer (const ()) red
         red rv s b =
             return (Finished, [(s, rv)], b)
 
-verifySolveNRPC :: Monad m => Reducer m () t
+verifySolveNRPC :: Monad m => Reducer m () VerifierTracker
 verifySolveNRPC = mkSimpleReducer (const ()) red
     where
         red _
@@ -318,6 +331,7 @@ verifySolveNRPC = mkSimpleReducer (const ()) red
                                  , curr_expr = cexpr
                                  , exec_stack = stck
                                  , non_red_path_conds = nrs :<* nr@(NRPC focus nre1 nre2)
+                                 , track = vt
                                  })
                                 b
             
@@ -335,7 +349,8 @@ verifySolveNRPC = mkSimpleReducer (const ()) red
                 s' = s { curr_expr = CurrExpr Evaluate nre1'
                        , exec_stack = stck'
                        , non_red_path_conds = nrs
-                       , focused = focus }
+                       , focused = focus
+                       , track = vt {tail_called_funcs = HS.empty } }
 
                 in return (InProgress, [(s', ())], b)
             | otherwise = 
@@ -344,10 +359,18 @@ verifySolveNRPC = mkSimpleReducer (const ()) red
         red _ s b = return (Finished, [(s, ())], b)
 
 isNRPCSymFun :: ExprEnv -> NRPC -> Bool
-isNRPCSymFun eenv (NRPC _ e1 _)
-    | Tick _ (Var (Id n _)):_ <- unApp e1
-    , Just (E.Sym _) <- E.deepLookupConcOrSym n eenv = True
-    | otherwise = False
+isNRPCSymFun eenv (NRPC _ e1 _) = is_sym_fun HS.empty e1
+    where
+        is_sym_fun seen e
+            | (Var (Id n _)):_ <- es
+            , n `elem` seen = False
+            | (Var (Id n _)):_ <- es
+            , Just (E.Sym _) <- E.deepLookupConcOrSym n eenv = True
+            | (Var (Id n _)):_ <- es
+            , Just (E.Conc e_c) <- E.deepLookupConcOrSym n eenv = is_sym_fun (HS.insert n seen) e_c
+            | otherwise = False
+            where
+                es = stripAllTicks $ unApp e
 
 inlineInner :: ExprEnv -> Expr -> Expr
 inlineInner eenv e
@@ -364,7 +387,8 @@ verifyHigherOrderHandling = mkSimpleReducer (const ()) red
                        , known_values = kv
                        , type_classes = tc 
                        , tyvar_env = tvnv }) b@(Bindings { name_gen = ng })
-            | (App (Var (Id n ty_fun)) ar) <- stripAllTicks ce
+            | (App (Var (Id n raw_ty_fun)) ar) <- stripAllTicks ce
+            , let ty_fun = tyVarSubst tvnv raw_ty_fun
             , E.isSymbolic n eenv =
                 let
                     ty_ar = typeOf tvnv ar
@@ -375,28 +399,31 @@ verifyHigherOrderHandling = mkSimpleReducer (const ()) red
                                                 TyFun _ t2 -> t2
                                                 _ -> error "verifyHigherOrderHandling: not tyfun") ng3
                     (ret_false, ng5) = freshId ty_fun ng4
-
-                    eq_tc = case lookupTCDict tc (eqTC kv) ty_ar of
-                                Just tc -> tc
-                                Nothing -> error "verifyHigherOrderHandling: unsuported type"
-                    eq_f = eqFunc kv
-                    eq_f_i = Id eq_f (typeOf tvnv . fromJust $ E.lookup eq_f eenv)
-
-                    e = mkApp [Var eq_f_i, Type ty_ar, Var eq_tc, Var lam_x, ar]
-
-                    func_body =
-                        Lam TermL lam_x $ 
-                            Case e bindee (returnType ty_fun)
-                                [ Alt (DataAlt (mkDCTrue kv tenv) []) (Var ret_true)
-                                , Alt (DataAlt (mkDCFalse kv tenv) []) (App (Var ret_false) (Var lam_x))]
-
-                    eenv' = E.insertSymbolic ret_true
-                          . E.insertSymbolic ret_false
-                          $ E.insert n func_body eenv
-
-                    s' = s { curr_expr = CurrExpr Evaluate (App func_body ar), expr_env = eenv'}
                 in
-                return (InProgress, [(s', ())], b {name_gen = ng5})
+                case ty_ar of
+                    TyFun _ _ -> error "verifyHigherOrderHandling: function type arguments not supported"
+                    _ -> let
+                            eq_tc = case lookupTCDict tc (eqTC kv) ty_ar of
+                                    Just tc -> tc
+                                    Nothing -> error "verifyHigherOrderHandling: unsupported type"
+                            eq_f = eqFunc kv
+                            eq_f_i = Id eq_f (typeOf tvnv . fromJust $ E.lookup eq_f eenv)
+
+                            e = mkApp [Var eq_f_i, Type ty_ar, Var eq_tc, Var lam_x, ar]
+
+                            func_body =
+                                Lam TermL lam_x $ 
+                                    Case e bindee (returnType ty_fun)
+                                        [ Alt (DataAlt (mkDCTrue kv tenv) []) (Var ret_true)
+                                        , Alt (DataAlt (mkDCFalse kv tenv) []) (App (Var ret_false) (Var lam_x))]
+
+                            eenv' = E.insertSymbolic ret_true
+                                . E.insertSymbolic ret_false
+                                $ E.insert n func_body eenv
+
+                            s' = s { curr_expr = CurrExpr Evaluate (App func_body ar), expr_env = eenv'}
+                        in
+                        return (InProgress, [(s', ())], b {name_gen = ng5})
         red _ s b = return (Finished, [(s, ())], b)
 
 unifyNRPCReducer :: Monad m =>
@@ -600,7 +627,7 @@ genLemmaState no_inline solver (LI { generated_lem = gen_lems, discarded_lem = d
         lem_s = s { curr_expr = CurrExpr Evaluate (mkFalse kv)
                   , exec_stack = Stck.empty
                   , non_red_path_conds = nrpcs
-                  , track = (track s) { goal = Lemma lemma_name lem_s }}
+                  , track = (track s) { tail_called_funcs = HS.empty, goal = Lemma lemma_name lem_s }}
     
     let mr_cont = mrContIgnoreNRPCTicks Nothing lookupConcOrSymState
         res_check = moreRestrictiveIncludingPCAndNRPC
@@ -685,13 +712,15 @@ Lemma n1 _ `isSameGoal` Lemma n2 _ = n1 == n2
 Proven `isSameGoal` Proven = True
 _ `isSameGoal` _ = False
 
-data VerifierTracker = VT { goal :: Goal, focus_map :: FocusMap }
+data VerifierTracker = VT { goal :: Goal
+                          , tail_called_funcs :: TailCalls -- ^ Functions called while in tail position 
+                          , focus_map :: FocusMap }
                           deriving (Show, Read)
-
+type TailCalls = HS.HashSet Name
 type FocusMap = HM.HashMap Name (HS.HashSet Name)
 
 initVerifierTracker :: VerifierTracker
-initVerifierTracker = VT { goal = Theorem, focus_map = HM.empty }
+initVerifierTracker = VT { goal = Theorem, tail_called_funcs = HS.empty, focus_map = HM.empty }
 
 updateStateFocusMap :: Name -> VerifierState -> VerifierState
 updateStateFocusMap n s@(State { focused = Unfocused n'
@@ -720,6 +749,7 @@ prettyVerifierTracker pg (VT { focus_map = fm, goal = g}) =
 
         prettyGoal Theorem = "Theorem"
         prettyGoal (Lemma n _) = "Lemma " <> printName pg n
+        prettyGoal Proven = "Proven"
 
 instance ASTContainer VerifierTracker Expr where
     containedASTs _ = []
@@ -731,15 +761,18 @@ instance ASTContainer VerifierTracker Type where
 
 instance Named VerifierTracker where
     names vt = names (goal vt) <> names (focus_map vt)
-    rename old new vt = VT { goal = rename old new (goal vt), focus_map = rename old new (focus_map vt) }
-    renames hm vt = VT { goal = renames hm (goal vt), focus_map = renames hm (focus_map vt) }
+    rename old new vt = VT { goal = rename old new (goal vt), tail_called_funcs = rename old new (tail_called_funcs vt), focus_map = rename old new (focus_map vt) }
+    renames hm vt = VT { goal = renames hm (goal vt), tail_called_funcs = renames hm (tail_called_funcs vt), focus_map = renames hm (focus_map vt) }
 
 instance Named Goal where
     names Theorem = mempty
     names (Lemma n _) = Seq.singleton n
+    names Proven = mempty
 
     rename _ _ Theorem = Theorem
     rename old new (Lemma n s) = Lemma (rename old new n) s
+    rename _ _ Proven = Proven
 
     renames _ Theorem = Theorem
     renames hm (Lemma n s) = Lemma (renames hm n) s
+    renames _ Proven = Proven

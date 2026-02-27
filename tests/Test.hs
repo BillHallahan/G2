@@ -998,6 +998,9 @@ verifierTests = testGroup "Verifier"
 
     , checkExprCEx "tests/Verify/List6.hs" "p1False"
 
+    , checkExprVerifiedNoLemmas "tests/Verify/ListComp.hs" "p1"
+    , checkExprVerified "tests/Verify/ListComp.hs" "p2"
+
     -- , checkExprVerified "tests/Verify/NatList1.hs" "prop1"
     , checkExprVerified "tests/Verify/NatList1.hs" "prop2"
     , checkExprCEx "tests/Verify/NatList1.hs" "prop1False"
@@ -1011,6 +1014,11 @@ verifierTests = testGroup "Verifier"
 
     , checkExprVerified "tests/Verify/HigherOrder.hs" "prop1"
     , checkExprVerified "tests/Verify/HigherOrder.hs" "prop2"
+
+    , checkExprVerified "tests/Verify/IdCall.hs" "idCall"
+    , checkExprVerified "tests/Verify/IdCall.hs" "idCall2"
+
+    , checkExprVerified "tests/Verify/Maybe1.hs" "p1"
 
     , checkRuleVerified "tests/Verify/Rules1.hs" "justJust"
     , checkRuleVerified "tests/Verify/Rules1.hs" "justJust2"
@@ -1186,6 +1194,9 @@ checkExprCExWithNoArgRevAbs =
         vr_config = defVerifyConfig { arg_rev_abs = NoAbsFuncArgs }
     in
     checkExprVerifierWithConfig vr_config (\case Verified -> False; Counterexample _ -> True; VerifyTimeOut -> False)
+
+checkExprVerifiedNoLemmas :: String -> String -> TestTree
+checkExprVerifiedNoLemmas = checkExprVerifierWithConfig (defVerifyConfig { use_lemmas = False}) (\case Verified -> True; Counterexample _ -> False; VerifyTimeOut -> False)
 
 checkExprVerifier :: (VerifyResult -> Bool) -> String -> String -> TestTree
 checkExprVerifier = checkExprVerifierWithConfig defVerifyConfig
