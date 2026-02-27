@@ -2,6 +2,7 @@
 
 module TypeClasses where
 
+import Control.Applicative
 import Data.Functor.Classes
 
 -- Monoid laws
@@ -123,7 +124,7 @@ appCompositionMaybe = appComposition
 appHomomorphismMaybe :: Eq b => (a -> b) -> a -> Bool
 appHomomorphismMaybe = appHomomorphism @Maybe
 
-appInterchangeMaybe :: Eq b => [a -> b] -> a -> Bool
+appInterchangeMaybe :: Eq b => Maybe (a -> b) -> a -> Bool
 appInterchangeMaybe = appInterchange
 
 -- Maybe Monad
@@ -135,3 +136,19 @@ monadRightIdentityMaybe = monadRightIdentity
 
 monadAssociativityMaybe :: Eq b => Maybe a1 -> p -> (a1 -> Maybe a2) -> (a2 -> Maybe b) -> Bool
 monadAssociativityMaybe = monadAssociativity
+
+-------------------------------------------------------------------------------
+-- ZipLists
+-------------------------------------------------------------------------------
+
+appIdentityZipList :: Eq a => ZipList a -> Bool
+appIdentityZipList = appIdentity
+
+appCompositionZipList :: Eq b => ZipList (a1 -> b) -> ZipList (a2 -> a1) -> ZipList a2 -> Bool
+appCompositionZipList = appComposition
+
+appHomomorphismZipList :: Eq b => (a -> b) -> a -> Bool
+appHomomorphismZipList = appHomomorphism @ZipList 
+
+appInterchangeZipList :: Eq b => ZipList (a -> b) -> a -> Bool
+appInterchangeZipList = appInterchange
