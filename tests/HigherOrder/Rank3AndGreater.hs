@@ -35,6 +35,9 @@ forallWithPolyFuncArg2 f = f (\x y -> y) True
 forallWithPolyFuncArg3 :: (forall a. (forall b. a -> b -> a) -> a -> a) -> Bool
 forallWithPolyFuncArg3 f = f (\x y -> x) True
 
+forallWithPolyFuncArgSecond :: (forall a. a -> (forall b. a -> b -> a) -> a) -> Bool
+forallWithPolyFuncArgSecond f = f True (\x y -> x)
+
 forallWithPolyFuncArgBox :: (forall a. (forall b. b -> Boxed b) -> a -> Boxed a) -> Boxed Bool
 forallWithPolyFuncArgBox f = f (\x -> Box x) True
 

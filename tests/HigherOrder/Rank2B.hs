@@ -5,34 +5,23 @@ module RankN2 where
 import Data.Kind
 
 --------- [Identity functions] ---------
-identityInTuple :: (forall a. a -> (a, a)) -> (forall a. a -> a) -> ((Int, Int), Int)
-identityInTuple f g = (f 3, g 5)
-
-intArg :: (forall a. a -> Int -> a) -> Int
-intArg f = f 1 2
-
 identityTwoTvs :: (forall b a c. a -> a) -> Int
 identityTwoTvs f = f 1
 
 --------- [ADT Arguments] ---------
 data Tree a = Leaf a | Inter (Tree a) (Tree a) deriving (Eq, Show)
-data Boxed a = Box a deriving (Eq, Show)
-
-boxedArg :: (forall a. a -> Boxed a -> a) -> Int
-boxedArg f = f 4 (Box 1)
 
 treeArg :: (forall a. Tree a -> a) -> Int
 treeArg f = f (Inter (Leaf 3) (Inter (Leaf 7) (Leaf 8)))
 
 --------- [ADT Return Values] ---------
-boxedRet :: (forall a. a -> Boxed a) -> Boxed Int
-boxedRet f = f 3
+data Boxed a = Box a deriving (Eq, Show)
 
 treeRet :: (forall a. a -> a -> Tree a) -> Tree Int
 treeRet f = f 5 7
 
-treeRet2 :: (forall a b. a -> b -> (Boxed Int, (Boxed (Boxed b), Boxed (Boxed (Boxed a))))) -> (Boxed Int, (Boxed (Boxed Bool), Boxed (Boxed (Boxed Int))))
-treeRet2 f = f 5 False
+tupBoxRet :: (forall a b. a -> b -> (Boxed Int, (Boxed (Boxed b), Boxed (Boxed (Boxed a))))) -> (Boxed Int, (Boxed (Boxed Bool), Boxed (Boxed (Boxed Int))))
+tupBoxRet f = f 5 False
 
 listRet :: (forall a. a -> a -> [a]) -> [Int]
 listRet f = f 4 5
@@ -43,8 +32,10 @@ literalRet f = case f (Box 5) 23 of
                 4 -> 8
                 _ -> 3
 
-literalAndBoxedRet :: (forall a. a -> (Boxed Int, Boxed a)) -> (Boxed Int, Boxed Bool)
-literalAndBoxedRet f = f True
+literalAndBoxedRet :: (forall a. a -> (Boxed Int, Boxed a)) -> Int
+literalAndBoxedRet f = case f True of
+                    (Box 2, Box True) -> 4
+                    (Box 3, Box True) -> 6
 
 mIntMaybe :: (forall m. m Int -> Maybe (m Int)) -> Maybe (Boxed Int)
 mIntMaybe f = f (Box 4)
