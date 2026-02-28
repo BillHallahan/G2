@@ -175,9 +175,8 @@ evalForAll as t tms tr s@(State {type_env = tenv, known_values = kv, tyvar_env =
         -- Current priority sets:
         --      PM-NON-CONT -> PM-UNWRAP -> PM-CYCLE -> {PM-INST-DIRECT, PM-INST-DC, PM-FUNC, PM-FUNC-FORALL, PM-CONST}
         rule_priority_list = [[(pmNonCont, "PM-NON-CONT")], 
-                              [(pmUnwrap, "PM-UNWRAP")], 
-                              -- [(pmCycle, "PM-CYCLE")], 
-                              [(pmInstVar, "PM-INST-VAR"), (pmInstADT, "PM-INST-ADT"), (appPMFunc, "PM-FUNC"), (pmFunForall, "PM-FUNC-FORALL"), (pmConst, "PM-CONST")]]
+                              [(pmUnwrap, "PM-UNWRAP")],  
+                              [(pmInstVar, "PM-INST-VAR"), (pmInstADT, "PM-INST-ADT"), (appPMFunc, "PM-FUNC"), (appPMFuncForall, "PM-FUNC-FORALL"), (pmConst, "PM-CONST")]]
         -- Extract the states and the NameGen from the highest priority rule list with a non-empty set of resulting states. (find returns leftmost)
         (states, ng_eval_forall) = fromMaybe ([], ng) 
             (find (not . null . fst) $ map priorityLevelFold rule_priority_list)
@@ -211,30 +210,6 @@ evalForAll as t tms tr s@(State {type_env = tenv, known_values = kv, tyvar_env =
 
                 state_tups = zip es' eenvs'
             in Just (state_tups, ng_in)
-            | otherwise = Nothing
-        
-        -- PM-CYCLE
-        -- TODO: remove cycling entirely, since we're selecting from argument directly
-        pmCycle ng_in
-            | (_:_) <- tms
-            -- Since PM-CYCLE is only needed to access arguments of types 
-            -- that require applications of PM-UNWRAP or PM-NON-CONT, we 
-            -- check if all arguments are bare type variables to avoid 
-            -- unneeded cycling.
-            -- TODO: bare tv special casing doesn't make sense
-            , not $ all isTyVar (t:tms)
-            , containsTyVars t as_ids
-            = let 
-                (new_as, ng'') = freshSeededIds as_ids ng_in
-                (f, ng''') = freshId (renames (HM.fromList (zip (map idName as_ids) (map idName new_as))) -- TODO: map after zip?
-                                $ mkNestedForAll as $ mkTyFun (tms++[t]++[tr])) ng''
-
-                e' = e_template $ mkApp $ [Var f] ++ map (Type . TyVar) as_ids ++ map Var ys ++ [Var x]
-                
-                eenv' = E.insertSymbolic f eenv
-                eenv'' = E.insert (idName i) e' eenv'
-
-            in Just ([(e', eenv'')], ng''')
             | otherwise = Nothing
 
         -- PM-NON-CONT
@@ -341,6 +316,7 @@ evalForAll as t tms tr s@(State {type_env = tenv, known_values = kv, tyvar_env =
 
         -- PM-FUNC
         -- TODO: better naming in let bindings
+        -- TODO: not passing function itself to inner expressions is not effective, should omit all functions
         pmFun :: NameGen -> Id -> [Id] -> (Expr, E.ExprEnv, NameGen)
         pmFun ng_in fun_id other_ids
             | (f_targs, f_tr) <- argTypes $ typeOf tvenv fun_id
@@ -359,28 +335,43 @@ evalForAll as t tms tr s@(State {type_env = tenv, known_values = kv, tyvar_env =
 
             in (e', eenv'', ng'''')
 
-        -- PM-FUNC-FORALL
-        pmFunForall ng_in
-            | fa_as@(_:_) <- leadingTyForAllBindings t
-            , fa_t@(TyFun _ _) <- inTyForAlls t
+        -- Applies pmFunForall for all matching function arguments.
+        appPMFuncForall :: FARuleF
+        appPMFuncForall ng_in 
+            | cont_forall_func_args@(_:_) <- filter isMatchingFuncArgForall term_args
             = let
+                (res_tups, ng_func_fold) = foldr (\forall_func_arg_id (all_res_tups, ng_before) ->
+                    let (ex, env, ng_after) = pmFunForall ng_before forall_func_arg_id (filter (/= forall_func_arg_id) term_args)
+                        in ((ex, env):all_res_tups, ng_after)
+                    ) ([], ng_in) cont_forall_func_args
+                    
+            in Just (res_tups, ng_func_fold)
+            | otherwise = Nothing
+
+        -- PM-FUNC-FORALL
+        -- Assumes all bindings are non-empty/correct constructor as guaranteed by isMatchingFuncArgForall
+        pmFunForall ng_in fun_id other_ids
+            = let
+                fun_ty = typeOf tvenv fun_id
+                fa_as = leadingTyForAllBindings fun_ty
+                fa_t = inTyForAlls fun_ty
+
                 applying_type = tyInteger kv
                 (f_as, ng'') = freshSeededIds as_ids ng_in
                 (fa_ts_subst, fa_tr_subst) = argTypes $ retypes (map (, applying_type) fa_as) fa_t
                 f_ty = renames (HM.fromList (zip (map idName as_ids) (map idName f_as))) 
-                                    $ mkNestedForAll as $ mkTyFun ((fa_tr_subst:tms) ++ [t] ++ [tr])
+                                    $ mkNestedForAll as $ mkTyFun (fa_tr_subst:map (typeOf tvenv) (fun_id:other_ids) ++ [tr])
                 (f, ng''') = freshId f_ty ng''
 
-                (fa_exprs, symIds, ng'''') = argumentExprs False ng''' (x, ys) fa_ts_subst
+                (fa_exprs, symIds, ng'''') = argumentExprs False ng''' (fun_id, other_ids) fa_ts_subst
 
                 t_vs = replicate (length fa_as) (Type applying_type)
-                e' = e_template . mkApp $ (Var f:map (Type . TyVar) as_ids) ++ [mkApp $ (Var x:t_vs) ++ fa_exprs] ++ map Var (ys ++ [x])
+                e' = e_template . mkApp $ (Var f:map (Type . TyVar) as_ids) ++ [mkApp $ (Var fun_id:t_vs) ++ fa_exprs] ++ map Var (fun_id:other_ids)
 
                 eenv' = foldr E.insertSymbolic eenv (f:symIds)
                 eenv'' = E.insert (idName i) e' eenv'
 
-            in Just ([(e', eenv'')], ng'''')
-            | otherwise = Nothing
+            in (e', eenv'', ng'''')
 
         -- PM-CONST
         pmConst ng_in
@@ -413,6 +404,14 @@ evalForAll as t tms tr s@(State {type_env = tenv, known_values = kv, tyvar_env =
         isMatchingFuncArg possFA 
             | possFA_ty@(TyFun _ _) <- typeOf tvenv possFA 
                 = containsTyVars possFA_ty as_ids 
+            | otherwise = False
+
+        -- TODO: Assuming PM-NON-CONT has floated out functions with containsTyVars == False
+        isMatchingFuncArgForall :: Id -> Bool
+        isMatchingFuncArgForall possFAF
+            | possFAF_ty <- typeOf tvenv possFAF
+            , (_:_) <- leadingTyForAllBindings possFAF_ty
+            , (TyFun _ _) <- inTyForAlls possFAF_ty = assert (containsTyVars possFAF_ty as_ids) True
             | otherwise = False
 
         -- Creates arguments for a function argument or data constructor. The arguments may be:
