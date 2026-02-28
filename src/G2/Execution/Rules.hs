@@ -162,16 +162,6 @@ mkNestedForAll _ _ = error "mkNestedForAll: list Types not in correct form"
 containsTyVars :: Type -> [Id] -> Bool
 containsTyVars t as = not . null $ as `intersect` tyVarIds t
 
--- Make Alts from the Exprs in the form:
---  1 -> Expr1; 2 -> Expr2; ... ; _ -> ExprN
-mkSymIntAlts :: [Expr] -> [Alt]
-mkSymIntAlts exprs = go exprs 1
-    where
-        go :: [Expr] -> Int -> [Alt]
-        go [e] _ = [Alt {altMatch = Default, altExpr = e}]
-        go (e:es) l = Alt {altMatch = LitAlt (LitInt $ toInteger l), altExpr = e}:go es (l+1)
-        go [] _ = error "mkSymIntAlts: empty list"
-
 -- A rule function can produce multiple states but must produce one NameGen.
 type FARuleF = NameGen -> Maybe ([(Expr, E.ExprEnv)], NameGen)
 -- TODO: way to order both funcion type and and application expression together
@@ -186,8 +176,8 @@ evalForAll as t tms tr s@(State {type_env = tenv, known_values = kv, tyvar_env =
         --      PM-NON-CONT -> PM-UNWRAP -> PM-CYCLE -> {PM-INST-DIRECT, PM-INST-DC, PM-FUNC, PM-FUNC-FORALL, PM-CONST}
         rule_priority_list = [[(pmNonCont, "PM-NON-CONT")], 
                               [(pmUnwrap, "PM-UNWRAP")], 
-                              [(pmCycle, "PM-CYCLE")], 
-                              [(pmInstVar, "PM-INST-VAR"), (pmInstADT, "PM-INST-ADT"), (pmFun, "PM-FUNC"), (pmFunForall, "PM-FUNC-FORALL"), (pmConst, "PM-CONST")]]
+                              -- [(pmCycle, "PM-CYCLE")], 
+                              [(pmInstVar, "PM-INST-VAR"), (pmInstADT, "PM-INST-ADT"), (appPMFunc, "PM-FUNC"), (pmFunForall, "PM-FUNC-FORALL"), (pmConst, "PM-CONST")]]
         -- Extract the states and the NameGen from the highest priority rule list with a non-empty set of resulting states. (find returns leftmost)
         (states, ng_eval_forall) = fromMaybe ([], ng) 
             (find (not . null . fst) $ map priorityLevelFold rule_priority_list)
@@ -335,28 +325,39 @@ evalForAll as t tms tr s@(State {type_env = tenv, known_values = kv, tyvar_env =
 
             in Just (inst_adt_tups, ng'')
             | otherwise = Nothing
+        
+        -- Applies pmFun for all matching function arguments.
+        appPMFunc :: FARuleF
+        appPMFunc ng_in 
+            | cont_func_args@(_:_) <- filter isMatchingFuncArg term_args
+            = let
+                (res_tups, ng_func_fold) = foldr (\func_arg_id (all_res_tups, ng_before) ->
+                    let (ex, env, ng_after) = pmFun ng_before func_arg_id (filter (/= func_arg_id) term_args)
+                        in ((ex, env):all_res_tups, ng_after)
+                    ) ([], ng_in) cont_func_args
+                    
+            in Just (res_tups, ng_func_fold)
+            | otherwise = Nothing
 
         -- PM-FUNC
         -- TODO: better naming in let bindings
-        -- TODO: selecting from all available functions instead of cycling
-        pmFun ng_in
-            | (Just fun_id, other_ids) <- partitionFirst ((\case (TyFun _ _) -> True; _ -> False) . typeOf tvenv) term_args
-            , (f_targs, f_tr) <- argTypes t
+        pmFun :: NameGen -> Id -> [Id] -> (Expr, E.ExprEnv, NameGen)
+        pmFun ng_in fun_id other_ids
+            | (f_targs, f_tr) <- argTypes $ typeOf tvenv fun_id
             = let
                 (new_as, ng'') = freshSeededIds as_ids ng_in
                 f_ty = renames (HM.fromList (zip (map idName as_ids) (map idName new_as))) 
-                                    $ mkNestedForAll as $ mkTyFun ((f_tr:tms) ++ [t] ++ [tr])
+                                    $ mkNestedForAll as $ mkTyFun (f_tr:map (typeOf tvenv) (fun_id:other_ids) ++ [tr])
                 (f, ng''') = freshId f_ty ng''
 
                 (fa_exprs, symIds, ng'''') = argumentExprs False ng''' (fun_id, other_ids) f_targs
 
-                e' = e_template . mkApp $ (Var f:map (Type . TyVar) as_ids) ++ [mkApp (Var x:fa_exprs)] ++ map Var (ys ++ [x])
+                e' = e_template . mkApp $ (Var f:map (Type . TyVar) as_ids) ++ [mkApp (Var fun_id:fa_exprs)] ++ map Var (fun_id:other_ids)
 
                 eenv' = foldr E.insertSymbolic eenv (f:symIds)
                 eenv'' = E.insert (idName i) e' eenv'
 
-            in Just ([(e', eenv'')], ng'''')
-            | otherwise = Nothing
+            in (e', eenv'', ng'''')
 
         -- PM-FUNC-FORALL
         pmFunForall ng_in
@@ -408,6 +409,12 @@ evalForAll as t tms tr s@(State {type_env = tenv, known_values = kv, tyvar_env =
                                     Nothing -> False
                                 _ -> False)
 
+        isMatchingFuncArg :: Id -> Bool
+        isMatchingFuncArg possFA 
+            | possFA_ty@(TyFun _ _) <- typeOf tvenv possFA 
+                = containsTyVars possFA_ty as_ids 
+            | otherwise = False
+
         -- Creates arguments for a function argument or data constructor. The arguments may be:
         --      1. Direct symbolic values (for types Int, [Maybe Bool], etc.)
         --      2. Created by application of a symbolic function (for types a, (a, b), etc.)
@@ -419,12 +426,13 @@ evalForAll as t tms tr s@(State {type_env = tenv, known_values = kv, tyvar_env =
         argumentExprs fwd_selected_arg ng_prior (selected_id, other_ids) = foldr go ([], [], ng_prior)
             where
                 go :: Type -> ([Expr], [Id], NameGen) -> ([Expr], [Id], NameGen)
-                go fa_ti (faes, _symIds, ng1) | containsTyVars fa_ti as_ids
+                go fa_ti (faes, _symIds, ng1) 
+                    | containsTyVars fa_ti as_ids
                     -- Need to make argument with symbolic function
                     = let 
                         (fa_id_new_as, ng1') = freshSeededIds as_ids ng1
                         fa_id_ty = renames (HM.fromList (zip (map idName as_ids) (map idName fa_id_new_as)))
-                                    $ mkNestedForAll as $ mkTyFun $ [typeOf tvenv x | fwd_selected_arg] ++ map (typeOf tvenv) other_ids ++ [fa_ti]
+                                    $ mkNestedForAll as $ mkTyFun $ [typeOf tvenv selected_id | fwd_selected_arg] ++ map (typeOf tvenv) other_ids ++ [fa_ti]
                         (fa_id, ng1'') = freshId fa_id_ty ng1'
                         fa_expr = mkApp $ [Var fa_id] ++ map (Type . TyVar) as_ids ++ map Var ([selected_id | fwd_selected_arg] ++ other_ids)
                     in 
