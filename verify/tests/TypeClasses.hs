@@ -5,6 +5,8 @@ module TypeClasses where
 import Control.Applicative
 import Data.Functor.Classes
 
+import TypeclassCode.Tree
+
 -- Monoid laws
 monoidRightIdentity :: (Monoid a, Eq a) => a -> Bool
 monoidRightIdentity x = x <> mempty == x
@@ -135,7 +137,7 @@ appInterchangeMaybe = appInterchange
 monadLeftIdentityMaybe :: Eq b => a -> (a -> Maybe b) -> Bool
 monadLeftIdentityMaybe = monadLeftIdentity
 
-monadRightIdentityMaybe :: Eq b => [b] -> Bool
+monadRightIdentityMaybe :: Eq b => Maybe b -> Bool
 monadRightIdentityMaybe = monadRightIdentity
 
 monadAssociativityMaybe :: Eq b => Maybe a1 -> p -> (a1 -> Maybe a2) -> (a2 -> Maybe b) -> Bool
@@ -158,22 +160,25 @@ appInterchangeZipList :: Eq b => ZipList (a -> b) -> a -> Bool
 appInterchangeZipList = appInterchange
 
 -------------------------------------------------------------------------------
--- Map
+-- Tree
 -------------------------------------------------------------------------------
 
-data Tree a = Branch (Tree a) a (Tree a) | Leaf
-
-instance Eq a => Eq (Tree a) where
-    Branch l1 x1 r1 == Branch l2 x2 r2 = l1 == l2 && x1 == x2 && r1 == r2
-    Leaf == Leaf = True
-    _ == _ = False
-
-instance Functor Tree where
-    fmap f (Branch l x r) = Branch (fmap f l) (f x) (fmap f r)
-    fmap f Leaf = Leaf
-
+-- Tree functo
 fmapIdTree :: Eq a => Tree a -> Bool
 fmapIdTree = fmapId
 
 fmapCompositionTree :: Eq c => (b -> c) -> (a -> b) -> Tree a -> Bool
 fmapCompositionTree = fmapComposition
+
+-- Tree applicative
+appIdentityTree :: Eq a => Tree a -> Bool
+appIdentityTree = appIdentity
+
+appCompositionTree :: Eq b => Tree (a1 -> b) -> Tree (a2 -> a1) -> Tree a2 -> Bool
+appCompositionTree = appComposition
+
+appHomomorphismTree :: Eq b => (a -> b) -> a -> Bool
+appHomomorphismTree = appHomomorphism @Tree 
+
+appInterchangeTree :: Eq b => Tree (a -> b) -> a -> Bool
+appInterchangeTree = appInterchange
