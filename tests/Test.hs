@@ -837,6 +837,11 @@ baseTests = testGroup "Base"
     [
       checkInputOutput "tests/Samples/Peano.hs" "add" 400 [AtLeast 4]
 
+    , checkInputOutputs "tests/BaseTests/IdentityTest.hs" [ ("call", 1000, [Exactly 1]) ]
+    , checkInputOutputs "tests/BaseTests/MonadFix.hs" [ ("fac", 1000, [AtLeast 8])
+                                                      , ("nJustOnes", 2000, [AtLeast 5]) ]
+    , checkInputOutputs "tests/BaseTests/MonadZip.hs" [ ("callList", 1000, [AtLeast 15])
+                                                      , ("callMaybe", 1000, [AtLeast 3]) ]
     , checkInputOutputs "tests/BaseTests/ListTests.hs" [ ("test", 1000, [AtLeast 1])
                                                        , ("maxMap", 1000, [AtLeast 4])
                                                        , ("minTest", 1000, [AtLeast 2])
