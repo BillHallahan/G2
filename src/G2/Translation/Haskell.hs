@@ -110,6 +110,8 @@ equivMods = HM.fromList
             , ("Data.Typeable", "GHC.Internal.Data.Typeable")
             , ("Data.Typeable.Internal", "GHC.Internal.Data.Typeable.Internal")
             , ("Data.Tuple", "GHC.Internal.Data.Tuple")
+            , ("GHC.Internal.Control.Monad.Fix", "Control.Monad.Fix")
+            , ("GHC.Internal.Control.Monad.Zip", "Control.Monad.Zip")
             , ("GHC.Internal.Enum", "GHC.Enum")
             , ("GHC.Internal.Err", "GHC.Err")
             , ("GHC.Internal.Exception", "GHC.Exception")
