@@ -1,4 +1,4 @@
-{-# LANGUAGE FlexibleContexts, MultiParamTypeClasses, MultiWayIf, OverloadedStrings, TupleSections #-}
+{-# LANGUAGE BangPatterns, FlexibleContexts, MultiParamTypeClasses, MultiWayIf, OverloadedStrings, TupleSections #-}
 
 module G2.Verify.Reducer ( VerifierTracker (..)
                          , Goal (..)
@@ -69,7 +69,7 @@ nrpcAnyCallReducer no_nrpc_names v_config config =
 
     where        
         red rv s@(State { curr_expr = CurrExpr er ce, expr_env = eenv, tyvar_env = tvnv, track = vt }) b@(Bindings { name_gen = ng })
-            | Stck.null . popEnsureEq $ exec_stack s
+            | Stck.null . popAppliable $ exec_stack s
             , let stripped_ce = stripNRBT ce
             , (Var (Id vn _)):(_:_) <- unApp stripped_ce
             , let tcf = tail_called_funcs vt
@@ -82,10 +82,13 @@ nrpcAnyCallReducer no_nrpc_names v_config config =
             | maybe True (allowed_frame . fst) (Stck.pop (exec_stack s))
             
             -- Check if we have a symbolic function at the center of the app
-            , Var (Id cn _):_ <- unApp $ getExpr s
-            , let is_symbolic = case E.deepLookupConcOrSym cn eenv of Just (E.Sym _) -> True; _ -> False
+            , Var (Id _ t):xs <- unApp $ getExpr s
 
-            , let (wrapped_ce, stck') = applyWrap is_symbolic (getExpr s) (exec_stack s)
+            -- Calculate arity of function, and wrap it in appropriate number of arguments
+            , let arity = length . argumentTypes $ tyVarSubst tvnv t
+            , let need_apply = arity - length xs
+            , let (wrapped_ce, stck') = applyWrap need_apply (getExpr s) (exec_stack s)
+
             , let stripped_ce = stripNRBT wrapped_ce
             , v@(Var (Id _ _)):es@(_:_) <- unApp stripped_ce  = do
                 -- Convert arguments into NRPCs
@@ -199,9 +202,9 @@ nrpcAnyCallReducer no_nrpc_names v_config config =
         allowed_frame (ApplyFrame _) = False
         allowed_frame _ = True
 
-        applyWrap is_symbolic e stck | Just (ApplyFrame a, stck') <- Stck.pop stck = applyWrap is_symbolic (App e a) stck'
-                                     | is_symbolic, Just (UpdateFrame _, stck') <- Stck.pop stck = applyWrap is_symbolic e stck'
-                                     | otherwise = (e, stck)
+        applyWrap !need e stck | need > 0, Just (ApplyFrame a, stck') <- Stck.pop stck = applyWrap (need - 1) (App e a) stck'
+                               | need > 0, Just (UpdateFrame _, stck') <- Stck.pop stck = applyWrap need e stck'
+                               | otherwise = (e, stck)
         
         stripNRBT (Tick nl e) | isNonRedBlockerTick nl = e
         stripNRBT (App e1 e2) = App (stripNRBT e1) e2
@@ -212,8 +215,10 @@ nrpcAnyCallReducer no_nrpc_names v_config config =
         hasNRBT (App e1 _) = hasNRBT e1
         hasNRBT _ = False
 
-        popEnsureEq stck | Just (CurrExprFrame (EnsureEq _) _, stck') <- Stck.pop stck= popEnsureEq stck'
-                         | otherwise = stck
+        popAppliable stck | Just (UpdateFrame _, stck') <- Stck.pop stck = popAppliable stck'
+                          | Just (ApplyFrame _, stck') <- Stck.pop stck = popAppliable stck'
+                          | Just (CurrExprFrame (EnsureEq _) _, stck') <- Stck.pop stck = popAppliable stck'
+                          | otherwise = stck
 
 -- | Create a NRPC if heuristics apply.
 createRA :: NameGen -> GenFocus n -> State t -> Maybe (State t, Id, NRPC, NameGen)
@@ -754,11 +759,13 @@ updateFocusMap :: Name -- Name1
 updateFocusMap n1 n2 = HM.insertWith HS.union n1 (HS.fromList [n2])
 
 prettyVerifierTracker :: PrettyGuide -> VerifierTracker -> T.Text
-prettyVerifierTracker pg (VT { focus_map = fm, goal = g}) =
+prettyVerifierTracker pg (VT { focus_map = fm, tail_called_funcs = tcf, goal = g}) =
     "Goal:\n"
     <> prettyGoal g
     <> "\nFocus:\n" <>
     (T.intercalate "\n" . map pretty_fm $ HM.toList fm)
+    <> "\nTail called funcs:\n" <>
+    (T.intercalate "\n" . map (printName pg) $ HS.toList tcf)
     where
         pretty_fm (k, v) = printName pg k <> " -> " <> T.intercalate ", " (map (printName pg) $ HS.toList v)
 
