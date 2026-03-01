@@ -176,7 +176,9 @@ evalForAll as t tms tr s@(State {type_env = tenv, known_values = kv, tyvar_env =
         --      PM-NON-CONT -> PM-UNWRAP -> PM-CYCLE -> {PM-INST-DIRECT, PM-INST-DC, PM-FUNC, PM-FUNC-FORALL, PM-CONST}
         rule_priority_list = [[(pmNonCont, "PM-NON-CONT")], 
                               [(pmUnwrap, "PM-UNWRAP")],  
-                              [(pmInstVar, "PM-INST-VAR"), (pmInstADT, "PM-INST-ADT"), (appPMFunc, "PM-FUNC"), (appPMFuncForall, "PM-FUNC-FORALL"), (pmConst, "PM-CONST")]]
+                              [(pmInstVar, "PM-INST-VAR"), (pmInstADT, "PM-INST-ADT"), 
+                              (pmAppAll pmFun isMatchingFuncArg, "PM-FUNC"), 
+                              (pmAppAll pmFunForall isMatchingFuncArgForall, "PM-FUNC-FORALL"), (pmConst, "PM-CONST")]]
         -- Extract the states and the NameGen from the highest priority rule list with a non-empty set of resulting states. (find returns leftmost)
         (states, ng_eval_forall) = fromMaybe ([], ng) 
             (find (not . null . fst) $ map priorityLevelFold rule_priority_list)
@@ -300,27 +302,15 @@ evalForAll as t tms tr s@(State {type_env = tenv, known_values = kv, tyvar_env =
 
             in Just (inst_adt_tups, ng'')
             | otherwise = Nothing
-        
-        -- Applies pmFun for all matching function arguments.
-        appPMFunc :: FARuleF
-        appPMFunc ng_in 
-            | cont_func_args@(_:_) <- filter isMatchingFuncArg term_args
-            = let
-                (res_tups, ng_func_fold) = foldr (\func_arg_id (all_res_tups, ng_before) ->
-                    let (ex, env, ng_after) = pmFun ng_before func_arg_id (filter (/= func_arg_id) term_args)
-                        in ((ex, env):all_res_tups, ng_after)
-                    ) ([], ng_in) cont_func_args
-                    
-            in Just (res_tups, ng_func_fold)
-            | otherwise = Nothing
-
+            
         -- PM-FUNC
         -- TODO: better naming in let bindings
         -- TODO: not passing function itself to inner expressions is not effective, should omit all functions
-        pmFun :: NameGen -> Id -> [Id] -> (Expr, E.ExprEnv, NameGen)
-        pmFun ng_in fun_id other_ids
-            | (f_targs, f_tr) <- argTypes $ typeOf tvenv fun_id
+        pmFun :: Id -> NameGen -> (Expr, E.ExprEnv, NameGen)
+        pmFun fun_id ng_in 
             = let
+                other_ids = filter (/= fun_id) term_args
+                (f_targs, f_tr) = argTypes $ typeOf tvenv fun_id
                 (new_as, ng'') = freshSeededIds as_ids ng_in
                 f_ty = renames (HM.fromList (zip (map idName as_ids) (map idName new_as))) 
                                     $ mkNestedForAll as $ mkTyFun (f_tr:map (typeOf tvenv) (fun_id:other_ids) ++ [tr])
@@ -335,23 +325,22 @@ evalForAll as t tms tr s@(State {type_env = tenv, known_values = kv, tyvar_env =
 
             in (e', eenv'', ng'''')
 
-        -- Applies pmFunForall for all matching function arguments.
-        appPMFuncForall :: FARuleF
-        appPMFuncForall ng_in 
-            | cont_forall_func_args@(_:_) <- filter isMatchingFuncArgForall term_args
-            = let
-                (res_tups, ng_func_fold) = foldr (\forall_func_arg_id (all_res_tups, ng_before) ->
-                    let (ex, env, ng_after) = pmFunForall ng_before forall_func_arg_id (filter (/= forall_func_arg_id) term_args)
-                        in ((ex, env):all_res_tups, ng_after)
-                    ) ([], ng_in) cont_forall_func_args
-                    
-            in Just (res_tups, ng_func_fold)
-            | otherwise = Nothing
+        -- | Apply a rule function for each matching term argument while threading a NameGen. Helper 
+        -- for some rules that produce multiple states.
+        pmAppAll :: (Id -> NameGen -> (Expr, E.ExprEnv, NameGen)) -> (Id -> Bool) -> NameGen -> Maybe ([(Expr, E.ExprEnv)], NameGen)
+        pmAppAll ruleFunc matchFunc ng_in = 
+            case foldr (\rule_id (tups, ng_before) -> 
+                let 
+                    (ex, env, ng_after) = ruleFunc rule_id ng_before
+                in ((ex, env):tups, ng_after)) ([], ng_in) (filter matchFunc term_args)
+            of res@(_:_, _) -> Just res
+               _ -> Nothing
 
         -- PM-FUNC-FORALL
         -- Assumes all bindings are non-empty/correct constructor as guaranteed by isMatchingFuncArgForall
-        pmFunForall ng_in fun_id other_ids
+        pmFunForall fun_id ng_in 
             = let
+                other_ids = filter (/= fun_id) term_args
                 fun_ty = typeOf tvenv fun_id
                 fa_as = leadingTyForAllBindings fun_ty
                 fa_t = inTyForAlls fun_ty
