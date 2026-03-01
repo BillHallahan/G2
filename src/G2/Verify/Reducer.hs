@@ -451,10 +451,11 @@ unifyNRPCReducer :: Monad m =>
                  -> Reducer m () VerifierTracker
 unifyNRPCReducer no_inline = mkSimpleReducer (const ()) red
     where
-        red rv s@(State { expr_env = eenv, non_red_path_conds = nrpc, track = vt@VT { focus_map = fm } }) b =
+        red rv s@(State { expr_env = eenv, path_conds = pc, non_red_path_conds = nrpc, track = vt@VT { focus_map = fm } }) b =
             let
-                (nrpc', fm', eenv') = unifyNRPCs no_inline eenv fm nrpc
+                (nrpc', fm', eenv', pc') = unifyNRPCs no_inline eenv pc fm nrpc
                 s' = s { expr_env = eenv'
+                       , path_conds = pc'
                        , non_red_path_conds = nrpc'
                        , track = vt { focus_map = fm' } }
             in
@@ -464,50 +465,55 @@ unifyNRPCReducer no_inline = mkSimpleReducer (const ()) red
 -- we can unify them. This makes it easier to find approximations because we have to match up fewer NRPCs. 
 unifyNRPCs :: HS.HashSet Name
            -> ExprEnv
+           -> PathConds
            -> FocusMap
            -> NonRedPathConds
-           -> (NonRedPathConds, FocusMap, ExprEnv)
-unifyNRPCs _ eenv fm nrpc@EmpNRPC = (nrpc, fm, eenv)
-unifyNRPCs no_inline eenv fm (nrpc@(NRPC focus1 e1 v1) :*> nrpcs) =
+           -> (NonRedPathConds, FocusMap, ExprEnv, PathConds)
+unifyNRPCs _ eenv pc fm nrpc@EmpNRPC = (nrpc, fm, eenv, pc)
+unifyNRPCs no_inline eenv pc fm (nrpc@(NRPC focus1 e1 v1) :*> nrpcs) =
     let
         con_nrpc = listToMaybe
                  $ mapMaybe (\(NRPC focus2 e2 v2) ->
                     case eqUpToTypesInline no_inline eenv (stripAllTicks e1) (stripAllTicks e2) of
-                        True -> (, focus2) <$> alignVar HS.empty HS.empty eenv v1 v2
+                        True -> (\(eenv_, pc_) -> (eenv_, pc_, focus2)) <$> alignVar HS.empty HS.empty eenv pc v1 v2
                         False -> Nothing)
                  $ toListNRPC nrpcs
     in
     case con_nrpc of
-        Just (eenv', focus2) ->
+        Just (eenv', pc', focus2) ->
             let
                 (fm', nrpcs') = case (focus1, focus2) of
                                     (_, Focused) -> (fm, nrpcs)
                                     (Unfocused n1, Unfocused n2) -> (updateFocusMap n1 n2 fm, nrpcs)
                                     (Focused, Unfocused n) -> (fm, setFocus n Focused eenv nrpcs)
             in
-            unifyNRPCs no_inline eenv' fm' nrpcs'
-        Nothing -> mapFst3 (nrpc :*>) $ unifyNRPCs no_inline eenv fm nrpcs
+            unifyNRPCs no_inline eenv' pc' fm' nrpcs'
+        Nothing -> mapFst4 (nrpc :*>) $ unifyNRPCs no_inline eenv pc fm nrpcs
 
-alignVar :: HS.HashSet Name -> HS.HashSet Name -> ExprEnv -> Expr -> Expr -> Maybe ExprEnv
-alignVar _ _ eenv (Var (Id n1 _)) v@(Var (Id n2 _))
-    | n1 == n2 = Just eenv
-alignVar _ _ eenv (Var (Id n1 _)) e2
-    | E.isSymbolic n1 eenv = Just $ E.insert n1 e2 eenv
-alignVar _ _ eenv e1 (Var (Id n2 _))
-    | E.isSymbolic n2 eenv = Just $ E.insert n2 e1 eenv
-alignVar seen1 seen2 eenv (Var (Id n1 _)) e2
+alignVar :: HS.HashSet Name -> HS.HashSet Name -> ExprEnv -> PathConds -> Expr -> Expr -> Maybe (ExprEnv, PathConds)
+alignVar _ _ eenv pc (Var (Id n1 _)) v@(Var (Id n2 _))
+    | n1 == n2 = Just (eenv, pc)
+alignVar _ _ eenv pc (Var (Id n1 t)) e2
+    | isPrimType t = Nothing
+    | E.isSymbolic n1 eenv = Just $ (E.insert n1 e2 eenv, pc)
+alignVar _ _ eenv pc e1 (Var (Id n2 t))
+    | isPrimType t = Nothing
+    | E.isSymbolic n2 eenv = Just $ (E.insert n2 e1 eenv, pc)
+alignVar seen1 seen2 eenv pc (Var (Id n1 t)) e2
+    | isPrimType t = Nothing
     | not (n1 `elem` seen1)
-    , Just e1 <- E.lookup n1 eenv = alignVar (HS.insert n1 seen1) seen2 eenv e1 e2
-alignVar seen1 seen2 eenv e1 (Var (Id n2 _))
+    , Just e1 <- E.lookup n1 eenv = alignVar (HS.insert n1 seen1) seen2 eenv pc e1 e2
+alignVar seen1 seen2 eenv pc e1 (Var (Id n2 t))
+    | isPrimType t = Nothing
     | not (n2 `elem` seen2)
-    , Just e2 <- E.lookup n2 eenv = alignVar seen1 (HS.insert n2 seen2) eenv e1 e2
+    , Just e2 <- E.lookup n2 eenv = alignVar seen1 (HS.insert n2 seen2) eenv pc e1 e2
 
-alignVar _ _ eenv (Data d1) (Data d2) | dcName d1 == dcName d2 = Just eenv
-alignVar seen1 seen2 eenv (App a1 a2) (App a1' a2') = do
-    eenv' <- alignVar seen1 seen2 eenv a1 a1'
-    alignVar seen1 seen2 eenv' a2 a2'
+alignVar _ _ eenv pc (Data d1) (Data d2) | dcName d1 == dcName d2 = Just (eenv, pc)
+alignVar seen1 seen2 eenv pc (App a1 a2) (App a1' a2') = do
+    (eenv', pc') <- alignVar seen1 seen2 eenv pc a1 a1'
+    alignVar seen1 seen2 eenv' pc' a2 a2'
 
-alignVar _ _ _ _ _ = Nothing
+alignVar _ _ _ _ _ _ = Nothing
 
 -- | Discard states with inconsistent NRPCs
 inconsistentNRPCHalter :: Monad m =>
