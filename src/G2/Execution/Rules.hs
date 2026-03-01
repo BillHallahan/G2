@@ -1223,13 +1223,19 @@ matchPairs tvnv kv e1 e2 eenv_pc_ee@(eenv, pc, ees)
     , Just (E.Conc e1') <- E.lookupConcOrSym n eenv = matchPairs tvnv kv e1' e2 eenv_pc_ee
     | Var (Id n _) <- e2
     , Just (E.Conc e2') <- E.lookupConcOrSym n eenv = matchPairs tvnv kv e1 e2' eenv_pc_ee
+    
     | Type _ <- e1
     , Type _ <- e2
     , tyVarSubst tvnv e1 == tyVarSubst tvnv e2 = Just eenv_pc_ee
+    
     | e1 == e2 = Just eenv_pc_ee
+
     | Cast e1' c1 <- e1
     , Cast e2' c2 <- e2
     , T.tyVarSubst tvnv c1 == T.tyVarSubst tvnv c2 =  matchPairs tvnv kv e1' e2' eenv_pc_ee
+    | Cast e1' _ <- e1 =  matchPairs tvnv kv e1' e2 eenv_pc_ee
+    | Cast e2' _ <- e2 =  matchPairs tvnv kv e1 e2' eenv_pc_ee
+
     | isExprValueForm eenv e1
     , isExprValueForm eenv e2
     , t1 <- typeOf tvnv e1
