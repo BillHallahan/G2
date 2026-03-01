@@ -18,7 +18,7 @@ import Prelude
   )
 
 data Nat = S Nat | Z
-  deriving (Show,Ord)
+  deriving Show
 
 map :: (Int -> Int) -> [Int] -> [Int]
 map f [] = []
@@ -29,10 +29,5 @@ drop Z xs = xs
 drop _ [] = []
 drop (S x) (_:xs) = drop x xs
 
-instance Eq Nat where
-  Z == Z = True
-  S p1 == S p2 = p1 == p2
-  _ == _ = False
-
-p1False :: (Int -> Int) -> [Int] -> Bool
-p1False f xs = (map f xs == map f (drop Z xs))
+p1 :: (Int -> Int) -> [Int] -> Bool
+p1 f xs = (map f xs == map f (drop Z xs))

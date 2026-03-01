@@ -1003,7 +1003,7 @@ verifierTests = testGroup "Verifier"
 
     , checkExprCEx "tests/Verify/List6.hs" "p1False"
 
-    , checkExprCEx "tests/Verify/List7.hs" "p1False"
+    , checkExprVerified "tests/Verify/List7.hs" "p1"
 
     , checkExprVerifiedNoLemmas "tests/Verify/ListComp.hs" "p1"
     , checkExprVerified "tests/Verify/ListComp.hs" "p2"
