@@ -1037,6 +1037,8 @@ verifierTests = testGroup "Verifier"
     , checkExprCEx "tests/Verify/State1.hs" "simple1False"
     , checkExprCEx "tests/Verify/State1.hs" "p1False"
 
+    , checkExprVerified "tests/Verify/State2.hs" "p1"
+
     , checkRuleVerified "tests/Verify/Rules1.hs" "justJust"
     , checkRuleVerified "tests/Verify/Rules1.hs" "justJust2"
     , checkRuleVerified "tests/Verify/Rules1.hs" "polyJustJust"

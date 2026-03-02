@@ -73,6 +73,8 @@ nrpcAnyCallReducer no_nrpc_names v_config config =
             , let stripped_ce = stripNRBT ce
             , (Var (Id vn _)):(_:_) <- unApp stripped_ce
             , let tcf = tail_called_funcs vt
+            , Just vn' <- E.deepLookupVar vn eenv
+            , not $ E.isSymbolic vn' eenv
             , vn `notElem` tcf =
                 let
                     s' = s { track = vt { tail_called_funcs = HS.insert vn tcf }}
@@ -429,7 +431,8 @@ verifyHigherOrderHandling = mkSimpleReducer (const ()) red
                             eq_f = eqFunc kv
                             eq_f_i = Id eq_f (typeOf tvnv . fromJust $ E.lookup eq_f eenv)
 
-                            e = mkApp [Var eq_f_i, Type ty_ar, Var eq_tc, Var lam_x, ar]
+                            (ar_bnd, ng6) = freshSeededString "ar" ng5 
+                            e = mkApp [Var eq_f_i, Type ty_ar, Var eq_tc, Var lam_x, Var (Id ar_bnd ty_ar)]
 
                             func_body =
                                 Lam TermL lam_x $ 
@@ -439,11 +442,12 @@ verifyHigherOrderHandling = mkSimpleReducer (const ()) red
 
                             eenv' = E.insertSymbolic ret_true
                                 . E.insertSymbolic ret_false
+                                . E.insert ar_bnd ar
                                 $ E.insert n func_body eenv
 
                             s' = s { curr_expr = CurrExpr Evaluate (App func_body ar), expr_env = eenv'}
                         in
-                        return (InProgress, [(s', ())], b {name_gen = ng5})
+                        return (InProgress, [(s', ())], b {name_gen = ng6})
         red _ s b = return (Finished, [(s, ())], b)
 
 unifyNRPCReducer :: Monad m =>
