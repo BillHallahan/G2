@@ -1005,7 +1005,7 @@ verifierTests = testGroup "Verifier"
 
     , checkExprVerified "tests/Verify/List7.hs" "p1"
 
-    , checkExprVerifiedNoLemmas "tests/Verify/ListComp.hs" "p1"
+    , checkExprVerified "tests/Verify/ListComp.hs" "p1"
     , checkExprVerified "tests/Verify/ListComp.hs" "p2"
 
     -- , checkExprVerified "tests/Verify/NatList1.hs" "prop1"
@@ -1032,7 +1032,8 @@ verifierTests = testGroup "Verifier"
     , checkExprVerified "tests/Verify/Tree1.hs" "fmapCompositionTree"
 
     , checkExprVerified "tests/Verify/State1.hs" "simple1"
-    , checkExprVerifiedNoLemmas "tests/Verify/State1.hs" "p1"
+    , checkExprVerified "tests/Verify/State1.hs" "p1"
+    , checkExprVerified "tests/Verify/State1.hs" "p2"
     , checkExprCEx "tests/Verify/State1.hs" "simple1False"
     , checkExprCEx "tests/Verify/State1.hs" "p1False"
 

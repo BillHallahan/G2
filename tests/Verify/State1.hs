@@ -77,3 +77,7 @@ p1 f xs = runState (fmap (f . f) (return 1)) 1 == runState ((fmap f . fmap f) (r
 
 p1False :: (Int -> Int) -> State Int Int -> Bool
 p1False f xs = runState (fmap (f . f) (return 1)) 1 == runState ((fmap f) (return 1)) 1
+
+p2 :: (Int -> Int) -> State Int Int -> Bool
+p2 f xs = runState (fmap (f . f) (return 1)) 1 == runState ((fmap f) (return (f 1))) 1
+

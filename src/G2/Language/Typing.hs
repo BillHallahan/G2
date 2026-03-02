@@ -202,7 +202,7 @@ instance Typed Expr where
             TypeL -> TyForAll b (typeOf m e)
             TermL -> TyFun (typeOf m b) (typeOf m e)
     typeOf m (Let _ expr) = typeOf m expr
-    typeOf _ (Case _ _ t _) = t
+    typeOf m (Case _ _ t _) = tyVarSubst m t
     typeOf _ (Type _) = TYPE
     typeOf m (Cast _ (_ :~ t')) = tyVarSubst m t'
     typeOf m (Coercion (_ :~ t')) = tyVarSubst m t'
