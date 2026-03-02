@@ -570,7 +570,7 @@ concretizeVarExpr' s@(State { type_env = tenv
             -- It is VERY important that we insert the mexpr_id in `concretized`
             -- This forces reduceNewPC to check that the concretized data constructor does
             -- not violate any path constraints from default cases.
-          case cleanParamsAndMakeDcon tvnv kv params ngen dcon aexpr mexpr_t tenv of
+          case cleanParamsAndMakeDcon tvnv kv params ngen dcon aexpr mexpr_t maybeC tenv of
             Nothing -> Nothing
             Just (params', news, dcon', ngen', aexpr', tve_diff, tve_sym_diff)
                 -> buildStateDiff params' news dcon' ngen' aexpr' tve_diff tve_sym_diff
@@ -600,9 +600,9 @@ concretizeVarExpr' s@(State { type_env = tenv
 
 -- | Generates parameters and expressions to allow concretization to a specific DataCon.
 -- May return Nothing if the DataCon requires coercions to hold that violate existing type restraints.
-cleanParamsAndMakeDcon :: TV.TyVarEnv -> KnownValues -> [Id] -> NameGen -> DataCon -> Expr -> Type -> TypeEnv
+cleanParamsAndMakeDcon :: TV.TyVarEnv -> KnownValues -> [Id] -> NameGen -> DataCon -> Expr -> Type -> Maybe Coercion -> TypeEnv
                        -> Maybe ([Id], [Name], Expr, NameGen, Expr, TVEDiff, TVESymDiff)
-cleanParamsAndMakeDcon tv kv params ngen dcon aexpr mexpr_t tenv =
+cleanParamsAndMakeDcon tv kv params ngen dcon aexpr mexpr_t m_coercion tenv =
     case maybe_uf_map of
             Nothing -> Nothing
             Just uf_map -> buildStateDiff uf_map ngen
@@ -635,8 +635,13 @@ cleanParamsAndMakeDcon tv kv params ngen dcon aexpr mexpr_t tenv =
 
             (exist_tys, value_args) = splitAt (length $ dc_exist_tyvars dcon) params'
 
-            -- Get list of Types to concretize polymorphic data constructor and concatenate with other arguments
-            univ_ars = mexprTyToExpr mexpr_t tenv
+            -- Get list of Types to concretize polymorphic data constructor and concatenate with other arguments.
+            -- If there is a coercion, we have to get the correct instantiation for the type being coerced to 
+            mexpr_t' = case m_coercion of
+                                Just (c1 :~ c2) | Just tv <- unify c1 mexpr_t -> tyVarSubst tv c2
+                                                | otherwise -> error "cleanParamsAndMakeDcon: invalid coercion"
+                                Nothing -> mexpr_t
+            univ_ars = mexprTyToExpr mexpr_t' tenv
 
             exprs = [dcon'] ++ univ_ars ++ map (Type . TyVar) exist_tys ++ map Var value_args
 
@@ -754,7 +759,7 @@ createExtCond s ngen dcpm mexpr cvar (dcon, bindees, aexpr)
             -- We should never ended up in the Nothing case for cleanParamsAndMakeDcon
             -- b/c there is no coercion in Bool and [Char]
             (bindees', news, dcon', ngen', aexpr', tve_diff, tve_sym_diff) =
-                            case cleanParamsAndMakeDcon tvnv kv bindees ngen dcon aexpr mexpr_t tenv of
+                            case cleanParamsAndMakeDcon tvnv kv bindees ngen dcon aexpr mexpr_t Nothing tenv of
                                     Nothing -> error $ "cleanParamsAndMakeDcon: Failed to generate uf_map for " ++ show mexpr
                                     Just x  -> x
             new_ids = zipWith (\(Id _ t) n -> Id n t) bindees' news
