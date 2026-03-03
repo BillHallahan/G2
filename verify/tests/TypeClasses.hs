@@ -4,13 +4,15 @@ module TypeClasses where
 
 import Control.Applicative
 import Data.Functor.Classes
+import Data.List.NonEmpty
 
 import TypeclassCode.Tree
-<<<<<<< HEAD
 import TypeclassCode.Reader
 import TypeclassCode.State
-=======
->>>>>>> master
+
+-- Semigroup laws
+semigroupAssociativity :: (Semigroup a, Eq a) => a -> a -> a -> Bool
+semigroupAssociativity x y z = x <> (y <> z) == (x <> y) <> z
 
 -- Monoid laws
 monoidRightIdentity :: (Monoid a, Eq a) => a -> Bool
@@ -18,9 +20,6 @@ monoidRightIdentity x = x <> mempty == x
 
 monoidLeftIdentity :: (Monoid a, Eq a) => a -> Bool
 monoidLeftIdentity x = mempty <> x == x 
-
-monoidAssociativity :: (Monoid a, Eq a) => a -> a -> a -> Bool
-monoidAssociativity x y z = x <> (y <> z) == (x <> y) <> z
 
 monoidConcatenation :: (Monoid a, Eq a) => [a] -> Bool
 monoidConcatenation xs = mconcat xs == foldr (<>) mempty xs
@@ -65,8 +64,8 @@ monoidRightIdentityList = monoidRightIdentity
 monoidLeftIdentityList :: Eq a => [a] -> Bool
 monoidLeftIdentityList = monoidLeftIdentity
 
-monoidAssociativityList :: Eq a => [a] -> [a] -> [a] -> Bool
-monoidAssociativityList = monoidAssociativity
+semigroupAssociativityList :: Eq a => [a] -> [a] -> [a] -> Bool
+semigroupAssociativityList = semigroupAssociativity
 
 monoidConcatenationList :: Eq a => [[a]] -> Bool
 monoidConcatenationList = monoidConcatenation
@@ -102,6 +101,44 @@ monadAssociativityList :: Eq b => [a1] -> p -> (a1 -> [a2]) -> (a2 -> [b]) -> Bo
 monadAssociativityList = monadAssociativity
 
 -------------------------------------------------------------------------------
+-- NonEmpty
+-------------------------------------------------------------------------------
+
+-- NonEmpty Semigroup
+semigroupAssociativityNonEmpty :: (Semigroup a, Eq a) => NonEmpty a -> NonEmpty a -> NonEmpty a -> Bool
+semigroupAssociativityNonEmpty = semigroupAssociativity
+
+-- NonEmpty Functor
+fmapIdNonEmpty :: Eq a => NonEmpty a -> Bool
+fmapIdNonEmpty = fmapId
+
+fmapCompositionNonEmpty :: Eq c => (b -> c) -> (a -> b) -> NonEmpty a -> Bool
+fmapCompositionNonEmpty = fmapComposition
+
+-- NonEmpty Applicative
+appIdentityNonEmpty :: Eq a => NonEmpty a -> Bool
+appIdentityNonEmpty = appIdentity
+
+appCompositionNonEmpty :: Eq b => NonEmpty (a1 -> b) -> NonEmpty (a2 -> a1) -> NonEmpty a2 -> Bool
+appCompositionNonEmpty = appComposition
+
+appHomomorphismNonEmpty :: Eq b => (a -> b) -> a -> Bool
+appHomomorphismNonEmpty = appHomomorphism @NonEmpty
+
+appInterchangeNonEmpty :: Eq b => NonEmpty (a -> b) -> a -> Bool
+appInterchangeNonEmpty = appInterchange
+
+-- NonEmpty Monad
+monadLeftIdentityNonEmpty :: Eq b => a -> (a -> NonEmpty b) -> Bool
+monadLeftIdentityNonEmpty = monadLeftIdentity
+
+monadRightIdentityNonEmpty :: Eq b => NonEmpty b -> Bool
+monadRightIdentityNonEmpty = monadRightIdentity
+
+monadAssociativityNonEmpty :: Eq b => NonEmpty a1 -> p -> (a1 -> NonEmpty a2) -> (a2 -> NonEmpty b) -> Bool
+monadAssociativityNonEmpty = monadAssociativity
+
+-------------------------------------------------------------------------------
 -- Maybe
 -------------------------------------------------------------------------------
 
@@ -112,8 +149,8 @@ monoidRightIdentityMaybe = monoidRightIdentity
 monoidLeftIdentityMaybe :: (Semigroup a, Eq a) => Maybe a -> Bool
 monoidLeftIdentityMaybe = monoidLeftIdentity
 
-monoidAssociativityMaybe :: (Semigroup a, Eq a) => Maybe a -> Maybe a -> Maybe a -> Bool
-monoidAssociativityMaybe = monoidAssociativity
+semigroupAssociativityMaybe :: (Semigroup a, Eq a) => Maybe a -> Maybe a -> Maybe a -> Bool
+semigroupAssociativityMaybe = semigroupAssociativity
 
 monoidConcatenationMaybe ::(Semigroup a, Eq a) =>[Maybe a] -> Bool
 monoidConcatenationMaybe = monoidConcatenation
