@@ -83,7 +83,7 @@ splitCast' tv ng (Cast e ((TyForAll ni t2) :~ (TyForAll ni' t2'))) =
                 (Cast
                     (App 
                         e
-                        (Cast (Var i) (t1 :~ t1'))
+                        (Cast (Type (TyVar i)) (t1 :~ t1'))
                     )
                     (rename (idName ni) (idName i) t2 :~ rename (idName ni') (idName i) t2')
                 )
