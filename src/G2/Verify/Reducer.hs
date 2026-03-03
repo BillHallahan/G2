@@ -1,4 +1,4 @@
-{-# LANGUAGE FlexibleContexts, MultiParamTypeClasses, MultiWayIf, OverloadedStrings, TupleSections #-}
+{-# LANGUAGE BangPatterns, FlexibleContexts, MultiParamTypeClasses, MultiWayIf, OverloadedStrings, TupleSections #-}
 
 module G2.Verify.Reducer ( VerifierTracker (..)
                          , Goal (..)
@@ -68,11 +68,13 @@ nrpcAnyCallReducer no_nrpc_names v_config config =
             return (s, b) }
 
     where        
-        red rv s@(State { curr_expr = CurrExpr _ ce, expr_env = eenv, tyvar_env = tvnv, track = vt }) b@(Bindings { name_gen = ng })
-            | Stck.null . popEnsureEq $ exec_stack s
+        red rv s@(State { curr_expr = CurrExpr er ce, expr_env = eenv, tyvar_env = tvnv, track = vt }) b@(Bindings { name_gen = ng })
+            | Stck.null . popAppliable $ exec_stack s
             , let stripped_ce = stripNRBT ce
             , (Var (Id vn _)):(_:_) <- unApp stripped_ce
             , let tcf = tail_called_funcs vt
+            , Just vn' <- E.deepLookupVar vn eenv
+            , not $ E.isSymbolic vn' eenv
             , vn `notElem` tcf =
                 let
                     s' = s { track = vt { tail_called_funcs = HS.insert vn tcf }}
@@ -81,27 +83,33 @@ nrpcAnyCallReducer no_nrpc_names v_config config =
 
             | maybe True (allowed_frame . fst) (Stck.pop (exec_stack s))
             
-            , let wrapped_ce = applyWrap (getExpr s) (exec_stack s)
+            -- Check if we have a symbolic function at the center of the app
+            , Var (Id _ t):xs <- unApp $ getExpr s
+
+            -- Calculate arity of function, and wrap it in appropriate number of arguments
+            , let arity = length . argumentTypes $ tyVarSubst tvnv t
+            , let need_apply = arity - length xs
+            , let (wrapped_ce, stck') = applyWrap need_apply (getExpr s) (exec_stack s)
+
             , let stripped_ce = stripNRBT wrapped_ce
             , v@(Var (Id _ _)):es@(_:_) <- unApp stripped_ce  = do
-
                 -- Convert arguments into NRPCs
-                let (s', ng') = if (arg_rev_abs v_config) == AbsFuncArgs then argsToNRPCs s (name_gen b) v es else (s, ng)
+                let s' = s { curr_expr = CurrExpr er wrapped_ce, exec_stack = stck' }
+                    (s'', ng') = if (arg_rev_abs v_config) == AbsFuncArgs then argsToNRPCs s' (name_gen b) v es else (s', ng)
 
                 -- Given a function call `f x1 ... xn`, we move the entire call to `f` into an NRPC.
                 -- Note that createNewCond wraps the function call with a Tick.
                 -- This prevents that same function call from being immediately turned back into an NRPC
                 -- when it is removed from the NRPCs.
-                let e = applyWrap (getExpr s) (exec_stack s)
-                    nr_s_ng = if
+                let nr_s_ng = if
                                 -- Line (*) make sure we don't add back to NRPCs immediately.
                                 | not (hasNRBT wrapped_ce) -- (*)
-                                , allowedApp e eenv tvnv -> createRA ng' (focused s') s'
+                                , allowedApp wrapped_ce eenv tvnv -> createRA ng' (focused s'') s''
                                 | otherwise -> Nothing
-                
+
                 case nr_s_ng of
                     Just (nr_s, _, _, ng'') -> return (Finished, [(nr_s, rv + 1)], b { name_gen = ng'' })
-                    _ -> return (Finished, [(s', rv)], b { name_gen = ng' })
+                    _ -> return (Finished, [(s'', rv)], b { name_gen = ng' })
             | Tick nl (Var (Id n _)) <- ce
             , isNonRedBlockerTick nl
             , Just e <- E.lookup n eenv = return (Finished, [(s { curr_expr = CurrExpr Evaluate e }, rv)], b)
@@ -120,7 +128,7 @@ nrpcAnyCallReducer no_nrpc_names v_config config =
             , not . isTyFun . typeOf tvnv $ app
             , data_arg_rev_abs v_config == AbsDataArgs = True
             | otherwise = False
-
+        
         -- Replace each argument which is itself a function call with a NRPC.
         -- For instance:
         --  @ f (g x) y (h z)@
@@ -196,8 +204,9 @@ nrpcAnyCallReducer no_nrpc_names v_config config =
         allowed_frame (ApplyFrame _) = False
         allowed_frame _ = True
 
-        applyWrap e stck | Just (ApplyFrame a, stck') <- Stck.pop stck = applyWrap (App e a) stck'
-                         | otherwise = e
+        applyWrap !need e stck | need > 0, Just (ApplyFrame a, stck') <- Stck.pop stck = applyWrap (need - 1) (App e a) stck'
+                               | need > 0, Just (UpdateFrame _, stck') <- Stck.pop stck = applyWrap need e stck'
+                               | otherwise = (e, stck)
         
         stripNRBT (Tick nl e) | isNonRedBlockerTick nl = e
         stripNRBT (App e1 e2) = App (stripNRBT e1) e2
@@ -208,8 +217,10 @@ nrpcAnyCallReducer no_nrpc_names v_config config =
         hasNRBT (App e1 _) = hasNRBT e1
         hasNRBT _ = False
 
-        popEnsureEq stck | Just (CurrExprFrame (EnsureEq _) _, stck') <- Stck.pop stck= popEnsureEq stck'
-                         | otherwise = stck
+        popAppliable stck | Just (UpdateFrame _, stck') <- Stck.pop stck = popAppliable stck'
+                          | Just (ApplyFrame _, stck') <- Stck.pop stck = popAppliable stck'
+                          | Just (CurrExprFrame (EnsureEq _) _, stck') <- Stck.pop stck = popAppliable stck'
+                          | otherwise = stck
 
 -- | Create a NRPC if heuristics apply.
 createRA :: NameGen -> GenFocus n -> State t -> Maybe (State t, Id, NRPC, NameGen)
@@ -393,23 +404,35 @@ verifyHigherOrderHandling = mkSimpleReducer (const ()) red
                 let
                     ty_ar = typeOf tvnv ar
                     (lam_x, ng2) = freshId ty_ar ng
-                    (bindee, ng3) = freshId ty_ar ng2
-
-                    (ret_true, ng4) = freshId (case ty_fun of
-                                                TyFun _ t2 -> t2
-                                                _ -> error "verifyHigherOrderHandling: not tyfun") ng3
-                    (ret_false, ng5) = freshId ty_fun ng4
                 in
-                case ty_ar of
-                    TyFun _ _ -> error "verifyHigherOrderHandling: function type arguments not supported"
+                case ty_fun of
+                    TyFun (TyFun t1 t2) t3 ->
+                        let
+                            (pass, ng3) = freshId t1 ng2
+                            (wrapper, ng4) = freshId (TyFun t2 t3) ng3
+                            func_body = Lam TermL lam_x . App (Var wrapper) . App (Var lam_x) $ Var pass
+                            eenv' = E.insertSymbolic wrapper
+                                  . E.insertSymbolic pass
+                                  $ E.insert n func_body eenv
+                            
+                            s' = s { curr_expr = CurrExpr Evaluate (App func_body ar), expr_env = eenv' }
+                        in
+                        return (InProgress, [(s', ())], b { name_gen = ng4 })
                     _ -> let
+                            (bindee, ng3) = freshId ty_ar ng2
+                            (ret_true, ng4) = freshId (case ty_fun of
+                                                        TyFun _ t2 -> t2
+                                                        _ -> error "verifyHigherOrderHandling: not tyfun") ng3
+                            (ret_false, ng5) = freshId ty_fun ng4
+
                             eq_tc = case lookupTCDict tc (eqTC kv) ty_ar of
                                     Just tc -> tc
-                                    Nothing -> error "verifyHigherOrderHandling: unsupported type"
+                                    Nothing -> error $ "verifyHigherOrderHandling: unsupported type" ++ "\n" ++ show ty_fun ++ "\n" ++ show ty_ar
                             eq_f = eqFunc kv
                             eq_f_i = Id eq_f (typeOf tvnv . fromJust $ E.lookup eq_f eenv)
 
-                            e = mkApp [Var eq_f_i, Type ty_ar, Var eq_tc, Var lam_x, ar]
+                            (ar_bnd, ng6) = freshSeededString "ar" ng5 
+                            e = mkApp [Var eq_f_i, Type ty_ar, Var eq_tc, Var lam_x, Var (Id ar_bnd ty_ar)]
 
                             func_body =
                                 Lam TermL lam_x $ 
@@ -419,11 +442,12 @@ verifyHigherOrderHandling = mkSimpleReducer (const ()) red
 
                             eenv' = E.insertSymbolic ret_true
                                 . E.insertSymbolic ret_false
+                                . E.insert ar_bnd ar
                                 $ E.insert n func_body eenv
 
                             s' = s { curr_expr = CurrExpr Evaluate (App func_body ar), expr_env = eenv'}
                         in
-                        return (InProgress, [(s', ())], b {name_gen = ng5})
+                        return (InProgress, [(s', ())], b {name_gen = ng6})
         red _ s b = return (Finished, [(s, ())], b)
 
 unifyNRPCReducer :: Monad m =>
@@ -431,10 +455,11 @@ unifyNRPCReducer :: Monad m =>
                  -> Reducer m () VerifierTracker
 unifyNRPCReducer no_inline = mkSimpleReducer (const ()) red
     where
-        red rv s@(State { expr_env = eenv, non_red_path_conds = nrpc, track = vt@VT { focus_map = fm } }) b =
+        red rv s@(State { expr_env = eenv, path_conds = pc, non_red_path_conds = nrpc, track = vt@VT { focus_map = fm } }) b =
             let
-                (nrpc', fm', eenv') = unifyNRPCs no_inline eenv fm nrpc
+                (nrpc', fm', eenv', pc') = unifyNRPCs no_inline eenv pc fm nrpc
                 s' = s { expr_env = eenv'
+                       , path_conds = pc'
                        , non_red_path_conds = nrpc'
                        , track = vt { focus_map = fm' } }
             in
@@ -444,50 +469,55 @@ unifyNRPCReducer no_inline = mkSimpleReducer (const ()) red
 -- we can unify them. This makes it easier to find approximations because we have to match up fewer NRPCs. 
 unifyNRPCs :: HS.HashSet Name
            -> ExprEnv
+           -> PathConds
            -> FocusMap
            -> NonRedPathConds
-           -> (NonRedPathConds, FocusMap, ExprEnv)
-unifyNRPCs _ eenv fm nrpc@EmpNRPC = (nrpc, fm, eenv)
-unifyNRPCs no_inline eenv fm (nrpc@(NRPC focus1 e1 v1) :*> nrpcs) =
+           -> (NonRedPathConds, FocusMap, ExprEnv, PathConds)
+unifyNRPCs _ eenv pc fm nrpc@EmpNRPC = (nrpc, fm, eenv, pc)
+unifyNRPCs no_inline eenv pc fm (nrpc@(NRPC focus1 e1 v1) :*> nrpcs) =
     let
         con_nrpc = listToMaybe
                  $ mapMaybe (\(NRPC focus2 e2 v2) ->
                     case eqUpToTypesInline no_inline eenv (stripAllTicks e1) (stripAllTicks e2) of
-                        True -> (, focus2) <$> alignVar HS.empty HS.empty eenv v1 v2
+                        True -> (\(eenv_, pc_) -> (eenv_, pc_, focus2)) <$> alignVar HS.empty HS.empty eenv pc v1 v2
                         False -> Nothing)
                  $ toListNRPC nrpcs
     in
     case con_nrpc of
-        Just (eenv', focus2) ->
+        Just (eenv', pc', focus2) ->
             let
                 (fm', nrpcs') = case (focus1, focus2) of
                                     (_, Focused) -> (fm, nrpcs)
                                     (Unfocused n1, Unfocused n2) -> (updateFocusMap n1 n2 fm, nrpcs)
                                     (Focused, Unfocused n) -> (fm, setFocus n Focused eenv nrpcs)
             in
-            unifyNRPCs no_inline eenv' fm' nrpcs'
-        Nothing -> mapFst3 (nrpc :*>) $ unifyNRPCs no_inline eenv fm nrpcs
+            unifyNRPCs no_inline eenv' pc' fm' nrpcs'
+        Nothing -> mapFst4 (nrpc :*>) $ unifyNRPCs no_inline eenv pc fm nrpcs
 
-alignVar :: HS.HashSet Name -> HS.HashSet Name -> ExprEnv -> Expr -> Expr -> Maybe ExprEnv
-alignVar _ _ eenv (Var (Id n1 _)) v@(Var (Id n2 _))
-    | n1 == n2 = Just eenv
-alignVar _ _ eenv (Var (Id n1 _)) e2
-    | E.isSymbolic n1 eenv = Just $ E.insert n1 e2 eenv
-alignVar _ _ eenv e1 (Var (Id n2 _))
-    | E.isSymbolic n2 eenv = Just $ E.insert n2 e1 eenv
-alignVar seen1 seen2 eenv (Var (Id n1 _)) e2
+alignVar :: HS.HashSet Name -> HS.HashSet Name -> ExprEnv -> PathConds -> Expr -> Expr -> Maybe (ExprEnv, PathConds)
+alignVar _ _ eenv pc (Var (Id n1 _)) v@(Var (Id n2 _))
+    | n1 == n2 = Just (eenv, pc)
+alignVar _ _ eenv pc (Var (Id n1 t)) e2
+    | isPrimType t = Nothing
+    | E.isSymbolic n1 eenv = Just $ (E.insert n1 e2 eenv, pc)
+alignVar _ _ eenv pc e1 (Var (Id n2 t))
+    | isPrimType t = Nothing
+    | E.isSymbolic n2 eenv = Just $ (E.insert n2 e1 eenv, pc)
+alignVar seen1 seen2 eenv pc (Var (Id n1 t)) e2
+    | isPrimType t = Nothing
     | not (n1 `elem` seen1)
-    , Just e1 <- E.lookup n1 eenv = alignVar (HS.insert n1 seen1) seen2 eenv e1 e2
-alignVar seen1 seen2 eenv e1 (Var (Id n2 _))
+    , Just e1 <- E.lookup n1 eenv = alignVar (HS.insert n1 seen1) seen2 eenv pc e1 e2
+alignVar seen1 seen2 eenv pc e1 (Var (Id n2 t))
+    | isPrimType t = Nothing
     | not (n2 `elem` seen2)
-    , Just e2 <- E.lookup n2 eenv = alignVar seen1 (HS.insert n2 seen2) eenv e1 e2
+    , Just e2 <- E.lookup n2 eenv = alignVar seen1 (HS.insert n2 seen2) eenv pc e1 e2
 
-alignVar _ _ eenv (Data d1) (Data d2) | dcName d1 == dcName d2 = Just eenv
-alignVar seen1 seen2 eenv (App a1 a2) (App a1' a2') = do
-    eenv' <- alignVar seen1 seen2 eenv a1 a1'
-    alignVar seen1 seen2 eenv' a2 a2'
+alignVar _ _ eenv pc (Data d1) (Data d2) | dcName d1 == dcName d2 = Just (eenv, pc)
+alignVar seen1 seen2 eenv pc (App a1 a2) (App a1' a2') = do
+    (eenv', pc') <- alignVar seen1 seen2 eenv pc a1 a1'
+    alignVar seen1 seen2 eenv' pc' a2 a2'
 
-alignVar _ _ _ _ _ = Nothing
+alignVar _ _ _ _ _ _ = Nothing
 
 -- | Discard states with inconsistent NRPCs
 inconsistentNRPCHalter :: Monad m =>
@@ -680,7 +710,7 @@ acceptLemmaReducer = (mkSimpleReducer (const ()) (\rv s b -> return (NoProgress,
         dis _ all_states s _
             | not . any (isSameGoal (goal $ track s) . goal . track . exStateToState) . concat . M.elems $ all_states
             , Lemma _ lem_s <- goal $ track s = do
-                liftIO $ putStrLn ("adding\n" ++ T.unpack (prettyNonRedPaths (mkPrettyGuide ()) (non_red_path_conds $ inlineNRPC s)))
+                liftIO $ putStrLn ("adding\n" ++ T.unpack (prettyNonRedPaths (mkPrettyGuide ()) (non_red_path_conds $ inlineNRPC lem_s)))
                 addApproxPrevs (lem_s { track = (track lem_s) { goal = Proven } })
             | otherwise = return ()
 
@@ -739,11 +769,13 @@ updateFocusMap :: Name -- Name1
 updateFocusMap n1 n2 = HM.insertWith HS.union n1 (HS.fromList [n2])
 
 prettyVerifierTracker :: PrettyGuide -> VerifierTracker -> T.Text
-prettyVerifierTracker pg (VT { focus_map = fm, goal = g}) =
+prettyVerifierTracker pg (VT { focus_map = fm, tail_called_funcs = tcf, goal = g}) =
     "Goal:\n"
     <> prettyGoal g
     <> "\nFocus:\n" <>
     (T.intercalate "\n" . map pretty_fm $ HM.toList fm)
+    <> "\nTail called funcs:\n" <>
+    (T.intercalate "\n" . map (printName pg) $ HS.toList tcf)
     where
         pretty_fm (k, v) = printName pg k <> " -> " <> T.intercalate ", " (map (printName pg) $ HS.toList v)
 

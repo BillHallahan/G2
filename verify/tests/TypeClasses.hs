@@ -2,7 +2,10 @@
 
 module TypeClasses where
 
+import Control.Applicative
 import Data.Functor.Classes
+
+import TypeclassCode.Tree
 
 -- Monoid laws
 monoidRightIdentity :: (Monoid a, Eq a) => a -> Bool
@@ -93,6 +96,10 @@ monadRightIdentityList = monadRightIdentity
 monadAssociativityList :: Eq b => [a1] -> p -> (a1 -> [a2]) -> (a2 -> [b]) -> Bool
 monadAssociativityList = monadAssociativity
 
+-------------------------------------------------------------------------------
+-- Maybe
+-------------------------------------------------------------------------------
+
 -- Maybe Monoid
 monoidRightIdentityMaybe :: (Semigroup a, Eq a) => Maybe a -> Bool
 monoidRightIdentityMaybe = monoidRightIdentity
@@ -123,15 +130,55 @@ appCompositionMaybe = appComposition
 appHomomorphismMaybe :: Eq b => (a -> b) -> a -> Bool
 appHomomorphismMaybe = appHomomorphism @Maybe
 
-appInterchangeMaybe :: Eq b => [a -> b] -> a -> Bool
+appInterchangeMaybe :: Eq b => Maybe (a -> b) -> a -> Bool
 appInterchangeMaybe = appInterchange
 
 -- Maybe Monad
 monadLeftIdentityMaybe :: Eq b => a -> (a -> Maybe b) -> Bool
 monadLeftIdentityMaybe = monadLeftIdentity
 
-monadRightIdentityMaybe :: Eq b => [b] -> Bool
+monadRightIdentityMaybe :: Eq b => Maybe b -> Bool
 monadRightIdentityMaybe = monadRightIdentity
 
 monadAssociativityMaybe :: Eq b => Maybe a1 -> p -> (a1 -> Maybe a2) -> (a2 -> Maybe b) -> Bool
 monadAssociativityMaybe = monadAssociativity
+
+-------------------------------------------------------------------------------
+-- ZipLists
+-------------------------------------------------------------------------------
+
+appIdentityZipList :: Eq a => ZipList a -> Bool
+appIdentityZipList = appIdentity
+
+appCompositionZipList :: Eq b => ZipList (a1 -> b) -> ZipList (a2 -> a1) -> ZipList a2 -> Bool
+appCompositionZipList = appComposition
+
+appHomomorphismZipList :: Eq b => (a -> b) -> a -> Bool
+appHomomorphismZipList = appHomomorphism @ZipList 
+
+appInterchangeZipList :: Eq b => ZipList (a -> b) -> a -> Bool
+appInterchangeZipList = appInterchange
+
+-------------------------------------------------------------------------------
+-- Tree
+-------------------------------------------------------------------------------
+
+-- Tree functo
+fmapIdTree :: Eq a => Tree a -> Bool
+fmapIdTree = fmapId
+
+fmapCompositionTree :: Eq c => (b -> c) -> (a -> b) -> Tree a -> Bool
+fmapCompositionTree = fmapComposition
+
+-- Tree applicative
+appIdentityTree :: Eq a => Tree a -> Bool
+appIdentityTree = appIdentity
+
+appCompositionTree :: Eq b => Tree (a1 -> b) -> Tree (a2 -> a1) -> Tree a2 -> Bool
+appCompositionTree = appComposition
+
+appHomomorphismTree :: Eq b => (a -> b) -> a -> Bool
+appHomomorphismTree = appHomomorphism @Tree 
+
+appInterchangeTree :: Eq b => Tree (a -> b) -> a -> Bool
+appInterchangeTree = appInterchange

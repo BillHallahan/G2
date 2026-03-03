@@ -837,6 +837,11 @@ baseTests = testGroup "Base"
     [
       checkInputOutput "tests/Samples/Peano.hs" "add" 400 [AtLeast 4]
 
+    , checkInputOutputs "tests/BaseTests/IdentityTest.hs" [ ("call", 1000, [Exactly 1]) ]
+    , checkInputOutputs "tests/BaseTests/MonadFix.hs" [ ("fac", 1500, [AtLeast 8])
+                                                      , ("nJustOnes", 2000, [AtLeast 5]) ]
+    , checkInputOutputs "tests/BaseTests/MonadZip.hs" [ ("callList", 1000, [AtLeast 15])
+                                                      , ("callMaybe", 1000, [AtLeast 3]) ]
     , checkInputOutputs "tests/BaseTests/ListTests.hs" [ ("test", 1000, [AtLeast 1])
                                                        , ("maxMap", 1000, [AtLeast 4])
                                                        , ("minTest", 1000, [AtLeast 2])
@@ -998,7 +1003,9 @@ verifierTests = testGroup "Verifier"
 
     , checkExprCEx "tests/Verify/List6.hs" "p1False"
 
-    , checkExprVerifiedNoLemmas "tests/Verify/ListComp.hs" "p1"
+    , checkExprVerified "tests/Verify/List7.hs" "p1"
+
+    , checkExprVerified "tests/Verify/ListComp.hs" "p1"
     , checkExprVerified "tests/Verify/ListComp.hs" "p2"
 
     -- , checkExprVerified "tests/Verify/NatList1.hs" "prop1"
@@ -1017,8 +1024,20 @@ verifierTests = testGroup "Verifier"
 
     , checkExprVerified "tests/Verify/IdCall.hs" "idCall"
     , checkExprVerified "tests/Verify/IdCall.hs" "idCall2"
+    , checkExprVerified "tests/Verify/IdCall.hs" "p1"
 
     , checkExprVerified "tests/Verify/Maybe1.hs" "p1"
+
+    , checkExprVerified "tests/Verify/Tree1.hs" "fmapIdTree"
+    , checkExprVerified "tests/Verify/Tree1.hs" "fmapCompositionTree"
+
+    , checkExprVerified "tests/Verify/State1.hs" "simple1"
+    , checkExprVerified "tests/Verify/State1.hs" "p1"
+    , checkExprVerified "tests/Verify/State1.hs" "p2"
+    , checkExprCEx "tests/Verify/State1.hs" "simple1False"
+    , checkExprCEx "tests/Verify/State1.hs" "p1False"
+
+    , checkExprVerified "tests/Verify/State2.hs" "p1"
 
     , checkRuleVerified "tests/Verify/Rules1.hs" "justJust"
     , checkRuleVerified "tests/Verify/Rules1.hs" "justJust2"

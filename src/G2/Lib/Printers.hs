@@ -189,7 +189,13 @@ mkExprHaskell' off_init cleaned pg ex = mkExprHaskell'' off_init ex
                                 else " ret = (" <> mkTypeHaskellPG pg t <> ")" in
                "case " <> parenWrap e (mkExprHaskell'' off e) <> " of" <> case_ty <> "\n" 
             <> T.intercalate "\n" (map (mkAltHaskell (off + 2) cleaned pg bndr) ae)
-        mkExprHaskell'' _ (Type t) = "@" <> mkTypeHaskellPG pg t
+        mkExprHaskell'' _ (Type t) =
+            let
+                wrap (TyFun _ _) s = "(" <> s <> ")"
+                wrap (TyApp _ _) s = "(" <> s <> ")"
+                wrap _ s = s
+            in
+            "@" <> wrap t (mkTypeHaskellPG pg t)
         mkExprHaskell'' off (Cast e (t1 :~ t2)) =
             let
                 e_str = mkExprHaskell'' off e
