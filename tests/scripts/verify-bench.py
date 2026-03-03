@@ -204,10 +204,16 @@ def typeclass_funcs():
     list_laws = [(law + "List", []) for law in all_laws]
     zip_list_laws = [(law + "ZipList", []) for law in applicativeLaws]
     tree_laws = [(law + "Tree", []) for law in functorLaws + applicativeLaws]
+<<<<<<< HEAD
     maybe_laws = [(law + "Maybe", []) for law in all_laws]
     state_laws = [(law + "State", []) for law in functorLaws + applicativeLaws + monadLaws]
 
     return list_laws + zip_list_laws + tree_laws + maybe_laws + state_laws
+=======
+    maybe_laws = [(law + "Maybe", [])for law in all_laws]
+
+    return list_laws + zip_list_laws + tree_laws + maybe_laws
+>>>>>>> master
 
 def read_runnable_benchmarks(setpath, settings) :
     props = []

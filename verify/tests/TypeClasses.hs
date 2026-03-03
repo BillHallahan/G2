@@ -6,8 +6,11 @@ import Control.Applicative
 import Data.Functor.Classes
 
 import TypeclassCode.Tree
+<<<<<<< HEAD
 import TypeclassCode.Reader
 import TypeclassCode.State
+=======
+>>>>>>> master
 
 -- Monoid laws
 monoidRightIdentity :: (Monoid a, Eq a) => a -> Bool
