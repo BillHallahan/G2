@@ -3,7 +3,7 @@
 -- From transformers package
 -- https://hackage-content.haskell.org/package/transformers-0.6.3.0/docs/src/Control.Monad.Trans.State.Lazy.html#StateT
 
-module TypeclassCode.State where
+module State3 where
 
 import Control.Monad
 

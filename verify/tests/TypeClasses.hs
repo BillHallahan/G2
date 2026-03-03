@@ -6,6 +6,7 @@ import Control.Applicative
 import Data.Functor.Classes
 
 import TypeclassCode.Tree
+import TypeclassCode.Reader
 import TypeclassCode.State
 
 -- Monoid laws
@@ -183,6 +184,40 @@ appHomomorphismTree = appHomomorphism @Tree
 
 appInterchangeTree :: Eq b => Tree (a -> b) -> a -> Bool
 appInterchangeTree = appInterchange
+
+-------------------------------------------------------------------------------
+-- Reader
+-------------------------------------------------------------------------------
+
+-- Reader Functor
+fmapIdReader :: (Eq r, Eq a) => r -> Reader r a -> Bool
+fmapIdReader r xs = runReader (fmap id xs) r == runReader (id xs) r
+
+fmapCompositionReader :: (Eq r, Eq c) => r -> (b -> c) -> (a -> b) -> Reader r a -> Bool
+fmapCompositionReader r f g xs = runReader (fmap (f . g) xs) r == runReader ((fmap f . fmap g) xs) r
+
+-- Reader Applicative
+appIdentityReader :: (Eq r, Eq a) => r -> Reader r a -> Bool
+appIdentityReader r v = runReader (pure id <*> v) r == runReader v r
+
+appCompositionReader :: (Eq r, Eq b) => r -> Reader r (a1 -> b) -> Reader r (a2 -> a1) -> Reader r a2 -> Bool
+appCompositionReader r u v w = runReader (pure (.) <*> u <*> v <*> w) r == runReader (u <*> (v <*> w)) r
+
+appHomomorphismReader :: forall r a b . (Eq r, Eq b) => r -> (a -> b) -> a -> Bool
+appHomomorphismReader r f x = runReader (pure f <*> (pure :: a -> Reader r a) x) r == runReader (pure (f x)) r
+
+appInterchangeReader :: (Eq r, Eq b) => r -> Reader r (a -> b) -> a -> Bool
+appInterchangeReader r u y = runReader (u <*> pure y) r == runReader (pure ($ y) <*> u) r
+
+-- Reader Monad
+monadLeftIdentityReader :: (Eq r, Eq b) => r -> a -> (a -> Reader r b) -> Bool
+monadLeftIdentityReader r a k = runReader (return a >>= k) r == runReader (k a) r
+
+monadRightIdentityReader :: (Eq r, Eq b) => r -> Reader r b -> Bool
+monadRightIdentityReader r m = runReader (m >>= return) r == runReader m r
+
+monadAssociativityReader :: (Eq r, Eq b) => r -> Reader r a1 -> p -> (a1 -> Reader r a2) -> (a2 -> Reader r b) -> Bool
+monadAssociativityReader r m x k h = runReader (m >>= (\x -> k x >>= h)) r == runReader ((m >>= k) >>= h) r
 
 -------------------------------------------------------------------------------
 -- State

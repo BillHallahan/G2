@@ -416,7 +416,8 @@ verifyHigherOrderHandling = mkSimpleReducer (const ()) red
                                   $ E.insert n func_body eenv
                             
                             s' = s { curr_expr = CurrExpr Evaluate (App func_body ar), expr_env = eenv' }
-                        in return (InProgress, [(s', ())], b { name_gen = ng4 })
+                        in
+                        return (InProgress, [(s', ())], b { name_gen = ng4 })
                     _ -> let
                             (bindee, ng3) = freshId ty_ar ng2
                             (ret_true, ng4) = freshId (case ty_fun of
@@ -445,7 +446,8 @@ verifyHigherOrderHandling = mkSimpleReducer (const ()) red
                                 $ E.insert n func_body eenv
 
                             s' = s { curr_expr = CurrExpr Evaluate (App func_body ar), expr_env = eenv'}
-                        in return (InProgress, [(s', ())], b {name_gen = ng6})
+                        in
+                        return (InProgress, [(s', ())], b {name_gen = ng6})
         red _ s b = return (Finished, [(s, ())], b)
 
 unifyNRPCReducer :: Monad m =>
