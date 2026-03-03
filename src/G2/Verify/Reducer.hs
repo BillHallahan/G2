@@ -81,11 +81,11 @@ nrpcAnyCallReducer no_nrpc_names v_config config =
                 in
                 return (Finished, [(s', rv)], b)
 
-            | maybe True (allowed_frame . fst) (Stck.pop (exec_stack s))
+            | -- Check if we have a symbolic function at the center of the app
+              Var (Id vn t):xs <- unApp $ getExpr s
+            , Just vn' <- E.deepLookupVar vn eenv
+            , maybe True (allowed_frame . fst) (Stck.pop (exec_stack s)) || E.isSymbolic vn' eenv
             
-            -- Check if we have a symbolic function at the center of the app
-            , Var (Id _ t):xs <- unApp $ getExpr s
-
             -- Calculate arity of function, and wrap it in appropriate number of arguments
             , let arity = length . argumentTypes $ tyVarSubst tvnv t
             , let need_apply = arity - length xs
@@ -416,8 +416,7 @@ verifyHigherOrderHandling = mkSimpleReducer (const ()) red
                                   $ E.insert n func_body eenv
                             
                             s' = s { curr_expr = CurrExpr Evaluate (App func_body ar), expr_env = eenv' }
-                        in
-                        return (InProgress, [(s', ())], b { name_gen = ng4 })
+                        in return (InProgress, [(s', ())], b { name_gen = ng4 })
                     _ -> let
                             (bindee, ng3) = freshId ty_ar ng2
                             (ret_true, ng4) = freshId (case ty_fun of
@@ -446,8 +445,7 @@ verifyHigherOrderHandling = mkSimpleReducer (const ()) red
                                 $ E.insert n func_body eenv
 
                             s' = s { curr_expr = CurrExpr Evaluate (App func_body ar), expr_env = eenv'}
-                        in
-                        return (InProgress, [(s', ())], b {name_gen = ng6})
+                        in return (InProgress, [(s', ())], b {name_gen = ng6})
         red _ s b = return (Finished, [(s, ())], b)
 
 unifyNRPCReducer :: Monad m =>

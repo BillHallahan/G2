@@ -6,6 +6,7 @@ import Control.Applicative
 import Data.Functor.Classes
 
 import TypeclassCode.Tree
+import TypeclassCode.State
 
 -- Monoid laws
 monoidRightIdentity :: (Monoid a, Eq a) => a -> Bool
@@ -182,3 +183,37 @@ appHomomorphismTree = appHomomorphism @Tree
 
 appInterchangeTree :: Eq b => Tree (a -> b) -> a -> Bool
 appInterchangeTree = appInterchange
+
+-------------------------------------------------------------------------------
+-- State
+-------------------------------------------------------------------------------
+
+-- State Functor
+fmapIdState :: (Eq s, Eq a) => s -> State s a -> Bool
+fmapIdState s xs = runState (fmap id xs) s == runState (id xs) s
+
+fmapCompositionState :: (Eq s, Eq c) => s -> (b -> c) -> (a -> b) -> State s a -> Bool
+fmapCompositionState s f g xs = runState (fmap (f . g) xs) s == runState ((fmap f . fmap g) xs) s
+
+-- State Applicative
+appIdentityState :: (Eq s, Eq a) => s -> State s a -> Bool
+appIdentityState s v = runState (pure id <*> v) s == runState v s
+
+appCompositionState :: (Eq s, Eq b) => s -> State s (a1 -> b) -> State s (a2 -> a1) -> State s a2 -> Bool
+appCompositionState s u v w = runState (pure (.) <*> u <*> v <*> w) s == runState (u <*> (v <*> w)) s
+
+appHomomorphismState :: forall s a b . (Eq s, Eq b) => s -> (a -> b) -> a -> Bool
+appHomomorphismState s f x = runState (pure f <*> (pure :: a -> State s a) x) s == runState (pure (f x)) s
+
+appInterchangeState :: (Eq s, Eq b) => s -> State s (a -> b) -> a -> Bool
+appInterchangeState s u y = runState (u <*> pure y) s == runState (pure ($ y) <*> u) s
+
+-- State Monad
+monadLeftIdentityState :: (Eq s, Eq b) => s -> a -> (a -> State s b) -> Bool
+monadLeftIdentityState s a k = runState (return a >>= k) s == runState (k a) s
+
+monadRightIdentityState :: (Eq s, Eq b) => s -> State s b -> Bool
+monadRightIdentityState s m = runState (m >>= return) s == runState m s
+
+monadAssociativityState :: (Eq s, Eq b) => s -> State s a1 -> p -> (a1 -> State s a2) -> (a2 -> State s b) -> Bool
+monadAssociativityState s m x k h = runState (m >>= (\x -> k x >>= h)) s == runState ((m >>= k) >>= h) s
