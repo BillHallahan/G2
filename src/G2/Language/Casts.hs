@@ -54,7 +54,11 @@ unsafeElimOuterCast e = e
 --
 -- Given any other expression, acts as the identity function
 splitCast :: TV.TyVarEnv -> NameGen -> Expr -> (Expr, NameGen)
-splitCast _ ng (Cast e ((TyFun t1 t2) :~ (TyFun t1' t2'))) =
+splitCast tv_env ng (Cast e (t1 :~ t2)) = splitCast' tv_env ng (Cast e (tyVarSubst tv_env t1 :~ tyVarSubst tv_env t2))
+splitCast _ ng e = (e, ng)
+
+splitCast' :: TV.TyVarEnv -> NameGen -> Expr -> (Expr, NameGen)
+splitCast' _ ng (Cast e ((TyFun t1 t2) :~ (TyFun t1' t2'))) =
     let
         (i, ng') = freshId t1 ng
 
@@ -68,7 +72,7 @@ splitCast _ ng (Cast e ((TyFun t1 t2) :~ (TyFun t1' t2'))) =
                 )
     in
     (e', ng')
-splitCast tv ng (Cast e ((TyForAll ni t2) :~ (TyForAll ni' t2'))) =
+splitCast' tv ng (Cast e ((TyForAll ni t2) :~ (TyForAll ni' t2'))) =
     let
         t1 = typeOf tv ni
         t1' = typeOf tv ni'
@@ -87,7 +91,7 @@ splitCast tv ng (Cast e ((TyForAll ni t2) :~ (TyForAll ni' t2'))) =
     (e', ng')
 -- splitCast ng c@(Cast e (t1 :~ t2)) =
 --     if hasFuncType (PresType t1) || hasFuncType (PresType t2) then (e, ng) else (c, ng)
-splitCast _ ng e = (e, ng)
+splitCast' _ ng e = (e, ng)
 
 -- | Eliminates redundant casts.
 simplifyCasts :: ASTContainer m Expr => TV.TyVarEnv -> m -> m

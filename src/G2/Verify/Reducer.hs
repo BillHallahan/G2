@@ -425,14 +425,14 @@ verifyHigherOrderHandling = mkSimpleReducer (const ()) red
                                                         _ -> error "verifyHigherOrderHandling: not tyfun") ng3
                             (ret_false, ng5) = freshId ty_fun ng4
 
-                            eq_tc = case lookupTCDict tc (eqTC kv) ty_ar of
+                            eq_tc = case typeClassInst tc HM.empty (eqTC kv) ty_ar of
                                     Just tc -> tc
                                     Nothing -> error $ "verifyHigherOrderHandling: unsupported type" ++ "\n" ++ show ty_fun ++ "\n" ++ show ty_ar
                             eq_f = eqFunc kv
                             eq_f_i = Id eq_f (typeOf tvnv . fromJust $ E.lookup eq_f eenv)
 
                             (ar_bnd, ng6) = freshSeededString "ar" ng5 
-                            e = mkApp [Var eq_f_i, Type ty_ar, Var eq_tc, Var lam_x, Var (Id ar_bnd ty_ar)]
+                            e = mkApp [Var eq_f_i, Type ty_ar, eq_tc, Var lam_x, Var (Id ar_bnd ty_ar)]
 
                             func_body =
                                 Lam TermL lam_x $ 
