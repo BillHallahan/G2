@@ -73,7 +73,7 @@ nrpcAnyCallReducer no_nrpc_names v_config config =
             , let stripped_ce = stripNRBT ce
             , (Var (Id vn _)):(_:_) <- unApp stripped_ce
             , let tcf = tail_called_funcs vt
-            , Just vn' <- E.deepLookupVar vn eenv
+            , vn' <- deepLookupCenterName vn eenv
             , not $ E.isSymbolic vn' eenv
             , vn `notElem` tcf =
                 let
@@ -83,7 +83,7 @@ nrpcAnyCallReducer no_nrpc_names v_config config =
 
             | -- Check if we have a symbolic function at the center of the app
               Var (Id vn t):xs <- unApp $ getExpr s
-            , Just vn' <- E.deepLookupVar vn eenv
+            , vn' <- deepLookupCenterName vn eenv
             , maybe True (allowed_frame . fst) (Stck.pop (exec_stack s)) || E.isSymbolic vn' eenv
             
             -- Calculate arity of function, and wrap it in appropriate number of arguments
@@ -104,6 +104,7 @@ nrpcAnyCallReducer no_nrpc_names v_config config =
                 let nr_s_ng = if
                                 -- Line (*) make sure we don't add back to NRPCs immediately.
                                 | not (hasNRBT wrapped_ce) -- (*)
+                                , vn' `notElem` no_nrpc_names
                                 , allowedApp wrapped_ce eenv tvnv -> createRA ng' (focused s'') s''
                                 | otherwise -> Nothing
 
@@ -121,7 +122,7 @@ nrpcAnyCallReducer no_nrpc_names v_config config =
         -- * we are not applying a symbolic function
         allowedApp app eenv tvnv
             | Var (Id n _):_:_ <- unApp app
-            , Just n' <- E.deepLookupVar n eenv
+            , n' <- deepLookupCenterName n eenv
             , not . isTyFun . typeOf tvnv $ app =
                 not (n' `HS.member` no_nrpc_names)
             | Data _:_:_ <- unApp app
@@ -221,6 +222,15 @@ nrpcAnyCallReducer no_nrpc_names v_config config =
                           | Just (ApplyFrame _, stck') <- Stck.pop stck = popAppliable stck'
                           | Just (CurrExprFrame (EnsureEq _) _, stck') <- Stck.pop stck = popAppliable stck'
                           | otherwise = stck
+
+deepLookupCenterName :: Name -> ExprEnv -> Name
+deepLookupCenterName n_init eenv = go n_init (HS.singleton n_init)
+    where
+        go n seen
+            | Just e' <- E.lookup n eenv
+            , Var (Id n' _):_ <- unApp $ stripAllTicks e'
+            , n' `notElem` seen = go n' (HS.insert n' seen)
+            | otherwise = n
 
 -- | Create a NRPC if heuristics apply.
 createRA :: NameGen -> GenFocus n -> State t -> Maybe (State t, Id, NRPC, NameGen)
