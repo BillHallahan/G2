@@ -1043,8 +1043,8 @@ verifierTests = testGroup "Verifier"
     , checkExprVerifiedNoLemmas "tests/Verify/State4.hs" "p1"
     , checkExprVerifiedWithNoRevAbs "tests/Verify/State5.hs" "p1"
 
-    , checkExprVerifiedNoLemmas "tests/Verify/Reader1.hs" "p1"
-    , checkExprCExNoLemmas "tests/Verify/Reader1.hs" "p1False"
+    , checkExprVerified "tests/Verify/Reader1.hs" "p1"
+    , checkExprCEx "tests/Verify/Reader1.hs" "p1False"
 
     , checkRuleVerified "tests/Verify/Rules1.hs" "justJust"
     , checkRuleVerified "tests/Verify/Rules1.hs" "justJust2"
@@ -1210,9 +1210,6 @@ checkExprVerifiedWithNoRevAbs =
 
 checkExprCEx :: String -> String -> TestTree
 checkExprCEx = checkExprVerifier (\case Verified -> False; Counterexample _ -> True; VerifyTimeOut -> False)
-
-checkExprCExNoLemmas :: String -> String -> TestTree
-checkExprCExNoLemmas = checkExprVerifierWithConfig (defVerifyConfig { use_lemmas = False}) (\case Verified -> False; Counterexample _ -> True; VerifyTimeOut -> False)
 
 checkExprNotVerified :: String -> String -> TestTree
 checkExprNotVerified = checkExprVerifier (\case Verified -> False; Counterexample _ -> True; VerifyTimeOut -> True)
