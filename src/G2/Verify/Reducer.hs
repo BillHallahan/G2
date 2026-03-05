@@ -659,7 +659,16 @@ genLemmaReducer no_inline solver = (mkSimpleReducer (const ()) red) { onDiscard 
         dis _ _ _ _ = return ()
    
 genLemmaState :: (MonadIO m, Solver solver) => HS.HashSet Name -> solver -> LemmaInfo -> VerifierState -> Bindings -> NRPC -> m (Bindings, Maybe VerifierState)
-genLemmaState no_inline solver (LI { generated_lem = gen_lems, discarded_lem = dis_lems }) s@(State { expr_env = eenv, known_values = kv }) b nrpc = do
+genLemmaState no_inline solver (LI { generated_lem = gen_lems, discarded_lem = dis_lems }) s@(State { expr_env = eenv, known_values = kv }) b nrpc
+    | 
+      -- No point in generating a lemma where the RHS is symbolic, as this would be trivially false
+      Var (Id n _) <- nrpc_rhs nrpc
+    , Just (E.Conc _) <- E.deepLookupConcOrSym n eenv
+
+      -- No point in generating a lemma where the LHS is a symbolic function, as this would be trivially false
+    , Var (Id vn _):_ <- unApp . stripAllTicks $ nrpc_lhs nrpc
+    , vn' <- deepLookupCenterName vn eenv
+    , not (E.isSymbolic vn' eenv) = do
     let (lemma_name, ng2) = freshSeededString "lemma" (name_gen b)
         (emp_nrpc, ng3) = emptyNRPC ng2
         (ng4, nrpcs) = addExistingNRPC ng3 (nrpc { nrpc_focus = Focused }) emp_nrpc
@@ -679,13 +688,8 @@ genLemmaState no_inline solver (LI { generated_lem = gen_lems, discarded_lem = d
     equiv_lemma <-liftIO $ findM (\prev -> liftM2 (&&) (res_check prev lem_s) (res_check lem_s prev)) gen_lems
     dis_lemma <-liftIO $ findM (\s -> res_check s lem_s) dis_lems
 
-    -- No point in generating a lemma where the RHS is symbolic, as this would be trivially false
-    let non_sym_rhs = case nrpc_rhs $ nrpc of
-                        Var (Id n _) | Just (E.Conc _) <- E.deepLookupConcOrSym n eenv -> True
-                        _ -> False
-
-    case (non_sym_rhs, equiv_lemma, dis_lemma) of
-        (True, Nothing, Nothing) -> do
+    case (equiv_lemma, dis_lemma) of
+        (Nothing, Nothing) -> do
             let pretty_nrpc = inlinePretty eenv nrpc
             liftIO . putStrLn $ "Try to prove "
                             <> (T.unpack . printHaskellDirty $ nrpc_lhs pretty_nrpc)
@@ -693,6 +697,7 @@ genLemmaState no_inline solver (LI { generated_lem = gen_lems, discarded_lem = d
                             <> (T.unpack . printHaskellDirty $ nrpc_rhs pretty_nrpc)
             return ( b { name_gen = ng4 }, Just lem_s )
         _ -> return ( b { name_gen = ng4 }, Nothing )
+    | otherwise = return (b, Nothing)
 
 mrContIgnoreNRPCTicks :: Maybe (GenerateLemma t l)
                       -> Lookup t

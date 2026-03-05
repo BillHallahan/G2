@@ -1259,8 +1259,8 @@ matchPairs tvnv kv e1 e2 eenv_pc_ee@(eenv, pc, ees)
     | Cast e1' c1 <- e1
     , Cast e2' c2 <- e2
     , T.tyVarSubst tvnv c1 == T.tyVarSubst tvnv c2 =  matchPairs tvnv kv e1' e2' eenv_pc_ee
-    | Cast e1' _ <- e1 =  matchPairs tvnv kv e1' e2 eenv_pc_ee
-    | Cast e2' _ <- e2 =  matchPairs tvnv kv e1 e2' eenv_pc_ee
+    | Cast _ _ <- e1 = Just (eenv, pc, [(e1, e2)])
+    | Cast _ _ <- e2 = Just (eenv, pc, [(e1, e2)])
 
     | Data dc1:es1 <- unApp e1
     , Data dc2:es2 <- unApp e2 =
