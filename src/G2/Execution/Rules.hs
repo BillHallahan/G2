@@ -179,15 +179,15 @@ evalForAll :: forall t. [Type] -> Type -> [Type] -> Type
     -> State t -> E.ExprEnv -> NameGen -> Id -> (Rule, [State t], NameGen)
 evalForAll as t tms tr s@(State {type_env = tenv, known_values = kv, tyvar_env = tvenv}) eenv ng i =
     let 
-        log_rules = False -- toggle for logging rules
+        log_rules = True -- toggle for logging rules
         
         -- Prioritize certain rules before others. '->' means: if no states from before rule, only then attempt to apply the next one.
         -- Current priority sets:
         --      PM-NON-CONT -> PM-UNWRAP -> PM-CYCLE -> {PM-INST-DIRECT, PM-INST-DC, PM-FUNC, PM-FUNC-FORALL, PM-CONST}
         rule_priority_list = [[(pmNonCont, "PM-NON-CONT")], 
                               [(pmUnwrap, "PM-UNWRAP")], 
-                              [(pmCycle, "PM-CYCLE")], 
-                              [(pmInstVar, "PM-INST-VAR"), (pmInstADT, "PM-INST-ADT"), (pmFun, "PM-FUNC"), (pmFunForall, "PM-FUNC-FORALL"), (pmConst, "PM-CONST")]]
+                              [(pmCycle, "PM-CYCLE"), (pmInstVar, "PM-INST-VAR"), (pmInstADT, "PM-INST-ADT"), 
+                               (pmFun, "PM-FUNC"), (pmFunForall, "PM-FUNC-FORALL"), (pmConst, "PM-CONST")]]
         -- Extract the states and the NameGen from the highest priority rule list with a non-empty set of resulting states. (find returns leftmost)
         (states, ng_eval_forall) = fromMaybe ([], ng) 
             (find (not . null . fst) $ map priorityLevelFold rule_priority_list)
@@ -336,21 +336,23 @@ evalForAll as t tms tr s@(State {type_env = tenv, known_values = kv, tyvar_env =
             in Just (inst_adt_tups, ng'')
             | otherwise = Nothing
 
+        -- make pm-func use the correct term arg
+
         -- PM-FUNC
         -- TODO: better naming in let bindings
         -- TODO: selecting from all available functions instead of cycling
         pmFun ng_in
             | (Just fun_id, other_ids) <- partitionFirst ((\case (TyFun _ _) -> True; _ -> False) . typeOf tvenv) term_args
-            , (f_targs, f_tr) <- argTypes t
+            , (f_targs, f_tr) <- argTypes $ typeOf tvenv fun_id
             = let
                 (new_as, ng'') = freshSeededIds as_ids ng_in
                 f_ty = renames (HM.fromList (zip (map idName as_ids) (map idName new_as))) 
-                                    $ mkNestedForAll as $ mkTyFun ((f_tr:tms) ++ [t] ++ [tr])
+                                    $ mkNestedForAll as $ mkTyFun (f_tr:t:tms ++ [tr])
                 (f, ng''') = freshId f_ty ng''
 
-                (fa_exprs, symIds, ng'''') = argumentExprs False ng''' (fun_id, other_ids) f_targs
+                (fa_exprs, symIds, ng'''') = argumentExprs True ng''' (fun_id, other_ids) f_targs
 
-                e' = e_template . mkApp $ (Var f:map (Type . TyVar) as_ids) ++ [mkApp (Var x:fa_exprs)] ++ map Var (ys ++ [x])
+                e' = e_template . mkApp $ (Var f:map (Type . TyVar) as_ids) ++ [mkApp (Var fun_id:fa_exprs)] ++ map Var term_args
 
                 eenv' = foldr E.insertSymbolic eenv (f:symIds)
                 eenv'' = E.insert (idName i) e' eenv'
@@ -424,7 +426,7 @@ evalForAll as t tms tr s@(State {type_env = tenv, known_values = kv, tyvar_env =
                     = let 
                         (fa_id_new_as, ng1') = freshSeededIds as_ids ng1
                         fa_id_ty = renames (HM.fromList (zip (map idName as_ids) (map idName fa_id_new_as)))
-                                    $ mkNestedForAll as $ mkTyFun $ [typeOf tvenv x | fwd_selected_arg] ++ map (typeOf tvenv) other_ids ++ [fa_ti]
+                                    $ mkNestedForAll as $ mkTyFun $ [typeOf tvenv selected_id | fwd_selected_arg] ++ map (typeOf tvenv) other_ids ++ [fa_ti]
                         (fa_id, ng1'') = freshId fa_id_ty ng1'
                         fa_expr = mkApp $ [Var fa_id] ++ map (Type . TyVar) as_ids ++ map Var ([selected_id | fwd_selected_arg] ++ other_ids)
                     in 
