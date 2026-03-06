@@ -194,19 +194,23 @@ def unmodified_theorems():
     return ret
 
 def typeclass_funcs():
-    monoidLaws = ["monoidRightIdentity", "monoidLeftIdentity", "monoidAssociativity", "monoidConcatenation"]
+    semigroupLaws = ["semigroupAssociativity"]
+    monoidLaws = ["monoidRightIdentity", "monoidLeftIdentity", "monoidConcatenation"]
     functorLaws = ["fmapId", "fmapComposition"]
     applicativeLaws = ["appIdentity", "appComposition", "appHomomorphism", "appInterchange"]
     monadLaws = ["monadLeftIdentity", "monadRightIdentity", "monadAssociativity"]
 
-    all_laws = monoidLaws + functorLaws + applicativeLaws + monadLaws
+    all_laws = semigroupLaws + monoidLaws + functorLaws + applicativeLaws + monadLaws
 
     list_laws = [(law + "List", []) for law in all_laws]
     zip_list_laws = [(law + "ZipList", []) for law in applicativeLaws]
+    nonempty_list_laws = [(law + "NonEmpty", []) for law in semigroupLaws + functorLaws + applicativeLaws + monadLaws]
     tree_laws = [(law + "Tree", []) for law in functorLaws + applicativeLaws]
-    maybe_laws = [(law + "Maybe", [])for law in all_laws]
+    maybe_laws = [(law + "Maybe", []) for law in all_laws]
+    state_laws = [(law + "State", []) for law in functorLaws + applicativeLaws + monadLaws]
+    reader_laws = [(law + "Reader", []) for law in functorLaws + applicativeLaws + monadLaws]
 
-    return list_laws + zip_list_laws + tree_laws + maybe_laws
+    return list_laws + zip_list_laws + nonempty_list_laws + tree_laws + maybe_laws + state_laws + reader_laws
 
 def read_runnable_benchmarks(setpath, settings) :
     props = []

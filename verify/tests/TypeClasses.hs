@@ -4,8 +4,15 @@ module TypeClasses where
 
 import Control.Applicative
 import Data.Functor.Classes
+import Data.List.NonEmpty
 
 import TypeclassCode.Tree
+import TypeclassCode.Reader
+import TypeclassCode.State
+
+-- Semigroup laws
+semigroupAssociativity :: (Semigroup a, Eq a) => a -> a -> a -> Bool
+semigroupAssociativity x y z = x <> (y <> z) == (x <> y) <> z
 
 -- Monoid laws
 monoidRightIdentity :: (Monoid a, Eq a) => a -> Bool
@@ -13,9 +20,6 @@ monoidRightIdentity x = x <> mempty == x
 
 monoidLeftIdentity :: (Monoid a, Eq a) => a -> Bool
 monoidLeftIdentity x = mempty <> x == x 
-
-monoidAssociativity :: (Monoid a, Eq a) => a -> a -> a -> Bool
-monoidAssociativity x y z = x <> (y <> z) == (x <> y) <> z
 
 monoidConcatenation :: (Monoid a, Eq a) => [a] -> Bool
 monoidConcatenation xs = mconcat xs == foldr (<>) mempty xs
@@ -60,8 +64,8 @@ monoidRightIdentityList = monoidRightIdentity
 monoidLeftIdentityList :: Eq a => [a] -> Bool
 monoidLeftIdentityList = monoidLeftIdentity
 
-monoidAssociativityList :: Eq a => [a] -> [a] -> [a] -> Bool
-monoidAssociativityList = monoidAssociativity
+semigroupAssociativityList :: Eq a => [a] -> [a] -> [a] -> Bool
+semigroupAssociativityList = semigroupAssociativity
 
 monoidConcatenationList :: Eq a => [[a]] -> Bool
 monoidConcatenationList = monoidConcatenation
@@ -97,6 +101,44 @@ monadAssociativityList :: Eq b => [a1] -> p -> (a1 -> [a2]) -> (a2 -> [b]) -> Bo
 monadAssociativityList = monadAssociativity
 
 -------------------------------------------------------------------------------
+-- NonEmpty
+-------------------------------------------------------------------------------
+
+-- NonEmpty Semigroup
+semigroupAssociativityNonEmpty :: (Semigroup a, Eq a) => NonEmpty a -> NonEmpty a -> NonEmpty a -> Bool
+semigroupAssociativityNonEmpty = semigroupAssociativity
+
+-- NonEmpty Functor
+fmapIdNonEmpty :: Eq a => NonEmpty a -> Bool
+fmapIdNonEmpty = fmapId
+
+fmapCompositionNonEmpty :: Eq c => (b -> c) -> (a -> b) -> NonEmpty a -> Bool
+fmapCompositionNonEmpty = fmapComposition
+
+-- NonEmpty Applicative
+appIdentityNonEmpty :: Eq a => NonEmpty a -> Bool
+appIdentityNonEmpty = appIdentity
+
+appCompositionNonEmpty :: Eq b => NonEmpty (a1 -> b) -> NonEmpty (a2 -> a1) -> NonEmpty a2 -> Bool
+appCompositionNonEmpty = appComposition
+
+appHomomorphismNonEmpty :: Eq b => (a -> b) -> a -> Bool
+appHomomorphismNonEmpty = appHomomorphism @NonEmpty
+
+appInterchangeNonEmpty :: Eq b => NonEmpty (a -> b) -> a -> Bool
+appInterchangeNonEmpty = appInterchange
+
+-- NonEmpty Monad
+monadLeftIdentityNonEmpty :: Eq b => a -> (a -> NonEmpty b) -> Bool
+monadLeftIdentityNonEmpty = monadLeftIdentity
+
+monadRightIdentityNonEmpty :: Eq b => NonEmpty b -> Bool
+monadRightIdentityNonEmpty = monadRightIdentity
+
+monadAssociativityNonEmpty :: Eq b => NonEmpty a1 -> p -> (a1 -> NonEmpty a2) -> (a2 -> NonEmpty b) -> Bool
+monadAssociativityNonEmpty = monadAssociativity
+
+-------------------------------------------------------------------------------
 -- Maybe
 -------------------------------------------------------------------------------
 
@@ -107,8 +149,8 @@ monoidRightIdentityMaybe = monoidRightIdentity
 monoidLeftIdentityMaybe :: (Semigroup a, Eq a) => Maybe a -> Bool
 monoidLeftIdentityMaybe = monoidLeftIdentity
 
-monoidAssociativityMaybe :: (Semigroup a, Eq a) => Maybe a -> Maybe a -> Maybe a -> Bool
-monoidAssociativityMaybe = monoidAssociativity
+semigroupAssociativityMaybe :: (Semigroup a, Eq a) => Maybe a -> Maybe a -> Maybe a -> Bool
+semigroupAssociativityMaybe = semigroupAssociativity
 
 monoidConcatenationMaybe ::(Semigroup a, Eq a) =>[Maybe a] -> Bool
 monoidConcatenationMaybe = monoidConcatenation
@@ -182,3 +224,71 @@ appHomomorphismTree = appHomomorphism @Tree
 
 appInterchangeTree :: Eq b => Tree (a -> b) -> a -> Bool
 appInterchangeTree = appInterchange
+
+-------------------------------------------------------------------------------
+-- Reader
+-------------------------------------------------------------------------------
+
+-- Reader Functor
+fmapIdReader :: (Eq r, Eq a) => r -> Reader r a -> Bool
+fmapIdReader r xs = runReader (fmap id xs) r == runReader (id xs) r
+
+fmapCompositionReader :: (Eq r, Eq c) => r -> (b -> c) -> (a -> b) -> Reader r a -> Bool
+fmapCompositionReader r f g xs = runReader (fmap (f . g) xs) r == runReader ((fmap f . fmap g) xs) r
+
+-- Reader Applicative
+appIdentityReader :: (Eq r, Eq a) => r -> Reader r a -> Bool
+appIdentityReader r v = runReader (pure id <*> v) r == runReader v r
+
+appCompositionReader :: (Eq r, Eq b) => r -> Reader r (a1 -> b) -> Reader r (a2 -> a1) -> Reader r a2 -> Bool
+appCompositionReader r u v w = runReader (pure (.) <*> u <*> v <*> w) r == runReader (u <*> (v <*> w)) r
+
+appHomomorphismReader :: forall r a b . (Eq r, Eq b) => r -> (a -> b) -> a -> Bool
+appHomomorphismReader r f x = runReader (pure f <*> (pure :: a -> Reader r a) x) r == runReader (pure (f x)) r
+
+appInterchangeReader :: (Eq r, Eq b) => r -> Reader r (a -> b) -> a -> Bool
+appInterchangeReader r u y = runReader (u <*> pure y) r == runReader (pure ($ y) <*> u) r
+
+-- Reader Monad
+monadLeftIdentityReader :: (Eq r, Eq b) => r -> a -> (a -> Reader r b) -> Bool
+monadLeftIdentityReader r a k = runReader (return a >>= k) r == runReader (k a) r
+
+monadRightIdentityReader :: (Eq r, Eq b) => r -> Reader r b -> Bool
+monadRightIdentityReader r m = runReader (m >>= return) r == runReader m r
+
+monadAssociativityReader :: (Eq r, Eq b) => r -> Reader r a1 -> p -> (a1 -> Reader r a2) -> (a2 -> Reader r b) -> Bool
+monadAssociativityReader r m x k h = runReader (m >>= (\x -> k x >>= h)) r == runReader ((m >>= k) >>= h) r
+
+-------------------------------------------------------------------------------
+-- State
+-------------------------------------------------------------------------------
+
+-- State Functor
+fmapIdState :: (Eq s, Eq a) => s -> State s a -> Bool
+fmapIdState s xs = runState (fmap id xs) s == runState (id xs) s
+
+fmapCompositionState :: (Eq s, Eq c) => s -> (b -> c) -> (a -> b) -> State s a -> Bool
+fmapCompositionState s f g xs = runState (fmap (f . g) xs) s == runState ((fmap f . fmap g) xs) s
+
+-- State Applicative
+appIdentityState :: (Eq s, Eq a) => s -> State s a -> Bool
+appIdentityState s v = runState (pure id <*> v) s == runState v s
+
+appCompositionState :: (Eq s, Eq b) => s -> State s (a1 -> b) -> State s (a2 -> a1) -> State s a2 -> Bool
+appCompositionState s u v w = runState (pure (.) <*> u <*> v <*> w) s == runState (u <*> (v <*> w)) s
+
+appHomomorphismState :: forall s a b . (Eq s, Eq b) => s -> (a -> b) -> a -> Bool
+appHomomorphismState s f x = runState (pure f <*> (pure :: a -> State s a) x) s == runState (pure (f x)) s
+
+appInterchangeState :: (Eq s, Eq b) => s -> State s (a -> b) -> a -> Bool
+appInterchangeState s u y = runState (u <*> pure y) s == runState (pure ($ y) <*> u) s
+
+-- State Monad
+monadLeftIdentityState :: (Eq s, Eq b) => s -> a -> (a -> State s b) -> Bool
+monadLeftIdentityState s a k = runState (return a >>= k) s == runState (k a) s
+
+monadRightIdentityState :: (Eq s, Eq b) => s -> State s b -> Bool
+monadRightIdentityState s m = runState (m >>= return) s == runState m s
+
+monadAssociativityState :: (Eq s, Eq b) => s -> State s a1 -> p -> (a1 -> State s a2) -> (a2 -> State s b) -> Bool
+monadAssociativityState s m x k h = runState (m >>= (\x -> k x >>= h)) s == runState ((m >>= k) >>= h) s

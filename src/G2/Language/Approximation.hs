@@ -175,7 +175,7 @@ moreRestrictive' mr_cont m_gen_lemma lkp = go
                     -- this last case means there's a mismatch
                     | Just (E.Sym _) <- lkp (idName i) s1 -> Left []
                     | not $ (idName i, e2) `elem` n1
-                    , not $ HS.member (idName i) ns -> error $ "unmapped variable " ++ (show i)
+                    , not $ HS.member (idName i) ns -> error $ "unmapped variable " ++ (show i) ++ "\n" ++ show (log_path s1) ++ "\n" ++ show (num_steps s1)
           (_, Var i) | Just (E.Sym _) <- lkp (idName i) s2 -> Left [] -- sym replaces non-sym
                     | not $ (idName i, e1) `elem` n2
                     , not $ HS.member (idName i) ns -> error $ "unmapped variable " ++ (show i)

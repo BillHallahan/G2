@@ -842,6 +842,7 @@ baseTests = testGroup "Base"
                                                       , ("nJustOnes", 2000, [AtLeast 5]) ]
     , checkInputOutputs "tests/BaseTests/MonadZip.hs" [ ("callList", 1000, [AtLeast 15])
                                                       , ("callMaybe", 1000, [AtLeast 3]) ]
+    , checkInputOutputs "tests/BaseTests/NonEmpty.hs" [ ("callMap", 1000, [AtLeast 6]) ]
     , checkInputOutputs "tests/BaseTests/ListTests.hs" [ ("test", 1000, [AtLeast 1])
                                                        , ("maxMap", 1000, [AtLeast 4])
                                                        , ("minTest", 1000, [AtLeast 2])
@@ -1038,6 +1039,12 @@ verifierTests = testGroup "Verifier"
     , checkExprCEx "tests/Verify/State1.hs" "p1False"
 
     , checkExprVerified "tests/Verify/State2.hs" "p1"
+    , checkExprVerified "tests/Verify/State3.hs" "p1"
+    , checkExprVerifiedNoLemmas "tests/Verify/State4.hs" "p1"
+    , checkExprVerifiedWithNoRevAbs "tests/Verify/State5.hs" "p1"
+
+    , checkExprVerified "tests/Verify/Reader1.hs" "p1"
+    , checkExprCEx "tests/Verify/Reader1.hs" "p1False"
 
     , checkRuleVerified "tests/Verify/Rules1.hs" "justJust"
     , checkRuleVerified "tests/Verify/Rules1.hs" "justJust2"
@@ -1193,6 +1200,13 @@ checkExprWithConfig src m_assume m_assert m_reaches entry reqList config_f = do
 
 checkExprVerified :: String -> String -> TestTree
 checkExprVerified = checkExprVerifier (\case Verified -> True; Counterexample _ -> False; VerifyTimeOut -> False)
+
+checkExprVerifiedWithNoRevAbs :: String -> String -> TestTree
+checkExprVerifiedWithNoRevAbs =
+    let
+        vr_config = defVerifyConfig { rev_abs = False }
+    in
+    checkExprVerifierWithConfig vr_config (\case Verified -> True; Counterexample _ -> False; VerifyTimeOut -> False)
 
 checkExprCEx :: String -> String -> TestTree
 checkExprCEx = checkExprVerifier (\case Verified -> False; Counterexample _ -> True; VerifyTimeOut -> False)

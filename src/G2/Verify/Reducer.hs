@@ -73,7 +73,7 @@ nrpcAnyCallReducer no_nrpc_names v_config config =
             , let stripped_ce = stripNRBT ce
             , (Var (Id vn _)):(_:_) <- unApp stripped_ce
             , let tcf = tail_called_funcs vt
-            , Just vn' <- E.deepLookupVar vn eenv
+            , vn' <- deepLookupCenterName vn eenv
             , not $ E.isSymbolic vn' eenv
             , vn `notElem` tcf =
                 let
@@ -81,11 +81,11 @@ nrpcAnyCallReducer no_nrpc_names v_config config =
                 in
                 return (Finished, [(s', rv)], b)
 
-            | maybe True (allowed_frame . fst) (Stck.pop (exec_stack s))
+            | -- Check if we have a symbolic function at the center of the app
+              Var (Id vn t):xs <- unApp $ getExpr s
+            , vn' <- deepLookupCenterName vn eenv
+            , maybe True (allowed_frame . fst) (Stck.pop (exec_stack s)) || E.isSymbolic vn' eenv
             
-            -- Check if we have a symbolic function at the center of the app
-            , Var (Id _ t):xs <- unApp $ getExpr s
-
             -- Calculate arity of function, and wrap it in appropriate number of arguments
             , let arity = length . argumentTypes $ tyVarSubst tvnv t
             , let need_apply = arity - length xs
@@ -104,6 +104,7 @@ nrpcAnyCallReducer no_nrpc_names v_config config =
                 let nr_s_ng = if
                                 -- Line (*) make sure we don't add back to NRPCs immediately.
                                 | not (hasNRBT wrapped_ce) -- (*)
+                                , vn' `notElem` no_nrpc_names
                                 , allowedApp wrapped_ce eenv tvnv -> createRA ng' (focused s'') s''
                                 | otherwise -> Nothing
 
@@ -121,7 +122,7 @@ nrpcAnyCallReducer no_nrpc_names v_config config =
         -- * we are not applying a symbolic function
         allowedApp app eenv tvnv
             | Var (Id n _):_:_ <- unApp app
-            , Just n' <- E.deepLookupVar n eenv
+            , n' <- deepLookupCenterName n eenv
             , not . isTyFun . typeOf tvnv $ app =
                 not (n' `HS.member` no_nrpc_names)
             | Data _:_:_ <- unApp app
@@ -221,6 +222,15 @@ nrpcAnyCallReducer no_nrpc_names v_config config =
                           | Just (ApplyFrame _, stck') <- Stck.pop stck = popAppliable stck'
                           | Just (CurrExprFrame (EnsureEq _) _, stck') <- Stck.pop stck = popAppliable stck'
                           | otherwise = stck
+
+deepLookupCenterName :: Name -> ExprEnv -> Name
+deepLookupCenterName n_init eenv = go n_init (HS.singleton n_init)
+    where
+        go n seen
+            | Just e' <- E.lookup n eenv
+            , Var (Id n' _):_ <- unApp $ stripAllTicks e'
+            , n' `notElem` seen = go n' (HS.insert n' seen)
+            | otherwise = n
 
 -- | Create a NRPC if heuristics apply.
 createRA :: NameGen -> GenFocus n -> State t -> Maybe (State t, Id, NRPC, NameGen)
@@ -425,14 +435,14 @@ verifyHigherOrderHandling = mkSimpleReducer (const ()) red
                                                         _ -> error "verifyHigherOrderHandling: not tyfun") ng3
                             (ret_false, ng5) = freshId ty_fun ng4
 
-                            eq_tc = case lookupTCDict tc (eqTC kv) ty_ar of
+                            eq_tc = case typeClassInst tc HM.empty (eqTC kv) ty_ar of
                                     Just tc -> tc
                                     Nothing -> error $ "verifyHigherOrderHandling: unsupported type" ++ "\n" ++ show ty_fun ++ "\n" ++ show ty_ar
                             eq_f = eqFunc kv
                             eq_f_i = Id eq_f (typeOf tvnv . fromJust $ E.lookup eq_f eenv)
 
                             (ar_bnd, ng6) = freshSeededString "ar" ng5 
-                            e = mkApp [Var eq_f_i, Type ty_ar, Var eq_tc, Var lam_x, Var (Id ar_bnd ty_ar)]
+                            e = mkApp [Var eq_f_i, Type ty_ar, eq_tc, Var lam_x, Var (Id ar_bnd ty_ar)]
 
                             func_body =
                                 Lam TermL lam_x $ 
@@ -649,7 +659,16 @@ genLemmaReducer no_inline solver = (mkSimpleReducer (const ()) red) { onDiscard 
         dis _ _ _ _ = return ()
    
 genLemmaState :: (MonadIO m, Solver solver) => HS.HashSet Name -> solver -> LemmaInfo -> VerifierState -> Bindings -> NRPC -> m (Bindings, Maybe VerifierState)
-genLemmaState no_inline solver (LI { generated_lem = gen_lems, discarded_lem = dis_lems }) s@(State { expr_env = eenv, known_values = kv }) b nrpc = do
+genLemmaState no_inline solver (LI { generated_lem = gen_lems, discarded_lem = dis_lems }) s@(State { expr_env = eenv, known_values = kv }) b nrpc
+    | 
+      -- No point in generating a lemma where the RHS is symbolic, as this would be trivially false
+      Var (Id n _) <- nrpc_rhs nrpc
+    , Just (E.Conc _) <- E.deepLookupConcOrSym n eenv
+
+      -- No point in generating a lemma where the LHS is a symbolic function, as this would be trivially false
+    , Var (Id vn _):_ <- unApp . stripAllTicks $ nrpc_lhs nrpc
+    , vn' <- deepLookupCenterName vn eenv
+    , not (E.isSymbolic vn' eenv) = do
     let (lemma_name, ng2) = freshSeededString "lemma" (name_gen b)
         (emp_nrpc, ng3) = emptyNRPC ng2
         (ng4, nrpcs) = addExistingNRPC ng3 (nrpc { nrpc_focus = Focused }) emp_nrpc
@@ -669,13 +688,8 @@ genLemmaState no_inline solver (LI { generated_lem = gen_lems, discarded_lem = d
     equiv_lemma <-liftIO $ findM (\prev -> liftM2 (&&) (res_check prev lem_s) (res_check lem_s prev)) gen_lems
     dis_lemma <-liftIO $ findM (\s -> res_check s lem_s) dis_lems
 
-    -- No point in generating a lemma where the RHS is symbolic, as this would be trivially false
-    let non_sym_rhs = case nrpc_rhs $ nrpc of
-                        Var (Id n _) | Just (E.Conc _) <- E.deepLookupConcOrSym n eenv -> True
-                        _ -> False
-
-    case (non_sym_rhs, equiv_lemma, dis_lemma) of
-        (True, Nothing, Nothing) -> do
+    case (equiv_lemma, dis_lemma) of
+        (Nothing, Nothing) -> do
             let pretty_nrpc = inlinePretty eenv nrpc
             liftIO . putStrLn $ "Try to prove "
                             <> (T.unpack . printHaskellDirty $ nrpc_lhs pretty_nrpc)
@@ -683,6 +697,7 @@ genLemmaState no_inline solver (LI { generated_lem = gen_lems, discarded_lem = d
                             <> (T.unpack . printHaskellDirty $ nrpc_rhs pretty_nrpc)
             return ( b { name_gen = ng4 }, Just lem_s )
         _ -> return ( b { name_gen = ng4 }, Nothing )
+    | otherwise = return (b, Nothing)
 
 mrContIgnoreNRPCTicks :: Maybe (GenerateLemma t l)
                       -> Lookup t
