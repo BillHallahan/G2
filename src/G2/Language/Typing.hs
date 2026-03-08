@@ -191,12 +191,14 @@ instance Typed Expr where
     typeOf m (Lit lit) = typeOf m lit
     typeOf m (Prim _ ty) = tyVarSubst m ty
     typeOf m (Data dcon) = typeOf m dcon
-    typeOf m a@(App _ _) =
-        let
-            as = passedArgs a
-            t = typeOf m $ appCenter a
-        in
-        appTypeOf TV.empty t as
+    typeOf m (App e1 e2) =
+        case typeOf m e1 of
+            TyForAll i t | Type t_e2 <- e2 -> retype i t_e2 t
+                         | otherwise -> t
+            TyFun _ t -> t
+            -- Special case for GHC.Prim FUN type, which represents a function application.
+            t | [TyCon (Name "FUN" _ _ _) _, _, _, _, _, rt] <- unTyApp t -> rt
+            t -> error $ "typeOf: expected function type but got\n" ++ show t ++ "\nfrom\n" ++ show (App e1 e2) ++ "\ntypeOfe m e1 = "
     typeOf m (Lam u b e) =
         case u of
             TypeL -> TyForAll b (typeOf m e)
@@ -212,34 +214,6 @@ instance Typed Expr where
     typeOf _ (SymGen _ t) = t
     typeOf m (Assert _ _ e) = typeOf m e
     typeOf m (Assume _ _ e) = typeOf m e
-
-passedArgs :: Expr -> [Expr]
-passedArgs = reverse . passedArgs'
-
-passedArgs' :: Expr -> [Expr]
-passedArgs' (App e e') = e':passedArgs' e
-passedArgs' _ = []
-
-appCenter :: Expr -> Expr
-appCenter (App a _) = appCenter a
-appCenter e = e
-
-appTypeOf :: TV.TyVarEnv -> Type -> [Expr] -> Type
-appTypeOf m (TyForAll i t) (Type t':es) =
-    let
-        m' = TV.insert (idName i) (tyVarSubst m t') m
-    in
-    appTypeOf m' t es
-appTypeOf m (TyForAll _ t) (_:es) = appTypeOf m t es
-appTypeOf m (TyFun _ t) (_:es) = appTypeOf m t es
-appTypeOf m t [] = tyVarSubst m t
-appTypeOf m (TyVar (Id n _)) es =
-    case TV.lookup n m of
-        Just t -> appTypeOf m t es
-        Nothing -> error ("appTypeOf: Unknown TyVar")
-appTypeOf _ TyBottom _ = TyBottom
-appTypeOf _ TyUnknown _ = TyUnknown
-appTypeOf _ t es = error ("appTypeOf\n" ++ show t ++ "\n" ++ show es ++ "\n\n")
 
 -- | Check if two types unify.  If they do, returns a `TyVarEnv` of type variables to instantiations.
 unify :: Type -> Type -> Maybe TV.TyVarEnv
