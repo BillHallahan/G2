@@ -545,7 +545,10 @@ instance ASTContainer Handle Type where
         h { h_start = modifyContainedASTs f s, h_pos = modifyContainedASTs f p }
 
 data LitTableCond = Exploring PathConds
-                  | Diff StateDiff
+                  -- Unfortunately, we need to store data about the environments
+                  -- in each Diff frame - this is a somewhat light version of
+                  -- state splitting
+                  | Diff StateDiff (E.ExprEnv, TV.TyVarEnv, MutVarEnv, PathConds)
                   | StartedBuilding Name
                   deriving (Show, Eq, Read, Generic, Typeable, Data)
 
@@ -565,15 +568,15 @@ instance Named LitTable where
 
 instance Named LitTableCond where
     names (Exploring pc) = names pc
-    names (Diff sd) = names sd
+    names (Diff sd prev_s) = names sd <> names prev_s
     names (StartedBuilding n) = names n
 
     rename old new (Exploring pc) = Exploring $ rename old new pc 
-    rename old new (Diff sd) = Diff $ rename old new sd
+    rename old new (Diff sd prev_s) = Diff (rename old new sd) (rename old new prev_s) 
     rename old new (StartedBuilding n) = StartedBuilding $ rename old new n
 
     renames hm (Exploring pc) = Exploring $ renames hm pc
-    renames hm (Diff sd) = Diff $ renames hm sd
+    renames hm (Diff sd prev_s) = Diff (renames hm sd) (renames hm prev_s)
     renames hm (StartedBuilding n) = StartedBuilding $ renames hm n
 
 instance Named StateDiff where
@@ -625,20 +628,20 @@ instance ASTContainer LitTable Expr where
 
 instance ASTContainer LitTableCond Type where
     containedASTs (Exploring pc) = containedASTs pc
-    containedASTs (Diff sd) = containedASTs sd
+    containedASTs (Diff sd prev_s) = (containedASTs sd) ++ (containedASTs prev_s)
     containedASTs (StartedBuilding n) = containedASTs n
 
     modifyContainedASTs f (Exploring pc) = Exploring $ modifyContainedASTs f pc
-    modifyContainedASTs f (Diff sd) = Diff $ modifyContainedASTs f sd
+    modifyContainedASTs f (Diff sd prev_s) = Diff (modifyContainedASTs f sd) (modifyContainedASTs f prev_s)
     modifyContainedASTs f (StartedBuilding n) = StartedBuilding $ modifyContainedASTs f n
 
 instance ASTContainer LitTableCond Expr where
     containedASTs (Exploring pc) = containedASTs pc
-    containedASTs (Diff sd) = containedASTs sd
+    containedASTs (Diff sd prev_s) = (containedASTs sd) ++ (containedASTs prev_s)
     containedASTs (StartedBuilding n) = containedASTs n
 
     modifyContainedASTs f (Exploring pc) = Exploring $ modifyContainedASTs f pc
-    modifyContainedASTs f (Diff sd) = Diff $ modifyContainedASTs f sd
+    modifyContainedASTs f (Diff sd prev_s) = Diff (modifyContainedASTs f sd) (modifyContainedASTs f prev_s)
     modifyContainedASTs f (StartedBuilding n) = StartedBuilding $ modifyContainedASTs f n
 
 instance ASTContainer StateDiff Type where

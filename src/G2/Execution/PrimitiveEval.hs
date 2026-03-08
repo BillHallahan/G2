@@ -463,34 +463,6 @@ evalPrimWithState s ng (App (Prim BuildLitTable _) func_e)
                  }
     in
     Just (newPCEmpty s'', ng'')
-evalPrimWithState s ng expr@(App (Prim (LitTableRef lt_name) _) (Var sym_i)) =
-    -- For each mapping (path conds, literal) in the literal table - we need to create a diff with
-    -- `sym_i` concretized to the literal and the path conds present
-    -- We then push both each diff and the entire previous stack down to the last StartedBuilding
-    -- frame, which will always exist as applications of lit table references only are created
-    -- for nested lit tables
-    -- The first diff will then immediately become an `Exploring`
-    let table = fromJust (M.lookup lt_name $ lit_tables s)
-        make_diff (conds, lit) = SD { new_conc_entries = [(idName sym_i, lit)]
-                                    , new_sym_entries = []
-                                    , new_path_conds = PC.toList conds
-                                    , concretized = []
-                                    , new_true_assert = true_assert s
-                                    , new_assert_ids = assert_ids s
-                                    , new_curr_expr = CurrExpr Return lit
-                                    , new_conc_types = []
-                                    , new_sym_types = []
-                                    , new_mut_vars = [] }
-        -- Note that stacks pop from the front here!
-        -- Also note that these diffs should not update the literal table below them
-        diffs = map (\x -> LitTableFrame (Diff $ make_diff x) False) $ M.toList (lt_mapping table)
-        -- `Unneeded` refers to the stack frames we do not need to copy 
-        (needed, unneeded) = break isSB $ S.toList (exec_stack s)
-        -- Stack frames used to explore more are put after the diff`
-        stack_with_diff diff = diff : needed
-        new_stack = (concatMap stack_with_diff diffs) ++ unneeded
-    in Just (newPCEmpty $ s { exec_stack = S.fromList new_stack
-                            , curr_expr = CurrExpr Return expr }, ng)
 evalPrimWithState s ng (App (Prim Raise _) e2) = Just (
                                                    (newPCEmpty $ s { curr_expr = CurrExpr Evaluate (App (Prim Error TyBottom) e2) })
                                                    , ng)

@@ -503,18 +503,6 @@ evalCase s@(State { expr_env = eenv
   -- as a `CaseFrame` along with their appropriate `ExecExprEnv`. However this
   -- is only done when the matching expression is NOT in value form. Value
   -- forms should be handled by other RuleEvalCase* rules.
-
-  -- When in literal table mode, we want to introduce another literal table here
-  -- and call it later
-  | inLitTableMode s && not (isExprValueForm eenv mexpr) =
-      let case_frame = CaseFrame bind t alts
-          (n, ng') = freshName ng
-          -- This id will likely never be used
-          (sym_id, ng'') = freshId TyUnknown ng'
-          s' = introduceLitTable s { exec_stack = S.push case_frame stck } n sym_id True
-      in ( RuleEvalCaseNonVal
-         , newPCEmpty $ s' { expr_env = eenv
-                           , curr_expr = CurrExpr Evaluate mexpr }, ng'')
   | not (isExprValueForm eenv mexpr) =
       let frame = CaseFrame bind t alts
       in ( RuleEvalCaseNonVal
@@ -1770,9 +1758,12 @@ retLitTableFrame :: (Solver solver, Simplifier simplifier)
                  -> IO (Rule, [State t], NameGen)
 retLitTableFrame solver simplifier s ng ltc up stck = case ltc of
     Exploring _ -> return (RuleReturnLitTable, [updated_state { curr_expr = CurrExpr Return (Var sym_id) } ], ng)
-    Diff sd -> do
+    Diff sd (eenv, tvenv, mvenv, conds) -> do
         -- We need to make sure the argument is still symbolic
         -- after exploring other paths, since it can get concretized
+        let diff_state = s { exec_stack = stck, expr_env = eenv
+                           , tyvar_env = tvenv, mutvar_env = mvenv
+                           , path_conds = conds }
         res <- reduceStateDiff solver simplifier ng diff_state sd
         case res of
             -- Nothing can be done with this diff - try the next
@@ -1822,13 +1813,8 @@ retLitTableFrame solver simplifier s ng ltc up stck = case ltc of
         updated_lts = if up
             then S.modifyTop (updateLiteralTable all_pcs e) $ lit_table_stack s
             else lit_table_stack s
-
-        -- Make sure the argument is always symbolic
-        -- TODO: make the nested ids also symbolic here!
         sym_id = getLTArg s
-        s' = s { expr_env = E.insertSymbolic sym_id (expr_env s) }
-        diff_state = s' { exec_stack = stck }
-        updated_state = s' { exec_stack = stck, lit_table_stack = updated_lts }
+        updated_state = s { exec_stack = stck, lit_table_stack = updated_lts }
 
 unwrapCurrExpr :: CurrExpr -> Expr
 unwrapCurrExpr (CurrExpr _ e) = e

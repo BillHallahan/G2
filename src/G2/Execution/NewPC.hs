@@ -53,7 +53,9 @@ reduceNewPC solver simplifier ng (SplitStatePieces state state_diffs)
     | otherwise =
         mapAccumMaybeM (\ng' sd -> reduceStateDiff solver simplifier ng' state sd) ng state_diffs
     where
-        wrap diff = LitTableFrame (Diff diff) True
+        wrap diff = LitTableFrame (
+                        Diff diff (expr_env state, tyvar_env state, mutvar_env state, path_conds state)
+                    ) True
 
 -- Find the first diff to explore, when in literal table building mode
 reduceToFirstDiff :: (Solver solver, Simplifier simplifier)

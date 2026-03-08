@@ -579,19 +579,16 @@ inner x = case x of
 
 litTableTest2 :: String -> Bool
 litTableTest2 s = L.all f s
-    where f x = case inner x of
-                    'b' -> True
-                    'd' -> True
-                    'x' -> True
-                    'f' -> True
-                    _ -> False
+    where f x = case x of
+                    'z' -> True
+                    _ -> inner2 x
 
 {-# NOINLINE inner2 #-}
-inner2 :: Char -> Char 
+inner2 :: Char -> Bool 
 inner2 x = case x of
-              x | x /= 'a' -> case x of
-                                'b' -> 'w'
-                                'c' -> 'x'
-                                'd' -> 'y'
-                                _ -> x
-              _ -> 'b'
+              'w' -> True
+              _ -> case x of
+                                'b' -> False
+                                'c' -> True
+                                'd' -> False
+                                _ -> True

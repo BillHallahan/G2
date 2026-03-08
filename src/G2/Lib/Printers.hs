@@ -722,7 +722,7 @@ prettyFrame pg (LitTableFrame ltc up) = header <> update_str <> ":\n" <> printLi
 printLiteralTableCond :: PrettyGuide -> LitTableCond -> T.Text
 printLiteralTableCond pg ltc
     | (Exploring pc) <- ltc = "exploring " <> prettyPathConds pg pc
-    | (Diff sd) <- ltc = prettyStateDiff pg sd
+    | (Diff sd _) <- ltc = prettyStateDiff pg sd <> " note: truncated (expr_env, tyvar_env, mutvar_env, conds) for now"
     | (StartedBuilding n) <- ltc = "started building " <> mkNameHaskell pg n
 
 prettyStateDiff :: PrettyGuide -> StateDiff -> T.Text
