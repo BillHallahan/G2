@@ -209,8 +209,9 @@ def typeclass_funcs():
     maybe_laws = [(law + "Maybe", []) for law in all_laws]
     state_laws = [(law + "State", []) for law in functorLaws + applicativeLaws + monadLaws]
     reader_laws = [(law + "Reader", []) for law in functorLaws + applicativeLaws + monadLaws]
+    function_laws = [(law + "Function", []) for law in functorLaws + applicativeLaws + monadLaws]
 
-    return list_laws + zip_list_laws + nonempty_list_laws + tree_laws + maybe_laws + state_laws + reader_laws
+    return list_laws + zip_list_laws + nonempty_list_laws + tree_laws + maybe_laws + state_laws + reader_laws + function_laws
 
 def read_runnable_benchmarks(setpath, settings) :
     props = []
