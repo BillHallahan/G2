@@ -1020,8 +1020,10 @@ verifierTests = testGroup "Verifier"
 
     , checkExprCEx "tests/Verify/NonStrict1.hs" "prop1False"
 
+#if MIN_VERSION_GLASGOW_HASKELL(9,2,0,0)
     , checkExprVerified "tests/Verify/Function1.hs" "p1"
     , checkExprCEx "tests/Verify/Function1.hs" "p1False"
+#endif
 
     , checkExprVerified "tests/Verify/HigherOrder.hs" "prop1"
     , checkExprVerified "tests/Verify/HigherOrder.hs" "prop2"
