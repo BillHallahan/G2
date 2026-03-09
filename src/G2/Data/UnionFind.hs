@@ -112,7 +112,7 @@ find x h =
     unsafePerformIO (do
         h_par <- readIORef (parent h)
         let (cx, f) = findAux x h_par
-        atomicWriteIORef (parent h) f
+        cx `seq` f `seq` atomicWriteIORef (parent h) f
         return cx
     )
 
