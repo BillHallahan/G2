@@ -179,14 +179,14 @@ evalForAll :: forall t. [Type] -> Type -> [Type] -> Type
     -> State t -> E.ExprEnv -> NameGen -> Id -> (Rule, [State t], NameGen)
 evalForAll as t tms tr s@(State {type_env = tenv, known_values = kv, tyvar_env = tvenv}) eenv ng i =
     let 
-        log_rules = True -- toggle for logging rules
+        log_rules = False -- toggle for logging rules
         
         -- Prioritize certain rules before others. '->' means: if no states from before rule, only then attempt to apply the next one.
         -- Current priority sets:
         --      PM-NON-CONT -> PM-UNWRAP -> PM-CYCLE -> {PM-INST-DIRECT, PM-INST-DC, PM-FUNC, PM-FUNC-FORALL, PM-CONST}
         rule_priority_list = [[(pmNonCont, "PM-NON-CONT")], 
                               [(pmUnwrap, "PM-UNWRAP")], 
-                              [(pmCycle, "PM-CYCLE"), (pmInstVar, "PM-INST-VAR"), (pmInstADT, "PM-INST-ADT"), 
+                              [{- (pmCycle, "PM-CYCLE"), -} (pmInstVar, "PM-INST-VAR"), (pmInstADT, "PM-INST-ADT"), 
                                (pmFun, "PM-FUNC"), (pmFunForall, "PM-FUNC-FORALL"), (pmConst, "PM-CONST")]]
         -- Extract the states and the NameGen from the highest priority rule list with a non-empty set of resulting states. (find returns leftmost)
         (states, ng_eval_forall) = fromMaybe ([], ng) 
@@ -357,7 +357,18 @@ evalForAll as t tms tr s@(State {type_env = tenv, known_values = kv, tyvar_env =
                 eenv' = foldr E.insertSymbolic eenv (f:symIds)
                 eenv'' = E.insert (idName i) e' eenv'
 
-            in Just ([(e', eenv'')], ng'''')
+                -- ignore function argument
+                -- TODO: make function
+                (new_as_ignore, ng''''') = freshSeededIds as_ids ng''''
+                f_ignore_ty = renames (HM.fromList (zip (map idName as_ids) (map idName new_as_ignore))) 
+                                    $ mkNestedForAll as $ mkTyFun (map (typeOf tvenv) other_ids ++ [tr])
+                (f_ignore, ng'''''') = freshId f_ignore_ty ng'''''
+                e_ignore = e_template . mkApp $ (Var f_ignore: map (Type . TyVar) as_ids) ++ map Var other_ids
+
+                eenv_ignore = E.insertSymbolic f_ignore eenv
+                eenv_ignore' = E.insert (idName i) e_ignore eenv_ignore
+
+            in Just ([(e_ignore, eenv_ignore'), (e', eenv'')], ng'''''')
             | otherwise = Nothing
 
         -- PM-FUNC-FORALL
