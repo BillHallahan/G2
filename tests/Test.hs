@@ -842,6 +842,8 @@ baseTests = testGroup "Base"
                                                       , ("nJustOnes", 2000, [AtLeast 5]) ]
     , checkInputOutputs "tests/BaseTests/MonadZip.hs" [ ("callList", 1000, [AtLeast 15])
                                                       , ("callMaybe", 1000, [AtLeast 3]) ]
+    , checkInputOutputs "tests/BaseTests/Monoid.hs" [ ("endo1", 1000, [Exactly 2])
+                                                    , ("sum1", 1000, [Exactly 2]) ]
     , checkInputOutputs "tests/BaseTests/NonEmpty.hs" [ ("callMap", 1000, [AtLeast 6]) ]
     , checkInputOutputs "tests/BaseTests/ListTests.hs" [ ("test", 1000, [AtLeast 1])
                                                        , ("maxMap", 1000, [AtLeast 4])
@@ -1019,6 +1021,11 @@ verifierTests = testGroup "Verifier"
     , checkExprCEx "tests/Verify/Infinite1.hs" "p1False"
 
     , checkExprCEx "tests/Verify/NonStrict1.hs" "prop1False"
+
+#if MIN_VERSION_GLASGOW_HASKELL(9,2,0,0)
+    , checkExprVerified "tests/Verify/Function1.hs" "p1"
+    , checkExprCEx "tests/Verify/Function1.hs" "p1False"
+#endif
 
     , checkExprVerified "tests/Verify/HigherOrder.hs" "prop1"
     , checkExprVerified "tests/Verify/HigherOrder.hs" "prop2"

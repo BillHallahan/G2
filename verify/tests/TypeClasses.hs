@@ -292,3 +292,37 @@ monadRightIdentityState s m = runState (m >>= return) s == runState m s
 
 monadAssociativityState :: (Eq s, Eq b) => s -> State s a1 -> p -> (a1 -> State s a2) -> (a2 -> State s b) -> Bool
 monadAssociativityState s m x k h = runState (m >>= (\x -> k x >>= h)) s == runState ((m >>= k) >>= h) s
+
+-------------------------------------------------------------------------------
+-- Function
+-------------------------------------------------------------------------------
+
+-- Function Functor
+fmapIdFunction :: Eq a => e -> (e -> a) -> Bool
+fmapIdFunction e f = (fmap id f) e == (id f) e
+
+fmapCompositionFunction :: Eq c => e -> (b -> c) -> (a -> b) -> (e -> a) -> Bool
+fmapCompositionFunction e f g xs = (fmap (f . g) xs) e == ((fmap f . fmap g) xs) e
+
+-- Function Applicative
+appIdentityFunction :: Eq a => e -> (e -> a) -> Bool
+appIdentityFunction e v = (pure id <*> v) e == v e
+
+appCompositionFunction :: Eq b => e -> (e -> (a1 -> b)) -> (e -> (a2 -> a1)) -> (e -> a2) -> Bool
+appCompositionFunction e u v w = (pure (.) <*> u <*> v <*> w) e == (u <*> (v <*> w)) e
+
+appHomomorphismFunction :: forall e f a b . Eq b => e -> (a -> b) -> a -> Bool
+appHomomorphismFunction e f x = (pure f <*> (pure :: a -> (e -> a)) x) e == (pure (f x)) e
+
+appInterchangeFunction :: Eq b => e -> (e -> (a -> b)) -> a -> Bool
+appInterchangeFunction e u y = (u <*> pure y) e == (pure ($ y) <*> u) e
+
+-- Function Monad
+monadLeftIdentityFunction :: Eq b => e -> a -> (a -> (e -> b)) -> Bool
+monadLeftIdentityFunction e a k = (return a >>= k) e == (k a) e
+
+monadRightIdentityFunction :: Eq b => e -> (e -> b) -> Bool
+monadRightIdentityFunction e m = ((m >>= return) e) == m e
+
+monadAssociativityFunction :: Eq b => e -> (e -> a1) -> p -> (a1 -> (e -> a2)) -> (a2 -> (e -> b)) -> Bool
+monadAssociativityFunction e m x k h = (m >>= (\x -> k x >>= h)) e == ((m >>= k) >>= h) e

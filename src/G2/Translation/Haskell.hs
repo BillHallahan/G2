@@ -119,6 +119,7 @@ equivMods = HM.fromList
             , ("GHC.Internal.Data.Foldable", "Data.Foldable")
             , ("GHC.Internal.Data.Function", "Data.Function")
             , ("GHC.Internal.Data.Functor.Identity", "Data.Functor.Identity")
+            , ("GHC.Internal.Data.Semigroup.Internal", "Data.Semigroup.Internal")
             , ("GHC.Internal.Exception.Type", "GHC.Exception")
             , ("GHC.Internal.IO", "GHC.IO")
             , ("GHC.Internal.List", "GHC.List")
