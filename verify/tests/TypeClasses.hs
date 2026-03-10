@@ -5,6 +5,7 @@ module TypeClasses where
 import Control.Applicative
 import Data.Functor.Classes
 import Data.List.NonEmpty
+import Data.Monoid
 
 import TypeclassCode.Tree
 import TypeclassCode.Reader
@@ -326,3 +327,50 @@ monadRightIdentityFunction e m = ((m >>= return) e) == m e
 
 monadAssociativityFunction :: Eq b => e -> (e -> a1) -> p -> (a1 -> (e -> a2)) -> (a2 -> (e -> b)) -> Bool
 monadAssociativityFunction e m x k h = (m >>= (\x -> k x >>= h)) e == ((m >>= k) >>= h) e
+
+-------------------------------------------------------------------------------
+-- Tuple
+-------------------------------------------------------------------------------
+
+-- Tuple Monoid
+monoidRightIdentityTuple :: (Monoid a, Eq a) => (Sum Int, a) -> Bool
+monoidRightIdentityTuple = monoidRightIdentity
+
+monoidLeftIdentityTuple :: (Monoid a, Eq a) => (Sum Int, a) -> Bool
+monoidLeftIdentityTuple = monoidLeftIdentity
+
+semigroupAssociativityTuple :: (Semigroup a, Eq a) => (Sum Int, a) -> (Sum Int, a) -> (Sum Int, a) -> Bool
+semigroupAssociativityTuple = semigroupAssociativity
+
+monoidConcatenationTuple ::(Monoid a, Eq a) =>[(Sum Int, a)] -> Bool
+monoidConcatenationTuple = monoidConcatenation
+
+-- Tuple Functor
+fmapIdTuple :: (Eq a, Eq b) => (b, a) -> Bool
+fmapIdTuple = fmapId
+
+fmapCompositionTuple :: (Eq e, Eq c) => (b -> c) -> (a -> b) -> (e, a) -> Bool
+fmapCompositionTuple = fmapComposition
+
+-- Tuple applicative
+appIdentityTuple :: Eq a => (Sum Int, a) -> Bool
+appIdentityTuple = appIdentity
+
+appCompositionTuple :: Eq b => (Sum Int, a1 -> b) -> (Sum Int, a2 -> a1) -> (Sum Int, a2) -> Bool
+appCompositionTuple = appComposition
+
+appHomomorphismTuple :: forall a b . (Monoid a, Eq a, Eq b) => (a -> b) -> a -> Bool
+appHomomorphismTuple = appHomomorphism @((,) a)
+
+appInterchangeTuple :: Eq b => (Sum Int, a -> b) -> a -> Bool
+appInterchangeTuple = appInterchange
+
+-- Tuple Monad
+monadLeftIdentityTuple :: Eq b => a -> (a -> (Sum Int, b)) -> Bool
+monadLeftIdentityTuple = monadLeftIdentity
+
+monadRightIdentityTuple :: Eq b => (Sum Int, b) -> Bool
+monadRightIdentityTuple = monadRightIdentity
+
+monadAssociativityTuple :: Eq b => (Sum Int, a1) -> p -> (a1 -> (Sum Int, a2)) -> (a2 -> (Sum Int, b)) -> Bool
+monadAssociativityTuple = monadAssociativity
