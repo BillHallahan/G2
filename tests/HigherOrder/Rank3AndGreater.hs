@@ -15,6 +15,10 @@ polyFuncArgADT f = f (\(Box (Box x)) -> x)
 polyFuncArgWithFuncArg :: ((forall a. (a -> a) -> a -> a) -> Int) -> Int
 polyFuncArgWithFuncArg g = g (\f x -> f x)
 
+-- will produce an error
+polyFuncArgUnhandledKind :: ((forall m. m Int -> m Int) -> Int) -> Int
+polyFuncArgUnhandledKind f = f (\x -> x)
+
 polyFuncArgWithPolyFuncArg :: ((forall a. (forall a b. a -> b -> (Boxed a, b)) -> a -> (Boxed a, a)) -> Int) -> Int
 polyFuncArgWithPolyFuncArg g = g (\poly x -> poly x x)
 
@@ -48,7 +52,3 @@ forallWithPolyFuncArgBox f = f (\x -> Box x) True
 --     existing (a, b) will not be used.
 forallWithPolyFuncArgTup :: (forall a b. (forall c d. c -> d -> (c, d)) -> a -> b -> (a, b)) -> (Bool, Int)
 forallWithPolyFuncArgTup f = f (\x y -> (x, y)) True 7
-
-{- -- TODO: think about partial application
-adtForall :: (forall a. (forall m. a -> a -> m a) -> a -> (a -> m a)) -> (Int -> Boxed Int)
-adtForall f = f (\x wx -> wx) 4 -}

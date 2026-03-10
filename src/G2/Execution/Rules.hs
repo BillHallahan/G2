@@ -382,10 +382,11 @@ evalForAll as ts tr s@(State {type_env = tenv, known_values = kv, tyvar_env = tv
 
         -- TODO: Assuming PM-NON-CONT has floated out functions with containsTyVars == False
         isMatchingFuncArgForall :: Id -> Bool
-        isMatchingFuncArgForall possFAF
-            | possFAF_ty <- typeOf tvenv possFAF
-            , (_:_) <- leadingTyForAllBindings possFAF_ty
-            , (TyFun _ _) <- inTyForAlls possFAF_ty = assert (containsTyVars possFAF_ty as_ids) True
+        isMatchingFuncArgForall poss_faf
+            | poss_faf_ty <- typeOf tvenv poss_faf
+            , poss_faf_as@(_:_) <- leadingTyForAllBindings poss_faf_ty
+            , (TyFun _ _) <- inTyForAlls poss_faf_ty 
+            , kindsHandled poss_faf_as = assert (containsTyVars poss_faf_ty as_ids) True
             | otherwise = False
 
         -- Creates arguments for a function argument or data constructor. The arguments may be:
@@ -1789,7 +1790,8 @@ retReplaceSymbFuncTemplate sft
     , tf@(TyFun _ _) <- inTyForAlls t1
     , (tfs@(_:_), tr) <- argTypes tf -- tfs should be non-null
     , E.isSymbolic n eenv
-    = let
+    , kindsHandled as
+    = let  
         applying_type = tyInteger kv -- Binding all type variables to Integer
         (fa, ng') = freshId t1 ng
         (f, ng'') = freshId (TyFun (retypes (map (, applying_type) as) tr) $ TyFun t1 t2) ng'
@@ -1831,6 +1833,15 @@ retReplaceSymbFuncTemplate sft
     }], ng')
 
     | otherwise = Nothing
+
+-- | For use during symbolic function instantiation, when a polymorphic function 
+-- is being applied in a definition. Checks if all Ids have kinds that are currently handled.
+kindsHandled :: [Id] -> Bool
+kindsHandled = all kindHandled
+    where 
+        kindHandled (Id _ TYPE) = True
+        kindHandled (Id _ kind) = error $ "While instantiating function, creating definition that applies a polymorphic function having type arguments of unsupported kind: "
+                                    ++ show kind
 
 argTypes :: Type -> ([Type], Type)
 argTypes t = (anonArgumentTypes t, returnType t)
