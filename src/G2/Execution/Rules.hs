@@ -123,32 +123,24 @@ stdReduce' _ symb_func_eval solver simplifier s@(State { curr_expr = CurrExpr Re
         where
             frstck = S.pop stck
 
--- TODO: probably change to forall a1..an. tm -> tr, tm = t_1..t_r-1
 -- | Separate a type into what is required for some RankNTypes rules.
-sepTypeForRNT :: Type -> ([Type], Maybe Type, [Type], Maybe Type)
-sepTypeForRNT full_type = {-trace (show (vs, t, tms, tr))-} (vs, t, tms, tr)
+sepTypeForRNT :: Type -> ([Type], [Type], Maybe Type)
+sepTypeForRNT full_type = (vs, ts, tr)
     where 
         (vs, remain) = getVs full_type
-        (t, remain') = getT remain
-        (tms, tr) = getTms remain'
+        (ts, tr) = getTs remain
 
-        -- TODO: expected difference between this and above implementation
-        -- on forall a b. b -> b, but behaved the same. Make sure this impl. is needed.
         getVs :: Type -> ([Type], Maybe Type) 
         getVs (TyForAll tvid _vs) = let 
             (vs', rest) = getVs _vs 
                 in (TyVar tvid:vs', rest)
         getVs notFA = ([], Just notFA)
 
-        getT :: Maybe Type -> (Maybe Type, Maybe Type)
-        getT (Just (TyFun first rest)) = (Just first, Just rest)
-        getT notFirst = (Nothing, notFirst)
-
-        getTms :: Maybe Type -> ([Type], Maybe Type)
-        getTms (Just (TyFun tm1 tm_rest)) = let
-            (tms', rest) = getTms (Just tm_rest)
-                in (tm1:tms', rest)
-        getTms mtr = ([], mtr) -- ignore last in tms, return as tr
+        getTs :: Maybe Type -> ([Type], Maybe Type)
+        getTs (Just (TyFun t1 ts)) = let
+            (ts', rest) = getTs (Just ts)
+                in (t1:ts', rest)
+        getTs mt = ([], mt) -- ignore last in tms, return as tr
 
 mkNestedLam :: LamUse -> [Id] -> Expr -> Expr
 mkNestedLam lu vs e = foldr (Lam lu) e vs
@@ -164,10 +156,9 @@ containsTyVars t as = not . null $ as `intersect` tyVarIds t
 
 -- A rule function can produce multiple states but must produce one NameGen.
 type FARuleF = NameGen -> Maybe ([(Expr, E.ExprEnv)], NameGen)
--- TODO: way to order both funcion type and and application expression together
-evalForAll :: forall t. [Type] -> Type -> [Type] -> Type 
+evalForAll :: forall t. [Type] -> [Type] -> Type 
     -> State t -> E.ExprEnv -> NameGen -> Id -> (Rule, [State t], NameGen)
-evalForAll as t tms tr s@(State {type_env = tenv, known_values = kv, tyvar_env = tvenv}) eenv ng i =
+evalForAll as ts tr s@(State {type_env = tenv, known_values = kv, tyvar_env = tvenv}) eenv ng i =
     let 
         log_rules = False -- toggle for logging rules
         
@@ -196,14 +187,14 @@ evalForAll as t tms tr s@(State {type_env = tenv, known_values = kv, tyvar_env =
     in
         (RuleEvalVal, states, ng_eval_forall)
     where
-        (term_args@(x:ys), ng') = freshIds (t:tms) ng
+        (term_args, ng') = freshIds (ts) ng
         as_ids = map (\case (TyVar tvi) -> tvi; _ -> error "evalForAll: non-type variable in as") as
         e_template :: Expr -> Expr
         e_template ex = mkNestedLam TypeL as_ids $ mkNestedLam TermL term_args ex
 
         -- PM-INST-VAR
         pmInstVar ng_in
-            | tr `elem` (t:tms) -- return type in arguments
+            | tr `elem` ts -- return type in arguments
             , containsTyVars tr as_ids -- return type contains a bound type variable, otherwise can rely on arb. value gen.
             = let
                 ret_x_ids = filter ((== tr) . typeOf tvenv) term_args
@@ -269,11 +260,7 @@ evalForAll as t tms tr s@(State {type_env = tenv, known_values = kv, tyvar_env =
         -- PM-INST-ADT
         pmInstADT ng_in
             | containsTyVars tr as_ids
-            , not . null $ (t:tms)
-            -- if the below guard is null, the function is returning an ADT applied at its lowest levels
-            -- to literal types, so no new behavior will be found by using this rule to instantiate it.
-            -- ex. forall a. a -> Maybe Int. 
-            -- PM-CONST will apply instead and allow the arbitrary value generator to instantiate the value.
+            , not . null $ ts
             , TyCon adt_name _:adt_ts <- unTyApp tr
             , Just alg_data_ty <- HM.lookup adt_name tenv
             = let
@@ -288,7 +275,7 @@ evalForAll as t tms tr s@(State {type_env = tenv, known_values = kv, tyvar_env =
                         let 
                             (di_arg_ts, _) = argTypes dcty
                             -- Create arguments to be applied to the DC
-                            (fd_apps, fd_symIds, ng1') = argumentExprs True ng1 (x, ys) di_arg_ts
+                            (fd_apps, fd_symIds, ng1') = argumentExprs ng1 term_args di_arg_ts
                             di_alt_expr = mkApp ((Data dc:map Type adt_ts) ++ fd_apps)
                         in 
                             ((di_alt_expr, fd_symIds) : all_a_exprs_sym_ids, ng1')
@@ -304,8 +291,6 @@ evalForAll as t tms tr s@(State {type_env = tenv, known_values = kv, tyvar_env =
             | otherwise = Nothing
             
         -- PM-FUNC
-        -- TODO: better naming in let bindings
-        -- TODO: not passing function itself to inner expressions is not effective, should omit all functions
         pmFun :: Id -> NameGen -> (Expr, E.ExprEnv, NameGen)
         pmFun fun_id ng_in 
             = let
@@ -316,7 +301,7 @@ evalForAll as t tms tr s@(State {type_env = tenv, known_values = kv, tyvar_env =
                                     $ mkNestedForAll as $ mkTyFun (f_tr:map (typeOf tvenv) (fun_id:other_ids) ++ [tr])
                 (f, ng''') = freshId f_ty ng''
 
-                (fa_exprs, symIds, ng'''') = argumentExprs False ng''' (fun_id, other_ids) f_targs
+                (fa_exprs, symIds, ng'''') = argumentExprs ng''' term_args f_targs
 
                 e' = e_template . mkApp $ (Var f:map (Type . TyVar) as_ids) ++ [mkApp (Var fun_id:fa_exprs)] ++ map Var (fun_id:other_ids)
 
@@ -352,7 +337,7 @@ evalForAll as t tms tr s@(State {type_env = tenv, known_values = kv, tyvar_env =
                                     $ mkNestedForAll as $ mkTyFun (fa_tr_subst:map (typeOf tvenv) (fun_id:other_ids) ++ [tr])
                 (f, ng''') = freshId f_ty ng''
 
-                (fa_exprs, symIds, ng'''') = argumentExprs False ng''' (fun_id, other_ids) fa_ts_subst
+                (fa_exprs, symIds, ng'''') = argumentExprs ng''' term_args fa_ts_subst
 
                 t_vs = replicate (length fa_as) (Type applying_type)
                 e' = e_template . mkApp $ (Var f:map (Type . TyVar) as_ids) ++ [mkApp $ (Var fun_id:t_vs) ++ fa_exprs] ++ map Var (fun_id:other_ids)
@@ -407,26 +392,23 @@ evalForAll as t tms tr s@(State {type_env = tenv, known_values = kv, tyvar_env =
         --      1. Direct symbolic values (for types Int, [Maybe Bool], etc.)
         --      2. Created by application of a symbolic function (for types a, (a, b), etc.)
         --         which are of polymorphic type and cannot be instantiated directly.
-        -- There is an option to omit forwarding the first argument, in the case of 
-        -- PM-FUNC(-FORALL), or to keep it, in the case of PM-INST-ADT.
-        -- TODO: change names here
-        argumentExprs :: Bool -> NameGen -> (Id, [Id]) -> [Type] -> ([Expr], [Id], NameGen)
-        argumentExprs fwd_selected_arg ng_prior (selected_id, other_ids) = foldr go ([], [], ng_prior)
+        argumentExprs :: NameGen -> [Id] -> [Type] -> ([Expr], [Id], NameGen)
+        argumentExprs ng_prior arg_ids = foldr go ([], [], ng_prior)
             where
                 go :: Type -> ([Expr], [Id], NameGen) -> ([Expr], [Id], NameGen)
-                go fa_ti (faes, _symIds, ng1) 
-                    | containsTyVars fa_ti as_ids
+                go arg_ty (all_arg_exprs, all_arg_sym_ids, ng1) 
+                    | containsTyVars arg_ty as_ids
                     -- Need to make argument with symbolic function
                     = let 
-                        (fa_id_new_as, ng1') = freshSeededIds as_ids ng1
-                        fa_id_ty = renames (HM.fromList (zip (map idName as_ids) (map idName fa_id_new_as)))
-                                    $ mkNestedForAll as $ mkTyFun $ [typeOf tvenv selected_id | fwd_selected_arg] ++ map (typeOf tvenv) other_ids ++ [fa_ti]
-                        (fa_id, ng1'') = freshId fa_id_ty ng1'
-                        fa_expr = mkApp $ [Var fa_id] ++ map (Type . TyVar) as_ids ++ map Var ([selected_id | fwd_selected_arg] ++ other_ids)
+                        (new_as, ng2) = freshSeededIds as_ids ng1
+                        arg_expr_func_ty = renames (HM.fromList (zip (map idName as_ids) (map idName new_as)))
+                                    $ mkNestedForAll as $ mkTyFun $ map (typeOf tvenv) arg_ids ++ [arg_ty]
+                        (arg_expr_func, ng3) = freshId arg_expr_func_ty ng2
+                        arg_expr_ = mkApp $ [Var arg_expr_func] ++ map (Type . TyVar) as_ids ++ map Var arg_ids
                     in 
-                        (fa_expr:faes, fa_id:_symIds, ng1'')
+                        (arg_expr_:all_arg_exprs, arg_expr_func:all_arg_sym_ids, ng3)
                     -- Can make symbolic argument directly
-                    | otherwise = let (xi, ng1') = freshId fa_ti ng1 in (Var xi:faes, xi:_symIds, ng1')
+                    | otherwise = let (xi, ng2) = freshId arg_ty ng1 in (Var xi:all_arg_exprs, xi:all_arg_sym_ids, ng2)
 
 evalVarSharing :: State t -> NameGen -> Id -> (Rule, [State t], NameGen)
 evalVarSharing s@(State { expr_env = eenv
@@ -435,8 +417,8 @@ evalVarSharing s@(State { expr_env = eenv
 
     | E.isSymbolic (idName i) eenv              
     , Id _ iTy <- i
-    , (as@(_:_), Just t, tms, Just tr) <- sepTypeForRNT iTy
-        =  evalForAll as t tms tr s eenv ng i
+    , (as@(_:_), ts, Just tr) <- sepTypeForRNT iTy
+        =  evalForAll as ts tr s eenv ng i
 
     | E.isSymbolic (idName i) eenv =
         (RuleEvalVal, [s { curr_expr = CurrExpr Return (Var i)}], ng)
