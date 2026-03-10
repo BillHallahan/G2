@@ -212,7 +212,7 @@ def typeclass_funcs():
     tuple_laws = [(law + "Tuple", []) for law in all_laws]
     function_laws = [(law + "Function", []) for law in functorLaws + applicativeLaws + monadLaws]
 
-    return list_laws + zip_list_laws + nonempty_list_laws + tree_laws + maybe_laws + state_laws + reader_laws + function_laws
+    return list_laws + zip_list_laws + nonempty_list_laws + tree_laws + maybe_laws + state_laws + reader_laws + tuple_laws + function_laws
 
 def read_runnable_benchmarks(setpath, settings) :
     props = []
