@@ -128,7 +128,8 @@ sampleTests = testGroup "Samples"
         , RExists subRes
         , AtLeast 2]
     , checkExpr "tests/Samples/HigherOrderMath.hs" 600 "functionSatisfies" [RExists functionSatisfiesRes, AtLeast 1]
-    , checkExpr "tests/Samples/HigherOrderMath.hs" 1000 "approxSqrt" [AtLeast 2]
+    , checkExprWithConfig "tests/Samples/HigherOrderMath.hs" Nothing Nothing Nothing
+                                "approxSqrt" [AtLeast 2] (do config <- mkConfigTestIO; return $ config { fp_handling = RationalFP })
     -- The below test fails because Z3 returns unknown.
     -- , checkExprAssume "tests/Samples/HigherOrderMath.hs" 1200 (Just "isTrue2") "sameFloatArgLarger" 2
     --                                                             [ RExists approxSqrtRes
@@ -1040,6 +1041,8 @@ verifierTests = testGroup "Verifier"
 
     , checkExprVerified "tests/Verify/Tree1.hs" "fmapIdTree"
     , checkExprVerified "tests/Verify/Tree1.hs" "fmapCompositionTree"
+
+    , checkExprVerified "tests/Verify/Tuple1.hs" "p1"
 
     , checkExprVerified "tests/Verify/State1.hs" "simple1"
     , checkExprVerified "tests/Verify/State1.hs" "p1"

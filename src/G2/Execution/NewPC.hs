@@ -76,10 +76,9 @@ reduceNewPC' solver simplifier ng
                                 let (ng_', eenv_', pc_') = simplifyPCWithExprEnv simplifier s ng_ eenv_ pc_ in
                                 ((ng_', eenv_'), pc_')) (ng, eenv) pc
 
-        let pc'' = map (simplifyPC simplifier s) pc'
-            pc''' = concat pc''
+        let pc'' = concat pc'
 
-        let new_pc = foldr PC.insert state_pc $ pc'''
+        let new_pc = foldr PC.insert state_pc $ pc''
             new_pc' = foldr (simplifyPCs simplifier s) new_pc pc
 
             s' = s { expr_env = eenv', path_conds = new_pc' }
@@ -93,7 +92,7 @@ reduceNewPC' solver simplifier ng
         -- For this reason, we extract names for the original (unsimplified) path constraints
         let ns = (concatMap PC.varNamesInPC pc) ++ namesList concIds
             rel_pc = case ns of
-                [] -> PC.fromList pc'''
+                [] -> PC.fromList pc''
                 _ -> PC.scc' (Nothing:map Just ns) new_pc'
 
         res <- check solver s rel_pc
