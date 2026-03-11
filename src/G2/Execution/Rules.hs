@@ -1793,29 +1793,31 @@ retReplaceSymbFuncTemplate sft
     , E.isSymbolic n eenv
     , kindsHandled as
     = let
-        -- applying_type = tyInteger kv -- Binding all type variables to Integer
-        (sym_type_id, ng') = freshSeededId (Name "st" Nothing 0 Nothing) TYPE ng -- assuming kind = *
-        (at_id, ng'') = freshSeededId (Name "a" Nothing 0 Nothing) (TyVar sym_type_id) ng'
-        applying_type = TyVar at_id
-        tvenv' = TV.insertSymbolic sym_type_id tvenv
-
-        (fa, ng''') = freshId t1 ng''
-        (f, ng'''') = freshId (TyFun (retypes (map (, applying_type) as) tr) $ TyFun t1 t2) ng'''
-
-        t_vs = replicate (length as) (Type applying_type)
+        -- Currently assumes all type arguments to the function argument have kind :: *. 
         
-        (xIds, ng''''') = freshIds (retypes (map (, applying_type) as) tfs) ng''''
-        e = Lam TermL fa $ mkApp [Var f, mkApp (Var fa:(t_vs ++ map Var xIds)), Var fa]
+        (sym_type_id, ng2) = freshSeededId (Name "sym_ty" Nothing 0 Nothing) TYPE ng -- assuming kind = *
+        tvenv' = TV.insertSymbolic sym_type_id tvenv
+        applying_type = TyVar sym_type_id -- this is the type we apply for all type variables
+        -- Before, this was:
+        --      applying_type = tyInteger kv -- Binding all type variables to Integer
+        
+        (func_arg_id, ng3) = freshId t1 ng2
+        (f, ng4) = freshId (TyFun (retypes (map (, applying_type) as) tr) $ TyFun t1 t2) ng3
+
+        func_arg_as = replicate (length as) (Type applying_type) -- assuming only kind = *
+        
+        (xIds, ng5) = freshIds (retypes (map (, applying_type) as) tfs) ng4
+        e = Lam TermL func_arg_id $ mkApp [Var f, mkApp (Var func_arg_id:(func_arg_as ++ map Var xIds)), Var func_arg_id]
         
         eenv' = foldr E.insertSymbolic eenv xIds
         eenv'' = E.insertSymbolic f eenv'
         eenv''' = E.insert n e eenv''
-        (constState, ng'''''') = mkFuncConst sft s es n t1 t2 ng'''''
+        (constState, ng6) = mkFuncConst sft s es n t1 t2 ng5
     in Just (RuleReturnReplaceSymbFunc, [constState, s {
         curr_expr = CurrExpr Evaluate $ mkApp (e:es),
         expr_env = eenv''',
         tyvar_env = tvenv'
-    }], ng'''''')
+    }], ng6)
 
     -- LIT-SPLIT
     | Var (Id n nTy@(TyFun t1 t2)):ea:es <- unApp ce
