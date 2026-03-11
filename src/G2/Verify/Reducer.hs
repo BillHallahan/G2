@@ -33,6 +33,7 @@ import G2.Language.Approximation
 import qualified G2.Language.ExprEnv as E
 import G2.Language.ReachesSym
 import G2.Language.KnownValues
+import G2.Language.NonRedPathConds
 import qualified G2.Language.Stack as Stck
 import qualified G2.Language.Typing as T
 import G2.Lib.Printers
@@ -659,10 +660,11 @@ genLemmaReducer no_inline solver = (mkSimpleReducer (const ()) red) { onDiscard 
         dis _ _ _ _ = return ()
    
 genLemmaState :: (MonadIO m, Solver solver) => HS.HashSet Name -> solver -> LemmaInfo -> VerifierState -> Bindings -> NRPC -> m (Bindings, Maybe VerifierState)
-genLemmaState no_inline solver (LI { generated_lem = gen_lems, discarded_lem = dis_lems }) s@(State { expr_env = eenv, known_values = kv }) b nrpc
-    | 
+genLemmaState no_inline solver (LI { generated_lem = gen_lems, discarded_lem = dis_lems }) s@(State { expr_env = eenv, tyvar_env = tv_env, known_values = kv }) b nrpc
+    | -- Generate lemmas only if we have symbolic functions
+      any (isTyFun . typeOf tv_env . snd) . E.toExprList . E.filterToSymbolic $ expr_env s
       -- No point in generating a lemma where the RHS is symbolic, as this would be trivially false
-      Var (Id n _) <- nrpc_rhs nrpc
+    , Var (Id n _) <- nrpc_rhs nrpc
     , Just (E.Conc _) <- E.deepLookupConcOrSym n eenv
 
       -- No point in generating a lemma where the LHS is a symbolic function, as this would be trivially false
