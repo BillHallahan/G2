@@ -853,7 +853,9 @@ baseTests = testGroup "Base"
                                                        , ("foldrTest2", 1000, [AtLeast 1])
                                                        , ("unionTest", 1000, [AtLeast 9]) ]
 
-    , checkInputOutput "tests/BaseTests/Tuples.hs" "addTupleElems" 1000 [AtLeast 2]
+    , checkInputOutputs "tests/BaseTests/Tuples.hs" [ ("addTupleElems", 1000, [AtLeast 2])
+                                                    , ("applicativeTuple", 1000, [Exactly 1])
+                                                    , ("monadTuple", 1000, [Exactly 1]) ]
 
     , checkInputOutputs "tests/BaseTests/MaybeTest.hs" [ ("headMaybeInt", 1000, [AtLeast 2])
                                                        , ("sumN", 1000, [AtLeast 6])
@@ -1039,6 +1041,8 @@ verifierTests = testGroup "Verifier"
 
     , checkExprVerified "tests/Verify/Tree1.hs" "fmapIdTree"
     , checkExprVerified "tests/Verify/Tree1.hs" "fmapCompositionTree"
+
+    , checkExprVerified "tests/Verify/Tuple1.hs" "p1"
 
     , checkExprVerified "tests/Verify/State1.hs" "simple1"
     , checkExprVerified "tests/Verify/State1.hs" "p1"
