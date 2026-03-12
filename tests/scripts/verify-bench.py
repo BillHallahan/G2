@@ -210,7 +210,7 @@ def typeclass_funcs():
     state_laws = [(law + "State", []) for law in functorLaws + applicativeLaws + monadLaws]
     reader_laws = [(law + "Reader", []) for law in functorLaws + applicativeLaws + monadLaws]
     tuple_laws = [(law + "Tuple", []) for law in all_laws]
-    function_laws = [(law + "Function", []) for law in functorLaws + applicativeLaws + monadLaws]
+    function_laws = [(law + "Function", []) for law in semigroupLaws + functorLaws + applicativeLaws + monadLaws]
 
     return list_laws + zip_list_laws + nonempty_list_laws + tree_laws + maybe_laws + state_laws + reader_laws + tuple_laws + function_laws
 

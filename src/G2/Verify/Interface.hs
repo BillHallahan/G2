@@ -77,7 +77,7 @@ verifyRedHaltOrd s solver simplifier config verify_config no_nrpc_names = do
                          $ expr_env s
                          
         strict_red f = case strict config of
-                            True -> SomeReducer (verifyHigherOrderHandling ~> stdRed share f solver simplifier ~> instTypeRed)
+                            True -> SomeReducer (verifyHigherOrderHandling ~> liftOutFullyAppedReducer ~> stdRed share f solver simplifier ~> instTypeRed)
                             False -> SomeReducer (stdRed share f solver simplifier ~> instTypeRed)
 
         nrpc_higher_red f = liftSomeReducer (strict_red f)

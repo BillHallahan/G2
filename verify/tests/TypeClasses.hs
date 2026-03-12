@@ -298,6 +298,10 @@ monadAssociativityState s m x k h = runState (m >>= (\x -> k x >>= h)) s == runS
 -- Function
 -------------------------------------------------------------------------------
 
+-- Semigroup Function (Endo)
+semigroupAssociativityFunction :: Eq a => a -> (a -> a) -> (a -> a) -> (a -> a) -> Bool
+semigroupAssociativityFunction e f g h = appEndo (Endo f <> (Endo g <> Endo h)) e == appEndo ((Endo f <> Endo g) <> Endo h) e
+
 -- Function Functor
 fmapIdFunction :: Eq a => e -> (e -> a) -> Bool
 fmapIdFunction e f = (fmap id f) e == (id f) e

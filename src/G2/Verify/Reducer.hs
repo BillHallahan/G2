@@ -21,12 +21,15 @@ module G2.Verify.Reducer ( VerifierTracker (..)
                          
                          , discardOnFalse
                          , currExprIsFalse
-                         , currExprIsTrue ) where
+                         , currExprIsTrue
+                         
+                         , liftOutFullyAppedReducer) where
 
 import G2.Config
 import qualified G2.Data.UFMap as UF
 import G2.Data.Utils
 import G2.Execution.Reducer
+import G2.Execution.Rules
 import G2.Interface
 import G2.Language
 import G2.Language.Approximation
@@ -34,6 +37,7 @@ import qualified G2.Language.ExprEnv as E
 import G2.Language.ReachesSym
 import G2.Language.KnownValues
 import G2.Language.NonRedPathConds
+import G2.Language.Monad
 import qualified G2.Language.Stack as Stck
 import qualified G2.Language.Typing as T
 import G2.Lib.Printers
@@ -49,6 +53,7 @@ import qualified Data.HashMap.Strict as HM
 import Data.List
 import qualified Data.Map.Lazy as M
 import Data.Maybe
+import Data.Monoid (All (..))
 import qualified Data.Sequence as Seq
 import qualified Data.Text as T
 import Data.Traversable
@@ -460,6 +465,52 @@ verifyHigherOrderHandling = mkSimpleReducer (const ()) red
                         in
                         return (InProgress, [(s', ())], b {name_gen = ng6})
         red _ s b = return (Finished, [(s, ())], b)
+
+-- | If a let expression-bound function calls a function `f` where:
+-- (1) f is applies to only concrete values, and
+-- (2) f's definition contains a symbolic variable
+-- lift out the application of f into a reversible abstraction
+liftOutFullyAppedReducer :: Monad m => Reducer m () t
+liftOutFullyAppedReducer = mkSimpleReducer (const ()) red
+    where
+        red _ s@(State { expr_env = eenv, curr_expr = CurrExpr Evaluate (Let bs le), tyvar_env = tv_env }) b@(Bindings { name_gen = ng }) =
+            let
+                let_ns = map fst bs
+                ((renamed_bs, renamed_le), ng') = doRenames (map idName let_ns) ng (bs, le)
+                (s', b') = execStateM (mapM adjustBinds renamed_bs) s (b { name_gen = ng'})
+
+                adjustBinds ((Id bind (TyFun _ _)), e) = do
+                    e' <- modifyChildrenM adjustApps e
+                    insertE bind e'
+                adjustBinds (Id bind _, e) = insertE bind e
+
+                adjustApps let_e@(Let _ _) = return let_e
+                adjustApps e@(App _ _) | c:es <- unApp e
+                                       , reachesSymbolic eenv c
+                                       , all (not . reachesSymbolic eenv) es
+                                       , getAll $ evalASTs allBound es = do
+                                             n <- freshNameN
+                                             es' <- mapM adjustApps es
+                                             let i = Id n $ typeOf tv_env e
+                                             insertSymbolicE i
+
+                                             ng_ <- nameGen
+                                             nrpcs <- nonRedPathConds
+                                             let (te, ng_') = nonRedBlockerTick ng_ c
+                                             let (ng_'', nrpcs') = addFirstNRPC ng_' (Unfocused n) (mkApp $ te:es') (Var i) nrpcs
+                                             putNameGen ng_''
+                                             putNonRedPathConds nrpcs'
+
+                                             return (Var i)
+                adjustApps e = modifyChildrenM adjustApps e
+
+                allBound (Var (Id n _)) = All $ E.member n eenv
+                allBound _ = All True
+
+                s'' = s' { curr_expr = CurrExpr Evaluate renamed_le }
+            in
+            return (Finished, [(s'', ())], b')
+        red _ s b = return (Finished, [(s, ())], b) 
 
 unifyNRPCReducer :: Monad m =>
                     HS.HashSet Name -- ^ Names that should not be inlined (often: top level names from the original source code)
