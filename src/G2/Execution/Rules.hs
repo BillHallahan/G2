@@ -404,13 +404,46 @@ evalLet s@(State { expr_env = eenv })
                           , curr_expr = CurrExpr Evaluate e'}]
                      , ng')
 
+-- | Pop and apply update frames until a case frame shows up
+popToCaseFrame :: State t -> CurrExpr -> Maybe (State t, Id, Type, [Alt])
+popToCaseFrame s ce = case S.pop (exec_stack s) of
+                        Just (UpdateFrame n, stck) ->
+                            popToCaseFrame (s { expr_env = E.insert n (unwrap ce) (expr_env s), exec_stack = stck }) ce
+                        Just (CaseFrame bind t alts, stck) ->
+                            Just (s { exec_stack = stck }, bind, t, alts)
+                        _ -> Nothing
+                      where unwrap (CurrExpr _ e) = e
+
+-- | Create `[Alts]` for a case in case optimization
+caseInCaseAlts :: Type -> Type -> [Alt] -> [Alt] -> NameGen -> (NameGen, [Alt])
+caseInCaseAlts lower_t higher_t lower_alts higher_alts ng = L.mapAccumL makeAlt ng higher_alts
+    where
+        makeAlt name_gen (Alt { altMatch = am, altExpr = ae }) = 
+            let (new_bind, name_gen1) = freshId higher_t name_gen
+            in (name_gen1, Alt { altMatch = am, altExpr = Case ae new_bind lower_t lower_alts })
+
 -- | Handle the Case forms of Evaluate.
 evalCase :: State t -> Bindings -> Expr -> Id -> Type -> [Alt] -> (Rule, NewPC t, NameGen)
 evalCase s@(State { expr_env = eenv
                   , exec_stack = stck
                   , known_values = kv
-                  , tyvar_env = tvnv })
+                  , tyvar_env = tvnv
+                  , curr_expr = ce })
          (Bindings { name_gen = ng, data_con_pc_map = dcpm }) mexpr bind t alts
+
+  -- Case in case optimization, always needed for literal table creation
+  -- This pops the nested case frame off the stack, and creates a new
+  -- case expr to evaluate
+  -- Note that we are in the nested case expression here
+  | inLitTableMode s
+  , Just (s1, _, t1, alts1) <- popToCaseFrame s (curr_expr s) =
+      -- We're looking at the nested bindee here
+      let (ng1, alts2) = caseInCaseAlts t1 t alts1 alts ng
+          new_case = Case mexpr bind t1 alts2
+      in ( RuleEvalCaseInCase
+         , newPCEmpty $ s1 { curr_expr = CurrExpr Evaluate new_case }
+         , ng )
+  
   -- Is the current expression able to match with a literal based `Alt`? If
   -- so, we do the cvar binding, and proceed with evaluation of the body.
   | (Lit lit) <- unsafeElimOuterCast mexpr
