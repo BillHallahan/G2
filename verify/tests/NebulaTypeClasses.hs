@@ -1,4 +1,4 @@
-{-# LANGUAGE AllowAmbiguousTypes, ScopedTypeVariables #-}
+{-# LANGUAGE AllowAmbiguousTypes, LiberalTypeSynonyms, ScopedTypeVariables, TupleSections #-}
 {-# OPTIONS_GHC -Wno-inline-rule-shadowing #-}
 
 module TypeClasses where
@@ -466,82 +466,122 @@ monadAssociativityStateRHS r m x k h = runState ((m >>= k) >>= h) r
 -------------------------------------------------------------------------------
 
 -- Semigroup Function (Endo)
-semigroupAssociativityFunction :: Eq a => a -> (a -> a) -> (a -> a) -> (a -> a) -> Bool
-semigroupAssociativityFunction e f g h = appEndo (Endo f <> (Endo g <> Endo h)) e == appEndo ((Endo f <> Endo g) <> Endo h) e
+semigroupAssociativityFunctionLHS e f g h = appEndo (Endo f <> (Endo g <> Endo h)) e
+semigroupAssociativityFunctionRHS e f g h = appEndo ((Endo f <> Endo g) <> Endo h) e
 
 -- Function Functor
-fmapIdFunction :: Eq a => e -> (e -> a) -> Bool
-fmapIdFunction e f = (fmap id f) e == (id f) e
+fmapIdFunctionLHS e f = (fmap id f) e
+fmapIdFunctionRHS e f = (id f) e
 
-fmapCompositionFunction :: Eq c => e -> (b -> c) -> (a -> b) -> (e -> a) -> Bool
-fmapCompositionFunction e f g xs = (fmap (f . g) xs) e == ((fmap f . fmap g) xs) e
+fmapCompositionFunctionLHS e f g xs = (fmap (f . g) xs) e
+fmapCompositionFunctionRHS e f g xs = ((fmap f . fmap g) xs) e
 
 -- Function Applicative
-appIdentityFunction :: Eq a => e -> (e -> a) -> Bool
-appIdentityFunction e v = (pure id <*> v) e == v e
+appIdentityFunctionLHS e v = (pure id <*> v) e
+appIdentityFunctionRHS e v = v e
 
-appCompositionFunction :: Eq b => e -> (e -> (a1 -> b)) -> (e -> (a2 -> a1)) -> (e -> a2) -> Bool
-appCompositionFunction e u v w = (pure (.) <*> u <*> v <*> w) e == (u <*> (v <*> w)) e
+appCompositionFunctionLHS e u v w = (pure (.) <*> u <*> v <*> w) e
+appCompositionFunctionRHS e u v w =  (u <*> (v <*> w)) e
 
-appHomomorphismFunction :: forall e f a b . Eq b => e -> (a -> b) -> a -> Bool
-appHomomorphismFunction e f x = (pure f <*> (pure :: a -> (e -> a)) x) e == (pure (f x)) e
+appHomomorphismFunctionLHS e f x = (pure f <*> (pure :: a -> (e -> a)) x) e
+appHomomorphismFunctionRHS e f x = (pure (f x)) e
 
-appInterchangeFunction :: Eq b => e -> (e -> (a -> b)) -> a -> Bool
-appInterchangeFunction e u y = (u <*> pure y) e == (pure ($ y) <*> u) e
+appInterchangeFunctionLHS e u y = (u <*> pure y) e
+appInterchangeFunctionRHS e u y = (pure ($ y) <*> u) e
 
 -- Function Monad
-monadLeftIdentityFunction :: Eq b => e -> a -> (a -> (e -> b)) -> Bool
-monadLeftIdentityFunction e a k = (return a >>= k) e == (k a) e
+monadLeftIdentityFunctionLHS e a k = (return a >>= k) e
+monadLeftIdentityFunctionRHS e a k = (k a) e
 
-monadRightIdentityFunction :: Eq b => e -> (e -> b) -> Bool
-monadRightIdentityFunction e m = ((m >>= return) e) == m e
+monadRightIdentityFunctionLHS e m = ((m >>= return) e)
+monadRightIdentityFunctionRHS e m = m e
 
-monadAssociativityFunction :: Eq b => e -> (e -> a1) -> p -> (a1 -> (e -> a2)) -> (a2 -> (e -> b)) -> Bool
-monadAssociativityFunction e m x k h = (m >>= (\x -> k x >>= h)) e == ((m >>= k) >>= h) e
+monadAssociativityFunctionLHS e m x k h = (m >>= (\x -> k x >>= h)) e
+monadAssociativityFunctionRHS e m x k h = ((m >>= k) >>= h) e
+
+{-# RULES
+"semigroupAssociativityFunction" forall . semigroupAssociativityFunctionLHS = semigroupAssociativityFunctionRHS
+
+"fmapIdFunction" forall . fmapIdFunctionLHS = fmapIdFunctionRHS
+"fmapCompositionFunction" forall . fmapCompositionFunctionLHS = fmapCompositionFunctionRHS
+
+"appIdentityFunction" forall . appIdentityFunctionLHS = appIdentityFunctionRHS
+"appCompositionFunction" forall . appCompositionFunctionLHS = appCompositionFunctionRHS
+"appHomomorphismFunction" forall . appHomomorphismFunctionLHS = appHomomorphismFunctionRHS
+"appInterchangeFunction" forall . appInterchangeFunctionLHS = appInterchangeFunctionRHS
+
+"monadLeftIdentityFunction" forall . monadLeftIdentityFunctionLHS = monadLeftIdentityFunctionRHS
+"monadRightIdentityFunction" forall . monadRightIdentityFunctionLHS = monadRightIdentityFunctionRHS
+"monadAssociativityFunction" forall . monadAssociativityFunctionLHS = monadAssociativityFunctionRHS
+#-}
 
 -------------------------------------------------------------------------------
 -- Tuple
 -------------------------------------------------------------------------------
 
 -- Tuple Monoid
-monoidRightIdentityTuple :: (Monoid a, Eq a) => (Sum Int, a) -> Bool
-monoidRightIdentityTuple = monoidRightIdentity
+monoidRightIdentityLHSTuple = monoidRightIdentityLHS @(Sum Int, Sum Int)
+monoidRightIdentityTupleRHS = monoidRightIdentityRHS @(Sum Int, Sum Int)
 
-monoidLeftIdentityTuple :: (Monoid a, Eq a) => (Sum Int, a) -> Bool
-monoidLeftIdentityTuple = monoidLeftIdentity
+monoidLeftIdentityLHSTuple = monoidLeftIdentityLHS @(Sum Int, Sum Int)
+monoidLeftIdentityRHSTuple = monoidLeftIdentityRHS @(Sum Int, Sum Int)
 
-semigroupAssociativityTuple :: (Semigroup a, Eq a) => (Sum Int, a) -> (Sum Int, a) -> (Sum Int, a) -> Bool
-semigroupAssociativityTuple = semigroupAssociativity
+semigroupAssociativityLHSTuple = semigroupAssociativityLHS @(Sum Int, Sum Int)
+semigroupAssociativityRHSTuple = semigroupAssociativityRHS @(Sum Int, Sum Int)
 
-monoidConcatenationTuple ::(Monoid a, Eq a) =>[(Sum Int, a)] -> Bool
-monoidConcatenationTuple = monoidConcatenation
+monoidConcatenationLHSTuple = monoidConcatenationLHS @(Sum Int, Sum Int)
+monoidConcatenationRHSTuple = monoidConcatenationRHS @(Sum Int, Sum Int)
 
 -- Tuple Functor
-fmapIdTuple :: (Eq a, Eq b) => (b, a) -> Bool
-fmapIdTuple = fmapId
+fmapIdLHSTuple :: Eq b => (b, Int) -> (b, Int)
+fmapIdLHSTuple = fmapIdLHS
+fmapIdRHSTuple :: Eq b => (b, Int) -> (b, Int)
+fmapIdRHSTuple = fmapIdRHS
 
-fmapCompositionTuple :: (Eq e, Eq c) => (b -> c) -> (a -> b) -> (e, a) -> Bool
-fmapCompositionTuple = fmapComposition
+fmapCompositionLHSTuple :: Eq e => (b -> Int) -> (a -> b) -> (e, a) -> (e, Int)
+fmapCompositionLHSTuple = fmapCompositionLHS
+fmapCompositionRHSTuple :: Eq e => (b -> Int) -> (a -> b) -> (e, a) -> (e, Int)
+fmapCompositionRHSTuple = fmapCompositionRHS
 
 -- Tuple applicative
-appIdentityTuple :: Eq a => (Sum Int, a) -> Bool
-appIdentityTuple = appIdentity
+appIdentityLHSTuple = appIdentityLHS @((,) (Sum Int))
+appIdentityRHSTuple = appIdentityRHS @((,) (Sum Int))
 
-appCompositionTuple :: Eq b => (Sum Int, a1 -> b) -> (Sum Int, a2 -> a1) -> (Sum Int, a2) -> Bool
-appCompositionTuple = appComposition
+appCompositionLHSTuple = appCompositionLHS @((,) (Sum Int))
+appCompositionRHSTuple = appCompositionRHS @((,) (Sum Int))
 
-appHomomorphismTuple :: forall a b . (Monoid a, Eq a, Eq b) => (a -> b) -> a -> Bool
-appHomomorphismTuple = appHomomorphism @((,) a)
+appHomomorphismLHSTuple = appHomomorphismLHS @((,) (Sum Int))
+appHomomorphismRHSTuple = appHomomorphismRHS @((,) (Sum Int))
 
-appInterchangeTuple :: Eq b => (Sum Int, a -> b) -> a -> Bool
-appInterchangeTuple = appInterchange
+appInterchangeLHSTuple = appInterchangeLHS @((,) (Sum Int))
+appInterchangeRHSTuple = appInterchangeRHS @((,) (Sum Int))
 
 -- Tuple Monad
-monadLeftIdentityTuple :: Eq b => a -> (a -> (Sum Int, b)) -> Bool
-monadLeftIdentityTuple = monadLeftIdentity
+monadLeftIdentityLHSTuple = monadLeftIdentityLHS @((,) (Sum Int))
+monadLeftIdentityRHSTuple = monadLeftIdentityRHS @((,) (Sum Int))
 
-monadRightIdentityTuple :: Eq b => (Sum Int, b) -> Bool
-monadRightIdentityTuple = monadRightIdentity
+monadRightIdentityLHSTuple = monadRightIdentityLHS @((,) (Sum Int))
+monadRightIdentityRHSTuple = monadRightIdentityRHS @((,) (Sum Int))
 
-monadAssociativityTuple :: Eq b => (Sum Int, a1) -> p -> (a1 -> (Sum Int, a2)) -> (a2 -> (Sum Int, b)) -> Bool
-monadAssociativityTuple = monadAssociativity
+monadAssociativityLHSTuple = monadAssociativityLHS @((,) (Sum Int))
+monadAssociativityRHSTuple = monadAssociativityRHS @((,) (Sum Int))
+
+{-# RULES
+"monoidRightIdentityTuple" forall . monoidRightIdentityLHSTuple = monoidRightIdentityTupleRHS
+"monoidLeftIdentityTuple" forall . monoidLeftIdentityLHSTuple = monoidLeftIdentityRHSTuple
+"semigroupAssociativityTuple" forall . semigroupAssociativityLHSTuple = semigroupAssociativityRHSTuple
+"monoidConcatenationTuple" forall . monoidConcatenationLHSTuple = monoidConcatenationRHSTuple
+
+"fmapIdTuple" forall . fmapIdLHSTuple = fmapIdRHSTuple
+"fmapCompositionTuple" forall . fmapCompositionLHSTuple = fmapCompositionRHSTuple
+
+"appIdentityTuple" forall . appIdentityLHSTuple = appIdentityRHSTuple
+"appCompositionTuple" forall . appCompositionLHSTuple = appCompositionRHSTuple
+"appHomomorphismTuple" forall . appHomomorphismLHSTuple = appHomomorphismRHSTuple
+"appInterchangeTuple" forall . appInterchangeLHSTuple = appInterchangeRHSTuple
+
+"monadLeftIdentityTuple" forall . monadLeftIdentityLHSTuple = monadLeftIdentityRHSTuple
+"monadRightIdentityTuple" forall . monadRightIdentityLHSTuple = monadRightIdentityRHSTuple
+"monadAssociativityTuple" forall . monadAssociativityLHSTuple = monadAssociativityRHS
+
+#-}
