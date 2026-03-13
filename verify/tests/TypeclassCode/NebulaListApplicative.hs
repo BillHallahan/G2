@@ -1,14 +1,11 @@
+-- Used to compare Nebula to Nova- Nebula crashes when run directly with the list Applicative typeclass instance,
+-- but can work (not crash) on this file.
 module TypeclassCode.NebulaListApplicative where
 
 -- Applicative laws
 pure x    = x:[]
 
--- GHC's base defines (<*>) on lists as:
--- @ fs <*> xs = [f x | f <- fs, x <- xs] @
--- which does not work with the custom list type we need for CycleQ.
--- The below is the result of compiling this to G2's intermediate representation,
--- lambda lifting let-bound functions, and then adapting to work with List.
---
+
 -- With build in list type:
 -- @
 -- (<**>) :: forall a . forall b . [a -> b] -> [a] -> [b]
