@@ -60,6 +60,7 @@ module G2.Language.Typing
     , splitTyFuns
     , retype
     , retypeRespectingTyForAll
+    , retypes
     , tyVarSubst
     , mapInTyForAlls
     , inTyForAlls
@@ -320,6 +321,9 @@ retypeRespectingTyForAll' :: Id -> Type -> Type -> Type
 retypeRespectingTyForAll' i _ t@(TyForAll ni _) | i == ni = t
 retypeRespectingTyForAll' key new (TyVar test) = if idName key == idName test then new else TyVar test
 retypeRespectingTyForAll' key new ty = modifyChildren (retypeRespectingTyForAll' key new) ty
+
+retypes :: (ASTContainer m Type, Show m) => [(Id, Type)] -> m -> m
+retypes rety_map type_container = foldr (\(_i, _ty) _cont -> retype _i _ty _cont) type_container rety_map
 
 tyVarSubst :: (ASTContainer t Type) => TV.TyVarEnv -> t -> t
 tyVarSubst m = modifyContainedASTs (tyVarSubst' HS.empty m)
