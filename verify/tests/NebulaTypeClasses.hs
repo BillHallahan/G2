@@ -14,48 +14,6 @@ import TypeclassCode.State
 
 import qualified TypeclassCode.NebulaListApplicative as LA
 
--- OLD
-semigroupAssociativity :: (Semigroup a, Eq a) => a -> a -> a -> Bool
-semigroupAssociativity x y z = x <> (y <> z) == (x <> y) <> z
-
--- Monoid laws
-monoidRightIdentity :: (Monoid a, Eq a) => a -> Bool
-monoidRightIdentity x = x <> mempty == x
-
-monoidLeftIdentity :: (Monoid a, Eq a) => a -> Bool
-monoidLeftIdentity x = mempty <> x == x 
-
-monoidConcatenation :: (Monoid a, Eq a) => [a] -> Bool
-monoidConcatenation xs = mconcat xs == foldr (<>) mempty xs
-
-fmapId :: (Functor f, Eq (f a)) => f a -> Bool
-fmapId xs = fmap id xs == id xs
-
-fmapComposition :: (Functor f, Eq (f c)) => (b -> c) -> (a -> b) -> f a -> Bool
-fmapComposition f g xs = fmap (f . g) xs == (fmap f . fmap g) xs
-
-appIdentity :: (Applicative f, Eq (f a)) => f a -> Bool
-appIdentity v = (pure id <*> v) == v
-
-appComposition :: (Applicative f, Eq (f b)) => f (a1 -> b) -> f (a2 -> a1) -> f a2 -> Bool
-appComposition u v w = (pure (.) <*> u <*> v <*> w) == (u <*> (v <*> w))
-
-appHomomorphism :: forall f a b . (Applicative f, Eq (f b)) => (a -> b) -> a -> Bool
-appHomomorphism f x = (pure f <*> (pure :: a -> f a) x) == pure (f x)
-
-appInterchange :: (Eq (f b), Applicative f) => f (a -> b) -> a -> Bool
-appInterchange u y = (u <*> pure y) == (pure ($ y) <*> u)
-
-monadLeftIdentity :: (Monad m, Eq (m b)) => a -> (a -> m b) -> Bool
-monadLeftIdentity a k = (return a >>= k) == k a
-
-monadRightIdentity :: (Monad m, Eq (m b)) => m b -> Bool
-monadRightIdentity m = (m >>= return) == m
-
-monadAssociativity :: (Monad m, Eq (m b)) => m a1 -> p -> (a1 -> m a2) -> (a2 -> m b) -> Bool
-monadAssociativity m x k h = (m >>= (\x -> k x >>= h)) == ((m >>= k) >>= h)
-
--- END OLD
 -- Semigroup laws
 semigroupAssociativityLHS :: (Semigroup a, Eq a) => a -> a -> a -> a
 semigroupAssociativityLHS x y z = x <> (y <> z)
