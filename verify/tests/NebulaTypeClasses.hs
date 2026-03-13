@@ -12,6 +12,8 @@ import TypeclassCode.Tree
 import TypeclassCode.Reader
 import TypeclassCode.State
 
+import qualified TypeclassCode.NebulaListApplicative as LA
+
 -- OLD
 semigroupAssociativity :: (Semigroup a, Eq a) => a -> a -> a -> Bool
 semigroupAssociativity x y z = x <> (y <> z) == (x <> y) <> z
@@ -160,17 +162,18 @@ fmapIdRHSList xs = fmapIdRHS @[]
 fmapCompositionLHSList = fmapCompositionLHS @[]
 fmapCompositionRHSList = fmapCompositionRHS @[]
 
-appIdentityLHSList = appIdentityLHS @[]
-appIdentityRHSList = appIdentityRHS @[]
 
-appCompositionLHSList = appCompositionLHS @[]
-appCompositionRHSList = appCompositionRHS @[]
+appIdentityLHSList v = LA.pure id LA.<*> v
+appIdentityRHSList v = v
 
-appHomomorphismLHSList = appHomomorphismLHS @[]
-appHomomorphismRHSList = appHomomorphismRHS @[]
+appCompositionLHSList u v w = (LA.pure (.) LA.<*> u LA.<*> v LA.<*> w)
+appCompositionRHSList u v w = (u LA.<*> (v LA.<*> w))
 
-appInterchangeLHSList = appInterchangeLHS @[]
-appInterchangeRHSList = appInterchangeRHS @[]
+appHomomorphismLHSList f x = (LA.pure f LA.<*> (LA.pure :: a -> [a]) x)
+appHomomorphismRHSList f x = LA.pure (f x)
+
+appInterchangeLHSList u y = (u LA.<*> LA.pure y)
+appInterchangeRHSList u y = (LA.pure ($ y) LA.<*> u)
 
 monadLeftIdentityLHSList = monadLeftIdentityLHS @[]
 monadLeftIdentityRHSList = monadLeftIdentityRHS @[]
