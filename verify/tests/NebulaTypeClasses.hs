@@ -215,17 +215,17 @@ monadAssociativityRHSNonEmpty = monadAssociativityRHS @NonEmpty
 -- Maybe
 -------------------------------------------------------------------------------
 
-monoidRightIdentityLHSMaybe = monoidRightIdentityLHS @(Maybe ())
-monoidRightIdentityMaybeRHS = monoidRightIdentityRHS @(Maybe ())
+monoidRightIdentityLHSMaybe = monoidRightIdentityLHS @(Maybe (Sum Int))
+monoidRightIdentityMaybeRHS = monoidRightIdentityRHS @(Maybe (Sum Int))
 
-monoidLeftIdentityLHSMaybe = monoidLeftIdentityLHS @(Maybe ())
-monoidLeftIdentityRHSMaybe = monoidLeftIdentityRHS @(Maybe ())
+monoidLeftIdentityLHSMaybe = monoidLeftIdentityLHS @(Maybe (Sum Int))
+monoidLeftIdentityRHSMaybe = monoidLeftIdentityRHS @(Maybe (Sum Int))
 
-semigroupAssociativityLHSMaybe = semigroupAssociativityLHS @(Maybe ())
-semigroupAssociativityRHSMaybe = semigroupAssociativityRHS @(Maybe ())
+semigroupAssociativityLHSMaybe = semigroupAssociativityLHS @(Maybe (Sum Int))
+semigroupAssociativityRHSMaybe = semigroupAssociativityRHS @(Maybe (Sum Int))
 
-monoidConcatenationLHSMaybe = monoidConcatenationLHS @(Maybe ())
-monoidConcatenationRHSMaybe = monoidConcatenationRHS @(Maybe ())
+monoidConcatenationLHSMaybe = monoidConcatenationLHS @(Maybe (Sum Int))
+monoidConcatenationRHSMaybe = monoidConcatenationRHS @(Maybe (Sum Int))
 
 fmapIdLHSMaybe xs = fmapIdLHS @Maybe
 fmapIdRHSMaybe xs = fmapIdRHS @Maybe
