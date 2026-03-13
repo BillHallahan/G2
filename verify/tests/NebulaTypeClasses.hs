@@ -418,34 +418,48 @@ monadAssociativityReaderRHS r m x k h = runReader ((m >>= k) >>= h) r
 -------------------------------------------------------------------------------
 
 -- State Functor
-fmapIdState :: (Eq s, Eq a) => s -> State s a -> Bool
-fmapIdState s xs = runState (fmap id xs) s == runState (id xs) s
+fmapIdLHSState r xs = runState (fmap id xs) r
+fmapIdRHSState r xs = runState (id xs) r
 
-fmapCompositionState :: (Eq s, Eq c) => s -> (b -> c) -> (a -> b) -> State s a -> Bool
-fmapCompositionState s f g xs = runState (fmap (f . g) xs) s == runState ((fmap f . fmap g) xs) s
+fmapCompositionLHSState r f g xs = runState (fmap (f . g) xs) r
+fmapCompositionRHSState r f g xs = runState ((fmap f . fmap g) xs) r
 
 -- State Applicative
-appIdentityState :: (Eq s, Eq a) => s -> State s a -> Bool
-appIdentityState s v = runState (pure id <*> v) s == runState v s
+appIdentityStateLHS r v = runState (pure id <*> v) r
+appIdentityStateRHS r v = runState v r
 
-appCompositionState :: (Eq s, Eq b) => s -> State s (a1 -> b) -> State s (a2 -> a1) -> State s a2 -> Bool
-appCompositionState s u v w = runState (pure (.) <*> u <*> v <*> w) s == runState (u <*> (v <*> w)) s
+appCompositionStateLHS r u v w = runState (pure (.) <*> u <*> v <*> w) r
+appCompositionStateRHS r u v w = runState (u <*> (v <*> w)) r
 
-appHomomorphismState :: forall s a b . (Eq s, Eq b) => s -> (a -> b) -> a -> Bool
-appHomomorphismState s f x = runState (pure f <*> (pure :: a -> State s a) x) s == runState (pure (f x)) s
+appHomomorphismStateLHS r f x = runState (pure f <*> (pure :: a -> State r a) x) r
+appHomomorphismStateRHS r f x = runState (pure (f x)) r
 
-appInterchangeState :: (Eq s, Eq b) => s -> State s (a -> b) -> a -> Bool
-appInterchangeState s u y = runState (u <*> pure y) s == runState (pure ($ y) <*> u) s
+appInterchangeStateLHS r u y = runState (u <*> pure y) r
+appInterchangeStateRHS r u y = runState (pure ($ y) <*> u) r
 
 -- State Monad
-monadLeftIdentityState :: (Eq s, Eq b) => s -> a -> (a -> State s b) -> Bool
-monadLeftIdentityState s a k = runState (return a >>= k) s == runState (k a) s
+monadLeftIdentityStateLHS r a k = runState (return a >>= k) r
+monadLeftIdentityStateRHS r a k = runState (k a) r
 
-monadRightIdentityState :: (Eq s, Eq b) => s -> State s b -> Bool
-monadRightIdentityState s m = runState (m >>= return) s == runState m s
+monadRightIdentityStateLHS r m = runState (m >>= return) r
+monadRightIdentityStateRHS r m = runState m r
 
-monadAssociativityState :: (Eq s, Eq b) => s -> State s a1 -> p -> (a1 -> State s a2) -> (a2 -> State s b) -> Bool
-monadAssociativityState s m x k h = runState (m >>= (\x -> k x >>= h)) s == runState ((m >>= k) >>= h) s
+monadAssociativityStateLHS r m x k h = runState (m >>= (\x -> k x >>= h)) r
+monadAssociativityStateRHS r m x k h = runState ((m >>= k) >>= h) r
+
+{-# RULES
+"fmapIdState" forall . fmapIdLHSState = fmapIdRHSState
+"fmapCompositionState" forall . fmapCompositionLHSState = fmapCompositionRHSState
+
+"appIdentityState" forall . appIdentityStateLHS = appIdentityStateRHS
+"appCompositionState" forall . appCompositionStateLHS = appCompositionStateRHS
+"appHomomorphismState" forall . appHomomorphismStateLHS = appHomomorphismStateRHS
+"appInterchangeState" forall . appInterchangeStateLHS = appInterchangeStateRHS
+
+"monadLeftIdentityState" forall . monadLeftIdentityStateLHS = monadLeftIdentityStateRHS
+"monadRightIdentityState" forall . monadRightIdentityStateLHS = monadRightIdentityStateRHS
+"monadAssociativityState" forall . monadAssociativityStateLHS = monadAssociativityStateRHS
+#-}
 
 -------------------------------------------------------------------------------
 -- Function
