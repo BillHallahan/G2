@@ -13,22 +13,17 @@ def readNova(file):
     contents = open(file)
     res = {}
     for lne in contents.readlines():
-        print("\n")
-        print(lne.replace("\n", ""))
-        mtch = re.match("([a-zA-Z0-9]+)\s*\&\s*([0-9.]+|\s*-)\s*\&", lne)
-        print(mtch.group(1))
-        print(mtch.group(2))
+        mtch = re.match("([a-zA-Z0-9]+)\s*\&\s*([0-9.]+|\s*-)", lne)
         res[mtch.group(1)] = mtch.group(2)
     return res
+
+def readPropel(file):
+    return readNova(file)
 
 def readCycleQFile(res, ty, file):
     contents = open(file)
     for lne in (contents.readlines()[3:][:-2]):
-        print("\n")
-        print(lne.replace("\n", ""))
         mtch = re.match("([a-zA-Z0-9]+)\s*\&\s*([0-9.]+|\s*NaN)\s*\&", lne)
-        print(mtch.group(1))
-        print(mtch.group(2))
         res[mtch.group(1) + ty] = mtch.group(2) if mtch.group(2) != "NaN" else "-"
     return res
 
@@ -39,7 +34,6 @@ def readCycleQ(types):
     type_files = [(x, fle_start + x + ".tex") for x in types]
     res = {}
     for (ty, fle) in type_files:
-        print(fle)
         res = readCycleQFile(res, ty, fle)
     return res
 
@@ -54,14 +48,12 @@ def joinResults(prop_list, res):
                 lne += r[prop]
             else:
                 lne += " "
-            first_iter = False
         lne += " \\\\\n"
         lines += lne
     return lines
 
 # reading in benchmark results
 nova_res = readNova("verify-results/nova.txt")
-print(nova_res)
 
 cycleq_types = [ "Function",
                  "List",
@@ -73,7 +65,8 @@ cycleq_types = [ "Function",
                  "Tuple",
                  "ZipList" ]
 cycleq_res = readCycleQ(cycleq_types)
-print(cycleq_res)
+
+propel_res = readPropel("verify-results/propel.txt")
 
 # forming prop names
 semigroupLaws = ["semigroupAssociativity"]
@@ -96,4 +89,4 @@ function_laws = [law + "Function" for law in semigroupLaws + functorLaws + appli
 
 all_type_laws = list_laws + zip_list_laws + nonempty_list_laws + tree_laws + maybe_laws + state_laws + reader_laws + tuple_laws + function_laws
 
-print(joinResults(all_type_laws, [nova_res, cycleq_res]))
+print(joinResults(all_type_laws, [nova_res, cycleq_res, propel_res]))
