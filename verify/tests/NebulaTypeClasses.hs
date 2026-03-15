@@ -13,6 +13,8 @@ import TypeclassCode.Reader
 import TypeclassCode.State
 
 import qualified TypeclassCode.NebulaListApplicative as LA
+import qualified TypeclassCode.NebulaNonEmptyMonad as MN
+import qualified TypeclassCode.NebulaTuple as TM
 
 -- Semigroup laws
 semigroupAssociativityLHS :: (Semigroup a, Eq a) => a -> a -> a -> a
@@ -189,8 +191,8 @@ appInterchangeRHSNonEmpty = appInterchangeRHS @NonEmpty
 monadLeftIdentityLHSNonEmpty = monadLeftIdentityLHS @NonEmpty
 monadLeftIdentityRHSNonEmpty = monadLeftIdentityRHS @NonEmpty
 
-monadRightIdentityLHSNonEmpty = monadRightIdentityLHS @NonEmpty
-monadRightIdentityRHSNonEmpty = monadRightIdentityRHS @NonEmpty
+monadRightIdentityLHSNonEmpty m = (m MN.>>== MN.return)
+monadRightIdentityRHSNonEmpty m = m
 
 monadAssociativityLHSNonEmpty = monadAssociativityLHS @NonEmpty
 monadAssociativityRHSNonEmpty = monadAssociativityRHS @NonEmpty
@@ -481,17 +483,17 @@ monadAssociativityFunctionRHS e m x k h = ((m >>= k) >>= h) e
 -------------------------------------------------------------------------------
 
 -- Tuple Monoid
-monoidRightIdentityLHSTuple = monoidRightIdentityLHS @(Sum Int, Sum Int)
-monoidRightIdentityTupleRHS = monoidRightIdentityRHS @(Sum Int, Sum Int)
+monoidRightIdentityLHSTuple x = x TM.<> TM.mempty
+monoidRightIdentityTupleRHS x = x
 
-monoidLeftIdentityLHSTuple = monoidLeftIdentityLHS @(Sum Int, Sum Int)
-monoidLeftIdentityRHSTuple = monoidLeftIdentityRHS @(Sum Int, Sum Int)
+monoidLeftIdentityLHSTuple x = TM.mempty TM.<> x
+monoidLeftIdentityRHSTuple x = x
 
 semigroupAssociativityLHSTuple = semigroupAssociativityLHS @(Sum Int, Sum Int)
 semigroupAssociativityRHSTuple = semigroupAssociativityRHS @(Sum Int, Sum Int)
 
-monoidConcatenationLHSTuple = monoidConcatenationLHS @(Sum Int, Sum Int)
-monoidConcatenationRHSTuple = monoidConcatenationRHS @(Sum Int, Sum Int)
+monoidConcatenationLHSTuple xs = TM.mconcat xs
+monoidConcatenationRHSTuple xs = TM.foldr (TM.<>) TM.mempty xs
 
 -- Tuple Functor
 fmapIdLHSTuple :: Eq b => (b, Int) -> (b, Int)
@@ -508,8 +510,8 @@ fmapCompositionRHSTuple = fmapCompositionRHS
 appIdentityLHSTuple = appIdentityLHS @((,) (Sum Int))
 appIdentityRHSTuple = appIdentityRHS @((,) (Sum Int))
 
-appCompositionLHSTuple = appCompositionLHS @((,) (Sum Int))
-appCompositionRHSTuple = appCompositionRHS @((,) (Sum Int))
+appCompositionLHSTuple u v w = (TM.pure (.) TM.<*> u TM.<*> v TM.<*> w)
+appCompositionRHSTuple u v w = (u TM.<*> (v TM.<*> w))
 
 appHomomorphismLHSTuple = appHomomorphismLHS @((,) (Sum Int))
 appHomomorphismRHSTuple = appHomomorphismRHS @((,) (Sum Int))
