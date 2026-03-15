@@ -37,6 +37,25 @@ def readCycleQ(types):
         res = readCycleQFile(res, ty, fle)
     return res
 
+def readNebula(file):
+    contents = open(file)
+    res = {}
+    for lne in (contents.readlines()[1:]):
+        lne_pieces = lne.split(",")
+        prop = lne_pieces[0]
+        outcome = lne_pieces[4]
+
+        if outcome == "Verified":
+            res[prop] = lne_pieces[5]
+        elif outcome == "Failed":
+            res[prop] = "CEx"
+        elif outcome == "Timeout":
+            res[prop] = "-"
+        elif outcome == "Error":
+            res[prop] = "ERROR"
+    return res
+
+
 def joinResults(prop_list, res):
     lines = ""
     for prop in prop_list:
@@ -54,6 +73,7 @@ def joinResults(prop_list, res):
 
 # reading in benchmark results
 nova_res = readNova("verify-results/nova.txt")
+nebula_res = readNebula("verify-results/NebulaTypeClasses.csv")
 
 cycleq_types = [ "Function",
                  "List",
@@ -67,6 +87,7 @@ cycleq_types = [ "Function",
 cycleq_res = readCycleQ(cycleq_types)
 
 propel_res = readPropel("verify-results/propel.txt")
+
 
 # forming prop names
 semigroupLaws = ["semigroupAssociativity"]
@@ -89,4 +110,4 @@ function_laws = [law + "Function" for law in semigroupLaws + functorLaws + appli
 
 all_type_laws = list_laws + zip_list_laws + nonempty_list_laws + tree_laws + maybe_laws + state_laws + reader_laws + tuple_laws + function_laws
 
-print(joinResults(all_type_laws, [nova_res, cycleq_res, propel_res]))
+print(joinResults(all_type_laws, [nova_res, nebula_res, cycleq_res, propel_res]))
