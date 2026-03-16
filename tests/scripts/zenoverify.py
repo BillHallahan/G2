@@ -9,10 +9,9 @@ import time
 exe_name = str(subprocess.run(["cabal", "exec", "which", "Nebula"], capture_output = True).stdout.decode('utf-8')).strip()
 
 def run_zeno(filename, thm, var_settings, timeout):
-    start_time = time.monotonic();
     res = call_zeno_process(filename, thm, var_settings, timeout);
-    end_time = time.monotonic();
-    elapsed = end_time - start_time;
+    elapsed = re.search("Time: ([0-9.]+)", res).group(1)
+    print(elapsed)
 
     # there's always an extra empty string at the end for now
     lines = res.split("\n")
