@@ -10,7 +10,8 @@ exe_name = str(subprocess.run(["cabal", "exec", "which", "Nebula"], capture_outp
 
 def run_zeno(filename, thm, var_settings, timeout):
     res = call_zeno_process(filename, thm, var_settings, timeout);
-    elapsed = re.search("Time: ([0-9.]+)", res).group(1)
+    match = re.search("Time: ([0-9.]+)", res)
+    elapsed = match.group(1) if match != None else "Timeout"
     print(elapsed)
 
     # there's always an extra empty string at the end for now
