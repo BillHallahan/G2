@@ -1781,11 +1781,13 @@ retReplaceSymbFuncTemplate sft
     }], ng'''')
 
     -- SF-FUNC-FORALL
-    -- Similar to FUNC-APP, but is applied when t1 is a polymorphic function. 
-    -- All type variables are bound to Integer and symbolic arguments are created
+    -- Similar to FUNC-APP, but applies when t1 is a polymorphic function. 
+    -- All type variables are bound to a generated ADT of the needed required kind, and symbolic arguments are created
     -- and applied which match the type variables.
     -- ex. T1 -> T2, T1 = (forall a. a -> a)
-    -- e = (\fa -> f (f <@Integer for all type apps> x) fa), where x is a symbolic Integer
+    -- e = (\fa -> f (f @GenT x) fa), where x is a symbolic GenT
+    -- GenT is generated in the type environemnt as:
+    --      data GenT a1..an = GenC a1..an (GenT a1..an) | GenN
     | Var (Id n (TyFun t1 t2)):es <- unApp ce
     , as@(_:_) <- leadingTyForAllBindings t1
     , tf@(TyFun _ _) <- inTyForAlls t1
@@ -1793,17 +1795,16 @@ retReplaceSymbFuncTemplate sft
     , E.isSymbolic n eenv
     , kindsHandled as
     = let
-        -- Currently assumes all type arguments to the function argument have kind :: *. 
-        (gen_adt_name, ng2, tenv2) = genADTWithKind (TyFun TYPE (TyFun TYPE TYPE)) ng tenv
-        applying_type = TyCon gen_adt_name (TyFun TYPE (TyFun TYPE TYPE)) -- this is the type we apply for all type variables
-        
-        (func_arg_id, ng3) = freshId t1 ng2
-        (f, ng4) = freshId (TyFun (retypes (map (, applying_type) as) tr) $ TyFun t1 t2) ng3
+        ((ng2, tenv2), gen_adt_names) = genADTsWithKinds (map getKind as) ng tenv
+        gen_adt_types = zipWith TyCon gen_adt_names (map getKind as)
+        as_retyping_map = zip as gen_adt_types
 
-        func_arg_as = replicate (length as) (Type applying_type) -- assuming only kind = *
-        
-        (xIds, ng5) = freshIds (retypes (map (, applying_type) as) tfs) ng4
-        e = Lam TermL func_arg_id $ mkApp [Var f, mkApp (Var func_arg_id:(func_arg_as ++ map Var xIds)), Var func_arg_id]
+        (func_arg_id, ng3) = freshId t1 ng2
+        (f, ng4) = freshId (TyFun (retypes as_retyping_map tr) $ TyFun t1 t2) ng3
+        (xIds, ng5) = freshIds (retypes as_retyping_map tfs) ng4
+
+        gen_adt_type_exprs = map Type gen_adt_types
+        e = Lam TermL func_arg_id $ mkApp [Var f, mkApp (Var func_arg_id:(gen_adt_type_exprs ++ map Var xIds)), Var func_arg_id]
         
         eenv' = foldr E.insertSymbolic eenv xIds
         eenv'' = E.insertSymbolic f eenv'
@@ -1840,8 +1841,15 @@ retReplaceSymbFuncTemplate sft
 
     | otherwise = Nothing
 
-genADTWithKind :: Kind -> NameGen -> TypeEnv -> (Name, NameGen, TypeEnv)
-genADTWithKind TYPE ng tenv = 
+-- | Should only be called on the Id of a (TyVar (Id _ _))
+getKind :: Id -> Type
+getKind (Id _ ty) = ty
+
+genADTsWithKinds :: [Kind] -> NameGen -> TypeEnv -> ((NameGen, TypeEnv), [Name])
+genADTsWithKinds ks ng tenv = mapAccumL genADTWithKind (ng, tenv) ks
+
+genADTWithKind :: (NameGen, TypeEnv) -> Kind -> ((NameGen, TypeEnv), Name)
+genADTWithKind (ng, tenv) TYPE = 
     let 
         (gen_adt_name, ng2) = freshSeededName (Name "GenT" Nothing 0 Nothing) ng
         (gen_cons_name, ng3) = freshSeededName (Name "GenC" Nothing 0 Nothing) ng2
@@ -1867,8 +1875,8 @@ genADTWithKind TYPE ng tenv =
                 ], 
             adt_source = ADTG2Generated })
     in
-        (gen_adt_name, ng4, tenv')
-genADTWithKind k ng tenv | ks@(_:_) <- tyFunTys k
+        ((ng4, tenv'), gen_adt_name)
+genADTWithKind (ng, tenv) k | ks@(_:_) <- tyFunTys k
                     , True -- TODO: assert that ks are all valid kinds
     = -- is function kind
     let   
@@ -1901,9 +1909,9 @@ genADTWithKind k ng tenv | ks@(_:_) <- tyFunTys k
                 ], 
             adt_source = ADTG2Generated })
     in
-        {- trace ("generating function kinded ADT with kind: " ++ show k) -} (gen_adt_name, ng5, tenv2)
+        ((ng5, tenv2), gen_adt_name)
 
-genADTWithKind _ _ _ = undefined
+genADTWithKind _ _ = error "genADTWithKind: unhandled kind"
 
 tyFunTys :: Type -> [Type]
 tyFunTys (TyFun t1 t2) = t1:tyFunTys t2
