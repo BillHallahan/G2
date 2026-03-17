@@ -114,11 +114,13 @@ data SynthConfig = SynthConfig { run_file :: String
                                , eq_file :: Maybe FilePath -- ^ File containing function to use as an equality check
                                , synth_mode :: SynthMode
                                , run_symex :: Bool -- ^ If true, run symbolic execution rather than synthesis
+                               , specs_type :: SpecType -- ^ Synthesize function specification or SMT function
                                , g2_config :: Config
                                }
 
 data Checking = Verify | ADTHeight deriving Eq
 data SynthMode = SynthString | SynthSeqInt deriving Eq
+data SpecType = FuncSpecs | SMTFunc deriving Eq
 
 synthModeMapping :: [(String, SynthMode)]
 synthModeMapping = [("String", SynthString), ("SeqInt", SynthSeqInt)]
@@ -170,6 +172,7 @@ seqGenConfig homedir =
                    <> value SynthString
                    <> help ("synthesize functions for a specific type/using a specific SMT theory. Options: " ++ intercalate ", " (map fst synthModeMapping)))
                 <*> flag False True (long "run-symex" <> help "Run symbolic execution on the passed function, rather than synthesis")
+                <*> flag SMTFunc FuncSpecs (long "func-specs" <> help "Generates specifications for functions")
                 <*> mkConfig homedir) <**> helper)
           ( fullDesc
           <> progDesc "Synthesis of equivalent SMT definitions"
@@ -213,28 +216,32 @@ insertER ng er (pl:pls)
 genSMTFunc :: [PatternRes] -- ^ Generated states
            -> [FilePath] -- ^ Filepath containing function
            -> T.Text -- ^ Function name
-           -> Maybe (State t, Id, String) -- ^ Possible (SyGuS generated) function definition, along with the Id of the function being generated
+           -> Maybe (State t, Id, String, String) -- ^ Possible (SyGuS generated) function definition, along with the Id of the function being generated
            -> SynthConfig
            -> IO (String, String) -- ^ (Type of generated function, definition of generated function)
 genSMTFunc pls src f smt_def sc@(SynthConfig { g2_config = config }) = do
     putStrLn "\n--- Running function --- "
     (entry_f, ers, ng) <- runFuncWithTemp src f smt_def sc
     case ers of
-        [] | Just (s, (Id _ smt_t), smt_def') <- smt_def ->
+        [] | Just (s, (Id _ smt_t), smt_def', _) <- smt_def ->
                 return (T.unpack (mkTypeHaskellDictArrows (mkPrettyGuide ()) (type_classes s) smt_t), smt_def')
            | otherwise -> error "genSMTFunc: no SMT function generated" 
         (er@(ExecRes { final_state = s }):_) -> do
             putStrLn "\n--- Synthesizing --- "
             let pls' = foldr (insertER ng) pls ers
+                smt_spec' = case smt_def of
+                            Just (_,_,_,smt_spec) -> Just smt_spec
+                            Nothing -> Nothing
 
-            new_smt_piece <- formFunction s pls'
+
+            (new_smt_piece, smt_spec'') <- formFunction s pls' sc smt_spec'
 
             let kv = known_values s
                 tv_env = tyvar_env s 
-                
+
                 vs = zipWith (formArg kv tv_env) argList (relArgs (final_state er) $ conc_args er)
                 new_smt_def = T.unpack (smtNameWrap . smtName . nameOcc $ idName entry_f) ++ " " ++ intercalate " " vs ++ " = " ++ new_smt_piece
-            genSMTFunc pls' src f (Just (final_state er, entry_f, new_smt_def)) sc
+            genSMTFunc pls' src f (Just (final_state er, entry_f, new_smt_def, smt_spec'')) sc
 
 formArg :: KnownValues -> TyVarEnv -> String -> Expr -> String
 formArg kv tv nm e
@@ -242,51 +249,57 @@ formArg kv tv nm e
     | typeOf tv e == tyInteger kv = "(toInteger -> Z# " ++ nm ++ ")"
     | otherwise = nm
 
-formFunction :: State t -> [PatternRes] -> IO String
-formFunction _ [] = error "formFunction: empty list"
-formFunction s [pr] = solveOnePattern s pr
-formFunction s (pr:prs) = do
-    putStrLn "\n* Solving Branch Condition"
-    br <- solveBranchConditions s pr prs
-    putStrLn "\n* Solving Pattern"
-    r1 <- solveOnePattern s pr
-    r2 <- formFunction s prs
-    return $ "if " ++ br ++ " then " ++ r1 ++ " else " ++ r2
 
-solveOnePattern :: State t -> PatternRes -> IO String
-solveOnePattern s (PL { pattern = varred_form, pat_ids = is, lit_vals = constraints }) = do
+-- Question: Ask Bill
+formFunction :: State t -> [PatternRes] -> SynthConfig -> Maybe String -> IO (String, String)
+formFunction _ [] _ _ = error "formFunction: empty list"
+formFunction s [pr] sc smt_def = solveOnePattern s pr sc smt_def
+formFunction s (pr:prs) sc smt_def = do
+    putStrLn "\n* Solving Branch Condition"
+    (br, _) <- solveBranchConditions s pr prs sc smt_def
+    putStrLn "\n* Solving Pattern"
+    (r1, smt_spec) <- solveOnePattern s pr sc smt_def
+    (r2, _) <- formFunction s prs sc smt_def
+    return  ("if " ++ br ++ " then " ++ r1 ++ " else " ++ r2, smt_spec)
+
+solveOnePattern :: State t -> PatternRes -> SynthConfig -> Maybe String -> IO (String, String)
+solveOnePattern s (PL { pattern = varred_form, pat_ids = is, lit_vals = constraints }) sc smt_def = do
     let is_constraints = zip is constraints
 
     let pg = mkPrettyGuide is
     new_pieces <- mapM (\(i@(Id _ t), constraints_) -> do
-                            new_smt_def <- computeProdPieces constraints_
-                            return $ "!" ++ T.unpack (printName pg (idName i)) ++ " = (" ++ new_smt_def ++ ")")
+                            (new_smt_def, smt_spec) <- computeProdPieces constraints_ sc smt_def
+                            let res = "!" ++ T.unpack (printName pg (idName i)) ++ " = (" ++ new_smt_def ++ ")"
+                            return  (res, smt_spec))
                         is_constraints
-    let new_smt_def = "let " ++ intercalate "; " new_pieces ++ " in "
+    let new_pieces' = map fst new_pieces
+        smt_spec = map snd new_pieces                  
+        new_smt_def = "let " ++ intercalate "; " new_pieces' ++ " in "
                     ++ T.unpack (toHaskellCode s pg varred_form)
-    return new_smt_def
+    return (new_smt_def, head smt_spec)
 
 toHaskellCode :: State t -> PrettyGuide -> Expr -> T.Text
 toHaskellCode _ _ e | Prim Error _:_ <- unApp e = "error \"\""
 toHaskellCode s pg e = printHaskellPG pg s e
 
-solveBranchConditions :: State t -> PatternRes -> [PatternRes] -> IO String
-solveBranchConditions s@(State { known_values = kv }) pr prs = do
+solveBranchConditions :: State t -> PatternRes -> [PatternRes] -> SynthConfig -> Maybe String -> IO (String, String)
+solveBranchConditions s@(State { known_values = kv }) pr prs sc smt_def = do
     let true_lv = map (setBool True) (orig_exec_res pr)
         false_lv = map (setBool False) (concatMap orig_exec_res prs)
         pat_id = Id (Name "g2__BOOL_ID" Nothing 0 Nothing) TyUnknown
         bool_pr = pr { pattern = Var pat_id, pat_ids = [pat_id], lit_vals = [true_lv ++ false_lv] }
-    solveOnePattern s bool_pr
+    solveOnePattern s bool_pr sc smt_def
     where
         setBool b er = er { final_state = (final_state er) {curr_expr = CurrExpr Return (mkBool kv b)}, conc_out = mkBool kv b }
 
 
-computeProdPieces :: [ExecRes t] -> IO String
-computeProdPieces constraints = do
-    smt_cmd <- synthFunc constraints
-    print smt_cmd
-    case smt_cmd of
-        Just (DefineFun _ _ _ t) -> return $ termToHaskell t
+computeProdPieces :: [ExecRes t] -> SynthConfig -> Maybe String -> IO (String, String)
+computeProdPieces constraints sc smt_def = do
+    smt_strs <- synthFunc constraints sc smt_def
+    case smt_strs of
+        Just (smt_cmd@(DefineFun _ _ _ t), smt_spec) -> do 
+            print smt_cmd
+            return (termToHaskell t, smt_spec)
         _ -> error "genSMTFunc: no SMT function generated"
 
 groupNonAdj :: (a -> a -> Bool) -> [a] -> [[a]]
@@ -381,23 +394,35 @@ addFromInteger e = modifyChildren addFromInteger e
 
 runFuncWithTemp :: [FilePath] -- ^ Filepath containing function
                 -> T.Text -- ^ Function name
-                -> Maybe (State t, Id, String) -- ^ Possible (SyGuS generated) function definition, along with the Id of the function being generated
+                -> Maybe (State t, Id, String, String) -- ^ Possible (SyGuS generated) function definition, along with the Id of the function being generated
                 -> SynthConfig
                 -> IO (Id, [ExecRes ()], NameGen)
 runFuncWithTemp src f smt_def config = do
     withSystemTempFile "SpecTemp.hs" (\temp handle -> do
-        setUpSpec config handle smt_def
+        setupSpecFuncOrSMT src f config handle smt_def
 
         runFunc temp src f smt_def config
-        )    
+        )
 
 runFunc :: FilePath
         -> [FilePath] -- ^ Filepath containing function
         -> T.Text -- ^ Function name
-        -> Maybe (State t, Id, String) -- ^ Possible (SyGuS generated) function definition, along with the Id of the function being generated
+        -> Maybe (State t, Id, String, String) -- ^ Possible (SyGuS generated) function definition, along with the Id of the function being generated
         -> SynthConfig
         -> IO (Id, [ExecRes ()], NameGen)
-runFunc temp src f smt_def sc@(SynthConfig { eq_file = eq_f, g2_config = config }) = do
+runFunc temp src f smt_def sc = do
+    case specs_type sc of
+        SMTFunc -> runFuncSMT temp src f smt_def sc
+        FuncSpecs -> runFuncSpec temp src f smt_def sc
+
+
+runFuncSMT :: FilePath
+        -> [FilePath] -- ^ Filepath containing function
+        -> T.Text -- ^ Function name
+        -> Maybe (State t, Id, String, String) -- ^ Possible (SyGuS generated) function definition, along with the Id of the function being generated
+        -> SynthConfig
+        -> IO (Id, [ExecRes ()], NameGen)
+runFuncSMT temp src f smt_def sc@(SynthConfig { eq_file = eq_f, g2_config = config }) = do
     let extra_fp = maybeToList eq_f
         config' = config { base = base config ++ extra_fp ++ temp:src
                          , baseInclude = map takeDirectory extra_fp ++ baseInclude config
@@ -411,13 +436,13 @@ runFunc temp src f smt_def sc@(SynthConfig { eq_file = eq_f, g2_config = config 
     (init_state, func, bindings, mb_modname) <- initialStateFromFile proj src
                                     Nothing False f' (mkCurrExpr TV.empty Nothing Nothing) (mkArgTys config' TV.empty)
                                     simplTranslationConfig config'
-    
+
     let (comp_state, entry_f) = case smt_def of
-                        Just (_, i@(Id n _), _) | Just (entry_f_n, entry_f_def) <- E.lookupNameMod (nameOcc n) (nameModule n) (expr_env init_state) ->
+                        Just (_, i@(Id n _), _, _) | Just (entry_f_n, entry_f_def) <- E.lookupNameMod (nameOcc n) (nameModule n) (expr_env init_state) ->
                                             let
                                                 new_i = Id entry_f_n $ typeOf (tyvar_env init_state) entry_f_def
                                             in
-                                            (findInconsistent new_i init_state bindings, new_i)
+                                            (findInconsistent new_i init_state bindings False, new_i)
                                        | otherwise -> error "runFunc: func not found" 
                         Nothing -> (init_state, func)
     -- let config'' = if isJust smt_def then config' { logStates = Log Pretty "a_smt"} else config'
@@ -428,6 +453,45 @@ runFunc temp src f smt_def sc@(SynthConfig { eq_file = eq_f, g2_config = config 
     (er, b, to) <- runG2WithConfig proj src entry_f f [] mb_modname comp_state' config' bindings
 
     return (entry_f, er, name_gen bindings)
+
+runFuncSpec :: FilePath
+        -> [FilePath] -- ^ Filepath containing function
+        -> T.Text -- ^ Function name
+        -> Maybe (State t, Id, String, String)
+        -> SynthConfig
+        -> IO (Id, [ExecRes ()], NameGen)
+runFuncSpec temp src f smt_def sc@(SynthConfig { eq_file = eq_f, g2_config = config }) = do
+    let extra_fp = maybeToList eq_f
+        config' = config { base = base config ++ extra_fp ++ temp:src
+                         , baseInclude = map takeDirectory extra_fp ++ baseInclude config
+                         , maxOutputs = Just 10}
+
+    proj <- case src of
+                src':_ -> guessProj (includePaths config') src'
+                _ -> return []
+    -- This extra step is to retrieve original function Id
+    (_, func@(Id n _), _, _) <- initialStateFromFile proj src
+                                    Nothing False f (mkCurrExpr TV.empty Nothing Nothing) (mkArgTys config' TV.empty)
+                                    simplTranslationConfig config'
+    (comp_state, comp_func, comp_bindings, comp_mb_modname) <- initialStateFromFile proj src
+                                    Nothing False "comp" (mkCurrExpr TV.empty Nothing Nothing) (mkArgTys config' TV.empty)
+                                    simplTranslationConfig config'
+    
+    let comp_state' = case E.lookupNameMod (nameOcc n) (nameModule n) (expr_env comp_state) of
+            Just (entry_f_n, entry_f_def) | isJust smt_def -> findInconsistent (Id entry_f_n $ typeOf (tyvar_env comp_state) entry_f_def) comp_state comp_bindings False
+            Just (entry_f_n, entry_f_def) -> findInconsistent (Id entry_f_n $ typeOf (tyvar_env comp_state) entry_f_def) comp_state comp_bindings True
+            Nothing -> comp_state
+
+    -- let config'' = if isJust smt_def then config' { logStates = Log Pretty "a_smt"} else config'
+    let config'' = config'
+    T.putStrLn $ printHaskellPG (mkPrettyGuide $ getExpr comp_state') comp_state' (getExpr comp_state')
+
+    let comp_state'' = if checking sc == Verify then setUpVerification (idName comp_func) comp_state' else comp_state'
+
+    (er, _, _) <- runG2WithConfig proj src comp_func "comp" [] comp_mb_modname comp_state'' config'' comp_bindings
+    print("Length result: " ++ show ( length er))
+
+    return (comp_func, er, name_gen comp_bindings)
 
 setUpVerification :: Name -> State t -> State t
 setUpVerification entry_n s@(State { expr_env = eenv, known_values = kv  })
@@ -451,9 +515,14 @@ smtName n | Just (c, _) <- T.uncons n
           , isAlpha c = "smt_" <> n
           | otherwise = "$!+$" <> n
 
-setUpSpec :: SynthConfig -> Handle -> Maybe (State t, Id, String) -> IO ()
-setUpSpec _ h Nothing = hClose h
-setUpSpec sc h (Just (s@(State { known_values = kv, type_classes = tc }), Id n t, spec)) = do
+setupSpecFuncOrSMT :: [FilePath] -> T.Text -> SynthConfig -> Handle -> Maybe (State t, Id, String, String) -> IO ()
+setupSpecFuncOrSMT src f sc h smt_def = case specs_type sc of
+                                    SMTFunc -> setUpSpecSMT sc h smt_def
+                                    FuncSpecs -> setUpSpecFunc src f sc h smt_def
+
+setUpSpecSMT :: SynthConfig -> Handle -> Maybe (State t, Id, String, String) -> IO ()
+setUpSpecSMT _ h Nothing = hClose h
+setUpSpecSMT sc h (Just (s@(State { known_values = kv, type_classes = tc }), Id n t, spec,_))  = do
     let ts = splitTyFuns
            . snd
            $ splitTyForAlls t
@@ -475,18 +544,10 @@ setUpSpec sc h (Just (s@(State { known_values = kv, type_classes = tc }), Id n t
         retVal | checking sc == Verify = "(placeholderRet " ++ vs_str ++ ")"
                | otherwise = "val"
 
-        contents = "{-# LANGUAGE BangPatterns, MagicHash, ScopedTypeVariables, ViewPatterns #-}\nmodule Spec where\nimport GHC.Prim2\n"
-                    ++ "import GHC.Types2\n"
-                    ++ "import GHC.Stack\n"
-                    ++ "import Control.Exception\n"
-                    ++ "import Data.Functor.Classes\n"
-                    ++ "import System.IO.Unsafe\n"
+        contents = getImportStr
                     ++ fromMaybe "\n" (fmap (\f -> "import " ++ f ++ "\n") . fmap (dropExtension . takeFileName) $ eq_file sc)
                     ++ "\n"
-                    ++ "tryMaybe :: IO a -> IO (Maybe a)\n"
-                    ++ "tryMaybe a = catch (a >>= \\v -> return (Just v)) (\\(e :: SomeException) -> return Nothing)\n\n"
-                    ++ "tryMaybeUnsafe :: a -> Maybe a\n"
-                    ++ "tryMaybeUnsafe x = unsafePerformIO $ tryMaybe (let !y = x in return y)\n\n"
+                    ++ getExcepHandlStr
                     ++ smt_name ++ " :: " ++ T.unpack (mkTypeHaskellDictArrows (mkPrettyGuide ()) (type_classes s) t') ++ "\n"
                     ++ spec
                     ++ "\n\nplaceholder" ++ " :: " ++ T.unpack (mkTypeHaskellDictArrows (mkPrettyGuide ()) (type_classes s) t_with_cs) ++ "\n"
@@ -500,26 +561,126 @@ setUpSpec sc h (Just (s@(State { known_values = kv, type_classes = tc }), Id n t
     hFlush h
     hClose h
 
+-- If generating specification for library functions
+setUpSpecFunc :: [FilePath] -> T.Text -> SynthConfig -> Handle -> Maybe (State t, Id, String, String) -> IO ()
+setUpSpecFunc src f sc@(SynthConfig { g2_config = config }) h Nothing = do
+    proj <- case src of
+                src':_ -> guessProj (includePaths config) src'
+                _ -> return []
+
+    (s@(State { known_values = kv, type_classes = tc }), func@(Id n ty), _, _) <- initialStateFromFile proj src
+                                    Nothing False f (mkCurrExpr TV.empty Nothing Nothing) (mkArgTys config TV.empty)
+                                    simplTranslationConfig config
+    let ts = splitTyFuns
+           . snd
+           $ splitTyForAlls ty
+        ts_with_bool = ts ++ [tyBool kv]
+        t' = foldr1 TyFun
+           $ filter (not . isCallStack) ts_with_bool
+        t_with_cs = foldr1 TyFun ts
+        vs = take (length (filter (not . isTypeClass tc) . filter (not . isCallStack) $ ts_with_bool) - 1) argList
+        vs_input = intercalate " " (init vs)
+        vs_str = intercalate " " vs
+        idealFunName = "ideal_" ++ T.unpack (nameOcc n)
+
+        placeHolderRet | checking sc == Verify =
+            "placeholderRet" ++ " :: " ++ T.unpack (mkTypeHaskellDictArrows (mkPrettyGuide ()) (type_classes s) t_with_cs) ++ "\n"
+                         ++ "placeholderRet = undefined\n\n"
+                       | otherwise = ""
+
+        contents = getImportStr
+                    ++ fromMaybe "\n" (fmap (\f -> "import " ++ f ++ "\n") . fmap (dropExtension . takeFileName) $ eq_file sc)
+                    ++ "\n"
+                    ++ "\n"++ idealFunName ++ " :: " ++ T.unpack (mkTypeHaskellDictArrows (mkPrettyGuide ()) (type_classes s) t') ++ "\n"
+                    ++ idealFunName ++ " " ++ vs_str ++ " = (placeholder " ++ vs_input ++ ") == " ++ last vs
+                    ++ "\n\nplaceholder" ++ " :: " ++ T.unpack (mkTypeHaskellDictArrows (mkPrettyGuide ()) (type_classes s) t_with_cs) ++ "\n"
+                    ++ "placeholder = undefined\n\n"
+                    ++ placeHolderRet
+                    ++ "comp" ++ " :: " ++ T.unpack (mkTypeHaskellDictArrows (mkPrettyGuide ()) (type_classes s) t') ++ "\n"
+                    ++ "comp " ++ vs_str ++ " = " ++ idealFunName ++ " " ++ vs_str
+    putStrLn contents
+    hPutStrLn h contents
+    hFlush h
+    hClose h
+
+    
+setUpSpecFunc _ _ sc h (Just (s@(State { known_values = kv, type_classes = tc }), Id n t, spec, _)) = do
+    let ts = splitTyFuns
+           . snd
+           $ splitTyForAlls t
+        
+        t' = foldr1 TyFun
+           $ filter (not . isCallStack) ts
+        t_with_cs = foldr1 TyFun ts
+
+        ts_witout_last = init ts
+        ts_witout_last' = foldr1 TyFun
+           $ filter (not . isCallStack) ts_witout_last
+        ts_witout_last'' = foldr1 TyFun ts_witout_last
+
+        vs = take (length (filter (not . isTypeClass tc) . filter (not . isCallStack) $ ts) - 1) argList
+        vs_input = intercalate " " (init vs)
+        vs_str = intercalate " " vs
+        funcSpecName = T.unpack . smtNameWrap . smtName $ nameOcc n
+        idealFunName = "ideal_" ++ T.unpack (nameOcc n)
+
+        placeHolderRet | checking sc == Verify =
+            "placeholderRet" ++ " :: " ++ T.unpack (mkTypeHaskellDictArrows (mkPrettyGuide ()) (type_classes s) t_with_cs) ++ "\n"
+                         ++ "placeholderRet = undefined\n\n"
+                       | otherwise = ""
+
+        contents = getImportStr
+                    ++ fromMaybe "\n" (fmap (\f -> "import " ++ f ++ "\n") . fmap (dropExtension . takeFileName) $ eq_file sc)
+                    ++ "\n"
+                    ++ funcSpecName ++ " :: " ++ T.unpack (mkTypeHaskellDictArrows (mkPrettyGuide ()) (type_classes s) t') ++ "\n"
+                    ++ spec
+                    ++ "\n\n"++ idealFunName ++ " :: " ++ T.unpack (mkTypeHaskellDictArrows (mkPrettyGuide ()) (type_classes s) t') ++ "\n"
+                    ++ idealFunName ++ " " ++ vs_str ++ " = (placeholder " ++ vs_input ++ ") == " ++ last vs
+                    ++ "\n\nplaceholder" ++ " :: " ++ T.unpack (mkTypeHaskellDictArrows (mkPrettyGuide ()) (type_classes s) ts_witout_last'') ++ "\n"
+                    ++ "placeholder = undefined\n\n"
+                    ++ placeHolderRet
+                    ++ "\n\ncomp" ++ " :: " ++ T.unpack (mkTypeHaskellDictArrows (mkPrettyGuide ()) (type_classes s) t') ++ "\n"
+                    ++ "comp " ++ vs_str ++ " = let x = (" ++ funcSpecName ++ " " ++ vs_str ++ ") == (" ++ idealFunName ++ " " ++ vs_str 
+                    ++ ") in assert x (" ++ idealFunName ++ " " ++ vs_str ++ ")"
+    putStrLn contents
+    hPutStrLn h contents
+    hFlush h
+    hClose h
+
+getImportStr :: String
+getImportStr = "{-# LANGUAGE BangPatterns, MagicHash, ScopedTypeVariables, ViewPatterns #-}\nmodule Spec where\nimport GHC.Prim2\n"
+                    ++ "import GHC.Types2\n"
+                    ++ "import GHC.Stack\n"
+                    ++ "import Control.Exception\n"
+                    ++ "import Data.Functor.Classes\n"
+                    ++ "import System.IO.Unsafe\n"
+
+getExcepHandlStr :: String
+getExcepHandlStr = "tryMaybe :: IO a -> IO (Maybe a)\n"
+                    ++ "tryMaybe a = catch (a >>= \\v -> return (Just v)) (\\(e :: SomeException) -> return Nothing)\n\n"
+                    ++ "tryMaybeUnsafe :: a -> Maybe a\n"
+                    ++ "tryMaybeUnsafe x = unsafePerformIO $ tryMaybe (let !y = x in return y)\n\n"
+
 isCallStack :: Type -> Bool
 isCallStack ty | TyCon tn _:_ <- unTyApp ty = nameOcc tn == "IP"
                | otherwise = False
 
 -- | Find inputs that violate a found SMT definition
-findInconsistent :: Id -> State t -> Bindings -> State t
-findInconsistent entry_f s@(State { expr_env = eenv  }) b
+findInconsistent :: Id -> State t -> Bindings -> Bool -> State t
+findInconsistent entry_f s@(State { expr_env = eenv  }) b output_true
     | Just (ph_name, _) <- E.lookupNameMod "placeholder" (Just "Spec") eenv 
     , Just entry_e <- E.lookup (idName entry_f) eenv =
         s { expr_env = E.insert ph_name entry_e eenv
-          , true_assert = False }
+          , true_assert = output_true }
     | otherwise = error $ "findInconsistent: spec not found"
 
 -------------------------------------------------------------------------------
 -- Calling/reading from SyGuS solver
 -------------------------------------------------------------------------------
-synthFunc :: [ExecRes t] -> IO (Maybe SmtCmd)
-synthFunc er = runSygus $ sygusCmds er
+synthFunc :: [ExecRes t] -> SynthConfig -> Maybe String ->  IO (Maybe (SmtCmd, String))
+synthFunc er sc smt_def = runSygus =<< sygusCmds er sc smt_def
 
-runSygus :: [Cmd] -> IO (Maybe SmtCmd)
+runSygus :: [Cmd] -> IO (Maybe (SmtCmd, String))
 runSygus sygus_cmds = do
     (h_in, h_out, _) <- getCVC5Sygus 60
     mapM_ (\c -> do
@@ -537,14 +698,13 @@ runSygus sygus_cmds = do
     -- so we drop them.
     let sy_out = parseSygus . tail . init $ out
     case sy_out of
-        [SmtCmd def_fun] -> return $ Just def_fun
+        [SmtCmd def_fun] -> return $ Just (def_fun, out)
         _ -> return Nothing
 
-sygusCmds :: [ExecRes t] -> [Cmd]
-sygusCmds [] = []
-sygusCmds er@(ExecRes { final_state = s@(State { tyvar_env = tv_env, known_values = kv }), conc_args = args, conc_out = out_e}:_) = 
-    let 
-        define_eq n srt = SmtCmd $ DefineFun n
+sygusCmds :: [ExecRes t] -> SynthConfig -> Maybe String -> IO [Cmd]
+sygusCmds [] _ _ = return []
+sygusCmds er@(ExecRes { final_state = s@(State { tyvar_env = tv_env, known_values = kv }), conc_args = args, conc_out = out_e}:_) sc smt_def = do
+    let define_eq n srt = SmtCmd $ DefineFun n
                                              [SortedVar "x" srt, SortedVar "y" srt]
                                              boolSort
                                              (TermCall (ISymb "=") [TermIdent (ISymb "x"), TermIdent (ISymb "y")])
@@ -562,19 +722,37 @@ sygusCmds er@(ExecRes { final_state = s@(State { tyvar_env = tv_env, known_value
                                         strSort
                                         ( TermCall (ISymb "str.at") [TermIdent (ISymb "x"), TermLit (LitNum 0)] )
         grm = GrammarDef pre_dec gram_defs'
-    in
-    [ SmtCmd $ SetLogic "ALL"
-    , define_eq "strEq" strSort
-    , define_eq "seqIntEq" seq_int_sort
-    , define_eq "seqFloatEq" seq_float_sort
-    , define_eq "intEq" intSort
-    , define_eq "floatEq" floatSort
-    , from_char
-    , to_char
-    , SynthFun "spec" arg_vars ret_sort (Just grm) ]
-    ++ map execResToConstraints er ++
-    [CheckSynth]
+
+    constraints <- case specs_type sc of
+            FuncSpecs -> constraintsForFuncSpec smt_def er
+            SMTFunc -> return $ map execResToConstraints er
+
+    let cmds = [ SmtCmd $ SetLogic "ALL"
+            , define_eq "strEq" strSort
+            , define_eq "seqIntEq" seq_int_sort
+            , define_eq "seqFloatEq" seq_float_sort
+            , define_eq "intEq" intSort
+            , define_eq "floatEq" floatSort
+            , from_char
+            , to_char
+            , SynthFun "spec" arg_vars ret_sort (Just grm) ] 
+            ++ constraints
+            -- ++ funcSpecConstraint
+            ++ [CheckSynth]
+    return cmds
     where
+        -- funcSpecConstraint = let
+        --                         existsConstraint = TermExists existSortVars existsTerm
+        --                         existsTerm = TermCall (ISymb "=") [TermCall (ISymb "spec") (map (TermIdent . ISymb ) (newVars (length args_sort))), exprToTerm kv (mkBool kv False)]
+        --                         existSortVars = zipWith SortedVar (newVars (length args_sort)) args_sort
+        --                     in 
+        --                         if specs_type sc == FuncSpecs then [Constraint existsConstraint] else []
+
+        -- newVars n = ["a" ++ show i | i <- [1..n]]
+        -- -- synthFun specname grm = case specs_type sc of
+        -- --                 FuncSpecs -> SynthFun specname arg_vars ret_sort_func_spec (Just grm)
+        -- --                 SMTFunc -> SynthFun specname arg_vars ret_sort (Just grm)
+
         intSort = IdentSort (ISymb "Int")
         floatSort = IdentSort (ISymb "Float32")
         strSort = IdentSort (ISymb "String")
@@ -673,11 +851,26 @@ sygusCmds er@(ExecRes { final_state = s@(State { tyvar_env = tv_env, known_value
                        , ([TyLitInt], GroupedRuleList "IntPr" intSort grmInt)
                        , ([TyLitFloat], GroupedRuleList "FloatPr" floatSort grmFloat)
                        , ([tyBool kv], GroupedRuleList "BoolPr" boolSort grmBool)]
-        find_start_gram = findElem (\(ty, _) -> ret_type `elem` ty) ty_gram_defs
+        find_start_gram = findElem (\(ty, _) -> ret_type `elem` ty) (if specs_type sc == SMTFunc then ty_gram_defs else funcDefGrammer)
         gram_defs' = case find_start_gram of
                             Just (start_sym, other_sym) -> map snd $ start_sym:other_sym
                             Nothing -> error "runSygus: no start symbol"
         pre_dec = map (\(GroupedRuleList n srt _) -> SortedVar n srt) gram_defs'
+
+        funcDefGrammer =  [ ([tyString kv], GroupedRuleList "StrPr" strSort (map (GBfTerm . BfIdentifier . ISymb) str_args))
+                            , ([TyLitInt], GroupedRuleList "IntPr" intSort 
+                                [ GVariable intSort
+                                    , GBfTerm (BfLiteral (LitNum 0))
+                                    , GBfTerm (BfLiteral (LitNum 1))
+                                    , GBfTerm (BfLiteral (LitNum 2))
+                                    , GBfTerm (BfIdentifierBfs (ISymb "-") [ intIdent, intIdent])
+                                    , GBfTerm (BfIdentifierBfs (ISymb "*") [ intIdent, intIdent])
+                                    , GBfTerm (BfIdentifierBfs (ISymb "seq.len") [ strIdent ])])
+                            , ([tyBool kv], GroupedRuleList "BoolPr" boolSort 
+                                [ GBfTerm (BfIdentifierBfs (ISymb "ite") [ boolIdent, boolIdent, boolIdent])
+                                    , GBfTerm (BfIdentifierBfs (ISymb "and") [ boolIdent, boolIdent])
+                                    , GBfTerm (BfIdentifierBfs (ISymb "<") [ intIdent, intIdent])])
+                        ]
 
 findElem       :: (a -> Bool) -> [a] -> Maybe (a, [a])
 findElem p     = find' id
@@ -700,15 +893,65 @@ parseSygus :: String -> [Cmd]
 parseSygus = Sy.parse . Sy.lexSygus
 
 execResToConstraints :: ExecRes t -> Cmd
-execResToConstraints (ExecRes { final_state = s, conc_args = ars, conc_out = out_e }) =
-    let
-        kv = known_values s
+execResToConstraints er = Constraint $ getTermCallForEq er
 
+getTermCallForEq :: ExecRes t -> Term
+getTermCallForEq (ExecRes { final_state = s, conc_args = ars, conc_out = out_e }) =
+    let 
+        kv = known_values s
         call = TermCall (ISymb "spec") (map (exprToTerm kv) $ relArgs s ars)
         out_t = exprToTerm kv out_e
-        cons = Constraint $ TermCall (ISymb "=") [call, out_t]
-    in
-    cons
+        termCall = TermCall (ISymb "=") [call, out_t]
+    in 
+        termCall
+
+constraintsForFuncSpec :: Maybe String -> [ExecRes t] -> IO [Cmd]
+constraintsForFuncSpec _ [] = return []
+constraintsForFuncSpec  smt_def ers = do
+    let (falseErs, trueErs) = getTrueFalseErs [] [] ers
+    (falseErs', trueErs') <- (case smt_def of
+                                Just smt_spec -> do 
+                                    (f, t) <- separateConjDis falseErs smt_spec [] [] 
+                                    return (f, trueErs ++ t)
+                                Nothing -> return (falseErs, trueErs))
+    let trueCmds = map execResToConstraints trueErs'
+    let falseCmds = Constraint $ TermCall (ISymb "or") (map getTermCallForEq falseErs') 
+    return (trueCmds ++ [falseCmds])
+    
+    where
+        getTrueFalseErs seenFalse seenTrue [] = (seenFalse, seenTrue)
+        getTrueFalseErs seenFalse seenTrue (er@(ExecRes { final_state = s, conc_out = out_e }):es) = 
+            if out_e == mkTrue (known_values s) 
+            then getTrueFalseErs seenFalse (er:seenTrue) es
+            else getTrueFalseErs (er:seenFalse) seenTrue es
+
+        separateConjDis [] _ movables non_movables = return (non_movables, movables)
+        separateConjDis (er:es) prev_spec movables non_movables = do
+            isMovable <- moveSpecToConjunction prev_spec er
+            if isMovable
+            then separateConjDis es prev_spec (er:movables ) non_movables
+            else separateConjDis es prev_spec movables (er:non_movables)
+
+        moveSpecToConjunction :: String -> ExecRes t -> IO Bool
+        moveSpecToConjunction past_spec er = do
+            let term = getTermCallForEq er
+                assertSt = "( assert " ++ T.unpack (printSygus term) ++ ")"
+                cmd = [T.unpack (printSygus (SmtCmd $ SetLogic "ALL")), init (tail past_spec), assertSt, "(check-sat)"]
+            (h_in, h_out, _) <- getCVC5ProcessHandles Nothing 60
+            mapM_ (\c -> do
+                    T.hPutStrLn h_in (T.pack c)
+                    T.putStrLn (T.pack c)
+                ) cmd
+            _ <- hWaitForInput h_out 300
+            
+            out <- getLinesMatchParens h_out
+            _ <- evaluate (length out)
+            putStrLn out
+            T.hPutStrLn h_in "(exit)"
+            
+            case out of
+                "sat" -> return True
+                _ -> return False
 
 relArgs :: State t -> [Expr] -> [Expr]
 relArgs s = filter (not . isCallStack . typeOf (tyvar_env s))
@@ -861,6 +1104,9 @@ smtFuncToPrim s vl_args = conv s ++ conv_args
         conv "fromChar" = ""
         conv "toChar" = ""
         conv "+" = "(+#)"
+        conv "-" = "(-#)"
+        conv "*" = "(*#)"
+        conv "<" = "($<#)"
         conv "ite" = ""
         conv "and" = "(&&)"
         conv "or" = "(||)"

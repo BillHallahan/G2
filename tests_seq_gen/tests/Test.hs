@@ -2,6 +2,7 @@ module Test where
 
 import Data.List
 import GHC.Stack
+import Control.Exception
 
 f1 :: String -> String -> String -> String
 f1 xs ys zs = xs ++ ys ++ zs
@@ -77,3 +78,12 @@ f19 x = x
 
 (@@) :: String -> String -> String
 xs @@ ys = xs ++ ys ++ xs
+
+my_intersperse :: Char -> String -> String
+my_intersperse x xs = intersperse x xs
+
+-- ideal_my_intersperse :: Char -> ([] Char) -> ([] Char) -> Bool
+-- ideal_my_intersperse z1 z2 z3 = (my_intersperse z1 z2) == z3
+
+-- comp :: Char -> ([] Char) -> ([] Char) -> Bool
+-- comp z1 z2 z3 = ideal_my_intersperse z1 z2 z3
