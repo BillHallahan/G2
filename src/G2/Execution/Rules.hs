@@ -1849,67 +1849,70 @@ genADTsWithKinds :: [Kind] -> NameGen -> TypeEnv -> ((NameGen, TypeEnv), [Name])
 genADTsWithKinds ks ng tenv = mapAccumL genADTWithKind (ng, tenv) ks
 
 genADTWithKind :: (NameGen, TypeEnv) -> Kind -> ((NameGen, TypeEnv), Name)
-genADTWithKind (ng, tenv) TYPE = 
-    let 
+genADTWithKind (ng, tenv) k 
+    | TYPE <- k
+         = genADTTYPEKind
+    | ks@(_:_) <- tyFunTys k
+    , True -- TODO: check valid kinds
+         = genADTFunctionKind ks
+    where 
+        genADTTYPEKind :: ((NameGen, TypeEnv), Name)
+        genADTTYPEKind 
+                = ((ng4, tenv'), gen_adt_name)
+            where
+                tenv' = HM.insert gen_adt_name gen_adt tenv
+                gen_adt = 
+                    (DataTyCon { 
+                        bound_ids = [], 
+                        data_cons = [
+                            DataCon {
+                                dc_name = gen_cons_name,
+                                dc_type = TyFun (TyCon gen_adt_name TYPE) (TyCon gen_adt_name TYPE),
+                                dc_univ_tyvars = [],
+                                dc_exist_tyvars = []
+                            }, 
+                            DataCon {  
+                                dc_name = gen_nil_name, 
+                                dc_type = TyCon gen_adt_name TYPE, 
+                                dc_univ_tyvars = [],
+                                dc_exist_tyvars = []
+                            }
+                        ], 
+                    adt_source = ADTG2Generated })
+        
+        genADTFunctionKind :: [Kind] -> ((NameGen, TypeEnv), Name)
+        genADTFunctionKind ks
+            = ((ng5, tenv2), gen_adt_name) 
+            where
+                tenv2 = HM.insert gen_adt_name gen_adt tenv
+                gen_adt =
+                    (DataTyCon { 
+                        bound_ids = tyvar_ids, 
+                        data_cons = [
+                            DataCon {
+                                dc_name = gen_cons_name,
+                                dc_type = cons_type,
+                                dc_univ_tyvars = tyvar_ids, -- TODO: confirm this
+                                dc_exist_tyvars = []
+                            }, 
+                            DataCon {  
+                                dc_name = gen_nil_name, 
+                                dc_type = nil_type, 
+                                dc_univ_tyvars = tyvar_ids,
+                                dc_exist_tyvars = []
+                            }
+                        ], 
+                    adt_source = ADTG2Generated })
+                (tyvar_ids, ng5) = freshIds (init ks) ng4 -- a1..an
+                type_applied_at_tyvars = mkTyApp $ (TyCon gen_adt_name TYPE):(map TyVar tyvar_ids) -- GenT a1..an
+                nil_type = mkNestedForAll (map TyVar tyvar_ids) type_applied_at_tyvars -- forall a1..an. GenT a1..an
+                cons_type = mkNestedForAll (map TyVar tyvar_ids) -- forall a1..an. a1 -> .. -> an -> GenT a1..an -> GenT a1..an
+                    (mkTyFun $ bound_ids_apps ++ [type_applied_at_tyvars] ++ [type_applied_at_tyvars]) 
+                bound_ids_apps = map TyVar tyvar_ids -- doesn't allow for higher-order kinds yet (assumes all ks are *)
+        
         (gen_adt_name, ng2) = freshSeededName (Name "GenT" Nothing 0 Nothing) ng
         (gen_cons_name, ng3) = freshSeededName (Name "GenC" Nothing 0 Nothing) ng2
-        (gen_nil_name, ng4) = freshSeededName (Name "GenN" Nothing 0 Nothing) ng3
-        -- genADT for * direct special case
-        tenv' = HM.insert gen_adt_name gen_adt tenv
-        gen_adt = 
-            (DataTyCon { 
-                bound_ids = [], 
-                data_cons = [
-                    DataCon {
-                        dc_name = gen_cons_name,
-                        dc_type = TyFun (TyCon gen_adt_name TYPE) (TyCon gen_adt_name TYPE),
-                        dc_univ_tyvars = [],
-                        dc_exist_tyvars = []
-                    }, 
-                    DataCon {  
-                        dc_name = gen_nil_name, 
-                        dc_type = TyCon gen_adt_name TYPE, 
-                        dc_univ_tyvars = [],
-                        dc_exist_tyvars = []
-                    }
-                ], 
-            adt_source = ADTG2Generated })
-    in
-        ((ng4, tenv'), gen_adt_name)
-genADTWithKind (ng, tenv) k | ks@(_:_) <- tyFunTys k
-                    , True -- TODO: assert that ks are all valid kinds
-    = -- is function kind
-    let   
-        (gen_adt_name, ng2) = freshSeededName (Name "GenT" Nothing 0 Nothing) ng
-        (gen_cons_name, ng3) = freshSeededName (Name "GenC" Nothing 0 Nothing) ng2
-        (gen_nil_name, ng4) = freshSeededName (Name "GenN" Nothing 0 Nothing) ng3
-        (tyvar_ids, ng5) = freshIds (init ks) ng4
-        type_applied_at_tyvars = (mkTyApp $ (TyCon gen_adt_name TYPE):(map TyVar tyvar_ids))
-        nil_type = mkNestedForAll (map TyVar tyvar_ids) type_applied_at_tyvars
-        cons_type = mkNestedForAll (map TyVar tyvar_ids) (mkTyFun $ bound_ids_apps ++ [type_applied_at_tyvars] ++ [type_applied_at_tyvars])
-        bound_ids_apps :: [Type]
-        bound_ids_apps = map TyVar tyvar_ids -- doesn't allow for higher-order kinds yet (assumes all ks are *)
-        tenv2 = HM.insert gen_adt_name gen_adt tenv
-        gen_adt =
-            (DataTyCon { 
-                bound_ids = tyvar_ids, 
-                data_cons = [
-                    DataCon {
-                        dc_name = gen_cons_name,
-                        dc_type = cons_type,
-                        dc_univ_tyvars = tyvar_ids, -- TODO: confirm this
-                        dc_exist_tyvars = []
-                    }, 
-                    DataCon {  
-                        dc_name = gen_nil_name, 
-                        dc_type = nil_type, 
-                        dc_univ_tyvars = tyvar_ids,
-                        dc_exist_tyvars = []
-                    }
-                ], 
-            adt_source = ADTG2Generated })
-    in
-        ((ng5, tenv2), gen_adt_name)
+        (gen_nil_name, ng4) = freshSeededName (Name "GenN" Nothing 0 Nothing) ng3  
 
 genADTWithKind _ _ = error "genADTWithKind: unhandled kind"
 
