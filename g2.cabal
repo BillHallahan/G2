@@ -351,6 +351,7 @@ executable Nebula
   -- other-extensions:
   build-depends:         g2
                        , base >= 4.8 && < 5
+                       , clock
                        , containers
                        , filepath
                        , ghc

@@ -425,15 +425,22 @@ verifyHigherOrderHandling = mkSimpleReducer (const ()) red
                     TyFun (TyFun t1 t2) t3 ->
                         let
                             (pass, ng3) = freshId t1 ng2
-                            (wrapper, ng4) = freshId (TyFun t2 t3) ng3
-                            func_body = Lam TermL lam_x . App (Var wrapper) . App (Var lam_x) $ Var pass
-                            eenv' = E.insertSymbolic wrapper
+                            (wrapper, ng4) = freshId (TyFun t2 (TyFun ty_ar t3)) ng3
+
+                            func_body1 = Lam TermL lam_x $ mkApp [Var wrapper, App (Var lam_x) (Var pass), Var lam_x]
+                            eenv1 = E.insertSymbolic wrapper
                                   . E.insertSymbolic pass
-                                  $ E.insert n func_body eenv
+                                  $ E.insert n func_body1 eenv
+
+                            (const_body, ng5) = freshId t3 ng4
+                            func_body2 = Lam TermL lam_x $ Var const_body
+                            eenv2 = E.insertSymbolic const_body
+                                  $ E.insert n func_body2 eenv
                             
-                            s' = s { curr_expr = CurrExpr Evaluate (App func_body ar), expr_env = eenv' }
+                            s1 = s { curr_expr = CurrExpr Evaluate (App func_body1 ar), expr_env = eenv1 }
+                            s2 = s { curr_expr = CurrExpr Evaluate (App func_body2 ar), expr_env = eenv2 }
                         in
-                        return (InProgress, [(s', ())], b { name_gen = ng4 })
+                        return (InProgress, [(s1, ()), (s2, ())], b { name_gen = ng5 })
                     _ -> let
                             (bindee, ng3) = freshId ty_ar ng2
                             (ret_true, ng4) = freshId (case ty_fun of
