@@ -20,6 +20,20 @@ def readNova(file):
 def readPropel(file):
     return readNova(file)
 
+# Nova results should be a latex table with one row per function where
+# the first column is name of benchmark and second column is time.
+def readHipSpec(file):
+    contents = open(file)
+    res = {}
+    for lne in contents.readlines():
+        res_match =" \s*([0-9.]+|unknown|unproved|timeout)"
+        mtch = re.match("([a-zA-Z0-9]+)\s*\&" + res_match, lne)
+        res_out = mtch.group(2)
+        res_out = " - " if res_out == "unproved" or res_out == "timeout" else res_out
+        res_out = "" if res_out == "unknown" else res_out
+        res[mtch.group(1)] = mtch.group(2)
+    return res
+
 def readCycleQFile(res, ty, file):
     contents = open(file)
     for lne in (contents.readlines()[3:][:-2]):
@@ -86,6 +100,8 @@ cycleq_types = [ "Function",
                  "ZipList" ]
 cycleq_res = readCycleQ(cycleq_types)
 
+hipspec_res = readHipSpec("verify-results/hipspec.txt")
+
 propel_res = readPropel("verify-results/propel.txt")
 
 
@@ -110,4 +126,4 @@ function_laws = [law + "Function" for law in semigroupLaws + functorLaws + appli
 
 all_type_laws = list_laws + zip_list_laws + nonempty_list_laws + tree_laws + maybe_laws + state_laws + reader_laws + tuple_laws + function_laws
 
-print(joinResults(all_type_laws, [nova_res, nebula_res, cycleq_res, propel_res]))
+print(joinResults(all_type_laws, [nova_res, nebula_res, cycleq_res, hipspec_res, propel_res]))
