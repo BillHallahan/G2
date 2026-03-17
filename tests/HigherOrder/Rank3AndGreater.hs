@@ -15,12 +15,21 @@ polyFuncArgADT f = f (\(Box (Box x)) -> x)
 polyFuncArgWithFuncArg :: ((forall a. (a -> a) -> a -> a) -> Int) -> Int
 polyFuncArgWithFuncArg g = g (\f x -> f x)
 
--- will produce an error
-polyFuncArgUnhandledKind :: ((forall m. m Int -> m Int) -> Int) -> Int
-polyFuncArgUnhandledKind f = f (\x -> x)
+-- won't validate
+polyFuncArgOneArgKind :: ((forall m. m Int -> m Int) -> Int) -> Int
+polyFuncArgOneArgKind f = f (\x -> x)
 
+-- won't validate
 polyFuncArgTwoArgKind :: ((forall m. m Int Bool -> m Int Bool) -> Int) -> Int
 polyFuncArgTwoArgKind f = f (\x -> x)
+
+-- type variable kinds are incorrect, using TyCon "Int" with correct kind
+polyFuncArgTwoKinds :: ((forall m a. m a -> m a) -> Int) -> Int
+polyFuncArgTwoKinds f = f (\x -> x)
+
+-- not handled
+polyFuncArgHigherKind :: ((forall m. m Maybe -> m Maybe) -> Int) -> Int
+polyFuncArgHigherKind f = f (\x -> x)
 
 polyFuncArgWithPolyFuncArg :: ((forall a. (forall a b. a -> b -> (Boxed a, b)) -> a -> (Boxed a, a)) -> Int) -> Int
 polyFuncArgWithPolyFuncArg g = g (\poly x -> poly x x)
@@ -30,6 +39,7 @@ polyFuncArgWithPolyFuncArg g = g (\poly x -> poly x x)
 polyFuncArgWithPolyFuncArg2 :: ((forall a. (forall b. a -> b -> (Boxed a, b)) -> a -> (Boxed a, a)) -> Int) -> Int
 polyFuncArgWithPolyFuncArg2 g = g (\poly x -> poly x x)
 
+-- TODO: the following all have type variables bound to @Integer, different from above
 --------- [Polymorphic functions with polymorphic function arguments] ---------
 forallWithPolyFuncArg :: (forall a. (forall b. b -> b) -> a -> a) -> Bool
 forallWithPolyFuncArg f = f (\x -> x) True
