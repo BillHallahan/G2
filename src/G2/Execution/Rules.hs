@@ -1794,8 +1794,8 @@ retReplaceSymbFuncTemplate sft
     , kindsHandled as
     = let
         -- Currently assumes all type arguments to the function argument have kind :: *. 
-        (gen_adt_name, ng2, tenv2) = genADTWithKind TYPE ng tenv
-        applying_type = TyCon gen_adt_name TYPE -- this is the type we apply for all type variables
+        (gen_adt_name, ng2, tenv2) = genADTWithKind (TyFun TYPE (TyFun TYPE TYPE)) ng tenv
+        applying_type = TyCon gen_adt_name (TyFun TYPE (TyFun TYPE TYPE)) -- this is the type we apply for all type variables
         
         (func_arg_id, ng3) = freshId t1 ng2
         (f, ng4) = freshId (TyFun (retypes (map (, applying_type) as) tr) $ TyFun t1 t2) ng3
@@ -1876,44 +1876,32 @@ genADTWithKind k ng tenv | ks@(_:_) <- tyFunTys k
         (gen_cons_name, ng3) = freshSeededName (Name "GenC" Nothing 0 Nothing) ng2
         (gen_nil_name, ng4) = freshSeededName (Name "GenN" Nothing 0 Nothing) ng3
         (tyvar_ids, ng5) = freshIds (init ks) ng4
-        after_cons_ty = mkTyApp $ (TyCon gen_adt_name TYPE):(map TyVar tyvar_ids)
-        dc_type_ = mkTyFun $ bound_ids_apps ++ [after_cons_ty] ++ [after_cons_ty]
+        type_applied_at_tyvars = (mkTyApp $ (TyCon gen_adt_name TYPE):(map TyVar tyvar_ids))
+        nil_type = mkNestedForAll (map TyVar tyvar_ids) type_applied_at_tyvars
+        cons_type = mkNestedForAll (map TyVar tyvar_ids) (mkTyFun $ bound_ids_apps ++ [type_applied_at_tyvars] ++ [type_applied_at_tyvars])
         bound_ids_apps :: [Type]
-        (bound_ids_apps, ng6, tenv2) 
-            = foldr (\tv_id@(Id _ tv_k) (all_ty_apps, ng_prev, tenv_prev) -> 
-                let
-                    (new_gen_adt_names, ng_after, tenv_after) = foldr 
-                        (\tv_arg_k (all_tva_adt_names, ng_prev_inner, tenv_prev_inner) -> 
-                        let
-                            (tva_adt_name, ng_after_inner, tenv_after_inner) 
-                                = genADTWithKind tv_arg_k ng_prev_inner tenv_prev_inner
-                        in
-                            (tva_adt_name:all_tva_adt_names, ng_after_inner, tenv_after_inner)
-                        ) ([], ng_prev, tenv_prev) (tyFunTys tv_k)
-                    curr_ty_app = mkTyApp $ TyVar tv_id:(map (uncurry TyCon) $ zip new_gen_adt_names (tyFunTys tv_k)) -- TODO: not sure if reversed
-                in
-                    (curr_ty_app:all_ty_apps, ng_after, tenv_after)) ([], ng5, tenv) tyvar_ids
-        tenv3 = HM.insert gen_adt_name gen_adt tenv2
+        bound_ids_apps = map TyVar tyvar_ids -- doesn't allow for higher-order kinds yet (assumes all ks are *)
+        tenv2 = HM.insert gen_adt_name gen_adt tenv
         gen_adt =
             (DataTyCon { 
                 bound_ids = tyvar_ids, 
                 data_cons = [
                     DataCon {
                         dc_name = gen_cons_name,
-                        dc_type = dc_type_,
+                        dc_type = cons_type,
                         dc_univ_tyvars = tyvar_ids, -- TODO: confirm this
                         dc_exist_tyvars = []
                     }, 
                     DataCon {  
                         dc_name = gen_nil_name, 
-                        dc_type = TyCon gen_adt_name TYPE, 
+                        dc_type = nil_type, 
                         dc_univ_tyvars = tyvar_ids,
                         dc_exist_tyvars = []
                     }
                 ], 
             adt_source = ADTG2Generated })
     in
-        trace ("generating function kinded ADT with kind: " ++ show k) (gen_adt_name, ng6, tenv3)
+        {- trace ("generating function kinded ADT with kind: " ++ show k) -} (gen_adt_name, ng5, tenv2)
 
 genADTWithKind _ _ _ = undefined
 
@@ -1928,6 +1916,7 @@ kindsHandled :: [Id] -> Bool
 kindsHandled = all kindHandled
     where 
         kindHandled (Id _ TYPE) = True
+        kindHandled (Id _ (TyFun _ _)) = True
         kindHandled (Id _ kind) = error $ "While instantiating function, creating definition that applies a polymorphic function having type arguments of unsupported kind: "
                                     ++ show kind
 
