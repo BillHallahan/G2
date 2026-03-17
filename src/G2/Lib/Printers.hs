@@ -812,7 +812,7 @@ prettyTypeVarEnv pg = T.intercalate "\n"
                     . TV.toListConcOrSym
     where
         prettyTyConcOrSym (TV.TyConc t) = mkTypeHaskellPG pg t
-        prettyTyConcOrSym (TV.TySym i) = "symbolic " <> mkIdHaskell pg i
+        prettyTyConcOrSym (TV.TySym (Id _ ty)) = "symbolic " <> mkTypeHaskell ty
 
 prettyTypeClasses :: PrettyGuide -> TypeClasses -> T.Text
 prettyTypeClasses pg = T.intercalate "\n" . map (\(n, tc) -> mkNameHaskell pg n <> " = " <> prettyClass pg tc) . HM.toList . toMap
