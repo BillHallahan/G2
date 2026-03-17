@@ -19,6 +19,9 @@ polyFuncArgWithFuncArg g = g (\f x -> f x)
 polyFuncArgUnhandledKind :: ((forall m. m Int -> m Int) -> Int) -> Int
 polyFuncArgUnhandledKind f = f (\x -> x)
 
+polyFuncArgTwoArgKind :: ((forall m. m Int Bool -> m Int Bool) -> Int) -> Int
+polyFuncArgTwoArgKind f = f (\x -> x)
+
 polyFuncArgWithPolyFuncArg :: ((forall a. (forall a b. a -> b -> (Boxed a, b)) -> a -> (Boxed a, a)) -> Int) -> Int
 polyFuncArgWithPolyFuncArg g = g (\poly x -> poly x x)
 
