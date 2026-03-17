@@ -1920,16 +1920,20 @@ tyFunTys :: Type -> [Type]
 tyFunTys (TyFun t1 t2) = t1:tyFunTys t2
 tyFunTys t = [t]
 
--- TODO: this should be recursive
 -- | For use during symbolic function instantiation, when a polymorphic function 
 -- is being applied in a definition. Checks if all Ids have kinds that are currently handled.
 kindsHandled :: [Id] -> Bool
-kindsHandled = all kindHandled
-    where 
-        kindHandled (Id _ TYPE) = True
-        kindHandled (Id _ (TyFun _ _)) = True
-        kindHandled (Id _ kind) = error $ "While instantiating function, creating definition that applies a polymorphic function having type arguments of unsupported kind: "
-                                    ++ show kind
+kindsHandled = all (kindHandled . (\(Id _ k) -> k))
+
+kindHandled :: Kind -> Bool
+kindHandled k | kindHandled' k = True
+              | otherwise = error $ "While instantiating function, creating definition that applies a polymorphic function having type arguments of unsupported kind: "
+                                    ++ show k
+    where
+        kindHandled' :: Kind -> Bool
+        kindHandled' TYPE = True
+        kindHandled' (TyFun k1 k2) = k1 == TYPE && kindHandled' k2
+        kindHandled' _ = False
 
 argTypes :: Type -> ([Type], Type)
 argTypes t = (anonArgumentTypes t, returnType t)
