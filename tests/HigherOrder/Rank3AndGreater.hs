@@ -15,11 +15,9 @@ polyFuncArgADT f = f (\(Box (Box x)) -> x)
 polyFuncArgWithFuncArg :: ((forall a. (a -> a) -> a -> a) -> Int) -> Int
 polyFuncArgWithFuncArg g = g (\f x -> f x)
 
--- won't validate
 polyFuncArgOneArgKind :: ((forall m. m Int -> m Int) -> Int) -> Int
 polyFuncArgOneArgKind f = f (\x -> x)
 
--- won't validate
 polyFuncArgTwoArgKind :: ((forall m. m Int Bool -> m Int Bool) -> Int) -> Int
 polyFuncArgTwoArgKind f = f (\x -> x)
 
