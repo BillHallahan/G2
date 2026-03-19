@@ -653,6 +653,8 @@ testFileTests = testGroup "TestFiles"
                                                                        , ("polyFuncArgTwoTVs", 100, [AtLeast 10])
                                                                        , ("polyFuncArgADT", 100, [AtLeast 10])
                                                                        , ("polyFuncArgWithFuncArg", 100, [AtLeast 10])
+                                                                       , ("polyFuncArgOneArgKind", 90, [AtLeast 50])
+                                                                       , ("polyFuncArgTwoArgKind", 90, [AtLeast 50])
                                                                        , ("polyFuncArgWithPolyFuncArg", 100, [AtLeast 10])
                                                                        , ("polyFuncArgWithPolyFuncArg2", 100, [AtLeast 10])
                                                                        , ("forallWithPolyFuncArg", 200, [AtLeast 10])
