@@ -501,6 +501,16 @@ mkPrimHaskell pg = pr
 
         pr WGenCat = "wgencat"
 
+        pr InRe = "str.inRe"
+        pr ToRe = "str.to_re"
+        pr ReNone = "re.none"
+        pr ReAll = "re.all"
+        pr ReAllChar = "re.allchar"
+        pr ReConcat = "re.++"
+        pr ReUnion = "re.union"
+        pr ReInter = "re.inter"
+        pr ReStar = "re.*"
+
         pr SeqUnit = "Unit"
 
         pr (Handle n) = "(Handle " <> mkNameHaskell pg n <> ")"

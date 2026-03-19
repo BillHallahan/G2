@@ -127,6 +127,16 @@ data SMTAST = (:>=) !SMTAST !SMTAST
             | StrPrefixOfSMT !SMTAST !SMTAST
             | StrSuffixOfSMT !SMTAST !SMTAST
 
+            | InReSMT !SMTAST !SMTAST
+            | ToReSMT !SMTAST
+            | ReNoneSMT
+            | ReAllSMT
+            | ReAllCharSMT
+            | ReConcatSMT !SMTAST !SMTAST
+            | ReUnionSMT !SMTAST !SMTAST
+            | ReInterSMT !SMTAST !SMTAST
+            | ReStarSMT !SMTAST
+
             | SeqEmptySMT Sort
             | SeqUnitSMT !SMTAST
 

@@ -266,6 +266,17 @@ data Primitive = -- Mathematical and logical operators
                | OrdChar
                | WGenCat
 
+               -- String Handling (Regex)
+               | InRe -- ^ String -> Regex -> Bool
+               | ToRe -- ^ String -> Regex
+               | ReNone -- ^ Empty String
+               | ReAll -- ^ All Strings
+               | ReAllChar -- ^ All constant Strings
+               | ReConcat
+               | ReUnion
+               | ReInter
+               | ReStar -- ^ Kleene Closure
+
                -- Sequence Handling
                | SeqUnit
 

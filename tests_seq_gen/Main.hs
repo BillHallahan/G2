@@ -53,7 +53,13 @@ tests = testGroup "All Tests"
         , smtSynthTestVerify "tests_seq_gen/tests/Verify1.hs" "myTake"
         , smtSynthTestVerify "tests_seq_gen/tests/Verify1.hs" "myDelete"
         
-        , smtSynthTestRunSymexSMTStrings "tests_seq_gen/tests_symex/Test1.hs" "comp" 2
+        , smtSynthTestRunSymexSMTStrings "tests_seq_gen/tests_symex/Test1.hs" "comp" (Just 2) Nothing
+        , smtSynthTestRunSymexSMTStrings "tests_seq_gen/tests_symex/Regex1.hs" "regex1" (Just 3) (Just 3)
+        , smtSynthTestRunSymexSMTStrings "tests_seq_gen/tests_symex/Regex1.hs" "regex2" (Just 2) (Just 2)
+        , smtSynthTestRunSymexSMTStrings "tests_seq_gen/tests_symex/Regex1.hs" "regex3" (Just 3) (Just 3)
+        , smtSynthTestRunSymexSMTStrings "tests_seq_gen/tests_symex/Regex1.hs" "regex4" (Just 2) (Just 2)
+        , smtSynthTestRunSymexSMTStrings "tests_seq_gen/tests_symex/Regex1.hs" "regex5" (Just 3) (Just 3)
+        , smtSynthTestRunSymexSMTStrings "tests_seq_gen/tests_symex/Regex1.hs" "regex6" (Just 2) (Just 2)
         ]
 
 getSeqGenConfigDir :: T.Text -> IO SynthConfig
@@ -107,7 +113,8 @@ smtSynthTestWithConfig io_config src f =
 
 smtSynthTestRunSymexSMTStrings :: T.Text -- ^ Filer
                                -> T.Text -- ^ Function
-                               -> Int -- ^ Minimum number of outputs
+                               -> Maybe Int -- ^ Minimum number of outputs
+                               -> Maybe Int -- ^ Maximum number of outputs
                                -> TestTree
 smtSynthTestRunSymexSMTStrings file = smtSynthTestRunSymexWithConfig (do
                                         synth_config@(SynthConfig { g2_config = config }) <- getSeqGenConfigDir file
@@ -116,11 +123,16 @@ smtSynthTestRunSymexSMTStrings file = smtSynthTestRunSymexWithConfig (do
 smtSynthTestRunSymexWithConfig :: IO SynthConfig
                                -> T.Text -- ^ Function
                                -> T.Text -- ^ Function
-                               -> Int -- ^ Minimum number of outputs
+                               -> Maybe Int -- ^ Minimum number of outputs
+                               -> Maybe Int -- ^ Maximum number of outputs
                                -> TestTree
-smtSynthTestRunSymexWithConfig io_config src f num_out =
+smtSynthTestRunSymexWithConfig io_config src f min_out max_out =
+    
     testCase (T.unpack $ src <> " " <> f) (do
         config <- io_config
         r <- timeout (480 * 1000000) $ runFunc (T.unpack src) [] f Nothing config
-        assertBool "Error" (maybe False (\(_, er, _) -> num_out <= length er) r)
+        assertBool "Error" (maybe False 
+                                (\(_, er, _) -> maybe False (<= length er) min_out && maybe False (length er <=) max_out)
+                                r
+                           )
     )

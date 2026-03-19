@@ -336,6 +336,17 @@ isStr' (StrPrefixOfSMT _ _) = All True
 isStr' (StrSuffixOfSMT _ _) = All True
 isStr' (FromCode _) = All True
 isStr' (ToCode _) = All True
+
+isStr' (InReSMT _ _) = All True
+isStr' (ToReSMT _) = All True
+isStr' ReNoneSMT = All True
+isStr' ReAllSMT = All True
+isStr' ReAllCharSMT = All True
+isStr' (ReConcatSMT _ _) = All True
+isStr' (ReUnionSMT _ _) = All True
+isStr' (ReInterSMT _ _) = All True
+isStr' (ReStarSMT _) = All True
+
 isStr' (VString _) = All True
 isStr' (VChar _) = All True
 isStr' (V _ s) = All $ isStringSort s
@@ -430,6 +441,7 @@ exprToSMT tv e | [ Data (DataCon (Name ":" _ _ _) _ _ _)
                                 | Just (TyCon (Name "Char" _ _ _) _) <- TV.deepLookup tv type_t' -> exprToSMT tv e1
                             _ -> StrAppendSMT [exprToSMT tv e1, exprToSMT tv e2]
                     _ -> StrAppendSMT [SeqUnitSMT (exprToSMT tv e1), exprToSMT tv e2]                    
+exprToSMT _ (Prim p _) = lonePrim p
 exprToSMT tv a@(App _ _) =
     let
         f = getFunc a
@@ -461,6 +473,11 @@ exprToSMT tv (Case bindee _ _ as)
 exprToSMT tv (Tick _ e) = exprToSMT tv e
 
 exprToSMT _ e = error $ "exprToSMT: unhandled Expr: " ++ show e
+
+lonePrim :: Primitive -> SMTAST
+lonePrim ReNone = ReNoneSMT
+lonePrim ReAll = ReAllSMT
+lonePrim ReAllChar = ReAllCharSMT
 
 -- | We split based on whether the passed Expr is a function or known data constructor, or an unknown data constructor
 funcToSMT :: TV.TyVarEnv -> Expr -> [Expr] -> SMTAST
@@ -509,6 +526,9 @@ funcToSMT1Prim tv Chr e = FromCode (exprToSMT tv e)
 funcToSMT1Prim tv OrdChar e = ToCode (exprToSMT tv e)
 funcToSMT1Prim tv StrLen e = StrLenSMT (exprToSMT tv e)
 funcToSMT1Prim tv SeqUnit e = SeqUnitSMT (exprToSMT tv e)
+
+funcToSMT1Prim tv ToRe e = ToReSMT (exprToSMT tv e)
+funcToSMT1Prim tv ReStar e = ReStarSMT (exprToSMT tv e)
 
 funcToSMT1Prim _ err _ = error $ "funcToSMT1Prim: invalid Primitive " ++ show err
 
@@ -578,6 +598,12 @@ funcToSMT2Prim tv StrAt a1 a2 = exprToSMT tv a1 :!! exprToSMT tv a2
 funcToSMT2Prim tv StrContains a1 a2  = StrContainsSMT (exprToSMT tv a1) (exprToSMT tv a2)
 funcToSMT2Prim tv StrPrefixOf a1 a2  = StrPrefixOfSMT (exprToSMT tv a1) (exprToSMT tv a2)
 funcToSMT2Prim tv StrSuffixOf a1 a2  = StrSuffixOfSMT (exprToSMT tv a1) (exprToSMT tv a2)
+
+funcToSMT2Prim tv InRe a1 a2  = InReSMT (exprToSMT tv a1) (exprToSMT tv a2)
+funcToSMT2Prim tv ReConcat a1 a2  = ReConcatSMT (exprToSMT tv a1) (exprToSMT tv a2)
+funcToSMT2Prim tv ReUnion a1 a2  = ReUnionSMT (exprToSMT tv a1) (exprToSMT tv a2)
+funcToSMT2Prim tv ReInter a1 a2  = ReInterSMT (exprToSMT tv a1) (exprToSMT tv a2)
+
 funcToSMT2Prim tv op lhs rhs = error $ "funcToSMT2Prim: invalid case with (tyvar_env, op, lhs, rhs): " ++ show (tv, op, lhs, rhs)
 
 funcToSMT3Prim :: TV.TyVarEnv -> Primitive -> Expr -> Expr -> Expr -> SMTAST
@@ -847,7 +873,7 @@ toSolverASTString = go
         go (StrReplaceAllSMT x y z) = function3 "str.replace_all" (goBack x) (goBack y) (goBack z)
         go (StrPrefixOfSMT x y) = function2 "str.prefixof" (goBack x) (goBack y)
         go (StrSuffixOfSMT x y) = function2 "str.suffixof" (goBack x) (goBack y)
-        go _ = error "toSolverASTString: primitive not handled"
+        go c = toSolverASTRe goBack c
 
         goBack = toSolverAST toSolverASTString
 
@@ -864,9 +890,23 @@ toSolverASTSeq = go
         go (StrPrefixOfSMT x y) = function2 "seq.prefixof" (goBack x) (goBack y)
         go (StrSuffixOfSMT x y) = function2 "seq.suffixof" (goBack x) (goBack y)
         go (SeqEmptySMT s) = "(as seq.empty (Seq " <> sortName s <> "))"
-        go _ = error "toSolverASTSeq: primitive not handled"
+        go c = toSolverASTRe goBack c
 
         goBack = toSolverAST toSolverASTSeq
+
+toSolverASTRe :: (SMTAST -> TB.Builder) -> SMTAST -> TB.Builder
+toSolverASTRe goBack = go
+    where
+        go (InReSMT s r) = function2 "str.in_re" (goBack s) (goBack r) 
+        go (ToReSMT s) = function1 "str.to_re" $ goBack s
+        go ReNoneSMT = "re.none"
+        go ReAllSMT = "re.all"
+        go ReAllCharSMT = "re.allchar"
+        go (ReConcatSMT r1 r2) = function2 "re.++" (goBack r1) (goBack r2)
+        go (ReUnionSMT r1 r2) = function2 "re.union" (goBack r1) (goBack r2)
+        go (ReInterSMT r1 r2) = function2 "re.inter" (goBack r1) (goBack r2)
+        go (ReStarSMT r) = function1 "re.*" $ goBack r
+        go _ = error "toSolverASTRe: primitive not handled"
 
 -- | Converts a bit vector to a signed Int.
 -- Z3 has a bv2int function, but uses unsigned integers.
