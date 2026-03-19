@@ -841,7 +841,7 @@ smtFuncToPrim s vl_args = conv s ++ conv_args
         conv "str.suffixof" = "strSuffixOf#"
         conv "str.contains" = "strContains#"
         conv "str.indexof" = "strIndexOf#"
-        conv "str.replace" = "strReplaceAll#"
+        conv "str.replace" = "strReplace#"
         conv "str.replace_all" = "strReplaceAll#"
         conv "strEq" = "strEq#"
 
