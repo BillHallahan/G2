@@ -31,14 +31,21 @@ def readHipSpec(file):
         res_out = mtch.group(2)
         res_out = " - " if res_out == "unproved" or res_out == "timeout" else res_out
         res_out = "" if res_out == "unknown" else res_out
-        res[mtch.group(1)] = mtch.group(2)
+        res[mtch.group(1)] = res_out
     return res
 
 def readCycleQFile(res, ty, file):
     contents = open(file)
     for lne in (contents.readlines()[3:][:-2]):
         mtch = re.match("([a-zA-Z0-9]+)\s*\&\s*([0-9.]+|\s*NaN)\s*\&", lne)
-        res[mtch.group(1) + ty] = mtch.group(2) if mtch.group(2) != "NaN" else "-"
+        res_out = mtch.group(2)
+        print("A: " + res_out)
+        try:
+            res_out = str(float(res_out) / 1000)
+        except ValueError:
+            break
+        print("B: " + res_out)
+        res[mtch.group(1) + ty] = res_out if res_out != "nan" else "-"
     return res
 
 # CycleQ results should be in the "benchmarks - [benchmark file].tex" files output
@@ -60,7 +67,7 @@ def readNebula(file):
         outcome = lne_pieces[4]
 
         if outcome == "Verified":
-            res[prop] = lne_pieces[5]
+            res[prop] = lne_pieces[5].replace("s","")
         elif outcome == "Failed":
             res[prop] = "CEx"
         elif outcome == "Timeout":
@@ -78,7 +85,10 @@ def joinResults(prop_list, res):
         for r in res:
             lne += " & "
             if prop in r:
-                lne += r[prop]
+                try:
+                    lne += str(round(float(r[prop]),1))
+                except ValueError:
+                    lne += r[prop]
             else:
                 lne += " "
         lne += " \\\\\n"
