@@ -609,7 +609,7 @@ sygusCmds er@(ExecRes { final_state = s@(State { tyvar_env = tv_env, known_value
                     , GBfTerm (BfIdentifierBfs (ISymb "seq.at") [ strIdent, intIdent])
                     , GBfTerm (BfIdentifierBfs (ISymb "seq.extract") [ strIdent, intIdent, intIdent])
                     , GBfTerm (BfIdentifierBfs (ISymb "seq.replace") [ strIdent, strIdent, strIdent])
-                    -- , GBfTerm (BfIdentifierBfs (ISymb "str.replace_all") [ strIdent, strIdent, strIdent])
+                    , GBfTerm (BfIdentifierBfs (ISymb "str.replace_all") [ strIdent, strIdent, strIdent])
                     ]
                     ++
                     if not (null char_args) then [GBfTerm (BfIdentifierBfs (ISymb "fromChar") [ charArgIdent ])] else []
@@ -841,7 +841,8 @@ smtFuncToPrim s vl_args = conv s ++ conv_args
         conv "str.suffixof" = "strSuffixOf#"
         conv "str.contains" = "strContains#"
         conv "str.indexof" = "strIndexOf#"
-        conv "str.replace" = "strReplace#"
+        conv "str.replace" = "strReplaceAll#"
+        conv "str.replace_all" = "strReplaceAll#"
         conv "strEq" = "strEq#"
 
         conv "seq.++" = "strAppend#"
@@ -853,6 +854,7 @@ smtFuncToPrim s vl_args = conv s ++ conv_args
         conv "seq.contains" = "strContains#"
         conv "seq.indexof" = "strIndexOf#"
         conv "seq.replace" = "strReplace#"
+        conv "seq.replace_all" = "strReplaceAll#"
         conv "seqIntEq" = "strEq#"
         conv "seqFloatEq" = "strEq#"
 

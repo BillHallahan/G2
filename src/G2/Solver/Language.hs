@@ -123,6 +123,7 @@ data SMTAST = (:>=) !SMTAST !SMTAST
             | StrIndexOfSMT !SMTAST !SMTAST !SMTAST
             | StrContainsSMT !SMTAST !SMTAST
             | StrReplaceSMT !SMTAST !SMTAST !SMTAST
+            | StrReplaceAllSMT !SMTAST !SMTAST !SMTAST
             | StrPrefixOfSMT !SMTAST !SMTAST
             | StrSuffixOfSMT !SMTAST !SMTAST
 

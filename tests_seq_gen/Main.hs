@@ -41,6 +41,7 @@ tests = testGroup "All Tests"
         , smtSynthTestHeight "tests_seq_gen/tests/Test.hs" "f17"
         , smtSynthTestHeight "tests_seq_gen/tests/Test.hs" "f18"
         , smtSynthTestHeight "tests_seq_gen/tests/Test.hs" "f19"
+        , smtSynthTestHeight "tests_seq_gen/tests/Test.hs" "f20"
         , smtSynthTestHeight "tests_seq_gen/tests/Test.hs" "@@"
 
         , smtSynthTestHeight "tests_seq_gen/tests/TestInt.hs" "f1"
