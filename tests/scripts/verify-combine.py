@@ -39,12 +39,10 @@ def readCycleQFile(res, ty, file):
     for lne in (contents.readlines()[3:][:-2]):
         mtch = re.match("([a-zA-Z0-9]+)\s*\&\s*([0-9.]+|\s*NaN)\s*\&", lne)
         res_out = mtch.group(2)
-        print("A: " + res_out)
         try:
             res_out = str(float(res_out) / 1000)
         except ValueError:
             break
-        print("B: " + res_out)
         res[mtch.group(1) + ty] = res_out if res_out != "nan" else "-"
     return res
 
