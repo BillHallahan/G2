@@ -271,7 +271,7 @@ data Primitive = -- Mathematical and logical operators
                | ToRe -- ^ String -> Regex
                | ReNone -- ^ Empty String
                | ReAll -- ^ All Strings
-               | ReAllChar -- ^ All constant Strings
+               | ReAllChar -- ^ All single character Strings
                | ReConcat
                | ReUnion
                | ReInter
