@@ -501,7 +501,7 @@ mkPrimHaskell pg = pr
 
         pr WGenCat = "wgencat"
 
-        pr InRe = "str.inRe"
+        pr InRe = "str.in_re"
         pr ToRe = "str.to_re"
         pr ReNone = "re.none"
         pr ReAll = "re.all"
