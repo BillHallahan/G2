@@ -57,6 +57,8 @@ import System.Timeout
 
 import Control.Monad.IO.Class
 
+import Debug.Trace
+
 -- | Load the passed module(s) into GHC, and check that the `ExecRes` results are correct.
 validateStates :: [FilePath] -> [FilePath] -> HS.HashSet (Maybe T.Text) -> String -> [String] -> [String] -> [GeneralFlag] -> String -> Bindings
                -> [ExecRes t]
@@ -93,7 +95,7 @@ creatDeclStr pg s (x, DataTyCon{data_cons = dcs, bound_ids = is}) =
         all_dc_decls = T.unpack $ T.intercalate " | " dc_decls
         derive_eq = if not (any isTyFun $ concatMap (argumentTypes . typeOf (tyvar_env s)) dcs) then " deriving Eq" else ""
     in
-    "data " ++ x' ++ " " ++ ids'++ " = " ++ all_dc_decls ++ derive_eq
+    trace ("data " ++ x' ++ " " ++ ids'++ " = " ++ all_dc_decls ++ derive_eq) $ "data " ++ x' ++ " " ++ ids'++ " = " ++ all_dc_decls ++ derive_eq
 creatDeclStr _ _ _ = error "creatDeclStr: unsupported AlgDataTy"
 
 -- | Compile with GHC, and check that the output we got is correct for the input
