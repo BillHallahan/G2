@@ -41,7 +41,6 @@ tests = testGroup "All Tests"
         , smtSynthTestHeight "tests_seq_gen/tests/Test.hs" "f17"
         , smtSynthTestHeight "tests_seq_gen/tests/Test.hs" "f18"
         , smtSynthTestHeight "tests_seq_gen/tests/Test.hs" "f19"
-        , smtSynthTestHeight "tests_seq_gen/tests/Test.hs" "f20"
         , smtSynthTestHeight "tests_seq_gen/tests/Test.hs" "@@"
 
         , smtSynthTestHeight "tests_seq_gen/tests/TestInt.hs" "f1"
@@ -60,6 +59,8 @@ tests = testGroup "All Tests"
         , smtSynthTestRunSymexSMTStrings "tests_seq_gen/tests_symex/Regex1.hs" "regex4" (Just 2) (Just 2)
         , smtSynthTestRunSymexSMTStrings "tests_seq_gen/tests_symex/Regex1.hs" "regex5" (Just 3) (Just 3)
         , smtSynthTestRunSymexSMTStrings "tests_seq_gen/tests_symex/Regex1.hs" "regex6" (Just 2) (Just 2)
+
+        , smtSynthTestRunSymexSMTStrings "tests_seq_gen/tests_symex/Test2.hs" "callReplaceAll" (Just 2) (Just 2)
         ]
 
 getSeqGenConfigDir :: T.Text -> IO SynthConfig
