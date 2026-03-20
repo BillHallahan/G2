@@ -10,6 +10,6 @@ callReplaceAll x y z =
     let
         !r = strReplaceAll# x y z
     in
-    case assert False (length r > length z) of
+    case assert False (length r > length x) of
         True -> (1, r)
         False -> (2, r)
