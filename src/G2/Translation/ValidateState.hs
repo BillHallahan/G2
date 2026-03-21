@@ -93,9 +93,14 @@ creatDeclStr pg s (x, DataTyCon{data_cons = dcs, bound_ids = is}) =
         wrapParens str = "(" <> str <> ")" 
         dc_decls = map (\dc -> printHaskellPG pg s (Data dc) <> " " <> T.intercalate " " (map (wrapParens . mkTypeHaskellPG pg) (anonArgumentTypes (typeOf (tyvar_env s) dc)))) dcs
         all_dc_decls = T.unpack $ T.intercalate " | " dc_decls
-        derive_eq = if not (any isTyFun $ concatMap (argumentTypes . typeOf (tyvar_env s)) dcs) then " deriving Eq" else ""
+        derive_eq = if not (any isTyFun $ concatMap (argumentTypes . typeOf (tyvar_env s)) dcs) then "deriving instance " <> derive_eq_ctx <> " => " <> derive_eq_hd else ""
+        derive_eq_ctx = T.unpack "(" ++ ctx_items ++ ")"
+            where
+                ctx_items = T.unpack $ T.intercalate ", " . filter (not . T.null) $ map mkDCCtxItems dcs
+                mkDCCtxItems dc = T.intercalate ", " $ map (("Eq " <>) . wrapParens . mkTypeHaskellPG pg) (anonArgumentTypes (typeOf (tyvar_env s) dc))
+        derive_eq_hd = T.unpack "(Eq (" <> x' <> " " <> ids' <> "))"
     in
-    trace ("data " ++ x' ++ " " ++ ids'++ " = " ++ all_dc_decls ++ derive_eq) $ "data " ++ x' ++ " " ++ ids'++ " = " ++ all_dc_decls ++ derive_eq
+        "data " ++ x' ++ " " ++ ids'++ " = " ++ all_dc_decls ++ "\n" ++ derive_eq
 creatDeclStr _ _ _ = error "creatDeclStr: unsupported AlgDataTy"
 
 -- | Compile with GHC, and check that the output we got is correct for the input
@@ -123,12 +128,12 @@ createDeclsStr :: PrettyGuide -> State t -> TypeEnv -> [String]
 createDeclsStr pg s = map (creatDeclStr pg s) . H.toList
 
 createDecls :: GhcMonad m => PrettyGuide -> State t -> TypeEnv -> m ()
-createDecls pg s = mapM_ runDecls . createDeclsStr pg s
+createDecls pg s = void . runDecls . intercalate "\n" . createDeclsStr pg s
 
 adjustDynFlags :: GhcMonad m => m ()
 adjustDynFlags = do
     dyn <- getSessionDynFlags
-    let dyn2 = foldl' xopt_set dyn [MagicHash, UnboxedTuples, DataKinds, BangPatterns]
+    let dyn2 = foldl' xopt_set dyn [MagicHash, UnboxedTuples, DataKinds, BangPatterns, UndecidableInstances]
         dyn3 = wopt_unset dyn2 Opt_WarnOverlappingPatterns
         dyn4 = dyn3 { generalFlags = ES.insert Opt_Hpc (generalFlags dyn3) }
     _ <- setSessionDynFlags dyn4
