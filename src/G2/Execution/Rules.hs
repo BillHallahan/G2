@@ -1858,7 +1858,7 @@ genADTWithKind (ng, tenv) k
     where 
         genADTTYPEKind :: ((NameGen, TypeEnv), Name)
         genADTTYPEKind 
-                = ((ng4, tenv'), gen_adt_name)
+                = ((ng2, tenv'), gen_adt_name)
             where
                 tenv' = HM.insert gen_adt_name gen_adt tenv
                 gen_adt = 
@@ -1880,13 +1880,11 @@ genADTWithKind (ng, tenv) k
                         ], 
                     adt_source = ADTG2Generated })
                 
-                (gen_adt_name, ng2) = freshSeededName (Name "GenT" Nothing 0 Nothing) ng
-                (gen_cons_name, ng3) = freshSeededName (Name "GenC" Nothing 0 Nothing) ng2
-                (gen_nil_name, ng4) = freshSeededName (Name "GenN" Nothing 0 Nothing) ng3
+                ((gen_adt_name, gen_cons_name, gen_nil_name), ng2) = mkGenADTNames ng
         
         genADTFunctionKind :: [Kind] -> ((NameGen, TypeEnv), Name)
         genADTFunctionKind ks
-            = ((ng6, tenv3), gen_adt_name) 
+            = ((ng4, tenv3), gen_adt_name) 
             where
                 tenv3 = HM.insert gen_adt_name gen_adt tenv2
                 gen_adt =
@@ -1907,19 +1905,25 @@ genADTWithKind (ng, tenv) k
                             }
                         ], 
                     adt_source = ADTG2Generated })
-                (tyvar_ids, ng2) = freshIds (init ks) ng -- a1..an
-                type_applied_at_tyvars = mkTyApp $ (TyCon gen_adt_name TYPE):(map TyVar tyvar_ids) -- GenT a1..an
+                ((gen_adt_name, gen_cons_name, gen_nil_name), ng2) = mkGenADTNames ng
+                (tyvar_ids, ng3) = freshSeededIds (map (Id (Name "a" Nothing 0 Nothing)) $ init ks) ng2 -- a1..an
+                type_applied_at_tyvars = mkTyApp $ TyCon gen_adt_name k:map TyVar tyvar_ids -- GenT a1..an
                 nil_type = mkNestedForAll (map TyVar tyvar_ids) type_applied_at_tyvars -- forall a1..an. GenT a1..an
                 cons_type = mkNestedForAll (map TyVar tyvar_ids) -- forall a1..an. a1 -> .. -> an -> GenT a1..an -> GenT a1..an
                     (mkTyFun $ bound_ids_apps ++ [type_applied_at_tyvars] ++ [type_applied_at_tyvars]) 
                 bound_ids_apps :: [Type] -- Need to make: (a1 _ _ ...) .. (an _ _ ...)
-                ((ng3, tenv2), bound_ids_apps) = mapAccumL mkBoundIdApp (ng2, tenv) tyvar_ids      
+                ((ng4, tenv2), bound_ids_apps) = mapAccumL mkBoundIdApp (ng3, tenv) tyvar_ids      
         
-                (gen_adt_name, ng4) = freshSeededName (Name "GenT" Nothing 0 Nothing) ng3
-                (gen_cons_name, ng5) = freshSeededName (Name "GenC" Nothing 0 Nothing) ng4
-                (gen_nil_name, ng6) = freshSeededName (Name "GenN" Nothing 0 Nothing) ng5
-
 genADTWithKind _ _ = error "genADTWithKind: unhandled kind"
+
+mkGenADTNames :: NameGen -> ((Name, Name, Name), NameGen)
+mkGenADTNames ng 
+    = case freshSeededNames [Name "GenT" Nothing 0 Nothing, 
+                             Name "GenC" Nothing 0 Nothing, 
+                             Name "GenN" Nothing 0 Nothing] ng
+      of
+        ([gan,gcn,gnn], ng') -> ((gan, gcn, gnn), ng')
+        _ -> error "mkGenADTNames: NameGen error"
 
 -- From a@(Id _ kind) creates (TyApp (TyVar a) <newADT> <newADT>) depending on its kind.
 -- If a's Kind is TYPE, no applications are needed.

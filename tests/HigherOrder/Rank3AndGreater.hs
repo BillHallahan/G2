@@ -25,7 +25,6 @@ polyFuncArgTwoArgKind f = f (\x -> x)
 polyFuncArgTwoKinds :: ((forall m a. m a -> m a) -> Int) -> Int
 polyFuncArgTwoKinds f = f (\x -> x)
 
--- not handled
 polyFuncArgHigherKind :: ((forall m. m Maybe -> m Maybe) -> Int) -> Int
 polyFuncArgHigherKind f = f (\x -> x)
 
