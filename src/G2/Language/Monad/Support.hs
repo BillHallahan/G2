@@ -96,6 +96,9 @@ class ExState s m => FullState s m | m -> s where
     pathConds :: m PathConds
     putPathConds :: PathConds -> m ()
 
+    nonRedPathConds :: m NonRedPathConds
+    putNonRedPathConds :: NonRedPathConds -> m ()
+
     inputNames :: m [Name]
     fixedInputs :: m [Expr]
 
@@ -149,6 +152,10 @@ instance FullState (State t, Bindings) (SM.State (State t, Bindings)) where
 
     pathConds = readRecord (\(s, _) -> path_conds s)
     putPathConds = rep_path_condsM
+
+    nonRedPathConds = readRecord (\(s, _) -> non_red_path_conds s)
+    putNonRedPathConds = rep_nonRedM
+
 
     inputNames = readRecord (\(_, b) -> input_names b)
     fixedInputs = readRecord (\(_,b) -> fixed_inputs b)
@@ -247,6 +254,11 @@ rep_curr_exprM :: CurrExpr -> StateM t ()
 rep_curr_exprM ce = do
     (s, b) <- SM.get
     SM.put $ (s {curr_expr = ce}, b)
+
+rep_nonRedM :: NonRedPathConds -> StateM t ()
+rep_nonRedM nrpc = do
+    (s, b) <- SM.get
+    SM.put $ (s {non_red_path_conds = nrpc}, b)
 
 mapCurrExpr :: FullState s m => (Expr -> m Expr) -> m ()
 mapCurrExpr f = do

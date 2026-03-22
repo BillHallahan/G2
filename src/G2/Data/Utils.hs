@@ -10,6 +10,7 @@ module G2.Data.Utils ( uncurry3
 
                      , mapFst
                      , mapFst3
+                     , mapFst4
 
                      , holes
                      
@@ -53,6 +54,9 @@ mapFst f (x, y) = (f x, y)
 
 mapFst3 :: (a -> d) -> (a, b, c) -> (d, b, c)
 mapFst3 f (x, y, z) = (f x, y, z)
+
+mapFst4 :: (a -> e) -> (a, b, c, d) -> (e, b, c, d)
+mapFst4 f (x, y, z, w) = (f x, y, z, w)
 
 -- * Lists
 

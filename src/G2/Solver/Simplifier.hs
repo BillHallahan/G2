@@ -16,6 +16,7 @@ import qualified G2.Language.ExprEnv as E
 import G2.Language.KnownValues
 import qualified G2.Language.PathConds as PC
 import qualified G2.Language.Typing as T
+import qualified Data.List as L
 
 class Simplifier simplifier where
     -- | Simplifies a PC, by converting it into one or more path constraints that are easier
@@ -29,8 +30,9 @@ class Simplifier simplifier where
     
     {-# INLINE simplifyPCWithExprEnv #-}
     -- | Simplify the PathCond while also updating the ExprEnv
-    simplifyPCWithExprEnv :: forall t . simplifier -> State t -> NameGen -> ExprEnv ->  PathCond -> (NameGen, ExprEnv, PathCond)
-    simplifyPCWithExprEnv _ _ ng eenv pc = (ng, eenv, pc)
+    simplifyPCWithExprEnv :: forall t . simplifier -> State t -> NameGen -> ExprEnv ->  PathCond -> (NameGen, ExprEnv, [PathCond])
+    simplifyPCWithExprEnv simplifier s ng eenv pc =
+        let pcs = simplifyPC simplifier s pc in (ng, eenv, pcs)
 
     -- | Reverses the affect of simplification in the model, if needed.
     reverseSimplification :: forall t . simplifier -> State t -> Bindings -> Model -> Model
@@ -46,8 +48,10 @@ instance (Simplifier simp1, Simplifier simp2) => Simplifier (simp1 :>> simp2) wh
     simplifyPCWithExprEnv (simp1 :>> simp2) s ng eenv pc =
         let
             (ng', eenv', pc') = simplifyPCWithExprEnv simp2 s ng eenv pc
+            ((ng'', eenv''), pc'') = L.mapAccumL (\(ng_, eenv_) pc_ ->
+                                                    let (ng_', eenv_', pcs_) = simplifyPCWithExprEnv simp1 s ng_ eenv_ pc_ in ((ng_', eenv_'), pcs_)) (ng', eenv') pc'
         in 
-        simplifyPCWithExprEnv simp1 s ng' eenv' pc'
+        (ng'', eenv'', concat pc'')
 
     reverseSimplification (simp1 :>> simp2) s b m = reverseSimplification simp1 s b $ reverseSimplification simp2 s b m
 
@@ -167,9 +171,9 @@ instance Simplifier EqualitySimplifier where
     simplifyPCWithExprEnv _ s ng eenv pc
         | Just (n, e) <- smallEqPC (known_values s) pc =
             case e of
-                Var (Id n' _) | n == n' -> (ng, eenv, pc)
-                _ -> (ng, E.insert n e eenv, pc)
-        | otherwise = (ng, eenv, pc)
+                Var (Id n' _) | n == n' -> (ng, eenv, [pc])
+                _ -> (ng, E.insert n e eenv, [pc])
+        | otherwise = (ng, eenv, [pc])
     
     reverseSimplification _ _ _ m = m
 
@@ -220,7 +224,7 @@ instance Simplifier LitConc where
             eenv' = foldr (\(Id nC t, nL) -> E.insert nC (concApprop t nL) . E.insertSymbolic nL) eenv conc_c
             pc' = foldr (\(Id nC t, nL) -> replaceVar nC (concApprop t nL)) pc conc_c
         in
-        (ng', eenv', pc')
+        (ng', eenv', [pc'])
         where
             replacable_type (Id _ t) =
                    t' == T.tyChar kv

@@ -21,12 +21,14 @@ import G2.Solver
 import G2.Translation
 import G2.Verify.Config
 import G2.Verify.Reducer
+import G2.Verify.InitRewrite
 
 import Control.Exception
 import Control.Monad.IO.Class
 import qualified Control.Monad.State as SM
 import qualified Data.HashSet as S
 import Data.IORef
+import qualified Data.List as L
 import Data.Maybe
 import System.Clock
 import qualified G2.Language.TyVarEnv as TV
@@ -36,9 +38,10 @@ data VerifyResult = Verified
                   | VerifyTimeOut
                   deriving (Show, Read)
 
-type VerStack m = SM.StateT (ApproxPrevs VerifierTracker)
+type VerStack m = SM.StateT LemmaInfo
+                    (SM.StateT (ApproxPrevs VerifierTracker)
                         (SM.StateT LengthNTrack
-                            (SM.StateT PrettyGuide m))
+                            (SM.StateT PrettyGuide m)))
 
 verifyRedHaltOrd :: (MonadIO m, Solver solver, Simplifier simplifier) =>
                     State VerifierTracker
@@ -59,8 +62,10 @@ verifyRedHaltOrd s solver simplifier config verify_config no_nrpc_names = do
     let labelApproxPoints s
             | Data (DataCon { dc_name = d }) <- getExpr s
             , d == dc_name (mkDCFalse (known_values s) (type_env s)) =
-                                    "state" ++ show (length $ rules s) ++ "_ap"
-            | otherwise = "state" ++ show (length $ rules s)
+                "state" ++ show (length $ rules s) ++ lem_ind ++ "_ap"
+            | otherwise = "state" ++ show (length $ rules s) ++ lem_ind
+            where
+                lem_ind = if isTheorem (goal $ track s) then "" else "_lem"
 
     m_logger <- fmap SomeReducer <$> getLimLogger' labelApproxPoints config prettyVerifierTracker
 
@@ -70,9 +75,14 @@ verifyRedHaltOrd s solver simplifier config verify_config no_nrpc_names = do
                          . E.keys
                          . E.filterConcOrSym (\case E.Conc _ -> True; E.Sym _ -> False)
                          $ expr_env s
+
+        std_red f =
+            case arg_rev_abs verify_config of
+                AbsFuncArgs -> SomeReducer (liftOutFullyAppedReducer ~> stdRed share f solver simplifier ~> instTypeRed)
+                NoAbsFuncArgs -> SomeReducer (stdRed share f solver simplifier ~> instTypeRed)
                          
         strict_red f = case strict config of
-                            True -> SomeReducer (verifyHigherOrderHandling ~> stdRed share f solver simplifier ~> instTypeRed ~> strictRed)
+                            True -> SomeReducer verifyHigherOrderHandling .~> std_red f
                             False -> SomeReducer (stdRed share f solver simplifier ~> instTypeRed)
 
         nrpc_higher_red f = liftSomeReducer (strict_red f)
@@ -86,8 +96,8 @@ verifyRedHaltOrd s solver simplifier config verify_config no_nrpc_names = do
                                 False -> accept_time_red f
 
         logger_std_red f = case m_logger of
-                            Just logger -> liftSomeReducer $ liftSomeReducer (logger .~> num_steps_red f)
-                            Nothing -> liftSomeReducer $ liftSomeReducer (num_steps_red f)
+                            Just logger -> liftSomeReducer . liftSomeReducer $ liftSomeReducer (logger .~> num_steps_red f)
+                            Nothing -> liftSomeReducer . liftSomeReducer $ liftSomeReducer (num_steps_red f)
 
         set_focus_red f = SomeReducer adjustFocusReducer .~> logger_std_red f
 
@@ -100,6 +110,11 @@ verifyRedHaltOrd s solver simplifier config verify_config no_nrpc_names = do
                                             SomeReducer nrpc_approx
                                         .~> syntactic_eq_red f
                                 False -> logger_std_red f
+        lemma_gen f = case use_lemmas verify_config of
+                            True -> SomeReducer (genLemmaReducer no_nrpc_names solver)
+                                .~> liftSomeReducer (SomeReducer acceptLemmaReducer)
+                                .~> nrpc_approx_red f
+                            False -> nrpc_approx_red f
         
         halter = switchEveryNHalter 20
                  <~> acceptIfViolatedHalter
@@ -111,14 +126,14 @@ verifyRedHaltOrd s solver simplifier config verify_config no_nrpc_names = do
                                     False -> SomeHalter halter
 
         halter_approx_discard = case approx verify_config of
-                                        True -> SomeHalter (approximationHalter solver approx_no_inline) .<~> inconsistent_halter
+                                        True -> SomeHalter (liftHalter $ approximationHalter solver approx_no_inline) .<~> inconsistent_halter
                                         False -> inconsistent_halter
 
         orderer = case search_strat config of
-                        Subpath -> SomeOrderer . liftOrderer $ lengthNSubpathOrderer (subpath_length config)
+                        Subpath -> SomeOrderer . liftOrderer . liftOrderer $ lengthNSubpathOrderer (subpath_length config)
                         Iterative -> SomeOrderer $ pickLeastUsedOrderer
 
-    return ( nrpc_approx_red (\_ _ _ _ -> Nothing) .== Finished --> verifySolveNRPC
+    return ( lemma_gen (\_ _ _ _ -> Nothing) .== Finished --> verifySolveNRPC
            , halter_approx_discard
            , orderer
            , io_timed_out)
@@ -163,9 +178,7 @@ verifyFromFile proj src f transConfig config verify_config = do
                          , higherOrderSolver = AllFuncs }
 
 
-    (init_state, entry_f, bindings, _) <- initialStateFromFile proj src
-                                    Nothing False f (mkCurrExpr TV.empty Nothing Nothing) (mkArgTys config' TV.empty)
-                                    transConfig config'
+    (init_state, entry_f, bindings) <- setUpState proj src f transConfig config' verify_config
     let (init_state', ng) = wrapCurrExpr (name_gen bindings) init_state
         bindings' = bindings { name_gen = ng }
     
@@ -200,7 +213,10 @@ verifyFromFile proj src f transConfig config verify_config = do
                         SM.evalStateT
                                 (SM.evalStateT
                                     (SM.evalStateT
-                                        (runG2WithSomes' red hal ord [] solver simplifier verifier_state bindings'')
+                                        (SM.evalStateT
+                                            (runG2WithSomes' red hal ord [] solver simplifier verifier_state bindings'')
+                                            emptyLemmaInfo
+                                        )
                                         emptyApproxPrevs
                                     )
                                     lnt
@@ -213,9 +229,27 @@ verifyFromFile proj src f transConfig config verify_config = do
     accept_time <- getTime Realtime
     let diff = diffTimeSpec accept_time init_time
         diff_secs = (fromInteger (toNanoSecs diff)) / (10 ^ (9 :: Int) :: Double)
+        theorem_er = filter (isTheorem . goal . track . final_state) er
     let res = case to' of
                 TimedOut -> VerifyTimeOut
-                NoTimeOut | false_er <- filter (currExprIsFalse . final_state) er
+                NoTimeOut | false_er <- filter (currExprIsFalse . final_state) theorem_er
                           , not (null false_er) -> Counterexample false_er
-                          | otherwise -> assert (all (currExprIsTrue . final_state) er) Verified
+                          | otherwise -> assert (all (currExprIsTrue . final_state) theorem_er) Verified
     return (res, diff_secs, bindings''', entry_f)
+
+setUpState :: [FilePath]
+           -> [FilePath]
+           -> StartFunc
+           -> TranslationConfig
+           -> Config
+           -> VerifyConfig
+           -> IO (State (), Id, Bindings)
+setUpState proj src f transConfig config (VerifyConfig { rewrite_rule = False }) = do
+    (s, i, b, _) <- initialStateFromFile proj src
+                                  Nothing False f (mkCurrExpr TV.empty Nothing Nothing) (mkArgTys config TV.empty)
+                                  transConfig config
+    return (s, i, b)
+setUpState proj src f transConfig config (VerifyConfig { rewrite_rule = True }) = do
+    (s, b, _) <- initialStateNoStartFunc proj src (transConfig { load_rewrite_rules = True }) config
+    let rule = L.find (\r -> ru_name r == f) $ rewrite_rules b
+    return $ initRule s b $ fromMaybe (error $ "rule not found" ++ "\n" ++ show  (map (ru_name) (rewrite_rules b))) rule

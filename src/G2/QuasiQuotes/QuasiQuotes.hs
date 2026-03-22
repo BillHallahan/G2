@@ -409,7 +409,7 @@ errorHalter = mkSimpleHalter
                     stop
                     (\_ _ _ _ -> ())
     where
-        stop _ _ s | errorRaised s = return Discard
+        stop _ _ s | errorRaised s = return (Discard "errorHalter")
         stop _ _ _ = return Continue
 
 executeAndSolveStates :: StateExp -> BindingsExp -> Q Exp

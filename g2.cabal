@@ -172,6 +172,7 @@ library
                        , G2.Translation.ValidateState
 
                        , G2.Verify.Config
+                       , G2.Verify.InitRewrite
                        , G2.Verify.Interface
                        , G2.Verify.Reducer
                        , G2.Verify.StaticArgTrans
@@ -351,6 +352,7 @@ executable Nebula
   -- other-extensions:
   build-depends:         g2
                        , base >= 4.8 && < 5
+                       , clock
                        , containers
                        , filepath
                        , ghc
@@ -502,6 +504,7 @@ test-suite test-seq-gen
                        , base >= 4.8 && < 5
                        , containers
                        , directory
+                       , optparse-applicative
                        , tasty >= 1.0 && < 2.0
                        , tasty-hunit >= 0.10 && < 0.10.0.3
                        , text

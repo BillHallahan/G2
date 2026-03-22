@@ -11,7 +11,7 @@ import qualified G2.Language.Typing as T
 import qualified G2.Language.TyVarEnv as TV
 
 addToDCPC :: Config -> IT.SimpleState -> DataConPCMap -> DataConPCMap
-addToDCPC (Config { smt_prim_lists = UseSMTSeq }) (IT.SimpleState { IT.known_values = kv, IT.type_env = tenv }) dcpc =
+addToDCPC (Config { smt_prim_lists = UseSMTSeq { add_to_dcs = True } }) (IT.SimpleState { IT.known_values = kv, IT.type_env = tenv }) dcpc =
       addListToDCPCMap kv (mkDCDouble kv tenv) TyLitDouble
     . addListToDCPCMap kv (mkDCFloat kv tenv) TyLitFloat 
     . addListToDCPCMap kv (mkDCInteger kv tenv) TyLitInt

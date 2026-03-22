@@ -38,7 +38,9 @@ module G2.Lib.Printers ( PrettyGuide
                        , updateQualMods
                        , setStrictCase
                        , setEnvOrdering
-                       , setTyLamPrinting) where
+                       , setTyLamPrinting
+                       
+                       , inlinePretty) where
 
 import G2.Language.Expr
 import qualified G2.Language.ExprEnv as E
@@ -187,7 +189,13 @@ mkExprHaskell' off_init cleaned pg ex = mkExprHaskell'' off_init ex
                                 else " ret = (" <> mkTypeHaskellPG pg t <> ")" in
                "case " <> parenWrap e (mkExprHaskell'' off e) <> " of" <> case_ty <> "\n" 
             <> T.intercalate "\n" (map (mkAltHaskell (off + 2) cleaned pg bndr) ae)
-        mkExprHaskell'' _ (Type t) = "@" <> mkTypeHaskellPG pg t
+        mkExprHaskell'' _ (Type t) =
+            let
+                wrap (TyFun _ _) s = "(" <> s <> ")"
+                wrap (TyApp _ _) s = "(" <> s <> ")"
+                wrap _ s = s
+            in
+            "@" <> wrap t (mkTypeHaskellPG pg t)
         mkExprHaskell'' off (Cast e (t1 :~ t2)) =
             let
                 e_str = mkExprHaskell'' off e
@@ -568,6 +576,9 @@ mkTypeHaskellPG' pg m_tc = go
         go (TyFun t1 t2)
             | isTyFun t1 = "(" <> go t1 <> ") -> " <> go t2
             | Just tc <- m_tc
+            , TyCon n _:_<- unTyApp t1
+            , nameOcc n == "IP" = "HasCallStack => " <> go t2
+            | Just tc <- m_tc
             , isTypeClass tc t1 = go t1 <> " => " <> go t2
             | otherwise = go t1 <> " -> " <> go t2
         go (TyCon n _) | nameOcc n == "List"
@@ -665,7 +676,7 @@ prettyState pg pretty_track s =
         pretty_stack = prettyExecStack pg (exec_stack s)
         pretty_eenv = prettyEEnv (tyvar_env s) pg (curr_expr s) (exec_stack s) (expr_env s)
         pretty_paths = prettyPathConds pg (path_conds s)
-        pretty_non_red_paths = prettyNonRedPaths pg . toListNRPC $ non_red_path_conds s
+        pretty_non_red_paths = prettyNonRedPaths pg $ non_red_path_conds s
         pretty_handles = prettyHandles pg $ handles s
         pretty_mutvars = prettyMutVars pg . HM.map mv_val_id $ mutvar_env s
         pretty_tenv = prettyTypeEnv (tyvar_env s) pg (type_env s)
@@ -823,12 +834,17 @@ prettyPathCond pg (AssumePC i l pc) =
     in
     mkIdHaskell pg i <> " = " <> T.pack (show l) <> "=> (" <> T.intercalate "\nand " (map (prettyPathCond pg) pc') <> ")"
 
-prettyNonRedPaths :: PrettyGuide -> [NRPC] -> T.Text
-prettyNonRedPaths pg =
-    T.intercalate "\n"
-    . map (\(focus, e1, e2) -> mkDirtyExprHaskell pg e1 <> " == "
+prettyNonRedPaths :: PrettyGuide -> NonRedPathConds -> T.Text
+prettyNonRedPaths pg nrpc =
+    "unique = " <> (T.pack . show $ getNRPCUnique nrpc)
+    <>
+    "\n"
+    <>
+    (T.intercalate "\n"
+    . map (\(NRPC focus e1 e2) -> mkDirtyExprHaskell pg e1 <> " == "
                             <> mkDirtyExprHaskell pg e2 <> "\t"
                             <> prettyFocus pg focus)
+    $ toListNRPC nrpc)
 
 prettyFocus :: PrettyGuide -> Focus -> T.Text
 prettyFocus _ Focused = "focused"
@@ -1171,3 +1187,21 @@ prettyGuideStr = T.intercalate "\n" . map (\(n, s) -> s <> " <-> " <> T.pack (sh
 -- | Print `pg_nums`. Exposes internal of the `PrettyGuide` to aid in debugging.
 prettyGuideNumsStr :: PrettyGuide -> T.Text
 prettyGuideNumsStr = T.intercalate "\n" . map (\(n, PI al i) -> n <> " -> " <> T.pack (show al) <> ", " <> T.pack (show i)) . HM.toList . pg_nums
+
+-------------------------------------------------------------------------------
+-- Inlining
+-------------------------------------------------------------------------------
+
+inlinePretty :: ASTContainer c Expr => ExprEnv -> c -> c
+inlinePretty eenv = modifyContainedASTs (go HS.empty)
+    where
+        go seen v@(Var (Id n _)) | n `HS.member` seen = v
+                                        | Just (E.Conc e) <- E.lookupConcOrSym n eenv =
+                                        if | Data _:_ <- unApp e -> go (HS.insert n seen) e
+                                            | Var _:_ <- unApp e -> go (HS.insert n seen) e
+                                            | Tick t te <- e -> Tick t (go seen te)
+                                            | otherwise -> v
+        go seen (App e1 e2) = App (go seen e1) (go seen e2)
+        go seen (Tick h e) = Tick h (go seen e)
+        go _ e = e
+

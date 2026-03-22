@@ -9,7 +9,8 @@ module G2.Execution.PrimitiveEval ( evalPrimsSharing
                                   , maybeEvalPrim
                                   , evalPrimSymbolic
                                   
-                                  , toString) where
+                                  , toString
+                                  , toExprList) where
 
 import G2.Execution.LiteralTable
 import G2.Execution.NewPC
@@ -558,7 +559,7 @@ evalPrimADT2 kv tenv StrAppend xs ys = do
 
 evalPrimADT2 kv tenv StrAt xs (Lit (LitInt i)) = do
     xs' <- toString xs
-    let c = if fromInteger i < length xs' then  [xs' !! (fromInteger i)] else []
+    let c = if 0 <= i && fromInteger i < length xs' then  [xs' !! (fromInteger i)] else []
     return $ toStringExpr kv tenv c
 
 evalPrimADT2 kv _ StrPrefixOf pre s = do
@@ -610,11 +611,18 @@ evalPrimADT3 :: TypeEnv -> KnownValues -> Primitive -> Expr -> Expr -> Expr -> M
 evalPrimADT3 tenv kv StrSubstr str (Lit (LitInt s)) (Lit (LitInt e)) = substr str s e
     where
         -- Find a substring starting at index s and ending at index e - 1
+
+        -- If we are at a value
         substr expr@(App (Data _) _) _ _ = Just expr
-        substr (App (App (App (Data _) typ) _) _) 0 0 = Just (App (mkEmpty kv tenv) typ)
+        -- If our starting position is negative
+        substr (App (App (App (Data _) typ) _) _) st _ | st < 0 = Just (App (mkEmpty kv tenv) typ)
+        -- If we are at the end of the substring
+        substr (App (App (App (Data _) typ) _) _) 0 en | en <= 0 = Just (App (mkEmpty kv tenv) typ)
+        -- If we are in the middle of the substring
         substr (App (App (App (Data dc) typ) char) xs) 0 en = do
             next_substr <- substr xs 0 (en - 1)
             return (App (App (App (Data dc) typ) char) next_substr)
+        -- If we are not yet at the start of the substring
         substr (App (App (App (Data _) _) _) xs) st en = substr xs (st - 1) en
         substr _ _ _ = Nothing
 
@@ -637,8 +645,8 @@ listType (App (App (App (Data _) (Type t)) _) _) = Just t
 listType _ = Nothing
 
 toString :: Expr -> Maybe String
-toString (App (Data _) _) = Just []
-toString (App (App (App (Data _) _) (App _ (Lit (LitChar c)))) xs) = fmap (c:) $ toString xs
+toString (App (Data _) (Type (TyCon n _))) | nameOcc n == "Char" = Just []
+toString (App (App (App (Data _) (Type (TyCon n _))) (App _ (Lit (LitChar c)))) xs) | nameOcc n == "Char" = fmap (c:) $ toString xs
 toString _ = Nothing
 
 toExprList :: Expr -> Maybe [Expr]
@@ -759,6 +767,7 @@ evalsToSMTRep seen eenv kv tc = go
         go (Lit _) = True
         go (App e1 e2) = go e1 && go e2
         go (Type _) = True
+        go (Tick _ e) = go e
         go e | isSMTRep eenv kv e = True
         go _ = False
 

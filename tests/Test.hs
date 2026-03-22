@@ -128,7 +128,8 @@ sampleTests = testGroup "Samples"
         , RExists subRes
         , AtLeast 2]
     , checkExpr "tests/Samples/HigherOrderMath.hs" 600 "functionSatisfies" [RExists functionSatisfiesRes, AtLeast 1]
-    , checkExpr "tests/Samples/HigherOrderMath.hs" 1000 "approxSqrt" [AtLeast 2]
+    , checkExprWithConfig "tests/Samples/HigherOrderMath.hs" Nothing Nothing Nothing
+                                "approxSqrt" [AtLeast 2] (do config <- mkConfigTestIO; return $ config { fp_handling = RationalFP })
     -- The below test fails because Z3 returns unknown.
     -- , checkExprAssume "tests/Samples/HigherOrderMath.hs" 1200 (Just "isTrue2") "sameFloatArgLarger" 2
     --                                                             [ RExists approxSqrtRes
@@ -430,6 +431,7 @@ testFileTests = testGroup "TestFiles"
                                         , ("strIndex", 1000, [Exactly 4])
                                         , ("taker1", 5000, [Exactly 2])
                                         , ("taker2", 5000, [Exactly 2])
+                                        , ("take1", 5000, [Exactly 2])
                                         , ("takeInf", 5000, [Exactly 1])
                                         , ("takeUndefined", 5000, [Exactly 1])
                                         , ("conTaker1", 2500, [Exactly 4])
@@ -836,6 +838,14 @@ baseTests = testGroup "Base"
     [
       checkInputOutput "tests/Samples/Peano.hs" "add" 400 [AtLeast 4]
 
+    , checkInputOutputs "tests/BaseTests/IdentityTest.hs" [ ("call", 1000, [Exactly 1]) ]
+    , checkInputOutputs "tests/BaseTests/MonadFix.hs" [ ("fac", 1500, [AtLeast 8])
+                                                      , ("nJustOnes", 2000, [AtLeast 5]) ]
+    , checkInputOutputs "tests/BaseTests/MonadZip.hs" [ ("callList", 1000, [AtLeast 15])
+                                                      , ("callMaybe", 1000, [AtLeast 3]) ]
+    , checkInputOutputs "tests/BaseTests/Monoid.hs" [ ("endo1", 1000, [Exactly 2])
+                                                    , ("sum1", 1000, [Exactly 2]) ]
+    , checkInputOutputs "tests/BaseTests/NonEmpty.hs" [ ("callMap", 1000, [AtLeast 6]) ]
     , checkInputOutputs "tests/BaseTests/ListTests.hs" [ ("test", 1000, [AtLeast 1])
                                                        , ("maxMap", 1000, [AtLeast 4])
                                                        , ("minTest", 1000, [AtLeast 2])
@@ -843,7 +853,9 @@ baseTests = testGroup "Base"
                                                        , ("foldrTest2", 1000, [AtLeast 1])
                                                        , ("unionTest", 1000, [AtLeast 9]) ]
 
-    , checkInputOutput "tests/BaseTests/Tuples.hs" "addTupleElems" 1000 [AtLeast 2]
+    , checkInputOutputs "tests/BaseTests/Tuples.hs" [ ("addTupleElems", 1000, [AtLeast 2])
+                                                    , ("applicativeTuple", 1000, [Exactly 1])
+                                                    , ("monadTuple", 1000, [Exactly 1]) ]
 
     , checkInputOutputs "tests/BaseTests/MaybeTest.hs" [ ("headMaybeInt", 1000, [AtLeast 2])
                                                        , ("sumN", 1000, [AtLeast 6])
@@ -995,6 +1007,13 @@ verifierTests = testGroup "Verifier"
 
     , checkExprCEx "tests/Verify/List5.hs" "p1False"
 
+    , checkExprCEx "tests/Verify/List6.hs" "p1False"
+
+    , checkExprVerified "tests/Verify/List7.hs" "p1"
+
+    , checkExprVerified "tests/Verify/ListComp.hs" "p1"
+    , checkExprVerified "tests/Verify/ListComp.hs" "p2"
+
     -- , checkExprVerified "tests/Verify/NatList1.hs" "prop1"
     , checkExprVerified "tests/Verify/NatList1.hs" "prop2"
     , checkExprCEx "tests/Verify/NatList1.hs" "prop1False"
@@ -1005,6 +1024,43 @@ verifierTests = testGroup "Verifier"
     , checkExprCEx "tests/Verify/Infinite1.hs" "p1False"
 
     , checkExprCEx "tests/Verify/NonStrict1.hs" "prop1False"
+
+#if MIN_VERSION_GLASGOW_HASKELL(9,2,0,0)
+    , checkExprVerified "tests/Verify/Function1.hs" "p1"
+    , checkExprCEx "tests/Verify/Function1.hs" "p1False"
+#endif
+
+    , checkExprVerified "tests/Verify/HigherOrder.hs" "prop1"
+    , checkExprVerified "tests/Verify/HigherOrder.hs" "prop2"
+
+    , checkExprVerified "tests/Verify/IdCall.hs" "idCall"
+    , checkExprVerified "tests/Verify/IdCall.hs" "idCall2"
+    , checkExprVerified "tests/Verify/IdCall.hs" "p1"
+
+    , checkExprVerified "tests/Verify/Maybe1.hs" "p1"
+
+    , checkExprVerified "tests/Verify/Tree1.hs" "fmapIdTree"
+    , checkExprVerified "tests/Verify/Tree1.hs" "fmapCompositionTree"
+
+    , checkExprVerified "tests/Verify/Tuple1.hs" "p1"
+
+    , checkExprVerified "tests/Verify/State1.hs" "simple1"
+    , checkExprVerified "tests/Verify/State1.hs" "p1"
+    , checkExprVerified "tests/Verify/State1.hs" "p2"
+    , checkExprCEx "tests/Verify/State1.hs" "simple1False"
+    , checkExprCEx "tests/Verify/State1.hs" "p1False"
+
+    , checkExprVerified "tests/Verify/State2.hs" "p1"
+    , checkExprVerified "tests/Verify/State3.hs" "p1"
+    , checkExprVerifiedNoLemmas "tests/Verify/State4.hs" "p1"
+    , checkExprVerifiedWithNoRevAbs "tests/Verify/State5.hs" "p1"
+
+    , checkExprVerified "tests/Verify/Reader1.hs" "p1"
+    , checkExprCEx "tests/Verify/Reader1.hs" "p1False"
+
+    , checkRuleVerified "tests/Verify/Rules1.hs" "justJust"
+    , checkRuleVerified "tests/Verify/Rules1.hs" "justJust2"
+    , checkRuleVerified "tests/Verify/Rules1.hs" "polyJustJust"
     ]
 
 -- To Do Tests
@@ -1157,6 +1213,13 @@ checkExprWithConfig src m_assume m_assert m_reaches entry reqList config_f = do
 checkExprVerified :: String -> String -> TestTree
 checkExprVerified = checkExprVerifier (\case Verified -> True; Counterexample _ -> False; VerifyTimeOut -> False)
 
+checkExprVerifiedWithNoRevAbs :: String -> String -> TestTree
+checkExprVerifiedWithNoRevAbs =
+    let
+        vr_config = defVerifyConfig { rev_abs = False }
+    in
+    checkExprVerifierWithConfig vr_config (\case Verified -> True; Counterexample _ -> False; VerifyTimeOut -> False)
+
 checkExprCEx :: String -> String -> TestTree
 checkExprCEx = checkExprVerifier (\case Verified -> False; Counterexample _ -> True; VerifyTimeOut -> False)
 
@@ -1176,6 +1239,9 @@ checkExprCExWithNoArgRevAbs =
         vr_config = defVerifyConfig { arg_rev_abs = NoAbsFuncArgs }
     in
     checkExprVerifierWithConfig vr_config (\case Verified -> False; Counterexample _ -> True; VerifyTimeOut -> False)
+
+checkExprVerifiedNoLemmas :: String -> String -> TestTree
+checkExprVerifiedNoLemmas = checkExprVerifierWithConfig (defVerifyConfig { use_lemmas = False}) (\case Verified -> True; Counterexample _ -> False; VerifyTimeOut -> False)
 
 checkExprVerifier :: (VerifyResult -> Bool) -> String -> String -> TestTree
 checkExprVerifier = checkExprVerifierWithConfig defVerifyConfig
@@ -1200,6 +1266,16 @@ checkExprVerifierWithConfig vr_config vr_check src entry =
             resToString Verified = "Verified"
             resToString VerifyTimeOut = "TimeOut"
             resToString (Counterexample _) = "Counterexample"
+
+checkRuleVerified :: String -> String -> TestTree
+checkRuleVerified = checkRuleVerifier (\case Verified -> True; Counterexample _ -> False; VerifyTimeOut -> False)
+
+checkRuleVerifier :: (VerifyResult -> Bool) -> String -> String -> TestTree
+checkRuleVerifier = checkRuleVerifierWithConfig defVerifyConfig
+
+checkRuleVerifierWithConfig :: VerifyConfig -> (VerifyResult -> Bool) -> String -> String -> TestTree
+checkRuleVerifierWithConfig vr_config vr_check src entry =
+    checkExprVerifierWithConfig (vr_config { rewrite_rule = True }) vr_check src entry
 
 testFile :: String
          -> Maybe String
