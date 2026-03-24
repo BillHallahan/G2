@@ -600,3 +600,12 @@ inner2 x = case x of
                                 'c' -> True
                                 'd' -> False
                                 _ -> True
+
+litTableTest3 :: String -> Char
+litTableTest3 s = case res of
+                    True -> 'a'
+                    False -> 'b'
+    where res = L.all f s
+          f x = case inner x of
+                'b' -> True
+                _ -> False
