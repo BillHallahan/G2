@@ -613,6 +613,17 @@ evalPrimADT3 tenv kv StrReplace s orig rep = do
         replace [] _ _ = []
         replace xss@(x:xs) o r | Just xss' <- L.stripPrefix o xss = r ++ xss'
                                | otherwise = x:replace xs o r
+evalPrimADT3 tenv kv StrReplaceAll s orig rep = do
+        t <- listType orig
+        s' <- toExprList s
+        orig' <- toExprList orig
+        rep' <- toExprList rep
+        return $ toListExpr kv tenv t (replaceAll s' orig' rep')
+    where
+        replaceAll [] _ _ = []
+        replaceAll xss@(x:xs) o r | o == [] = r ++ xss
+                                  | Just xss' <- L.stripPrefix o xss = r ++ replaceAll xss' o r
+                                  | otherwise = x:replaceAll xs o r
 
 evalPrimADT3 _ _ _ _ _ _ = Nothing
 
