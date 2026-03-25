@@ -510,6 +510,8 @@ mkPrimHaskell pg = pr
         pr ReUnion = "re.union"
         pr ReInter = "re.inter"
         pr ReStar = "re.*"
+        pr ReRange = "re.range"
+        pr ReComp = "re.comp"
 
         pr SeqUnit = "Unit"
 
