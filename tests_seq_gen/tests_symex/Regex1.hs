@@ -71,8 +71,8 @@ regex6 x =
 regex7 :: String -> Int
 regex7 x =
     let !re_all = reAllChar# @Char
-        !re_none = reNone# @Char
-        !re_union = re_all `reUnion#` re_none
+        !re_empty = toRe# ""
+        !re_union = re_all `reUnion#` re_empty
         !re_comp = reComp# re_union
     in
     case assert False (inRe# x re_comp) of
