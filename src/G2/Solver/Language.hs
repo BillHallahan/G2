@@ -136,6 +136,8 @@ data SMTAST = (:>=) !SMTAST !SMTAST
             | ReUnionSMT !SMTAST !SMTAST
             | ReInterSMT !SMTAST !SMTAST
             | ReStarSMT !SMTAST
+            | ReRangeSMT !SMTAST !SMTAST
+            | ReCompSMT !SMTAST
 
             | SeqEmptySMT Sort
             | SeqUnitSMT !SMTAST
