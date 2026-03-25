@@ -1,6 +1,7 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE LambdaCase #-}
 
 -- | Type Checker
 --   Provides type checking capabilities over G2 Language.
@@ -469,7 +470,7 @@ tyVarNames = map idName . tyVarIds
 numArgs :: Type -> Int
 numArgs = length . argumentTypes
 
-data ArgType = AnonType Type | NamedType Id deriving (Show, Read)
+data ArgType = AnonType Type | NamedType Id | NamedKind Id deriving (Show, Read)
 
 -- | Gives the types of the arguments of the functions
 argumentTypes :: Type -> [Type]
@@ -483,18 +484,45 @@ argumentTypes' _ = []
 argTypeToType :: ArgType -> Type
 argTypeToType (AnonType t) = t
 argTypeToType (NamedType i) = TyVar i
+argTypeToType (NamedKind i) = TyVar i
 
 argTypeToLamUse :: ArgType -> LamUse
 argTypeToLamUse (AnonType _) = TermL
 argTypeToLamUse (NamedType _) = TypeL
+argTypeToLamUse (NamedKind _) = TypeL
 
 spArgumentTypes :: Type -> [ArgType]
-spArgumentTypes = spArgumentTypes' 
+spArgumentTypes = convNamedTypesToNamedKinds . spArgumentTypes' 
 
 spArgumentTypes' :: Type -> [ArgType]
 spArgumentTypes' (TyForAll i t2) = NamedType i:spArgumentTypes' t2
 spArgumentTypes' (TyFun t1 t2) = AnonType t1:spArgumentTypes' t2
 spArgumentTypes' _ = []
+
+-- | If a (NamedType Id) contains a name that is present in
+-- the kind of any ArgType, change it to a NamedKind. 
+convNamedTypesToNamedKinds :: [ArgType] -> [ArgType]
+convNamedTypesToNamedKinds ats = let 
+        all_kind_names =
+                        concatMap (\case (NamedType (Id _ k)) -> kindNames k
+                                         (AnonType at) -> concatMap (\(Id _ k) -> kindNames k) (tyVarIds at)
+                                         (NamedKind _) -> []) ats
+        convNTToNK :: ArgType -> ArgType
+        convNTToNK (AnonType t) = AnonType t
+        convNTToNK (NamedKind t) = NamedKind t
+        convNTToNK (NamedType (Id n t)) =
+            if n `elem` all_kind_names 
+            then NamedKind (Id n t) 
+            else NamedType (Id n t)
+    in
+        map convNTToNK ats
+
+-- | Gets names present in a type variable's kind. (Cannot use `names` TC function due to circular dependency.)
+kindNames :: Type -> [Name]
+kindNames (TyFun k1 k2) = kindNames k1 ++ kindNames k2
+kindNames (TyVar (Id n _)) =[n]
+kindNames (TyCon n _) = [n]
+kindNames _ = []
 
 leadingTyForAllBindings :: Type -> [Id]
 leadingTyForAllBindings = leadingTyForAllBindings' 

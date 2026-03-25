@@ -21,7 +21,6 @@ polyFuncArgOneArgKind f = f (\x -> x)
 polyFuncArgTwoArgKind :: ((forall m. m Int Bool -> m Int Bool) -> Int) -> Int
 polyFuncArgTwoArgKind f = f (\x -> x)
 
--- type variable kinds are incorrect, using TyCon "Int" with correct kind
 polyFuncArgTwoKinds :: ((forall m a. m a -> m a) -> Int) -> Int
 polyFuncArgTwoKinds f = f (\x -> x)
 
