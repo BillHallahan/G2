@@ -75,7 +75,7 @@ regex7 x =
         !re_union = re_all `reUnion#` re_none
         !re_comp = reComp# re_union
     in
-    case assert False (inRe# x re_union) of
+    case assert False (inRe# x re_comp) of
         True | length x > 50 -> 1 
              | length x > 1 -> 2
              | otherwise -> 3 -- Unreachable
