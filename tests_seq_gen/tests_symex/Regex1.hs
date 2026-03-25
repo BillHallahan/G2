@@ -67,3 +67,27 @@ regex6 x =
              | length x > 10 -> 2 -- Unreachable
              | otherwise -> 3
         False -> 4
+
+regex7 :: String -> Int
+regex7 x =
+    let !re_all = reAllChar# @Char
+        !re_none = reNone# @Char
+        !re_union = re_all `reUnion#` re_none
+        !re_comp = reComp# re_union
+    in
+    case assert False (inRe# x re_union) of
+        True | length x > 50 -> 1 
+             | length x > 1 -> 2
+             | otherwise -> 3 -- Unreachable
+        False -> 4
+
+regex8 :: String -> Int
+regex8 x =
+    let !re_range = reRange# "a" "z"
+        !re_none = reNone# @Char
+        !re_union = re_range `reUnion#` re_none in
+    case assert False (inRe# x re_union) of
+        True | length x > 50 -> 1 -- Unreachable
+             | length x > 10 -> 2 -- Unreachable
+             | otherwise -> 3
+        False -> 4

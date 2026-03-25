@@ -274,8 +274,10 @@ data Primitive = -- Mathematical and logical operators
                | ReAllChar -- ^ All single character Strings
                | ReConcat
                | ReUnion
-               | ReInter
+               | ReInter -- ^ Intersection
                | ReStar -- ^ Kleene Closure
+               | ReRange
+               | ReComp -- ^ Complement
 
                -- Sequence Handling
                | SeqUnit

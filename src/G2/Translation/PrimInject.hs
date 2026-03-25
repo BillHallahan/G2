@@ -288,6 +288,16 @@ primDefs' b c l unit =
                             $ App
                                 (Prim ReStar (TyFun seqTyX (TyFun seqTyX seqTyX)))
                                 (Var $ y seqTyX))
+              , ("reRange#", Lam TypeL (x TYPE) . Lam TermL (y seqTyX) . Lam TermL (z seqTyX)
+                            $ App
+                                (App
+                                    (Prim ReRange (TyFun seqTyX (TyFun seqTyX seqTyX)))
+                                    (Var $ y seqTyX))
+                                (Var $ z seqTyX))
+              , ("reComp#", Lam TypeL (x TYPE) . Lam TermL (y seqTyX)
+                            $ App
+                                (Prim ReComp (TyFun seqTyX (TyFun seqTyX seqTyX)))
+                                (Var $ y seqTyX))
 
               -- Other
               , ("unsafeCoerce#", Lam TypeL (u TYPE)

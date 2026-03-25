@@ -346,6 +346,8 @@ isStr' (ReConcatSMT _ _) = All True
 isStr' (ReUnionSMT _ _) = All True
 isStr' (ReInterSMT _ _) = All True
 isStr' (ReStarSMT _) = All True
+isStr' (ReRangeSMT _ _) = All True
+isStr' (ReCompSMT _) = All True
 
 isStr' (VString _) = All True
 isStr' (VChar _) = All True
@@ -529,6 +531,7 @@ funcToSMT1Prim tv SeqUnit e = SeqUnitSMT (exprToSMT tv e)
 
 funcToSMT1Prim tv ToRe e = ToReSMT (exprToSMT tv e)
 funcToSMT1Prim tv ReStar e = ReStarSMT (exprToSMT tv e)
+funcToSMT1Prim tv ReComp e = ReCompSMT (exprToSMT tv e)
 
 funcToSMT1Prim _ err _ = error $ "funcToSMT1Prim: invalid Primitive " ++ show err
 
@@ -603,6 +606,7 @@ funcToSMT2Prim tv InRe a1 a2  = InReSMT (exprToSMT tv a1) (exprToSMT tv a2)
 funcToSMT2Prim tv ReConcat a1 a2  = ReConcatSMT (exprToSMT tv a1) (exprToSMT tv a2)
 funcToSMT2Prim tv ReUnion a1 a2  = ReUnionSMT (exprToSMT tv a1) (exprToSMT tv a2)
 funcToSMT2Prim tv ReInter a1 a2  = ReInterSMT (exprToSMT tv a1) (exprToSMT tv a2)
+funcToSMT2Prim tv ReRange a1 a2  = ReRangeSMT (exprToSMT tv a1) (exprToSMT tv a2)
 
 funcToSMT2Prim tv op lhs rhs = error $ "funcToSMT2Prim: invalid case with (tyvar_env, op, lhs, rhs): " ++ show (tv, op, lhs, rhs)
 
@@ -908,6 +912,8 @@ toSolverASTRe goBack = go
         go (ReUnionSMT r1 r2) = function2 "re.union" (goBack r1) (goBack r2)
         go (ReInterSMT r1 r2) = function2 "re.inter" (goBack r1) (goBack r2)
         go (ReStarSMT r) = function1 "re.*" $ goBack r
+        go (ReRangeSMT s1 s2) = function2 "re.range" (goBack s1) (goBack s2)
+        go (ReCompSMT r) = function1 "re.comp" $ goBack r
         go _ = error "toSolverASTRe: primitive not handled"
 
 -- | Converts a bit vector to a signed Int.
