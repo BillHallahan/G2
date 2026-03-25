@@ -121,12 +121,14 @@ mkMainExprNoInstantiateTypes tv e ng =
                 _ -> False
         (ats,nts) = partition anontype argts 
         -- We want to have symbolic types so we grab the type level arguments and introduce symbolic variables for them
+        -- Ignores kinds
         ns = map (\(NamedType (Id n _)) -> n) nts
         (ns', ng') = renameAll ns ng
 
         ntmap = HM.fromList $ zip ns ns' 
         -- We want to create a full list of symoblic variables with new names and put the symbolic variables into the expr env
         -- Type level arguments
+        -- Ignores kinds
         ntids = map (\(NamedType i) -> i) nts
         ntids' = renames ntmap ntids
 
@@ -199,10 +201,10 @@ instantiateArgTypes config tv tc kv e =
 instantitateTypes :: Config -> TypeClasses -> KnownValues -> [ArgType] -> ([Expr], [Type])
 instantitateTypes config tc kv ts = 
     let
-        tv = mapMaybe (\case NamedType i -> Just i; AnonType _ -> Nothing) ts
+        tv = mapMaybe (\case NamedType i -> Just i; NamedKind _ -> Nothing; AnonType _ -> Nothing) ts
 
         -- Get non-TyForAll type reqs, identify typeclasses
-        ts' = mapMaybe (\case AnonType t -> Just t; NamedType _ -> Nothing) ts
+        ts' = mapMaybe (\case AnonType t -> Just t; NamedType _ -> Nothing; NamedKind _ -> Nothing) ts
         tcSat = snd $ mapAccumL (\ts'' i ->
                                 let
                                     sat = satisfyingTCTypes kv tc i ts''
@@ -210,13 +212,20 @@ instantitateTypes config tc kv ts =
                                 in
                                  (replaceTyVar (idName i) pt ts'', (i, pt))) ts' tv
 
+        -- TODO: can we instantiate all kind variables at TYPE? (what happens here)
+        kv_exs :: [Expr] -- The needed `@TYPE`s as they should appear in the expression
+        kv_exs = mapMaybe (\case NamedKind _ -> Just (Type TYPE); NamedType _ -> Nothing; AnonType _ -> Nothing) ts
+        kv_i_and_pt :: [(Id, Type)] -- Pairs of (Id, TYPE) for substituting kind variables in the returned types (tss)
+        kv_i_and_pt = mapMaybe (\case NamedKind i -> Just (i, TYPE); NamedType _ -> Nothing; AnonType _ -> Nothing) ts
+
         -- Get dictionary arguments
         vi = mapMaybe (instantiateTCDict tc tcSat) ts'
 
-        ex = map (Type . snd) tcSat ++ vi
+        -- TODO: assuming kind arguments are leftmost
+        ex = kv_exs ++ map (Type . snd) tcSat ++ vi
         tss = filter (not . isTypeClass tc)
             . foldr (uncurry replaceASTs) ts'
-            $ map (\(i, t) -> (TyVar i, t)) tcSat
+            $ map (\(i, t) -> (TyVar i, t)) (tcSat ++ kv_i_and_pt)
     in
     (ex, tss)
 
