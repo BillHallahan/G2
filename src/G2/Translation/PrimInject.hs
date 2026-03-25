@@ -225,6 +225,14 @@ primDefs' b c l unit =
                                         (Var $ y seqTyX))
                                     (Var $ z seqTyX))
                                 (Var $ (dummyId "q") seqTyX))
+              , ("strReplaceAll#", Lam TypeL (x TYPE) . Lam TermL (y seqTyX) . Lam TermL (z seqTyX) . Lam TermL ((dummyId "q") seqTyX)
+                            $ App
+                                (App
+                                    (App
+                                        (Prim StrReplaceAll (TyFun seqTyX (TyFun seqTyX (TyFun seqTyX seqTyX))))
+                                        (Var $ y seqTyX))
+                                    (Var $ z seqTyX))
+                                (Var $ (dummyId "q") seqTyX))
               , ("strPrefixOf#", Lam TypeL (x TYPE) . Lam TermL (y seqTyX) . Lam TermL (z seqTyX)
                             $ App
                                 (App
@@ -240,7 +248,48 @@ primDefs' b c l unit =
                                 )
                                 (Var $ z seqTyX))
               , ("intToString#", Prim IntToString (TyFun TyLitInt strTy))
+              
+              -- Regexes
+              , ("inRe#", Lam TypeL (x TYPE) . Lam TermL (y seqTyX) . Lam TermL (z seqTyX)
+                            $ App
+                                (App
+                                    (Prim InRe (TyFun seqTyX (TyFun seqTyX (TyCon b TYPE))))
+                                    (Var $ y seqTyX)
+                                )
+                                (Var $ z seqTyX))
+              , ("toRe#", Lam TypeL (x TYPE) . Lam TermL (y seqTyX)
+                                  $ App 
+                                    (Prim ToRe ((TyFun seqTyX) $ TyFun seqTyX seqTyX))
+                                    (Var $ y seqTyX))
 
+              , ("reNone#", Lam TypeL (x TYPE) (Prim ReNone seqTyX))
+              , ("reAll#", Lam TypeL (x TYPE) (Prim ReAll seqTyX))
+              , ("reAllChar#", Lam TypeL (x TYPE) (Prim ReAllChar seqTyX))
+
+              , ("reConcat#", Lam TypeL (x TYPE) . Lam TermL (y seqTyX) . Lam TermL (z seqTyX)
+                            $ App
+                                (App
+                                    (Prim ReConcat (TyFun seqTyX (TyFun seqTyX seqTyX)))
+                                    (Var $ y seqTyX))
+                                (Var $ z seqTyX))
+              , ("reUnion#", Lam TypeL (x TYPE) . Lam TermL (y seqTyX) . Lam TermL (z seqTyX)
+                            $ App
+                                (App
+                                    (Prim ReUnion (TyFun seqTyX (TyFun seqTyX seqTyX)))
+                                    (Var $ y seqTyX))
+                                (Var $ z seqTyX))
+              , ("reInter#", Lam TypeL (x TYPE) . Lam TermL (y seqTyX) . Lam TermL (z seqTyX)
+                            $ App
+                                (App
+                                    (Prim ReInter (TyFun seqTyX (TyFun seqTyX seqTyX)))
+                                    (Var $ y seqTyX))
+                                (Var $ z seqTyX))
+              , ("reStar#", Lam TypeL (x TYPE) . Lam TermL (y seqTyX)
+                            $ App
+                                (Prim ReStar (TyFun seqTyX (TyFun seqTyX seqTyX)))
+                                (Var $ y seqTyX))
+
+              -- Other
               , ("unsafeCoerce#", Lam TypeL (u TYPE)
                                 . Lam TypeL (v TYPE)
                                 . Lam TermL (x (TyVar (u TYPE)))

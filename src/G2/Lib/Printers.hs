@@ -493,12 +493,23 @@ mkPrimHaskell pg = pr
         pr StrIndexOf = "str.indexof"
         pr StrContains = "str.contains"
         pr StrReplace = "str.replace"
+        pr StrReplaceAll = "str.replace_all"
         pr StrPrefixOf = "str.prefixof"
         pr StrSuffixOf = "str.suffixof"
         pr Chr = "chr"
         pr OrdChar = "ord"
 
         pr WGenCat = "wgencat"
+
+        pr InRe = "str.in_re"
+        pr ToRe = "str.to_re"
+        pr ReNone = "re.none"
+        pr ReAll = "re.all"
+        pr ReAllChar = "re.allchar"
+        pr ReConcat = "re.++"
+        pr ReUnion = "re.union"
+        pr ReInter = "re.inter"
+        pr ReStar = "re.*"
 
         pr SeqUnit = "Unit"
 
