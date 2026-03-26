@@ -4,6 +4,7 @@ module G2.Execution.LiteralTable
     , updateLiteralTable
     , getLTArg
     , stopUpdateLastExpl
+    , litTableToAllRe
     ) where
 
 import qualified G2.Language.Stack as S
@@ -44,3 +45,6 @@ stopUpdateLastExpl stck = case S.pop stck of
                                   -> S.push (LitTableFrame (Exploring pcs) False) rest
                               Just (f, rest) -> S.push f (stopUpdateLastExpl rest)
                               Nothing -> stck
+
+litTableToAllRe :: LitTable -> Expr
+litTableToAllRe lt = error "todo"

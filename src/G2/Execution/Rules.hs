@@ -828,12 +828,25 @@ createExtCond s ngen dcpm mexpr cvar (dcon, bindees, aexpr)
     -- Very very nasty way of handling the LitTable type we created in GHC.Prim, since we want to
     -- pass the actual reference to allByLitTable# etc (and the type system doesn't know that LitTable
     -- and (LitTableRef name) mean the same thing to us
-    | (Prim (LitTableRef _) _) <- mexpr, (App (App (Var all_by_lit_table) lt_t) _) <- aexpr =
+    -- | (Prim (LitTableRef _) _) <- mexpr, (App (App (Var all_by_lit_table) lt_t) _) <- aexpr =
+    --     (SD { new_conc_entries = [], new_sym_entries = [], new_path_conds = [], concretized = []
+    --         , new_true_assert = true_assert s, new_assert_ids = assert_ids s
+    --         , new_curr_expr = CurrExpr Evaluate $ (App (App (Var all_by_lit_table) lt_t) mexpr)
+    --         , new_conc_types = [], new_sym_types = [], new_mut_vars = [] }, ngen)
+    -- Very nasty hack alert. We are trying to convert an internal literal table reference into a `LitTable`
+    -- object in order to apply it to `allByLitTable`, so we just set the current expr to a representation
+    -- of the literal table in regex, e.g. 'a' <= x && x <= 'z' -> True is represented as
+    -- (re.inter (re.range 'a' <max character>) (re.range <min character> 'z')), using our regex primitives.
+    -- Note that this situation only happens as a result of strictness for the result of buildLitTable# in `all`,
+    -- which creates a case expression.
+    | (Prim (LitTableRef lt_name) _) <- mexpr,
+      (App (App (Var (Id (Name "allByLitTable#" _ _ _) _)) lt_t) _ {- LitTable -}) <- aexpr =
         (SD { new_conc_entries = [], new_sym_entries = [], new_path_conds = [], concretized = []
             , new_true_assert = true_assert s, new_assert_ids = assert_ids s
-            , new_curr_expr = CurrExpr Evaluate $ (App (App (Var all_by_lit_table) lt_t) mexpr)
+            , new_curr_expr = CurrExpr Evaluate $ litTableToAllRe (fromJust $ HM.lookup lt_name (lit_tables s))
             , new_conc_types = [], new_sym_types = [], new_mut_vars = [] }, ngen)
     | otherwise = error $ "createExtCond: unsupported type" ++ "\n" ++ show (typeOf tvnv mexpr) ++ "\n" ++ show dcon
+                    ++ "\n\n" ++ show mexpr ++ "\n" ++ show aexpr
         where
             kv = known_values s
             tenv = type_env s
