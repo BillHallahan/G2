@@ -9,6 +9,7 @@ import G2.Lib.Printers
 import Data.Maybe
 import qualified Data.Sequence as S
 import qualified Data.Text as T
+import qualified Data.HashMap.Lazy as M
 import G2.Language.KnownValues (KnownValues(dcEmpty))
 import qualified G2.Language.TypeEnv as TE
 
@@ -36,8 +37,32 @@ printInputOutput pg i (Bindings { input_coercion = c }) er =
                  , conc_out = modifyASTs remMutVarPrim (conc_out er)
                  , conc_sym_gens = modifyASTs remMutVarPrim (conc_sym_gens er)
                  , conc_mutvars = modifyASTs remMutVarPrim (conc_mutvars er) }
+        
+        -- Set up mappings for generated ADTs in the PrettyGuide so printGenADTs and printInputFunc use the same mappings.
+        -- TODO: using same mappings, but mismatch between ADT name and its' constructors
+        pg_gen_adt = updatePGTrackGenADTNames er' pg
     in
-    (printGenADTs pg er', printMutVars pg er', printInputFunc pg c i er', printOutput pg er', printHandles pg er')
+    -- TODO: pass updated PG to other printers?
+    (printGenADTs pg_gen_adt er', printMutVars pg er', printInputFunc pg_gen_adt c i er', printOutput pg er', printHandles pg er')
+
+updatePGTrackGenADTNames :: ExecRes t -> PrettyGuide -> PrettyGuide
+updatePGTrackGenADTNames (ExecRes {conc_args = cas, final_state = State {type_env = tenv}}) 
+    = updatePrettyGuide (filterTEToNeededGenADTs cas tenv)
+
+filterTEToNeededGenADTs :: [Expr] -> TypeEnv -> TypeEnv
+filterTEToNeededGenADTs arg_exprs tenv = go M.empty gen_adts_in_args
+    where
+        gen_adts_in_args = TE.filterTE (anyDCsInNames arg_exprs) all_gen_adts -- only ADTs with constructors in the arguments (acts as "seed set")
+        -- Checks recursiveif new generated ADTs are present in the names of those in the limited TypeEnv.
+        go :: TypeEnv -> TypeEnv -> TypeEnv
+        go prev new | prev == new = new
+                    | otherwise = go new updated
+                    where
+                    updated = TE.filterTE (anyDCsInNames new) all_gen_adts
+        all_gen_adts = TE.filterToGenADTs tenv -- get only generated ADTs
+        
+        anyDCsInNames :: (Named a) => a -> AlgDataTy -> Bool
+        anyDCsInNames nd adt = any (`elem` names nd) (names $ dataCon adt)
 
 printMutVars :: PrettyGuide -> ExecRes t -> T.Text
 printMutVars pg (ExecRes { final_state = s, conc_mutvars = mv@(_:_) }) =
@@ -72,15 +97,9 @@ printHandle _ s _ e | (Data (DataCon { dc_name = n }):_) <- unApp e
 printHandle pg s n h = Just (" --- " <> printName pg n <> " --- \n\t" <> printHaskellPG pg s h)
 
 printGenADTs :: PrettyGuide -> ExecRes t -> T.Text
-printGenADTs pg (ExecRes {final_state = (State {type_env = tenv, tyvar_env = tvenv}), conc_args = cas}) 
-    | filtered_env <- TE.filterTE dcsInAnyArg . TE.filterToGenADTs $ tenv
-    , not . TE.isEmpty $ filtered_env = prettyTypeEnv tvenv (updatePrettyGuide filtered_env pg) filtered_env <> "\n"
-    | otherwise = T.empty
-    where
-        dcsInAnyArg :: AlgDataTy -> Bool
-        dcsInAnyArg adt = any (dcsInArg adt) cas
-        dcsInArg :: AlgDataTy -> Expr -> Bool
-        dcsInArg adt e = any ((`elem` names e) . dc_name) (dataCon adt)
+printGenADTs pg (ExecRes {conc_args = cas, final_state = (State {tyvar_env = tvenv, type_env = tenv})}) 
+    = let adts_text = prettyTypeEnv tvenv pg (filterTEToNeededGenADTs cas tenv)
+    in if adts_text == T.empty then T.empty else adts_text <> "\n"
 
 instance Named t => Named (ExecRes t) where
     names :: Named t => ExecRes t -> S.Seq Name
