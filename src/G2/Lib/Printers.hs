@@ -30,6 +30,8 @@ module G2.Lib.Printers ( PrettyGuide
 
                        , prettyGuideStr
                        , prettyGuideNumsStr
+
+                       , showPGAssigned
                        
                        , TypePrinting(..)
                        , EnvOrdering(..)
@@ -993,6 +995,9 @@ data PrettyGuide = PG { pg_assigned :: !(HM.HashMap Name T.Text) -- ^ Mapping of
                       , env_ordering :: EnvOrdering -- ^ Should the environment be ordered?
                       , ty_lam_printing :: TyLamPrinting -- ^ Should type-level lambdas be printed?
                       }
+
+showPGAssigned :: PrettyGuide -> String
+showPGAssigned (PG {pg_assigned = pga}) = show pga
 
 -- Note [PrettyGuide AssignedLvl]
 -- Consider the following code:

@@ -10,6 +10,7 @@ import Data.Maybe
 import qualified Data.Sequence as S
 import qualified Data.Text as T
 import G2.Language.KnownValues (KnownValues(dcEmpty))
+import qualified G2.Language.TypeEnv as TE
 
 type StartFunc = T.Text
 
@@ -28,7 +29,7 @@ printInputOutput :: PrettyGuide
                  -> Id -- ^ Input function
                  -> Bindings
                  -> ExecRes t
-                 -> (T.Text, T.Text, T.Text, T.Text) -- ^ Mutable variables, input, output, handles
+                 -> (T.Text, T.Text, T.Text, T.Text, T.Text) -- ^ Mutable variables, input, output, handles
 printInputOutput pg i (Bindings { input_coercion = c }) er =
     let
         er' = er { conc_args = modifyASTs remMutVarPrim (conc_args er)
@@ -36,7 +37,7 @@ printInputOutput pg i (Bindings { input_coercion = c }) er =
                  , conc_sym_gens = modifyASTs remMutVarPrim (conc_sym_gens er)
                  , conc_mutvars = modifyASTs remMutVarPrim (conc_mutvars er) }
     in
-    (printMutVars pg er', printInputFunc pg c i er', printOutput pg er', printHandles pg er')
+    (printGenADTs pg er', printMutVars pg er', printInputFunc pg c i er', printOutput pg er', printHandles pg er')
 
 printMutVars :: PrettyGuide -> ExecRes t -> T.Text
 printMutVars pg (ExecRes { final_state = s, conc_mutvars = mv@(_:_) }) =
@@ -69,6 +70,17 @@ printHandle :: PrettyGuide -> State t -> Name -> Expr -> Maybe T.Text
 printHandle _ s _ e | (Data (DataCon { dc_name = n }):_) <- unApp e
                     , n == dcEmpty (known_values s) = Nothing
 printHandle pg s n h = Just (" --- " <> printName pg n <> " --- \n\t" <> printHaskellPG pg s h)
+
+printGenADTs :: PrettyGuide -> ExecRes t -> T.Text
+printGenADTs pg (ExecRes {final_state = (State {type_env = tenv, tyvar_env = tvenv}), conc_args = cas}) 
+    | filtered_env <- TE.filterTE dcsInAnyArg . TE.filterToGenADTs $ tenv
+    , not . TE.isEmpty $ filtered_env = prettyTypeEnv tvenv (updatePrettyGuide filtered_env pg) filtered_env <> "\n"
+    | otherwise = T.empty
+    where
+        dcsInAnyArg :: AlgDataTy -> Bool
+        dcsInAnyArg adt = any (dcsInArg adt) cas
+        dcsInArg :: AlgDataTy -> Expr -> Bool
+        dcsInArg adt e = any ((`elem` names e) . dc_name) (dataCon adt)
 
 instance Named t => Named (ExecRes t) where
     names :: Named t => ExecRes t -> S.Seq Name
