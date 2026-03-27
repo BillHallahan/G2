@@ -43,11 +43,14 @@ polyFuncArgWithPolyFuncArg2 g = g (\poly x -> poly x x)
 
 -- TODO: the following all have type variables bound to @Integer, different from above
 --------- [Polymorphic functions with polymorphic function arguments] ---------
+
+-- The polymorphic argument is floated out by PM-FLOAT-OUT and handled 
+-- by SF-FUNC-FORALL. Not testing anything different from above.
 forallWithPolyFuncArg :: (forall a. (forall b. b -> b) -> a -> a) -> Bool
 forallWithPolyFuncArg f = f (\x -> x) True
 
--- TODO: The function argument contains tv's bound by the forall, 
--- so it cannot be floated out. Current rules do not handle.
+-- In the following three functions, the function argument contains
+-- tv's bound by the forall, so it cannot be floated out. PM-FUNC-FORALL will handle these cases.
 forallWithPolyFuncArg2 :: (forall a. (forall b. a -> b -> b) -> a -> a) -> Bool
 forallWithPolyFuncArg2 f = f (\x y -> y) True
 
@@ -60,6 +63,7 @@ forallWithPolyFuncArgSecond f = f True (\x y -> x)
 forallWithPolyFuncArgBox :: (forall a. (forall b. b -> Boxed b) -> a -> Boxed a) -> Boxed Bool
 forallWithPolyFuncArgBox f = f (\x -> Box x) True
 
+-- TODO: test takes too long
 -- Current rules will not find the simplest definition that applies the tuple-making 
 -- function to the a and b arguments because:
 --  1. The tuple-making function is floated out.

@@ -176,7 +176,7 @@ checkInputOutput'' adj_config io_config src tests = do
                                         Just (Right (b_val, b_count, b_anys, exec_res, bindings)) ->
                                             let pg = mkPrettyGuide exec_res
                                                 res_pretty = map (uncurry (printIO pg entry bindings)) $ zip b_val exec_res
-                                                res_print = map T.unpack $ map (\(chck, (_, inp, out, _)) -> chck <> inp <> " = " <> out) res_pretty
+                                                res_print = map T.unpack $ map (\(chck, (_, _, inp, out, _)) -> chck <> inp <> " = " <> out) res_pretty
                                             in
                                             (and b_val && b_count && b_anys, "\nvalidation = " ++ show (and b_val) ++ ", count = " ++ show b_count ++ "\n" ++ intercalate "\n" res_print)
 
