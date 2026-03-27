@@ -24,9 +24,15 @@ polyFuncArgTwoArgKind f = f (\x -> x)
 polyFuncArgTwoKinds :: ((forall m a. m a -> m a) -> Int) -> Int
 polyFuncArgTwoKinds f = f (\x -> x)
 
+polyFuncArgThreeKinds :: ((forall m a b. m a b -> m a b) -> Int) -> Int
+polyFuncArgThreeKinds f = f (\x -> x)
+
 polyFuncArgHigherKind :: ((forall m. m Maybe -> m Maybe) -> Int) -> Int
 polyFuncArgHigherKind f = f (\x -> x)
 
+-- Tests application of polymorphic functions and instantiation of them. The function 
+-- with type (forall a b. a -> b -> (Boxed a, b)) will be created as a symbolic 
+-- argument and instantiated by polymorphic function inst-ing rules.
 polyFuncArgWithPolyFuncArg :: ((forall a. (forall a b. a -> b -> (Boxed a, b)) -> a -> (Boxed a, a)) -> Int) -> Int
 polyFuncArgWithPolyFuncArg g = g (\poly x -> poly x x)
 
