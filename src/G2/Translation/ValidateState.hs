@@ -335,7 +335,10 @@ printStateOutput config entry b m_valid exec_res@(ExecRes { final_state = s }) =
                                         Just False -> "✗ "
                                         Nothing -> "✗TO "))
 
-    let pg = mkPrettyGuide (exprNames $ conc_args exec_res)
+    -- Don't immediately add Names for generated ADTs and their constructors. They will be added later through printInputOutput
+    let filtered_names = filter (\(Name n _ _ _) -> n `notElem` ["GenT", "GenC", "GenN"]) (exprNames $ conc_args exec_res)
+
+    let pg = mkPrettyGuide filtered_names
     let (gen_adts, mvp, inp, outp, handles) = printInputOutput pg entry b exec_res
         sym_gen_out = fmap (printHaskellPG pg s) $ conc_sym_gens exec_res
         

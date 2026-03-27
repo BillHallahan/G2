@@ -38,22 +38,28 @@ printInputOutput pg i (Bindings { input_coercion = c }) er =
                  , conc_sym_gens = modifyASTs remMutVarPrim (conc_sym_gens er)
                  , conc_mutvars = modifyASTs remMutVarPrim (conc_mutvars er) }
         
-        -- Set up mappings for generated ADTs in the PrettyGuide so printGenADTs and printInputFunc use the same mappings.
-        -- TODO: using same mappings, but mismatch between ADT name and its' constructors
+        -- Set up mappings for generated ADTs in the PrettyGuide so printGenADTs and printInputFunc can use the same mappings.
         pg_gen_adt = updatePGTrackGenADTNames er' pg
     in
     -- TODO: pass updated PG to other printers?
     (printGenADTs pg_gen_adt er', printMutVars pg er', printInputFunc pg_gen_adt c i er', printOutput pg er', printHandles pg er')
 
 updatePGTrackGenADTNames :: ExecRes t -> PrettyGuide -> PrettyGuide
-updatePGTrackGenADTNames (ExecRes {conc_args = cas, final_state = State {type_env = tenv}}) 
-    = updatePrettyGuide (filterTEToNeededGenADTs cas tenv)
+updatePGTrackGenADTNames (ExecRes {conc_args = cas, final_state = State {type_env = tenv}}) pg
+    = updatePGADTs pg (M.elems $ filterTEToNeededGenADTs cas tenv)
 
 filterTEToNeededGenADTs :: [Expr] -> TypeEnv -> TypeEnv
 filterTEToNeededGenADTs arg_exprs tenv = go M.empty gen_adts_in_args
     where
         gen_adts_in_args = TE.filterTE (anyDCsInNames arg_exprs) all_gen_adts -- only ADTs with constructors in the arguments (acts as "seed set")
-        -- Checks recursiveif new generated ADTs are present in the names of those in the limited TypeEnv.
+        -- Checks recursively if new generated ADTs are present in the names of those in the limited TypeEnv.
+        -- Outputs may print generated ADTs that do not seem to appear in the expression. example:
+        --      data GenT'2  = GenC'2 :: GenT'2 -> GenT'2 | GenN'2 :: GenT'2
+        --      data GenT a = GenC :: (forall a . a -> (GenT a) -> (GenT a)) | GenN :: (forall a . (GenT a))
+        --      polyFuncArgTwoKinds (\fs -> case fs GenN of
+        --          GenC fs'3 fs'2 -> 1
+        --          GenN  -> 0) = 0
+        -- This is because (fs'3 :: GenT'2), and types are not printed in outputs. TODO: does this leave out information
         go :: TypeEnv -> TypeEnv -> TypeEnv
         go prev new | prev == new = new
                     | otherwise = go new updated

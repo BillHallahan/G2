@@ -6,6 +6,7 @@ module G2.Lib.Printers ( PrettyGuide
                        , updatePGValAndTypeNames
                        , updatePGValNames
                        , updatePGTypeNames
+                       , updatePGADTs
 
                        , printName
 
@@ -1032,6 +1033,17 @@ mkPrettyGuide = foldr insertPG (PG { pg_assigned = HM.empty
 -- Does not draw any distinction between type level and value level names.
 updatePrettyGuide :: Named a => a -> PrettyGuide -> PrettyGuide
 updatePrettyGuide ns pg = foldr insertPG pg $ names ns
+
+-- | Add the needed Names in an ADT before adding the Names of the next ADT. For use with generated ADTs. 
+-- Prevents mismatches (e.g. GenT'2 has constructor GenC'2, not GenC'3). 
+updatePGADTs :: PrettyGuide -> [AlgDataTy] -> PrettyGuide
+updatePGADTs = foldr updatePGADT
+
+-- | Add only the type Name, constructor Names, and bound Ids (type variables) for an ADT. Prevents mismatches when printing generated ADTs.
+updatePGADT :: AlgDataTy -> PrettyGuide -> PrettyGuide
+updatePGADT (DataTyCon {data_cons = dcs@(dc_fst:_), bound_ids = b_ids}) pg | TyCon tname _:_ <- unTyApp (returnType $ dc_type dc_fst) 
+    = foldr updatePrettyGuide pg $ (tname:map dc_name dcs) ++ map idName b_ids
+updatePGADT _ _ = error "updatePGADT: applied to non-DataTyCon"
 
 updatePGValAndTypeNames :: (ASTContainer a Expr, ASTContainer a Type) => a -> PrettyGuide -> PrettyGuide
 updatePGValAndTypeNames e = updatePGValNames e . updatePGTypeNames e
