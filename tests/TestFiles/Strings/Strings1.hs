@@ -609,3 +609,10 @@ litTableTest3 s = case res of
           f x = case inner x of
                 'b' -> True
                 _ -> False
+
+litTableTest4 :: String -> Char
+litTableTest4 s = case res of
+                    True -> 'a'
+                    False -> 'b'
+    where res = L.all f s
+          f x = inner x > 'b'
