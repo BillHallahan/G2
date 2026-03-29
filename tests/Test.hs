@@ -862,6 +862,7 @@ baseTests = testGroup "Base"
                                                        , ("lengthN", 1000, [AtLeast 6]) ]
 
     , checkInputOutput "tests/BaseTests/Other.hs" "check4VeryEasy2" 600 [AtLeast 1]
+    , checkInputOutput "tests/BaseTests/ZipList.hs" "callApp" 1000 [AtLeast 10]
     ]
 
 primTests :: TestTree
