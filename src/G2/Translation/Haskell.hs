@@ -112,6 +112,7 @@ equivMods = HM.fromList
             , ("Data.Tuple", "GHC.Internal.Data.Tuple")
             , ("GHC.Internal.Control.Monad.Fix", "Control.Monad.Fix")
             , ("GHC.Internal.Control.Monad.Zip", "Control.Monad.Zip")
+            , ("GHC.Internal.Data.Type.Equality", "Data.Type.Equality")
             , ("GHC.Internal.Enum", "GHC.Enum")
             , ("GHC.Internal.Err", "GHC.Err")
             , ("GHC.Internal.Exception", "GHC.Exception")
