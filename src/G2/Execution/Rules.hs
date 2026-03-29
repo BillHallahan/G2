@@ -840,10 +840,10 @@ createExtCond s ngen dcpm mexpr cvar (dcon, bindees, aexpr)
     -- Note that this situation only happens as a result of strictness for the result of buildLitTable# in `all`,
     -- which creates a case expression.
     | (Prim (LitTableRef lt_name) _) <- mexpr,
-      (App (App (Var (Id (Name "allByLitTable#" _ _ _) _)) lt_t) _ {- LitTable -}) <- aexpr =
+      (App (App (Var (Id (Name "allByLitTable#" _ _ _) _)) _) _ {- LitTable -}) <- aexpr =
         (SD { new_conc_entries = [], new_sym_entries = [], new_path_conds = [], concretized = []
             , new_true_assert = true_assert s, new_assert_ids = assert_ids s
-            , new_curr_expr = CurrExpr Evaluate $ litTableToAllRe (fromJust $ HM.lookup lt_name (lit_tables s))
+            , new_curr_expr = CurrExpr Return $ litTableToAllRe s (fromJust $ HM.lookup lt_name (lit_tables s))
             , new_conc_types = [], new_sym_types = [], new_mut_vars = [] }, ngen)
     | otherwise = error $ "createExtCond: unsupported type" ++ "\n" ++ show (typeOf tvnv mexpr) ++ "\n" ++ show dcon
                     ++ "\n\n" ++ show mexpr ++ "\n" ++ show aexpr

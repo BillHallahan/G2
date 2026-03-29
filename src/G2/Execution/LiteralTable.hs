@@ -11,8 +11,11 @@ module G2.Execution.LiteralTable
 
 import qualified G2.Language.Stack as S
 import qualified G2.Language.PathConds as PC
+import qualified G2.Language.KnownValues as KV
+import G2.Language.Typing
 import G2.Language.Syntax
 import G2.Language.Support
+import G2.Language.Expr
 import qualified Data.HashMap.Lazy as HM
 import Data.Maybe
 
@@ -54,25 +57,122 @@ stopUpdateLastExpl stck = case S.pop stck of
 -- to the PathConds if it isn't True or False, creating two separate versions
 -- for each possibility. We also convert all PathConds to their list representation,
 -- so that they can be converted to regex more easily.
-makeAllPrimBools :: [(PathConds, Expr)] -> [([PathCond], Expr)]
-makeAllPrimBools [] = []
-makeAllPrimBools ((pcs, e):xs) | isBool e = (PC.toList pcs, e):makeAllPrimBools xs
-makeAllPrimBools ((pcs, e):xs) = 
-    let lst1 = PC.toList pcs
-        pc = undefined
-        lst2 = pc:lst1
-    in error "todo, makeAllPrimBools"
+makeAllBools :: KnownValues -> [(PathConds, Expr)] -> [([PathCond], Bool)]
+makeAllBools _ [] = []
+makeAllBools kv ((pcs, e):xs) | Just b <- getBool kv e = (PC.toList pcs, b):makeAllBools kv xs
+makeAllBools kv ((pcs, e):xs) =
+    -- We need two separate additions to the result list: one where the expr is
+    -- true and one where it isn't
+    let lst = PC.toList pcs
+        pc1 = ExtCond e True
+        pc2 = ExtCond e False
+        lst1 = pc1:lst
+        lst2 = pc2:lst
+        rest = makeAllBools kv xs
+    in (lst1, True):(lst2, False):rest
 
-isBool :: Expr -> Bool
-isBool (Data (DataCon _ (TyCon (Name "Bool" _ _ _) _) _ _)) = True
-isBool _ = False
+getBool :: KnownValues -> Expr -> Maybe Bool
+getBool kv (Data dc) = getBoolOptFromDC kv dc
+getBool _ _ = Nothing
+
+-- Slight duplication from `Rules` but we need a Maybe here
+getBoolOptFromDC :: KnownValues -> DataCon -> Maybe Bool
+getBoolOptFromDC kv dcon
+    | (DataCon dconName dconType [] []) <- dcon
+    , dconType == (tyBool kv)
+    , dconName == (KV.dcTrue kv) = Just True
+    | (DataCon dconName dconType [] []) <- dcon
+    , dconType == (tyBool kv)
+    , dconName == (KV.dcFalse kv) = Just False
+    | otherwise = Nothing
 
 -- We only want the `True` path conds from the lit table, which we then
 -- convert into a large regex, with each path condition as an alternative,
 -- through re.union. `&&` translates to re.inter, `||` translates to re.union, 
 -- `<` and `>` translate to range (with the max / min character in unicode), `not`
 -- translates to re.comp, `=` translates to just the character string (from str.to_re)
-litTableToAllRe :: LitTable -> Expr
-litTableToAllRe lt = 
-    let lt_lst = makeAllPrimBools (HM.toList $ lt_mapping lt)
-    in error $ "todo\n" ++ show lt_lst
+litTableToAllRe :: State t -> LitTable -> Expr
+litTableToAllRe s lt = 
+    let kv = known_values s
+        tenv = type_env s
+        lt_lst = HM.toList $ lt_mapping lt
+        lt_bools = makeAllBools kv lt_lst
+        lt_trues = map fst $ filter snd lt_bools
+    -- For a regex that can match a string, we need the Kleene star of all possible
+    -- regex that lead to True in the lit table
+    in App reStar (createAllRegex kv tenv lt_trues)
+
+createAllRegex :: KnownValues -> TypeEnv -> [[PathCond]] -> Expr
+createAllRegex _ _ [] = reNone
+createAllRegex kv tenv (pc_list:pc_lists) =
+    App (App reUnion (pcListToRegex kv tenv pc_list)) (createAllRegex kv tenv pc_lists)
+
+-- We need the intersection of all of these path conditions
+pcListToRegex :: KnownValues -> TypeEnv -> [PathCond] -> Expr
+pcListToRegex _ _ [] = reAll
+pcListToRegex kv tenv (pc:pcs) =
+    case pc of
+        ExtCond exp bool -> undefined
+        -- The expression here never matters, since we are always either matching or
+        -- not matching the char to a variable (which should always be the same and
+        -- does not matter for our regex conversion)
+        AltCond (LitChar c) _ bool -> 
+            if bool
+                then App 
+                        (App 
+                            toRe
+                            (toSingletonStringExpr kv tenv c)) 
+                        (pcListToRegex kv tenv pcs)
+                else App 
+                        (App 
+                            reComp 
+                            (App 
+                                toRe
+                                (toSingletonStringExpr kv tenv c)))
+                        (pcListToRegex kv tenv pcs)
+        _ -> error $ "unhandled pc in pcListToRegex:\n" ++ show pc
+
+toSingletonStringExpr :: KnownValues -> TypeEnv -> Char -> Expr
+toSingletonStringExpr kv tenv c =
+    let cons = mkCons kv tenv
+        charTy = Type (tyChar kv)
+        charExpr = App (mkDCChar kv tenv) (Lit (LitChar c))
+        emptyList = App (mkEmpty kv tenv) charTy
+    in mkApp [cons, charTy, charExpr, emptyList]
+
+-- Instead of inserting the actual primitives, we insert variables that will be
+-- translated through `PrimInject` later on. Because of this, we can ignore
+-- the proper `Name` creation process and simply create a dummy `Name` with the
+-- same name that we want to replace
+inRe :: Expr
+inRe = Var (Id (Name "inRe#" Nothing 0 Nothing) TyUnknown)
+
+toRe :: Expr
+toRe = Var (Id (Name "toRe#" Nothing 0 Nothing) TyUnknown)
+
+reNone :: Expr
+reNone = Var (Id (Name "reNone#" Nothing 0 Nothing) TyUnknown)
+
+reAll :: Expr
+reAll = Var (Id (Name "reAll#" Nothing 0 Nothing) TyUnknown)
+
+reAllChar :: Expr
+reAllChar = Var (Id (Name "reAllChar#" Nothing 0 Nothing) TyUnknown)
+
+reConcat :: Expr
+reConcat = Var (Id (Name "reConcat#" Nothing 0 Nothing) TyUnknown)
+
+reUnion :: Expr
+reUnion = Var (Id (Name "reUnion#" Nothing 0 Nothing) TyUnknown)
+
+reInter :: Expr
+reInter = Var (Id (Name "reInter#" Nothing 0 Nothing) TyUnknown)
+
+reStar :: Expr
+reStar = Var (Id (Name "reStar#" Nothing 0 Nothing) TyUnknown)
+
+reRange :: Expr
+reRange = Var (Id (Name "reRange#" Nothing 0 Nothing) TyUnknown)
+
+reComp :: Expr
+reComp = Var (Id (Name "reComp#" Nothing 0 Nothing) TyUnknown)
