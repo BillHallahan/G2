@@ -146,6 +146,7 @@ equivMods = HM.fromList
 #endif
             ]
 
+
 loadProj :: GhcMonad m => Maybe HscTarget -> [FilePath] -> [FilePath] -> [GeneralFlag] -> G2.TranslationConfig -> m SuccessFlag
 loadProj hsc proj src gflags tr_con = do
     beta_flags <- getSessionDynFlags
