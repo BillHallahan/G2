@@ -61,6 +61,8 @@ tests = testGroup "All Tests"
         , smtSynthTestRunSymexSMTStrings "tests_seq_gen/tests_symex/Regex1.hs" "regex6" (Just 2) (Just 2)
         , smtSynthTestRunSymexSMTStrings "tests_seq_gen/tests_symex/Regex1.hs" "regex7" (Just 3) (Just 3)
         , smtSynthTestRunSymexSMTStrings "tests_seq_gen/tests_symex/Regex1.hs" "regex8" (Just 2) (Just 2)
+        , smtSynthTestRunSymexSMTStrings "tests_seq_gen/tests_symex/Regex1.hs" "regex9" (Just 2) (Just 3) -- ^ One query causes CVC5 to return unknown
+        , smtSynthTestRunSymexSMTStrings "tests_seq_gen/tests_symex/Regex1.hs" "regex10" (Just 2) (Just 2)
 
         , smtSynthTestRunSymexSMTStrings "tests_seq_gen/tests_symex/Test2.hs" "callReplaceAll" (Just 2) (Just 2)
         ]
