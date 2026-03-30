@@ -91,3 +91,21 @@ regex8 x =
              | length x > 10 -> 2 -- Unreachable
              | otherwise -> 3
         False -> 4
+
+regex9 :: String -> Int
+regex9 x =
+    let !re1 = toRe# "abc"
+        !x' = strReplaceRe# x re1 "hello" in
+    case assert False (strContains# x' "hello") of
+        True | strContains# x' "abc" -> 1
+             | otherwise -> 2
+        False -> 3
+
+regex10 :: String -> Int
+regex10 x =
+    let !re1 = toRe# "abc"
+        !x' = strReplaceReAll# x re1 "hello" in
+    case assert False (strContains# x' "hello") of
+        True | strContains# x' "abc" -> 1
+             | otherwise -> 2
+        False -> 3

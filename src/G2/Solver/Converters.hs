@@ -332,6 +332,8 @@ isStr' (StrIndexOfSMT _ _ _) = All True
 isStr' (StrContainsSMT _ _) = All True
 isStr' (StrReplaceSMT _ _ _) = All True
 isStr' (StrReplaceAllSMT _ _ _) = All True
+isStr' (StrReplaceReSMT _ _ _) = All True
+isStr' (StrReplaceReAllSMT _ _ _) = All True
 isStr' (StrPrefixOfSMT _ _) = All True
 isStr' (StrSuffixOfSMT _ _) = All True
 isStr' (FromCode _) = All True
@@ -617,6 +619,8 @@ funcToSMT3Prim tv StrSubstr x y z = StrSubstrSMT (exprToSMT tv x) (exprToSMT tv 
 funcToSMT3Prim tv StrIndexOf x y z = StrIndexOfSMT (exprToSMT tv x) (exprToSMT tv y) (exprToSMT tv z)
 funcToSMT3Prim tv StrReplace x y z = StrReplaceSMT (exprToSMT tv x) (exprToSMT tv y) (exprToSMT tv z)
 funcToSMT3Prim tv StrReplaceAll x y z = StrReplaceAllSMT (exprToSMT tv x) (exprToSMT tv y) (exprToSMT tv z)
+funcToSMT3Prim tv StrReplaceRe x y z = StrReplaceReSMT (exprToSMT tv x) (exprToSMT tv y) (exprToSMT tv z)
+funcToSMT3Prim tv StrReplaceReAll x y z = StrReplaceReAllSMT (exprToSMT tv x) (exprToSMT tv y) (exprToSMT tv z)
 
 funcToSMT3Prim tv ForAllBoundPr lower upper e_body | (Lam _ (Id n t) e) <- stripAllTicks e_body =
     let
@@ -876,6 +880,8 @@ toSolverASTString = go
         go (StrContainsSMT x y) = function2 "str.contains" (goBack x) (goBack y)
         go (StrReplaceSMT x y z) = function3 "str.replace" (goBack x) (goBack y) (goBack z)
         go (StrReplaceAllSMT x y z) = function3 "str.replace_all" (goBack x) (goBack y) (goBack z)
+        go (StrReplaceReSMT x y z) = function3 "str.replace_re" (goBack x) (goBack y) (goBack z)
+        go (StrReplaceReAllSMT x y z) = function3 "str.replace_re_all" (goBack x) (goBack y) (goBack z)
         go (StrPrefixOfSMT x y) = function2 "str.prefixof" (goBack x) (goBack y)
         go (StrSuffixOfSMT x y) = function2 "str.suffixof" (goBack x) (goBack y)
         go c = toSolverASTRe goBack c
@@ -893,6 +899,9 @@ toSolverASTSeq = go
         go (StrContainsSMT x y) = function2 "seq.contains" (goBack x) (goBack y)
         go (StrReplaceSMT x y z) = function3 "seq.replace" (goBack x) (goBack y) (goBack z)
         go (StrReplaceAllSMT x y z) = function3 "seq.replace_all" (goBack x) (goBack y) (goBack z)
+        -- CVC5 does not support Seq Regexes, so must use str.replace_re/str.replace_re_all
+        go (StrReplaceReSMT x y z) = function3 "str.replace_re" (goBack x) (goBack y) (goBack z)
+        go (StrReplaceReAllSMT x y z) = function3 "str.replace_re_all" (goBack x) (goBack y) (goBack z)
         go (StrPrefixOfSMT x y) = function2 "seq.prefixof" (goBack x) (goBack y)
         go (StrSuffixOfSMT x y) = function2 "seq.suffixof" (goBack x) (goBack y)
         go (SeqEmptySMT s) = "(as seq.empty (Seq " <> sortName s <> "))"
