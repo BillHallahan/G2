@@ -509,6 +509,7 @@ evalPrim1 DecimalPart (LitFloat x) = Just . Lit $ LitFloat (snd $ properFraction
 evalPrim1 DecimalPart (LitDouble x) = Just . Lit $ LitDouble (snd $ properFraction x)
 evalPrim1 IntToFloat (LitInt x) = Just . Lit $ LitFloat (fromIntegral x)
 evalPrim1 IntToDouble (LitInt x) = Just . Lit $ LitDouble (fromIntegral x)
+evalPrim1 IntToRational (LitInt x) = Just . Lit $ LitRational (fromIntegral x)
 evalPrim1 FloatToDouble (LitFloat x) = Just . Lit $ LitDouble (float2Double x)
 evalPrim1 DoubleToFloat (LitDouble x) = Just . Lit $ LitFloat (double2Float x)
 evalPrim1 (BVToInt _) (LitBV bv) = Just . Lit . LitInt $ bvToInteger bv
