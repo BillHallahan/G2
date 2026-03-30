@@ -91,8 +91,8 @@ getBoolOptFromDC kv dcon
 -- through re.union. `&&` translates to re.inter, `||` translates to re.union, 
 -- `<` and `>` translate to range (with the max / min character in unicode), `not`
 -- translates to re.comp, `=` translates to just the character string (from str.to_re)
-litTableToAllRe :: State t -> LitTable -> Expr
-litTableToAllRe s lt = 
+litTableToAllRe :: State t -> LitTable -> Expr -> Expr
+litTableToAllRe s lt str_e = 
     let kv = known_values s
         tenv = type_env s
         lt_lst = HM.toList $ lt_mapping lt
@@ -100,16 +100,22 @@ litTableToAllRe s lt =
         lt_trues = map fst $ filter snd lt_bools
     -- For a regex that can match a string, we need the Kleene star of all possible
     -- regex that lead to True in the lit table
-    in App reStar (createAllRegex kv tenv lt_trues)
+    in App 
+        (App
+            (Prim InRe TyUnknown)
+            str_e)
+        (App
+            (Prim ReStar TyUnknown)
+            (createAllRegex kv tenv lt_trues))
 
 createAllRegex :: KnownValues -> TypeEnv -> [[PathCond]] -> Expr
-createAllRegex _ _ [] = reNone
+createAllRegex _ _ [] = Prim ReNone TyUnknown
 createAllRegex kv tenv (pc_list:pc_lists) =
-    App (App reUnion (pcListToRegex kv tenv pc_list)) (createAllRegex kv tenv pc_lists)
+    App (App (Prim ReUnion TyUnknown) (pcListToRegex kv tenv pc_list)) (createAllRegex kv tenv pc_lists)
 
 -- We need the intersection of all of these path conditions
 pcListToRegex :: KnownValues -> TypeEnv -> [PathCond] -> Expr
-pcListToRegex _ _ [] = reAll
+pcListToRegex _ _ [] = Prim ReAll TyUnknown
 pcListToRegex kv tenv (pc:pcs) =
     case pc of
         ExtCond exp bool -> undefined
@@ -120,15 +126,19 @@ pcListToRegex kv tenv (pc:pcs) =
             if bool
                 then App 
                         (App 
-                            toRe
-                            (toSingletonStringExpr kv tenv c)) 
+                            (Prim ReInter TyUnknown)
+                            (App 
+                                (Prim ToRe TyUnknown) 
+                                (toSingletonStringExpr kv tenv c)))
                         (pcListToRegex kv tenv pcs)
                 else App 
                         (App 
-                            reComp 
+                            (Prim ReInter TyUnknown)
                             (App 
-                                toRe
-                                (toSingletonStringExpr kv tenv c)))
+                                (Prim ReComp TyUnknown) 
+                                (App 
+                                    (Prim ToRe TyUnknown) 
+                                    (toSingletonStringExpr kv tenv c))))
                         (pcListToRegex kv tenv pcs)
         _ -> error $ "unhandled pc in pcListToRegex:\n" ++ show pc
 
@@ -139,40 +149,3 @@ toSingletonStringExpr kv tenv c =
         charExpr = App (mkDCChar kv tenv) (Lit (LitChar c))
         emptyList = App (mkEmpty kv tenv) charTy
     in mkApp [cons, charTy, charExpr, emptyList]
-
--- Instead of inserting the actual primitives, we insert variables that will be
--- translated through `PrimInject` later on. Because of this, we can ignore
--- the proper `Name` creation process and simply create a dummy `Name` with the
--- same name that we want to replace
-inRe :: Expr
-inRe = Var (Id (Name "inRe#" Nothing 0 Nothing) TyUnknown)
-
-toRe :: Expr
-toRe = Var (Id (Name "toRe#" Nothing 0 Nothing) TyUnknown)
-
-reNone :: Expr
-reNone = Var (Id (Name "reNone#" Nothing 0 Nothing) TyUnknown)
-
-reAll :: Expr
-reAll = Var (Id (Name "reAll#" Nothing 0 Nothing) TyUnknown)
-
-reAllChar :: Expr
-reAllChar = Var (Id (Name "reAllChar#" Nothing 0 Nothing) TyUnknown)
-
-reConcat :: Expr
-reConcat = Var (Id (Name "reConcat#" Nothing 0 Nothing) TyUnknown)
-
-reUnion :: Expr
-reUnion = Var (Id (Name "reUnion#" Nothing 0 Nothing) TyUnknown)
-
-reInter :: Expr
-reInter = Var (Id (Name "reInter#" Nothing 0 Nothing) TyUnknown)
-
-reStar :: Expr
-reStar = Var (Id (Name "reStar#" Nothing 0 Nothing) TyUnknown)
-
-reRange :: Expr
-reRange = Var (Id (Name "reRange#" Nothing 0 Nothing) TyUnknown)
-
-reComp :: Expr
-reComp = Var (Id (Name "reComp#" Nothing 0 Nothing) TyUnknown)

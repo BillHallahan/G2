@@ -768,8 +768,7 @@ createExtConds s ng dcpm mexpr cvar (x:xs) =
 -- | Creating a path constraint.  The passed Expr should have type Bool or type [Char].
 -- In the latter case, the note [String Concretizations and Constraints] is relevant.
 -- Note that this is also used within literal table handling, namely with discarding a
--- conversion to `LitTable` and creating constraints for a table itself, in the case of
--- `allByLitTable`.
+-- conversion to `LitTable` and creating a regex to create PathConds from.
 createExtCond :: State t -> NameGen -> DataConPCMap -> Expr -> Id -> (DataCon, [Id], Expr) -> (StateDiff, NameGen)
 createExtCond s ngen dcpm mexpr cvar (dcon, bindees, aexpr)
     | typeOf tvnv mexpr == tyBool kv =
@@ -825,14 +824,6 @@ createExtCond s ngen dcpm mexpr cvar (dcon, bindees, aexpr)
             , new_curr_expr = CurrExpr Evaluate aexpr''
             , new_conc_types = tve_diff, new_sym_types = tve_sym_diff
             , new_mut_vars = [] }, ngen'')
-    -- Very very nasty way of handling the LitTable type we created in GHC.Prim, since we want to
-    -- pass the actual reference to allByLitTable# etc (and the type system doesn't know that LitTable
-    -- and (LitTableRef name) mean the same thing to us
-    -- | (Prim (LitTableRef _) _) <- mexpr, (App (App (Var all_by_lit_table) lt_t) _) <- aexpr =
-    --     (SD { new_conc_entries = [], new_sym_entries = [], new_path_conds = [], concretized = []
-    --         , new_true_assert = true_assert s, new_assert_ids = assert_ids s
-    --         , new_curr_expr = CurrExpr Evaluate $ (App (App (Var all_by_lit_table) lt_t) mexpr)
-    --         , new_conc_types = [], new_sym_types = [], new_mut_vars = [] }, ngen)
     -- Very nasty hack alert. We are trying to convert an internal literal table reference into a `LitTable`
     -- object in order to apply it to `allByLitTable`, so we just set the current expr to a representation
     -- of the literal table in regex, e.g. 'a' <= x && x <= 'z' -> True is represented as
@@ -840,10 +831,10 @@ createExtCond s ngen dcpm mexpr cvar (dcon, bindees, aexpr)
     -- Note that this situation only happens as a result of strictness for the result of buildLitTable# in `all`,
     -- which creates a case expression.
     | (Prim (LitTableRef lt_name) _) <- mexpr,
-      (App (App (Var (Id (Name "allByLitTable#" _ _ _) _)) _) _ {- LitTable -}) <- aexpr =
+      (App (App (App (App (Var (Id (Name "allByLitTable#" _ _ _) _)) _) _) _ {- LitTable -}) str_e) <- aexpr =
         (SD { new_conc_entries = [], new_sym_entries = [], new_path_conds = [], concretized = []
             , new_true_assert = true_assert s, new_assert_ids = assert_ids s
-            , new_curr_expr = CurrExpr Return $ litTableToAllRe s (fromJust $ HM.lookup lt_name (lit_tables s))
+            , new_curr_expr = CurrExpr Return $ litTableToAllRe s (fromJust $ HM.lookup lt_name (lit_tables s)) str_e
             , new_conc_types = [], new_sym_types = [], new_mut_vars = [] }, ngen)
     | otherwise = error $ "createExtCond: unsupported type" ++ "\n" ++ show (typeOf tvnv mexpr) ++ "\n" ++ show dcon
                     ++ "\n\n" ++ show mexpr ++ "\n" ++ show aexpr

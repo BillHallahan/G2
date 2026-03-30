@@ -334,8 +334,14 @@ primDefs' b c l unit =
                                  $ App (Prim BuildLitTable (TyFun funTyXY TyUnknown)) (Var $ z funTyXY)
                 )
               , ("allByLitTable#", Lam TypeL (u TYPE)
-                                 . Lam TermL (x (TyVar (u TYPE)))
-                                 $ App (Prim AllByLitTable (TyFun (TyVar (u TYPE)) (TyCon b TYPE))) (Var $ x (TyVar (u TYPE)))
+                                 . Lam TypeL (x TYPE)
+                                 . Lam TermL (y (TyVar (u TYPE)))
+                                 . Lam TermL (z seqTyX)
+                                 $ App
+                                    (App
+                                        (Prim AllByLitTable $ mkTyFun [TyVar (u TYPE), TyVar (z seqTyX), TyCon b TYPE])
+                                        (Var $ y (TyVar (u TYPE))))
+                                    (Var $ z seqTyX)
                 )
               ]
               where
