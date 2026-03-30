@@ -102,20 +102,20 @@ litTableToAllRe s lt str_e =
     -- regex that lead to True in the lit table
     in App 
         (App
-            (Prim InRe TyUnknown)
+            (inRe kv)
             str_e)
         (App
-            (Prim ReStar TyUnknown)
+            (reStar kv)
             (createAllRegex kv tenv lt_trues))
 
 createAllRegex :: KnownValues -> TypeEnv -> [[PathCond]] -> Expr
-createAllRegex _ _ [] = Prim ReNone TyUnknown
+createAllRegex kv _ [] = (reNone kv)
 createAllRegex kv tenv (pc_list:pc_lists) =
-    App (App (Prim ReUnion TyUnknown) (pcListToRegex kv tenv pc_list)) (createAllRegex kv tenv pc_lists)
+    App (App (reUnion kv) (pcListToRegex kv tenv pc_list)) (createAllRegex kv tenv pc_lists)
 
 -- We need the intersection of all of these path conditions
 pcListToRegex :: KnownValues -> TypeEnv -> [PathCond] -> Expr
-pcListToRegex _ _ [] = Prim ReAll TyUnknown
+pcListToRegex kv _ [] = reAll kv
 pcListToRegex kv tenv (pc:pcs) =
     case pc of
         ExtCond exp bool -> undefined
@@ -126,18 +126,18 @@ pcListToRegex kv tenv (pc:pcs) =
             if bool
                 then App 
                         (App 
-                            (Prim ReInter TyUnknown)
+                            (reInter kv)
                             (App 
-                                (Prim ToRe TyUnknown) 
+                                (toRe kv) 
                                 (toSingletonStringExpr kv tenv c)))
                         (pcListToRegex kv tenv pcs)
                 else App 
                         (App 
-                            (Prim ReInter TyUnknown)
+                            (reInter kv)
                             (App 
-                                (Prim ReComp TyUnknown) 
+                                (reComp kv) 
                                 (App 
-                                    (Prim ToRe TyUnknown) 
+                                    (toRe kv) 
                                     (toSingletonStringExpr kv tenv c))))
                         (pcListToRegex kv tenv pcs)
         _ -> error $ "unhandled pc in pcListToRegex:\n" ++ show pc
@@ -149,3 +149,36 @@ toSingletonStringExpr kv tenv c =
         charExpr = App (mkDCChar kv tenv) (Lit (LitChar c))
         emptyList = App (mkEmpty kv tenv) charTy
     in mkApp [cons, charTy, charExpr, emptyList]
+
+inRe :: KnownValues -> Expr
+inRe kv = Prim InRe $ mkTyFun [tyString kv, tyString kv, tyBool kv]
+
+toRe :: KnownValues -> Expr
+toRe kv = Prim ToRe $ mkTyFun [tyString kv, tyString kv]
+
+reNone :: KnownValues -> Expr
+reNone kv = Prim ReNone $ tyString kv
+
+reAll :: KnownValues -> Expr
+reAll kv = Prim ReAll $ tyString kv
+
+reAllChar :: KnownValues -> Expr
+reAllChar kv = Prim ReAllChar $ tyString kv
+
+reConcat :: KnownValues -> Expr
+reConcat kv = Prim ReConcat $ mkTyFun [tyString kv, tyString kv, tyString kv]
+
+reUnion :: KnownValues -> Expr
+reUnion kv = Prim ReUnion $ mkTyFun [tyString kv, tyString kv, tyString kv]
+
+reInter :: KnownValues -> Expr
+reInter kv = Prim ReInter $ mkTyFun [tyString kv, tyString kv, tyString kv]
+
+reStar :: KnownValues -> Expr
+reStar kv = Prim ReStar $ mkTyFun [tyString kv, tyString kv]
+
+reRange :: KnownValues -> Expr
+reRange kv = Prim ReRange $ mkTyFun [tyString kv, tyString kv, tyString kv]
+
+reComp :: KnownValues -> Expr
+reComp kv = Prim ReComp $ mkTyFun [tyString kv, tyString kv]
