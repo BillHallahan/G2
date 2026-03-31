@@ -619,7 +619,9 @@ all4 s = case res of
           f x = inner x > 'b'
 
 all5 :: String -> Bool
-all5 = L.all (\chr -> chr >= 'a' && chr <= 'z')
+all5 s = case L.all (\chr -> chr >= 'a' && chr <= 'z') s && length s > 5 of
+                True -> False
+                False -> True
 
 all6 :: String -> Bool
 all6 = L.all (\c -> chr (2 + (ord c)) >= 'a' && c <= 'z')

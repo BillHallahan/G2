@@ -137,7 +137,7 @@ makeExtCondReAll kv tenv bool expr nxt_pcs = mkFullRe bool expr
     where
         mkRe e = case unApp e of
                     [Prim StrGt _, Var (Id _ _), Lit (LitChar c)] ->
-                        if c == maxChr 
+                        if c >= maxChr 
                             then reNone kv 
                             else mkApp [ reRange kv
                                        , toSingletonStringExpr kv tenv $ succ c
@@ -147,7 +147,7 @@ makeExtCondReAll kv tenv bool expr nxt_pcs = mkFullRe bool expr
                               , toSingletonStringExpr kv tenv c
                               , toSingletonStringExpr kv tenv maxChr ]
                     [Prim StrLt _, Var (Id _ _), Lit (LitChar c)] ->
-                        if c == minChr
+                        if c <= minChr
                             then reNone kv
                             else mkApp [ reRange kv
                                        , toSingletonStringExpr kv tenv minChr
@@ -188,8 +188,9 @@ makeExtCondReAll kv tenv bool expr nxt_pcs = mkFullRe bool expr
 -- evalToOrdChr :: Expr -> Maybe OrdChr
 -- evalToOrdChr _ = Nothing
 
+-- SMT-LIB currently only supports the first two Planes of Unicode
 maxChr :: Char
-maxChr = maxBound
+maxChr = '\x2ffff'
 
 minChr :: Char
 minChr = minBound
