@@ -90,7 +90,8 @@ getBoolOptFromDC kv dcon
 -- convert into a large regex, with each path condition as an alternative,
 -- through re.union. `&&` translates to re.inter, `||` translates to re.union, 
 -- `<` and `>` translate to range (with the max / min character in unicode), `not`
--- translates to re.comp, `=` translates to just the character string (from str.to_re)
+-- translates to re.comp, `=` translates to just the character string (from str.to_re).
+-- This will match (or not match) a full string using `str.in_re` and `re.star`.
 litTableToAllRe :: State t -> LitTable -> Expr -> Expr
 litTableToAllRe s lt str_e = 
     let kv = known_values s
@@ -111,37 +112,74 @@ litTableToAllRe s lt str_e =
 createAllRegex :: KnownValues -> TypeEnv -> [[PathCond]] -> Expr
 createAllRegex kv _ [] = (reNone kv)
 createAllRegex kv tenv (pc_list:pc_lists) =
-    App (App (reUnion kv) (pcListToRegex kv tenv pc_list)) (createAllRegex kv tenv pc_lists)
+    App (App (reUnion kv) (pcListToRegexAll kv tenv pc_list)) (createAllRegex kv tenv pc_lists)
 
 -- We need the intersection of all of these path conditions
-pcListToRegex :: KnownValues -> TypeEnv -> [PathCond] -> Expr
-pcListToRegex kv _ [] = reAll kv
-pcListToRegex kv tenv (pc:pcs) =
+pcListToRegexAll :: KnownValues -> TypeEnv -> [PathCond] -> Expr
+pcListToRegexAll kv _ [] = reAllChar kv
+pcListToRegexAll kv tenv (pc:pcs) =
     case pc of
-        ExtCond exp bool -> undefined
+        ExtCond expr bool -> makeExtCondReAll kv tenv bool expr pcs
         -- The expression here never matters, since we are always either matching or
         -- not matching the char to a variable (which should always be the same and
         -- does not matter for our regex conversion)
-        AltCond (LitChar c) _ bool -> 
-            if bool
-                then App 
-                        (App 
-                            (reInter kv)
-                            (App 
-                                (toRe kv) 
-                                (toSingletonStringExpr kv tenv c)))
-                        (pcListToRegex kv tenv pcs)
-                else App 
-                        (App 
-                            (reInter kv)
-                            (App 
-                                (reComp kv) 
-                                (App 
-                                    (toRe kv) 
-                                    (toSingletonStringExpr kv tenv c))))
-                        (pcListToRegex kv tenv pcs)
-        _ -> error $ "unhandled pc in pcListToRegex:\n" ++ show pc
+        AltCond (LitChar c) _ bool -> makeAltCondReAll kv tenv bool c pcs
+        _ -> error $ "unhandled pc in pcListToRegexAll:\n" ++ show pc
 
+makeAltCondReAll :: KnownValues -> TypeEnv -> Bool -> Char -> [PathCond] -> Expr
+makeAltCondReAll kv tenv b c nxt_pcs = let chr_re = App (toRe kv) (toSingletonStringExpr kv tenv c)
+                                           chr_comp_re = if b then chr_re else App (reComp kv) chr_re
+                                       in App (App (reInter kv) chr_comp_re) (pcListToRegexAll kv tenv nxt_pcs)
+
+makeExtCondReAll :: KnownValues -> TypeEnv -> Bool -> Expr -> [PathCond] -> Expr
+makeExtCondReAll kv tenv bool expr nxt_pcs = mkFullRe bool expr
+    -- This should be the subset of path conds that appear in Char -> Bool functions
+    where
+        mkRe e = case unApp e of
+                    [Prim StrGt _, Var (Id _ _), Lit (LitChar c)] ->
+                        if c == maxChr 
+                            then reNone kv 
+                            else mkApp [ reRange kv
+                                       , toSingletonStringExpr kv tenv $ succ c
+                                       , toSingletonStringExpr kv tenv maxChr]
+                    [Prim StrGe _, Var (Id _ _), Lit (LitChar c)] ->
+                        mkApp [ reRange kv
+                              , toSingletonStringExpr kv tenv c
+                              , toSingletonStringExpr kv tenv maxChr]
+                    [Prim StrLt _, Var (Id _ _), Lit (LitChar c)] ->
+                        if c == minChr
+                            then reNone kv
+                            else mkApp [ reRange kv
+                                       , toSingletonStringExpr kv tenv minChr
+                                       , toSingletonStringExpr kv tenv $ pred c]
+                    [Prim StrLe _, Var (Id _ _), Lit (LitChar c)] ->
+                        mkApp [ reRange kv
+                              , toSingletonStringExpr kv tenv minChr
+                              , toSingletonStringExpr kv tenv c]
+                    [Prim StrGt ty, l@(Lit (LitChar _)), v@(Var (Id _ _))] -> mkRe $ mkApp [Prim StrLe ty, v, l]
+                    [Prim StrGe ty, l@(Lit (LitChar _)), v@(Var (Id _ _))] -> mkRe $ mkApp [Prim StrLt ty, v, l]
+                    [Prim StrLt ty, l@(Lit (LitChar _)), v@(Var (Id _ _))] -> mkRe $ mkApp [Prim StrGe ty, v, l]
+                    [Prim StrLe ty, l@(Lit (LitChar _)), v@(Var (Id _ _))] -> mkRe $ mkApp [Prim StrGt ty, v, l]
+                    [Prim And _, e1, e2] -> mkApp [reInter kv, mkRe e1, mkRe e2]
+                    [Prim Or _, e1, e2] -> mkApp [reUnion kv, mkRe e1, mkRe e2]
+                    [Prim Not _, e1] -> mkApp [reComp kv, mkRe e1]
+                    [Prim Gt ty, e1, e2] -> mkRe $ mkApp [Prim StrGt ty, e1, e2]
+                    [Prim Ge ty, e1, e2] -> mkRe $ mkApp [Prim StrGe ty, e1, e2]
+                    [Prim Lt ty, e1, e2] -> mkRe $ mkApp [Prim StrLt ty, e1, e2]
+                    [Prim Le ty, e1, e2] -> mkRe $ mkApp [Prim StrLe ty, e1, e2]
+                    [Prim Eq _, Var (Id _ _), Lit (LitChar c)] -> undefined
+                    _ -> error $ "unhandled expr in makeExtCondReAll:\n" ++ show e
+        mkFullRe b e =
+            let re = mkRe e
+                re_comp = if b then re else App (reComp kv) re
+            in mkApp [reInter kv, re_comp, pcListToRegexAll kv tenv nxt_pcs]
+
+maxChr :: Char
+maxChr = maxBound
+
+minChr :: Char
+minChr = minBound
+                    
 toSingletonStringExpr :: KnownValues -> TypeEnv -> Char -> Expr
 toSingletonStringExpr kv tenv c =
     let cons = mkCons kv tenv

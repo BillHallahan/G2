@@ -612,7 +612,7 @@ litTableTest3 s = case res of
 
 litTableTest4 :: String -> Char
 litTableTest4 s = case res of
-                    True -> 'a'
+                    True -> if length s > 3 then 'a' else 'q'
                     False -> 'b'
     where res = L.all f s
           f x = inner x > 'b'
