@@ -109,3 +109,88 @@ regex10 x =
         True | strContains# x' "abc" -> 1
              | otherwise -> 2
         False -> 3
+
+-- Should return True
+regex11 :: String -> Bool
+regex11 x =
+    let !re1 = toRe# "abc"
+        !re_all = reAll# @Char
+        !re_concat = reConcat# re_all re1 in
+    assert False (inRe# "match abc" re_concat)
+
+-- Should return True
+regex12 :: String -> Bool
+regex12 x =
+    let !re1 = toRe# "abc"
+        !re2 = toRe# "defghi"
+        !re_concat = reConcat# re1 re2 in
+    assert False (inRe# "abcdefghi" re_concat)
+
+-- Should return True
+regex14 :: String -> Bool
+regex14 x =
+    let !re1 = toRe# "abc"
+        !re2 = toRe# "def"
+        !re_union = reUnion# re1 re2 in
+    assert False (inRe# "def" re_union)
+
+-- Should return True
+regex15 :: String -> Bool
+regex15 x =
+    let !re1 = toRe# "abc"
+        !re_star = reStar# re1 in
+    assert False (inRe# "abcabcabcabc" re_star)
+
+-- Should return False
+regex16 :: String -> Bool
+regex16 x =
+    let !re1 = toRe# "abc"
+        !re_star = reStar# re1 in
+    assert False (inRe# "abcabcabcDabc" re_star)
+
+-- Should return True
+regex17 :: String -> Bool
+regex17 x =
+    let !re1 = toRe# "abc"
+        !re_star = reStar# re1
+        !re_comp = reComp# re_star in
+    assert False (inRe# "abcabcabcDabc" re_comp)
+
+-- Should return False
+regex18 :: String -> Bool
+regex18 x =
+    let !re1 = toRe# "abc"
+        !re_star = reStar# re1
+        !re_comp = reComp# re_star in
+    assert False (inRe# "abcabcabcabc" re_comp)
+
+-- Should return True
+regex19 :: String -> Bool
+regex19 x =
+    let !re1 = toRe# "abc"
+        !re2 = toRe# "bc"
+        !re_star = reStar# re1
+        !re_comp = reComp# re_star
+        !re_app = reConcat# re_comp re2 in
+    assert False (inRe# "abc" re_app)
+
+-- Should return False
+regex20 :: String -> Bool
+regex20 x =
+    let !re1 = toRe# "abc"
+        !re_star = reStar# re1
+        !re_comp = reComp# re_star
+        !re_app = reConcat# re_comp re1 in
+    assert False (inRe# "abc" re_app)
+
+-- Should return True
+regex21 :: String -> Bool
+regex21 x =
+    let !re_range = reRange# "abc" "zyx" in
+    assert False (inRe# "m" re_range)
+
+-- Should return False
+regex22 :: String -> Bool
+regex22 x =
+    let !re_range = reRange# "abc" "zyx" in
+    assert False (inRe# "M" re_range)
