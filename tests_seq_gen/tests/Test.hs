@@ -75,5 +75,10 @@ f19 :: HasCallStack => String -> String
 f19 "" = error "negative"
 f19 x = x
 
+f20 :: Char -> Char -> String -> String
+f20 _ _ [] = []
+f20 x y (z:zs) | x == z = y:f20 x y zs
+               | otherwise = z:f20 x y zs
+
 (@@) :: String -> String -> String
 xs @@ ys = xs ++ ys ++ xs
