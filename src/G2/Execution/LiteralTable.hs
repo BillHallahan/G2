@@ -141,21 +141,21 @@ makeExtCondReAll kv tenv bool expr nxt_pcs = mkFullRe bool expr
                             then reNone kv 
                             else mkApp [ reRange kv
                                        , toSingletonStringExpr kv tenv $ succ c
-                                       , toSingletonStringExpr kv tenv maxChr]
+                                       , toSingletonStringExpr kv tenv maxChr ]
                     [Prim StrGe _, Var (Id _ _), Lit (LitChar c)] ->
                         mkApp [ reRange kv
                               , toSingletonStringExpr kv tenv c
-                              , toSingletonStringExpr kv tenv maxChr]
+                              , toSingletonStringExpr kv tenv maxChr ]
                     [Prim StrLt _, Var (Id _ _), Lit (LitChar c)] ->
                         if c == minChr
                             then reNone kv
                             else mkApp [ reRange kv
                                        , toSingletonStringExpr kv tenv minChr
-                                       , toSingletonStringExpr kv tenv $ pred c]
+                                       , toSingletonStringExpr kv tenv $ pred c ]
                     [Prim StrLe _, Var (Id _ _), Lit (LitChar c)] ->
                         mkApp [ reRange kv
                               , toSingletonStringExpr kv tenv minChr
-                              , toSingletonStringExpr kv tenv c]
+                              , toSingletonStringExpr kv tenv c ]
                     [Prim StrGt ty, l@(Lit (LitChar _)), v@(Var (Id _ _))] -> mkRe $ mkApp [Prim StrLe ty, v, l]
                     [Prim StrGe ty, l@(Lit (LitChar _)), v@(Var (Id _ _))] -> mkRe $ mkApp [Prim StrLt ty, v, l]
                     [Prim StrLt ty, l@(Lit (LitChar _)), v@(Var (Id _ _))] -> mkRe $ mkApp [Prim StrGe ty, v, l]
@@ -167,12 +167,26 @@ makeExtCondReAll kv tenv bool expr nxt_pcs = mkFullRe bool expr
                     [Prim Ge ty, e1, e2] -> mkRe $ mkApp [Prim StrGe ty, e1, e2]
                     [Prim Lt ty, e1, e2] -> mkRe $ mkApp [Prim StrLt ty, e1, e2]
                     [Prim Le ty, e1, e2] -> mkRe $ mkApp [Prim StrLe ty, e1, e2]
-                    [Prim Eq _, Var (Id _ _), Lit (LitChar c)] -> undefined
+                    [Prim Eq _, Var (Id _ _), Lit (LitChar c)] -> App (toRe kv) (toSingletonStringExpr kv tenv c)
+                    [Prim Neq _, Var (Id _ _), Lit (LitChar c)] ->
+                        App (reComp kv) $ App (toRe kv) (toSingletonStringExpr kv tenv c)
+                    [Prim Eq _, Lit (LitChar c), Var (Id _ _)] -> App (toRe kv) (toSingletonStringExpr kv tenv c)
+                    [Prim Neq _, Lit (LitChar c), Var (Id _ _)] ->
+                        App (reComp kv) $ App (toRe kv) (toSingletonStringExpr kv tenv c)
                     _ -> error $ "unhandled expr in makeExtCondReAll:\n" ++ show e
         mkFullRe b e =
             let re = mkRe e
                 re_comp = if b then re else App (reComp kv) re
             in mkApp [reInter kv, re_comp, pcListToRegexAll kv tenv nxt_pcs]
+
+-- data OrdChr = CharT Char | IntT Int
+
+-- evalToChr :: Expr -> Maybe Char
+-- evalToChr (Lit (LitChar c)) = c
+-- evalToChr _ = Nothing
+
+-- evalToOrdChr :: Expr -> Maybe OrdChr
+-- evalToOrdChr _ = Nothing
 
 maxChr :: Char
 maxChr = maxBound

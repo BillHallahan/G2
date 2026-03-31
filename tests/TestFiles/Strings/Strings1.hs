@@ -4,6 +4,7 @@
 module Strings1 where
 
 import Data.List
+import Data.Char
 import qualified GHC.List as L
 
 toEnum1 :: String
@@ -571,12 +572,6 @@ test1 xs = (length (map id xs) > 3, if init xs == tail xs then 1 else 0)
 test1InitTailEq :: String -> (Bool, Int) -> Bool
 test1InitTailEq _ (b, i) = b && i == 1
 
-litTableTest :: String -> Bool
-litTableTest s = L.all f s
-    where f x = case inner x of
-                'b' -> True
-                _ -> False
-
 {-# NOINLINE inner #-}
 inner :: Char -> Char
 inner x = case x of
@@ -584,12 +579,6 @@ inner x = case x of
             'b' -> 'c'
             'c' -> 'b'
             _ -> x
-
-litTableTest2 :: String -> Bool
-litTableTest2 s = L.all f s
-    where f x = case x of
-                    'z' -> True
-                    _ -> inner2 x
 
 {-# NOINLINE inner2 #-}
 inner2 :: Char -> Bool 
@@ -601,18 +590,36 @@ inner2 x = case x of
                                 'd' -> False
                                 _ -> True
 
-litTableTest3 :: String -> Char
-litTableTest3 s = case res of
-                    True -> 'a'
-                    False -> 'b'
-    where res = L.all f s
-          f x = case inner x of
+all1 :: String -> Bool
+all1 s = L.all f s
+    where f x = case inner x of
                 'b' -> True
                 _ -> False
 
-litTableTest4 :: String -> Char
-litTableTest4 s = case res of
+all2 :: String -> Bool
+all2 s = L.all f s
+    where f x = case x of
+                    'z' -> True
+                    _ -> inner2 x
+
+all3 :: String -> Char
+all3 s = case res of
+            True -> 'a'
+            False -> 'b'
+    where res = L.all f s
+          f x = case inner x of
+                    'b' -> True
+                    _ -> False
+
+all4 :: String -> Char
+all4 s = case res of
                     True -> if length s > 3 then 'a' else 'q'
                     False -> 'b'
     where res = L.all f s
           f x = inner x > 'b'
+
+all5 :: String -> Bool
+all5 = L.all (\chr -> chr >= 'a' && chr <= 'z')
+
+all6 :: String -> Bool
+all6 = L.all (\c -> chr (2 + (ord c)) >= 'a' && c <= 'z')
