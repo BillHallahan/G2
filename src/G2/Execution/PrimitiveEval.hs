@@ -591,8 +591,8 @@ evalPrimADT2 _ _ _ _ _ = Nothing
 matchesRegex :: [Expr] -> Expr -> Bool
 matchesRegex es r = any null $ matchesRegex' es r
 
--- | `matchesRegex' es r` checks if the regex r matches some prefix of the `Expr` list es.
--- If it does `Just` the possible unmatched suffixes are returned, if it does not, `Nothing` is returned.
+-- | `matchesRegex' es r` tries to match some prefix of es to the regular expression r.
+-- A list of all suffixes that would result from removing a matching prefix is returned.
 matchesRegex' :: [Expr] -> Expr -> [[Expr]]
 matchesRegex' es (App (Prim ToRe _) e') | Just es' <- toExprList e' =
     case L.stripPrefix es' es of
