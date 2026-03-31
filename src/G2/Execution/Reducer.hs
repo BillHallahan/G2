@@ -1081,12 +1081,12 @@ strictRed = mkSimpleReducer (\_ -> ())
                     (is, ng') = freshIds (map (typeOf tvnv) es) ng
                     eenv' = foldl' (\env (Id n _, e_) -> E.insert n e_ env) eenv $ zip is es
                     ce_expr = mkApp $ Data d:map Var is
-                    ce' = CurrExpr Return ce_expr
+                    -- Handle update frames
+                    (eenv'', ce_expr') = handle_update_casts stck eenv' ce_expr
+                    ce' = CurrExpr Return ce_expr'
                     stck'' = foldl' (\st i -> Stck.push (CurrExprFrame NoAction (CurrExpr Evaluate $ Var i)) st)
                                    (Stck.push (CurrExprFrame NoAction ce') stck' )
                                    (tail is)
-                    -- Handle update frames
-                    eenv'' = foldr (\n -> E.insert n ce_expr) eenv' updates
                     
                     s' = s { expr_env = eenv''
                            , curr_expr = CurrExpr Evaluate (Var $ head is)
@@ -1112,6 +1112,10 @@ strictRed = mkSimpleReducer (\_ -> ())
                 pop_updates_casts ns stck | Just (UpdateFrame n, stck_) <- Stck.pop stck = pop_updates_casts (n:ns) stck_
                                           | Just (CastFrame _, stck_) <- Stck.pop stck = pop_updates_casts ns stck_
                                           | otherwise = (ns, stck)
+
+                handle_update_casts stck eenv ce | Just (UpdateFrame n, stck_) <- Stck.pop stck = handle_update_casts stck_ (E.insert n ce eenv) ce
+                                                 | Just (CastFrame c, stck_) <- Stck.pop stck = handle_update_casts stck_ eenv (Cast ce c)
+                                                 | otherwise = (eenv, ce)
                 -- | Does the expression contain non-fully-reduced subexpressions?
                 --
                 -- Looks through variables, but tracks seen variable names to avoid an infinite loop.

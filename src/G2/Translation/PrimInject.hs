@@ -233,6 +233,22 @@ primDefs' b c l unit =
                                         (Var $ y seqTyX))
                                     (Var $ z seqTyX))
                                 (Var $ (dummyId "q") seqTyX))
+              , ("strReplaceRe#", Lam TypeL (x TYPE) . Lam TermL (y seqTyX) . Lam TermL (z seqTyX) . Lam TermL ((dummyId "q") seqTyX)
+                            $ App
+                                (App
+                                    (App
+                                        (Prim StrReplaceRe (TyFun seqTyX (TyFun seqTyX (TyFun seqTyX seqTyX))))
+                                        (Var $ y seqTyX))
+                                    (Var $ z seqTyX))
+                                (Var $ (dummyId "q") seqTyX))
+              , ("strReplaceReAll#", Lam TypeL (x TYPE) . Lam TermL (y seqTyX) . Lam TermL (z seqTyX) . Lam TermL ((dummyId "q") seqTyX)
+                            $ App
+                                (App
+                                    (App
+                                        (Prim StrReplaceReAll (TyFun seqTyX (TyFun seqTyX (TyFun seqTyX seqTyX))))
+                                        (Var $ y seqTyX))
+                                    (Var $ z seqTyX))
+                                (Var $ (dummyId "q") seqTyX))
               , ("strPrefixOf#", Lam TypeL (x TYPE) . Lam TermL (y seqTyX) . Lam TermL (z seqTyX)
                             $ App
                                 (App

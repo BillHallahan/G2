@@ -259,6 +259,8 @@ data Primitive = -- Mathematical and logical operators
                | StrContains
                | StrReplace
                | StrReplaceAll
+               | StrReplaceRe
+               | StrReplaceReAll
                | StrPrefixOf
                | StrSuffixOf
 

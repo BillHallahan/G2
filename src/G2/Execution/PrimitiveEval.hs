@@ -606,7 +606,56 @@ evalPrimADT2 kv _ StrGe f s = do
     s' <- toString s
     return $ mkBool kv (f' >= s')
 
+evalPrimADT2 kv _ InRe s regex = do
+    s' <- toExprList s
+    return $ mkBool kv (matchesRegex s' regex)
+
 evalPrimADT2 _ _ _ _ _ = Nothing
+
+matchesRegex :: [Expr] -> Expr -> Bool
+matchesRegex es r = any null $ matchesRegex' es r
+
+-- | `matchesRegex' es r` tries to match some prefix of es to the regular expression r.
+-- A list of all suffixes that would result from removing a matching prefix is returned.
+matchesRegex' :: [Expr] -> Expr -> [[Expr]]
+matchesRegex' es (App (Prim ToRe _) e') | Just es' <- toExprList e' =
+    case L.stripPrefix es' es of
+        Nothing -> []
+        Just post -> [post]
+matchesRegex' _ (Prim ReNone _) = []
+matchesRegex' es (Prim ReAll _) = L.tails es
+matchesRegex' (_:es) (Prim ReAllChar _) = [es]
+matchesRegex' es (App (App (Prim ReConcat _) es1) es2) = do
+    es1' <- matchesRegex' es es1
+    matchesRegex' es1' es2 
+matchesRegex' es (App (App (Prim ReUnion _) r1) r2) = matchesRegex' es r1 <> matchesRegex' es r2
+matchesRegex' es (App (App (Prim ReInter _) r1) r2) = matchesRegex' es r1 `L.intersect` matchesRegex' es r2
+
+matchesRegex' es re_star@(App (Prim ReStar _) r1) = es:do -- Star might repeat 0 times, so return es
+    let es' = matchesRegex' es r1 -- r1 matches once
+    e <- es' -- Get each way r1 matches
+    let m = matchesRegex' e re_star -- Allow r1 to repeat
+    es' ++ m
+
+matchesRegex' es (App (Prim ReComp _) r) = comp (splits es)
+    where
+        -- Try to match each prefix of es to r.
+        -- If it can match, discard, otherwise return suffix to allow it to continue matching past the complement.
+        comp = concatMap (\(b, a) -> case matchesRegex' b r of
+                xs | all (not . null) xs -> [a]
+                _ -> [])
+
+        splits [] = [([], [])]
+        splits (x:xs) = ([], x:xs) : [ (x : before, after) | (before, after) <- splits xs ]
+
+matchesRegex' ((App (Data _) (Lit (LitChar c))):es) (App (App (Prim ReRange _) lower) upper)
+    | Just lower_str <- toString lower
+    , Just upper_str <- toString upper
+    , lower_str <= [c]
+    , [c] <= upper_str = [es]
+
+matchesRegex' _ _ = []
+
 
 evalPrimADT3 :: TypeEnv -> KnownValues -> Primitive -> Expr -> Expr -> Expr -> Maybe Expr
 evalPrimADT3 tenv kv StrSubstr str (Lit (LitInt s)) (Lit (LitInt e)) = substr str s e

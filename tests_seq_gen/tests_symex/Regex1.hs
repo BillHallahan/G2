@@ -91,3 +91,106 @@ regex8 x =
              | length x > 10 -> 2 -- Unreachable
              | otherwise -> 3
         False -> 4
+
+regex9 :: String -> Int
+regex9 x =
+    let !re1 = toRe# "abc"
+        !x' = strReplaceRe# x re1 "hello" in
+    case assert False (strContains# x' "hello") of
+        True | strContains# x' "abc" -> 1
+             | otherwise -> 2
+        False -> 3
+
+regex10 :: String -> Int
+regex10 x =
+    let !re1 = toRe# "abc"
+        !x' = strReplaceReAll# x re1 "hello" in
+    case assert False (strContains# x' "hello") of
+        True | strContains# x' "abc" -> 1
+             | otherwise -> 2
+        False -> 3
+
+-- Should return True
+retRegex1 :: String -> Bool
+retRegex1 x =
+    let !re1 = toRe# "abc"
+        !re_all = reAll# @Char
+        !re_concat = reConcat# re_all re1 in
+    assert False (inRe# "match abc" re_concat)
+
+-- Should return True
+retRegex2 :: String -> Bool
+retRegex2 x =
+    let !re1 = toRe# "abc"
+        !re2 = toRe# "defghi"
+        !re_concat = reConcat# re1 re2 in
+    assert False (inRe# "abcdefghi" re_concat)
+
+-- Should return True
+retRegex3 :: String -> Bool
+retRegex3 x =
+    let !re1 = toRe# "abc"
+        !re2 = toRe# "def"
+        !re_union = reUnion# re1 re2 in
+    assert False (inRe# "def" re_union)
+
+-- Should return True
+retRegex4 :: String -> Bool
+retRegex4 x =
+    let !re1 = toRe# "abc"
+        !re_star = reStar# re1 in
+    assert False (inRe# "abcabcabcabc" re_star)
+
+-- Should return False
+retRegex5 :: String -> Bool
+retRegex5 x =
+    let !re1 = toRe# "abc"
+        !re_star = reStar# re1 in
+    assert False (inRe# "abcabcabcDabc" re_star)
+
+-- Should return True
+retRegex6 :: String -> Bool
+retRegex6 x =
+    let !re1 = toRe# "abc"
+        !re_star = reStar# re1
+        !re_comp = reComp# re_star in
+    assert False (inRe# "abcabcabcDabc" re_comp)
+
+-- Should return False
+retRegex7 :: String -> Bool
+retRegex7 x =
+    let !re1 = toRe# "abc"
+        !re_star = reStar# re1
+        !re_comp = reComp# re_star in
+    assert False (inRe# "abcabcabcabc" re_comp)
+
+-- Should return True
+retRegex8 :: String -> Bool
+retRegex8 x =
+    let !re1 = toRe# "abc"
+        !re2 = toRe# "bc"
+        !re_star = reStar# re1
+        !re_comp = reComp# re_star
+        !re_app = reConcat# re_comp re2 in
+    assert False (inRe# "abc" re_app)
+
+-- Should return False
+retRegex9 :: String -> Bool
+retRegex9 x =
+    let !re1 = toRe# "abc"
+        !re_star = reStar# re1
+        !re_comp = reComp# re_star
+        !re_app = reConcat# re_comp re1 in
+    assert False (inRe# "abc" re_app)
+
+-- Should return True
+retRegex10 :: String -> Bool
+retRegex10 x =
+    let !re_range = reRange# "abc" "zyx" in
+    assert False (inRe# "m" re_range)
+
+-- Should return False
+retRegex11 :: String -> Bool
+retRegex11 x =
+    let !re_range = reRange# "abc" "zyx" in
+    assert False (inRe# "M" re_range)

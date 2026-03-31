@@ -6,6 +6,8 @@ import Test.Tasty
 import Test.Tasty.HUnit
 
 import G2.Config
+import G2.Interface.ExecRes
+import G2.Language
 import G2.SMTSynth.Synthesizer
 
 import Data.Maybe
@@ -61,6 +63,20 @@ tests = testGroup "All Tests"
         , smtSynthTestRunSymexSMTStrings "tests_seq_gen/tests_symex/Regex1.hs" "regex6" (Just 2) (Just 2)
         , smtSynthTestRunSymexSMTStrings "tests_seq_gen/tests_symex/Regex1.hs" "regex7" (Just 3) (Just 3)
         , smtSynthTestRunSymexSMTStrings "tests_seq_gen/tests_symex/Regex1.hs" "regex8" (Just 2) (Just 2)
+        , smtSynthTestRunSymexSMTStrings "tests_seq_gen/tests_symex/Regex1.hs" "regex9" (Just 2) (Just 3) -- ^ One query causes CVC5 to return unknown
+        , smtSynthTestRunSymexSMTStrings "tests_seq_gen/tests_symex/Regex1.hs" "regex10" (Just 2) (Just 2)
+
+        , smtSynthTestRunSymexSMTStringsTrue "tests_seq_gen/tests_symex/Regex1.hs" "retRegex1" (Just 1) (Just 1)
+        , smtSynthTestRunSymexSMTStringsTrue "tests_seq_gen/tests_symex/Regex1.hs" "retRegex2" (Just 1) (Just 1)
+        , smtSynthTestRunSymexSMTStringsTrue "tests_seq_gen/tests_symex/Regex1.hs" "retRegex3" (Just 1) (Just 1)
+        , smtSynthTestRunSymexSMTStringsTrue "tests_seq_gen/tests_symex/Regex1.hs" "retRegex4" (Just 1) (Just 1)
+        , smtSynthTestRunSymexSMTStringsFalse "tests_seq_gen/tests_symex/Regex1.hs" "retRegex5" (Just 1) (Just 1)
+        , smtSynthTestRunSymexSMTStringsTrue "tests_seq_gen/tests_symex/Regex1.hs" "retRegex6" (Just 1) (Just 1)
+        , smtSynthTestRunSymexSMTStringsFalse "tests_seq_gen/tests_symex/Regex1.hs" "retRegex7" (Just 1) (Just 1)
+        , smtSynthTestRunSymexSMTStringsTrue "tests_seq_gen/tests_symex/Regex1.hs" "retRegex8" (Just 1) (Just 1)
+        , smtSynthTestRunSymexSMTStringsFalse "tests_seq_gen/tests_symex/Regex1.hs" "retRegex9" (Just 1) (Just 1)
+        , smtSynthTestRunSymexSMTStringsTrue "tests_seq_gen/tests_symex/Regex1.hs" "retRegex10" (Just 1) (Just 1)
+        , smtSynthTestRunSymexSMTStringsFalse "tests_seq_gen/tests_symex/Regex1.hs" "retRegex11" (Just 1) (Just 1)
 
         , smtSynthTestRunSymexSMTStrings "tests_seq_gen/tests_symex/Test2.hs" "callReplaceAll" (Just 2) (Just 2)
         ]
@@ -119,23 +135,54 @@ smtSynthTestRunSymexSMTStrings :: T.Text -- ^ Filer
                                -> Maybe Int -- ^ Minimum number of outputs
                                -> Maybe Int -- ^ Maximum number of outputs
                                -> TestTree
-smtSynthTestRunSymexSMTStrings file = smtSynthTestRunSymexWithConfig (do
+smtSynthTestRunSymexSMTStrings file f =
+    smtSynthTestRunSymexWithConfig (do
                                         synth_config@(SynthConfig { g2_config = config }) <- getSeqGenConfigDir file
-                                        return $ synth_config { run_symex = True, g2_config = adjustConfig synth_config $ config { smt = ConCVC5, steps = 2000, smt_strings = UseSMTStrings } }) file
+                                        return $ synth_config { run_symex = True, g2_config = adjustConfig synth_config $ config { smt = ConCVC5, steps = 2000, smt_strings = UseSMTStrings } })
+                                        file
+                                        f
+                                        (const True)
+
+smtSynthTestRunSymexSMTStringsTrue :: T.Text -- ^ Filer
+                                   -> T.Text -- ^ Function
+                                   -> Maybe Int -- ^ Minimum number of outputs
+                                   -> Maybe Int -- ^ Maximum number of outputs
+                                   -> TestTree
+smtSynthTestRunSymexSMTStringsTrue file f =
+    smtSynthTestRunSymexWithConfig (do
+                                        synth_config@(SynthConfig { g2_config = config }) <- getSeqGenConfigDir file
+                                        return $ synth_config { run_symex = True, g2_config = adjustConfig synth_config $ config { smt = ConCVC5, steps = 2000, smt_strings = UseSMTStrings } })
+                                        file
+                                        f
+                                        (\e -> case e of (Data dc) -> nameOcc (dc_name dc) == "True"; _ -> False)
+
+smtSynthTestRunSymexSMTStringsFalse :: T.Text -- ^ Filer
+                                    -> T.Text -- ^ Function
+                                    -> Maybe Int -- ^ Minimum number of outputs
+                                    -> Maybe Int -- ^ Maximum number of outputs
+                                    -> TestTree
+smtSynthTestRunSymexSMTStringsFalse file f =
+    smtSynthTestRunSymexWithConfig (do
+                                        synth_config@(SynthConfig { g2_config = config }) <- getSeqGenConfigDir file
+                                        return $ synth_config { run_symex = True, g2_config = adjustConfig synth_config $ config { smt = ConCVC5, steps = 2000, smt_strings = UseSMTStrings } })
+                                        file
+                                        f
+                                        (\e -> case e of (Data dc) -> nameOcc (dc_name dc) == "False"; _ -> False)
 
 smtSynthTestRunSymexWithConfig :: IO SynthConfig
                                -> T.Text -- ^ Function
                                -> T.Text -- ^ Function
+                               -> (Expr -> Bool) -- ^ Predicate to check on outputs
                                -> Maybe Int -- ^ Minimum number of outputs
                                -> Maybe Int -- ^ Maximum number of outputs
                                -> TestTree
-smtSynthTestRunSymexWithConfig io_config src f min_out max_out =
+smtSynthTestRunSymexWithConfig io_config src f p min_out max_out =
     
     testCase (T.unpack $ src <> " " <> f) (do
         config <- io_config
         r <- timeout (480 * 1000000) $ runFunc (T.unpack src) [] f Nothing config
         assertBool "Error" (maybe False 
-                                (\(_, er, _) -> maybe True (<= length er) min_out && maybe True (length er <=) max_out)
+                                (\(_, er, _) -> maybe True (<= length er) min_out && maybe True (length er <=) max_out && all (p . getExpr . final_state) er)
                                 r
                            )
     )
