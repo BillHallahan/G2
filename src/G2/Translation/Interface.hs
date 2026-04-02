@@ -32,7 +32,7 @@ translateBase tr_con config extra hsc = do
   let base_inc = baseInclude config
   let bases = nub $ base config ++ extra
 
-  (base_exg2, b_nm, b_tnm) <- translateLibPairs specialConstructors specialTypeNames tr_con emptyExtractedG2 hsc base_inc bases
+  (b_nm, b_tnm, base_exg2) <- hskToG2ViaCgGutsFromFile hsc base_inc bases specialConstructors specialTypeNames tr_con
 
   let base_prog = exg2_binds base_exg2
       base_tys = exg2_tycons base_exg2
@@ -40,19 +40,6 @@ translateBase tr_con config extra hsc = do
   let base_tys' = base_tys `HM.union` specialTypes
   let base_prog' = addPrimsToBase base_tys' base_prog
   return (base_exg2 { exg2_binds = base_prog', exg2_tycons = base_tys' }, b_nm, b_tnm)
-
-translateLibPairs :: NameMap
-  -> TypeNameMap
-  -> TranslationConfig
-  -> ExtractedG2
-  -> Maybe HscTarget
-  -> [IncludePath]
-  -> [FilePath]
-  -> IO (ExtractedG2, NameMap, TypeNameMap)
-translateLibPairs nm tnm _ exg2 _ _ [] = return (exg2, nm, tnm)
-translateLibPairs nm tnm tr_con exg2 hsc inc_paths (f: fs) = do
-  (new_nm, new_tnm, exg2') <- hskToG2ViaCgGutsFromFile hsc inc_paths [f] nm tnm tr_con
-  translateLibPairs new_nm new_tnm tr_con (mergeExtractedG2s [exg2, exg2']) hsc inc_paths fs
 
 #if MIN_VERSION_GLASGOW_HASKELL(9,6,0,0)
 selectBackend :: TranslationConfig -> Maybe Backend
