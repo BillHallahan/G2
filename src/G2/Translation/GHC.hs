@@ -41,6 +41,8 @@ module G2.Translation.GHC ( module GHC
 #endif
 #if MIN_VERSION_GLASGOW_HASKELL(9,3,0,0)
                           , module GHC.Driver.Config.Tidy
+#endif
+#if MIN_VERSION_GLASGOW_HASKELL(9,5,0,0)
 #else
                           , module GHC.Unit.Module.Name
 #endif
@@ -92,10 +94,13 @@ import GHC.Unit.Types
 import GHC.Utils.Word64
 #endif
 
-#if MIN_VERSION_GLASGOW_HASKELL(9,3,0,0)
-import GHC.Driver.Config.Tidy
+#if MIN_VERSION_GLASGOW_HASKELL(9,5,0,0)
 #else
 import GHC.Unit.Module.Name
+#endif
+
+#if MIN_VERSION_GLASGOW_HASKELL(9,3,0,0)
+import GHC.Driver.Config.Tidy
 #endif
 
 #if MIN_VERSION_GLASGOW_HASKELL(9,2,0,0)
