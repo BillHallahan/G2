@@ -48,7 +48,6 @@ import qualified Control.Monad.State.Strict as SM
 
 import qualified Data.Array as A
 import qualified Data.ByteString.Char8 as C
-import Data.Coerce
 import Data.Foldable
 import Data.List
 import Data.List.Split
@@ -57,6 +56,7 @@ import qualified Data.HashMap.Lazy as HM
 import qualified Data.HashSet as HS
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
+import qualified Data.Text.Encoding.Error as T
 import Data.Word
 import System.FilePath
 import System.Directory
@@ -561,11 +561,11 @@ mkIdLookup i = do
 mkName :: Name -> G2.Name
 mkName name = G2.Name occ mdl unq sp
   where
-    occ = T.decodeUtf8Lenient . bytesFS . getOccFS $ name
+    occ = T.decodeUtf8With T.lenientDecode . bytesFS . getOccFS $ name
     unq = convertUnq . getKey . nameUnique $ name
     mdl = case nameModule_maybe name of
               Nothing -> Nothing
-              Just md -> switchModule (T.decodeUtf8Lenient . bytesFS . coerce . moduleName $ md)
+              Just md -> switchModule (T.decodeUtf8With T.lenientDecode . bytesFS . moduleNameFS . moduleName $ md)
 
     sp = mkSpan $ getSrcSpan name
 
@@ -593,11 +593,11 @@ nameLookup nm name = do
                           Just (G2.Name n' m i _) -> (G2.Name n' m i sp, nm)
                           Nothing -> let n = G2.Name occ mdl unq sp in (n, HM.insert (occ, mdl) n nm)
     where
-        occ = T.decodeUtf8Lenient . bytesFS . getOccFS $ name
+        occ = T.decodeUtf8With T.lenientDecode . bytesFS . getOccFS $ name
         unq = convertUnq . getKey . nameUnique $ name
         mdl = case nameModule_maybe name of
                   Nothing -> Nothing
-                  Just md -> switchModule (T.decodeUtf8Lenient . bytesFS . coerce . moduleName $ md)
+                  Just md -> switchModule (T.decodeUtf8With T.lenientDecode . bytesFS . moduleNameFS . moduleName $ md)
 
         sp = mkSpan $ getSrcSpan name
 

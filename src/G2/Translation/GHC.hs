@@ -127,6 +127,7 @@ module G2.Translation.GHC ( module Avail
                           , module IdInfo
                           , module InstEnv
                           , module Literal
+                          , module Module
                           , module Name
                           , module Pair
                           , module SrcLoc
@@ -152,6 +153,7 @@ import HscTypes
 import IdInfo
 import InstEnv
 import Literal
+import Module
 import Name hiding (varName)
 import Pair
 import SrcLoc
