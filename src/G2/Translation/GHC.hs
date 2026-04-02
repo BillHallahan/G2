@@ -38,10 +38,11 @@ module G2.Translation.GHC ( module GHC
 #else
                           , module GHC.Driver.Types
                           , module GHC.Driver.Ways
-                          , module GHC.Unit.Module.Name
 #endif
 #if MIN_VERSION_GLASGOW_HASKELL(9,3,0,0)
                           , module GHC.Driver.Config.Tidy
+#else
+                          , module GHC.Unit.Module.Name
 #endif
 #if MIN_VERSION_GLASGOW_HASKELL(9,8,0,0)
                           , module GHC.Utils.Word64
@@ -93,6 +94,8 @@ import GHC.Utils.Word64
 
 #if MIN_VERSION_GLASGOW_HASKELL(9,3,0,0)
 import GHC.Driver.Config.Tidy
+#else
+import GHC.Unit.Module.Name
 #endif
 
 #if MIN_VERSION_GLASGOW_HASKELL(9,2,0,0)
@@ -107,7 +110,6 @@ type HscTarget = Backend
 #else
 import GHC.Driver.Types
 import GHC.Driver.Ways
-import GHC.Unit.Module.Name
 #endif
 
 
