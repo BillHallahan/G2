@@ -1,0 +1,6 @@
+packages: .
+          ./../../../g2.cabal
+          ./../Import/Import.cabal
+
+package *
+    ghc-options:      -fexpose-all-unfoldings

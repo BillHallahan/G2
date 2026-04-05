@@ -130,6 +130,7 @@ library
                        , G2.Lib.Printers
 
                        , G2.Nebula
+                       , G2.Plugin
 
                        , G2.Postprocessing.Interface
 

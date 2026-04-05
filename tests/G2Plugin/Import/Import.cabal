@@ -1,0 +1,25 @@
+cabal-version:      3.0
+name:               import
+version:            0.1.0.0
+-- synopsis:
+-- description:
+license:            BSD-3-Clause
+license-file:       LICENSE
+author:             Bill Hallahan
+maintainer:         whallahan@binghamton.edu
+-- copyright:
+build-type:         Simple
+extra-doc-files:    CHANGELOG.md
+-- extra-source-files:
+
+common warnings
+    ghc-options: -Wall
+
+library
+    import:           warnings
+    exposed-modules:  MyLib
+    -- other-modules:
+    -- other-extensions:
+    build-depends:    base ^>=4.19.2.0
+    hs-source-dirs:   src
+    default-language: Haskell2010
