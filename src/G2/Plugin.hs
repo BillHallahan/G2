@@ -68,21 +68,21 @@ g2PluginPass entry config env modguts = do
 g2PluginPass' :: String -> Config -> HscEnv -> ModGuts -> IO ()
 g2PluginPass' entry config env modguts = do
     -- We want simpl to be False so the simplifier does not run, because
-    -- this plugin gets inserted into the simplifier.  Thus, running the implifier
+    -- this plugin gets inserted into the simplifier.  Thus, running the simplifier
     -- results in an infinite loop.
     let tconfig = (simplTranslationConfig {simpl = False, load_rewrite_rules = True, hpc_ticks = False})
         ems = EnvModSumModGuts env [] [modguts]
 
     prev_comp <- readIORef compiledModules
-    (prev_exg2, prev_nm, prev_tnm) <- case prev_comp of
+    (base_exg2, base_nm, base_tnm) <- case prev_comp of
                                         Just prev -> return prev
                                         Nothing -> translateBase tconfig config [] Nothing
 
-    (imports_exg2, (prev_nm', prev_tnm')) <- SM.runStateT (loadImports env) (prev_nm, prev_tnm)
+    (imports_exg2, (imports_nm, import_tnm)) <- SM.runStateT (loadImports env) (base_nm, base_tnm)
 
-    (new_nm, new_tm, exg2) <- hskToG2ViaEMS tconfig ems prev_nm' prev_tnm'
+    (new_nm, new_tm, exg2) <- hskToG2ViaEMS tconfig ems imports_nm import_tnm
 
-    let merged_exg2 = mergeExtractedG2s [exg2, imports_exg2, prev_exg2]
+    let merged_exg2 = mergeExtractedG2s [exg2, imports_exg2, base_exg2]
         injected_exg2 = specialInject merged_exg2
 
         mod_names = exg2_mod_names exg2
@@ -91,18 +91,17 @@ g2PluginPass' entry config env modguts = do
 
     let simp_state = initSimpleState injected_exg2 new_nm new_tm
 
+    case findFunc TV.empty (T.pack entry) mod_names (IT.expr_env simp_state) of
+        Left (ie, _) -> do
+            let (init_state, bindings) = initStateFromSimpleState simp_state mod_names False
+                                        (mkCurrExpr TV.empty Nothing Nothing ie)
+                                        (E.higherOrderExprs TV.empty . IT.expr_env)
+                                        config
 
-    let (ie, fe) = case findFunc TV.empty (T.pack entry) mod_names (IT.expr_env simp_state) of
-                                Left ie' -> ie'
-                                Right errs -> error errs
+            (er, b, to) <- runG2WithConfig [] [] ie "" [] mod_names init_state config bindings
+            return ()
 
-        (init_state, bindings) = initStateFromSimpleState simp_state mod_names False
-                                     (mkCurrExpr TV.empty Nothing Nothing ie)
-                                     (E.higherOrderExprs TV.empty . IT.expr_env)
-                                     config
-
-    (er, b, to) <- runG2WithConfig [] [] ie "" [] mod_names init_state config bindings
-    return ()
+        Right errs -> return ()
 
 -- Based on https://dl.acm.org/doi/pdf/10.1145/3495272
 loadImports :: SM.MonadIO m => HscEnv -> NamesT m ExtractedG2
