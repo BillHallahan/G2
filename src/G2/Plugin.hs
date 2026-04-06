@@ -13,14 +13,11 @@ import GHC.Core.InstEnv
 import GHC.Types.TyThing
 
 import G2.Config
-import G2.Equiv.Config
-import G2.Equiv.Verifier
 import G2.Initialization.MkCurrExpr
 import qualified G2.Initialization.Types as IT
 import G2.Interface
 import G2.Language as L
 import qualified G2.Language.ExprEnv as E
-import qualified G2.Solver as S
 import G2.Translation as T
 
 import Control.Monad
@@ -30,12 +27,10 @@ import System.IO.Unsafe
 import System.Directory
 import qualified Data.HashMap.Lazy as HM
 import qualified Data.HashSet as HS
-import Data.List
 import Data.Maybe
 import qualified Data.Set as S
 import qualified Data.Sequence as Seq
 import qualified Data.Text as T
-import qualified Data.Text.IO as T
 import Options.Applicative
 import G2.Language.TyVarEnv as TV
 
@@ -121,10 +116,7 @@ g2PluginPass' entry config env modguts = do
 loadImports :: SM.MonadIO m => HscEnv -> Seq.Seq L.Name -> NamesT m ExtractedG2
 loadImports env ns = do
     external_package_state <- liftIO $ hscEPS env
-    let package_iface = eps_PIT external_package_state
-        all_mods = moduleEnvKeys package_iface
-        
-        all_ids = nonDetNameEnvElts $ eps_PTE external_package_state
+    let all_ids = nonDetNameEnvElts $ eps_PTE external_package_state
         all_tys = mapMaybe (\case
                                 ATyCon t -> Just t
                                 _ -> Nothing) all_ids
