@@ -25,6 +25,7 @@ module G2.Translation.Haskell
 
     , mkExpr
     , mkName
+    , valNameLookup
     , mkTyConName
     , mkData
     , mkSpan
