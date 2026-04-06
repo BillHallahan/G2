@@ -18,7 +18,8 @@ common warnings
 executable Simple
     import:           warnings
     main-is:          Main.hs
-    other-modules:    Helper
+    other-modules:      FDef
+                      , Helper
     -- other-extensions:
     build-depends:    base ^>=4.19.2.0
                     , g2 >= 0.1.0.2

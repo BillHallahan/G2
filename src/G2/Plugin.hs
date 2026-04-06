@@ -3,9 +3,9 @@
 module G2.Plugin (plugin) where
 
 #if MIN_VERSION_GLASGOW_HASKELL(9,0,2,0)
-import GHC.Plugins hiding ((<>))
+import GHC.Plugins as GHC hiding ((<>))
 #else
-import GhcPlugins hiding ((<>))
+import GhcPlugins as GHC hiding ((<>))
 #endif
 import GHC.Unit.External
 import GHC.Core.FamInstEnv
@@ -30,7 +30,9 @@ import System.Directory
 import qualified Data.HashMap.Lazy as HM
 import Data.List
 import Data.Maybe
+import qualified Data.Set as S
 import qualified Data.Text as T
+import qualified Data.Text.IO as T
 import Options.Applicative
 import G2.Language.TyVarEnv as TV
 
@@ -77,19 +79,23 @@ g2PluginPass' entry config env modguts = do
     (base_exg2, base_nm, base_tnm) <- case prev_comp of
                                         Just prev -> return prev
                                         Nothing -> translateBase tconfig config [] Nothing
+    liftIO . putStrLn $ "base binds = " ++ show (length $ HM.keys $ exg2_binds base_exg2)
 
-    (imports_exg2, (imports_nm, import_tnm)) <- SM.runStateT (loadImports env) (base_nm, base_tnm)
+    (new_nm, new_tm, exg2) <- hskToG2ViaEMS tconfig ems base_nm base_tnm
+    liftIO . putStrLn $ "new binds = " ++ show (length $ HM.keys $ exg2_binds exg2)
 
-    (new_nm, new_tm, exg2) <- hskToG2ViaEMS tconfig ems imports_nm import_tnm
+    (imports_exg2, (imports_nm, import_tnm)) <- SM.runStateT (loadImports env) (new_nm, new_tm)
+    liftIO . putStrLn $ "import binds = " ++ show (nub $ map (\(Name _ m _ _) -> m) $ HM.keys $ exg2_binds imports_exg2)
+    liftIO . putStrLn $ "import binds = " ++ show (length $ HM.keys $ exg2_binds imports_exg2)
 
     let merged_exg2 = mergeExtractedG2s [exg2, imports_exg2, base_exg2]
         injected_exg2 = specialInject merged_exg2
 
         mod_names = exg2_mod_names exg2
 
-    writeIORef compiledModules $ Just (merged_exg2, new_nm, new_tm)
+    writeIORef compiledModules $ Just (merged_exg2, imports_nm, import_tnm)
 
-    let simp_state = initSimpleState injected_exg2 new_nm new_tm
+    let simp_state = initSimpleState injected_exg2 imports_nm import_tnm
 
     case findFunc TV.empty (T.pack entry) mod_names (IT.expr_env simp_state) of
         Left (ie, _) -> do
@@ -98,6 +104,8 @@ g2PluginPass' entry config env modguts = do
                                         (E.higherOrderExprs TV.empty . IT.expr_env)
                                         config
 
+            putStrLn $ "E.keys count " ++ show (length $ E.keys (IT.expr_env simp_state))
+            T.putStrLn $ "About to run " <> nameOcc (L.idName ie)
             (er, b, to) <- runG2WithConfig [] [] ie "" [] mod_names init_state config bindings
             return ()
 
@@ -107,23 +115,47 @@ g2PluginPass' entry config env modguts = do
 loadImports :: SM.MonadIO m => HscEnv -> NamesT m ExtractedG2
 loadImports env = do
     external_package_state <- liftIO $ hscEPS env
-    let all_ids = nonDetNameEnvElts $ eps_PTE external_package_state
+    let package_iface = eps_PIT external_package_state
+        all_mods = moduleEnvKeys package_iface
+        
+        all_ids = nonDetNameEnvElts $ eps_PTE external_package_state
         all_tys = mapMaybe (\case
                                 ATyCon t -> Just t
                                 _ -> Nothing) all_ids
         all_binds = mapMaybe (\case
                                         AnId i -> fmap (i,) . maybeUnfoldingTemplate $ realIdUnfolding i
                                         _ -> Nothing) all_ids
+    liftIO . putStrLn $ "all mods = " ++ show (map (moduleNameString . moduleName) $ all_mods)
+    liftIO . putStrLn $ "length all_binds = " ++ show (length all_binds)
     binds <- mapM (uncurry (mkBindTuple Nothing)) all_binds
     tycons <- mapM T.mkTyCon all_tys
-    insts <- mapM mkClass . instEnvElts $ eps_inst_env external_package_state
+    cls_insts <- mapM mkClass . instEnvElts $ eps_inst_env external_package_state
     fam_insts <- mapM mkFamilyAxioms . famInstEnvElts $ eps_fam_inst_env external_package_state
     let tycons' = mapMaybe (\(n, t) -> case t of Just t' -> Just (n, t'); Nothing -> Nothing) tycons
     return $ ExtractedG2 { exg2_mod_names = []
                          , exg2_binds = HM.fromList binds
                          , exg2_tycons = HM.fromList tycons'
-                         , exg2_classes = insts
+                         , exg2_classes = cls_insts
                          , exg2_axioms = fam_insts
                          , exg2_exports = []
                          , exg2_deps = []
                          , exg2_rules = []}
+
+-- Compute the set of variables used in a (GHC Core) Expr
+relVar :: GHC.Expr b -> S.Set GHC.Id
+relVar (GHC.Var i) = S.singleton i
+relVar (GHC.Lit _) = S.empty
+relVar (GHC.App e1 e2) = relVar e1 <> relVar e2
+relVar (GHC.Lam _ e) = relVar e
+relVar (GHC.Let b e) =
+    let
+        relB (NonRec _ nr_e) = relVar nr_e
+        relB (Rec nr_es) = mconcat $ map (relVar . snd) nr_es
+    in
+    relB b <> relVar e
+relVar (GHC.Case e _ _ as) =
+    relVar e <> mconcat (map (\(GHC.Alt _ _ a_e) -> relVar a_e) as)
+relVar (GHC.Cast e _) = relVar e
+relVar (GHC.Tick _ e) = relVar e
+relVar (GHC.Type _) = S.empty
+relVar (GHC.Coercion _) = S.empty
