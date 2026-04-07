@@ -570,7 +570,7 @@ concretizeVarExpr' s@(State { type_env = tenv
             -- It is VERY important that we insert the mexpr_id in `concretized`
             -- This forces reduceNewPC to check that the concretized data constructor does
             -- not violate any path constraints from default cases.
-          case cleanParamsAndMakeDcon tvnv kv params ngen dcon aexpr mexpr_t tenv of
+          case cleanParamsAndMakeDcon tvnv kv params ngen dcon aexpr mexpr_t maybeC tenv of
             Nothing -> Nothing
             Just (params', news, dcon', ngen', aexpr', tve_diff, tve_sym_diff)
                 -> buildStateDiff params' news dcon' ngen' aexpr' tve_diff tve_sym_diff
@@ -600,9 +600,9 @@ concretizeVarExpr' s@(State { type_env = tenv
 
 -- | Generates parameters and expressions to allow concretization to a specific DataCon.
 -- May return Nothing if the DataCon requires coercions to hold that violate existing type restraints.
-cleanParamsAndMakeDcon :: TV.TyVarEnv -> KnownValues -> [Id] -> NameGen -> DataCon -> Expr -> Type -> TypeEnv
+cleanParamsAndMakeDcon :: TV.TyVarEnv -> KnownValues -> [Id] -> NameGen -> DataCon -> Expr -> Type -> Maybe Coercion -> TypeEnv
                        -> Maybe ([Id], [Name], Expr, NameGen, Expr, TVEDiff, TVESymDiff)
-cleanParamsAndMakeDcon tv kv params ngen dcon aexpr mexpr_t tenv =
+cleanParamsAndMakeDcon tv kv params ngen dcon aexpr mexpr_t m_coercion tenv =
     case maybe_uf_map of
             Nothing -> Nothing
             Just uf_map -> buildStateDiff uf_map ngen
@@ -635,8 +635,13 @@ cleanParamsAndMakeDcon tv kv params ngen dcon aexpr mexpr_t tenv =
 
             (exist_tys, value_args) = splitAt (length $ dc_exist_tyvars dcon) params'
 
-            -- Get list of Types to concretize polymorphic data constructor and concatenate with other arguments
-            univ_ars = mexprTyToExpr mexpr_t tenv
+            -- Get list of Types to concretize polymorphic data constructor and concatenate with other arguments.
+            -- If there is a coercion, we have to get the correct instantiation for the type being coerced to 
+            mexpr_t' = case m_coercion of
+                                Just (c1 :~ c2) | Just tv <- unify c1 mexpr_t -> tyVarSubst tv c2
+                                                | otherwise -> error "cleanParamsAndMakeDcon: invalid coercion"
+                                Nothing -> mexpr_t
+            univ_ars = mexprTyToExpr mexpr_t' tenv
 
             exprs = [dcon'] ++ univ_ars ++ map (Type . TyVar) exist_tys ++ map Var value_args
 
@@ -754,7 +759,7 @@ createExtCond s ngen dcpm mexpr cvar (dcon, bindees, aexpr)
             -- We should never ended up in the Nothing case for cleanParamsAndMakeDcon
             -- b/c there is no coercion in Bool and [Char]
             (bindees', news, dcon', ngen', aexpr', tve_diff, tve_sym_diff) =
-                            case cleanParamsAndMakeDcon tvnv kv bindees ngen dcon aexpr mexpr_t tenv of
+                            case cleanParamsAndMakeDcon tvnv kv bindees ngen dcon aexpr mexpr_t Nothing tenv of
                                     Nothing -> error $ "cleanParamsAndMakeDcon: Failed to generate uf_map for " ++ show mexpr
                                     Just x  -> x
             new_ids = zipWith (\(Id _ t) n -> Id n t) bindees' news
@@ -1162,19 +1167,28 @@ retCurrExpr :: State t -> Expr -> CEAction -> CurrExpr -> S.Stack Frame -> NameG
 retCurrExpr s@(State { expr_env = eenv, known_values = kv, tyvar_env = tvnv, focused = focus }) e1 (EnsureEq e2) orig_ce@(CurrExpr _ ce) stck ng
     | Just (eenv', new_pc, new_nrpc_pairs) <- matchPairs tvnv kv e1 e2 (eenv, [], []) =
         let
-            (ng', nrpc) = foldr (\(p_e1, p_e2) (ng_, nrpcs) ->
+            ((ng', eenv''), nrpc) = foldr (\(p_e1, p_e2) ((ng_, eenv_), nrpcs) ->
                                 let
-                                    (p_e1', ng_') = addNRPCTick ng_ p_e1
-                                    (p_e2', ng_'') = addNRPCTick ng_' p_e2
+                                    (p_e1', p_e2', eenv_', ng_2) = case typeOf tvnv p_e1 of
+                                                                        -- If we are trying to equate functions, apply them to arguments
+                                                                        TyFun t1 _ ->
+                                                                            let
+                                                                                (x, ng_t) = freshId t1 ng_
+                                                                            in
+                                                                            (App p_e1 (Var x), App p_e2 (Var x), E.insertSymbolic x eenv_, ng_t)
+                                                                        _ -> (p_e1, p_e2, eenv_, ng_)
 
-                                    (ng_''', nrpcs') = addFirstNRPC ng_'' focus p_e1' p_e2' nrpcs
+                                    (p_e1'', ng_3) = addNRPCTick ng_2 p_e1'
+                                    (p_e2'', ng_4) = addNRPCTick ng_3 p_e2'
+
+                                    (ng_5, nrpcs') = addFirstNRPC ng_4 focus p_e1'' p_e2'' nrpcs
                                 in
-                                (ng_''', nrpcs'))
-                            (ng, non_red_path_conds s)
+                                ((ng_5, eenv_'), nrpcs'))
+                            ((ng, eenv'), non_red_path_conds s)
                             new_nrpc_pairs
         in
         ( RuleReturnCurrExprFr
-        , SplitStatePieces (s { expr_env = eenv'
+        , SplitStatePieces (s { expr_env = eenv''
                               , non_red_path_conds = nrpc
                               , exec_stack = stck })
                            [SD { new_conc_entries = []
@@ -1214,13 +1228,13 @@ matchPairs tvnv kv e1 e2 eenv_pc_ee@(eenv, pc, ees)
     , Just (E.Conc e1') <- E.lookupConcOrSym n eenv = matchPairs tvnv kv e1' e2 eenv_pc_ee
     | Var (Id n _) <- e2
     , Just (E.Conc e2') <- E.lookupConcOrSym n eenv = matchPairs tvnv kv e1 e2' eenv_pc_ee
+    
     | Type _ <- e1
     , Type _ <- e2
     , tyVarSubst tvnv e1 == tyVarSubst tvnv e2 = Just eenv_pc_ee
+    
     | e1 == e2 = Just eenv_pc_ee
-    | Cast e1' c1 <- e1
-    , Cast e2' c2 <- e2
-    , T.tyVarSubst tvnv c1 == T.tyVarSubst tvnv c2 =  matchPairs tvnv kv e1' e2' eenv_pc_ee
+
     | isExprValueForm eenv e1
     , isExprValueForm eenv e2
     , t1 <- typeOf tvnv e1
@@ -1242,6 +1256,16 @@ matchPairs tvnv kv e1 e2 eenv_pc_ee@(eenv, pc, ees)
     , not (isPrimType t || t == tyBool kv) =
         Just (E.insert n e1 eenv, pc, ees)
 
+    | Cast e1' c1 <- e1
+    , Cast e2' c2 <- e2
+    , T.tyVarSubst tvnv c1 == T.tyVarSubst tvnv c2 =  matchPairs tvnv kv e1' e2' eenv_pc_ee
+    
+    -- We need to make sure that we return expressions that have the same type, so just ignoring casts is not an option.
+    -- But if we do NOTHING to casts, and just return the expression pair (e1, e2), this risks creating an infinite cycle
+    -- in the reduction rules, where an NRPC gets repeatedly removed and added from the NRPC set without making progress.
+    -- The solution is to shift casts onto one expression, we arbitrary choose to shift casts from e1 to e2.
+    | Cast e1' (t1 :~ _) <- e1 = matchPairs tvnv kv e1' (Cast e2 (typeOf tvnv e2 :~ t1)) eenv_pc_ee
+
     | Data dc1:es1 <- unApp e1
     , Data dc2:es2 <- unApp e2 =
         let addPair p (eenv', pc', ees') = (eenv', pc', p:ees') in
@@ -1249,6 +1273,13 @@ matchPairs tvnv kv e1 e2 eenv_pc_ee@(eenv, pc, ees)
             True -> Just $ foldr (\es1es2@(es1_, es2_) epe -> fromMaybe (addPair es1es2 epe) (matchPairs tvnv kv es1_ es2_ epe)) eenv_pc_ee $ zip es1 es2
             False ->
                 Just (eenv, [ExtCond (mkFalse kv) True], [])
+
+    | Lam _ _ _ <- e1
+    , Lam _ _ _ <- e2 = Just (eenv, pc, [(e1, e2)])
+
+    | Tick _ e1' <- e1 = matchPairs tvnv kv e1' e2 eenv_pc_ee
+    | Tick _ e2' <- e2 = matchPairs tvnv kv e1 e2' eenv_pc_ee
+
     | otherwise = Nothing
     where
         isPrimApp (App e _) = isPrimApp e

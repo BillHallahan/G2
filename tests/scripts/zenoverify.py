@@ -9,10 +9,10 @@ import time
 exe_name = str(subprocess.run(["cabal", "exec", "which", "Nebula"], capture_output = True).stdout.decode('utf-8')).strip()
 
 def run_zeno(filename, thm, var_settings, timeout):
-    start_time = time.monotonic();
     res = call_zeno_process(filename, thm, var_settings, timeout);
-    end_time = time.monotonic();
-    elapsed = end_time - start_time;
+    match = re.search("Time: ([0-9.]+)", res)
+    elapsed = match.group(1) if match != None else "Timeout"
+    print(elapsed)
 
     # there's always an extra empty string at the end for now
     lines = res.split("\n")
@@ -42,7 +42,7 @@ def run_zeno(filename, thm, var_settings, timeout):
 
 def call_zeno_process(filename, thm, var_settings, time_limit):
     try:
-        args = [exe_name, "tests/RewriteVerify/Correct/" + filename, thm]
+        args = [exe_name, filename, thm]
         res = subprocess.run(args + var_settings, universal_newlines=True, capture_output=True, timeout=time_limit);
         return res.stdout
     except subprocess.TimeoutExpired as TimeoutEx:
@@ -306,14 +306,37 @@ def total_string(settings):
     return t_str
 
 def test_suite_csv(fname, suite, timeout = 25):
-    return test_suite_general(suite, "TestZeno.hs", fname, timeout)
+    return test_suite_general(suite, "tests/RewriteVerify/Correct/" + "TestZeno.hs", fname, timeout)
+
+def verify_laws():
+    semigroupLaws = ["semigroupAssociativity"]
+    monoidLaws = ["monoidRightIdentity", "monoidLeftIdentity", "monoidConcatenation"]
+    functorLaws = ["fmapId", "fmapComposition"]
+    applicativeLaws = ["appIdentity", "appComposition", "appHomomorphism", "appInterchange"]
+    monadLaws = ["monadLeftIdentity", "monadRightIdentity", "monadAssociativity"]
+
+    all_laws = semigroupLaws + monoidLaws + functorLaws + applicativeLaws + monadLaws
+
+    list_laws = [(law + "List", []) for law in all_laws]
+    zip_list_laws = [(law + "ZipList", []) for law in applicativeLaws]
+    nonempty_list_laws = [(law + "NonEmpty", []) for law in semigroupLaws + functorLaws + applicativeLaws + monadLaws]
+    tree_laws = [(law + "Tree", []) for law in functorLaws + applicativeLaws]
+    maybe_laws = [(law + "Maybe", []) for law in all_laws]
+    state_laws = [(law + "State", []) for law in functorLaws + applicativeLaws + monadLaws]
+    reader_laws = [(law + "Reader", []) for law in functorLaws + applicativeLaws + monadLaws]
+    tuple_laws = [(law + "Tuple", []) for law in all_laws]
+    function_laws = [(law + "Function", []) for law in semigroupLaws + functorLaws + applicativeLaws + monadLaws]
+
+    return list_laws + zip_list_laws + nonempty_list_laws + tree_laws + maybe_laws + state_laws + reader_laws + tuple_laws + function_laws
 
 def main():
-    t = 180
-    test_suite_csv("ZenoUnaltered", unmodified_theorems(), t)
-    test_suite_csv("ZenoTotal", modified_total, t)
-    test_suite_csv("ZenoFinite", modified_finite, t)
-    test_suite_csv("ZenoCycle", modified_cycle, t)
+    test_suite_general(verify_laws(), "verify/tests/NebulaTypeClasses.hs", "NebulaTypeClasses", 60)
+
+    # t = 180
+    # test_suite_csv("ZenoUnaltered", unmodified_theorems(), t)
+    # test_suite_csv("ZenoTotal", modified_total, t)
+    # test_suite_csv("ZenoFinite", modified_finite, t)
+    # test_suite_csv("ZenoCycle", modified_cycle, t)
 
 if __name__ == "__main__":
     main()

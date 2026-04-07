@@ -258,12 +258,28 @@ data Primitive = -- Mathematical and logical operators
                | StrIndexOf
                | StrContains
                | StrReplace
+               | StrReplaceAll
+               | StrReplaceRe
+               | StrReplaceReAll
                | StrPrefixOf
                | StrSuffixOf
 
                | Chr
                | OrdChar
                | WGenCat
+
+               -- String Handling (Regex)
+               | InRe -- ^ String -> Regex -> Bool
+               | ToRe -- ^ String -> Regex
+               | ReNone -- ^ Empty String
+               | ReAll -- ^ All Strings
+               | ReAllChar -- ^ All single character Strings
+               | ReConcat
+               | ReUnion
+               | ReInter -- ^ Intersection
+               | ReStar -- ^ Kleene Closure
+               | ReRange
+               | ReComp -- ^ Complement
 
                -- Sequence Handling
                | SeqUnit

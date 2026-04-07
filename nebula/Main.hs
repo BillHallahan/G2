@@ -15,6 +15,8 @@ import G2.Equiv.Verifier
 
 import Data.List
 
+import System.Clock
+
 main :: IO ()
 main = do
   (src, entry, total, nebula_config) <- getNebulaConfig
@@ -32,6 +34,13 @@ main = do
       rule' = case rule of
               Just r -> r
               Nothing -> error "not found"
+  
+  start_time <- getTime Realtime
   res <- checkRule config nebula_config init_state bindings total rule'
+  end_time <- getTime Realtime
+
+  let diff_time = end_time - start_time
+      seconds = fromInteger (toNanoSecs diff_time) / (10 ^ (9 :: Int) :: Double)
+  putStrLn $ "Time: " ++ show seconds
   print res
   return ()

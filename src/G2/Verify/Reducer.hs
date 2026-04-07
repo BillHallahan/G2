@@ -1,6 +1,8 @@
-{-# LANGUAGE FlexibleContexts, MultiParamTypeClasses, MultiWayIf, OverloadedStrings, TupleSections #-}
+{-# LANGUAGE BangPatterns, FlexibleContexts, MultiParamTypeClasses, MultiWayIf, OverloadedStrings, TupleSections #-}
 
-module G2.Verify.Reducer ( VerifierTracker
+module G2.Verify.Reducer ( VerifierTracker (..)
+                         , Goal (..)
+                         , isTheorem
                          , initVerifierTracker
                          , prettyVerifierTracker
                          
@@ -11,21 +13,31 @@ module G2.Verify.Reducer ( VerifierTracker
                          , unifyNRPCReducer
                          , inconsistentNRPCHalter
                          , approximationHalter
+
+                         , LemmaInfo
+                         , emptyLemmaInfo
+                         , genLemmaReducer
+                         , acceptLemmaReducer
                          
                          , discardOnFalse
                          , currExprIsFalse
-                         , currExprIsTrue ) where
+                         , currExprIsTrue
+                         
+                         , liftOutFullyAppedReducer) where
 
 import G2.Config
 import qualified G2.Data.UFMap as UF
 import G2.Data.Utils
 import G2.Execution.Reducer
+import G2.Execution.Rules
 import G2.Interface
 import G2.Language
 import G2.Language.Approximation
 import qualified G2.Language.ExprEnv as E
 import G2.Language.ReachesSym
 import G2.Language.KnownValues
+import G2.Language.NonRedPathConds
+import G2.Language.Monad
 import qualified G2.Language.Stack as Stck
 import qualified G2.Language.Typing as T
 import G2.Lib.Printers
@@ -33,14 +45,18 @@ import G2.Solver
 import G2.Verify.Config
 import G2.Verify.StaticArgTrans
 
+import Control.Monad.Extra
 import Control.Monad.IO.Class
 import qualified Control.Monad.State as SM
 import qualified Data.HashSet as HS
 import qualified Data.HashMap.Strict as HM
 import Data.List
+import qualified Data.Map.Lazy as M
 import Data.Maybe
-
+import Data.Monoid (All (..))
+import qualified Data.Sequence as Seq
 import qualified Data.Text as T
+import Data.Traversable
 
 -- | When a newly reached function application is approximated by a previously seen (and thus explored) function application,
 -- shift the new function application into the NRPCs.
@@ -48,7 +64,7 @@ nrpcAnyCallReducer :: MonadIO m =>
                       HS.HashSet Name -- ^ Names of functions that should not be approximated
                    -> VerifyConfig
                    -> Config
-                   -> Reducer m Int t
+                   -> Reducer m Int VerifierTracker
 nrpcAnyCallReducer no_nrpc_names v_config config =
     (mkSimpleReducer (const 0) red)
             { onAccept = \s b nrpc_count -> do
@@ -58,30 +74,49 @@ nrpcAnyCallReducer no_nrpc_names v_config config =
             return (s, b) }
 
     where        
-        red rv s@(State { curr_expr = CurrExpr _ ce, expr_env = eenv, tyvar_env = tvnv }) b@(Bindings { name_gen = ng })
-            | maybe True (allowed_frame . fst) (Stck.pop (exec_stack s))
+        red rv s@(State { curr_expr = CurrExpr er ce, expr_env = eenv, tyvar_env = tvnv, track = vt }) b@(Bindings { name_gen = ng })
+            | Stck.null . popAppliable $ exec_stack s
+            , let stripped_ce = stripNRBT ce
+            , (Var (Id vn _)):(_:_) <- unApp stripped_ce
+            , let tcf = tail_called_funcs vt
+            , vn' <- deepLookupCenterName vn eenv
+            , not $ E.isSymbolic vn' eenv
+            , vn `notElem` tcf =
+                let
+                    s' = s { track = vt { tail_called_funcs = HS.insert vn tcf }}
+                in
+                return (Finished, [(s', rv)], b)
+
+            | -- Check if we have a symbolic function at the center of the app
+              Var (Id vn t):xs <- unApp $ getExpr s
+            , vn' <- deepLookupCenterName vn eenv
+            , maybe True (allowed_frame . fst) (Stck.pop (exec_stack s)) || E.isSymbolic vn' eenv
             
-            , let wrapped_ce = applyWrap (getExpr s) (exec_stack s)
+            -- Calculate arity of function, and wrap it in appropriate number of arguments
+            , let arity = length . argumentTypes $ tyVarSubst tvnv t
+            , let need_apply = arity - length xs
+            , let (wrapped_ce, stck') = applyWrap need_apply (getExpr s) (exec_stack s)
+
             , let stripped_ce = stripNRBT wrapped_ce
             , v@(Var (Id _ _)):es@(_:_) <- unApp stripped_ce  = do
-
                 -- Convert arguments into NRPCs
-                let (s', ng') = if (arg_rev_abs v_config) == AbsFuncArgs then argsToNRPCs s (name_gen b) v es else (s, ng)
+                let s' = s { curr_expr = CurrExpr er wrapped_ce, exec_stack = stck' }
+                    (s'', ng') = if (arg_rev_abs v_config) == AbsFuncArgs then argsToNRPCs s' (name_gen b) v es else (s', ng)
 
                 -- Given a function call `f x1 ... xn`, we move the entire call to `f` into an NRPC.
                 -- Note that createNewCond wraps the function call with a Tick.
                 -- This prevents that same function call from being immediately turned back into an NRPC
                 -- when it is removed from the NRPCs.
-                let e = applyWrap (getExpr s) (exec_stack s)
-                    nr_s_ng = if
+                let nr_s_ng = if
                                 -- Line (*) make sure we don't add back to NRPCs immediately.
                                 | not (hasNRBT wrapped_ce) -- (*)
-                                , allowedApp e eenv tvnv -> createRA ng' (focused s') s'
+                                , vn' `notElem` no_nrpc_names
+                                , allowedApp wrapped_ce eenv tvnv -> createRA ng' (focused s'') s''
                                 | otherwise -> Nothing
-                
+
                 case nr_s_ng of
                     Just (nr_s, _, _, ng'') -> return (Finished, [(nr_s, rv + 1)], b { name_gen = ng'' })
-                    _ -> return (Finished, [(s', rv)], b { name_gen = ng' })
+                    _ -> return (Finished, [(s'', rv)], b { name_gen = ng' })
             | Tick nl (Var (Id n _)) <- ce
             , isNonRedBlockerTick nl
             , Just e <- E.lookup n eenv = return (Finished, [(s { curr_expr = CurrExpr Evaluate e }, rv)], b)
@@ -93,14 +128,14 @@ nrpcAnyCallReducer no_nrpc_names v_config config =
         -- * we are not applying a symbolic function
         allowedApp app eenv tvnv
             | Var (Id n _):_:_ <- unApp app
-            , Just n' <- E.deepLookupVar n eenv
+            , n' <- deepLookupCenterName n eenv
             , not . isTyFun . typeOf tvnv $ app =
                 not (n' `HS.member` no_nrpc_names)
             | Data _:_:_ <- unApp app
             , not . isTyFun . typeOf tvnv $ app
             , data_arg_rev_abs v_config == AbsDataArgs = True
             | otherwise = False
-
+        
         -- Replace each argument which is itself a function call with a NRPC.
         -- For instance:
         --  @ f (g x) y (h z)@
@@ -176,8 +211,9 @@ nrpcAnyCallReducer no_nrpc_names v_config config =
         allowed_frame (ApplyFrame _) = False
         allowed_frame _ = True
 
-        applyWrap e stck | Just (ApplyFrame a, stck') <- Stck.pop stck = applyWrap (App e a) stck'
-                         | otherwise = e
+        applyWrap !need e stck | need > 0, Just (ApplyFrame a, stck') <- Stck.pop stck = applyWrap (need - 1) (App e a) stck'
+                               | need > 0, Just (UpdateFrame _, stck') <- Stck.pop stck = applyWrap need e stck'
+                               | otherwise = (e, stck)
         
         stripNRBT (Tick nl e) | isNonRedBlockerTick nl = e
         stripNRBT (App e1 e2) = App (stripNRBT e1) e2
@@ -188,12 +224,26 @@ nrpcAnyCallReducer no_nrpc_names v_config config =
         hasNRBT (App e1 _) = hasNRBT e1
         hasNRBT _ = False
 
+        popAppliable stck | Just (UpdateFrame _, stck') <- Stck.pop stck = popAppliable stck'
+                          | Just (ApplyFrame _, stck') <- Stck.pop stck = popAppliable stck'
+                          | Just (CurrExprFrame (EnsureEq _) _, stck') <- Stck.pop stck = popAppliable stck'
+                          | otherwise = stck
+
+deepLookupCenterName :: Name -> ExprEnv -> Name
+deepLookupCenterName n_init eenv = go n_init (HS.singleton n_init)
+    where
+        go n seen
+            | Just e' <- E.lookup n eenv
+            , Var (Id n' _):_ <- unApp $ stripAllTicks e'
+            , n' `notElem` seen = go n' (HS.insert n' seen)
+            | otherwise = n
+
 -- | Create a NRPC if heuristics apply.
-createRA :: NameGen -> GenFocus n -> State t -> Maybe (State t, Id, Expr, NameGen)
+createRA :: NameGen -> GenFocus n -> State t -> Maybe (State t, Id, NRPC, NameGen)
 createRA ng f s | nrpcHeuristics (expr_env s) (getExpr s) = createNonRed ng f s
                 | otherwise = Nothing
 
-createRAExpr :: NameGen -> GenFocus n -> State t -> Expr -> Maybe (State t, Id, Expr, NameGen)
+createRAExpr :: NameGen -> GenFocus n -> State t -> Expr -> Maybe (State t, Id, NRPC, NameGen)
 createRAExpr ng f s e | nrpcHeuristics (expr_env s) e = createNonRed' ng f s e
                       | otherwise = Nothing
 
@@ -289,7 +339,7 @@ adjustFocusReducer = mkSimpleReducer (const ()) red
                b@(Bindings { name_gen = ng } )
             | currExprIsFalse s
             , Stck.null stck
-            , allNRPC (\(focus, _, _) -> isUnfocused focus) nrpc =
+            , allNRPC (\(NRPC focus _ _) -> isUnfocused focus) nrpc =
                 let (empty_nrpc, ng') = emptyNRPC ng in
                 return (Finished, [(s { non_red_path_conds = empty_nrpc }, rv)], b { name_gen = ng' } )
             where
@@ -300,14 +350,15 @@ adjustFocusReducer = mkSimpleReducer (const ()) red
         red rv s b =
             return (Finished, [(s, rv)], b)
 
-verifySolveNRPC :: Monad m => Reducer m () t
+verifySolveNRPC :: Monad m => Reducer m () VerifierTracker
 verifySolveNRPC = mkSimpleReducer (const ()) red
     where
         red _
                         s@(State { expr_env = eenv
                                  , curr_expr = cexpr
                                  , exec_stack = stck
-                                 , non_red_path_conds = nrs :<* nr@(focus, nre1, nre2)
+                                 , non_red_path_conds = nrs :<* nr@(NRPC focus nre1 nre2)
+                                 , track = vt
                                  })
                                 b
             
@@ -325,7 +376,8 @@ verifySolveNRPC = mkSimpleReducer (const ()) red
                 s' = s { curr_expr = CurrExpr Evaluate nre1'
                        , exec_stack = stck'
                        , non_red_path_conds = nrs
-                       , focused = focus }
+                       , focused = focus
+                       , track = vt {tail_called_funcs = HS.empty } }
 
                 in return (InProgress, [(s', ())], b)
             | otherwise = 
@@ -334,10 +386,18 @@ verifySolveNRPC = mkSimpleReducer (const ()) red
         red _ s b = return (Finished, [(s, ())], b)
 
 isNRPCSymFun :: ExprEnv -> NRPC -> Bool
-isNRPCSymFun eenv (_, e1, _)
-    | Tick _ (Var (Id n _)):_ <- unApp e1
-    , Just (E.Sym _) <- E.deepLookupConcOrSym n eenv = True
-    | otherwise = False
+isNRPCSymFun eenv (NRPC _ e1 _) = is_sym_fun HS.empty e1
+    where
+        is_sym_fun seen e
+            | (Var (Id n _)):_ <- es
+            , n `elem` seen = False
+            | (Var (Id n _)):_ <- es
+            , Just (E.Sym _) <- E.deepLookupConcOrSym n eenv = True
+            | (Var (Id n _)):_ <- es
+            , Just (E.Conc e_c) <- E.deepLookupConcOrSym n eenv = is_sym_fun (HS.insert n seen) e_c
+            | otherwise = False
+            where
+                es = stripAllTicks $ unApp e
 
 inlineInner :: ExprEnv -> Expr -> Expr
 inlineInner eenv e
@@ -354,50 +414,123 @@ verifyHigherOrderHandling = mkSimpleReducer (const ()) red
                        , known_values = kv
                        , type_classes = tc 
                        , tyvar_env = tvnv }) b@(Bindings { name_gen = ng })
-            | (App (Var (Id n ty_fun)) ar) <- stripAllTicks ce
+            | (App (Var (Id n raw_ty_fun)) ar) <- stripAllTicks ce
+            , let ty_fun = tyVarSubst tvnv raw_ty_fun
             , E.isSymbolic n eenv =
                 let
                     ty_ar = typeOf tvnv ar
                     (lam_x, ng2) = freshId ty_ar ng
-                    (bindee, ng3) = freshId ty_ar ng2
-
-                    (ret_true, ng4) = freshId (returnType ty_fun) ng3
-                    (ret_false, ng5) = freshId ty_fun ng4
-
-                    eq_tc = case lookupTCDict tc (eqTC kv) ty_ar of
-                                Just tc -> tc
-                                Nothing -> error "verifyHigherOrderHandling: unsuported type"
-                    eq_f = eqFunc kv
-                    eq_f_i = Id eq_f (typeOf tvnv . fromJust $ E.lookup eq_f eenv)
-
-                    e = mkApp [Var eq_f_i, Type ty_ar, Var eq_tc, Var lam_x, ar]
-
-                    func_body =
-                        Lam TermL lam_x $ 
-                            Case e bindee (returnType ty_fun)
-                                [ Alt (DataAlt (mkDCTrue kv tenv) []) (Var ret_true)
-                                , Alt (DataAlt (mkDCFalse kv tenv) []) (App (Var ret_false) (Var lam_x))]
-
-                    eenv' = E.insertSymbolic ret_true
-                          . E.insertSymbolic ret_false
-                          $ E.insert n func_body eenv
-
-                    s' = s { curr_expr = CurrExpr Evaluate (App func_body ar), expr_env = eenv'}
                 in
-                return (InProgress, [(s', ())], b {name_gen = ng5})
+                case ty_fun of
+                    TyFun (TyFun t1 t2) t3 ->
+                        let
+                            (pass, ng3) = freshId t1 ng2
+                            (wrapper, ng4) = freshId (TyFun t2 (TyFun ty_ar t3)) ng3
+
+                            func_body1 = Lam TermL lam_x $ mkApp [Var wrapper, App (Var lam_x) (Var pass), Var lam_x]
+                            eenv1 = E.insertSymbolic wrapper
+                                  . E.insertSymbolic pass
+                                  $ E.insert n func_body1 eenv
+
+                            (const_body, ng5) = freshId t3 ng4
+                            func_body2 = Lam TermL lam_x $ Var const_body
+                            eenv2 = E.insertSymbolic const_body
+                                  $ E.insert n func_body2 eenv
+                            
+                            s1 = s { curr_expr = CurrExpr Evaluate (App func_body1 ar), expr_env = eenv1 }
+                            s2 = s { curr_expr = CurrExpr Evaluate (App func_body2 ar), expr_env = eenv2 }
+                        in
+                        return (InProgress, [(s1, ()), (s2, ())], b { name_gen = ng5 })
+                    _ -> let
+                            (bindee, ng3) = freshId ty_ar ng2
+                            (ret_true, ng4) = freshId (case ty_fun of
+                                                        TyFun _ t2 -> t2
+                                                        _ -> error "verifyHigherOrderHandling: not tyfun") ng3
+                            (ret_false, ng5) = freshId ty_fun ng4
+
+                            eq_tc = case typeClassInst tc HM.empty (eqTC kv) ty_ar of
+                                    Just tc -> tc
+                                    Nothing -> error $ "verifyHigherOrderHandling: unsupported type" ++ "\n" ++ show ty_fun ++ "\n" ++ show ty_ar
+                            eq_f = eqFunc kv
+                            eq_f_i = Id eq_f (typeOf tvnv . fromJust $ E.lookup eq_f eenv)
+
+                            (ar_bnd, ng6) = freshSeededString "ar" ng5 
+                            e = mkApp [Var eq_f_i, Type ty_ar, eq_tc, Var lam_x, Var (Id ar_bnd ty_ar)]
+
+                            func_body =
+                                Lam TermL lam_x $ 
+                                    Case e bindee (returnType ty_fun)
+                                        [ Alt (DataAlt (mkDCTrue kv tenv) []) (Var ret_true)
+                                        , Alt (DataAlt (mkDCFalse kv tenv) []) (App (Var ret_false) (Var lam_x))]
+
+                            eenv' = E.insertSymbolic ret_true
+                                . E.insertSymbolic ret_false
+                                . E.insert ar_bnd ar
+                                $ E.insert n func_body eenv
+
+                            s' = s { curr_expr = CurrExpr Evaluate (App func_body ar), expr_env = eenv'}
+                        in
+                        return (InProgress, [(s', ())], b {name_gen = ng6})
         red _ s b = return (Finished, [(s, ())], b)
+
+-- | If a let expression-bound function calls a function `f` where:
+-- (1) f is applies to only concrete values, and
+-- (2) f's definition contains a symbolic variable
+-- lift out the application of f into a reversible abstraction
+liftOutFullyAppedReducer :: Monad m => Reducer m () t
+liftOutFullyAppedReducer = mkSimpleReducer (const ()) red
+    where
+        red _ s@(State { expr_env = eenv, curr_expr = CurrExpr Evaluate (Let bs le), tyvar_env = tv_env }) b@(Bindings { name_gen = ng }) =
+            let
+                let_ns = map fst bs
+                ((renamed_bs, renamed_le), ng') = doRenames (map idName let_ns) ng (bs, le)
+                (s', b') = execStateM (mapM adjustBinds renamed_bs) s (b { name_gen = ng'})
+
+                adjustBinds ((Id bind (TyFun _ _)), e) = do
+                    e' <- modifyChildrenM adjustApps e
+                    insertE bind e'
+                adjustBinds (Id bind _, e) = insertE bind e
+
+                adjustApps let_e@(Let _ _) = return let_e
+                adjustApps e@(App _ _) | c:es <- unApp e
+                                       , reachesSymbolic eenv c
+                                       , all (not . reachesSymbolic eenv) es
+                                       , getAll $ evalASTs allBound es = do
+                                             n <- freshNameN
+                                             es' <- mapM adjustApps es
+                                             let i = Id n $ typeOf tv_env e
+                                             insertSymbolicE i
+
+                                             ng_ <- nameGen
+                                             nrpcs <- nonRedPathConds
+                                             let (te, ng_') = nonRedBlockerTick ng_ c
+                                             let (ng_'', nrpcs') = addFirstNRPC ng_' (Unfocused n) (mkApp $ te:es') (Var i) nrpcs
+                                             putNameGen ng_''
+                                             putNonRedPathConds nrpcs'
+
+                                             return (Var i)
+                adjustApps e = modifyChildrenM adjustApps e
+
+                allBound (Var (Id n _)) = All $ E.member n eenv
+                allBound _ = All True
+
+                s'' = s' { curr_expr = CurrExpr Evaluate renamed_le }
+            in
+            return (Finished, [(s'', ())], b')
+        red _ s b = return (Finished, [(s, ())], b) 
 
 unifyNRPCReducer :: Monad m =>
                     HS.HashSet Name -- ^ Names that should not be inlined (often: top level names from the original source code)
                  -> Reducer m () VerifierTracker
 unifyNRPCReducer no_inline = mkSimpleReducer (const ()) red
     where
-        red rv s@(State { expr_env = eenv, non_red_path_conds = nrpc, track = VT { focus_map = fm } }) b =
+        red rv s@(State { expr_env = eenv, path_conds = pc, non_red_path_conds = nrpc, track = vt@VT { focus_map = fm } }) b =
             let
-                (nrpc', fm', eenv') = unifyNRPCs no_inline eenv fm nrpc
+                (nrpc', fm', eenv', pc') = unifyNRPCs no_inline eenv pc fm nrpc
                 s' = s { expr_env = eenv'
+                       , path_conds = pc'
                        , non_red_path_conds = nrpc'
-                       , track = VT { focus_map = fm' } }
+                       , track = vt { focus_map = fm' } }
             in
             return (Finished, [(s', rv)], b)
 
@@ -405,69 +538,75 @@ unifyNRPCReducer no_inline = mkSimpleReducer (const ()) red
 -- we can unify them. This makes it easier to find approximations because we have to match up fewer NRPCs. 
 unifyNRPCs :: HS.HashSet Name
            -> ExprEnv
+           -> PathConds
            -> FocusMap
            -> NonRedPathConds
-           -> (NonRedPathConds, FocusMap, ExprEnv)
-unifyNRPCs _ eenv fm nrpc@EmpNRPC = (nrpc, fm, eenv)
-unifyNRPCs no_inline eenv fm (nrpc@(focus1, e1, v1) :*> nrpcs) =
+           -> (NonRedPathConds, FocusMap, ExprEnv, PathConds)
+unifyNRPCs _ eenv pc fm nrpc@EmpNRPC = (nrpc, fm, eenv, pc)
+unifyNRPCs no_inline eenv pc fm (nrpc@(NRPC focus1 e1 v1) :*> nrpcs) =
     let
         con_nrpc = listToMaybe
-                 $ mapMaybe (\(focus2, e2, v2) ->
+                 $ mapMaybe (\(NRPC focus2 e2 v2) ->
                     case eqUpToTypesInline no_inline eenv (stripAllTicks e1) (stripAllTicks e2) of
-                        True -> (, focus2) <$> alignVar HS.empty HS.empty eenv v1 v2
+                        True -> (\(eenv_, pc_) -> (eenv_, pc_, focus2)) <$> alignVar HS.empty HS.empty eenv pc v1 v2
                         False -> Nothing)
                  $ toListNRPC nrpcs
     in
     case con_nrpc of
-        Just (eenv', focus2) ->
+        Just (eenv', pc', focus2) ->
             let
                 (fm', nrpcs') = case (focus1, focus2) of
                                     (_, Focused) -> (fm, nrpcs)
                                     (Unfocused n1, Unfocused n2) -> (updateFocusMap n1 n2 fm, nrpcs)
                                     (Focused, Unfocused n) -> (fm, setFocus n Focused eenv nrpcs)
             in
-            unifyNRPCs no_inline eenv' fm' nrpcs'
-        Nothing -> mapFst3 (nrpc :*>) $ unifyNRPCs no_inline eenv fm nrpcs
+            unifyNRPCs no_inline eenv' pc' fm' nrpcs'
+        Nothing -> mapFst4 (nrpc :*>) $ unifyNRPCs no_inline eenv pc fm nrpcs
 
-alignVar :: HS.HashSet Name -> HS.HashSet Name -> ExprEnv -> Expr -> Expr -> Maybe ExprEnv
-alignVar _ _ eenv (Var (Id n1 _)) v@(Var (Id n2 _))
-    | n1 == n2 = Just eenv
-alignVar _ _ eenv (Var (Id n1 _)) e2
-    | E.isSymbolic n1 eenv = Just $ E.insert n1 e2 eenv
-alignVar _ _ eenv e1 (Var (Id n2 _))
-    | E.isSymbolic n2 eenv = Just $ E.insert n2 e1 eenv
-alignVar seen1 seen2 eenv (Var (Id n1 _)) e2
+alignVar :: HS.HashSet Name -> HS.HashSet Name -> ExprEnv -> PathConds -> Expr -> Expr -> Maybe (ExprEnv, PathConds)
+alignVar _ _ eenv pc (Var (Id n1 _)) v@(Var (Id n2 _))
+    | n1 == n2 = Just (eenv, pc)
+alignVar _ _ eenv pc (Var (Id n1 t)) e2
+    | isPrimType t = Nothing
+    | E.isSymbolic n1 eenv = Just $ (E.insert n1 e2 eenv, pc)
+alignVar _ _ eenv pc e1 (Var (Id n2 t))
+    | isPrimType t = Nothing
+    | E.isSymbolic n2 eenv = Just $ (E.insert n2 e1 eenv, pc)
+alignVar seen1 seen2 eenv pc (Var (Id n1 t)) e2
+    | isPrimType t = Nothing
     | not (n1 `elem` seen1)
-    , Just e1 <- E.lookup n1 eenv = alignVar (HS.insert n1 seen1) seen2 eenv e1 e2
-alignVar seen1 seen2 eenv e1 (Var (Id n2 _))
+    , Just e1 <- E.lookup n1 eenv = alignVar (HS.insert n1 seen1) seen2 eenv pc e1 e2
+alignVar seen1 seen2 eenv pc e1 (Var (Id n2 t))
+    | isPrimType t = Nothing
     | not (n2 `elem` seen2)
-    , Just e2 <- E.lookup n2 eenv = alignVar seen1 (HS.insert n2 seen2) eenv e1 e2
+    , Just e2 <- E.lookup n2 eenv = alignVar seen1 (HS.insert n2 seen2) eenv pc e1 e2
 
-alignVar _ _ eenv (Data d1) (Data d2) | dcName d1 == dcName d2 = Just eenv
-alignVar seen1 seen2 eenv (App a1 a2) (App a1' a2') = do
-    eenv' <- alignVar seen1 seen2 eenv a1 a1'
-    alignVar seen1 seen2 eenv' a2 a2'
+alignVar _ _ eenv pc (Data d1) (Data d2) | dcName d1 == dcName d2 = Just (eenv, pc)
+alignVar seen1 seen2 eenv pc (App a1 a2) (App a1' a2') = do
+    (eenv', pc') <- alignVar seen1 seen2 eenv pc a1 a1'
+    alignVar seen1 seen2 eenv' pc' a2 a2'
 
-alignVar _ _ _ _ _ = Nothing
+alignVar _ _ _ _ _ _ = Nothing
 
 -- | Discard states with inconsistent NRPCs
 inconsistentNRPCHalter :: Monad m =>
                           HS.HashSet Name -- ^ Names that should not be inlined (often: top level names from the original source code)
-                       -> Halter m (HS.HashSet (Expr, Expr)) r t
+                       -> Halter m (HS.HashSet (Expr, Expr), Goal) r VerifierTracker
 inconsistentNRPCHalter no_inline = 
-    mkSimpleHalter (\_ -> HS.empty)
+    mkSimpleHalter (\_ -> (HS.empty, Theorem))
                    (\hv _ _ -> hv)
                    inc_check
                    add_nrpc
     where
-        inc_check hv _ s@(State { expr_env = eenv })
+        inc_check (hv, _) _ s@(State { expr_env = eenv })
             | currExprIsFalse s
-            , not (checkNRPCConsistent no_inline eenv hv) = return Discard
+            , not (checkNRPCConsistent no_inline eenv hv) = return (Discard "inconsistentNRPCHalter")
             | otherwise = return Continue
         
-        add_nrpc hv _ _ s
-            | currExprIsFalse s = foldl' (\hv_ (_, e1, e2) -> HS.insert (e1, e2) hv_) hv (toListNRPC $ non_red_path_conds s)
-            | otherwise = hv
+        add_nrpc (hv, g) _ _ s
+            | not (g `isSameGoal` (goal . track $ s)) = (HS.empty, goal . track $ s)
+            | currExprIsFalse s = foldl' (\(hv_, g) (NRPC _ e1 e2) -> (HS.insert (e1, e2) hv_, g)) (hv, g) (toListNRPC $ non_red_path_conds s)
+            | otherwise = (hv, g)
 
 
 -- | Check if all NRPCs are syntactically consistent.  Two NRPCs are INconsistent if they:
@@ -507,22 +646,31 @@ checkNRPCConsistent no_inline eenv = snd . foldl' incCheck ([], True)
 
 -- | If a state S has a current expression, path constraints, and NRPC set that are approximated by some
 -- other state S', discard S. Any counterexample discoverable from S is also discoverable from S'.
-approximationHalter :: (Named t, Solver solver, SM.MonadState (ApproxPrevs t) m, MonadIO m) =>
+approximationHalter :: (Solver solver, SM.MonadState (ApproxPrevs VerifierTracker) m, MonadIO m) =>
                        solver
                     -> HS.HashSet Name -- ^ Names that should not be inlined (often: top level names from the original source code)
-                    -> Halter m () r t
-approximationHalter = approximationHalter' (\_ _ -> True)
+                    -> Halter m () r VerifierTracker
+approximationHalter = approximationHalter' (\_ old_state new_state -> goal (track old_state) `isValidFor` goal (track new_state))
 
 -- | Discard all other states if we find a counterexample.
-discardOnFalse :: Monad m => Halter m () (ExecRes t) t
+discardOnFalse :: Monad m => Halter m () (ExecRes VerifierTracker) VerifierTracker
 discardOnFalse = (mkSimpleHalter (\_ -> ())
                                 (\hv _ _ -> hv)
                                 (\_ _ _ -> return Continue)
                                 (\hv _ _ _ -> hv))
-                    { discardOnStart = \_ pr s -> discard s pr }
+                    { discardOnStart = \_ pr s -> discard s pr
+                    , filterAllStates = filterAll }
     where
-        discard (State { expr_env = eenv, known_values = kv }) (Processed { accepted = acc })
-            = any (currExprIsFalse . final_state) acc
+        discard curr_state (Processed { accepted = acc }) = any checkShouldDiscard acc
+            where
+                checkShouldDiscard (ExecRes { final_state = prev_s })
+                    | currExprIsFalse prev_s = goal (track prev_s) `isSameGoal` goal (track curr_state) 
+                    | otherwise = False
+        
+        -- Continue running if we have any states left trying to prove the main theorem.
+        -- Otherwise, drop all states.
+        filterAll all_states | any (isTheorem . goal . track . exStateToState). concat . M.elems $ all_states = all_states
+                             | otherwise = M.empty
 
 currExprIsBool :: Bool -> State t -> Bool
 currExprIsBool b s = E.deepLookupExpr (getExpr s) (expr_env s) == mkBool (known_values s) b
@@ -534,23 +682,158 @@ currExprIsTrue :: State t -> Bool
 currExprIsTrue = currExprIsBool False
 
 -------------------------------------------------------------------------------
+-- Lemmas
+-------------------------------------------------------------------------------
+
+data LemmaInfo = LI { generated_lem :: [VerifierState] -- ^ Previously generated potential lemmas
+                    , discarded_lem :: [VerifierState] -- ^ Lemmas proven to be false
+                    }
+
+emptyLemmaInfo :: LemmaInfo
+emptyLemmaInfo = LI { generated_lem = [], discarded_lem = [] }
+
+addGenerated :: [VerifierState] -> LemmaInfo -> LemmaInfo
+addGenerated new_lem lem_info@(LI { generated_lem = gen }) = lem_info { generated_lem = new_lem ++ gen }
+
+addDiscarded :: [VerifierState] -> LemmaInfo -> LemmaInfo
+addDiscarded new_dis lem_info@(LI { discarded_lem = dis }) = lem_info { discarded_lem = new_dis ++ dis }
+
+genLemmaReducer :: (MonadIO m, SM.MonadState LemmaInfo m,  Solver solver) => HS.HashSet Name -> solver -> Reducer m () VerifierTracker
+genLemmaReducer no_inline solver = (mkSimpleReducer (const ()) red) { onDiscard = dis }
+    where
+        red rv s b
+            | CurrExpr Return (Data (DataCon { dc_name = d })) <- curr_expr s
+            , d == dc_name (mkDCFalse (known_values s) (type_env s)) = do
+                lem_info <- SM.get
+                (b', m_lem_s) <- mapAccumM (genLemmaState no_inline solver lem_info s) b (toListNRPC $ non_red_path_conds s)
+                let lem_s = catMaybes m_lem_s
+                    lem_info' = addGenerated lem_s lem_info
+                SM.put lem_info'
+                return (NoProgress, (s, rv):map (,rv) lem_s, b')
+            | otherwise = return (NoProgress, [(s, rv)], b)
+        
+        dis _ _ (State { track = VT { goal = Lemma _ lem_s } }) _ = do
+            lem_info <- SM.get
+            SM.put $ addDiscarded [lem_s] lem_info
+        dis _ _ _ _ = return ()
+   
+genLemmaState :: (MonadIO m, Solver solver) => HS.HashSet Name -> solver -> LemmaInfo -> VerifierState -> Bindings -> NRPC -> m (Bindings, Maybe VerifierState)
+genLemmaState no_inline solver (LI { generated_lem = gen_lems, discarded_lem = dis_lems }) s@(State { expr_env = eenv, tyvar_env = tv_env, known_values = kv }) b nrpc
+    | -- Generate lemmas only if we have symbolic functions
+      any (isTyFun . typeOf tv_env . snd) . E.toExprList . E.filterToSymbolic $ expr_env s
+      -- No point in generating a lemma where the RHS is symbolic, as this would be trivially false
+    , Var (Id n _) <- nrpc_rhs nrpc
+    , Just (E.Conc _) <- E.deepLookupConcOrSym n eenv
+
+      -- No point in generating a lemma where the LHS is a symbolic function, as this would be trivially false
+    , Var (Id vn _):_ <- unApp . stripAllTicks $ nrpc_lhs nrpc
+    , vn' <- deepLookupCenterName vn eenv
+    , not (E.isSymbolic vn' eenv) = do
+    let (lemma_name, ng2) = freshSeededString "lemma" (name_gen b)
+        (emp_nrpc, ng3) = emptyNRPC ng2
+        (ng4, nrpcs) = addExistingNRPC ng3 (nrpc { nrpc_focus = Focused }) emp_nrpc
+
+        lem_s = s { curr_expr = CurrExpr Evaluate (mkFalse kv)
+                  , exec_stack = Stck.empty
+                  , non_red_path_conds = nrpcs
+                  , track = (track s) { tail_called_funcs = HS.empty, goal = Lemma lemma_name lem_s }}
+    
+    let mr_cont = mrContIgnoreNRPCTicks Nothing lookupConcOrSymState
+        res_check = moreRestrictiveIncludingPCAndNRPC
+                                                        solver
+                                                        mr_cont
+                                                        Nothing
+                                                        lookupConcOrSymState
+                                                        no_inline
+    equiv_lemma <-liftIO $ findM (\prev -> liftM2 (&&) (res_check prev lem_s) (res_check lem_s prev)) gen_lems
+    dis_lemma <-liftIO $ findM (\s -> res_check s lem_s) dis_lems
+
+    case (equiv_lemma, dis_lemma) of
+        (Nothing, Nothing) -> do
+            let pretty_nrpc = inlinePretty eenv nrpc
+            liftIO . putStrLn $ "Try to prove "
+                            <> (T.unpack . printHaskellDirty $ nrpc_lhs pretty_nrpc)
+                            <> " = "
+                            <> (T.unpack . printHaskellDirty $ nrpc_rhs pretty_nrpc)
+            return ( b { name_gen = ng4 }, Just lem_s )
+        _ -> return ( b { name_gen = ng4 }, Nothing )
+    | otherwise = return (b, Nothing)
+
+mrContIgnoreNRPCTicks :: Maybe (GenerateLemma t l)
+                      -> Lookup t
+                      -> State t
+                      -> State t
+                      -> HS.HashSet Name
+                      -> (HM.HashMap Id Expr, HS.HashSet (Expr, Expr))
+                      -> Bool -- ^ indicates whether this is part of the "active expression"
+                      -> [(Name, Expr)] -- ^ variables inlined previously on the LHS
+                      -> [(Name, Expr)] -- ^ variables inlined previously on the RHS
+                      -> Expr
+                      -> Expr
+                      -> Either [l] (HM.HashMap Id Expr, HS.HashSet (Expr, Expr))
+mrContIgnoreNRPCTicks genLemma lkp s1 s2 ns hm active n1 n2 e1 e2 =
+    case (e1, e2) of
+        (Tick t1 e1', _) ->
+            moreRestrictive' (mrContIgnoreNRPCTicks genLemma lkp) genLemma lkp s1 s2 ns hm active n1 n2 e1' e2
+        (_, Tick t2 e2') ->
+            moreRestrictive' (mrContIgnoreNRPCTicks genLemma lkp) genLemma lkp s1 s2 ns hm active n1 n2 e1 e2'
+        _ -> Left []
+
+acceptLemmaReducer :: (MonadIO m, SM.MonadState (ApproxPrevs VerifierTracker) m) => Reducer m () VerifierTracker
+acceptLemmaReducer = (mkSimpleReducer (const ()) (\rv s b -> return (NoProgress, [(s, rv)], b))) { onDiscard = dis }
+    where
+        dis _ all_states s _
+            | not . any (isSameGoal (goal $ track s) . goal . track . exStateToState) . concat . M.elems $ all_states
+            , Lemma _ lem_s <- goal $ track s = do
+                liftIO $ putStrLn ("adding\n" ++ T.unpack (prettyNonRedPaths (mkPrettyGuide ()) (non_red_path_conds $ inlineNRPC lem_s)))
+                addApproxPrevs (lem_s { track = (track lem_s) { goal = Proven } })
+            | otherwise = return ()
+
+-------------------------------------------------------------------------------
+-- Verifier Tracker
+-------------------------------------------------------------------------------
 type VerifierState = State VerifierTracker
 
-newtype VerifierTracker = VT { focus_map :: FocusMap }
-                          deriving (Show, Read)
+data Goal = Theorem -- ^ The state is for the main theorem/property we are trying to prove
+          | Lemma Name VerifierState -- ^ The state is for a helper lemma we are trying to prove
+          | Proven -- ^ The state corresponds to a property that has been proven correct
+            deriving (Show, Read)
 
+isTheorem :: Goal -> Bool
+isTheorem Theorem = True
+isTheorem _ = False
+
+-- | `evidence isValidFor objective` checks if `evidence` can be used to discharge objective
+isValidFor :: Goal -> Goal -> Bool
+Theorem `isValidFor` Theorem = True
+Lemma n1 _ `isValidFor` Lemma n2 _ = n1 == n2
+Proven `isValidFor` _ = True
+_ `isValidFor` _ = False
+
+-- | `evidence isSameGoal objective` checks if both Goals are for the theorem, both for the same lemma, or both proven
+isSameGoal :: Goal -> Goal -> Bool
+Theorem `isSameGoal` Theorem = True
+Lemma n1 _ `isSameGoal` Lemma n2 _ = n1 == n2
+Proven `isSameGoal` Proven = True
+_ `isSameGoal` _ = False
+
+data VerifierTracker = VT { goal :: Goal
+                          , tail_called_funcs :: TailCalls -- ^ Functions called while in tail position 
+                          , focus_map :: FocusMap }
+                          deriving (Show, Read)
+type TailCalls = HS.HashSet Name
 type FocusMap = HM.HashMap Name (HS.HashSet Name)
 
 initVerifierTracker :: VerifierTracker
-initVerifierTracker = VT { focus_map =HM.empty }
+initVerifierTracker = VT { goal = Theorem, tail_called_funcs = HS.empty, focus_map = HM.empty }
 
 updateStateFocusMap :: Name -> VerifierState -> VerifierState
 updateStateFocusMap n s@(State { focused = Unfocused n'
-                               , track = VT { focus_map = fm } }) =
+                               , track = vt@VT { focus_map = fm } }) =
             let
                 fm' = updateFocusMap n' n fm
             in
-            s { track = VT { focus_map = fm' } }
+            s { track = vt { focus_map = fm' } }
 updateStateFocusMap _ s = s
 
 -- | When Name1 is switched to focused, Name2 should also then be switched to focused
@@ -561,10 +844,19 @@ updateFocusMap :: Name -- Name1
 updateFocusMap n1 n2 = HM.insertWith HS.union n1 (HS.fromList [n2])
 
 prettyVerifierTracker :: PrettyGuide -> VerifierTracker -> T.Text
-prettyVerifierTracker pg (VT { focus_map = fm }) =
-    T.intercalate "\n" . map pretty_fm $ HM.toList fm
+prettyVerifierTracker pg (VT { focus_map = fm, tail_called_funcs = tcf, goal = g}) =
+    "Goal:\n"
+    <> prettyGoal g
+    <> "\nFocus:\n" <>
+    (T.intercalate "\n" . map pretty_fm $ HM.toList fm)
+    <> "\nTail called funcs:\n" <>
+    (T.intercalate "\n" . map (printName pg) $ HS.toList tcf)
     where
         pretty_fm (k, v) = printName pg k <> " -> " <> T.intercalate ", " (map (printName pg) $ HS.toList v)
+
+        prettyGoal Theorem = "Theorem"
+        prettyGoal (Lemma n _) = "Lemma " <> printName pg n
+        prettyGoal Proven = "Proven"
 
 instance ASTContainer VerifierTracker Expr where
     containedASTs _ = []
@@ -575,6 +867,19 @@ instance ASTContainer VerifierTracker Type where
     modifyContainedASTs _ vt = vt
 
 instance Named VerifierTracker where
-    names vt = names (focus_map vt)
-    rename old new vt = VT { focus_map = rename old new (focus_map vt) }
-    renames hm vt = VT { focus_map = renames hm (focus_map vt) }
+    names vt = names (goal vt) <> names (focus_map vt)
+    rename old new vt = VT { goal = rename old new (goal vt), tail_called_funcs = rename old new (tail_called_funcs vt), focus_map = rename old new (focus_map vt) }
+    renames hm vt = VT { goal = renames hm (goal vt), tail_called_funcs = renames hm (tail_called_funcs vt), focus_map = renames hm (focus_map vt) }
+
+instance Named Goal where
+    names Theorem = mempty
+    names (Lemma n _) = Seq.singleton n
+    names Proven = mempty
+
+    rename _ _ Theorem = Theorem
+    rename old new (Lemma n s) = Lemma (rename old new n) s
+    rename _ _ Proven = Proven
+
+    renames _ Theorem = Theorem
+    renames hm (Lemma n s) = Lemma (renames hm n) s
+    renames _ Proven = Proven

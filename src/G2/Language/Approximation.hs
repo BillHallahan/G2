@@ -8,6 +8,7 @@ module G2.Language.Approximation ( GenerateLemma
                                  , moreRestrictive
                                  , moreRestrictive'
                                  , moreRestrictivePC
+                                 , moreRestrictivePCSolver
 
                                  , applySolver
                                  
@@ -39,8 +40,6 @@ import qualified Data.HashSet as HS
 import qualified Data.HashMap.Lazy as HM
 import Data.Maybe
 import Data.Monoid hiding (Alt)
-
-import Debug.Trace
 
 type GenerateLemma t l = State t -> State t -> (HM.HashMap Id Expr, HS.HashSet (Expr, Expr)) -> Expr -> Expr -> l
 type Lookup t = Name -> State t -> Maybe E.ConcOrSym
@@ -94,7 +93,7 @@ moreRestrictiveIncludingPCAndNRPC solver mr_cont gen_lemma lkp ns s1 s2 = do
     -- putStrLn $ "mr = " ++ show mr
     case mr of
         Left _ -> return False
-        Right (sym_var_map, expr_pairs) -> moreRestrictivePC solver s1 s2 sym_var_map expr_pairs
+        Right mr' -> return . isRight $ moreRestrictivePC mr_cont gen_lemma lkp s1 s2 ns mr'
 
 -- | Check is s1 is an approximation of s2 (if s2 is more restrictive than s1.)
 moreRestrictiveIncludingPC :: S.Solver solver =>
@@ -110,7 +109,7 @@ moreRestrictiveIncludingPC solver mr_cont gen_lemma lkp ns s1 s2  = do
     let mr = moreRestrictive' mr_cont gen_lemma lkp s1 s2 ns (HM.empty, HS.empty) True [] [] (getExpr s1) (getExpr s2)
     case mr of
         Left _ -> return False
-        Right (sym_var_map, expr_pairs) -> moreRestrictivePC solver s1 s2 sym_var_map expr_pairs
+        Right mr' -> return . isRight $ moreRestrictivePC mr_cont gen_lemma lkp s1 s2 ns mr'
 
 -- | Check is s1 is an approximation of s2 (if s2 is more restrictive than s1.)
 moreRestrictive :: MRCont t l -- ^ For special case handling - what to do if we don't match elsewhere in moreRestrictive
@@ -176,7 +175,7 @@ moreRestrictive' mr_cont m_gen_lemma lkp = go
                     -- this last case means there's a mismatch
                     | Just (E.Sym _) <- lkp (idName i) s1 -> Left []
                     | not $ (idName i, e2) `elem` n1
-                    , not $ HS.member (idName i) ns -> error $ "unmapped variable " ++ (show i)
+                    , not $ HS.member (idName i) ns -> error $ "unmapped variable " ++ (show i) ++ "\n" ++ show (log_path s1) ++ "\n" ++ show (num_steps s1)
           (_, Var i) | Just (E.Sym _) <- lkp (idName i) s2 -> Left [] -- sym replaces non-sym
                     | not $ (idName i, e1) `elem` n2
                     , not $ HS.member (idName i) ns -> error $ "unmapped variable " ++ (show i)
@@ -371,9 +370,9 @@ moreRestrictiveNRPC mr_cont gen_lemma lkp s1 s2 ns init_hm nrpc1 nrpc2
   | otherwise = matchNRPCs init_hm (toListNRPC nrpc1) (toListNRPC nrpc2)
   where
     matchNRPCs hm [] _ = Right hm
-    matchNRPCs hm ((_, eL_1, eR_1):ns1) ns2 = do
+    matchNRPCs hm ((NRPC _ eL_1 eR_1):ns1) ns2 = do
         let m_match_rest = selectJusts
-                              (\(_, eL_2, eR_2) -> do
+                              (\(NRPC _ eL_2 eR_2) -> do
                                     hm' <- moreRes hm eR_1 eR_2
                                     moreRes hm' eL_1 eL_2)
                            ns2
@@ -430,14 +429,14 @@ selectJusts p = sel [] []
 
 -- s1 is old state, s2 is new state
 -- only apply to old-new state pairs for which moreRestrictive' works
-moreRestrictivePC :: (MonadIO m, S.Solver solver) =>
-                     solver ->
-                     State t -> -- The more general state (the older state)
-                     State t -> -- ^ The more specific state (the newer state)
-                     HM.HashMap Id Expr ->
-                     HS.HashSet (Expr, Expr) ->
-                     m Bool
-moreRestrictivePC solver s1@(State { known_values = kv }) s2 sym_var_map expr_pairs = do
+moreRestrictivePCSolver :: (MonadIO m, S.Solver solver) =>
+                           solver ->
+                           State t -> -- The more general state (the older state)
+                           State t -> -- ^ The more specific state (the newer state)
+                           HM.HashMap Id Expr ->
+                           HS.HashSet (Expr, Expr) ->
+                           m Bool
+moreRestrictivePCSolver solver s1@(State { known_values = kv }) s2 sym_var_map expr_pairs = do
   -- see Note [Renaming in moreRestrictivePC
   let symvar_1 = map idName . E.symbolicIds $ expr_env s1
       !ng = mkNameGen (E.symbolicIds $ expr_env s1, E.symbolicIds $ expr_env s2)
@@ -473,6 +472,36 @@ moreRestrictivePC solver s1@(State { known_values = kv }) s2 sym_var_map expr_pa
   case res of
     S.UNSAT () -> return True
     _ -> return False
+
+moreRestrictivePC :: MRCont t l
+                  -> Maybe (GenerateLemma t l)
+                  -> Lookup t
+                  -> State t
+                  -> State t
+                  -> HS.HashSet Name
+                  -> (HM.HashMap Id Expr, HS.HashSet (Expr, Expr))
+                  -> Either [l] (HM.HashMap Id Expr, HS.HashSet (Expr, Expr))
+moreRestrictivePC mr_cont gen_lemma lkp s1 s2 ns init_hm
+  -- We are looking to match each pc in pc1 to an pc in pc2- this is clearly impossible
+  -- if pc1 has more pc then pc2
+  | length pc1 > length pc2 = Left []
+  | otherwise = matchPCs init_hm pc1 pc2
+  where
+    matchPCs hm [] _ = Right hm
+    matchPCs hm (e1:pc1) pc2 = do
+        let m_match_rest = selectJusts (\e2 -> moreRes hm e1 e2) pc2
+        case rights $ map (\(hm', rest) -> matchPCs hm' pc1 rest) m_match_rest of
+            r:_ -> Right r
+            [] -> Left []
+
+    moreRes hm (ExtCond e1 b1) (ExtCond e2 b2) | b1 == b2 =
+      case moreRestrictive' mr_cont gen_lemma lkp s1 s2 ns hm True [] [] e1 e2 of
+        Left _ -> Nothing
+        Right v -> Just v
+    moreRes _ _ _ = Nothing
+
+    pc1 = P.toList (path_conds s1)
+    pc2 = P.toList (path_conds s2)
 
 -- shortcut:  don't invoke Z3 if there are no path conds
 applySolver :: S.Solver solver =>

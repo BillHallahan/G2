@@ -263,7 +263,7 @@ lhAbsHalter max_cf entry modn eenv = mkSimpleHalter initial update stop step
 
         stop hv _ s =
             return $ if length (abstract_calls $ track s) > hv
-                then Discard
+                then Discard "lhAbsHalter"
                 else Continue
 
         step hv _ _ _ = hv
@@ -319,7 +319,7 @@ lhTimerHalter ms ce = do
                 let t_diff = diffUTCTime curr it
 
                 if t_diff > ms
-                    then return Discard
+                    then return $ Discard "lhTimerHalter"
                     else return Continue
             | otherwise = return Continue
 
@@ -376,7 +376,7 @@ lhAcceptIfViolatedHalter = mkSimpleHalter (const ()) (\_ _ _ -> ()) stop (\_ _ _
                     | true_assert s
                     , all (normalForm eenv . returns) abs_calls -> return Accept
                     | true_assert s -> return Continue
-                    | otherwise -> return Discard
+                    | otherwise -> return (Discard "lhAcceptIfViolatedHalter")
                 False -> return Continue
 
 lhSWHNFHalter :: Monad m => Halter m () r LHTracker

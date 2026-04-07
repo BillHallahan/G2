@@ -44,7 +44,7 @@ import qualified G2.Translation.TransTypes as G2
 import G2.Translation.GHC
 
 import Control.Monad
-import qualified Control.Monad.State.Lazy as SM
+import qualified Control.Monad.State.Strict as SM
 
 import qualified Data.Array as A
 import qualified Data.ByteString.Char8 as C
@@ -55,6 +55,8 @@ import Data.Maybe
 import qualified Data.HashMap.Lazy as HM
 import qualified Data.HashSet as HS
 import qualified Data.Text as T
+import qualified Data.Text.Encoding as T
+import qualified Data.Text.Encoding.Error as T
 import Data.Word
 import System.FilePath
 import System.Directory
@@ -110,12 +112,19 @@ equivMods = HM.fromList
             , ("Data.Typeable", "GHC.Internal.Data.Typeable")
             , ("Data.Typeable.Internal", "GHC.Internal.Data.Typeable.Internal")
             , ("Data.Tuple", "GHC.Internal.Data.Tuple")
+            , ("GHC.Internal.Control.Monad.Fix", "Control.Monad.Fix")
+            , ("GHC.Internal.Control.Monad.Zip", "Control.Monad.Zip")
+            , ("GHC.Internal.Data.Type.Equality", "Data.Type.Equality")
             , ("GHC.Internal.Enum", "GHC.Enum")
             , ("GHC.Internal.Err", "GHC.Err")
             , ("GHC.Internal.Exception", "GHC.Exception")
             , ("GHC.Internal.Base", "GHC.Base")
             , ("GHC.Internal.Data.Foldable", "Data.Foldable")
+            , ("GHC.Internal.Data.Function", "Data.Function")
+            , ("GHC.Internal.Data.Functor.Identity", "Data.Functor.Identity")
+            , ("GHC.Internal.Data.Semigroup.Internal", "Data.Semigroup.Internal")
             , ("GHC.Internal.Exception.Type", "GHC.Exception")
+            , ("GHC.Internal.Functor.ZipList", "Control.Applicative")
             , ("GHC.Internal.IO", "GHC.IO")
             , ("GHC.Internal.List", "GHC.List")
             , ("GHC.Internal.Maybe", "GHC.Maybe")
@@ -552,11 +561,11 @@ mkIdLookup i = do
 mkName :: Name -> G2.Name
 mkName name = G2.Name occ mdl unq sp
   where
-    occ = T.pack . occNameString . nameOccName $ name
+    occ = T.decodeUtf8With T.lenientDecode . bytesFS . getOccFS $ name
     unq = convertUnq . getKey . nameUnique $ name
     mdl = case nameModule_maybe name of
               Nothing -> Nothing
-              Just md -> switchModule (T.pack . moduleNameString . moduleName $ md)
+              Just md -> switchModule (T.decodeUtf8With T.lenientDecode . bytesFS . moduleNameFS . moduleName $ md)
 
     sp = mkSpan $ getSrcSpan name
 
@@ -584,11 +593,11 @@ nameLookup nm name = do
                           Just (G2.Name n' m i _) -> (G2.Name n' m i sp, nm)
                           Nothing -> let n = G2.Name occ mdl unq sp in (n, HM.insert (occ, mdl) n nm)
     where
-        occ = T.pack . occNameString . nameOccName $ name
+        occ = T.decodeUtf8With T.lenientDecode . bytesFS . getOccFS $ name
         unq = convertUnq . getKey . nameUnique $ name
         mdl = case nameModule_maybe name of
                   Nothing -> Nothing
-                  Just md -> switchModule (T.pack . moduleNameString . moduleName $ md)
+                  Just md -> switchModule (T.decodeUtf8With T.lenientDecode . bytesFS . moduleNameFS . moduleName $ md)
 
         sp = mkSpan $ getSrcSpan name
 
