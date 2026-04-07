@@ -54,6 +54,6 @@ jobs:
       run: |
         cabal install --only-dependencies
     - name: Build
-      run: cabal build test-nebula-plugin
+      run: cabal build test-plugin
     - name: Run tests
-      run: cabal run test-nebula-plugin
+      run: cabal run test-plugin
