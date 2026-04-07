@@ -176,7 +176,7 @@ library
                        , G2.Verify.Reducer
                        , G2.Verify.StaticArgTrans
 
-  if impl(ghc > 9.2)
+  if impl(ghc > 9.4)
       exposed-modules:   G2.Plugin
 
   if flag(support-lh) && impl(ghc < 9.2)
@@ -488,7 +488,7 @@ test-suite test-g2q
   type:                exitcode-stdio-1.0
 
 test-suite test-plugin
-  if impl(ghc > 9.2)
+  if impl(ghc > 9.4)
     buildable:         True
   else
     buildable:         False
