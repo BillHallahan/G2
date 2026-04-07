@@ -35,6 +35,7 @@ It is capable of generating assertion failure counterexamples and solving for hi
 * `--smt` Pass "z3" or "cvc5" to select a solver [Default: Z3]
 * `--time` Set a timeout in seconds
 
+---
 ###### Plugin:
 
 Running G2 on code in cabal packages can be done by means of a plugin. To do this:
