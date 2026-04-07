@@ -46,7 +46,8 @@ package *
 ```
 this instructs GHC to make the Core of every function from every package available, which is needed to
 symbolically execute code in dependencies.
-2) Add a dependency on g2, and
+
+2) Add a dependency on G2, and
 ```
 ghc-options:      -fplugin=G2.Plugin -fplugin-opt=G2.Plugin:f
 ```
