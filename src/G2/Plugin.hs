@@ -21,7 +21,7 @@ import qualified G2.Language.ExprEnv as E
 import G2.Translation as T
 
 import Control.Monad
-import qualified Control.Monad.State.Lazy as SM
+import qualified Control.Monad.State.Strict as SM
 import Data.IORef
 import System.IO.Unsafe
 import System.Directory
