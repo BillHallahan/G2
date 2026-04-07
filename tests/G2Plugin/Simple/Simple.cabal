@@ -21,7 +21,7 @@ executable Simple
     other-modules:      FDef
                       , Helper
     -- other-extensions:
-    build-depends:    base ^>=4.19.2.0
+    build-depends:    base >=4.14
                     , g2 >= 0.1.0.2
                     , import
     hs-source-dirs:   app
