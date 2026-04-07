@@ -34,3 +34,21 @@ It is capable of generating assertion failure counterexamples and solving for hi
 * `--max-outputs` number of inputs/results to display
 * `--smt` Pass "z3" or "cvc5" to select a solver [Default: Z3]
 * `--time` Set a timeout in seconds
+
+###### Plugin:
+
+Running G2 on code in cabal packages can be done by means of a plugin. To do this:
+1) Add a cabal.project file containing:
+```
+package *
+    ghc-options:      -fexpose-all-unfoldings
+```
+this instructs GHC to make the Core of every function from every package available, which is needed to
+symbolically execute code in dependencies.
+2) Add a dependency on g2, and
+```
+ghc-options:      -fplugin=G2.Plugin -fplugin-opt=G2.Plugin:f
+```
+to the project's cabal file, where `f` is the function that should be symbolically executed.
+
+After following these steps, building the project will symbolically execute f.
