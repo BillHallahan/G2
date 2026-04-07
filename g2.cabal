@@ -130,7 +130,6 @@ library
                        , G2.Lib.Printers
 
                        , G2.Nebula
-                       , G2.Plugin
 
                        , G2.Postprocessing.Interface
 
@@ -176,6 +175,9 @@ library
                        , G2.Verify.Interface
                        , G2.Verify.Reducer
                        , G2.Verify.StaticArgTrans
+
+  if impl(ghc > 9.2)
+      exposed-modules:   G2.Plugin
 
   if flag(support-lh) && impl(ghc < 9.2)
       exposed-modules: 
@@ -486,6 +488,11 @@ test-suite test-g2q
   type:                exitcode-stdio-1.0
 
 test-suite test-plugin
+  if impl(ghc > 9.2)
+    buildable:         True
+  else
+    buildable:         False
+
   build-depends:         base >= 4.8 && < 5
                        , process
                        , tasty >= 1.0 && < 2.0
