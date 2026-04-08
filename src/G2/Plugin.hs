@@ -138,8 +138,9 @@ runFunc cmd_lne simp_state symex_annot entry
                                     (mkCurrExpr TV.empty Nothing Nothing entry_id)
                                     (E.higherOrderExprs TV.empty . IT.expr_env)
                                     func_config
+            bindings' = bindings { higher_order_inst = HS.empty }
 
-        _ <- liftIO $ runG2WithConfig [] [] entry_id "" [] [L.nameModule entry] init_state func_config bindings
+        _ <- liftIO $ runG2WithConfig [] [] entry_id "" [] [L.nameModule entry] init_state func_config bindings'
         return ()
     | otherwise = return ()
 
