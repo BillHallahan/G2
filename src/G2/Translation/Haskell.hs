@@ -671,9 +671,16 @@ mkLit (LitNumber LitNumInt64 i) = G2.LitInt (fromInteger i)
 mkLit (LitNumber LitNumWord i) = G2.LitInt (fromInteger i)
 mkLit (LitNumber LitNumWord64 i) = G2.LitInt (fromInteger i)
 #else
+mkLit (LitNumber LitNumBigNat i) = error "mkLit: unhandled LitNumBigNat"
 mkLit (LitNumber LitNumInt i) = G2.LitInt (fromInteger i)
+mkLit (LitNumber LitNumInt8 i) = G2.LitInt (fromInteger i)
+mkLit (LitNumber LitNumInt16 i) = G2.LitInt (fromInteger i)
+mkLit (LitNumber LitNumInt32 i) = G2.LitInt (fromInteger i)
 mkLit (LitNumber LitNumInt64 i) = G2.LitInt (fromInteger i)
 mkLit (LitNumber LitNumWord i) = G2.LitInt (fromInteger i)
+mkLit (LitNumber LitNumWord8 i) = G2.LitInt (fromInteger i)
+mkLit (LitNumber LitNumWord16 i) = G2.LitInt (fromInteger i)
+mkLit (LitNumber LitNumWord32 i) = G2.LitInt (fromInteger i)
 mkLit (LitNumber LitNumWord64 i) = G2.LitInt (fromInteger i)
 #endif
 
