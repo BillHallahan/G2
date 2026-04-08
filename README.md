@@ -57,5 +57,9 @@ to the project's cabal file.
 ```
 {-# ANN f SymEx #-}
 f :: MyInt -> Int -> Int
+
+{-# ANN recCall (SymExWithConfig "--n 10000") #-}
+recCall :: Int -> Int
 ```
-After following these steps, building the project will symbolically execute f.
+After following these steps, building the project will symbolically execute `f` and `recCall`.
+`recCall` will be executed according to the command line arguments passed in `SymExWithConfig`.

@@ -1,4 +1,5 @@
-{-# LANGUAGE BangPatterns, CPP, DeriveDataTypeable, FlexibleContexts, LambdaCase, OverloadedStrings, TupleSections #-}
+{-# LANGUAGE BangPatterns, CPP, DeriveDataTypeable, DeriveGeneric, 
+             FlexibleContexts, LambdaCase, OverloadedStrings, TupleSections #-}
 
 module G2.Plugin (SymEx (..), plugin) where
 
@@ -24,6 +25,7 @@ import G2.Translation as T
 import Control.Monad
 import qualified Control.Monad.State.Strict as SM
 import Data.Data
+import GHC.Generics (Generic)
 import Control.DeepSeq
 import Data.IORef
 import System.IO.Unsafe
@@ -38,7 +40,11 @@ import qualified Data.Text.IO as T
 import Options.Applicative
 import G2.Language.TyVarEnv as TV
 
-data SymEx = SymEx deriving (Data)
+data SymEx = SymEx
+           | SymExWithConfig String
+             deriving (Data, Generic)
+
+instance NFData SymEx
 
 -- | During symbolic execution, we need to know definitions, types, etc.
 -- from previously compiled modules.  We also need to avoid reusing the same
@@ -64,15 +70,15 @@ install cmd_lne todo = do
     env <- getHscEnv
     homedir <- liftIO $ getHomeDirectory
     config <- liftIO . handleParseResult $ execParserPure defaultPrefs (pluginConfig homedir) cmd_lne
-    return $ CoreDoPluginPass "G2" (g2PluginPass config env):todo
+    return $ CoreDoPluginPass "G2" (g2PluginPass cmd_lne config env):todo
 
-g2PluginPass :: Config -> HscEnv -> ModGuts -> CoreM ModGuts
-g2PluginPass config env modguts = do
-    _ <- g2PluginPass' config env modguts
+g2PluginPass :: [CommandLineOption] -> Config -> HscEnv -> ModGuts -> CoreM ModGuts
+g2PluginPass cmd_lne config env modguts = do
+    _ <- g2PluginPass' cmd_lne config env modguts
     return modguts
 
-g2PluginPass' :: Config -> HscEnv -> ModGuts -> CoreM ()
-g2PluginPass' config env modguts = do
+g2PluginPass' :: [CommandLineOption] -> Config -> HscEnv -> ModGuts -> CoreM ()
+g2PluginPass' cmd_lne config env modguts = do
     -- We want simpl to be False so the simplifier does not run, because
     -- this plugin gets inserted into the simplifier.  Thus, running the simplifier
     -- results in an infinite loop.
@@ -89,11 +95,15 @@ g2PluginPass' config env modguts = do
     -- Get the names of functions we are going to be symbolically executing
     let binders (NonRec b _) = [b]
         binders (Rec b) = map fst b
-    fs <- filterM (\b -> not . null <$> (annotationsOn modguts b :: CoreM [SymEx])) (concatMap binders $ mg_binds modguts)
-    let fs_g2 = SM.evalState (mapM (valNameLookup . varName) fs) (new_nm, new_tm)
+    all_fs <- mapM (\b -> (,b) <$> (annotationsOn modguts b :: CoreM [SymEx])) (concatMap binders $ mg_binds modguts)
+    let fs = filter (not . null . fst) all_fs
+    let ann_fs_g2 = SM.evalState (mapM (\(ann, b) -> do
+                                        n <- valNameLookup . varName $ b
+                                        return (ann, n)) fs) (new_nm, new_tm)
+        fs_g2 = map snd ann_fs_g2
 
     -- Get an initial set of relevant bindings to load from imports
-    let rel_names = deepseq fs_g2 .
+    let rel_names = deepseq ann_fs_g2 .
                     mconcat
                   . map (names . flip HM.lookup (exg2_binds exg2))
                   . filter (`elem` fs_g2)
@@ -109,19 +119,27 @@ g2PluginPass' config env modguts = do
     let simp_state = initSimpleState injected_exg2 imports_nm import_tnm
 
 
-    liftIO $ mapM_ (runFunc config simp_state) fs_g2
+    liftIO $ mapM_ (uncurry (runFunc cmd_lne simp_state)) ann_fs_g2
 
-runFunc :: Config -> SimpleState -> L.Name -> IO ()
-runFunc config simp_state entry
+runFunc :: [CommandLineOption] -> SimpleState -> [SymEx] -> L.Name -> IO ()
+runFunc cmd_lne simp_state symex_annot entry
     | Just (entry_name, e) <- E.lookupNameMod (L.nameOcc entry) (L.nameModule entry) (IT.expr_env simp_state) = do
+        -- Get a Config to run this specific function
+        homedir <- liftIO $ getHomeDirectory
+        let func_cmd_line = case symex_annot of
+                                [SymExWithConfig extra_cmd_lne] -> cmd_lne ++ words extra_cmd_lne
+                                _ -> cmd_lne
+        func_config <- liftIO . handleParseResult $ execParserPure defaultPrefs (pluginConfig homedir) func_cmd_line
+
+        -- Run symbolic execution
         let entry_id = Id entry_name $ L.typeOf TV.empty e
         T.putStrLn $ "Running " <> nameOcc entry
         let (init_state, bindings) = initStateFromSimpleState simp_state [L.nameModule entry] False
                                     (mkCurrExpr TV.empty Nothing Nothing entry_id)
                                     (E.higherOrderExprs TV.empty . IT.expr_env)
-                                    config
+                                    func_config
 
-        _ <- liftIO $ runG2WithConfig [] [] entry_id "" [] [L.nameModule entry] init_state config bindings
+        _ <- liftIO $ runG2WithConfig [] [] entry_id "" [] [L.nameModule entry] init_state func_config bindings
         return ()
     | otherwise = return ()
 
@@ -193,23 +211,3 @@ annotationsOn :: Data a => ModGuts -> CoreBndr -> CoreM [a]
 annotationsOn guts bndr = do
   (_, anns) <- getAnnotations deserializeWithData guts
   return $ lookupWithDefaultUFM anns [] (varName bndr)
-
-findFuncPlugin :: TV.TyVarEnv -> T.Text -> [Maybe T.Text] -> ExprEnv -> Either (L.Id, L.Expr) String
-findFuncPlugin tv s m_mod eenv =
-    case matchNames of
-        [] -> Right $ "No functions with name " ++ (T.unpack s)
-        pairs -> case filter (\(n, _) -> L.nameModule n `elem` m_mod) pairs of
-                    [(n, e)] -> Left (Id n (L.typeOf tv e), e)
-                    [] -> Right $ "No function with name " ++ (T.unpack s) ++ " in available modules"
-                    _ -> Right $ "Multiple functions with same name " ++ (T.unpack s) ++
-                                " in available modules"
-    where
-        matchNames =
-            let
-                splits = T.splitOn "." s
-                spec_mod = T.intercalate "." (init splits)
-                func = last splits
-            in
-            case spec_mod of
-                "" -> E.toExprList $ E.filterWithKey (\n _ -> nameOcc n == s) eenv
-                _ -> E.toExprList $ E.filterWithKey (\n _ -> nameOcc n == func && L.nameModule n == Just spec_mod) eenv
