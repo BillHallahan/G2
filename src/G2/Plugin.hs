@@ -1,6 +1,6 @@
-{-# LANGUAGE CPP, FlexibleContexts, LambdaCase, OverloadedStrings, TupleSections #-}
+{-# LANGUAGE BangPatterns, CPP, DeriveDataTypeable, FlexibleContexts, LambdaCase, OverloadedStrings, TupleSections #-}
 
-module G2.Plugin (plugin) where
+module G2.Plugin (SymEx (..), plugin) where
 
 #if MIN_VERSION_GLASGOW_HASKELL(9,0,2,0)
 import GHC.Plugins as GHC hiding ((<>))
@@ -16,12 +16,15 @@ import G2.Config
 import G2.Initialization.MkCurrExpr
 import qualified G2.Initialization.Types as IT
 import G2.Interface
+import G2.Initialization.Types as IT
 import G2.Language as L
 import qualified G2.Language.ExprEnv as E
 import G2.Translation as T
 
 import Control.Monad
 import qualified Control.Monad.State.Strict as SM
+import Data.Data
+import Control.DeepSeq
 import Data.IORef
 import System.IO.Unsafe
 import System.Directory
@@ -31,8 +34,11 @@ import Data.Maybe
 import qualified Data.Set as S
 import qualified Data.Sequence as Seq
 import qualified Data.Text as T
+import qualified Data.Text.IO as T
 import Options.Applicative
 import G2.Language.TyVarEnv as TV
+
+data SymEx = SymEx deriving (Data)
 
 -- | During symbolic execution, we need to know definitions, types, etc.
 -- from previously compiled modules.  We also need to avoid reusing the same
@@ -45,9 +51,9 @@ compiledModules = unsafePerformIO $ newIORef Nothing
 plugin :: Plugin
 plugin = defaultPlugin { installCoreToDos = install }
 
-pluginConfig :: FilePath -> ParserInfo (String, Config)
+pluginConfig :: FilePath -> ParserInfo Config
 pluginConfig homedir = 
-    info ((,) <$> argument str (metavar "FUNCTION") <*> mkConfig homedir <**> helper)
+    info (mkConfig homedir <**> helper)
           ( fullDesc
           <> progDesc "Symbolic Execution of Haskell code"
           <> header "The G2 Symbolic Execution Engine" )
@@ -57,33 +63,40 @@ install :: [CommandLineOption] -> [CoreToDo] -> CoreM [CoreToDo]
 install cmd_lne todo = do
     env <- getHscEnv
     homedir <- liftIO $ getHomeDirectory
-    (entry, config) <- liftIO . handleParseResult $ execParserPure defaultPrefs (pluginConfig homedir) cmd_lne
-    return $ CoreDoPluginPass "G2" (g2PluginPass entry config env):todo
+    config <- liftIO . handleParseResult $ execParserPure defaultPrefs (pluginConfig homedir) cmd_lne
+    return $ CoreDoPluginPass "G2" (g2PluginPass config env):todo
 
-g2PluginPass :: String -> Config -> HscEnv -> ModGuts -> CoreM ModGuts
-g2PluginPass entry config env modguts = do
-    _ <- liftIO $ g2PluginPass' entry config env modguts
+g2PluginPass :: Config -> HscEnv -> ModGuts -> CoreM ModGuts
+g2PluginPass config env modguts = do
+    _ <- g2PluginPass' config env modguts
     return modguts
 
-g2PluginPass' :: String -> Config -> HscEnv -> ModGuts -> IO ()
-g2PluginPass' entry config env modguts = do
+g2PluginPass' :: Config -> HscEnv -> ModGuts -> CoreM ()
+g2PluginPass' config env modguts = do
     -- We want simpl to be False so the simplifier does not run, because
     -- this plugin gets inserted into the simplifier.  Thus, running the simplifier
     -- results in an infinite loop.
     let tconfig = (simplTranslationConfig {simpl = False, load_rewrite_rules = True, hpc_ticks = False})
         ems = EnvModSumModGuts env [] [modguts]
 
-    prev_comp <- readIORef compiledModules
+    prev_comp <- liftIO $ readIORef compiledModules
     (base_exg2, base_nm, base_tnm) <- case prev_comp of
                                         Just prev -> return prev
-                                        Nothing -> translateBase tconfig config [] Nothing
+                                        Nothing -> liftIO $ translateBase tconfig config [] Nothing
 
-    (new_nm, new_tm, exg2) <- hskToG2ViaEMS tconfig ems base_nm base_tnm
+    (new_nm, new_tm, exg2) <- liftIO $ hskToG2ViaEMS tconfig ems base_nm base_tnm
+
+    -- Get the names of functions we are going to be symbolically executing
+    let binders (NonRec b _) = [b]
+        binders (Rec b) = map fst b
+    fs <- filterM (\b -> not . null <$> (annotationsOn modguts b :: CoreM [SymEx])) (concatMap binders $ mg_binds modguts)
+    let fs_g2 = SM.evalState (mapM (valNameLookup . varName) fs) (new_nm, new_tm)
 
     -- Get an initial set of relevant bindings to load from imports
-    let rel_names = mconcat
+    let rel_names = deepseq fs_g2 .
+                    mconcat
                   . map (names . flip HM.lookup (exg2_binds exg2))
-                  . filter (\(Name n _ _ _) -> n == T.pack entry)
+                  . filter (`elem` fs_g2)
                   $ HM.elems new_nm
 
     (imports_exg2, (imports_nm, import_tnm)) <- SM.runStateT (loadImports env rel_names) (new_nm, new_tm)
@@ -91,26 +104,26 @@ g2PluginPass' entry config env modguts = do
     let merged_exg2 = mergeExtractedG2s [exg2, imports_exg2, base_exg2]
         injected_exg2 = specialInject merged_exg2
 
-        mod_names = exg2_mod_names exg2
-
-    writeIORef compiledModules $ Just (merged_exg2, imports_nm, import_tnm)
+    liftIO $ writeIORef compiledModules $ Just (merged_exg2, imports_nm, import_tnm)
 
     let simp_state = initSimpleState injected_exg2 imports_nm import_tnm
 
 
-    let mod_name = moduleNameString . moduleName $ mg_module modguts
+    liftIO $ mapM_ (runFunc config simp_state) fs_g2
 
-    case findFuncPlugin TV.empty (T.pack entry) [Just $ T.pack mod_name] (IT.expr_env simp_state) of
-        Left (ie, _) -> do
-            let (init_state, bindings) = initStateFromSimpleState simp_state mod_names False
-                                        (mkCurrExpr TV.empty Nothing Nothing ie)
-                                        (E.higherOrderExprs TV.empty . IT.expr_env)
-                                        config
+runFunc :: Config -> SimpleState -> L.Name -> IO ()
+runFunc config simp_state entry
+    | Just (entry_name, e) <- E.lookupNameMod (L.nameOcc entry) (L.nameModule entry) (IT.expr_env simp_state) = do
+        let entry_id = Id entry_name $ L.typeOf TV.empty e
+        T.putStrLn $ "Running " <> nameOcc entry
+        let (init_state, bindings) = initStateFromSimpleState simp_state [L.nameModule entry] False
+                                    (mkCurrExpr TV.empty Nothing Nothing entry_id)
+                                    (E.higherOrderExprs TV.empty . IT.expr_env)
+                                    config
 
-            _ <- runG2WithConfig [] [] ie "" [] mod_names init_state config bindings
-            return ()
-
-        Right _ -> return ()
+        _ <- liftIO $ runG2WithConfig [] [] entry_id "" [] [L.nameModule entry] init_state config bindings
+        return ()
+    | otherwise = return ()
 
 -- Based on https://dl.acm.org/doi/pdf/10.1145/3495272
 loadImports :: SM.MonadIO m => HscEnv -> Seq.Seq L.Name -> NamesT m ExtractedG2
@@ -176,12 +189,17 @@ relVar (GHC.Tick _ e) = relVar e
 relVar (GHC.Type _) = S.empty
 relVar (GHC.Coercion _) = S.empty
 
+annotationsOn :: Data a => ModGuts -> CoreBndr -> CoreM [a]
+annotationsOn guts bndr = do
+  (_, anns) <- getAnnotations deserializeWithData guts
+  return $ lookupWithDefaultUFM anns [] (varName bndr)
+
 findFuncPlugin :: TV.TyVarEnv -> T.Text -> [Maybe T.Text] -> ExprEnv -> Either (L.Id, L.Expr) String
 findFuncPlugin tv s m_mod eenv =
     case matchNames of
         [] -> Right $ "No functions with name " ++ (T.unpack s)
         pairs -> case filter (\(n, _) -> L.nameModule n `elem` m_mod) pairs of
-                    [(n, e)] -> Left (Id n (typeOf tv e), e)
+                    [(n, e)] -> Left (Id n (L.typeOf tv e), e)
                     [] -> Right $ "No function with name " ++ (T.unpack s) ++ " in available modules"
                     _ -> Right $ "Multiple functions with same name " ++ (T.unpack s) ++
                                 " in available modules"

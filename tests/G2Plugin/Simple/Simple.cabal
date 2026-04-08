@@ -25,5 +25,5 @@ executable Simple
                     , g2 >= 0.1.0.2
                     , import
     hs-source-dirs:   app
-    ghc-options:      -fplugin=G2.Plugin -fplugin-opt=G2.Plugin:f
+    ghc-options:      -fplugin=G2.Plugin
     default-language: Haskell2010
