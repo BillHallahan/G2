@@ -49,8 +49,13 @@ symbolically execute code in dependencies.
 
 2) Add a dependency on G2, and
 ```
-ghc-options:      -fplugin=G2.Plugin -fplugin-opt=G2.Plugin:f
+ghc-options:      -fplugin=G2.Plugin -fplugin-opt=G2.Plugin:[Optionally, arguments for G2 here]
 ```
-to the project's cabal file, where `f` is the function that should be symbolically executed.
+to the project's cabal file.
 
+3) Annotate at least one function to indicate that it should be symbolically executed:
+```
+{-# ANN f SymEx #-}
+f :: MyInt -> Int -> Int
+```
 After following these steps, building the project will symbolically execute f.
