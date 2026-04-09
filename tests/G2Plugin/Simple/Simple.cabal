@@ -1,0 +1,29 @@
+cabal-version:      3.0
+name:               Simple
+version:            0.1.0.0
+-- synopsis:
+-- description:
+license:            BSD-3-Clause
+license-file:       LICENSE
+author:             Bill Hallahan
+maintainer:         whallahan@binghamton.edu
+-- copyright:
+build-type:         Simple
+extra-doc-files:    CHANGELOG.md
+-- extra-source-files:
+
+common warnings
+    ghc-options: -Wall
+
+executable Simple
+    import:           warnings
+    main-is:          Main.hs
+    other-modules:      FDef
+                      , Helper
+    -- other-extensions:
+    build-depends:    base >=4.14
+                    , g2 >= 0.1.0.2
+                    , import
+    hs-source-dirs:   app
+    ghc-options:      -fplugin=G2.Plugin
+    default-language: Haskell2010

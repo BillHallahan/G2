@@ -16,13 +16,43 @@ main = do
 
 tests :: TestTree
 tests = testGroup "All Tests"
-        [ checkPackage "tests/RewriteVerify/PluginTests/Simple" ["add_assoc", "fg", "fg_toint"] ["f_one"]]
+        [ checkG2Package "tests/G2Plugin/Simple" ["f", "g", "recCall"]
+        , checkNebulaPackage "tests/RewriteVerify/PluginTests/Simple" ["add_assoc", "fg", "fg_toint"] ["f_one"]]
 
-checkPackage :: FilePath
-             -> [String] -- ^ Rules that should be verified
-             -> [String] -- ^ Rules that should have counterexamples
-             -> TestTree
-checkPackage loc correct incorrect =
+-------------------------------------------------------------------------------
+-- G2
+-------------------------------------------------------------------------------
+
+checkG2Package :: FilePath
+               -> [String] -- ^ Functions that should be executed
+               -> TestTree
+checkG2Package loc funcs =
+    withResource
+        (buildPackage loc)
+        (\_ -> return ()) $
+        \io_out ->
+            testGroup
+            loc
+            $ ranFunc io_out funcs
+
+ranFunc :: IO String -> [String] -> [TestTree]
+ranFunc io_out =
+    map (\f -> testCase
+                f
+                (do
+                    out <- io_out
+                    assertBool ("Not run " ++ f) (isSubstringOf f out))
+        )
+
+-------------------------------------------------------------------------------
+-- Nebula
+-------------------------------------------------------------------------------
+
+checkNebulaPackage :: FilePath
+                   -> [String] -- ^ Rules that should be verified
+                   -> [String] -- ^ Rules that should have counterexamples
+                   -> TestTree
+checkNebulaPackage loc correct incorrect =
     withResource
         (buildPackage loc)
         (\_ -> return ()) $
@@ -49,6 +79,16 @@ cexTests io_out incorrect =
                     assertBool ("No counterexample") (not (isVerified i out) && hasCEx i out))
         ) incorrect
 
+isVerified :: String -> String -> Bool
+isVerified f = isSubstringOf (f ++ " - verified")
+
+hasCEx :: String -> String -> Bool
+hasCEx f = isSubstringOf (f ++ " - counterexample found")
+
+-------------------------------------------------------------------------------
+-- Building Packages
+-------------------------------------------------------------------------------
+
 buildPackage :: FilePath -> IO String
 buildPackage loc = do
     (Nothing, Nothing, Nothing, clean_ph) <- createProcess
@@ -66,12 +106,6 @@ buildPackage loc = do
     _ <- evaluate (length out)
     hClose sout
     return out
-
-isVerified :: String -> String -> Bool
-isVerified f = isSubstringOf (f ++ " - verified")
-
-hasCEx :: String -> String -> Bool
-hasCEx f = isSubstringOf (f ++ " - counterexample found")
 
 isSubstringOf :: String -> String -> Bool
 isSubstringOf = isInfixOf

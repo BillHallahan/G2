@@ -8,6 +8,7 @@ module G2.Language.Syntax
     ) where
 
 import GHC.Generics (Generic)
+import Control.DeepSeq
 import Data.Bits
 import Data.Data
 import Data.Foldable
@@ -23,6 +24,7 @@ data Loc = Loc { line :: Int
                , col :: Int
                , file :: String } deriving (Show, Eq, Read, Ord, Generic, Typeable, Data)
 
+instance NFData Loc
 instance Hashable Loc
 
 -- | Records a span in the source code.
@@ -33,11 +35,14 @@ instance Hashable Loc
 data Span = Span { start :: Loc
                  , end :: Loc } deriving (Show, Eq, Read, Ord, Generic, Typeable, Data)
 
+instance NFData Span
 instance Hashable Span
 
 -- | A name has three pieces: an occurence name, Maybe a module name, and a Unique Id.
 data Name = Name T.Text (Maybe T.Text) !Unique (Maybe Span)
             deriving (Show, Read, Generic, Typeable, Data)
+
+instance NFData Name
 
 -- | A value used to ensure a name is Unique
 type Unique = Word64
