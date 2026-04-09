@@ -3,6 +3,7 @@ module FDef where
 import G2.Plugin
 
 import Helper
+import ImportsHelper
 import MyLib
 
 {-# ANN f SymEx #-}
@@ -14,6 +15,11 @@ f (MyIntAlso x) y = call (MyIntAlso y) + x + x + 1
 g :: MyInt -> Int -> Int
 g (MyInt _) _ = 1
 g (MyIntAlso _) _ = 2
+
+{-# ANN h SymEx #-}
+h :: MyInt -> Int -> Int
+h (MyInt _) _ = impHelper 1
+h (MyIntAlso _) _ = 2
 
 {-# ANN recCall (SymExWithConfig "--n 14000") #-}
 recCall :: Int -> Int
