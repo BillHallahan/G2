@@ -49,7 +49,7 @@ instance NFData SymEx
 -- from previously compiled modules.  We also need to avoid reusing the same
 -- names.  We use `compiledModules` to store both previously compiled modules
 -- and existing Expression/Type Name maps.
-compiledModules :: IORef (Maybe (ExtractedG2, NameMap, TypeNameMap))
+compiledModules :: IORef (Maybe (ExtractedG2, NameMap, TypeNameMap, S.Set L.Name))
 compiledModules = unsafePerformIO $ newIORef Nothing
 {-# NOINLINE compiledModules #-}
 
@@ -85,9 +85,12 @@ g2PluginPass' cmd_lne config env modguts = do
         ems = EnvModSumModGuts env [] [modguts]
 
     prev_comp <- liftIO $ readIORef compiledModules
-    (base_exg2, base_nm, base_tnm) <- case prev_comp of
+    (base_exg2, base_nm, base_tnm, prev_explored) <- case prev_comp of
                                         Just prev -> return prev
-                                        Nothing -> liftIO $ translateBase tconfig config [] Nothing
+                                        Nothing -> do
+                                            (b_exg2, b_nm, b_tnm) <- liftIO $ translateBase tconfig config [] Nothing
+                                            let expl = S.fromList . map fst . HM.toList $ exg2_binds b_exg2
+                                            return (b_exg2, b_nm, b_tnm, expl)
 
     (new_nm, new_tm, exg2) <- liftIO $ hskToG2ViaEMS tconfig ems base_nm base_tnm
 
@@ -109,12 +112,12 @@ g2PluginPass' cmd_lne config env modguts = do
 
     let merged_new_base = mergeExtractedG2s [exg2, base_exg2]
 
-    (imports_exg2, (imports_nm, import_tnm)) <- SM.runStateT (loadImports env (exg2_binds merged_new_base) rel_names) (new_nm, new_tm)
+    (imports_exg2, (imports_nm, import_tnm)) <- SM.runStateT (loadImports env (exg2_binds merged_new_base) prev_explored rel_names) (new_nm, new_tm)
 
     let merged_exg2 = mergeExtractedG2s [merged_new_base, imports_exg2]
         injected_exg2 = specialInject merged_exg2
 
-    liftIO $ writeIORef compiledModules $ Just (merged_exg2, imports_nm, import_tnm)
+    liftIO $ writeIORef compiledModules $ Just (merged_exg2, imports_nm, import_tnm, prev_explored)
 
     let simp_state = initSimpleState injected_exg2 imports_nm import_tnm
 
@@ -145,8 +148,8 @@ runFunc cmd_lne simp_state symex_annot entry
     | otherwise = return ()
 
 -- Based on https://dl.acm.org/doi/pdf/10.1145/3495272
-loadImports :: SM.MonadIO m => HscEnv -> HM.HashMap L.Name L.Expr -> Seq.Seq L.Name -> NamesT m ExtractedG2
-loadImports env local_binds ns = do
+loadImports :: SM.MonadIO m => HscEnv -> HM.HashMap L.Name L.Expr -> S.Set L.Name -> Seq.Seq L.Name -> NamesT m ExtractedG2
+loadImports env local_binds prev_explored ns = do
     external_package_state <- liftIO $ hscEPS env
     let all_ids = nonDetNameEnvElts $ eps_PTE external_package_state
         all_tys = mapMaybe (\case
@@ -158,8 +161,7 @@ loadImports env local_binds ns = do
     
     -- Compute bindings. The total number of binds is (very) large. As an optimization, we only convert binds
     -- that are actually relevant to the function(s) we are symbolically executing.
-    rel_binds <- convertRelBinds local_binds all_imp_binds (S.fromList $ F.toList ns) S.empty []
-    liftIO $ putStrLn $ "length rel_binds = " ++ show (length rel_binds)
+    rel_binds <- convertRelBinds local_binds all_imp_binds prev_explored (S.fromList $ F.toList ns) []
     binds <- mapM (uncurry (mkBindTuple Nothing)) rel_binds
     
     tycons <- mapM T.mkTyCon all_tys
@@ -179,14 +181,14 @@ loadImports env local_binds ns = do
 convertRelBinds :: SM.MonadIO m =>
                     HM.HashMap L.Name L.Expr
                 -> [(GHC.Id, CoreExpr)]
+                -> S.Set L.Name -- ^ Previously explored/loaded names
                 -> S.Set L.Name -- ^ Relevant names
-                -> S.Set L.Name
                 -> [(GHC.Id, CoreExpr)]
                 -> NamesT m [(GHC.Id, CoreExpr)]
 convertRelBinds local_binds binds = go
     where
-        go to_explore _ rel | S.null to_explore = return rel
-        go to_explore explored so_far_rel
+        go _ to_explore rel | S.null to_explore = return rel
+        go explored to_explore so_far_rel
             | n `notElem` explored = do
                 -- Find relevent bindings from the imports
                 rel_binds <- filterM (\(i, _) -> liftM2 (==) (valNameLookup $ varName i) (return n)) binds
@@ -195,12 +197,12 @@ convertRelBinds local_binds binds = go
 
                 -- Find relevant local bindings to search deeper for needed imports
                 let local_names = maybe S.empty topVarNames $ HM.lookup n local_binds
-                liftIO . putStrLn $ "n = " ++ show n ++  "     local = " ++ show (length local_names) ++ "     ns = " ++ show (length ns)
+                -- liftIO . putStrLn $ "n = " ++ show n ++  "     local = " ++ show (length local_names) ++ "     ns = " ++ show (length ns)
 
                 let ns' = ((S.fromList n_rel_call_g2 <> local_names) `S.difference` explored) <> ns
                     explored' = S.insert n explored
-                go ns' explored' (rel_binds ++ so_far_rel)
-            | otherwise = go ns explored so_far_rel
+                go explored' ns' (rel_binds ++ so_far_rel)
+            | otherwise = go explored ns so_far_rel
             where
                 Just (n, ns) = S.minView to_explore
 
