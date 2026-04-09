@@ -60,6 +60,7 @@ import G2.Language.TypeEnv
 import qualified G2.Language.TyVarEnv as TV
 import qualified G2.Language.PolyArgMap as PM
 
+import Data.Containers.ListUtils
 import Data.Data (Data, Typeable)
 import Data.Foldable
 import Data.Hashable
@@ -211,7 +212,7 @@ doRenames ns ng e =
 renameAll :: (Named a) => a -> NameGen -> (a, NameGen)
 renameAll x ng =
     let
-        old = nub . toList $ names x
+        old = nubOrd . toList $ names x
     in
     doRenames old ng x
 
