@@ -15,7 +15,6 @@ import GHC.Types.TyThing
 
 import G2.Config
 import G2.Initialization.MkCurrExpr
-import qualified G2.Initialization.Types as IT
 import G2.Interface
 import G2.Initialization.Types as IT
 import G2.Language as L
@@ -25,6 +24,7 @@ import G2.Translation as T
 import Control.Monad
 import qualified Control.Monad.State.Strict as SM
 import Data.Data
+import qualified Data.Foldable as F
 import GHC.Generics (Generic)
 import Control.DeepSeq
 import Data.IORef
@@ -35,7 +35,6 @@ import qualified Data.HashSet as HS
 import Data.Maybe
 import qualified Data.Set as S
 import qualified Data.Sequence as Seq
-import qualified Data.Text as T
 import qualified Data.Text.IO as T
 import Options.Applicative
 import G2.Language.TyVarEnv as TV
@@ -50,7 +49,7 @@ instance NFData SymEx
 -- from previously compiled modules.  We also need to avoid reusing the same
 -- names.  We use `compiledModules` to store both previously compiled modules
 -- and existing Expression/Type Name maps.
-compiledModules :: IORef (Maybe (ExtractedG2, NameMap, TypeNameMap))
+compiledModules :: IORef (Maybe (ExtractedG2, NameMap, TypeNameMap, S.Set L.Name))
 compiledModules = unsafePerformIO $ newIORef Nothing
 {-# NOINLINE compiledModules #-}
 
@@ -86,9 +85,12 @@ g2PluginPass' cmd_lne config env modguts = do
         ems = EnvModSumModGuts env [] [modguts]
 
     prev_comp <- liftIO $ readIORef compiledModules
-    (base_exg2, base_nm, base_tnm) <- case prev_comp of
+    (base_exg2, base_nm, base_tnm, prev_explored) <- case prev_comp of
                                         Just prev -> return prev
-                                        Nothing -> liftIO $ translateBase tconfig config [] Nothing
+                                        Nothing -> do
+                                            (b_exg2, b_nm, b_tnm) <- liftIO $ translateBase tconfig config [] Nothing
+                                            let expl = S.fromList . map fst . HM.toList $ exg2_binds b_exg2
+                                            return (b_exg2, b_nm, b_tnm, expl)
 
     (new_nm, new_tm, exg2) <- liftIO $ hskToG2ViaEMS tconfig ems base_nm base_tnm
 
@@ -103,18 +105,19 @@ g2PluginPass' cmd_lne config env modguts = do
         fs_g2 = map snd ann_fs_g2
 
     -- Get an initial set of relevant bindings to load from imports
-    let rel_names = deepseq ann_fs_g2 .
-                    mconcat
-                  . map (names . flip HM.lookup (exg2_binds exg2))
+    let rel_names = deepseq ann_fs_g2
+                  . Seq.fromList
                   . filter (`elem` fs_g2)
                   $ HM.elems new_nm
 
-    (imports_exg2, (imports_nm, import_tnm)) <- SM.runStateT (loadImports env rel_names) (new_nm, new_tm)
+    let merged_new_base = mergeExtractedG2s [exg2, base_exg2]
 
-    let merged_exg2 = mergeExtractedG2s [exg2, imports_exg2, base_exg2]
+    (imports_exg2, (imports_nm, import_tnm)) <- SM.runStateT (loadImports env (exg2_binds merged_new_base) prev_explored rel_names) (new_nm, new_tm)
+
+    let merged_exg2 = mergeExtractedG2s [merged_new_base, imports_exg2]
         injected_exg2 = specialInject merged_exg2
 
-    liftIO $ writeIORef compiledModules $ Just (merged_exg2, imports_nm, import_tnm)
+    liftIO $ writeIORef compiledModules $ Just (merged_exg2, imports_nm, import_tnm, prev_explored)
 
     let simp_state = initSimpleState injected_exg2 imports_nm import_tnm
 
@@ -145,20 +148,20 @@ runFunc cmd_lne simp_state symex_annot entry
     | otherwise = return ()
 
 -- Based on https://dl.acm.org/doi/pdf/10.1145/3495272
-loadImports :: SM.MonadIO m => HscEnv -> Seq.Seq L.Name -> NamesT m ExtractedG2
-loadImports env ns = do
+loadImports :: SM.MonadIO m => HscEnv -> HM.HashMap L.Name L.Expr -> S.Set L.Name -> Seq.Seq L.Name -> NamesT m ExtractedG2
+loadImports env local_binds prev_explored ns = do
     external_package_state <- liftIO $ hscEPS env
     let all_ids = nonDetNameEnvElts $ eps_PTE external_package_state
         all_tys = mapMaybe (\case
                                 ATyCon t -> Just t
                                 _ -> Nothing) all_ids
-        all_binds = mapMaybe (\case
+        all_imp_binds = mapMaybe (\case
                                         AnId i -> fmap (i,) . maybeUnfoldingTemplate $ realIdUnfolding i
                                         _ -> Nothing) all_ids
     
     -- Compute bindings. The total number of binds is (very) large. As an optimization, we only convert binds
     -- that are actually relevant to the function(s) we are symbolically executing.
-    rel_binds <- convertRelBinds ns HS.empty all_binds []
+    rel_binds <- convertRelBinds local_binds all_imp_binds prev_explored (S.fromList $ F.toList ns) []
     binds <- mapM (uncurry (mkBindTuple Nothing)) rel_binds
     
     tycons <- mapM T.mkTyCon all_tys
@@ -176,37 +179,83 @@ loadImports env ns = do
 
 -- | Compute bindings that are actually relevant to the passed list of "relevant names".
 convertRelBinds :: SM.MonadIO m =>
-                   Seq.Seq L.Name -- ^ Relevant names
-                -> HS.HashSet L.Name -> [(GHC.Id, CoreExpr)] -> [(GHC.Id, CoreExpr)] -> NamesT m [(GHC.Id, CoreExpr)]
-convertRelBinds Seq.Empty _ _ rel = return rel
-convertRelBinds (n Seq.:<| ns) explored binds so_far_rel
-    | n `notElem` explored = do
-        rel_binds <- filterM (\(i, _) -> liftM2 (==) (valNameLookup $ varName i) (return n)) binds
-        let n_rel_call = S.toList . mconcat $ map (relVar . snd) rel_binds
-        n_rel_call_g2 <- mapM (valNameLookup . varName) n_rel_call
-        let ns' = Seq.fromList n_rel_call_g2 <> ns
-            explored' = HS.insert n explored
-        convertRelBinds ns' explored' binds (rel_binds ++ so_far_rel)
-    | otherwise = convertRelBinds ns explored binds so_far_rel
+                    HM.HashMap L.Name L.Expr
+                -> [(GHC.Id, CoreExpr)]
+                -> S.Set L.Name -- ^ Previously explored/loaded names
+                -> S.Set L.Name -- ^ Relevant names
+                -> [(GHC.Id, CoreExpr)]
+                -> NamesT m [(GHC.Id, CoreExpr)]
+convertRelBinds local_binds binds = go
+    where
+        go _ to_explore rel | S.null to_explore = return rel
+        go explored to_explore so_far_rel
+            | n `notElem` explored = do
+                -- Find relevent bindings from the imports
+                rel_binds <- filterM (\(i, _) -> liftM2 (==) (valNameLookup $ varName i) (return n)) binds
+                let n_rel_call = S.toList . mconcat $ map (relVar . snd) rel_binds
+                n_rel_call_g2 <- mapM (valNameLookup . varName) n_rel_call
+
+                -- Find relevant local bindings to search deeper for needed imports
+                let local_names = maybe S.empty topVarNames $ HM.lookup n local_binds
+                -- liftIO . putStrLn $ "n = " ++ show n ++  "     local = " ++ show (length local_names) ++ "     ns = " ++ show (length ns)
+
+                let ns' = ((S.fromList n_rel_call_g2 <> local_names) `S.difference` explored) <> ns
+                    explored' = S.insert n explored
+                go explored' ns' (rel_binds ++ so_far_rel)
+            | otherwise = go explored ns so_far_rel
+            where
+                Just (n, ns) = S.minView to_explore
+
+topVarNames :: L.Expr -> S.Set L.Name
+topVarNames = go HS.empty
+    where
+        go bound (L.Var (Id n _)) | n `notElem` bound = S.singleton n
+        go bound (L.Lam _ (Id b _) e) = go (HS.insert b bound) e
+        go bound (L.Let kvs e) =
+            let
+                bound' = foldr HS.insert bound (map (L.idName . fst) kvs) 
+            in
+            S.unions $ map (go bound') (e:map snd kvs)
+        go bound (L.Case e cvar _ as) =
+            let
+                bound' = HS.insert (L.idName cvar) bound
+
+                add (L.DataAlt _ is) = foldr (HS.insert) bound' (map L.idName is)
+                add (L.LitAlt _) = bound'
+                add L.Default = bound'
+            in
+            S.unions $ go bound' e:map (\(L.Alt am ae) -> go (add am) ae) as
+        go bound e = evalChildren (go bound) e
 
 -- Compute the set of variables used in a (GHC Core) Expr
-relVar :: GHC.Expr b -> S.Set GHC.Id
-relVar (GHC.Var i) = S.singleton i
-relVar (GHC.Lit _) = S.empty
-relVar (GHC.App e1 e2) = relVar e1 <> relVar e2
-relVar (GHC.Lam _ e) = relVar e
-relVar (GHC.Let b e) =
-    let
-        relB (NonRec _ nr_e) = relVar nr_e
-        relB (Rec nr_es) = mconcat $ map (relVar . snd) nr_es
-    in
-    relB b <> relVar e
-relVar (GHC.Case e _ _ as) =
-    relVar e <> mconcat (map (\(GHC.Alt _ _ a_e) -> relVar a_e) as)
-relVar (GHC.Cast e _) = relVar e
-relVar (GHC.Tick _ e) = relVar e
-relVar (GHC.Type _) = S.empty
-relVar (GHC.Coercion _) = S.empty
+relVar :: GHC.CoreExpr -> S.Set GHC.Id
+relVar = go S.empty
+    where
+        go bound (GHC.Var i) | i `notElem` bound = S.singleton i
+                            | otherwise = S.empty
+        go _ (GHC.Lit _) = S.empty
+        go bound (GHC.App e1 e2) = go bound e1 <> go bound e2
+        go bound (GHC.Lam i e) = go (S.insert i bound) e
+        go bound (GHC.Let b e) =
+            let
+                newIds (NonRec i _) = S.singleton i
+                newIds (Rec nr_es) = S.fromList $ map fst nr_es
+
+                bound' = bound `S.union` newIds b
+
+                relB (NonRec _ nr_e) = go bound' nr_e
+                relB (Rec nr_es) = mconcat $ map (go bound' . snd) nr_es
+            in
+            relB b <> go bound' e
+        go bound (GHC.Case e i _ as) =
+            let
+                bound' = S.insert i bound
+            in
+            go bound' e <> mconcat (map (\(GHC.Alt _ is a_e) -> go (foldr S.insert bound' is) a_e) as)
+        go bound (GHC.Cast e _) = go bound e
+        go bound (GHC.Tick _ e) = go bound e
+        go _ (GHC.Type _) = S.empty
+        go _ (GHC.Coercion _) = S.empty
 
 annotationsOn :: Data a => ModGuts -> CoreBndr -> CoreM [a]
 annotationsOn guts bndr = do

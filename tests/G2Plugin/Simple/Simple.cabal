@@ -20,6 +20,7 @@ executable Simple
     main-is:          Main.hs
     other-modules:      FDef
                       , Helper
+                      , ImportsHelper
     -- other-extensions:
     build-depends:    base >=4.14
                     , g2 >= 0.1.0.2
