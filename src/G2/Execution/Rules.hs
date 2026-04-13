@@ -155,7 +155,7 @@ containsTyVars :: Type -> [Id] -> Bool
 containsTyVars t as = not . null $ as `intersect` tyVarIds t
 
 -- A rule function can produce multiple states but must produce one NameGen.
-type FARuleF = NameGen -> Maybe ([(Expr, E.ExprEnv)], NameGen)
+type FARuleF = NameGen -> Maybe ([(Expr, E.ExprEnv, TypeEnv)], NameGen)
 evalForAll :: forall t. [Type] -> [Type] -> Type 
     -> State t -> E.ExprEnv -> NameGen -> Id -> (Rule, [State t], NameGen)
 evalForAll as ts tr s@(State {type_env = tenv, known_values = kv, tyvar_env = tvenv}) eenv ng i =
@@ -180,7 +180,7 @@ evalForAll as ts tr s@(State {type_env = tenv, known_values = kv, tyvar_env = tv
                     case ruleF ng_before of
                         Nothing -> (ss, ng_before)
                         Just (res_tups, ng_after) -> 
-                            let newStates = map (\(ex, env) -> s {curr_expr = CurrExpr Return ex, expr_env = env}) res_tups
+                            let newStates = map (\(ex, env, tyenv) -> s {curr_expr = CurrExpr Return ex, expr_env = env, type_env = tyenv}) res_tups
                                 result = (newStates ++ ss, ng_after)
                             in 
                                 if log_rules then trace ruleS result else result) ([], ng')
@@ -201,7 +201,7 @@ evalForAll as ts tr s@(State {type_env = tenv, known_values = kv, tyvar_env = tv
                 es' = map (e_template . Var) ret_x_ids
                 eenvs' = map (\ex -> E.insert (idName i) ex eenv) es'
 
-                state_tups = zip es' eenvs'
+                state_tups = zip3 es' eenvs' (repeat tenv)
             in Just (state_tups, ng_in)
             | otherwise = Nothing
 
@@ -221,12 +221,12 @@ evalForAll as ts tr s@(State {type_env = tenv, known_values = kv, tyvar_env = tv
                 eenv' = E.insertSymbolic f eenv
                 eenv'' = E.insert (idName i) e' eenv'
 
-            in Just ([(e', eenv'')], ng''')
+            in Just ([(e', eenv'', tenv)], ng''')
             | otherwise = Nothing
 
         -- PM-UNWRAP
         pmUnwrap ng_in
-            | (Just dc_arg, other_args) <- partitionFirst (isUnwrapable . typeOf tvenv) term_args
+            | (Just dc_arg, other_args) <- partitionFirst (isUnwrapable tenv . typeOf tvenv) term_args
             , dc_arg_ty <- typeOf tvenv dc_arg
             , TyCon tname _:ts <- unTyApp dc_arg_ty
             , Just alg_data_ty <- HM.lookup tname tenv
@@ -254,7 +254,7 @@ evalForAll as ts tr s@(State {type_env = tenv, known_values = kv, tyvar_env = tv
                 eenv' = foldr E.insertSymbolic eenv symIds
                 eenv'' = E.insert (idName i) e' eenv'
 
-            in Just ([(e', eenv'')], ng''')
+            in Just ([(e', eenv'', tenv)], ng''')
             | otherwise = Nothing
 
         -- PM-INST-ADT
@@ -285,13 +285,13 @@ evalForAll as ts tr s@(State {type_env = tenv, known_values = kv, tyvar_env = tv
 
                 eenvs' = map (foldr E.insertSymbolic eenv . snd) dc_exprs_with_sym_ids
                 eenvs'' = zipWith (E.insert (idName i)) es' eenvs'
-                inst_adt_tups = zip es' eenvs''
+                inst_adt_tups = zip3 es' eenvs'' (repeat tenv)
 
             in Just (inst_adt_tups, ng'')
             | otherwise = Nothing
             
         -- PM-FUNC
-        pmFun :: Id -> NameGen -> (Expr, E.ExprEnv, NameGen)
+        pmFun :: Id -> NameGen -> (Expr, E.ExprEnv, TypeEnv, NameGen)
         pmFun fun_id ng_in 
             = let
                 other_ids = filter (/= fun_id) term_args
@@ -308,44 +308,55 @@ evalForAll as ts tr s@(State {type_env = tenv, known_values = kv, tyvar_env = tv
                 eenv' = foldr E.insertSymbolic eenv (f:symIds)
                 eenv'' = E.insert (idName i) e' eenv'
 
-            in (e', eenv'', ng'''')
+            in (e', eenv'', tenv, ng'''')
 
         -- | Apply a rule function for each matching term argument while threading a NameGen. Helper 
         -- for some rules that produce multiple states.
-        pmAppAll :: (Id -> NameGen -> (Expr, E.ExprEnv, NameGen)) -> (Id -> Bool) -> NameGen -> Maybe ([(Expr, E.ExprEnv)], NameGen)
+        pmAppAll :: (Id -> NameGen -> (Expr, E.ExprEnv, TypeEnv, NameGen)) -> (Id -> Bool) 
+                    -> NameGen -> Maybe ([(Expr, E.ExprEnv, TypeEnv)], NameGen)
         pmAppAll ruleFunc matchFunc ng_in = 
             case foldr (\rule_id (tups, ng_before) -> 
                 let 
-                    (ex, env, ng_after) = ruleFunc rule_id ng_before
-                in ((ex, env):tups, ng_after)) ([], ng_in) (filter matchFunc term_args)
+                    (ex, env, tenv_after, ng_after) = ruleFunc rule_id ng_before
+                in ((ex, env, tenv_after):tups, ng_after)) ([], ng_in) (filter matchFunc term_args)
             of res@(_:_, _) -> Just res
                _ -> Nothing
 
         -- PM-FUNC-FORALL
         -- Assumes all bindings are non-empty/correct constructor as guaranteed by isMatchingFuncArgForall
-        pmFunForall fun_id ng_in 
+        pmFunForall fun_id ng_in
             = let
-                other_ids = filter (/= fun_id) term_args
                 fun_ty = typeOf tvenv fun_id
                 fa_as = leadingTyForAllBindings fun_ty
                 fa_t = inTyForAlls fun_ty
 
-                applying_type = tyInteger kv
-                (f_as, ng'') = freshSeededIds as_ids ng_in
-                (fa_ts_subst, fa_tr_subst) = argTypes $ retypes (map (, applying_type) fa_as) fa_t
+                -- generate ADTs from the Kinds of the function argument's type variables
+                ((ng2, tenv2), gen_adt_names) = genADTsWithKinds (map getKind fa_as) ng_in tenv
+                -- make the types for applying in the expression
+                gen_adt_types = zipWith TyCon gen_adt_names (map getKind fa_as)
+                -- map for retyping f and arguments to function argument
+                fa_as_retyping_map = zip fa_as gen_adt_types
+
+                other_ids = filter (/= fun_id) term_args
+
+                -- new a's for top-level new symbolic function
+                (f_as, ng3) = freshSeededIds as_ids ng2
+                -- retyping to gen adts to get fa's argument types
+                (fa_ts_subst, fa_tr_subst) = argTypes $ retypes fa_as_retyping_map fa_t
+                -- top-level function retyped (old a's -> new a's)
                 f_ty = renames (HM.fromList (zip (map idName as_ids) (map idName f_as))) 
                                     $ mkNestedForAll as $ mkTyFun (fa_tr_subst:map (typeOf tvenv) (fun_id:other_ids) ++ [tr])
-                (f, ng''') = freshId f_ty ng''
+                (f, ng4) = freshId f_ty ng3
 
-                (fa_exprs, symIds, ng'''') = argumentExprs ng''' term_args fa_ts_subst
+                -- make symbolic and direct arguments to function argument using retyped argument types
+                (fa_exprs, symIds, ng5) = argumentExprs ng4 term_args fa_ts_subst
 
-                t_vs = replicate (length fa_as) (Type applying_type)
-                e' = e_template . mkApp $ (Var f:map (Type . TyVar) as_ids) ++ [mkApp $ (Var fun_id:t_vs) ++ fa_exprs] ++ map Var (fun_id:other_ids)
+                e' = e_template . mkApp $ (Var f:map (Type . TyVar) as_ids) ++ [mkApp $ (Var fun_id:map Type gen_adt_types) ++ fa_exprs] ++ map Var (fun_id:other_ids)
 
                 eenv' = foldr E.insertSymbolic eenv (f:symIds)
                 eenv'' = E.insert (idName i) e' eenv'
 
-            in (e', eenv'', ng'''')
+            in (e', eenv'', tenv2, ng5)
 
         -- PM-CONST
         pmConst ng_in
@@ -356,7 +367,7 @@ evalForAll as ts tr s@(State {type_env = tenv, known_values = kv, tyvar_env = tv
 
                 eenv' = E.insertSymbolic x_tr eenv
                 eenv'' = E.insert (idName i) e' eenv'
-            in Just ([(e', eenv'')], ng'')
+            in Just ([(e', eenv'', tenv)], ng'')
             | otherwise = Nothing
 
         -----
@@ -366,10 +377,10 @@ evalForAll as ts tr s@(State {type_env = tenv, known_values = kv, tyvar_env = tv
             Nothing -> (Nothing, l)
             Just found_elem -> (Just found_elem, filter (/= found_elem) l) 
 
-        isUnwrapable :: Type -> Bool
-        isUnwrapable possUW = containsTyVars possUW as_ids && possUW `notElem` as  
+        isUnwrapable :: TypeEnv -> Type -> Bool
+        isUnwrapable tenv_ possUW = containsTyVars possUW as_ids && possUW `notElem` as  
                            && (case unTyApp possUW of 
-                                TyCon tname _:_ -> case HM.lookup tname tenv of
+                                TyCon tname _:_ -> case HM.lookup tname tenv_ of
                                     Just _ -> True
                                     Nothing -> False
                                 _ -> False)
@@ -1795,14 +1806,21 @@ retReplaceSymbFuncTemplate sft
     , E.isSymbolic n eenv
     , kindsHandled as
     = let
+        -- generate ADTs from the Kinds of the function argument's type variables
         ((ng2, tenv2), gen_adt_names) = genADTsWithKinds (map getKind as) ng tenv
+        -- make the types for applying in the expression
         gen_adt_types = zipWith TyCon gen_adt_names (map getKind as)
+        -- map for retyping f and arguments to function argument
         as_retyping_map = zip as gen_adt_types
 
+        -- make fresh Id for function argument
         (func_arg_id, ng3) = freshId t1 ng2
+        -- make Id for f using retyped function argument return type
         (f, ng4) = freshId (TyFun (retypes as_retyping_map tr) $ TyFun t1 t2) ng3
+        -- make arguments Ids using retyped function argument argument types
         (xIds, ng5) = freshIds (retypes as_retyping_map tfs) ng4
 
+        -- gen adt types for use in expression
         gen_adt_type_exprs = map Type gen_adt_types
         e = Lam TermL func_arg_id $ mkApp [Var f, mkApp (Var func_arg_id:(gen_adt_type_exprs ++ map Var xIds)), Var func_arg_id]
         
