@@ -147,7 +147,7 @@ runCheck init_pg comp_func modN entry chAll chAny b er@(ExecRes {final_state = s
            . updatePGValAndTypeNames out
            $ updatePGValAndTypeNames (varIds v) init_pg
 
-    let (mvTxt, arsTxt, outTxt, _) = printInputOutput pg v b er 
+    let (gen_adts, mvTxt, arsTxt, outTxt, _) = printInputOutput pg v b er 
         mvStr = T.unpack mvTxt
         arsStr = T.unpack arsTxt
         outStr = T.unpack outTxt
@@ -335,16 +335,19 @@ printStateOutput config entry b m_valid exec_res@(ExecRes { final_state = s }) =
                                         Just False -> "✗ "
                                         Nothing -> "✗TO "))
 
-    let pg = mkPrettyGuide (exprNames $ conc_args exec_res)
-    let (mvp, inp, outp, handles) = printInputOutput pg entry b exec_res
+    -- Don't immediately add Names for generated ADTs and their constructors. They will be added later through printInputOutput
+    let filtered_names = filter (\(Name n _ _ _) -> n `notElem` ["GenT", "GenC", "GenN"]) (exprNames $ conc_args exec_res)
+
+    let pg = mkPrettyGuide filtered_names
+    let (gen_adts, mvp, inp, outp, handles) = printInputOutput pg entry b exec_res
         sym_gen_out = fmap (printHaskellPG pg s) $ conc_sym_gens exec_res
         
-    let print_method = \m i o -> m <> i <> " = " <> o 
+    let print_method = \g m i o -> g <> m <> i <> " = " <> o 
 
     when (print_output config ) (do
         case sym_gen_out of
-            S.Empty -> T.putStrLn $ print_method mvp inp outp
-            _ -> T.putStrLn $ print_method mvp inp outp <> "\t| generated: " <> T.intercalate ", " (toList sym_gen_out)
+            S.Empty -> T.putStrLn $ print_method gen_adts mvp inp outp
+            _ -> T.putStrLn $ print_method gen_adts mvp inp outp <> "\t| generated: " <> T.intercalate ", " (toList sym_gen_out)
         if handles /= "" then T.putStrLn handles else return ())
 
 

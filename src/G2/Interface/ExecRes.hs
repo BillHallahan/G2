@@ -9,7 +9,9 @@ import G2.Lib.Printers
 import Data.Maybe
 import qualified Data.Sequence as S
 import qualified Data.Text as T
+import qualified Data.HashMap.Lazy as M
 import G2.Language.KnownValues (KnownValues(dcEmpty))
+import qualified G2.Language.TypeEnv as TE
 
 type StartFunc = T.Text
 
@@ -28,15 +30,45 @@ printInputOutput :: PrettyGuide
                  -> Id -- ^ Input function
                  -> Bindings
                  -> ExecRes t
-                 -> (T.Text, T.Text, T.Text, T.Text) -- ^ Mutable variables, input, output, handles
+                 -> (T.Text, T.Text, T.Text, T.Text, T.Text) -- ^ Mutable variables, input, output, handles
 printInputOutput pg i (Bindings { input_coercion = c }) er =
     let
         er' = er { conc_args = modifyASTs remMutVarPrim (conc_args er)
                  , conc_out = modifyASTs remMutVarPrim (conc_out er)
                  , conc_sym_gens = modifyASTs remMutVarPrim (conc_sym_gens er)
                  , conc_mutvars = modifyASTs remMutVarPrim (conc_mutvars er) }
+        
+        -- Set up mappings for generated ADTs in the PrettyGuide so printGenADTs and printInputFunc can use the same mappings.
+        pg_gen_adt = updatePGTrackGenADTNames er' pg
     in
-    (printMutVars pg er', printInputFunc pg c i er', printOutput pg er', printHandles pg er')
+    -- TODO: pass updated PG to other printers?
+    (printGenADTs pg_gen_adt er', printMutVars pg er', printInputFunc pg_gen_adt c i er', printOutput pg er', printHandles pg er')
+
+updatePGTrackGenADTNames :: ExecRes t -> PrettyGuide -> PrettyGuide
+updatePGTrackGenADTNames (ExecRes {conc_args = cas, final_state = State {type_env = tenv}}) pg
+    = updatePGADTs pg (M.elems $ filterTEToNeededGenADTs cas tenv)
+
+filterTEToNeededGenADTs :: [Expr] -> TypeEnv -> TypeEnv
+filterTEToNeededGenADTs arg_exprs tenv = go M.empty gen_adts_in_args
+    where
+        gen_adts_in_args = TE.filterTE (anyDCsInNames arg_exprs) all_gen_adts -- only ADTs with constructors in the arguments (acts as "seed set")
+        -- Checks recursively if new generated ADTs are present in the names of those in the limited TypeEnv.
+        -- Outputs may print generated ADTs that do not seem to appear in the expression. example:
+        --      data GenT'2  = GenC'2 :: GenT'2 -> GenT'2 | GenN'2 :: GenT'2
+        --      data GenT a = GenC :: (forall a . a -> (GenT a) -> (GenT a)) | GenN :: (forall a . (GenT a))
+        --      polyFuncArgTwoKinds (\fs -> case fs GenN of
+        --          GenC fs'3 fs'2 -> 1
+        --          GenN  -> 0) = 0
+        -- This is because (fs'3 :: GenT'2), and types are not printed in outputs. TODO: does this leave out information
+        go :: TypeEnv -> TypeEnv -> TypeEnv
+        go prev new | prev == new = new
+                    | otherwise = go new updated
+                    where
+                    updated = TE.filterTE (anyDCsInNames new) all_gen_adts
+        all_gen_adts = TE.filterToGenADTs tenv -- get only generated ADTs
+        
+        anyDCsInNames :: (Named a) => a -> AlgDataTy -> Bool
+        anyDCsInNames nd adt = any (`elem` names nd) (names $ dataCon adt)
 
 printMutVars :: PrettyGuide -> ExecRes t -> T.Text
 printMutVars pg (ExecRes { final_state = s, conc_mutvars = mv@(_:_) }) =
@@ -69,6 +101,11 @@ printHandle :: PrettyGuide -> State t -> Name -> Expr -> Maybe T.Text
 printHandle _ s _ e | (Data (DataCon { dc_name = n }):_) <- unApp e
                     , n == dcEmpty (known_values s) = Nothing
 printHandle pg s n h = Just (" --- " <> printName pg n <> " --- \n\t" <> printHaskellPG pg s h)
+
+printGenADTs :: PrettyGuide -> ExecRes t -> T.Text
+printGenADTs pg (ExecRes {conc_args = cas, final_state = (State {tyvar_env = tvenv, type_env = tenv})}) 
+    = let adts_text = prettyTypeEnv tvenv pg (filterTEToNeededGenADTs cas tenv)
+    in if adts_text == T.empty then T.empty else adts_text <> "\n"
 
 instance Named t => Named (ExecRes t) where
     names :: Named t => ExecRes t -> S.Seq Name

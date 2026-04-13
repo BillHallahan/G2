@@ -11,6 +11,9 @@ module G2.Language.TypeEnv
   , getAlgDataTy
   , getDataCon
   , getDataConNameMod
+  , filterTE
+  , filterToGenADTs
+  , isEmpty
   , module G2.Language.AlgDataTy
   ) where
 
@@ -88,3 +91,12 @@ dataConWithNameMod _ _ = Nothing
 
 dataConHasNameMod :: DataCon -> Name -> Bool
 dataConHasNameMod (DataCon (Name n m _ _) _ _ _) (Name n' m' _ _) = n == n' && m == m'
+
+filterTE :: (AlgDataTy -> Bool) -> TypeEnv -> TypeEnv
+filterTE = M.filter
+
+filterToGenADTs :: TypeEnv -> TypeEnv
+filterToGenADTs = filterTE ((== ADTG2Generated) . adt_source)
+
+isEmpty :: TypeEnv -> Bool
+isEmpty = (==) M.empty
