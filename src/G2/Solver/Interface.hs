@@ -164,4 +164,6 @@ pushCaseAppArgIn = modifyASTs pushCaseAppArgIn'
 pushCaseAppArgIn' :: Expr -> Expr
 pushCaseAppArgIn' (App (Case scrut bind t as) v@(Var _)) =
     Case scrut bind t $ map (\(Alt am e) -> Alt am (App e v) ) as
+pushCaseAppArgIn' (App (Case scrut bind t as) t_ex@(Type _)) =
+    Case scrut bind t $ map (\(Alt am e) -> Alt am (App e t_ex)) as
 pushCaseAppArgIn' e = e
