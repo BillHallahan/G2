@@ -659,7 +659,7 @@ testFileTests = testGroup "TestFiles"
                                                                        , ("polyFuncArgHigherKind", 90, [AtLeast 30])
                                                                        , ("polyFuncArgWithPolyFuncArg", 100, [AtLeast 10])
                                                                        , ("polyFuncArgWithPolyFuncArg2", 100, [AtLeast 10])
-                                                                       , ("forallWithPolyFuncArg", 200, [AtLeast 10])
+                                                                       , ("forallWithPolyFuncArg", 130, [AtLeast 10])
                                                                        , ("forallWithPolyFuncArg2", 200, [AtLeast 10])
                                                                        , ("forallWithPolyFuncArg3", 200, [AtLeast 10])
                                                                        , ("forallWithPolyFuncArgSecond", 200, [AtLeast 10])
