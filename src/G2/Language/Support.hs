@@ -358,7 +358,7 @@ instance Named Bindings where
             <> names (exported_funcs b)
             <> names (rewrite_rules b)
 
-    rename old new b =
+    rename old new b@(Bindings {printed_outputs = po}) =
         Bindings { fixed_inputs = rename old new (fixed_inputs b)
                  , arb_value_gen = arb_value_gen b
                  , cleaned_names = HM.insert new old (cleaned_names b)
@@ -369,9 +369,10 @@ instance Named Bindings where
                  , rewrite_rules = rename old new (rewrite_rules b)
                  , name_gen = name_gen b
                  , exported_funcs = rename old new (exported_funcs b)
+                 , printed_outputs = po -- String literal persistent across execution, not to be renamed
                  }
 
-    renames hm b =
+    renames hm b@(Bindings {printed_outputs = po}) =
         Bindings { fixed_inputs = renames hm (fixed_inputs b)
                , arb_value_gen = arb_value_gen b
                , cleaned_names = foldr (\(old, new) -> HM.insert new old) (cleaned_names b) (HM.toList hm)
@@ -382,6 +383,7 @@ instance Named Bindings where
                , rewrite_rules = renames hm (rewrite_rules b)
                , name_gen = name_gen b
                , exported_funcs = renames hm (exported_funcs b)
+               , printed_outputs = po
                }
 
 instance ASTContainer Bindings Expr where
