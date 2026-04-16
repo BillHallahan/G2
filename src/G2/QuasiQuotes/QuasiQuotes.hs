@@ -235,7 +235,7 @@ runExecutionQ s b config = do
         (SomeReducer red, SomeHalter hal, SomeOrderer ord) -> do
             let (s'', b'') = runG2Pre emptyMemConfig s' b'
                 hal' = hal <~> zeroHalter 2000 <~> lemmingsHalter
-            (xs, b''') <- runExecutionToProcessed red hal' ord (\s b -> return $ Just (s, name_gen b)) noAnalysis s'' b''
+            (xs, b''') <- runExecutionToProcessed red hal' ord (\s b -> return $ Just (s, name_gen b, b'')) noAnalysis s'' b''
 
             case xs of
                 Processed { accepted = acc, discarded = [] } -> do
@@ -452,8 +452,8 @@ solveStates'' _ _ _ [] = return Nothing
 solveStates'' sol simplifier b (s:xs) = do
     m_ex_res <- runG2Solving sol simplifier s b
     case m_ex_res of
-        Just _ -> do
-            return m_ex_res
+        Just (ex_res, ng, _) -> do
+            return $ Just (ex_res, ng)
         Nothing -> solveStates'' sol simplifier b xs
 
 -- | Get the values of the symbolic arguments, and returns them in a tuple

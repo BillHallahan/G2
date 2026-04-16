@@ -95,6 +95,8 @@ data Bindings = Bindings { fixed_inputs :: [Expr]
                          , rewrite_rules :: ![RewriteRule]
                          , name_gen :: NameGen
                          , exported_funcs :: [Name]
+
+                         , printed_outputs :: S.HashSet T.Text -- ^ Outputs that have been printed during execution
                          } deriving (Show, Eq, Read, Typeable, Data)
 
 errorRaised :: State t -> Bool

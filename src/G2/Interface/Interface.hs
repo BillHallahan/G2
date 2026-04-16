@@ -241,7 +241,8 @@ initStateFromSimpleState s m_mod useAssert mkCurr argTys config =
     , higher_order_inst = S.filter (\n -> nameModule n `elem` m_mod) . S.fromList $ IT.exports s
     , rewrite_rules = IT.rewrite_rules s
     , name_gen = ng'''
-    , exported_funcs = IT.exports s })
+    , exported_funcs = IT.exports s
+    , printed_outputs = S.empty })
 
 mkArgTys :: Config -> TV.TyVarEnv -> Expr -> MkArgTypes
 mkArgTys config tv e simp_s =
@@ -821,11 +822,11 @@ runG2Solving :: ( MonadIO m
              -> simplifier
              -> State t
              -> Bindings
-             -> m (Maybe (ExecRes t, NameGen))
+             -> m (Maybe (ExecRes t, NameGen, Bindings))
 runG2Solving solver simplifier s bindings = do
     res <- liftIO $ runG2SolvingResult solver simplifier bindings s
     case res of
-        SAT m -> return $ Just m
+        SAT (er, ng) -> return $ Just (er, ng, bindings)
         _ -> return Nothing
 
 runG2SolvingValidate :: ( MonadIO m
@@ -842,24 +843,24 @@ runG2SolvingValidate :: ( MonadIO m
              -> simplifier
              -> State t
              -> Bindings
-             -> m (Maybe (ExecRes t, NameGen))
+             -> m (Maybe (ExecRes t, NameGen, Bindings))
 runG2SolvingValidate modN entry entry_id config solver simplifier s bindings = do
     res <- runG2Solving solver simplifier s bindings
     case res of
-        Just (m, ng) | validate config -> do
+        Just (m, ng, _) | validate config -> do
                 let m' = if print_encode_float config then toEnclodeFloat m else m
 
                 (res', isVal) <- runValidate (validate_with config) modN entry solver simplifier bindings m' 5
                 let res'' = res' {validated = isVal}
 
-                liftIO $ do
+                bindings' <- liftIO $ do
                     printStateOutput config entry_id bindings (Just isVal) m'
 
-                return (Just( res'', ng))
-        Just (m, _) -> do
-            liftIO $ printStateOutput config entry_id bindings Nothing m
-            return res
-        _ -> return res
+                return (Just( res'', ng, bindings'))
+        Just (m, ng, _) -> do
+            bindings' <- liftIO $ printStateOutput config entry_id bindings Nothing m
+            return (Just (m, ng, bindings'))
+        _ -> return Nothing
 
 runValidate :: ( MonadIO m
                     , GhcMonad m
@@ -891,7 +892,7 @@ runValidate val_with modN entry solver simplifier bindings
                 fs' = fs {expr_env = eenv', path_conds = newPc}
             res' <- runG2Solving solver simplifier fs' bindings
             case res' of
-                Just (m, !_) -> runValidate val_with modN entry solver simplifier bindings m (runLimit - 1)
+                Just (m, !_, _) -> runValidate val_with modN entry solver simplifier bindings m (runLimit - 1)
                 Nothing -> return (res, isValidated)
         _ -> return (res, isValidated)
 
