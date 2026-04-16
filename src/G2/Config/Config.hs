@@ -96,6 +96,7 @@ data Config = Config {
     , extraDefaultMods :: [FilePath]
     , includePaths :: Maybe [FilePath] -- ^ Paths to search for modules
     , print_output :: Bool -- ^ Print function outputs
+    , print_duplicate_outputs :: Bool -- ^ Print duplicates of the same output.
     , logStates :: LogMode -- ^ Determines whether to Log states, and if logging states, how to do so.
     , logEveryN :: Int -- ^ If logging states, log every nth state
     , logAfterN :: Int -- ^ Logs state only after the nth state
@@ -165,6 +166,7 @@ mkConfig homedir = Config Regular
     <*> pure []
     <*> mkIncludePaths
     <*> flag True False (long "no-print-outputs" <> help "Print function outputs")
+    <*> flag True False (long "no-duplicate-outputs" <> help "don't print duplicates of the same output")
     <*> mkLogMode
     <*> option auto (long "log-every-n"
                    <> metavar "LN"

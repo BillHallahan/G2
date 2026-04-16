@@ -2384,7 +2384,7 @@ logRedRuleNum _ _ _ = return ()
 --------
 
 -- | Solve for concrete values in a fully executed state.
-type SolveStates m r t = State t -> Bindings -> m (Maybe (r, NameGen))
+type SolveStates m r t = State t -> Bindings -> m (Maybe (r, NameGen, Bindings))
 
 {-# INLINABLE runReducer #-}
 {-# SPECIALIZE runReducer :: Ord b =>
@@ -2442,18 +2442,18 @@ runReducer red hal ord solve_r analyze init_state init_bindings = do
                 ()
                     | hc == Accept -> do
                         (s', b') <- onAccept red s b r_val
-                        er_ng <- solve_r s' b'
+                        er_ng_b <- solve_r s' b'
                         sequence_ $ analyze <*> pure (StateAccepted s') <*> pure pr <*> pure (map state . concat $ M.elems xs)
-                        (pr', ng') <- case er_ng of
-                                        Just (er', ng) -> do
+                        (pr', ng', b'') <- case er_ng_b of
+                                        Just (er', ng, bs) -> do
                                             onSolved red
-                                            return $ (pr {accepted = er':accepted pr}, ng)
-                                        Nothing -> return (pr, name_gen b')
-                        let b'' = b' { name_gen = ng' }
+                                            return $ (pr {accepted = er':accepted pr}, ng, bs)
+                                        Nothing -> return (pr, name_gen b', b')
+                        let b''' = b'' { name_gen = ng' }
                         let jrs = minState pr' xs
                         case jrs of
-                            Just (rs', xs') -> switchState pr' rs' b'' xs'
-                            Nothing -> return (pr', b'')
+                            Just (rs', xs') -> switchState pr' rs' b''' xs'
+                            Nothing -> return (pr', b''')
                     | Discard dis_name <- hc -> do
                         onDiscard red dis_name xs s r_val
                         sequence_ $ analyze <*> pure (StateDiscarded s) <*> pure pr <*> pure (map state . concat $ M.elems xs)
