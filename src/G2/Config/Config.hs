@@ -380,6 +380,7 @@ mkConfigDirect homedir as m = Config {
     , extraDefaultMods = []
     , includePaths = Nothing
     , print_output = True
+    , print_duplicate_outputs = True
     , logStates = strArg "log-states" as m (Log Raw)
                         (strArg "log-pretty" as m (Log Pretty) NoLog)
     , logEveryN = 0
