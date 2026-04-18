@@ -813,7 +813,7 @@ mkCoercion c = do
     t2' <- mkType t2
     return $ t1' G2.:~ t2'
 
-mkClass :: ClsInst -> G2.NamesM (G2.Name, G2.Id, [G2.Id], [(G2.Type, G2.Id)])
+mkClass :: ClsInst -> G2.NamesM (G2.Name, G2.Id, [G2.Id], [(G2.Type, G2.Id)], [String])
 mkClass (ClsInst { is_cls = c, is_dfun = dfun }) = do
     class_name <-  typeNameLookup . className $ c
     i <- valId dfun
@@ -822,10 +822,12 @@ mkClass (ClsInst { is_cls = c, is_dfun = dfun }) = do
     sctheta <- mapM mkType $ classSCTheta c
     sel_ids <- mapM mkIdLookup $ classAllSelIds c
     let sctheta_selids = zip sctheta sel_ids
+    let method_strs = map getOccString (classMethods c)
     return ( class_name
            , i
            , tyvars
-           , sctheta_selids)
+           , sctheta_selids
+           , method_strs)
 
 mkFamilyAxioms :: FamInst -> G2.NamesM (G2.Name, G2.Axiom)
 mkFamilyAxioms fam_inst = do

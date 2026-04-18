@@ -14,6 +14,7 @@ module G2.Language.TypeClasses.TypeClasses ( TypeClasses
                                            , lookupTCDict
                                            , lookupTCDicts
                                            , lookupTCClass
+                                           , lookupTCFromType
                                            , tcWithNameMap
                                            , tcDicts
                                            , typeClassInst
@@ -37,7 +38,7 @@ import qualified Data.Sequence as S
 import qualified G2.Language.TyVarEnv as TV 
 import GHC.Generics (Generic)
 
-data Class = Class { insts :: [(Type, Id)], typ_ids :: [Id], superclasses :: [(Type, Id)]}
+data Class = Class { insts :: [(Type, Id)], typ_ids :: [Id], superclasses :: [(Type, Id)], methods :: [String]}
                 deriving (Show, Eq, Read, Typeable, Data, Generic)
 
 instance Hashable Class
@@ -48,15 +49,16 @@ newtype TypeClasses = TypeClasses TCType
 
 instance Hashable TypeClasses
 
-initTypeClasses :: TV.TyVarEnv -> [(Name, Id, [Id], [(Type, Id)])] -> TypeClasses
+initTypeClasses :: TV.TyVarEnv -> [(Name, Id, [Id], [(Type, Id)], [String])] -> TypeClasses
 initTypeClasses tv nsi =
     let
-        ns = map (\(n, _, i, sc) -> (n, i, sc)) nsi
+        ns = map (\(n, _, i, sc, m_strs) -> (n, i, sc, m_strs)) nsi
         nsi' = filter (not . null . insts . snd)
-             $ map (\(n, i, sc) -> 
-                (n, Class { insts = nub $ mapMaybe (nameIdToTypeId tv n) nsi
+             $ map (\(n, i, sc, m_strs) -> 
+                 (n, Class { insts = nub $ mapMaybe (nameIdToTypeId tv n) nsi
                           , typ_ids = i
-                          , superclasses = sc } )) ns
+                          , superclasses = sc
+                          , methods = m_strs} )) ns
     in
     coerce $ M.fromList nsi'
 
@@ -66,8 +68,8 @@ insertClass n c (TypeClasses tc) = TypeClasses (M.insert n c tc)
 unionTypeClasses :: TypeClasses -> TypeClasses -> TypeClasses
 unionTypeClasses (TypeClasses tc) (TypeClasses tc') = TypeClasses (M.union tc tc')
 
-nameIdToTypeId :: TV.TyVarEnv -> Name -> (Name, Id, [Id], [(Type, Id)]) -> Maybe (Type, Id)
-nameIdToTypeId tv nm (n, i, _, _) =
+nameIdToTypeId :: TV.TyVarEnv -> Name -> (Name, Id, [Id], [(Type, Id)], [String]) -> Maybe (Type, Id)
+nameIdToTypeId tv nm (n, i, _, _, _) =
     let
         t = affectedType $ returnType (typeOf tv i)
     in
@@ -81,11 +83,15 @@ affectedType _ = Nothing
 isTypeClassNamed :: Name -> TypeClasses -> Bool
 isTypeClassNamed n = M.member n . (coerce :: TypeClasses -> TCType)
 
+getTCName :: Type -> Maybe Name
+getTCName (TyCon n _) = Just n
+getTCName (TyApp t _) = getTCName t
+getTCName _ = Nothing
+
 -- | Is the given type a type class?
 isTypeClass :: TypeClasses -> Type -> Bool
-isTypeClass tc (TyCon n _) = isTypeClassNamed n tc 
-isTypeClass tc (TyApp t _) = isTypeClass tc t
-isTypeClass _ _ = False
+isTypeClass tc t | Just n <- getTCName t = isTypeClassNamed n tc
+                 | otherwise = False
 
 -- | Returns the dictionary for the given typeclass and Type,
 -- if one exists.
@@ -106,6 +112,10 @@ lookupTCDicts n = fmap insts . M.lookup n . coerce
 
 lookupTCClass :: Name -> TypeClasses -> Maybe Class
 lookupTCClass n = M.lookup n . coerce
+
+lookupTCFromType :: Type -> TypeClasses -> Maybe Class
+lookupTCFromType t tc | Just n <- getTCName t = lookupTCClass n tc
+                      | otherwise = Nothing
 
 tcWithNameMap :: TV.TyVarEnv -> Name -> [Id] -> M.HashMap Name Id
 tcWithNameMap tv n =
@@ -222,7 +232,8 @@ instance ASTContainer Class Type where
     containedASTs c = (containedASTs . insts $ c) ++ containedASTs (superclasses c)
     modifyContainedASTs f c = Class { insts = modifyContainedASTs f $ insts c
                                     , typ_ids = modifyContainedASTs f $ typ_ids c
-                                    , superclasses = modifyContainedASTs f $ superclasses c}
+                                    , superclasses = modifyContainedASTs f $ superclasses c
+                                    , methods = methods c}
 
 instance Named TypeClasses where
     names (TypeClasses tc) = S.fromList (M.keys tc) <> names tc
@@ -235,7 +246,9 @@ instance Named Class where
     names (Class { insts = i, typ_ids = tids, superclasses = sc }) = names i <> names tids <> names sc
     rename old new c = Class { insts = rename old new $ insts c
                              , typ_ids = rename old new $ typ_ids c
-                             , superclasses = rename old new $ superclasses c }
+                             , superclasses = rename old new $ superclasses c 
+                             , methods = methods c } -- string literals that should not change over execution
     renames hm c = Class { insts = renames hm $ insts c
                          , typ_ids = renames hm $ typ_ids c
-                         , superclasses = renames hm $ superclasses c }
+                         , superclasses = renames hm $ superclasses c
+                         , methods = methods c } -- string literals that should not change over execution

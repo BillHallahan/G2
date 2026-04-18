@@ -104,7 +104,7 @@ data ExtractedG2 = ExtractedG2
   { exg2_mod_names :: [Maybe T.Text]
   , exg2_binds :: HM.HashMap G2.Name G2.Expr
   , exg2_tycons :: HM.HashMap G2.Name G2.AlgDataTy
-  , exg2_classes :: [(G2.Name, G2.Id, [G2.Id], [(G2.Type, G2.Id)])]
+  , exg2_classes :: [(G2.Name, G2.Id, [G2.Id], [(G2.Type, G2.Id)], [String])]
   , exg2_axioms :: [(G2.Name, G2.Axiom)]
   , exg2_exports :: [ExportedName]
   , exg2_deps :: [T.Text]

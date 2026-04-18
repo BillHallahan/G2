@@ -19,6 +19,7 @@ import qualified Data.List as L
 import Data.Maybe (mapMaybe, isJust, fromJust)
 import qualified Data.HashMap.Lazy as HM
 import qualified Data.Sequence as S
+import qualified Data.Text as T
 
 -- | Concrete instantiations of previously (partially) symbolic values.
 data Subbed = Subbed { s_inputs :: [Expr] -- ^ Concrete `inputNames`
@@ -92,7 +93,7 @@ subModel s@(State { expr_env = eenv
         
         sv = subVar tvnv False m eenv tc sub
     in
-    stripAllTicks $ untilEq (tyVarSubst tvnv . simplifyLams . pushCaseAppArgIn) sv
+    stripAllTicks $ untilEq (typeClassLamRewrite tc . typeClassCaseRewrite tc . tyVarSubst tvnv . simplifyLams . pushCaseAppArgIn) sv
     where
         toVars n = case E.lookup n eenv of
                                 Just e@(Lam _ _ _) -> Just . Var $ Id n (typeOf tvnv e)
@@ -167,3 +168,35 @@ pushCaseAppArgIn' (App (Case scrut bind t as) v@(Var _)) =
 pushCaseAppArgIn' (App (Case scrut bind t as) t_ex@(Type _)) =
     Case scrut bind t $ map (\(Alt am e) -> Alt am (App e t_ex)) as
 pushCaseAppArgIn' e = e
+
+-- | typeClassCaseRewrite and typeClassLamRewrite both leave the expression in an 
+-- invalid state when only one is checked for, so they must both be checked for. 
+-- Because a typeclass dict may be cased on more times than it is an argument to a 
+-- lambda, the rules are still kept separate, allowing them to apply different 
+-- amounts of times.
+
+-- | Rewrites a case expression of the form:
+--      case tc_dict of
+--          C:<tc_name> f1..fn -> e
+--   to:
+--          e'
+--   where e' is e with f1..fn substituted for tc_name's method names.
+typeClassCaseRewrite :: ASTContainer c Expr => TypeClasses -> c -> c
+typeClassCaseRewrite tc = modifyASTs $ typeClassDictRewrite' tc
+
+typeClassDictRewrite' :: TypeClasses -> Expr -> Expr
+typeClassDictRewrite' tc (Case (Var (Id _ dict_type)) _ _ [Alt (DataAlt _ arg_ids) a_expr])
+    | Just type_class <- lookupTCFromType dict_type tc 
+        = let   function_names = map (\f_str -> Name (T.pack f_str) Nothing 0 Nothing) $ methods type_class
+                rename_map = HM.fromList $ zip (map idName arg_ids) function_names
+        in renames rename_map a_expr
+typeClassDictRewrite' _ e = e
+
+
+typeClassLamRewrite :: ASTContainer c Expr => TypeClasses -> c -> c
+typeClassLamRewrite tc = modifyASTs $ typeClassLamRewrite' tc
+
+typeClassLamRewrite' :: TypeClasses -> Expr -> Expr
+typeClassLamRewrite' tc (Lam _ (Id _ dict_type) body)
+    | isTypeClass tc dict_type = body
+typeClassLamRewrite' _ e = e
