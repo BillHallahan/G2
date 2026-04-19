@@ -330,11 +330,6 @@ printStateOutput config entry b@(Bindings { printed_outputs = pr_outs }) m_valid
     let print_valid = isJust m_valid
     let val = fromMaybe (Just True) m_valid
 
-    when print_valid (putStr (case val of
-                                        Just True -> "✓ "
-                                        Just False -> "✗ "
-                                        Nothing -> "✗TO "))
-
     -- Don't immediately add Names for generated ADTs and their constructors. They will be added later through printInputOutput
     let filtered_names = filter (\(Name n _ _ _) -> n `notElem` ["GenT", "GenC", "GenN"]) (exprNames $ conc_args exec_res)
 
@@ -348,6 +343,10 @@ printStateOutput config entry b@(Bindings { printed_outputs = pr_outs }) m_valid
     let pr_outs' = HS.insert state_output_text pr_outs
 
     when (print_output config && (print_duplicate_outputs config || (pr_outs' /= pr_outs))) (do
+        when print_valid (putStr (case val of
+                                        Just True -> "✓ "
+                                        Just False -> "✗ "
+                                        Nothing -> "✗TO "))
         case sym_gen_out of
             S.Empty -> T.putStrLn state_output_text
             _ -> T.putStrLn $ state_output_text <> "\t| generated: " <> T.intercalate ", " (toList sym_gen_out)
