@@ -1,4 +1,4 @@
-{-# LANGUAGE RankNTypes, OverloadedStrings, TypeOperators #-}
+{-# LANGUAGE FlexibleContexts, RankNTypes, OverloadedStrings, TypeOperators #-}
 {-# LANGUAGE InstanceSigs #-}
 
 module G2.Solver.Simplifier ( Simplifier (..)
@@ -222,7 +222,7 @@ instance Simplifier LitConc where
             (cs', ng') = doRenames (map idName cs) ng cs
             conc_c = zip cs $ map toPrim cs'
             eenv' = foldr (\(Id nC t, nL) -> E.insert nC (concApprop t nL) . E.insertSymbolic nL) eenv conc_c
-            pc' = foldr (\(Id nC t, nL) -> replaceVar nC (concApprop t nL)) pc conc_c
+            pc' = foldr (\(Id nC t, nL) -> replaceVarAndLam nC (concApprop t nL) nL) pc conc_c
         in
         (ng', eenv', [pc'])
         where
@@ -263,3 +263,10 @@ instance Simplifier LitConc where
             concChar n = App (mkDCChar kv tenv) (Var n)
 
     reverseSimplification _ _ _ m = m
+
+replaceVarAndLam :: ASTContainer m Expr => Name -> Expr -> Id -> m -> m
+replaceVarAndLam n e i = modifyASTs go
+    where
+        go v@(Var (Id n' _)) = if n == n' then e else v
+        go (Lam lt (Id n' _) le) | n == n' = Lam lt i le
+        go e' = e'

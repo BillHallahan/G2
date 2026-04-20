@@ -298,6 +298,14 @@ intersperse1 c xs
     where
         rs = intersperse c xs
 
+intersperse2 :: Int -> [Int] -> (Int, [Int])
+intersperse2 c xs
+    | xs == [] = (1, rs)
+    | length rs > 5 = (2, rs)
+    | otherwise = (3, rs)
+    where
+        rs = intersperse c xs
+
 isPrefixOf1 :: [Float] -> [Float] -> (Int, Bool)
 isPrefixOf1 s1 s2
     | length s1 < 3 = (1, p)

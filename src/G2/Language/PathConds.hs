@@ -37,6 +37,7 @@ module G2.Language.PathConds ( PathConds
                              , varIdsInPC
                              , varNamesInPC
                              , allIds
+                             , allLamIds
                              , toList
                              , toHashedList
                              , toHashSet
@@ -242,6 +243,12 @@ varNamesInPC = P.map idName . varIdsInPC
 
 allIds :: PathConds -> HS.HashSet Id
 allIds (PathConds pc) = HS.unions . P.map pcs_contains $ UF.elems pc
+
+allLamIds :: PathConds -> HS.HashSet Id
+allLamIds (PathConds pc) = evalASTs go pc
+    where
+        go (Lam _ i _) = HS.singleton i
+        go _ = HS.empty
 
 -- | Computes the path constraints that relate to the `Names` in the passed list.
 scc :: [Name] -> PathConds -> PathConds

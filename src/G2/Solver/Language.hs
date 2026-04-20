@@ -129,6 +129,8 @@ data SMTAST = (:>=) !SMTAST !SMTAST
             | StrPrefixOfSMT !SMTAST !SMTAST
             | StrSuffixOfSMT !SMTAST !SMTAST
 
+            | FoldLeftSMT SMTName Sort SMTName Sort !SMTAST !SMTAST !SMTAST
+
             | InReSMT !SMTAST !SMTAST
             | ToReSMT !SMTAST
             | ReNoneSMT
