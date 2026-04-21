@@ -38,15 +38,15 @@ printFuncCalls :: Config -> Id -> Bindings
 printFuncCalls config entry b exec_res = do
     mapM_ (\execr@(ExecRes { final_state = s }) -> do
         let pg = mkPrettyGuide (exprNames $ conc_args execr)
-        let (mvp, inp, outp, hdls) = printInputOutput pg entry b execr
+        let (gen_adts, mvp, inp, outp, hdls) = printInputOutput pg entry b execr
             sym_gen_out = fmap (printHaskellPG pg s) $ conc_sym_gens execr
 
         let print_method = case print_output config of
-                                True -> \m i o -> m <> i <> " = " <> o 
-                                False -> \m i _ ->  m <> i
+                                True -> \g m i o -> g <> m <> i <> " = " <> o 
+                                False -> \g m i _ -> g <> m <> i
 
         case sym_gen_out of
-            S.Empty -> T.putStrLn $ print_method mvp inp outp
-            _ -> T.putStrLn $ print_method mvp inp outp <> "\t| generated: " <> T.intercalate ", " (toList sym_gen_out)
+            S.Empty -> T.putStrLn $ print_method gen_adts mvp inp outp
+            _ -> T.putStrLn $ print_method gen_adts mvp inp outp <> "\t| generated: " <> T.intercalate ", " (toList sym_gen_out)
         if hdls /= "" then T.putStrLn hdls else return ())
       $ exec_res

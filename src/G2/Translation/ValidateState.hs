@@ -28,6 +28,8 @@ import GHC.LanguageExtensions
 import GHC.Paths
 import Control.Monad
 
+import GHC.Types.SourceError
+
 import Data.Foldable (toList)
 import Data.Either
 import qualified Data.HashSet as HS
@@ -57,13 +59,10 @@ import System.Timeout
 
 import Control.Monad.IO.Class
 
-import Debug.Trace
-
 -- | Load the passed module(s) into GHC, and check that the `ExecRes` results are correct.
 validateStates :: [FilePath] -> [FilePath] -> HS.HashSet (Maybe T.Text) -> String -> [String] -> [String] -> [GeneralFlag] -> String -> Bindings
                -> [ExecRes t]
-               -> IO ( [Maybe Bool] -- ^ One bool per input `ExecRes`, indicating whether the results are correct or not
-                                  -- Nothing in the case of a timeout
+               -> IO ( [ValidateRes]
                      , Bool -- ^ Are all "Any" requirements satisfied?
                      )
 validateStates proj src modN entry chAll chAny gflags comp_func b in_out = do
@@ -104,17 +103,20 @@ creatDeclStr pg s (x, DataTyCon{data_cons = dcs, bound_ids = is}) =
 creatDeclStr _ _ _ = error "creatDeclStr: unsupported AlgDataTy"
 
 -- | Compile with GHC, and check that the output we got is correct for the input
-validateStatesGHC :: GhcMonad m => PrettyGuide -> String -> HS.HashSet (Maybe T.Text) -> String -> [String] -> [String] -> Bindings -> ExecRes t -> m (Maybe Bool, [Bool])
+validateStatesGHC :: GhcMonad m => PrettyGuide -> String -> HS.HashSet (Maybe T.Text) -> String -> [String] -> [String] -> Bindings -> ExecRes t -> m (ValidateRes, [Bool])
 validateStatesGHC pg comp_func modN entry chAll chAny b er@(ExecRes {final_state = s, conc_out = out}) = do
-    (v, chAllR, chAnyR) <- runCheck pg comp_func modN entry chAll chAny b er
+    ((maybe_v, maybe_se), chAllR, chAnyR) <- runCheck pg comp_func modN entry chAll chAny b er
+    
+    v' <- case maybe_v of 
+            Just v -> liftIO . timeout (5 * 10 * 1000) $ (unsafeCoerce v :: IO (Either SomeException Bool))
+            Nothing -> return Nothing
 
-    v' <- liftIO . timeout (5 * 10 * 1000) $ (unsafeCoerce v :: IO (Either SomeException Bool))
     let outStr = T.unpack $ printHaskell s out
     let v'' = case v' of
-                    Nothing -> Nothing
-                    Just (Left e) | show e == "<<timeout>>" -> Nothing
-                                  | otherwise -> Just $ errorRaised s
-                    Just (Right b) -> Just (b && outStr /= "error" && outStr /= "undefined")
+                    Nothing -> ValidationSrcError (case maybe_se of Just se -> se; Nothing -> error "validateStatesGHC: source error flagged but no available SourceError object")
+                    Just (Left e) | show e == "<<timeout>>" -> ValidationTimeout
+                                  | otherwise -> ValidationRTError
+                    Just (Right b) -> if b && outStr /= "error" && outStr /= "undefined" then Valid else Invalid
 
     chAllR' <- liftIO $ (mapM unsafeCoerce chAllR :: IO [Either SomeException Bool])
     let chAllR'' = rights chAllR'
@@ -122,7 +124,11 @@ validateStatesGHC pg comp_func modN entry chAll chAny b er@(ExecRes {final_state
     chAnyR' <- liftIO $ (mapM unsafeCoerce chAnyR :: IO [Either SomeException Bool])
     let chAnyR'' = rights chAnyR'
 
-    return $ (fmap (&& and chAllR'') v'', chAnyR'')
+    let v''' = case (v'', and chAllR'') of
+                    (Valid, False) -> Invalid
+                    (v_res, _) -> v_res
+
+    return (v''', chAnyR'')
 
 createDeclsStr :: PrettyGuide -> State t -> TypeEnv -> [String]
 createDeclsStr pg s = map (creatDeclStr pg s) . H.toList
@@ -139,7 +145,7 @@ adjustDynFlags = do
     _ <- setSessionDynFlags dyn4
     return ()
 
-runCheck :: GhcMonad m => PrettyGuide -> String -> HS.HashSet (Maybe T.Text) -> String -> [String] -> [String] -> Bindings -> ExecRes t -> m (HValue, [HValue], [HValue])
+runCheck :: GhcMonad m => PrettyGuide -> String -> HS.HashSet (Maybe T.Text) -> String -> [String] -> [String] -> Bindings -> ExecRes t -> m ((Maybe HValue, Maybe SourceError), [HValue], [HValue])
 runCheck init_pg comp_func modN entry chAll chAny b er@(ExecRes {final_state = s, conc_args = ars, conc_out = out}) = do
     let Left (v, _) = findFunc (tyvar_env s) (T.pack entry) (HS.toList modN) (expr_env s)
     let e = mkApp $ Var v:ars
@@ -147,7 +153,7 @@ runCheck init_pg comp_func modN entry chAll chAny b er@(ExecRes {final_state = s
            . updatePGValAndTypeNames out
            $ updatePGValAndTypeNames (varIds v) init_pg
 
-    let (gen_adts, mvTxt, arsTxt, outTxt, _) = printInputOutput pg v b er 
+    let (_, mvTxt, arsTxt, outTxt, _) = printInputOutput pg v b er 
         mvStr = T.unpack mvTxt
         arsStr = T.unpack arsTxt
         outStr = T.unpack outTxt
@@ -172,7 +178,11 @@ runCheck init_pg comp_func modN entry chAll chAny b er@(ExecRes {final_state = s
                                         ++ outStr ++ " :: " ++ outType ++ ")" ++ ")) :: IO (Either SomeException Bool)"
                     True -> mvStr ++ "Control.Exception.try (evaluate ( (" ++ pr_con ++ "(" ++ arsStr ++ " :: " ++ arsType ++ ")" ++
                                                     ") " ++ comp_func' ++ " " ++ pr_con ++ "(" ++ arsStr ++ "))) :: IO (Either SomeException Bool)"
-    v' <- compileExpr chck
+
+    -- TODO: disambiguate between SourceError and runtime error
+    (maybe_v', maybe_se) <- defaultErrorHandler defaultFatalMessager defaultFlushOut
+            $ handleSourceError (\err -> return (Nothing, Just err)) 
+                                (do v_ <- compileExpr chck; return (Just v_, Nothing))
 
     let chArgs = ars ++ [out] 
     let chAllStr = map (\f -> T.unpack $ printHaskellPG pg s $ mkApp ((simpVar $ T.pack f):chArgs)) chAll
@@ -185,7 +195,7 @@ runCheck init_pg comp_func modN entry chAll chAny b er@(ExecRes {final_state = s
 
     chAnyR <- mapM compileExpr chAnyStr'
 
-    return $ (v', chAllR, chAnyR)
+    return ((maybe_v', maybe_se), chAllR, chAnyR)
 
 loadToCheck :: GhcMonad m => [FilePath] -> [FilePath] -> HS.HashSet (Maybe T.Text) -> [GeneralFlag] -> m ()
 loadToCheck proj src modN gflags = do
@@ -307,9 +317,7 @@ loadSession proj src modN gflags = do
 -- | Load the passed module(s) into GHC, and check that the `ExecRes` results are correct.
 validateState :: GhcMonad m => String -> HS.HashSet (Maybe T.Text) -> String -> [String] -> [String] -> Bindings
                -> ExecRes t
-               -> m ( Maybe Bool -- ^ One bool per input `ExecRes`, indicating whether the results are correct or not
-                                  -- Nothing in the case of a timeout
-                     )
+               -> m ValidateRes
 validateState comp_func modN entry chAll chAny b in_out = do
         let s = final_state in_out
         let pg = updatePGValNames (concatMap (map Data . dataCon) $ type_env s)
@@ -322,13 +330,12 @@ validateState comp_func modN entry chAll chAny b in_out = do
         
         return (fst rs_anys)
 
-printStateOutput :: Config -> Id -> Bindings
-               -> Maybe (Maybe Bool)
+printStateOutput :: (GhcMonad m) => Config -> Id -> Bindings
+               -> Maybe ValidateRes
                -> ExecRes t
-               -> IO Bindings
-printStateOutput config entry b@(Bindings { printed_outputs = pr_outs }) m_valid exec_res@(ExecRes { final_state = s }) = do
-    let print_valid = isJust m_valid
-    let val = fromMaybe (Just True) m_valid
+               -> m Bindings
+printStateOutput config entry b@(Bindings { printed_outputs = pr_outs }) mval_res exec_res@(ExecRes { final_state = s }) = do
+    let print_valid = isJust mval_res
 
     -- Don't immediately add Names for generated ADTs and their constructors. They will be added later through printInputOutput
     let filtered_names = filter (\(Name n _ _ _) -> n `notElem` ["GenT", "GenC", "GenN"]) (exprNames $ conc_args exec_res)
@@ -343,14 +350,23 @@ printStateOutput config entry b@(Bindings { printed_outputs = pr_outs }) m_valid
     let pr_outs' = HS.insert state_output_text pr_outs
 
     when (print_output config && (print_duplicate_outputs config || (pr_outs' /= pr_outs))) (do
-        when print_valid (putStr (case val of
-                                        Just True -> "✓ "
-                                        Just False -> "✗ "
-                                        Nothing -> "✗TO "))
-        case sym_gen_out of
+        when print_valid $ do
+            (case fromMaybe Invalid mval_res of
+                ValidationSrcError vse -> printException vse
+                _ -> return ())
+            
+            liftIO (case fromMaybe Invalid mval_res of
+                Valid -> putStr "✓ "
+                Invalid -> putStr "✗ "
+                ValidationTimeout -> putStr "✗TO "
+                ValidationSrcError _ -> putStr "✗Src "
+                ValidationRTError -> putStr "✗RT ")
+        
+        liftIO $ case sym_gen_out of
             S.Empty -> T.putStrLn state_output_text
             _ -> T.putStrLn $ state_output_text <> "\t| generated: " <> T.intercalate ", " (toList sym_gen_out)
-        if handles /= "" then T.putStrLn handles else return ())
+        
+        liftIO $ if handles /= "" then T.putStrLn handles else return ())
 
     return b {printed_outputs = pr_outs'}
 
