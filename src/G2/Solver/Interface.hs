@@ -93,7 +93,7 @@ subModel s@(State { expr_env = eenv
         
         sv = subVar tvnv False m eenv tc sub
     in
-    stripAllTicks $ untilEq (typeClassLamRewrite tc . typeClassCaseRewrite tc . tyVarSubst tvnv . simplifyLams . pushCaseAppArgIn) sv
+    stripAllTicks $ untilEq (undefAppRewrite . typeClassLamRewrite tc . typeClassCaseRewrite tc . tyVarSubst tvnv . simplifyLams . pushCaseAppArgIn) sv
     where
         toVars n = case E.lookup n eenv of
                                 Just e@(Lam _ _ _) -> Just . Var $ Id n (typeOf tvnv e)
@@ -200,3 +200,10 @@ typeClassLamRewrite' :: TypeClasses -> Expr -> Expr
 typeClassLamRewrite' tc (Lam _ (Id _ dict_type) body)
     | isTypeClass tc dict_type = body
 typeClassLamRewrite' _ e = e
+
+undefAppRewrite :: ASTContainer c Expr => c -> c
+undefAppRewrite = modifyASTs undefAppRewrite'
+
+undefAppRewrite' :: Expr -> Expr
+undefAppRewrite' (App u@(Prim Undefined _) _) = u
+undefAppRewrite' e = e
