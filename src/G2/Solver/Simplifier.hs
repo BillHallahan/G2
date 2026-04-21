@@ -16,6 +16,7 @@ import qualified G2.Language.ExprEnv as E
 import G2.Language.KnownValues
 import qualified G2.Language.PathConds as PC
 import qualified G2.Language.Typing as T
+import qualified Data.HashSet as HS
 import qualified Data.List as L
 
 class Simplifier simplifier where
@@ -210,7 +211,7 @@ smallEqPC kv (ExtCond (Var (Id n _)) False) = Just (n, mkFalse kv)
 smallEqPC _ (AltCond l (Var (Id n _)) True) = Just (n, Lit l)
 smallEqPC _ _ = Nothing
 
--- Concretize symbolic Char variables to be (C# c#) for some fresh c#
+-- Concretize symbolic literal wrappers. For example Char variables are converted to (C# c#) for some fresh c#
 data LitConc = LitConc
 
 instance Simplifier LitConc where
@@ -218,10 +219,15 @@ instance Simplifier LitConc where
 
     simplifyPCWithExprEnv _ s@(State { known_values = kv, type_env = tenv, tyvar_env = tv_env }) ng eenv pc =
         let
+            -- Get all variables with types corresponding to literal wrappers
             cs = filter replacable_type $ varIds pc
             (cs', ng') = doRenames (map idName cs) ng cs
             conc_c = zip cs $ map toPrim cs'
-            eenv' = foldr (\(Id nC t, nL) -> E.insert nC (concApprop t nL) . E.insertSymbolic nL) eenv conc_c
+            
+            -- If a variable is NOT bound by a lambda, we want to reflect the concretization in the expression environment.
+            lams = HS.map idName $ lamIds pc
+            eenv' = foldr (\(Id nC t, nL) -> E.insert nC (concApprop t nL) . E.insertSymbolic nL) eenv (filter (\(Id n _, _) -> n `notElem` lams) conc_c)
+            
             pc' = foldr (\(Id nC t, nL) -> replaceVarAndLam nC (concApprop t nL) nL) pc conc_c
         in
         (ng', eenv', [pc'])

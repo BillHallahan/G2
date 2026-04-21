@@ -676,7 +676,7 @@ pcVarDecls tv = createUniqVarDecls . HS.toList . pcVars tv
 -- Get's all variable required for a list of `PathCond` 
 pcVars :: TV.TyVarEnv -> PathConds -> HS.HashSet (Name, Sort)
 pcVars tv pc =
-    HS.map (idToNameSort tv) $ PC.allIds pc `HS.difference` PC.allLamIds pc
+    HS.map (idToNameSort tv) $ PC.allIds pc `HS.difference` lamIds pc
 
 idToNameSort :: TV.TyVarEnv -> Id -> (Name, Sort)
 idToNameSort tv (Id n t) = (n, typeToSMT tv t)
