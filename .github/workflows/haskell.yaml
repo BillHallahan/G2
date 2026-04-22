@@ -59,12 +59,11 @@ jobs:
     #     restore-keys: |
     #       cabal-${{ runner.os }}-${{ matrix.compiler.ghc }}-
 
-    - name: Install Z3
-      uses: pavpanchekha/setup-z3@0.2.0
+    - name: Setup Z3
+      id: z3
+      uses: cda-tum/setup-z3@v1
       with:
-        version: '4.15.2'
-        architecture: 'x64'
-        distribution: 'glibc-2.31'
+        version: 4.15.2
    
     - name: Getting custom base
       run: bash base_setup.sh
