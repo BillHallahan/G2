@@ -145,7 +145,8 @@ solveRelated' avf sol s b m is [] =
     in
     return (SAT $ SatRes m' tv_env' ng', sol)
 solveRelated' avf sol s b m is (p:ps) = do
-    rm <- solveTr sol s b is p
+    let is' = concat $ PC.map' PC.varIdsInPC p
+    rm <- solveTr sol s b is' p
     case rm of
         (SAT (SatRes m' tv_env' ng'), sol') ->
             solveRelated' avf sol' (s { tyvar_env = tv_env' }) (b { name_gen = ng' }) (HM.union m m') is ps
