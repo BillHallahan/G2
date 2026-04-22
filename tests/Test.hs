@@ -529,6 +529,9 @@ testFileTests = testGroup "TestFiles"
                                         , ("maximum1", 3000, [AtLeast 1, AtMost 6]) -- Quantifier causes SMT failures
                                         ]
 
+    , checkInputOutputsLambdaSMTStrings "tests/TestFiles/Strings/Strings1.hs"
+                                        [ ("intersperse2", 1000, [Exactly 3]) ]
+
     , checkInputOutputsSMTLists "tests/TestFiles/Seq/Seq1.hs" [ ("toEnum1", 2000, [Exactly 1])
                                                               , ("conInt", 1000, [Exactly 1]) 
                                                               , ("conInteger", 1000, [Exactly 1])
@@ -590,6 +593,9 @@ testFileTests = testGroup "TestFiles"
     , checkInputOutputsSMTListsWith "tests/TestFiles/Seq/Seq1.hs" "floatListEq" [ ("conFloat", 1000, [Exactly 1])
                                                                                 , ("conDouble", 1000, [Exactly 1])]
 
+
+    , checkInputOutputsLambdaSMTLists "tests/TestFiles/Seq/Seq1.hs"
+                                        [ ("intersperse2", 1000, [Exactly 3]) ]
 
     , checkExpr "tests/TestFiles/Strings/Strings1.hs" 1000 "exclaimEq"
         [AtLeast 5, RExists (\[_, _, r] -> dcHasName "True" r)]
