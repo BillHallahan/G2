@@ -306,7 +306,7 @@ intersperse2 c xs
     where
         rs = intersperse c xs
 
-isPrefixOf1 :: [Float] -> [Float] -> (Int, Bool)
+isPrefixOf1 :: [Int] -> [Int] -> (Int, Bool)
 isPrefixOf1 s1 s2
     | length s1 < 3 = (1, p)
     | length s2 < 3 = (2, p)

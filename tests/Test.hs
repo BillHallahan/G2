@@ -522,7 +522,7 @@ testFileTests = testGroup "TestFiles"
                                         , ("reverse1", 5000, [AtLeast 5, AtMost 6]) 
                                         , ("reverse2", 5000, [Exactly 3])
                                         , ("insert1", 3000, [AtLeast 2, AtMost 6]) -- Quantifier causes SMT failures
-                                        , ("intersperse1", 3000, [Exactly 3])
+                                        , ("intersperse1", 3000, [AtLeast 2, AtMost 3])
                                         , ("replicate1", 3000, [Exactly 2])
                                         , ("elemIndices1", 4000, [AtLeast 10])
                                         , ("minimum1", 3000, [AtLeast 1, AtMost 6]) -- Quantifier causes SMT failures
@@ -530,7 +530,8 @@ testFileTests = testGroup "TestFiles"
                                         ]
 
     , checkInputOutputsLambdaSMTStrings "tests/TestFiles/Strings/Strings1.hs"
-                                        [ ("intersperse2", 1000, [Exactly 3]) ]
+                                        [ ("intersperse1", 3000, [Exactly 3])
+                                        , ("intersperse2", 1000, [Exactly 3]) ]
 
     , checkInputOutputsSMTLists "tests/TestFiles/Seq/Seq1.hs" [ ("toEnum1", 2000, [Exactly 1])
                                                               , ("conInt", 1000, [Exactly 1]) 
@@ -595,7 +596,8 @@ testFileTests = testGroup "TestFiles"
 
 
     , checkInputOutputsLambdaSMTLists "tests/TestFiles/Seq/Seq1.hs"
-                                        [ ("intersperse2", 1000, [Exactly 3]) ]
+                                        [ ("intersperse1", 3000, [Exactly 3])
+                                        , ("intersperse2", 1000, [Exactly 3]) ]
 
     , checkExpr "tests/TestFiles/Strings/Strings1.hs" 1000 "exclaimEq"
         [AtLeast 5, RExists (\[_, _, r] -> dcHasName "True" r)]
