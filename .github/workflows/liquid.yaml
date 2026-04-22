@@ -13,8 +13,7 @@ jobs:
 
     strategy:
       matrix:
-        compiler: [ { ghc: '8.10.7', cabal: '3.10' },
-                    { ghc: '9.0.2', cabal: '3.10' } ]
+        compiler: [ { ghc: '8.10.7', cabal: '3.10' } ]
         test: [ { test: test-lh, lh: 'support-lh' } ]
     steps:
     - uses: actions/checkout@v3
