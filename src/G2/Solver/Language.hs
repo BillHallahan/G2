@@ -282,6 +282,42 @@ instance AST SMTAST where
     children (Modulo x y) = [x, y]
     children (Neg x) = [x]
 
+    children (BVAdd x y) = [x, y]
+    children (BVNeg x) = [x]
+    children (BVMult x y) = [x, y]
+    children (Concat x y) = [x, y]
+    children (ShiftL x y) = [x, y]
+    children (ShiftR x y) = [x, y]
+
+
+    children (FpSMT x y z) = [x, y, z]
+    children (FpNegSMT x) = [x]
+    children (FpAddSMT x y) = [x, y]
+    children (FpSubSMT x y) = [x, y]
+    children (FpMulSMT x y) = [x, y]
+    children (FpDivSMT x y) = [x, y]
+
+    children (FpLeqSMT x y) = [x, y]
+    children (FpLtSMT x y) = [x, y]
+    children (FpGeqSMT x y) = [x, y]
+    children (FpGtSMT x y) = [x, y]
+    children (FpEqSMT x y) = [x, y]
+
+    children (FpIsZero x) = [x]
+    children (FpIsNegative x) = [x]
+
+    children (FpSqrtSMT x) = [x]
+    children (TruncZeroSMT x) = [x]
+
+    children (IsNormalSMT x) = [x]
+    children (IsNaNSMT x) = [x]
+    children (IsInfiniteSMT x) = [x]
+
+    children (ArrayConst x _ _) = [x]
+    children (ArrayStore x y z) = [x, y, z]
+    children (ArraySelect x y) = [x, y]
+    children (Func _ xs) = xs
+
     children (StrAppendSMT xs) = xs
     children (FromInt x) = [x]
     children (StrLenSMT x) = [x]
@@ -295,6 +331,22 @@ instance AST SMTAST where
     children (StrReplaceSMT x y z) = [x, y, z]
     children (StrPrefixOfSMT x y) = [x, y]
     children (StrSuffixOfSMT x y) = [x, y]
+
+    children (FoldLeftSMT _ _ _ _ x y z) = [x, y, z]
+
+    children (InReSMT x y) = [x, y]
+    children (ToReSMT x) = [x]
+    children ReNoneSMT = []
+    children ReAllSMT = []
+    children ReAllCharSMT = []
+    children (ReConcatSMT x y) = [x, y]
+    children (ReUnionSMT x y) = [x, y]
+    children (ReInterSMT x y) = [x, y]
+    children (ReStarSMT x) = [x]
+    children (ReRangeSMT x y) = [x, y]
+    children (ReCompSMT x) = [x]
+
+    children (SeqEmptySMT _) = []
     children (SeqUnitSMT x) = [x]
 
     children (IteSMT x x' x'') = [x, x', x'']
@@ -302,6 +354,21 @@ instance AST SMTAST where
 
     children (FromCode x) = [x]
     children (ToCode x) = [x]
+
+    children (FloatToIntSMT x) = [x]
+    children (DoubleToIntSMT x) = [x]
+    children (IntToFPSMT _ _ x) = [x]
+    children (FPToFPSMT _ _ x) = [x]
+    children (IntToRealSMT x) = [x]
+    children (IntToBVSMT _ x) = [x]
+    children (BVToIntSMT _ x) = [x]
+    children (BVToNatSMT x) = [x]
+    children (RealToFloat x) = [x]
+    children (RealToDouble x) = [x]
+
+    children (Named x _) = [x]
+
+    children (ForAll _ _ x) = [x]
 
     children _ = []
 
@@ -316,18 +383,110 @@ instance AST SMTAST where
     modifyChildren f (SmtOr xs) = SmtOr (map f xs)
     modifyChildren f ((:!) x) = (:!) (f x)
     modifyChildren f (x :=> y) = f x :=> f y
+    modifyChildren f (x :<=> y) = f x :<=> f y
 
     modifyChildren f (x :+ y) = f x :+ f y
     modifyChildren f (x :- y) = f x :- f y
     modifyChildren f (x :* y) = f x :* f y
     modifyChildren f (x :/ y) = f x :/ f y
+    modifyChildren f (x :^ y) = f x :^ f y
+
+    modifyChildren f (AbsSMT x) = AbsSMT (f x)
+    modifyChildren f (SqrtSMT x) = SqrtSMT (f x)
+    modifyChildren f (QuotSMT x y) = QuotSMT (f x) (f y)
+    modifyChildren f (Modulo x y) = Modulo (f x) (f y)
     modifyChildren f (Neg x) = Neg (f x)
+
+    modifyChildren f (BVAdd x y) = BVAdd (f x) (f y)
+    modifyChildren f (BVNeg x) = BVNeg (f x)
+    modifyChildren f (BVMult x y) = BVMult (f x) (f y)
+    modifyChildren f (Concat x y) = Concat (f x) (f y)
+    modifyChildren f (ShiftL x y) = ShiftL (f x) (f y)
+    modifyChildren f (ShiftR x y) = ShiftR (f x) (f y)
+
+    modifyChildren f (FpSMT x y z) = FpSMT (f x) (f y) (f z)
+    modifyChildren f (FpNegSMT x) = FpNegSMT (f x)
+    modifyChildren f (FpAddSMT x y) = FpAddSMT (f x) (f y)
+    modifyChildren f (FpSubSMT x y) = FpSubSMT (f x) (f y)
+    modifyChildren f (FpMulSMT x y) = FpMulSMT (f x) (f y)
+    modifyChildren f (FpDivSMT x y) = FpDivSMT (f x) (f y)
+
+    modifyChildren f (FpLeqSMT x y) = FpLeqSMT (f x) (f y)
+    modifyChildren f (FpLtSMT x y) = FpLtSMT (f x) (f y)
+    modifyChildren f (FpGeqSMT x y) = FpGeqSMT (f x) (f y)
+    modifyChildren f (FpGtSMT x y) = FpGtSMT (f x) (f y)
+    modifyChildren f (FpEqSMT x y) = FpEqSMT (f x) (f y)
+
+    modifyChildren f (FpIsZero x) = FpIsZero (f x)
+    modifyChildren f (FpIsNegative x) = FpIsNegative (f x)
+
+    modifyChildren f (FpSqrtSMT x) = FpSqrtSMT (f x)
+    modifyChildren f (TruncZeroSMT x) = TruncZeroSMT (f x)
+
+    modifyChildren f (IsNormalSMT x) = IsNormalSMT (f x)
+    modifyChildren f (IsNaNSMT x) = IsNaNSMT (f x)
+    modifyChildren f (IsInfiniteSMT x) = IsInfiniteSMT (f x)
+
+    modifyChildren f (ArrayConst x y z) = ArrayConst (f x) y z
+    modifyChildren f (ArrayStore x y z) = ArrayStore (f x) (f y) (f z)
+    modifyChildren f (ArraySelect x y) = ArraySelect (f x) (f y)
+    modifyChildren f (Func n xs) = Func n (map f xs)
+
+    modifyChildren f (StrAppendSMT xs) = StrAppendSMT (map f xs)
+    modifyChildren f (FromInt x) = FromInt (f x)
+    modifyChildren f (StrLenSMT x) = StrLenSMT (f x)
+    modifyChildren f (StrLtSMT x y) = StrLtSMT (f x) (f y)
+    modifyChildren f (StrLeSMT x y) = StrLeSMT (f x) (f y)
+    modifyChildren f (StrGtSMT x y) = StrGtSMT (f x) (f y)
+    modifyChildren f (StrGeSMT x y) = StrGeSMT (f x) (f y)
+    modifyChildren f (x :!! y) = f x :!! f y
+    modifyChildren f (StrSubstrSMT x y z) = StrSubstrSMT (f x) (f y) (f z)
+    modifyChildren f (StrIndexOfSMT x y z) = StrIndexOfSMT (f x) (f y) (f z)
+    modifyChildren f (StrContainsSMT x y) = StrContainsSMT (f x) (f y)
+    modifyChildren f (StrReplaceSMT x y z) = StrReplaceSMT (f x) (f y) (f z)
+    modifyChildren f (StrReplaceAllSMT x y z) = StrReplaceAllSMT (f x) (f y) (f z)
+    modifyChildren f (StrReplaceReSMT x y z) = StrReplaceReSMT (f x) (f y) (f z)
+    modifyChildren f (StrReplaceReAllSMT x y z) = StrReplaceReAllSMT (f x) (f y) (f z)
+    modifyChildren f (StrPrefixOfSMT x y) = StrPrefixOfSMT (f x) (f y)
+    modifyChildren f (StrSuffixOfSMT x y) = StrSuffixOfSMT (f x) (f y)
+    
+    modifyChildren f (FoldLeftSMT n1 s1 n2 s2 x y z) = FoldLeftSMT n1 s1 n2 s2 (f x) (f y) (f z)
+
+    modifyChildren f (InReSMT x y) = InReSMT (f x) (f y)
+    modifyChildren f (ToReSMT x) = ToReSMT (f x)
+    modifyChildren _ ReNoneSMT = ReNoneSMT
+    modifyChildren _ ReAllSMT = ReAllSMT
+    modifyChildren _ ReAllCharSMT = ReAllCharSMT
+    modifyChildren f (ReConcatSMT x y) = ReConcatSMT (f x) (f y)
+    modifyChildren f (ReUnionSMT x y) = ReUnionSMT (f x) (f y)
+    modifyChildren f (ReInterSMT x y) = ReInterSMT (f x) (f y)
+    modifyChildren f (ReStarSMT x) = ReStarSMT (f x)
+    modifyChildren f (ReRangeSMT x y) = ReRangeSMT (f x) (f y)
+    modifyChildren f (ReCompSMT x) = ReCompSMT (f x)
+
+    modifyChildren _ (SeqEmptySMT s) = SeqEmptySMT s
+    modifyChildren f (SeqUnitSMT x) = SeqUnitSMT (f x)
+
+    modifyChildren f (IteSMT x x' x'') = IteSMT (f x) (f x') (f x'')
+    modifyChildren f (SLet (n, x) x') = SLet (n, f x) (f x')
 
     modifyChildren f (FromCode x) = FromCode (f x)
     modifyChildren f (ToCode x) = ToCode (f x)
 
-    modifyChildren f (IteSMT x x' x'') = IteSMT (f x) (f x') (f x'')
-    modifyChildren f (SLet (n, x) x') = SLet (n, f x) (f x')
+    modifyChildren f (FloatToIntSMT x) = FloatToIntSMT (f x)
+    modifyChildren f (DoubleToIntSMT x) = DoubleToIntSMT (f x)
+    modifyChildren f (IntToFPSMT i1 i2 x) = IntToFPSMT i1 i2 (f x)
+    modifyChildren f (FPToFPSMT i1 i2 x) = FPToFPSMT i1 i2 (f x)
+    modifyChildren f (IntToRealSMT x) = IntToRealSMT (f x)
+    modifyChildren f (IntToBVSMT i x) = IntToBVSMT i (f x)
+    modifyChildren f (BVToIntSMT i x) = BVToIntSMT i (f x)
+    modifyChildren f (BVToNatSMT x) = BVToNatSMT (f x)
+    modifyChildren f (RealToFloat x) = RealToFloat (f x)
+    modifyChildren f (RealToDouble x) = RealToDouble (f x)
+
+    modifyChildren f (Named x n) = Named (f x) n
+
+    modifyChildren f (ForAll n s x) = ForAll n s (f x)
 
     modifyChildren _ e = e
 

@@ -643,8 +643,15 @@ funcToSMT3Prim tv ForAllBoundPr lower upper e_body | (Lam _ (Id n t) e) <- strip
     ForAll n_smt n_sort (cond :=> e_smt)
 
 funcToSMT3Prim tv FoldLeft (Lam _ (Id n1 t1) (Lam _ (Id n2 t2) e)) initial xs =
-    FoldLeftSMT (nameToStr n1) (typeToSMT tv t1) (nameToStr n2) (typeToSMT tv t2)
-                               (exprToSMT tv e) (exprToSMT tv initial) (exprToSMT tv xs)
+    let
+        n1' = nameToStr n1
+        n2' = nameToStr n2
+    in
+    FoldLeftSMT n1' (typeToSMT tv t1) n2' (typeToSMT tv t2)
+                               (wrap n1' $ wrap n2' (exprToSMT tv e)) (exprToSMT tv initial) (exprToSMT tv xs)
+    where
+        wrap n v@(V vn SortChar) | n == vn = SeqUnitSMT v
+        wrap n smt = modifyChildren (wrap n) smt
 
 funcToSMT3Prim _ op _ _ _ = error $ "funcToSMT3Prim: invalid case with " ++ show op
 
