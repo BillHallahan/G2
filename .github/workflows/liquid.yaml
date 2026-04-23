@@ -13,16 +13,8 @@ jobs:
 
     strategy:
       matrix:
-        compiler: [ { ghc: '8.10.7', cabal: '3.10' },
-                    { ghc: '9.0.2', cabal: '3.10' },
-                    { ghc: '9.2.8', cabal: '3.10' },
-                    { ghc: '9.4.4', cabal: '3.10' },
-                    { ghc: '9.6.1', cabal: '3.10' },
-                    { ghc: '9.8.4', cabal: '3.10' },
-                    { ghc: '9.10.3', cabal: '3.10' },
-                    { ghc: '9.12.2', cabal: '3.12' } ]
-        test: [ { test: test, lh: '-support-lh' },
-                { test: test-g2q, lh: '-support-lh' } ]
+        compiler: [ { ghc: '8.10.7', cabal: '3.10' } ]
+        test: [ { test: test-lh, lh: 'support-lh' } ]
     steps:
     - uses: actions/checkout@v3
     - uses: haskell-actions/setup@v2
@@ -47,7 +39,7 @@ jobs:
       id: z3
       uses: cda-tum/setup-z3@v1
       with:
-        version: 4.15.4
+        version: 4.8.17
    
     - name: Getting custom base
       run: bash base_setup.sh

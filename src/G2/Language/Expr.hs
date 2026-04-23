@@ -64,6 +64,7 @@ module G2.Language.Expr ( module G2.Language.Casts
                         , assertsToAssumes
                         , leadingLamUsesIds
                         , leadingLamIds
+                        , lamIds
                         , insertInLams
                         , maybeInsertInLams
                         , inLams
@@ -464,6 +465,12 @@ leadingLamUsesIds _ = []
 leadingLamIds :: Expr -> [Id]
 leadingLamIds (Lam _ i e) = i:leadingLamIds e
 leadingLamIds _ = []
+
+lamIds :: ASTContainer m Expr => m -> HS.HashSet Id
+lamIds = evalASTs go
+    where
+        go (Lam _ i _) = HS.singleton i
+        go _ = HS.empty
 
 flattenLets :: ASTContainer m Expr => m -> m
 flattenLets = modifyASTs flattenLet

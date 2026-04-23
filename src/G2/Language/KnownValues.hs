@@ -111,6 +111,8 @@ data KnownValues = KnownValues {
                  , typeIndex :: Name
                  , adjStr :: Name
                  , checkStrLazy :: Name
+                 
+                 , usingSMTLams :: Name
 
                  -- Useful functions
                  , errorFunc :: Name

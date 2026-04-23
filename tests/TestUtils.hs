@@ -47,10 +47,21 @@ mkConfigTestWithQuantifiedSMTStringsIO = do
     homedir <- getHomeDirectory
     return $ config { smt_strings = UseSMTStrings, quantified_smt_strings = UseQuantifiers }
 
+mkConfigTestWithLambdaSMTStringsIO :: IO Config
+mkConfigTestWithLambdaSMTStringsIO = do
+    config <- mkConfigTestIO
+    homedir <- getHomeDirectory
+    return $ config { smt_strings = UseSMTStrings, using_smt_lams = UseSMTLams }
+
 mkConfigTestWithSMTListsIO :: IO Config
 mkConfigTestWithSMTListsIO = do
     config <- mkConfigTestIO
     return $ config { smt_prim_lists = UseSMTSeq True True }
+
+mkConfigTestWithLambdaSMTListsIO :: IO Config
+mkConfigTestWithLambdaSMTListsIO = do
+    config <- mkConfigTestIO
+    return $ config { smt_prim_lists = UseSMTSeq True True, using_smt_lams = UseSMTLams }
 
 
 

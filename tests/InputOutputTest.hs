@@ -7,9 +7,11 @@ module InputOutputTest ( checkInputOutput
                        , checkInputOutputsSMTStringsStrict
                        , checkInputOutputsSMTStringsWithSubPath
                        , checkInputOutputsQuantifiedSMTStrings
+                       , checkInputOutputsLambdaSMTStrings
 
                        , checkInputOutputsSMTLists
                        , checkInputOutputsSMTListsWith
+                       , checkInputOutputsLambdaSMTLists
                        
                        , checkInputOutputsTemplate
                        , checkInputOutputsWith
@@ -76,9 +78,17 @@ checkInputOutputsQuantifiedSMTStrings :: FilePath -> [(String, Int, [Reqs String
 checkInputOutputsQuantifiedSMTStrings src tests = do
     checkInputOutput' mkConfigTestWithQuantifiedSMTStringsIO src tests
 
+checkInputOutputsLambdaSMTStrings :: FilePath -> [(String, Int, [Reqs String])] -> TestTree
+checkInputOutputsLambdaSMTStrings src tests = do
+    checkInputOutput' mkConfigTestWithLambdaSMTStringsIO src tests
+
 checkInputOutputsSMTLists :: FilePath -> [(String, Int, [Reqs String])] -> TestTree
 checkInputOutputsSMTLists src tests = do
     checkInputOutput' mkConfigTestWithSMTListsIO src tests
+
+checkInputOutputsLambdaSMTLists :: FilePath -> [(String, Int, [Reqs String])] -> TestTree
+checkInputOutputsLambdaSMTLists src tests = do
+    checkInputOutput' mkConfigTestWithLambdaSMTListsIO src tests
 
 checkInputOutputsSMTListsWith :: FilePath -> String -> [(String, Int, [Reqs String])] -> TestTree
 checkInputOutputsSMTListsWith src comp_with tests = do
