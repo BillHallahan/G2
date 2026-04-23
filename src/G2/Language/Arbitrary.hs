@@ -457,6 +457,8 @@ fakeKnownValues =
     , adjStr = Name "" Nothing 0 Nothing
     , checkStrLazy = Name "" Nothing 0 Nothing
 
+    , usingSMTLams = Name "" Nothing 0 Nothing
+
     , errorFunc = Name "" Nothing 0 Nothing
     , errorWithoutStackTraceFunc = Name "" Nothing 0 Nothing
     , errorEmptyListFunc = Name "" Nothing 0 Nothing

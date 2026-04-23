@@ -236,6 +236,21 @@ evalApp s@(State { expr_env = eenv
     | [Prim ForAllBoundPr _, _ {- lower -}, _ {- upper -} ] <- unApp e1 =
         let e2' = simplifyExprs eenv eenv e2 in
         (RuleEvalPrimToNorm, newPCEmpty $ s { curr_expr = CurrExpr Return (App e1 e2') }, ng)
+    -- Force evaluation of the expression being folded over
+    | [Prim FoldLeft t, lam, initial] <- unApp e1 =
+        let
+            lam' = simplifyExprs eenv eenv lam
+            e1' = mkApp [Prim FoldLeft t, lam', initial]
+
+            (exP, eenv') = evalPrimsSharing eenv tenv tv_env kv tc (App e1' e2)
+
+            ts = getNestedTickish exP
+            exP' = foldr Tick (stripAllTicks exP) ts
+            er = if null ts then Return else Evaluate
+        in
+        ( RuleEvalPrimToNorm
+        , newPCEmpty $ s { expr_env = eenv', curr_expr = CurrExpr er exP' }
+        , ng)
     -- Float ticks to the top of a prim
     | Prim _ _:es <- unApp (App e1 e2)
     , ts <- concatMap getTickish es

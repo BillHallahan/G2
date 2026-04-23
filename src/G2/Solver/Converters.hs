@@ -444,7 +444,13 @@ exprToSMT tv e | [ Data (DataCon (Name ":" _ _ _) _ _ _)
                             App (Data (DataCon (Name "[]" _ _ _) _ _ _)) type_t'
                                 | Just (TyCon (Name "Char" _ _ _) _) <- TV.deepLookup tv type_t' -> exprToSMT tv e1
                             _ -> StrAppendSMT [exprToSMT tv e1, exprToSMT tv e2]
-                    _ -> StrAppendSMT [SeqUnitSMT (exprToSMT tv e1), exprToSMT tv e2]                    
+                    _ -> StrAppendSMT [SeqUnitSMT (exprToSMT tv e1), exprToSMT tv e2]
+exprToSMT tv e | [ Data (DataCon (Name ":" _ _ _) _ _ _)
+                 , type_t
+                 , e1
+                 , e2] <- unApp e =
+        error $ "bad list " ++ show (TV.deepLookup tv type_t)
+            ++ "\ntype_t = " ++ show type_t ++ "\ne1 = " ++ show e1 ++ "\ne2 = " ++ show e2
 exprToSMT _ (Prim p _) = lonePrim p
 exprToSMT tv a@(App _ _) =
     let
@@ -636,6 +642,17 @@ funcToSMT3Prim tv ForAllBoundPr lower upper e_body | (Lam _ (Id n t) e) <- strip
     in
     ForAll n_smt n_sort (cond :=> e_smt)
 
+funcToSMT3Prim tv FoldLeft (Lam _ (Id n1 t1) (Lam _ (Id n2 t2) e)) initial xs =
+    let
+        n1' = nameToStr n1
+        n2' = nameToStr n2
+    in
+    FoldLeftSMT n1' (typeToSMT tv t1) n2' (typeToSMT tv t2)
+                               (wrap n1' $ wrap n2' (exprToSMT tv e)) (exprToSMT tv initial) (exprToSMT tv xs)
+    where
+        wrap n v@(V vn SortChar) | n == vn = SeqUnitSMT v
+        wrap n smt = modifyChildren (wrap n) smt
+
 funcToSMT3Prim _ op _ _ _ = error $ "funcToSMT3Prim: invalid case with " ++ show op
 
 altToSMT :: Lit -> Expr -> SMTAST
@@ -665,7 +682,8 @@ pcVarDecls tv = createUniqVarDecls . HS.toList . pcVars tv
 
 -- Get's all variable required for a list of `PathCond` 
 pcVars :: TV.TyVarEnv -> PathConds -> HS.HashSet (Name, Sort)
-pcVars tv = HS.map (idToNameSort tv) . PC.allIds
+pcVars tv pc =
+    HS.map (idToNameSort tv) $ PC.allIds pc `HS.difference` lamIds pc
 
 idToNameSort :: TV.TyVarEnv -> Id -> (Name, Sort)
 idToNameSort tv (Id n t) = (n, typeToSMT tv t)
@@ -697,6 +715,7 @@ typeToSMT tv t@(TyApp t1 (TyVar (Id n _))) = case TV.deepLookupName tv n of
 typeToSMT tv t@(TyVar (Id n _ )) = case TV.deepLookupName tv n of 
                                         Just t1 -> typeToSMT tv t1
                                         Nothing -> error $ "typeToSMT: TyVarEnv can't find the type: " ++ show t 
+typeToSMT _ (TyCon (Name "Char" _ _ _) _) = SortChar
 typeToSMT _ t = error $ "Unsupported type in typeToSMT: " ++ show t
 
 adtTypeToSMT :: TyVarEnv -> Type -> Sort
@@ -905,6 +924,10 @@ toSolverASTSeq = go
         go (StrPrefixOfSMT x y) = function2 "seq.prefixof" (goBack x) (goBack y)
         go (StrSuffixOfSMT x y) = function2 "seq.suffixof" (goBack x) (goBack y)
         go (SeqEmptySMT s) = "(as seq.empty (Seq " <> sortName s <> "))"
+        go (FoldLeftSMT n1 s1 n2 s2 x y z) =
+            "(seq.fold_left (lambda ((" <> TB.string n1 <> " " <> sortNameLam s1 <> ")"
+                    <> " (" <> TB.string n2 <> " " <> sortNameLam s2 <> ")) "
+                    <> goBack x <> ") " <> goBack y <> " " <> goBack z <> ")"
         go c = toSolverASTRe goBack c
 
         goBack = toSolverAST toSolverASTSeq
@@ -997,6 +1020,10 @@ sortName SortChar = "String"
 sortName SortBool = "Bool"
 sortName (SortArray ind val) = "(Array " <> sortName ind <> " " <> sortName val <> ")"
 sortName _ = error "sortName: unsupported Sort"
+
+sortNameLam :: Sort -> TB.Builder
+sortNameLam SortChar = "Unicode"
+sortNameLam s = sortName s
 
 toSolverSetLogic :: Logic -> TB.Builder
 toSolverSetLogic lgc =

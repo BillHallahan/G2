@@ -273,6 +273,8 @@ data Primitive = -- Mathematical and logical operators
                | OrdChar
                | WGenCat
 
+               | FoldLeft -- ^ (a -> b -> a) -> a -> [b] -> a
+
                -- String Handling (Regex)
                | InRe -- ^ String -> Regex -> Bool
                | ToRe -- ^ String -> Regex

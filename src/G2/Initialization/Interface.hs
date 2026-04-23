@@ -62,7 +62,13 @@ runInitialization2 config s@(IT.SimpleState { IT.expr_env = eenv
                         then E.insert (adjStr kv) 
                                       (Var (Id (checkStrLazy kv) TyUnknown)) eenv6
                         else eenv6
-        s1 = s { IT.expr_env = eenv7
+        eenv8 = if using_smt_lams config == UseSMTLams && smt config == ConZ3
+                        then E.insert (usingSMTLams kv) 
+                                      (mkTrue kv) eenv7
+                        else eenv7
+
+
+        s1 = s { IT.expr_env = eenv8
                , IT.name_gen = ng3
                , IT.handles = hs}
         
