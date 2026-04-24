@@ -5,6 +5,7 @@ module InputOutputTest ( checkInputOutput
                        , checkInputOutputsADTHeight
                        
                        , checkInputOutputsSMTStrings
+                       , checkInputOutputsWithCVC5SMTStrings
                        , checkInputOutputsSMTStringsStrict
                        , checkInputOutputsSMTStringsWithSubPath
                        , checkInputOutputsQuantifiedSMTStrings
@@ -53,7 +54,6 @@ checkInputOutputs :: FilePath -> [(String, Int, [Reqs String])] -> TestTree
 checkInputOutputs src tests = do
     checkInputOutput' mkConfigTestIO src tests
 
-
 checkInputOutputsWithCVC5 :: FilePath -> [(String, Int, [Reqs String])] -> TestTree
 checkInputOutputsWithCVC5 src tests = do
     checkInputOutput' (do config <- mkConfigTestIO; return config { smt = ConCVC5 }) src tests
@@ -69,6 +69,10 @@ checkInputOutputsADTHeight src tests = do
 checkInputOutputsSMTStrings :: FilePath -> [(String, Int, [Reqs String])] -> TestTree
 checkInputOutputsSMTStrings src tests = do
     checkInputOutput' mkConfigTestWithSMTStringsIO src tests
+
+checkInputOutputsWithCVC5SMTStrings :: FilePath -> [(String, Int, [Reqs String])] -> TestTree
+checkInputOutputsWithCVC5SMTStrings src tests = do
+    checkInputOutput' (do config <- mkConfigTestIO; return config { smt = ConCVC5, smt_strings = UseSMTStrings }) src tests
 
 checkInputOutputsSMTStringsStrict :: FilePath -> [(String, Int, [Reqs String])] -> TestTree
 checkInputOutputsSMTStringsStrict src tests = do
