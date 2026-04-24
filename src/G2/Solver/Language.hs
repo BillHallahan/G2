@@ -128,6 +128,7 @@ data SMTAST = (:>=) !SMTAST !SMTAST
             | StrReplaceReAllSMT !SMTAST !SMTAST !SMTAST
             | StrPrefixOfSMT !SMTAST !SMTAST
             | StrSuffixOfSMT !SMTAST !SMTAST
+            | StrReverseSMT !SMTAST
 
             | FoldLeftSMT SMTName Sort SMTName Sort !SMTAST !SMTAST !SMTAST
 

@@ -268,12 +268,13 @@ data Primitive = -- Mathematical and logical operators
                | StrReplaceReAll
                | StrPrefixOf
                | StrSuffixOf
+               | StrReverse -- CVC5 only
 
                | Chr
                | OrdChar
                | WGenCat
 
-               | FoldLeft -- ^ (a -> b -> a) -> a -> [b] -> a
+               | FoldLeft -- ^ (a -> b -> a) -> a -> [b] -> a, Z3 only
 
                -- String Handling (Regex)
                | InRe -- ^ String -> Regex -> Bool

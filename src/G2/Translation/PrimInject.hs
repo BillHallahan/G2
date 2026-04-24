@@ -263,6 +263,8 @@ primDefs' b c l unit =
                                     (Var $ y seqTyX)
                                 )
                                 (Var $ z seqTyX))
+              , ("strReverse#", Lam TypeL (x TYPE) . Lam TermL (y seqTyX)
+                              $ App (Prim StrReverse (TyFun seqTyX seqTyX)) (Var $ y seqTyX))
               , ("intToString#", Prim IntToString (TyFun TyLitInt strTy))
 
               , ("smtFoldLeft#", Lam TypeL a . Lam TypeL (x TYPE)

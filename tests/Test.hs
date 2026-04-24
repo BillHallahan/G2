@@ -528,6 +528,12 @@ testFileTests = testGroup "TestFiles"
                                         , ("minimum1", 3000, [AtLeast 1, AtMost 6]) -- Quantifier causes SMT failures
                                         , ("maximum1", 3000, [AtLeast 1, AtMost 6]) -- Quantifier causes SMT failures
                                         ]
+    
+    , checkInputOutputsWithCVC5SMTStrings "tests/TestFiles/Strings/Strings1.hs"
+                                        [ ("reverse1", 5000, [Exactly 6]) 
+                                        , ("reverse2", 5000, [Exactly 3])
+                                        , ("reverse3", 5000, [Exactly 2])
+                                        ]
 
     , checkInputOutputsLambdaSMTStrings "tests/TestFiles/Strings/Strings1.hs"
                                         [ ("intersperse1", 3000, [Exactly 3])

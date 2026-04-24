@@ -113,7 +113,7 @@ maybeEvalPrim' eenv tenv tv_env kv tc xs
     | [Prim p _, x] <- xs
     , Lit x' <- x = evalPrim1' tenv kv p x'
     | [Prim p _, x] <- xs
-    , Just e <- evalPrimADT1 kv p x = Just e
+    , Just e <- evalPrimADT1 kv tenv p x = Just e
 
     | [Prim p _, x, y] <- xs
     , Lit x' <- x
@@ -509,16 +509,20 @@ evalPrim1' _ kv IsInfinite (LitFloat x) = Just . mkBool kv $ isInfinite x
 evalPrim1' _ kv IsInfinite (LitDouble x) = Just . mkBool kv $  isInfinite x
 evalPrim1' _ _ _ _ = Nothing
 
-evalPrimADT1 :: KnownValues -> Primitive -> Expr -> Maybe Expr
-evalPrimADT1 kv StrLen e = fmap (Lit . LitInt) (compLen e)
+evalPrimADT1 :: KnownValues -> TypeEnv -> Primitive -> Expr -> Maybe Expr
+evalPrimADT1 kv _ StrLen e = fmap (Lit . LitInt) (compLen e)
     where
         -- [] @Char
         compLen (App (Data dc) _ {- type -}) = assert (KV.dcEmpty kv == dcName dc) Just 0
         -- (:) @Char head tail
         compLen (App (App (App (Data dc) _ {- type -}) _ {- char -}) xs) = assert (KV.dcCons kv == dcName dc) fmap (+ 1) (compLen xs)
         compLen _ = Nothing
+evalPrimADT1 kv tenv StrReverse xs = do
+    t <- listType xs
+    xs' <- toExprList xs
+    return $ toListExpr kv tenv t (reverse xs')
 
-evalPrimADT1 _ _ _ = Nothing
+evalPrimADT1 _ _ _ _ = Nothing
 
 evalPrimADT2 :: KnownValues -> TypeEnv -> Primitive -> Expr -> Expr -> Maybe Expr
 evalPrimADT2 kv _ And e1 e2
