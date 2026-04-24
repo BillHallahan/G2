@@ -684,7 +684,8 @@ testFileTests = testGroup "TestFiles"
                                                                                         config <- mkConfigTestIO
                                                                                         return $ config { check_asserts = True })
 
-    , checkInputOutputs "tests/TestFiles/Show.hs" [ ("show1", 1000, [Exactly 1])
+    , checkInputOutputsWithCVC5 "tests/TestFiles/Show.hs"
+                                                  [ ("show1", 1000, [Exactly 1])
                                                   , ("show2", 1000, [Exactly 1])
                                                   , ("show3", 1000, [AtLeast 3])
                                                   , ("show4", 1000, [Exactly 2])
