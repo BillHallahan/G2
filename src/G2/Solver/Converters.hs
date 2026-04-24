@@ -336,6 +336,7 @@ isStr' (StrReplaceReSMT _ _ _) = All True
 isStr' (StrReplaceReAllSMT _ _ _) = All True
 isStr' (StrPrefixOfSMT _ _) = All True
 isStr' (StrSuffixOfSMT _ _) = All True
+isStr' (StrReverseSMT _) = All True
 isStr' (FromCode _) = All True
 isStr' (ToCode _) = All True
 
@@ -535,6 +536,7 @@ funcToSMT1Prim tv BVToNat e = BVToNatSMT (exprToSMT tv e)
 funcToSMT1Prim tv Chr e = FromCode (exprToSMT tv e)
 funcToSMT1Prim tv OrdChar e = ToCode (exprToSMT tv e)
 funcToSMT1Prim tv StrLen e = StrLenSMT (exprToSMT tv e)
+funcToSMT1Prim tv StrReverse e = StrReverseSMT (exprToSMT tv e)
 funcToSMT1Prim tv SeqUnit e = SeqUnitSMT (exprToSMT tv e)
 
 funcToSMT1Prim tv ToRe e = ToReSMT (exprToSMT tv e)
@@ -903,6 +905,7 @@ toSolverASTString = go
         go (StrReplaceReAllSMT x y z) = function3 "str.replace_re_all" (goBack x) (goBack y) (goBack z)
         go (StrPrefixOfSMT x y) = function2 "str.prefixof" (goBack x) (goBack y)
         go (StrSuffixOfSMT x y) = function2 "str.suffixof" (goBack x) (goBack y)
+        go (StrReverseSMT x) = function1 "str.rev" (goBack x)
         go c = toSolverASTRe goBack c
 
         goBack = toSolverAST toSolverASTString
@@ -923,6 +926,7 @@ toSolverASTSeq = go
         go (StrReplaceReAllSMT x y z) = function3 "str.replace_re_all" (goBack x) (goBack y) (goBack z)
         go (StrPrefixOfSMT x y) = function2 "seq.prefixof" (goBack x) (goBack y)
         go (StrSuffixOfSMT x y) = function2 "seq.suffixof" (goBack x) (goBack y)
+        go (StrReverseSMT x) = function1 "seq.rev" (goBack x)
         go (SeqEmptySMT s) = "(as seq.empty (Seq " <> sortName s <> "))"
         go (FoldLeftSMT n1 s1 n2 s2 x y z) =
             "(seq.fold_left (lambda ((" <> TB.string n1 <> " " <> sortNameLam s1 <> ")"

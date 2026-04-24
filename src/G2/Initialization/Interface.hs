@@ -67,8 +67,12 @@ runInitialization2 config s@(IT.SimpleState { IT.expr_env = eenv
                                       (mkTrue kv) eenv7
                         else eenv7
 
+        eenv9 = case E.lookupNameMod "usingStrReverse#" (Just "GHC.Prim") eenv of
+                    Just (using_smt_rev, _) | smt config == ConCVC5 ->
+                                    E.insert using_smt_rev (mkTrue kv) eenv8
+                    _ -> eenv8
 
-        s1 = s { IT.expr_env = eenv8
+        s1 = s { IT.expr_env = eenv9
                , IT.name_gen = ng3
                , IT.handles = hs}
         
