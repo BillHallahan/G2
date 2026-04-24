@@ -1,6 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 module InputOutputTest ( checkInputOutput
                        , checkInputOutputs
+                       , checkInputOutputsWithCVC5
                        , checkInputOutputsADTHeight
                        
                        , checkInputOutputsSMTStrings
@@ -51,6 +52,11 @@ checkInputOutput src entry stps req = do
 checkInputOutputs :: FilePath -> [(String, Int, [Reqs String])] -> TestTree
 checkInputOutputs src tests = do
     checkInputOutput' mkConfigTestIO src tests
+
+
+checkInputOutputsWithCVC5 :: FilePath -> [(String, Int, [Reqs String])] -> TestTree
+checkInputOutputsWithCVC5 src tests = do
+    checkInputOutput' (do config <- mkConfigTestIO; return config { smt = ConCVC5 }) src tests
 
 checkInputOutputsADTHeight :: FilePath -> [(String, Int, [Reqs String])] -> TestTree
 checkInputOutputsADTHeight src tests = do
