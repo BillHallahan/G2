@@ -48,7 +48,10 @@ jobs:
       uses: cda-tum/setup-z3@v1
       with:
         version: 4.15.4
-   
+
+    - name: Install CVC5
+      run: sudo apt-get install cvc5
+
     - name: Getting custom base
       run: bash base_setup.sh
 
