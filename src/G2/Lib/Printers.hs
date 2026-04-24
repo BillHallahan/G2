@@ -498,6 +498,7 @@ mkPrimHaskell pg = pr
         pr StrReplaceReAll = "str.replace_re_all"
         pr StrPrefixOf = "str.prefixof"
         pr StrSuffixOf = "str.suffixof"
+        pr StrReverse = "str.reverse"
         pr Chr = "chr"
         pr OrdChar = "ord"
 
