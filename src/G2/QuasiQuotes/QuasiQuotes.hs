@@ -235,7 +235,7 @@ runExecutionQ s b config = do
         (SomeReducer red, SomeHalter hal, SomeOrderer ord) -> do
             let (s'', b'') = runG2Pre emptyMemConfig s' b'
                 hal' = hal <~> zeroHalter 2000 <~> lemmingsHalter
-            (xs, b''') <- runExecutionToProcessed red hal' ord (\s b -> return $ Just (s, name_gen b)) noAnalysis s'' b''
+            (xs, b''') <- runExecutionToProcessed red hal' ord (\s b -> return $ Just (s, name_gen b, b'')) noAnalysis s'' b''
 
             case xs of
                 Processed { accepted = acc, discarded = [] } -> do
@@ -298,7 +298,6 @@ moveOutStatePieces tenv_name s = do
 
         expr_env_exp = liftDataT (expr_env s)
         curr_expr_exp = liftDataT (curr_expr s)
-        poly_arg_map_exp = liftDataT (poly_arg_map s)
         non_red_path_conds_exp = liftDataT (non_red_path_conds s)
         mutvar_env_exp = liftDataT (mutvar_env s)
         true_assert_exp = liftDataT (true_assert s)
@@ -317,7 +316,6 @@ moveOutStatePieces tenv_name s = do
 
     [| State { expr_env = $(expr_env_exp)
              , type_env = $(varE tenv_name)
-             , poly_arg_map = $(poly_arg_map_exp)
              , tyvar_env = TV.fromListConcOrSym $(tyvar_env_exp)
              , curr_expr = $(curr_expr_exp)
              , path_conds = PC.fromList $(pc_exp)
@@ -454,8 +452,8 @@ solveStates'' _ _ _ [] = return Nothing
 solveStates'' sol simplifier b (s:xs) = do
     m_ex_res <- runG2Solving sol simplifier s b
     case m_ex_res of
-        Just _ -> do
-            return m_ex_res
+        Just (ex_res, ng, _) -> do
+            return $ Just (ex_res, ng)
         Nothing -> solveStates'' sol simplifier b xs
 
 -- | Get the values of the symbolic arguments, and returns them in a tuple

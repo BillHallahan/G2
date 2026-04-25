@@ -177,7 +177,7 @@ runLHG2Inference config red hal ord solver simplifier pres_names init_id final_s
                                 (SomeReducer red', SomeHalter hal', SomeOrderer ord') -> do
                                     let (s', b') = runG2Pre pres_names final_st bindings
                                     runExecution red' hal' ord'
-                                                 (\s b -> return . Just $ (earlyExecRes b s, name_gen b))
+                                                 (\s b -> return . Just $ (earlyExecRes b s, name_gen b, b'))
                                                  noAnalysis
                                                  s' b'
     
@@ -254,7 +254,7 @@ runG2ThroughExecutionInference red hal ord _ _ _ pres s b = do
     case (red, hal, ord) of
             (SomeReducer red', SomeHalter hal', SomeOrderer ord') -> do
                     let (s', b') = runG2Pre pres s b
-                    runExecution red' hal' ord' (\s b -> return . Just $ (earlyExecRes b s, name_gen b)) noAnalysis s' b'
+                    runExecution red' hal' ord' (\s b -> return . Just $ (earlyExecRes b s, name_gen b, b')) noAnalysis s' b'
 
 runG2SolvingInference :: (MonadIO m, Solver solver, Simplifier simplifier) => solver -> simplifier -> Bindings -> ExecRes AbstractedInfo -> m (ExecRes AbstractedInfo, NameGen)
 runG2SolvingInference solver simplifier bindings (ExecRes { final_state = s }) = do

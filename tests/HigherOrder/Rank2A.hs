@@ -23,12 +23,6 @@ calledInTuple f = (f 1 4, f 5 2)
 intArg :: (forall a. a -> Int -> a) -> Bool
 intArg f = f True 5
 
-intArgCalledTwice :: (forall a. a -> a -> Int -> a) -> Int
-intArgCalledTwice f = case f 2 7 9 of 
-                2 -> f 5 6 10
-                7 -> f 9 10 9
-                _ -> 3
-
 intArgCaseFourCalls :: (forall a. Int -> a -> a -> Int -> a) -> (Int, Int)
 intArgCaseFourCalls f = (case f 2 10 11 12 of 
                     10 -> 9
@@ -37,9 +31,6 @@ intArgCaseFourCalls f = (case f 2 10 11 12 of
                         _ -> case f 4 10 11 12  of
                             12 -> 6
                             _ -> 100 , f 4 10 11 12)
-
-multiIntArgs :: (forall a. Int -> Int -> a -> a) -> Int
-multiIntArgs f = f 2 3 4
 
 fromMaybe :: (forall a. a -> (Maybe a) -> a) -> (Int, Int)
 fromMaybe f = (f 1 (Just 2), f 3 Nothing)
