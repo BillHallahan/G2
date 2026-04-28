@@ -26,12 +26,14 @@ data AlgDataTy =
                  DataTyCon { bound_ids :: [Id] -- ^ Polymorphic type variables
                            , data_cons :: [DataCon] -- ^ Data constructors for the type
                            , adt_source :: ADTSource
+                           , to_smt :: Bool -- ^ Convert to SMT-LIB?
                            }
                  -- | A type defined using the `newtype` keyword.
                | NewTyCon { bound_ids :: [Id] -- ^ Polymorphic type variables
                           , data_con :: DataCon -- ^ The data constructor for the newtype
                           , rep_type :: Type -- ^ The type being wrapped by the newtype
                           , adt_source :: ADTSource
+                          , to_smt :: Bool -- ^ Convert to SMT-LIB?
                           }
                  -- | A type defined using the `type` keyword.
                | TypeSynonym { bound_ids :: [Id]  -- ^ Polymorphic type variables
@@ -48,7 +50,7 @@ dataCon (NewTyCon {data_con = dc}) = [dc]
 dataCon (TypeSynonym {}) = []
 
 dataConWithName :: AlgDataTy -> Name -> Maybe DataCon
-dataConWithName (DataTyCon _ dcs _) n = find (`dataConHasName` n) dcs
+dataConWithName (DataTyCon _ dcs _ _) n = find (`dataConHasName` n) dcs
 dataConWithName _ _ = Nothing
 
 dataConHasName :: DataCon -> Name -> Bool

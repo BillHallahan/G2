@@ -17,6 +17,7 @@ import qualified Data.HashSet as HS
 import qualified Data.Map as M
 import Text.Builder
 import qualified Data.Text as T
+import Sygus.ParseSygus (SmtCmd(DeclareDatatype))
 
 type SMTNameBldr = Builder
 type SMTName = String
@@ -27,10 +28,16 @@ data SMTHeader = Assert !SMTAST
                | Minimize !SMTAST
                | DefineFun SMTName [(SMTName, Sort)] Sort !SMTAST
                | DeclareFun SMTName [Sort] Sort
+               | DeclareDatatypes [SMTDataType]
                | VarDecl SMTNameBldr Sort
                | SetLogic Logic
                | Comment String
                deriving (Show)
+
+data SMTDataType = SmtDT { dt_name :: SMTName
+                         , dt_tyvars :: [SMTName]
+                         , dt_constructors :: [(SMTName, [(SMTName, Sort)])]}
+                   deriving (Show)
 
 -- | Various logics supported by (some) SMT solvers 
 data Logic = ALL
@@ -193,6 +200,7 @@ data Sort = SortInt
           | SortBool
           | SortArray Sort Sort
           | SortFunc [Sort] Sort
+          | ParSort SMTName
           deriving (Show, Eq, Ord, Generic)
 
 pattern SortFloat :: Sort

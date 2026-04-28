@@ -113,7 +113,9 @@ newtype NameGen = NameGen Unique
 -- nameToStr relies on NameCleaner eliminating all '_', to preserve uniqueness
 -- | Converts a `Name` to a string, which is useful to interact with solvers.
 nameToStr :: Name -> String
-nameToStr (Name n (Just m) i _) = T.unpack n ++ "_m_" ++ T.unpack m ++ "_" ++ show i
+nameToStr (Name n (Just m) i _)
+    | Just ('(', _) <- T.uncons n = T.unpack (T.filter (\c -> c /= '(' && c /= ')') n) ++ "_m_" ++ T.unpack m ++ "_" ++ show i
+    | otherwise = T.unpack n ++ "_m_" ++ T.unpack m ++ "_" ++ show i
 nameToStr (Name n Nothing i _) = T.unpack n ++ "_n__" ++ show i
 
 -- | Similar to `nameToStr`, but converts a `Name` to a `TB.Builder`.
@@ -553,16 +555,16 @@ instance Named Axiom where
         Axiom { lhs_types = renames hm lhs_t, rhs_type = renames hm rhs_t }
 
 instance Named AlgDataTy where
-    names (DataTyCon ns dc _) = names ns <> names dc
-    names (NewTyCon ns dc rt _) = names ns <> names dc <> names rt
+    names (DataTyCon ns dc _ _) = names ns <> names dc
+    names (NewTyCon ns dc rt _ _) = names ns <> names dc <> names rt
     names (TypeSynonym is st _) = names is <> names st
 
-    rename old new (DataTyCon n dc adts) = DataTyCon (rename old new n) (rename old new dc) adts
-    rename old new (NewTyCon n dc rt adts) = NewTyCon (rename old new n) (rename old new dc) (rename old new rt) adts
+    rename old new (DataTyCon n dc adts to_s) = DataTyCon (rename old new n) (rename old new dc) adts to_s
+    rename old new (NewTyCon n dc rt adts to_s) = NewTyCon (rename old new n) (rename old new dc) (rename old new rt) adts to_s
     rename old new (TypeSynonym is st adts) = (TypeSynonym (rename old new is) (rename old new st) adts)
 
-    renames hm (DataTyCon n dc adts) = DataTyCon (renames hm n) (renames hm dc) adts
-    renames hm (NewTyCon n dc rt adts) = NewTyCon (renames hm n) (renames hm dc) (renames hm rt) adts
+    renames hm (DataTyCon n dc adts to_s) = DataTyCon (renames hm n) (renames hm dc) adts to_s
+    renames hm (NewTyCon n dc rt adts to_s) = NewTyCon (renames hm n) (renames hm dc) (renames hm rt) adts to_s
     renames hm (TypeSynonym is st adts) = TypeSynonym (renames hm is) (renames hm st) adts
 
 instance Named KnownValues where

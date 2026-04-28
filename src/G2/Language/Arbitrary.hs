@@ -152,8 +152,8 @@ basicTypeEnv =
         int_dc = DataCon intDCName (TyFun TyLitInt (TyCon intTypeName TYPE)) [] []
         float_dc = DataCon floatDCName (TyFun TyLitFloat (TyCon floatTypeName TYPE)) [] []
     in
-    HM.fromList [ (intTypeName, DataTyCon { bound_ids = [], data_cons = [int_dc], adt_source = ADTSourceCode })
-                , (floatTypeName, DataTyCon { bound_ids = [], data_cons = [float_dc], adt_source = ADTSourceCode }) ]
+    HM.fromList [ (intTypeName, DataTyCon { bound_ids = [], data_cons = [int_dc], adt_source = ADTSourceCode, to_smt = False })
+                , (floatTypeName, DataTyCon { bound_ids = [], data_cons = [float_dc], adt_source = ADTSourceCode, to_smt = False }) ]
 
 -- | Creates `Name` and `AlgDataTy` mappings, with all `data_cons` fields set to the empty list.
 -- The `arbInstDataCons` function can then be used to instantiate the `data_cons` fields.
@@ -161,7 +161,7 @@ basicTypeEnv =
 arbAlgDataTyEmpty :: Gen (Name, AlgDataTy)
 arbAlgDataTyEmpty = do
     AU ty_n <- arbitrary
-    return (ty_n, DataTyCon { bound_ids = [], data_cons = [], adt_source = ADTG2Generated })
+    return (ty_n, DataTyCon { bound_ids = [], data_cons = [], adt_source = ADTG2Generated, to_smt = False })
 
 arbInstDataCons :: TypeEnv -> Unique -> (Name, AlgDataTy) -> Gen (Name, AlgDataTy)
 arbInstDataCons tenv unq (ty_n, adt@(DataTyCon { bound_ids = bi })) = do

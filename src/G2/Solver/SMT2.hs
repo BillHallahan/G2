@@ -53,17 +53,17 @@ data SomeSMTSolver where
                    . SMTConverter con => con -> SomeSMTSolver
 
 instance Solver Z3 where
-    check solver s pc = checkConstraintsPC (tyvar_env s) solver pc
+    check solver s pc = checkConstraintsPC (tyvar_env s) (type_env s) solver pc
     solve con@(Z3 _ _ avf _) = checkModelPC avf con
     close = closeIO
 
 instance Solver CVC5 where
-    check solver s pc = checkConstraintsPC (tyvar_env s) solver pc
+    check solver s pc = checkConstraintsPC (tyvar_env s) (type_env s) solver pc
     solve con@(CVC5 _ avf _) = checkModelPC avf con
     close = closeIO
 
 instance Solver Ostrich where
-    check solver s pc = checkConstraintsPC (tyvar_env s) solver pc
+    check solver s pc = checkConstraintsPC (tyvar_env s) (type_env s) solver pc
     solve con@(Ostrich _ avf _) = checkModelPC avf con
     close = closeIO
 

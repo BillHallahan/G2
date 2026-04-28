@@ -57,6 +57,7 @@ import qualified G2.Language.PathConds as PC
 import G2.Solver.Language
 import G2.Solver.Solver
 import qualified G2.Language.TyVarEnv as TV
+import qualified G2.Translation.GHC as TV
 
 type PrintSMT = Bool
 
@@ -102,9 +103,9 @@ class Solver con => SMTConverter con where
 addHeaders :: SMTConverter con => con -> [SMTHeader] -> IO ()
 addHeaders = addFormula
 
-checkConstraintsPC :: SMTConverter con => TV.TyVarEnv -> con -> PathConds -> IO (Result () () ())
-checkConstraintsPC tv con pc = do
-    let headers = toSMTHeaders tv pc
+checkConstraintsPC :: SMTConverter con => TV.TyVarEnv -> TypeEnv -> con -> PathConds -> IO (Result () () ())
+checkConstraintsPC tv tenv con pc = do
+    let headers = toSMTHeaders tv tenv pc
     checkConstraints con headers
 
 checkConstraints :: SMTConverter con => con -> [SMTHeader] -> IO (Result () () ())
@@ -145,7 +146,7 @@ getModelVal avf con s@(State { expr_env = eenv, type_env = tenv, known_values = 
 
 solveNumericConstraintsPC :: SMTConverter con => TV.TyVarEnv -> con -> KnownValues -> TypeEnv -> PathConds -> NameGen -> IO (Result SatRes () ())
 solveNumericConstraintsPC tv con kv tenv pc ng = do
-    let headers = toSMTHeaders tv pc
+    let headers = toSMTHeaders tv tenv pc
     let vs = map (\(n', srt) -> (nameToStr n', srt)) . HS.toList . pcVars tv $ pc
     let ty_map = HM.fromList . map (\(Id n t) -> (nameToStr n, t)) . HS.toList $ PC.allIds pc
 
@@ -170,17 +171,20 @@ constraintsToModelOrUnsatCoreNoReset = checkSatGetModelOrUnsatCoreNoReset
 -- we need only consider the types and path constraints of that state.
 -- We can also pass in some other Expr Container to instantiate names from, which is
 -- important if you wish to later be able to scrape variables from those Expr's
-toSMTHeaders :: TV.TyVarEnv -> PathConds -> [SMTHeader]
-toSMTHeaders tv pc = addSetLogic  (toSMTHeaders' tv pc)
+toSMTHeaders :: TV.TyVarEnv -> TypeEnv -> PathConds -> [SMTHeader]
+toSMTHeaders tv tenv pc = addSetLogic  (toSMTHeaders' tv tenv pc)
 
-toSMTHeaders' :: TV.TyVarEnv -> PathConds -> [SMTHeader]
-toSMTHeaders' tv pc  =
+toSMTHeaders' :: TV.TyVarEnv -> TypeEnv -> PathConds -> [SMTHeader]
+toSMTHeaders' tv tenv pc =
     let
+        tenv' = filter (to_smt . snd) $ HM.toList tenv
         pc' = PC.toList pc
-    in 
-    (pcVarDecls tv pc)
+    in
+    map (uncurry (datatypeDecls tv)) tenv'
     ++
-    (pathConsToSMTHeaders tv pc')
+    pcVarDecls tv pc
+    ++
+    pathConsToSMTHeaders tv pc'
 
 -- |  Determines an appropriate SetLogic command, and adds it to the headers
 addSetLogic :: [SMTHeader] -> [SMTHeader]
@@ -679,6 +683,21 @@ createUniqVarDecls ((n,SortChar):xs) =
     VarDecl (nameToBuilder n) SortChar:lenAssert:createUniqVarDecls xs
 createUniqVarDecls ((n,s):xs) = VarDecl (nameToBuilder n) s:createUniqVarDecls xs
 
+datatypeDecls :: TV.TyVarEnv -> Name -> AlgDataTy -> SMTHeader
+datatypeDecls tv_env n (DataTyCon { bound_ids = is, data_cons = dcs }) =
+    let
+        dts = map (\dc ->
+                        let
+                            dc_n = nameToStr $ dc_name dc
+                            dc_a = zipWith (\i d -> ("extract" ++ show i, d)) [1 :: Integer ..] . map (typeToSMT tv_env) . anonArgumentTypes $ dc_type dc
+                        in
+                        (dc_n, dc_a)
+                  ) dcs
+        smt_dt = SmtDT { dt_name = nameToStr n, dt_tyvars = map (nameToStr . idName) is, dt_constructors = dts}
+    in
+    DeclareDatatypes [ smt_dt ]
+datatypeDecls _ _ _ = error "datatypeDecls: unsupported"
+
 pcVarDecls :: TV.TyVarEnv -> PathConds -> [SMTHeader]
 pcVarDecls tv = createUniqVarDecls . HS.toList . pcVars tv
 
@@ -716,7 +735,7 @@ typeToSMT tv t@(TyApp t1 (TyVar (Id n _))) = case TV.deepLookupName tv n of
                                                 Nothing -> error $ "typeToSMT: TyVarEnv can't find the type: " ++ show t 
 typeToSMT tv t@(TyVar (Id n _ )) = case TV.deepLookupName tv n of 
                                         Just t1 -> typeToSMT tv t1
-                                        Nothing -> error $ "typeToSMT: TyVarEnv can't find the type: " ++ show t 
+                                        Nothing -> ParSort (nameToStr n)
 typeToSMT _ (TyCon (Name "Char" _ _ _) _) = SortChar
 typeToSMT _ t = error $ "Unsupported type in typeToSMT: " ++ show t
 
@@ -747,6 +766,25 @@ declareFun fn ars ret =
         <> TB.intercalate " " (map sortName ars) <> ")"
         <> " (" <> sortName ret <> "))"
 
+declareDataTypes :: [SMTDataType] -> TB.Builder 
+declareDataTypes dts =
+    let
+        to_arg (n, s) = "(" <> TB.string n <> " " <> sortName s <> ")"
+        handle_cons (n, cons) = "(" <> TB.string n <> " " <> TB.intercalate " " (map to_arg cons) <> ")"
+        handle_datatype dt =
+            let
+                par = TB.intercalate " " . map TB.string $ dt_tyvars dt
+                cons = map handle_cons . dt_constructors $ dt
+            in
+            "(par (" <> par <> ") (" <> TB.intercalate " " cons <> "))"
+
+        dt_list = TB.intercalate " "
+                $ map (\dt -> "(" <> TB.string (dt_name dt) <> " " <> (TB.string . show . length . dt_tyvars $ dt) <> ")") dts
+        cons_lists = TB.intercalate " "
+                   $  map handle_datatype dts
+    in
+    "(declare-datatypes (" <> dt_list <> ") (" <> cons_lists <> ")" <> ")"
+
 toSolverText :: (SMTAST -> TB.Builder) -> [SMTHeader] -> TB.Builder
 toSolverText str_seq = TB.intercalate "\n" . map go
     where
@@ -755,6 +793,7 @@ toSolverText str_seq = TB.intercalate "\n" . map go
         go (Minimize ast) = function1 "minimize" $ toSolverAST str_seq ast
         go (DefineFun f ars ret body) = defineFun str_seq f ars ret body
         go (DeclareFun f ars ret) = declareFun f ars ret
+        go (DeclareDatatypes dts) = declareDataTypes dts
         go (VarDecl n s) = toSolverVarDecl n s
         go (SetLogic lgc) = toSolverSetLogic lgc
         go (Comment c) = comment c
@@ -1023,6 +1062,7 @@ sortName (SortSeq s) = "(Seq " <> sortName s <> ")"
 sortName SortChar = "String"
 sortName SortBool = "Bool"
 sortName (SortArray ind val) = "(Array " <> sortName ind <> " " <> sortName val <> ")"
+sortName (ParSort n) = TB.string n
 sortName _ = error "sortName: unsupported Sort"
 
 sortNameLam :: Sort -> TB.Builder

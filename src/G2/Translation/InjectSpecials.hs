@@ -8,6 +8,7 @@ module G2.Translation.InjectSpecials
 
 import qualified Data.HashMap.Lazy as HM
 import qualified Data.Text as T
+import Data.Tuple.Extra
 
 import G2.Language
 import qualified G2.Language.TyVarEnv as TV 
@@ -16,15 +17,15 @@ _MAX_TUPLE :: Int
 _MAX_TUPLE = 62
 
 specialTypes :: HM.HashMap Name AlgDataTy
-specialTypes = HM.fromList $ map (uncurry specialTypes') specials ++ mkPrimTuples _MAX_TUPLE
+specialTypes = HM.fromList $ map (uncurry3 specialTypes') specials ++ mkPrimTuples _MAX_TUPLE
 
-specialTypes' :: (T.Text, Maybe T.Text, [Name]) -> [(T.Text, Maybe T.Text, [Type])] -> (Name, AlgDataTy)
-specialTypes' (n, m, ns) dcn = 
+specialTypes' :: (T.Text, Maybe T.Text, [Name]) -> [(T.Text, Maybe T.Text, [Type])] -> Bool -> (Name, AlgDataTy)
+specialTypes' (n, m, ns) dcn to_s = 
     let
         tn = Name n m 0 Nothing
         dc = map (specialDC ns tn) dcn
     in
-    (tn, DataTyCon {bound_ids = map (flip Id TYPE) ns, data_cons = dc, adt_source = ADTSourceCode})
+    (tn, DataTyCon {bound_ids = map (flip Id TYPE) ns, data_cons = dc, adt_source = ADTSourceCode, to_smt = to_s})
 
 specialDC :: [Name] -> Name -> (T.Text, Maybe T.Text, [Type]) -> DataCon
 specialDC ns tn (n, m, ts) = 
@@ -35,7 +36,7 @@ specialDC ns tn (n, m, ts) =
         is = map (flip Id TYPE) ns
         t' = foldr TyForAll t is
     in
-    DataCon (Name n m 0 Nothing) t' is []
+    DataCon { dc_name = Name n m 0 Nothing, dc_type = t', dc_univ_tyvars = is, dc_exist_tyvars = [] }
 
 specialTypeNames :: HM.HashMap (T.Text, Maybe T.Text) Name
 specialTypeNames = -- HM.fromList $ map (\(n, m, _) -> ((n, m), Name n m 0 Nothing)) specialTypeNames'
@@ -69,12 +70,13 @@ listTypeStr = "[]"
 listName :: Name
 listName = Name listTypeStr (Just "GHC.Types") 0 Nothing
 
-specials :: [((T.Text, Maybe T.Text, [Name]), [(T.Text, Maybe T.Text, [Type])])]
+specials :: [((T.Text, Maybe T.Text, [Name]), [(T.Text, Maybe T.Text, [Type])], Bool)]
 specials =
            [ (( listTypeStr
               , Just "GHC.Types", [aName])
               , [ ("[]", Just "GHC.Types", [])
                 , (":", Just "GHC.Types", [aTyVar, mkFullAppedTyCon TV.empty listName [aTyVar] TYPE])]
+              , False
              )
            -- , (("Int", Just "GHC.Types"), [("I#", Just "GHC.Types", [TyLitInt])])
            -- , (("Float", Just "GHC.Types"), [("F#", Just "GHC.Types", [TyLitFloat])])
@@ -82,8 +84,10 @@ specials =
            -- , (("Char", Just "GHC.Types"), [("C#", Just "GHC.Types", [TyLitChar])])
            -- , (("String", Just "GHC.Types"), [])
 
-           , (("Bool", Just "GHC.Types", []), [ ("False", Just "GHC.Types", [])
-                                              , ("True", Just "GHC.Types", [])])
+           , (("Bool", Just "GHC.Types", [])
+             , [ ("False", Just "GHC.Types", [])
+               , ("True", Just "GHC.Types", [])]
+             , False)
 
            -- , (("Ordering", Just "GHC.Types"), [ ("EQ", Just "GHC.Types", [])
            --                                    , ("LT", Just "GHC.Types", [])
@@ -101,7 +105,7 @@ specials =
            -- mkTuples "(#" "#)" (Just "GHC.Prim") _MAX_TUPLE
 
 
-mkTuples :: T.Text -> T.Text -> Maybe T.Text -> Int -> [((T.Text, Maybe  T.Text, [Name]), [(T.Text, Maybe T.Text, [Type])])]
+mkTuples :: T.Text -> T.Text -> Maybe T.Text -> Int -> [((T.Text, Maybe  T.Text, [Name]), [(T.Text, Maybe T.Text, [Type])], Bool)]
 mkTuples ls rs m n | n < 0 = []
                    | otherwise =
                         let
@@ -119,7 +123,7 @@ mkTuples ls rs m n | n < 0 = []
                             tv = map (TyVar . flip Id TYPE) ns
                         in
                         -- ((s, m, []), [(s, m, [])]) : mkTuples (n - 1)
-                        ((ty_n, m, ns), [(cons_n, m, tv)]) : mkTuples ls rs m (n - 1)
+                        ((ty_n, m, ns), [(cons_n, m, tv)], n == 1) : mkTuples ls rs m (n - 1)
 
 mkPrimTuples :: Int -> [(Name, AlgDataTy)]
 mkPrimTuples k =
@@ -130,7 +134,7 @@ mkPrimTuples k =
             let
                 tn = Name n m 0 Nothing
             in
-            (tn, DataTyCon {bound_ids = map (flip Id TYPE) ns, data_cons = [dc], adt_source = ADTSourceCode})) dcn
+            (tn, DataTyCon {bound_ids = map (flip Id TYPE) ns, data_cons = [dc], adt_source = ADTSourceCode, to_smt = False})) dcn
 
 mkPrimTuples' :: Int -> [(T.Text, Maybe T.Text, [Name], DataCon)]
 mkPrimTuples' n | n < 0 = []

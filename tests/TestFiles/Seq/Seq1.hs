@@ -40,6 +40,9 @@ conFloat xs ys = xs ++ ys
 conDouble :: [Double] -> [Double] -> [Double]
 conDouble xs ys = xs ++ ys
 
+conTuple :: Int -> [(Int, Int)] -> [(Int, Int)] -> [(Int, Int)]
+conTuple x xs ys = if x > 10 then xs ++ ys else ys ++ xs
+
 appendEq :: [Int] -> [Int]
 appendEq s = s ++ [1]
 
@@ -355,4 +358,3 @@ unsnoc2 = unsnoc
 totalIndex1 :: [Int] -> [Maybe Int]
 totalIndex1 xs = [xs !? (-1), xs !? 0, xs !? 15]
 #endif
-
