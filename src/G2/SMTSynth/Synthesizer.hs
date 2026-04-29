@@ -235,7 +235,7 @@ genSMTFunc pls src f smt_def sc@(SynthConfig { g2_config = config }) = do
             putStrLn "\n--- Synthesizing --- "
             let pls' = foldr (insertER ng) pls ers
 
-            new_smt_piece <- formFunction s pls'
+            new_smt_piece <- formFunction entry_f s pls'
 
             let kv = known_values s
                 tv_env = tyvar_env s 
@@ -250,24 +250,24 @@ formArg kv tv nm e
     | typeOf tv e == tyInteger kv = "(toInteger -> Z# " ++ nm ++ ")"
     | otherwise = nm
 
-formFunction :: State t -> [PatternRes] -> IO String
-formFunction _ [] = error "formFunction: empty list"
-formFunction s [pr] = solveOnePattern s pr
-formFunction s (pr:prs) = do
+formFunction :: Id -> State t -> [PatternRes] -> IO String
+formFunction _ _ [] = error "formFunction: empty list"
+formFunction entry_f s [pr] = solveOnePattern entry_f s pr
+formFunction entry_f s (pr:prs) = do
     putStrLn "\n* Solving Branch Condition"
-    br <- solveBranchConditions s pr prs
+    br <- solveBranchConditions entry_f s pr prs
     putStrLn "\n* Solving Pattern"
-    r1 <- solveOnePattern s pr
-    r2 <- formFunction s prs
+    r1 <- solveOnePattern entry_f s pr
+    r2 <- formFunction entry_f s prs
     return $ "if " ++ br ++ " then " ++ r1 ++ " else " ++ r2
 
-solveOnePattern :: State t -> PatternRes -> IO String
-solveOnePattern s (PL { pattern = varred_form, pat_ids = is, lit_vals = constraints }) = do
+solveOnePattern :: Id -> State t -> PatternRes -> IO String
+solveOnePattern entry_f s (PL { pattern = varred_form, pat_ids = is, lit_vals = constraints }) = do
     let is_constraints = zip is constraints
 
     let pg = mkPrettyGuide is
     new_pieces <- mapM (\(i@(Id _ t), constraints_) -> do
-                            new_smt_def <- computeProdPieces constraints_
+                            new_smt_def <- computeProdPieces entry_f constraints_
                             return $ "!" ++ T.unpack (printName pg (idName i)) ++ " = (" ++ new_smt_def ++ ")")
                         is_constraints
     let new_smt_def = "let " ++ intercalate "; " new_pieces ++ " in "
@@ -278,20 +278,20 @@ toHaskellCode :: State t -> PrettyGuide -> Expr -> T.Text
 toHaskellCode _ _ e | Prim Error _:_ <- unApp e = "error \"\""
 toHaskellCode s pg e = printHaskellPG pg s e
 
-solveBranchConditions :: State t -> PatternRes -> [PatternRes] -> IO String
-solveBranchConditions s@(State { known_values = kv }) pr prs = do
+solveBranchConditions :: Id -> State t -> PatternRes -> [PatternRes] -> IO String
+solveBranchConditions entry_f s@(State { known_values = kv }) pr prs = do
     let true_lv = map (setBool True) (orig_exec_res pr)
         false_lv = map (setBool False) (concatMap orig_exec_res prs)
         pat_id = Id (Name "g2__BOOL_ID" Nothing 0 Nothing) TyUnknown
         bool_pr = pr { pattern = Var pat_id, pat_ids = [pat_id], lit_vals = [true_lv ++ false_lv] }
-    solveOnePattern s bool_pr
+    solveOnePattern entry_f s bool_pr
     where
         setBool b er = er { final_state = (final_state er) {curr_expr = CurrExpr Return (mkBool kv b)}, conc_out = mkBool kv b }
 
 
-computeProdPieces :: [ExecRes t] -> IO String
-computeProdPieces constraints = do
-    smt_cmd <- synthFunc constraints
+computeProdPieces :: Id -> [ExecRes t] -> IO String
+computeProdPieces entry_f constraints = do
+    smt_cmd <- synthFunc entry_f constraints
     print smt_cmd
     case smt_cmd of
         Just (DefineFun _ _ _ t) -> return $ termToHaskell t
@@ -524,8 +524,8 @@ findInconsistent entry_f s@(State { expr_env = eenv  }) b
 -------------------------------------------------------------------------------
 -- Calling/reading from SyGuS solver
 -------------------------------------------------------------------------------
-synthFunc :: [ExecRes t] -> IO (Maybe SmtCmd)
-synthFunc er = runSygus $ sygusCmds er
+synthFunc :: Id -> [ExecRes t] -> IO (Maybe SmtCmd)
+synthFunc entry_f er = runSygus $ sygusCmds entry_f er
 
 runSygus :: [Cmd] -> IO (Maybe SmtCmd)
 runSygus sygus_cmds = do
@@ -548,9 +548,9 @@ runSygus sygus_cmds = do
         [SmtCmd def_fun] -> return $ Just def_fun
         _ -> return Nothing
 
-sygusCmds :: [ExecRes t] -> [Cmd]
-sygusCmds [] = []
-sygusCmds er@(ExecRes { final_state = s@(State { tyvar_env = tv_env, known_values = kv }), conc_args = args, conc_out = out_e}:_) = 
+sygusCmds :: Id -> [ExecRes t] -> [Cmd]
+sygusCmds _ [] = []
+sygusCmds (Id _ entry_ty) er@(ExecRes { final_state = s@(State { tyvar_env = tv_env, known_values = kv }), conc_args = args, conc_out = out_e}:_) = 
     let 
         define_eq n srt = SmtCmd $ DefineFun n
                                              [SortedVar "x" srt, SortedVar "y" srt]
@@ -595,7 +595,11 @@ sygusCmds er@(ExecRes { final_state = s@(State { tyvar_env = tv_env, known_value
         strSort = IdentSort (ISymb "String")
         boolSort = IdentSort (ISymb "Bool")
 
-        has_tyvars = not . null . filter isTyVar . map (typeOf TV.empty) $ relArgs s args
+        tyvar_used (TyVar _) = True
+        tyvar_used (TyApp t1 t2) = tyvar_used t1 || tyvar_used t2
+        tyvar_used _ = False
+
+        has_tyvars = any tyvar_used $ argumentTypes entry_ty
         arg_types = map (typeOf tv_env) $ relArgs s args
         args_sort = map (typeToSort kv) arg_types
         arg_vars = zipWith SortedVar argList args_sort
@@ -637,6 +641,7 @@ sygusCmds er@(ExecRes { final_state = s@(State { tyvar_env = tv_env, known_value
                  , GBfTerm (BfLiteral (LitNum 0))
                  , GBfTerm (BfLiteral (LitNum (-1)))
                  , GBfTerm (BfIdentifierBfs (ISymb "+") [ intIdent, intIdent])
+                 , GBfTerm (BfIdentifierBfs (ISymb "-") [ intIdent, intIdent])
                  ]
                  ++ intOpForIdent strIdent
                  ++ intOpForIdent seqIntIdent
@@ -678,7 +683,7 @@ sygusCmds er@(ExecRes { final_state = s@(State { tyvar_env = tv_env, known_value
                      , GBfTerm (BfIdentifierBfs (ISymb "seq.at") [ srtIdent, intIdent])
                      , GBfTerm (BfIdentifierBfs (ISymb "seq.extract") [ srtIdent, intIdent, intIdent])
                      , GBfTerm (BfIdentifierBfs (ISymb "seq.replace") [ srtIdent, srtIdent, srtIdent])
-                     -- , GBfTerm (BfIdentifierBfs (ISymb "str.replace_all") [ strIdent, strIdent, strIdent])
+                     , GBfTerm (BfIdentifierBfs (ISymb "seq.replace_all") [ srtIdent, srtIdent, srtIdent])
                      , GBfTerm (BfIdentifierBfs (ISymb "seq.rev") [ srtIdent])
                      ]
 
@@ -865,8 +870,6 @@ smtFuncToPrim s vl_args = conv s ++ conv_args
         conv "str.replace_all" = "strReplaceAll#"
         conv "strEq" = "strEq#"
 
-        conv "intUnit" = "(\\x -> [I# x])"
-        conv "floatUnit" = "(\\x -> [F# x])"
         conv "seq.++" = "strAppend#"
         conv "seq.len" = "strLen#"
         conv "seq.at" = "strAt#"
@@ -886,10 +889,14 @@ smtFuncToPrim s vl_args = conv s ++ conv_args
         conv "fromChar" = ""
         conv "toChar" = ""
         conv "+" = "(+#)"
+        conv "-" = "(-#)"
         conv "ite" = ""
         conv "and" = "(&&)"
         conv "or" = "(||)"
         conv "not" = "not"
+
+        conv "intUnit" = ""
+        conv "floatUnit" = ""
 
         conv f = error $ "smtFuncToPrim: unsupported " ++ f
         
@@ -912,5 +919,9 @@ smtFuncToPrim s vl_args = conv s ++ conv_args
                                                 let_b = "let " ++ b1 ++ ";" ++ b2 ++ "in"
                                             in
                                             "(case (" ++ let_b ++ " at_G2_STR) of [x] -> x)"
+                        "intUnit" | [a] <- vl_args -> "strUnit# (I# " ++ a ++ ")"
+                        "floatUnit" | [a] <- vl_args -> "strUnit# (F# " ++ a ++ ")"
+
                         _ -> " " ++ intercalate " " vl_args
+
 
