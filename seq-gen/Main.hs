@@ -37,7 +37,7 @@ main = do
                     con' = setSynthMode (fromMaybe (error $ "error: " ++ gen_for_ty' ++ " not recognized")
                                       $ lookup gen_for_ty' synthModeMapping) con
 
-                m_ty_def <- doTimeout 60 $ genSMTFunc [] [src] f Nothing $ sc { g2_config = con' }
+                m_ty_def <- doTimeout 180 $ genSMTFunc [] [src] f Nothing $ sc { g2_config = con' }
                 case m_ty_def of
                     Just (ty, def) -> do
                         updateMainSMT $ "SMT":gen_for_ty':dir_name

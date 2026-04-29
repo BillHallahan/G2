@@ -80,7 +80,7 @@ tests = testGroup "All Tests"
 
         , smtSynthTestRunSymexSMTStrings "tests_seq_gen/tests_symex/Test2.hs" "callReplaceAll" (Just 2) (Just 2)
 
-        , smtSynthTestRunSymexSMTStrings "tests_seq_gen/tests_symex/Test2.hs" "comp" (Just 1) Nothing
+        , smtSynthTestRunSymexSMTStrings "tests_seq_gen/tests_symex/Test3.hs" "comp" (Just 1) Nothing
         ]
 
 getSeqGenConfigDir :: T.Text -> IO SynthConfig

@@ -51,6 +51,8 @@ import System.IO.Temp
 import System.Process
 import qualified Text.Builder as TB
 
+import Debug.Trace
+
 -------------------------------------------------------------------------------
 -- Methodology
 -------------------------------------------------------------------------------
@@ -573,6 +575,7 @@ sygusCmds er@(ExecRes { final_state = s@(State { tyvar_env = tv_env, known_value
                                         ( TermCall (ISymb "str.at") [TermIdent (ISymb "x"), TermLit (LitNum 0)] )
         grm = GrammarDef pre_dec gram_defs'
     in
+    trace ("has_tyvars = " ++ show has_tyvars)
     [ SmtCmd $ SetLogic "ALL"
     , define_eq "strEq" strSort
     , define_eq "seqIntEq" seq_int_sort
@@ -592,7 +595,7 @@ sygusCmds er@(ExecRes { final_state = s@(State { tyvar_env = tv_env, known_value
         strSort = IdentSort (ISymb "String")
         boolSort = IdentSort (ISymb "Bool")
 
-        has_tyvars = not . null . tyVarIds $ relArgs s args
+        has_tyvars = not . null . filter isTyVar . map (typeOf TV.empty) $ relArgs s args
         arg_types = map (typeOf tv_env) $ relArgs s args
         args_sort = map (typeToSort kv) arg_types
         arg_vars = zipWith SortedVar argList args_sort
