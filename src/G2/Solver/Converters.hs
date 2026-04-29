@@ -433,6 +433,7 @@ exprToSMT _ (Data (DataCon n (TyCon (Name "Bool" _ _ _) _ ) _ _)) =
 exprToSMT tv (Data (DataCon n t _ _)) = V (nameToStr n) (typeToSMT tv t)
 exprToSMT tv (App (Data (DataCon (Name "[]" _ _ _) _ _ _)) type_t@(Type t))
     | Just (TyCon (Name "Char" _ _ _) _) <- TV.deepLookup tv type_t = VString ""
+    | Just (TyApp (TyCon (Name "Any" (Just "GHC.Types") _ _) _) _) <- TV.deepLookup tv type_t = VString ""
     | otherwise = SeqEmptySMT (adtTypeToSMT tv t)
 exprToSMT tv e | [ Data (DataCon (Name ":" _ _ _) _ _ _)
                  , type_t
@@ -701,11 +702,13 @@ typeToSMT _ (TyLitBV w) = SortBV w
 typeToSMT _ TyLitChar = SortChar
 typeToSMT _ (TyCon (Name "Bool" _ _ _) _) = SortBool
 #if MIN_VERSION_GLASGOW_HASKELL(9,6,0,0)
+typeToSMT _ (TyApp (TyCon (Name "List" _ _ _) _) (TyApp (TyCon (Name "Any" (Just "GHC.Types") _ _) _) _)) = SortString
 typeToSMT _ (TyApp (TyCon (Name "List" _ _ _) _) (TyCon (Name "Char" _ _ _) _)) = SortString
 typeToSMT tv (TyApp (TyCon (Name "List" _ _ _) _) (TyVar (Id n _)))
     | Just (TyCon (Name "Char" _ _ _) _) <- TV.deepLookupName tv n = SortString
 typeToSMT tv (TyApp (TyCon (Name "List" _ _ _) _) t) = SortSeq (adtTypeToSMT tv t)
 #else
+typeToSMT _ (TyApp (TyCon (Name "[]" _ _ _) _) (TyApp (TyCon (Name "Any" (Just "GHC.Types") _ _) _) _)) = SortString
 typeToSMT _ (TyApp (TyCon (Name "[]" _ _ _) _) (TyCon (Name "Char" _ _ _) _)) = SortString
 typeToSMT tv (TyApp (TyCon (Name "[]" _ _ _) _) (TyVar (Id n _)))
     | Just (TyCon (Name "Char" _ _ _) _) <- TV.deepLookupName tv n = SortString
@@ -721,6 +724,7 @@ typeToSMT _ (TyCon (Name "Char" _ _ _) _) = SortChar
 typeToSMT _ t = error $ "Unsupported type in typeToSMT: " ++ show t
 
 adtTypeToSMT :: TyVarEnv -> Type -> Sort
+adtTypeToSMT _ (TyApp (TyCon (Name "Any" (Just "GHC.Types") _ _) _) _) = SortChar
 adtTypeToSMT _ (TyCon (Name "Int" _ _ _) _) = SortInt
 adtTypeToSMT _ (TyCon (Name "Integer" _ _ _) _) = SortInt
 adtTypeToSMT _ (TyCon (Name "Float" _ _ _) _) = SortFloat
