@@ -51,8 +51,6 @@ import System.IO.Temp
 import System.Process
 import qualified Text.Builder as TB
 
-import Debug.Trace
-
 -------------------------------------------------------------------------------
 -- Methodology
 -------------------------------------------------------------------------------
@@ -575,7 +573,6 @@ sygusCmds (Id _ entry_ty) er@(ExecRes { final_state = s@(State { tyvar_env = tv_
                                         ( TermCall (ISymb "str.at") [TermIdent (ISymb "x"), TermLit (LitNum 0)] )
         grm = GrammarDef pre_dec gram_defs'
     in
-    trace ("has_tyvars = " ++ show has_tyvars)
     [ SmtCmd $ SetLogic "ALL"
     , define_eq "strEq" strSort
     , define_eq "seqIntEq" seq_int_sort
@@ -868,6 +865,7 @@ smtFuncToPrim s vl_args = conv s ++ conv_args
         conv "str.indexof" = "strIndexOf#"
         conv "str.replace" = "strReplace#"
         conv "str.replace_all" = "strReplaceAll#"
+        conv "str.rev" = "strReverse#"
         conv "strEq" = "strEq#"
 
         conv "seq.++" = "strAppend#"
