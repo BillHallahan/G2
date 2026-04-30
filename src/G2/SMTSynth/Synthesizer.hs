@@ -24,6 +24,7 @@ import G2.Language as G2 hiding (Handle)
 import qualified G2.Language.ExprEnv as E
 import qualified G2.Language.KnownValues as KV
 import G2.Language.Monad
+import qualified G2.Language.Typing as Ty
 import qualified G2.Language.TyVarEnv as TV
 import G2.Lib.Printers
 import G2.Solver.Converters
@@ -50,6 +51,7 @@ import System.IO
 import System.IO.Temp
 import System.Process
 import qualified Text.Builder as TB
+import Debug.Trace
 
 -------------------------------------------------------------------------------
 -- Methodology
@@ -482,16 +484,20 @@ runFuncSpec temp src f smt_def sc@(SynthConfig { eq_file = eq_f, g2_config = con
                                     Nothing False "comp" (mkCurrExpr TV.empty Nothing Nothing) (mkArgTys config' TV.empty)
                                     simplTranslationConfig config'
     
-    let comp_state' = case E.lookupNameMod (nameOcc n) (nameModule n) (expr_env comp_state) of
-            Just (entry_f_n, entry_f_def) | isJust smt_def -> findInconsistent (Id entry_f_n $ typeOf (tyvar_env comp_state) entry_f_def) comp_state comp_bindings False
-            Just (entry_f_n, entry_f_def) -> findInconsistent (Id entry_f_n $ typeOf (tyvar_env comp_state) entry_f_def) comp_state comp_bindings True
-            Nothing -> comp_state
+    let (comp_state', entry_f) = case E.lookupNameMod (nameOcc n) (nameModule n) (expr_env comp_state) of
+            Just (entry_f_n, entry_f_def) | isJust smt_def -> 
+                let new_i = Id entry_f_n $ typeOf (tyvar_env comp_state) entry_f_def
+                    in (findInconsistent new_i comp_state comp_bindings False, new_i)
+            Just (entry_f_n, entry_f_def) -> 
+                let new_i = Id entry_f_n $ typeOf (tyvar_env comp_state) entry_f_def
+                    in (findInconsistent new_i comp_state comp_bindings True, new_i)
+            Nothing -> (comp_state, func)
 
     -- let config'' = if isJust smt_def then config' { logStates = Log Pretty "a_smt"} else config'
     let config'' = config'
     T.putStrLn $ printHaskellPG (mkPrettyGuide $ getExpr comp_state') comp_state' (getExpr comp_state')
 
-    let comp_state'' = if checking sc == Verify then setUpVerification (idName comp_func) comp_state' else comp_state'
+    let (comp_state'', ng) = if checking sc == Verify then verifySpec (idName entry_f) (idName comp_func) comp_bindings comp_state' else (comp_state', name_gen comp_bindings)
 
     (er, _, _) <- runG2WithConfig proj src comp_func "comp" [] comp_mb_modname comp_state'' config'' comp_bindings
 
@@ -499,7 +505,7 @@ runFuncSpec temp src f smt_def sc@(SynthConfig { eq_file = eq_f, g2_config = con
                             Just _ -> checkIfSpecIsCorrect er
                             _ -> Nothing
     
-    return (comp_func, er, name_gen comp_bindings, isSpecCorrect)
+    return (comp_func, er, ng, isSpecCorrect)
 
     where
         checkIfSpecIsCorrect [] = Just True 
@@ -507,6 +513,39 @@ runFuncSpec temp src f smt_def sc@(SynthConfig { eq_file = eq_f, g2_config = con
             if out_e == mkTrue (known_values s)
                 then Just False
                 else checkIfSpecIsCorrect es
+
+        verifySpec :: Name -> Name -> Bindings -> State t -> (State t, NameGen)
+        verifySpec entry_n comp_f_n b@Bindings {name_gen = ng} s@(State { expr_env = eenv, known_values = kv, tyvar_env = tvnv })
+            | Just entry_e <- E.lookup entry_n eenv
+            , Just (_, smt_e) <- E.lookupNameMod (smtName $ nameOcc comp_f_n) (Just "Spec") eenv
+            , Just (placeholder_n, place_e) <- E.lookupNameMod "placeholder" (Just "Spec") eenv
+            , Just (placeholder_ret_n, _) <- E.lookupNameMod "placeholderRet" (Just "Spec") eenv
+            , Just (ideal_n, ideal_e) <- E.lookupNameMod (T.pack ("ideal_" ++ (T.unpack $ nameOcc comp_f_n))) (Just "Spec") eenv
+            , Just (ideal_ret_n, _) <- E.lookupNameMod "idealRet" (Just "Spec") eenv =
+                let t = Ty.typeOf tvnv entry_e
+                    tys = splitTyFuns t
+                    (xIds, ng') = freshIds tys ng
+                    inputExprs = map Var xIds
+                    spec_call_expr = mkApp $ smt_e : inputExprs
+                    replace_rec_fun = Let [(last xIds, SymGen SNoLog (last tys))] (Assume Nothing spec_call_expr (last inputExprs))
+                    place_e' = replaceFunExpr entry_n replace_rec_fun place_e
+
+                    ideal_e' = renameVars ideal_n ideal_ret_n ideal_e
+                    eenv' = E.insert ideal_ret_n ideal_e' eenv
+                    in
+                (s { expr_env = E.insert placeholder_ret_n entry_e
+                                $ E.insert placeholder_n place_e' eenv' }, ng')
+            | otherwise = (s, ng)
+
+        replaceFunExpr :: Name -> Expr -> Expr -> Expr
+        replaceFunExpr n e (Lam u i e') = Lam u i (replaceFunExpr n e e')
+        replaceFunExpr n e v@(Var (Id n' _)) = (if n == n' then e else v)
+        replaceFunExpr n e (Case b i@(Id n' _) t as) | n == n' = Case (replaceFunExpr n e b) i t as
+        replaceFunExpr n e (Case b i t as) = Case (replaceFunExpr n e b) i t (map (\a@(Alt m e') -> Alt m (replaceFunExpr n e e')) as)
+        replaceFunExpr n e (Tick t e') = Tick t (replaceFunExpr n e e')
+        replaceFunExpr n e (App e' e'') = App (replaceFunExpr n e e') (replaceFunExpr n e e'')
+        replaceFunExpr n e (Let b e') = Let (map (\(i, e'') -> (i, replaceFunExpr n e e'')) b) (replaceFunExpr n e e')
+        replaceFunExpr n e e' = replaceVar n e e'             
 
 setUpVerification :: Name -> State t -> State t
 setUpVerification entry_n s@(State { expr_env = eenv, known_values = kv  })
@@ -603,11 +642,17 @@ setUpSpecFunc src f sc@(SynthConfig { g2_config = config }) h Nothing = do
                          ++ "placeholderRet = undefined\n\n"
                        | otherwise = ""
 
+        idealFuncRet | checking sc == Verify =
+            "idealRet" ++ " :: " ++ T.unpack (mkTypeHaskellDictArrows (mkPrettyGuide ()) (type_classes s) t') ++ "\n"
+                         ++ "idealRet = undefined\n\n"
+                       | otherwise = "" 
+
         contents = getImportStr
                     ++ fromMaybe "\n" (fmap (\f -> "import " ++ f ++ "\n") . fmap (dropExtension . takeFileName) $ eq_file sc)
                     ++ "\n"
                     ++ "\n"++ idealFunName ++ " :: " ++ T.unpack (mkTypeHaskellDictArrows (mkPrettyGuide ()) (type_classes s) t') ++ "\n"
                     ++ idealFunName ++ " " ++ vs_str ++ " = (placeholder " ++ vs_input ++ ") == " ++ last vs
+                    ++ "\n\n" ++ idealFuncRet
                     ++ "\n\nplaceholder" ++ " :: " ++ T.unpack (mkTypeHaskellDictArrows (mkPrettyGuide ()) (type_classes s) t_with_cs) ++ "\n"
                     ++ "placeholder = undefined\n\n"
                     ++ placeHolderRet
@@ -641,8 +686,16 @@ setUpSpecFunc _ _ sc h (Just (s@(State { known_values = kv, type_classes = tc })
 
         placeHolderRet | checking sc == Verify =
             "placeholderRet" ++ " :: " ++ T.unpack (mkTypeHaskellDictArrows (mkPrettyGuide ()) (type_classes s) t_with_cs) ++ "\n"
-                         ++ "placeholderRet = undefined\n\n"
+                         ++ "placeholderRet = undefined\n"
                        | otherwise = ""
+
+        idealFuncRet | checking sc == Verify =
+            "idealRet" ++ " :: " ++ T.unpack (mkTypeHaskellDictArrows (mkPrettyGuide ()) (type_classes s) t') ++ "\n"
+                         ++ "idealRet = undefined\n"
+                       | otherwise = ""
+
+        val | checking sc == Verify = "idealRet"
+               | otherwise = idealFunName        
 
         contents = getImportStr
                     ++ fromMaybe "\n" (fmap (\f -> "import " ++ f ++ "\n") . fmap (dropExtension . takeFileName) $ eq_file sc)
@@ -651,12 +704,13 @@ setUpSpecFunc _ _ sc h (Just (s@(State { known_values = kv, type_classes = tc })
                     ++ spec
                     ++ "\n\n"++ idealFunName ++ " :: " ++ T.unpack (mkTypeHaskellDictArrows (mkPrettyGuide ()) (type_classes s) t') ++ "\n"
                     ++ idealFunName ++ " " ++ vs_str ++ " = (placeholder " ++ vs_input ++ ") == " ++ last vs
+                    ++ "\n\n" ++ idealFuncRet
                     ++ "\n\nplaceholder" ++ " :: " ++ T.unpack (mkTypeHaskellDictArrows (mkPrettyGuide ()) (type_classes s) ts_witout_last'') ++ "\n"
                     ++ "placeholder = undefined\n\n"
                     ++ placeHolderRet
                     ++ "\n\ncomp" ++ " :: " ++ T.unpack (mkTypeHaskellDictArrows (mkPrettyGuide ()) (type_classes s) t') ++ "\n"
                     ++ "comp " ++ vs_str ++ " = let x = (" ++ funcSpecName ++ " " ++ vs_str ++ ") == (" ++ idealFunName ++ " " ++ vs_str 
-                    ++ ") in assert x (" ++ idealFunName ++ " " ++ vs_str ++ ")"
+                    ++ ") in assert x (" ++ val ++ " " ++ vs_str ++ ")"
     putStrLn contents
     hPutStrLn h contents
     hFlush h
@@ -704,7 +758,8 @@ runSygus sygus_cmds sc = do
             T.hPutStrLn h_in $ printSygus c
             T.putStrLn $ printSygus c
         ) sygus_cmds
-    _ <- hWaitForInput h_out (timeout sc)
+    got_input <- hWaitForInput h_out (timeout sc)
+    putStrLn $ "HERE " ++ show got_input
     out <- getLinesMatchParens h_out
     _ <- evaluate (length out)
     putStrLn out

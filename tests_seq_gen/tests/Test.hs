@@ -83,12 +83,3 @@ f20 x y (z:zs) | x == z = y:f20 x y zs
 
 (@@) :: String -> String -> String
 xs @@ ys = xs ++ ys ++ xs
-
-my_intersperse :: Char -> String -> String
-my_intersperse x xs = intersperse x xs
-
--- ideal_my_intersperse :: Char -> ([] Char) -> ([] Char) -> Bool
--- ideal_my_intersperse z1 z2 z3 = (my_intersperse z1 z2) == z3
-
--- comp :: Char -> ([] Char) -> ([] Char) -> Bool
--- comp z1 z2 z3 = ideal_my_intersperse z1 z2 z3
