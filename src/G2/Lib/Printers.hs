@@ -302,7 +302,6 @@ mkDataConHaskell pg (DataCon n _ _ _) = mkNameHaskell pg n
 -- TODO[Jacob]: doesn't handle superclasses
 -- TODO[Jacob]: assumes <C:> <one tv> <m1>..<mN>
 -- TODO[Jacob]: proper indentation
--- TODO[Jacob]: sectioning (e.g. (==)) infix methods
 -- | Make the instance declaration for Name Type
 mkTCInstanceHaskell :: PrettyGuide -> Name -> Type -> TypeClasses -> ExprEnv -> T.Text
 mkTCInstanceHaskell pg cls_n t tcs eenv
@@ -316,7 +315,12 @@ mkTCInstanceHaskell pg cls_n t tcs eenv
     | otherwise = T.empty
     where 
         mkMethodDef :: String -> Expr -> T.Text
-        mkMethodDef m_name ex = "    " <> T.pack m_name <> " = " <> mkExprHaskell' 2 Cleaned pg ex
+        mkMethodDef m_name ex = 
+            let 
+                m_name_text = T.pack $ if isInfixableName (Name (T.pack m_name) Nothing 0 Nothing)
+                    then "(" <> m_name <> ")"
+                    else m_name
+            in "    " <> m_name_text <> " = " <> mkExprHaskell' 2 Cleaned pg ex
 
 offset :: Int -> T.Text
 offset i = duplicate "   " i
