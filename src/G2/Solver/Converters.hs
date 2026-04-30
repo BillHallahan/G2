@@ -725,6 +725,7 @@ typeToSMT _ t = error $ "Unsupported type in typeToSMT: " ++ show t
 
 adtTypeToSMT :: TyVarEnv -> Type -> Sort
 adtTypeToSMT _ (TyApp (TyCon (Name "Any" (Just "GHC.Types") _ _) _) _) = SortChar
+adtTypeToSMT _ (TyApp (TyCon (Name "ZonkAny" (Just "GHC.Types") _ _) _) _) = SortChar
 adtTypeToSMT _ (TyCon (Name "Int" _ _ _) _) = SortInt
 adtTypeToSMT _ (TyCon (Name "Integer" _ _ _) _) = SortInt
 adtTypeToSMT _ (TyCon (Name "Float" _ _ _) _) = SortFloat
