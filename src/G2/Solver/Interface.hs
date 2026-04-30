@@ -28,6 +28,7 @@ data Subbed = Subbed { s_inputs :: [Expr] -- ^ Concrete `inputNames`
                      , s_sym_gens :: S.Seq Expr -- ^ Concrete `sym_gens`
                      , s_mutvars :: [(Name, MVOrigin, Expr)] -- ^ Concrete symbolic `mutvar_env`
                      , s_handles :: [(Name, Expr)]
+                     , s_tc_dicts :: [(Name, Expr)]
                      }
                      deriving Eq
 
@@ -44,7 +45,8 @@ instance ASTContainer Subbed Expr where
                , s_violated = modifyContainedASTs f (s_violated sub)
                , s_sym_gens = modifyContainedASTs f (s_sym_gens sub)
                , s_mutvars = modifyContainedASTs f (s_mutvars sub)
-               , s_handles = modifyContainedASTs f (s_handles sub) }
+               , s_handles = modifyContainedASTs f (s_handles sub)
+               , s_tc_dicts = modifyContainedASTs f (s_tc_dicts sub) }
 
 instance ASTContainer Subbed Type where
     containedASTs sub =
@@ -60,7 +62,8 @@ instance ASTContainer Subbed Type where
                , s_violated = modifyContainedASTs f (s_violated sub)
                , s_sym_gens = modifyContainedASTs f (s_sym_gens sub)
                , s_mutvars = modifyContainedASTs f (s_mutvars sub)
-               , s_handles = modifyContainedASTs f (s_handles sub) }
+               , s_handles = modifyContainedASTs f (s_handles sub)
+               , s_tc_dicts = modifyContainedASTs f (s_tc_dicts sub) }
 
 subModel :: State t -> Bindings -> Subbed
 subModel s@(State { expr_env = eenv
@@ -84,12 +87,18 @@ subModel s@(State { expr_env = eenv
 
         mv = mapMaybe (\(n, mvi) -> fmap (n, mv_origin mvi,) . toVars . idName $ mv_initial mvi) (HM.toList mve)
 
+        -- Create pairs (<Id Name>, Id) for each generated type class dict.
+        gen_tc_ns_exprs = map (\(n, t) -> 
+                let dict = fromJust (lookupTCDict tc n t)
+                in (idName dict, Var dict)) (getGenTCPairs Nothing tc)
+
         sub = Subbed { s_inputs = is
                      , s_output = if errorRaised s then Prim Error TyBottom else cexpr
                      , s_violated = ais'
                      , s_sym_gens = gs
                      , s_mutvars = mv
-                     , s_handles = map (\(n, hi) -> (n, Var $ h_start hi)) $ HM.toList hs }
+                     , s_handles = map (\(n, hi) -> (n, Var $ h_start hi)) $ HM.toList hs
+                     , s_tc_dicts = gen_tc_ns_exprs}
         
         sv = subVar tvnv False m eenv tc sub
     in

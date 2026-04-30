@@ -33,19 +33,18 @@ printInputOutput :: PrettyGuide
                  -> Id -- ^ Input function
                  -> Bindings
                  -> ExecRes t
-                 -> (T.Text, T.Text, T.Text, T.Text, T.Text) -- ^ Mutable variables, input, output, handles
+                 -> (T.Text, T.Text, T.Text, T.Text, T.Text, T.Text) -- ^ Mutable variables, input, output, handles
 printInputOutput pg i (Bindings { input_coercion = c }) er =
     let
         er' = er { conc_args = modifyASTs remMutVarPrim (conc_args er)
                  , conc_out = modifyASTs remMutVarPrim (conc_out er)
                  , conc_sym_gens = modifyASTs remMutVarPrim (conc_sym_gens er)
                  , conc_mutvars = modifyASTs remMutVarPrim (conc_mutvars er) }
-        
-        -- Set up mappings for generated ADTs in the PrettyGuide so printGenADTs and printInputFunc can use the same mappings.
-        pg_gen_adt = updatePGTrackGenADTNames er' pg
+
+        -- Set up mappings for generated ADTs in the PrettyGuide so printing 
+        pg' = updatePGTrackGenADTNames er' pg
     in
-    -- TODO: pass updated PG to other printers?
-    (printGenADTs pg_gen_adt er', printMutVars pg er', printInputFunc pg_gen_adt c i er', printOutput pg er', printHandles pg er')
+    (printGenInstances pg' er, printGenADTs pg' er, printMutVars pg er, printInputFunc pg' c i er, printOutput pg er, printHandles pg er)
 
 updatePGTrackGenADTNames :: ExecRes t -> PrettyGuide -> PrettyGuide
 updatePGTrackGenADTNames (ExecRes {conc_args = cas, final_state = State {type_env = tenv}}) pg
@@ -109,6 +108,14 @@ printGenADTs :: PrettyGuide -> ExecRes t -> T.Text
 printGenADTs pg (ExecRes {conc_args = cas, final_state = (State {tyvar_env = tvenv, type_env = tenv})}) 
     = let adts_text = prettyTypeEnv tvenv pg (filterTEToNeededGenADTs cas tenv)
     in if adts_text == T.empty then T.empty else adts_text <> "\n"
+
+printGenInstances :: PrettyGuide -> ExecRes t -> T.Text
+printGenInstances pg (ExecRes {final_state = State {type_classes = tcs, expr_env = eenv, type_env = tenv}, conc_args = cas})
+    = let 
+        gen_adt_names = map fst . M.toList $ filterTEToNeededGenADTs cas tenv
+        gen_tc_pairs = getGenTCPairs (Just gen_adt_names) tcs
+    in 
+        T.intercalate "\n" $ map (\(n, t) -> mkTCInstanceHaskell pg n t tcs eenv) gen_tc_pairs
 
 instance Named t => Named (ExecRes t) where
     names :: Named t => ExecRes t -> S.Seq Name

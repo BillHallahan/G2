@@ -591,7 +591,8 @@ evalCase :: State t -> Bindings -> Expr -> Id -> Type -> [Alt] -> (Rule, NewPC t
 evalCase s@(State { expr_env = eenv
                   , exec_stack = stck
                   , known_values = kv
-                  , tyvar_env = tvnv })
+                  , tyvar_env = tvnv
+                  , type_classes = tcs })
          (Bindings { name_gen = ng, data_con_pc_map = dcpm }) mexpr bind t alts
   -- Is the current expression able to match with a literal based `Alt`? If
   -- so, we do the cvar binding, and proceed with evaluation of the body.
@@ -670,15 +671,34 @@ evalCase s@(State { expr_env = eenv
         (def_sts, ng'') = liftSymDefAlt s ng' mexpr bind alts
 
         alt_res = dsts_cs ++ lsts_cs ++ def_sts
+
+        -- Special handling for when the scrutinee is a type class
+        -- TODO: ASTContainer instance for StateDiff
+        alt_res' = map (\sd@(SD {new_sym_entries = nses, new_curr_expr = nce}) 
+            -> sd {new_sym_entries = tyVarSubst tvnv nses,
+                   new_curr_expr   = tyVarSubst tvnv nce}) alt_res
+
+        -- TODO: assuming class has kind :: * -> Constraint
+        tcInstDiffFromVar :: Expr -> Maybe TCInstDiff
+        tcInstDiffFromVar (Var inst_id@(Id _ dict_ty)) 
+            | Just cls_n <- tyAppCenterName dict_ty
+            , Just _ <- lookupTCClass cls_n tcs 
+            , [_, inst_t] <- unTyApp dict_ty = Just [(cls_n, inst_t, inst_id)]
+        tcInstDiffFromVar _ = Nothing
+
+        -- update all alt_res with type class diff
+        alt_res'' = maybe alt_res' 
+            (\tc_diff -> map (\ar -> ar {new_type_class_insts = tc_diff}) alt_res') 
+            (tcInstDiffFromVar mexpr) 
       in
       -- We return at most one state per branch, unless we are concretizing a MutVar.
       -- In that case, we will return at least one state, but might return an unbounded
       -- number more- see Note [MutVar Copy Concretization].
       assert (tyConName (tyAppCenter $ typeOf tvnv mexpr) == Just (KV.tyMutVar kv)
-                        ==> length alt_res >= length dalts + length lalts + length defs)
+                        ==> length alt_res'' >= length dalts + length lalts + length defs)
       assert (tyConName (tyAppCenter $ typeOf tvnv mexpr) /= Just (KV.tyMutVar kv)
-                        ==> length alt_res <= length dalts + length lalts + length defs)
-      (RuleEvalCaseSym, SplitStatePieces s alt_res, ng'')
+                        ==> length alt_res'' <= length dalts + length lalts + length defs)
+      (RuleEvalCaseSym, SplitStatePieces s alt_res'', ng'')
 
   -- Case evaluation also uses the stack in graph reduction based evaluation
   -- semantics. The case's binding variable and alts are pushed onto the stack
@@ -781,7 +801,8 @@ concretizeVarExpr' s@(State { type_env = tenv
                      , new_true_assert = true_assert s, new_assert_ids = assert_ids s
                      , new_curr_expr = CurrExpr Evaluate aexpr''
                      , new_conc_types = tve_diff, new_sym_types = tve_sym_diff
-                     , new_mut_vars = [] }, ngen'')
+                     , new_mut_vars = []
+                     , new_type_class_insts = []}, ngen'')
 
 -- | Generates parameters and expressions to allow concretization to a specific DataCon.
 -- May return Nothing if the DataCon requires coercions to hold that violate existing type restraints.

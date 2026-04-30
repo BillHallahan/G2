@@ -4,7 +4,7 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE FlexibleInstances #-}
 
-module G2.Language.TypeClasses.TypeClasses ( TypeClasses
+module G2.Language.TypeClasses.TypeClasses ( TypeClasses(..)
                                            , Class (..)
                                            , initTypeClasses
                                            , insertClass
@@ -15,10 +15,12 @@ module G2.Language.TypeClasses.TypeClasses ( TypeClasses
                                            , lookupTCDicts
                                            , lookupTCClass
                                            , lookupTCFromType
+                                           , getGenTCPairs
                                            , tcWithNameMap
                                            , tcDicts
                                            , typeClassInst
                                            , satisfyingTCTypes
+                                           , addClassInstance
                                            , toMap) where
 
 import G2.Language.AST
@@ -35,6 +37,7 @@ import qualified Data.Map.Lazy as MM
 import qualified Data.HashMap.Lazy as M
 import Data.Maybe
 import qualified Data.Sequence as S
+import qualified Data.Text as T
 import qualified G2.Language.TyVarEnv as TV 
 import GHC.Generics (Generic)
 
@@ -83,14 +86,9 @@ affectedType _ = Nothing
 isTypeClassNamed :: Name -> TypeClasses -> Bool
 isTypeClassNamed n = M.member n . (coerce :: TypeClasses -> TCType)
 
-getTCName :: Type -> Maybe Name
-getTCName (TyCon n _) = Just n
-getTCName (TyApp t _) = getTCName t
-getTCName _ = Nothing
-
 -- | Is the given type a type class?
 isTypeClass :: TypeClasses -> Type -> Bool
-isTypeClass tc t | Just n <- getTCName t = isTypeClassNamed n tc
+isTypeClass tc t | Just n <- tyAppCenterName t = isTypeClassNamed n tc
                  | otherwise = False
 
 -- | Returns the dictionary for the given typeclass and Type,
@@ -114,7 +112,7 @@ lookupTCClass :: Name -> TypeClasses -> Maybe Class
 lookupTCClass n = M.lookup n . coerce
 
 lookupTCFromType :: Type -> TypeClasses -> Maybe Class
-lookupTCFromType t tc | Just n <- getTCName t = lookupTCClass n tc
+lookupTCFromType t tc | Just n <- tyAppCenterName t = lookupTCClass n tc
                       | otherwise = Nothing
 
 tcWithNameMap :: TV.TyVarEnv -> Name -> [Id] -> M.HashMap Name Id
@@ -172,6 +170,21 @@ lookupTCDictCenter tc n t =
         Just c -> fmap snd $ find (\(t', _) -> t .:: tyAppCenter t') c
         Nothing -> Nothing
 
+-- | Returns all (<class name>, Type) pairs for generated ADTs. Optionally provide
+-- a list of Names to limit the pairs returned.
+getGenTCPairs :: Maybe [Name] -> TypeClasses -> [(Name, Type)]
+getGenTCPairs m_names (TypeClasses tct) = concatMap go (M.toList tct)
+    where
+        any_adt_names = map T.pack ["GenT", "GenC", "GenN"]
+        go :: (Name, Class) -> [(Name, Type)]
+        go (n, Class {insts = ins}) 
+            = map ((n, ) . fst) $ filter (\(t, _) -> 
+                maybe False includeName (tyAppCenterName t)) ins
+
+        includeName :: Name -> Bool
+        includeName n | Just ns <- m_names = n `elem` ns
+        includeName (Name s _ _ _) = s `elem` any_adt_names
+
 -- | Finds `Type`s that satisfy the given typeclass requirements for the given polymorphic argument.
 -- Returns "Int" by default if there are no typeclass requirements.
 satisfyingTCTypes :: KnownValues
@@ -212,6 +225,12 @@ satisfyTCReq tc (Id n _) = filter isFor . filter (isTypeClass tc)
       isFor (TyApp a1 a2) = isFor a1 || isFor a2
       isFor _ = False
 
+-- | Add an instance to the class with a given Name for the given Type. The Id
+-- is the type class dictionary for the new instance.
+addClassInstance :: Name -> Type -> Id -> TypeClasses -> TypeClasses
+addClassInstance cls_n t i (TypeClasses tct) =
+    TypeClasses $ M.adjust (\cls@(Class {insts = ins}) -> cls {insts = (t, i):ins}) cls_n tct
+     
 toMap :: TypeClasses -> M.HashMap Name Class
 toMap = coerce
 

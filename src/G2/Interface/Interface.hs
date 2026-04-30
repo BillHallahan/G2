@@ -929,9 +929,15 @@ runG2SubstModel m s@(State { expr_env = eenv, type_env = tenv, tyvar_env = tv_en
                , s_violated = ais
                , s_sym_gens = gens
                , s_mutvars = mv
-               , s_handles = h } = subModel s' bindings
+               , s_handles = h
+               , s_tc_dicts = dicts } = subModel s' bindings
 
-        sm = ExecRes { final_state = s'
+        -- Update the ExprEnv with inlined dicts. This allows for printing of method 
+        -- definitions when creating text for generated typeclass instances.
+        eenv' = foldr (uncurry E.insert) eenv dicts
+        s'' = s' {expr_env = eenv'}
+
+        sm = ExecRes { final_state = s''
                      , conc_args = es
                      , conc_out = e
                      , conc_sym_gens = gens
