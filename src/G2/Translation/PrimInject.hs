@@ -263,8 +263,19 @@ primDefs' b c l unit =
                                     (Var $ y seqTyX)
                                 )
                                 (Var $ z seqTyX))
+              , ("strReverse#", Lam TypeL (x TYPE) . Lam TermL (y seqTyX)
+                              $ App (Prim StrReverse (TyFun seqTyX seqTyX)) (Var $ y seqTyX))
               , ("intToString#", Prim IntToString (TyFun TyLitInt strTy))
-              
+
+              , ("smtFoldLeft#", Lam TypeL a . Lam TypeL (x TYPE)
+                               . Lam TermL (f (TyFun (TyVar a) (TyFun (TyVar d) (TyVar a))))
+                               . Lam TermL (u (TyVar a))
+                               . Lam TermL (v seqTyX)
+                            $ mkApp [ Prim FoldLeft TyUnknown
+                                    , Var $ (f (TyFun (TyVar a) (TyFun (TyVar d) (TyVar a))))
+                                    , Var $ u (TyVar a)
+                                    , Var $ v seqTyX ])
+
               -- Regexes
               , ("inRe#", Lam TypeL (x TYPE) . Lam TermL (y seqTyX) . Lam TermL (z seqTyX)
                             $ App
@@ -363,6 +374,7 @@ primDefs' b c l unit =
               where
                     funTyXY = TyFun (TyVar (x TYPE)) (TyVar (y TYPE))
                     seqTy v = (TyApp (TyCon l (TyFun TYPE TYPE)) v)
+                    seqTyA = seqTy (TyVar a)
                     seqTyX = seqTy (TyVar (x TYPE))
                     strTy = seqTy (TyCon c TYPE)
 
@@ -393,6 +405,9 @@ tyvarA = TyVar a
 
 d :: Id
 d = Id (Name "d" Nothing 0 Nothing) TYPE
+
+f :: Type -> Id
+f = Id (Name "f" Nothing 0 Nothing)
 
 u :: Type -> Id
 u = Id (Name "u" Nothing 0 Nothing)

@@ -116,7 +116,7 @@ maybeEvalPrim' eenv tenv tv_env kv tc xs
     | [Prim p _, x] <- xs
     , Lit x' <- x = evalPrim1' tenv kv p x'
     | [Prim p _, x] <- xs
-    , Just e <- evalPrimADT1 kv p x = Just e
+    , Just e <- evalPrimADT1 kv tenv p x = Just e
 
     | [Prim p _, x, y] <- xs
     , Lit x' <- x
@@ -125,7 +125,7 @@ maybeEvalPrim' eenv tenv tv_env kv tc xs
     , Just e <- evalPrimADT2 kv tenv p x y = Just e
 
     | [Prim p _, x, y, z] <- xs
-    , Just e <- evalPrimADT3 tenv kv p x y z = Just e
+    , Just e <- evalPrimADT3 eenv tenv tv_env kv tc p x y z = Just e
 
     | [Prim p _, x, y, z] <- xs = evalPrim3 kv p x y z
 
@@ -533,16 +533,20 @@ evalPrim1' _ kv IsInfinite (LitFloat x) = Just . mkBool kv $ isInfinite x
 evalPrim1' _ kv IsInfinite (LitDouble x) = Just . mkBool kv $  isInfinite x
 evalPrim1' _ _ _ _ = Nothing
 
-evalPrimADT1 :: KnownValues -> Primitive -> Expr -> Maybe Expr
-evalPrimADT1 kv StrLen e = fmap (Lit . LitInt) (compLen e)
+evalPrimADT1 :: KnownValues -> TypeEnv -> Primitive -> Expr -> Maybe Expr
+evalPrimADT1 kv _ StrLen e = fmap (Lit . LitInt) (compLen e)
     where
         -- [] @Char
         compLen (App (Data dc) _ {- type -}) = assert (KV.dcEmpty kv == dcName dc) Just 0
         -- (:) @Char head tail
         compLen (App (App (App (Data dc) _ {- type -}) _ {- char -}) xs) = assert (KV.dcCons kv == dcName dc) fmap (+ 1) (compLen xs)
         compLen _ = Nothing
+evalPrimADT1 kv tenv StrReverse xs = do
+    t <- listType xs
+    xs' <- toExprList xs
+    return $ toListExpr kv tenv t (reverse xs')
 
-evalPrimADT1 _ _ _ = Nothing
+evalPrimADT1 _ _ _ _ = Nothing
 
 evalPrimADT2 :: KnownValues -> TypeEnv -> Primitive -> Expr -> Expr -> Maybe Expr
 evalPrimADT2 kv _ And e1 e2
@@ -559,9 +563,10 @@ evalPrimADT2 kv tenv StrAppend xs ys = do
     return . toListExpr kv tenv t $ xs' ++ ys'
 
 evalPrimADT2 kv tenv StrAt xs (Lit (LitInt i)) = do
-    xs' <- toString xs
+    t <- listType xs
+    xs' <- toExprList xs
     let c = if 0 <= i && fromInteger i < length xs' then  [xs' !! (fromInteger i)] else []
-    return $ toStringExpr kv tenv c
+    return $ toListExpr kv tenv t c
 
 evalPrimADT2 kv _ StrPrefixOf pre s = do
     pre' <- toExprList pre
@@ -610,7 +615,7 @@ evalPrimADT2 kv _ InRe s regex = do
     s' <- toExprList s
     return $ mkBool kv (matchesRegex s' regex)
 
-evalPrimADT2 _ _ _ _ _ = Nothing
+evalPrimADT2 _ _ _ e1 e2 = Nothing
 
 matchesRegex :: [Expr] -> Expr -> Bool
 matchesRegex es r = any null $ matchesRegex' es r
@@ -657,8 +662,8 @@ matchesRegex' ((App (Data _) (Lit (LitChar c))):es) (App (App (Prim ReRange _) l
 matchesRegex' _ _ = []
 
 
-evalPrimADT3 :: TypeEnv -> KnownValues -> Primitive -> Expr -> Expr -> Expr -> Maybe Expr
-evalPrimADT3 tenv kv StrSubstr str (Lit (LitInt s)) (Lit (LitInt e)) = substr str s e
+evalPrimADT3 :: ExprEnv -> TypeEnv -> TyVarEnv -> KnownValues -> TypeClasses -> Primitive -> Expr -> Expr -> Expr -> Maybe Expr
+evalPrimADT3 _ tenv _ kv _ StrSubstr str (Lit (LitInt s)) (Lit (LitInt e)) = substr str s e
     where
         -- Find a substring starting at index s and ending at index e - 1
 
@@ -676,7 +681,7 @@ evalPrimADT3 tenv kv StrSubstr str (Lit (LitInt s)) (Lit (LitInt e)) = substr st
         substr (App (App (App (Data _) _) _) xs) st en = substr xs (st - 1) en
         substr _ _ _ = Nothing
 
-evalPrimADT3 tenv kv StrReplace s orig rep = do
+evalPrimADT3 _ tenv _ kv _ StrReplace s orig rep = do
         t <- listType orig
         s' <- toExprList s
         orig' <- toExprList orig
@@ -686,7 +691,7 @@ evalPrimADT3 tenv kv StrReplace s orig rep = do
         replace [] _ _ = []
         replace xss@(x:xs) o r | Just xss' <- L.stripPrefix o xss = r ++ xss'
                                | otherwise = x:replace xs o r
-evalPrimADT3 tenv kv StrReplaceAll s orig rep = do
+evalPrimADT3 _ tenv _ kv _ StrReplaceAll s orig rep = do
         t <- listType orig
         s' <- toExprList s
         orig' <- toExprList orig
@@ -698,7 +703,12 @@ evalPrimADT3 tenv kv StrReplaceAll s orig rep = do
                                   | Just xss' <- L.stripPrefix o xss = r ++ replaceAll xss' o r
                                   | otherwise = x:replaceAll xs o r
 
-evalPrimADT3 _ _ _ _ _ _ = Nothing
+evalPrimADT3 eenv tenv tv_env kv tc FoldLeft (Lam _ (Id b_id _) (Lam _ (Id a_id _) e)) initial lst = do
+    lst' <- toExprList lst
+    let unfolded = foldl (\b_val a_val -> replaceVar b_id b_val $ replaceVar a_id a_val e) initial lst'
+    return . evalPrims eenv tenv tv_env kv tc $ inlineVarsForPrim eenv tc unfolded
+
+evalPrimADT3 _ _ _ _ _ _ _ _ _ = Nothing
 
 listType :: Expr -> Maybe Type
 listType (App (Data _) (Type t)) = Just t

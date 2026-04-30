@@ -134,6 +134,8 @@ initKnownValues eenv tenv tc =
     , adjStr = exprWithStrName eenv "adjStr"
     , checkStrLazy = exprWithStrName eenv "checkStrLazy"
 
+    , usingSMTLams = exprWithStrName eenv "usingSMTLams#"
+
     , errorFunc = exprWithStrName eenv "error"
     , errorEmptyListFunc = exprWithStrName eenv "errorEmptyList"
     , errorWithoutStackTraceFunc = exprWithStrName eenv "errorWithoutStackTrace"

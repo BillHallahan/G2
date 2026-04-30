@@ -60,6 +60,7 @@ import G2.Language.TypeEnv
 import qualified G2.Language.TyVarEnv as TV
 import qualified G2.Language.PolyArgMap as PM
 
+import Data.Containers.ListUtils
 import Data.Data (Data, Typeable)
 import Data.Foldable
 import Data.Hashable
@@ -211,7 +212,7 @@ doRenames ns ng e =
 renameAll :: (Named a) => a -> NameGen -> (a, NameGen)
 renameAll x ng =
     let
-        old = nub . toList $ names x
+        old = nubOrd . toList $ names x
     in
     doRenames old ng x
 
@@ -651,6 +652,9 @@ instance Named KnownValues where
             , typeIndex = ti
             , adjStr = adjN
             , checkStrLazy = checkStrLN
+
+            , usingSMTLams = useLams
+
             , errorFunc = errF
             , errorEmptyListFunc = errEmpListF
             , errorWithoutStackTraceFunc = errWOST
@@ -675,6 +679,7 @@ instance Named KnownValues where
                 , impF, iffF
                 , andF, orF, notF
                 , ti, adjN, checkStrLN
+                , useLams
                 , errF, errEmpListF, errWOST, patE] ++ HS.toList smt_string
 
     rename old new (KnownValues {
@@ -766,6 +771,8 @@ instance Named KnownValues where
                    , typeIndex = ti
                    , adjStr = adjN
                    , checkStrLazy = checkStrLN
+
+                   , usingSMTLams = useLams
 
                    , errorFunc = errF
                    , errorEmptyListFunc = errEmpListF
@@ -863,6 +870,8 @@ instance Named KnownValues where
                         , typeIndex = rename old new ti
                         , adjStr = rename old new adjN
                         , checkStrLazy = rename old new checkStrLN
+
+                        , usingSMTLams = rename old new useLams
 
                         , errorFunc = rename old new errF
                         , errorEmptyListFunc = rename old new errEmpListF

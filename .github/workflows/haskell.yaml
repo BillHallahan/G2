@@ -22,23 +22,7 @@ jobs:
                     { ghc: '9.10.3', cabal: '3.10' },
                     { ghc: '9.12.2', cabal: '3.12' } ]
         test: [ { test: test, lh: '-support-lh' },
-                { test: test-g2q, lh: '-support-lh' },
-                { test: test-lh, lh: 'support-lh' } ]
-        exclude:
-          - compiler: { ghc: '9.0.2', cabal: '3.10' }
-            test: { test: test-lh }
-          - compiler: { ghc: '9.2.8', cabal: '3.10' }
-            test: { test: test-lh }
-          - compiler: { ghc: '9.4.4', cabal: '3.10' }
-            test: { test: test-lh }
-          - compiler: { ghc: '9.6.1', cabal: '3.10' }
-            test: { test: test-lh }
-          - compiler: { ghc: '9.8.4', cabal: '3.10' }
-            test: { test: test-lh }
-          - compiler: { ghc: '9.10.3', cabal: '3.10' }
-            test: { test: test-lh }
-          - compiler: { ghc: '9.12.2', cabal: '3.12' }
-            test: { test: test-lh }
+                { test: test-g2q, lh: '-support-lh' } ]
     steps:
     - uses: actions/checkout@v3
     - uses: haskell-actions/setup@v2
@@ -59,13 +43,15 @@ jobs:
     #     restore-keys: |
     #       cabal-${{ runner.os }}-${{ matrix.compiler.ghc }}-
 
-    - name: Install Z3
-      uses: pavpanchekha/setup-z3@0.2.0
+    - name: Setup Z3
+      id: z3
+      uses: cda-tum/setup-z3@v1
       with:
-        version: '4.8.17'
-        architecture: 'x64'
-        distribution: 'glibc-2.31'
-   
+        version: 4.15.4
+
+    - name: Install CVC5
+      run: sudo apt-get install cvc5
+
     - name: Getting custom base
       run: bash base_setup.sh
 

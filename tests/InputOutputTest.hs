@@ -1,15 +1,19 @@
 {-# LANGUAGE OverloadedStrings #-}
 module InputOutputTest ( checkInputOutput
                        , checkInputOutputs
+                       , checkInputOutputsWithCVC5
                        , checkInputOutputsADTHeight
                        
                        , checkInputOutputsSMTStrings
+                       , checkInputOutputsWithCVC5SMTStrings
                        , checkInputOutputsSMTStringsStrict
                        , checkInputOutputsSMTStringsWithSubPath
                        , checkInputOutputsQuantifiedSMTStrings
+                       , checkInputOutputsLambdaSMTStrings
 
                        , checkInputOutputsSMTLists
                        , checkInputOutputsSMTListsWith
+                       , checkInputOutputsLambdaSMTLists
                        
                        , checkInputOutputsTemplate
                        , checkInputOutputsWith
@@ -50,6 +54,10 @@ checkInputOutputs :: FilePath -> [(String, Int, [Reqs String])] -> TestTree
 checkInputOutputs src tests = do
     checkInputOutput' mkConfigTestIO src tests
 
+checkInputOutputsWithCVC5 :: FilePath -> [(String, Int, [Reqs String])] -> TestTree
+checkInputOutputsWithCVC5 src tests = do
+    checkInputOutput' (do config <- mkConfigTestIO; return config { smt = ConCVC5 }) src tests
+
 checkInputOutputsADTHeight :: FilePath -> [(String, Int, [Reqs String])] -> TestTree
 checkInputOutputsADTHeight src tests = do
     checkInputOutput''
@@ -61,6 +69,10 @@ checkInputOutputsADTHeight src tests = do
 checkInputOutputsSMTStrings :: FilePath -> [(String, Int, [Reqs String])] -> TestTree
 checkInputOutputsSMTStrings src tests = do
     checkInputOutput' mkConfigTestWithSMTStringsIO src tests
+
+checkInputOutputsWithCVC5SMTStrings :: FilePath -> [(String, Int, [Reqs String])] -> TestTree
+checkInputOutputsWithCVC5SMTStrings src tests = do
+    checkInputOutput' (do config <- mkConfigTestIO; return config { smt = ConCVC5, smt_strings = UseSMTStrings }) src tests
 
 checkInputOutputsSMTStringsStrict :: FilePath -> [(String, Int, [Reqs String])] -> TestTree
 checkInputOutputsSMTStringsStrict src tests = do
@@ -76,9 +88,17 @@ checkInputOutputsQuantifiedSMTStrings :: FilePath -> [(String, Int, [Reqs String
 checkInputOutputsQuantifiedSMTStrings src tests = do
     checkInputOutput' mkConfigTestWithQuantifiedSMTStringsIO src tests
 
+checkInputOutputsLambdaSMTStrings :: FilePath -> [(String, Int, [Reqs String])] -> TestTree
+checkInputOutputsLambdaSMTStrings src tests = do
+    checkInputOutput' mkConfigTestWithLambdaSMTStringsIO src tests
+
 checkInputOutputsSMTLists :: FilePath -> [(String, Int, [Reqs String])] -> TestTree
 checkInputOutputsSMTLists src tests = do
     checkInputOutput' mkConfigTestWithSMTListsIO src tests
+
+checkInputOutputsLambdaSMTLists :: FilePath -> [(String, Int, [Reqs String])] -> TestTree
+checkInputOutputsLambdaSMTLists src tests = do
+    checkInputOutput' mkConfigTestWithLambdaSMTListsIO src tests
 
 checkInputOutputsSMTListsWith :: FilePath -> String -> [(String, Int, [Reqs String])] -> TestTree
 checkInputOutputsSMTListsWith src comp_with tests = do

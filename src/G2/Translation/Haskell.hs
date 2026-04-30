@@ -18,8 +18,14 @@ module G2.Translation.Haskell
     , envModSumModGutsImports
 
     , mergeExtractedG2s
+    , mkBindTuple
+    , mkTyCon
+    , mkClass
+    , mkFamilyAxioms
+
     , mkExpr
     , mkName
+    , valNameLookup
     , mkTyConName
     , mkData
     , mkSpan
@@ -44,7 +50,7 @@ import qualified G2.Translation.TransTypes as G2
 import G2.Translation.GHC
 
 import Control.Monad
-import qualified Control.Monad.State.Lazy as SM
+import qualified Control.Monad.State.Strict as SM
 
 import qualified Data.Array as A
 import qualified Data.ByteString.Char8 as C
@@ -55,6 +61,8 @@ import Data.Maybe
 import qualified Data.HashMap.Lazy as HM
 import qualified Data.HashSet as HS
 import qualified Data.Text as T
+import qualified Data.Text.Encoding as T
+import qualified Data.Text.Encoding.Error as T
 import Data.Word
 import System.FilePath
 import System.Directory
@@ -496,17 +504,19 @@ mergeExtractedG2s (g2:g2s) =
 
 mkBinds :: Maybe ModBreaks -> CoreBind -> G2.NamesM (HM.HashMap G2.Name G2.Expr)
 mkBinds mb (NonRec var expr) = do
+    (n, e) <- mkBindTuple mb var expr
+    return $ HM.singleton n e
+mkBinds mb (Rec ves) =
+    HM.fromList <$> mapM (uncurry (mkBindTuple mb)) ves
+
+{-# INLINE mkBindTuple #-}
+mkBindTuple :: Monad m => Maybe ModBreaks -> Var -> CoreExpr -> G2.NamesT m (G2.Name, G2.Expr)
+mkBindTuple mb var expr = do
     i <- mkIdLookup var
     e <- mkExpr mb expr
-    return $ HM.singleton (G2.idName i) e
-mkBinds mb (Rec ves) =
-    return . HM.fromList =<<
-        mapM (\(v, expr) -> do
-                  i <- mkIdLookup v
-                  e <- mkExpr mb expr
-                  return (G2.idName i, e)) ves
+    return $ (G2.idName i, e)
 
-mkExpr :: Maybe ModBreaks -> CoreExpr -> G2.NamesM G2.Expr
+mkExpr :: Monad m => Maybe ModBreaks -> CoreExpr -> G2.NamesT m G2.Expr
 mkExpr _ (Var var) = return . G2.Var =<< mkIdLookup var
 mkExpr _ (Lit lit) = return $ G2.Lit (mkLit lit)
 mkExpr mb (App fxpr axpr) = liftM2 G2.App (mkExpr mb fxpr) (mkExpr mb axpr)
@@ -544,13 +554,13 @@ mkLamUse v
     | isTyVar v = G2.TypeL
     | otherwise = G2.TermL
 
-valId :: Id -> G2.NamesM G2.Id
+valId :: Monad m => Id -> G2.NamesT m G2.Id
 valId vid = liftM2 G2.Id (valNameLookup . varName $ vid) (mkType . varType $ vid)
 
-typeId :: Id -> G2.NamesM G2.Id
+typeId :: Monad m => Id -> G2.NamesT m G2.Id
 typeId vid = liftM2 G2.Id (typeNameLookup . varName $ vid) (mkType . varType $ vid)
 
-mkIdLookup :: Id -> G2.NamesM G2.Id
+mkIdLookup :: Monad m => Id -> G2.NamesT m G2.Id
 mkIdLookup i = do
     n <- valNameLookup (varName i)
     t <- mkType . varType $ i
@@ -559,29 +569,29 @@ mkIdLookup i = do
 mkName :: Name -> G2.Name
 mkName name = G2.Name occ mdl unq sp
   where
-    occ = T.pack . occNameString . nameOccName $ name
+    occ = T.decodeUtf8With T.lenientDecode . bytesFS . getOccFS $ name
     unq = convertUnq . getKey . nameUnique $ name
     mdl = case nameModule_maybe name of
               Nothing -> Nothing
-              Just md -> switchModule (T.pack . moduleNameString . moduleName $ md)
+              Just md -> switchModule (T.decodeUtf8With T.lenientDecode . bytesFS . moduleNameFS . moduleName $ md)
 
     sp = mkSpan $ getSrcSpan name
 
-valNameLookup :: Name -> G2.NamesM G2.Name
+valNameLookup :: Monad m => Name -> G2.NamesT m G2.Name
 valNameLookup n = do
     (nm, tm) <- SM.get
     (n', nm') <- nameLookup nm n
     SM.put (nm', tm)
     return n'
 
-typeNameLookup :: Name -> G2.NamesM G2.Name
+typeNameLookup :: Monad m => Name -> G2.NamesT m G2.Name
 typeNameLookup n = do
     (nm, tm) <- SM.get
     (n', tm') <- nameLookup tm n
     SM.put (nm, tm')
     return n'
 
-nameLookup :: HM.HashMap (T.Text, Maybe T.Text) G2.Name -> Name -> G2.NamesM (G2.Name, HM.HashMap (T.Text, Maybe T.Text) G2.Name)
+nameLookup :: Monad m => HM.HashMap (T.Text, Maybe T.Text) G2.Name -> Name -> G2.NamesT m (G2.Name, HM.HashMap (T.Text, Maybe T.Text) G2.Name)
 nameLookup nm name = do
     -- We only lookup in the G2.NameMap if the Module name is not Nothing
     -- Internally, a module may use multiple variables with the same name and a module Nothing
@@ -591,11 +601,11 @@ nameLookup nm name = do
                           Just (G2.Name n' m i _) -> (G2.Name n' m i sp, nm)
                           Nothing -> let n = G2.Name occ mdl unq sp in (n, HM.insert (occ, mdl) n nm)
     where
-        occ = T.pack . occNameString . nameOccName $ name
+        occ = T.decodeUtf8With T.lenientDecode . bytesFS . getOccFS $ name
         unq = convertUnq . getKey . nameUnique $ name
         mdl = case nameModule_maybe name of
                   Nothing -> Nothing
-                  Just md -> switchModule (T.pack . moduleNameString . moduleName $ md)
+                  Just md -> switchModule (T.decodeUtf8With T.lenientDecode . bytesFS . moduleNameFS . moduleName $ md)
 
         sp = mkSpan $ getSrcSpan name
 
@@ -661,9 +671,16 @@ mkLit (LitNumber LitNumInt64 i) = G2.LitInt (fromInteger i)
 mkLit (LitNumber LitNumWord i) = G2.LitInt (fromInteger i)
 mkLit (LitNumber LitNumWord64 i) = G2.LitInt (fromInteger i)
 #else
+mkLit (LitNumber LitNumBigNat i) = error "mkLit: unhandled LitNumBigNat"
 mkLit (LitNumber LitNumInt i) = G2.LitInt (fromInteger i)
+mkLit (LitNumber LitNumInt8 i) = G2.LitInt (fromInteger i)
+mkLit (LitNumber LitNumInt16 i) = G2.LitInt (fromInteger i)
+mkLit (LitNumber LitNumInt32 i) = G2.LitInt (fromInteger i)
 mkLit (LitNumber LitNumInt64 i) = G2.LitInt (fromInteger i)
 mkLit (LitNumber LitNumWord i) = G2.LitInt (fromInteger i)
+mkLit (LitNumber LitNumWord8 i) = G2.LitInt (fromInteger i)
+mkLit (LitNumber LitNumWord16 i) = G2.LitInt (fromInteger i)
+mkLit (LitNumber LitNumWord32 i) = G2.LitInt (fromInteger i)
 mkLit (LitNumber LitNumWord64 i) = G2.LitInt (fromInteger i)
 #endif
 
@@ -678,7 +695,7 @@ mkLit _ = error "mkLit: unhandled Lit"
 -- mkLit (MachNullAddr) = error "mkLit: MachNullAddr"
 -- mkLit (MachLabel _ _ _ ) = error "mkLit: MachLabel"
 
-mkBind :: Maybe ModBreaks -> CoreBind -> G2.NamesM [(G2.Id, G2.Expr)]
+mkBind :: Monad m => Maybe ModBreaks -> CoreBind -> G2.NamesT m [(G2.Id, G2.Expr)]
 mkBind mb (NonRec var expr) = do
     i <- valId var
     e <- mkExpr mb expr
@@ -687,22 +704,22 @@ mkBind mb (Rec ves) = mapM (\(v, e) -> do i <- valId v
                                           e' <- mkExpr mb e
                                           return (i, e')) ves
 
-mkAlts :: Maybe ModBreaks -> [CoreAlt] -> G2.NamesM [G2.Alt]
+mkAlts :: Monad m => Maybe ModBreaks -> [CoreAlt] -> G2.NamesT m [G2.Alt]
 mkAlts mb = mapM (mkAlt mb)
 
-mkAlt :: Maybe ModBreaks -> CoreAlt -> G2.NamesM G2.Alt
+mkAlt :: Monad m => Maybe ModBreaks -> CoreAlt -> G2.NamesT m G2.Alt
 #if MIN_VERSION_GLASGOW_HASKELL(9,2,0,0)
 mkAlt mb (Alt acon prms expr) = liftM2 G2.Alt (mkAltMatch acon prms) (mkExpr mb expr)
 #else
 mkAlt mb (acon, prms, expr) = liftM2 G2.Alt (mkAltMatch acon prms) (mkExpr mb expr)
 #endif
 
-mkAltMatch :: AltCon -> [Var] -> G2.NamesM G2.AltMatch
+mkAltMatch :: Monad m => AltCon -> [Var] -> G2.NamesT m G2.AltMatch
 mkAltMatch (DataAlt dcon) params = liftM2 G2.DataAlt (mkData dcon) (mapM valId params)
 mkAltMatch (LitAlt lit) _ = return $ G2.LitAlt (mkLit lit)
 mkAltMatch DEFAULT _ = return G2.Default
 
-mkType :: Type -> G2.NamesM G2.Type
+mkType :: Monad m => Type -> G2.NamesT m G2.Type
 mkType (TyVarTy v) = liftM G2.TyVar $ typeId v
 mkType (AppTy t1 t2) = liftM2 G2.TyApp (mkType t1) (mkType t2)
 #if __GLASGOW_HASKELL__ < 808
@@ -733,7 +750,7 @@ mkType (TyConApp tc ts)
     , [_, _, t1, t2] <- ts = liftM2 G2.TyFun (mkType t1) (mkType t2)
     | otherwise = liftM3 mkG2TyCon (mkTyConName tc) (mapM mkType ts) (mkType $ tyConKind tc) 
 
-mkTyCon :: TyCon -> G2.NamesM (G2.Name, Maybe G2.AlgDataTy)
+mkTyCon :: Monad m => TyCon -> G2.NamesT m (G2.Name, Maybe G2.AlgDataTy)
 mkTyCon t = do
     n@(G2.Name n' m _ _) <- typeNameLookup . tyConName $ t
 
@@ -786,10 +803,10 @@ mkTyCon t = do
         Just dcs' -> return (n, Just dcs')
         Nothing -> return (n, Nothing)
 
-mkTyConName :: TyCon -> G2.NamesM G2.Name
+mkTyConName :: Monad m => TyCon -> G2.NamesT m G2.Name
 mkTyConName tc = typeNameLookup (tyConName tc)
 
-mkData :: DataCon -> G2.NamesM G2.DataCon
+mkData :: Monad m => DataCon -> G2.NamesT m G2.DataCon
 mkData datacon = do
     name <- mkDataName datacon
     ty <- (mkType . dataConRepType) datacon
@@ -798,24 +815,24 @@ mkData datacon = do
 
     return $ G2.DataCon name ty u e 
 
-mkDataName :: DataCon -> G2.NamesM G2.Name
+mkDataName :: Monad m => DataCon -> G2.NamesT m G2.Name
 mkDataName datacon = valNameLookup . dataConName $ datacon
 
-mkTyBinder :: TyVarBinder -> G2.NamesM G2.Id
+mkTyBinder :: Monad m => TyVarBinder -> G2.NamesT m G2.Id
 #if __GLASGOW_HASKELL__ < 808
 mkTyBinder (TvBndr v _) = typeId v
 #else
 mkTyBinder (Bndr v _) = typeId v
 #endif
 
-mkCoercion :: Coercion -> G2.NamesM G2.Coercion
+mkCoercion :: Monad m => Coercion -> G2.NamesT m G2.Coercion
 mkCoercion c = do
     let (Pair t1 t2) = coercionKind c
     t1' <- mkType t1
     t2' <- mkType t2
     return $ t1' G2.:~ t2'
 
-mkClass :: ClsInst -> G2.NamesM (G2.Name, G2.Id, [G2.Id], [(G2.Type, G2.Id)])
+mkClass :: Monad m => ClsInst -> G2.NamesT m (G2.Name, G2.Id, [G2.Id], [(G2.Type, G2.Id)])
 mkClass (ClsInst { is_cls = c, is_dfun = dfun }) = do
     class_name <-  typeNameLookup . className $ c
     i <- valId dfun
@@ -829,7 +846,7 @@ mkClass (ClsInst { is_cls = c, is_dfun = dfun }) = do
            , tyvars
            , sctheta_selids)
 
-mkFamilyAxioms :: FamInst -> G2.NamesM (G2.Name, G2.Axiom)
+mkFamilyAxioms :: Monad m => FamInst -> G2.NamesT m (G2.Name, G2.Axiom)
 mkFamilyAxioms fam_inst = do
     fam_name <- typeNameLookup $ fi_fam fam_inst
     lhs_ts <- mapM mkType $ fi_tys fam_inst

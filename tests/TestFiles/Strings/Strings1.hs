@@ -481,6 +481,14 @@ intersperse1 c xs
     where
         rs = intersperse c xs
 
+intersperse2 :: Char -> String -> (Int, String)
+intersperse2 c xs
+    | xs == [] = (1, rs)
+    | length rs > 5 = (2, rs)
+    | otherwise = (3, rs)
+    where
+        rs = intersperse c xs
+
 replicate1 :: Int -> Char -> (String, Int)
 replicate1 n c
     | length rs > 7 = (rs, 1)

@@ -1,11 +1,11 @@
 module G2.Translation.TransTypes where
 
 import Control.Monad.Identity
-import qualified Control.Monad.State.Lazy as SM
+import qualified Control.Monad.State.Strict as SM
 
 import G2.Translation.GHC
 
-import qualified Data.HashMap.Lazy as HM
+import qualified Data.HashMap.Strict as HM
 import qualified Data.Text as T
 
 import qualified G2.Language.Syntax as G2

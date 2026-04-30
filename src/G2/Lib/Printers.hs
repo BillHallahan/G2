@@ -486,8 +486,8 @@ mkPrimHaskell pg = pr
         pr StrGe = "str.>="
         pr StrLt = "str.<"
         pr StrLe = "str.<="
-        pr StrLen = "StrLen"
-        pr StrAppend = "StrAppend"
+        pr StrLen = "str.len"
+        pr StrAppend = "str.append"
         pr StrAt = "str.at"
         pr StrSubstr = "str.substr"
         pr StrIndexOf = "str.indexof"
@@ -498,10 +498,13 @@ mkPrimHaskell pg = pr
         pr StrReplaceReAll = "str.replace_re_all"
         pr StrPrefixOf = "str.prefixof"
         pr StrSuffixOf = "str.suffixof"
+        pr StrReverse = "str.reverse"
         pr Chr = "chr"
         pr OrdChar = "ord"
 
         pr WGenCat = "wgencat"
+
+        pr FoldLeft = "seq.fold_left"
 
         pr InRe = "str.in_re"
         pr ToRe = "str.to_re"
