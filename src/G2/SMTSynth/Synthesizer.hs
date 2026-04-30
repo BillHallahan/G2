@@ -517,7 +517,7 @@ runFuncSpec temp src f smt_def sc@(SynthConfig { eq_file = eq_f, g2_config = con
         verifySpec :: Name -> Name -> Bindings -> State t -> (State t, NameGen)
         verifySpec entry_n comp_f_n b@Bindings {name_gen = ng} s@(State { expr_env = eenv, known_values = kv, tyvar_env = tvnv })
             | Just entry_e <- E.lookup entry_n eenv
-            , Just (_, smt_e) <- E.lookupNameMod (smtName $ nameOcc comp_f_n) (Just "Spec") eenv
+            , Just (smt_n, smt_e) <- E.lookupNameMod (smtName $ nameOcc comp_f_n) (Just "Spec") eenv
             , Just (placeholder_n, place_e) <- E.lookupNameMod "placeholder" (Just "Spec") eenv
             , Just (placeholder_ret_n, _) <- E.lookupNameMod "placeholderRet" (Just "Spec") eenv
             , Just (ideal_n, ideal_e) <- E.lookupNameMod (T.pack ("ideal_" ++ (T.unpack $ nameOcc comp_f_n))) (Just "Spec") eenv
@@ -526,9 +526,9 @@ runFuncSpec temp src f smt_def sc@(SynthConfig { eq_file = eq_f, g2_config = con
                     tys = splitTyFuns t
                     (xIds, ng') = freshIds tys ng
                     inputExprs = map Var xIds
-                    spec_call_expr = mkApp $ smt_e : inputExprs
+                    spec_call_expr = mkApp $ (Var . Id smt_n $ typeOf tvnv smt_e) : inputExprs
                     replace_rec_fun = Let [(last xIds, SymGen SNoLog (last tys))] (Assume Nothing spec_call_expr (last inputExprs))
-                    place_e' = replaceFunExpr entry_n replace_rec_fun place_e
+                    place_e' = replaceRecExpr entry_n replace_rec_fun place_e
 
                     ideal_e' = renameVars ideal_n ideal_ret_n ideal_e
                     eenv' = E.insert ideal_ret_n ideal_e' eenv
@@ -537,15 +537,17 @@ runFuncSpec temp src f smt_def sc@(SynthConfig { eq_file = eq_f, g2_config = con
                                 $ E.insert placeholder_n place_e' eenv' }, ng')
             | otherwise = (s, ng)
 
-        replaceFunExpr :: Name -> Expr -> Expr -> Expr
-        replaceFunExpr n e (Lam u i e') = Lam u i (replaceFunExpr n e e')
-        replaceFunExpr n e v@(Var (Id n' _)) = (if n == n' then e else v)
-        replaceFunExpr n e (Case b i@(Id n' _) t as) | n == n' = Case (replaceFunExpr n e b) i t as
-        replaceFunExpr n e (Case b i t as) = Case (replaceFunExpr n e b) i t (map (\a@(Alt m e') -> Alt m (replaceFunExpr n e e')) as)
-        replaceFunExpr n e (Tick t e') = Tick t (replaceFunExpr n e e')
-        replaceFunExpr n e (App e' e'') = App (replaceFunExpr n e e') (replaceFunExpr n e e'')
-        replaceFunExpr n e (Let b e') = Let (map (\(i, e'') -> (i, replaceFunExpr n e e'')) b) (replaceFunExpr n e e')
-        replaceFunExpr n e e' = replaceVar n e e'             
+        --TODO: Account for partial function application
+        replaceRecExpr :: Name -> Expr -> Expr -> Expr
+        replaceRecExpr n e es
+            | v@(Var (Id n' _)):_ <- unApp es, n == n' = e
+        replaceRecExpr n e (App e' e'') = App (replaceRecExpr n e e') (replaceRecExpr n e e'')
+        replaceRecExpr n e (Lam u i e') = Lam u i (replaceRecExpr n e e')
+        replaceRecExpr n e (Case b i@(Id n' _) t as) | n == n' = Case (replaceRecExpr n e b) i t as
+        replaceRecExpr n e (Case b i t as) = Case (replaceRecExpr n e b) i t (map (\a@(Alt m e') -> Alt m (replaceRecExpr n e e')) as)
+        replaceRecExpr n e (Tick t e') = Tick t (replaceRecExpr n e e')
+        replaceRecExpr n e (Let b e') = Let (map (\(i, e'') -> (i, replaceRecExpr n e e'')) b) (replaceRecExpr n e e')
+        replaceRecExpr n e e' = replaceVar n e e'             
 
 setUpVerification :: Name -> State t -> State t
 setUpVerification entry_n s@(State { expr_env = eenv, known_values = kv  })
