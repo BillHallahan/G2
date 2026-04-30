@@ -491,7 +491,7 @@ evalCase s@(State { expr_env = eenv
 
         (dsts_cs, ng') = case unApp $ unsafeElimOuterCast expr of
             (Var i@(Id _ _)):_ -> concretizeVarExpr s ng dcpm i bind dalts cast
-            (Prim _ _):_ -> createExtConds s ng dcpm expr bind dalts
+            (Prim _ _):_ -> createExtConds s ng dcpm (inlineVars eenv expr) bind dalts
             (Lit _):_ -> ([], ng)
             (Data _):_ -> ([], ng)
             _ -> error $ "unmatched expr" ++ show (unApp $ unsafeElimOuterCast mexpr)
