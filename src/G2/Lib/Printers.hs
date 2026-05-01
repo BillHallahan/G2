@@ -64,6 +64,7 @@ import qualified Data.Foldable as F
 import qualified Data.HashMap.Strict as HM
 import qualified Data.HashSet as HS
 import qualified Data.Text as T
+import Control.Exception
 import Text.Read
 import qualified G2.Language.TyVarEnv as TV 
 
@@ -297,12 +298,14 @@ mkDataConHaskell pg (DataCon n _ _ _) = mkNameHaskell pg n
 -- | Make the instance declaration for Name Type
 mkTCInstanceHaskell :: PrettyGuide -> Name -> Type -> TypeClasses -> ExprEnv -> T.Text
 mkTCInstanceHaskell pg cls_n t tcs eenv
-    | Just inst_dict_id <- lookupTCDict tcs cls_n t -- get inst dict id
-    , Just (Class {methods = method_strs}) <- lookupTCClass cls_n tcs -- get class for method names
-    , Just method_exprs <- drop 2 . unApp 
-        <$> E.lookup (idName inst_dict_id) eenv -- get method exprs
-    , True
-    = "instance " <> mkNameHaskell pg cls_n <> " " <> mkTypeHaskellPG pg t <> " where\n"
+    | Just (Class {methods = method_strs, typ_ids = tv_ids, superclasses = scs}) <- lookupTCClass cls_n tcs -- get class for method names
+    , Just inst_dict_id <- lookupTCDict tcs cls_n t -- get inst dict id
+    , Just method_exprs <- case E.lookup (idName inst_dict_id) eenv of 
+        Just app@(App _ _) -> Just $ drop (length tv_ids + length scs + 1) . unApp $ app -- all other dicts
+        Just expr -> Just [expr] -- single method dicts
+        Nothing -> Nothing
+    = assert (length method_exprs == length method_strs) $
+     "instance " <> mkNameHaskell pg cls_n <> " " <> mkTypeHaskellPG pg t <> " where\n"
         <> T.intercalate "\n" (zipWith mkMethodDef method_strs method_exprs) <> "\n"
     | otherwise = T.empty
     where 

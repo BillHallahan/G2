@@ -693,7 +693,7 @@ evalCase s@(State { expr_env = eenv
             -> sd {new_sym_entries = tyVarSubst tvnv nses,
                    new_curr_expr   = tyVarSubst tvnv nce}) alt_res
 
-        -- TODO: assuming class has kind :: * -> Constraint
+        -- TODO[Jacob]: assuming class has kind :: * -> Constraint]
         tcInstDiffFromVar :: Expr -> Maybe TCInstDiff
         tcInstDiffFromVar (Var inst_id@(Id _ dict_ty)) 
             | Just cls_n <- tyAppCenterName dict_ty
@@ -1240,18 +1240,30 @@ evalCast :: State t -> NameGen -> Expr -> Coercion -> (Rule, [State t], NameGen)
 evalCast s@(State { expr_env = eenv
                   , exec_stack = stck
                   , tyvar_env = tvnv
-                  , families = fam })
+                  , families = fam 
+                  , type_classes = tc })
          ng e c@(t1 :~ t2)
-    | Var (Id n _) <- e
+    | Var t1_i@(Id n _) <- e
     , E.isSymbolic n eenv
     , hasFuncType t2 && not (hasFuncType t1) =
         let
             (i, ng') = freshId t2 ng
             new_e = Cast (Var i) (t2 :~ t1)
+
+            -- If casting a symbolic single method typeclass directly to its function,
+            -- insert the new instance into the typeclass structure. Symbolic typeclass
+            -- instances with two or more methods are handled separately. (evalCase)
+            tc' | Just class_name <- tyAppCenterName t1
+                , isTypeClassNamed class_name tc = 
+                    -- TODO[Jacob]: assuming * -> Constraint
+                    let [_, inst_type] = unTyApp t1
+                    in  addClassInstance class_name inst_type t1_i tc
+                | otherwise = tc
         in
         ( RuleOther
         , [s { expr_env = E.insertSymbolic i $ E.insert n new_e eenv
-             , curr_expr = CurrExpr Return (Var i) }]
+             , curr_expr = CurrExpr Return (Var i)
+             , type_classes = tc' }]
         , ng')
     | cast <- Cast e c
     , (cast', ng') <- splitCast tvnv ng cast
