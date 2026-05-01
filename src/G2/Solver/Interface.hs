@@ -98,6 +98,13 @@ subModel s@(State { expr_env = eenv
                 let dict = fromJust (lookupTCDict tc n t)
                 in (idName dict, Var dict)) (getGenTCPairs Nothing tc)
 
+        -- Inline separately in dicts with the inInst flag on. This will properly inline
+        -- methods for single method dicts within the dict. Then,
+        -- inline everything else with the flag off, preventing the method from being
+        -- inlined in input expressions. Afterwards, combine all into one Subbed record and
+        -- apply rewrites as usual.
+        gen_tc_ns_exprs' = subVar tvnv False True m eenv tc gen_tc_ns_exprs
+
         sub = Subbed { s_inputs = is
                      , s_output = if errorRaised s then Prim Error TyBottom else cexpr
                      , s_violated = ais'
@@ -105,11 +112,12 @@ subModel s@(State { expr_env = eenv
                      , s_mutvars = mv
                      , s_reached_fc_ticks = r_fc
                      , s_handles = map (\(n, hi) -> (n, Var $ h_start hi)) $ HM.toList hs
-                     , s_tc_dicts = gen_tc_ns_exprs}
+                     , s_tc_dicts = []}
         
-        sv = subVar tvnv False m eenv tc sub
+        sv = subVar tvnv False False m eenv tc sub
+        sv' = sv {s_tc_dicts = gen_tc_ns_exprs'}
     in
-    stripAllTicks $ untilEq (undefAppRewrite . typeClassLamRewrite tc . typeClassCaseRewrite tc . tyVarSubst tvnv . simplifyLams . pushCaseAppArgIn) sv
+    stripAllTicks $ untilEq (undefAppRewrite . typeClassLamRewrite tc . typeClassCaseRewrite tc . tyVarSubst tvnv . simplifyLams . pushCaseAppArgIn) sv'
     where
         toVars n = case E.lookup n eenv of
                                 Just e@(Lam _ _ _) -> Just . Var $ Id n (typeOf tvnv e)
@@ -120,33 +128,37 @@ subModel s@(State { expr_env = eenv
 
 subVarFuncCall :: TyVarEnv -> Bool -> Model -> ExprEnv -> TypeClasses -> FuncCall -> FuncCall
 subVarFuncCall tv inLam em eenv tc fc@(FuncCall {arguments = ars}) =
-    subVar tv inLam em eenv tc $ fc {arguments = filter (not . isTC tc) ars}
+    subVar tv inLam False em eenv tc $ fc {arguments = filter (not . isTC tc) ars}
 
-subVar :: (ASTContainer m Expr) => TyVarEnv -> Bool -> Model -> ExprEnv -> TypeClasses -> m -> m
-subVar tv inLam em eenv tc = modifyContainedASTs (subVar' tv inLam em eenv tc [])
+subVar :: (ASTContainer m Expr) => TyVarEnv -> Bool -> Bool -> Model -> ExprEnv -> TypeClasses -> m -> m
+subVar tv inLam inInst em eenv tc = modifyContainedASTs (subVar' tv inLam inInst em eenv tc [])
 
-subVar' :: TyVarEnv -> Bool -> Model -> ExprEnv -> TypeClasses -> [Id] -> Expr -> Expr
-subVar' tv inLam em eenv tc is v@(Var i@(Id n _))
+subVar' :: TyVarEnv -> Bool -> Bool -> Model -> ExprEnv -> TypeClasses -> [Id] -> Expr -> Expr
+subVar' tv inLam inInst em eenv tc is v@(Var i@(Id n _))
     | i `notElem` is
     , Just e <- HM.lookup n em =
-        subVar' tv inLam em eenv tc (i:is) e
+        subVar' tv inLam inInst em eenv tc (i:is) e
     | i `notElem` is
     , Just e <- E.lookup n eenv
     , let e' = stripAllTicks e
     -- We want to inline a lambda only if inLam is true (we want to inline all lambdas),
     -- or if it's module is Nothing (and its name is likely uninteresting/unknown to the user)
-    , (isExprValueForm eenv e' && (notLam e' || inLam || nameModule n == Nothing)) || isApp e' || isCase e' || isVar e' || isLitCase tv e' =
-        subVar' tv inLam em eenv tc (i:is) e'
+    , (isExprValueForm eenv e' && (notLam e' || inLam || nameModule n == Nothing)) || isApp e' 
+    || isCase e' || isVar e' || isLitCase tv e' || (isCast e' && inInst) =
+        subVar' tv inLam inInst em eenv tc (i:is) e'
     | otherwise = v
-subVar' tv inLam mdl eenv tc is cse@(Case e _ _ as) =
-    case subVar' tv inLam mdl eenv tc is e of
+subVar' tv inLam inInst mdl eenv tc is cse@(Case e _ _ as) =
+    case subVar' tv inLam inInst mdl eenv tc is e of
         Lit l
             | Just (Alt _ ae) <- L.find (\case (Alt (LitAlt l') _) -> l == l'; _ -> False) as ->
-                subVar' tv inLam mdl eenv tc is ae
+                subVar' tv inLam inInst mdl eenv tc is ae
             | Just (Alt _ ae) <- L.find (\case (Alt Default _) -> True; _ -> False) as ->
-                subVar' tv inLam mdl eenv tc is ae
-        _ -> modifyChildren (subVar' tv inLam mdl eenv tc is) cse
-subVar' tv inLam em eenv tc is e = modifyChildren (subVar' tv inLam em eenv tc is) e
+                subVar' tv inLam inInst mdl eenv tc is ae
+        _ -> modifyChildren (subVar' tv inLam inInst mdl eenv tc is) cse
+subVar' tv inLam inInst mdl eenv tc is cst@(Cast e _) 
+    | inInst  = subVar' tv inLam inInst mdl eenv tc is e
+    | otherwise = cst
+subVar' tv inLam inInst em eenv tc is e = modifyChildren (subVar' tv inLam inInst em eenv tc is) e
 
 isApp :: Expr -> Bool
 isApp (App _ _) = True
@@ -171,6 +183,10 @@ isLitCase _ _ = False
 isTC :: TypeClasses -> Expr -> Bool
 isTC tc (Var (Id _ (TyCon n _))) = isTypeClassNamed n tc
 isTC _ _ = False
+
+isCast :: Expr -> Bool
+isCast (Cast _ _) = True
+isCast _ = False
 
 -- | Rewrites a case statement returning a function type, and applied to a variable argument,
 -- so that the variable argument is moved into each branch of the case statement.
