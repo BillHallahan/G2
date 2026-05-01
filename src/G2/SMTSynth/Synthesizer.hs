@@ -111,6 +111,7 @@ import Debug.Trace
 -- | Synthesizer specific configurations
 data SynthConfig = SynthConfig { run_file :: String
                                , checking :: Checking
+                               , synth_all_list :: Maybe String -- ^ Synthesize definitions for all specified functions in the file
                                , synth_func :: Maybe String -- ^ Synthesize a definition for a specific function
                                , eq_check :: String -- ^ Function to use as an equality check
                                , eq_file :: Maybe FilePath -- ^ File containing function to use as an equality check
@@ -153,6 +154,11 @@ seqGenConfig homedir =
                 <$> argument str (metavar "FILE")
                 <*> flag ADTHeight Verify
                    (long "verify"
+                   <> help "a function to synthesize an SMT definition for")
+                <*> option (eitherReader (Right . Just))
+                   (long "synth-all"
+                   <> metavar "F"
+                   <> value Nothing
                    <> help "a function to synthesize an SMT definition for")
                 <*> option (eitherReader (Right . Just))
                    (long "function"
@@ -240,8 +246,7 @@ genSMTFunc pls src f smt_def sc@(SynthConfig { g2_config = config }) = do
                             Just (_,_,_,smt_spec) -> Just smt_spec
                             Nothing -> Nothing
 
-
-            (new_smt_piece, smt_spec'') <- formFunction s pls' sc smt_spec' isSpecCorrect
+            new_smt_piece <- formFunction entry_f s pls'
 
             let kv = known_values s
                 tv_env = tyvar_env s 
@@ -256,28 +261,25 @@ formArg kv tv nm e
     | typeOf tv e == tyInteger kv = "(toInteger -> Z# " ++ nm ++ ")"
     | otherwise = nm
 
-
--- Question: Ask Bill
-formFunction :: State t -> [PatternRes] -> SynthConfig -> Maybe String -> Maybe Bool -> IO (String, String)
-formFunction _ [] _ _ _ = error "formFunction: empty list"
-formFunction s [pr] sc smt_def is_spec_correct = solveOnePattern s pr sc smt_def is_spec_correct
-formFunction s (pr:prs) sc smt_def is_spec_correct = do
+formFunction :: Id -> State t -> [PatternRes] -> IO String
+formFunction _ _ [] = error "formFunction: empty list"
+formFunction entry_f s [pr] = solveOnePattern entry_f s pr
+formFunction entry_f s (pr:prs) = do
     putStrLn "\n* Solving Branch Condition"
-    (br, _) <- solveBranchConditions s pr prs sc smt_def is_spec_correct
+    br <- solveBranchConditions entry_f s pr prs
     putStrLn "\n* Solving Pattern"
-    (r1, smt_spec) <- solveOnePattern s pr sc smt_def is_spec_correct
-    (r2, _) <- formFunction s prs sc smt_def is_spec_correct
-    return  ("if " ++ br ++ " then " ++ r1 ++ " else " ++ r2, smt_spec)
+    r1 <- solveOnePattern entry_f s pr
+    r2 <- formFunction entry_f s prs
+    return $ "if " ++ br ++ " then " ++ r1 ++ " else " ++ r2
 
-solveOnePattern :: State t -> PatternRes -> SynthConfig -> Maybe String -> Maybe Bool -> IO (String, String)
-solveOnePattern s (PL { pattern = varred_form, pat_ids = is, lit_vals = constraints }) sc smt_def is_spec_correct = do
+solveOnePattern :: Id -> State t -> PatternRes -> IO String
+solveOnePattern entry_f s (PL { pattern = varred_form, pat_ids = is, lit_vals = constraints }) = do
     let is_constraints = zip is constraints
 
     let pg = mkPrettyGuide is
     new_pieces <- mapM (\(i@(Id _ t), constraints_) -> do
-                            (new_smt_def, smt_spec) <- computeProdPieces constraints_ sc smt_def is_spec_correct
-                            let res = "!" ++ T.unpack (printName pg (idName i)) ++ " = (" ++ new_smt_def ++ ")"
-                            return  (res, smt_spec))
+                            new_smt_def <- computeProdPieces entry_f constraints_
+                            return $ "!" ++ T.unpack (printName pg (idName i)) ++ " = (" ++ new_smt_def ++ ")")
                         is_constraints
     let new_pieces' = map fst new_pieces
         smt_spec = map snd new_pieces                  
@@ -289,24 +291,23 @@ toHaskellCode :: State t -> PrettyGuide -> Expr -> T.Text
 toHaskellCode _ _ e | Prim Error _:_ <- unApp e = "error \"\""
 toHaskellCode s pg e = printHaskellPG pg s e
 
-solveBranchConditions :: State t -> PatternRes -> [PatternRes] -> SynthConfig -> Maybe String -> Maybe Bool -> IO (String, String)
-solveBranchConditions s@(State { known_values = kv }) pr prs sc smt_def is_spec_correct = do
+solveBranchConditions :: Id -> State t -> PatternRes -> [PatternRes] -> IO String
+solveBranchConditions entry_f s@(State { known_values = kv }) pr prs = do
     let true_lv = map (setBool True) (orig_exec_res pr)
         false_lv = map (setBool False) (concatMap orig_exec_res prs)
         pat_id = Id (Name "g2__BOOL_ID" Nothing 0 Nothing) TyUnknown
         bool_pr = pr { pattern = Var pat_id, pat_ids = [pat_id], lit_vals = [true_lv ++ false_lv] }
-    solveOnePattern s bool_pr sc smt_def is_spec_correct
+    solveOnePattern entry_f s bool_pr
     where
         setBool b er = er { final_state = (final_state er) {curr_expr = CurrExpr Return (mkBool kv b)}, conc_out = mkBool kv b }
 
 
-computeProdPieces :: [ExecRes t] -> SynthConfig -> Maybe String -> Maybe Bool -> IO (String, String)
-computeProdPieces constraints sc smt_def is_spec_correct= do
-    smt_strs <- synthFunc constraints sc smt_def is_spec_correct
-    case smt_strs of
-        Just (smt_cmd@(DefineFun _ _ _ t), smt_spec) -> do 
-            print smt_cmd
-            return (termToHaskell t, smt_spec)
+computeProdPieces :: Id -> [ExecRes t] -> IO String
+computeProdPieces entry_f constraints = do
+    smt_cmd <- synthFunc entry_f constraints
+    print smt_cmd
+    case smt_cmd of
+        Just (DefineFun _ _ _ t) -> return $ termToHaskell t
         _ -> error "genSMTFunc: no SMT function generated"
 
 groupNonAdj :: (a -> a -> Bool) -> [a] -> [[a]]
@@ -431,7 +432,7 @@ runFuncSMT :: FilePath
         -> IO (Id, [ExecRes ()], NameGen, Maybe Bool)
 runFuncSMT temp src f smt_def sc@(SynthConfig { eq_file = eq_f, g2_config = config }) = do
     let extra_fp = maybeToList eq_f
-        config' = config { base = base config ++ extra_fp ++ temp:src
+        config' = config { base = base config ++ extra_fp ++ temp:[]
                          , baseInclude = map takeDirectory extra_fp ++ baseInclude config
                          , maxOutputs = Just 10}
 
@@ -752,10 +753,8 @@ findInconsistent entry_f s@(State { expr_env = eenv  }) b output_true
 -------------------------------------------------------------------------------
 -- Calling/reading from SyGuS solver
 -------------------------------------------------------------------------------
-synthFunc :: [ExecRes t] -> SynthConfig -> Maybe String -> Maybe Bool ->  IO (Maybe (SmtCmd, String))
-synthFunc er sc smt_def is_spec_correct = do
-    cmds <- sygusCmds er sc smt_def is_spec_correct
-    runSygus cmds sc
+synthFunc :: Id -> [ExecRes t] -> IO (Maybe SmtCmd)
+synthFunc entry_f er = runSygus $ sygusCmds entry_f er
 
 runSygus :: [Cmd] -> SynthConfig -> IO (Maybe (SmtCmd, String))
 runSygus sygus_cmds sc = do
@@ -779,14 +778,18 @@ runSygus sygus_cmds sc = do
         [SmtCmd def_fun] -> return $ Just (def_fun, out)
         _ -> return Nothing
 
-sygusCmds :: [ExecRes t] -> SynthConfig -> Maybe String -> Maybe Bool -> IO [Cmd]
-sygusCmds [] _ _ _ = return []
-sygusCmds er@(ExecRes { final_state = s@(State { tyvar_env = tv_env, known_values = kv }), conc_args = args, conc_out = out_e}:_) 
-            sc smt_def is_spec_correct = do
-    let define_eq n srt = SmtCmd $ DefineFun n
+sygusCmds :: Id -> [ExecRes t] -> [Cmd]
+sygusCmds _ [] = []
+sygusCmds (Id _ entry_ty) er@(ExecRes { final_state = s@(State { tyvar_env = tv_env, known_values = kv }), conc_args = args, conc_out = out_e}:_) = 
+    let 
+        define_eq n srt = SmtCmd $ DefineFun n
                                              [SortedVar "x" srt, SortedVar "y" srt]
                                              boolSort
                                              (TermCall (ISymb "=") [TermIdent (ISymb "x"), TermIdent (ISymb "y")])
+        define_unit n srt = SmtCmd $ DefineFun n
+                                             [SortedVar "x" srt]
+                                             (IdentSortSort (ISymb "Seq") [srt])
+                                             (TermCall (ISymb "seq.unit") [TermIdent (ISymb "x")])
         from_char = SmtCmd $ DefineFun "fromChar"
                                         [SortedVar "x" strSort]
                                         strSort
@@ -801,24 +804,20 @@ sygusCmds er@(ExecRes { final_state = s@(State { tyvar_env = tv_env, known_value
                                         strSort
                                         ( TermCall (ISymb "str.at") [TermIdent (ISymb "x"), TermLit (LitNum 0)] )
         grm = GrammarDef pre_dec gram_defs'
-
-    constraints <- case specs_type sc of
-            FuncSpecs -> constraintsForFuncSpec smt_def is_spec_correct er
-            SMTFunc -> return $ map execResToConstraints er
-
-    let cmds = [ SmtCmd $ SetLogic "ALL"
-            , define_eq "strEq" strSort
-            , define_eq "seqIntEq" seq_int_sort
-            , define_eq "seqFloatEq" seq_float_sort
-            , define_eq "intEq" intSort
-            , define_eq "floatEq" floatSort
-            , from_char
-            , to_char
-            , SynthFun "spec" arg_vars ret_sort (Just grm) ] 
-            ++ constraints
-            -- ++ funcSpecConstraint
-            ++ [CheckSynth]
-    return cmds
+    in
+    [ SmtCmd $ SetLogic "ALL"
+    , define_eq "strEq" strSort
+    , define_eq "seqIntEq" seq_int_sort
+    , define_eq "seqFloatEq" seq_float_sort
+    , define_eq "intEq" intSort
+    , define_eq "floatEq" floatSort
+    , define_unit "intUnit" intSort
+    , define_unit "floatUnit" floatSort
+    , from_char
+    , to_char
+    , SynthFun "spec" arg_vars ret_sort (Just grm) ]
+    ++ map execResToConstraints er ++
+    [CheckSynth]
     where
         -- funcSpecConstraint = let
         --                         existsConstraint = TermExists existSortVars existsTerm
@@ -837,6 +836,11 @@ sygusCmds er@(ExecRes { final_state = s@(State { tyvar_env = tv_env, known_value
         strSort = IdentSort (ISymb "String")
         boolSort = IdentSort (ISymb "Bool")
 
+        tyvar_used (TyVar _) = True
+        tyvar_used (TyApp t1 t2) = tyvar_used t1 || tyvar_used t2
+        tyvar_used _ = False
+
+        has_tyvars = any tyvar_used $ argumentTypes entry_ty
         arg_types = map (typeOf tv_env) $ relArgs s args
         args_sort = map (typeToSort kv) arg_types
         arg_vars = zipWith SortedVar argList args_sort
@@ -867,6 +871,7 @@ sygusCmds er@(ExecRes { final_state = s@(State { tyvar_env = tv_env, known_value
                     , GBfTerm (BfIdentifierBfs (ISymb "seq.extract") [ strIdent, intIdent, intIdent])
                     , GBfTerm (BfIdentifierBfs (ISymb "seq.replace") [ strIdent, strIdent, strIdent])
                     , GBfTerm (BfIdentifierBfs (ISymb "str.replace_all") [ strIdent, strIdent, strIdent])
+                    , GBfTerm (BfIdentifierBfs (ISymb "seq.rev") [ strIdent ])
                     ]
                     ++
                     if not (null char_args) then [GBfTerm (BfIdentifierBfs (ISymb "fromChar") [ charArgIdent ])] else []
@@ -877,6 +882,7 @@ sygusCmds er@(ExecRes { final_state = s@(State { tyvar_env = tv_env, known_value
                  , GBfTerm (BfLiteral (LitNum 0))
                  , GBfTerm (BfLiteral (LitNum (-1)))
                  , GBfTerm (BfIdentifierBfs (ISymb "+") [ intIdent, intIdent])
+                 , GBfTerm (BfIdentifierBfs (ISymb "-") [ intIdent, intIdent])
                  ]
                  ++ intOpForIdent strIdent
                  ++ intOpForIdent seqIntIdent
@@ -886,6 +892,7 @@ sygusCmds er@(ExecRes { final_state = s@(State { tyvar_env = tv_env, known_value
                  , GBfTerm (BfIdentifierBfs (ISymb "seq.len") [ ident ])
                  ]
         grmFloat = [ GVariable floatSort
+                   , GConstant floatSort
                    , GBfTerm (BfIdentifierBfs (ISymb "ite") [ boolIdent, floatIdent, floatIdent])
                    ]
 
@@ -908,7 +915,8 @@ sygusCmds er@(ExecRes { final_state = s@(State { tyvar_env = tv_env, known_value
                   , GBfTerm (BfIdentifierBfs (ISymb "seq.contains") [ ident, ident ])
                   ]
 
-        grmSeq srt srtIdent =
+        grmSeq srt unitName contIdent srtIdent =
+                    (if not has_tyvars then (GBfTerm (BfIdentifierBfs (ISymb unitName) [ contIdent ]):) else id)
                      [ GVariable srt
                      , GBfTerm (BfIdentifierBfs (ISymb "ite") [ boolIdent, srtIdent, srtIdent])
                      , GBfTerm (BfIdentifierBfs (ISymb "as") [BfIdentifier (ISymb "seq.empty"), BfIdentifier (ISymb . T.unpack $ printSygus srt) ])
@@ -916,7 +924,8 @@ sygusCmds er@(ExecRes { final_state = s@(State { tyvar_env = tv_env, known_value
                      , GBfTerm (BfIdentifierBfs (ISymb "seq.at") [ srtIdent, intIdent])
                      , GBfTerm (BfIdentifierBfs (ISymb "seq.extract") [ srtIdent, intIdent, intIdent])
                      , GBfTerm (BfIdentifierBfs (ISymb "seq.replace") [ srtIdent, srtIdent, srtIdent])
-                     -- , GBfTerm (BfIdentifierBfs (ISymb "str.replace_all") [ strIdent, strIdent, strIdent])
+                     , GBfTerm (BfIdentifierBfs (ISymb "seq.replace_all") [ srtIdent, srtIdent, srtIdent])
+                     , GBfTerm (BfIdentifierBfs (ISymb "seq.rev") [ srtIdent])
                      ]
 
         seq_int_sort = IdentSortSort (ISymb "Seq") [IdentSort (ISymb "Int")]
@@ -925,8 +934,8 @@ sygusCmds er@(ExecRes { final_state = s@(State { tyvar_env = tv_env, known_value
         ty_gram_defs = (if ret_type == tyChar kv then (([tyChar kv], GroupedRuleList "CharRetPr" strSort grmCharRet):) else id) $
                        (if not (null char_args) then (([tyChar kv], GroupedRuleList "CharArgPr" strSort grmCharArgs):) else id)           
                        [ ([tyString kv], GroupedRuleList "StrPr" strSort grmString)
-                       , ([TyApp (tyList kv) (tyInt kv), TyApp (tyList kv) (tyInteger kv)], GroupedRuleList "SeqIntPr" seq_int_sort (grmSeq seq_int_sort seqIntIdent))
-                       , ([TyApp (tyList kv) (tyFloat kv)], GroupedRuleList "SeqFloatPr" seq_float_sort (grmSeq seq_float_sort seqFloatIdent))
+                       , ([TyApp (tyList kv) (tyInt kv), TyApp (tyList kv) (tyInteger kv)], GroupedRuleList "SeqIntPr" seq_int_sort (grmSeq seq_int_sort "intUnit" intIdent seqIntIdent))
+                       , ([TyApp (tyList kv) (tyFloat kv)], GroupedRuleList "SeqFloatPr" seq_float_sort (grmSeq seq_float_sort "floatUnit" floatIdent seqFloatIdent))
                        , ([TyLitInt], GroupedRuleList "IntPr" intSort grmInt)
                        , ([TyLitFloat], GroupedRuleList "FloatPr" floatSort grmFloat)
                        , ([tyBool kv], GroupedRuleList "BoolPr" boolSort grmBool)]
@@ -1166,6 +1175,7 @@ smtFuncToPrim s vl_args = conv s ++ conv_args
         conv "str.indexof" = "strIndexOf#"
         conv "str.replace" = "strReplace#"
         conv "str.replace_all" = "strReplaceAll#"
+        conv "str.rev" = "strReverse#"
         conv "strEq" = "strEq#"
 
         conv "seq.++" = "strAppend#"
@@ -1178,6 +1188,7 @@ smtFuncToPrim s vl_args = conv s ++ conv_args
         conv "seq.indexof" = "strIndexOf#"
         conv "seq.replace" = "strReplace#"
         conv "seq.replace_all" = "strReplaceAll#"
+        conv "seq.rev" = "strReverse#"
         conv "seqIntEq" = "strEq#"
         conv "seqFloatEq" = "strEq#"
 
@@ -1187,12 +1198,13 @@ smtFuncToPrim s vl_args = conv s ++ conv_args
         conv "toChar" = ""
         conv "+" = "(+#)"
         conv "-" = "(-#)"
-        conv "*" = "(*#)"
-        conv "<" = "($<#)"
         conv "ite" = ""
         conv "and" = "(&&)"
         conv "or" = "(||)"
         conv "not" = "not"
+
+        conv "intUnit" = ""
+        conv "floatUnit" = ""
 
         conv f = error $ "smtFuncToPrim: unsupported " ++ f
         
@@ -1215,5 +1227,9 @@ smtFuncToPrim s vl_args = conv s ++ conv_args
                                                 let_b = "let " ++ b1 ++ ";" ++ b2 ++ "in"
                                             in
                                             "(case (" ++ let_b ++ " at_G2_STR) of [x] -> x)"
+                        "intUnit" | [a] <- vl_args -> "strUnit# (I# " ++ a ++ ")"
+                        "floatUnit" | [a] <- vl_args -> "strUnit# (F# " ++ a ++ ")"
+
                         _ -> " " ++ intercalate " " vl_args
+
 
