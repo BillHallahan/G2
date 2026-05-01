@@ -433,7 +433,9 @@ exprToSMT _ (Data (DataCon n (TyCon (Name "Bool" _ _ _) _ ) _ _)) =
 exprToSMT tv (Data (DataCon n t _ _)) = V (nameToStr n) (typeToSMT tv t)
 exprToSMT tv (App (Data (DataCon (Name "[]" _ _ _) _ _ _)) type_t@(Type t))
     | Just (TyCon (Name "Char" _ _ _) _) <- TV.deepLookup tv type_t = VString ""
-    | otherwise = SeqEmptySMT (adtTypeToSMT tv t)
+    | Just (TyApp (TyCon (Name "Any" (Just "GHC.Types") _ _) _) _) <- TV.deepLookup tv type_t = VString ""
+    | SortSeq seq_cont <- adtTypeToSMTSeq tv t = SeqEmptySMT seq_cont
+    | otherwise = VString ""
 exprToSMT tv e | [ Data (DataCon (Name ":" _ _ _) _ _ _)
                  , type_t
                  , App _ e1
@@ -704,12 +706,13 @@ typeToSMT _ (TyCon (Name "Bool" _ _ _) _) = SortBool
 typeToSMT _ (TyApp (TyCon (Name "List" _ _ _) _) (TyCon (Name "Char" _ _ _) _)) = SortString
 typeToSMT tv (TyApp (TyCon (Name "List" _ _ _) _) (TyVar (Id n _)))
     | Just (TyCon (Name "Char" _ _ _) _) <- TV.deepLookupName tv n = SortString
-typeToSMT tv (TyApp (TyCon (Name "List" _ _ _) _) t) = SortSeq (adtTypeToSMT tv t)
+typeToSMT tv (TyApp (TyCon (Name "List" _ _ _) _) t) = adtTypeToSMTSeq tv t
 #else
+typeToSMT _ (TyApp (TyCon (Name "[]" _ _ _) _) (TyApp (TyCon (Name "Any" (Just "GHC.Types") _ _) _) _)) = SortString
 typeToSMT _ (TyApp (TyCon (Name "[]" _ _ _) _) (TyCon (Name "Char" _ _ _) _)) = SortString
 typeToSMT tv (TyApp (TyCon (Name "[]" _ _ _) _) (TyVar (Id n _)))
     | Just (TyCon (Name "Char" _ _ _) _) <- TV.deepLookupName tv n = SortString
-typeToSMT tv (TyApp (TyCon (Name "[]" _ _ _) _) t) = SortSeq (adtTypeToSMT tv t)
+typeToSMT tv (TyApp (TyCon (Name "[]" _ _ _) _) t) = adtTypeToSMTSeq tv t
 #endif
 typeToSMT tv t@(TyApp t1 (TyVar (Id n _))) = case TV.deepLookupName tv n of 
                                                 Just t2 -> typeToSMT tv (TyApp t1 t2)
@@ -720,13 +723,15 @@ typeToSMT tv t@(TyVar (Id n _ )) = case TV.deepLookupName tv n of
 typeToSMT _ (TyCon (Name "Char" _ _ _) _) = SortChar
 typeToSMT _ t = error $ "Unsupported type in typeToSMT: " ++ show t
 
-adtTypeToSMT :: TyVarEnv -> Type -> Sort
-adtTypeToSMT _ (TyCon (Name "Int" _ _ _) _) = SortInt
-adtTypeToSMT _ (TyCon (Name "Integer" _ _ _) _) = SortInt
-adtTypeToSMT _ (TyCon (Name "Float" _ _ _) _) = SortFloat
-adtTypeToSMT _ (TyCon (Name "Double" _ _ _) _) = SortDouble
-adtTypeToSMT tv (TyVar (Id n _)) | Just t <- TV.deepLookupName tv n = adtTypeToSMT tv t
-adtTypeToSMT _ t = error $ "Unsupported type in adtTypeToSMT: " ++ show t
+adtTypeToSMTSeq :: TyVarEnv -> Type -> Sort
+adtTypeToSMTSeq _ (TyApp (TyCon (Name "Any" (Just "GHC.Types") _ _) _) _) = SortString
+adtTypeToSMTSeq _ (TyApp (TyApp (TyCon (Name "ZonkAny" (Just "GHC.Types") _ _) _) _) _) = SortString
+adtTypeToSMTSeq _ (TyCon (Name "Int" _ _ _) _) = SortSeq SortInt
+adtTypeToSMTSeq _ (TyCon (Name "Integer" _ _ _) _) = SortSeq SortInt
+adtTypeToSMTSeq _ (TyCon (Name "Float" _ _ _) _) = SortSeq SortFloat
+adtTypeToSMTSeq _ (TyCon (Name "Double" _ _ _) _) = SortSeq SortDouble
+adtTypeToSMTSeq tv (TyVar (Id n _)) | Just t <- TV.deepLookupName tv n = adtTypeToSMTSeq tv t
+adtTypeToSMTSeq _ t = error $ "Unsupported type in adtTypeToSMTSeq: " ++ show t
 
 comment :: String -> TB.Builder
 comment s = "; " <> TB.string s
