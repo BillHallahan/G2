@@ -114,7 +114,7 @@ newtype NameGen = NameGen Unique
 -- | Converts a `Name` to a string, which is useful to interact with solvers.
 nameToStr :: Name -> String
 nameToStr (Name n (Just m) i _)
-    | Just ('(', _) <- T.uncons n = T.unpack (T.filter (\c -> c /= '(' && c /= ')') n) ++ "_m_" ++ T.unpack m ++ "_" ++ show i
+    | Just ('(', _) <- T.uncons n = "|TUP!!" ++ T.unpack n ++ "_m_" ++ T.unpack m ++ "_" ++ show i ++ "|"
     | otherwise = T.unpack n ++ "_m_" ++ T.unpack m ++ "_" ++ show i
 nameToStr (Name n Nothing i _) = T.unpack n ++ "_n__" ++ show i
 
@@ -133,6 +133,7 @@ strToName str =
 
 maybe_StrToName :: String -> Maybe Name
 maybe_StrToName str
+    | Just str' <- stripPrefix "|TUP!!" str = maybe_StrToName (init str')
     | (n, _:q:_:mi) <- breakList (\s -> isPrefixOf "_m_" s || isPrefixOf "_n_" s) str
     , (m, _:i) <- break ((==) '_') mi =
     let
