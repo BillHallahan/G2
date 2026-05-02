@@ -53,7 +53,9 @@ tests = testGroup "All Tests"
         , smtSynthTestVerify "tests_seq_gen/tests/Verify1.hs" "eq"
         , smtSynthTestVerify "tests_seq_gen/tests/Verify1.hs" "myTake"
         , smtSynthTestVerify "tests_seq_gen/tests/Verify1.hs" "myDelete"
-        
+
+        , smtSynthTestVerifyExcluding "tests_seq_gen/tests/Verify1.hs" "count" ["ite", "seq.prefixof", "seq.suffixof"]
+
         , smtSynthTestRunSymexSMTStrings "tests_seq_gen/tests_symex/Test1.hs" "comp" (Just 2) Nothing
         , smtSynthTestRunSymexSMTStrings "tests_seq_gen/tests_symex/Regex1.hs" "regex1" (Just 3) (Just 3)
         , smtSynthTestRunSymexSMTStrings "tests_seq_gen/tests_symex/Regex1.hs" "regex2" (Just 2) (Just 2)
@@ -107,6 +109,19 @@ smtSynthTestVerify file = smtSynthTestWithConfig (do
                                                              , smt_strings_strictness = StrictSMTStrings }
                                         return $ synth_config { checking = Verify
                                                               , g2_config = adjustConfig synth_config config' }) file
+
+smtSynthTestVerifyExcluding :: T.Text -- ^ File
+                            -> T.Text -- ^ Function
+                            -> [String]
+                            -> TestTree
+smtSynthTestVerifyExcluding file func exclude = smtSynthTestWithConfig (do
+                                        synth_config@(SynthConfig { g2_config = config, excluded_funcs = exclude }) <- getSeqGenConfigDir file
+                                        let config' = config { smt = ConCVC5
+                                                             , steps = 2000
+                                                             , smt_strings = UseSMTStrings
+                                                             , smt_strings_strictness = StrictSMTStrings }
+                                        return $ synth_config { checking = Verify
+                                                              , g2_config = adjustConfig synth_config config' }) file func
 
 smtSynthTestWithEqCheck :: T.Text -- ^ File
                         -> T.Text -- ^ Function

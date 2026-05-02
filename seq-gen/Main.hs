@@ -3,6 +3,7 @@
 module Main (main) where
 
 import G2.Config.Config
+import G2.Data.Utils
 import G2.Interface.Interface
 import G2.SMTSynth.Synthesizer
 
@@ -13,12 +14,12 @@ import System.Directory
 
 main :: IO ()
 main = do
-    sc@(SynthConfig {run_file = src, synth_func = m_entry, synth_all_list = m_list, run_symex = run_sym }) <- getSeqGenConfig
+    sc@(SynthConfig {run_file = src, synth_func = m_entry, synth_all_list = m_list, run_symex = run_sym, excluded_funcs = exclude }) <- getSeqGenConfig
     case (m_entry, m_list) of
         (Just entry, _) -> do
             let f = T.pack entry
             _ <- case run_sym of
-                        False -> do _ <- genSMTFunc [] [src] f Nothing sc; return ()
+                        False -> do _ <- genSMTFunc [] [src] f exclude Nothing sc; return ()
                         True -> do _ <- runFunc src [] f Nothing sc; return ()
             return ()
         (_, Just file_list) -> do
@@ -27,23 +28,27 @@ main = do
             mapM_ (run src sc) $ map T.pack lns
         _ -> error "Must pass a function to run or a file with a list of functions"
         where
-            run src sc@(SynthConfig { g2_config = con }) gen_f = do
-                let (f, gen_for_ty) = T.break (== ';') gen_f
-                    gen_for_ty' = T.unpack $ T.tail gen_for_ty
+            run src sc@(SynthConfig { g2_config = con, excluded_funcs = exclude_for_all }) gen_f = do
+                let (f, rest) = T.break (== ';') gen_f
+                    rest' = T.unpack $ T.tail rest
+                    (gen_for_ty, exclude) = break (== ';') rest'
+                    exclude' = splitOn ',' $ case exclude of _:ex -> ex; [] -> []
+
                     spl_f = T.splitOn "." f
                     dir_name = map T.unpack $ init spl_f
                     f_name = last spl_f
 
-                    con' = setSynthMode (fromMaybe (error $ "error: " ++ gen_for_ty' ++ " not recognized")
-                                      $ lookup gen_for_ty' synthModeMapping) con
+                    con' = setSynthMode (fromMaybe (error $ "error: " ++ gen_for_ty ++ " not recognized")
+                                      $ lookup gen_for_ty synthModeMapping) con
 
-                m_ty_def <- doTimeout 180 $ genSMTFunc [] [src] f Nothing $ sc { g2_config = con' }
+                print $ exclude' ++ exclude_for_all
+                m_ty_def <- doTimeout 180 $ genSMTFunc [] [src] f (exclude' ++ exclude_for_all) Nothing $ sc { g2_config = con' }
                 case m_ty_def of
                     Just (ty, def) -> do
-                        updateMainSMT $ "SMT":gen_for_ty':dir_name
-                        createAppend ("SMT":gen_for_ty':dir_name) $ (T.unpack . smtNameWrap . smtName $ f_name) ++ " :: " ++ ty
-                        createAppend ("SMT":gen_for_ty':dir_name) def
-                        createAppend ("SMT":gen_for_ty':dir_name) "\n"
+                        updateMainSMT $ "SMT":gen_for_ty:dir_name
+                        createAppend ("SMT":gen_for_ty:dir_name) $ (T.unpack . smtNameWrap . smtName $ f_name) ++ " :: " ++ ty
+                        createAppend ("SMT":gen_for_ty:dir_name) def
+                        createAppend ("SMT":gen_for_ty:dir_name) "\n"
                     Nothing -> return ()
             
             createAppend path def = do

@@ -12,6 +12,7 @@ module G2.Data.Utils ( uncurry3
                      , mapFst3
                      , mapFst4
 
+                     , splitOn
                      , holes
                      
                      , (==>)
@@ -59,6 +60,14 @@ mapFst4 :: (a -> e) -> (a, b, c, d) -> (e, b, c, d)
 mapFst4 f (x, y, z, w) = (f x, y, z, w)
 
 -- * Lists
+
+splitOn :: Eq a => a -> [a] -> [[a]]
+splitOn x xs = go xs []
+    where
+        go [] acc = [reverse acc]
+        go (y : ys) acc = if x == y
+                        then reverse acc : go ys []
+                        else go ys (y : acc)
 
 -- | Compute all the ways of removing a single element from a list.
 --
