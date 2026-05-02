@@ -53,6 +53,7 @@ tests = testGroup "All Tests"
         , smtSynthTestVerify "tests_seq_gen/tests/Verify1.hs" "eq"
         , smtSynthTestVerify "tests_seq_gen/tests/Verify1.hs" "myTake"
         , smtSynthTestVerify "tests_seq_gen/tests/Verify1.hs" "myDelete"
+        , smtSynthTestVerify "tests_seq_gen/tests/Verify1.hs" "appInt"
 
         , smtSynthTestVerifyExcluding "tests_seq_gen/tests/Verify1.hs" "count" ["ite", "seq.prefixof", "seq.suffixof"]
 
@@ -106,7 +107,8 @@ smtSynthTestVerify file = smtSynthTestWithConfig (do
                                         let config' = config { smt = ConCVC5
                                                              , steps = 2000
                                                              , smt_strings = UseSMTStrings
-                                                             , smt_strings_strictness = StrictSMTStrings }
+                                                             , smt_strings_strictness = StrictSMTStrings
+                                                             , smt_prim_lists = UseSMTSeq True True }
                                         return $ synth_config { checking = Verify
                                                               , g2_config = adjustConfig synth_config config' }) file
 

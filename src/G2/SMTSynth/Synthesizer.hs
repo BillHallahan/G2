@@ -138,7 +138,7 @@ adjustConfig sc c =
         c { step_limit = False
           , height_limit = if checking sc == ADTHeight then Just $ fromMaybe 5 (height_limit c) else Nothing
 
-          , smt_prim_lists = UseSMTSeq { add_to_dcs = True, add_to_funcs = False }
+          , smt_prim_lists = UseSMTSeq { add_to_dcs = True, add_to_funcs = True }
           , search_strat = Subpath }
 
 setSynthMode :: SynthMode -> Config -> Config

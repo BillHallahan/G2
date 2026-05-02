@@ -4,6 +4,10 @@ app :: [a] -> [a] -> [a]
 app [] ys = ys
 app (x:xs) ys = x:app xs ys
 
+appInt :: [Int] -> [Int] -> [Int]
+appInt [] ys = ys
+appInt (x:xs) ys = x:appInt xs ys
+
 eq :: Eq a => [a] -> [a] -> Bool
 eq [] [] = True
 eq (x:xs) (y:ys) = x == y && xs `eq` ys
