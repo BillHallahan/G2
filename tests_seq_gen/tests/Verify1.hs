@@ -22,6 +22,6 @@ myDelete y (x:xs) | x == y = xs
 count :: Int -> [Int] -> Int
 count x [] = 0
 count x (y:ys) =
-  case x === y of
+  case x == y of
     True -> 1 + (count x ys)
     _ -> count x ys

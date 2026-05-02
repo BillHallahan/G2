@@ -14,12 +14,12 @@ import System.Directory
 
 main :: IO ()
 main = do
-    sc@(SynthConfig {run_file = src, synth_func = m_entry, synth_all_list = m_list, run_symex = run_sym, excluded_funcs = exclude }) <- getSeqGenConfig
+    sc@(SynthConfig {run_file = src, synth_func = m_entry, synth_all_list = m_list, run_symex = run_sym }) <- getSeqGenConfig
     case (m_entry, m_list) of
         (Just entry, _) -> do
             let f = T.pack entry
             _ <- case run_sym of
-                        False -> do _ <- genSMTFunc [] [src] f exclude Nothing sc; return ()
+                        False -> do _ <- genSMTFunc [] [src] f Nothing sc; return ()
                         True -> do _ <- runFunc src [] f Nothing sc; return ()
             return ()
         (_, Just file_list) -> do
@@ -42,7 +42,7 @@ main = do
                                       $ lookup gen_for_ty synthModeMapping) con
 
                 print $ exclude' ++ exclude_for_all
-                m_ty_def <- doTimeout 180 $ genSMTFunc [] [src] f (exclude' ++ exclude_for_all) Nothing $ sc { g2_config = con' }
+                m_ty_def <- doTimeout 180 $ genSMTFunc [] [src] f Nothing $ sc { excluded_funcs = exclude' ++ exclude_for_all, g2_config = con' }
                 case m_ty_def of
                     Just (ty, def) -> do
                         updateMainSMT $ "SMT":gen_for_ty:dir_name

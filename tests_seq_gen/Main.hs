@@ -115,12 +115,13 @@ smtSynthTestVerifyExcluding :: T.Text -- ^ File
                             -> [String]
                             -> TestTree
 smtSynthTestVerifyExcluding file func exclude = smtSynthTestWithConfig (do
-                                        synth_config@(SynthConfig { g2_config = config, excluded_funcs = exclude }) <- getSeqGenConfigDir file
+                                        synth_config@(SynthConfig { g2_config = config }) <- getSeqGenConfigDir file
                                         let config' = config { smt = ConCVC5
                                                              , steps = 2000
                                                              , smt_strings = UseSMTStrings
                                                              , smt_strings_strictness = StrictSMTStrings }
                                         return $ synth_config { checking = Verify
+                                                              , excluded_funcs = exclude
                                                               , g2_config = adjustConfig synth_config config' }) file func
 
 smtSynthTestWithEqCheck :: T.Text -- ^ File

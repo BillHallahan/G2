@@ -229,11 +229,10 @@ insertER ng er (pl:pls)
 genSMTFunc :: [PatternRes] -- ^ Generated states
            -> [FilePath] -- ^ Filepath containing function
            -> T.Text -- ^ Function name
-           -> [String]  -- ^ SMT function names to exclude during synthesis
            -> Maybe (State t, Id, String) -- ^ Possible (SyGuS generated) function definition, along with the Id of the function being generated
            -> SynthConfig
            -> IO (String, String) -- ^ (Type of generated function, definition of generated function)
-genSMTFunc pls src f exclude smt_def sc@(SynthConfig { g2_config = config }) = do
+genSMTFunc pls src f smt_def sc@(SynthConfig { excluded_funcs = exclude }) = do
     putStrLn "\n--- Running function --- "
     (entry_f, ers, ng) <- runFuncWithTemp src f smt_def sc
     case ers of
@@ -251,7 +250,7 @@ genSMTFunc pls src f exclude smt_def sc@(SynthConfig { g2_config = config }) = d
                 
                 vs = zipWith (formArg kv tv_env) argList (relArgs (final_state er) $ conc_args er)
                 new_smt_def = T.unpack (smtNameWrap . smtName . nameOcc $ idName entry_f) ++ " " ++ intercalate " " vs ++ " = " ++ new_smt_piece
-            genSMTFunc pls' src f exclude (Just (final_state er, entry_f, new_smt_def)) sc
+            genSMTFunc pls' src f (Just (final_state er, entry_f, new_smt_def)) sc
 
 formArg :: KnownValues -> TyVarEnv -> String -> Expr -> String
 formArg kv tv nm e
