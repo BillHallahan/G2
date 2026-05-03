@@ -633,3 +633,12 @@ all5 s = case L.all (\chr -> chr >= 'a' && chr <= 'z') s && length s > 5 of
 
 all6 :: String -> Bool
 all6 = L.all (\c -> chr (2 + (ord c)) >= 'a' && c <= 'z')
+
+map1 :: String -> Bool
+map1 s = case map f s of
+            "abc" -> True
+            _ -> False
+    where f c = case c of
+                    'a' -> 'b'
+                    'b' -> 'a'
+                    x -> x

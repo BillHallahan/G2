@@ -12,9 +12,11 @@ module G2.Execution.LiteralTable
 import qualified G2.Language.Stack as S
 import qualified G2.Language.PathConds as PC
 import qualified G2.Language.KnownValues as KV
+import qualified G2.Language.ExprEnv as E
 import G2.Language.Typing
 import G2.Language.Syntax
 import G2.Language.Support
+import G2.Language.Naming
 import G2.Language.Expr
 import qualified Data.HashMap.Lazy as HM
 import Data.Maybe
@@ -86,28 +88,68 @@ getBoolOptFromDC kv dcon
     , dconName == (KV.dcFalse kv) = Just False
     | otherwise = Nothing
 
--- We only want the `True` path conds from the lit table, which we then
--- convert into a large regex, with each path condition as an alternative,
--- through re.union. `&&` translates to re.inter, `||` translates to re.union, 
--- `<` and `>` translate to range (with the max / min character in unicode), `not`
--- translates to re.comp, `=` translates to just the character string (from str.to_re).
--- This will match (or not match) a full string using `str.in_re` and `re.star`.
-litTableToAllRe :: State t -> LitTable -> Expr -> Expr
-litTableToAllRe s lt str_e = 
+-- We take the `True` path conds, and create a chain of `Or` with them, before using
+-- them in `FoldLeft`, (after renaming the variables in the path conditions).
+-- This should be the equivalent of
+-- `foldl (\prev_bool elem -> prev_bool && lit_table_func elem) True string`
+litTableToAllRe :: State t -> NameGen -> LitTable -> Expr -> (StateDiff, NameGen)
+litTableToAllRe s ng lt str_e = 
     let kv = known_values s
         tenv = type_env s
+        eenv = expr_env s
+        tvnv = tyvar_env s
+
         lt_lst = HM.toList $ lt_mapping lt
         lt_bools = makeAllBools kv lt_lst
         lt_trues = map fst $ filter snd lt_bools
-    -- For a regex that can match a string, we need the Kleene star of all possible
-    -- regex that lead to True in the lit table
-    in App 
-        (App
-            (inRe kv)
-            str_e)
-        (App
-            (reStar kv)
-            (createAllRegex kv tenv lt_trues))
+
+        (Id lt_arg_name _) = lt_arg lt
+        lt_arg_e = fromJust $ E.deepLookup lt_arg_name eenv
+        (unboxed_sym, unboxed_name) = 
+            case lt_arg_e of
+                App _ (v@(Var i)) -> (v, idName i)
+                _ -> error $ "lit table arg not in form (data_con unboxed_sym): " ++ show lt_arg_e
+        
+        (accum_var, ng1) = freshId (tyBool kv) ng
+        -- TODO: should be a literal type
+        (elem_var, ng2) = freshId (typeOf tvnv unboxed_sym) ng1
+
+        -- No path conds means any input is true, otherwise we need one path cond to be true
+        or_exp = if null lt_lst
+                    then mkTrue kv
+                    else foldl' (\prev_exp pcs -> mkApp [Prim Or (tyBool kv), prev_exp, pcsToExpr kv pcs]) (mkFalse kv) lt_trues
+        or_exp1 = replaceVar unboxed_name (Var elem_var) or_exp
+        func_exp = undefined -- Lam 
+        -- For a regex that can match a string, we need the Kleene star of all possible
+        -- regex that lead to True in the lit table
+        -- ret = 
+        --     App 
+        --         (App
+        --             (inRe kv)
+        --             str_e)
+        --         (App
+        --             (reStar kv)
+        --             (createAllRegex kv tenv lt_trues))
+        ret = error $ show or_exp1
+
+    in
+    (SD { new_conc_entries = [], new_sym_entries = [accum_var, elem_var]
+        , new_path_conds = [], concretized = []
+        , new_true_assert = true_assert s, new_assert_ids = assert_ids s
+        , new_curr_expr = CurrExpr Return ret
+        , new_conc_types = [], new_sym_types = [], new_mut_vars = [] }, ng2)
+
+pcsToExpr :: KnownValues -> [PathCond] -> Expr
+pcsToExpr kv pcs =
+    foldl' (\prev_exp pc -> mkApp [Prim Or (tyBool kv), prev_exp, pcToExpr kv pc]) (mkFalse kv) pcs
+
+pcToExpr :: KnownValues -> PathCond -> Expr
+pcToExpr kv pc =
+    case pc of
+        ExtCond expr bool -> if bool then expr else mkApp [Prim Not (tyBool kv), expr]
+        AltCond lit var bool -> let eq_e = mkApp [Prim Eq (tyBool kv), Lit lit, var]
+                                in if bool then eq_e else mkApp [Prim Not (tyBool kv), eq_e]
+        _ -> error $ "unhandled pc:\n" ++ show pc
 
 createAllRegex :: KnownValues -> TypeEnv -> [[PathCond]] -> Expr
 createAllRegex kv _ [] = (reNone kv)
