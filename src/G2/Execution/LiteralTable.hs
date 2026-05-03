@@ -19,6 +19,7 @@ import G2.Language.Support
 import G2.Language.Naming
 import G2.Language.Expr
 import qualified Data.HashMap.Lazy as HM
+import qualified Data.List as L
 import Data.Maybe
 
 introduceLitTable :: State t -> Name -> Id -> LTUpdate -> State t
@@ -110,16 +111,19 @@ litTableToAllRe s ng lt str_e =
                 App _ (v@(Var i)) -> (v, idName i)
                 _ -> error $ "lit table arg not in form (data_con unboxed_sym): " ++ show lt_arg_e
         
+        lit_ty = typeOf tvnv unboxed_sym
         (accum_var, ng1) = freshId (tyBool kv) ng
-        -- TODO: should be a literal type
-        (elem_var, ng2) = freshId (typeOf tvnv unboxed_sym) ng1
+        (elem_var, ng2) = freshId lit_ty ng1
 
         -- No path conds means any input is true, otherwise we need one path cond to be true
-        or_exp = if null lt_lst
-                    then mkTrue kv
-                    else foldl' (\prev_exp pcs -> mkApp [Prim Or (tyBool kv), prev_exp, pcsToExpr kv pcs]) (mkFalse kv) lt_trues
+        or_exp = if null lt_lst then mkTrue kv
+                 else case L.uncons lt_trues of
+                    Nothing -> mkFalse kv
+                    Just (hd, tl) -> foldl' (\prev_exp pcs -> mkApp [Prim Or (tyBool kv), prev_exp, pcsToExpr kv pcs]) (pcsToExpr kv hd) tl
+
         or_exp1 = replaceVar unboxed_name (Var elem_var) or_exp
-        func_exp = undefined -- Lam 
+        fun_exp = Lam TermL accum_var (Lam TermL elem_var or_exp1)
+        fold_exp = mkApp [Prim FoldLeft TyUnknown, fun_exp, mkTrue kv, str_e]
         -- For a regex that can match a string, we need the Kleene star of all possible
         -- regex that lead to True in the lit table
         -- ret = 
@@ -130,19 +134,23 @@ litTableToAllRe s ng lt str_e =
         --         (App
         --             (reStar kv)
         --             (createAllRegex kv tenv lt_trues))
-        ret = error $ show or_exp1
+        ret = error $ show fold_exp
 
     in
     (SD { new_conc_entries = [], new_sym_entries = [accum_var, elem_var]
         , new_path_conds = [], concretized = []
         , new_true_assert = true_assert s, new_assert_ids = assert_ids s
-        , new_curr_expr = CurrExpr Return ret
+        , new_curr_expr = CurrExpr Return fold_exp
         , new_conc_types = [], new_sym_types = [], new_mut_vars = [] }, ng2)
 
+-- Turn the conjunction of these path conditions into an expression
 pcsToExpr :: KnownValues -> [PathCond] -> Expr
 pcsToExpr kv pcs =
-    foldl' (\prev_exp pc -> mkApp [Prim Or (tyBool kv), prev_exp, pcToExpr kv pc]) (mkFalse kv) pcs
+    case L.uncons pcs of
+        Nothing -> mkTrue kv
+        Just (hd, tl) -> L.foldl' (\prev_exp pc -> mkApp [Prim And (tyBool kv), prev_exp, pcToExpr kv pc]) (pcToExpr kv hd) tl
 
+-- Turn one path condition into an expression, with equality
 pcToExpr :: KnownValues -> PathCond -> Expr
 pcToExpr kv pc =
     case pc of
