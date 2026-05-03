@@ -6,6 +6,7 @@ module G2.SMTSynth.Synthesizer ( SynthConfig (..)
                                
                                , getSeqGenConfig
                                , genSMTFunc
+                               , adjustContConfig
                                , adjustConfig
                                , seqGenConfig
                                , setSynthMode
@@ -131,6 +132,9 @@ getSeqGenConfig = do
     homedir <- getHomeDirectory
     sc <- execParser (seqGenConfig homedir)
     return $ sc { g2_config = adjustConfig sc (g2_config sc)}
+
+adjustContConfig :: SynthConfig -> SynthConfig
+adjustContConfig sc@(SynthConfig { g2_config = c }) = sc { g2_config = adjustConfig sc c }
 
 adjustConfig :: SynthConfig -> Config -> Config
 adjustConfig sc c =

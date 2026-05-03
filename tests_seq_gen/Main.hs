@@ -96,8 +96,9 @@ smtSynthTestHeight :: T.Text -- ^ File
                    -> TestTree
 smtSynthTestHeight file = smtSynthTestWithConfig (do
                                         synth_config@(SynthConfig { g2_config = config }) <- getSeqGenConfigDir file
-                                        return $ synth_config { checking = ADTHeight
-                                                              , g2_config = adjustConfig synth_config $ config { smt = ConCVC5, steps = 2000 } }) file
+                                        let config' = config { smt = ConCVC5, steps = 2000 }
+                                        return . adjustContConfig $ synth_config { checking = ADTHeight
+                                                                                 , g2_config = config' }) file
 
 smtSynthTestVerify :: T.Text -- ^ File
                    -> T.Text -- ^ Function
@@ -109,8 +110,7 @@ smtSynthTestVerify file = smtSynthTestWithConfig (do
                                                              , smt_strings = UseSMTStrings
                                                              , smt_strings_strictness = StrictSMTStrings
                                                              , smt_prim_lists = UseSMTSeq True True }
-                                        return $ synth_config { checking = Verify
-                                                              , g2_config = adjustConfig synth_config config' }) file
+                                        return . adjustContConfig $ synth_config { checking = Verify, g2_config = config' }) file
 
 smtSynthTestVerifyExcluding :: T.Text -- ^ File
                             -> T.Text -- ^ Function
@@ -122,9 +122,8 @@ smtSynthTestVerifyExcluding file func exclude = smtSynthTestWithConfig (do
                                                              , steps = 2000
                                                              , smt_strings = UseSMTStrings
                                                              , smt_strings_strictness = StrictSMTStrings }
-                                        return $ synth_config { checking = Verify
-                                                              , excluded_funcs = exclude
-                                                              , g2_config = adjustConfig synth_config config' }) file func
+                                        return . adjustContConfig $ synth_config { checking = Verify
+                                                                                 , excluded_funcs = exclude }) file func
 
 smtSynthTestWithEqCheck :: T.Text -- ^ File
                         -> T.Text -- ^ Function
