@@ -96,7 +96,6 @@ getBoolOptFromDC kv dcon
 litTableToAllRe :: State t -> NameGen -> LitTable -> Expr -> (StateDiff, NameGen)
 litTableToAllRe s ng lt str_e = 
     let kv = known_values s
-        tenv = type_env s
         eenv = expr_env s
         tvnv = tyvar_env s
 
@@ -111,6 +110,7 @@ litTableToAllRe s ng lt str_e =
                 App _ (v@(Var i)) -> (v, idName i)
                 _ -> error $ "lit table arg not in form (data_con unboxed_sym): " ++ show lt_arg_e
         
+        -- Not entirely sure if the element variable should be unboxed or not
         lit_ty = typeOf tvnv unboxed_sym
         (accum_var, ng1) = freshId (tyBool kv) ng
         (elem_var, ng2) = freshId lit_ty ng1
@@ -122,20 +122,10 @@ litTableToAllRe s ng lt str_e =
                     Just (hd, tl) -> foldl' (\prev_exp pcs -> mkApp [Prim Or (tyBool kv), prev_exp, pcsToExpr kv pcs]) (pcsToExpr kv hd) tl
 
         or_exp1 = replaceVar unboxed_name (Var elem_var) or_exp
-        fun_exp = Lam TermL accum_var (Lam TermL elem_var or_exp1)
-        fold_exp = mkApp [Prim FoldLeft TyUnknown, fun_exp, mkTrue kv, str_e]
-        -- For a regex that can match a string, we need the Kleene star of all possible
-        -- regex that lead to True in the lit table
-        -- ret = 
-        --     App 
-        --         (App
-        --             (inRe kv)
-        --             str_e)
-        --         (App
-        --             (reStar kv)
-        --             (createAllRegex kv tenv lt_trues))
-        ret = error $ show fold_exp
-
+        and_exp = mkApp [Prim And (tyBool kv), Var accum_var, or_exp1]
+        fun_exp = Lam TermL accum_var (Lam TermL elem_var and_exp)
+        fun_ty = mkTyFun [mkTyFun [tyBool kv, lit_ty, tyBool kv], tyBool kv, typeOf tvnv str_e, tyBool kv]
+        fold_exp = mkApp [Prim FoldLeft fun_ty, fun_exp, mkTrue kv, str_e]
     in
     (SD { new_conc_entries = [], new_sym_entries = [accum_var, elem_var]
         , new_path_conds = [], concretized = []
@@ -158,130 +148,3 @@ pcToExpr kv pc =
         AltCond lit var bool -> let eq_e = mkApp [Prim Eq (tyBool kv), Lit lit, var]
                                 in if bool then eq_e else mkApp [Prim Not (tyBool kv), eq_e]
         _ -> error $ "unhandled pc:\n" ++ show pc
-
-createAllRegex :: KnownValues -> TypeEnv -> [[PathCond]] -> Expr
-createAllRegex kv _ [] = (reNone kv)
-createAllRegex kv tenv (pc_list:pc_lists) =
-    App (App (reUnion kv) (pcListToRegexAll kv tenv pc_list)) (createAllRegex kv tenv pc_lists)
-
--- We need the intersection of all of these path conditions
-pcListToRegexAll :: KnownValues -> TypeEnv -> [PathCond] -> Expr
-pcListToRegexAll kv _ [] = reAllChar kv
-pcListToRegexAll kv tenv (pc:pcs) =
-    case pc of
-        ExtCond expr bool -> makeExtCondReAll kv tenv bool expr pcs
-        -- The expression here never matters, since we are always either matching or
-        -- not matching the char to a variable (which should always be the same and
-        -- does not matter for our regex conversion)
-        AltCond (LitChar c) _ bool -> makeAltCondReAll kv tenv bool c pcs
-        _ -> error $ "unhandled pc in pcListToRegexAll:\n" ++ show pc
-
-makeAltCondReAll :: KnownValues -> TypeEnv -> Bool -> Char -> [PathCond] -> Expr
-makeAltCondReAll kv tenv b c nxt_pcs = let chr_re = App (toRe kv) (toSingletonStringExpr kv tenv c)
-                                           chr_comp_re = if b then chr_re else App (reComp kv) chr_re
-                                       in App (App (reInter kv) chr_comp_re) (pcListToRegexAll kv tenv nxt_pcs)
-
-makeExtCondReAll :: KnownValues -> TypeEnv -> Bool -> Expr -> [PathCond] -> Expr
-makeExtCondReAll kv tenv bool expr nxt_pcs = mkFullRe bool expr
-    -- This should be the subset of path conds that appear in Char -> Bool functions
-    where
-        mkRe e = case unApp e of
-                    [Prim StrGt _, Var (Id _ _), Lit (LitChar c)] ->
-                        if c >= maxChr 
-                            then reNone kv 
-                            else mkApp [ reRange kv
-                                       , toSingletonStringExpr kv tenv $ succ c
-                                       , toSingletonStringExpr kv tenv maxChr ]
-                    [Prim StrGe _, Var (Id _ _), Lit (LitChar c)] ->
-                        mkApp [ reRange kv
-                              , toSingletonStringExpr kv tenv c
-                              , toSingletonStringExpr kv tenv maxChr ]
-                    [Prim StrLt _, Var (Id _ _), Lit (LitChar c)] ->
-                        if c <= minChr
-                            then reNone kv
-                            else mkApp [ reRange kv
-                                       , toSingletonStringExpr kv tenv minChr
-                                       , toSingletonStringExpr kv tenv $ pred c ]
-                    [Prim StrLe _, Var (Id _ _), Lit (LitChar c)] ->
-                        mkApp [ reRange kv
-                              , toSingletonStringExpr kv tenv minChr
-                              , toSingletonStringExpr kv tenv c ]
-                    [Prim StrGt ty, l@(Lit (LitChar _)), v@(Var (Id _ _))] -> mkRe $ mkApp [Prim StrLe ty, v, l]
-                    [Prim StrGe ty, l@(Lit (LitChar _)), v@(Var (Id _ _))] -> mkRe $ mkApp [Prim StrLt ty, v, l]
-                    [Prim StrLt ty, l@(Lit (LitChar _)), v@(Var (Id _ _))] -> mkRe $ mkApp [Prim StrGe ty, v, l]
-                    [Prim StrLe ty, l@(Lit (LitChar _)), v@(Var (Id _ _))] -> mkRe $ mkApp [Prim StrGt ty, v, l]
-                    [Prim And _, e1, e2] -> mkApp [reInter kv, mkRe e1, mkRe e2]
-                    [Prim Or _, e1, e2] -> mkApp [reUnion kv, mkRe e1, mkRe e2]
-                    [Prim Not _, e1] -> mkApp [reComp kv, mkRe e1]
-                    [Prim Gt ty, e1, e2] -> mkRe $ mkApp [Prim StrGt ty, e1, e2]
-                    [Prim Ge ty, e1, e2] -> mkRe $ mkApp [Prim StrGe ty, e1, e2]
-                    [Prim Lt ty, e1, e2] -> mkRe $ mkApp [Prim StrLt ty, e1, e2]
-                    [Prim Le ty, e1, e2] -> mkRe $ mkApp [Prim StrLe ty, e1, e2]
-                    [Prim Eq _, Var (Id _ _), Lit (LitChar c)] -> App (toRe kv) (toSingletonStringExpr kv tenv c)
-                    [Prim Neq _, Var (Id _ _), Lit (LitChar c)] ->
-                        App (reComp kv) $ App (toRe kv) (toSingletonStringExpr kv tenv c)
-                    [Prim Eq _, Lit (LitChar c), Var (Id _ _)] -> App (toRe kv) (toSingletonStringExpr kv tenv c)
-                    [Prim Neq _, Lit (LitChar c), Var (Id _ _)] ->
-                        App (reComp kv) $ App (toRe kv) (toSingletonStringExpr kv tenv c)
-                    _ -> error $ "unhandled expr in makeExtCondReAll:\n" ++ show e
-        mkFullRe b e =
-            let re = mkRe e
-                re_comp = if b then re else App (reComp kv) re
-            in mkApp [reInter kv, re_comp, pcListToRegexAll kv tenv nxt_pcs]
-
--- data OrdChr = CharT Char | IntT Int
-
--- evalToChr :: Expr -> Maybe Char
--- evalToChr (Lit (LitChar c)) = c
--- evalToChr _ = Nothing
-
--- evalToOrdChr :: Expr -> Maybe OrdChr
--- evalToOrdChr _ = Nothing
-
--- SMT-LIB currently only supports the first two Planes of Unicode
-maxChr :: Char
-maxChr = '\x2ffff'
-
-minChr :: Char
-minChr = minBound
-                    
-toSingletonStringExpr :: KnownValues -> TypeEnv -> Char -> Expr
-toSingletonStringExpr kv tenv c =
-    let cons = mkCons kv tenv
-        charTy = Type (tyChar kv)
-        charExpr = App (mkDCChar kv tenv) (Lit (LitChar c))
-        emptyList = App (mkEmpty kv tenv) charTy
-    in mkApp [cons, charTy, charExpr, emptyList]
-
-inRe :: KnownValues -> Expr
-inRe kv = Prim InRe $ mkTyFun [tyString kv, tyString kv, tyBool kv]
-
-toRe :: KnownValues -> Expr
-toRe kv = Prim ToRe $ mkTyFun [tyString kv, tyString kv]
-
-reNone :: KnownValues -> Expr
-reNone kv = Prim ReNone $ tyString kv
-
-reAll :: KnownValues -> Expr
-reAll kv = Prim ReAll $ tyString kv
-
-reAllChar :: KnownValues -> Expr
-reAllChar kv = Prim ReAllChar $ tyString kv
-
-reConcat :: KnownValues -> Expr
-reConcat kv = Prim ReConcat $ mkTyFun [tyString kv, tyString kv, tyString kv]
-
-reUnion :: KnownValues -> Expr
-reUnion kv = Prim ReUnion $ mkTyFun [tyString kv, tyString kv, tyString kv]
-
-reInter :: KnownValues -> Expr
-reInter kv = Prim ReInter $ mkTyFun [tyString kv, tyString kv, tyString kv]
-
-reStar :: KnownValues -> Expr
-reStar kv = Prim ReStar $ mkTyFun [tyString kv, tyString kv]
-
-reRange :: KnownValues -> Expr
-reRange kv = Prim ReRange $ mkTyFun [tyString kv, tyString kv, tyString kv]
-
-reComp :: KnownValues -> Expr
-reComp kv = Prim ReComp $ mkTyFun [tyString kv, tyString kv]

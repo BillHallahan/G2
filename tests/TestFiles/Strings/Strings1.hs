@@ -627,12 +627,14 @@ all4 s = case res of
           f x = inner x > 'b'
 
 all5 :: String -> Bool
-all5 s = case L.all (\chr -> chr >= 'a' && chr <= 'z') s && length s > 5 of
+all5 s = case L.all (\chr -> chr >= 'a' && chr <= 'z') s && length s == 1 of
                 True -> False
                 False -> True
 
 all6 :: String -> Bool
-all6 = L.all (\c -> chr (2 + (ord c)) >= 'a' && c <= 'z')
+all6 s = case L.all (\c -> chr (2 + (ord c)) >= 'a' && c <= 'z') s of
+            True -> False
+            False -> True
 
 map1 :: String -> Bool
 map1 s = case map f s of
