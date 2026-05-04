@@ -41,8 +41,7 @@ main = do
                     con' = setSynthMode (fromMaybe (error $ "error: " ++ gen_for_ty ++ " not recognized")
                                       $ lookup gen_for_ty synthModeMapping) con
 
-                print $ exclude' ++ exclude_for_all
-                m_ty_def <- doTimeout 180 $ genSMTFunc [] [src] f Nothing $ sc { excluded_funcs = exclude' ++ exclude_for_all, g2_config = con' }
+                m_ty_def <- doTimeout 120 $ genSMTFunc [] [src] f Nothing $ sc { excluded_funcs = exclude' ++ exclude_for_all, g2_config = con' }
                 case m_ty_def of
                     Just (ty, def) -> do
                         updateMainSMT $ "SMT":gen_for_ty:dir_name

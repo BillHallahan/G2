@@ -158,7 +158,8 @@ smtSynthTestRunSymexSMTStrings :: T.Text -- ^ Filer
 smtSynthTestRunSymexSMTStrings file f =
     smtSynthTestRunSymexWithConfig (do
                                         synth_config@(SynthConfig { g2_config = config }) <- getSeqGenConfigDir file
-                                        return $ synth_config { run_symex = True, g2_config = adjustConfig synth_config $ config { smt = ConCVC5, steps = 2000, smt_strings = UseSMTStrings } })
+                                        let config' = adjustConfig synth_config $ config { smt = ConCVC5, steps = 2000, smt_strings = UseSMTStrings }
+                                        return $ synth_config { run_symex = True, g2_config = config' {timeLimit = 60} })
                                         file
                                         f
                                         (const True)
