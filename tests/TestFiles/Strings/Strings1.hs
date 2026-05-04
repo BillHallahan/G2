@@ -598,20 +598,16 @@ inner2 x = case x of
                                 'd' -> False
                                 _ -> True
 
-all1 :: String -> Bool
-all1 s = L.all f s
-    where f x = case inner x of
-                'b' -> True
-                _ -> False
-
-all2 :: String -> Bool
-all2 s = L.all f s
+all1 :: String -> Int 
+all1 s = case L.all f s of
+            True -> 6
+            False -> 7
     where f x = case x of
                     'z' -> True
                     _ -> inner2 x
 
-all3 :: String -> Char
-all3 s = case res of
+all2 :: String -> Char
+all2 s = case res of
             True -> 'a'
             False -> 'b'
     where res = L.all f s
@@ -619,28 +615,14 @@ all3 s = case res of
                     'b' -> True
                     _ -> False
 
-all4 :: String -> Char
-all4 s = case res of
-                    True -> if length s > 3 then 'a' else 'q'
+all3 :: String -> Char
+all3 s = case res of
+                    True -> if length s > 1 then 'a' else 'q'
                     False -> 'b'
     where res = L.all f s
           f x = inner x > 'b'
 
-all5 :: String -> Bool
-all5 s = case L.all (\chr -> chr >= 'a' && chr <= 'z') s && length s == 1 of
-                True -> False
-                False -> True
-
-all6 :: String -> Bool
-all6 s = case L.all (\c -> chr (2 + (ord c)) >= 'a' && c <= 'z') s of
-            True -> False
-            False -> True
-
-map1 :: String -> Bool
-map1 s = case map f s of
-            "abc" -> True
-            _ -> False
-    where f c = case c of
-                    'a' -> 'b'
-                    'b' -> 'a'
-                    x -> x
+all4 :: String -> String
+all4 s = case L.all (\c -> c >= 'a' && c <= 'z') s && length s == 1 of
+            True -> "Yes"
+            False -> "No"
