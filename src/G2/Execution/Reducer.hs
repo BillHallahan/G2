@@ -164,6 +164,7 @@ module G2.Execution.Reducer ( Reducer (..)
                             , runReducer ) where
 
 import G2.Config
+import G2.Data.Utils
 import qualified G2.Language.ExprEnv as E
 import G2.Execution.NormalForms
 import G2.Execution.Rules
@@ -2016,7 +2017,7 @@ timerHalter io_timed_out ms def min_found ce = do
     where
         stop it v (Processed { accepted = acc }) _
             | v == 0
-            , L.compareLength acc min_found /= LT = do
+            , compareLength acc min_found /= LT = do
                 curr <- liftIO $ getCurrentTime
                 let diff = diffUTCTime curr it
 

@@ -20,10 +20,14 @@ module G2.Data.Utils ( uncurry3
 #if !(MIN_VERSION_base(4,18,0))
                      , mapAccumM
 #endif
-
+                     , compareLength
                      ) where
 
 import Data.Bifunctor
+
+#if (MIN_VERSION_base(4,21,0))
+import Data.List
+#endif
 
 #if !(MIN_VERSION_base(4,18,0))
 import qualified Control.Monad.State.Lazy as CM
@@ -119,4 +123,15 @@ mapAccumM
   => (s -> a -> m (s, b))
   -> s -> t a -> m (s, t b)
 mapAccumM f s t = runStateT (mapM (StateT #. flip f) t) s
+#endif
+
+#if !(MIN_VERSION_base(4,21,0))
+compareLength :: [a] -> Int -> Ordering
+compareLength xs n
+  | n < 0 = GT
+  | otherwise = foldr
+    (\_ f m -> if m > 0 then f (m - 1) else GT)
+    (\m -> if m > 0 then LT else EQ)
+    xs
+    n
 #endif
