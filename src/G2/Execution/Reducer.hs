@@ -1992,15 +1992,21 @@ acceptOnlyNewHPC h =
 data TimedOut = NoTimeOut | TimedOut deriving (Eq, Show, Read)
 
 {-# INLINE stdTimerHalter #-}
-stdTimerHalter :: (MonadIO m, MonadIO m_run) => NominalDiffTime -> m (Halter m_run Int r t, IORef TimedOut)
-stdTimerHalter ms = do
+stdTimerHalter :: (MonadIO m, MonadIO m_run) => NominalDiffTime -> Int -> m (Halter m_run Int r t, IORef TimedOut)
+stdTimerHalter ms min_found = do
     io_timed_out <- liftIO $ newIORef NoTimeOut
-    th <- timerHalter io_timed_out ms (Discard "stdTimeHalter") 10
+    th <- timerHalter io_timed_out ms (Discard "stdTimeHalter") min_found 10
     return (th, io_timed_out)
 
 {-# INLINE timerHalter #-}
-timerHalter :: (MonadIO m, MonadIO m_run) => IORef TimedOut -> NominalDiffTime -> HaltC -> Int -> m (Halter m_run Int r t)
-timerHalter io_timed_out ms def ce = do
+timerHalter :: (MonadIO m, MonadIO m_run) =>
+               IORef TimedOut
+            -> NominalDiffTime
+            -> HaltC
+            -> Int -- ^ Don't stop unless at least this many states have been accepted
+            -> Int -- ^ Check timeout every this many steps
+            -> m (Halter m_run Int r t)
+timerHalter io_timed_out ms def min_found ce = do
     curr <- liftIO $ getCurrentTime
     return $ mkSimpleHalter
                 (const 0)
@@ -2009,7 +2015,8 @@ timerHalter io_timed_out ms def ce = do
                 step
     where
         stop it v (Processed { accepted = acc }) _
-            | v == 0 = do
+            | v == 0
+            , L.compareLength acc min_found /= LT = do
                 curr <- liftIO $ getCurrentTime
                 let diff = diffUTCTime curr it
 

@@ -144,7 +144,9 @@ adjustConfig sc c =
 
           -- If verifying, want to avoid all recursion, if checking up to ADT height, want to force evaluation
           , smt_prim_lists = UseSMTSeq { add_to_dcs = True, add_to_funcs = checking sc == Verify }
-          , search_strat = Subpath }
+          , search_strat = Subpath
+          , timeLimit = 10
+          , min_found = 1 }
 
 setSynthMode :: SynthMode -> Config -> Config
 setSynthMode SynthString c = c { favor_tys = ["Char", "Integer"] }

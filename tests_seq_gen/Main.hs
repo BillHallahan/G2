@@ -54,6 +54,7 @@ tests = testGroup "All Tests"
         , smtSynthTestVerify "tests_seq_gen/tests/Verify1.hs" "myTake"
         , smtSynthTestVerify "tests_seq_gen/tests/Verify1.hs" "myDelete"
         , smtSynthTestVerify "tests_seq_gen/tests/Verify1.hs" "appInt"
+        , smtSynthTestVerify "tests_seq_gen/tests/Verify1.hs" "myLength"
 
         , smtSynthTestVerifyExcluding "tests_seq_gen/tests/Verify1.hs" "count" ["ite", "seq.prefixof", "seq.suffixof"]
 

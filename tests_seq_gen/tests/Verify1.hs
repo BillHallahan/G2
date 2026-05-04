@@ -29,3 +29,7 @@ count x (y:ys) =
   case x == y of
     True -> 1 + (count x ys)
     _ -> count x ys
+  
+myLength :: [Int] -> Int
+myLength [] = 0
+myLength (_:xs) = 1 + (myLength xs)
