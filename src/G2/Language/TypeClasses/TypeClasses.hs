@@ -227,6 +227,7 @@ satisfyTCReq tc (Id n _) = filter isFor . filter (isTypeClass tc)
 
 -- | Add an instance to the class with a given Name for the given Type. The Id
 -- is the type class dictionary for the new instance.
+-- TODO[Jacob]: assumes class exists
 addClassInstance :: Name -> Type -> Id -> TypeClasses -> TypeClasses
 addClassInstance cls_n t i (TypeClasses tct) =
     TypeClasses $ M.adjust (\cls@(Class {insts = ins}) -> cls {insts = (t, i):ins}) cls_n tct

@@ -1,3 +1,5 @@
+{-# LANGUAGE MultiParamTypeClasses #-}
+
 module G2.Execution.NewPC ( NewPC (..)
                           , StateDiff (..)
                           , EEDiff
@@ -44,6 +46,48 @@ data StateDiff = SD { new_conc_entries :: EEDiff -- ^ New concrete entries for t
                     , new_mut_vars :: [(Name, Id, MVOrigin)]
                     , new_type_class_insts :: TCInstDiff -- ^ New mutable variables for the mutvar_env
                     }
+
+instance ASTContainer StateDiff Type where
+    containedASTs (SD {new_conc_entries = nces
+                    , new_sym_entries = nses
+                    , new_path_conds = npcs
+                    , concretized = ctzd
+                    , new_assert_ids = nais
+                    , new_curr_expr = nce
+                    , new_conc_types = ncts
+                    , new_sym_types = nsts
+                    , new_mut_vars = nmvs
+                    , new_type_class_insts = ntcis})
+        =  containedASTs nces 
+        ++ containedASTs nses 
+        ++ containedASTs npcs 
+        ++ containedASTs ctzd
+        ++ containedASTs nais
+        ++ containedASTs nce
+        ++ containedASTs ncts
+        ++ containedASTs nsts
+        ++ containedASTs nmvs
+        ++ containedASTs ntcis
+    modifyContainedASTs f sd@(SD {new_conc_entries = nces
+                                , new_sym_entries = nses
+                                , new_path_conds = npcs
+                                , concretized = ctzd
+                                , new_assert_ids = nais
+                                , new_curr_expr = nce
+                                , new_conc_types = ncts
+                                , new_sym_types = nsts
+                                , new_mut_vars = nmvs
+                                , new_type_class_insts = ntcis}) 
+        = sd {new_conc_entries = modifyContainedASTs f nces
+            , new_sym_entries = modifyContainedASTs f nses
+            , new_path_conds = modifyContainedASTs f npcs
+            , concretized = modifyContainedASTs f ctzd
+            , new_assert_ids = modifyContainedASTs f nais
+            , new_curr_expr = modifyContainedASTs f nce
+            , new_conc_types = modifyContainedASTs f ncts
+            , new_sym_types = modifyContainedASTs f nsts
+            , new_mut_vars = modifyContainedASTs f nmvs
+            , new_type_class_insts = modifyContainedASTs f ntcis}
 
 newPCEmpty :: State t -> NewPC t
 newPCEmpty s = SingleState s
