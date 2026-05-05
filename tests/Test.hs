@@ -662,7 +662,8 @@ testFileTests = testGroup "TestFiles"
                                                               , ("funcArgWithTyToTyArg", 100, [AtLeast 5])
                                                               , ("twoApplicationsNeeded", 200, [AtLeast 10])
                                                               , ("twoKindsToFrom", 200, [AtLeast 15])] 
-    -- TODO: update required number of outputs for these tests
+    -- TODO[Jacob]: update required number of outputs for these tests. 
+    -- TODO[Jacob]: some step limits likely add unneeded time to test suite. check what is needed
     , checkInputOutputsTemplate "tests/HigherOrder/Rank3AndGreater.hs" [ ("polyFuncArg", 100, [AtLeast 10])
                                                                        , ("polyFuncArgTwoTVs", 100, [AtLeast 10])
                                                                        , ("polyFuncArgADT", 100, [AtLeast 10])
@@ -1242,7 +1243,7 @@ checkExprWithConfig src m_assume m_assert m_reaches entry reqList config_f = do
 
                                 pg = mkPrettyGuide exec_res
                                 res_pretty = map (printInputOutput pg (Id (Name (T.pack entry) Nothing 0 Nothing) TyUnknown) b) exec_res
-                                res_print = map T.unpack $ map (\(_, _, inp, out, _) -> inp <> " = " <> out) res_pretty
+                                res_print = map T.unpack $ map (\(_, _, _, inp, out, _) -> inp <> " = " <> out) res_pretty
                             in
                             (Just reqs, res_print)
 

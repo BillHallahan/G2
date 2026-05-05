@@ -196,7 +196,7 @@ checkInputOutput'' adj_config io_config src tests = do
                                         Just (Right (b_val, b_count, b_anys, exec_res, bindings)) ->
                                             let pg = mkPrettyGuide exec_res
                                                 res_pretty = map (uncurry (printIO pg entry bindings)) $ zip b_val exec_res
-                                                res_print = map T.unpack $ map (\(chck, (_, _, inp, out, _)) -> chck <> inp <> " = " <> out) res_pretty
+                                                res_print = map T.unpack $ map (\(chck, (_, _, _, inp, out, _)) -> chck <> inp <> " = " <> out) res_pretty
                                             in
                                             (and b_val && b_count && b_anys, "\nvalidation = " ++ show (and b_val) ++ ", count = " ++ show b_count ++ "\n" ++ intercalate "\n" res_print)
 
@@ -229,7 +229,7 @@ checkInputOutput''' adj_config src exg2 nm tnm mb_modname config (entry, stps, r
 
     let chEx = checkExprInOutCount io req
     
-    return (fmap (fromMaybe False) mr, chEx, anys, r, b)
+    return (fmap transValidateRes mr, chEx, anys, r, b)
 
 ------------
 
