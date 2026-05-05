@@ -1,7 +1,7 @@
 {-# LANGUAGE FlexibleContexts, MultiParamTypeClasses, OverloadedStrings #-}
 {-# LANGUAGE InstanceSigs #-}
 
-module G2.Interface.ExecRes ( ExecRes (..), StartFunc, ValidateRes(..), printInputOutput ) where
+module G2.Interface.ExecRes ( ExecRes (..), StartFunc, ValidateRes(..), printInputOutput, transValidateRes ) where
 
 import G2.Language
 import G2.Lib.Printers
@@ -28,6 +28,10 @@ data ExecRes t = ExecRes { final_state :: State t -- ^ The final state.
                          } deriving (Show)
 
 data ValidateRes = Valid | Invalid | ValidationSrcError SourceError | ValidationRTError | ValidationTimeout deriving (Show)
+
+transValidateRes :: ValidateRes -> Bool
+transValidateRes Valid = True
+transValidateRes _ = False
 
 printInputOutput :: PrettyGuide
                  -> Id -- ^ Input function

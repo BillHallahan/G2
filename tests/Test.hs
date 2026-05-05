@@ -700,7 +700,8 @@ testFileTests = testGroup "TestFiles"
                                                               , ("funcArgWithTyToTyArg", 100, [AtLeast 5])
                                                               , ("twoApplicationsNeeded", 200, [AtLeast 10])
                                                               , ("twoKindsToFrom", 200, [AtLeast 15])] 
-    -- TODO: update required number of outputs for these tests
+    -- TODO[Jacob]: update required number of outputs for these tests. 
+    -- TODO[Jacob]: some step limits likely add unneeded time to test suite. check what is needed
     , checkInputOutputsTemplate "tests/HigherOrder/Rank3AndGreater.hs" [ ("polyFuncArg", 100, [AtLeast 10])
                                                                        , ("polyFuncArgTwoTVs", 100, [AtLeast 10])
                                                                        , ("polyFuncArgADT", 100, [AtLeast 10])

@@ -12,6 +12,7 @@ module G2.Translation.ValidateState ( validateStates
                                    , validateState
                                    , printStateOutput
                                    , toEnclodeFloat
+                                   , ValidateRes(..)
                                     ) where
 
 #if MIN_VERSION_GLASGOW_HASKELL(9,0,2,0)

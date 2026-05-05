@@ -1083,7 +1083,8 @@ liftSymLitAlt' s mexpr cvar (lit, aexpr) =
        , new_curr_expr = CurrExpr Evaluate aexpr'
        , new_conc_types = []
        , new_sym_types = []
-       , new_mut_vars = [] }
+       , new_mut_vars = []
+       , new_type_class_insts = [] }
   where
     -- Condition that was matched.
     cond = AltCond lit mexpr True
@@ -1159,6 +1160,7 @@ liftSymDefAlt' s@(State { type_env = tenv, known_values = kv, tyvar_env = tvnv }
                           , new_curr_expr = CurrExpr Evaluate aexpr'
                           , new_conc_types = [], new_sym_types = []
                           , new_mut_vars = [(mv_n, mv_i, MVSymbolic)]
+                          , new_type_class_insts = []
                           }
 
             -- Consider that the new mutable variable might be some existing mutable variable.
@@ -1209,7 +1211,7 @@ liftSymDefAlt' s@(State { type_env = tenv, known_values = kv, tyvar_env = tvnv }
                      , new_true_assert = true_assert s, new_assert_ids = assert_ids s
                      , new_curr_expr = CurrExpr Evaluate aexpr'
                      , new_conc_types = [], new_sym_types = []
-                     , new_mut_vars = []
+                     , new_mut_vars = [], new_type_class_insts = []
                 }], ng')
             False ->
                 let
@@ -1232,7 +1234,7 @@ liftSymDefAlt' s@(State { type_env = tenv, known_values = kv, tyvar_env = tvnv }
                      , new_true_assert = true_assert s, new_assert_ids = assert_ids s
                      , new_curr_expr = CurrExpr Evaluate aexpr'
                      , new_conc_types = [], new_sym_types = []
-                     , new_mut_vars = []
+                     , new_mut_vars = [], new_type_class_insts = []
                 }], ng'')
     | Prim _ _:_ <- unApp mexpr = (liftSymDefAlt'' s mexpr aexpr cvar alts, ng)
     | isPrimType (typeOf tvnv mexpr) = (liftSymDefAlt'' s mexpr aexpr cvar alts, ng)
@@ -1245,7 +1247,7 @@ liftSymDefAlt' s@(State { type_env = tenv, known_values = kv, tyvar_env = tvnv }
                         , new_true_assert = true_assert s, new_assert_ids = assert_ids s
                         , new_curr_expr = CurrExpr Evaluate aexpr'
                         , new_conc_types = [], new_sym_types = []
-                        , new_mut_vars = []
+                        , new_mut_vars = [], new_type_class_insts = []
                 }], ng')
     | otherwise = error $ "liftSymDefAlt': unhandled Expr" ++ "\n" ++ show mexpr
 
