@@ -6,6 +6,7 @@ module G2.SMTSynth.Synthesizer ( SynthConfig (..)
                                
                                , getSeqGenConfig
                                , genSMTFunc
+                               , adjustContConfig
                                , adjustConfig
                                , seqGenConfig
                                , setSynthMode
@@ -16,6 +17,7 @@ module G2.SMTSynth.Synthesizer ( SynthConfig (..)
                                , smtNameWrap) where
 
 import G2.Config
+import G2.Data.Utils
 import G2.Execution.PrimitiveEval
 import G2.Initialization.KnownValues
 import G2.Initialization.MkCurrExpr
@@ -113,6 +115,7 @@ data SynthConfig = SynthConfig { run_file :: String
                                , checking :: Checking
                                , synth_all_list :: Maybe String -- ^ Synthesize definitions for all specified functions in the file
                                , synth_func :: Maybe String -- ^ Synthesize a definition for a specific function
+                               , excluded_funcs :: [String]
                                , eq_check :: String -- ^ Function to use as an equality check
                                , eq_file :: Maybe FilePath -- ^ File containing function to use as an equality check
                                , synth_mode :: SynthMode
@@ -135,14 +138,20 @@ getSeqGenConfig = do
     sc <- execParser (seqGenConfig homedir)
     return $ sc { g2_config = adjustConfig sc (g2_config sc)}
 
+adjustContConfig :: SynthConfig -> SynthConfig
+adjustContConfig sc@(SynthConfig { g2_config = c }) = sc { g2_config = adjustConfig sc c }
+
 adjustConfig :: SynthConfig -> Config -> Config
 adjustConfig sc c =
     setSynthMode (synth_mode sc) $ 
         c { step_limit = False
           , height_limit = if checking sc == ADTHeight then Just $ fromMaybe 5 (height_limit c) else Nothing
 
-          , smt_prim_lists = UseSMTSeq { add_to_dcs = True, add_to_funcs = False }
-          , search_strat = Subpath }
+          -- If verifying, want to avoid all recursion, if checking up to ADT height, want to force evaluation
+          , smt_prim_lists = UseSMTSeq { add_to_dcs = True, add_to_funcs = checking sc == Verify }
+          , search_strat = Subpath
+          , timeLimit = 10
+          , min_found = 1 }
 
 setSynthMode :: SynthMode -> Config -> Config
 setSynthMode SynthString c = c { favor_tys = ["Char", "Integer"] }
@@ -164,6 +173,11 @@ seqGenConfig homedir =
                    (long "function"
                    <> metavar "F"
                    <> value Nothing
+                   <> help "a function to synthesize an SMT definition for")
+                <*> option readExcluded
+                   (long "exclude"
+                   <> metavar "E"
+                   <> value []
                    <> help "a function to synthesize an SMT definition for")
                 <*> option (eitherReader (Right))
                    (long "eq-check"
@@ -190,6 +204,9 @@ seqGenConfig homedir =
           ( fullDesc
           <> progDesc "Synthesis of equivalent SMT definitions"
           <> header "The G2 Synthesizer" )
+
+    where
+        readExcluded = eitherReader $ \arg ->return $ splitOn ',' arg
 
 -------------------------------------------------------------------------------
 -- CEGIS Loop
@@ -232,7 +249,7 @@ genSMTFunc :: [PatternRes] -- ^ Generated states
            -> Maybe (State t, Id, String, String) -- ^ Possible (SyGuS generated) function definition, along with the Id of the function being generated
            -> SynthConfig
            -> IO (String, String) -- ^ (Type of generated function, definition of generated function)
-genSMTFunc pls src f smt_def sc@(SynthConfig { g2_config = config }) = do
+genSMTFunc pls src f smt_def sc@(SynthConfig { excluded_funcs = exclude }) = do
     putStrLn "\n--- Running function --- "
     (entry_f, ers, ng, isSpecCorrect) <- runFuncWithTemp src f smt_def sc
     case ers of
@@ -246,7 +263,7 @@ genSMTFunc pls src f smt_def sc@(SynthConfig { g2_config = config }) = do
                             Just (_,_,_,smt_spec) -> Just smt_spec
                             Nothing -> Nothing
 
-            new_smt_piece <- formFunction entry_f s pls'
+            new_smt_piece <- formFunction entry_f exclude s pls'
 
             let kv = known_values s
                 tv_env = tyvar_env s 
@@ -261,24 +278,24 @@ formArg kv tv nm e
     | typeOf tv e == tyInteger kv = "(toInteger -> Z# " ++ nm ++ ")"
     | otherwise = nm
 
-formFunction :: Id -> State t -> [PatternRes] -> IO String
-formFunction _ _ [] = error "formFunction: empty list"
-formFunction entry_f s [pr] = solveOnePattern entry_f s pr
-formFunction entry_f s (pr:prs) = do
+formFunction :: Id -> [String] -> State t -> [PatternRes] -> IO String
+formFunction _ _ _ [] = error "formFunction: empty list"
+formFunction entry_f exclude s [pr] = solveOnePattern entry_f exclude s pr
+formFunction entry_f exclude s (pr:prs) = do
     putStrLn "\n* Solving Branch Condition"
-    br <- solveBranchConditions entry_f s pr prs
+    br <- solveBranchConditions entry_f exclude s pr prs
     putStrLn "\n* Solving Pattern"
-    r1 <- solveOnePattern entry_f s pr
-    r2 <- formFunction entry_f s prs
+    r1 <- solveOnePattern entry_f exclude s pr
+    r2 <- formFunction entry_f exclude s prs
     return $ "if " ++ br ++ " then " ++ r1 ++ " else " ++ r2
 
-solveOnePattern :: Id -> State t -> PatternRes -> IO String
-solveOnePattern entry_f s (PL { pattern = varred_form, pat_ids = is, lit_vals = constraints }) = do
+solveOnePattern :: Id -> [String] -> State t -> PatternRes -> IO String
+solveOnePattern entry_f exclude s (PL { pattern = varred_form, pat_ids = is, lit_vals = constraints }) = do
     let is_constraints = zip is constraints
 
     let pg = mkPrettyGuide is
     new_pieces <- mapM (\(i@(Id _ t), constraints_) -> do
-                            new_smt_def <- computeProdPieces entry_f constraints_
+                            new_smt_def <- computeProdPieces entry_f exclude constraints_
                             return $ "!" ++ T.unpack (printName pg (idName i)) ++ " = (" ++ new_smt_def ++ ")")
                         is_constraints
     let new_pieces' = map fst new_pieces
@@ -291,20 +308,23 @@ toHaskellCode :: State t -> PrettyGuide -> Expr -> T.Text
 toHaskellCode _ _ e | Prim Error _:_ <- unApp e = "error \"\""
 toHaskellCode s pg e = printHaskellPG pg s e
 
-solveBranchConditions :: Id -> State t -> PatternRes -> [PatternRes] -> IO String
-solveBranchConditions entry_f s@(State { known_values = kv }) pr prs = do
+solveBranchConditions :: Id -> [String] -> State t -> PatternRes -> [PatternRes] -> IO String
+solveBranchConditions entry_f exclude s@(State { known_values = kv }) pr prs = do
     let true_lv = map (setBool True) (orig_exec_res pr)
         false_lv = map (setBool False) (concatMap orig_exec_res prs)
         pat_id = Id (Name "g2__BOOL_ID" Nothing 0 Nothing) TyUnknown
         bool_pr = pr { pattern = Var pat_id, pat_ids = [pat_id], lit_vals = [true_lv ++ false_lv] }
-    solveOnePattern entry_f s bool_pr
+    solveOnePattern entry_f exclude s bool_pr
     where
         setBool b er = er { final_state = (final_state er) {curr_expr = CurrExpr Return (mkBool kv b)}, conc_out = mkBool kv b }
 
 
-computeProdPieces :: Id -> [ExecRes t] -> IO String
-computeProdPieces entry_f constraints = do
-    smt_cmd <- synthFunc entry_f constraints
+computeProdPieces :: Id
+                  -> [String] -- ^ SMT function names to exclude during synthesis
+                  -> [ExecRes t]
+                  -> IO String
+computeProdPieces entry_f exclude constraints = do
+    smt_cmd <- synthFunc entry_f exclude constraints
     print smt_cmd
     case smt_cmd of
         Just (DefineFun _ _ _ t) -> return $ termToHaskell t
@@ -753,8 +773,11 @@ findInconsistent entry_f s@(State { expr_env = eenv  }) b output_true
 -------------------------------------------------------------------------------
 -- Calling/reading from SyGuS solver
 -------------------------------------------------------------------------------
-synthFunc :: Id -> [ExecRes t] -> IO (Maybe SmtCmd)
-synthFunc entry_f er = runSygus $ sygusCmds entry_f er
+synthFunc :: Id
+           -> [Symbol]
+          -> [ExecRes t]
+          -> IO (Maybe SmtCmd)
+synthFunc entry_f exclude er = runSygus $ sygusCmds entry_f exclude er
 
 runSygus :: [Cmd] -> SynthConfig -> IO (Maybe (SmtCmd, String))
 runSygus sygus_cmds sc = do
@@ -778,9 +801,12 @@ runSygus sygus_cmds sc = do
         [SmtCmd def_fun] -> return $ Just (def_fun, out)
         _ -> return Nothing
 
-sygusCmds :: Id -> [ExecRes t] -> [Cmd]
-sygusCmds _ [] = []
-sygusCmds (Id _ entry_ty) er@(ExecRes { final_state = s@(State { tyvar_env = tv_env, known_values = kv }), conc_args = args, conc_out = out_e}:_) = 
+sygusCmds :: Id
+          -> [Symbol] -- ^ SMT function names to exclude during synthesis
+          -> [ExecRes t]
+          -> [Cmd]
+sygusCmds _ _ [] = []
+sygusCmds (Id _ entry_ty) exclude er@(ExecRes { final_state = s@(State { tyvar_env = tv_env, known_values = kv }), conc_args = args, conc_out = out_e}:_) = 
     let 
         define_eq n srt = SmtCmd $ DefineFun n
                                              [SortedVar "x" srt, SortedVar "y" srt]
@@ -941,24 +967,17 @@ sygusCmds (Id _ entry_ty) er@(ExecRes { final_state = s@(State { tyvar_env = tv_
                        , ([tyBool kv], GroupedRuleList "BoolPr" boolSort grmBool)]
         find_start_gram = findElem (\(ty, _) -> ret_type `elem` ty) (if specs_type sc == SMTFunc then ty_gram_defs else funcDefGrammer)
         gram_defs' = case find_start_gram of
-                            Just (start_sym, other_sym) -> map snd $ start_sym:other_sym
+                            Just (start_sym, other_sym) -> map removeExcluded . map snd $ start_sym:other_sym
                             Nothing -> error "runSygus: no start symbol"
         pre_dec = map (\(GroupedRuleList n srt _) -> SortedVar n srt) gram_defs'
 
-        funcDefGrammer =  [ ([tyString kv], GroupedRuleList "StrPr" strSort (map (GBfTerm . BfIdentifier . ISymb) str_args))
-                            , ([TyLitInt], GroupedRuleList "IntPr" intSort 
-                                [ GVariable intSort
-                                    , GBfTerm (BfLiteral (LitNum 0))
-                                    , GBfTerm (BfLiteral (LitNum 1))
-                                    , GBfTerm (BfLiteral (LitNum 2))
-                                    , GBfTerm (BfIdentifierBfs (ISymb "-") [ intIdent, intIdent])
-                                    , GBfTerm (BfIdentifierBfs (ISymb "*") [ intIdent, intIdent])
-                                    , GBfTerm (BfIdentifierBfs (ISymb "seq.len") [ strIdent ])])
-                            , ([tyBool kv], GroupedRuleList "BoolPr" boolSort 
-                                [ GBfTerm (BfIdentifierBfs (ISymb "ite") [ boolIdent, boolIdent, boolIdent])
-                                    , GBfTerm (BfIdentifierBfs (ISymb "and") [ boolIdent, boolIdent])
-                                    , GBfTerm (BfIdentifierBfs (ISymb "<") [ intIdent, intIdent])])
-                        ]
+        removeExcluded (GroupedRuleList sym srt gterms) = GroupedRuleList sym srt (filter removeGTerms gterms)
+
+        removeGTerms (GBfTerm bf) = remBfTerm bf
+        removeGTerms _ = True
+
+        remBfTerm (BfIdentifierBfs (ISymb sym) _) = sym `notElem` exclude
+        remBfTerm _ = True
 
 findElem       :: (a -> Bool) -> [a] -> Maybe (a, [a])
 findElem p     = find' id

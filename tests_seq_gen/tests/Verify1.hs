@@ -4,6 +4,10 @@ app :: [a] -> [a] -> [a]
 app [] ys = ys
 app (x:xs) ys = x:app xs ys
 
+appInt :: [Int] -> [Int] -> [Int]
+appInt [] ys = ys
+appInt (x:xs) ys = x:appInt xs ys
+
 eq :: Eq a => [a] -> [a] -> Bool
 eq [] [] = True
 eq (x:xs) (y:ys) = x == y && xs `eq` ys
@@ -18,3 +22,14 @@ myDelete :: Eq a => a -> [a] -> [a]
 myDelete _ [] = []
 myDelete y (x:xs) | x == y = xs
                   | otherwise = x:myDelete y xs
+
+count :: Int -> [Int] -> Int
+count x [] = 0
+count x (y:ys) =
+  case x == y of
+    True -> 1 + (count x ys)
+    _ -> count x ys
+  
+myLength :: [Int] -> Int
+myLength [] = 0
+myLength (_:xs) = 1 + (myLength xs)

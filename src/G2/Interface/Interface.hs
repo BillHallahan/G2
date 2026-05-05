@@ -350,7 +350,7 @@ initRedHaltOrd :: (MonadIO m, Solver solver, Simplifier simplifier) =>
                      , IORef TimedOut)
 initRedHaltOrd s mod_name solver simplifier config exec_func_names no_nrpc_names = do
     time_logger <- acceptTimeLogger
-    (time_halter, io_timed_out) <- stdTimerHalter (fromInteger . toInteger $ timeLimit config)
+    (time_halter, io_timed_out) <- stdTimerHalter (fromInteger . toInteger $ timeLimit config) (min_found config)
 
     m_logger <- fmap SomeReducer <$> getLimLogger config defPrettyTrack
 

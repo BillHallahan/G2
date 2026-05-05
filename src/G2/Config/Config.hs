@@ -152,6 +152,7 @@ data Config = Config {
     , hpc_print_ticks :: Bool -- ^ Print each HPC tick number that was reached?
     , strict :: Bool -- ^ Should the function output be strictly evaluated?
     , timeLimit :: Int -- ^ Seconds
+    , min_found :: Int -- ^ Don't stop when timeout is hit unless this many examples have been found
     , validate :: Bool -- ^ If True, run on G2's input, and check against expected output.
     , validate_with :: String -- ^ Function to use when validating input (defaults to (==)).
     , measure_coverage :: Bool -- ^ Use HPC to measure code coverage
@@ -264,7 +265,11 @@ mkConfig homedir = Config Regular
     <*> option auto (long "time"
                    <> metavar "T"
                    <> value 600
-                   <> help "time limit, in seconds")
+                   <> help "time limit, in seconds (default: 600)")
+    <*> option auto (long "min-found"
+                   <> metavar "M"
+                   <> value 0
+                   <> help "don't stop when timeout is hit, unless this many examples have been found (default: 0)")
     <*> switch (long "validate" <> help "use GHC to automatically compile and run on generated inputs, and check that generated outputs are correct")
     <*> strOption
             ( long "validate-with"
@@ -437,6 +442,7 @@ mkConfigDirect homedir as m = Config {
     , hpc_print_ticks = False
     , strict = boolArg "strict" as m On
     , timeLimit = strArg "time" as m read 300
+    , min_found = 0
     , validate  = boolArg "validate" as m Off
     , validate_with = "=="
     , measure_coverage = False
