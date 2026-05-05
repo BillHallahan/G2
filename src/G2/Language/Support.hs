@@ -663,6 +663,7 @@ instance ASTContainer StateDiff Type where
                     ++ containedASTs (new_conc_types sd)
                     ++ containedASTs (new_sym_types sd)
                     ++ containedASTs (new_mut_vars sd)
+                    ++ containedASTs (new_type_class_insts sd)
 
     modifyContainedASTs f sd =
         SD { new_conc_entries = modifyContainedASTs f (new_conc_entries sd)
@@ -675,6 +676,7 @@ instance ASTContainer StateDiff Type where
            , new_conc_types = modifyContainedASTs f (new_conc_types sd)
            , new_sym_types = modifyContainedASTs f (new_sym_types sd)
            , new_mut_vars = modifyContainedASTs f (new_mut_vars sd)
+           , new_type_class_insts = modifyContainedASTs f (new_type_class_insts sd)
            }
 
 instance ASTContainer StateDiff Expr where

@@ -1,3 +1,5 @@
+{-# LANGUAGE MultiParamTypeClasses #-}
+
 module G2.Execution.NewPC ( NewPC (..)
                           , newPCEmpty
                           , newPCNoStates

@@ -191,7 +191,7 @@ evalForAll as ts tr s@(State {type_env = tenv, known_values = kv, tyvar_env = tv
                             in 
                                 if log_rules then trace ruleS result else result) ([], ng')
     in
-        (RuleEvalVal, states, ng_eval_forall)
+        (RuleReplaceSymbFuncPoly, states, ng_eval_forall)
     where
         (term_args, ng') = freshIds (ts) ng
         as_ids = map (\case (TyVar tvi) -> tvi; _ -> error "evalForAll: non-type variable in as") as
@@ -733,12 +733,6 @@ evalCase s@(State { expr_env = eenv
 
         alt_res = dsts_cs ++ lsts_cs ++ def_sts
 
-        -- Special handling for when the scrutinee is a type class
-        -- TODO: ASTContainer instance for StateDiff
-        alt_res' = map (\sd@(SD {new_sym_entries = nses, new_curr_expr = nce}) 
-            -> sd {new_sym_entries = tyVarSubst tvnv nses,
-                   new_curr_expr   = tyVarSubst tvnv nce}) alt_res
-
         -- TODO[Jacob]: assuming class has kind :: * -> Constraint]
         tcInstDiffFromVar :: Expr -> Maybe TCInstDiff
         tcInstDiffFromVar (Var inst_id@(Id _ dict_ty)) 
@@ -748,9 +742,13 @@ evalCase s@(State { expr_env = eenv
         tcInstDiffFromVar _ = Nothing
 
         -- update all alt_res with type class diff
-        alt_res'' = maybe alt_res' 
-            (\tc_diff -> map (\ar -> ar {new_type_class_insts = tc_diff}) alt_res') 
+        alt_res' = maybe alt_res 
+            (\tc_diff -> map (\ar -> ar {new_type_class_insts = tc_diff}) alt_res) 
             (tcInstDiffFromVar mexpr) 
+
+        -- Do tyVar substitution in all StateDiffs. Needed 
+        -- when tracking generated type class instances.
+        alt_res'' = tyVarSubst tvnv alt_res'
       in
       -- We return at most one state per branch, unless we are concretizing a MutVar.
       -- In that case, we will return at least one state, but might return an unbounded
@@ -1264,7 +1262,7 @@ liftSymDefAlt'' s mexpr aexpr cvar as =
         , new_true_assert = true_assert s, new_assert_ids = assert_ids s
         , new_curr_expr = CurrExpr Evaluate aexpr'
         , new_conc_types = [], new_sym_types = []
-        , new_mut_vars = []
+        , new_mut_vars = [], new_type_class_insts = []
     }]
 
 liftSymDefAltPCs :: KnownValues -> Expr -> AltMatch -> Maybe PathCond
