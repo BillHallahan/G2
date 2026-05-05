@@ -426,7 +426,7 @@ gatherReducerHalterOrderer infconfig config lhconfig solver simplifier = do
 
         m_logger = fmap SomeReducer $ getLogger config defPrettyTrack
 
-    (timer_halter, _) <- stdTimerHalter (timeout_se infconfig * 3)
+    (timer_halter, _) <- stdTimerHalter (timeout_se infconfig * 3) 0
 
     let red = case m_logger of
                     Just logger -> logger .~> SomeReducer (gathererReducer ~> stdRed share retReplaceSymbFuncVar solver simplifier ~> strictRed)
@@ -557,7 +557,7 @@ inferenceReducerHalterOrderer infconfig config lhconfig solver simplifier entry 
     liftIO $ putStrLn $ "timeout for " ++ T.unpack entry ++ " is " ++ show timeout
     liftIO $ putStrLn $ "max CF for " ++ T.unpack entry ++ " is " ++ show max_cf
 
-    (timer_halter, _) <- liftIO $ stdTimerHalter (timeout * 2)
+    (timer_halter, _) <- liftIO $ stdTimerHalter (timeout * 2) 0
     lh_timer_halter <- liftIO $ lhStdTimerHalter timeout
 
     let halter =      lhAbsHalter (Just max_cf) entry mb_modname (expr_env st)
@@ -645,7 +645,7 @@ realCExReducerHalterOrderer infconfig config lhconfig entry modname solver simpl
 
         m_logger = fmap SomeReducer $ getLogger config defPrettyTrack
 
-    (timer_halter, _) <- liftIO $ stdTimerHalter (timeout_se infconfig)
+    (timer_halter, _) <- liftIO $ stdTimerHalter (timeout_se infconfig) 0
 
     let halter =      lh_max_outputs
                  <~> switchEveryNHalter (switch_after lhconfig)

@@ -15,9 +15,6 @@ tryMaybe a = catch (a >>= \v -> return (Just v)) (\(e :: SomeException) -> retur
 tryMaybeUnsafe :: a -> Maybe a
 tryMaybeUnsafe x = unsafePerformIO $ tryMaybe (let !y = x in return y)
 
-{-# NOINLINE strUnit# #-}
-strUnit# x = [I# x]
-
 smt_count :: Int -> (([]) Int) -> Int
 smt_count (I# z1) z2 = let !x = (let 
                                     !y1 = strAt# z2 z1;
@@ -30,7 +27,7 @@ smt_count (I# z1) z2 = let !x = (let
                                     !y5 = strContains# z2 _let_3;
                                     !y6 = strReverse# z2;
                                     !y7 = strEq# z2 y6;
-                                    !y8 = strUnit# 0#;
+                                    !y8 = strUnit# 0;
                                     !y9 = strEq# z2 y8;
                                     !y10 = strPrefixOf# _let_3 z2;
                                     !y11 = (if y10 then _let_2 else _let_1);
