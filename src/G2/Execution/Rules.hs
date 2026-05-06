@@ -688,6 +688,8 @@ evalCase s@(State { expr_env = eenv
         alt_res = dsts_cs ++ lsts_cs ++ def_sts
 
         -- TODO[Jacob]: assuming class has kind :: * -> Constraint]
+        -- This is only used for generated ADTs at the moment, so any generated
+        -- instance that is inserted will need its superclasses inserted as well.
         tcInstDiffFromVar :: Expr -> Maybe TCInstDiff
         tcInstDiffFromVar (Var inst_id@(Id _ dict_ty)) 
             | Just cls_n <- tyAppCenterName dict_ty
