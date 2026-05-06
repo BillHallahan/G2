@@ -15,6 +15,18 @@ polyFuncArgADT f = f (\(Box (Box x)) -> x)
 polyFuncArgWithFuncArg :: ((forall a. (a -> a) -> a -> a) -> Int) -> Int
 polyFuncArgWithFuncArg g = g (\f x -> f x)
 
+-- Originally thought that this proved generated ADTs must have infinite cardinality.
+-- That isn't correct, and a result of 1 is still possible if the instantiated definition
+-- chooses to apply at @Bool.
+polyFuncArgTup :: ((forall a. a -> a -> a -> a) -> Int) -> Int
+polyFuncArgTup fs = 
+    let (x, y, z) = (fs (\a b c -> a), fs (\a b c -> b), fs (\a b c -> c))
+        
+    in case (x /= y && y /= z && z /= x) of
+            True -> 1
+            False -> 2
+
+-- 
 polyFuncArgOneArgKind :: ((forall m. m Int -> m Int) -> Int) -> Int
 polyFuncArgOneArgKind f = f (\x -> x)
 
