@@ -191,8 +191,8 @@ mkExprHaskell' off_init cleaned pg ex = mkExprHaskell'' off_init ex
             let case_ty = if type_printing pg == LaxTypes
                                 then ""
                                 else " ret = (" <> mkTypeHaskellPG pg t <> ")" in
-               "case " <> parenWrap e (mkExprHaskell'' off e) <> " of" <> case_ty <> "\n" 
-            <> T.intercalate "\n" (map (mkAltHaskell (off + 2) cleaned pg bndr) ae)
+               "(case " <> parenWrap e (mkExprHaskell'' off e) <> " of" <> case_ty <> "\n" 
+            <> T.intercalate "\n" (map (mkAltHaskell (off + 2) cleaned pg bndr) ae) <> ")"
         mkExprHaskell'' _ (Type t) =
             let
                 wrap (TyFun _ _) s = "(" <> s <> ")"
