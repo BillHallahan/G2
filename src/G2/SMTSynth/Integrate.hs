@@ -70,13 +70,13 @@ integrateSMTDef s@(IT.SimpleState { IT.expr_env = orig_eenv, IT.known_values = k
         containsTypeIndex' (Var (Id n _)) = Any $ n == KV.typeIndex kv
         containsTypeIndex' _ = Any False
 
-        is_rel_list (TyApp (TyCon n _) (TyVar _)) = n == KV.tyList kv
+        is_rel_list (TyApp (TyCon n _) _) = n == KV.tyList kv
         is_rel_list _ = False
 
-        add_adj_str c i = mkApp [Var adj_str, Type (get_tyvar i), c, Var i]
+        add_adj_str c i = mkApp [Var adj_str, Type (get_list_arg i), c, Var i]
 
-        get_tyvar (Id _ (TyApp _ t@(TyVar _))) = t
-        get_tyvar _ = error "get_tyvar: impossible - not a list"
+        get_list_arg (Id _ (TyApp _ t)) = t
+        get_list_arg _ = error "get_tyvar: impossible - not a list"
 
         placeholder = Name "!!__G2__!!__placeholder" Nothing 0 Nothing
 
