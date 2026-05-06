@@ -1016,7 +1016,8 @@ createExtCond s ngen dcpm mexpr cvar (dcon, bindees, aexpr)
             , new_true_assert = true_assert s, new_assert_ids = assert_ids s
             , new_curr_expr = CurrExpr Evaluate aexpr'
             , new_conc_types = [], new_sym_types = []
-            , new_mut_vars = [] }, ngen)
+            , new_mut_vars = []
+            , new_type_class_insts = [] }, ngen)
     | Just dcpcs <- HM.lookup (dcName dcon) dcpm
     , _:ty_args <- unTyApp $ typeOf tvnv mexpr
     , Just dcpc <- L.lookup ty_args dcpcs =

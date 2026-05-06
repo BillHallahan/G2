@@ -370,6 +370,7 @@ printStateOutput config entry b@(Bindings { printed_outputs = pr_outs }) mval_re
     let state_output_text = print_method gen_adts gen_insts mvp inp outp
     let pr_outs' = HS.insert state_output_text pr_outs
 
+    -- TODO[Jacob]: Duplicate outputs only affects printing? Minimum output counts during validation aren't affected. Could expect 50 but just be validating the same duplicate output.
     when (print_output config && (print_duplicate_outputs config || (pr_outs' /= pr_outs))) (do
         when print_valid $ do
             (case fromMaybe Invalid mval_res of
