@@ -41,7 +41,10 @@ main = do
                     con' = setSynthMode (fromMaybe (error $ "error: " ++ gen_for_ty ++ " not recognized")
                                       $ lookup gen_for_ty synthModeMapping) con
 
-                m_ty_def <- doTimeout 120 $ genSMTFunc [] [src] f Nothing $ sc { excluded_funcs = exclude' ++ exclude_for_all, g2_config = con' }
+                -- Allow reading in any previously synthesized SMT definitions
+                con'' <- addSMTDefs gen_for_ty dir_name con'
+
+                m_ty_def <- doTimeout 120 $ genSMTFunc [] [src] f Nothing $ sc { excluded_funcs = exclude' ++ exclude_for_all, g2_config = con'' }
                 case m_ty_def of
                     Just (ty, def) -> do
                         updateMainSMT $ "SMT":gen_for_ty:dir_name
@@ -50,9 +53,19 @@ main = do
                         createAppend ("SMT":gen_for_ty:dir_name) "\n"
                     Nothing -> return ()
             
+            smtFile path =
+                let
+                    dir = "smt/" ++ intercalate "/" (init path)
+                in
+                (dir, dir ++ "/" ++ last path ++ ".hs")
+            
+            addSMTDefs gen_for_ty dir_name con = do
+                let (_, fle) = smtFile $ "SMT":gen_for_ty:dir_name
+                exists <- doesFileExist fle 
+                return $ if exists then con { smt_def_file = [snd $ smtFile ("SMT":gen_for_ty:dir_name)]} else con
+
             createAppend path def = do
-                let dir = "smt/" ++ intercalate "/" (init path)
-                    fle = dir ++ "/" ++ last path ++ ".hs"
+                let (dir, fle) = smtFile path
                     mdl = intercalate "." path
                 exists <- doesFileExist fle
                 case exists of

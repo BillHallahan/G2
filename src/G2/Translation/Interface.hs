@@ -64,7 +64,8 @@ translateLoaded proj src tr_con config = do
   let tr_con' = tr_con { hpc_ticks = hpc config || search_strat config == Subpath || hpc_discard_strat config }
   -- Stuff with the actual target
   let def_proj = extraDefaultInclude config
-  tar_ems <- envModSumModGutsFromFile (selectBackend tr_con') (def_proj ++ proj ++ map dirPath src) src tr_con' 
+      smt_def = smt_def_file config
+  tar_ems <- envModSumModGutsFromFile (selectBackend tr_con') (def_proj ++ proj ++ map dirPath src ++ map dirPath smt_def) src tr_con' 
   let imports = envModSumModGutsImports tar_ems
   extra_imp <- return . catMaybes =<< mapM (findImports (baseInclude config)) imports
 
@@ -75,7 +76,7 @@ translateLoaded proj src tr_con config = do
                         root <- getHomeDirectory
                         let smt_fle = root ++ "/.g2/G2Stubs/smt/SMT.hs"
                         smt_fle_exists <- doesFileExist smt_fle
-                        return $ if smt_fle_exists then smt_fle:extra_imp else extra_imp
+                        return $ if smt_fle_exists then smt_def ++ smt_fle:extra_imp else smt_def ++ extra_imp
                       else return extra_imp
 
   -- Stuff with the base library

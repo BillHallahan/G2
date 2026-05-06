@@ -100,6 +100,7 @@ data Config = Config {
     , extraDefaultInclude :: [IncludePath]
     , extraDefaultMods :: [FilePath]
     , includePaths :: Maybe [FilePath] -- ^ Paths to search for modules
+    , smt_def_file :: [FilePath] -- ^ File containing SMT defintions
     , print_output :: Bool -- ^ Print function outputs
     , logStates :: LogMode -- ^ Determines whether to Log states, and if logging states, how to do so.
     , logEveryN :: Int -- ^ If logging states, log every nth state
@@ -171,6 +172,11 @@ mkConfig homedir = Config Regular
     <*> mkExtraDefault homedir
     <*> pure []
     <*> mkIncludePaths
+    <*> option (eitherReader (Right . (:[])))
+            ( long "smt-def-file"
+            <> metavar "FILE"
+            <> value []
+            <> help "an SMT definition file")
     <*> flag True False (long "no-print-outputs" <> help "Print function outputs")
     <*> mkLogMode
     <*> option auto (long "log-every-n"
@@ -389,6 +395,7 @@ mkConfigDirect homedir as m = Config {
     , extraDefaultInclude = extraDefaultIncludePaths (strArg "extra-base-inc" as m id homedir)
     , extraDefaultMods = []
     , includePaths = Nothing
+    , smt_def_file = []
     , print_output = True
     , logStates = strArg "log-states" as m (Log Raw)
                         (strArg "log-pretty" as m (Log Pretty) NoLog)
