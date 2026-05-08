@@ -928,6 +928,8 @@ sygusCmds (Id _ entry_ty) exclude er@(ExecRes { final_state = s@(State { tyvar_e
                   , GBfTerm (BfIdentifierBfs (ISymb "not") [ boolIdent ])
 
                   , GBfTerm (BfIdentifierBfs (ISymb "intEq") [ intIdent, intIdent ])
+                  , GBfTerm (BfIdentifierBfs (ISymb "<") [ intIdent, intIdent ])
+                  , GBfTerm (BfIdentifierBfs (ISymb "<=") [ intIdent, intIdent ])
                   , GBfTerm (BfIdentifierBfs (ISymb "str.<") [ strIdent, strIdent ])
                   , GBfTerm (BfIdentifierBfs (ISymb "str.<=") [ strIdent, strIdent ])
                   ]
@@ -1212,6 +1214,8 @@ smtFuncToPrim s vl_args = conv s ++ conv_args
         conv "seqFloatEq" = "strEq#"
 
         conv "intEq" = "($==#)"
+        conv "<" = "($<#)"
+        conv "<=" = "($<=#)"
         conv "floatEq" = "smtEqFloat#"
         conv "fromChar" = ""
         conv "toChar" = ""
