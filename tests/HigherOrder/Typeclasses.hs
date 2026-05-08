@@ -51,10 +51,6 @@ tcFuncInstPrelClassPrelType f = f 4
 
 
 --- [Instantiating a symbolic function which has a function with a type class constraint as an argument] ---
-
--------- TODO[Jacob]: All of these validating on cmdline, but failing in test suite with --------------
--- <interactive>:1:14: error: [GHC-76037]
---         Not in scope: type constructor or class `GenT'2'
 tcFuncArgPrelClass :: ((forall a. (Eq a) => a -> a -> Bool) -> Int) -> Int
 tcFuncArgPrelClass f = f (\x y -> x == y)
 
@@ -66,7 +62,6 @@ tcFuncArgTwoMethodsUsed f = f (\x -> x * x + x)
 
 tcFuncArgSingleMethodClass :: ((forall a. (SingleMethod a) => a -> a) -> Int) -> Int
 tcFuncArgSingleMethodClass f = f (\x -> m1 x)
---------------------------------------------------------------------------------------------------
 
 -- TODO[Jacob]: other kinds 
 

@@ -681,15 +681,15 @@ testFileTests = testGroup "TestFiles"
                                                                        , ("forallWithPolyFuncArgBox", 100, [AtLeast 9])
                                                                        , ("forallWithPolyFuncArgTup", 200, [AtLeast 10])]
     -- TODO[Jacob]: adjust the AtLeast counts after fixing duplicate outputs validation
-    -- TODO[Jacob]: step limits are too high
+    -- TODO[Jacob]: step limits are too high, some too low
     , checkInputOutputsTemplate "tests/HigherOrder/Typeclasses.hs" [ -- Instantiating functions with TC constraints
                                                                      ("tcFuncInstPrelClassUserType", 275, [AtLeast 50]) -- Step limit for finding previous error case
                                                                    , ("tcFuncInstPrelClassPrelType", 200, [AtLeast 9])
                                                                      -- Instantiating functions with arguments having TC constraints
-                                                                   -- , ("tcFuncArgPrelClass", 150, [AtLeast 50])
-                                                                   --, ("tcFuncArgUserClass", 150, [AtLeast 50])
-                                                                   --, ("tcFuncArgTwoMethodsUsed", 150, [AtLeast 50])
-                                                                   --, ("tcFuncArgSingleMethodClass", 150, [AtLeast 50])]                  
+                                                                   , ("tcFuncArgPrelClass", 125, [AtLeast 50])
+                                                                   , ("tcFuncArgUserClass", 125, [AtLeast 50])
+                                                                   , ("tcFuncArgTwoMethodsUsed", 125, [AtLeast 50])
+                                                                   , ("tcFuncArgSingleMethodClass", 125, [AtLeast 50])]                  
     , checkInputOutputsNonRedHigher "tests/HigherOrder/HigherOrder.hs" [ ("f", 200, [AtLeast 3])
                                                                        , ("h", 150, [AtLeast 2])
                                                                        , ("assoc", 250, [AtLeast 2])

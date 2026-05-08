@@ -77,8 +77,8 @@ validateStates proj src modN entry chAll chAny gflags comp_func b in_out = do
                        . flip (foldr updateQualMods) (catMaybes $ HS.toList modN)
                        . setStrictCase True
                        $ mkPrettyGuide ()
-                _ <- createTCInstDecls pg s
                 _ <- createDecls pg s (H.filter (\x -> adt_source x == ADTG2Generated) (type_env s))
+                _ <- createTCInstDecls pg s
                 validateStatesGHC pg comp_func modN entry chAll chAny b er) in_out
         let chck_anys = all or . transpose $ map snd rs_anys
         return (map fst rs_anys, chck_anys))
