@@ -146,7 +146,7 @@ smtSynthTestWithConfig :: IO SynthConfig
 smtSynthTestWithConfig io_config src f =
     testCase (T.unpack $ src <> " " <> f) (do
         config <- io_config
-        r <- timeout (480 * 1000000) $ genSMTFunc [] [T.unpack src] f Nothing config
+        r <- timeout (480 * 1000000) $ genSMTFunc [T.unpack src] f config Nothing
         assertBool "Error" (isJust r)
     )
 

@@ -40,6 +40,7 @@ import Sygus.Print
 import Control.Exception (assert, evaluate)
 import qualified Control.Monad.State as SM
 import Data.Char
+import Data.IORef
 import qualified Data.HashMap.Lazy as HM
 import Data.List
 import Data.Maybe
@@ -233,31 +234,34 @@ insertER ng er (pl:pls)
     | otherwise = pl:insertER ng er pls
 
 -- | Use a CEGIS loop to generate an SMT conversion of a function
-genSMTFunc :: [PatternRes] -- ^ Generated states
-           -> [FilePath] -- ^ Filepath containing function
+genSMTFunc :: [FilePath] -- ^ Filepath containing function
            -> T.Text -- ^ Function name
-           -> Maybe (State t, Id, String) -- ^ Possible (SyGuS generated) function definition, along with the Id of the function being generated
            -> SynthConfig
+           -> Maybe (IORef (Maybe String)) -- ^ If present, the last (possibly incorrect) solution found
            -> IO (String, String) -- ^ (Type of generated function, definition of generated function)
-genSMTFunc pls src f smt_def sc@(SynthConfig { excluded_funcs = exclude }) = do
-    putStrLn "\n--- Running function --- "
-    (entry_f, ers, ng) <- runFuncWithTemp src f smt_def sc
-    case ers of
-        [] | Just (s, (Id _ smt_t), smt_def') <- smt_def ->
-                return (T.unpack (mkTypeHaskellDictArrows (mkPrettyGuide ()) (type_classes s) smt_t), smt_def')
-           | otherwise -> error "genSMTFunc: no SMT function generated" 
-        (er@(ExecRes { final_state = s }):_) -> do
-            putStrLn "\n--- Synthesizing --- "
-            let pls' = foldr (insertER ng) pls ers
+genSMTFunc src f sc@(SynthConfig { excluded_funcs = exclude }) m_io_ref = go [] Nothing
+    where
+        go pls smt_def = do
+            putStrLn "\n--- Running function --- "
+            (entry_f, ers, ng) <- runFuncWithTemp src f smt_def sc
+            case ers of
+                [] | Just (s, (Id _ smt_t), smt_def') <- smt_def ->
+                        return (T.unpack (mkTypeHaskellDictArrows (mkPrettyGuide ()) (type_classes s) smt_t), smt_def')
+                   | otherwise -> error "genSMTFunc: no SMT function generated" 
+                (er@(ExecRes { final_state = s }):_) -> do
+                    putStrLn "\n--- Synthesizing --- "
+                    let pls' = foldr (insertER ng) pls ers
 
-            new_smt_piece <- formFunction entry_f exclude s pls'
+                    new_smt_piece <- formFunction entry_f exclude s pls'
 
-            let kv = known_values s
-                tv_env = tyvar_env s 
-                
-                vs = zipWith (formArg kv tv_env) argList (relArgs (final_state er) $ conc_args er)
-                new_smt_def = T.unpack (smtNameWrap . smtName . nameOcc $ idName entry_f) ++ " " ++ intercalate " " vs ++ " = " ++ new_smt_piece
-            genSMTFunc pls' src f (Just (final_state er, entry_f, new_smt_def)) sc
+                    let kv = known_values s
+                        tv_env = tyvar_env s 
+                        
+                        vs = zipWith (formArg kv tv_env) argList (relArgs (final_state er) $ conc_args er)
+                        new_smt_def = T.unpack (smtNameWrap . smtName . nameOcc $ idName entry_f) ++ " " ++ intercalate " " vs ++ " = " ++ new_smt_piece
+                    
+                    maybe (return ()) (flip writeIORef (Just new_smt_def)) m_io_ref
+                    go pls' (Just (final_state er, entry_f, new_smt_def))
 
 formArg :: KnownValues -> TyVarEnv -> String -> Expr -> String
 formArg kv tv nm e
