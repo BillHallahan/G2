@@ -56,7 +56,8 @@ tests = testGroup "All Tests"
         , smtSynthTestVerify "tests_seq_gen/tests/Verify1.hs" "appInt"
         , smtSynthTestVerify "tests_seq_gen/tests/Verify1.hs" "myLength"
 
-        , smtSynthTestVerifyExcluding "tests_seq_gen/tests/Verify1.hs" "count" ["ite", "seq.prefixof", "seq.suffixof", "seq.at"]
+        , smtSynthTestVerifyExcluding "tests_seq_gen/tests/Verify1.hs" "count"
+                ["ite", "seq.at", "seq.prefixof", "seq.rev", "seq.suffixof", "seq.indexof"]
         , smtSynthTestVerifyExcluding "tests_seq_gen/tests/Verify1.hs" "myLast" ["ite", "seq.prefixof", "seq.suffixof"]
 
         , smtSynthTestRunSymexSMTStrings "tests_seq_gen/tests_symex/Test1.hs" "comp" (Just 2) Nothing
