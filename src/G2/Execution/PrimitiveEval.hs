@@ -538,6 +538,13 @@ evalPrimADT2 kv tenv StrAppend xs ys = do
     ys' <- toExprList ys
     return . toListExpr kv tenv t $ xs' ++ ys'
 
+evalPrimADT2 kv _ StrContains str sub = do
+    t <- listType str
+    str' <- toExprList str
+    sub' <- toExprList sub
+    let ret = sub' `L.isInfixOf` str'
+    return $ mkBool kv ret
+
 evalPrimADT2 kv tenv StrAt xs (Lit (LitInt i)) = do
     t <- listType xs
     xs' <- toExprList xs
