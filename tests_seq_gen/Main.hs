@@ -123,7 +123,8 @@ smtSynthTestVerifyExcluding file func exclude = smtSynthTestWithConfig (do
                                         let config' = config { smt = ConCVC5
                                                              , steps = 2000
                                                              , smt_strings = UseSMTStrings
-                                                             , smt_strings_strictness = StrictSMTStrings }
+                                                             , smt_strings_strictness = StrictSMTStrings
+                                                             , print_smt = True }
                                         return . adjustContConfig $ synth_config { checking = Verify
                                                                                  , excluded_funcs = exclude
                                                                                  , g2_config = config' }) file func
