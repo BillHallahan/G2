@@ -33,3 +33,8 @@ count x (y:ys) =
 myLength :: [Int] -> Int
 myLength [] = 0
 myLength (_:xs) = 1 + (myLength xs)
+
+myLast :: [Int] -> Int
+myLast [] = 0
+myLast [x] = x
+myLast (_:xs) = myLast xs

@@ -1,6 +1,6 @@
 module MyLib where
 
-data MyInt = MyInt Int | MyIntAlso Int
+data MyInt = MyInt Int | MyIntAlso Int deriving Eq
 
 call :: MyInt -> Int
 call (MyInt x) = x * 2

@@ -450,6 +450,8 @@ runFunc temp src f smt_def sc@(SynthConfig { eq_file = eq_f, g2_config = config 
                                             (findInconsistent new_i init_state bindings, new_i)
                                        | otherwise -> error "runFunc: func not found" 
                         Nothing -> (init_state, func)
+    let sol = fmap (\(_, _, sl) -> sl) smt_def
+    -- let config'' = if sol == Just "smt_last z1 = let !x = (let !y1 = strUnit# (I# 0#); !y2 = strAppend# y1 z1; !y3 = strLen# z1; !y4 = strAt# y2 y3; !y5 = seqNthInt# y4 0# in y5) in I# x" then config' { logStates = Log Pretty "a_smt"} else config'
     -- let config'' = if isJust smt_def then config' { logStates = Log Pretty "a_smt"} else config'
     T.putStrLn $ printHaskellPG (mkPrettyGuide $ getExpr comp_state) comp_state (getExpr comp_state)
 
@@ -601,6 +603,12 @@ sygusCmds (Id _ entry_ty) exclude er@(ExecRes { final_state = s@(State { tyvar_e
                                         [SortedVar "x" strSort]
                                         strSort
                                         ( TermCall (ISymb "str.at") [TermIdent (ISymb "x"), TermLit (LitNum 0)] )
+        -- to_int has similar conisderations as to_char
+        to_int = SmtCmd $ DefineFun "toInt"
+                                [SortedVar "x" seq_int_sort]
+                                intSort
+                                ( TermCall (ISymb "seq.nth") [TermIdent (ISymb "x"), TermLit (LitNum 0)] )
+
         grm = GrammarDef pre_dec gram_defs'
     in
     [ SmtCmd $ SetLogic "ALL"
@@ -613,6 +621,7 @@ sygusCmds (Id _ entry_ty) exclude er@(ExecRes { final_state = s@(State { tyvar_e
     , define_unit "floatUnit" floatSort
     , from_char
     , to_char
+    , to_int
     , SynthFun "spec" arg_vars ret_sort (Just grm) ]
     ++ map execResToConstraints er ++
     [CheckSynth]
@@ -663,6 +672,10 @@ sygusCmds (Id _ entry_ty) exclude er@(ExecRes { final_state = s@(State { tyvar_e
                     if not (null char_args) then [GBfTerm (BfIdentifierBfs (ISymb "fromChar") [ charArgIdent ])] else []
         grmCharArgs = map (GBfTerm . BfIdentifier . ISymb) char_args
         grmCharRet = [ GBfTerm (BfIdentifierBfs (ISymb "toChar") [ strIdent ])]
+
+
+        grmGetInt = [ GBfTerm intIdent
+                    , GBfTerm (BfIdentifierBfs (ISymb "toInt") [ seqIntIdent ])]
         grmInt = [ GVariable intSort
                  , GBfTerm (BfIdentifierBfs (ISymb "ite") [ boolIdent, intIdent, intIdent])
                  , GBfTerm (BfLiteral (LitNum 0))
@@ -724,6 +737,7 @@ sygusCmds (Id _ entry_ty) exclude er@(ExecRes { final_state = s@(State { tyvar_e
                        [ ([tyString kv], GroupedRuleList "StrPr" strSort grmString)
                        , ([TyApp (tyList kv) (tyInt kv), TyApp (tyList kv) (tyInteger kv)], GroupedRuleList "SeqIntPr" seq_int_sort (grmSeq seq_int_sort "intUnit" intIdent seqIntIdent))
                        , ([TyApp (tyList kv) (tyFloat kv)], GroupedRuleList "SeqFloatPr" seq_float_sort (grmSeq seq_float_sort "floatUnit" floatIdent seqFloatIdent))
+                       , ([TyLitInt], GroupedRuleList "grmGetIntPr" intSort grmGetInt)
                        , ([TyLitInt], GroupedRuleList "IntPr" intSort grmInt)
                        , ([TyLitFloat], GroupedRuleList "FloatPr" floatSort grmFloat)
                        , ([tyBool kv], GroupedRuleList "BoolPr" boolSort grmBool)]
@@ -922,6 +936,8 @@ smtFuncToPrim s vl_args = conv s ++ conv_args
         conv "seqIntEq" = "strEq#"
         conv "seqFloatEq" = "strEq#"
 
+        conv "toInt" = ""
+
         conv "intEq" = "($==#)"
         conv "<" = "($<#)"
         conv "<=" = "($<=#)"
@@ -959,6 +975,7 @@ smtFuncToPrim s vl_args = conv s ++ conv_args
                                                 let_b = "let " ++ b1 ++ ";" ++ b2 ++ "in"
                                             in
                                             "(case (" ++ let_b ++ " at_G2_STR) of [x] -> x)"
+                        "toInt" | [a] <- vl_args -> "seqNthInt# " ++ a ++ " 0#"
                         "intUnit" | [a] <- vl_args -> "strUnit# (I# " ++ a ++ ")"
                         "floatUnit" | [a] <- vl_args -> "strUnit# (F# " ++ a ++ ")"
 
