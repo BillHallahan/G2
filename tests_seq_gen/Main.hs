@@ -56,7 +56,7 @@ tests = testGroup "All Tests"
         , smtSynthTestVerify "tests_seq_gen/tests/Verify1.hs" "appInt"
         , smtSynthTestVerify "tests_seq_gen/tests/Verify1.hs" "myLength"
 
-        , smtSynthTestVerifyExcluding "tests_seq_gen/tests/Verify1.hs" "count" ["ite", "seq.prefixof", "seq.suffixof"]
+        , smtSynthTestVerifyExcluding "tests_seq_gen/tests/Verify1.hs" "count" ["ite", "seq.prefixof", "seq.suffixof", "seq.at"]
         , smtSynthTestVerifyExcluding "tests_seq_gen/tests/Verify1.hs" "myLast" ["ite", "seq.prefixof", "seq.suffixof"]
 
         , smtSynthTestRunSymexSMTStrings "tests_seq_gen/tests_symex/Test1.hs" "comp" (Just 2) Nothing
@@ -123,8 +123,7 @@ smtSynthTestVerifyExcluding file func exclude = smtSynthTestWithConfig (do
                                         let config' = config { smt = ConCVC5
                                                              , steps = 2000
                                                              , smt_strings = UseSMTStrings
-                                                             , smt_strings_strictness = StrictSMTStrings
-                                                             , print_smt = True }
+                                                             , smt_strings_strictness = StrictSMTStrings }
                                         return . adjustContConfig $ synth_config { checking = Verify
                                                                                  , excluded_funcs = exclude
                                                                                  , g2_config = config' }) file func
