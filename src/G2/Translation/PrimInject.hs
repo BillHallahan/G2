@@ -190,6 +190,12 @@ primDefs' b c l unit =
                                     (Prim StrAt ((TyFun seqTyX) $ TyFun TyLitInt seqTyX))
                                     (Var $ y seqTyX))
                                 (Var $ z TyLitInt))
+              , ("seqNthInt#", Lam TypeL (x TYPE) . Lam TermL (y seqTyX) . Lam TermL (z TyLitInt)
+                            $ App 
+                                (App 
+                                    (Prim SeqNth ((TyFun seqTyX) $ TyFun TyLitInt seqTyX))
+                                    (Var $ y seqTyX))
+                                (Var $ z TyLitInt))
               , ("strSubstr#", Lam TypeL (x TYPE) . Lam TermL (y seqTyX) . Lam TermL (z TyLitInt) . Lam TermL ((dummyId "q") TyLitInt)
                             $ App
                                 (App

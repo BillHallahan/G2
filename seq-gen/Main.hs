@@ -9,6 +9,7 @@ import G2.SMTSynth.Synthesizer
 
 import Data.List
 import Data.Maybe
+import Data.IORef
 import qualified Data.Text as T
 import System.Directory
 
@@ -19,7 +20,7 @@ main = do
         (Just entry, _) -> do
             let f = T.pack entry
             _ <- case run_sym of
-                        False -> do _ <- genSMTFunc [] [src] f Nothing sc; return ()
+                        False -> do _ <- genSMTFunc [src] f sc Nothing; return ()
                         True -> do _ <- runFunc src [] f Nothing sc; return ()
             return ()
         (_, Just file_list) -> do
@@ -44,14 +45,22 @@ main = do
                 -- Allow reading in any previously synthesized SMT definitions
                 con'' <- addSMTDefs gen_for_ty dir_name con'
 
-                m_ty_def <- doTimeout 120 $ genSMTFunc [] [src] f Nothing $ sc { excluded_funcs = exclude' ++ exclude_for_all, g2_config = con'' }
+                last_sol_io_ref <- newIORef Nothing
+                m_ty_def <- doTimeout 120 $ genSMTFunc [src] f (sc { excluded_funcs = exclude' ++ exclude_for_all, g2_config = con'' }) (Just last_sol_io_ref)
+                m_last_sol <- readIORef last_sol_io_ref
+                
+                updateMainSMT $ "SMT":gen_for_ty:dir_name
                 case m_ty_def of
                     Just (ty, def) -> do
-                        updateMainSMT $ "SMT":gen_for_ty:dir_name
                         createAppend ("SMT":gen_for_ty:dir_name) $ (T.unpack . smtNameWrap . smtName $ f_name) ++ " :: " ++ ty
                         createAppend ("SMT":gen_for_ty:dir_name) def
                         createAppend ("SMT":gen_for_ty:dir_name) "\n"
-                    Nothing -> return ()
+                    Nothing | Just last_sol <- m_last_sol -> do
+                                createAppend ("SMT":gen_for_ty:dir_name) $ "-- SYNTH FAILED: " ++ last_sol                      
+                                createAppend ("SMT":gen_for_ty:dir_name) "\n"
+                            | otherwise -> do
+                                createAppend ("SMT":gen_for_ty:dir_name) $ "-- SYNTH FAILED: " ++ (T.unpack . smtNameWrap . smtName $ f_name)                        
+                                createAppend ("SMT":gen_for_ty:dir_name) "\n"
             
             smtFile path =
                 let

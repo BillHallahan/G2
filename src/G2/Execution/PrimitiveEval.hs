@@ -551,6 +551,16 @@ evalPrimADT2 kv tenv StrAt xs (Lit (LitInt i)) = do
     let c = if 0 <= i && fromInteger i < length xs' then  [xs' !! (fromInteger i)] else []
     return $ toListExpr kv tenv t c
 
+evalPrimADT2 kv _ SeqNth xs (Lit (LitInt i)) = do
+    let stripCons (App (Data (DataCon { dc_name = dcn })) e) | dcn == KV.dcInt kv
+                                                             || dcn == KV.dcInteger kv = e
+        stripCons e = e
+    
+    xs' <- toExprList xs
+    if 0 <= i && fromInteger i < length xs'
+        then Just . stripCons $ xs' !! (fromInteger i)
+        else Just $ Prim Error TyBottom
+
 evalPrimADT2 kv _ StrPrefixOf pre s = do
     pre' <- toExprList pre
     s' <- toExprList s
