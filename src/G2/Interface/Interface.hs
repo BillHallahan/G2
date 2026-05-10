@@ -230,6 +230,7 @@ initStateFromSimpleState s m_mod useAssert mkCurr argTys config =
     , sym_gens = Seq.empty
     , reached_hpc = S.empty
     , tags = S.empty
+    , reached_fc_ticks = []
 
     , log_path = []
     }
@@ -929,9 +930,10 @@ runG2SubstModel m s@(State { expr_env = eenv, type_env = tenv, tyvar_env = tv_en
                , s_violated = ais
                , s_sym_gens = gens
                , s_mutvars = mv
+               , s_reached_fc_ticks = r_fc
                , s_handles = h } = subModel s' bindings
 
-        sm = ExecRes { final_state = s'
+        sm = ExecRes { final_state = s' { reached_fc_ticks = r_fc }
                      , conc_args = es
                      , conc_out = e
                      , conc_sym_gens = gens
