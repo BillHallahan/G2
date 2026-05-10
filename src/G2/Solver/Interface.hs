@@ -26,6 +26,7 @@ data Subbed = Subbed { s_inputs :: [Expr] -- ^ Concrete `inputNames`
                      , s_violated :: Maybe FuncCall -- ^ Concrete `assert_ids`
                      , s_sym_gens :: S.Seq Expr -- ^ Concrete `sym_gens`
                      , s_mutvars :: [(Name, MVOrigin, Expr)] -- ^ Concrete symbolic `mutvar_env`
+                     , s_reached_fc_ticks :: [FuncCall] -- ^ Concrete reached_fc
                      , s_handles :: [(Name, Expr)]
                      }
                      deriving Eq
@@ -36,6 +37,7 @@ instance ASTContainer Subbed Expr where
         ++ s_output sub:containedASTs (s_violated sub)
         ++ containedASTs (s_sym_gens sub)
         ++ containedASTs (s_mutvars sub)
+        ++ containedASTs (s_reached_fc_ticks sub)
         ++ containedASTs (s_handles sub)
     modifyContainedASTs f sub =
         Subbed { s_inputs = map f (s_inputs sub)
@@ -43,6 +45,7 @@ instance ASTContainer Subbed Expr where
                , s_violated = modifyContainedASTs f (s_violated sub)
                , s_sym_gens = modifyContainedASTs f (s_sym_gens sub)
                , s_mutvars = modifyContainedASTs f (s_mutvars sub)
+               , s_reached_fc_ticks = modifyContainedASTs f (s_reached_fc_ticks sub)
                , s_handles = modifyContainedASTs f (s_handles sub) }
 
 instance ASTContainer Subbed Type where
@@ -52,6 +55,7 @@ instance ASTContainer Subbed Type where
         ++ containedASTs (s_violated sub)
         ++ containedASTs (s_sym_gens sub)
         ++ containedASTs (s_mutvars sub)
+        ++ containedASTs (s_reached_fc_ticks sub)
         ++ containedASTs (s_handles sub)
     modifyContainedASTs f sub =
         Subbed { s_inputs = modifyContainedASTs f (s_inputs sub)
@@ -59,6 +63,7 @@ instance ASTContainer Subbed Type where
                , s_violated = modifyContainedASTs f (s_violated sub)
                , s_sym_gens = modifyContainedASTs f (s_sym_gens sub)
                , s_mutvars = modifyContainedASTs f (s_mutvars sub)
+               , s_reached_fc_ticks = modifyContainedASTs f (s_reached_fc_ticks sub)
                , s_handles = modifyContainedASTs f (s_handles sub) }
 
 subModel :: State t -> Bindings -> Subbed
@@ -70,6 +75,7 @@ subModel s@(State { expr_env = eenv
                   , sym_gens = gens
                   , handles = hs
                   , mutvar_env = mve
+                  , reached_fc_ticks = r_fc
                   , tyvar_env = tvnv }) 
           (Bindings {input_names = inputNames}) = 
     let
@@ -88,6 +94,7 @@ subModel s@(State { expr_env = eenv
                      , s_violated = ais'
                      , s_sym_gens = gs
                      , s_mutvars = mv
+                     , s_reached_fc_ticks = r_fc
                      , s_handles = map (\(n, hi) -> (n, Var $ h_start hi)) $ HM.toList hs }
         
         sv = subVar tvnv False m eenv tc sub

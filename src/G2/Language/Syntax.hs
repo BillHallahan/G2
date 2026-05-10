@@ -476,6 +476,7 @@ data Tickish = Breakpoint Span -- ^ A breakpoint for the GHC Debugger
                              -- in concert with a @`G2.Execution.Reducer.Reducer`@, for domain
                              -- specific modifications to a
                              -- @`G2.Language.Support.State`@'s tracking field.
+             | FCTick FuncCall
              deriving (Show, Eq, Read, Generic, Typeable, Data)
 
 instance Hashable Tickish

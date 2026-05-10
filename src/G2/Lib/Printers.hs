@@ -631,6 +631,7 @@ printTickish :: PrettyGuide -> Tickish -> T.Text
 printTickish _ (Breakpoint sp) = printLoc (start sp) <> " - " <> printLoc (end sp)
 printTickish _ (HpcTick i m) = "(hpc " <> T.pack (show i) <> " " <> m <> ")" 
 printTickish pg (NamedLoc n) = mkNameHaskell pg n
+printTickish pg (FCTick fc) = "(fctick " <> printFuncCallPG pg fc <> ")" 
 
 printLoc :: Loc -> T.Text
 printLoc (Loc ln cl fl) = "(line " <> T.pack (show ln) <> " column " <> T.pack (show cl) <> " in " <>  T.pack fl <> ")" 
@@ -682,6 +683,8 @@ prettyState pg pretty_track s =
         , pretty_track pg (track s)
         , "----- [HPC] ---------------------"
         , pretty_hpc_ticks
+        , "----- [Reached FC] ---------------------"
+        , pretty_fc_ticks
         , "----- [Pretty] ---------------------"
         , pretty_names
         ]
@@ -701,6 +704,7 @@ prettyState pg pretty_track s =
         pretty_assert_fcs = maybe "None" (printFuncCallPG pg) (assert_ids s)
         pretty_tags = T.intercalate ", " . map (mkNameHaskell pg) $ HS.toList (tags s)
         pretty_hpc_ticks = T.pack $ show (reached_hpc s)
+        pretty_fc_ticks = T.intercalate "\n" $ map (printFuncCallPG pg) (reached_fc_ticks s)
         pretty_names = prettyGuideStr pg
 
 
