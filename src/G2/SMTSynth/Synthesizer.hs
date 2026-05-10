@@ -267,7 +267,7 @@ formArg :: KnownValues -> TyVarEnv -> String -> Expr -> String
 formArg kv tv nm e
     | typeOf tv e == tyInt kv = "(I# " ++ nm ++ ")"
     | typeOf tv e == tyInteger kv = "(toInteger -> Z# " ++ nm ++ ")"
-    | otherwise = nm
+    | otherwise = "!" ++ nm
 
 formFunction :: Id -> [String] -> State t -> [PatternRes] -> IO String
 formFunction _ _ _ [] = error "formFunction: empty list"
@@ -451,13 +451,13 @@ runFunc temp src f smt_def sc@(SynthConfig { eq_file = eq_f, g2_config = config 
                                        | otherwise -> error "runFunc: func not found" 
                         Nothing -> (init_state, func)
     let sol = fmap (\(_, _, sl) -> sl) smt_def
-    -- let config'' = if sol == Just "smt_last z1 = let !x = (let !y1 = strUnit# (I# 0#); !y2 = strAppend# y1 z1; !y3 = strLen# z1; !y4 = strAt# y2 y3; !y5 = seqNthInt# y4 0# in y5) in I# x" then config' { logStates = Log Pretty "a_smt"} else config'
+    let config'' = if sol == Just "smt_rotate (I# z1) !z2 = let !x = (let !y1 = strSubstr# z2 z1 z1; !y2 = strSubstr# z2 0# z1; !y3 = strAppend# y1 y2 in y3) in x" then config' { logStates = Log Pretty "a_smt"} else config'
     -- let config'' = if isJust smt_def then config' { logStates = Log Pretty "a_smt"} else config'
     T.putStrLn $ printHaskellPG (mkPrettyGuide $ getExpr comp_state) comp_state (getExpr comp_state)
 
     let comp_state' = if checking sc == Verify then setUpVerification (idName entry_f) comp_state else comp_state
 
-    (er, b, to) <- runG2WithConfig proj src entry_f f [] mb_modname comp_state' config' bindings
+    (er, b, to) <- runG2WithConfig proj src entry_f f [] mb_modname comp_state' config'' bindings
 
     return (entry_f, er, name_gen bindings)
 
