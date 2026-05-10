@@ -41,8 +41,6 @@ import G2.Language.ExprEnv (deepLookupVar)
 import G2.Language.KnownValues (KnownValues(smtStringFuncs))
 import G2.Language.TypeClasses.TypeClasses
 
-import Debug.Trace
-
 -- | Evaluates primitives at the root of the passed `Expr` while updating the `ExprEnv`
 -- to share computed results.
 evalPrimsSharing :: ExprEnv -> TypeEnv -> TV.TyVarEnv -> KnownValues -> TypeClasses -> Expr -> (Expr, ExprEnv)
@@ -661,24 +659,9 @@ evalPrimADT3 :: ExprEnv -> TypeEnv -> TyVarEnv -> KnownValues -> TypeClasses -> 
 evalPrimADT3 _ tenv _ kv _ StrSubstr str (Lit (LitInt s)) (Lit (LitInt e)) = do
     t <- listType str
     str' <- toExprList str
-    trace ("str' = " ++ show str' ++ "   s = " ++ show s ++ "     e = " ++ show e ++ "   substr = " ++ show (substr str')) return $ toListExpr kv tenv t (substr str')
+    return $ toListExpr kv tenv t (substr str')
     where
         substr = L.genericDrop s . L.genericTake e
-        -- -- Find a substring starting at index s and ending at index e - 1
-
-        -- -- If we are at a value
-        -- substr expr@(App (Data _) _) _ _ = Just expr
-        -- -- If our starting position is negative
-        -- substr (App (App (App (Data _) typ) _) _) st _ | st < 0 = Just (App (mkEmpty kv tenv) typ)
-        -- -- If we are at the end of the substring
-        -- substr (App (App (App (Data _) typ) _) _) 0 en | en <= 0 = Just (App (mkEmpty kv tenv) typ)
-        -- -- If we are in the middle of the substring
-        -- substr (App (App (App (Data dc) typ) char) xs) 0 en = do
-        --     next_substr <- substr xs 0 (en - 1)
-        --     return (App (App (App (Data dc) typ) char) next_substr)
-        -- -- If we are not yet at the start of the substring
-        -- substr (App (App (App (Data _) _) _) xs) st en = substr xs (st - 1) en
-        -- substr _ _ _ = Nothing
 
 evalPrimADT3 _ tenv _ kv _ StrReplace s orig rep = do
         t <- listType orig

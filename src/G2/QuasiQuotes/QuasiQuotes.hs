@@ -312,6 +312,7 @@ moveOutStatePieces tenv_name s = do
         num_steps_exp = liftDataT (num_steps s)
         tags_exp = liftDataT (tags s)
         track_exp = liftDataT (track s)
+        reached_fc_ticks_exp = liftDataT (reached_fc_ticks s)
         tyvar_env_exp = liftDataT . TV.toListConcOrSym $ tyvar_env s
         pc_exp = liftDataT . PC.toList $ path_conds s
 
@@ -338,6 +339,7 @@ moveOutStatePieces tenv_name s = do
              , reached_hpc = HS.empty
              , track = $(track_exp)
              , focused = Focused
+             , reached_fc_ticks = $(reached_fc_ticks_exp)
              
              , log_path = [] } |]
 
