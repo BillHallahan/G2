@@ -15,6 +15,7 @@ module G2.Solver.SMT2 ( Z3StringSolver (..)
                       , SomeSMTSolver (..)
                       , getProcessHandles
                       , getCVC5ProcessHandles
+                      , getProcessHandlesCont
                       , getLinesMatchParens
 
                       , getZ3
@@ -367,14 +368,8 @@ stdPop con = do
     T.hPutStrLn h_in "(pop)"
 
 
--- | getProcessHandles
--- Ideally, this function should be called only once, and the same Handles should be used
--- in all future calls
-getProcessHandles :: CreateProcess -> IO (Handle, Handle, ProcessHandle)
-getProcessHandles pr = do
-    (m_h_in, m_h_out, h_err, p) <- createProcess (pr)
-        { std_in = CreatePipe, std_out = CreatePipe }
-
+setupHandles :: (Maybe Handle, Maybe Handle, Maybe Handle, ProcessHandle) -> IO (Handle, Handle, ProcessHandle)
+setupHandles (m_h_in, m_h_out, h_err, p) = do
     case h_err of
         Just h_err' -> hClose h_err'
         Nothing -> return ()
@@ -387,6 +382,26 @@ getProcessHandles pr = do
     hSetBuffering h_in LineBuffering
 
     return (h_in, h_out, p)
+
+-- | getProcessHandles
+-- Ideally, this function should be called only once, and the same Handles should be used
+-- in all future calls
+getProcessHandles :: CreateProcess -> IO (Handle, Handle, ProcessHandle)
+getProcessHandles pr = do
+    proc <- createProcess (pr)
+        { std_in = CreatePipe, std_out = CreatePipe }
+    setupHandles proc
+
+-- | getProcessHandlesCont
+-- A safer version of getProcessHandles that doesn't leave solvers running,
+-- using withCreateProcess and a continuation
+getProcessHandlesCont :: CreateProcess -> ((Handle, Handle, ProcessHandle) -> IO a) -> IO a
+getProcessHandlesCont pr cont =
+    withCreateProcess (pr { std_in = CreatePipe, std_out = CreatePipe }) f
+    where
+        f hin hout herr ph = do
+            handles <- setupHandles (hin, hout, herr, ph)
+            cont handles
 
 getZ3 :: PrintSMT -> Int -> IO Z3
 getZ3 pr_smt time_out = do

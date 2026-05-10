@@ -475,7 +475,7 @@ runFuncSMT temp src f smt_def sc@(SynthConfig { eq_file = eq_f, g2_config = conf
                                        | otherwise -> error "runFunc: func not found" 
                         Nothing -> (init_state, func)
     let sol = fmap (\(_, _, sl) -> sl) smt_def
-    -- let config'' = if sol == Just "smt_last z1 = let !x = (let !y1 = strUnit# (I# 0#); !y2 = strAppend# y1 z1; !y3 = strLen# z1; !y4 = strAt# y2 y3; !y5 = seqNthInt# y4 0# in y5) in I# x" then config' { logStates = Log Pretty "a_smt"} else config'
+    -- let config'' = if sol == Just "smt_rotate (I# z1) z2 = let !x = (let !y1 = strSubstr# z2 z1 z1; !y2 = strSubstr# z2 0# z1; !y3 = strAppend# y1 y2 in y3) in x" then config' { logStates = Log Pretty "a_smt"} else config'
     -- let config'' = if isJust smt_def then config' { logStates = Log Pretty "a_smt"} else config'
     T.putStrLn $ printHaskellPG (mkPrettyGuide $ getExpr comp_state) comp_state (getExpr comp_state)
 
@@ -782,27 +782,28 @@ synthFunc :: Id
           -> IO (Maybe SmtCmd)
 synthFunc entry_f exclude er = runSygus $ sygusCmds entry_f exclude er
 
-runSygus :: [Cmd] -> SynthConfig -> IO (Maybe (SmtCmd, String))
-runSygus sygus_cmds sc = do
-    (h_in, h_out, _) <- getCVC5Sygus 60
-    mapM_ (\c -> do
-            T.hPutStrLn h_in $ printSygus c
-            T.putStrLn $ printSygus c
-        ) sygus_cmds
-    got_input <- hWaitForInput h_out (timeout sc)
-    putStrLn $ "HERE " ++ show got_input
-    out <- getLinesMatchParens h_out
-    _ <- evaluate (length out)
-    putStrLn out
-    T.hPutStrLn h_in "(exit)"
-    -- We get back something of the form:
-    --  ((define-fun ... ))
-    -- The parseSygus function does not like having the extra "("/")" at the beginning/end-
-    -- so we drop them.
-    let sy_out = parseSygus . tail . init $ out
-    case sy_out of
-        [SmtCmd def_fun] -> return $ Just (def_fun, out)
-        _ -> return Nothing
+runSygus :: [Cmd] -> IO (Maybe SmtCmd)
+runSygus sygus_cmds = 
+    let cr_p = getCVC5Sygus 60
+        f (h_in, h_out, _) = do
+            mapM_ (\c -> do
+                    T.hPutStrLn h_in $ printSygus c
+                    T.putStrLn $ printSygus c
+                ) sygus_cmds
+            _ <- hWaitForInput h_out 1000
+            out <- getLinesMatchParens h_out
+            _ <- evaluate (length out)
+            putStrLn out
+            T.hPutStrLn h_in "(exit)"
+            -- We get back something of the form:
+            --  ((define-fun ... ))
+            -- The parseSygus function does not like having the extra "("/")" at the beginning/end-
+            -- so we drop them.
+            let sy_out = parseSygus . tail . init $ out
+            case sy_out of
+                [SmtCmd def_fun] -> return $ Just def_fun
+                _ -> return Nothing
+    in getProcessHandlesCont cr_p f
 
 sygusCmds :: Id
           -> [Symbol] -- ^ SMT function names to exclude during synthesis
@@ -1010,8 +1011,8 @@ varList x = map ((++) x . show) [1 :: Integer ..]
 argList :: [String]
 argList = varList "z"
 
-getCVC5Sygus :: Int -> IO (Handle, Handle, ProcessHandle)
-getCVC5Sygus time_out = getProcessHandles $ proc "cvc5" ["--lang", "sygus", "--tlimit-per=" ++ show time_out]
+getCVC5Sygus :: Int -> CreateProcess
+getCVC5Sygus time_out = proc "cvc5" ["--lang", "sygus", "--tlimit-per=" ++ show time_out]
 
 parseSygus :: String -> [Cmd]
 parseSygus = Sy.parse . Sy.lexSygus
