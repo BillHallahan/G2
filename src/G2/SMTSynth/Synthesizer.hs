@@ -484,9 +484,6 @@ runFunc temp src f smt_def sc@(SynthConfig { eq_file = eq_f, g2_config = config 
         runG2WithConfig proj src entry_f f [] mb_modname new_s config' new_b) new_state_bindings
     
     let reached_fc_ers = concatMap (\(er_, _, _) -> er_) reached_fc_res
-    -- mapM (\er_ -> print . reached_fc_ticks $ final_state er_) er
-    putStrLn $ "new_states = " ++ show (length new_state_bindings)
-    putStrLn $ "reached_fc_ers = " ++ show (length reached_fc_ers)
 
     return (entry_f, er ++ reached_fc_ers, name_gen bindings)
 
