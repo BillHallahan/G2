@@ -451,27 +451,63 @@ runFunc temp src f smt_def sc@(SynthConfig { eq_file = eq_f, g2_config = config 
                                        | otherwise -> error "runFunc: func not found" 
                         Nothing -> (init_state, func)
     let sol = fmap (\(_, _, sl) -> sl) smt_def
-    let config'' = if sol == Just "smt_rotate (I# z1) !z2 = let !x = (let !y1 = strSubstr# z2 z1 z1; !y2 = strSubstr# z2 0# z1; !y3 = strAppend# y1 y2 in y3) in x" then config' { logStates = Log Pretty "a_smt"} else config'
+    -- let config'' = if sol == Just "smt_rotate (I# z1) !z2 = let !x = (let !y1 = strSubstr# z2 z1 z1; !y2 = strSubstr# z2 0# z1; !y3 = strAppend# y1 y2 in y3) in x" then config' { logStates = Log Pretty "a_smt"} else config'
     -- let config'' = if isJust smt_def then config' { logStates = Log Pretty "a_smt"} else config'
     T.putStrLn $ printHaskellPG (mkPrettyGuide $ getExpr comp_state) comp_state (getExpr comp_state)
 
     let comp_state' = if checking sc == Verify then setUpVerification (idName entry_f) comp_state else comp_state
 
-    (er, b, to) <- runG2WithConfig proj src entry_f f [] mb_modname comp_state' config'' bindings
+    (er, bindings', _) <- runG2WithConfig proj src entry_f f [] mb_modname comp_state' config' bindings
 
-    return (entry_f, er, name_gen bindings)
+    let new_state_bindings =
+            concatMap (\ExecRes { final_state = s@State { expr_env = eenv, tyvar_env = tv_env } } ->
+                            map (\fc->
+                                    let
+                                        func_t = typeOf tv_env $ fromMaybe (error "runFunc: func not found") $ E.lookup (funcName fc) eenv
+                                        num_ty = length $ leadingTyForAllBindings func_t
+
+                                        (arg_ns, ng') = freshIds (map (typeOf tv_env) $ arguments fc) (name_gen bindings')
+                                        ty_args_ns = take num_ty arg_ns
+                                        var_args_ns = drop num_ty arg_ns
+
+                                        tv_env' = foldr (\(Id n _, e) -> TV.insert n (fromMaybe TyBottom $ TV.deepLookup tv_env e)) tv_env (zip ty_args_ns $ arguments fc)
+                                        eenv' = foldr (\(Id n _, e) -> E.insert n e) eenv (zip var_args_ns . drop num_ty $ arguments fc)
+                                    in
+                                    ( s { expr_env = eenv', tyvar_env = tv_env', curr_expr = CurrExpr Evaluate . mkApp $ Var (Id (funcName fc) TyUnknown):map Var arg_ns}
+                                    , bindings' { input_names = map idName arg_ns, name_gen = ng' })
+                                ) (reached_fc_ticks s)
+                      ) er
+    reached_fc_res <- mapM (\(new_s, new_b) -> do
+        -- let config'' = if sol == Just "($!+$++) !z1 !z2 = let !x = (let !y1 = strAppend# z2 z1 in y1) in x"
+        --                         then config' { logStates = Log Pretty "a_smt_h"}
+        --                         else config'
+        runG2WithConfig proj src entry_f f [] mb_modname new_s config' new_b) new_state_bindings
+    
+    let reached_fc_ers = concatMap (\(er_, _, _) -> er_) reached_fc_res
+    -- mapM (\er_ -> print . reached_fc_ticks $ final_state er_) er
+    putStrLn $ "new_states = " ++ show (length new_state_bindings)
+    putStrLn $ "reached_fc_ers = " ++ show (length reached_fc_ers)
+
+    return (entry_f, er ++ reached_fc_ers, name_gen bindings)
 
 setUpVerification :: Name -> State t -> State t
-setUpVerification entry_n s@(State { expr_env = eenv, known_values = kv  })
+setUpVerification entry_n s@(State { expr_env = eenv, known_values = kv, tyvar_env = tv_env })
     | Just entry_e <- E.lookup entry_n eenv
     , Just (smt_n, _) <- E.lookupNameMod (smtName $ nameOcc entry_n) (Just "Spec") eenv
     , Just (placeholder_n, place_e) <- E.lookupNameMod "placeholder" (Just "Spec") eenv
     ,  Just (placeholder_ret_n, _) <- E.lookupNameMod "placeholderRet" (Just "Spec") eenv =
         let place_e' = renameVars entry_n smt_n place_e in
-        s { expr_env = E.insert placeholder_ret_n entry_e
+        s { expr_env = E.insert entry_n (insertFCTick entry_e)
+                     . E.insert placeholder_ret_n entry_e
                      $ E.insert placeholder_n place_e' eenv
           , known_values = addSmtStringFunc smt_n kv }
     | otherwise = s
+    where
+        ret_name = Name "G2_!!_RET_VAR" Nothing 0 Nothing
+        insertFCTick =
+            insertInLams (\is e ->
+                            let ret_id = Id ret_name (typeOf tv_env e) in
+                            Let [(ret_id, e)] $ Tick (FCTick $ FuncCall { funcName = entry_n, arguments = map Var is, returns = Var ret_id }) (Var ret_id))
 
 smtNameWrap :: T.Text -> T.Text
 smtNameWrap n | Just (c, _) <- T.uncons n

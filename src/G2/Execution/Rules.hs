@@ -1073,6 +1073,8 @@ evalCast s@(State { expr_env = eenv
 evalTick :: State t -> NameGen -> Tickish -> Expr -> (Rule, [State t], NameGen)
 evalTick s ng (HpcTick i tm) e =
     (RuleTick, [ s { curr_expr = CurrExpr Evaluate e, reached_hpc = HS.insert (i, tm) (reached_hpc s) }], ng)
+evalTick s ng (FCTick fc) e =
+    (RuleTick, [ s { curr_expr = CurrExpr Evaluate e, reached_fc_ticks = fc:reached_fc_ticks s }], ng)
 evalTick s ng _ e = (RuleTick, [ s { curr_expr = CurrExpr Evaluate e }], ng)
 
 evalNonDet :: State t -> NameGen -> [Expr] -> (Rule, [State t], NameGen)
