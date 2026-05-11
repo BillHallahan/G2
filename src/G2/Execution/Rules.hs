@@ -164,7 +164,7 @@ evalForAll as ts tr s@(State {type_env = tenv, known_values = kv, tyvar_env = tv
         
         -- Prioritize certain rules before others. '->' means: if no states from before rule, only then attempt to apply the next one.
         -- Current priority sets:
-        --      PM-NON-CONT -> PM-UNWRAP -> PM-CYCLE -> {PM-INST-DIRECT, PM-INST-DC, PM-FUNC, PM-FUNC-FORALL, PM-CONST}
+        --      PM-NON-CONT -> PM-UNWRAP -> {PM-INST-DIRECT, PM-INST-DC, PM-FUNC, PM-FUNC-FORALL, PM-CONST}
         rule_priority_list = [[(pmNonCont, "PM-NON-CONT")], 
                               [(pmUnwrap, "PM-UNWRAP")],  
                               [(pmInstVar, "PM-INST-VAR"), (pmInstADT, "PM-INST-ADT"), 
@@ -390,14 +390,13 @@ evalForAll as ts tr s@(State {type_env = tenv, known_values = kv, tyvar_env = tv
             | possFA_ty@(TyFun _ _) <- typeOf tvenv possFA 
                 = containsTyVars possFA_ty as_ids 
             | otherwise = False
-
-        -- TODO: Assuming PM-NON-CONT has floated out functions with containsTyVars == False
+ 
         isMatchingFuncArgForall :: Id -> Bool
         isMatchingFuncArgForall poss_faf
             | poss_faf_ty <- typeOf tvenv poss_faf
             , poss_faf_as@(_:_) <- leadingTyForAllBindings poss_faf_ty
             , (TyFun _ _) <- inTyForAlls poss_faf_ty 
-            , kindsHandled poss_faf_as = assert (containsTyVars poss_faf_ty as_ids) True
+            , kindsHandled poss_faf_as = assert (containsTyVars poss_faf_ty as_ids) True -- Assuming PM-NON-CONT has floated out functions with containsTyVars == False
             | otherwise = False
 
         -- Creates arguments for a function argument or data constructor. The arguments may be:
@@ -2013,6 +2012,7 @@ tyFunTys :: Type -> [Type]
 tyFunTys (TyFun t1 t2) = t1:tyFunTys t2
 tyFunTys t = [t]
 
+-- TODO[Jacob]: move this to gen adt module
 -- | For use during symbolic function instantiation, when a polymorphic function 
 -- is being applied in a definition. Checks if all Ids have kinds that are currently handled.
 kindsHandled :: [Id] -> Bool
@@ -2025,7 +2025,9 @@ kindHandled k | kindHandled' k = True
     where
         kindHandled' :: Kind -> Bool
         kindHandled' TYPE = True
-        kindHandled' (TyFun k1 k2) = kindHandled' k1 && kindHandled' k2
+        kindHandled' (TyFun k1 k2) 
+            =   kindHandled' k1 -- higher kind allowed
+             && kindHandled' k2 -- function kind allowed
         kindHandled' _ = False
 
 argTypes :: Type -> ([Type], Type)

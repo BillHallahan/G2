@@ -37,7 +37,7 @@ printInputOutput :: PrettyGuide
                  -> Id -- ^ Input function
                  -> Bindings
                  -> ExecRes t
-                 -> (T.Text, T.Text, T.Text, T.Text, T.Text, T.Text) -- ^ Mutable variables, input, output, handles
+                 -> (T.Text, T.Text, T.Text, T.Text, T.Text, T.Text) -- ^ Generated ADTs, generated class instances, mutable variables, input, output, handles
 printInputOutput pg i (Bindings { input_coercion = c }) er =
     let
         er' = er { conc_args = modifyASTs remMutVarPrim (conc_args er)
