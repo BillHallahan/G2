@@ -452,13 +452,13 @@ runFunc temp src f smt_def sc@(SynthConfig { eq_file = eq_f, g2_config = config 
                         Nothing -> (init_state, func)
     let sol = fmap (\(_, _, sl) -> sl) smt_def
 
-    let config'' = if sol == Just "smt_rotate (I# z1) !z2 = let !x = (let !y1 = strLen# z2; !_let_1 = y1; !y2 = modInt# z1 _let_1; !_let_2 = y2; !y3 = strSubstr# z2 _let_2 z1; !y4 = (+#) z1 z1; !y5 = strSubstr# z2 y4 _let_1; !y6 = strSubstr# z2 0# _let_2; !y7 = strAppend# y5 y6; !y8 = strAppend# y3 y7 in y8) in x" then config' { logStates = Log Pretty "a_smt"} else config'
+    -- let config'' = if sol == Just "smt_rotate (I# z1) !z2 = let !x = (let !y1 = strLen# z2; !_let_1 = y1; !y2 = modInt# z1 _let_1; !_let_2 = y2; !y3 = strSubstr# z2 _let_2 z1; !y4 = (+#) z1 z1; !y5 = strSubstr# z2 y4 _let_1; !y6 = strSubstr# z2 0# _let_2; !y7 = strAppend# y5 y6; !y8 = strAppend# y3 y7 in y8) in x" then config' { logStates = Log Pretty "a_smt"} else config'
     -- let config'' = if isJust smt_def then config' { logStates = Log Pretty "a_smt"} else config'
     T.putStrLn $ printHaskellPG (mkPrettyGuide $ getExpr comp_state) comp_state (getExpr comp_state)
 
     let comp_state' = if checking sc == Verify then setUpVerification (idName entry_f) comp_state else comp_state
 
-    (er, bindings', _) <- runG2WithConfig proj src entry_f f [] mb_modname comp_state' config'' bindings
+    (er, bindings', _) <- runG2WithConfig proj src entry_f f [] mb_modname comp_state' config' bindings
 
     let new_state_bindings =
             concatMap (\ExecRes { final_state = s@State { expr_env = eenv, tyvar_env = tv_env } } ->
@@ -606,10 +606,13 @@ runSygus sygus_cmds =
             --  ((define-fun ... ))
             -- The parseSygus function does not like having the extra "("/")" at the beginning/end-
             -- so we drop them.
-            let sy_out = parseSygus . tail . init $ out
-            case sy_out of
-                [SmtCmd def_fun] -> return $ Just def_fun
-                _ -> return Nothing
+            let stripped_out = tail . init $ out
+            let sy_out = parseSygus stripped_out
+            case stripped_out of
+                "infeasible" -> return Nothing
+                _ -> case sy_out of
+                        [SmtCmd def_fun] -> return $ Just def_fun
+                        _ -> return Nothing
     in getProcessHandlesCont cr_p f
 
 sygusCmds :: Id
