@@ -6,6 +6,7 @@ module G2.Interface.Interface ( MkCurrExpr
                               , MkArgTypes
                               , IT.SimpleState
                               , TimedOut (..)
+                              , GotUnknown (..)
                               , doTimeout
                               , maybeDoTimeout
 
@@ -577,12 +578,13 @@ runG2FromFile proj src gflags m_assume m_assert m_reach def_assert f transConfig
                                     m_reach def_assert f (mkCurrExpr TV.empty m_assume m_assert) (mkArgTys config TV.empty)
                                     transConfig config
 
-    (er, b, to) <- runG2WithConfig proj src entry_f f gflags mb_modname init_state config bindings
+    (er, _, b, to) <- runG2WithConfig proj src entry_f f gflags mb_modname init_state config bindings
 
     return (er, init_state, b, to, entry_f, S.fromList mb_modname)
 
 runG2WithConfig :: [FilePath]-> [FilePath] -> Id -> StartFunc -> [GeneralFlag] -> [Maybe T.Text] -> State () -> Config -> Bindings
                 -> IO ( [ExecRes ()]
+                      , GotUnknown
                       , Bindings
                       , TimedOut -- ^ Did any states timeout?
                       )
@@ -608,7 +610,7 @@ runG2WithConfig proj src entry_f f gflags mb_modname state config bindings = do
         analysis3 = if print_num_red_rules config then [\s p xs -> SM.lift . SM.lift . SM.lift . SM.lift . SM.lift . SM.lift $ logRedRuleNum s p xs] else noAnalysis
         analysis = analysis1 ++ analysis2 ++ analysis3
 
-    (in_out, bindings'', timed_out) <- case null analysis of
+    (in_out, got_unknown, bindings'', timed_out) <- case null analysis of
         True -> do
             rho <- initRedHaltOrd state' all_mod_set solver simplifier config (S.fromList executable_funcs) (S.fromList non_rec_funcs)
             case rho of
@@ -661,13 +663,13 @@ runG2WithConfig proj src entry_f f gflags mb_modname state config bindings = do
 
     close solver
 
-    return (in_out, bindings'', timed_out)
+    return (in_out, got_unknown, bindings'', timed_out)
 
-addTimedOut :: MonadIO m => IORef TimedOut -> m (a, b) -> m (a, b, TimedOut)
+addTimedOut :: MonadIO m => IORef TimedOut -> m (a, b, c) -> m (a, b, c, TimedOut)
 addTimedOut to m = do
-    (er, b) <- m
+    (er, b, c) <- m
     to' <- liftIO $ readIORef to
-    return (er, b, to')
+    return (er, b, c, to')
 
 getFuncsByModule :: [Maybe T.Text] -> [Name] -> [Name]
 getFuncsByModule ms reachable_funcs = 
@@ -698,7 +700,7 @@ getFuncsByAssert g reachable_funcs =
                 -> MemConfig
                 -> State ()
                 -> Bindings
-                -> RHOStack IO () ([ExecRes ()], Bindings)
+                -> RHOStack IO () ([ExecRes ()], GotUnknown, Bindings)
     #-}
 runG2WithSomes :: ( MonadIO m
                   , Named t
@@ -715,7 +717,7 @@ runG2WithSomes :: ( MonadIO m
                -> MemConfig
                -> State t
                -> Bindings
-               -> m ([ExecRes t], Bindings)
+               -> m ([ExecRes t], GotUnknown, Bindings)
 runG2WithSomes red hal ord analyze solver simplifier mem state bindings =
     case (red, hal, ord) of
         (SomeReducer red', SomeHalter hal', SomeOrderer ord') ->
@@ -735,7 +737,7 @@ runG2WithSomes' :: ( MonadIO m
                -> simplifier
                -> State t
                -> Bindings
-               -> m ([ExecRes t], Bindings)
+               -> m ([ExecRes t], GotUnknown, Bindings)
 runG2WithSomes' red hal ord analyze solver simplifier state bindings =
     case (red, hal, ord) of
         (SomeReducer red', SomeHalter hal', SomeOrderer ord') ->
@@ -764,7 +766,7 @@ runG2WithValidate :: ( MonadIO m
                -> State t
                -> Config
                -> Bindings
-               -> m ([ExecRes t], Bindings)
+               -> m ([ExecRes t], GotUnknown, Bindings)
 runG2WithValidate proj src modN entry entry_id gflags red hal ord analyze solver simplifier state config bindings =
     runGhcT (Just libdir) (case (red, hal, ord) of
         (SomeReducer red', SomeHalter hal', SomeOrderer ord') -> do
@@ -790,7 +792,7 @@ runG2Post :: ( MonadIO m
              , Solver solver
              , Simplifier simplifier
              , Ord b) => Reducer m rv t -> Halter m hv (ExecRes t) t -> Orderer m sov b (ExecRes t) t ->
-             solver -> simplifier -> State t -> Bindings -> m ([ExecRes t], Bindings)
+             solver -> simplifier -> State t -> Bindings -> m ([ExecRes t], GotUnknown, Bindings)
 runG2Post red hal ord solver simplifier is bindings = do
     runExecution red hal ord (runG2Solving solver simplifier) [] is bindings
 
@@ -823,12 +825,8 @@ runG2Solving :: ( MonadIO m
              -> simplifier
              -> State t
              -> Bindings
-             -> m (Maybe (ExecRes t, NameGen))
-runG2Solving solver simplifier s bindings = do
-    res <- liftIO $ runG2SolvingResult solver simplifier bindings s
-    case res of
-        SAT m -> return $ Just m
-        _ -> return Nothing
+             -> m (Result (ExecRes t, NameGen) () ())
+runG2Solving solver simplifier s bindings = liftIO $ runG2SolvingResult solver simplifier bindings s
 
 runG2SolvingValidate :: ( MonadIO m
                         , GhcMonad m
@@ -844,11 +842,11 @@ runG2SolvingValidate :: ( MonadIO m
              -> simplifier
              -> State t
              -> Bindings
-             -> m (Maybe (ExecRes t, NameGen))
+             -> m (Result (ExecRes t, NameGen) () ())
 runG2SolvingValidate modN entry entry_id config solver simplifier s bindings = do
     res <- runG2Solving solver simplifier s bindings
     case res of
-        Just (m, ng) | validate config -> do
+        SAT (m, ng) | validate config -> do
                 let m' = if print_encode_float config then toEnclodeFloat m else m
 
                 (res', isVal) <- runValidate (validate_with config) modN entry solver simplifier bindings m' 5
@@ -857,8 +855,8 @@ runG2SolvingValidate modN entry entry_id config solver simplifier s bindings = d
                 liftIO $ do
                     printStateOutput config entry_id bindings (Just isVal) m'
 
-                return (Just( res'', ng))
-        Just (m, _) -> do
+                return (SAT (res'', ng))
+        SAT (m, _) -> do
             liftIO $ printStateOutput config entry_id bindings Nothing m
             return res
         _ -> return res
@@ -893,8 +891,8 @@ runValidate val_with modN entry solver simplifier bindings
                 fs' = fs {expr_env = eenv', path_conds = newPc}
             res' <- runG2Solving solver simplifier fs' bindings
             case res' of
-                Just (m, !_) -> runValidate val_with modN entry solver simplifier bindings m (runLimit - 1)
-                Nothing -> return (res, isValidated)
+                SAT (m, !_) -> runValidate val_with modN entry solver simplifier bindings m (runLimit - 1)
+                _ -> return (res, isValidated)
         _ -> return (res, isValidated)
 
     where 
@@ -960,7 +958,7 @@ runG2SubstModel m s@(State { expr_env = eenv, type_env = tenv, tyvar_env = tv_en
                         , Simplifier simplifier
                         , Ord b) => Reducer (RHOStack IO ()) rv () -> Halter (RHOStack IO ()) hv (ExecRes ()) () -> Orderer (RHOStack IO ()) sov b (ExecRes ()) () ->
                         [AnalyzeStates (RHOStack IO ()) (ExecRes ()) ()] ->
-                        solver -> simplifier -> MemConfig -> State () -> Bindings -> RHOStack IO () ([ExecRes ()], Bindings)
+                        solver -> simplifier -> MemConfig -> State () -> Bindings -> RHOStack IO () ([ExecRes ()], GotUnknown, Bindings)
     #-}
 
 
@@ -973,7 +971,7 @@ runG2 :: ( MonadIO m
          , Solver solver
          , Simplifier simplifier
          , Ord b) => Reducer m rv t -> Halter m hv (ExecRes t) t -> Orderer m sov b (ExecRes t) t -> [AnalyzeStates m (ExecRes t) t] ->
-         solver -> simplifier -> MemConfig -> State t -> Bindings -> m ([ExecRes t], Bindings)
+         solver -> simplifier -> MemConfig -> State t -> Bindings -> m ([ExecRes t], GotUnknown, Bindings)
 runG2 red hal ord analyze solver simplifier mem is bindings = do
     let (is', bindings') = runG2Pre mem is bindings
     runExecution red hal ord (runG2Solving solver simplifier) analyze is' bindings'

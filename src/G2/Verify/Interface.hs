@@ -207,7 +207,7 @@ verifyFromFile proj src f transConfig config verify_config = do
     init_time <- getTime Realtime
     rho <- verifyRedHaltOrd verifier_state solver simplifier config' verify_config (S.fromList no_nrpc_names)
     let to = case rho of (_, _, _, to_)-> to_
-    (er, bindings''') <-
+    (er, got_unknown, bindings''') <-
             case rho of
                 (red, hal, ord, _) ->
                         SM.evalStateT

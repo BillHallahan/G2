@@ -40,6 +40,7 @@ module G2.Execution.Reducer ( Reducer (..)
                             , UpdateSelected
 
                             , Processed (..)
+                            , GotUnknown (..)
 
                             , ReducerRes (..)
                             , HaltC (..)
@@ -220,9 +221,13 @@ data ExState rv hv sov t = ExState { state :: State t
 exStateToState :: ExState rv hv sov t -> State t
 exStateToState = state
 
+data GotUnknown = GotUnknown | NoUnknowns deriving (Eq, Show)
+
 -- | Keeps track of type a's that have either been accepted or dropped
 data Processed acc dis = Processed { accepted :: [acc]
-                                   , discarded :: [dis] }
+                                   , discarded :: [dis]
+                                   , unknown_state :: GotUnknown -- ^ Set to true if solving a State returns unknown
+                                   }
 
 -- | Used by Reducers to indicate their progress reducing.
 data ReducerRes = NoProgress | InProgress | Finished deriving (Eq, Ord, Show, Read)
@@ -2396,7 +2401,7 @@ logRedRuleNum _ _ _ = return ()
 --------
 
 -- | Solve for concrete values in a fully executed state.
-type SolveStates m r t = State t -> Bindings -> m (Maybe (r, NameGen))
+type SolveStates m r t = State t -> Bindings -> m (Result (r, NameGen) () ())
 
 {-# INLINABLE runReducer #-}
 {-# SPECIALIZE runReducer :: Ord b =>
@@ -2431,7 +2436,7 @@ runReducer :: forall m b rv hv sov r t .
            -> Bindings
            -> m (Processed r (State t), Bindings)
 runReducer red hal ord solve_r analyze init_state init_bindings = do
-    let pr = Processed {accepted = [], discarded = []}
+    let pr = Processed {accepted = [], discarded = [], unknown_state = NoUnknowns }
     let s' = ExState { state = init_state
                      , reducer_val = initReducer red init_state
                      , halter_val = initHalt hal init_state
@@ -2457,10 +2462,11 @@ runReducer red hal ord solve_r analyze init_state init_bindings = do
                         er_ng <- solve_r s' b'
                         sequence_ $ analyze <*> pure (StateAccepted s') <*> pure pr <*> pure (map state . concat $ M.elems xs)
                         (pr', ng') <- case er_ng of
-                                        Just (er', ng) -> do
+                                        SAT (er', ng) -> do
                                             onSolved red
-                                            return $ (pr {accepted = er':accepted pr}, ng)
-                                        Nothing -> return (pr, name_gen b')
+                                            return $ (pr { accepted = er':accepted pr }, ng)
+                                        Unknown _ _ -> return (pr { unknown_state = GotUnknown }, name_gen b')
+                                        _ -> return (pr, name_gen b')
                         let b'' = b' { name_gen = ng' }
                         let jrs = minState pr' xs
                         case jrs of

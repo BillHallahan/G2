@@ -97,10 +97,10 @@ reduceNewPC' solver simplifier ng
 
         res <- check solver s rel_pc
 
-        if res == SAT () then
-            return $ Just (ng', s')
-        else
-            return Nothing
+        case res of
+            SAT () -> return $ Just (ng', s')
+            UNSAT () -> return Nothing
+            Unknown _ _-> return $ Just (ng', s')
     | otherwise = return $ Just (ng, s)
     where
         insertInOrder inserter exprs_ eenv_ = foldl' (flip $ uncurry inserter) eenv_ exprs_
