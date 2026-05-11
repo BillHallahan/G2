@@ -2,6 +2,7 @@ module G2.Config.Config ( Mode (..)
                         , LogMode (..)
                         , LogMethod (..)
                         , Sharing (..)
+                        , DiscardUnknownStates (..)
                         , SMTSolver (..)
                         , SearchStrategy (..)
                         , HigherOrderSolver (..)
@@ -50,6 +51,8 @@ data LogMethod = Raw | Pretty deriving (Eq, Show, Read)
 
 -- | Do we use sharing to only reduce variables once?
 data Sharing = Sharing | NoSharing deriving (Eq, Show, Read)
+
+data DiscardUnknownStates = DiscardUnknown | KeepUnknown deriving (Eq, Show, Read)
 
 -- Instantiate type variables before or after symbolic execution
 data InstTV = InstBefore | InstAfter deriving (Eq, Show, Read)
@@ -126,6 +129,7 @@ data Config = Config {
     , smt :: SMTSolver -- ^ Sets the SMT solver to solve constraints with
     , smt_timeout :: Int -- ^ Sets the timeout (in seconds) for the SMT solver
     , smt_path :: Maybe FilePath -- ^ Location of SMT solver
+    , smt_discard_on_unknown :: DiscardUnknownStates -- ^ Discard a state when the SMT solver returns unknown
     , smt_strings :: UseSMTStrings -- ^ Sets whether the SMT solver should be used to solve string constraints
     , smt_strings_strictness :: SMTStringsEval -- ^ Force strict evaluation of strings to allow more use of SMT reasoning
     , quantified_smt_strings :: SMTQuantifiers -- ^ Sets how quantifiers should be used in SMT functions
@@ -230,6 +234,7 @@ mkConfig homedir = Config Regular
                 <> metavar "SMT-PATH"
                 <> value Nothing
                 <> help "path to an SMT solver")
+    <*> flag KeepUnknown DiscardUnknown (long "smt-discard-on-unknown" <> help "Discard a state as soon as the SMT solver returns unknown for a path constraint")
     <*> flag NoSMTStrings UseSMTStrings (long "smt-strings" <> help "Sets whether the SMT solver should be used to solve string constraints")
     <*> flag LazySMTStrings StrictSMTStrings (long "strict-strings" <> help "Force evaluation of strings, to allow more strings to be handled via SMT reasoning")
     <*> option (maybeReader quantStrings) (long "quant-smt-strings"
@@ -422,6 +427,7 @@ mkConfigDirect homedir as m = Config {
     , smt = strArg "smt" as m smtSolverArg ConZ3
     , smt_timeout = 10
     , smt_path = Nothing
+    , smt_discard_on_unknown = KeepUnknown
     , smt_strings = NoSMTStrings
     , smt_strings_strictness = LazySMTStrings
     , quantified_smt_strings = UnrollQuant 10

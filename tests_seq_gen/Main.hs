@@ -206,7 +206,7 @@ smtSynthTestRunSymexWithConfig io_config src f p min_out max_out =
         config <- io_config
         r <- timeout (480 * 1000000) $ runFunc (T.unpack src) [] f Nothing config
         assertBool "Error" (maybe False 
-                                (\(_, er, _) -> maybe True (<= length er) min_out && maybe True (length er <=) max_out && all (p . getExpr . final_state) er)
+                                (\(_, er, _, _) -> maybe True (<= length er) min_out && maybe True (length er <=) max_out && all (p . getExpr . final_state) er)
                                 r
                            )
     )
