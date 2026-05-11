@@ -46,7 +46,7 @@ main = do
                 con'' <- addSMTDefs gen_for_ty dir_name con'
 
                 last_sol_io_ref <- newIORef Nothing
-                m_ty_def <- doTimeout 120 $ genSMTFunc [src] f (sc { excluded_funcs = exclude' ++ exclude_for_all, g2_config = con'' }) (Just last_sol_io_ref)
+                m_ty_def <- doTimeout 500 $ genSMTFunc [src] f (sc { excluded_funcs = exclude' ++ exclude_for_all, g2_config = con'' }) (Just last_sol_io_ref)
                 m_last_sol <- readIORef last_sol_io_ref
                 
                 updateMainSMT $ "SMT":gen_for_ty:dir_name
