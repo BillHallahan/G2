@@ -803,8 +803,9 @@ isSMTRep eenv kv e
     | Just (E.Conc e) <- c_s
     , Prim p _:_ <- unApp e
     , not (isErrorPrim p) = True
-    | Just (E.Conc e) <- c_s 
-    , isSymString eenv kv e = True
+    | Just (E.Conc e') <- c_s 
+    , isSymList eenv kv e' = True
+    | Just (E.Conc (Tick _ e')) <- c_s = isSMTRep eenv kv e'
     | otherwise = False
     where
         c_s = case e of
@@ -836,8 +837,8 @@ evalsToSMTRep seen eenv kv tc = go
         go _ = False
 
 -- | Is the expression a symbolically representable string?
-isSymString :: ExprEnv -> KnownValues ->  Expr -> Bool
-isSymString eenv kv = go HS.empty
+isSymList :: ExprEnv -> KnownValues ->  Expr -> Bool
+isSymList eenv kv = go HS.empty
     where
         go seen (Var (Id n _))
             -- If we have already seen a variable, we have an infinite list, i.e.:
@@ -849,12 +850,16 @@ isSymString eenv kv = go HS.empty
         go _ (Data dc) | dc_name dc == KV.dcCons kv = True
                        | dc_name dc == KV.dcEmpty kv = True
                        | dc_name dc == KV.dcChar kv = True
+                       | dc_name dc == KV.dcInt kv = True
+                       | dc_name dc == KV.dcInteger kv = True
+                       | dc_name dc == KV.dcFloat kv = True
         go seen (App e1 e2)
             | Data _:_ <- unApp e1 = go seen e1 && go seen e2
-        go _ (Lit (LitChar _)) = True
+        go _ (Lit _) = True
         go _ (Type _) = True
         go seen (Tick _ e) = go seen e
         go _ _ = False
+
 
 evalTypeDCPrim2 :: TypeEnv -> TV.TyVarEnv -> Primitive -> Type -> DataCon -> Maybe Expr
 evalTypeDCPrim2 tenv tv_env DataToTag t dc  =
