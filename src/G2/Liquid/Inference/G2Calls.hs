@@ -173,11 +173,11 @@ runLHG2Inference :: (MonadIO m, Solver solver, Simplifier simplifier)
                  -> Bindings
                  -> m ([ExecRes AbstractedInfo], Bindings)
 runLHG2Inference config red hal ord solver simplifier pres_names init_id final_st bindings = do
-    (ret, final_bindings) <- case (red, hal, ord) of
+    (ret, _, final_bindings) <- case (red, hal, ord) of
                                 (SomeReducer red', SomeHalter hal', SomeOrderer ord') -> do
                                     let (s', b') = runG2Pre pres_names final_st bindings
                                     runExecution red' hal' ord'
-                                                 (\s b -> return . Just $ (earlyExecRes b s, name_gen b))
+                                                 (\s b -> return . SAT $ (earlyExecRes b s, name_gen b))
                                                  noAnalysis
                                                  s' b'
     
@@ -249,12 +249,12 @@ runG2ThroughExecutionInference :: ( MonadIO m
                    , Named t
                    , ASTContainer t Expr
                    , ASTContainer t Type) =>
-        SomeReducer m t -> SomeHalter m (ExecRes t) t -> SomeOrderer m (ExecRes t) t -> [AnalyzeStates m (ExecRes t) t] -> solver -> simplifier -> MemConfig -> State t -> Bindings -> m ([ExecRes t], Bindings)
+        SomeReducer m t -> SomeHalter m (ExecRes t) t -> SomeOrderer m (ExecRes t) t -> [AnalyzeStates m (ExecRes t) t] -> solver -> simplifier -> MemConfig -> State t -> Bindings -> m ([ExecRes t], GotUnknown, Bindings)
 runG2ThroughExecutionInference red hal ord _ _ _ pres s b = do
     case (red, hal, ord) of
             (SomeReducer red', SomeHalter hal', SomeOrderer ord') -> do
                     let (s', b') = runG2Pre pres s b
-                    runExecution red' hal' ord' (\s b -> return . Just $ (earlyExecRes b s, name_gen b)) noAnalysis s' b'
+                    runExecution red' hal' ord' (\s b -> return . SAT $ (earlyExecRes b s, name_gen b)) noAnalysis s' b'
 
 runG2SolvingInference :: (MonadIO m, Solver solver, Simplifier simplifier) => solver -> simplifier -> Bindings -> ExecRes AbstractedInfo -> m (ExecRes AbstractedInfo, NameGen)
 runG2SolvingInference solver simplifier bindings (ExecRes { final_state = s }) = do
@@ -374,7 +374,7 @@ gatherAllowedCalls entry m lrs ghci infconfig config lhconfig = do
                   , track = [] :: [FuncCall] }
 
     (red, hal, ord) <- gatherReducerHalterOrderer infconfig config' lhconfig solver simplifier
-    (exec_res, bindings'') <- SM.evalStateT (runG2WithSomes red hal ord noAnalysis solver simplifier pres_names s'' bindings') (mkPrettyGuide ())
+    (exec_res, _, bindings'') <- SM.evalStateT (runG2WithSomes red hal ord noAnalysis solver simplifier pres_names s'' bindings') (mkPrettyGuide ())
 
     putStrLn $ "length exec_res = " ++ show (length exec_res)
 
@@ -710,7 +710,7 @@ checkCounterexample lrs ghci config lhconfig cex@(FuncCall { funcName = Name n m
     let s' = checkCounterexample' cex s
 
     SomeSolver solver <- initSolver config
-    (fsl, _) <- genericG2Call config solver s' bindings
+    (fsl, _, _) <- genericG2Call config solver s' bindings
     close solver
 
     -- We may return multiple states if any of the specifications contained a SymGen
@@ -826,7 +826,7 @@ checkPreHigherOrder ld es (FuncCall {funcName = (Name _ _ i _), arguments = as, 
         s' = (ls_state ld) { curr_expr = CurrExpr Evaluate . modifyASTs repAssumeWithAssumption . mkApp $ e':as
                            , true_assert = True }
         bindings = ls_bindings ld
-    (fsl, _) <- liftIO $ genericG2Call config solver s' bindings
+    (fsl, _, _) <- liftIO $ genericG2Call config solver s' bindings
     liftIO $ close solver
 
     -- We may return multiple states if any of the specifications contained a SymGen
@@ -867,7 +867,7 @@ checkPreOrPost' extract ars ld@(LiquidData { ls_state = s, ls_bindings = binding
     case checkFromMap ars (extract ld) cex s of
         Just s' -> do
             SomeSolver solver <- liftIO $ initSolver config
-            (fsl, _) <- liftIO $ genericG2Call config solver s' bindings
+            (fsl, _, _) <- liftIO $ genericG2Call config solver s' bindings
             liftIO $ close solver
 
             -- We may return multiple states if any of the specifications contained a SymGen
@@ -995,7 +995,7 @@ evalMeasures' s bindings solver config meas tcv init_meas e =  do
         case HM.lookup ns =<< HM.lookup e_in meas_exs of
             Just _ -> return meas_exs
             Nothing -> do
-                (er, _) <- liftIO $ genericG2Call config solver s_meas bindings
+                (er, _, _) <- liftIO $ genericG2Call config solver s_meas bindings
                 case er of
                     [er'] -> 
                         let 
@@ -1094,7 +1094,7 @@ genericG2Call :: ( MonadIO m
                  , ASTContainer t Expr
                  , ASTContainer t Type
                  , Named t
-                 , Solver solver) => Config -> solver -> State t -> Bindings -> m ([ExecRes t], Bindings)
+                 , Solver solver) => Config -> solver -> State t -> Bindings -> m ([ExecRes t], GotUnknown, Bindings)
 genericG2Call config solver s bindings = do
     let simplifier = NaNInfBlockSimplifier :>> FloatSimplifier :>> ArithSimplifier
         share = sharing config
@@ -1118,7 +1118,7 @@ genericG2CallLogging :: ( MonadIO m
                      -> State t
                      -> Bindings
                      -> String
-                     -> (SM.StateT PrettyGuide m) ([ExecRes t], Bindings)
+                     -> (SM.StateT PrettyGuide m) ([ExecRes t], GotUnknown, Bindings)
 genericG2CallLogging config solver s bindings lg = do
     let simplifier = NaNInfBlockSimplifier :>> FloatSimplifier :>> ArithSimplifier
         share = sharing config

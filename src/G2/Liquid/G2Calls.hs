@@ -39,6 +39,7 @@ import Data.Tuple.Extra
 import qualified Control.Monad.State as SM
 import G2.Lib.Printers
 import qualified G2.Language.TyVarEnv as TV
+import G2.Execution.Reducer (GotUnknown)
 
 -- | The function to actually use for Symbolic Execution
 type G2Call solver simplifier =
@@ -46,7 +47,7 @@ type G2Call solver simplifier =
                    , Named t
                    , ASTContainer t Expr
                    , ASTContainer t Type) =>
-        SomeReducer m t -> SomeHalter m (ExecRes t) t -> SomeOrderer m (ExecRes t) t -> [AnalyzeStates m (ExecRes t) t] -> solver -> simplifier -> MemConfig -> State t -> Bindings -> m ([ExecRes t], Bindings)
+        SomeReducer m t -> SomeHalter m (ExecRes t) t -> SomeOrderer m (ExecRes t) t -> [AnalyzeStates m (ExecRes t) t] -> solver -> simplifier -> MemConfig -> State t -> Bindings -> m ([ExecRes t], GotUnknown, Bindings)
 
 -------------------------------
 -- Check Abstracted
@@ -130,7 +131,7 @@ checkAbstracted' g2call solver simplifier share s bindings abs_fc@(FuncCall { fu
 
 
         let pres = HS.fromList $ namesList s' ++ namesList bindings
-        (er, bindings') <- SM.evalStateT (g2call 
+        (er, _, bindings') <- SM.evalStateT (g2call 
                                 (SomeReducer (hitsLibError ~> stdRed share retReplaceSymbFuncVar solver simplifier ~> strictRed))
                                 (SomeHalter (swhnfHalter <~> acceptOnlyOneHalter <~> switchEveryNHalter 200))
                                 (SomeOrderer (incrAfterN 2000 (adtSizeOrderer 0 Nothing)))
@@ -184,7 +185,7 @@ getAbstracted g2call solver simplifier share s bindings abs_fc@(FuncCall { funcN
                     s { curr_expr = CurrExpr Evaluate e'
                       , track = ([] :: [FuncCall], False) }
 
-        (er, bindings') <- g2call 
+        (er, _, bindings') <- g2call 
                               (((hitsLibErrorGatherer ~> stdRed share retReplaceSymbFuncVar solver simplifier ~> strictRed) :== Finished
                                             --> (nonRedPCRedNoPrune .|. nonRedPCRedConst) ))
                               (SomeHalter (swhnfHalter <~> acceptOnlyOneHalter <~> switchEveryNHalter 200))
@@ -426,7 +427,7 @@ reduceFCExpr g2call reducer solver simplifier s bindings e
                . modelToExprEnv $
                    s { curr_expr = CurrExpr Evaluate e }
 
-        (er, bindings') <- g2call 
+        (er, _, bindings') <- g2call 
                               reducer
                               (SomeHalter (acceptOnlyOneHalter <~> swhnfHalter <~> switchEveryNHalter 200))
                               (SomeOrderer (incrAfterN 2000 (adtSizeOrderer 0 Nothing)))

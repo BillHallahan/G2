@@ -395,7 +395,7 @@ runLHG2 :: (MonadIO m, Solver solver, Simplifier simplifier)
         -> Bindings
         -> m ([ExecRes AbstractedInfo], Bindings)
 runLHG2 config red hal ord solver simplifier pres_names init_id final_st bindings = do
-    (ret, final_bindings) <- runG2WithSomes red hal ord noAnalysis solver simplifier pres_names final_st bindings
+    (ret, _, final_bindings) <- runG2WithSomes red hal ord noAnalysis solver simplifier pres_names final_st bindings
 
     let ret' = onlyMinimalStates ret
 
