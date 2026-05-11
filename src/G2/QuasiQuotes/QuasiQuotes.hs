@@ -235,7 +235,7 @@ runExecutionQ s b config = do
         (SomeReducer red, SomeHalter hal, SomeOrderer ord) -> do
             let (s'', b'') = runG2Pre emptyMemConfig s' b'
                 hal' = hal <~> zeroHalter 2000 <~> lemmingsHalter
-            (xs, b''') <- runExecutionToProcessed red hal' ord (\s b -> return $ Just (s, name_gen b)) noAnalysis s'' b''
+            (xs, b''') <- runExecutionToProcessed red hal' ord (\s b -> return $ SAT (s, name_gen b)) noAnalysis s'' b''
 
             case xs of
                 Processed { accepted = acc, discarded = [] } -> do
@@ -272,8 +272,9 @@ qqRedHaltOrd :: (MonadIO m, Solver solver, Simplifier simplifier) => Config -> s
 qqRedHaltOrd config solver simplifier =
     let
         share = sharing config
+        discard = smt_discard_on_unknown config
     in
-    ( nonRedPCRed :== Finished --> stdRed share retReplaceSymbFuncVar solver simplifier
+    ( nonRedPCRed :== Finished --> stdRed share discard retReplaceSymbFuncVar solver simplifier
     , SomeHalter
         (acceptIfViolatedHalter)
     , SomeOrderer nextOrderer)
@@ -427,7 +428,7 @@ executeAndSolveStates' b s = do
         (SomeReducer red, SomeHalter hal, _) -> do
             let hal' = hal <~> errorHalter <~> varLookupLimitHalter 3 <~> maxOutputsHalter (Just 1)
                 ord = incrAfterN 2000 (adtHeightOrderer 0 Nothing) <-> bucketSizeOrderer 6
-            (res, _) <- runG2Post red hal' ord solver simplifier s b
+            (res, _, _) <- runG2Post red hal' ord solver simplifier s b
 
             case res of
                 exec_res:_ -> return $ Just exec_res
@@ -456,9 +457,9 @@ solveStates'' _ _ _ [] = return Nothing
 solveStates'' sol simplifier b (s:xs) = do
     m_ex_res <- runG2Solving sol simplifier s b
     case m_ex_res of
-        Just _ -> do
-            return m_ex_res
-        Nothing -> solveStates'' sol simplifier b xs
+        SAT ex_res -> do
+            return $ Just ex_res
+        _ -> solveStates'' sol simplifier b xs
 
 -- | Get the values of the symbolic arguments, and returns them in a tuple
 extractArgs :: TV.TyVarEnv -> InputIds -> CleanedNames -> TypeEnvName -> Q Exp -> Q Exp
