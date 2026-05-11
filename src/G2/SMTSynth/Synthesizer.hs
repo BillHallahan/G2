@@ -253,9 +253,10 @@ genSMTFunc src f sc@(SynthConfig { excluded_funcs = exclude }) m_io_ref = go [] 
     where
         go pls smt_def = do
             putStrLn "\n--- Running function --- "
-            (entry_f, ers, ng) <- runFuncWithTemp src f smt_def sc
+            (entry_f, ers, got_unknown, ng) <- runFuncWithTemp src f smt_def sc
             case ers of
-                [] | Just (s, (Id _ smt_t), smt_def') <- smt_def ->
+                [] | Just (s, (Id _ smt_t), smt_def') <- smt_def
+                    , got_unknown == NoUnknowns ->
                         return (T.unpack (mkTypeHaskellDictArrows (mkPrettyGuide ()) (type_classes s) smt_t), smt_def')
                    | otherwise -> error "genSMTFunc: no SMT function generated" 
                 (er@(ExecRes { final_state = s }):_) -> do
@@ -425,7 +426,7 @@ runFuncWithTemp :: [FilePath] -- ^ Filepath containing function
                 -> T.Text -- ^ Function name
                 -> Maybe (State t, Id, String, String) -- ^ Possible (SyGuS generated) function definition, along with the Id of the function being generated
                 -> SynthConfig
-                -> IO (Id, [ExecRes ()], NameGen, Maybe Bool)
+                -> IO (Id, [ExecRes ()], GotUnknown, NameGen)
 runFuncWithTemp src f smt_def config = do
     withSystemTempFile "SpecTemp.hs" (\temp handle -> do
         setupSpecFuncOrSMT src f config handle smt_def
@@ -438,20 +439,8 @@ runFunc :: FilePath
         -> T.Text -- ^ Function name
         -> Maybe (State t, Id, String, String) -- ^ Possible (SyGuS generated) function definition, along with the Id of the function being generated
         -> SynthConfig
-        -> IO (Id, [ExecRes ()], NameGen, Maybe Bool)
-runFunc temp src f smt_def sc = do
-    case specs_type sc of
-        SMTFunc -> runFuncSMT temp src f smt_def sc
-        FuncSpecs -> runFuncSpec temp src f smt_def sc
-
-
-runFuncSMT :: FilePath
-        -> [FilePath] -- ^ Filepath containing function
-        -> T.Text -- ^ Function name
-        -> Maybe (State t, Id, String, String) -- ^ Possible (SyGuS generated) function definition, along with the Id of the function being generated
-        -> SynthConfig
-        -> IO (Id, [ExecRes ()], NameGen, Maybe Bool)
-runFuncSMT temp src f smt_def sc@(SynthConfig { eq_file = eq_f, g2_config = config }) = do
+        -> IO (Id, [ExecRes ()], GotUnknown, NameGen)
+runFunc temp src f smt_def sc@(SynthConfig { eq_file = eq_f, g2_config = config }) = do
     let extra_fp = maybeToList eq_f
         config' = config { base = base config ++ extra_fp ++ temp:[]
                          , baseInclude = map takeDirectory extra_fp ++ baseInclude config
@@ -482,7 +471,7 @@ runFuncSMT temp src f smt_def sc@(SynthConfig { eq_file = eq_f, g2_config = conf
 
     let comp_state' = if checking sc == Verify then setUpVerification (idName entry_f) comp_state else comp_state
 
-    (er, bindings', _) <- runG2WithConfig proj src entry_f f [] mb_modname comp_state' config' bindings
+    (er, got_unknown, bindings', _) <- runG2WithConfig proj src entry_f f [] mb_modname comp_state' config' bindings
 
     let new_state_bindings =
             concatMap (\ExecRes { final_state = s@State { expr_env = eenv, tyvar_env = tv_env } } ->
@@ -508,9 +497,9 @@ runFuncSMT temp src f smt_def sc@(SynthConfig { eq_file = eq_f, g2_config = conf
         --                         else config'
         runG2WithConfig proj src entry_f f [] mb_modname new_s config' new_b) new_state_bindings
     
-    let reached_fc_ers = concatMap (\(er_, _, _) -> er_) reached_fc_res
+    let reached_fc_ers = concatMap (\(er_, _, _, _) -> er_) reached_fc_res
 
-    return (entry_f, er ++ reached_fc_ers, name_gen bindings)
+    return (entry_f, er ++ reached_fc_ers, got_unknown, name_gen bindings)
 
 setUpVerification :: Name -> State t -> State t
 setUpVerification entry_n s@(State { expr_env = eenv, known_values = kv, tyvar_env = tv_env })
