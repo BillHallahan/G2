@@ -86,6 +86,8 @@ import qualified Control.Monad.State as SM
 import Data.Function
 import Data.Monoid
 import qualified G2.Language.TyVarEnv as TV 
+import G2.Config.Config (Config(smt_discard_on_unknown))
+import Test.Tasty.QuickCheck (discard)
 
 -------------------------------------
 -- Solvers
@@ -382,7 +384,7 @@ gatherAllowedCalls entry m lrs ghci infconfig config lhconfig = do
                               let fs = final_state er in
                               map (fs,) $ track fs) exec_res
 
-        fc_red = SomeReducer (stdRed (sharing config') retReplaceSymbFuncVar solver simplifier ~> strictRed)
+        fc_red = SomeReducer (stdRed (sharing config') (smt_discard_on_unknown config') retReplaceSymbFuncVar solver simplifier ~> strictRed)
 
     (_, red_calls) <- mapAccumM 
                                 (\b (fs, fc) -> do
@@ -421,6 +423,7 @@ gatherReducerHalterOrderer :: (MonadIO m, Solver solver, Simplifier simplifier)
 gatherReducerHalterOrderer infconfig config lhconfig solver simplifier = do
     let
         share = sharing config
+        discard_unknown = smt_discard_on_unknown config
 
         state_name = Name "state" Nothing 0 Nothing
 
@@ -429,8 +432,8 @@ gatherReducerHalterOrderer infconfig config lhconfig solver simplifier = do
     (timer_halter, _) <- stdTimerHalter (timeout_se infconfig * 3) 0
 
     let red = case m_logger of
-                    Just logger -> logger .~> SomeReducer (gathererReducer ~> stdRed share retReplaceSymbFuncVar solver simplifier ~> strictRed)
-                    Nothing -> SomeReducer (gathererReducer ~> stdRed share retReplaceSymbFuncVar solver simplifier ~> strictRed)
+                    Just logger -> logger .~> SomeReducer (gathererReducer ~> stdRed share discard_unknown retReplaceSymbFuncVar solver simplifier ~> strictRed)
+                    Nothing -> SomeReducer (gathererReducer ~> stdRed share discard_unknown retReplaceSymbFuncVar solver simplifier ~> strictRed)
 
     return
         (red .== Finished .--> (taggerRed state_name :== Finished --> nonRedPCRedNoPrune)
@@ -541,6 +544,7 @@ inferenceReducerHalterOrderer infconfig config lhconfig solver simplifier entry 
     -- time <- liftIO $ getCurrentTime
     let
         share = sharing config
+        discard_unknown = smt_discard_on_unknown config
 
         state_name = Name "state" Nothing 0 Nothing
         abs_ret_name = Name "abs_ret" Nothing 0 Nothing
@@ -571,7 +575,7 @@ inferenceReducerHalterOrderer infconfig config lhconfig solver simplifier entry 
                     redArbErrors :== Finished .-->
                 SomeReducer (allCallsRed ~>
                              higherOrderCallsRed ~>
-                             stdRed share retReplaceSymbFuncVar solver simplifier ~> 
+                             stdRed share discard_unknown retReplaceSymbFuncVar solver simplifier ~> 
                              strictRed)
 
     return $
@@ -636,6 +640,7 @@ realCExReducerHalterOrderer infconfig config lhconfig entry modname solver simpl
 
     let
         share = sharing config
+        discard_unknown = smt_discard_on_unknown config
 
         state_name = Name "state" Nothing 0 Nothing
         abs_ret_name = Name "abs_ret" Nothing 0 Nothing
@@ -653,7 +658,7 @@ realCExReducerHalterOrderer infconfig config lhconfig entry modname solver simpl
                  <~> lhAcceptIfViolatedHalter
                  <~> timer_halter
         
-        lh_std_red = lhRed cfn :== Finished --> stdRed share retReplaceSymbFuncVar solver simplifier ~> strictRed
+        lh_std_red = lhRed cfn :== Finished --> stdRed share discard_unknown retReplaceSymbFuncVar solver simplifier ~> strictRed
         log_opt_red = case m_logger of
                         Just logger -> logger .~> lh_std_red
                         Nothing -> lh_std_red
@@ -1098,8 +1103,9 @@ genericG2Call :: ( MonadIO m
 genericG2Call config solver s bindings = do
     let simplifier = NaNInfBlockSimplifier :>> FloatSimplifier :>> ArithSimplifier
         share = sharing config
+        discard_unknown = smt_discard_on_unknown config
 
-    fslb <- runG2WithSomes (SomeReducer (stdRed share retReplaceSymbFuncVar solver simplifier ~> strictRed))
+    fslb <- runG2WithSomes (SomeReducer (stdRed share discard_unknown retReplaceSymbFuncVar solver simplifier ~> strictRed))
                            (SomeHalter swhnfHalter)
                            (SomeOrderer nextOrderer)
                            noAnalysis
@@ -1122,8 +1128,9 @@ genericG2CallLogging :: ( MonadIO m
 genericG2CallLogging config solver s bindings lg = do
     let simplifier = NaNInfBlockSimplifier :>> FloatSimplifier :>> ArithSimplifier
         share = sharing config
+        discard_unknown = smt_discard_on_unknown config
 
-    fslb <- runG2WithSomes (SomeReducer (prettyLogger defPrettyTrack lg ~> stdRed share retReplaceSymbFuncVar solver simplifier  ~> strictRed))
+    fslb <- runG2WithSomes (SomeReducer (prettyLogger defPrettyTrack lg ~> stdRed share discard_unknown retReplaceSymbFuncVar solver simplifier  ~> strictRed))
                            (SomeHalter swhnfHalter)
                            (SomeOrderer nextOrderer)
                            noAnalysis
