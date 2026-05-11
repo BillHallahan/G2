@@ -637,12 +637,12 @@ updateWithAllPair :: ([State t] -> [State t]) -> ([State t] -> [State t]) -> [St
 updateWithAllPair update1 update2 = update2 . update1
 
 {-#INLINE stdRed #-}
-{-# SPECIALIZE stdRed :: (Solver solver, Simplifier simplifier) => Sharing -> SymbolicFuncEval t -> solver -> simplifier -> Reducer IO () t #-}
-stdRed :: (MonadIO m, Solver solver, Simplifier simplifier) => Sharing -> SymbolicFuncEval t -> solver -> simplifier -> Reducer m () t
-stdRed share symb_func_eval solver simplifier =
+{-# SPECIALIZE stdRed :: (Solver solver, Simplifier simplifier) => Sharing -> DiscardUnknownStates -> SymbolicFuncEval t -> solver -> simplifier -> Reducer IO () t #-}
+stdRed :: (MonadIO m, Solver solver, Simplifier simplifier) => Sharing -> DiscardUnknownStates -> SymbolicFuncEval t -> solver -> simplifier -> Reducer m () t
+stdRed share discard_unknown symb_func_eval solver simplifier =
         mkSimpleReducer (\_ -> ())
                         (\_ s b -> do
-                            (r, s', b') <- liftIO $ stdReduce share symb_func_eval solver simplifier s b
+                            (r, s', b') <- liftIO $ stdReduce share discard_unknown symb_func_eval solver simplifier s b
 
                             return (if r == RuleIdentity then Finished else InProgress, s', b')
                         )

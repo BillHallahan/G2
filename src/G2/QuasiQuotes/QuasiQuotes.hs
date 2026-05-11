@@ -272,8 +272,9 @@ qqRedHaltOrd :: (MonadIO m, Solver solver, Simplifier simplifier) => Config -> s
 qqRedHaltOrd config solver simplifier =
     let
         share = sharing config
+        discard = smt_discard_on_unknown config
     in
-    ( nonRedPCRed :== Finished --> stdRed share retReplaceSymbFuncVar solver simplifier
+    ( nonRedPCRed :== Finished --> stdRed share discard retReplaceSymbFuncVar solver simplifier
     , SomeHalter
         (acceptIfViolatedHalter)
     , SomeOrderer nextOrderer)

@@ -45,7 +45,7 @@ mkConfigTestWithQuantifiedSMTStringsIO :: IO Config
 mkConfigTestWithQuantifiedSMTStringsIO = do
     config <- mkConfigTestIO
     homedir <- getHomeDirectory
-    return $ config { smt_strings = UseSMTStrings, quantified_smt_strings = UseQuantifiers }
+    return $ config { smt_strings = UseSMTStrings, quantified_smt_strings = UseQuantifiers, smt_discard_on_unknown = DiscardUnknown }
 
 mkConfigTestWithLambdaSMTStringsIO :: IO Config
 mkConfigTestWithLambdaSMTStringsIO = do

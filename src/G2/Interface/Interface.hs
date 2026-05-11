@@ -359,6 +359,7 @@ initRedHaltOrd s mod_name solver simplifier config exec_func_names no_nrpc_names
     on_acc_hpc_red <- onAcceptHpcReducer s mod_name
 
     let share = sharing config
+        discard_unknown = smt_discard_on_unknown config
 
         state_name = Name "state" Nothing 0 Nothing
 
@@ -368,8 +369,8 @@ initRedHaltOrd s mod_name solver simplifier config exec_func_names no_nrpc_names
                          $ expr_env s
                          
         strict_red f = case strict config of
-                            True -> SomeReducer (stdRed share f solver simplifier ~> instTypeRed ~> strictRed)
-                            False -> SomeReducer (stdRed share f solver simplifier ~> instTypeRed)
+                            True -> SomeReducer (stdRed share discard_unknown f solver simplifier ~> instTypeRed ~> strictRed)
+                            False -> SomeReducer (stdRed share discard_unknown f solver simplifier ~> instTypeRed)
 
         hpc_red f = case hpc config of
                         -- True ->  SomeReducer (immedHpcReducer mod_name) .~> strict_red f 
