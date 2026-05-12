@@ -1,4 +1,4 @@
-{-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE BangPatterns, DeriveGeneric #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE FunctionalDependencies #-}
@@ -1996,12 +1996,14 @@ acceptOnlyNewHPC h =
 --                       , updateHalterWithAll = updateHalterWithAll h }
 
 data TimedOut = NoTimeOut
-              | TimedOut !Int -- ^ Minimum ADT depth of all list symbolic variable
+              | TimedOut (Maybe Int) -- ^ Minimum ADT depth of all list symbolic variable
                 deriving (Eq, Show, Read)
 
-timedOutMinDepth :: TimedOut -> Int -> TimedOut
+timedOutMinDepth :: TimedOut -> Maybe Int -> TimedOut
 timedOutMinDepth NoTimeOut x = TimedOut x 
-timedOutMinDepth (TimedOut x) y = TimedOut (min x y)
+timedOutMinDepth (TimedOut Nothing) y = TimedOut y
+timedOutMinDepth (TimedOut x) Nothing = TimedOut x
+timedOutMinDepth (TimedOut (Just x)) (Just y) = let !z = min x y in TimedOut . Just $ z
 
 data TimerTrack = TT { timer_count :: Int, init_symbolic :: HS.HashSet Name }
 
@@ -2039,7 +2041,10 @@ timerHalter io_timed_out ms def min_found ce = do
 
                 if diff > ms
                     then do
-                        let curr_height = minimum (HS.toList . HS.map (flip adtHeight s) $ init_symb)
+                        let all_heights = HS.toList . HS.map (flip adtHeight s) $ init_symb
+                            curr_height = case all_heights of
+                                                [] -> Nothing
+                                                _ -> Just $ minimum all_heights
                         curr_time_out <- liftIO $ readIORef io_timed_out
                         liftIO $ writeIORef io_timed_out (timedOutMinDepth curr_time_out curr_height)
                         return def

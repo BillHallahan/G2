@@ -66,9 +66,12 @@ runWithArgs as = do
 
   when (print_timeout config' || print_timeout_list_depth config') $ case time_outs of
       NoTimeOut -> putStrLn "All states terminated."
-      TimedOut i -> do
+      TimedOut m_i -> do
           putStrLn "Some states timed out."
-          when (print_timeout_list_depth config') $ putStrLn $ "Checked up to list depth: " ++ show (i - 1)
+          when (print_timeout_list_depth config') $
+            case m_i of
+              Just i -> putStrLn $ "Checked up to list depth: " ++ show (i - 1)
+              Nothing -> putStrLn "No lists"
   
   when (print_num_post_call_func_arg config') $ do
         putStrLn $ "Post call states: " ++ show (length spec_output)
