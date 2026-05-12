@@ -21,6 +21,8 @@ import qualified Data.HashMap.Lazy as HM
 import qualified Data.Sequence as S
 import qualified Data.Text as T
 
+import Debug.Trace
+
 -- | Concrete instantiations of previously (partially) symbolic values.
 data Subbed = Subbed { s_inputs :: [Expr] -- ^ Concrete `inputNames`
                      , s_output :: Expr -- ^ Concrete `curr_expr`
@@ -117,7 +119,7 @@ subModel s@(State { expr_env = eenv
         sv = subVar tvnv False False m eenv tc sub
         sv' = sv {s_tc_dicts = gen_tc_ns_exprs'}
     in
-    stripAllTicks $ untilEq (undefAppRewrite . typeClassLamRewrite tc . typeClassCaseRewrite tc . tyVarSubst tvnv . simplifyLams . pushCaseAppArgIn) sv'
+    stripAllTicks $ untilEq (undefAppRewrite . typeClassArgRewrite tc . typeClassLamRewrite tc . typeClassCaseRewrite tc . tyVarSubst tvnv . simplifyLams . pushCaseAppArgIn) sv'
     where
         toVars n = case E.lookup n eenv of
                                 Just e@(Lam _ _ _) -> Just . Var $ Id n (typeOf tvnv e)
@@ -232,6 +234,19 @@ typeClassLamRewrite' :: TypeClasses -> Expr -> Expr
 typeClassLamRewrite' tc (Lam _ (Id _ dict_type) body)
     | isTypeClass tc dict_type = body
 typeClassLamRewrite' _ e = e
+
+typeClassArgRewrite :: ASTContainer c Expr => TypeClasses -> c -> c
+typeClassArgRewrite tc = modifyASTs $ typeClassArgRewrite' tc
+
+typeClassArgRewrite' :: TypeClasses -> Expr -> Expr
+typeClassArgRewrite' tc app@(App _ _)
+    = mkApp . filter (not . isIdAndTypeClass) . unApp $ app
+    where
+        isIdAndTypeClass :: Expr -> Bool
+        isIdAndTypeClass (Var (Id _ t)) = isTypeClass tc t
+        isIdAndTypeClass _ = False
+
+typeClassArgRewrite' _ e = e
 
 undefAppRewrite :: ASTContainer c Expr => c -> c
 undefAppRewrite = modifyASTs undefAppRewrite'
