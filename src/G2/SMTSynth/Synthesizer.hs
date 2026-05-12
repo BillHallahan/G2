@@ -243,9 +243,10 @@ genSMTFunc src f sc@(SynthConfig { excluded_funcs = exclude }) m_io_ref = go [] 
     where
         go pls smt_def = do
             putStrLn "\n--- Running function --- "
-            (entry_f, ers, ng) <- runFuncWithTemp src f smt_def sc
+            (entry_f, ers, got_unknown, ng) <- runFuncWithTemp src f smt_def sc
             case ers of
-                [] | Just (s, (Id _ smt_t), smt_def') <- smt_def ->
+                [] | Just (s, (Id _ smt_t), smt_def') <- smt_def
+                    , got_unknown == NoUnknowns ->
                         return (T.unpack (mkTypeHaskellDictArrows (mkPrettyGuide ()) (type_classes s) smt_t), smt_def')
                    | otherwise -> error "genSMTFunc: no SMT function generated" 
                 (er@(ExecRes { final_state = s }):_) -> do
@@ -413,7 +414,7 @@ runFuncWithTemp :: [FilePath] -- ^ Filepath containing function
                 -> T.Text -- ^ Function name
                 -> Maybe (State t, Id, String) -- ^ Possible (SyGuS generated) function definition, along with the Id of the function being generated
                 -> SynthConfig
-                -> IO (Id, [ExecRes ()], NameGen)
+                -> IO (Id, [ExecRes ()], GotUnknown, NameGen)
 runFuncWithTemp src f smt_def config = do
     withSystemTempFile "SpecTemp.hs" (\temp handle -> do
         setUpSpec config handle smt_def
@@ -426,7 +427,7 @@ runFunc :: FilePath
         -> T.Text -- ^ Function name
         -> Maybe (State t, Id, String) -- ^ Possible (SyGuS generated) function definition, along with the Id of the function being generated
         -> SynthConfig
-        -> IO (Id, [ExecRes ()], NameGen)
+        -> IO (Id, [ExecRes ()], GotUnknown, NameGen)
 runFunc temp src f smt_def sc@(SynthConfig { eq_file = eq_f, g2_config = config }) = do
     let extra_fp = maybeToList eq_f
         config' = config { base = base config ++ extra_fp ++ temp:[]
@@ -452,13 +453,13 @@ runFunc temp src f smt_def sc@(SynthConfig { eq_file = eq_f, g2_config = config 
                         Nothing -> (init_state, func)
     let sol = fmap (\(_, _, sl) -> sl) smt_def
 
-    -- let config'' = if sol == Just "smt_rotate (I# z1) z2 = let !x = (let !y1 = strSubstr# z2 z1 z1; !y2 = strSubstr# z2 0# z1; !y3 = strAppend# y1 y2 in y3) in x" then config' { logStates = Log Pretty "a_smt"} else config'
+    -- let config'' = if sol == Just "smt_rotate (I# z1) !z2 = let !x = (let !y1 = strLen# z2; !_let_1 = y1; !y2 = modInt# z1 _let_1; !_let_2 = y2; !y3 = strSubstr# z2 _let_2 z1; !y4 = (+#) z1 z1; !y5 = strSubstr# z2 y4 _let_1; !y6 = strSubstr# z2 0# _let_2; !y7 = strAppend# y5 y6; !y8 = strAppend# y3 y7 in y8) in x" then config' { logStates = Log Pretty "a_smt"} else config'
     -- let config'' = if isJust smt_def then config' { logStates = Log Pretty "a_smt"} else config'
     T.putStrLn $ printHaskellPG (mkPrettyGuide $ getExpr comp_state) comp_state (getExpr comp_state)
 
     let comp_state' = if checking sc == Verify then setUpVerification (idName entry_f) comp_state else comp_state
 
-    (er, bindings', _) <- runG2WithConfig proj src entry_f f [] mb_modname comp_state' config' bindings
+    (er, got_unknown, bindings', _) <- runG2WithConfig proj src entry_f f [] mb_modname comp_state' config' bindings
 
     let new_state_bindings =
             concatMap (\ExecRes { final_state = s@State { expr_env = eenv, tyvar_env = tv_env } } ->
@@ -484,9 +485,9 @@ runFunc temp src f smt_def sc@(SynthConfig { eq_file = eq_f, g2_config = config 
         --                         else config'
         runG2WithConfig proj src entry_f f [] mb_modname new_s config' new_b) new_state_bindings
     
-    let reached_fc_ers = concatMap (\(er_, _, _) -> er_) reached_fc_res
+    let reached_fc_ers = concatMap (\(er_, _, _, _) -> er_) reached_fc_res
 
-    return (entry_f, er ++ reached_fc_ers, name_gen bindings)
+    return (entry_f, er ++ reached_fc_ers, got_unknown, name_gen bindings)
 
 setUpVerification :: Name -> State t -> State t
 setUpVerification entry_n s@(State { expr_env = eenv, known_values = kv, tyvar_env = tv_env })
@@ -543,6 +544,7 @@ setUpSpec sc h (Just (s@(State { known_values = kv, type_classes = tc }), Id n t
 
         contents = "{-# LANGUAGE BangPatterns, MagicHash, ScopedTypeVariables, ViewPatterns #-}\nmodule Spec where\nimport GHC.Prim2\n"
                     ++ "import GHC.Types2\n"
+                    ++ "import GHC.Classes2\n"
                     ++ "import GHC.Stack\n"
                     ++ "import Control.Exception\n"
                     ++ "import Data.Functor.Classes\n"
@@ -605,10 +607,13 @@ runSygus sygus_cmds =
             --  ((define-fun ... ))
             -- The parseSygus function does not like having the extra "("/")" at the beginning/end-
             -- so we drop them.
-            let sy_out = parseSygus . tail . init $ out
-            case sy_out of
-                [SmtCmd def_fun] -> return $ Just def_fun
-                _ -> return Nothing
+            let stripped_out = tail . init $ out
+            let sy_out = parseSygus stripped_out
+            case stripped_out of
+                "infeasible" -> return Nothing
+                _ -> case sy_out of
+                        [SmtCmd def_fun] -> return $ Just def_fun
+                        _ -> return Nothing
     in getProcessHandlesCont cr_p f
 
 sygusCmds :: Id
@@ -718,6 +723,7 @@ sygusCmds (Id _ entry_ty) exclude er@(ExecRes { final_state = s@(State { tyvar_e
                  , GBfTerm (BfLiteral (LitNum (-1)))
                  , GBfTerm (BfIdentifierBfs (ISymb "+") [ intIdent, intIdent])
                  , GBfTerm (BfIdentifierBfs (ISymb "-") [ intIdent, intIdent])
+                 , GBfTerm (BfIdentifierBfs (ISymb "mod") [ intIdent, intIdent])
                  ]
                  ++ intOpForIdent strIdent
                  ++ intOpForIdent seqIntIdent
@@ -982,6 +988,7 @@ smtFuncToPrim s vl_args = conv s ++ conv_args
         conv "toChar" = ""
         conv "+" = "(+#)"
         conv "-" = "(-#)"
+        conv "mod" = "modInt#"
         conv "ite" = ""
         conv "and" = "(&&)"
         conv "or" = "(||)"

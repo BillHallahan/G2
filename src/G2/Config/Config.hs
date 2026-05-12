@@ -2,6 +2,7 @@ module G2.Config.Config ( Mode (..)
                         , LogMode (..)
                         , LogMethod (..)
                         , Sharing (..)
+                        , DiscardUnknownStates (..)
                         , SMTSolver (..)
                         , SearchStrategy (..)
                         , HigherOrderSolver (..)
@@ -50,6 +51,8 @@ data LogMethod = Raw | Pretty deriving (Eq, Show, Read)
 
 -- | Do we use sharing to only reduce variables once?
 data Sharing = Sharing | NoSharing deriving (Eq, Show, Read)
+
+data DiscardUnknownStates = DiscardUnknown | KeepUnknown deriving (Eq, Show, Read)
 
 -- Instantiate type variables before or after symbolic execution
 data InstTV = InstBefore | InstAfter deriving (Eq, Show, Read)
@@ -126,12 +129,16 @@ data Config = Config {
     , smt :: SMTSolver -- ^ Sets the SMT solver to solve constraints with
     , smt_timeout :: Int -- ^ Sets the timeout (in seconds) for the SMT solver
     , smt_path :: Maybe FilePath -- ^ Location of SMT solver
+    , smt_discard_on_unknown :: DiscardUnknownStates -- ^ Discard a state when the SMT solver returns unknown
     , smt_strings :: UseSMTStrings -- ^ Sets whether the SMT solver should be used to solve string constraints
     , smt_strings_strictness :: SMTStringsEval -- ^ Force strict evaluation of strings to allow more use of SMT reasoning
     , quantified_smt_strings :: SMTQuantifiers -- ^ Sets how quantifiers should be used in SMT functions
     , using_smt_lams :: UseSMTLams -- ^ Sets whether SMT Lambda expressions should be used (Z3 only)
     , smt_prim_lists :: UseSMTSeq -- ^ Sets whether the SMT solver should be used to solve lists containing primitive type wrappers (Int, Float, etc.)
     
+    , print_timeout :: Bool -- ^ Print a message indicating whether states remain at timeout
+    , print_timeout_list_depth :: Bool -- ^ Print a message indicating depth of remaining lists at timeout.
+
     , step_limit :: Bool -- ^ Should steps be limited when running states?
     , steps :: Int -- ^ How many steps to take when running States
 
@@ -230,6 +237,7 @@ mkConfig homedir = Config Regular
                 <> metavar "SMT-PATH"
                 <> value Nothing
                 <> help "path to an SMT solver")
+    <*> flag KeepUnknown DiscardUnknown (long "smt-discard-on-unknown" <> help "Discard a state as soon as the SMT solver returns unknown for a path constraint")
     <*> flag NoSMTStrings UseSMTStrings (long "smt-strings" <> help "Sets whether the SMT solver should be used to solve string constraints")
     <*> flag LazySMTStrings StrictSMTStrings (long "strict-strings" <> help "Force evaluation of strings, to allow more strings to be handled via SMT reasoning")
     <*> option (maybeReader quantStrings) (long "quant-smt-strings"
@@ -238,7 +246,10 @@ mkConfig homedir = Config Regular
                                           <> help "Either `-` to indicate that quantifiers should be used in SMT formulas, or a depth to unroll quantifiers to")
     <*> flag NoSMTLams UseSMTLams (long "smt-lams" <> help "Use map and fold with lambdas to model functions in the SMT solver (Z3 only)")
     <*> flag NoSMTSeq (UseSMTSeq True True) (long "smt-lists" <> help "Sets whether the SMT solver should be used to solve list constraints for primitive types")
-    
+
+    <*> flag False True (long "print-timeout" <> help "print a message indicating if any states timed out")
+    <*> flag False True (long "print-timeout-list-depth" <> help "print a message indicating depth of lists in timed out states")
+
     <*> flag True False (long "no-step-limit" <> help "disable step limit")
     <*> option auto (long "n"
                    <> metavar "N"
@@ -422,12 +433,16 @@ mkConfigDirect homedir as m = Config {
     , smt = strArg "smt" as m smtSolverArg ConZ3
     , smt_timeout = 10
     , smt_path = Nothing
+    , smt_discard_on_unknown = KeepUnknown
     , smt_strings = NoSMTStrings
     , smt_strings_strictness = LazySMTStrings
     , quantified_smt_strings = UnrollQuant 10
     , using_smt_lams = NoSMTLams
     , smt_prim_lists = NoSMTSeq
     
+    , print_timeout = False
+    , print_timeout_list_depth = False
+
     , step_limit = boolArg' "no-step-limit" as True True False
     , steps = strArg "n" as m read 1000
 

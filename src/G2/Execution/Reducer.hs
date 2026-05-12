@@ -1,4 +1,4 @@
-{-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE BangPatterns, DeriveGeneric #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE FunctionalDependencies #-}
@@ -40,6 +40,7 @@ module G2.Execution.Reducer ( Reducer (..)
                             , UpdateSelected
 
                             , Processed (..)
+                            , GotUnknown (..)
 
                             , ReducerRes (..)
                             , HaltC (..)
@@ -172,7 +173,7 @@ import G2.Interface.ExecRes
 import G2.Execution.ExecSkip
 import G2.Language
 import G2.Language.Approximation
-import G2.Language.KnownValues
+import G2.Language.KnownValues as KV
 import G2.Language.HPC
 import qualified G2.Language.Monad as MD
 import qualified G2.Language.PathConds as PC
@@ -220,9 +221,13 @@ data ExState rv hv sov t = ExState { state :: State t
 exStateToState :: ExState rv hv sov t -> State t
 exStateToState = state
 
+data GotUnknown = GotUnknown | NoUnknowns deriving (Eq, Show)
+
 -- | Keeps track of type a's that have either been accepted or dropped
 data Processed acc dis = Processed { accepted :: [acc]
-                                   , discarded :: [dis] }
+                                   , discarded :: [dis]
+                                   , unknown_state :: GotUnknown -- ^ Set to true if solving a State returns unknown
+                                   }
 
 -- | Used by Reducers to indicate their progress reducing.
 data ReducerRes = NoProgress | InProgress | Finished deriving (Eq, Ord, Show, Read)
@@ -632,12 +637,12 @@ updateWithAllPair :: ([State t] -> [State t]) -> ([State t] -> [State t]) -> [St
 updateWithAllPair update1 update2 = update2 . update1
 
 {-#INLINE stdRed #-}
-{-# SPECIALIZE stdRed :: (Solver solver, Simplifier simplifier) => Sharing -> SymbolicFuncEval t -> solver -> simplifier -> Reducer IO () t #-}
-stdRed :: (MonadIO m, Solver solver, Simplifier simplifier) => Sharing -> SymbolicFuncEval t -> solver -> simplifier -> Reducer m () t
-stdRed share symb_func_eval solver simplifier =
+{-# SPECIALIZE stdRed :: (Solver solver, Simplifier simplifier) => Sharing -> DiscardUnknownStates -> SymbolicFuncEval t -> solver -> simplifier -> Reducer IO () t #-}
+stdRed :: (MonadIO m, Solver solver, Simplifier simplifier) => Sharing -> DiscardUnknownStates -> SymbolicFuncEval t -> solver -> simplifier -> Reducer m () t
+stdRed share discard_unknown symb_func_eval solver simplifier =
         mkSimpleReducer (\_ -> ())
                         (\_ s b -> do
-                            (r, s', b') <- liftIO $ stdReduce share symb_func_eval solver simplifier s b
+                            (r, s', b') <- liftIO $ stdReduce share discard_unknown symb_func_eval solver simplifier s b
 
                             return (if r == RuleIdentity then Finished else InProgress, s', b')
                         )
@@ -1990,10 +1995,22 @@ acceptOnlyNewHPC h =
 --                       , stepHalter = stepHalter h
 --                       , updateHalterWithAll = updateHalterWithAll h }
 
-data TimedOut = NoTimeOut | TimedOut deriving (Eq, Show, Read)
+data TimedOut = NoTimeOut
+              | TimedOut (Maybe Int) -- ^ Minimum ADT depth of all list symbolic variable
+                deriving (Eq, Show, Read)
+
+timedOutMinDepth :: TimedOut -> Maybe Int -> TimedOut
+timedOutMinDepth NoTimeOut x = TimedOut x 
+timedOutMinDepth (TimedOut Nothing) y = TimedOut y
+timedOutMinDepth (TimedOut x) Nothing = TimedOut x
+timedOutMinDepth (TimedOut (Just x)) (Just y) = let !z = min x y in TimedOut . Just $ z
+
+data TimerTrack = TT { timer_count :: Int, init_symbolic :: HS.HashSet Name }
 
 {-# INLINE stdTimerHalter #-}
-stdTimerHalter :: (MonadIO m, MonadIO m_run) => NominalDiffTime -> Int -> m (Halter m_run Int r t, IORef TimedOut)
+stdTimerHalter :: (MonadIO m, MonadIO m_run) => NominalDiffTime
+                                             -> Int
+                                             -> m (Halter m_run TimerTrack r t, IORef TimedOut)
 stdTimerHalter ms min_found = do
     io_timed_out <- liftIO $ newIORef NoTimeOut
     th <- timerHalter io_timed_out ms (Discard "stdTimeHalter") min_found 10
@@ -2006,31 +2023,43 @@ timerHalter :: (MonadIO m, MonadIO m_run) =>
             -> HaltC
             -> Int -- ^ Don't stop unless at least this many states have been accepted
             -> Int -- ^ Check timeout every this many steps
-            -> m (Halter m_run Int r t)
+            -> m (Halter m_run TimerTrack r t)
 timerHalter io_timed_out ms def min_found ce = do
     curr <- liftIO $ getCurrentTime
     return $ mkSimpleHalter
-                (const 0)
-                (\_ _ _ -> 0)
+                (\s -> TT { timer_count = 0
+                          , init_symbolic = HS.fromList . map idName . filter (isList s) . E.symbolicIds . expr_env $ s})
+                (\tt _ _ -> tt { timer_count = 0 })
                 (stop curr)
                 step
     where
-        stop it v (Processed { accepted = acc }) _
+        stop it (TT { timer_count = v, init_symbolic = init_symb }) (Processed { accepted = acc }) s
             | v == 0
             , compareLength acc min_found /= LT = do
-                curr <- liftIO $ getCurrentTime
+                curr <- liftIO getCurrentTime
                 let diff = diffUTCTime curr it
 
                 if diff > ms
                     then do
-                        liftIO $ writeIORef io_timed_out TimedOut
+                        let all_heights = HS.toList . HS.map (flip adtHeight s) $ init_symb
+                            curr_height = case all_heights of
+                                                [] -> Nothing
+                                                _ -> Just $ minimum all_heights
+                        curr_time_out <- liftIO $ readIORef io_timed_out
+                        liftIO $ writeIORef io_timed_out (timedOutMinDepth curr_time_out curr_height)
                         return def
                     else return Continue
             | otherwise = return Continue
 
-        step v _ _ _
-            | v >= ce = 0
-            | otherwise = v + 1
+        step tt@(TT { timer_count = v }) _ _ _
+            | v >= ce = tt { timer_count = 0 }
+            | otherwise = tt { timer_count = v + 1 }
+        
+        isList (State { known_values = kv }) (Id id_n (TyApp (TyCon n _) _))
+            | nameOcc id_n /= "stdin"
+            , nameOcc id_n /= "stdout"
+            , nameOcc id_n /= "stderr" = n == KV.tyList kv
+        isList _ i = False
 
 -- | Print a specified message if a specified HaltC is returned from the contained Halter
 printOnHaltC :: MonadIO m =>
@@ -2396,7 +2425,7 @@ logRedRuleNum _ _ _ = return ()
 --------
 
 -- | Solve for concrete values in a fully executed state.
-type SolveStates m r t = State t -> Bindings -> m (Maybe (r, NameGen))
+type SolveStates m r t = State t -> Bindings -> m (Result (r, NameGen) () ())
 
 {-# INLINABLE runReducer #-}
 {-# SPECIALIZE runReducer :: Ord b =>
@@ -2431,7 +2460,7 @@ runReducer :: forall m b rv hv sov r t .
            -> Bindings
            -> m (Processed r (State t), Bindings)
 runReducer red hal ord solve_r analyze init_state init_bindings = do
-    let pr = Processed {accepted = [], discarded = []}
+    let pr = Processed {accepted = [], discarded = [], unknown_state = NoUnknowns }
     let s' = ExState { state = init_state
                      , reducer_val = initReducer red init_state
                      , halter_val = initHalt hal init_state
@@ -2457,10 +2486,11 @@ runReducer red hal ord solve_r analyze init_state init_bindings = do
                         er_ng <- solve_r s' b'
                         sequence_ $ analyze <*> pure (StateAccepted s') <*> pure pr <*> pure (map state . concat $ M.elems xs)
                         (pr', ng') <- case er_ng of
-                                        Just (er', ng) -> do
+                                        SAT (er', ng) -> do
                                             onSolved red
-                                            return $ (pr {accepted = er':accepted pr}, ng)
-                                        Nothing -> return (pr, name_gen b')
+                                            return $ (pr { accepted = er':accepted pr }, ng)
+                                        Unknown _ _ -> return (pr { unknown_state = GotUnknown }, name_gen b')
+                                        _ -> return (pr, name_gen b')
                         let b'' = b' { name_gen = ng' }
                         let jrs = minState pr' xs
                         case jrs of

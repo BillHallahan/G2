@@ -11,6 +11,7 @@ import Data.List
 import Data.Maybe
 import Data.IORef
 import qualified Data.Text as T
+import System.Clock
 import System.Directory
 
 main :: IO ()
@@ -45,10 +46,15 @@ main = do
                 -- Allow reading in any previously synthesized SMT definitions
                 con'' <- addSMTDefs gen_for_ty dir_name con'
 
+                start_time <- getTime Realtime
                 last_sol_io_ref <- newIORef Nothing
                 m_ty_def <- doTimeout 120 $ genSMTFunc [src] f (sc { excluded_funcs = exclude' ++ exclude_for_all, g2_config = con'' }) (Just last_sol_io_ref)
                 m_last_sol <- readIORef last_sol_io_ref
-                
+                end_time <- getTime Realtime
+
+                let diff_time = diffTimeSpec end_time start_time
+                putStrLn $ "Time: " ++ show ((fromIntegral (toNanoSecs diff_time) :: Double) / 1e9) ++ " Func: " ++ T.unpack f
+
                 updateMainSMT $ "SMT":gen_for_ty:dir_name
                 case m_ty_def of
                     Just (ty, def) -> do
@@ -82,7 +88,7 @@ main = do
                     False -> do
                         createDirectoryIfMissing True dir
                         writeFile fle ("{-# LANGUAGE BangPatterns, MagicHash, RankNTypes, ViewPatterns #-}\n\n")
-                        appendFile fle ("module " ++ mdl ++ " where\n\nimport GHC.Prim2\n\n")
+                        appendFile fle ("module " ++ mdl ++ " where\n\nimport GHC.Prim2\nimport GHC.Classes2\n\n")
                 appendFile fle (def ++ "\n")
             
             updateMainSMT path = do

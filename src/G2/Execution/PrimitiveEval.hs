@@ -532,6 +532,15 @@ evalPrimADT2 kv _ Or e1 e2
     | Just b1 <- toBool kv e1
     , Just b2 <- toBool kv e2 = Just $ mkBool kv (b1 || b2)
 
+evalPrimADT2 kv _ Eq l1 l2 = do
+    xs <- toExprList l1
+    ys <- toExprList l2
+    return $ mkBool kv (xs == ys)
+evalPrimADT2 kv _ Neq l1 l2 = do
+    xs <- toExprList l1
+    ys <- toExprList l2
+    return $ mkBool kv (xs /= ys)
+
 evalPrimADT2 kv tenv StrAppend xs ys = do
     t <- listType xs
     xs' <- toExprList xs
