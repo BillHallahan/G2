@@ -20,7 +20,7 @@ def cov_generate_latex(res_all):
     solvers = ["conc"] + smt_solvers
 
     print(r"\begin{tabular}{| l |" + "".join(map(lambda _ : " c | c |", solvers)) + "}")
-    print("\hline")
+    print(r"\hline")
     multi_smt = " & ".join(map(lambda s : r"\multicolumn{2}{l|}{" + s + "}", solvers))
     print(" & " + multi_smt + r"\\ \hline")
 
@@ -55,7 +55,7 @@ def cex_generate_latex(res_all):
     solvers = ["conc"] + smt_solvers
 
     print(r"\begin{tabular}{| l |" + "".join(map(lambda _ : " c |", solvers)) + "}")
-    print("\hline")
+    print(r"\hline")
     multi_smt = " & ".join(solvers)
     print(" & " + multi_smt + r"\\ \hline")
 
@@ -397,10 +397,12 @@ def run_g2_with_synth(args):
 
     settings = ["--print-timeout-list-depth","--smt", "cvc5","--no-step-limit","--time", str(to)]
 
-    print("Running prop:  " + prop)
+    print("Running " + prop + " with Baseline")
     (res_base, et_base) = run_g2(os.path.join(filepath, prop_file), prop, settings, to)
     et_base_new = "TO" if (int(to) <= et_base) else str(round(et_base, 2))
     depth_base = process_out_for_depth(res_base)
+
+    print("Running " + prop + " with SMT definitions")
     (res_smt, et_smt) = run_g2(os.path.join(filepath, prop_file),prop,["--smt-def-file", smt_def_file, "--smt-lists"] + settings,to)
     et_smt_new = "TO" if (int(to) <= et_smt) else str(round(et_smt, 2))
     depth_smt = process_out_for_depth(res_smt)
