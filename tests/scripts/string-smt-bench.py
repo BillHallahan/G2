@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 
+from multiprocessing import Pool
 import re
 import os
 import subprocess
@@ -124,6 +125,7 @@ def read_hpc_times(out):
 
 # Calling and reading from G2
 def run_g2(filename, func, var_settings, timeout):
+    print("RUN G2")
     start_time = time.monotonic();
     res = call_g2_process(filename, func, var_settings, timeout);
     end_time = time.monotonic();
@@ -134,17 +136,18 @@ def run_g2(filename, func, var_settings, timeout):
     #         proc.kill()
     
     elapsed = end_time - start_time;
-    return res
+    return (res, elapsed)
 
 def call_g2_process(filename, func, var_settings, to):
     args = [exe_name, filename, func]
+    print("args = " + str(args))
     try:
-        res = subprocess.run(args + var_settings, universal_newlines=True, capture_output=True, timeout = to * 5);
+        res = subprocess.run(args + var_settings, universal_newlines=True, capture_output=True, timeout = to + 15);
         return res.stdout
     except subprocess.TimeoutExpired:
-        return ""
+        return "Timeout"
     
-def call_seq_gen_process(filename, var_settings):
+def call_seq_gen_process(filename, var_settings, to):
     args = [exe_name_seq, filename]
     try:
         res = subprocess.run(args + var_settings, universal_newlines=True, capture_output=True);
@@ -266,7 +269,7 @@ def run_nofib_set(setname, var_settings, timeout):
                 final_path = path1 if os.path.isfile(path1) else path2
                 if os.path.isfile(final_path):
                     print(file_dir);
-                    res_base = run_bench(final_path, "main", cov_settings, timeout, "z3")
+                    (res_base, et_base) = run_bench(final_path, "main", cov_settings, timeout, "z3")
                     print("Baseline:")
                     last_reached = cov_process_output(res_base)
                     res_bench.append(last_reached)
@@ -274,7 +277,7 @@ def run_nofib_set(setname, var_settings, timeout):
                         solver = "z3" if solver_name == "z3-noodler" else solver_name
                         extra_var = ["--smt-path", "z3-noodler"] if solver_name == "z3-noodler" else []
                         print(extra_var)
-                        res_smt = run_bench_smt(final_path, "main", cov_settings + extra_var, timeout, solver)
+                        (res_smt, et_smt) = run_bench_smt(final_path, "main", cov_settings + extra_var, timeout, solver)
                         print("SMT " + solver_name + ":")
                         last_reached = cov_process_output(res_smt)
                         res_bench.append(last_reached)
@@ -294,14 +297,14 @@ def run_properties(setname, filename, var_settings, timeout, properties):
         for prop in properties:
             print(prop)
             res_bench = []
-            res_base = run_bench(bench_path, prop, only_one, timeout, "z3")
+            (res_base, et_base) = run_bench(bench_path, prop, only_one, timeout, "z3")
             print("Baseline:")
             last_reached = cex_process_output("Baseline", prop, res_base)
             res_bench.append(last_reached)
             for solver_name in smt_solvers:
                 solver = "z3" if solver_name == "z3-noodler" else solver_name
                 extra_var = ["--smt-path", "z3-noodler"] if solver_name == "z3-noodler" else []
-                res_smt = run_bench_smt(bench_path, prop, only_one + extra_var, timeout, solver)
+                (res_smt, et_smt) = run_bench_smt(bench_path, prop, only_one + extra_var, timeout, solver)
                 print("SMT " + solver_name + ":")
                 found_cex = cex_process_output(solver_name, prop, res_smt)
                 res_bench.append(found_cex)
@@ -337,7 +340,7 @@ def run_param_properties(setname, filename, var_settings, timeout, properties, i
 
             solver_res_bench = []
             for i in range(min_param, max_param + incr_by, incr_by):
-                res_base = run_bench(use_bench_path, prop + "_" + str(i), only_one, timeout, "z3")
+                (res_base, et_base) = run_bench(use_bench_path, prop + "_" + str(i), only_one, timeout, "z3")
                 print("Baseline " + str(i) + ":")
                 last_reached = cex_process_output("Baseline", prop + "_" + str(i), res_base)
                 solver_res_bench.append(last_reached)
@@ -348,7 +351,7 @@ def run_param_properties(setname, filename, var_settings, timeout, properties, i
                 for i in range(min_param, max_param + incr_by, incr_by):
                     solver = "z3" if solver_name == "z3-noodler" else solver_name
                     extra_var = ["--smt-path", "z3-noodler"] if solver_name == "z3-noodler" else []
-                    res_smt = run_bench_smt(use_bench_path, prop + "_" + str(i),  only_one + extra_var, timeout, solver)
+                    (res_smt, et_smt) = run_bench_smt(use_bench_path, prop + "_" + str(i),  only_one + extra_var, timeout, solver)
                     print("SMT " + solver_name + " " + str(i) + ":")
                     found_cex = cex_process_output(solver_name, prop + "_" + str(i), res_smt)
                     solver_res_bench.append(found_cex)
@@ -365,47 +368,118 @@ def run_param_properties(setname, filename, var_settings, timeout, properties, i
 
         return res_all
 
-def run_synthesizer(setname, progs, var_settings):
+def process_out_for_depth(out):
+    depth = re.search(r"Checked up to list depth: (-?\d*)", out)
+    depth_new = ""
+    if "All states terminated." in out:
+        depth_new = str("All")
+    elif (depth is not None):
+        depth_new = depth.group(1)
+    else:
+        depth_new = "N/A"
+    return depth_new
+
+
+def run_synthesizer(setname, progs, var_settings, to):
     setpath = os.path.join("string-to-smt-benchmark/", setname)
     print(setpath)
 
     for key, val in progs.items():
         synth_file = os.path.join(setpath, val)
-        call_seq_gen_process(os.path.join(setpath, key), ["--synth-all", synth_file, "--smt", "cvc5", "--smt-strings", "--strict-strings", "--verify"])
+        res = call_seq_gen_process(os.path.join(setpath, key), ["--synth-all", synth_file, "--smt", "cvc5", "--smt-strings", "--strict-strings", "--verify"], to)
+    return res
 
-def run_g2_with_synth(setname, progs, to):
+def run_g2_with_synth(args):
+    prop_file, prop, filepath, to = args
+    # setpath = os.path.join("string-to-smt-benchmark/", setname)
+    # print(setpath)
+    smt_def_file = "smt/SMT/SeqInt/" + prop_file
+
+    settings = ["--print-timeout-list-depth","--smt", "cvc5","--no-step-limit","--time", str(to)]
+
+    print("Running prop:  " + prop)
+    (res_base, et_base) = run_g2(os.path.join(filepath, prop_file), prop, settings, to)
+    et_base_new = "TO" if (int(to) <= et_base) else str(round(et_base, 2))
+    depth_base = process_out_for_depth(res_base)
+    (res_smt, et_smt) = run_g2(os.path.join(filepath, prop_file),prop,["--smt-def-file", smt_def_file, "--smt-lists"] + settings,to)
+    et_smt_new = "TO" if (int(to) <= et_smt) else str(round(et_smt, 2))
+    depth_smt = process_out_for_depth(res_smt)
+
+    return (prop_file, prop, et_base_new + "-" + "(" + depth_base + ")", et_smt_new + "-" + "(" + depth_smt + ")")
+        
+# def run_g2_with_synth_seq(setname, progs, to):
+#     setpath = os.path.join("string-to-smt-benchmark/", setname)
+#     print(setpath)
+#     res=[]
+    
+#     for key, val in progs.items():
+#         file = os.path.join(setpath, val)
+
+#         with open(file, 'r') as file :
+#             for line in file.readlines():
+#                 prop = line.rstrip('\n')
+#                 smt_def_file = "smt/SMT/SeqInt/" + key
+#                 settings =  ["--print-timeout-list-depth", "--smt", "cvc5", "--no-step-limit", "--time", str(to)]
+#                 (res_base, et_base) = run_g2(os.path.join(setpath, key), prop, settings, to)
+#                 depth_base = process_out_for_depth(res_base)
+#                 (res_smt, et_smt) = run_g2(os.path.join(setpath, key), prop, ["--smt-def-file", smt_def_file, "--smt-lists"] + settings, to)
+#                 depth_smt = process_out_for_depth(res_smt)
+#                 res.append((key, prop, str(round(float(et_base, 2))) + "-" + depth_base, str(round(float(et_smt, 2))) + "-" + depth_smt))
+#     return res
+
+def run_eval(setname, progs, to):
+    res = []
+    tasks = []
     setpath = os.path.join("string-to-smt-benchmark/", setname)
-    print(setpath)
-    props = map(lambda x : "prop" + str(x), list(range(1, 85)))
-    zeno_prop_remove = ["prop_06", "prop_07", "prop_08", "prop_09", "prop_10", "prop_17", "prop_18", "prop_21", 
-                        "prop_22", "prop_23", "prop_25", "prop_31", "prop_32", "prop_33", "prop_34", "prop_65", "prop_69", "prop_79"]
-    exec_prop = [p for p in props if p not in zeno_prop_remove]
-    for key, val in progs.items():
-        for prop in exec_prop:
-            smt_def_file = "smt/SMT/SeqInt/" + key
-            run_g2(os.path.join(setpath, key), prop, ["--smt-def-file", smt_def_file, "--smt-lists", "--smt", "cvc5", "--no-step-limit", "--time", str(to)], to)
+    for smt_file, val in progs.items():
+        print(smt_file)
+        file_path = os.path.join(setpath, val)
 
+        with open(file_path, "r") as f:
+            for line in f:
+                prop = line.rstrip("\n")
+                tasks.append((smt_file, prop, setpath, to))
 
+    with Pool(processes=8) as pool:
+        for (fle, prop, conc_depth, smt_depth) in pool.imap(run_g2_with_synth, tasks):
+            print(fle + " " + prop + " " + conc_depth + " " + smt_depth)
+            res.append((fle, prop, conc_depth, smt_depth))
 
-time_lim = 60
+    return res
 
-# res_imag = run_nofib_set("nofib-symbolic/imaginary", [], time_lim)
-# res_spec = run_nofib_set("nofib-symbolic/spectral", [], time_lim)
-# res_progs = run_nofib_set("programs", [], time_lim)
-synth_prog = {"ZenoInt.hs": "ZenoIntProp.txt"}
+if __name__ == '__main__':
+    time_lim = 60
 
+    # res_imag = run_nofib_set("nofib-symbolic/imaginary", [], time_lim)
+    # res_spec = run_nofib_set("nofib-symbolic/spectral", [], time_lim)
+    res_progs = run_nofib_set("programs", [], 180)
+    synth_prog = {"ZenoInt.hs": "ZenoIntProp.txt"}
+    run_props = {"ZenoInt.hs": "Zeno.txt"}
+    run_props = {"Prod.hs": "Prod.txt"}
 
-run_synthesizer("programs", synth_prog, [])
+    #Synthesizer here
+    # synth_res = run_synthesizer("programs", synth_prog, [], time_lim)
 
-# cov_generate_latex(res_imag + res_spec + res_progs)
-# cov_generate_latex(res_progs)
-# solver_cov_generate_csv(res_imag + res_spec + res_progs)
-# solver_cov_generate_csv(res_progs)
+    # print(synth_res)
+    
+    # with open("string-to-smt-benchmark/synth_out.txt", "w") as file:
+    #     file.write(synth_res)
 
-# time_lim = 30
+    #Running G2
+    result = run_eval("programs", run_props, time_lim)
+    print("Latex for Depth and Time table\n\n")
+    for (fle, prop, conc_depth, smt_depth) in result:
+        print(fle + " & " + prop + " & " + conc_depth + " & " + smt_depth + r"\\ \hline")
 
-# props = map(lambda x : "prop" + str(x), list(range(1, 25)))
-# res_props = run_param_properties("properties", "ParamProperties.hs", [], time_lim, props)
+    # cov_generate_latex(res_imag + res_spec + res_progs)
+    cov_generate_latex(res_progs)
+    # solver_cov_generate_csv(res_imag + res_spec + res_progs)
+    solver_cov_generate_csv(res_progs)
 
-# print(cex_generate_csv(res_props))
-# print(solver_cex_generate_csv(res_props))
+    # time_lim = 30
+
+    # props = map(lambda x : "prop" + str(x), list(range(1, 25)))
+    # res_props = run_param_properties("properties", "ParamProperties.hs", [], time_lim, props)
+
+    # print(cex_generate_csv(res_props))
+    # print(solver_cex_generate_csv(res_props))
