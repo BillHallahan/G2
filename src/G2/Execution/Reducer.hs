@@ -173,7 +173,7 @@ import G2.Interface.ExecRes
 import G2.Execution.ExecSkip
 import G2.Language
 import G2.Language.Approximation
-import G2.Language.KnownValues
+import G2.Language.KnownValues as KV
 import G2.Language.HPC
 import qualified G2.Language.Monad as MD
 import qualified G2.Language.PathConds as PC
@@ -1995,10 +1995,20 @@ acceptOnlyNewHPC h =
 --                       , stepHalter = stepHalter h
 --                       , updateHalterWithAll = updateHalterWithAll h }
 
-data TimedOut = NoTimeOut | TimedOut deriving (Eq, Show, Read)
+data TimedOut = NoTimeOut
+              | TimedOut !Int -- ^ Minimum ADT depth of all list symbolic variable
+                deriving (Eq, Show, Read)
+
+timedOutMinDepth :: TimedOut -> Int -> TimedOut
+timedOutMinDepth NoTimeOut x = TimedOut x 
+timedOutMinDepth (TimedOut x) y = TimedOut (min x y)
+
+data TimerTrack = TT { timer_count :: Int, init_symbolic :: HS.HashSet Name }
 
 {-# INLINE stdTimerHalter #-}
-stdTimerHalter :: (MonadIO m, MonadIO m_run) => NominalDiffTime -> Int -> m (Halter m_run Int r t, IORef TimedOut)
+stdTimerHalter :: (MonadIO m, MonadIO m_run) => NominalDiffTime
+                                             -> Int
+                                             -> m (Halter m_run TimerTrack r t, IORef TimedOut)
 stdTimerHalter ms min_found = do
     io_timed_out <- liftIO $ newIORef NoTimeOut
     th <- timerHalter io_timed_out ms (Discard "stdTimeHalter") min_found 10
@@ -2011,31 +2021,40 @@ timerHalter :: (MonadIO m, MonadIO m_run) =>
             -> HaltC
             -> Int -- ^ Don't stop unless at least this many states have been accepted
             -> Int -- ^ Check timeout every this many steps
-            -> m (Halter m_run Int r t)
+            -> m (Halter m_run TimerTrack r t)
 timerHalter io_timed_out ms def min_found ce = do
     curr <- liftIO $ getCurrentTime
     return $ mkSimpleHalter
-                (const 0)
-                (\_ _ _ -> 0)
+                (\s -> TT { timer_count = 0
+                          , init_symbolic = HS.fromList . map idName . filter (isList s) . E.symbolicIds . expr_env $ s})
+                (\tt _ _ -> tt { timer_count = 0 })
                 (stop curr)
                 step
     where
-        stop it v (Processed { accepted = acc }) _
+        stop it (TT { timer_count = v, init_symbolic = init_symb }) (Processed { accepted = acc }) s
             | v == 0
             , compareLength acc min_found /= LT = do
-                curr <- liftIO $ getCurrentTime
+                curr <- liftIO getCurrentTime
                 let diff = diffUTCTime curr it
 
                 if diff > ms
                     then do
-                        liftIO $ writeIORef io_timed_out TimedOut
+                        let curr_height = minimum (HS.toList . HS.map (flip adtHeight s) $ init_symb)
+                        curr_time_out <- liftIO $ readIORef io_timed_out
+                        liftIO $ writeIORef io_timed_out (timedOutMinDepth curr_time_out curr_height)
                         return def
                     else return Continue
             | otherwise = return Continue
 
-        step v _ _ _
-            | v >= ce = 0
-            | otherwise = v + 1
+        step tt@(TT { timer_count = v }) _ _ _
+            | v >= ce = tt { timer_count = 0 }
+            | otherwise = tt { timer_count = v + 1 }
+        
+        isList (State { known_values = kv }) (Id id_n (TyApp (TyCon n _) _))
+            | nameOcc id_n /= "stdin"
+            , nameOcc id_n /= "stdout"
+            , nameOcc id_n /= "stderr" = n == KV.tyList kv
+        isList _ i = False
 
 -- | Print a specified message if a specified HaltC is returned from the contained Halter
 printOnHaltC :: MonadIO m =>

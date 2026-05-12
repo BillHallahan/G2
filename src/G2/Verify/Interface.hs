@@ -232,7 +232,7 @@ verifyFromFile proj src f transConfig config verify_config = do
         diff_secs = (fromInteger (toNanoSecs diff)) / (10 ^ (9 :: Int) :: Double)
         theorem_er = filter (isTheorem . goal . track . final_state) er
     let res = case to' of
-                TimedOut -> VerifyTimeOut
+                TimedOut _ -> VerifyTimeOut
                 NoTimeOut | false_er <- filter (currExprIsFalse . final_state) theorem_er
                           , not (null false_er) -> Counterexample false_er
                           | otherwise -> assert (all (currExprIsTrue . final_state) theorem_er) Verified
