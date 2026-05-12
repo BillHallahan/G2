@@ -547,6 +547,7 @@ executable SeqGen
   -- other-extensions:
   build-depends:         g2
                        , base >= 4.8 && < 5
+                       , clock
                        , containers
                        , directory
                        , mtl
