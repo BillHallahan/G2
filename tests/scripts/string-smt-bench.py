@@ -455,7 +455,6 @@ if __name__ == '__main__':
     res_progs = run_nofib_set("programs", [], 180)
     synth_prog = {"ZenoInt.hs": "ZenoIntProp.txt"}
     run_props = {"ZenoInt.hs": "Zeno.txt"}
-    run_props = {"Prod.hs": "Prod.txt"}
 
     #Synthesizer here
     # synth_res = run_synthesizer("programs", synth_prog, [], time_lim)
