@@ -7,11 +7,12 @@ import time
 
 import shutil
 
-import psutil
+# import psutil
 
 exe_name = str(subprocess.run(["cabal", "exec", "which", "G2"], capture_output = True).stdout.decode('utf-8')).strip()
+exe_name_seq = str(subprocess.run(["cabal", "exec", "which", "SeqGen"], capture_output = True).stdout.decode('utf-8')).strip()
 
-smt_solvers = ["z3", "z3str3", "cvc5", "ostrich", "z3-noodler"]
+smt_solvers = ["z3", "cvc5"]
 
 # outputting latex
 def cov_generate_latex(res_all):
@@ -127,10 +128,10 @@ def run_g2(filename, func, var_settings, timeout):
     res = call_g2_process(filename, func, var_settings, timeout);
     end_time = time.monotonic();
 
-    # avoid problems with z3-noodler not terminating
-    for proc in psutil.process_iter():
-        if proc.name() == "z3-noodler":
-            proc.kill()
+    # # avoid problems with z3-noodler not terminating
+    # for proc in psutil.process_iter():
+    #     if proc.name() == "z3-noodler":
+    #         proc.kill()
     
     elapsed = end_time - start_time;
     return res
@@ -139,6 +140,14 @@ def call_g2_process(filename, func, var_settings, to):
     args = [exe_name, filename, func]
     try:
         res = subprocess.run(args + var_settings, universal_newlines=True, capture_output=True, timeout = to * 5);
+        return res.stdout
+    except subprocess.TimeoutExpired:
+        return ""
+    
+def call_seq_gen_process(filename, var_settings):
+    args = [exe_name_seq, filename]
+    try:
+        res = subprocess.run(args + var_settings, universal_newlines=True, capture_output=True);
         return res.stdout
     except subprocess.TimeoutExpired:
         return ""
@@ -356,14 +365,42 @@ def run_param_properties(setname, filename, var_settings, timeout, properties, i
 
         return res_all
 
-time_lim = 120
+def run_synthesizer(setname, progs, var_settings):
+    setpath = os.path.join("string-to-smt-benchmark/", setname)
+    print(setpath)
 
-res_imag = run_nofib_set("nofib-symbolic/imaginary", [], time_lim)
-res_spec = run_nofib_set("nofib-symbolic/spectral", [], time_lim)
-res_progs = run_nofib_set("programs", [], time_lim)
+    for key, val in progs.items():
+        synth_file = os.path.join(setpath, val)
+        call_seq_gen_process(os.path.join(setpath, key), ["--synth-all", synth_file, "--smt", "cvc5", "--smt-strings", "--strict-strings", "--verify"])
 
-cov_generate_latex(res_imag + res_spec + res_progs)
-solver_cov_generate_csv(res_imag + res_spec + res_progs)
+def run_g2_with_synth(setname, progs, to):
+    setpath = os.path.join("string-to-smt-benchmark/", setname)
+    print(setpath)
+    props = map(lambda x : "prop" + str(x), list(range(1, 85)))
+    zeno_prop_remove = ["prop_06", "prop_07", "prop_08", "prop_09", "prop_10", "prop_17", "prop_18", "prop_21", 
+                        "prop_22", "prop_23", "prop_25", "prop_31", "prop_32", "prop_33", "prop_34", "prop_65", "prop_69", "prop_79"]
+    exec_prop = [p for p in props if p not in zeno_prop_remove]
+    for key, val in progs.items():
+        for prop in exec_prop:
+            smt_def_file = "smt/SMT/SeqInt/" + key
+            run_g2(os.path.join(setpath, key), prop, ["--smt-def-file", smt_def_file, "--smt-lists", "--smt", "cvc5", "--no-step-limit", "--time", str(to)], to)
+
+
+
+time_lim = 60
+
+# res_imag = run_nofib_set("nofib-symbolic/imaginary", [], time_lim)
+# res_spec = run_nofib_set("nofib-symbolic/spectral", [], time_lim)
+# res_progs = run_nofib_set("programs", [], time_lim)
+synth_prog = {"ZenoInt.hs": "ZenoIntProp.txt"}
+
+
+run_synthesizer("programs", synth_prog, [])
+
+# cov_generate_latex(res_imag + res_spec + res_progs)
+# cov_generate_latex(res_progs)
+# solver_cov_generate_csv(res_imag + res_spec + res_progs)
+# solver_cov_generate_csv(res_progs)
 
 # time_lim = 30
 
