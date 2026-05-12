@@ -82,7 +82,7 @@ main = do
                     False -> do
                         createDirectoryIfMissing True dir
                         writeFile fle ("{-# LANGUAGE BangPatterns, MagicHash, RankNTypes, ViewPatterns #-}\n\n")
-                        appendFile fle ("module " ++ mdl ++ " where\n\nimport GHC.Prim2\n\n")
+                        appendFile fle ("module " ++ mdl ++ " where\n\nimport GHC.Prim2\nimport GHC.Classes2\n\n")
                 appendFile fle (def ++ "\n")
             
             updateMainSMT path = do
