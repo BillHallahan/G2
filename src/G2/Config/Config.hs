@@ -136,6 +136,9 @@ data Config = Config {
     , using_smt_lams :: UseSMTLams -- ^ Sets whether SMT Lambda expressions should be used (Z3 only)
     , smt_prim_lists :: UseSMTSeq -- ^ Sets whether the SMT solver should be used to solve lists containing primitive type wrappers (Int, Float, etc.)
     
+    , print_timeout :: Bool -- ^ Print a message indicating whether states remain at timeout
+    , print_timeout_list_depth :: Bool -- ^ Print a message indicating depth of remaining lists at timeout.
+
     , step_limit :: Bool -- ^ Should steps be limited when running states?
     , steps :: Int -- ^ How many steps to take when running States
 
@@ -243,7 +246,10 @@ mkConfig homedir = Config Regular
                                           <> help "Either `-` to indicate that quantifiers should be used in SMT formulas, or a depth to unroll quantifiers to")
     <*> flag NoSMTLams UseSMTLams (long "smt-lams" <> help "Use map and fold with lambdas to model functions in the SMT solver (Z3 only)")
     <*> flag NoSMTSeq (UseSMTSeq True True) (long "smt-lists" <> help "Sets whether the SMT solver should be used to solve list constraints for primitive types")
-    
+
+    <*> flag False True (long "print-timeout" <> help "print a message indicating if any states timed out")
+    <*> flag False True (long "print-timeout-list-depth" <> help "print a message indicating depth of lists in timed out states")
+
     <*> flag True False (long "no-step-limit" <> help "disable step limit")
     <*> option auto (long "n"
                    <> metavar "N"
@@ -434,6 +440,9 @@ mkConfigDirect homedir as m = Config {
     , using_smt_lams = NoSMTLams
     , smt_prim_lists = NoSMTSeq
     
+    , print_timeout = False
+    , print_timeout_list_depth = False
+
     , step_limit = boolArg' "no-step-limit" as True True False
     , steps = strArg "n" as m read 1000
 
