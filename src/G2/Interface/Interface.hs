@@ -60,7 +60,6 @@ import G2.Language
 import G2.Initialization.Interface
 import G2.Initialization.KnownValues
 import G2.Execution.InstTypes
-import G2.Execution.DataConPCMap
 import G2.Initialization.MkCurrExpr
 import qualified G2.Initialization.Types as IT
 import G2.Preprocessing.Interface

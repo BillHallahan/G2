@@ -5,21 +5,13 @@ module Main (main) where
 import G2.Translation.GHC (GeneralFlag(Opt_Hpc))
 
 import System.Environment
-import System.FilePath
 
 import Control.Monad
-import Data.Foldable (toList)
 import qualified Data.HashSet as HS
 import qualified Data.List as L
 import qualified Data.Map as M
 import Data.Maybe
-import Data.Monoid ((<>))
-import qualified Data.Sequence as S
 import qualified Data.Text as T
-import qualified Data.Text.IO as T
-
-import G2.Lib.Printers
-
 import G2.Config
 import G2.Interface
 import G2.Language

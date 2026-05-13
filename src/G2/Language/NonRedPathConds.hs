@@ -37,11 +37,11 @@ import GHC.Generics
 import G2.Language.ExprEnv (deepLookupVar)
 
 data NRPC = NRPC { nrpc_focus :: Focus, nrpc_lhs :: Expr, nrpc_rhs :: Expr }
-                          deriving (Eq, Read, Show, Data, Generic, Typeable)
+                          deriving (Eq, Read, Show, Data, Generic)
 instance Hashable NRPC
 
 data NonRedPathConds = NRPCs { nrpcs :: Seq NRPC, nrpc_uniq :: Unique }
-                          deriving (Eq, Read, Show, Data, Generic, Typeable)
+                          deriving (Eq, Read, Show, Data, Generic)
 
 instance Hashable NonRedPathConds
 
@@ -103,7 +103,7 @@ instance Hashable NonRedPathConds
 -- See Note [NRPC Focus] and `Focus`.
 data GenFocus n = Focused
                 | Unfocused n
-                deriving (Eq, Read, Show, Data, Generic, Typeable)
+                deriving (Eq, Read, Show, Data, Generic)
 
 -- | The Name is used to track the symbolic variable introduced by the NRPC.
 type Focus = GenFocus Name

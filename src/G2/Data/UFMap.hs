@@ -38,7 +38,7 @@ import qualified G2.Data.UnionFind as UF
 import Control.Exception
 import qualified Control.Monad as Mon
 
-import Data.Data (Data (..), Typeable)
+import Data.Data (Data (..))
 import Data.Hashable
 import qualified Data.HashMap.Lazy as M
 import qualified Data.HashSet as S
@@ -63,7 +63,7 @@ import Test.Tasty.QuickCheck
 -- for either is inserted, the other will also then point to that value.
 data UFMap k v = UFMap { joined :: UF.UnionFind k
                        , store :: M.HashMap k v }
-                       deriving (Typeable, Data, Generic)
+                       deriving (Data, Generic)
 
 instance (Eq k, Hashable k, Hashable v) => Hashable (UFMap k v)
 

@@ -38,9 +38,8 @@ import G2.Execution.DataConPCMap
 import G2.Execution.RuleTypes
 
 import GHC.Generics (Generic)
-import Data.Data (Data, Typeable)
+import Data.Data (Data)
 import Data.Hashable
-import qualified Data.Map as M
 import qualified Data.HashMap.Lazy as HM
 import qualified Data.HashSet as S hiding (empty)
 import qualified Data.Sequence as S
@@ -79,7 +78,7 @@ data State t = State { expr_env :: E.ExprEnv -- ^ Mapping of `Name`s to `Expr`s
                      , log_path :: [Int]
 
                      , track :: t
-                     } deriving (Show, Eq, Read, Generic, Typeable, Data)
+                     } deriving (Show, Eq, Read, Generic, Data)
 
 
 instance Hashable t => Hashable (State t)
@@ -98,7 +97,7 @@ data Bindings = Bindings { fixed_inputs :: [Expr]
                          , rewrite_rules :: ![RewriteRule]
                          , name_gen :: NameGen
                          , exported_funcs :: [Name]
-                         } deriving (Show, Eq, Read, Typeable, Data)
+                         } deriving (Show, Eq, Read, Data)
 
 errorRaised :: State t -> Bool
 errorRaised (State { curr_expr = CurrExpr _ ce}) | Prim Error _ <- center ce = True
@@ -119,7 +118,7 @@ inputIds (State { expr_env = eenv, tyvar_env= tv }) (Bindings { input_names = ns
 
 -- | `CurrExpr` is the current expression we have. 
 data CurrExpr = CurrExpr EvalOrReturn Expr
-              deriving (Show, Eq, Read, Generic, Typeable, Data)
+              deriving (Show, Eq, Read, Generic, Data)
 
 instance Hashable CurrExpr
 
@@ -152,7 +151,7 @@ activeNames tenv eenv explored nss
 -- evaluation code.
 data EvalOrReturn = Evaluate
                   | Return
-                  deriving (Show, Eq, Read, Generic, Typeable, Data)
+                  deriving (Show, Eq, Read, Generic, Data)
 
 instance Hashable EvalOrReturn
 
@@ -165,7 +164,7 @@ data ArbValueGen = ArbValueGen { intGen :: Integer
                                , rationalGen :: Rational
                                , charGen :: [Char]
                                , boolGen :: Bool
-                               } deriving (Show, Eq, Read, Typeable, Data)
+                               } deriving (Show, Eq, Read, Data)
 
 -- | These are stack frames that are used to guide evaluation.
 data Frame = CaseFrame Id Type [Alt]
@@ -176,7 +175,7 @@ data Frame = CaseFrame Id Type [Alt]
            | CurrExprFrame CEAction CurrExpr
            | AssumeFrame Expr
            | AssertFrame (Maybe FuncCall) Expr
-           deriving (Show, Eq, Read, Generic, Typeable, Data)
+           deriving (Show, Eq, Read, Generic, Data)
 
 instance Hashable Frame
 
@@ -184,7 +183,7 @@ instance Hashable Frame
 -- top of the stack and it is time to replace the `curr_expr`.
 data CEAction = EnsureEq Expr -- ^ `EnsureEq focus e1` means that we should check if the `curr_expr` is equal to `e1`
               | NoAction -- ^ Just replace the curr_expr, no other actions are needed
-              deriving (Show, Eq, Read, Generic, Typeable, Data)
+              deriving (Show, Eq, Read, Generic, Data)
 
 instance Hashable CEAction
 
@@ -197,12 +196,12 @@ data Handle = HandleInfo { h_filepath :: FilePath
                          , h_start :: Id -- ^ The entire contents of the file, maps to a String in the `ExprEnv`
                          , h_pos :: Id -- ^ The current position of the Handle, maps to a String in the `ExprEnv`
                          , h_status :: HandleStatus }
-                         deriving (Show, Eq, Read, Generic, Typeable, Data)
+                         deriving (Show, Eq, Read, Generic, Data)
 
 instance Hashable Handle
 
 data HandleStatus = HOpen | HClosed
-                    deriving (Show, Eq, Read, Generic, Typeable, Data)
+                    deriving (Show, Eq, Read, Generic, Data)
 
 stdinName :: Name
 stdinName = Name "stdin" Nothing 0 Nothing

@@ -16,8 +16,6 @@ module G2.Execution.DataConPCMap ( DCArgBind (..)
 import G2.Language.Naming
 import G2.Language.Syntax
 import G2.Language.Expr
-import G2.Language.ExprEnv (ExprEnv)
-import qualified G2.Language.ExprEnv as E
 import G2.Language.KnownValues (KnownValues)
 import qualified G2.Language.KnownValues as KV
 import G2.Language.PathConds (PathCond (..))
@@ -26,11 +24,10 @@ import G2.Language.TypeEnv (TypeEnv)
 import qualified G2.Language.Typing as T
 import G2.Language.TyVarEnv (TyVarEnv)
 
-import Data.List
 import qualified Data.HashMap.Lazy as HM
 
 import Control.Exception
-import Data.Data (Data, Typeable)
+import Data.Data (Data)
 
 data DCArgBind =
       -- | A new symbolic argument
@@ -41,7 +38,7 @@ data DCArgBind =
         , fresh_vars :: [Id] -- ^ New symbolic variables to introduce, used in the Expr
         , arg_expr :: Expr -- ^ Instantiation of the argument
         }
-    deriving (Show, Eq, Read, Typeable, Data)
+    deriving (Show, Eq, Read, Data)
 
 -- | When adding a data constructor, we can also add path constraints, to enable
 -- reasoning via the SMT solver.  For example, Strings can be manipulated via concretization,
@@ -59,7 +56,7 @@ data DataConPCInfo =
     , dc_pc :: [PathCond] -- ^ Path constraints to generate, written over the DCPC
     , dc_bindee_exprs :: [Expr] -- ^ Expressions corresponding to the args
     }
-    deriving (Show, Eq, Read, Typeable, Data)
+    deriving (Show, Eq, Read, Data)
 
 type DataConPCMap = HM.HashMap Name [([Type], DataConPCInfo)]
 

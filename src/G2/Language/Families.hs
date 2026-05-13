@@ -14,7 +14,7 @@ import qualified G2.Language.TyVarEnv as TV
 
 import GHC.Generics (Generic)
 import Control.Monad
-import Data.Data (Data, Typeable)
+import Data.Data (Data)
 import Data.Foldable
 import Data.Hashable
 import qualified Data.HashMap.Lazy as HM
@@ -23,7 +23,7 @@ import Data.Maybe
 type Families = HM.HashMap Name Family
 
 newtype Family = Family { axioms :: [Axiom] }
-              deriving (Show, Eq, Read, Generic, Typeable, Data)
+              deriving (Show, Eq, Read, Generic, Data)
 
 instance Hashable Family
 
@@ -31,7 +31,7 @@ instance Hashable Family
 data Axiom = Axiom { lhs_types :: [Type] -- ^ Type arguments to match on
                    , rhs_type :: Type -- ^ RHS of type equality 
                    }
-                   deriving (Show, Eq, Read, Generic, Typeable, Data)
+                   deriving (Show, Eq, Read, Generic, Data)
 
 instance Hashable Axiom
 

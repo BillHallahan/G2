@@ -361,7 +361,6 @@ primDefs' b c l unit =
               , ("typeIndex#", Prim (TypeIndex (TyH { tyh_strings = False, tyh_prim_lists = False })) (TyForAll a (TyFun (TyVar a) TyLitInt))) ]
               where
                     seqTy v = (TyApp (TyCon l (TyFun TYPE TYPE)) v)
-                    seqTyA = seqTy (TyVar a)
                     seqTyX = seqTy (TyVar (x TYPE))
                     strTy = seqTy (TyCon c TYPE)
 
@@ -468,17 +467,11 @@ tyFloatFloatBool n = TyFun TyLitFloat $ TyFun TyLitFloat (TyCon n TYPE)
 tyFloatFloatFloat :: Type
 tyFloatFloatFloat = TyFun TyLitFloat $ TyFun TyLitFloat TyLitFloat
 
-tyIntCharBool :: Name -> Type
-tyIntCharBool n = TyFun TyLitInt $ TyFun TyLitChar (TyCon n TYPE)
-
 tyIntChar :: Name -> Type
 tyIntChar n = TyFun TyLitInt TyLitChar
 
 tyCharInt :: Name -> Type
 tyCharInt n = TyFun TyLitChar TyLitInt
-
-tyCharIntBool :: Name -> Type
-tyCharIntBool n = TyFun TyLitChar $ TyFun TyLitInt (TyCon n TYPE)
 
 tyCharCharBool :: Name -> Type
 tyCharCharBool n = TyFun TyLitChar $ TyFun TyLitChar (TyCon n TYPE)

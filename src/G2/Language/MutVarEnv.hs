@@ -10,7 +10,7 @@ import G2.Language.Syntax
 import Data.Hashable
 import qualified Data.HashMap.Lazy as HM
 import GHC.Generics (Generic)
-import Data.Data (Data, Typeable)
+import Data.Data (Data)
 
 -- Note [MutVar Env]
 -- Mutable variables are variables with values that can be changed. These variables are represented via the `MutVar Name`
@@ -24,7 +24,7 @@ import Data.Data (Data, Typeable)
 -- | Records whether a MutVar was created via newMutVar# or concretization.
 data MVOrigin = MVSymbolic -- ^ A MutVar concretized from a symbolic variable.
               | MVConc -- ^ A MutVar created via the newMutVar# function.
-              deriving (Show, Eq, Read, Generic, Typeable, Data)
+              deriving (Show, Eq, Read, Generic, Data)
 
 instance Hashable MVOrigin
 
@@ -33,7 +33,7 @@ data MVInfo = MVInfo { mv_val_id :: Id -- ^ The value of the MutVar.  Can be loo
                      , mv_initial :: Id -- ^ The initial value of the MutVar i.e. the value of the MutVar when it was created.
                      , mv_origin :: MVOrigin -- ^ Was the MutVar generated from a symbolic variable or from a concrete call to `newMutVar#`?
                      }
-                     deriving (Show, Eq, Read, Generic, Typeable, Data)
+                     deriving (Show, Eq, Read, Generic, Data)
 
 instance Hashable MVInfo
 

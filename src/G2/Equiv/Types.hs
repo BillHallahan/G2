@@ -10,7 +10,6 @@ import G2.Equiv.G2Calls
 import G2.Language
 
 import GHC.Generics (Generic)
-import Data.Data (Typeable)
 import qualified Data.HashMap.Lazy as HM
 import qualified Data.HashSet as HS
 import qualified Data.Sequence as DS
@@ -107,7 +106,7 @@ instance Named Marker where
   rename old new (LMarker lm) =
     LMarker $ rename old new lm
 
-data Side = ILeft | IRight deriving (Eq, Show, Typeable, Generic)
+data Side = ILeft | IRight deriving (Eq, Show, Generic)
 
 data IndMarker = IndMarker {
       ind_real_present :: (StateET, StateET)

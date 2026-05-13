@@ -35,7 +35,7 @@ import Test.Tasty.QuickCheck
 
 data UnionFind k = UF { rank :: M.HashMap k Int
                       , parent :: IORef (M.HashMap k k) }
-                      deriving (Typeable, Data)
+                      deriving (Data)
 
 {-# NOINLINE empty #-}
 -- | A `UnionFind` with nothing unioned. 

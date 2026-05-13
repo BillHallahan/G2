@@ -305,9 +305,6 @@ evalApp s@(State { expr_env = eenv
         getNestedTickish (Tick t e) = t:getNestedTickish e
         getNestedTickish e = evalChildren getNestedTickish e
 
-        isError Error = True
-        isError _ = False
-
 evalLam :: State t -> LamUse -> Id -> Expr -> (Rule, [State t])
 evalLam = undefined
 

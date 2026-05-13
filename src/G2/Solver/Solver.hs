@@ -274,7 +274,7 @@ instance Solver UnknownSolver where
     check _ _ pc
         | PC.null pc = return (SAT ())
         | otherwise = return (Unknown "unknown" ())
-    solve _ s b _ pc
+    solve _ _ b _ pc
         | PC.null pc = return (SAT $ SatRes HM.empty TV.empty (name_gen b))
         | otherwise = return (Unknown "unknown" ())
 

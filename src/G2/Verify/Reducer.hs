@@ -26,7 +26,6 @@ module G2.Verify.Reducer ( VerifierTracker (..)
                          , liftOutFullyAppedReducer) where
 
 import G2.Config
-import qualified G2.Data.UFMap as UF
 import G2.Data.Utils
 import G2.Execution.Reducer
 import G2.Execution.Rules
@@ -36,10 +35,8 @@ import G2.Language.Approximation
 import qualified G2.Language.ExprEnv as E
 import G2.Language.ReachesSym
 import G2.Language.KnownValues
-import G2.Language.NonRedPathConds
 import G2.Language.Monad
 import qualified G2.Language.Stack as Stck
-import qualified G2.Language.Typing as T
 import G2.Lib.Printers
 import G2.Solver
 import G2.Verify.Config
@@ -449,7 +446,7 @@ verifyHigherOrderHandling = mkSimpleReducer (const ()) red
                             (ret_false, ng5) = freshId ty_fun ng4
 
                             eq_tc = case typeClassInst tc HM.empty (eqTC kv) ty_ar of
-                                    Just tc -> tc
+                                    Just tc_inst -> tc_inst
                                     Nothing -> error $ "verifyHigherOrderHandling: unsupported type" ++ "\n" ++ show ty_fun ++ "\n" ++ show ty_ar
                             eq_f = eqFunc kv
                             eq_f_i = Id eq_f (typeOf tvnv . fromJust $ E.lookup eq_f eenv)
@@ -564,7 +561,7 @@ unifyNRPCs no_inline eenv pc fm (nrpc@(NRPC focus1 e1 v1) :*> nrpcs) =
         Nothing -> mapFst4 (nrpc :*>) $ unifyNRPCs no_inline eenv pc fm nrpcs
 
 alignVar :: HS.HashSet Name -> HS.HashSet Name -> ExprEnv -> PathConds -> Expr -> Expr -> Maybe (ExprEnv, PathConds)
-alignVar _ _ eenv pc (Var (Id n1 _)) v@(Var (Id n2 _))
+alignVar _ _ eenv pc (Var (Id n1 _)) (Var (Id n2 _))
     | n1 == n2 = Just (eenv, pc)
 alignVar _ _ eenv pc (Var (Id n1 t)) e2
     | isPrimType t = Nothing
@@ -605,7 +602,7 @@ inconsistentNRPCHalter no_inline =
         
         add_nrpc (hv, g) _ _ s
             | not (g `isSameGoal` (goal . track $ s)) = (HS.empty, goal . track $ s)
-            | currExprIsFalse s = foldl' (\(hv_, g) (NRPC _ e1 e2) -> (HS.insert (e1, e2) hv_, g)) (hv, g) (toListNRPC $ non_red_path_conds s)
+            | currExprIsFalse s = foldl' (\(hv_, g_) (NRPC _ e1 e2) -> (HS.insert (e1, e2) hv_, g_)) (hv, g) (toListNRPC $ non_red_path_conds s)
             | otherwise = (hv, g)
 
 
@@ -746,7 +743,7 @@ genLemmaState no_inline solver (LI { generated_lem = gen_lems, discarded_lem = d
                                                         lookupConcOrSymState
                                                         no_inline
     equiv_lemma <-liftIO $ findM (\prev -> liftM2 (&&) (res_check prev lem_s) (res_check lem_s prev)) gen_lems
-    dis_lemma <-liftIO $ findM (\s -> res_check s lem_s) dis_lems
+    dis_lemma <-liftIO $ findM (flip res_check lem_s) dis_lems
 
     case (equiv_lemma, dis_lemma) of
         (Nothing, Nothing) -> do
@@ -773,9 +770,9 @@ mrContIgnoreNRPCTicks :: Maybe (GenerateLemma t l)
                       -> Either [l] (HM.HashMap Id Expr, HS.HashSet (Expr, Expr))
 mrContIgnoreNRPCTicks genLemma lkp s1 s2 ns hm active n1 n2 e1 e2 =
     case (e1, e2) of
-        (Tick t1 e1', _) ->
+        (Tick _ e1', _) ->
             moreRestrictive' (mrContIgnoreNRPCTicks genLemma lkp) genLemma lkp s1 s2 ns hm active n1 n2 e1' e2
-        (_, Tick t2 e2') ->
+        (_, Tick _ e2') ->
             moreRestrictive' (mrContIgnoreNRPCTicks genLemma lkp) genLemma lkp s1 s2 ns hm active n1 n2 e1 e2'
         _ -> Left []
 

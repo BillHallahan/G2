@@ -548,7 +548,6 @@ evalPrimADT2 kv tenv StrAppend xs ys = do
     return . toListExpr kv tenv t $ xs' ++ ys'
 
 evalPrimADT2 kv _ StrContains str sub = do
-    t <- listType str
     str' <- toExprList str
     sub' <- toExprList sub
     let ret = sub' `L.isInfixOf` str'
@@ -580,16 +579,6 @@ evalPrimADT2 kv _ StrSuffixOf suf s = do
     s' <- toExprList s
     return . mkBool kv $ suf' `L.isSuffixOf` s'
 
-evalPrimADT2 kv _ Eq f s = fmap (mkBool kv) $ lstEq f s
-    where
-        -- List equality, currently used for strings and assumes types can be compared
-        lstEq (App (App (App (Data dc_f) _) elem_f@(Lit _)) xs) (App (App (App (Data dc_s) _) elem_s@(Lit _)) ys) = do
-            nxt <- lstEq xs ys
-            assert (KV.dcCons kv == dcName dc_f && KV.dcCons kv == dcName dc_s) (Just (nxt && elem_f == elem_s))
-        lstEq (App (App (App (Data _) _) _) _) (App (Data _) _) = Just False
-        lstEq (App (Data _) _) (App (App (App (Data _) _) _) _) = Just False
-        lstEq (App (Data dc_f) _) (App (Data dc_s) _) = assert (KV.dcEmpty kv == dcName dc_f && KV.dcEmpty kv == dcName dc_s) (Just True)
-        lstEq _ _ = Nothing
 evalPrimADT2 kv _ StrLe f s = fmap (mkBool kv) $ lstLe f s
     where
         lstLe (App (App (App (Data dc_f) _) (App _ (Lit (LitChar c1)))) xs) (App (App (App (Data dc_s) _) (App _ (Lit (LitChar c2)))) ys)
@@ -617,7 +606,7 @@ evalPrimADT2 kv _ InRe s regex = do
     s' <- toExprList s
     return $ mkBool kv (matchesRegex s' regex)
 
-evalPrimADT2 _ _ _ e1 e2 = Nothing
+evalPrimADT2 _ _ _ _ _ = Nothing
 
 matchesRegex :: [Expr] -> Expr -> Bool
 matchesRegex es r = any null $ matchesRegex' es r
@@ -957,7 +946,6 @@ evalPrimSymbolic tv eenv tenv ng kv e
             (_, bi) = fromJust $ getCastedAlgDataTy t tenv
 
             dcs = dataCon adt
-            num_dcs = zip (map (Lit . LitInt) [0..]) dcs
 
             (cvar, ng') = freshId t ng
 
