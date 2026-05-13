@@ -22,7 +22,9 @@ module InputOutputTest ( checkInputOutput
                        , checkInputOutputsNonRedLib
                        , checkInputOutputsInstType 
                        , checkInputOutputsWithValidate
-                       , checkInputOutputsWithTemplatesAndHpc) where
+                       , checkInputOutputsWithTemplatesAndHpc
+                       
+                       , transValidateRes) where
 
 import Test.Tasty
 import Test.Tasty.HUnit
@@ -234,7 +236,7 @@ checkInputOutput''' adj_config src exg2 nm tnm mb_modname config (entry, stps, r
 
     let chEx = checkExprInOutCount io req
     
-    return (fmap (fromMaybe False) mr, chEx, anys, r, b)
+    return (fmap transValidateRes mr, chEx, anys, r, b)
 
 ------------
 

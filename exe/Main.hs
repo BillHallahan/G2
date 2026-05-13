@@ -47,10 +47,12 @@ runWithArgs as = do
 
   let (unspecified_output, spec_output) = L.partition (\ExecRes { final_state = s } -> getExpr s == Prim UnspecifiedOutput TyBottom) in_out
   
-  let notValidated = filter (\ExecRes{validated = val} -> case val of
-                                                                    Just m -> m == False
-                                                                    Nothing -> False ) in_out
-  let timeouts = filter (\ExecRes{validated = val} -> isNothing val) in_out
+  let notValidated = filter (\ExecRes{validate_result = val_res} -> case val_res of
+                                                                    Invalid -> True
+                                                                    ValidationSrcError _ -> True
+                                                                    ValidationRTError -> True
+                                                                    _ -> False ) in_out
+  let timeouts = filter (\ExecRes{validate_result = val_res} -> case val_res of ValidationTimeout -> True; _ -> False) in_out
 
   when (validate config') $ do
     if null notValidated then putStrLn "Validated" else putStrLn "There was an error during validation."
@@ -70,7 +72,12 @@ runWithArgs as = do
         putStrLn $ "Func arg states: " ++ show (length unspecified_output)
 
   when (measure_coverage config') $ do
+<<<<<<< HEAD
     runHPC src (measure_coverage_with config') (T.unpack $ fromJust mb_modname) entry (filter (\ExecRes{validated = val} -> fromMaybe False val) in_out)
+=======
+    runHPC src (measure_coverage_with config') (T.unpack $ fromJust mb_modname) entry 
+        (filter (\ExecRes{validate_result = val_res} -> case val_res of Valid -> True; _ -> False) in_out)
+>>>>>>> 731b22e5a (NO crash on GHC error. Report error and continue attempting to validate outputs. Also changes to allow compilation elsewhere.)
     case in_out of
         _:_ -> do
           let reachable = reachesHPC all_mods (expr_env init_state) (Var entry_f)

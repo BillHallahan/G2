@@ -43,7 +43,7 @@ printFuncCalls config entry b exec_res = do
 
         let print_method = case print_output config of
                                 True -> \m i o -> m <> i <> " = " <> o 
-                                False -> \m i _ ->  m <> i
+                                False -> \m i _ -> m <> i
 
         case sym_gen_out of
             S.Empty -> T.putStrLn $ print_method mvp inp outp
