@@ -85,6 +85,7 @@ type EEDiff = [(Name, Expr)] -- concrete values to insert in ExprEnv
 type EESymDiff = [Id] -- symbolic variables to insert in ExprEnv
 type TVEDiff = [(Name, Type)] -- concrete types to insert in TyVarEnv
 type TVESymDiff = [Id] -- symbolic variables to insert in TyVarEnv
+type TCInstDiff = [(Name, Type, Id)] -- type class instances to insert into TypeClasses
 
 data StateDiff = SD { new_conc_entries :: EEDiff -- ^ New concrete entries for the expr_env
                     , new_sym_entries :: EESymDiff -- ^ New symbolic entries for the expr_env
@@ -96,6 +97,7 @@ data StateDiff = SD { new_conc_entries :: EEDiff -- ^ New concrete entries for t
                     , new_conc_types :: TVEDiff -- ^ New concrete entries for the tyvar_env
                     , new_sym_types :: TVESymDiff -- ^ New symbolic entries for the tyvar_env
                     , new_mut_vars :: [(Name, Id, MVOrigin)] -- ^ New mutable variables for the mutvar_env
+                    , new_type_class_insts :: TCInstDiff -- ^ New type class instances for the type class env
                     }
                     deriving (Show, Eq, Read, Generic, Data)
 

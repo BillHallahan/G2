@@ -86,7 +86,7 @@ reduceStateDiff :: (Solver solver, Simplifier simplifier)
                 -> IO (Maybe (NameGen, State t))
 reduceStateDiff discard_unknown_states solver simplifier ng
              init_state@(State { expr_env = init_eenv, tyvar_env = init_tvenv
-                               , path_conds = state_pc })
+                               , path_conds = state_pc, type_classes = init_tcs })
              (SD { new_conc_entries = nce
                  , new_sym_entries = nse
                  , new_path_conds = pc
@@ -96,7 +96,8 @@ reduceStateDiff discard_unknown_states solver simplifier ng
                  , new_curr_expr = n_curre
                  , new_conc_types = nct
                  , new_sym_types = nst
-                 , new_mut_vars = nmv })
+                 , new_mut_vars = nmv
+                 , new_type_class_insts = ntcis })
     | not (null pc) || not (null concIds) = do
         let ((ng', eenv'), pc') =
                 mapAccumR (\(ng_, eenv_) pc_ ->
@@ -137,10 +138,11 @@ reduceStateDiff discard_unknown_states solver simplifier ng
         eenv = insertInOrder E.insert nce $ insertSymInOrder E.insertSymbolic nse init_eenv
         tvenv = insertInOrder TV.insert nct $ insertSymInOrder TV.insertSymbolic nst init_tvenv
         state = newMutVars init_state nmv
+        tcs = foldr (\(cls_n, ty, dict_id) -> addClassInstance cls_n ty dict_id) init_tcs ntcis 
         s = state {
             expr_env = eenv, tyvar_env = tvenv,
             true_assert = nta, assert_ids = nai,
-            curr_expr = n_curre }
+            curr_expr = n_curre, type_classes = tcs }
 
 mapAccumMaybeM :: Monad m => (s -> a -> m (Maybe (s, b))) -> s -> [a] -> m (s, [b])
 mapAccumMaybeM f s xs = do
