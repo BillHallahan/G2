@@ -144,8 +144,9 @@ def run_g2(filename, func, var_settings, timeout):
 def call_g2_process(filename, func, var_settings, to):
     args = [exe_name, filename, func]
     print("args = " + str(args))
+    print("settings = " + str(var_settings))
     try:
-        res = subprocess.run(args + var_settings, universal_newlines=True, capture_output=True, timeout = to + 15);
+        res = subprocess.run(args + var_settings, universal_newlines=True, capture_output=True, timeout = to * 5);
         return res.stdout
     except subprocess.TimeoutExpired:
         return "Timeout"
@@ -410,7 +411,7 @@ def run_g2_with_synth(args):
     et_smt_new = "TO" if (int(to) <= et_smt) else str(round(et_smt, 1))
     depth_smt = process_out_for_depth(res_smt)
 
-    return (prop_file, prop, et_base_new + "/" + depth_base, et_smt_new + "-" + depth_smt)
+    return (prop_file, prop, et_base_new + "/" + depth_base, et_smt_new + "/" + depth_smt)
         
 # def run_g2_with_synth_seq(setname, progs, to):
 #     setpath = os.path.join("string-to-smt-benchmark/", setname)
@@ -469,6 +470,7 @@ if __name__ == '__main__':
     res_progs = run_nofib_set("programs", [], 180)
 
 #Running properties in G2
+    print("\n\nNow runnign Isaplanner and Prod")
     run_props = {"ZenoInt.hs": "Zeno.txt", "Prod.hs": "Prod.txt"}
     result = run_eval("programs", run_props, time_lim)
     print("\n\nLatex for Depth and Time\n\n")
