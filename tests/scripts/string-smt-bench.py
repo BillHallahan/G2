@@ -17,6 +17,7 @@ smt_solvers = ["z3", "cvc5"]
 
 # outputting latex
 def cov_generate_latex(res_all):
+    print("\n\nLatex for Concretization versus other solvers table\n\n")
     solvers = ["conc"] + smt_solvers
 
     print(r"\begin{tabular}{| l |" + "".join(map(lambda _ : " c | c |", solvers)) + "}")
@@ -39,6 +40,8 @@ def cov_generate_latex(res_all):
     print(r"\end{tabular}")
 
 def solver_cov_generate_csv(res_all):
+    print("\n\nResult for Solvers summary table\n\n")
+
     solvers = ["conc"] + smt_solvers
 
     for (file_dir, bench_res) in res_all:
@@ -399,15 +402,15 @@ def run_g2_with_synth(args):
 
     print("Running " + prop + " with Baseline")
     (res_base, et_base) = run_g2(os.path.join(filepath, prop_file), prop, settings, to)
-    et_base_new = "TO" if (int(to) <= et_base) else str(round(et_base, 2))
+    et_base_new = "TO" if (int(to) <= et_base) else str(round(et_base, 1))
     depth_base = process_out_for_depth(res_base)
 
     print("Running " + prop + " with SMT definitions")
     (res_smt, et_smt) = run_g2(os.path.join(filepath, prop_file),prop,["--smt-def-file", smt_def_file, "--smt-lists"] + settings,to)
-    et_smt_new = "TO" if (int(to) <= et_smt) else str(round(et_smt, 2))
+    et_smt_new = "TO" if (int(to) <= et_smt) else str(round(et_smt, 1))
     depth_smt = process_out_for_depth(res_smt)
 
-    return (prop_file, prop, et_base_new + "-" + "(" + depth_base + ")", et_smt_new + "-" + "(" + depth_smt + ")")
+    return (prop_file, prop, et_base_new + "/" + depth_base, et_smt_new + "-" + depth_smt)
         
 # def run_g2_with_synth_seq(setname, progs, to):
 #     setpath = os.path.join("string-to-smt-benchmark/", setname)
@@ -452,13 +455,8 @@ def run_eval(setname, progs, to):
 if __name__ == '__main__':
     time_lim = 60
 
-    # res_imag = run_nofib_set("nofib-symbolic/imaginary", [], time_lim)
-    # res_spec = run_nofib_set("nofib-symbolic/spectral", [], time_lim)
-    res_progs = run_nofib_set("programs", [], 180)
-    synth_prog = {"ZenoInt.hs": "ZenoIntProp.txt"}
-    run_props = {"ZenoInt.hs": "Zeno.txt"}
-
-    #Synthesizer here
+# Run Synthesizer
+    # synth_prog = {"ZenoInt.hs": "ZenoIntProp.txt"}
     # synth_res = run_synthesizer("programs", synth_prog, [], time_lim)
 
     # print(synth_res)
@@ -466,17 +464,30 @@ if __name__ == '__main__':
     # with open("string-to-smt-benchmark/synth_out.txt", "w") as file:
     #     file.write(synth_res)
 
-    #Running G2
+
+# Run Okasaki benchmarks
+    res_progs = run_nofib_set("programs", [], 180)
+
+#Running properties in G2
+    run_props = {"ZenoInt.hs": "Zeno.txt", "Prod.hs": "Prod.txt"}
     result = run_eval("programs", run_props, time_lim)
-    print("Latex for Depth and Time table\n\n")
+    print("\n\nLatex for Depth and Time\n\n")
     for (fle, prop, conc_depth, smt_depth) in result:
         print(fle + " & " + prop + " & " + conc_depth + " & " + smt_depth + r"\\ \hline")
 
-    # cov_generate_latex(res_imag + res_spec + res_progs)
+
     cov_generate_latex(res_progs)
-    # solver_cov_generate_csv(res_imag + res_spec + res_progs)
+
     solver_cov_generate_csv(res_progs)
 
+    
+    
+    
+    
+    # res_imag = run_nofib_set("nofib-symbolic/imaginary", [], time_lim)
+    # res_spec = run_nofib_set("nofib-symbolic/spectral", [], time_lim)
+    # solver_cov_generate_csv(res_imag + res_spec + res_progs)
+    # cov_generate_latex(res_imag + res_spec + res_progs)
     # time_lim = 30
 
     # props = map(lambda x : "prop" + str(x), list(range(1, 25)))

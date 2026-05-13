@@ -30,3 +30,5 @@ cabal.project.local
 *.mix
 dumps
 verify-results
+smt/
+*.tix
