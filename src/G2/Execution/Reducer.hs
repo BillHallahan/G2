@@ -2029,7 +2029,7 @@ timerHalter io_timed_out ms def min_found ce = do
                         let all_heights = HS.toList . HS.map (flip adtHeight s) $ init_symb
                             curr_height = case all_heights of
                                                 [] -> Nothing
-                                                _ -> Just $ minimum all_heights
+                                                _ -> Just $ sum all_heights
                         curr_time_out <- liftIO $ readIORef io_timed_out
                         liftIO $ writeIORef io_timed_out (timedOutMinDepth curr_time_out curr_height)
                         return def
