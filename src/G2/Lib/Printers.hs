@@ -1,4 +1,4 @@
-{-# LANGUAGE FlexibleContexts, MultiWayIf, OverloadedStrings, TupleSections #-}
+{-# LANGUAGE FlexibleContexts, MultiWayIf, OverloadedStrings, TupleSections, LambdaCase #-}
 
 module G2.Lib.Printers ( PrettyGuide
                        , mkPrettyGuide
@@ -18,6 +18,7 @@ module G2.Lib.Printers ( PrettyGuide
                        , mkTypeHaskell
                        , mkTypeHaskellPG
                        , mkTypeHaskellDictArrows
+                       , mkTCInstanceHaskell
                        , pprExecStateStr
                        , printFuncCall
 
@@ -289,6 +290,25 @@ mkDataConHaskell :: PrettyGuide -> DataCon -> T.Text
 mkDataConHaskell _ (DataCon (Name "Assocs" _ _ _) _ _ _) = "fromList"
 mkDataConHaskell _ (DataCon (Name ":%" _ _ _) _ _ _) = "%"
 mkDataConHaskell pg (DataCon n _ _ _) = mkNameHaskell pg n
+
+-- TODO[Jacob]: doesn't handle superclasses
+-- TODO[Jacob]: assumes <C:> <one tv> <m1>..<mN>
+-- TODO[Jacob]: proper indentation
+-- TODO[Jacob]: sectioning (e.g. (==)) infix methods
+-- | Make the instance declaration for Name Type
+mkTCInstanceHaskell :: PrettyGuide -> Name -> Type -> TypeClasses -> ExprEnv -> T.Text
+mkTCInstanceHaskell pg cls_n t tcs eenv
+    | Just inst_dict_id <- lookupTCDict tcs cls_n t -- get inst dict id
+    , Just (Class {methods = method_strs}) <- lookupTCClass cls_n tcs -- get class for method names
+    , Just method_exprs <- drop 2 . unApp 
+        <$> E.lookup (idName inst_dict_id) eenv -- get method exprs
+    , True
+    = "instance " <> mkNameHaskell pg cls_n <> " " <> mkTypeHaskellPG pg t <> " where\n"
+        <> T.intercalate "\n" (zipWith mkMethodDef method_strs method_exprs) <> "\n"
+    | otherwise = T.empty
+    where 
+        mkMethodDef :: String -> Expr -> T.Text
+        mkMethodDef m_name ex = "    " <> T.pack m_name <> " = " <> mkExprHaskell' 2 Cleaned pg ex
 
 offset :: Int -> T.Text
 offset i = duplicate "   " i

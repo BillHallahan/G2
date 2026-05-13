@@ -25,6 +25,7 @@ module G2.Language.Typing
     , mkTyApp
     , mkTyFun
     , tyAppCenter
+    , tyAppCenterName
     , tyAppArgs
     , unTyApp
     , mkTyCon
@@ -129,6 +130,10 @@ mkTyFun (t1:ts) = TyFun t1 (mkTyFun ts)
 tyAppCenter :: Type -> Type
 tyAppCenter (TyApp t _) = tyAppCenter t
 tyAppCenter t = t
+
+tyAppCenterName :: Type -> Maybe Name
+tyAppCenterName t | (TyCon n _) <- tyAppCenter t = Just n
+                  | otherwise = Nothing
 
 tyAppArgs :: Type -> [Type]
 tyAppArgs (TyApp t t') = tyAppArgs t ++ [t']
