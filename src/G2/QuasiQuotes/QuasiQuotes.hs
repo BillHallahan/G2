@@ -235,7 +235,7 @@ runExecutionQ s b config = do
         (SomeReducer red, SomeHalter hal, SomeOrderer ord) -> do
             let (s'', b'') = runG2Pre emptyMemConfig s' b'
                 hal' = hal <~> zeroHalter 2000 <~> lemmingsHalter
-            (xs, b''') <- runExecutionToProcessed red hal' ord (\s b -> return $ SAT (s, name_gen b)) noAnalysis s'' b''
+            (xs, b''') <- runExecutionToProcessed red hal' ord (\s b -> return $ SAT (s, name_gen b, b'')) noAnalysis s'' b''
 
             case xs of
                 Processed { accepted = acc, discarded = [] } -> do
@@ -443,7 +443,7 @@ solveStates xs b = do
 
 solveStates' :: ( Named t
                 , ASTContainer t Expr
-                , ASTContainer t G2.Type) => Bindings -> [State t] -> IO (Maybe (ExecRes t, NameGen))
+                , ASTContainer t G2.Type) => Bindings -> [State t] -> IO (Maybe (ExecRes t, NameGen, Bindings))
 solveStates' b xs = do
     config <- qqConfig
     SomeSolver solver <- initSolverInfinite config
@@ -454,7 +454,7 @@ solveStates'' :: ( Named t
                  , ASTContainer t Expr
                  , ASTContainer t G2.Type
                  , Solver solver
-                 , Simplifier simplifier) => solver -> simplifier -> Bindings -> [State t] -> IO (Maybe (ExecRes t, NameGen))
+                 , Simplifier simplifier) => solver -> simplifier -> Bindings -> [State t] -> IO (Maybe (ExecRes t, NameGen, Bindings))
 solveStates'' _ _ _ [] = return Nothing
 solveStates'' sol simplifier b (s:xs) = do
     m_ex_res <- runG2Solving sol simplifier s b
