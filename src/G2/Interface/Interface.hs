@@ -243,7 +243,8 @@ initStateFromSimpleState s m_mod useAssert mkCurr argTys config =
     , higher_order_inst = S.filter (\n -> nameModule n `elem` m_mod) . S.fromList $ IT.exports s
     , rewrite_rules = IT.rewrite_rules s
     , name_gen = ng'''
-    , exported_funcs = IT.exports s })
+    , exported_funcs = IT.exports s
+    , printed_outputs = S.empty })
 
 mkArgTys :: Config -> TV.TyVarEnv -> Expr -> MkArgTypes
 mkArgTys config tv e simp_s =
@@ -802,7 +803,7 @@ runG2SolvingResult :: ( Named t
                    -> simplifier
                    -> Bindings
                    -> State t
-                   -> IO (Result (ExecRes t, NameGen) () ())
+                   -> IO (Result (ExecRes t, NameGen, Bindings) () ())
 runG2SolvingResult solver simplifier bindings s@(State { tyvar_env = tv_env })
     | true_assert s = do
         r <- solve solver s bindings (E.symbolicIds . expr_env $ s) (path_conds s)
@@ -810,7 +811,7 @@ runG2SolvingResult solver simplifier bindings s@(State { tyvar_env = tv_env })
             SAT (SatRes m tv_env' ng') -> do
                 let s' = s { tyvar_env = tv_env `TV.union` tv_env' }
                     m' = reverseSimplification simplifier s' bindings m
-                return . SAT $ (runG2SubstModel m' s' bindings, ng')
+                return . SAT $ (runG2SubstModel m' s' bindings, ng', bindings)
             UNSAT _ -> return $ UNSAT ()
             Unknown reason _ -> return $ Unknown reason ()
 
@@ -824,7 +825,7 @@ runG2Solving :: ( MonadIO m
              -> simplifier
              -> State t
              -> Bindings
-             -> m (Result (ExecRes t, NameGen) () ())
+             -> m (Result (ExecRes t, NameGen, Bindings) () ())
 runG2Solving solver simplifier s bindings = liftIO $ runG2SolvingResult solver simplifier bindings s
 
 runG2SolvingValidate :: ( MonadIO m
@@ -841,23 +842,23 @@ runG2SolvingValidate :: ( MonadIO m
              -> simplifier
              -> State t
              -> Bindings
-             -> m (Result (ExecRes t, NameGen) () ())
+             -> m (Result (ExecRes t, NameGen, Bindings) () ())
 runG2SolvingValidate modN entry entry_id config solver simplifier s bindings = do
     res <- runG2Solving solver simplifier s bindings
     case res of
-        SAT (m, ng) | validate config -> do
+        SAT (m, ng, b) | validate config -> do
                 let m' = if print_encode_float config then toEnclodeFloat m else m
 
                 (res', isVal) <- runValidate (validate_with config) modN entry solver simplifier bindings m' 5
                 let res'' = res' {validated = isVal}
 
-                liftIO $ do
-                    printStateOutput config entry_id bindings (Just isVal) m'
+                bindings' <- liftIO $ do
+                    printStateOutput config entry_id b (Just isVal) m'
 
-                return (SAT (res'', ng))
-        SAT (m, _) -> do
-            liftIO $ printStateOutput config entry_id bindings Nothing m
-            return res
+                return (SAT (res'', ng, bindings'))
+        SAT (m, ng, b) -> do
+            b' <- liftIO $ printStateOutput config entry_id b Nothing m
+            return (SAT (m, ng, b'))
         _ -> return res
 
 runValidate :: ( MonadIO m
@@ -890,7 +891,7 @@ runValidate val_with modN entry solver simplifier bindings
                 fs' = fs {expr_env = eenv', path_conds = newPc}
             res' <- runG2Solving solver simplifier fs' bindings
             case res' of
-                SAT (m, !_) -> runValidate val_with modN entry solver simplifier bindings m (runLimit - 1)
+                SAT (m, !_, _) -> runValidate val_with modN entry solver simplifier bindings m (runLimit - 1)
                 _ -> return (res, isValidated)
         _ -> return (res, isValidated)
 

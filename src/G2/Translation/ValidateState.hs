@@ -325,8 +325,8 @@ validateState comp_func modN entry chAll chAny b in_out = do
 printStateOutput :: Config -> Id -> Bindings
                -> Maybe (Maybe Bool)
                -> ExecRes t
-               -> IO ()
-printStateOutput config entry b m_valid exec_res@(ExecRes { final_state = s }) = do
+               -> IO Bindings
+printStateOutput config entry b@(Bindings { printed_outputs = pr_outs }) m_valid exec_res@(ExecRes { final_state = s }) = do
     let print_valid = isJust m_valid
     let val = fromMaybe (Just True) m_valid
 
@@ -344,12 +344,16 @@ printStateOutput config entry b m_valid exec_res@(ExecRes { final_state = s }) =
         
     let print_method = \g m i o -> g <> m <> i <> " = " <> o 
 
-    when (print_output config ) (do
+    let state_output_text = print_method gen_adts mvp inp outp
+    let pr_outs' = HS.insert state_output_text pr_outs
+
+    when (print_output config && (print_duplicate_outputs config || (pr_outs' /= pr_outs))) (do
         case sym_gen_out of
-            S.Empty -> T.putStrLn $ print_method gen_adts mvp inp outp
-            _ -> T.putStrLn $ print_method gen_adts mvp inp outp <> "\t| generated: " <> T.intercalate ", " (toList sym_gen_out)
+            S.Empty -> T.putStrLn state_output_text
+            _ -> T.putStrLn $ state_output_text <> "\t| generated: " <> T.intercalate ", " (toList sym_gen_out)
         if handles /= "" then T.putStrLn handles else return ())
 
+    return b {printed_outputs = pr_outs'}
 
 toEnclodeFloat :: ASTContainer m Expr => m -> m
 toEnclodeFloat = modifyASTs go
