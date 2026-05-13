@@ -849,15 +849,15 @@ runG2SolvingValidate modN entry entry_id config solver simplifier s bindings = d
         SAT (m, ng, b) | validate config -> do
                 let m' = if print_encode_float config then toEnclodeFloat m else m
 
-                (res', isVal) <- runValidate (validate_with config) modN entry solver simplifier bindings m' 5
-                let res'' = res' {validated = isVal}
+                (res', val_res) <- runValidate (validate_with config) modN entry solver simplifier bindings m' 5
+                let res'' = res' {validate_result = val_res}
 
-                bindings' <- liftIO $ do
-                    printStateOutput config entry_id b (Just isVal) m'
+                bindings' <- do
+                    printStateOutput config entry_id b (Just val_res) m'
 
                 return (SAT (res'', ng, bindings'))
         SAT (m, ng, b) -> do
-            b' <- liftIO $ printStateOutput config entry_id b Nothing m
+            b' <- printStateOutput config entry_id b Nothing m
             return (SAT (m, ng, b'))
         _ -> return res
 
@@ -875,25 +875,25 @@ runValidate :: ( MonadIO m
                 -> Bindings 
                 -> ExecRes t 
                 -> Int 
-                -> m (ExecRes t, Maybe Bool)
-runValidate _ _ _ _ _ _ res 0 = return (res, Nothing)
+                -> m (ExecRes t, ValidateRes)
+runValidate _ _ _ _ _ _ res 0 = return (res, Invalid)
 runValidate val_with modN entry solver simplifier bindings 
         res@ExecRes{final_state = fs} runLimit = do
-    isValidated <- validateState val_with modN entry [] [] bindings res 
+    validate_res <- validateState val_with modN entry [] [] bindings res 
     let currModel = model fs
         eenv = expr_env fs
         tv = tyvar_env fs
         origPc = path_conds fs
-    case isValidated of
-        Nothing -> do
+    case validate_res of
+        ValidationTimeout -> do
             let (eenv', pcs) = getNewPathCond (HM.toList currModel) tv eenv
                 newPc = makePathConds pcs origPc
                 fs' = fs {expr_env = eenv', path_conds = newPc}
             res' <- runG2Solving solver simplifier fs' bindings
             case res' of
                 SAT (m, !_, _) -> runValidate val_with modN entry solver simplifier bindings m (runLimit - 1)
-                _ -> return (res, isValidated)
-        _ -> return (res, isValidated)
+                _ -> return (res, validate_res)
+        _ -> return (res, validate_res)
 
     where 
         getNewPathCond ((n, e):nes) tvenv expEnv = 
@@ -938,7 +938,7 @@ runG2SubstModel m s@(State { expr_env = eenv, type_env = tenv, tyvar_env = tv_en
                      , conc_mutvars = mv
                      , conc_handles = h
                      , violated = ais
-                     , validated = Nothing }
+                     , validate_result = Invalid }
 
         sm' = runPostprocessing bindings sm
 
@@ -949,7 +949,7 @@ runG2SubstModel m s@(State { expr_env = eenv, type_env = tenv, tyvar_env = tv_en
                        , conc_mutvars = mv
                        , conc_handles = conc_handles sm'
                        , violated = evalPrims eenv tenv tv_env kv tc (violated sm')
-                       , validated = Nothing -- when validate runs, it will get updated
+                       , validate_result = Invalid -- when validate runs, it will get updated
                        }
     in
     sm''
