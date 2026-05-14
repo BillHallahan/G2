@@ -11,7 +11,6 @@ import G2.Language
 import qualified G2.Language.ExprEnv as E
 
 import Data.List
-import qualified Data.Map as M
 import Data.Maybe
 import qualified Data.Text as T
 import qualified Data.HashMap.Lazy as HM 
@@ -121,13 +120,13 @@ mkMainExprNoInstantiateTypes tv e ng =
                 _ -> False
         (ats,nts) = partition anontype argts 
         -- We want to have symbolic types so we grab the type level arguments and introduce symbolic variables for them
-        ns = map (\(NamedType (Id n _)) -> n) nts
+        ntids = map (\(NamedType i) -> i) nts
+        ns = map idName ntids
         (ns', ng') = renameAll ns ng
 
         ntmap = HM.fromList $ zip ns ns' 
         -- We want to create a full list of symoblic variables with new names and put the symbolic variables into the expr env
         -- Type level arguments
-        ntids = map (\(NamedType i) -> i) nts
         ntids' = renames ntmap ntids
 
         -- Value level arguments

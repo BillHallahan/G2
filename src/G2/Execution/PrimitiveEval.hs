@@ -716,14 +716,6 @@ toExprList (App (Data _) _) = Just []
 toExprList (App (App (App (Data _) _) l) xs) = fmap (l:) $ toExprList xs
 toExprList _ = Nothing
 
-toStringExpr :: KnownValues -> TypeEnv -> String -> Expr
-toStringExpr kv tenv =
-    let cons = mkCons kv tenv in
-    foldr (\h t -> mkApp [ cons
-                         , Type (tyChar kv)
-                         , App (mkDCChar kv tenv) (Lit (LitChar h))
-                         , t]) (App (mkEmpty kv tenv) (Type (tyChar kv)))
-
 toListExpr :: KnownValues -> TypeEnv -> Type -> [Expr] -> Expr
 toListExpr kv tenv t =
     let cons = mkCons kv tenv in

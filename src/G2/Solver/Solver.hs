@@ -357,8 +357,8 @@ instance Solver solver => Solver (UnrollBoundedQuant solver) where
 unroll :: Integer -> PathConds -> PathConds
 unroll k = PC.concatMapHashedPCs unroll'
     where
-        unroll' hpc | ExtCond e True <- PC.unhashedPC hpc
-                    , [Prim ForAllBoundPr _, lower, upper, Lam _ i e] <- unApp e =
+        unroll' hpc | ExtCond ext_cond_e True <- PC.unhashedPC hpc
+                    , [Prim ForAllBoundPr _, lower, upper, Lam _ i e] <- unApp ext_cond_e =
                         let
                             -- Enforce an upper bound based on the number of times we are unrolling.
                             lim_upper = mkApp [ Prim Le TyUnknown
