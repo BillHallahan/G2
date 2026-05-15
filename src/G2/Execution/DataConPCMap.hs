@@ -24,6 +24,7 @@ import G2.Language.TypeEnv (TypeEnv)
 import qualified G2.Language.Typing as T
 import G2.Language.TyVarEnv (TyVarEnv)
 
+import Data.List
 import qualified Data.HashMap.Lazy as HM
 
 import Control.Exception
