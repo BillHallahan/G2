@@ -8,6 +8,7 @@ module G2.Language.ArbValueGen ( ArbValueGen
                                , arbValueInfinite
                                , constArbValue ) where
 
+import G2.Data.Utils
 import G2.Language.Expr
 import G2.Language.Monad.Naming
 import G2.Language.Support
