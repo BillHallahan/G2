@@ -4,6 +4,8 @@
 module Strings1 where
 
 import Data.List
+import qualified GHC.List as L
+import qualified Data.Maybe as M
 
 toEnum1 :: String
 toEnum1 = [toEnum 56089]
@@ -578,3 +580,7 @@ test1 xs = (length (map id xs) > 3, if init xs == tail xs then 1 else 0)
 test1InitTailEq :: String -> (Bool, Int) -> Bool
 test1InitTailEq _ (b, i) = b && i == 1
 
+testQualImp :: String -> M.Maybe Char
+testQualImp s = case "12345" `isInfixOf` s of
+                    True -> M.Nothing
+                    False -> M.Just 'q'

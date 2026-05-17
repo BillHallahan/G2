@@ -508,6 +508,8 @@ testFileTests = testGroup "TestFiles"
                                         , ("lines1", 4000, [AtLeast 10])
 
                                         , ("repeat1", 1000, [AtLeast 5])
+
+                                        , ("testQualImp", 4000, [Exactly 2])
                                         ]
     , checkInputOutputsSMTStringsStrict "tests/TestFiles/Strings/Strings1.hs"
                                         [ ("showInt1", 4000, [Exactly 2])
