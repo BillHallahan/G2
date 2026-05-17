@@ -876,7 +876,7 @@ baseTests = testGroup "Base"
 
     , checkInputOutputs "tests/BaseTests/MaybeTest.hs" [ ("headMaybeInt", 1000, [AtLeast 2])
                                                        , ("sumN", 1000, [AtLeast 6])
-                                                       , ("lengthN", 1000, [AtLeast 6]
+                                                       , ("lengthN", 1000, [AtLeast 6])
                                                        , ("listToMaybeFloat", 1000, [AtLeast 2]) ]
 
     , checkInputOutput "tests/BaseTests/Other.hs" "check4VeryEasy2" 600 [AtLeast 1]
