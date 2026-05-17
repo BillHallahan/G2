@@ -4,7 +4,6 @@
 module Strings1 where
 
 import Data.List
-import qualified GHC.List as L
 import qualified Data.Maybe as M
 
 toEnum1 :: String
