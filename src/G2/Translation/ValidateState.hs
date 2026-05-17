@@ -201,7 +201,7 @@ getImports src = do
         get str = do
             -- This also matches "import X as Y", which is fine since the code will need to
             -- be parsed and it will error there
-            let reg_str = "import[ \t]*(qualified[ \t]*)?([a-zA-Z0-9_.]*)([ \t]+as[ \t]+[a-zA-Z0-9_.]*)?"
+            let reg_str = "^import[ \t]*(qualified[ \t]*)?([a-zA-Z0-9_.]*)([ \t]+as[ \t]+[a-zA-Z0-9_.]*)?"
             let r = mkRegex reg_str
             case matchRegexAll r str of
                 Just (_, _, after, [_, imp, _]) -> (imp :) <$> get after
