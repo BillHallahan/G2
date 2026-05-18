@@ -94,7 +94,7 @@ getBoolOptFromDC kv dcon
 -- This should be the equivalent of
 -- `foldl (\prev_bool elem -> prev_bool && lit_table_func elem) True string`
 litTableToAllRe :: State t -> NameGen -> LitTable -> Expr -> (StateDiff, NameGen)
-litTableToAllRe s ng lt str_e = 
+litTableToAllRe s ng lt str_e =
     let kv = known_values s
         eenv = expr_env s
         tvnv = tyvar_env s
@@ -105,11 +105,11 @@ litTableToAllRe s ng lt str_e =
 
         (Id lt_arg_name _) = lt_arg lt
         lt_arg_e = fromJust $ E.deepLookup lt_arg_name eenv
-        (unboxed_sym, unboxed_name) = 
+        (unboxed_sym, unboxed_name) =
             case lt_arg_e of
                 App _ (v@(Var i)) -> (v, idName i)
                 _ -> error $ "lit table arg not in form (data_con unboxed_sym): " ++ show lt_arg_e
-        
+
         -- Not entirely sure if the element variable should be unboxed or not
         lit_ty = typeOf tvnv unboxed_sym
         (accum_var, ng1) = freshId (tyBool kv) ng
@@ -119,7 +119,7 @@ litTableToAllRe s ng lt str_e =
         or_exp = if null lt_lst then mkTrue kv
                  else case L.uncons lt_trues of
                     Nothing -> mkFalse kv
-                    Just (hd, tl) -> foldl' (\prev_exp pcs -> mkApp [Prim Or (tyBool kv), prev_exp, pcsToExpr kv pcs]) (pcsToExpr kv hd) tl
+                    Just (hd, tl) -> L.foldl' (\prev_exp pcs -> mkApp [Prim Or (tyBool kv), prev_exp, pcsToExpr kv pcs]) (pcsToExpr kv hd) tl
 
         or_exp1 = replaceVar unboxed_name (Var elem_var) or_exp
         and_exp = mkApp [Prim And (tyBool kv), Var accum_var, or_exp1]
