@@ -842,8 +842,7 @@ createExtCond s ngen dcpm mexpr cvar (dcon, bindees, aexpr)
             , new_mut_vars = [] }, ngen'')
     -- Very nasty hack alert. We are trying to convert an internal literal table reference into a `LitTable`
     -- object in order to apply it to `allByLitTable`, so we just set the current expr to a representation
-    -- of the literal table in regex, e.g. 'a' <= x && x <= 'z' -> True is represented as
-    -- (re.inter (re.range 'a' <max character>) (re.range <min character> 'z')), using our regex primitives.
+    -- of the literal table using SMT fold primitives.
     -- Note that this situation only happens as a result of strictness for the result of buildLitTable# in `all`,
     -- which creates a case expression.
     | (Prim (LitTableRef lt_name) _) <- mexpr,
