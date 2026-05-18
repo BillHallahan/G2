@@ -52,7 +52,7 @@ runG2ForNebula :: Solver solver =>
                     Config ->
                     NebulaConfig ->
                     Bindings ->
-                    IO ([ExecRes EquivTracker], Bindings)
+                    IO ([ExecRes EquivTracker], GotUnknown, Bindings)
 runG2ForNebula solver state h_opp track_opp config nc bindings = do
     --SomeSolver solver <- initSolver config
     let simplifier = IdSimplifier
@@ -60,11 +60,11 @@ runG2ForNebula solver state h_opp track_opp config nc bindings = do
 
         state' = state { track = (track state) { saw_tick = Nothing } }
 
-    (in_out, bindings') <- case rewriteRedHaltOrd solver simplifier h_opp track_opp config nc of
+    (in_out, got_unknown, bindings') <- case rewriteRedHaltOrd solver simplifier h_opp track_opp config nc of
                 (red, hal, ord) ->
                     SM.evalStateT (runG2WithSomes red hal ord noAnalysis solver simplifier sym_config state' bindings) (mkPrettyGuide ())
 
-    return (in_out, bindings')
+    return (in_out, got_unknown, bindings')
 
 rewriteRedHaltOrd :: (MonadIO m, Solver solver, Simplifier simplifier) =>
                      solver ->
@@ -79,10 +79,11 @@ rewriteRedHaltOrd :: (MonadIO m, Solver solver, Simplifier simplifier) =>
 rewriteRedHaltOrd solver simplifier h_opp track_opp config (NC { use_labeled_errors = use_labels }) =
     let
         share = sharing config
+        discard_unknown = smt_discard_on_unknown config
         state_name = Name "state" Nothing 0 Nothing
 
         m_logger = fmap SomeReducer $ getLogger config defPrettyTrack
-        some_std_red = enforceProgressRed :== NoProgress --> stdRed share retReplaceSymbFuncVar solver simplifier
+        some_std_red = enforceProgressRed :== NoProgress --> stdRed share discard_unknown retReplaceSymbFuncVar solver simplifier
         extra_red = symbolicSwapperRed h_opp track_opp ~> concSymReducer use_labels ~> labeledErrorsRed
         red = equivReducer :== NoProgress .--> extra_red :== NoProgress .--> some_std_red
     in

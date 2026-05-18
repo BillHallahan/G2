@@ -90,6 +90,7 @@ import G2.Language.Monad
 import G2.Language.Support (Bindings(input_coercion))
 import qualified G2.Language.TyVarEnv as TV
 import G2.Initialization.MkCurrExpr (CurrExprRes(symbolic_type_ids))
+import G2.Config.Config (Config(smt_discard_on_unknown))
 
 data LHReturn = LHReturn { calledFunc :: FuncInfo
                          , violating :: Maybe FuncInfo
@@ -395,7 +396,7 @@ runLHG2 :: (MonadIO m, Solver solver, Simplifier simplifier)
         -> Bindings
         -> m ([ExecRes AbstractedInfo], Bindings)
 runLHG2 config red hal ord solver simplifier pres_names init_id final_st bindings = do
-    (ret, final_bindings) <- runG2WithSomes red hal ord noAnalysis solver simplifier pres_names final_st bindings
+    (ret, _, final_bindings) <- runG2WithSomes red hal ord noAnalysis solver simplifier pres_names final_st bindings
 
     let ret' = onlyMinimalStates ret
 
@@ -453,6 +454,7 @@ lhReducerHalterOrderer config lhconfig solver simplifier entry mb_modname cfn st
     let
 
         share = sharing config
+        discard_unknown = smt_discard_on_unknown config
 
         state_name = Name "state" Nothing 0 Nothing
 
@@ -462,7 +464,7 @@ lhReducerHalterOrderer config lhconfig solver simplifier entry mb_modname cfn st
 
         m_logger = fmap SomeReducer $ getLogger config defPrettyTrack
 
-        lh_std_red = existentialInstRed :== NoProgress .--> lhRed cfn :== Finished --> stdRed share retReplaceSymbFuncVar solver simplifier
+        lh_std_red = existentialInstRed :== NoProgress .--> lhRed cfn :== Finished --> stdRed share discard_unknown retReplaceSymbFuncVar solver simplifier
         strict_red = case strict config of
                             True -> lh_std_red .~> SomeReducer strictRed
                             False -> lh_std_red

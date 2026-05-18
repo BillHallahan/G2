@@ -57,7 +57,7 @@ verifyRedHaltOrd :: (MonadIO m, Solver solver, Simplifier simplifier) =>
                        , IORef TimedOut)
 verifyRedHaltOrd s solver simplifier config verify_config no_nrpc_names = do
     time_logger <- acceptTimeLogger
-    (time_halter, io_timed_out) <- stdTimerHalter (fromInteger . toInteger $ timeLimit config)
+    (time_halter, io_timed_out) <- stdTimerHalter (fromInteger . toInteger $ timeLimit config) (min_found config)
 
     let labelApproxPoints s
             | Data (DataCon { dc_name = d }) <- getExpr s
@@ -70,6 +70,7 @@ verifyRedHaltOrd s solver simplifier config verify_config no_nrpc_names = do
     m_logger <- fmap SomeReducer <$> getLimLogger' labelApproxPoints config prettyVerifierTracker
 
     let share = sharing config
+        discard_unknown = smt_discard_on_unknown config
 
         approx_no_inline = S.fromList
                          . E.keys
@@ -78,12 +79,12 @@ verifyRedHaltOrd s solver simplifier config verify_config no_nrpc_names = do
 
         std_red f =
             case arg_rev_abs verify_config of
-                AbsFuncArgs -> SomeReducer (liftOutFullyAppedReducer ~> stdRed share f solver simplifier ~> instTypeRed)
-                NoAbsFuncArgs -> SomeReducer (stdRed share f solver simplifier ~> instTypeRed)
+                AbsFuncArgs -> SomeReducer (liftOutFullyAppedReducer ~> stdRed share discard_unknown f solver simplifier ~> instTypeRed)
+                NoAbsFuncArgs -> SomeReducer (stdRed share discard_unknown f solver simplifier ~> instTypeRed)
                          
         strict_red f = case strict config of
                             True -> SomeReducer verifyHigherOrderHandling .~> std_red f
-                            False -> SomeReducer (stdRed share f solver simplifier ~> instTypeRed)
+                            False -> SomeReducer (stdRed share discard_unknown f solver simplifier ~> instTypeRed)
 
         nrpc_higher_red f = liftSomeReducer (strict_red f)
         
@@ -207,7 +208,7 @@ verifyFromFile proj src f transConfig config verify_config = do
     init_time <- getTime Realtime
     rho <- verifyRedHaltOrd verifier_state solver simplifier config' verify_config (S.fromList no_nrpc_names)
     let to = case rho of (_, _, _, to_)-> to_
-    (er, bindings''') <-
+    (er, got_unknown, bindings''') <-
             case rho of
                 (red, hal, ord, _) ->
                         SM.evalStateT
@@ -231,7 +232,7 @@ verifyFromFile proj src f transConfig config verify_config = do
         diff_secs = (fromInteger (toNanoSecs diff)) / (10 ^ (9 :: Int) :: Double)
         theorem_er = filter (isTheorem . goal . track . final_state) er
     let res = case to' of
-                TimedOut -> VerifyTimeOut
+                TimedOut _ -> VerifyTimeOut
                 NoTimeOut | false_er <- filter (currExprIsFalse . final_state) theorem_er
                           , not (null false_er) -> Counterexample false_er
                           | otherwise -> assert (all (currExprIsTrue . final_state) theorem_er) Verified

@@ -15,7 +15,7 @@ runExecutionToProcessed :: (Monad m, Ord b) => Reducer m rv t -> Halter m hv r t
 runExecutionToProcessed = runReducer
 
 {-# INLINE runExecution #-}
-runExecution :: (Monad m, Ord b) => Reducer m rv t -> Halter m hv r t -> Orderer m sov b r t -> SolveStates m r t -> [AnalyzeStates m r t] -> State t -> Bindings -> m ([r], Bindings)
+runExecution :: (Monad m, Ord b) => Reducer m rv t -> Halter m hv r t -> Orderer m sov b r t -> SolveStates m r t -> [AnalyzeStates m r t] -> State t -> Bindings -> m ([r], GotUnknown, Bindings)
 runExecution r h ord solve_r analyze s b = do
     (pr, b') <- runReducer r h ord solve_r analyze s b
-    return (accepted pr, b')
+    return (accepted pr, unknown_state pr, b')

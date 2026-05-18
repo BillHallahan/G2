@@ -58,26 +58,26 @@ import Control.Monad.Extra
 import Data.Maybe
 import Data.Traversable
 
-stdReduce :: (Solver solver, Simplifier simplifier) => Sharing -> SymbolicFuncEval t -> solver -> simplifier -> State t -> Bindings -> IO (Rule, [(State t, ())], Bindings)
-stdReduce share symb_func_eval solver simplifier s b = do
-    (r, s', ng') <- stdReduce' share symb_func_eval solver simplifier s b
+stdReduce :: (Solver solver, Simplifier simplifier) => Sharing -> DiscardUnknownStates -> SymbolicFuncEval t -> solver -> simplifier -> State t -> Bindings -> IO (Rule, [(State t, ())], Bindings)
+stdReduce share discard_unknown symb_func_eval solver simplifier s b = do
+    (r, s', ng') <- stdReduce' share discard_unknown symb_func_eval solver simplifier s b
     let s'' = map (\ss -> ss { rules = r:rules ss }) s'
     return (r, zip s'' (repeat ()), b { name_gen = ng'})
 
-stdReduce' :: (Solver solver, Simplifier simplifier) => Sharing -> SymbolicFuncEval t -> solver -> simplifier -> State t -> Bindings -> IO (Rule, [State t], NameGen)
-stdReduce' share _ solver simplifier s@(State { curr_expr = CurrExpr Evaluate ce }) b@(Bindings { name_gen = ng })
+stdReduce' :: (Solver solver, Simplifier simplifier) => Sharing -> DiscardUnknownStates -> SymbolicFuncEval t -> solver -> simplifier -> State t -> Bindings -> IO (Rule, [State t], NameGen)
+stdReduce' share discard_unknown _ solver simplifier s@(State { curr_expr = CurrExpr Evaluate ce }) b@(Bindings { name_gen = ng })
     | Var i  <- ce
     , share == Sharing = return $ evalVarSharing s ng i
     | Var i <- ce
     , share == NoSharing = return $ evalVarNoSharing s ng i
     | App e1 e2 <- ce = do
         let (r, new_pc, ng') = evalApp s ng e1 e2
-        (ng'', states) <- reduceNewPC solver simplifier ng' new_pc
+        (ng'', states) <- reduceNewPC discard_unknown solver simplifier ng' new_pc
         return (r, states, ng'')
     | Let b e <- ce = return $ evalLet s ng b e
     | Case e i t a <- ce = do
         let (r, new_pc, ng') = evalCase s b e i t a
-        (ng'', states) <- reduceNewPC solver simplifier ng' new_pc
+        (ng'', states) <- reduceNewPC discard_unknown solver simplifier ng' new_pc
         return (r, states, ng'')
     | Cast e c <- ce = return $ evalCast s ng e c
     | Tick t e <- ce = return $ evalTick s ng t e
@@ -87,7 +87,7 @@ stdReduce' share _ solver simplifier s@(State { curr_expr = CurrExpr Evaluate ce
     | Assert fc e1 e2 <- ce = return $ evalAssert s ng fc e1 e2
     | errorRaised s = return (RuleReturn, [s { curr_expr = CurrExpr Return ce }], ng)
     | otherwise = return (RuleReturn, [s { curr_expr = CurrExpr Return ce }], ng)
-stdReduce' _ symb_func_eval solver simplifier s@(State { curr_expr = CurrExpr Return ce
+stdReduce' _ discard_unknown symb_func_eval solver simplifier s@(State { curr_expr = CurrExpr Return ce
                                  , exec_stack = stck })  (Bindings { name_gen = ng })
     | errorRaised s
     , Just (AssertFrame is _, stck') <- frstck =
@@ -108,15 +108,15 @@ stdReduce' _ symb_func_eval solver simplifier s@(State { curr_expr = CurrExpr Re
     | Just (ApplyFrame e, stck') <- frstck = return $ retApplyFrame s ng ce e stck'
     | Just (AssumeFrame e, stck') <- frstck = do
         let (r, new_pc, ng') = retAssumeFrame s ng ce e stck'
-        (ng'', states) <- reduceNewPC solver simplifier ng' new_pc
+        (ng'', states) <- reduceNewPC discard_unknown solver simplifier ng' new_pc
         return (r, states, ng'')
     | Just (AssertFrame ais e, stck') <- frstck = do
         let (r, new_pc, ng') = retAssertFrame s ng ce ais e stck'
-        (ng'', states) <- reduceNewPC solver simplifier ng' new_pc
+        (ng'', states) <- reduceNewPC discard_unknown solver simplifier ng' new_pc
         return (r, states, ng'')
     | Just (CurrExprFrame act e, stck') <- frstck = do
         let (r, new_pc, ng') = retCurrExpr s ce act e stck' ng
-        (ng'', states) <- reduceNewPC solver simplifier ng' new_pc
+        (ng'', states) <- reduceNewPC discard_unknown solver simplifier ng' new_pc
         return (r, states, ng'')
     | Just (LitTableFrame ltc up, stck') <- frstck = retLitTableFrame solver simplifier s ng ltc up stck'
     | Nothing <- frstck = return (RuleIdentity, [s], ng)
@@ -1121,6 +1121,8 @@ evalCast s@(State { expr_env = eenv
 evalTick :: State t -> NameGen -> Tickish -> Expr -> (Rule, [State t], NameGen)
 evalTick s ng (HpcTick i tm) e =
     (RuleTick, [ s { curr_expr = CurrExpr Evaluate e, reached_hpc = HS.insert (i, tm) (reached_hpc s) }], ng)
+evalTick s ng (FCTick fc) e =
+    (RuleTick, [ s { curr_expr = CurrExpr Evaluate e, reached_fc_ticks = fc:reached_fc_ticks s }], ng)
 evalTick s ng _ e = (RuleTick, [ s { curr_expr = CurrExpr Evaluate e }], ng)
 
 evalNonDet :: State t -> NameGen -> [Expr] -> (Rule, [State t], NameGen)

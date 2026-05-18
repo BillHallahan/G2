@@ -6,6 +6,7 @@ module Strings1 where
 import Data.List
 import Data.Char
 import qualified GHC.List as L
+import qualified Data.Maybe as M
 
 toEnum1 :: String
 toEnum1 = [toEnum 56089]
@@ -626,3 +627,8 @@ all4 :: String -> String
 all4 s = case L.all (\c -> c >= 'a' && c <= 'z') s && length s == 1 of
             True -> "Yes"
             False -> "No"
+
+testQualImp :: String -> M.Maybe Char
+testQualImp s = case "12345" `isInfixOf` s of
+                    True -> M.Nothing
+                    False -> M.Just 'q'

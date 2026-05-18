@@ -328,6 +328,7 @@ renameExpr' old new (Let b e) = Let (map (\(b', e') -> (renameExprId old new b',
 renameExpr' old new (Case e i t a) = Case e (renameExprId old new i) t $ map (renameExprAlt old new) a
 renameExpr' old new (Assume is e e') = Assume (fmap (rename old new) is) e e'
 renameExpr' old new (Assert is e e') = Assert (fmap (rename old new) is) e e'
+renameExpr' old new (Tick (FCTick fc) e) = Tick (FCTick $ rename old new fc) e
 renameExpr' _ _ e = e
 
 -- | Renames only the @Vars@ in an `Expr`.
@@ -476,14 +477,17 @@ instance Named Tickish where
     names (Breakpoint _) = S.empty
     names (HpcTick _ _) = S.empty
     names (NamedLoc n) = S.singleton n
+    names (FCTick fc) = names fc
 
     rename _ _ bp@(Breakpoint _) = bp
     rename _ _ hpc@(HpcTick _ _) = hpc
     rename old new (NamedLoc n) = NamedLoc $ rename old new n
+    rename old new (FCTick fc) = FCTick $ rename old new fc
 
     renames _ bp@(Breakpoint _) = bp
     renames _ hpc@(HpcTick _ _) = hpc
     renames hm (NamedLoc n) = NamedLoc $ renames hm n
+    renames hm (FCTick fc) = FCTick $ renames hm fc
 
 instance Named Primitive where
     names (MutVar n) = S.singleton n

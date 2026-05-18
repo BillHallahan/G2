@@ -499,6 +499,9 @@ mkPrimHaskell pg = pr
         pr StrPrefixOf = "str.prefixof"
         pr StrSuffixOf = "str.suffixof"
         pr StrReverse = "str.reverse"
+
+        pr SeqNth = "seq.nth"
+
         pr Chr = "chr"
         pr OrdChar = "ord"
 
@@ -632,6 +635,7 @@ printTickish :: PrettyGuide -> Tickish -> T.Text
 printTickish _ (Breakpoint sp) = printLoc (start sp) <> " - " <> printLoc (end sp)
 printTickish _ (HpcTick i m) = "(hpc " <> T.pack (show i) <> " " <> m <> ")" 
 printTickish pg (NamedLoc n) = mkNameHaskell pg n
+printTickish pg (FCTick fc) = "(fctick " <> printFuncCallPG pg fc <> ")" 
 
 printLoc :: Loc -> T.Text
 printLoc (Loc ln cl fl) = "(line " <> T.pack (show ln) <> " column " <> T.pack (show cl) <> " in " <>  T.pack fl <> ")" 
@@ -687,6 +691,8 @@ prettyState pg pretty_track s =
         , pretty_lit_table_stack
         , "----- [Lit Tables] ---------------------"
         , pretty_lit_tables
+        , "----- [Reached FC] ---------------------"
+        , pretty_fc_ticks
         , "----- [Pretty] ---------------------"
         , pretty_names
         ]
@@ -708,6 +714,7 @@ prettyState pg pretty_track s =
         pretty_hpc_ticks = T.pack $ show (reached_hpc s)
         pretty_lit_table_stack = prettyLitTableStack pg $ lit_table_stack s
         pretty_lit_tables = prettyLitTables pg $ lit_tables s
+        pretty_fc_ticks = T.intercalate "\n" $ map (printFuncCallPG pg) (reached_fc_ticks s)
         pretty_names = prettyGuideStr pg
 
 prettyCurrExpr :: PrettyGuide -> CurrExpr -> T.Text

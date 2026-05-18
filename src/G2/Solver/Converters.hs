@@ -613,6 +613,7 @@ funcToSMT2Prim tv StrAt a1 a2 = exprToSMT tv a1 :!! exprToSMT tv a2
 funcToSMT2Prim tv StrContains a1 a2  = StrContainsSMT (exprToSMT tv a1) (exprToSMT tv a2)
 funcToSMT2Prim tv StrPrefixOf a1 a2  = StrPrefixOfSMT (exprToSMT tv a1) (exprToSMT tv a2)
 funcToSMT2Prim tv StrSuffixOf a1 a2  = StrSuffixOfSMT (exprToSMT tv a1) (exprToSMT tv a2)
+funcToSMT2Prim tv SeqNth a1 a2 = SeqNthSMT (exprToSMT tv a1) (exprToSMT tv a2)
 
 funcToSMT2Prim tv InRe a1 a2  = InReSMT (exprToSMT tv a1) (exprToSMT tv a2)
 funcToSMT2Prim tv ReConcat a1 a2  = ReConcatSMT (exprToSMT tv a1) (exprToSMT tv a2)
@@ -932,6 +933,7 @@ toSolverASTSeq = go
         go (StrPrefixOfSMT x y) = function2 "seq.prefixof" (goBack x) (goBack y)
         go (StrSuffixOfSMT x y) = function2 "seq.suffixof" (goBack x) (goBack y)
         go (StrReverseSMT x) = function1 "seq.rev" (goBack x)
+        go (SeqNthSMT x y) = function2 "seq.nth" (goBack x) (goBack y)
         go (SeqEmptySMT s) = "(as seq.empty (Seq " <> sortName s <> "))"
         go (FoldLeftSMT n1 s1 n2 s2 x y z) =
             "(seq.fold_left (lambda ((" <> TB.string n1 <> " " <> sortNameLam s1 <> ")"
