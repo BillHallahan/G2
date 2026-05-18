@@ -199,9 +199,12 @@ getImports src = do
     get srcCode
     where
         get str = do
-            let r = mkRegex "^import[ \t]*([a-zA-Z0-9_.]*)"
+            -- This also matches "import X as Y", which is fine since the code will need to
+            -- be parsed and it will error there
+            let reg_str = "^import[ \t]*(qualified[ \t]*)?([a-zA-Z0-9_.]*)([ \t]+as[ \t]+[a-zA-Z0-9_.]*)?"
+            let r = mkRegex reg_str
             case matchRegexAll r str of
-                Just (_, _, after, imps) -> (imps ++) <$> get after
+                Just (_, _, after, [_, imp, _]) -> (imp :) <$> get after
                 Nothing -> return []
 
 loadStandard :: Ghc ()
