@@ -118,7 +118,8 @@ stdReduce' _ discard_unknown symb_func_eval solver simplifier s@(State { curr_ex
         let (r, new_pc, ng') = retCurrExpr s ce act e stck' ng
         (ng'', states) <- reduceNewPC discard_unknown solver simplifier ng' new_pc
         return (r, states, ng'')
-    | Just (LitTableFrame ltc up, stck') <- frstck = retLitTableFrame solver simplifier s ng ltc up stck'
+    | Just (LitTableFrame ltc up, stck') <- frstck =
+        retLitTableFrame discard_unknown solver simplifier s ng ltc up stck'
     | Nothing <- frstck = return (RuleIdentity, [s], ng)
     | otherwise = error $ "stdReduce': Unknown Expr" ++ show ce ++ show frstck
         where
@@ -1841,7 +1842,8 @@ isApplyFrame (ApplyFrame _) = True
 isApplyFrame _ = False
 
 retLitTableFrame :: (Solver solver, Simplifier simplifier)
-                 => solver
+                 => DiscardUnknownStates
+                 -> solver
                  -> simplifier
                  -> State t
                  -> NameGen
@@ -1849,7 +1851,7 @@ retLitTableFrame :: (Solver solver, Simplifier simplifier)
                  -> LTUpdate
                  -> S.Stack Frame
                  -> IO (Rule, [State t], NameGen)
-retLitTableFrame solver simplifier s ng ltc up stck = case ltc of
+retLitTableFrame dus solver simplifier s ng ltc up stck = case ltc of
     Exploring _ -> return (RuleReturnLitTable, [updated_state { curr_expr = CurrExpr Return (Var sym_id) } ], ng)
     Diff sd (eenv, tvenv, mvenv, conds) -> do
         -- We need to make sure the argument is still symbolic
@@ -1857,7 +1859,7 @@ retLitTableFrame solver simplifier s ng ltc up stck = case ltc of
         let diff_state = s { exec_stack = stck, expr_env = eenv
                            , tyvar_env = tvenv, mutvar_env = mvenv
                            , path_conds = conds }
-        res <- reduceStateDiff solver simplifier ng diff_state sd
+        res <- reduceStateDiff dus solver simplifier ng diff_state sd
         case res of
             -- Nothing can be done with this diff - try the next
             Nothing -> return (RuleReturnLitTable, [diff_state], ng)
@@ -1869,9 +1871,9 @@ retLitTableFrame solver simplifier s ng ltc up stck = case ltc of
     StartedBuilding n -> let
         lts = lit_table_stack updated_state
         (table, lts') = fromJust $ S.pop lts
+
         -- We just finished updating the lit table at the top of
         -- the stack so it should never be empty here
-
         table_map = lit_tables updated_state
         table_map' = HM.insert n table table_map
 
@@ -1879,7 +1881,6 @@ retLitTableFrame solver simplifier s ng ltc up stck = case ltc of
         -- will simply be an application of the literal table
         -- When returning the final literal table - we want to leave
         -- the literal table itself as the final expression
-
         ce = unwrapCurrExpr $ curr_expr updated_state
         table_e = Prim (LitTableRef n) TyUnknown
         app_table_e = App table_e ce
@@ -1887,18 +1888,17 @@ retLitTableFrame solver simplifier s ng ltc up stck = case ltc of
 
         new_state = updated_state { lit_tables = table_map'
                                   , lit_table_stack = lts'
-                                  , curr_expr = if lt_done 
+                                  , curr_expr = if lt_done
                                                     then CurrExpr Return table_e
                                                     else CurrExpr Evaluate app_table_e
                                   }
         in return (RuleReturnLitTable, [new_state], ng)
     where
-        -- When we return from a StartedBuilding or Exploring, we're returning 
-        -- from evaluation, so we need to take the table conds for the current 
+        -- When we return from a StartedBuilding or Exploring, we're returning
+        -- from evaluation, so we need to take the table conds for the current
         -- expression and insert them in the literal table
-        -- We also want to include for previously pushed `Exploring`s, 
+        -- We also want to include for previously pushed `Exploring`s,
         -- so we scan the stack
-
         e = unwrapCurrExpr $ curr_expr s
         frames = S.toList $ exec_stack s
         explorings = filterJust $ map getExploringConds frames

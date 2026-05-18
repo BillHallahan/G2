@@ -581,6 +581,8 @@ test1 xs = (length (map id xs) > 3, if init xs == tail xs then 1 else 0)
 test1InitTailEq :: String -> (Bool, Int) -> Bool
 test1InitTailEq _ (b, i) = b && i == 1
 
+-- Literal table testing
+
 {-# NOINLINE inner #-}
 inner :: Char -> Char
 inner x = case x of
@@ -590,7 +592,7 @@ inner x = case x of
             _ -> x
 
 {-# NOINLINE inner2 #-}
-inner2 :: Char -> Bool 
+inner2 :: Char -> Bool
 inner2 x = case x of
               'w' -> True
               _ -> case x of
@@ -599,7 +601,7 @@ inner2 x = case x of
                                 'd' -> False
                                 _ -> True
 
-all1 :: String -> Int 
+all1 :: String -> Int
 all1 s = case L.all f s of
             True -> 6
             False -> 7

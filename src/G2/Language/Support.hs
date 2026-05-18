@@ -290,9 +290,8 @@ instance Named t => Named (State t) where
                , sym_gens = rename old new (sym_gens s)
                , reached_hpc = reached_hpc s
                , tags = tags s
-               , log_path = log_path s
                , lit_tables = rename old new $ lit_tables s
-               , lit_table_stack = rename old new $ lit_table_stack s }
+               , lit_table_stack = rename old new $ lit_table_stack s
                , reached_fc_ticks = rename old new $ reached_fc_ticks s
                , log_path = log_path s }
 
@@ -322,9 +321,8 @@ instance Named t => Named (State t) where
                , sym_gens = renames hm (sym_gens s)
                , reached_hpc = reached_hpc s
                , tags = tags s
-               , log_path = log_path s
                , lit_tables = renames hm $ lit_tables s
-               , lit_table_stack = renames hm $ lit_table_stack s }
+               , lit_table_stack = renames hm $ lit_table_stack s
                , reached_fc_ticks = renames hm $ reached_fc_ticks s
                , log_path = log_path s }
 
@@ -339,11 +337,11 @@ instance ASTContainer t Expr => ASTContainer (State t) Expr where
                       (containedASTs $ mutvar_env s) ++
                       (containedASTs $ assert_ids s) ++
                       (containedASTs $ exec_stack s) ++
-                      (containedASTs $ track s) ++ 
+                      (containedASTs $ track s) ++
                       (containedASTs $ sym_gens s) ++
                       (containedASTs $ rules s) ++
-                      (containedASTs $ lit_tables s) ++ 
-                      (containedASTs $ lit_table_stack s)
+                      (containedASTs $ lit_tables s) ++
+                      (containedASTs $ lit_table_stack s) ++
                       (containedASTs $ reached_fc_ticks s) ++
                       (containedASTs $ rules s)
 
@@ -357,11 +355,9 @@ instance ASTContainer t Expr => ASTContainer (State t) Expr where
                                 , mutvar_env = modifyContainedASTs f $ mutvar_env s
                                 , assert_ids = modifyContainedASTs f $ assert_ids s
                                 , exec_stack = modifyContainedASTs f $ exec_stack s
-                                , track = modifyContainedASTs f $ track s 
-                                , sym_gens = modifyContainedASTs f $ sym_gens s 
-                                , rules = modifyContainedASTs f $ rules s
+                                , track = modifyContainedASTs f $ track s
                                 , lit_tables = modifyContainedASTs f $ lit_tables s
-                                , lit_table_stack = modifyContainedASTs f $ lit_table_stack s }
+                                , lit_table_stack = modifyContainedASTs f $ lit_table_stack s
                                 , sym_gens = modifyContainedASTs f $ sym_gens s
                                 , reached_fc_ticks = modifyContainedASTs f $ reached_fc_ticks s
                                 , rules = modifyContainedASTs f $ rules s }
@@ -379,11 +375,11 @@ instance ASTContainer t Type => ASTContainer (State t) Type where
                       ((containedASTs . type_classes) s) ++
                       ((containedASTs . families) s) ++
                       ((containedASTs . exec_stack) s) ++
-                      (containedASTs $ track s) ++ 
+                      (containedASTs $ track s) ++
                       (containedASTs $ sym_gens s) ++
                       (containedASTs $ rules s) ++
-                      (containedASTs $ lit_tables s) ++ 
-                      (containedASTs $ lit_table_stack s)
+                      (containedASTs $ lit_tables s) ++
+                      (containedASTs $ lit_table_stack s) ++
                       (containedASTs $ reached_fc_ticks s) ++
                       (containedASTs $ rules s)
 
@@ -399,11 +395,10 @@ instance ASTContainer t Type => ASTContainer (State t) Type where
                                 , type_classes = (modifyContainedASTs f . type_classes) s
                                 , families = (modifyContainedASTs f . families) s
                                 , exec_stack = (modifyContainedASTs f . exec_stack) s
-                                , track = modifyContainedASTs f $ track s 
-                                , sym_gens = modifyContainedASTs f $ sym_gens s 
-                                , rules = modifyContainedASTs f $ rules s
+                                , track = modifyContainedASTs f $ track s
+                                , sym_gens = modifyContainedASTs f $ sym_gens s
                                 , lit_tables = modifyContainedASTs f $ lit_tables s
-                                , lit_table_stack = modifyContainedASTs f $ lit_table_stack s }
+                                , lit_table_stack = modifyContainedASTs f $ lit_table_stack s
                                 , reached_fc_ticks = modifyContainedASTs f $ reached_fc_ticks s
                                 , rules = modifyContainedASTs f $ rules s }
 
@@ -586,8 +581,8 @@ instance Named LitTableCond where
     names (Diff sd prev_s) = names sd <> names prev_s
     names (StartedBuilding n) = names n
 
-    rename old new (Exploring pc) = Exploring $ rename old new pc 
-    rename old new (Diff sd prev_s) = Diff (rename old new sd) (rename old new prev_s) 
+    rename old new (Exploring pc) = Exploring $ rename old new pc
+    rename old new (Diff sd prev_s) = Diff (rename old new sd) (rename old new prev_s)
     rename old new (StartedBuilding n) = StartedBuilding $ rename old new n
 
     renames hm (Exploring pc) = Exploring $ renames hm pc
