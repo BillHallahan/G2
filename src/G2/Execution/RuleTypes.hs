@@ -63,7 +63,9 @@ data Rule = RuleEvalVal
           | RuleReturnCAssume
           | RuleReturnCAssert
 
-          | RuleReturnLitTable
+          | RuleReturnLitTableExpl
+          | RuleReturnLitTableSB
+          | RuleReturnLitTableDiff
 
           | RuleIdentity
           | RulePrimError

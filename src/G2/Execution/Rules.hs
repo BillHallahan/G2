@@ -1851,23 +1851,64 @@ retLitTableFrame :: (Solver solver, Simplifier simplifier)
                  -> S.Stack Frame
                  -> IO (Rule, [State t], NameGen)
 retLitTableFrame dus solver simplifier s ng ltc up stck = case ltc of
-    Exploring _ -> return (RuleReturnLitTable, [updated_state { curr_expr = CurrExpr Return (Var sym_id) } ], ng)
-    Diff sd (eenv, tvenv, mvenv, conds) -> do
-        -- We need to make sure the argument is still symbolic
-        -- after exploring other paths, since it can get concretized
-        let diff_state = s { exec_stack = stck, expr_env = eenv
-                           , tyvar_env = tvenv, mutvar_env = mvenv
-                           , path_conds = conds }
-        res <- reduceStateDiff dus solver simplifier ng diff_state sd
-        case res of
-            -- Nothing can be done with this diff - try the next
-            Nothing -> return (RuleReturnLitTable, [diff_state], ng)
-            -- Turn this diff into an Exploring
-            Just (ng', new_state) -> return
-                ( RuleReturnLitTable
-                , [ new_state { exec_stack = S.push (makeExploring up sd) (exec_stack diff_state) } ]
-                , ng' )
-    StartedBuilding n -> let
+    Exploring _ -> retLTExploring ng updated_state sym_id
+    Diff sd (eenv, tvenv, mvenv, conds) -> 
+        retLTDiff dus solver simplifier s ng sd eenv tvenv mvenv conds stck up
+    StartedBuilding n -> 
+        retLTStartedBuilding updated_state ng n
+    where
+        -- When we return from a StartedBuilding or Exploring, we're returning
+        -- from evaluation, so we need to take the table conds for the current
+        -- expression and insert them in the literal table
+        -- We also want to include for previously pushed `Exploring`s,
+        -- so we scan the stack
+        e = unwrapCurrExpr $ curr_expr s
+        frames = S.toList $ exec_stack s
+        explorings = filterJust $ map getExploringConds frames
+        all_pcs = L.foldl' PC.union PC.empty explorings
+        updated_lts = if up
+            then S.modifyTop (updateLiteralTable all_pcs e) $ lit_table_stack s
+            else lit_table_stack s
+        sym_id = getLTArg s
+        updated_state = s { exec_stack = stck, lit_table_stack = updated_lts }
+
+retLTExploring :: NameGen -> State t -> Id -> IO (Rule, [State t], NameGen)
+retLTExploring ng updated_state sym_id =
+    return (RuleReturnLitTableExpl, [updated_state { curr_expr = CurrExpr Return (Var sym_id) } ], ng)
+
+retLTDiff :: (Solver solver, Simplifier simplifier)
+          => DiscardUnknownStates
+          -> solver
+          -> simplifier
+          -> State t
+          -> NameGen
+          -> StateDiff
+          -> E.ExprEnv
+          -> TV.TyVarEnv
+          -> MutVarEnv
+          -> PathConds
+          -> S.Stack Frame
+          -> LTUpdate
+          -> IO (Rule, [State t], NameGen)
+retLTDiff dus solver simplifier s ng sd eenv tvenv mvenv conds stck up = do
+    -- We need to make sure the argument is still symbolic
+    -- after exploring other paths, since it can get concretized
+    let diff_state = s { exec_stack = stck, expr_env = eenv
+                        , tyvar_env = tvenv, mutvar_env = mvenv
+                        , path_conds = conds }
+    res <- reduceStateDiff dus solver simplifier ng diff_state sd
+    case res of
+        -- Nothing can be done with this diff - try the next
+        Nothing -> return (RuleReturnLitTableDiff, [diff_state], ng)
+        -- Turn this diff into an Exploring
+        Just (ng', new_state) -> return
+            ( RuleReturnLitTableDiff
+            , [ new_state { exec_stack = S.push (makeExploring up sd) (exec_stack diff_state) } ]
+            , ng' )
+
+retLTStartedBuilding :: State t -> NameGen -> Name -> IO (Rule, [State t], NameGen)
+retLTStartedBuilding updated_state ng n = 
+    let
         lts = lit_table_stack updated_state
         (table, lts') = fromJust $ S.pop lts
 
@@ -1891,22 +1932,7 @@ retLitTableFrame dus solver simplifier s ng ltc up stck = case ltc of
                                                     then CurrExpr Return table_e
                                                     else CurrExpr Evaluate app_table_e
                                   }
-        in return (RuleReturnLitTable, [new_state], ng)
-    where
-        -- When we return from a StartedBuilding or Exploring, we're returning
-        -- from evaluation, so we need to take the table conds for the current
-        -- expression and insert them in the literal table
-        -- We also want to include for previously pushed `Exploring`s,
-        -- so we scan the stack
-        e = unwrapCurrExpr $ curr_expr s
-        frames = S.toList $ exec_stack s
-        explorings = filterJust $ map getExploringConds frames
-        all_pcs = L.foldl' PC.union PC.empty explorings
-        updated_lts = if up
-            then S.modifyTop (updateLiteralTable all_pcs e) $ lit_table_stack s
-            else lit_table_stack s
-        sym_id = getLTArg s
-        updated_state = s { exec_stack = stck, lit_table_stack = updated_lts }
+    in return (RuleReturnLitTableSB, [new_state], ng)
 
 unwrapCurrExpr :: CurrExpr -> Expr
 unwrapCurrExpr (CurrExpr _ e) = e
