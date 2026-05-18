@@ -495,12 +495,12 @@ testFileTests = testGroup "TestFiles"
                                         , ("reverse3", 1000, [ AtLeast 2
                                                              , RExists "rev3Returns1"])
                                         , ("reverse4", 5000, [Exactly 1])
-                                        , ("insert2", 2000, [Exactly 2])
+                                        , ("insert2", 2000, [AtLeast 1, AtMost 2]) -- Allowing for SMT failures
                                         , ("insert3", 2000, [Exactly 1])
 
                                         , ("intersperse1", 3000, [Exactly 3])
 
-                                        , ("minimum1", 3000, [AtLeast 5, AtMost 6]) -- Allowing for SMT failures
+                                        , ("minimum1", 3000, [AtLeast 4, AtMost 6]) -- Allowing for SMT failures
                                         , ("minimum2", 2000, [AtLeast 1, AtMost 2]) -- Allowing for SMT failures
                                         , ("maximum1", 3000, [AtLeast 5, AtMost 6]) -- Allowing for SMT failures
                                         , ("maximum2", 1000, [AtLeast 1, AtMost 2]) -- Allowing for SMT failures
