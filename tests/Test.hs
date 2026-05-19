@@ -547,11 +547,11 @@ testFileTests = testGroup "TestFiles"
                                         [ ("intersperse1", 3000, [Exactly 3])
                                         , ("intersperse2", 1000, [Exactly 3]) ]
 
-    , checkInputOutputsLitTables "tests/TestFiles/Strings/Strings1.hs"
-                                 [ ("all1", 5000, [Exactly 2])
-                                 , ("all2", 5000, [Exactly 2])
-                                 , ("all3", 5000, [Exactly 3])
-                                 , ("all4", 5000, [Exactly 3]) ]
+    , checkInputOutputsLitTablesSMTStrings "tests/TestFiles/Strings/Strings1.hs"
+                                           [ ("all1", 5000, [Exactly 2])
+                                           , ("all2", 5000, [Exactly 2])
+                                           , ("all3", 5000, [Exactly 3])
+                                           , ("all4", 5000, [Exactly 3]) ]
 
     , checkInputOutputsSMTLists "tests/TestFiles/Seq/Seq1.hs" [ ("toEnum1", 2000, [Exactly 1])
                                                               , ("conInt", 1000, [Exactly 1]) 
