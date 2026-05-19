@@ -418,10 +418,10 @@ testFileTests = testGroup "TestFiles"
                                                               , ("elemIndices1", 1000, [AtLeast 10])
                                                               , ("lines1", 1500, [AtLeast 10])
 
-                                                              , ("all1", 3000, [AtLeast 5])
-                                                              , ("all2", 3000, [AtLeast 5])
-                                                              , ("all3", 3000, [AtLeast 5])
-                                                              , ("all4", 3000, [AtLeast 5])
+                                                              , ("all1", 500, [AtLeast 5])
+                                                              , ("all2", 500, [AtLeast 5])
+                                                              , ("all3", 500, [AtLeast 5])
+                                                              , ("all4", 500, [AtLeast 5])
                                                               ]
 
     , checkInputOutputsSMTStrings "tests/TestFiles/Strings/Strings1.hs"
