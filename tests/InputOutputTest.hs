@@ -10,7 +10,7 @@ module InputOutputTest ( checkInputOutput
                        , checkInputOutputsSMTStringsWithSubPath
                        , checkInputOutputsQuantifiedSMTStrings
                        , checkInputOutputsLambdaSMTStrings
-                       , checkInputOutputsLitTables
+                       , checkInputOutputsLitTablesSMTStrings
 
                        , checkInputOutputsSMTLists
                        , checkInputOutputsSMTListsWith
@@ -93,9 +93,9 @@ checkInputOutputsLambdaSMTStrings :: FilePath -> [(String, Int, [Reqs String])] 
 checkInputOutputsLambdaSMTStrings src tests = do
     checkInputOutput' mkConfigTestWithLambdaSMTStringsIO src tests
 
-checkInputOutputsLitTables :: FilePath -> [(String, Int, [Reqs String])] -> TestTree
-checkInputOutputsLitTables src tests = do
-    checkInputOutput' mkConfigTestWithLitTablesIO src tests
+checkInputOutputsLitTablesSMTStrings :: FilePath -> [(String, Int, [Reqs String])] -> TestTree
+checkInputOutputsLitTablesSMTStrings src tests = do
+    checkInputOutput' mkConfigTestWithLitTablesSMTStringsIO src tests
 
 checkInputOutputsSMTLists :: FilePath -> [(String, Int, [Reqs String])] -> TestTree
 checkInputOutputsSMTLists src tests = do
