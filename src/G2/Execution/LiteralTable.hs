@@ -89,27 +89,20 @@ getBoolOptFromDC kv dcon
     , dconName == (KV.dcFalse kv) = Just False
     | otherwise = Nothing
 
--- Convert the literal table to a lambda function, which is then returned
--- For functions returning a boolean, we optimize the representation to be
--- the disjunction of all True path conditions (using `Prim Or`). 
--- For other functions, we use `ite`.
-litTableToLam :: State t -> NameGen -> LitTable -> (Expr, EESymDiff, NameGen)
-litTableToLam s ng lt =
-    case HM.toList $ lt_mapping lt of
-        [] -> error "TODO: lam for id func"
-        ((_, e):_) | typeOf (tyvar_env s) e == tyBool (known_values s) ->
-            litTableToLamBool s ng lt
-        _ -> error "TODO: lam for non-bool-returning func" 
+-- The identity function represented as a `Lam`
+mkIdLam :: State t -> NameGen -> LitTable -> (Expr, EESymDiff, NameGen)
+mkIdLam s ng lt =
+    let tvnv = tyvar_env s
+        arg_ty = typeOf tvnv $ lt_arg lt
+        (arg_id, ng1) = freshId arg_ty ng
+        lam_e = Lam TermL arg_id (Var arg_id)
+    in (lam_e, [arg_id], ng1)
 
-litTableToLamBool :: State t -> NameGen -> LitTable -> (Expr, EESymDiff, NameGen)
-litTableToLamBool s ng lt =
-    let kv = known_values s
-        eenv = expr_env s
+-- Return Id for argument, and the Name that we're replacing in path conds
+mkLamArg :: State t -> NameGen -> LitTable -> (Id, Name, NameGen)
+mkLamArg s ng lt =
+    let eenv = expr_env s
         tvnv = tyvar_env s
-
-        lt_lst = HM.toList $ lt_mapping lt
-        lt_bools = makeAllBools kv lt_lst
-        lt_trues = map fst $ filter snd lt_bools
 
         (Id lt_arg_name _) = lt_arg lt
         lt_arg_e = fromJust $ E.deepLookup lt_arg_name eenv
@@ -121,34 +114,69 @@ litTableToLamBool s ng lt =
         -- Not entirely sure if the element variable should be unboxed or not
         lit_ty = typeOf tvnv unboxed_sym
         (elem_var, ng1) = freshId lit_ty ng
+    in (elem_var, unboxed_name, ng1)
+
+-- Convert the literal table to a lambda function, which is then returned
+-- For functions returning a boolean, we optimize the representation to be
+-- the disjunction of all True path conditions (using `Prim Or`). 
+-- For other functions, we use `ite`.
+litTableToLam :: State t -> NameGen -> LitTable -> (Expr, EESymDiff, NameGen)
+litTableToLam s ng lt =
+    case HM.toList $ lt_mapping lt of
+        [] -> mkIdLam s ng lt
+        ((_, e):_) | typeOf (tyvar_env s) e == tyBool (known_values s) ->
+            litTableToLamBool s ng lt
+        _ -> litTableToLamNonBool s ng lt
+
+litTableToLamBool :: State t -> NameGen -> LitTable -> (Expr, EESymDiff, NameGen)
+litTableToLamBool s ng lt =
+    let kv = known_values s
+        (elem_var, unboxed_name, ng1) = mkLamArg s ng lt
+
+        lt_lst = HM.toList $ lt_mapping lt
+        lt_bools = makeAllBools kv lt_lst
+        lt_trues = map fst $ filter snd lt_bools
 
         -- At this point, we know the literal table is non-empty, since we are creating a lambda for
         -- a boolean-returning function
-        or_exp = case L.uncons lt_trues of
-                    Nothing -> mkFalse kv
-                    Just (hd, tl) -> 
+        or_exp = case lt_trues of
+                    [] -> mkFalse kv
+                    (hd:tl) -> 
                         L.foldl' 
-                            (\prev_exp pcs -> mkApp [Prim Or (tyBool kv), prev_exp, pcsToExpr kv pcs]) 
-                            (pcsToExpr kv hd) 
+                            (\prev_exp pcs -> mkApp [Prim Or (tyBool kv), prev_exp, pcsToExprBool kv pcs]) 
+                            (pcsToExprBool kv hd) 
                             tl
 
         or_exp1 = replaceVar unboxed_name (Var elem_var) or_exp
         fun_exp = Lam TermL elem_var or_exp1
-    in
-    (fun_exp, [elem_var], ng1)
+    in (fun_exp, [elem_var], ng1)
 
 -- Turn the conjunction of these path conditions into an expression
-pcsToExpr :: KnownValues -> [PathCond] -> Expr
-pcsToExpr kv pcs =
-    case L.uncons pcs of
-        Nothing -> mkTrue kv
-        Just (hd, tl) -> L.foldl' (\prev_exp pc -> mkApp [Prim And (tyBool kv), prev_exp, pcToExpr kv pc]) (pcToExpr kv hd) tl
+pcsToExprBool :: KnownValues -> [PathCond] -> Expr
+pcsToExprBool kv pcs =
+    case pcs of
+        [] -> mkTrue kv
+        (hd:tl) -> 
+            L.foldl' (\prev_exp pc -> mkApp [Prim And (tyBool kv), prev_exp, pcToExprBool kv pc]) (pcToExprBool kv hd) tl
 
 -- Turn one path condition into an expression, with equality
-pcToExpr :: KnownValues -> PathCond -> Expr
-pcToExpr kv pc =
+pcToExprBool :: KnownValues -> PathCond -> Expr
+pcToExprBool kv pc =
     case pc of
         ExtCond expr bool -> if bool then expr else mkApp [Prim Not (tyBool kv), expr]
         AltCond lit var bool -> let eq_e = mkApp [Prim Eq (tyBool kv), Lit lit, var]
                                 in if bool then eq_e else mkApp [Prim Not (tyBool kv), eq_e]
         _ -> error $ "unhandled pc:\n" ++ show pc
+
+litTableToLamNonBool :: State t -> NameGen -> LitTable -> (Expr, EESymDiff, NameGen)
+litTableToLamNonBool s ng lt =
+    let (elem_var, unboxed_name, ng1) = mkLamArg s ng lt
+        kv = known_values s
+        lt_lst = HM.toList $ lt_mapping lt
+        ite_exp = L.foldl'
+                    (\prev_exp (pcs, e) -> mkApp [Prim Ite TyUnknown, (pcsToExprBool kv $ PC.toList pcs), e, prev_exp])
+                    (Prim Error TyBottom)
+                    (reverse lt_lst)
+        ite_exp1 = replaceVar unboxed_name (Var elem_var) ite_exp
+        fun_exp = Lam TermL elem_var ite_exp1
+    in (fun_exp, [elem_var], ng1)
