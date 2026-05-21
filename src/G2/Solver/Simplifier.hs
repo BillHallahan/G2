@@ -253,7 +253,7 @@ instance Simplifier LitConc where
             lams = HS.map idName $ lamIds pc
             eenv' = foldr (\(Id nC t, nL) -> E.insert nC (concApprop t nL) . E.insertSymbolic nL) eenv (filter (\(Id n _, _) -> n `notElem` lams) conc_c)
             
-            pc' = foldr (\(Id nC t, nL) -> replaceVarAndLam nC (concApprop t nL) nL) pc conc_c
+            pc' = foldr (\(Id nC t, nL) -> modifyContainedASTs elimWrapper . replaceVarAndLam nC (concApprop t nL) nL) pc conc_c
         in
         (ng', eenv', [pc'])
         where
@@ -286,12 +286,22 @@ instance Simplifier LitConc where
                 where
                     t' = tyVarSubst tv_env t
 
-
             concInt n = App (mkDCInt kv tenv) (Var n)
             concInteger n = App (mkDCInteger kv tenv) (Var n)
             concFloat n = App (mkDCFloat kv tenv) (Var n)
             concDouble n = App (mkDCDouble kv tenv) (Var n)
             concChar n = App (mkDCChar kv tenv) (Var n)
+
+            elimWrapper (App (Data dc) e2)
+                |  dcName dc == dcInt kv
+                || dcName dc == dcInteger kv
+                || dcName dc == dcFloat kv
+                || dcName dc == dcDouble kv
+                || dcName dc == dcChar kv = e2
+            elimWrapper e
+                | Data dc:_ <- unApp e
+                , dcName dc == dcCons kv = e
+                | otherwise = modifyChildren elimWrapper e
 
     reverseSimplification _ _ _ m = m
 
