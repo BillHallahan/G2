@@ -1,6 +1,7 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE LambdaCase #-}
 
 -- | Type Checker
 --   Provides type checking capabilities over G2 Language.
@@ -24,6 +25,7 @@ module G2.Language.Typing
     , mkTyApp
     , mkTyFun
     , tyAppCenter
+    , tyAppCenterName
     , tyAppArgs
     , unTyApp
     , mkTyCon
@@ -60,6 +62,7 @@ module G2.Language.Typing
     , splitTyFuns
     , retype
     , retypeRespectingTyForAll
+    , retypes
     , tyVarSubst
     , mapInTyForAlls
     , inTyForAlls
@@ -127,6 +130,10 @@ mkTyFun (t1:ts) = TyFun t1 (mkTyFun ts)
 tyAppCenter :: Type -> Type
 tyAppCenter (TyApp t _) = tyAppCenter t
 tyAppCenter t = t
+
+tyAppCenterName :: Type -> Maybe Name
+tyAppCenterName t | (TyCon n _) <- tyAppCenter t = Just n
+                  | otherwise = Nothing
 
 tyAppArgs :: Type -> [Type]
 tyAppArgs (TyApp t t') = tyAppArgs t ++ [t']
@@ -321,6 +328,9 @@ retypeRespectingTyForAll' i _ t@(TyForAll ni _) | i == ni = t
 retypeRespectingTyForAll' key new (TyVar test) = if idName key == idName test then new else TyVar test
 retypeRespectingTyForAll' key new ty = modifyChildren (retypeRespectingTyForAll' key new) ty
 
+retypes :: (ASTContainer m Type, Show m) => [(Id, Type)] -> m -> m
+retypes rety_map type_container = foldr (\(_i, _ty) _cont -> retype _i _ty _cont) type_container rety_map
+
 tyVarSubst :: (ASTContainer t Type) => TV.TyVarEnv -> t -> t
 tyVarSubst m = modifyContainedASTs (tyVarSubst' HS.empty m)
 
@@ -465,7 +475,7 @@ tyVarNames = map idName . tyVarIds
 numArgs :: Type -> Int
 numArgs = length . argumentTypes
 
-data ArgType = AnonType Type | NamedType Id deriving (Show, Read)
+data ArgType = AnonType Type | NamedType Id | NamedKind Id deriving (Show, Read)
 
 -- | Gives the types of the arguments of the functions
 argumentTypes :: Type -> [Type]
@@ -479,18 +489,45 @@ argumentTypes' _ = []
 argTypeToType :: ArgType -> Type
 argTypeToType (AnonType t) = t
 argTypeToType (NamedType i) = TyVar i
+argTypeToType (NamedKind i) = TyVar i
 
 argTypeToLamUse :: ArgType -> LamUse
 argTypeToLamUse (AnonType _) = TermL
 argTypeToLamUse (NamedType _) = TypeL
+argTypeToLamUse (NamedKind _) = TypeL
 
 spArgumentTypes :: Type -> [ArgType]
-spArgumentTypes = spArgumentTypes' 
+spArgumentTypes = convNamedTypesToNamedKinds . spArgumentTypes' 
 
 spArgumentTypes' :: Type -> [ArgType]
 spArgumentTypes' (TyForAll i t2) = NamedType i:spArgumentTypes' t2
 spArgumentTypes' (TyFun t1 t2) = AnonType t1:spArgumentTypes' t2
 spArgumentTypes' _ = []
+
+-- | If a (NamedType Id) contains a name that is present in
+-- the kind of any ArgType, change it to a NamedKind. 
+convNamedTypesToNamedKinds :: [ArgType] -> [ArgType]
+convNamedTypesToNamedKinds ats = let 
+        all_kind_names =
+                        concatMap (\case (NamedType (Id _ k)) -> kindNames k
+                                         (AnonType at) -> concatMap (\(Id _ k) -> kindNames k) (tyVarIds at)
+                                         (NamedKind _) -> []) ats
+        convNTToNK :: ArgType -> ArgType
+        convNTToNK (AnonType t) = AnonType t
+        convNTToNK (NamedKind t) = NamedKind t
+        convNTToNK (NamedType (Id n t)) =
+            if n `elem` all_kind_names 
+            then NamedKind (Id n t) 
+            else NamedType (Id n t)
+    in
+        map convNTToNK ats
+
+-- | Gets names present in a type variable's kind. (Cannot use `names` TC function due to circular dependency.)
+kindNames :: Type -> [Name]
+kindNames (TyFun k1 k2) = kindNames k1 ++ kindNames k2
+kindNames (TyVar (Id n _)) =[n]
+kindNames (TyCon n _) = [n]
+kindNames _ = []
 
 leadingTyForAllBindings :: Type -> [Id]
 leadingTyForAllBindings = leadingTyForAllBindings' 

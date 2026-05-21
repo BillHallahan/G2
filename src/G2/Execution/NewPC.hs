@@ -1,9 +1,12 @@
+{-# LANGUAGE MultiParamTypeClasses #-}
+
 module G2.Execution.NewPC ( NewPC (..)
                           , StateDiff (..)
                           , EEDiff
                           , EESymDiff
                           , TVEDiff
                           , TVESymDiff
+                          , TCInstDiff
                           , newPCEmpty
                           , newPCNoStates
                           , reduceNewPC ) where
@@ -26,6 +29,7 @@ type EEDiff = [(Name, Expr)] -- concrete values to insert in ExprEnv
 type EESymDiff = [Id] -- symbolic variables to insert in ExprEnv
 type TVEDiff = [(Name, Type)] -- concrete types to insert in TyVarEnv
 type TVESymDiff = [Id] -- symbolic variables to insert in TyVarEnv
+type TCInstDiff = [(Name, Type, Id)] -- 
 
 data NewPC t = SingleState (State t)
              | SplitStatePieces (State t) [StateDiff]
@@ -39,8 +43,51 @@ data StateDiff = SD { new_conc_entries :: EEDiff -- ^ New concrete entries for t
                     , new_curr_expr :: CurrExpr
                     , new_conc_types :: TVEDiff -- ^ New concrete entries for the tyvar_env
                     , new_sym_types :: TVESymDiff -- ^ New symbolic entries for the tyvar_env
-                    , new_mut_vars :: [(Name, Id, MVOrigin)] -- ^ New mutable variables for the mutvar_env
+                    , new_mut_vars :: [(Name, Id, MVOrigin)]
+                    , new_type_class_insts :: TCInstDiff -- ^ New mutable variables for the mutvar_env
                     }
+
+instance ASTContainer StateDiff Type where
+    containedASTs (SD {new_conc_entries = nces
+                    , new_sym_entries = nses
+                    , new_path_conds = npcs
+                    , concretized = ctzd
+                    , new_assert_ids = nais
+                    , new_curr_expr = nce
+                    , new_conc_types = ncts
+                    , new_sym_types = nsts
+                    , new_mut_vars = nmvs
+                    , new_type_class_insts = ntcis})
+        =  containedASTs nces 
+        ++ containedASTs nses 
+        ++ containedASTs npcs 
+        ++ containedASTs ctzd
+        ++ containedASTs nais
+        ++ containedASTs nce
+        ++ containedASTs ncts
+        ++ containedASTs nsts
+        ++ containedASTs nmvs
+        ++ containedASTs ntcis
+    modifyContainedASTs f sd@(SD {new_conc_entries = nces
+                                , new_sym_entries = nses
+                                , new_path_conds = npcs
+                                , concretized = ctzd
+                                , new_assert_ids = nais
+                                , new_curr_expr = nce
+                                , new_conc_types = ncts
+                                , new_sym_types = nsts
+                                , new_mut_vars = nmvs
+                                , new_type_class_insts = ntcis}) 
+        = sd {new_conc_entries = modifyContainedASTs f nces
+            , new_sym_entries = modifyContainedASTs f nses
+            , new_path_conds = modifyContainedASTs f npcs
+            , concretized = modifyContainedASTs f ctzd
+            , new_assert_ids = modifyContainedASTs f nais
+            , new_curr_expr = modifyContainedASTs f nce
+            , new_conc_types = modifyContainedASTs f ncts
+            , new_sym_types = modifyContainedASTs f nsts
+            , new_mut_vars = modifyContainedASTs f nmvs
+            , new_type_class_insts = modifyContainedASTs f ntcis}
 
 newPCEmpty :: State t -> NewPC t
 newPCEmpty s = SingleState s
@@ -60,7 +107,7 @@ reduceNewPC discard_unknown_states solver simplifier ng (SplitStatePieces state 
 reduceNewPC' :: (Solver solver, Simplifier simplifier) => DiscardUnknownStates -> solver -> simplifier -> NameGen -> State t -> StateDiff -> IO (Maybe (NameGen, State t))
 reduceNewPC' discard_unknown_states solver simplifier ng
              init_state@(State { expr_env = init_eenv, tyvar_env = init_tvenv
-                               , path_conds = state_pc })
+                               , path_conds = state_pc, type_classes = init_tcs })
              (SD { new_conc_entries = nce
                  , new_sym_entries = nse
                  , new_path_conds = pc
@@ -70,7 +117,8 @@ reduceNewPC' discard_unknown_states solver simplifier ng
                  , new_curr_expr = n_curre
                  , new_conc_types = nct
                  , new_sym_types = nst
-                 , new_mut_vars = nmv })
+                 , new_mut_vars = nmv
+                 , new_type_class_insts = ntcis })
     | not (null pc) || not (null concIds) = do
         let ((ng', eenv'), pc') =
                 mapAccumR (\(ng_, eenv_) pc_ ->
@@ -111,10 +159,11 @@ reduceNewPC' discard_unknown_states solver simplifier ng
         eenv = insertInOrder E.insert nce $ insertSymInOrder E.insertSymbolic nse init_eenv
         tvenv = insertInOrder TV.insert nct $ insertSymInOrder TV.insertSymbolic nst init_tvenv
         state = newMutVars init_state nmv
+        tcs = foldr (\(cls_n, ty, dict_id) -> addClassInstance cls_n ty dict_id) init_tcs ntcis 
         s = state {
             expr_env = eenv, tyvar_env = tvenv,
             true_assert = nta, assert_ids = nai,
-            curr_expr = n_curre }
+            curr_expr = n_curre, type_classes = tcs }
 
 mapAccumMaybeM :: Monad m => (s -> a -> m (Maybe (s, b))) -> s -> [a] -> m (s, [b])
 mapAccumMaybeM f s xs = do

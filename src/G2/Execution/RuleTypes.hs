@@ -70,6 +70,8 @@ data Rule = RuleEvalVal
           | RuleReturnAppSymbFunc
           | RuleReturnReplaceSymbFunc
 
+          | RuleReplaceSymbFuncPoly
+
           | RuleNonDet
           | RuleSymGen
 
