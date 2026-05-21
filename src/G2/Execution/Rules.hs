@@ -1888,7 +1888,7 @@ retLTDiff dus solver simplifier s ng sd eenv tvenv mvenv conds stck up = do
                         , path_conds = conds }
     res <- reduceStateDiff dus solver simplifier ng diff_state sd
     case res of
-        -- Nothing can be done with this diff - try the next
+        -- This diff is unsat or unknown, try the next
         Nothing -> return (RuleReturnLitTableDiff, [diff_state], ng)
         -- Turn this diff into an Exploring
         Just (ng', new_state) -> return

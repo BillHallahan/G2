@@ -555,9 +555,9 @@ instance ASTContainer Handle Type where
         h { h_start = modifyContainedASTs f s, h_pos = modifyContainedASTs f p }
 
 data LitTableCond = Exploring PathConds
-                  -- Unfortunately, we need to store data about the environments
-                  -- in each Diff frame - this is a somewhat light version of
-                  -- state splitting
+                  -- In the literal table process, we might modify some parts of
+                  -- the State that we don't want modified when we start Exploring
+                  -- other Diffs, so we need to save the original versions in Diff frames
                   | Diff StateDiff (E.ExprEnv, TV.TyVarEnv, MutVarEnv, PathConds)
                   | StartedBuilding Name
                   deriving (Show, Eq, Read, Generic, Typeable, Data)

@@ -56,23 +56,19 @@ stopUpdateLastExpl stck = case S.pop stck of
                               Nothing -> stck
 
 -- We need to make sure the resulting expressions in the lit table only have
--- True or False as possible values. We check for this and add the expression
--- to the PathConds if it isn't True or False, creating two separate versions
--- for each possibility. We also convert all PathConds to their list representation,
--- so that they can be converted to regex more easily.
-makeAllBools :: KnownValues -> [(PathConds, Expr)] -> [([PathCond], Bool)]
-makeAllBools _ [] = []
-makeAllBools kv ((pcs, e):xs) | Just b <- getBool kv e = (PC.toList pcs, b):makeAllBools kv xs
-makeAllBools kv ((pcs, e):xs) =
+-- True as possible values. We check for this and add the expression
+-- to the PathConds if it is True, or if it is an expression we can make True
+makeAllTrue :: KnownValues -> [(PathConds, Expr)] -> [[PathCond]]
+makeAllTrue _ [] = []
+makeAllTrue kv ((pcs, e):xs) | Just True <- getBool kv e = (PC.toList pcs):makeAllTrue kv xs
+makeAllTrue kv ((pcs, e):xs) =
     -- We need two separate additions to the result list: one where the expr is
     -- true and one where it isn't
     let lst = PC.toList pcs
         pc1 = ExtCond e True
-        pc2 = ExtCond e False
         lst1 = pc1:lst
-        lst2 = pc2:lst
-        rest = makeAllBools kv xs
-    in (lst1, True):(lst2, False):rest
+        rest = makeAllTrue kv xs
+    in lst1:rest
 
 getBool :: KnownValues -> Expr -> Maybe Bool
 getBool kv (Data dc) = getBoolOptFromDC kv dc
@@ -134,8 +130,7 @@ litTableToLamBool s ng lt =
         (elem_var, unboxed_name, ng1) = mkLamArg s ng lt
 
         lt_lst = HM.toList $ lt_mapping lt
-        lt_bools = makeAllBools kv lt_lst
-        lt_trues = map fst $ filter snd lt_bools
+        lt_trues = makeAllTrue kv lt_lst
 
         -- At this point, we know the literal table is non-empty, since we are creating a lambda for
         -- a boolean-returning function

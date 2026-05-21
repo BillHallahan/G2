@@ -475,10 +475,6 @@ evalPrimWithState s ng (App (App (App (Prim Catch _) run) hand) rw) = Just (
 
 evalPrimWithState _ _ _ = Nothing
 
-isSB :: Frame -> Bool
-isSB (LitTableFrame (StartedBuilding _) _) = True
-isSB _ = False
-
 deepLookupExprPastTicks :: Expr -> ExprEnv -> Expr
 deepLookupExprPastTicks (Var i@(Id n _)) eenv =
     case E.lookupConcOrSym n eenv of
