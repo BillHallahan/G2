@@ -277,7 +277,7 @@ primDefs' b c l unit =
                                . Lam TermL (f (TyFun (TyVar a) (TyFun (TyVar d) (TyVar a))))
                                . Lam TermL (u (TyVar a))
                                . Lam TermL (v seqTyX)
-                            $ mkApp [ Prim FoldLeft TyUnknown
+                            $ mkApp [ Prim FoldLeft (mkTyFun [TyFun (TyVar a) (TyFun (TyVar d) (TyVar a)), TyVar a, seqTyX, TyVar a])
                                     , Var $ (f (TyFun (TyVar a) (TyFun (TyVar d) (TyVar a))))
                                     , Var $ u (TyVar a)
                                     , Var $ v seqTyX ])
@@ -364,16 +364,6 @@ primDefs' b c l unit =
                                  . Lam TypeL (y TYPE)
                                  . Lam TermL (z funTyXY)
                                  $ App (Prim BuildLitTable (TyFun funTyXY TyUnknown)) (Var $ z funTyXY)
-                )
-              , ("allByLitTable#", Lam TypeL (u TYPE)
-                                 . Lam TypeL (x TYPE)
-                                 . Lam TermL (y (TyVar (u TYPE)))
-                                 . Lam TermL (z seqTyX)
-                                 $ App
-                                    (App
-                                        (Prim AllByLitTable $ mkTyFun [TyVar (u TYPE), TyVar (z seqTyX), TyCon b TYPE])
-                                        (Var $ y (TyVar (u TYPE))))
-                                    (Var $ z seqTyX)
                 )
               ]
               where

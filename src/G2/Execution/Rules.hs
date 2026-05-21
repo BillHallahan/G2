@@ -783,8 +783,6 @@ createExtConds s ng dcpm mexpr cvar (x:xs) =
 
 -- | Creating a path constraint.  The passed Expr should have type Bool or type [Char].
 -- In the latter case, the note [String Concretizations and Constraints] is relevant.
--- Note that this is also used within literal table handling, namely with discarding a
--- conversion to `LitTable` and creating a regex to create PathConds from.
 createExtCond :: State t -> NameGen -> DataConPCMap -> Expr -> Id -> (DataCon, [Id], Expr) -> (StateDiff, NameGen)
 createExtCond s ngen dcpm mexpr cvar (dcon, bindees, aexpr)
     | typeOf tvnv mexpr == tyBool kv =
@@ -840,14 +838,6 @@ createExtCond s ngen dcpm mexpr cvar (dcon, bindees, aexpr)
             , new_curr_expr = CurrExpr Evaluate aexpr''
             , new_conc_types = tve_diff, new_sym_types = tve_sym_diff
             , new_mut_vars = [] }, ngen'')
-    -- Very nasty hack alert. We are trying to convert an internal literal table reference into a `LitTable`
-    -- object in order to apply it to `allByLitTable`, so we just set the current expr to a representation
-    -- of the literal table using SMT fold primitives.
-    -- Note that this situation only happens as a result of strictness for the result of buildLitTable# in `all`,
-    -- which creates a case expression.
-    | (Prim (LitTableRef lt_name) _) <- mexpr,
-      (App (App (App (App (Var (Id (Name "allByLitTable#" _ _ _) _)) _) _) _ {- LitTable -}) str_e) <- aexpr =
-        litTableToAllRe s ngen (fromJust $ HM.lookup lt_name (lit_tables s)) str_e
     | otherwise = error $ "createExtCond: unsupported type" ++ "\n" ++ show (typeOf tvnv mexpr) ++ "\n" ++ show dcon
                     ++ "\n\n" ++ show mexpr ++ "\n" ++ show aexpr
         where
@@ -1907,32 +1897,42 @@ retLTDiff dus solver simplifier s ng sd eenv tvenv mvenv conds stck up = do
             , ng' )
 
 retLTStartedBuilding :: State t -> NameGen -> Name -> IO (Rule, [State t], NameGen)
-retLTStartedBuilding updated_state ng n = 
+retLTStartedBuilding s ng n = 
     let
-        lts = lit_table_stack updated_state
+        lts = lit_table_stack s
         (table, lts') = fromJust $ S.pop lts
 
         -- We just finished updating the lit table at the top of
         -- the stack so it should never be empty here
-        table_map = lit_tables updated_state
+        table_map = lit_tables s
         table_map' = HM.insert n table table_map
 
         -- After the literal table is created, the current expression
         -- will simply be an application of the literal table
-        -- When returning the final literal table - we want to leave
-        -- the literal table itself as the final expression
-        ce = unwrapCurrExpr $ curr_expr updated_state
+        -- When returning the final literal table, we want to leave
+        -- the literal table itself as the final expression, represented
+        -- as a lambda function.
+        ce = unwrapCurrExpr $ curr_expr s
         table_e = Prim (LitTableRef n) TyUnknown
         app_table_e = App table_e ce
         lt_done = not $ isJust (S.pop lts')
 
-        new_state = updated_state { lit_tables = table_map'
-                                  , lit_table_stack = lts'
-                                  , curr_expr = if lt_done
-                                                    then CurrExpr Return table_e
-                                                    else CurrExpr Evaluate app_table_e
-                                  }
-    in return (RuleReturnLitTableSB, [new_state], ng)
+        (lam_e, sym_diff, ng1) = litTableToLam s ng table
+        insertSyms syms_ eenv_ = foldl' (flip E.insertSymbolic) eenv_ syms_
+
+        s1 = if lt_done
+                then s { expr_env = insertSyms sym_diff (expr_env s) }
+                else s
+        ng2 = if lt_done
+                then ng1
+                else ng2
+        s2 = s1 { lit_tables = table_map'
+                , lit_table_stack = lts'
+                , curr_expr = if lt_done
+                                  then CurrExpr Return lam_e
+                                  else CurrExpr Evaluate app_table_e
+                }
+    in return (RuleReturnLitTableSB, [s2], ng2)
 
 unwrapCurrExpr :: CurrExpr -> Expr
 unwrapCurrExpr (CurrExpr _ e) = e

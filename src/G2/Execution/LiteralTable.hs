@@ -6,7 +6,7 @@ module G2.Execution.LiteralTable
     , updateLiteralTable
     , getLTArg
     , stopUpdateLastExpl
-    , litTableToAllRe
+    , litTableToLam
     ) where
 
 import qualified G2.Language.Stack as S
@@ -89,12 +89,20 @@ getBoolOptFromDC kv dcon
     , dconName == (KV.dcFalse kv) = Just False
     | otherwise = Nothing
 
--- We take the `True` path conds, and create a chain of `Or` with them, before using
--- them in `FoldLeft`, (after renaming the variables in the path conditions).
--- This should be the equivalent of
--- `foldl (\prev_bool elem -> prev_bool && lit_table_func elem) True string`
-litTableToAllRe :: State t -> NameGen -> LitTable -> Expr -> (StateDiff, NameGen)
-litTableToAllRe s ng lt str_e =
+-- Convert the literal table to a lambda function, which is then returned
+-- For functions returning a boolean, we optimize the representation to be
+-- the disjunction of all True path conditions (using `Prim Or`). 
+-- For other functions, we use `ite`.
+litTableToLam :: State t -> NameGen -> LitTable -> (Expr, EESymDiff, NameGen)
+litTableToLam s ng lt =
+    case HM.toList $ lt_mapping lt of
+        [] -> error "TODO: lam for id func"
+        ((_, e):_) | typeOf (tyvar_env s) e == tyBool (known_values s) ->
+            litTableToLamBool s ng lt
+        _ -> error "TODO: lam for non-bool-returning func" 
+
+litTableToLamBool :: State t -> NameGen -> LitTable -> (Expr, EESymDiff, NameGen)
+litTableToLamBool s ng lt =
     let kv = known_values s
         eenv = expr_env s
         tvnv = tyvar_env s
@@ -112,26 +120,22 @@ litTableToAllRe s ng lt str_e =
 
         -- Not entirely sure if the element variable should be unboxed or not
         lit_ty = typeOf tvnv unboxed_sym
-        (accum_var, ng1) = freshId (tyBool kv) ng
-        (elem_var, ng2) = freshId lit_ty ng1
+        (elem_var, ng1) = freshId lit_ty ng
 
-        -- No path conds means any input is true, otherwise we need one path cond to be true
-        or_exp = if null lt_lst then mkTrue kv
-                 else case L.uncons lt_trues of
+        -- At this point, we know the literal table is non-empty, since we are creating a lambda for
+        -- a boolean-returning function
+        or_exp = case L.uncons lt_trues of
                     Nothing -> mkFalse kv
-                    Just (hd, tl) -> L.foldl' (\prev_exp pcs -> mkApp [Prim Or (tyBool kv), prev_exp, pcsToExpr kv pcs]) (pcsToExpr kv hd) tl
+                    Just (hd, tl) -> 
+                        L.foldl' 
+                            (\prev_exp pcs -> mkApp [Prim Or (tyBool kv), prev_exp, pcsToExpr kv pcs]) 
+                            (pcsToExpr kv hd) 
+                            tl
 
         or_exp1 = replaceVar unboxed_name (Var elem_var) or_exp
-        and_exp = mkApp [Prim And (tyBool kv), Var accum_var, or_exp1]
-        fun_exp = Lam TermL accum_var (Lam TermL elem_var and_exp)
-        fun_ty = mkTyFun [mkTyFun [tyBool kv, lit_ty, tyBool kv], tyBool kv, typeOf tvnv str_e, tyBool kv]
-        fold_exp = mkApp [Prim FoldLeft fun_ty, fun_exp, mkTrue kv, str_e]
+        fun_exp = Lam TermL elem_var or_exp1
     in
-    (SD { new_conc_entries = [], new_sym_entries = [accum_var, elem_var]
-        , new_path_conds = [], concretized = []
-        , new_true_assert = true_assert s, new_assert_ids = assert_ids s
-        , new_curr_expr = CurrExpr Return fold_exp
-        , new_conc_types = [], new_sym_types = [], new_mut_vars = [] }, ng2)
+    (fun_exp, [elem_var], ng1)
 
 -- Turn the conjunction of these path conditions into an expression
 pcsToExpr :: KnownValues -> [PathCond] -> Expr
