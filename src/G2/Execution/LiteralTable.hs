@@ -62,8 +62,6 @@ makeAllTrue :: KnownValues -> [(PathConds, Expr)] -> [[PathCond]]
 makeAllTrue _ [] = []
 makeAllTrue kv ((pcs, e):xs) | Just True <- getBool kv e = (PC.toList pcs):makeAllTrue kv xs
 makeAllTrue kv ((pcs, e):xs) =
-    -- We need two separate additions to the result list: one where the expr is
-    -- true and one where it isn't
     let lst = PC.toList pcs
         pc1 = ExtCond e True
         lst1 = pc1:lst
@@ -114,7 +112,7 @@ mkLamArg s ng lt =
 
 -- Convert the literal table to a lambda function, which is then returned
 -- For functions returning a boolean, we optimize the representation to be
--- the disjunction of all True path conditions (using `Prim Or`). 
+-- the disjunction of all True path conditions (using `Prim Or`).
 -- For other functions, we use `ite`.
 litTableToLam :: State t -> NameGen -> LitTable -> (Expr, EESymDiff, NameGen)
 litTableToLam s ng lt =
@@ -136,10 +134,10 @@ litTableToLamBool s ng lt =
         -- a boolean-returning function
         or_exp = case lt_trues of
                     [] -> mkFalse kv
-                    (hd:tl) -> 
-                        L.foldl' 
-                            (\prev_exp pcs -> mkApp [Prim Or (tyBool kv), prev_exp, pcsToExprBool kv pcs]) 
-                            (pcsToExprBool kv hd) 
+                    (hd:tl) ->
+                        L.foldl'
+                            (\prev_exp pcs -> mkApp [Prim Or (tyBool kv), prev_exp, pcsToExprBool kv pcs])
+                            (pcsToExprBool kv hd)
                             tl
 
         or_exp1 = replaceVar unboxed_name (Var elem_var) or_exp
@@ -151,7 +149,7 @@ pcsToExprBool :: KnownValues -> [PathCond] -> Expr
 pcsToExprBool kv pcs =
     case pcs of
         [] -> mkTrue kv
-        (hd:tl) -> 
+        (hd:tl) ->
             L.foldl' (\prev_exp pc -> mkApp [Prim And (tyBool kv), prev_exp, pcToExprBool kv pc]) (pcToExprBool kv hd) tl
 
 -- Turn one path condition into an expression, with equality
