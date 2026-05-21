@@ -12,6 +12,7 @@ module G2.Data.Utils ( uncurry3
                      , mapFst3
                      , mapFst4
 
+                     , splitOn
                      , holes
                      
                      , (==>)
@@ -19,10 +20,14 @@ module G2.Data.Utils ( uncurry3
 #if !(MIN_VERSION_base(4,18,0))
                      , mapAccumM
 #endif
-
+                     , compareLength
                      ) where
 
 import Data.Bifunctor
+
+#if (MIN_VERSION_base(4,21,0))
+import Data.List
+#endif
 
 #if !(MIN_VERSION_base(4,18,0))
 import qualified Control.Monad.State.Lazy as CM
@@ -59,6 +64,14 @@ mapFst4 :: (a -> e) -> (a, b, c, d) -> (e, b, c, d)
 mapFst4 f (x, y, z, w) = (f x, y, z, w)
 
 -- * Lists
+
+splitOn :: Eq a => a -> [a] -> [[a]]
+splitOn x xs = go xs []
+    where
+        go [] acc = [reverse acc]
+        go (y : ys) acc = if x == y
+                        then reverse acc : go ys []
+                        else go ys (y : acc)
 
 -- | Compute all the ways of removing a single element from a list.
 --
@@ -110,4 +123,15 @@ mapAccumM
   => (s -> a -> m (s, b))
   -> s -> t a -> m (s, t b)
 mapAccumM f s t = runStateT (mapM (StateT #. flip f) t) s
+#endif
+
+#if !(MIN_VERSION_base(4,21,0))
+compareLength :: [a] -> Int -> Ordering
+compareLength xs n
+  | n < 0 = GT
+  | otherwise = foldr
+    (\_ f m -> if m > 0 then f (m - 1) else GT)
+    (\m -> if m > 0 then LT else EQ)
+    xs
+    n
 #endif

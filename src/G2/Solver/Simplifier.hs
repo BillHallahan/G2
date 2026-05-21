@@ -124,7 +124,9 @@ simplifyBool _ e = e
 data StringSimplifier = StringSimplifier
 
 instance Simplifier StringSimplifier where
-    simplifyPC _ _ pc = [modifyContainedASTs simplifyString pc]
+    simplifyPC _ (State { known_values = kv, type_env = tenv }) pc =
+                       [ modifyASTs (simplifyAllStrings kv tenv)
+                       $ modifyContainedASTs simplifyString pc]
 
     reverseSimplification _ _ _ m = m
 
@@ -135,6 +137,29 @@ simplifyString e
     | [Prim Eq _, Lit (LitInt 0), App (Prim StrLen t) v ] <- unApp e
     , TyFun (TyApp _ (TyCon (Name "Char" _ _ _) _)) _ <- t = mkApp [Prim Eq TyUnknown, v, Lit (LitString "")]
 simplifyString e = e
+
+simplifyAllStrings :: KnownValues -> TypeEnv -> Expr -> Expr
+simplifyAllStrings kv tenv e
+    | [Prim StrReplaceAll str_ra_ty, full, list, zs ] <- unApp e
+    , [Data cons, _ {- type-}, _ {- head -}, App (Data emp) _] <- unApp list
+    , dcName cons == dcCons kv
+    , dcName emp == dcEmpty kv
+    , Just (xs, ys) <- splitUpStrApp kv tenv full =
+        mkApp [ Prim StrAppend TyUnknown
+              , mkApp [Prim StrReplaceAll str_ra_ty, xs, list, zs ]
+              , mkApp [Prim StrReplaceAll str_ra_ty, ys, list, zs ]
+              ]
+simplifyAllStrings _ _ e = e
+
+splitUpStrApp :: KnownValues -> TypeEnv -> Expr -> Maybe (Expr, Expr)
+splitUpStrApp _ _ e | [Prim StrAppend _, xs, ys] <- unApp e = Just (xs, ys)
+splitUpStrApp kv tenv e | [Data cons, ty, x, xs] <- unApp e
+                        , not $ isEmpty xs=
+    Just (mkApp [Data cons, ty, x, App (mkEmpty kv tenv) ty], xs)
+    where
+        isEmpty (App (Data _) _) = True
+        isEmpty _ = False
+splitUpStrApp _ _ _ = Nothing
 
 -- | Tries to simplify constraints involving checking if the value of an Int matches a concrete Float.
 data FloatSimplifier = FloatSimplifier
@@ -228,7 +253,7 @@ instance Simplifier LitConc where
             lams = HS.map idName $ lamIds pc
             eenv' = foldr (\(Id nC t, nL) -> E.insert nC (concApprop t nL) . E.insertSymbolic nL) eenv (filter (\(Id n _, _) -> n `notElem` lams) conc_c)
             
-            pc' = foldr (\(Id nC t, nL) -> replaceVarAndLam nC (concApprop t nL) nL) pc conc_c
+            pc' = foldr (\(Id nC t, nL) -> modifyContainedASTs elimWrapper . replaceVarAndLam nC (concApprop t nL) nL) pc conc_c
         in
         (ng', eenv', [pc'])
         where
@@ -261,12 +286,22 @@ instance Simplifier LitConc where
                 where
                     t' = tyVarSubst tv_env t
 
-
             concInt n = App (mkDCInt kv tenv) (Var n)
             concInteger n = App (mkDCInteger kv tenv) (Var n)
             concFloat n = App (mkDCFloat kv tenv) (Var n)
             concDouble n = App (mkDCDouble kv tenv) (Var n)
             concChar n = App (mkDCChar kv tenv) (Var n)
+
+            elimWrapper (App (Data dc) e2)
+                |  dcName dc == dcInt kv
+                || dcName dc == dcInteger kv
+                || dcName dc == dcFloat kv
+                || dcName dc == dcDouble kv
+                || dcName dc == dcChar kv = e2
+            elimWrapper e
+                | Data dc:_ <- unApp e
+                , dcName dc == dcCons kv = e
+                | otherwise = modifyChildren elimWrapper e
 
     reverseSimplification _ _ _ m = m
 

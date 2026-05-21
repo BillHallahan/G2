@@ -2,6 +2,7 @@ module G2.Config.Config ( Mode (..)
                         , LogMode (..)
                         , LogMethod (..)
                         , Sharing (..)
+                        , DiscardUnknownStates (..)
                         , SMTSolver (..)
                         , SearchStrategy (..)
                         , HigherOrderSolver (..)
@@ -50,6 +51,8 @@ data LogMethod = Raw | Pretty deriving (Eq, Show, Read)
 
 -- | Do we use sharing to only reduce variables once?
 data Sharing = Sharing | NoSharing deriving (Eq, Show, Read)
+
+data DiscardUnknownStates = DiscardUnknown | KeepUnknown deriving (Eq, Show, Read)
 
 -- Instantiate type variables before or after symbolic execution
 data InstTV = InstBefore | InstAfter deriving (Eq, Show, Read)
@@ -100,6 +103,7 @@ data Config = Config {
     , extraDefaultInclude :: [IncludePath]
     , extraDefaultMods :: [FilePath]
     , includePaths :: Maybe [FilePath] -- ^ Paths to search for modules
+    , smt_def_file :: [FilePath] -- ^ File containing SMT defintions
     , print_output :: Bool -- ^ Print function outputs
     , logStates :: LogMode -- ^ Determines whether to Log states, and if logging states, how to do so.
     , logEveryN :: Int -- ^ If logging states, log every nth state
@@ -125,12 +129,16 @@ data Config = Config {
     , smt :: SMTSolver -- ^ Sets the SMT solver to solve constraints with
     , smt_timeout :: Int -- ^ Sets the timeout (in seconds) for the SMT solver
     , smt_path :: Maybe FilePath -- ^ Location of SMT solver
+    , smt_discard_on_unknown :: DiscardUnknownStates -- ^ Discard a state when the SMT solver returns unknown
     , smt_strings :: UseSMTStrings -- ^ Sets whether the SMT solver should be used to solve string constraints
     , smt_strings_strictness :: SMTStringsEval -- ^ Force strict evaluation of strings to allow more use of SMT reasoning
     , quantified_smt_strings :: SMTQuantifiers -- ^ Sets how quantifiers should be used in SMT functions
     , using_smt_lams :: UseSMTLams -- ^ Sets whether SMT Lambda expressions should be used (Z3 only)
     , smt_prim_lists :: UseSMTSeq -- ^ Sets whether the SMT solver should be used to solve lists containing primitive type wrappers (Int, Float, etc.)
     
+    , print_timeout :: Bool -- ^ Print a message indicating whether states remain at timeout
+    , print_timeout_list_depth :: Bool -- ^ Print a message indicating depth of remaining lists at timeout.
+
     , step_limit :: Bool -- ^ Should steps be limited when running states?
     , steps :: Int -- ^ How many steps to take when running States
 
@@ -152,6 +160,7 @@ data Config = Config {
     , hpc_print_ticks :: Bool -- ^ Print each HPC tick number that was reached?
     , strict :: Bool -- ^ Should the function output be strictly evaluated?
     , timeLimit :: Int -- ^ Seconds
+    , min_found :: Int -- ^ Don't stop when timeout is hit unless this many examples have been found
     , validate :: Bool -- ^ If True, run on G2's input, and check against expected output.
     , validate_with :: String -- ^ Function to use when validating input (defaults to (==)).
     , measure_coverage :: Bool -- ^ Use HPC to measure code coverage
@@ -170,6 +179,11 @@ mkConfig homedir = Config Regular
     <*> mkExtraDefault homedir
     <*> pure []
     <*> mkIncludePaths
+    <*> option (eitherReader (Right . (:[])))
+            ( long "smt-def-file"
+            <> metavar "FILE"
+            <> value []
+            <> help "an SMT definition file")
     <*> flag True False (long "no-print-outputs" <> help "Print function outputs")
     <*> mkLogMode
     <*> option auto (long "log-every-n"
@@ -223,6 +237,7 @@ mkConfig homedir = Config Regular
                 <> metavar "SMT-PATH"
                 <> value Nothing
                 <> help "path to an SMT solver")
+    <*> flag KeepUnknown DiscardUnknown (long "smt-discard-on-unknown" <> help "Discard a state as soon as the SMT solver returns unknown for a path constraint")
     <*> flag NoSMTStrings UseSMTStrings (long "smt-strings" <> help "Sets whether the SMT solver should be used to solve string constraints")
     <*> flag LazySMTStrings StrictSMTStrings (long "strict-strings" <> help "Force evaluation of strings, to allow more strings to be handled via SMT reasoning")
     <*> option (maybeReader quantStrings) (long "quant-smt-strings"
@@ -231,7 +246,10 @@ mkConfig homedir = Config Regular
                                           <> help "Either `-` to indicate that quantifiers should be used in SMT formulas, or a depth to unroll quantifiers to")
     <*> flag NoSMTLams UseSMTLams (long "smt-lams" <> help "Use map and fold with lambdas to model functions in the SMT solver (Z3 only)")
     <*> flag NoSMTSeq (UseSMTSeq True True) (long "smt-lists" <> help "Sets whether the SMT solver should be used to solve list constraints for primitive types")
-    
+
+    <*> flag False True (long "print-timeout" <> help "print a message indicating if any states timed out")
+    <*> flag False True (long "print-timeout-list-depth" <> help "print a message indicating depth of lists in timed out states")
+
     <*> flag True False (long "no-step-limit" <> help "disable step limit")
     <*> option auto (long "n"
                    <> metavar "N"
@@ -264,7 +282,11 @@ mkConfig homedir = Config Regular
     <*> option auto (long "time"
                    <> metavar "T"
                    <> value 600
-                   <> help "time limit, in seconds")
+                   <> help "time limit, in seconds (default: 600)")
+    <*> option auto (long "min-found"
+                   <> metavar "M"
+                   <> value 0
+                   <> help "don't stop when timeout is hit, unless this many examples have been found (default: 0)")
     <*> switch (long "validate" <> help "use GHC to automatically compile and run on generated inputs, and check that generated outputs are correct")
     <*> strOption
             ( long "validate-with"
@@ -384,6 +406,7 @@ mkConfigDirect homedir as m = Config {
     , extraDefaultInclude = extraDefaultIncludePaths (strArg "extra-base-inc" as m id homedir)
     , extraDefaultMods = []
     , includePaths = Nothing
+    , smt_def_file = []
     , print_output = True
     , logStates = strArg "log-states" as m (Log Raw)
                         (strArg "log-pretty" as m (Log Pretty) NoLog)
@@ -410,12 +433,16 @@ mkConfigDirect homedir as m = Config {
     , smt = strArg "smt" as m smtSolverArg ConZ3
     , smt_timeout = 10
     , smt_path = Nothing
+    , smt_discard_on_unknown = KeepUnknown
     , smt_strings = NoSMTStrings
     , smt_strings_strictness = LazySMTStrings
     , quantified_smt_strings = UnrollQuant 10
     , using_smt_lams = NoSMTLams
     , smt_prim_lists = NoSMTSeq
     
+    , print_timeout = False
+    , print_timeout_list_depth = False
+
     , step_limit = boolArg' "no-step-limit" as True True False
     , steps = strArg "n" as m read 1000
 
@@ -437,6 +464,7 @@ mkConfigDirect homedir as m = Config {
     , hpc_print_ticks = False
     , strict = boolArg "strict" as m On
     , timeLimit = strArg "time" as m read 300
+    , min_found = 0
     , validate  = boolArg "validate" as m Off
     , validate_with = "=="
     , measure_coverage = False

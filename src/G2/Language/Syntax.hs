@@ -258,7 +258,7 @@ data Primitive = -- Mathematical and logical operators
                | StrLe
                | StrLen
                | StrAppend
-               | StrAt
+               | StrAt -- ^ `StrAt xs n` returns a unit sequence containing the nth element of xs, or an empty list if out of range
                | StrSubstr
                | StrIndexOf
                | StrContains
@@ -269,6 +269,8 @@ data Primitive = -- Mathematical and logical operators
                | StrPrefixOf
                | StrSuffixOf
                | StrReverse -- CVC5 only
+
+               | SeqNth -- ^ Z3 and CVC5 only, return the nth element of a sequence (unspecified if out of range)
 
                | Chr
                | OrdChar
@@ -474,6 +476,7 @@ data Tickish = Breakpoint Span -- ^ A breakpoint for the GHC Debugger
                              -- in concert with a @`G2.Execution.Reducer.Reducer`@, for domain
                              -- specific modifications to a
                              -- @`G2.Language.Support.State`@'s tracking field.
+             | FCTick FuncCall
              deriving (Show, Eq, Read, Generic, Typeable, Data)
 
 instance Hashable Tickish

@@ -532,17 +532,43 @@ evalPrimADT2 kv _ Or e1 e2
     | Just b1 <- toBool kv e1
     , Just b2 <- toBool kv e2 = Just $ mkBool kv (b1 || b2)
 
+evalPrimADT2 kv _ Eq l1 l2 = do
+    xs <- toExprList l1
+    ys <- toExprList l2
+    return $ mkBool kv (xs == ys)
+evalPrimADT2 kv _ Neq l1 l2 = do
+    xs <- toExprList l1
+    ys <- toExprList l2
+    return $ mkBool kv (xs /= ys)
+
 evalPrimADT2 kv tenv StrAppend xs ys = do
     t <- listType xs
     xs' <- toExprList xs
     ys' <- toExprList ys
     return . toListExpr kv tenv t $ xs' ++ ys'
 
+evalPrimADT2 kv _ StrContains str sub = do
+    t <- listType str
+    str' <- toExprList str
+    sub' <- toExprList sub
+    let ret = sub' `L.isInfixOf` str'
+    return $ mkBool kv ret
+
 evalPrimADT2 kv tenv StrAt xs (Lit (LitInt i)) = do
     t <- listType xs
     xs' <- toExprList xs
     let c = if 0 <= i && fromInteger i < length xs' then  [xs' !! (fromInteger i)] else []
     return $ toListExpr kv tenv t c
+
+evalPrimADT2 kv _ SeqNth xs (Lit (LitInt i)) = do
+    let stripCons (App (Data (DataCon { dc_name = dcn })) e) | dcn == KV.dcInt kv
+                                                             || dcn == KV.dcInteger kv = e
+        stripCons e = e
+    
+    xs' <- toExprList xs
+    if 0 <= i && fromInteger i < length xs'
+        then Just . stripCons $ xs' !! (fromInteger i)
+        else Just $ Prim Error TyBottom
 
 evalPrimADT2 kv _ StrPrefixOf pre s = do
     pre' <- toExprList pre
@@ -786,8 +812,9 @@ isSMTRep eenv kv e
     | Just (E.Conc e) <- c_s
     , Prim p _:_ <- unApp e
     , not (isErrorPrim p) = True
-    | Just (E.Conc e) <- c_s 
-    , isSymString eenv kv e = True
+    | Just (E.Conc e') <- c_s 
+    , isSymList eenv kv e' = True
+    | Just (E.Conc (Tick _ e')) <- c_s = isSMTRep eenv kv e'
     | otherwise = False
     where
         c_s = case e of
@@ -812,6 +839,7 @@ evalsToSMTRep seen eenv kv tc = go
                 altEvals (Alt _ ae) = go ae
         go (Data _) = True
         go (Lit _) = True
+        go (App e1 _) | Var (Id n _):_ <- unApp e1, n `elem` smtStringFuncs kv = True
         go (App e1 e2) = go e1 && go e2
         go (Type _) = True
         go (Tick _ e) = go e
@@ -819,8 +847,8 @@ evalsToSMTRep seen eenv kv tc = go
         go _ = False
 
 -- | Is the expression a symbolically representable string?
-isSymString :: ExprEnv -> KnownValues ->  Expr -> Bool
-isSymString eenv kv = go HS.empty
+isSymList :: ExprEnv -> KnownValues ->  Expr -> Bool
+isSymList eenv kv = go HS.empty
     where
         go seen (Var (Id n _))
             -- If we have already seen a variable, we have an infinite list, i.e.:
@@ -832,12 +860,16 @@ isSymString eenv kv = go HS.empty
         go _ (Data dc) | dc_name dc == KV.dcCons kv = True
                        | dc_name dc == KV.dcEmpty kv = True
                        | dc_name dc == KV.dcChar kv = True
+                       | dc_name dc == KV.dcInt kv = True
+                       | dc_name dc == KV.dcInteger kv = True
+                       | dc_name dc == KV.dcFloat kv = True
         go seen (App e1 e2)
             | Data _:_ <- unApp e1 = go seen e1 && go seen e2
-        go _ (Lit (LitChar _)) = True
+        go _ (Lit _) = True
         go _ (Type _) = True
         go seen (Tick _ e) = go seen e
         go _ _ = False
+
 
 evalTypeDCPrim2 :: TypeEnv -> TV.TyVarEnv -> Primitive -> Type -> DataCon -> Maybe Expr
 evalTypeDCPrim2 tenv tv_env DataToTag t dc  =

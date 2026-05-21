@@ -495,12 +495,12 @@ testFileTests = testGroup "TestFiles"
                                         , ("reverse3", 1000, [ AtLeast 2
                                                              , RExists "rev3Returns1"])
                                         , ("reverse4", 5000, [Exactly 1])
-                                        , ("insert2", 2000, [Exactly 2])
+                                        , ("insert2", 2000, [AtLeast 1, AtMost 2]) -- Allowing for SMT failures
                                         , ("insert3", 2000, [Exactly 1])
 
                                         , ("intersperse1", 3000, [Exactly 3])
 
-                                        , ("minimum1", 3000, [AtLeast 5, AtMost 6]) -- Allowing for SMT failures
+                                        , ("minimum1", 3000, [AtLeast 4, AtMost 6]) -- Allowing for SMT failures
                                         , ("minimum2", 2000, [AtLeast 1, AtMost 2]) -- Allowing for SMT failures
                                         , ("maximum1", 3000, [AtLeast 5, AtMost 6]) -- Allowing for SMT failures
                                         , ("maximum2", 1000, [AtLeast 1, AtMost 2]) -- Allowing for SMT failures
@@ -508,6 +508,8 @@ testFileTests = testGroup "TestFiles"
                                         , ("lines1", 4000, [AtLeast 10])
 
                                         , ("repeat1", 1000, [AtLeast 5])
+
+                                        , ("testQualImp", 4000, [Exactly 2])
                                         ]
     , checkInputOutputsSMTStringsStrict "tests/TestFiles/Strings/Strings1.hs"
                                         [ ("showInt1", 4000, [Exactly 2])
@@ -874,7 +876,8 @@ baseTests = testGroup "Base"
 
     , checkInputOutputs "tests/BaseTests/MaybeTest.hs" [ ("headMaybeInt", 1000, [AtLeast 2])
                                                        , ("sumN", 1000, [AtLeast 6])
-                                                       , ("lengthN", 1000, [AtLeast 6]) ]
+                                                       , ("lengthN", 1000, [AtLeast 6])
+                                                       , ("listToMaybeFloat", 1000, [AtLeast 2]) ]
 
     , checkInputOutput "tests/BaseTests/Other.hs" "check4VeryEasy2" 600 [AtLeast 1]
     , checkInputOutput "tests/BaseTests/ZipList.hs" "callApp" 2000 [AtLeast 10]

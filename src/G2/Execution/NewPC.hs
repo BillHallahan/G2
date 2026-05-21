@@ -20,6 +20,7 @@ import Data.Maybe
 import G2.Data.Utils
 import Data.Traversable
 import G2.Execution.MutVar
+import G2.Config.Config (DiscardUnknownStates (KeepUnknown))
 
 type EEDiff = [(Name, Expr)] -- concrete values to insert in ExprEnv
 type EESymDiff = [Id] -- symbolic variables to insert in ExprEnv
@@ -50,14 +51,14 @@ newPCNoStates s = SplitStatePieces s []
 
 -- This will now return a list of States: one for each StateDiff applied to the starting state. The
 -- end goal here is to be able to check whether the diffs are able to be used with a literal table
-reduceNewPC :: (Solver solver, Simplifier simplifier) => solver -> simplifier -> NameGen -> NewPC t -> IO (NameGen, [State t])
-reduceNewPC _ _ ng (SingleState state) = return (ng, [state])
-reduceNewPC solver simplifier ng (SplitStatePieces state state_diffs) =
-    mapAccumMaybeM (\ng' sd -> reduceNewPC' solver simplifier ng' state sd) ng state_diffs
+reduceNewPC :: (Solver solver, Simplifier simplifier) => DiscardUnknownStates -> solver -> simplifier -> NameGen -> NewPC t -> IO (NameGen, [State t])
+reduceNewPC _ _ _ ng (SingleState state) = return (ng, [state])
+reduceNewPC discard_unknown_states solver simplifier ng (SplitStatePieces state state_diffs) =
+    mapAccumMaybeM (\ng' sd -> reduceNewPC' discard_unknown_states solver simplifier ng' state sd) ng state_diffs
 
 -- Make a new State from a StateDiff and a starting State, if the State is reachable
-reduceNewPC' :: (Solver solver, Simplifier simplifier) => solver -> simplifier -> NameGen -> State t -> StateDiff -> IO (Maybe (NameGen, State t))
-reduceNewPC' solver simplifier ng
+reduceNewPC' :: (Solver solver, Simplifier simplifier) => DiscardUnknownStates -> solver -> simplifier -> NameGen -> State t -> StateDiff -> IO (Maybe (NameGen, State t))
+reduceNewPC' discard_unknown_states solver simplifier ng
              init_state@(State { expr_env = init_eenv, tyvar_env = init_tvenv
                                , path_conds = state_pc })
              (SD { new_conc_entries = nce
@@ -97,10 +98,11 @@ reduceNewPC' solver simplifier ng
 
         res <- check solver s rel_pc
 
-        if res == SAT () then
-            return $ Just (ng', s')
-        else
-            return Nothing
+        case res of
+            SAT () -> return $ Just (ng', s')
+            UNSAT () -> return Nothing
+            Unknown _ _ | discard_unknown_states == KeepUnknown -> return $ Just (ng', s')
+                        | otherwise -> return Nothing
     | otherwise = return $ Just (ng, s)
     where
         insertInOrder inserter exprs_ eenv_ = foldl' (flip $ uncurry inserter) eenv_ exprs_

@@ -47,7 +47,7 @@ runWithArgs as = do
   let gFlags = if measure_coverage config then [Opt_Hpc] else []
       config' = if measure_coverage config then config { validate = True } else config
 
-  (in_out, init_state, b, _, entry_f@(Id (Name _ mb_modname _ _) _), all_mods) <-
+  (in_out, init_state, b, time_outs, entry_f@(Id (Name _ mb_modname _ _) _), all_mods) <-
         runG2FromFile proj [src] gFlags (fmap T.pack m_assume)
                   (fmap T.pack m_assert) (fmap T.pack m_reaches) 
                   (isJust m_assert || isJust m_reaches || m_retsTrue) 
@@ -62,8 +62,17 @@ runWithArgs as = do
 
   when (validate config') $ do
     if null notValidated then putStrLn "Validated" else putStrLn "There was an error during validation."
-    unless (null timeouts) $ putStrLn ("Timeout count: " ++ show (length timeouts))
-    
+    unless (null timeouts) $ putStrLn ("Validate timeout count: " ++ show (length timeouts))
+
+  when (print_timeout config' || print_timeout_list_depth config') $ case time_outs of
+      NoTimeOut -> putStrLn "All states terminated."
+      TimedOut m_i -> do
+          putStrLn "Some states timed out."
+          when (print_timeout_list_depth config') $
+            case m_i of
+              Just i -> putStrLn $ "Checked up to list depth: " ++ show (i - 1)
+              Nothing -> putStrLn "No lists"
+  
   when (print_num_post_call_func_arg config') $ do
         putStrLn $ "Post call states: " ++ show (length spec_output)
         putStrLn $ "Func arg states: " ++ show (length unspecified_output)
