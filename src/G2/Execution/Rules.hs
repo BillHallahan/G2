@@ -1918,7 +1918,7 @@ retLTStartedBuilding s ng n =
         lt_done = not $ isJust (S.pop lts')
 
         (lam_e, sym_diff, ng1) = litTableToLam s ng table
-        insertSyms syms_ eenv_ = foldl' (flip E.insertSymbolic) eenv_ syms_
+        insertSyms syms_ eenv_ = L.foldl' (flip E.insertSymbolic) eenv_ syms_
 
         s1 = if lt_done
                 then s { expr_env = insertSyms sym_diff (expr_env s) }
