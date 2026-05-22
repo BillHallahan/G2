@@ -113,6 +113,7 @@ data KnownValues = KnownValues {
                  , checkStrLazy :: Name
                  
                  , usingSMTLams :: Name
+                 , usingLiteralTables :: Name
 
                  -- Useful functions
                  , errorFunc :: Name

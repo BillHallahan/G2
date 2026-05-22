@@ -135,6 +135,7 @@ initKnownValues eenv tenv tc =
     , checkStrLazy = exprWithStrName eenv "checkStrLazy"
 
     , usingSMTLams = exprWithStrName eenv "usingSMTLams#"
+    , usingLiteralTables = exprWithStrName eenv "usingLiteralTables#"
 
     , errorFunc = exprWithStrName eenv "error"
     , errorEmptyListFunc = exprWithStrName eenv "errorEmptyList"

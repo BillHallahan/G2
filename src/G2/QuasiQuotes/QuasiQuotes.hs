@@ -316,6 +316,8 @@ moveOutStatePieces tenv_name s = do
         reached_fc_ticks_exp = liftDataT (reached_fc_ticks s)
         tyvar_env_exp = liftDataT . TV.toListConcOrSym $ tyvar_env s
         pc_exp = liftDataT . PC.toList $ path_conds s
+        lit_table_stack_exp = liftDataT (lit_table_stack s)
+        lit_tables_exp = liftDataT (lit_tables s)
 
     [| State { expr_env = $(expr_env_exp)
              , type_env = $(varE tenv_name)
@@ -341,6 +343,8 @@ moveOutStatePieces tenv_name s = do
              , track = $(track_exp)
              , focused = Focused
              , reached_fc_ticks = $(reached_fc_ticks_exp)
+             , lit_table_stack = $(lit_table_stack_exp)
+             , lit_tables = $(lit_tables_exp)
              
              , log_path = [] } |]
 

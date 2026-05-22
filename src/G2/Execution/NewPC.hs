@@ -1,12 +1,9 @@
 module G2.Execution.NewPC ( NewPC (..)
-                          , StateDiff (..)
-                          , EEDiff
-                          , EESymDiff
-                          , TVEDiff
-                          , TVESymDiff
                           , newPCEmpty
                           , newPCNoStates
-                          , reduceNewPC ) where
+                          , reduceNewPC
+                          , reduceStateDiff
+                          , reduceToFirstDiff ) where
 
 import G2.Language
 import qualified G2.Language.ExprEnv as E
@@ -20,27 +17,11 @@ import Data.Maybe
 import G2.Data.Utils
 import Data.Traversable
 import G2.Execution.MutVar
+import G2.Execution.LiteralTable
 import G2.Config.Config (DiscardUnknownStates (KeepUnknown))
-
-type EEDiff = [(Name, Expr)] -- concrete values to insert in ExprEnv
-type EESymDiff = [Id] -- symbolic variables to insert in ExprEnv
-type TVEDiff = [(Name, Type)] -- concrete types to insert in TyVarEnv
-type TVESymDiff = [Id] -- symbolic variables to insert in TyVarEnv
 
 data NewPC t = SingleState (State t)
              | SplitStatePieces (State t) [StateDiff]
-
-data StateDiff = SD { new_conc_entries :: EEDiff -- ^ New concrete entries for the expr_env
-                    , new_sym_entries :: EESymDiff -- ^ New symbolic entries for the expr_env
-                    , new_path_conds :: [PathCond] -- ^ New path constraints
-                    , concretized :: [Id]
-                    , new_true_assert :: Bool
-                    , new_assert_ids :: Maybe FuncCall
-                    , new_curr_expr :: CurrExpr
-                    , new_conc_types :: TVEDiff -- ^ New concrete entries for the tyvar_env
-                    , new_sym_types :: TVESymDiff -- ^ New symbolic entries for the tyvar_env
-                    , new_mut_vars :: [(Name, Id, MVOrigin)] -- ^ New mutable variables for the mutvar_env
-                    }
 
 newPCEmpty :: State t -> NewPC t
 newPCEmpty s = SingleState s
@@ -51,14 +32,59 @@ newPCNoStates s = SplitStatePieces s []
 
 -- This will now return a list of States: one for each StateDiff applied to the starting state. The
 -- end goal here is to be able to check whether the diffs are able to be used with a literal table
-reduceNewPC :: (Solver solver, Simplifier simplifier) => DiscardUnknownStates -> solver -> simplifier -> NameGen -> NewPC t -> IO (NameGen, [State t])
+-- When in literal table building mode (lit table stack is non-empty), this will take the first reachable
+-- diff and put it onto the stack as an Exploring (leaving the rest of the states as Diffs on the stack)
+reduceNewPC :: (Solver solver, Simplifier simplifier)
+            => DiscardUnknownStates
+            -> solver
+            -> simplifier
+            -> NameGen
+            -> NewPC t
+            -> IO (NameGen, [State t])
 reduceNewPC _ _ _ ng (SingleState state) = return (ng, [state])
-reduceNewPC discard_unknown_states solver simplifier ng (SplitStatePieces state state_diffs) =
-    mapAccumMaybeM (\ng' sd -> reduceNewPC' discard_unknown_states solver simplifier ng' state sd) ng state_diffs
+reduceNewPC discard_unknown_states solver simplifier ng (SplitStatePieces state state_diffs)
+    | inLitTableMode state = do
+        res <- reduceToFirstDiff discard_unknown_states solver simplifier ng state state_diffs
+        case res of
+            Just (ng', first_s, pcs, other_diffs) ->
+                let prev_stck = stopUpdateLastExpl $ exec_stack first_s
+                    diffs_pushed = foldr S.push prev_stck $ map wrap other_diffs
+                    expl_pushed = S.push (LitTableFrame (Exploring (PC.fromList pcs)) True) diffs_pushed
+                in return (ng', [first_s { exec_stack = expl_pushed }])
+            Nothing -> return (ng, [])
+    | otherwise =
+        mapAccumMaybeM (\ng' sd -> reduceStateDiff discard_unknown_states solver simplifier ng' state sd) ng state_diffs
+    where
+        wrap diff = LitTableFrame (
+                        Diff diff (expr_env state, tyvar_env state, mutvar_env state, path_conds state)
+                    ) True
+
+-- Find the first diff to explore, when in literal table building mode
+reduceToFirstDiff :: (Solver solver, Simplifier simplifier)
+                  => DiscardUnknownStates
+                  -> solver
+                  -> simplifier
+                  -> NameGen
+                  -> State t
+                  -> [StateDiff]
+                  -> IO (Maybe (NameGen, State t, [PathCond], [StateDiff]))
+reduceToFirstDiff _ _ _ _ _ [] = return Nothing
+reduceToFirstDiff dus solver simplifier ng state (diff:diffs) = do
+    res <- reduceStateDiff dus solver simplifier ng state diff
+    case res of
+        Just (ng', s') -> return $ Just (ng', s', new_path_conds diff, diffs)
+        Nothing -> reduceToFirstDiff dus solver simplifier ng state diffs
 
 -- Make a new State from a StateDiff and a starting State, if the State is reachable
-reduceNewPC' :: (Solver solver, Simplifier simplifier) => DiscardUnknownStates -> solver -> simplifier -> NameGen -> State t -> StateDiff -> IO (Maybe (NameGen, State t))
-reduceNewPC' discard_unknown_states solver simplifier ng
+reduceStateDiff :: (Solver solver, Simplifier simplifier)
+                => DiscardUnknownStates
+                -> solver
+                -> simplifier
+                -> NameGen
+                -> State t
+                -> StateDiff
+                -> IO (Maybe (NameGen, State t))
+reduceStateDiff discard_unknown_states solver simplifier ng
              init_state@(State { expr_env = init_eenv, tyvar_env = init_tvenv
                                , path_conds = state_pc })
              (SD { new_conc_entries = nce
