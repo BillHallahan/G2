@@ -458,6 +458,7 @@ fakeKnownValues =
     , checkStrLazy = Name "" Nothing 0 Nothing
 
     , usingSMTLams = Name "" Nothing 0 Nothing
+    , usingLiteralTables = Name "" Nothing 0 Nothing
 
     , errorFunc = Name "" Nothing 0 Nothing
     , errorWithoutStackTraceFunc = Name "" Nothing 0 Nothing

@@ -63,7 +63,10 @@ mkConfigTestWithLambdaSMTListsIO = do
     config <- mkConfigTestIO
     return $ config { smt_prim_lists = UseSMTSeq True True, using_smt_lams = UseSMTLams }
 
-
+mkConfigTestWithLitTablesSMTStringsIO :: IO Config
+mkConfigTestWithLitTablesSMTStringsIO = do
+    config <- mkConfigTestIO
+    return $ config { smt_strings = UseSMTStrings, using_smt_lams = UseSMTLams, literal_tables = UseLiteralTables }
 
 eqIgT :: Expr -> Expr -> Bool
 eqIgT (Var n) (Var n') = eqIgIds n n'

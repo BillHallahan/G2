@@ -333,6 +333,10 @@ data Primitive = -- Mathematical and logical operators
                -- Unspecified Output- when we want to calculate input values that lead to a specific point,
                -- and then don't want to actually follow through on calculating the output value
                | UnspecifiedOutput
+
+               -- Literal table handling
+               | BuildLitTable -- ^ Build a literal table from a function
+               | LitTableRef Name -- ^ A reference to a literal table
                deriving (Show, Eq, Read, Generic, Typeable, Data)
 
 -- | Do we want to use special handling to support a particular type?
