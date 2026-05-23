@@ -1,6 +1,6 @@
 {-# LANGUAGE CPP, MultiWayIf #-}
 
-module Seq1 where
+module SeqTuple where
 
 import Data.List
 
