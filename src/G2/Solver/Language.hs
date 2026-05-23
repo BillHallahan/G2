@@ -172,6 +172,7 @@ data SMTAST = (:>=) !SMTAST !SMTAST
             | VBool Bool
 
             | V SMTName Sort
+            | DataSMT SMTName [SMTAST]
 
             | FloatToIntSMT !SMTAST -- ^ Float to Integer conversion
             | DoubleToIntSMT !SMTAST -- ^ Double to Integer conversion

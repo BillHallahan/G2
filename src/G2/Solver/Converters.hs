@@ -434,7 +434,7 @@ exprToSMT _ (Data (DataCon n (TyCon (Name "Bool" _ _ _) _ ) _ _)) =
         "True" -> VBool True
         "False" -> VBool False
         _ -> error "Invalid bool in exprToSMT"
-exprToSMT tv (Data (DataCon n t _ _)) = V (nameToStr n) (typeToSMT tv t)
+exprToSMT tv (Data (DataCon n _ _ _)) = DataSMT (nameToStr n) []
 exprToSMT tv (App (Data (DataCon (Name "[]" _ _ _) _ _ _)) type_t@(Type t))
     | Just (TyCon (Name "Char" _ _ _) _) <- TV.deepLookup tv type_t = VString ""
     | Just (TyApp (TyCon (Name "Any" (Just "GHC.Types") _ _) _) _) <- TV.deepLookup tv type_t = VString ""
@@ -741,6 +741,10 @@ typeToSMT tv t@(TyVar (Id n _ )) = case TV.deepLookupName tv n of
                                         Just t1 -> typeToSMT tv t1
                                         Nothing -> ParSort (nameToStr n)
 typeToSMT _ (TyCon (Name "Char" _ _ _) _) = SortChar
+typeToSMT _ (TyCon (Name "Int" _ _ _) _) = SortInt
+typeToSMT _ (TyCon (Name "Integer" _ _ _) _) = SortInt
+typeToSMT _ (TyCon (Name "Float" _ _ _) _) = SortFloat
+typeToSMT _ (TyCon (Name "Double" _ _ _) _) = SortDouble
 typeToSMT _ t = error $ "Unsupported type in typeToSMT: " ++ show t
 
 adtTypeToSMTSeq :: TyVarEnv -> Type -> Sort
@@ -750,7 +754,7 @@ adtTypeToSMTSeq _ (TyCon (Name "Int" _ _ _) _) = SortSeq SortInt
 adtTypeToSMTSeq _ (TyCon (Name "Integer" _ _ _) _) = SortSeq SortInt
 adtTypeToSMTSeq _ (TyCon (Name "Float" _ _ _) _) = SortSeq SortFloat
 adtTypeToSMTSeq _ (TyCon (Name "Double" _ _ _) _) = SortSeq SortDouble
-adtTypeToSMTSeq tv t | TyCon n _:ts <- unTyApp t = SortSeq . ADTSort (nameToStr n) $ map (adtTypeToSMTSeq tv) ts
+adtTypeToSMTSeq tv t | TyCon n _:ts <- unTyApp t = SortSeq . ADTSort (nameToStr n) $ map (typeToSMT tv) ts
 adtTypeToSMTSeq tv (TyVar (Id n _)) | Just t <- TV.deepLookupName tv n = adtTypeToSMTSeq tv t
 adtTypeToSMTSeq _ t = error $ "Unsupported type in adtTypeToSMTSeq: " ++ show t
 
@@ -927,6 +931,7 @@ toSolverAST str_seq = go
                             | otherwise = "\"\\u{" <> TB.string (showHex (fromEnum c) "") <> "}\""
         go (VBool b) = if b then "true" else "false"
         go (V n _) = TB.string n
+        go (DataSMT n as) = "(" <> TB.string n <> TB.intercalate " " (map go as) <> ")"
 
         go (Named x n) = "(! " <> go x <> " :named " <> TB.string n <> ")"
 
@@ -1118,6 +1123,12 @@ smtastToExpr kv tenv ty_map n (StrAppendSMT xs) =
     where
         fromUnit (SeqUnitSMT s) = s
         fromUnit _ = error "fromUnit: unsupported case"
+smtastToExpr kv tenv ty_map n (DataSMT dc_n as) =
+    let
+        es = map (smtastToExpr kv tenv ty_map n) as
+        d = Data $ DataCon { dc_name = certainStrToName dc_n, dc_type = TyUnknown, dc_univ_tyvars = [], dc_exist_tyvars = []}
+    in
+    mkApp $ d:es 
 smtastToExpr _ _ _ _ _ = error "Conversion of this SMTAST to an Expr not supported."
 
 getTypeForList :: HM.HashMap SMTName Type -> SMTName -> Type
