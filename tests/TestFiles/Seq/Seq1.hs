@@ -40,9 +40,6 @@ conFloat xs ys = xs ++ ys
 conDouble :: [Double] -> [Double] -> [Double]
 conDouble xs ys = xs ++ ys
 
-conTuple :: Int -> [(Int, Int)] -> [(Int, Int)] -> [(Int, Int)]
-conTuple x xs ys = if x > 10 then xs ++ ys else ys ++ xs
-
 appendEq :: [Int] -> [Int]
 appendEq s = s ++ [1]
 

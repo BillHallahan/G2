@@ -201,6 +201,7 @@ data Sort = SortInt
           | SortBool
           | SortArray Sort Sort
           | SortFunc [Sort] Sort
+          | ADTSort SMTName [Sort]
           | ParSort SMTName
           deriving (Show, Eq, Ord, Generic)
 

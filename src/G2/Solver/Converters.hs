@@ -750,6 +750,7 @@ adtTypeToSMTSeq _ (TyCon (Name "Int" _ _ _) _) = SortSeq SortInt
 adtTypeToSMTSeq _ (TyCon (Name "Integer" _ _ _) _) = SortSeq SortInt
 adtTypeToSMTSeq _ (TyCon (Name "Float" _ _ _) _) = SortSeq SortFloat
 adtTypeToSMTSeq _ (TyCon (Name "Double" _ _ _) _) = SortSeq SortDouble
+adtTypeToSMTSeq tv t | TyCon n _:ts <- unTyApp t = SortSeq . ADTSort (nameToStr n) $ map (adtTypeToSMTSeq tv) ts
 adtTypeToSMTSeq tv (TyVar (Id n _)) | Just t <- TV.deepLookupName tv n = adtTypeToSMTSeq tv t
 adtTypeToSMTSeq _ t = error $ "Unsupported type in adtTypeToSMTSeq: " ++ show t
 
@@ -1069,6 +1070,8 @@ sortName (SortSeq s) = "(Seq " <> sortName s <> ")"
 sortName SortChar = "String"
 sortName SortBool = "Bool"
 sortName (SortArray ind val) = "(Array " <> sortName ind <> " " <> sortName val <> ")"
+sortName (ADTSort n []) = TB.string n
+sortName (ADTSort n xs) = "(" <> TB.string n <> " " <> TB.intercalate " " (map sortName xs) <> ")"
 sortName (ParSort n) = TB.string n
 sortName _ = error "sortName: unsupported Sort"
 
