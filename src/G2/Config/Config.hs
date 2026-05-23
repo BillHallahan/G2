@@ -14,6 +14,7 @@ module G2.Config.Config ( Mode (..)
                         , SMTQuantifiers (..)
                         , UseSMTLams (..)
                         , UseSMTSeq (..)
+                        , UseSMTDC (..)
                         , useSMTSeqDCs
                         , useSMTSeqFuncs
 
@@ -86,6 +87,8 @@ data UseSMTLams = UseSMTLams
 
 data UseSMTSeq = UseSMTSeq { add_to_dcs :: Bool, add_to_funcs :: Bool } | NoSMTSeq deriving (Eq, Show, Read)
 
+data UseSMTDC = UseSMTDC | NoSMTDC deriving (Eq, Show, Read)
+
 useSMTSeqDCs ::  UseSMTSeq -> Bool
 useSMTSeqDCs (UseSMTSeq { add_to_dcs = a }) = a
 useSMTSeqDCs NoSMTSeq = False
@@ -135,7 +138,8 @@ data Config = Config {
     , quantified_smt_strings :: SMTQuantifiers -- ^ Sets how quantifiers should be used in SMT functions
     , using_smt_lams :: UseSMTLams -- ^ Sets whether SMT Lambda expressions should be used (Z3 only)
     , smt_prim_lists :: UseSMTSeq -- ^ Sets whether the SMT solver should be used to solve lists containing primitive type wrappers (Int, Float, etc.)
-    
+    , smt_tuples :: UseSMTDC -- ^ Sets whether the SMT solver should be used to solve tuples
+
     , print_timeout :: Bool -- ^ Print a message indicating whether states remain at timeout
     , print_timeout_list_depth :: Bool -- ^ Print a message indicating depth of remaining lists at timeout.
 
@@ -246,6 +250,7 @@ mkConfig homedir = Config Regular
                                           <> help "Either `-` to indicate that quantifiers should be used in SMT formulas, or a depth to unroll quantifiers to")
     <*> flag NoSMTLams UseSMTLams (long "smt-lams" <> help "Use map and fold with lambdas to model functions in the SMT solver (Z3 only)")
     <*> flag NoSMTSeq (UseSMTSeq True True) (long "smt-lists" <> help "Sets whether the SMT solver should be used to solve list constraints for primitive types")
+    <*> flag NoSMTDC UseSMTDC (long "smt-tuples" <> help "Sets whether the SMT solver should be used to solve tuples")
 
     <*> flag False True (long "print-timeout" <> help "print a message indicating if any states timed out")
     <*> flag False True (long "print-timeout-list-depth" <> help "print a message indicating depth of lists in timed out states")
@@ -439,6 +444,7 @@ mkConfigDirect homedir as m = Config {
     , quantified_smt_strings = UnrollQuant 10
     , using_smt_lams = NoSMTLams
     , smt_prim_lists = NoSMTSeq
+    , smt_tuples = NoSMTDC
     
     , print_timeout = False
     , print_timeout_list_depth = False

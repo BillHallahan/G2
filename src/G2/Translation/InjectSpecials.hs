@@ -10,14 +10,15 @@ import qualified Data.HashMap.Lazy as HM
 import qualified Data.Text as T
 import Data.Tuple.Extra
 
+import G2.Config
 import G2.Language
 import qualified G2.Language.TyVarEnv as TV 
 
 _MAX_TUPLE :: Int
 _MAX_TUPLE = 62
 
-specialTypes :: HM.HashMap Name AlgDataTy
-specialTypes = HM.fromList $ map (uncurry3 specialTypes') specials ++ mkPrimTuples _MAX_TUPLE
+specialTypes :: UseSMTDC -> HM.HashMap Name AlgDataTy
+specialTypes use_smt_tuple = HM.fromList $ map (uncurry3 specialTypes') (specials use_smt_tuple) ++ mkPrimTuples _MAX_TUPLE
 
 specialTypes' :: (T.Text, Maybe T.Text, [Name]) -> [(T.Text, Maybe T.Text, [Type])] -> Bool -> (Name, AlgDataTy)
 specialTypes' (n, m, ns) dcn to_s = 
@@ -39,8 +40,9 @@ specialDC ns tn (n, m, ts) =
     DataCon { dc_name = Name n m 0 Nothing, dc_type = t', dc_univ_tyvars = is, dc_exist_tyvars = [] }
 
 specialTypeNames :: HM.HashMap (T.Text, Maybe T.Text) Name
-specialTypeNames = -- HM.fromList $ map (\(n, m, _) -> ((n, m), Name n m 0 Nothing)) specialTypeNames'
-      HM.fromList . map (\nm@(Name n m _ _) -> ((n, m), nm)) $ HM.keys specialTypes
+specialTypeNames =
+    -- We only care about the names, so not important whether we pass UseSMTDC or NoSMTDC
+    HM.fromList . map (\nm@(Name n m _ _) -> ((n, m), nm)) $ HM.keys (specialTypes UseSMTDC)
 
 specialConstructors :: HM.HashMap (T.Text, Maybe T.Text) Name
 specialConstructors =
@@ -52,7 +54,9 @@ integerConstructor :: ((T.Text, Maybe T.Text), Name)
 integerConstructor = (("IS", Just "GHC.Num.Integer"), Name "Z#" (Just "GHC.Num.Integer") 0 Nothing)
 
 specialConstructors' :: [DataCon]
-specialConstructors' = concatMap data_cons $ HM.elems specialTypes -- map (\(n, m, _) -> (n, m)) $ concatMap snd specials
+specialConstructors' =
+    -- We only care about the constructors, so not important whether we pass UseSMTDC or NoSMTDC
+    concatMap data_cons $ HM.elems (specialTypes UseSMTDC)
 
 aName :: Name
 aName = Name "a" Nothing 0 Nothing
@@ -70,8 +74,8 @@ listTypeStr = "[]"
 listName :: Name
 listName = Name listTypeStr (Just "GHC.Types") 0 Nothing
 
-specials :: [((T.Text, Maybe T.Text, [Name]), [(T.Text, Maybe T.Text, [Type])], Bool)]
-specials =
+specials :: UseSMTDC -> [((T.Text, Maybe T.Text, [Name]), [(T.Text, Maybe T.Text, [Type])], Bool)]
+specials use_smt_tuples =
            [ (( listTypeStr
               , Just "GHC.Types", [aName])
               , [ ("[]", Just "GHC.Types", [])
@@ -95,18 +99,19 @@ specials =
            ]
            ++
 #if MIN_VERSION_GLASGOW_HASKELL(9,10,0,0)
-           mkTuples "(" ")" (Just "GHC.Tuple") _MAX_TUPLE
+           mkTuples use_smt_tuples "(" ")" (Just "GHC.Tuple") _MAX_TUPLE
 #elif MIN_VERSION_GLASGOW_HASKELL(9,6,0,0)
-           mkTuples "(" ")" (Just "GHC.Tuple.Prim") _MAX_TUPLE
+           mkTuples use_smt_tuples "(" ")" (Just "GHC.Tuple.Prim") _MAX_TUPLE
 #else
-           mkTuples "(" ")" (Just "GHC.Tuple") _MAX_TUPLE
+           mkTuples use_smt_tuples "(" ")" (Just "GHC.Tuple") _MAX_TUPLE
 #endif
            -- ++
            -- mkTuples "(#" "#)" (Just "GHC.Prim") _MAX_TUPLE
 
 
-mkTuples :: T.Text -> T.Text -> Maybe T.Text -> Int -> [((T.Text, Maybe  T.Text, [Name]), [(T.Text, Maybe T.Text, [Type])], Bool)]
-mkTuples ls rs m n | n < 0 = []
+mkTuples :: UseSMTDC -> T.Text -> T.Text -> Maybe T.Text -> Int -> [((T.Text, Maybe  T.Text, [Name]), [(T.Text, Maybe T.Text, [Type])], Bool)]
+mkTuples use_smt_dc ls rs m n
+                   | n < 0 = []
                    | otherwise =
                         let
                             cons_n = ls `T.append` T.pack (replicate n ',') `T.append` rs
@@ -123,7 +128,7 @@ mkTuples ls rs m n | n < 0 = []
                             tv = map (TyVar . flip Id TYPE) ns
                         in
                         -- ((s, m, []), [(s, m, [])]) : mkTuples (n - 1)
-                        ((ty_n, m, ns), [(cons_n, m, tv)], n == 1) : mkTuples ls rs m (n - 1)
+                        ((ty_n, m, ns), [(cons_n, m, tv)], use_smt_dc == UseSMTDC) : mkTuples use_smt_dc ls rs m (n - 1)
 
 mkPrimTuples :: Int -> [(Name, AlgDataTy)]
 mkPrimTuples k =
