@@ -423,6 +423,7 @@ testFileTests = testGroup "TestFiles"
                                                               , ("all3", 500, [AtLeast 5])
                                                               , ("all4", 500, [AtLeast 5])
                                                               , ("any1", 500, [AtLeast 5])
+                                                              , ("filter1", 500, [AtLeast 5])
                                                               ]
 
     , checkInputOutputsSMTStrings "tests/TestFiles/Strings/Strings1.hs"
@@ -554,6 +555,7 @@ testFileTests = testGroup "TestFiles"
                                            , ("all3", 5000, [Exactly 3])
                                            , ("all4", 5000, [Exactly 3])
                                            , ("any1", 5000, [Exactly 3])
+                                           , ("filter1", 10000, [Exactly 5])
                                            ]
 
     , checkInputOutputsSMTLists "tests/TestFiles/Seq/Seq1.hs" [ ("toEnum1", 2000, [Exactly 1])

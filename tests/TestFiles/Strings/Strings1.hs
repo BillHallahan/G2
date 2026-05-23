@@ -630,22 +630,25 @@ all4 s = case L.all (\c -> c >= 'a' && c <= 'z') s && length s == 1 of
             True -> "Yes"
             False -> "No"
 
--- dropWhile1 :: String -> Int
--- dropWhile1 s = case dropWhile (\x -> x == 'c') s of
---                    "ok" -> 1
---                    _ -> 2
-
 any1 :: String -> Int
 any1 s = case L.any (== '&') s && length s > 4 of
             True -> 1
             False -> 2
 
 filter1 :: String -> Int
-filter1 s = if length s < 4 then 1
-            else case filter (== '$') s of
-                    "x" -> 2
-                    "xyz" -> 3
-                    _ -> 4
+filter1 s = case filter (/= '$') s of
+                "x" -> 1
+                "xyz" -> 2
+                _ -> 3
+
+-- Note: z3 currently returns sat on some unsat SMT formulas
+-- this function outputs.
+-- filter2 :: String -> Int
+-- filter2 s = if length s < 4 then 1
+--             else case filter (== '$') s of
+--                     "x" -> 2
+--                     "xyz" -> 3
+--                     _ -> 4
 
 testQualImp :: String -> M.Maybe Char
 testQualImp s = case "12345" `isInfixOf` s of
