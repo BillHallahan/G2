@@ -58,8 +58,6 @@ import G2.Solver.Language
 import G2.Solver.Solver
 import qualified G2.Language.TyVarEnv as TV
 
-import Debug.Trace
-
 type PrintSMT = Bool
 
 -- | Used to describe the specific output format required by various solvers
