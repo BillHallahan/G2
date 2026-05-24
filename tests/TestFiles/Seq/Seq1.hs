@@ -355,4 +355,3 @@ unsnoc2 = unsnoc
 totalIndex1 :: [Int] -> [Maybe Int]
 totalIndex1 xs = [xs !? (-1), xs !? 0, xs !? 15]
 #endif
-

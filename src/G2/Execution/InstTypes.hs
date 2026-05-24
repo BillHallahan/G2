@@ -37,7 +37,9 @@ newType tv ng i te =
         nadt = DataTyCon 
                     { bound_ids = all_ids
                     , data_cons = [DataCon dc tyforall all_ids []]
-                    , adt_source = ADTG2Generated}
+                    , adt_source = ADTG2Generated
+                    , to_smt = False
+                    }
         te' = HM.insert tn nadt te 
     in
     (ty, te', ng''')

@@ -27,10 +27,16 @@ data SMTHeader = Assert !SMTAST
                | Minimize !SMTAST
                | DefineFun SMTName [(SMTName, Sort)] Sort !SMTAST
                | DeclareFun SMTName [Sort] Sort
+               | DeclareDatatypes [SMTDataType]
                | VarDecl SMTNameBldr Sort
                | SetLogic Logic
                | Comment String
                deriving (Show)
+
+data SMTDataType = SmtDT { dt_name :: SMTName
+                         , dt_tyvars :: [SMTName]
+                         , dt_constructors :: [(SMTName, [(SMTName, Sort)])]}
+                   deriving (Show)
 
 -- | Various logics supported by (some) SMT solvers 
 data Logic = ALL
@@ -165,6 +171,7 @@ data SMTAST = (:>=) !SMTAST !SMTAST
             | VBool Bool
 
             | V SMTName Sort
+            | DataSMT SMTName [SMTAST]
 
             | FloatToIntSMT !SMTAST -- ^ Float to Integer conversion
             | DoubleToIntSMT !SMTAST -- ^ Double to Integer conversion
@@ -194,6 +201,8 @@ data Sort = SortInt
           | SortBool
           | SortArray Sort Sort
           | SortFunc [Sort] Sort
+          | ADTSort SMTName [Sort]
+          | ParSort SMTName
           deriving (Show, Eq, Ord, Generic)
 
 pattern SortFloat :: Sort
@@ -358,6 +367,8 @@ instance AST SMTAST where
     children (FromCode x) = [x]
     children (ToCode x) = [x]
 
+    children (DataSMT _ xs) = xs
+
     children (FloatToIntSMT x) = [x]
     children (DoubleToIntSMT x) = [x]
     children (IntToFPSMT _ _ x) = [x]
@@ -476,6 +487,8 @@ instance AST SMTAST where
 
     modifyChildren f (FromCode x) = FromCode (f x)
     modifyChildren f (ToCode x) = ToCode (f x)
+
+    modifyChildren f (DataSMT n xs) = DataSMT n (map f xs)
 
     modifyChildren f (FloatToIntSMT x) = FloatToIntSMT (f x)
     modifyChildren f (DoubleToIntSMT x) = DoubleToIntSMT (f x)

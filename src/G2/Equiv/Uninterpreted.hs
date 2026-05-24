@@ -75,7 +75,8 @@ freeTypesToTypeEnv' tv (n,k) ng =
         (dcs,ng'') = unknownDC ng' n k bids
         n_adt = (n, DataTyCon {bound_ids = bids,
                                data_cons = [dcs],
-                               adt_source = ADTSourceCode})
+                               adt_source = ADTSourceCode,
+                               to_smt = False })
         in (n_adt, ng'')
 
 unknownDC :: NameGen -> Name -> Kind -> [Id] -> (DataCon, NameGen)
@@ -96,7 +97,7 @@ addDataCon :: TyVarEnv -> TypeEnv -> DataCon -> TypeEnv
 addDataCon tv te dc | (TyCon n _):_ <- unTyApp . returnType $ typeOf tv dc = 
     let dtc = HM.lookup n te
         adt = case dtc of 
-                   Just (DataTyCon ids' dcs adts) -> DataTyCon {bound_ids = ids', data_cons = dc : dcs, adt_source = adts}
+                   Just dtc'@(DataTyCon { data_cons = dcs }) -> dtc' { data_cons = dc : dcs }
                    Nothing -> error "addDataCons: cannot find corresponding Name in TypeEnv"
                    Just _ -> error "addDataCons: Not DataTyCon AlgDataTy found"
         in HM.insert n adt te 

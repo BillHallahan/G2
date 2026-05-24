@@ -261,6 +261,7 @@ instance Simplifier LitConc where
                    t' == T.tyChar kv
                 || t' == T.tyInt kv
                 || t' == T.tyInteger kv
+                || t' == T.tyWord kv
                 || t' == T.tyFloat kv
                 || t' == T.tyDouble kv
                 where
@@ -269,6 +270,7 @@ instance Simplifier LitConc where
             concApprop t i
                 | t' == T.tyInt kv = concInt i
                 | t' == T.tyInteger kv = concInteger i
+                | t' == T.tyWord kv = concWord i
                 | t' == T.tyFloat kv = concFloat i
                 | t' == T.tyDouble kv = concDouble i
                 | t' == T.tyChar kv = concChar i
@@ -279,6 +281,7 @@ instance Simplifier LitConc where
             toPrim (Id n t)
                 | t' == T.tyInt kv = Id n TyLitInt
                 | t' == T.tyInteger kv = Id n TyLitInt
+                | t' == T.tyWord kv = Id n TyLitWord
                 | t' == T.tyFloat kv = Id n TyLitFloat
                 | t' == T.tyDouble kv = Id n TyLitDouble
                 | t' == T.tyChar kv = Id n TyLitChar
@@ -288,6 +291,7 @@ instance Simplifier LitConc where
 
             concInt n = App (mkDCInt kv tenv) (Var n)
             concInteger n = App (mkDCInteger kv tenv) (Var n)
+            concWord n = App (mkDCWord kv tenv) (Var n)
             concFloat n = App (mkDCFloat kv tenv) (Var n)
             concDouble n = App (mkDCDouble kv tenv) (Var n)
             concChar n = App (mkDCChar kv tenv) (Var n)
@@ -295,6 +299,7 @@ instance Simplifier LitConc where
             elimWrapper (App (Data dc) e2)
                 |  dcName dc == dcInt kv
                 || dcName dc == dcInteger kv
+                || dcName dc == dcWord kv
                 || dcName dc == dcFloat kv
                 || dcName dc == dcDouble kv
                 || dcName dc == dcChar kv = e2
