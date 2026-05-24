@@ -667,6 +667,7 @@ instance Named KnownValues where
             , checkStrLazy = checkStrLN
 
             , usingSMTLams = useLams
+            , usingLiteralTables = useLitTabs
 
             , errorFunc = errF
             , errorEmptyListFunc = errEmpListF
@@ -692,7 +693,7 @@ instance Named KnownValues where
                 , impF, iffF
                 , andF, orF, notF
                 , ti, adjN, checkStrLN
-                , useLams
+                , useLams, useLitTabs
                 , errF, errEmpListF, errWOST, patE] ++ HS.toList smt_string
 
     rename old new (KnownValues {
@@ -786,6 +787,7 @@ instance Named KnownValues where
                    , checkStrLazy = checkStrLN
 
                    , usingSMTLams = useLams
+                   , usingLiteralTables = useLitTabs
 
                    , errorFunc = errF
                    , errorEmptyListFunc = errEmpListF
@@ -885,6 +887,7 @@ instance Named KnownValues where
                         , checkStrLazy = rename old new checkStrLN
 
                         , usingSMTLams = rename old new useLams
+                        , usingLiteralTables = rename old new useLitTabs
 
                         , errorFunc = rename old new errF
                         , errorEmptyListFunc = rename old new errEmpListF
