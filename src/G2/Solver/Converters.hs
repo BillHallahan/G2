@@ -497,6 +497,7 @@ funcToSMT :: TV.TyVarEnv -> Expr -> [Expr] -> SMTAST
 funcToSMT tv (Prim p _) [a] = funcToSMT1Prim tv p a
 funcToSMT tv (Prim p _) [a1, a2] = funcToSMT2Prim tv p a1 a2
 funcToSMT tv (Prim p _) [a1, a2, a3] = funcToSMT3Prim tv p a1 a2 a3
+funcToSMT tv (Prim p _) [a1, a2, a3, a4] = funcToSMT4Prim tv p a1 a2 a3 a4
 funcToSMT _ e l = error ("Unrecognized " ++ show e ++ " with args " ++ show l ++ " in funcToSMT")
 
 funcToSMT1Prim :: TV.TyVarEnv -> Primitive -> Expr -> SMTAST
@@ -659,6 +660,22 @@ funcToSMT3Prim tv FoldLeft (Lam _ (Id n1 t1) (Lam _ (Id n2 t2) e)) initial xs =
         wrap n smt = modifyChildren (wrap n) smt
 
 funcToSMT3Prim _ op _ _ _ = error $ "funcToSMT3Prim: invalid case with " ++ show op
+
+funcToSMT4Prim :: TV.TyVarEnv -> Primitive -> Expr -> Expr -> Expr -> Expr -> SMTAST
+funcToSMT4Prim tv FoldLeftI (Lam _ (Id idx idx_t) (Lam _ (Id n1 t1) (Lam _ (Id n2 t2) e))) offset initial xs =
+    let
+        idx' = nameToStr idx
+        n1' = nameToStr n1
+        n2' = nameToStr n2
+    in
+    FoldLeftISMT idx' (typeToSMT tv idx_t) n1' (typeToSMT tv t1) n2' (typeToSMT tv t2)
+                               (wrap n1' $ wrap n2' (exprToSMT tv e))
+                               (exprToSMT tv offset)
+                               (exprToSMT tv initial)
+                               (exprToSMT tv xs)
+    where
+        wrap n v@(V vn SortChar) | n == vn = SeqUnitSMT v
+        wrap n smt = modifyChildren (wrap n) smt
 
 altToSMT :: Lit -> Expr -> SMTAST
 altToSMT (LitInt i) _ = VInt i
@@ -939,6 +956,11 @@ toSolverASTSeq = go
             "(seq.fold_left (lambda ((" <> TB.string n1 <> " " <> sortNameLam s1 <> ")"
                     <> " (" <> TB.string n2 <> " " <> sortNameLam s2 <> ")) "
                     <> goBack x <> ") " <> goBack y <> " " <> goBack z <> ")"
+        go (FoldLeftISMT idx idx_t n1 s1 n2 s2 w x y z) =
+            "(seq.fold_lefti (lambda ((" <> TB.string idx <> " " <> sortNameLam idx_t <> ")"
+                    <> " (" <> TB.string n1 <> " " <> sortNameLam s1 <> ")"
+                    <> " (" <> TB.string n2 <> " " <> sortNameLam s2 <> ")) "
+                    <> goBack w <> ") " <> goBack x <> " " <> goBack y <> " " <> goBack z <> ")"
         go c = toSolverASTRe goBack c
 
         goBack = toSolverAST toSolverASTSeq

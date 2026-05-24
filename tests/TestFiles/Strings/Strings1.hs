@@ -630,6 +630,12 @@ all4 s = case L.all (\c -> c >= 'a' && c <= 'z') s && length s == 1 of
             True -> "Yes"
             False -> "No"
 
+dropWhile1 :: String -> Int
+dropWhile1 s = case dropWhile (== '$') s of
+                   "$h" -> 0
+                   "h" -> 1
+                   _ -> 2
+
 testQualImp :: String -> M.Maybe Char
 testQualImp s = case "12345" `isInfixOf` s of
                     True -> M.Nothing
