@@ -287,7 +287,7 @@ primDefs' b c l unit =
                                 . Lam TermL (z TyLitInt)
                                 . Lam TermL (u (TyVar a))
                                 . Lam TermL (v seqTyX)
-                            $ mkApp [ Prim FoldLeftI (mkTyFun [TyFun TyLitInt (TyFun (TyVar a) (TyFun (TyVar d) (TyVar a))), TyVar a, seqTyX, TyVar a])
+                            $ mkApp [ Prim FoldLeftI (mkTyFun [TyFun TyLitInt (TyFun (TyVar a) (TyFun (TyVar d) (TyVar a))), TyLitInt, TyVar a, seqTyX, TyVar a])
                                     , Var $ (f (TyFun TyLitInt (TyFun (TyVar a) (TyFun (TyVar d) (TyVar a)))))
                                     , Var $ z TyLitInt
                                     , Var $ u (TyVar a)

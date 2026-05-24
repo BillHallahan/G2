@@ -630,17 +630,6 @@ all4 s = case L.all (\c -> c >= 'a' && c <= 'z') s && length s == 1 of
             True -> "Yes"
             False -> "No"
 
-dropWhile1 :: String -> Int
-dropWhile1 s = case dropWhile (== '$') s of
-                   "$h" -> 0 -- Unreachable
-                   "h" -> 1
-                   _ -> 2
-
-takeWhile1 :: String -> Int
-takeWhile1 s = case takeWhile (/= '@') s of
-                   "@" -> 0 -- Unreachable
-                   "a" -> 1
-                   _ -> 2
 any1 :: String -> Int
 any1 s = case L.any (== '&') s && length s > 4 of
             True -> 1
@@ -659,6 +648,18 @@ filter1 s = case filter (/= '$') s of
 --                     "x" -> 2
 --                     "xyz" -> 3
 --                     _ -> 4
+
+dropWhile1 :: String -> Int
+dropWhile1 s = case dropWhile (== '$') s of
+                   "$h" -> 0 -- Unreachable
+                   "h" -> 1
+                   _ -> 2
+
+takeWhile1 :: String -> Int
+takeWhile1 s = case takeWhile (/= '@') s of
+                   "@" -> 0 -- Unreachable
+                   "a" -> 1
+                   _ -> 2
 
 testQualImp :: String -> M.Maybe Char
 testQualImp s = case "12345" `isInfixOf` s of
