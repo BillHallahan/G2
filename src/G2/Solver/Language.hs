@@ -367,6 +367,8 @@ instance AST SMTAST where
     children (FromCode x) = [x]
     children (ToCode x) = [x]
 
+    children (DataSMT _ xs) = xs
+
     children (FloatToIntSMT x) = [x]
     children (DoubleToIntSMT x) = [x]
     children (IntToFPSMT _ _ x) = [x]
@@ -485,6 +487,8 @@ instance AST SMTAST where
 
     modifyChildren f (FromCode x) = FromCode (f x)
     modifyChildren f (ToCode x) = ToCode (f x)
+
+    modifyChildren f (DataSMT n xs) = DataSMT n (map f xs)
 
     modifyChildren f (FloatToIntSMT x) = FloatToIntSMT (f x)
     modifyChildren f (DoubleToIntSMT x) = DoubleToIntSMT (f x)

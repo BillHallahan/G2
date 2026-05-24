@@ -447,6 +447,7 @@ exprToSMT tv e | [ Data (DataCon (Name ":" _ _ _) _ _ _)
                 let
                     unwrap (App (Data (DataCon { dc_name = dc_n })) e1_)
                         | nameOcc dc_n == "I#"
+                        || nameOcc dc_n == "Z#"
                         || nameOcc dc_n == "W#"
                         || nameOcc dc_n == "F#"
                         || nameOcc dc_n == "D#"
@@ -471,6 +472,7 @@ exprToSMT tv e | [ Data (DataCon (Name ":" _ _ _) _ _ _)
 exprToSMT _ (Prim p _) = lonePrim p
 exprToSMT tv a@(App (Data (DataCon { dc_name = dc_n })) e)
     | nameOcc dc_n == "I#"
+    || nameOcc dc_n == "Z#"
     || nameOcc dc_n == "W#"
     || nameOcc dc_n == "F#"
     || nameOcc dc_n == "D#"
