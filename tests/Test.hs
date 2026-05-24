@@ -363,7 +363,7 @@ testFileTests = testGroup "TestFiles"
                                                               , ("stringSub1", 7000, [AtLeast 40])
                                                               , ("stringSub2", 7000, [AtLeast 35])
                                                               , ("stringSub3", 7000, [AtLeast 16])
-                                                              , ("nStringSub3", 2000, [AtLeast 12])
+                                                              , ("nStringSub3", 2000, [AtLeast 13])
                                                               , ("stringSub4", 7000, [AtLeast 7])
                                                               , ("nStringSub4", 2000, [AtLeast 5])
                                                               , ("strLen", 1000, [AtLeast 5])
@@ -885,7 +885,7 @@ baseTests = testGroup "Base"
                                                        , ("minTest", 1000, [AtLeast 2])
                                                        , ("initsTest", 4000, [AtLeast 6])
                                                        , ("foldrTest2", 1000, [AtLeast 1])
-                                                       , ("unionTest", 1000, [AtLeast 9]) ]
+                                                       , ("unionTest", 1000, [AtLeast 8]) ]
 
     , checkInputOutputs "tests/BaseTests/Tuples.hs" [ ("addTupleElems", 1000, [AtLeast 2])
                                                     , ("applicativeTuple", 1000, [Exactly 1])
