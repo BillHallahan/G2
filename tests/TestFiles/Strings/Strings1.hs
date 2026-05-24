@@ -655,6 +655,9 @@ dropWhile1 s = case dropWhile (== '$') s of
                    "h" -> 1
                    _ -> 2
 
+dropWhile2 :: String -> String
+dropWhile2 s = dropWhile (== '$') s
+
 takeWhile1 :: String -> Int
 takeWhile1 s = case takeWhile (/= '@') s of
                    "@" -> 0 -- Unreachable
