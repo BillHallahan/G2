@@ -638,8 +638,7 @@ any1 s = case L.any (== '&') s && length s > 4 of
 filter1 :: String -> Int
 filter1 s = case filter (/= '$') s of
                 "x" -> 1
-                "xyz" -> 2
-                _ -> 3
+                _ -> 2
 
 -- Note: z3 currently returns sat on some unsat SMT formulas
 -- this function outputs.
