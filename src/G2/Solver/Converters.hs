@@ -441,16 +441,27 @@ exprToSMT tv (App (Data (DataCon (Name "[]" _ _ _) _ _ _)) type_t@(Type t))
     | otherwise = VString ""
 exprToSMT tv e | [ Data (DataCon (Name ":" _ _ _) _ _ _)
                  , type_t
-                 , App _ e1
+                 , e1
                  , e2] <- unApp e
                , Just t <- TV.deepLookup tv type_t =
+                let
+                    unwrap (App (Data (DataCon { dc_name = dc_n })) e1_)
+                        | nameOcc dc_n == "I#"
+                        || nameOcc dc_n == "W#"
+                        || nameOcc dc_n == "F#"
+                        || nameOcc dc_n == "D#"
+                        || nameOcc dc_n == "C#" = e1_
+                    unwrap e_ = e_
+                    
+                    unwrapped_e1 = unwrap e1
+                in
                 case t of
                     (TyCon (Name "Char" _ _ _) _) ->
                         case e2 of
                             App (Data (DataCon (Name "[]" _ _ _) _ _ _)) type_t'
-                                | Just (TyCon (Name "Char" _ _ _) _) <- TV.deepLookup tv type_t' -> exprToSMT tv e1
-                            _ -> StrAppendSMT [exprToSMT tv e1, exprToSMT tv e2]
-                    _ -> StrAppendSMT [SeqUnitSMT (exprToSMT tv e1), exprToSMT tv e2]
+                                | Just (TyCon (Name "Char" _ _ _) _) <- TV.deepLookup tv type_t' -> exprToSMT tv unwrapped_e1
+                            _ -> StrAppendSMT [exprToSMT tv unwrapped_e1, exprToSMT tv e2]
+                    _ -> StrAppendSMT [SeqUnitSMT (exprToSMT tv unwrapped_e1), exprToSMT tv e2]
 exprToSMT tv e | [ Data (DataCon (Name ":" _ _ _) _ _ _)
                  , type_t
                  , e1
@@ -736,14 +747,15 @@ typeToSMT tv (TyApp (TyCon (Name "[]" _ _ _) _) t) = adtTypeToSMTSeq tv t
 typeToSMT tv t@(TyApp t1 (TyVar (Id n _))) = case TV.deepLookupName tv n of 
                                                 Just t2 -> typeToSMT tv (TyApp t1 t2)
                                                 Nothing -> error $ "typeToSMT: TyVarEnv can't find the type: " ++ show t 
-typeToSMT tv t@(TyVar (Id n _ )) = case TV.deepLookupName tv n of 
-                                        Just t1 -> typeToSMT tv t1
+typeToSMT tv t | (TyVar (Id n _ ):ts) <- unTyApp t = case TV.deepLookupName tv n of 
+                                        Just t1 -> typeToSMT tv . mkTyApp $ t1:ts
                                         Nothing -> ParSort (nameToStr n)
 typeToSMT _ (TyCon (Name "Char" _ _ _) _) = SortChar
 typeToSMT _ (TyCon (Name "Int" _ _ _) _) = SortInt
 typeToSMT _ (TyCon (Name "Integer" _ _ _) _) = SortInt
 typeToSMT _ (TyCon (Name "Float" _ _ _) _) = SortFloat
 typeToSMT _ (TyCon (Name "Double" _ _ _) _) = SortDouble
+typeToSMT tv t | (TyCon n _:ts) <- unTyApp t = ADTSort (nameToStr n) $ map (typeToSMT tv) ts
 typeToSMT _ t = error $ "Unsupported type in typeToSMT: " ++ show t
 
 adtTypeToSMTSeq :: TyVarEnv -> Type -> Sort
