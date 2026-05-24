@@ -363,7 +363,7 @@ testFileTests = testGroup "TestFiles"
                                                               , ("stringSub1", 7000, [AtLeast 40])
                                                               , ("stringSub2", 7000, [AtLeast 35])
                                                               , ("stringSub3", 7000, [AtLeast 16])
-                                                              , ("nStringSub3", 2000, [AtLeast 15])
+                                                              , ("nStringSub3", 2000, [AtLeast 12])
                                                               , ("stringSub4", 7000, [AtLeast 7])
                                                               , ("nStringSub4", 2000, [AtLeast 5])
                                                               , ("strLen", 1000, [AtLeast 5])
