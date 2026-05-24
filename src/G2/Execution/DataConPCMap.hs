@@ -32,7 +32,6 @@ import qualified Data.HashMap.Lazy as HM
 
 import Control.Exception
 import Data.Data (Data, Typeable)
-import Data.Text.Internal.Encoding.Utf32 (validate)
 
 data DCArgBind =
       -- | A new symbolic argument
