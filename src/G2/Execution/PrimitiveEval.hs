@@ -127,6 +127,9 @@ maybeEvalPrim' eenv tenv tv_env kv tc xs
     | [Prim p _, x, y, z] <- xs
     , Just e <- evalPrimADT3 eenv tenv tv_env kv tc p x y z = Just e
 
+    | [Prim p _, w, x, y, z] <- xs
+    , Just e <- evalPrimADT4 eenv tenv tv_env kv tc p w x y z = Just e
+
     | [Prim p _, x, y, z] <- xs = evalPrim3 kv p x y z
 
     | [Prim p _, Type t, x] <- xs
@@ -730,7 +733,33 @@ evalPrimADT3 eenv tenv tv_env kv tc FoldLeft (Lam _ (Id b_id _) (Lam _ (Id a_id 
     let unfolded = foldl (\b_val a_val -> replaceVar b_id b_val $ replaceVar a_id a_val e) initial lst'
     return . evalPrims eenv tenv tv_env kv tc $ inlineVarsForPrim eenv tc unfolded
 
+evalPrimADT3 eenv tenv tv_env kv tc Ite cond x y = do
+    cond1 <- maybeEvalPrim eenv tenv tv_env kv tc cond
+    if cond1 == mkTrue kv
+        then maybeEvalPrim eenv tenv tv_env kv tc x
+        else maybeEvalPrim eenv tenv tv_env kv tc y
+
 evalPrimADT3 _ _ _ _ _ _ _ _ _ = Nothing
+
+evalPrimADT4 :: ExprEnv
+             -> TypeEnv
+             -> TyVarEnv
+             -> KnownValues
+             -> TypeClasses
+             -> Primitive
+             -> Expr
+             -> Expr
+             -> Expr
+             -> Expr
+             -> Maybe Expr
+evalPrimADT4 eenv tenv tv_env kv tc FoldLeftI (Lam _ (Id i_id _) (Lam _ (Id b_id _) (Lam _ (Id a_id _) e))) offset initial lst = do
+    lst1 <- error $ show lst ++ "\n" ++ show offset ++ "\n" ++ show initial -- toExprList lst
+    offset1 <- error "herE" -- getInteger offset
+    let lst2 = zip (map (Lit . LitInt) [offset1..]) lst1
+    let unfolded =
+            foldl (\b_val (i_val, a_val) -> replaceVar i_id i_val $ replaceVar b_id b_val $ replaceVar a_id a_val e) initial lst2
+    return . evalPrims eenv tenv tv_env kv tc $ inlineVarsForPrim eenv tc unfolded
+evalPrimADT4 _ _ _ _ _ _ _ _ _ _ = error "here"
 
 listType :: Expr -> Maybe Type
 listType (App (Data _) (Type t)) = Just t
@@ -746,6 +775,10 @@ toExprList :: Expr -> Maybe [Expr]
 toExprList (App (Data _) _) = Just []
 toExprList (App (App (App (Data _) _) l) xs) = fmap (l:) $ toExprList xs
 toExprList _ = Nothing
+
+getInteger :: Expr -> Maybe Integer
+getInteger (Lit (LitInt i)) = Just i
+getInteger _ = Nothing
 
 toStringExpr :: KnownValues -> TypeEnv -> String -> Expr
 toStringExpr kv tenv =

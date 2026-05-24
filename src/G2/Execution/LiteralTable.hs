@@ -1,6 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-module G2.Execution.LiteralTable 
+module G2.Execution.LiteralTable
     ( introduceLitTable
     , inLitTableMode
     , updateLiteralTable
@@ -136,7 +136,7 @@ litTableToLamBool s ng lt =
                     [] -> mkFalse kv
                     (hd:tl) ->
                         L.foldl'
-                            (\prev_exp pcs -> mkApp [Prim Or (tyBool kv), prev_exp, pcsToExprBool kv pcs])
+                            (\prev_exp pcs -> mkApp [Prim Or (combBoolFunTy kv), prev_exp, pcsToExprBool kv pcs])
                             (pcsToExprBool kv hd)
                             tl
 
