@@ -236,12 +236,12 @@ appTypeOf m t [] = tyVarSubst m t
 appTypeOf m (TyVar (Id n _)) es =
     case TV.lookup n m of
         Just t -> appTypeOf m t es
-        Nothing -> error ("appTypeOf: Unknown TyVar")
+        Nothing -> TyUnknown -- error ("appTypeOf: Unknown TyVar")
 appTypeOf _ TyBottom _ = TyBottom
 appTypeOf _ TyUnknown _ = TyUnknown
 -- Special case for GHC.Prim FUN type, which represents a function application.
 appTypeOf m t es | [TyCon (Name "FUN" _ _ _) _, _, _, _, at, rt] <- unTyApp $ tyVarSubst m t = appTypeOf m (TyFun at rt) es
-appTypeOf _ t es = error ("appTypeOf\n" ++ show t ++ "\n" ++ show es ++ "\n\n")
+appTypeOf _ t es = TyUnknown -- error ("appTypeOf\n" ++ show t ++ "\n" ++ show es ++ "\n\n")
 
 -- | Check if two types unify.  If they do, returns a `TyVarEnv` of type variables to instantiations.
 unify :: Type -> Type -> Maybe TV.TyVarEnv

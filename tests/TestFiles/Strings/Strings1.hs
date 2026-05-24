@@ -632,8 +632,14 @@ all4 s = case L.all (\c -> c >= 'a' && c <= 'z') s && length s == 1 of
 
 dropWhile1 :: String -> Int
 dropWhile1 s = case dropWhile (== '$') s of
-                   "$h" -> 0
+                   "$h" -> 0 -- Unreachable
                    "h" -> 1
+                   _ -> 2
+
+takeWhile1 :: String -> Int
+takeWhile1 s = case takeWhile (/= '@') s of
+                   "@" -> 0 -- Unreachable
+                   "a" -> 1
                    _ -> 2
 
 testQualImp :: String -> M.Maybe Char
