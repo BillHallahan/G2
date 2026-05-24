@@ -611,7 +611,7 @@ testFileTests = testGroup "TestFiles"
 
                                                               ]
 
-    , checkInputOutputsSMTLists "tests/TestFiles/Seq/SeqTuple.hs" [ ("con", 2000, [Exactly 1])
+    , checkInputOutputsSMTLists "tests/TestFiles/Seq/SeqTuple.hs" [ ("con", 2000, [Exactly 2])
                                                                   , ("listLen", 1000, [Exactly 2])
                                                                   , ("listLen2", 1000, [Exactly 3])
                                                                   , ("listLen3", 1000, [Exactly 2])
