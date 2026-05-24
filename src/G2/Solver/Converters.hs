@@ -2,7 +2,7 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE FunctionalDependencies #-}
-{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE LambdaCase, MultiParamTypeClasses #-}
 {-# LANGUAGE OverloadedStrings, RankNTypes, UndecidableInstances #-}
 
 -- | This contains functions to switch from
@@ -176,7 +176,8 @@ toSMTHeaders tv tenv pc = addSetLogic  (toSMTHeaders' tv tenv pc)
 toSMTHeaders' :: TV.TyVarEnv -> TypeEnv -> PathConds -> [SMTHeader]
 toSMTHeaders' tv tenv pc =
     let
-        tenv' = filter (to_smt . snd) $ HM.toList tenv
+        dc_types = evalASTs getADTTypes pc
+        tenv' = HM.toList $ HM.filterWithKey (\n adt-> n `elem` dc_types && to_smt adt) tenv        
         pc' = PC.toList pc
     in
     map (uncurry (datatypeDecls tv)) tenv'
@@ -184,6 +185,10 @@ toSMTHeaders' tv tenv pc =
     pcVarDecls tv pc
     ++
     pathConsToSMTHeaders tv pc'
+    where
+        getADTTypes (TyCon n _) = HS.singleton n
+        getADTTypes (TyVar (Id n _)) | Just (TV.TyConc t) <- TV.lookupConcOrSym n tv = getADTTypes t
+        getADTTypes _ = HS.empty
 
 -- |  Determines an appropriate SetLogic command, and adds it to the headers
 addSetLogic :: [SMTHeader] -> [SMTHeader]
