@@ -17,7 +17,6 @@ import qualified Data.HashSet as HS
 import qualified Data.Map as M
 import Text.Builder
 import qualified Data.Text as T
-import Sygus.ParseSygus (SmtCmd(DeclareDatatype))
 
 type SMTNameBldr = Builder
 type SMTName = String

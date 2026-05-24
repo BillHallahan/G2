@@ -44,8 +44,6 @@ import G2.Language.ExprEnv (deepLookupVar)
 import G2.Language.KnownValues (KnownValues(smtStringFuncs))
 import G2.Language.TypeClasses.TypeClasses
 
-import Debug.Trace
-
 -- | Evaluates primitives at the root of the passed `Expr` while updating the `ExprEnv`
 -- to share computed results.
 evalPrimsSharing :: ExprEnv -> TypeEnv -> TV.TyVarEnv -> KnownValues -> TypeClasses -> Expr -> (Expr, ExprEnv)
