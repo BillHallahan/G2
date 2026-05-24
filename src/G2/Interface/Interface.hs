@@ -188,7 +188,7 @@ initStateFromSimpleState :: IT.SimpleState
                          -> (State (), Bindings)
 initStateFromSimpleState s m_mod useAssert mkCurr argTys config =
     let
-        (s', dcpc) = runInitialization2 config s argTys
+        (s', !dcpc) = runInitialization2 config s argTys
         eenv' = IT.expr_env s'
         tenv' = IT.type_env s'
         ng' = IT.name_gen s'

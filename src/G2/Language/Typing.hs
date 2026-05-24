@@ -12,6 +12,7 @@ module G2.Language.Typing
     
     , tyInt
     , tyInteger
+    , tyWord
     , tyDouble
     , tyFloat
     , tyBool
@@ -87,6 +88,9 @@ tyInt kv = TyCon (KV.tyInt kv) (tyTYPE kv)
 
 tyInteger :: KV.KnownValues -> Type
 tyInteger kv = TyCon (KV.tyInteger kv) (tyTYPE kv)
+
+tyWord :: KV.KnownValues -> Type
+tyWord kv = TyCon (KV.tyWord kv) (tyTYPE kv)
 
 tyDouble :: KV.KnownValues -> Type
 tyDouble kv = TyCon (KV.tyDouble kv) (tyTYPE kv)
