@@ -469,6 +469,12 @@ exprToSMT tv e | [ Data (DataCon (Name ":" _ _ _) _ _ _)
         error $ "bad list " ++ show (TV.deepLookup tv type_t)
             ++ "\ntype_t = " ++ show type_t ++ "\ne1 = " ++ show e1 ++ "\ne2 = " ++ show e2
 exprToSMT _ (Prim p _) = lonePrim p
+exprToSMT tv a@(App (Data (DataCon { dc_name = dc_n })) e)
+    | nameOcc dc_n == "I#"
+    || nameOcc dc_n == "W#"
+    || nameOcc dc_n == "F#"
+    || nameOcc dc_n == "D#"
+    || nameOcc dc_n == "C#" = exprToSMT tv e
 exprToSMT tv a@(App _ _) =
     let
         f = getFunc a
@@ -511,6 +517,12 @@ funcToSMT :: TV.TyVarEnv -> Expr -> [Expr] -> SMTAST
 funcToSMT tv (Prim p _) [a] = funcToSMT1Prim tv p a
 funcToSMT tv (Prim p _) [a1, a2] = funcToSMT2Prim tv p a1 a2
 funcToSMT tv (Prim p _) [a1, a2, a3] = funcToSMT3Prim tv p a1 a2 a3
+funcToSMT tv (Data dc) es =
+    let
+        isType (Type _) = True
+        isType _ = False
+    in
+    DataSMT (nameToStr $ dc_name dc) . map (exprToSMT tv) $ filter (not . isType) es 
 funcToSMT _ e l = error ("Unrecognized " ++ show e ++ " with args " ++ show l ++ " in funcToSMT")
 
 funcToSMT1Prim :: TV.TyVarEnv -> Primitive -> Expr -> SMTAST
