@@ -480,21 +480,21 @@ instance ASTContainer AlgDataTy Expr where
     modifyContainedASTs _ a = a
 
 instance ASTContainer AlgDataTy Type where
-    containedASTs (DataTyCon ns dcs _) = containedASTs ns ++ containedASTs dcs
-    containedASTs (NewTyCon ns dcs r _) = containedASTs ns ++ containedASTs dcs ++ containedASTs r
+    containedASTs (DataTyCon ns dcs _ _) = containedASTs ns ++ containedASTs dcs
+    containedASTs (NewTyCon ns dcs r _ _) = containedASTs ns ++ containedASTs dcs ++ containedASTs r
     containedASTs (TypeSynonym _ st _) = containedASTs st
 
-    modifyContainedASTs f (DataTyCon ns dcs adts) = DataTyCon (modifyContainedASTs f ns) (modifyContainedASTs f dcs) adts 
-    modifyContainedASTs f (NewTyCon ns dcs rt adts) = NewTyCon (modifyContainedASTs f ns) (modifyContainedASTs f dcs) (modifyContainedASTs f rt) adts
+    modifyContainedASTs f (DataTyCon ns dcs adts to_s) = DataTyCon (modifyContainedASTs f ns) (modifyContainedASTs f dcs) adts to_s
+    modifyContainedASTs f (NewTyCon ns dcs rt adts to_s) = NewTyCon (modifyContainedASTs f ns) (modifyContainedASTs f dcs) (modifyContainedASTs f rt) adts to_s
     modifyContainedASTs f (TypeSynonym is st adts) = TypeSynonym is (modifyContainedASTs f st) adts
 
 instance ASTContainer AlgDataTy DataCon where
-    containedASTs (DataTyCon _ dcs _) = dcs
-    containedASTs (NewTyCon _ dcs _ _) = [dcs]
+    containedASTs (DataTyCon _ dcs _ _) = dcs
+    containedASTs (NewTyCon _ dcs _ _ _) = [dcs]
     containedASTs (TypeSynonym _ _ _) = []
 
-    modifyContainedASTs f (DataTyCon ns dcs adts) = DataTyCon ns (modifyContainedASTs f dcs) adts
-    modifyContainedASTs f (NewTyCon ns dc rt adts) = NewTyCon ns (modifyContainedASTs f dc) rt adts
+    modifyContainedASTs f (DataTyCon ns dcs adts to_s) = DataTyCon ns (modifyContainedASTs f dcs) adts to_s
+    modifyContainedASTs f (NewTyCon ns dc rt adts to_s) = NewTyCon ns (modifyContainedASTs f dc) rt adts to_s
     modifyContainedASTs _ st@(TypeSynonym _ _ _) = st
 
 instance ASTContainer TV.TyConcOrSym Type where

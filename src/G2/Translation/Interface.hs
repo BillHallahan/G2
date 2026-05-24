@@ -37,7 +37,7 @@ translateBase tr_con config extra hsc = do
   let base_prog = exg2_binds base_exg2
       base_tys = exg2_tycons base_exg2
 
-  let base_tys' = base_tys `HM.union` specialTypes
+  let base_tys' = base_tys `HM.union` (specialTypes (smt_tuples config))
   let base_prog' = addPrimsToBase base_tys' base_prog
   return (base_exg2 { exg2_binds = base_prog', exg2_tycons = base_tys' }, b_nm, b_tnm)
 

@@ -130,7 +130,7 @@ maybeEvalPrim' eenv tenv tv_env kv tc xs
     | [Prim p _, x, y, z] <- xs = evalPrim3 kv p x y z
 
     | [Prim p _, Type t, x] <- xs
-    , Just e <- evalTypeAnyArgPrim eenv tv_env kv tc p t x = Just e
+    , Just e <- evalTypeAnyArgPrim eenv tenv tv_env kv tc p t x = Just e
 
     | [Prim p _, Type t, dc_e] <- xs, Data dc:_ <- unApp dc_e =
         evalTypeDCPrim2 tenv tv_env p t dc
@@ -811,8 +811,9 @@ evalPrim2 _ RationalToDouble (LitInt x) (LitInt y) =
 
 evalPrim2 _ _ _ _ = Nothing
 
-evalTypeAnyArgPrim :: ExprEnv -> TV.TyVarEnv -> KnownValues -> TypeClasses -> Primitive -> Type -> Expr -> Maybe Expr
-evalTypeAnyArgPrim _ tv kv _ (TypeIndex tyh) t _ | tyh_strings tyh
+evalTypeAnyArgPrim :: ExprEnv -> TypeEnv -> TV.TyVarEnv -> KnownValues -> TypeClasses -> Primitive -> Type -> Expr -> Maybe Expr
+evalTypeAnyArgPrim _ tenv tv kv _ (TypeIndex tyh) t _
+                                                 | tyh_strings tyh
                                                  , tyVarSubst tv t == tyString kv = Just (Lit (LitInt 1))
                                                  | tyh_prim_lists tyh
                                                  , TyApp t_list t_a <- tyVarSubst tv t
@@ -820,11 +821,22 @@ evalTypeAnyArgPrim _ tv kv _ (TypeIndex tyh) t _ | tyh_strings tyh
                                                  ,  t_a == tyInt kv
                                                  || t_a == tyInteger kv
                                                  || t_a == tyFloat kv
-                                                 || t_a == tyDouble kv = Just (Lit (LitInt 2 ))
+                                                 || t_a == tyDouble kv
+                                                 || supportsSMT t_a = Just (Lit (LitInt 2 ))
                                                  | otherwise = Just (Lit (LitInt 0))
-evalTypeAnyArgPrim eenv _ kv _ IsSMTRep _ e = Just . mkBool kv $ isSMTRep eenv kv e
-evalTypeAnyArgPrim eenv _ kv tc EvalsToSMTRep _ e = Just . mkBool kv $ evalsToSMTRep HS.empty eenv kv tc e
-evalTypeAnyArgPrim _ _ _ _ _ _ _ = Nothing
+    where
+        supportsSMT t' | s_t <- tyVarSubst tv t'
+                       , TyCon n _:ts <- unTyApp $ s_t
+                       ,  s_t == tyInt kv
+                       || s_t == tyInteger kv
+                       || s_t == tyFloat kv
+                       || s_t == tyDouble kv
+                       || maybe False to_smt (M.lookup n tenv)
+                       , all supportsSMT ts = True
+                       | otherwise = False
+evalTypeAnyArgPrim eenv _ _ kv _ IsSMTRep _ e = Just . mkBool kv $ isSMTRep eenv kv e
+evalTypeAnyArgPrim eenv _ _ kv tc EvalsToSMTRep _ e = Just . mkBool kv $ evalsToSMTRep HS.empty eenv kv tc e
+evalTypeAnyArgPrim _ _ _ _ _ _ _ _ = Nothing
 
 isSMTRep :: ExprEnv -> KnownValues -> Expr -> Bool
 isSMTRep eenv kv e
