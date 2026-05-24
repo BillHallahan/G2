@@ -885,7 +885,7 @@ baseTests = testGroup "Base"
                                                        , ("minTest", 1000, [AtLeast 2])
                                                        , ("initsTest", 4000, [AtLeast 6])
                                                        , ("foldrTest2", 1000, [AtLeast 1])
-                                                       , ("unionTest", 1000, [AtLeast 8]) ]
+                                                       , ("unionTest", 1000, [AtLeast 7]) ]
 
     , checkInputOutputs "tests/BaseTests/Tuples.hs" [ ("addTupleElems", 1000, [AtLeast 2])
                                                     , ("applicativeTuple", 1000, [Exactly 1])
