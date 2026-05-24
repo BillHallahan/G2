@@ -58,6 +58,8 @@ import G2.Solver.Language
 import G2.Solver.Solver
 import qualified G2.Language.TyVarEnv as TV
 
+import Debug.Trace
+
 type PrintSMT = Bool
 
 -- | Used to describe the specific output format required by various solvers
@@ -1134,6 +1136,8 @@ toSolverSetLogic lgc =
 smtastToExpr :: KnownValues -> TypeEnv -> Type -> SMTAST -> Expr
 smtastToExpr kv tenv t (VInt i)
     | TyLitInt <- t = Lit $ LitInt i
+    | TyLitWord <- t = Lit . LitWord $ fromIntegral i
+    | t == tyWord kv = App (mkDCWord kv tenv) (Lit . LitWord $ fromIntegral i)
     | t == tyInteger kv = App (mkDCInteger kv tenv) (Lit $ LitInt i)
     | otherwise = App (mkDCInt kv tenv) (Lit $ LitInt i)
 smtastToExpr _ _ _ (VWord i) = Lit $ LitWord i

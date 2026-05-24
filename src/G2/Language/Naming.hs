@@ -584,12 +584,14 @@ instance Named KnownValues where
             , dcFloat = dF
             , dcDouble = dD
             , dcInteger = dI2
+            , dcWord = dW
             , dcChar = dcCh
 
             , tyInt = tI
             , tyFloat = tF
             , tyDouble = tD
             , tyInteger = tI2
+            , tyWord = tW
             , tyChar = tCh
 
             , tyBool = tB
@@ -677,7 +679,7 @@ instance Named KnownValues where
             , smtStringFuncs = smt_string
             }) =
             S.fromList $
-                [dI, dF, dD, dI2, dcCh, tI, tI2, tF, tD, tCh, tB, dcT, dcF, tR
+                [dI, dF, dD, dI2, dW, dcCh, tI, tI2, tW, tF, tD, tCh, tB, dcT, dcF, tR
                 , tList, tCons, tEmp
                 , tMaybe, dJust, dNothing
                 , tUnit, dUnit
@@ -702,6 +704,7 @@ instance Named KnownValues where
                    , dcFloat = dF
                    , dcDouble = dD
                    , dcInteger = dI2
+                   , dcWord = dW
                    , dcChar = dcCh
                     
                    , tyCoercion = tyC 
@@ -709,6 +712,7 @@ instance Named KnownValues where
                    , tyFloat = tF
                    , tyDouble = tD
                    , tyInteger = tI2
+                   , tyWord = tW
                    , tyChar = tCh
 
                    , tyBool = tB
@@ -802,6 +806,7 @@ instance Named KnownValues where
                         , dcFloat = rename old new dF
                         , dcDouble = rename old new dD
                         , dcInteger = rename old new dI2
+                        , dcWord = rename old new dW
                         , dcChar = rename old new dcCh
 
                         , tyCoercion = rename old new tyC
@@ -809,6 +814,7 @@ instance Named KnownValues where
                         , tyFloat = rename old new tF
                         , tyDouble = rename old new tD
                         , tyInteger = rename old new tI2
+                        , tyWord = rename old new tW
                         , tyChar = rename old new tCh
 
                         , tyBool = rename old new tB
