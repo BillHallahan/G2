@@ -731,11 +731,6 @@ evalPrimADT3 eenv tenv tv_env kv tc FoldLeft (Lam _ (Id b_id _) (Lam _ (Id a_id 
     let unfolded = foldl (\b_val a_val -> replaceVar b_id b_val $ replaceVar a_id a_val e) initial lst'
     return . evalPrims eenv tenv tv_env kv tc $ inlineVarsForPrim eenv tc unfolded
 
-evalPrimADT3 eenv tenv tv_env kv tc Ite cond x y = do
-    if cond == mkTrue kv
-        then Just x
-        else Just y
-
 evalPrimADT3 _ _ _ _ _ _ _ _ _ = Nothing
 
 evalPrimADT4 :: ExprEnv
