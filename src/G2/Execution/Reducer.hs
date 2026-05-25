@@ -735,15 +735,15 @@ nonRedHigherOrderReducer :: MonadIO m =>
                             Config
                          -> Reducer m (NoNRPC, Int) t
 nonRedHigherOrderReducer config =
-    (mkSimpleReducer (\_ -> (HS.empty, 0)) nonRedHigherOrderFunc)
+    (mkSimpleReducer (\_ -> (HS.empty, 0)) (nonRedHigherOrderFunc config))
         { onAccept = \s b (_, nrpc_count) -> do
             if print_num_nrpc config
                 then liftIO . putStrLn $ "NRPCs Generated: " ++ show nrpc_count
                 else return ()
             return (s, b) }
 
-nonRedHigherOrderFunc :: MonadIO m => RedRules m (NoNRPC, Int) t
-nonRedHigherOrderFunc 
+nonRedHigherOrderFunc :: MonadIO m => Config -> RedRules m (NoNRPC, Int) t
+nonRedHigherOrderFunc (Config { gen_func_arg_states = gen_fa})
                 (no_nrpc, nrpc_count)
                 s@(State { expr_env = eenv
                          , curr_expr = CurrExpr _ ce
@@ -776,8 +776,10 @@ nonRedHigherOrderFunc
             new_g = catMaybes $ mapMaybe (fmap snd) xs_new_g
             no_nrpc' = foldr HS.insert no_nrpc new_g
             xs' = map (\new_s -> (new_s, (no_nrpc', nrpc_count))) xs
+
+            (final_xs, final_ng) = if gen_fa then (xs', ng'') else ([], ng')
         in 
-        return (Finished, (s', (no_nrpc', nrpc_count + 1)):xs', b {name_gen = ng''})
+        return (Finished, (s', (no_nrpc', nrpc_count + 1)):final_xs, b {name_gen = final_ng})
 
     | otherwise = return (Finished, [(s, (no_nrpc, nrpc_count))], b)
     where
