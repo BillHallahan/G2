@@ -12,6 +12,8 @@ module G2.Execution.PrimitiveEval ( evalPrimsSharing
                                   , toString
                                   , toExprList) where
 
+import Debug.Trace
+
 import G2.Execution.LiteralTable
 import G2.Execution.NewPC
 import G2.Execution.MutVar
@@ -734,10 +736,10 @@ evalPrimADT3 eenv tenv tv_env kv tc FoldLeft (Lam _ (Id b_id _) (Lam _ (Id a_id 
     return . evalPrims eenv tenv tv_env kv tc $ inlineVarsForPrim eenv tc unfolded
 
 evalPrimADT3 eenv tenv tv_env kv tc Ite cond x y = do
-    cond1 <- maybeEvalPrim eenv tenv tv_env kv tc cond
+    cond1 <- maybeEvalPrim eenv tenv tv_env kv tc $ inlineVarsForPrim eenv tc cond
     if cond1 == mkTrue kv
-        then maybeEvalPrim eenv tenv tv_env kv tc x
-        else maybeEvalPrim eenv tenv tv_env kv tc y
+        then maybeEvalPrim eenv tenv tv_env kv tc $ inlineVarsForPrim eenv tc x
+        else maybeEvalPrim eenv tenv tv_env kv tc $ inlineVarsForPrim eenv tc y
 
 evalPrimADT3 _ _ _ _ _ _ _ _ _ = Nothing
 
@@ -753,13 +755,14 @@ evalPrimADT4 :: ExprEnv
              -> Expr
              -> Maybe Expr
 evalPrimADT4 eenv tenv tv_env kv tc FoldLeftI (Lam _ (Id i_id _) (Lam _ (Id b_id _) (Lam _ (Id a_id _) e))) offset initial lst = do
-    lst1 <- error $ show lst ++ "\n" ++ show offset ++ "\n" ++ show initial -- toExprList lst
-    offset1 <- error "herE" -- getInteger offset
-    let lst2 = zip (map (Lit . LitInt) [offset1..]) lst1
+    lst1 <- trace (show lst ++ "\n" ++ show offset ++ "\n" ++ show initial) toExprList lst
+    offset1 <- maybeEvalPrim eenv tenv tv_env kv tc $ inlineVarsForPrim eenv tc offset
+    offset2 <- getInteger offset1
+    let lst2 = zip (map (Lit . LitInt) [offset2..]) lst1
     let unfolded =
             foldl (\b_val (i_val, a_val) -> replaceVar i_id i_val $ replaceVar b_id b_val $ replaceVar a_id a_val e) initial lst2
     return . evalPrims eenv tenv tv_env kv tc $ inlineVarsForPrim eenv tc unfolded
-evalPrimADT4 _ _ _ _ _ _ _ _ _ _ = error "here"
+evalPrimADT4 _ _ _ _ _ _ _ _ _ _ = Nothing
 
 listType :: Expr -> Maybe Type
 listType (App (Data _) (Type t)) = Just t
