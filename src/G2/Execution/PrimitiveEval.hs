@@ -12,6 +12,7 @@ module G2.Execution.PrimitiveEval ( evalPrimsSharing
                                   , toString
                                   , toExprList) where
 
+import G2.Execution.LiteralTable
 import G2.Execution.NewPC
 import G2.Execution.MutVar
 import G2.Execution.SymToCase
@@ -19,8 +20,10 @@ import G2.Language.AST
 import G2.Language.Expr
 import qualified G2.Language.KnownValues as KV
 import G2.Language.Naming
+import qualified G2.Language.PathConds as PC
 import G2.Language.Primitives
 import G2.Language.Support
+import qualified G2.Language.Stack as S
 import G2.Language.Syntax
 import G2.Language.Typing
 
@@ -91,11 +94,7 @@ evalPrims eenv tenv tv_env kv tc = modifyContainedASTs (evalPrims' eenv tenv tv_
 evalPrims' :: ExprEnv -> TypeEnv -> TV.TyVarEnv -> KnownValues -> TypeClasses -> Expr -> Expr
 evalPrims' eenv tenv tv_env kv tc a@(App x y) =
     case unApp a of
-        [p@(Prim _ _), l] -> evalPrim' eenv tenv tv_env kv tc [p, evalPrims' eenv tenv tv_env kv tc l]
-        [p@(Prim _ _), l1, l2] ->
-            evalPrim' eenv tenv tv_env kv tc [p, evalPrims' eenv tenv tv_env kv tc l1, evalPrims' eenv tenv tv_env kv tc l2]
-        [p@(Prim _ _), l1, l2, l3] ->
-            evalPrim' eenv tenv tv_env kv tc [p, evalPrims' eenv tenv tv_env kv tc l1, evalPrims' eenv tenv tv_env kv tc l2, evalPrims' eenv tenv tv_env kv tc l3]
+        (p@(Prim _ _):rest) -> evalPrim' eenv tenv tv_env kv tc (p:map (evalPrims' eenv tenv tv_env kv tc) rest)
         _ -> App (evalPrims' eenv tenv tv_env kv tc x) (evalPrims' eenv tenv tv_env kv tc y)
 evalPrims' eenv tenv tv_env kv tc e = modifyChildren (evalPrims' eenv tenv tv_env kv tc) e
 
@@ -124,10 +123,13 @@ maybeEvalPrim' eenv tenv tv_env kv tc xs
     | [Prim p _, x, y, z] <- xs
     , Just e <- evalPrimADT3 eenv tenv tv_env kv tc p x y z = Just e
 
+    | [Prim p _, w, x, y, z] <- xs
+    , Just e <- evalPrimADT4 eenv tenv tv_env kv tc p w x y z = Just e
+
     | [Prim p _, x, y, z] <- xs = evalPrim3 kv p x y z
 
     | [Prim p _, Type t, x] <- xs
-    , Just e <- evalTypeAnyArgPrim eenv tv_env kv tc p t x = Just e
+    , Just e <- evalTypeAnyArgPrim eenv tenv tv_env kv tc p t x = Just e
 
     | [Prim p _, Type t, dc_e] <- xs, Data dc:_ <- unApp dc_e =
         evalTypeDCPrim2 tenv tv_env p t dc
@@ -444,6 +446,23 @@ evalPrimWithState s ng (App (App (App (App (App (Prim WriteMutVar _) _) (Type t)
     in
     Just (newPCEmpty s', ng')
 evalPrimWithState _ _ e | [Prim WriteMutVar _, _, _, _, _, _] <- unApp e = Nothing
+evalPrimWithState s ng (App (Prim BuildLitTable _) func_e)
+    | (TyFun fst_t _) <- typeOf (tyvar_env s) func_e =
+    -- When starting to build a literal table, we need to insert a literal table frame,
+    -- put an empty table on the literal table stack, and create a new symbolic var
+    -- to evaluate the function with
+    let (new_var, ng') = freshId fst_t ng
+        new_ce = CurrExpr Evaluate (App func_e (Var new_var))
+        new_eenv = E.insertSymbolic new_var $ expr_env s
+
+        (lt_name, ng'') = freshName ng'
+        s' = introduceLitTable s lt_name new_var True
+
+        s'' = s' { curr_expr = new_ce
+                 , expr_env = new_eenv
+                 }
+    in
+    Just (newPCEmpty s'', ng'')
 evalPrimWithState s ng (App (Prim Raise _) e2) = Just (
                                                    (newPCEmpty $ s { curr_expr = CurrExpr Evaluate (App (Prim Error TyBottom) e2) })
                                                    , ng)
@@ -701,6 +720,26 @@ evalPrimADT3 eenv tenv tv_env kv tc FoldLeft (Lam _ (Id b_id _) (Lam _ (Id a_id 
 
 evalPrimADT3 _ _ _ _ _ _ _ _ _ = Nothing
 
+evalPrimADT4 :: ExprEnv
+             -> TypeEnv
+             -> TyVarEnv
+             -> KnownValues
+             -> TypeClasses
+             -> Primitive
+             -> Expr
+             -> Expr
+             -> Expr
+             -> Expr
+             -> Maybe Expr
+evalPrimADT4 eenv tenv tv_env kv tc FoldLeftI (Lam _ (Id i_id _) (Lam _ (Id b_id _) (Lam _ (Id a_id _) e))) offset initial lst = do
+    lst1 <- toExprList lst
+    offset1 <- getInteger offset
+    let lst2 = zip (map (Lit . LitInt) [offset1..]) lst1
+    let unfolded =
+            foldl (\b_val (i_val, a_val) -> replaceVar i_id i_val $ replaceVar b_id b_val $ replaceVar a_id a_val e) initial lst2
+    return . evalPrims eenv tenv tv_env kv tc $ inlineVarsForPrim eenv tc unfolded
+evalPrimADT4 _ _ _ _ _ _ _ _ _ _ = Nothing
+
 listType :: Expr -> Maybe Type
 listType (App (Data _) (Type t)) = Just t
 listType (App (App (App (Data _) (Type t)) _) _) = Just t
@@ -715,6 +754,10 @@ toExprList :: Expr -> Maybe [Expr]
 toExprList (App (Data _) _) = Just []
 toExprList (App (App (App (Data _) _) l) xs) = fmap (l:) $ toExprList xs
 toExprList _ = Nothing
+
+getInteger :: Expr -> Maybe Integer
+getInteger (Lit (LitInt i)) = Just i
+getInteger _ = Nothing
 
 toListExpr :: KnownValues -> TypeEnv -> Type -> [Expr] -> Expr
 toListExpr kv tenv t =
@@ -772,8 +815,9 @@ evalPrim2 _ RationalToDouble (LitInt x) (LitInt y) =
 
 evalPrim2 _ _ _ _ = Nothing
 
-evalTypeAnyArgPrim :: ExprEnv -> TV.TyVarEnv -> KnownValues -> TypeClasses -> Primitive -> Type -> Expr -> Maybe Expr
-evalTypeAnyArgPrim _ tv kv _ (TypeIndex tyh) t _ | tyh_strings tyh
+evalTypeAnyArgPrim :: ExprEnv -> TypeEnv -> TV.TyVarEnv -> KnownValues -> TypeClasses -> Primitive -> Type -> Expr -> Maybe Expr
+evalTypeAnyArgPrim _ tenv tv kv _ (TypeIndex tyh) t _
+                                                 | tyh_strings tyh
                                                  , tyVarSubst tv t == tyString kv = Just (Lit (LitInt 1))
                                                  | tyh_prim_lists tyh
                                                  , TyApp t_list t_a <- tyVarSubst tv t
@@ -781,11 +825,22 @@ evalTypeAnyArgPrim _ tv kv _ (TypeIndex tyh) t _ | tyh_strings tyh
                                                  ,  t_a == tyInt kv
                                                  || t_a == tyInteger kv
                                                  || t_a == tyFloat kv
-                                                 || t_a == tyDouble kv = Just (Lit (LitInt 2 ))
+                                                 || t_a == tyDouble kv
+                                                 || supportsSMT t_a = Just (Lit (LitInt 2 ))
                                                  | otherwise = Just (Lit (LitInt 0))
-evalTypeAnyArgPrim eenv _ kv _ IsSMTRep _ e = Just . mkBool kv $ isSMTRep eenv kv e
-evalTypeAnyArgPrim eenv _ kv tc EvalsToSMTRep _ e = Just . mkBool kv $ evalsToSMTRep HS.empty eenv kv tc e
-evalTypeAnyArgPrim _ _ _ _ _ _ _ = Nothing
+    where
+        supportsSMT t' | s_t <- tyVarSubst tv t'
+                       , TyCon n _:ts <- unTyApp $ s_t
+                       ,  s_t == tyInt kv
+                       || s_t == tyInteger kv
+                       || s_t == tyFloat kv
+                       || s_t == tyDouble kv
+                       || maybe False to_smt (M.lookup n tenv)
+                       , all supportsSMT ts = True
+                       | otherwise = False
+evalTypeAnyArgPrim eenv _ _ kv _ IsSMTRep _ e = Just . mkBool kv $ isSMTRep eenv kv e
+evalTypeAnyArgPrim eenv _ _ kv tc EvalsToSMTRep _ e = Just . mkBool kv $ evalsToSMTRep HS.empty eenv kv tc e
+evalTypeAnyArgPrim _ _ _ _ _ _ _ _ = Nothing
 
 isSMTRep :: ExprEnv -> KnownValues -> Expr -> Bool
 isSMTRep eenv kv e

@@ -29,7 +29,7 @@ smtDef =
              , Token.reservedNames = ["as", "let", "-", "/", "\"", "fp", "+zero", "-zero", "+oo", "-oo", "NaN"]}
 
 ident :: [Char]
-ident = ['~', '!', '$', '@', '%', '^', '&', '*' , '_', '-', '+', '=', '<', '>', '.', '?', '/']
+ident = ['~', '!', '$', '@', '%', '^', '&', '*' , '_', '-', '+', '=', '<', '>', '.', '?', '/', '|', ',']
 
 smtLexer :: Token.TokenParser st
 smtLexer = Token.makeTokenParser smtDef
@@ -60,7 +60,8 @@ getValuesParser srt = parens (parens (identifier >> (sExpr srt)))
 
 sExpr :: Maybe Sort -> Parser SMTAST
 sExpr srt = try boolExpr <|> parens (sExpr srt) <|> letExpr <|> try realExpr <|> try (doubleFloatExpr srt)
-                         <|> try doubleFloatExprDec <|> stringExpr <|> intExpr <|> bvExpr <|> seqExpr srt
+                         <|> try doubleFloatExprDec <|> stringExpr <|> intExpr <|> bvExpr
+                         <|> try (seqExpr srt) <|> try dcExpr
 
 letExpr :: Parser SMTAST
 letExpr = do
@@ -131,6 +132,12 @@ seqExpr srt = (do
     where
         getElemSrt (Just (SortSeq s)) = Just s
         getElemSrt _ = Nothing
+
+dcExpr :: Parser SMTAST
+dcExpr = do
+    ex <- identifier
+    as <- many1 (sExpr Nothing)
+    return $ DataSMT ex as
 
 
 realExpr :: Parser SMTAST

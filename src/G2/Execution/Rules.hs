@@ -29,6 +29,7 @@ module G2.Execution.Rules ( module G2.Execution.RuleTypes
 
 import G2.Config.Config
 import G2.Execution.DataConPCMap
+import G2.Execution.LiteralTable
 import G2.Execution.NewPC
 import G2.Execution.NormalForms
 import G2.Execution.PrimitiveEval
@@ -38,6 +39,7 @@ import G2.Language
 import qualified G2.Language.ExprEnv as E
 import qualified G2.Language.Typing as T
 import qualified G2.Language.KnownValues as KV
+import qualified G2.Language.PathConds as PC
 import G2.Language.Simplification
 import qualified G2.Language.Stack as S
 import G2.Preprocessing.NameCleaner
@@ -88,13 +90,13 @@ stdReduce' share discard_unknown _ solver simplifier s@(State { curr_expr = Curr
 stdReduce' _ discard_unknown symb_func_eval solver simplifier s@(State { curr_expr = CurrExpr Return ce
                                  , exec_stack = stck })  (Bindings { name_gen = ng })
     | errorRaised s
-    , Just (AssertFrame is _, stck') <- S.pop stck =
+    , Just (AssertFrame is _, stck') <- frstck =
         return (RuleError, [s { exec_stack = stck'
                               , true_assert = True
                               , assert_ids = fmap (\fc -> fc { returns = Prim Error TyBottom }) is }], ng)
     | Just rs <- symb_func_eval defSymFuncTicks s ng ce = return rs
     | Just (UpdateFrame n, stck') <- frstck = return $ retUpdateFrame s ng n stck'
-    
+
     | errorRaised s = return $ retErrorState s ng
     -- | Ignore a catch frame if there is no error
     | Just (CatchFrame _, stck') <- frstck = return (RuleIdentity, [s { exec_stack = stck' }], ng)
@@ -102,8 +104,8 @@ stdReduce' _ discard_unknown symb_func_eval solver simplifier s@(State { curr_ex
     | Just (CaseFrame i t a, stck') <- frstck = return $ retCaseFrame s ng ce i t a stck'
     | Just (CastFrame c, stck') <- frstck = return $ retCastFrame s ng ce c stck'
     | Lam u i e <- ce
-    , Just (ApplyFrame ae, stck') <- S.pop stck = return $ retLam s ng u i e ae stck'
-    | Just (ApplyFrame e, stck') <- S.pop stck = return $ retApplyFrame s ng ce e stck'
+    , Just (ApplyFrame ae, stck') <- frstck = return $ retLam s ng u i e ae stck'
+    | Just (ApplyFrame e, stck') <- frstck = return $ retApplyFrame s ng ce e stck'
     | Just (AssumeFrame e, stck') <- frstck = do
         let (r, new_pc, ng') = retAssumeFrame s ng ce e stck'
         (ng'', states) <- reduceNewPC discard_unknown solver simplifier ng' new_pc
@@ -116,8 +118,10 @@ stdReduce' _ discard_unknown symb_func_eval solver simplifier s@(State { curr_ex
         let (r, new_pc, ng') = retCurrExpr s ce act e stck' ng
         (ng'', states) <- reduceNewPC discard_unknown solver simplifier ng' new_pc
         return (r, states, ng'')
+    | Just (LitTableFrame ltc up, stck') <- frstck =
+        retLitTableFrame discard_unknown solver simplifier s ng ltc up stck'
     | Nothing <- frstck = return (RuleIdentity, [s], ng)
-    | otherwise = error $ "stdReduce': Unknown Expr" ++ show ce ++ show (S.pop stck)
+    | otherwise = error $ "stdReduce': Unknown Expr" ++ show ce ++ show frstck
         where
             frstck = S.pop stck
 
@@ -251,6 +255,19 @@ evalApp s@(State { expr_env = eenv
         ( RuleEvalPrimToNorm
         , newPCEmpty $ s { expr_env = eenv', curr_expr = CurrExpr er exP' }
         , ng)
+    | [Prim FoldLeftI t, lam, offset, initial] <- unApp e1 =
+        let lam' = simplifyExprs eenv eenv lam
+            e1' = mkApp [Prim FoldLeftI t, lam', offset, initial]
+
+            (exP, eenv') = evalPrimsSharing eenv tenv tv_env kv tc (App e1' e2)
+
+            ts = getNestedTickish exP
+            exP' = foldr Tick (stripAllTicks exP) ts
+            er = if null ts then Return else Evaluate
+        in
+        ( RuleEvalPrimToNorm
+        , newPCEmpty $ s { expr_env = eenv', curr_expr = CurrExpr er exP' }
+        , ng)
     -- Float ticks to the top of a prim
     | Prim _ _:es <- unApp (App e1 e2)
     , ts <- concatMap getTickish es
@@ -263,15 +280,15 @@ evalApp s@(State { expr_env = eenv
         , (SplitStatePieces
             (s { expr_env = eenv' })
             [SD { new_conc_entries = []
-               , new_sym_entries = []
-               , new_path_conds = pc
-               , concretized = []
-               , new_true_assert = true_assert s
-               , new_assert_ids = assert_ids s
-               , new_curr_expr = CurrExpr Evaluate e
-               , new_conc_types = []
-               , new_sym_types = []
-               , new_mut_vars = [] }]
+                , new_sym_entries = []
+                , new_path_conds = pc
+                , concretized = []
+                , new_true_assert = true_assert s
+                , new_assert_ids = assert_ids s
+                , new_curr_expr = CurrExpr Evaluate e
+                , new_conc_types = []
+                , new_sym_types = []
+                , new_mut_vars = [] }]
           )
         , ng')
     | (Prim pr _):_ <- unApp (App e1 e2) =
@@ -413,13 +430,46 @@ evalLet s@(State { expr_env = eenv })
                           , curr_expr = CurrExpr Evaluate e'}]
                      , ng')
 
+-- | Pop and apply update frames until a case frame shows up
+popToCaseFrame :: State t -> CurrExpr -> Maybe (State t, Id, Type, [Alt])
+popToCaseFrame s ce = case S.pop (exec_stack s) of
+                        Just (UpdateFrame n, stck) ->
+                            popToCaseFrame (s { expr_env = E.insert n (unwrap ce) (expr_env s), exec_stack = stck }) ce
+                        Just (CaseFrame bind t alts, stck) ->
+                            Just (s { exec_stack = stck }, bind, t, alts)
+                        _ -> Nothing
+                      where unwrap (CurrExpr _ e) = e
+
+-- | Create `[Alts]` for a case in case optimization
+caseInCaseAlts :: Type -> Type -> [Alt] -> [Alt] -> NameGen -> (NameGen, [Alt])
+caseInCaseAlts lower_t higher_t lower_alts higher_alts ng = L.mapAccumL makeAlt ng higher_alts
+    where
+        makeAlt name_gen (Alt { altMatch = am, altExpr = ae }) = 
+            let (new_bind, name_gen1) = freshId higher_t name_gen
+            in (name_gen1, Alt { altMatch = am, altExpr = Case ae new_bind lower_t lower_alts })
+
 -- | Handle the Case forms of Evaluate.
 evalCase :: State t -> Bindings -> Expr -> Id -> Type -> [Alt] -> (Rule, NewPC t, NameGen)
 evalCase s@(State { expr_env = eenv
                   , exec_stack = stck
                   , known_values = kv
-                  , tyvar_env = tvnv })
+                  , tyvar_env = tvnv
+                  , curr_expr = ce })
          (Bindings { name_gen = ng, data_con_pc_map = dcpm }) mexpr bind t alts
+
+  -- Case in case optimization, always needed for literal table creation
+  -- This pops the nested case frame off the stack, and creates a new
+  -- case expr to evaluate
+  -- Note that we are in the nested case expression here
+  | inLitTableMode s
+  , Just (s1, _, t1, alts1) <- popToCaseFrame s (curr_expr s) =
+      -- We're looking at the nested bindee here
+      let (ng1, alts2) = caseInCaseAlts t1 t alts1 alts ng
+          new_case = Case mexpr bind t1 alts2
+      in ( RuleEvalCaseInCase
+         , newPCEmpty $ s1 { curr_expr = CurrExpr Evaluate new_case }
+         , ng )
+  
   -- Is the current expression able to match with a literal based `Alt`? If
   -- so, we do the cvar binding, and proceed with evaluation of the body.
   | (Lit lit) <- unsafeElimOuterCast mexpr
@@ -799,6 +849,7 @@ createExtCond s ngen dcpm mexpr cvar (dcon, bindees, aexpr)
             , new_conc_types = tve_diff, new_sym_types = tve_sym_diff
             , new_mut_vars = [] }, ngen'')
     | otherwise = error $ "createExtCond: unsupported type" ++ "\n" ++ show (typeOf tvnv mexpr) ++ "\n" ++ show dcon
+                    ++ "\n\n" ++ show mexpr ++ "\n" ++ show aexpr
         where
             kv = known_values s
             tenv = type_env s
@@ -1788,3 +1839,121 @@ retReplaceSymbFuncVar _
 isApplyFrame :: Frame -> Bool
 isApplyFrame (ApplyFrame _) = True
 isApplyFrame _ = False
+
+retLitTableFrame :: (Solver solver, Simplifier simplifier)
+                 => DiscardUnknownStates
+                 -> solver
+                 -> simplifier
+                 -> State t
+                 -> NameGen
+                 -> LitTableCond
+                 -> LTUpdate
+                 -> S.Stack Frame
+                 -> IO (Rule, [State t], NameGen)
+retLitTableFrame dus solver simplifier s ng ltc up stck = case ltc of
+    Exploring _ -> retLTExploring ng updated_state sym_id
+    Diff sd (eenv, tvenv, mvenv, conds) -> 
+        retLTDiff dus solver simplifier s ng sd eenv tvenv mvenv conds stck up
+    StartedBuilding n -> 
+        retLTStartedBuilding updated_state ng n
+    where
+        -- When we return from a StartedBuilding or Exploring, we're returning
+        -- from evaluation, so we need to take the table conds for the current
+        -- expression and insert them in the literal table
+        -- We also want to include for previously pushed `Exploring`s,
+        -- so we scan the stack
+        e = unwrapCurrExpr $ curr_expr s
+        frames = S.toList $ exec_stack s
+        explorings = filterJust $ map getExploringConds frames
+        all_pcs = L.foldl' PC.union PC.empty explorings
+        updated_lts = if up
+            then S.modifyTop (updateLiteralTable all_pcs e) $ lit_table_stack s
+            else lit_table_stack s
+        sym_id = getLTArg s
+        updated_state = s { exec_stack = stck, lit_table_stack = updated_lts }
+
+retLTExploring :: NameGen -> State t -> Id -> IO (Rule, [State t], NameGen)
+retLTExploring ng updated_state sym_id =
+    return (RuleReturnLitTableExpl, [updated_state { curr_expr = CurrExpr Return (Var sym_id) } ], ng)
+
+retLTDiff :: (Solver solver, Simplifier simplifier)
+          => DiscardUnknownStates
+          -> solver
+          -> simplifier
+          -> State t
+          -> NameGen
+          -> StateDiff
+          -> E.ExprEnv
+          -> TV.TyVarEnv
+          -> MutVarEnv
+          -> PathConds
+          -> S.Stack Frame
+          -> LTUpdate
+          -> IO (Rule, [State t], NameGen)
+retLTDiff dus solver simplifier s ng sd eenv tvenv mvenv conds stck up = do
+    -- We need to make sure the argument is still symbolic
+    -- after exploring other paths, since it can get concretized
+    let diff_state = s { exec_stack = stck, expr_env = eenv
+                        , tyvar_env = tvenv, mutvar_env = mvenv
+                        , path_conds = conds }
+    res <- reduceStateDiff dus solver simplifier ng diff_state sd
+    case res of
+        -- This diff is unsat or unknown, try the next
+        Nothing -> return (RuleReturnLitTableDiff, [diff_state], ng)
+        -- Turn this diff into an Exploring
+        Just (ng', new_state) -> return
+            ( RuleReturnLitTableDiff
+            , [ new_state { exec_stack = S.push (makeExploring up sd) (exec_stack diff_state) } ]
+            , ng' )
+
+retLTStartedBuilding :: State t -> NameGen -> Name -> IO (Rule, [State t], NameGen)
+retLTStartedBuilding s ng n = 
+    let
+        lts = lit_table_stack s
+        (table, lts') = fromJust $ S.pop lts
+
+        -- We just finished updating the lit table at the top of
+        -- the stack so it should never be empty here
+        table_map = lit_tables s
+        table_map' = HM.insert n table table_map
+
+        -- After the literal table is created, the current expression
+        -- will simply be an application of the literal table
+        -- When returning the final literal table, we want to leave
+        -- the literal table itself as the final expression, represented
+        -- as a lambda function.
+        ce = unwrapCurrExpr $ curr_expr s
+        table_e = Prim (LitTableRef n) TyUnknown
+        app_table_e = App table_e ce
+        lt_done = not $ isJust (S.pop lts')
+
+        (lam_e, sym_diff, ng1) = litTableToLam s ng table
+        insertSyms syms_ eenv_ = L.foldl' (flip E.insertSymbolic) eenv_ syms_
+
+        s1 = if lt_done
+                then s { expr_env = insertSyms sym_diff (expr_env s) }
+                else s
+        ng2 = if lt_done
+                then ng1
+                else ng2
+        s2 = s1 { lit_tables = table_map'
+                , lit_table_stack = lts'
+                , curr_expr = if lt_done
+                                  then CurrExpr Return lam_e
+                                  else CurrExpr Evaluate app_table_e
+                }
+    in return (RuleReturnLitTableSB, [s2], ng2)
+
+unwrapCurrExpr :: CurrExpr -> Expr
+unwrapCurrExpr (CurrExpr _ e) = e
+
+filterJust :: [Maybe a] -> [a]
+filterJust [] = []
+filterJust x = map fromJust $ filter isJust x
+
+getExploringConds :: Frame -> Maybe PathConds
+getExploringConds (LitTableFrame (Exploring pc) _) = Just pc
+getExploringConds _ = Nothing
+
+makeExploring :: LTUpdate -> StateDiff -> Frame
+makeExploring up sd = (LitTableFrame (Exploring (PC.fromList $ new_path_conds sd)) up)

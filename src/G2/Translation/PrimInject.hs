@@ -277,8 +277,19 @@ primDefs' b c l unit =
                                . Lam TermL (f (TyFun (TyVar a) (TyFun (TyVar d) (TyVar a))))
                                . Lam TermL (u (TyVar a))
                                . Lam TermL (v seqTyX)
-                            $ mkApp [ Prim FoldLeft TyUnknown
+                            $ mkApp [ Prim FoldLeft (mkTyFun [TyFun (TyVar a) (TyFun (TyVar d) (TyVar a)), TyVar a, seqTyX, TyVar a])
                                     , Var $ (f (TyFun (TyVar a) (TyFun (TyVar d) (TyVar a))))
+                                    , Var $ u (TyVar a)
+                                    , Var $ v seqTyX ])
+              , ("smtFoldLeftI#", Lam TypeL (y TYPE) -- Runtime representation of accumulator, so we can have Int#
+                                . Lam TypeL a . Lam TypeL (x TYPE)
+                                . Lam TermL (f (TyFun TyLitInt (TyFun (TyVar a) (TyFun (TyVar d) (TyVar a)))))
+                                . Lam TermL (z TyLitInt)
+                                . Lam TermL (u (TyVar a))
+                                . Lam TermL (v seqTyX)
+                            $ mkApp [ Prim FoldLeftI (mkTyFun [TyFun TyLitInt (TyFun (TyVar a) (TyFun (TyVar d) (TyVar a))), TyLitInt, TyVar a, seqTyX, TyVar a])
+                                    , Var $ (f (TyFun TyLitInt (TyFun (TyVar a) (TyFun (TyVar d) (TyVar a)))))
+                                    , Var $ z TyLitInt
                                     , Var $ u (TyVar a)
                                     , Var $ v seqTyX ])
 
@@ -358,8 +369,16 @@ primDefs' b c l unit =
 
               , ("isSMTRep#", Prim IsSMTRep (TyForAll a (TyFun (TyVar a) (TyCon b TYPE))))
               , ("evalsToSMTRep#", Prim EvalsToSMTRep (TyForAll a (TyFun (TyVar a) (TyCon b TYPE))))
-              , ("typeIndex#", Prim (TypeIndex (TyH { tyh_strings = False, tyh_prim_lists = False })) (TyForAll a (TyFun (TyVar a) TyLitInt))) ]
+              , ("typeIndex#", Prim (TypeIndex (TyH { tyh_strings = False, tyh_prim_lists = False })) (TyForAll a (TyFun (TyVar a) TyLitInt)))
+
+              , ("buildLitTable#", Lam TypeL (x TYPE)
+                                 . Lam TypeL (y TYPE)
+                                 . Lam TermL (z funTyXY)
+                                 $ App (Prim BuildLitTable (TyFun funTyXY TyUnknown)) (Var $ z funTyXY)
+                )
+              ]
               where
+                    funTyXY = TyFun (TyVar (x TYPE)) (TyVar (y TYPE))
                     seqTy v = (TyApp (TyCon l (TyFun TYPE TYPE)) v)
                     seqTyX = seqTy (TyVar (x TYPE))
                     strTy = seqTy (TyCon c TYPE)

@@ -12,6 +12,7 @@ module G2.Language.Typing
     
     , tyInt
     , tyInteger
+    , tyWord
     , tyDouble
     , tyFloat
     , tyBool
@@ -87,6 +88,9 @@ tyInt kv = TyCon (KV.tyInt kv) (tyTYPE kv)
 
 tyInteger :: KV.KnownValues -> Type
 tyInteger kv = TyCon (KV.tyInteger kv) (tyTYPE kv)
+
+tyWord :: KV.KnownValues -> Type
+tyWord kv = TyCon (KV.tyWord kv) (tyTYPE kv)
 
 tyDouble :: KV.KnownValues -> Type
 tyDouble kv = TyCon (KV.tyDouble kv) (tyTYPE kv)
@@ -196,7 +200,9 @@ instance Typed Expr where
             as = passedArgs a
             t = typeOf m $ appCenter a
         in
-        appTypeOf TV.empty t as
+        case appTypeOf TV.empty t as of
+            Just res_t -> res_t
+            Nothing -> error $ "typeOf: type error: " ++ show a
     typeOf m (Lam u b e) =
         case u of
             TypeL -> TyForAll b (typeOf m e)
@@ -224,7 +230,7 @@ appCenter :: Expr -> Expr
 appCenter (App a _) = appCenter a
 appCenter e = e
 
-appTypeOf :: TV.TyVarEnv -> Type -> [Expr] -> Type
+appTypeOf :: TV.TyVarEnv -> Type -> [Expr] -> Maybe Type
 appTypeOf m (TyForAll i t) (Type t':es) =
     let
         m' = TV.insert (idName i) (tyVarSubst m t') m
@@ -232,16 +238,16 @@ appTypeOf m (TyForAll i t) (Type t':es) =
     appTypeOf m' t es
 appTypeOf m (TyForAll _ t) (_:es) = appTypeOf m t es
 appTypeOf m (TyFun _ t) (_:es) = appTypeOf m t es
-appTypeOf m t [] = tyVarSubst m t
+appTypeOf m t [] = Just $ tyVarSubst m t
 appTypeOf m (TyVar (Id n _)) es =
     case TV.lookup n m of
         Just t -> appTypeOf m t es
-        Nothing -> error ("appTypeOf: Unknown TyVar")
-appTypeOf _ TyBottom _ = TyBottom
-appTypeOf _ TyUnknown _ = TyUnknown
+        Nothing -> Nothing
+appTypeOf _ TyBottom _ = Just TyBottom
+appTypeOf _ TyUnknown _ = Just TyUnknown
 -- Special case for GHC.Prim FUN type, which represents a function application.
 appTypeOf m t es | [TyCon (Name "FUN" _ _ _) _, _, _, _, at, rt] <- unTyApp $ tyVarSubst m t = appTypeOf m (TyFun at rt) es
-appTypeOf _ t es = error ("appTypeOf\n" ++ show t ++ "\n" ++ show es ++ "\n\n")
+appTypeOf _ _ _ = Nothing
 
 -- | Check if two types unify.  If they do, returns a `TyVarEnv` of type variables to instantiations.
 unify :: Type -> Type -> Maybe TV.TyVarEnv

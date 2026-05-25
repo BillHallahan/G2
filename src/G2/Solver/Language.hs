@@ -27,10 +27,16 @@ data SMTHeader = Assert !SMTAST
                | Minimize !SMTAST
                | DefineFun SMTName [(SMTName, Sort)] Sort !SMTAST
                | DeclareFun SMTName [Sort] Sort
+               | DeclareDatatypes [SMTDataType]
                | VarDecl SMTNameBldr Sort
                | SetLogic Logic
                | Comment String
                deriving (Show)
+
+data SMTDataType = SmtDT { dt_name :: SMTName
+                         , dt_tyvars :: [SMTName]
+                         , dt_constructors :: [(SMTName, [(SMTName, Sort)])]}
+                   deriving (Show)
 
 -- | Various logics supported by (some) SMT solvers 
 data Logic = ALL
@@ -132,6 +138,7 @@ data SMTAST = (:>=) !SMTAST !SMTAST
             | SeqNthSMT !SMTAST !SMTAST
 
             | FoldLeftSMT SMTName Sort SMTName Sort !SMTAST !SMTAST !SMTAST
+            | FoldLeftISMT SMTName Sort SMTName Sort SMTName Sort !SMTAST !SMTAST !SMTAST !SMTAST
 
             | InReSMT !SMTAST !SMTAST
             | ToReSMT !SMTAST
@@ -165,6 +172,7 @@ data SMTAST = (:>=) !SMTAST !SMTAST
             | VBool Bool
 
             | V SMTName Sort
+            | DataSMT SMTName [SMTAST]
 
             | FloatToIntSMT !SMTAST -- ^ Float to Integer conversion
             | DoubleToIntSMT !SMTAST -- ^ Double to Integer conversion
@@ -194,6 +202,8 @@ data Sort = SortInt
           | SortBool
           | SortArray Sort Sort
           | SortFunc [Sort] Sort
+          | ADTSort SMTName [Sort]
+          | ParSort SMTName
           deriving (Show, Eq, Ord, Generic)
 
 pattern SortFloat :: Sort
@@ -336,6 +346,7 @@ instance AST SMTAST where
     children (SeqNthSMT x y) = [x, y]
 
     children (FoldLeftSMT _ _ _ _ x y z) = [x, y, z]
+    children (FoldLeftISMT _ _ _ _ _ _ w x y z) = [w, x, y, z]
 
     children (InReSMT x y) = [x, y]
     children (ToReSMT x) = [x]
@@ -357,6 +368,8 @@ instance AST SMTAST where
 
     children (FromCode x) = [x]
     children (ToCode x) = [x]
+
+    children (DataSMT _ xs) = xs
 
     children (FloatToIntSMT x) = [x]
     children (DoubleToIntSMT x) = [x]
@@ -455,6 +468,8 @@ instance AST SMTAST where
     modifyChildren f (SeqNthSMT x y) = SeqNthSMT (f x) (f y)
 
     modifyChildren f (FoldLeftSMT n1 s1 n2 s2 x y z) = FoldLeftSMT n1 s1 n2 s2 (f x) (f y) (f z)
+    modifyChildren f (FoldLeftISMT idx idx_t n1 s1 n2 s2 w x y z) =
+        FoldLeftISMT idx idx_t n1 s1 n2 s2 (f w) (f x) (f y) (f z)
 
     modifyChildren f (InReSMT x y) = InReSMT (f x) (f y)
     modifyChildren f (ToReSMT x) = ToReSMT (f x)
@@ -476,6 +491,8 @@ instance AST SMTAST where
 
     modifyChildren f (FromCode x) = FromCode (f x)
     modifyChildren f (ToCode x) = ToCode (f x)
+
+    modifyChildren f (DataSMT n xs) = DataSMT n (map f xs)
 
     modifyChildren f (FloatToIntSMT x) = FloatToIntSMT (f x)
     modifyChildren f (DoubleToIntSMT x) = DoubleToIntSMT (f x)

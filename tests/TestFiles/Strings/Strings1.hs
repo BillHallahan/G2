@@ -4,6 +4,9 @@
 module Strings1 where
 
 import Data.List
+import Data.Char
+import qualified GHC.List as L
+import qualified Data.Maybe as M
 
 toEnum1 :: String
 toEnum1 = [toEnum 56089]
@@ -578,3 +581,90 @@ test1 xs = (length (map id xs) > 3, if init xs == tail xs then 1 else 0)
 test1InitTailEq :: String -> (Bool, Int) -> Bool
 test1InitTailEq _ (b, i) = b && i == 1
 
+-- Literal table testing
+
+{-# NOINLINE inner #-}
+inner :: Char -> Char
+inner x = case x of
+            'a' -> 'b'
+            'b' -> 'c'
+            'c' -> 'b'
+            _ -> x
+
+{-# NOINLINE inner2 #-}
+inner2 :: Char -> Bool
+inner2 x = case x of
+              'w' -> True
+              _ -> case x of
+                                'b' -> False
+                                'c' -> True
+                                'd' -> False
+                                _ -> True
+
+all1 :: String -> Int
+all1 s = case L.all f s of
+            True -> 6
+            False -> 7
+    where f x = case x of
+                    'z' -> True
+                    _ -> inner2 x
+
+all2 :: String -> Char
+all2 s = case res of
+            True -> 'a'
+            False -> 'b'
+    where res = L.all f s
+          f x = case inner x of
+                    'b' -> True
+                    _ -> False
+
+all3 :: String -> Char
+all3 s = case res of
+                    True -> if length s > 1 then 'a' else 'q'
+                    False -> 'b'
+    where res = L.all f s
+          f x = inner x > 'b'
+
+all4 :: String -> String
+all4 s = case L.all (\c -> c >= 'a' && c <= 'z') s && length s == 1 of
+            True -> "Yes"
+            False -> "No"
+
+any1 :: String -> Int
+any1 s = case L.any (== '&') s && length s > 4 of
+            True -> 1
+            False -> 2
+
+filter1 :: String -> Int
+filter1 s = case filter (/= '$') s of
+                "x" -> 1
+                _ -> 2
+
+-- Note: z3 currently returns sat on some unsat SMT formulas
+-- this function outputs.
+-- filter2 :: String -> Int
+-- filter2 s = if length s < 4 then 1
+--             else case filter (== '$') s of
+--                     "x" -> 2
+--                     "xyz" -> 3
+--                     _ -> 4
+
+dropWhile1 :: String -> Int
+dropWhile1 s = case dropWhile (== '$') s of
+                   "$h" -> 0 -- Unreachable
+                   "h" -> 1
+                   _ -> 2
+
+dropWhile2 :: String -> String
+dropWhile2 s = dropWhile (== '$') s
+
+takeWhile1 :: String -> Int
+takeWhile1 s = case takeWhile (/= '@') s of
+                   "@" -> 0 -- Unreachable
+                   "a" -> 1
+                   _ -> 2
+
+testQualImp :: String -> M.Maybe Char
+testQualImp s = case "12345" `isInfixOf` s of
+                    True -> M.Nothing
+                    False -> M.Just 'q'

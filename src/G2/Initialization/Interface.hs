@@ -70,7 +70,11 @@ runInitialization2 config s@(IT.SimpleState { IT.expr_env = eenv
                                     E.insert using_smt_rev (mkTrue kv) eenv8
                     _ -> eenv8
 
-        s1 = s { IT.expr_env = eenv9
+        eenv10 = if literal_tables config == UseLiteralTables 
+                    then E.insert (usingLiteralTables kv) (mkTrue kv) eenv9
+                    else eenv9
+
+        s1 = s { IT.expr_env = eenv10
                , IT.name_gen = ng3
                , IT.handles = hs}
         

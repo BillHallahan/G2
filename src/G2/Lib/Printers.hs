@@ -508,6 +508,7 @@ mkPrimHaskell pg = pr
         pr WGenCat = "wgencat"
 
         pr FoldLeft = "seq.fold_left"
+        pr FoldLeftI = "seq.fold_lefti"
 
         pr InRe = "str.in_re"
         pr ToRe = "str.to_re"
@@ -551,6 +552,9 @@ mkPrimHaskell pg = pr
         pr ForAllBoundPr = "forall_bound"
 
         pr UnspecifiedOutput = "?"
+
+        pr (LitTableRef n) = "(litTableRef " <> mkNameHaskell pg n <> ")"
+        pr (BuildLitTable) = "buildLitTable#"
 
 mkPrimHaskellNoDistFloat :: PrettyGuide -> Primitive -> T.Text
 mkPrimHaskellNoDistFloat pg = pr
@@ -683,6 +687,10 @@ prettyState pg pretty_track s =
         , pretty_track pg (track s)
         , "----- [HPC] ---------------------"
         , pretty_hpc_ticks
+        , "----- [Lit Table Stack] ---------------------"
+        , pretty_lit_table_stack
+        , "----- [Lit Tables] ---------------------"
+        , pretty_lit_tables
         , "----- [Reached FC] ---------------------"
         , pretty_fc_ticks
         , "----- [Pretty] ---------------------"
@@ -690,7 +698,7 @@ prettyState pg pretty_track s =
         ]
     where
         pretty_curr_expr = prettyCurrExpr pg (curr_expr s)
-        pretty_stack = prettyStack pg (exec_stack s)
+        pretty_stack = prettyExecStack pg (exec_stack s)
         pretty_eenv = prettyEEnv (tyvar_env s) pg (curr_expr s) (exec_stack s) (expr_env s)
         pretty_paths = prettyPathConds pg (path_conds s)
         pretty_non_red_paths = prettyNonRedPaths pg $ non_red_path_conds s
@@ -704,9 +712,10 @@ prettyState pg pretty_track s =
         pretty_assert_fcs = maybe "None" (printFuncCallPG pg) (assert_ids s)
         pretty_tags = T.intercalate ", " . map (mkNameHaskell pg) $ HS.toList (tags s)
         pretty_hpc_ticks = T.pack $ show (reached_hpc s)
+        pretty_lit_table_stack = prettyLitTableStack pg $ lit_table_stack s
+        pretty_lit_tables = prettyLitTables pg $ lit_tables s
         pretty_fc_ticks = T.intercalate "\n" $ map (printFuncCallPG pg) (reached_fc_ticks s)
         pretty_names = prettyGuideStr pg
-
 
 prettyCurrExpr :: PrettyGuide -> CurrExpr -> T.Text
 prettyCurrExpr pg (CurrExpr er e) =
@@ -717,8 +726,14 @@ prettyCurrExpr pg (CurrExpr er e) =
         Evaluate -> "evaluate: " <> e_str
         Return -> "return: " <> e_str
 
-prettyStack :: PrettyGuide -> Stack Frame -> T.Text
-prettyStack pg = T.intercalate "\n" . map (prettyFrame pg) . toList
+prettyStack :: PrettyGuide -> (PrettyGuide -> a -> T.Text) -> Stack a -> T.Text
+prettyStack pg f = T.intercalate "\n" . map (f pg) . toList
+
+prettyExecStack :: PrettyGuide -> Stack Frame -> T.Text
+prettyExecStack pg = prettyStack pg prettyFrame
+
+prettyLitTableStack :: PrettyGuide -> Stack LitTable -> T.Text
+prettyLitTableStack pg = prettyStack pg prettyLitTable
 
 prettyFrame :: PrettyGuide -> Frame -> T.Text
 prettyFrame pg (CaseFrame i _ as) =
@@ -736,6 +751,63 @@ prettyFrame pg (AssertFrame m_fc e) =
                   Nothing -> ""
     in
     "assert frame: " <> fc <> mkDirtyExprHaskell pg e
+prettyFrame pg (LitTableFrame ltc up) = header <> update_str <> ":\n" <> printLiteralTableCond pg ltc
+    where
+        header = "literal table frame, updating = "
+        update_str = (T.pack $ show up)
+
+printLiteralTableCond :: PrettyGuide -> LitTableCond -> T.Text
+printLiteralTableCond pg ltc
+    | (Exploring pc) <- ltc = "exploring " <> prettyPathConds pg pc
+    | (Diff sd _) <- ltc = prettyStateDiff pg sd <> " note: truncated (expr_env, tyvar_env, mutvar_env, conds) for now"
+    | (StartedBuilding n) <- ltc = "started building " <> mkNameHaskell pg n
+
+prettyStateDiff :: PrettyGuide -> StateDiff -> T.Text
+prettyStateDiff pg (SD { new_conc_entries = nce
+                       , new_sym_entries = nse
+                       , new_path_conds = pc
+                       , concretized = concIds
+                       , new_true_assert = nta
+                       , new_assert_ids = nai
+                       , new_curr_expr = n_curre
+                       , new_conc_types = nct
+                       , new_sym_types = nst
+                       , new_mut_vars = nmv }) =
+    T.intercalate "\n"
+        [ "--- state diff: "
+        , "  concrete entries -> " <> T.intercalate ", " (map prettyConc nce)
+        , "  symbolic entries -> " <> T.intercalate ", " (map (mkIdHaskell pg) nse)
+        , "  path conds -> " <> T.intercalate ", " (map (prettyPathCond pg) pc)
+        , "  concretized -> " <> T.intercalate ", " (map (mkIdHaskell pg) concIds)
+        , "  true_assert -> " <> T.pack (show nta)
+        , "  assert_ids -> " <> maybe "Nothing" (printFuncCallPG pg) nai
+        , "  curr_expr -> " <> prettyCurrExpr pg n_curre
+        , "  new_conc_types -> " <> T.intercalate ", " (map prettyConcType nct)
+        , "  new_sym_types -> " <> T.intercalate ", " (map (mkIdHaskell pg) nst)
+        , "  new_mut_vars -> " <> T.intercalate ", " (map prettyMutVar nmv)
+        , "---"
+        ]
+    where
+        prettyConc (n, e) = mkNameHaskell pg n <> " = " <> mkDirtyExprHaskell pg e
+        prettyConcType (n, t) = mkNameHaskell pg n <> " = " <> mkTypeHaskellPG pg t
+        prettyMutVar (n, i, orig) = "(" <> mkNameHaskell pg n <> ", " <> mkIdHaskell pg i <> ", " <> T.pack (show orig) <> ")"
+
+prettyLitTable :: PrettyGuide -> LitTable -> T.Text
+prettyLitTable pg (LitTable { lt_arg = lta, lt_mapping = ltm })
+    | HM.null ltm = header <> " , empty literal table"
+    | otherwise =
+        header <> "\n" <> (T.intercalate "\n>>>>>>>>>>>>>>>\n"
+                              (map (\(conds, e) -> "  " <> prettyPathConds pg conds <> ": " <> mkDirtyExprHaskell pg e)
+                              (HM.toList ltm)))
+        <> "\n-- end lit table --"
+    where
+        sym_id = mkIdHaskell pg lta
+        header = "symbolic id = " <> sym_id
+
+prettyLitTables :: PrettyGuide -> HM.HashMap Name LitTable -> T.Text
+prettyLitTables pg lts = T.concat (map pair $ HM.toList lts)
+    where
+        pair (n, lt) = "table name: " <> mkNameHaskell pg n <> "\n" <> prettyLitTable pg lt <> "\n"
 
 prettyCEAction :: PrettyGuide -> CEAction -> T.Text
 prettyCEAction pg (EnsureEq e) = "EnsureEq " <> mkDirtyExprHaskell pg e

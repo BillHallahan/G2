@@ -9,6 +9,7 @@ module G2.Execution.DataConPCMap ( DCArgBind (..)
                                  , applyDCPC
 
                                  -- * Helpers for constructing the DCPC Map
+                                 , wrapperListCons
                                  , listCons
                                  , listEmpty
                                  ) where
@@ -73,13 +74,13 @@ dcpcMap tv kv tenv = HM.fromList [
                   ]
 
 strCons :: KnownValues -> TypeEnv -> TyVarEnv -> DataConPCInfo
-strCons kv tenv = listCons' id (mkDCChar kv tenv) TyLitChar kv
+strCons kv tenv = wrapperListCons' id (mkDCChar kv tenv) TyLitChar kv
 
-listCons :: Expr -> Type -> KnownValues -> TyVarEnv -> DataConPCInfo
-listCons = listCons' (App (Prim SeqUnit TyUnknown))
+wrapperListCons :: Expr -> Type -> KnownValues -> TyVarEnv -> DataConPCInfo
+wrapperListCons = wrapperListCons' (App (Prim SeqUnit TyUnknown))
 
-listCons' :: (Expr -> Expr) -> Expr -> Type -> KnownValues -> TyVarEnv -> DataConPCInfo
-listCons' f dc t kv tv = let
+wrapperListCons' :: (Expr -> Expr) -> Expr -> Type -> KnownValues -> TyVarEnv -> DataConPCInfo
+wrapperListCons' f dc t kv tv = let
                         hn = Name "h" Nothing 0 Nothing
                         tn = Name "t" Nothing 0 Nothing
                         ti = Id tn (TyApp (T.tyList kv) (T.returnType $ T.typeOf tv dc))
@@ -97,7 +98,28 @@ listCons' f dc t kv tv = let
                                     , dc_pc = [ExtCond (mkEqExpr tv kv
                                                     (App (App (mkSeqAppend t kv) (f (Var ci))) (Var ti))
                                                     (Var asi)) True]
-                                    , dc_bindee_exprs = [dc_e, (Var ti)]
+                                    , dc_bindee_exprs = [dc_e, Var ti]
+                                    }
+                      in
+                      dcpc
+
+listCons :: Type -> KnownValues -> TyVarEnv -> DataConPCInfo
+listCons t kv tv = let
+                        hn = Name "h" Nothing 0 Nothing
+                        hi = Id hn t
+                        tn = Name "t" Nothing 0 Nothing
+                        ti = Id tn (TyApp (T.tyList kv) t)
+                        cn = Name "c" Nothing 0 Nothing
+                        ci = Id cn t
+                        asn = Name "as" Nothing 0 Nothing
+                        asi = Id asn (TyApp (T.tyList kv) t)
+                        dcpc = DCPC { dc_as_pattern = asn
+                                    , dc_args = [ ArgSymb hn
+                                                , ArgSymb tn]
+                                    , dc_pc = [ExtCond (mkEqExpr tv kv
+                                                    (App (App (mkSeqAppend t kv) (App (Prim SeqUnit TyUnknown) (Var ci))) (Var ti))
+                                                    (Var asi)) True]
+                                    , dc_bindee_exprs = [Var hi, Var ti]
                                     }
                       in
                       dcpc

@@ -44,6 +44,9 @@ initKnownValues eenv tenv tc =
     , tyInteger = typeWithStrName tenv "Integer"
     , dcInteger = dcWithStrName tenv "Integer" "Z#"
 
+    , tyWord = typeWithStrName tenv "Word"
+    , dcWord = dcWithStrName tenv "Word" "W#"
+
     , tyChar = typeWithStrNameInModule tenv "Char" (Just "GHC.Types")
     , dcChar = dcWithStrNameInModule tenv "Char" "C#" (Just "GHC.Types")
 
@@ -135,6 +138,7 @@ initKnownValues eenv tenv tc =
     , checkStrLazy = exprWithStrName eenv "checkStrLazy"
 
     , usingSMTLams = exprWithStrName eenv "usingSMTLams#"
+    , usingLiteralTables = exprWithStrName eenv "usingLiteralTables#"
 
     , errorFunc = exprWithStrName eenv "error"
     , errorEmptyListFunc = exprWithStrName eenv "errorEmptyList"

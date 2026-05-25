@@ -38,6 +38,7 @@ data Rule = RuleEvalVal
           | RuleEvalCasePrim
           | RuleEvalCaseNonVal
           | RuleEvalCaseBottom
+          | RuleEvalCaseInCase
 
           | RuleEvalCastSplit
           | RuleEvalCast
@@ -61,6 +62,10 @@ data Rule = RuleEvalVal
 
           | RuleReturnCAssume
           | RuleReturnCAssert
+
+          | RuleReturnLitTableExpl
+          | RuleReturnLitTableSB
+          | RuleReturnLitTableDiff
 
           | RuleIdentity
           | RulePrimError

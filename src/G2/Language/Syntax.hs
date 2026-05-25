@@ -277,6 +277,7 @@ data Primitive = -- Mathematical and logical operators
                | WGenCat
 
                | FoldLeft -- ^ (a -> b -> a) -> a -> [b] -> a, Z3 only
+               | FoldLeftI -- ^ (Int# -> a -> b -> a) -> Int# -> a -> [b] -> a, Z3 only
 
                -- String Handling (Regex)
                | InRe -- ^ String -> Regex -> Bool
@@ -333,6 +334,10 @@ data Primitive = -- Mathematical and logical operators
                -- Unspecified Output- when we want to calculate input values that lead to a specific point,
                -- and then don't want to actually follow through on calculating the output value
                | UnspecifiedOutput
+
+               -- Literal table handling
+               | BuildLitTable -- ^ Build a literal table from a function
+               | LitTableRef Name -- ^ A reference to a literal table
                deriving (Show, Eq, Read, Generic, Data)
 
 -- | Do we want to use special handling to support a particular type?

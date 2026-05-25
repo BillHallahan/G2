@@ -36,3 +36,6 @@ maybeAvg xs = sum (catMaybes xs) / genericLength xs
 
 average' :: (Real a, Fractional a) => [a] -> a
 average' xs = sumN xs / lengthN xs
+
+listToMaybeFloat :: [Float] -> Maybe Float
+listToMaybeFloat = listToMaybe

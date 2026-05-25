@@ -77,9 +77,31 @@ data State t = State { expr_env :: E.ExprEnv -- ^ Mapping of `Name`s to `Expr`s
 
                      , log_path :: [Int]
 
+                     , lit_tables :: HM.HashMap Name LitTable -- ^ Mapping of name to literal table
+                     , lit_table_stack :: Stack LitTable -- ^ Stack for nested literal tables
+
                      , track :: t
                      } deriving (Show, Eq, Read, Generic, Data)
 
+type EEDiff = [(Name, Expr)] -- concrete values to insert in ExprEnv
+type EESymDiff = [Id] -- symbolic variables to insert in ExprEnv
+type TVEDiff = [(Name, Type)] -- concrete types to insert in TyVarEnv
+type TVESymDiff = [Id] -- symbolic variables to insert in TyVarEnv
+
+data StateDiff = SD { new_conc_entries :: EEDiff -- ^ New concrete entries for the expr_env
+                    , new_sym_entries :: EESymDiff -- ^ New symbolic entries for the expr_env
+                    , new_path_conds :: [PathCond] -- ^ New path constraints
+                    , concretized :: [Id]
+                    , new_true_assert :: Bool
+                    , new_assert_ids :: Maybe FuncCall
+                    , new_curr_expr :: CurrExpr
+                    , new_conc_types :: TVEDiff -- ^ New concrete entries for the tyvar_env
+                    , new_sym_types :: TVESymDiff -- ^ New symbolic entries for the tyvar_env
+                    , new_mut_vars :: [(Name, Id, MVOrigin)] -- ^ New mutable variables for the mutvar_env
+                    }
+                    deriving (Show, Eq, Read, Generic, Data)
+
+instance Hashable StateDiff
 
 instance Hashable t => Hashable (State t)
 
@@ -175,7 +197,11 @@ data Frame = CaseFrame Id Type [Alt]
            | CurrExprFrame CEAction CurrExpr
            | AssumeFrame Expr
            | AssertFrame (Maybe FuncCall) Expr
+           | LitTableFrame LitTableCond LTUpdate
            deriving (Show, Eq, Read, Generic, Data)
+
+-- Whether we need to update the current literal table when this frame is popped off
+type LTUpdate = Bool
 
 instance Hashable Frame
 
@@ -234,6 +260,8 @@ instance Named t => Named (State t) where
             <> names (tags s)
             <> names (reached_fc_ticks s)
             <> names (track s)
+            <> names (lit_tables s)
+            <> names (lit_table_stack s)
 
     rename old new s =
         State { expr_env = rename old new (expr_env s)
@@ -261,6 +289,8 @@ instance Named t => Named (State t) where
                , sym_gens = rename old new (sym_gens s)
                , reached_hpc = reached_hpc s
                , tags = tags s
+               , lit_tables = rename old new $ lit_tables s
+               , lit_table_stack = rename old new $ lit_table_stack s
                , reached_fc_ticks = rename old new $ reached_fc_ticks s
                , log_path = log_path s }
 
@@ -290,6 +320,8 @@ instance Named t => Named (State t) where
                , sym_gens = renames hm (sym_gens s)
                , reached_hpc = reached_hpc s
                , tags = tags s
+               , lit_tables = renames hm $ lit_tables s
+               , lit_table_stack = renames hm $ lit_table_stack s
                , reached_fc_ticks = renames hm $ reached_fc_ticks s
                , log_path = log_path s }
 
@@ -304,8 +336,11 @@ instance ASTContainer t Expr => ASTContainer (State t) Expr where
                       (containedASTs $ mutvar_env s) ++
                       (containedASTs $ assert_ids s) ++
                       (containedASTs $ exec_stack s) ++
-                      (containedASTs $ track s) ++ 
+                      (containedASTs $ track s) ++
                       (containedASTs $ sym_gens s) ++
+                      (containedASTs $ rules s) ++
+                      (containedASTs $ lit_tables s) ++
+                      (containedASTs $ lit_table_stack s) ++
                       (containedASTs $ reached_fc_ticks s) ++
                       (containedASTs $ rules s)
 
@@ -319,7 +354,9 @@ instance ASTContainer t Expr => ASTContainer (State t) Expr where
                                 , mutvar_env = modifyContainedASTs f $ mutvar_env s
                                 , assert_ids = modifyContainedASTs f $ assert_ids s
                                 , exec_stack = modifyContainedASTs f $ exec_stack s
-                                , track = modifyContainedASTs f $ track s 
+                                , track = modifyContainedASTs f $ track s
+                                , lit_tables = modifyContainedASTs f $ lit_tables s
+                                , lit_table_stack = modifyContainedASTs f $ lit_table_stack s
                                 , sym_gens = modifyContainedASTs f $ sym_gens s
                                 , reached_fc_ticks = modifyContainedASTs f $ reached_fc_ticks s
                                 , rules = modifyContainedASTs f $ rules s }
@@ -337,8 +374,11 @@ instance ASTContainer t Type => ASTContainer (State t) Type where
                       ((containedASTs . type_classes) s) ++
                       ((containedASTs . families) s) ++
                       ((containedASTs . exec_stack) s) ++
-                      (containedASTs $ track s) ++ 
+                      (containedASTs $ track s) ++
                       (containedASTs $ sym_gens s) ++
+                      (containedASTs $ rules s) ++
+                      (containedASTs $ lit_tables s) ++
+                      (containedASTs $ lit_table_stack s) ++
                       (containedASTs $ reached_fc_ticks s) ++
                       (containedASTs $ rules s)
 
@@ -354,8 +394,10 @@ instance ASTContainer t Type => ASTContainer (State t) Type where
                                 , type_classes = (modifyContainedASTs f . type_classes) s
                                 , families = (modifyContainedASTs f . families) s
                                 , exec_stack = (modifyContainedASTs f . exec_stack) s
-                                , track = modifyContainedASTs f $ track s 
-                                , sym_gens = modifyContainedASTs f $ sym_gens s 
+                                , track = modifyContainedASTs f $ track s
+                                , sym_gens = modifyContainedASTs f $ sym_gens s
+                                , lit_tables = modifyContainedASTs f $ lit_tables s
+                                , lit_table_stack = modifyContainedASTs f $ lit_table_stack s
                                 , reached_fc_ticks = modifyContainedASTs f $ reached_fc_ticks s
                                 , rules = modifyContainedASTs f $ rules s }
 
@@ -424,6 +466,7 @@ instance ASTContainer Frame Expr where
     containedASTs (CurrExprFrame _ e) = containedASTs e
     containedASTs (AssumeFrame e) = [e]
     containedASTs (AssertFrame _ e) = [e]
+    containedASTs (LitTableFrame ltc _) = containedASTs ltc
     containedASTs _ = []
 
     modifyContainedASTs f (CaseFrame i t a) = CaseFrame i t (modifyContainedASTs f a)
@@ -432,6 +475,7 @@ instance ASTContainer Frame Expr where
     modifyContainedASTs f (CurrExprFrame act e) = CurrExprFrame act (modifyContainedASTs f e)
     modifyContainedASTs f (AssumeFrame e) = AssumeFrame (f e)
     modifyContainedASTs f (AssertFrame is e) = AssertFrame is (f e)
+    modifyContainedASTs f (LitTableFrame ltc up) = LitTableFrame (modifyContainedASTs f ltc) up
     modifyContainedASTs _ fr = fr
 
 instance ASTContainer Frame Type where
@@ -440,6 +484,7 @@ instance ASTContainer Frame Type where
     containedASTs (CurrExprFrame _ e) = containedASTs e
     containedASTs (AssumeFrame e) = containedASTs e
     containedASTs (AssertFrame _ e) = containedASTs e
+    containedASTs (LitTableFrame ltc _) = containedASTs ltc
     containedASTs _ = []
 
     modifyContainedASTs f (CaseFrame i t a) =
@@ -448,6 +493,7 @@ instance ASTContainer Frame Type where
     modifyContainedASTs f (CurrExprFrame act e) = CurrExprFrame act (modifyContainedASTs f e)
     modifyContainedASTs f (AssumeFrame e) = AssumeFrame (modifyContainedASTs f e)
     modifyContainedASTs f (AssertFrame is e) = AssertFrame (modifyContainedASTs f is) (modifyContainedASTs f e)
+    modifyContainedASTs f (LitTableFrame ltc up) = LitTableFrame (modifyContainedASTs f ltc) up
     modifyContainedASTs _ fr = fr
 
 instance Named CurrExpr where
@@ -464,6 +510,7 @@ instance Named Frame where
     names (CurrExprFrame _ e) = names e
     names (AssumeFrame e) = names e
     names (AssertFrame is e) = names is <> names e
+    names (LitTableFrame ltc _) = names ltc
 
     rename old new (CaseFrame i t a) = CaseFrame (rename old new i) (rename old new t) (rename old new a)
     rename old new (ApplyFrame e) = ApplyFrame (rename old new e)
@@ -473,6 +520,7 @@ instance Named Frame where
     rename old new (CurrExprFrame act e) = CurrExprFrame act (rename old new e)
     rename old new (AssumeFrame e) = AssumeFrame (rename old new e)
     rename old new (AssertFrame is e) = AssertFrame (rename old new is) (rename old new e)
+    rename old new (LitTableFrame ltc up) = LitTableFrame (rename old new ltc) up
 
     renames hm (CaseFrame i t a) = CaseFrame (renames hm i) (renames hm t) (renames hm a)
     renames hm (ApplyFrame e) = ApplyFrame (renames hm e)
@@ -482,6 +530,7 @@ instance Named Frame where
     renames hm (CurrExprFrame act e) = CurrExprFrame act (renames hm e)
     renames hm (AssumeFrame e) = AssumeFrame (renames hm e)
     renames hm (AssertFrame is e) = AssertFrame (renames hm is) (renames hm e)
+    renames hm (LitTableFrame ltc up) = LitTableFrame (renames hm ltc) up
 
 instance Named Handle where
     names (HandleInfo { h_start = s, h_pos = p }) = names s <> names p
@@ -503,3 +552,151 @@ instance ASTContainer Handle Type where
 
     modifyContainedASTs f h@(HandleInfo { h_start = s, h_pos = p }) =
         h { h_start = modifyContainedASTs f s, h_pos = modifyContainedASTs f p }
+
+data LitTableCond = Exploring PathConds
+                  -- In the literal table process, we might modify some parts of
+                  -- the State that we don't want modified when we start Exploring
+                  -- other Diffs, so we need to save the original versions in Diff frames
+                  | Diff StateDiff (E.ExprEnv, TV.TyVarEnv, MutVarEnv, PathConds)
+                  | StartedBuilding Name
+                  deriving (Show, Eq, Read, Generic, Data)
+
+instance Hashable LitTableCond
+
+data LitTable = LitTable { lt_arg :: Id, lt_mapping :: HM.HashMap PathConds Expr }
+                deriving (Show, Eq, Read, Generic, Data)
+
+instance Hashable LitTable
+
+instance Named LitTable where
+    names (LitTable { lt_arg = lta, lt_mapping = ltm }) = names lta <> names ltm
+    rename old new (LitTable { lt_arg = lta, lt_mapping = ltm }) = LitTable { lt_arg = rename old new lta
+                                                                            , lt_mapping = rename old new ltm }
+    renames hm (LitTable { lt_arg = lta, lt_mapping = ltm }) = LitTable { lt_arg = renames hm lta
+                                                                        , lt_mapping = renames hm ltm }
+
+instance Named LitTableCond where
+    names (Exploring pc) = names pc
+    names (Diff sd prev_s) = names sd <> names prev_s
+    names (StartedBuilding n) = names n
+
+    rename old new (Exploring pc) = Exploring $ rename old new pc
+    rename old new (Diff sd prev_s) = Diff (rename old new sd) (rename old new prev_s)
+    rename old new (StartedBuilding n) = StartedBuilding $ rename old new n
+
+    renames hm (Exploring pc) = Exploring $ renames hm pc
+    renames hm (Diff sd prev_s) = Diff (renames hm sd) (renames hm prev_s)
+    renames hm (StartedBuilding n) = StartedBuilding $ renames hm n
+
+instance Named StateDiff where
+    names sd = names (new_conc_entries sd)
+            <> names (new_sym_entries sd)
+            <> names (new_path_conds sd)
+            <> names (concretized sd)
+            <> names (new_assert_ids sd)
+            <> names (new_curr_expr sd)
+            <> names (new_conc_types sd)
+            <> names (new_sym_types sd)
+            <> names (new_mut_vars sd)
+
+    rename old new sd =
+        SD { new_conc_entries = rename old new (new_conc_entries sd)
+           , new_sym_entries = rename old new (new_sym_entries sd)
+           , new_path_conds = rename old new (new_path_conds sd)
+           , concretized = rename old new (concretized sd)
+           , new_true_assert = new_true_assert sd
+           , new_assert_ids = rename old new (new_assert_ids sd)
+           , new_curr_expr = rename old new (new_curr_expr sd)
+           , new_conc_types = rename old new (new_conc_types sd)
+           , new_sym_types = rename old new (new_sym_types sd)
+           , new_mut_vars = rename old new (new_mut_vars sd)
+           }
+
+    renames hm sd =
+        SD { new_conc_entries = renames hm (new_conc_entries sd)
+           , new_sym_entries = renames hm (new_sym_entries sd)
+           , new_path_conds = renames hm (new_path_conds sd)
+           , concretized = renames hm (concretized sd)
+           , new_true_assert = new_true_assert sd
+           , new_assert_ids = renames hm (new_assert_ids sd)
+           , new_curr_expr = renames hm (new_curr_expr sd)
+           , new_conc_types = renames hm (new_conc_types sd)
+           , new_sym_types = renames hm (new_sym_types sd)
+           , new_mut_vars = renames hm (new_mut_vars sd)
+           }
+
+instance ASTContainer LitTable Type where
+    containedASTs (LitTable { lt_arg = lta, lt_mapping = ltm }) = containedASTs lta <> containedASTs ltm
+    modifyContainedASTs f (LitTable { lt_arg = lta, lt_mapping = ltm }) = LitTable { lt_arg = modifyContainedASTs f lta
+                                                                                   , lt_mapping = modifyContainedASTs f ltm }
+
+instance ASTContainer LitTable Expr where
+    containedASTs (LitTable { lt_arg = lta, lt_mapping = ltm }) = containedASTs lta <> containedASTs ltm
+    modifyContainedASTs f (LitTable { lt_arg = lta, lt_mapping = ltm }) = LitTable { lt_arg = modifyContainedASTs f lta
+                                                                                   , lt_mapping = modifyContainedASTs f ltm }
+
+instance ASTContainer LitTableCond Type where
+    containedASTs (Exploring pc) = containedASTs pc
+    containedASTs (Diff sd prev_s) = (containedASTs sd) ++ (containedASTs prev_s)
+    containedASTs (StartedBuilding n) = containedASTs n
+
+    modifyContainedASTs f (Exploring pc) = Exploring $ modifyContainedASTs f pc
+    modifyContainedASTs f (Diff sd prev_s) = Diff (modifyContainedASTs f sd) (modifyContainedASTs f prev_s)
+    modifyContainedASTs f (StartedBuilding n) = StartedBuilding $ modifyContainedASTs f n
+
+instance ASTContainer LitTableCond Expr where
+    containedASTs (Exploring pc) = containedASTs pc
+    containedASTs (Diff sd prev_s) = (containedASTs sd) ++ (containedASTs prev_s)
+    containedASTs (StartedBuilding n) = containedASTs n
+
+    modifyContainedASTs f (Exploring pc) = Exploring $ modifyContainedASTs f pc
+    modifyContainedASTs f (Diff sd prev_s) = Diff (modifyContainedASTs f sd) (modifyContainedASTs f prev_s)
+    modifyContainedASTs f (StartedBuilding n) = StartedBuilding $ modifyContainedASTs f n
+
+instance ASTContainer StateDiff Type where
+    containedASTs sd = containedASTs (new_conc_entries sd)
+                    ++ containedASTs (new_sym_entries sd)
+                    ++ containedASTs (new_path_conds sd)
+                    ++ containedASTs (concretized sd)
+                    ++ containedASTs (new_assert_ids sd)
+                    ++ containedASTs (new_curr_expr sd)
+                    ++ containedASTs (new_conc_types sd)
+                    ++ containedASTs (new_sym_types sd)
+                    ++ containedASTs (new_mut_vars sd)
+
+    modifyContainedASTs f sd =
+        SD { new_conc_entries = modifyContainedASTs f (new_conc_entries sd)
+           , new_sym_entries = modifyContainedASTs f (new_sym_entries sd)
+           , new_path_conds = modifyContainedASTs f (new_path_conds sd)
+           , concretized = modifyContainedASTs f (concretized sd)
+           , new_true_assert = new_true_assert sd
+           , new_assert_ids = modifyContainedASTs f (new_assert_ids sd)
+           , new_curr_expr = modifyContainedASTs f (new_curr_expr sd)
+           , new_conc_types = modifyContainedASTs f (new_conc_types sd)
+           , new_sym_types = modifyContainedASTs f (new_sym_types sd)
+           , new_mut_vars = modifyContainedASTs f (new_mut_vars sd)
+           }
+
+instance ASTContainer StateDiff Expr where
+    containedASTs sd = containedASTs (new_conc_entries sd)
+                    ++ containedASTs (new_sym_entries sd)
+                    ++ containedASTs (new_path_conds sd)
+                    ++ containedASTs (concretized sd)
+                    ++ containedASTs (new_assert_ids sd)
+                    ++ containedASTs (new_curr_expr sd)
+                    ++ containedASTs (new_conc_types sd)
+                    ++ containedASTs (new_sym_types sd)
+                    ++ containedASTs (new_mut_vars sd)
+
+    modifyContainedASTs f sd =
+        SD { new_conc_entries = modifyContainedASTs f (new_conc_entries sd)
+           , new_sym_entries = modifyContainedASTs f (new_sym_entries sd)
+           , new_path_conds = modifyContainedASTs f (new_path_conds sd)
+           , concretized = modifyContainedASTs f (concretized sd)
+           , new_true_assert = new_true_assert sd
+           , new_assert_ids = modifyContainedASTs f (new_assert_ids sd)
+           , new_curr_expr = modifyContainedASTs f (new_curr_expr sd)
+           , new_conc_types = modifyContainedASTs f (new_conc_types sd)
+           , new_sym_types = modifyContainedASTs f (new_sym_types sd)
+           , new_mut_vars = modifyContainedASTs f (new_mut_vars sd)
+           }

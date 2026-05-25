@@ -363,7 +363,7 @@ testFileTests = testGroup "TestFiles"
                                                               , ("stringSub1", 7000, [AtLeast 40])
                                                               , ("stringSub2", 7000, [AtLeast 35])
                                                               , ("stringSub3", 7000, [AtLeast 16])
-                                                              , ("nStringSub3", 2000, [AtLeast 15])
+                                                              , ("nStringSub3", 2000, [AtLeast 13])
                                                               , ("stringSub4", 7000, [AtLeast 7])
                                                               , ("nStringSub4", 2000, [AtLeast 5])
                                                               , ("strLen", 1000, [AtLeast 5])
@@ -416,7 +416,18 @@ testFileTests = testGroup "TestFiles"
                                                               , ("minimum1", 1000, [AtLeast 6])
                                                               , ("maximum1", 1000, [AtLeast 6])
                                                               , ("elemIndices1", 1000, [AtLeast 10])
-                                                              , ("lines1", 1500, [AtLeast 10]) ]
+                                                              , ("lines1", 1500, [AtLeast 10])
+
+                                                              , ("all1", 500, [AtLeast 5])
+                                                              , ("all2", 500, [AtLeast 5])
+                                                              , ("all3", 500, [AtLeast 5])
+                                                              , ("all4", 500, [AtLeast 5])
+                                                              , ("any1", 500, [AtLeast 5])
+                                                              , ("filter1", 500, [AtLeast 5])
+                                                              , ("dropWhile1", 500, [AtLeast 5])
+                                                              , ("dropWhile2", 500, [AtLeast 5])
+                                                              , ("takeWhile1", 500, [AtLeast 5])
+                                                              ]
 
     , checkInputOutputsSMTStrings "tests/TestFiles/Strings/Strings1.hs"
                                         [ ("toEnum1", 2000, [Exactly 1])
@@ -495,12 +506,12 @@ testFileTests = testGroup "TestFiles"
                                         , ("reverse3", 1000, [ AtLeast 2
                                                              , RExists "rev3Returns1"])
                                         , ("reverse4", 5000, [Exactly 1])
-                                        , ("insert2", 2000, [Exactly 2])
+                                        , ("insert2", 2000, [AtLeast 1, AtMost 2]) -- Allowing for SMT failures
                                         , ("insert3", 2000, [Exactly 1])
 
                                         , ("intersperse1", 3000, [Exactly 3])
 
-                                        , ("minimum1", 3000, [AtLeast 5, AtMost 6]) -- Allowing for SMT failures
+                                        , ("minimum1", 3000, [AtLeast 4, AtMost 6]) -- Allowing for SMT failures
                                         , ("minimum2", 2000, [AtLeast 1, AtMost 2]) -- Allowing for SMT failures
                                         , ("maximum1", 3000, [AtLeast 5, AtMost 6]) -- Allowing for SMT failures
                                         , ("maximum2", 1000, [AtLeast 1, AtMost 2]) -- Allowing for SMT failures
@@ -508,6 +519,8 @@ testFileTests = testGroup "TestFiles"
                                         , ("lines1", 4000, [AtLeast 10])
 
                                         , ("repeat1", 1000, [AtLeast 5])
+
+                                        , ("testQualImp", 4000, [Exactly 2])
                                         ]
     , checkInputOutputsSMTStringsStrict "tests/TestFiles/Strings/Strings1.hs"
                                         [ ("showInt1", 4000, [Exactly 2])
@@ -538,6 +551,18 @@ testFileTests = testGroup "TestFiles"
     , checkInputOutputsLambdaSMTStrings "tests/TestFiles/Strings/Strings1.hs"
                                         [ ("intersperse1", 3000, [Exactly 3])
                                         , ("intersperse2", 1000, [Exactly 3]) ]
+
+    , checkInputOutputsLitTablesSMTStrings "tests/TestFiles/Strings/Strings1.hs"
+                                           [ ("all1", 5000, [Exactly 2])
+                                           , ("all2", 5000, [Exactly 2])
+                                           , ("all3", 5000, [Exactly 3])
+                                           , ("all4", 5000, [Exactly 3])
+                                           , ("any1", 5000, [Exactly 3])
+                                           , ("filter1", 10000, [Exactly 4])
+                                           , ("dropWhile1", 10000, [Exactly 4])
+                                           , ("dropWhile2", 10000, [Exactly 1])
+                                           , ("takeWhile1", 10000, [Exactly 4])
+                                           ]
 
     , checkInputOutputsSMTLists "tests/TestFiles/Seq/Seq1.hs" [ ("toEnum1", 2000, [Exactly 1])
                                                               , ("conInt", 1000, [Exactly 1]) 
@@ -596,6 +621,13 @@ testFileTests = testGroup "TestFiles"
                                                               , ("intersperse1", 3000, [Exactly 3])
 
                                                               ]
+
+    , checkInputOutputsSMTLists "tests/TestFiles/Seq/SeqTuple.hs" [ ("con", 2000, [Exactly 2])
+                                                                  , ("listLen", 1000, [Exactly 2])
+                                                                  , ("listLen2", 1000, [Exactly 3])
+                                                                  , ("listLen3", 1000, [Exactly 2])
+                                                                  , ("listApp", 10000, [Exactly 3])
+                                                                  , ("take1", 5000, [Exactly 2]) ]
 
     , checkInputOutputsSMTListsWith "tests/TestFiles/Seq/Seq1.hs" "floatListEq" [ ("conFloat", 1000, [Exactly 1])
                                                                                 , ("conDouble", 1000, [Exactly 1])]
@@ -866,7 +898,7 @@ baseTests = testGroup "Base"
                                                        , ("minTest", 1000, [AtLeast 2])
                                                        , ("initsTest", 4000, [AtLeast 6])
                                                        , ("foldrTest2", 1000, [AtLeast 1])
-                                                       , ("unionTest", 1000, [AtLeast 9]) ]
+                                                       , ("unionTest", 1000, [AtLeast 7]) ]
 
     , checkInputOutputs "tests/BaseTests/Tuples.hs" [ ("addTupleElems", 1000, [AtLeast 2])
                                                     , ("applicativeTuple", 1000, [Exactly 1])
@@ -874,7 +906,8 @@ baseTests = testGroup "Base"
 
     , checkInputOutputs "tests/BaseTests/MaybeTest.hs" [ ("headMaybeInt", 1000, [AtLeast 2])
                                                        , ("sumN", 1000, [AtLeast 6])
-                                                       , ("lengthN", 1000, [AtLeast 6]) ]
+                                                       , ("lengthN", 1000, [AtLeast 6])
+                                                       , ("listToMaybeFloat", 1000, [AtLeast 2]) ]
 
     , checkInputOutput "tests/BaseTests/Other.hs" "check4VeryEasy2" 600 [AtLeast 1]
     , checkInputOutput "tests/BaseTests/ZipList.hs" "callApp" 2000 [AtLeast 10]

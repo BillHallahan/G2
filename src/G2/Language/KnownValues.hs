@@ -29,6 +29,9 @@ data KnownValues = KnownValues {
                  , tyInteger :: Name
                  , dcInteger :: Name
 
+                 , tyWord :: Name
+                 , dcWord :: Name
+
                  , tyChar :: Name
                  , dcChar :: Name
 
@@ -113,6 +116,7 @@ data KnownValues = KnownValues {
                  , checkStrLazy :: Name
                  
                  , usingSMTLams :: Name
+                 , usingLiteralTables :: Name
 
                  -- Useful functions
                  , errorFunc :: Name
