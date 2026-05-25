@@ -904,6 +904,8 @@ baseTests = testGroup "Base"
                                                        , ("listToMaybeFloat", 1000, [AtLeast 2]) ]
 
     , checkInputOutput "tests/BaseTests/Other.hs" "check4VeryEasy2" 600 [AtLeast 1]
+    , checkInputOutputs "tests/BaseTests/Ratio.hs" [ ("manipRatio", 20000, [AtLeast 5])
+                                                   , ("callApprox", 20000, [AtLeast 5]) ]
     , checkInputOutput "tests/BaseTests/ZipList.hs" "callApp" 2000 [AtLeast 10]
     ]
 
