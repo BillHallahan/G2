@@ -508,6 +508,7 @@ mkPrimHaskell pg = pr
         pr WGenCat = "wgencat"
 
         pr FoldLeft = "seq.fold_left"
+        pr FoldLeftI = "seq.fold_lefti"
 
         pr InRe = "str.in_re"
         pr ToRe = "str.to_re"
