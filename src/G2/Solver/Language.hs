@@ -137,7 +137,7 @@ data SMTAST = (:>=) !SMTAST !SMTAST
             | StrReverseSMT !SMTAST
             | SeqNthSMT !SMTAST !SMTAST
 
-            | MapSMT SMTName Sort SMTName Sort !SMTAST !SMTAST
+            | MapSMT SMTName Sort !SMTAST !SMTAST
             | FoldLeftSMT SMTName Sort SMTName Sort !SMTAST !SMTAST !SMTAST
 
             | InReSMT !SMTAST !SMTAST
@@ -467,7 +467,7 @@ instance AST SMTAST where
     modifyChildren f (StrSuffixOfSMT x y) = StrSuffixOfSMT (f x) (f y)
     modifyChildren f (SeqNthSMT x y) = SeqNthSMT (f x) (f y)
 
-    modifyChildren f (MapSMT n1 s1 x y) = MapSMT n1 s2 (f x) (f y)
+    modifyChildren f (MapSMT n1 s1 x y) = MapSMT n1 s1 (f x) (f y)
     modifyChildren f (FoldLeftSMT n1 s1 n2 s2 x y z) = FoldLeftSMT n1 s1 n2 s2 (f x) (f y) (f z)
 
     modifyChildren f (InReSMT x y) = InReSMT (f x) (f y)

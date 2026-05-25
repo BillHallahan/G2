@@ -279,7 +279,6 @@ primDefs' b c l unit =
                           $ mkApp [Prim Map (mkTyFun [mkTyFun [TyVar a, TyVar $ x TYPE], seqTyA, seqTyX])
                                   , Var $ f (mkTyFun [TyVar a, TyVar $ x TYPE])
                                   , Var $ v seqTyA ])
-              )
               , ("smtFoldLeft#", Lam TypeL a . Lam TypeL (x TYPE)
                                . Lam TermL (f (TyFun (TyVar a) (TyFun (TyVar d) (TyVar a))))
                                . Lam TermL (u (TyVar a))

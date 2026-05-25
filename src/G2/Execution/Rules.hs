@@ -249,7 +249,7 @@ evalApp s@(State { expr_env = eenv
         forceEval (App e1' e2) eenv tenv tv_env kv tc s ng
     | [Prim Map t, lam] <- unApp e1 =
         let
-            lam' simplifyExprs eenv eenv lam
+            lam' = simplifyExprs eenv eenv lam
             e1' = mkApp [Prim Map t, lam']
         in
         forceEval (App e1' e2) eenv tenv tv_env kv tc s ng

@@ -518,6 +518,7 @@ lonePrim :: Primitive -> SMTAST
 lonePrim ReNone = ReNoneSMT
 lonePrim ReAll = ReAllSMT
 lonePrim ReAllChar = ReAllCharSMT
+lonePrim p = error $ "unhandled Prim in lonePrim: " ++ show p
 
 -- | We split based on whether the passed Expr is a function or known data constructor, or an unknown data constructor
 funcToSMT :: TV.TyVarEnv -> Expr -> [Expr] -> SMTAST
