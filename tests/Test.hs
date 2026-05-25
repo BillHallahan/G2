@@ -425,6 +425,7 @@ testFileTests = testGroup "TestFiles"
                                                               , ("any1", 500, [AtLeast 5])
                                                               , ("filter1", 500, [AtLeast 5])
                                                               , ("dropWhile1", 500, [AtLeast 5])
+                                                              , ("dropWhile2", 500, [AtLeast 5])
                                                               , ("takeWhile1", 500, [AtLeast 5])
                                                               ]
 
@@ -559,6 +560,7 @@ testFileTests = testGroup "TestFiles"
                                            , ("any1", 5000, [Exactly 3])
                                            , ("filter1", 10000, [Exactly 4])
                                            , ("dropWhile1", 10000, [Exactly 4])
+                                           , ("dropWhile2", 10000, [Exactly 1])
                                            , ("takeWhile1", 10000, [Exactly 4])
                                            ]
 
