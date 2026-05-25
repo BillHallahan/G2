@@ -424,6 +424,9 @@ testFileTests = testGroup "TestFiles"
                                                               , ("all4", 500, [AtLeast 5])
                                                               , ("any1", 500, [AtLeast 5])
                                                               , ("filter1", 500, [AtLeast 5])
+                                                              , ("dropWhile1", 500, [AtLeast 5])
+                                                              , ("dropWhile2", 500, [AtLeast 5])
+                                                              , ("takeWhile1", 500, [AtLeast 5])
                                                               ]
 
     , checkInputOutputsSMTStrings "tests/TestFiles/Strings/Strings1.hs"
@@ -556,6 +559,9 @@ testFileTests = testGroup "TestFiles"
                                            , ("all4", 5000, [Exactly 3])
                                            , ("any1", 5000, [Exactly 3])
                                            , ("filter1", 10000, [Exactly 4])
+                                           , ("dropWhile1", 10000, [Exactly 4])
+                                           , ("dropWhile2", 10000, [Exactly 1])
+                                           , ("takeWhile1", 10000, [Exactly 4])
                                            ]
 
     , checkInputOutputsSMTLists "tests/TestFiles/Seq/Seq1.hs" [ ("toEnum1", 2000, [Exactly 1])

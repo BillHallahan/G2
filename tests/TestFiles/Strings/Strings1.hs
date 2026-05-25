@@ -649,6 +649,21 @@ filter1 s = case filter (/= '$') s of
 --                     "xyz" -> 3
 --                     _ -> 4
 
+dropWhile1 :: String -> Int
+dropWhile1 s = case dropWhile (== '$') s of
+                   "$h" -> 0 -- Unreachable
+                   "h" -> 1
+                   _ -> 2
+
+dropWhile2 :: String -> String
+dropWhile2 s = dropWhile (== '$') s
+
+takeWhile1 :: String -> Int
+takeWhile1 s = case takeWhile (/= '@') s of
+                   "@" -> 0 -- Unreachable
+                   "a" -> 1
+                   _ -> 2
+
 testQualImp :: String -> M.Maybe Char
 testQualImp s = case "12345" `isInfixOf` s of
                     True -> M.Nothing

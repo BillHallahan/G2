@@ -255,6 +255,19 @@ evalApp s@(State { expr_env = eenv
         ( RuleEvalPrimToNorm
         , newPCEmpty $ s { expr_env = eenv', curr_expr = CurrExpr er exP' }
         , ng)
+    | [Prim FoldLeftI t, lam, offset, initial] <- unApp e1 =
+        let lam' = simplifyExprs eenv eenv lam
+            e1' = mkApp [Prim FoldLeftI t, lam', offset, initial]
+
+            (exP, eenv') = evalPrimsSharing eenv tenv tv_env kv tc (App e1' e2)
+
+            ts = getNestedTickish exP
+            exP' = foldr Tick (stripAllTicks exP) ts
+            er = if null ts then Return else Evaluate
+        in
+        ( RuleEvalPrimToNorm
+        , newPCEmpty $ s { expr_env = eenv', curr_expr = CurrExpr er exP' }
+        , ng)
     -- Float ticks to the top of a prim
     | Prim _ _:es <- unApp (App e1 e2)
     , ts <- concatMap getTickish es
