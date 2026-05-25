@@ -12,8 +12,6 @@ module G2.Execution.PrimitiveEval ( evalPrimsSharing
                                   , toString
                                   , toExprList) where
 
-import Debug.Trace
-
 import G2.Execution.LiteralTable
 import G2.Execution.NewPC
 import G2.Execution.MutVar
