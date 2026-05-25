@@ -136,7 +136,7 @@ litTableToLamBool s ng lt =
                     [] -> mkFalse kv
                     (hd:tl) ->
                         L.foldl'
-                            (\prev_exp pcs -> mkApp [Prim Or (combBoolFunTy kv), prev_exp, pcsToExprBool kv pcs])
+                            (\prev_exp pcs -> mkApp [Prim Or (tripleBoolTy kv), prev_exp, pcsToExprBool kv pcs])
                             (pcsToExprBool kv hd)
                             tl
 
@@ -150,15 +150,15 @@ pcsToExprBool kv pcs =
     case pcs of
         [] -> mkTrue kv
         (hd:tl) ->
-            L.foldl' (\prev_exp pc -> mkApp [Prim And (combBoolFunTy kv), prev_exp, pcToExprBool kv pc]) (pcToExprBool kv hd) tl
+            L.foldl' (\prev_exp pc -> mkApp [Prim And (tripleBoolTy kv), prev_exp, pcToExprBool kv pc]) (pcToExprBool kv hd) tl
 
 -- Turn one path condition into an expression, with equality
 pcToExprBool :: KnownValues -> PathCond -> Expr
 pcToExprBool kv pc =
     case pc of
-        ExtCond expr bool -> if bool then expr else mkApp [Prim Not (combBoolFunTy kv), expr]
-        AltCond lit var bool -> let eq_e = mkApp [Prim Eq (combBoolFunTy kv), Lit lit, var]
-                                in if bool then eq_e else mkApp [Prim Not (combBoolFunTy kv), eq_e]
+        ExtCond expr bool -> if bool then expr else mkApp [Prim Not (doubleBoolTy kv), expr]
+        AltCond lit var bool -> let eq_e = mkApp [Prim Eq (tripleBoolTy kv), Lit lit, var]
+                                in if bool then eq_e else mkApp [Prim Not (doubleBoolTy kv), eq_e]
         _ -> error $ "unhandled pc:\n" ++ show pc
 
 litTableToLamNonBool :: State t -> NameGen -> LitTable -> (Expr, EESymDiff, NameGen)
@@ -174,5 +174,8 @@ litTableToLamNonBool s ng lt =
         fun_exp = Lam TermL elem_var ite_exp1
     in (fun_exp, [elem_var], ng1)
 
-combBoolFunTy :: KnownValues -> Type
-combBoolFunTy kv = mkTyFun [tyBool kv, tyBool kv, tyBool kv]
+tripleBoolTy :: KnownValues -> Type
+tripleBoolTy kv = mkTyFun [tyBool kv, tyBool kv, tyBool kv]
+
+doubleBoolTy :: KnownValues -> Type
+doubleBoolTy kv = mkTyFun [tyBool kv, tyBool kv]
