@@ -287,6 +287,17 @@ primDefs' b c l unit =
                                     , Var $ (f (TyFun (TyVar a) (TyFun (TyVar d) (TyVar a))))
                                     , Var $ u (TyVar a)
                                     , Var $ v seqTyX ])
+              , ("smtFoldLeftI#", Lam TypeL (y TYPE) -- Runtime representation of accumulator, so we can have Int#
+                                . Lam TypeL a . Lam TypeL (x TYPE)
+                                . Lam TermL (f (TyFun TyLitInt (TyFun (TyVar a) (TyFun (TyVar d) (TyVar a)))))
+                                . Lam TermL (z TyLitInt)
+                                . Lam TermL (u (TyVar a))
+                                . Lam TermL (v seqTyX)
+                            $ mkApp [ Prim FoldLeftI (mkTyFun [TyFun TyLitInt (TyFun (TyVar a) (TyFun (TyVar d) (TyVar a))), TyLitInt, TyVar a, seqTyX, TyVar a])
+                                    , Var $ (f (TyFun TyLitInt (TyFun (TyVar a) (TyFun (TyVar d) (TyVar a)))))
+                                    , Var $ z TyLitInt
+                                    , Var $ u (TyVar a)
+                                    , Var $ v seqTyX ])
 
               -- Regexes
               , ("inRe#", Lam TypeL (x TYPE) . Lam TermL (y seqTyX) . Lam TermL (z seqTyX)

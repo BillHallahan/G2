@@ -253,6 +253,12 @@ evalApp s@(State { expr_env = eenv
             e1' = mkApp [Prim Map t, lam']
         in
         forceEval (App e1' e2) eenv tenv tv_env kv tc s ng
+    | [Prim FoldLeftI t, lam, offset, initial] <- unApp e1 =
+        let
+            lam' = simplifyExprs eenv eenv lam
+            e1' = mkApp [Prim FoldLeftI t, lam', offset, initial]
+        in
+        forceEval (App e1' e2) eenv tenv tv_env kv tc s ng
     -- Float ticks to the top of a prim
     | Prim _ _:es <- unApp (App e1 e2)
     , ts <- concatMap getTickish es
@@ -277,16 +283,7 @@ evalApp s@(State { expr_env = eenv
           )
         , ng')
     | (Prim pr _):_ <- unApp (App e1 e2) =
-        let
-            (exP, eenv') = evalPrimsSharing eenv tenv tv_env kv tc (App e1 e2)
-
-            ts = getNestedTickish exP
-            exP' = foldr Tick (stripAllTicks exP) ts
-            er = if null ts then Return else Evaluate
-        in
-        ( RuleEvalPrimToNorm
-        , newPCEmpty $ s { expr_env = eenv', curr_expr = CurrExpr er exP' }
-        , ng)
+        forceEval (App e1 e2) eenv tenv tv_env kv tc s ng
     | isExprValueForm eenv (App e1 e2) =
         ( RuleReturnAppSWHNF
         , newPCEmpty $ s { curr_expr = CurrExpr Return (App e1 e2) }

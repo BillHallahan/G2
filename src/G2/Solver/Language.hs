@@ -139,6 +139,7 @@ data SMTAST = (:>=) !SMTAST !SMTAST
 
             | MapSMT SMTName Sort !SMTAST !SMTAST
             | FoldLeftSMT SMTName Sort SMTName Sort !SMTAST !SMTAST !SMTAST
+            | FoldLeftISMT SMTName Sort SMTName Sort SMTName Sort !SMTAST !SMTAST !SMTAST !SMTAST
 
             | InReSMT !SMTAST !SMTAST
             | ToReSMT !SMTAST
@@ -347,6 +348,7 @@ instance AST SMTAST where
 
     children (MapSMT _ _ x y) = [x, y]
     children (FoldLeftSMT _ _ _ _ x y z) = [x, y, z]
+    children (FoldLeftISMT _ _ _ _ _ _ w x y z) = [w, x, y, z]
 
     children (InReSMT x y) = [x, y]
     children (ToReSMT x) = [x]
@@ -469,6 +471,8 @@ instance AST SMTAST where
 
     modifyChildren f (MapSMT n1 s1 x y) = MapSMT n1 s1 (f x) (f y)
     modifyChildren f (FoldLeftSMT n1 s1 n2 s2 x y z) = FoldLeftSMT n1 s1 n2 s2 (f x) (f y) (f z)
+    modifyChildren f (FoldLeftISMT idx idx_t n1 s1 n2 s2 w x y z) =
+        FoldLeftISMT idx idx_t n1 s1 n2 s2 (f w) (f x) (f y) (f z)
 
     modifyChildren f (InReSMT x y) = InReSMT (f x) (f y)
     modifyChildren f (ToReSMT x) = ToReSMT (f x)

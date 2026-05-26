@@ -656,7 +656,7 @@ map1 s = case map (\c -> chr (ord c + 1)) s of
 
 map2 :: String -> Int
 map2 s = case map inner s of
-            "ab" -> 0 -- Impossible
+            "ab" -> 0 -- Unreachable
             "bc" -> 1
             "cdefg" -> 2
             "bcdefghijklmnopqrstuvwxyzbc" -> 3
@@ -668,6 +668,21 @@ map2 s = case map inner s of
 --             "ab" -> 1
 --             "de" -> 2
 --             _ -> 3
+
+dropWhile1 :: String -> Int
+dropWhile1 s = case dropWhile (== '$') s of
+                   "$h" -> 0 -- Unreachable
+                   "h" -> 1
+                   _ -> 2
+
+dropWhile2 :: String -> String
+dropWhile2 s = dropWhile (== '$') s
+
+takeWhile1 :: String -> Int
+takeWhile1 s = case takeWhile (/= '@') s of
+                   "@" -> 0 -- Unreachable
+                   "a" -> 1
+                   _ -> 2
 
 testQualImp :: String -> M.Maybe Char
 testQualImp s = case "12345" `isInfixOf` s of
