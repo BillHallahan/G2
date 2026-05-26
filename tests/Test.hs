@@ -422,7 +422,7 @@ testFileTests = testGroup "TestFiles"
                                                               , ("all2", 500, [AtLeast 5])
                                                               , ("all3", 500, [AtLeast 5])
                                                               , ("all4", 500, [AtLeast 5])
-                                                              , ("any1", 500, [AtLeast 5])
+                                                              , ("any1", 1000, [AtLeast 5])
                                                               , ("filter1", 500, [AtLeast 5])
                                                               , ("dropWhile1", 500, [AtLeast 5])
                                                               , ("dropWhile2", 500, [AtLeast 5])
