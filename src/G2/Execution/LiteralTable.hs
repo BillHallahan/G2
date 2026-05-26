@@ -168,7 +168,7 @@ litTableToLamNonBool s ng lt =
         tv_env = tyvar_env s
         lt_lst = HM.toList $ lt_mapping lt
         -- `Char`s are represented as one character `String`s here, so we
-        -- need to simply take the first character.
+        -- need to extract the first character.
         wrap e t = if t == tyChar kv
                        then mkApp [Prim SeqNth TyUnknown, e, Lit $ LitInt 0]
                        else e

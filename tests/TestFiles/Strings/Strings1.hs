@@ -662,7 +662,7 @@ map2 s = case map inner s of
             "bcdefghijklmnopqrstuvwxyzbc" -> 3
             _ -> 4
 
--- Note: z3 also returns sat on unsat formulas here.
+-- Note: z3 also screws up here, this time by returning a bad model
 -- map3 :: String -> Int
 -- map3 s = case map (\c -> chr (ord c + 1)) s of
 --             "ab" -> 1
