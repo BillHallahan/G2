@@ -651,9 +651,23 @@ filter1 s = case filter (/= '$') s of
 
 map1 :: String -> Int
 map1 s = case map (\c -> chr (ord c + 1)) s of
-            "ab" -> 1
-            "de" -> 2
-            _ -> 3
+            "d" -> 1
+            _ -> 2
+
+map2 :: String -> Int
+map2 s = case map inner s of
+            "ab" -> 0 -- Impossible
+            "bc" -> 1
+            "cdefg" -> 2
+            "bcdefghijklmnopqrstuvwxyzbc" -> 3
+            _ -> 4
+
+-- Note: z3 also returns sat on unsat formulas here.
+-- map3 :: String -> Int
+-- map3 s = case map (\c -> chr (ord c + 1)) s of
+--             "ab" -> 1
+--             "de" -> 2
+--             _ -> 3
 
 testQualImp :: String -> M.Maybe Char
 testQualImp s = case "12345" `isInfixOf` s of
