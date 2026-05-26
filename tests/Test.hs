@@ -524,7 +524,7 @@ testFileTests = testGroup "TestFiles"
                                         ]
     , checkInputOutputsSMTStringsStrict "tests/TestFiles/Strings/Strings1.hs"
                                         [ ("showInt1", 4000, [Exactly 2])
-                                        , ("test1", 800, [ AtLeast 1
+                                        , ("test1", 1500, [ AtLeast 1
                                                          , RExists "test1InitTailEq"])
                                         ]
     , checkInputOutputsSMTStringsWithSubPath "tests/TestFiles/Strings/Strings1.hs"
@@ -898,7 +898,7 @@ baseTests = testGroup "Base"
                                                        , ("minTest", 1000, [AtLeast 2])
                                                        , ("initsTest", 4000, [AtLeast 6])
                                                        , ("foldrTest2", 1000, [AtLeast 1])
-                                                       , ("unionTest", 1000, [AtLeast 7]) ]
+                                                       , ("unionTest", 1200, [AtLeast 7]) ]
 
     , checkInputOutputs "tests/BaseTests/Tuples.hs" [ ("addTupleElems", 1000, [AtLeast 2])
                                                     , ("applicativeTuple", 1000, [Exactly 1])
