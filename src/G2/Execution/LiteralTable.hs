@@ -165,11 +165,27 @@ litTableToLamNonBool :: State t -> NameGen -> LitTable -> (Expr, EESymDiff, Name
 litTableToLamNonBool s ng lt =
     let (elem_var, unboxed_name, ng1) = mkLamArg s ng lt
         kv = known_values s
+        tv_env = tyvar_env s
         lt_lst = HM.toList $ lt_mapping lt
-        ite_exp = L.foldl'
-                    (\prev_exp (pcs, e) -> mkApp [Prim Ite TyUnknown, (pcsToExprBool kv $ PC.toList pcs), e, prev_exp])
-                    (Prim Error TyBottom)
-                    (reverse lt_lst)
+        -- `Char`s are represented as one character `String`s here, so we
+        -- need to simply take the first character.
+        wrap e t = if t == tyChar kv
+                       then mkApp [Prim SeqNth TyUnknown, e, Lit $ LitInt 0]
+                       else e
+        -- At this point, we assume there are no `Error`s in the literal table. This
+        -- means we have a total function, and we can pick one option to be the default.
+        ite_exp = case lt_lst of
+                    ((_ {- We ignore the PathConds for the default -}, def_e):rest) ->
+                        L.foldl'
+                            (\prev_exp (pcs, e) ->
+                                mkApp [ Prim Ite TyUnknown
+                                      , (pcsToExprBool kv $ PC.toList pcs)
+                                      , (wrap e $ typeOf tv_env e)
+                                      , prev_exp]
+                            )
+                            (wrap def_e $ typeOf tv_env def_e)
+                            (reverse rest)
+                    _ -> error "impossible, empty list despite checking in litTableToLam"
         ite_exp1 = replaceVar unboxed_name (Var elem_var) ite_exp
         fun_exp = Lam TermL elem_var ite_exp1
     in (fun_exp, [elem_var], ng1)

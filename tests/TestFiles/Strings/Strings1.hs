@@ -651,8 +651,8 @@ filter1 s = case filter (/= '$') s of
 
 map1 :: String -> Int
 map1 s = case map (\c -> chr (ord c + 1)) s of
-            "de" -> 1
-            "ab" -> 2
+            "ab" -> 1
+            "de" -> 2
             _ -> 3
 
 testQualImp :: String -> M.Maybe Char
