@@ -52,7 +52,7 @@ def run_nofib_bench(filename, function = "main", var_settings = [], timeout = 30
                                        "--no-step-limit", "--search", "subpath", "--subpath-len", "8", "--hpc-discard-strat", "--validate", "--measure-coverage", "--time", str(timeout)] + var_settings)
 
 def run_nofib_bench_nrpc(filename, function = "main", var_settings = [], timeout = 300):
-    return run_nofib_bench(filename, function, ["--higher-nrpc", "--no-func-arg-states"] + var_settings, timeout)
+    return run_nofib_bench(filename, function, ["--higher-nrpc"] + var_settings, timeout)
 
 def generate_string_for_cov(benchmark, tickCount, covBL, covNRPC, lastTimeBL, lastTimeNrpc, bTick1s, nTick1s, bTick5s, nTick5s):
     #cichelli & \textbf{4} & 3 & 9.5 & 11 & 2\\ \hline
