@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 
+from multiprocessing import Pool
 import re
 import os
 import subprocess
@@ -49,7 +50,7 @@ def run_nofib_bench(filename, function = "main", var_settings = [], timeout = 30
     # --include nofib-symbolic/common --higher-order symbolic --hpc --hpc-print-times --print-num-nrpc --print-num-red-rules --solver-time --print-num-solver-calls --print-num-higher-states --no-step-limit --search subpath --subpath-len 8 --hpc-discard-strat --measure-coverage --time 60
     return run_g2(filename, function, ["--include", "nofib-symbolic/common", "--higher-order", "symbolic",
                                        "--hpc", "--hpc-print-times", "--print-num-nrpc", "--print-num-red-rules", "--solver-time", "--print-num-solver-calls", "--print-num-higher-states",
-                                       "--no-step-limit", "--search", "subpath", "--subpath-len", "8", "--hpc-discard-strat", "--validate", "--measure-coverage", "--time", str(timeout)] + var_settings)
+                                       "--no-step-limit", "--search", "subpath", "--subpath-len", "2", "--hpc-discard-strat", "--validate", "--measure-coverage", "--time", str(timeout)] + var_settings)
 
 def run_nofib_bench_nrpc(filename, function = "main", var_settings = [], timeout = 300):
     return run_nofib_bench(filename, function, ["--higher-nrpc"] + var_settings, timeout)
@@ -307,6 +308,12 @@ total_nrpc_timeout = 0
 
 total_programs_with_timeout = 0
 
+def run_benchmark_both_ways(arg):
+    (final_path, func, var_settings, timeout) = arg
+    res_bench = run_nofib_bench(final_path, func, var_settings, timeout)
+    res_bench_nrpc = run_nofib_bench_nrpc(final_path, func, var_settings, timeout)
+    return (final_path, func, res_bench, res_bench_nrpc)
+
 
 def run_nofib_set(setname, var_settings, timeout, use_reach_ticks = False):
         global total_nrpc_post_call_s 
@@ -335,43 +342,42 @@ def run_nofib_set(setname, var_settings, timeout, use_reach_ticks = False):
         latex_str_tbl4 += tempStr
         latex_str_tbl5 += tempStr
 
+        with Pool(processes=2) as pool:
+            arg_suite = [(file_dir, func, var_settings, timeout) for (file_dir, func) in benchmarks]
+            for (file_dir, func, res_bench, res_bench_nrpc) in pool.imap(run_benchmark_both_ways, arg_suite):
+                final_path = file_dir; #os.path.join(setpath, file_dir)
+                if os.path.isfile(final_path):
+                    print(file_dir + ", " + func);
+                    print("Baseline:")
+                    base_hpc_cov, base_cov, base_last, avg, base_tick_times, base_total, base_post_call, base_func_args, base_timeouts, branch_num = process_output(res_bench, use_reach_ticks)
+                    print("NRPC:")
+                    nrpc_hpc_cov, nrpc_cov, nrpc_last, avg_nrpc, nrpc_tick_times, nrpc_total, nrpc_post_call, nrpc_func_args, nrpc_timeout, _  = process_output(res_bench_nrpc, use_reach_ticks)
+                    bt1, bt3, bt5, nt1, nt3, nt5 = calculate_time_diff(dict(base_tick_times), dict(nrpc_tick_times))
+                    bo1, bo3, bo5, no1, no3, no5 = calculate_order(base_tick_times, nrpc_tick_times)
 
-        for (file_dir, func) in benchmarks:
-            final_path = file_dir; #os.path.join(setpath, file_dir)
-            if os.path.isfile(final_path):
-                print(file_dir + ", " + func);
-                res_bench = run_nofib_bench(final_path, func, var_settings, timeout)
-                print("Baseline:")
-                base_hpc_cov, base_cov, base_last, avg, base_tick_times, base_total, base_post_call, base_func_args, base_timeouts, branch_num = process_output(res_bench, use_reach_ticks)
-                res_bench_nrpc = run_nofib_bench_nrpc(final_path, func, var_settings, timeout)
-                print("NRPC:")
-                nrpc_hpc_cov, nrpc_cov, nrpc_last, avg_nrpc, nrpc_tick_times, nrpc_total, nrpc_post_call, nrpc_func_args, nrpc_timeout, _  = process_output(res_bench_nrpc, use_reach_ticks)
-                bt1, bt3, bt5, nt1, nt3, nt5 = calculate_time_diff(dict(base_tick_times), dict(nrpc_tick_times))
-                bo1, bo3, bo5, no1, no3, no5 = calculate_order(base_tick_times, nrpc_tick_times)
+                    total_nrpc_post_call_s += nrpc_post_call
+                    total_nrpc_func_arg_s += nrpc_func_args
+                    total_nrpc_timeout += nrpc_timeout
+                    if nrpc_timeout > 0:
+                        total_programs_with_timeout += 1
 
-                total_nrpc_post_call_s += nrpc_post_call
-                total_nrpc_func_arg_s += nrpc_func_args
-                total_nrpc_timeout += nrpc_timeout
-                if nrpc_timeout > 0:
-                    total_programs_with_timeout += 1
+                    graph_latex = generate_graph_string(file_dir, calculate_graph(base_tick_times), calculate_graph(nrpc_tick_times))
 
-                graph_latex = generate_graph_string(file_dir, calculate_graph(base_tick_times), calculate_graph(nrpc_tick_times))
+                    bench_name = path = os.path.normpath(file_dir)
+                    bench_name = bench_name.split(os.sep)[-2]                
 
-                bench_name = path = os.path.normpath(file_dir)
-                bench_name = bench_name.split(os.sep)[-2]                
-
-                data.append([file_dir, base_total, base_hpc_cov, str(base_cov), base_last, nrpc_hpc_cov, str(nrpc_cov), nrpc_last,
-                                str(bt1) + "/" + str(nt1), str(bt3) + "/" + str(nt3), str(bt5) + "/" + str(nt5),
-                                str(bo1) + "/" + str(no1), str(bo3) + "/" + str(no3), str(bo5) + "/" + str(no5),
-                                str(avg_nrpc), str(branch_num)])
-                generate_string_for_cov(file_dir, base_total, base_hpc_cov, nrpc_hpc_cov, base_last, nrpc_last, "", "", "", "")
-                generate_string_for_cov(file_dir, base_total, base_hpc_cov, nrpc_hpc_cov, base_last, nrpc_last, str(bo1), str(no1), "", "")
-                generate_string_for_cov(file_dir, base_total, base_hpc_cov, nrpc_hpc_cov, base_last, nrpc_last, str(bo1), str(no1), str(bo5), str(no5))
-                latex_str_tbl2 += generate_str_for_pos_ord(file_dir, bt1, nt1, bt3, nt3, bt5, nt5)
-                latex_str_tbl3 += generate_str_for_pos_ord(file_dir, bo1, no1, bo3, no3, bo5, no5)
-                print("\n")
-                print("Graph latex for: " + file_dir + ": \n" + graph_latex)
-                print("\n")
+                    data.append([file_dir, base_total, base_hpc_cov, str(base_cov), base_last, nrpc_hpc_cov, str(nrpc_cov), nrpc_last,
+                                    str(bt1) + "/" + str(nt1), str(bt3) + "/" + str(nt3), str(bt5) + "/" + str(nt5),
+                                    str(bo1) + "/" + str(no1), str(bo3) + "/" + str(no3), str(bo5) + "/" + str(no5),
+                                    str(avg_nrpc), str(branch_num)])
+                    generate_string_for_cov(file_dir, base_total, base_hpc_cov, nrpc_hpc_cov, base_last, nrpc_last, "", "", "", "")
+                    generate_string_for_cov(file_dir, base_total, base_hpc_cov, nrpc_hpc_cov, base_last, nrpc_last, str(bo1), str(no1), "", "")
+                    generate_string_for_cov(file_dir, base_total, base_hpc_cov, nrpc_hpc_cov, base_last, nrpc_last, str(bo1), str(no1), str(bo5), str(no5))
+                    latex_str_tbl2 += generate_str_for_pos_ord(file_dir, bt1, nt1, bt3, nt3, bt5, nt5)
+                    latex_str_tbl3 += generate_str_for_pos_ord(file_dir, bo1, no1, bo3, no3, bo5, no5)
+                    print("\n")
+                    print("Graph latex for: " + file_dir + ": \n" + graph_latex)
+                    print("\n")
         print(tabulate(data, headers=headers, tablefmt="grid"))
         print("\n")
 
@@ -392,14 +398,18 @@ def print_results():
     print("Total NRPC timeouts = " + str(total_nrpc_timeout))
     print("Total programs with timeout = " + str(total_programs_with_timeout))
 
-run_nofib_set("imaginary", [], 300, use_reach_ticks = False)
+def main():
+    run_nofib_set("imaginary", [], 300, use_reach_ticks = False)
 
-print_results()
+    print_results()
 
-run_nofib_set("spectral", [], 300, use_reach_ticks = False)
+    run_nofib_set("spectral", [], 300, use_reach_ticks = False)
 
-print_results()
+    print_results()
 
-run_nofib_set("real", [], 300, use_reach_ticks = True)
+    run_nofib_set("real", [], 300, use_reach_ticks = True)
 
-print_results()
+    print_results()
+
+if __name__ == "__main__":
+    main()
