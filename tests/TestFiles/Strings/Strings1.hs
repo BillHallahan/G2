@@ -649,6 +649,26 @@ filter1 s = case filter (/= '$') s of
 --                     "xyz" -> 3
 --                     _ -> 4
 
+map1 :: String -> Int
+map1 s = case map (\c -> chr (ord c + 1)) s of
+            "d" -> 1
+            _ -> 2
+
+map2 :: String -> Int
+map2 s = case map inner s of
+            "ab" -> 0 -- Unreachable
+            "bc" -> 1
+            "cdefg" -> 2
+            "bcdefghijklmnopqrstuvwxyzbc" -> 3
+            _ -> 4
+
+-- Note: z3 also screws up here, this time by returning a bad model
+-- map3 :: String -> Int
+-- map3 s = case map (\c -> chr (ord c + 1)) s of
+--             "ab" -> 1
+--             "de" -> 2
+--             _ -> 3
+
 dropWhile1 :: String -> Int
 dropWhile1 s = case dropWhile (== '$') s of
                    "$h" -> 0 -- Unreachable
