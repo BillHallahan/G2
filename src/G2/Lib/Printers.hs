@@ -267,7 +267,11 @@ mkAltHaskell off cleaned pg i_bndr@(Id bndr_name _) (Alt am e) =
             case m_bndr of
                 Just bndr -> mkIdHaskell pg bndr <> "@(" <> pr_am <> ")" 
                 Nothing -> pr_am
-        mkAltMatchHaskell m_bndr (DataAlt dc ids) =
+        mkAltMatchHaskell m_bndr (DataAlt dc ids)
+            | strict_case pg
+            , nameOcc (dcName dc) == ""
+            , [i] <- ids = "!" <> mkIdHaskell pg i
+            | otherwise =
             let
                 pr_am = mkDataConHaskell pg dc <> " " <> T.intercalate " "  (map (mkIdHaskell pg) ids)
             in
@@ -278,7 +282,8 @@ mkAltHaskell off cleaned pg i_bndr@(Id bndr_name _) (Alt am e) =
             case m_bndr of
                 Just bndr -> mkIdHaskell pg bndr <> "@" <> mkLitHaskell NoHash l
                 Nothing -> mkLitHaskell NoHash l
-        mkAltMatchHaskell (Just bndr) Default = mkIdHaskell pg bndr
+        mkAltMatchHaskell (Just bndr) Default | strict_case pg = "!" <> mkIdHaskell pg bndr
+                                              | otherwise = mkIdHaskell pg bndr
         mkAltMatchHaskell _ Default | strict_case pg = "!_"
                                     | otherwise = "_"
 

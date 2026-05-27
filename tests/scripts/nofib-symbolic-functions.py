@@ -49,7 +49,7 @@ def run_nofib_bench(filename, function = "main", var_settings = [], timeout = 30
     # --include nofib-symbolic/common --higher-order symbolic --hpc --hpc-print-times --print-num-nrpc --print-num-red-rules --solver-time --print-num-solver-calls --print-num-higher-states --no-step-limit --search subpath --subpath-len 8 --hpc-discard-strat --measure-coverage --time 60
     return run_g2(filename, function, ["--include", "nofib-symbolic/common", "--higher-order", "symbolic",
                                        "--hpc", "--hpc-print-times", "--print-num-nrpc", "--print-num-red-rules", "--solver-time", "--print-num-solver-calls", "--print-num-higher-states",
-                                       "--no-step-limit", "--search", "subpath", "--subpath-len", "8", "--hpc-discard-strat", "--validate", "--measure-coverage", "--time", str(timeout)] + var_settings)
+                                       "--no-step-limit", "--search", "subpath", "--subpath-len", "2", "--hpc-discard-strat", "--validate", "--measure-coverage", "--time", str(timeout)] + var_settings)
 
 def run_nofib_bench_nrpc(filename, function = "main", var_settings = [], timeout = 300):
     return run_nofib_bench(filename, function, ["--higher-nrpc"] + var_settings, timeout)
@@ -396,10 +396,10 @@ run_nofib_set("imaginary", [], 300, use_reach_ticks = False)
 
 print_results()
 
-# run_nofib_set("spectral", [], 300, use_reach_ticks = False)
+run_nofib_set("spectral", [], 300, use_reach_ticks = False)
 
-# print_results()
+print_results()
 
-# run_nofib_set("real", [], 300, use_reach_ticks = True)
+run_nofib_set("real", [], 300, use_reach_ticks = True)
 
-# print_results()
+print_results()
