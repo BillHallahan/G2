@@ -549,6 +549,7 @@ mkPrimHaskell pg = pr
 
         pr (TypeIndex _) = "typeIndex"
 
+        pr Exists = "exists"
         pr ForAllBoundPr = "forall_bound"
 
         pr UnspecifiedOutput = "?"

@@ -1,14 +1,17 @@
-{-# LANGUAGE BangPatterns #-}
+{-# LANGUAGE BangPatterns, TupleSections #-}
 module G2.Language.Approximation ( GenerateLemma
                                  , Lookup
                                  , MRCont
+                                 , MoreRestrictiveCheck
                                  
                                  , moreRestrictiveIncludingPCAndNRPC
                                  , moreRestrictiveIncludingPC
                                  , moreRestrictive
                                  , moreRestrictive'
-                                 , moreRestrictivePC
+                                 , moreRestrictivePCStructural
                                  , moreRestrictivePCSolver
+                                 
+                                 , moreRestrictiveIncludingNRPCAndPCSolver
 
                                  , applySolver
                                  
@@ -28,6 +31,7 @@ import qualified G2.Language.PathConds as P
 import qualified G2.Language.Stack as Stck
 import G2.Language.Support
 import G2.Language.Syntax
+import G2.Language.TyVarEnv as TV
 import G2.Language.Typing as T
 import qualified G2.Solver as S
 
@@ -40,6 +44,8 @@ import qualified Data.HashSet as HS
 import qualified Data.HashMap.Lazy as HM
 import Data.Maybe
 import Data.Monoid hiding (Alt)
+
+import Debug.Trace
 
 type GenerateLemma t l = State t -> State t -> (HM.HashMap Id Expr, HS.HashSet (Expr, Expr)) -> Expr -> Expr -> l
 type Lookup t = Name -> State t -> Maybe E.ConcOrSym
@@ -73,8 +79,7 @@ type MRCont t l =  State t
 -- the namw/expression pair an added it to the list.
 -------------------------------------------------------------------------------
 
--- | Check is s1 is an approximation of s2 (if s2 is more restrictive than s1.)
-moreRestrictiveIncludingPCAndNRPC :: (Named t, S.Solver solver) =>
+type MoreRestrictiveCheck t solver l =
                    solver
                 -> MRCont t l -- ^ For special case handling - what to do if we don't match elsewhere in moreRestrictive
                 -> Maybe (GenerateLemma t l)
@@ -83,6 +88,9 @@ moreRestrictiveIncludingPCAndNRPC :: (Named t, S.Solver solver) =>
                 -> State t -- ^ State 1
                 -> State t -- ^ State 2
                 -> IO Bool
+
+-- | Check is s1 is an approximation of s2 (if s2 is more restrictive than s1.)
+moreRestrictiveIncludingPCAndNRPC :: (Named t, S.Solver solver) => MoreRestrictiveCheck t solver l
 moreRestrictiveIncludingPCAndNRPC solver mr_cont gen_lemma lkp ns s1 s2 = do
     let mr = moreRestrictive' mr_cont gen_lemma lkp s1 s2 ns (HM.empty, HS.empty) True [] [] (getExpr s1) (getExpr s2)
               --  >>= \hm -> moreRestrictiveStack mr_cont gen_lemma lkp s1 s2 ns hm (exec_stack s1) (exec_stack s2)
@@ -93,23 +101,29 @@ moreRestrictiveIncludingPCAndNRPC solver mr_cont gen_lemma lkp ns s1 s2 = do
     -- putStrLn $ "mr = " ++ show mr
     case mr of
         Left _ -> return False
-        Right mr' -> return . isRight $ moreRestrictivePC mr_cont gen_lemma lkp s1 s2 ns mr'
+        Right mr' -> return . isRight $ moreRestrictivePCStructural mr_cont gen_lemma lkp ns s1 s2 mr'
 
 -- | Check is s1 is an approximation of s2 (if s2 is more restrictive than s1.)
-moreRestrictiveIncludingPC :: S.Solver solver =>
-                   solver
-                -> MRCont t l -- ^ For special case handling - what to do if we don't match elsewhere in moreRestrictive
-                -> Maybe (GenerateLemma t l)
-                -> Lookup t -- ^ How to lookup variable names
-                -> HS.HashSet Name -- ^ Names that should not be inlined (often: top level names from the original source code)
-                -> State t -- ^ State 1
-                -> State t -- ^ State 2
-                -> IO Bool
+moreRestrictiveIncludingNRPCAndPCSolver :: (Named t, S.Solver solver) => MoreRestrictiveCheck t solver l
+moreRestrictiveIncludingNRPCAndPCSolver solver mr_cont gen_lemma lkp ns s1 s2 = do
+    let mr = moreRestrictive' mr_cont gen_lemma lkp s1 s2 ns (HM.empty, HS.empty) True [] [] (getExpr s1) (getExpr s2)
+              --  >>= \hm -> moreRestrictiveStack mr_cont gen_lemma lkp s1 s2 ns hm (exec_stack s1) (exec_stack s2)
+               >>= \hm' -> moreRestrictiveNRPC mr_cont gen_lemma lkp s1 s2 ns hm'
+                                    (stripAllTicks $ non_red_path_conds s1) (stripAllTicks $ non_red_path_conds s2)
+    -- putStrLn $ "log_path s1 = " ++ show (log_path s1) ++ " " ++ show (num_steps s1)
+    -- putStrLn $ "log_path s2 = " ++ show (log_path s2) ++ " " ++ show (num_steps s2)
+    -- putStrLn $ "mr = " ++ show mr
+    case mr of
+        Left _ -> return False
+        Right (mr', mr'') -> moreRestrictivePCSolver solver s1 s2 mr' mr''
+
+-- | Check is s1 is an approximation of s2 (if s2 is more restrictive than s1.)
+moreRestrictiveIncludingPC :: S.Solver solver => MoreRestrictiveCheck t solver l
 moreRestrictiveIncludingPC solver mr_cont gen_lemma lkp ns s1 s2  = do
     let mr = moreRestrictive' mr_cont gen_lemma lkp s1 s2 ns (HM.empty, HS.empty) True [] [] (getExpr s1) (getExpr s2)
     case mr of
         Left _ -> return False
-        Right mr' -> return . isRight $ moreRestrictivePC mr_cont gen_lemma lkp s1 s2 ns mr'
+        Right mr' -> return . isRight $ moreRestrictivePCStructural mr_cont gen_lemma lkp ns s1 s2 mr'
 
 -- | Check is s1 is an approximation of s2 (if s2 is more restrictive than s1.)
 moreRestrictive :: MRCont t l -- ^ For special case handling - what to do if we don't match elsewhere in moreRestrictive
@@ -457,13 +471,30 @@ moreRestrictivePCSolver solver s1@(State { known_values = kv }) s2 sym_var_map e
                   else Nothing) (l ++ HS.toList expr_pairs)
       l'' = catMaybes l'
       new_conds' = l'' ++ new_conds
+      old_conds' = l'' ++ old_conds
       
       -- Form an implication:
       --    (new path conds) => (old path conds)
       -- We want to show that this is ALWAYS true- so we negate it, and then check for unsatisfiability
       conj_new = foldr (App . App (Prim And TyUnknown)) (mkTrue kv) new_conds'
-      conj_old = foldr (App . App (Prim And TyUnknown)) (mkTrue kv) old_conds
-      imp = App (App (Prim Implies TyUnknown) conj_new) conj_old
+      conj_old = foldr (App . App (Prim And TyUnknown)) (mkTrue kv) old_conds'
+
+      -- Set up quantifiers
+      is_new = varIds conj_new
+      ns_new = HS.fromList $ map idName is_new
+      is_old = varIds conj_old
+      ns_old = HS.fromList $ map idName is_old
+
+      in_old_not_new_hs = ns_old `HS.difference` ns_new 
+      in_new_not_old_hs = ns_new `HS.difference` ns_old
+
+      is_new_exists = filter (\(Id n _) -> n `elem` in_new_not_old_hs) is_new
+      is_old_exists = filter (\(Id n _) -> n `elem` in_old_not_new_hs) is_old
+
+      exists_conj_new = foldl' (\e i -> App (Prim Exists TyUnknown) $ Lam TermL i e) conj_new is_new_exists
+      exists_conj_old = foldl' (\e i -> App (Prim Exists TyUnknown) $ Lam TermL i e) conj_old is_old_exists
+
+      imp = App (App (Prim Implies TyUnknown) exists_conj_new) exists_conj_old
       neg_imp = ExtCond (App (Prim Not TyUnknown) imp) True
   
   res <- if null old_conds
@@ -473,15 +504,16 @@ moreRestrictivePCSolver solver s1@(State { known_values = kv }) s2 sym_var_map e
     S.UNSAT () -> return True
     _ -> return False
 
-moreRestrictivePC :: MRCont t l
+moreRestrictivePCStructural ::
+                     MRCont t l
                   -> Maybe (GenerateLemma t l)
                   -> Lookup t
-                  -> State t
-                  -> State t
                   -> HS.HashSet Name
+                  -> State t
+                  -> State t
                   -> (HM.HashMap Id Expr, HS.HashSet (Expr, Expr))
                   -> Either [l] (HM.HashMap Id Expr, HS.HashSet (Expr, Expr))
-moreRestrictivePC mr_cont gen_lemma lkp s1 s2 ns init_hm
+moreRestrictivePCStructural mr_cont gen_lemma lkp ns s1 s2 init_hm
   -- We are looking to match each pc in pc1 to an pc in pc2- this is clearly impossible
   -- if pc1 has more pc then pc2
   | length pc1 > length pc2 = Left []
@@ -528,7 +560,13 @@ extractCond (AltCond l e False) =
 extractCond _ = error "Not Supported"
 
 lookupConcOrSymState :: Name -> State t -> Maybe E.ConcOrSym
-lookupConcOrSymState n = E.lookupConcOrSym n . expr_env
+lookupConcOrSymState n s
+  | Just e <- E.lookupConcOrSym n $ expr_env s = Just e
+  | Just conc_or_sym <- TV.lookupConcOrSym n $ tyvar_env s =
+      case conc_or_sym of
+        TV.TyConc t -> Just (E.Conc (Type t))
+        TV.TySym ty_s -> Just (E.Sym ty_s)
+  | otherwise = Nothing
 
 frameWrap :: Frame -> Expr -> Expr
 frameWrap (CaseFrame i t alts) e = Case e i t alts

@@ -431,7 +431,7 @@ initRedHaltOrd s mod_name solver simplifier config exec_func_names no_nrpc_names
         halter_height = case height_limit config of
                                     Just lim ->
                                         SomeHalter (adtHeightHalter lim) .<~> halter_approx_discard
-                                    Nothing -> halter_hpc_discard
+                                    Nothing -> halter_approx_discard
 
         orderer = case search_strat config of
                         Subpath -> SomeOrderer . liftOrderer $ lengthNSubpathOrderer (subpath_length config)

@@ -650,7 +650,9 @@ approximationHalter :: (Solver solver, SM.MonadState (ApproxPrevs VerifierTracke
                        solver
                     -> HS.HashSet Name -- ^ Names that should not be inlined (often: top level names from the original source code)
                     -> Halter m () r VerifierTracker
-approximationHalter = approximationHalter' (\_ old_state new_state -> goal (track old_state) `isValidFor` goal (track new_state))
+approximationHalter = approximationHalter'
+                            moreRestrictiveIncludingPCAndNRPC
+                            (\_ old_state new_state -> goal (track old_state) `isValidFor` goal (track new_state))
 
 -- | Discard all other states if we find a counterexample.
 discardOnFalse :: Monad m => Halter m () (ExecRes VerifierTracker) VerifierTracker

@@ -187,6 +187,7 @@ data SMTAST = (:>=) !SMTAST !SMTAST
 
             | Named !SMTAST SMTName -- ^ Name a piece of the SMTAST, allowing it to be returned in unsat cores
 
+            | ExistsSMT SMTName Sort !SMTAST
             | ForAll SMTName Sort !SMTAST
             deriving (Show, Eq)
 

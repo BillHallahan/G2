@@ -1837,19 +1837,20 @@ hpcApproximationHalter :: (Named t, Solver solver, SM.MonadState (ApproxPrevs t)
                           solver
                        -> HS.HashSet Name -- ^ Names that should not be inlined (often: top level names from the original source code)
                        -> Halter m () (ExecRes  t) t
-hpcApproximationHalter = approximationHalter' stop_cond
+hpcApproximationHalter = approximationHalter' moreRestrictiveIncludingNRPCAndPCSolver stop_cond
     where
         stop_cond pr _ s =
             let acc_seen_hpc = HS.unions (map (reached_hpc . final_state) $ accepted pr) in
             HS.null $ HS.difference (reached_hpc s) acc_seen_hpc
 
 approximationHalter' :: (Named t, Solver solver, SM.MonadState (ApproxPrevs t) m, MonadIO m) =>
-                        (Processed r (State t) -> State t -> State t -> Bool) -- ^ Approximated states are discarded only if they match this condition
+                        MoreRestrictiveCheck t solver l
+                    -> (Processed r (State t) -> State t -> State t -> Bool) -- ^ Approximated states are discarded only if they match this condition
                                                                               -- Args: all accepted states, approximated (old) state, approximating (new) state
                      -> solver
                      -> HS.HashSet Name -- ^ Names that should not be inlined (often: top level names from the original source code)
                      -> Halter m () r t
-approximationHalter' stop_cond solver no_inline = mkSimpleHalter
+approximationHalter' mr_check stop_cond solver no_inline = mkSimpleHalter
                                                         (const ())
                                                         (\hv _ _ -> hv)
                                                         stop
@@ -1873,7 +1874,7 @@ approximationHalter' stop_cond solver no_inline = mkSimpleHalter
                 xs <- SM.gets ap_halter_states
                 let xs' = filter (\x -> num_steps x < num_steps s') xs
                 approx <- liftIO $ findM (\prev -> do
-                                                more_res_s <- moreRestrictiveIncludingPCAndNRPC
+                                                more_res_s <- mr_check
                                                                 solver
                                                                 mr_cont
                                                                 Nothing
