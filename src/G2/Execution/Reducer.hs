@@ -805,7 +805,7 @@ nonRedHigherOrderFunc (Config { gen_func_arg_states = gen_fa})
                             then L.mapAccumR
                                     (funcArgState es (returnType t)) ng'
                                     $ zip [0..] es
-                            else (ng, [])
+                            else (ng', [])
             xs = mapMaybe (fmap fst) xs_new_g
             new_g = concatMap snd $ catMaybes xs_new_g
             no_nrpc' = foldr HS.insert no_nrpc new_g
