@@ -174,6 +174,7 @@ import G2.Interface.ExecRes
 import G2.Execution.ExecSkip
 import G2.Language
 import G2.Language.Approximation
+import G2.Language.Typing as Ty
 import G2.Language.KnownValues as KV
 import G2.Language.HPC
 import qualified G2.Language.Monad as MD
@@ -768,26 +769,39 @@ nonRedHigherOrderFunc (Config { gen_func_arg_states = gen_fa})
     , (ae, stck') <- allApplyFrames (exec_stack s)
     , let es = es_ce ++ ae
 
-    , Just (s', _, _, ng') <- createNonRed ng Focused s 
+    -- If we have an EnsureEq on the stack, we do not want to add function argument states because
+    -- (a) we have already added function argument states when we initially began reducing the NRPC
+    -- and (b) we need to make sure that we actually do satisfy the equality, for soundness, and
+    -- thus cannot clear out the stack
+    , noEnsureEq stck'
+
+    , Just (s', _, _, ng1) <- createNonRed ng Focused s 
     = 
         let
+            (s_func_arg, wrapper, ng2) = mkCaseWrapper n es (returnType t) ng1
+        in
+        return (Finished
+               , [ (s', (no_nrpc, nrpc_count + 1))
+                 , (s_func_arg, (HS.insert (idName wrapper) no_nrpc, nrpc_count) )]
+               , b { name_gen = ng2 })
+
             -- If we have an EnsureEq on the stack, we do not want to add function argument states because
             -- (a) we have already added function argument states when we initially began reducing the NRPC
             -- and (b) we need to make sure that we actually do satisfy the equality, for soundness, and
             -- thus cannot clear out the stack
-            (ng'', xs_new_g) = if noEnsureEq stck'
-                            then L.mapAccumR
-                                    (funcArgState es (returnType t)) ng'
-                                    $ zip [0..] es
-                            else (ng', [])
-            xs = mapMaybe (fmap fst) xs_new_g
-            new_g = concatMap snd $ catMaybes xs_new_g
-            no_nrpc' = foldr HS.insert no_nrpc new_g
-            xs' = map (\new_s -> (new_s, (no_nrpc', nrpc_count))) xs
+        --     (ng3, xs_new_g) = if noEnsureEq stck'
+        --                     then L.mapAccumR
+        --                             (funcArgState n es (returnType t)) ng2
+        --                             $ zip [0..] es
+        --                     else (ng'', [])
+        --     xs = mapMaybe (fmap fst) xs_new_g
+        --     new_g = concatMap snd $ catMaybes xs_new_g
+        --     no_nrpc' = foldr HS.insert no_nrpc new_g
+        --     xs' = map (\new_s -> (new_s, (no_nrpc', nrpc_count))) xs
 
-            (final_xs, final_ng) = if gen_fa then (xs', ng'') else ([], ng')
-        in 
-        return (Finished, (s', (no_nrpc', nrpc_count + 1)):final_xs, b {name_gen = final_ng})
+        --     (final_xs, final_ng) = if gen_fa then (xs', ng3) else ([], ng2)
+        -- in 
+        -- return (Finished, (s', (no_nrpc', nrpc_count + 1)):final_xs, b {name_gen = final_ng})
 
     | -- We have a symbolic function
       Var (Id n t):es_ce <- unApp ce
@@ -798,12 +812,12 @@ nonRedHigherOrderFunc (Config { gen_func_arg_states = gen_fa})
     , let es = es_ce ++ ae =
         let
             -- Constant State
-            (const_state, ng') = mkConstState (map (typeOf tvnv) es) (returnType t) ng
+            (const_state, ng') = mkConstState n (map (typeOf tvnv) es) (returnType t) ng
 
             -- Evaluate arguments
             (ng'', xs_new_g) = if noEnsureEq stck'
                             then L.mapAccumR
-                                    (funcArgState es (returnType t)) ng'
+                                    (funcArgState n es (returnType t)) ng'
                                     $ zip [0..] es
                             else (ng', [])
             xs = mapMaybe (fmap fst) xs_new_g
@@ -823,7 +837,35 @@ nonRedHigherOrderFunc (Config { gen_func_arg_states = gen_fa})
                         | Just (_, stck') <- Stck.pop stck = noEnsureEq stck'
                         |otherwise = True
         
-        mkConstState ts ret_t init_ng =
+        mkCaseWrapper n es ret_ty init_ng =
+            let
+                ts = map (typeOf tvnv) es
+
+                (is, ng2) = freshIds ts init_ng
+                (wrapper, ng3) = freshId (mkTyFun $ ts ++ [Ty.tyBool kv]) ng2
+                (bindee, ng4) = freshId (Ty.tyBool kv) ng3
+
+                (cont_func, ng5) = freshId (mkTyFun $ ts ++ [ret_ty]) ng4 
+
+                e = mkLams (map (TermL,) is)
+                        (Case
+                            (mkApp (Var wrapper:map Var is))
+                            bindee
+                            (Ty.tyBool kv)
+                            [ Alt Default $ mkApp (Var cont_func:map Var is) ])
+                
+                eenv' = E.insertSymbolic cont_func
+                      . E.insertSymbolic wrapper
+                      $ E.insert n e eenv
+            in
+            (s { expr_env = eenv'
+               , curr_expr = CurrExpr Evaluate . mkApp $ Var wrapper:es
+               , exec_stack = Stck.singleton $ CurrExprFrame NoAction (CurrExpr Return $ Prim UnspecifiedOutput TyBottom)
+               }
+            , wrapper
+            , ng5) 
+
+        mkConstState n ts ret_t init_ng =
             let
                 (is, ng') = freshIds ts init_ng
                 (ret_v, ng'') = freshId ret_t ng'
@@ -833,9 +875,8 @@ nonRedHigherOrderFunc (Config { gen_func_arg_states = gen_fa})
             in
             (s { expr_env = eenv' }, ng'')
 
-
         -- | Generate `State`s to explore each function argument
-        funcArgState es ret_ty init_ng (this_arg_num, fa_e)
+        funcArgState n es ret_ty init_ng (this_arg_num, fa_e)
             | isTyFun (typeOf tvnv fa_e) = 
                     let
                         ts = anonArgumentTypes (typeOf tvnv fa_e)
@@ -882,11 +923,6 @@ nonRedHigherOrderFunc (Config { gen_func_arg_states = gen_fa})
                 this_arg = arg_is !! this_arg_num
 
                 stck = Stck.singleton $ CurrExprFrame NoAction (CurrExpr Return $ Prim UnspecifiedOutput TyBottom)
-
-        n = case unApp ce of
-            Var (Id vn _):_ -> vn
-            _ -> error "funcArgState: impossible"
-
 
 data ApproxPrevs t = AP { ap_nrpc_states :: [State t], ap_halter_states :: [State t]}
 
