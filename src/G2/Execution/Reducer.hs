@@ -886,17 +886,23 @@ nonRedHigherOrderFunc (Config { gen_func_arg_states = gen_fa})
                         (bindee, ng'') = freshId (typeOf tvnv this_arg) ng'
                         (ret_id, ng''') = freshId ret_ty ng''
 
+                        (wrap, ng'''') = freshId (TyFun (typeOf tvnv fa_e') (Ty.tyBool kv)) ng'''
+
                         -- Instantiate the symbolic function `n`
-                        lam_center = Case (mkApp $ Var this_arg:vs) bindee ret_ty [Alt Default  (Var ret_id)]
+                        lam_center = Case
+                                        (App (Var wrap) (mkApp $ Var this_arg:vs))
+                                        bindee
+                                        ret_ty
+                                        [Alt Default  (Var ret_id)]
                         f_def = mkLams (zip (repeat TermL) arg_is) lam_center
                         eenv' = E.insert n f_def eenv
 
                         -- Set up symbolic variables
-                        eenv'' = E.insertSymbolic ret_id $ foldr E.insertSymbolic eenv' is
+                        eenv'' = E.insertSymbolic wrap . E.insertSymbolic ret_id $ foldr E.insertSymbolic eenv' is
                     in
-                    (ng''', Just $ (s { expr_env = eenv''
-                                      , curr_expr = CurrExpr Evaluate fa_e'
-                                      , exec_stack = stck }, []))
+                    (ng'''', Just $ (s { expr_env = eenv''
+                                       , curr_expr = CurrExpr Evaluate (App (Var wrap) fa_e')
+                                       , exec_stack = stck }, []))
             | isPrimType (typeOf tvnv fa_e) = (init_ng, Nothing)
             | TyCon tname _:ts <- unTyApp (typeOf tvnv fa_e)
             , Just alg_data_ty <- HM.lookup tname tenv =
