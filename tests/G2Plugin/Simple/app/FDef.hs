@@ -21,10 +21,15 @@ h :: MyInt -> Int -> Int
 h (MyInt _) _ = impHelper 1
 h (MyIntAlso _) _ = 2
 
+{-# ANN i SymEx #-}
+i :: MyInt -> Int -> Int
+i (MyInt _) _ = noinline 1
+i (MyIntAlso _) _ = noinline 2
+
 {-# ANN recCall (SymExWithConfig "--n 14000") #-}
 recCall :: Int -> Int
 recCall = r 40
 
 r :: Int -> Int -> Int
 r n x | n < 0 = x
-      | otherwise = r (n - 1) (n + x) 
+      | otherwise = r (n - 1) (n + x)
