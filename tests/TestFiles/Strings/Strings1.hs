@@ -654,6 +654,12 @@ filter1 s = case filter (/= '$') s of
 --                     "xyz" -> 3
 --                     _ -> 4
 
+filter3 :: String -> Int
+filter3 s = case filter (\x -> if x == 'q' then True else error "NOT a Q!") s of
+                "qq" -> 0
+                "a" -> 1 -- Unreachable
+                _ -> 2
+
 map1 :: String -> Int
 map1 s = case map (\c -> chr (ord c + 1)) s of
             "d" -> 1

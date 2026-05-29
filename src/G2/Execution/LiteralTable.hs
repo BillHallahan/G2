@@ -87,10 +87,13 @@ getBoolOptFromDC kv dcon
 mkIdLam :: State t -> NameGen -> LitTable -> (Expr, EESymDiff, NameGen)
 mkIdLam s ng lt =
     let tvnv = tyvar_env s
+        kv = known_values s
+        tenv = type_env s
         arg_ty = typeOf tvnv $ lt_arg lt
         (arg_id, ng1) = freshId arg_ty ng
         lam_e = Lam TermL arg_id (Var arg_id)
-    in (lam_e, [arg_id], ng1)
+        tup_e = mkTup kv tenv tvnv lam_e $ mkTrue kv
+    in (tup_e, [arg_id], ng1)
 
 -- Return Id for argument, and the Name that we're replacing in path conds
 mkLamArg :: State t -> NameGen -> LitTable -> (Id, Name, NameGen)
@@ -110,6 +113,18 @@ mkLamArg s ng lt =
         (elem_var, ng1) = freshId lit_ty ng
     in (elem_var, unboxed_name, ng1)
 
+-- Make a fully applied primitive tuple
+mkTup :: KnownValues -> TypeEnv -> TyVarEnv -> Expr -> Expr -> Expr
+mkTup kv tenv tv_env x y =
+    mkApp [ mkPrimTuple kv tenv
+          , Type TyUnknown
+          , Type TyUnknown
+          , Type $ typeOf tv_env x
+          , Type $ typeOf tv_env y
+          , x
+          , y
+          ]
+
 -- Convert the literal table to a lambda function, which is then returned
 -- For functions returning a boolean, we optimize the representation to be
 -- the disjunction of all True path conditions (using `Prim Or`).
@@ -117,24 +132,25 @@ mkLamArg s ng lt =
 litTableToLam :: State t -> NameGen -> LitTable -> (Expr, EESymDiff, NameGen)
 litTableToLam s ng lt =
     if lt_errored lt then
-        mkTup (Prim UnspecifiedOutput TyUnknown) (mkFalse kv)
+        (mkTup kv tenv tv_env (Prim UnspecifiedOutput TyUnknown) (mkFalse kv), [], ng)
     else
         case HM.toList $ lt_mapping lt of
             [] ->
-                mkTup (mkIdLam s ng lt) (mkTrue kv)
+                mkIdLam s ng lt
             ((_, e):_) | typeOf tv_env e == tyBool kv ->
-                mkTup (litTableToLamBool s ng lt) (mkTrue kv)
+                litTableToLamBool s ng lt
             _ ->
-                mkTup (litTableToLamNonBool s ng lt) (mkTrue kv)
+                litTableToLamNonBool s ng lt
     where
         kv = known_values s
         tenv = type_env s
         tv_env = tyvar_env s
-        mkTup x y = mkApp [mkPrimTuple kv tenv, TyUnknown, TyUnknown, typeOf tv_env x, typeOf tv_env y, x, y]
 
 litTableToLamBool :: State t -> NameGen -> LitTable -> (Expr, EESymDiff, NameGen)
 litTableToLamBool s ng lt =
     let kv = known_values s
+        tenv = type_env s
+        tv_env = tyvar_env s
         (elem_var, unboxed_name, ng1) = mkLamArg s ng lt
 
         lt_lst = HM.toList $ lt_mapping lt
@@ -152,7 +168,8 @@ litTableToLamBool s ng lt =
 
         or_exp1 = replaceVar unboxed_name (Var elem_var) or_exp
         fun_exp = Lam TermL elem_var or_exp1
-    in (fun_exp, [elem_var], ng1)
+        tup_exp = mkTup kv tenv tv_env fun_exp $ mkTrue kv
+    in (tup_exp, [elem_var], ng1)
 
 -- Turn the conjunction of these path conditions into an expression
 pcsToExprBool :: KnownValues -> [PathCond] -> Expr
@@ -176,6 +193,7 @@ litTableToLamNonBool s ng lt =
     let (elem_var, unboxed_name, ng1) = mkLamArg s ng lt
         kv = known_values s
         tv_env = tyvar_env s
+        tenv = type_env s
         lt_lst = HM.toList $ lt_mapping lt
         -- `Char`s are represented as one character `String`s here, so we
         -- need to extract the first character.
@@ -198,7 +216,8 @@ litTableToLamNonBool s ng lt =
                     _ -> error "impossible, empty list despite checking in litTableToLam"
         ite_exp1 = replaceVar unboxed_name (Var elem_var) ite_exp
         fun_exp = Lam TermL elem_var ite_exp1
-    in (fun_exp, [elem_var], ng1)
+        tup_exp = mkTup kv tenv tv_env fun_exp $ mkTrue kv
+    in (tup_exp, [elem_var], ng1)
 
 tripleBoolTy :: KnownValues -> Type
 tripleBoolTy kv = mkTyFun [tyBool kv, tyBool kv, tyBool kv]
