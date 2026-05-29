@@ -527,10 +527,14 @@ runFuncSpec temp src f smt_def sc@(SynthConfig { eq_file = eq_f, g2_config = con
                     (xIds, ng') = freshIds tys ng
                     inputExprs = map Var xIds
                     spec_call_expr = mkApp $ (Var . Id smt_n $ typeOf tvnv smt_e) : inputExprs
-                    replace_rec_fun = Let [(last xIds, SymGen SNoLog (last tys))] (Assume Nothing spec_call_expr (last inputExprs))
+                    replace_rec_fun = Case
+                                        (SymGen SNoLog (last tys))
+                                        (last xIds)
+                                        (typeOf tvnv (last inputExprs))
+                                        [Alt Default (Assume Nothing spec_call_expr (last inputExprs))]
                     place_e' = replaceRecExpr entry_n replace_rec_fun place_e
 
-                    ideal_e' = renameVars ideal_n ideal_ret_n ideal_e
+                    ideal_e' = renameVars placeholder_n placeholder_ret_n ideal_e
                     eenv' = E.insert ideal_ret_n ideal_e' eenv
                     in
                 (s { expr_env = E.insert placeholder_ret_n entry_e
