@@ -26,7 +26,8 @@ i :: MyInt -> Int -> Int
 i (MyInt _) _ = noinline 1
 i (MyIntAlso _) _ = noinline 2
 
-{-# ANN recCall (SymExWithConfig "--n 14000") #-}
+{-# ANN recCall (SymExWithConfig "--n 14000")
+      #-}
 recCall :: Int -> Int
 recCall = r 40
 
