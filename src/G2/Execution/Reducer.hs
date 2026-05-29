@@ -826,14 +826,18 @@ nonRedHigherOrderFunc (Config { gen_func_arg_states = gen_fa})
                         | Just (_, stck') <- Stck.pop stck = noEnsureEq stck'
                         |otherwise = True
         
-        -- Instantiate a symbolic function to the form:
+        -- Instantiate a symbolic function `symfun` to the form:
         -- @
         --  \x1 ... xk -> case wrapper xi of
-        --                      Default -> continue x1 ... xk
+        --                      Default -> cont x1 ... xk
         -- @
-        -- where `wrapper` and `continue` are fresh symbolic variables.
+        -- where `wrapper` and `cont` are fresh symbolic variables.
         -- The idea is that `wrapper` allows forcing evaluation of arbitrary parts of `xi`,
-        -- while `continue` allows returning an arbitrary value based on x1...xk.
+        -- while `cont` allows returning an arbitrary value based on x1...xk.
+        --
+        -- After wrapper (hopefully) discovers an error, the state will terminate.
+        -- However, we need `cont` in case there are eariler calls to `symfun`,
+        -- which need to be given correct behavior.
         mkCaseWrapper n es ret_ty init_ng =
             let
                 ts = map (typeOf tvnv) es
