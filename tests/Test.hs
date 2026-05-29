@@ -691,7 +691,7 @@ testFileTests = testGroup "TestFiles"
                                                                        , ("assoc", 250, [AtLeast 2])
                                                                        , ("sf", 250, [AtLeast 2])
                                                                        , ("thirdOrder", 300, [AtLeast 2])
-                                                                       , ("thirdOrder2", 300, [AtLeast 3])
+                                                                       , ("thirdOrder2", 150, [AtLeast 3])
                                                                        , ("tupleTestMono", 175, [AtLeast 2])
                                                                        , ("multiPrim", 300, [AtLeast 2])
                                                                        , ("polyHigher", 50, [AtLeast 4])]                                                                                         
