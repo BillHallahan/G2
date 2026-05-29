@@ -792,24 +792,6 @@ nonRedHigherOrderFunc (Config { gen_func_arg_states = gen_fa})
                , xs
                , b { name_gen = ng2 })
 
-            -- If we have an EnsureEq on the stack, we do not want to add function argument states because
-            -- (a) we have already added function argument states when we initially began reducing the NRPC
-            -- and (b) we need to make sure that we actually do satisfy the equality, for soundness, and
-            -- thus cannot clear out the stack
-        --     (ng3, xs_new_g) = if noEnsureEq stck'
-        --                     then L.mapAccumR
-        --                             (funcArgState n es (returnType t)) ng2
-        --                             $ zip [0..] es
-        --                     else (ng'', [])
-        --     xs = mapMaybe (fmap fst) xs_new_g
-        --     new_g = concatMap snd $ catMaybes xs_new_g
-        --     no_nrpc' = foldr HS.insert no_nrpc new_g
-        --     xs' = map (\new_s -> (new_s, (no_nrpc', nrpc_count))) xs
-
-        --     (final_xs, final_ng) = if gen_fa then (xs', ng3) else ([], ng2)
-        -- in 
-        -- return (Finished, (s', (no_nrpc', nrpc_count + 1)):final_xs, b {name_gen = final_ng})
-
     | -- We have a symbolic function
       Var (Id n t):es_ce <- unApp ce
     , E.isSymbolic n eenv
