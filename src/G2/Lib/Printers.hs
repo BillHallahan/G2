@@ -270,7 +270,10 @@ mkAltHaskell off cleaned pg i_bndr@(Id bndr_name _) (Alt am e) =
         mkAltMatchHaskell m_bndr (DataAlt dc ids)
             | strict_case pg
             , nameOcc (dcName dc) == ""
-            , [i] <- ids = "!" <> mkIdHaskell pg i
+            , [i] <- ids =
+                case m_bndr of
+                    Just bndr -> "!" <> mkIdHaskell pg bndr <> "@(" <> mkIdHaskell pg i <> ")"
+                    Nothing -> "!" <> mkIdHaskell pg i
             | otherwise =
             let
                 pr_am = mkDataConHaskell pg dc <> " " <> T.intercalate " "  (map (mkIdHaskell pg) ids)
