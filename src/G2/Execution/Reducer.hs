@@ -779,10 +779,17 @@ nonRedHigherOrderFunc (Config { gen_func_arg_states = gen_fa})
     = 
         let
             (s_func_arg, wrapper, ng2) = mkCaseWrapper n es (returnType t) ng1
+
+            xs =
+                if gen_fa
+                    then
+                        [ (s', (no_nrpc, nrpc_count + 1))
+                        , (s_func_arg, (HS.insert (idName wrapper) no_nrpc, nrpc_count) )]
+                    else
+                        [ (s', (no_nrpc, nrpc_count + 1)) ]
         in
         return (Finished
-               , [ (s', (no_nrpc, nrpc_count + 1))
-                 , (s_func_arg, (HS.insert (idName wrapper) no_nrpc, nrpc_count) )]
+               , xs
                , b { name_gen = ng2 })
 
             -- If we have an EnsureEq on the stack, we do not want to add function argument states because
