@@ -308,7 +308,7 @@ primDefs' b c l unit =
                                 )
                                 (Var $ z seqTyX))
               , ("toRe#", Lam TypeL (x TYPE) . Lam TermL (y seqTyX)
-                                  $ App 
+                                  $ App
                                     (Prim ToRe ((TyFun seqTyX) $ TyFun seqTyX seqTyX))
                                     (Var $ y seqTyX))
 
@@ -367,7 +367,7 @@ primDefs' b c l unit =
               , ("&&#", Prim And . TyFun (TyCon b TYPE) $ TyFun (TyCon b TYPE) (TyCon b TYPE))
               , ("||#", Prim Or . TyFun (TyCon b TYPE) $ TyFun (TyCon b TYPE) (TyCon b TYPE))
               , ("==>", Prim Implies . TyFun (TyCon b TYPE) $ TyFun (TyCon b TYPE) (TyCon b TYPE))
-              
+
               , ("forAllBoundInt#", Prim ForAllBoundPr (mkTyFun [ TyLitInt
                                                                 , TyLitInt
                                                                 , TyFun TyLitInt (TyCon b TYPE)
@@ -380,7 +380,7 @@ primDefs' b c l unit =
               , ("buildLitTable#", Lam TypeL (x TYPE)
                                  . Lam TypeL (y TYPE)
                                  . Lam TermL (z funTyXY)
-                                 $ App (Prim BuildLitTable (TyFun funTyXY TyUnknown)) (Var $ z funTyXY)
+                                 $ App (Prim BuildLitTable (TyFun funTyXY TyUnknown)) (mkTyFun [tyPrimTuple, Var $ z funTyXY, tyBool b])
                 )
               ]
               where
@@ -390,14 +390,14 @@ primDefs' b c l unit =
                     seqTyX = seqTy (TyVar (x TYPE))
                     strTy = seqTy (TyCon c TYPE)
 
-                    strStrBool op = 
+                    strStrBool op =
                         Lam TypeL (x TYPE) . Lam TermL (y strTy) . Lam TermL (z strTy)
-                            $ App 
+                            $ App
                                 (App
                                     (Prim op ((TyFun strTy) $ TyFun strTy (TyCon b TYPE)))
                                     (Var $ y strTy))
                                 (Var $ z strTy)
-                    
+
                     iteExpr t =
                          Lam TermL (z $ TyCon b TYPE) . Lam TermL (x t) . Lam TermL (y t)
                             $ Case (Var (z $ TyCon b TYPE))
@@ -408,7 +408,7 @@ primDefs' b c l unit =
                                                 , Var . z $ TyCon b TYPE
                                                 , Var $ x t
                                                 , Var $ y t]]
-                    
+
 a :: Id
 a = Id (Name "a" Nothing 0 Nothing) TYPE
 
@@ -437,10 +437,13 @@ z :: Type -> Id
 z = Id (Name "z" Nothing 0 Nothing)
 
 dummyId :: T.Text -> Type -> Id
-dummyId name = Id (Name name Nothing 0 Nothing) 
+dummyId name = Id (Name name Nothing 0 Nothing)
 
 binder :: Type -> Id
 binder = Id (Name "b" Nothing 0 Nothing)
+
+tyBool :: Name -> Type
+tyBool n = TyCon n TYPE
 
 tyIntInt :: Type
 tyIntInt = TyFun TyLitInt TyLitInt

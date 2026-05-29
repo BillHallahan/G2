@@ -659,10 +659,7 @@ funcToSMT2Prim tv Map (Lam _ (Id n1 t1) e) xs =
     let
         n1' = nameToStr n1
     in
-    MapSMT n1' (typeToSMT tv t1) (wrap n1' (exprToSMT tv e)) (exprToSMT tv xs)
-    where
-        wrap n v@(V vn SortChar) | n == vn = SeqUnitSMT v
-        wrap n smt = modifyChildren (wrap n) smt
+    MapSMT n1' (typeToSMT tv t1) (wrapChar n1' (exprToSMT tv e)) (exprToSMT tv xs)
 
 funcToSMT2Prim tv op lhs rhs = error $ "funcToSMT2Prim: invalid case with (tyvar_env, op, lhs, rhs): " ++ show (tv, op, lhs, rhs)
 
@@ -696,10 +693,9 @@ funcToSMT3Prim tv FoldLeft (Lam _ (Id n1 t1) (Lam _ (Id n2 t2) e)) initial xs =
         n2' = nameToStr n2
     in
     FoldLeftSMT n1' (typeToSMT tv t1) n2' (typeToSMT tv t2)
-                               (wrap n1' $ wrap n2' (exprToSMT tv e)) (exprToSMT tv initial) (exprToSMT tv xs)
-    where
-        wrap n v@(V vn SortChar) | n == vn = SeqUnitSMT v
-        wrap n smt = modifyChildren (wrap n) smt
+                               (wrapChar n1' $ wrapChar n2' (exprToSMT tv e))
+                               (exprToSMT tv initial)
+                               (exprToSMT tv xs)
 
 funcToSMT3Prim _ op _ _ _ = error $ "funcToSMT3Prim: invalid case with " ++ show op
 
@@ -711,13 +707,15 @@ funcToSMT4Prim tv FoldLeftI (Lam _ (Id idx idx_t) (Lam _ (Id n1 t1) (Lam _ (Id n
         n2' = nameToStr n2
     in
     FoldLeftISMT idx' (typeToSMT tv idx_t) n1' (typeToSMT tv t1) n2' (typeToSMT tv t2)
-                               (wrap n1' $ wrap n2' (exprToSMT tv e))
+                               (wrapChar n1' $ wrapChar n2' (exprToSMT tv e))
                                (exprToSMT tv offset)
                                (exprToSMT tv initial)
                                (exprToSMT tv xs)
-    where
-        wrap n v@(V vn SortChar) | n == vn = SeqUnitSMT v
-        wrap n smt = modifyChildren (wrap n) smt
+
+funcToSMT4Prim _ op _ _ _ _ = error $ "funcToSMT4Prim: invalid case with " ++ show op
+
+wrapChar n v@(V vn SortChar) | n == vn = SeqUnitSMT v
+wrapChar n smt = modifyChildren (wrapChar n) smt
 
 altToSMT :: Lit -> Expr -> SMTAST
 altToSMT (LitInt i) _ = VInt i

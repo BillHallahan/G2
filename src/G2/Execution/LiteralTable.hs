@@ -26,7 +26,7 @@ introduceLitTable :: State t -> Name -> Id -> LTUpdate -> State t
 introduceLitTable s n i up = s { lit_table_stack = lts
                                , exec_stack = es }
     where lts = S.push lt (lit_table_stack s)
-          lt = LitTable { lt_arg = i, lt_mapping = HM.empty }
+          lt = LitTable { lt_arg = i, lt_mapping = HM.empty, lt_errored = False }
           es = S.push (LitTableFrame (StartedBuilding n) up) (exec_stack s)
 
 inLitTableMode :: State t -> Bool
@@ -116,11 +116,21 @@ mkLamArg s ng lt =
 -- For other functions, we use `ite`.
 litTableToLam :: State t -> NameGen -> LitTable -> (Expr, EESymDiff, NameGen)
 litTableToLam s ng lt =
-    case HM.toList $ lt_mapping lt of
-        [] -> mkIdLam s ng lt
-        ((_, e):_) | typeOf (tyvar_env s) e == tyBool (known_values s) ->
-            litTableToLamBool s ng lt
-        _ -> litTableToLamNonBool s ng lt
+    if lt_errored lt then
+        mkTup (Prim UnspecifiedOutput TyUnknown) (mkFalse kv)
+    else
+        case HM.toList $ lt_mapping lt of
+            [] ->
+                mkTup (mkIdLam s ng lt) (mkTrue kv)
+            ((_, e):_) | typeOf tv_env e == tyBool kv ->
+                mkTup (litTableToLamBool s ng lt) (mkTrue kv)
+            _ ->
+                mkTup (litTableToLamNonBool s ng lt) (mkTrue kv)
+    where
+        kv = known_values s
+        tenv = type_env s
+        tv_env = tyvar_env s
+        mkTup x y = mkApp [mkPrimTuple kv tenv, TyUnknown, TyUnknown, typeOf tv_env x, typeOf tv_env y, x, y]
 
 litTableToLamBool :: State t -> NameGen -> LitTable -> (Expr, EESymDiff, NameGen)
 litTableToLamBool s ng lt =

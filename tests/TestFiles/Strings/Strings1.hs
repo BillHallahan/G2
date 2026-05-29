@@ -635,6 +635,11 @@ any1 s = case L.any (== '&') s && length s > 4 of
             True -> 1
             False -> 2
 
+any2 :: String -> Int
+any2 s = case L.any (\x -> if x >= 'a' && x <= 'z' then True else error "whoops!") s && length s > 2 of
+            True -> 1
+            False -> 2
+
 filter1 :: String -> Int
 filter1 s = case filter (/= '$') s of
                 "x" -> 1
