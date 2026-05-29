@@ -518,6 +518,7 @@ lonePrim :: Primitive -> SMTAST
 lonePrim ReNone = ReNoneSMT
 lonePrim ReAll = ReAllSMT
 lonePrim ReAllChar = ReAllCharSMT
+lonePrim p = error $ "unhandled Prim in lonePrim: " ++ show p
 
 -- | We split based on whether the passed Expr is a function or known data constructor, or an unknown data constructor
 funcToSMT :: TV.TyVarEnv -> Expr -> [Expr] -> SMTAST
@@ -654,6 +655,14 @@ funcToSMT2Prim tv ReConcat a1 a2  = ReConcatSMT (exprToSMT tv a1) (exprToSMT tv 
 funcToSMT2Prim tv ReUnion a1 a2  = ReUnionSMT (exprToSMT tv a1) (exprToSMT tv a2)
 funcToSMT2Prim tv ReInter a1 a2  = ReInterSMT (exprToSMT tv a1) (exprToSMT tv a2)
 funcToSMT2Prim tv ReRange a1 a2  = ReRangeSMT (exprToSMT tv a1) (exprToSMT tv a2)
+funcToSMT2Prim tv Map (Lam _ (Id n1 t1) e) xs =
+    let
+        n1' = nameToStr n1
+    in
+    MapSMT n1' (typeToSMT tv t1) (wrap n1' (exprToSMT tv e)) (exprToSMT tv xs)
+    where
+        wrap n v@(V vn SortChar) | n == vn = SeqUnitSMT v
+        wrap n smt = modifyChildren (wrap n) smt
 
 funcToSMT2Prim tv op lhs rhs = error $ "funcToSMT2Prim: invalid case with (tyvar_env, op, lhs, rhs): " ++ show (tv, op, lhs, rhs)
 
@@ -1027,6 +1036,9 @@ toSolverASTSeq = go
         go (StrReverseSMT x) = function1 "seq.rev" (goBack x)
         go (SeqNthSMT x y) = function2 "seq.nth" (goBack x) (goBack y)
         go (SeqEmptySMT s) = "(as seq.empty (Seq " <> sortName s <> "))"
+        go (MapSMT n1 s1 x y) =
+            "(seq.map (lambda ((" <> TB.string n1 <> " " <> sortNameLam s1 <> ")) "
+                    <> goBack x <> ") " <> goBack y <> ")"
         go (FoldLeftSMT n1 s1 n2 s2 x y z) =
             "(seq.fold_left (lambda ((" <> TB.string n1 <> " " <> sortNameLam s1 <> ")"
                     <> " (" <> TB.string n2 <> " " <> sortNameLam s2 <> ")) "

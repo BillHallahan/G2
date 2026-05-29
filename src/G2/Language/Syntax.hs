@@ -276,6 +276,7 @@ data Primitive = -- Mathematical and logical operators
                | OrdChar
                | WGenCat
 
+               | Map -- ^ (a -> b) -> [a] -> [b], Z3 only
                | FoldLeft -- ^ (a -> b -> a) -> a -> [b] -> a, Z3 only
                | FoldLeftI -- ^ (Int# -> a -> b -> a) -> Int# -> a -> [b] -> a, Z3 only
 

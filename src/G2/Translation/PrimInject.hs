@@ -273,6 +273,12 @@ primDefs' b c l unit =
                               $ App (Prim StrReverse (TyFun seqTyX seqTyX)) (Var $ y seqTyX))
               , ("intToString#", Prim IntToString (TyFun TyLitInt strTy))
 
+              , ("smtMap#", Lam TypeL a . Lam TypeL (x TYPE)
+                          . Lam TermL (f (mkTyFun [TyVar a, TyVar $ x TYPE]))
+                          . Lam TermL (v seqTyA)
+                          $ mkApp [Prim Map (mkTyFun [mkTyFun [TyVar a, TyVar $ x TYPE], seqTyA, seqTyX])
+                                  , Var $ f (mkTyFun [TyVar a, TyVar $ x TYPE])
+                                  , Var $ v seqTyA ])
               , ("smtFoldLeft#", Lam TypeL a . Lam TypeL (x TYPE)
                                . Lam TermL (f (TyFun (TyVar a) (TyFun (TyVar d) (TyVar a))))
                                . Lam TermL (u (TyVar a))
@@ -380,6 +386,7 @@ primDefs' b c l unit =
               where
                     funTyXY = TyFun (TyVar (x TYPE)) (TyVar (y TYPE))
                     seqTy v = (TyApp (TyCon l (TyFun TYPE TYPE)) v)
+                    seqTyA = seqTy (TyVar a)
                     seqTyX = seqTy (TyVar (x TYPE))
                     strTy = seqTy (TyCon c TYPE)
 

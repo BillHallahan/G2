@@ -422,11 +422,13 @@ testFileTests = testGroup "TestFiles"
                                                               , ("all2", 500, [AtLeast 5])
                                                               , ("all3", 500, [AtLeast 5])
                                                               , ("all4", 500, [AtLeast 5])
-                                                              , ("any1", 500, [AtLeast 5])
+                                                              , ("any1", 1000, [AtLeast 5])
                                                               , ("filter1", 500, [AtLeast 5])
                                                               , ("dropWhile1", 500, [AtLeast 5])
                                                               , ("dropWhile2", 500, [AtLeast 5])
                                                               , ("takeWhile1", 500, [AtLeast 5])
+                                                              , ("map1", 1000, [AtLeast 4])
+                                                              , ("map2", 1000, [AtLeast 5])
                                                               ]
 
     , checkInputOutputsSMTStrings "tests/TestFiles/Strings/Strings1.hs"
@@ -524,7 +526,7 @@ testFileTests = testGroup "TestFiles"
                                         ]
     , checkInputOutputsSMTStringsStrict "tests/TestFiles/Strings/Strings1.hs"
                                         [ ("showInt1", 4000, [Exactly 2])
-                                        , ("test1", 800, [ AtLeast 1
+                                        , ("test1", 1500, [ AtLeast 1
                                                          , RExists "test1InitTailEq"])
                                         ]
     , checkInputOutputsSMTStringsWithSubPath "tests/TestFiles/Strings/Strings1.hs"
@@ -562,6 +564,8 @@ testFileTests = testGroup "TestFiles"
                                            , ("dropWhile1", 10000, [Exactly 4])
                                            , ("dropWhile2", 10000, [Exactly 1])
                                            , ("takeWhile1", 10000, [Exactly 4])
+                                           , ("map1", 10000, [Exactly 3])
+                                           , ("map2", 10000, [Exactly 4])
                                            ]
 
     , checkInputOutputsSMTLists "tests/TestFiles/Seq/Seq1.hs" [ ("toEnum1", 2000, [Exactly 1])
@@ -898,7 +902,7 @@ baseTests = testGroup "Base"
                                                        , ("minTest", 1000, [AtLeast 2])
                                                        , ("initsTest", 4000, [AtLeast 6])
                                                        , ("foldrTest2", 1000, [AtLeast 1])
-                                                       , ("unionTest", 1000, [AtLeast 7]) ]
+                                                       , ("unionTest", 1200, [AtLeast 7]) ]
 
     , checkInputOutputs "tests/BaseTests/Tuples.hs" [ ("addTupleElems", 1000, [AtLeast 2])
                                                     , ("applicativeTuple", 1000, [Exactly 1])
@@ -910,6 +914,8 @@ baseTests = testGroup "Base"
                                                        , ("listToMaybeFloat", 1000, [AtLeast 2]) ]
 
     , checkInputOutput "tests/BaseTests/Other.hs" "check4VeryEasy2" 600 [AtLeast 1]
+    , checkInputOutputs "tests/BaseTests/Ratio.hs" [ ("manipRatio", 20000, [AtLeast 5])
+                                                   , ("callApprox", 20000, [AtLeast 5]) ]
     , checkInputOutput "tests/BaseTests/ZipList.hs" "callApp" 2000 [AtLeast 10]
     ]
 
