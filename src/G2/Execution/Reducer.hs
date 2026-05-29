@@ -896,10 +896,8 @@ nonRedHigherOrderFunc (Config { gen_func_arg_states = gen_fa})
             | TyCon tname _:ts <- unTyApp (typeOf tvnv fa_e)
             , Just alg_data_ty <- HM.lookup tname tenv =
                 let
-                    -- (g, ng') = freshId (TyFun (typeOf tvnv this_arg) ret_ty) ng_args
                     (bindee, ng') = freshId (typeOf tvnv this_arg) ng_args
                     (alts, sym_ids, ng'') = buildHigherOrderCaseAlts ng' alg_data_ty ts ret_ty
-                    -- g_app = Case (App (Var g) (Var this_arg)) bindee ret_ty [Alt Default  (Var bindee)]
 
                     g_app = Case (Tick (dc_split_tick defSymFuncTicks) $ Var this_arg) bindee ret_ty alts
                     f_def = mkLams (zip (repeat TermL) arg_is) g_app
@@ -1087,14 +1085,6 @@ allApplyFrames stck = go [] stck stck
                     | Just (ApplyFrame ae, stck') <- Stck.pop pop_stck = go (ae:aes) stck' stck'
                     | Just (UpdateFrame _, stck') <- Stck.pop pop_stck = go aes stck' stck_top_ups
                     | otherwise = (reverse aes, stck_top_ups)
-
-wrapApplyFramesHandlingUpdates :: Stck.Stack Frame -> Expr -> ExprEnv -> ([Expr], ExprEnv, Stck.Stack Frame)
-wrapApplyFramesHandlingUpdates stck e eenv_ = go [] e eenv_ stck stck
-    where
-        go aes wrap_e eenv pop_stck stck_top_ups
-                    | Just (ApplyFrame ae, stck') <- Stck.pop pop_stck = go (ae:aes) (App wrap_e ae) eenv stck' stck'
-                    | Just (UpdateFrame n, stck') <- Stck.pop pop_stck = go aes wrap_e (E.insert n wrap_e eenv) stck' stck_top_ups
-                    | otherwise = (reverse aes, eenv, stck_top_ups)
 
 isNonRedBlockerTick :: Tickish -> Bool
 isNonRedBlockerTick (NamedLoc n) = nameOcc n == "NonRedBlocker"
