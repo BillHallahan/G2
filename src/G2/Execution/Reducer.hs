@@ -837,7 +837,7 @@ nonRedHigherOrderFunc (Config { gen_func_arg_states = gen_fa})
         --
         -- After wrapper (hopefully) discovers an error, the state will terminate.
         -- However, we need `cont` in case there are eariler calls to `symfun`,
-        -- which need to be given correct behavior.
+        -- which need to be given correct behavior to lead down some path.
         mkCaseWrapper n es ret_ty init_ng =
             let
                 ts = map (typeOf tvnv) es
