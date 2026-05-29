@@ -94,11 +94,7 @@ evalPrims eenv tenv tv_env kv tc = modifyContainedASTs (evalPrims' eenv tenv tv_
 evalPrims' :: ExprEnv -> TypeEnv -> TV.TyVarEnv -> KnownValues -> TypeClasses -> Expr -> Expr
 evalPrims' eenv tenv tv_env kv tc a@(App x y) =
     case unApp a of
-        [p@(Prim _ _), l] -> evalPrim' eenv tenv tv_env kv tc [p, evalPrims' eenv tenv tv_env kv tc l]
-        [p@(Prim _ _), l1, l2] ->
-            evalPrim' eenv tenv tv_env kv tc [p, evalPrims' eenv tenv tv_env kv tc l1, evalPrims' eenv tenv tv_env kv tc l2]
-        [p@(Prim _ _), l1, l2, l3] ->
-            evalPrim' eenv tenv tv_env kv tc [p, evalPrims' eenv tenv tv_env kv tc l1, evalPrims' eenv tenv tv_env kv tc l2, evalPrims' eenv tenv tv_env kv tc l3]
+        (p@(Prim _ _):rest) -> evalPrim' eenv tenv tv_env kv tc (p:map (evalPrims' eenv tenv tv_env kv tc) rest)
         _ -> App (evalPrims' eenv tenv tv_env kv tc x) (evalPrims' eenv tenv tv_env kv tc y)
 evalPrims' eenv tenv tv_env kv tc e = modifyChildren (evalPrims' eenv tenv tv_env kv tc) e
 
@@ -126,6 +122,9 @@ maybeEvalPrim' eenv tenv tv_env kv tc xs
 
     | [Prim p _, x, y, z] <- xs
     , Just e <- evalPrimADT3 eenv tenv tv_env kv tc p x y z = Just e
+
+    | [Prim p _, w, x, y, z] <- xs
+    , Just e <- evalPrimADT4 eenv tenv tv_env kv tc p w x y z = Just e
 
     | [Prim p _, x, y, z] <- xs = evalPrim3 kv p x y z
 
@@ -732,6 +731,26 @@ evalPrimADT3 eenv tenv tv_env kv tc FoldLeft (Lam _ (Id b_id _) (Lam _ (Id a_id 
 
 evalPrimADT3 _ _ _ _ _ _ _ _ _ = Nothing
 
+evalPrimADT4 :: ExprEnv
+             -> TypeEnv
+             -> TyVarEnv
+             -> KnownValues
+             -> TypeClasses
+             -> Primitive
+             -> Expr
+             -> Expr
+             -> Expr
+             -> Expr
+             -> Maybe Expr
+evalPrimADT4 eenv tenv tv_env kv tc FoldLeftI (Lam _ (Id i_id _) (Lam _ (Id b_id _) (Lam _ (Id a_id _) e))) offset initial lst = do
+    lst1 <- toExprList lst
+    offset1 <- getInteger offset
+    let lst2 = zip (map (Lit . LitInt) [offset1..]) lst1
+    let unfolded =
+            foldl (\b_val (i_val, a_val) -> replaceVar i_id i_val $ replaceVar b_id b_val $ replaceVar a_id a_val e) initial lst2
+    return . evalPrims eenv tenv tv_env kv tc $ inlineVarsForPrim eenv tc unfolded
+evalPrimADT4 _ _ _ _ _ _ _ _ _ _ = Nothing
+
 listType :: Expr -> Maybe Type
 listType (App (Data _) (Type t)) = Just t
 listType (App (App (App (Data _) (Type t)) _) _) = Just t
@@ -746,6 +765,10 @@ toExprList :: Expr -> Maybe [Expr]
 toExprList (App (Data _) _) = Just []
 toExprList (App (App (App (Data _) _) l) xs) = fmap (l:) $ toExprList xs
 toExprList _ = Nothing
+
+getInteger :: Expr -> Maybe Integer
+getInteger (Lit (LitInt i)) = Just i
+getInteger _ = Nothing
 
 toStringExpr :: KnownValues -> TypeEnv -> String -> Expr
 toStringExpr kv tenv =

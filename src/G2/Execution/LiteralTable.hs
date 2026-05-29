@@ -1,6 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-module G2.Execution.LiteralTable 
+module G2.Execution.LiteralTable
     ( introduceLitTable
     , inLitTableMode
     , updateLiteralTable
@@ -136,7 +136,7 @@ litTableToLamBool s ng lt =
                     [] -> mkFalse kv
                     (hd:tl) ->
                         L.foldl'
-                            (\prev_exp pcs -> mkApp [Prim Or (tyBool kv), prev_exp, pcsToExprBool kv pcs])
+                            (\prev_exp pcs -> mkApp [Prim Or (tripleBoolTy kv), prev_exp, pcsToExprBool kv pcs])
                             (pcsToExprBool kv hd)
                             tl
 
@@ -150,26 +150,48 @@ pcsToExprBool kv pcs =
     case pcs of
         [] -> mkTrue kv
         (hd:tl) ->
-            L.foldl' (\prev_exp pc -> mkApp [Prim And (tyBool kv), prev_exp, pcToExprBool kv pc]) (pcToExprBool kv hd) tl
+            L.foldl' (\prev_exp pc -> mkApp [Prim And (tripleBoolTy kv), prev_exp, pcToExprBool kv pc]) (pcToExprBool kv hd) tl
 
 -- Turn one path condition into an expression, with equality
 pcToExprBool :: KnownValues -> PathCond -> Expr
 pcToExprBool kv pc =
     case pc of
-        ExtCond expr bool -> if bool then expr else mkApp [Prim Not (tyBool kv), expr]
-        AltCond lit var bool -> let eq_e = mkApp [Prim Eq (tyBool kv), Lit lit, var]
-                                in if bool then eq_e else mkApp [Prim Not (tyBool kv), eq_e]
+        ExtCond expr bool -> if bool then expr else mkApp [Prim Not (doubleBoolTy kv), expr]
+        AltCond lit var bool -> let eq_e = mkApp [Prim Eq (tripleBoolTy kv), Lit lit, var]
+                                in if bool then eq_e else mkApp [Prim Not (doubleBoolTy kv), eq_e]
         _ -> error $ "unhandled pc:\n" ++ show pc
 
 litTableToLamNonBool :: State t -> NameGen -> LitTable -> (Expr, EESymDiff, NameGen)
 litTableToLamNonBool s ng lt =
     let (elem_var, unboxed_name, ng1) = mkLamArg s ng lt
         kv = known_values s
+        tv_env = tyvar_env s
         lt_lst = HM.toList $ lt_mapping lt
-        ite_exp = L.foldl'
-                    (\prev_exp (pcs, e) -> mkApp [Prim Ite TyUnknown, (pcsToExprBool kv $ PC.toList pcs), e, prev_exp])
-                    (Prim Error TyBottom)
-                    (reverse lt_lst)
+        -- `Char`s are represented as one character `String`s here, so we
+        -- need to extract the first character.
+        wrap e t = if t == tyChar kv
+                       then mkApp [Prim SeqNth TyUnknown, e, Lit $ LitInt 0]
+                       else e
+        -- At this point, we assume there are no `Error`s in the literal table. This
+        -- means we have a total function, and we can pick one option to be the default.
+        ite_exp = case lt_lst of
+                    ((_ {- We ignore the PathConds for the default -}, def_e):rest) ->
+                        L.foldl'
+                            (\prev_exp (pcs, e) ->
+                                mkApp [ Prim Ite TyUnknown
+                                      , (pcsToExprBool kv $ PC.toList pcs)
+                                      , (wrap e $ typeOf tv_env e)
+                                      , prev_exp]
+                            )
+                            (wrap def_e $ typeOf tv_env def_e)
+                            (reverse rest)
+                    _ -> error "impossible, empty list despite checking in litTableToLam"
         ite_exp1 = replaceVar unboxed_name (Var elem_var) ite_exp
         fun_exp = Lam TermL elem_var ite_exp1
     in (fun_exp, [elem_var], ng1)
+
+tripleBoolTy :: KnownValues -> Type
+tripleBoolTy kv = mkTyFun [tyBool kv, tyBool kv, tyBool kv]
+
+doubleBoolTy :: KnownValues -> Type
+doubleBoolTy kv = mkTyFun [tyBool kv, tyBool kv]

@@ -518,18 +518,20 @@ lonePrim :: Primitive -> SMTAST
 lonePrim ReNone = ReNoneSMT
 lonePrim ReAll = ReAllSMT
 lonePrim ReAllChar = ReAllCharSMT
+lonePrim p = error $ "unhandled Prim in lonePrim: " ++ show p
 
 -- | We split based on whether the passed Expr is a function or known data constructor, or an unknown data constructor
 funcToSMT :: TV.TyVarEnv -> Expr -> [Expr] -> SMTAST
 funcToSMT tv (Prim p _) [a] = funcToSMT1Prim tv p a
 funcToSMT tv (Prim p _) [a1, a2] = funcToSMT2Prim tv p a1 a2
 funcToSMT tv (Prim p _) [a1, a2, a3] = funcToSMT3Prim tv p a1 a2 a3
+funcToSMT tv (Prim p _) [a1, a2, a3, a4] = funcToSMT4Prim tv p a1 a2 a3 a4
 funcToSMT tv (Data dc) es =
     let
         isType (Type _) = True
         isType _ = False
     in
-    DataSMT (nameToStr $ dc_name dc) . map (exprToSMT tv) $ filter (not . isType) es 
+    DataSMT (nameToStr $ dc_name dc) . map (exprToSMT tv) $ filter (not . isType) es
 funcToSMT _ e l = error ("Unrecognized " ++ show e ++ " with args " ++ show l ++ " in funcToSMT")
 
 funcToSMT1Prim :: TV.TyVarEnv -> Primitive -> Expr -> SMTAST
@@ -543,7 +545,7 @@ funcToSMT1Prim tv DecimalPart e | typeOf tv e == TyLitFloat = exprToSMT tv e `Fp
 funcToSMT1Prim tv FpIsNegativeZero e =
     let
         nz = "INTERNAL_!!_IsNegZero"
-        smt_srt = typeToSMT tv (typeOf tv e) 
+        smt_srt = typeToSMT tv (typeOf tv e)
     in
     SLet (nz, exprToSMT tv e) $ SmtAnd [FpIsNegative (V nz smt_srt), FpIsZero (V nz smt_srt)]
 funcToSMT1Prim tv IsDenormalized e =
@@ -653,6 +655,14 @@ funcToSMT2Prim tv ReConcat a1 a2  = ReConcatSMT (exprToSMT tv a1) (exprToSMT tv 
 funcToSMT2Prim tv ReUnion a1 a2  = ReUnionSMT (exprToSMT tv a1) (exprToSMT tv a2)
 funcToSMT2Prim tv ReInter a1 a2  = ReInterSMT (exprToSMT tv a1) (exprToSMT tv a2)
 funcToSMT2Prim tv ReRange a1 a2  = ReRangeSMT (exprToSMT tv a1) (exprToSMT tv a2)
+funcToSMT2Prim tv Map (Lam _ (Id n1 t1) e) xs =
+    let
+        n1' = nameToStr n1
+    in
+    MapSMT n1' (typeToSMT tv t1) (wrap n1' (exprToSMT tv e)) (exprToSMT tv xs)
+    where
+        wrap n v@(V vn SortChar) | n == vn = SeqUnitSMT v
+        wrap n smt = modifyChildren (wrap n) smt
 
 funcToSMT2Prim tv op lhs rhs = error $ "funcToSMT2Prim: invalid case with (tyvar_env, op, lhs, rhs): " ++ show (tv, op, lhs, rhs)
 
@@ -692,6 +702,22 @@ funcToSMT3Prim tv FoldLeft (Lam _ (Id n1 t1) (Lam _ (Id n2 t2) e)) initial xs =
         wrap n smt = modifyChildren (wrap n) smt
 
 funcToSMT3Prim _ op _ _ _ = error $ "funcToSMT3Prim: invalid case with " ++ show op
+
+funcToSMT4Prim :: TV.TyVarEnv -> Primitive -> Expr -> Expr -> Expr -> Expr -> SMTAST
+funcToSMT4Prim tv FoldLeftI (Lam _ (Id idx idx_t) (Lam _ (Id n1 t1) (Lam _ (Id n2 t2) e))) offset initial xs =
+    let
+        idx' = nameToStr idx
+        n1' = nameToStr n1
+        n2' = nameToStr n2
+    in
+    FoldLeftISMT idx' (typeToSMT tv idx_t) n1' (typeToSMT tv t1) n2' (typeToSMT tv t2)
+                               (wrap n1' $ wrap n2' (exprToSMT tv e))
+                               (exprToSMT tv offset)
+                               (exprToSMT tv initial)
+                               (exprToSMT tv xs)
+    where
+        wrap n v@(V vn SortChar) | n == vn = SeqUnitSMT v
+        wrap n smt = modifyChildren (wrap n) smt
 
 altToSMT :: Lit -> Expr -> SMTAST
 altToSMT (LitInt i) _ = VInt i
@@ -1010,10 +1036,18 @@ toSolverASTSeq = go
         go (StrReverseSMT x) = function1 "seq.rev" (goBack x)
         go (SeqNthSMT x y) = function2 "seq.nth" (goBack x) (goBack y)
         go (SeqEmptySMT s) = "(as seq.empty (Seq " <> sortName s <> "))"
+        go (MapSMT n1 s1 x y) =
+            "(seq.map (lambda ((" <> TB.string n1 <> " " <> sortNameLam s1 <> ")) "
+                    <> goBack x <> ") " <> goBack y <> ")"
         go (FoldLeftSMT n1 s1 n2 s2 x y z) =
             "(seq.fold_left (lambda ((" <> TB.string n1 <> " " <> sortNameLam s1 <> ")"
                     <> " (" <> TB.string n2 <> " " <> sortNameLam s2 <> ")) "
                     <> goBack x <> ") " <> goBack y <> " " <> goBack z <> ")"
+        go (FoldLeftISMT idx idx_t n1 s1 n2 s2 w x y z) =
+            "(seq.fold_lefti (lambda ((" <> TB.string idx <> " " <> sortNameLam idx_t <> ")"
+                    <> " (" <> TB.string n1 <> " " <> sortNameLam s1 <> ")"
+                    <> " (" <> TB.string n2 <> " " <> sortNameLam s2 <> ")) "
+                    <> goBack w <> ") " <> goBack x <> " " <> goBack y <> " " <> goBack z <> ")"
         go c = toSolverASTRe goBack c
 
         goBack = toSolverAST toSolverASTSeq
