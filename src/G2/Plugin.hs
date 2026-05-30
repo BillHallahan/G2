@@ -1,7 +1,7 @@
 {-# LANGUAGE BangPatterns, CPP, DeriveDataTypeable, DeriveGeneric, 
              FlexibleContexts, LambdaCase, OverloadedStrings, TupleSections #-}
 
-module G2.Plugin (SymEx (..), plugin) where
+module G2.Plugin (SymEx (..), assume, (==>), plugin) where
 
 #if MIN_VERSION_GLASGOW_HASKELL(9,0,2,0)
 import GHC.Plugins as GHC hiding ((<>))
@@ -44,6 +44,17 @@ data SymEx = SymEx
              deriving (Data, Generic)
 
 instance NFData SymEx
+
+-- | Assume that a condition is true
+assume :: Bool -- ^ Condition to assume
+       -> a -- ^ 
+       -> a
+assume _ x = x
+
+-- | Implies
+(==>) :: Bool -> Bool -> Bool
+(==>) = assume
+infixr 0 ==>
 
 -- | During symbolic execution, we need to know definitions, types, etc.
 -- from previously compiled modules.  We also need to avoid reusing the same
@@ -113,14 +124,15 @@ g2PluginPass' cmd_lne config env modguts = do
     let merged_new_base = mergeExtractedG2s [exg2, base_exg2]
 
     (imports_exg2, (imports_nm, import_tnm)) <- SM.runStateT (loadImports env (exg2_binds merged_new_base) prev_explored rel_names) (new_nm, new_tm)
+    -- special handling for assume
+    let assume_exg2 = adjustAssume (Just "G2.Plugin") imports_nm imports_exg2
 
-    let merged_exg2 = mergeExtractedG2s [merged_new_base, imports_exg2]
+    let merged_exg2 = mergeExtractedG2s [merged_new_base, assume_exg2]
         injected_exg2 = specialInject merged_exg2
 
     liftIO $ writeIORef compiledModules $ Just (merged_exg2, imports_nm, import_tnm, prev_explored)
 
     let simp_state = initSimpleState injected_exg2 imports_nm import_tnm
-
 
     liftIO $ mapM_ (uncurry (runFunc cmd_lne simp_state)) ann_fs_g2
 
@@ -143,7 +155,8 @@ runFunc cmd_lne simp_state symex_annot entry
                                     func_config
             bindings' = bindings { higher_order_inst = HS.empty }
 
-        _ <- liftIO $ runG2WithConfig [] [] entry_id "" [] [L.nameModule entry] init_state func_config bindings'
+        (_, _, _, time_outs) <- liftIO $ runG2WithConfig [] [] entry_id "" [] [L.nameModule entry] init_state func_config bindings'
+        reportTerminationResults time_outs func_config
         return ()
     | otherwise = return ()
 

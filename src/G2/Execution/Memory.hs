@@ -14,6 +14,7 @@ import G2.Language.Syntax
 import G2.Language.Support
 import G2.Language.Naming
 import qualified G2.Language.ExprEnv as E
+import G2.Language.TypeClasses as TC
 import G2.Language.Typing
 
 import Data.Foldable
@@ -61,6 +62,8 @@ markAndSweepPreserving' :: MemConfig -> State t -> Bindings -> State t
 markAndSweepPreserving' PreserveAllMC s _ = s
 markAndSweepPreserving' mc (state@State { expr_env = eenv
                                         , type_env = tenv
+                                        , type_classes = tc
+                                        , families = fams
                                         , curr_expr = cexpr
                                         , path_conds = pc
                                         , exec_stack = es
@@ -70,6 +73,8 @@ markAndSweepPreserving' mc (state@State { expr_env = eenv
   where
     state' = state { expr_env = eenv'
                    , type_env = tenv'
+                   , type_classes = tc'
+                   , families = fams'
                    }
 
     active = activeNames tenv eenv HS.empty $ names cexpr <>
@@ -86,6 +91,8 @@ markAndSweepPreserving' mc (state@State { expr_env = eenv
 
     eenv' = E.filterWithKey (\n _ -> isActive n) eenv
     tenv' = HM.filterWithKey (\n _ -> isActive n) tenv
+    tc' = TC.filterWithKey (\n _ -> isActive n) tc
+    fams' = HM.filterWithKey (\n _ -> isActive n) fams
 
     higher_ord_eenv = E.filterWithKey (\n _ -> n `HS.member` inst) eenv
     higher_ord = nubBy (.::.) $ argTypesTEnv tenv ++ E.higherOrderExprs tvnv higher_ord_eenv

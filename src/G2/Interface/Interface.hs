@@ -38,7 +38,9 @@ module G2.Interface.Interface ( MkCurrExpr
                               , runG2SolvingResult
                               , runG2Solving
                               , runG2
-                              , Config) where
+                              , Config
+                              
+                              , reportTerminationResults) where
 
 import GHC hiding (Name, entry, nameModule, Id, Type)
 import GHC.Paths
@@ -986,3 +988,18 @@ instance (ExceptionMonad m, MC.MonadCatch m, MC.MonadMask m) => ExceptionMonad (
         where q :: (m (a, s) -> m (a, s)) -> SM.StateT s m a -> SM.StateT s m a
               q u (SM.StateT b) = SM.StateT (u . b)
 #endif
+
+-------------------------------------------------------------------------------
+-- Statistics Reporting
+-------------------------------------------------------------------------------
+
+reportTerminationResults :: TimedOut -> Config -> IO ()
+reportTerminationResults time_outs config = do
+  when (print_timeout config || print_timeout_list_depth config) $ case time_outs of
+      NoTimeOut -> putStrLn "All states terminated."
+      TimedOut m_i -> do
+          putStrLn "Some states timed out."
+          when (print_timeout_list_depth config) $
+            case m_i of
+              Just i -> putStrLn $ "Checked up to list depth: " ++ show (i - 1)
+              Nothing -> putStrLn "No lists"
