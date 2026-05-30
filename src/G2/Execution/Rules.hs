@@ -1199,7 +1199,7 @@ retErrorState s@(State { exec_stack = stck }) ng
     -- the starting frame of a literal table process
     | Just ((LitTableFrame (StartedBuilding _) _), _) <- S.pop stck =
         -- We need to escape error mode, so we set the curr expr to unspecified
-        (RuleIdentity, [s { lit_table_stack = lts, curr_expr = final }], ng)
+        (RuleReturnLitTableErr, [s { lit_table_stack = lts, curr_expr = final }], ng)
     | Just (_, stck') <- S.pop stck = (RuleError, [s { exec_stack = stck' }], ng)
     | otherwise = (RuleIdentity, [s { lit_table_stack = lts }], ng)
         -- We cannot currently deal with errors in literal table creation
