@@ -390,7 +390,7 @@ initRedHaltOrd s mod_name solver simplifier config exec_func_names no_nrpc_names
                                 NoNrpc -> liftSomeReducer (hpc_red f)
 
         nrpc_higher_red f = case symbolic_func_nrpc config of
-                                Nrpc -> SomeReducer (nonRedHigherOrderReducer config) .== Finished .--> nrpc_lib_red f
+                                Nrpc -> SomeReducer (nonRedHigherOrderReducer config approx_no_inline) .== Finished .--> nrpc_lib_red f
                                 NoNrpc -> nrpc_lib_red f
         
         accept_time_red f = case accept_times config of

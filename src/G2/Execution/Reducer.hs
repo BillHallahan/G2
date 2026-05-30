@@ -736,9 +736,10 @@ nonRedLibFuncs exec_names no_nrpc_names
 -- | A reducer to add higher order functions to non reduced path constraints for solving later  
 nonRedHigherOrderReducer :: MonadIO m =>
                             Config
+                         -> HS.HashSet Name -- ^ Names of variables to not inline when checking syntactic equivalence
                          -> Reducer m (NoNRPC, Int) t
-nonRedHigherOrderReducer config =
-    (mkSimpleReducer (\_ -> (HS.empty, 0)) (nonRedHigherOrderFunc config))
+nonRedHigherOrderReducer config no_inline =
+    (mkSimpleReducer (\_ -> (HS.empty, 0)) (nonRedHigherOrderFunc config no_inline))
         { onAccept = \s b (_, nrpc_count) -> do
             if print_num_nrpc config
                 then liftIO . putStrLn $ "NRPCs Generated: " ++ show nrpc_count
@@ -747,11 +748,13 @@ nonRedHigherOrderReducer config =
 
 nonRedHigherOrderFunc :: MonadIO m =>
                          Config
+                      -> HS.HashSet Name -- ^ Names of variables to not inline when checking syntactic equivalence
                       -> RedRules
                             m
                             (NoNRPC, Int) -- ^ Functions to not turn into NRPCs, 
                             t
 nonRedHigherOrderFunc (Config { gen_func_arg_states = gen_fa})
+                no_inline
                 (no_nrpc, nrpc_count)
                 s@(State { expr_env = eenv
                          , curr_expr = CurrExpr _ ce
@@ -775,7 +778,7 @@ nonRedHigherOrderFunc (Config { gen_func_arg_states = gen_fa})
     -- thus cannot clear out the stack
     , noEnsureEq stck'
 
-    , Just (s', _, _, ng1) <- createNonRed ng Focused s 
+    , Just (s', ng1) <- getNonRedForHigherOrder no_inline ng s 
     = 
         let
             (s_func_arg, wrapper, ng2) = mkCaseWrapper n es (returnType t) ng1
@@ -928,6 +931,20 @@ nonRedHigherOrderFunc (Config { gen_func_arg_states = gen_fa})
                 this_arg = arg_is !! this_arg_num
 
                 stck = Stck.singleton $ CurrExprFrame NoAction (CurrExpr Return $ Prim UnspecifiedOutput TyBottom)
+
+getNonRedForHigherOrder :: HS.HashSet Name -> NameGen -> State t -> Maybe (State t, NameGen)
+getNonRedForHigherOrder no_inline ng s
+    | v@(Var _):es_ce <- unApp (getExpr s)
+    , let (ae, stck) = allApplyFrames (exec_stack s)
+    , let es = es_ce ++ ae
+    , let ce' = mkApp (v:es)
+    , Just nrpc@(NRPC { nrpc_rhs = rhs }) <- findNRPC (findSynEq ce') (non_red_path_conds s) =
+        Just (s { curr_expr = CurrExpr Evaluate rhs, exec_stack = stck }, ng)
+    where
+        findSynEq ce_ nrpc = eqUpToTypesInlineIgnoringTicks no_inline (expr_env s) (nrpc_lhs nrpc) ce_
+getNonRedForHigherOrder no_inline ng s
+    | Just (s', _, _, ng1) <- createNonRed ng Focused s = Just (s', ng1)
+    | otherwise = Nothing
 
 data ApproxPrevs t = AP { ap_nrpc_states :: [State t], ap_halter_states :: [State t]}
 
