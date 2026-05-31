@@ -22,6 +22,7 @@ module G2.Translation.GHC ( module GHC
                           , module GHC.Types.Id.Info
                           , module GHC.Types.Literal
                           , module GHC.Types.Name
+                          , module GHC.Types.SourceError
                           , module GHC.Types.SrcLoc
                           , module GHC.Types.Unique
                           , module GHC.Types.Var
@@ -85,6 +86,7 @@ import GHC.Types.Avail
 import GHC.Types.Id.Info
 import GHC.Types.Literal
 import GHC.Types.Name hiding (varName)
+import GHC.Types.SourceError
 import GHC.Types.SrcLoc
 import GHC.Types.Unique
 import GHC.Types.Var
