@@ -1,7 +1,7 @@
 {-# LANGUAGE FlexibleContexts, MultiParamTypeClasses, OverloadedStrings #-}
 {-# LANGUAGE InstanceSigs #-}
 
-module G2.Interface.ExecRes ( ExecRes (..), StartFunc, ValidateRes(..), printInputOutput, transValidateRes ) where
+module G2.Interface.ExecRes ( ExecRes (..), StartFunc, ValidateRes(..), printInputOutput) where
 
 import G2.Language
 import G2.Lib.Printers
@@ -74,10 +74,6 @@ printHandle :: PrettyGuide -> State t -> Name -> Expr -> Maybe T.Text
 printHandle _ s _ e | (Data (DataCon { dc_name = n }):_) <- unApp e
                     , n == dcEmpty (known_values s) = Nothing
 printHandle pg s n h = Just (" --- " <> printName pg n <> " --- \n\t" <> printHaskellPG pg s h)
-
-transValidateRes :: ValidateRes -> Bool
-transValidateRes Valid = True
-transValidateRes _ = False
 
 instance Named t => Named (ExecRes t) where
     names :: Named t => ExecRes t -> S.Seq Name
