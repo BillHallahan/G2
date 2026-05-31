@@ -28,7 +28,7 @@ import GHC.LanguageExtensions
 import GHC.Paths
 import Control.Monad
 
-import GHC.Types.SourceError
+import G2.Translation.GHC (SourceError)
 
 import Data.Foldable (toList)
 import Data.Either
