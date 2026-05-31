@@ -9,7 +9,9 @@ import G2.Lib.Printers
 import Data.Maybe
 import qualified Data.Sequence as S
 import qualified Data.Text as T
-import GHC.Types.SourceError
+
+import G2.Translation.GHC (SourceError)
+
 import G2.Language.KnownValues (KnownValues(dcEmpty))
 
 type StartFunc = T.Text
