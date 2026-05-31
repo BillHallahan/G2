@@ -1,4 +1,4 @@
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE OverloadedStrings, LambdaCase #-}
 module InputOutputTest ( checkInputOutput
                        , checkInputOutputs
                        , checkInputOutputsWithCVC5
@@ -23,9 +23,7 @@ module InputOutputTest ( checkInputOutput
                        , checkInputOutputsNonRedLib
                        , checkInputOutputsInstType 
                        , checkInputOutputsWithValidate
-                       , checkInputOutputsWithTemplatesAndHpc
-                       
-                       , transValidateRes) where
+                       , checkInputOutputsWithTemplatesAndHpc) where
 
 import Test.Tasty
 import Test.Tasty.HUnit
@@ -246,7 +244,9 @@ checkInputOutput''' adj_config src exg2 nm tnm mb_modname config (entry, stps, r
 
     let chEx = checkExprInOutCount io req
     
-    return (fmap transValidateRes mr, chEx, anys, r, b)
+    let isValids = (\case Valid -> True; _ -> False) <$> mr
+
+    return (isValids, chEx, anys, r, b)
 
 ------------
 
