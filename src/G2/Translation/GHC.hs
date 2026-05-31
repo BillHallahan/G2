@@ -16,13 +16,18 @@ module G2.Translation.GHC ( module GHC
                           , module GHC.Data.Pair
                           , module GHC.Driver.Main
                           , module GHC.Driver.Session
+-- 
+#if __GLASGOW_HASKELL__ == 902
+                          , module GHC.Driver.Types
+#else
+                          , module GHC.Types.SourceError
+#endif
                           , module GHC.Iface.Tidy
                           , module GHC.Paths
                           , module GHC.Types.Avail
                           , module GHC.Types.Id.Info
                           , module GHC.Types.Literal
                           , module GHC.Types.Name
-                          , module GHC.Types.SourceError
                           , module GHC.Types.SrcLoc
                           , module GHC.Types.Unique
                           , module GHC.Types.Var
@@ -80,13 +85,17 @@ import GHC.Data.FastString
 import GHC.Data.Pair
 import GHC.Driver.Main
 import GHC.Driver.Session
+#if __GLASGOW_HASKELL__ == 902
+import GHC.Driver.Types
+#else 
+import GHC.Types.SourceError
+#endif
 import GHC.Iface.Tidy
 import GHC.Paths
 import GHC.Types.Avail
 import GHC.Types.Id.Info
 import GHC.Types.Literal
 import GHC.Types.Name hiding (varName)
-import GHC.Types.SourceError
 import GHC.Types.SrcLoc
 import GHC.Types.Unique
 import GHC.Types.Var
