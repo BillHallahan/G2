@@ -661,8 +661,8 @@ nonRedPCSymFunc _
                          , exec_stack = stck
                          , non_red_path_conds = (NRPC focus nre1 nre2) :*> nrs
                          })
-                        b@(Bindings { name_gen = ng }) =
-    
+                        b@(Bindings { name_gen = ng })
+    | true_assert s =
     let
         sft = defSymFuncTicks
         stck' = Stck.push (CurrExprFrame (EnsureEq nre2) cexpr) stck
@@ -679,6 +679,7 @@ nonRedPCSymFunc _
             let 
                 s'' = s' {curr_expr = CurrExpr Evaluate nre1}
             in return (InProgress, [(s'', Just sft)], b { name_gen = ng })
+    | otherwise = return (Finished, [], b)
 nonRedPCSymFunc m_sft s b = return (Finished, [(s, m_sft)], b)
 
 -- | (Symbolic) functions to not add to the NRPCs

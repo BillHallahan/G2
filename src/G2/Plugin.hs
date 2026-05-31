@@ -39,6 +39,8 @@ import qualified Data.Text.IO as T
 import Options.Applicative
 import G2.Language.TyVarEnv as TV
 
+import Data.List
+
 data SymEx = SymEx
            | SymExWithConfig String
              deriving (Data, Generic)
@@ -171,7 +173,9 @@ loadImports env local_binds prev_explored ns = do
         all_imp_binds = mapMaybe (\case
                                         AnId i -> fmap (i,) . maybeUnfoldingTemplate $ realIdUnfolding i
                                         _ -> Nothing) all_ids
-    
+
+    -- liftIO . print . nub . map L.nameModule $ map (mkName . varName . fst) all_imp_binds
+
     -- Compute bindings. The total number of binds is (very) large. As an optimization, we only convert binds
     -- that are actually relevant to the function(s) we are symbolically executing.
     rel_binds <- convertRelBinds local_binds all_imp_binds prev_explored (S.fromList $ F.toList ns) []
