@@ -47,6 +47,7 @@ module G2.Language.Naming
     , freshSeededIds
     , freshIds
     , freshVar
+    , freshLamId
 
     , mapNG
     ) where
@@ -72,6 +73,7 @@ import qualified Data.Map as M
 import qualified Data.Sequence as S
 import qualified Data.Text as T
 import Data.Tuple
+import Data.Word (Word64)
 import qualified Text.Builder as TB
 
 -- | Extract the "occurence" from a `Name`.
@@ -1087,3 +1089,6 @@ freshVar t ngen =
 mapNG :: (a -> NameGen -> (b, NameGen)) -> [a] -> NameGen -> ([b], NameGen)
 mapNG f xs ng = swap $ mapAccumR (\xs' ng' -> swap $ f ng' xs') ng xs
 {-# INLINE mapNG #-}
+
+freshLamId :: Type -> Word64 -> Id
+freshLamId t idx = Id (Name "G2_!!_LAM_BINDER" Nothing (idx) Nothing) t

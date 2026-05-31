@@ -9,7 +9,8 @@ module G2.Solver.Simplifier ( Simplifier (..)
                             , StringSimplifier (..)
                             , FloatSimplifier (..)
                             , EqualitySimplifier (..)
-                            , LitConc (..)) where
+                            , LitConc (..)
+                            , LamVarSimplifier (..)) where
 
 import G2.Language
 import qualified G2.Language.ExprEnv as E
@@ -316,3 +317,10 @@ replaceVarAndLam n e i = modifyASTs go
         go v@(Var (Id n' _)) = if n == n' then e else v
         go (Lam lt (Id n' _) le) | n == n' = Lam lt i le
         go e' = e'
+
+data LamVarSimplifier = LamVarSimplifier
+
+instance Simplifier LamVarSimplifier where
+    simplifyPC _ _ pc = [renameLamVars pc]
+
+    reverseSimplification _ _ _ m = m
