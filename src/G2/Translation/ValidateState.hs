@@ -107,11 +107,18 @@ validateStatesGHC pg comp_func modN entry chAll chAny b er@(ExecRes {final_state
             Nothing -> return Nothing
 
     let outStr = T.unpack $ printHaskell s out
+
+    -- TOOD[Jacob]: should have better way of translating to ValidateRes
     let v'' = case v' of
                     Nothing -> ValidationSrcError (case maybe_se of Just se -> se; Nothing -> error "validateStatesGHC: source error flagged but no available SourceError object")
                     Just (Left e) | show e == "<<timeout>>" -> ValidationTimeout
                                   | otherwise -> ValidationRTError
                     Just (Right b) -> if b && outStr /= "error" && outStr /= "undefined" then Valid else Invalid
+
+    -- TODO[Jacob]: this a quick solution distinguish real runtime errors from expected runtime errors
+    let v''' = case v'' of 
+            ValidationRTError -> if errorRaised s then Valid else ValidationRTError
+            v -> v 
 
     chAllR' <- liftIO $ (mapM unsafeCoerce chAllR :: IO [Either SomeException Bool])
     let chAllR'' = rights chAllR'
@@ -119,11 +126,11 @@ validateStatesGHC pg comp_func modN entry chAll chAny b er@(ExecRes {final_state
     chAnyR' <- liftIO $ (mapM unsafeCoerce chAnyR :: IO [Either SomeException Bool])
     let chAnyR'' = rights chAnyR'
 
-    let v''' = case (v'', and chAllR'') of
+    let v'''' = case (v''', and chAllR'') of
                     (Valid, False) -> Invalid
                     (v_res, _) -> v_res
 
-    return (v''', chAnyR'')
+    return (v'''', chAnyR'')
 
 createDeclsStr :: PrettyGuide -> State t -> TypeEnv -> [String]
 createDeclsStr pg s = map (creatDeclStr pg s) . H.toList
