@@ -9,13 +9,13 @@ module G2.Language.AlgDataTy ( AlgDataTy (..)
                              , dataConWithName) where
 
 import GHC.Generics (Generic)
-import Data.Data (Data, Typeable)
+import Data.Data (Data)
 import Data.Hashable
 import Data.List
 
 import G2.Language.Syntax
 
-data ADTSource = ADTSourceCode | ADTG2Generated deriving (Show, Eq, Read, Generic, Typeable, Data)
+data ADTSource = ADTSourceCode | ADTG2Generated deriving (Show, Eq, Read, Generic, Data)
 
 instance Hashable ADTSource
 
@@ -38,7 +38,7 @@ data AlgDataTy =
                  -- | A type defined using the `type` keyword.
                | TypeSynonym { bound_ids :: [Id]  -- ^ Polymorphic type variables
                              , synonym_of :: Type -- ^ What type is the type synonym equivalent to?
-                             , adt_source :: ADTSource} deriving (Show, Eq, Read, Generic, Typeable, Data)
+                             , adt_source :: ADTSource} deriving (Show, Eq, Read, Generic, Data)
 
 -- | Get the data constructors for the passed data type.
 --

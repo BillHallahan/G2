@@ -314,9 +314,9 @@ validCoinduction (p1, p2) (q1, q2) =
       dcq1 = dc_path $ track q1
       dcq2 = dc_path $ track q2
       consistent = dcp1 == dcp2 && dcq1 == dcq2
-      unguarded = all (not . isSWHNF) [p1, p2, q1, q2]
-      guarded = length dcp1 < length dcq1
-  in consistent && (guarded || unguarded)
+      unguarded_coind = all (not . isSWHNF) [p1, p2, q1, q2]
+      guarded_coind = length dcp1 < length dcq1
+  in consistent && (guarded_coind || unguarded_coind)
 
 backtrackOne :: StateH -> Maybe StateH
 backtrackOne sh =

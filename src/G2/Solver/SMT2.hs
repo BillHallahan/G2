@@ -30,18 +30,14 @@ import G2.Solver.Converters --It would be nice to not import this...
 
 import Control.Exception.Base (evaluate)
 import Control.Monad
-import Data.List.Utils (countElem)
 import qualified Data.HashSet as HS
 import qualified Data.Map as M
-import qualified Data.Text as T
 import qualified Data.Text.IO as T
 import qualified Text.Builder as TB
 import System.IO
 import System.Process
 import Data.Maybe (fromMaybe)
 import G2.Language.Support(State(..))
-import qualified G2.Language.TyVarEnv as TV 
-
 
 data Z3StringSolver = SeqSolver | Z3Str3 deriving Eq
 data Z3 = Z3 Z3StringSolver PrintSMT ArbValueFunc (Handle, Handle, ProcessHandle)

@@ -15,7 +15,7 @@ module G2.Language.PolyArgMap ( PolyArgMap
 import G2.Language.Syntax
 
 import qualified Data.HashMap.Lazy as HM
-import Data.Data (Data, Typeable)
+import Data.Data (Data)
 import Data.Hashable(Hashable)
 import Data.List (find)
 import Data.Bifunctor (second)
@@ -26,9 +26,9 @@ import Data.Maybe (isJust, fromJust)
 -- | Interface for the PAM
 
 -- If the name is a val of the TV type, we already know it's type.
-data ValOrFunc = Val | Func Type deriving (Show, Eq, Read, Data, Typeable, Generic)
-data PAMEntry = PAMEntry {envN :: Name, runN :: Name, vOrF :: ValOrFunc} deriving (Show, Eq, Read, Data, Typeable, Generic)
-data PolyArgMap = PolyArgMap {arg_map :: HM.HashMap Name [PAMEntry], run_to_env :: HM.HashMap Name Name} deriving (Show, Eq, Read, Data, Typeable, Generic)
+data ValOrFunc = Val | Func Type deriving (Show, Eq, Read, Data, Generic)
+data PAMEntry = PAMEntry {envN :: Name, runN :: Name, vOrF :: ValOrFunc} deriving (Show, Eq, Read, Data, Generic)
+data PolyArgMap = PolyArgMap {arg_map :: HM.HashMap Name [PAMEntry], run_to_env :: HM.HashMap Name Name} deriving (Show, Eq, Read, Data, Generic)
 
 insertTV :: Name -> PolyArgMap -> PolyArgMap
 insertTV tv pam = pam {arg_map = HM.insert tv [] $ arg_map pam}

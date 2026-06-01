@@ -165,7 +165,6 @@ solveSoftAsserts' con mb_mdl vs fresh min_ max_ = do
                     return . MaxProven $ SAT ()
                 -- Should be unreachable, because if min_ is not 0, we have found a model.
                 -- But if min_ == max_ == 0, target == 0, and we hit the first case.
-                | min_ == max_ -> error "solveSoftAsserts': Impossible case"
                 | otherwise -> do
                   pop con
                   solveSoftAsserts' con mb_mdl vs (fresh + 1) min_ (target - 1)

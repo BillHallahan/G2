@@ -2,10 +2,8 @@
 
 module G2.Verify.InitRewrite where
 
-import G2.Equiv.InitRewrite
 import G2.Language
 import qualified G2.Language.ExprEnv as E
-import G2.Language.Naming
 import qualified G2.Language.Typing as T
 import qualified G2.Language.TyVarEnv as TV
 import qualified G2.Language.Expr as X

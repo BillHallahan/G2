@@ -24,7 +24,6 @@ import G2.Initialization.MkCurrExpr
 import G2.Interface
 import G2.Language as G2 hiding (Handle)
 import qualified G2.Language.ExprEnv as E
-import qualified G2.Language.KnownValues as KV
 import G2.Language.Monad
 import qualified G2.Language.TyVarEnv as TV
 import G2.Lib.Printers
@@ -37,11 +36,10 @@ import qualified Sygus.ParseSygus as Sy
 import Sygus.Syntax
 import Sygus.Print
 
-import Control.Exception (assert, evaluate)
+import Control.Exception (evaluate)
 import qualified Control.Monad.State as SM
 import Data.Char
 import Data.IORef
-import qualified Data.HashMap.Lazy as HM
 import Data.List
 import Data.Maybe
 import qualified Data.Text as T
@@ -212,15 +210,10 @@ seqGenConfig homedir =
 -- See Note [Return patterns]
 data PatternRes = PL { pattern :: Expr, lit_expr :: Expr, pat_ids :: [Id], orig_exec_res :: [ExecRes ()], lit_vals :: [[ExecRes ()]] }
 
-mergePatternRes :: PatternRes -> PatternRes -> PatternRes
-mergePatternRes pl@(PL { lit_expr = le1, lit_vals = lv1 }) (PL { lit_expr = le2, lit_vals = lv2 }) =
-    assert (eqIgnoringLits le1 le2)
-    $ pl { lit_vals = zipWithDef (++) lv1 lv2 }
-
 insertER :: NameGen -> ExecRes () -> [PatternRes] -> [PatternRes]
 insertER ng er [] =
     let
-        (varred_form, is, ng') = replaceLitsWithVars ng (conc_out er)
+        (varred_form, is, !_) = replaceLitsWithVars ng (conc_out er)
         varred_form' = addFromInteger varred_form
         lit_ers = execResCollectLits er
     in
@@ -245,7 +238,7 @@ genSMTFunc src f sc@(SynthConfig { excluded_funcs = exclude }) m_io_ref = go [] 
             putStrLn "\n--- Running function --- "
             (entry_f, ers, got_unknown, ng) <- runFuncWithTemp src f smt_def sc
             case ers of
-                [] | Just (s, (Id _ smt_t), smt_def') <- smt_def
+                [] | Just (s, Id _ smt_t, smt_def') <- smt_def
                     , got_unknown == NoUnknowns ->
                         return (T.unpack (mkTypeHaskellDictArrows (mkPrettyGuide ()) (type_classes s) smt_t), smt_def')
                    | otherwise -> error "genSMTFunc: no SMT function generated" 
@@ -286,7 +279,7 @@ solveOnePattern entry_f exclude s (PL { pattern = varred_form, pat_ids = is, lit
     let is_constraints = zip is constraints
 
     let pg = mkPrettyGuide is
-    new_pieces <- mapM (\(i@(Id _ t), constraints_) -> do
+    new_pieces <- mapM (\(i, constraints_) -> do
                             new_smt_def <- computeProdPieces entry_f exclude constraints_
                             return $ "!" ++ T.unpack (printName pg (idName i)) ++ " = (" ++ new_smt_def ++ ")")
                         is_constraints
@@ -320,18 +313,8 @@ computeProdPieces entry_f exclude constraints = do
         Just (DefineFun _ _ _ t) -> return $ termToHaskell t
         _ -> error "genSMTFunc: no SMT function generated"
 
-groupNonAdj :: (a -> a -> Bool) -> [a] -> [[a]]
-groupNonAdj _ [] = []
-groupNonAdj p (x:xs) = let (g, n) = partition (p x) xs in (x:g):groupNonAdj p n
-
-zipWithDef :: (a -> a -> a) -> [a] -> [a] -> [a]
-zipWithDef _ [] [] = []
-zipWithDef _ xs [] = xs
-zipWithDef _ [] ys = ys
-zipWithDef f (x:xs) (y:ys) = f x y:zipWithDef f xs ys
-
 isList :: Expr -> Bool
-isList (App (Data dc) (Type (TyCon n _)))
+isList (App (Data dc) (Type (TyCon _ _)))
     | nameOcc (dcName dc) == "[]" = True
 isList (App (App (App (Data dc) _) _) _)
     | nameOcc (dcName dc) == ":" = True
@@ -444,7 +427,7 @@ runFunc temp src f smt_def sc@(SynthConfig { eq_file = eq_f, g2_config = config 
                                     simplTranslationConfig config'
     
     let (comp_state, entry_f) = case smt_def of
-                        Just (_, i@(Id n _), _) | Just (entry_f_n, entry_f_def) <- E.lookupNameMod (nameOcc n) (nameModule n) (expr_env init_state) ->
+                        Just (_, Id n _, _) | Just (entry_f_n, entry_f_def) <- E.lookupNameMod (nameOcc n) (nameModule n) (expr_env init_state) ->
                                             let
                                                 new_i = Id entry_f_n $ typeOf (tyvar_env init_state) entry_f_def
                                             in
