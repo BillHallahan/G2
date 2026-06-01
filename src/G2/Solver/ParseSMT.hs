@@ -15,6 +15,8 @@ import Text.ParserCombinators.Parsec
 import Text.ParserCombinators.Parsec.Language
 import qualified Text.ParserCombinators.Parsec.Token as Token
 
+import Debug.Trace
+
 -- This is not complete!  It currently only covers the small amount of the SMT
 -- language needed to parse models
 
@@ -59,9 +61,10 @@ getValuesParser :: Maybe Sort -> Parser SMTAST
 getValuesParser srt = parens (parens (identifier >> (sExpr srt)))
 
 sExpr :: Maybe Sort -> Parser SMTAST
-sExpr srt = try boolExpr <|> try arrayExpr <|> parens (sExpr srt) <|> letExpr <|> try realExpr <|> try (doubleFloatExpr srt)
+sExpr srt = try boolExpr <|> try arrayExpr <|> try (seqExpr srt) <|> try funcExpr <|> try dcExpr <|> varExpr
+                         <|> parens (sExpr srt) <|> letExpr <|> try realExpr <|> try (doubleFloatExpr srt)
                          <|> try doubleFloatExprDec <|> stringExpr <|> intExpr <|> bvExpr
-                         <|> try (seqExpr srt) <|> try dcExpr <|> try lambdaExpr
+                         <|> try lambdaExpr
 
 letExpr :: Parser SMTAST
 letExpr = do
@@ -106,7 +109,7 @@ bvExpr :: Parser SMTAST
 bvExpr = VBitVec <$> parseBitVec
 
 seqExpr :: Maybe Sort -> Parser SMTAST
-seqExpr srt = (do
+seqExpr srt = parens ((do
     reserved "as"
     ex <- identifier
     -- Just ignoring sort information, i.e. "Float32" or "(Seq (_ FloatingPoint 8 24))"
@@ -128,13 +131,40 @@ seqExpr srt = (do
             "str.++" -> do
                 xs <- many1 (sExpr srt)
                 return (StrAppendSMT xs)
-            _ -> fail "not seq - unit or ++")
+            _ -> fail "not seq - unit or ++"))
     where
         getElemSrt (Just (SortSeq s)) = Just s
         getElemSrt _ = Nothing
 
+funcExpr :: Parser SMTAST
+funcExpr =
+    parens (
+        try (do
+            _ <- string "="
+            whiteSpace
+            x <- sExpr Nothing
+            y <- sExpr Nothing
+            return $ x := y
+        )
+        <|>
+        try (do
+            _ <- string "ite"
+            inp <- getInput
+            whiteSpace
+            x <- sExpr Nothing
+            y <- sExpr Nothing
+            z <- sExpr Nothing
+            return $ IteSMT x y z
+        )
+    )
+
+varExpr :: Parser SMTAST
+varExpr = do
+    v <- identifier
+    return . V v $ ParSort "UNKNOWN"
+
 dcExpr :: Parser SMTAST
-dcExpr = do
+dcExpr = parens $ do
     ex <- identifier
     as <- many1 (sExpr Nothing)
     return $ DataSMT ex as
