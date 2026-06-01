@@ -8,3 +8,7 @@ call (MyIntAlso x) = x * 4
 
 otherCall :: Int -> Int
 otherCall x = x
+
+{-# NOINLINE noinline #-}
+noinline :: Int -> Int
+noinline x = x * 17
