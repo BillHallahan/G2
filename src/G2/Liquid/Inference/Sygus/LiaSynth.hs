@@ -1097,9 +1097,9 @@ arrayConstants si =
   if any (\case Set {} -> True; _ -> False) frms
       then
           [ VarDecl (TB.text "true_array") (SortArray [SortInt] SortBool)
-          , Solver.Assert (trueArray := (mkSMTUniversalArray SortInt SortBool))
+          , Solver.Assert (trueArray := (mkSMTUniversalArray [SortInt] SortBool))
           , VarDecl (TB.text "false_array") (SortArray [SortInt] SortBool)
-          , Solver.Assert (falseArray := (mkSMTEmptyArray SortInt SortBool))]
+          , Solver.Assert (falseArray := (mkSMTEmptyArray [SortInt] SortBool))]
       else []
 
 trueArray :: SMTAST
