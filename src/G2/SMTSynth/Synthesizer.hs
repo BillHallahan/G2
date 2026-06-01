@@ -795,6 +795,7 @@ sygusCmds (Id _ entry_ty) exclude er@(ExecRes { final_state = s@(State { tyvar_e
         removeGTerms _ = True
 
         remBfTerm (BfIdentifierBfs (ISymb sym) _) = sym `notElem` exclude
+        remBfTerm (BfLiteral (LitNum n)) = show n `notElem` exclude
         remBfTerm _ = True
 
 findElem       :: (a -> Bool) -> [a] -> Maybe (a, [a])
