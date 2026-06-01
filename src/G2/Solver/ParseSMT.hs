@@ -61,8 +61,8 @@ getValuesParser :: Maybe Sort -> Parser SMTAST
 getValuesParser srt = parens (parens (identifier >> (sExpr srt)))
 
 sExpr :: Maybe Sort -> Parser SMTAST
-sExpr srt = try boolExpr <|> try arrayExpr <|> try (seqExpr srt) <|> try funcExpr <|> try dcExpr <|> varExpr
-                         <|> parens (sExpr srt) <|> letExpr <|> try realExpr <|> try (doubleFloatExpr srt)
+sExpr srt = try boolExpr <|> try arrayExpr <|> try (seqExpr srt) <|> try funcExpr <|> try dcExpr <|> try (doubleFloatExpr srt) <|> varExpr
+                         <|> parens (sExpr srt) <|> letExpr <|> try realExpr
                          <|> try doubleFloatExprDec <|> stringExpr <|> intExpr <|> bvExpr
                          <|> try lambdaExpr
 
@@ -233,7 +233,7 @@ realExprRat = do
     return $ VReal r
 
 doubleFloatExpr :: Maybe Sort -> Parser SMTAST
-doubleFloatExpr = doubleFloatExprFP
+doubleFloatExpr srt = parens $ doubleFloatExprFP srt
 
 doubleFloatExprFP :: Maybe Sort -> Parser SMTAST
 doubleFloatExprFP (Just SortFloat) =
