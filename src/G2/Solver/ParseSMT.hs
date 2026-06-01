@@ -26,7 +26,7 @@ smtDef =
              , Token.nestedComments = False
              , Token.identStart = letter <|> oneOf ident
              , Token.identLetter = alphaNum <|> oneOf ident
-             , Token.reservedNames = ["as", "let", "-", "/", "\"", "fp", "+zero", "-zero", "+oo", "-oo", "NaN"]}
+             , Token.reservedNames = ["as", "let", "-", "/", "\"", "fp", "+zero", "-zero", "+oo", "-oo", "NaN", "lambda"]}
 
 ident :: [Char]
 ident = ['~', '!', '$', '@', '%', '^', '&', '*' , '_', '-', '+', '=', '<', '>', '.', '?', '/', '|', ',']
@@ -59,9 +59,9 @@ getValuesParser :: Maybe Sort -> Parser SMTAST
 getValuesParser srt = parens (parens (identifier >> (sExpr srt)))
 
 sExpr :: Maybe Sort -> Parser SMTAST
-sExpr srt = try boolExpr <|> parens (sExpr srt) <|> letExpr <|> try realExpr <|> try (doubleFloatExpr srt)
+sExpr srt = try boolExpr <|> try arrayExpr <|> parens (sExpr srt) <|> letExpr <|> try realExpr <|> try (doubleFloatExpr srt)
                          <|> try doubleFloatExprDec <|> stringExpr <|> intExpr <|> bvExpr
-                         <|> try (seqExpr srt) <|> try dcExpr
+                         <|> try (seqExpr srt) <|> try dcExpr <|> try lambdaExpr
 
 letExpr :: Parser SMTAST
 letExpr = do
@@ -138,6 +138,46 @@ dcExpr = do
     ex <- identifier
     as <- many1 (sExpr Nothing)
     return $ DataSMT ex as
+
+lambdaExpr :: Parser SMTAST
+lambdaExpr = do
+    reserved "lambda"
+    args <- parens (many readArg)
+    body <- sExpr Nothing
+    return $ LambdaSMT args body
+    where
+        readArg =
+            parens (do
+                name <- identifier
+                sort <- parseSort
+                return (name, sort)
+            )
+
+arrayExpr :: Parser SMTAST
+arrayExpr = do
+    (do
+        _ <- string "store"
+        _ <- whiteSpace
+        array <- sExpr Nothing
+        args <- many1 (sExpr Nothing)
+        let ind = init args
+            val = last args
+        return $ ArrayStore array ind val)
+    <|>
+    (do
+        parens (do
+            array_sort <- parens (do
+                                    reserved "as"
+                                    _ <- string "const"
+                                    _ <- whiteSpace
+                                    parseSort)
+            case array_sort of
+                SortArray ind_sort val_sort -> do
+                    val <- sExpr Nothing
+                    return $ ArrayConst val ind_sort val_sort
+                _ -> fail "Incorrect sort"
+            )
+    )
 
 
 realExpr :: Parser SMTAST
@@ -320,6 +360,21 @@ parseUni = do
     case readHex str of
         [(c, _)] -> return $ chr c
         _ -> fail $ "parseUni': Bad string " ++ str
+
+parseSort :: Parser Sort
+parseSort = 
+    (do
+        _ <- string "Array"
+        _ <- whiteSpace
+        sorts <- many1 parseSort
+        let inds = init sorts
+            val = last sorts
+        return (SortArray inds val)
+        )
+    <|>
+    (return . ParSort =<< identifier)
+    <|>
+    (parens parseSort)
 
 parseSMT :: Sort -> String -> SMTAST
 parseSMT srt s = case parse (smtParser (Just srt)) s s of

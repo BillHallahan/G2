@@ -823,10 +823,10 @@ buildLIA_SMT_fromModel mdl sf =
 
         vset n
             | Just v <- M.lookup n mdl = v
-            | otherwise = V n (SortArray SortInt SortBool)
+            | otherwise = V n (SortArray [SortInt] SortBool)
 
 smtSingleton :: SMTAST -> SMTAST
-smtSingleton mem = ArrayStore falseArray mem (VBool True)
+smtSingleton mem = ArrayStore falseArray [mem] (VBool True)
 
 blockVars :: String -> SpecInfo -> ([PolyBound [(SMTName, Sort)]], PolyBound [(SMTName, Sort)])
 blockVars str si = ( map (uncurry mk_blk_vars) . zip (map show ([0..] :: [Integer])) $ s_syn_pre si
@@ -1096,17 +1096,17 @@ arrayConstants si =
   in
   if any (\case Set {} -> True; _ -> False) frms
       then
-          [ VarDecl (TB.text "true_array") (SortArray SortInt SortBool)
+          [ VarDecl (TB.text "true_array") (SortArray [SortInt] SortBool)
           , Solver.Assert (trueArray := (mkSMTUniversalArray SortInt SortBool))
-          , VarDecl (TB.text "false_array") (SortArray SortInt SortBool)
+          , VarDecl (TB.text "false_array") (SortArray [SortInt] SortBool)
           , Solver.Assert (falseArray := (mkSMTEmptyArray SortInt SortBool))]
       else []
 
 trueArray :: SMTAST
-trueArray = V "true_array" (SortArray SortInt SortBool)
+trueArray = V "true_array" (SortArray [SortInt] SortBool)
 
 falseArray :: SMTAST
-falseArray = V "false_array" (SortArray SortInt SortBool)
+falseArray = V "false_array" (SortArray [SortInt] SortBool)
 
 nonMaxCoeffConstraints :: (InfConfigM m, ProgresserM m) => TV.TyVarEnv -> [GhcInfo] -> NMExprEnv -> TypeEnv -> Measures -> MeasureExs -> Evals Bool  -> M.Map Name SpecInfo -> FuncConstraints
                        -> m ([SMTHeader], HM.HashMap SMTName FuncConstraint)
@@ -1188,7 +1188,7 @@ convertExprToSMT tv e =
     case e of
         (App (App (Data _) _) ls)
             | Just is <- extractInts ls ->
-                foldr (\i arr -> ArrayStore arr (VInt i) (VBool True)) falseArray is
+                foldr (\i arr -> ArrayStore arr [VInt i] (VBool True)) falseArray is
         _ -> exprToSMT tv e
 
 extractInts :: G2.Expr -> Maybe [Integer]
@@ -1362,7 +1362,7 @@ buildLIA_SMT sf =
     buildSpec (:+) (:*) Modulo (.=.) (.=.) (./=.) (:>) (:>=) IteSMT IteSMT
               mkSMTAnd mkSMTAnd mkSMTOr mkSMTUnion mkSMTIntersection smtSingleton
               mkSMTIsSubsetOf (flip ArraySelect)
-              (flip V SortInt) VInt (flip V SortBool) (flip V $ SortArray SortInt SortBool)
+              (flip V SortInt) VInt (flip V SortBool) (flip V $ SortArray [SortInt] SortBool)
               falseArray
               trueArray
               sf

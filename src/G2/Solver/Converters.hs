@@ -831,7 +831,7 @@ declareFun :: String -> [Sort] -> Sort -> TB.Builder
 declareFun fn ars ret =
     "(declare-fun " <> TB.string fn <> " ("
         <> TB.intercalate " " (map sortName ars) <> ")"
-        <> " (" <> sortName ret <> "))"
+        <> " " <> sortName ret <> ")"
 
 declareDataTypes :: [SMTDataType] -> TB.Builder 
 declareDataTypes dts =
@@ -931,7 +931,7 @@ toSolverAST str_seq = go
 
         go (ArrayConst v indS valS) =
             let
-                sort_arr = "(Array " <> sortName indS <> " " <> sortName valS <> ")"
+                sort_arr = "(Array " <> TB.intercalate " " (map sortName indS) <> " " <> sortName valS <> ")"
             in
             "((as const " <> sort_arr <> ") " <> (go v) <> ")"
 
@@ -939,7 +939,7 @@ toSolverAST str_seq = go
             function2 "select" (go arr) (go ind)
 
         go (ArrayStore arr ind val) =
-            function3 "store" (go arr) (go ind) (go val)
+            "(store " <> go arr <> " " <> TB.intercalate " " (map go ind) <> " " <> go val <> ")"
 
         go (Func n xs) = smtFunc n $ map (go) xs
 
@@ -1138,7 +1138,7 @@ sortName SortString = "String"
 sortName (SortSeq s) = "(Seq " <> sortName s <> ")"
 sortName SortChar = "String"
 sortName SortBool = "Bool"
-sortName (SortArray ind val) = "(Array " <> sortName ind <> " " <> sortName val <> ")"
+sortName (SortArray ind val) = "(Array " <> TB.intercalate " " (map sortName ind) <> " " <> sortName val <> ")"
 sortName (ADTSort n []) = TB.string n
 sortName (ADTSort n xs) = "(" <> TB.string n <> " " <> TB.intercalate " " (map sortName xs) <> ")"
 sortName (ParSort n) = TB.string n
