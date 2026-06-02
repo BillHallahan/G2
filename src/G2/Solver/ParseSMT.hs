@@ -15,8 +15,6 @@ import Text.ParserCombinators.Parsec
 import Text.ParserCombinators.Parsec.Language
 import qualified Text.ParserCombinators.Parsec.Token as Token
 
-import Debug.Trace
-
 -- This is not complete!  It currently only covers the small amount of the SMT
 -- language needed to parse models
 
