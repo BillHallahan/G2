@@ -110,8 +110,8 @@ data SMTAST = (:>=) !SMTAST !SMTAST
             | IsInfiniteSMT !SMTAST
 
             -- Arrays
-            | ArrayConst !SMTAST Sort Sort
-            | ArrayStore !SMTAST !SMTAST !SMTAST
+            | ArrayConst !SMTAST [Sort] Sort
+            | ArrayStore !SMTAST [SMTAST] !SMTAST
             | ArraySelect !SMTAST !SMTAST
 
             | Func SMTName ![SMTAST] -- ^ Interpreted function
@@ -140,6 +140,7 @@ data SMTAST = (:>=) !SMTAST !SMTAST
             | MapSMT SMTName Sort !SMTAST !SMTAST
             | FoldLeftSMT SMTName Sort SMTName Sort !SMTAST !SMTAST !SMTAST
             | FoldLeftISMT SMTName Sort SMTName Sort SMTName Sort !SMTAST !SMTAST !SMTAST !SMTAST
+            | LambdaSMT [(SMTName, Sort)] SMTAST
 
             | InReSMT !SMTAST !SMTAST
             | ToReSMT !SMTAST
@@ -201,7 +202,7 @@ data Sort = SortInt
           | SortString
           | SortSeq Sort
           | SortBool
-          | SortArray Sort Sort
+          | SortArray [Sort] Sort
           | SortFunc [Sort] Sort
           | ADTSort SMTName [Sort]
           | ParSort SMTName
@@ -247,10 +248,10 @@ isSat :: Result m u um -> Bool
 isSat (SAT _) = True
 isSat _ = False
 
-mkSMTEmptyArray :: Sort -> Sort -> SMTAST
+mkSMTEmptyArray :: [Sort] -> Sort -> SMTAST
 mkSMTEmptyArray = ArrayConst (VBool False)
 
-mkSMTUniversalArray :: Sort -> Sort -> SMTAST
+mkSMTUniversalArray :: [Sort] -> Sort -> SMTAST
 mkSMTUniversalArray = ArrayConst (VBool True)
 
 mkSMTUnion :: SMTAST -> SMTAST -> SMTAST
@@ -259,7 +260,7 @@ mkSMTUnion s1 s2 = Func "union" [s1, s2]
 mkSMTIntersection :: SMTAST -> SMTAST -> SMTAST
 mkSMTIntersection s1 s2 = Func "intersection" [s1, s2]
 
-mkSMTSingleton :: SMTAST -> Sort -> Sort -> SMTAST
+mkSMTSingleton :: [SMTAST] -> [Sort] -> Sort -> SMTAST
 mkSMTSingleton mem srt srt2 =
     ArrayStore (ArrayConst (VBool False) srt srt2) mem (VBool True)
 
@@ -327,7 +328,7 @@ instance AST SMTAST where
     children (IsInfiniteSMT x) = [x]
 
     children (ArrayConst x _ _) = [x]
-    children (ArrayStore x y z) = [x, y, z]
+    children (ArrayStore x y z) = [x] ++ y ++ [z]
     children (ArraySelect x y) = [x, y]
     children (Func _ xs) = xs
 
@@ -349,6 +350,7 @@ instance AST SMTAST where
     children (MapSMT _ _ x y) = [x, y]
     children (FoldLeftSMT _ _ _ _ x y z) = [x, y, z]
     children (FoldLeftISMT _ _ _ _ _ _ w x y z) = [w, x, y, z]
+    children (LambdaSMT _ x) = [x]
 
     children (InReSMT x y) = [x, y]
     children (ToReSMT x) = [x]
@@ -446,7 +448,7 @@ instance AST SMTAST where
     modifyChildren f (IsInfiniteSMT x) = IsInfiniteSMT (f x)
 
     modifyChildren f (ArrayConst x y z) = ArrayConst (f x) y z
-    modifyChildren f (ArrayStore x y z) = ArrayStore (f x) (f y) (f z)
+    modifyChildren f (ArrayStore x y z) = ArrayStore (f x) (map f y) (f z)
     modifyChildren f (ArraySelect x y) = ArraySelect (f x) (f y)
     modifyChildren f (Func n xs) = Func n (map f xs)
 
@@ -473,6 +475,7 @@ instance AST SMTAST where
     modifyChildren f (FoldLeftSMT n1 s1 n2 s2 x y z) = FoldLeftSMT n1 s1 n2 s2 (f x) (f y) (f z)
     modifyChildren f (FoldLeftISMT idx idx_t n1 s1 n2 s2 w x y z) =
         FoldLeftISMT idx idx_t n1 s1 n2 s2 (f w) (f x) (f y) (f z)
+    modifyChildren f (LambdaSMT binds body) = LambdaSMT binds (f body)
 
     modifyChildren f (InReSMT x y) = InReSMT (f x) (f y)
     modifyChildren f (ToReSMT x) = ToReSMT (f x)
