@@ -73,6 +73,36 @@ module G2.Execution.FuncConstraints where
 -- We now return to rules (1) to (3). Notice that we will actually not be able to solve for `n = 1`/f2, because `f2 4 = 2` and `f2 4 = 5` is a constradiction.
 -- However, we will be able to solve for `n = 2` and `f3`.
 
+-- Note [Delaying Step 4]
+-- Read Note [Solving Function Constraints] (above) first.
+-- A natural question is why we delay step 4 until after none of steps 1 to 3 apply. To answer this, consider:
+--        n = 1 => f (x:xs) e1 = 1
+--        n = 1 => f []     4  = 2
+--        n = 1 => f []     6  = 5
+--        n = 2 => f []     6 =  3
+--        n = 2 => f []     6 =  4
+-- To solve the above, we must have `n = 1`, otherwise we have `f [] 6 = 3` and `f [] 6 = 4`. Notice, though, that if we apply step (4) immediately, we get:
+--        f a b = case n = 1 of
+--                    True -> f2 a
+--                    False -> f3 a b
+-- Which gets us new constraints:
+--        n = 1 => f2 (x:xs)   = 1
+--        n = 1 => f2 []       = 2
+--        n = 1 => f2 []       = 5
+--        n = 2 => f3 []     6 =  3
+--        n = 2 => f3 []     6 =  4
+-- This is now unsatisfiable, because we have `f2 [] = 2` and `f2 [] = 5`. Thus, we instead must branch the function based on list constructor:
+--        f a b = case a of
+--                    [] -> f3 b
+--                    c:ds -> f4 c ds b
+--  getting new constraints:
+--        n = 1 => f3 e1 = 1
+--        n = 1 => f4 4  = 2
+--        n = 1 => f4 6  = 5
+--        n = 2 => f4 6 =  3
+--        n = 2 => f4 6 =  4
+-- f3 can now be handled by step (1) and f4 by step (2).
+
 data Precond = Id :== Int | Id :/= Int
 
 data FuncConstraint =
