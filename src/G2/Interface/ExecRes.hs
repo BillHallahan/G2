@@ -1,7 +1,7 @@
 {-# LANGUAGE FlexibleContexts, MultiParamTypeClasses, OverloadedStrings #-}
 {-# LANGUAGE InstanceSigs #-}
 
-module G2.Interface.ExecRes ( ExecRes (..), StartFunc, printInputOutput ) where
+module G2.Interface.ExecRes ( ExecRes (..), StartFunc, ValidateRes(..), printInputOutput) where
 
 import G2.Language
 import G2.Lib.Printers
@@ -9,6 +9,9 @@ import G2.Lib.Printers
 import Data.Maybe
 import qualified Data.Sequence as S
 import qualified Data.Text as T
+
+import G2.Translation.GHC (SourceError)
+
 import G2.Language.KnownValues (KnownValues(dcEmpty))
 
 type StartFunc = T.Text
@@ -21,8 +24,10 @@ data ExecRes t = ExecRes { final_state :: State t -- ^ The final state.
                          , conc_mutvars :: [(Name, MVOrigin, Expr)]
                          , conc_handles :: [(Name, Expr)]
                          , violated :: Maybe FuncCall -- ^ A violated assertion
-                         , validated :: Maybe Bool
-                         } deriving (Show, Read)
+                         , validate_result :: ValidateRes
+                         } deriving (Show)
+
+data ValidateRes = Valid | Invalid | ValidationSrcError SourceError | ValidationRTError | ValidationTimeout deriving (Show)
 
 printInputOutput :: PrettyGuide
                  -> Id -- ^ Input function
@@ -88,7 +93,7 @@ instance Named t => Named (ExecRes t) where
                             , conc_mutvars = mv
                             , conc_handles = h
                             , violated = fc
-                            , validated = v }) =
+                            , validate_result = v }) =
       ExecRes { final_state = rename old new s
               , conc_args = rename old new es
               , conc_out = rename old new r
@@ -96,7 +101,7 @@ instance Named t => Named (ExecRes t) where
               , conc_mutvars = rename old new mv
               , conc_handles = rename old new h
               , violated = rename old new fc
-              , validated = v}
+              , validate_result = v}
 
     renames hm (ExecRes { final_state = s
                         , conc_args = es
@@ -105,7 +110,7 @@ instance Named t => Named (ExecRes t) where
                         , conc_mutvars = mv
                         , conc_handles = h
                         , violated = fc
-                        , validated =  v}) =
+                        , validate_result =  v}) =
       ExecRes { final_state = renames hm s
               , conc_args = renames hm es
               , conc_out = renames hm r
@@ -113,7 +118,7 @@ instance Named t => Named (ExecRes t) where
               , conc_mutvars = renames hm mv
               , conc_handles = renames hm h
               , violated = renames hm fc
-              , validated = v }
+              , validate_result = v }
 
 instance ASTContainer t Expr => ASTContainer (ExecRes t) Expr where
     containedASTs (ExecRes { final_state = s
@@ -131,7 +136,7 @@ instance ASTContainer t Expr => ASTContainer (ExecRes t) Expr where
                                    , conc_mutvars = mv
                                    , conc_handles = h
                                    , violated = fc
-                                   , validated = v }) =
+                                   , validate_result = v }) =
         ExecRes { final_state = modifyContainedASTs f s
                 , conc_args = modifyContainedASTs f es
                 , conc_out = modifyContainedASTs f r
@@ -139,7 +144,7 @@ instance ASTContainer t Expr => ASTContainer (ExecRes t) Expr where
                 , conc_mutvars = modifyContainedASTs f mv
                 , conc_handles = h
                 , violated = modifyContainedASTs f fc
-                , validated = v}
+                , validate_result = v}
 
 instance ASTContainer t Type => ASTContainer (ExecRes t) Type where
     containedASTs (ExecRes { final_state = s
@@ -157,7 +162,7 @@ instance ASTContainer t Type => ASTContainer (ExecRes t) Type where
                                    , conc_mutvars = mv
                                    , conc_handles = h
                                    , violated = fc
-                                   , validated = v }) =
+                                   , validate_result = v }) =
         ExecRes { final_state = modifyContainedASTs f s
                 , conc_args = modifyContainedASTs f es
                 , conc_out = modifyContainedASTs f r
@@ -165,4 +170,4 @@ instance ASTContainer t Type => ASTContainer (ExecRes t) Type where
                 , conc_mutvars = modifyContainedASTs f mv
                 , conc_handles = h
                 , violated = modifyContainedASTs f fc
-                , validated = v }
+                , validate_result = v }

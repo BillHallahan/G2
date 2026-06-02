@@ -63,3 +63,9 @@ partiallyApply f = let pApp = f 1
 twoTVsMultiCall :: (forall a b. a -> b -> b) -> Int 
 twoTVsMultiCall f = case (f 1 2, f 3 4) of 
                         (2, 4) -> f 5 6
+
+-- Generates def that uses typeclass internals and shouldn't validate
+tcFunc :: (forall a. (Eq a) => a -> a) -> Int
+tcFunc f = case f 1 of
+                1 -> 2
+                _ -> 3
