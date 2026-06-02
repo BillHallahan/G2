@@ -99,15 +99,18 @@ module G2.Execution.FuncConstraints where
 --        n = 1 => f3 e1 = 1
 --        n = 1 => f4 4  = 2
 --        n = 1 => f4 6  = 5
---        n = 2 => f4 6 =  3
---        n = 2 => f4 6 =  4
+--        n = 2 => f4 6  = 3
+--        n = 2 => f4 6  = 4
 -- f3 can now be handled by step (1) and f4 by step (2).
 
-data Precond = Id :== Int | Id :/= Int
+data PreC = Id :== Int
+             | PNot PreC
+             | PAnd [PreC]
+             | POr [PreC]
 
 data FuncConstraint =
     FC { func_name :: Name
-       , preconds :: [Precond]
+       , preconds :: [PreC]
        , args :: [Expr]
        , ret :: Expr
        }
