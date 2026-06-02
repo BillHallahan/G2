@@ -64,7 +64,10 @@ twoTVsMultiCall :: (forall a b. a -> b -> b) -> Int
 twoTVsMultiCall f = case (f 1 2, f 3 4) of 
                         (2, 4) -> f 5 6
 
--- Generates def that uses typeclass internals and shouldn't validate
+-- TODO[Jacob]: Not actual test case. Included to demonstrate changes made to 
+-- validation. This will currently produce a definition which shows type class 
+-- internals, leading to a Haskell source error, which will now NOT lead to 
+-- validation halting. Will remove eventually.
 tcFunc :: (forall a. (Eq a) => a -> a) -> Int
 tcFunc f = case f 1 of
                 1 -> 2

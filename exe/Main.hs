@@ -65,12 +65,8 @@ runWithArgs as = do
         putStrLn $ "Func arg states: " ++ show (length unspecified_output)
 
   when (measure_coverage config') $ do
-<<<<<<< HEAD
-    runHPC src (measure_coverage_with config') (T.unpack $ fromJust mb_modname) entry (filter (\ExecRes{validated = val} -> fromMaybe False val) in_out)
-=======
     runHPC src (measure_coverage_with config') (T.unpack $ fromJust mb_modname) entry 
         (filter (\ExecRes{validate_result = val_res} -> case val_res of Valid -> True; _ -> False) in_out)
->>>>>>> 731b22e5a (NO crash on GHC error. Report error and continue attempting to validate outputs. Also changes to allow compilation elsewhere.)
     case in_out of
         _:_ -> do
           let reachable = reachesHPC all_mods (expr_env init_state) (Var entry_f)

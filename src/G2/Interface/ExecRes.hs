@@ -1,7 +1,7 @@
 {-# LANGUAGE FlexibleContexts, MultiParamTypeClasses, OverloadedStrings #-}
 {-# LANGUAGE InstanceSigs #-}
 
-module G2.Interface.ExecRes ( ExecRes (..), StartFunc, ValidateRes(..), printInputOutput) where
+module G2.Interface.ExecRes ( ExecRes (..), StartFunc, ValidateRes(..)) where
 
 import G2.Language
 import G2.Lib.Printers
