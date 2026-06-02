@@ -363,7 +363,7 @@ data Halter m hv r t = Halter {
     , updateHalterWithAll :: [(State t, hv)] -> [hv]
 
     -- Runs before selecting a new state to filter down possiblities
-    , filterAllStates :: forall b rv hv sov . M.Map b [ExState rv hv sov t] -> M.Map b [ExState rv hv sov t]
+    , filterAllStates :: forall b rv hv1 sov . M.Map b [ExState rv hv1 sov t] -> M.Map b [ExState rv hv1 sov t]
 
     }
 
@@ -707,8 +707,6 @@ nonRedLibFuncs exec_names no_nrpc_names
                 rv@(var_table, sym_table, nrpc_count)
                 s@(State { expr_env = eenv
                          , curr_expr = CurrExpr _ ce
-                         , known_values = kv
-                         , tyvar_env = tvnv
                          }) 
                 b@(Bindings { name_gen = ng })
     | 
@@ -747,7 +745,6 @@ nonRedHigherOrderFunc
                 (no_nrpc, nrpc_count)
                 s@(State { expr_env = eenv
                          , curr_expr = CurrExpr _ ce
-                         , known_values = kv
                          , tyvar_env = tvnv
                          }) 
                 b@(Bindings { name_gen = ng })
@@ -894,7 +891,7 @@ nrpcApproxReducer solver no_inline no_nrpc_names config =
 
                 case nr_s_ng of
                     Just (nr_s, _, _, ng') | isJust approx -> return (Finished, [(nr_s, rv + 1)], b { name_gen = ng' })
-                    _ -> do SM.modify (\ap -> ap { ap_nrpc_states = s':xs }); return (Finished, [(s, rv)], b)
+                    _ -> do SM.modify (\app -> app { ap_nrpc_states = s':xs }); return (Finished, [(s, rv)], b)
             | Tick nl (Var (Id n _)) <- ce
             , isNonRedBlockerTick nl
             , Just e <- E.lookup n eenv = return (Finished, [(s { curr_expr = CurrExpr Evaluate e }, rv)], b)
@@ -918,11 +915,8 @@ createNonRed :: NameGen
                       , NRPC -- ^ New NRPC
                       , NameGen)
 createNonRed ng focus
-              s@(State { curr_expr = CurrExpr _ ce
-                       , expr_env = eenv
-                       , non_red_path_conds = nrs
-                       , known_values = kv })
-    | v@(Var (Id _ t)):es_ce <- unApp ce
+              s@(State { curr_expr = CurrExpr _ ce })
+    | v@(Var _):es_ce <- unApp ce
         -- Function is being fully applied 
     , (ae, stck) <- allApplyFrames (exec_stack s)
     , let es = es_ce ++ ae
@@ -949,8 +943,7 @@ createNonRed' :: NameGen
                       , NameGen)
 createNonRed' ng
               focus
-              s@(State { curr_expr = CurrExpr _ ce
-                       , expr_env = eenv
+              s@(State { expr_env = eenv
                        , non_red_path_conds = nrs
                        , known_values = kv
                        , tyvar_env = tvnv }) e
@@ -1061,7 +1054,7 @@ strictRed :: Monad m => Reducer m () t
 strictRed = mkSimpleReducer (\_ -> ())
                             strict_red
     where
-        strict_red _ s@(State { curr_expr = ce@(CurrExpr Return e)
+        strict_red _ s@(State { curr_expr = CurrExpr Return e
                               , expr_env = eenv
                               , exec_stack = stck
                               , tyvar_env = tvnv })
@@ -1298,7 +1291,7 @@ nonRedPCRedConstFunc _
                    }
 
         return (InProgress, [(s', ())], b { name_gen = ng'' })
-nonRedPCRedConstFunc _ s b = return (Finished, [], b)
+nonRedPCRedConstFunc _ _ b = return (Finished, [], b)
 
 {-# INLINE taggerRed #-}
 taggerRed :: Monad m => Name -> Reducer m () t
@@ -1896,7 +1889,7 @@ approximationHalter' stop_cond solver no_inline = mkSimpleHalter
                         --     putStrLn $ "    !!!modifying with " ++ show (log_path s') ++ " " ++ show (num_steps s)
                         --     putStrLn $ "    !!! stck s = " ++ show (exec_stack s)
                         --     putStrLn $ "    !!! stck s' = " ++ show (exec_stack s')
-                        SM.modify ((\ap -> ap { ap_halter_states = s':xs }))
+                        SM.modify ((\app -> app { ap_halter_states = s':xs }))
                         return Continue
         -- stop _ _ s | log_path s == [1, 1, 1, 1]
         --            , num_steps s == 103
@@ -1909,14 +1902,6 @@ approximationHalter' stop_cond solver no_inline = mkSimpleHalter
         
         -- mr_cont _ _ _ _ _ _ _ _ _ = Left []
         mr_cont = mrContIgnoreNRPCTicks Nothing lookupConcOrSymState
-
-        allowed_expr Evaluate (Var _:_:_) = True
-        allowed_expr Return (Data _:_) = True
-        allowed_expr _ _ = False
-
-        allowed_frame _ (ApplyFrame _) = False
-        allowed_frame Evaluate (UpdateFrame _) = False
-        allowed_frame _ _ = True
 
         allowed_expr_frame _ _ _ (Just (ApplyFrame _)) = False
         allowed_expr_frame Return (Data _:_) _ (Just (UpdateFrame _)) = False
@@ -1940,9 +1925,9 @@ mrContIgnoreNRPCTicks :: Maybe (GenerateLemma t l)
                       -> Either [l] (HM.HashMap Id Expr, HS.HashSet (Expr, Expr))
 mrContIgnoreNRPCTicks genLemma lkp s1 s2 ns hm active n1 n2 e1 e2 =
     case (e1, e2) of
-        (Tick t1 e1', _) ->
+        (Tick _ e1', _) ->
             moreRestrictive' (mrContIgnoreNRPCTicks genLemma lkp) genLemma lkp s1 s2 ns hm active n1 n2 e1' e2
-        (_, Tick t2 e2') ->
+        (_, Tick _ e2') ->
             moreRestrictive' (mrContIgnoreNRPCTicks genLemma lkp) genLemma lkp s1 s2 ns hm active n1 n2 e1 e2'
         _ -> Left []
 
@@ -2059,7 +2044,7 @@ timerHalter io_timed_out ms def min_found ce = do
             | nameOcc id_n /= "stdin"
             , nameOcc id_n /= "stdout"
             , nameOcc id_n /= "stderr" = n == KV.tyList kv
-        isList _ i = False
+        isList _ _ = False
 
 -- | Print a specified message if a specified HaltC is returned from the contained Halter
 printOnHaltC :: MonadIO m =>
@@ -2566,22 +2551,6 @@ runReducer red hal ord solve_r analyze init_state init_bindings = do
                 runReducerListSwitching (pr {discarded = state rs':discarded pr}) xs b
             where
                 rs' = rs { halter_val = updatePerStateHalt hal (halter_val rs) pr (state rs) }
-
-        {-# INLINABLE runReducerList #-}
-        -- To be used when we we need to select a state without switching 
-        runReducerList :: (Monad m, Ord b)
-                    => Processed r (State t)
-                    -> M.Map b [ExState rv hv sov t]
-                    -> Bindings
-                    -> m (Processed r (State t), Bindings)
-        runReducerList pr m binds =
-            case minState pr m of
-                Just (rs, m') ->
-                    let
-                        rs' = rs { halter_val = updatePerStateHalt hal (halter_val rs) pr (state rs) }
-                    in
-                    runReducer' pr rs' binds m'
-                Nothing -> return (pr, binds)
 
         {-# INLINABLE runReducerListSwitching #-}
         -- To be used when we are possibly switching states 

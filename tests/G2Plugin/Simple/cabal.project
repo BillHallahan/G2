@@ -2,5 +2,13 @@ packages: .
           ./../../../g2.cabal
           ./../Import/Import.cabal
 
+-- -fno-ignore-interface-pragmas ensures that, despite -O0, we load dictionary definitions from .hi files
+package Simple
+  ghc-options:        -fno-ignore-interface-pragmas
+
+-- The flags serve the following purposes:
+-- * -O0 prevents optimizations (which can intefere with symbolic execution i.e. when they introduce unknown base functions) from being applied
+-- * -finterface-pragmas ensures that, despite -O0, we put dictionary definitions in the .hi file
+-- * -fexpose-all-unfoldings ensures all function definitions are put in .hi files
 package *
-    ghc-options:      -fexpose-all-unfoldings
+    ghc-options:      -O0 -fno-omit-interface-pragmas -fexpose-all-unfoldings

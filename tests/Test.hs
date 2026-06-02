@@ -34,6 +34,7 @@ import CaseTest
 import Expr
 import ExecSkip
 import Simplifications
+import Solver
 import Typing
 import UnionFindTests
 import UFMapTests
@@ -78,6 +79,7 @@ tests = testGroup "Tests"
         , typingTests
         , execSkipTests
         , simplificationTests
+        , solverTests
         , ufMapQuickcheck
         , unionFindQuickcheck
         , fuzzExecutionQuickCheck
@@ -913,7 +915,8 @@ baseTests = testGroup "Base"
                                                        , ("lengthN", 1000, [AtLeast 6])
                                                        , ("listToMaybeFloat", 1000, [AtLeast 2]) ]
 
-    , checkInputOutput "tests/BaseTests/Other.hs" "check4VeryEasy2" 600 [AtLeast 1]
+    , checkInputOutputs "tests/BaseTests/Other.hs" [ ("check4VeryEasy2", 600, [AtLeast 1])
+                                                   , ("callFlip", 1000, [Exactly 2])]
     , checkInputOutputs "tests/BaseTests/Ratio.hs" [ ("manipRatio", 20000, [AtLeast 5])
                                                    , ("callApprox", 20000, [AtLeast 5]) ]
     , checkInputOutput "tests/BaseTests/ZipList.hs" "callApp" 2000 [AtLeast 10]

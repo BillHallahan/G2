@@ -28,7 +28,7 @@ import Data.Maybe
 -- the second one indicates the total number of arguments for that constructor
 -- if there are lambdas, we handle them in Verifier
 data Obligation = Ob [(DataCon, Int, Int)] Expr Expr
-                  deriving (Show, Eq, Read, Generic, Typeable, Data)
+                  deriving (Show, Eq, Read, Generic, Data)
 
 instance Hashable Obligation
 

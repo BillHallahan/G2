@@ -12,7 +12,6 @@ import G2.Language.Syntax
 import G2.Execution.NormalForms ( normalForm )
 
 import qualified Control.Monad.State as SM
-import qualified Data.HashSet as HS
 import qualified Data.HashMap.Lazy as HM
 
 -- Note [Memoization and SWHNF]
