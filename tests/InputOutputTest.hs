@@ -19,6 +19,7 @@ module InputOutputTest ( checkInputOutput
                        , checkInputOutputsTemplate
                        , checkInputOutputsWith
                        , checkInputOutputsNonRedHigher
+                       , checkInputOutputsNonRedHigherNoFuncArgs
                        , checkInputOutputsNonRedLib
                        , checkInputOutputsInstType 
                        , checkInputOutputsWithValidate
@@ -130,6 +131,15 @@ checkInputOutputsNonRedHigher :: FilePath -> [(String, Int, [Reqs String])] -> T
 checkInputOutputsNonRedHigher src tests = do
     checkInputOutput'
         (do config <- mkConfigTestIO; return (config { higherOrderSolver = SymbolicFunc, symbolic_func_nrpc = Nrpc }))
+        src
+        tests
+
+checkInputOutputsNonRedHigherNoFuncArgs :: FilePath -> [(String, Int, [Reqs String])] -> TestTree
+checkInputOutputsNonRedHigherNoFuncArgs src tests = do
+    checkInputOutput'
+        (do config <- mkConfigTestIO; return (config { higherOrderSolver = SymbolicFunc
+                                                     , symbolic_func_nrpc = Nrpc
+                                                     , gen_func_arg_states = False }))
         src
         tests
 

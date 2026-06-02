@@ -4,6 +4,7 @@
 module G2.Language.Expr ( module G2.Language.Casts
                         , eqUpToTypes
                         , eqUpToTypesInline
+                        , eqUpToTypesInlineIgnoringTicks
                         , unApp
                         , mkApp
                         , mkDCTrue
@@ -107,6 +108,8 @@ import qualified Data.Map as M
 import Data.Maybe
 import Data.Semigroup
 
+data EqTickCheck = CheckTicks | IgnoreTicks deriving Eq
+
 eqUpToTypes :: Expr -> Expr -> Bool
 eqUpToTypes = eqUpToTypesInline HS.empty E.empty
 
@@ -115,7 +118,22 @@ eqUpToTypesInline :: HS.HashSet Name -- ^ Names not to inline
                   -> Expr
                   -> Expr
                   -> Bool
-eqUpToTypesInline no_inline eenv = go no_inline no_inline
+eqUpToTypesInline = eqUpToTypesInline' CheckTicks
+
+eqUpToTypesInlineIgnoringTicks :: HS.HashSet Name -- ^ Names not to inline
+                               -> ExprEnv
+                               -> Expr
+                               -> Expr
+                               -> Bool
+eqUpToTypesInlineIgnoringTicks = eqUpToTypesInline' IgnoreTicks
+
+eqUpToTypesInline' :: EqTickCheck
+                   -> HS.HashSet Name -- ^ Names not to inline
+                   -> ExprEnv
+                   -> Expr
+                   -> Expr
+                   -> Bool
+eqUpToTypesInline' eq_ticks_check no_inline eenv = go no_inline no_inline
     where
         go _ _ (Var (Id n _)) (Var (Id n' _))
             | n == n' = True
@@ -140,12 +158,16 @@ eqUpToTypesInline no_inline eenv = go no_inline no_inline
         go _ _ (Type _) (Type _) = True
         go seen1 seen2 (Cast e _) (Cast e' _) = go seen1 seen2 e e'
         go _ _ (Coercion _) (Coercion _) = True
+
         go seen1 seen2 (Tick _ e) (Tick _ e') = go seen1 seen2 e e'
+        go seen1 seen2 (Tick _ e) e' | eq_ticks_check == IgnoreTicks = go seen1 seen2 e e'
+        go seen1 seen2 e (Tick _ e') | eq_ticks_check == IgnoreTicks = go seen1 seen2 e e'
+
         go seen1 seen2 (NonDet es) (NonDet es') = all (uncurry (go seen1 seen2)) $ zip es es'
         go _ _ (SymGen _ _) (SymGen _ _) = True
         go _ _ (Assume _ _ _) (Assume _ _ _) = True
         go _ _ (Assert _ _ _) (Assert _ _ _) = True
-        go _ _ _ _ = False
+        go _ _ e1 e2 = False
 
         goAlt seen1 seen2 (Alt match1 e1) (Alt match2 e2) = match1 == match2 && go seen1 seen2 e1 e2
 

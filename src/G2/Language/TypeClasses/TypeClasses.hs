@@ -18,6 +18,7 @@ module G2.Language.TypeClasses.TypeClasses ( TypeClasses
                                            , tcDicts
                                            , typeClassInst
                                            , satisfyingTCTypes
+                                           , filterWithKey
                                            , toMap) where
 
 import G2.Language.AST
@@ -201,8 +202,14 @@ satisfyTCReq tc (Id n _) = filter isFor . filter (isTypeClass tc)
       isFor (TyApp a1 a2) = isFor a1 || isFor a2
       isFor _ = False
 
+filterWithKey :: (Name -> Class -> Bool) -> TypeClasses -> TypeClasses
+filterWithKey p = fromMap . M.filterWithKey p . toMap
+
 toMap :: TypeClasses -> M.HashMap Name Class
 toMap = coerce
+
+fromMap :: M.HashMap Name Class -> TypeClasses
+fromMap = coerce
 
 instance ASTContainer TypeClasses Expr where
     containedASTs _ = []

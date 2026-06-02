@@ -56,15 +56,8 @@ runWithArgs as = do
     if null notValidated then putStrLn "Validated" else putStrLn "There was an error during validation."
     unless (null timeouts) $ putStrLn ("Validate timeout count: " ++ show (length timeouts))
 
-  when (print_timeout config' || print_timeout_list_depth config') $ case time_outs of
-      NoTimeOut -> putStrLn "All states terminated."
-      TimedOut m_i -> do
-          putStrLn "Some states timed out."
-          when (print_timeout_list_depth config') $
-            case m_i of
-              Just i -> putStrLn $ "Checked up to list depth: " ++ show (i - 1)
-              Nothing -> putStrLn "No lists"
-  
+  reportTerminationResults time_outs config
+
   when (print_num_post_call_func_arg config') $ do
         putStrLn $ "Post call states: " ++ show (length spec_output)
         putStrLn $ "Func arg states: " ++ show (length unspecified_output)

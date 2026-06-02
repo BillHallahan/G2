@@ -5,7 +5,7 @@ module G2.Language.Families ( Families
                             , Axiom (..)
                             , mkFamilies
                             , fullyReduceTypeFunctions
-                            , reduceTypeFunction ) where
+                            , reduceTypeFunction) where
 
 import G2.Language.AST
 import G2.Language.Syntax
@@ -14,6 +14,7 @@ import qualified G2.Language.TyVarEnv as TV
 
 import GHC.Generics (Generic)
 import Control.Monad
+import Data.Coerce
 import Data.Data (Data)
 import Data.Foldable
 import Data.Hashable

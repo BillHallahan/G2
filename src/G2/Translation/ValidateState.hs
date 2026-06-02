@@ -146,7 +146,9 @@ runCheck init_pg comp_func modN entry chAll chAny b er@(ExecRes {final_state = s
         outStr = T.unpack outTxt
 
     let arsType = T.unpack $ mkTypeHaskellPG pg (typeOf (tyvar_env s) e)
-        outType = T.unpack $ mkTypeHaskellPG pg (typeOf (tyvar_env s) out)
+        outType = case typeOf (tyvar_env s) out of
+                            TyUnknown -> ""
+                            t -> " :: " ++ (T.unpack $ mkTypeHaskellPG pg t)
 
     -- If we are returning a primitive type (Int#, Float#, etc.) wrap in a constructor so that `==` works
     let pr_con = case typeOf (tyvar_env s) out of
@@ -162,7 +164,7 @@ runCheck init_pg comp_func modN entry chAll chAny b er@(ExecRes {final_state = s
 
     let chck = case outStr == "error" || outStr == "undefined" || outStr == "?" of
                     False -> mvStr ++ "Control.Exception.try (evaluate (" ++ pr_con ++ "(" ++ arsStr ++ ") " ++ comp_func' ++ " " ++ pr_con ++ "("
-                                        ++ outStr ++ " :: " ++ outType ++ ")" ++ ")) :: IO (Either SomeException Bool)"
+                                        ++ outStr ++ outType ++ ")" ++ ")) :: IO (Either SomeException Bool)"
                     True -> mvStr ++ "Control.Exception.try (evaluate ( (" ++ pr_con ++ "(" ++ arsStr ++ " :: " ++ arsType ++ ")" ++
                                                     ") " ++ comp_func' ++ " " ++ pr_con ++ "(" ++ arsStr ++ "))) :: IO (Either SomeException Bool)"
     v' <- compileExpr chck
