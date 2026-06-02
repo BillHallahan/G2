@@ -4,7 +4,9 @@
 module G2.Translation.Interface ( translateBase
                                 , translateLoaded
                                 , specialInject
-                                , dirPath) where
+                                , dirPath
+                                
+                                , adjustAssume) where
 
 import Control.Monad.Extra
 import qualified Data.HashMap.Lazy as HM
