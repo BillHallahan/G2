@@ -2,12 +2,15 @@
 
 module Expr (exprTests) where
 
+import G2.Execution.NewPC
 import G2.Language
 import qualified G2.Language.ExprEnv as E
+import qualified G2.Language.TyVarEnv as TV 
+
+import qualified Data.Text as T
 
 import Test.Tasty
 import Test.Tasty.HUnit
-import qualified G2.Language.TyVarEnv as TV 
 
 exprTests :: TestTree
 exprTests =
@@ -16,7 +19,15 @@ exprTests =
     , testCase "Eta Expand To" $ assertBool "Eta Expand To failed" etaExpandTo2
     , testCase "Eta Expand To" $ assertBool "Eta Expand To failed" etaExpandTo3
     , testCase "Eta Expand To" $ assertBool "Eta Expand To failed" etaExpandTo4
-    , testCase "Eta Expand To" $ assertBool "Eta Expand To failed" etaExpandToOverSat1 ]
+    , testCase "Eta Expand To" $ assertBool "Eta Expand To failed" etaExpandToOverSat1
+    
+    , testCase "Indistinguishable 1" $ assertBool "indistinguishableRegions failed" indistinguishable1
+    , testCase "Indistinguishable 2" $ assertBool "indistinguishableRegions failed" indistinguishable2
+    , testCase "Indistinguishable 3" $ assertBool "indistinguishableRegions failed" indistinguishable3
+    , testCase "Indistinguishable 4" $ assertBool "indistinguishableRegions failed" indistinguishable4
+    , testCase "Indistinguishable 5" $ assertBool "indistinguishableRegions failed" indistinguishable5
+    , testCase "Indistinguishable 6" $ assertBool "indistinguishableRegions failed" indistinguishable6
+    , testCase "Indistinguishable 7" $ assertBool "indistinguishableRegions failed" indistinguishable7 ]
 
 etaExpandTo1 :: Bool
 etaExpandTo1 =
@@ -96,3 +107,141 @@ eenv :: ExprEnv
 eenv = E.fromList [ (x1N, App (Data intD) (Lit (LitInt 1))) 
                   , (idN, Lam TermL (Id bN int) (Var (Id bN int)))
                   , (undefinedN, Prim Undefined TyBottom) ]
+
+-- Testing indistinguishability
+indistinguishable1 :: Bool
+indistinguishable1 = indistinguishableRegions E.empty e1 e2 == Just e3
+    where
+        e1 = App
+                (Data dc1)
+                (App
+                    (Data dc1)
+                    (App 
+                        (Lam TermL (Id bN TyUnknown) (Lit $ LitInt 1))
+                        (Var (Id idN TyUnknown))
+                    )
+                )
+
+        e2 = App
+                (Data dc1)
+                (App
+                    (Data dc1)
+                    (Lit $ LitInt 5)
+                )
+
+        e3 = App
+                (Data dc1)
+                (App
+                    (Data dc1)
+                    (Prim Undefined TyBottom)
+                )
+
+        dc1 = mkDC "DC1"
+
+indistinguishable2 :: Bool
+indistinguishable2 = indistinguishableRegions E.empty e1 e2 == Just e3
+    where
+        e1 = App
+                (App (Data dc1) (Type (TyCon n1 TYPE)))
+                (App
+                    (App (Data dc1) (Type (TyCon n1 TYPE)))
+                    (App 
+                        (Lam TermL (Id bN TyUnknown) (Lit $ LitInt 1))
+                        (Var (Id idN TyUnknown))
+                    )
+                )
+
+        e2 = App
+                (App (Data dc1) (Type (TyCon n1 TYPE)))
+                (App
+                    (App (Data dc1) (Type (TyCon n1 TYPE)))
+                    (Lit $ LitInt 5)
+                )
+
+        e3 = App
+                (App (Data dc1) (Type (TyCon n1 TYPE)))
+                (App 
+                    (App (Data dc1) (Type (TyCon n1 TYPE)))
+                    (Prim Undefined TyBottom)
+                )
+
+        n1 = Name "n1" Nothing 0 Nothing
+        dc1 = mkDC "DC1"
+
+indistinguishable3 :: Bool
+indistinguishable3 = indistinguishableRegions E.empty e1 e2 == Nothing
+    where
+        e1 = App
+                (App (Data dc1) (Type (TyCon n1 TYPE)))
+                (App
+                    (App (Data dc1) (Type (TyCon n1 TYPE)))
+                    (App 
+                        (Lam TermL (Id bN TyUnknown) (Lit $ LitInt 1))
+                        (Var (Id idN TyUnknown))
+                    )
+                )
+
+        e2 = App
+                (App (Data dc1) (Type (TyCon n2 TYPE)))
+                (App
+                    (App (Data dc1) (Type (TyCon n1 TYPE)))
+                    (App 
+                        (Lam TermL (Id bN TyUnknown) (Lit $ LitInt 1))
+                        (Var (Id idN TyUnknown))
+                    )
+                )
+
+        n1 = Name "n1" Nothing 0 Nothing
+        n2 = Name "n2" Nothing 0 Nothing
+        dc1 = mkDC "DC1"
+
+indistinguishable4 :: Bool
+indistinguishable4 = indistinguishableRegions E.empty e1 e2 == Nothing
+    where
+        e1 = App
+                (App (Data dc1) (Type (TyCon n1 TYPE)))
+                (App
+                    (App (Data dc1) (Type (TyCon n1 TYPE)))
+                    (App 
+                        (Lam TermL (Id bN TyUnknown) (Lit $ LitInt 1))
+                        (Var (Id idN TyUnknown))
+                    )
+                )
+
+        e2 = App
+                (App (Data dc1) (Type (TyCon n1 TYPE)))
+                (App
+                    (App (Data dc2) (Type (TyCon n1 TYPE)))
+                    (App 
+                        (Lam TermL (Id bN TyUnknown) (Lit $ LitInt 1))
+                        (Var (Id idN TyUnknown))
+                    )
+                )
+
+        n1 = Name "n1" Nothing 0 Nothing
+        dc1 = mkDC "DC1"
+        dc2 = mkDC "DC2"
+
+indistinguishable5 :: Bool
+indistinguishable5 = indistinguishableRegions E.empty e e == Just e
+    where
+        e = (App (Data dc1) (Lit (LitInt 2)))
+        dc1 = mkDC "DC1"
+
+indistinguishable6 :: Bool
+indistinguishable6 = indistinguishableRegions E.empty e1 e2 == Just (App (Data dc1) (Prim Undefined TyBottom))
+    where
+        e1 = (App (Data dc1) (Lit (LitInt 2)))
+        e2 = (App (Data dc1) (App undefined undefined))
+        dc1 = mkDC "DC1"
+
+indistinguishable7 :: Bool
+indistinguishable7 = indistinguishableRegions E.empty e1 e2 == Nothing
+    where
+        e1 = (App (Data dc1) (Lit (LitInt 1)))
+        e2 = (App (Data dc1) (Lit (LitInt 2)))
+        dc1 = mkDC "DC1"
+
+
+mkDC :: T.Text -> DataCon
+mkDC s = DataCon { dc_name = Name s Nothing 0 Nothing, dc_type = TyUnknown, dc_univ_tyvars = [], dc_exist_tyvars = []}
