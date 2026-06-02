@@ -21,7 +21,6 @@ import Data.Foldable
 import Data.List
 import qualified Data.HashSet as HS
 import qualified Data.HashMap.Lazy as HM
-import qualified Data.Map as M
 import qualified Data.Sequence as S
 
 type PreservingFunc = forall t . State t -> Bindings -> HS.HashSet Name -> HS.HashSet Name

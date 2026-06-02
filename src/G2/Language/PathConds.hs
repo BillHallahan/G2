@@ -56,7 +56,7 @@ import G2.Language.Naming
 import G2.Language.Syntax
 
 import Data.Coerce
-import Data.Data (Data, Typeable)
+import Data.Data (Data)
 import qualified Data.Foldable as F
 import GHC.Generics (Generic)
 import Data.Hashable
@@ -73,12 +73,12 @@ import qualified Prelude as P (map)
 
 -- A collection of path constraints- requirements on symbolic variables.
 newtype PathConds = PathConds (UF.UFMap (Maybe Name) PCGroup)
-                    deriving (Show, Eq, Read, Generic, Typeable, Data)
+                    deriving (Show, Eq, Read, Generic, Data)
 
 instance Hashable PathConds
 
 data PCGroup = PCGroup { pcs_contains :: HS.HashSet Id, pcs :: HS.HashSet HashedPathCond}
-               deriving (Show, Eq, Read, Generic, Typeable, Data)
+               deriving (Show, Eq, Read, Generic, Data)
 
 instance Hashable PCGroup
 
@@ -114,7 +114,7 @@ data PathCond = AltCond Lit Expr Bool -- ^ The expression and Lit must match
               | SoftPC PathCond -- ^ A `PathCond` to satisfy if possible, but which is not absolutely required.
               | MinimizePC Expr -- ^ An expression to minimize
               | AssumePC Id Integer (HS.HashSet HashedPathCond) -- ^ An implication- if the `Id` equals the integer, that implies the `HashedPathCond` in the `HS.HashSet`
-              deriving (Show, Eq, Read, Generic, Typeable, Data)
+              deriving (Show, Eq, Read, Generic, Data)
 
 type Constraint = PathCond
 type Assertion = PathCond
@@ -431,7 +431,7 @@ instance Ided PathCond where
     ids (AssumePC i _ pc) = ids i ++ ids pc
 
 data HashedPathCond = HashedPC PathCond {-# UNPACK #-} !Int
-              deriving (Show, Read, Typeable, Data)
+              deriving (Show, Read, Data)
 
 hashedPC :: PathCond -> HashedPathCond
 hashedPC pc = HashedPC pc (hash pc)

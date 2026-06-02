@@ -41,8 +41,6 @@ runInitialization2 config s@(IT.SimpleState { IT.expr_env = eenv
                                             , IT.name_gen = ng
                                             , IT.known_values = kv }) argTys =
     let
-        ts = argTys s
-
         (eenv3, hs, ng2) = mkHandles eenv kv ng
 
         eenv4 = if error_asserts config then assertFalseOnError kv eenv3 else eenv3

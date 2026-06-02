@@ -50,7 +50,6 @@ module G2.Language.ExprEnv
     , filter
     , filterWithKey
     , filterConcOrSym
-    , filterWithKey
     , filterConcOrSymWithKey
     , filterToSymbolic
     , getIdFromName
@@ -78,7 +77,7 @@ import Prelude hiding( filter
                      , null)
 import qualified Prelude as Pre
 import Data.Coerce
-import Data.Data (Data, Typeable)
+import Data.Data (Data)
 import Data.Hashable
 import qualified Data.List as L
 import qualified Data.HashMap.Lazy as M
@@ -103,13 +102,13 @@ concOrSymToExpr (Sym i) = Var i
  
 data EnvObj = ExprObj Expr
             | SymbObj Id
-            deriving (Show, Eq, Read, Generic, Typeable, Data)
+            deriving (Show, Eq, Read, Generic, Data)
 
 instance Hashable EnvObj
 
 -- | Maps `Name`s to `Expr`s.  Tracks `Type`s of symbolic variables. 
 newtype ExprEnv = ExprEnv (M.HashMap Name EnvObj)
-                  deriving (Show, Eq, Read, Generic, Typeable, Data)
+                  deriving (Show, Eq, Read, Generic, Data)
 
 instance Hashable ExprEnv
 
@@ -193,8 +192,8 @@ deepLookupConcOrSym n_ eenv = go HS.empty n_
         go seen n = case lookupConcOrSym n eenv of
                         Just c@(Conc (Var (Id n' _))) | n `elem` seen -> Just c
                                                       | otherwise -> go (HS.insert n seen) n'
-                        Just c@(Conc r) -> Just c
-                        Just s@(Sym r) -> Just s
+                        Just c@(Conc _) -> Just c
+                        Just s@(Sym _) -> Just s
                         Nothing -> Nothing
 
 -- | Find the deepest buried Var Name from the given Name
@@ -203,9 +202,9 @@ deepLookupVar n eenv = go HS.empty n
     where
         go seen f = 
             case lookupConcOrSym f eenv of
-                Just (Conc (Var i@(Id f' _))) | f' `elem` seen -> Just f'
-                                              | otherwise -> go (HS.insert f' seen) f'
-                Just (Conc r) -> Just f
+                Just (Conc (Var (Id f' _))) | f' `elem` seen -> Just f'
+                                            | otherwise -> go (HS.insert f' seen) f'
+                Just (Conc _) -> Just f
                 Just (Sym r) -> Just $ idName r
                 Nothing -> Nothing
         
@@ -232,7 +231,7 @@ nameModMap = M.fromList . L.map (\(n@(Name n' m _ _), e) -> ((n', m), (n, e))) .
 
 -- | Looks  up a `Name` in the `ExprEnv`.  Crashes if the `Name` is not found.
 (!) :: ExprEnv -> Name -> Expr
-(!) env@(ExprEnv env') n =
+(!) (ExprEnv env') n =
     case M.lookup n env' of
         Just (ExprObj e) -> e
         Just (SymbObj i) -> Var i
@@ -309,7 +308,6 @@ mapWithKey f (ExprEnv env) = ExprEnv $ M.mapWithKey f' env
             case f n (Var i) of
                 Var i' -> SymbObj i'
                 _ -> s
-        f' _ n = n
 
 mapWithKey' :: (Name -> Expr -> a) -> ExprEnv -> M.HashMap Name a
 mapWithKey' f = M.mapWithKey f . toExprMap
@@ -320,7 +318,6 @@ mapConcWithKey f (ExprEnv env) = ExprEnv $ M.mapWithKey f' env
         f' :: Name -> EnvObj -> EnvObj
         f' n (ExprObj e) = ExprObj $ f n e
         f' _ s@(SymbObj _) = s
-        f' _ n = n
 
 mapConcOrSym :: (ConcOrSym -> ConcOrSym) -> ExprEnv -> ExprEnv
 mapConcOrSym f = mapConcOrSymWithKey (\_ -> f)
@@ -334,7 +331,6 @@ mapConcOrSymWithKey f (ExprEnv env) = ExprEnv $ M.mapWithKey f' env
         f' :: Name -> EnvObj -> EnvObj
         f' n (ExprObj e) = g $ f n $ Conc e
         f' n (SymbObj i) = g $ f n $ Sym i
-        f' _ e = e
 
 mapM :: Monad m => (Expr -> m Expr) -> ExprEnv -> m ExprEnv
 mapM f eenv = return . ExprEnv =<< Pre.mapM f' (unwrapExprEnv eenv)
@@ -345,7 +341,6 @@ mapM f eenv = return . ExprEnv =<< Pre.mapM f' (unwrapExprEnv eenv)
             case e' of
                 Var i' -> return $ SymbObj i'
                 _ -> return s
-        f' n = return n
 
 
 mapWithKeyM :: Monad m => (Name -> Expr -> m Expr) -> ExprEnv -> m ExprEnv
@@ -357,13 +352,12 @@ mapWithKeyM f eenv = return . ExprEnv . M.fromList =<< Pre.mapM (uncurry f') (to
             case e' of
                 Var i' -> return $ (n, SymbObj i')
                 _ -> return (n, s)
-        f' n e = return (n, e)
 
 filter :: (Expr -> Bool) -> ExprEnv -> ExprEnv
 filter p = filterWithKey (\_ -> p) 
 
 filterWithKey :: (Name -> Expr -> Bool) -> ExprEnv -> ExprEnv
-filterWithKey p env@(ExprEnv env') = ExprEnv $ M.filterWithKey p' env'
+filterWithKey p (ExprEnv env') = ExprEnv $ M.filterWithKey p' env'
     where
         p' :: Name -> EnvObj -> Bool
         p' n (ExprObj e) = p n e
@@ -373,7 +367,7 @@ filterConcOrSym :: (ConcOrSym -> Bool) -> ExprEnv -> ExprEnv
 filterConcOrSym p = filterConcOrSymWithKey (\_ -> p) 
 
 filterConcOrSymWithKey :: (Name -> ConcOrSym -> Bool) -> ExprEnv -> ExprEnv
-filterConcOrSymWithKey p env@(ExprEnv env') = ExprEnv $ M.filterWithKey p' env'
+filterConcOrSymWithKey p (ExprEnv env') = ExprEnv $ M.filterWithKey p' env'
     where
         p' :: Name -> EnvObj -> Bool
         p' n (ExprObj e) = p n (Conc e)
@@ -451,7 +445,6 @@ instance ASTContainer EnvObj Expr where
         case f (Var i) of
             (Var i') -> SymbObj i'
             _ -> s
-    modifyContainedASTs _ r = r
 
 instance ASTContainer EnvObj Type where
     containedASTs (ExprObj e) = containedASTs e
@@ -459,7 +452,6 @@ instance ASTContainer EnvObj Type where
 
     modifyContainedASTs f (ExprObj e) = ExprObj (modifyContainedASTs f e)
     modifyContainedASTs f (SymbObj i) = SymbObj (modifyContainedASTs f i)
-    modifyContainedASTs _ r = r
 
 instance Named ExprEnv where
     names (ExprEnv eenv) = names (M.keys eenv) <> names eenv

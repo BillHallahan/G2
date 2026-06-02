@@ -17,7 +17,7 @@ module G2.Language.Stack
 
 import Prelude hiding (null, filter)
 import GHC.Generics (Generic)
-import Data.Data (Data, Typeable)
+import Data.Data (Data)
 import Data.Hashable
 import qualified Data.List as L
 
@@ -25,7 +25,7 @@ import G2.Language.AST
 import G2.Language.Naming
 import G2.Language.Syntax
 
-newtype Stack a = Stack [a] deriving (Show, Eq, Read, Generic, Typeable, Data)
+newtype Stack a = Stack [a] deriving (Show, Eq, Read, Generic, Data)
 
 instance Hashable a => Hashable (Stack a)
 

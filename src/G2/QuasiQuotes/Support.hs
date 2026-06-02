@@ -32,7 +32,7 @@ import qualified Data.Text as T
 import Text.Read
 
 data QQName = QQName T.Text (Maybe T.Text)
-            deriving (Eq, Show, Read, Generic, Typeable, Data)
+            deriving (Eq, Show, Read, Generic, Data)
 
 instance Hashable QQName
 
