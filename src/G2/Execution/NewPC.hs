@@ -3,9 +3,7 @@ module G2.Execution.NewPC ( NewPC (..)
                           , newPCNoStates
                           , reduceNewPC
                           , reduceStateDiff
-                          , reduceToFirstDiff
-                          
-                          , indistinguishableRegions ) where
+                          , reduceToFirstDiff ) where
 
 import G2.Language
 import qualified G2.Language.ExprEnv as E
@@ -14,7 +12,6 @@ import qualified G2.Language.Stack as S
 import qualified G2.Language.TyVarEnv as TV
 import G2.Solver
 
-import Control.Monad
 import Data.List
 import Data.Maybe
 import G2.Data.Utils
@@ -22,8 +19,6 @@ import Data.Traversable
 import G2.Execution.MutVar
 import G2.Execution.LiteralTable
 import G2.Config.Config (DiscardUnknownStates (KeepUnknown))
-
-import Debug.Trace
 
 data NewPC t = SingleState (State t)
              | SplitStatePieces (State t) [StateDiff]

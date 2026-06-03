@@ -1,4 +1,16 @@
+{-# LANGUAGE BangPatterns #-}
+
 module G2.Execution.FuncConstraints where
+
+import G2.Language
+import qualified G2.Language.ExprEnv as E
+import G2.Language.Monad
+
+import Control.Monad
+import Control.Monad.Extra
+import qualified Data.HashMap.Lazy as HM
+import qualified Data.HashSet as HS
+import Data.List
 
 -- Note [Solving Function Constraints]
 -- Function constraints have the forms:
@@ -10,11 +22,11 @@ module G2.Execution.FuncConstraints where
 -- * f is a symbolic function
 -- * a1 ... ak are arguments, r is the return value.
 --
--- Typically, the set of preconditions for each constraint will be empty in an initial problem;
--- however, the procedure to solve a set of function constraints will generate function constraints with preconditions.
---
 -- To solve a set of function constraints, we (a) take the following steps 1 to 4 repeatedly and (b) take step (4) if none of these earlier rules apply:
--- 1) We check if there is a function f such that the i^th argument x of that function is in WHNF in all constraints.
+--
+-- 1) unfoldWHNFArgs
+-- 
+--    We check if there is a function f such that the i^th argument x of that function is in WHNF in all constraints.
 --    If there is, we instantiate this function to branch on that argument. Each of the k branches then calls a corresponding newly generated
 --    symbolic function f1...fk. This function is passed all arguments of f EXCEPT for x. If x has an ADT type, each function is also passed all
 --     arguments from the constructor.  The original constraints are then rewritten in terms of f1...fk.
@@ -34,7 +46,10 @@ module G2.Execution.FuncConstraints where
 --        f1 6 = 22
 --        f1 19 = 25
 --    (Note that this step might be done repeatedly- for example, in the above, we can now split on the first argument of f1)
--- 2) We look for arguments that are symbolic variables. We then instantiate these symbolic variables to case expressions
+--
+-- 2)
+--
+--    We look for arguments that are symbolic variables. We then instantiate these symbolic variables to case expressions
 --    that branch on a fresh integer variable to choose a constructor with fresh symbolic arguments. For example, if we have:
 --        f (xs :: [Int]) = 7
 --    where xs is symbolic, we introduce a fresh Int n, and instantiate xs to:
@@ -46,7 +61,10 @@ module G2.Execution.FuncConstraints where
 -- For example, the constraint above becomes:
 --        n = 1 => f [] = 7
 --        n = 2 => f (y:ys) = 7
--- 3) We look for arguments that are case constructs introduced in step 2, and do the same translation into a pair of function constraints
+--
+-- 3)
+--
+--    We look for arguments that are case constructs introduced in step 2, and do the same translation into a pair of function constraints
 --    that we do in (2).  That is, if we have a function constraint:
 --        f xs = 7
 --    and we already have:
@@ -56,15 +74,21 @@ module G2.Execution.FuncConstraints where
 --    we rewrite the constraint to be:
 --        n = 1 => f [] = 7
 --        n = 2 => f (y:ys) = 7
--- 4) We check if there are any "variable assignments"- "functions" that have no arguments. If so, we make sure all assignments to the same variable are consistent.
+--
+-- 4)
+--
+--    We check if there are any "variable assignments"- "functions" that have no arguments. If so, we make sure all assignments to the same variable are consistent.
 --    For instance, we might reach a point where we have:
 --        f7 = x:xs
 --        f7 = y:z:zs
 --    These can be made consistent by setting `x = y` and `xs = z:zs`.
 --
 -- If none of steps (1) to (4) apply, we move on to step (5):
--- 5) Since none of (1) to (4) apply, for each argument of a function f, there must be at least one constraint
--- where that argument is not in WHNF and is not a symbolic variable.  For instance:
+--
+-- 5)
+--
+--    Since none of (1) to (4) apply, for each argument of a function f, there must be at least one constraint
+--    where that argument is not in WHNF and is not a symbolic variable.  For instance:
 --                 f 9  7  = 6
 --        n = 1 => f 1  4  = 2
 --        n = 1 => f e1 4  = 5
@@ -85,9 +109,9 @@ module G2.Execution.FuncConstraints where
 -- We now return to rules (1) to (3). Notice that we will actually not be able to solve for `n = 1`/f2, because `f2 4 = 2` and `f2 4 = 5` is a constradiction.
 -- However, we will be able to solve for `n = 2` and `f3`.
 
--- Note [Delaying Step 4]
+-- Note [Delaying Step 5]
 -- Read Note [Solving Function Constraints] (above) first.
--- A natural question is why we delay step 4 until after none of steps 1 to 3 apply. To answer this, consider:
+-- A natural question is why we delay step 5 until after none of steps 1 to 4 apply. To answer this, consider:
 --        n = 1 => f (x:xs) e1 = 1
 --        n = 1 => f []     4  = 2
 --        n = 1 => f []     6  = 5
@@ -115,17 +139,83 @@ module G2.Execution.FuncConstraints where
 --        n = 2 => f4 6  = 4
 -- f3 can now be handled by step (1) and f4 by step (2).
 
+{-
+Problem:
+If we fail to solve function constraints, have to try and reduce arguments.
+This then may introduce more constraints, making the problem actually harder to solve.
+Suppose we have two argument e1 and e2. If reducing e2 would have been sufficient to solve the orginal constraints,
+but reducing e1 adds a constraint, that is unfortunate!
+
+Possible solution:
+- When reducing expressions, assign them a precondition. All generated function constraints have that precondition,
+and the constraint can only be used during solving if that precondition is satisfied.
+This way, the precondition allows choosing between making use of the argument and having the extra constraint,
+or not using the argument and also discarding the constraint.
+-}
+
+
 data PreC = Id :== Int
              | PNot PreC
              | PAnd [PreC]
              | POr [PreC]
 
 data FuncConstraint =
-    FC { func_name :: Name
-       , preconds :: [PreC]
-       , args :: [Expr]
-       , ret :: Expr
+    FC { fc_preconds :: [PreC]
+       , fc_args :: [Expr]
+       , fc_ret :: Expr
        }
+
+data FuncRec = FR { func_name :: Name, func_constraints :: [FuncConstraint] }
+
+data FCRes = SatFC | UnsatFC deriving Eq
+
+type FuncConstraints = [FuncRec]
+
+-- addFC :: Name -> FuncConstraint -> FuncRec -> FuncConstraints
+-- addFC n fc = HM.insertWith (++) n [fc]
+
+solveFuncConstraints :: State t -> NameGen -> FuncConstraints -> Maybe (State t, NameGen)
+solveFuncConstraints s ng fc =
+    let (r, (s', !ng')) = runStateNG (solveFC fc) s ng in
+    if r == SatFC then Just (s', ng') else Nothing
+
+solveFC :: FuncConstraints -> StateNG t FCRes
+solveFC fcs = do
+    fcs <- concatMapM unfoldWHNFArgs fcs -- traverseWithKey?
+    undefined
+
+unfoldWHNFArgs :: FuncRec -> StateNG t [FuncRec]
+unfoldWHNFArgs (FR { func_constraints = [] }) = return []
+unfoldWHNFArgs fr@(FR { func_constraints = fcs }) = do
+    eenv <- exprEnv
+    tv_env <- tyVarEnv
+
+    let matching_args = transpose $ map fc_args fcs
+        all_whnf = findIndex (all (isWHNF eenv)) matching_args
+    case all_whnf of
+        Just i -> do
+            let rel_args@(e:_) = matching_args !! i
+                t = typeOf tv_env e
+            case isPrimType t of
+                True -> do -- Primitive type
+                    let uniq_args = nub $ map (inlineVars eenv) rel_args
+                    undefined
+                False -> do -- ADT
+                    concatMapM unfoldWHNFArgs $ map (\fc -> undefined) fcs
+        Nothing -> return [fr]
+
+-- modifyIndex :: Int -> (a -> a) -> [a] -> [a]
+-- modifyIndex _ _ [] = error "modifyIndex: unexpected end of list"
+-- modifyIndex !0 f (x:xs) = f x:xs
+-- modifyIndex !n f (x:xs) = x:modifyIndex (n - 1) f xs
+
+isWHNF :: ExprEnv -> Expr -> Bool
+isWHNF eenv = go HS.empty
+    where
+        go _ (Lit _) = True
+        go seen e | Data _:_ <- unApp e = True
+                  | Var (Id n _):_ <- unApp e = maybe False (go (HS.insert n seen)) $ E.lookup n eenv
+        go _ _ = False
 
 -- Note [Distinguishability]
 -- We say two expressions are "distinguishable" if they are (partially) fully reduced,
