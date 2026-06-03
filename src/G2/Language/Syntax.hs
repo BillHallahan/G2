@@ -65,6 +65,9 @@ instance Hashable Name where
 -- | Pairing of a `Name` with a t`Type`
 data Id = Id !Name Type deriving (Show, Eq, Read, Generic, Data, Ord)
 
+idType :: Id -> Type
+idType (Id _ t) = t
+
 instance Hashable Id
 
 -- | Indicates the purpose of the a Lambda binding

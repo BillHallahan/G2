@@ -110,7 +110,7 @@ addFC n fc (fr@(FR { func_name = fr_n, func_constraints = cons } ):xs)
 --
 -- To solve a set of function constraints, we (a) take the following steps 1 to 5 repeatedly and (b) take step (6) if none of these earlier rules apply:
 --
--- 1) unfoldWHNFArgs
+-- 1) unfolADTArgs
 -- 
 --    We check if there is a function f such that the i^th argument x of that function is an ADT that is WHNF in all constraints.
 --    If there is, we instantiate this function to branch on that argument. Each of the k branches then calls a corresponding newly generated
@@ -209,9 +209,9 @@ addFC n fc (fr@(FR { func_name = fr_n, func_constraints = cons } ):xs)
 -- We now return to rules (1) to (3). Notice that we will actually not be able to solve for `n = 1`/f2, because `f2 D = 2` and `f2 D = 5` is a constradiction.
 -- However, we will be able to solve for `n = 2` and `f3`.
 
--- Note [Delaying Step 5]
+-- Note [Delaying Step 6]
 -- Read Note [Solving Function Constraints] (above) first.
--- A natural question is why we delay step 5 until after none of steps 1 to 4 apply. To answer this, consider:
+-- A natural question is why we delay step 6 until after none of steps 1 to 4 apply. To answer this, consider:
 --        n = 1 => f (x:xs) e1 = 1
 --        n = 1 => f []     A  = 2
 --        n = 1 => f []     B  = 5
@@ -277,41 +277,97 @@ solveFuncConstraints s@(State { sym_func_constraints = fc }) ng = do
 
 solveFC :: MonadIO m => FuncConstraints -> StateNGT t m FCRes
 solveFC fcs = do
-    fcs <- concatMapM unfoldWHNFArgs fcs -- traverseWithKey?
+    fcs <- concatMapM unfolADTArgs fcs -- traverseWithKey?
+    liftIO $ putStrLn "after unfoldADTArgs"
     undefined
 
-unfoldWHNFArgs :: MonadIO m => FuncRec -> StateNGT t m [FuncRec]
-unfoldWHNFArgs (FR { func_constraints = [] }) = return []
-unfoldWHNFArgs fr@(FR { func_constraints = fcs }) = do
+unfolADTArgs :: MonadIO m => FuncRec -> StateNGT t m [FuncRec]
+unfolADTArgs (FR { func_constraints = [] }) = return []
+unfolADTArgs fr@(FR { func_name = n, func_constraints = fcs@(first_fc:_) }) = do
     eenv <- exprEnv
+    tenv <- typeEnv
     tv_env <- tyVarEnv
 
+    let ret_ty = typeOf tv_env $ fc_ret first_fc
+
+    -- Find an argument that is (1) an ADT where (2) all arguments are data constructor applications
     let matching_args = transpose $ map fc_args fcs
-        all_whnf = findIndex (all (isWHNF eenv)) matching_args
+        all_whnf = findIndex (all (isADT . inlineVars eenv)) matching_args
     case all_whnf of
         Just i -> do
             let rel_args@(e:_) = matching_args !! i
                 t = typeOf tv_env e
-            case isPrimType t of
-                True -> do -- Primitive type
-                    let uniq_args = nub $ map (inlineVars eenv) rel_args
-                    undefined
-                False -> do -- ADT
-                    concatMapM unfoldWHNFArgs $ map (\fc -> undefined) fcs
+            
+            lam_is <- freshIdsN (map (typeOf tv_env) $ fc_args first_fc)
+            let branch_on = lam_is !! i
+                all_other_is = deleteAt i lam_is
+                all_other_vars = map Var all_other_is
+            bindee <- freshIdN (idType branch_on)
+            
+            case unTyApp t of
+                TyCon n _:_
+                    | Just (DataTyCon { data_cons = dcs }) <- HM.lookup n tenv -> do
+                        liftIO . putStrLn $ "i = " ++ show i ++ "\nt = " ++ show t ++ "\ndcs = " ++ show dcs
+                        -- Create symvolic functions to continue execution along each alternative branch
+                        cont_funcs <- mapM 
+                                        (\dc ->
+                                                let
+                                                    ts = anonArgumentTypes (typeOf tv_env dc)
+                                                    sym_f_ty = mkTyFun $ (map idType all_other_is) ++ ts ++ [ret_ty]
+                                                in
+                                                freshSeededIdN (Name "sym_f" Nothing 0 Nothing) sym_f_ty
+                                        ) dcs
+                        mapM_ insertSymbolicE cont_funcs
+                        
+                        -- Set up actual case statement
+                        alts <- zipWithM
+                                    (\dc f -> do
+                                        let ts = anonArgumentTypes (typeOf tv_env dc)
+                                        fs <- freshIdsN ts
+                                        return $ Alt (DataAlt dc fs) (mkApp $ Var f:all_other_vars ++ map Var fs))
+                                    dcs cont_funcs
+                        let cse = Case
+                                    (Var branch_on)
+                                    (bindee)
+                                    TyUnknown
+                                    alts
+                            lam_cse = mkLams (zip (repeat TermL) lam_is) cse
+                        liftIO . putStrLn $ "case = " ++ show cse
+                        liftIO . putStrLn $ "lam_cse = " ++ show lam_cse
+
+                        insertE n lam_cse
+
+                        -- Rewrite constraints
+                        let dc_to_cont_funcs = zip (map dc_name dcs) cont_funcs
+                            new_fcs = map (\fc ->
+                                            let
+                                                ith_arg = fc_args fc !! i
+                                                Data dc:as = unApp $ inlineVars eenv ith_arg
+                                                all_other_args = deleteAt i $ fc_args fc
+                                                new_fc = FC { fc_preconds = undefined
+                                                            , fc_args = all_other_args ++ as
+                                                            , fc_ret = fc_ret fc
+                                                            }
+                                                f_name = case lookup (dc_name dc) dc_to_cont_funcs of
+                                                                Just fn -> fn
+                                                                Nothing -> error "unfoldADTArgs: function not found"
+                                            in
+                                            (f_name, new_fc)
+                                          )
+                                          fcs
+
+                        concatMapM unfolADTArgs new_fcs
+                _ -> error "unfoldADTArgs: expected ADT type"
         Nothing -> return [fr]
+
+deleteAt :: Int -> [a] -> [a]
+deleteAt idx xs = lft ++ rgt
+  where (lft, (_:rgt)) = splitAt idx xs
 
 -- modifyIndex :: Int -> (a -> a) -> [a] -> [a]
 -- modifyIndex _ _ [] = error "modifyIndex: unexpected end of list"
 -- modifyIndex !0 f (x:xs) = f x:xs
 -- modifyIndex !n f (x:xs) = x:modifyIndex (n - 1) f xs
-
-isWHNF :: ExprEnv -> Expr -> Bool
-isWHNF eenv = go HS.empty
-    where
-        go _ (Lit _) = True
-        go seen e | Data _:_ <- unApp e = True
-                  | Var (Id n _):_ <- unApp e = maybe False (go (HS.insert n seen)) $ E.lookup n eenv
-        go _ _ = False
 
 -- Note [Distinguishability]
 -- We say two expressions are "distinguishable" if they are (partially) fully reduced,
