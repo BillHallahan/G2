@@ -92,10 +92,7 @@ allApplyFrames stck = go [] stck stck
 --     | otherwise = Nothing
 
 addFC :: Name -> FuncConstraint -> FuncConstraints -> FuncConstraints
-addFC n fc [] = [FR n [fc]]
-addFC n fc (fr@(FR { func_name = fr_n, func_constraints = cons } ):xs)
-    | n == fr_n = fr { func_constraints = fc:cons }:xs
-    | otherwise = fr:addFC n fc xs
+addFC n fc = HM.insertWith (++) n [fc]
 
 -- Note [Solving Function Constraints]
 -- Function constraints have the forms:
@@ -277,13 +274,13 @@ solveFuncConstraints s@(State { sym_func_constraints = fc }) ng = do
 
 solveFC :: MonadIO m => FuncConstraints -> StateNGT t m FCRes
 solveFC fcs = do
-    fcs <- concatMapM unfolADTArgs fcs -- traverseWithKey?
+    fcs <- HM.traverseWithKey unfolADTArgs fcs -- traverseWithKey?
     liftIO $ putStrLn "after unfoldADTArgs"
     undefined
 
-unfolADTArgs :: MonadIO m => FuncRec -> StateNGT t m [FuncRec]
-unfolADTArgs (FR { func_constraints = [] }) = return []
-unfolADTArgs fr@(FR { func_name = n, func_constraints = fcs@(first_fc:_) }) = do
+unfolADTArgs :: MonadIO m => Name -> [FuncConstraint] -> StateNGT t m [FuncConstraint]
+unfolADTArgs _ [] = return []
+unfolADTArgs n fcs@(first_fc:_) = do
     eenv <- exprEnv
     tenv <- typeEnv
     tv_env <- tyVarEnv
@@ -349,16 +346,16 @@ unfolADTArgs fr@(FR { func_name = n, func_constraints = fcs@(first_fc:_) }) = do
                                                             , fc_ret = fc_ret fc
                                                             }
                                                 f_name = case lookup (dc_name dc) dc_to_cont_funcs of
-                                                                Just fn -> fn
+                                                                Just fi -> idName fi
                                                                 Nothing -> error "unfoldADTArgs: function not found"
                                             in
-                                            (f_name, new_fc)
+                                            (f_name, [new_fc])
                                           )
                                           fcs
 
-                        concatMapM unfolADTArgs new_fcs
+                        concatMapM (uncurry unfolADTArgs) new_fcs
                 _ -> error "unfoldADTArgs: expected ADT type"
-        Nothing -> return [fr]
+        Nothing -> return fcs
 
 deleteAt :: Int -> [a] -> [a]
 deleteAt idx xs = lft ++ rgt

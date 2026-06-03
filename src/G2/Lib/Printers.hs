@@ -885,9 +885,9 @@ prettyNonRedPaths pg nrpc =
     $ toListNRPC nrpc)
 
 prettyFuncConstraints :: PrettyGuide -> FuncConstraints -> T.Text
-prettyFuncConstraints pg = T.intercalate "\n---\n" . map goFuncRec
+prettyFuncConstraints pg = T.intercalate "\n---\n" . map goFuncRec . HM.toList
     where
-        goFuncRec fr = T.intercalate "\n" (map (goFuncCons (func_name fr)) (func_constraints fr))
+        goFuncRec (fn, fc) = T.intercalate "\n" (map (goFuncCons fn) fc)
 
         goFuncCons f fc =
             let

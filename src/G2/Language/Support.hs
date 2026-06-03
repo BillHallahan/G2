@@ -224,12 +224,12 @@ data FuncConstraint =
 
 instance Hashable FuncConstraint
 
-data FuncRec = FR { func_name :: Name, func_constraints :: [FuncConstraint] }
-               deriving (Eq, Show, Read, Generic, Data)
+-- data FuncRec = FR { func_name :: Name, func_constraints :: [FuncConstraint] }
+--                deriving (Eq, Show, Read, Generic, Data)
 
-instance Hashable FuncRec
+-- instance Hashable FuncRec
 
-type FuncConstraints = [FuncRec]
+type FuncConstraints = HM.HashMap Name [FuncConstraint]
 
 -- | A model is a mapping of symbolic variable names to `Expr`@s@,
 -- typically produced by a solver. 
@@ -557,12 +557,12 @@ instance Named Frame where
     renames hm (AssertFrame is e) = AssertFrame (renames hm is) (renames hm e)
     renames hm (LitTableFrame ltc up) = LitTableFrame (renames hm ltc) up
 
-instance Named FuncRec where
-    names fr = func_name fr S.:<| names (func_constraints fr)
-    rename old new fr = fr { func_name = rename old new (func_name fr)
-                           , func_constraints = rename old new (func_constraints fr) }
-    renames hm fr = fr { func_name = renames hm (func_name fr)
-                       , func_constraints = renames hm (func_constraints fr) }
+-- instance Named FuncRec where
+--     names fr = func_name fr S.:<| names (func_constraints fr)
+--     rename old new fr = fr { func_name = rename old new (func_name fr)
+--                            , func_constraints = rename old new (func_constraints fr) }
+--     renames hm fr = fr { func_name = renames hm (func_name fr)
+--                        , func_constraints = renames hm (func_constraints fr) }
 
 instance Named FuncConstraint where
     names fc = names (fc_preconds fc) <> names (fc_args fc) <> names (fc_ret fc)
@@ -573,13 +573,13 @@ instance Named FuncConstraint where
                        , fc_args = renames hm (fc_args fc)
                        , fc_ret = renames hm (fc_ret fc) }
 
-instance ASTContainer FuncRec Expr where
-    modifyContainedASTs f fr = fr { func_constraints = modifyContainedASTs f (func_constraints fr )}
-    containedASTs = containedASTs . func_constraints
+-- instance ASTContainer FuncRec Expr where
+--     modifyContainedASTs f fr = fr { func_constraints = modifyContainedASTs f (func_constraints fr )}
+--     containedASTs = containedASTs . func_constraints
 
-instance ASTContainer FuncRec Type where
-    modifyContainedASTs f fr = fr { func_constraints = modifyContainedASTs f (func_constraints fr )}
-    containedASTs = containedASTs . func_constraints
+-- instance ASTContainer FuncRec Type where
+--     modifyContainedASTs f fr = fr { func_constraints = modifyContainedASTs f (func_constraints fr )}
+--     containedASTs = containedASTs . func_constraints
 
 instance ASTContainer FuncConstraint Expr where
     modifyContainedASTs f fc = fc { fc_preconds = modifyContainedASTs f (fc_preconds fc)
