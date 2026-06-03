@@ -63,7 +63,8 @@ isExecValueForm :: State t -> Bool
 isExecValueForm state@(State { curr_expr = CurrExpr _ e})
     | Nothing <- S.pop (exec_stack state)
     , CurrExpr Return _ <- curr_expr state
-    , nullNRPC (non_red_path_conds state) =
+    , nullNRPC (non_red_path_conds state)
+    , null (sym_func_constraints state) =
         case unApp e of
             [_] -> True
             Var (Id _ _):_ -> False

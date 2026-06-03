@@ -672,6 +672,8 @@ prettyState pg pretty_track s =
         , pretty_non_red_paths
         , "----- [Focused] ---------------------"
         , prettyFocus pg (focused s)
+        , "----- [Sym Function Constraints] ---------------------"
+        , pretty_sym_func_cons
         , "----- [Handles] ---------------------"
         , pretty_handles
         , "----- [MutVars Env] ---------------------"
@@ -711,6 +713,7 @@ prettyState pg pretty_track s =
         pretty_eenv = prettyEEnv (tyvar_env s) pg (curr_expr s) (exec_stack s) (expr_env s)
         pretty_paths = prettyPathConds pg (path_conds s)
         pretty_non_red_paths = prettyNonRedPaths pg $ non_red_path_conds s
+        pretty_sym_func_cons = prettyFuncConstraints pg $ sym_func_constraints s
         pretty_handles = prettyHandles pg $ handles s
         pretty_mutvars = prettyMutVars pg . HM.map mv_val_id $ mutvar_env s
         pretty_tenv = prettyTypeEnv (tyvar_env s) pg (type_env s)
@@ -880,6 +883,23 @@ prettyNonRedPaths pg nrpc =
                             <> mkDirtyExprHaskell pg e2 <> "\t"
                             <> prettyFocus pg focus)
     $ toListNRPC nrpc)
+
+prettyFuncConstraints :: PrettyGuide -> FuncConstraints -> T.Text
+prettyFuncConstraints pg = T.intercalate "\n---\n" . map goFuncRec
+    where
+        goFuncRec fr = T.intercalate "\n" (map (goFuncCons (func_name fr)) (func_constraints fr))
+
+        goFuncCons f fc =
+            let
+                pretty_precond = T.intercalate " , " $ map (mkDirtyExprHaskell pg) (fc_preconds fc)
+                pretty_func_call = mkDirtyExprHaskell pg (mkApp $ Var (Id f TyUnknown):fc_args fc)
+                pretty_ret = mkDirtyExprHaskell pg (fc_ret fc)
+
+                call_and_ret =pretty_func_call <> " = " <> pretty_ret
+            in
+            case L.null $ fc_preconds fc of
+                True -> call_and_ret
+                False -> pretty_precond <> " => " <> call_and_ret
 
 prettyFocus :: PrettyGuide -> Focus -> T.Text
 prettyFocus _ Focused = "focused"

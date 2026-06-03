@@ -66,6 +66,7 @@ import G2.Initialization.MkCurrExpr
 import qualified G2.Initialization.Types as IT
 import G2.Preprocessing.Interface
 
+import G2.Execution.FuncConstraints
 import G2.Execution.HPC
 import G2.Execution.Interface
 import G2.Execution.Reducer
@@ -216,6 +217,7 @@ initStateFromSimpleState s m_mod useAssert mkCurr argTys config =
     , curr_expr = CurrExpr Evaluate ce
     , path_conds = PC.fromList []
     , non_red_path_conds = empty_nrpc
+    , sym_func_constraints = []
     , focused = Focused
     , handles = hs
     , mutvar_env = HM.empty
@@ -392,9 +394,15 @@ initRedHaltOrd s mod_name solver simplifier config exec_func_names no_nrpc_names
                                 Nrpc -> SomeReducer (nonRedHigherOrderReducer config approx_no_inline) .== Finished .--> nrpc_lib_red f
                                 NoNrpc -> nrpc_lib_red f
         
+        func_const_red f = case symbolic_func_constraints config of
+                                UseFuncCons ->
+                                    SomeReducer
+                                        (addFuncConstraintReducer config approx_no_inline) .== Finished .--> nrpc_higher_red f
+                                NoFuncCons -> nrpc_higher_red f
+
         accept_time_red f = case accept_times config of
-                                True -> SomeReducer time_logger .~> nrpc_higher_red f
-                                False -> nrpc_higher_red f
+                                True -> SomeReducer time_logger .~> func_const_red f
+                                False -> func_const_red f
 
         num_steps_red f = case print_num_red_rules_per_state config of
                                 True -> SomeReducer numStepsLogger .~> accept_time_red f
@@ -441,17 +449,17 @@ initRedHaltOrd s mod_name solver simplifier config exec_func_names no_nrpc_names
     return $
         case higherOrderSolver config of
             AllFuncs ->
-                ( nrpc_approx_red retReplaceSymbFuncVar .== Finished .--> SomeReducer nonRedPCRed
+                ( nrpc_approx_red retReplaceSymbFuncVar .== Finished .--> SomeReducer (nonRedPCRed ~> solveFuncConstraintsReducer)
                 , SomeHalter (discardIfAcceptedTagHalter True state_name) .<~> halter_height
                 , orderer
                 , io_timed_out)
             SingleFunc ->
-                ( nrpc_approx_red retReplaceSymbFuncVar .== Finished .--> taggerRed state_name :== Finished --> nonRedPCRed
+                ( nrpc_approx_red retReplaceSymbFuncVar .== Finished .--> taggerRed state_name :== Finished --> (nonRedPCRed ~> solveFuncConstraintsReducer)
                 , SomeHalter (discardIfAcceptedTagHalter True state_name) .<~> halter_height
                 , orderer
                 , io_timed_out)
             SymbolicFunc ->
-                ( nrpc_approx_red retReplaceSymbFuncTemplate .== Finished .--> taggerRed state_name :== Finished --> nonRedPCSymFuncRed
+                ( nrpc_approx_red retReplaceSymbFuncTemplate .== Finished .--> taggerRed state_name :== Finished --> (nonRedPCSymFuncRed ~> solveFuncConstraintsReducer)
                 , SomeHalter (discardIfAcceptedTagHalter True state_name) .<~> halter_height
                 , orderer
                 , io_timed_out)

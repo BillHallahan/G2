@@ -1,16 +1,101 @@
-{-# LANGUAGE BangPatterns #-}
+{-# LANGUAGE BangPatterns, OverloadedStrings #-}
 
 module G2.Execution.FuncConstraints where
 
+import G2.Config
+import G2.Execution.Reducer
 import G2.Language
 import qualified G2.Language.ExprEnv as E
 import G2.Language.Monad
+import qualified G2.Language.Stack as Stck
 
 import Control.Monad
 import Control.Monad.Extra
+import Control.Monad.IO.Class
 import qualified Data.HashMap.Lazy as HM
 import qualified Data.HashSet as HS
 import Data.List
+
+-- | A reducer to add higher order functions to the symbolic function constraints for solving later  
+addFuncConstraintReducer :: MonadIO m =>
+                            Config
+                         -> HS.HashSet Name -- ^ Names of variables to not inline when checking syntactic equivalence
+                         -> Reducer m Int t
+addFuncConstraintReducer config no_inline =
+    (mkSimpleReducer (\_ -> 0) (redFuncConstraint no_inline))
+        { onAccept = \s b fc_count -> do
+            if print_num_nrpc config
+                then liftIO . putStrLn $ "Func Constraints Generated: " ++ show fc_count
+                else return ()
+            return (s, b) }
+
+redFuncConstraint :: Monad m =>
+                     HS.HashSet Name -- ^ Names of variables to not inline when checking syntactic equivalence
+                  -> RedRules
+                     m
+                     Int
+                     t
+redFuncConstraint no_inline fc_count s b =
+    case addFuncConstraints no_inline s (name_gen b) of
+        Just (s', ng') -> return (Finished, [(s', fc_count + 1)], b { name_gen = ng' })
+        Nothing -> return (Finished, [(s, fc_count)], b)
+
+addFuncConstraints :: HS.HashSet Name -- ^ Names of variables to not inline when checking syntactic equivalence
+                   -> State t
+                   -> NameGen
+                   -> Maybe (State t, NameGen)
+addFuncConstraints no_inline
+                   s@(State { expr_env = eenv
+                            , curr_expr = CurrExpr _ ce
+                            , sym_func_constraints = sym_fc }) 
+                   ng
+    |  Var (Id n t):es_ce <- unApp ce
+    , isTyFun t
+    , E.isSymbolic n eenv =
+        let
+            (ae, stck') = allApplyFrames (exec_stack s)
+            es = es_ce ++ ae
+
+            (ret_id, ng') = freshSeededId (Name "fc_ret" Nothing 0 Nothing) (returnType t) ng
+            fc = FC { fc_preconds = []
+                    , fc_args = es
+                    , fc_ret = Var ret_id }
+            
+            sym_fc' = addFC n fc sym_fc
+            eenv' = E.insertSymbolic ret_id eenv
+            s' = s { curr_expr = CurrExpr Return (Var ret_id)
+                   , expr_env = eenv'
+                   , exec_stack = stck'
+                   , sym_func_constraints = sym_fc' }
+        in
+        Just (s', ng')
+    | otherwise = Nothing
+
+allApplyFrames :: Stck.Stack Frame -> ([Expr], Stck.Stack Frame)
+allApplyFrames stck = go [] stck stck
+    where
+        go aes pop_stck stck_top_ups
+                    | Just (ApplyFrame ae, stck') <- Stck.pop pop_stck = go (ae:aes) stck' stck'
+                    | Just (UpdateFrame _, stck') <- Stck.pop pop_stck = go aes stck' stck_top_ups
+                    | otherwise = (reverse aes, stck_top_ups)
+
+    -- | v@(Var (Id n _)):es_ce <- unApp (getExpr s)
+    -- , let (ae, stck) = allApplyFrames (exec_stack s)
+    -- , let es = es_ce ++ ae
+    -- , let ce' = mkApp (v:es)
+    -- , Just nrpc@(NRPC { nrpc_rhs = rhs }) <- findNRPC (findSynEq ce') (non_red_path_conds s) =
+    --     Just (s { curr_expr = CurrExpr Evaluate rhs, exec_stack = stck }, ng)
+    -- where
+    --     findSynEq ce_ nrpc = eqUpToTypesInlineIgnoringTicks no_inline (expr_env s) (nrpc_lhs nrpc) ce_
+-- getNonRedForHigherOrder no_inline ng s
+--     | Just (s', _, _, ng1) <- createNonRed ng Focused s = Just (s', ng1)
+--     | otherwise = Nothing
+
+addFC :: Name -> FuncConstraint -> FuncConstraints -> FuncConstraints
+addFC n fc [] = [FR n [fc]]
+addFC n fc (fr@(FR { func_name = fr_n, func_constraints = cons } ):xs)
+    | n == fr_n = fr { func_constraints = fc:cons }:xs
+    | otherwise = fr:addFC n fc xs
 
 -- Note [Solving Function Constraints]
 -- Function constraints have the forms:
@@ -169,37 +254,33 @@ or not using the argument and also discarding the constraint.
 -}
 
 
-data PreC = Id :== Int
-             | PNot PreC
-             | PAnd [PreC]
-             | POr [PreC]
+-- data PreC = Id :== Int
+--              | PNot PreC
+--              | PAnd [PreC]
+--              | POr [PreC]
 
-data FuncConstraint =
-    FC { fc_preconds :: [Expr]
-       , fc_args :: [Expr]
-       , fc_ret :: Expr
-       }
-
-data FuncRec = FR { func_name :: Name, func_constraints :: [FuncConstraint] }
+solveFuncConstraintsReducer :: MonadIO m => Reducer m () t
+solveFuncConstraintsReducer = mkSimpleReducer (\_ -> ()) go
+    where
+        go _ s b | true_assert s = do
+                    r <- solveFuncConstraints s (name_gen b)
+                    liftIO . putStrLn $ case r of Just _ -> "Just"; Nothing -> "Nothing"
+                    error "solveFuncConstraintsReducer"
+                 | otherwise = return (Finished, [], b)
 
 data FCRes = SatFC | UnsatFC deriving Eq
 
-type FuncConstraints = [FuncRec]
+solveFuncConstraints :: MonadIO m => State t -> NameGen -> m (Maybe (State t, NameGen))
+solveFuncConstraints s@(State { sym_func_constraints = fc }) ng = do
+    (r, (s', !ng')) <- runStateNGT (solveFC fc) s ng
+    return $ if r == SatFC then Just (s', ng') else Nothing
 
--- addFC :: Name -> FuncConstraint -> FuncRec -> FuncConstraints
--- addFC n fc = HM.insertWith (++) n [fc]
-
-solveFuncConstraints :: State t -> NameGen -> FuncConstraints -> Maybe (State t, NameGen)
-solveFuncConstraints s ng fc =
-    let (r, (s', !ng')) = runStateNG (solveFC fc) s ng in
-    if r == SatFC then Just (s', ng') else Nothing
-
-solveFC :: FuncConstraints -> StateNG t FCRes
+solveFC :: MonadIO m => FuncConstraints -> StateNGT t m FCRes
 solveFC fcs = do
     fcs <- concatMapM unfoldWHNFArgs fcs -- traverseWithKey?
     undefined
 
-unfoldWHNFArgs :: FuncRec -> StateNG t [FuncRec]
+unfoldWHNFArgs :: MonadIO m => FuncRec -> StateNGT t m [FuncRec]
 unfoldWHNFArgs (FR { func_constraints = [] }) = return []
 unfoldWHNFArgs fr@(FR { func_constraints = fcs }) = do
     eenv <- exprEnv

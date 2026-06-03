@@ -56,6 +56,7 @@ data State t = State { expr_env :: E.ExprEnv -- ^ Mapping of `Name`s to `Expr`s
                      , path_conds :: PathConds -- ^ Path conditions, in SWHNF
                      , non_red_path_conds :: NonRedPathConds -- ^ Path conditions, in the form of (possibly non-reduced)
                                                              -- expression pairs that must be proved equivalent
+                     , sym_func_constraints :: FuncConstraints -- ^ Constraints on symbolic functions
                      , focused :: Focus -- ^ Is the expression that we are currently evaluating in focus (may be unfocused when from NRPC)
                      , handles :: HM.HashMap Name Handle -- ^ Each Handle has a name, that appears in `Expr`s within the `Handle` `Primitive`
                      , mutvar_env :: MutVarEnv -- ^ MutVar `Name`s to mappings of names in the `ExprEnv`.
@@ -213,6 +214,23 @@ data CEAction = EnsureEq Expr -- ^ `EnsureEq focus e1` means that we should chec
 
 instance Hashable CEAction
 
+-- | Constraints on higher order functions
+data FuncConstraint =
+    FC { fc_preconds :: [Expr]
+       , fc_args :: [Expr]
+       , fc_ret :: Expr
+       }
+       deriving (Eq, Show, Read, Generic, Data)
+
+instance Hashable FuncConstraint
+
+data FuncRec = FR { func_name :: Name, func_constraints :: [FuncConstraint] }
+               deriving (Eq, Show, Read, Generic, Data)
+
+instance Hashable FuncRec
+
+type FuncConstraints = [FuncRec]
+
 -- | A model is a mapping of symbolic variable names to `Expr`@s@,
 -- typically produced by a solver. 
 type Model = HM.HashMap Name Expr
@@ -248,6 +266,7 @@ instance Named t => Named (State t) where
             <> names (curr_expr s)
             <> names (path_conds s)
             <> names (non_red_path_conds s)
+            <> names (sym_func_constraints s)
             <> names (handles s)
             <> names (mutvar_env s)
             <> names (assert_ids s)
@@ -273,6 +292,7 @@ instance Named t => Named (State t) where
                , curr_expr = rename old new (curr_expr s)
                , path_conds = rename old new (path_conds s)
                , non_red_path_conds = rename old new (non_red_path_conds s)
+               , sym_func_constraints = rename old new (sym_func_constraints s)
                , focused = focused s
                , handles = rename old new (handles s)
                , mutvar_env = rename old new (mutvar_env s)
@@ -304,6 +324,7 @@ instance Named t => Named (State t) where
                , curr_expr = renames hm (curr_expr s)
                , path_conds = renames hm (path_conds s)
                , non_red_path_conds = renames hm (non_red_path_conds s)
+               , sym_func_constraints = renames hm (sym_func_constraints s)
                , focused = focused s
                , handles = renames hm (handles s)
                , mutvar_env = renames hm (mutvar_env s)
@@ -332,6 +353,7 @@ instance ASTContainer t Expr => ASTContainer (State t) Expr where
                       (containedASTs $ curr_expr s) ++
                       (containedASTs $ path_conds s) ++
                       (containedASTs $ non_red_path_conds s) ++
+                      (containedASTs $ sym_func_constraints s) ++
                       (containedASTs $ handles s) ++
                       (containedASTs $ mutvar_env s) ++
                       (containedASTs $ assert_ids s) ++
@@ -350,6 +372,7 @@ instance ASTContainer t Expr => ASTContainer (State t) Expr where
                                 , curr_expr = modifyContainedASTs f $ curr_expr s
                                 , path_conds = modifyContainedASTs f $ path_conds s
                                 , non_red_path_conds = modifyContainedASTs f $ non_red_path_conds s
+                                , sym_func_constraints = modifyContainedASTs f $ sym_func_constraints s
                                 , handles = modifyContainedASTs f $ handles s
                                 , mutvar_env = modifyContainedASTs f $ mutvar_env s
                                 , assert_ids = modifyContainedASTs f $ assert_ids s
@@ -368,6 +391,7 @@ instance ASTContainer t Type => ASTContainer (State t) Type where
                       ((containedASTs . curr_expr) s) ++
                       ((containedASTs . path_conds) s) ++
                       (containedASTs $ non_red_path_conds s) ++
+                      (containedASTs $ sym_func_constraints s) ++
                       (containedASTs $ handles s) ++
                       (containedASTs $ mutvar_env s) ++
                       ((containedASTs . assert_ids) s) ++
@@ -388,6 +412,7 @@ instance ASTContainer t Type => ASTContainer (State t) Type where
                                 , curr_expr = (modifyContainedASTs f . curr_expr) s
                                 , path_conds = (modifyContainedASTs f . path_conds) s
                                 , non_red_path_conds = modifyContainedASTs f $ non_red_path_conds s
+                                , sym_func_constraints = modifyContainedASTs f $ sym_func_constraints s
                                 , handles = modifyContainedASTs f $ handles s
                                 , mutvar_env = modifyContainedASTs f $ mutvar_env s
                                 , assert_ids = (modifyContainedASTs f . assert_ids) s
@@ -531,6 +556,42 @@ instance Named Frame where
     renames hm (AssumeFrame e) = AssumeFrame (renames hm e)
     renames hm (AssertFrame is e) = AssertFrame (renames hm is) (renames hm e)
     renames hm (LitTableFrame ltc up) = LitTableFrame (renames hm ltc) up
+
+instance Named FuncRec where
+    names fr = func_name fr S.:<| names (func_constraints fr)
+    rename old new fr = fr { func_name = rename old new (func_name fr)
+                           , func_constraints = rename old new (func_constraints fr) }
+    renames hm fr = fr { func_name = renames hm (func_name fr)
+                       , func_constraints = renames hm (func_constraints fr) }
+
+instance Named FuncConstraint where
+    names fc = names (fc_preconds fc) <> names (fc_args fc) <> names (fc_ret fc)
+    rename old new fc = fc { fc_preconds = rename old new (fc_preconds fc)
+                           , fc_args = rename old new (fc_args fc)
+                           , fc_ret = rename old new (fc_ret fc) }
+    renames hm fc = fc { fc_preconds = renames hm (fc_preconds fc)
+                       , fc_args = renames hm (fc_args fc)
+                       , fc_ret = renames hm (fc_ret fc) }
+
+instance ASTContainer FuncRec Expr where
+    modifyContainedASTs f fr = fr { func_constraints = modifyContainedASTs f (func_constraints fr )}
+    containedASTs = containedASTs . func_constraints
+
+instance ASTContainer FuncRec Type where
+    modifyContainedASTs f fr = fr { func_constraints = modifyContainedASTs f (func_constraints fr )}
+    containedASTs = containedASTs . func_constraints
+
+instance ASTContainer FuncConstraint Expr where
+    modifyContainedASTs f fc = fc { fc_preconds = modifyContainedASTs f (fc_preconds fc)
+                                  , fc_args = modifyContainedASTs f (fc_args fc)
+                                  , fc_ret = f (fc_ret fc) }
+    containedASTs fc = containedASTs (fc_preconds fc) <> containedASTs (fc_args fc) <> containedASTs (fc_ret fc)
+
+instance ASTContainer FuncConstraint Type where
+    modifyContainedASTs f fc = fc { fc_preconds = modifyContainedASTs f (fc_preconds fc)
+                                  , fc_args = modifyContainedASTs f (fc_args fc)
+                                  , fc_ret = modifyContainedASTs f (fc_ret fc) }
+    containedASTs fc = containedASTs (fc_preconds fc) <> containedASTs (fc_args fc) <> containedASTs (fc_ret fc)
 
 instance Named Handle where
     names (HandleInfo { h_start = s, h_pos = p }) = names s <> names p
