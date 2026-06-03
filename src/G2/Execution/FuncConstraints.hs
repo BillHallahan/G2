@@ -18,18 +18,19 @@ import Data.List
 --   preconditions => f a1 ... ak = r
 --
 -- where:
--- * preconditions is a conjunction and disjunction of equalities/inequalities between integer variables and concrete integers, 
+-- * preconditions is a conjunction and disjunction of expressions. These expressions are either equalities/inequalities between integer variables and concrete integers,
+--   or applications of predicates to literal arguments 
 -- * f is a symbolic function
 -- * a1 ... ak are arguments, r is the return value.
 --
--- To solve a set of function constraints, we (a) take the following steps 1 to 4 repeatedly and (b) take step (4) if none of these earlier rules apply:
+-- To solve a set of function constraints, we (a) take the following steps 1 to 5 repeatedly and (b) take step (6) if none of these earlier rules apply:
 --
 -- 1) unfoldWHNFArgs
 -- 
---    We check if there is a function f such that the i^th argument x of that function is in WHNF in all constraints.
+--    We check if there is a function f such that the i^th argument x of that function is an ADT that is WHNF in all constraints.
 --    If there is, we instantiate this function to branch on that argument. Each of the k branches then calls a corresponding newly generated
---    symbolic function f1...fk. This function is passed all arguments of f EXCEPT for x. If x has an ADT type, each function is also passed all
---     arguments from the constructor.  The original constraints are then rewritten in terms of f1...fk.
+--    symbolic function f1...fk. This function is passed all arguments of f EXCEPT for x. Since x has an ADT type, each function is also passed all
+--    arguments from the constructor.  The original constraints are then rewritten in terms of f1...fk.
 --
 --    For example, suppose we have:
 --        f (x:xs) 4 = 6
@@ -49,7 +50,7 @@ import Data.List
 --
 -- 2)
 --
---    We look for arguments that are symbolic variables. We then instantiate these symbolic variables to case expressions
+--    We look for arguments that are symbolic variables of ADT types. We then instantiate these symbolic variables to case expressions
 --    that branch on a fresh integer variable to choose a constructor with fresh symbolic arguments. For example, if we have:
 --        f (xs :: [Int]) = 7
 --    where xs is symbolic, we introduce a fresh Int n, and instantiate xs to:
@@ -77,22 +78,36 @@ import Data.List
 --
 -- 4)
 --
+--    We extract all literal arguments into predicate checks.  For each function with literal arguments:
+--        f 1# (x:xs) 4# (y :: Int#)
+--    we generate a fresh predicate p accepting all literal arguments:
+--        p :: Int# -> Int# -> Int# -> Bool
+--    We then rewrite f to branch based on applying p to the literal arguments:
+--        f a ys b c = case p a b c of
+--                         True -> f1 ys
+--                         False -> f2 ys
+--    And update constraints accordingly:
+--        p 1# 4# y => f1 (x:xs)
+--        not (p 1# 4# y) => f2 (x:xs)
+--
+-- 5)
+--
 --    We check if there are any "variable assignments"- "functions" that have no arguments. If so, we make sure all assignments to the same variable are consistent.
 --    For instance, we might reach a point where we have:
 --        f7 = x:xs
 --        f7 = y:z:zs
 --    These can be made consistent by setting `x = y` and `xs = z:zs`.
 --
--- If none of steps (1) to (4) apply, we move on to step (5):
+-- If none of steps (1) to (5) apply, we move on to step (6):
 --
--- 5)
+-- 6)
 --
---    Since none of (1) to (4) apply, for each argument of a function f, there must be at least one constraint
+--    Since none of (1) to (5) apply, for each argument of a function f, there must be at least one constraint
 --    where that argument is not in WHNF and is not a symbolic variable.  For instance:
---                 f 9  7  = 6
---        n = 1 => f 1  4  = 2
---        n = 1 => f e1 4  = 5
---        n = 2 => f 8  e2 = 10
+--                 f A  B  = 6
+--        n = 1 => f C  D  = 2
+--        n = 1 => f e1 D  = 5
+--        n = 2 => f E  e2 = 10
 --        where e1, e2 are non-SWHNF expressions.
 -- Here, we cannot branch on any of the arguments via step (2), because e1 blocks branching on the first argument, and e2 blocks branching on the second argument.
 -- However, if we knew that either n = 1 or n = 2, then branching would be possible. Thus, we choose one of these constraints, and rewrite f.
@@ -101,23 +116,23 @@ import Data.List
 --                      True -> f2 y -- Notice we exclude the first argument, because it is e1 in one of the constraints when `n = 1`
 --                      False -> f3 x y
 -- We then rewrite accordingly:
---        n = 1 =>  f2 7  = 6
---        n /= 1 => f3 9 7  = 6
---        n = 1 =>  f2 4  = 2
---        n = 1 =>  f2 4  = 5
---        n = 2 =>  f3 8 e2 = 10
--- We now return to rules (1) to (3). Notice that we will actually not be able to solve for `n = 1`/f2, because `f2 4 = 2` and `f2 4 = 5` is a constradiction.
+--        n = 1 =>  f2 B  = 6
+--        n /= 1 => f3 A B  = 6
+--        n = 1 =>  f2 D  = 2
+--        n = 1 =>  f2 D  = 5
+--        n = 2 =>  f3 E e2 = 10
+-- We now return to rules (1) to (3). Notice that we will actually not be able to solve for `n = 1`/f2, because `f2 D = 2` and `f2 D = 5` is a constradiction.
 -- However, we will be able to solve for `n = 2` and `f3`.
 
 -- Note [Delaying Step 5]
 -- Read Note [Solving Function Constraints] (above) first.
 -- A natural question is why we delay step 5 until after none of steps 1 to 4 apply. To answer this, consider:
 --        n = 1 => f (x:xs) e1 = 1
---        n = 1 => f []     4  = 2
---        n = 1 => f []     6  = 5
---        n = 2 => f []     6 =  3
---        n = 2 => f []     6 =  4
--- To solve the above, we must have `n = 1`, otherwise we have `f [] 6 = 3` and `f [] 6 = 4`. Notice, though, that if we apply step (4) immediately, we get:
+--        n = 1 => f []     A  = 2
+--        n = 1 => f []     B  = 5
+--        n = 2 => f []     B =  3
+--        n = 2 => f []     B =  4
+-- To solve the above, we must have `n = 1`, otherwise we have `f [] B = 3` and `f [] B = 4`. Notice, though, that if we apply step (4) immediately, we get:
 --        f a b = case n = 1 of
 --                    True -> f2 a
 --                    False -> f3 a b
@@ -125,18 +140,18 @@ import Data.List
 --        n = 1 => f2 (x:xs)   = 1
 --        n = 1 => f2 []       = 2
 --        n = 1 => f2 []       = 5
---        n = 2 => f3 []     6 =  3
---        n = 2 => f3 []     6 =  4
+--        n = 2 => f3 []     B =  3
+--        n = 2 => f3 []     B =  4
 -- This is now unsatisfiable, because we have `f2 [] = 2` and `f2 [] = 5`. Thus, we instead must branch the function based on list constructor:
 --        f a b = case a of
 --                    [] -> f3 b
 --                    c:ds -> f4 c ds b
 --  getting new constraints:
 --        n = 1 => f3 e1 = 1
---        n = 1 => f4 4  = 2
---        n = 1 => f4 6  = 5
---        n = 2 => f4 6  = 3
---        n = 2 => f4 6  = 4
+--        n = 1 => f4 A  = 2
+--        n = 1 => f4 B  = 5
+--        n = 2 => f4 B  = 3
+--        n = 2 => f4 B  = 4
 -- f3 can now be handled by step (1) and f4 by step (2).
 
 {-
@@ -160,7 +175,7 @@ data PreC = Id :== Int
              | POr [PreC]
 
 data FuncConstraint =
-    FC { fc_preconds :: [PreC]
+    FC { fc_preconds :: [Expr]
        , fc_args :: [Expr]
        , fc_ret :: Expr
        }
