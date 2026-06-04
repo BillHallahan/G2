@@ -205,11 +205,20 @@ superClassExtractor tc tc_n sc_n =
 addSmtStringFunc :: Name -> KnownValues -> KnownValues
 addSmtStringFunc n kv = kv { smtStringFuncs = HS.insert n (smtStringFuncs kv) }
 
-recalcSmtStringFuncs :: E.ExprEnv -> KnownValues -> KnownValues
-recalcSmtStringFuncs eenv kv = kv { smtStringFuncs = mkSmtStringFuncs (typeIndex kv) eenv }
+recalcSmtStringFuncs :: E.ExprEnv -> KnownValues -> Bool -> KnownValues
+recalcSmtStringFuncs eenv kv using_lams =
+    kv { smtStringFuncs = mkSmtStringFuncs (typeIndex kv) (usingSMTLams kv) (usingLiteralTables kv) using_lams eenv }
 
-mkSmtStringFuncs :: Name -> E.ExprEnv -> HS.HashSet Name
-mkSmtStringFuncs ty_ind = HS.fromList . E.keys . E.filter (getAny . evalASTs go)
+mkSmtStringFuncs :: Name -> Name -> Name -> Bool -> E.ExprEnv -> HS.HashSet Name
+mkSmtStringFuncs ty_ind smt_lam lit_tab using_lams =
+    HS.fromList . E.keys . E.filter (getAny . evalASTs go) . E.filter (getAll . evalASTs exact)
   where
     go (Var (Id n _)) | n == ty_ind = Any True
     go _ = Any False
+
+    -- Functions aren't SMT representable if they use smt lambdas and we don't.
+    -- They also aren't representable if they use literal tables, since literal
+    -- table creation can fail, for impure functions.
+    exact (Var (Id n _)) | n == smt_lam && not using_lams = All False
+    exact (Var (Id n _)) | n == lit_tab = All False
+    exact _ = All True
