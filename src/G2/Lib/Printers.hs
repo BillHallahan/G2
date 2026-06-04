@@ -27,6 +27,7 @@ module G2.Lib.Printers ( PrettyGuide
                        , prettyTypeEnv
                        , prettyPathConds
                        , prettyNonRedPaths
+                       , prettyFuncConstraints
 
                        , prettyGuideStr
                        , prettyGuideNumsStr

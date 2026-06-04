@@ -23,6 +23,13 @@ myNot False = True
 h :: (Int -> Int) -> Bool
 h g = myNot (g 3 <= g 6)
 
+k :: (List -> Bool) -> List -> Int
+k f l = case f l of
+            True -> case f (Cons True l) of
+                        False -> 0
+                        _ -> 1
+            _ -> 2
+
 assoc :: (Int -> Int -> Int) -> Int -> Int -> Int -> Bool
 assoc op x y z = myNot (op (op x y) z == op x (op y z))
 

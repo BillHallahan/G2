@@ -8,6 +8,7 @@ import G2.Language
 import qualified G2.Language.ExprEnv as E
 import G2.Language.Monad
 import qualified G2.Language.Stack as Stck
+import G2.Lib.Printers
 
 import Control.Monad
 import Control.Monad.Extra
@@ -15,6 +16,9 @@ import Control.Monad.IO.Class
 import qualified Data.HashMap.Lazy as HM
 import qualified Data.HashSet as HS
 import Data.List
+import Data.Maybe
+
+import qualified Data.Text as T
 
 -- | A reducer to add higher order functions to the symbolic function constraints for solving later  
 addFuncConstraintReducer :: MonadIO m =>
@@ -264,28 +268,37 @@ solveFuncConstraintsReducer = mkSimpleReducer (\_ -> ()) go
                     liftIO . putStrLn $ case r of Just _ -> "Just"; Nothing -> "Nothing"
                     case r of
                         Just (s', ng') -> return (Finished, [(s', ())], b { name_gen = ng' })
-                        Nothing -> undefined
+                        Nothing -> error "TODO solveFuncConstraintsReducer: NOTHING"
                  | otherwise = return (Finished, [], b)
 
 data FCRes = SatFC | UnsatFC deriving Eq
 
 solveFuncConstraints :: MonadIO m => State t -> NameGen -> m (Maybe (State t, NameGen))
 solveFuncConstraints s@(State { sym_func_constraints = fc }) ng = do
-    (r, (s', !ng')) <- runStateNGT (solveFC fc) s ng
+    (r, (s', !ng')) <- runStateNGT (solveFC 5 fc) s ng
     return $ if r == SatFC then Just (s' { sym_func_constraints = HM.empty }, ng') else Nothing
 
-solveFC :: MonadIO m => FuncConstraints -> StateNGT t m FCRes
-solveFC fcs = do
+solveFC :: MonadIO m => Int -> FuncConstraints -> StateNGT t m FCRes
+solveFC 0 _ = undefined
+solveFC !n fcs = do
     -- Convert functions with only a single constraint into constants
     fcs_nosingle <- return . HM.mapMaybe id =<< HM.traverseWithKey solveSingleton fcs
-    liftIO . putStrLn $ "fcs_nosingle = " ++ show fcs_nosingle
-    
+
+    -- Replace ADT symbolic variables with case expressions
+    fcs_replaced_sym_adt <- mapM replaceADTSymVars fcs_nosingle
+
+    fcs_precond <- mapM caseToPreCond fcs_replaced_sym_adt
+    let pg = mkPrettyGuide (HM.toList fcs_precond)
+    liftIO $ putStrLn $ "fcs_precond = " ++ T.unpack (prettyFuncConstraints pg fcs_precond)  
+
     -- Introduce branches on ADTs
-    fcs_pieces <- concatMapM (uncurry unfoldADTArgs) $ HM.toList fcs_nosingle
+    fcs_pieces <- concatMapM (uncurry unfoldADTArgs) $ HM.toList fcs_precond
     let fc_reassembled = HM.fromListWith (++) fcs_pieces
 
     liftIO $ putStrLn "after unfoldADTArgs"
-    if HM.null fc_reassembled then return SatFC else undefined
+    let pg' = updatePrettyGuide (HM.toList fc_reassembled) pg
+    liftIO $ putStrLn $ "fc_reassembled = " ++ T.unpack (prettyFuncConstraints pg' fc_reassembled)  
+    if HM.null fc_reassembled then return SatFC else solveFC (n - 1) fc_reassembled
 
 solveSingleton :: Monad m => Name -> [FuncConstraint] -> StateNGT t m (Maybe [FuncConstraint])
 solveSingleton _ [] = return Nothing
@@ -297,6 +310,77 @@ solveSingleton n [FC { fc_args = as, fc_ret = r }] = do
     insertE n body
     return Nothing
 solveSingleton _ xs = return $ Just xs
+
+replaceADTSymVars :: MonadIO m => [FuncConstraint] -> StateNGT t m [FuncConstraint]
+replaceADTSymVars fcs = do
+    eenv <- exprEnv
+    tenv <- typeEnv
+    tv_env <- tyVarEnv
+
+    mapM (\fc -> do 
+        mapM_ (go eenv tenv tv_env) (fc_args fc)
+        return $ fc) fcs
+    where
+        go eenv tenv tv_env e
+            | Var (Id n t) <- inlineVars eenv e
+            , E.isSymbolic n eenv
+            , TyCon tn _:_ <- unTyApp $ tyVarSubst tv_env t
+            , Just (DataTyCon { data_cons = dcs }) <- HM.lookup tn tenv = do
+                branch_n <- freshSeededStringN "n"
+                bindee <- freshSeededStringN "bindee"
+                let branch_i = Id branch_n TyLitInt
+                    branch_var = Var branch_i
+                insertSymbolicE branch_i
+                insertPCStateNG (ExtCond (mkApp $ [Prim Le TyUnknown, Lit (LitInt 1), Var branch_i]) True)
+                insertPCStateNG (ExtCond (mkApp $ [Prim Le TyUnknown, Var branch_i, Lit (LitInt $ genericLength dcs)]) True)
+
+                alts_expr <- mapM (\dc -> do
+                                    let ts = anonArgumentTypes (typeOf tv_env dc)
+                                    dc_as <- freshIdsN ts
+                                    mapM insertSymbolicE dc_as
+                                    return . mkApp $ Data dc:map Var dc_as
+                            ) dcs
+                
+                let alts = zipWith Alt (map (LitAlt . LitInt) [1..]) alts_expr
+                    cse = Case
+                            branch_var
+                            (Id bindee TyLitInt)
+                            t
+                            alts
+                insertE n cse
+
+                return ()
+
+            | otherwise = do
+                return ()
+
+caseToPreCond :: MonadIO m => [FuncConstraint] -> StateNGT t m [FuncConstraint]
+caseToPreCond fcs = concatMapM go fcs
+    where
+        go fc@(FC { fc_preconds = pre, fc_args = es }) = do
+            es' <- mapM getOutCases es
+            let case_pats = map getCasePats es'
+                m_ind_case_pat = findIndex isJust case_pats
+            case m_ind_case_pat of
+                Just ind -> do
+                    let Just (branch_i, alts) = case_pats !! ind
+                        eq i = mkApp $ [Prim Eq TyUnknown, Var branch_i, Lit i]
+                    
+                    let fc_branch = map (\(lit_v, dc) -> fc { fc_preconds = eq lit_v:pre, fc_args = replaceAt ind dc es'}) alts
+                    return fc_branch
+                Nothing -> return [fc]
+            
+            
+        getOutCases v@(Var (Id n _)) = do
+            eenv <- exprEnv
+            let e = inlineVars eenv v
+            case e of
+                cse@(Case _ _ _ (Alt (LitAlt _) _:_)) -> return cse
+                _ -> return v
+        getOutCases e = return e
+
+        getCasePats (Case (Var i) (Id _ TyLitInt) _ alts) = Just (i, map (\(Alt (LitAlt l) dc) -> (l, dc)) alts)
+        getCasePats _ = Nothing
 
 unfoldADTArgs :: MonadIO m => Name -> [FuncConstraint] -> StateNGT t m [(Name, [FuncConstraint])]
 unfoldADTArgs n [] = return []
@@ -322,10 +406,9 @@ unfoldADTArgs n fcs@(first_fc:_) = do
             bindee <- freshIdN (idType branch_on)
             
             case unTyApp t of
-                TyCon n _:_
-                    | Just (DataTyCon { data_cons = dcs }) <- HM.lookup n tenv -> do
-                        liftIO . putStrLn $ "i = " ++ show i ++ "\nt = " ++ show t ++ "\ndcs = " ++ show dcs
-                        -- Create symvolic functions to continue execution along each alternative branch
+                TyCon tn _:_
+                    | Just (DataTyCon { data_cons = dcs }) <- HM.lookup tn tenv -> do
+                        -- Create symbolic functions to continue execution along each alternative branch
                         cont_funcs <- mapM 
                                         (\dc ->
                                                 let
@@ -346,11 +429,9 @@ unfoldADTArgs n fcs@(first_fc:_) = do
                         let cse = Case
                                     (Var branch_on)
                                     (bindee)
-                                    TyUnknown
+                                    ret_ty
                                     alts
                             lam_cse = mkLams (zip (repeat TermL) lam_is) cse
-                        liftIO . putStrLn $ "case = " ++ show cse
-                        liftIO . putStrLn $ "lam_cse = " ++ show lam_cse
 
                         insertE n lam_cse
 
@@ -361,7 +442,7 @@ unfoldADTArgs n fcs@(first_fc:_) = do
                                                 ith_arg = fc_args fc !! i
                                                 Data dc:as = unApp $ inlineVars eenv ith_arg
                                                 all_other_args = deleteAt i $ fc_args fc
-                                                new_fc = FC { fc_preconds = undefined
+                                                new_fc = FC { fc_preconds = fc_preconds fc
                                                             , fc_args = all_other_args ++ as
                                                             , fc_ret = fc_ret fc
                                                             }
@@ -373,12 +454,16 @@ unfoldADTArgs n fcs@(first_fc:_) = do
                                           )
                                           fcs
 
-                        concatMapM (uncurry unfoldADTArgs) new_fcs
+                        return new_fcs
                 _ -> error "unfoldADTArgs: expected ADT type"
         Nothing -> return [(n, fcs)]
 
 deleteAt :: Int -> [a] -> [a]
 deleteAt idx xs = lft ++ rgt
+  where (lft, (_:rgt)) = splitAt idx xs
+
+replaceAt :: Int -> a -> [a] -> [a]
+replaceAt idx x xs = lft ++ [x] ++ rgt
   where (lft, (_:rgt)) = splitAt idx xs
 
 -- modifyIndex :: Int -> (a -> a) -> [a] -> [a]

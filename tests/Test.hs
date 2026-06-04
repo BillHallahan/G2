@@ -690,6 +690,7 @@ testFileTests = testGroup "TestFiles"
                                                              , ("partiallyApply", 200, [Exactly 2])] 
     , checkInputOutputsNonRedHigher "tests/HigherOrder/HigherOrder.hs" [ ("f", 200, [AtLeast 3])
                                                                        , ("h", 150, [AtLeast 2])
+                                                                       , ("k", 150, [AtLeast 3])
                                                                        , ("assoc", 250, [AtLeast 2])
                                                                        , ("sf", 250, [AtLeast 2])
                                                                        , ("thirdOrder", 300, [AtLeast 2])
@@ -703,6 +704,7 @@ testFileTests = testGroup "TestFiles"
     , checkInputOutputsSymFuncConstraints "tests/HigherOrder/HigherOrder.hs"
                                                                        [ ("f", 200, [Exactly 3])
                                                                        , ("h", 150, [AtLeast 2])
+                                                                       , ("k", 200, [Exactly 2])
                                                                        , ("assoc", 250, [AtLeast 2])
                                                                        , ("sf", 250, [AtLeast 2])
                                                                        , ("thirdOrder", 300, [AtLeast 2])
