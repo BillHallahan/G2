@@ -895,7 +895,7 @@ prettyFuncConstraints pg = T.intercalate "\n---\n" . map goFuncRec . HM.toList
                 pretty_func_call = mkDirtyExprHaskell pg (mkApp $ Var (Id f TyUnknown):fc_args fc)
                 pretty_ret = mkDirtyExprHaskell pg (fc_ret fc)
 
-                call_and_ret =pretty_func_call <> " = " <> pretty_ret
+                call_and_ret = pretty_func_call <> " = " <> pretty_ret
             in
             case L.null $ fc_preconds fc of
                 True -> call_and_ret

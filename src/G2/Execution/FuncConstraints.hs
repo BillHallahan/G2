@@ -262,7 +262,9 @@ solveFuncConstraintsReducer = mkSimpleReducer (\_ -> ()) go
         go _ s b | true_assert s = do
                     r <- solveFuncConstraints s (name_gen b)
                     liftIO . putStrLn $ case r of Just _ -> "Just"; Nothing -> "Nothing"
-                    error "solveFuncConstraintsReducer"
+                    case r of
+                        Just (s', ng') -> return (Finished, [(s', ())], b { name_gen = ng' })
+                        Nothing -> undefined
                  | otherwise = return (Finished, [], b)
 
 data FCRes = SatFC | UnsatFC deriving Eq
@@ -270,17 +272,35 @@ data FCRes = SatFC | UnsatFC deriving Eq
 solveFuncConstraints :: MonadIO m => State t -> NameGen -> m (Maybe (State t, NameGen))
 solveFuncConstraints s@(State { sym_func_constraints = fc }) ng = do
     (r, (s', !ng')) <- runStateNGT (solveFC fc) s ng
-    return $ if r == SatFC then Just (s', ng') else Nothing
+    return $ if r == SatFC then Just (s' { sym_func_constraints = HM.empty }, ng') else Nothing
 
 solveFC :: MonadIO m => FuncConstraints -> StateNGT t m FCRes
 solveFC fcs = do
-    fcs <- HM.traverseWithKey unfolADTArgs fcs -- traverseWithKey?
-    liftIO $ putStrLn "after unfoldADTArgs"
-    undefined
+    -- Convert functions with only a single constraint into constants
+    fcs_nosingle <- return . HM.mapMaybe id =<< HM.traverseWithKey solveSingleton fcs
+    liftIO . putStrLn $ "fcs_nosingle = " ++ show fcs_nosingle
+    
+    -- Introduce branches on ADTs
+    fcs_pieces <- concatMapM (uncurry unfoldADTArgs) $ HM.toList fcs_nosingle
+    let fc_reassembled = HM.fromListWith (++) fcs_pieces
 
-unfolADTArgs :: MonadIO m => Name -> [FuncConstraint] -> StateNGT t m [FuncConstraint]
-unfolADTArgs _ [] = return []
-unfolADTArgs n fcs@(first_fc:_) = do
+    liftIO $ putStrLn "after unfoldADTArgs"
+    if HM.null fc_reassembled then return SatFC else undefined
+
+solveSingleton :: Monad m => Name -> [FuncConstraint] -> StateNGT t m (Maybe [FuncConstraint])
+solveSingleton _ [] = return Nothing
+solveSingleton n [FC { fc_args = as, fc_ret = r }] = do
+    tv_env <- tyVarEnv
+
+    lam_is <- freshIdsN (map (typeOf tv_env) as)
+    let body = mkLams (zip (repeat TermL) lam_is) $ r
+    insertE n body
+    return Nothing
+solveSingleton _ xs = return $ Just xs
+
+unfoldADTArgs :: MonadIO m => Name -> [FuncConstraint] -> StateNGT t m [(Name, [FuncConstraint])]
+unfoldADTArgs n [] = return []
+unfoldADTArgs n fcs@(first_fc:_) = do
     eenv <- exprEnv
     tenv <- typeEnv
     tv_env <- tyVarEnv
@@ -353,9 +373,9 @@ unfolADTArgs n fcs@(first_fc:_) = do
                                           )
                                           fcs
 
-                        concatMapM (uncurry unfolADTArgs) new_fcs
+                        concatMapM (uncurry unfoldADTArgs) new_fcs
                 _ -> error "unfoldADTArgs: expected ADT type"
-        Nothing -> return fcs
+        Nothing -> return [(n, fcs)]
 
 deleteAt :: Int -> [a] -> [a]
 deleteAt idx xs = lft ++ rgt
