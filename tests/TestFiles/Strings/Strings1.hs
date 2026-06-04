@@ -642,12 +642,19 @@ filter1 s = case filter (/= '$') s of
 
 -- Note: z3 currently returns sat on some unsat SMT formulas
 -- this function outputs.
-filter2 :: String -> Int
-filter2 s = if length s < 4 then 1
-            else case filter (== '$') s of
-                    "x" -> 2
-                    "xyz" -> 3
-                    _ -> 4
+-- filter2 :: String -> Int
+-- filter2 s = if length s < 4 then 1
+--             else case filter (== '$') s of
+--                     "x" -> 2 -- Unreachable
+--                     "xyz" -> 3 -- Unreachable
+--                     _ -> 4
+
+filter3 :: String -> Int
+filter3 s = if length s < 3 then 1
+            else case filter (/= '%') s of
+                "%" -> 2 -- Unreachable
+                "xyz" -> 3
+                _ -> 4
 
 map1 :: String -> Int
 map1 s = case map (\c -> chr (ord c + 1)) s of
