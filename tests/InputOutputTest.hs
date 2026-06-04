@@ -21,6 +21,7 @@ module InputOutputTest ( checkInputOutput
                        , checkInputOutputsNonRedHigher
                        , checkInputOutputsNonRedHigherNoFuncArgs
                        , checkInputOutputsNonRedLib
+                       , checkInputOutputsSymFuncConstraints
                        , checkInputOutputsInstType 
                        , checkInputOutputsWithValidate
                        , checkInputOutputsWithTemplatesAndHpc) where
@@ -147,6 +148,13 @@ checkInputOutputsNonRedLib :: FilePath -> [(String, Int, [Reqs String])] -> Test
 checkInputOutputsNonRedLib src tests = do
     checkInputOutput'
         (do config <- mkConfigTestIO; return (config { lib_nrpc = Nrpc, search_strat = Subpath, higherOrderSolver = SymbolicFunc }))
+        src
+        tests
+
+checkInputOutputsSymFuncConstraints :: FilePath -> [(String, Int, [Reqs String])] -> TestTree
+checkInputOutputsSymFuncConstraints src tests = do
+    checkInputOutput'
+        (do config <- mkConfigTestIO; return (config { higherOrderSolver = SymbolicFunc, symbolic_func_constraints = UseFuncCons }))
         src
         tests
 

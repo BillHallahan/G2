@@ -699,6 +699,25 @@ testFileTests = testGroup "TestFiles"
                                                                        , ("polyHigher", 50, [AtLeast 4])]                                                                                         
     , checkInputOutputsNonRedHigher "tests/Validate/Val1.hs" [("call", 1000, [AtLeast 3])]
     , checkInputOutputsNonRedHigherNoFuncArgs "tests/HigherOrder/HigherOrder2.hs" [ ("compHigher", 1000 * 1000, [Exactly 1]) ]
+
+    , checkInputOutputsSymFuncConstraints "tests/HigherOrder/HigherOrder.hs"
+                                                                       [ ("f", 200, [Exactly 3])
+                                                                       , ("h", 150, [AtLeast 2])
+                                                                       , ("assoc", 250, [AtLeast 2])
+                                                                       , ("sf", 250, [AtLeast 2])
+                                                                       , ("thirdOrder", 300, [AtLeast 2])
+                                                                       , ("thirdOrder2", 150, [AtLeast 3])
+                                                                       , ("tupleTestMono", 175, [AtLeast 2])
+                                                                       , ("multiPrim", 300, [AtLeast 2])
+                                                                       , ("polyHigher", 50, [AtLeast 4])]                                                                                         
+
+    , checkInputOutputsSymFuncConstraints "tests/HigherOrder/PolyHigherOrder.hs"
+                                                                       [ ("f", 50, [AtLeast 5])
+                                                                       , ("h", 200, [AtLeast 3])
+                                                                       , ("assoc", 200, [AtLeast 5])
+                                                                       , ("sf", 175, [AtLeast 5])
+                                                                       , ("tupleTest", 175, [AtLeast 8])]
+
     , checkInputOutputsWithValidate "tests/BaseTests/ListTests.hs" [ ("lengthN", 2000, [AtLeast 1])
                                                                 , ("lengthBranch", 2000, [AtLeast 4])]
     , checkInputOutputsNonRedLib "tests/BaseTests/ListTests.hs" [ ("lengthN", 20000, [Exactly 1])
