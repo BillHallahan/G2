@@ -398,6 +398,7 @@ test-suite test
                        , PeanoTest
                        , Reqs
                        , Simplifications
+                       , Solver
                        , TestUtils
                        , Typing
                        , UFMapTests

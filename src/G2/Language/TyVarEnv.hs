@@ -23,7 +23,7 @@ import Prelude hiding(lookup)
 import GHC.Generics (Generic)
 import Control.Exception
 import Data.Bifunctor
-import Data.Data (Data, Typeable)
+import Data.Data (Data)
 import Data.Hashable(Hashable)
 import qualified Data.HashMap.Lazy as HM
 import Data.Maybe
@@ -38,7 +38,7 @@ import qualified G2.Data.UFMap as UF
 
 data TyConcOrSym = TyConc Type
                  | TySym Id
-                 deriving (Show, Eq, Read, Generic, Typeable, Data)
+                 deriving (Show, Eq, Read, Generic, Data)
 
 instance Hashable TyConcOrSym
 
@@ -46,7 +46,7 @@ tyConcOrSymToType :: TyConcOrSym -> Type
 tyConcOrSymToType (TyConc t) = t
 tyConcOrSymToType (TySym i) = TyVar i
 
-newtype TyVarEnv = TyVarEnv (UF.UFMap Name TyConcOrSym) deriving (Show, Eq, Read, Generic, Typeable, Data)
+newtype TyVarEnv = TyVarEnv (UF.UFMap Name TyConcOrSym) deriving (Show, Eq, Read, Generic, Data)
 
 instance Hashable TyVarEnv
 

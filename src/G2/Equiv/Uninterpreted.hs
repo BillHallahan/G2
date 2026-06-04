@@ -21,7 +21,7 @@ addFreeVarsAsSymbolic eenv = let xs = freeVars eenv eenv
 addFreeTypes :: (ASTContainer c Expr, ASTContainer c Type, ASTContainer t Expr, ASTContainer t Type) => c -> State t -> NameGen -> (c, State t, NameGen) 
 addFreeTypes c s@(State {type_env = tenv, tyvar_env = tvnv }) ng =
     let 
-        (tenv', ng') = freeTypesToTypeEnv tvnv (freeTypes tenv s) ng
+        (tenv', ng') = freeTypesToTypeEnv (freeTypes tenv s) ng
         tenv'' = HM.union tenv tenv'
         free_dc = HS.toList $ freeDC tenv'' s
         m = dataConMapping free_dc
@@ -64,13 +64,13 @@ freeTypes typeEnv t = HM.toList $ HM.difference (HM.fromList $ allTypes t) typeE
 
 -- | we getting "free" typesnames and insert it into the TypeEnv with a "uninterprted" dataCons 
 -- Uninterpreted means there are potentially unlimited amount of datacons for a free type
-freeTypesToTypeEnv :: TyVarEnv ->  [(Name,Kind)] -> NameGen -> (TypeEnv, NameGen)
-freeTypesToTypeEnv tv nks ng = 
-    let (adts, ng') = mapNG (freeTypesToTypeEnv' tv) nks ng 
+freeTypesToTypeEnv :: [(Name,Kind)] -> NameGen -> (TypeEnv, NameGen)
+freeTypesToTypeEnv nks ng = 
+    let (adts, ng') = mapNG freeTypesToTypeEnv' nks ng 
     in  (HM.fromList adts, ng') 
 
-freeTypesToTypeEnv' :: TyVarEnv -> (Name, Kind) -> NameGen -> ( (Name, AlgDataTy), NameGen)
-freeTypesToTypeEnv' tv (n,k) ng =
+freeTypesToTypeEnv' :: (Name, Kind) -> NameGen -> ( (Name, AlgDataTy), NameGen)
+freeTypesToTypeEnv' (n,k) ng =
     let (bids, ng') = freshIds (argumentTypes k) ng 
         (dcs,ng'') = unknownDC ng' n k bids
         n_adt = (n, DataTyCon {bound_ids = bids,

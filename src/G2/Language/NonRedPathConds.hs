@@ -20,6 +20,7 @@ module G2.Language.NonRedPathConds ( Focus
                                    , pattern (:<*)
                                    , getNRPCUnique
                                    , setFocus
+                                   , findNRPC
                                    , allNRPC 
                                    
                                    , foldlNRPC' ) where
@@ -31,17 +32,18 @@ import qualified G2.Language.ExprEnv as E
 
 import Data.Data
 import qualified Data.Foldable as F
+import Data.List as L
 import Data.Hashable
 import Data.Sequence as S
 import GHC.Generics
 import G2.Language.ExprEnv (deepLookupVar)
 
 data NRPC = NRPC { nrpc_focus :: Focus, nrpc_lhs :: Expr, nrpc_rhs :: Expr }
-                          deriving (Eq, Read, Show, Data, Generic, Typeable)
+                          deriving (Eq, Read, Show, Data, Generic)
 instance Hashable NRPC
 
 data NonRedPathConds = NRPCs { nrpcs :: Seq NRPC, nrpc_uniq :: Unique }
-                          deriving (Eq, Read, Show, Data, Generic, Typeable)
+                          deriving (Eq, Read, Show, Data, Generic)
 
 instance Hashable NonRedPathConds
 
@@ -103,7 +105,7 @@ instance Hashable NonRedPathConds
 -- See Note [NRPC Focus] and `Focus`.
 data GenFocus n = Focused
                 | Unfocused n
-                deriving (Eq, Read, Show, Data, Generic, Typeable)
+                deriving (Eq, Read, Show, Data, Generic)
 
 -- | The Name is used to track the symbolic variable introduced by the NRPC.
 type Focus = GenFocus Name
@@ -168,6 +170,9 @@ setFocus n focus eenv (NRPCs nrpc uniq) = NRPCs (fmap set nrpc) uniq
         set e1_e2 = e1_e2
 
         areSame n' = deepLookupVar n eenv == deepLookupVar n' eenv
+
+findNRPC :: (NRPC -> Bool) -> NonRedPathConds -> Maybe NRPC
+findNRPC p (NRPCs nrpc _) = L.find p nrpc
 
 allNRPC :: (NRPC -> Bool) -> NonRedPathConds -> Bool
 allNRPC p (NRPCs nrpc _) = all p nrpc

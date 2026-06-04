@@ -6,7 +6,7 @@ module G2.Language.KnownValues where
 
 -- Try to avoid imports from G2 other than G2..Language.Syntax here!
 import G2.Language.Syntax
-import Data.Data (Data, Typeable)
+import Data.Data (Data)
 import Data.Hashable
 import qualified Data.HashSet as HS
 import GHC.Generics (Generic)
@@ -126,7 +126,7 @@ data KnownValues = KnownValues {
 
                  -- Functions that create strings that have an SMT-LIB translation
                  , smtStringFuncs :: HS.HashSet Name
-                 } deriving (Show, Eq, Read, Typeable, Data, Generic)
+                 } deriving (Show, Eq, Read, Data, Generic)
 
 instance Hashable KnownValues
 

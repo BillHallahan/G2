@@ -6,7 +6,6 @@ import qualified Data.Text as T
 
 import G2.Config
 import G2.Interface
-import qualified G2.Initialization.Types as IT
 import G2.Language
 import qualified G2.Language.ExprEnv as E
 import G2.Language.HPC
@@ -16,8 +15,6 @@ import G2.Translation
 import Control.Exception
 import Control.Monad
 import qualified Data.HashSet as HS
-import Data.List
-import qualified Data.Text as T
 import System.Directory
 import System.Environment
 import System.FilePath
@@ -84,7 +81,7 @@ getStateMods src = do
 
   proj <- guessProj (includePaths config) src
 
-  (s, bindings, mods) <- initialStateNoStartFunc
+  (s, _, mods) <- initialStateNoStartFunc
                             proj [src]
                             (simplTranslationConfig { hpc_ticks = True })
                             (config { hpc = True })
@@ -117,7 +114,7 @@ printFinalRes (fl, Just funcs) =
 printFinalRes (fl, Nothing) = putStrLn . T.unpack $ fl <> "\nNOT FOUND"
 
 printInputToScript :: (T.Text, Maybe [(Name, Int)]) -> IO ()
-printInputToScript (fl, Just funcs) =
+printInputToScript (_, Just funcs) =
     mapM_ (\(n, c) -> 
       putStrLn $ formatFile n
              <> ","

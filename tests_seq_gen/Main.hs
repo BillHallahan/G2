@@ -57,7 +57,7 @@ tests = testGroup "All Tests"
         , smtSynthTestVerify "tests_seq_gen/tests/Verify1.hs" "myLength"
 
         , smtSynthTestVerifyExcluding "tests_seq_gen/tests/Verify1.hs" "count"
-                ["ite", "seq.at", "seq.prefixof", "seq.rev", "seq.suffixof", "seq.indexof"]
+                ["+", "ite", "seq.at", "seq.prefixof", "seq.rev", "seq.suffixof", "seq.indexof", "0", "-1"]
         , smtSynthTestVerifyExcluding "tests_seq_gen/tests/Verify1.hs" "myLast" ["ite", "seq.prefixof", "seq.suffixof"]
 
         , smtSynthTestRunSymexSMTStrings "tests_seq_gen/tests_symex/Test1.hs" "comp" (Just 2) Nothing
@@ -90,57 +90,57 @@ tests = testGroup "All Tests"
         ]
 
 getSeqGenConfigDir :: T.Text -> IO SynthConfig
-getSeqGenConfigDir file = do
+getSeqGenConfigDir fle = do
     homedir <- getHomeDirectory
-    handleParseResult $ execParserPure (prefs mempty) (seqGenConfig homedir) [T.unpack file]
+    handleParseResult $ execParserPure (prefs mempty) (seqGenConfig homedir) [T.unpack fle]
 
 smtSynthTestHeight :: T.Text -- ^ File
                    -> T.Text -- ^ Function
                    -> TestTree
-smtSynthTestHeight file = smtSynthTestWithConfig (do
-                                        synth_config@(SynthConfig { g2_config = config }) <- getSeqGenConfigDir file
+smtSynthTestHeight fle = smtSynthTestWithConfig (do
+                                        synth_config@(SynthConfig { g2_config = config }) <- getSeqGenConfigDir fle
                                         let config' = config { smt = ConCVC5, steps = 2000 }
                                         return . adjustContConfig $ synth_config { checking = ADTHeight
-                                                                                 , g2_config = config' }) file
+                                                                                 , g2_config = config' }) fle
 
 smtSynthTestVerify :: T.Text -- ^ File
                    -> T.Text -- ^ Function
                    -> TestTree
-smtSynthTestVerify file = smtSynthTestWithConfig (do
-                                        synth_config@(SynthConfig { g2_config = config }) <- getSeqGenConfigDir file
+smtSynthTestVerify fle = smtSynthTestWithConfig (do
+                                        synth_config@(SynthConfig { g2_config = config }) <- getSeqGenConfigDir fle
                                         let config' = config { smt = ConCVC5
                                                              , steps = 2000
                                                              , smt_strings = UseSMTStrings
                                                              , smt_strings_strictness = StrictSMTStrings
                                                              , smt_prim_lists = UseSMTSeq True True }
-                                        return . adjustContConfig $ synth_config { checking = Verify, g2_config = config' }) file
+                                        return . adjustContConfig $ synth_config { checking = Verify, g2_config = config' }) fle
 
 smtSynthTestVerifyExcluding :: T.Text -- ^ File
                             -> T.Text -- ^ Function
                             -> [String]
                             -> TestTree
-smtSynthTestVerifyExcluding file func exclude = smtSynthTestWithConfig (do
-                                        synth_config@(SynthConfig { g2_config = config }) <- getSeqGenConfigDir file
+smtSynthTestVerifyExcluding fle func exclude = smtSynthTestWithConfig (do
+                                        synth_config@(SynthConfig { g2_config = config }) <- getSeqGenConfigDir fle
                                         let config' = config { smt = ConCVC5
                                                              , steps = 2000
                                                              , smt_strings = UseSMTStrings
                                                              , smt_strings_strictness = StrictSMTStrings }
                                         return . adjustContConfig $ synth_config { checking = Verify
                                                                                  , excluded_funcs = exclude
-                                                                                 , g2_config = config' }) file func
+                                                                                 , g2_config = config' }) fle func
 
 smtSynthTestWithEqCheck :: T.Text -- ^ File
                         -> T.Text -- ^ Function
                         -> FilePath -- ^ eq-file
                         -> String -- ^ eq-check
                         -> TestTree
-smtSynthTestWithEqCheck file func eq_f eq_c =
+smtSynthTestWithEqCheck fle func eq_f eq_c =
     smtSynthTestWithConfig (do
-                    synth_config@(SynthConfig { g2_config = config }) <- getSeqGenConfigDir file
+                    synth_config@(SynthConfig { g2_config = config }) <- getSeqGenConfigDir fle
                     let synth_config' = synth_config { eq_file = Just eq_f
                                                      , eq_check = eq_c
                                                      , g2_config = adjustConfig synth_config $ config { smt = ConZ3, steps = 2000 } }
-                    return $ synth_config') file func
+                    return $ synth_config') fle func
 
 smtSynthTestWithConfig :: IO SynthConfig
                        -> T.Text -- ^ Function
@@ -158,12 +158,12 @@ smtSynthTestRunSymexSMTStrings :: T.Text -- ^ Filer
                                -> Maybe Int -- ^ Minimum number of outputs
                                -> Maybe Int -- ^ Maximum number of outputs
                                -> TestTree
-smtSynthTestRunSymexSMTStrings file f =
+smtSynthTestRunSymexSMTStrings fle f =
     smtSynthTestRunSymexWithConfig (do
-                                        synth_config@(SynthConfig { g2_config = config }) <- getSeqGenConfigDir file
+                                        synth_config@(SynthConfig { g2_config = config }) <- getSeqGenConfigDir fle
                                         let config' = adjustConfig synth_config $ config { smt = ConCVC5, steps = 2000, smt_strings = UseSMTStrings }
                                         return $ synth_config { run_symex = True, g2_config = config' {timeLimit = 60} })
-                                        file
+                                        fle
                                         f
                                         (const True)
 
@@ -172,11 +172,11 @@ smtSynthTestRunSymexSMTStringsTrue :: T.Text -- ^ Filer
                                    -> Maybe Int -- ^ Minimum number of outputs
                                    -> Maybe Int -- ^ Maximum number of outputs
                                    -> TestTree
-smtSynthTestRunSymexSMTStringsTrue file f =
+smtSynthTestRunSymexSMTStringsTrue fle f =
     smtSynthTestRunSymexWithConfig (do
-                                        synth_config@(SynthConfig { g2_config = config }) <- getSeqGenConfigDir file
+                                        synth_config@(SynthConfig { g2_config = config }) <- getSeqGenConfigDir fle
                                         return $ synth_config { run_symex = True, g2_config = adjustConfig synth_config $ config { smt = ConCVC5, steps = 2000, smt_strings = UseSMTStrings } })
-                                        file
+                                        fle
                                         f
                                         (\e -> case e of (Data dc) -> nameOcc (dc_name dc) == "True"; _ -> False)
 
@@ -185,11 +185,11 @@ smtSynthTestRunSymexSMTStringsFalse :: T.Text -- ^ Filer
                                     -> Maybe Int -- ^ Minimum number of outputs
                                     -> Maybe Int -- ^ Maximum number of outputs
                                     -> TestTree
-smtSynthTestRunSymexSMTStringsFalse file f =
+smtSynthTestRunSymexSMTStringsFalse fle f =
     smtSynthTestRunSymexWithConfig (do
-                                        synth_config@(SynthConfig { g2_config = config }) <- getSeqGenConfigDir file
+                                        synth_config@(SynthConfig { g2_config = config }) <- getSeqGenConfigDir fle
                                         return $ synth_config { run_symex = True, g2_config = adjustConfig synth_config $ config { smt = ConCVC5, steps = 2000, smt_strings = UseSMTStrings } })
-                                        file
+                                        fle
                                         f
                                         (\e -> case e of (Data dc) -> nameOcc (dc_name dc) == "False"; _ -> False)
 

@@ -19,11 +19,13 @@ module G2.Execution.Rules ( module G2.Execution.RuleTypes
                           , isExecValueForm
 
                           , SymbolicFuncEval
-                          , SymFuncTicks
+                          , SymFuncTicks (..)
                           , freshSymFuncTicks
                           , defSymFuncTicks
                           , retReplaceSymbFuncVar
                           , retReplaceSymbFuncTemplate
+
+                          , buildHigherOrderCaseAlts
 
                           , nonRedBlockerTick ) where
 
@@ -1645,6 +1647,26 @@ freshSymFuncTicks ng =
     in
     (sft, ng5)
 
+buildHigherOrderCaseAlts :: NameGen
+                         -> AlgDataTy
+                         -> [Type] -- ^ Type arguments
+                         -> Type -- ^ Return Type
+                         -> ([Alt], [Id], NameGen)
+buildHigherOrderCaseAlts ng alg_data_ty arg_tys ret_ty =
+    let    
+        ty_map = HM.fromList $ zip (map idName (bound_ids alg_data_ty)) arg_tys
+
+        dcs = applyTypeHashMap ty_map $ dataCon alg_data_ty
+    in
+    foldr (\dc@(DataCon _ dcty _ _) (as, sids, ng1) ->
+                        let (argIds, ng1') = genArgIds dc ng1
+                            data_alt = DataAlt dc argIds
+                            sym_fun_ty = mkTyFun $ fst (argTypes dcty) ++ [ret_ty]
+                            (fi, ng1'') = freshSeededId (Name "symFun" Nothing 0 Nothing) sym_fun_ty ng1'
+                            vargs = map Var argIds
+                        in (Alt data_alt (mkApp (Var fi : vargs)) : as, fi : sids, ng1'')
+                        ) ([], [], ng) dcs
+
 -- change literal rule to only match on arguments
 retReplaceSymbFuncTemplate :: SymFuncTicks -> State t -> NameGen -> Expr -> Maybe (Rule, [State t], NameGen)
 retReplaceSymbFuncTemplate sft
@@ -1655,28 +1677,14 @@ retReplaceSymbFuncTemplate sft
                            ng ce
 
     -- DC-SPLIT
-    | Var (Id n nTy@(TyFun t1 t2)):es <- unApp ce
+    | Var (Id n (TyFun t1 t2)):es <- unApp ce
     , TyCon tname _:ts <- unTyApp t1
     , E.isSymbolic n eenv
     , Just alg_data_ty <- HM.lookup tname tenv
     = let
-        ty_map = HM.fromList $ zip (map idName bound) ts
-
-        dcs = applyTypeHashMap ty_map $ dataCon alg_data_ty
-        bound = applyTypeHashMap ty_map $ bound_ids alg_data_ty
-
         (x, ng') = freshId t1 ng
         (x', ng'') = freshId t1 ng'
-        (alts, symIds, ng''') =
-            -- TODO: Is it true we can ignore the universial and existential type variable in dc split?
-            foldr (\dc@(DataCon _ dcty _ _) (as, sids, ng1) ->
-                        let (argIds, ng1') = genArgIds dc ng1
-                            data_alt = DataAlt dc argIds
-                            sym_fun_ty = mkTyFun $ fst (argTypes dcty) ++ [t2]
-                            (fi, ng1'') = freshSeededId (Name "symFun" Nothing 0 Nothing) sym_fun_ty ng1'
-                            vargs = map Var argIds
-                        in (Alt data_alt (mkApp (Var fi : vargs)) : as, fi : sids, ng1'')
-                        ) ([], [], ng'') dcs
+        (alts, symIds, ng''') = buildHigherOrderCaseAlts  ng'' alg_data_ty ts t2
         -- alts = map (\dc -> Alt (Alt)) dcs
         e = Lam TermL x $ Case (Tick (dc_split_tick sft) (Var x)) x' t2 alts
         e' = mkApp (e:es)

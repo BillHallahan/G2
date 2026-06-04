@@ -18,6 +18,7 @@ module G2.Language.TypeClasses.TypeClasses ( TypeClasses
                                            , tcDicts
                                            , typeClassInst
                                            , satisfyingTCTypes
+                                           , filterWithKey
                                            , toMap) where
 
 import G2.Language.AST
@@ -27,10 +28,9 @@ import G2.Language.Syntax
 import G2.Language.Typing
 
 import Data.Coerce
-import Data.Data (Data, Typeable)
+import Data.Data (Data)
 import Data.Hashable
 import Data.List
-import qualified Data.Map.Lazy as MM
 import qualified Data.HashMap.Lazy as M
 import Data.Maybe
 import qualified Data.Sequence as S
@@ -38,13 +38,13 @@ import qualified G2.Language.TyVarEnv as TV
 import GHC.Generics (Generic)
 
 data Class = Class { insts :: [(Type, Id)], typ_ids :: [Id], superclasses :: [(Type, Id)]}
-                deriving (Show, Eq, Read, Typeable, Data, Generic)
+                deriving (Show, Eq, Read, Data, Generic)
 
 instance Hashable Class
 
 type TCType = M.HashMap Name Class
 newtype TypeClasses = TypeClasses TCType
-                      deriving (Show, Eq, Read, Typeable, Data, Generic)
+                      deriving (Show, Eq, Read, Data, Generic)
 
 instance Hashable TypeClasses
 
@@ -202,8 +202,14 @@ satisfyTCReq tc (Id n _) = filter isFor . filter (isTypeClass tc)
       isFor (TyApp a1 a2) = isFor a1 || isFor a2
       isFor _ = False
 
+filterWithKey :: (Name -> Class -> Bool) -> TypeClasses -> TypeClasses
+filterWithKey p = fromMap . M.filterWithKey p . toMap
+
 toMap :: TypeClasses -> M.HashMap Name Class
 toMap = coerce
+
+fromMap :: M.HashMap Name Class -> TypeClasses
+fromMap = coerce
 
 instance ASTContainer TypeClasses Expr where
     containedASTs _ = []

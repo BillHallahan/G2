@@ -2,7 +2,6 @@ module G2.Execution.SymToCase (createCaseExpr) where
 
 import G2.Execution.DataConPCMap
 import G2.Language
-import qualified G2.Language.ExprEnv as E
 import qualified Data.HashMap.Lazy as HM
 import qualified Data.List as L
 

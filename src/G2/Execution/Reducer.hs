@@ -3,7 +3,7 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE FunctionalDependencies #-}
 {-# LANGUAGE GADTs #-}
-{-# LANGUAGE MultiParamTypeClasses, MultiWayIf, RankNTypes, ScopedTypeVariables #-}
+{-# LANGUAGE LambdaCase, MultiParamTypeClasses, MultiWayIf, RankNTypes, ScopedTypeVariables #-}
 {-# LANGUAGE TupleSections, UndecidableInstances #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE CPP #-}
@@ -154,6 +154,7 @@ module G2.Execution.Reducer ( Reducer (..)
                             , AnalyzeStates
                             , noAnalysis
                             , logStatesAtTime
+                            , logStatesAtTimeHigher
                             , logRedRuleNum
 
                             , LogStatesAtStep
@@ -173,6 +174,7 @@ import G2.Interface.ExecRes
 import G2.Execution.ExecSkip
 import G2.Language
 import G2.Language.Approximation
+import G2.Language.Typing as Ty
 import G2.Language.KnownValues as KV
 import G2.Language.HPC
 import qualified G2.Language.Monad as MD
@@ -187,6 +189,7 @@ import qualified Control.Monad.State as SM
 import Data.Foldable
 import qualified Data.HashSet as HS
 import qualified Data.HashMap.Strict as HM
+import qualified Data.List as L
 import qualified Data.Map as M
 import Data.Maybe
 import Data.Monoid hiding (Alt)
@@ -363,7 +366,7 @@ data Halter m hv r t = Halter {
     , updateHalterWithAll :: [(State t, hv)] -> [hv]
 
     -- Runs before selecting a new state to filter down possiblities
-    , filterAllStates :: forall b rv hv sov . M.Map b [ExState rv hv sov t] -> M.Map b [ExState rv hv sov t]
+    , filterAllStates :: forall b rv hv1 sov . M.Map b [ExState rv hv1 sov t] -> M.Map b [ExState rv hv1 sov t]
 
     }
 
@@ -658,8 +661,8 @@ nonRedPCSymFunc _
                          , exec_stack = stck
                          , non_red_path_conds = (NRPC focus nre1 nre2) :*> nrs
                          })
-                        b@(Bindings { name_gen = ng }) =
-    
+                        b@(Bindings { name_gen = ng })
+    | true_assert s =
     let
         sft = defSymFuncTicks
         stck' = Stck.push (CurrExprFrame (EnsureEq nre2) cexpr) stck
@@ -676,6 +679,7 @@ nonRedPCSymFunc _
             let 
                 s'' = s' {curr_expr = CurrExpr Evaluate nre1}
             in return (InProgress, [(s'', Just sft)], b { name_gen = ng })
+    | otherwise = return (Finished, [], b)
 nonRedPCSymFunc m_sft s b = return (Finished, [(s, m_sft)], b)
 
 -- | (Symbolic) functions to not add to the NRPCs
@@ -707,8 +711,6 @@ nonRedLibFuncs exec_names no_nrpc_names
                 rv@(var_table, sym_table, nrpc_count)
                 s@(State { expr_env = eenv
                          , curr_expr = CurrExpr _ ce
-                         , known_values = kv
-                         , tyvar_env = tvnv
                          }) 
                 b@(Bindings { name_gen = ng })
     | 
@@ -733,60 +735,151 @@ nonRedLibFuncs exec_names no_nrpc_names
 -- | A reducer to add higher order functions to non reduced path constraints for solving later  
 nonRedHigherOrderReducer :: MonadIO m =>
                             Config
+                         -> HS.HashSet Name -- ^ Names of variables to not inline when checking syntactic equivalence
                          -> Reducer m (NoNRPC, Int) t
-nonRedHigherOrderReducer config =
-    (mkSimpleReducer (\_ -> (HS.empty, 0)) nonRedHigherOrderFunc)
+nonRedHigherOrderReducer config no_inline =
+    (mkSimpleReducer (\_ -> (HS.empty, 0)) (nonRedHigherOrderFunc config no_inline))
         { onAccept = \s b (_, nrpc_count) -> do
             if print_num_nrpc config
                 then liftIO . putStrLn $ "NRPCs Generated: " ++ show nrpc_count
                 else return ()
             return (s, b) }
 
-nonRedHigherOrderFunc :: MonadIO m => RedRules m (NoNRPC, Int) t
-nonRedHigherOrderFunc 
+nonRedHigherOrderFunc :: MonadIO m =>
+                         Config
+                      -> HS.HashSet Name -- ^ Names of variables to not inline when checking syntactic equivalence
+                      -> RedRules
+                            m
+                            (NoNRPC, Int) -- ^ Functions to not turn into NRPCs, 
+                            t
+nonRedHigherOrderFunc (Config { gen_func_arg_states = gen_fa})
+                no_inline
                 (no_nrpc, nrpc_count)
                 s@(State { expr_env = eenv
                          , curr_expr = CurrExpr _ ce
                          , known_values = kv
                          , tyvar_env = tvnv
+                         , type_env = tenv
                          }) 
                 b@(Bindings { name_gen = ng })
     | 
       -- We have a symbolic function
       Var (Id n t):es_ce <- unApp ce
     , E.isSymbolic n eenv
-    , not (n `HS.member` no_nrpc)
+    , not (n `HS.member` no_nrpc) -- We are allowed to make it into an NRPC
     
     , (ae, stck') <- allApplyFrames (exec_stack s)
     , let es = es_ce ++ ae
 
-    , Just (s', _, _, ng') <- createNonRed ng Focused s 
+    -- If we have an EnsureEq on the stack, we do not want to add function argument states because
+    -- (a) we have already added function argument states when we initially began reducing the NRPC
+    -- and (b) we need to make sure that we actually do satisfy the equality, for soundness, and
+    -- thus cannot clear out the stack
+    , noEnsureEq stck'
+
+    , Just (s', ng1) <- getNonRedForHigherOrder no_inline ng s 
     = 
         let
-            -- If we have an EnsureEq on the stack, we do not want to add function argument states because
-            -- (a) we have already added function argument states when we initially began reducing the NRPC
-            -- and (b) we need to make sure that we actually do satisfy the equality, for soundness, and
-            -- thus cannot clear out the stack
+            (s_func_arg, wrapper, ng2) = mkCaseWrapper n es (returnType t) ng1
+
+            xs =
+                if gen_fa
+                    then
+                        [ (s', (no_nrpc, nrpc_count + 1))
+                        , (s_func_arg, (HS.insert (idName wrapper) no_nrpc, nrpc_count) )]
+                    else
+                        [ (s', (no_nrpc, nrpc_count + 1)) ]
+        in
+        return (Finished
+               , xs
+               , b { name_gen = ng2 })
+
+    | -- We have a symbolic function
+      Var (Id n t):es_ce <- unApp ce
+    , E.isSymbolic n eenv
+    , n `HS.member` no_nrpc -- We are NOT allowed to make it into an NRPC
+    
+    , (ae, stck') <- allApplyFrames (exec_stack s)
+    , let es = es_ce ++ ae =
+        let
+            -- Constant State
+            (const_state, ng') = mkConstState n (map (typeOf tvnv) es) (returnType t) ng
+
+            -- Evaluate arguments
             (ng'', xs_new_g) = if noEnsureEq stck'
                             then L.mapAccumR
-                                    (funcArgState (map (typeOf tvnv) es) (returnType t)) ng'
+                                    (funcArgState n es (returnType t)) ng'
                                     $ zip [0..] es
                             else (ng', [])
             xs = mapMaybe (fmap fst) xs_new_g
-            new_g = catMaybes $ mapMaybe (fmap snd) xs_new_g
+            new_g = concatMap snd $ catMaybes xs_new_g
             no_nrpc' = foldr HS.insert no_nrpc new_g
-            xs' = map (\new_s -> (new_s, (no_nrpc', nrpc_count))) xs
-        in 
-        return (Finished, (s', (no_nrpc', nrpc_count + 1)):xs', b {name_gen = ng''})
+
+
+            xs' = map (\new_s -> (new_s, (no_nrpc', nrpc_count))) $ const_state:xs
+
+        in do
+        return (Finished, xs', b {name_gen = ng''})
+
 
     | otherwise = return (Finished, [(s, (no_nrpc, nrpc_count))], b)
     where
         noEnsureEq stck | Just (CurrExprFrame (EnsureEq _) _, _) <- Stck.pop stck = False
                         | Just (_, stck') <- Stck.pop stck = noEnsureEq stck'
                         |otherwise = True
+        
+        -- Instantiate a symbolic function `symfun` to the form:
+        -- @
+        --  \x1 ... xk -> case wrapper xi of
+        --                      Default -> cont x1 ... xk
+        -- @
+        -- where `wrapper` and `cont` are fresh symbolic variables.
+        -- The idea is that `wrapper` allows forcing evaluation of arbitrary parts of `xi`,
+        -- while `cont` allows returning an arbitrary value based on x1...xk.
+        --
+        -- After wrapper (hopefully) discovers an error, the state will terminate.
+        -- However, we need `cont` in case there are eariler calls to `symfun`,
+        -- which need to be given correct behavior to lead down some path.
+        mkCaseWrapper n es ret_ty init_ng =
+            let
+                ts = map (typeOf tvnv) es
+
+                (is, ng2) = freshIds ts init_ng
+                (wrapper, ng3) = freshId (mkTyFun $ ts ++ [Ty.tyBool kv]) ng2
+                (bindee, ng4) = freshId (Ty.tyBool kv) ng3
+
+                (cont_func, ng5) = freshId (mkTyFun $ ts ++ [ret_ty]) ng4 
+
+                e = mkLams (map (TermL,) is)
+                        (Case
+                            (mkApp (Var wrapper:map Var is))
+                            bindee
+                            (Ty.tyBool kv)
+                            [ Alt Default $ mkApp (Var cont_func:map Var is) ])
+                
+                eenv' = E.insertSymbolic cont_func
+                      . E.insertSymbolic wrapper
+                      $ E.insert n e eenv
+            in
+            (s { expr_env = eenv'
+               , curr_expr = CurrExpr Evaluate . mkApp $ Var wrapper:es
+               , exec_stack = Stck.singleton $ CurrExprFrame NoAction (CurrExpr Return $ Prim UnspecifiedOutput TyBottom)
+               }
+            , wrapper
+            , ng5) 
+
+        mkConstState n ts ret_t init_ng =
+            let
+                (is, ng') = freshIds ts init_ng
+                (ret_v, ng'') = freshId ret_t ng'
+
+                e = mkLams (map (TermL,) is) (Tick (const_tick defSymFuncTicks) $ Var ret_v)
+                eenv' = E.insert n e $ E.insertSymbolic ret_v eenv
+            in
+            (s { expr_env = eenv' }, ng'')
 
         -- | Generate `State`s to explore each function argument
-        funcArgState all_args_ts ret_ty init_ng (this_arg_num, fa_e)
+        funcArgState n es ret_ty init_ng (this_arg_num, fa_e)
             | isTyFun (typeOf tvnv fa_e) = 
                     let
                         ts = anonArgumentTypes (typeOf tvnv fa_e)
@@ -796,40 +889,61 @@ nonRedHigherOrderFunc
                         (bindee, ng'') = freshId (typeOf tvnv this_arg) ng'
                         (ret_id, ng''') = freshId ret_ty ng''
 
+                        (wrap, ng'''') = freshId (TyFun (typeOf tvnv fa_e') (Ty.tyBool kv)) ng'''
+
                         -- Instantiate the symbolic function `n`
-                        lam_center = Case (mkApp $ Var this_arg:vs) bindee ret_ty [Alt Default  (Var ret_id)]
+                        lam_center = Case
+                                        (App (Var wrap) (mkApp $ Var this_arg:vs))
+                                        bindee
+                                        ret_ty
+                                        [Alt Default  (Var ret_id)]
                         f_def = mkLams (zip (repeat TermL) arg_is) lam_center
                         eenv' = E.insert n f_def eenv
 
                         -- Set up symbolic variables
-                        eenv'' = E.insertSymbolic ret_id $ foldr E.insertSymbolic eenv' is
+                        eenv'' = E.insertSymbolic wrap . E.insertSymbolic ret_id $ foldr E.insertSymbolic eenv' is
                     in
-                    (ng''', Just $ (s { expr_env = eenv''
-                                      , curr_expr = CurrExpr Evaluate fa_e'
-                                      , exec_stack = stck }, Nothing))
+                    (ng'''', Just $ (s { expr_env = eenv''
+                                       , curr_expr = CurrExpr Evaluate (App (Var wrap) fa_e')
+                                       , exec_stack = stck }, []))
             | isPrimType (typeOf tvnv fa_e) = (init_ng, Nothing)
-            | otherwise =
+            | TyCon tname _:ts <- unTyApp (typeOf tvnv fa_e)
+            , Just alg_data_ty <- HM.lookup tname tenv =
                 let
-                    (g, ng') = freshId (TyFun (typeOf tvnv this_arg) ret_ty) ng_args
-                    (bindee, ng'') = freshId (typeOf tvnv this_arg) ng'
-                    g_app = Case (App (Var g) (Var this_arg)) bindee ret_ty [Alt Default  (Var bindee)]
+                    (bindee, ng') = freshId (typeOf tvnv this_arg) ng_args
+                    (alts, sym_ids, ng'') = buildHigherOrderCaseAlts ng' alg_data_ty ts ret_ty
+
+                    g_app = Case (Tick (dc_split_tick defSymFuncTicks) $ Var this_arg) bindee ret_ty alts
                     f_def = mkLams (zip (repeat TermL) arg_is) g_app
 
-                    fa_e' = App (Var g) fa_e
+                    fa_e' = mkApp $ f_def:es
 
                     eenv' = E.insert n f_def eenv
-                    eenv'' = E.insertSymbolic g eenv'
+                    eenv'' = foldr E.insertSymbolic eenv' sym_ids
                 in
-                (ng'', Just $ (s { expr_env = eenv'', curr_expr = CurrExpr Evaluate fa_e', exec_stack = stck }, Just $ idName g))
+                (ng'', Just $ (s { expr_env = eenv'', curr_expr = CurrExpr Evaluate fa_e', exec_stack = stck }, map idName sym_ids))
+            | otherwise = error $ "funcArgState: Unhandled type" ++ "\n" ++ show fa_e ++ "\n" ++ show tvnv
             where
-                n = case unApp ce of
-                    Var (Id vn _):_ -> vn
-                    _ -> error "funcArgState: impossible"
+                all_args_ts = map (typeOf tvnv) es
 
                 (arg_is, ng_args) = freshIds all_args_ts init_ng
                 this_arg = arg_is !! this_arg_num
 
                 stck = Stck.singleton $ CurrExprFrame NoAction (CurrExpr Return $ Prim UnspecifiedOutput TyBottom)
+
+getNonRedForHigherOrder :: HS.HashSet Name -> NameGen -> State t -> Maybe (State t, NameGen)
+getNonRedForHigherOrder no_inline ng s
+    | v@(Var _):es_ce <- unApp (getExpr s)
+    , let (ae, stck) = allApplyFrames (exec_stack s)
+    , let es = es_ce ++ ae
+    , let ce' = mkApp (v:es)
+    , Just nrpc@(NRPC { nrpc_rhs = rhs }) <- findNRPC (findSynEq ce') (non_red_path_conds s) =
+        Just (s { curr_expr = CurrExpr Evaluate rhs, exec_stack = stck }, ng)
+    where
+        findSynEq ce_ nrpc = eqUpToTypesInlineIgnoringTicks no_inline (expr_env s) (nrpc_lhs nrpc) ce_
+getNonRedForHigherOrder no_inline ng s
+    | Just (s', _, _, ng1) <- createNonRed ng Focused s = Just (s', ng1)
+    | otherwise = Nothing
 
 data ApproxPrevs t = AP { ap_nrpc_states :: [State t], ap_halter_states :: [State t]}
 
@@ -894,7 +1008,7 @@ nrpcApproxReducer solver no_inline no_nrpc_names config =
 
                 case nr_s_ng of
                     Just (nr_s, _, _, ng') | isJust approx -> return (Finished, [(nr_s, rv + 1)], b { name_gen = ng' })
-                    _ -> do SM.modify (\ap -> ap { ap_nrpc_states = s':xs }); return (Finished, [(s, rv)], b)
+                    _ -> do SM.modify (\app -> app { ap_nrpc_states = s':xs }); return (Finished, [(s, rv)], b)
             | Tick nl (Var (Id n _)) <- ce
             , isNonRedBlockerTick nl
             , Just e <- E.lookup n eenv = return (Finished, [(s { curr_expr = CurrExpr Evaluate e }, rv)], b)
@@ -918,11 +1032,8 @@ createNonRed :: NameGen
                       , NRPC -- ^ New NRPC
                       , NameGen)
 createNonRed ng focus
-              s@(State { curr_expr = CurrExpr _ ce
-                       , expr_env = eenv
-                       , non_red_path_conds = nrs
-                       , known_values = kv })
-    | v@(Var (Id _ t)):es_ce <- unApp ce
+              s@(State { curr_expr = CurrExpr _ ce })
+    | v@(Var _):es_ce <- unApp ce
         -- Function is being fully applied 
     , (ae, stck) <- allApplyFrames (exec_stack s)
     , let es = es_ce ++ ae
@@ -949,8 +1060,7 @@ createNonRed' :: NameGen
                       , NameGen)
 createNonRed' ng
               focus
-              s@(State { curr_expr = CurrExpr _ ce
-                       , expr_env = eenv
+              s@(State { expr_env = eenv
                        , non_red_path_conds = nrs
                        , known_values = kv
                        , tyvar_env = tvnv }) e
@@ -1061,7 +1171,7 @@ strictRed :: Monad m => Reducer m () t
 strictRed = mkSimpleReducer (\_ -> ())
                             strict_red
     where
-        strict_red _ s@(State { curr_expr = ce@(CurrExpr Return e)
+        strict_red _ s@(State { curr_expr = CurrExpr Return e
                               , expr_env = eenv
                               , exec_stack = stck
                               , tyvar_env = tvnv })
@@ -1298,7 +1408,7 @@ nonRedPCRedConstFunc _
                    }
 
         return (InProgress, [(s', ())], b { name_gen = ng'' })
-nonRedPCRedConstFunc _ s b = return (Finished, [], b)
+nonRedPCRedConstFunc _ _ b = return (Finished, [], b)
 
 {-# INLINE taggerRed #-}
 taggerRed :: Monad m => Name -> Reducer m () t
@@ -1896,7 +2006,7 @@ approximationHalter' stop_cond solver no_inline = mkSimpleHalter
                         --     putStrLn $ "    !!!modifying with " ++ show (log_path s') ++ " " ++ show (num_steps s)
                         --     putStrLn $ "    !!! stck s = " ++ show (exec_stack s)
                         --     putStrLn $ "    !!! stck s' = " ++ show (exec_stack s')
-                        SM.modify ((\ap -> ap { ap_halter_states = s':xs }))
+                        SM.modify ((\app -> app { ap_halter_states = s':xs }))
                         return Continue
         -- stop _ _ s | log_path s == [1, 1, 1, 1]
         --            , num_steps s == 103
@@ -1909,14 +2019,6 @@ approximationHalter' stop_cond solver no_inline = mkSimpleHalter
         
         -- mr_cont _ _ _ _ _ _ _ _ _ = Left []
         mr_cont = mrContIgnoreNRPCTicks Nothing lookupConcOrSymState
-
-        allowed_expr Evaluate (Var _:_:_) = True
-        allowed_expr Return (Data _:_) = True
-        allowed_expr _ _ = False
-
-        allowed_frame _ (ApplyFrame _) = False
-        allowed_frame Evaluate (UpdateFrame _) = False
-        allowed_frame _ _ = True
 
         allowed_expr_frame _ _ _ (Just (ApplyFrame _)) = False
         allowed_expr_frame Return (Data _:_) _ (Just (UpdateFrame _)) = False
@@ -1940,9 +2042,9 @@ mrContIgnoreNRPCTicks :: Maybe (GenerateLemma t l)
                       -> Either [l] (HM.HashMap Id Expr, HS.HashSet (Expr, Expr))
 mrContIgnoreNRPCTicks genLemma lkp s1 s2 ns hm active n1 n2 e1 e2 =
     case (e1, e2) of
-        (Tick t1 e1', _) ->
+        (Tick _ e1', _) ->
             moreRestrictive' (mrContIgnoreNRPCTicks genLemma lkp) genLemma lkp s1 s2 ns hm active n1 n2 e1' e2
-        (_, Tick t2 e2') ->
+        (_, Tick _ e2') ->
             moreRestrictive' (mrContIgnoreNRPCTicks genLemma lkp) genLemma lkp s1 s2 ns hm active n1 n2 e1 e2'
         _ -> Left []
 
@@ -2059,7 +2161,7 @@ timerHalter io_timed_out ms def min_found ce = do
             | nameOcc id_n /= "stdin"
             , nameOcc id_n /= "stdout"
             , nameOcc id_n /= "stderr" = n == KV.tyList kv
-        isList _ i = False
+        isList _ _ = False
 
 -- | Print a specified message if a specified HaltC is returned from the contained Halter
 printOnHaltC :: MonadIO m =>
@@ -2344,7 +2446,26 @@ noAnalysis = []
 
 -- | Whenever the number of states grows, output the (new) number of states and the time.
 logStatesAtTime :: MonadIO m => IO (AnalyzeStates m r t)
-logStatesAtTime = do
+logStatesAtTime = logStatesAtTime' (\_ _ -> "")
+
+-- | Whenever the number of states grows, output the (new) number of states and the time.
+-- Also output the number of post call and function argument states
+logStatesAtTimeHigher :: MonadIO m => IO (AnalyzeStates m r t)
+logStatesAtTimeHigher = logStatesAtTime' (\ns as -> count_num (ns ++ as))
+    where
+        count_num xs =
+            let
+                (func_arg, post_call) = L.partition (hasUnspecified . Stck.toList . exec_stack) xs
+            in
+            "Post Call: " ++ show (length post_call) ++ " Func Arg: " ++ show (length func_arg)
+        
+        hasUnspecified =
+            any (\case
+                (CurrExprFrame NoAction (CurrExpr Return (Prim UnspecifiedOutput _))) -> True
+                _ -> False)
+
+logStatesAtTime' :: MonadIO m => ([State t] -> [State t] -> String) -> IO (AnalyzeStates m r t)
+logStatesAtTime' extra_info = do
     init_time <- getTime Realtime
 
     let prTime ns as = liftIO $ do
@@ -2354,7 +2475,10 @@ logStatesAtTime = do
                         putStr "Time: "
                         putStr (show diff_secs)
                         putStr " Num States: "
-                        print (length ns + length as)
+                        putStr (show $ length ns + length as)
+                        case extra_info ns as of
+                            "" -> putStrLn ""
+                            extra -> putStrLn $ " " ++ extra
 
     return (\ae _ all_s ->
                 case ae of
@@ -2566,22 +2690,6 @@ runReducer red hal ord solve_r analyze init_state init_bindings = do
                 runReducerListSwitching (pr {discarded = state rs':discarded pr}) xs b
             where
                 rs' = rs { halter_val = updatePerStateHalt hal (halter_val rs) pr (state rs) }
-
-        {-# INLINABLE runReducerList #-}
-        -- To be used when we we need to select a state without switching 
-        runReducerList :: (Monad m, Ord b)
-                    => Processed r (State t)
-                    -> M.Map b [ExState rv hv sov t]
-                    -> Bindings
-                    -> m (Processed r (State t), Bindings)
-        runReducerList pr m binds =
-            case minState pr m of
-                Just (rs, m') ->
-                    let
-                        rs' = rs { halter_val = updatePerStateHalt hal (halter_val rs) pr (state rs) }
-                    in
-                    runReducer' pr rs' binds m'
-                Nothing -> return (pr, binds)
 
         {-# INLINABLE runReducerListSwitching #-}
         -- To be used when we are possibly switching states 

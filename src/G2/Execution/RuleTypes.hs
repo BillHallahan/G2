@@ -5,7 +5,7 @@
 
 module G2.Execution.RuleTypes where
 
-import Data.Data (Data, Typeable)
+import Data.Data (Data)
 
 import G2.Language.AST
 import G2.Language.Naming
@@ -90,7 +90,7 @@ data Rule = RuleEvalVal
           | RuleTick
           
           | RuleOther
-           deriving (Show, Eq, Read, Typeable, Data, Generic)
+           deriving (Show, Eq, Read, Data, Generic)
 
 instance Hashable Rule
 

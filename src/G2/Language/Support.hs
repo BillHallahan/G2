@@ -38,9 +38,8 @@ import G2.Execution.DataConPCMap
 import G2.Execution.RuleTypes
 
 import GHC.Generics (Generic)
-import Data.Data (Data, Typeable)
+import Data.Data (Data)
 import Data.Hashable
-import qualified Data.Map as M
 import qualified Data.HashMap.Lazy as HM
 import qualified Data.HashSet as S hiding (empty)
 import qualified Data.Sequence as S
@@ -82,7 +81,7 @@ data State t = State { expr_env :: E.ExprEnv -- ^ Mapping of `Name`s to `Expr`s
                      , lit_table_stack :: Stack LitTable -- ^ Stack for nested literal tables
 
                      , track :: t
-                     } deriving (Show, Eq, Read, Generic, Typeable, Data)
+                     } deriving (Show, Eq, Read, Generic, Data)
 
 type EEDiff = [(Name, Expr)] -- concrete values to insert in ExprEnv
 type EESymDiff = [Id] -- symbolic variables to insert in ExprEnv
@@ -100,7 +99,7 @@ data StateDiff = SD { new_conc_entries :: EEDiff -- ^ New concrete entries for t
                     , new_sym_types :: TVESymDiff -- ^ New symbolic entries for the tyvar_env
                     , new_mut_vars :: [(Name, Id, MVOrigin)] -- ^ New mutable variables for the mutvar_env
                     }
-                    deriving (Show, Eq, Read, Generic, Typeable, Data)
+                    deriving (Show, Eq, Read, Generic, Data)
 
 instance Hashable StateDiff
 
@@ -120,7 +119,7 @@ data Bindings = Bindings { fixed_inputs :: [Expr]
                          , rewrite_rules :: ![RewriteRule]
                          , name_gen :: NameGen
                          , exported_funcs :: [Name]
-                         } deriving (Show, Eq, Read, Typeable, Data)
+                         } deriving (Show, Eq, Read, Data)
 
 errorRaised :: State t -> Bool
 errorRaised (State { curr_expr = CurrExpr _ ce}) | Prim Error _ <- center ce = True
@@ -141,7 +140,7 @@ inputIds (State { expr_env = eenv, tyvar_env= tv }) (Bindings { input_names = ns
 
 -- | `CurrExpr` is the current expression we have. 
 data CurrExpr = CurrExpr EvalOrReturn Expr
-              deriving (Show, Eq, Read, Generic, Typeable, Data)
+              deriving (Show, Eq, Read, Generic, Data)
 
 instance Hashable CurrExpr
 
@@ -174,7 +173,7 @@ activeNames tenv eenv explored nss
 -- evaluation code.
 data EvalOrReturn = Evaluate
                   | Return
-                  deriving (Show, Eq, Read, Generic, Typeable, Data)
+                  deriving (Show, Eq, Read, Generic, Data)
 
 instance Hashable EvalOrReturn
 
@@ -187,7 +186,7 @@ data ArbValueGen = ArbValueGen { intGen :: Integer
                                , rationalGen :: Rational
                                , charGen :: [Char]
                                , boolGen :: Bool
-                               } deriving (Show, Eq, Read, Typeable, Data)
+                               } deriving (Show, Eq, Read, Data)
 
 -- | These are stack frames that are used to guide evaluation.
 data Frame = CaseFrame Id Type [Alt]
@@ -199,7 +198,7 @@ data Frame = CaseFrame Id Type [Alt]
            | AssumeFrame Expr
            | AssertFrame (Maybe FuncCall) Expr
            | LitTableFrame LitTableCond LTUpdate
-           deriving (Show, Eq, Read, Generic, Typeable, Data)
+           deriving (Show, Eq, Read, Generic, Data)
 
 -- Whether we need to update the current literal table when this frame is popped off
 type LTUpdate = Bool
@@ -210,7 +209,7 @@ instance Hashable Frame
 -- top of the stack and it is time to replace the `curr_expr`.
 data CEAction = EnsureEq Expr -- ^ `EnsureEq focus e1` means that we should check if the `curr_expr` is equal to `e1`
               | NoAction -- ^ Just replace the curr_expr, no other actions are needed
-              deriving (Show, Eq, Read, Generic, Typeable, Data)
+              deriving (Show, Eq, Read, Generic, Data)
 
 instance Hashable CEAction
 
@@ -223,12 +222,12 @@ data Handle = HandleInfo { h_filepath :: FilePath
                          , h_start :: Id -- ^ The entire contents of the file, maps to a String in the `ExprEnv`
                          , h_pos :: Id -- ^ The current position of the Handle, maps to a String in the `ExprEnv`
                          , h_status :: HandleStatus }
-                         deriving (Show, Eq, Read, Generic, Typeable, Data)
+                         deriving (Show, Eq, Read, Generic, Data)
 
 instance Hashable Handle
 
 data HandleStatus = HOpen | HClosed
-                    deriving (Show, Eq, Read, Generic, Typeable, Data)
+                    deriving (Show, Eq, Read, Generic, Data)
 
 stdinName :: Name
 stdinName = Name "stdin" Nothing 0 Nothing
@@ -560,7 +559,7 @@ data LitTableCond = Exploring PathConds
                   -- other Diffs, so we need to save the original versions in Diff frames
                   | Diff StateDiff (E.ExprEnv, TV.TyVarEnv, MutVarEnv, PathConds)
                   | StartedBuilding Name
-                  deriving (Show, Eq, Read, Generic, Typeable, Data)
+                  deriving (Show, Eq, Read, Generic, Data)
 
 instance Hashable LitTableCond
 
@@ -568,7 +567,7 @@ data LitTable = LitTable { lt_arg :: Id
                          , lt_mapping :: HM.HashMap PathConds Expr
                          , lt_errored :: Bool -- | Whether an error was encountered during creation
                          }
-                deriving (Show, Eq, Read, Generic, Typeable, Data)
+                deriving (Show, Eq, Read, Generic, Data)
 
 instance Hashable LitTable
 
