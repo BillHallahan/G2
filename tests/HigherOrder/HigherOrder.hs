@@ -1,3 +1,4 @@
+{-# OPTIONS_GHC -Wno-overlapping-patterns #-}
 {-# LANGUAGE BangPatterns #-}
 
 module HigherOrder where
@@ -22,6 +23,13 @@ myNot False = True
 
 h :: (Int -> Int) -> Bool
 h g = myNot (g 3 <= g 6)
+
+j :: (List -> Bool) -> Int
+j f = case f EmptyList of
+            True -> case f EmptyList of
+                        True -> 1
+                        _ -> 2
+            _ -> 3
 
 k :: (List -> Bool) -> List -> Int
 k f l = case f l of

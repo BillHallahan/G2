@@ -264,6 +264,8 @@ or not using the argument and also discarding the constraint.
 --              | PAnd [PreC]
 --              | POr [PreC]
 
+
+-- TODO: Shouldn't be returning an empty list of states in the Nothing case
 solveFuncConstraintsReducer :: (Solver solver, MonadIO m) => solver -> Reducer m () t
 solveFuncConstraintsReducer solver = mkSimpleReducer (\_ -> ()) go
     where
@@ -272,7 +274,7 @@ solveFuncConstraintsReducer solver = mkSimpleReducer (\_ -> ()) go
                     liftIO . putStrLn $ case r of Just _ -> "Just"; Nothing -> "Nothing"
                     case r of
                         Just (s', ng') -> return (Finished, [(s', ())], b { name_gen = ng' })
-                        Nothing -> error "TODO solveFuncConstraintsReducer: NOTHING"
+                        Nothing -> return (Finished, [], b) -- TODO
                  | otherwise = return (Finished, [], b)
 
 data FCRes = SatFC FuncConstraints | UnsatFC deriving Eq
@@ -285,8 +287,9 @@ solveFuncConstraints solver s@(State { sym_func_constraints = fc }) ng = do
                                            , sym_func_constraints = fcs' }, ng')
                     _ -> Nothing
 
+-- TODO: Do we actually need the counter here?
 solveFC :: (Solver solver, MonadIO m) => solver -> Int -> FuncConstraints -> StateNGT t m FCRes
-solveFC _ 0 _ = undefined
+solveFC _ 0 _ = return UnsatFC
 solveFC solver !n fcs = do
     -- Convert functions with only a single constraint into constants
     -- fcs_nosingle <- return . HM.mapMaybe id =<< HM.traverseWithKey solveSingleton fcs
@@ -296,21 +299,24 @@ solveFC solver !n fcs = do
     case distinct of
         True -> return (SatFC fcs)
         False -> do
+            fcs_simp_pieces <- concatMapM (uncurry simplifyReturns) $ HM.toList fcs
+            let fc_simp_reassembled = HM.fromListWith (++) fcs_simp_pieces
+
             -- Replace ADT symbolic variables with case expressions
-            fcs_replaced_sym_adt <- mapM replaceADTSymVars fcs
+            fcs_replaced_sym_adt <- mapM replaceADTSymVars fc_simp_reassembled
 
             fcs_precond <- mapM caseToPreCond fcs_replaced_sym_adt
             let pg = mkPrettyGuide (HM.toList fcs_precond)
             liftIO $ putStrLn $ "fcs_precond = " ++ T.unpack (prettyFuncConstraints pg fcs_precond)  
 
             -- Introduce branches on ADTs
-            fcs_pieces <- concatMapM (uncurry unfoldADTArgs) $ HM.toList fcs_precond
-            let fc_reassembled = HM.fromListWith (++) fcs_pieces
+            fcs_unfold_pieces <- concatMapM (uncurry unfoldADTArgs) $ HM.toList fcs_precond
+            let fc_unfold_reassembled = HM.fromListWith (++) fcs_unfold_pieces
 
             liftIO $ putStrLn "after unfoldADTArgs"
-            let pg' = updatePrettyGuide (HM.toList fc_reassembled) pg
-            liftIO $ putStrLn $ "fc_reassembled =\n" ++ T.unpack (prettyFuncConstraints pg' fc_reassembled)  
-            solveFC solver (n - 1) fc_reassembled
+            let pg' = updatePrettyGuide (HM.toList fc_unfold_reassembled) pg
+            liftIO $ putStrLn $ "fc_reassembled =\n" ++ T.unpack (prettyFuncConstraints pg' fc_unfold_reassembled)  
+            solveFC solver (n - 1) fc_unfold_reassembled
 
 solveSingleton :: Monad m => Name -> [FuncConstraint] -> StateNGT t m (Maybe [FuncConstraint])
 solveSingleton _ [] = return Nothing
@@ -322,6 +328,52 @@ solveSingleton n [FC { fc_args = as, fc_ret = r }] = do
     insertE n body
     return Nothing
 solveSingleton _ xs = return $ Just xs
+
+-- | If all function constraints for a particular function return the same constructor,
+-- split into separate function constraints for each argument to that constructor
+simplifyReturns :: MonadIO m => Name -> [FuncConstraint] -> StateNGT t m [(Name, [FuncConstraint])]
+simplifyReturns n fcs = do
+    eenv <- exprEnv
+    tv_env <- tyVarEnv
+
+    case fcs of
+        (fc:_) | -- Check if all return values have the same constructor
+                 let r = fc_ret fc
+                     rs = map fc_ret fcs
+               , Data dc@(DataCon { dc_name = dc_n, dc_type = dc_ty }):_ <- unApp $ inlineVars eenv r
+               , all (sameConstructor eenv dc_n) rs -> do
+                    -- Set up the original function to return the required data constructor
+                    -- with arguments constructed by fresh symbolic functions 
+                    let existing_args = map (typeOf tv_env) $ fc_args fc
+                    
+                    lam_is <- freshIdsN existing_args
+                    per_arg_func <- mapM (\t -> do
+                                            fn <- freshSeededStringN "sym_f"
+                                            let fi = Id fn (mkTyFun $ existing_args ++ [t])
+                                            insertSymbolicE fi
+                                            return fi
+                                         ) $ anonArgumentTypes dc_ty
+                    
+                    let ret_val = mkApp $ Data dc:map (\f -> (mkApp $ (Var f):map Var lam_is)) per_arg_func
+                        func_def = mkLams (zip (repeat TermL) lam_is) ret_val
+                    insertE n func_def
+
+                    -- Convert existing function constraints into constraints for the newly created functions
+                    let new_fcs = concatMap (\this_fc -> 
+                                    case unApp . inlineVars eenv $ fc_ret this_fc of
+                                        [] -> error "simplifyReturns: impossible"
+                                        (_:ret_p) -> zipWith (\f p -> (idName f, [this_fc { fc_ret = p }])) per_arg_func ret_p
+                                    ) fcs
+
+                    return new_fcs
+
+        _ -> return [(n, fcs)]
+    where
+        sameConstructor eenv dc_n e
+                | Data (DataCon { dc_name = dc_n', dc_type = dc_ty }):_ <- unApp $ inlineVars eenv e
+                , dc_n == dc_n' = True
+                | otherwise = False
+
 
 replaceADTSymVars :: MonadIO m => [FuncConstraint] -> StateNGT t m [FuncConstraint]
 replaceADTSymVars fcs = do
