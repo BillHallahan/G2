@@ -28,6 +28,8 @@ module G2.Language.Monad.Support ( StateT
                                  , mapCurrExpr
                                  , insertPC
                                  , insertPCStateNG
+                                 , getPCStateNG
+                                 , putPCStateNG
                                  , mapMAccumB ) where
 
 import Control.Monad.Identity
@@ -279,6 +281,17 @@ insertPC :: FullState s m => PathCond -> m ()
 insertPC pc = do
     pcs <- pathConds
     putPathConds $ PC.insert pc pcs 
+
+getPCStateNG :: Monad m => StateNGT t m PathConds
+getPCStateNG = do
+    ((State { path_conds = pcs }), _) <- SM.get
+    return pcs
+
+putPCStateNG :: Monad m => PathConds -> StateNGT t m ()
+putPCStateNG pcs = do
+    (s, ng) <- SM.get
+    SM.put (s { path_conds = pcs }, ng)
+
 
 insertPCStateNG :: Monad m => PathCond -> StateNGT t m ()
 insertPCStateNG pc = do

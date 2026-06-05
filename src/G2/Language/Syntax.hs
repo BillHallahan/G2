@@ -178,6 +178,7 @@ data Primitive = -- Mathematical and logical operators
                | Le
                | And
                | Or
+               | Xor
                | Not
                | Implies
                | Iff

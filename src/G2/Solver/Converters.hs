@@ -376,6 +376,7 @@ isCore' :: SMTAST -> All
 isCore' (_ := _) = All True
 isCore' (SmtAnd _) = All True
 isCore' (SmtOr _) = All True
+isCore' (SmtXor _) = All True
 isCore' ((:!) _) = All True
 isCore' (_ :=> _) = All True
 isCore' (_ :<=> _) = All True
@@ -586,6 +587,7 @@ funcToSMT1Prim _ err _ = error $ "funcToSMT1Prim: invalid Primitive " ++ show er
 funcToSMT2Prim :: TV.TyVarEnv -> Primitive -> Expr -> Expr -> SMTAST
 funcToSMT2Prim tv And a1 a2 = SmtAnd [exprToSMT tv a1, exprToSMT tv a2]
 funcToSMT2Prim tv Or a1 a2 = SmtOr [exprToSMT tv a1, exprToSMT tv a2]
+funcToSMT2Prim tv Xor a1 a2 = SmtXor [exprToSMT tv a1, exprToSMT tv a2]
 funcToSMT2Prim tv Implies a1 a2 = exprToSMT tv a1 :=> exprToSMT tv a2
 funcToSMT2Prim tv Iff a1 a2 = exprToSMT tv a1 :<=> exprToSMT tv a2
 funcToSMT2Prim tv Ge a1 a2 = exprToSMT tv a1 :>= exprToSMT tv a2
@@ -883,6 +885,9 @@ toSolverAST str_seq = go
         go (SmtOr []) = "false"
         go (SmtOr [x]) = go x
         go (SmtOr xs) =  functionList "or" $ map (go) xs
+        go (SmtXor []) = "false"
+        go (SmtXor [x]) = go x
+        go (SmtXor xs) =  functionList "xor" $ map (go) xs
 
         go ((:!) x) = function1 "not" $ go x
         go (x :=> y) = function2 "=>" (go x) (go y)

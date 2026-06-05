@@ -10,7 +10,8 @@ import qualified G2.Language.ExprEnv as E
 import qualified G2.Language.PathConds as PC
 import qualified G2.Language.Stack as S
 import qualified G2.Language.TyVarEnv as TV
-import G2.Solver
+import G2.Solver.Simplifier
+import G2.Solver.Solver
 
 import Data.List
 import Data.Maybe

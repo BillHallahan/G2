@@ -3,16 +3,20 @@
 module G2.Execution.FuncConstraints where
 
 import G2.Config
+import G2.Execution.PrimitiveEval
 import G2.Execution.Reducer
 import G2.Language
 import qualified G2.Language.ExprEnv as E
 import G2.Language.Monad
+import qualified G2.Language.PathConds as PC
 import qualified G2.Language.Stack as Stck
 import G2.Lib.Printers
+import G2.Solver
 
 import Control.Monad
 import Control.Monad.Extra
 import Control.Monad.IO.Class
+import qualified Control.Monad.State.Lazy as SM
 import qualified Data.HashMap.Lazy as HM
 import qualified Data.HashSet as HS
 import Data.List
@@ -260,11 +264,11 @@ or not using the argument and also discarding the constraint.
 --              | PAnd [PreC]
 --              | POr [PreC]
 
-solveFuncConstraintsReducer :: MonadIO m => Reducer m () t
-solveFuncConstraintsReducer = mkSimpleReducer (\_ -> ()) go
+solveFuncConstraintsReducer :: (Solver solver, MonadIO m) => solver -> Reducer m () t
+solveFuncConstraintsReducer solver = mkSimpleReducer (\_ -> ()) go
     where
         go _ s b | true_assert s = do
-                    r <- solveFuncConstraints s (name_gen b)
+                    r <- solveFuncConstraints solver s (name_gen b)
                     liftIO . putStrLn $ case r of Just _ -> "Just"; Nothing -> "Nothing"
                     case r of
                         Just (s', ng') -> return (Finished, [(s', ())], b { name_gen = ng' })
@@ -273,32 +277,37 @@ solveFuncConstraintsReducer = mkSimpleReducer (\_ -> ()) go
 
 data FCRes = SatFC | UnsatFC deriving Eq
 
-solveFuncConstraints :: MonadIO m => State t -> NameGen -> m (Maybe (State t, NameGen))
-solveFuncConstraints s@(State { sym_func_constraints = fc }) ng = do
-    (r, (s', !ng')) <- runStateNGT (solveFC 5 fc) s ng
+solveFuncConstraints :: (Solver solver, MonadIO m) => solver -> State t -> NameGen -> m (Maybe (State t, NameGen))
+solveFuncConstraints solver s@(State { sym_func_constraints = fc }) ng = do
+    (r, (s', !ng')) <- runStateNGT (solveFC solver 5 fc) s ng
     return $ if r == SatFC then Just (s' { sym_func_constraints = HM.empty }, ng') else Nothing
 
-solveFC :: MonadIO m => Int -> FuncConstraints -> StateNGT t m FCRes
-solveFC 0 _ = undefined
-solveFC !n fcs = do
+solveFC :: (Solver solver, MonadIO m) => solver -> Int -> FuncConstraints -> StateNGT t m FCRes
+solveFC _ 0 _ = undefined
+solveFC solver !n fcs = do
     -- Convert functions with only a single constraint into constants
     fcs_nosingle <- return . HM.mapMaybe id =<< HM.traverseWithKey solveSingleton fcs
 
-    -- Replace ADT symbolic variables with case expressions
-    fcs_replaced_sym_adt <- mapM replaceADTSymVars fcs_nosingle
+    distinct <- checkDistinct solver fcs_nosingle
 
-    fcs_precond <- mapM caseToPreCond fcs_replaced_sym_adt
-    let pg = mkPrettyGuide (HM.toList fcs_precond)
-    liftIO $ putStrLn $ "fcs_precond = " ++ T.unpack (prettyFuncConstraints pg fcs_precond)  
+    case distinct of
+        True -> return SatFC
+        False -> do
+            -- Replace ADT symbolic variables with case expressions
+            fcs_replaced_sym_adt <- mapM replaceADTSymVars fcs_nosingle
 
-    -- Introduce branches on ADTs
-    fcs_pieces <- concatMapM (uncurry unfoldADTArgs) $ HM.toList fcs_precond
-    let fc_reassembled = HM.fromListWith (++) fcs_pieces
+            fcs_precond <- mapM caseToPreCond fcs_replaced_sym_adt
+            let pg = mkPrettyGuide (HM.toList fcs_precond)
+            liftIO $ putStrLn $ "fcs_precond = " ++ T.unpack (prettyFuncConstraints pg fcs_precond)  
 
-    liftIO $ putStrLn "after unfoldADTArgs"
-    let pg' = updatePrettyGuide (HM.toList fc_reassembled) pg
-    liftIO $ putStrLn $ "fc_reassembled = " ++ T.unpack (prettyFuncConstraints pg' fc_reassembled)  
-    if HM.null fc_reassembled then return SatFC else solveFC (n - 1) fc_reassembled
+            -- Introduce branches on ADTs
+            fcs_pieces <- concatMapM (uncurry unfoldADTArgs) $ HM.toList fcs_precond
+            let fc_reassembled = HM.fromListWith (++) fcs_pieces
+
+            liftIO $ putStrLn "after unfoldADTArgs"
+            let pg' = updatePrettyGuide (HM.toList fc_reassembled) pg
+            liftIO $ putStrLn $ "fc_reassembled =\n" ++ T.unpack (prettyFuncConstraints pg' fc_reassembled)  
+            solveFC solver (n - 1) fc_reassembled
 
 solveSingleton :: Monad m => Name -> [FuncConstraint] -> StateNGT t m (Maybe [FuncConstraint])
 solveSingleton _ [] = return Nothing
@@ -457,6 +466,53 @@ unfoldADTArgs n fcs@(first_fc:_) = do
                         return new_fcs
                 _ -> error "unfoldADTArgs: expected ADT type"
         Nothing -> return [(n, fcs)]
+
+checkDistinct :: (Solver solver, MonadIO m) => solver -> FuncConstraints -> StateNGT t m Bool
+checkDistinct solver fcs = do
+    kv <- knownValues
+    pcs <- getPCStateNG
+    let pcs' = foldl' (\pcs' (n, fc_list) ->
+                    let
+                        pre = map fc_preconds fc_list
+                        and_pre = map (foldr (\e1 e2 -> mkApp [Prim And TyUnknown, e1, e2]) (mkTrue kv)) pre
+                        xor_pre = foldr (\e1 e2 -> mkApp [Prim Xor TyUnknown, e1, e2]) (mkFalse kv) and_pre
+                    in
+                    PC.insert (ExtCond xor_pre True) pcs'
+                   ) pcs (HM.toList fcs)
+    (s, _) <- SM.get
+    r <- liftIO $ check solver s pcs'
+    case r of
+            SAT _ -> do
+                putPCStateNG pcs'
+                return True
+            _ -> return False
+
+instantFuncConstraintsFromModel :: State t -> ExprEnv
+instantFuncConstraintsFromModel s@(State { expr_env = eenv
+                                         , type_env = tenv
+                                         , tyvar_env = tv_env
+                                         , known_values = kv
+                                         , type_classes = tc
+                                         , model = m
+                                         , sym_func_constraints = sym_fc}) =
+    foldr go eenv $ HM.toList (evalPrims eenv tenv tv_env kv tc sym_fc)
+    where
+        go (n, fcs) eenv =
+            let
+                m_sat_fc = find (\fc -> all isTrue $ fc_preconds fc ) fcs
+            in
+            case m_sat_fc of
+                Just sat_fc@(FC { fc_args = as, fc_ret = ret }) ->
+                    let
+                        lam_ns = map (\i -> Name "G2_LAM__FC_MODEL" Nothing i Nothing) [0..]
+                        lam_is = zipWith Id lam_ns $ map (typeOf tv_env) as
+                        body = mkLams (zip (repeat TermL) lam_is) $ ret
+                    in
+                    E.insert n body eenv
+                Nothing -> error "instantFuncConstraintsFromModel: satisfiable function constraint not found"
+
+        isTrue (Data (DataCon { dc_name = Name n _ _ _})) = n == "True"
+        isTrue _ = False
 
 deleteAt :: Int -> [a] -> [a]
 deleteAt idx xs = lft ++ rgt
