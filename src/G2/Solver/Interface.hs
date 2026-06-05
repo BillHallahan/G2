@@ -73,7 +73,6 @@ subModel :: State t -> Bindings -> Subbed
 subModel s@(State { curr_expr = CurrExpr _ cexpr
                   , assert_ids = ais
                   , type_classes = tc
-                  , model = m
                   , sym_gens = gens
                   , handles = hs
                   , mutvar_env = mve
@@ -103,7 +102,8 @@ subModel s@(State { curr_expr = CurrExpr _ cexpr
     in
     stripAllTicks $ untilEq (tyVarSubst tvnv . simplifyLams . pushCaseAppArgIn) sv
     where
-        eenv = instantFuncConstraintsFromModel s ng
+        fcs = subVar tvnv False (model s) (expr_env s) tc (sym_func_constraints s)
+        (eenv, m) = instantFuncConstraintsFromModel (s { sym_func_constraints = fcs }) ng
 
         toVars n = case E.lookup n eenv of
                                 Just e@(Lam _ _ _) -> Just . Var $ Id n (typeOf tvnv e)
@@ -177,7 +177,7 @@ pushCaseAppArgIn' (App (Case scrut bind t as) v@(Var _)) =
     Case scrut bind t $ map (\(Alt am e) -> Alt am (App e v) ) as
 pushCaseAppArgIn' e = e
 
-instantFuncConstraintsFromModel :: State t -> NameGen -> ExprEnv
+instantFuncConstraintsFromModel :: State t -> NameGen -> (ExprEnv, Model)
 instantFuncConstraintsFromModel s@(State { expr_env = eenv
                                          , type_env = tenv
                                          , tyvar_env = tv_env
@@ -186,9 +186,9 @@ instantFuncConstraintsFromModel s@(State { expr_env = eenv
                                          , model = m
                                          , sym_func_constraints = sym_fc})
                                 ng =
-    foldr go eenv $ HM.toList (evalPrims eenv tenv tv_env kv tc sym_fc)
+    foldr go (eenv, m) $ HM.toList (evalPrims eenv tenv tv_env kv tc sym_fc)
     where
-        go (n, fcs) eenv =
+        go (n, fcs) (eenv, m) =
             let
                 m_sat_fc = L.find (\fc -> all isTrue $ fc_preconds fc ) fcs
             in
@@ -198,8 +198,8 @@ instantFuncConstraintsFromModel s@(State { expr_env = eenv
                         (lam_is, !_) = freshIds (map (typeOf tv_env) as) ng
                         body = mkLams (zip (repeat TermL) lam_is) $ ret
                     in
-                    E.insert n body eenv
-                Nothing -> error "instantFuncConstraintsFromModel: satisfiable function constraint not found"
+                    (E.insert n body eenv, HM.insert n body m)
+                Nothing -> error $ "instantFuncConstraintsFromModel: satisfiable function constraint not found" ++ show fcs
 
         isTrue (Data (DataCon { dc_name = Name n _ _ _})) = n == "True"
         isTrue _ = False

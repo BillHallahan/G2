@@ -275,12 +275,15 @@ solveFuncConstraintsReducer solver = mkSimpleReducer (\_ -> ()) go
                         Nothing -> error "TODO solveFuncConstraintsReducer: NOTHING"
                  | otherwise = return (Finished, [], b)
 
-data FCRes = SatFC | UnsatFC deriving Eq
+data FCRes = SatFC FuncConstraints | UnsatFC deriving Eq
 
 solveFuncConstraints :: (Solver solver, MonadIO m) => solver -> State t -> NameGen -> m (Maybe (State t, NameGen))
 solveFuncConstraints solver s@(State { sym_func_constraints = fc }) ng = do
     (r, (s', !ng')) <- runStateNGT (solveFC solver 5 fc) s ng
-    return $ if r == SatFC then Just (s' { solved_sym_func_constraints = True }, ng') else Nothing
+    return $ case r of
+                    SatFC fcs' -> Just (s' { solved_sym_func_constraints = True
+                                           , sym_func_constraints = fcs' }, ng')
+                    _ -> Nothing
 
 solveFC :: (Solver solver, MonadIO m) => solver -> Int -> FuncConstraints -> StateNGT t m FCRes
 solveFC _ 0 _ = undefined
@@ -291,7 +294,7 @@ solveFC solver !n fcs = do
     distinct <- checkDistinct solver fcs
 
     case distinct of
-        True -> return SatFC
+        True -> return (SatFC fcs)
         False -> do
             -- Replace ADT symbolic variables with case expressions
             fcs_replaced_sym_adt <- mapM replaceADTSymVars fcs
