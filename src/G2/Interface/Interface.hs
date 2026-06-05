@@ -218,6 +218,7 @@ initStateFromSimpleState s m_mod useAssert mkCurr argTys config =
     , path_conds = PC.fromList []
     , non_red_path_conds = empty_nrpc
     , sym_func_constraints = HM.empty
+    , solved_sym_func_constraints = False
     , focused = Focused
     , handles = hs
     , mutvar_env = HM.empty

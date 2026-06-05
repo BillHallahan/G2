@@ -424,6 +424,7 @@ mkPrimHaskell pg = pr
         pr Le = "<="
         pr And = "&&"
         pr Or = "||"
+        pr xor = "xor"
         pr Not = "not"
         pr Plus = "+"
         pr Minus = "-"

@@ -280,21 +280,21 @@ data FCRes = SatFC | UnsatFC deriving Eq
 solveFuncConstraints :: (Solver solver, MonadIO m) => solver -> State t -> NameGen -> m (Maybe (State t, NameGen))
 solveFuncConstraints solver s@(State { sym_func_constraints = fc }) ng = do
     (r, (s', !ng')) <- runStateNGT (solveFC solver 5 fc) s ng
-    return $ if r == SatFC then Just (s' { sym_func_constraints = HM.empty }, ng') else Nothing
+    return $ if r == SatFC then Just (s' { solved_sym_func_constraints = True }, ng') else Nothing
 
 solveFC :: (Solver solver, MonadIO m) => solver -> Int -> FuncConstraints -> StateNGT t m FCRes
 solveFC _ 0 _ = undefined
 solveFC solver !n fcs = do
     -- Convert functions with only a single constraint into constants
-    fcs_nosingle <- return . HM.mapMaybe id =<< HM.traverseWithKey solveSingleton fcs
+    -- fcs_nosingle <- return . HM.mapMaybe id =<< HM.traverseWithKey solveSingleton fcs
 
-    distinct <- checkDistinct solver fcs_nosingle
+    distinct <- checkDistinct solver fcs
 
     case distinct of
         True -> return SatFC
         False -> do
             -- Replace ADT symbolic variables with case expressions
-            fcs_replaced_sym_adt <- mapM replaceADTSymVars fcs_nosingle
+            fcs_replaced_sym_adt <- mapM replaceADTSymVars fcs
 
             fcs_precond <- mapM caseToPreCond fcs_replaced_sym_adt
             let pg = mkPrettyGuide (HM.toList fcs_precond)
@@ -486,33 +486,6 @@ checkDistinct solver fcs = do
                 putPCStateNG pcs'
                 return True
             _ -> return False
-
-instantFuncConstraintsFromModel :: State t -> ExprEnv
-instantFuncConstraintsFromModel s@(State { expr_env = eenv
-                                         , type_env = tenv
-                                         , tyvar_env = tv_env
-                                         , known_values = kv
-                                         , type_classes = tc
-                                         , model = m
-                                         , sym_func_constraints = sym_fc}) =
-    foldr go eenv $ HM.toList (evalPrims eenv tenv tv_env kv tc sym_fc)
-    where
-        go (n, fcs) eenv =
-            let
-                m_sat_fc = find (\fc -> all isTrue $ fc_preconds fc ) fcs
-            in
-            case m_sat_fc of
-                Just sat_fc@(FC { fc_args = as, fc_ret = ret }) ->
-                    let
-                        lam_ns = map (\i -> Name "G2_LAM__FC_MODEL" Nothing i Nothing) [0..]
-                        lam_is = zipWith Id lam_ns $ map (typeOf tv_env) as
-                        body = mkLams (zip (repeat TermL) lam_is) $ ret
-                    in
-                    E.insert n body eenv
-                Nothing -> error "instantFuncConstraintsFromModel: satisfiable function constraint not found"
-
-        isTrue (Data (DataCon { dc_name = Name n _ _ _})) = n == "True"
-        isTrue _ = False
 
 deleteAt :: Int -> [a] -> [a]
 deleteAt idx xs = lft ++ rgt
