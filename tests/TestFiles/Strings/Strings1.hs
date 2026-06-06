@@ -682,7 +682,7 @@ map2 s = case map inner s of
 
 dropWhile1 :: String -> Int
 dropWhile1 s = case dropWhile (== '$') s of
-                   "$h" -> 0 -- Unreachable
+                   "$" -> 0 -- Unreachable
                    "h" -> 1
                    _ -> 2
 
