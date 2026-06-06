@@ -38,6 +38,25 @@ k f l = case f l of
                         _ -> 1
             _ -> 2
 
+data AB = A AB | B deriving Eq
+
+abc :: (AB -> AB) -> AB -> AB -> Int
+abc f x y =
+    case f x of
+        A (A _) -> 1
+        A _ -> 2
+        _ -> case f y of
+                B -> 3
+                A (A (A (A _))) -> 4
+                A (A _) -> 5
+                _ -> 6
+
+abc2 :: (Int -> AB) -> AB
+abc2 f = case f 10 of
+            A _ -> case f 20 of
+                        B -> B
+            _ -> A (A B)
+
 assoc :: (Int -> Int -> Int) -> Int -> Int -> Int -> Bool
 assoc op x y z = myNot (op (op x y) z == op x (op y z))
 

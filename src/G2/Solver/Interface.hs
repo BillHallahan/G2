@@ -21,8 +21,6 @@ import Data.Maybe (mapMaybe, isJust, fromJust)
 import qualified Data.HashMap.Lazy as HM
 import qualified Data.Sequence as S
 
-import Debug.Trace
-
 -- | Concrete instantiations of previously (partially) symbolic values.
 data Subbed = Subbed { s_inputs :: [Expr] -- ^ Concrete `inputNames`
                      , s_output :: Expr -- ^ Concrete `curr_expr`
@@ -189,10 +187,7 @@ instantFuncConstraintsFromModel s@(State { expr_env = eenv
     foldr go (eenv, m) $ HM.toList (evalPrims eenv tenv tv_env kv tc sym_fc)
     where
         go (n, fcs) (eenv, m) =
-            let
-                m_sat_fc = L.find (\fc -> all isTrue $ fc_preconds fc ) fcs
-            in
-            case trace ("m_sat_fc = " ++ show m_sat_fc) m_sat_fc of
+            case L.find (\fc -> all isTrue $ fc_preconds fc ) fcs of
                 Just sat_fc@(FC { fc_args = as, fc_ret = ret }) ->
                     let
                         (lam_is, !_) = freshIds (map (typeOf tv_env) as) ng
