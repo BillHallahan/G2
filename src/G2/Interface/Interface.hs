@@ -879,7 +879,7 @@ runValidate :: ( MonadIO m
                 -> ExecRes t 
                 -> Int 
                 -> m (ExecRes t, ValidateRes)
-runValidate _ _ _ _ _ _ res 0 = return (res, Invalid)
+runValidate _ _ _ _ _ _ res 0 = return (res, ValidationTimeout)
 runValidate val_with modN entry solver simplifier bindings 
         res@ExecRes{final_state = fs} runLimit = do
     validate_res <- validateState val_with modN entry [] [] bindings res 

@@ -156,7 +156,6 @@ runCheck init_pg comp_func modN entry chAll chAny b er@(ExecRes {final_state = s
            $ updatePGValAndTypeNames (varIds v) init_pg
 
     let (mvTxt, arsTxt, outTxt, _) = printInputOutput pg v b er 
-
         mvStr = T.unpack mvTxt
         arsStr = T.unpack arsTxt
         outStr = T.unpack outTxt
