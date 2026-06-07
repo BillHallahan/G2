@@ -100,23 +100,25 @@ creatDeclStr _ _ _ = error "creatDeclStr: unsupported AlgDataTy"
 -- | Compile with GHC, and check that the output we got is correct for the input
 validateStatesGHC :: GhcMonad m => PrettyGuide -> String -> HS.HashSet (Maybe T.Text) -> String -> [String] -> [String] -> Bindings -> ExecRes t -> m (ValidateRes, [Bool])
 validateStatesGHC pg comp_func modN entry chAll chAny b er@(ExecRes {final_state = s, conc_out = out}) = do
-    ((maybe_v, maybe_se), chAllR, chAnyR) <- runCheck pg comp_func modN entry chAll chAny b er
+    (chck_res, chAllR, chAnyR) <- runCheck pg comp_func modN entry chAll chAny b er
     
-    v' <- case maybe_v of 
-            Just v -> liftIO . timeout (5 * 10 * 1000) $ (unsafeCoerce v :: IO (Either SomeException Bool))
-            Nothing -> return Nothing
+    -- If check result is an HVal, coerce to an exception or a Bool. Additionally, track if the check result was a SrcErr.
+    m_val_or_except <- case chck_res of 
+            HVal v -> liftIO . timeout (5 * 10 * 1000) $ (unsafeCoerce v :: IO (Either SomeException Bool))
+            SrcErr _ -> return Nothing
 
     let outStr = T.unpack $ printHaskell s out
+   
+    -- Translate to ValidateRes
+    let val_res = case m_val_or_except of
+            Nothing -> ValidationSrcError (case chck_res of SrcErr se -> se; _ -> error "validateStatesGHC: source error flagged but no available SourceError object")
+            Just (Left e) | show e == "<<timeout>>" -> ValidationTimeout
+                          | otherwise -> ValidationRTError
+            Just (Right b) -> if b && outStr /= "error" && outStr /= "undefined" then Valid else Invalid
 
-    -- TOOD[Jacob]: should have better way of translating to ValidateRes
-    let v'' = case v' of
-                    Nothing -> ValidationSrcError (case maybe_se of Just se -> se; Nothing -> error "validateStatesGHC: source error flagged but no available SourceError object")
-                    Just (Left e) | show e == "<<timeout>>" -> ValidationTimeout
-                                  | otherwise -> ValidationRTError
-                    Just (Right b) -> if b && outStr /= "error" && outStr /= "undefined" then Valid else Invalid
-
-    -- TODO[Jacob]: this a quick solution distinguish real runtime errors from expected runtime errors
-    let v''' = case v'' of 
+    -- TODO[Jacob]: Currently using ValidationRTError to mean "a runtime error that was not the desired result of validation".
+    -- If both symbolic execution and GHC validation found a runtime error, convert the ValidateRes to Valid.
+    let val_res' = case val_res of 
             ValidationRTError -> if errorRaised s then Valid else ValidationRTError
             v -> v 
 
@@ -126,11 +128,11 @@ validateStatesGHC pg comp_func modN entry chAll chAny b er@(ExecRes {final_state
     chAnyR' <- liftIO $ (mapM unsafeCoerce chAnyR :: IO [Either SomeException Bool])
     let chAnyR'' = rights chAnyR'
 
-    let v'''' = case (v''', and chAllR'') of
+    let val_res'' = case (val_res', and chAllR'') of
                     (Valid, False) -> Invalid
                     (v_res, _) -> v_res
 
-    return (v'''', chAnyR'')
+    return (val_res'', chAnyR'')
 
 createDeclsStr :: PrettyGuide -> State t -> TypeEnv -> [String]
 createDeclsStr pg s = map (creatDeclStr pg s) . H.toList
@@ -147,7 +149,9 @@ adjustDynFlags = do
     _ <- setSessionDynFlags dyn4
     return ()
 
-runCheck :: GhcMonad m => PrettyGuide -> String -> HS.HashSet (Maybe T.Text) -> String -> [String] -> [String] -> Bindings -> ExecRes t -> m ((Maybe HValue, Maybe SourceError), [HValue], [HValue])
+data CheckRes = HVal HValue | SrcErr SourceError
+
+runCheck :: GhcMonad m => PrettyGuide -> String -> HS.HashSet (Maybe T.Text) -> String -> [String] -> [String] -> Bindings -> ExecRes t -> m (CheckRes, [HValue], [HValue])
 runCheck init_pg comp_func modN entry chAll chAny b er@(ExecRes {final_state = s, conc_args = ars, conc_out = out}) = do
     let Left (v, _) = findFunc (tyvar_env s) (T.pack entry) (HS.toList modN) (expr_env s)
     let e = mkApp $ Var v:ars
@@ -183,10 +187,10 @@ runCheck init_pg comp_func modN entry chAll chAny b er@(ExecRes {final_state = s
                     True -> mvStr ++ "Control.Exception.try (evaluate ( (" ++ pr_con ++ "(" ++ arsStr ++ " :: " ++ arsType ++ ")" ++
                                                     ") " ++ comp_func' ++ " " ++ pr_con ++ "(" ++ arsStr ++ "))) :: IO (Either SomeException Bool)"
 
-    -- TODO: disambiguate between SourceError and runtime error
-    (maybe_v', maybe_se) <- defaultErrorHandler defaultFatalMessager defaultFlushOut
-            $ handleSourceError (\err -> return (Nothing, Just err)) 
-                                (do v_ <- compileExpr chck; return (Just v_, Nothing))
+    -- TODO[Jacob]: Currently determining source error here and runtime error later. Consider changing
+    chck_res <- defaultErrorHandler defaultFatalMessager defaultFlushOut
+            $ handleSourceError (\err -> return $ SrcErr err) 
+                                (do hv <- compileExpr chck; return $ HVal hv)
 
     let chArgs = ars ++ [out] 
     let chAllStr = map (\f -> T.unpack $ printHaskellPG pg s $ mkApp ((simpVar $ T.pack f):chArgs)) chAll
@@ -199,7 +203,7 @@ runCheck init_pg comp_func modN entry chAll chAny b er@(ExecRes {final_state = s
 
     chAnyR <- mapM compileExpr chAnyStr'
 
-    return ((maybe_v', maybe_se), chAllR, chAnyR)
+    return (chck_res, chAllR, chAnyR)
 
 loadToCheck :: GhcMonad m => [FilePath] -> [FilePath] -> HS.HashSet (Maybe T.Text) -> [GeneralFlag] -> m ()
 loadToCheck proj src modN gflags = do
@@ -342,23 +346,24 @@ printStateOutput :: (GhcMonad m) => Config -> Id -> Bindings
                -> ExecRes t
                -> m ()
 printStateOutput config entry b mval_res exec_res@(ExecRes { final_state = s }) = do
-    let print_valid = isJust mval_res
-
     let pg = mkPrettyGuide (exprNames $ conc_args exec_res)
     let (mvp, inp, outp, handles) = printInputOutput pg entry b exec_res
-        sym_gen_out = printHaskellPG pg s <$> conc_sym_gens exec_res
+        sym_gen_out = fmap (printHaskellPG pg s) $ conc_sym_gens exec_res
         
     let print_method m i o = m <> i <> " = " <> o
 
     let state_output_text = print_method mvp inp outp
 
+    let print_valid = isJust mval_res
     when (print_output config) (do
         when print_valid $ do
-            (case fromMaybe Invalid mval_res of
+            let val_res = fromJust mval_res -- know mval_res is Just, can use fromJust
+
+            (case val_res of
                 ValidationSrcError vse -> printException vse
                 _ -> return ())
             
-            liftIO (case fromMaybe Invalid mval_res of
+            liftIO (case val_res of
                 Valid -> putStr "✓ "
                 Invalid -> putStr "✗ "
                 ValidationTimeout -> putStr "✗TO "
