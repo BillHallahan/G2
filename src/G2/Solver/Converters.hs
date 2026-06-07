@@ -1183,7 +1183,8 @@ smtastToExpr kv tenv t (VInt i)
     | TyLitWord <- t = Lit . LitWord $ fromIntegral i
     | t == tyWord kv = App (mkDCWord kv tenv) (Lit . LitWord $ fromIntegral i)
     | t == tyInteger kv = App (mkDCInteger kv tenv) (Lit $ LitInt i)
-    | otherwise = App (mkDCInt kv tenv) (Lit $ LitInt i)
+    | t == tyInt kv = App (mkDCInt kv tenv) (Lit $ LitInt i)
+    | otherwise = Lit $ LitInt i
 smtastToExpr _ _ _ (VWord i) = Lit $ LitWord i
 smtastToExpr kv tenv t (VFloat f)
     | TyLitFloat <- t = Lit $ LitFloat f

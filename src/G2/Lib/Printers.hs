@@ -101,6 +101,8 @@ mkCleanExprHaskell pg (State {known_values = kv,type_classes = tc, tyvar_env = t
 
 mkCleanExprHaskell' :: TV.TyVarEnv -> KnownValues -> TypeClasses -> Expr -> Maybe Expr
 mkCleanExprHaskell' tv kv tc e
+    | m_e@(Just _) <- pushWrapperInCase e = m_e
+
     | Case scrut i t [a] <- e = Case scrut i t . (:[]) <$> elimPrimDC a
     
     -- If we have a case branching on literals, it needs to be branching on wrapped literals
@@ -149,6 +151,12 @@ elimPrimLits :: Expr -> Expr
 elimPrimLits e@(App (Data _) (Lit _)) = e
 elimPrimLits l@(Lit _) = App (Data (DataCon (Name "I#" Nothing 0 Nothing) TyUnknown [] [])) l
 elimPrimLits e = modifyChildren elimPrimLits e
+
+pushWrapperInCase :: Expr -> Maybe Expr
+pushWrapperInCase (App dc@(Data (DataCon (Name n _ _ _) _ _ _)) (Case e i t as))
+    | n == "I#" || n == "W#" || n == "F#" || n == "D#" || n == "Z#" || n == "C#" =
+        Just . Case e i t $ map (\(Alt am am_e) -> Alt am (App dc am_e)) as
+pushWrapperInCase _ = Nothing
 
 mkDirtyExprHaskell :: PrettyGuide -> Expr -> T.Text
 mkDirtyExprHaskell = mkExprHaskell Dirty
@@ -439,7 +447,7 @@ mkPrimHaskell pg = pr
         pr Le = "<="
         pr And = "&&"
         pr Or = "||"
-        pr xor = "xor"
+        pr Xor = "xor"
         pr Not = "not"
         pr Plus = "+"
         pr Minus = "-"

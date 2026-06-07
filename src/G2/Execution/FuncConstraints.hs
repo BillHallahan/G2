@@ -271,7 +271,7 @@ solveFuncConstraintsReducer solver = mkSimpleReducer (\_ -> ()) go
     where
         go _ s b | true_assert s = do
                     r <- solveFuncConstraints solver s (name_gen b)
-                    liftIO . putStrLn $ case r of Just _ -> "Just"; Nothing -> "Nothing"
+                    -- liftIO . putStrLn $ case r of Just _ -> "Just"; Nothing -> "Nothing"
                     case r of
                         Just (s', ng') -> return (Finished, [(s', ())], b { name_gen = ng' })
                         Nothing -> return (Finished, [], b) -- TODO
@@ -294,7 +294,7 @@ solveFC solver !n fcs = do
     -- Convert functions with only a single constraint into constants
     -- fcs_nosingle <- return . HM.mapMaybe id =<< HM.traverseWithKey solveSingleton fcs
     let pg = mkPrettyGuide (HM.toList fcs)
-    liftIO $ putStrLn $ "fcs =\n" ++ T.unpack (prettyFuncConstraints pg fcs)  
+    -- liftIO $ putStrLn $ "fcs =\n" ++ T.unpack (prettyFuncConstraints pg fcs)  
 
     distinct <- checkDistinct solver fcs
 
@@ -309,15 +309,15 @@ solveFC solver !n fcs = do
 
             fcs_precond <- mapM caseToPreCond fcs_replaced_sym_adt
             let pg_precond = updatePrettyGuide (HM.toList fcs_precond) pg
-            liftIO $ putStrLn $ "fcs_precond =\n" ++ T.unpack (prettyFuncConstraints pg_precond fcs_precond)  
+            -- liftIO $ putStrLn $ "fcs_precond =\n" ++ T.unpack (prettyFuncConstraints pg_precond fcs_precond)  
 
             -- Introduce branches on ADTs
             fcs_unfold_adt_pieces <- concatMapM (uncurry unfoldADTArgs) $ HM.toList fcs_precond
             let fc_unfold_adt_reassembled = HM.fromListWith (++) fcs_unfold_adt_pieces
 
-            liftIO $ putStrLn "after unfoldADTArgs"
+            -- liftIO $ putStrLn "after unfoldADTArgs"
             let pg_assem = updatePrettyGuide (HM.toList fc_unfold_adt_reassembled) pg_precond
-            liftIO $ putStrLn $ "fc_reassembled =\n" ++ T.unpack (prettyFuncConstraints pg_assem fc_unfold_adt_reassembled)
+            -- liftIO $ putStrLn $ "fc_reassembled =\n" ++ T.unpack (prettyFuncConstraints pg_assem fc_unfold_adt_reassembled)
 
             solveFC solver (n - 1) fc_unfold_adt_reassembled
 
@@ -550,9 +550,17 @@ checkDistinct solver fcs = do
 
                                         prim_args = filter (isPrimType . typeOf tv_env) $ fc_args fc
                                         uninterp_call =  mkApp $ Var sel_func:prim_args
+
+                                        -- Note [Uninterpreted Return Value] 
+                                        -- If we are returning an ADT, returning an Int that can then be mapped to that ADT.
+                                        -- If we are returning a primitive type, just return it directly.
+                                        uninterp_ret = if isPrimType (typeOf tv_env $ fc_ret fc)
+                                                                then fc_ret fc
+                                                                else Lit (LitInt i)
+
                                         implies_func = mkApp [ Prim Implies TyUnknown
                                                              , and_pre
-                                                             , mkApp [Prim Eq TyUnknown, uninterp_call, Lit (LitInt i) ]
+                                                             , mkApp [Prim Eq TyUnknown, uninterp_call, uninterp_ret ]
                                                              ]
                                     in
                                     ExtCond implies_func True
@@ -564,15 +572,20 @@ checkDistinct solver fcs = do
                     insertSymbolicE sel_func
 
                     lam_is <- freshIdsN (map (typeOf tv_env) $ fc_args fc_first)
-                    bindee <- freshIdN TyLitInt
                     let prim_lam_is = filter (isPrimType . typeOf tv_env) lam_is
                         sel_func_app = mkApp . map Var $ sel_func:prim_lam_is
 
-                    let alts = zipWith (\i fc -> Alt (LitAlt (LitInt i)) $ fc_ret fc) [1..] fc_list 
-                        ret_ty = typeOf tv_env (fc_ret fc_first)
-                        cse = Case sel_func_app bindee ret_ty alts
-                        lam_cse = mkLams (zip (repeat TermL) lam_is) cse
-                    insertE n lam_cse
+                    -- See Note [Uninterpreted Return Value], above
+                    if isPrimType (typeOf tv_env $ fc_ret fc_first)
+                        then
+                            insertE n $ mkLams (zip (repeat TermL) lam_is) sel_func_app
+                        else do
+                            bindee <- freshIdN TyLitInt
+                            let alts = zipWith (\i fc -> Alt (LitAlt (LitInt i)) $ fc_ret fc) [1..] fc_list 
+                                ret_ty = typeOf tv_env (fc_ret fc_first)
+                                cse = Case sel_func_app bindee ret_ty alts
+                                lam_cse = mkLams (zip (repeat TermL) lam_is) cse
+                            insertE n lam_cse
                     
                     return $ foldr PC.insert pcs' fc_pcs
             ) pcs (HM.toList fcs)
