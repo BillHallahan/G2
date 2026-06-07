@@ -529,13 +529,23 @@ checkDistinct :: (Solver solver, MonadIO m) => solver -> FuncConstraints -> Stat
 checkDistinct solver fcs = do
     kv <- knownValues
     pcs <- getPCStateNG
-    let pcs' = foldl' (\pcs' (n, fc_list) ->
+    pcs' <- foldM (\pcs' (n, fc_list) ->
                     let
-                        pre = map fc_preconds fc_list
-                        and_pre = map (foldr (\e1 e2 -> mkApp [Prim And TyUnknown, e1, e2]) (mkTrue kv)) pre
-                        xor_pre = foldr (\e1 e2 -> mkApp [Prim Xor TyUnknown, e1, e2]) (mkFalse kv) and_pre
+                        fc_pcs = zipWith 
+                                (\fc i -> 
+                                    let
+                                        pre = fc_preconds fc
+                                        and_pre = foldr (\e1 e2 -> mkApp [Prim And TyUnknown, e1, e2]) (mkTrue kv) pre
+                                        implies_func = mkApp [ Prim Implies TyUnknown
+                                                             , and_pre
+                                                             , mkApp [Prim Eq TyUnknown, Var (Id n TyLitInt), Lit (LitInt i) ]
+                                                             ]
+                                    in
+                                    ExtCond implies_func True
+                                    )
+                                    fc_list [1..]
                     in
-                    PC.insert (ExtCond xor_pre True) pcs'
+                    return $ foldr PC.insert pcs' fc_pcs
                    ) pcs (HM.toList fcs)
     (s, _) <- SM.get
     r <- liftIO $ check solver s pcs'
