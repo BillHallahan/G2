@@ -400,6 +400,8 @@ parseSort =
         return (SortArray inds val)
         )
     <|>
+    (do _ <- string "Int"; return SortInt)
+    <|>
     (return . ParSort =<< identifier)
     <|>
     (parens parseSort)

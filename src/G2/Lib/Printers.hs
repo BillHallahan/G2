@@ -102,6 +102,12 @@ mkCleanExprHaskell pg (State {known_values = kv,type_classes = tc, tyvar_env = t
 mkCleanExprHaskell' :: TV.TyVarEnv -> KnownValues -> TypeClasses -> Expr -> Maybe Expr
 mkCleanExprHaskell' tv kv tc e
     | Case scrut i t [a] <- e = Case scrut i t . (:[]) <$> elimPrimDC a
+    
+    -- If we have a case branching on literals, it needs to be branching on wrapped literals
+    -- Some messiness here: mkCleanExprHaskell' is repeatedly run until it hits a fix point.
+    -- We change the return type of the case to ensure that we do not loop on doing this modification forever.
+    | Case scrut i t as@(Alt (LitAlt _) _:_) <- e
+    , not (isTyUnknown t) = Just $ Case (elimPrimLits scrut) i TyUnknown as
 
     | (App e' e'') <- e
     , t <- typeOf tv e'
@@ -124,7 +130,11 @@ mkCleanExprHaskell' tv kv tc e
     | App e' (Type _) <- e = Just e'
 
     | otherwise = Nothing
+    where
+        isTyUnknown TyUnknown = True
+        isTyUnknown _ = False
 
+-- | Avoid printing unwrapping of literal wrappers
 elimPrimDC :: Alt -> Maybe Alt
 elimPrimDC (Alt (DataAlt dc@(DataCon (Name n _ _ _) t utyvar etyvar) is) e)
     | n == "I#" || n == "W#" || n == "F#" || n == "D#" || n == "Z#" || n == "C#" =
@@ -134,6 +144,11 @@ elimPrimDC _ = Nothing
 insertLitDC :: DataCon -> Expr -> Expr 
 insertLitDC dc (App (App (Prim p t) (Var i)) (Lit l)) = App (App (Prim p t) (Var i)) (App (Data dc) (Lit l)) 
 insertLitDC dc e = modifyChildren (insertLitDC dc) e
+
+elimPrimLits :: Expr -> Expr
+elimPrimLits e@(App (Data _) (Lit _)) = e
+elimPrimLits l@(Lit _) = App (Data (DataCon (Name "I#" Nothing 0 Nothing) TyUnknown [] [])) l
+elimPrimLits e = modifyChildren elimPrimLits e
 
 mkDirtyExprHaskell :: PrettyGuide -> Expr -> T.Text
 mkDirtyExprHaskell = mkExprHaskell Dirty

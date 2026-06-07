@@ -481,7 +481,7 @@ simplifyLams :: ASTContainer c Expr => c -> c
 simplifyLams = modifyASTs simplifyLams'
 
 simplifyLams' :: Expr -> Expr
-simplifyLams' (App (Lam _ i e1) e2) = replaceASTs (Var i) e2 e1
+simplifyLams' (App (Lam _ i e1) e2) = replaceVar (idName i) e2 e1
 simplifyLams' e = e
 
 leadingLamUsesIds :: Expr -> [(LamUse, Id)]

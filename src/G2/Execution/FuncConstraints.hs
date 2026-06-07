@@ -525,23 +525,31 @@ unfoldADTArgs n fcs@(first_fc:_) = do
                 _ -> error "unfoldADTArgs: expected ADT type"
         Nothing -> return [(n, fcs)]
 
+-- | Checks if we can find solutions to all functions.
+--   Uses an SMT solver and the theory of uninterpreted functions to solve for literal inputs/outputs.
 checkDistinct :: (Solver solver, MonadIO m) => solver -> FuncConstraints -> StateNGT t m Bool
 checkDistinct solver fcs = do
-    kv <- knownValues
+    eenv <- exprEnv
     tv_env <- tyVarEnv
+    kv <- knownValues
     pcs <- getPCStateNG
+
     pcs' <- foldM (\pcs' (n, fc_list) ->
-                    let
-                        fc_pcs = zipWith 
-                                (\fc i -> 
+        case fc_list of
+            [] -> return pcs'
+            (fc_first:_) -> do
+                    let prim_arg_tys = map (typeOf tv_env) $ filter (isPrimType . typeOf tv_env) $ fc_args fc_first
+                        call_ty = mkTyFun $ prim_arg_tys ++ [TyLitInt]
+                    sel_func <- freshIdN call_ty
+
+                    let fc_pcs = zipWith 
+                                (\i fc -> 
                                     let
                                         pre = fc_preconds fc
                                         and_pre = foldr (\e1 e2 -> mkApp [Prim And TyUnknown, e1, e2]) (mkTrue kv) pre
 
                                         prim_args = filter (isPrimType . typeOf tv_env) $ fc_args fc
-                                        prim_arg_tys = map (typeOf tv_env) prim_args
-                                        call_ty = mkTyFun $ prim_arg_tys ++ [TyLitInt]
-                                        uninterp_call =  mkApp $ Var (Id n call_ty):prim_args
+                                        uninterp_call =  mkApp $ Var sel_func:prim_args
                                         implies_func = mkApp [ Prim Implies TyUnknown
                                                              , and_pre
                                                              , mkApp [Prim Eq TyUnknown, uninterp_call, Lit (LitInt i) ]
@@ -549,17 +557,35 @@ checkDistinct solver fcs = do
                                     in
                                     ExtCond implies_func True
                                     )
-                                    fc_list [1..]
-                    in
+                                    [1..] fc_list
+                    
+                    -- We optimistically insert expressions into the ExprEnv; if we do not find a solution,
+                    -- we revert to the old ExprEnv
+                    insertSymbolicE sel_func
+
+                    lam_is <- freshIdsN (map (typeOf tv_env) $ fc_args fc_first)
+                    bindee <- freshIdN TyLitInt
+                    let prim_lam_is = filter (isPrimType . typeOf tv_env) lam_is
+                        sel_func_app = mkApp . map Var $ sel_func:prim_lam_is
+
+                    let alts = zipWith (\i fc -> Alt (LitAlt (LitInt i)) $ fc_ret fc) [1..] fc_list 
+                        ret_ty = typeOf tv_env (fc_ret fc_first)
+                        cse = Case sel_func_app bindee ret_ty alts
+                        lam_cse = mkLams (zip (repeat TermL) lam_is) cse
+                    insertE n lam_cse
+                    
                     return $ foldr PC.insert pcs' fc_pcs
-                   ) pcs (HM.toList fcs)
+            ) pcs (HM.toList fcs)
     (s, _) <- SM.get
     r <- liftIO $ check solver s pcs'
     case r of
             SAT _ -> do
                 putPCStateNG pcs'
                 return True
-            _ -> return False
+            _ -> do
+                -- We did not find a solution, revert to old ExprEnv
+                putExprEnv eenv
+                return False
 
 deleteAt :: Int -> [a] -> [a]
 deleteAt idx xs = lft ++ rgt

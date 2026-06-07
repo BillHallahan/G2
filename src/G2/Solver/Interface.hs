@@ -101,7 +101,7 @@ subModel s@(State { curr_expr = CurrExpr _ cexpr
     stripAllTicks $ untilEq (tyVarSubst tvnv . simplifyLams . pushCaseAppArgIn) sv
     where
         fcs = subVar tvnv False (model s) (expr_env s) tc (sym_func_constraints s)
-        (eenv, m) = instantFuncConstraintsFromModel (s { sym_func_constraints = fcs }) ng
+        (eenv, m) = (expr_env s, model s) -- instantFuncConstraintsFromModel (s { sym_func_constraints = fcs }) ng
 
         toVars n = case E.lookup n eenv of
                                 Just e@(Lam _ _ _) -> Just . Var $ Id n (typeOf tvnv e)

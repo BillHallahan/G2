@@ -1222,8 +1222,40 @@ smtastToExpr kv tenv t (DataSMT dc_smt_n as)
 
         es = zipWith (smtastToExpr kv tenv) anon_t_inst as
     in
-    mkApp $ Data dc:map Type ts ++ es 
-smtastToExpr _ _ _ _ = error "Conversion of this SMTAST to an Expr not supported."
+    mkApp $ Data dc:map Type ts ++ es
+smtastToExpr kv tenv t (LambdaSMT bound body) =
+    let
+        bound_i = map (\(n, srt) -> Id (certainStrToName n) (sortToType srt)) bound
+    in
+    mkLams (zip (repeat TermL) bound_i) $ smtastToExpr kv tenv t body
+smtastToExpr kv tenv t (IteSMT cond br1 br2) =
+    let
+        ty_bool = tyBool kv
+        true_dc = mkDCTrue kv tenv
+        false_dc = mkDCFalse kv tenv
+
+        ret_ty = returnType t
+
+        bindee = Id (Name "G2__!!__bindee_smt_ite_!!_" Nothing 0 Nothing) ty_bool
+
+        cond_e = smtastToExpr kv tenv ty_bool cond
+        br1_e = smtastToExpr kv tenv ret_ty br1
+        br2_e = smtastToExpr kv tenv ret_ty br2
+
+        alts = [ Alt (DataAlt true_dc []) br1_e
+               , Alt (DataAlt false_dc []) br2_e ]
+    in
+    Case cond_e bindee ret_ty alts
+smtastToExpr kv tenv _ (smt1 := smt2) = mkApp $ [ Prim Eq TyUnknown
+                                                , smtastToExpr kv tenv TyUnknown smt1
+                                                , smtastToExpr kv tenv TyUnknown smt2]
+smtastToExpr _ _ _ smt = error $ "Conversion of this SMTAST to an Expr not supported." ++ "\n" ++ show smt
+
+replaceSMTVar :: SMTName -> SMTName -> SMTAST -> SMTAST
+replaceSMTVar n_orig n_rep = modify go
+    where
+        go (V n srt) | n == n_orig = V n_rep srt
+        go e = e 
 
 getTypeForList :: Type -> Type
 getTypeForList (TyApp _ t) = t
@@ -1238,7 +1270,8 @@ sortToType SortDouble = TyLitDouble
 sortToType SortReal = TyLitRational
 sortToType SortChar = TyLitChar
 sortToType SortBool = TyCon (Name "Bool" Nothing 0 Nothing) TYPE
-sortToType _ = error "Conversion of this Sort to a Type not supported."
+sortToType (ParSort "UNKNOWN") = TyUnknown
+sortToType t = error $ "Conversion of this Sort to a Type not supported." ++ show t
 
 -- | Coverts an `SMTModel` to a `Model`.
 modelAsExpr :: KnownValues -> TypeEnv -> HM.HashMap SMTName Type -> SMTModel -> Model
