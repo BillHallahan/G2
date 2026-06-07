@@ -32,7 +32,6 @@ import G2.Language.TypeEnv
 import G2.Language.Typing
 import qualified G2.Language.TyVarEnv as TV
 import G2.Language.PathConds hiding (map, filter)
-import qualified G2.Language.PolyArgMap as PM
 
 import G2.Execution.DataConPCMap
 import G2.Execution.RuleTypes
@@ -51,7 +50,6 @@ import qualified Data.Text as T
 data State t = State { expr_env :: E.ExprEnv -- ^ Mapping of `Name`s to `Expr`s
                      , type_env :: TypeEnv -- ^ Type information
                      , tyvar_env :: TV.TyVarEnv -- ^ Type variable information
-                     , poly_arg_map :: PM.PolyArgMap -- ^ Type variable to lambda variable mappings 
                      , curr_expr :: CurrExpr -- ^ The expression represented by the state
                      , path_conds :: PathConds -- ^ Path conditions, in SWHNF
                      , non_red_path_conds :: NonRedPathConds -- ^ Path conditions, in the form of (possibly non-reduced)
@@ -87,6 +85,7 @@ type EEDiff = [(Name, Expr)] -- concrete values to insert in ExprEnv
 type EESymDiff = [Id] -- symbolic variables to insert in ExprEnv
 type TVEDiff = [(Name, Type)] -- concrete types to insert in TyVarEnv
 type TVESymDiff = [Id] -- symbolic variables to insert in TyVarEnv
+type TCInstDiff = [(Name, Type, Id)] -- type class instances to insert into TypeClasses
 
 data StateDiff = SD { new_conc_entries :: EEDiff -- ^ New concrete entries for the expr_env
                     , new_sym_entries :: EESymDiff -- ^ New symbolic entries for the expr_env
@@ -98,6 +97,7 @@ data StateDiff = SD { new_conc_entries :: EEDiff -- ^ New concrete entries for t
                     , new_conc_types :: TVEDiff -- ^ New concrete entries for the tyvar_env
                     , new_sym_types :: TVESymDiff -- ^ New symbolic entries for the tyvar_env
                     , new_mut_vars :: [(Name, Id, MVOrigin)] -- ^ New mutable variables for the mutvar_env
+                    , new_type_class_insts :: TCInstDiff -- ^ New type class instances for the type class env
                     }
                     deriving (Show, Eq, Read, Generic, Data)
 
@@ -119,6 +119,7 @@ data Bindings = Bindings { fixed_inputs :: [Expr]
                          , rewrite_rules :: ![RewriteRule]
                          , name_gen :: NameGen
                          , exported_funcs :: [Name]
+                         , printed_outputs :: S.HashSet T.Text -- ^ Outputs that have been printed during execution
                          } deriving (Show, Eq, Read, Data)
 
 errorRaised :: State t -> Bool
@@ -244,7 +245,6 @@ instance Named t => Named (State t) where
     names s = names (expr_env s)
             <> names (type_env s)
             <> names (tyvar_env s)
-            <> names (poly_arg_map s)
             <> names (curr_expr s)
             <> names (path_conds s)
             <> names (non_red_path_conds s)
@@ -269,7 +269,6 @@ instance Named t => Named (State t) where
                     HM.mapKeys (\k -> if k == old then new else k)
                     $ rename old new (type_env s)
                , tyvar_env = rename old new (tyvar_env s)
-               , poly_arg_map = rename old new (poly_arg_map s)
                , curr_expr = rename old new (curr_expr s)
                , path_conds = rename old new (path_conds s)
                , non_red_path_conds = rename old new (non_red_path_conds s)
@@ -300,7 +299,6 @@ instance Named t => Named (State t) where
                     HM.mapKeys (renames hm)
                     $ renames hm (type_env s)
                , tyvar_env = renames hm (tyvar_env s)
-               , poly_arg_map = renames hm (poly_arg_map s)
                , curr_expr = renames hm (curr_expr s)
                , path_conds = renames hm (path_conds s)
                , non_red_path_conds = renames hm (non_red_path_conds s)
@@ -410,7 +408,7 @@ instance Named Bindings where
             <> names (exported_funcs b)
             <> names (rewrite_rules b)
 
-    rename old new b =
+    rename old new b@(Bindings {printed_outputs = po}) =
         Bindings { fixed_inputs = rename old new (fixed_inputs b)
                  , arb_value_gen = arb_value_gen b
                  , cleaned_names = HM.insert new old (cleaned_names b)
@@ -421,9 +419,10 @@ instance Named Bindings where
                  , rewrite_rules = rename old new (rewrite_rules b)
                  , name_gen = name_gen b
                  , exported_funcs = rename old new (exported_funcs b)
+                 , printed_outputs = po -- String literal persistent across execution, not to be renamed
                  }
 
-    renames hm b =
+    renames hm b@(Bindings {printed_outputs = po}) =
         Bindings { fixed_inputs = renames hm (fixed_inputs b)
                , arb_value_gen = arb_value_gen b
                , cleaned_names = foldr (\(old, new) -> HM.insert new old) (cleaned_names b) (HM.toList hm)
@@ -434,6 +433,7 @@ instance Named Bindings where
                , rewrite_rules = renames hm (rewrite_rules b)
                , name_gen = name_gen b
                , exported_funcs = renames hm (exported_funcs b)
+               , printed_outputs = po
                }
 
 instance ASTContainer Bindings Expr where
@@ -663,6 +663,7 @@ instance ASTContainer StateDiff Type where
                     ++ containedASTs (new_conc_types sd)
                     ++ containedASTs (new_sym_types sd)
                     ++ containedASTs (new_mut_vars sd)
+                    ++ containedASTs (new_type_class_insts sd)
 
     modifyContainedASTs f sd =
         SD { new_conc_entries = modifyContainedASTs f (new_conc_entries sd)
@@ -675,6 +676,7 @@ instance ASTContainer StateDiff Type where
            , new_conc_types = modifyContainedASTs f (new_conc_types sd)
            , new_sym_types = modifyContainedASTs f (new_sym_types sd)
            , new_mut_vars = modifyContainedASTs f (new_mut_vars sd)
+           , new_type_class_insts = modifyContainedASTs f (new_type_class_insts sd)
            }
 
 instance ASTContainer StateDiff Expr where

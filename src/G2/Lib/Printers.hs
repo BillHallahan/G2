@@ -1,4 +1,4 @@
-{-# LANGUAGE FlexibleContexts, MultiWayIf, OverloadedStrings, TupleSections #-}
+{-# LANGUAGE FlexibleContexts, MultiWayIf, OverloadedStrings, TupleSections, LambdaCase #-}
 
 module G2.Lib.Printers ( PrettyGuide
                        , mkPrettyGuide
@@ -6,6 +6,7 @@ module G2.Lib.Printers ( PrettyGuide
                        , updatePGValAndTypeNames
                        , updatePGValNames
                        , updatePGTypeNames
+                       , updatePGADTs
 
                        , printName
 
@@ -17,6 +18,7 @@ module G2.Lib.Printers ( PrettyGuide
                        , mkTypeHaskell
                        , mkTypeHaskellPG
                        , mkTypeHaskellDictArrows
+                       , mkTCInstanceHaskell
                        , pprExecStateStr
                        , printFuncCall
 
@@ -30,6 +32,8 @@ module G2.Lib.Printers ( PrettyGuide
 
                        , prettyGuideStr
                        , prettyGuideNumsStr
+
+                       , showPGAssigned
                        
                        , TypePrinting(..)
                        , EnvOrdering(..)
@@ -60,9 +64,9 @@ import qualified Data.Foldable as F
 import qualified Data.HashMap.Strict as HM
 import qualified Data.HashSet as HS
 import qualified Data.Text as T
+import Control.Exception
 import Text.Read
 import qualified G2.Language.TyVarEnv as TV 
-import qualified G2.Language.PolyArgMap as PM
 
 data Clean = Cleaned | Dirty deriving Eq
 
@@ -187,8 +191,8 @@ mkExprHaskell' off_init cleaned pg ex = mkExprHaskell'' off_init ex
             let case_ty = if type_printing pg == LaxTypes
                                 then ""
                                 else " ret = (" <> mkTypeHaskellPG pg t <> ")" in
-               "case " <> parenWrap e (mkExprHaskell'' off e) <> " of" <> case_ty <> "\n" 
-            <> T.intercalate "\n" (map (mkAltHaskell (off + 2) cleaned pg bndr) ae)
+               "(case " <> parenWrap e (mkExprHaskell'' off e) <> " of" <> case_ty <> "\n" 
+            <> T.intercalate "\n" (map (mkAltHaskell (off + 2) cleaned pg bndr) ae) <> ")"
         mkExprHaskell'' _ (Type t) =
             let
                 wrap (TyFun _ _) s = "(" <> s <> ")"
@@ -295,6 +299,31 @@ mkDataConHaskell :: PrettyGuide -> DataCon -> T.Text
 mkDataConHaskell _ (DataCon (Name "Assocs" _ _ _) _ _ _) = "fromList"
 mkDataConHaskell _ (DataCon (Name ":%" _ _ _) _ _ _) = "%"
 mkDataConHaskell pg (DataCon n _ _ _) = mkNameHaskell pg n
+
+-- TODO[Jacob]: doesn't handle superclasses
+-- TODO[Jacob]: assumes <C:> <one tv> <m1>..<mN>
+-- TODO[Jacob]: proper indentation
+-- | Make the instance declaration for Name Type
+mkTCInstanceHaskell :: PrettyGuide -> Name -> Type -> TypeClasses -> ExprEnv -> T.Text
+mkTCInstanceHaskell pg cls_n t tcs eenv
+    | Just (Class {methods = method_strs, typ_ids = tv_ids, superclasses = scs}) <- lookupTCClass cls_n tcs -- get class for method names
+    , Just inst_dict_id <- lookupTCDict tcs cls_n t -- get inst dict id
+    , Just method_exprs <- case E.lookup (idName inst_dict_id) eenv of 
+        Just app@(App _ _) -> Just $ drop (length tv_ids + length scs + 1) . unApp $ app -- all other dicts
+        Just expr -> Just [expr] -- single method dicts
+        Nothing -> Nothing
+    = assert (length method_exprs == length method_strs) $
+     "instance " <> mkNameHaskell pg cls_n <> " " <> mkTypeHaskellPG pg t <> " where\n"
+        <> T.intercalate "\n" (zipWith mkMethodDef method_strs method_exprs) <> "\n"
+    | otherwise = T.empty
+    where 
+        mkMethodDef :: String -> Expr -> T.Text
+        mkMethodDef m_name ex = 
+            let 
+                m_name_text = T.pack $ if isInfixableName (Name (T.pack m_name) Nothing 0 Nothing)
+                    then "(" <> m_name <> ")"
+                    else m_name
+            in "    " <> m_name_text <> " = " <> mkExprHaskell' 2 Cleaned pg ex
 
 offset :: Int -> T.Text
 offset i = duplicate "   " i
@@ -629,7 +658,7 @@ mkTypeHaskellPG' pg m_tc = go
                     mw t = go t
                 in
                 "(" <> T.intercalate " " (map mw ts) <> ")"
-        go (TyForAll i t) = "forall " <> mkIdHaskell pg i <> " . " <> go t
+        go (TyForAll i t) = "(" <> "forall " <> mkIdHaskell pg i <> " . " <> go t <> ")"
         go TyBottom = "Bottom"
         go TYPE = "Type"
         go (TyUnknown) = "Unknown"
@@ -680,8 +709,6 @@ prettyState pg pretty_track s =
         , pretty_tenv
         , "----- [TyVars] ---------------------"
         , pretty_tyvar_env
-        , "----- [PolyArgMap] -----------------"
-        , pretty_pargm
         , "----- [Typeclasses] ---------------------"
         , pretty_tc
         , "----- [Families] ---------------------"
@@ -714,7 +741,6 @@ prettyState pg pretty_track s =
         pretty_handles = prettyHandles pg $ handles s
         pretty_mutvars = prettyMutVars pg . HM.map mv_val_id $ mutvar_env s
         pretty_tenv = prettyTypeEnv (tyvar_env s) pg (type_env s)
-        pretty_pargm = prettyPolyArgMap (poly_arg_map s) pg
         pretty_tyvar_env = prettyTypeVarEnv pg (tyvar_env s)
         pretty_tc = prettyTypeClasses pg (type_classes s)
         pretty_fams = prettyFamilies pg (families s)
@@ -922,22 +948,7 @@ prettyTypeVarEnv pg = T.intercalate "\n"
                     . TV.toListConcOrSym
     where
         prettyTyConcOrSym (TV.TyConc t) = mkTypeHaskellPG pg t
-        prettyTyConcOrSym (TV.TySym i) = "symbolic " <> mkIdHaskell pg i
-
-prettyPolyArgMap :: PM.PolyArgMap -> PrettyGuide -> T.Text
-prettyPolyArgMap pargm pg = "-- Arg_Map --\n" `T.append` T.intercalate "\n" (map entryText (fst . PM.toLists $ pargm)) `T.append` 
-        "\n-- Run_to_Env --\n" `T.append` runToEnvText (snd . PM.toLists $ pargm)
-            where
-                entryText :: (Name, [(Name, Name, Maybe Type)]) -> T.Text
-                entryText (n, sets) = mkNameHaskell pg n <> " -> " <> setText sets
-                setText :: [(Name, Name, Maybe Type)] -> T.Text
-                setText hm = "{" <> T.intercalate ", " (map lrText hm) <> "}"
-                lrText :: (Name, Name, Maybe Type) -> T.Text
-                lrText (l, r, mt) = "[" <> mkNameHaskell pg l <> " -> " <> mkNameHaskell pg r <> "] : " 
-                    <> maybe "Val" (\t -> "Func" <> mkTypeHaskell t) mt
-                runToEnvText :: [(Name, Name)] -> T.Text
-                runToEnvText = T.intercalate "\n" . map (\(rTv, eTv) -> 
-                    mkNameHaskell pg rTv <> " -> " <> mkNameHaskell pg eTv)
+        prettyTyConcOrSym (TV.TySym (Id _ ty)) = "symbolic " <> mkTypeHaskell ty
 
 prettyTypeClasses :: PrettyGuide -> TypeClasses -> T.Text
 prettyTypeClasses pg = T.intercalate "\n" . map (\(n, tc) -> mkNameHaskell pg n <> " = " <> prettyClass pg tc) . HM.toList . toMap
@@ -978,7 +989,6 @@ pprExecStateStr ex_state b = injNewLine acc_strs
     names_str = pprExecNamesStr (name_gen b)
     input_str = pprInputIdsStr (E.symbolicIds . expr_env $ ex_state)
     paths_str = pprPathsStr (PC.toList $ path_conds ex_state)
-    pargm_str = pprPolyArgMapStr (poly_arg_map ex_state)
     non_red_paths_str = injNewLine (map show . toListNRPC $ non_red_path_conds ex_state)
     tc_str = pprTCStr (type_classes ex_state)
     cleaned_str = pprCleanedNamesStr (cleaned_names b)
@@ -1002,8 +1012,6 @@ pprExecStateStr ex_state b = injNewLine acc_strs
                , paths_str
                , "----- [Non Red Paths] ---------------------"
                , non_red_paths_str
-               , "----- [PolyArgMap] ----------------"
-               , pargm_str 
                , "----- [True Assert] ---------------------"
                , "True Assert = " ++ show (true_assert ex_state)
                , "----- [Assert Ids] ---------------------"
@@ -1054,13 +1062,6 @@ pprPathsStr :: [PathCond] -> String
 pprPathsStr paths = injNewLine cond_strs
   where
     cond_strs = map pprPathCondStr paths
-
-pprPolyArgMapStr :: PM.PolyArgMap -> String
-pprPolyArgMapStr pargm = "-- Arg_Map --\n" ++ concatMap (\(k, ents) -> show k ++ " -> " ++ showEntry ents) (fst . PM.toLists $ pargm)
-        ++ "\n-- Run_to_Env --\n" ++ concatMap (\(k, v) -> show k ++ " -> " ++ show v) (snd . PM.toLists $ pargm)
-    where
-    showEntry :: [(Name, Name, Maybe Type)]-> String
-    showEntry hm = T.unpack $ T.intercalate ", " (map (T.pack . show) hm)
 
 pprTCStr :: TypeClasses -> String
 pprTCStr tc = injNewLine cond_strs
@@ -1129,6 +1130,9 @@ data PrettyGuide = PG { pg_assigned :: !(HM.HashMap Name T.Text) -- ^ Mapping of
                       , ty_lam_printing :: TyLamPrinting -- ^ Should type-level lambdas be printed?
                       }
 
+showPGAssigned :: PrettyGuide -> String
+showPGAssigned (PG {pg_assigned = pga}) = show pga
+
 -- Note [PrettyGuide AssignedLvl]
 -- Consider the following code:
 --
@@ -1162,6 +1166,17 @@ mkPrettyGuide = foldr insertPG (PG { pg_assigned = HM.empty
 -- Does not draw any distinction between type level and value level names.
 updatePrettyGuide :: Named a => a -> PrettyGuide -> PrettyGuide
 updatePrettyGuide ns pg = foldr insertPG pg $ names ns
+
+-- | Add the needed Names in an ADT before adding the Names of the next ADT. For use with generated ADTs. 
+-- Prevents mismatches (e.g. GenT'2 has constructor GenC'2, not GenC'3). 
+updatePGADTs :: PrettyGuide -> [AlgDataTy] -> PrettyGuide
+updatePGADTs = foldr updatePGADT
+
+-- | Add only the type Name, constructor Names, and bound Ids (type variables) for an ADT. Prevents mismatches when printing generated ADTs.
+updatePGADT :: AlgDataTy -> PrettyGuide -> PrettyGuide
+updatePGADT (DataTyCon {data_cons = dcs@(dc_fst:_), bound_ids = b_ids}) pg | TyCon tname _:_ <- unTyApp (returnType $ dc_type dc_fst) 
+    = foldr updatePrettyGuide pg $ (tname:map dc_name dcs) ++ map idName b_ids
+updatePGADT _ _ = error "updatePGADT: applied to non-DataTyCon"
 
 updatePGValAndTypeNames :: (ASTContainer a Expr, ASTContainer a Type) => a -> PrettyGuide -> PrettyGuide
 updatePGValAndTypeNames e = updatePGValNames e . updatePGTypeNames e

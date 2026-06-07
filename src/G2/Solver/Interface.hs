@@ -19,6 +19,9 @@ import qualified Data.List as L
 import Data.Maybe (mapMaybe, isJust, fromJust)
 import qualified Data.HashMap.Lazy as HM
 import qualified Data.Sequence as S
+import qualified Data.Text as T
+
+import Debug.Trace
 
 -- | Concrete instantiations of previously (partially) symbolic values.
 data Subbed = Subbed { s_inputs :: [Expr] -- ^ Concrete `inputNames`
@@ -28,6 +31,7 @@ data Subbed = Subbed { s_inputs :: [Expr] -- ^ Concrete `inputNames`
                      , s_mutvars :: [(Name, MVOrigin, Expr)] -- ^ Concrete symbolic `mutvar_env`
                      , s_reached_fc_ticks :: [FuncCall] -- ^ Concrete reached_fc
                      , s_handles :: [(Name, Expr)]
+                     , s_tc_dicts :: [(Name, Expr)]
                      }
                      deriving Eq
 
@@ -46,7 +50,8 @@ instance ASTContainer Subbed Expr where
                , s_sym_gens = modifyContainedASTs f (s_sym_gens sub)
                , s_mutvars = modifyContainedASTs f (s_mutvars sub)
                , s_reached_fc_ticks = modifyContainedASTs f (s_reached_fc_ticks sub)
-               , s_handles = modifyContainedASTs f (s_handles sub) }
+               , s_handles = modifyContainedASTs f (s_handles sub)
+               , s_tc_dicts = modifyContainedASTs f (s_tc_dicts sub) }
 
 instance ASTContainer Subbed Type where
     containedASTs sub =
@@ -64,7 +69,8 @@ instance ASTContainer Subbed Type where
                , s_sym_gens = modifyContainedASTs f (s_sym_gens sub)
                , s_mutvars = modifyContainedASTs f (s_mutvars sub)
                , s_reached_fc_ticks = modifyContainedASTs f (s_reached_fc_ticks sub)
-               , s_handles = modifyContainedASTs f (s_handles sub) }
+               , s_handles = modifyContainedASTs f (s_handles sub)
+               , s_tc_dicts = modifyContainedASTs f (s_tc_dicts sub) }
 
 subModel :: State t -> Bindings -> Subbed
 subModel s@(State { expr_env = eenv
@@ -89,17 +95,31 @@ subModel s@(State { expr_env = eenv
 
         mv = mapMaybe (\(n, mvi) -> fmap (n, mv_origin mvi,) . toVars . idName $ mv_initial mvi) (HM.toList mve)
 
+        -- Create pairs (<Id Name>, Id) for each generated type class dict.
+        gen_tc_ns_exprs = map (\(n, t) -> 
+                let dict = fromJust (lookupTCDict tc n t)
+                in (idName dict, Var dict)) (getGenTCPairs Nothing tc)
+
+        -- Inline separately in dicts with the inInst flag on. This will properly inline
+        -- methods for single method dicts within the dict. Then,
+        -- inline everything else with the flag off, preventing the method from being
+        -- inlined in input expressions. Afterwards, combine all into one Subbed record and
+        -- apply rewrites as usual.
+        gen_tc_ns_exprs' = subVar tvnv False True m eenv tc gen_tc_ns_exprs
+
         sub = Subbed { s_inputs = is
                      , s_output = if errorRaised s then Prim Error TyBottom else cexpr
                      , s_violated = ais'
                      , s_sym_gens = gs
                      , s_mutvars = mv
                      , s_reached_fc_ticks = r_fc
-                     , s_handles = map (\(n, hi) -> (n, Var $ h_start hi)) $ HM.toList hs }
+                     , s_handles = map (\(n, hi) -> (n, Var $ h_start hi)) $ HM.toList hs
+                     , s_tc_dicts = []}
         
-        sv = subVar tvnv False m eenv tc sub
+        sv = subVar tvnv False False m eenv tc sub
+        sv' = sv {s_tc_dicts = gen_tc_ns_exprs'}
     in
-    stripAllTicks $ untilEq (tyVarSubst tvnv . simplifyLams . pushCaseAppArgIn) sv
+    stripAllTicks $ untilEq (undefAppRewrite . typeClassArgRewrite tc . typeClassLamRewrite tc . typeClassCaseRewrite tc . tyVarSubst tvnv . simplifyLams . pushCaseAppArgIn) sv'
     where
         toVars n = case E.lookup n eenv of
                                 Just e@(Lam _ _ _) -> Just . Var $ Id n (typeOf tvnv e)
@@ -110,33 +130,37 @@ subModel s@(State { expr_env = eenv
 
 subVarFuncCall :: TyVarEnv -> Bool -> Model -> ExprEnv -> TypeClasses -> FuncCall -> FuncCall
 subVarFuncCall tv inLam em eenv tc fc@(FuncCall {arguments = ars}) =
-    subVar tv inLam em eenv tc $ fc {arguments = filter (not . isTC tc) ars}
+    subVar tv inLam False em eenv tc $ fc {arguments = filter (not . isTC tc) ars}
 
-subVar :: (ASTContainer m Expr) => TyVarEnv -> Bool -> Model -> ExprEnv -> TypeClasses -> m -> m
-subVar tv inLam em eenv tc = modifyContainedASTs (subVar' tv inLam em eenv tc [])
+subVar :: (ASTContainer m Expr) => TyVarEnv -> Bool -> Bool -> Model -> ExprEnv -> TypeClasses -> m -> m
+subVar tv inLam inInst em eenv tc = modifyContainedASTs (subVar' tv inLam inInst em eenv tc [])
 
-subVar' :: TyVarEnv -> Bool -> Model -> ExprEnv -> TypeClasses -> [Id] -> Expr -> Expr
-subVar' tv inLam em eenv tc is v@(Var i@(Id n _))
+subVar' :: TyVarEnv -> Bool -> Bool -> Model -> ExprEnv -> TypeClasses -> [Id] -> Expr -> Expr
+subVar' tv inLam inInst em eenv tc is v@(Var i@(Id n _))
     | i `notElem` is
     , Just e <- HM.lookup n em =
-        subVar' tv inLam em eenv tc (i:is) e
+        subVar' tv inLam inInst em eenv tc (i:is) e
     | i `notElem` is
     , Just e <- E.lookup n eenv
     , let e' = stripAllTicks e
     -- We want to inline a lambda only if inLam is true (we want to inline all lambdas),
     -- or if it's module is Nothing (and its name is likely uninteresting/unknown to the user)
-    , (isExprValueForm eenv e' && (notLam e' || inLam || nameModule n == Nothing)) || isApp e' || isCase e' || isVar e' || isLitCase tv e' =
-        subVar' tv inLam em eenv tc (i:is) e'
+    , (isExprValueForm eenv e' && (notLam e' || inLam || nameModule n == Nothing)) || isApp e' 
+    || isCase e' || isVar e' || isLitCase tv e' || (isCast e' && inInst) =
+        subVar' tv inLam inInst em eenv tc (i:is) e'
     | otherwise = v
-subVar' tv inLam mdl eenv tc is cse@(Case e _ _ as) =
-    case subVar' tv inLam mdl eenv tc is e of
+subVar' tv inLam inInst mdl eenv tc is cse@(Case e _ _ as) =
+    case subVar' tv inLam inInst mdl eenv tc is e of
         Lit l
             | Just (Alt _ ae) <- L.find (\case (Alt (LitAlt l') _) -> l == l'; _ -> False) as ->
-                subVar' tv inLam mdl eenv tc is ae
+                subVar' tv inLam inInst mdl eenv tc is ae
             | Just (Alt _ ae) <- L.find (\case (Alt Default _) -> True; _ -> False) as ->
-                subVar' tv inLam mdl eenv tc is ae
-        _ -> modifyChildren (subVar' tv inLam mdl eenv tc is) cse
-subVar' tv inLam em eenv tc is e = modifyChildren (subVar' tv inLam em eenv tc is) e
+                subVar' tv inLam inInst mdl eenv tc is ae
+        _ -> modifyChildren (subVar' tv inLam inInst mdl eenv tc is) cse
+subVar' tv inLam inInst mdl eenv tc is cst@(Cast e _) 
+    | inInst  = subVar' tv inLam inInst mdl eenv tc is e
+    | otherwise = cst
+subVar' tv inLam inInst em eenv tc is e = modifyChildren (subVar' tv inLam inInst em eenv tc is) e
 
 isApp :: Expr -> Bool
 isApp (App _ _) = True
@@ -162,6 +186,10 @@ isTC :: TypeClasses -> Expr -> Bool
 isTC tc (Var (Id _ (TyCon n _))) = isTypeClassNamed n tc
 isTC _ _ = False
 
+isCast :: Expr -> Bool
+isCast (Cast _ _) = True
+isCast _ = False
+
 -- | Rewrites a case statement returning a function type, and applied to a variable argument,
 -- so that the variable argument is moved into each branch of the case statement.
 -- This composes with `simplifyLams` to get better simplication for symbolic function concretizations.
@@ -171,4 +199,58 @@ pushCaseAppArgIn = modifyASTs pushCaseAppArgIn'
 pushCaseAppArgIn' :: Expr -> Expr
 pushCaseAppArgIn' (App (Case scrut bind t as) v@(Var _)) =
     Case scrut bind t $ map (\(Alt am e) -> Alt am (App e v) ) as
+pushCaseAppArgIn' (App (Case scrut bind t as) t_ex@(Type _)) =
+    Case scrut bind t $ map (\(Alt am e) -> Alt am (App e t_ex)) as
 pushCaseAppArgIn' e = e
+
+-- | typeClassCaseRewrite and typeClassLamRewrite both leave the expression in an 
+-- invalid state when only one is checked for, so they must both be checked for. 
+-- Because a typeclass dict may be cased on more times than it is an argument to a 
+-- lambda, the rules are still kept separate, allowing them to apply different 
+-- amounts of times.
+
+-- | Rewrites a case expression of the form:
+--      case tc_dict of
+--          C:<tc_name> f1..fn -> e
+--   to:
+--          e'
+--   where e' is e with f1..fn substituted for tc_name's method names.
+typeClassCaseRewrite :: ASTContainer c Expr => TypeClasses -> c -> c
+typeClassCaseRewrite tc = modifyASTs $ typeClassDictRewrite' tc
+
+typeClassDictRewrite' :: TypeClasses -> Expr -> Expr
+typeClassDictRewrite' tc (Case (Var (Id _ dict_type)) _ _ [Alt (DataAlt _ arg_ids) a_expr])
+    | Just type_class <- lookupTCFromType dict_type tc 
+        = let   function_names = map (\f_str -> Name (T.pack f_str) Nothing 0 Nothing) $ methods type_class
+                rename_map = HM.fromList $ zip (map idName arg_ids) function_names
+        in renames rename_map a_expr
+typeClassDictRewrite' _ e = e
+
+
+typeClassLamRewrite :: ASTContainer c Expr => TypeClasses -> c -> c
+typeClassLamRewrite tc = modifyASTs $ typeClassLamRewrite' tc
+
+typeClassLamRewrite' :: TypeClasses -> Expr -> Expr
+typeClassLamRewrite' tc (Lam _ (Id _ dict_type) body)
+    | isTypeClass tc dict_type = body
+typeClassLamRewrite' _ e = e
+
+typeClassArgRewrite :: ASTContainer c Expr => TypeClasses -> c -> c
+typeClassArgRewrite tc = modifyASTs $ typeClassArgRewrite' tc
+
+typeClassArgRewrite' :: TypeClasses -> Expr -> Expr
+typeClassArgRewrite' tc app@(App _ _)
+    = mkApp . filter (not . isIdAndTypeClass) . unApp $ app
+    where
+        isIdAndTypeClass :: Expr -> Bool
+        isIdAndTypeClass (Var (Id _ t)) = isTypeClass tc t
+        isIdAndTypeClass _ = False
+
+typeClassArgRewrite' _ e = e
+
+undefAppRewrite :: ASTContainer c Expr => c -> c
+undefAppRewrite = modifyASTs undefAppRewrite'
+
+undefAppRewrite' :: Expr -> Expr
+undefAppRewrite' (App u@(Prim Undefined _) _) = u
+undefAppRewrite' e = e

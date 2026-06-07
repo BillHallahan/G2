@@ -36,7 +36,7 @@ import qualified G2.Language.TyVarEnv as TV
 data VerifyResult = Verified
                   | Counterexample [ExecRes VerifierTracker]
                   | VerifyTimeOut
-                  deriving (Show, Read)
+                  deriving (Show)
 
 type VerStack m = SM.StateT LemmaInfo
                     (SM.StateT (ApproxPrevs VerifierTracker)

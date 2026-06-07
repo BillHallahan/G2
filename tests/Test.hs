@@ -672,22 +672,62 @@ testFileTests = testGroup "TestFiles"
                                                                        , ("assoc", 200, [AtLeast 5])
                                                                        , ("sf", 175, [AtLeast 5])
                                                                        , ("tupleTest", 175, [AtLeast 8])]
-    , checkInputOutputsTemplate "tests/HigherOrder/RankN.hs" [ ("identity", 50, [Exactly 1])
-                                                             , ("twoArgs", 60, [Exactly 2])
+    , checkInputOutputsTemplate "tests/HigherOrder/Rank2A.hs" [ ("identity", 100, [Exactly 1])
+                                                             , ("twoArgs", 100, [Exactly 2])
                                                              , ("calledInMaybe", 60, [Exactly 1])
                                                              , ("twoTVs", 60, [Exactly 2])
                                                              , ("twoTVsMultiCall", 200, [Exactly 1])
                                                              , ("nested", 100, [Exactly 2])
                                                              , ("calledInTuple", 100, [Exactly 2])
                                                              , ("intArg", 100, [Exactly 2])
-                                                             , ("intArgCalledTwice", 200, [Exactly 5])
                                                              , ("intArgCaseFourCalls", 500, [Exactly 44])
-                                                             , ("multiIntArgs", 200, [Exactly 4])
-                                                             , ("fromMaybe", 100, [Exactly 3])
+                                                             , ("fromMaybe", 200, [Exactly 2])
                                                              , ("fromMaybeInvalid", 100, [Exactly 0])
-                                                             , ("fromTuples", 100, [Exactly 8])
+                                                             , ("fromTuples", 100, [Exactly 4])
                                                              , ("twoFunctions", 200, [Exactly 4])
-                                                             , ("partiallyApply", 200, [Exactly 2])] 
+                                                             , ("partiallyApply", 200, [Exactly 2])]
+    , checkInputOutputsTemplate "tests/HigherOrder/Rank2B.hs" [ ("identityTwoTvs", 100, [Exactly 1]) 
+                                                              , ("treeArg", 200, [Exactly 3]) 
+                                                              , ("treeRet", 200, [AtLeast 102]) 
+                                                              , ("tupBoxRet", 300, [Exactly 1]) 
+                                                              , ("listRet", 200, [AtLeast 63])
+                                                              , ("literalRet", 100, [AtLeast 3])
+                                                              , ("literalAndBoxedRet", 100, [AtLeast 2])
+                                                              , ("mIntMaybe", 100, [Exactly 2])
+                                                              , ("funcArg", 100, [AtLeast 6])
+                                                              , ("funcArgBoxedArg", 100, [AtLeast 6])
+                                                              , ("funcArgBoxedLitArg", 100, [AtLeast 14])
+                                                              , ("funcArgWithTyToTyArg", 100, [AtLeast 5])
+                                                              , ("twoApplicationsNeeded", 200, [AtLeast 10])
+                                                              , ("twoKindsToFrom", 200, [AtLeast 15])] 
+    -- TODO[Jacob]: update required number of outputs for these tests. 
+    -- TODO[Jacob]: some step limits likely add unneeded time to test suite. check what is needed
+    , checkInputOutputsTemplate "tests/HigherOrder/Rank3AndGreater.hs" [ ("polyFuncArg", 100, [AtLeast 10])
+                                                                       , ("polyFuncArgTwoTVs", 100, [AtLeast 10])
+                                                                       , ("polyFuncArgADT", 100, [AtLeast 10])
+                                                                       , ("polyFuncArgWithFuncArg", 100, [AtLeast 10])
+                                                                       , ("polyFuncArgOneArgKind", 90, [AtLeast 50])
+                                                                       , ("polyFuncArgTwoArgKind", 90, [AtLeast 50])
+                                                                       , ("polyFuncArgTwoKinds", 90, [AtLeast 50])
+                                                                       , ("polyFuncArgHigherKind", 90, [AtLeast 30])
+                                                                       , ("polyFuncArgWithPolyFuncArg", 100, [AtLeast 10])
+                                                                       , ("polyFuncArgWithPolyFuncArg2", 100, [AtLeast 10])
+                                                                       , ("forallWithPolyFuncArg", 130, [AtLeast 10])
+                                                                       , ("forallWithPolyFuncArg2", 200, [AtLeast 10])
+                                                                       , ("forallWithPolyFuncArg3", 200, [AtLeast 10])
+                                                                       , ("forallWithPolyFuncArgSecond", 200, [AtLeast 10])
+                                                                       , ("forallWithPolyFuncArgBox", 100, [AtLeast 9])
+                                                                       , ("forallWithPolyFuncArgTup", 200, [AtLeast 10])]
+    -- TODO[Jacob]: adjust the AtLeast counts after fixing duplicate outputs validation
+    -- TODO[Jacob]: step limits are too high, some too low
+    , checkInputOutputsTemplate "tests/HigherOrder/Typeclasses.hs" [ -- Instantiating functions with TC constraints
+                                                                     ("tcFuncInstPrelClassUserType", 275, [AtLeast 50]) -- Step limit for finding previous error case
+                                                                   , ("tcFuncInstPrelClassPrelType", 200, [AtLeast 9])
+                                                                     -- Instantiating functions with arguments having TC constraints
+                                                                   , ("tcFuncArgPrelClass", 125, [AtLeast 50])
+                                                                   , ("tcFuncArgUserClass", 125, [AtLeast 50])
+                                                                   , ("tcFuncArgTwoMethodsUsed", 125, [AtLeast 50])
+                                                                   , ("tcFuncArgSingleMethodClass", 125, [AtLeast 50])]                  
     , checkInputOutputsNonRedHigher "tests/HigherOrder/HigherOrder.hs" [ ("f", 200, [AtLeast 3])
                                                                        , ("h", 150, [AtLeast 2])
                                                                        , ("assoc", 250, [AtLeast 2])
@@ -1256,7 +1296,7 @@ checkExprWithConfig src m_assume m_assert m_reaches entry reqList config_f = do
 
                                 pg = mkPrettyGuide exec_res
                                 res_pretty = map (printInputOutput pg (Id (Name (T.pack entry) Nothing 0 Nothing) TyUnknown) b) exec_res
-                                res_print = map T.unpack $ map (\(_, inp, out, _) -> inp <> " = " <> out) res_pretty
+                                res_print = map T.unpack $ map (\(_, _, _, inp, out, _) -> inp <> " = " <> out) res_pretty
                             in
                             (Just reqs, res_print)
 
