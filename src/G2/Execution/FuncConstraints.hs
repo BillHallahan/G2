@@ -528,6 +528,7 @@ unfoldADTArgs n fcs@(first_fc:_) = do
 checkDistinct :: (Solver solver, MonadIO m) => solver -> FuncConstraints -> StateNGT t m Bool
 checkDistinct solver fcs = do
     kv <- knownValues
+    tv_env <- tyVarEnv
     pcs <- getPCStateNG
     pcs' <- foldM (\pcs' (n, fc_list) ->
                     let
@@ -536,9 +537,14 @@ checkDistinct solver fcs = do
                                     let
                                         pre = fc_preconds fc
                                         and_pre = foldr (\e1 e2 -> mkApp [Prim And TyUnknown, e1, e2]) (mkTrue kv) pre
+
+                                        prim_args = filter (isPrimType . typeOf tv_env) $ fc_args fc
+                                        prim_arg_tys = map (typeOf tv_env) prim_args
+                                        call_ty = mkTyFun $ prim_arg_tys ++ [TyLitInt]
+                                        uninterp_call =  mkApp $ Var (Id n call_ty):prim_args
                                         implies_func = mkApp [ Prim Implies TyUnknown
                                                              , and_pre
-                                                             , mkApp [Prim Eq TyUnknown, Var (Id n TyLitInt), Lit (LitInt i) ]
+                                                             , mkApp [Prim Eq TyUnknown, uninterp_call, Lit (LitInt i) ]
                                                              ]
                                     in
                                     ExtCond implies_func True

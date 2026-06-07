@@ -380,7 +380,7 @@ isCore' (SmtXor _) = All True
 isCore' ((:!) _) = All True
 isCore' (_ :=> _) = All True
 isCore' (_ :<=> _) = All True
-isCore' (Func _ _) = All True
+isCore' (Func _ _) = All False
 isCore' (VBool _) = All True
 isCore' (V _ s) = All $ isCoreSort s
 isCore' _ = All False
@@ -533,6 +533,8 @@ funcToSMT tv (Data dc) es =
         isType _ = False
     in
     DataSMT (nameToStr $ dc_name dc) . map (exprToSMT tv) $ filter (not . isType) es
+funcToSMT tv (Var (Id n _)) es = -- Uninterpreted function
+    Func (nameToStr n) $ map (exprToSMT tv) es
 funcToSMT _ e l = error ("Unrecognized " ++ show e ++ " with args " ++ show l ++ " in funcToSMT")
 
 funcToSMT1Prim :: TV.TyVarEnv -> Primitive -> Expr -> SMTAST
@@ -741,6 +743,7 @@ createUniqVarDecls ((n,SortChar):xs) =
         lenAssert = Assert $ StrLenSMT (V (nameToStr n) SortChar) := VInt 1
     in
     VarDecl (nameToBuilder n) SortChar:lenAssert:createUniqVarDecls xs
+createUniqVarDecls ((n,SortFunc srt_args sort_ret):xs) = DeclareFun (nameToStr n) srt_args sort_ret:createUniqVarDecls xs
 createUniqVarDecls ((n,s):xs) = VarDecl (nameToBuilder n) s:createUniqVarDecls xs
 
 datatypeDecls :: TV.TyVarEnv -> Name -> AlgDataTy -> SMTHeader
@@ -770,8 +773,12 @@ idToNameSort :: TV.TyVarEnv -> Id -> (Name, Sort)
 idToNameSort tv (Id n t) = (n, typeToSMT tv t)
 
 typeToSMT :: TV.TyVarEnv -> Type -> Sort
-typeToSMT _ (TyFun TyLitInt _) = SortInt -- TODO: Remove this
-typeToSMT _ (TyFun (TyLitFP e s) _) = SortFP e s -- TODO: Remove this
+typeToSMT tv t@(TyFun _ _) =
+    let
+        arg_sort = map (typeToSMT tv . tyVarSubst tv) $ anonArgumentTypes t
+        ret_sort = typeToSMT tv . tyVarSubst tv $ returnType t
+    in
+    SortFunc arg_sort ret_sort
 typeToSMT _ TyLitInt = SortInt
 typeToSMT _ TyLitWord = SortWord
 typeToSMT _ (TyLitFP e s) = SortFP e s
