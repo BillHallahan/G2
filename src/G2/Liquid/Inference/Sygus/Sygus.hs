@@ -3,7 +3,7 @@
 
 module G2.Liquid.Inference.Sygus.Sygus where
 
-import G2.Language as G2
+import G2.Language as G2 hiding (FuncConstraints)
 import G2.Liquid.Interface
 import G2.Liquid.Types
 import G2.Liquid.Inference.Config

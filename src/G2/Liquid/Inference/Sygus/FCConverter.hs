@@ -3,7 +3,7 @@
 module G2.Liquid.Inference.Sygus.FCConverter ( NMExprEnv
                                              , convertConstraints) where
 
-import G2.Language as G2
+import G2.Language as G2 hiding (FuncConstraints, FuncConstraint)
 import G2.Liquid.Types
 import G2.Liquid.Inference.Config
 import G2.Liquid.Inference.FuncConstraint
