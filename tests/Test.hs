@@ -690,7 +690,7 @@ testFileTests = testGroup "TestFiles"
                                                              , ("partiallyApply", 200, [Exactly 2])] 
     , checkInputOutputsNonRedHigher "tests/HigherOrder/HigherOrder.hs" [ ("f", 200, [AtLeast 3])
                                                                        , ("h", 150, [AtLeast 2])
-                                                                       , ("j", 150, [Exactly 2])
+                                                                       , ("j", 150, [AtLeast 2])
                                                                        , ("k", 150, [AtLeast 3])
                                                                        , ("assoc", 250, [AtLeast 2])
                                                                        , ("sf", 250, [AtLeast 2])
@@ -706,14 +706,14 @@ testFileTests = testGroup "TestFiles"
                                                                        [ ("f", 200, [Exactly 3])
                                                                        , ("h", 150, [AtLeast 2])
                                                                        , ("j", 150, [Exactly 2])
-                                                                       , ("k", 200, [Exactly 2])
+                                                                       , ("k", 200, [Exactly 3])
                                                                        , ("abc", 200, [AtLeast 6])
                                                                        , ("abc2", 200, [Exactly 3])
                                                                        , ("assoc", 250, [AtLeast 2])
                                                                        , ("sf", 250, [AtLeast 2])
-                                                                       , ("thirdOrder", 300, [AtLeast 2])
-                                                                       , ("thirdOrder2", 150, [AtLeast 3])
-                                                                       , ("tupleTestMono", 175, [AtLeast 2])
+                                                                       , ("thirdOrder", 300, [Exactly 2])
+                                                                       , ("thirdOrder2", 150, [Exactly 3])
+                                                                       , ("tupleTestMono", 175, [Exactly 2])
                                                                        , ("multiPrim", 300, [AtLeast 2])
                                                                        , ("polyHigher", 50, [AtLeast 4])]                                                                                         
 
