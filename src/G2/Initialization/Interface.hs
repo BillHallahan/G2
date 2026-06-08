@@ -60,7 +60,8 @@ runInitialization2 config s@(IT.SimpleState { IT.expr_env = eenv
                         then E.insert (adjStr kv) 
                                       (Var (Id (checkStrLazy kv) TyUnknown)) eenv6
                         else eenv6
-        eenv8 = if using_smt_lams config == UseSMTLams && smt config == ConZ3
+        use_lams = using_smt_lams config == UseSMTLams && smt config == ConZ3
+        eenv8 = if use_lams
                         then E.insert (usingSMTLams kv) 
                                       (mkTrue kv) eenv7
                         else eenv7
@@ -70,7 +71,8 @@ runInitialization2 config s@(IT.SimpleState { IT.expr_env = eenv
                                     E.insert using_smt_rev (mkTrue kv) eenv8
                     _ -> eenv8
 
-        eenv10 = if literal_tables config == UseLiteralTables 
+        use_lts = literal_tables config == UseLiteralTables
+        eenv10 = if use_lts
                     then E.insert (usingLiteralTables kv) (mkTrue kv) eenv9
                     else eenv9
 
@@ -85,7 +87,7 @@ runInitialization2 config s@(IT.SimpleState { IT.expr_env = eenv
         s3 = if smt_strings config == UseSMTStrings || useSMTSeqFuncs (smt_prim_lists config)
                     then integrateSMTDef s2
                     else s2
-        kv' = recalcSmtStringFuncs (expr_env s3) (known_values s3)
+        kv' = recalcSmtStringFuncs (expr_env s3) (known_values s3) use_lams use_lts
         s4 = s3 { known_values = kv' }
         
 
