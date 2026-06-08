@@ -1250,13 +1250,40 @@ smtastToExpr kv tenv t (IteSMT cond br1 br2) =
 smtastToExpr kv tenv _ (smt1 := smt2) = mkApp $ [ Prim Eq TyUnknown
                                                 , smtastToExpr kv tenv TyUnknown smt1
                                                 , smtastToExpr kv tenv TyUnknown smt2]
-smtastToExpr _ _ _ smt = error $ "Conversion of this SMTAST to an Expr not supported." ++ "\n" ++ show smt
+smtastToExpr kv tenv t@(TyFun _ _) (ArrayStore arr ind val) =
+    let
+        arr_e = smtastToExpr kv tenv t arr
 
-replaceSMTVar :: SMTName -> SMTName -> SMTAST -> SMTAST
-replaceSMTVar n_orig n_rep = modify go
-    where
-        go (V n srt) | n == n_orig = V n_rep srt
-        go e = e 
+        arg_ty = anonArgumentTypes t
+        ret_ty = returnType t
+
+        ind_e = zipWith (smtastToExpr kv tenv) arg_ty ind
+        val_e = smtastToExpr kv tenv ret_ty val
+
+        bound_i = zipWith (\i -> Id (Name "lam__bound_G2_arr_store" Nothing i Nothing)) [1..] arg_ty
+
+        ite = foldl (\e e' -> mkApp [Prim And TyUnknown, e, e']) (mkTrue kv)
+             $ zipWith (\i e -> mkApp [Prim Eq TyUnknown, Var i, e]) bound_i ind_e
+
+        ty_bool = tyBool kv
+        true_dc = mkDCTrue kv tenv
+        false_dc = mkDCFalse kv tenv
+        bindee = Id (Name "G2__!!__bindee_smt_ite_!!_" Nothing 0 Nothing) ty_bool
+        body = Case ite 
+                    bindee
+                    ty_bool    
+                    [ Alt (DataAlt true_dc []) val_e
+                    , Alt (DataAlt false_dc []) . mkApp $ arr_e:map Var bound_i]
+    in
+    mkLams (zip (repeat TermL) bound_i) body
+smtastToExpr kv tenv t@(TyFun _ _) (ArrayConst v _ _) =
+    let
+        arg_ty = anonArgumentTypes t
+        bound_i = zipWith (\i -> Id (Name "lam__!!_G2_arr_store" Nothing i Nothing)) [1..] arg_ty
+    in
+    mkLams (zip (repeat TermL) bound_i) $ smtastToExpr kv tenv (returnType t) v
+
+smtastToExpr _ _ _ smt = error $ "Conversion of this SMTAST to an Expr not supported." ++ "\n" ++ show smt
 
 getTypeForList :: Type -> Type
 getTypeForList (TyApp _ t) = t
