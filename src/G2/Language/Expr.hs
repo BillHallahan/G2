@@ -670,8 +670,10 @@ inlineVars' seen eenv (Var (Id n _))
     , Just (E.Conc e) <- E.lookupConcOrSym n eenv = inlineVars' (HS.insert n seen) eenv e
 inlineVars' seen eenv e = modifyChildren (inlineVars' seen eenv) e
 
--- Rename bound variables in lambda functions according to their De Bruijn index,
--- which can help solvers determine equal lambda functions more quickly
+-- Rename bound variables in lambda functions in the same way each time,
+-- somewhat similar to De Bruijn indices but implemented slightly differently
+-- (no distance is ever needed here). This is solely for making solvers determine
+-- that two expressions containing lambda functions are equal quicker.
 renameLamVars :: ASTContainer m Expr => m -> m
 renameLamVars = modifyASTs renameLamVar
 
@@ -680,9 +682,9 @@ renameLamVar e@(Lam lu (Id n t) e1) =
     let idx = getMax $ getLamVarIdx e
         new_id = freshLamId t idx
         e2 = replaceVar n (Var new_id) e1
-    in Lam lu new_id e2 
+    in Lam lu new_id e2
 renameLamVar e = e
-        
+
 getLamVarIdx :: Expr -> Max Word64
 getLamVarIdx (Lam _ _ e) = Max $ getMax (getLamVarIdx e) + 1
 getLamVarIdx e = evalChildren getLamVarIdx e
