@@ -1,3 +1,5 @@
+{-# LANGUAGE BangPatterns#-}
+
 module G2.Solver.ParseSMT
     ( parseSMT
     , parseGetValues) where
@@ -26,7 +28,7 @@ smtDef =
              , Token.nestedComments = False
              , Token.identStart = letter <|> oneOf ident
              , Token.identLetter = alphaNum <|> oneOf ident
-             , Token.reservedNames = ["as", "let", "-", "/", "\"", "fp", "+zero", "-zero", "+oo", "-oo", "NaN", "lambda"]}
+             , Token.reservedNames = ["as", "let", "-", "/", "\"", "fp", "+zero", "-zero", "+oo", "-oo", "NaN", "lambda", "store"]}
 
 ident :: [Char]
 ident = ['~', '!', '$', '@', '%', '^', '&', '*' , '_', '-', '+', '=', '<', '>', '.', '?', '/', '|', ',']
@@ -183,9 +185,11 @@ lambdaExpr = do
 
 arrayExpr :: Parser SMTAST
 arrayExpr = do
+    input <- getInput
+
     (do
-        _ <- string "store"
-        _ <- whiteSpace
+        inp_st <- getInput
+        _ <- reserved "store"
         array <- sExpr Nothing
         args <- many1 (sExpr Nothing)
         let ind = init args
@@ -193,15 +197,17 @@ arrayExpr = do
         return $ ArrayStore array ind val)
     <|>
     (do
-        parens (do
+         (do
             array_sort <- parens (do
                                     reserved "as"
                                     _ <- string "const"
                                     _ <- whiteSpace
                                     parseSort)
+            inp <- getInput
             case array_sort of
                 SortArray ind_sort val_sort -> do
                     val <- sExpr Nothing
+                    inp2 <- getInput
                     return $ ArrayConst val ind_sort val_sort
                 _ -> fail "Incorrect sort"
             )
@@ -390,11 +396,11 @@ parseUni = do
         _ -> fail $ "parseUni': Bad string " ++ str
 
 parseSort :: Parser Sort
-parseSort = 
-    (do
+parseSort =
+     (do
         _ <- string "Array"
         _ <- whiteSpace
-        sorts <- many1 parseSort
+        sorts <- many1 (do srt <- parseSort; _ <- whiteSpace; return srt)
         let inds = init sorts
             val = last sorts
         return (SortArray inds val)
