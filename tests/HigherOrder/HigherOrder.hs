@@ -57,6 +57,19 @@ abc2 f = case f 10 of
                         B -> B
             _ -> A (A B)
 
+{-# NOINLINE ab #-}
+ab :: AB
+ab = A (A B)
+
+abc3 :: (Int -> AB -> Int) -> Int
+abc3 f = case f 1 B of
+                1 -> case f 1 (A B) of
+                            2 -> case f 2 ab of
+                                    3 -> 1
+                                    _ -> 2
+                            _ -> 3
+                _ -> 4
+
 assoc :: (Int -> Int -> Int) -> Int -> Int -> Int -> Bool
 assoc op x y z = myNot (op (op x y) z == op x (op y z))
 
