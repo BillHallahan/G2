@@ -11,7 +11,6 @@ import G2.Language
 import qualified G2.Language.ExprEnv as E
 
 import Data.List
-import qualified Data.Map as M
 import Data.Maybe
 import qualified Data.Text as T
 import qualified Data.HashMap.Lazy as HM 
@@ -50,7 +49,7 @@ mkCurrExpr tv m_assume m_assert f@(Id (Name _ m_mod _ _) _) tc ng eenv tenv kv c
                 assume_ex = mkAssumeAssert tv (Assume Nothing) m_assume m_mod (typsE ++ var_ids) var_name var_name eenv
                 assert_ex = mkAssumeAssert tv (Assert Nothing) m_assert m_mod (typsE ++ var_ids) assume_ex var_name eenv
 
-                retsTrue_ex = if returnsTrue config then retsTrue assert_ex else assert_ex
+                (retsTrue_ex, ng''') = if returnsTrue config then retsTrue tv ng'' assert_ex else (assert_ex, ng'')
 
                 let_ex = Let [(id_name, app_ex)] retsTrue_ex
             in
@@ -59,7 +58,7 @@ mkCurrExpr tv m_assume m_assert f@(Id (Name _ m_mod _ _) _) tc ng eenv tenv kv c
                         , symbolic_type_ids = typ_is
                         , symbolic_value_ids = val_is
                         , in_coercion = m_coer
-                        , mkce_namegen = ng''}
+                        , mkce_namegen = ng'''}
         Nothing -> error "mkCurrExpr: Bad Name"
 
 -- | If a function we are symbolically executing returns a newtype wrapping a function type, applies a coercion to the function.
@@ -121,13 +120,13 @@ mkMainExprNoInstantiateTypes tv e ng =
                 _ -> False
         (ats,nts) = partition anontype argts 
         -- We want to have symbolic types so we grab the type level arguments and introduce symbolic variables for them
-        ns = map (\(NamedType (Id n _)) -> n) nts
+        ntids = map (\(NamedType i) -> i) nts
+        ns = map idName ntids
         (ns', ng') = renameAll ns ng
 
         ntmap = HM.fromList $ zip ns ns' 
         -- We want to create a full list of symoblic variables with new names and put the symbolic variables into the expr env
         -- Type level arguments
-        ntids = map (\(NamedType i) -> i) nts
         ntids' = renames ntmap ntids
 
         -- Value level arguments
@@ -165,8 +164,15 @@ mkAssumeAssert tv p (Just f) m_mod var_ids inter pre_ex eenv =
         Right s -> error s
 mkAssumeAssert _ _ Nothing _ _ e _ _ = e
 
-retsTrue :: Expr -> Expr
-retsTrue e = Assert Nothing e e
+retsTrue :: TyVarEnv -> NameGen -> Expr -> (Expr, NameGen)
+retsTrue tv ng e =
+    let
+        (n, ng') = freshSeededString "ret" ng
+        i = Id n $ typeOf tv e
+
+        let_e = Let [(i, e)] $ Assert Nothing (Var i) (Var i)
+    in
+    (let_e, ng')
 
 findFunc :: TV.TyVarEnv -> T.Text -> [Maybe T.Text] -> ExprEnv -> Either (Id, Expr) String
 findFunc tv s m_mod eenv =

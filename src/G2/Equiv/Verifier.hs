@@ -40,7 +40,6 @@ import G2.Equiv.Uninterpreted
 import G2.Execution.Memory
 import Data.Monoid (Any (..))
 
-import qualified G2.Language.Stack as Stck
 import Control.Monad
 
 import G2.Lib.Printers

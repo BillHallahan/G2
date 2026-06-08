@@ -18,6 +18,7 @@ module G2.Solver.SMT2 ( Z3StringSolver (..)
                       , getLinesMatchParens
 
                       , getZ3
+                      , getCVC5
                       , getSMT
                       , getSMTAV) where
 
@@ -30,18 +31,14 @@ import G2.Solver.Converters --It would be nice to not import this...
 
 import Control.Exception.Base (evaluate)
 import Control.Monad
-import Data.List.Utils (countElem)
 import qualified Data.HashSet as HS
 import qualified Data.Map as M
-import qualified Data.Text as T
 import qualified Data.Text.IO as T
 import qualified Text.Builder as TB
 import System.IO
 import System.Process
 import Data.Maybe (fromMaybe)
 import G2.Language.Support(State(..))
-import qualified G2.Language.TyVarEnv as TV 
-
 
 data Z3StringSolver = SeqSolver | Z3Str3 deriving Eq
 data Z3 = Z3 Z3StringSolver PrintSMT ArbValueFunc (Handle, Handle, ProcessHandle)
@@ -84,9 +81,14 @@ instance SMTConverter Z3 where
 
     reset con@(Z3 string_solver print_smt _ _) = do
         let (h_in, _, _) = getIO con
-        when print_smt $ putStrLn "(reset)"
+        when print_smt $ do
+            putStrLn "(reset)"
+            putStrLn "(set-option :pp.min_alias_size 1000000)"
+            putStrLn "(set-option :pp.max_depth 1000000)"
         T.hPutStr h_in "(reset)"
-        
+        T.hPutStr h_in "(set-option :pp.min_alias_size 1000000)"
+        T.hPutStr h_in "(set-option :pp.max_depth 1000000)"
+
         when (string_solver == Z3Str3) $ do
             when print_smt $ putStrLn "(set-option :smt.string_solver z3str3)"
             T.hPutStr h_in "(set-option :smt.string_solver z3str3)"
@@ -406,6 +408,11 @@ getZ3 :: PrintSMT -> Int -> IO Z3
 getZ3 pr_smt time_out = do
     hhp <- getZ3ProcessHandles Nothing time_out
     return $ Z3 SeqSolver pr_smt arbValue hhp
+
+getCVC5 :: PrintSMT -> Int -> IO CVC5
+getCVC5 pr_smt time_out = do
+    hhp <- getCVC5ProcessHandles Nothing time_out
+    return $ CVC5 pr_smt arbValue hhp
 
 getSMT :: Config -> IO SomeSMTSolver
 getSMT = getSMTAV arbValue

@@ -38,7 +38,9 @@ module G2.Interface.Interface ( MkCurrExpr
                               , runG2SolvingResult
                               , runG2Solving
                               , runG2
-                              , Config) where
+                              , Config
+                              
+                              , reportTerminationResults) where
 
 import GHC hiding (Name, entry, nameModule, Id, Type)
 import GHC.Paths
@@ -60,7 +62,6 @@ import G2.Language
 import G2.Initialization.Interface
 import G2.Initialization.KnownValues
 import G2.Execution.InstTypes
-import G2.Execution.DataConPCMap
 import G2.Initialization.MkCurrExpr
 import qualified G2.Initialization.Types as IT
 import G2.Preprocessing.Interface
@@ -218,7 +219,7 @@ initStateFromSimpleState s m_mod useAssert mkCurr argTys config =
     , focused = Focused
     , handles = hs
     , mutvar_env = HM.empty
-    , true_assert = if useAssert || check_asserts config then False else True
+    , true_assert = if useAssert || check_asserts config || returnsTrue config then False else True
     , assert_ids = Nothing
     , type_classes = tc'
     , families = fams
@@ -388,7 +389,7 @@ initRedHaltOrd s mod_name solver simplifier config exec_func_names no_nrpc_names
                                 NoNrpc -> liftSomeReducer (hpc_red f)
 
         nrpc_higher_red f = case symbolic_func_nrpc config of
-                                Nrpc -> SomeReducer (nonRedHigherOrderReducer config) .== Finished .--> nrpc_lib_red f
+                                Nrpc -> SomeReducer (nonRedHigherOrderReducer config approx_no_inline) .== Finished .--> nrpc_lib_red f
                                 NoNrpc -> nrpc_lib_red f
         
         accept_time_red f = case accept_times config of
@@ -608,7 +609,7 @@ runG2WithConfig proj src entry_f f gflags mb_modname state config bindings = do
 
         non_rec_funcs = filter (G.isFuncNonRecursive callGraph) reachable_funcs
 
-    analysis1 <- if states_at_time config then do l <- logStatesAtTime; return [l] else return noAnalysis
+    analysis1 <- if states_at_time config then do l <- logStatesAtTimeHigher; return [l] else return noAnalysis
     let analysis2 = if states_at_step config then [\s p xs -> SM.lift .  SM.lift . SM.lift . SM.lift . SM.lift  $ logStatesAtStep s p xs] else noAnalysis
         analysis3 = if print_num_red_rules config then [\s p xs -> SM.lift . SM.lift . SM.lift . SM.lift . SM.lift . SM.lift $ logRedRuleNum s p xs] else noAnalysis
         analysis = analysis1 ++ analysis2 ++ analysis3
@@ -852,16 +853,16 @@ runG2SolvingValidate modN entry entry_id config solver simplifier s bindings = d
         SAT (m, ng) | validate config -> do
                 let m' = if print_encode_float config then toEnclodeFloat m else m
 
-                (res', isVal) <- runValidate (validate_with config) modN entry solver simplifier bindings m' 5
-                let res'' = res' {validated = isVal}
+                (res', val_res) <- runValidate (validate_with config) modN entry solver simplifier bindings m' 5
+                let res'' = res' {validate_result = val_res}
 
-                liftIO $ do
-                    printStateOutput config entry_id bindings (Just isVal) m'
+                printStateOutput config entry_id bindings (Just val_res) m'
 
                 return (SAT (res'', ng))
         SAT (m, _) -> do
-            liftIO $ printStateOutput config entry_id bindings Nothing m
+            printStateOutput config entry_id bindings Nothing m
             return res
+
         _ -> return res
 
 runValidate :: ( MonadIO m
@@ -878,26 +879,25 @@ runValidate :: ( MonadIO m
                 -> Bindings 
                 -> ExecRes t 
                 -> Int 
-                -> m (ExecRes t, Maybe Bool)
-runValidate _ _ _ _ _ _ res 0 = return (res, Nothing)
+                -> m (ExecRes t, ValidateRes)
+runValidate _ _ _ _ _ _ res 0 = return (res, ValidationTimeout)
 runValidate val_with modN entry solver simplifier bindings 
         res@ExecRes{final_state = fs} runLimit = do
-    isValidated <- validateState val_with modN entry [] [] bindings res 
+    validate_res <- validateState val_with modN entry [] [] bindings res 
     let currModel = model fs
         eenv = expr_env fs
         tv = tyvar_env fs
         origPc = path_conds fs
-    case isValidated of
-        Nothing -> do
+    case validate_res of
+        ValidationTimeout -> do
             let (eenv', pcs) = getNewPathCond (HM.toList currModel) tv eenv
                 newPc = makePathConds pcs origPc
                 fs' = fs {expr_env = eenv', path_conds = newPc}
             res' <- runG2Solving solver simplifier fs' bindings
             case res' of
                 SAT (m, !_) -> runValidate val_with modN entry solver simplifier bindings m (runLimit - 1)
-                _ -> return (res, isValidated)
-        _ -> return (res, isValidated)
-
+                _ -> return (res, validate_res)
+        _ -> return (res, validate_res)
     where 
         getNewPathCond ((n, e):nes) tvenv expEnv = 
             let ty = typeOf tvenv e
@@ -941,7 +941,7 @@ runG2SubstModel m s@(State { expr_env = eenv, type_env = tenv, tyvar_env = tv_en
                      , conc_mutvars = mv
                      , conc_handles = h
                      , violated = ais
-                     , validated = Nothing }
+                     , validate_result = Invalid }
 
         sm' = runPostprocessing bindings sm
 
@@ -952,7 +952,7 @@ runG2SubstModel m s@(State { expr_env = eenv, type_env = tenv, tyvar_env = tv_en
                        , conc_mutvars = mv
                        , conc_handles = conc_handles sm'
                        , violated = evalPrims eenv tenv tv_env kv tc (violated sm')
-                       , validated = Nothing -- when validate runs, it will get updated
+                       , validate_result = Invalid -- when validate runs, it will get updated
                        }
     in
     sm''
@@ -987,3 +987,18 @@ instance (ExceptionMonad m, MC.MonadCatch m, MC.MonadMask m) => ExceptionMonad (
         where q :: (m (a, s) -> m (a, s)) -> SM.StateT s m a -> SM.StateT s m a
               q u (SM.StateT b) = SM.StateT (u . b)
 #endif
+
+-------------------------------------------------------------------------------
+-- Statistics Reporting
+-------------------------------------------------------------------------------
+
+reportTerminationResults :: TimedOut -> Config -> IO ()
+reportTerminationResults time_outs config = do
+  when (print_timeout config || print_timeout_list_depth config) $ case time_outs of
+      NoTimeOut -> putStrLn "All states terminated."
+      TimedOut m_i -> do
+          putStrLn "Some states timed out."
+          when (print_timeout_list_depth config) $
+            case m_i of
+              Just i -> putStrLn $ "Checked up to list depth: " ++ show (i - 1)
+              Nothing -> putStrLn "No lists"

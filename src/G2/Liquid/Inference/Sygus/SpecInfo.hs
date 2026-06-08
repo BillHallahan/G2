@@ -598,7 +598,7 @@ allCondsKnown' si = si
 typeToSort :: Type -> Maybe Sort
 typeToSort (TyApp (TyCon (Name n _ _ _) _) t)
     | n == "Set"
-    , Just s <- typeToSort t = Just (SortArray s SortBool)
+    , Just s <- typeToSort t = Just (SortArray [s] SortBool)
 typeToSort (TyCon (Name n _ _ _) _)
     | n == "Int"  = Just SortInt
     | n == "Bool" = Just SortBool

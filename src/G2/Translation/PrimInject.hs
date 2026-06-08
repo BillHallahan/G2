@@ -493,17 +493,11 @@ tyFloatFloatBool n = TyFun TyLitFloat $ TyFun TyLitFloat (TyCon n TYPE)
 tyFloatFloatFloat :: Type
 tyFloatFloatFloat = TyFun TyLitFloat $ TyFun TyLitFloat TyLitFloat
 
-tyIntCharBool :: Name -> Type
-tyIntCharBool n = TyFun TyLitInt $ TyFun TyLitChar (TyCon n TYPE)
-
 tyIntChar :: Name -> Type
 tyIntChar n = TyFun TyLitInt TyLitChar
 
 tyCharInt :: Name -> Type
 tyCharInt n = TyFun TyLitChar TyLitInt
-
-tyCharIntBool :: Name -> Type
-tyCharIntBool n = TyFun TyLitChar $ TyFun TyLitInt (TyCon n TYPE)
 
 tyCharCharBool :: Name -> Type
 tyCharCharBool n = TyFun TyLitChar $ TyFun TyLitChar (TyCon n TYPE)

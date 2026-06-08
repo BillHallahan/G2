@@ -178,6 +178,7 @@ data Config = Config {
     , lib_nrpc :: NonRedPathCons -- ^ Whether to use NRPCs for library functions or not
     , approx_nrpc :: NonRedPathCons -- ^ Use approximation and NRPCs to avoid repeated exploration of equivalent function calls
     , symbolic_func_nrpc :: NonRedPathCons -- ^ Whether to use NRPCs for symbolic functions or not
+    , gen_func_arg_states :: Bool -- ^ Whether to generate function argument states
     , print_num_nrpc :: Bool -- ^ Output the number of NRPCs for each accepted state
     , print_num_post_call_func_arg :: Bool -- ^ Output the number of post call and function argument states
 }
@@ -314,6 +315,7 @@ mkConfig homedir = Config Regular
     <*> flag NoNrpc Nrpc (long "lib-nrpc" <> help "execute with non reduced path constraints")
     <*> flag NoNrpc Nrpc (long "approx-nrpc" <> help "Use approximation and NRPCs to avoid repeated exploration of equivalent function calls")
     <*> flag NoNrpc Nrpc (long "higher-nrpc" <> help "use NRPCs to delay execution of library functions")
+    <*> flag True False (long "no-func-arg-states" <> help "disable function argument states")
     <*> flag False True (long "print-num-nrpc" <> help "output the number of NRPCs for each accepted state")
     <*> flag False True (long "print-num-higher-states" <> help "output the number of post call and function argument states (from higher order coverage checking)")
 
@@ -488,6 +490,7 @@ mkConfigDirect homedir as m = Config {
     , lib_nrpc = NoNrpc
     , approx_nrpc = NoNrpc
     , symbolic_func_nrpc = NoNrpc
+    , gen_func_arg_states = True
     , print_num_nrpc = False
     , print_num_post_call_func_arg = False
 }

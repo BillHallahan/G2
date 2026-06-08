@@ -1,4 +1,4 @@
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE OverloadedStrings, LambdaCase #-}
 module InputOutputTest ( checkInputOutput
                        , checkInputOutputs
                        , checkInputOutputsWithCVC5
@@ -19,6 +19,7 @@ module InputOutputTest ( checkInputOutput
                        , checkInputOutputsTemplate
                        , checkInputOutputsWith
                        , checkInputOutputsNonRedHigher
+                       , checkInputOutputsNonRedHigherNoFuncArgs
                        , checkInputOutputsNonRedLib
                        , checkInputOutputsInstType 
                        , checkInputOutputsWithValidate
@@ -133,6 +134,15 @@ checkInputOutputsNonRedHigher src tests = do
         src
         tests
 
+checkInputOutputsNonRedHigherNoFuncArgs :: FilePath -> [(String, Int, [Reqs String])] -> TestTree
+checkInputOutputsNonRedHigherNoFuncArgs src tests = do
+    checkInputOutput'
+        (do config <- mkConfigTestIO; return (config { higherOrderSolver = SymbolicFunc
+                                                     , symbolic_func_nrpc = Nrpc
+                                                     , gen_func_arg_states = False }))
+        src
+        tests
+
 checkInputOutputsNonRedLib :: FilePath -> [(String, Int, [Reqs String])] -> TestTree
 checkInputOutputsNonRedLib src tests = do
     checkInputOutput'
@@ -234,7 +244,9 @@ checkInputOutput''' adj_config src exg2 nm tnm mb_modname config (entry, stps, r
 
     let chEx = checkExprInOutCount io req
     
-    return (fmap (fromMaybe False) mr, chEx, anys, r, b)
+    let isValids = (\case Valid -> True; _ -> False) <$> mr
+
+    return (isValids, chEx, anys, r, b)
 
 ------------
 

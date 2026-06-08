@@ -36,12 +36,21 @@ import qualified G2.Language.TyVarEnv as TV
 data VerifyResult = Verified
                   | Counterexample [ExecRes VerifierTracker]
                   | VerifyTimeOut
-                  deriving (Show, Read)
+                  deriving (Show)
 
 type VerStack m = SM.StateT LemmaInfo
                     (SM.StateT (ApproxPrevs VerifierTracker)
                         (SM.StateT LengthNTrack
                             (SM.StateT PrettyGuide m)))
+
+labelApproxPoints :: State VerifierTracker -> String
+labelApproxPoints s
+            | Data (DataCon { dc_name = d }) <- getExpr s
+            , d == dc_name (mkDCFalse (known_values s) (type_env s)) =
+                "state" ++ show (length $ rules s) ++ lem_ind ++ "_ap"
+            | otherwise = "state" ++ show (length $ rules s) ++ lem_ind
+            where
+                lem_ind = if isTheorem (goal $ track s) then "" else "_lem"
 
 verifyRedHaltOrd :: (MonadIO m, Solver solver, Simplifier simplifier) =>
                     State VerifierTracker
@@ -58,14 +67,6 @@ verifyRedHaltOrd :: (MonadIO m, Solver solver, Simplifier simplifier) =>
 verifyRedHaltOrd s solver simplifier config verify_config no_nrpc_names = do
     time_logger <- acceptTimeLogger
     (time_halter, io_timed_out) <- stdTimerHalter (fromInteger . toInteger $ timeLimit config) (min_found config)
-
-    let labelApproxPoints s
-            | Data (DataCon { dc_name = d }) <- getExpr s
-            , d == dc_name (mkDCFalse (known_values s) (type_env s)) =
-                "state" ++ show (length $ rules s) ++ lem_ind ++ "_ap"
-            | otherwise = "state" ++ show (length $ rules s) ++ lem_ind
-            where
-                lem_ind = if isTheorem (goal $ track s) then "" else "_lem"
 
     m_logger <- fmap SomeReducer <$> getLimLogger' labelApproxPoints config prettyVerifierTracker
 

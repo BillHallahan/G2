@@ -243,7 +243,7 @@ data LitConc = LitConc
 instance Simplifier LitConc where
     simplifyPC _ _ pc = [pc]
 
-    simplifyPCWithExprEnv _ s@(State { known_values = kv, type_env = tenv, tyvar_env = tv_env }) ng eenv pc =
+    simplifyPCWithExprEnv _ (State { known_values = kv, type_env = tenv, tyvar_env = tv_env }) ng eenv pc =
         let
             -- Get all variables with types corresponding to literal wrappers
             cs = filter replacable_type $ varIds pc

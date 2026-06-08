@@ -46,7 +46,7 @@ isExprValueForm eenv (App f a) = case unApp (App f a) of
     _ -> False
 isExprValueForm _ (Let _ _) = False
 isExprValueForm _ (Case _ _ _ _) = False
-isExprValueForm eenv (Cast e (t :~ _)) = isExprValueForm eenv e
+isExprValueForm eenv (Cast e _) = isExprValueForm eenv e
 isExprValueForm _ (Tick _ _) = False
 isExprValueForm _ (NonDet _) = False
 isExprValueForm _ (SymGen _ _) = False
@@ -60,7 +60,7 @@ isExprValueForm _ _ = True
 -- * We have no path conds to reduce
 -- * We are not able to run a symbolic function
 isExecValueForm :: State t -> Bool
-isExecValueForm state@(State { expr_env = eenv, curr_expr = CurrExpr _ e})
+isExecValueForm state@(State { curr_expr = CurrExpr _ e})
     | Nothing <- S.pop (exec_stack state)
     , CurrExpr Return _ <- curr_expr state
     , nullNRPC (non_red_path_conds state) =
@@ -88,7 +88,7 @@ normalForm' looked eenv (App f a) = case unApp (App f a) of
     _ -> False
 normalForm' _ _ (Let _ _) = False
 normalForm' _ _ (Case _ _ _ _) = False
-normalForm' looked eenv (Cast e (t :~ _)) = normalForm' looked eenv e
+normalForm' looked eenv (Cast e _) = normalForm' looked eenv e
 normalForm' _ _ (Tick _ _) = False
 normalForm' _ _ (NonDet _) = False
 normalForm' _ _ (SymGen _ _) = False

@@ -1,6 +1,6 @@
 module HigherOrder1 where
 
-import G2.Symbolic
+import Control.Exception
 
 f :: (Int -> Int) -> Int -> Int
 f h x = h (assert (x >= 0) 1)
@@ -23,3 +23,11 @@ c x = x
 
 call :: (Int -> Int) -> Int -> Int
 call h x = h (c x)
+
+data Nat = S Nat | Z
+
+higherNat :: (Nat -> Nat) -> Nat -> Nat
+higherNat f x =
+    case f x of
+        S Z -> S (S Z)
+        x -> x

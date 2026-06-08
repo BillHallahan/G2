@@ -62,7 +62,7 @@ import qualified G2.Language.TyVarEnv as TV
 import qualified G2.Language.PolyArgMap as PM
 
 import Data.Containers.ListUtils
-import Data.Data (Data, Typeable)
+import Data.Data (Data)
 import Data.Foldable
 import Data.Hashable
 import qualified Data.HashMap.Lazy as HM
@@ -110,7 +110,7 @@ nameLoc (Name _ _ _ s) = s
 
 -- | Allows the creation of fresh `Name`s.
 newtype NameGen = NameGen Unique
-                deriving (Show, Eq, Read, Typeable, Data)
+                deriving (Show, Eq, Read, Data)
 
 -- nameToStr relies on NameCleaner eliminating all '_', to preserve uniqueness
 -- | Converts a `Name` to a string, which is useful to interact with solvers.

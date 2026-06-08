@@ -8,7 +8,6 @@ import qualified G2.Language.ExprEnv as E
 import qualified Data.List as L 
 
 import Data.Foldable (foldl')
-import G2.Language.ExprEnv (isSymbolic)
 import G2.Execution
 import qualified G2.Language.TyVarEnv as TV 
 

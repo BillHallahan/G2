@@ -52,7 +52,8 @@ fuzzExecution (SB init_state bindings) = do
                                     -- Actually validate
                                     let mods = HS.singleton Nothing
                                     (val, _) <- validateStatesGHC pg "==" mods "call" [] [] b er
-                                    return $ fromMaybe False val) ers
+                                    let isValid = case val of Valid -> True; _ -> False
+                                    return isValid) ers
             )
         
         -- Get information about generated input/outputs when test fails
