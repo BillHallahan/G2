@@ -279,20 +279,33 @@ solveFuncConstraintsReducer solver = mkSimpleReducer (\_ -> ()) go
 
 data FCRes = SatFC FuncConstraints | UnsatFC deriving Eq
 
+data FCProgress = MadeProgressFC | NoProgressFC deriving (Eq, Show)
+
+type FCState t m a = SM.StateT (State t, NameGen) (SM.StateT FCProgress m) a
+
+getProgress :: Monad m => FCState t m FCProgress
+getProgress = SM.lift SM.get
+
+resetProgress :: Monad m => FCState t m ()
+resetProgress = SM.lift $ SM.put NoProgressFC
+
+madeProgress :: Monad m => FCState t m ()
+madeProgress = SM.lift $ SM.put MadeProgressFC
+
 solveFuncConstraints :: (Solver solver, MonadIO m) => solver -> State t -> NameGen -> m (Maybe (State t, NameGen))
 solveFuncConstraints solver s@(State { sym_func_constraints = fc }) ng = do
-    liftIO $ do
-        putStrLn "------------------------"
-        putStrLn "About to call solve FC"
-        putStrLn "------------------------"
-    (r, (s', !ng')) <- runStateNGT (solveFC solver 5 fc) s ng
+    -- liftIO $ do
+    --     putStrLn "------------------------"
+    --     putStrLn "About to call solve FC"
+    --     putStrLn "------------------------"
+    (r, (s', !ng')) <- SM.evalStateT (runStateNGT (solveFC solver (-1) fc) s ng) NoProgressFC
     return $ case r of
                     SatFC fcs' -> Just (s' { solved_sym_func_constraints = True
                                            , sym_func_constraints = fcs' }, ng')
                     _ -> Nothing
 
 -- TODO: Do we actually need the counter here?
-solveFC :: (Solver solver, MonadIO m) => solver -> Int -> FuncConstraints -> StateNGT t m FCRes
+solveFC :: (Solver solver, MonadIO m) => solver -> Int -> FuncConstraints -> FCState t m FCRes
 solveFC _ 0 _ = return UnsatFC
 solveFC solver !n fcs = do
     -- Convert functions with only a single constraint into constants
@@ -305,8 +318,13 @@ solveFC solver !n fcs = do
     case distinct of
         True -> return (SatFC fcs)
         False -> do
+            resetProgress
+
             fcs_simp_pieces <- concatMapM (uncurry simplifyReturns) $ HM.toList fcs
             let fc_simp_reassembled = HM.fromListWith (++) fcs_simp_pieces
+
+            let pg_rets = updatePrettyGuide (HM.toList fc_simp_reassembled) pg
+            -- liftIO $ putStrLn $ "fc_simp_returns =\n" ++ T.unpack (prettyFuncConstraints pg_rets fc_simp_reassembled)  
 
             -- Replace ADT symbolic variables with case expressions
             fcs_replaced_sym_adt <- mapM replaceADTSymVars fc_simp_reassembled
@@ -331,9 +349,14 @@ solveFC solver !n fcs = do
             let pg_whnf_assem = updatePrettyGuide (HM.toList fc_unfold_split_whnf_reassembled) pg_assem
             -- liftIO $ putStrLn $ "fc_unfold_split_whnf_reassembled =\n" ++ T.unpack (prettyFuncConstraints pg_whnf_assem fc_unfold_split_whnf_reassembled)
 
-            solveFC solver (n - 1) fc_unfold_split_whnf_reassembled
+            prog <- getProgress
+            -- liftIO . putStrLn $ "end prog = " ++ show prog
 
-solveSingleton :: Monad m => Name -> [FuncConstraint] -> StateNGT t m (Maybe [FuncConstraint])
+            case prog of
+                MadeProgressFC -> solveFC solver (n - 1) fc_unfold_split_whnf_reassembled
+                NoProgressFC -> return UnsatFC
+
+solveSingleton :: Monad m => Name -> [FuncConstraint] -> FCState t m (Maybe [FuncConstraint])
 solveSingleton _ [] = return Nothing
 solveSingleton n [FC { fc_args = as, fc_ret = r }] = do
     tv_env <- tyVarEnv
@@ -346,7 +369,7 @@ solveSingleton _ xs = return $ Just xs
 
 -- | If all function constraints for a particular function return the same constructor,
 -- split into separate function constraints for each argument to that constructor
-simplifyReturns :: MonadIO m => Name -> [FuncConstraint] -> StateNGT t m [(Name, [FuncConstraint])]
+simplifyReturns :: MonadIO m => Name -> [FuncConstraint] -> FCState t m [(Name, [FuncConstraint])]
 simplifyReturns n fcs = do
     eenv <- exprEnv
     tv_env <- tyVarEnv
@@ -380,6 +403,7 @@ simplifyReturns n fcs = do
                                         (_:ret_p) -> zipWith (\f p -> (idName f, [this_fc { fc_ret = p }])) per_arg_func ret_p
                                     ) fcs
 
+                    madeProgress
                     return new_fcs
 
         _ -> return [(n, fcs)]
@@ -391,7 +415,7 @@ simplifyReturns n fcs = do
 
 -- | Replace symbolic variables with ADT types with a case statement on a symbolic int, where
 -- each branch returns a different constructor of that ADT, with symbolic arguments.
-replaceADTSymVars :: MonadIO m => [FuncConstraint] -> StateNGT t m [FuncConstraint]
+replaceADTSymVars :: MonadIO m => [FuncConstraint] -> FCState t m [FuncConstraint]
 replaceADTSymVars fcs = do
     eenv <- exprEnv
     tenv <- typeEnv
@@ -429,12 +453,13 @@ replaceADTSymVars fcs = do
                             alts
                 insertE n cse
 
+                madeProgress
                 return ()
 
             | otherwise = do
                 return ()
 
-caseToPreCond :: MonadIO m => [FuncConstraint] -> StateNGT t m [FuncConstraint]
+caseToPreCond :: MonadIO m => [FuncConstraint] -> FCState t m [FuncConstraint]
 caseToPreCond fcs = concatMapM go fcs
     where
         go fc@(FC { fc_preconds = pre, fc_args = es }) = do
@@ -447,6 +472,8 @@ caseToPreCond fcs = concatMapM go fcs
                         eq i = mkApp $ [Prim Eq TyUnknown, Var branch_i, Lit i]
                     
                     let fc_branch = map (\(lit_v, dc) -> fc { fc_preconds = eq lit_v:pre, fc_args = replaceAt ind dc es'}) alts
+
+                    madeProgress
                     return fc_branch
                 Nothing -> return [fc]
             
@@ -464,7 +491,7 @@ caseToPreCond fcs = concatMapM go fcs
 
 -- | Find an argument which is an ADT and in WHNF in all function constraints, and use that
 -- argument to do a case split.
-unfoldADTArgs :: MonadIO m => Name -> [FuncConstraint] -> StateNGT t m [(Name, [FuncConstraint])]
+unfoldADTArgs :: MonadIO m => Name -> [FuncConstraint] -> FCState t m [(Name, [FuncConstraint])]
 unfoldADTArgs n [] = return []
 unfoldADTArgs n fcs@(first_fc:_) = do
     eenv <- exprEnv
@@ -536,6 +563,7 @@ unfoldADTArgs n fcs@(first_fc:_) = do
                                           )
                                           fcs
 
+                        madeProgress
                         return new_fcs
                 _ -> error "unfoldADTArgs: expected ADT type"
         Nothing -> return [(n, fcs)]
@@ -543,87 +571,126 @@ unfoldADTArgs n fcs@(first_fc:_) = do
 -- | Find an argument that is in WHNF for some function constraints, and not in WHNF for other function constraints,
 -- and use the literal values in the constraints to split up these cases into two constraints for two separate functions,
 -- one for the WHNF arguments, and one for the non-WHNF arguments.
-splitWHNFAndNonWHNF :: MonadIO m => Name -> [FuncConstraint] -> StateNGT t m [(Name, [FuncConstraint])]
+splitWHNFAndNonWHNF :: MonadIO m => Name -> [FuncConstraint] -> FCState t m [(Name, [FuncConstraint])]
 splitWHNFAndNonWHNF n [] = return []
 splitWHNFAndNonWHNF n fcs@(first_fc:_) = do
     eenv <- exprEnv
-    tenv <- typeEnv
     tv_env <- tyVarEnv
 
-    let ret_ty = typeOf tv_env $ fc_ret first_fc
+    case checkProgPossible tv_env first_fc of
+        True -> do
+            -- Find an argument that is:
+            --    (1) an ADT 
+            --    (2) has at least one argument that is in WHNF
+            --    (3) has at least one argument that is not a data constructor applications
+            let matching_args = transpose $ map fc_args fcs
+                only_some_whnf = findIndices (\e -> any (isADT . inlineVars eenv) e
+                                                && any (not . isADT . inlineVars eenv) e ) matching_args
+            
+            let arg_tys = map (typeOf tv_env) $ fc_args first_fc
 
-    -- Find an argument that is:
-    --    (1) an ADT 
-    --    (2) has at least one argument that is in WHNF
-    --    (3) has at least one argument that is not a data constructor applications
-    let matching_args = transpose $ map fc_args fcs
-        only_some_whnf = findIndex (\e -> any (isADT . inlineVars eenv) e
-                                       && any (not . isADT . inlineVars eenv) e ) matching_args
+            case any isPrimType arg_tys of
+                True -> splitWHNFAndNonWHNFIndices only_some_whnf [(n, fcs)]
+                False -> return [(n, fcs)]
+        False -> return [(n, fcs)]
+
+checkProgPossible :: TyVarEnv -> FuncConstraint -> Bool
+checkProgPossible tv_env fc =
+    let
+        stripNot (App (Prim Not _) e) = e
+        stripNot e = e
+
+        isPred (Var _:_) = True
+        isPred _ = False
+
+        -- Have we created a predicate using all currently available literals?
+        -- If so, we don't want to create another predicate.
+        unrolled_precond_pred = filter isPred . map unApp . map stripNot $ fc_preconds fc
+        largest_pred = maximum $ -1:map (\p -> length p - 1) unrolled_precond_pred
+        prim_fc_arg_num = length . filter (isPrimType . typeOf tv_env) $ fc_args fc
+    in
+    largest_pred /= prim_fc_arg_num
+
+splitWHNFAndNonWHNFIndices :: MonadIO m => [Int] -> [(Name, [FuncConstraint])] -> FCState t m [(Name, [FuncConstraint])]
+splitWHNFAndNonWHNFIndices [] n_fcs = return n_fcs
+splitWHNFAndNonWHNFIndices (i:is) n_fcs = do
+    n_fcs' <- concatMapM (uncurry (splitWHNFAndNonWHNFIndex i)) n_fcs
+    splitWHNFAndNonWHNFIndices is n_fcs'
+
+splitWHNFAndNonWHNFIndex :: MonadIO m =>
+                            Int -- ^ Index to split on
+                         -> Name
+                         -> [FuncConstraint]
+                         -> FCState t m [(Name, [FuncConstraint])]
+splitWHNFAndNonWHNFIndex _ n [] = return []
+splitWHNFAndNonWHNFIndex i n fcs@(first_fc:_) = do
+    eenv <- exprEnv
+    tenv <- typeEnv
+    tv_env <- tyVarEnv
     
     let arg_tys = map (typeOf tv_env) $ fc_args first_fc
         ret_ty = typeOf tv_env $ fc_ret first_fc
-    case only_some_whnf of
-        Just i | any isPrimType arg_tys -> do
-            lam_is <- freshIdsN (map (typeOf tv_env) $ fc_args first_fc)
-            let prim_ty_is = filter (isPrimType . idType) lam_is
 
-            ty_bool <- tyBoolT
-            dc_true <- mkDCTrueM
-            dc_false <- mkDCFalseM
+    lam_is <- freshIdsN (map (typeOf tv_env) $ fc_args first_fc)
+    let prim_ty_is = filter (isPrimType . idType) lam_is
 
-            pred <- freshIdN . mkTyFun $ map idType prim_ty_is ++ [ty_bool]
-            f_true <- freshIdN . mkTyFun $ arg_tys ++ [ret_ty]
-            f_false <- freshIdN . mkTyFun $ arg_tys ++ [ret_ty]
+    ty_bool <- tyBoolT
+    dc_true <- mkDCTrueM
+    dc_false <- mkDCFalseM
 
-            bindee <- freshIdN ty_bool
-            let pred_app = mkApp $ Var pred:map Var prim_ty_is
-                f_true_app = mkApp $ Var f_true:map Var lam_is
-                f_false_app = mkApp $ Var f_false:map Var lam_is
-                cse = Case pred_app bindee ret_ty
-                                [ Alt (DataAlt dc_true []) f_true_app
-                                , Alt (DataAlt dc_false []) f_false_app ]
-                lam_cse = mkLams (zip (repeat TermL) lam_is) cse
+    pred <- freshIdN . mkTyFun $ map idType prim_ty_is ++ [ty_bool]
+    f_true <- freshIdN . mkTyFun $ arg_tys ++ [ret_ty]
+    f_false <- freshIdN . mkTyFun $ arg_tys ++ [ret_ty]
 
-            insertE n lam_cse
+    bindee <- freshIdN ty_bool
+    let pred_app = mkApp $ Var pred:map Var prim_ty_is
+        f_true_app = mkApp $ Var f_true:map Var lam_is
+        f_false_app = mkApp $ Var f_false:map Var lam_is
+        cse = Case pred_app bindee ret_ty
+                        [ Alt (DataAlt dc_true []) f_true_app
+                        , Alt (DataAlt dc_false []) f_false_app ]
+        lam_cse = mkLams (zip (repeat TermL) lam_is) cse
 
-            -- Rewrite constraints which do not have argument in WHNF
-            non_whnf_cons <- mapMaybeM
-                                (\fc -> if | not . isADT . inlineVars eenv $ fc_args fc !! i -> do
-                                                -- Add a path constraint that the predicate does not hold
-                                                let pred_args = filter (isPrimType . typeOf tv_env) $ fc_args fc
-                                                    pred_app = mkApp $ Var pred:pred_args
-                                                insertPCStateNG $ ExtCond pred_app False
-                                                return $ Just (idName f_false, [fc])
-                                           | otherwise -> return Nothing
-                                )
-                                fcs
+    insertE n lam_cse
 
-            -- Rewrite constraints which do have argument in WHNF.
-            -- Allow either satisfying OR not satisfying the predicate
-            whnf_cons <- concatMapM (\fc -> if | isADT . inlineVars eenv $ fc_args fc !! i -> do
-                                                -- Add a path constraint that the predicate does not hold
-                                                let pred_args = filter (isPrimType . typeOf tv_env) $ fc_args fc
-                                                    pred_app = mkApp $ Var pred:pred_args
-                                                    fc_true = FC { fc_preconds = pred_app:fc_preconds fc
-                                                                 , fc_args = fc_args fc
-                                                                 , fc_ret = fc_ret fc
-                                                                 }
-                                                    fc_false = FC { fc_preconds = App (Prim Not TyUnknown) (pred_app):fc_preconds fc
-                                                                  , fc_args = fc_args fc
-                                                                  , fc_ret = fc_ret fc
-                                                                  }
+    -- Rewrite constraints which do not have argument in WHNF
+    non_whnf_cons <- mapMaybeM
+                        (\fc -> if | not . isADT . inlineVars eenv $ fc_args fc !! i -> do
+                                        -- Add a path constraint that the predicate does not hold
+                                        let pred_args = filter (isPrimType . typeOf tv_env) $ fc_args fc
+                                            pred_app = mkApp $ Var pred:pred_args
+                                        insertPCStateNG $ ExtCond pred_app False
+                                        return $ Just (idName f_false, [fc])
+                                    | otherwise -> return Nothing
+                        )
+                        fcs
 
-                                                return [(idName f_true, [fc_true]), (idName f_false, [fc_false])]
-                                               | otherwise -> return []
-                                )
-                                fcs
+    -- Rewrite constraints which do have argument in WHNF.
+    -- Allow either satisfying OR not satisfying the predicate
+    whnf_cons <- concatMapM (\fc -> if | isADT . inlineVars eenv $ fc_args fc !! i -> do
+                                        -- Add a path constraint that the predicate does not hold
+                                        let pred_args = filter (isPrimType . typeOf tv_env) $ fc_args fc
+                                            pred_app = mkApp $ Var pred:pred_args
+                                            fc_true = FC { fc_preconds = pred_app:fc_preconds fc
+                                                            , fc_args = fc_args fc
+                                                            , fc_ret = fc_ret fc
+                                                            }
+                                            fc_false = FC { fc_preconds = App (Prim Not TyUnknown) (pred_app):fc_preconds fc
+                                                            , fc_args = fc_args fc
+                                                            , fc_ret = fc_ret fc
+                                                            }
 
-            return $ non_whnf_cons ++ whnf_cons
-        Nothing -> return [(n, fcs)]
+                                        return [(idName f_true, [fc_true]), (idName f_false, [fc_false])]
+                                        | otherwise -> return []
+                        )
+                        fcs
+
+    madeProgress
+    return $ non_whnf_cons ++ whnf_cons
 
 -- | Checks if we can find solutions to all functions.
 -- Uses an SMT solver and the theory of uninterpreted functions to solve for literal inputs/outputs.
-checkDistinct :: (Solver solver, MonadIO m) => solver -> FuncConstraints -> StateNGT t m Bool
+checkDistinct :: (Solver solver, MonadIO m) => solver -> FuncConstraints -> FCState t m Bool
 checkDistinct solver fcs = do
     eenv <- exprEnv
     tv_env <- tyVarEnv
