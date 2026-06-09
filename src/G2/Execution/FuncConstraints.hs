@@ -3,6 +3,7 @@
 module G2.Execution.FuncConstraints where
 
 import G2.Config
+import G2.Execution.NormalForms
 import G2.Execution.PrimitiveEval
 import G2.Execution.Reducer
 import G2.Language
@@ -274,8 +275,85 @@ solveFuncConstraintsReducer solver = mkSimpleReducer (\_ -> ()) go
                     -- liftIO . putStrLn $ case r of Just _ -> "Just"; Nothing -> "Nothing"
                     case r of
                         Just (s', ng') -> return (Finished, [(s', ())], b { name_gen = ng' })
-                        Nothing -> return (Finished, [], b) -- TODO
+                        Nothing -> do
+                            -- Function constraints were not solved, so gather unreduced expressions
+                            -- in the function constraints, and set up state to reduce them
+                            ((is, fc'), (s', !ng')) <- runStateNGT (do
+                                fc_ <- addWrappersToFC (sym_func_constraints s)
+                                non_red_v <- collectNonReducedVars fc_
+                                return (non_red_v, fc_)
+                                ) s (name_gen b)
+                            case is of
+                                [] -> return (Finished, [], b)
+                                (head_i:tail_is) ->
+                                    let
+                                        ce = curr_expr s'
+                                        stck = foldl' (\st i -> Stck.push (CurrExprFrame NoAction (CurrExpr Evaluate $ Var i)) st)
+                                                      (Stck.push (CurrExprFrame NoAction ce) Stck.empty )
+                                                      tail_is
+                                        s'' = s' { curr_expr = CurrExpr Evaluate (Var head_i)
+                                                 , exec_stack = stck
+                                                 , sym_func_constraints = fc' }
+                                    in
+                                    return (Finished, [(s'', ())], b { name_gen = ng' }) -- TODO
                  | otherwise = return (Finished, [], b)
+
+------------------------------------------------------------------------------
+-- Collecting expressions to reduce when solving fails
+------------------------------------------------------------------------------
+
+collectNonReducedVars :: Monad m => FuncConstraints -> StateNGT t m [Id]
+collectNonReducedVars fcs = do
+    eenv <- exprEnv
+
+    let collect (Var i@(Id n _))
+            | Just e <- E.lookup n eenv
+            , isExprValueForm eenv e = collect e
+            | otherwise = [i]
+        collect e
+            | Data _:es <- unApp e = concatMap collect es
+        collect _ = []
+    
+    return . concatMap (
+                    concatMap (concatMap collect . fc_args)
+             )
+           $ HM.elems fcs
+
+addWrappersToFC :: Monad m => FuncConstraints -> StateNGT t m FuncConstraints
+addWrappersToFC =
+    mapM (
+            mapM (\fc -> do
+                as' <- mapM addVarWrappers $ fc_args fc
+                return $ fc { fc_args = as' }
+            )
+         )
+
+-- Replace any non-WHNF expression with a variable that points to that non-WHNF epxression.
+addVarWrappers :: Monad m => Expr -> StateNGT t m Expr
+addVarWrappers e
+    | d@(Data _):es <- unApp e = do
+        es' <- mapM addVarWrappers es
+        return . mkApp $ d:es'
+addVarWrappers v@(Var (Id n _)) = do
+    eenv <- exprEnv
+    case E.lookup n eenv of
+        Just e -> do
+            addVarWrappers e
+            return v
+        _ -> error "addVarWrappers: variable not found"
+addVarWrappers e = do
+    eenv <- exprEnv
+    case isExprValueForm eenv e of
+        True -> return e
+        False -> do
+            tv_env <- tyVarEnv
+            i <- freshIdN (typeOf tv_env e)
+            insertE (idName i) e
+            return (Var i)
+
+------------------------------------------------------------------------------
+-- Solving Function Constraints
+------------------------------------------------------------------------------
 
 data FCRes = SatFC FuncConstraints | UnsatFC deriving Eq
 
@@ -303,6 +381,7 @@ solveFuncConstraints solver s@(State { sym_func_constraints = fc }) ng = do
                     SatFC fcs' -> Just (s' { solved_sym_func_constraints = True
                                            , sym_func_constraints = fcs' }, ng')
                     _ -> Nothing
+
 
 -- TODO: Do we actually need the counter here?
 solveFC :: (Solver solver, MonadIO m) => solver -> Int -> FuncConstraints -> FCState t m FCRes

@@ -74,12 +74,12 @@ abc3 f = case f 1 B of
 
 {-# NOINLINE b #-}
 b :: () -> AB
-b () = B
+b () = A B
 
 abc4 :: (Int -> AB -> XYZ) -> Int
 abc4 f =
     case f 1 (A B) of
-        X -> case f 1 (b ()) of
+        X -> case f 1 (A (b ())) of
                 Y -> 1
                 _ -> 2
         _ -> 3
