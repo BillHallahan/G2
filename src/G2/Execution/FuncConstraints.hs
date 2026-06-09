@@ -298,7 +298,7 @@ solveFC solver !n fcs = do
     -- Convert functions with only a single constraint into constants
     -- fcs_nosingle <- return . HM.mapMaybe id =<< HM.traverseWithKey solveSingleton fcs
     let pg = mkPrettyGuide (HM.toList fcs)
-    liftIO $ putStrLn $ "fcs =\n" ++ T.unpack (prettyFuncConstraints pg fcs)  
+    -- liftIO $ putStrLn $ "fcs =\n" ++ T.unpack (prettyFuncConstraints pg fcs)  
 
     distinct <- checkDistinct solver fcs
 
@@ -313,23 +313,23 @@ solveFC solver !n fcs = do
 
             fcs_precond <- mapM caseToPreCond fcs_replaced_sym_adt
             let pg_precond = updatePrettyGuide (HM.toList fcs_precond) pg
-            liftIO $ putStrLn $ "fcs_precond =\n" ++ T.unpack (prettyFuncConstraints pg_precond fcs_precond)  
+            -- liftIO $ putStrLn $ "fcs_precond =\n" ++ T.unpack (prettyFuncConstraints pg_precond fcs_precond)  
 
             -- Introduce branches on ADTs
             fcs_unfold_adt_pieces <- concatMapM (uncurry unfoldADTArgs) $ HM.toList fcs_precond
             let fc_unfold_adt_reassembled = HM.fromListWith (++) fcs_unfold_adt_pieces
 
-            liftIO $ putStrLn "after unfoldADTArgs"
+            -- liftIO $ putStrLn "after unfoldADTArgs"
             let pg_assem = updatePrettyGuide (HM.toList fc_unfold_adt_reassembled) pg_precond
-            liftIO $ putStrLn $ "fc_reassembled =\n" ++ T.unpack (prettyFuncConstraints pg_assem fc_unfold_adt_reassembled)
+            -- liftIO $ putStrLn $ "fc_reassembled =\n" ++ T.unpack (prettyFuncConstraints pg_assem fc_unfold_adt_reassembled)
 
             -- Branch on literals, with the aim of splitting up ADTs that are in WHNF from those that are not
             split_whnf_pieces <- concatMapM (uncurry splitWHNFAndNonWHNF) $ HM.toList fc_unfold_adt_reassembled
             let fc_unfold_split_whnf_reassembled = HM.fromListWith (++) split_whnf_pieces
 
-            liftIO $ putStrLn "after splitWHNFAndNonWHNF"
+            -- liftIO $ putStrLn "after splitWHNFAndNonWHNF"
             let pg_whnf_assem = updatePrettyGuide (HM.toList fc_unfold_split_whnf_reassembled) pg_assem
-            liftIO $ putStrLn $ "fc_unfold_split_whnf_reassembled =\n" ++ T.unpack (prettyFuncConstraints pg_whnf_assem fc_unfold_split_whnf_reassembled)
+            -- liftIO $ putStrLn $ "fc_unfold_split_whnf_reassembled =\n" ++ T.unpack (prettyFuncConstraints pg_whnf_assem fc_unfold_split_whnf_reassembled)
 
             solveFC solver (n - 1) fc_unfold_split_whnf_reassembled
 
