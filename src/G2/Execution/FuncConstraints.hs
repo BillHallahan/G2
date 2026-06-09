@@ -1,4 +1,4 @@
-{-# LANGUAGE BangPatterns, OverloadedStrings #-}
+{-# LANGUAGE BangPatterns, MultiWayIf, OverloadedStrings #-}
 
 module G2.Execution.FuncConstraints where
 
@@ -281,6 +281,10 @@ data FCRes = SatFC FuncConstraints | UnsatFC deriving Eq
 
 solveFuncConstraints :: (Solver solver, MonadIO m) => solver -> State t -> NameGen -> m (Maybe (State t, NameGen))
 solveFuncConstraints solver s@(State { sym_func_constraints = fc }) ng = do
+    liftIO $ do
+        putStrLn "------------------------"
+        putStrLn "About to call solve FC"
+        putStrLn "------------------------"
     (r, (s', !ng')) <- runStateNGT (solveFC solver 5 fc) s ng
     return $ case r of
                     SatFC fcs' -> Just (s' { solved_sym_func_constraints = True
@@ -319,7 +323,15 @@ solveFC solver !n fcs = do
             let pg_assem = updatePrettyGuide (HM.toList fc_unfold_adt_reassembled) pg_precond
             liftIO $ putStrLn $ "fc_reassembled =\n" ++ T.unpack (prettyFuncConstraints pg_assem fc_unfold_adt_reassembled)
 
-            solveFC solver (n - 1) fc_unfold_adt_reassembled
+            -- Branch on literals, with the aim of splitting up ADTs that are in WHNF from those that are not
+            split_whnf_pieces <- concatMapM (uncurry splitWHNFAndNonWHNF) $ HM.toList fc_unfold_adt_reassembled
+            let fc_unfold_split_whnf_reassembled = HM.fromListWith (++) split_whnf_pieces
+
+            liftIO $ putStrLn "after splitWHNFAndNonWHNF"
+            let pg_whnf_assem = updatePrettyGuide (HM.toList fc_unfold_split_whnf_reassembled) pg_assem
+            liftIO $ putStrLn $ "fc_unfold_split_whnf_reassembled =\n" ++ T.unpack (prettyFuncConstraints pg_whnf_assem fc_unfold_split_whnf_reassembled)
+
+            solveFC solver (n - 1) fc_unfold_split_whnf_reassembled
 
 solveSingleton :: Monad m => Name -> [FuncConstraint] -> StateNGT t m (Maybe [FuncConstraint])
 solveSingleton _ [] = return Nothing
@@ -377,7 +389,8 @@ simplifyReturns n fcs = do
                 , dc_n == dc_n' = True
                 | otherwise = False
 
-
+-- | Replace symbolic variables with ADT types with a case statement on a symbolic int, where
+-- each branch returns a different constructor of that ADT, with symbolic arguments.
 replaceADTSymVars :: MonadIO m => [FuncConstraint] -> StateNGT t m [FuncConstraint]
 replaceADTSymVars fcs = do
     eenv <- exprEnv
@@ -449,6 +462,8 @@ caseToPreCond fcs = concatMapM go fcs
         getCasePats (Case (Var i) (Id _ TyLitInt) _ alts) = Just (i, map (\(Alt (LitAlt l) dc) -> (l, dc)) alts)
         getCasePats _ = Nothing
 
+-- | Find an argument which is an ADT and in WHNF in all function constraints, and use that
+-- argument to do a case split.
 unfoldADTArgs :: MonadIO m => Name -> [FuncConstraint] -> StateNGT t m [(Name, [FuncConstraint])]
 unfoldADTArgs n [] = return []
 unfoldADTArgs n fcs@(first_fc:_) = do
@@ -525,8 +540,89 @@ unfoldADTArgs n fcs@(first_fc:_) = do
                 _ -> error "unfoldADTArgs: expected ADT type"
         Nothing -> return [(n, fcs)]
 
+-- | Find an argument that is in WHNF for some function constraints, and not in WHNF for other function constraints,
+-- and use the literal values in the constraints to split up these cases into two constraints for two separate functions,
+-- one for the WHNF arguments, and one for the non-WHNF arguments.
+splitWHNFAndNonWHNF :: MonadIO m => Name -> [FuncConstraint] -> StateNGT t m [(Name, [FuncConstraint])]
+splitWHNFAndNonWHNF n [] = return []
+splitWHNFAndNonWHNF n fcs@(first_fc:_) = do
+    eenv <- exprEnv
+    tenv <- typeEnv
+    tv_env <- tyVarEnv
+
+    let ret_ty = typeOf tv_env $ fc_ret first_fc
+
+    -- Find an argument that is:
+    --    (1) an ADT 
+    --    (2) has at least one argument that is in WHNF
+    --    (3) has at least one argument that is not a data constructor applications
+    let matching_args = transpose $ map fc_args fcs
+        only_some_whnf = findIndex (\e -> any (isADT . inlineVars eenv) e
+                                       && any (not . isADT . inlineVars eenv) e ) matching_args
+    
+    let arg_tys = map (typeOf tv_env) $ fc_args first_fc
+        ret_ty = typeOf tv_env $ fc_ret first_fc
+    case only_some_whnf of
+        Just i | any isPrimType arg_tys -> do
+            lam_is <- freshIdsN (map (typeOf tv_env) $ fc_args first_fc)
+            let prim_ty_is = filter (isPrimType . idType) lam_is
+
+            ty_bool <- tyBoolT
+            dc_true <- mkDCTrueM
+            dc_false <- mkDCFalseM
+
+            pred <- freshIdN . mkTyFun $ map idType prim_ty_is ++ [ty_bool]
+            f_true <- freshIdN . mkTyFun $ arg_tys ++ [ret_ty]
+            f_false <- freshIdN . mkTyFun $ arg_tys ++ [ret_ty]
+
+            bindee <- freshIdN ty_bool
+            let pred_app = mkApp $ Var pred:map Var prim_ty_is
+                f_true_app = mkApp $ Var f_true:map Var lam_is
+                f_false_app = mkApp $ Var f_false:map Var lam_is
+                cse = Case pred_app bindee ret_ty
+                                [ Alt (DataAlt dc_true []) f_true_app
+                                , Alt (DataAlt dc_false []) f_false_app ]
+                lam_cse = mkLams (zip (repeat TermL) lam_is) cse
+
+            insertE n lam_cse
+
+            -- Rewrite constraints which do not have argument in WHNF
+            non_whnf_cons <- mapMaybeM
+                                (\fc -> if | not . isADT . inlineVars eenv $ fc_args fc !! i -> do
+                                                -- Add a path constraint that the predicate does not hold
+                                                let pred_args = filter (isPrimType . typeOf tv_env) $ fc_args fc
+                                                    pred_app = mkApp $ Var pred:pred_args
+                                                insertPCStateNG $ ExtCond pred_app False
+                                                return $ Just (idName f_false, [fc])
+                                           | otherwise -> return Nothing
+                                )
+                                fcs
+
+            -- Rewrite constraints which do have argument in WHNF.
+            -- Allow either satisfying OR not satisfying the predicate
+            whnf_cons <- concatMapM (\fc -> if | isADT . inlineVars eenv $ fc_args fc !! i -> do
+                                                -- Add a path constraint that the predicate does not hold
+                                                let pred_args = filter (isPrimType . typeOf tv_env) $ fc_args fc
+                                                    pred_app = mkApp $ Var pred:pred_args
+                                                    fc_true = FC { fc_preconds = pred_app:fc_preconds fc
+                                                                 , fc_args = fc_args fc
+                                                                 , fc_ret = fc_ret fc
+                                                                 }
+                                                    fc_false = FC { fc_preconds = App (Prim Not TyUnknown) (pred_app):fc_preconds fc
+                                                                  , fc_args = fc_args fc
+                                                                  , fc_ret = fc_ret fc
+                                                                  }
+
+                                                return [(idName f_true, [fc_true]), (idName f_false, [fc_false])]
+                                               | otherwise -> return []
+                                )
+                                fcs
+
+            return $ non_whnf_cons ++ whnf_cons
+        Nothing -> return [(n, fcs)]
+
 -- | Checks if we can find solutions to all functions.
---   Uses an SMT solver and the theory of uninterpreted functions to solve for literal inputs/outputs.
+-- Uses an SMT solver and the theory of uninterpreted functions to solve for literal inputs/outputs.
 checkDistinct :: (Solver solver, MonadIO m) => solver -> FuncConstraints -> StateNGT t m Bool
 checkDistinct solver fcs = do
     eenv <- exprEnv
