@@ -906,8 +906,7 @@ runValidate val_with modN entry solver simplifier bindings
                 SAT (m, !_) -> runValidate val_with modN entry solver simplifier bindings m (runLimit - 1)
                 _ -> return (res, isValidated)
         _ -> return (res, isValidated)
-
-    where 
+    where
         getNewPathCond ((n, e):nes) tvenv expEnv = 
             let ty = typeOf tvenv e
                 (expEnv'', pcExprs') = if TY.isPrimType ty then

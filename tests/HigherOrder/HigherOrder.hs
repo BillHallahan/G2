@@ -58,14 +58,16 @@ abc2 f = case f 10 of
             _ -> A (A B)
 
 {-# NOINLINE ab #-}
-ab :: AB
-ab = A (A B)
+ab :: () -> AB
+ab _ = A (A B)
 
-abc3 :: (Int -> AB -> Int) -> Int
+data XYZ = X | Y | Z
+
+abc3 :: (Int -> AB -> XYZ) -> Int
 abc3 f = case f 1 B of
-                1 -> case f 1 (A B) of
-                            2 -> case f 2 ab of
-                                    3 -> 1
+                X -> case f 1 (A B) of
+                            Y -> case f 2 (ab ()) of
+                                    Z -> 1
                                     _ -> 2
                             _ -> 3
                 _ -> 4

@@ -103,14 +103,14 @@ mkCleanExprHaskell' :: TV.TyVarEnv -> KnownValues -> TypeClasses -> Expr -> Mayb
 mkCleanExprHaskell' tv kv tc e
     | m_e@(Just _) <- pushWrapperInCase e = m_e
 
-    | Case scrut i t [a] <- e = Case scrut i t . (:[]) <$> elimPrimDC a
-    
     -- If we have a case branching on literals, it needs to be branching on wrapped literals
     -- Some messiness here: mkCleanExprHaskell' is repeatedly run until it hits a fix point.
     -- We change the return type of the case to ensure that we do not loop on doing this modification forever.
     | Case scrut i t as@(Alt (LitAlt _) _:_) <- e
     , not (isTyUnknown t) = Just $ Case (elimPrimLits scrut) i TyUnknown as
 
+    | Case scrut i t [a] <- e = Case scrut i t . (:[]) <$> elimPrimDC a
+    
     | (App e' e'') <- e
     , t <- typeOf tv e'
     , isTypeClass tc t = Just e''
