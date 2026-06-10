@@ -25,8 +25,6 @@ import Data.Maybe
 
 import qualified Data.Text as T
 
-import Debug.Trace
-
 -- | A reducer to add higher order functions to the symbolic function constraints for solving later  
 addFuncConstraintReducer :: MonadIO m =>
                             Config
@@ -274,16 +272,14 @@ solveFuncConstraintsReducer solver = mkSimpleReducer (\_ -> ()) go
     where
         go _ s b | true_assert s = do
                     r <- solveFuncConstraints solver s (name_gen b)
-                    liftIO . putStrLn $ case r of Just _ -> "Just"; Nothing -> "Nothing"
+                    -- liftIO . putStrLn $ case r of Just _ -> "Just"; Nothing -> "Nothing"
                     case r of
                         Just (s', ng') -> return (Finished, [(s', ())], b { name_gen = ng' })
                         Nothing -> do
                             -- Function constraints were not solved, so gather unreduced expressions
                             -- in the function constraints, and set up state to reduce them
                             ((is, fc'), (s', !ng')) <- runStateNGT (do
-                                liftIO $ putStrLn $ "sym_func_constraints s = " ++ show (sym_func_constraints s)
                                 fc_ <- addWrappersToFC (sym_func_constraints s)
-                                liftIO $ putStrLn $ "fc_ = " ++ show fc_
                                 non_red_v <- collectNonReducedVars fc_
                                 return (non_red_v, fc_)
                                 ) s (name_gen b)
