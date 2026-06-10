@@ -367,7 +367,11 @@ limitSolvingFuncConstraintPieces = mkSimpleReducer (\_ -> 200) go
                        , exec_stack = stck }
             in
             return (Finished, [(s', 200)], b)
-        go !c s b | solving_sym_func_constraints s == SolvingFCs = return (InProgress, [(s, c - 1)], b)
+        go !c s b 
+            | solving_sym_func_constraints s == SolvingFCs
+            , Stck.null (exec_stack s)
+            , CurrExpr Return _ <- curr_expr s = return (Finished, [(s, 200)], b)
+            | solving_sym_func_constraints s == SolvingFCs = return (InProgress, [(s, c - 1)], b)
         go _ s b = return (NoProgress, [(s, 200)], b)
 
 collapseStack :: Stck.Stack Frame -> ExprEnv -> Expr -> (Expr, ExprEnv, Stck.Stack Frame)
