@@ -57,7 +57,7 @@ data State t = State { expr_env :: E.ExprEnv -- ^ Mapping of `Name`s to `Expr`s
                      , non_red_path_conds :: NonRedPathConds -- ^ Path conditions, in the form of (possibly non-reduced)
                                                              -- expression pairs that must be proved equivalent
                      , sym_func_constraints :: FuncConstraints -- ^ Constraints on symbolic functions
-                     , solved_sym_func_constraints :: Bool -- ^ Have we solved the sym func constraints?
+                     , solving_sym_func_constraints :: FCStatus -- ^ Have we solved the sym func constraints?
                      , focused :: Focus -- ^ Is the expression that we are currently evaluating in focus (may be unfocused when from NRPC)
                      , handles :: HM.HashMap Name Handle -- ^ Each Handle has a name, that appears in `Expr`s within the `Handle` `Primitive`
                      , mutvar_env :: MutVarEnv -- ^ MutVar `Name`s to mappings of names in the `ExprEnv`.
@@ -225,6 +225,13 @@ data FuncConstraint =
 
 instance Hashable FuncConstraint
 
+data FCStatus = InitialRun -- ^ Not yet to solving function constraints
+              | SolvingFCs -- ^ In the process of solving function constraints
+              | SolvedFCs -- ^ Function constraints have been solved
+              deriving (Eq, Show, Read, Generic, Data)
+
+instance Hashable FCStatus
+
 -- data FuncRec = FR { func_name :: Name, func_constraints :: [FuncConstraint] }
 --                deriving (Eq, Show, Read, Generic, Data)
 
@@ -294,7 +301,7 @@ instance Named t => Named (State t) where
                , path_conds = rename old new (path_conds s)
                , non_red_path_conds = rename old new (non_red_path_conds s)
                , sym_func_constraints = rename old new (sym_func_constraints s)
-               , solved_sym_func_constraints = solved_sym_func_constraints s
+               , solving_sym_func_constraints = solving_sym_func_constraints s
                , focused = focused s
                , handles = rename old new (handles s)
                , mutvar_env = rename old new (mutvar_env s)
@@ -327,7 +334,7 @@ instance Named t => Named (State t) where
                , path_conds = renames hm (path_conds s)
                , non_red_path_conds = renames hm (non_red_path_conds s)
                , sym_func_constraints = renames hm (sym_func_constraints s)
-               , solved_sym_func_constraints = solved_sym_func_constraints s
+               , solving_sym_func_constraints = solving_sym_func_constraints s
                , focused = focused s
                , handles = renames hm (handles s)
                , mutvar_env = renames hm (mutvar_env s)

@@ -65,7 +65,7 @@ isExecValueForm state@(State { curr_expr = CurrExpr _ e})
     | Nothing <- S.pop (exec_stack state)
     , CurrExpr Return _ <- curr_expr state
     , nullNRPC (non_red_path_conds state)
-    , (solved_sym_func_constraints state) || HM.null (sym_func_constraints state) =
+    , (solving_sym_func_constraints state == SolvedFCs) || HM.null (sym_func_constraints state) =
         case unApp e of
             [_] -> True
             Var (Id _ _):_ -> False

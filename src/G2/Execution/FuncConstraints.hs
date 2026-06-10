@@ -6,7 +6,7 @@ import G2.Config
 import G2.Execution.NormalForms
 import G2.Execution.PrimitiveEval
 import G2.Execution.Reducer
-import G2.Language
+import G2.Language as L
 import qualified G2.Language.ExprEnv as E
 import G2.Language.Monad
 import qualified G2.Language.PathConds as PC
@@ -293,7 +293,8 @@ solveFuncConstraintsReducer solver = mkSimpleReducer (\_ -> ()) go
                                                       tail_is
                                         s'' = s' { curr_expr = CurrExpr Evaluate (Var head_i)
                                                  , exec_stack = stck
-                                                 , sym_func_constraints = fc' }
+                                                 , sym_func_constraints = fc'
+                                                 , solving_sym_func_constraints = SolvingFCs }
                                     in
                                     return (Finished, [(s'', ())], b { name_gen = ng' }) -- TODO
                  | otherwise = return (Finished, [], b)
@@ -351,6 +352,35 @@ addVarWrappers e = do
             insertE (idName i) e
             return (Var i)
 
+limitSolvingFuncConstraintPieces :: Monad m => Reducer m Int t
+limitSolvingFuncConstraintPieces = mkSimpleReducer (\_ -> 200) go
+    where
+        go 0 s b | solving_sym_func_constraints s == SolvingFCs =
+            let
+                (e, eenv, stck) = collapseStack (exec_stack s) (expr_env s) (getExpr s)
+                s' = s { curr_expr = CurrExpr Return e
+                       , expr_env = eenv
+                       , exec_stack = stck }
+            in
+            return (Finished, [(s', 200)], b)
+        go !c s b | solving_sym_func_constraints s == SolvingFCs = return (InProgress, [(s, c - 1)], b)
+        go _ s b = return (NoProgress, [(s, 200)], b)
+
+collapseStack :: Stck.Stack Frame -> ExprEnv -> Expr -> (Expr, ExprEnv, Stck.Stack Frame)
+collapseStack stck eenv e
+    | Just (CaseFrame i t as, stck') <- fr = collapseStack stck' eenv (Case e i t as)
+    | Just (ApplyFrame e', stck') <- fr = collapseStack stck' eenv (App e e')
+    | Just (UpdateFrame n, stck') <- fr = collapseStack stck' (E.insert n e eenv) e
+    | Just (CastFrame coer, stck') <- fr = collapseStack stck' eenv (Cast e coer)
+    | Just (CatchFrame catch, stck') <- fr = collapseStack stck' eenv (mkApp [Prim Catch TyUnknown, e, catch])
+    | Just (AssumeFrame assume_e, stck') <- fr = collapseStack stck' eenv (Assume Nothing assume_e e)
+    | Just (AssertFrame fc assume_e, stck') <- fr = collapseStack stck' eenv (L.Assert fc assume_e e)
+    | Just (CurrExprFrame _ _, _) <- fr = (e, eenv, stck)
+    | Just (LitTableFrame _ _, _) <- fr = error "collapseStack: LitTableFrame not supported"
+    | Nothing <- fr = (e, eenv, stck)
+    where
+        fr = Stck.pop stck
+
 ------------------------------------------------------------------------------
 -- Solving Function Constraints
 ------------------------------------------------------------------------------
@@ -378,7 +408,7 @@ solveFuncConstraints solver s@(State { sym_func_constraints = fc }) ng = do
     --     putStrLn "------------------------"
     (r, (s', !ng')) <- SM.evalStateT (runStateNGT (solveFC solver (-1) fc) s ng) NoProgressFC
     return $ case r of
-                    SatFC fcs' -> Just (s' { solved_sym_func_constraints = True
+                    SatFC fcs' -> Just (s' { solving_sym_func_constraints = SolvedFCs
                                            , sym_func_constraints = fcs' }, ng')
                     _ -> Nothing
 
