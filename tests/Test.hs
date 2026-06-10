@@ -631,10 +631,10 @@ testFileTests = testGroup "TestFiles"
 
                                                               , ("all1", 5000, [AtLeast 5])
                                                               , ("any1", 5000, [AtLeast 5])
-                                                              , ("filter1", 5000, [AtLeast 5])
+                                                              , ("filter1", 1000, [AtLeast 5])
                                                               , ("map1", 5000, [AtLeast 5])
-                                                              , ("dropWhile1", 5000, [AtLeast 5])
-                                                              , ("takeWhile1", 5000, [AtLeast 5])
+                                                              , ("dropWhile1", 1000, [AtLeast 5])
+                                                              , ("takeWhile1", 1000, [AtLeast 5])
 
                                                               ]
 
