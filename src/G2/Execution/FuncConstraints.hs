@@ -717,9 +717,9 @@ splitWHNFAndNonWHNFIndex i n fcs@(first_fc:_) = do
     dc_true <- mkDCTrueM
     dc_false <- mkDCFalseM
 
-    pred <- freshIdN . mkTyFun $ map idType prim_ty_is ++ [ty_bool]
-    f_true <- freshIdN . mkTyFun $ arg_tys ++ [ret_ty]
-    f_false <- freshIdN . mkTyFun $ arg_tys ++ [ret_ty]
+    pred <- freshSeededIdN (Name "pred" Nothing 0 Nothing) . mkTyFun $ map idType prim_ty_is ++ [ty_bool]
+    f_true <- freshSeededIdN (Name "f_true" Nothing 0 Nothing) . mkTyFun $ arg_tys ++ [ret_ty]
+    f_false <- freshSeededIdN (Name "f_false" Nothing 0 Nothing) . mkTyFun $ arg_tys ++ [ret_ty]
 
     bindee <- freshIdN ty_bool
     let pred_app = mkApp $ Var pred:map Var prim_ty_is
@@ -739,7 +739,8 @@ splitWHNFAndNonWHNFIndex i n fcs@(first_fc:_) = do
                                         let pred_args = filter (isPrimType . typeOf tv_env) $ fc_args fc
                                             pred_app = mkApp $ Var pred:pred_args
                                         insertPCStateNG $ ExtCond pred_app False
-                                        return $ Just (idName f_false, [fc])
+                                        let fc_non_whnf = fc { fc_preconds = App (Prim Not TyUnknown) (pred_app):fc_preconds fc}
+                                        return $ Just (idName f_false, [fc_non_whnf])
                                     | otherwise -> return Nothing
                         )
                         fcs
@@ -782,7 +783,7 @@ checkDistinct solver fcs = do
             (fc_first:_) -> do
                     let prim_arg_tys = map (typeOf tv_env) $ filter (isPrimType . typeOf tv_env) $ fc_args fc_first
                         call_ty = mkTyFun $ prim_arg_tys ++ [TyLitInt]
-                    sel_func <- freshIdN call_ty
+                    sel_func <- freshSeededIdN (Name "sel" Nothing 0 Nothing) call_ty
 
                     let fc_pcs = zipWith 
                                 (\i fc -> 
