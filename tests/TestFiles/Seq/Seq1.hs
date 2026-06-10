@@ -3,6 +3,7 @@
 module Seq1 where
 
 import Data.List
+import qualified GHC.List as L
 
 -- Validation
 floatEq :: (Eq a, RealFloat a) => a -> a -> Bool
@@ -355,3 +356,39 @@ unsnoc2 = unsnoc
 totalIndex1 :: [Int] -> [Maybe Int]
 totalIndex1 xs = [xs !? (-1), xs !? 0, xs !? 15]
 #endif
+
+all1 :: [Int] -> Int
+all1 xs = case L.all big xs of
+            False -> 0
+            True -> 1
+    where
+        big x = x > 10000
+
+any1 :: [Int] -> String
+any1 xs = case L.any (== 4) xs of
+            True -> "Four found. Not good"
+            False -> "We're clear!"
+
+filter1 :: [Int] -> Int
+filter1 xs = if length (filter big xs) > 2 then 0 else 1
+    where
+        big x = x > 123456789
+
+map1 :: [Int] -> Char
+map1 xs = case map (*2) xs of
+            [2,4,6] -> 'a'
+            [1,2] -> 'b' -- Unreachable
+            _ -> 'c'
+
+dropWhile1 :: [Double] -> Int
+dropWhile1 xs = case dropWhile (> 13.37) xs of
+                    [1.1, 2.2] -> 0
+                    [15.0] -> 1 -- Unreachable
+                    _ -> 2
+
+takeWhile1 :: [Int] -> String
+takeWhile1 xs = case takeWhile (== 4) xs of
+                    [4, 4, 4] -> "Wow. That's a lot of fours!"
+                    [4, 4] -> "Reasonable amount of fours. I'm satisfied."
+                    [4] -> "Only one four? I'm disappointed."
+                    _ -> "Either you gave me way too many fours, or none at all. How could you do this?"

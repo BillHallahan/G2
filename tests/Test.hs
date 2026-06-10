@@ -629,6 +629,13 @@ testFileTests = testGroup "TestFiles"
 
                                                               , ("intersperse1", 3000, [Exactly 3])
 
+                                                              , ("all1", 5000, [AtLeast 5])
+                                                              , ("any1", 5000, [AtLeast 5])
+                                                              , ("filter1", 5000, [AtLeast 5])
+                                                              , ("map1", 5000, [AtLeast 5])
+                                                              , ("dropWhile1", 5000, [AtLeast 5])
+                                                              , ("takeWhile1", 5000, [AtLeast 5])
+
                                                               ]
 
     , checkInputOutputsSMTLists "tests/TestFiles/Seq/SeqTuple.hs" [ ("con", 2000, [Exactly 2])
@@ -645,6 +652,14 @@ testFileTests = testGroup "TestFiles"
     , checkInputOutputsLambdaSMTLists "tests/TestFiles/Seq/Seq1.hs"
                                         [ ("intersperse1", 3000, [Exactly 3])
                                         , ("intersperse2", 1000, [Exactly 3]) ]
+    , checkInputOutputsLitTablesSMTLists "tests/TestFiles/Seq/Seq1.hs"
+                                        [ ("any1", 20000, [Exactly 2])
+                                        , ("all1", 20000, [Exactly 2])
+                                        , ("filter1", 20000, [Exactly 5])
+                                        , ("map1", 20000, [Exactly 8])
+                                        , ("dropWhile1", 20000, [Exactly 6])
+                                        , ("takeWhile1", 20000, [Exactly 5])
+                                        ]
 
     , checkExpr "tests/TestFiles/Strings/Strings1.hs" 1000 "exclaimEq"
         [AtLeast 5, RExists (\[_, _, r] -> dcHasName "True" r)]
