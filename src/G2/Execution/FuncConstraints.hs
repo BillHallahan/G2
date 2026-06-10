@@ -276,13 +276,19 @@ solveFuncConstraintsReducer solver = mkSimpleReducer (\_ -> ()) go
                     case r of
                         Just (s', ng') -> return (Finished, [(s', ())], b { name_gen = ng' })
                         Nothing -> do
-                            -- Function constraints were not solved, so gather unreduced expressions
-                            -- in the function constraints, and set up state to reduce them
+                            -- Function constraints were not solved
                             ((is, fc'), (s', !ng')) <- runStateNGT (do
-                                fc_ <- addWrappersToFC (sym_func_constraints s)
-                                non_red_v <- collectNonReducedVars fc_
-                                return (non_red_v, fc_)
+                                let fcs = sym_func_constraints s
+                                -- Add extra calls to higher order functions
+                                added_higher_fcs <- mapM (uncurry addHigherOrderCalls) $ HM.toList fcs
+                                let fc_higher_reassembled = HM.fromList added_higher_fcs
+
+                                -- Gather unreduced expressions in the function constraints, and set up state to reduce them
+                                fc_wrapper <- addWrappersToFC fc_higher_reassembled
+                                non_red_v <- collectNonReducedVars fc_wrapper
+                                return (non_red_v, fc_wrapper)
                                 ) s (name_gen b)
+
                             case is of
                                 [] -> return (Finished, [], b)
                                 (head_i:tail_is) ->
@@ -303,6 +309,54 @@ solveFuncConstraintsReducer solver = mkSimpleReducer (\_ -> ()) go
 -- Collecting expressions to reduce when solving fails
 ------------------------------------------------------------------------------
 
+-- | Expands function definitions to include extra calls to higher order functions.
+addHigherOrderCalls :: MonadIO m => Name -> [FuncConstraint] -> StateNGT t m (Name, [FuncConstraint])
+addHigherOrderCalls n [] = return (n, [])
+addHigherOrderCalls n fcs@(first_fc:_) = do
+    tv_env <- tyVarEnv
+    let arg_ts = map (typeOf tv_env) $ fc_args first_fc
+        (func_inds, higher_tys) = unzip . filter (isTyFun . snd) $ zip [0..] arg_ts
+    
+    case func_inds of
+        [] -> return (n, fcs)
+        (_:_) -> do
+            let ret_ty = typeOf tv_env $ fc_ret first_fc
+                higher_ret_ty = map returnType higher_tys
+                t_new = mkTyFun $ arg_ts ++ higher_ret_ty ++ [ret_ty]
+
+            -- Update definition of original symbolic function.
+            f_new <- freshSeededIdN (Name "f_h" Nothing 0 Nothing) t_new
+            insertSymbolicE f_new
+
+            lam_is <- freshIdsN (map (typeOf tv_env) $ fc_args first_fc)
+            higher_args_apps <- mapM (\j -> do
+                let i = lam_is !! j
+                    ts = anonArgumentTypes $ typeOf tv_env i
+                as <- freshIdsN ts
+                mapM_ insertSymbolicE as
+                return (as, mkApp $ Var i:map Var as)) func_inds
+            let (higher_args, higher_apps) = unzip higher_args_apps
+
+            let e = mkLams (zip (repeat TermL) lam_is)
+                  . mkApp
+                  $ Var f_new:map Var lam_is ++ higher_apps
+            
+            insertE n e
+
+            -- Update function constraints
+            let fcs' = map (\fc@(FC { fc_args = as }) ->
+                        let
+                            new_as = zipWith
+                                        (\f f_as -> mkApp $ f:map Var f_as)
+                                        (map (as !!) func_inds)
+                                        higher_args
+                        in
+                        fc { fc_args = as ++ new_as }
+                        ) fcs
+
+            return (idName f_new, fcs')
+
+-- | Get expressions that have not been fully reduced. 
 collectNonReducedVars :: Monad m => FuncConstraints -> StateNGT t m [Id]
 collectNonReducedVars fcs = do
     eenv <- exprEnv
