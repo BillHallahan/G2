@@ -451,19 +451,19 @@ initRedHaltOrd s mod_name solver simplifier config exec_func_names no_nrpc_names
         case higherOrderSolver config of
             AllFuncs ->
                 ( nrpc_approx_red retReplaceSymbFuncVar .== Finished
-                        .--> SomeReducer (nonRedPCRed ~> solveFuncConstraintsReducer solver)
+                        .--> (SomeReducer nonRedPCRed .== Finished .--> SomeReducer (solveFuncConstraintsReducer solver))
                 , SomeHalter (discardIfAcceptedTagHalter True state_name) .<~> halter_height
                 , orderer
                 , io_timed_out)
             SingleFunc ->
                 ( nrpc_approx_red retReplaceSymbFuncVar .== Finished .--> taggerRed state_name :== Finished
-                            --> (nonRedPCRed ~> solveFuncConstraintsReducer solver)
+                            .--> (SomeReducer nonRedPCRed .== Finished .--> SomeReducer (solveFuncConstraintsReducer solver))
                 , SomeHalter (discardIfAcceptedTagHalter True state_name) .<~> halter_height
                 , orderer
                 , io_timed_out)
             SymbolicFunc ->
                 ( nrpc_approx_red retReplaceSymbFuncTemplate .== Finished .--> taggerRed state_name :== Finished
-                            --> (nonRedPCSymFuncRed ~> solveFuncConstraintsReducer solver)
+                            .--> (SomeReducer nonRedPCRed .== Finished .--> SomeReducer (solveFuncConstraintsReducer solver))
                 , SomeHalter (discardIfAcceptedTagHalter True state_name) .<~> halter_height
                 , orderer
                 , io_timed_out)
