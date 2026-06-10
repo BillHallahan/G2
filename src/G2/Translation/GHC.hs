@@ -16,6 +16,12 @@ module G2.Translation.GHC ( module GHC
                           , module GHC.Data.Pair
                           , module GHC.Driver.Main
                           , module GHC.Driver.Session
+-- 
+#if __GLASGOW_HASKELL__ == 900 && __GLASGOW_HASKELL_PATCHLEVEL1__ == 2
+                          , module GHC.Driver.Types
+#else
+                          , module GHC.Types.SourceError
+#endif
                           , module GHC.Iface.Tidy
                           , module GHC.Paths
                           , module GHC.Types.Avail
@@ -79,6 +85,11 @@ import GHC.Data.FastString
 import GHC.Data.Pair
 import GHC.Driver.Main
 import GHC.Driver.Session
+#if __GLASGOW_HASKELL__ == 900 && __GLASGOW_HASKELL_PATCHLEVEL1__ == 2
+import GHC.Driver.Types
+#else 
+import GHC.Types.SourceError
+#endif
 import GHC.Iface.Tidy
 import GHC.Paths
 import GHC.Types.Avail

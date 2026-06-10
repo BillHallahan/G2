@@ -875,7 +875,6 @@ evalsToSMTRep seen eenv kv tc = go
                 altEvals (Alt _ ae) = go ae
         go (Data _) = True
         go (Lit _) = True
-        go (App e1 _) | Var (Id n _):_ <- unApp e1, n `elem` smtStringFuncs kv = True
         go (App e1 e2) = go e1 && go e2
         go (Type _) = True
         go (Tick _ e) = go e

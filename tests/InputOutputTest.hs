@@ -1,4 +1,4 @@
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE OverloadedStrings, LambdaCase #-}
 module InputOutputTest ( checkInputOutput
                        , checkInputOutputs
                        , checkInputOutputsWithCVC5
@@ -252,7 +252,9 @@ checkInputOutput''' adj_config src exg2 nm tnm mb_modname config (entry, stps, r
 
     let chEx = checkExprInOutCount io req
     
-    return (fmap (fromMaybe False) mr, chEx, anys, r, b)
+    let isValids = (\case Valid -> True; _ -> False) <$> mr
+
+    return (isValids, chEx, anys, r, b)
 
 ------------
 

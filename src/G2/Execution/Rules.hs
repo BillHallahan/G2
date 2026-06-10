@@ -1197,9 +1197,18 @@ retErrorState s@(State { curr_expr = CurrExpr _ (App (Prim Error _) ce), exec_st
         (RuleError, [s { curr_expr = CurrExpr Evaluate (App (App e ce) st_rw)
                        , exec_stack = stck'  }], ng)
 retErrorState s@(State { exec_stack = stck }) ng
-    -- Discard all non-catch frames if in an error state
+    -- Discard all non-catch frames if in an error state, except
+    -- the starting frame of a literal table process
+    | Just ((LitTableFrame (StartedBuilding _) _), _) <- S.pop stck =
+        -- We need to escape error mode, so we set the curr expr to unspecified
+        (RuleReturnLitTableErr, [s { lit_table_stack = lts, curr_expr = final }], ng)
     | Just (_, stck') <- S.pop stck = (RuleError, [s { exec_stack = stck' }], ng)
-    | otherwise = (RuleIdentity, [s], ng)
+    | otherwise = (RuleIdentity, [s { lit_table_stack = lts }], ng)
+        -- We cannot currently deal with errors in literal table creation
+        where lts = if inLitTableMode s
+                        then S.modifyTop (\lt -> lt { lt_errored = True }) $ lit_table_stack s
+                        else lit_table_stack s
+              final = CurrExpr Return (Prim UnspecifiedOutput TyUnknown)
 
 retApplyFrame :: State t -> NameGen -> Expr -> Expr -> S.Stack Frame -> (Rule, [State t], NameGen)
 retApplyFrame s@(State { expr_env = eenv }) ng e1 e2 stck'

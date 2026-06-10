@@ -196,7 +196,7 @@ liquidStateFromSimpleStateWithCall' simp_s ghci entry mb_m config lhconfig memco
                                   else (simp_s, Nothing)
         (s, i, bindings') = initStateFromSimpleStateWithCall simp_s' True entry mb_m mkCurr argTys config
     
-    fromLiquidReadyState s i bindings' ghci ph_tyvars lhconfig memconfig
+    fromLiquidReadyState s i bindings' ghci ph_tyvars lhconfig memconfig config
 
 {-# INLINE fromLiquidReadyState #-}
 fromLiquidReadyState :: State ()
@@ -206,11 +206,19 @@ fromLiquidReadyState :: State ()
                      -> Maybe PhantomTyVars
                      -> LHConfig
                      -> MemConfig
+                     -> Config
                      -> IO LiquidData
-fromLiquidReadyState init_state ifi bindings ghci ph_tyvars lhconfig memconfig = do
+fromLiquidReadyState init_state ifi bindings ghci ph_tyvars lhconfig memconfig config = do
     let init_state' = (markAndSweepPreserving (reqNames init_state `mappend` memconfig) init_state bindings)
+        use_lams = using_smt_lams config == UseSMTLams && smt config == ConZ3
+        use_lts = literal_tables config == UseLiteralTables
         cleaned_state = init_state' { type_env = type_env init_state }
-        cleaned_state' = cleaned_state { known_values = recalcSmtStringFuncs (expr_env cleaned_state) (known_values cleaned_state) }
+
+        cleaned_state' = cleaned_state { known_values = recalcSmtStringFuncs
+                                                            (expr_env cleaned_state)
+                                                            (known_values cleaned_state)
+                                                            use_lams
+                                                            use_lts }
     fromLiquidNoCleaning cleaned_state ifi bindings ghci ph_tyvars lhconfig memconfig
 
 data LiquidReadyState = LiquidReadyState { lr_state :: LHState

@@ -567,7 +567,10 @@ testFileTests = testGroup "TestFiles"
                                            , ("dropWhile2", 10000, [Exactly 1])
                                            , ("takeWhile1", 10000, [Exactly 4])
                                            , ("map1", 10000, [Exactly 3])
-                                           , ("map2", 10000, [Exactly 4])
+                                           , ("map2", 10000, [AtLeast 4, AtMost 5])
+                                           -- Functions that error
+                                           , ("filter3", 3000, [AtLeast 5])
+                                           , ("any2", 2000, [AtLeast 5])
                                            ]
 
     , checkInputOutputsSMTLists "tests/TestFiles/Seq/Seq1.hs" [ ("toEnum1", 2000, [Exactly 1])
