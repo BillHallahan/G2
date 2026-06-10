@@ -151,7 +151,7 @@ solveNumericConstraintsPC tv con kv tenv pc ng = do
 
     m <- solveConstraints con headers vs
     case m of
-        SAT m' -> return . SAT $ SatRes (modelAsExpr kv tenv ty_map m') tv ng
+        SAT m' -> return . SAT $ SatRes (modelAsExpr kv tenv tv ty_map m') tv ng
         UNSAT () -> return $ UNSAT ()
         Unknown s () -> return $ Unknown s ()
 
@@ -1175,40 +1175,40 @@ toSolverSetLogic lgc =
     "(set-logic " <> s <> ")"
 
 -- | Converts an `SMTAST` to an `Expr`.
-smtastToExpr :: KnownValues -> TypeEnv -> Type -> SMTAST -> Expr
-smtastToExpr kv tenv t (VInt i)
+smtastToExpr :: KnownValues -> TypeEnv -> TyVarEnv -> Type -> SMTAST -> Expr
+smtastToExpr kv tenv _ t (VInt i)
     | TyLitInt <- t = Lit $ LitInt i
     | TyLitWord <- t = Lit . LitWord $ fromIntegral i
     | t == tyWord kv = App (mkDCWord kv tenv) (Lit . LitWord $ fromIntegral i)
     | t == tyInteger kv = App (mkDCInteger kv tenv) (Lit $ LitInt i)
     | t == tyInt kv = App (mkDCInt kv tenv) (Lit $ LitInt i)
     | otherwise = Lit $ LitInt i
-smtastToExpr _ _ _ (VWord i) = Lit $ LitWord i
-smtastToExpr kv tenv t (VFloat f)
+smtastToExpr _ _ _ _ (VWord i) = Lit $ LitWord i
+smtastToExpr kv tenv _ t (VFloat f)
     | TyLitFloat <- t = Lit $ LitFloat f
     | otherwise = App (mkDCFloat kv tenv) (Lit $ LitFloat f)
-smtastToExpr kv tenv t (VDouble d)
+smtastToExpr kv tenv _ t (VDouble d)
     | TyLitDouble <- t = Lit $ LitDouble d
     | otherwise = App (mkDCDouble kv tenv) (Lit $ LitDouble d)
 
-smtastToExpr _ _ _ (VReal r) = Lit $ LitRational r
-smtastToExpr _ _ _ (VBitVec bv) = Lit $ LitBV bv
-smtastToExpr kv _ _ (VBool True) = mkTrue kv
-smtastToExpr kv _ _ (VBool False) = mkFalse kv
-smtastToExpr kv tenv _ (VString cs) = mkG2List kv tenv (tyChar kv) $ map (App (mkDCChar kv tenv) . Lit . LitChar) cs
-smtastToExpr _ _ _ (VChar c) = Lit $ LitChar c
-smtastToExpr _ _ _ (V n s) = Var $ Id (certainStrToName n) (sortToType s)
-smtastToExpr kv tenv t (SeqEmptySMT _) = App (mkEmpty kv tenv) (Type $ getTypeForList t)
-smtastToExpr kv tenv t (SeqUnitSMT s) = mkApp [ mkCons kv tenv
-                                                     , Type $ getTypeForList t
-                                                     , smtastToExpr kv tenv (getTypeForList t) s
-                                                     , App (mkEmpty kv tenv) (Type $ getTypeForList t) ]
-smtastToExpr kv tenv t (StrAppendSMT xs) =
-    mkG2List kv tenv (getTypeForList t) $ map (smtastToExpr kv tenv (getTypeForList t) . fromUnit) xs
+smtastToExpr _ _ _ _ (VReal r) = Lit $ LitRational r
+smtastToExpr _ _ _ _ (VBitVec bv) = Lit $ LitBV bv
+smtastToExpr kv _ _ _ (VBool True) = mkTrue kv
+smtastToExpr kv _ _ _ (VBool False) = mkFalse kv
+smtastToExpr kv tenv _ _ (VString cs) = mkG2List kv tenv (tyChar kv) $ map (App (mkDCChar kv tenv) . Lit . LitChar) cs
+smtastToExpr _ _ _ _ (VChar c) = Lit $ LitChar c
+smtastToExpr _ _ _ _ (V n s) = Var $ Id (certainStrToName n) (sortToType s)
+smtastToExpr kv tenv tv_env t (SeqEmptySMT _) = App (mkEmpty kv tenv) (Type $ getTypeForList tv_env t)
+smtastToExpr kv tenv tv_env t (SeqUnitSMT s) = mkApp [ mkCons kv tenv
+                                                     , Type $ getTypeForList tv_env t
+                                                     , smtastToExpr kv tenv tv_env (getTypeForList tv_env t) s
+                                                     , App (mkEmpty kv tenv) (Type $ getTypeForList tv_env t) ]
+smtastToExpr kv tenv tv_env t (StrAppendSMT xs) =
+    mkG2List kv tenv (getTypeForList tv_env t) $ map (smtastToExpr kv tenv tv_env (getTypeForList tv_env t) . fromUnit) xs
     where
         fromUnit (SeqUnitSMT s) = s
         fromUnit _ = error "fromUnit: unsupported case"
-smtastToExpr kv tenv t (DataSMT dc_smt_n as)
+smtastToExpr kv tenv tv_env t (DataSMT dc_smt_n as)
     | let dc_n = certainStrToName dc_smt_n
     
     , TyCon tycon_n _:ts <- unTyApp t
@@ -1219,15 +1219,15 @@ smtastToExpr kv tenv t (DataSMT dc_smt_n as)
         anon_t = anonArgumentTypes $ dc_type dc
         anon_t_inst = replaceTyVars named_ty_to_inst anon_t
 
-        es = zipWith (smtastToExpr kv tenv) anon_t_inst as
+        es = zipWith (smtastToExpr kv tenv tv_env) anon_t_inst as
     in
     mkApp $ Data dc:map Type ts ++ es
-smtastToExpr kv tenv t (LambdaSMT bound body) =
+smtastToExpr kv tenv tv_env t (LambdaSMT bound body) =
     let
         bound_i = map (\(n, srt) -> Id (certainStrToName n) (sortToType srt)) bound
     in
-    mkLams (zip (repeat TermL) bound_i) $ smtastToExpr kv tenv t body
-smtastToExpr kv tenv t (IteSMT cond br1 br2) =
+    mkLams (zip (repeat TermL) bound_i) $ smtastToExpr kv tenv tv_env t body
+smtastToExpr kv tenv tv_env t (IteSMT cond br1 br2) =
     let
         ty_bool = tyBool kv
         true_dc = mkDCTrue kv tenv
@@ -1237,26 +1237,26 @@ smtastToExpr kv tenv t (IteSMT cond br1 br2) =
 
         bindee = Id (Name "g2____bindee_smt_ite__" Nothing 0 Nothing) ty_bool
 
-        cond_e = smtastToExpr kv tenv ty_bool cond
-        br1_e = smtastToExpr kv tenv ret_ty br1
-        br2_e = smtastToExpr kv tenv ret_ty br2
+        cond_e = smtastToExpr kv tenv tv_env ty_bool cond
+        br1_e = smtastToExpr kv tenv tv_env ret_ty br1
+        br2_e = smtastToExpr kv tenv tv_env ret_ty br2
 
         alts = [ Alt (DataAlt true_dc []) br1_e
                , Alt (DataAlt false_dc []) br2_e ]
     in
     Case cond_e bindee ret_ty alts
-smtastToExpr kv tenv _ (smt1 := smt2) = mkApp $ [ Prim Eq TyUnknown
-                                                , smtastToExpr kv tenv TyUnknown smt1
-                                                , smtastToExpr kv tenv TyUnknown smt2]
-smtastToExpr kv tenv t@(TyFun _ _) (ArrayStore arr ind val) =
+smtastToExpr kv tenv tv_env _ (smt1 := smt2) = mkApp $ [ Prim Eq TyUnknown
+                                                , smtastToExpr kv tenv tv_env TyUnknown smt1
+                                                , smtastToExpr kv tenv tv_env TyUnknown smt2]
+smtastToExpr kv tenv tv_env t@(TyFun _ _) (ArrayStore arr ind val) =
     let
-        arr_e = smtastToExpr kv tenv t arr
+        arr_e = smtastToExpr kv tenv tv_env t arr
 
         arg_ty = anonArgumentTypes t
         ret_ty = returnType t
 
-        ind_e = zipWith (smtastToExpr kv tenv) arg_ty ind
-        val_e = smtastToExpr kv tenv ret_ty val
+        ind_e = zipWith (smtastToExpr kv tenv tv_env) arg_ty ind
+        val_e = smtastToExpr kv tenv tv_env ret_ty val
 
         bound_i = zipWith (\i -> Id (Name "lam__bound_G2_arr_store" Nothing i Nothing)) [1..] arg_ty
 
@@ -1274,18 +1274,19 @@ smtastToExpr kv tenv t@(TyFun _ _) (ArrayStore arr ind val) =
                     , Alt (DataAlt false_dc []) . mkApp $ arr_e:map Var bound_i]
     in
     mkLams (zip (repeat TermL) bound_i) body
-smtastToExpr kv tenv t@(TyFun _ _) (ArrayConst v _ _) =
+smtastToExpr kv tenv tv_env t@(TyFun _ _) (ArrayConst v _ _) =
     let
         arg_ty = anonArgumentTypes t
         bound_i = zipWith (\i -> Id (Name "lam__!!_G2_arr_store" Nothing i Nothing)) [1..] arg_ty
     in
-    mkLams (zip (repeat TermL) bound_i) $ smtastToExpr kv tenv (returnType t) v
+    mkLams (zip (repeat TermL) bound_i) $ smtastToExpr kv tenv tv_env (returnType t) v
 
-smtastToExpr _ _ _ smt = error $ "Conversion of this SMTAST to an Expr not supported." ++ "\n" ++ show smt
+smtastToExpr _ _ _ _ smt = error $ "Conversion of this SMTAST to an Expr not supported." ++ "\n" ++ show smt
 
-getTypeForList :: Type -> Type
-getTypeForList (TyApp _ t) = t
-getTypeForList _ = TyUnknown
+getTypeForList :: TyVarEnv -> Type -> Type
+getTypeForList tv_env (TyApp _ t) = tyVarSubst tv_env t
+getTypeForList tv_env t@(TyVar _) = getTypeForList tv_env $ tyVarSubst tv_env t
+getTypeForList _ t = TyUnknown
 
 -- | Converts a `Sort` to an `Type`.
 sortToType :: Sort -> Type
@@ -1300,9 +1301,9 @@ sortToType (ParSort "UNKNOWN") = TyUnknown
 sortToType t = error $ "Conversion of this Sort to a Type not supported." ++ show t
 
 -- | Coverts an `SMTModel` to a `Model`.
-modelAsExpr :: KnownValues -> TypeEnv -> HM.HashMap SMTName Type -> SMTModel -> Model
-modelAsExpr kv tenv ty_map = HM.fromList . M.toList . M.mapKeys strToName
-                           . M.mapWithKey (\n -> smtastToExpr kv tenv (fromMaybe TyUnknown $ HM.lookup n ty_map))
+modelAsExpr :: KnownValues -> TypeEnv -> TyVarEnv -> HM.HashMap SMTName Type -> SMTModel -> Model
+modelAsExpr kv tenv tv_env ty_map = HM.fromList . M.toList . M.mapKeys strToName
+                           . M.mapWithKey (\n -> smtastToExpr kv tenv tv_env (fromMaybe TyUnknown $ HM.lookup n ty_map))
 
 certainStrToName :: String -> Name
 certainStrToName s =
