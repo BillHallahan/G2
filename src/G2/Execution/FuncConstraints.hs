@@ -311,6 +311,7 @@ collectNonReducedVars fcs = do
             | n `notElem` seen
             , Just e <- E.lookup n eenv
             , isExprValueForm eenv e = collect (HS.insert n seen) e
+            | E.isSymbolic n eenv = []
             | otherwise = [i]
         collect seen e
             | Data _:es <- unApp e = concatMap (collect seen) es
