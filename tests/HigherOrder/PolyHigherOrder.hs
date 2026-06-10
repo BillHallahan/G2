@@ -4,15 +4,19 @@ data List a = Cons a (List a) | EmptyList
 
 f :: (List Bool -> List Bool) -> List Bool -> Bool
 f g l = case g l of
-    Cons True l -> True
-    Cons False l -> False
+    Cons True l -> False
+    Cons False l -> True
     EmptyList -> True
 
 h :: (Num a, Ord a) => (a -> a) -> Bool
 h g = not (g 3 <= g 6)
 
+myNot :: Bool -> Bool
+myNot True = False
+myNot False = True
+
 assoc :: Eq a => (a -> a -> a) -> a -> a -> a -> Bool
-assoc op x y z = op (op x y) z == op x (op y z)
+assoc op x y z = myNot (op (op x y) z == op x (op y z))
 
 data Stream a = Stream a (Stream a)
 

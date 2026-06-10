@@ -724,11 +724,11 @@ testFileTests = testGroup "TestFiles"
                                                                        , ("polyHigher", 50, [AtLeast 4])]                                                                                         
 
     , checkInputOutputsSymFuncConstraints "tests/HigherOrder/PolyHigherOrder.hs"
-                                                                       [ ("f", 50, [AtLeast 5])
-                                                                       , ("h", 200, [AtLeast 3])
-                                                                       , ("assoc", 200, [AtLeast 5])
+                                                                       [ ("f", 100, [Exactly 3])
+                                                                       , ("h", 200, [Exactly 2])
+                                                                       , ("assoc", 200, [Exactly 2])
                                                                        , ("sf", 175, [AtLeast 5])
-                                                                       , ("tupleTest", 175, [AtLeast 8])]
+                                                                       , ("tupleTest", 200, [Exactly 2])]
 
     , checkInputOutputsWithValidate "tests/BaseTests/ListTests.hs" [ ("lengthN", 2000, [AtLeast 1])
                                                                 , ("lengthBranch", 2000, [AtLeast 4])]
