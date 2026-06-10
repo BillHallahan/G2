@@ -370,9 +370,11 @@ any1 xs = case L.any (== 4) xs of
             False -> "We're clear!"
 
 filter1 :: [Int] -> Int
-filter1 xs = if length (filter big xs) > 2 then 0 else 1
+filter1 xs = case filter small xs of
+                [1,2] -> 0
+                _ -> 1
     where
-        big x = x > 123456789
+        small x = x < 4
 
 map1 :: [Int] -> Char
 map1 xs = case map (*2) xs of
