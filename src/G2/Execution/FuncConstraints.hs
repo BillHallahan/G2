@@ -25,6 +25,8 @@ import Data.Maybe
 
 import qualified Data.Text as T
 
+import Debug.Trace
+
 -- | A reducer to add higher order functions to the symbolic function constraints for solving later  
 addFuncConstraintReducer :: MonadIO m =>
                             Config
@@ -272,14 +274,16 @@ solveFuncConstraintsReducer solver = mkSimpleReducer (\_ -> ()) go
     where
         go _ s b | true_assert s = do
                     r <- solveFuncConstraints solver s (name_gen b)
-                    -- liftIO . putStrLn $ case r of Just _ -> "Just"; Nothing -> "Nothing"
+                    liftIO . putStrLn $ case r of Just _ -> "Just"; Nothing -> "Nothing"
                     case r of
                         Just (s', ng') -> return (Finished, [(s', ())], b { name_gen = ng' })
                         Nothing -> do
                             -- Function constraints were not solved, so gather unreduced expressions
                             -- in the function constraints, and set up state to reduce them
                             ((is, fc'), (s', !ng')) <- runStateNGT (do
+                                liftIO $ putStrLn $ "sym_func_constraints s = " ++ show (sym_func_constraints s)
                                 fc_ <- addWrappersToFC (sym_func_constraints s)
+                                liftIO $ putStrLn $ "fc_ = " ++ show fc_
                                 non_red_v <- collectNonReducedVars fc_
                                 return (non_red_v, fc_)
                                 ) s (name_gen b)
@@ -307,16 +311,17 @@ collectNonReducedVars :: Monad m => FuncConstraints -> StateNGT t m [Id]
 collectNonReducedVars fcs = do
     eenv <- exprEnv
 
-    let collect (Var i@(Id n _))
-            | Just e <- E.lookup n eenv
-            , isExprValueForm eenv e = collect e
+    let collect seen (Var i@(Id n _))
+            | n `notElem` seen
+            , Just e <- E.lookup n eenv
+            , isExprValueForm eenv e = collect (HS.insert n seen) e
             | otherwise = [i]
-        collect e
-            | Data _:es <- unApp e = concatMap collect es
-        collect _ = []
+        collect seen e
+            | Data _:es <- unApp e = concatMap (collect seen) es
+        collect _ _ = []
     
     return . concatMap (
-                    concatMap (concatMap collect . fc_args)
+                    concatMap (concatMap (collect HS.empty) . fc_args)
              )
            $ HM.elems fcs
 
@@ -324,32 +329,34 @@ addWrappersToFC :: Monad m => FuncConstraints -> StateNGT t m FuncConstraints
 addWrappersToFC =
     mapM (
             mapM (\fc -> do
-                as' <- mapM addVarWrappers $ fc_args fc
+                as' <- SM.evalStateT (mapM addVarWrappers $ fc_args fc) HS.empty
                 return $ fc { fc_args = as' }
             )
          )
 
 -- Replace any non-WHNF expression with a variable that points to that non-WHNF epxression.
-addVarWrappers :: Monad m => Expr -> StateNGT t m Expr
+addVarWrappers :: Monad m => Expr -> SM.StateT (HS.HashSet Name) (SM.StateT (State t, NameGen) m) Expr
 addVarWrappers e
     | d@(Data _):es <- unApp e = do
         es' <- mapM addVarWrappers es
         return . mkApp $ d:es'
 addVarWrappers v@(Var (Id n _)) = do
-    eenv <- exprEnv
+    seen <- SM.get
+    eenv <- SM.lift $ exprEnv
     case E.lookup n eenv of
-        Just e -> do
+        Just e | n `notElem` seen -> do
+            SM.put $ HS.insert n seen
             addVarWrappers e
             return v
-        _ -> error "addVarWrappers: variable not found"
+        _ -> return v
 addVarWrappers e = do
-    eenv <- exprEnv
+    eenv <- SM.lift $ exprEnv
     case isExprValueForm eenv e of
         True -> return e
         False -> do
-            tv_env <- tyVarEnv
-            i <- freshIdN (typeOf tv_env e)
-            insertE (idName i) e
+            tv_env <- SM.lift $ tyVarEnv
+            i <- SM.lift $ freshIdN (typeOf tv_env e)
+            SM.lift $ insertE (idName i) e
             return (Var i)
 
 limitSolvingFuncConstraintPieces :: Monad m => Reducer m Int t

@@ -1237,7 +1237,7 @@ smtastToExpr kv tenv t (IteSMT cond br1 br2) =
 
         ret_ty = returnType t
 
-        bindee = Id (Name "G2__!!__bindee_smt_ite_!!_" Nothing 0 Nothing) ty_bool
+        bindee = Id (Name "g2____bindee_smt_ite__" Nothing 0 Nothing) ty_bool
 
         cond_e = smtastToExpr kv tenv ty_bool cond
         br1_e = smtastToExpr kv tenv ret_ty br1
@@ -1268,7 +1268,7 @@ smtastToExpr kv tenv t@(TyFun _ _) (ArrayStore arr ind val) =
         ty_bool = tyBool kv
         true_dc = mkDCTrue kv tenv
         false_dc = mkDCFalse kv tenv
-        bindee = Id (Name "G2__!!__bindee_smt_ite_!!_" Nothing 0 Nothing) ty_bool
+        bindee = Id (Name "g2____bindee_smt_ite__" Nothing 0 Nothing) ty_bool
         body = Case ite 
                     bindee
                     ty_bool    
