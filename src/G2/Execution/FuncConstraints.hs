@@ -958,7 +958,7 @@ checkDistinct solver fcs = do
                             let def_alt = Alt Default (Var unified_id)
                                 alts = zipWith (\i fc -> Alt (LitAlt (LitInt i)) $ fc_ret fc) [1..] fc_no_sym_ret 
                                 ret_ty = typeOf tv_env (fc_ret fc_first)
-                                cse = Case sel_func_app bindee ret_ty (def_alt:alts)
+                                cse = Case sel_func_app bindee ret_ty (alts ++ [def_alt])
                                 lam_cse = mkLams (zip (repeat TermL) lam_is) cse
                             insertE n lam_cse
                     
