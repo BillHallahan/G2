@@ -14,6 +14,7 @@ import qualified G2.Language.Stack as Stck
 import G2.Lib.Printers
 import G2.Solver
 
+import Control.Exception
 import Control.Monad
 import Control.Monad.Extra
 import Control.Monad.IO.Class
@@ -489,7 +490,7 @@ solveFC solver !n fcs = do
     -- Convert functions with only a single constraint into constants
     -- fcs_nosingle <- return . HM.mapMaybe id =<< HM.traverseWithKey solveSingleton fcs
     let pg = mkPrettyGuide (HM.toList fcs)
-    -- liftIO $ putStrLn $ "fcs =\n" ++ T.unpack (prettyFuncConstraints pg fcs)  
+    liftIO $ putStrLn $ "fcs =\n" ++ T.unpack (prettyFuncConstraints pg fcs)  
 
     distinct <- checkDistinct solver fcs
 
@@ -509,7 +510,8 @@ solveFC solver !n fcs = do
 
             fcs_precond <- mapM caseToPreCond fcs_replaced_sym_adt
             let pg_precond = updatePrettyGuide (HM.toList fcs_precond) pg
-            -- liftIO $ putStrLn $ "fcs_precond =\n" ++ T.unpack (prettyFuncConstraints pg_precond fcs_precond)  
+            eenv <- exprEnv
+            liftIO $ putStrLn $ "fcs_precond =\n" ++ T.unpack (prettyFuncConstraints pg_precond $ inlineVars eenv fcs_precond)  
 
             -- Introduce branches on ADTs
             fcs_unfold_adt_pieces <- concatMapM (uncurry unfoldADTArgs) $ HM.toList fcs_precond
@@ -517,7 +519,8 @@ solveFC solver !n fcs = do
 
             -- liftIO $ putStrLn "after unfoldADTArgs"
             let pg_assem = updatePrettyGuide (HM.toList fc_unfold_adt_reassembled) pg_precond
-            -- liftIO $ putStrLn $ "fc_reassembled =\n" ++ T.unpack (prettyFuncConstraints pg_assem fc_unfold_adt_reassembled)
+            eenv <- exprEnv
+            liftIO $ putStrLn $ "fc_unfold_adt =\n" ++ T.unpack (prettyFuncConstraints pg_assem $ inlineVars eenv fc_unfold_adt_reassembled)
 
             -- Branch on literals, with the aim of splitting up ADTs that are in WHNF from those that are not
             split_whnf_pieces <- concatMapM (uncurry splitWHNFAndNonWHNF) $ HM.toList fc_unfold_adt_reassembled
@@ -525,10 +528,11 @@ solveFC solver !n fcs = do
 
             -- liftIO $ putStrLn "after splitWHNFAndNonWHNF"
             let pg_whnf_assem = updatePrettyGuide (HM.toList fc_unfold_split_whnf_reassembled) pg_assem
-            -- liftIO $ putStrLn $ "fc_unfold_split_whnf_reassembled =\n" ++ T.unpack (prettyFuncConstraints pg_whnf_assem fc_unfold_split_whnf_reassembled)
+            eenv <- exprEnv
+            liftIO $ putStrLn $ "fc_unfold_split_whnf_reassembled =\n" ++ T.unpack (prettyFuncConstraints pg_whnf_assem $ inlineVars eenv fc_unfold_split_whnf_reassembled)
 
             prog <- getProgress
-            -- liftIO . putStrLn $ "end prog = " ++ show prog
+            liftIO . putStrLn $ "end prog = " ++ show prog
 
             case prog of
                 MadeProgressFC -> solveFC solver (n - 1) fc_unfold_split_whnf_reassembled
@@ -609,6 +613,7 @@ replaceADTSymVars fcs = do
 
     mapM (\fc -> do 
         mapM_ (go eenv tenv tv_env) (fc_args fc)
+        go eenv tenv tv_env $ fc_ret fc
         return $ fc) fcs
     where
         go eenv tenv tv_env e
@@ -650,11 +655,12 @@ replaceADTSymVars fcs = do
                 return ()
 
 caseToPreCond :: MonadIO m => [FuncConstraint] -> FCState t m [FuncConstraint]
-caseToPreCond fcs = concatMapM go fcs
+caseToPreCond fcs = concatMapM goArg fcs >>= concatMapM goRet
     where
-        go fc@(FC { fc_preconds = pre, fc_args = es }) = do
-            es' <- mapM getOutCases es
-            let case_pats = map getCasePats es'
+        goArg fc@(FC { fc_preconds = pre, fc_args = es }) = do
+            eenv <- exprEnv
+            let es' = map (getOutCases eenv) es
+                case_pats = map getCasePats es'
                 m_ind_case_pat = findIndex isJust case_pats
             case m_ind_case_pat of
                 Just ind -> do
@@ -666,15 +672,26 @@ caseToPreCond fcs = concatMapM go fcs
                     madeProgress
                     return fc_branch
                 Nothing -> return [fc]
-            
-            
-        getOutCases v@(Var (Id n _)) = do
+        
+        goRet fc@(FC { fc_preconds = pre, fc_ret = e }) = do
             eenv <- exprEnv
-            let e = inlineVars eenv v
+            let e' = getOutCases eenv e
+                m_case_pat = getCasePats e'
+            case m_case_pat of
+                Just (branch_i, alts) -> do
+                    let eq i = mkApp $ [Prim Eq TyUnknown, Var branch_i, Lit i]
+                    let fc_branch = map (\(lit_v, dc) -> fc { fc_preconds = eq lit_v:pre, fc_ret = dc}) alts
+
+                    madeProgress
+                    return fc_branch
+                Nothing -> return [fc]
+                    
+        getOutCases eenv v@(Var (Id n _)) =
+            let e = inlineVars eenv v in
             case e of
-                cse@(Case _ _ _ (Alt (LitAlt _) _:_)) -> return cse
-                _ -> return v
-        getOutCases e = return e
+                cse@(Case _ _ _ (Alt (LitAlt _) _:_)) -> cse
+                _ -> v
+        getOutCases _ e = e
 
         getCasePats (Case (Var i) (Id _ TyLitInt) _ alts) = Just (i, map (\(Alt (LitAlt l) dc) -> (l, dc)) alts)
         getCasePats _ = Nothing
@@ -769,12 +786,6 @@ splitWHNFAndNonWHNF n fcs@(first_fc:_) = do
     eenv <- exprEnv
     tv_env <- tyVarEnv
 
-    -- case checkProgPossible tv_env first_fc of
-        -- True -> do
-            -- Find an argument that is:
-            --    (1) an ADT 
-            --    (2) has at least one argument that is in WHNF
-            --    (3) has at least one argument that is not a data constructor applications
     let matching_args = transpose $ map fc_args fcs
         only_some_whnf = findIndices (\e -> any (isADT . inlineVars eenv) e
                                         && any (not . isADT . inlineVars eenv) e ) matching_args
@@ -784,24 +795,6 @@ splitWHNFAndNonWHNF n fcs@(first_fc:_) = do
     case any isPrimType arg_tys of
         True -> splitWHNFAndNonWHNFIndices only_some_whnf [(n, fcs)]
         False -> return [(n, fcs)]
-        -- False -> return [(n, fcs)]
-
-checkProgPossible :: TyVarEnv -> FuncConstraint -> Bool
-checkProgPossible tv_env fc =
-    let
-        stripNot (App (Prim Not _) e) = e
-        stripNot e = e
-
-        isPred (Var _:_) = True
-        isPred _ = False
-
-        -- Have we created a predicate using all currently available literals?
-        -- If so, we don't want to create another predicate.
-        unrolled_precond_pred = filter isPred . map unApp . map stripNot $ fc_preconds fc
-        largest_pred = maximum $ -1:map (\p -> length p - 1) unrolled_precond_pred
-        prim_fc_arg_num = length . filter (isPrimType . typeOf tv_env) $ fc_args fc
-    in
-    largest_pred /= prim_fc_arg_num
 
 splitWHNFAndNonWHNFIndices :: MonadIO m => [Int] -> [(Name, [FuncConstraint])] -> FCState t m [(Name, [FuncConstraint])]
 splitWHNFAndNonWHNFIndices [] n_fcs = return n_fcs
@@ -896,6 +889,8 @@ checkDistinct solver fcs = do
     kv <- knownValues
     pcs <- getPCStateNG
 
+    fcs_split <- splitReturns fcs
+
     pcs' <- foldM (\pcs' (n, fc_list) ->
         case fc_list of
             [] -> return pcs'
@@ -963,7 +958,7 @@ checkDistinct solver fcs = do
                             insertE n lam_cse
                     
                     return $ foldr PC.insert pcs' fc_pcs
-            ) pcs (HM.toList fcs)
+            ) pcs (HM.toList fcs_split)
     (s, _) <- SM.get
     r <- liftIO $ check solver s pcs'
     case r of
@@ -999,6 +994,89 @@ unifyAllRetSymVars fcs@(fc_first:_) = do
                                     _ -> return fc) fcs
             return (unify_id, fcs')
        | otherwise -> return (unify_id, fcs)
+
+-- If the same function is returning different constructors for an ADT, try to split it up using literals
+splitReturns :: MonadIO m => FuncConstraints -> FCState t m FuncConstraints
+splitReturns fcs = do
+    resetProgress
+    split <- concatMapM (uncurry splitReturns') $ HM.toList fcs
+    let fcs' = HM.fromListWith (++) split
+
+    prog <- getProgress
+    liftIO $ putStrLn "splitReturns"
+    case prog of
+        MadeProgressFC -> splitReturns fcs'
+        NoProgressFC -> return fcs'
+
+splitReturns' :: MonadIO m => Name -> [FuncConstraint] -> FCState t m [(Name, [FuncConstraint])]
+splitReturns' n [] = return []
+splitReturns' n fcs@(first_fc:_) = do
+    eenv <- exprEnv
+    tenv <- typeEnv
+    tv_env <- tyVarEnv
+
+    if | let ret_ty = unTyApp . tyVarSubst tv_env . typeOf tv_env $ fc_ret first_fc
+       , TyCon tn _:tycon_ts <- ret_ty
+       , Just (DataTyCon { data_cons = dcs}) <- HM.lookup tn tenv
+       , all (isADT . inlineVars eenv . fc_ret) fcs -> do
+
+            let arg_tys = map (typeOf tv_env) $ fc_args first_fc
+                ret_ty = typeOf tv_env $ fc_ret first_fc
+
+            lam_is <- freshIdsN (map (typeOf tv_env) $ fc_args first_fc)
+            let prim_ty_is = filter (isPrimType . idType) lam_is
+
+            -- Creating new function definition
+            sel <- freshSeededIdN (Name "sel" Nothing 0 Nothing) . mkTyFun $ map idType prim_ty_is ++ [TyLitInt]
+            insertSymbolicE sel
+
+            bindee <- freshIdN ret_ty
+
+            dc_funcs <- foldM (\hm dc@(DataCon { dc_name = dc_n, dc_type = dc_ty}) -> do
+                                let named_ts = tyForAllBindings dc_ty
+                                    ty_map = HM.fromList $ zipWith (\i t -> (idName i, t)) named_ts tycon_ts
+                                fs <- mapM
+                                    (\arg_t -> freshSeededIdN
+                                                    (Name "dc_branch" Nothing 0 Nothing) (mkTyFun $ map idType prim_ty_is ++ [arg_t]))
+                                                    (replaceTyVars ty_map $ anonArgumentTypes dc_ty)
+                                mapM_ insertSymbolicE fs
+                                return $ HM.insert dc_n fs hm
+                             ) HM.empty dcs
+
+            alts <- zipWithM (\i dc -> do
+                        let Just fs = HM.lookup (dc_name dc) dc_funcs
+                            fs_apps = map (\f -> mkApp $ Var f:map Var prim_ty_is) fs
+                            alt_e = mkApp $ Data dc:fs_apps
+                        return $ Alt (LitAlt (LitInt i)) alt_e) [0..] dcs
+            let sel_app = mkApp $ Var sel:map Var prim_ty_is
+                cse = Case sel_app bindee ret_ty alts
+                lam_cse = mkLams (zip (repeat TermL) lam_is) cse
+
+            insertE n lam_cse
+
+            -- Adjusting constraints
+            let fcs_sel = map (\fc ->
+                                    case unApp . inlineVars eenv $ fc_ret fc of
+                                        Data dc:es ->
+                                            fc { fc_args = filter (isPrimType . typeOf tv_env) $ fc_args fc
+                                               , fc_ret = Lit $ LitInt (toInteger . fromJust $ elemIndex (dc_name dc) $ map dc_name dcs) }
+                              ) fcs
+                fcs_branches = concatMap (\fc ->
+                                    case unApp . inlineVars eenv $ fc_ret fc of
+                                        Data dc:es
+                                            | Just fs <- HM.lookup (dc_name dc) dc_funcs ->
+                                                zipWith (\f r_e -> 
+                                                        let
+                                                            fc' = fc { fc_args = filter (isPrimType . typeOf tv_env) $ fc_args fc
+                                                                     , fc_ret = r_e}
+                                                        in
+                                                        (idName f, [fc'])
+                                                    ) fs es
+                                        _ -> error $ "splitReturns: impossible expr" ++ show (inlineVars eenv $ fc_ret fc)) fcs
+
+            madeProgress
+            return $ (idName sel, fcs_sel):fcs_branches
+       | otherwise -> return [(n, fcs)]
 
 deleteAt :: Int -> [a] -> [a]
 deleteAt idx xs = lft ++ rgt
