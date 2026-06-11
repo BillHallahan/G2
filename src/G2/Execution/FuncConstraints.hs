@@ -892,7 +892,15 @@ checkDistinct solver fcs = do
                     sel_func <- freshSeededIdN (Name "sel" Nothing 0 Nothing) call_ty
 
                     let fc_prim = map (\fc -> fc { fc_args = filter (isPrimType . typeOf tv_env) $ fc_args fc}) fc_list
-                    (unified_id, fc_single_sym) <- unifyAllRetSymVars fc_prim
+                    -- Filter to only constraints that do not return symbolic variables.
+                    -- Constraints returning symbolic variables may return any value; thus they may be ignored.
+                    fc_no_sym_ret <- filterM (\fc -> case fc_ret fc of
+                                                        (Var (Id n _)) -> do
+                                                            m_conc_or_sym <- deepLookupConcOrSymE n
+                                                            case m_conc_or_sym of
+                                                                Just (E.Sym _) -> return False
+                                                                _ -> return True
+                                                        _ -> return True) fc_prim
 
                     let fc_pcs = zipWith 
                                 (\i fc -> 
@@ -908,9 +916,7 @@ checkDistinct solver fcs = do
                                         -- If we are returning a primitive type, just return it directly.
                                         uninterp_ret = if isPrimType (typeOf tv_env $ fc_ret fc)
                                                                 then fc_ret fc
-                                                                else if fc_ret fc == Var unified_id
-                                                                     then Lit (LitInt 0)
-                                                                     else Lit (LitInt i)
+                                                                else Lit (LitInt i)
 
                                         implies_func = mkApp [ Prim Implies TyUnknown
                                                              , and_pre
@@ -919,7 +925,7 @@ checkDistinct solver fcs = do
                                     in
                                     ExtCond implies_func True
                                     )
-                                    [1..] fc_single_sym
+                                    [1..] fc_no_sym_ret
                     
                     -- We optimistically insert expressions into the ExprEnv; if we do not find a solution,
                     -- we revert to the old ExprEnv
@@ -935,10 +941,9 @@ checkDistinct solver fcs = do
                             insertE n $ mkLams (zip (repeat TermL) lam_is) sel_func_app
                         else do
                             bindee <- freshIdN TyLitInt
-                            let unif_alt = Alt (LitAlt (LitInt 0)) $ Var unified_id
-                                alts = zipWith (\i fc -> Alt (LitAlt (LitInt i)) $ fc_ret fc) [1..] fc_list 
+                            let alts = zipWith (\i fc -> Alt (LitAlt (LitInt i)) $ fc_ret fc) [1..] fc_list 
                                 ret_ty = typeOf tv_env (fc_ret fc_first)
-                                cse = Case sel_func_app bindee ret_ty (unif_alt:alts)
+                                cse = Case sel_func_app bindee ret_ty (alts)
                                 lam_cse = mkLams (zip (repeat TermL) lam_is) cse
                             insertE n lam_cse
                     
@@ -953,31 +958,7 @@ checkDistinct solver fcs = do
             _ -> do
                 -- We did not find a solution, revert to old ExprEnv
                 putExprEnv eenv
-                return False
-
--- | Adjust all symbolic variables of ADT types being returned from function constraints
--- to be the same (fresh) symbolic value.
-unifyAllRetSymVars :: Monad m => [FuncConstraint] -> FCState t m (Id, [FuncConstraint])
-unifyAllRetSymVars [] = do
-    unify_id <- freshSeededIdN (Name "unify" Nothing 0 Nothing) TyUnknown
-    return (unify_id, [])
-unifyAllRetSymVars fcs@(fc_first:_) = do
-    eenv <- exprEnv
-    tv_env <- tyVarEnv
-
-    let ret_ty = typeOf tv_env $ fc_ret fc_first
-    unify_id <- freshSeededIdN (Name "unify" Nothing 0 Nothing) ret_ty
-    insertSymbolicE unify_id
-    if | not (isPrimType ret_ty) -> do
-            fcs' <- mapM (\fc -> case fc_ret fc of
-                                    (Var (Id n _))
-                                        | Just (E.Sym (Id sym_n _)) <- E.deepLookupConcOrSym n eenv -> do
-                                            insertE sym_n (Var unify_id)
-                                            return fc { fc_ret = Var unify_id }
-                                        | otherwise -> return fc) fcs
-            return (unify_id, fcs')
-       | otherwise -> return (unify_id, fcs)
-    
+                return False    
 
 deleteAt :: Int -> [a] -> [a]
 deleteAt idx xs = lft ++ rgt
