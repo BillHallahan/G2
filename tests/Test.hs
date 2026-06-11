@@ -727,7 +727,9 @@ testFileTests = testGroup "TestFiles"
                                                                        [ ("f", 100, [Exactly 3])
                                                                        , ("h", 200, [Exactly 2])
                                                                        , ("assoc", 200, [Exactly 2])
-                                                                       , ("sf", 175, [AtLeast 5])
+                                                                       , ("sf", 175, [Exactly 1])
+                                                                       , ("retStream", 250, [Exactly 1])
+                                                                       , ("retStream2", 250, [Exactly 2])
                                                                        , ("tupleTest", 200, [Exactly 2])]
 
     , checkInputOutputsWithValidate "tests/BaseTests/ListTests.hs" [ ("lengthN", 2000, [AtLeast 1])

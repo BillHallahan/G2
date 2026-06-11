@@ -549,29 +549,32 @@ simplifyReturns n fcs = do
         (fc:_) | -- Check if all return values have the same constructor
                  let r = fc_ret fc
                      rs = map fc_ret fcs
-               , Data dc@(DataCon { dc_name = dc_n, dc_type = dc_ty }):_ <- unApp $ inlineVars eenv r
+               , Data dc@(DataCon { dc_name = dc_n, dc_type = dc_ty }):dc_args <- unApp $ inlineVars eenv r
                , all (sameConstructor eenv dc_n) rs -> do
                     -- Set up the original function to return the required data constructor
                     -- with arguments constructed by fresh symbolic functions 
                     let existing_args = map (typeOf tv_env) $ fc_args fc
-                    
+
                     lam_is <- freshIdsN existing_args
+                    let _:tycon_ts = unTyApp $ typeOf tv_env r
+                        named_ts = tyForAllBindings dc_ty
+                        ty_map = HM.fromList $ zipWith (\i t -> (idName i, t)) named_ts tycon_ts
+                        anon_ts = replaceTyVars ty_map $ anonArgumentTypes dc_ty
+
                     per_arg_func <- mapM (\t -> do
                                             fn <- freshSeededStringN "sym_f"
                                             let fi = Id fn (mkTyFun $ existing_args ++ [t])
                                             insertSymbolicE fi
                                             return fi
-                                         ) $ anonArgumentTypes dc_ty
-                    
-                    let ret_val = mkApp $ Data dc:map (\f -> (mkApp $ (Var f):map Var lam_is)) per_arg_func
+                                         ) anon_ts
+
+                    let ret_val = mkApp $ Data dc:map Type tycon_ts ++ map (\f -> (mkApp $ (Var f):map Var lam_is)) per_arg_func
                         func_def = mkLams (zip (repeat TermL) lam_is) ret_val
                     insertE n func_def
 
-                    liftIO . putStrLn $ "ret_val = " ++ show ret_val
-
                     -- Convert existing function constraints into constraints for the newly created functions
                     let new_fcs = concatMap (\this_fc -> 
-                                    case unApp . inlineVars eenv $ fc_ret this_fc of
+                                    case filter (not . isType) . unApp . inlineVars eenv $ fc_ret this_fc of
                                         [] -> error "simplifyReturns: impossible"
                                         (_:ret_p) -> zipWith (\f p -> (idName f, [this_fc { fc_ret = p }])) per_arg_func ret_p
                                     ) fcs
@@ -581,6 +584,9 @@ simplifyReturns n fcs = do
 
         _ -> return [(n, fcs)]
     where
+        isType (Type _) = True
+        isType _ = False
+
         sameConstructor eenv dc_n e
                 | Data (DataCon { dc_name = dc_n', dc_type = dc_ty }):_ <- unApp $ inlineVars eenv e
                 , dc_n == dc_n' = True
@@ -622,8 +628,6 @@ replaceADTSymVars fcs = do
                                     return . mkApp $ Data dc:map Type tycon_ts ++ map Var dc_as
                             ) dcs
                 
-                liftIO . putStrLn $ "alts_expr = " ++ show alts_expr
-
                 let alts = zipWith Alt (map (LitAlt . LitInt) [1..]) alts_expr
                     cse = Case
                             branch_var
