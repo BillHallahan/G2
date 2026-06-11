@@ -895,10 +895,10 @@ checkDistinct solver fcs = do
                     -- Filter to only constraints that do not return symbolic variables.
                     -- Constraints returning symbolic variables may return any value; thus they may be ignored.
                     fc_no_sym_ret <- filterM (\fc -> case fc_ret fc of
-                                                        (Var (Id n _)) -> do
+                                                        (Var (Id n t)) -> do
                                                             m_conc_or_sym <- deepLookupConcOrSymE n
                                                             case m_conc_or_sym of
-                                                                Just (E.Sym _) -> return False
+                                                                Just (E.Sym _) -> return $ isPrimType t
                                                                 _ -> return True
                                                         _ -> return True) fc_prim
 
@@ -941,7 +941,7 @@ checkDistinct solver fcs = do
                             insertE n $ mkLams (zip (repeat TermL) lam_is) sel_func_app
                         else do
                             bindee <- freshIdN TyLitInt
-                            let alts = zipWith (\i fc -> Alt (LitAlt (LitInt i)) $ fc_ret fc) [1..] fc_list 
+                            let alts = zipWith (\i fc -> Alt (LitAlt (LitInt i)) $ fc_ret fc) [1..] fc_no_sym_ret 
                                 ret_ty = typeOf tv_env (fc_ret fc_first)
                                 cse = Case sel_func_app bindee ret_ty (alts)
                                 lam_cse = mkLams (zip (repeat TermL) lam_is) cse
