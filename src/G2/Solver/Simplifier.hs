@@ -10,7 +10,9 @@ module G2.Solver.Simplifier ( Simplifier (..)
                             , FloatSimplifier (..)
                             , EqualitySimplifier (..)
                             , LitConc (..)
-                            , LamVarSimplifier (..)) where
+                            , LamVarSimplifier (..)
+                            , NoSymSimplifier (..)
+                            ) where
 
 import G2.Language
 import qualified G2.Language.ExprEnv as E
@@ -21,7 +23,7 @@ import qualified Data.HashSet as HS
 import qualified Data.List as L
 
 class Simplifier simplifier where
-    -- | Simplifies a PC, by converting it into one or more path constraints that are easier
+    -- | Simplifies a PC, by converting it into zero or more path constraints that are easier
     -- for the Solver's to handle
     simplifyPC :: forall t . simplifier -> State t -> PathCond -> [PathCond]
 
@@ -322,5 +324,14 @@ data LamVarSimplifier = LamVarSimplifier
 
 instance Simplifier LamVarSimplifier where
     simplifyPC _ _ pc = [renameLamVars pc]
+
+    reverseSimplification _ _ _ m = m
+
+data NoSymSimplifier = NoSymSimplifier
+
+instance Simplifier NoSymSimplifier where
+    simplifyPC _ (State { expr_env = eenv }) pc
+        | null $ symbVars eenv pc = []
+        | otherwise = [pc]
 
     reverseSimplification _ _ _ m = m

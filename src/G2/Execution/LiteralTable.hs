@@ -26,7 +26,11 @@ introduceLitTable :: State t -> Name -> Id -> LTUpdate -> State t
 introduceLitTable s n i up = s { lit_table_stack = lts
                                , exec_stack = es }
     where lts = S.push lt (lit_table_stack s)
-          lt = LitTable { lt_arg = i, lt_mapping = HM.empty, lt_errored = False }
+          lt = LitTable { lt_arg = i
+                        , lt_mapping = HM.empty
+                        , lt_errored = False
+                        , lt_init_pcs = path_conds s
+                        }
           es = S.push (LitTableFrame (StartedBuilding n) up) (exec_stack s)
 
 inLitTableMode :: State t -> Bool
