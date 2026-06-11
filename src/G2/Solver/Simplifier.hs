@@ -22,7 +22,7 @@ import qualified Data.HashSet as HS
 import qualified Data.List as L
 
 class Simplifier simplifier where
-    -- | Simplifies a PC, by converting it into zero or more path constraints that are easier
+    -- | Simplifies a PC, by converting it into one or more path constraints that are easier
     -- for the Solver's to handle
     simplifyPC :: forall t . simplifier -> State t -> PathCond -> [PathCond]
 
