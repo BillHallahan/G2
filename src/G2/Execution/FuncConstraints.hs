@@ -876,6 +876,8 @@ splitWHNFAndNonWHNFIndex i n fcs@(first_fc:_) = do
 -- Uses an SMT solver and the theory of uninterpreted functions to solve for literal inputs/outputs.
 checkDistinct :: (Solver solver, MonadIO m) => solver -> FuncConstraints -> FCState t m Bool
 checkDistinct solver fcs = do
+    -- We optimistically insert into the ExprEnv throughout this code,
+    -- and revert to the old ExprEnv at the end if we fail to find a solution.
     eenv <- exprEnv
     tv_env <- tyVarEnv
     kv <- knownValues
@@ -888,6 +890,9 @@ checkDistinct solver fcs = do
                     let prim_arg_tys = map (typeOf tv_env) $ filter (isPrimType . typeOf tv_env) $ fc_args fc_first
                         call_ty = mkTyFun $ prim_arg_tys ++ [TyLitInt]
                     sel_func <- freshSeededIdN (Name "sel" Nothing 0 Nothing) call_ty
+
+                    let fc_prim = map (\fc -> fc { fc_args = filter (isPrimType . typeOf tv_env) $ fc_args fc}) fc_list
+                    (unified_id, fc_single_sym) <- unifyAllRetSymVars fc_prim
 
                     let fc_pcs = zipWith 
                                 (\i fc -> 
@@ -903,7 +908,9 @@ checkDistinct solver fcs = do
                                         -- If we are returning a primitive type, just return it directly.
                                         uninterp_ret = if isPrimType (typeOf tv_env $ fc_ret fc)
                                                                 then fc_ret fc
-                                                                else Lit (LitInt i)
+                                                                else if fc_ret fc == Var unified_id
+                                                                     then Lit (LitInt 0)
+                                                                     else Lit (LitInt i)
 
                                         implies_func = mkApp [ Prim Implies TyUnknown
                                                              , and_pre
@@ -912,7 +919,7 @@ checkDistinct solver fcs = do
                                     in
                                     ExtCond implies_func True
                                     )
-                                    [1..] fc_list
+                                    [1..] fc_single_sym
                     
                     -- We optimistically insert expressions into the ExprEnv; if we do not find a solution,
                     -- we revert to the old ExprEnv
@@ -928,9 +935,10 @@ checkDistinct solver fcs = do
                             insertE n $ mkLams (zip (repeat TermL) lam_is) sel_func_app
                         else do
                             bindee <- freshIdN TyLitInt
-                            let alts = zipWith (\i fc -> Alt (LitAlt (LitInt i)) $ fc_ret fc) [1..] fc_list 
+                            let unif_alt = Alt (LitAlt (LitInt 0)) $ Var unified_id
+                                alts = zipWith (\i fc -> Alt (LitAlt (LitInt i)) $ fc_ret fc) [1..] fc_list 
                                 ret_ty = typeOf tv_env (fc_ret fc_first)
-                                cse = Case sel_func_app bindee ret_ty alts
+                                cse = Case sel_func_app bindee ret_ty (unif_alt:alts)
                                 lam_cse = mkLams (zip (repeat TermL) lam_is) cse
                             insertE n lam_cse
                     
@@ -946,6 +954,30 @@ checkDistinct solver fcs = do
                 -- We did not find a solution, revert to old ExprEnv
                 putExprEnv eenv
                 return False
+
+-- | Adjust all symbolic variables of ADT types being returned from function constraints
+-- to be the same (fresh) symbolic value.
+unifyAllRetSymVars :: Monad m => [FuncConstraint] -> FCState t m (Id, [FuncConstraint])
+unifyAllRetSymVars [] = do
+    unify_id <- freshSeededIdN (Name "unify" Nothing 0 Nothing) TyUnknown
+    return (unify_id, [])
+unifyAllRetSymVars fcs@(fc_first:_) = do
+    eenv <- exprEnv
+    tv_env <- tyVarEnv
+
+    let ret_ty = typeOf tv_env $ fc_ret fc_first
+    unify_id <- freshSeededIdN (Name "unify" Nothing 0 Nothing) ret_ty
+    insertSymbolicE unify_id
+    if | not (isPrimType ret_ty) -> do
+            fcs' <- mapM (\fc -> case fc_ret fc of
+                                    (Var (Id n _))
+                                        | Just (E.Sym (Id sym_n _)) <- E.deepLookupConcOrSym n eenv -> do
+                                            insertE sym_n (Var unify_id)
+                                            return fc { fc_ret = Var unify_id }
+                                        | otherwise -> return fc) fcs
+            return (unify_id, fcs')
+       | otherwise -> return (unify_id, fcs)
+    
 
 deleteAt :: Int -> [a] -> [a]
 deleteAt idx xs = lft ++ rgt

@@ -92,6 +92,12 @@ abc5 f =
                 _ -> 2
         _ -> 3
 
+abc6 :: (Int -> AB) -> Int
+abc6 f =
+    case (f 1, f 1) of
+        (A _, A _) -> 1
+        _ -> 2
+
 assoc :: (Int -> Int -> Int) -> Int -> Int -> Int -> Bool
 assoc op x y z = myNot (op (op x y) z == op x (op y z))
 
