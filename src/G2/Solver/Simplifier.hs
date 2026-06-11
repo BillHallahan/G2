@@ -11,7 +11,6 @@ module G2.Solver.Simplifier ( Simplifier (..)
                             , EqualitySimplifier (..)
                             , LitConc (..)
                             , LamVarSimplifier (..)
-                            , NoSymSimplifier (..)
                             ) where
 
 import G2.Language
@@ -324,14 +323,5 @@ data LamVarSimplifier = LamVarSimplifier
 
 instance Simplifier LamVarSimplifier where
     simplifyPC _ _ pc = [renameLamVars pc]
-
-    reverseSimplification _ _ _ m = m
-
-data NoSymSimplifier = NoSymSimplifier
-
-instance Simplifier NoSymSimplifier where
-    simplifyPC _ (State { expr_env = eenv }) pc
-        | null $ symbVars eenv pc = []
-        | otherwise = [pc]
 
     reverseSimplification _ _ _ m = m

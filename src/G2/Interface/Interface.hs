@@ -597,7 +597,7 @@ runG2WithConfig proj src entry_f f gflags mb_modname state config bindings = do
         all_mod_set = S.fromList mb_modname
     hpc_t <- hpcTracker state' all_mod_set (hpc_print_times config) (hpc_print_ticks config)
     let 
-        simplifier = NoSymSimplifier :>> LamVarSimplifier :>> FloatSimplifier :>> ArithSimplifier
+        simplifier = LamVarSimplifier :>> FloatSimplifier :>> ArithSimplifier
                      :>> BoolSimplifier :>> StringSimplifier :>> EqualitySimplifier :>> LitConc
         --exp_env_names = E.keys . E.filterConcOrSym (\case { E.Sym _ -> False; E.Conc _ -> True }) $ expr_env state
         callGraph = G.getCallGraph $ expr_env state'
