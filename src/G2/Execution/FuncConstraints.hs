@@ -490,7 +490,7 @@ solveFC solver !n fcs = do
     -- Convert functions with only a single constraint into constants
     -- fcs_nosingle <- return . HM.mapMaybe id =<< HM.traverseWithKey solveSingleton fcs
     let pg = mkPrettyGuide (HM.toList fcs)
-    liftIO $ putStrLn $ "fcs =\n" ++ T.unpack (prettyFuncConstraints pg fcs)  
+    -- liftIO $ putStrLn $ "fcs =\n" ++ T.unpack (prettyFuncConstraints pg fcs)  
 
     distinct <- checkDistinct solver fcs
 
@@ -511,7 +511,7 @@ solveFC solver !n fcs = do
             fcs_precond <- mapM caseToPreCond fcs_replaced_sym_adt
             let pg_precond = updatePrettyGuide (HM.toList fcs_precond) pg
             eenv <- exprEnv
-            liftIO $ putStrLn $ "fcs_precond =\n" ++ T.unpack (prettyFuncConstraints pg_precond $ inlineVars eenv fcs_precond)  
+            -- liftIO $ putStrLn $ "fcs_precond =\n" ++ T.unpack (prettyFuncConstraints pg_precond $ inlineVars eenv fcs_precond)  
 
             -- Introduce branches on ADTs
             fcs_unfold_adt_pieces <- concatMapM (uncurry unfoldADTArgs) $ HM.toList fcs_precond
@@ -520,7 +520,7 @@ solveFC solver !n fcs = do
             -- liftIO $ putStrLn "after unfoldADTArgs"
             let pg_assem = updatePrettyGuide (HM.toList fc_unfold_adt_reassembled) pg_precond
             eenv <- exprEnv
-            liftIO $ putStrLn $ "fc_unfold_adt =\n" ++ T.unpack (prettyFuncConstraints pg_assem $ inlineVars eenv fc_unfold_adt_reassembled)
+            -- liftIO $ putStrLn $ "fc_unfold_adt =\n" ++ T.unpack (prettyFuncConstraints pg_assem $ inlineVars eenv fc_unfold_adt_reassembled)
 
             -- Branch on literals, with the aim of splitting up ADTs that are in WHNF from those that are not
             split_whnf_pieces <- concatMapM (uncurry splitWHNFAndNonWHNF) $ HM.toList fc_unfold_adt_reassembled
@@ -529,10 +529,10 @@ solveFC solver !n fcs = do
             -- liftIO $ putStrLn "after splitWHNFAndNonWHNF"
             let pg_whnf_assem = updatePrettyGuide (HM.toList fc_unfold_split_whnf_reassembled) pg_assem
             eenv <- exprEnv
-            liftIO $ putStrLn $ "fc_unfold_split_whnf_reassembled =\n" ++ T.unpack (prettyFuncConstraints pg_whnf_assem $ inlineVars eenv fc_unfold_split_whnf_reassembled)
+            -- liftIO $ putStrLn $ "fc_unfold_split_whnf_reassembled =\n" ++ T.unpack (prettyFuncConstraints pg_whnf_assem $ inlineVars eenv fc_unfold_split_whnf_reassembled)
 
             prog <- getProgress
-            liftIO . putStrLn $ "end prog = " ++ show prog
+            -- liftIO . putStrLn $ "end prog = " ++ show prog
 
             case prog of
                 MadeProgressFC -> solveFC solver (n - 1) fc_unfold_split_whnf_reassembled
@@ -1003,7 +1003,6 @@ splitReturns fcs = do
     let fcs' = HM.fromListWith (++) split
 
     prog <- getProgress
-    liftIO $ putStrLn "splitReturns"
     case prog of
         MadeProgressFC -> splitReturns fcs'
         NoProgressFC -> return fcs'
