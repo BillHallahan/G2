@@ -567,6 +567,8 @@ simplifyReturns n fcs = do
                         func_def = mkLams (zip (repeat TermL) lam_is) ret_val
                     insertE n func_def
 
+                    liftIO . putStrLn $ "ret_val = " ++ show ret_val
+
                     -- Convert existing function constraints into constraints for the newly created functions
                     let new_fcs = concatMap (\this_fc -> 
                                     case unApp . inlineVars eenv $ fc_ret this_fc of
@@ -599,7 +601,7 @@ replaceADTSymVars fcs = do
         go eenv tenv tv_env e
             | Var (Id n t) <- inlineVars eenv e
             , E.isSymbolic n eenv
-            , TyCon tn _:_ <- unTyApp $ tyVarSubst tv_env t
+            , TyCon tn _:tycon_ts <- unTyApp $ tyVarSubst tv_env t
             , Just (DataTyCon { data_cons = dcs }) <- HM.lookup tn tenv = do
                 branch_n <- freshSeededStringN "n"
                 bindee <- freshSeededStringN "bindee"
@@ -610,12 +612,18 @@ replaceADTSymVars fcs = do
                 insertPCStateNG (ExtCond (mkApp $ [Prim Le TyUnknown, Var branch_i, Lit (LitInt $ genericLength dcs)]) True)
 
                 alts_expr <- mapM (\dc -> do
-                                    let ts = anonArgumentTypes (typeOf tv_env dc)
-                                    dc_as <- freshIdsN ts
+                                    let dc_ty = typeOf tv_env dc
+                                        named_ts = tyForAllBindings dc_ty
+                                        ty_map = HM.fromList $ zipWith (\i t -> (idName i, t)) named_ts tycon_ts
+                                        anon_ts = replaceTyVars ty_map $ anonArgumentTypes dc_ty
+
+                                    dc_as <- freshIdsN anon_ts
                                     mapM insertSymbolicE dc_as
-                                    return . mkApp $ Data dc:map Var dc_as
+                                    return . mkApp $ Data dc:map Type tycon_ts ++ map Var dc_as
                             ) dcs
                 
+                liftIO . putStrLn $ "alts_expr = " ++ show alts_expr
+
                 let alts = zipWith Alt (map (LitAlt . LitInt) [1..]) alts_expr
                     cse = Case
                             branch_var
