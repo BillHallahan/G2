@@ -717,7 +717,7 @@ testFileTests = testGroup "TestFiles"
                                                                        , ("abc5", 1000, [Exactly 3])
                                                                        , ("abc6", 1000, [Exactly 2])
                                                                        , ("abc7", 1000, [Exactly 3])
-                                                                       , ("abc8", 1000, [Exactly 3])
+                                                                       , ("abc8", 1000, [Exactly 4])
                                                                        , ("assoc", 250, [Exactly 2])
                                                                        , ("sf", 250, [Exactly 2])
                                                                        , ("thirdOrder", 300, [Exactly 2])

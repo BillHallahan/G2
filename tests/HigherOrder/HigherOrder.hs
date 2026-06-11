@@ -111,7 +111,8 @@ abc8 f =
         (A (A _), A (A _)) -> case f 2 of
                                     B -> 1
                                     _ -> 2
-        _ -> 3
+        (A _, A _) -> 3
+        _ -> 4
 
 assoc :: (Int -> Int -> Int) -> Int -> Int -> Int -> Bool
 assoc op x y z = myNot (op (op x y) z == op x (op y z))
