@@ -220,10 +220,18 @@ data FuncConstraint =
     FC { fc_preconds :: [Expr]
        , fc_args :: [Expr]
        , fc_ret :: Expr
+
+       , fc_split_on :: [FCSplitOn] -- ^ Used during solver- have we used a predicate to split the ith argument?
        }
        deriving (Eq, Show, Read, Generic, Data)
 
 instance Hashable FuncConstraint
+
+data FCSplitOn = Split | NoSplit
+                 deriving (Eq, Show, Read, Generic, Data)
+
+instance Hashable FCSplitOn
+
 
 data FCStatus = InitialRun -- ^ Not yet to solving function constraints
               | SolvingFCs -- ^ In the process of solving function constraints

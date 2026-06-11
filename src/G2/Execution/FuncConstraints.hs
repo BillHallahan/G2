@@ -68,7 +68,9 @@ addFuncConstraints no_inline
             (ret_id, ng') = freshSeededId (Name "fc_ret" Nothing 0 Nothing) (returnType t) ng
             fc = FC { fc_preconds = []
                     , fc_args = es
-                    , fc_ret = Var ret_id }
+                    , fc_ret = Var ret_id
+                    
+                    , fc_split_on = fmap (const NoSplit) es }
             
             sym_fc' = addFC n fc sym_fc
             eenv' = E.insertSymbolic ret_id eenv
@@ -102,6 +104,10 @@ allApplyFrames stck = go [] stck stck
 
 addFC :: Name -> FuncConstraint -> FuncConstraints -> FuncConstraints
 addFC n fc = HM.insertWith (++) n [fc]
+
+addFCArgs :: [Expr] -> FuncConstraint -> FuncConstraint
+addFCArgs new_args fc = fc { fc_args = fc_args fc ++ new_args
+                           , fc_split_on = fc_split_on fc ++ map (const NoSplit) new_args}
 
 -- Note [Solving Function Constraints]
 -- Function constraints have the forms:
@@ -351,7 +357,8 @@ addHigherOrderCalls n fcs@(first_fc:_) = do
                                         (map (as !!) func_inds)
                                         higher_args
                         in
-                        fc { fc_args = as ++ new_as }
+                        fc { fc_args = as ++ new_as
+                           , fc_split_on = fc_split_on fc ++ map (const NoSplit) new_as }
                         ) fcs
 
             return (idName f_new, fcs')
@@ -734,8 +741,10 @@ unfoldADTArgs n fcs@(first_fc:_) = do
                                                 ith_arg = fc_args fc !! i
                                                 Data dc:as = unApp $ inlineVars eenv ith_arg
                                                 all_other_args = deleteAt i $ fc_args fc
+                                                all_other_split_ons = deleteAt i $ fc_split_on fc
                                                 new_fc = FC { fc_preconds = fc_preconds fc
                                                             , fc_args = all_other_args ++ as
+                                                            , fc_split_on = all_other_split_ons ++ map (const NoSplit) as
                                                             , fc_ret = fc_ret fc
                                                             }
                                                 f_name = case lookup (dc_name dc) dc_to_cont_funcs of
@@ -760,22 +769,22 @@ splitWHNFAndNonWHNF n fcs@(first_fc:_) = do
     eenv <- exprEnv
     tv_env <- tyVarEnv
 
-    case checkProgPossible tv_env first_fc of
-        True -> do
+    -- case checkProgPossible tv_env first_fc of
+        -- True -> do
             -- Find an argument that is:
             --    (1) an ADT 
             --    (2) has at least one argument that is in WHNF
             --    (3) has at least one argument that is not a data constructor applications
-            let matching_args = transpose $ map fc_args fcs
-                only_some_whnf = findIndices (\e -> any (isADT . inlineVars eenv) e
-                                                && any (not . isADT . inlineVars eenv) e ) matching_args
-            
-            let arg_tys = map (typeOf tv_env) $ fc_args first_fc
+    let matching_args = transpose $ map fc_args fcs
+        only_some_whnf = findIndices (\e -> any (isADT . inlineVars eenv) e
+                                        && any (not . isADT . inlineVars eenv) e ) matching_args
+    
+    let arg_tys = map (typeOf tv_env) $ fc_args first_fc
 
-            case any isPrimType arg_tys of
-                True -> splitWHNFAndNonWHNFIndices only_some_whnf [(n, fcs)]
-                False -> return [(n, fcs)]
+    case any isPrimType arg_tys of
+        True -> splitWHNFAndNonWHNFIndices only_some_whnf [(n, fcs)]
         False -> return [(n, fcs)]
+        -- False -> return [(n, fcs)]
 
 checkProgPossible :: TyVarEnv -> FuncConstraint -> Bool
 checkProgPossible tv_env fc =
@@ -806,6 +815,7 @@ splitWHNFAndNonWHNFIndex :: MonadIO m =>
                          -> [FuncConstraint]
                          -> FCState t m [(Name, [FuncConstraint])]
 splitWHNFAndNonWHNFIndex _ n [] = return []
+splitWHNFAndNonWHNFIndex i n fcs@(first_fc:_) | fc_split_on first_fc !! i == Split  = return [(n, fcs)]
 splitWHNFAndNonWHNFIndex i n fcs@(first_fc:_) = do
     eenv <- exprEnv
     tenv <- typeEnv
@@ -843,7 +853,8 @@ splitWHNFAndNonWHNFIndex i n fcs@(first_fc:_) = do
                                         let pred_args = filter (isPrimType . typeOf tv_env) $ fc_args fc
                                             pred_app = mkApp $ Var pred:pred_args
                                         insertPCStateNG $ ExtCond pred_app False
-                                        let fc_non_whnf = fc { fc_preconds = App (Prim Not TyUnknown) (pred_app):fc_preconds fc}
+                                        let fc_non_whnf = fc { fc_preconds = App (Prim Not TyUnknown) (pred_app):fc_preconds fc
+                                                             , fc_split_on = replaceAt i Split $ fc_split_on fc}
                                         return $ Just (idName f_false, [fc_non_whnf])
                                     | otherwise -> return Nothing
                         )
@@ -857,10 +868,12 @@ splitWHNFAndNonWHNFIndex i n fcs@(first_fc:_) = do
                                             pred_app = mkApp $ Var pred:pred_args
                                             fc_true = FC { fc_preconds = pred_app:fc_preconds fc
                                                             , fc_args = fc_args fc
+                                                            , fc_split_on = replaceAt i Split $ fc_split_on fc
                                                             , fc_ret = fc_ret fc
                                                             }
                                             fc_false = FC { fc_preconds = App (Prim Not TyUnknown) (pred_app):fc_preconds fc
                                                             , fc_args = fc_args fc
+                                                            , fc_split_on = replaceAt i Split $ fc_split_on fc
                                                             , fc_ret = fc_ret fc
                                                             }
 
@@ -892,6 +905,7 @@ checkDistinct solver fcs = do
                     sel_func <- freshSeededIdN (Name "sel" Nothing 0 Nothing) call_ty
 
                     let fc_prim = map (\fc -> fc { fc_args = filter (isPrimType . typeOf tv_env) $ fc_args fc}) fc_list
+                    (unified_id, fc_unified) <- unifyAllRetSymVars fc_prim
                     -- Filter to only constraints that do not return symbolic variables.
                     -- Constraints returning symbolic variables may return any value; thus they may be ignored.
                     fc_no_sym_ret <- filterM (\fc -> case fc_ret fc of
@@ -900,7 +914,7 @@ checkDistinct solver fcs = do
                                                             case m_conc_or_sym of
                                                                 Just (E.Sym _) -> return $ isPrimType t
                                                                 _ -> return True
-                                                        _ -> return True) fc_prim
+                                                        _ -> return True) fc_unified
 
                     let fc_pcs = zipWith 
                                 (\i fc -> 
@@ -941,9 +955,10 @@ checkDistinct solver fcs = do
                             insertE n $ mkLams (zip (repeat TermL) lam_is) sel_func_app
                         else do
                             bindee <- freshIdN TyLitInt
-                            let alts = zipWith (\i fc -> Alt (LitAlt (LitInt i)) $ fc_ret fc) [1..] fc_no_sym_ret 
+                            let def_alt = Alt Default (Var unified_id)
+                                alts = zipWith (\i fc -> Alt (LitAlt (LitInt i)) $ fc_ret fc) [1..] fc_no_sym_ret 
                                 ret_ty = typeOf tv_env (fc_ret fc_first)
-                                cse = Case sel_func_app bindee ret_ty (alts)
+                                cse = Case sel_func_app bindee ret_ty (def_alt:alts)
                                 lam_cse = mkLams (zip (repeat TermL) lam_is) cse
                             insertE n lam_cse
                     
@@ -959,6 +974,31 @@ checkDistinct solver fcs = do
                 -- We did not find a solution, revert to old ExprEnv
                 putExprEnv eenv
                 return False    
+
+-- | Adjust all symbolic variables of ADT types being returned from function constraints
+-- to be the same (fresh) symbolic value.
+-- This then allows us to ignore these constraints.
+unifyAllRetSymVars :: Monad m => [FuncConstraint] -> FCState t m (Id, [FuncConstraint])
+unifyAllRetSymVars [] = do
+    unify_id <- freshSeededIdN (Name "unify" Nothing 0 Nothing) TyUnknown
+    return (unify_id, [])
+unifyAllRetSymVars fcs@(fc_first:_) = do
+    eenv <- exprEnv
+    tv_env <- tyVarEnv
+
+    let ret_ty = typeOf tv_env $ fc_ret fc_first
+    unify_id <- freshSeededIdN (Name "unify" Nothing 0 Nothing) ret_ty
+    insertSymbolicE unify_id
+    if | not (isPrimType ret_ty) -> do
+            fcs' <- mapM (\fc -> case fc_ret fc of
+                                    (Var (Id n _))
+                                        | Just (E.Sym (Id sym_n _)) <- E.deepLookupConcOrSym n eenv -> do
+                                            insertE sym_n (Var unify_id)
+                                            return fc { fc_ret = Var unify_id }
+                                        | otherwise -> return fc
+                                    _ -> return fc) fcs
+            return (unify_id, fcs')
+       | otherwise -> return (unify_id, fcs)
 
 deleteAt :: Int -> [a] -> [a]
 deleteAt idx xs = lft ++ rgt

@@ -102,7 +102,8 @@ abc7 :: (Int -> AB) -> Int
 abc7 f =
     case (f 1, f 1) of
         (A (A _), A (A _)) -> 1
-        _ -> 2
+        (A _, A _) -> 2
+        _ -> 3
 
 abc8 :: (Int -> AB) -> Int
 abc8 f =
