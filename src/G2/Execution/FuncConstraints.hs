@@ -490,7 +490,8 @@ solveFC solver !n fcs = do
     -- Convert functions with only a single constraint into constants
     -- fcs_nosingle <- return . HM.mapMaybe id =<< HM.traverseWithKey solveSingleton fcs
     let pg = mkPrettyGuide (HM.toList fcs)
-    -- liftIO $ putStrLn $ "fcs =\n" ++ T.unpack (prettyFuncConstraints pg fcs)  
+    -- eenv_init <- exprEnv
+    -- liftIO $ putStrLn $ "fcs =\n" ++ T.unpack (prettyFuncConstraints pg $ inlineVars eenv_init fcs)  
 
     distinct <- checkDistinct solver fcs
 
@@ -510,7 +511,7 @@ solveFC solver !n fcs = do
 
             fcs_precond <- mapM caseToPreCond fcs_replaced_sym_adt
             let pg_precond = updatePrettyGuide (HM.toList fcs_precond) pg
-            eenv <- exprEnv
+            -- eenv <- exprEnv
             -- liftIO $ putStrLn $ "fcs_precond =\n" ++ T.unpack (prettyFuncConstraints pg_precond $ inlineVars eenv fcs_precond)  
 
             -- Introduce branches on ADTs
@@ -519,8 +520,8 @@ solveFC solver !n fcs = do
 
             -- liftIO $ putStrLn "after unfoldADTArgs"
             let pg_assem = updatePrettyGuide (HM.toList fc_unfold_adt_reassembled) pg_precond
-            eenv <- exprEnv
-            -- liftIO $ putStrLn $ "fc_unfold_adt =\n" ++ T.unpack (prettyFuncConstraints pg_assem $ inlineVars eenv fc_unfold_adt_reassembled)
+            -- eenv_asem <- exprEnv
+            -- liftIO $ putStrLn $ "fc_unfold_adt =\n" ++ T.unpack (prettyFuncConstraints pg_assem $ inlineVars eenv_asem fc_unfold_adt_reassembled)
 
             -- Branch on literals, with the aim of splitting up ADTs that are in WHNF from those that are not
             split_whnf_pieces <- concatMapM (uncurry splitWHNFAndNonWHNF) $ HM.toList fc_unfold_adt_reassembled
@@ -528,8 +529,8 @@ solveFC solver !n fcs = do
 
             -- liftIO $ putStrLn "after splitWHNFAndNonWHNF"
             let pg_whnf_assem = updatePrettyGuide (HM.toList fc_unfold_split_whnf_reassembled) pg_assem
-            eenv <- exprEnv
-            -- liftIO $ putStrLn $ "fc_unfold_split_whnf_reassembled =\n" ++ T.unpack (prettyFuncConstraints pg_whnf_assem $ inlineVars eenv fc_unfold_split_whnf_reassembled)
+            -- eenv_whnf_assem <- exprEnv
+            -- liftIO $ putStrLn $ "fc_unfold_split_whnf_reassembled =\n" ++ T.unpack (prettyFuncConstraints pg_whnf_assem $ inlineVars eenv_whnf_assem fc_unfold_split_whnf_reassembled)
 
             prog <- getProgress
             -- liftIO . putStrLn $ "end prog = " ++ show prog
@@ -640,6 +641,7 @@ replaceADTSymVars fcs = do
                                     return . mkApp $ Data dc:map Type tycon_ts ++ map Var dc_as
                             ) dcs
                 
+                liftIO . putStrLn $ "alts_expr = " ++ show alts_expr
                 let alts = zipWith Alt (map (LitAlt . LitInt) [1..]) alts_expr
                     cse = Case
                             branch_var
@@ -891,6 +893,10 @@ checkDistinct solver fcs = do
 
     fcs_split <- splitReturns fcs
 
+    -- let pg = mkPrettyGuide (HM.toList fcs_split)
+    -- eenv <- exprEnv
+    -- liftIO $ putStrLn $ "fcs_split =\n" ++ T.unpack (prettyFuncConstraints pg $ inlineVars eenv fcs_split)  
+
     pcs' <- foldM (\pcs' (n, fc_list) ->
         case fc_list of
             [] -> return pcs'
@@ -1045,7 +1051,7 @@ splitReturns' n fcs@(first_fc:_) = do
             alts <- zipWithM (\i dc -> do
                         let Just fs = HM.lookup (dc_name dc) dc_funcs
                             fs_apps = map (\f -> mkApp $ Var f:map Var prim_ty_is) fs
-                            alt_e = mkApp $ Data dc:fs_apps
+                            alt_e = mkApp $ Data dc:map Type tycon_ts ++ fs_apps
                         return $ Alt (LitAlt (LitInt i)) alt_e) [0..] dcs
             let sel_app = mkApp $ Var sel:map Var prim_ty_is
                 cse = Case sel_app bindee ret_ty alts
@@ -1056,7 +1062,7 @@ splitReturns' n fcs@(first_fc:_) = do
             -- Adjusting constraints
             let fcs_sel = map (\fc ->
                                     case unApp . inlineVars eenv $ fc_ret fc of
-                                        Data dc:es ->
+                                        Data dc:_ ->
                                             fc { fc_args = filter (isPrimType . typeOf tv_env) $ fc_args fc
                                                , fc_ret = Lit $ LitInt (toInteger . fromJust $ elemIndex (dc_name dc) $ map dc_name dcs) }
                               ) fcs
@@ -1070,12 +1076,15 @@ splitReturns' n fcs@(first_fc:_) = do
                                                                      , fc_ret = r_e}
                                                         in
                                                         (idName f, [fc'])
-                                                    ) fs es
+                                                    ) fs (filter (not . isType . inlineVars eenv) es)
                                         _ -> error $ "splitReturns: impossible expr" ++ show (inlineVars eenv $ fc_ret fc)) fcs
 
             madeProgress
             return $ (idName sel, fcs_sel):fcs_branches
        | otherwise -> return [(n, fcs)]
+       where
+        isType (Type _) = True
+        isType _ = False
 
 deleteAt :: Int -> [a] -> [a]
 deleteAt idx xs = lft ++ rgt
