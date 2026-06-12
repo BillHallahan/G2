@@ -148,6 +148,14 @@ funcExpr =
         )
         <|>
         try (do
+            _ <- string "and"
+            whiteSpace
+            x <- sExpr Nothing
+            y <- sExpr Nothing
+            return $ SmtAnd [x, y]
+        )
+        <|>
+        try (do
             _ <- string "ite"
             inp <- getInput
             whiteSpace

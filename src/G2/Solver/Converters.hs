@@ -1248,6 +1248,9 @@ smtastToExpr kv tenv tv_env t (IteSMT cond br1 br2) =
 smtastToExpr kv tenv tv_env _ (smt1 := smt2) = mkApp $ [ Prim Eq TyUnknown
                                                 , smtastToExpr kv tenv tv_env TyUnknown smt1
                                                 , smtastToExpr kv tenv tv_env TyUnknown smt2]
+smtastToExpr kv tenv tv_env _ (SmtAnd xs) =
+      foldr (\e1 e2 -> mkApp [Prim And TyUnknown, e1, e2]) (mkTrue kv)
+    $ map (smtastToExpr kv tenv tv_env (tyBool kv)) xs
 smtastToExpr kv tenv tv_env t@(TyFun _ _) (ArrayStore arr ind val) =
     let
         arr_e = smtastToExpr kv tenv tv_env t arr
@@ -1281,7 +1284,7 @@ smtastToExpr kv tenv tv_env t@(TyFun _ _) (ArrayConst v _ _) =
     in
     mkLams (zip (repeat TermL) bound_i) $ smtastToExpr kv tenv tv_env (returnType t) v
 
-smtastToExpr _ _ _ _ smt = error $ "Conversion of this SMTAST to an Expr not supported." ++ "\n" ++ show smt
+smtastToExpr _ _ _ _ smt = error $ "smtastToExpr: Conversion of this SMTAST to an Expr not supported." ++ "\n" ++ show smt
 
 getTypeForList :: TyVarEnv -> Type -> Type
 getTypeForList tv_env (TyApp _ t) = tyVarSubst tv_env t
