@@ -1,4 +1,4 @@
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE OverloadedStrings, LambdaCase #-}
 module InputOutputTest ( checkInputOutput
                        , checkInputOutputs
                        , checkInputOutputsWithCVC5
@@ -15,6 +15,7 @@ module InputOutputTest ( checkInputOutput
                        , checkInputOutputsSMTLists
                        , checkInputOutputsSMTListsWith
                        , checkInputOutputsLambdaSMTLists
+                       , checkInputOutputsLitTablesSMTLists
                        
                        , checkInputOutputsTemplate
                        , checkInputOutputsWith
@@ -105,6 +106,10 @@ checkInputOutputsSMTLists src tests = do
 checkInputOutputsLambdaSMTLists :: FilePath -> [(String, Int, [Reqs String])] -> TestTree
 checkInputOutputsLambdaSMTLists src tests = do
     checkInputOutput' mkConfigTestWithLambdaSMTListsIO src tests
+
+checkInputOutputsLitTablesSMTLists :: FilePath -> [(String, Int, [Reqs String])] -> TestTree
+checkInputOutputsLitTablesSMTLists src tests = do
+    checkInputOutput' mkConfigTestWithLitTablesSMTListsIO src tests
 
 checkInputOutputsSMTListsWith :: FilePath -> String -> [(String, Int, [Reqs String])] -> TestTree
 checkInputOutputsSMTListsWith src comp_with tests = do
@@ -244,7 +249,9 @@ checkInputOutput''' adj_config src exg2 nm tnm mb_modname config (entry, stps, r
 
     let chEx = checkExprInOutCount io req
     
-    return (fmap (fromMaybe False) mr, chEx, anys, r, b)
+    let isValids = (\case Valid -> True; _ -> False) <$> mr
+
+    return (isValids, chEx, anys, r, b)
 
 ------------
 

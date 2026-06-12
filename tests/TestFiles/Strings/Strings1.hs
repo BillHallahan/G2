@@ -635,6 +635,11 @@ any1 s = case L.any (== '&') s && length s > 4 of
             True -> 1
             False -> 2
 
+any2 :: String -> Int
+any2 s = case L.any (\x -> if x >= 'a' && x <= 'z' then True else error "whoops!") s && length s > 2 of
+            True -> 1
+            False -> 2
+
 filter1 :: String -> Int
 filter1 s = case filter (/= '$') s of
                 "x" -> 1
@@ -648,6 +653,12 @@ filter1 s = case filter (/= '$') s of
 --                     "x" -> 2
 --                     "xyz" -> 3
 --                     _ -> 4
+
+filter3 :: String -> Int
+filter3 s = case filter (\x -> if x == 'q' then True else error "NOT a Q!") s of
+                "qq" -> 0
+                "a" -> 1 -- Unreachable
+                _ -> 2
 
 map1 :: String -> Int
 map1 s = case map (\c -> chr (ord c + 1)) s of
@@ -671,7 +682,7 @@ map2 s = case map inner s of
 
 dropWhile1 :: String -> Int
 dropWhile1 s = case dropWhile (== '$') s of
-                   "$h" -> 0 -- Unreachable
+                   "$" -> 0 -- Unreachable
                    "h" -> 1
                    _ -> 2
 

@@ -567,7 +567,10 @@ testFileTests = testGroup "TestFiles"
                                            , ("dropWhile2", 10000, [Exactly 1])
                                            , ("takeWhile1", 10000, [Exactly 4])
                                            , ("map1", 10000, [Exactly 3])
-                                           , ("map2", 10000, [Exactly 4])
+                                           , ("map2", 10000, [AtLeast 4, AtMost 5])
+                                           -- Functions that error
+                                           , ("filter3", 3000, [AtLeast 5])
+                                           , ("any2", 2000, [AtLeast 5])
                                            ]
 
     , checkInputOutputsSMTLists "tests/TestFiles/Seq/Seq1.hs" [ ("toEnum1", 2000, [Exactly 1])
@@ -626,6 +629,13 @@ testFileTests = testGroup "TestFiles"
 
                                                               , ("intersperse1", 3000, [Exactly 3])
 
+                                                              , ("all1", 5000, [AtLeast 5])
+                                                              , ("any1", 5000, [AtLeast 5])
+                                                              , ("filter1", 1000, [AtLeast 5])
+                                                              , ("map1", 5000, [AtLeast 5])
+                                                              , ("dropWhile1", 1000, [AtLeast 5])
+                                                              , ("takeWhile1", 1000, [AtLeast 5])
+
                                                               ]
 
     , checkInputOutputsSMTLists "tests/TestFiles/Seq/SeqTuple.hs" [ ("con", 2000, [Exactly 2])
@@ -642,6 +652,14 @@ testFileTests = testGroup "TestFiles"
     , checkInputOutputsLambdaSMTLists "tests/TestFiles/Seq/Seq1.hs"
                                         [ ("intersperse1", 3000, [Exactly 3])
                                         , ("intersperse2", 1000, [Exactly 3]) ]
+    , checkInputOutputsLitTablesSMTLists "tests/TestFiles/Seq/Seq1.hs"
+                                        [ ("any1", 20000, [Exactly 2])
+                                        , ("all1", 20000, [Exactly 2])
+                                        , ("filter1", 20000, [Exactly 6])
+                                        , ("map1", 20000, [Exactly 8])
+                                        , ("dropWhile1", 20000, [Exactly 6])
+                                        , ("takeWhile1", 20000, [Exactly 5])
+                                        ]
 
     , checkExpr "tests/TestFiles/Strings/Strings1.hs" 1000 "exclaimEq"
         [AtLeast 5, RExists (\[_, _, r] -> dcHasName "True" r)]

@@ -439,13 +439,12 @@ popToCaseFrame s ce = case S.pop (exec_stack s) of
                         _ -> Nothing
                       where unwrap (CurrExpr _ e) = e
 
--- | Create `[Alts]` for a case in case optimization
-caseInCaseAlts :: Type -> Type -> [Alt] -> [Alt] -> NameGen -> (NameGen, [Alt])
-caseInCaseAlts lower_t higher_t lower_alts higher_alts ng = L.mapAccumL makeAlt ng higher_alts
+-- | Create `[Alts]` for a case of case optimization
+caseOfCaseAlts :: Type -> Type -> [Alt] -> [Alt] -> Id -> [Alt]
+caseOfCaseAlts lower_t higher_t lower_alts higher_alts lower_bind = L.map makeAlt higher_alts
     where
-        makeAlt name_gen (Alt { altMatch = am, altExpr = ae }) = 
-            let (new_bind, name_gen1) = freshId higher_t name_gen
-            in (name_gen1, Alt { altMatch = am, altExpr = Case ae new_bind lower_t lower_alts })
+        makeAlt (Alt { altMatch = am, altExpr = ae }) =
+            Alt { altMatch = am, altExpr = Case ae lower_bind lower_t lower_alts }
 
 -- | Handle the Case forms of Evaluate.
 evalCase :: State t -> Bindings -> Expr -> Id -> Type -> [Alt] -> (Rule, NewPC t, NameGen)
@@ -456,14 +455,14 @@ evalCase s@(State { expr_env = eenv
                   , curr_expr = ce })
          (Bindings { name_gen = ng, data_con_pc_map = dcpm }) mexpr bind t alts
 
-  -- Case in case optimization, always needed for literal table creation
+  -- Case of case optimization, always needed for literal table creation
   -- This pops the nested case frame off the stack, and creates a new
   -- case expr to evaluate
   -- Note that we are in the nested case expression here
   | inLitTableMode s
-  , Just (s1, _, t1, alts1) <- popToCaseFrame s (curr_expr s) =
+  , Just (s1, outer_bind, t1, alts1) <- popToCaseFrame s (curr_expr s) =
       -- We're looking at the nested bindee here
-      let (ng1, alts2) = caseInCaseAlts t1 t alts1 alts ng
+      let alts2 = caseOfCaseAlts t1 t alts1 alts outer_bind
           new_case = Case mexpr bind t1 alts2
       in ( RuleEvalCaseInCase
          , newPCEmpty $ s1 { curr_expr = CurrExpr Evaluate new_case }
@@ -1197,9 +1196,18 @@ retErrorState s@(State { curr_expr = CurrExpr _ (App (Prim Error _) ce), exec_st
         (RuleError, [s { curr_expr = CurrExpr Evaluate (App (App e ce) st_rw)
                        , exec_stack = stck'  }], ng)
 retErrorState s@(State { exec_stack = stck }) ng
-    -- Discard all non-catch frames if in an error state
+    -- Discard all non-catch frames if in an error state, except
+    -- the starting frame of a literal table process
+    | Just ((LitTableFrame (StartedBuilding _) _), _) <- S.pop stck =
+        -- We need to escape error mode, so we set the curr expr to unspecified
+        (RuleReturnLitTableErr, [s { lit_table_stack = lts, curr_expr = final }], ng)
     | Just (_, stck') <- S.pop stck = (RuleError, [s { exec_stack = stck' }], ng)
-    | otherwise = (RuleIdentity, [s], ng)
+    | otherwise = (RuleIdentity, [s { lit_table_stack = lts }], ng)
+        -- We cannot currently deal with errors in literal table creation
+        where lts = if inLitTableMode s
+                        then S.modifyTop (\lt -> lt { lt_errored = True }) $ lit_table_stack s
+                        else lit_table_stack s
+              final = CurrExpr Return (Prim UnspecifiedOutput TyUnknown)
 
 retApplyFrame :: State t -> NameGen -> Expr -> Expr -> S.Stack Frame -> (Rule, [State t], NameGen)
 retApplyFrame s@(State { expr_env = eenv }) ng e1 e2 stck'
