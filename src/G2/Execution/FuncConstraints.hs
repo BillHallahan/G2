@@ -121,136 +121,33 @@ addFCArgs new_args fc = fc { fc_args = fc_args fc ++ new_args
 -- * f is a symbolic function
 -- * a1 ... ak are arguments, r is the return value.
 --
--- To solve a set of function constraints, we (a) take the following steps 1 to 5 repeatedly and (b) take step (6) if none of these earlier rules apply:
+-- To solve a set of function constraints, we unfold functions based on ADTs, and then try to solve for literal values.
+-- unfoldADT functions instantiates a function definition to branch on an ADt:
 --
--- 1) unfolADTArgs
--- 
---    We check if there is a function f such that the i^th argument x of that function is an ADT that is WHNF in all constraints.
---    If there is, we instantiate this function to branch on that argument. Each of the k branches then calls a corresponding newly generated
---    symbolic function f1...fk. This function is passed all arguments of f EXCEPT for x. Since x has an ADT type, each function is also passed all
---    arguments from the constructor.  The original constraints are then rewritten in terms of f1...fk.
+-- 1) unfoldADTArgs - Check if an argument is a WHNF ADT in all function constraints, if so use it to introduce a branch in the functuon.
 --
---    For example, suppose we have:
---        f (x:xs) 4 = 6
---        f (y:ys) e = 10 -- ^ For some expression e
---        f [] 6 = 22
---        f [] 19 = 25
---    The first argument to each f is in WHNF, so we instantiate f to branch on that argument:
---        f = \y z -> case y of
---                      [] -> f1 z
---                      w:ws -> f2 w ws z
---    We then rewrite the constraints to:
---        f2 x xs 4 = 6
---        f2 y ys e = 10
---        f1 6 = 22
---        f1 19 = 25
---    (Note that this step might be done repeatedly- for example, in the above, we can now split on the first argument of f1)
+-- Many of the other functions can then be seen as essentially trying to allow unfoldADTArgs to split up functions
 --
--- 2)
+-- 2) replaceADTSymVars - Replace symbolic variables with ADT types with a case statement on a symbolic int, where
+--    each branch returns a different constructor of that ADT, with symbolic arguments.
 --
---    We look for arguments that are symbolic variables of ADT types. We then instantiate these symbolic variables to case expressions
---    that branch on a fresh integer variable to choose a constructor with fresh symbolic arguments. For example, if we have:
---        f (xs :: [Int]) = 7
---    where xs is symbolic, we introduce a fresh Int n, and instantiate xs to:
---       xs = case n of
---                1 -> []
---                2 -> y:ys -- y, ys fresh symbolic variables
---    We add a path constraint that `1 <= n <= 2`.
---    We then unroll the constraint on f into separate constraints for each possible constructor, with corresponding preconditions.
--- For example, the constraint above becomes:
---        n = 1 => f [] = 7
---        n = 2 => f (y:ys) = 7
+-- 3) caseToPreCond - We look for arguments that are case constructs introduced in step 2, then translate them into a pair of function constraints
+--    that we do in (2).  
 --
--- 3)
+-- 4) splitWHNFAndNonWHNF - extracts literal arguments into predicate checks, with the goal of dividing constraints
+--    wgere some arguments is in WHNF from those constraints in which it is not in WHNF.
 --
---    We look for arguments that are case constructs introduced in step 2, and do the same translation into a pair of function constraints
---    that we do in (2).  That is, if we have a function constraint:
---        f xs = 7
---    and we already have:
---       xs = case n of
---                1 -> []
---                2 -> y:ys -- y, ys fresh symbolic variables
---    we rewrite the constraint to be:
---        n = 1 => f [] = 7
---        n = 2 => f (y:ys) = 7
---
--- 4)
---
---    We extract all literal arguments into predicate checks.  For each function with literal arguments:
---        f 1# (x:xs) 4# (y :: Int#)
---    we generate a fresh predicate p accepting all literal arguments:
---        p :: Int# -> Int# -> Int# -> Bool
---    We then rewrite f to branch based on applying p to the literal arguments:
---        f a ys b c = case p a b c of
---                         True -> f1 ys
---                         False -> f2 ys
---    And update constraints accordingly:
---        p 1# 4# y => f1 (x:xs)
---        not (p 1# 4# y) => f2 (x:xs)
---
--- 5)
---
---    We check if there are any "variable assignments"- "functions" that have no arguments. If so, we make sure all assignments to the same variable are consistent.
---    For instance, we might reach a point where we have:
---        f7 = x:xs
---        f7 = y:z:zs
---    These can be made consistent by setting `x = y` and `xs = z:zs`.
---
--- If none of steps (1) to (5) apply, we move on to step (6):
---
--- 6)
---
---    Since none of (1) to (5) apply, for each argument of a function f, there must be at least one constraint
---    where that argument is not in WHNF and is not a symbolic variable.  For instance:
---                 f A  B  = 6
---        n = 1 => f C  D  = 2
---        n = 1 => f e1 D  = 5
---        n = 2 => f E  e2 = 10
---        where e1, e2 are non-SWHNF expressions.
--- Here, we cannot branch on any of the arguments via step (2), because e1 blocks branching on the first argument, and e2 blocks branching on the second argument.
--- However, if we knew that either n = 1 or n = 2, then branching would be possible. Thus, we choose one of these constraints, and rewrite f.
--- Suppose we choose `n = 1`.  We instantiate f to be:
---        f x y = case n = 1 of
---                      True -> f2 y -- Notice we exclude the first argument, because it is e1 in one of the constraints when `n = 1`
---                      False -> f3 x y
--- We then rewrite accordingly:
---        n = 1 =>  f2 B  = 6
---        n /= 1 => f3 A B  = 6
---        n = 1 =>  f2 D  = 2
---        n = 1 =>  f2 D  = 5
---        n = 2 =>  f3 E e2 = 10
--- We now return to rules (1) to (3). Notice that we will actually not be able to solve for `n = 1`/f2, because `f2 D = 2` and `f2 D = 5` is a constradiction.
--- However, we will be able to solve for `n = 2` and `f3`.
+-- We then must consider branching on literal values. This is done by the `solveLitVals` function.
+-- We first introduce splits for different ADT constructors being returned, via the `splitReturns` function.
+-- If we have two constraints returning ADT symbolic variables, we unify the symbolic variables.
+-- We then solve for functions over just literals using an SMT solver and the theory of uninterpreted functions.
+-- Note that solveLitVals may eliminate the possibility of splits on ADTs. For example, if we have:
+--     f 1# [] = A
+--     f 1# (x:xs) = B
+-- Clearly we would want to branch on the list, and (trying to) branching on the literal value will not work.
+-- For this reason, we introduce these branches before trying to solve literal constraints,
+-- but then revert these branches before we go back to introducing further splits on ADTs.
 
--- Note [Delaying Step 6]
--- Read Note [Solving Function Constraints] (above) first.
--- A natural question is why we delay step 6 until after none of steps 1 to 4 apply. To answer this, consider:
---        n = 1 => f (x:xs) e1 = 1
---        n = 1 => f []     A  = 2
---        n = 1 => f []     B  = 5
---        n = 2 => f []     B =  3
---        n = 2 => f []     B =  4
--- To solve the above, we must have `n = 1`, otherwise we have `f [] B = 3` and `f [] B = 4`. Notice, though, that if we apply step (4) immediately, we get:
---        f a b = case n = 1 of
---                    True -> f2 a
---                    False -> f3 a b
--- Which gets us new constraints:
---        n = 1 => f2 (x:xs)   = 1
---        n = 1 => f2 []       = 2
---        n = 1 => f2 []       = 5
---        n = 2 => f3 []     B =  3
---        n = 2 => f3 []     B =  4
--- This is now unsatisfiable, because we have `f2 [] = 2` and `f2 [] = 5`. Thus, we instead must branch the function based on list constructor:
---        f a b = case a of
---                    [] -> f3 b
---                    c:ds -> f4 c ds b
---  getting new constraints:
---        n = 1 => f3 e1 = 1
---        n = 1 => f4 A  = 2
---        n = 1 => f4 B  = 5
---        n = 2 => f4 B  = 3
---        n = 2 => f4 B  = 4
--- f3 can now be handled by step (1) and f4 by step (2).
 
 {-
 Problem:
@@ -267,13 +164,6 @@ or not using the argument and also discarding the constraint.
 -}
 
 
--- data PreC = Id :== Int
---              | PNot PreC
---              | PAnd [PreC]
---              | POr [PreC]
-
-
--- TODO: Shouldn't be returning an empty list of states in the Nothing case
 solveFuncConstraintsReducer :: (Solver solver, MonadIO m) => solver -> Reducer m () t
 solveFuncConstraintsReducer solver = mkSimpleReducer (\_ -> ()) go
     where
@@ -493,9 +383,9 @@ solveFC solver !n fcs = do
     -- eenv_init <- exprEnv
     -- liftIO $ putStrLn $ "fcs =\n" ++ T.unpack (prettyFuncConstraints pg $ inlineVars eenv_init fcs)  
 
-    distinct <- checkDistinct solver fcs
+    lit_val_sol <- solveLitVals solver fcs
 
-    case distinct of
+    case lit_val_sol of
         True -> return (SatFC fcs)
         False -> do
             resetProgress
@@ -539,6 +429,8 @@ solveFC solver !n fcs = do
                 MadeProgressFC -> solveFC solver (n - 1) fc_unfold_split_whnf_reassembled
                 NoProgressFC -> return UnsatFC
 
+-- | If we only have a single function constraint for a given function, we instantiate
+-- to a constant function returning the appropriate value.
 solveSingleton :: Monad m => Name -> [FuncConstraint] -> FCState t m (Maybe [FuncConstraint])
 solveSingleton _ [] = return Nothing
 solveSingleton n [FC { fc_args = as, fc_ret = r }] = do
@@ -601,8 +493,15 @@ simplifyReturns n fcs = do
                 , dc_n == dc_n' = True
                 | otherwise = False
 
--- | Replace symbolic variables with ADT types with a case statement on a symbolic int, where
--- each branch returns a different constructor of that ADT, with symbolic arguments.
+
+-- | We look for arguments that are symbolic variables of ADT types. We then instantiate these symbolic variables to case expressions
+--    that branch on a fresh integer variable to choose a constructor with fresh symbolic arguments. For example, if we have:
+--        f (xs :: [Int]) = 7
+--    where xs is symbolic, we introduce a fresh Int n, and instantiate xs to:
+--       xs = case n of
+--                1 -> []
+--                2 -> y:ys -- y, ys fresh symbolic variables
+--    We add a path constraint that `1 <= n <= 2`.
 replaceADTSymVars :: MonadIO m => [FuncConstraint] -> FCState t m [FuncConstraint]
 replaceADTSymVars fcs = do
     eenv <- exprEnv
@@ -652,6 +551,16 @@ replaceADTSymVars fcs = do
             | otherwise = do
                 return ()
 
+-- |  We look for arguments that are case constructs introduced by `replaceADTSymVars`,
+-- and we translate constraints into a pair of function constraints. For instance if we have a function constraint:
+--        f xs = 7
+--    and we already have:
+--       xs = case n of
+--                1 -> []
+--                2 -> y:ys -- y, ys fresh symbolic variables
+--    we rewrite the constraint to be:
+--        n = 1 => f [] = 7
+--        n = 2 => f (y:ys) = 7
 caseToPreCond :: MonadIO m => [FuncConstraint] -> FCState t m [FuncConstraint]
 caseToPreCond fcs = concatMapM goArg fcs >>= concatMapM goRet
     where
@@ -694,8 +603,25 @@ caseToPreCond fcs = concatMapM goArg fcs >>= concatMapM goRet
         getCasePats (Case (Var i) (Id _ TyLitInt) _ alts) = Just (i, map (\(Alt (LitAlt l) dc) -> (l, dc)) alts)
         getCasePats _ = Nothing
 
--- | Find an argument which is an ADT and in WHNF in all function constraints, and use that
--- argument to do a case split.
+-- | Check if there is a function f such that the i^th argument x of that function is an ADT that is WHNF in all constraints.
+--    If there is, we instantiate this function to branch on that argument. Each of the k branches then calls a corresponding newly generated
+--    symbolic function f1...fk. This function is passed all arguments of f EXCEPT for x. Since x has an ADT type, each function is also passed all
+--    arguments from the constructor.  The original constraints are then rewritten in terms of f1...fk.
+--
+--    For example, suppose we have:
+--        f (x:xs) 4 = 6
+--        f (y:ys) e = 10 -- ^ For some expression e
+--        f [] 6 = 22
+--        f [] 19 = 25
+--    The first argument to each f is in WHNF, so we instantiate f to branch on that argument:
+--        f = \y z -> case y of
+--                      [] -> f1 z
+--                      w:ws -> f2 w ws z
+--    We then rewrite the constraints to:
+--        f2 x xs 4 = 6
+--        f2 y ys e = 10
+--        f1 6 = 22
+--        f1 19 = 25
 unfoldADTArgs :: MonadIO m => Name -> [FuncConstraint] -> FCState t m [(Name, [FuncConstraint])]
 unfoldADTArgs n [] = return []
 unfoldADTArgs n fcs@(first_fc:_) = do
@@ -777,7 +703,25 @@ unfoldADTArgs n fcs@(first_fc:_) = do
 
 -- | Find an argument that is in WHNF for some function constraints, and not in WHNF for other function constraints,
 -- and use the literal values in the constraints to split up these cases into two constraints for two separate functions,
--- one for the WHNF arguments, and one for the non-WHNF arguments.
+-- one for (only) the WHNF arguments, and one which is also passed the non-WHNF arguments.
+--
+-- For example, if we have:
+--     f 1# (x:xs) = 3#
+--     f 2# [] = 4#
+--     f z  (g ()) = 5#
+-- We introduce a predicate `p :: Int# -> Bool` and adjust the definition of f to be:
+--     f l xs = case p l of
+--                  True -> f1 l xs
+--                  True -> f2 l xs
+-- We rewrite the constraints to:
+--     p 1# => f1 1# (x:xs) = 3#
+--     p 2# => f1 2# [] = 4#
+--     not (p 1#) => f2 1# (x:xs) = 3#
+--     not (p 2#) => f2 2# [] = 4#
+--     not (p z)  => f2 z  (g ()) = 5#
+-- We require that ONLY branches where the list is in WHNF be passed to f1- this then allows f1
+-- to be unfolded by `unfoldADTArgs`. We allow, though, p to be instantiated to go to f2
+-- in any case- this might be needed if, for instance, path constraints force `z = 2#` in the above. 
 splitWHNFAndNonWHNF :: MonadIO m => Name -> [FuncConstraint] -> FCState t m [(Name, [FuncConstraint])]
 splitWHNFAndNonWHNF n [] = return []
 splitWHNFAndNonWHNF n fcs@(first_fc:_) = do
@@ -878,8 +822,8 @@ splitWHNFAndNonWHNFIndex i n fcs@(first_fc:_) = do
 
 -- | Checks if we can find solutions to all functions.
 -- Uses an SMT solver and the theory of uninterpreted functions to solve for literal inputs/outputs.
-checkDistinct :: (Solver solver, MonadIO m) => solver -> FuncConstraints -> FCState t m Bool
-checkDistinct solver fcs = do
+solveLitVals :: (Solver solver, MonadIO m) => solver -> FuncConstraints -> FCState t m Bool
+solveLitVals solver fcs = do
     -- We optimistically insert into the ExprEnv throughout this code,
     -- and revert to the old ExprEnv at the end if we fail to find a solution.
     eenv <- exprEnv
@@ -997,7 +941,15 @@ unifyAllRetSymVars fcs@(fc_first:_) = do
             return (unify_id, fcs')
        | otherwise -> return (unify_id, fcs)
 
--- If the same function is returning different constructors for an ADT, try to split it up using literals
+-- If the same function is returning different constructors for an ADT, try to split it up using literals.
+-- For instance, if we have:
+--    f 1# = 2:xs
+--    f 2# = []
+-- we rewrite this to:
+--    f x = case br x of
+--               1# -> f1 x:f2 x
+--               2# -> []
+-- where br, f1, f2, are all fresh variables.
 splitReturns :: MonadIO m => FuncConstraints -> FCState t m FuncConstraints
 splitReturns fcs = do
     resetProgress
