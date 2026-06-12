@@ -733,7 +733,10 @@ testFileTests = testGroup "TestFiles"
                                                                        , ("sf", 175, [Exactly 1])
                                                                        , ("retStream", 250, [Exactly 1])
                                                                        , ("retStream2", 250, [Exactly 2])
-                                                                       , ("tupleTest", 200, [Exactly 2])]
+                                                                       , ("tupleTest", 200, [Exactly 2])
+                                                                       , ("list1", 1000, [Exactly 8])
+                                                                       , ("list2", 1000, [AtLeast 14])                                                                       
+                                                                       ]
 
     , checkInputOutputsWithValidate "tests/BaseTests/ListTests.hs" [ ("lengthN", 2000, [AtLeast 1])
                                                                 , ("lengthBranch", 2000, [AtLeast 4])]

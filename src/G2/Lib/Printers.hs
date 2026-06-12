@@ -334,10 +334,14 @@ printList' :: PrettyGuide -> Expr -> ([T.Text], Bool)
 printList' pg (App (App e1 e) e') | Data (DataCon n1 _ _ _) <- e1
                                   , nameOcc n1 == ":" =
     let (strs, b) = printList' pg e'
-    in (mkExprHaskell Cleaned pg e:strs, b)
+    in (wrapParen e (mkExprHaskell Cleaned pg e):strs, b)
 printList' pg e | Data (DataCon n _ _ _) <- appCenter e
                 , nameOcc n == "[]" = ([], True)
                 | otherwise = ([mkExprHaskell Cleaned pg e], False)
+
+wrapParen :: Expr -> T.Text -> T.Text
+wrapParen (Case _ _ _ _) s = "(" <> s <> ")"
+wrapParen _ s = s
 
 printString :: PrettyGuide -> Expr -> T.Text
 printString pg a =

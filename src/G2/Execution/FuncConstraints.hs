@@ -596,9 +596,6 @@ simplifyReturns n fcs = do
 
         _ -> return [(n, fcs)]
     where
-        isType (Type _) = True
-        isType _ = False
-
         sameConstructor eenv dc_n e
                 | Data (DataCon { dc_name = dc_n', dc_type = dc_ty }):_ <- unApp $ inlineVars eenv e
                 , dc_n == dc_n' = True
@@ -761,7 +758,7 @@ unfoldADTArgs n fcs@(first_fc:_) = do
                                                 all_other_args = deleteAt i $ fc_args fc
                                                 all_other_split_ons = deleteAt i $ fc_split_on fc
                                                 new_fc = FC { fc_preconds = fc_preconds fc
-                                                            , fc_args = all_other_args ++ as
+                                                            , fc_args = all_other_args ++ filter (not . isType . inlineVars eenv) as
                                                             , fc_split_on = all_other_split_ons ++ map (const NoSplit) as
                                                             , fc_ret = fc_ret fc
                                                             }
@@ -1081,9 +1078,11 @@ splitReturns' n fcs@(first_fc:_) = do
             madeProgress
             return $ (idName sel, fcs_sel):fcs_branches
        | otherwise -> return [(n, fcs)]
-       where
-        isType (Type _) = True
-        isType _ = False
+
+
+isType :: Expr -> Bool
+isType (Type _) = True
+isType _ = False
 
 deleteAt :: Int -> [a] -> [a]
 deleteAt idx xs = lft ++ rgt

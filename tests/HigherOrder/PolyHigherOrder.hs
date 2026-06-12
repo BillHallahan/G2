@@ -41,3 +41,36 @@ retStream2 g x y =
 
 tupleTest :: (Num a, Ord a) => ((a, a) -> (a, a)) -> Bool
 tupleTest f = let (a,b) = f (3,6) in not (a <= b)
+
+list1 :: (a -> Int) -> [a] -> Int
+list1 f xs =
+    case xs of
+        [] -> 1
+        x:xs' | f x > 10 -> 2
+              | f x > 0 -> 3
+              | f x + 100 > 20 -> 4
+              | otherwise -> case xs' of
+                                [] -> 5
+                                y:_ | f x > f y -> 6
+                                    | f y > f x -> 7
+                                    | otherwise -> 8
+
+list2 :: ([Int] -> [Int]) -> [Int] -> Int
+list2 f xs =
+    case f xs of
+        [] -> 1
+        [1, 2, 3] -> 2
+        [1, 2, _] -> 3
+        [1, _, _] -> 4
+        _:_:_:_ -> 5
+        _:_:_ -> 6
+        (x:xs) -> case f (x:xs) of
+                        [] -> 7
+                        [1, 2, 3] -> 8
+                        [1, 2, _] -> 9
+                        [1, _, _] -> 10
+                        (7:_:_:_) -> 11
+                        (_:_:_:_) -> 12
+                        (_:_:_) -> 13
+                        (_:_) -> 14
+
