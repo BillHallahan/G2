@@ -579,7 +579,8 @@ caseToPreCond fcs = concatMapM goArg fcs >>= concatMapM goRet
                     let Just (branch_i, alts) = case_pats !! ind
                         eq i = mkApp $ [Prim Eq TyUnknown, Var branch_i, Lit i]
                     
-                    let fc_branch = map (\(lit_v, dc) -> fc { fc_preconds = eq lit_v:pre, fc_args = replaceAt ind dc es'}) alts
+                    let fc_branch = map (\(lit_v, dc) -> fc { fc_preconds = eq lit_v:pre
+                                                            , fc_args = replaceAt ind dc es'}) alts
 
                     madeProgress
                     return fc_branch
@@ -688,9 +689,16 @@ unfoldADTArgs n fcs@(first_fc:_) = do
                                                 Data dc:as = unApp $ inlineVars eenv ith_arg
                                                 all_other_args = deleteAt i $ fc_args fc
                                                 all_other_split_ons = deleteAt i $ fc_split_on fc
+
+                                                -- If we get new literal values, may be able to do further division on them
+                                                -- to split up WHNF/non-WHNF data constructors
+                                                new_splits = if any (isPrimType . typeOf tv_env) as
+                                                                then map (const NoSplit) all_other_split_ons ++ map (const NoSplit) as
+                                                                else all_other_split_ons ++ map (const NoSplit) as
+
                                                 new_fc = FC { fc_preconds = fc_preconds fc
                                                             , fc_args = all_other_args ++ filter (not . isType . inlineVars eenv) as
-                                                            , fc_split_on = all_other_split_ons ++ map (const NoSplit) as
+                                                            , fc_split_on = new_splits
                                                             , fc_ret = fc_ret fc
                                                             }
                                                 f_name = case lookup (dc_name dc) dc_to_cont_funcs of

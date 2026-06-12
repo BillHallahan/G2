@@ -114,6 +114,16 @@ abc8 f =
         (A _, A _) -> 3
         _ -> 4
 
+abc9 :: (AB -> Int -> Maybe Int -> Bool) -> Int
+abc9 f =
+    case f (abInf ()) 1 (Just 1) of
+        True -> case f (A B) 1 (Just 2) of
+                    True -> case f B 1 (Just 2) of
+                                False -> 1
+                                _ -> 2
+                    _ -> 3
+        _ -> 4
+
 assoc :: (Int -> Int -> Int) -> Int -> Int -> Int -> Bool
 assoc op x y z = myNot (op (op x y) z == op x (op y z))
 
