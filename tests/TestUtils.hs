@@ -39,7 +39,7 @@ mkConfigTestWithSMTStringsIO :: IO Config
 mkConfigTestWithSMTStringsIO = do
     config <- mkConfigTestIO
     homedir <- getHomeDirectory
-    return $ config { smt_strings = UseSMTStrings }
+    return $ config { smt_strings = UseSMTStrings, smt = ConCVC5 }
 
 mkConfigTestWithQuantifiedSMTStringsIO :: IO Config
 mkConfigTestWithQuantifiedSMTStringsIO = do
