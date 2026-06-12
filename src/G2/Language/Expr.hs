@@ -109,7 +109,6 @@ import qualified Data.HashSet as HS
 import qualified Data.Map as M
 import Data.Maybe
 import Data.Semigroup
-import Data.Word (Word64)
 
 data EqTickCheck = CheckTicks | IgnoreTicks deriving Eq
 
@@ -707,6 +706,6 @@ renameLamVar e@(Lam lu (Id n t) e1) =
     in Lam lu new_id e2
 renameLamVar e = e
 
-getLamVarIdx :: Expr -> Max Word64
+getLamVarIdx :: Expr -> Max Unique
 getLamVarIdx (Lam _ _ e) = Max $ getMax (getLamVarIdx e) + 1
 getLamVarIdx e = evalChildren getLamVarIdx e
