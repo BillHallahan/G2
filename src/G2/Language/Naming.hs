@@ -73,7 +73,6 @@ import qualified Data.Map as M
 import qualified Data.Sequence as S
 import qualified Data.Text as T
 import Data.Tuple
-import Data.Word (Word64)
 import qualified Text.Builder as TB
 
 -- | Extract the "occurence" from a `Name`.
