@@ -1,6 +1,9 @@
 {-# LANGUAGE BangPatterns, MultiWayIf, OverloadedStrings #-}
 
-module G2.Execution.FuncConstraints where
+module G2.Execution.FuncConstraints ( addFuncConstraintReducer
+                                    , redFuncConstraint
+                                    , solveFuncConstraintsReducer
+                                    , limitSolvingFuncConstraintPieces ) where
 
 import G2.Config
 import G2.Execution.NormalForms
@@ -308,6 +311,8 @@ addVarWrappers e = do
             SM.lift $ insertE (idName i) e
             return (Var i)
 
+-- | When solving sub-expressions of function constraints, only do a limited amount of evaluation.
+-- This ensures that we do not get stuck looping on evaluation of an infinite expression.
 limitSolvingFuncConstraintPieces :: Monad m => Reducer m Int t
 limitSolvingFuncConstraintPieces = mkSimpleReducer (\_ -> 200) go
     where
@@ -1043,41 +1048,3 @@ deleteAt idx xs = lft ++ rgt
 replaceAt :: Int -> a -> [a] -> [a]
 replaceAt idx x xs = lft ++ [x] ++ rgt
   where (lft, (_:rgt)) = splitAt idx xs
-
--- modifyIndex :: Int -> (a -> a) -> [a] -> [a]
--- modifyIndex _ _ [] = error "modifyIndex: unexpected end of list"
--- modifyIndex !0 f (x:xs) = f x:xs
--- modifyIndex !n f (x:xs) = x:modifyIndex (n - 1) f xs
-
--- Note [Distinguishability]
--- We say two expressions are "distinguishable" if they are (partially) fully reduced,
--- and can be seen to be syntactically different based on the exposed constructors/literals.
--- Two expressions are "indistinguishable" if they are not distinguishable.
--- The "indistinguishable region" of two expressions is the reduced pattern of constructors/literals
--- over which those expressions are indistinguishable.
-
--- | Returns Just the indistinguishable region of two expressions (looking through variables),
--- or Nothing if the expressions are distinguishable.
---
--- See  Note [Distinguishability].
-indistinguishableRegions :: ExprEnv -> Expr -> Expr -> Maybe Expr
-indistinguishableRegions eenv e1_ e2_ = go (inlineVars eenv e1_) (inlineVars eenv e2_)
-    where      
-        -- (Possibly) indistinguishable matching
-        go (App e1 e2) (App e1' e2') = liftM2 App (go e1 e1') (go e2 e2')
-        go dc@(Data (DataCon { dc_name = n1 })) (Data (DataCon { dc_name = n2 })) | n1 == n2 = Just dc
-                                                                                  | otherwise = Nothing
-        go t@(Type t1) (Type t2) | t1 == t2 = Just t
-                                 | otherwise = Nothing
-        go l@(Lit l1) (Lit l2) | l1 == l2 = Just l
-                               | otherwise = Nothing
-
-        -- Distinguishable, so return Nothing
-        go (Data _) e@(App _ _) | Data _:_ <- unApp e = Nothing
-        go e@(App _ _) (Data _) | Data _:_ <- unApp e = Nothing
-        go (Data _) (Type _) = Nothing
-        go (Type _) (Data _) = Nothing
-
-        go _ _ = Just $ Prim Undefined TyBottom
-
-        -- go a@(App _ _) _ | Data _:_ <- unApp a
