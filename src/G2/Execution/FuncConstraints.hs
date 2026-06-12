@@ -641,7 +641,6 @@ replaceADTSymVars fcs = do
                                     return . mkApp $ Data dc:map Type tycon_ts ++ map Var dc_as
                             ) dcs
                 
-                liftIO . putStrLn $ "alts_expr = " ++ show alts_expr
                 let alts = zipWith Alt (map (LitAlt . LitInt) [1..]) alts_expr
                     cse = Case
                             branch_var
