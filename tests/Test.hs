@@ -737,6 +737,7 @@ testFileTests = testGroup "TestFiles"
                                                                        , ("tupleTest", 200, [Exactly 2])
                                                                        , ("list1", 1000, [Exactly 8])
                                                                        , ("list2", 1000, [AtLeast 14])                                                                       
+                                                                       , ("list3", 1000, [AtLeast 5])                                                                       
                                                                        ]
 
     , checkInputOutputsWithValidate "tests/BaseTests/ListTests.hs" [ ("lengthN", 2000, [AtLeast 1])

@@ -74,3 +74,18 @@ list2 f xs =
                         (_:_:_) -> 13
                         (_:_) -> 14
 
+list3 :: (a -> a -> Bool) -> (a -> a) -> ([a] -> [a]) -> (Maybe a -> a) -> a -> a -> Int
+list3 c fi fl fm x y =
+    case fl [x, fm (Just y), x] of
+        [] -> 1
+        (z:_) -> case fi z `c` fi y of
+                    True -> let
+                                a = fm (Just z)
+                                z = fm Nothing
+                            in
+                            case a `c` a == z `c` z of
+                                True -> 2
+                                False -> 3
+                    False -> case fi y `c` fi z of
+                                    True -> 4
+                                    False -> 5
