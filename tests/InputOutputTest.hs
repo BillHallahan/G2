@@ -15,6 +15,7 @@ module InputOutputTest ( checkInputOutput
                        , checkInputOutputsSMTLists
                        , checkInputOutputsSMTListsWith
                        , checkInputOutputsLambdaSMTLists
+                       , checkInputOutputsLitTablesSMTLists
                        
                        , checkInputOutputsTemplate
                        , checkInputOutputsWith
@@ -106,6 +107,10 @@ checkInputOutputsSMTLists src tests = do
 checkInputOutputsLambdaSMTLists :: FilePath -> [(String, Int, [Reqs String])] -> TestTree
 checkInputOutputsLambdaSMTLists src tests = do
     checkInputOutput' mkConfigTestWithLambdaSMTListsIO src tests
+
+checkInputOutputsLitTablesSMTLists :: FilePath -> [(String, Int, [Reqs String])] -> TestTree
+checkInputOutputsLitTablesSMTLists src tests = do
+    checkInputOutput' mkConfigTestWithLitTablesSMTListsIO src tests
 
 checkInputOutputsSMTListsWith :: FilePath -> String -> [(String, Int, [Reqs String])] -> TestTree
 checkInputOutputsSMTListsWith src comp_with tests = do

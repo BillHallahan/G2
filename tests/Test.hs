@@ -125,7 +125,7 @@ sampleTests = testGroup "Samples"
         , AtLeast 4]
     , checkExpr "tests/Samples/HigherOrderMath.hs" 600 "fixed" [ RExists abs2NonNeg
                                                                , AtLeast 4]
-    , checkExprAssumeAssert "tests/Samples/HigherOrderMath.hs" 600 (Just "isTrue2") Nothing "sameFloatArgLarger"
+    , checkExprAssumeAssert "tests/Samples/HigherOrderMath.hs" 450 (Just "isTrue2") Nothing "sameFloatArgLarger"
         [ RExists addRes
         , RExists subRes
         , AtLeast 2]
@@ -418,7 +418,7 @@ testFileTests = testGroup "TestFiles"
                                                               , ("minimum1", 1000, [AtLeast 6])
                                                               , ("maximum1", 1000, [AtLeast 6])
                                                               , ("elemIndices1", 1000, [AtLeast 10])
-                                                              , ("lines1", 1500, [AtLeast 10])
+                                                              , ("lines1", 1200, [AtLeast 10])
 
                                                               , ("all1", 500, [AtLeast 5])
                                                               , ("all2", 500, [AtLeast 5])
@@ -629,6 +629,13 @@ testFileTests = testGroup "TestFiles"
 
                                                               , ("intersperse1", 3000, [Exactly 3])
 
+                                                              , ("all1", 5000, [AtLeast 5])
+                                                              , ("any1", 5000, [AtLeast 5])
+                                                              , ("filter1", 1000, [AtLeast 5])
+                                                              , ("map1", 5000, [AtLeast 5])
+                                                              , ("dropWhile1", 1000, [AtLeast 5])
+                                                              , ("takeWhile1", 1000, [AtLeast 5])
+
                                                               ]
 
     , checkInputOutputsSMTLists "tests/TestFiles/Seq/SeqTuple.hs" [ ("con", 2000, [Exactly 2])
@@ -645,6 +652,14 @@ testFileTests = testGroup "TestFiles"
     , checkInputOutputsLambdaSMTLists "tests/TestFiles/Seq/Seq1.hs"
                                         [ ("intersperse1", 3000, [Exactly 3])
                                         , ("intersperse2", 1000, [Exactly 3]) ]
+    , checkInputOutputsLitTablesSMTLists "tests/TestFiles/Seq/Seq1.hs"
+                                        [ ("any1", 20000, [Exactly 2])
+                                        , ("all1", 20000, [Exactly 2])
+                                        , ("filter1", 20000, [Exactly 6])
+                                        , ("map1", 20000, [Exactly 8])
+                                        , ("dropWhile1", 20000, [Exactly 6])
+                                        , ("takeWhile1", 20000, [Exactly 5])
+                                        ]
 
     , checkExpr "tests/TestFiles/Strings/Strings1.hs" 1000 "exclaimEq"
         [AtLeast 5, RExists (\[_, _, r] -> dcHasName "True" r)]
@@ -746,7 +761,7 @@ testFileTests = testGroup "TestFiles"
                                                                 , ("lengthBranch", 20000, [Exactly 4])
                                                                 , ("map2", 20000, [Exactly 3])
                                                                 , ("filterCall1", 20000, [Exactly 7])
-                                                                , ("nubCall1", 20000, [Exactly 4])
+                                                                , ("nubCall1", 5000, [Exactly 4])
                                                                 , ("indexCall1", 20000, [Exactly 6])
                                                                 , ("indexCall2", 20000, [AtLeast 5])
                                                                 , ("lastCall1", 20000, [Exactly 4])
@@ -790,7 +805,7 @@ testFileTests = testGroup "TestFiles"
                                                      , ("n", 1000, [AtLeast 2])
                                                      , ("sqrtSquared", 1000, [AtLeast 2])
                                                      , ("floorAndCeiling", 1500, [AtLeast 6])
-                                                     , ("roundTest", 1750, [AtLeast 8])
+                                                     , ("roundTest", 1600, [AtLeast 8])
                                                      , ("decodeFloatTest1", 5000, [AtLeast 11])
                                                      , ("decodeFloatTest2", 5000, [AtLeast 8])
                                                      , ("decodeFloatTest3", 5000, [AtLeast 2])
@@ -798,7 +813,7 @@ testFileTests = testGroup "TestFiles"
                                                      , ("decodeFloatCheck", 2000, [AtLeast 2])
                                                      , ("exponentTest", 2000, [AtLeast 6])
                                                      , ("encodeFloatTest1", 4000, [AtLeast 100])
-                                                     , ("significandTest", 2000, [AtLeast 5]) 
+                                                     , ("significandTest", 800, [AtLeast 5]) 
                                                      , ("scaleFloatTest", 2000, [AtLeast 6])
                                                      , ("scaleFloatTest2", 2000, [AtLeast 3])
                                                      , ("doubleToFloat", 2000, [AtLeast 4])
@@ -816,7 +831,7 @@ testFileTests = testGroup "TestFiles"
                                                       , ("n", 1000, [AtLeast 2])
                                                       , ("sqrtSquared", 1000, [AtLeast 2])
                                                       , ("floorAndCeiling", 1500, [AtLeast 6])
-                                                      , ("roundTest", 1750, [AtLeast 8])
+                                                      , ("roundTest", 1600, [AtLeast 8])
                                                       , ("decodeFloatTest1", 5000, [AtLeast 11])
                                                       , ("decodeFloatTest2", 5000, [AtLeast 8])
                                                       , ("decodeFloatTest3", 5000, [AtLeast 2])
@@ -824,7 +839,7 @@ testFileTests = testGroup "TestFiles"
                                                       , ("decodeFloatCheck", 2000, [AtLeast 2])
                                                       , ("exponentTest", 2000, [AtLeast 6])
                                                       , ("encodeFloatTest1", 8000, [AtLeast 225]) 
-                                                      , ("significandTest", 2000, [AtLeast 5])
+                                                      , ("significandTest", 800, [AtLeast 5])
                                                       , ("scaleFloatTest", 2000, [AtLeast 6])
                                                       , ("scaleFloatTest2", 2000, [AtLeast 3])
                                                       , ("floatToDouble", 2000, [AtLeast 4])
@@ -1284,7 +1299,7 @@ checkExprWithConfig :: String
                     -> IO Config
                     -> TestTree
 checkExprWithConfig src m_assume m_assert m_reaches entry reqList config_f = do
-    testCase src (do
+    testCase (src ++ " " ++ entry) (do
         config <- config_f
         res <- testFile src m_assume m_assert m_reaches entry config
         

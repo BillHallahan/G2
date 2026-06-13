@@ -834,8 +834,8 @@ prettyStateDiff pg (SD { new_conc_entries = nce
         prettyMutVar (n, i, orig) = "(" <> mkNameHaskell pg n <> ", " <> mkIdHaskell pg i <> ", " <> T.pack (show orig) <> ")"
 
 prettyLitTable :: PrettyGuide -> LitTable -> T.Text
-prettyLitTable pg (LitTable { lt_arg = lta, lt_mapping = ltm, lt_errored = lte })
-    | HM.null ltm = header <> " , empty literal table"
+prettyLitTable pg (LitTable { lt_arg = lta, lt_mapping = ltm, lt_errored = lte, lt_init_pcs = lip })
+    | HM.null ltm = header <> "empty literal table"
     | otherwise =
         header <> "\n" <> (T.intercalate "\n>>>>>>>>>>>>>>>\n"
                               (map (\(conds, e) -> "  " <> prettyPathConds pg conds <> ": " <> mkDirtyExprHaskell pg e)
@@ -843,7 +843,8 @@ prettyLitTable pg (LitTable { lt_arg = lta, lt_mapping = ltm, lt_errored = lte }
         <> "\n-- end lit table --"
     where
         sym_id = mkIdHaskell pg lta
-        header = "symbolic id = " <> sym_id <> ", " <> (if lte then "found error" else "no error found")
+        header = "symbolic id = " <> sym_id <> "\n" <> (if lte then "found error" else "no error found")
+                    <> "\ninitial path conds = " <> prettyPathConds pg lip <> "\n"
 
 prettyLitTables :: PrettyGuide -> HM.HashMap Name LitTable -> T.Text
 prettyLitTables pg lts = T.concat (map pair $ HM.toList lts)

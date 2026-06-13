@@ -47,6 +47,7 @@ module G2.Language.Naming
     , freshSeededIds
     , freshIds
     , freshVar
+    , freshLamId
 
     , mapNG
     ) where
@@ -1087,3 +1088,6 @@ freshVar t ngen =
 mapNG :: (a -> NameGen -> (b, NameGen)) -> [a] -> NameGen -> ([b], NameGen)
 mapNG f xs ng = swap $ mapAccumR (\xs' ng' -> swap $ f ng' xs') ng xs
 {-# INLINE mapNG #-}
+
+freshLamId :: Type -> Unique -> Id
+freshLamId t idx = Id (Name "G2_!!_LAM_BINDER" Nothing (idx) Nothing) t

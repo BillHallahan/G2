@@ -630,17 +630,24 @@ instance Hashable LitTableCond
 data LitTable = LitTable { lt_arg :: Id
                          , lt_mapping :: HM.HashMap PathConds Expr
                          , lt_errored :: Bool -- | Whether an error was encountered during creation
+                         , lt_init_pcs :: PathConds -- | Conds from the creation process shouldn't linger
                          }
                 deriving (Show, Eq, Read, Generic, Data)
 
 instance Hashable LitTable
 
 instance Named LitTable where
-    names (LitTable { lt_arg = lta, lt_mapping = ltm }) = names lta <> names ltm
-    rename old new lt@(LitTable { lt_arg = lta, lt_mapping = ltm }) = lt { lt_arg = rename old new lta
-                                                                         , lt_mapping = rename old new ltm }
-    renames hm lt@(LitTable { lt_arg = lta, lt_mapping = ltm }) = lt { lt_arg = renames hm lta
-                                                                     , lt_mapping = renames hm ltm }
+    names (LitTable { lt_arg = lta, lt_mapping = ltm, lt_init_pcs = lip }) = names lta <> names ltm <> names lip
+    rename old new lt@(LitTable { lt_arg = lta, lt_mapping = ltm, lt_init_pcs = lip }) =
+        lt { lt_arg = rename old new lta
+           , lt_mapping = rename old new ltm
+           , lt_init_pcs = rename old new lip
+           }
+    renames hm lt@(LitTable { lt_arg = lta, lt_mapping = ltm, lt_init_pcs = lip }) =
+        lt { lt_arg = renames hm lta
+           , lt_mapping = renames hm ltm
+           , lt_init_pcs = renames hm lip
+           }
 
 instance Named LitTableCond where
     names (Exploring pc) = names pc
@@ -693,14 +700,22 @@ instance Named StateDiff where
            }
 
 instance ASTContainer LitTable Type where
-    containedASTs (LitTable { lt_arg = lta, lt_mapping = ltm }) = containedASTs lta <> containedASTs ltm
-    modifyContainedASTs f lt@(LitTable { lt_arg = lta, lt_mapping = ltm }) = lt { lt_arg = modifyContainedASTs f lta
-                                                                                , lt_mapping = modifyContainedASTs f ltm }
+    containedASTs (LitTable { lt_arg = lta, lt_mapping = ltm, lt_init_pcs = lip }) =
+        containedASTs lta <> containedASTs ltm <> containedASTs lip
+    modifyContainedASTs f lt@(LitTable { lt_arg = lta, lt_mapping = ltm, lt_init_pcs = lip }) =
+        lt { lt_arg = modifyContainedASTs f lta
+           , lt_mapping = modifyContainedASTs f ltm
+           , lt_init_pcs = modifyContainedASTs f lip
+           }
 
 instance ASTContainer LitTable Expr where
-    containedASTs (LitTable { lt_arg = lta, lt_mapping = ltm }) = containedASTs lta <> containedASTs ltm
-    modifyContainedASTs f lt@(LitTable { lt_arg = lta, lt_mapping = ltm }) = lt { lt_arg = modifyContainedASTs f lta
-                                                                                , lt_mapping = modifyContainedASTs f ltm }
+    containedASTs (LitTable { lt_arg = lta, lt_mapping = ltm, lt_init_pcs = lip }) =
+        containedASTs lta <> containedASTs ltm <> containedASTs lip
+    modifyContainedASTs f lt@(LitTable { lt_arg = lta, lt_mapping = ltm, lt_init_pcs = lip }) =
+        lt { lt_arg = modifyContainedASTs f lta
+           , lt_mapping = modifyContainedASTs f ltm
+           , lt_init_pcs = modifyContainedASTs f lip
+           }
 
 instance ASTContainer LitTableCond Type where
     containedASTs (Exploring pc) = containedASTs pc
