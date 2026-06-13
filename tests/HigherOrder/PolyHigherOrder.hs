@@ -93,3 +93,21 @@ list3 c fi fl fm x y =
                     False -> case fi y `c` fi z of
                                     True -> 6
                                     False -> 7
+
+data Funcs = I (Int -> Int) | I2 (Int -> Int -> Int) | B (Int -> Bool)
+
+funcsEither :: Funcs -> Either Int Bool -> (Int, Either Int Bool)
+funcsEither (I f) (Left x) = (1, Left (f x))
+funcsEither (I2 f) (Left x) = (2, Left (f x x))
+funcsEither (B f) (Left x) = (3, Right (f x))
+funcsEither (I _) (Right b) = (4, Right b)
+funcsEither (I2 _) (Right b) = (5, Right b)
+funcsEither (B _) (Right b) = (6, Right b)
+
+funcs :: (Funcs -> Int) -> Int
+funcs f =
+    case f (I (\x -> x)) == f (I (\x -> x + 1)) of
+        True -> 1
+        False -> case f (B (> 0)) == f (B (< 10)) of
+                    True -> 2
+                    False -> 3
