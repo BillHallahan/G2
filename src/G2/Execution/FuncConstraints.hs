@@ -1,5 +1,7 @@
 {-# LANGUAGE BangPatterns, MultiWayIf, OverloadedStrings #-}
 
+{-# LANGUAGE ScopedTypeVariables #-}
+
 module G2.Execution.FuncConstraints ( addFuncConstraintReducer
                                     , redFuncConstraint
                                     , solveFuncConstraintsReducer
@@ -203,12 +205,14 @@ addHigherOrderCalls n [] = return (n, [])
 addHigherOrderCalls n fcs@(first_fc:_) = do
     tv_env <- tyVarEnv
 
-    func_ext_paths <- mapM getFuncExtractorPaths $ concatMap fc_args fcs
-    liftIO . mapM_ print $ func_ext_paths
+    extract_higher_order <- extractAll fcs
+    -- func_ext_paths <- mapM getFuncExtractorPaths $ concatMap fc_args fcs
+    -- liftIO . mapM_ print $ func_ext_paths
 
     let arg_ts = map (typeOf tv_env) $ fc_args first_fc
-        (func_inds, higher_tys) = unzip . filter (isTyFun . snd) $ zip [0..] arg_ts
-        func_ext = map (\i -> \expr_list -> expr_list !! i) func_inds
+        -- (func_inds, higher_tys) = unzip . filter (isTyFun . snd) $ zip [0..] arg_ts
+        -- func_ext = map (\i -> \expr_list -> expr_list !! i) func_inds
+        (func_ext, higher_tys) = unzip extract_higher_order
     
     case func_ext of
         [] -> return (n, fcs)
@@ -255,11 +259,11 @@ addHigherOrderCalls n fcs@(first_fc:_) = do
 type DCPath = [DCPathPiece]
 
 data DCPathPiece = PathStep
-                    Name -- ^ Constructor name
+                    DataCon -- ^ Constructor
                     Int -- ^ Argument to follow
                 | PathFunc
                     Type -- ^ Higher order function type
-            deriving Show 
+            deriving (Eq, Show) 
 
 -- | Given an expression, returns a list of paths mapping to (possibly nested) higher order functions.
 getFuncExtractorPaths :: Monad m => Expr -> StateNGT t m [DCPath]
@@ -270,18 +274,56 @@ getFuncExtractorPaths e = do
         go tv_env curr_path e 
             | (Data dc:es) <- unApp e =
                 let
-                    paths = zipWith (\i ar -> (i, go tv_env curr_path ar)) [1..] $ filter (not . isType) es
+                    paths = zipWith (\i ar -> (i, go tv_env curr_path ar)) [0..] $ filter (not . isType) es
                 in
-                concatMap (\(i, ps) -> map (PathStep (dc_name dc) i:) ps) paths
+                concatMap (\(i, ps) -> map (PathStep dc i:) ps) paths
             | let t = typeOf tv_env e
             , isTyFun t = [curr_path ++ [PathFunc t]]
             | otherwise = []
 
 -- | Turn a DC path into a function, which either calls a higher order function at the given location,
 -- or returns a constant (represented as a symbolic variables) 
-dcPathsToExtractors :: DCPath -> StateNGT t m [DCPath]
-dcPathsToExtractors = do
-    undefined
+dcPathsToExtractors :: Monad m => DCPath -> StateNGT t m (Expr -> Expr)
+dcPathsToExtractors dc_path 
+    | PathFunc t <- last dc_path = do
+        const <- freshSeededIdN (Name "const" Nothing 0 Nothing) (returnType t)
+        insertSymbolicE const
+        
+        lam_is <- freshIdsN (anonArgumentTypes t)
+        func_body <- toFunc (returnType t) lam_is (Var const) dc_path
+        return $ \e -> mkLams (zip (repeat TermL) lam_is) (func_body e)
+    | otherwise = error "dcPathsToExtractors: impossible"
+    where
+        toFunc _ _ _ [] = error "dcPathsToExtractors: impossible"
+        toFunc _ lam_is const [PathFunc _] = do
+            return $ \e -> mkApp $ e:map Var lam_is
+        toFunc ret_t lam_is const (PathStep dc i:xs) = do
+            tv_env <- tyVarEnv
+            bindee <- freshIdN (dc_type dc)
+
+            dc_binders <- freshIdsN (anonArgumentTypes $ dc_type dc)
+            ext <- toFunc ret_t lam_is const xs
+            let alts = [ Alt (DataAlt dc dc_binders) $ ext (Var $ dc_binders !! i)
+                       , Alt Default const ]
+
+            return $ \e -> 
+                      Case
+                        e
+                        bindee
+                        ret_t
+                        alts
+
+extractAll :: MonadIO m => [FuncConstraint] -> StateNGT t m [([Expr] -> Expr, Type)]
+extractAll fcs = do
+    let matched_args = transpose $ map fc_args fcs
+    exts <- zipWithM (\i as -> do
+        paths :: [DCPath] <- return . nub =<< concatMapM getFuncExtractorPaths as
+        extract_expr:: [Expr -> Expr] <- mapM dcPathsToExtractors paths
+        let higher_tys = map (\(PathFunc t) -> t) $ map last paths
+            extract_expr_list = map (\f -> (\es -> f $ es !! i)) extract_expr
+        return $ zip extract_expr_list higher_tys
+        ) [0..] matched_args
+    return $ concat exts
 
 -- | Get expressions that have not been fully reduced. 
 collectNonReducedVars :: Monad m => FuncConstraints -> StateNGT t m [Id]
