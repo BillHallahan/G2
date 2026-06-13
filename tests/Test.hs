@@ -755,6 +755,9 @@ testFileTests = testGroup "TestFiles"
                                                                        , ("list3", 1000, [Exactly 7])                                                                       
                                                                        , ("funcsEither", 1000, [Exactly 6])                                                                       
                                                                        , ("funcs", 1000, [Exactly 3])                                                                       
+                                                                       , ("maybeFuncs", 1000, [Exactly 4])                                                                       
+                                                                       , ("eitherFuncs", 1000, [Exactly 3])                                                                       
+                                                                       , ("tupleFunc", 1000, [Exactly 2])                                                                       
                                                                        ]
 
     , checkInputOutputsWithValidate "tests/BaseTests/ListTests.hs" [ ("lengthN", 2000, [AtLeast 1])

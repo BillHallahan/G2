@@ -111,3 +111,27 @@ funcs f =
         False -> case f (B (> 0)) == f (B (< 10)) of
                     True -> 2
                     False -> 3
+
+maybeFuncs :: (Maybe Funcs -> Int) -> Int
+maybeFuncs f =
+    case f (Just (I id)) == f Nothing of
+        True -> 1
+        False -> case f (Just (I id)) == f (Just (B $ const True)) of
+                    True -> case f (Just (I id)) == f (Just (I (\x -> x * 2))) of
+                                True -> 2
+                                False -> 3
+                    False -> 4
+
+eitherFuncs :: (Either Funcs Funcs -> Int) -> Int
+eitherFuncs f =
+    case f (Right (I2 (\x y -> x + y))) == f (Right (I2 (\x y -> x * 2 + y))) of
+        False -> 1
+        True -> case f (Left (B (const True))) == f (Left (B (const False))) of
+                    False -> 2
+                    True -> 3
+
+tupleFunc :: ((Int, Int -> Int) -> Int) -> Int
+tupleFunc f =
+    case f (1, \x -> x) == f (1, \x -> x + 1) of
+        True -> 1
+        False -> 2

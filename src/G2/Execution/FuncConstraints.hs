@@ -94,18 +94,6 @@ allApplyFrames stck = go [] stck stck
                     | Just (UpdateFrame _, stck') <- Stck.pop pop_stck = go aes stck' stck_top_ups
                     | otherwise = (reverse aes, stck_top_ups)
 
-    -- | v@(Var (Id n _)):es_ce <- unApp (getExpr s)
-    -- , let (ae, stck) = allApplyFrames (exec_stack s)
-    -- , let es = es_ce ++ ae
-    -- , let ce' = mkApp (v:es)
-    -- , Just nrpc@(NRPC { nrpc_rhs = rhs }) <- findNRPC (findSynEq ce') (non_red_path_conds s) =
-    --     Just (s { curr_expr = CurrExpr Evaluate rhs, exec_stack = stck }, ng)
-    -- where
-    --     findSynEq ce_ nrpc = eqUpToTypesInlineIgnoringTicks no_inline (expr_env s) (nrpc_lhs nrpc) ce_
--- getNonRedForHigherOrder no_inline ng s
---     | Just (s', _, _, ng1) <- createNonRed ng Focused s = Just (s', ng1)
---     | otherwise = Nothing
-
 addFC :: Name -> FuncConstraint -> FuncConstraints -> FuncConstraints
 addFC n fc = HM.insertWith (++) n [fc]
 
@@ -214,10 +202,15 @@ addHigherOrderCalls :: MonadIO m => Name -> [FuncConstraint] -> StateNGT t m (Na
 addHigherOrderCalls n [] = return (n, [])
 addHigherOrderCalls n fcs@(first_fc:_) = do
     tv_env <- tyVarEnv
+
+    func_ext_paths <- mapM getFuncExtractorPaths $ concatMap fc_args fcs
+    liftIO . mapM_ print $ func_ext_paths
+
     let arg_ts = map (typeOf tv_env) $ fc_args first_fc
         (func_inds, higher_tys) = unzip . filter (isTyFun . snd) $ zip [0..] arg_ts
+        func_ext = map (\i -> \expr_list -> expr_list !! i) func_inds
     
-    case func_inds of
+    case func_ext of
         [] -> return (n, fcs)
         (_:_) -> do
             let ret_ty = typeOf tv_env $ fc_ret first_fc
@@ -229,12 +222,12 @@ addHigherOrderCalls n fcs@(first_fc:_) = do
             insertSymbolicE f_new
 
             lam_is <- freshIdsN (map (typeOf tv_env) $ fc_args first_fc)
-            higher_args_apps <- mapM (\j -> do
-                let i = lam_is !! j
+            higher_args_apps <- mapM (\f_ext -> do
+                let i = f_ext $ map Var lam_is
                     ts = anonArgumentTypes $ typeOf tv_env i
                 as <- freshIdsN ts
                 mapM_ insertSymbolicE as
-                return (as, mkApp $ Var i:map Var as)) func_inds
+                return (as, mkApp $ i:map Var as)) func_ext
             let (higher_args, higher_apps) = unzip higher_args_apps
 
             let e = mkLams (zip (repeat TermL) lam_is)
@@ -248,7 +241,7 @@ addHigherOrderCalls n fcs@(first_fc:_) = do
                         let
                             new_as = zipWith
                                         (\f f_as -> mkApp $ f:map Var f_as)
-                                        (map (as !!) func_inds)
+                                        (map (\f_ext -> f_ext as) func_ext)
                                         higher_args
                         in
                         fc { fc_args = as ++ new_as
@@ -256,6 +249,25 @@ addHigherOrderCalls n fcs@(first_fc:_) = do
                         ) fcs
 
             return (idName f_new, fcs')
+
+-- | We denote a "path" through a specific shape of a nested data structure as a list
+-- of constructors and argument numbers to follow.
+type DCPath = [(Name, Int)]
+
+-- | Given an expression, returns a list of paths mapping to (possibly nested) higher order functions.
+getFuncExtractorPaths :: Monad m => Expr -> StateNGT t m [DCPath]
+getFuncExtractorPaths e = do
+    tv_env <- tyVarEnv
+    return $ go tv_env [] e
+    where
+        go tv_env curr_path e 
+            | (Data dc:es) <- unApp e =
+                let
+                    paths = zipWith (\i ar -> (i, go tv_env curr_path ar)) [1..] $ filter (not . isType) es
+                in
+                concatMap (\(i, ps) -> map ((dc_name dc, i):) ps) paths
+            | isTyFun (typeOf tv_env e) = [curr_path]
+            | otherwise = []
 
 -- | Get expressions that have not been fully reduced. 
 collectNonReducedVars :: Monad m => FuncConstraints -> StateNGT t m [Id]
