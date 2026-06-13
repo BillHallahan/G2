@@ -252,7 +252,14 @@ addHigherOrderCalls n fcs@(first_fc:_) = do
 
 -- | We denote a "path" through a specific shape of a nested data structure as a list
 -- of constructors and argument numbers to follow.
-type DCPath = [(Name, Int)]
+type DCPath = [DCPathPiece]
+
+data DCPathPiece = PathStep
+                    Name -- ^ Constructor name
+                    Int -- ^ Argument to follow
+                | PathFunc
+                    Type -- ^ Higher order function type
+            deriving Show 
 
 -- | Given an expression, returns a list of paths mapping to (possibly nested) higher order functions.
 getFuncExtractorPaths :: Monad m => Expr -> StateNGT t m [DCPath]
@@ -265,9 +272,16 @@ getFuncExtractorPaths e = do
                 let
                     paths = zipWith (\i ar -> (i, go tv_env curr_path ar)) [1..] $ filter (not . isType) es
                 in
-                concatMap (\(i, ps) -> map ((dc_name dc, i):) ps) paths
-            | isTyFun (typeOf tv_env e) = [curr_path]
+                concatMap (\(i, ps) -> map (PathStep (dc_name dc) i:) ps) paths
+            | let t = typeOf tv_env e
+            , isTyFun t = [curr_path ++ [PathFunc t]]
             | otherwise = []
+
+-- | Turn a DC path into a function, which either calls a higher order function at the given location,
+-- or returns a constant (represented as a symbolic variables) 
+dcPathsToExtractors :: DCPath -> StateNGT t m [DCPath]
+dcPathsToExtractors = do
+    undefined
 
 -- | Get expressions that have not been fully reduced. 
 collectNonReducedVars :: Monad m => FuncConstraints -> StateNGT t m [Id]
