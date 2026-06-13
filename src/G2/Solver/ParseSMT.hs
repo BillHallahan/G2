@@ -416,6 +416,8 @@ parseSort =
     <|>
     (do _ <- string "Int"; return SortInt)
     <|>
+    (do _ <- string "Bool"; return SortBool)
+    <|>
     (return . ParSort =<< identifier)
     <|>
     (parens parseSort)
