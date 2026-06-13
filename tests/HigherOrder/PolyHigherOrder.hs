@@ -83,9 +83,13 @@ list3 c fi fl fm x y =
                                 a = fm (Just z)
                                 z = fm Nothing
                             in
-                            case a `c` a == z `c` z of
-                                True -> 2
-                                False -> 3
+                            case a `c` a of
+                                True -> case z `c` z of
+                                            True -> 2
+                                            False -> 3
+                                False -> case z `c` z of
+                                            True -> 4
+                                            False -> 5
                     False -> case fi y `c` fi z of
-                                    True -> 4
-                                    False -> 5
+                                    True -> 6
+                                    False -> 7
