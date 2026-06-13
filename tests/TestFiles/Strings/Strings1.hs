@@ -650,8 +650,8 @@ filter1 s = case filter (/= '$') s of
 -- filter2 :: String -> Int
 -- filter2 s = if length s < 4 then 1
 --             else case filter (== '$') s of
---                     "x" -> 2
---                     "xyz" -> 3
+--                     "x" -> 2 -- Unreachable
+--                     "xyz" -> 3 -- Unreachable
 --                     _ -> 4
 
 filter3 :: String -> Int

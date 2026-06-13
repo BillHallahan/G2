@@ -1865,9 +1865,9 @@ retLitTableFrame :: (Solver solver, Simplifier simplifier)
                  -> IO (Rule, [State t], NameGen)
 retLitTableFrame dus solver simplifier s ng ltc up stck = case ltc of
     Exploring _ -> retLTExploring ng updated_state sym_id
-    Diff sd (eenv, tvenv, mvenv, conds) -> 
+    Diff sd (eenv, tvenv, mvenv, conds) ->
         retLTDiff dus solver simplifier s ng sd eenv tvenv mvenv conds stck up
-    StartedBuilding n -> 
+    StartedBuilding n ->
         retLTStartedBuilding updated_state ng n
     where
         -- When we return from a StartedBuilding or Exploring, we're returning
@@ -1920,7 +1920,7 @@ retLTDiff dus solver simplifier s ng sd eenv tvenv mvenv conds stck up = do
             , ng' )
 
 retLTStartedBuilding :: State t -> NameGen -> Name -> IO (Rule, [State t], NameGen)
-retLTStartedBuilding s ng n = 
+retLTStartedBuilding s ng n =
     let
         lts = lit_table_stack s
         (table, lts') = fromJust $ S.pop lts
@@ -1943,9 +1943,10 @@ retLTStartedBuilding s ng n =
         (lam_e, sym_diff, ng1) = litTableToLam s ng table
         insertSyms syms_ eenv_ = L.foldl' (flip E.insertSymbolic) eenv_ syms_
 
+        s0 = s { path_conds = lt_init_pcs table }
         s1 = if lt_done
-                then s { expr_env = insertSyms sym_diff (expr_env s) }
-                else s
+                then s0 { expr_env = insertSyms sym_diff (expr_env s0) }
+                else s0
         ng2 = if lt_done
                 then ng1
                 else ng2
