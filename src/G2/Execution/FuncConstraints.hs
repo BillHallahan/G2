@@ -477,8 +477,10 @@ solveFC solver !n fcs = do
             -- eenv <- exprEnv
             -- liftIO $ putStrLn $ "fcs_precond =\n" ++ T.unpack (prettyFuncConstraints pg_precond $ inlineVars eenv fcs_precond)  
 
+            fcs_bool_precond <- mapM boolToPreCond fcs_precond
+
             -- Introduce branches on ADTs
-            fcs_unfold_adt_pieces <- concatMapM (uncurry unfoldADTArgs) $ HM.toList fcs_precond
+            fcs_unfold_adt_pieces <- concatMapM (uncurry unfoldADTArgs) $ HM.toList fcs_bool_precond
             let fc_unfold_adt_reassembled = HM.fromListWith (++) fcs_unfold_adt_pieces
 
             -- liftIO $ putStrLn "after unfoldADTArgs"
@@ -677,6 +679,51 @@ caseToPreCond fcs = concatMapM goArg fcs >>= concatMapM goRet
         getCasePats (Case (Var i) (Id _ TyLitInt) _ alts) = Just (i, map (\(Alt (LitAlt l) dc) -> (l, dc)) alts)
         getCasePats _ = Nothing
 
+-- Look for primitives returning boolean values, and move them into the precondition
+boolToPreCond :: Monad m => [FuncConstraint] -> FCState t m [FuncConstraint]
+boolToPreCond fcs = do
+    tv_env <- tyVarEnv
+    kv <- knownValues
+
+    ty_bool <- tyBoolT
+    dc_true <- mkDCTrueM
+    dc_false <- mkDCFalseM
+
+    boolToPreCond' tv_env ty_bool dc_true dc_false fcs
+
+boolToPreCond' :: Monad m => TyVarEnv -> Type -> DataCon -> DataCon -> [FuncConstraint] -> FCState t m [FuncConstraint]
+boolToPreCond' tv_env ty_bool dc_true dc_false = concatMapM goArg
+    where
+        goArg fc@(FC { fc_preconds = pre, fc_args = es }) = do
+            eenv <- exprEnv
+            let es' = map (getOutPrims eenv) es
+                prim_pats = map getPrimPats es'
+                m_ind_case_pat = findIndex isJust prim_pats
+            case m_ind_case_pat of
+                Just ind -> do
+                    let Just prim_e = prim_pats !! ind
+                    
+                    let fc_true = fc { fc_preconds = prim_e:pre
+                                     , fc_args = replaceAt ind (Data dc_true) es'}
+                        fc_false = fc { fc_preconds = App (Prim Not (TyFun ty_bool ty_bool)) (prim_e):pre
+                                      , fc_args = replaceAt ind (Data dc_false) es'}
+
+                    madeProgress
+                    return [fc_true, fc_false]
+                Nothing -> return [fc]
+                            
+        getOutPrims eenv v@(Var (Id n _)) =
+            let e = inlineVars eenv v in
+            case unApp e of
+                Prim _ _:_ | typeOf tv_env e == ty_bool -> e
+                _ -> v
+        getOutPrims _ e = e
+
+        getPrimPats e
+            | Prim _ _:_ <- unApp e
+            , typeOf tv_env e == ty_bool = Just e
+        getPrimPats _ = Nothing
+
 -- | Check if there is a function f such that the i^th argument x of that function is an ADT that is WHNF in all constraints.
 --    If there is, we instantiate this function to branch on that argument. Each of the k branches then calls a corresponding newly generated
 --    symbolic function f1...fk. This function is passed all arguments of f EXCEPT for x. Since x has an ADT type, each function is also passed all
@@ -760,7 +807,7 @@ unfoldADTArgs n fcs@(first_fc:_) = do
 
                                                 -- If we get new literal values, may be able to do further division on them
                                                 -- to split up WHNF/non-WHNF data constructors
-                                                new_splits = if any (isSMTType . typeOf tv_env) as
+                                                new_splits = if any (isPrimType . typeOf tv_env) as
                                                                 then map (const NoSplit) all_other_split_ons ++ map (const NoSplit) as
                                                                 else all_other_split_ons ++ map (const NoSplit) as
 
@@ -815,7 +862,7 @@ splitWHNFAndNonWHNF n fcs@(first_fc:_) = do
     
     let arg_tys = map (typeOf tv_env) $ fc_args first_fc
 
-    case any isSMTType arg_tys of
+    case any isPrimType arg_tys of
         True -> splitWHNFAndNonWHNFIndices only_some_whnf [(n, fcs)]
         False -> return [(n, fcs)]
 
@@ -841,7 +888,7 @@ splitWHNFAndNonWHNFIndex i n fcs@(first_fc:_) = do
         ret_ty = typeOf tv_env $ fc_ret first_fc
 
     lam_is <- freshIdsN (map (typeOf tv_env) $ fc_args first_fc)
-    let prim_ty_is = filter (isSMTType . idType) lam_is
+    let prim_ty_is = filter (isPrimType . idType) lam_is
 
     ty_bool <- tyBoolT
     dc_true <- mkDCTrueM
@@ -866,7 +913,7 @@ splitWHNFAndNonWHNFIndex i n fcs@(first_fc:_) = do
     non_whnf_cons <- mapMaybeM
                         (\fc -> if | not . isADT . inlineVars eenv $ fc_args fc !! i -> do
                                         -- Add a path constraint that the predicate does not hold
-                                        let pred_args = filter (isSMTType . typeOf tv_env) $ fc_args fc
+                                        let pred_args = filter (isPrimType . typeOf tv_env) $ fc_args fc
                                             pred_app = mkApp $ Var pred:pred_args
                                         insertPCStateNG $ ExtCond pred_app False
                                         let fc_non_whnf = fc { fc_preconds = App (Prim Not TyUnknown) (pred_app):fc_preconds fc
@@ -880,7 +927,7 @@ splitWHNFAndNonWHNFIndex i n fcs@(first_fc:_) = do
     -- Allow either satisfying OR not satisfying the predicate
     whnf_cons <- concatMapM (\fc -> if | isADT . inlineVars eenv $ fc_args fc !! i -> do
                                         -- Add a path constraint that the predicate does not hold
-                                        let pred_args = filter (isSMTType . typeOf tv_env) $ fc_args fc
+                                        let pred_args = filter (isPrimType . typeOf tv_env) $ fc_args fc
                                             pred_app = mkApp $ Var pred:pred_args
                                             fc_true = FC { fc_preconds = pred_app:fc_preconds fc
                                                             , fc_args = fc_args fc
@@ -922,11 +969,11 @@ solveLitVals solver fcs = do
         case fc_list of
             [] -> return pcs'
             (fc_first:_) -> do
-                    let prim_arg_tys = map (typeOf tv_env) $ filter (isSMTType . typeOf tv_env) $ fc_args fc_first
+                    let prim_arg_tys = map (typeOf tv_env) $ filter (isPrimType . typeOf tv_env) $ fc_args fc_first
                         call_ty = mkTyFun $ prim_arg_tys ++ [TyLitInt]
                     sel_func <- freshSeededIdN (Name "sel" Nothing 0 Nothing) call_ty
 
-                    let fc_prim = map (\fc -> fc { fc_args = filter (isSMTType . typeOf tv_env) $ fc_args fc}) fc_list
+                    let fc_prim = map (\fc -> fc { fc_args = filter (isPrimType . typeOf tv_env) $ fc_args fc}) fc_list
                     (unified_id, fc_unified) <- unifyAllRetSymVars fc_prim
                     -- Filter to only constraints that do not return symbolic variables.
                     -- Constraints returning symbolic variables may return any value; thus they may be ignored.
@@ -934,7 +981,7 @@ solveLitVals solver fcs = do
                                                         (Var (Id n t)) -> do
                                                             m_conc_or_sym <- deepLookupConcOrSymE n
                                                             case m_conc_or_sym of
-                                                                Just (E.Sym _) -> return $ isSMTType t
+                                                                Just (E.Sym _) -> return $ isPrimType t
                                                                 _ -> return True
                                                         _ -> return True) fc_unified
 
@@ -944,13 +991,13 @@ solveLitVals solver fcs = do
                                         pre = fc_preconds fc
                                         and_pre = foldr (\e1 e2 -> mkApp [Prim And TyUnknown, e1, e2]) (mkTrue kv) pre
 
-                                        prim_args = filter (isSMTType . typeOf tv_env) $ fc_args fc
+                                        prim_args = filter (isPrimType . typeOf tv_env) $ fc_args fc
                                         uninterp_call =  mkApp $ Var sel_func:prim_args
 
                                         -- Note [Uninterpreted Return Value] 
                                         -- If we are returning an ADT, returning an Int that can then be mapped to that ADT.
                                         -- If we are returning a primitive type, just return it directly.
-                                        uninterp_ret = if isSMTType (typeOf tv_env $ fc_ret fc)
+                                        uninterp_ret = if isPrimType (typeOf tv_env $ fc_ret fc)
                                                                 then fc_ret fc
                                                                 else Lit (LitInt i)
 
@@ -968,11 +1015,11 @@ solveLitVals solver fcs = do
                     insertSymbolicE sel_func
 
                     lam_is <- freshIdsN (map (typeOf tv_env) $ fc_args fc_first)
-                    let prim_lam_is = filter (isSMTType . typeOf tv_env) lam_is
+                    let prim_lam_is = filter (isPrimType . typeOf tv_env) lam_is
                         sel_func_app = mkApp . map Var $ sel_func:prim_lam_is
 
                     -- See Note [Uninterpreted Return Value], above
-                    if isSMTType (typeOf tv_env $ fc_ret fc_first)
+                    if isPrimType (typeOf tv_env $ fc_ret fc_first)
                         then
                             insertE n $ mkLams (zip (repeat TermL) lam_is) sel_func_app
                         else do
@@ -1011,7 +1058,7 @@ unifyAllRetSymVars fcs@(fc_first:_) = do
     let ret_ty = typeOf tv_env $ fc_ret fc_first
     unify_id <- freshSeededIdN (Name "unify" Nothing 0 Nothing) ret_ty
     insertSymbolicE unify_id
-    if | not (isSMTType ret_ty) -> do
+    if | not (isPrimType ret_ty) -> do
             fcs' <- mapM (\fc -> case fc_ret fc of
                                     (Var (Id n _))
                                         | Just (E.Sym (Id sym_n _)) <- E.deepLookupConcOrSym n eenv -> do
@@ -1058,7 +1105,7 @@ splitReturns' n fcs@(first_fc:_) = do
                 ret_ty = typeOf tv_env $ fc_ret first_fc
 
             lam_is <- freshIdsN (map (typeOf tv_env) $ fc_args first_fc)
-            let prim_ty_is = filter (isSMTType . idType) lam_is
+            let prim_ty_is = filter (isPrimType . idType) lam_is
 
             -- Creating new function definition
             sel <- freshSeededIdN (Name "sel" Nothing 0 Nothing) . mkTyFun $ map idType prim_ty_is ++ [TyLitInt]
@@ -1092,7 +1139,7 @@ splitReturns' n fcs@(first_fc:_) = do
             let fcs_sel = map (\fc ->
                                     case unApp . inlineVars eenv $ fc_ret fc of
                                         Data dc:_ ->
-                                            fc { fc_args = filter (isSMTType . typeOf tv_env) $ fc_args fc
+                                            fc { fc_args = filter (isPrimType . typeOf tv_env) $ fc_args fc
                                                , fc_ret = Lit $ LitInt (toInteger . fromJust $ elemIndex (dc_name dc) $ map dc_name dcs) }
                               ) fcs
                 fcs_branches = concatMap (\fc ->
@@ -1101,7 +1148,7 @@ splitReturns' n fcs@(first_fc:_) = do
                                             | Just fs <- HM.lookup (dc_name dc) dc_funcs ->
                                                 zipWith (\f r_e -> 
                                                         let
-                                                            fc' = fc { fc_args = filter (isSMTType . typeOf tv_env) $ fc_args fc
+                                                            fc' = fc { fc_args = filter (isPrimType . typeOf tv_env) $ fc_args fc
                                                                      , fc_ret = r_e}
                                                         in
                                                         (idName f, [fc'])
@@ -1124,7 +1171,3 @@ deleteAt idx xs = lft ++ rgt
 replaceAt :: Int -> a -> [a] -> [a]
 replaceAt idx x xs = lft ++ [x] ++ rgt
   where (lft, (_:rgt)) = splitAt idx xs
-
-isSMTType :: Type -> Bool
-isSMTType (TyCon (Name "Bool" _ _ _) _) = True
-isSMTType t = isPrimType t
