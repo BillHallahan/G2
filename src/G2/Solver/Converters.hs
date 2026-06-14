@@ -1251,6 +1251,9 @@ smtastToExpr kv tenv tv_env _ (smt1 := smt2) = mkApp $ [ Prim Eq TyUnknown
 smtastToExpr kv tenv tv_env _ (SmtAnd xs) =
       foldr (\e1 e2 -> mkApp [Prim And TyUnknown, e1, e2]) (mkTrue kv)
     $ map (smtastToExpr kv tenv tv_env (tyBool kv)) xs
+smtastToExpr kv tenv tv_env _ (SmtOr xs) =
+      foldr (\e1 e2 -> mkApp [Prim Or TyUnknown, e1, e2]) (mkFalse kv)
+    $ map (smtastToExpr kv tenv tv_env (tyBool kv)) xs
 smtastToExpr kv tenv tv_env t@(TyFun _ _) (ArrayStore arr ind val) =
     let
         arr_e = smtastToExpr kv tenv tv_env t arr

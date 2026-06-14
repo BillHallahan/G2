@@ -156,6 +156,14 @@ funcExpr =
         )
         <|>
         try (do
+            _ <- string "or"
+            whiteSpace
+            x <- sExpr Nothing
+            y <- sExpr Nothing
+            return $ SmtOr [x, y]
+        )
+        <|>
+        try (do
             _ <- string "ite"
             inp <- getInput
             whiteSpace
