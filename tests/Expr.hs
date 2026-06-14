@@ -2,12 +2,9 @@
 
 module Expr (exprTests) where
 
-import G2.Execution.FuncConstraints
 import G2.Language
 import qualified G2.Language.ExprEnv as E
 import qualified G2.Language.TyVarEnv as TV 
-
-import qualified Data.Text as T
 
 import Test.Tasty
 import Test.Tasty.HUnit
