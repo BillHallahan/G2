@@ -140,7 +140,10 @@ alignRet eenv e1 (Var i2@(Id n2 _))
     | Just (E.Conc e2) <- cs2 = alignRet eenv e1 e2
     where
         cs2 = E.lookupConcOrSym n2 eenv 
-alignRet eenv (App e1 e1') (App e2 e2') = alignRet eenv e1 e2 <> alignRet eenv e1' e2'
+alignRet eenv (App e1 e1') (App e2 e2') = do
+    r1 <- alignRet eenv e1 e2
+    r2 <- alignRet eenv e1' e2'
+    return $ r1 <> r2
 alignRet _ (Type t1) (Type t2) = Just mempty
 alignRet _ (Data dc1) (Data dc2) | dc_name dc1 == dc_name dc2 = Just mempty
                                  | otherwise = Nothing
