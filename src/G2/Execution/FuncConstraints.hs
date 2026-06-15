@@ -101,10 +101,10 @@ allApplyFrames stck = go [] stck stck
                     | Just (UpdateFrame _, stck') <- Stck.pop pop_stck = go aes stck' stck_top_ups
                     | otherwise = (reverse aes, stck_top_ups)
 
-addFC :: Name -> FuncConstraint -> FuncConstraints -> FuncConstraints
+addFC :: Name -> FuncConstraint e -> FuncConstraints e -> FuncConstraints e
 addFC n fc = HM.insertWith (++) n [fc]
 
-addFCArgs :: [Expr] -> FuncConstraint -> FuncConstraint
+addFCArgs :: [e] -> FuncConstraint e -> FuncConstraint e
 addFCArgs new_args fc = fc { fc_args = fc_args fc ++ new_args
                            , fc_split_on = fc_split_on fc ++ map (const NoSplit) new_args}
 
@@ -120,8 +120,8 @@ data UnifyRes r = Unifiable r -- ^ Constraints are unifiable. I.e. function argu
 
 unifiableFuncConstraints :: HS.HashSet Name -- ^ Names not to inline
                          -> ExprEnv
-                         -> FuncConstraint
-                         -> FuncConstraint
+                         -> FuncConstraintE
+                         -> FuncConstraintE
                          -> UnifyRes (S.Seq (Id, Expr)) -- ^ Unifiable if Ids are made equal to corresponding Exprs
 unifiableFuncConstraints no_inline eenv fc1 fc2 = do
     case all (uncurry (eqUpToTypesInline no_inline eenv)) $ zip (fc_args fc1) (fc_args fc2) of
@@ -157,8 +157,8 @@ unifyFC :: (Solver solver, MonadIO m) =>
            solver
         -> HS.HashSet Name -- ^ Names not to inline
         -> State t
-        -> FuncConstraint
-        -> FuncConstraint
+        -> FuncConstraintE
+        -> FuncConstraintE
         -> m (UnifyRes (State t)) -- ^ A state with the function constraints unified, or Nothing if the function constraints are contradicton
 unifyFC solver no_inline s@(State { expr_env = eenv, tyvar_env = tv_env }) fc1 fc2 = do
     case unifiableFuncConstraints no_inline eenv fc1 fc2 of
@@ -182,8 +182,8 @@ unifyFCList :: (Solver solver, MonadIO m) =>
                solver
             -> HS.HashSet Name -- ^ Names not to inline
             -> State t
-            -> [FuncConstraint]
-            -> m (Maybe (State t, [FuncConstraint])) -- ^ A state with function constraints unified and an updated list of function constraints,
+            -> [FuncConstraintE]
+            -> m (Maybe (State t, [FuncConstraintE])) -- ^ A state with function constraints unified and an updated list of function constraints,
                                                         -- or Nothing if the function constraints are contradicton
 unifyFCList solver no_inline = go []
     where
@@ -327,7 +327,7 @@ solveFuncConstraintsReducer solver no_inline = mkSimpleReducer (\_ -> ()) go
 ------------------------------------------------------------------------------
 
 -- | Expands function definitions to include extra calls to higher order functions.
-addHigherOrderCalls :: MonadIO m => Name -> [FuncConstraint] -> StateNGT t m (Name, [FuncConstraint])
+addHigherOrderCalls :: MonadIO m => Name -> [FuncConstraintE] -> StateNGT t m (Name, [FuncConstraintE])
 addHigherOrderCalls n [] = return (n, [])
 addHigherOrderCalls n fcs@(first_fc:_) = do
     tv_env <- tyVarEnv
@@ -440,7 +440,7 @@ dcPathsToExtractors dc_path
                         ret_t
                         alts
 
-extractAll :: MonadIO m => [FuncConstraint] -> StateNGT t m [([Expr] -> Expr, Type)]
+extractAll :: MonadIO m => [FuncConstraintE] -> StateNGT t m [([Expr] -> Expr, Type)]
 extractAll fcs = do
     let matched_args = transpose $ map fc_args fcs
     exts <- zipWithM (\i as -> do
@@ -453,7 +453,7 @@ extractAll fcs = do
     return $ concat exts
 
 -- | Get expressions that have not been fully reduced. 
-collectNonReducedVars :: Monad m => FuncConstraints -> StateNGT t m [Id]
+collectNonReducedVars :: Monad m => FuncConstraintsE -> StateNGT t m [Id]
 collectNonReducedVars fcs = do
     eenv <- exprEnv
 
@@ -472,7 +472,7 @@ collectNonReducedVars fcs = do
              )
            $ HM.elems fcs
 
-addWrappersToFC :: Monad m => FuncConstraints -> StateNGT t m FuncConstraints
+addWrappersToFC :: Monad m => FuncConstraintsE -> StateNGT t m FuncConstraintsE
 addWrappersToFC =
     mapM (
             mapM (\fc -> do
@@ -545,7 +545,7 @@ collapseStack stck eenv e
 -- Solving Function Constraints
 ------------------------------------------------------------------------------
 
-data FCRes = SatFC FuncConstraints | UnsatFC deriving Eq
+data FCRes = SatFC FuncConstraintsE | UnsatFC deriving Eq
 
 data FCProgress = MadeProgressFC | NoProgressFC deriving (Eq, Show)
 
@@ -574,7 +574,7 @@ solveFuncConstraints solver s@(State { sym_func_constraints = fc }) ng = do
 
 
 -- TODO: Do we actually need the counter here?
-solveFC :: (Solver solver, MonadIO m) => solver -> Int -> FuncConstraints -> FCState t m FCRes
+solveFC :: (Solver solver, MonadIO m) => solver -> Int -> FuncConstraintsE -> FCState t m FCRes
 solveFC _ 0 _ = return UnsatFC
 solveFC solver !n fcs = do
     -- Convert functions with only a single constraint into constants
@@ -633,7 +633,7 @@ solveFC solver !n fcs = do
 
 -- | If we only have a single function constraint for a given function, we instantiate
 -- to a constant function returning the appropriate value.
-solveSingleton :: Monad m => Name -> [FuncConstraint] -> FCState t m (Maybe [FuncConstraint])
+solveSingleton :: Monad m => Name -> [FuncConstraintE] -> FCState t m (Maybe [FuncConstraintE])
 solveSingleton _ [] = return Nothing
 solveSingleton n [FC { fc_args = as, fc_ret = r }] = do
     tv_env <- tyVarEnv
@@ -646,7 +646,7 @@ solveSingleton _ xs = return $ Just xs
 
 -- | If all function constraints for a particular function return the same constructor,
 -- split into separate function constraints for each argument to that constructor
-simplifyReturns :: MonadIO m => Name -> [FuncConstraint] -> FCState t m [(Name, [FuncConstraint])]
+simplifyReturns :: MonadIO m => Name -> [FuncConstraintE] -> FCState t m [(Name, [FuncConstraintE])]
 simplifyReturns n fcs = do
     eenv <- exprEnv
     tv_env <- tyVarEnv
@@ -704,7 +704,7 @@ simplifyReturns n fcs = do
 --                1 -> []
 --                2 -> y:ys -- y, ys fresh symbolic variables
 --    We add a path constraint that `1 <= n <= 2`.
-replaceADTSymVars :: MonadIO m => [FuncConstraint] -> FCState t m [FuncConstraint]
+replaceADTSymVars :: MonadIO m => [FuncConstraintE] -> FCState t m [FuncConstraintE]
 replaceADTSymVars fcs = do
     eenv <- exprEnv
     tenv <- typeEnv
@@ -763,7 +763,7 @@ replaceADTSymVars fcs = do
 --    we rewrite the constraint to be:
 --        n = 1 => f [] = 7
 --        n = 2 => f (y:ys) = 7
-caseToPreCond :: MonadIO m => [FuncConstraint] -> FCState t m [FuncConstraint]
+caseToPreCond :: MonadIO m => [FuncConstraintE] -> FCState t m [FuncConstraintE]
 caseToPreCond fcs = concatMapM goArg fcs >>= concatMapM goRet
     where
         goArg fc@(FC { fc_preconds = pre, fc_args = es }) = do
@@ -807,7 +807,7 @@ caseToPreCond fcs = concatMapM goArg fcs >>= concatMapM goRet
         getCasePats _ = Nothing
 
 -- Look for primitives returning boolean values, and move them into the precondition
-boolToPreCond :: Monad m => [FuncConstraint] -> FCState t m [FuncConstraint]
+boolToPreCond :: Monad m => [FuncConstraintE] -> FCState t m [FuncConstraintE]
 boolToPreCond fcs = do
     tv_env <- tyVarEnv
     kv <- knownValues
@@ -818,7 +818,7 @@ boolToPreCond fcs = do
 
     boolToPreCond' tv_env ty_bool dc_true dc_false fcs
 
-boolToPreCond' :: Monad m => TyVarEnv -> Type -> DataCon -> DataCon -> [FuncConstraint] -> FCState t m [FuncConstraint]
+boolToPreCond' :: Monad m => TyVarEnv -> Type -> DataCon -> DataCon -> [FuncConstraintE] -> FCState t m [FuncConstraintE]
 boolToPreCond' tv_env ty_bool dc_true dc_false = concatMapM goArg
     where
         goArg fc@(FC { fc_preconds = pre, fc_args = es }) = do
@@ -870,7 +870,7 @@ boolToPreCond' tv_env ty_bool dc_true dc_false = concatMapM goArg
 --        f2 y ys e = 10
 --        f1 6 = 22
 --        f1 19 = 25
-unfoldADTArgs :: MonadIO m => Name -> [FuncConstraint] -> FCState t m [(Name, [FuncConstraint])]
+unfoldADTArgs :: MonadIO m => Name -> [FuncConstraintE] -> FCState t m [(Name, [FuncConstraintE])]
 unfoldADTArgs n [] = return []
 unfoldADTArgs n fcs@(first_fc:_) = do
     eenv <- exprEnv
@@ -977,7 +977,7 @@ unfoldADTArgs n fcs@(first_fc:_) = do
 -- We require that ONLY branches where the list is in WHNF be passed to f1- this then allows f1
 -- to be unfolded by `unfoldADTArgs`. We allow, though, p to be instantiated to go to f2
 -- in any case- this might be needed if, for instance, path constraints force `z = 2#` in the above. 
-splitWHNFAndNonWHNF :: MonadIO m => Name -> [FuncConstraint] -> FCState t m [(Name, [FuncConstraint])]
+splitWHNFAndNonWHNF :: MonadIO m => Name -> [FuncConstraintE] -> FCState t m [(Name, [FuncConstraintE])]
 splitWHNFAndNonWHNF n [] = return []
 splitWHNFAndNonWHNF n fcs@(first_fc:_) = do
     eenv <- exprEnv
@@ -993,7 +993,7 @@ splitWHNFAndNonWHNF n fcs@(first_fc:_) = do
         True -> splitWHNFAndNonWHNFIndices only_some_whnf [(n, fcs)]
         False -> return [(n, fcs)]
 
-splitWHNFAndNonWHNFIndices :: MonadIO m => [Int] -> [(Name, [FuncConstraint])] -> FCState t m [(Name, [FuncConstraint])]
+splitWHNFAndNonWHNFIndices :: MonadIO m => [Int] -> [(Name, [FuncConstraintE])] -> FCState t m [(Name, [FuncConstraintE])]
 splitWHNFAndNonWHNFIndices [] n_fcs = return n_fcs
 splitWHNFAndNonWHNFIndices (i:is) n_fcs = do
     n_fcs' <- concatMapM (uncurry (splitWHNFAndNonWHNFIndex i)) n_fcs
@@ -1002,8 +1002,8 @@ splitWHNFAndNonWHNFIndices (i:is) n_fcs = do
 splitWHNFAndNonWHNFIndex :: MonadIO m =>
                             Int -- ^ Index to split on
                          -> Name
-                         -> [FuncConstraint]
-                         -> FCState t m [(Name, [FuncConstraint])]
+                         -> [FuncConstraintE]
+                         -> FCState t m [(Name, [FuncConstraintE])]
 splitWHNFAndNonWHNFIndex _ n [] = return []
 splitWHNFAndNonWHNFIndex i n fcs@(first_fc:_) | fc_split_on first_fc !! i == Split  = return [(n, fcs)]
 splitWHNFAndNonWHNFIndex i n fcs@(first_fc:_) = do
@@ -1077,7 +1077,7 @@ splitWHNFAndNonWHNFIndex i n fcs@(first_fc:_) = do
 
 -- | Checks if we can find solutions to all functions.
 -- Uses an SMT solver and the theory of uninterpreted functions to solve for literal inputs/outputs.
-solveLitVals :: (Solver solver, MonadIO m) => solver -> FuncConstraints -> FCState t m Bool
+solveLitVals :: (Solver solver, MonadIO m) => solver -> FuncConstraintsE -> FCState t m Bool
 solveLitVals solver fcs = do
     -- We optimistically insert into the ExprEnv throughout this code,
     -- and revert to the old ExprEnv at the end if we fail to find a solution.
@@ -1174,7 +1174,7 @@ solveLitVals solver fcs = do
 -- | Adjust all symbolic variables of ADT types being returned from function constraints
 -- to be the same (fresh) symbolic value.
 -- This then allows us to ignore these constraints.
-unifyAllRetSymVars :: Monad m => [FuncConstraint] -> FCState t m (Id, [FuncConstraint])
+unifyAllRetSymVars :: Monad m => [FuncConstraintE] -> FCState t m (Id, [FuncConstraintE])
 unifyAllRetSymVars [] = do
     unify_id <- freshSeededIdN (Name "unify" Nothing 0 Nothing) TyUnknown
     return (unify_id, [])
@@ -1205,7 +1205,7 @@ unifyAllRetSymVars fcs@(fc_first:_) = do
 --               1# -> f1 x:f2 x
 --               2# -> []
 -- where br, f1, f2, are all fresh variables.
-splitReturns :: MonadIO m => FuncConstraints -> FCState t m FuncConstraints
+splitReturns :: MonadIO m => FuncConstraintsE -> FCState t m FuncConstraintsE
 splitReturns fcs = do
     resetProgress
     split <- concatMapM (uncurry splitReturns') $ HM.toList fcs
@@ -1216,7 +1216,7 @@ splitReturns fcs = do
         MadeProgressFC -> splitReturns fcs'
         NoProgressFC -> return fcs'
 
-splitReturns' :: MonadIO m => Name -> [FuncConstraint] -> FCState t m [(Name, [FuncConstraint])]
+splitReturns' :: MonadIO m => Name -> [FuncConstraintE] -> FCState t m [(Name, [FuncConstraintE])]
 splitReturns' n [] = return []
 splitReturns' n fcs@(first_fc:_) = do
     eenv <- exprEnv

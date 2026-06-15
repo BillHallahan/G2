@@ -56,7 +56,7 @@ data State t = State { expr_env :: E.ExprEnv -- ^ Mapping of `Name`s to `Expr`s
                      , path_conds :: PathConds -- ^ Path conditions, in SWHNF
                      , non_red_path_conds :: NonRedPathConds -- ^ Path conditions, in the form of (possibly non-reduced)
                                                              -- expression pairs that must be proved equivalent
-                     , sym_func_constraints :: FuncConstraints -- ^ Constraints on symbolic functions
+                     , sym_func_constraints :: FuncConstraintsE -- ^ Constraints on symbolic functions
                      , solving_sym_func_constraints :: FCStatus -- ^ Have we solved the sym func constraints?
                      , focused :: Focus -- ^ Is the expression that we are currently evaluating in focus (may be unfocused when from NRPC)
                      , handles :: HM.HashMap Name Handle -- ^ Each Handle has a name, that appears in `Expr`s within the `Handle` `Primitive`
@@ -216,22 +216,33 @@ data CEAction = EnsureEq Expr -- ^ `EnsureEq focus e1` means that we should chec
 instance Hashable CEAction
 
 -- | Constraints on higher order functions
-data FuncConstraint =
+data FuncConstraint e =
     FC { fc_preconds :: [Expr]
-       , fc_args :: [Expr]
+       , fc_args :: [e]
        , fc_ret :: Expr
 
        , fc_split_on :: [FCSplitOn] -- ^ Used during solver- have we used a predicate to split the ith argument?
        }
        deriving (Eq, Show, Read, Generic, Data)
 
-instance Hashable FuncConstraint
+instance Hashable e => Hashable (FuncConstraint e)
+
+type FuncConstraintE = FuncConstraint Expr
 
 data FCSplitOn = Split | NoSplit
                  deriving (Eq, Show, Read, Generic, Data)
 
 instance Hashable FCSplitOn
 
+-- | Used to store arguments in a `FuncConstraint`.  In a FCOptRed, `non_reduced` should reduce to `reduced`.
+data FCExpr = FCRed Expr
+            | FCOptRed { fc_opt_sel :: Name -- ^ An Int used to select between using `non_reduced` and `reduced`
+                       , non_reduced :: Expr -- ^ An Expr that has not been reduced
+                       , reduced :: Expr -- ^ `non_reduced`, after some reduction has been applied
+                       }
+            deriving (Eq, Show, Read, Generic, Data)
+
+instance Hashable FCExpr
 
 data FCStatus = InitialRun -- ^ Not yet to solving function constraints
               | SolvingFCs -- ^ In the process of solving function constraints
@@ -245,7 +256,8 @@ instance Hashable FCStatus
 
 -- instance Hashable FuncRec
 
-type FuncConstraints = HM.HashMap Name [FuncConstraint]
+type FuncConstraints e = HM.HashMap Name [FuncConstraint e]
+type FuncConstraintsE = FuncConstraints Expr
 
 -- | A model is a mapping of symbolic variable names to `Expr`@s@,
 -- typically produced by a solver. 
@@ -575,7 +587,7 @@ instance Named Frame where
     renames hm (AssertFrame is e) = AssertFrame (renames hm is) (renames hm e)
     renames hm (LitTableFrame ltc up) = LitTableFrame (renames hm ltc) up
 
-instance Named FuncConstraint where
+instance Named e =>  Named (FuncConstraint e) where
     names fc = names (fc_preconds fc) <> names (fc_args fc) <> names (fc_ret fc)
     rename old new fc = fc { fc_preconds = rename old new (fc_preconds fc)
                            , fc_args = rename old new (fc_args fc)
@@ -584,13 +596,13 @@ instance Named FuncConstraint where
                        , fc_args = renames hm (fc_args fc)
                        , fc_ret = renames hm (fc_ret fc) }
 
-instance ASTContainer FuncConstraint Expr where
+instance ASTContainer e Expr => ASTContainer (FuncConstraint e) Expr where
     modifyContainedASTs f fc = fc { fc_preconds = modifyContainedASTs f (fc_preconds fc)
                                   , fc_args = modifyContainedASTs f (fc_args fc)
                                   , fc_ret = f (fc_ret fc) }
     containedASTs fc = containedASTs (fc_preconds fc) <> containedASTs (fc_args fc) <> containedASTs (fc_ret fc)
 
-instance ASTContainer FuncConstraint Type where
+instance ASTContainer e Type => ASTContainer (FuncConstraint e) Type where
     modifyContainedASTs f fc = fc { fc_preconds = modifyContainedASTs f (fc_preconds fc)
                                   , fc_args = modifyContainedASTs f (fc_args fc)
                                   , fc_ret = modifyContainedASTs f (fc_ret fc) }
