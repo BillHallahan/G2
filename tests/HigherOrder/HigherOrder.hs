@@ -201,3 +201,17 @@ retFunc2 n =
 
 eqRetFunc :: [Int -> Int] -> [Int -> Int] -> Bool
 eqRetFunc xs ys = map (\f -> f 0) xs == map (\f -> f 0) ys
+
+funcGen :: ([Int] -> Int) -> [Int] -> Int
+funcGen f xs =
+    case f (g xs) of
+        0 -> 0 -- line 1
+        _ -> case f (g xs) of
+                0 -> 1 -- Unreachable- requires that f (g xs) /= 0 (to not match on line 1)
+                       -- and f (g xs) == 0 (to match on this line)
+                _ -> 2
+    where
+        g [] = [f []]
+        g (_:xs) = case f (g xs) of
+                        1 -> [1]
+                        _ -> g xs

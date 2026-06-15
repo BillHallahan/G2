@@ -740,7 +740,9 @@ testFileTests = testGroup "TestFiles"
                                                                        , ("thirdOrder2", 150, [Exactly 3])
                                                                        , ("tupleTestMono", 175, [Exactly 2])
                                                                        , ("multiPrim", 300, [AtLeast 2])
-                                                                       , ("polyHigher", 50, [Exactly 1])]                                                                                         
+                                                                       , ("polyHigher", 50, [Exactly 1])
+                                                                       , ("funcGen", 20000, [Exactly 2])
+                                                                       ]                                                                                         
 
     , checkInputOutputsSymFuncConstraints "tests/HigherOrder/PolyHigherOrder.hs"
                                                                        [ ("f", 100, [Exactly 3])
