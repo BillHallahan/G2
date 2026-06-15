@@ -742,6 +742,8 @@ testFileTests = testGroup "TestFiles"
                                                                        , ("multiPrim", 300, [AtLeast 2])
                                                                        , ("polyHigher", 50, [Exactly 1])
                                                                        , ("funcGen", 20000, [Exactly 2])
+                                                                       , ("repFix", 1000, [AtLeast 5])
+                                                                       , ("repF", 1000, [Exactly 3])
                                                                        ]                                                                                         
 
     , checkInputOutputsSymFuncConstraints "tests/HigherOrder/PolyHigherOrder.hs"

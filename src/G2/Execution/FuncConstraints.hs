@@ -64,16 +64,18 @@ addFuncConstraints :: HS.HashSet Name -- ^ Names of variables to not inline when
                    -> Maybe (State t, NameGen)
 addFuncConstraints no_inline
                    s@(State { expr_env = eenv
+                            , tyvar_env = tv_env
                             , curr_expr = CurrExpr _ ce
                             , sym_func_constraints = sym_fc }) 
                    ng
-    |  Var (Id n t):es_ce <- unApp ce
+    |  v@(Var (Id n t)):es_ce <- unApp ce
     , isTyFun t
-    , E.isSymbolic n eenv =
+    , E.isSymbolic n eenv 
+    
+    , let (ae, stck') = allApplyFrames (exec_stack s)
+    , let es = es_ce ++ ae
+    , not . isTyFun . typeOf tv_env . mkApp $ v:es_ce =
         let
-            (ae, stck') = allApplyFrames (exec_stack s)
-            es = es_ce ++ ae
-
             (ret_id, ng') = freshSeededId (Name "fc_ret" Nothing 0 Nothing) (returnType t) ng
             fc = FC { fc_preconds = []
                     , fc_args = es

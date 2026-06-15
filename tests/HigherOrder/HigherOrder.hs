@@ -215,3 +215,44 @@ funcGen f xs =
         g (_:xs) = case f (g xs) of
                         1 -> [1]
                         _ -> g xs
+
+repFix :: (Int -> Int) -> Int -> Int
+repFix f x =
+    case x == f x of
+        True -> 1
+        False -> repFix f (f x)
+
+repF :: (Int -> Int -> Int) -> Int -> Int
+repF f x =
+    case f x (x * 2) of
+        0 -> 1
+        _ -> case f x (g (x + 1) (x * 2)) of
+                0 -> 2
+                _ -> 3
+    where
+        g a b = case f a (g a b) of
+                    0 -> 1
+                    _ -> 2
+
+-- repCons is a tricky case where reducing an argument of f results in an additional call to f along all paths.
+-- The way to get repCons to terminate is to not use the third argument of f.
+repCons :: (Int -> Int -> Int) -> Int -> Int
+repCons f x =
+    case f (x * 2) inf of
+        1 -> case f (x + 1) (g x) of
+                2 -> 1
+                _ -> 2
+        _ -> 3
+    where
+        inf = inf
+
+        g y = case f y inf of
+                    1 -> g (y + 1)
+                    _ -> g (y + 2)
+
+repIte :: (Int -> Bool) -> (Int -> Int) -> Int
+repIte f g =
+    ite (\x -> f $ x + 1) (\x -> ite f g (g x)) 0
+    where
+        ite b !a x | b x = a x
+                   | otherwise = x
