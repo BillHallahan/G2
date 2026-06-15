@@ -562,10 +562,10 @@ madeProgress = SM.lift $ SM.put MadeProgressFC
 
 solveFuncConstraints :: (Solver solver, MonadIO m) => solver -> State t -> NameGen -> m (Maybe (State t, NameGen))
 solveFuncConstraints solver s@(State { sym_func_constraints = fc }) ng = do
-    -- liftIO $ do
-    --     putStrLn "------------------------"
-    --     putStrLn "About to call solve FC"
-    --     putStrLn "------------------------"
+    liftIO $ do
+        putStrLn "------------------------"
+        putStrLn "About to call solve FC"
+        putStrLn "------------------------"
     (r, (s', !ng')) <- SM.evalStateT (runStateNGT (solveFC solver (-1) fc) s ng) NoProgressFC
     return $ case r of
                     SatFC fcs' -> Just (s' { solving_sym_func_constraints = SolvedFCs

@@ -250,8 +250,15 @@ repCons f x =
                     1 -> g (y + 1)
                     _ -> g (y + 2)
 
-repIte :: (Int -> Bool) -> (Int -> Int) -> Int
-repIte f g =
+repIte1 :: (Int -> Bool) -> (Int -> Int) -> Int
+repIte1 f g =
+    ite (\x -> f $ x + 1) (\x -> ite f g (g x)) 0
+    where
+        ite b a x | b x = a x
+                  | otherwise = x
+
+repIte2 :: (Int -> Bool) -> (Int -> Int) -> Int
+repIte2 f g =
     ite (\x -> f $ x + 1) (\x -> ite f g (g x)) 0
     where
         ite b !a x | b x = a x
