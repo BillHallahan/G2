@@ -1245,6 +1245,11 @@ smtastToExpr kv tenv tv_env t (IteSMT cond br1 br2) =
                , Alt (DataAlt false_dc []) br2_e ]
     in
     Case cond_e bindee ret_ty alts
+smtastToExpr kv tenv tv_env t (SLet (bn, ast1) ast2) =
+    let bound_e = smtastToExpr kv tenv tv_env t ast1 in
+    Let
+        [(Id (certainStrToName bn) (typeOf tv_env bound_e), bound_e)]
+        $ smtastToExpr kv tenv tv_env t ast2
 smtastToExpr kv tenv tv_env _ (smt1 := smt2) = mkApp $ [ Prim Eq TyUnknown
                                                 , smtastToExpr kv tenv tv_env TyUnknown smt1
                                                 , smtastToExpr kv tenv tv_env TyUnknown smt2]
