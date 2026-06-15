@@ -146,7 +146,7 @@ alignRet _ (Data dc1) (Data dc2) | dc_name dc1 == dc_name dc2 = Just mempty
                                  | otherwise = Nothing
 alignRet _ (Lit l1) (Lit l2) | l1 == l2 = Just mempty
                              | otherwise = Nothing
-alignRet _ e1 e2 = error $ "alignRet: unsupported Exprs" ++ "\n" ++ show e1 ++ "\n" ++ show e2
+alignRet _ _ _ = Nothing
 
 unifyFC :: (Solver solver, MonadIO m) =>
            solver
