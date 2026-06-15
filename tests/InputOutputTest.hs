@@ -159,7 +159,7 @@ checkInputOutputsNonRedLib src tests = do
 checkInputOutputsSymFuncConstraints :: FilePath -> [(String, Int, [Reqs String])] -> TestTree
 checkInputOutputsSymFuncConstraints src tests = do
     checkInputOutput'
-        (do config <- mkConfigTestIO; return (config { symbolic_func_constraints = UseFuncCons, smt = ConCVC5 }))
+        (do config <- mkConfigTestIO; return (config { higherOrderSolver = SymConstraints, smt = ConCVC5 }))
         src
         tests
 

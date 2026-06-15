@@ -8,7 +8,6 @@ module G2.Config.Config ( Mode (..)
                         , HigherOrderSolver (..)
                         , FpHandling (..)
                         , NonRedPathCons (..)
-                        , UseFuncCons (..)
                         
                         , UseSMTStrings (..)
                         , SMTStringsEval (..)
@@ -71,13 +70,12 @@ data SearchStrategy = Iterative | Subpath deriving (Eq, Show, Read)
 
 data HigherOrderSolver = AllFuncs
                        | SingleFunc
-                       | SymbolicFunc deriving (Eq, Show, Read)
+                       | SymbolicFunc
+                       | SymConstraints deriving (Eq, Show, Read)
 
 data FpHandling = RealFP | RationalFP deriving (Eq, Show, Read)
 
 data NonRedPathCons = Nrpc | NoNrpc deriving (Eq, Show, Read)
-
-data UseFuncCons = UseFuncCons | NoFuncCons deriving (Eq, Show, Read)
 
 data UseSMTStrings = UseSMTStrings | NoSMTStrings deriving (Eq, Show, Read)
 
@@ -181,7 +179,6 @@ data Config = Config {
     , lib_nrpc :: NonRedPathCons -- ^ Whether to use NRPCs for library functions or not
     , approx_nrpc :: NonRedPathCons -- ^ Use approximation and NRPCs to avoid repeated exploration of equivalent function calls
     , symbolic_func_nrpc :: NonRedPathCons -- ^ Whether to use NRPCs for symbolic functions or not
-    , symbolic_func_constraints :: UseFuncCons -- ^ Whether to use symbolic function constraints
     , gen_func_arg_states :: Bool -- ^ Whether to generate function argument states
     , print_num_nrpc :: Bool -- ^ Output the number of NRPCs for each accepted state
     , print_num_post_call_func_arg :: Bool -- ^ Output the number of post call and function argument states
@@ -319,7 +316,6 @@ mkConfig homedir = Config Regular
     <*> flag NoNrpc Nrpc (long "lib-nrpc" <> help "execute with non reduced path constraints")
     <*> flag NoNrpc Nrpc (long "approx-nrpc" <> help "Use approximation and NRPCs to avoid repeated exploration of equivalent function calls")
     <*> flag NoNrpc Nrpc (long "higher-nrpc" <> help "use NRPCs to delay execution of library functions")
-    <*> flag NoFuncCons UseFuncCons (long "higher-func-cons" <> help "use function constraints to delay execution of library functions")
     <*> flag True False (long "no-func-arg-states" <> help "disable function argument states")
     <*> flag False True (long "print-num-nrpc" <> help "output the number of NRPCs for each accepted state")
     <*> flag False True (long "print-num-higher-states" <> help "output the number of post call and function argument states (from higher order coverage checking)")
@@ -384,6 +380,7 @@ mkHigherOrder =
                                     "all" -> Right AllFuncs
                                     "single" -> Right SingleFunc
                                     "symbolic" -> Right SymbolicFunc
+                                    "sym-constraints" -> Right SymConstraints
                                     _ -> Left "Unsupported higher order function handling"))
             ( long "higher-order"
             <> metavar "HANDLING"
@@ -495,7 +492,6 @@ mkConfigDirect homedir as m = Config {
     , lib_nrpc = NoNrpc
     , approx_nrpc = NoNrpc
     , symbolic_func_nrpc = NoNrpc
-    , symbolic_func_constraints = NoFuncCons
     , gen_func_arg_states = True
     , print_num_nrpc = False
     , print_num_post_call_func_arg = False

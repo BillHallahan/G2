@@ -395,11 +395,11 @@ initRedHaltOrd s mod_name solver simplifier config exec_func_names no_nrpc_names
                                 Nrpc -> SomeReducer (nonRedHigherOrderReducer config approx_no_inline) .== Finished .--> nrpc_lib_red f
                                 NoNrpc -> nrpc_lib_red f
         
-        func_const_red f = case symbolic_func_constraints config of
-                                UseFuncCons -> SomeReducer limitSolvingFuncConstraintPieces .~>
+        func_const_red f = case higherOrderSolver config of
+                                SymConstraints -> SomeReducer limitSolvingFuncConstraintPieces .~>
                                     (SomeReducer (addFuncConstraintReducer config approx_no_inline) .== Finished
                                                                                         .--> nrpc_higher_red f)
-                                NoFuncCons -> nrpc_higher_red f
+                                _ -> nrpc_higher_red f
 
         accept_time_red f = case accept_times config of
                                 True -> SomeReducer time_logger .~> func_const_red f
@@ -456,6 +456,12 @@ initRedHaltOrd s mod_name solver simplifier config exec_func_names no_nrpc_names
                 , orderer
                 , io_timed_out)
             SingleFunc ->
+                ( nrpc_approx_red retReplaceSymbFuncVar .== Finished .--> taggerRed state_name :== Finished
+                            .--> (SomeReducer nonRedPCRed .== Finished .--> SomeReducer (solveFuncConstraintsReducer solver approx_no_inline))
+                , SomeHalter (discardIfAcceptedTagHalter True state_name) .<~> halter_height
+                , orderer
+                , io_timed_out)
+            SymConstraints ->
                 ( nrpc_approx_red retReplaceSymbFuncVar .== Finished .--> taggerRed state_name :== Finished
                             .--> (SomeReducer nonRedPCRed .== Finished .--> SomeReducer (solveFuncConstraintsReducer solver approx_no_inline))
                 , SomeHalter (discardIfAcceptedTagHalter True state_name) .<~> halter_height
