@@ -172,7 +172,7 @@ unifyFC solver no_inline s@(State { expr_env = eenv, tyvar_env = tv_env }) fc1 f
     where
         addToState s_ (i, e)
             | isPrimType (typeOf tv_env i) =
-                let eq_prim = mkApp $ [Prim Eq TyUnknown, Var i, e] in
+                let eq_prim = mkApp $ [Prim Eq TyUnknown, Var i, inlineVars eenv e] in
                 s_ { path_conds = PC.insert (ExtCond eq_prim True) $ path_conds s_ }
             | otherwise = s_ { expr_env = E.insert (idName i) e $ expr_env s_ }
 
@@ -210,7 +210,7 @@ unifyFuncConstraints solver no_inline s@(State { expr_env = eenv, sym_func_const
     (rs, rfcs) <- mapAccumM (\may_s fc -> do
                         case may_s of
                             Just s_ -> do
-                                unif_r <- unifyFCList solver no_inline s fc
+                                unif_r <- unifyFCList solver no_inline s_ fc
                                 case unif_r of
                                     Just (s_', fc') -> return (Just s_', fc')
                                     Nothing -> return (Nothing, fc)
