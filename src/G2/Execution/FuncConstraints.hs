@@ -463,6 +463,8 @@ collectNonReducedVars fcs = do
             , isExprValueForm eenv e = collect (HS.insert n seen) e
             | E.isSymbolic n eenv = []
             | otherwise = [i]
+        collect seen (Case (Var (Id n _)) _ _ [Alt _ _, Alt _ e])
+            | nameOcc n == whnfBrOccName = collect seen e
         collect seen e
             | Data _:es <- unApp e = concatMap (collect seen) es
         collect _ _ = []
@@ -483,6 +485,10 @@ addWrappersToFC =
 
 -- Replace any non-WHNF expression with a variable that points to that non-WHNF epxression.
 addVarWrappers :: Monad m => Expr -> SM.StateT (HS.HashSet Name) (SM.StateT (State t, NameGen) m) Expr
+addVarWrappers (Case v@(Var (Id n _)) bindee t [alt1@(Alt _ _), Alt lit_alt e2])
+    | nameOcc n == whnfBrOccName = do
+        e2' <- addVarWrappers e2
+        return $ Case v bindee t [alt1, Alt lit_alt e2']
 addVarWrappers e
     | d@(Data _):es <- unApp e = do
         es' <- mapM addVarWrappers es
@@ -502,9 +508,26 @@ addVarWrappers e = do
         True -> return e
         False -> do
             tv_env <- SM.lift $ tyVarEnv
-            i <- SM.lift $ freshIdN (typeOf tv_env e)
+
+            red_br <- SM.lift $ freshSeededIdN (Name whnfBrOccName Nothing 0 Nothing) TyLitInt
+            SM.lift $ insertSymbolicE red_br
+            SM.lift $ insertPCStateNG (ExtCond (mkApp $ [Prim Le TyUnknown, Lit (LitInt 1), Var red_br]) True)
+            SM.lift $ insertPCStateNG (ExtCond (mkApp $ [Prim Le TyUnknown, Var red_br, Lit (LitInt 2)]) True)
+            SM.lift $ insertPCStateNG (ExtCond (mkApp $ [Prim Eq TyUnknown, Var red_br, Lit (LitInt 2)]) True) -- TODO: CUT THIS
+
+            let t = typeOf tv_env e
+            i <- SM.lift $ freshIdN t
             SM.lift $ insertE (idName i) e
-            return (Var i)
+            let cse = Case
+                        (Var red_br)
+                        red_br
+                        t
+                        [ Alt (LitAlt $ LitInt 1) (Prim UnspecifiedOutput TyBottom) -- e
+                        , Alt (LitAlt $ LitInt 2) (Var i) ] 
+            return (Var i) -- cse
+
+whnfBrOccName :: T.Text
+whnfBrOccName = "red_G2_!!_br"
 
 -- | When solving sub-expressions of function constraints, only do a limited amount of evaluation.
 -- This ensures that we do not get stuck looping on evaluation of an infinite expression.
@@ -562,10 +585,10 @@ madeProgress = SM.lift $ SM.put MadeProgressFC
 
 solveFuncConstraints :: (Solver solver, MonadIO m) => solver -> State t -> NameGen -> m (Maybe (State t, NameGen))
 solveFuncConstraints solver s@(State { sym_func_constraints = fc }) ng = do
-    liftIO $ do
-        putStrLn "------------------------"
-        putStrLn "About to call solve FC"
-        putStrLn "------------------------"
+    -- liftIO $ do
+    --     putStrLn "------------------------"
+    --     putStrLn "About to call solve FC"
+    --     putStrLn "------------------------"
     (r, (s', !ng')) <- SM.evalStateT (runStateNGT (solveFC solver (-1) fc) s ng) NoProgressFC
     return $ case r of
                     SatFC fcs' -> Just (s' { solving_sym_func_constraints = SolvedFCs
@@ -599,7 +622,8 @@ solveFC solver !n fcs = do
             -- Replace ADT symbolic variables with case expressions
             fcs_replaced_sym_adt <- mapM replaceADTSymVars fc_simp_reassembled
 
-            fcs_precond <- mapM caseToPreCond fcs_replaced_sym_adt
+            fcs_precond_arg <- mapM caseToPreCondArg fcs_replaced_sym_adt
+            fcs_precond <- mapM caseToPreCondRet fcs_precond_arg
             let pg_precond = updatePrettyGuide (HM.toList fcs_precond) pg
             -- eenv <- exprEnv
             -- liftIO $ putStrLn $ "fcs_precond =\n" ++ T.unpack (prettyFuncConstraints pg_precond $ inlineVars eenv fcs_precond)  
@@ -754,7 +778,7 @@ replaceADTSymVars fcs = do
                 return ()
 
 -- |  We look for arguments that are case constructs introduced by `replaceADTSymVars`,
--- and we translate constraints into a pair of function constraints. For instance if we have a function constraint:
+-- and we translate constraints into a set of function constraints. For instance if we have a function constraint:
 --        f xs = 7
 --    and we already have:
 --       xs = case n of
@@ -763,10 +787,10 @@ replaceADTSymVars fcs = do
 --    we rewrite the constraint to be:
 --        n = 1 => f [] = 7
 --        n = 2 => f (y:ys) = 7
-caseToPreCond :: MonadIO m => [FuncConstraint] -> FCState t m [FuncConstraint]
-caseToPreCond fcs = concatMapM goArg fcs >>= concatMapM goRet
+caseToPreCondArg :: MonadIO m => [FuncConstraint] -> FCState t m [FuncConstraint]
+caseToPreCondArg = concatMapM go
     where
-        goArg fc@(FC { fc_preconds = pre, fc_args = es }) = do
+        go fc@(FC { fc_preconds = pre, fc_args = es }) = do
             eenv <- exprEnv
             let es' = map (getOutCases eenv) es
                 case_pats = map getCasePats es'
@@ -782,8 +806,11 @@ caseToPreCond fcs = concatMapM goArg fcs >>= concatMapM goRet
                     madeProgress
                     return fc_branch
                 Nothing -> return [fc]
-        
-        goRet fc@(FC { fc_preconds = pre, fc_ret = e }) = do
+
+caseToPreCondRet :: MonadIO m => [FuncConstraint] -> FCState t m [FuncConstraint]
+caseToPreCondRet = concatMapM go
+    where        
+        go fc@(FC { fc_preconds = pre, fc_ret = e }) = do
             eenv <- exprEnv
             let e' = getOutCases eenv e
                 m_case_pat = getCasePats e'
@@ -795,16 +822,18 @@ caseToPreCond fcs = concatMapM goArg fcs >>= concatMapM goRet
                     madeProgress
                     return fc_branch
                 Nothing -> return [fc]
-                    
-        getOutCases eenv v@(Var (Id n _)) =
-            let e = inlineVars eenv v in
-            case e of
-                cse@(Case _ _ _ (Alt (LitAlt _) _:_)) -> cse
-                _ -> v
-        getOutCases _ e = e
 
-        getCasePats (Case (Var i) (Id _ TyLitInt) _ alts) = Just (i, map (\(Alt (LitAlt l) dc) -> (l, dc)) alts)
-        getCasePats _ = Nothing
+getOutCases :: ExprEnv -> Expr -> Expr                    
+getOutCases eenv v@(Var (Id n _)) =
+    let e = inlineVars eenv v in
+    case e of
+        cse@(Case _ _ _ (Alt (LitAlt _) _:_)) -> cse
+        _ -> v
+getOutCases _ e = e
+
+getCasePats :: Expr -> Maybe (Id, [(Lit, Expr)])
+getCasePats (Case (Var i) (Id _ TyLitInt) _ alts) = Just (i, map (\(Alt (LitAlt l) dc) -> (l, dc)) alts)
+getCasePats _ = Nothing
 
 -- Look for primitives returning boolean values, and move them into the precondition
 boolToPreCond :: Monad m => [FuncConstraint] -> FCState t m [FuncConstraint]
