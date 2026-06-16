@@ -135,3 +135,36 @@ tupleFunc f =
     case f (1, \x -> x) == f (1, \x -> x + 1) of
         True -> 1
         False -> 2
+
+-- x = list3 (\fs'27 -> (\fs'29 -> case fs'27 of
+--        fs'23 -> case fs'23 == (4) of
+--             True  -> case (case fs'23 == (4) of
+--                   True  -> 0
+--                   False  -> (-6)) of
+--                   0 -> False
+--                   1 -> True
+--             False  -> case (case fs'23 == (5) of
+--                   True  -> 1
+--                   g2____bindee_smt_ite__@(False ) -> case fs'23 == ((-7)) of
+--                         True  -> 1
+--                         False  -> (-5)) of
+--                   0 -> False
+--                   1 -> True)) (\fs'21 -> case fs'21 of
+--        fs'20 -> case fs'20 == (6) of
+--             True  -> (-7)
+--             False  -> 7) (\fs'12 -> ((case fs'12 of
+--       []  -> 11
+--       fs'15 : fs'18 -> case fs'15 of
+--              fs'16 -> 6):case fs'12 of
+--       []  -> []
+--       fs'9 : fs'13 -> case fs'9 of
+--              fs'10 -> case 1 of
+--                   0 -> []
+--                   1 -> ((case 0 of
+--                 _ -> 6):(case 2 of
+--                     _ -> [])))) (\fs'4 -> case fs'4 of
+--                     Nothing  -> 4
+--                     Just fs'2 -> case fs'2 of
+--                             fs -> case fs == ((-2)) of
+--                                 True  -> (-4)
+--                                 False  -> 5) ((-3)) ((-2))

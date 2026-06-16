@@ -188,7 +188,7 @@ mkExprHaskell' off_init cleaned pg ex = mkExprHaskell'' off_init ex
             | Data (DataCon n1 _ _ _) <- e1
             , nameOcc n1 == ":"
             , isCleaned =
-                if isChar e2 then printString pg a else printList pg a
+                if isChar e2 then printString pg a else printList off pg a
 
             | isInfixable pg e1
             , isCleaned =
@@ -323,21 +323,21 @@ mkDataConHaskell pg (DataCon n _ _ _) = mkNameHaskell pg n
 offset :: Int -> T.Text
 offset i = duplicate "   " i
 
-printList :: PrettyGuide -> Expr -> T.Text
-printList pg a =
-    let (strs, b) = printList' pg a
+printList :: Int -> PrettyGuide -> Expr -> T.Text
+printList off pg a =
+    let (strs, b) = printList' off pg a
     in case b of
         False -> "(" <> T.intercalate ":" strs <> ")"
         _ -> "[" <> T.intercalate ", " strs <> "]"
 
-printList' :: PrettyGuide -> Expr -> ([T.Text], Bool)
-printList' pg (App (App e1 e) e') | Data (DataCon n1 _ _ _) <- e1
-                                  , nameOcc n1 == ":" =
-    let (strs, b) = printList' pg e'
-    in (wrapParen e (mkExprHaskell Cleaned pg e):strs, b)
-printList' pg e | Data (DataCon n _ _ _) <- appCenter e
-                , nameOcc n == "[]" = ([], True)
-                | otherwise = ([mkExprHaskell Cleaned pg e], False)
+printList' :: Int -> PrettyGuide -> Expr -> ([T.Text], Bool)
+printList' off pg (App (App e1 e) e') | Data (DataCon n1 _ _ _) <- e1
+                                      , nameOcc n1 == ":" =
+    let (strs, b) = printList' off pg e'
+    in (wrapParen e (mkExprHaskell' off Cleaned pg e):strs, b)
+printList' off pg e | Data (DataCon n _ _ _) <- appCenter e
+                    , nameOcc n == "[]" = ([], True)
+                    | otherwise = ([mkExprHaskell' off Cleaned pg e], False)
 
 wrapParen :: Expr -> T.Text -> T.Text
 wrapParen (Case _ _ _ _) s = "(" <> s <> ")"
@@ -355,7 +355,7 @@ printString pg a =
             T.pack $ 
                 if all isPrint str then "\"" <> concatMap addEscapeStr str <> "\""
                 else ("[" <> intercalate ", " (map stringToEnum $ str) <> "]")
-        Nothing -> printList pg a
+        Nothing -> printList 0 pg a
     where
         stringToEnum c
             | isPrint c = "\'" <> addEscapeChar c <> "\'"
