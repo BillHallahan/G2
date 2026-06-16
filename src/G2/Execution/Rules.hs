@@ -1284,27 +1284,30 @@ retCurrExpr s@(State { expr_env = eenv, known_values = kv, tyvar_env = tvnv, foc
 
 retCurrExpr s _ (UpdateSolvingFCs is_lits) orig_ce stck ng =
     let
-        stck' = case orig_ce of
-                    CurrExpr _ (Var (Id n _)) -> S.push (UpdateFrame n) stck
-                    _ -> stck
+        s' = noActionUpdateState s orig_ce stck
     in
     ( RuleReturnCurrExprFr
-    , newPCEmpty $ s { curr_expr = orig_ce
-                     , exec_stack = stck'
-                     , solving_sym_func_constraints = SolvingFCs is_lits }
+    , newPCEmpty $ s' { solving_sym_func_constraints = SolvingFCs is_lits }
     , ng )
 
 
 retCurrExpr s _ NoAction orig_ce stck ng =
     let
-        stck' = case orig_ce of
-                    CurrExpr _ (Var (Id n _)) -> S.push (UpdateFrame n) stck
-                    _ -> stck
+        s'= noActionUpdateState s orig_ce stck
     in
     ( RuleReturnCurrExprFr
-    , newPCEmpty $ s { curr_expr = orig_ce
-                     , exec_stack = stck'}
+    , newPCEmpty $ s'
     , ng )
+
+noActionUpdateState :: State t -> CurrExpr -> S.Stack Frame -> State t
+noActionUpdateState s orig_ce stck =
+    let
+        stck' = case orig_ce of
+                    CurrExpr _ (Var (Id n _)) | not $ E.isSymbolic n (expr_env s) -> S.push (UpdateFrame n) stck
+                    _ -> stck
+    in
+    s { curr_expr = orig_ce
+      , exec_stack = stck'}
 
 matchPairs :: TV.TyVarEnv -> KnownValues -> Expr -> Expr -> (ExprEnv, [PathCond], [(Expr, Expr)]) -> Maybe (ExprEnv, [PathCond], [(Expr, Expr)])
 matchPairs tvnv kv e1 e2 eenv_pc_ee@(eenv, pc, ees)
