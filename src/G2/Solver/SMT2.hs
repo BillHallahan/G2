@@ -440,7 +440,7 @@ getZ3ProcessHandles :: Maybe FilePath -> Int -> IO (Handle, Handle, ProcessHandl
 getZ3ProcessHandles m_path time_out = getProcessHandles $ proc (selPath m_path "z3") ["-smt2", "-in", "-t:" ++ show time_out, "model=true"]
 
 getCVC5ProcessHandles :: Maybe FilePath -> Int -> IO (Handle, Handle, ProcessHandle)
-getCVC5ProcessHandles m_path time_out = getProcessHandles $ proc (selPath m_path "cvc5") ["--lang", "smt2.6", "--produce-models", "--produce-unsat-cores", "--tlimit-per=" ++ show time_out]
+getCVC5ProcessHandles m_path time_out = getProcessHandles $ proc (selPath m_path "cvc5") ["--lang", "smt2.6", "--produce-models", "--produce-unsat-cores", "--seed=0", "--tlimit-per=" ++ show time_out]
 
 getOstrichProcessHandles :: Maybe FilePath -> Int -> IO (Handle, Handle, ProcessHandle)
 getOstrichProcessHandles m_path time_out = getProcessHandles $ proc (selPath m_path "ostrich") ["+quiet", "+stdin", "+incremental", "-timeoutPer=" ++ show time_out]
