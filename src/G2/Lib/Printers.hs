@@ -914,7 +914,7 @@ prettyNonRedPaths pg nrpc =
                             <> prettyFocus pg focus)
     $ toListNRPC nrpc)
 
-prettyFuncConstraints :: PrettyGuide -> FuncConstraintsE -> T.Text
+prettyFuncConstraints :: PrettyGuide -> FuncConstraintsR -> T.Text
 prettyFuncConstraints pg = T.intercalate "\n---\n" . map goFuncRec . HM.toList
     where
         goFuncRec (fn, fc) = T.intercalate "\n" (map (goFuncCons fn) fc)
@@ -922,7 +922,8 @@ prettyFuncConstraints pg = T.intercalate "\n---\n" . map goFuncRec . HM.toList
         goFuncCons f fc =
             let
                 pretty_precond = T.intercalate " , " $ map (mkDirtyExprHaskell pg) (fc_preconds fc)
-                pretty_func_call = mkDirtyExprHaskell pg (mkApp $ Var (Id f TyUnknown):fc_args fc)
+                pretty_args = map (prettyFCRed pg) $ fc_args fc
+                pretty_func_call = mkDirtyExprHaskell pg (Var (Id f TyUnknown)) <> " " <> T.intercalate " " pretty_args
                 pretty_ret = mkDirtyExprHaskell pg (fc_ret fc)
 
                 call_and_ret = pretty_func_call <> " = " <> pretty_ret
@@ -930,6 +931,11 @@ prettyFuncConstraints pg = T.intercalate "\n---\n" . map goFuncRec . HM.toList
             case L.null $ fc_preconds fc of
                 True -> call_and_ret
                 False -> pretty_precond <> " => " <> call_and_ret
+
+prettyFCRed :: PrettyGuide -> FCRed -> T.Text
+prettyFCRed pg (FCRed e) = "(R " <> mkDirtyExprHaskell pg e <> ")"
+prettyFCRed pg (FCOptRed sel nr r) =
+    "(OptR " <> printName pg sel <> "(" <> mkDirtyExprHaskell pg nr <>  ")" <> " (" <> mkDirtyExprHaskell pg r <> "))"
 
 prettyFocus :: PrettyGuide -> Focus -> T.Text
 prettyFocus _ Focused = "focused"

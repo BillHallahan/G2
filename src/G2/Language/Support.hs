@@ -56,7 +56,7 @@ data State t = State { expr_env :: E.ExprEnv -- ^ Mapping of `Name`s to `Expr`s
                      , path_conds :: PathConds -- ^ Path conditions, in SWHNF
                      , non_red_path_conds :: NonRedPathConds -- ^ Path conditions, in the form of (possibly non-reduced)
                                                              -- expression pairs that must be proved equivalent
-                     , sym_func_constraints :: FuncConstraintsE -- ^ Constraints on symbolic functions
+                     , sym_func_constraints :: FuncConstraintsR -- ^ Constraints on symbolic functions
                      , solving_sym_func_constraints :: FCStatus -- ^ Have we solved the sym func constraints?
                      , focused :: Focus -- ^ Is the expression that we are currently evaluating in focus (may be unfocused when from NRPC)
                      , handles :: HM.HashMap Name Handle -- ^ Each Handle has a name, that appears in `Expr`s within the `Handle` `Primitive`
@@ -228,6 +228,7 @@ data FuncConstraint e =
 instance Hashable e => Hashable (FuncConstraint e)
 
 type FuncConstraintE = FuncConstraint Expr
+type FuncConstraintR = FuncConstraint FCRed
 
 data FCSplitOn = Split | NoSplit
                  deriving (Eq, Show, Read, Generic, Data)
@@ -235,14 +236,29 @@ data FCSplitOn = Split | NoSplit
 instance Hashable FCSplitOn
 
 -- | Used to store arguments in a `FuncConstraint`.  In a FCOptRed, `non_reduced` should reduce to `reduced`.
-data FCExpr = FCRed Expr
+data FCRed = FCRed Expr
             | FCOptRed { fc_opt_sel :: Name -- ^ An Int used to select between using `non_reduced` and `reduced`
                        , non_reduced :: Expr -- ^ An Expr that has not been reduced
                        , reduced :: Expr -- ^ `non_reduced`, after some reduction has been applied
                        }
             deriving (Eq, Show, Read, Generic, Data)
 
-instance Hashable FCExpr
+instance Hashable FCRed
+
+fcRedToReducedExpr :: FCRed -> Expr
+fcRedToReducedExpr (FCRed e) = e
+fcRedToReducedExpr (FCOptRed { reduced = e }) = e
+
+mapReduced :: (Expr -> Expr) -> FCRed -> FCRed
+mapReduced f (FCRed e) = FCRed $ f e
+mapReduced f fc@(FCOptRed { reduced = e }) = fc { reduced = f e }
+
+mapReducedM :: Monad m => (Expr -> m Expr) -> FCRed -> m FCRed
+mapReducedM f (FCRed e) = return . FCRed =<< f e
+mapReducedM f fc@(FCOptRed { reduced = e }) = do
+    e' <- f e
+    return $ fc { reduced = e' }
+
 
 data FCStatus = InitialRun -- ^ Not yet to solving function constraints
               | SolvingFCs -- ^ In the process of solving function constraints
@@ -258,6 +274,7 @@ instance Hashable FCStatus
 
 type FuncConstraints e = HM.HashMap Name [FuncConstraint e]
 type FuncConstraintsE = FuncConstraints Expr
+type FuncConstraintsR = FuncConstraints FCRed
 
 -- | A model is a mapping of symbolic variable names to `Expr`@s@,
 -- typically produced by a solver. 
@@ -607,6 +624,30 @@ instance ASTContainer e Type => ASTContainer (FuncConstraint e) Type where
                                   , fc_args = modifyContainedASTs f (fc_args fc)
                                   , fc_ret = modifyContainedASTs f (fc_ret fc) }
     containedASTs fc = containedASTs (fc_preconds fc) <> containedASTs (fc_args fc) <> containedASTs (fc_ret fc)
+
+instance Named FCRed where
+    names (FCRed e) = names e
+    names (FCOptRed sel nr r) = sel S.:<| names nr <> names r
+
+    rename old new (FCRed e) = FCRed (rename old new e)
+    rename old new (FCOptRed sel nr r) = FCOptRed (rename old new sel) (rename old new nr) (rename old new r)
+
+    renames hm (FCRed e) = FCRed (renames hm e)
+    renames hm (FCOptRed sel nr r) = FCOptRed (renames hm sel) (renames hm nr) (renames hm r)
+
+instance ASTContainer FCRed Expr where
+    modifyContainedASTs f (FCRed e) = FCRed (f e)
+    modifyContainedASTs f (FCOptRed sel nr r) = FCOptRed sel (f nr) (f r)
+
+    containedASTs (FCRed e) = [e]
+    containedASTs (FCOptRed _ nr r) = [nr, r]
+
+instance ASTContainer FCRed Type where
+    modifyContainedASTs f (FCRed e) = FCRed (modifyContainedASTs f e)
+    modifyContainedASTs f (FCOptRed sel nr r) = FCOptRed sel (modifyContainedASTs f nr) (modifyContainedASTs f r)
+
+    containedASTs (FCRed e) = containedASTs e
+    containedASTs (FCOptRed _ nr r) = containedASTs nr <> containedASTs r
 
 instance Named Handle where
     names (HandleInfo { h_start = s, h_pos = p }) = names s <> names p

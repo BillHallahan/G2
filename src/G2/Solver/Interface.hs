@@ -190,7 +190,7 @@ instantFuncConstraintsFromModel s@(State { expr_env = eenv
             case L.find (\fc -> all isTrue $ fc_preconds fc ) fcs of
                 Just sat_fc@(FC { fc_args = as, fc_ret = ret }) ->
                     let
-                        (lam_is, !_) = freshIds (map (typeOf tv_env) as) ng
+                        (lam_is, !_) = freshIds (map (typeOf tv_env . fcRedToReducedExpr) as) ng
                         body = mkLams (zip (repeat TermL) lam_is) $ ret
                     in
                     (E.insert n body eenv, HM.insert n body m)

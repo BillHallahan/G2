@@ -25,6 +25,7 @@ import Control.Monad
 import Control.Monad.Extra
 import Control.Monad.IO.Class
 import qualified Control.Monad.State.Lazy as SM
+import Data.Coerce
 import qualified Data.HashMap.Lazy as HM
 import qualified Data.HashSet as HS
 import Data.List
@@ -78,7 +79,7 @@ addFuncConstraints no_inline
         let
             (ret_id, ng') = freshSeededId (Name "fc_ret" Nothing 0 Nothing) (returnType t) ng
             fc = FC { fc_preconds = []
-                    , fc_args = es
+                    , fc_args = map FCRed es
                     , fc_ret = Var ret_id
                     
                     , fc_split_on = fmap (const NoSplit) es }
@@ -120,11 +121,11 @@ data UnifyRes r = Unifiable r -- ^ Constraints are unifiable. I.e. function argu
 
 unifiableFuncConstraints :: HS.HashSet Name -- ^ Names not to inline
                          -> ExprEnv
-                         -> FuncConstraintE
-                         -> FuncConstraintE
+                         -> FuncConstraintR
+                         -> FuncConstraintR
                          -> UnifyRes (S.Seq (Id, Expr)) -- ^ Unifiable if Ids are made equal to corresponding Exprs
 unifiableFuncConstraints no_inline eenv fc1 fc2 = do
-    case all (uncurry (eqUpToTypesInline no_inline eenv)) $ zip (fc_args fc1) (fc_args fc2) of
+    case all (uncurry (eqUpToTypesInline no_inline eenv)) $ zip (map fcRedToReducedExpr $ fc_args fc1) (map fcRedToReducedExpr $ fc_args fc2) of
         True ->
             case alignRet eenv (fc_ret fc1) (fc_ret fc2) of
                 Just eq_hs -> Unifiable eq_hs
@@ -157,8 +158,8 @@ unifyFC :: (Solver solver, MonadIO m) =>
            solver
         -> HS.HashSet Name -- ^ Names not to inline
         -> State t
-        -> FuncConstraintE
-        -> FuncConstraintE
+        -> FuncConstraintR
+        -> FuncConstraintR
         -> m (UnifyRes (State t)) -- ^ A state with the function constraints unified, or Nothing if the function constraints are contradicton
 unifyFC solver no_inline s@(State { expr_env = eenv, tyvar_env = tv_env }) fc1 fc2 = do
     case unifiableFuncConstraints no_inline eenv fc1 fc2 of
@@ -182,8 +183,8 @@ unifyFCList :: (Solver solver, MonadIO m) =>
                solver
             -> HS.HashSet Name -- ^ Names not to inline
             -> State t
-            -> [FuncConstraintE]
-            -> m (Maybe (State t, [FuncConstraintE])) -- ^ A state with function constraints unified and an updated list of function constraints,
+            -> [FuncConstraintR]
+            -> m (Maybe (State t, [FuncConstraintR])) -- ^ A state with function constraints unified and an updated list of function constraints,
                                                         -- or Nothing if the function constraints are contradicton
 unifyFCList solver no_inline = go []
     where
@@ -314,9 +315,9 @@ solveFuncConstraintsReducer solver no_inline = mkSimpleReducer (\_ -> ()) go
                                                         (Stck.push (CurrExprFrame NoAction ce) Stck.empty )
                                                         tail_is
                                             s'' = s' { curr_expr = CurrExpr Evaluate (Var head_i)
-                                                    , exec_stack = stck
-                                                    , sym_func_constraints = fc'
-                                                    , solving_sym_func_constraints = SolvingFCs }
+                                                     , exec_stack = stck
+                                                     , sym_func_constraints = fc'
+                                                     , solving_sym_func_constraints = SolvingFCs }
                                         in
                                         return (Finished, [(s'', ())], b { name_gen = ng' }) -- TODO
                     Nothing -> return (Finished, [], b)
@@ -327,7 +328,7 @@ solveFuncConstraintsReducer solver no_inline = mkSimpleReducer (\_ -> ()) go
 ------------------------------------------------------------------------------
 
 -- | Expands function definitions to include extra calls to higher order functions.
-addHigherOrderCalls :: MonadIO m => Name -> [FuncConstraintE] -> StateNGT t m (Name, [FuncConstraintE])
+addHigherOrderCalls :: MonadIO m => Name -> [FuncConstraintR] -> StateNGT t m (Name, [FuncConstraintR])
 addHigherOrderCalls n [] = return (n, [])
 addHigherOrderCalls n fcs@(first_fc:_) = do
     tv_env <- tyVarEnv
@@ -336,7 +337,7 @@ addHigherOrderCalls n fcs@(first_fc:_) = do
     -- func_ext_paths <- mapM getFuncExtractorPaths $ concatMap fc_args fcs
     -- liftIO . mapM_ print $ func_ext_paths
 
-    let arg_ts = map (typeOf tv_env) $ fc_args first_fc
+    let arg_ts = map (typeOf tv_env . fcRedToReducedExpr) $ fc_args first_fc
         -- (func_inds, higher_tys) = unzip . filter (isTyFun . snd) $ zip [0..] arg_ts
         -- func_ext = map (\i -> \expr_list -> expr_list !! i) func_inds
         (func_ext, higher_tys) = unzip extract_higher_order
@@ -352,7 +353,7 @@ addHigherOrderCalls n fcs@(first_fc:_) = do
             f_new <- freshSeededIdN (Name "f_h" Nothing 0 Nothing) t_new
             insertSymbolicE f_new
 
-            lam_is <- freshIdsN (map (typeOf tv_env) $ fc_args first_fc)
+            lam_is <- freshIdsN arg_ts
             higher_args_apps <- mapM (\f_ext -> do
                 let i = f_ext $ map Var lam_is
                     ts = anonArgumentTypes $ typeOf tv_env i
@@ -372,10 +373,10 @@ addHigherOrderCalls n fcs@(first_fc:_) = do
                         let
                             new_as = zipWith
                                         (\f f_as -> mkApp $ f:map Var f_as)
-                                        (map (\f_ext -> f_ext as) func_ext)
+                                        (map (\f_ext -> f_ext $ map fcRedToReducedExpr as) func_ext)
                                         higher_args
                         in
-                        fc { fc_args = as ++ new_as
+                        fc { fc_args = as ++ map FCRed new_as
                            , fc_split_on = fc_split_on fc ++ map (const NoSplit) new_as }
                         ) fcs
 
@@ -440,9 +441,9 @@ dcPathsToExtractors dc_path
                         ret_t
                         alts
 
-extractAll :: MonadIO m => [FuncConstraintE] -> StateNGT t m [([Expr] -> Expr, Type)]
+extractAll :: MonadIO m => [FuncConstraintR] -> StateNGT t m [([Expr] -> Expr, Type)]
 extractAll fcs = do
-    let matched_args = transpose $ map fc_args fcs
+    let matched_args = transpose $ map (map fcRedToReducedExpr . fc_args) fcs
     exts <- zipWithM (\i as -> do
         paths :: [DCPath] <- return . nub =<< concatMapM getFuncExtractorPaths as
         extract_expr:: [Expr -> Expr] <- mapM dcPathsToExtractors paths
@@ -453,7 +454,7 @@ extractAll fcs = do
     return $ concat exts
 
 -- | Get expressions that have not been fully reduced. 
-collectNonReducedVars :: Monad m => FuncConstraintsE -> StateNGT t m [Id]
+collectNonReducedVars :: Monad m => FuncConstraintsR -> StateNGT t m [Id]
 collectNonReducedVars fcs = do
     eenv <- exprEnv
 
@@ -468,15 +469,15 @@ collectNonReducedVars fcs = do
         collect _ _ = []
     
     return . concatMap (
-                    concatMap (concatMap (collect HS.empty) . fc_args)
+                    concatMap (concatMap (collect HS.empty) . map fcRedToReducedExpr . fc_args)
              )
            $ HM.elems fcs
 
-addWrappersToFC :: Monad m => FuncConstraintsE -> StateNGT t m FuncConstraintsE
+addWrappersToFC :: Monad m => FuncConstraintsR -> StateNGT t m FuncConstraintsR
 addWrappersToFC =
     mapM (
             mapM (\fc -> do
-                as' <- SM.evalStateT (mapM addVarWrappers $ fc_args fc) HS.empty
+                as' <- SM.evalStateT (mapM (mapReducedM addVarWrappers) $ fc_args fc) HS.empty
                 return $ fc { fc_args = as' }
             )
          )
@@ -561,17 +562,36 @@ madeProgress :: Monad m => FCState t m ()
 madeProgress = SM.lift $ SM.put MadeProgressFC
 
 solveFuncConstraints :: (Solver solver, MonadIO m) => solver -> State t -> NameGen -> m (Maybe (State t, NameGen))
-solveFuncConstraints solver s@(State { sym_func_constraints = fc }) ng = do
+solveFuncConstraints solver s@(State { tyvar_env = tv_env, sym_func_constraints = fc }) ng = do
     liftIO $ do
         putStrLn "------------------------"
         putStrLn "About to call solve FC"
         putStrLn "------------------------"
-    (r, (s', !ng')) <- SM.evalStateT (runStateNGT (solveFC solver (-1) fc) s ng) NoProgressFC
+    let fc_e = fcRTofcE tv_env fc
+    (r, (s', !ng')) <- SM.evalStateT (runStateNGT (solveFC solver (-1) fc_e) s ng) NoProgressFC
     return $ case r of
                     SatFC fcs' -> Just (s' { solving_sym_func_constraints = SolvedFCs
-                                           , sym_func_constraints = fcs' }, ng')
+                                           , sym_func_constraints = fcETofcR fcs' }, ng')
                     _ -> Nothing
 
+fcRTofcE :: TyVarEnv -> FuncConstraintsR -> FuncConstraintsE
+fcRTofcE tv_env = fmap (map go)
+    where
+        go fc = fc { fc_args = map goFCRed $ fc_args fc }
+
+        goFCRed (FCRed e) = e
+        goFCRed (FCOptRed sel nr r) =
+            Case
+                (Var (Id sel TyLitInt))
+                (Id sel TyLitInt)
+                (typeOf tv_env r)
+                [ Alt (LitAlt $ LitInt 1) nr
+                , Alt (LitAlt $ LitInt 2) r ]
+
+fcETofcR :: FuncConstraintsE -> FuncConstraintsR
+fcETofcR = fmap (map go)
+    where
+        go fc = fc { fc_args = map FCRed $ fc_args fc }
 
 -- TODO: Do we actually need the counter here?
 solveFC :: (Solver solver, MonadIO m) => solver -> Int -> FuncConstraintsE -> FCState t m FCRes
