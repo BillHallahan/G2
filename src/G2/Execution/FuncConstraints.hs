@@ -1,4 +1,4 @@
-{-# LANGUAGE BangPatterns, MultiWayIf, OverloadedStrings #-}
+{-# LANGUAGE BangPatterns, LambdaCase, MultiWayIf, OverloadedStrings, TupleSections #-}
 
 {-# LANGUAGE ScopedTypeVariables #-}
 
@@ -513,7 +513,7 @@ addVarWrappers e = do
             SM.lift $ insertSymbolicE red_br
             SM.lift $ insertPCStateNG (ExtCond (mkApp $ [Prim Le TyUnknown, Lit (LitInt 1), Var red_br]) True)
             SM.lift $ insertPCStateNG (ExtCond (mkApp $ [Prim Le TyUnknown, Var red_br, Lit (LitInt 2)]) True)
-            SM.lift $ insertPCStateNG (ExtCond (mkApp $ [Prim Eq TyUnknown, Var red_br, Lit (LitInt 2)]) True) -- TODO: CUT THIS
+            -- SM.lift $ insertPCStateNG (ExtCond (mkApp $ [Prim Eq TyUnknown, Var red_br, Lit (LitInt 2)]) True) -- TODO: CUT THIS
 
             let t = typeOf tv_env e
             i <- SM.lift $ freshIdN t
@@ -524,7 +524,7 @@ addVarWrappers e = do
                         t
                         [ Alt (LitAlt $ LitInt 1) (Prim UnspecifiedOutput TyBottom) -- e
                         , Alt (LitAlt $ LitInt 2) (Var i) ] 
-            return (Var i) -- cse
+            return cse
 
 whnfBrOccName :: T.Text
 whnfBrOccName = "red_G2_!!_br"
@@ -604,7 +604,7 @@ solveFC solver !n fcs = do
     -- fcs_nosingle <- return . HM.mapMaybe id =<< HM.traverseWithKey solveSingleton fcs
     let pg = mkPrettyGuide (HM.toList fcs)
     -- eenv_init <- exprEnv
-    -- liftIO $ putStrLn $ "fcs =\n" ++ T.unpack (prettyFuncConstraints pg $ inlineVars eenv_init fcs)  
+    -- liftIO $ putStrLn $ "fcs =\n" ++ T.unpack (prettyFuncConstraints pg $ {- inlineVars eenv_init -} fcs)  
 
     lit_val_sol <- solveLitVals solver fcs
 
@@ -637,10 +637,19 @@ solveFC solver !n fcs = do
             -- liftIO $ putStrLn "after unfoldADTArgs"
             let pg_assem = updatePrettyGuide (HM.toList fc_unfold_adt_reassembled) pg_precond
             -- eenv_asem <- exprEnv
-            -- liftIO $ putStrLn $ "fc_unfold_adt =\n" ++ T.unpack (prettyFuncConstraints pg_assem $ inlineVars eenv_asem fc_unfold_adt_reassembled)
+            -- liftIO $ putStrLn $ "fc_unfold_adt =\n" ++ T.unpack (prettyFuncConstraints pg_assem $ {- inlineVars eenv_asem -} fc_unfold_adt_reassembled)
+
+            -- Branch on whether possibly WHNF arguments are reduced or not
+            fcs_branch_whnf_pieces <- concatMapM (uncurry branchOnWHNF) $ HM.toList fc_unfold_adt_reassembled
+            let fcs_branch_whnf_reassembled = HM.fromListWith (++) fcs_branch_whnf_pieces
+
+            -- liftIO $ putStrLn "after branchOnWHNF"
+            let pg_branch_whnf = updatePrettyGuide (HM.toList fcs_branch_whnf_reassembled) pg_assem
+            -- eenv_branch_whnf <- exprEnv
+            -- liftIO $ putStrLn $ "fcs_branch_whnf =\n" ++ T.unpack (prettyFuncConstraints pg_branch_whnf $ {- inlineVars eenv_asem -} fcs_branch_whnf_reassembled)
 
             -- Branch on literals, with the aim of splitting up ADTs that are in WHNF from those that are not
-            split_whnf_pieces <- concatMapM (uncurry splitWHNFAndNonWHNF) $ HM.toList fc_unfold_adt_reassembled
+            split_whnf_pieces <- concatMapM (uncurry splitWHNFAndNonWHNF) $ HM.toList fcs_branch_whnf_reassembled
             let fc_unfold_split_whnf_reassembled = HM.fromListWith (++) split_whnf_pieces
 
             -- liftIO $ putStrLn "after splitWHNFAndNonWHNF"
@@ -832,7 +841,8 @@ getOutCases eenv v@(Var (Id n _)) =
 getOutCases _ e = e
 
 getCasePats :: Expr -> Maybe (Id, [(Lit, Expr)])
-getCasePats (Case (Var i) (Id _ TyLitInt) _ alts) = Just (i, map (\(Alt (LitAlt l) dc) -> (l, dc)) alts)
+getCasePats (Case (Var i) (Id _ TyLitInt) _ alts)
+    | all (\case (Alt _ (Prim UnspecifiedOutput _)) -> True; _ -> False) alts = Just (i, map (\(Alt (LitAlt l) dc) -> (l, dc)) alts)
 getCasePats _ = Nothing
 
 -- Look for primitives returning boolean values, and move them into the precondition
@@ -945,7 +955,7 @@ unfoldADTArgs n fcs@(first_fc:_) = do
                                     dcs cont_funcs
                         let cse = Case
                                     (Var branch_on)
-                                    (bindee)
+                                    bindee
                                     ret_ty
                                     alts
                             lam_cse = mkLams (zip (repeat TermL) lam_is) cse
@@ -984,6 +994,69 @@ unfoldADTArgs n fcs@(first_fc:_) = do
                         return new_fcs
                 _ -> error "unfoldADTArgs: expected ADT type"
         Nothing -> return [(n, fcs)]
+
+branchOnWHNF :: MonadIO m => Name -> [FuncConstraint] -> FCState t m [(Name, [FuncConstraint])]
+branchOnWHNF n [] = return []
+branchOnWHNF n fcs@(first_fc:_) = do
+    eenv <- exprEnv
+    tenv <- typeEnv
+    tv_env <- tyVarEnv
+
+    let ret_ty = typeOf tv_env $ fc_ret first_fc
+
+    -- Find an argument that is (1) an ADT where (2) all arguments are data constructor applications
+    let matching_args = transpose $ map fc_args fcs
+        unspec_case = findIndex (any (isJust . unspecCase . inlineVars eenv)) matching_args
+    case unspec_case of
+        Just i -> do
+            let rel_args@(e:_) = matching_args !! i
+                t = typeOf tv_env e
+
+                (whnf_br, whnf_red):_ = mapMaybe (unspecCase . inlineVars eenv) $ rel_args
+            
+            -- Adjust function
+            lam_is <- freshIdsN (map (typeOf tv_env) $ fc_args first_fc)
+            let branch_on = lam_is !! i
+                all_other_is = deleteAt i lam_is
+                all_other_vars = map Var all_other_is
+            
+            f1 <- freshSeededIdN (Name "elim_unspec" Nothing 0 Nothing) . mkTyFun $ map idType all_other_is
+            f2 <- freshSeededIdN (Name "cont_unspec" Nothing 0 Nothing) . mkTyFun $ map idType lam_is
+            insertSymbolicE f1
+            insertSymbolicE f2
+            bindee <- freshIdN TyLitInt
+            let cse = Case
+                        (Var whnf_br)
+                        bindee
+                        ret_ty
+                        [ Alt (LitAlt $ LitInt 1) . mkApp $ Var f1:map Var all_other_is
+                        , Alt (LitAlt $ LitInt 2) . mkApp $ Var f2:map Var lam_is ]
+                lam_cse = mkLams (zip (repeat TermL) lam_is) cse
+            insertE n lam_cse
+
+            -- Rewrite constraints
+            let whnf_br_eq_1 = mkApp [Prim Eq TyUnknown, Var whnf_br, Lit (LitInt 1)]
+                fcs_elim = map (\fc -> fc { fc_preconds = whnf_br_eq_1:fc_preconds fc
+                                          , fc_args = deleteAt i $ fc_args fc
+                                          , fc_split_on = map (const NoSplit) . deleteAt i $ fc_split_on fc }) fcs
+
+                whnf_br_eq_2 = mkApp [Prim Eq TyUnknown, Var whnf_br, Lit (LitInt 2)]
+                fcs_cont = map (\fc -> fc { fc_preconds = whnf_br_eq_2:fc_preconds fc
+                                          , fc_args = map (elimUnspec whnf_br) $ fc_args fc
+                                          , fc_split_on = map (const NoSplit ) $ fc_split_on fc }) fcs
+
+            
+            madeProgress
+            return $ [(idName f1, fcs_elim), (idName f2, fcs_cont)]
+        Nothing -> return [(n, fcs)]
+
+
+    where
+        unspecCase (Case (Var whnf_br) _ _ [Alt (LitAlt _) (Prim UnspecifiedOutput _), (Alt _ e)]) = Just (whnf_br, e)
+        unspecCase _ = Nothing
+
+        elimUnspec whnf_br (Case (Var whnf_br') _ _ [_, Alt _ e]) | idName whnf_br == idName whnf_br' = e
+        elimUnspec _ e = e
 
 -- | Find an argument that is in WHNF for some function constraints, and not in WHNF for other function constraints,
 -- and use the literal values in the constraints to split up these cases into two constraints for two separate functions,
