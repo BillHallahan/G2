@@ -842,7 +842,7 @@ getOutCases _ e = e
 
 getCasePats :: Expr -> Maybe (Id, [(Lit, Expr)])
 getCasePats (Case (Var i) (Id _ TyLitInt) _ alts)
-    | all (\case (Alt _ (Prim UnspecifiedOutput _)) -> True; _ -> False) alts = Just (i, map (\(Alt (LitAlt l) dc) -> (l, dc)) alts)
+    | all (\case (Alt _ (Prim UnspecifiedOutput _)) -> False; _ -> True) alts = Just (i, map (\(Alt (LitAlt l) dc) -> (l, dc)) alts)
 getCasePats _ = Nothing
 
 -- Look for primitives returning boolean values, and move them into the precondition
