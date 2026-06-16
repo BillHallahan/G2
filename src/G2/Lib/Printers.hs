@@ -703,6 +703,8 @@ prettyState pg pretty_track s =
         , prettyFocus pg (focused s)
         , "----- [Sym Function Constraints] ---------------------"
         , pretty_sym_func_cons
+        , "----- [Solving Sym Function Constraints] ---------------------"
+        , pretty_solving_sym_func
         , "----- [Handles] ---------------------"
         , pretty_handles
         , "----- [MutVars Env] ---------------------"
@@ -743,6 +745,13 @@ prettyState pg pretty_track s =
         pretty_paths = prettyPathConds pg (path_conds s)
         pretty_non_red_paths = prettyNonRedPaths pg $ non_red_path_conds s
         pretty_sym_func_cons = prettyFuncConstraints pg $ sym_func_constraints s
+        pretty_solving_sym_func = case solving_sym_func_constraints s of
+                                        InitialRun -> "Initial Run"
+                                        SolvingFCs is_lits ->
+                                            "Solving FCs " <> 
+                                                T.intercalate " "
+                                                    (map (\(i, l) -> "(" <> mkIdHaskell pg i <> " = " <> mkLitHaskell UseHash l <> ")") is_lits)
+                                        SolvedFCs -> "Solved FCs"
         pretty_handles = prettyHandles pg $ handles s
         pretty_mutvars = prettyMutVars pg . HM.map mv_val_id $ mutvar_env s
         pretty_tenv = prettyTypeEnv (tyvar_env s) pg (type_env s)
@@ -853,6 +862,8 @@ prettyLitTables pg lts = T.concat (map pair $ HM.toList lts)
 
 prettyCEAction :: PrettyGuide -> CEAction -> T.Text
 prettyCEAction pg (EnsureEq e) = "EnsureEq " <> mkDirtyExprHaskell pg e
+prettyCEAction pg (UpdateSolvingFCs is_lits) =
+    "UpdateSolving " <> T.intercalate " " (map (\(i, l) -> "(" <> mkIdHaskell pg i <> " = " <> mkLitHaskell UseHash l <> ")") is_lits)
 prettyCEAction _ NoAction = "NoAction"
 
 prettyEEnv :: TV.TyVarEnv -> PrettyGuide -> CurrExpr -> Stack Frame -> ExprEnv -> T.Text

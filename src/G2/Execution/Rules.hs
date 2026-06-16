@@ -1282,6 +1282,19 @@ retCurrExpr s@(State { expr_env = eenv, known_values = kv, tyvar_env = tvnv, foc
                                  , exec_stack = S.push (CurrExprFrame (EnsureEq e1) orig_ce) stck}
                 , ng )
 
+retCurrExpr s _ (UpdateSolvingFCs is_lits) orig_ce stck ng =
+    let
+        stck' = case orig_ce of
+                    CurrExpr _ (Var (Id n _)) -> S.push (UpdateFrame n) stck
+                    _ -> stck
+    in
+    ( RuleReturnCurrExprFr
+    , newPCEmpty $ s { curr_expr = orig_ce
+                     , exec_stack = stck'
+                     , solving_sym_func_constraints = SolvingFCs is_lits }
+    , ng )
+
+
 retCurrExpr s _ NoAction orig_ce stck ng =
     let
         stck' = case orig_ce of

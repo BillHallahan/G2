@@ -210,6 +210,7 @@ instance Hashable Frame
 -- | What to do with the current expression when a @CurrExprFrame@ reaches the
 -- top of the stack and it is time to replace the `curr_expr`.
 data CEAction = EnsureEq Expr -- ^ `EnsureEq focus e1` means that we should check if the `curr_expr` is equal to `e1`
+              | UpdateSolvingFCs [(Id, Lit)] -- ^ Update the Ids/Lits in the solving_sym_func_constraints field
               | NoAction -- ^ Just replace the curr_expr, no other actions are needed
               deriving (Show, Eq, Read, Generic, Data)
 
@@ -234,7 +235,8 @@ instance Hashable FCSplitOn
 
 
 data FCStatus = InitialRun -- ^ Not yet to solving function constraints
-              | SolvingFCs -- ^ In the process of solving function constraints
+              | SolvingFCs [(Id, Lit)] -- ^ In the process of solving function constraints. Generated constraints
+                                       -- should be preconditionde on the list of Ids and Lits being equal.
               | SolvedFCs -- ^ Function constraints have been solved
               deriving (Eq, Show, Read, Generic, Data)
 

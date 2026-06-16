@@ -200,7 +200,7 @@ instance Typed Expr where
             as = passedArgs a
             t = typeOf m $ appCenter a
         in
-        case appTypeOf m t as of
+        case appTypeOf TV.empty t as of
             Just res_t -> res_t
             Nothing -> error $ "typeOf: type error: " ++ show a
     typeOf m (Lam u b e) =

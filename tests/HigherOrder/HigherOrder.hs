@@ -239,8 +239,8 @@ repF f x =
 repCons :: (Int -> Int -> Int) -> Int -> Int
 repCons f x =
     case f (x * 2) inf of
-        1 -> case f (x + 1) (g x) of
-                2 -> 1
+        100 -> case f (x + 1) (g x) of
+                200 -> 1
                 _ -> 2
         _ -> 3
     where

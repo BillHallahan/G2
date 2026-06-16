@@ -66,6 +66,7 @@ addFuncConstraints no_inline
                    s@(State { expr_env = eenv
                             , tyvar_env = tv_env
                             , curr_expr = CurrExpr _ ce
+                            , solving_sym_func_constraints = solving_sfc
                             , sym_func_constraints = sym_fc }) 
                    ng
     |  v@(Var (Id n t)):es_ce <- unApp ce
@@ -77,7 +78,7 @@ addFuncConstraints no_inline
     , not . isTyFun . typeOf tv_env . mkApp $ v:es_ce =
         let
             (ret_id, ng') = freshSeededId (Name "fc_ret" Nothing 0 Nothing) (returnType t) ng
-            fc = FC { fc_preconds = []
+            fc = FC { fc_preconds = getPreConds solving_sfc
                     , fc_args = es
                     , fc_ret = Var ret_id
                     
@@ -92,6 +93,12 @@ addFuncConstraints no_inline
         in
         Just (s', ng')
     | otherwise = Nothing
+
+getPreConds :: FCStatus -> [Expr]
+getPreConds (SolvingFCs is_lits) =
+    map (\(i, l) -> mkApp $ [Prim Eq TyUnknown, Var i, Lit l]) is_lits
+getPreConds InitialRun = []
+getPreConds SolvedFCs = []
 
 allApplyFrames :: Stck.Stack Frame -> ([Expr], Stck.Stack Frame)
 allApplyFrames stck = go [] stck stck
@@ -307,16 +314,19 @@ solveFuncConstraintsReducer solver no_inline = mkSimpleReducer (\_ -> ()) go
 
                                 case is of
                                     [] -> return (Finished, [], b)
-                                    (head_i:tail_is) ->
+                                    ((head_whnf_brs, head_i):tail_is) ->
                                         let
                                             ce = curr_expr s'
-                                            stck = foldl' (\st i -> Stck.push (CurrExprFrame NoAction (CurrExpr Evaluate $ Var i)) st)
-                                                        (Stck.push (CurrExprFrame NoAction ce) Stck.empty )
-                                                        tail_is
+                                            stck = foldl'
+                                                    (\st (whnf_brs, i) -> 
+                                                        Stck.push (CurrExprFrame (UpdateSolvingFCs whnf_brs) (CurrExpr Evaluate $ Var i)) st
+                                                    )
+                                                    (Stck.push (CurrExprFrame NoAction ce) Stck.empty )
+                                                    tail_is
                                             s'' = s' { curr_expr = CurrExpr Evaluate (Var head_i)
-                                                    , exec_stack = stck
-                                                    , sym_func_constraints = fc'
-                                                    , solving_sym_func_constraints = SolvingFCs }
+                                                     , exec_stack = stck
+                                                     , sym_func_constraints = fc'
+                                                     , solving_sym_func_constraints = SolvingFCs head_whnf_brs }
                                         in
                                         return (Finished, [(s'', ())], b { name_gen = ng' }) -- TODO
                     Nothing -> return (Finished, [], b)
@@ -453,24 +463,24 @@ extractAll fcs = do
     return $ concat exts
 
 -- | Get expressions that have not been fully reduced. 
-collectNonReducedVars :: Monad m => FuncConstraints -> StateNGT t m [Id]
+collectNonReducedVars :: Monad m => FuncConstraints -> StateNGT t m [([(Id, Lit)], Id)]
 collectNonReducedVars fcs = do
     eenv <- exprEnv
 
-    let collect seen (Var i@(Id n _))
+    let collect seen whnf_br (Var i@(Id n _))
             | n `notElem` seen
             , Just e <- E.lookup n eenv
-            , isExprValueForm eenv e = collect (HS.insert n seen) e
+            , isExprValueForm eenv e = collect (HS.insert n seen) whnf_br e
             | E.isSymbolic n eenv = []
-            | otherwise = [i]
-        collect seen (Case (Var (Id n _)) _ _ [Alt _ _, Alt _ e])
-            | nameOcc n == whnfBrOccName = collect seen e
-        collect seen e
-            | Data _:es <- unApp e = concatMap (collect seen) es
-        collect _ _ = []
+            | otherwise = [(whnf_br, i)]
+        collect seen whnf_br (Case (Var i@(Id n _)) _ _ [Alt _ _, Alt _ e])
+            | nameOcc n == whnfBrOccName = collect seen ((i, LitInt 2):whnf_br) e
+        collect seen whnf_br e
+            | Data _:es <- unApp e = concatMap (collect seen whnf_br) es
+        collect _ _ _ = []
     
     return . concatMap (
-                    concatMap (concatMap (collect HS.empty) . fc_args)
+                    concatMap (concatMap (collect HS.empty []) . fc_args)
              )
            $ HM.elems fcs
 
@@ -534,7 +544,7 @@ whnfBrOccName = "red_G2_!!_br"
 limitSolvingFuncConstraintPieces :: Monad m => Reducer m Int t
 limitSolvingFuncConstraintPieces = mkSimpleReducer (\_ -> 200) go
     where
-        go 0 s b | solving_sym_func_constraints s == SolvingFCs =
+        go 0 s b | SolvingFCs _ <- solving_sym_func_constraints s =
             let
                 (e, eenv, stck) = collapseStack (exec_stack s) (expr_env s) (getExpr s)
                 s' = s { curr_expr = CurrExpr Return e
@@ -543,10 +553,10 @@ limitSolvingFuncConstraintPieces = mkSimpleReducer (\_ -> 200) go
             in
             return (Finished, [(s', 200)], b)
         go !c s b 
-            | solving_sym_func_constraints s == SolvingFCs
+            | SolvingFCs _ <- solving_sym_func_constraints s
             , Stck.null (exec_stack s)
             , CurrExpr Return _ <- curr_expr s = return (Finished, [(s, 200)], b)
-            | solving_sym_func_constraints s == SolvingFCs = return (InProgress, [(s, c - 1)], b)
+            | SolvingFCs _ <- solving_sym_func_constraints s = return (InProgress, [(s, c - 1)], b)
         go _ s b = return (NoProgress, [(s, 200)], b)
 
 collapseStack :: Stck.Stack Frame -> ExprEnv -> Expr -> (Expr, ExprEnv, Stck.Stack Frame)
@@ -1020,8 +1030,8 @@ branchOnWHNF n fcs@(first_fc:_) = do
                 all_other_is = deleteAt i lam_is
                 all_other_vars = map Var all_other_is
             
-            f1 <- freshSeededIdN (Name "elim_unspec" Nothing 0 Nothing) . mkTyFun $ map idType all_other_is
-            f2 <- freshSeededIdN (Name "cont_unspec" Nothing 0 Nothing) . mkTyFun $ map idType lam_is
+            f1 <- freshSeededIdN (Name "elim_unspec" Nothing 0 Nothing) . mkTyFun $ map idType all_other_is ++ [ret_ty]
+            f2 <- freshSeededIdN (Name "cont_unspec" Nothing 0 Nothing) . mkTyFun $ map idType lam_is ++ [ret_ty]
             insertSymbolicE f1
             insertSymbolicE f2
             bindee <- freshIdN TyLitInt
@@ -1036,14 +1046,16 @@ branchOnWHNF n fcs@(first_fc:_) = do
 
             -- Rewrite constraints
             let whnf_br_eq_1 = mkApp [Prim Eq TyUnknown, Var whnf_br, Lit (LitInt 1)]
+                fcs_can_eq_1 = filter (not . hasIncompatPrecond whnf_br (LitInt 1)) fcs
                 fcs_elim = map (\fc -> fc { fc_preconds = whnf_br_eq_1:fc_preconds fc
                                           , fc_args = deleteAt i $ fc_args fc
-                                          , fc_split_on = map (const NoSplit) . deleteAt i $ fc_split_on fc }) fcs
+                                          , fc_split_on = map (const NoSplit) . deleteAt i $ fc_split_on fc }) fcs_can_eq_1
 
                 whnf_br_eq_2 = mkApp [Prim Eq TyUnknown, Var whnf_br, Lit (LitInt 2)]
+                fcs_can_eq_2 = filter (not . hasIncompatPrecond whnf_br (LitInt 2)) fcs
                 fcs_cont = map (\fc -> fc { fc_preconds = whnf_br_eq_2:fc_preconds fc
                                           , fc_args = map (elimUnspec whnf_br) $ fc_args fc
-                                          , fc_split_on = map (const NoSplit ) $ fc_split_on fc }) fcs
+                                          , fc_split_on = map (const NoSplit ) $ fc_split_on fc }) fcs_can_eq_2
 
             
             madeProgress
@@ -1057,6 +1069,20 @@ branchOnWHNF n fcs@(first_fc:_) = do
 
         elimUnspec whnf_br (Case (Var whnf_br') _ _ [_, Alt _ e]) | idName whnf_br == idName whnf_br' = e
         elimUnspec _ e = e
+
+hasIncompatPrecond :: Id -- ^ A variable Id
+                   -> Lit -- ^ A literal that variable is being assigned to
+                   -> FuncConstraint -- ^ An expression to check for incompatability
+                   -> Bool
+hasIncompatPrecond n l = any (incompatPreCond n l) . fc_preconds 
+
+incompatPreCond :: Id -- ^ A variable Id
+                -> Lit -- ^ A literal that variable is being assigned to
+                -> Expr -- ^ An expression to check for incompatability
+                -> Bool
+incompatPreCond (Id n _) l (App (App (Prim Eq _) (Var (Id n' _))) (Lit l')) =
+    n == n' && l /= l' -- If the variable names are the same, but different literals, incompatible
+incompatPreCond _ _ _ = False
 
 -- | Find an argument that is in WHNF for some function constraints, and not in WHNF for other function constraints,
 -- and use the literal values in the constraints to split up these cases into two constraints for two separate functions,
