@@ -337,7 +337,7 @@ printList' off pg (App (App e1 e) e') | Data (DataCon n1 _ _ _) <- e1
     in (wrapParen e (mkExprHaskell' off Cleaned pg e):strs, b)
 printList' off pg e | Data (DataCon n _ _ _) <- appCenter e
                     , nameOcc n == "[]" = ([], True)
-                    | otherwise = ([mkExprHaskell' off Cleaned pg e], False)
+                    | otherwise = ([wrapParen e (mkExprHaskell' off Cleaned pg e)], False)
 
 wrapParen :: Expr -> T.Text -> T.Text
 wrapParen (Case _ _ _ _) s = "(" <> s <> ")"
