@@ -23,6 +23,7 @@ module InputOutputTest ( checkInputOutput
                        , checkInputOutputsNonRedHigherNoFuncArgs
                        , checkInputOutputsNonRedLib
                        , checkInputOutputsSymFuncConstraints
+                       , checkInputOutputsSymFuncConstraintsSubPath
                        , checkInputOutputsInstType 
                        , checkInputOutputsWithValidate
                        , checkInputOutputsWithTemplatesAndHpc) where
@@ -160,6 +161,13 @@ checkInputOutputsSymFuncConstraints :: FilePath -> [(String, Int, [Reqs String])
 checkInputOutputsSymFuncConstraints src tests = do
     checkInputOutput'
         (do config <- mkConfigTestIO; return (config { higherOrderSolver = SymConstraints, smt = ConCVC5 }))
+        src
+        tests
+
+checkInputOutputsSymFuncConstraintsSubPath :: FilePath -> [(String, Int, [Reqs String])] -> TestTree
+checkInputOutputsSymFuncConstraintsSubPath src tests = do
+    checkInputOutput'
+        (do config <- mkConfigTestIO; return (config { higherOrderSolver = SymConstraints, smt = ConCVC5, search_strat = Subpath, subpath_length = 8 }))
         src
         tests
 

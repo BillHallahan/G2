@@ -1,4 +1,4 @@
-{-# LANGUAGE BangPatterns, LambdaCase, MultiWayIf, OverloadedStrings, TupleSections #-}
+{-# LANGUAGE BangPatterns, FlexibleContexts, LambdaCase, MultiWayIf, OverloadedStrings, TupleSections #-}
 
 {-# LANGUAGE ScopedTypeVariables #-}
 
@@ -294,7 +294,7 @@ or not using the argument and also discarding the constraint.
 -}
 
 
-solveFuncConstraintsReducer :: (Solver solver, MonadIO m) => solver -> HS.HashSet Name -> Reducer m () t
+solveFuncConstraintsReducer :: (ASTContainer t Expr, Solver solver, MonadIO m) => solver -> HS.HashSet Name -> Reducer m () t
 solveFuncConstraintsReducer solver no_inline = mkSimpleReducer (\_ -> ()) go
     where
         go _ s b
@@ -611,13 +611,15 @@ resetProgress = SM.lift $ SM.put NoProgressFC
 madeProgress :: Monad m => FCState t m ()
 madeProgress = SM.lift $ SM.put MadeProgressFC
 
-solveFuncConstraints :: (Solver solver, MonadIO m) => solver -> State t -> NameGen -> m (Maybe (State t, NameGen))
-solveFuncConstraints solver s@(State { sym_func_constraints = fc }) ng = do
+solveFuncConstraints :: (ASTContainer t Expr, Solver solver, MonadIO m) => solver -> State t -> NameGen -> m (Maybe (State t, NameGen))
+solveFuncConstraints solver s@(State { sym_func_constraints = fcs }) ng = do
     -- liftIO $ do
     --     putStrLn "------------------------"
     --     putStrLn "About to call solve FC"
     --     putStrLn "------------------------"
-    (r, (s', !ng')) <- SM.evalStateT (runStateNGT (solveFC (mkPrettyGuide ()) solver (-1) fc) s ng) NoProgressFC
+    let no_tick_s = s { expr_env = stripAllTicks $ expr_env s }
+        no_tick_fc = stripAllTicks fcs
+    (r, (s', !ng')) <- SM.evalStateT (runStateNGT (solveFC (mkPrettyGuide ()) solver (-1) no_tick_fc) no_tick_s ng) NoProgressFC
     return $ case r of
                     SatFC fcs' -> Just (s' { solving_sym_func_constraints = SolvedFCs
                                            , sym_func_constraints = fcs' }, ng')
@@ -1034,7 +1036,7 @@ branchOnWHNF n fcs@(first_fc:_) = do
 
     let ret_ty = typeOf tv_env $ fc_ret first_fc
 
-    -- Find an argument that is (1) an ADT where (2) all arguments are data constructor applications
+    -- Find an argument that is (1) an ADT where (2) some arguments are wrapped up in WHNF branches
     let matching_args = transpose $ map fc_args fcs
         unspec_case = findIndex (any (isJust . unspecCase . inlineVars eenv)) matching_args
     case unspec_case of
@@ -1074,10 +1076,9 @@ branchOnWHNF n fcs@(first_fc:_) = do
                 whnf_br_eq_2 = mkApp [Prim Eq TyUnknown, Var whnf_br, Lit (LitInt 2)]
                 fcs_can_eq_2 = filter (not . hasIncompatPrecond whnf_br (LitInt 2)) fcs
                 fcs_cont = map (\fc -> fc { fc_preconds = whnf_br_eq_2:fc_preconds fc
-                                          , fc_args = map (elimUnspec whnf_br) $ fc_args fc
+                                          , fc_args = map (elimUnspec whnf_br eenv) $ fc_args fc
                                           , fc_split_on = map (const NoSplit ) $ fc_split_on fc }) fcs_can_eq_2
 
-            
             madeProgress
             return $ [(idName f1, fcs_elim), (idName f2, fcs_cont)]
         Nothing -> return [(n, fcs)]
@@ -1087,8 +1088,9 @@ branchOnWHNF n fcs@(first_fc:_) = do
         unspecCase (Case (Var whnf_br) _ _ [Alt (LitAlt _) (Assume _ _ (Prim UnspecifiedOutput _)), (Alt _ e)]) = Just (whnf_br, e)
         unspecCase _ = Nothing
 
-        elimUnspec whnf_br (Case (Var whnf_br') _ _ [_, Alt _ e]) | idName whnf_br == idName whnf_br' = e
-        elimUnspec _ e = e
+        elimUnspec whnf_br eenv e | (Case (Var whnf_br') _ _ [_, Alt _ ae]) <- inlineVars eenv e
+                                  , idName whnf_br == idName whnf_br' = ae
+        elimUnspec _ _ e = e
 
 hasIncompatPrecond :: Id -- ^ A variable Id
                    -> Lit -- ^ A literal that variable is being assigned to
