@@ -470,7 +470,7 @@ collectNonReducedVars fcs = do
     let collect seen whnf_br (Var i@(Id n _))
             | n `notElem` seen
             , Just e <- E.lookup n eenv
-            , isExprValueForm eenv e = collect (HS.insert n seen) whnf_br e
+            , isExprValueForm eenv e || isCase e = collect (HS.insert n seen) whnf_br e
             | E.isSymbolic n eenv = []
             | otherwise = [(whnf_br, i)]
         collect seen whnf_br (Case (Var i@(Id n _)) _ _ [Alt _ _, Alt _ e])
@@ -483,18 +483,21 @@ collectNonReducedVars fcs = do
                     concatMap (concatMap (collect HS.empty []) . fc_args)
              )
            $ HM.elems fcs
+    where
+        isCase (Case _ _ _ _) = True
+        isCase _ = False
 
 addWrappersToFC :: Monad m => FuncConstraints -> StateNGT t m FuncConstraints
 addWrappersToFC =
     mapM (
             mapM (\fc -> do
                 as' <- SM.evalStateT (mapM addVarWrappers $ fc_args fc) HS.empty
-                return $ fc { fc_args = as' }
+                return $ fc { fc_args = map fst as' }
             )
          )
 
 -- Replace any non-WHNF expression with a variable that points to that non-WHNF epxression.
-addVarWrappers :: Monad m => Expr -> SM.StateT (HS.HashSet Name) (SM.StateT (State t, NameGen) m) Expr
+addVarWrappers :: Monad m => Expr -> SM.StateT (HS.HashSet Name) (SM.StateT (State t, NameGen) m) (Expr, Expr)
 addVarWrappers c@(Case v@(Var (Id n _)) bindee t [alt1@(Alt _ _), Alt lit_alt e2@(Var (Id br_v _))])
     | nameOcc n == whnfBrOccName = do
         eenv <- SM.lift exprEnv
@@ -502,26 +505,26 @@ addVarWrappers c@(Case v@(Var (Id n _)) bindee t [alt1@(Alt _ _), Alt lit_alt e2
         case m_e of
             Just e | isExprValueForm eenv e -> do
                 e2' <- addVarWrappers e2
-                return $ Case v bindee t [alt1, Alt lit_alt e2']
-            _ -> return c
+                return (Case v bindee t [alt1, Alt lit_alt $ fst e2'], snd e2')
+            _ -> return (c, c)
 addVarWrappers e
     | d@(Data _):es <- unApp e = do
         es' <- mapM addVarWrappers es
-        return . mkApp $ d:es'
+        return (mkApp $ d:map fst es', mkApp $ d:map snd es')
 addVarWrappers v@(Var (Id n _)) = do
     seen <- SM.get
     eenv <- SM.lift $ exprEnv
     case E.lookupConcOrSym n eenv of
         Just (E.Conc e) | n `notElem` seen -> do
             SM.put $ HS.insert n seen
-            e' <- addVarWrappers e
-            -- SM.lift $ insertE n e'
-            return e'
-        _ -> return v
+            (e', var) <- addVarWrappers e
+            SM.lift $ insertE n var
+            return (e', var)
+        _ -> return (v, v)
 addVarWrappers e = do
     eenv <- SM.lift $ exprEnv
     case isExprValueForm eenv e of
-        True -> return e
+        True -> return (e, e)
         False -> do
             tv_env <- SM.lift $ tyVarEnv
             dc_false <- SM.lift $ mkFalseE
@@ -541,7 +544,7 @@ addVarWrappers e = do
                         t
                         [ Alt (LitAlt $ LitInt 1) (Assume Nothing dc_false (Prim UnspecifiedOutput TyBottom)) -- e
                         , Alt (LitAlt $ LitInt 2) (Var i) ] 
-            return cse
+            return (cse, Var i)
 
 whnfBrOccName :: T.Text
 whnfBrOccName = "red_G2_!!_br"
@@ -606,7 +609,7 @@ solveFuncConstraints solver s@(State { sym_func_constraints = fc }) ng = do
     --     putStrLn "------------------------"
     --     putStrLn "About to call solve FC"
     --     putStrLn "------------------------"
-    (r, (s', !ng')) <- SM.evalStateT (runStateNGT (solveFC solver (-1) fc) s ng) NoProgressFC
+    (r, (s', !ng')) <- SM.evalStateT (runStateNGT (solveFC (mkPrettyGuide ()) solver (-1) fc) s ng) NoProgressFC
     return $ case r of
                     SatFC fcs' -> Just (s' { solving_sym_func_constraints = SolvedFCs
                                            , sym_func_constraints = fcs' }, ng')
@@ -614,14 +617,14 @@ solveFuncConstraints solver s@(State { sym_func_constraints = fc }) ng = do
 
 
 -- TODO: Do we actually need the counter here?
-solveFC :: (Solver solver, MonadIO m) => solver -> Int -> FuncConstraints -> FCState t m FCRes
-solveFC _ 0 _ = return UnsatFC
-solveFC solver !n fcs = do
+solveFC :: (Solver solver, MonadIO m) => PrettyGuide -> solver -> Int -> FuncConstraints -> FCState t m FCRes
+solveFC _ _ 0 _ = return UnsatFC
+solveFC !pg solver !n fcs = do
     -- Convert functions with only a single constraint into constants
     -- fcs_nosingle <- return . HM.mapMaybe id =<< HM.traverseWithKey solveSingleton fcs
-    let pg = mkPrettyGuide (HM.toList fcs)
+    let pg_up = updatePrettyGuide (HM.toList fcs) pg
     -- eenv_init <- exprEnv
-    -- liftIO $ putStrLn $ "fcs =\n" ++ T.unpack (prettyFuncConstraints pg $ {- inlineVars eenv_init -} fcs)  
+    -- liftIO $ putStrLn $ "fcs =\n" ++ T.unpack (prettyFuncConstraints pg_up $ inlineVars eenv_init fcs)  
 
     lit_val_sol <- solveLitVals solver fcs
 
@@ -678,7 +681,7 @@ solveFC solver !n fcs = do
             -- liftIO . putStrLn $ "end prog = " ++ show prog
 
             case prog of
-                MadeProgressFC -> solveFC solver (n - 1) fc_unfold_split_whnf_reassembled
+                MadeProgressFC -> solveFC pg_whnf_assem solver (n - 1) fc_unfold_split_whnf_reassembled
                 NoProgressFC -> return UnsatFC
 
 -- | If we only have a single function constraint for a given function, we instantiate
@@ -795,7 +798,9 @@ replaceADTSymVars fcs = do
                             (Id bindee TyLitInt)
                             t
                             alts
-                insertE n cse
+                case alts_expr of
+                    [a_e] -> insertE n a_e
+                    _ -> insertE n cse
 
                 madeProgress
                 return ()
