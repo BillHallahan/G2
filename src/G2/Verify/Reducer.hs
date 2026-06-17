@@ -44,6 +44,7 @@ import G2.Verify.StaticArgTrans
 import Control.Monad.Extra
 import Control.Monad.IO.Class
 import qualified Control.Monad.State as SM
+import qualified Data.Foldable as F
 import qualified Data.HashSet as HS
 import qualified Data.HashMap.Strict as HM
 import Data.List
@@ -601,7 +602,7 @@ inconsistentNRPCHalter no_inline =
         
         add_nrpc (hv, g) _ _ s
             | not (g `isSameGoal` (goal . track $ s)) = (HS.empty, goal . track $ s)
-            | currExprIsFalse s = foldl' (\(hv_, g_) (NRPC _ e1 e2) -> (HS.insert (e1, e2) hv_, g_)) (hv, g) (toListNRPC $ non_red_path_conds s)
+            | currExprIsFalse s = F.foldl' (\(hv_, g_) (NRPC _ e1 e2) -> (HS.insert (e1, e2) hv_, g_)) (hv, g) (toListNRPC $ non_red_path_conds s)
             | otherwise = (hv, g)
 
 
@@ -619,7 +620,7 @@ checkNRPCConsistent :: HS.HashSet Name
                     -> ExprEnv
                     -> HS.HashSet (Expr, Expr)
                     -> Bool
-checkNRPCConsistent no_inline eenv = snd . foldl' incCheck ([], True)
+checkNRPCConsistent no_inline eenv = snd . F.foldl' incCheck ([], True)
     where
         incCheck (prev, b) (e1, e2) =
             let

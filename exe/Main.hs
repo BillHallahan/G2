@@ -27,7 +27,7 @@ runWithArgs :: [String] -> IO ()
 runWithArgs as = do
   let tail_args = case as of
                       (_:_:xs) -> xs
-                      _ -> error "invalid args"
+                      _ -> error "Invalid args, need at least three"
   (src, entry, m_assume, m_assert, config) <- getConfig
 
   proj <- guessProj (includePaths config) src

@@ -10,6 +10,7 @@ import G2.Language.Syntax
 import qualified G2.Language.Typing as T
 import qualified G2.Language.TyVarEnv as TV
 
+import qualified Data.Foldable as F
 import qualified Data.HashMap.Lazy as HM
 
 addToDCPC :: Config -> IT.SimpleState -> DataConPCMap -> DataConPCMap
@@ -29,7 +30,7 @@ addToDCPC (Config { smt_prim_lists = UseSMTSeq { add_to_dcs = True } }) (IT.Simp
                 . addWrappedListToDCPCMap kv (mkDCInteger kv tenv) TyLitInt
                 . addWrappedListToDCPCMap kv (mkDCInt kv tenv) TyLitInt $ dcpc
     in
-    foldl' (addListToDCPCMap kv) dcpc_prim ty_cons
+    F.foldl' (addListToDCPCMap kv) dcpc_prim ty_cons
 addToDCPC _ _ dcpc = dcpc
 
 addWrappedListToDCPCMap :: KV.KnownValues -> Expr -> Type -> DataConPCMap -> DataConPCMap

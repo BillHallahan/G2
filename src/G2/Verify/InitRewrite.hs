@@ -10,6 +10,7 @@ import qualified G2.Language.Expr as X
 import qualified G2.Language.KnownValues as KV
 
 import qualified Data.HashMap.Lazy as HM
+import qualified Data.Foldable as F
 import Data.List
 
 initRule :: State t -> Bindings -> RewriteRule -> (State t, Id, Bindings)
@@ -51,7 +52,7 @@ initRule s@(State { known_values = kv, type_classes = tc }) b r =
                              , lhs_expr'
                              , rhs_expr]
                 eenv'' = E.insert comp_n comp eenv'
-                eenv''' = foldl' (flip E.insertSymbolic) eenv'' missing
+                eenv''' = F.foldl' (flip E.insertSymbolic) eenv'' missing
             in
             (s { curr_expr = CurrExpr Evaluate comp
                , expr_env = eenv'''

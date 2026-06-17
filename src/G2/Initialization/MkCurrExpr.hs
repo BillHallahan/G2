@@ -12,9 +12,10 @@ import qualified G2.Language.ExprEnv as E
 
 import Data.List
 import Data.Maybe
+import qualified Data.Foldable as F
 import qualified Data.Text as T
-import qualified Data.HashMap.Lazy as HM 
-import qualified G2.Language.TyVarEnv as TV 
+import qualified Data.HashMap.Lazy as HM
+import qualified G2.Language.TyVarEnv as TV
 
 data CurrExprRes = CurrExprRes { ce_expr :: Expr
                                , fixed_in :: [Expr]
@@ -88,7 +89,7 @@ coerceRetNewTypes tv tenv e =
         coerce_to t | TyCon n _:ts <- unTyApp t
                     , Just (NewTyCon { bound_ids = bis, rep_type = rt }) <- HM.lookup n tenv
                     , hasFuncType rt = 
-                        coerce_to $ foldl' (\rt_ (b, bt) -> retype b bt rt_) rt (zip bis ts)
+                        coerce_to $ F.foldl' (\rt_ (b, bt) -> retype b bt rt_) rt (zip bis ts)
                     | otherwise = t
 
         replace_ret_ty c (TyForAll i t) = TyForAll i $ replace_ret_ty c t
@@ -104,7 +105,7 @@ mkMainExpr config tv tc kv ng ex =
 
         (var_ids, is, ng') = mkInputs ng typs'
         
-        app_ex = foldl' App ex $ typsE ++ var_ids
+        app_ex = F.foldl' App ex $ typsE ++ var_ids
     in
     (app_ex, [], is, typsE, ng')
 
@@ -137,7 +138,7 @@ mkMainExprNoInstantiateTypes tv e ng =
         atsToIds' = renames ntmap atsToIds
 
         ars = map (Type . TyVar) ntids' ++ map Var atsToIds'
-        app_ex = foldl' App (renames ntmap e) ars
+        app_ex = F.foldl' App (renames ntmap e) ars
     in  (app_ex, ntids', atsToIds', [], ng'')
 
 
@@ -160,7 +161,7 @@ mkAssumeAssert tv p (Just f) m_mod var_ids inter pre_ex eenv =
     case findFunc tv f [m_mod] eenv of
         Left (f', _) -> 
             let
-                app_ex = foldl' App (Var f') (var_ids ++ [pre_ex])
+                app_ex = F.foldl' App (Var f') (var_ids ++ [pre_ex])
             in
             p app_ex inter
         Right s -> error s

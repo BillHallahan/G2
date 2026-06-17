@@ -25,6 +25,7 @@ import G2.Language.TypeEnv (TypeEnv)
 import qualified G2.Language.Typing as T
 import G2.Language.TyVarEnv (TyVarEnv)
 
+import qualified Data.Foldable as F
 import qualified Data.HashMap.Lazy as HM
 
 import Control.Exception
@@ -147,7 +148,7 @@ applyDCPC :: NameGen
           -> ([PathCond], NameGen, [Expr], [(Name, Expr)], [Id])
 applyDCPC ng new_ids as_expr (DCPC { dc_as_pattern = as_p, dc_args = ars, dc_pc = pc, dc_bindee_exprs = be }) =
     let
-        (pc', ng', be', concs, syms) = foldl' mkDCArg (pc, ng, be, [], []) (zip ars new_ids)
+        (pc', ng', be', concs, syms) = F.foldl' mkDCArg (pc, ng, be, [], []) (zip ars new_ids)
         -- Replace expr corresponding to as pattern in PathCond list
         pc'' = replaceVar as_p as_expr pc'
     in

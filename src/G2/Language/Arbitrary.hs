@@ -33,6 +33,7 @@ import qualified Data.HashMap.Lazy as HM
 import Data.List
 import qualified Data.Map as M
 import qualified Data.Text as T
+import qualified Data.Foldable as F
 import Test.Tasty.QuickCheck
 import qualified G2.Language.TyVarEnv as TV 
 
@@ -301,7 +302,7 @@ arbExpr tenv init_t = sized $ \k -> arbExpr' k HM.empty init_t
             let ts = anonArgumentTypes $ typeOf TV.empty dc
                 ps = map (\i -> Name p Nothing i Nothing) [1..fromIntegral (length ts)]
                 is = zipWith Id ps ts
-                tm' = foldl' (\tm_ (p_, t_) -> HM.insert p_ t_ tm_) tm $ zip ps ts
+                tm' = F.foldl' (\tm_ (p_, t_) -> HM.insert p_ t_ tm_) tm $ zip ps ts
             e <- arbExpr' k tm' t
             return (Alt (DataAlt dc is) e) 
 

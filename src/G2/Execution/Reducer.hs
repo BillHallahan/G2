@@ -123,7 +123,7 @@ module G2.Execution.Reducer ( Reducer (..)
 
                             , hpcApproximationHalter
                             , approximationHalter'
-                            
+
                             , HPCMemoTable
                             , noNewHPCHalter
                             , acceptOnlyNewHPC

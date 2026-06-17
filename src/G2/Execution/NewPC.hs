@@ -12,12 +12,14 @@ import qualified G2.Language.Stack as S
 import qualified G2.Language.TyVarEnv as TV
 import G2.Solver
 
-import Data.List
-import Data.Maybe
-import Data.Traversable
 import G2.Execution.MutVar
 import G2.Execution.LiteralTable
 import G2.Config.Config (DiscardUnknownStates (KeepUnknown))
+
+import Data.List
+import Data.Maybe
+import Data.Traversable
+import qualified Data.Foldable as F
 
 data NewPC t = SingleState (State t)
              | SplitStatePieces (State t) [StateDiff]
@@ -130,8 +132,8 @@ reduceStateDiff discard_unknown_states solver simplifier ng
                         | otherwise -> return Nothing
     | otherwise = return $ Just (ng, s)
     where
-        insertInOrder inserter exprs_ eenv_ = foldl' (flip $ uncurry inserter) eenv_ exprs_
-        insertSymInOrder inserter syms_ eenv_ = foldl' (flip inserter) eenv_ syms_
+        insertInOrder inserter exprs_ eenv_ = F.foldl' (flip $ uncurry inserter) eenv_ exprs_
+        insertSymInOrder inserter syms_ eenv_ = F.foldl' (flip inserter) eenv_ syms_
 
         eenv = insertInOrder E.insert nce $ insertSymInOrder E.insertSymbolic nse init_eenv
         tvenv = insertInOrder TV.insert nct $ insertSymInOrder TV.insertSymbolic nst init_tvenv

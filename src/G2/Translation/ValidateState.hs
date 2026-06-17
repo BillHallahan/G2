@@ -30,7 +30,7 @@ import Control.Monad
 
 import G2.Translation.GHC (SourceError)
 
-import Data.Foldable (toList)
+import qualified Data.Foldable as F
 import Data.Either
 import qualified Data.HashSet as HS
 import Data.List
@@ -143,7 +143,7 @@ createDecls pg s = mapM_ runDecls . createDeclsStr pg s
 adjustDynFlags :: GhcMonad m => m ()
 adjustDynFlags = do
     dyn <- getSessionDynFlags
-    let dyn2 = foldl' xopt_set dyn [MagicHash, UnboxedTuples, DataKinds, BangPatterns]
+    let dyn2 = F.foldl' xopt_set dyn [MagicHash, UnboxedTuples, DataKinds, BangPatterns]
         dyn3 = wopt_unset dyn2 Opt_WarnOverlappingPatterns
         dyn4 = dyn3 { generalFlags = ES.insert Opt_Hpc (generalFlags dyn3) }
     _ <- setSessionDynFlags dyn4
@@ -376,7 +376,7 @@ printStateOutput config entry b mval_res exec_res@(ExecRes { final_state = s }) 
         
         liftIO $ case sym_gen_out of
             S.Empty -> T.putStrLn state_output_text
-            _ -> T.putStrLn $ state_output_text <> "\t| generated: " <> T.intercalate ", " (toList sym_gen_out)
+            _ -> T.putStrLn $ state_output_text <> "\t| generated: " <> T.intercalate ", " (F.toList sym_gen_out)
         
         liftIO $ if handles_ /= "" then T.putStrLn handles_ else return ())
 
