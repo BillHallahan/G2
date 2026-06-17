@@ -1229,7 +1229,7 @@ strictRed = mkSimpleReducer (\_ -> ())
 
                 handle_update_casts stck1 eenv1 ce | Just (UpdateFrame n, stck1_) <- Stck.pop stck1 = handle_update_casts stck1_ (E.insert n ce eenv1) ce
                                                    | Just (CastFrame c, stck1_) <- Stck.pop stck1 = handle_update_casts stck1_ eenv1 (Cast ce c)
-                                                   | otherwise = (eenv, ce)
+                                                   | otherwise = (eenv1, ce)
                 -- | Does the expression contain non-fully-reduced subexpressions?
                 --
                 -- Looks through variables, but tracks seen variable names to avoid an infinite loop.
