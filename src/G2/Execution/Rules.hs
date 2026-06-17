@@ -1755,9 +1755,7 @@ retReplaceSymbFuncTemplate sft
     , E.isSymbolic n eenv
     = let
         -- create name of new sym
-        (f1Id, ng') = case freshIds [faTy] ng of
-                          ([a_], ng_) -> (a_, ng_)
-                          _ -> error "Impossible"
+        (f1Id, ng') = freshId faTy ng
         -- create type level lambda
         e = Lam TypeL tyVarId $ Var f1Id
         -- new environment bindings
