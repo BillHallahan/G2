@@ -29,7 +29,7 @@ import Data.Foldable
 import Data.Hashable
 import qualified Data.HashMap.Lazy as HM
 import qualified Data.Text as T
-import Text.Read
+import qualified Text.Read as TR
 
 data QQName = QQName T.Text (Maybe T.Text)
             deriving (Eq, Show, Read, Generic, Data)
@@ -82,7 +82,7 @@ toTHType _ t = error $ "toTHType: Unhandled case\n" ++ show t
 #if MIN_VERSION_GLASGOW_HASKELL(9,8,0,0)
 tupleNum :: T.Text -> Maybe Int
 tupleNum "Unit" = Just 0
-tupleNum t | 'T':'u':'p':'l':'e':n <- T.unpack t = readMaybe n
+tupleNum t | 'T':'u':'p':'l':'e':n <- T.unpack t = TR.readMaybe n
 tupleNum _ = Nothing
 #else
 tupleNum :: T.Text -> Maybe Int

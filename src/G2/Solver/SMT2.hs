@@ -350,7 +350,7 @@ instance SMTConverter Ostrich where
     push = stdPush
     pop = stdPop
 
-stdAddFormula :: SMTConverter con => (SMTAST -> TB.TextBuilder) -> con -> [SMTHeader] -> IO ()
+stdAddFormula :: SMTConverter con => (SMTAST -> Builder) -> con -> [SMTHeader] -> IO ()
 stdAddFormula str_seq con form = do
     let (h_in, _, _) = getIO con
         pr_smt = getPrintSMT con
@@ -358,7 +358,7 @@ stdAddFormula str_seq con form = do
     T.hPutStrLn h_in (tbToText $ toSolverText str_seq form)
 
 
-stdCheckSatNoReset :: SMTConverter con => (SMTAST -> TB.TextBuilder) -> con -> [SMTHeader] -> IO (Result () () ())
+stdCheckSatNoReset :: SMTConverter con => (SMTAST -> Builder) -> con -> [SMTHeader] -> IO (Result () () ())
 stdCheckSatNoReset str_seq con formula = do
         let (h_in, h_out, _) = getIO con
             pr_smt = getPrintSMT con
