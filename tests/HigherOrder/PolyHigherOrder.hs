@@ -94,6 +94,16 @@ list3 c fi fl fm x y =
                                     True -> 6
                                     False -> 7
 
+list4 :: (a -> a -> Bool) -> (a -> a) -> ([a] -> [a]) -> (Maybe a -> a) -> a -> a -> Int
+list4 c fi fl fm x y =
+    case fl [x, fm (Just y), x] of
+        [] -> 1
+        (z:_) -> case fi z `c` fi y of
+                    True -> 2
+                    False -> case fi y `c` fi z of
+                                    True -> 6
+                                    False -> 7
+
 data Funcs = I (Int -> Int) | I2 (Int -> Int -> Int) | B (Int -> Bool)
 
 funcsEither :: Funcs -> Either Int Bool -> (Int, Either Int Bool)

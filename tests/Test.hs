@@ -760,6 +760,7 @@ testFileTests = testGroup "TestFiles"
                                                                        , ("list1", 1000, [Exactly 8])
                                                                        , ("list2", 1000, [AtLeast 14])                                                                       
                                                                        , ("list3", 1000, [Exactly 7])                                                                       
+                                                                       , ("list4", 1000, [Exactly 4])                                                                       
                                                                        , ("funcsEither", 1000, [Exactly 6])                                                                       
                                                                        , ("funcs", 1000, [Exactly 3])                                                                       
                                                                        , ("maybeFuncs", 1000, [Exactly 4])                                                                       
