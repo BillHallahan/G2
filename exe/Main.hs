@@ -25,7 +25,9 @@ main = do
 
 runWithArgs :: [String] -> IO ()
 runWithArgs as = do
-  let (_:_:tail_args) = as
+  let tail_args = case as of
+                      (_:_:xs) -> xs
+                      _ -> error "invalid args"
   (src, entry, m_assume, m_assert, config) <- getConfig
 
   proj <- guessProj (includePaths config) src

@@ -14,7 +14,6 @@ import G2.Solver
 
 import Data.List
 import Data.Maybe
-import G2.Data.Utils
 import Data.Traversable
 import G2.Execution.MutVar
 import G2.Execution.LiteralTable

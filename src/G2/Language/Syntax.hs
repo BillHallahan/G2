@@ -11,7 +11,6 @@ import GHC.Generics (Generic)
 import Control.DeepSeq
 import Data.Bits
 import Data.Data
-import Data.Foldable
 import Data.Hashable
 import qualified Data.Text as T
 import Data.Word

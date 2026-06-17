@@ -120,7 +120,9 @@ mkMainExprNoInstantiateTypes tv e ng =
                 _ -> False
         (ats,nts) = partition anontype argts 
         -- We want to have symbolic types so we grab the type level arguments and introduce symbolic variables for them
-        ntids = map (\(NamedType i) -> i) nts
+        unwrapNamedType (NamedType i) = i
+        unwrapNamedType _ = error "Impossible"
+        ntids = map unwrapNamedType nts
         ns = map idName ntids
         (ns', ng') = renameAll ns ng
 

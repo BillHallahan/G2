@@ -104,7 +104,6 @@ import G2.Language.TypeEnv
 import G2.Language.TyVarEnv
 import G2.Language.Primitives
 
-import Data.Foldable
 import qualified Data.HashSet as HS
 import qualified Data.Map as M
 import Data.Maybe
@@ -169,7 +168,7 @@ eqUpToTypesInline' eq_ticks_check no_inline eenv = go no_inline no_inline
         go _ _ (SymGen _ _) (SymGen _ _) = True
         go _ _ (Assume _ _ _) (Assume _ _ _) = True
         go _ _ (Assert _ _ _) (Assert _ _ _) = True
-        go _ _ e1 e2 = False
+        go _ _ _ _ = False
 
         goAlt seen1 seen2 (Alt match1 e1) (Alt match2 e2) = match1 == match2 && go seen1 seen2 e1 e2
 

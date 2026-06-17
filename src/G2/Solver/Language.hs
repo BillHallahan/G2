@@ -15,10 +15,10 @@ import GHC.Generics (Generic)
 import Data.Hashable
 import qualified Data.HashSet as HS
 import qualified Data.Map as M
-import Text.Builder
+import TextBuilder
 import qualified Data.Text as T
 
-type SMTNameBldr = Builder
+type SMTNameBldr = TextBuilder
 type SMTName = String
 
 -- | These define the kinds of top level calls we give to the SMT solver.

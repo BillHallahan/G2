@@ -11,7 +11,7 @@ import Control.Concurrent
 import Data.IORef
 import Data.List as L
 import qualified Data.Map as M
-import Text.Builder
+import TextBuilder
 
 data MaxResult = MaxProven (Result () () ()) -- ^ A result known to be correct- if SAT, maximize the number of satisfied soft assertions
                | MaxFound String (Result SMTModel () ()) -- ^ A "best effort" result- there may be a better answer that satisfies more soft assertions.
@@ -108,14 +108,20 @@ instance SMTConverter con => SMTConverter (MaximizeSolver con) where
     push (MaxSolver _ _ _ _ con) = push con
     pop (MaxSolver _ _ _ _ con) = pop con
 
+    getIO (MaxSolver _ _ _ _ con) = getIO con
+
+    getPrintSMT (MaxSolver _ _ _ _ con) = getPrintSMT con
+
+    checkSatNoReset (MaxSolver _ _ _ _ con) = checkSatNoReset con
+
 solveSoftAsserts :: SMTConverter con => con -> [SMTHeader] -> [(SMTName, Sort)] -> IO MaxResult
 solveSoftAsserts con headers vs = do
     let (soft_asserts, other_headers) =
             partition (\h -> case h of AssertSoft _ _ -> True; _ -> False) $ elimSetLogic headers
         set_logic = getSetLogic headers
-        soft_assert_sum =
-              foldr (:+) (VInt 0)
-            $ map (\(AssertSoft assrt _) -> IteSMT assrt (VInt 1) (VInt 0)) soft_asserts
+        makeIte (AssertSoft assrt _) = IteSMT assrt (VInt 1) (VInt 0)
+        makeIte a = error $ "solveSoftAsserts: non soft assert: " ++ show a
+        soft_assert_sum = foldr (:+) (VInt 0) $ map makeIte soft_asserts
         new_assert = Assert $ V totalVarName SortInt := soft_assert_sum
         var_decl = VarDecl (string totalVarName) SortInt
     setProduceUnsatCores con

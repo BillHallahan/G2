@@ -5,7 +5,6 @@ module G2.Equiv.Uninterpreted where
 
 import G2.Language
 import qualified G2.Language.ExprEnv as E
-import Data.Foldable
 import Data.Maybe 
 import qualified Data.Monoid as DM
 import qualified Data.HashMap.Lazy as HM

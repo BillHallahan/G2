@@ -6,12 +6,10 @@ import G2.Initialization.Types as IT
 import G2.Language.AlgDataTy
 import G2.Language.Expr
 import qualified G2.Language.KnownValues as KV
--- import G2.Language.Support
 import G2.Language.Syntax
 import qualified G2.Language.Typing as T
 import qualified G2.Language.TyVarEnv as TV
 
-import Data.Foldable
 import qualified Data.HashMap.Lazy as HM
 
 addToDCPC :: Config -> IT.SimpleState -> DataConPCMap -> DataConPCMap
@@ -25,9 +23,9 @@ addToDCPC (Config { smt_prim_lists = UseSMTSeq { add_to_dcs = True } }) (IT.Simp
                         in
                         T.mkTyApp $ TyCon n kind:map TyVar bi
                     ) tys
-    
+
       dcpc_prim = addWrappedListToDCPCMap kv (mkDCDouble kv tenv) TyLitDouble
-                . addWrappedListToDCPCMap kv (mkDCFloat kv tenv) TyLitFloat 
+                . addWrappedListToDCPCMap kv (mkDCFloat kv tenv) TyLitFloat
                 . addWrappedListToDCPCMap kv (mkDCInteger kv tenv) TyLitInt
                 . addWrappedListToDCPCMap kv (mkDCInt kv tenv) TyLitInt $ dcpc
     in

@@ -34,7 +34,7 @@ import Control.Monad
 import qualified Data.HashSet as HS
 import qualified Data.Map as M
 import qualified Data.Text.IO as T
-import qualified Text.Builder as TB
+import qualified TextBuilder as TB
 import System.IO
 import System.Process
 import Data.Maybe (fromMaybe)
@@ -67,7 +67,7 @@ instance Solver Ostrich where
 
 instance SMTConverter Z3 where
     getIO (Z3 _ _ _ hhp) = hhp
-    getPrintSMT (Z3 _ print_smt _ _) = print_smt
+    getPrintSMT (Z3 _ print_smt_ _ _) = print_smt_
 
     closeIO (Z3 _ _ _ (h_in, h_out, ph)) = do
 #if MIN_VERSION_process(1,6,4)
@@ -79,9 +79,9 @@ instance SMTConverter Z3 where
         hClose h_out
 #endif
 
-    reset con@(Z3 string_solver print_smt _ _) = do
+    reset con@(Z3 string_solver print_smt_ _ _) = do
         let (h_in, _, _) = getIO con
-        when print_smt $ do
+        when print_smt_ $ do
             putStrLn "(reset)"
             putStrLn "(set-option :pp.min_alias_size 1000000)"
             putStrLn "(set-option :pp.max_depth 1000000)"
@@ -90,7 +90,7 @@ instance SMTConverter Z3 where
         T.hPutStr h_in "(set-option :pp.max_depth 1000000)"
 
         when (string_solver == Z3Str3) $ do
-            when print_smt $ putStrLn "(set-option :smt.string_solver z3str3)"
+            when print_smt_ $ putStrLn "(set-option :smt.string_solver z3str3)"
             T.hPutStr h_in "(set-option :smt.string_solver z3str3)"
 
     checkSatInstr con = do
@@ -104,9 +104,9 @@ instance SMTConverter Z3 where
             True -> return . Just =<< checkSatReadResult h_out
             False -> return Nothing
 
-    getModelInstrResult con@(Z3 _ print_smt _ _) vs = do
+    getModelInstrResult con@(Z3 _ print_smt_ _ _) vs = do
         let (h_in, h_out, _) = getIO con
-        mdl <- getModelZ3 print_smt h_in h_out vs
+        mdl <- getModelZ3 print_smt_ h_in h_out vs
         -- putStrLn "======"
         -- putStrLn (show mdl)
         let m = parseModel mdl
@@ -127,34 +127,34 @@ instance SMTConverter Z3 where
 
     checkSatNoReset = stdCheckSatNoReset toSolverASTSeq
 
-    checkSatGetModel con@(Z3 _ print_smt _ _) formula vs = do
+    checkSatGetModel con@(Z3 _ print_smt_ _ _) formula vs = do
         let (h_in, h_out, _) = getIO con
-        reset con        
-        when print_smt $ T.putStrLn (TB.run $ toSolverText toSolverASTSeq formula)
-        T.hPutStr h_in (TB.run $ toSolverText toSolverASTSeq formula)
+        reset con
+        when print_smt_ $ T.putStrLn (TB.toText $ toSolverText toSolverASTSeq formula)
+        T.hPutStr h_in (TB.toText $ toSolverText toSolverASTSeq formula)
 
-        r <- checkSat' print_smt h_in h_out
-        when print_smt (putStrLn $ show r)
+        r <- checkSat' print_smt_ h_in h_out
+        when print_smt_ (putStrLn $ show r)
 
         case r of
             SAT () -> do
-                mdl <- getModelZ3 print_smt h_in h_out vs
-                when print_smt (putStrLn $ "model =  " ++ show (map (\(_, v, _) -> v) mdl))
+                mdl <- getModelZ3 print_smt_ h_in h_out vs
+                when print_smt_ (putStrLn $ "model =  " ++ show (map (\(_, v, _) -> v) mdl))
                 let m = parseModel mdl
                 return $ SAT m
             UNSAT () -> return $ UNSAT ()
             Unknown s _ -> return $ Unknown s ()
 
-    checkSatGetModelOrUnsatCoreNoReset con@(Z3 _ print_smt _ _) formula vs = do
+    checkSatGetModelOrUnsatCoreNoReset con@(Z3 _ print_smt_ _ _) formula vs = do
         let (h_in, h_out, _) = getIO con
-        let formula' = TB.run $ toSolverText toSolverASTSeq formula
+        let formula' = TB.toText $ toSolverText toSolverASTSeq formula
         T.putStrLn "\n\n checkSatGetModelOrUnsatCore"
         T.putStrLn formula'
 
         T.hPutStr h_in formula'
-        r <- checkSat' print_smt h_in h_out
+        r <- checkSat' print_smt_ h_in h_out
         if r == SAT () then do
-            mdl <- getModelZ3 print_smt h_in h_out vs
+            mdl <- getModelZ3 print_smt_ h_in h_out vs
             -- putStrLn "======"
             -- putStrLn $ "r = " ++ show r
             -- putStrLn $ "mdl = " ++ show mdl
@@ -174,7 +174,7 @@ instance SMTConverter Z3 where
 
 instance SMTConverter CVC5 where
     getIO (CVC5 _ _ hhp) = hhp
-    getPrintSMT (CVC5 print_smt _ _) = print_smt
+    getPrintSMT (CVC5 print_smt_ _ _) = print_smt_
 
     closeIO (CVC5 _ _ (h_in, h_out, ph)) = do
         hPutStrLn h_in "(exit)"
@@ -182,9 +182,9 @@ instance SMTConverter CVC5 where
         hClose h_in
         hClose h_out
 
-    reset con@(CVC5 print_smt _ _) = do
+    reset con@(CVC5 print_smt_ _ _) = do
         let (h_in, _, _) = getIO con
-        when print_smt $ putStrLn "(reset)"
+        when print_smt_ $ putStrLn "(reset)"
         T.hPutStr h_in "(reset)"
 
     checkSatInstr con = do
@@ -198,9 +198,9 @@ instance SMTConverter CVC5 where
             True -> return . Just =<< checkSatReadResult h_out
             False -> return Nothing
 
-    getModelInstrResult con@(CVC5 print_smt _ _) vs = do
+    getModelInstrResult con@(CVC5 print_smt_ _ _) vs = do
         let (h_in, h_out, _) = getIO con
-        mdl <- getModel print_smt h_in h_out vs
+        mdl <- getModel print_smt_ h_in h_out vs
         -- putStrLn "======"
         -- putStrLn (show mdl)
         let m = parseModel mdl
@@ -219,16 +219,16 @@ instance SMTConverter CVC5 where
 
     checkSatNoReset = stdCheckSatNoReset toSolverASTSeq
 
-    checkSatGetModel con@(CVC5 print_smt _ _) formula vs = do
+    checkSatGetModel con@(CVC5 print_smt_ _ _) formula vs = do
         let (h_in, h_out, _) = getIO con
         reset con
-        when print_smt $ T.putStrLn (TB.run $ toSolverText toSolverASTSeq formula)
-        T.hPutStr h_in (TB.run $ toSolverText toSolverASTSeq formula)
-        r <- checkSat' print_smt h_in h_out
-        when print_smt (putStrLn $ show r)
+        when print_smt_ $ T.putStrLn (TB.toText $ toSolverText toSolverASTSeq formula)
+        T.hPutStr h_in (TB.toText $ toSolverText toSolverASTSeq formula)
+        r <- checkSat' print_smt_ h_in h_out
+        when print_smt_ (putStrLn $ show r)
         case r of
             SAT _ -> do
-                mdl <- getModel print_smt h_in h_out vs
+                mdl <- getModel print_smt_ h_in h_out vs
                 -- putStrLn "======"
                 -- putStrLn (show mdl)
                 let m = parseModel mdl
@@ -238,16 +238,16 @@ instance SMTConverter CVC5 where
             UNSAT _ ->  return $ UNSAT ()
             Unknown s _ -> return $ Unknown s ()
 
-    checkSatGetModelOrUnsatCoreNoReset con@(CVC5 print_smt _ _) formula vs = do
+    checkSatGetModelOrUnsatCoreNoReset con@(CVC5 print_smt_ _ _) formula vs = do
         let (h_in, h_out, _) = getIO con
-        let formula' = TB.run $ toSolverText toSolverASTSeq formula
+        let formula' = TB.toText $ toSolverText toSolverASTSeq formula
         T.putStrLn "\n\n checkSatGetModelOrUnsatCore"
         T.putStrLn formula'
 
         T.hPutStr h_in formula'
-        r <- checkSat' print_smt h_in h_out
+        r <- checkSat' print_smt_ h_in h_out
         if r == SAT () then do
-            mdl <- getModel print_smt h_in h_out vs
+            mdl <- getModel print_smt_ h_in h_out vs
             -- putStrLn "======"
             -- putStrLn $ "r = " ++ show r
             -- putStrLn $ "mdl = " ++ show mdl
@@ -267,7 +267,7 @@ instance SMTConverter CVC5 where
 
 instance SMTConverter Ostrich where
     getIO (Ostrich _ _ hhp) = hhp
-    getPrintSMT (Ostrich print_smt _ _) = print_smt
+    getPrintSMT (Ostrich print_smt_ _ _) = print_smt_
 
     closeIO (Ostrich _ _ (h_in, h_out, ph)) = do
 #if MIN_VERSION_process(1,6,4)
@@ -278,9 +278,9 @@ instance SMTConverter Ostrich where
         hClose h_in
         hClose h_out
 #endif
-    reset con@(Ostrich print_smt _ _) = do
+    reset con@(Ostrich print_smt_ _ _) = do
         let (h_in, _, _) = getIO con
-        when print_smt $ putStrLn "(reset)"
+        when print_smt_ $ putStrLn "(reset)"
         T.hPutStr h_in "(reset)"
 
     checkSatInstr con = do
@@ -294,9 +294,9 @@ instance SMTConverter Ostrich where
             True -> return . Just =<< checkSatReadResult h_out
             False -> return Nothing
 
-    getModelInstrResult con@(Ostrich print_smt _ _) vs = do
+    getModelInstrResult con@(Ostrich print_smt_ _ _) vs = do
         let (h_in, h_out, _) = getIO con
-        mdl <- getModel print_smt h_in h_out vs
+        mdl <- getModel print_smt_ h_in h_out vs
         -- putStrLn "======"
         -- putStrLn (show mdl)
         let m = parseModel mdl
@@ -311,21 +311,21 @@ instance SMTConverter Ostrich where
 
     checkSatNoReset = stdCheckSatNoReset toSolverASTString
 
-    checkSatGetModel con@(Ostrich print_smt _ _) formula vs = do
+    checkSatGetModel con@(Ostrich print_smt_ _ _) formula vs = do
         let (h_in, h_out, _) = getIO con
         reset con
-        T.hPutStr h_in (TB.run $ toSolverText toSolverASTString formula)
-        
-        when print_smt $ do
-            T.putStrLn (TB.run $ toSolverText toSolverASTString formula)
-        
-        r <- checkSat' print_smt h_in h_out
-        when print_smt (putStrLn $ show r)
+        T.hPutStr h_in (TB.toText $ toSolverText toSolverASTString formula)
+
+        when print_smt_ $ do
+            T.putStrLn (TB.toText $ toSolverText toSolverASTString formula)
+
+        r <- checkSat' print_smt_ h_in h_out
+        when print_smt_ (putStrLn $ show r)
 
         case r of
             SAT () -> do
-                mdl <- getModel print_smt h_in h_out vs
-                when print_smt (putStrLn $ "model =  " ++ show (map (\(_, v, _) -> v) mdl))
+                mdl <- getModel print_smt_ h_in h_out vs
+                when print_smt_ (putStrLn $ "model =  " ++ show (map (\(_, v, _) -> v) mdl))
                 let m = parseModel mdl
                 return $ SAT m
             UNSAT () -> return $ UNSAT ()
@@ -336,22 +336,22 @@ instance SMTConverter Ostrich where
     push = stdPush
     pop = stdPop
 
-stdAddFormula :: SMTConverter con => (SMTAST -> TB.Builder) -> con -> [SMTHeader] -> IO ()
+stdAddFormula :: SMTConverter con => (SMTAST -> TB.TextBuilder) -> con -> [SMTHeader] -> IO ()
 stdAddFormula str_seq con form = do
     let (h_in, _, _) = getIO con
         pr_smt = getPrintSMT con
-    when pr_smt $ T.putStrLn (TB.run $ toSolverText str_seq form)
-    T.hPutStrLn h_in (TB.run $ toSolverText str_seq form)
+    when pr_smt $ T.putStrLn (TB.toText $ toSolverText str_seq form)
+    T.hPutStrLn h_in (TB.toText $ toSolverText str_seq form)
 
 
-stdCheckSatNoReset :: SMTConverter con => (SMTAST -> TB.Builder) -> con -> [SMTHeader] -> IO (Result () () ())
+stdCheckSatNoReset :: SMTConverter con => (SMTAST -> TB.TextBuilder) -> con -> [SMTHeader] -> IO (Result () () ())
 stdCheckSatNoReset str_seq con formula = do
         let (h_in, h_out, _) = getIO con
             pr_smt = getPrintSMT con
 
-        when pr_smt $ T.putStrLn (TB.run $ toSolverText str_seq formula)
+        when pr_smt $ T.putStrLn (TB.toText $ toSolverText str_seq formula)
 
-        T.hPutStrLn h_in (TB.run $ toSolverText str_seq formula)
+        T.hPutStrLn h_in (TB.toText $ toSolverText str_seq formula)
         r <- checkSat' pr_smt h_in h_out
 
         when pr_smt (putStrLn $ show r)
@@ -389,9 +389,9 @@ setupHandles (m_h_in, m_h_out, h_err, p) = do
 -- in all future calls
 getProcessHandles :: CreateProcess -> IO (Handle, Handle, ProcessHandle)
 getProcessHandles pr = do
-    proc <- createProcess (pr)
+    process_ <- createProcess (pr)
         { std_in = CreatePipe, std_out = CreatePipe }
-    setupHandles proc
+    setupHandles process_
 
 -- | getProcessHandlesCont
 -- A safer version of getProcessHandles that doesn't leave solvers running,
@@ -401,8 +401,8 @@ getProcessHandlesCont pr cont =
     withCreateProcess (pr { std_in = CreatePipe, std_out = CreatePipe }) f
     where
         f hin hout herr ph = do
-            handles <- setupHandles (hin, hout, herr, ph)
-            cont handles
+            handles_ <- setupHandles (hin, hout, herr, ph)
+            cont handles_
 
 getZ3 :: PrintSMT -> Int -> IO Z3
 getZ3 pr_smt time_out = do
@@ -450,8 +450,8 @@ selPath = flip fromMaybe
 
 -- Checks if a formula, previously written by setUp formula, is SAT
 checkSat' :: PrintSMT -> Handle -> Handle -> IO (Result () () ())
-checkSat' print_smt h_in h_out = do
-    when print_smt (putStrLn "(check-sat)")
+checkSat' print_smt_ h_in h_out = do
+    when print_smt_ (putStrLn "(check-sat)")
     hPutStrLn h_in "(check-sat)"
 
     _ <- hWaitForInput h_out (-1)
@@ -483,9 +483,9 @@ parseToSMTAST str s = correctTypes s . parseGetValues s $ str
         correctTypes _ a = a
 
 getModelZ3 :: PrintSMT -> Handle -> Handle -> [(SMTName, Sort)] -> IO [(SMTName, String, Sort)]
-getModelZ3 print_smt h_in h_out ns = do
+getModelZ3 print_smt_ h_in h_out ns = do
     hPutStr h_in "(set-option :model_evaluator.completion true)\n"
-    getModel print_smt h_in h_out ns
+    getModel print_smt_ h_in h_out ns
 
 getUnsatCoreZ3 :: Handle -> Handle -> IO [SMTName]
 getUnsatCoreZ3 h_in h_out = do
@@ -493,7 +493,7 @@ getUnsatCoreZ3 h_in h_out = do
     _ <- hWaitForInput h_out (-1)
     out <- hGetLine h_out 
     putStrLn $ "unsat-core = " ++ out
-    let out' = tail . init $ out -- drop opening and closing parens
+    let out' = drop 1 $ take (length out - 1) out -- drop opening and closing parens
 
     case words out' of
         "error":_ -> error "getUnsatCoreZ3: Error producing unsat core"
@@ -519,13 +519,13 @@ getUnsatCoreCVC5 h_in h_out = do
                 _ -> return . (:) core =<< getCore
 
 getModel :: PrintSMT -> Handle -> Handle -> [(SMTName, Sort)] -> IO [(SMTName, String, Sort)]
-getModel print_smt h_in h_out ns = do
+getModel print_smt_ h_in h_out ns = do
     getModel' ns
     where
         getModel' :: [(SMTName, Sort)] -> IO [(SMTName, String, Sort)]
         getModel' [] = return []
         getModel' ((n, s):nss) = do
-            when print_smt (putStrLn $ "(get-value (" ++ n ++ "))")
+            when print_smt_ (putStrLn $ "(get-value (" ++ n ++ "))")
             hPutStrLn h_in ("(get-value (" ++ n ++ "))")
             out <- getLinesMatchParens h_out
             _ <- evaluate (length out) --Forces reading/avoids problems caused by laziness

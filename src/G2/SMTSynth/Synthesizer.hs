@@ -50,7 +50,7 @@ import System.FilePath
 import System.IO
 import System.IO.Temp
 import System.Process
-import qualified Text.Builder as TB
+import qualified TextBuilder as TB
 
 -------------------------------------------------------------------------------
 -- Methodology
@@ -431,10 +431,10 @@ runFunc temp src f smt_def sc@(SynthConfig { eq_file = eq_f, g2_config = config 
                                             let
                                                 new_i = Id entry_f_n $ typeOf (tyvar_env init_state) entry_f_def
                                             in
-                                            (findInconsistent new_i init_state bindings, new_i)
+                                            (findInconsistent new_i init_state, new_i)
                                        | otherwise -> error "runFunc: func not found" 
                         Nothing -> (init_state, func)
-    let sol = fmap (\(_, _, sl) -> sl) smt_def
+    -- let sol = fmap (\(_, _, sl) -> sl) smt_def
 
     -- let config'' = if sol == Just "smt_rotate (I# z1) !z2 = let !x = (let !y1 = strLen# z2; !_let_1 = y1; !y2 = modInt# z1 _let_1; !_let_2 = y2; !y3 = strSubstr# z2 _let_2 z1; !y4 = (+#) z1 z1; !y5 = strSubstr# z2 y4 _let_1; !y6 = strSubstr# z2 0# _let_2; !y7 = strAppend# y5 y6; !y8 = strAppend# y3 y7 in y8) in x" then config' { logStates = Log Pretty "a_smt"} else config'
     -- let config'' = if isJust smt_def then config' { logStates = Log Pretty "a_smt"} else config'
@@ -503,7 +503,7 @@ smtName n | Just (c, _) <- T.uncons n
 
 setUpSpec :: SynthConfig -> Handle -> Maybe (State t, Id, String) -> IO ()
 setUpSpec _ h Nothing = hClose h
-setUpSpec sc h (Just (s@(State { known_values = kv, type_classes = tc }), Id n t, spec)) = do
+setUpSpec sc h (Just (s@(State { type_classes = tc }), Id n t, spec)) = do
     let ts = splitTyFuns
            . snd
            $ splitTyForAlls t
@@ -556,8 +556,8 @@ isCallStack ty | TyCon tn _:_ <- unTyApp ty = nameOcc tn == "IP"
                | otherwise = False
 
 -- | Find inputs that violate a found SMT definition
-findInconsistent :: Id -> State t -> Bindings -> State t
-findInconsistent entry_f s@(State { expr_env = eenv  }) b
+findInconsistent :: Id -> State t -> State t
+findInconsistent entry_f s@(State { expr_env = eenv  })
     | Just (ph_name, _) <- E.lookupNameMod "placeholder" (Just "Spec") eenv 
     , Just entry_e <- E.lookup (idName entry_f) eenv =
         s { expr_env = E.insert ph_name entry_e eenv
@@ -590,7 +590,7 @@ runSygus sygus_cmds =
             --  ((define-fun ... ))
             -- The parseSygus function does not like having the extra "("/")" at the beginning/end-
             -- so we drop them.
-            let stripped_out = tail . init $ out
+            let stripped_out = drop 1 $ take (length out - 1) out
             let sy_out = parseSygus stripped_out
             case stripped_out of
                 "infeasible" -> return Nothing
@@ -604,7 +604,7 @@ sygusCmds :: Id
           -> [ExecRes t]
           -> [Cmd]
 sygusCmds _ _ [] = []
-sygusCmds (Id _ entry_ty) exclude er@(ExecRes { final_state = s@(State { tyvar_env = tv_env, known_values = kv }), conc_args = args, conc_out = out_e}:_) = 
+sygusCmds (Id _ entry_ty) exclude er@(ExecRes { final_state = s@(State { tyvar_env = tv_env, known_values = kv }), conc_args = args_, conc_out = out_e}:_) = 
     let 
         define_eq n srt = SmtCmd $ DefineFun n
                                              [SortedVar "x" srt, SortedVar "y" srt]
@@ -660,7 +660,7 @@ sygusCmds (Id _ entry_ty) exclude er@(ExecRes { final_state = s@(State { tyvar_e
         tyvar_used _ = False
 
         has_tyvars = any tyvar_used $ argumentTypes entry_ty
-        arg_types = map (typeOf tv_env) $ relArgs s args
+        arg_types = map (typeOf tv_env) $ relArgs s args_
         args_sort = map (typeToSort kv) arg_types
         arg_vars = zipWith SortedVar argList args_sort
 
@@ -758,7 +758,7 @@ sygusCmds (Id _ entry_ty) exclude er@(ExecRes { final_state = s@(State { tyvar_e
         seq_float_sort = IdentSortSort (ISymb "Seq") [IdentSort (ISymb "Float32")]
 
         ty_gram_defs = (if ret_type == tyChar kv then (([tyChar kv], GroupedRuleList "CharRetPr" strSort grmCharRet):) else id) $
-                       (if not (null char_args) then (([tyChar kv], GroupedRuleList "CharArgPr" strSort grmCharArgs):) else id)           
+                       (if not (null char_args) then (([tyChar kv], GroupedRuleList "CharArgPr" strSort grmCharArgs):) else id)
                        [ ([tyString kv], GroupedRuleList "StrPr" strSort grmString)
                        , ([TyApp (tyList kv) (tyInt kv), TyApp (tyList kv) (tyInteger kv)], GroupedRuleList "SeqIntPr" seq_int_sort (grmSeq seq_int_sort "intUnit" intIdent seqIntIdent))
                        , ([TyApp (tyList kv) (tyFloat kv)], GroupedRuleList "SeqFloatPr" seq_float_sort (grmSeq seq_float_sort "floatUnit" floatIdent seqFloatIdent))
@@ -824,7 +824,7 @@ exprToTerm :: KnownValues -> Expr -> Term
 exprToTerm _ (Lit (LitInt x)) = TermLit (LitNum x)
 exprToTerm _ (Lit (LitChar x)) = toStringTerm [x]
 exprToTerm _ (App _ (Lit (LitInt x))) = TermLit (LitNum x)
-exprToTerm _ (App _ (Lit (LitFloat x))) = TermIdent . ISymb . T.unpack . TB.run $ convertFloating castFloatToWord32 8 x
+exprToTerm _ (App _ (Lit (LitFloat x))) = TermIdent . ISymb . T.unpack . TB.toText $ convertFloating castFloatToWord32 8 x
 exprToTerm _ (App _ (Lit (LitChar x))) = toStringTerm [x]
 exprToTerm kv dc | dc == mkTrue kv = TermLit (LitBool True)
                  | dc == mkFalse kv = TermLit (LitBool False)
@@ -842,7 +842,7 @@ toStringTerm s =
             [x] -> x
             ys -> TermCall (ISymb "seq.++") ys
     where
-        go s = let (pre, post) = span isPrint s in
+        go s_ = let (pre, post) = span isPrint s_ in
                case post of
                     "" -> [TermLit (LitStr pre)]
                     (non_pr:post') ->

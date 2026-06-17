@@ -45,7 +45,7 @@ import Data.Monoid hiding (Alt)
 import Data.Ratio
 import qualified Data.Text as T
 import GHC.Float
-import qualified Text.Builder as TB
+import qualified TextBuilder as TB
 import Numeric
 
 import qualified System.IO as IO
@@ -131,14 +131,16 @@ checkModel' avf con s b (i:is) pc
 
 getModelVal :: SMTConverter con => ArbValueFunc -> con -> State t -> Bindings -> Id -> PathConds -> IO (Result SatRes () (), ArbValueGen)
 getModelVal avf con s@(State { expr_env = eenv, type_env = tenv, known_values = kv, tyvar_env = tvnv }) b (Id n _) pc = do
-    let (Just (Var (Id n' t))) = E.lookup n eenv
-     
+    let lookup_res = E.lookup n eenv
+    let (n', t) = case lookup_res of
+                     Just (Var (Id n_ t_)) -> (n_, t_)
+                     _ -> error $ "getModelVal: expected to find a Var, found " ++ show lookup_res
     case PC.null pc of
-                True -> 
+                True ->
                     let
                         (e, tv_env', av, ng') = avf s (name_gen b) t (arb_value_gen b)
                     in
-                    return (SAT $ SatRes (HM.singleton n' e) tv_env' ng', av) 
+                    return (SAT $ SatRes (HM.singleton n' e) tv_env' ng', av)
                 False -> do
                     m <- solveNumericConstraintsPC tvnv con kv tenv pc (name_gen b)
                     return (m, arb_value_gen b)
@@ -438,7 +440,7 @@ exprToSMT _ (Data (DataCon n (TyCon (Name "Bool" _ _ _) _ ) _ _)) =
         "True" -> VBool True
         "False" -> VBool False
         _ -> error "Invalid bool in exprToSMT"
-exprToSMT tv (Data (DataCon n _ _ _)) = DataSMT (nameToStr n) []
+exprToSMT _ (Data (DataCon n _ _ _)) = DataSMT (nameToStr n) []
 exprToSMT tv (App (Data (DataCon (Name "[]" _ _ _) _ _ _)) type_t@(Type t))
     | Just (TyCon (Name "Char" _ _ _) _) <- TV.deepLookup tv type_t = VString ""
     | Just (TyApp (TyCon (Name "Any" (Just "GHC.Types") _ _) _) _) <- TV.deepLookup tv type_t = VString ""
@@ -475,7 +477,7 @@ exprToSMT tv e | [ Data (DataCon (Name ":" _ _ _) _ _ _)
         error $ "bad list " ++ show (TV.deepLookup tv type_t)
             ++ "\ntype_t = " ++ show type_t ++ "\ne1 = " ++ show e1 ++ "\ne2 = " ++ show e2
 exprToSMT _ (Prim p _) = lonePrim p
-exprToSMT tv a@(App (Data (DataCon { dc_name = dc_n })) e)
+exprToSMT tv (App (Data (DataCon { dc_name = dc_n })) e)
     | nameOcc dc_n == "I#"
     || nameOcc dc_n == "Z#"
     || nameOcc dc_n == "W#"
@@ -714,6 +716,7 @@ funcToSMT4Prim tv FoldLeftI (Lam _ (Id idx idx_t) (Lam _ (Id n1 t1) (Lam _ (Id n
 
 funcToSMT4Prim _ op _ _ _ _ = error $ "funcToSMT4Prim: invalid case with " ++ show op
 
+wrapChar :: SMTName -> SMTAST -> SMTAST
 wrapChar n v@(V vn SortChar) | n == vn = SeqUnitSMT v
 wrapChar n smt = modifyChildren (wrapChar n) smt
 
@@ -812,26 +815,26 @@ adtTypeToSMTSeq tv t | TyCon n _:ts <- unTyApp t = SortSeq . ADTSort (nameToStr 
 adtTypeToSMTSeq tv (TyVar (Id n _)) | Just t <- TV.deepLookupName tv n = adtTypeToSMTSeq tv t
 adtTypeToSMTSeq _ t = error $ "Unsupported type in adtTypeToSMTSeq: " ++ show t
 
-comment :: String -> TB.Builder
+comment :: String -> TB.TextBuilder
 comment s = "; " <> TB.string s
 
-assertSoftSolver :: TB.Builder -> Maybe T.Text -> TB.Builder
+assertSoftSolver :: TB.TextBuilder -> Maybe T.Text -> TB.TextBuilder
 assertSoftSolver ast Nothing = function1 "assert-soft" ast
 assertSoftSolver ast (Just lab) = "(assert-soft " <> ast <> " :id " <> TB.text lab <> ")"
 
-defineFun :: (SMTAST -> TB.Builder) -> String -> [(String, Sort)] -> Sort -> SMTAST -> TB.Builder
+defineFun :: (SMTAST -> TB.TextBuilder) -> String -> [(String, Sort)] -> Sort -> SMTAST -> TB.TextBuilder
 defineFun str_seq fn ars ret body =
     "(define-fun " <> (TB.string fn) <> " ("
         <> TB.intercalate " " (map (\(n, s) -> "(" <> TB.string n <> " " <> sortName s <> ")") ars) <> ")"
         <> " (" <> sortName ret <> ") " <> toSolverAST str_seq body <> ")"
 
-declareFun :: String -> [Sort] -> Sort -> TB.Builder
+declareFun :: String -> [Sort] -> Sort -> TB.TextBuilder
 declareFun fn ars ret =
     "(declare-fun " <> TB.string fn <> " ("
         <> TB.intercalate " " (map sortName ars) <> ")"
         <> " " <> sortName ret <> ")"
 
-declareDataTypes :: [SMTDataType] -> TB.Builder 
+declareDataTypes :: [SMTDataType] -> TB.TextBuilder
 declareDataTypes dts =
     let
         to_arg (n, s) = "(" <> TB.string n <> " " <> sortName s <> ")"
@@ -850,7 +853,7 @@ declareDataTypes dts =
     in
     "(declare-datatypes (" <> dt_list <> ") (" <> cons_lists <> ")" <> ")"
 
-toSolverText :: (SMTAST -> TB.Builder) -> [SMTHeader] -> TB.Builder
+toSolverText :: (SMTAST -> TB.TextBuilder) -> [SMTHeader] -> TB.TextBuilder
 toSolverText str_seq = TB.intercalate "\n" . map go
     where
         go (Assert ast) = function1 "assert" $ toSolverAST str_seq ast
@@ -863,9 +866,9 @@ toSolverText str_seq = TB.intercalate "\n" . map go
         go (SetLogic lgc) = toSolverSetLogic lgc
         go (Comment c) = comment c
 
-toSolverAST :: (SMTAST -> TB.Builder) -- ^ Handling of String/Seq primitives
+toSolverAST :: (SMTAST -> TB.TextBuilder) -- ^ Handling of String/Seq primitives
             -> SMTAST
-            -> TB.Builder
+            -> TB.TextBuilder
 toSolverAST str_seq = go
     where
         go (x :>= y) = function2 ">=" (go x) (go y)
@@ -970,8 +973,8 @@ toSolverAST str_seq = go
         go (StrLeSMT x y) = function2 "str.<=" (go x) (go y)
 
         go (FromInt x) = function1 "str.from_int" $ go x
-        go (FromCode chr) = function1 "str.from_code" (go chr)
-        go (ToCode chr) = function1 "str.to_code" (go chr)
+        go (FromCode chr_) = function1 "str.from_code" (go chr_)
+        go (ToCode chr_) = function1 "str.to_code" (go chr_)
 
         go (VInt i) = if i >= 0 then showText i else "(- " <> showText (abs i) <> ")"
         go (VWord w) = showText w
@@ -995,7 +998,7 @@ toSolverAST str_seq = go
 
         go pr = str_seq pr
 
-toSolverASTString :: SMTAST -> TB.Builder
+toSolverASTString :: SMTAST -> TB.TextBuilder
 toSolverASTString = go
     where
         go (StrAppendSMT xs) = functionList "str.++" (map goBack xs)
@@ -1015,7 +1018,7 @@ toSolverASTString = go
 
         goBack = toSolverAST toSolverASTString
 
-toSolverASTSeq :: SMTAST -> TB.Builder
+toSolverASTSeq :: SMTAST -> TB.TextBuilder
 toSolverASTSeq = go
     where
         go (StrAppendSMT xs) = functionList "seq.++" (map goBack xs)
@@ -1050,7 +1053,7 @@ toSolverASTSeq = go
 
         goBack = toSolverAST toSolverASTSeq
 
-toSolverASTRe :: (SMTAST -> TB.Builder) -> SMTAST -> TB.Builder
+toSolverASTRe :: (SMTAST -> TB.TextBuilder) -> SMTAST -> TB.TextBuilder
 toSolverASTRe goBack = go
     where
         go (InReSMT s r) = function2 "str.in_re" (goBack s) (goBack r) 
@@ -1076,8 +1079,8 @@ toSolverASTRe goBack = go
 --    and is defined as follows:
 --        bv2int(b) := if b(m-1) = 0 then bv2nat(b) else bv2nat(b) - 2^m"
 bvToSignedInt :: Int -- ^ Bitvector width
-              -> TB.Builder -- ^ Bitvector SMT expression
-              -> TB.Builder
+              -> TB.TextBuilder -- ^ Bitvector SMT expression
+              -> TB.TextBuilder
 bvToSignedInt w smt =
     let
         ext = showText (w - 1)
@@ -1086,11 +1089,13 @@ bvToSignedInt w smt =
                     (function1 "bv2nat" smt)
                     (function2 "-" (function1 "bv2nat" smt) (showText (2^w :: Integer)))
 
-convertFloating :: (Num b, Bits.FiniteBits b) => (a -> b) -> Int -> a -> TB.Builder
+convertFloating :: (Num b, Bits.FiniteBits b) => (a -> b) -> Int -> a -> TB.TextBuilder
 convertFloating conv eb_width f =
     let
         w32 = convertBits $ conv f
-        h:_ = w32
+        h = case w32 of
+                (x:_) -> x
+                _ -> error "convertFloating: expected w32 to be non-empty"
         eb = take eb_width $ drop 1 w32
         sb = drop (eb_width + 1) w32
     in
@@ -1100,31 +1105,31 @@ convertFloating conv eb_width f =
 convertBits :: (Num b, Bits.FiniteBits b) => b -> String
 convertBits b = map (\x -> if x then '1' else '0') . reverse $ map (Bits.testBit b) [0..Bits.finiteBitSize b - 1]
 
-smtFunc :: String -> [TB.Builder] -> TB.Builder
+smtFunc :: String -> [TB.TextBuilder] -> TB.TextBuilder
 smtFunc n [] = TB.string n
 smtFunc n xs = "(" <> TB.string n <> " " <> TB.intercalate " " xs <>  ")"
 
 {-# INLINE showText #-}
-showText :: Show a => a -> TB.Builder
+showText :: Show a => a -> TB.TextBuilder
 showText = TB.string . show
 
-functionList :: TB.Builder -> [TB.Builder] -> TB.Builder
+functionList :: TB.TextBuilder -> [TB.TextBuilder] -> TB.TextBuilder
 functionList f xs = "(" <> f <> " " <> (TB.intercalate " " xs) <> ")" 
 
-function1 :: TB.Builder -> TB.Builder -> TB.Builder
+function1 :: TB.TextBuilder -> TB.TextBuilder -> TB.TextBuilder
 function1 f a = "(" <> f <> " " <> a <> ")"
 
 {-# INLINE function2 #-}
-function2 :: TB.Builder -> TB.Builder -> TB.Builder -> TB.Builder
+function2 :: TB.TextBuilder -> TB.TextBuilder -> TB.TextBuilder -> TB.TextBuilder
 function2 f a b = "(" <> f <> " " <> a <> " " <> b <> ")"
 
-function3 :: TB.Builder -> TB.Builder -> TB.Builder -> TB.Builder -> TB.Builder
+function3 :: TB.TextBuilder -> TB.TextBuilder -> TB.TextBuilder -> TB.TextBuilder -> TB.TextBuilder
 function3 f a b c = "(" <> f <> " " <> a <> " " <> b <> " " <> c <> ")"
 
-toSolverVarDecl :: SMTNameBldr -> Sort -> TB.Builder
+toSolverVarDecl :: SMTNameBldr -> Sort -> TB.TextBuilder
 toSolverVarDecl n s = "(declare-const " <> n <> " " <> sortName s <> ")"
 
-sortName :: Sort -> TB.Builder
+sortName :: Sort -> TB.TextBuilder
 sortName SortInt = "Int"
 sortName SortWord = "Int"
 sortName SortFloat = "Float32"
@@ -1142,11 +1147,11 @@ sortName (ADTSort n xs) = "(" <> TB.string n <> " " <> TB.intercalate " " (map s
 sortName (ParSort n) = TB.string n
 sortName _ = error "sortName: unsupported Sort"
 
-sortNameLam :: Sort -> TB.Builder
+sortNameLam :: Sort -> TB.TextBuilder
 sortNameLam SortChar = "Unicode"
 sortNameLam s = sortName s
 
-toSolverSetLogic :: Logic -> TB.Builder
+toSolverSetLogic :: Logic -> TB.TextBuilder
 toSolverSetLogic lgc =
     let
         s = case lgc of

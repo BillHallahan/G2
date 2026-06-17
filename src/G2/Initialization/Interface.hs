@@ -35,11 +35,11 @@ runInitialization1 s =
     in
     s1 { IT.expr_env = eenv2, IT.type_env = tenv2, IT.type_classes = tc2}
 
-runInitialization2 :: Config -> IT.SimpleState -> MkArgTypes -> (IT.SimpleState, DataConPCMap)
+runInitialization2 :: Config -> IT.SimpleState -> (IT.SimpleState, DataConPCMap)
 runInitialization2 config s@(IT.SimpleState { IT.expr_env = eenv
                                             , IT.type_env = tenv
                                             , IT.name_gen = ng
-                                            , IT.known_values = kv }) argTys =
+                                            , IT.known_values = kv }) =
     let
         (eenv3, hs, ng2) = mkHandles eenv kv ng
 

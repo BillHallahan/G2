@@ -82,7 +82,7 @@ toList uf =
         c_uf_l = concat uf_l
         not_acc = P.map (:[]) $ keys uf L.\\ c_uf_l
     in
-    P.map (\l -> (l, lookup (head l) uf)) $ uf_l ++ not_acc
+    P.map (\l -> (l, listToMaybe l >>= \h -> lookup h uf)) $ uf_l ++ not_acc
 
 toSet :: (Eq k, Eq v, Hashable k, Hashable v) => UFMap k v -> S.HashSet (S.HashSet k, Maybe v)
 toSet = S.fromList . P.map (\(ks, v) -> (S.fromList ks, v)) . toList

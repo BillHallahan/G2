@@ -27,7 +27,6 @@ import G2.Lib.Printers
 
 import Control.Monad
 import Data.Bifunctor
-import Data.Foldable
 import Data.Function
 import qualified Data.HashSet as HS
 import qualified Data.HashMap.Lazy as HM

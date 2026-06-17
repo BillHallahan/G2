@@ -96,7 +96,6 @@ import qualified Data.HashMap.Lazy as HM
 import qualified Data.HashSet as S
 import Data.IORef
 import Data.Maybe
-import Data.Monoid
 import qualified Data.Sequence as Seq
 import qualified Data.Text as T
 import qualified Data.List as L
@@ -187,9 +186,9 @@ initStateFromSimpleState :: IT.SimpleState
                          -> MkArgTypes
                          -> Config
                          -> (State (), Bindings)
-initStateFromSimpleState s m_mod useAssert mkCurr argTys config =
+initStateFromSimpleState s m_mod useAssert mkCurr _argTys config =
     let
-        (s', !dcpc) = runInitialization2 config s argTys
+        (s', !dcpc) = runInitialization2 config s
         eenv' = IT.expr_env s'
         tenv' = IT.type_env s'
         ng' = IT.name_gen s'
@@ -405,7 +404,7 @@ initRedHaltOrd s mod_name solver simplifier config exec_func_names no_nrpc_names
                             Nothing -> liftSomeReducer $ liftSomeReducer (num_steps_red f)
 
         nrpc_approx_red f = case approx_nrpc config of
-                                Nrpc -> let nrpc_approx = nrpcApproxReducer solver approx_no_inline no_nrpc_names config in
+                                Nrpc -> let nrpc_approx = nrpcApproxReducer approx_no_inline no_nrpc_names config in
                                         SomeReducer nrpc_approx .== Finished .--> logger_std_red f
                                 NoNrpc -> logger_std_red f
 
@@ -426,7 +425,7 @@ initRedHaltOrd s mod_name solver simplifier config exec_func_names no_nrpc_names
 
         halter_approx_discard = case approx_discard config of
                                     True ->
-                                        SomeHalter (hpcApproximationHalter solver approx_no_inline) .<~> halter_hpc_discard
+                                        SomeHalter (hpcApproximationHalter approx_no_inline) .<~> halter_hpc_discard
                                     False -> halter_hpc_discard
 
         halter_height = case height_limit config of

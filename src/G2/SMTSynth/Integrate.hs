@@ -9,9 +9,7 @@ import qualified G2.Language.ExprEnv as E
 import qualified G2.Language.KnownValues as KV
 import qualified G2.Language.TyVarEnv as TV
 
-import Data.Foldable
 import qualified Data.HashMap.Strict as HM
-import Data.List
 import Data.Maybe
 import Data.Monoid hiding (Alt)
 import qualified Data.Text as T

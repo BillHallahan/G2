@@ -1,6 +1,5 @@
 module G2.Initialization.TrivializeDCs where
 
-import G2.Data.Utils
 import G2.Language
 import qualified G2.Language.ExprEnv as E
 import G2.Language.KnownValues
