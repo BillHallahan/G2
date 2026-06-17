@@ -470,7 +470,7 @@ collectNonReducedVars fcs = do
     let collect seen whnf_br (Var i@(Id n _))
             | n `notElem` seen
             , Just e <- E.lookup n eenv
-            , isExprValueForm eenv e || isCase e = collect (HS.insert n seen) whnf_br e
+            , isExprValueForm eenv e || isWHNFCase e = collect (HS.insert n seen) whnf_br e
             | E.isSymbolic n eenv = []
             | otherwise = [(whnf_br, i)]
         collect seen whnf_br (Case (Var i@(Id n _)) _ _ [Alt _ _, Alt _ e])
@@ -484,8 +484,8 @@ collectNonReducedVars fcs = do
              )
            $ HM.elems fcs
     where
-        isCase (Case _ _ _ _) = True
-        isCase _ = False
+        isWHNFCase (Case (Var i@(Id n _)) _ _ [Alt _ _, Alt _ _]) = nameOcc n == whnfBrOccName
+        isWHNFCase _ = False
 
 addWrappersToFC :: Monad m => FuncConstraints -> StateNGT t m FuncConstraints
 addWrappersToFC =
