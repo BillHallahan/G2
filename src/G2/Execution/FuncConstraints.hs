@@ -506,10 +506,11 @@ addVarWrappers e
 addVarWrappers v@(Var (Id n _)) = do
     seen <- SM.get
     eenv <- SM.lift $ exprEnv
-    case E.lookup n eenv of
-        Just e | n `notElem` seen -> do
+    case E.lookupConcOrSym n eenv of
+        Just (E.Conc e) | n `notElem` seen -> do
             SM.put $ HS.insert n seen
-            addVarWrappers e
+            e' <- addVarWrappers e
+            SM.lift $ insertE n e'
             return v
         _ -> return v
 addVarWrappers e = do
@@ -526,7 +527,7 @@ addVarWrappers e = do
             -- SM.lift $ insertPCStateNG (ExtCond (mkApp $ [Prim Eq TyUnknown, Var red_br, Lit (LitInt 2)]) True) -- TODO: CUT THIS
 
             let t = typeOf tv_env e
-            i <- SM.lift $ freshIdN t
+            i <- SM.lift $ freshSeededIdN (Name "v_wrap" Nothing 0 Nothing) t
             SM.lift $ insertE (idName i) e
             let cse = Case
                         (Var red_br)
