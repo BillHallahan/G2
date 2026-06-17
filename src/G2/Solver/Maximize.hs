@@ -1,3 +1,5 @@
+{-# LANGUAGE CPP #-}
+
 module G2.Solver.Maximize ( MaximizeSolver
                           , mkMaximizeSolver
                           , getBestFoundResult) where

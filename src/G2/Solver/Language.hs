@@ -1,7 +1,7 @@
 -- | Language
 --   Provides a language definition designed to closely resemble the SMTLIB2 language.
 
-{-# LANGUAGE DeriveGeneric, MultiParamTypeClasses, PatternSynonyms #-}
+{-# LANGUAGE CPP, DeriveGeneric, MultiParamTypeClasses, PatternSynonyms #-}
 
 module G2.Solver.Language
     ( module G2.Solver.Language

@@ -1,4 +1,4 @@
-{-# LANGUAGE BangPatterns, FlexibleContexts, OverloadedStrings #-}
+{-# LANGUAGE CPP, BangPatterns, FlexibleContexts, OverloadedStrings #-}
 
 module G2.SMTSynth.Synthesizer ( SynthConfig (..)
                                , SynthMode (..)

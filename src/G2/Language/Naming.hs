@@ -1,4 +1,4 @@
-{-# LANGUAGE BangPatterns, DeriveDataTypeable #-}
+{-# LANGUAGE BangPatterns, DeriveDataTypeable, CPP #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE OverloadedStrings #-}
@@ -73,6 +73,7 @@ import qualified Data.Map as M
 import qualified Data.Sequence as S
 import qualified Data.Text as T
 import Data.Tuple
+
 #if MIN_VERSION_GLASGOW_HASKELL(9,6,0,0)
 import qualified TextBuilder as TB
 #else
