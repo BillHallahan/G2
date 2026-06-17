@@ -145,3 +145,13 @@ tupleFunc f =
     case f (1, \x -> x) == f (1, \x -> x + 1) of
         True -> 1
         False -> 2
+
+data Funcs2 = I4 (Int -> Int) | B2 (Int -> Bool)
+
+funcs2 :: (Funcs2 -> Int) -> Int
+funcs2 f =
+    case 5 == f (I4 (\x -> x + 1)) of
+        True -> 1
+        False -> case f (B2 (> -101)) == f (B2 (< 101)) of
+                    True -> 2
+                    False -> 3

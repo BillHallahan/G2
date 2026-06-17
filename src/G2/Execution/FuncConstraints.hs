@@ -519,6 +519,7 @@ addVarWrappers e = do
         True -> return e
         False -> do
             tv_env <- SM.lift $ tyVarEnv
+            dc_false <- SM.lift $ mkFalseE
 
             red_br <- SM.lift $ freshSeededIdN (Name whnfBrOccName Nothing 0 Nothing) TyLitInt
             SM.lift $ insertSymbolicE red_br
@@ -533,7 +534,7 @@ addVarWrappers e = do
                         (Var red_br)
                         red_br
                         t
-                        [ Alt (LitAlt $ LitInt 1) (Prim UnspecifiedOutput TyBottom) -- e
+                        [ Alt (LitAlt $ LitInt 1) (Assume Nothing dc_false (Prim UnspecifiedOutput TyBottom)) -- e
                         , Alt (LitAlt $ LitInt 2) (Var i) ] 
             return cse
 
@@ -853,7 +854,7 @@ getOutCases _ e = e
 
 getCasePats :: Expr -> Maybe (Id, [(Lit, Expr)])
 getCasePats (Case (Var i) (Id _ TyLitInt) _ alts)
-    | all (\case (Alt _ (Prim UnspecifiedOutput _)) -> False; _ -> True) alts = Just (i, map (\(Alt (LitAlt l) dc) -> (l, dc)) alts)
+    | all (\case (Alt _ (Assume _ _ (Prim UnspecifiedOutput _))) -> False; _ -> True) alts = Just (i, map (\(Alt (LitAlt l) dc) -> (l, dc)) alts)
 getCasePats _ = Nothing
 
 -- Look for primitives returning boolean values, and move them into the precondition
@@ -1065,7 +1066,7 @@ branchOnWHNF n fcs@(first_fc:_) = do
 
 
     where
-        unspecCase (Case (Var whnf_br) _ _ [Alt (LitAlt _) (Prim UnspecifiedOutput _), (Alt _ e)]) = Just (whnf_br, e)
+        unspecCase (Case (Var whnf_br) _ _ [Alt (LitAlt _) (Assume _ _ (Prim UnspecifiedOutput _)), (Alt _ e)]) = Just (whnf_br, e)
         unspecCase _ = Nothing
 
         elimUnspec whnf_br (Case (Var whnf_br') _ _ [_, Alt _ e]) | idName whnf_br == idName whnf_br' = e

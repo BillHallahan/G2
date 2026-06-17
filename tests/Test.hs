@@ -763,6 +763,7 @@ testFileTests = testGroup "TestFiles"
                                                                        , ("list4", 1000, [Exactly 4])                                                                       
                                                                        , ("funcsEither", 1000, [Exactly 6])                                                                       
                                                                        , ("funcs", 1000, [Exactly 3])                                                                       
+                                                                       , ("funcs2", 1000, [Exactly 3])                                                                       
                                                                        , ("maybeFuncs", 1000, [Exactly 4])                                                                       
                                                                        , ("eitherFuncs", 1000, [Exactly 3])                                                                       
                                                                        , ("tupleFunc", 1000, [Exactly 2])                                                                       
