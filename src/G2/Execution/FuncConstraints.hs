@@ -510,8 +510,8 @@ addVarWrappers v@(Var (Id n _)) = do
         Just (E.Conc e) | n `notElem` seen -> do
             SM.put $ HS.insert n seen
             e' <- addVarWrappers e
-            SM.lift $ insertE n e'
-            return v
+            -- SM.lift $ insertE n e'
+            return e'
         _ -> return v
 addVarWrappers e = do
     eenv <- SM.lift $ exprEnv
