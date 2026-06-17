@@ -127,14 +127,21 @@ data UnifyRes r = Unifiable r -- ^ Constraints are unifiable. I.e. function argu
 
 unifiableFuncConstraints :: HS.HashSet Name -- ^ Names not to inline
                          -> ExprEnv
+                         -> KnownValues
                          -> FuncConstraint
                          -> FuncConstraint
-                         -> UnifyRes (S.Seq (Id, Expr)) -- ^ Unifiable if Ids are made equal to corresponding Exprs
-unifiableFuncConstraints no_inline eenv fc1 fc2 = do
+                         -> UnifyRes (S.Seq (Id, Expr), Expr) -- ^ Unifiable if Ids are made equal to corresponding Exprs, and Expr is asserted
+unifiableFuncConstraints no_inline eenv kv fc1 fc2 = do
     case all (uncurry (eqUpToTypesInline no_inline eenv)) $ zip (fc_args fc1) (fc_args fc2) of
         True ->
             case alignRet eenv (fc_ret fc1) (fc_ret fc2) of
-                Just eq_hs -> Unifiable eq_hs
+                Just eq_hs ->
+                    let
+                        and1 = foldr (\e1 e2 -> mkApp [Prim And TyUnknown, e1, e2]) (mkTrue kv) $ fc_preconds fc1
+                        and2 = foldr (\e1 e2 -> mkApp [Prim And TyUnknown, e1, e2]) (mkTrue kv) $ fc_preconds fc1
+                        precond_eq = mkApp [Prim Eq TyUnknown, and1, and2]
+                    in
+                    Unifiable (eq_hs, precond_eq)
                 Nothing -> Contradiction
         False -> NotUnifiable
 
@@ -167,13 +174,14 @@ unifyFC :: (Solver solver, MonadIO m) =>
         -> FuncConstraint
         -> FuncConstraint
         -> m (UnifyRes (State t)) -- ^ A state with the function constraints unified, or Nothing if the function constraints are contradicton
-unifyFC solver no_inline s@(State { expr_env = eenv, tyvar_env = tv_env }) fc1 fc2 = do
-    case unifiableFuncConstraints no_inline eenv fc1 fc2 of
-        Unifiable eq_hs -> do
-            let s' = foldl' addToState s eq_hs
-            r <- liftIO $ check solver s' (path_conds s')
+unifyFC solver no_inline s@(State { expr_env = eenv, known_values = kv, tyvar_env = tv_env }) fc1 fc2 = do
+    case unifiableFuncConstraints no_inline eenv kv fc1 fc2 of
+        Unifiable (eq_hs, precond_eq) -> do
+            let s' = s { path_conds = PC.insert (ExtCond precond_eq True) $ path_conds s }
+                s'' = foldl' addToState s' eq_hs
+            r <- liftIO $ check solver s'' (path_conds s'')
             case r of
-                    SAT _ -> return $ Unifiable s'
+                    SAT _ -> return $ Unifiable s''
                     Unknown _ _ -> error "unifyFC: unknown"
                     _ -> return Contradiction
         NotUnifiable -> return NotUnifiable
