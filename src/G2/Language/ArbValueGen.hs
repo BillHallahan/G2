@@ -8,12 +8,14 @@ module G2.Language.ArbValueGen ( ArbValueGen
                                , arbValueInfinite
                                , constArbValue ) where
 
+import qualified G2.Data.Utils as GD
+
 import G2.Language.Expr
 import G2.Language.Monad.Naming
 import G2.Language.Support
 import G2.Language.Syntax
 import G2.Language.Typing
-import qualified G2.Language.TyVarEnv as TV 
+import qualified G2.Language.TyVarEnv as TV
 import G2.Language.KnownValues
 
 import Control.Monad as CM
@@ -24,7 +26,6 @@ import Data.List
 import qualified Data.HashMap.Lazy as HM
 import qualified Data.Maybe as MA
 import Data.Ord
-import Data.Traversable
 
 -- | A default `ArbValueGen`.
 arbValueInit :: ArbValueGen
@@ -214,7 +215,7 @@ getADT !cutoff m s@(State { tyvar_env = tvnv, known_values = kv }) av adt ts
 
             m' = foldr (uncurry HM.insert) m $ zip (map idName ids) ts
 
-        ((tvnv'', av'), es) <- mapAccumM
+        ((tvnv'', av'), es) <- GD.mapAccumM
                         (\(tvnv_, av_) t -> 
                             if | 0 <= cutoff -> do
                                     (e', tvnv_', av_') <- arbValueInfinite' (cutoff - 1) m' (s { tyvar_env = tvnv_ }) (applyTypeHashMap m' t) av_

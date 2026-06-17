@@ -53,7 +53,6 @@ import Data.Maybe
 import Data.Monoid (All (..))
 import qualified Data.Sequence as Seq
 import qualified Data.Text as T
-import Data.Traversable
 
 -- | When a newly reached function application is approximated by a previously seen (and thus explored) function application,
 -- shift the new function application into the NRPCs.

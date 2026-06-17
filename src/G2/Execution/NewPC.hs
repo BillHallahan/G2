@@ -5,6 +5,7 @@ module G2.Execution.NewPC ( NewPC (..)
                           , reduceStateDiff
                           , reduceToFirstDiff ) where
 
+import G2.Data.Utils
 import G2.Language
 import qualified G2.Language.ExprEnv as E
 import qualified G2.Language.PathConds as PC
@@ -18,7 +19,6 @@ import G2.Config.Config (DiscardUnknownStates (KeepUnknown))
 
 import Data.List
 import Data.Maybe
-import Data.Traversable
 import qualified Data.Foldable as F
 
 data NewPC t = SingleState (State t)
