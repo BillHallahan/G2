@@ -1,4 +1,4 @@
-
+{-# OPTIONS_GHC -fno-warn-orphans #-}
 {-# LANGUAGE BangPatterns, FlexibleContexts, LambdaCase, OverloadedStrings, RankNTypes, CPP #-}
 
 module G2.Interface.Interface ( MkCurrExpr
