@@ -495,10 +495,15 @@ addWrappersToFC =
 
 -- Replace any non-WHNF expression with a variable that points to that non-WHNF epxression.
 addVarWrappers :: Monad m => Expr -> SM.StateT (HS.HashSet Name) (SM.StateT (State t, NameGen) m) Expr
-addVarWrappers (Case v@(Var (Id n _)) bindee t [alt1@(Alt _ _), Alt lit_alt e2])
+addVarWrappers c@(Case v@(Var (Id n _)) bindee t [alt1@(Alt _ _), Alt lit_alt e2@(Var (Id br_v _))])
     | nameOcc n == whnfBrOccName = do
-        e2' <- addVarWrappers e2
-        return $ Case v bindee t [alt1, Alt lit_alt e2']
+        eenv <- SM.lift exprEnv
+        m_e <- SM.lift $ lookupE br_v
+        case m_e of
+            Just e | isExprValueForm eenv e -> do
+                e2' <- addVarWrappers e2
+                return $ Case v bindee t [alt1, Alt lit_alt e2']
+            _ -> return c
 addVarWrappers e
     | d@(Data _):es <- unApp e = do
         es' <- mapM addVarWrappers es
