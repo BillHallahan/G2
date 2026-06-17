@@ -111,7 +111,7 @@ import qualified Text.Builder as TB
 --
 -- See the PatternRes type.
 
-#if MIN_VERSION_GLASGOW_HASKELL(9,6,0,0)
+#if MIN_VERSION_text_builder(0,6,8)
 type Builder = TB.TextBuilder
 tbToText :: Builder -> T.Text
 tbToText = TB.toText

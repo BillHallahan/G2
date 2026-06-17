@@ -29,7 +29,9 @@ import Data.Foldable
 import Data.Hashable
 import qualified Data.HashMap.Lazy as HM
 import qualified Data.Text as T
+#if MIN_VERSION_GLASGOW_HASKELL(9,8,0,0)
 import qualified Text.Read as TR
+#endif
 
 data QQName = QQName T.Text (Maybe T.Text)
             deriving (Eq, Show, Read, Generic, Data)
