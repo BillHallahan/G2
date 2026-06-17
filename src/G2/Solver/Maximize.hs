@@ -11,7 +11,11 @@ import Control.Concurrent
 import Data.IORef
 import Data.List as L
 import qualified Data.Map as M
+#if MIN_VERSION_GLASGOW_HASKELL(9,6,0,0)
 import TextBuilder
+#else
+import Text.Builder
+#endif
 
 data MaxResult = MaxProven (Result () () ()) -- ^ A result known to be correct- if SAT, maximize the number of satisfied soft assertions
                | MaxFound String (Result SMTModel () ()) -- ^ A "best effort" result- there may be a better answer that satisfies more soft assertions.

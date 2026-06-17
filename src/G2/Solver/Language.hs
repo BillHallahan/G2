@@ -15,8 +15,12 @@ import GHC.Generics (Generic)
 import Data.Hashable
 import qualified Data.HashSet as HS
 import qualified Data.Map as M
-import TextBuilder
 import qualified Data.Text as T
+#if MIN_VERSION_GLASGOW_HASKELL(9,6,0,0)
+import TextBuilder
+#else
+import Text.Builder
+#endif
 
 type SMTNameBldr = TextBuilder
 type SMTName = String

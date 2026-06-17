@@ -34,11 +34,15 @@ import Control.Monad
 import qualified Data.HashSet as HS
 import qualified Data.Map as M
 import qualified Data.Text.IO as T
-import qualified TextBuilder as TB
 import System.IO
 import System.Process
 import Data.Maybe (fromMaybe)
 import G2.Language.Support(State(..))
+#if MIN_VERSION_GLASGOW_HASKELL(9,6,0,0)
+import qualified TextBuilder as TB
+#else
+import qualified Text.Builder as TB
+#endif
 
 data Z3StringSolver = SeqSolver | Z3Str3 deriving Eq
 data Z3 = Z3 Z3StringSolver PrintSMT ArbValueFunc (Handle, Handle, ProcessHandle)

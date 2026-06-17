@@ -45,7 +45,6 @@ import Data.Monoid hiding (Alt)
 import Data.Ratio
 import qualified Data.Text as T
 import GHC.Float
-import qualified TextBuilder as TB
 import Numeric
 
 import qualified System.IO as IO
@@ -57,6 +56,12 @@ import qualified G2.Language.PathConds as PC
 import G2.Solver.Language
 import G2.Solver.Solver
 import qualified G2.Language.TyVarEnv as TV
+
+#if MIN_VERSION_GLASGOW_HASKELL(9,6,0,0)
+import qualified TextBuilder as TB
+#else
+import qualified Text.Builder as TB
+#endif
 
 type PrintSMT = Bool
 

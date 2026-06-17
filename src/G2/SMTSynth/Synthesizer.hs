@@ -50,7 +50,11 @@ import System.FilePath
 import System.IO
 import System.IO.Temp
 import System.Process
+#if MIN_VERSION_GLASGOW_HASKELL(9,6,0,0)
 import qualified TextBuilder as TB
+#else
+import qualified Text.Builder as TB
+#endif
 
 -------------------------------------------------------------------------------
 -- Methodology

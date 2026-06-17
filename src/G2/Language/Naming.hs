@@ -73,7 +73,11 @@ import qualified Data.Map as M
 import qualified Data.Sequence as S
 import qualified Data.Text as T
 import Data.Tuple
+#if MIN_VERSION_GLASGOW_HASKELL(9,6,0,0)
 import qualified TextBuilder as TB
+#else
+import qualified Text.Builder as TB
+#endif
 
 -- | Extract the "occurence" from a `Name`.
 --
