@@ -57,10 +57,12 @@ import G2.Solver.Language
 import G2.Solver.Solver
 import qualified G2.Language.TyVarEnv as TV
 
-#if MIN_VERSION_GLASGOW_HASKELL(9,6,0,0)
+#if MIN_VERSION_text_builder(0,6,8)
 import qualified TextBuilder as TB
+type Builder = TB.TextBuilder
 #else
 import qualified Text.Builder as TB
+type Builder = TB.Builder
 #endif
 
 type PrintSMT = Bool
@@ -820,26 +822,26 @@ adtTypeToSMTSeq tv t | TyCon n _:ts <- unTyApp t = SortSeq . ADTSort (nameToStr 
 adtTypeToSMTSeq tv (TyVar (Id n _)) | Just t <- TV.deepLookupName tv n = adtTypeToSMTSeq tv t
 adtTypeToSMTSeq _ t = error $ "Unsupported type in adtTypeToSMTSeq: " ++ show t
 
-comment :: String -> TB.TextBuilder
+comment :: String -> Builder
 comment s = "; " <> TB.string s
 
-assertSoftSolver :: TB.TextBuilder -> Maybe T.Text -> TB.TextBuilder
+assertSoftSolver :: Builder -> Maybe T.Text -> Builder
 assertSoftSolver ast Nothing = function1 "assert-soft" ast
 assertSoftSolver ast (Just lab) = "(assert-soft " <> ast <> " :id " <> TB.text lab <> ")"
 
-defineFun :: (SMTAST -> TB.TextBuilder) -> String -> [(String, Sort)] -> Sort -> SMTAST -> TB.TextBuilder
+defineFun :: (SMTAST -> Builder) -> String -> [(String, Sort)] -> Sort -> SMTAST -> Builder
 defineFun str_seq fn ars ret body =
     "(define-fun " <> (TB.string fn) <> " ("
         <> TB.intercalate " " (map (\(n, s) -> "(" <> TB.string n <> " " <> sortName s <> ")") ars) <> ")"
         <> " (" <> sortName ret <> ") " <> toSolverAST str_seq body <> ")"
 
-declareFun :: String -> [Sort] -> Sort -> TB.TextBuilder
+declareFun :: String -> [Sort] -> Sort -> Builder
 declareFun fn ars ret =
     "(declare-fun " <> TB.string fn <> " ("
         <> TB.intercalate " " (map sortName ars) <> ")"
         <> " " <> sortName ret <> ")"
 
-declareDataTypes :: [SMTDataType] -> TB.TextBuilder
+declareDataTypes :: [SMTDataType] -> Builder
 declareDataTypes dts =
     let
         to_arg (n, s) = "(" <> TB.string n <> " " <> sortName s <> ")"
@@ -858,7 +860,7 @@ declareDataTypes dts =
     in
     "(declare-datatypes (" <> dt_list <> ") (" <> cons_lists <> ")" <> ")"
 
-toSolverText :: (SMTAST -> TB.TextBuilder) -> [SMTHeader] -> TB.TextBuilder
+toSolverText :: (SMTAST -> Builder) -> [SMTHeader] -> Builder
 toSolverText str_seq = TB.intercalate "\n" . map go
     where
         go (Assert ast) = function1 "assert" $ toSolverAST str_seq ast
@@ -871,9 +873,9 @@ toSolverText str_seq = TB.intercalate "\n" . map go
         go (SetLogic lgc) = toSolverSetLogic lgc
         go (Comment c) = comment c
 
-toSolverAST :: (SMTAST -> TB.TextBuilder) -- ^ Handling of String/Seq primitives
+toSolverAST :: (SMTAST -> Builder) -- ^ Handling of String/Seq primitives
             -> SMTAST
-            -> TB.TextBuilder
+            -> Builder
 toSolverAST str_seq = go
     where
         go (x :>= y) = function2 ">=" (go x) (go y)
@@ -1003,7 +1005,7 @@ toSolverAST str_seq = go
 
         go pr = str_seq pr
 
-toSolverASTString :: SMTAST -> TB.TextBuilder
+toSolverASTString :: SMTAST -> Builder
 toSolverASTString = go
     where
         go (StrAppendSMT xs) = functionList "str.++" (map goBack xs)
@@ -1023,7 +1025,7 @@ toSolverASTString = go
 
         goBack = toSolverAST toSolverASTString
 
-toSolverASTSeq :: SMTAST -> TB.TextBuilder
+toSolverASTSeq :: SMTAST -> Builder
 toSolverASTSeq = go
     where
         go (StrAppendSMT xs) = functionList "seq.++" (map goBack xs)
@@ -1058,7 +1060,7 @@ toSolverASTSeq = go
 
         goBack = toSolverAST toSolverASTSeq
 
-toSolverASTRe :: (SMTAST -> TB.TextBuilder) -> SMTAST -> TB.TextBuilder
+toSolverASTRe :: (SMTAST -> Builder) -> SMTAST -> Builder
 toSolverASTRe goBack = go
     where
         go (InReSMT s r) = function2 "str.in_re" (goBack s) (goBack r) 
@@ -1084,8 +1086,8 @@ toSolverASTRe goBack = go
 --    and is defined as follows:
 --        bv2int(b) := if b(m-1) = 0 then bv2nat(b) else bv2nat(b) - 2^m"
 bvToSignedInt :: Int -- ^ Bitvector width
-              -> TB.TextBuilder -- ^ Bitvector SMT expression
-              -> TB.TextBuilder
+              -> Builder -- ^ Bitvector SMT expression
+              -> Builder
 bvToSignedInt w smt =
     let
         ext = showText (w - 1)
@@ -1094,7 +1096,7 @@ bvToSignedInt w smt =
                     (function1 "bv2nat" smt)
                     (function2 "-" (function1 "bv2nat" smt) (showText (2^w :: Integer)))
 
-convertFloating :: (Num b, Bits.FiniteBits b) => (a -> b) -> Int -> a -> TB.TextBuilder
+convertFloating :: (Num b, Bits.FiniteBits b) => (a -> b) -> Int -> a -> Builder
 convertFloating conv eb_width f =
     let
         w32 = convertBits $ conv f
@@ -1110,31 +1112,31 @@ convertFloating conv eb_width f =
 convertBits :: (Num b, Bits.FiniteBits b) => b -> String
 convertBits b = map (\x -> if x then '1' else '0') . reverse $ map (Bits.testBit b) [0..Bits.finiteBitSize b - 1]
 
-smtFunc :: String -> [TB.TextBuilder] -> TB.TextBuilder
+smtFunc :: String -> [Builder] -> Builder
 smtFunc n [] = TB.string n
 smtFunc n xs = "(" <> TB.string n <> " " <> TB.intercalate " " xs <>  ")"
 
 {-# INLINE showText #-}
-showText :: Show a => a -> TB.TextBuilder
+showText :: Show a => a -> Builder
 showText = TB.string . show
 
-functionList :: TB.TextBuilder -> [TB.TextBuilder] -> TB.TextBuilder
+functionList :: Builder -> [Builder] -> Builder
 functionList f xs = "(" <> f <> " " <> (TB.intercalate " " xs) <> ")" 
 
-function1 :: TB.TextBuilder -> TB.TextBuilder -> TB.TextBuilder
+function1 :: Builder -> Builder -> Builder
 function1 f a = "(" <> f <> " " <> a <> ")"
 
 {-# INLINE function2 #-}
-function2 :: TB.TextBuilder -> TB.TextBuilder -> TB.TextBuilder -> TB.TextBuilder
+function2 :: Builder -> Builder -> Builder -> Builder
 function2 f a b = "(" <> f <> " " <> a <> " " <> b <> ")"
 
-function3 :: TB.TextBuilder -> TB.TextBuilder -> TB.TextBuilder -> TB.TextBuilder -> TB.TextBuilder
+function3 :: Builder -> Builder -> Builder -> Builder -> Builder
 function3 f a b c = "(" <> f <> " " <> a <> " " <> b <> " " <> c <> ")"
 
-toSolverVarDecl :: SMTNameBldr -> Sort -> TB.TextBuilder
+toSolverVarDecl :: SMTNameBldr -> Sort -> Builder
 toSolverVarDecl n s = "(declare-const " <> n <> " " <> sortName s <> ")"
 
-sortName :: Sort -> TB.TextBuilder
+sortName :: Sort -> Builder
 sortName SortInt = "Int"
 sortName SortWord = "Int"
 sortName SortFloat = "Float32"
@@ -1152,11 +1154,11 @@ sortName (ADTSort n xs) = "(" <> TB.string n <> " " <> TB.intercalate " " (map s
 sortName (ParSort n) = TB.string n
 sortName _ = error "sortName: unsupported Sort"
 
-sortNameLam :: Sort -> TB.TextBuilder
+sortNameLam :: Sort -> Builder
 sortNameLam SortChar = "Unicode"
 sortNameLam s = sortName s
 
-toSolverSetLogic :: Logic -> TB.TextBuilder
+toSolverSetLogic :: Logic -> Builder
 toSolverSetLogic lgc =
     let
         s = case lgc of

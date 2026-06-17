@@ -313,6 +313,7 @@ type RHOStack m t = SM.StateT (ApproxPrevs t)
                                 (SM.StateT HpcTracker
                                     (SM.StateT HPCMemoTable m))))
 
+-- Todo: implement this in a way that doesn't trigger the orphan rule
 {-# SPECIALIZE runReducer :: Ord b =>
                              Reducer (RHOStack IO ()) rv ()
                           -> Halter (RHOStack IO ()) hv (ExecRes ()) ()

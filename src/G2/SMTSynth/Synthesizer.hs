@@ -3,7 +3,7 @@
 module G2.SMTSynth.Synthesizer ( SynthConfig (..)
                                , SynthMode (..)
                                , Checking (..)
-                               
+
                                , getSeqGenConfig
                                , genSMTFunc
                                , adjustContConfig
@@ -12,7 +12,7 @@ module G2.SMTSynth.Synthesizer ( SynthConfig (..)
                                , setSynthMode
                                , synthModeMapping
                                , runFunc
-                               
+
                                , smtName
                                , smtNameWrap) where
 
@@ -50,7 +50,7 @@ import System.FilePath
 import System.IO
 import System.IO.Temp
 import System.Process
-#if MIN_VERSION_GLASGOW_HASKELL(9,6,0,0)
+#if MIN_VERSION_text_builder(0,6,8)
 import qualified TextBuilder as TB
 #else
 import qualified Text.Builder as TB
@@ -110,6 +110,16 @@ import qualified Text.Builder as TB
 -- And then synthesize both a `p` and a `f_smt` function.
 --
 -- See the PatternRes type.
+
+#if MIN_VERSION_GLASGOW_HASKELL(9,6,0,0)
+type Builder = TB.TextBuilder
+tbToText :: Builder -> T.Text
+tbToText = TB.toText
+#else
+type Builder = TB.Builder
+tbToText :: Builder -> T.Text
+tbToText = TB.run
+#endif
 
 -- | Synthesizer specific configurations
 data SynthConfig = SynthConfig { run_file :: String
@@ -828,7 +838,7 @@ exprToTerm :: KnownValues -> Expr -> Term
 exprToTerm _ (Lit (LitInt x)) = TermLit (LitNum x)
 exprToTerm _ (Lit (LitChar x)) = toStringTerm [x]
 exprToTerm _ (App _ (Lit (LitInt x))) = TermLit (LitNum x)
-exprToTerm _ (App _ (Lit (LitFloat x))) = TermIdent . ISymb . T.unpack . TB.toText $ convertFloating castFloatToWord32 8 x
+exprToTerm _ (App _ (Lit (LitFloat x))) = TermIdent . ISymb . T.unpack . tbToText $ convertFloating castFloatToWord32 8 x
 exprToTerm _ (App _ (Lit (LitChar x))) = toStringTerm [x]
 exprToTerm kv dc | dc == mkTrue kv = TermLit (LitBool True)
                  | dc == mkFalse kv = TermLit (LitBool False)

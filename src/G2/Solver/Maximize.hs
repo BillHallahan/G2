@@ -13,7 +13,7 @@ import Control.Concurrent
 import Data.IORef
 import Data.List as L
 import qualified Data.Map as M
-#if MIN_VERSION_GLASGOW_HASKELL(9,6,0,0)
+#if MIN_VERSION_text_builder(0,6,8)
 import TextBuilder
 #else
 import Text.Builder

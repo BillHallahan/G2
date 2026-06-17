@@ -34,14 +34,24 @@ import Control.Monad
 import qualified Data.HashSet as HS
 import qualified Data.Map as M
 import qualified Data.Text.IO as T
+import qualified Data.Text as DT
 import System.IO
 import System.Process
 import Data.Maybe (fromMaybe)
 import G2.Language.Support(State(..))
-#if MIN_VERSION_GLASGOW_HASKELL(9,6,0,0)
+
+#if MIN_VERSION_text_builder(0,6,8)
 import qualified TextBuilder as TB
+
+type Builder = TB.TextBuilder
+tbToText :: Builder -> DT.Text
+tbToText = TB.toText
 #else
 import qualified Text.Builder as TB
+
+type Builder = TB.Builder
+tbToText :: Builder -> DT.Text
+tbToText = TB.run
 #endif
 
 data Z3StringSolver = SeqSolver | Z3Str3 deriving Eq
@@ -134,8 +144,8 @@ instance SMTConverter Z3 where
     checkSatGetModel con@(Z3 _ print_smt_ _ _) formula vs = do
         let (h_in, h_out, _) = getIO con
         reset con
-        when print_smt_ $ T.putStrLn (TB.toText $ toSolverText toSolverASTSeq formula)
-        T.hPutStr h_in (TB.toText $ toSolverText toSolverASTSeq formula)
+        when print_smt_ $ T.putStrLn (tbToText $ toSolverText toSolverASTSeq formula)
+        T.hPutStr h_in (tbToText $ toSolverText toSolverASTSeq formula)
 
         r <- checkSat' print_smt_ h_in h_out
         when print_smt_ (putStrLn $ show r)
@@ -151,7 +161,7 @@ instance SMTConverter Z3 where
 
     checkSatGetModelOrUnsatCoreNoReset con@(Z3 _ print_smt_ _ _) formula vs = do
         let (h_in, h_out, _) = getIO con
-        let formula' = TB.toText $ toSolverText toSolverASTSeq formula
+        let formula' = tbToText $ toSolverText toSolverASTSeq formula
         T.putStrLn "\n\n checkSatGetModelOrUnsatCore"
         T.putStrLn formula'
 
@@ -226,8 +236,8 @@ instance SMTConverter CVC5 where
     checkSatGetModel con@(CVC5 print_smt_ _ _) formula vs = do
         let (h_in, h_out, _) = getIO con
         reset con
-        when print_smt_ $ T.putStrLn (TB.toText $ toSolverText toSolverASTSeq formula)
-        T.hPutStr h_in (TB.toText $ toSolverText toSolverASTSeq formula)
+        when print_smt_ $ T.putStrLn (tbToText $ toSolverText toSolverASTSeq formula)
+        T.hPutStr h_in (tbToText $ toSolverText toSolverASTSeq formula)
         r <- checkSat' print_smt_ h_in h_out
         when print_smt_ (putStrLn $ show r)
         case r of
@@ -244,7 +254,7 @@ instance SMTConverter CVC5 where
 
     checkSatGetModelOrUnsatCoreNoReset con@(CVC5 print_smt_ _ _) formula vs = do
         let (h_in, h_out, _) = getIO con
-        let formula' = TB.toText $ toSolverText toSolverASTSeq formula
+        let formula' = tbToText $ toSolverText toSolverASTSeq formula
         T.putStrLn "\n\n checkSatGetModelOrUnsatCore"
         T.putStrLn formula'
 
@@ -318,10 +328,10 @@ instance SMTConverter Ostrich where
     checkSatGetModel con@(Ostrich print_smt_ _ _) formula vs = do
         let (h_in, h_out, _) = getIO con
         reset con
-        T.hPutStr h_in (TB.toText $ toSolverText toSolverASTString formula)
+        T.hPutStr h_in (tbToText $ toSolverText toSolverASTString formula)
 
         when print_smt_ $ do
-            T.putStrLn (TB.toText $ toSolverText toSolverASTString formula)
+            T.putStrLn (tbToText $ toSolverText toSolverASTString formula)
 
         r <- checkSat' print_smt_ h_in h_out
         when print_smt_ (putStrLn $ show r)
@@ -344,8 +354,8 @@ stdAddFormula :: SMTConverter con => (SMTAST -> TB.TextBuilder) -> con -> [SMTHe
 stdAddFormula str_seq con form = do
     let (h_in, _, _) = getIO con
         pr_smt = getPrintSMT con
-    when pr_smt $ T.putStrLn (TB.toText $ toSolverText str_seq form)
-    T.hPutStrLn h_in (TB.toText $ toSolverText str_seq form)
+    when pr_smt $ T.putStrLn (tbToText $ toSolverText str_seq form)
+    T.hPutStrLn h_in (tbToText $ toSolverText str_seq form)
 
 
 stdCheckSatNoReset :: SMTConverter con => (SMTAST -> TB.TextBuilder) -> con -> [SMTHeader] -> IO (Result () () ())
@@ -353,9 +363,9 @@ stdCheckSatNoReset str_seq con formula = do
         let (h_in, h_out, _) = getIO con
             pr_smt = getPrintSMT con
 
-        when pr_smt $ T.putStrLn (TB.toText $ toSolverText str_seq formula)
+        when pr_smt $ T.putStrLn (tbToText $ toSolverText str_seq formula)
 
-        T.hPutStrLn h_in (TB.toText $ toSolverText str_seq formula)
+        T.hPutStrLn h_in (tbToText $ toSolverText str_seq formula)
         r <- checkSat' pr_smt h_in h_out
 
         when pr_smt (putStrLn $ show r)
