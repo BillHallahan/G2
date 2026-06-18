@@ -617,17 +617,22 @@ madeProgress = SM.lift $ SM.modify (\(_, pg, log) -> (MadeProgressFC, pg, log))
 
 solveFuncConstraints :: (ASTContainer t Expr, Solver solver, MonadIO m) => solver -> State t -> NameGen -> m (Maybe (State t, NameGen))
 solveFuncConstraints solver s@(State { sym_func_constraints = fcs }) ng = do
-    liftIO $ do
-        putStrLn "------------------------"
-        putStrLn "About to call solve FC"
-        putStrLn "------------------------"
     let no_tick_s = s { expr_env = stripAllTicks $ expr_env s }
         no_tick_fc = stripAllTicks fcs
-    (r, (s', !ng')) <- SM.evalStateT (runStateNGT (solveFC solver (-1) no_tick_fc) no_tick_s ng) (NoProgressFC, mkPrettyGuide no_tick_fc, FCLogging)
+    (r, (s', !ng')) <- SM.evalStateT (runStateNGT (startSolveFC solver (-1) no_tick_fc) no_tick_s ng) (NoProgressFC, mkPrettyGuide no_tick_fc, NoFCLogging)
     return $ case r of
                     SatFC fcs' -> Just (s' { solving_sym_func_constraints = SolvedFCs
                                            , sym_func_constraints = fcs' }, ng')
                     _ -> Nothing
+
+startSolveFC :: (Solver solver, MonadIO m) => solver -> Int -> FuncConstraints -> FCState t m FCRes
+startSolveFC solver n fcs = do
+    fc_log <- getLogging
+    when (fc_log == FCLogging) $ liftIO $ do
+        putStrLn "------------------------"
+        putStrLn "About to call solve FC"
+        putStrLn "------------------------"
+    solveFC solver n fcs
 
 
 -- TODO: Do we actually need the counter here?
@@ -635,7 +640,6 @@ solveFC :: (Solver solver, MonadIO m) => solver -> Int -> FuncConstraints -> FCS
 solveFC _ 0 _ = return UnsatFC
 solveFC solver !n fcs = do
     -- Convert functions with only a single constraint into constants
-    -- fcs_nosingle <- return . HM.mapMaybe id =<< HM.traverseWithKey solveSingleton fcs
     let pg_up = mkPrettyGuide (HM.toList fcs)
     -- eenv_init <- exprEnv
     -- liftIO $ putStrLn $ "fcs =\n" ++ T.unpack (prettyFuncConstraints pg_up $ inlineVars eenv_init fcs)  
@@ -647,7 +651,9 @@ solveFC solver !n fcs = do
         False -> do
             resetProgress
 
-            fcs_simp_pieces <- concatMapM (uncurry simplifyReturns) $ HM.toList fcs
+            fcs_nosingle <- return . HM.mapMaybe id =<< HM.traverseWithKey solveSingleton fcs
+
+            fcs_simp_pieces <- concatMapM (uncurry simplifyReturns) $ HM.toList fcs_nosingle
             let fc_simp_reassembled = HM.fromListWith (++) fcs_simp_pieces
 
             let pg_rets = updatePrettyGuide (HM.toList fc_simp_reassembled) pg_up
@@ -700,14 +706,19 @@ solveFC solver !n fcs = do
 
 -- | If we only have a single function constraint for a given function, we instantiate
 -- to a constant function returning the appropriate value.
-solveSingleton :: Monad m => Name -> [FuncConstraint] -> FCState t m (Maybe [FuncConstraint])
+solveSingleton :: MonadIO m => Name -> [FuncConstraint] -> FCState t m (Maybe [FuncConstraint])
 solveSingleton _ [] = return Nothing
-solveSingleton n [FC { fc_args = as, fc_ret = r }] = do
+solveSingleton n [fc@(FC { fc_args = as, fc_ret = r })] = do
     tv_env <- tyVarEnv
 
     lam_is <- freshIdsN (map (typeOf tv_env) as)
     let body = mkLams (zip (repeat TermL) lam_is) $ r
     insertE n body
+    whenLogging "SimplifyReturns" $ do
+        pg <- getPrettyGuide
+        liftIO $ do
+            T.putStrLn . addHalfTab $ "REMOVE SINGLETON FC:"
+            T.putStrLn . addTab $ prettyFuncConstraints pg $ HM.singleton n [fc]
     return Nothing
 solveSingleton _ xs = return $ Just xs
 
