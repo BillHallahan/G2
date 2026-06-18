@@ -8,9 +8,7 @@ module G2.Execution.FuncConstraints ( addFuncConstraintReducer
                                     , limitSolvingFuncConstraintPieces ) where
 
 import G2.Config
-import G2.Data.Utils
 import G2.Execution.NormalForms
-import G2.Execution.PrimitiveEval
 import G2.Execution.Reducer
 import G2.Language as L
 import qualified G2.Language.ExprEnv as E
@@ -20,7 +18,6 @@ import qualified G2.Language.Stack as Stck
 import G2.Lib.Printers
 import G2.Solver
 
-import Control.Exception
 import Control.Monad
 import Control.Monad.Extra
 import Control.Monad.IO.Class
@@ -39,10 +36,9 @@ import qualified Data.Text.IO as T
 -- | A reducer to add higher order functions to the symbolic function constraints for solving later  
 addFuncConstraintReducer :: MonadIO m =>
                             Config
-                         -> HS.HashSet Name -- ^ Names of variables to not inline when checking syntactic equivalence
                          -> Reducer m Int t
-addFuncConstraintReducer config no_inline =
-    (mkSimpleReducer (\_ -> 0) (redFuncConstraint no_inline))
+addFuncConstraintReducer config =
+    (mkSimpleReducer (\_ -> 0) redFuncConstraint)
         { onAccept = \s b fc_count -> do
             if print_num_nrpc config
                 then liftIO . putStrLn $ "Func Constraints Generated: " ++ show fc_count
@@ -50,22 +46,19 @@ addFuncConstraintReducer config no_inline =
             return (s, b) }
 
 redFuncConstraint :: Monad m =>
-                     HS.HashSet Name -- ^ Names of variables to not inline when checking syntactic equivalence
-                  -> RedRules
+                     RedRules
                      m
                      Int
                      t
-redFuncConstraint no_inline fc_count s b =
-    case addFuncConstraints no_inline s (name_gen b) of
+redFuncConstraint  fc_count s b =
+    case addFuncConstraints s (name_gen b) of
         Just (s', ng') -> return (Finished, [(s', fc_count + 1)], b { name_gen = ng' })
         Nothing -> return (Finished, [(s, fc_count)], b)
 
-addFuncConstraints :: HS.HashSet Name -- ^ Names of variables to not inline when checking syntactic equivalence
-                   -> State t
+addFuncConstraints :: State t
                    -> NameGen
                    -> Maybe (State t, NameGen)
-addFuncConstraints no_inline
-                   s@(State { expr_env = eenv
+addFuncConstraints s@(State { expr_env = eenv
                             , tyvar_env = tv_env
                             , curr_expr = CurrExpr _ ce
                             , solving_sym_func_constraints = solving_sfc
@@ -112,11 +105,6 @@ allApplyFrames stck = go [] stck stck
 
 addFC :: Name -> FuncConstraint -> FuncConstraints -> FuncConstraints
 addFC n fc = HM.insertWith (++) n [fc]
-
-addFCArgs :: [Expr] -> FuncConstraint -> FuncConstraint
-addFCArgs new_args fc = fc { fc_args = fc_args fc ++ new_args
-                           , fc_split_on = fc_split_on fc ++ map (const NoSplit) new_args}
-
 
 ------------------------------------------------------------------------------
 -- Unifying equal function constraints
@@ -294,7 +282,6 @@ and the constraint can only be used during solving if that precondition is satis
 This way, the precondition allows choosing between making use of the argument and having the extra constraint,
 or not using the argument and also discarding the constraint.
 -}
-
 
 solveFuncConstraintsReducer :: (ASTContainer t Expr, Solver solver, MonadIO m) => FCLogging -> solver -> HS.HashSet Name -> Reducer m () t
 solveFuncConstraintsReducer fc_logging solver no_inline = mkSimpleReducer (\_ -> ()) go
@@ -643,8 +630,6 @@ solveFC _ 0 _ = return UnsatFC
 solveFC solver !n fcs = do
     -- Convert functions with only a single constraint into constants
     let pg_up = mkPrettyGuide (HM.toList fcs)
-    -- eenv_init <- exprEnv
-    -- liftIO $ putStrLn $ "fcs =\n" ++ T.unpack (prettyFuncConstraints pg_up $ inlineVars eenv_init fcs)  
 
     lit_val_sol <- solveLitVals solver fcs
 
@@ -659,7 +644,6 @@ solveFC solver !n fcs = do
             let fc_simp_reassembled = HM.fromListWith (++) fcs_simp_pieces
 
             let pg_rets = updatePrettyGuide (HM.toList fc_simp_reassembled) pg_up
-            -- liftIO $ putStrLn $ "fc_simp_returns =\n" ++ T.unpack (prettyFuncConstraints pg_rets fc_simp_reassembled)  
 
             -- Replace ADT symbolic variables with case expressions
             mapM_ replaceADTSymVars fc_simp_reassembled
@@ -667,8 +651,6 @@ solveFC solver !n fcs = do
             fcs_precond_arg <- HM.traverseWithKey caseToPreCondArg fc_simp_reassembled
             fcs_precond <- HM.traverseWithKey caseToPreCondRet fcs_precond_arg
             let pg_precond = updatePrettyGuide (HM.toList fcs_precond) pg_rets
-            -- eenv <- exprEnv
-            -- liftIO $ putStrLn $ "fcs_precond =\n" ++ T.unpack (prettyFuncConstraints pg_precond $ inlineVars eenv fcs_precond)  
 
             fcs_bool_precond <- HM.traverseWithKey boolToPreCond fcs_precond
 
@@ -676,28 +658,14 @@ solveFC solver !n fcs = do
             fcs_unfold_adt_pieces <- concatMapM (uncurry unfoldADTArgs) $ HM.toList fcs_bool_precond
             let fc_unfold_adt_reassembled = HM.fromListWith (++) fcs_unfold_adt_pieces
 
-            -- liftIO $ putStrLn "after unfoldADTArgs"
-            let pg_assem = updatePrettyGuide (HM.toList fc_unfold_adt_reassembled) pg_precond
-            -- eenv_asem <- exprEnv
-            -- liftIO $ putStrLn $ "fc_unfold_adt =\n" ++ T.unpack (prettyFuncConstraints pg_assem $ {- inlineVars eenv_asem -} fc_unfold_adt_reassembled)
 
             -- Branch on whether possibly WHNF arguments are reduced or not
             fcs_branch_whnf_pieces <- concatMapM (uncurry branchOnWHNF) $ HM.toList fc_unfold_adt_reassembled
             let fcs_branch_whnf_reassembled = HM.fromListWith (++) fcs_branch_whnf_pieces
 
-            -- liftIO $ putStrLn "after branchOnWHNF"
-            let pg_branch_whnf = updatePrettyGuide (HM.toList fcs_branch_whnf_reassembled) pg_assem
-            -- eenv_branch_whnf <- exprEnv
-            -- liftIO $ putStrLn $ "fcs_branch_whnf =\n" ++ T.unpack (prettyFuncConstraints pg_branch_whnf $ {- inlineVars eenv_asem -} fcs_branch_whnf_reassembled)
-
             -- Branch on literals, with the aim of splitting up ADTs that are in WHNF from those that are not
             split_whnf_pieces <- concatMapM (uncurry splitWHNFAndNonWHNF) $ HM.toList fcs_branch_whnf_reassembled
             let fc_unfold_split_whnf_reassembled = HM.fromListWith (++) split_whnf_pieces
-
-            -- liftIO $ putStrLn "after splitWHNFAndNonWHNF"
-            let pg_whnf_assem = updatePrettyGuide (HM.toList fc_unfold_split_whnf_reassembled) pg_assem
-            -- eenv_whnf_assem <- exprEnv
-            -- liftIO $ putStrLn $ "fc_unfold_split_whnf_reassembled =\n" ++ T.unpack (prettyFuncConstraints pg_whnf_assem $ inlineVars eenv_whnf_assem fc_unfold_split_whnf_reassembled)
 
             prog <- getProgress
             -- liftIO . putStrLn $ "end prog = " ++ show prog
@@ -1060,10 +1028,9 @@ unfoldADTArgs n fcs@(first_fc:_) = do
         Nothing -> return [(n, fcs)]
 
 branchOnWHNF :: MonadIO m => Name -> [FuncConstraint] -> FCState t m [(Name, [FuncConstraint])]
-branchOnWHNF n [] = return []
+branchOnWHNF _ [] = return []
 branchOnWHNF n fcs@(first_fc:_) = do
     eenv <- exprEnv
-    tenv <- typeEnv
     tv_env <- tyVarEnv
 
     let ret_ty = typeOf tv_env $ fc_ret first_fc
@@ -1072,17 +1039,13 @@ branchOnWHNF n fcs@(first_fc:_) = do
     let matching_args = transpose $ map fc_args fcs
         unspec_case = findIndex (any (isJust . unspecCase . inlineVars eenv)) matching_args
     case unspec_case of
-        Just i -> do
-            let rel_args@(e:_) = matching_args !! i
-                t = typeOf tv_env e
-
-                (whnf_br, whnf_red):_ = mapMaybe (unspecCase . inlineVars eenv) $ rel_args
+        Just i
+            | rel_args <- matching_args !! i
+            , whnf_br:_ <- mapMaybe (unspecCase . inlineVars eenv) $ rel_args -> do
             
             -- Adjust function
             lam_is <- freshIdsN (map (typeOf tv_env) $ fc_args first_fc)
-            let branch_on = lam_is !! i
-                all_other_is = deleteAt i lam_is
-                all_other_vars = map Var all_other_is
+            let all_other_is = deleteAt i lam_is
             
             f1 <- freshSeededIdN (Name "elim_unspec" Nothing 0 Nothing) . mkTyFun $ map idType all_other_is ++ [ret_ty]
             f2 <- freshSeededIdN (Name "cont_unspec" Nothing 0 Nothing) . mkTyFun $ map idType lam_is ++ [ret_ty]
@@ -1116,11 +1079,12 @@ branchOnWHNF n fcs@(first_fc:_) = do
                 logFCListToNameFCList n fcs [(idName f1, fcs_elim), (idName f2, fcs_cont)]
             madeProgress
             return $ [(idName f1, fcs_elim), (idName f2, fcs_cont)]
+            | otherwise -> error "branchOnWHNF: Unexpected index or arguments"
         Nothing -> return [(n, fcs)]
 
 
     where
-        unspecCase (Case (Var whnf_br) _ _ [Alt (LitAlt _) (Assume _ _ (Prim UnspecifiedOutput _)), (Alt _ e)]) = Just (whnf_br, e)
+        unspecCase (Case (Var whnf_br) _ _ [Alt (LitAlt _) (Assume _ _ (Prim UnspecifiedOutput _)), (Alt _ e)]) = Just whnf_br
         unspecCase _ = Nothing
 
         elimUnspec whnf_br eenv e | (Case (Var whnf_br') _ _ [_, Alt _ ae]) <- inlineVars eenv e
@@ -1163,7 +1127,7 @@ incompatPreCond _ _ _ = False
 -- to be unfolded by `unfoldADTArgs`. We allow, though, p to be instantiated to go to f2
 -- in any case- this might be needed if, for instance, path constraints force `z = 2#` in the above. 
 splitWHNFAndNonWHNF :: MonadIO m => Name -> [FuncConstraint] -> FCState t m [(Name, [FuncConstraint])]
-splitWHNFAndNonWHNF n [] = return []
+splitWHNFAndNonWHNF _ [] = return []
 splitWHNFAndNonWHNF n fcs@(first_fc:_) = do
     eenv <- exprEnv
     tv_env <- tyVarEnv
@@ -1193,7 +1157,6 @@ splitWHNFAndNonWHNFIndex _ n [] = return []
 splitWHNFAndNonWHNFIndex i n fcs@(first_fc:_) | fc_split_on first_fc !! i == Split  = return [(n, fcs)]
 splitWHNFAndNonWHNFIndex i n fcs@(first_fc:_) = do
     eenv <- exprEnv
-    tenv <- typeEnv
     tv_env <- tyVarEnv
     
     let arg_tys = map (typeOf tv_env) $ fc_args first_fc
@@ -1206,12 +1169,12 @@ splitWHNFAndNonWHNFIndex i n fcs@(first_fc:_) = do
     dc_true <- mkDCTrueM
     dc_false <- mkDCFalseM
 
-    pred <- freshSeededIdN (Name "pred" Nothing 0 Nothing) . mkTyFun $ map idType prim_ty_is ++ [ty_bool]
+    f_pred <- freshSeededIdN (Name "pred" Nothing 0 Nothing) . mkTyFun $ map idType prim_ty_is ++ [ty_bool]
     f_true <- freshSeededIdN (Name "f_true" Nothing 0 Nothing) . mkTyFun $ arg_tys ++ [ret_ty]
     f_false <- freshSeededIdN (Name "f_false" Nothing 0 Nothing) . mkTyFun $ arg_tys ++ [ret_ty]
 
     bindee <- freshIdN ty_bool
-    let pred_app = mkApp $ Var pred:map Var prim_ty_is
+    let pred_app = mkApp $ Var f_pred:map Var prim_ty_is
         f_true_app = mkApp $ Var f_true:map Var lam_is
         f_false_app = mkApp $ Var f_false:map Var lam_is
         cse = Case pred_app bindee ret_ty
@@ -1226,7 +1189,7 @@ splitWHNFAndNonWHNFIndex i n fcs@(first_fc:_) = do
                         (\fc -> if | not . isADT . inlineVars eenv $ fc_args fc !! i -> do
                                         -- Add a path constraint that the predicate does not hold
                                         let pred_args = filter (isPrimType . typeOf tv_env) $ fc_args fc
-                                            pred_app = mkApp $ Var pred:pred_args
+                                            pred_app = mkApp $ Var f_pred:pred_args
                                         insertPCStateNG $ ExtCond pred_app False
                                         let fc_non_whnf = fc { fc_preconds = App (Prim Not TyUnknown) (pred_app):fc_preconds fc
                                                              , fc_split_on = replaceAt i Split $ fc_split_on fc}
@@ -1240,7 +1203,7 @@ splitWHNFAndNonWHNFIndex i n fcs@(first_fc:_) = do
     whnf_cons <- concatMapM (\fc -> if | isADT . inlineVars eenv $ fc_args fc !! i -> do
                                         -- Add a path constraint that the predicate does not hold
                                         let pred_args = filter (isPrimType . typeOf tv_env) $ fc_args fc
-                                            pred_app = mkApp $ Var pred:pred_args
+                                            pred_app = mkApp $ Var f_pred:pred_args
                                             fc_true = FC { fc_preconds = pred_app:fc_preconds fc
                                                             , fc_args = fc_args fc
                                                             , fc_split_on = replaceAt i Split $ fc_split_on fc
@@ -1411,13 +1374,12 @@ splitReturns' n fcs@(first_fc:_) = do
     tenv <- typeEnv
     tv_env <- tyVarEnv
 
-    if | let ret_ty = unTyApp . tyVarSubst tv_env . typeOf tv_env $ fc_ret first_fc
-       , TyCon tn _:tycon_ts <- ret_ty
+    if | let ret_ty_unapp = unTyApp . tyVarSubst tv_env . typeOf tv_env $ fc_ret first_fc
+       , TyCon tn _:tycon_ts <- ret_ty_unapp
        , Just (DataTyCon { data_cons = dcs}) <- HM.lookup tn tenv
        , all (isADT . inlineVars eenv . fc_ret) fcs -> do
 
-            let arg_tys = map (typeOf tv_env) $ fc_args first_fc
-                ret_ty = typeOf tv_env $ fc_ret first_fc
+            let ret_ty = typeOf tv_env $ fc_ret first_fc
 
             lam_is <- freshIdsN (map (typeOf tv_env) $ fc_args first_fc)
             let prim_ty_is = filter (isPrimType . idType) lam_is
@@ -1456,6 +1418,7 @@ splitReturns' n fcs@(first_fc:_) = do
                                         Data dc:_ ->
                                             fc { fc_args = filter (isPrimType . typeOf tv_env) $ fc_args fc
                                                , fc_ret = Lit $ LitInt (toInteger . fromJust $ elemIndex (dc_name dc) $ map dc_name dcs) }
+                                        _ -> error "splitReturns': impossible - data constructor expected"
                               ) fcs
                 fcs_branches = concatMap (\fc ->
                                     case unApp . inlineVars eenv $ fc_ret fc of
@@ -1495,7 +1458,7 @@ replaceAt idx x xs = lft ++ [x] ++ rgt
 ------------------------------------------------------------------------------
 
 updateFCPrettyGuide :: (Monad m, Named a) => a -> FCState t m ()
-updateFCPrettyGuide v = SM.lift $ SM.modify (\(prog, pg, log) -> (prog, updatePrettyGuide v pg, log))
+updateFCPrettyGuide v = SM.lift $ SM.modify (\(prog, pg, fc_log) -> (prog, updatePrettyGuide v pg, fc_log))
 
 getPrettyGuide :: Monad m => FCState t m PrettyGuide
 getPrettyGuide = SM.lift (SM.get >>= return . snd3)
@@ -1510,17 +1473,12 @@ getLogging = SM.lift (SM.get >>= return . thd3)
 
 whenLogging :: MonadIO m => String -> FCState t m () -> FCState t m ()
 whenLogging step f = do
-    log <- getLogging
-    pg <- getPrettyGuide
-    case log of
+    fc_log <- getLogging
+    case fc_log of
         FCLogging -> do
             liftIO . putStrLn $ "STEP: " ++ step
             f
         NoFCLogging -> return ()
-
-noLogInfo :: MonadIO m => FCState t m ()
-noLogInfo = liftIO $ do
-    putStrLn "\t..."
 
 logEEnvInsert :: MonadIO m => Name -> Expr -> FCState t m ()
 logEEnvInsert n e = do
