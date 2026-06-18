@@ -296,15 +296,15 @@ or not using the argument and also discarding the constraint.
 -}
 
 
-solveFuncConstraintsReducer :: (ASTContainer t Expr, Solver solver, MonadIO m) => solver -> HS.HashSet Name -> Reducer m () t
-solveFuncConstraintsReducer solver no_inline = mkSimpleReducer (\_ -> ()) go
+solveFuncConstraintsReducer :: (ASTContainer t Expr, Solver solver, MonadIO m) => FCLogging -> solver -> HS.HashSet Name -> Reducer m () t
+solveFuncConstraintsReducer fc_logging solver no_inline = mkSimpleReducer (\_ -> ()) go
     where
         go _ s b
             | true_assert s = do
                 m_unif_s <- unifyFuncConstraints solver no_inline s
                 case m_unif_s of
                     Just unif_s -> do
-                        r <- solveFuncConstraints solver unif_s (name_gen b)
+                        r <- solveFuncConstraints fc_logging solver unif_s (name_gen b)
                         -- liftIO . putStrLn $ case r of Just _ -> "Just"; Nothing -> "Nothing"
                         case r of
                             Just (s', ng') -> return (Finished, [(s', ())], b { name_gen = ng' })
@@ -602,8 +602,6 @@ data FCRes = SatFC FuncConstraints | UnsatFC deriving Eq
 
 data FCProgress = MadeProgressFC | NoProgressFC deriving (Eq, Show)
 
-data FCLogging = FCLogging | NoFCLogging deriving (Eq, Show)
-
 type FCState t m a = SM.StateT (State t, NameGen) (SM.StateT (FCProgress, PrettyGuide, FCLogging) m) a
 
 getProgress :: Monad m => FCState t m FCProgress
@@ -615,11 +613,11 @@ resetProgress = SM.lift $ SM.modify (\(_, pg, log) -> (NoProgressFC, pg, log))
 madeProgress :: Monad m => FCState t m ()
 madeProgress = SM.lift $ SM.modify (\(_, pg, log) -> (MadeProgressFC, pg, log))
 
-solveFuncConstraints :: (ASTContainer t Expr, Solver solver, MonadIO m) => solver -> State t -> NameGen -> m (Maybe (State t, NameGen))
-solveFuncConstraints solver s@(State { sym_func_constraints = fcs }) ng = do
+solveFuncConstraints :: (ASTContainer t Expr, Solver solver, MonadIO m) => FCLogging -> solver -> State t -> NameGen -> m (Maybe (State t, NameGen))
+solveFuncConstraints fc_logging solver s@(State { sym_func_constraints = fcs }) ng = do
     let no_tick_s = s { expr_env = stripAllTicks $ expr_env s }
         no_tick_fc = stripAllTicks fcs
-    (r, (s', !ng')) <- SM.evalStateT (runStateNGT (startSolveFC solver (-1) no_tick_fc) no_tick_s ng) (NoProgressFC, mkPrettyGuide no_tick_fc, NoFCLogging)
+    (r, (s', !ng')) <- SM.evalStateT (runStateNGT (startSolveFC solver (-1) no_tick_fc) no_tick_s ng) (NoProgressFC, mkPrettyGuide no_tick_fc, fc_logging)
     return $ case r of
                     SatFC fcs' -> Just (s' { solving_sym_func_constraints = SolvedFCs
                                            , sym_func_constraints = fcs' }, ng')

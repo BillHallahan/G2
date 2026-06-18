@@ -1,6 +1,7 @@
 module G2.Config.Config ( Mode (..)
                         , LogMode (..)
                         , LogMethod (..)
+                        , FCLogging (..)
                         , Sharing (..)
                         , DiscardUnknownStates (..)
                         , SMTSolver (..)
@@ -94,6 +95,8 @@ data UseSMTDC = UseSMTDC | NoSMTDC deriving (Eq, Show, Read)
 
 data UseLiteralTables = UseLiteralTables | NoLiteralTables deriving (Eq, Show, Read)
 
+data FCLogging = FCLogging | NoFCLogging deriving (Eq, Show)
+
 useSMTSeqDCs ::  UseSMTSeq -> Bool
 useSMTSeqDCs (UseSMTSeq { add_to_dcs = a }) = a
 useSMTSeqDCs NoSMTSeq = False
@@ -121,6 +124,7 @@ data Config = Config {
     , logFilter :: Bool -- ^ Limit the logged environment to names recursively reachable through the current expression or stack
     , logOrder :: Bool -- ^ Order names in the logged environment: [CurrExpr]/[Stack]/[others]
     , logInlineNRPC :: Bool -- ^ Inline variables in the NRPC when logging states
+    , log_fc_solver :: FCLogging -- ^ Print logging during symbolic function constraint solving
     , sharing :: Sharing
     , instTV :: InstTV -- allow the instantiation of types in the beginning or it's instantiate symbolically by functions
     , favor_tys :: [String] -- ^ Which types (in order) to prefer instantiating type variables with
@@ -219,6 +223,8 @@ mkConfig homedir = Config Regular
     <*> switch (long "log-order" <> help "log states with an environment ordered as [current expression]/[stack]/[other]")
     <*> flag False True (long "log-inline-nrpc"
                          <> help "inline variables in the NRPC when logging states")
+    <*> flag NoFCLogging FCLogging (long "log-fc-solver"
+                         <> help "log during function constraint solving")
     <*> flag Sharing NoSharing (long "no-sharing" <> help "disable sharing")
     <*> flag InstBefore InstAfter (long "inst-after" <> help "select to instantiate type variables after symbolic execution, rather than before")
     <*> option auto (long "favor-types"
@@ -434,6 +440,7 @@ mkConfigDirect homedir as m = Config {
     , logFilter = False
     , logOrder = False
     , logInlineNRPC = False
+    , log_fc_solver = NoFCLogging
     , sharing = boolArg' "sharing" as Sharing Sharing NoSharing
     , instTV = InstBefore
     , favor_tys = ["Int"]
