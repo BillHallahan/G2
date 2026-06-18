@@ -864,7 +864,8 @@ getOutCases _ e = e
 
 getCasePats :: Expr -> Maybe (Id, [(Lit, Expr)])
 getCasePats (Case (Var i) (Id _ TyLitInt) _ alts)
-    | all (\case (Alt _ (Assume _ _ (Prim UnspecifiedOutput _))) -> False; _ -> True) alts = Just (i, map (\(Alt (LitAlt l) dc) -> (l, dc)) alts)
+    | all (\case (Alt _ (Assume _ _ (Prim UnspecifiedOutput _))) -> False; _ -> True) alts =
+                Just (i, map (\case (Alt (LitAlt l) dc) -> (l, dc); _ -> error "getCasePats: expected AltLit") alts)
 getCasePats _ = Nothing
 
 -- Look for primitives returning boolean values, and move them into the precondition
@@ -944,9 +945,8 @@ unfoldADTArgs n fcs@(first_fc:_) = do
     let matching_args = transpose $ map fc_args fcs
         all_whnf = findIndex (all (isADT . inlineVars eenv)) matching_args
     case all_whnf of
-        Just i -> do
-            let e:_ = matching_args !! i
-                t = typeOf tv_env e
+        Just i | e:_ <- matching_args !! i-> do
+            let t = typeOf tv_env e
             
             lam_is <- freshIdsN (map (typeOf tv_env) $ fc_args first_fc)
             let branch_on = lam_is !! i
@@ -1018,6 +1018,7 @@ unfoldADTArgs n fcs@(first_fc:_) = do
                         madeProgress
                         return new_fcs
                 _ -> error "unfoldADTArgs: expected ADT type"
+            | otherwise -> error "unfoldADTArgs: bad index"
         Nothing -> return [(n, fcs)]
 
 branchOnWHNF :: MonadIO m => Name -> [FuncConstraint] -> FCState t m [(Name, [FuncConstraint])]
@@ -1395,7 +1396,9 @@ splitReturns' n fcs@(first_fc:_) = do
                              ) HM.empty dcs
 
             alts <- zipWithM (\i dc -> do
-                        let Just fs = HM.lookup (dc_name dc) dc_funcs
+                        let fs = case HM.lookup (dc_name dc) dc_funcs of
+                                    Just fs_ -> fs_
+                                    Nothing -> error "splitReturns': impossible - function for dc argument not found"
                             fs_apps = map (\f -> mkApp $ Var f:map Var prim_ty_is) fs
                             alt_e = mkApp $ Data dc:map Type tycon_ts ++ fs_apps
                         return $ Alt (LitAlt (LitInt i)) alt_e) [0..] dcs
