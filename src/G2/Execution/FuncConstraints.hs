@@ -150,7 +150,7 @@ alignRet eenv (App e1 e1') (App e2 e2') = do
     r1 <- alignRet eenv e1 e2
     r2 <- alignRet eenv e1' e2'
     return $ r1 <> r2
-alignRet _ (Type t1) (Type t2) = Just mempty
+alignRet _ (Type _) (Type _) = Just mempty
 alignRet _ (Data dc1) (Data dc2) | dc_name dc1 == dc_name dc2 = Just mempty
                                  | otherwise = Nothing
 alignRet _ (Lit l1) (Lit l2) | l1 == l2 = Just mempty
@@ -200,7 +200,7 @@ unifyFCList solver no_inline = go []
                 Contradiction -> return Nothing
                 NotUnifiable -> go (fc:passed_fcs) s fcs
 
-        go' s _ [] = return NotUnifiable
+        go' _ _ [] = return NotUnifiable
         go' s fc1 (fc2:fcs) = do
             r <- unifyFC solver no_inline s fc1 fc2
             case r of
@@ -213,7 +213,7 @@ unifyFuncConstraints :: (Solver solver, MonadIO m) =>
                      -> HS.HashSet Name -- ^ Names not to inline
                      -> State t
                      -> m (Maybe (State t)) -- ^ A state with function constraints unified, or Nothing if the function constraints are contradictory
-unifyFuncConstraints solver no_inline s@(State { expr_env = eenv, sym_func_constraints = fcs }) = do
+unifyFuncConstraints solver no_inline s@(State { sym_func_constraints = fcs }) = do
     (rs, rfcs) <- mapAccumM (\may_s fc -> do
                         case may_s of
                             Just s_ -> do
@@ -401,9 +401,9 @@ data DCPathPiece = PathStep
 
 -- | Given an expression, returns a list of paths mapping to (possibly nested) higher order functions.
 getFuncExtractorPaths :: Monad m => Expr -> StateNGT t m [DCPath]
-getFuncExtractorPaths e = do
+getFuncExtractorPaths init_e = do
     tv_env <- tyVarEnv
-    return $ go tv_env [] e
+    return $ go tv_env [] init_e
     where
         go tv_env curr_path e 
             | (Data dc:es) <- unApp e =
@@ -420,25 +420,24 @@ getFuncExtractorPaths e = do
 dcPathsToExtractors :: Monad m => DCPath -> StateNGT t m (Expr -> Expr)
 dcPathsToExtractors dc_path 
     | PathFunc t <- last dc_path = do
-        const <- freshSeededIdN (Name "const" Nothing 0 Nothing) (returnType t)
-        insertSymbolicE const
+        const_ret_val <- freshSeededIdN (Name "const" Nothing 0 Nothing) (returnType t)
+        insertSymbolicE const_ret_val
         
         lam_is <- freshIdsN (anonArgumentTypes t)
-        func_body <- toFunc (returnType t) lam_is (Var const) dc_path
+        func_body <- toFunc (returnType t) lam_is (Var const_ret_val) dc_path
         return $ \e -> mkLams (zip (repeat TermL) lam_is) (func_body e)
     | otherwise = error "dcPathsToExtractors: impossible"
     where
         toFunc _ _ _ [] = error "dcPathsToExtractors: impossible"
-        toFunc _ lam_is const [PathFunc _] = do
+        toFunc _ lam_is _ [PathFunc _] = do
             return $ \e -> mkApp $ e:map Var lam_is
-        toFunc ret_t lam_is const (PathStep dc i:xs) = do
-            tv_env <- tyVarEnv
+        toFunc ret_t lam_is const_ret_val (PathStep dc i:xs) = do
             bindee <- freshIdN (dc_type dc)
 
             dc_binders <- freshIdsN (anonArgumentTypes $ dc_type dc)
-            ext <- toFunc ret_t lam_is const xs
+            ext <- toFunc ret_t lam_is const_ret_val xs
             let alts = [ Alt (DataAlt dc dc_binders) $ ext (Var $ dc_binders !! i)
-                       , Alt Default const ]
+                       , Alt Default const_ret_val ]
 
             return $ \e -> 
                       Case
@@ -446,6 +445,7 @@ dcPathsToExtractors dc_path
                         bindee
                         ret_t
                         alts
+        toFunc _ _ _ (PathFunc _:_) = error "dcPathsToExtractors: PathFunc in middle of list"
 
 extractAll :: MonadIO m => [FuncConstraint] -> StateNGT t m [([Expr] -> Expr, Type)]
 extractAll fcs = do
@@ -650,7 +650,6 @@ solveFC solver !n fcs = do
 
             fcs_precond_arg <- HM.traverseWithKey caseToPreCondArg fc_simp_reassembled
             fcs_precond <- HM.traverseWithKey caseToPreCondRet fcs_precond_arg
-            let pg_precond = updatePrettyGuide (HM.toList fcs_precond) pg_rets
 
             fcs_bool_precond <- HM.traverseWithKey boolToPreCond fcs_precond
 
@@ -703,7 +702,7 @@ simplifyReturns n fcs = do
         (fc:_) | -- Check if all return values have the same constructor
                  let r = fc_ret fc
                      rs = map fc_ret fcs
-               , Data dc@(DataCon { dc_name = dc_n, dc_type = dc_ty }):dc_args <- unApp $ inlineVars eenv r
+               , Data dc@(DataCon { dc_name = dc_n, dc_type = dc_ty }):_ <- unApp $ inlineVars eenv r
                , all (sameConstructor eenv dc_n) rs -> do
                     -- Set up the original function to return the required data constructor
                     -- with arguments constructed by fresh symbolic functions 
@@ -1174,10 +1173,10 @@ splitWHNFAndNonWHNFIndex i n fcs@(first_fc:_) = do
     f_false <- freshSeededIdN (Name "f_false" Nothing 0 Nothing) . mkTyFun $ arg_tys ++ [ret_ty]
 
     bindee <- freshIdN ty_bool
-    let pred_app = mkApp $ Var f_pred:map Var prim_ty_is
+    let pred_app_def = mkApp $ Var f_pred:map Var prim_ty_is
         f_true_app = mkApp $ Var f_true:map Var lam_is
         f_false_app = mkApp $ Var f_false:map Var lam_is
-        cse = Case pred_app bindee ret_ty
+        cse = Case pred_app_def bindee ret_ty
                         [ Alt (DataAlt dc_true []) f_true_app
                         , Alt (DataAlt dc_false []) f_false_app ]
         lam_cse = mkLams (zip (repeat TermL) lam_is) cse
@@ -1368,7 +1367,7 @@ splitReturns fcs = do
         NoProgressFC -> return fcs'
 
 splitReturns' :: MonadIO m => Name -> [FuncConstraint] -> FCState t m [(Name, [FuncConstraint])]
-splitReturns' n [] = return []
+splitReturns' _ [] = return []
 splitReturns' n fcs@(first_fc:_) = do
     eenv <- exprEnv
     tenv <- typeEnv
@@ -1390,7 +1389,7 @@ splitReturns' n fcs@(first_fc:_) = do
 
             bindee <- freshIdN ret_ty
 
-            dc_funcs <- foldM (\hm dc@(DataCon { dc_name = dc_n, dc_type = dc_ty}) -> do
+            dc_funcs <- foldM (\hm (DataCon { dc_name = dc_n, dc_type = dc_ty}) -> do
                                 let named_ts = tyForAllBindings dc_ty
                                     ty_map = HM.fromList $ zipWith (\i t -> (idName i, t)) named_ts tycon_ts
                                 fs <- mapM
