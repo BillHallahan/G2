@@ -619,7 +619,7 @@ solveFuncConstraints :: (ASTContainer t Expr, Solver solver, MonadIO m) => solve
 solveFuncConstraints solver s@(State { sym_func_constraints = fcs }) ng = do
     let no_tick_s = s { expr_env = stripAllTicks $ expr_env s }
         no_tick_fc = stripAllTicks fcs
-    (r, (s', !ng')) <- SM.evalStateT (runStateNGT (startSolveFC solver (-1) no_tick_fc) no_tick_s ng) (NoProgressFC, mkPrettyGuide no_tick_fc, NoFCLogging)
+    (r, (s', !ng')) <- SM.evalStateT (runStateNGT (startSolveFC solver (-1) no_tick_fc) no_tick_s ng) (NoProgressFC, mkPrettyGuide no_tick_fc, FCLogging)
     return $ case r of
                     SatFC fcs' -> Just (s' { solving_sym_func_constraints = SolvedFCs
                                            , sym_func_constraints = fcs' }, ng')
@@ -628,10 +628,14 @@ solveFuncConstraints solver s@(State { sym_func_constraints = fcs }) ng = do
 startSolveFC :: (Solver solver, MonadIO m) => solver -> Int -> FuncConstraints -> FCState t m FCRes
 startSolveFC solver n fcs = do
     fc_log <- getLogging
-    when (fc_log == FCLogging) $ liftIO $ do
-        putStrLn "------------------------"
-        putStrLn "About to call solve FC"
-        putStrLn "------------------------"
+    when (fc_log == FCLogging) $ do
+        pg <- getPrettyGuide
+        liftIO $ do
+            putStrLn "------------------------"
+            putStrLn "About to call solve FC"
+            putStrLn "------------------------"
+            putStrLn "Initial FCs:"
+            T.putStrLn . addTab $ prettyFuncConstraints pg fcs
     solveFC solver n fcs
 
 
@@ -714,7 +718,7 @@ solveSingleton n [fc@(FC { fc_args = as, fc_ret = r })] = do
     lam_is <- freshIdsN (map (typeOf tv_env) as)
     let body = mkLams (zip (repeat TermL) lam_is) $ r
     insertE n body
-    whenLogging "SimplifyReturns" $ do
+    whenLogging "SolveSingleton" $ do
         pg <- getPrettyGuide
         liftIO $ do
             T.putStrLn . addHalfTab $ "REMOVE SINGLETON FC:"
