@@ -481,7 +481,7 @@ collectNonReducedVars fcs = do
              )
            $ HM.elems fcs
     where
-        isWHNFCase (Case (Var i@(Id n _)) _ _ [Alt _ _, Alt _ _]) = nameOcc n == whnfBrOccName
+        isWHNFCase (Case (Var (Id n _)) _ _ [Alt _ _, Alt _ _]) = nameOcc n == whnfBrOccName
         isWHNFCase _ = False
 
 addWrappersToFC :: Monad m => FuncConstraints -> StateNGT t m FuncConstraints
@@ -595,10 +595,10 @@ getProgress :: Monad m => FCState t m FCProgress
 getProgress = SM.lift (SM.get >>= return . fst3)
 
 resetProgress :: Monad m => FCState t m ()
-resetProgress = SM.lift $ SM.modify (\(_, pg, log) -> (NoProgressFC, pg, log))
+resetProgress = SM.lift $ SM.modify (\(_, pg, fc_log) -> (NoProgressFC, pg, fc_log))
 
 madeProgress :: Monad m => FCState t m ()
-madeProgress = SM.lift $ SM.modify (\(_, pg, log) -> (MadeProgressFC, pg, log))
+madeProgress = SM.lift $ SM.modify (\(_, pg, fc_log) -> (MadeProgressFC, pg, fc_log))
 
 solveFuncConstraints :: (ASTContainer t Expr, Solver solver, MonadIO m) => FCLogging -> solver -> State t -> NameGen -> m (Maybe (State t, NameGen))
 solveFuncConstraints fc_logging solver s@(State { sym_func_constraints = fcs }) ng = do
@@ -642,8 +642,6 @@ solveFC solver !n fcs = do
 
             fcs_simp_pieces <- concatMapM (uncurry simplifyReturns) $ HM.toList fcs_nosingle
             let fc_simp_reassembled = HM.fromListWith (++) fcs_simp_pieces
-
-            let pg_rets = updatePrettyGuide (HM.toList fc_simp_reassembled) pg_up
 
             -- Replace ADT symbolic variables with case expressions
             mapM_ replaceADTSymVars fc_simp_reassembled
@@ -741,7 +739,7 @@ simplifyReturns n fcs = do
         _ -> return [(n, fcs)]
     where
         sameConstructor eenv dc_n e
-                | Data (DataCon { dc_name = dc_n', dc_type = dc_ty }):_ <- unApp $ inlineVars eenv e
+                | Data (DataCon { dc_name = dc_n' }):_ <- unApp $ inlineVars eenv e
                 , dc_n == dc_n' = True
                 | otherwise = False
 
@@ -780,11 +778,11 @@ replaceADTSymVars fcs = do
                 alts_expr <- mapM (\dc -> do
                                     let dc_ty = typeOf tv_env dc
                                         named_ts = tyForAllBindings dc_ty
-                                        ty_map = HM.fromList $ zipWith (\i t -> (idName i, t)) named_ts tycon_ts
+                                        ty_map = HM.fromList $ zipWith (\i it -> (idName i, it)) named_ts tycon_ts
                                         anon_ts = replaceTyVars ty_map $ anonArgumentTypes dc_ty
 
                                     dc_as <- freshIdsN anon_ts
-                                    mapM insertSymbolicE dc_as
+                                    mapM_ insertSymbolicE dc_as
                                     return . mkApp $ Data dc:map Type tycon_ts ++ map Var dc_as
                             ) dcs
                 
@@ -859,7 +857,7 @@ caseToPreCondRet n = concatMapM go
                 Nothing -> return [fc]
 
 getOutCases :: ExprEnv -> Expr -> Expr                    
-getOutCases eenv v@(Var (Id n _)) =
+getOutCases eenv v@(Var _) =
     let e = inlineVars eenv v in
     case e of
         cse@(Case _ _ _ (Alt (LitAlt _) _:_)) -> cse
@@ -875,7 +873,6 @@ getCasePats _ = Nothing
 boolToPreCond :: MonadIO m => Name -> [FuncConstraint] -> FCState t m [FuncConstraint]
 boolToPreCond n fcs = do
     tv_env <- tyVarEnv
-    kv <- knownValues
 
     ty_bool <- tyBoolT
     dc_true <- mkDCTrueM
@@ -906,7 +903,7 @@ boolToPreCond' tv_env ty_bool dc_true dc_false n = concatMapM goArg
                     return [fc_true, fc_false]
                 Nothing -> return [fc]
                             
-        getOutPrims eenv v@(Var (Id n _)) =
+        getOutPrims eenv v@(Var (Id _ _)) =
             let e = inlineVars eenv v in
             case unApp e of
                 Prim _ _:_ | typeOf tv_env e == ty_bool -> e
@@ -938,7 +935,7 @@ boolToPreCond' tv_env ty_bool dc_true dc_false n = concatMapM goArg
 --        f1 6 = 22
 --        f1 19 = 25
 unfoldADTArgs :: MonadIO m => Name -> [FuncConstraint] -> FCState t m [(Name, [FuncConstraint])]
-unfoldADTArgs n [] = return []
+unfoldADTArgs _ [] = return []
 unfoldADTArgs n fcs@(first_fc:_) = do
     eenv <- exprEnv
     tenv <- typeEnv
@@ -951,7 +948,7 @@ unfoldADTArgs n fcs@(first_fc:_) = do
         all_whnf = findIndex (all (isADT . inlineVars eenv)) matching_args
     case all_whnf of
         Just i -> do
-            let rel_args@(e:_) = matching_args !! i
+            let e:_ = matching_args !! i
                 t = typeOf tv_env e
             
             lam_is <- freshIdsN (map (typeOf tv_env) $ fc_args first_fc)
@@ -1083,7 +1080,7 @@ branchOnWHNF n fcs@(first_fc:_) = do
 
 
     where
-        unspecCase (Case (Var whnf_br) _ _ [Alt (LitAlt _) (Assume _ _ (Prim UnspecifiedOutput _)), (Alt _ e)]) = Just whnf_br
+        unspecCase (Case (Var whnf_br) _ _ [Alt (LitAlt _) (Assume _ _ (Prim UnspecifiedOutput _)), Alt _ _]) = Just whnf_br
         unspecCase _ = Nothing
 
         elimUnspec whnf_br eenv e | (Case (Var whnf_br') _ _ [_, Alt _ ae]) <- inlineVars eenv e
@@ -1152,7 +1149,7 @@ splitWHNFAndNonWHNFIndex :: MonadIO m =>
                          -> Name
                          -> [FuncConstraint]
                          -> FCState t m [(Name, [FuncConstraint])]
-splitWHNFAndNonWHNFIndex _ n [] = return []
+splitWHNFAndNonWHNFIndex _ _ [] = return []
 splitWHNFAndNonWHNFIndex i n fcs@(first_fc:_) | fc_split_on first_fc !! i == Split  = return [(n, fcs)]
 splitWHNFAndNonWHNFIndex i n fcs@(first_fc:_) = do
     eenv <- exprEnv
@@ -1255,8 +1252,8 @@ solveLitVals solver fcs = do
                     -- Filter to only constraints that do not return symbolic variables.
                     -- Constraints returning symbolic variables may return any value; thus they may be ignored.
                     fc_no_sym_ret <- filterM (\fc -> case fc_ret fc of
-                                                        (Var (Id n t)) -> do
-                                                            m_conc_or_sym <- deepLookupConcOrSymE n
+                                                        (Var (Id vn t)) -> do
+                                                            m_conc_or_sym <- deepLookupConcOrSymE vn
                                                             case m_conc_or_sym of
                                                                 Just (E.Sym _) -> return $ isPrimType t
                                                                 _ -> return True
