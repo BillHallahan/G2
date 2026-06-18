@@ -768,7 +768,7 @@ testFileTests = testGroup "TestFiles"
                                                                        , ("eitherFuncs", 1000, [Exactly 3])                                                                       
                                                                        , ("tupleFunc", 1000, [Exactly 2])                                                                       
                                                                        ]
-    , checkInputOutputsSymFuncConstraintsSubPath "tests/HigherOrder/HigherOrder3.hs"
+    , checkInputOutputsSymFuncConstraintsSubPathSMTLists "tests/HigherOrder/HigherOrder3.hs"
                                                                        [ ("propFalse", 1000 * 1000, [AtLeast 5]) ]
 
     , checkInputOutputsWithValidate "tests/BaseTests/ListTests.hs" [ ("lengthN", 2000, [AtLeast 1])
