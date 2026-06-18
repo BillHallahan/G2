@@ -31,8 +31,10 @@ import Data.List
 import Data.Maybe
 import qualified Data.Sequence as S
 import Data.Traversable
+import Data.Tuple.Extra
 
 import qualified Data.Text as T
+import qualified Data.Text.IO as T
 
 -- | A reducer to add higher order functions to the symbolic function constraints for solving later  
 addFuncConstraintReducer :: MonadIO m =>
@@ -600,26 +602,28 @@ data FCRes = SatFC FuncConstraints | UnsatFC deriving Eq
 
 data FCProgress = MadeProgressFC | NoProgressFC deriving (Eq, Show)
 
-type FCState t m a = SM.StateT (State t, NameGen) (SM.StateT FCProgress m) a
+data FCLogging = FCLogging | NoFCLogging deriving (Eq, Show)
+
+type FCState t m a = SM.StateT (State t, NameGen) (SM.StateT (FCProgress, PrettyGuide, FCLogging) m) a
 
 getProgress :: Monad m => FCState t m FCProgress
-getProgress = SM.lift SM.get
+getProgress = SM.lift (SM.get >>= return . fst3)
 
 resetProgress :: Monad m => FCState t m ()
-resetProgress = SM.lift $ SM.put NoProgressFC
+resetProgress = SM.lift $ SM.modify (\(_, pg, log) -> (NoProgressFC, pg, log))
 
 madeProgress :: Monad m => FCState t m ()
-madeProgress = SM.lift $ SM.put MadeProgressFC
+madeProgress = SM.lift $ SM.modify (\(_, pg, log) -> (MadeProgressFC, pg, log))
 
 solveFuncConstraints :: (ASTContainer t Expr, Solver solver, MonadIO m) => solver -> State t -> NameGen -> m (Maybe (State t, NameGen))
 solveFuncConstraints solver s@(State { sym_func_constraints = fcs }) ng = do
-    -- liftIO $ do
-    --     putStrLn "------------------------"
-    --     putStrLn "About to call solve FC"
-    --     putStrLn "------------------------"
+    liftIO $ do
+        putStrLn "------------------------"
+        putStrLn "About to call solve FC"
+        putStrLn "------------------------"
     let no_tick_s = s { expr_env = stripAllTicks $ expr_env s }
         no_tick_fc = stripAllTicks fcs
-    (r, (s', !ng')) <- SM.evalStateT (runStateNGT (solveFC (mkPrettyGuide ()) solver (-1) no_tick_fc) no_tick_s ng) NoProgressFC
+    (r, (s', !ng')) <- SM.evalStateT (runStateNGT (solveFC solver (-1) no_tick_fc) no_tick_s ng) (NoProgressFC, mkPrettyGuide no_tick_fc, FCLogging)
     return $ case r of
                     SatFC fcs' -> Just (s' { solving_sym_func_constraints = SolvedFCs
                                            , sym_func_constraints = fcs' }, ng')
@@ -627,12 +631,12 @@ solveFuncConstraints solver s@(State { sym_func_constraints = fcs }) ng = do
 
 
 -- TODO: Do we actually need the counter here?
-solveFC :: (Solver solver, MonadIO m) => PrettyGuide -> solver -> Int -> FuncConstraints -> FCState t m FCRes
-solveFC _ _ 0 _ = return UnsatFC
-solveFC !pg solver !n fcs = do
+solveFC :: (Solver solver, MonadIO m) => solver -> Int -> FuncConstraints -> FCState t m FCRes
+solveFC _ 0 _ = return UnsatFC
+solveFC solver !n fcs = do
     -- Convert functions with only a single constraint into constants
     -- fcs_nosingle <- return . HM.mapMaybe id =<< HM.traverseWithKey solveSingleton fcs
-    let pg_up = updatePrettyGuide (HM.toList fcs) pg
+    let pg_up = mkPrettyGuide (HM.toList fcs)
     -- eenv_init <- exprEnv
     -- liftIO $ putStrLn $ "fcs =\n" ++ T.unpack (prettyFuncConstraints pg_up $ inlineVars eenv_init fcs)  
 
@@ -646,19 +650,19 @@ solveFC !pg solver !n fcs = do
             fcs_simp_pieces <- concatMapM (uncurry simplifyReturns) $ HM.toList fcs
             let fc_simp_reassembled = HM.fromListWith (++) fcs_simp_pieces
 
-            let pg_rets = updatePrettyGuide (HM.toList fc_simp_reassembled) pg
+            let pg_rets = updatePrettyGuide (HM.toList fc_simp_reassembled) pg_up
             -- liftIO $ putStrLn $ "fc_simp_returns =\n" ++ T.unpack (prettyFuncConstraints pg_rets fc_simp_reassembled)  
 
             -- Replace ADT symbolic variables with case expressions
-            fcs_replaced_sym_adt <- mapM replaceADTSymVars fc_simp_reassembled
+            mapM_ replaceADTSymVars fc_simp_reassembled
 
-            fcs_precond_arg <- mapM caseToPreCondArg fcs_replaced_sym_adt
-            fcs_precond <- mapM caseToPreCondRet fcs_precond_arg
-            let pg_precond = updatePrettyGuide (HM.toList fcs_precond) pg
+            fcs_precond_arg <- HM.traverseWithKey caseToPreCondArg fc_simp_reassembled
+            fcs_precond <- HM.traverseWithKey caseToPreCondRet fcs_precond_arg
+            let pg_precond = updatePrettyGuide (HM.toList fcs_precond) pg_rets
             -- eenv <- exprEnv
             -- liftIO $ putStrLn $ "fcs_precond =\n" ++ T.unpack (prettyFuncConstraints pg_precond $ inlineVars eenv fcs_precond)  
 
-            fcs_bool_precond <- mapM boolToPreCond fcs_precond
+            fcs_bool_precond <- HM.traverseWithKey boolToPreCond fcs_precond
 
             -- Introduce branches on ADTs
             fcs_unfold_adt_pieces <- concatMapM (uncurry unfoldADTArgs) $ HM.toList fcs_bool_precond
@@ -691,7 +695,7 @@ solveFC !pg solver !n fcs = do
             -- liftIO . putStrLn $ "end prog = " ++ show prog
 
             case prog of
-                MadeProgressFC -> solveFC pg_whnf_assem solver (n - 1) fc_unfold_split_whnf_reassembled
+                MadeProgressFC -> solveFC solver (n - 1) fc_unfold_split_whnf_reassembled
                 NoProgressFC -> return UnsatFC
 
 -- | If we only have a single function constraint for a given function, we instantiate
@@ -748,6 +752,9 @@ simplifyReturns n fcs = do
                                         (_:ret_p) -> zipWith (\f p -> (idName f, [this_fc { fc_ret = p }])) per_arg_func ret_p
                                     ) fcs
 
+                    whenLogging "SimplifyReturns" $ do
+                        logEEnvInsert n func_def
+                        logFCListToNameFCList n fcs new_fcs
                     madeProgress
                     return new_fcs
 
@@ -767,16 +774,15 @@ simplifyReturns n fcs = do
 --                1 -> []
 --                2 -> y:ys -- y, ys fresh symbolic variables
 --    We add a path constraint that `1 <= n <= 2`.
-replaceADTSymVars :: MonadIO m => [FuncConstraint] -> FCState t m [FuncConstraint]
+replaceADTSymVars :: MonadIO m => [FuncConstraint] -> FCState t m ()
 replaceADTSymVars fcs = do
     eenv <- exprEnv
     tenv <- typeEnv
     tv_env <- tyVarEnv
 
-    mapM (\fc -> do 
+    mapM_ (\fc -> do 
         mapM_ (go eenv tenv tv_env) (fc_args fc)
-        go eenv tenv tv_env $ fc_ret fc
-        return $ fc) fcs
+        go eenv tenv tv_env $ fc_ret fc) fcs
     where
         go eenv tenv tv_env e
             | Var (Id n t) <- inlineVars eenv e
@@ -808,10 +814,14 @@ replaceADTSymVars fcs = do
                             (Id bindee TyLitInt)
                             t
                             alts
-                case alts_expr of
-                    [a_e] -> insertE n a_e
-                    _ -> insertE n cse
+                    
+                    insert_val = case alts_expr of
+                                    [a_e] -> a_e
+                                    _ -> cse
+                insertE n insert_val
 
+                whenLogging "ReplaceSymVars" $ do
+                    logEEnvInsert n insert_val
                 madeProgress
                 return ()
 
@@ -828,8 +838,8 @@ replaceADTSymVars fcs = do
 --    we rewrite the constraint to be:
 --        n = 1 => f [] = 7
 --        n = 2 => f (y:ys) = 7
-caseToPreCondArg :: MonadIO m => [FuncConstraint] -> FCState t m [FuncConstraint]
-caseToPreCondArg = concatMapM go
+caseToPreCondArg :: MonadIO m => Name -> [FuncConstraint] -> FCState t m [FuncConstraint]
+caseToPreCondArg n = concatMapM go
     where
         go fc@(FC { fc_preconds = pre, fc_args = es }) = do
             eenv <- exprEnv
@@ -844,12 +854,14 @@ caseToPreCondArg = concatMapM go
                     let fc_branch = map (\(lit_v, dc) -> fc { fc_preconds = eq lit_v:pre
                                                             , fc_args = replaceAt ind dc es'}) alts
 
+                    whenLogging "CaseToPrecondArg" $ do
+                        logFCListToFCList n [fc] fc_branch
                     madeProgress
                     return fc_branch
                 Nothing -> return [fc]
 
-caseToPreCondRet :: MonadIO m => [FuncConstraint] -> FCState t m [FuncConstraint]
-caseToPreCondRet = concatMapM go
+caseToPreCondRet :: MonadIO m => Name -> [FuncConstraint] -> FCState t m [FuncConstraint]
+caseToPreCondRet n = concatMapM go
     where        
         go fc@(FC { fc_preconds = pre, fc_ret = e }) = do
             eenv <- exprEnv
@@ -860,6 +872,8 @@ caseToPreCondRet = concatMapM go
                     let eq i = mkApp $ [Prim Eq TyUnknown, Var branch_i, Lit i]
                     let fc_branch = map (\(lit_v, dc) -> fc { fc_preconds = eq lit_v:pre, fc_ret = dc}) alts
 
+                    whenLogging "CaseToPrecondRet" $ do
+                        logFCListToFCList n [fc] fc_branch
                     madeProgress
                     return fc_branch
                 Nothing -> return [fc]
@@ -878,8 +892,8 @@ getCasePats (Case (Var i) (Id _ TyLitInt) _ alts)
 getCasePats _ = Nothing
 
 -- Look for primitives returning boolean values, and move them into the precondition
-boolToPreCond :: Monad m => [FuncConstraint] -> FCState t m [FuncConstraint]
-boolToPreCond fcs = do
+boolToPreCond :: MonadIO m => Name -> [FuncConstraint] -> FCState t m [FuncConstraint]
+boolToPreCond n fcs = do
     tv_env <- tyVarEnv
     kv <- knownValues
 
@@ -887,10 +901,10 @@ boolToPreCond fcs = do
     dc_true <- mkDCTrueM
     dc_false <- mkDCFalseM
 
-    boolToPreCond' tv_env ty_bool dc_true dc_false fcs
+    boolToPreCond' tv_env ty_bool dc_true dc_false n fcs
 
-boolToPreCond' :: Monad m => TyVarEnv -> Type -> DataCon -> DataCon -> [FuncConstraint] -> FCState t m [FuncConstraint]
-boolToPreCond' tv_env ty_bool dc_true dc_false = concatMapM goArg
+boolToPreCond' :: MonadIO m => TyVarEnv -> Type -> DataCon -> DataCon -> Name -> [FuncConstraint] -> FCState t m [FuncConstraint]
+boolToPreCond' tv_env ty_bool dc_true dc_false n = concatMapM goArg
     where
         goArg fc@(FC { fc_preconds = pre, fc_args = es }) = do
             eenv <- exprEnv
@@ -906,6 +920,8 @@ boolToPreCond' tv_env ty_bool dc_true dc_false = concatMapM goArg
                         fc_false = fc { fc_preconds = App (Prim Not (TyFun ty_bool ty_bool)) (prim_e):pre
                                       , fc_args = replaceAt ind (Data dc_false) es'}
 
+                    whenLogging "BoolToPreCond" $ do
+                        logFCListToFCList n [fc] [fc_true, fc_false]
                     madeProgress
                     return [fc_true, fc_false]
                 Nothing -> return [fc]
@@ -1022,6 +1038,9 @@ unfoldADTArgs n fcs@(first_fc:_) = do
                                           )
                                           fcs
 
+                        whenLogging "UnfoldADTArgs" $ do
+                            logEEnvInsert n lam_cse
+                            logFCListToNameFCList n fcs new_fcs
                         madeProgress
                         return new_fcs
                 _ -> error "unfoldADTArgs: expected ADT type"
@@ -1079,6 +1098,9 @@ branchOnWHNF n fcs@(first_fc:_) = do
                                           , fc_args = map (elimUnspec whnf_br eenv) $ fc_args fc
                                           , fc_split_on = map (const NoSplit ) $ fc_split_on fc }) fcs_can_eq_2
 
+            whenLogging "BranchOnWHNF" $ do
+                logEEnvInsert n lam_cse
+                logFCListToNameFCList n fcs [(idName f1, fcs_elim), (idName f2, fcs_cont)]
             madeProgress
             return $ [(idName f1, fcs_elim), (idName f2, fcs_cont)]
         Nothing -> return [(n, fcs)]
@@ -1222,6 +1244,9 @@ splitWHNFAndNonWHNFIndex i n fcs@(first_fc:_) = do
                         )
                         fcs
 
+    whenLogging "SplitWHNFandNonWHNF" $ do
+        logEEnvInsert n lam_cse
+        logFCListToNameFCList n fcs $ non_whnf_cons ++ whnf_cons
     madeProgress
     return $ non_whnf_cons ++ whnf_cons
 
@@ -1432,6 +1457,9 @@ splitReturns' n fcs@(first_fc:_) = do
                                                     ) fs (filter (not . isType . inlineVars eenv) es)
                                         _ -> error $ "splitReturns: impossible expr" ++ show (inlineVars eenv $ fc_ret fc)) fcs
 
+            whenLogging "SplitReturns" $ do
+                logEEnvInsert n lam_cse
+                logFCListToNameFCList n fcs $ (idName sel, fcs_sel):fcs_branches
             madeProgress
             return $ (idName sel, fcs_sel):fcs_branches
        | otherwise -> return [(n, fcs)]
@@ -1448,3 +1476,72 @@ deleteAt idx xs = lft ++ rgt
 replaceAt :: Int -> a -> [a] -> [a]
 replaceAt idx x xs = lft ++ [x] ++ rgt
   where (lft, (_:rgt)) = splitAt idx xs
+
+------------------------------------------------------------------------------
+-- Logging
+------------------------------------------------------------------------------
+
+updateFCPrettyGuide :: (Monad m, Named a) => a -> FCState t m ()
+updateFCPrettyGuide v = SM.lift $ SM.modify (\(prog, pg, log) -> (prog, updatePrettyGuide v pg, log))
+
+getPrettyGuide :: Monad m => FCState t m PrettyGuide
+getPrettyGuide = SM.lift (SM.get >>= return . snd3)
+
+getPrettyGuideUpdating :: (Monad m, Named a) => a -> FCState t m PrettyGuide
+getPrettyGuideUpdating a = do
+    updateFCPrettyGuide a
+    getPrettyGuide
+
+getLogging :: Monad m => FCState t m FCLogging
+getLogging = SM.lift (SM.get >>= return . thd3)
+
+whenLogging :: MonadIO m => String -> FCState t m () -> FCState t m ()
+whenLogging step f = do
+    log <- getLogging
+    pg <- getPrettyGuide
+    case log of
+        FCLogging -> do
+            liftIO . putStrLn $ "STEP: " ++ step
+            f
+        NoFCLogging -> return ()
+
+noLogInfo :: MonadIO m => FCState t m ()
+noLogInfo = liftIO $ do
+    putStrLn "\t..."
+
+logEEnvInsert :: MonadIO m => Name -> Expr -> FCState t m ()
+logEEnvInsert n e = do
+    pg <- getPrettyGuideUpdating (n, e)
+    liftIO $ do
+        T.putStrLn . addHalfTab $ "EENV Update:"
+        T.putStrLn . addTab $ printName pg n <> " -> " <> mkDirtyExprHaskell pg e
+
+logFCListToFCList :: MonadIO m => Name -> [FuncConstraint] -> [FuncConstraint] -> FCState t m ()
+logFCListToFCList n init_fcs up_fcs = do
+    updateFCPrettyGuide (init_fcs, up_fcs)
+    pg <- getPrettyGuide
+    let init_fcs_hm = HM.singleton n init_fcs
+    let up_fcs_hm = HM.singleton n up_fcs
+    liftIO $ do
+        T.putStrLn . addHalfTab $ "IN FC:"
+        T.putStrLn . addTab $ prettyFuncConstraints pg init_fcs_hm
+        T.putStrLn . addHalfTab $ "RES FC:"
+        T.putStrLn . addTab $ prettyFuncConstraints pg up_fcs_hm
+
+logFCListToNameFCList :: MonadIO m => Name -> [FuncConstraint] -> [(Name, [FuncConstraint])] -> FCState t m ()
+logFCListToNameFCList n init_fcs up_fcs = do
+    updateFCPrettyGuide (init_fcs, up_fcs)
+    pg <- getPrettyGuide
+    let init_fcs_hm = HM.singleton n init_fcs
+    let up_fcs_hm = HM.fromListWith (++) up_fcs
+    liftIO $ do
+        T.putStrLn . addHalfTab $ "IN FC:"
+        T.putStrLn . addTab $ prettyFuncConstraints pg init_fcs_hm
+        T.putStrLn . addHalfTab $ "RES FC:"
+        T.putStrLn . addTab $ prettyFuncConstraints pg up_fcs_hm
+
+addHalfTab :: T.Text -> T.Text
+addHalfTab t = "  " <> T.intercalate "\n  " (T.lines t)
+
+addTab :: T.Text -> T.Text
+addTab t = "    " <> T.intercalate "\n    " (T.lines t)

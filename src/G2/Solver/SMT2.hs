@@ -229,6 +229,7 @@ instance SMTConverter CVC5 where
         case r of
             SAT _ -> do
                 mdl <- getModel print_smt h_in h_out vs
+                when print_smt (putStrLn $ "model =  " ++ show (map (\(_, v, _) -> v) mdl))
                 -- putStrLn "======"
                 -- putStrLn (show mdl)
                 let m = parseModel mdl

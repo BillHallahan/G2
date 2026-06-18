@@ -14,6 +14,7 @@ module G2.Lib.Printers ( PrettyGuide
                        , printHaskellDirtyPG
                        , printHaskellPG
                        , mkUnsugaredExprHaskell
+                       , mkDirtyExprHaskell
                        , mkTypeHaskell
                        , mkTypeHaskellPG
                        , mkTypeHaskellDictArrows
