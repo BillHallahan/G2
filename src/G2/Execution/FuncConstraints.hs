@@ -140,7 +140,7 @@ unifiableFuncConstraints no_inline eenv kv fc1 fc2 = do
                 Just eq_hs ->
                     let
                         and1 = foldr (\e1 e2 -> mkApp [Prim And TyUnknown, e1, e2]) (mkTrue kv) $ fc_preconds fc1
-                        and2 = foldr (\e1 e2 -> mkApp [Prim And TyUnknown, e1, e2]) (mkTrue kv) $ fc_preconds fc1
+                        and2 = foldr (\e1 e2 -> mkApp [Prim And TyUnknown, e1, e2]) (mkTrue kv) $ fc_preconds fc2
                         precond_eq = mkApp [Prim Eq TyUnknown, and1, and2]
                     in
                     Unifiable (eq_hs, precond_eq)
@@ -619,7 +619,7 @@ solveFuncConstraints :: (ASTContainer t Expr, Solver solver, MonadIO m) => solve
 solveFuncConstraints solver s@(State { sym_func_constraints = fcs }) ng = do
     let no_tick_s = s { expr_env = stripAllTicks $ expr_env s }
         no_tick_fc = stripAllTicks fcs
-    (r, (s', !ng')) <- SM.evalStateT (runStateNGT (startSolveFC solver (-1) no_tick_fc) no_tick_s ng) (NoProgressFC, mkPrettyGuide no_tick_fc, FCLogging)
+    (r, (s', !ng')) <- SM.evalStateT (runStateNGT (startSolveFC solver (-1) no_tick_fc) no_tick_s ng) (NoProgressFC, mkPrettyGuide no_tick_fc, NoFCLogging)
     return $ case r of
                     SatFC fcs' -> Just (s' { solving_sym_func_constraints = SolvedFCs
                                            , sym_func_constraints = fcs' }, ng')
