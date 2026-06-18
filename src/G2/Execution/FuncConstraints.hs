@@ -629,8 +629,6 @@ solveFC :: (Solver solver, MonadIO m) => solver -> Int -> FuncConstraints -> FCS
 solveFC _ 0 _ = return UnsatFC
 solveFC solver !n fcs = do
     -- Convert functions with only a single constraint into constants
-    let pg_up = mkPrettyGuide (HM.toList fcs)
-
     lit_val_sol <- solveLitVals solver fcs
 
     case lit_val_sol of
@@ -825,9 +823,8 @@ caseToPreCondArg n = concatMapM go
                 case_pats = map getCasePats es'
                 m_ind_case_pat = findIndex isJust case_pats
             case m_ind_case_pat of
-                Just ind -> do
-                    let Just (branch_i, alts) = case_pats !! ind
-                        eq i = mkApp $ [Prim Eq TyUnknown, Var branch_i, Lit i]
+                Just ind | Just (branch_i, alts) <-case_pats !! ind -> do
+                    let eq i = mkApp $ [Prim Eq TyUnknown, Var branch_i, Lit i]
                     
                     let fc_branch = map (\(lit_v, dc) -> fc { fc_preconds = eq lit_v:pre
                                                             , fc_args = replaceAt ind dc es'}) alts
@@ -836,6 +833,7 @@ caseToPreCondArg n = concatMapM go
                         logFCListToFCList n [fc] fc_branch
                     madeProgress
                     return fc_branch
+                    | otherwise -> error "caseToPreCondArg: impossible - index not found"
                 Nothing -> return [fc]
 
 caseToPreCondRet :: MonadIO m => Name -> [FuncConstraint] -> FCState t m [FuncConstraint]
@@ -889,9 +887,7 @@ boolToPreCond' tv_env ty_bool dc_true dc_false n = concatMapM goArg
                 prim_pats = map getPrimPats es'
                 m_ind_case_pat = findIndex isJust prim_pats
             case m_ind_case_pat of
-                Just ind -> do
-                    let Just prim_e = prim_pats !! ind
-                    
+                Just ind | Just prim_e <- prim_pats !! ind -> do                    
                     let fc_true = fc { fc_preconds = prim_e:pre
                                      , fc_args = replaceAt ind (Data dc_true) es'}
                         fc_false = fc { fc_preconds = App (Prim Not (TyFun ty_bool ty_bool)) (prim_e):pre
@@ -901,6 +897,7 @@ boolToPreCond' tv_env ty_bool dc_true dc_false n = concatMapM goArg
                         logFCListToFCList n [fc] [fc_true, fc_false]
                     madeProgress
                     return [fc_true, fc_false]
+                    | otherwise -> error "boolToPreCond: impossible - index too large"
                 Nothing -> return [fc]
                             
         getOutPrims eenv v@(Var (Id _ _)) =
@@ -1442,12 +1439,12 @@ isType (Type _) = True
 isType _ = False
 
 deleteAt :: Int -> [a] -> [a]
-deleteAt idx xs = lft ++ rgt
-  where (lft, (_:rgt)) = splitAt idx xs
+deleteAt idx xs | (lft, (_:rgt)) <- splitAt idx xs = lft ++ rgt
+                | otherwise = error "deleteAt: bad index"
 
 replaceAt :: Int -> a -> [a] -> [a]
-replaceAt idx x xs = lft ++ [x] ++ rgt
-  where (lft, (_:rgt)) = splitAt idx xs
+replaceAt idx x xs | (lft, (_:rgt)) <- splitAt idx xs = lft ++ [x] ++ rgt
+                   | otherwise = error "replaceAt: bad index"
 
 ------------------------------------------------------------------------------
 -- Logging
