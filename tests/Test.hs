@@ -759,8 +759,10 @@ testFileTests = testGroup "TestFiles"
                                                                        , ("tupleTest", 200, [Exactly 2])
                                                                        , ("list1", 1000, [Exactly 8])
                                                                        , ("list2", 1000, [AtLeast 14])                                                                       
-                                                                       , ("list3", 1000, [Exactly 7])                                                                       
-                                                                       , ("list4", 1000, [Exactly 4])                                                                       
+#if MIN_VERSION_GLASGOW_HASKELL(9,0,2,0)
+                                                                       , ("list3", 1000, [Exactly 7])
+                                                                       , ("list4", 1000, [Exactly 4])
+#endif                                                                   
                                                                        , ("funcsEither", 1000, [Exactly 6])                                                                       
                                                                        , ("funcs", 1000, [Exactly 3])                                                                       
                                                                        , ("funcs2", 1000, [Exactly 3])                                                                       
