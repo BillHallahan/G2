@@ -146,7 +146,6 @@ funcExpr =
         <|>
         try (do
             _ <- string "ite"
-            _ <- getInput
             whiteSpace
             x <- sExpr Nothing
             y <- sExpr Nothing

@@ -138,10 +138,9 @@ checkModel' avf con s b (i:is) pc
 
 getModelVal :: SMTConverter con => ArbValueFunc -> con -> State t -> Bindings -> Id -> PathConds -> IO (Result SatRes () (), ArbValueGen)
 getModelVal avf con s@(State { expr_env = eenv, type_env = tenv, known_values = kv, tyvar_env = tvnv }) b (Id n _) pc = do
-    let lookup_res = E.lookup n eenv
-    let (n', t) = case lookup_res of
+    let (n', t) = case E.lookup n eenv of
                      Just (Var (Id n_ t_)) -> (n_, t_)
-                     _ -> error $ "getModelVal: expected to find a Var, found " ++ show lookup_res
+                     _ -> error $ "getModelVal: expected to find a Var, found " ++ show (E.lookup n eenv)
     case PC.null pc of
                 True ->
                     let
