@@ -8,6 +8,7 @@ module G2.Execution.FuncConstraints ( addFuncConstraintReducer
                                     , limitSolvingFuncConstraintPieces ) where
 
 import G2.Config
+import G2.Data.Utils
 import G2.Execution.NormalForms
 import G2.Execution.Reducer
 import G2.Language as L
