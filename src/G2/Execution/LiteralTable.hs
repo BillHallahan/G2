@@ -22,16 +22,17 @@ import qualified Data.HashMap.Lazy as HM
 import qualified Data.List as L
 import Data.Maybe
 
-introduceLitTable :: State t -> Name -> Id -> LTUpdate -> State t
-introduceLitTable s n i up = s { lit_table_stack = lts
-                               , exec_stack = es }
+introduceLitTable :: State t -> Name -> Id -> Expr -> State t
+introduceLitTable s n i fun_e = s { lit_table_stack = lts
+                                  , exec_stack = es }
     where lts = S.push lt (lit_table_stack s)
           lt = LitTable { lt_arg = i
+                        , lt_fun = fun_e
                         , lt_mapping = HM.empty
                         , lt_errored = False
                         , lt_init_pcs = path_conds s
                         }
-          es = S.push (LitTableFrame (StartedBuilding n) up) (exec_stack s)
+          es = S.push (LitTableFrame (StartedBuilding n) True) (exec_stack s)
 
 inLitTableMode :: State t -> Bool
 inLitTableMode s = let lit_stack = lit_table_stack s
