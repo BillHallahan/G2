@@ -770,7 +770,7 @@ testFileTests = testGroup "TestFiles"
                                                                        ]
     , checkInputOutputsSymFuncConstraintsSubPathSMTLists "tests/HigherOrder/HigherOrder3.hs"
                                                                        [ ("propFalse", 1000 * 1000, [AtLeast 5])
-                                                                       , ("propFalse2", 1000 * 1000, [AtLeast 5]) ]
+                                                                       , ("prop2", 1000 * 1000, [AtLeast 5]) ]
 
     , checkInputOutputsWithValidate "tests/BaseTests/ListTests.hs" [ ("lengthN", 2000, [AtLeast 1])
                                                                 , ("lengthBranch", 2000, [AtLeast 4])]
