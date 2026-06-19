@@ -37,6 +37,31 @@ bqFoldr' f e (Q _ xs ys _) = foldr' f (revfoldr' f e ys) xs
 foldr' f e [] = e
 foldr' f e (x:xs) = f x $! foldr' f e xs
 
+revfoldl :: (t -> t1 -> t) -> t -> [t1] -> t
+revfoldl _ e [] = e
+revfoldl f e (x:xs) = f (revfoldl f e xs) x
+
+revfoldl' :: (b -> t -> b) -> b -> [t] -> b
+revfoldl' _ e [] = e
+revfoldl' f e (x:xs) = (\z -> f z x) $! (revfoldl f e xs)
+
+bqFoldl  f e (Q _ xs ys _) = revfoldl  f (L.foldl  f e xs) ys
+bqFoldl' f e (Q _ xs ys _) = revfoldl' f (L.foldl' f e xs) ys
+
 (==>) :: Bool -> Bool -> Bool
 False ==> _ = True
 _ ==> b = b
+
+prop2 :: (Int -> Int -> Int) -> Seq Int -> Seq Int -> Bool
+prop2 f seq xs = case prop2' f seq xs of
+                    True -> False
+                    False -> True
+
+prop2' :: (Int -> Int -> Int) -> Seq Int -> Seq Int -> Bool
+prop2' f seq xs
+    | size xs > 3 = True
+    | otherwise =
+        (si seq && si xs) ==>
+            (bqFoldr f 0 xs == bqFoldr' f 0 xs
+            &&
+            bqFoldl f 0 xs == bqFoldl' f 0 xs)

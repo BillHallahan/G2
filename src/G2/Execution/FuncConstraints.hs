@@ -521,7 +521,7 @@ addVarWrappers v@(Var (Id n _)) = do
         _ -> return (v, v)
 addVarWrappers e = do
     eenv <- SM.lift $ exprEnv
-    case isExprValueForm eenv e of
+    case isExprValueForm eenv . stripAllTicks $ inlineVars eenv e of
         True -> return (e, e)
         False -> do
             tv_env <- SM.lift $ tyVarEnv
