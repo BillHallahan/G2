@@ -9,6 +9,7 @@ module G2.Execution.FuncConstraints ( addFuncConstraintReducer
 
 import G2.Config
 import G2.Data.Utils
+import G2.Execution.NewPC
 import G2.Execution.NormalForms
 import G2.Execution.Reducer
 import G2.Language as L
@@ -159,25 +160,28 @@ alignRet _ (Lit l1) (Lit l2) | l1 == l2 = Just mempty
                              | otherwise = Nothing
 alignRet _ _ _ = Nothing
 
-unifyFC :: (Solver solver, MonadIO m) =>
+unifyFC :: (Solver solver, Simplifier simplifier, MonadIO m) =>
            solver
+        -> simplifier
         -> HS.HashSet Name -- ^ Names not to inline
         -> State t
         -> FuncConstraint
         -> FuncConstraint
-        -> m (UnifyRes (State t)) -- ^ A state with the function constraints unified, or Nothing if the function constraints are contradicton
-unifyFC solver no_inline s@(State { expr_env = eenv, known_values = kv, tyvar_env = tv_env }) fc1 fc2 = do
+        -> NameGenT m (UnifyRes (State t)) -- ^ A state with the function constraints unified, or Nothing if the function constraints are contradicton
+unifyFC solver simplifier no_inline s@(State { expr_env = eenv, known_values = kv, tyvar_env = tv_env }) fc1 fc2 = do
     case unifiableFuncConstraints no_inline eenv kv fc1 fc2 of
         Unifiable (eq_hs, precond_eq) -> do
             let eenv' = foldl' addToExprEnv (expr_env s) eq_hs
                 new_pcs = ExtCond precond_eq True:(mapMaybe newPC $ F.toList eq_hs)
-                pc' = foldl' (flip PC.insert) (path_conds s) new_pcs
-                s' = s { expr_env = eenv', path_conds = pc' }
-            r <- liftIO $ check solver s' (path_conds s')
+                s' = s { expr_env = eenv' }
+            -- r <- liftIO $ check solver s' (path_conds s')
+            ng <- nameGen
+            r <- liftIO $ addPCsToState KeepUnknown solver simplifier ng s' [] new_pcs
             case r of
-                    SAT _ -> return $ Unifiable s'
-                    Unknown _ _ -> error "unifyFC: unknown"
-                    _ -> return Contradiction
+                    Just (end_ng, s'') -> do
+                        putNameGen end_ng
+                        return $ Unifiable s''
+                    Nothing -> return Contradiction
         NotUnifiable -> return NotUnifiable
         Contradiction -> return Contradiction
     where
@@ -190,14 +194,15 @@ unifyFC solver no_inline s@(State { expr_env = eenv, known_values = kv, tyvar_en
             | isPrimType (typeOf tv_env i) = eenv_
             | otherwise = E.insert (idName i) e eenv_
 
-unifyFCList :: (Solver solver, MonadIO m) =>
+unifyFCList :: (Solver solver, Simplifier simplifier, MonadIO m) =>
                solver
+            -> simplifier
             -> HS.HashSet Name -- ^ Names not to inline
             -> State t
             -> [FuncConstraint]
-            -> m (Maybe (State t, [FuncConstraint])) -- ^ A state with function constraints unified and an updated list of function constraints,
+            -> NameGenT m (Maybe (State t, [FuncConstraint])) -- ^ A state with function constraints unified and an updated list of function constraints,
                                                         -- or Nothing if the function constraints are contradicton
-unifyFCList solver no_inline = go []
+unifyFCList solver simplifier no_inline = go []
     where
         go passed_fcs s [] = return . Just $ (s, passed_fcs)
         go passed_fcs s (fc:fcs) = do
@@ -209,22 +214,23 @@ unifyFCList solver no_inline = go []
 
         go' _ _ [] = return NotUnifiable
         go' s fc1 (fc2:fcs) = do
-            r <- unifyFC solver no_inline s fc1 fc2
+            r <- unifyFC solver simplifier no_inline s fc1 fc2
             case r of
                 Unifiable s' -> return $ Unifiable s'
                 Contradiction -> return Contradiction
                 NotUnifiable -> go' s fc1 fcs
 
-unifyFuncConstraints :: (Solver solver, MonadIO m) =>
+unifyFuncConstraints :: (Solver solver, Simplifier simplifier, MonadIO m) =>
                         solver
+                     -> simplifier
                      -> HS.HashSet Name -- ^ Names not to inline
                      -> State t
-                     -> m (Maybe (State t)) -- ^ A state with function constraints unified, or Nothing if the function constraints are contradictory
-unifyFuncConstraints solver no_inline s@(State { sym_func_constraints = fcs }) = do
+                     -> NameGenT m (Maybe (State t)) -- ^ A state with function constraints unified, or Nothing if the function constraints are contradictory
+unifyFuncConstraints solver simplifier no_inline s@(State { sym_func_constraints = fcs }) = do
     (rs, rfcs) <- mapAccumM (\may_s fc -> do
                         case may_s of
                             Just s_ -> do
-                                unif_r <- unifyFCList solver no_inline s_ fc
+                                unif_r <- unifyFCList solver simplifier no_inline s_ fc
                                 case unif_r of
                                     Just (s_', fc') -> return (Just s_', fc')
                                     Nothing -> return (Nothing, fc)
@@ -290,12 +296,12 @@ This way, the precondition allows choosing between making use of the argument an
 or not using the argument and also discarding the constraint.
 -}
 
-solveFuncConstraintsReducer :: (ASTContainer t Expr, Solver solver, MonadIO m) => FCLogging -> solver -> HS.HashSet Name -> Reducer m () t
-solveFuncConstraintsReducer fc_logging solver no_inline = mkSimpleReducer (\_ -> ()) go
+solveFuncConstraintsReducer :: (ASTContainer t Expr, Solver solver, Simplifier simplifier, MonadIO m) => FCLogging -> solver -> simplifier -> HS.HashSet Name -> Reducer m () t
+solveFuncConstraintsReducer fc_logging solver simplifier no_inline = mkSimpleReducer (\_ -> ()) go
     where
         go _ s b
             | true_assert s = do
-                fc_check_res <- checkFunctionConstraints fc_logging solver no_inline s (name_gen b)
+                fc_check_res <- checkFunctionConstraints fc_logging solver simplifier no_inline s (name_gen b)
                 case fc_check_res of
                     FCSat s' ng' -> return (Finished, [(s', ())], b { name_gen = ng' })
                     FCReductionNeeded is s' ng' -> do
@@ -322,24 +328,25 @@ data FCCheckRes t = FCSat (State t) !NameGen
                   | FCReductionNeeded [(VarLitEqualities, Id)] (State t) !NameGen
                   | FCUnsat
 
-checkFunctionConstraints :: (ASTContainer t Expr, Solver solver, MonadIO m) =>
+checkFunctionConstraints :: (ASTContainer t Expr, Solver solver, Simplifier simplifier, MonadIO m) =>
                             FCLogging
                          -> solver
+                         -> simplifier
                          -> HS.HashSet Name -- ^ Names to not inline
                          -> State t
                          -> NameGen
                          -> m (FCCheckRes t)
-checkFunctionConstraints fc_logging solver no_inline s ng = do
-    m_unif_s <- unifyFuncConstraints solver no_inline s
+checkFunctionConstraints fc_logging solver simplifier no_inline s ng = do
+    (m_unif_s, ng') <- runNamingT (unifyFuncConstraints solver simplifier no_inline s) ng
     case m_unif_s of
         Just unif_s -> do
-            r <- solveFuncConstraints fc_logging solver unif_s ng
+            r <- solveFuncConstraints fc_logging solver unif_s ng'
             -- liftIO . putStrLn $ case r of Just _ -> "Just"; Nothing -> "Nothing"
             case r of
-                Just (s', ng') -> return $ FCSat s' ng'
+                Just (s', ng'') -> return $ FCSat s' ng''
                 Nothing -> do
                     -- Function constraints were not solved
-                    ((is, fc'), (s', !ng')) <- runStateNGT (do
+                    ((is, fc'), (s', !ng'')) <- runStateNGT (do
                         let fcs = sym_func_constraints s
                         -- Add extra calls to higher order functions
                         added_higher_fcs <- mapM (uncurry addHigherOrderCalls) $ HM.toList fcs
@@ -349,9 +356,9 @@ checkFunctionConstraints fc_logging solver no_inline s ng = do
                         fc_wrapper <- addWrappersToFC fc_higher_reassembled
                         non_red_v <- collectNonReducedVars fc_wrapper
                         return (non_red_v, fc_wrapper)
-                        ) s ng
+                        ) s ng'
                     let s'' = s' { sym_func_constraints = fc' }
-                    return $ FCReductionNeeded is s'' ng'
+                    return $ FCReductionNeeded is s'' ng''
         Nothing -> return FCUnsat
 
 ------------------------------------------------------------------------------

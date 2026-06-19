@@ -2,6 +2,7 @@ module G2.Execution.NewPC ( NewPC (..)
                           , newPCEmpty
                           , newPCNoStates
                           , reduceNewPC
+                          , addPCsToState
                           , reduceStateDiff
                           , reduceToFirstDiff ) where
 

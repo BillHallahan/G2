@@ -453,25 +453,25 @@ initRedHaltOrd s mod_name solver simplifier config exec_func_names no_nrpc_names
         case higherOrderSolver config of
             AllFuncs ->
                 ( nrpc_approx_red retReplaceSymbFuncVar .== Finished
-                        .--> (SomeReducer nonRedPCRed .== Finished .--> SomeReducer (solveFuncConstraintsReducer fc_logging solver approx_no_inline))
+                        .--> (SomeReducer nonRedPCRed .== Finished .--> SomeReducer (solveFuncConstraintsReducer fc_logging solver simplifier approx_no_inline))
                 , SomeHalter (discardIfAcceptedTagHalter True state_name) .<~> halter_height
                 , orderer
                 , io_timed_out)
             SingleFunc ->
                 ( nrpc_approx_red retReplaceSymbFuncVar .== Finished .--> taggerRed state_name :== Finished
-                            .--> (SomeReducer nonRedPCRed .== Finished .--> SomeReducer (solveFuncConstraintsReducer fc_logging solver approx_no_inline))
+                            .--> (SomeReducer nonRedPCRed .== Finished .--> SomeReducer (solveFuncConstraintsReducer fc_logging solver simplifier approx_no_inline))
                 , SomeHalter (discardIfAcceptedTagHalter True state_name) .<~> halter_height
                 , orderer
                 , io_timed_out)
             SymConstraints ->
                 ( nrpc_approx_red retReplaceSymbFuncVar .== Finished .--> taggerRed state_name :== Finished
-                            .--> (SomeReducer nonRedPCRed .== Finished .--> SomeReducer (solveFuncConstraintsReducer fc_logging solver approx_no_inline))
+                            .--> (SomeReducer nonRedPCRed .== Finished .--> SomeReducer (solveFuncConstraintsReducer fc_logging solver simplifier approx_no_inline))
                 , SomeHalter (discardIfAcceptedTagHalter True state_name) .<~> halter_height
                 , orderer
                 , io_timed_out)
             SymbolicFunc ->
                 ( nrpc_approx_red retReplaceSymbFuncTemplate .== Finished .--> taggerRed state_name :== Finished
-                            .--> (SomeReducer nonRedPCSymFuncRed .== Finished .--> SomeReducer (solveFuncConstraintsReducer fc_logging solver approx_no_inline))
+                            .--> (SomeReducer nonRedPCSymFuncRed .== Finished .--> SomeReducer (solveFuncConstraintsReducer fc_logging solver simplifier approx_no_inline))
                 , SomeHalter (discardIfAcceptedTagHalter True state_name) .<~> halter_height
                 , orderer
                 , io_timed_out)
