@@ -173,7 +173,7 @@ unifyFC solver no_inline s@(State { expr_env = eenv, known_values = kv, tyvar_en
                 new_pcs = ExtCond precond_eq True:(mapMaybe newPC $ F.toList eq_hs)
                 pc' = foldl' (flip PC.insert) (path_conds s) new_pcs
                 s' = s { expr_env = eenv', path_conds = pc' }
-            r <- liftIO $ check solver s' pc'
+            r <- liftIO $ check solver s' (path_conds s')
             case r of
                     SAT _ -> return $ Unifiable s'
                     Unknown _ _ -> error "unifyFC: unknown"
