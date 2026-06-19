@@ -289,46 +289,64 @@ solveFuncConstraintsReducer fc_logging solver no_inline = mkSimpleReducer (\_ ->
     where
         go _ s b
             | true_assert s = do
-                m_unif_s <- unifyFuncConstraints solver no_inline s
-                case m_unif_s of
-                    Just unif_s -> do
-                        r <- solveFuncConstraints fc_logging solver unif_s (name_gen b)
-                        -- liftIO . putStrLn $ case r of Just _ -> "Just"; Nothing -> "Nothing"
-                        case r of
-                            Just (s', ng') -> return (Finished, [(s', ())], b { name_gen = ng' })
-                            Nothing -> do
-                                -- Function constraints were not solved
-                                ((is, fc'), (s', !ng')) <- runStateNGT (do
-                                    let fcs = sym_func_constraints s
-                                    -- Add extra calls to higher order functions
-                                    added_higher_fcs <- mapM (uncurry addHigherOrderCalls) $ HM.toList fcs
-                                    let fc_higher_reassembled = HM.fromList added_higher_fcs
-
-                                    -- Gather unreduced expressions in the function constraints, and set up state to reduce them
-                                    fc_wrapper <- addWrappersToFC fc_higher_reassembled
-                                    non_red_v <- collectNonReducedVars fc_wrapper
-                                    return (non_red_v, fc_wrapper)
-                                    ) s (name_gen b)
-
-                                case is of
-                                    [] -> return (Finished, [], b)
-                                    ((head_whnf_brs, head_i):tail_is) ->
-                                        let
-                                            ce = curr_expr s'
-                                            stck = foldl'
-                                                    (\st (whnf_brs, i) -> 
-                                                        Stck.push (CurrExprFrame (UpdateSolvingFCs whnf_brs) (CurrExpr Evaluate $ Var i)) st
-                                                    )
-                                                    (Stck.push (CurrExprFrame NoAction ce) Stck.empty )
-                                                    tail_is
-                                            s'' = s' { curr_expr = CurrExpr Evaluate (Var head_i)
-                                                     , exec_stack = stck
-                                                     , sym_func_constraints = fc'
-                                                     , solving_sym_func_constraints = SolvingFCs head_whnf_brs }
-                                        in
-                                        return (Finished, [(s'', ())], b { name_gen = ng' }) -- TODO
-                    Nothing -> return (Finished, [], b)
+                fc_check_res <- checkFunctionConstraints fc_logging solver no_inline s (name_gen b)
+                case fc_check_res of
+                    FCSat s' ng' -> return (Finished, [(s', ())], b { name_gen = ng' })
+                    FCReductionNeeded is s' ng' -> do
+                        case is of
+                            [] -> return (Finished, [], b)
+                            ((head_whnf_brs, head_i):tail_is) ->
+                                let
+                                    ce = curr_expr s'
+                                    stck = foldl'
+                                            (\st (whnf_brs, i) -> 
+                                                Stck.push (CurrExprFrame (UpdateSolvingFCs whnf_brs) (CurrExpr Evaluate $ Var i)) st
+                                            )
+                                            (Stck.push (CurrExprFrame NoAction ce) Stck.empty )
+                                            tail_is
+                                    s'' = s' { curr_expr = CurrExpr Evaluate (Var head_i)
+                                             , exec_stack = stck
+                                             , solving_sym_func_constraints = SolvingFCs head_whnf_brs }
+                                in
+                                return (Finished, [(s'', ())], b { name_gen = ng' })
+                    FCUnsat -> return (Finished, [], b)
             | otherwise = return (Finished, [], b)
+
+data FCCheckRes t = FCSat (State t) !NameGen
+                  | FCReductionNeeded [(VarLitEqualities, Id)] (State t) !NameGen
+                  | FCUnsat
+
+checkFunctionConstraints :: (ASTContainer t Expr, Solver solver, MonadIO m) =>
+                            FCLogging
+                         -> solver
+                         -> HS.HashSet Name -- ^ Names to not inline
+                         -> State t
+                         -> NameGen
+                         -> m (FCCheckRes t)
+checkFunctionConstraints fc_logging solver no_inline s ng = do
+    m_unif_s <- unifyFuncConstraints solver no_inline s
+    case m_unif_s of
+        Just unif_s -> do
+            r <- solveFuncConstraints fc_logging solver unif_s ng
+            -- liftIO . putStrLn $ case r of Just _ -> "Just"; Nothing -> "Nothing"
+            case r of
+                Just (s', ng') -> return $ FCSat s' ng'
+                Nothing -> do
+                    -- Function constraints were not solved
+                    ((is, fc'), (s', !ng')) <- runStateNGT (do
+                        let fcs = sym_func_constraints s
+                        -- Add extra calls to higher order functions
+                        added_higher_fcs <- mapM (uncurry addHigherOrderCalls) $ HM.toList fcs
+                        let fc_higher_reassembled = HM.fromList added_higher_fcs
+
+                        -- Gather unreduced expressions in the function constraints, and set up state to reduce them
+                        fc_wrapper <- addWrappersToFC fc_higher_reassembled
+                        non_red_v <- collectNonReducedVars fc_wrapper
+                        return (non_red_v, fc_wrapper)
+                        ) s ng
+                    let s'' = s' { sym_func_constraints = fc' }
+                    return $ FCReductionNeeded is s'' ng'
+        Nothing -> return FCUnsat
 
 ------------------------------------------------------------------------------
 -- Collecting expressions to reduce when solving fails
@@ -461,7 +479,7 @@ extractAll fcs = do
     return $ concat exts
 
 -- | Get expressions that have not been fully reduced. 
-collectNonReducedVars :: Monad m => FuncConstraints -> StateNGT t m [([(Id, Lit)], Id)]
+collectNonReducedVars :: Monad m => FuncConstraints -> StateNGT t m [(VarLitEqualities, Id)]
 collectNonReducedVars fcs = do
     eenv <- exprEnv
 
