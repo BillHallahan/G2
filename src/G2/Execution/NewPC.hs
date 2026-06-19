@@ -86,19 +86,43 @@ reduceStateDiff :: (Solver solver, Simplifier simplifier)
                 -> StateDiff
                 -> IO (Maybe (NameGen, State t))
 reduceStateDiff discard_unknown_states solver simplifier ng
-             init_state@(State { expr_env = init_eenv, tyvar_env = init_tvenv
-                               , path_conds = state_pc })
+             init_state@(State { expr_env = init_eenv, tyvar_env = init_tvenv })
              (SD { new_conc_entries = nce
                  , new_sym_entries = nse
                  , new_path_conds = pc
-                 , concretized = concIds
+                 , concretized = conc_ids
                  , new_true_assert = nta
                  , new_assert_ids = nai
                  , new_curr_expr = n_curre
                  , new_conc_types = nct
                  , new_sym_types = nst
-                 , new_mut_vars = nmv })
-    | not (null pc) || not (null concIds) = do
+                 , new_mut_vars = nmv }) = addPCsToState discard_unknown_states solver simplifier ng s conc_ids pc
+    where
+        insertInOrder inserter exprs_ eenv_ = foldl' (flip $ uncurry inserter) eenv_ exprs_
+        insertSymInOrder inserter syms_ eenv_ = foldl' (flip inserter) eenv_ syms_
+
+        eenv = insertInOrder E.insert nce $ insertSymInOrder E.insertSymbolic nse init_eenv
+        tvenv = insertInOrder TV.insert nct $ insertSymInOrder TV.insertSymbolic nst init_tvenv
+        state = newMutVars init_state nmv
+        s = state {
+            expr_env = eenv, tyvar_env = tvenv,
+            true_assert = nta, assert_ids = nai,
+            curr_expr = n_curre }
+
+addPCsToState :: (Solver solver, Simplifier simplifier)
+                => DiscardUnknownStates
+                -> solver
+                -> simplifier
+                -> NameGen
+                -> State t
+                -> [Id]
+                -> [PathCond]
+                -> IO (Maybe (NameGen, State t))
+addPCsToState discard_unknown_states solver simplifier ng
+             s@(State { expr_env = eenv
+                      , path_conds = state_pc })
+             conc_ids pc
+    | not (null pc) || not (null conc_ids) = do
         let ((ng', eenv'), pc') =
                 mapAccumR (\(ng_, eenv_) pc_ ->
                                 let (ng_', eenv_', pc_') = simplifyPCWithExprEnv simplifier s ng_ eenv_ pc_ in
@@ -118,7 +142,7 @@ reduceStateDiff discard_unknown_states solver simplifier ng
         -- Note that the simplifier might eliminate variables from new path constraints (by substituting them with constants,
         -- for example), but we still need to make sure that such substititions don't violate exisitng path constraints.
         -- For this reason, we extract names for the original (unsimplified) path constraints
-        let ns = (concatMap PC.varNamesInPC pc) ++ namesList concIds
+        let ns = (concatMap PC.varNamesInPC pc) ++ namesList conc_ids
             rel_pc = case ns of
                 [] -> PC.fromList pc''
                 _ -> PC.scc' (Nothing:map Just ns) new_pc'
@@ -131,17 +155,6 @@ reduceStateDiff discard_unknown_states solver simplifier ng
             Unknown _ _ | discard_unknown_states == KeepUnknown -> return $ Just (ng', s')
                         | otherwise -> return Nothing
     | otherwise = return $ Just (ng, s)
-    where
-        insertInOrder inserter exprs_ eenv_ = foldl' (flip $ uncurry inserter) eenv_ exprs_
-        insertSymInOrder inserter syms_ eenv_ = foldl' (flip inserter) eenv_ syms_
-
-        eenv = insertInOrder E.insert nce $ insertSymInOrder E.insertSymbolic nse init_eenv
-        tvenv = insertInOrder TV.insert nct $ insertSymInOrder TV.insertSymbolic nst init_tvenv
-        state = newMutVars init_state nmv
-        s = state {
-            expr_env = eenv, tyvar_env = tvenv,
-            true_assert = nta, assert_ids = nai,
-            curr_expr = n_curre }
 
 mapAccumMaybeM :: Monad m => (s -> a -> m (Maybe (s, b))) -> s -> [a] -> m (s, [b])
 mapAccumMaybeM f s xs = do
