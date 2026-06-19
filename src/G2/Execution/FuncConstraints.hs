@@ -23,6 +23,7 @@ import Control.Monad
 import Control.Monad.Extra
 import Control.Monad.IO.Class
 import qualified Control.Monad.State.Lazy as SM
+import qualified Data.Foldable as F
 import qualified Data.HashMap.Lazy as HM
 import qualified Data.HashSet as HS
 import Data.List
@@ -168,21 +169,26 @@ unifyFC :: (Solver solver, MonadIO m) =>
 unifyFC solver no_inline s@(State { expr_env = eenv, known_values = kv, tyvar_env = tv_env }) fc1 fc2 = do
     case unifiableFuncConstraints no_inline eenv kv fc1 fc2 of
         Unifiable (eq_hs, precond_eq) -> do
-            let s' = s { path_conds = PC.insert (ExtCond precond_eq True) $ path_conds s }
-                s'' = foldl' addToState s' eq_hs
-            r <- liftIO $ check solver s'' (path_conds s'')
+            let eenv' = foldl' addToExprEnv (expr_env s) eq_hs
+                new_pcs = ExtCond precond_eq True:(mapMaybe newPC $ F.toList eq_hs)
+                pc' = foldl' (flip PC.insert) (path_conds s) new_pcs
+                s' = s { expr_env = eenv', path_conds = pc' }
+            r <- liftIO $ check solver s' pc'
             case r of
-                    SAT _ -> return $ Unifiable s''
+                    SAT _ -> return $ Unifiable s'
                     Unknown _ _ -> error "unifyFC: unknown"
                     _ -> return Contradiction
         NotUnifiable -> return NotUnifiable
         Contradiction -> return Contradiction
     where
-        addToState s_ (i, e)
-            | isPrimType (typeOf tv_env i) =
-                let eq_prim = mkApp $ [Prim Eq TyUnknown, Var i, inlineVars eenv e] in
-                s_ { path_conds = PC.insert (ExtCond eq_prim True) $ path_conds s_ }
-            | otherwise = s_ { expr_env = E.insert (idName i) e $ expr_env s_ }
+        newPC (i, e) | isPrimType (typeOf tv_env i) =
+            let eq_prim = mkApp $ [Prim Eq TyUnknown, Var i, inlineVars eenv e] in
+                Just $ ExtCond eq_prim True
+            | otherwise = Nothing
+
+        addToExprEnv eenv_ (i, e)
+            | isPrimType (typeOf tv_env i) = eenv_
+            | otherwise = E.insert (idName i) e eenv_
 
 unifyFCList :: (Solver solver, MonadIO m) =>
                solver
