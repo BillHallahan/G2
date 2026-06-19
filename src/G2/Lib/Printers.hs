@@ -30,7 +30,7 @@ module G2.Lib.Printers ( PrettyGuide
 
                        , prettyGuideStr
                        , prettyGuideNumsStr
-                       
+
                        , TypePrinting(..)
                        , EnvOrdering(..)
                        , TyLamPrinting(..)
@@ -39,7 +39,7 @@ module G2.Lib.Printers ( PrettyGuide
                        , setStrictCase
                        , setEnvOrdering
                        , setTyLamPrinting
-                       
+
                        , inlinePretty) where
 
 import G2.Language.Expr
@@ -61,7 +61,7 @@ import qualified Data.HashMap.Strict as HM
 import qualified Data.HashSet as HS
 import qualified Data.Text as T
 import Text.Read
-import qualified G2.Language.TyVarEnv as TV 
+import qualified G2.Language.TyVarEnv as TV
 import qualified G2.Language.PolyArgMap as PM
 
 data Clean = Cleaned | Dirty deriving Eq
@@ -810,9 +810,9 @@ prettyLitTable pg (LitTable { lt_arg = lta, lt_fun = ltf, lt_mapping = ltm, lt_e
         <> "\n-- end lit table --"
     where
         sym_id = mkIdHaskell pg lta
-        fun_e = mkDirtyExprHaskell pg ltf
+        fun_exps = map (mkDirtyExprHaskell pg) $ HS.toList ltf
         header = "symbolic id = " <> sym_id <> "\n"
-                     <> "function expr = " <> fun_e <> "\n"
+                     <> "evaluated function expr set =\n" <> (T.pack $ show fun_exps) <> "\n"
                      <> (if lte then "found error" else "no error found")
                      <> "\ninitial path conds = " <> prettyPathConds pg lip <> "\n"
                      <> "mapping:\n"

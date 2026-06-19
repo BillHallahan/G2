@@ -19,6 +19,7 @@ import G2.Language.Support
 import G2.Language.Naming
 import G2.Language.Expr
 import qualified Data.HashMap.Lazy as HM
+import qualified Data.HashSet as HS
 import qualified Data.List as L
 import Data.Maybe
 
@@ -27,7 +28,7 @@ introduceLitTable s n i fun_e = s { lit_table_stack = lts
                                   , exec_stack = es }
     where lts = S.push lt (lit_table_stack s)
           lt = LitTable { lt_arg = i
-                        , lt_fun = fun_e
+                        , lt_fun = HS.fromList [fun_e]
                         , lt_mapping = HM.empty
                         , lt_errored = False
                         , lt_init_pcs = path_conds s

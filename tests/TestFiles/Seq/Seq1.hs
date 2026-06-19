@@ -372,7 +372,7 @@ all2 xs = case L.all recFun xs of
         recFun x
             | x > 50 = recFun $ x - 2
             | x == 50 = True
-            | x < 50 = False
+            | otherwise = False
 
 any1 :: [Int] -> String
 any1 xs = case L.any (== 4) xs of
