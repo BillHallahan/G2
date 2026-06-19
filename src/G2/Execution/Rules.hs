@@ -1930,33 +1930,17 @@ retLTStartedBuilding s ng n =
         table_map = lit_tables s
         table_map' = HM.insert n table table_map
 
-        -- After the literal table is created, the current expression
-        -- will simply be an application of the literal table
-        -- When returning the final literal table, we want to leave
-        -- the literal table itself as the final expression, represented
-        -- as a lambda function.
-        ce = unwrapCurrExpr $ curr_expr s
-        table_e = Prim (LitTableRef n) TyUnknown
-        app_table_e = App table_e ce
-        lt_done = not $ isJust (S.pop lts')
-
+        -- Fully evaluating buildLitTable leaves a lambda function that models
+        -- the original function's behavior
         (lam_e, sym_diff, ng1) = litTableToLam s ng table
         insertSyms syms_ eenv_ = L.foldl' (flip E.insertSymbolic) eenv_ syms_
 
-        s0 = s { path_conds = lt_init_pcs table }
-        s1 = if lt_done
-                then s0 { expr_env = insertSyms sym_diff (expr_env s0) }
-                else s0
-        ng2 = if lt_done
-                then ng1
-                else ng2
-        s2 = s1 { lit_tables = table_map'
-                , lit_table_stack = lts'
-                , curr_expr = if lt_done
-                                  then CurrExpr Return lam_e
-                                  else CurrExpr Evaluate app_table_e
-                }
-    in return (RuleReturnLitTableSB, [s2], ng2)
+        s1 = s { lit_tables = table_map'
+               , lit_table_stack = lts'
+               , curr_expr = CurrExpr Return lam_e
+               , path_conds = lt_init_pcs table
+               , expr_env = insertSyms sym_diff (expr_env s) }
+    in return (RuleReturnLitTableSB, [s1], ng1)
 
 unwrapCurrExpr :: CurrExpr -> Expr
 unwrapCurrExpr (CurrExpr _ e) = e
