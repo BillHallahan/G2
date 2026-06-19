@@ -41,6 +41,8 @@ module G2.Lib.Printers ( PrettyGuide
                        , setStrictCase
                        , setEnvOrdering
                        , setTyLamPrinting
+                       , setLogTypeClasses
+                       , setLogInternalName
                        
                        , inlinePretty) where
 
@@ -688,7 +690,15 @@ defPrettyTrack _ = T.pack . show
 
 prettyState :: PrettyGuide -> PrettyTrack t -> State t -> T.Text
 prettyState pg pretty_track s =
-    T.intercalate "\n"
+    let
+        typclasses = [ "----- [Typeclasses] ---------------------"
+                     , pretty_tc
+                     ]
+        internal_names = [ "----- [Pretty] ---------------------"
+                         , pretty_names
+                         ]
+    in
+    T.intercalate "\n" $
         [ ">>>>> [State] >>>>>>>>>>>>>>>>>>>>>"
         , "----- [Code] ----------------------"
         , pretty_curr_expr
@@ -716,9 +726,12 @@ prettyState pg pretty_track s =
         , pretty_tyvar_env
         , "----- [PolyArgMap] -----------------"
         , pretty_pargm
-        , "----- [Typeclasses] ---------------------"
-        , pretty_tc
-        , "----- [Families] ---------------------"
+        ]
+        <>
+        (if include_typeclasses pg then typclasses else [])
+        <>
+        [
+          "----- [Families] ---------------------"
         , pretty_fams
         , "----- [True Assert] ---------------------"
         , T.pack (show (true_assert s))
@@ -736,9 +749,9 @@ prettyState pg pretty_track s =
         , pretty_lit_tables
         , "----- [Reached FC] ---------------------"
         , pretty_fc_ticks
-        , "----- [Pretty] ---------------------"
-        , pretty_names
         ]
+        <>
+        if include_internal_names pg then internal_names else []
     where
         pretty_curr_expr = prettyCurrExpr pg (curr_expr s)
         pretty_stack = prettyExecStack pg (exec_stack s)
@@ -1189,6 +1202,9 @@ data PrettyGuide = PG { pg_assigned :: !(HM.HashMap Name T.Text) -- ^ Mapping of
                       , type_printing :: TypePrinting -- ^ How detailed should the type information we print be?
                       , env_ordering :: EnvOrdering -- ^ Should the environment be ordered?
                       , ty_lam_printing :: TyLamPrinting -- ^ Should type-level lambdas be printed?
+
+                      , include_typeclasses :: Bool -- ^ Should typclasses be printed in log files?
+                      , include_internal_names :: Bool -- ^ Should internal names be printed in log files?
                       }
 
 -- Note [PrettyGuide AssignedLvl]
@@ -1218,7 +1234,9 @@ mkPrettyGuide = foldr insertPG (PG { pg_assigned = HM.empty
                                    , strict_case = False
                                    , type_printing = LaxTypes
                                    , env_ordering = Unordered
-                                   , ty_lam_printing = ShowTyLam }) . names
+                                   , ty_lam_printing = ShowTyLam
+                                   , include_typeclasses = True
+                                   , include_internal_names = True }) . names
 
 -- | Update the `PrettyGuide` with mappings for all `Name`s in the `Named` argument.
 -- Does not draw any distinction between type level and value level names.
@@ -1241,6 +1259,12 @@ updateQualMods m pg@(PG { qual_mods = qm }) = pg { qual_mods = HS.insert m qm }
 
 setStrictCase :: Bool -> PrettyGuide -> PrettyGuide
 setStrictCase b pg = pg { strict_case = b }
+
+setLogTypeClasses :: Bool -> PrettyGuide -> PrettyGuide
+setLogTypeClasses b pg = pg { include_typeclasses = b }
+
+setLogInternalName :: Bool -> PrettyGuide -> PrettyGuide
+setLogInternalName b pg = pg { include_internal_names = b }
 
 insertPG :: Name -> PrettyGuide -> PrettyGuide
 insertPG = insertPGLvl BothLvl

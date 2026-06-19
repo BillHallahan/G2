@@ -124,6 +124,8 @@ data Config = Config {
     , logFilter :: Bool -- ^ Limit the logged environment to names recursively reachable through the current expression or stack
     , logOrder :: Bool -- ^ Order names in the logged environment: [CurrExpr]/[Stack]/[others]
     , logInlineNRPC :: Bool -- ^ Inline variables in the NRPC when logging states
+    , log_typeclasses :: Bool -- ^ Including typeclasses in log files
+    , log_internal_names :: Bool -- ^ Including mapping to internal names in log files
     , log_fc_solver :: FCLogging -- ^ Print logging during symbolic function constraint solving
     , sharing :: Sharing
     , instTV :: InstTV -- allow the instantiation of types in the beginning or it's instantiate symbolically by functions
@@ -223,6 +225,10 @@ mkConfig homedir = Config Regular
     <*> switch (long "log-order" <> help "log states with an environment ordered as [current expression]/[stack]/[other]")
     <*> flag False True (long "log-inline-nrpc"
                          <> help "inline variables in the NRPC when logging states")
+    <*> flag True False (long "no-log-typeclasses"
+                         <> help "include typeclasses in log file (default: include)")
+    <*> flag True False (long "no-log-internal-names"
+                         <> help "include mapping to internal names in log file (default: include)")
     <*> flag NoFCLogging FCLogging (long "log-fc-solver"
                          <> help "log during function constraint solving")
     <*> flag Sharing NoSharing (long "no-sharing" <> help "disable sharing")
@@ -440,6 +446,8 @@ mkConfigDirect homedir as m = Config {
     , logFilter = False
     , logOrder = False
     , logInlineNRPC = False
+    , log_typeclasses = True
+    , log_internal_names = True
     , log_fc_solver = NoFCLogging
     , sharing = boolArg' "sharing" as Sharing Sharing NoSharing
     , instTV = InstBefore

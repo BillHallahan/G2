@@ -634,6 +634,12 @@ runG2WithConfig proj src entry_f f gflags mb_modname state config bindings = do
         analysis3 = if print_num_red_rules config then [\s p xs -> SM.lift . SM.lift . SM.lift . SM.lift . SM.lift . SM.lift $ logRedRuleNum s p xs] else noAnalysis
         analysis = analysis1 ++ analysis2 ++ analysis3
 
+    let pretty_guide = if showType config == Lax 
+                            then (mkPrettyGuide ())
+                            else setTypePrinting AggressiveTypes (mkPrettyGuide ())
+        pretty_guide' = setLogTypeClasses (log_typeclasses config) 
+                      $ setLogInternalName (log_internal_names config) pretty_guide
+
     (in_out, got_unknown, bindings'', timed_out) <- case null analysis of
         True -> do
             rho <- initRedHaltOrd state' all_mod_set solver simplifier config (S.fromList executable_funcs) (S.fromList non_rec_funcs)
@@ -649,9 +655,7 @@ runG2WithConfig proj src entry_f f gflags mb_modname state config bindings = do
                                         )
                                         lnt
                                     )
-                                    (if showType config == Lax 
-                                    then (mkPrettyGuide ())
-                                    else setTypePrinting AggressiveTypes (mkPrettyGuide ())) 
+                                    pretty_guide'
                                 )
                                 hpc_t
                             )
@@ -672,9 +676,7 @@ runG2WithConfig proj src entry_f f gflags mb_modname state config bindings = do
                                                 )
                                                 lnt
                                             )
-                                            (if showType config == Lax 
-                                            then (mkPrettyGuide ())
-                                            else setTypePrinting AggressiveTypes (mkPrettyGuide ())) 
+                                            pretty_guide'
                                         )
                                         hpc_t
                                     )
