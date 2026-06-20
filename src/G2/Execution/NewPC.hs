@@ -105,7 +105,7 @@ reduceStateDiff discard_unknown_states solver simplifier ng
 
         let pc'' = concat pc'
 
-        let new_pc = foldr PC.insert state_pc $ pc''
+        let new_pc = foldr PC.insert state_pc $ concatMap (simplifyPC simplifier (s { expr_env = eenv' })) pc''
             new_pc' = foldr (simplifyPCs simplifier s) new_pc pc
 
             s' = s { expr_env = eenv', path_conds = new_pc' }
