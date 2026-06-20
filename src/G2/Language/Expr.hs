@@ -75,6 +75,7 @@ module G2.Language.Expr ( module G2.Language.Casts
                         , replaceASTs
                         , args
                         , passedArgs
+                        , appArgs
                         , vars
                         , varIds
                         , varNames
@@ -84,11 +85,11 @@ module G2.Language.Expr ( module G2.Language.Casts
                         , alphaReduction
                         , varBetaReduction
                         , etaExpandTo
-                        
+
                         , stripAllTicks
 
                         , renameLamVars
-                        
+
                         , inlineVars) where
 
 import G2.Language.AST
@@ -532,6 +533,9 @@ passedArgs = reverse . passedArgs'
 passedArgs' :: Expr -> [Expr]
 passedArgs' (App e e') = e':passedArgs' e
 passedArgs' _ = []
+
+appArgs :: Expr -> [Expr]
+appArgs = (drop 1) . unApp
 
 --Returns all Vars in an ASTContainer
 vars :: (ASTContainer m Expr) => m -> [Id]

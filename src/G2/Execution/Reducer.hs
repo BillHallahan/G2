@@ -2293,12 +2293,9 @@ adtHeight n s@(State { expr_env = eenv })
 
 adtHeight' :: Expr -> State t -> Int
 adtHeight' e s =
-    let
-        es = drop 1 $ unApp e
-    in
     maximum $ 0:map (\e' -> case e' of
                         Var (Id n _) -> adtHeight n s
-                        _ -> 0) es
+                        _ -> 0) (appArgs e)
 
 -- | Orders by the combined size of (previously) symbolic ADT.
 -- In particular, aims to first execute those states with a combined ADT size closest to
@@ -2347,12 +2344,9 @@ adtSize n s@(State { expr_env = eenv })
 
 adtSize' :: Expr -> State t -> Int
 adtSize' e s =
-    let
-        es = drop 1 $ unApp e
-    in
     sum $ 0:map (\e' -> case e' of
                         Var (Id n _) -> adtSize n s
-                        _ -> 0) es
+                        _ -> 0) (appArgs e)
 
 -- | Orders by the number of Path Constraints
 pcSizeOrderer :: Monad m =>
