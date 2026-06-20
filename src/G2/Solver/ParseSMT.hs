@@ -150,17 +150,15 @@ funcExpr =
         try (do
             _ <- string "and"
             whiteSpace
-            x <- sExpr Nothing
-            y <- sExpr Nothing
-            return $ SmtAnd [x, y]
+            xs <- many1 (sExpr Nothing)
+            return $ SmtAnd xs
         )
         <|>
         try (do
             _ <- string "or"
             whiteSpace
-            x <- sExpr Nothing
-            y <- sExpr Nothing
-            return $ SmtOr [x, y]
+            xs <- many1 (sExpr Nothing)
+            return $ SmtOr xs
         )
         <|>
         try (do
