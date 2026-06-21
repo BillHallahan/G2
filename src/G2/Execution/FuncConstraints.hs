@@ -37,25 +37,35 @@ import qualified Data.Text as T
 import qualified Data.Text.IO as T
 
 -- | A reducer to add higher order functions to the symbolic function constraints for solving later  
-addFuncConstraintReducer :: MonadIO m =>
-                            Config
+addFuncConstraintReducer :: (Solver solver, Simplifier simplifier, MonadIO m) =>
+                             solver
+                         -> simplifier
+                         -> HS.HashSet Name
+                         -> Config
                          -> Reducer m Int t
-addFuncConstraintReducer config =
-    (mkSimpleReducer (\_ -> 0) redFuncConstraint)
+addFuncConstraintReducer solver simplifier no_inline config =
+    (mkSimpleReducer (\_ -> 0) (redFuncConstraint solver simplifier no_inline))
         { onAccept = \s b fc_count -> do
             if print_num_nrpc config
                 then liftIO . putStrLn $ "Func Constraints Generated: " ++ show fc_count
                 else return ()
             return (s, b) }
 
-redFuncConstraint :: Monad m =>
-                     RedRules
+redFuncConstraint :: (Solver solver, Simplifier simplifier, MonadIO m) =>
+                     solver
+                  -> simplifier
+                  -> HS.HashSet Name
+                  -> RedRules
                      m
                      Int
                      t
-redFuncConstraint  fc_count s b =
+redFuncConstraint solver simplifier no_inline fc_count s b =
     case addFuncConstraints s (name_gen b) of
-        Just (s', ng') -> return (Finished, [(s', fc_count + 1)], b { name_gen = ng' })
+        Just (s', ng') -> do
+            unif_s_ng <- runNamingT (unifyFuncConstraints solver simplifier no_inline s') ng'
+            case unif_s_ng of
+                (Just s'', ng'') -> return (Finished, [(s'', fc_count + 1)], b { name_gen = ng'' })
+                _ -> return (Finished, [], b { name_gen = ng' })
         Nothing -> return (Finished, [(s, fc_count)], b)
 
 addFuncConstraints :: State t
@@ -125,7 +135,7 @@ unifiableFuncConstraints :: HS.HashSet Name -- ^ Names not to inline
                          -> FuncConstraint
                          -> UnifyRes (S.Seq (Id, Expr), Expr) -- ^ Unifiable if Ids are made equal to corresponding Exprs, and Expr is asserted
 unifiableFuncConstraints no_inline eenv kv fc1 fc2 = do
-    case all (uncurry (eqUpToTypesInline no_inline eenv)) $ zip (fc_args fc1) (fc_args fc2) of
+    case all (uncurry (eqUpToTypesInlineIgnoringTicks no_inline eenv)) $ zip (fc_args fc1) (fc_args fc2) of
         True ->
             case alignRet eenv (fc_ret fc1) (fc_ret fc2) of
                 Just eq_hs ->
@@ -186,7 +196,7 @@ unifyFC solver simplifier no_inline s@(State { expr_env = eenv, known_values = k
         Contradiction -> return Contradiction
     where
         newPC (i, e) | isPrimType (typeOf tv_env i) =
-            let eq_prim = mkApp $ [Prim Eq TyUnknown, Var i, inlineVars eenv e] in
+            let eq_prim = mkApp [Prim Eq TyUnknown, Var i, inlineVars eenv e] in
                 Just $ ExtCond eq_prim True
             | otherwise = Nothing
 

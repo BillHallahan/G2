@@ -397,7 +397,7 @@ initRedHaltOrd s mod_name solver simplifier config exec_func_names no_nrpc_names
         
         func_const_red f = case higherOrderSolver config of
                                 SymConstraints -> SomeReducer limitSolvingFuncConstraintPieces .~>
-                                    (SomeReducer (addFuncConstraintReducer config) .== Finished
+                                    (SomeReducer (addFuncConstraintReducer solver simplifier approx_no_inline config) .== Finished
                                                                                         .--> nrpc_higher_red f)
                                 _ -> nrpc_higher_red f
 
