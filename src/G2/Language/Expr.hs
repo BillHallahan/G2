@@ -25,6 +25,7 @@ module G2.Language.Expr ( module G2.Language.Casts
                         , mkJust
                         , mkNothing
                         , mkUnit
+                        , mkDCUnit
                         , mkPrimTuple
 
                         , mkIdentity
@@ -254,7 +255,10 @@ mkNothing :: KnownValues -> TypeEnv -> Expr
 mkNothing kv tenv = Data . fromJust $ getDataCon tenv (KV.tyMaybe kv) (KV.dcNothing kv)
 
 mkUnit :: KnownValues -> TypeEnv -> Expr
-mkUnit kv tenv = Data . fromJust $ getDataCon tenv (KV.tyUnit kv) (KV.dcUnit kv)
+mkUnit kv tenv = Data $ mkDCUnit kv tenv
+
+mkDCUnit :: KnownValues -> TypeEnv -> DataCon
+mkDCUnit kv tenv = fromJust $ getDataCon tenv (KV.tyUnit kv) (KV.dcUnit kv)
 
 mkPrimTuple :: KnownValues -> TypeEnv -> Expr
 mkPrimTuple kv tenv = Data . fromJust $ getDataCon tenv (KV.tyPrimTuple kv) (KV.dcPrimTuple kv)

@@ -610,10 +610,20 @@ addVarWrappers e
 addVarWrappers v@(Var (Id n _)) = do
     seen <- SM.get
     eenv <- SM.lift $ exprEnv
+    tv_env <- SM.lift $ tyVarEnv
     case E.lookupConcOrSym n eenv of
         Just (E.Conc e) | n `notElem` seen -> do
             SM.put $ HS.insert n seen
             (e', var) <- addVarWrappers e
+
+            -- Replace each occurence of the variable v with a lambda application returning v:
+            --      (\() -> v) ()
+            -- Ensures that we evaluate every sub expression before using it to terminate in the function constraint solver
+            unit_dc <- SM.lift mkDCUnitE
+            app_unit_i <- SM.lift $ freshSeededIdN (Name "u" Nothing 0 Nothing) (typeOf tv_env unit_dc)
+            let app_lam = App (Lam TermL app_unit_i var) (Data unit_dc)
+            SM.lift $ mapE (replaceVar n app_lam)
+
             SM.lift $ insertE n var
             return (e', var)
         _ -> return (v, v)
