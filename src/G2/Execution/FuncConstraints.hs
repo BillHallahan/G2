@@ -51,6 +51,44 @@ addFuncConstraintReducer solver simplifier no_inline config =
                 else return ()
             return (s, b) }
 
+{- Note [Evaluating fc_!!_ret variables]
+
+A tricky situation can occur when we have function constraints with preconditions.
+Suppose we have a function constraint:
+    f x x = r
+where x is bound in the expression environment to:
+    x -> g y
+where g is also a symbolic variable.
+
+If we need to reduce the arguments of f, we will rewrite the function constraints to:
+    f (case fr_branch1 of 1 -> ?; 2 -> v_wrap1) (case fr_branch2 of 1 -> ?; 2 -> v_wrap2) = r
+where in the expression enviroment we then have:
+    x -> g y
+    v_wrap1 -> x
+    v_wrap2 -> x
+Suppose we reduce v_wrap1 before v_wrap2. When we evaluate v_wrap1, we will end up with a new function constraint
+for g y:
+    f (case fr_branch1 of 1 -> ?; 2 -> v_wrap1) (case fr_branch2 of 1 -> ?; 2 -> v_wrap2) = r
+    fr_branch1 = 2 = 3 => g y = r2
+Note that setting fr_branch1 to 2 now requires that we also ensure that g y = r2
+In the environement, we will then have:
+    x -> r2
+    v_wrap1 -> x
+    v_wrap2 -> x
+Note that x is now mapped directly to r2 via sharing. Thus, if we are not careful, we risk
+reduction of v_wrap2 not modifying the set of function constraints at all.
+This would then allow v_wrap2 to use the result of evaluating `g y` without actually enforcing
+the function constraint on g y.
+
+To avoid this problem, whenever we are reducing an expression in a function constraint,
+and we evaluate a variable that was introduced by a function constraint, we
+duplicate the constraint for that variable, but modify the precondition.
+In the running example, we would get:
+
+    f (case fr_branch1 of 1 -> ?; 2 -> v_wrap1) (case fr_branch2 of 1 -> ?; 2 -> v_wrap2) = r
+    fr_branch1 = 2 \/ fr_branch2 = 2 = 3 => g y = r2
+-}
+
 redFuncConstraint :: (Solver solver, Simplifier simplifier, MonadIO m) =>
                      solver
                   -> simplifier
@@ -59,6 +97,21 @@ redFuncConstraint :: (Solver solver, Simplifier simplifier, MonadIO m) =>
                      m
                      Int
                      t
+redFuncConstraint _ _ _ fc_count s@(State { curr_expr = CurrExpr Evaluate (Var (Id n _))
+                                          , sym_func_constraints = fcs
+                                          , solving_sym_func_constraints = solving_sfc }) b 
+    -- See Note [Evaluating fc_!!_ret variables]
+    | nameOcc n == nameOcc fcRetName = do
+        let fcs' = HM.map (concatMap adjustFC) fcs
+            
+            new_pre = getPreConds solving_sfc
+
+            adjustFC fc@(FC { fc_ret = Var (Id rn _) })
+                | rn == n = [fc { fc_preconds = new_pre }, fc]
+            adjustFC fc = [fc]
+
+            s' = s { sym_func_constraints = fcs'}
+        return (Finished, [(s', fc_count)], b)
 redFuncConstraint solver simplifier no_inline fc_count s b =
     case addFuncConstraints s (name_gen b) of
         Just (s', ng') -> do
@@ -85,7 +138,7 @@ addFuncConstraints s@(State { expr_env = eenv
     , let es = es_ce ++ ae
     , not . isTyFun . typeOf tv_env . mkApp $ v:es_ce =
         let
-            (ret_id, ng') = freshSeededId (Name "fc_ret" Nothing 0 Nothing) (returnType t) ng
+            (ret_id, ng') = freshSeededId fcRetName (returnType t) ng
             fc = FC { fc_preconds = getPreConds solving_sfc
                     , fc_args = es
                     , fc_ret = Var ret_id
@@ -101,6 +154,9 @@ addFuncConstraints s@(State { expr_env = eenv
         in
         Just (s', ng')
     | otherwise = Nothing
+
+fcRetName :: Name
+fcRetName = Name "fc_!!_ret" Nothing 0 Nothing
 
 getPreConds :: FCStatus -> [Expr]
 getPreConds (SolvingFCs is_lits) =
@@ -202,6 +258,7 @@ unifyFC solver simplifier no_inline s@(State { expr_env = eenv, known_values = k
 
         addToExprEnv eenv_ (i, e)
             | isPrimType (typeOf tv_env i) = eenv_
+            | Var i' <- e, idName i == idName i' = eenv_
             | otherwise = E.insert (idName i) e eenv_
 
 unifyFCList :: (Solver solver, Simplifier simplifier, MonadIO m) =>
