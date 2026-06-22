@@ -801,20 +801,22 @@ prettyStateDiff pg (SD { new_conc_entries = nce
         prettyMutVar (n, i, orig) = "(" <> mkNameHaskell pg n <> ", " <> mkIdHaskell pg i <> ", " <> T.pack (show orig) <> ")"
 
 prettyLitTable :: PrettyGuide -> LitTable -> T.Text
-prettyLitTable pg (LitTable { lt_arg = lta, lt_fun = ltf, lt_mapping = ltm, lt_errored = lte, lt_init_pcs = lip })
+prettyLitTable pg (LitTable { lt_arg = lta, lt_rec_funs = ltf, lt_mapping = ltm
+                            , lt_errored = lte, lt_init_pcs = lip })
     | HM.null ltm = header <> "empty literal table"
     | otherwise =
         header <> (T.intercalate "\n----------------\n"
-                       (map (\(conds, e) -> "  " <> prettyPathConds pg conds <> ": " <> mkDirtyExprHaskell pg e)
+                       (map (\(conds, e) -> prettyPathConds pg conds <> "\n->\n" <> mkDirtyExprHaskell pg e)
                        (HM.toList ltm)))
         <> "\n-- end lit table --"
     where
         sym_id = mkIdHaskell pg lta
         fun_exps = map (mkDirtyExprHaskell pg) $ HS.toList ltf
-        header = "symbolic id = " <> sym_id <> "\n"
-                     <> "evaluated function expr set =\n" <> (T.pack $ show fun_exps) <> "\n"
-                     <> (if lte then "found error" else "no error found")
-                     <> "\ninitial path conds = " <> prettyPathConds pg lip <> "\n"
+        header = "-- start lit table --\n"
+                     <> "symbolic id: " <> sym_id <> "\n"
+                     <> "evaluated recursive function expr set:\n" <> (T.pack $ show fun_exps) <> "\n"
+                     <> "error found: " <> (T.pack $ show lte) <> "\n"
+                     <> "initial path conds:" <> prettyPathConds pg lip <> "\n"
                      <> "mapping:\n"
 
 prettyLitTables :: PrettyGuide -> HM.HashMap Name LitTable -> T.Text
@@ -843,7 +845,7 @@ prettyEEnv tv pg@(PG {env_ordering=e_ord}) cexpr estack eenv = T.intercalate "\n
                      L.filter (\(x, _) -> HS.member x ce_names) el
                   ++ L.filter (\(x, _) -> HS.member x es_names && not (HS.member x ce_names)) el
                   ++ L.filter (\(x, _) -> not (HS.member x ce_names) && not (HS.member x es_names)) el
-        
+
 printEnvObj :: PrettyGuide -> E.EnvObj -> T.Text
 printEnvObj pg (E.ExprObj e) = mkDirtyExprHaskell pg e
 printEnvObj pg (E.SymbObj (Id _ t)) = "symbolic " <> mkTypeHaskellPG pg t

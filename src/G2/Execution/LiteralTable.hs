@@ -7,12 +7,14 @@ module G2.Execution.LiteralTable
     , getLTArg
     , stopUpdateLastExpl
     , litTableToLam
+    , addFunExprLT
     ) where
 
 import qualified G2.Language.Stack as S
 import qualified G2.Language.PathConds as PC
 import qualified G2.Language.KnownValues as KV
 import qualified G2.Language.ExprEnv as E
+import qualified G2.Language.CallGraph as CG
 import G2.Language.Typing
 import G2.Language.Syntax
 import G2.Language.Support
@@ -23,12 +25,12 @@ import qualified Data.HashSet as HS
 import qualified Data.List as L
 import Data.Maybe
 
-introduceLitTable :: State t -> Name -> Id -> Expr -> State t
-introduceLitTable s n i fun_e = s { lit_table_stack = lts
+introduceLitTable :: State t -> Name -> Id -> State t
+introduceLitTable s n i = s { lit_table_stack = lts
                                   , exec_stack = es }
     where lts = S.push lt (lit_table_stack s)
           lt = LitTable { lt_arg = i
-                        , lt_fun = HS.fromList [fun_e]
+                        , lt_rec_funs = HS.empty
                         , lt_mapping = HM.empty
                         , lt_errored = False
                         , lt_init_pcs = path_conds s
@@ -230,3 +232,22 @@ tripleBoolTy kv = mkTyFun [tyBool kv, tyBool kv, tyBool kv]
 
 doubleBoolTy :: KnownValues -> Type
 doubleBoolTy kv = mkTyFun [tyBool kv, tyBool kv]
+
+-- Add an expression to the set of seen recursive functions, if we are
+-- in literal table mode and the expression is recursive and has a
+-- function type
+addFunExprLT :: State t -> Expr -> State t
+addFunExprLT s expr_ =
+    let lts = lit_table_stack s
+        eenv = expr_env s
+        tvnv = tyvar_env s
+
+        addE lt@(LitTable { lt_rec_funs = ltf }) = lt { lt_rec_funs = HS.insert expr_ ltf }
+        s1 = s { lit_table_stack = S.modifyTop addE lts }
+
+        cg = CG.getCallGraph eenv
+        isRec e@(Var (Id n _)) = (not $ CG.isFuncNonRecursive cg n) && isTyFun (typeOf tvnv e)
+        isRec _ = False
+
+        add_cond = inLitTableMode s && isRec expr_
+    in if add_cond then s1 else s

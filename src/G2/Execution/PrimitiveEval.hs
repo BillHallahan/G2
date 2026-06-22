@@ -457,11 +457,10 @@ evalPrimWithState s ng (App (Prim BuildLitTable _) fun_e)
         eenv1 = E.insertSymbolic arg_id $ expr_env s
 
         (lt_name, ng2) = freshName ng1
-        s1 = introduceLitTable s lt_name arg_id fun_e
+        s1 = introduceLitTable s lt_name arg_id
 
         s2 = s1 { curr_expr = ce1
-                , expr_env = eenv1
-                }
+                , expr_env = eenv1 }
     in
     Just (newPCEmpty s2, ng2)
 evalPrimWithState s ng (App (Prim Raise _) e2) = Just (

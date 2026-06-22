@@ -128,10 +128,7 @@ stdReduce' _ discard_unknown symb_func_eval solver simplifier s@(State { curr_ex
             frstck = S.pop stck
 
 evalVarSharing :: State t -> NameGen -> Id -> (Rule, [State t], NameGen)
-evalVarSharing s@(State { expr_env = eenv
-                        , exec_stack = stck
-                        , poly_arg_map = pargm })
-               ng i
+evalVarSharing init_s ng i
     -- The value being evaluated is a symbolic value with a type that is a type variable. The type
     -- variable must also have an entry in the PolyArgMap, which shows how arguments of that type have been
     -- renamed during execution. A case expression with a symbolic Int as scrutinee is used to select
@@ -202,18 +199,29 @@ evalVarSharing s@(State { expr_env = eenv
       , [s { curr_expr = CurrExpr Evaluate e'
            , exec_stack = S.push (UpdateFrame (idName i)) stck }]
       , ng)
-    | otherwise = error  $ "evalVar: bad input." ++ show i
+    | otherwise = error $ "evalVar: bad input." ++ show i
     where
-        e = E.lookup (idName i) eenv
+        e = E.lookup (idName i) (expr_env init_s)
+        s = case e of
+                Just e' -> addFunExprLT init_s e'
+                Nothing -> s
+        eenv = expr_env s
+        pargm = poly_arg_map s
+        stck = exec_stack s
 
 evalVarNoSharing :: State t -> NameGen -> Id -> (Rule, [State t], NameGen)
-evalVarNoSharing s@(State { expr_env = eenv })
-                 ng i
+evalVarNoSharing init_s ng i
     | E.isSymbolic (idName i) eenv =
         (RuleEvalVal, [s { curr_expr = CurrExpr Return (Var i)}], ng)
-    | Just e <- E.lookup (idName i) eenv =
-        (RuleEvalVarNonVal (idName i), [s { curr_expr = CurrExpr Evaluate e }], ng)
-    | otherwise = error  $ "evalVar: bad input." ++ show i
+    | Just e' <- e =
+        (RuleEvalVarNonVal (idName i), [s { curr_expr = CurrExpr Evaluate e' }], ng)
+    | otherwise = error $ "evalVar: bad input." ++ show i
+    where
+        e = E.lookup (idName i) (expr_env init_s)
+        s = case e of
+                Just e' -> addFunExprLT init_s e'
+                Nothing -> s
+        eenv = expr_env s
 
 makeAltsForPMRet :: [Name] -> Id -> [Alt] -- TODO: Default caused problems
 makeAltsForPMRet ns tyVarId = go ns tyVarId 1
