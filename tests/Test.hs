@@ -630,6 +630,7 @@ testFileTests = testGroup "TestFiles"
                                                               , ("intersperse1", 3000, [Exactly 3])
 
                                                               , ("all1", 5000, [AtLeast 5])
+                                                              , ("all2", 1000, [AtLeast 5])
                                                               , ("any1", 5000, [AtLeast 5])
                                                               , ("filter1", 1000, [AtLeast 5])
                                                               , ("map1", 5000, [AtLeast 5])
@@ -654,6 +655,7 @@ testFileTests = testGroup "TestFiles"
                                         , ("intersperse2", 1000, [Exactly 3]) ]
     , checkInputOutputsLitTablesSMTLists "tests/TestFiles/Seq/Seq1.hs"
                                         [ ("any1", 20000, [Exactly 2])
+                                        , ("any2", 1000, [AtLeast 20])
                                         , ("all1", 20000, [Exactly 2])
                                         , ("filter1", 20000, [Exactly 6])
                                         , ("map1", 20000, [Exactly 8])
