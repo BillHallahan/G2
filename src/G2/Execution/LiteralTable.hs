@@ -8,6 +8,8 @@ module G2.Execution.LiteralTable
     , stopUpdateLastExpl
     , litTableToLam
     , addFunExprLT
+    , checkFunExprLT
+    , popUntilStartedBuilding
     ) where
 
 import qualified G2.Language.Stack as S
@@ -251,3 +253,21 @@ addFunExprLT s expr_ =
 
         add_cond = inLitTableMode s && isRec expr_
     in if add_cond then s1 else s
+
+-- Check if an expression is a recursive function that has already
+-- been discovered
+checkFunExprLT :: State t -> Expr -> Bool
+checkFunExprLT s expr_ =
+    let lts = lit_table_stack s
+    in case S.pop lts of
+        Just (lt, _) -> expr_ `HS.member` (lt_rec_funs lt)
+        Nothing -> False
+
+-- Pop stack frames until either a `StartedBuilding` literal table
+-- frame or the stack is empty
+popUntilStartedBuilding :: S.Stack Frame -> S.Stack Frame
+popUntilStartedBuilding stck =
+    case S.pop stck of
+        Just (LitTableFrame (StartedBuilding _) _, _) -> stck
+        Just (_, stck1) -> popUntilStartedBuilding stck1
+        Nothing -> stck

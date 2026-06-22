@@ -172,7 +172,7 @@ evalVarSharing init_s ng i
             e'' = renames (HM.fromList ((otvN, tyIdN):tvVals)) e'
         in
             (RuleEvalVarPoly, [s { curr_expr = CurrExpr Evaluate e''
-                                 , expr_env = eenv''}], ng')
+                                 , expr_env = eenv''}] ++ lt_extra, ng')
     -- If a symbolic tyVar did not match PM-RETURN, then it is unrealizable. If
     -- it was not caught here it would be returned as an undefined and crash
     -- execution. There are still some unrealizable sym tyVars that can match on PM-RET,
@@ -182,9 +182,9 @@ evalVarSharing init_s ng i
     | (Id _ (TyVar (Id tyIdN _))) <- i
     , E.isSymbolic (idName i) eenv
     , Just [] <- PM.lookup tyIdN pargm =
-        (RuleEvalVal, [], ng)
+        (RuleEvalVal, lt_extra, ng)
     | E.isSymbolic (idName i) eenv =
-        (RuleEvalVal, [s { curr_expr = CurrExpr Return (Var i)}], ng)
+        (RuleEvalVal, [s { curr_expr = CurrExpr Return (Var i)}] ++ lt_extra, ng)
     -- If the target in our environment is already a value form, we do not
     -- need to push additional redirects for updating later on.
     -- If our variable is not in value form, we first push the
@@ -193,18 +193,16 @@ evalVarSharing init_s ng i
     -- we pop the stack to add a redirection pointer into the heap.
     | Just e' <- e
     , isExprValueForm eenv e' =
-      ( RuleEvalVarVal (idName i), [s { curr_expr = CurrExpr Evaluate e' }], ng)
+      ( RuleEvalVarVal (idName i), [s { curr_expr = CurrExpr Evaluate e' }] ++ lt_extra, ng)
     | Just e' <- e = -- e' is NOT in SWHNF
       ( RuleEvalVarNonVal (idName i)
       , [s { curr_expr = CurrExpr Evaluate e'
-           , exec_stack = S.push (UpdateFrame (idName i)) stck }]
+           , exec_stack = S.push (UpdateFrame (idName i)) stck }] ++ lt_extra
       , ng)
     | otherwise = error $ "evalVar: bad input." ++ show i
     where
         e = E.lookup (idName i) (expr_env init_s)
-        s = case e of
-                Just e' -> addFunExprLT init_s e'
-                Nothing -> s
+        (s, lt_extra) = handleLTFun init_s e
         eenv = expr_env s
         pargm = poly_arg_map s
         stck = exec_stack s
@@ -212,16 +210,25 @@ evalVarSharing init_s ng i
 evalVarNoSharing :: State t -> NameGen -> Id -> (Rule, [State t], NameGen)
 evalVarNoSharing init_s ng i
     | E.isSymbolic (idName i) eenv =
-        (RuleEvalVal, [s { curr_expr = CurrExpr Return (Var i)}], ng)
+        (RuleEvalVal, [s { curr_expr = CurrExpr Return (Var i)}] ++ lt_extra, ng)
     | Just e' <- e =
-        (RuleEvalVarNonVal (idName i), [s { curr_expr = CurrExpr Evaluate e' }], ng)
+        (RuleEvalVarNonVal (idName i), [s { curr_expr = CurrExpr Evaluate e' }] ++ lt_extra, ng)
     | otherwise = error $ "evalVar: bad input." ++ show i
     where
         e = E.lookup (idName i) (expr_env init_s)
-        s = case e of
-                Just e' -> addFunExprLT init_s e'
-                Nothing -> s
+        (s, lt_extra) = handleLTFun init_s e
         eenv = expr_env s
+
+handleLTFun :: State t -> Maybe Expr -> (State t, [State t])
+handleLTFun init_s e = res
+    where
+        res = case e of
+                Just e' -> (addFunExprLT init_s e', mkLTExtra e')
+                Nothing -> (init_s, [])
+        -- We disregard any changes that can be made from evaluating and pop all the way down
+        mkLTExtra e_ = if checkFunExprLT init_s e_
+                       then [init_s { exec_stack = popUntilStartedBuilding (exec_stack init_s) }]
+                       else []
 
 makeAltsForPMRet :: [Name] -> Id -> [Alt] -- TODO: Default caused problems
 makeAltsForPMRet ns tyVarId = go ns tyVarId 1
