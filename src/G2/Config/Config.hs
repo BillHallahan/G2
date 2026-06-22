@@ -159,7 +159,8 @@ data Config = Config {
     , step_limit :: Bool -- ^ Should steps be limited when running states?
     , steps :: Int -- ^ How many steps to take when running States
 
-    , height_limit :: Maybe Int -- ^ What is the ADT height limit?
+    , max_height_limit :: Maybe Int -- ^ What is the max ADT height limit?
+    , sum_height_limit :: Maybe Int -- ^ What is the sum ADT height limit?
 
     , time_solving :: Bool -- ^ Output the amount of time spent checking/solving path constraints
     , print_num_solver_calls :: Bool -- ^ Output the number of calls made to check/solve path constraints
@@ -284,10 +285,15 @@ mkConfig homedir = Config Regular
                    <> help "how many steps to take when running states")
 
     <*> option (maybeReader (Just . readMaybe))
-            ( long "height-limit"
+            ( long "max-height-limit"
             <> metavar "H"
             <> value Nothing
             <> help "the maximum height of a concretized symbolic variable")
+    <*> option (maybeReader (Just . readMaybe))
+            ( long "sum-height-limit"
+            <> metavar "H"
+            <> value Nothing
+            <> help "the maximum sum of heights of all concretized symbolic variable")
 
     <*> switch (long "solver-time" <> help "output the amount of time spent checking/solving path constraints")
     <*> switch (long "print-num-solver-calls" <> help "output the number of calls made to check/solve path constraints")
@@ -481,7 +487,8 @@ mkConfigDirect homedir as m = Config {
     , step_limit = boolArg' "no-step-limit" as True True False
     , steps = strArg "n" as m read 1000
 
-    , height_limit = Nothing
+    , max_height_limit = Nothing
+    , sum_height_limit = Nothing
 
     , time_solving = False
     , print_num_solver_calls = False

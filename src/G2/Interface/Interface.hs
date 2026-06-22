@@ -438,10 +438,15 @@ initRedHaltOrd s mod_name solver simplifier config exec_func_names no_nrpc_names
                                         SomeHalter (hpcApproximationHalter solver approx_no_inline) .<~> halter_hpc_discard
                                     False -> halter_hpc_discard
 
-        halter_height = case height_limit config of
+        max_halter_height = case max_height_limit config of
                                     Just lim ->
-                                        SomeHalter (adtHeightHalter lim) .<~> halter_approx_discard
+                                        SomeHalter (maxAdtHeightHalter lim) .<~> halter_approx_discard
                                     Nothing -> halter_hpc_discard
+
+        sum_halter_height = case sum_height_limit config of
+                                    Just lim ->
+                                        SomeHalter (sumAdtHeightHalter lim) .<~> max_halter_height
+                                    Nothing -> max_halter_height
 
         orderer = case search_strat config of
                         Subpath -> SomeOrderer . liftOrderer $ lengthNSubpathOrderer (subpath_length config)
@@ -454,25 +459,25 @@ initRedHaltOrd s mod_name solver simplifier config exec_func_names no_nrpc_names
             AllFuncs ->
                 ( nrpc_approx_red retReplaceSymbFuncVar .== Finished
                         .--> (SomeReducer nonRedPCRed .== Finished .--> SomeReducer (solveFuncConstraintsReducer fc_logging solver simplifier approx_no_inline))
-                , SomeHalter (discardIfAcceptedTagHalter True state_name) .<~> halter_height
+                , SomeHalter (discardIfAcceptedTagHalter True state_name) .<~> sum_halter_height
                 , orderer
                 , io_timed_out)
             SingleFunc ->
                 ( nrpc_approx_red retReplaceSymbFuncVar .== Finished .--> taggerRed state_name :== Finished
                             .--> (SomeReducer nonRedPCRed .== Finished .--> SomeReducer (solveFuncConstraintsReducer fc_logging solver simplifier approx_no_inline))
-                , SomeHalter (discardIfAcceptedTagHalter True state_name) .<~> halter_height
+                , SomeHalter (discardIfAcceptedTagHalter True state_name) .<~> sum_halter_height
                 , orderer
                 , io_timed_out)
             SymConstraints ->
                 ( nrpc_approx_red retReplaceSymbFuncVar .== Finished .--> taggerRed state_name :== Finished
                             .--> (SomeReducer nonRedPCRed .== Finished .--> SomeReducer (solveFuncConstraintsReducer fc_logging solver simplifier approx_no_inline))
-                , SomeHalter (discardIfAcceptedTagHalter True state_name) .<~> halter_height
+                , SomeHalter (discardIfAcceptedTagHalter True state_name) .<~> sum_halter_height
                 , orderer
                 , io_timed_out)
             SymbolicFunc ->
                 ( nrpc_approx_red retReplaceSymbFuncTemplate .== Finished .--> taggerRed state_name :== Finished
                             .--> (SomeReducer nonRedPCSymFuncRed .== Finished .--> SomeReducer (solveFuncConstraintsReducer fc_logging solver simplifier approx_no_inline))
-                , SomeHalter (discardIfAcceptedTagHalter True state_name) .<~> halter_height
+                , SomeHalter (discardIfAcceptedTagHalter True state_name) .<~> sum_halter_height
                 , orderer
                 , io_timed_out)
 

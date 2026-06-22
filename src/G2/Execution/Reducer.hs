@@ -119,7 +119,8 @@ module G2.Execution.Reducer ( Reducer (..)
                             , maxOutputsHalter
                             , switchEveryNHalter
                             , varLookupLimitHalter
-                            , adtHeightHalter
+                            , maxAdtHeightHalter
+                            , sumAdtHeightHalter
 
                             , hpcApproximationHalter
                             , approximationHalter'
@@ -1928,18 +1929,30 @@ varLookupLimitHalter lim = mkSimpleHalter
         step l _ _ _ = l
 
 -- | Discard a state if some previously symbolic ADT has been concretized to a depth of greater than some limit. 
-adtHeightHalter :: Monad m =>
+maxAdtHeightHalter :: Monad m =>
                    Int -- ^ Limit
                 -> Halter m (HS.HashSet Name) r t
-adtHeightHalter lim = mkSimpleHalter init_h
-                                     (\sym _ _ -> sym)
-                                     stop
-                                     update
+maxAdtHeightHalter = adtHeightHalter (\xs -> maximum $ (-1):xs)
+
+-- | Discard a state if at least N previously symbolic ADTs have been concretized. 
+sumAdtHeightHalter :: Monad m =>
+                   Int -- ^ Limit
+                -> Halter m (HS.HashSet Name) r t
+sumAdtHeightHalter = adtHeightHalter sum
+
+adtHeightHalter :: Monad m =>
+                   ([Int] -> Int) 
+                -> Int -- ^ Limit
+                -> Halter m (HS.HashSet Name) r t
+adtHeightHalter f lim = mkSimpleHalter init_h
+                                       (\sym _ _ -> sym)
+                                       stop
+                                       update
     where
         init_h = HS.fromList . map idName . E.symbolicIds . expr_env
         stop sym _ s =
             let
-                m = maximum $ (-1):(HS.toList $ HS.map (flip adtHeight s) sym)
+                m = f (HS.toList $ HS.map (flip adtHeight s) sym)
             in
             return $ if m > lim then Discard "adtHeightHalter" else Continue
         update sym _ _ (State { expr_env = eenv, curr_expr = CurrExpr Evaluate (Var (Id n _))})
