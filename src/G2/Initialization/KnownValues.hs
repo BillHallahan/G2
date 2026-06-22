@@ -71,9 +71,12 @@ initKnownValues eenv tenv tc =
     , dcNothing = dcWithStrName tenv "Maybe" "Nothing"
 
   
-#if MIN_VERSION_GLASGOW_HASKELL(9,8,0,0)
+#if MIN_VERSION_GLASGOW_HASKELL(9,10,0,0)
     , tyUnit = typeWithStrNameInModule tenv "Unit" (Just "GHC.Tuple")
     , dcUnit = dcWithStrNameInModule tenv "Unit" "()" (Just "GHC.Tuple")
+#elif MIN_VERSION_GLASGOW_HASKELL(9,8,0,0)
+    , tyUnit = typeWithStrName tenv "Unit"
+    , dcUnit = dcWithStrName tenv "Unit" "()"
 #else
     , tyUnit = typeWithStrName tenv "()"
     , dcUnit = dcWithStrName tenv "()" "()"
