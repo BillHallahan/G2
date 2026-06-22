@@ -226,7 +226,7 @@ handleLTFun init_s e = res
                 Just e' -> (addFunExprLT init_s e', mkLTExtra e')
                 Nothing -> (init_s, [])
         -- We disregard any changes that can be made from evaluating and pop all the way down
-        mkLTExtra e_ = if checkFunExprLT init_s e_
+        mkLTExtra e_ = if checkFunExprLT init_s e_ && topLTNonEmpty init_s
                        then [init_s { exec_stack = popUntilStartedBuilding (exec_stack init_s) }]
                        else []
 

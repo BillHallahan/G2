@@ -10,6 +10,7 @@ module G2.Execution.LiteralTable
     , addFunExprLT
     , checkFunExprLT
     , popUntilStartedBuilding
+    , topLTNonEmpty
     ) where
 
 import qualified G2.Language.Stack as S
@@ -271,3 +272,13 @@ popUntilStartedBuilding stck =
         Just (LitTableFrame (StartedBuilding _) _, _) -> stck
         Just (_, stck1) -> popUntilStartedBuilding stck1
         Nothing -> stck
+
+topLTNonEmpty :: State t -> Bool
+topLTNonEmpty s =
+    let lts = lit_table_stack s
+    in case S.pop lts of
+        Just (lt, _) -> ltNonEmpty lt
+        Nothing -> False
+
+ltNonEmpty :: LitTable -> Bool
+ltNonEmpty lt = not $ null (HM.toList $ lt_mapping lt)
