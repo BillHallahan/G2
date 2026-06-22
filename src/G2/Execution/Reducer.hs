@@ -1930,15 +1930,15 @@ varLookupLimitHalter lim = mkSimpleHalter
 -- | Discard a state if some previously symbolic ADT has been concretized to a depth of greater than some limit. 
 adtHeightHalter :: Monad m =>
                    Int -- ^ Limit
-                -> Halter m (HS.HashSet Name) r t
-adtHeightHalter lim = mkSimpleHalter init
+                -> Halter m () r t
+adtHeightHalter lim = mkSimpleHalter (const ())
                                      (\sym _ _ -> sym)
                                      stop
                                      (\sym _ _ _ -> sym)
     where
-        init = HS.fromList . map idName . E.symbolicIds . expr_env
-        stop sym _ s =
+        stop _ _ s =
             let
+                sym = E.allEverSymbolic (expr_env s)
                 m = maximum $ (-1):(HS.toList $ HS.map (flip adtHeight s) sym)
             in
             return $ if m > lim then Discard "adtHeightHalter" else Continue

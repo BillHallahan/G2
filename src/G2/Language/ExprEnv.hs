@@ -24,13 +24,14 @@ module G2.Language.ExprEnv
     , deepLookupConcOrSym
     , deepLookupVar
     , isSymbolic
+    , wasEverSymbolic
+    , allEverSymbolic
     , occLookup
     , lookupNameMod
     , nameModMap
     , insert
     , insertSymbolic
     , insertExprs
-    , difference
     , union
     , union'
     , unionWith
@@ -107,14 +108,16 @@ data EnvObj = ExprObj Expr
 instance Hashable EnvObj
 
 -- | Maps `Name`s to `Expr`s.  Tracks `Type`s of symbolic variables. 
-newtype ExprEnv = ExprEnv (M.HashMap Name EnvObj)
+data ExprEnv = ExprEnv { expr_map :: M.HashMap Name EnvObj -- ^ Mapping of names to bindings
+                       , was_symbolic :: HS.HashSet Name -- ^ All variables that were ever symbolic
+                       }
                   deriving (Show, Eq, Read, Generic, Data)
 
 instance Hashable ExprEnv
 
 {-# INLINE unwrapExprEnv #-}
 unwrapExprEnv :: ExprEnv -> M.HashMap Name EnvObj
-unwrapExprEnv = coerce
+unwrapExprEnv = expr_map
 
 toHashMap :: ExprEnv -> M.HashMap Name Expr
 toHashMap eenv =
@@ -124,15 +127,15 @@ toHashMap eenv =
 
 -- | Constructs an empty `ExprEnv`
 empty :: ExprEnv
-empty = ExprEnv M.empty
+empty = ExprEnv M.empty HS.empty
 
 -- | Constructs an `ExprEnv` with a single `Expr`.
 singleton :: Name -> Expr -> ExprEnv
-singleton n e = ExprEnv $ M.singleton n (ExprObj e)
+singleton n e = ExprEnv (M.singleton n (ExprObj e)) HS.empty
 
 -- | Constructs an `ExprEnv` from a list of `Name` and `Expr` pairs.
 fromList :: [(Name, Expr)] -> ExprEnv
-fromList = ExprEnv . M.fromList . Pre.map (\(n, e) -> (n, ExprObj e))
+fromList ns_e = ExprEnv (M.fromList . Pre.map (\(n, e) -> (n, ExprObj e)) $ ns_e) HS.empty
 
 -- | Is the `ExprEnv` empty?
 null :: ExprEnv -> Bool
@@ -149,14 +152,14 @@ member n = M.member n . unwrapExprEnv
 -- | Lookup the `Expr` with the given `Name`.
 -- Returns `Nothing` if the `Name` is not in the `ExprEnv`.
 lookup :: Name -> ExprEnv -> Maybe Expr
-lookup n (ExprEnv smap) = 
+lookup n (ExprEnv smap _) = 
     case M.lookup n smap of
         Just (ExprObj expr) -> Just expr
         Just (SymbObj i) -> Just $ Var i
         Nothing -> Nothing
 
 lookupConcOrSym :: Name -> ExprEnv -> Maybe ConcOrSym
-lookupConcOrSym  n (ExprEnv smap) = 
+lookupConcOrSym  n (ExprEnv smap _) = 
     case M.lookup n smap of
         Just (ExprObj expr) -> Just $ Conc expr
         Just (SymbObj i) -> Just $ Sym i
@@ -215,8 +218,18 @@ isSymbolic n eenv =
         Just (Sym _) -> True
         _ -> False
 
+-- | Checks if the given `Name` ever was a symbolic variable.
+wasEverSymbolic :: Name -> ExprEnv -> Bool
+wasEverSymbolic n eenv =
+    case lookupConcOrSym n eenv of
+        Just (Sym _) -> True
+        _ -> False
+
+allEverSymbolic :: ExprEnv -> HS.HashSet Name
+allEverSymbolic = was_symbolic
+
 occLookup :: TV.TyVarEnv -> T.Text -> Maybe T.Text -> ExprEnv -> Maybe Expr
-occLookup tv n m (ExprEnv eenv) = 
+occLookup tv n m (ExprEnv eenv _) = 
     let ex = L.find (\(Name n' m' _ _, _) -> n == n' && (m == m' || m' == Just "PrimDefs")) -- TODO: The PrimDefs exception should not be here! 
            . M.toList . M.mapMaybe (\case (ExprObj e) -> Just e; _ -> Nothing) $ eenv
     in
@@ -231,7 +244,7 @@ nameModMap = M.fromList . L.map (\(n@(Name n' m _ _), e) -> ((n', m), (n, e))) .
 
 -- | Looks  up a `Name` in the `ExprEnv`.  Crashes if the `Name` is not found.
 (!) :: ExprEnv -> Name -> Expr
-(!) (ExprEnv env') n =
+(!) (ExprEnv env' _) n =
     case M.lookup n env' of
         Just (ExprObj e) -> e
         Just (SymbObj i) -> Var i
@@ -240,33 +253,30 @@ nameModMap = M.fromList . L.map (\(n@(Name n' m _ _), e) -> ((n', m), (n, e))) .
 -- | Inserts a new `Expr` into the `ExorEnv`, at the given `Name`.
 -- If the `Name` already exists in the `ExprEnv`, the `Expr` is replaced.
 insert :: Name -> Expr -> ExprEnv -> ExprEnv
-insert n e = ExprEnv . M.insert n (ExprObj e) . unwrapExprEnv
+insert n e eenv = eenv { expr_map = M.insert n (ExprObj e) $ expr_map eenv }
 
 insertSymbolic :: Id -> ExprEnv -> ExprEnv
-insertSymbolic i = ExprEnv. M.insert (idName i) (SymbObj i) . unwrapExprEnv
+insertSymbolic i eenv = ExprEnv { expr_map = M.insert (idName i) (SymbObj i) $ expr_map eenv
+                                , was_symbolic = HS.insert (idName i) (was_symbolic eenv) }
 
 insertExprs :: [(Name, Expr)] -> ExprEnv -> ExprEnv
 insertExprs kvs scope = foldr (uncurry insert) scope kvs
 
-difference :: ExprEnv -> ExprEnv -> ExprEnv
-difference (ExprEnv m1) (ExprEnv m2) =
-    ExprEnv $ M.difference m1 m2
-
 -- | Get the union of two `ExprEnv`.  If names overlap, keep the mapping in the left `ExprEnv`.
 union :: ExprEnv -> ExprEnv -> ExprEnv
-union (ExprEnv eenv) (ExprEnv eenv') = ExprEnv $ eenv `M.union` eenv'
+union (ExprEnv eenv was_sym1) (ExprEnv eenv' was_sym2) = ExprEnv (eenv `M.union` eenv') (was_sym1 `HS.union` was_sym2)
 
 union' :: M.HashMap Name Expr -> ExprEnv -> ExprEnv
-union' m (ExprEnv eenv) = ExprEnv (M.map ExprObj m `M.union` eenv)
+union' m (ExprEnv eenv was_sym) = ExprEnv (M.map ExprObj m `M.union` eenv) was_sym
 
 -- | Get the union of two `ExprEnv`.  If names overlap, use the passed function to get an `EnvObj`.
 unionWith :: (EnvObj -> EnvObj -> EnvObj) -> ExprEnv -> ExprEnv -> ExprEnv
-unionWith f (ExprEnv m1) (ExprEnv m2) =
-    ExprEnv $ M.unionWith f m1 m2
+unionWith f (ExprEnv m1 was_sym1) (ExprEnv m2 was_sym2) =
+    ExprEnv (M.unionWith f m1 m2) (was_sym1 `HS.union` was_sym2)
 
 unionWithM :: Monad m => (EnvObj -> EnvObj -> m EnvObj) -> ExprEnv -> ExprEnv -> m ExprEnv
-unionWithM f (ExprEnv m1) (ExprEnv m2) =
-    return . ExprEnv =<< (Trav.sequence $ M.unionWith (\x y -> do
+unionWithM f (ExprEnv m1 was_sym1) (ExprEnv m2 was_sym2) =
+    return . flip ExprEnv (was_sym1 `HS.union` was_sym2) =<< (Trav.sequence $ M.unionWith (\x y -> do
                                                             x' <- x
                                                             y' <- y
                                                             f x' y') 
@@ -274,8 +284,8 @@ unionWithM f (ExprEnv m1) (ExprEnv m2) =
                                                       (M.map return m2))
 
 unionWithNameM :: Monad m => (Name -> EnvObj -> EnvObj -> m EnvObj) -> ExprEnv -> ExprEnv -> m ExprEnv
-unionWithNameM f (ExprEnv m1) (ExprEnv m2) =
-    return . ExprEnv =<< (Trav.sequence $ M.unionWithKey (\n x y -> do
+unionWithNameM f (ExprEnv m1 was_sym1) (ExprEnv m2 was_sym2) =
+    return . flip ExprEnv (was_sym1 `HS.union` was_sym2) =<< (Trav.sequence $ M.unionWithKey (\n x y -> do
                                                                     x' <- x
                                                                     y' <- y
                                                                     f n x' y') 
@@ -300,7 +310,7 @@ mapConc f = mapConcWithKey (\_ -> f)
 -- Will not replace symbolic variables with non-symbolic values,
 -- but will rename symbolic values.
 mapWithKey :: (Name -> Expr -> Expr) -> ExprEnv -> ExprEnv
-mapWithKey f (ExprEnv env) = ExprEnv $ M.mapWithKey f' env
+mapWithKey f (ExprEnv env was_sym) = ExprEnv (M.mapWithKey f' env) was_sym
     where
         f' :: Name -> EnvObj -> EnvObj
         f' n (ExprObj e) = ExprObj $ f n e
@@ -313,7 +323,7 @@ mapWithKey' :: (Name -> Expr -> a) -> ExprEnv -> M.HashMap Name a
 mapWithKey' f = M.mapWithKey f . toExprMap
 
 mapConcWithKey :: (Name -> Expr -> Expr) -> ExprEnv -> ExprEnv
-mapConcWithKey f (ExprEnv env) = ExprEnv $ M.mapWithKey f' env
+mapConcWithKey f (ExprEnv env was_sym) = ExprEnv (M.mapWithKey f' env) was_sym
     where
         f' :: Name -> EnvObj -> EnvObj
         f' n (ExprObj e) = ExprObj $ f n e
@@ -323,7 +333,7 @@ mapConcOrSym :: (ConcOrSym -> ConcOrSym) -> ExprEnv -> ExprEnv
 mapConcOrSym f = mapConcOrSymWithKey (\_ -> f)
 
 mapConcOrSymWithKey :: (Name -> ConcOrSym -> ConcOrSym) -> ExprEnv -> ExprEnv
-mapConcOrSymWithKey f (ExprEnv env) = ExprEnv $ M.mapWithKey f' env
+mapConcOrSymWithKey f (ExprEnv env was_sym) = ExprEnv (M.mapWithKey f' env) was_sym
     where
         g :: ConcOrSym -> EnvObj
         g (Conc e) = ExprObj e
@@ -333,7 +343,9 @@ mapConcOrSymWithKey f (ExprEnv env) = ExprEnv $ M.mapWithKey f' env
         f' n (SymbObj i) = g $ f n $ Sym i
 
 mapM :: Monad m => (Expr -> m Expr) -> ExprEnv -> m ExprEnv
-mapM f eenv = return . ExprEnv =<< Pre.mapM f' (unwrapExprEnv eenv)
+mapM f eenv = do
+    eenv' <- Pre.mapM f' (unwrapExprEnv eenv)
+    return $ ExprEnv eenv' (was_symbolic eenv)
     where
         f' (ExprObj e) = return . ExprObj =<< f e
         f' s@(SymbObj i) = do
@@ -344,7 +356,9 @@ mapM f eenv = return . ExprEnv =<< Pre.mapM f' (unwrapExprEnv eenv)
 
 
 mapWithKeyM :: Monad m => (Name -> Expr -> m Expr) -> ExprEnv -> m ExprEnv
-mapWithKeyM f eenv = return . ExprEnv . M.fromList =<< Pre.mapM (uncurry f') (toList eenv)
+mapWithKeyM f eenv = do
+    eenv' <- Pre.mapM (uncurry f') (toList eenv)
+    return $ ExprEnv (M.fromList eenv') (was_symbolic eenv)
     where
         f' n (ExprObj e) = return . (n,) . ExprObj =<< f n e
         f' n s@(SymbObj i) = do
@@ -357,7 +371,7 @@ filter :: (Expr -> Bool) -> ExprEnv -> ExprEnv
 filter p = filterWithKey (\_ -> p) 
 
 filterWithKey :: (Name -> Expr -> Bool) -> ExprEnv -> ExprEnv
-filterWithKey p (ExprEnv env') = ExprEnv $ M.filterWithKey p' env'
+filterWithKey p (ExprEnv env' was_sym) = ExprEnv (M.filterWithKey p' env') was_sym
     where
         p' :: Name -> EnvObj -> Bool
         p' n (ExprObj e) = p n e
@@ -367,7 +381,7 @@ filterConcOrSym :: (ConcOrSym -> Bool) -> ExprEnv -> ExprEnv
 filterConcOrSym p = filterConcOrSymWithKey (\_ -> p) 
 
 filterConcOrSymWithKey :: (Name -> ConcOrSym -> Bool) -> ExprEnv -> ExprEnv
-filterConcOrSymWithKey p (ExprEnv env') = ExprEnv $ M.filterWithKey p' env'
+filterConcOrSymWithKey p (ExprEnv env' was_sym) = ExprEnv (M.filterWithKey p' env') was_sym
     where
         p' :: Name -> EnvObj -> Bool
         p' n (ExprObj e) = p n (Conc e)
@@ -375,9 +389,9 @@ filterConcOrSymWithKey p (ExprEnv env') = ExprEnv $ M.filterWithKey p' env'
 
 -- | Returns a new `ExprEnv`, which contains only the symbolic values.
 filterToSymbolic :: ExprEnv -> ExprEnv
-filterToSymbolic = ExprEnv . M.filter (\e -> case e of
+filterToSymbolic eenv = ExprEnv (M.filter (\e -> case e of
                                                 SymbObj _ -> True
-                                                _ -> False) . unwrapExprEnv
+                                                _ -> False) $ expr_map eenv) (was_symbolic eenv)
 
 -- | Returns the names of all expressions with the given type in the expression environment
 funcsOfType :: TV.TyVarEnv -> Type -> ExprEnv -> [Name]
@@ -405,15 +419,15 @@ toList = M.toList . unwrapExprEnv
 -- | Creates a list of Name to Expr coorespondences
 -- Loses information about names that are mapped to the same value
 toExprList :: ExprEnv -> [(Name, Expr)]
-toExprList env@(ExprEnv env') =
+toExprList env@(ExprEnv env' _) =
     M.toList
     . M.mapWithKey (\k _ -> env ! k) $ env'
 
 fromExprList :: [(Name, Expr)] -> ExprEnv
-fromExprList = ExprEnv . M.fromList . L.map (\(n, e) -> (n, ExprObj e))
+fromExprList ne = ExprEnv (M.fromList . L.map (\(n, e) -> (n, ExprObj e)) $ ne) HS.empty
 
 fromExprMap :: M.HashMap Name Expr -> ExprEnv
-fromExprMap = ExprEnv . M.map ExprObj
+fromExprMap ne = ExprEnv (M.map ExprObj ne) HS.empty
 
 toExprMap :: ExprEnv -> M.HashMap Name Expr
 toExprMap env = M.mapWithKey (\k _ -> env ! k) $ unwrapExprEnv env
@@ -454,21 +468,23 @@ instance ASTContainer EnvObj Type where
     modifyContainedASTs f (SymbObj i) = SymbObj (modifyContainedASTs f i)
 
 instance Named ExprEnv where
-    names (ExprEnv eenv) = names (M.keys eenv) <> names eenv
+    names (ExprEnv eenv _) = names (M.keys eenv) <> names eenv
 
-    rename old new =
+    rename old new eenv =
         ExprEnv 
-        . M.fromList
+         (M.fromList
         . rename old new
         . M.toList
-        . unwrapExprEnv
+        . expr_map $ eenv)
+        (rename old new $ was_symbolic eenv)
 
-    renames hm =
+    renames hm eenv =
         ExprEnv
-        . M.fromList
+        (M.fromList
         . renames hm
         . M.toList
-        . unwrapExprEnv
+        . expr_map $ eenv)
+        (renames hm $ was_symbolic eenv)
 
 instance Named EnvObj where
     names (ExprObj e) = names e
