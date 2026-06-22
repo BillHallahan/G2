@@ -1930,19 +1930,21 @@ varLookupLimitHalter lim = mkSimpleHalter
 -- | Discard a state if some previously symbolic ADT has been concretized to a depth of greater than some limit. 
 adtHeightHalter :: Monad m =>
                    Int -- ^ Limit
-                -> Halter m (Int, HS.HashSet Name) r t
-adtHeightHalter lim = mkSimpleHalter
-                            init_h
-                            (\sym _ _ -> sym)
-                            stop
-                            (\(i, sym) _ _ s -> if i > 50 then (0, sym) else (i + 1, E.allEverSymbolic $ expr_env s))
+                -> Halter m (HS.HashSet Name) r t
+adtHeightHalter lim = mkSimpleHalter init_h
+                                     (\sym _ _ -> sym)
+                                     stop
+                                     update
     where
-        init_h s = (0, E.allEverSymbolic . expr_env $ s)
-        stop (_, sym) _ s =
+        init_h = HS.fromList . map idName . E.symbolicIds . expr_env
+        stop sym _ s =
             let
-                m = maximum $ (-1):(HS.toList . HS.map (flip adtHeight s) $ sym)
+                m = maximum $ (-1):(HS.toList $ HS.map (flip adtHeight s) sym)
             in
             return $ if m > lim then Discard "adtHeightHalter" else Continue
+        update sym _ _ (State { expr_env = eenv, curr_expr = CurrExpr Evaluate (Var (Id n _))})
+            | E.isSymbolic n eenv = HS.insert n sym
+        update sym _ _ _ = sym
 
 hpcApproximationHalter :: (Named t, Solver solver, SM.MonadState (ApproxPrevs t) m, MonadIO m) =>
                           solver
