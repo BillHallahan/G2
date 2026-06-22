@@ -899,11 +899,11 @@ prettyEEnv tv pg@(PG {env_ordering=e_ord}) cexpr estack eenv = T.intercalate "\n
                   ++ L.filter (\(x, _) -> not (HS.member x ce_names) && not (HS.member x es_names)) el
         
 printEnvObj :: PrettyGuide -> E.EnvObj -> T.Text
-printEnvObj pg (E.ExprObj e _) = mkDirtyExprHaskell pg e
+printEnvObj pg (E.ExprObj e) = mkDirtyExprHaskell pg e
 printEnvObj pg (E.SymbObj (Id _ t)) = "symbolic " <> mkTypeHaskellPG pg t
 
 envObjType :: TV.TyVarEnv -> ExprEnv -> E.EnvObj -> Type
-envObjType tvnv _ (E.ExprObj e _) = typeOf tvnv e
+envObjType tvnv _ (E.ExprObj e) = typeOf tvnv e
 envObjType _ _ (E.SymbObj (Id _ t)) = t
 
 prettyPathConds :: PrettyGuide -> PathConds -> T.Text
