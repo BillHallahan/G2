@@ -98,7 +98,7 @@ specials use_smt_tuples =
            --                                    , ("GT", Just "GHC.Types", [])])
            ]
            ++
-#if MIN_VERSION_GLASGOW_HASKELL(9,10,0,0)
+#if MIN_VERSION_GLASGOW_HASKELL(9,8,0,0)
            mkTuples use_smt_tuples "(" ")" (Just "GHC.Tuple") _MAX_TUPLE
 #elif MIN_VERSION_GLASGOW_HASKELL(9,6,0,0)
            mkTuples use_smt_tuples "(" ")" (Just "GHC.Tuple.Prim") _MAX_TUPLE

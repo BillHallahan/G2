@@ -23,6 +23,7 @@ module G2.Language.ExprEnv
     , deepLookupConcOrSym
     , deepLookupVar
     , isSymbolic
+    , allEverSymbolic
     , occLookup
     , lookupNameMod
     , nameModMap
@@ -216,6 +217,10 @@ isSymbolic n eenv =
     case lookupConcOrSym n eenv of
         Just (Sym _) -> True
         _ -> False
+
+-- | Names of all variables that are now/were ever symbolic
+allEverSymbolic :: ExprEnv -> HS.HashSet Name
+allEverSymbolic (ExprEnv eenv) = M.keysSet $ M.filter (\case (ExprObj _ PrevSym) -> True; (SymbObj _) -> True; _ -> False) eenv
 
 occLookup :: TV.TyVarEnv -> T.Text -> Maybe T.Text -> ExprEnv -> Maybe Expr
 occLookup tv n m (ExprEnv eenv) = 
