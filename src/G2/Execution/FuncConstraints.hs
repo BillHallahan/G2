@@ -679,7 +679,13 @@ collapseStack :: Stck.Stack Frame -> ExprEnv -> Expr -> (Expr, ExprEnv, Stck.Sta
 collapseStack stck eenv e
     | Just (CaseFrame i t as, stck') <- fr = collapseStack stck' eenv (Case e i t as)
     | Just (ApplyFrame e', stck') <- fr = collapseStack stck' eenv (App e e')
-    | Just (UpdateFrame n, stck') <- fr = collapseStack stck' (E.insert n e eenv) e
+    | Just (UpdateFrame n, stck') <- fr =
+        -- Update frames require a bit of care: we want to avoid a scenario where we overwrite a variable definition
+        -- with a reference to itself (i.e. if the current expression is a variable `v`, and we have an update frame for `v`,
+        -- we don't want to insert `v -> v` in the environment.)
+        case e of
+            (Var (Id n' _)) | n == n' -> collapseStack stck' eenv e
+            _ -> collapseStack stck' (E.insert n e eenv) e
     | Just (CastFrame coer, stck') <- fr = collapseStack stck' eenv (Cast e coer)
     | Just (CatchFrame catch, stck') <- fr = collapseStack stck' eenv (mkApp [Prim Catch TyUnknown, e, catch])
     | Just (AssumeFrame assume_e, stck') <- fr = collapseStack stck' eenv (Assume Nothing assume_e e)
