@@ -207,7 +207,7 @@ instance Solver UndefinedHigherOrder where
             [Id _ (TyFun _ _)] -> return $ SAT ()
             _ -> return $ Unknown "UndefinedHigherOrder" ()
 
-    solve _ s b [i@(Id n t@(TyFun _ _))] pc | not (n `elem` (concatMap PC.varNamesInPC $ PC.toList pc)) = do
+    solve _ s b [i@(Id n (TyFun _ _))] pc | not (n `elem` (concatMap PC.varNamesInPC $ PC.toList pc)) = do
         return . SAT $ SatRes (HM.singleton (idName i) (Prim Undefined TyBottom)) (tyvar_env s) (name_gen b)
     solve _ _ _ _ _ = return (Unknown "UndefinedHigherOrder" ())
 

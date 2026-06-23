@@ -9,7 +9,6 @@ module G2.Solver.Interface
     , Solver (..)
     ) where
 
-import G2.Execution.PrimitiveEval
 import G2.Execution.NormalForms
 import G2.Language
 import qualified G2.Language.ExprEnv as E
@@ -68,7 +67,9 @@ instance ASTContainer Subbed Type where
                , s_handles = modifyContainedASTs f (s_handles sub) }
 
 subModel :: State t -> Bindings -> Subbed
-subModel s@(State { curr_expr = CurrExpr _ cexpr
+subModel s@(State { expr_env = eenv
+                  , curr_expr = CurrExpr _ cexpr
+                  , model = m
                   , assert_ids = ais
                   , type_classes = tc
                   , sym_gens = gens
@@ -76,7 +77,7 @@ subModel s@(State { curr_expr = CurrExpr _ cexpr
                   , mutvar_env = mve
                   , reached_fc_ticks = r_fc
                   , tyvar_env = tvnv }) 
-          (Bindings {input_names = inputNames, name_gen = ng}) = 
+          (Bindings {input_names = inputNames }) = 
     let
         ais' = fmap (subVarFuncCall tvnv True m eenv tc) ais
 
@@ -100,9 +101,6 @@ subModel s@(State { curr_expr = CurrExpr _ cexpr
     in
     stripAllTicks $ untilEq (tyVarSubst tvnv . simplifyLams . pushCaseAppArgIn) sv
     where
-        fcs = subVar tvnv False (model s) (expr_env s) tc (sym_func_constraints s)
-        (eenv, m) = (expr_env s, model s) -- instantFuncConstraintsFromModel (s { sym_func_constraints = fcs }) ng
-
         toVars n = case E.lookup n eenv of
                                 Just e@(Lam _ _ _) -> Just . Var $ Id n (typeOf tvnv e)
                                 Just e -> Just e
@@ -174,28 +172,3 @@ pushCaseAppArgIn' :: Expr -> Expr
 pushCaseAppArgIn' (App (Case scrut bind t as) v@(Var _)) =
     Case scrut bind t $ map (\(Alt am e) -> Alt am (App e v) ) as
 pushCaseAppArgIn' e = e
-
-instantFuncConstraintsFromModel :: State t -> NameGen -> (ExprEnv, Model)
-instantFuncConstraintsFromModel s@(State { expr_env = eenv
-                                         , type_env = tenv
-                                         , tyvar_env = tv_env
-                                         , known_values = kv
-                                         , type_classes = tc
-                                         , model = m
-                                         , sym_func_constraints = sym_fc})
-                                ng =
-    foldr go (eenv, m) $ HM.toList (evalPrims eenv tenv tv_env kv tc sym_fc)
-    where
-        go (n, fcs) (eenv, m) =
-            case L.find (\fc -> all isTrue $ fc_preconds fc ) fcs of
-                Just sat_fc@(FC { fc_args = as, fc_ret = ret }) ->
-                    let
-                        (lam_is, !_) = freshIds (map (typeOf tv_env) as) ng
-                        body = mkLams (zip (repeat TermL) lam_is) $ ret
-                    in
-                    (E.insert n body eenv, HM.insert n body m)
-                Nothing -> error $ "instantFuncConstraintsFromModel: satisfiable function constraint not found" ++ show fcs
-
-        isTrue (Data (DataCon { dc_name = Name n _ _ _})) = n == "True"
-        isTrue _ = False
-
