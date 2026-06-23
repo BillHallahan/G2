@@ -29,7 +29,6 @@ import qualified Data.HashSet as HS
 import Data.List
 import Data.Maybe
 import qualified Data.Sequence as S
-import Data.Traversable
 import Data.Tuple.Extra
 
 import qualified Data.Text as T
@@ -551,7 +550,7 @@ extractAll fcs = do
     exts <- zipWithM (\i as -> do
         paths :: [DCPath] <- return . nub =<< concatMapM getFuncExtractorPaths as
         extract_expr:: [Expr -> Expr] <- mapM dcPathsToExtractors paths
-        let higher_tys = map (\(PathFunc t) -> t) $ map last paths
+        let higher_tys = map (\case (PathFunc t) -> t; _ -> error "extractAll: PathFunc expected") $ map last paths
             extract_expr_list = map (\f -> (\es -> f $ es !! i)) extract_expr
         return $ zip extract_expr_list higher_tys
         ) [0..] matched_args
