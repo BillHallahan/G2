@@ -42,7 +42,6 @@ import Data.Graph
 import qualified Data.HashMap.Lazy as HM
 import Data.IORef
 import Data.List
-import Data.Monoid
 import Data.Tuple
 import System.Clock
 

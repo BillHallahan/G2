@@ -8,16 +8,17 @@ module G2.Language.ArbValueGen ( ArbValueGen
                                , arbValueInfinite
                                , constArbValue ) where
 
-import G2.Data.Utils
+import qualified G2.Data.Utils as GD
+
 import G2.Language.Expr
 import G2.Language.Monad.Naming
 import G2.Language.Support
 import G2.Language.Syntax
 import G2.Language.Typing
-import qualified G2.Language.TyVarEnv as TV 
+import qualified G2.Language.TyVarEnv as TV
 import G2.Language.KnownValues
 
-import Control.Monad (foldM)
+import Control.Monad as CM
 import Control.Monad.Extra
 import qualified Control.Monad.State.Lazy as SM
 import Control.Exception (assert)
@@ -25,7 +26,6 @@ import Data.List
 import qualified Data.HashMap.Lazy as HM
 import qualified Data.Maybe as MA
 import Data.Ord
-import Data.Traversable
 
 -- | A default `ArbValueGen`.
 arbValueInit :: ArbValueGen
@@ -116,9 +116,7 @@ arbValue' _ _ (State { tyvar_env = tv_env }) TyLitRational av =
     return (Lit (LitRational r), tv_env, av { rationalGen = r + 1 })
 arbValue' _ _ (State { tyvar_env = tv_env }) TyLitChar av =
     let
-        c:cs = case charGen av of
-                xs@(_:_) -> xs
-                _ -> charGenInit
+        (c, cs) = unconsCharGen $ charGen av
     in
     return (Lit (LitChar c), tv_env, av { charGen = cs})
 arbValue' getADTF m s@(State { tyvar_env = tv }) (TyVar (Id n _)) av
@@ -163,9 +161,7 @@ constArbValue' _ _ (State { tyvar_env = tv_env }) TyLitRational av =
     return (Lit (LitRational r), tv_env, av)
 constArbValue' _ _ (State { tyvar_env = tv_env }) TyLitChar av =
     let
-        c:_ = case charGen av of
-                xs@(_:_) -> xs
-                _ -> charGenInit
+        (c, _) = unconsCharGen $ charGen av
     in
     return (Lit (LitChar c), tv_env, av)
 constArbValue' getADTF m s@(State { tyvar_env = tv }) (TyVar (Id n _)) av
@@ -219,7 +215,7 @@ getADT !cutoff m s@(State { tyvar_env = tvnv, known_values = kv }) av adt ts
 
             m' = foldr (uncurry HM.insert) m $ zip (map idName ids) ts
 
-        ((tvnv'', av'), es) <- mapAccumM
+        ((tvnv'', av'), es) <- GD.mapAccumM
                         (\(tvnv_, av_) t -> 
                             if | 0 <= cutoff -> do
                                     (e', tvnv_', av_') <- arbValueInfinite' (cutoff - 1) m' (s { tyvar_env = tvnv_ }) (applyTypeHashMap m' t) av_
@@ -255,7 +251,7 @@ getADT !cutoff m s@(State { tyvar_env = tvnv, known_values = kv }) av adt ts
 
             let coer = eval (getCoercions kv) (dc_type dc')
 
-            let unifMapTy = foldM (\uf -> uncurry (unify' uf))
+            let unifMapTy = CM.foldM (\uf -> uncurry (unify' uf))
             -- Union the forall type bindings with the passed type arguments
             let forall_unif = unifMapTy tvnv
                             . assert (length leading_ty' >= length ts)
@@ -272,3 +268,10 @@ getADT !cutoff m s@(State { tyvar_env = tvnv, known_values = kv }) av adt ts
                     in
                     return $ Just (mkApp $ Data dc':map Type univ_ty ++ map Type exist_ty, coer_unif')
                 Nothing -> return Nothing
+
+unconsCharGen :: [Char] -> (Char, [Char])
+unconsCharGen cg = case cg of
+                       (x:xs) -> (x, xs)
+                       _ -> case charGenInit of
+                           (y:ys) -> (y, ys)
+                           _ -> error "Impossible"

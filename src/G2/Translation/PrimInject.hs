@@ -42,14 +42,14 @@ dataInject prog progTy =
 
 -- TODO: Polymorphic types?
 dataInject' :: [(Name, [Type], [Id], [Id])] -> Expr -> Expr
-dataInject' ns v@(Var (Id (Name n m _ _) t)) = 
+dataInject' ns v_@(Var (Id (Name n m _ _) t)) = 
     case find (\(Name n' m' _ _, _, _, _) -> n == n' && m == m') ns of
-        Just (n', _, u, e) -> Data (DataCon n' t u e)
-        Nothing -> v
+        Just (n', _, u_, e) -> Data (DataCon n' t u_ e)
+        Nothing -> v_
 dataInject' _ e = e
 
 conName :: DataCon -> (Name, [Type], [Id], [Id])
-conName (DataCon n t u e) = (n, anonArgumentTypes t, u, e)
+conName (DataCon n t u_ e) = (n, anonArgumentTypes t, u_, e)
 
 primDefs :: HM.HashMap Name AlgDataTy -> [(T.Text, Expr)]
 primDefs pt = case (boolName pt, charName pt, listName pt, unitName pt) of
@@ -120,8 +120,8 @@ primDefs' b c l unit =
               , ("quotInteger#", Prim Quot tyIntIntInt)
               , ("remInteger#", Prim Rem tyIntIntInt)
 
-              , ("chr#", Prim Chr $ tyIntChar b )
-              , ("ord#", Prim OrdChar $ tyCharInt b )
+              , ("chr#", Prim Chr tyIntChar )
+              , ("ord#", Prim OrdChar tyCharInt )
               , ("smtEqChar#", Prim Eq $ tyCharCharBool b )
               , ("smtNeChar#", Prim Neq $ tyCharCharBool b )
               , ("smtEqChar#", Prim Eq $ tyCharCharBool b )
@@ -385,7 +385,7 @@ primDefs' b c l unit =
               ]
               where
                     funTyXY = TyFun (TyVar (x TYPE)) (TyVar (y TYPE))
-                    seqTy v = (TyApp (TyCon l (TyFun TYPE TYPE)) v)
+                    seqTy v_ = (TyApp (TyCon l (TyFun TYPE TYPE)) v_)
                     seqTyA = seqTy (TyVar a)
                     seqTyX = seqTy (TyVar (x TYPE))
                     strTy = seqTy (TyCon c TYPE)
@@ -442,9 +442,6 @@ dummyId name = Id (Name name Nothing 0 Nothing)
 binder :: Type -> Id
 binder = Id (Name "b" Nothing 0 Nothing)
 
-tyBool :: Name -> Type
-tyBool n = TyCon n TYPE
-
 tyIntInt :: Type
 tyIntInt = TyFun TyLitInt TyLitInt
 
@@ -496,11 +493,11 @@ tyFloatFloatBool n = TyFun TyLitFloat $ TyFun TyLitFloat (TyCon n TYPE)
 tyFloatFloatFloat :: Type
 tyFloatFloatFloat = TyFun TyLitFloat $ TyFun TyLitFloat TyLitFloat
 
-tyIntChar :: Name -> Type
-tyIntChar n = TyFun TyLitInt TyLitChar
+tyIntChar :: Type
+tyIntChar = TyFun TyLitInt TyLitChar
 
-tyCharInt :: Name -> Type
-tyCharInt n = TyFun TyLitChar TyLitInt
+tyCharInt :: Type
+tyCharInt = TyFun TyLitChar TyLitInt
 
 tyCharCharBool :: Name -> Type
 tyCharCharBool n = TyFun TyLitChar $ TyFun TyLitChar (TyCon n TYPE)

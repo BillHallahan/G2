@@ -58,7 +58,6 @@ import qualified G2.Language.PolyArgMap as PM
 import Control.Exception
 import Control.Monad.Extra
 import Data.Maybe
-import Data.Traversable
 
 stdReduce :: (Solver solver, Simplifier simplifier) => Sharing -> DiscardUnknownStates -> SymbolicFuncEval t -> solver -> simplifier -> State t -> Bindings -> IO (Rule, [(State t, ())], Bindings)
 stdReduce share discard_unknown symb_func_eval solver simplifier s b = do
@@ -76,7 +75,7 @@ stdReduce' share discard_unknown _ solver simplifier s@(State { curr_expr = Curr
         let (r, new_pc, ng') = evalApp s ng e1 e2
         (ng'', states) <- reduceNewPC discard_unknown solver simplifier ng' new_pc
         return (r, states, ng'')
-    | Let b e <- ce = return $ evalLet s ng b e
+    | Let b_ e <- ce = return $ evalLet s ng b_ e
     | Case e i t a <- ce = do
         let (r, new_pc, ng') = evalCase s b e i t a
         (ng'', states) <- reduceNewPC discard_unknown solver simplifier ng' new_pc
@@ -123,7 +122,6 @@ stdReduce' _ discard_unknown symb_func_eval solver simplifier s@(State { curr_ex
     | Just (LitTableFrame ltc up, stck') <- frstck =
         retLitTableFrame discard_unknown solver simplifier s ng ltc up stck'
     | Nothing <- frstck = return (RuleIdentity, [s], ng)
-    | otherwise = error $ "stdReduce': Unknown Expr" ++ show ce ++ show frstck
         where
             frstck = S.pop stck
 
@@ -154,7 +152,9 @@ evalVarSharing s@(State { expr_env = eenv
     , Just ents@(_:_) <- PM.lookup tyIdN pargm =
         let
             -- fresh ids
-            ([bindee, scrut], ng') = freshIds [TyLitInt, TyLitInt] ng
+            (bindee, scrut, ng') = case freshIds [TyLitInt, TyLitInt] ng of
+                                        ([b_, s_], ng_) -> (b_, s_, ng_)
+                                        _ -> error "Impossible"
             eenv' = E.insertSymbolic scrut eenv
 
             -- TODO: make this match getTyVarRenameMap usage
@@ -220,7 +220,7 @@ makeAltsForPMRet ns tyVarId = go ns tyVarId 1
     where
         go :: [Name] -> Id -> Int -> [Alt]
         go [n] tvid _ = [Alt {altMatch = Default, altExpr = Var (Id n (TyVar tvid))}]
-        go (n:ns) tvid l = Alt {altMatch = LitAlt (LitInt $ toInteger l), altExpr = Var (Id n (TyVar tvid))}:go ns tvid (l+1)
+        go (n:ns_) tvid l = Alt {altMatch = LitAlt (LitInt $ toInteger l), altExpr = Var (Id n (TyVar tvid))}:go ns_ tvid (l+1)
         go [] _ _ = error "makeAltsForPMRet: reached empty list"
 
 -- | If we have a primitive operator, we are at a point where either:
@@ -284,7 +284,7 @@ evalApp s@(State { expr_env = eenv
                 , new_mut_vars = [] }]
           )
         , ng')
-    | (Prim pr _):_ <- unApp (App e1 e2) =
+    | (Prim _ _):_ <- unApp (App e1 e2) =
         forceEval (App e1 e2) eenv tenv tv_env kv tc s ng
     | isExprValueForm eenv (App e1 e2) =
         ( RuleReturnAppSWHNF
@@ -306,20 +306,17 @@ evalApp s@(State { expr_env = eenv
         getNestedTickish (Tick t e) = t:getNestedTickish e
         getNestedTickish e = evalChildren getNestedTickish e
 
-        isError Error = True
-        isError _ = False
-
-        forceEval expr eenv tenv tv_env kv tc s ng =
+        forceEval expr eenv_ tenv_ tv_env_ kv_ tc_ s_ ng_ =
             let
-                (exP, eenv') = evalPrimsSharing eenv tenv tv_env kv tc expr
+                (exP, eenv_') = evalPrimsSharing eenv_ tenv_ tv_env_ kv_ tc_ expr
 
                 ts = getNestedTickish exP
                 exP' = foldr Tick (stripAllTicks exP) ts
                 er = if null ts then Return else Evaluate
             in
             ( RuleEvalPrimToNorm
-            , newPCEmpty $ s { expr_env = eenv', curr_expr = CurrExpr er exP' }
-            , ng )
+            , newPCEmpty $ s_ { expr_env = eenv_', curr_expr = CurrExpr er exP' }
+            , ng_ )
 
 evalLam :: State t -> LamUse -> Id -> Expr -> (Rule, [State t])
 evalLam = undefined
@@ -440,8 +437,8 @@ popToCaseFrame s ce = case S.pop (exec_stack s) of
                       where unwrap (CurrExpr _ e) = e
 
 -- | Create `[Alts]` for a case of case optimization
-caseOfCaseAlts :: Type -> Type -> [Alt] -> [Alt] -> Id -> [Alt]
-caseOfCaseAlts lower_t higher_t lower_alts higher_alts lower_bind = L.map makeAlt higher_alts
+caseOfCaseAlts :: Type -> [Alt] -> [Alt] -> Id -> [Alt]
+caseOfCaseAlts lower_t lower_alts higher_alts lower_bind = L.map makeAlt higher_alts
     where
         makeAlt (Alt { altMatch = am, altExpr = ae }) =
             Alt { altMatch = am, altExpr = Case ae lower_bind lower_t lower_alts }
@@ -452,7 +449,7 @@ evalCase s@(State { expr_env = eenv
                   , exec_stack = stck
                   , known_values = kv
                   , tyvar_env = tvnv
-                  , curr_expr = ce })
+                  })
          (Bindings { name_gen = ng, data_con_pc_map = dcpm }) mexpr bind t alts
 
   -- Case of case optimization, always needed for literal table creation
@@ -462,7 +459,7 @@ evalCase s@(State { expr_env = eenv
   | inLitTableMode s
   , Just (s1, outer_bind, t1, alts1) <- popToCaseFrame s (curr_expr s) =
       -- We're looking at the nested bindee here
-      let alts2 = caseOfCaseAlts t1 t alts1 alts outer_bind
+      let alts2 = caseOfCaseAlts t1 alts1 alts outer_bind
           new_case = Case mexpr bind t1 alts2
       in ( RuleEvalCaseInCase
          , newPCEmpty $ s1 { curr_expr = CurrExpr Evaluate new_case }
@@ -696,9 +693,9 @@ cleanParamsAndMakeDcon tv kv params ngen dcon aexpr mexpr_t m_coercion tenv =
             (exist_tys, value_args) = splitAt (length $ dc_exist_tyvars dcon) params'
 
             -- Get list of Types to concretize polymorphic data constructor and concatenate with other arguments.
-            -- If there is a coercion, we have to get the correct instantiation for the type being coerced to 
+            -- If there is a coercion, we have to get the correct instantiation for the type being coerced to
             mexpr_t' = case m_coercion of
-                                Just (c1 :~ c2) | Just tv <- unify c1 mexpr_t -> tyVarSubst tv c2
+                                Just (c1 :~ c2) | Just tv_ <- unify c1 mexpr_t -> tyVarSubst tv_ c2
                                                 | otherwise -> error "cleanParamsAndMakeDcon: invalid coercion"
                                 Nothing -> mexpr_t
             univ_ars = mexprTyToExpr mexpr_t' tenv
@@ -1513,16 +1510,6 @@ addExtConds s ng e1 ais e2 stck =
     in
     (SplitStatePieces s' [strue, sfalse], ng)
 
--- This function aims to extract pairs of types being coerced between. Given a coercion t1 :~ t2, the tuple (t1, t2) is returned.
-extractTypes :: KnownValues -> Id -> (Type, Type)
-extractTypes kv (Id _ (TyApp (TyApp (TyApp (TyApp (TyCon n _) _) _) n1) n2)) =
-        (if KV.tyCoercion kv == n
-        then
-           (n1, n2)
-        else
-            error "ExtractTypes: the center of the pattern is not a coercion")
-extractTypes _ _ = error "ExtractTypes: The type of the pattern doesn't have four nested TyApp while its corresponding scrutinee is a coercion"
-
 liftBinds :: KnownValues
           -> [(Id, Expr)] -- ^ Type level variable mapping
           -> [(Id, Expr)] -- ^ Value level variable mapping
@@ -1538,7 +1525,7 @@ liftBinds kv type_binds value_binds tv_env eenv expr ngen = (tv_env', eenv', exp
     -- 'a ~# Int', 'b ~# Float', 'c ~# String'
     -- The code simply does the following:
     -- 'E a b c' -> 'E Int Float String'
-    (coercion, type_args) = L.partition (\(_, e) -> case e of
+    (coercion, _type_args) = L.partition (\(_, e) -> case e of
                                         Coercion _ -> True
                                         _ -> False) type_binds
 
@@ -1617,7 +1604,7 @@ hpcTick u = HpcTick u "HPC"
 
 freshHpcTick :: NameGen -> (Tickish, NameGen)
 freshHpcTick ng =
-    let (Name n _ u _, ng') = freshSeededName (Name "HPC" Nothing 0 Nothing) ng in
+    let (Name _ _ u _, ng') = freshSeededName (Name "HPC" Nothing 0 Nothing) ng in
     (HpcTick u "HPC", ng')
 
 data SymFuncTicks = SFT { dc_split_tick :: Tickish
@@ -1735,7 +1722,7 @@ retReplaceSymbFuncTemplate sft
     in Just (RuleReturnReplaceSymbFunc, [constState], ng')
 
     -- LIT-SPLIT
-    | Var (Id n nTy@(TyFun t1 t2)):ea:es <- unApp ce
+    | Var (Id n (TyFun t1 t2)):ea:es <- unApp ce
     , isPrimType t1
     , E.isSymbolic n eenv
     = let
@@ -1743,7 +1730,9 @@ retReplaceSymbFuncTemplate sft
         trueDc = DataCon (KV.dcTrue kv) boolTy [] []
         falseDc = DataCon (KV.dcFalse kv) boolTy [] []
         eqT1 = mkEqPrimType t1 kv
-        (f1Id:f2Id:xId:discrimId:[], ng') = freshIds [t2, TyFun t1 t2, t1, boolTy] ng
+        (f1Id, f2Id, xId, discrimId, ng') = case freshIds [t2, TyFun t1 t2, t1, boolTy] ng of
+                                                ([a_, b_, c_, d_], ng_) -> (a_, b_, c_, d_, ng_)
+                                                _ -> error "Impossible"
         x = Var xId
         e = Lam TermL xId $ Case (Tick (lit_split_tick sft) (mkApp [eqT1, x, ea])) discrimId t2
            [ Alt (DataAlt trueDc []) (Var f1Id)
@@ -1766,7 +1755,7 @@ retReplaceSymbFuncTemplate sft
     , E.isSymbolic n eenv
     = let
         -- create name of new sym
-        ([f1Id], ng') = freshIds [faTy] ng
+        (f1Id, ng') = freshId faTy ng
         -- create type level lambda
         e = Lam TypeL tyVarId $ Var f1Id
         -- new environment bindings
@@ -1806,7 +1795,9 @@ mkFuncConst :: SymFuncTicks -> State t -> [Expr] -> Name -> Type -> Type -> Name
 mkFuncConst sft s@(State { expr_env = eenv, poly_arg_map = pargm } ) es n t1 t2 ng =
     let
         -- make new Ids and runtime expression
-        (fId:xId:[], ng') = freshIds [t2, t1] ng
+        (fId, xId, ng') = case freshIds [t2, t1] ng of
+                              ([a_, b_], ng_) -> (a_, b_, ng_)
+                              _ -> error "Impossible"
         e = Lam TermL xId . Tick (const_tick sft) $ Var fId
         -- get forall bound tyVar names, rename bindings for env
         (e', fId') = (retypeToEnvTVs e pargm, retypeToEnvTVs fId pargm)

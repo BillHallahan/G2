@@ -6,8 +6,8 @@ import G2.Language
 import qualified Data.HashMap.Lazy as HM
 import qualified G2.Language.ExprEnv as E 
 import qualified Data.List as L 
+import qualified Data.Foldable as F
 
-import Data.Foldable (foldl')
 import G2.Execution
 import qualified G2.Language.TyVarEnv as TV 
 
@@ -31,7 +31,7 @@ newType tv ng i te =
         tys = ty : map TyVar all_ids
         tyapps = mkTyApp tys
         tyfuns = TyFun TyLitInt tyapps
-        tyforall = foldl' (flip TyForAll) tyfuns all_ids
+        tyforall = F.foldl' (flip TyForAll) tyfuns all_ids
 
         nadt = DataTyCon 
                     { bound_ids = all_ids

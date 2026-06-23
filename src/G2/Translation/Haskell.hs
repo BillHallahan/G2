@@ -166,6 +166,9 @@ loadProj hsc proj src gflags tr_con = do
     let init_beta_flags = gopt_unset beta_flags Opt_StaticArgumentTransformation
 
     let beta_flags' = foldl' gopt_set init_beta_flags gen_flags'
+    let headError xs = case xs of
+                           (x:_) -> x
+                           _ -> error "loadProj: empty list"
     let dflags = beta_flags' {
 #if MIN_VERSION_GLASGOW_HASKELL(9,6,0,0)
                                backend = case hsc of
@@ -203,7 +206,7 @@ loadProj hsc proj src gflags tr_con = do
                              , simplPhases = if G2.simpl tr_con then simplPhases beta_flags' else 0
                              , maxSimplIterations = if G2.simpl tr_con then maxSimplIterations beta_flags' else 0
 
-                             , hpcDir = head proj}    
+                             , hpcDir = headError proj }
         dflags' = setIncludePaths proj dflags
 
     _ <- setSessionDynFlags dflags'
@@ -672,7 +675,7 @@ mkLit (LitNumber LitNumInt64 i) = G2.LitInt (fromInteger i)
 mkLit (LitNumber LitNumWord i) = G2.LitInt (fromInteger i)
 mkLit (LitNumber LitNumWord64 i) = G2.LitInt (fromInteger i)
 #else
-mkLit (LitNumber LitNumBigNat i) = error "mkLit: unhandled LitNumBigNat"
+mkLit (LitNumber LitNumBigNat _) = error "mkLit: unhandled LitNumBigNat"
 mkLit (LitNumber LitNumInt i) = G2.LitInt (fromInteger i)
 mkLit (LitNumber LitNumInt8 i) = G2.LitInt (fromInteger i)
 mkLit (LitNumber LitNumInt16 i) = G2.LitInt (fromInteger i)

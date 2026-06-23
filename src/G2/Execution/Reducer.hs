@@ -123,7 +123,7 @@ module G2.Execution.Reducer ( Reducer (..)
 
                             , hpcApproximationHalter
                             , approximationHalter'
-                            
+
                             , HPCMemoTable
                             , noNewHPCHalter
                             , acceptOnlyNewHPC
@@ -194,7 +194,6 @@ import qualified Data.Map as M
 import Data.Maybe
 import Data.Monoid hiding (Alt)
 import Data.IORef
-import qualified Data.List as L 
 import qualified Data.Sequence as S
 import qualified Data.Text as T
 import qualified Data.Text.IO as T
@@ -937,11 +936,11 @@ getNonRedForHigherOrder no_inline ng s
     , let (ae, stck) = allApplyFrames (exec_stack s)
     , let es = es_ce ++ ae
     , let ce' = mkApp (v:es)
-    , Just nrpc@(NRPC { nrpc_rhs = rhs }) <- findNRPC (findSynEq ce') (non_red_path_conds s) =
+    , Just (NRPC { nrpc_rhs = rhs }) <- findNRPC (findSynEq ce') (non_red_path_conds s) =
         Just (s { curr_expr = CurrExpr Evaluate rhs, exec_stack = stck }, ng)
     where
         findSynEq ce_ nrpc = eqUpToTypesInlineIgnoringTicks no_inline (expr_env s) (nrpc_lhs nrpc) ce_
-getNonRedForHigherOrder no_inline ng s
+getNonRedForHigherOrder _ ng s
     | Just (s', _, _, ng1) <- createNonRed ng Focused s = Just (s', ng1)
     | otherwise = Nothing
 
@@ -957,13 +956,12 @@ addApproxPrevs s = do
 
 -- | When a newly reached function application is approximated by a previously seen (and thus explored) function application,
 -- shift the new function application into the NRPCs.
-nrpcApproxReducer :: (Solver solver, SM.MonadState (ApproxPrevs t) m, MonadIO m) =>
-                     solver
-                  -> HS.HashSet Name -- ^ Names of functions that should not be approximated
+nrpcApproxReducer :: (SM.MonadState (ApproxPrevs t) m, MonadIO m) =>
+                     HS.HashSet Name -- ^ Names of functions that should not be approximated
                   -> HS.HashSet Name -- ^ Names that should not be inlined (often: top level names from the original source code)
                   -> Config
                   -> Reducer m Int t
-nrpcApproxReducer solver no_inline no_nrpc_names config =
+nrpcApproxReducer no_inline no_nrpc_names config =
     (mkSimpleReducer (const 0) red)
             { onAccept = \s b nrpc_count -> do
             if print_num_nrpc config
@@ -995,7 +993,6 @@ nrpcApproxReducer solver no_inline no_nrpc_names config =
                                             --      putStrLn $ "log_path prev = " ++ show (log_path prev)
                                             --      putStrLn $ "num_steps prev = " ++ show (num_steps prev)
                                             moreRestrictiveIncludingPC
-                                                        solver
                                                         mr_cont
                                                         Nothing
                                                         lookupConcOrSymState
@@ -1185,7 +1182,7 @@ strictRed = mkSimpleReducer (\_ -> ())
             -- Without this check, the strictRed might repeatedly fire, fruitlessly arranging for already reduced
             -- subexpressions to be repeatedly reduced over and over, and preventing the involved `State` from
             -- being halted.
-            , must_red HS.empty e 
+            , must_red HS.empty e
             , not (errorRaised s) =
                 let
                     -- Given a `curr_expr` of the form:
@@ -1200,17 +1197,18 @@ strictRed = mkSimpleReducer (\_ -> ())
                     -- Handle update frames
                     (eenv'', ce_expr') = handle_update_casts stck eenv' ce_expr
                     ce' = CurrExpr Return ce_expr'
+                    (is_head, is_tail) = fromJust $ L.uncons is
                     stck'' = foldl' (\st i -> Stck.push (CurrExprFrame NoAction (CurrExpr Evaluate $ Var i)) st)
                                    (Stck.push (CurrExprFrame NoAction ce') stck' )
-                                   (tail is)
-                    
+                                   is_tail
+
                     s' = s { expr_env = eenv''
-                           , curr_expr = CurrExpr Evaluate (Var $ head is)
+                           , curr_expr = CurrExpr Evaluate $ Var is_head
                            , exec_stack = stck'' }
                 in
                 return (InProgress, [(s', ())], b { name_gen = ng' })
             where
-                -- To decide when to apply the strictRed, we must 
+                -- To decide when to apply the strictRed, we must
                 -- (1) remove all update frames from the top of the stack
                 -- (2) check if the top of the stack is a CurrExprFrame (or if the stack is empty empty)
                 -- (3) check if the top of the stack is a CurrExprFrame (or empty)
@@ -1219,19 +1217,19 @@ strictRed = mkSimpleReducer (\_ -> ())
                 -- The expression `e` wrapped in a cast might be in SWHNF.  In this case, the whole cast is in SWHNF,
                 -- and we do not want to prevent reduction of the subexpressions in `e`.
                 -- For an explanation of UpdateFrames, see Note [Ignore Update Frames].
-                (updates, stck') = pop_updates_casts [] stck
+                (_updates, stck') = pop_updates_casts [] stck
 
                 exec_done | Stck.null stck' = True
                           | Just (CurrExprFrame _ _, _) <- Stck.pop stck' = True
                           | otherwise = False
 
-                pop_updates_casts ns stck | Just (UpdateFrame n, stck_) <- Stck.pop stck = pop_updates_casts (n:ns) stck_
-                                          | Just (CastFrame _, stck_) <- Stck.pop stck = pop_updates_casts ns stck_
-                                          | otherwise = (ns, stck)
+                pop_updates_casts ns stck1 | Just (UpdateFrame n, stck1_) <- Stck.pop stck1 = pop_updates_casts (n:ns) stck1_
+                                           | Just (CastFrame _, stck1_) <- Stck.pop stck1 = pop_updates_casts ns stck1_
+                                           | otherwise = (ns, stck1)
 
-                handle_update_casts stck eenv ce | Just (UpdateFrame n, stck_) <- Stck.pop stck = handle_update_casts stck_ (E.insert n ce eenv) ce
-                                                 | Just (CastFrame c, stck_) <- Stck.pop stck = handle_update_casts stck_ eenv (Cast ce c)
-                                                 | otherwise = (eenv, ce)
+                handle_update_casts stck1 eenv1 ce | Just (UpdateFrame n, stck1_) <- Stck.pop stck1 = handle_update_casts stck1_ (E.insert n ce eenv1) ce
+                                                   | Just (CastFrame c, stck1_) <- Stck.pop stck1 = handle_update_casts stck1_ eenv1 (Cast ce c)
+                                                   | otherwise = (eenv1, ce)
                 -- | Does the expression contain non-fully-reduced subexpressions?
                 --
                 -- Looks through variables, but tracks seen variable names to avoid an infinite loop.
@@ -1438,7 +1436,7 @@ simpleLogger fn =
                      (\_ s b -> do
                         liftIO $ outputState stdFileNamer fn (log_path s) s b pprExecStateStr
                         return (NoProgress, [(s, ())], b) ))
-                    { updateWithAll = \s -> map (\(s, i) -> s { log_path = log_path s ++ [i]} ) $ zip s [1..] }
+                    { updateWithAll = \s -> map (\(s_, i) -> s_ { log_path = log_path s_ ++ [i]} ) $ zip s [1..] }
 
 -- | A Reducer to producer logging output 
 prettyLogger :: (MonadIO m, SM.MonadState PrettyGuide m) => PrettyTrack t -> FilePath -> Reducer m () t
@@ -1453,7 +1451,7 @@ prettyLogger pretty_track fp =
             return (NoProgress, [(s, ())], b)
         )
 
-    ) { updateWithAll = \s -> map (\(s, i) -> s { log_path = log_path s ++ [i]} ) $ zip s [1..]
+    ) { updateWithAll = \s -> map (\(s_, i) -> s_ { log_path = log_path s_ ++ [i]} ) $ zip s [1..]
       , onAccept = \s b ll -> do 
                                 liftIO . putStrLn $ "Accepted on path " ++ show ll
                                 return (s,b)
@@ -1931,21 +1929,20 @@ varLookupLimitHalter lim = mkSimpleHalter
 adtHeightHalter :: Monad m =>
                    Int -- ^ Limit
                 -> Halter m (HS.HashSet Name) r t
-adtHeightHalter lim = mkSimpleHalter init
+adtHeightHalter lim = mkSimpleHalter init_
                                      (\sym _ _ -> sym)
                                      stop
                                      (\sym _ _ _ -> sym)
     where
-        init = HS.fromList . map idName . E.symbolicIds . expr_env
+        init_ = HS.fromList . map idName . E.symbolicIds . expr_env
         stop sym _ s =
             let
                 m = maximum $ (-1):(HS.toList $ HS.map (flip adtHeight s) sym)
             in
             return $ if m > lim then Discard "adtHeightHalter" else Continue
 
-hpcApproximationHalter :: (Named t, Solver solver, SM.MonadState (ApproxPrevs t) m, MonadIO m) =>
-                          solver
-                       -> HS.HashSet Name -- ^ Names that should not be inlined (often: top level names from the original source code)
+hpcApproximationHalter :: (Named t, SM.MonadState (ApproxPrevs t) m, MonadIO m) =>
+                          HS.HashSet Name -- ^ Names that should not be inlined (often: top level names from the original source code)
                        -> Halter m () (ExecRes  t) t
 hpcApproximationHalter = approximationHalter' stop_cond
     where
@@ -1953,13 +1950,12 @@ hpcApproximationHalter = approximationHalter' stop_cond
             let acc_seen_hpc = HS.unions (map (reached_hpc . final_state) $ accepted pr) in
             HS.null $ HS.difference (reached_hpc s) acc_seen_hpc
 
-approximationHalter' :: (Named t, Solver solver, SM.MonadState (ApproxPrevs t) m, MonadIO m) =>
+approximationHalter' :: (Named t, SM.MonadState (ApproxPrevs t) m, MonadIO m) =>
                         (Processed r (State t) -> State t -> State t -> Bool) -- ^ Approximated states are discarded only if they match this condition
                                                                               -- Args: all accepted states, approximated (old) state, approximating (new) state
-                     -> solver
                      -> HS.HashSet Name -- ^ Names that should not be inlined (often: top level names from the original source code)
                      -> Halter m () r t
-approximationHalter' stop_cond solver no_inline = mkSimpleHalter
+approximationHalter' stop_cond no_inline = mkSimpleHalter
                                                         (const ())
                                                         (\hv _ _ -> hv)
                                                         stop
@@ -1984,7 +1980,6 @@ approximationHalter' stop_cond solver no_inline = mkSimpleHalter
                 let xs' = filter (\x -> num_steps x < num_steps s') xs
                 approx <- liftIO $ findM (\prev -> do
                                                 more_res_s <- moreRestrictiveIncludingPCAndNRPC
-                                                                solver
                                                                 mr_cont
                                                                 Nothing
                                                                 lookupConcOrSymState
@@ -2068,9 +2063,9 @@ noNewHPCHalter mod_name = mkSimpleHalter
                         if HS.null diff2 then do return (Discard "noNewHPCHalter") else do return Continue
                     else return Continue
             | otherwise = return Continue
-        
+
 acceptOnlyNewHPC :: (Monad m1, SM.MonadState HPCMemoTable (m2 m1), SM.MonadTrans m2) => Halter m1 r (ExecRes t) t -> Halter (m2 m1) r (ExecRes t) t
-acceptOnlyNewHPC h = 
+acceptOnlyNewHPC h =
         Halter {
               initHalt = initHalt h
             , updatePerStateHalt = updatePerStateHalt h
@@ -2078,6 +2073,7 @@ acceptOnlyNewHPC h =
             , stopRed = stop
             , stepHalter = stepHalter h
             , updateHalterWithAll = updateHalterWithAll h
+            , filterAllStates = filterAllStates h
             }
     where
         stop hv pr s = do
@@ -2113,9 +2109,9 @@ data TimerTrack = TT { timer_count :: Int, init_symbolic :: HS.HashSet Name }
 stdTimerHalter :: (MonadIO m, MonadIO m_run) => NominalDiffTime
                                              -> Int
                                              -> m (Halter m_run TimerTrack r t, IORef TimedOut)
-stdTimerHalter ms min_found = do
+stdTimerHalter ms min_found_ = do
     io_timed_out <- liftIO $ newIORef NoTimeOut
-    th <- timerHalter io_timed_out ms (Discard "stdTimeHalter") min_found 10
+    th <- timerHalter io_timed_out ms (Discard "stdTimeHalter") min_found_ 10
     return (th, io_timed_out)
 
 {-# INLINE timerHalter #-}
@@ -2126,7 +2122,7 @@ timerHalter :: (MonadIO m, MonadIO m_run) =>
             -> Int -- ^ Don't stop unless at least this many states have been accepted
             -> Int -- ^ Check timeout every this many steps
             -> m (Halter m_run TimerTrack r t)
-timerHalter io_timed_out ms def min_found ce = do
+timerHalter io_timed_out ms def min_found_ ce = do
     curr <- liftIO $ getCurrentTime
     return $ mkSimpleHalter
                 (\s -> TT { timer_count = 0
@@ -2137,7 +2133,7 @@ timerHalter io_timed_out ms def min_found ce = do
     where
         stop it (TT { timer_count = v, init_symbolic = init_symb }) (Processed { accepted = acc }) s
             | v == 0
-            , compareLength acc min_found /= LT = do
+            , compareLength acc min_found_ /= LT = do
                 curr <- liftIO getCurrentTime
                 let diff = diffUTCTime curr it
 
@@ -2297,12 +2293,9 @@ adtHeight n s@(State { expr_env = eenv })
 
 adtHeight' :: Expr -> State t -> Int
 adtHeight' e s =
-    let
-        _:es = unApp e
-    in
     maximum $ 0:map (\e' -> case e' of
                         Var (Id n _) -> adtHeight n s
-                        _ -> 0) es
+                        _ -> 0) (appArgs e)
 
 -- | Orders by the combined size of (previously) symbolic ADT.
 -- In particular, aims to first execute those states with a combined ADT size closest to
@@ -2351,12 +2344,9 @@ adtSize n s@(State { expr_env = eenv })
 
 adtSize' :: Expr -> State t -> Int
 adtSize' e s =
-    let
-        _:es = unApp e
-    in
     sum $ 0:map (\e' -> case e' of
                         Var (Id n _) -> adtSize n s
-                        _ -> 0) es
+                        _ -> 0) (appArgs e)
 
 -- | Orders by the number of Path Constraints
 pcSizeOrderer :: Monad m =>

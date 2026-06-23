@@ -14,12 +14,11 @@ module G2.Data.Utils ( uncurry3
 
                      , splitOn
                      , holes
-                     
+
                      , (==>)
-                     
-#if !(MIN_VERSION_base(4,18,0))
+
                      , mapAccumM
-#endif
+
                      , compareLength
                      ) where
 
@@ -32,6 +31,10 @@ import Data.List
 #if !(MIN_VERSION_base(4,18,0))
 import qualified Control.Monad.State.Lazy as CM
 import Data.Coerce
+#endif
+
+#if (MIN_VERSION_base(4,18,0))
+import Data.Traversable (mapAccumM)
 #endif
 
 -- * Tuples

@@ -14,6 +14,7 @@ import qualified Control.Monad.State.Lazy as SM
 import qualified Data.HashMap.Lazy as HM
 
 import qualified G2.Language as L
+import qualified G2.Language.TyVarEnv as TV
 import G2.Language.AST
 import G2.Language.Monad
 import G2.Language.Syntax
@@ -28,7 +29,7 @@ data SimpleState = SimpleState { expr_env :: L.ExprEnv
                                , families :: L.Families
                                , rewrite_rules :: ![L.RewriteRule]
                                , exports :: [Name]
-                               
+
                                , name_map :: NameMap
                                , type_name_map :: TypeNameMap } deriving (Eq, Show, Read)
 
@@ -54,6 +55,8 @@ instance ExState SimpleState SimpleStateM where
 
     typeClasses = return . type_classes =<< SM.get
     putTypeClasses = rep_type_classesM
+
+    tyVarEnv = return . (\_ -> TV.empty) =<< SM.get
 
 runSimpleStateM :: SimpleStateM a -> SimpleState -> (a, SimpleState)
 runSimpleStateM (SimpleStateM s) s' = SM.runState s s'

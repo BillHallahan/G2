@@ -113,7 +113,7 @@ verifyRedHaltOrd s solver simplifier config verify_config no_nrpc_names = do
                                         .~> syntactic_eq_red f
                                 False -> logger_std_red f
         lemma_gen f = case use_lemmas verify_config of
-                            True -> SomeReducer (genLemmaReducer no_nrpc_names solver)
+                            True -> SomeReducer (genLemmaReducer no_nrpc_names)
                                 .~> liftSomeReducer (SomeReducer acceptLemmaReducer)
                                 .~> nrpc_approx_red f
                             False -> nrpc_approx_red f
@@ -128,7 +128,7 @@ verifyRedHaltOrd s solver simplifier config verify_config no_nrpc_names = do
                                     False -> SomeHalter halter
 
         halter_approx_discard = case approx verify_config of
-                                        True -> SomeHalter (liftHalter $ approximationHalter solver approx_no_inline) .<~> inconsistent_halter
+                                        True -> SomeHalter (liftHalter $ approximationHalter approx_no_inline) .<~> inconsistent_halter
                                         False -> inconsistent_halter
 
         orderer = case search_strat config of
@@ -209,7 +209,7 @@ verifyFromFile proj src f transConfig config verify_config = do
     init_time <- getTime Realtime
     rho <- verifyRedHaltOrd verifier_state solver simplifier config' verify_config (S.fromList no_nrpc_names)
     let to = case rho of (_, _, _, to_)-> to_
-    (er, got_unknown, bindings''') <-
+    (er, _got_unknown, bindings''') <-
             case rho of
                 (red, hal, ord, _) ->
                         SM.evalStateT

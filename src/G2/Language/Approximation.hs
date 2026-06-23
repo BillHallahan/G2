@@ -35,7 +35,6 @@ import Control.Exception
 import Control.Monad.Extra
 import Control.Monad.IO.Class
 import Data.Either
-import qualified Data.Foldable as F
 import qualified Data.HashSet as HS
 import qualified Data.HashMap.Lazy as HM
 import Data.Maybe
@@ -74,16 +73,15 @@ type MRCont t l =  State t
 -------------------------------------------------------------------------------
 
 -- | Check is s1 is an approximation of s2 (if s2 is more restrictive than s1.)
-moreRestrictiveIncludingPCAndNRPC :: (Named t, S.Solver solver) =>
-                   solver
-                -> MRCont t l -- ^ For special case handling - what to do if we don't match elsewhere in moreRestrictive
+moreRestrictiveIncludingPCAndNRPC :: (Named t) =>
+                   MRCont t l -- ^ For special case handling - what to do if we don't match elsewhere in moreRestrictive
                 -> Maybe (GenerateLemma t l)
                 -> Lookup t -- ^ How to lookup variable names
                 -> HS.HashSet Name -- ^ Names that should not be inlined (often: top level names from the original source code)
                 -> State t -- ^ State 1
                 -> State t -- ^ State 2
                 -> IO Bool
-moreRestrictiveIncludingPCAndNRPC solver mr_cont gen_lemma lkp ns s1 s2 = do
+moreRestrictiveIncludingPCAndNRPC mr_cont gen_lemma lkp ns s1 s2 = do
     let mr = moreRestrictive' mr_cont gen_lemma lkp s1 s2 ns (HM.empty, HS.empty) True [] [] (getExpr s1) (getExpr s2)
               --  >>= \hm -> moreRestrictiveStack mr_cont gen_lemma lkp s1 s2 ns hm (exec_stack s1) (exec_stack s2)
                >>= \hm' -> moreRestrictiveNRPC mr_cont gen_lemma lkp s1 s2 ns hm'
@@ -96,16 +94,15 @@ moreRestrictiveIncludingPCAndNRPC solver mr_cont gen_lemma lkp ns s1 s2 = do
         Right mr' -> return . isRight $ moreRestrictivePC mr_cont gen_lemma lkp s1 s2 ns mr'
 
 -- | Check is s1 is an approximation of s2 (if s2 is more restrictive than s1.)
-moreRestrictiveIncludingPC :: S.Solver solver =>
-                   solver
-                -> MRCont t l -- ^ For special case handling - what to do if we don't match elsewhere in moreRestrictive
+moreRestrictiveIncludingPC ::
+                   MRCont t l -- ^ For special case handling - what to do if we don't match elsewhere in moreRestrictive
                 -> Maybe (GenerateLemma t l)
                 -> Lookup t -- ^ How to lookup variable names
                 -> HS.HashSet Name -- ^ Names that should not be inlined (often: top level names from the original source code)
                 -> State t -- ^ State 1
                 -> State t -- ^ State 2
                 -> IO Bool
-moreRestrictiveIncludingPC solver mr_cont gen_lemma lkp ns s1 s2  = do
+moreRestrictiveIncludingPC mr_cont gen_lemma lkp ns s1 s2  = do
     let mr = moreRestrictive' mr_cont gen_lemma lkp s1 s2 ns (HM.empty, HS.empty) True [] [] (getExpr s1) (getExpr s2)
     case mr of
         Left _ -> return False
@@ -326,6 +323,7 @@ moreRestrictiveAlt mr_cont gen_lemma lkp s1 s2 ns hm active n1 n2 (Alt am1 e1) (
     _ -> moreRestrictive' mr_cont gen_lemma lkp s1 s2 ns hm active n1 n2 e1 e2
   else Left []
 
+{-
 moreRestrictiveStack :: Show l => MRCont t l
                      -> Maybe (GenerateLemma t l)
                      -> Lookup t
@@ -348,7 +346,7 @@ moreRestrictiveStack mr_cont gen_lemma lkp s1 s2 ns init_hm stck1 stck2
     | Nothing <- Stck.pop stck1
     , Nothing <- Stck.pop stck2 = Right init_hm
     | otherwise = Left []
-
+-}
 
 
 moreRestrictiveNRPC :: MRCont t l
@@ -488,9 +486,9 @@ moreRestrictivePC mr_cont gen_lemma lkp s1 s2 ns init_hm
   | otherwise = matchPCs init_hm pc1 pc2
   where
     matchPCs hm [] _ = Right hm
-    matchPCs hm (e1:pc1) pc2 = do
-        let m_match_rest = selectJusts (\e2 -> moreRes hm e1 e2) pc2
-        case rights $ map (\(hm', rest) -> matchPCs hm' pc1 rest) m_match_rest of
+    matchPCs hm (e1:pc1_) pc2_ = do
+        let m_match_rest = selectJusts (\e2 -> moreRes hm e1 e2) pc2_
+        case rights $ map (\(hm', rest) -> matchPCs hm' pc1_ rest) m_match_rest of
             r:_ -> Right r
             [] -> Left []
 
