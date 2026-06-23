@@ -655,8 +655,8 @@ testFileTests = testGroup "TestFiles"
                                         , ("intersperse2", 1000, [Exactly 3]) ]
     , checkInputOutputsLitTablesSMTLists "tests/TestFiles/Seq/Seq1.hs"
                                         [ ("any1", 20000, [Exactly 2])
-                                        , ("any2", 1000, [AtLeast 20])
                                         , ("all1", 20000, [Exactly 2])
+                                        , ("all2", 1000, [AtLeast 20])
                                         , ("filter1", 20000, [Exactly 6])
                                         , ("map1", 20000, [Exactly 8])
                                         , ("dropWhile1", 20000, [Exactly 6])
