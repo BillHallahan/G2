@@ -227,8 +227,10 @@ handleLTFun init_s e = res
                 Nothing -> (init_s, [])
         -- We disregard any changes that can be made from evaluating and pop all the way down
         mkLTExtra e_ = if checkFunExprLT init_s e_ && topLTNonEmpty init_s
-                       then [init_s { exec_stack = popUntilStartedBuilding (exec_stack init_s) }]
+                       then [init_s { exec_stack = popUntilStartedBuilding (exec_stack init_s)
+                                    , lit_table_stack = S.modifyTop mkPartial (lit_table_stack init_s) }]
                        else []
+        mkPartial lt = lt { lt_partial = True }
 
 makeAltsForPMRet :: [Name] -> Id -> [Alt] -- TODO: Default caused problems
 makeAltsForPMRet ns tyVarId = go ns tyVarId 1

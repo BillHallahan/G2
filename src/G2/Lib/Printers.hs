@@ -802,7 +802,7 @@ prettyStateDiff pg (SD { new_conc_entries = nce
 
 prettyLitTable :: PrettyGuide -> LitTable -> T.Text
 prettyLitTable pg (LitTable { lt_arg = lta, lt_rec_funs = ltf, lt_mapping = ltm
-                            , lt_errored = lte, lt_init_pcs = lip })
+                            , lt_errored = lte, lt_init_pcs = lip, lt_partial = ltp })
     | HM.null ltm = header <> "empty literal table"
     | otherwise =
         header <> (T.intercalate "\n----------------\n"
@@ -816,6 +816,7 @@ prettyLitTable pg (LitTable { lt_arg = lta, lt_rec_funs = ltf, lt_mapping = ltm
                      <> "symbolic id: " <> sym_id <> "\n"
                      <> "evaluated recursive function expr set:\n" <> (T.pack $ show fun_exps) <> "\n"
                      <> "error found: " <> (T.pack $ show lte) <> "\n"
+                     <> "partial table: " <> (T.pack $ show ltp) <> "\n"
                      <> "initial path conds:" <> prettyPathConds pg lip <> "\n"
                      <> "mapping:\n"
 

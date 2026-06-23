@@ -37,6 +37,7 @@ introduceLitTable s n i = s { lit_table_stack = lts
                         , lt_mapping = HM.empty
                         , lt_errored = False
                         , lt_init_pcs = path_conds s
+                        , lt_partial = False
                         }
           es = S.push (LitTableFrame (StartedBuilding n) True) (exec_stack s)
 
@@ -185,22 +186,26 @@ litTableToLamBool s ng lt =
 
         -- At this point, we know the literal table is non-empty, since we are creating a lambda for
         -- a boolean-returning function
-        or_exp = case lt_trues of
-                    [] -> mkFalse kv
-                    (hd:tl) ->
-                        L.foldl'
-                            (\prev_exp pcs -> mkApp [Prim Or (tripleBoolTy kv), prev_exp, pcsToExprBool kv pcs])
-                            (pcsToExprBool kv hd)
-                            tl
-
+        or_exp = mkDisjunction kv lt_trues
         or_exp1 = replaceVar unboxed_name (Var elem_var) or_exp
         fun_exp = Lam TermL elem_var or_exp1
+        (partial_check, is_partial) = createPartialHandler lt kv
         tup_exp = mkTup4 kv tenv tv_env
                       fun_exp
                       (mkTrue kv)
-                      (Prim UnspecifiedOutput TyUnknown)
-                      (mkFalse kv)
+                      partial_check
+                      is_partial
     in (tup_exp, [elem_var], ng1)
+
+mkDisjunction :: KnownValues -> [[PathCond]] -> Expr
+mkDisjunction kv conds =
+    case conds of
+        [] -> mkFalse kv
+        (hd:tl) ->
+            L.foldl'
+                (\prev_exp pcs -> mkApp [Prim Or (tripleBoolTy kv), prev_exp, pcsToExprBool kv pcs])
+                (pcsToExprBool kv hd)
+                tl
 
 -- Turn the conjunction of these path conditions into an expression
 pcsToExprBool :: KnownValues -> [PathCond] -> Expr
@@ -240,18 +245,19 @@ litTableToLamNonBool s ng lt =
                                 mkApp [ Prim Ite TyUnknown
                                       , (pcsToExprBool kv $ PC.toList pcs)
                                       , (wrap e $ typeOf tv_env e)
-                                      , prev_exp]
+                                      , prev_exp ]
                             )
                             (wrap def_e $ typeOf tv_env def_e)
                             (reverse rest)
                     _ -> error "impossible, empty list despite checking in litTableToLam"
         ite_exp1 = replaceVar unboxed_name (Var elem_var) ite_exp
         fun_exp = Lam TermL elem_var ite_exp1
+        (partial_check, is_partial) = createPartialHandler lt kv
         tup_exp = mkTup4 kv tenv tv_env
                       fun_exp
                       (mkTrue kv)
-                      (Prim UnspecifiedOutput TyUnknown)
-                      (mkFalse kv)
+                      partial_check
+                      is_partial
     in (tup_exp, [elem_var], ng1)
 
 tripleBoolTy :: KnownValues -> Type
@@ -306,3 +312,6 @@ topLTNonEmpty s =
 
 ltNonEmpty :: LitTable -> Bool
 ltNonEmpty lt = not $ null (HM.toList $ lt_mapping lt)
+
+createPartialHandler :: LitTable -> KnownValues -> (Expr, Expr)
+createPartialHandler lt kv = (Prim UnspecifiedOutput TyUnknown, mkFalse kv)

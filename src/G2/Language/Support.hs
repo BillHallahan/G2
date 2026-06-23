@@ -566,8 +566,9 @@ instance Hashable LitTableCond
 data LitTable = LitTable { lt_arg :: Id
                          , lt_rec_funs :: HS.HashSet Expr -- | The functions we have evaluated (so we can check for recursion)
                          , lt_mapping :: HM.HashMap PathConds Expr
-                         , lt_errored :: Bool -- | Whether an error was encountered during creation
+                         , lt_errored :: Bool -- | Whether an error was encountered during creation or not
                          , lt_init_pcs :: PathConds -- | Conds from the creation process shouldn't linger
+                         , lt_partial :: Bool -- | Whether this is a partial table or not
                          }
                 deriving (Show, Eq, Read, Generic, Data)
 
