@@ -819,7 +819,7 @@ simplifyReturns n fcs = do
                     let existing_args = map (typeOf tv_env) $ fc_args fc
 
                     lam_is <- freshIdsN existing_args
-                    let _:tycon_ts = unTyApp $ typeOf tv_env r
+                    let tycon_ts = tyAppArgs $ typeOf tv_env r
                         named_ts = tyForAllBindings dc_ty
                         ty_map = HM.fromList $ zipWith (\i t -> (idName i, t)) named_ts tycon_ts
                         anon_ts = replaceTyVars ty_map $ anonArgumentTypes dc_ty
@@ -1103,7 +1103,9 @@ unfoldADTArgs n fcs@(first_fc:_) = do
                             new_fcs = map (\fc ->
                                             let
                                                 ith_arg = fc_args fc !! i
-                                                Data dc:as = unApp $ inlineVars eenv ith_arg
+                                                (dc, as) = case unApp $ inlineVars eenv ith_arg of
+                                                                Data dc_:as_ -> (dc_, as_)
+                                                                _ -> error "unfoldADTArgs: expected Data"
                                                 all_other_args = deleteAt i $ fc_args fc
                                                 all_other_split_ons = deleteAt i $ fc_split_on fc
 
