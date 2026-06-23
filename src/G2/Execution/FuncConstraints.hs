@@ -606,7 +606,7 @@ addVarWrappers e
     | d@(Data _):es <- unApp e = do
         es' <- mapM addVarWrappers es
         return (mkApp $ d:map fst es', mkApp $ d:map snd es')
-addVarWrappers v@(Var (Id n _)) = do
+addVarWrappers v@(Var (Id n t)) = do
     seen <- SM.get
     eenv <- SM.lift $ exprEnv
     tv_env <- SM.lift $ tyVarEnv
@@ -618,10 +618,16 @@ addVarWrappers v@(Var (Id n _)) = do
             -- Replace each occurence of the variable v with a lambda application returning v:
             --      (\() -> v) ()
             -- Ensures that we evaluate every sub expression before using it to terminate in the function constraint solver
-            unit_dc <- SM.lift mkDCUnitE
-            app_unit_i <- SM.lift $ freshSeededIdN (Name "u" Nothing 0 Nothing) (typeOf tv_env unit_dc)
-            let app_lam = App (Lam TermL app_unit_i var) (Data unit_dc)
-            SM.lift $ mapE (replaceVar n app_lam)
+            --
+            -- We do NOT do this if we have a primitive type, since primitive expressions are certainly in WHNF, and we do not
+            -- want Lambdas/Units leaking into path constraints.
+            case isPrimType t of
+                True -> return ()
+                False -> do
+                    unit_dc <- SM.lift mkDCUnitE
+                    app_unit_i <- SM.lift $ freshSeededIdN (Name "u" Nothing 0 Nothing) (typeOf tv_env unit_dc)
+                    let app_lam = App (Lam TermL app_unit_i var) (Data unit_dc)
+                    SM.lift $ mapE (replaceVar n app_lam)
 
             SM.lift $ insertE n var
             return (e', var)

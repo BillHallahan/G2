@@ -772,6 +772,8 @@ testFileTests = testGroup "TestFiles"
                                                                        [ ("propFalse", 1000 * 1000, [AtLeast 5])
                                                                        , ("prop2", 1000 * 1000, [AtLeast 5]) ]
 
+    , checkExprRetTrueSymFunc "tests/HigherOrder/HigherAssume.hs" 2500 "propA" [Exactly 0]
+
     , checkInputOutputsWithValidate "tests/BaseTests/ListTests.hs" [ ("lengthN", 2000, [AtLeast 1])
                                                                 , ("lengthBranch", 2000, [AtLeast 4])]
     , checkInputOutputsNonRedLib "tests/BaseTests/ListTests.hs" [ ("lengthN", 20000, [Exactly 1])
@@ -1278,6 +1280,17 @@ checkExprReaches src stps m_assume m_assert m_reaches entry reqList = do
             (do
                 config <- mkConfigTestIO
                 return $ config {steps = stps})
+
+checkExprRetTrueSymFunc :: String
+                        -> Int
+                        -> String
+                        -> [Reqs ([Expr] -> Bool)]
+                        -> TestTree
+checkExprRetTrueSymFunc src stps entry reqList = do
+    checkExprWithConfig src Nothing Nothing Nothing entry reqList
+            (do
+                config <- mkConfigTestIO
+                return $ config {steps = stps, returnsTrue = True, higherOrderSolver = SymConstraints })
 
 checkExprWithMap :: String
                  -> Int
