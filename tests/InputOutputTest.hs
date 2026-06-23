@@ -66,7 +66,7 @@ checkInputOutputsWithCVC5 src tests = do
 checkInputOutputsADTHeight :: FilePath -> [(String, Int, [Reqs String])] -> TestTree
 checkInputOutputsADTHeight src tests = do
     checkInputOutput''
-        (\j c -> c { height_limit = Just j })
+        (\j c -> c { max_height_limit = Just j })
         (do config <- mkConfigTestIO; return config { step_limit = False })
         src
         tests
