@@ -189,7 +189,8 @@ litTableToLamBool s ng lt =
         or_exp = mkDisjunction kv lt_trues
         or_exp1 = replaceVar unboxed_name (Var elem_var) or_exp
         fun_exp = Lam TermL elem_var or_exp1
-        (partial_check, is_partial) = createPartialHandler lt kv
+        (partial_check, is_partial) =
+            createPartialHandler (replaceVar unboxed_name (Var elem_var) lt) kv elem_var
         tup_exp = mkTup4 kv tenv tv_env
                       fun_exp
                       (mkTrue kv)
@@ -252,7 +253,8 @@ litTableToLamNonBool s ng lt =
                     _ -> error "impossible, empty list despite checking in litTableToLam"
         ite_exp1 = replaceVar unboxed_name (Var elem_var) ite_exp
         fun_exp = Lam TermL elem_var ite_exp1
-        (partial_check, is_partial) = createPartialHandler lt kv
+        (partial_check, is_partial) =
+            createPartialHandler (replaceVar unboxed_name (Var elem_var) lt) kv elem_var
         tup_exp = mkTup4 kv tenv tv_env
                       fun_exp
                       (mkTrue kv)
@@ -313,5 +315,14 @@ topLTNonEmpty s =
 ltNonEmpty :: LitTable -> Bool
 ltNonEmpty lt = not $ null (HM.toList $ lt_mapping lt)
 
-createPartialHandler :: LitTable -> KnownValues -> (Expr, Expr)
-createPartialHandler lt kv = (Prim UnspecifiedOutput TyUnknown, mkFalse kv)
+-- If the literal table is partial, we want to create a function that
+-- returns True when an input is covered and False when it is not
+createPartialHandler :: LitTable -> KnownValues -> Id -> (Expr, Expr)
+createPartialHandler lt kv elem_id =
+    if not $ lt_partial lt then (Prim UnspecifiedOutput TyUnknown, mkFalse kv)
+    else (lam_exp, mkTrue kv)
+    where
+        lt_conds = map (PC.toList . fst) $ (HM.toList . lt_mapping) lt
+        or_exp = mkDisjunction kv lt_conds
+        lam_exp = Lam TermL elem_id or_exp
+
