@@ -103,7 +103,11 @@ mkIdLam s ng lt =
         arg_ty = typeOf tvnv $ lt_arg lt
         (arg_id, ng1) = freshId arg_ty ng
         lam_e = Lam TermL arg_id (Var arg_id)
-        tup_e = mkTup kv tenv tvnv lam_e $ mkTrue kv
+        tup_e = mkTup4 kv tenv tvnv
+                    lam_e
+                    (mkTrue kv)
+                    (Prim UnspecifiedOutput TyUnknown)
+                    (mkFalse kv)
     in (tup_e, [arg_id], ng1)
 
 -- Return Id for argument, and the Name that we're replacing in path conds
@@ -124,7 +128,13 @@ mkLamArg s ng lt =
         (elem_var, ng1) = freshId lit_ty ng
     in (elem_var, unboxed_name, ng1)
 
--- Make a fully applied primitive tuple
+-- Make a fully applied primitive tuple with four elements
+mkTup4 :: KnownValues -> TypeEnv -> TyVarEnv -> Expr -> Expr -> Expr -> Expr -> Expr
+mkTup4 kv tenv tv_env x y z q = mkTup kv tenv tv_env t1 t2
+    where
+        t1 = mkTup kv tenv tv_env x y
+        t2 = mkTup kv tenv tv_env z q
+
 mkTup :: KnownValues -> TypeEnv -> TyVarEnv -> Expr -> Expr -> Expr
 mkTup kv tenv tv_env x y =
     mkApp [ mkPrimTuple kv tenv
@@ -143,7 +153,13 @@ mkTup kv tenv tv_env x y =
 litTableToLam :: State t -> NameGen -> LitTable -> (Expr, EESymDiff, NameGen)
 litTableToLam s ng lt =
     if lt_errored lt then
-        (mkTup kv tenv tv_env (Prim UnspecifiedOutput TyUnknown) (mkFalse kv), [], ng)
+        -- (Model function, Success, Partial table function to use with `assume`, Is partial)
+        (mkTup4 kv tenv tv_env
+            (Prim UnspecifiedOutput TyUnknown)
+            (mkFalse kv)
+            (Prim UnspecifiedOutput TyUnknown)
+            (mkFalse kv)
+        , [], ng)
     else
         case HM.toList $ lt_mapping lt of
             [] ->
@@ -179,7 +195,11 @@ litTableToLamBool s ng lt =
 
         or_exp1 = replaceVar unboxed_name (Var elem_var) or_exp
         fun_exp = Lam TermL elem_var or_exp1
-        tup_exp = mkTup kv tenv tv_env fun_exp $ mkTrue kv
+        tup_exp = mkTup4 kv tenv tv_env
+                      fun_exp
+                      (mkTrue kv)
+                      (Prim UnspecifiedOutput TyUnknown)
+                      (mkFalse kv)
     in (tup_exp, [elem_var], ng1)
 
 -- Turn the conjunction of these path conditions into an expression
@@ -227,7 +247,11 @@ litTableToLamNonBool s ng lt =
                     _ -> error "impossible, empty list despite checking in litTableToLam"
         ite_exp1 = replaceVar unboxed_name (Var elem_var) ite_exp
         fun_exp = Lam TermL elem_var ite_exp1
-        tup_exp = mkTup kv tenv tv_env fun_exp $ mkTrue kv
+        tup_exp = mkTup4 kv tenv tv_env
+                      fun_exp
+                      (mkTrue kv)
+                      (Prim UnspecifiedOutput TyUnknown)
+                      (mkFalse kv)
     in (tup_exp, [elem_var], ng1)
 
 tripleBoolTy :: KnownValues -> Type
