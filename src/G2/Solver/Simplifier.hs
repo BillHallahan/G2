@@ -1,7 +1,8 @@
-{-# LANGUAGE FlexibleContexts, RankNTypes, OverloadedStrings, TypeOperators #-}
+{-# LANGUAGE FlexibleContexts, GADTs, RankNTypes, OverloadedStrings, TypeOperators #-}
 {-# LANGUAGE InstanceSigs #-}
 
 module G2.Solver.Simplifier ( Simplifier (..)
+                            , SomeSimplifier (..)
                             , (:>>) (..)
                             , IdSimplifier (..)
                             , ArithSimplifier (..)
@@ -11,6 +12,7 @@ module G2.Solver.Simplifier ( Simplifier (..)
                             , EqualitySimplifier (..)
                             , LitConc (..)
                             , LamVarSimplifier (..)
+                            , ConstSimplifier (..)
                             ) where
 
 import G2.Language
@@ -57,6 +59,10 @@ instance (Simplifier simp1, Simplifier simp2) => Simplifier (simp1 :>> simp2) wh
         (ng'', eenv'', concat pc'')
 
     reverseSimplification (simp1 :>> simp2) s b m = reverseSimplification simp1 s b $ reverseSimplification simp2 s b m
+
+data SomeSimplifier where
+    SomeSimplifier :: forall simplifier
+                    . Simplifier simplifier => simplifier -> SomeSimplifier
 
 -- | A simplifier that does no simplification
 data IdSimplifier = IdSimplifier
@@ -324,4 +330,12 @@ data LamVarSimplifier = LamVarSimplifier
 instance Simplifier LamVarSimplifier where
     simplifyPC _ _ pc = [renameLamVars pc]
 
+    reverseSimplification _ _ _ m = m
+
+data ConstSimplifier = ConstSimplifier
+
+instance Simplifier ConstSimplifier where 
+    simplifyPC _ _ (ExtCond e True) |
+        [Prim Eq _, e1, e2] <- unApp e, e1 == e2 = []
+    simplifyPC _ _ pc = [pc]
     reverseSimplification _ _ _ m = m

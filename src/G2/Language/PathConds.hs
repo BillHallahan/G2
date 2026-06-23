@@ -333,14 +333,14 @@ instance ASTContainer PathConds Type where
 instance ASTContainer PathCond Expr where
     containedASTs (ExtCond e _ )   = [e]
     containedASTs (AltCond _ e _) = [e]
-    containedASTs (MinimizePC e) = containedASTs e
+    containedASTs (MinimizePC e) = [e]
     containedASTs (SoftPC pc) = containedASTs pc
     containedASTs (AssumePC _ _ pc) = containedASTs pc
 
-    modifyContainedASTs f (ExtCond e b) = ExtCond (modifyContainedASTs f e) b
+    modifyContainedASTs f (ExtCond e b) = ExtCond (f e) b
     modifyContainedASTs f (AltCond a e b) =
-        AltCond (modifyContainedASTs f a) (modifyContainedASTs f e) b
-    modifyContainedASTs f (MinimizePC e) = MinimizePC $ modifyContainedASTs f e
+        AltCond (modifyContainedASTs f a) (f e) b
+    modifyContainedASTs f (MinimizePC e) = MinimizePC $ f e
     modifyContainedASTs f (SoftPC pc) = SoftPC $ modifyContainedASTs f pc
     modifyContainedASTs f (AssumePC i num pc) = AssumePC i num (modifyContainedASTs f pc)
 
