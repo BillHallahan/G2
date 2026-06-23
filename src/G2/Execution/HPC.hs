@@ -25,7 +25,6 @@ import qualified Data.HashSet as HS
 import qualified Data.HashMap.Lazy as HM
 import Data.List.Extra
 import Data.Maybe
-import Data.Monoid
 import Data.Ord
 import qualified Data.Text as T
 import System.IO

@@ -38,13 +38,13 @@ import G2.Language.KnownValues
 import G2.Language.Monad
 import qualified G2.Language.Stack as Stck
 import G2.Lib.Printers
-import G2.Solver
 import G2.Verify.Config
 import G2.Verify.StaticArgTrans
 
 import Control.Monad.Extra
 import Control.Monad.IO.Class
 import qualified Control.Monad.State as SM
+import qualified Data.Foldable as F
 import qualified Data.HashSet as HS
 import qualified Data.HashMap.Strict as HM
 import Data.List
@@ -53,7 +53,6 @@ import Data.Maybe
 import Data.Monoid (All (..))
 import qualified Data.Sequence as Seq
 import qualified Data.Text as T
-import Data.Traversable
 
 -- | When a newly reached function application is approximated by a previously seen (and thus explored) function application,
 -- shift the new function application into the NRPCs.
@@ -602,7 +601,7 @@ inconsistentNRPCHalter no_inline =
         
         add_nrpc (hv, g) _ _ s
             | not (g `isSameGoal` (goal . track $ s)) = (HS.empty, goal . track $ s)
-            | currExprIsFalse s = foldl' (\(hv_, g_) (NRPC _ e1 e2) -> (HS.insert (e1, e2) hv_, g_)) (hv, g) (toListNRPC $ non_red_path_conds s)
+            | currExprIsFalse s = F.foldl' (\(hv_, g_) (NRPC _ e1 e2) -> (HS.insert (e1, e2) hv_, g_)) (hv, g) (toListNRPC $ non_red_path_conds s)
             | otherwise = (hv, g)
 
 
@@ -620,7 +619,7 @@ checkNRPCConsistent :: HS.HashSet Name
                     -> ExprEnv
                     -> HS.HashSet (Expr, Expr)
                     -> Bool
-checkNRPCConsistent no_inline eenv = snd . foldl' incCheck ([], True)
+checkNRPCConsistent no_inline eenv = snd . F.foldl' incCheck ([], True)
     where
         incCheck (prev, b) (e1, e2) =
             let
@@ -643,9 +642,8 @@ checkNRPCConsistent no_inline eenv = snd . foldl' incCheck ([], True)
 
 -- | If a state S has a current expression, path constraints, and NRPC set that are approximated by some
 -- other state S', discard S. Any counterexample discoverable from S is also discoverable from S'.
-approximationHalter :: (Solver solver, SM.MonadState (ApproxPrevs VerifierTracker) m, MonadIO m) =>
-                       solver
-                    -> HS.HashSet Name -- ^ Names that should not be inlined (often: top level names from the original source code)
+approximationHalter :: (SM.MonadState (ApproxPrevs VerifierTracker) m, MonadIO m) =>
+                       HS.HashSet Name -- ^ Names that should not be inlined (often: top level names from the original source code)
                     -> Halter m () r VerifierTracker
 approximationHalter = approximationHalter' (\_ old_state new_state -> goal (track old_state) `isValidFor` goal (track new_state))
 
@@ -695,14 +693,14 @@ addGenerated new_lem lem_info@(LI { generated_lem = gen }) = lem_info { generate
 addDiscarded :: [VerifierState] -> LemmaInfo -> LemmaInfo
 addDiscarded new_dis lem_info@(LI { discarded_lem = dis }) = lem_info { discarded_lem = new_dis ++ dis }
 
-genLemmaReducer :: (MonadIO m, SM.MonadState LemmaInfo m,  Solver solver) => HS.HashSet Name -> solver -> Reducer m () VerifierTracker
-genLemmaReducer no_inline solver = (mkSimpleReducer (const ()) red) { onDiscard = dis }
+genLemmaReducer :: (MonadIO m, SM.MonadState LemmaInfo m) => HS.HashSet Name -> Reducer m () VerifierTracker
+genLemmaReducer no_inline = (mkSimpleReducer (const ()) red) { onDiscard = dis }
     where
         red rv s b
             | CurrExpr Return (Data (DataCon { dc_name = d })) <- curr_expr s
             , d == dc_name (mkDCFalse (known_values s) (type_env s)) = do
                 lem_info <- SM.get
-                (b', m_lem_s) <- mapAccumM (genLemmaState no_inline solver lem_info s) b (toListNRPC $ non_red_path_conds s)
+                (b', m_lem_s) <- mapAccumM (genLemmaState no_inline lem_info s) b (toListNRPC $ non_red_path_conds s)
                 let lem_s = catMaybes m_lem_s
                     lem_info' = addGenerated lem_s lem_info
                 SM.put lem_info'
@@ -714,8 +712,8 @@ genLemmaReducer no_inline solver = (mkSimpleReducer (const ()) red) { onDiscard 
             SM.put $ addDiscarded [lem_s] lem_info
         dis _ _ _ _ = return ()
    
-genLemmaState :: (MonadIO m, Solver solver) => HS.HashSet Name -> solver -> LemmaInfo -> VerifierState -> Bindings -> NRPC -> m (Bindings, Maybe VerifierState)
-genLemmaState no_inline solver (LI { generated_lem = gen_lems, discarded_lem = dis_lems }) s@(State { expr_env = eenv, tyvar_env = tv_env, known_values = kv }) b nrpc
+genLemmaState :: (MonadIO m) => HS.HashSet Name -> LemmaInfo -> VerifierState -> Bindings -> NRPC -> m (Bindings, Maybe VerifierState)
+genLemmaState no_inline (LI { generated_lem = gen_lems, discarded_lem = dis_lems }) s@(State { expr_env = eenv, tyvar_env = tv_env, known_values = kv }) b nrpc
     | -- Generate lemmas only if we have symbolic functions
       any (isTyFun . typeOf tv_env . snd) . E.toExprList . E.filterToSymbolic $ expr_env s
       -- No point in generating a lemma where the RHS is symbolic, as this would be trivially false
@@ -737,7 +735,6 @@ genLemmaState no_inline solver (LI { generated_lem = gen_lems, discarded_lem = d
     
     let mr_cont = mrContIgnoreNRPCTicks Nothing lookupConcOrSymState
         res_check = moreRestrictiveIncludingPCAndNRPC
-                                                        solver
                                                         mr_cont
                                                         Nothing
                                                         lookupConcOrSymState

@@ -9,9 +9,8 @@ import qualified G2.Language.ExprEnv as E
 import qualified G2.Language.KnownValues as KV
 import qualified G2.Language.TyVarEnv as TV
 
-import Data.Foldable
+import qualified Data.Foldable as F
 import qualified Data.HashMap.Strict as HM
-import Data.List
 import Data.Maybe
 import Data.Monoid hiding (Alt)
 import qualified Data.Text as T
@@ -21,7 +20,7 @@ integrateSMTDef s@(IT.SimpleState { IT.expr_env = orig_eenv, IT.known_values = k
     let
         smt_defs = HM.elems $ HM.filterWithKey (\(_, m) _ -> fmap (T.take 4) m == Just "SMT.") nm
     in
-    s { IT.expr_env = foldl' go orig_eenv smt_defs }
+    s { IT.expr_env = F.foldl' go orig_eenv smt_defs }
     where
         go eenv smt_n@(Name occ_name md _ _) =
             let
@@ -51,7 +50,7 @@ integrateSMTDef s@(IT.SimpleState { IT.expr_env = orig_eenv, IT.known_values = k
                 (i:_) ->
                     let
                         ty_ind_call = mkApp [Var type_index, Type (typeOf TV.empty i), Var i]
-                        bindee = foldl' add_adj_str ty_ind_call list_is
+                        bindee = F.foldl' add_adj_str ty_ind_call list_is
                     in
                     Case bindee
                         (Id placeholder TyUnknown)

@@ -39,8 +39,6 @@ import qualified Data.Text.IO as T
 import Options.Applicative
 import G2.Language.TyVarEnv as TV
 
-import Data.List
-
 data SymEx = SymEx
            | SymExWithConfig String
              deriving (Show, Data, Generic)
@@ -224,7 +222,7 @@ convertRelBinds local_binds binds = go
                 go explored' ns' (rel_binds ++ so_far_rel)
             | otherwise = go explored ns so_far_rel
             where
-                Just (n, ns) = S.minView to_explore
+                (n, ns) = fromJust $ S.minView to_explore
 
 topVarNames :: L.Expr -> S.Set L.Name
 topVarNames = go HS.empty

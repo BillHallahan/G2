@@ -15,7 +15,6 @@ import G2.Execution.Reducer
 import G2.Language as L
 import qualified G2.Language.ExprEnv as E
 import G2.Language.Monad
-import qualified G2.Language.PathConds as PC
 import qualified G2.Language.Stack as Stck
 import G2.Lib.Printers
 import G2.Solver

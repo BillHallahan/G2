@@ -1,7 +1,7 @@
 -- | Language
 --   Provides a language definition designed to closely resemble the SMTLIB2 language.
 
-{-# LANGUAGE DeriveGeneric, MultiParamTypeClasses, PatternSynonyms #-}
+{-# LANGUAGE CPP, DeriveGeneric, MultiParamTypeClasses, PatternSynonyms #-}
 
 module G2.Solver.Language
     ( module G2.Solver.Language
@@ -15,10 +15,15 @@ import GHC.Generics (Generic)
 import Data.Hashable
 import qualified Data.HashSet as HS
 import qualified Data.Map as M
-import Text.Builder
 import qualified Data.Text as T
-
+#if MIN_VERSION_text_builder(0,6,8)
+import TextBuilder
+type SMTNameBldr = TextBuilder
+#else
+import Text.Builder
 type SMTNameBldr = Builder
+#endif
+
 type SMTName = String
 
 -- | These define the kinds of top level calls we give to the SMT solver.

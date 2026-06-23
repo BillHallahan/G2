@@ -6,6 +6,7 @@ module G2.Execution.NewPC ( NewPC (..)
                           , reduceStateDiff
                           , reduceToFirstDiff ) where
 
+import G2.Data.Utils
 import G2.Language
 import qualified G2.Language.ExprEnv as E
 import qualified G2.Language.PathConds as PC
@@ -14,13 +15,12 @@ import qualified G2.Language.TyVarEnv as TV
 import G2.Solver.Simplifier
 import G2.Solver.Solver
 
-import Data.List
-import Data.Maybe
-import G2.Data.Utils
-import Data.Traversable
 import G2.Execution.MutVar
 import G2.Execution.LiteralTable
 import G2.Config.Config (DiscardUnknownStates (KeepUnknown))
+
+import Data.List
+import Data.Maybe
 
 data NewPC t = SingleState (State t)
              | SplitStatePieces (State t) [StateDiff]

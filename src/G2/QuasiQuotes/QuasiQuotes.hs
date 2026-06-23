@@ -235,7 +235,7 @@ runExecutionQ s b config = do
         (SomeReducer red, SomeHalter hal, SomeOrderer ord) -> do
             let (s'', b'') = runG2Pre emptyMemConfig s' b'
                 hal' = hal <~> zeroHalter 2000 <~> lemmingsHalter
-            (xs, b''') <- runExecutionToProcessed red hal' ord (\s b -> return $ SAT (s, name_gen b)) noAnalysis s'' b''
+            (xs, b''') <- runExecutionToProcessed red hal' ord (\s_ b_ -> return $ SAT (s_, name_gen b_)) noAnalysis s'' b''
 
             case xs of
                 Processed { accepted = acc, discarded = [] } -> do
@@ -483,7 +483,10 @@ extractArgs tv in_ids cleaned tenv es =
 -- Otherwise, simply returns the singular value directly.
 toSymbArgsTuple :: TV.TyVarEnv -> InputIds -> CleanedNames -> TypeEnvName -> Q Exp
 toSymbArgsTuple tv in_ids cleaned tenv_name = do
-    let mkTup = if length in_ids > 1 then tupE else head
+    let headError xs = case xs of
+                           (x:_) -> x
+                           _ -> error "toSymbArgsTuple: empty list"
+    let mkTup = if length in_ids > 1 then tupE else headError
     lst <- newName "lst"
 
     lamE [varP lst]

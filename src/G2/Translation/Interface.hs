@@ -142,7 +142,7 @@ adjustFunction fname@(_, Just _) nm exg2@(ExtractedG2 { exg2_binds = binds}) e =
     case HM.lookup fname nm of
         Just sym_n -> exg2 { exg2_binds = HM.insert sym_n e binds }
         Nothing -> exg2
-adjustFunction (n, Nothing) nm exg2@(ExtractedG2 { exg2_binds = binds}) e =
+adjustFunction (n, Nothing) _ exg2@(ExtractedG2 { exg2_binds = binds}) e =
     case find (\b -> nameOcc b == n) (HM.keys binds) of
         Just sym_n -> exg2 { exg2_binds = HM.insert sym_n e binds }
         Nothing -> exg2
@@ -152,15 +152,15 @@ specialInject exg2 =
     let
         prog = exg2_binds exg2
         tys = exg2_tycons exg2
-        rules = exg2_rules exg2
+        rules_ = exg2_rules exg2
         cls = exg2_classes exg2
-    
-        (prog', tys', rules') = primInject $ dataInject (prog, tys, rules) tys
+
+        (prog', tys', rules_') = primInject $ dataInject (prog, tys, rules_) tys
         cls' = primInject cls
     in
     exg2 { exg2_binds = prog'
          , exg2_tycons = tys'
-         , exg2_rules = rules'
+         , exg2_rules = rules_'
          , exg2_classes = cls' }
 
 dirPath :: FilePath -> FilePath

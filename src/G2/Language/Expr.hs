@@ -76,6 +76,7 @@ module G2.Language.Expr ( module G2.Language.Casts
                         , replaceASTs
                         , args
                         , passedArgs
+                        , appArgs
                         , vars
                         , varIds
                         , varNames
@@ -85,11 +86,11 @@ module G2.Language.Expr ( module G2.Language.Casts
                         , alphaReduction
                         , varBetaReduction
                         , etaExpandTo
-                        
+
                         , stripAllTicks
 
                         , renameLamVars
-                        
+
                         , inlineVars) where
 
 import G2.Data.Utils
@@ -106,10 +107,8 @@ import G2.Language.TypeEnv
 import G2.Language.TyVarEnv
 import G2.Language.Primitives
 
-import Data.Foldable
 import qualified Data.HashSet as HS
 import qualified Data.Map as M
-import Data.Maybe
 import Data.Semigroup
 
 data EqTickCheck = CheckTicks | IgnoreTicks deriving Eq
@@ -171,7 +170,7 @@ eqUpToTypesInline' eq_ticks_check no_inline eenv = go no_inline no_inline
         go _ _ (SymGen _ _) (SymGen _ _) = True
         go _ _ (Assume _ _ _) (Assume _ _ _) = True
         go _ _ (Assert _ _ _) (Assert _ _ _) = True
-        go _ _ e1 e2 = False
+        go _ _ _ _ = False
 
         goAlt seen1 seen2 (Alt match1 e1) (Alt match2 e2) = match1 == match2 && go seen1 seen2 e1 e2
 
@@ -538,6 +537,9 @@ passedArgs = reverse . passedArgs'
 passedArgs' :: Expr -> [Expr]
 passedArgs' (App e e') = e':passedArgs' e
 passedArgs' _ = []
+
+appArgs :: Expr -> [Expr]
+appArgs = (drop 1) . unApp
 
 --Returns all Vars in an ASTContainer
 vars :: (ASTContainer m Expr) => m -> [Id]

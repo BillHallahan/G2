@@ -8,7 +8,6 @@ import G2.Solver.Language
 
 import Data.Bits
 import Data.Char
-import Data.Foldable
 import GHC.Float
 import Numeric
 
@@ -163,7 +162,6 @@ funcExpr =
         <|>
         try (do
             _ <- string "ite"
-            inp <- getInput
             whiteSpace
             x <- sExpr Nothing
             y <- sExpr Nothing
@@ -199,10 +197,7 @@ lambdaExpr = do
 
 arrayExpr :: Parser SMTAST
 arrayExpr = do
-    input <- getInput
-
     (do
-        inp_st <- getInput
         _ <- reserved "store"
         array <- sExpr Nothing
         args <- many1 (sExpr Nothing)
@@ -217,11 +212,9 @@ arrayExpr = do
                                     _ <- string "const"
                                     _ <- whiteSpace
                                     parseSort)
-            inp <- getInput
             case array_sort of
                 SortArray ind_sort val_sort -> do
                     val <- sExpr Nothing
-                    inp2 <- getInput
                     return $ ArrayConst val ind_sort val_sort
                 _ -> fail "Incorrect sort"
             )

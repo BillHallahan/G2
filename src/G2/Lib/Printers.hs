@@ -638,7 +638,7 @@ mkTypeHaskellPG' pg m_tc = go
         go TyLitString = "String#"
         go (TyFun t1 t2)
             | isTyFun t1 = "(" <> go t1 <> ") -> " <> go t2
-            | Just tc <- m_tc
+            | Just _ <- m_tc
             , TyCon n _:_<- unTyApp t1
             , nameOcc n == "IP" = "HasCallStack => " <> go t2
             | Just tc <- m_tc
@@ -1278,13 +1278,13 @@ insertPGLvl lvl n pg@(PG { pg_assigned = as, pg_nums = nms })
                     | otherwise -> nameOcc n
         in
         case HM.lookup n' nms of
-            Just (PI curr_lvl i) | lvl == curr_lvl || lvl == BothLvl || curr_lvl == BothLvl ->
+            Just (PI { assigned_lvl = curr_lvl, print_num = i }) | lvl == curr_lvl || lvl == BothLvl || curr_lvl == BothLvl ->
                 let  j = i + 1 in
                 pg { pg_assigned = HM.insert n (n' <> "'" <> T.pack (show j)) as
-                   , pg_nums = HM.insert n' (PI (lvl `unionLvl` curr_lvl) j) nms }
+                   , pg_nums = HM.insert n' (PI { assigned_lvl = lvl `unionLvl` curr_lvl, print_num = j }) nms }
             _ ->
                 pg { pg_assigned = HM.insert n n' as
-                   , pg_nums = HM.insert n' (PI lvl 1) nms }
+                   , pg_nums = HM.insert n' (PI { assigned_lvl = lvl, print_num = 1 }) nms }
     | otherwise = pg
 
 lookupPG :: Name -> PrettyGuide -> Maybe T.Text

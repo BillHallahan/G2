@@ -305,6 +305,7 @@ instance Typed Type where
     typeOf _ (TyLitBV _) = TYPE
     typeOf _ TyLitChar = TYPE
     typeOf _ TyLitString = TYPE
+    typeOf _ TyLitWord = TYPE
     typeOf _ TYPE = TYPE
     typeOf _ TyBottom = TyBottom
     typeOf _ TyUnknown = TyUnknown

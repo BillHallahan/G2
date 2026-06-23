@@ -79,6 +79,7 @@ import Control.Monad.Extra
 import Control.Monad.IO.Class
 import qualified Control.Monad.State as SM
 import Data.List
+import qualified Data.Foldable as F
 import qualified Data.HashSet as S
 import qualified Data.HashMap.Lazy as HM
 import qualified Data.Map as M
@@ -705,5 +706,5 @@ parseLHFuncTuple s (FuncCall {funcName = n, arguments = ars, returns = out}) =
                   Nothing -> error $ "Unknown type for abstracted function " ++ show n
     in
     FuncInfo { func = nameOcc n
-             , funcArgs = printHaskell s (foldl' App (Var (Id n t)) ars)
+             , funcArgs = printHaskell s (F.foldl' App (Var (Id n t)) ars)
              , funcReturn = printHaskell s out }

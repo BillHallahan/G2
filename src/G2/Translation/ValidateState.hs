@@ -30,7 +30,7 @@ import Control.Monad
 
 import G2.Translation.GHC (SourceError)
 
-import Data.Foldable (toList)
+import qualified Data.Foldable as F
 import Data.Either
 import qualified Data.HashSet as HS
 import Data.List
@@ -114,7 +114,7 @@ validateStatesGHC pg comp_func modN entry chAll chAny b er@(ExecRes {final_state
             Nothing -> ValidationSrcError (case chck_res of SrcErr se -> se; _ -> error "validateStatesGHC: source error flagged but no available SourceError object")
             Just (Left e) | show e == "<<timeout>>" -> ValidationTimeout
                           | otherwise -> ValidationRTError
-            Just (Right b) -> if b && outStr /= "error" && outStr /= "undefined" then Valid else Invalid
+            Just (Right b_) -> if b_ && outStr /= "error" && outStr /= "undefined" then Valid else Invalid
 
     -- TODO[Jacob]: Currently using ValidationRTError to mean "a runtime error that was not the desired result of validation".
     -- If both symbolic execution and GHC validation found a runtime error, convert the ValidateRes to Valid.
@@ -143,7 +143,7 @@ createDecls pg s = mapM_ runDecls . createDeclsStr pg s
 adjustDynFlags :: GhcMonad m => m ()
 adjustDynFlags = do
     dyn <- getSessionDynFlags
-    let dyn2 = foldl' xopt_set dyn [MagicHash, UnboxedTuples, DataKinds, BangPatterns]
+    let dyn2 = F.foldl' xopt_set dyn [MagicHash, UnboxedTuples, DataKinds, BangPatterns]
         dyn3 = wopt_unset dyn2 Opt_WarnOverlappingPatterns
         dyn4 = dyn3 { generalFlags = ES.insert Opt_Hpc (generalFlags dyn3) }
     _ <- setSessionDynFlags dyn4
@@ -153,7 +153,9 @@ data CheckRes = HVal HValue | SrcErr SourceError
 
 runCheck :: GhcMonad m => PrettyGuide -> String -> HS.HashSet (Maybe T.Text) -> String -> [String] -> [String] -> Bindings -> ExecRes t -> m (CheckRes, [HValue], [HValue])
 runCheck init_pg comp_func modN entry chAll chAny b er@(ExecRes {final_state = s, conc_args = ars, conc_out = out}) = do
-    let Left (v, _) = findFunc (tyvar_env s) (T.pack entry) (HS.toList modN) (expr_env s)
+    let v = case findFunc (tyvar_env s) (T.pack entry) (HS.toList modN) (expr_env s) of
+                Left (x, _) -> x
+                Right x -> error $ "runCheck: expected Left but got Right " ++ show x
     let e = mkApp $ Var v:ars
     let pg = updatePGValAndTypeNames e
            . updatePGValAndTypeNames out
@@ -230,7 +232,7 @@ getImports src = do
             let r = mkRegex reg_str
             case matchRegexAll r str of
                 Just (_, _, after, [_, imp, _]) -> (imp :) <$> get after
-                Nothing -> return []
+                _ -> return []
 
 loadStandard :: Ghc ()
 loadStandard = setContext loadStandardSet
@@ -310,7 +312,9 @@ runHPC' src meas_with modN ars = do
 toCall :: String -> String -> State t -> [Expr] -> Expr -> String
 toCall modN entry s ars _ =
     let
-        Left (v, _) = findFunc (tyvar_env s) (T.pack entry) [Just $ T.pack modN] (expr_env s)
+        v = case findFunc (tyvar_env s) (T.pack entry) [Just $ T.pack modN] (expr_env s) of
+                    Left (x, _) -> x
+                    Right x -> error $ "toCall: expected Left but got Right " ++ show x
         e = mkApp (Var v:ars)
         t = typeOf (tyvar_env s) e
         pg = setStrictCase True $ mkPrettyGuide (exprNames e)
@@ -321,7 +325,7 @@ toCall modN entry s ars _ =
     T.unpack $ str_e <> " :: " <> str_t
 
 loadSession :: GhcMonad m => [FilePath] -> [FilePath] -> HS.HashSet (Maybe T.Text) -> [GeneralFlag] -> m ()
-loadSession proj src modN gflags = do 
+loadSession proj src modN gflags = do
     adjustDynFlags
     loadToCheck (map dirPath src ++ proj) src modN gflags
 
@@ -338,7 +342,7 @@ validateState comp_func modN entry chAll chAny b in_out = do
                        $ mkPrettyGuide ()
         _ <- createDecls pg s (H.filter (\x -> adt_source x == ADTG2Generated) (type_env s))
         rs_anys <- validateStatesGHC pg comp_func modN entry chAll chAny b in_out
-        
+
         return (fst rs_anys)
 
 printStateOutput :: (GhcMonad m) => Config -> Id -> Bindings
@@ -347,7 +351,7 @@ printStateOutput :: (GhcMonad m) => Config -> Id -> Bindings
                -> m ()
 printStateOutput config entry b mval_res exec_res@(ExecRes { final_state = s }) = do
     let pg = mkPrettyGuide (exprNames $ conc_args exec_res)
-    let (mvp, inp, outp, handles) = printInputOutput pg entry b exec_res
+    let (mvp, inp, outp, handles_) = printInputOutput pg entry b exec_res
         sym_gen_out = fmap (printHaskellPG pg s) $ conc_sym_gens exec_res
         
     let print_method m i o = m <> i <> " = " <> o
@@ -372,9 +376,9 @@ printStateOutput config entry b mval_res exec_res@(ExecRes { final_state = s }) 
         
         liftIO $ case sym_gen_out of
             S.Empty -> T.putStrLn state_output_text
-            _ -> T.putStrLn $ state_output_text <> "\t| generated: " <> T.intercalate ", " (toList sym_gen_out)
+            _ -> T.putStrLn $ state_output_text <> "\t| generated: " <> T.intercalate ", " (F.toList sym_gen_out)
         
-        liftIO $ if handles /= "" then T.putStrLn handles else return ())
+        liftIO $ if handles_ /= "" then T.putStrLn handles_ else return ())
 
 toEnclodeFloat :: ASTContainer m Expr => m -> m
 toEnclodeFloat = modifyASTs go
