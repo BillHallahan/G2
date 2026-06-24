@@ -1544,6 +1544,7 @@ data LimLogger t =
               , down_path :: [Int] -- Output states that have gone down or are going down the given path prefix
               , conc_pc_guide :: Maybe (SomeSolver, ConcPCGuide)
               , inline_nrpc :: Bool
+              , inline_fc :: Bool
               , lim_output_path :: String
               , filter_env :: Bool
               , order_env :: EnvOrdering
@@ -1559,6 +1560,7 @@ limLoggerConfig fp = LimLogger { every_n = 0
                                , filter_env = False
                                , order_env = Unordered
                                , inline_nrpc = False
+                               , inline_fc = False
                                , lim_output_path = fp
                                , output_name = \s -> "state" ++ show (length $ rules s) }
 
@@ -1589,6 +1591,7 @@ getLimLogger' out_name config pretty_track = do
                                                          , filter_env = logFilter config
                                                          , order_env = if logOrder config then Ordered else Unordered     
                                                          , inline_nrpc = logInlineNRPC config
+                                                         , inline_fc = logInlineFC config
                                                          , output_name = out_name }
                         NoLog -> limLoggerConfig ""
     
@@ -1636,10 +1639,11 @@ prettyLimLogger pretty_track ll@(LimLogger {filter_env = f_env, order_env = o_en
                 pg <- SM.get
                 let pg' = updatePrettyGuide s pg
                 let s' = if inline_nrpc ll then inlineNRPC s else s
+                    s'' = if inline_fc ll then inlineFC s' else s'
                 SM.put pg'
                 let pg'' = setEnvOrdering o_env pg'
-                let s'' = if f_env then filterStateEnv s' else s'     
-                liftIO $ outputState (output_name ll) (lim_output_path ll) off s'' b (\s_ _ -> T.unpack $ prettyState pg'' pretty_track s_)
+                let s''' = if f_env then filterStateEnv s'' else s''     
+                liftIO $ outputState (output_name ll) (lim_output_path ll) off s''' b (\s_ _ -> T.unpack $ prettyState pg'' pretty_track s_)
     ) ll
 
 filterStateEnv :: State t -> State t
@@ -1653,6 +1657,10 @@ filterStateEnv s@(State {curr_expr=c_expr, exec_stack=e_stack,
 inlineNRPC :: State t -> State t
 inlineNRPC s@(State { expr_env = eenv, non_red_path_conds = nrpc }) =
     s { non_red_path_conds = inlinePretty eenv nrpc }
+
+inlineFC :: State t -> State t
+inlineFC s@(State { expr_env = eenv, sym_func_constraints = sym_func }) =
+    s { sym_func_constraints = inlinePretty eenv sym_func }
 
 stdFileNamer :: State t -> FilePath
 stdFileNamer s = "state" ++ show (length $ rules s)
