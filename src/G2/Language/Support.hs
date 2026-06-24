@@ -56,6 +56,8 @@ data State t = State { expr_env :: E.ExprEnv -- ^ Mapping of `Name`s to `Expr`s
                      , path_conds :: PathConds -- ^ Path conditions, in SWHNF
                      , non_red_path_conds :: NonRedPathConds -- ^ Path conditions, in the form of (possibly non-reduced)
                                                              -- expression pairs that must be proved equivalent
+                     , sym_func_constraints :: FuncConstraints -- ^ Constraints on symbolic functions
+                     , solving_sym_func_constraints :: FCStatus -- ^ Have we solved the sym func constraints?
                      , focused :: Focus -- ^ Is the expression that we are currently evaluating in focus (may be unfocused when from NRPC)
                      , handles :: HM.HashMap Name Handle -- ^ Each Handle has a name, that appears in `Expr`s within the `Handle` `Primitive`
                      , mutvar_env :: MutVarEnv -- ^ MutVar `Name`s to mappings of names in the `ExprEnv`.
@@ -208,10 +210,46 @@ instance Hashable Frame
 -- | What to do with the current expression when a @CurrExprFrame@ reaches the
 -- top of the stack and it is time to replace the `curr_expr`.
 data CEAction = EnsureEq Expr -- ^ `EnsureEq focus e1` means that we should check if the `curr_expr` is equal to `e1`
+              | UpdateSolvingFCs VarLitEqualities -- ^ Update the Ids/Lits in the solving_sym_func_constraints field
               | NoAction -- ^ Just replace the curr_expr, no other actions are needed
               deriving (Show, Eq, Read, Generic, Data)
 
 instance Hashable CEAction
+
+-- | Constraints on higher order functions
+data FuncConstraint =
+    FC { fc_preconds :: [Expr]
+       , fc_args :: [Expr]
+       , fc_ret :: Expr
+
+       , fc_split_on :: [FCSplitOn] -- ^ Used during solver- have we used a predicate to split the ith argument?
+       }
+       deriving (Eq, Show, Read, Generic, Data)
+
+instance Hashable FuncConstraint
+
+data FCSplitOn = Split | NoSplit
+                 deriving (Eq, Show, Read, Generic, Data)
+
+instance Hashable FCSplitOn
+
+
+data FCStatus = InitialRun -- ^ Not yet to solving function constraints
+              | SolvingFCs VarLitEqualities -- ^ In the process of solving function constraints. Generated constraints
+                                       -- should be preconditionde on the list of Ids and Lits being equal.
+              | SolvedFCs -- ^ Function constraints have been solved
+              deriving (Eq, Show, Read, Generic, Data)
+
+instance Hashable FCStatus
+
+type VarLitEqualities = [(Id, Lit)]
+
+-- data FuncRec = FR { func_name :: Name, func_constraints :: [FuncConstraint] }
+--                deriving (Eq, Show, Read, Generic, Data)
+
+-- instance Hashable FuncRec
+
+type FuncConstraints = HM.HashMap Name [FuncConstraint]
 
 -- | A model is a mapping of symbolic variable names to `Expr`@s@,
 -- typically produced by a solver. 
@@ -248,6 +286,7 @@ instance Named t => Named (State t) where
             <> names (curr_expr s)
             <> names (path_conds s)
             <> names (non_red_path_conds s)
+            <> names (sym_func_constraints s)
             <> names (handles s)
             <> names (mutvar_env s)
             <> names (assert_ids s)
@@ -273,6 +312,8 @@ instance Named t => Named (State t) where
                , curr_expr = rename old new (curr_expr s)
                , path_conds = rename old new (path_conds s)
                , non_red_path_conds = rename old new (non_red_path_conds s)
+               , sym_func_constraints = rename old new (sym_func_constraints s)
+               , solving_sym_func_constraints = solving_sym_func_constraints s
                , focused = focused s
                , handles = rename old new (handles s)
                , mutvar_env = rename old new (mutvar_env s)
@@ -304,6 +345,8 @@ instance Named t => Named (State t) where
                , curr_expr = renames hm (curr_expr s)
                , path_conds = renames hm (path_conds s)
                , non_red_path_conds = renames hm (non_red_path_conds s)
+               , sym_func_constraints = renames hm (sym_func_constraints s)
+               , solving_sym_func_constraints = solving_sym_func_constraints s
                , focused = focused s
                , handles = renames hm (handles s)
                , mutvar_env = renames hm (mutvar_env s)
@@ -332,6 +375,7 @@ instance ASTContainer t Expr => ASTContainer (State t) Expr where
                       (containedASTs $ curr_expr s) ++
                       (containedASTs $ path_conds s) ++
                       (containedASTs $ non_red_path_conds s) ++
+                      (containedASTs $ sym_func_constraints s) ++
                       (containedASTs $ handles s) ++
                       (containedASTs $ mutvar_env s) ++
                       (containedASTs $ assert_ids s) ++
@@ -350,6 +394,7 @@ instance ASTContainer t Expr => ASTContainer (State t) Expr where
                                 , curr_expr = modifyContainedASTs f $ curr_expr s
                                 , path_conds = modifyContainedASTs f $ path_conds s
                                 , non_red_path_conds = modifyContainedASTs f $ non_red_path_conds s
+                                , sym_func_constraints = modifyContainedASTs f $ sym_func_constraints s
                                 , handles = modifyContainedASTs f $ handles s
                                 , mutvar_env = modifyContainedASTs f $ mutvar_env s
                                 , assert_ids = modifyContainedASTs f $ assert_ids s
@@ -368,6 +413,7 @@ instance ASTContainer t Type => ASTContainer (State t) Type where
                       ((containedASTs . curr_expr) s) ++
                       ((containedASTs . path_conds) s) ++
                       (containedASTs $ non_red_path_conds s) ++
+                      (containedASTs $ sym_func_constraints s) ++
                       (containedASTs $ handles s) ++
                       (containedASTs $ mutvar_env s) ++
                       ((containedASTs . assert_ids) s) ++
@@ -388,6 +434,7 @@ instance ASTContainer t Type => ASTContainer (State t) Type where
                                 , curr_expr = (modifyContainedASTs f . curr_expr) s
                                 , path_conds = (modifyContainedASTs f . path_conds) s
                                 , non_red_path_conds = modifyContainedASTs f $ non_red_path_conds s
+                                , sym_func_constraints = modifyContainedASTs f $ sym_func_constraints s
                                 , handles = modifyContainedASTs f $ handles s
                                 , mutvar_env = modifyContainedASTs f $ mutvar_env s
                                 , assert_ids = (modifyContainedASTs f . assert_ids) s
@@ -531,6 +578,27 @@ instance Named Frame where
     renames hm (AssumeFrame e) = AssumeFrame (renames hm e)
     renames hm (AssertFrame is e) = AssertFrame (renames hm is) (renames hm e)
     renames hm (LitTableFrame ltc up) = LitTableFrame (renames hm ltc) up
+
+instance Named FuncConstraint where
+    names fc = names (fc_preconds fc) <> names (fc_args fc) <> names (fc_ret fc)
+    rename old new fc = fc { fc_preconds = rename old new (fc_preconds fc)
+                           , fc_args = rename old new (fc_args fc)
+                           , fc_ret = rename old new (fc_ret fc) }
+    renames hm fc = fc { fc_preconds = renames hm (fc_preconds fc)
+                       , fc_args = renames hm (fc_args fc)
+                       , fc_ret = renames hm (fc_ret fc) }
+
+instance ASTContainer FuncConstraint Expr where
+    modifyContainedASTs f fc = fc { fc_preconds = modifyContainedASTs f (fc_preconds fc)
+                                  , fc_args = modifyContainedASTs f (fc_args fc)
+                                  , fc_ret = f (fc_ret fc) }
+    containedASTs fc = containedASTs (fc_preconds fc) <> containedASTs (fc_args fc) <> containedASTs (fc_ret fc)
+
+instance ASTContainer FuncConstraint Type where
+    modifyContainedASTs f fc = fc { fc_preconds = modifyContainedASTs f (fc_preconds fc)
+                                  , fc_args = modifyContainedASTs f (fc_args fc)
+                                  , fc_ret = modifyContainedASTs f (fc_ret fc) }
+    containedASTs fc = containedASTs (fc_preconds fc) <> containedASTs (fc_args fc) <> containedASTs (fc_ret fc)
 
 instance Named Handle where
     names (HandleInfo { h_start = s, h_pos = p }) = names s <> names p

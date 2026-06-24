@@ -20,6 +20,7 @@ module G2.Language.Monad.Support ( StateT
                                  , runNamingT
                                  , runExprEnvM
                                  , runStateMInNamingM
+                                 , runStateNGT
                                  , runStateNG
                                  , execStateNG
                                  , readRecord
@@ -27,6 +28,8 @@ module G2.Language.Monad.Support ( StateT
                                  , mapCurrExpr
                                  , insertPC
                                  , insertPCStateNG
+                                 , getPCStateNG
+                                 , putPCStateNG
                                  , mapMAccumB ) where
 
 import Control.Monad.Identity
@@ -114,15 +117,15 @@ instance Monad m => NamingM (State t, NameGen) (SM.StateT (State t, NameGen) m) 
     nameGen = readRecord (\(_, ng) -> ng)
     putNameGen = rep_name_genNG
 
-instance ExprEnvM (State t, Bindings) (SM.State (State t, Bindings)) where
+instance Monad m => ExprEnvM (State t, Bindings) (SM.StateT (State t, Bindings) m) where
     exprEnv = readRecord (\(s, _) -> expr_env s)
     putExprEnv = rep_expr_envM
 
-instance ExprEnvM (State t, NameGen) (SM.State (State t, NameGen)) where
+instance Monad m => ExprEnvM (State t, NameGen) (SM.StateT (State t, NameGen) m) where
     exprEnv = readRecord (\(s, _) -> expr_env s)
     putExprEnv = rep_expr_envNG
 
-instance ExState (State t, Bindings) (SM.State (State t, Bindings)) where
+instance Monad m => ExState (State t, Bindings) (SM.StateT (State t, Bindings) m) where
     typeEnv = readRecord (\(s, _) -> type_env s)
     putTypeEnv = rep_type_envM
 
@@ -134,7 +137,7 @@ instance ExState (State t, Bindings) (SM.State (State t, Bindings)) where
 
     tyVarEnv = readRecord (\(s, _) -> tyvar_env s)
 
-instance ExState (State t, NameGen) (SM.State (State t, NameGen)) where
+instance Monad m => ExState (State t, NameGen) (SM.StateT (State t, NameGen) m) where
     typeEnv = readRecord (\(s, _) -> type_env s)
     putTypeEnv = rep_type_envNG
 
@@ -146,7 +149,7 @@ instance ExState (State t, NameGen) (SM.State (State t, NameGen)) where
 
     tyVarEnv = readRecord (\(s, _) -> tyvar_env s)
 
-instance FullState (State t, Bindings) (SM.State (State t, Bindings)) where
+instance Monad m => FullState (State t, Bindings) (SM.StateT (State t, Bindings) m) where
     currExpr = readRecord (\(s, _) -> curr_expr s)
     putCurrExpr = rep_curr_exprM
 
@@ -166,6 +169,9 @@ runStateM s s' b = SM.runState s (s', b)
 
 execStateM :: StateM t a -> State t -> Bindings -> (State t, Bindings)
 execStateM s = (\lh_s b -> snd (runStateM s lh_s b))
+
+runStateNGT :: StateNGT t m a -> State t -> NameGen -> m (a, (State t, NameGen))
+runStateNGT s s' ng = SM.runStateT s (s', ng)
 
 runStateNG :: StateNG t a -> State t -> NameGen -> (a, (State t, NameGen))
 runStateNG s s' ng = SM.runState s (s', ng)
@@ -192,22 +198,22 @@ runStateMInNamingM m s = do
 readRecord :: SM.MonadState s m => (s -> r) -> m r
 readRecord f = return . f =<< SM.get
 
-rep_expr_envM :: ExprEnv -> StateM t ()
+rep_expr_envM :: Monad m => ExprEnv -> StateT t m ()
 rep_expr_envM eenv = do
     (s,b) <- SM.get
     SM.put $ (s {expr_env = eenv}, b)
 
-rep_expr_envNG :: ExprEnv -> StateNG t ()
+rep_expr_envNG :: Monad m => ExprEnv -> StateNGT t m ()
 rep_expr_envNG eenv = do
     (s,b) <- SM.get
     SM.put $ (s {expr_env = eenv}, b)
 
-rep_type_envM :: TypeEnv -> StateM t ()
+rep_type_envM :: Monad m => TypeEnv -> StateT t m ()
 rep_type_envM tenv = do
     (s,b) <- SM.get
     SM.put $ (s {type_env = tenv}, b)
 
-rep_type_envNG :: TypeEnv -> StateNG t ()
+rep_type_envNG :: Monad m => TypeEnv -> StateNGT t m ()
 rep_type_envNG tenv = do
     (s,b) <- SM.get
     SM.put $ (s {type_env = tenv}, b)
@@ -229,33 +235,33 @@ rep_name_genNG ng = do
     (s, _) <- SM.get
     SM.put $ (s, ng)
 
-rep_known_valuesM :: KnownValues -> StateM t ()
+rep_known_valuesM :: Monad m => KnownValues -> StateT t m ()
 rep_known_valuesM kv = do
     (s, b) <- SM.get
     SM.put $ (s {known_values = kv}, b)
 
-rep_known_valuesNG :: KnownValues -> StateNG t ()
+rep_known_valuesNG :: Monad m => KnownValues -> StateNGT t m ()
 rep_known_valuesNG kv = do
     (s, b) <- SM.get
     SM.put $ (s {known_values = kv}, b)
 
 
-rep_type_classesM :: TypeClasses -> StateM t ()
+rep_type_classesM :: Monad m => TypeClasses -> StateT t m ()
 rep_type_classesM tc = do
     (s, b) <- SM.get
     SM.put $ (s {type_classes = tc}, b)
 
-rep_type_classesNG :: TypeClasses -> StateNG t ()
+rep_type_classesNG :: Monad m => TypeClasses -> StateNGT t m ()
 rep_type_classesNG tc = do
     (s, b) <- SM.get
     SM.put $ (s {type_classes = tc}, b)
 
-rep_curr_exprM :: CurrExpr -> StateM t ()
+rep_curr_exprM :: Monad m => CurrExpr -> StateT t m ()
 rep_curr_exprM ce = do
     (s, b) <- SM.get
     SM.put $ (s {curr_expr = ce}, b)
 
-rep_nonRedM :: NonRedPathConds -> StateM t ()
+rep_nonRedM :: Monad m => NonRedPathConds -> StateT t m ()
 rep_nonRedM nrpc = do
     (s, b) <- SM.get
     SM.put $ (s {non_red_path_conds = nrpc}, b)
@@ -266,7 +272,7 @@ mapCurrExpr f = do
     e' <- f e
     putCurrExpr (CurrExpr er e') 
 
-rep_path_condsM :: PathConds -> StateM t ()
+rep_path_condsM :: Monad m => PathConds -> StateT t m ()
 rep_path_condsM pc = do
     (s, b) <- SM.get
     SM.put $ (s {path_conds = pc}, b)
@@ -276,7 +282,18 @@ insertPC pc = do
     pcs <- pathConds
     putPathConds $ PC.insert pc pcs 
 
-insertPCStateNG :: PathCond -> StateNG t ()
+getPCStateNG :: Monad m => StateNGT t m PathConds
+getPCStateNG = do
+    ((State { path_conds = pcs }), _) <- SM.get
+    return pcs
+
+putPCStateNG :: Monad m => PathConds -> StateNGT t m ()
+putPCStateNG pcs = do
+    (s, ng) <- SM.get
+    SM.put (s { path_conds = pcs }, ng)
+
+
+insertPCStateNG :: Monad m => PathCond -> StateNGT t m ()
 insertPCStateNG pc = do
     (s@(State { path_conds = pcs }), ng) <- SM.get
     SM.put (s { path_conds = PC.insert pc pcs}, ng)

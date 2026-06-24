@@ -1,4 +1,4 @@
-{-# LANGUAGE FlexibleContexts, LambdaCase, MultiParamTypeClasses, OverloadedStrings, TupleSections #-}
+{-# LANGUAGE BangPatterns, FlexibleContexts, LambdaCase, MultiParamTypeClasses, OverloadedStrings, TupleSections #-}
 
 module G2.Solver.Interface
     ( Subbed (..)
@@ -69,15 +69,15 @@ instance ASTContainer Subbed Type where
 subModel :: State t -> Bindings -> Subbed
 subModel s@(State { expr_env = eenv
                   , curr_expr = CurrExpr _ cexpr
+                  , model = m
                   , assert_ids = ais
                   , type_classes = tc
-                  , model = m
                   , sym_gens = gens
                   , handles = hs
                   , mutvar_env = mve
                   , reached_fc_ticks = r_fc
                   , tyvar_env = tvnv }) 
-          (Bindings {input_names = inputNames}) = 
+          (Bindings {input_names = inputNames }) = 
     let
         ais' = fmap (subVarFuncCall tvnv True m eenv tc) ais
 

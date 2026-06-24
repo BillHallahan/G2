@@ -710,6 +710,8 @@ testFileTests = testGroup "TestFiles"
                                                              , ("partiallyApply", 200, [Exactly 2])] 
     , checkInputOutputsNonRedHigher "tests/HigherOrder/HigherOrder.hs" [ ("f", 200, [AtLeast 3])
                                                                        , ("h", 150, [AtLeast 2])
+                                                                       , ("j", 150, [AtLeast 2])
+                                                                       , ("k", 150, [AtLeast 3])
                                                                        , ("assoc", 250, [AtLeast 2])
                                                                        , ("sf", 250, [AtLeast 2])
                                                                        , ("thirdOrder", 300, [AtLeast 2])
@@ -719,6 +721,61 @@ testFileTests = testGroup "TestFiles"
                                                                        , ("polyHigher", 50, [AtLeast 4])]                                                                                         
     , checkInputOutputsNonRedHigher "tests/Validate/Val1.hs" [("call", 1000, [AtLeast 3])]
     , checkInputOutputsNonRedHigherNoFuncArgs "tests/HigherOrder/HigherOrder2.hs" [ ("compHigher", 1000 * 1000, [Exactly 1]) ]
+
+    , checkInputOutputsSymFuncConstraints "tests/HigherOrder/HigherOrder.hs"
+                                                                       [ ("f", 200, [Exactly 3])
+                                                                       , ("h", 150, [AtLeast 2])
+                                                                       , ("j", 150, [Exactly 2])
+                                                                       , ("k", 200, [Exactly 3])
+                                                                       , ("abc", 1000, [AtLeast 6])
+                                                                       , ("abc2", 1000, [Exactly 3])
+                                                                       , ("abc3", 1000, [Exactly 4])
+                                                                       , ("abc4", 1000, [Exactly 3])
+                                                                       , ("abc5", 1000, [Exactly 3])
+                                                                       , ("abc6", 1000, [Exactly 2])
+                                                                       , ("abc7", 1000, [Exactly 3])
+                                                                       , ("abc8", 1000, [Exactly 4])
+                                                                       , ("abc9", 1000, [Exactly 4])
+                                                                       , ("assoc", 250, [Exactly 2])
+                                                                       , ("sf", 250, [Exactly 2])
+                                                                       , ("thirdOrder", 300, [Exactly 2])
+                                                                       , ("thirdOrder2", 150, [Exactly 3])
+                                                                       , ("tupleTestMono", 175, [Exactly 2])
+                                                                       , ("multiPrim", 300, [AtLeast 2])
+                                                                       , ("polyHigher", 50, [Exactly 1])
+                                                                       , ("funcGen", 20000, [Exactly 2])
+                                                                       , ("repFix", 1000, [AtLeast 5])
+                                                                       , ("repF", 1000, [Exactly 3])
+                                                                       , ("repCons", 1000, [Exactly 3])
+                                                                       , ("repIte1", 1000 * 1000, [AtLeast 2, AtMost 3])
+                                                                       , ("repIte2", 1000 * 1000, [AtLeast 2, AtMost 3])
+                                                                       ]                                                                                         
+
+    , checkInputOutputsSymFuncConstraints "tests/HigherOrder/PolyHigherOrder.hs"
+                                                                       [ ("f", 100, [Exactly 3])
+                                                                       , ("h", 200, [Exactly 2])
+                                                                       , ("assoc", 200, [Exactly 2])
+                                                                       , ("sf", 175, [Exactly 1])
+                                                                       , ("retStream", 250, [Exactly 1])
+                                                                       , ("retStream2", 250, [Exactly 2])
+                                                                       , ("tupleTest", 200, [Exactly 2])
+                                                                       , ("list1", 1000, [Exactly 8])
+                                                                       , ("list2", 1000, [AtLeast 14])                                                                       
+                                                                       , ("list3", 1000, [Exactly 7])
+                                                                       , ("list4", 1000, [Exactly 4])
+                                                                       , ("funcsEither", 1000, [Exactly 6])                                                                       
+                                                                       , ("funcs", 1000, [Exactly 3])                                                                       
+                                                                       , ("funcs2", 1000, [Exactly 3])                                                                       
+                                                                       , ("maybeFuncs", 1000, [Exactly 4])                                                                       
+                                                                       , ("eitherFuncs", 1000, [Exactly 3])                                                                       
+                                                                       , ("tupleFunc", 1000, [Exactly 2])                                                                       
+                                                                       ]
+    , checkInputOutputsSymFuncConstraintsSubPathSMTLists "tests/HigherOrder/HigherOrder3.hs"
+                                                                       [ ("propFalse", 1000 * 1000, [AtLeast 5])
+                                                                       , ("prop2", 1000 * 1000, [AtLeast 5]) ]
+
+    , checkExprRetTrueSymFunc "tests/HigherOrder/HigherAssume.hs" 2500 "propA" [Exactly 0]
+
     , checkInputOutputsWithValidate "tests/BaseTests/ListTests.hs" [ ("lengthN", 2000, [AtLeast 1])
                                                                 , ("lengthBranch", 2000, [AtLeast 4])]
     , checkInputOutputsNonRedLib "tests/BaseTests/ListTests.hs" [ ("lengthN", 20000, [Exactly 1])
@@ -1225,6 +1282,17 @@ checkExprReaches src stps m_assume m_assert m_reaches entry reqList = do
             (do
                 config <- mkConfigTestIO
                 return $ config {steps = stps})
+
+checkExprRetTrueSymFunc :: String
+                        -> Int
+                        -> String
+                        -> [Reqs ([Expr] -> Bool)]
+                        -> TestTree
+checkExprRetTrueSymFunc src stps entry reqList = do
+    checkExprWithConfig src Nothing Nothing Nothing entry reqList
+            (do
+                config <- mkConfigTestIO
+                return $ config {steps = stps, returnsTrue = True, higherOrderSolver = SymConstraints })
 
 checkExprWithMap :: String
                  -> Int

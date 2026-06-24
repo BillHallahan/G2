@@ -7,6 +7,7 @@ import qualified G2.Language.Stack as S
 import qualified G2.Language.ExprEnv as E
 
 import qualified Data.HashSet as HS
+import qualified Data.HashMap.Lazy as HM
 
 -- A Var counts as being in EVF if it's symbolic or if it's unmapped.
 isSWHNF :: State t -> Bool
@@ -63,7 +64,8 @@ isExecValueForm :: State t -> Bool
 isExecValueForm state@(State { curr_expr = CurrExpr _ e})
     | Nothing <- S.pop (exec_stack state)
     , CurrExpr Return _ <- curr_expr state
-    , nullNRPC (non_red_path_conds state) =
+    , nullNRPC (non_red_path_conds state)
+    , (solving_sym_func_constraints state == SolvedFCs) || HM.null (sym_func_constraints state) =
         case unApp e of
             [_] -> True
             Var (Id _ _):_ -> False

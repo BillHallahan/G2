@@ -22,6 +22,8 @@ module InputOutputTest ( checkInputOutput
                        , checkInputOutputsNonRedHigher
                        , checkInputOutputsNonRedHigherNoFuncArgs
                        , checkInputOutputsNonRedLib
+                       , checkInputOutputsSymFuncConstraints
+                       , checkInputOutputsSymFuncConstraintsSubPathSMTLists
                        , checkInputOutputsInstType 
                        , checkInputOutputsWithValidate
                        , checkInputOutputsWithTemplatesAndHpc) where
@@ -64,7 +66,7 @@ checkInputOutputsWithCVC5 src tests = do
 checkInputOutputsADTHeight :: FilePath -> [(String, Int, [Reqs String])] -> TestTree
 checkInputOutputsADTHeight src tests = do
     checkInputOutput''
-        (\j c -> c { height_limit = Just j })
+        (\j c -> c { max_height_limit = Just j })
         (do config <- mkConfigTestIO; return config { step_limit = False })
         src
         tests
@@ -152,6 +154,20 @@ checkInputOutputsNonRedLib :: FilePath -> [(String, Int, [Reqs String])] -> Test
 checkInputOutputsNonRedLib src tests = do
     checkInputOutput'
         (do config <- mkConfigTestIO; return (config { lib_nrpc = Nrpc, search_strat = Subpath, higherOrderSolver = SymbolicFunc }))
+        src
+        tests
+
+checkInputOutputsSymFuncConstraints :: FilePath -> [(String, Int, [Reqs String])] -> TestTree
+checkInputOutputsSymFuncConstraints src tests = do
+    checkInputOutput'
+        (do config <- mkConfigTestIO; return (config { higherOrderSolver = SymConstraints, smt = ConCVC5 }))
+        src
+        tests
+
+checkInputOutputsSymFuncConstraintsSubPathSMTLists :: FilePath -> [(String, Int, [Reqs String])] -> TestTree
+checkInputOutputsSymFuncConstraintsSubPathSMTLists src tests = do
+    checkInputOutput'
+        (do config <- mkConfigTestIO; return (config { higherOrderSolver = SymConstraints, smt = ConCVC5, search_strat = Subpath, subpath_length = 8, smt_prim_lists = UseSMTSeq True True }))
         src
         tests
 

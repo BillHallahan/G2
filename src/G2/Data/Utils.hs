@@ -20,6 +20,8 @@ module G2.Data.Utils ( uncurry3
                      , mapAccumM
 
                      , compareLength
+
+                     , fromJustErr
                      ) where
 
 import Data.Bifunctor
@@ -138,3 +140,8 @@ compareLength xs n
     xs
     n
 #endif
+
+{-# INLINE fromJustErr #-}
+fromJustErr :: String -> Maybe a -> a
+fromJustErr _ (Just x) = x
+fromJustErr err Nothing = error $ "fromJustErr: " ++ err

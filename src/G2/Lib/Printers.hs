@@ -14,6 +14,7 @@ module G2.Lib.Printers ( PrettyGuide
                        , printHaskellDirtyPG
                        , printHaskellPG
                        , mkUnsugaredExprHaskell
+                       , mkDirtyExprHaskell
                        , mkTypeHaskell
                        , mkTypeHaskellPG
                        , mkTypeHaskellDictArrows
@@ -27,6 +28,7 @@ module G2.Lib.Printers ( PrettyGuide
                        , prettyTypeEnv
                        , prettyPathConds
                        , prettyNonRedPaths
+                       , prettyFuncConstraints
 
                        , prettyGuideStr
                        , prettyGuideNumsStr
@@ -39,6 +41,9 @@ module G2.Lib.Printers ( PrettyGuide
                        , setStrictCase
                        , setEnvOrdering
                        , setTyLamPrinting
+
+                       , setLogTypeClasses
+                       , setLogInternalName
 
                        , inlinePretty) where
 
@@ -100,8 +105,16 @@ mkCleanExprHaskell pg (State {known_values = kv,type_classes = tc, tyvar_env = t
 
 mkCleanExprHaskell' :: TV.TyVarEnv -> KnownValues -> TypeClasses -> Expr -> Maybe Expr
 mkCleanExprHaskell' tv kv tc e
-    | Case scrut i t [a] <- e = Case scrut i t . (:[]) <$> elimPrimDC a
+    | m_e@(Just _) <- pushWrapperInCase e = m_e
 
+    -- If we have a case branching on literals, it needs to be branching on wrapped literals
+    -- Some messiness here: mkCleanExprHaskell' is repeatedly run until it hits a fix point.
+    -- We change the return type of the case to ensure that we do not loop on doing this modification forever.
+    | Case scrut i t as@(Alt (LitAlt _) _:_) <- e
+    , not (isTyUnknown t) = Just $ Case (elimPrimLits scrut) i TyUnknown as
+
+    | Case scrut i t [a] <- e = Case scrut i t . (:[]) <$> elimPrimDC a
+    
     | (App e' e'') <- e
     , t <- typeOf tv e'
     , isTypeClass tc t = Just e''
@@ -123,7 +136,11 @@ mkCleanExprHaskell' tv kv tc e
     | App e' (Type _) <- e = Just e'
 
     | otherwise = Nothing
+    where
+        isTyUnknown TyUnknown = True
+        isTyUnknown _ = False
 
+-- | Avoid printing unwrapping of literal wrappers
 elimPrimDC :: Alt -> Maybe Alt
 elimPrimDC (Alt (DataAlt dc@(DataCon (Name n _ _ _) t utyvar etyvar) is) e)
     | n == "I#" || n == "W#" || n == "F#" || n == "D#" || n == "Z#" || n == "C#" =
@@ -133,6 +150,17 @@ elimPrimDC _ = Nothing
 insertLitDC :: DataCon -> Expr -> Expr 
 insertLitDC dc (App (App (Prim p t) (Var i)) (Lit l)) = App (App (Prim p t) (Var i)) (App (Data dc) (Lit l)) 
 insertLitDC dc e = modifyChildren (insertLitDC dc) e
+
+elimPrimLits :: Expr -> Expr
+elimPrimLits e@(App (Data _) (Lit _)) = e
+elimPrimLits l@(Lit _) = App (Data (DataCon (Name "I#" Nothing 0 Nothing) TyUnknown [] [])) l
+elimPrimLits e = modifyChildren elimPrimLits e
+
+pushWrapperInCase :: Expr -> Maybe Expr
+pushWrapperInCase (App dc@(Data (DataCon (Name n _ _ _) _ _ _)) (Case e i t as))
+    | n == "I#" || n == "W#" || n == "F#" || n == "D#" || n == "Z#" || n == "C#" =
+        Just . Case e i t $ map (\(Alt am am_e) -> Alt am (App dc am_e)) as
+pushWrapperInCase _ = Nothing
 
 mkDirtyExprHaskell :: PrettyGuide -> Expr -> T.Text
 mkDirtyExprHaskell = mkExprHaskell Dirty
@@ -164,7 +192,7 @@ mkExprHaskell' off_init cleaned pg ex = mkExprHaskell'' off_init ex
             | Data (DataCon n1 _ _ _) <- e1
             , nameOcc n1 == ":"
             , isCleaned =
-                if isChar e2 then printString pg a else printList pg a
+                if isChar e2 then printString pg a else printList off pg a
 
             | isInfixable pg e1
             , isCleaned =
@@ -299,21 +327,25 @@ mkDataConHaskell pg (DataCon n _ _ _) = mkNameHaskell pg n
 offset :: Int -> T.Text
 offset i = duplicate "   " i
 
-printList :: PrettyGuide -> Expr -> T.Text
-printList pg a =
-    let (strs, b) = printList' pg a
+printList :: Int -> PrettyGuide -> Expr -> T.Text
+printList off pg a =
+    let (strs, b) = printList' off pg a
     in case b of
         False -> "(" <> T.intercalate ":" strs <> ")"
         _ -> "[" <> T.intercalate ", " strs <> "]"
 
-printList' :: PrettyGuide -> Expr -> ([T.Text], Bool)
-printList' pg (App (App e1 e) e') | Data (DataCon n1 _ _ _) <- e1
-                                  , nameOcc n1 == ":" =
-    let (strs, b) = printList' pg e'
-    in (mkExprHaskell Cleaned pg e:strs, b)
-printList' pg e | Data (DataCon n _ _ _) <- appCenter e
-                , nameOcc n == "[]" = ([], True)
-                | otherwise = ([mkExprHaskell Cleaned pg e], False)
+printList' :: Int -> PrettyGuide -> Expr -> ([T.Text], Bool)
+printList' off pg (App (App e1 e) e') | Data (DataCon n1 _ _ _) <- e1
+                                      , nameOcc n1 == ":" =
+    let (strs, b) = printList' off pg e'
+    in (wrapParen e (mkExprHaskell' off Cleaned pg e):strs, b)
+printList' off pg e | Data (DataCon n _ _ _) <- appCenter e
+                    , nameOcc n == "[]" = ([], True)
+                    | otherwise = ([wrapParen e (mkExprHaskell' off Cleaned pg e)], False)
+
+wrapParen :: Expr -> T.Text -> T.Text
+wrapParen (Case _ _ _ _) s = "(" <> s <> ")"
+wrapParen _ s = s
 
 printString :: PrettyGuide -> Expr -> T.Text
 printString pg a =
@@ -327,7 +359,7 @@ printString pg a =
             T.pack $ 
                 if all isPrint str then "\"" <> concatMap addEscapeStr str <> "\""
                 else ("[" <> intercalate ", " (map stringToEnum $ str) <> "]")
-        Nothing -> printList pg a
+        Nothing -> printList 0 pg a
     where
         stringToEnum c
             | isPrint c = "\'" <> addEscapeChar c <> "\'"
@@ -423,6 +455,7 @@ mkPrimHaskell pg = pr
         pr Le = "<="
         pr And = "&&"
         pr Or = "||"
+        pr Xor = "xor"
         pr Not = "not"
         pr Plus = "+"
         pr Minus = "-"
@@ -657,7 +690,15 @@ defPrettyTrack _ = T.pack . show
 
 prettyState :: PrettyGuide -> PrettyTrack t -> State t -> T.Text
 prettyState pg pretty_track s =
-    T.intercalate "\n"
+    let
+        typclasses = [ "----- [Typeclasses] ---------------------"
+                     , pretty_tc
+                     ]
+        internal_names = [ "----- [Pretty] ---------------------"
+                         , pretty_names
+                         ]
+    in
+    T.intercalate "\n" $
         [ ">>>>> [State] >>>>>>>>>>>>>>>>>>>>>"
         , "----- [Code] ----------------------"
         , pretty_curr_expr
@@ -671,6 +712,10 @@ prettyState pg pretty_track s =
         , pretty_non_red_paths
         , "----- [Focused] ---------------------"
         , prettyFocus pg (focused s)
+        , "----- [Sym Function Constraints] ---------------------"
+        , pretty_sym_func_cons
+        , "----- [Solving Sym Function Constraints] ---------------------"
+        , pretty_solving_sym_func
         , "----- [Handles] ---------------------"
         , pretty_handles
         , "----- [MutVars Env] ---------------------"
@@ -681,9 +726,12 @@ prettyState pg pretty_track s =
         , pretty_tyvar_env
         , "----- [PolyArgMap] -----------------"
         , pretty_pargm
-        , "----- [Typeclasses] ---------------------"
-        , pretty_tc
-        , "----- [Families] ---------------------"
+        ]
+        <>
+        (if include_typeclasses pg then typclasses else [])
+        <>
+        [
+          "----- [Families] ---------------------"
         , pretty_fams
         , "----- [True Assert] ---------------------"
         , T.pack (show (true_assert s))
@@ -701,15 +749,23 @@ prettyState pg pretty_track s =
         , pretty_lit_tables
         , "----- [Reached FC] ---------------------"
         , pretty_fc_ticks
-        , "----- [Pretty] ---------------------"
-        , pretty_names
         ]
+        <>
+        if include_internal_names pg then internal_names else []
     where
         pretty_curr_expr = prettyCurrExpr pg (curr_expr s)
         pretty_stack = prettyExecStack pg (exec_stack s)
         pretty_eenv = prettyEEnv (tyvar_env s) pg (curr_expr s) (exec_stack s) (expr_env s)
         pretty_paths = prettyPathConds pg (path_conds s)
         pretty_non_red_paths = prettyNonRedPaths pg $ non_red_path_conds s
+        pretty_sym_func_cons = prettyFuncConstraints pg $ sym_func_constraints s
+        pretty_solving_sym_func = case solving_sym_func_constraints s of
+                                        InitialRun -> "Initial Run"
+                                        SolvingFCs is_lits ->
+                                            "Solving FCs " <> 
+                                                T.intercalate " "
+                                                    (map (\(i, l) -> "(" <> mkIdHaskell pg i <> " = " <> mkLitHaskell UseHash l <> ")") is_lits)
+                                        SolvedFCs -> "Solved FCs"
         pretty_handles = prettyHandles pg $ handles s
         pretty_mutvars = prettyMutVars pg . HM.map mv_val_id $ mutvar_env s
         pretty_tenv = prettyTypeEnv (tyvar_env s) pg (type_env s)
@@ -827,6 +883,8 @@ prettyLitTables pg lts = T.concat (map pair $ HM.toList lts)
 
 prettyCEAction :: PrettyGuide -> CEAction -> T.Text
 prettyCEAction pg (EnsureEq e) = "EnsureEq " <> mkDirtyExprHaskell pg e
+prettyCEAction pg (UpdateSolvingFCs is_lits) =
+    "UpdateSolving " <> T.intercalate " " (map (\(i, l) -> "(" <> mkIdHaskell pg i <> " = " <> mkLitHaskell UseHash l <> ")") is_lits)
 prettyCEAction _ NoAction = "NoAction"
 
 prettyEEnv :: TV.TyVarEnv -> PrettyGuide -> CurrExpr -> Stack Frame -> ExprEnv -> T.Text
@@ -887,6 +945,23 @@ prettyNonRedPaths pg nrpc =
                             <> mkDirtyExprHaskell pg e2 <> "\t"
                             <> prettyFocus pg focus)
     $ toListNRPC nrpc)
+
+prettyFuncConstraints :: PrettyGuide -> FuncConstraints -> T.Text
+prettyFuncConstraints pg = T.intercalate "\n---\n" . map goFuncRec . HM.toList
+    where
+        goFuncRec (fn, fc) = T.intercalate "\n" (map (goFuncCons fn) fc)
+
+        goFuncCons f fc =
+            let
+                pretty_precond = T.intercalate " , " $ map (mkDirtyExprHaskell pg) (fc_preconds fc)
+                pretty_func_call = mkDirtyExprHaskell pg (mkApp $ Var (Id f TyUnknown):fc_args fc)
+                pretty_ret = mkDirtyExprHaskell pg (fc_ret fc)
+
+                call_and_ret = pretty_func_call <> " = " <> pretty_ret
+            in
+            case L.null $ fc_preconds fc of
+                True -> call_and_ret
+                False -> pretty_precond <> " => " <> call_and_ret
 
 prettyFocus :: PrettyGuide -> Focus -> T.Text
 prettyFocus _ Focused = "focused"
@@ -1134,6 +1209,9 @@ data PrettyGuide = PG { pg_assigned :: !(HM.HashMap Name T.Text) -- ^ Mapping of
                       , type_printing :: TypePrinting -- ^ How detailed should the type information we print be?
                       , env_ordering :: EnvOrdering -- ^ Should the environment be ordered?
                       , ty_lam_printing :: TyLamPrinting -- ^ Should type-level lambdas be printed?
+
+                      , include_typeclasses :: Bool -- ^ Should typclasses be printed in log files?
+                      , include_internal_names :: Bool -- ^ Should internal names be printed in log files?
                       }
 
 -- Note [PrettyGuide AssignedLvl]
@@ -1163,7 +1241,9 @@ mkPrettyGuide = foldr insertPG (PG { pg_assigned = HM.empty
                                    , strict_case = False
                                    , type_printing = LaxTypes
                                    , env_ordering = Unordered
-                                   , ty_lam_printing = ShowTyLam }) . names
+                                   , ty_lam_printing = ShowTyLam
+                                   , include_typeclasses = True
+                                   , include_internal_names = True }) . names
 
 -- | Update the `PrettyGuide` with mappings for all `Name`s in the `Named` argument.
 -- Does not draw any distinction between type level and value level names.
@@ -1186,6 +1266,12 @@ updateQualMods m pg@(PG { qual_mods = qm }) = pg { qual_mods = HS.insert m qm }
 
 setStrictCase :: Bool -> PrettyGuide -> PrettyGuide
 setStrictCase b pg = pg { strict_case = b }
+
+setLogTypeClasses :: Bool -> PrettyGuide -> PrettyGuide
+setLogTypeClasses b pg = pg { include_typeclasses = b }
+
+setLogInternalName :: Bool -> PrettyGuide -> PrettyGuide
+setLogInternalName b pg = pg { include_internal_names = b }
 
 insertPG :: Name -> PrettyGuide -> PrettyGuide
 insertPG = insertPGLvl BothLvl

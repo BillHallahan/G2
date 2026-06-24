@@ -4,10 +4,10 @@ module Expr (exprTests) where
 
 import G2.Language
 import qualified G2.Language.ExprEnv as E
+import qualified G2.Language.TyVarEnv as TV 
 
 import Test.Tasty
 import Test.Tasty.HUnit
-import qualified G2.Language.TyVarEnv as TV 
 
 exprTests :: TestTree
 exprTests =
@@ -16,7 +16,7 @@ exprTests =
     , testCase "Eta Expand To" $ assertBool "Eta Expand To failed" etaExpandTo2
     , testCase "Eta Expand To" $ assertBool "Eta Expand To failed" etaExpandTo3
     , testCase "Eta Expand To" $ assertBool "Eta Expand To failed" etaExpandTo4
-    , testCase "Eta Expand To" $ assertBool "Eta Expand To failed" etaExpandToOverSat1 ]
+    , testCase "Eta Expand To" $ assertBool "Eta Expand To failed" etaExpandToOverSat1  ]
 
 etaExpandTo1 :: Bool
 etaExpandTo1 =

@@ -41,7 +41,7 @@ import G2.Language.TyVarEnv as TV
 
 data SymEx = SymEx
            | SymExWithConfig String
-             deriving (Data, Generic)
+             deriving (Show, Data, Generic)
 
 instance NFData SymEx
 
@@ -137,13 +137,16 @@ g2PluginPass' cmd_lne config env modguts = do
     liftIO $ mapM_ (uncurry (runFunc cmd_lne simp_state)) ann_fs_g2
 
 runFunc :: [CommandLineOption] -> SimpleState -> [SymEx] -> L.Name -> IO ()
-runFunc cmd_lne simp_state symex_annot entry
+runFunc cmd_lne simp_state symex_annots entry = mapM_ (\symex_annot -> runFunc' cmd_lne simp_state symex_annot entry) symex_annots
+
+runFunc' :: [CommandLineOption] -> SimpleState -> SymEx -> L.Name -> IO ()
+runFunc' cmd_lne simp_state symex_annot entry
     | Just (entry_name, e) <- E.lookupNameMod (L.nameOcc entry) (L.nameModule entry) (IT.expr_env simp_state) = do
         -- Get a Config to run this specific function
         homedir <- liftIO $ getHomeDirectory
         let func_cmd_line = case symex_annot of
-                                [SymExWithConfig extra_cmd_lne] -> cmd_lne ++ words extra_cmd_lne
-                                _ -> cmd_lne
+                                SymExWithConfig extra_cmd_lne -> cmd_lne ++ words extra_cmd_lne
+                                SymEx -> cmd_lne
         func_config <- liftIO . handleParseResult $ execParserPure defaultPrefs (pluginConfig homedir) func_cmd_line
 
         -- Run symbolic execution
