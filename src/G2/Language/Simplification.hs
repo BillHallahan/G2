@@ -14,8 +14,6 @@ import qualified G2.Language.ExprEnv as E
 import G2.Language.Syntax
 import G2.Language.Typing
 
-import Data.List
-
 simplifyExprs :: ASTContainer t Expr => E.ExprEnv -> E.ExprEnv -> t -> t
 simplifyExprs eenv c_eenv = modifyContainedASTs (simplifyExpr eenv c_eenv)
 
@@ -44,13 +42,6 @@ simplifyAppLambdas (App (Lam TypeL i e) (Type t)) =
     simplifyAppLambdas $ retype i t e
 simplifyAppLambdas e = modifyChildren simplifyAppLambdas e
 
-safeToInline :: Expr -> Bool
-safeToInline (Var _) = True
-safeToInline (Lit _) = True
-safeToInline e@(App _ _) | Data _:_ <- unApp e = True
-safeToInline e@(App _ _) | Prim _ _:_ <- unApp e = True
-safeToInline _ = False
-
 simplifyDefCase :: E.ExprEnv -> Expr -> Expr
 simplifyDefCase eenv (Case e i _ [Alt Default e']) | isExprValueForm eenv e =
     simplifyDefCase eenv $ replaceVar (idName i) e e'
@@ -72,30 +63,3 @@ inlineFuncInCase eenv c@(Case (Var (Id n _)) i t as)
     | otherwise = c
 inlineFuncInCase eenv e =
     modifyChildren (inlineFuncInCase eenv) e
-
-caseOfKnownCons :: Expr -> Expr
-caseOfKnownCons (Case e i _ as)
-    | Data (DataCon n t _ _):es <- unApp e
-    , Just (Alt (DataAlt _ is) ae) <- find (matchingDataAlt n) as =
-        let
-            tfa_count = length (leadingTyForAllBindings t)
-            es' = drop tfa_count es
-        in
-        foldr (uncurry replaceVar) (replaceVar (idName i) e ae) (zip (map idName is) es')
-    | Lit l:_ <- unApp e
-    , Just (Alt (LitAlt _) ae) <- find (matchingLitAlt l) as = replaceVar (idName i) e ae
-    
-    | Data _:_ <- unApp e
-    , Just (Alt Default ae) <- find (\(Alt am _) -> am == Default) as = replaceVar (idName i) e ae
-    | Lit l:_ <- unApp e
-    , Just (Alt Default ae) <- find (\(Alt am _) -> am == Default) as = replaceVar (idName i) e ae
-
-caseOfKnownCons e = modifyChildren caseOfKnownCons e
-
-matchingDataAlt :: Name -> Alt -> Bool
-matchingDataAlt n (Alt (DataAlt (DataCon n' _ _ _) _) _) = n == n'
-matchingDataAlt _ _ = False
-
-matchingLitAlt :: Lit -> Alt -> Bool
-matchingLitAlt l (Alt (LitAlt l') _) = l == l'
-matchingLitAlt _ _ = False

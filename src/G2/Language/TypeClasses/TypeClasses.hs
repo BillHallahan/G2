@@ -34,7 +34,8 @@ import Data.List
 import qualified Data.HashMap.Lazy as M
 import Data.Maybe
 import qualified Data.Sequence as S
-import qualified G2.Language.TyVarEnv as TV 
+import qualified Data.Foldable as F
+import qualified G2.Language.TyVarEnv as TV
 import GHC.Generics (Generic)
 
 data Class = Class { insts :: [(Type, Id)], typ_ids :: [Id], superclasses :: [(Type, Id)]}
@@ -140,14 +141,14 @@ typeClassInst tc m tcn t
     , tcs <- map (typeClassInst tc m tcn) ts
     , all isJust tcs =
         case lookupTCDictCenter tc tcn tca of
-            Just i -> Just (foldl' App (Var i) $ map Type ts ++ map fromJust tcs)
+            Just i -> Just (F.foldl' App (Var i) $ map Type ts ++ map fromJust tcs)
             Nothing -> Nothing
     | (TyVar (Id n _)) <- tyAppCenter t
     , ts <- tyAppArgs t
     , tcs <- map (typeClassInst tc m tcn) ts
     , all (isJust) tcs =
         case M.lookup n m of
-            Just i -> Just (foldl' App (Var i) $ map Type ts ++ map fromJust tcs)
+            Just i -> Just (F.foldl' App (Var i) $ map Type ts ++ map fromJust tcs)
             Nothing -> Nothing
 typeClassInst _ _ _ _ = Nothing
 

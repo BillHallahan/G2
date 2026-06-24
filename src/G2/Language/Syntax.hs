@@ -11,9 +11,9 @@ import GHC.Generics (Generic)
 import Control.DeepSeq
 import Data.Bits
 import Data.Data
-import Data.Foldable
 import Data.Hashable
 import qualified Data.Text as T
+import qualified Data.Foldable as F
 import Data.Word
 
 -- | Binds `Id`s to `Expr`s, primarily in @let@ `Expr`s
@@ -385,7 +385,7 @@ integerToBV :: Int -- ^ Width
 integerToBV w i = LitBV $ map (\pos -> if testBit i pos then 1 else 0) [w - 1,w-2..0]
 
 bvToInteger :: [Int] -> Integer
-bvToInteger bv = foldl' (\acc (i,b) -> if b == 1 then setBit acc i else acc)
+bvToInteger bv = F.foldl' (\acc (i,b) -> if b == 1 then setBit acc i else acc)
                  0
                  (zip [length bv - 1, length bv - 2..0] bv)
 

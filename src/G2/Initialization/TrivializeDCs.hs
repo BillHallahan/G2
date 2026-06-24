@@ -6,8 +6,6 @@ import qualified G2.Language.ExprEnv as E
 import G2.Language.KnownValues
 import G2.Language.Monad
 
-import Data.Traversable
-
 -- note [Cons DC]
 -- When using SMT strings, we must ensure that all strings can be represented in the
 -- SMT solver.  To do this, we make use of an adjStr function (in GHC.Prim2) which forces evaluation

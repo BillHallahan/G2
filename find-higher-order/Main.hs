@@ -25,6 +25,7 @@ main = do
   case as of
       [path] -> runAllInFolder path
       [path, fl] -> runFile (path </> fl)
+      _ -> error $ "Expected one or two args and got: " ++ show as
 
 runAllInFolder :: FilePath -> IO ()
 runAllInFolder src = do

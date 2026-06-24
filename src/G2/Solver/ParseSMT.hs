@@ -6,7 +6,6 @@ import G2.Solver.Language
 
 import Data.Bits
 import Data.Char
-import Data.Foldable
 import GHC.Float
 import Numeric
 
@@ -147,7 +146,6 @@ funcExpr =
         <|>
         try (do
             _ <- string "ite"
-            inp <- getInput
             whiteSpace
             x <- sExpr Nothing
             y <- sExpr Nothing

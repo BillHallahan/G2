@@ -14,7 +14,6 @@ import qualified G2.Language.TyVarEnv as TV
 
 import GHC.Generics (Generic)
 import Control.Monad
-import Data.Coerce
 import Data.Data (Data)
 import Data.Foldable
 import Data.Hashable

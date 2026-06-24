@@ -8,7 +8,7 @@ module G2.Execution.PrimitiveEval ( evalPrimsSharing
                                   , newMutVar
                                   , maybeEvalPrim
                                   , evalPrimSymbolic
-                                  
+
                                   , toString
                                   , toExprList) where
 
@@ -20,16 +20,13 @@ import G2.Language.AST
 import G2.Language.Expr
 import qualified G2.Language.KnownValues as KV
 import G2.Language.Naming
-import qualified G2.Language.PathConds as PC
 import G2.Language.Primitives
 import G2.Language.Support
-import qualified G2.Language.Stack as S
 import G2.Language.Syntax
 import G2.Language.Typing
 
 import Control.Exception
 import Data.Char
-import Data.Foldable
 import qualified Data.HashMap.Lazy as M
 import qualified Data.HashSet as HS
 import qualified Data.List as L
@@ -37,7 +34,7 @@ import Data.Maybe
 import qualified G2.Language.ExprEnv as E
 import G2.Language.MutVarEnv
 import qualified G2.Language.Stack as Stck
-import qualified G2.Language.TyVarEnv as TV 
+import qualified G2.Language.TyVarEnv as TV
 
 import GHC.Float
 import G2.Language.ExprEnv (deepLookupVar)
@@ -498,10 +495,10 @@ evalPrim1 Abs (LitRational x) = Just . Lit $ LitRational (abs x)
 evalPrim1 Abs (LitFloat x) = Just . Lit $ LitFloat (abs x)
 evalPrim1 Abs (LitDouble x) = Just . Lit $ LitDouble (abs x)
 evalPrim1 FpSqrt x = evalPrim1Floating sqrt x
-evalPrim1 TruncZero (LitFloat x) = Just . Lit $ LitInt (fst $ properFraction x)
-evalPrim1 TruncZero (LitDouble x) = Just . Lit $ LitInt (fst $ properFraction x)
-evalPrim1 DecimalPart (LitFloat x) = Just . Lit $ LitFloat (snd $ properFraction x)
-evalPrim1 DecimalPart (LitDouble x) = Just . Lit $ LitDouble (snd $ properFraction x)
+evalPrim1 TruncZero (LitFloat x) = Just . Lit $ LitInt (fst $ ((properFraction x) :: (Integer, Float)))
+evalPrim1 TruncZero (LitDouble x) = Just . Lit $ LitInt (fst $ ((properFraction x) :: (Integer, Double)))
+evalPrim1 DecimalPart (LitFloat x) = Just . Lit $ LitFloat (snd $ ((properFraction x) :: (Integer, Float)))
+evalPrim1 DecimalPart (LitDouble x) = Just . Lit $ LitDouble (snd $ ((properFraction x) :: (Integer, Double)))
 evalPrim1 IntToFloat (LitInt x) = Just . Lit $ LitFloat (fromIntegral x)
 evalPrim1 IntToDouble (LitInt x) = Just . Lit $ LitDouble (fromIntegral x)
 evalPrim1 IntToRational (LitInt x) = Just . Lit $ LitRational (fromIntegral x)
@@ -715,7 +712,7 @@ evalPrimADT3 _ tenv _ kv _ StrReplaceAll s orig rep = do
 
 evalPrimADT3 eenv tenv tv_env kv tc FoldLeft (Lam _ (Id b_id _) (Lam _ (Id a_id _) e)) initial lst = do
     lst' <- toExprList lst
-    let unfolded = foldl (\b_val a_val -> replaceVar b_id b_val $ replaceVar a_id a_val e) initial lst'
+    let unfolded = L.foldl (\b_val a_val -> replaceVar b_id b_val $ replaceVar a_id a_val e) initial lst'
     return . evalPrims eenv tenv tv_env kv tc $ inlineVarsForPrim eenv tc unfolded
 
 evalPrimADT3 _ _ _ _ _ _ _ _ _ = Nothing
@@ -845,10 +842,10 @@ evalTypeAnyArgPrim _ _ _ _ _ _ _ _ = Nothing
 isSMTRep :: ExprEnv -> KnownValues -> Expr -> Bool
 isSMTRep eenv kv e
     | Just (E.Sym _) <- c_s = True
-    | Just (E.Conc e) <- c_s
-    , Prim p _:_ <- unApp e
+    | Just (E.Conc e') <- c_s
+    , Prim p _:_ <- unApp e'
     , not (isErrorPrim p) = True
-    | Just (E.Conc e') <- c_s 
+    | Just (E.Conc e') <- c_s
     , isSymList eenv kv e' = True
     | Just (E.Conc (Tick _ e')) <- c_s = isSMTRep eenv kv e'
     | otherwise = False
@@ -1008,11 +1005,15 @@ evalPrimSymbolic tv eenv tenv ng kv e
     , TyCon tn _:_ <- unTyApp t
     , Just adt <- M.lookup tn tenv =
         let
-            alt_p = map (\(Alt (LitAlt l) alt_e) ->
-                            let
-                                Data dc = appCenter alt_e
-                            in
-                            (l, dc)) alts
+            getLitAndDc (Alt (LitAlt l) alt_e) =
+                let
+                    dc = case appCenter alt_e of
+                              Data x -> x
+                              _ -> error "appCenter did not return Data"
+                in
+                (l, dc)
+            getLitAndDc a = error $ "non lit alt when handling DataToTag: " ++ show a
+            alt_p = map getLitAndDc alts
 
             dcs = dataCon adt
             num_dcs = zip (map (Lit . LitInt) [0..]) dcs

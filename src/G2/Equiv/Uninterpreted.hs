@@ -1,12 +1,12 @@
 {-# LANGUAGE  FlexibleContexts, OverloadedStrings #-}
 
 
-module G2.Equiv.Uninterpreted where 
+module G2.Equiv.Uninterpreted where
 
 import G2.Language
 import qualified G2.Language.ExprEnv as E
-import Data.Foldable
-import Data.Maybe 
+import Data.Maybe
+import qualified Data.Foldable as F
 import qualified Data.Monoid as DM
 import qualified Data.HashMap.Lazy as HM
 import qualified Data.HashSet as HS
@@ -15,7 +15,7 @@ import qualified Data.Text as T
 -- | Find variables that don't have binding and adjust the epxression environment to treat them as symbolic 
 addFreeVarsAsSymbolic :: ExprEnv -> ExprEnv 
 addFreeVarsAsSymbolic eenv = let xs = freeVars eenv eenv 
-                             in foldl' (flip E.insertSymbolic) eenv xs 
+                             in F.foldl' (flip E.insertSymbolic) eenv xs 
 
 -- we want to modify the rewrite-rules passed in checkrule and then apply subvars to the rule 
 addFreeTypes :: (ASTContainer c Expr, ASTContainer c Type, ASTContainer t Expr, ASTContainer t Type) => c -> State t -> NameGen -> (c, State t, NameGen) 
@@ -83,15 +83,15 @@ unknownDC :: NameGen -> Name -> Kind -> [Id] -> (DataCon, NameGen)
 unknownDC ng n@(Name occn _ _ _) k is =
     let tc = TyCon n k 
         tv = map TyVar is
-        ta = foldl' TyApp tc tv 
+        ta = F.foldl' TyApp tc tv 
         ti = TyLitInt `TyFun` ta 
-        tfa = foldl' (flip TyForAll) ti is
+        tfa = F.foldl' (flip TyForAll) ti is
         (dc_n, ng') = freshSeededString ("Unknown" DM.<> occn) ng   
         in (DataCon dc_n tfa is [], ng')
 
 -- | add free Datacons into the TypeEnv at the appriorpate Type)
 addDataCons :: TyVarEnv -> TypeEnv -> [DataCon] -> TypeEnv
-addDataCons tv = foldl' (addDataCon tv)
+addDataCons tv = F.foldl' (addDataCon tv)
 
 addDataCon :: TyVarEnv -> TypeEnv -> DataCon -> TypeEnv
 addDataCon tv te dc | (TyCon n _):_ <- unTyApp . returnType $ typeOf tv dc = 
@@ -105,7 +105,7 @@ addDataCon _ _ _ = error "addDataCon: Type of DataCon had incorrect form"
 
 -- | addMapping will handle classification between the DataCon and Type
 addMapping :: [DataCon] -> ExprEnv -> ExprEnv 
-addMapping dcs ee = foldl' addMapping' ee dcs
+addMapping dcs ee = F.foldl' addMapping' ee dcs
 
 addMapping' :: ExprEnv -> DataCon -> ExprEnv 
 addMapping' ee dc@(DataCon name _ _ _) = E.insert name (Data dc) ee
