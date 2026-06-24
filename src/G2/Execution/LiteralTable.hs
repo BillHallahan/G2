@@ -131,10 +131,11 @@ mkLamArg s ng lt =
 
 -- Make a fully applied primitive tuple with four elements
 mkTup4 :: KnownValues -> TypeEnv -> TyVarEnv -> Expr -> Expr -> Expr -> Expr -> Expr
-mkTup4 kv tenv tv_env x y z q = mkTup kv tenv tv_env t1 t2
+mkTup4 kv tenv tv_env x y z q = t3
     where
-        t1 = mkTup kv tenv tv_env x y
-        t2 = mkTup kv tenv tv_env z q
+        t3 = mkTup kv tenv tv_env x t2
+        t2 = mkTup kv tenv tv_env y t1
+        t1 = mkTup kv tenv tv_env z q
 
 mkTup :: KnownValues -> TypeEnv -> TyVarEnv -> Expr -> Expr -> Expr
 mkTup kv tenv tv_env x y =
