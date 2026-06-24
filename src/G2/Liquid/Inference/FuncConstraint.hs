@@ -33,7 +33,7 @@ module G2.Liquid.Inference.FuncConstraint ( FuncConstraint (..)
 
 import G2.Language.AST
 import G2.Language.Naming
-import G2.Language.Support
+import G2.Language.Support hiding (FuncConstraints, FuncConstraint (..))
 import G2.Language.Syntax
 import G2.Lib.Printers
 import G2.Liquid.Interface

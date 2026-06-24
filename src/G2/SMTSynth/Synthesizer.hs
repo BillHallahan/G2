@@ -153,7 +153,7 @@ adjustConfig :: SynthConfig -> Config -> Config
 adjustConfig sc c =
     setSynthMode (synth_mode sc) $ 
         c { step_limit = False
-          , height_limit = if checking sc == ADTHeight then Just $ fromMaybe 5 (height_limit c) else Nothing
+          , max_height_limit = if checking sc == ADTHeight then Just $ fromMaybe 5 (max_height_limit c) else Nothing
 
           -- If verifying, want to avoid all recursion, if checking up to ADT height, want to force evaluation
           , smt_prim_lists = UseSMTSeq { add_to_dcs = True, add_to_funcs = checking sc == Verify }

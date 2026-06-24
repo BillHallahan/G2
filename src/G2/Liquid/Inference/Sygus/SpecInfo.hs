@@ -2,7 +2,7 @@
 
 module G2.Liquid.Inference.Sygus.SpecInfo where
 
-import G2.Language as G2
+import G2.Language as G2 hiding (FuncConstraints)
 import qualified G2.Language.ExprEnv as E
 import G2.Liquid.Conversion
 import G2.Liquid.Helpers

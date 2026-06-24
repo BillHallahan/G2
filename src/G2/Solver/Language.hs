@@ -66,6 +66,7 @@ data SMTAST = (:>=) !SMTAST !SMTAST
 
             | SmtAnd ![SMTAST]
             | SmtOr ![SMTAST]
+            | SmtXor ![SMTAST]
             | (:!) !SMTAST
             | (:=>) !SMTAST !SMTAST
             | (:<=>) !SMTAST !SMTAST

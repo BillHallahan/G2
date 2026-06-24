@@ -71,7 +71,10 @@ initKnownValues eenv tenv tc =
     , dcNothing = dcWithStrName tenv "Maybe" "Nothing"
 
   
-#if MIN_VERSION_GLASGOW_HASKELL(9,8,0,0)
+#if MIN_VERSION_GLASGOW_HASKELL(9,10,0,0)
+    , tyUnit = typeWithStrNameInModule tenv "Unit" (Just "GHC.Tuple")
+    , dcUnit = dcWithStrNameInModule tenv "Unit" "()" (Just "GHC.Tuple")
+#elif MIN_VERSION_GLASGOW_HASKELL(9,8,0,0)
     , tyUnit = typeWithStrName tenv "Unit"
     , dcUnit = dcWithStrName tenv "Unit" "()"
 #else
@@ -171,12 +174,12 @@ typeWithStrNameInModule :: TypeEnv -> T.Text -> Maybe T.Text -> Name
 typeWithStrNameInModule tenv s s_mod =
   case HM.toList $ HM.filterWithKey (\(Name n mmod _ _) _ -> n == s && mmod == s_mod) tenv of
     (n, _):_ -> n
-    _ -> error $ "No type found in typeWithStrName " ++ (show $ T.unpack s)
+    _ -> error $ "No type found in typeWithStrNameInModule " ++ (show $ T.unpack s)
 
 dcWithStrNameInModule :: TypeEnv -> T.Text -> T.Text -> Maybe T.Text -> Name
 dcWithStrNameInModule tenv ts dcs s_mod =
   case concatMap dataCon . HM.elems $ HM.filterWithKey (\(Name n mmod _ _) _ -> n == ts && mmod == s_mod) tenv of
-    [] -> error $ "No type found in dcWithStrName [" ++
+    [] -> error $ "No type found in dcWithStrNameInModule [" ++
                   (show $ T.unpack ts) ++ "] [" ++ (show $ T.unpack dcs) ++ "]"
     dc -> dcWithStrName' dc dcs
 

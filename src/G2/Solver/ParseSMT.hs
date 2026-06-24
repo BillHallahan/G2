@@ -1,3 +1,5 @@
+{-# LANGUAGE BangPatterns#-}
+
 module G2.Solver.ParseSMT
     ( parseSMT
     , parseGetValues) where
@@ -25,7 +27,7 @@ smtDef =
              , Token.nestedComments = False
              , Token.identStart = letter <|> oneOf ident
              , Token.identLetter = alphaNum <|> oneOf ident
-             , Token.reservedNames = ["as", "let", "-", "/", "\"", "fp", "+zero", "-zero", "+oo", "-oo", "NaN", "lambda"]}
+             , Token.reservedNames = ["as", "let", "-", "/", "\"", "fp", "+zero", "-zero", "+oo", "-oo", "NaN", "lambda", "store"]}
 
 ident :: [Char]
 ident = ['~', '!', '$', '@', '%', '^', '&', '*' , '_', '-', '+', '=', '<', '>', '.', '?', '/', '|', ',']
@@ -145,6 +147,20 @@ funcExpr =
         )
         <|>
         try (do
+            _ <- string "and"
+            whiteSpace
+            xs <- many1 (sExpr Nothing)
+            return $ SmtAnd xs
+        )
+        <|>
+        try (do
+            _ <- string "or"
+            whiteSpace
+            xs <- many1 (sExpr Nothing)
+            return $ SmtOr xs
+        )
+        <|>
+        try (do
             _ <- string "ite"
             whiteSpace
             x <- sExpr Nothing
@@ -182,8 +198,7 @@ lambdaExpr = do
 arrayExpr :: Parser SMTAST
 arrayExpr = do
     (do
-        _ <- string "store"
-        _ <- whiteSpace
+        _ <- reserved "store"
         array <- sExpr Nothing
         args <- many1 (sExpr Nothing)
         let ind = init args
@@ -191,7 +206,7 @@ arrayExpr = do
         return $ ArrayStore array ind val)
     <|>
     (do
-        parens (do
+         (do
             array_sort <- parens (do
                                     reserved "as"
                                     _ <- string "const"
@@ -388,15 +403,19 @@ parseUni = do
         _ -> fail $ "parseUni': Bad string " ++ str
 
 parseSort :: Parser Sort
-parseSort = 
-    (do
+parseSort =
+     (do
         _ <- string "Array"
         _ <- whiteSpace
-        sorts <- many1 parseSort
+        sorts <- many1 (do srt <- parseSort; _ <- whiteSpace; return srt)
         let inds = init sorts
             val = last sorts
         return (SortArray inds val)
         )
+    <|>
+    (do _ <- string "Int"; return SortInt)
+    <|>
+    (do _ <- string "Bool"; return SortBool)
     <|>
     (return . ParSort =<< identifier)
     <|>

@@ -25,6 +25,7 @@ module G2.Language.Expr ( module G2.Language.Casts
                         , mkJust
                         , mkNothing
                         , mkUnit
+                        , mkDCUnit
                         , mkPrimTuple
 
                         , mkIdentity
@@ -92,6 +93,7 @@ module G2.Language.Expr ( module G2.Language.Casts
 
                         , inlineVars) where
 
+import G2.Data.Utils
 import G2.Language.AST
 import G2.Language.Casts
 import G2.Language.ExprEnv (ExprEnv)
@@ -107,7 +109,6 @@ import G2.Language.Primitives
 
 import qualified Data.HashSet as HS
 import qualified Data.Map as M
-import Data.Maybe
 import Data.Semigroup
 
 data EqTickCheck = CheckTicks | IgnoreTicks deriving Eq
@@ -191,28 +192,28 @@ mkApp (e:[]) = e
 mkApp (e1:e2:es) = mkApp (App e1 e2 : es)
 
 mkDCInt :: KnownValues -> TypeEnv -> Expr
-mkDCInt kv tenv = Data . fromJust $ getDataCon tenv (KV.tyInt kv) (KV.dcInt kv)
+mkDCInt kv tenv = Data . fromJustErr "mkDCInt" $ getDataCon tenv (KV.tyInt kv) (KV.dcInt kv)
 
 mkDCInteger :: KnownValues -> TypeEnv -> Expr
-mkDCInteger kv tenv = Data . fromJust $ getDataCon tenv (KV.tyInteger kv) (KV.dcInteger kv)
+mkDCInteger kv tenv = Data . fromJustErr "mkDCInteger"  $ getDataCon tenv (KV.tyInteger kv) (KV.dcInteger kv)
 
 mkDCWord :: KnownValues -> TypeEnv -> Expr
-mkDCWord kv tenv = Data . fromJust $ getDataCon tenv (KV.tyWord kv) (KV.dcWord kv)
+mkDCWord kv tenv = Data . fromJustErr "mkDCWord" $ getDataCon tenv (KV.tyWord kv) (KV.dcWord kv)
 
 mkDCFloat :: KnownValues -> TypeEnv -> Expr
-mkDCFloat kv tenv = Data . fromJust $ getDataCon tenv (KV.tyFloat kv) (KV.dcFloat kv)
+mkDCFloat kv tenv = Data . fromJustErr "mkDCFloat" $ getDataCon tenv (KV.tyFloat kv) (KV.dcFloat kv)
 
 mkDCDouble :: KnownValues -> TypeEnv -> Expr
-mkDCDouble kv tenv = Data . fromJust $ getDataCon tenv (KV.tyDouble kv) (KV.dcDouble kv)
+mkDCDouble kv tenv = Data . fromJustErr "mkDCDouble" $ getDataCon tenv (KV.tyDouble kv) (KV.dcDouble kv)
 
 mkDCChar :: KnownValues -> TypeEnv -> Expr
-mkDCChar kv tenv = Data . fromJust $ getDataCon tenv (KV.tyChar kv) (KV.dcChar kv)
+mkDCChar kv tenv = Data . fromJustErr "mkDCChar" $ getDataCon tenv (KV.tyChar kv) (KV.dcChar kv)
 
 mkDCTrue :: KnownValues -> TypeEnv -> DataCon
-mkDCTrue kv tenv = fromJust $ getDataCon tenv (KV.tyBool kv) (KV.dcTrue kv)
+mkDCTrue kv tenv = fromJustErr "mkDCTrue" $ getDataCon tenv (KV.tyBool kv) (KV.dcTrue kv)
 
 mkDCFalse :: KnownValues -> TypeEnv -> DataCon
-mkDCFalse kv tenv = fromJust $ getDataCon tenv (KV.tyBool kv) (KV.dcFalse kv)
+mkDCFalse kv tenv = fromJustErr "mkDCFalse" $ getDataCon tenv (KV.tyBool kv) (KV.dcFalse kv)
 
 mkTrue :: KnownValues -> Expr
 mkTrue kv = Data $ DataCon (KV.dcTrue kv) (TyCon (KV.tyBool kv) TYPE) [] []
@@ -229,10 +230,10 @@ toBool kv (Data dc) | dc_name dc == KV.dcTrue kv = Just True
 toBool _ _ = Nothing
 
 mkCons :: KnownValues -> TypeEnv -> Expr
-mkCons kv tenv = Data . fromJust $ getDataCon tenv (KV.tyList kv) (KV.dcCons kv)
+mkCons kv tenv = Data . fromJustErr "mkCons" $ getDataCon tenv (KV.tyList kv) (KV.dcCons kv)
 
 mkEmpty :: KnownValues -> TypeEnv -> Expr
-mkEmpty kv tenv = Data . fromJust $ getDataCon tenv (KV.tyList kv) (KV.dcEmpty kv)
+mkEmpty kv tenv = Data . fromJustErr "mkEmpty" $ getDataCon tenv (KV.tyList kv) (KV.dcEmpty kv)
  
 -- | Construct a G2 list `Expr` containing a list of `Expr`s
 mkG2List :: KnownValues
@@ -248,16 +249,19 @@ mkG2List kv tenv t = foldr go (App emp (Type t))
         go e es = App (App (App cons (Type t)) e) es
 
 mkJust :: KnownValues -> TypeEnv -> Expr
-mkJust kv tenv = Data . fromJust $ getDataCon tenv (KV.tyMaybe kv) (KV.dcJust kv)
+mkJust kv tenv = Data . fromJustErr "mkJust" $ getDataCon tenv (KV.tyMaybe kv) (KV.dcJust kv)
 
 mkNothing :: KnownValues -> TypeEnv -> Expr
-mkNothing kv tenv = Data . fromJust $ getDataCon tenv (KV.tyMaybe kv) (KV.dcNothing kv)
+mkNothing kv tenv = Data . fromJustErr "mkNothing" $ getDataCon tenv (KV.tyMaybe kv) (KV.dcNothing kv)
 
 mkUnit :: KnownValues -> TypeEnv -> Expr
-mkUnit kv tenv = Data . fromJust $ getDataCon tenv (KV.tyUnit kv) (KV.dcUnit kv)
+mkUnit kv tenv = Data $ mkDCUnit kv tenv
+
+mkDCUnit :: KnownValues -> TypeEnv -> DataCon
+mkDCUnit kv tenv = fromJustErr "mkDCUnit" $ getDataCon tenv (KV.tyUnit kv) (KV.dcUnit kv)
 
 mkPrimTuple :: KnownValues -> TypeEnv -> Expr
-mkPrimTuple kv tenv = Data . fromJust $ getDataCon tenv (KV.tyPrimTuple kv) (KV.dcPrimTuple kv)
+mkPrimTuple kv tenv = Data . fromJustErr "mkPrimTuple" $ getDataCon tenv (KV.tyPrimTuple kv) (KV.dcPrimTuple kv)
 
 mkIdentity :: Type -> Expr
 mkIdentity t =
@@ -483,7 +487,7 @@ simplifyLams :: ASTContainer c Expr => c -> c
 simplifyLams = modifyASTs simplifyLams'
 
 simplifyLams' :: Expr -> Expr
-simplifyLams' (App (Lam _ i e1) e2) = replaceASTs (Var i) e2 e1
+simplifyLams' (App (Lam _ i e1) e2) = replaceVar (idName i) e2 e1
 simplifyLams' e = e
 
 leadingLamUsesIds :: Expr -> [(LamUse, Id)]

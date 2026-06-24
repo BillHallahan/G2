@@ -14,7 +14,7 @@ import G2.Language.CallGraph
 import G2.Language.Expr
 import qualified G2.Language.ExprEnv as E
 import G2.Language.Naming
-import G2.Language.Support
+import G2.Language.Support hiding (FuncConstraints, FuncConstraint)
 import G2.Language.Syntax hiding (Raise)
 import G2.Language.Typing
 import G2.Liquid.Config

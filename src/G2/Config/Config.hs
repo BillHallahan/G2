@@ -1,6 +1,7 @@
 module G2.Config.Config ( Mode (..)
                         , LogMode (..)
                         , LogMethod (..)
+                        , FCLogging (..)
                         , Sharing (..)
                         , DiscardUnknownStates (..)
                         , SMTSolver (..)
@@ -70,7 +71,8 @@ data SearchStrategy = Iterative | Subpath deriving (Eq, Show, Read)
 
 data HigherOrderSolver = AllFuncs
                        | SingleFunc
-                       | SymbolicFunc deriving (Eq, Show, Read)
+                       | SymbolicFunc
+                       | SymConstraints deriving (Eq, Show, Read)
 
 data FpHandling = RealFP | RationalFP deriving (Eq, Show, Read)
 
@@ -92,6 +94,8 @@ data UseSMTSeq = UseSMTSeq { add_to_dcs :: Bool, add_to_funcs :: Bool } | NoSMTS
 data UseSMTDC = UseSMTDC | NoSMTDC deriving (Eq, Show, Read)
 
 data UseLiteralTables = UseLiteralTables | NoLiteralTables deriving (Eq, Show, Read)
+
+data FCLogging = FCLogging | NoFCLogging deriving (Eq, Show)
 
 useSMTSeqDCs ::  UseSMTSeq -> Bool
 useSMTSeqDCs (UseSMTSeq { add_to_dcs = a }) = a
@@ -120,6 +124,9 @@ data Config = Config {
     , logFilter :: Bool -- ^ Limit the logged environment to names recursively reachable through the current expression or stack
     , logOrder :: Bool -- ^ Order names in the logged environment: [CurrExpr]/[Stack]/[others]
     , logInlineNRPC :: Bool -- ^ Inline variables in the NRPC when logging states
+    , log_typeclasses :: Bool -- ^ Including typeclasses in log files
+    , log_internal_names :: Bool -- ^ Including mapping to internal names in log files
+    , log_fc_solver :: FCLogging -- ^ Print logging during symbolic function constraint solving
     , sharing :: Sharing
     , instTV :: InstTV -- allow the instantiation of types in the beginning or it's instantiate symbolically by functions
     , favor_tys :: [String] -- ^ Which types (in order) to prefer instantiating type variables with
@@ -152,7 +159,8 @@ data Config = Config {
     , step_limit :: Bool -- ^ Should steps be limited when running states?
     , steps :: Int -- ^ How many steps to take when running States
 
-    , height_limit :: Maybe Int -- ^ What is the ADT height limit?
+    , max_height_limit :: Maybe Int -- ^ What is the max ADT height limit?
+    , sum_height_limit :: Maybe Int -- ^ What is the sum ADT height limit?
 
     , time_solving :: Bool -- ^ Output the amount of time spent checking/solving path constraints
     , print_num_solver_calls :: Bool -- ^ Output the number of calls made to check/solve path constraints
@@ -218,6 +226,12 @@ mkConfig homedir = Config Regular
     <*> switch (long "log-order" <> help "log states with an environment ordered as [current expression]/[stack]/[other]")
     <*> flag False True (long "log-inline-nrpc"
                          <> help "inline variables in the NRPC when logging states")
+    <*> flag True False (long "no-log-typeclasses"
+                         <> help "include typeclasses in log file (default: include)")
+    <*> flag True False (long "no-log-internal-names"
+                         <> help "include mapping to internal names in log file (default: include)")
+    <*> flag NoFCLogging FCLogging (long "log-fc-solver"
+                         <> help "log during function constraint solving")
     <*> flag Sharing NoSharing (long "no-sharing" <> help "disable sharing")
     <*> flag InstBefore InstAfter (long "inst-after" <> help "select to instantiate type variables after symbolic execution, rather than before")
     <*> option auto (long "favor-types"
@@ -271,10 +285,15 @@ mkConfig homedir = Config Regular
                    <> help "how many steps to take when running states")
 
     <*> option (maybeReader (Just . readMaybe))
-            ( long "height-limit"
+            ( long "max-height-limit"
             <> metavar "H"
             <> value Nothing
             <> help "the maximum height of a concretized symbolic variable")
+    <*> option (maybeReader (Just . readMaybe))
+            ( long "sum-height-limit"
+            <> metavar "H"
+            <> value Nothing
+            <> help "the maximum sum of heights of all concretized symbolic variable")
 
     <*> switch (long "solver-time" <> help "output the amount of time spent checking/solving path constraints")
     <*> switch (long "print-num-solver-calls" <> help "output the number of calls made to check/solve path constraints")
@@ -379,6 +398,7 @@ mkHigherOrder =
                                     "all" -> Right AllFuncs
                                     "single" -> Right SingleFunc
                                     "symbolic" -> Right SymbolicFunc
+                                    "sym-constraints" -> Right SymConstraints
                                     _ -> Left "Unsupported higher order function handling"))
             ( long "higher-order"
             <> metavar "HANDLING"
@@ -432,6 +452,9 @@ mkConfigDirect homedir as m = Config {
     , logFilter = False
     , logOrder = False
     , logInlineNRPC = False
+    , log_typeclasses = True
+    , log_internal_names = True
+    , log_fc_solver = NoFCLogging
     , sharing = boolArg' "sharing" as Sharing Sharing NoSharing
     , instTV = InstBefore
     , favor_tys = ["Int"]
@@ -464,7 +487,8 @@ mkConfigDirect homedir as m = Config {
     , step_limit = boolArg' "no-step-limit" as True True False
     , steps = strArg "n" as m read 1000
 
-    , height_limit = Nothing
+    , max_height_limit = Nothing
+    , sum_height_limit = Nothing
 
     , time_solving = False
     , print_num_solver_calls = False

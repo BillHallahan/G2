@@ -66,6 +66,7 @@ import G2.Initialization.MkCurrExpr
 import qualified G2.Initialization.Types as IT
 import G2.Preprocessing.Interface
 
+import G2.Execution.FuncConstraints
 import G2.Execution.HPC
 import G2.Execution.Interface
 import G2.Execution.Reducer
@@ -215,6 +216,8 @@ initStateFromSimpleState s m_mod useAssert mkCurr _argTys config =
     , curr_expr = CurrExpr Evaluate ce
     , path_conds = PC.fromList []
     , non_red_path_conds = empty_nrpc
+    , sym_func_constraints = HM.empty
+    , solving_sym_func_constraints = InitialRun
     , focused = Focused
     , handles = hs
     , mutvar_env = HM.empty
@@ -392,9 +395,15 @@ initRedHaltOrd s mod_name solver simplifier config exec_func_names no_nrpc_names
                                 Nrpc -> SomeReducer (nonRedHigherOrderReducer config approx_no_inline) .== Finished .--> nrpc_lib_red f
                                 NoNrpc -> nrpc_lib_red f
         
+        func_const_red f = case higherOrderSolver config of
+                                SymConstraints -> SomeReducer limitSolvingFuncConstraintPieces .~>
+                                    (SomeReducer (addFuncConstraintReducer solver simplifier approx_no_inline config) .== Finished
+                                                                                        .--> nrpc_higher_red f)
+                                _ -> nrpc_higher_red f
+
         accept_time_red f = case accept_times config of
-                                True -> SomeReducer time_logger .~> nrpc_higher_red f
-                                False -> nrpc_higher_red f
+                                True -> SomeReducer time_logger .~> func_const_red f
+                                False -> func_const_red f
 
         num_steps_red f = case print_num_red_rules_per_state config of
                                 True -> SomeReducer numStepsLogger .~> accept_time_red f
@@ -429,30 +438,46 @@ initRedHaltOrd s mod_name solver simplifier config exec_func_names no_nrpc_names
                                         SomeHalter (hpcApproximationHalter approx_no_inline) .<~> halter_hpc_discard
                                     False -> halter_hpc_discard
 
-        halter_height = case height_limit config of
+        max_halter_height = case max_height_limit config of
                                     Just lim ->
-                                        SomeHalter (adtHeightHalter lim) .<~> halter_approx_discard
+                                        SomeHalter (maxAdtHeightHalter lim) .<~> halter_approx_discard
                                     Nothing -> halter_hpc_discard
+
+        sum_halter_height = case sum_height_limit config of
+                                    Just lim ->
+                                        SomeHalter (sumAdtHeightHalter lim) .<~> max_halter_height
+                                    Nothing -> max_halter_height
 
         orderer = case search_strat config of
                         Subpath -> SomeOrderer . liftOrderer $ lengthNSubpathOrderer (subpath_length config)
                         Iterative -> SomeOrderer $ pickLeastUsedOrderer
 
+    let fc_logging = log_fc_solver config
+
     return $
         case higherOrderSolver config of
             AllFuncs ->
-                ( nrpc_approx_red retReplaceSymbFuncVar .== Finished .--> SomeReducer nonRedPCRed
-                , SomeHalter (discardIfAcceptedTagHalter True state_name) .<~> halter_height
+                ( nrpc_approx_red retReplaceSymbFuncVar .== Finished
+                        .--> (SomeReducer nonRedPCRed .== Finished .--> SomeReducer (solveFuncConstraintsReducer fc_logging solver simplifier approx_no_inline))
+                , SomeHalter (discardIfAcceptedTagHalter True state_name) .<~> sum_halter_height
                 , orderer
                 , io_timed_out)
             SingleFunc ->
-                ( nrpc_approx_red retReplaceSymbFuncVar .== Finished .--> taggerRed state_name :== Finished --> nonRedPCRed
-                , SomeHalter (discardIfAcceptedTagHalter True state_name) .<~> halter_height
+                ( nrpc_approx_red retReplaceSymbFuncVar .== Finished .--> taggerRed state_name :== Finished
+                            .--> (SomeReducer nonRedPCRed .== Finished .--> SomeReducer (solveFuncConstraintsReducer fc_logging solver simplifier approx_no_inline))
+                , SomeHalter (discardIfAcceptedTagHalter True state_name) .<~> sum_halter_height
+                , orderer
+                , io_timed_out)
+            SymConstraints ->
+                ( nrpc_approx_red retReplaceSymbFuncVar .== Finished .--> taggerRed state_name :== Finished
+                            .--> (SomeReducer nonRedPCRed .== Finished .--> SomeReducer (solveFuncConstraintsReducer fc_logging solver simplifier approx_no_inline))
+                , SomeHalter (discardIfAcceptedTagHalter True state_name) .<~> sum_halter_height
                 , orderer
                 , io_timed_out)
             SymbolicFunc ->
-                ( nrpc_approx_red retReplaceSymbFuncTemplate .== Finished .--> taggerRed state_name :== Finished --> nonRedPCSymFuncRed
-                , SomeHalter (discardIfAcceptedTagHalter True state_name) .<~> halter_height
+                ( nrpc_approx_red retReplaceSymbFuncTemplate .== Finished .--> taggerRed state_name :== Finished
+                            .--> (SomeReducer nonRedPCSymFuncRed .== Finished .--> SomeReducer (solveFuncConstraintsReducer fc_logging solver simplifier approx_no_inline))
+                , SomeHalter (discardIfAcceptedTagHalter True state_name) .<~> sum_halter_height
                 , orderer
                 , io_timed_out)
 
@@ -618,6 +643,12 @@ runG2WithConfig proj src entry_f f gflags mb_modname state config bindings = do
         analysis3 = if print_num_red_rules config then [\s p xs -> SM.lift . SM.lift . SM.lift . SM.lift . SM.lift . SM.lift $ logRedRuleNum s p xs] else noAnalysis
         analysis = analysis1 ++ analysis2 ++ analysis3
 
+    let pretty_guide = if showType config == Lax 
+                            then (mkPrettyGuide ())
+                            else setTypePrinting AggressiveTypes (mkPrettyGuide ())
+        pretty_guide' = setLogTypeClasses (log_typeclasses config) 
+                      $ setLogInternalName (log_internal_names config) pretty_guide
+
     (in_out, got_unknown, bindings'', timed_out) <- case null analysis of
         True -> do
             rho <- initRedHaltOrd state' all_mod_set solver simplifier config (S.fromList executable_funcs) (S.fromList non_rec_funcs)
@@ -633,9 +664,7 @@ runG2WithConfig proj src entry_f f gflags mb_modname state config bindings = do
                                         )
                                         lnt
                                     )
-                                    (if showType config == Lax 
-                                    then (mkPrettyGuide ())
-                                    else setTypePrinting AggressiveTypes (mkPrettyGuide ())) 
+                                    pretty_guide'
                                 )
                                 hpc_t
                             )
@@ -656,9 +685,7 @@ runG2WithConfig proj src entry_f f gflags mb_modname state config bindings = do
                                                 )
                                                 lnt
                                             )
-                                            (if showType config == Lax 
-                                            then (mkPrettyGuide ())
-                                            else setTypePrinting AggressiveTypes (mkPrettyGuide ())) 
+                                            pretty_guide'
                                         )
                                         hpc_t
                                     )

@@ -1,5 +1,8 @@
 module G2.Language.Monad.ExprEnv ( memberE
                                  , lookupE
+                                 , deepLookupE
+                                 , deepLookupVarE
+                                 , deepLookupConcOrSymE
                                  , insertE
                                  , insertSymbolicE
                                  , mapE
@@ -24,6 +27,15 @@ memberE n = liftEE (E.member n)
 
 lookupE :: ExprEnvM s m => Name -> m (Maybe Expr)
 lookupE n = liftEE (E.lookup n)
+
+deepLookupE :: ExprEnvM s m => Name -> m (Maybe Expr)
+deepLookupE n = liftEE (E.deepLookup n)
+
+deepLookupVarE :: ExprEnvM s m => Name -> m (Maybe Name)
+deepLookupVarE n = liftEE (E.deepLookupVar n)
+
+deepLookupConcOrSymE :: ExprEnvM s m => Name -> m (Maybe E.ConcOrSym)
+deepLookupConcOrSymE n = liftEE (E.deepLookupConcOrSym n)
 
 insertE :: ExprEnvM s m => Name -> Expr -> m ()
 insertE n e = do
