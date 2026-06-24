@@ -31,6 +31,7 @@ module G2.Execution.Rules ( module G2.Execution.RuleTypes
 
 import G2.Config.Config
 import G2.Execution.DataConPCMap
+import G2.Execution.FuncConstraints
 import G2.Execution.LiteralTable
 import G2.Execution.NewPC
 import G2.Execution.NormalForms
@@ -59,26 +60,26 @@ import Control.Exception
 import Control.Monad.Extra
 import Data.Maybe
 
-stdReduce :: (Solver solver, Simplifier simplifier) => Sharing -> DiscardUnknownStates -> SymbolicFuncEval t -> solver -> simplifier -> State t -> Bindings -> IO (Rule, [(State t, ())], Bindings)
-stdReduce share discard_unknown symb_func_eval solver simplifier s b = do
-    (r, s', ng') <- stdReduce' share discard_unknown symb_func_eval solver simplifier s b
+stdReduce :: (Solver solver, Simplifier simplifier, ASTContainer t Expr) => Config -> HS.HashSet Name -> SymbolicFuncEval t -> solver -> simplifier -> State t -> Bindings -> IO (Rule, [(State t, ())], Bindings)
+stdReduce config no_inline symb_func_eval solver simplifier s b = do
+    (r, s', ng') <- stdReduce' config no_inline symb_func_eval solver simplifier s b
     let s'' = map (\ss -> ss { rules = r:rules ss }) s'
     return (r, zip s'' (repeat ()), b { name_gen = ng'})
 
-stdReduce' :: (Solver solver, Simplifier simplifier) => Sharing -> DiscardUnknownStates -> SymbolicFuncEval t -> solver -> simplifier -> State t -> Bindings -> IO (Rule, [State t], NameGen)
-stdReduce' share discard_unknown _ solver simplifier s@(State { curr_expr = CurrExpr Evaluate ce }) b@(Bindings { name_gen = ng })
+stdReduce' :: (Solver solver, Simplifier simplifier, ASTContainer t Expr) => Config -> HS.HashSet Name -> SymbolicFuncEval t -> solver -> simplifier -> State t -> Bindings -> IO (Rule, [State t], NameGen)
+stdReduce' config no_inline _ solver simplifier s@(State { curr_expr = CurrExpr Evaluate ce }) b@(Bindings { name_gen = ng })
     | Var i  <- ce
-    , share == Sharing = return $ evalVarSharing s ng i
+    , sharing config == Sharing = return $ evalVarSharing s ng i
     | Var i <- ce
-    , share == NoSharing = return $ evalVarNoSharing s ng i
+    , sharing config == NoSharing = return $ evalVarNoSharing s ng i
     | App e1 e2 <- ce = do
         let (r, new_pc, ng') = evalApp s ng e1 e2
-        (ng'', states) <- reduceNewPC discard_unknown solver simplifier ng' new_pc
+        (ng'', states) <- reduceNewPC (smt_discard_on_unknown config) solver simplifier ng' new_pc
         return (r, states, ng'')
     | Let b_ e <- ce = return $ evalLet s ng b_ e
     | Case e i t a <- ce = do
         let (r, new_pc, ng') = evalCase s b e i t a
-        (ng'', states) <- reduceNewPC discard_unknown solver simplifier ng' new_pc
+        (ng'', states) <- getValidStates config no_inline solver simplifier ng' new_pc
         return (r, states, ng'')
     | Cast e c <- ce = return $ evalCast s ng e c
     | Tick t e <- ce = return $ evalTick s ng t e
@@ -88,7 +89,7 @@ stdReduce' share discard_unknown _ solver simplifier s@(State { curr_expr = Curr
     | Assert fc e1 e2 <- ce = return $ evalAssert s ng fc e1 e2
     | errorRaised s = return (RuleReturn, [s { curr_expr = CurrExpr Return ce }], ng)
     | otherwise = return (RuleReturn, [s { curr_expr = CurrExpr Return ce }], ng)
-stdReduce' _ discard_unknown symb_func_eval solver simplifier s@(State { curr_expr = CurrExpr Return ce
+stdReduce' config _ symb_func_eval solver simplifier s@(State { curr_expr = CurrExpr Return ce
                                  , exec_stack = stck })  (Bindings { name_gen = ng })
     | errorRaised s
     , Just (AssertFrame is _, stck') <- frstck =
@@ -109,21 +110,46 @@ stdReduce' _ discard_unknown symb_func_eval solver simplifier s@(State { curr_ex
     | Just (ApplyFrame e, stck') <- frstck = return $ retApplyFrame s ng ce e stck'
     | Just (AssumeFrame e, stck') <- frstck = do
         let (r, new_pc, ng') = retAssumeFrame s ng ce e stck'
-        (ng'', states) <- reduceNewPC discard_unknown solver simplifier ng' new_pc
+        (ng'', states) <- reduceNewPC (smt_discard_on_unknown config) solver simplifier ng' new_pc
         return (r, states, ng'')
     | Just (AssertFrame ais e, stck') <- frstck = do
         let (r, new_pc, ng') = retAssertFrame s ng ce ais e stck'
-        (ng'', states) <- reduceNewPC discard_unknown solver simplifier ng' new_pc
+        (ng'', states) <- reduceNewPC (smt_discard_on_unknown config) solver simplifier ng' new_pc
         return (r, states, ng'')
     | Just (CurrExprFrame act e, stck') <- frstck = do
         let (r, new_pc, ng') = retCurrExpr s ce act e stck' ng
-        (ng'', states) <- reduceNewPC discard_unknown solver simplifier ng' new_pc
+        (ng'', states) <- reduceNewPC (smt_discard_on_unknown config) solver simplifier ng' new_pc
         return (r, states, ng'')
     | Just (LitTableFrame ltc up, stck') <- frstck =
-        retLitTableFrame discard_unknown solver simplifier s ng ltc up stck'
+        retLitTableFrame (smt_discard_on_unknown config) solver simplifier s ng ltc up stck'
     | Nothing <- frstck = return (RuleIdentity, [s], ng)
         where
             frstck = S.pop stck
+
+getValidStates :: (Solver solver, Simplifier simplifier, ASTContainer t Expr)
+               => Config
+               -> HS.HashSet Name -- ^ No inline
+               -> solver
+               -> simplifier
+               -> NameGen
+               -> NewPC t
+               -> IO (NameGen, [State t])
+getValidStates config no_inline solver simplifier ng new_pc = do
+    (ng', xs) <- reduceNewPC (smt_discard_on_unknown config) solver simplifier ng new_pc
+    (ng'', fc_check_res) <- mapAccumM checkFC ng' xs
+    return (ng'', catMaybes fc_check_res)
+    where
+        checkFC ng_ s_ = do
+            r <- checkFunctionConstraints (log_fc_solver config) solver simplifier no_inline s_ ng_
+            case r of
+                FCSat s' ng' -> return (ng', Just s')
+                FCReductionNeeded _ s' ng' -> do
+                    putStrLn "REDUCTION NEEDED"
+                    return (ng', Just s')
+                FCUnsat -> do
+                    putStrLn "UNSAT"
+                    return (ng_, Just s_)
+
 
 evalVarSharing :: State t -> NameGen -> Id -> (Rule, [State t], NameGen)
 evalVarSharing s@(State { expr_env = eenv

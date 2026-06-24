@@ -270,11 +270,7 @@ functionName = "g2Expr"
 
 qqRedHaltOrd :: (MonadIO m, Solver solver, Simplifier simplifier) => Config -> solver -> simplifier -> (SomeReducer m (), SomeHalter m r (), SomeOrderer m r ())
 qqRedHaltOrd config solver simplifier =
-    let
-        share = sharing config
-        discard = smt_discard_on_unknown config
-    in
-    ( nonRedPCRed :== Finished --> stdRed share discard retReplaceSymbFuncVar solver simplifier
+    ( nonRedPCRed :== Finished --> stdRed config HS.empty retReplaceSymbFuncVar solver simplifier
     , SomeHalter
         (acceptIfViolatedHalter)
     , SomeOrderer nextOrderer)

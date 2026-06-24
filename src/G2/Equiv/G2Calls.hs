@@ -78,12 +78,10 @@ rewriteRedHaltOrd :: (MonadIO m, Solver solver, Simplifier simplifier) =>
                      , SomeOrderer (SM.StateT PrettyGuide m) (ExecRes EquivTracker) EquivTracker)
 rewriteRedHaltOrd solver simplifier h_opp track_opp config (NC { use_labeled_errors = use_labels }) =
     let
-        share = sharing config
-        discard_unknown = smt_discard_on_unknown config
         state_name = Name "state" Nothing 0 Nothing
 
         m_logger = fmap SomeReducer $ getLogger config defPrettyTrack
-        some_std_red = enforceProgressRed :== NoProgress --> stdRed share discard_unknown retReplaceSymbFuncVar solver simplifier
+        some_std_red = enforceProgressRed :== NoProgress --> stdRed config HS.empty retReplaceSymbFuncVar solver simplifier
         extra_red = symbolicSwapperRed h_opp track_opp ~> concSymReducer use_labels ~> labeledErrorsRed
         red = equivReducer :== NoProgress .--> extra_red :== NoProgress .--> some_std_red
     in
