@@ -1,5 +1,6 @@
 module G2.Execution.NewPC ( NewPC (..)
                           , newPCEmpty
+                          , newDefNames
                           , newPCNoStates
                           , reduceNewPC
                           , addPCsToState
@@ -21,12 +22,21 @@ import G2.Config.Config (DiscardUnknownStates (KeepUnknown))
 
 import Data.List
 import Data.Maybe
+import qualified Data.Sequence as Seq
 
 data NewPC t = SingleState (State t)
              | SplitStatePieces (State t) [StateDiff]
 
+
 newPCEmpty :: State t -> NewPC t
 newPCEmpty s = SingleState s
+
+newDefNames :: NewPC t -> Seq.Seq Name
+newDefNames (SingleState _) = Seq.empty
+newDefNames (SplitStatePieces _ sds) =
+    mconcat $ map (\sd ->
+                  (Seq.fromList . map fst $ new_conc_entries sd)
+                <> Seq.fromList (concatMap PC.varNamesInPC (new_path_conds sd))) sds
 
 -- A NewPC that corresponds to no states to look for, as opposed to newPCEmpty which returns one state
 newPCNoStates :: State t -> NewPC t

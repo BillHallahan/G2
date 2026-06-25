@@ -58,6 +58,7 @@ import qualified G2.Language.PolyArgMap as PM
 
 import Control.Exception
 import Control.Monad.Extra
+import Data.Foldable as F
 import Data.Maybe
 
 stdReduce :: (Solver solver, Simplifier simplifier, ASTContainer t Expr) => Config -> HS.HashSet Name -> SymbolicFuncEval t -> solver -> simplifier -> State t -> Bindings -> IO (Rule, [(State t, ())], Bindings)
@@ -139,7 +140,16 @@ getValidStates config no_inline solver simplifier ng new_pc = do
     (ng'', fc_check_res) <- mapAccumM checkFC ng' xs
     return (ng'', catMaybes fc_check_res)
     where
+        new_names = HS.fromList . F.toList $ newDefNames new_pc
+        
         checkFC ng_ s_ 
+            | -- Do not check function constraints if we have not concretized a variable or gained a path constraint involving a variable
+              -- that occurs in the function constraints.
+              --
+              -- TODO: Could this be more efficient? Currently calculates the set of variables involved in the function constraints
+              -- every time we do this check
+              let fc_names = HS.fromList . F.toList . varNames $ inlineVars (expr_env s_) (sym_func_constraints s_)
+            , null $ fc_names `HS.intersection` new_names = return (ng_, Just s_)
             | solving_sym_func_constraints s_ == InitialRun = do
                 r <- checkFunctionConstraints (log_fc_solver config) solver simplifier no_inline s_ ng_
                 case r of
