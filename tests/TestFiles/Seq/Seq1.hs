@@ -1,4 +1,5 @@
 {-# LANGUAGE CPP, MultiWayIf #-}
+{-# OPTIONS_GHC -Wno-x-partial #-}
 
 module Seq1 where
 

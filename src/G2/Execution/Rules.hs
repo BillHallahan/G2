@@ -202,7 +202,8 @@ evalVarSharing init_s ng i
     | otherwise = error $ "evalVar: bad input." ++ show i
     where
         e = E.lookup (idName i) (expr_env init_s)
-        (s, lt_extra) = handleLTFun init_s e
+        (s, lt_s_m) = splitStateLT init_s e
+        lt_extra = maybeToList lt_s_m
         eenv = expr_env s
         pargm = poly_arg_map s
         stck = exec_stack s
@@ -216,21 +217,9 @@ evalVarNoSharing init_s ng i
     | otherwise = error $ "evalVar: bad input." ++ show i
     where
         e = E.lookup (idName i) (expr_env init_s)
-        (s, lt_extra) = handleLTFun init_s e
+        (s, lt_s_m) = splitStateLT init_s e
+        lt_extra = maybeToList lt_s_m
         eenv = expr_env s
-
-handleLTFun :: State t -> Maybe Expr -> (State t, [State t])
-handleLTFun init_s e = res
-    where
-        res = case e of
-                Just e' -> (addFunExprLT init_s e', mkLTExtra e')
-                Nothing -> (init_s, [])
-        -- We disregard any changes that can be made from evaluating and pop all the way down
-        mkLTExtra e_ = if checkFunExprLT init_s e_ && topLTNonEmpty init_s
-                       then [init_s { exec_stack = popUntilStartedBuilding (exec_stack init_s)
-                                    , lit_table_stack = S.modifyTop mkPartial (lit_table_stack init_s) }]
-                       else []
-        mkPartial lt = lt { lt_partial = True }
 
 makeAltsForPMRet :: [Name] -> Id -> [Alt] -- TODO: Default caused problems
 makeAltsForPMRet ns tyVarId = go ns tyVarId 1

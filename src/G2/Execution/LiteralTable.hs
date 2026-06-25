@@ -7,10 +7,7 @@ module G2.Execution.LiteralTable
     , getLTArg
     , stopUpdateLastExpl
     , litTableToLam
-    , addFunExprLT
-    , checkFunExprLT
-    , popUntilStartedBuilding
-    , topLTNonEmpty
+    , splitStateLT
     ) where
 
 import qualified G2.Language.Stack as S
@@ -327,3 +324,29 @@ createPartialHandler lt kv elem_id =
         or_exp = mkDisjunction kv lt_conds
         lam_exp = Lam TermL elem_id or_exp
 
+-- Add the current expr into the list of evaluated recursive functions,
+-- if applicable. Then, check if we already know the current expr is a
+-- recursive function from the current literal table construction process,
+-- and if so, split state such that the new state is ready to return a
+-- partial table to the caller of buildLitTable#.
+-- When not in literal table mode or the current expression is Nothing,
+-- none of these events will occur.
+splitStateLT :: State t -> Maybe Expr -> (State t, Maybe (State t))
+splitStateLT init_s e = res
+    where
+        res = case e of
+                Just e1 -> (addFunExprLT init_s e1, mkLTExtra e1)
+                Nothing -> (init_s, Nothing)
+
+        -- We disregard any changes that can be made from evaluation
+        -- and pop all the way down to the started building frame
+        mkLTExtra e1 =
+            if checkFunExprLT init_s e1 && topLTNonEmpty init_s
+                then Just $ init_s { exec_stack = popUntilStartedBuilding stck
+                                   , lit_table_stack = S.modifyTop mkPartial lts }
+                else Nothing
+
+        mkPartial lt = lt { lt_partial = True }
+
+        lts = lit_table_stack init_s
+        stck = exec_stack init_s
