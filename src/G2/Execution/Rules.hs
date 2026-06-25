@@ -148,7 +148,7 @@ getValidStates config no_inline solver simplifier ng new_pc = do
               --
               -- TODO: Could this be more efficient? Currently calculates the set of variables involved in the function constraints
               -- every time we do this check
-              let fc_names = HS.fromList . F.toList . varNames $ inlineVars (expr_env s_) (sym_func_constraints s_)
+              let fc_names = HS.fromList . F.toList . varNames $ inlineVarsExcluding no_inline (expr_env s_) (sym_func_constraints s_)
             , null $ fc_names `HS.intersection` new_names = return (ng_, Just s_)
             | solving_sym_func_constraints s_ == InitialRun = do
                 r <- checkFunctionConstraints (log_fc_solver config) solver simplifier no_inline s_ ng_
