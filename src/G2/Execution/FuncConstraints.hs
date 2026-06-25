@@ -8,7 +8,8 @@ module G2.Execution.FuncConstraints ( addFuncConstraintReducer
                                     , limitSolvingFuncConstraintPieces
                                     
                                     , FCCheckRes (..)
-                                    , checkFunctionConstraints ) where
+                                    , checkFunctionConstraints
+                                    , setUpArgReduction ) where
 
 import G2.Config
 import G2.Data.Utils
@@ -423,9 +424,9 @@ setUpArgReduction ((head_whnf_brs, head_i):tail_is) s =
         ce = curr_expr s
         stck = foldl'
                 (\st (whnf_brs, i) -> 
-                    Stck.push (CurrExprFrame (UpdateSolvingFCs whnf_brs) (CurrExpr Evaluate $ Var i)) st
+                    Stck.push (CurrExprFrame (UpdateSolvingFCs $ SolvingFCs whnf_brs) (CurrExpr Evaluate $ Var i)) st
                 )
-                (Stck.push (CurrExprFrame NoAction ce) (exec_stack s) )
+                (Stck.push (CurrExprFrame (UpdateSolvingFCs InitialRun) ce) (exec_stack s) )
                 tail_is
     in
     Just $ s { curr_expr = CurrExpr Evaluate (Var head_i)
@@ -668,7 +669,7 @@ whnfBrOccName = "red_G2_!!_br"
 -- | When solving sub-expressions of function constraints, only do a limited amount of evaluation.
 -- This ensures that we do not get stuck looping on evaluation of an infinite expression.
 limitSolvingFuncConstraintPieces :: Monad m => Reducer m Int t
-limitSolvingFuncConstraintPieces = mkSimpleReducer (\_ -> 200) go
+limitSolvingFuncConstraintPieces = mkSimpleReducer (\_ -> 400) go
     where
         go 0 s b | SolvingFCs _ <- solving_sym_func_constraints s =
             let
@@ -677,13 +678,13 @@ limitSolvingFuncConstraintPieces = mkSimpleReducer (\_ -> 200) go
                        , expr_env = eenv
                        , exec_stack = stck }
             in
-            return (Finished, [(s', 200)], b)
+            return (Finished, [(s', 400)], b)
         go !c s b 
             | SolvingFCs _ <- solving_sym_func_constraints s
             , Stck.null (exec_stack s)
-            , CurrExpr Return _ <- curr_expr s = return (Finished, [(s, 200)], b)
+            , CurrExpr Return _ <- curr_expr s = return (Finished, [(s, 400)], b)
             | SolvingFCs _ <- solving_sym_func_constraints s = return (InProgress, [(s, c - 1)], b)
-        go _ s b = return (NoProgress, [(s, 200)], b)
+        go _ s b = return (NoProgress, [(s, 400)], b)
 
 collapseStack :: Stck.Stack Frame -> ExprEnv -> Expr -> (Expr, ExprEnv, Stck.Stack Frame)
 collapseStack stck eenv e

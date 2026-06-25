@@ -139,16 +139,18 @@ getValidStates config no_inline solver simplifier ng new_pc = do
     (ng'', fc_check_res) <- mapAccumM checkFC ng' xs
     return (ng'', catMaybes fc_check_res)
     where
-        checkFC ng_ s_ = do
-            r <- checkFunctionConstraints (log_fc_solver config) solver simplifier no_inline s_ ng_
-            case r of
-                FCSat s' ng' -> return (ng', Just s')
-                FCReductionNeeded _ s' ng' -> do
-                    putStrLn "REDUCTION NEEDED"
-                    return (ng', Just s')
-                FCUnsat -> do
-                    putStrLn "UNSAT"
-                    return (ng_, Just s_)
+        checkFC ng_ s_ 
+            | solving_sym_func_constraints s_ == InitialRun = do
+                r <- checkFunctionConstraints (log_fc_solver config) solver simplifier no_inline s_ ng_
+                case r of
+                    FCSat _ ng' -> 
+                        -- We do not want the state from the FCSat, because it will have had ticks eliminated 
+                        return (ng', Just s_)
+                    FCReductionNeeded is s' ng' -> do
+                        let s'' = setUpArgReduction is s'
+                        return (ng', s'')
+                    FCUnsat -> return (ng_, Nothing)
+            | otherwise = return (ng_, Just s_)
 
 
 evalVarSharing :: State t -> NameGen -> Id -> (Rule, [State t], NameGen)
@@ -1310,7 +1312,7 @@ retCurrExpr s _ (UpdateSolvingFCs is_lits) orig_ce stck ng =
         s' = noActionUpdateState s orig_ce stck
     in
     ( RuleReturnCurrExprFr
-    , newPCEmpty $ s' { solving_sym_func_constraints = SolvingFCs is_lits }
+    , newPCEmpty $ s' { solving_sym_func_constraints = is_lits }
     , ng )
 
 
