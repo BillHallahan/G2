@@ -137,6 +137,7 @@ data Config = Config {
     , check_asserts :: Bool -- ^ If True, shows only those inputs that violate asserts
     , error_asserts :: Bool -- ^ If True, treat error as an assertion violation
     , higherOrderSolver :: HigherOrderSolver -- ^ How to try and solve higher order functions
+    , fc_arg_step_limit :: Int -- ^ When evaluating function constraint arguments, how many steps to take at a time
     , search_strat :: SearchStrategy -- ^ The search strategy for the symbolic executor to use
     , subpath_length :: Int -- ^ When using subpath search strategy, the length of the subpaths.
     , fp_handling :: FpHandling -- ^ Whether to use real floating point values or rationals
@@ -247,6 +248,10 @@ mkConfig homedir = Config Regular
     <*> switch (long "check-asserts" <> help "show only inputs that violate assertions")
     <*> switch (long "error-asserts" <> help "treat error as an assertion violation")
     <*> mkHigherOrder
+    <*> option auto (long "fc-arg-n"
+                   <> metavar "N"
+                   <> value 400
+                   <> help "how many steps to take when reducing function constraint arguments")
     <*> mkSearchStrategy
     <*> option auto (long "subpath-len"
                    <> metavar "L"
@@ -468,6 +473,7 @@ mkConfigDirect homedir as m = Config {
     , check_asserts = boolArg "check-asserts" as m Off
     , error_asserts = boolArg "error-asserts" as m Off
     , higherOrderSolver = strArg "higher-order" as m higherOrderSolArg SingleFunc
+    , fc_arg_step_limit = 400
     , search_strat = Iterative
     , subpath_length = 4
     , fp_handling = RealFP

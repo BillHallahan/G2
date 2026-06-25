@@ -668,8 +668,8 @@ whnfBrOccName = "red_G2_!!_br"
 
 -- | When solving sub-expressions of function constraints, only do a limited amount of evaluation.
 -- This ensures that we do not get stuck looping on evaluation of an infinite expression.
-limitSolvingFuncConstraintPieces :: Monad m => Reducer m Int t
-limitSolvingFuncConstraintPieces = mkSimpleReducer (\_ -> 400) go
+limitSolvingFuncConstraintPieces :: Monad m => Int -> Reducer m Int t
+limitSolvingFuncConstraintPieces stps = mkSimpleReducer (\_ -> stps) go
     where
         go 0 s b | SolvingFCs _ <- solving_sym_func_constraints s =
             let
@@ -678,13 +678,13 @@ limitSolvingFuncConstraintPieces = mkSimpleReducer (\_ -> 400) go
                        , expr_env = eenv
                        , exec_stack = stck }
             in
-            return (Finished, [(s', 400)], b)
+            return (Finished, [(s', stps)], b)
         go !c s b 
             | SolvingFCs _ <- solving_sym_func_constraints s
             , Stck.null (exec_stack s)
-            , CurrExpr Return _ <- curr_expr s = return (Finished, [(s, 400)], b)
+            , CurrExpr Return _ <- curr_expr s = return (Finished, [(s, stps)], b)
             | SolvingFCs _ <- solving_sym_func_constraints s = return (InProgress, [(s, c - 1)], b)
-        go _ s b = return (NoProgress, [(s, 400)], b)
+        go _ s b = return (NoProgress, [(s, stps)], b)
 
 collapseStack :: Stck.Stack Frame -> ExprEnv -> Expr -> (Expr, ExprEnv, Stck.Stack Frame)
 collapseStack stck eenv e
