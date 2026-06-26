@@ -124,6 +124,7 @@ data Config = Config {
     , logFilter :: Bool -- ^ Limit the logged environment to names recursively reachable through the current expression or stack
     , logOrder :: Bool -- ^ Order names in the logged environment: [CurrExpr]/[Stack]/[others]
     , logInlineNRPC :: Bool -- ^ Inline variables in the NRPC when logging states
+    , logInlineFC :: Bool -- ^ Inline variables in the function constraints when logging states
     , log_typeclasses :: Bool -- ^ Including typeclasses in log files
     , log_internal_names :: Bool -- ^ Including mapping to internal names in log files
     , log_fc_solver :: FCLogging -- ^ Print logging during symbolic function constraint solving
@@ -136,6 +137,7 @@ data Config = Config {
     , check_asserts :: Bool -- ^ If True, shows only those inputs that violate asserts
     , error_asserts :: Bool -- ^ If True, treat error as an assertion violation
     , higherOrderSolver :: HigherOrderSolver -- ^ How to try and solve higher order functions
+    , fc_arg_step_limit :: Int -- ^ When evaluating function constraint arguments, how many steps to take at a time
     , search_strat :: SearchStrategy -- ^ The search strategy for the symbolic executor to use
     , subpath_length :: Int -- ^ When using subpath search strategy, the length of the subpaths.
     , fp_handling :: FpHandling -- ^ Whether to use real floating point values or rationals
@@ -226,6 +228,8 @@ mkConfig homedir = Config Regular
     <*> switch (long "log-order" <> help "log states with an environment ordered as [current expression]/[stack]/[other]")
     <*> flag False True (long "log-inline-nrpc"
                          <> help "inline variables in the NRPC when logging states")
+    <*> flag False True (long "log-inline-fc"
+                         <> help "inline variables in the function constraints when logging states")
     <*> flag True False (long "no-log-typeclasses"
                          <> help "include typeclasses in log file (default: include)")
     <*> flag True False (long "no-log-internal-names"
@@ -244,6 +248,10 @@ mkConfig homedir = Config Regular
     <*> switch (long "check-asserts" <> help "show only inputs that violate assertions")
     <*> switch (long "error-asserts" <> help "treat error as an assertion violation")
     <*> mkHigherOrder
+    <*> option auto (long "fc-arg-n"
+                   <> metavar "N"
+                   <> value 400
+                   <> help "how many steps to take when reducing function constraint arguments")
     <*> mkSearchStrategy
     <*> option auto (long "subpath-len"
                    <> metavar "L"
@@ -452,6 +460,7 @@ mkConfigDirect homedir as m = Config {
     , logFilter = False
     , logOrder = False
     , logInlineNRPC = False
+    , logInlineFC = False
     , log_typeclasses = True
     , log_internal_names = True
     , log_fc_solver = NoFCLogging
@@ -464,6 +473,7 @@ mkConfigDirect homedir as m = Config {
     , check_asserts = boolArg "check-asserts" as m Off
     , error_asserts = boolArg "error-asserts" as m Off
     , higherOrderSolver = strArg "higher-order" as m higherOrderSolArg SingleFunc
+    , fc_arg_step_limit = 400
     , search_strat = Iterative
     , subpath_length = 4
     , fp_handling = RealFP

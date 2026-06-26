@@ -91,7 +91,8 @@ module G2.Language.Expr ( module G2.Language.Casts
 
                         , renameLamVars
 
-                        , inlineVars) where
+                        , inlineVars
+                        , inlineVarsExcluding) where
 
 import G2.Data.Utils
 import G2.Language.AST
@@ -691,6 +692,9 @@ stripTicks e = e
 
 inlineVars :: ASTContainer c Expr => ExprEnv -> c -> c
 inlineVars eenv = modifyContainedASTs (inlineVars' HS.empty eenv)
+
+inlineVarsExcluding :: ASTContainer c Expr => HS.HashSet Name -> ExprEnv -> c -> c
+inlineVarsExcluding exclude eenv = modifyContainedASTs (inlineVars' exclude eenv)
 
 inlineVars' :: HS.HashSet Name -> ExprEnv -> Expr -> Expr
 inlineVars' seen eenv (Var (Id n _))

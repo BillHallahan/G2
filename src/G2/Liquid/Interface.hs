@@ -461,10 +461,6 @@ lhReducerHalterOrderer :: (MonadIO m, Solver solver, Simplifier simplifier)
                           , SomeOrderer (SM.StateT PrettyGuide m) (ExecRes LHTracker) LHTracker)
 lhReducerHalterOrderer config lhconfig solver simplifier entry mb_modname cfn st =
     let
-
-        share = sharing config
-        discard_unknown = smt_discard_on_unknown config
-
         state_name = Name "state" Nothing 0 Nothing
 
         abs_ret_name = Name "abs_ret" Nothing 0 Nothing
@@ -473,7 +469,7 @@ lhReducerHalterOrderer config lhconfig solver simplifier entry mb_modname cfn st
 
         m_logger = fmap SomeReducer $ getLogger config defPrettyTrack
 
-        lh_std_red = existentialInstRed :== NoProgress .--> lhRed cfn :== Finished --> stdRed share discard_unknown retReplaceSymbFuncVar solver simplifier
+        lh_std_red = existentialInstRed :== NoProgress .--> lhRed cfn :== Finished --> stdRed config S.empty retReplaceSymbFuncVar solver simplifier
         strict_red = case strict config of
                             True -> lh_std_red .~> SomeReducer strictRed
                             False -> lh_std_red

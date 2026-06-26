@@ -5,13 +5,17 @@
 module G2.Execution.FuncConstraints ( addFuncConstraintReducer
                                     , redFuncConstraint
                                     , solveFuncConstraintsReducer
-                                    , limitSolvingFuncConstraintPieces ) where
+                                    , limitSolvingFuncConstraintPieces
+                                    
+                                    , FCCheckRes (..)
+                                    , checkFunctionConstraints
+                                    , setUpArgReduction ) where
 
 import G2.Config
 import G2.Data.Utils
 import G2.Execution.NewPC
 import G2.Execution.NormalForms
-import G2.Execution.Reducer
+import G2.Execution.Internals.Reducer
 import G2.Language as L
 import qualified G2.Language.ExprEnv as E
 import G2.Language.Monad
@@ -369,23 +373,10 @@ solveFuncConstraintsReducer fc_logging solver simplifier no_inline = mkSimpleRed
                 fc_check_res <- checkFunctionConstraints fc_logging solver simplifier no_inline s (name_gen b)
                 case fc_check_res of
                     FCSat s' ng' -> return (Finished, [(s', ())], b { name_gen = ng' })
-                    FCReductionNeeded is s' ng' -> do
-                        case is of
-                            [] -> return (Finished, [], b)
-                            ((head_whnf_brs, head_i):tail_is) ->
-                                let
-                                    ce = curr_expr s'
-                                    stck = foldl'
-                                            (\st (whnf_brs, i) -> 
-                                                Stck.push (CurrExprFrame (UpdateSolvingFCs whnf_brs) (CurrExpr Evaluate $ Var i)) st
-                                            )
-                                            (Stck.push (CurrExprFrame NoAction ce) Stck.empty )
-                                            tail_is
-                                    s'' = s' { curr_expr = CurrExpr Evaluate (Var head_i)
-                                             , exec_stack = stck
-                                             , solving_sym_func_constraints = SolvingFCs head_whnf_brs }
-                                in
-                                return (Finished, [(s'', ())], b { name_gen = ng' })
+                    FCReductionNeeded is s' ng' ->
+                        case setUpArgReduction is s' of
+                            Nothing -> return (Finished, [], b)
+                            Just s'' -> return (Finished, [(s'', ())], b { name_gen = ng' })
                     FCUnsat -> return (Finished, [], b)
             | otherwise = return (Finished, [], b)
 
@@ -425,6 +416,22 @@ checkFunctionConstraints fc_logging solver simplifier no_inline s ng = do
                     let s'' = s' { sym_func_constraints = fc' }
                     return $ FCReductionNeeded is s'' ng''
         Nothing -> return FCUnsat
+
+setUpArgReduction ::  [(VarLitEqualities, Id)] -> State t -> Maybe (State t)
+setUpArgReduction [] _ = Nothing
+setUpArgReduction ((head_whnf_brs, head_i):tail_is) s =
+    let
+        ce = curr_expr s
+        stck = foldl'
+                (\st (whnf_brs, i) -> 
+                    Stck.push (CurrExprFrame (UpdateSolvingFCs $ SolvingFCs whnf_brs) (CurrExpr Evaluate $ Var i)) st
+                )
+                (Stck.push (CurrExprFrame (UpdateSolvingFCs InitialRun) ce) (exec_stack s) )
+                tail_is
+    in
+    Just $ s { curr_expr = CurrExpr Evaluate (Var head_i)
+             , exec_stack = stck
+             , solving_sym_func_constraints = SolvingFCs head_whnf_brs }
 
 ------------------------------------------------------------------------------
 -- Collecting expressions to reduce when solving fails
@@ -661,8 +668,8 @@ whnfBrOccName = "red_G2_!!_br"
 
 -- | When solving sub-expressions of function constraints, only do a limited amount of evaluation.
 -- This ensures that we do not get stuck looping on evaluation of an infinite expression.
-limitSolvingFuncConstraintPieces :: Monad m => Reducer m Int t
-limitSolvingFuncConstraintPieces = mkSimpleReducer (\_ -> 200) go
+limitSolvingFuncConstraintPieces :: Monad m => Int -> Reducer m Int t
+limitSolvingFuncConstraintPieces stps = mkSimpleReducer (\_ -> stps) go
     where
         go 0 s b | SolvingFCs _ <- solving_sym_func_constraints s =
             let
@@ -671,13 +678,13 @@ limitSolvingFuncConstraintPieces = mkSimpleReducer (\_ -> 200) go
                        , expr_env = eenv
                        , exec_stack = stck }
             in
-            return (Finished, [(s', 200)], b)
+            return (Finished, [(s', stps)], b)
         go !c s b 
             | SolvingFCs _ <- solving_sym_func_constraints s
             , Stck.null (exec_stack s)
-            , CurrExpr Return _ <- curr_expr s = return (Finished, [(s, 200)], b)
+            , CurrExpr Return _ <- curr_expr s = return (Finished, [(s, stps)], b)
             | SolvingFCs _ <- solving_sym_func_constraints s = return (InProgress, [(s, c - 1)], b)
-        go _ s b = return (NoProgress, [(s, 200)], b)
+        go _ s b = return (NoProgress, [(s, stps)], b)
 
 collapseStack :: Stck.Stack Frame -> ExprEnv -> Expr -> (Expr, ExprEnv, Stck.Stack Frame)
 collapseStack stck eenv e

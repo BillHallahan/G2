@@ -70,22 +70,19 @@ verifyRedHaltOrd s solver simplifier config verify_config no_nrpc_names = do
 
     m_logger <- fmap SomeReducer <$> getLimLogger' labelApproxPoints config prettyVerifierTracker
 
-    let share = sharing config
-        discard_unknown = smt_discard_on_unknown config
-
-        approx_no_inline = S.fromList
+    let approx_no_inline = S.fromList
                          . E.keys
                          . E.filterConcOrSym (\case E.Conc _ -> True; E.Sym _ -> False)
                          $ expr_env s
 
         std_red f =
             case arg_rev_abs verify_config of
-                AbsFuncArgs -> SomeReducer (liftOutFullyAppedReducer ~> stdRed share discard_unknown f solver simplifier ~> instTypeRed)
-                NoAbsFuncArgs -> SomeReducer (stdRed share discard_unknown f solver simplifier ~> instTypeRed)
+                AbsFuncArgs -> SomeReducer (liftOutFullyAppedReducer ~> stdRed config S.empty f solver simplifier ~> instTypeRed)
+                NoAbsFuncArgs -> SomeReducer (stdRed config S.empty f solver simplifier ~> instTypeRed)
                          
         strict_red f = case strict config of
                             True -> SomeReducer verifyHigherOrderHandling .~> std_red f
-                            False -> SomeReducer (stdRed share discard_unknown f solver simplifier ~> instTypeRed)
+                            False -> SomeReducer (stdRed config S.empty f solver simplifier ~> instTypeRed)
 
         nrpc_higher_red f = liftSomeReducer (strict_red f)
         
