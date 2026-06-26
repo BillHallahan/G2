@@ -237,7 +237,7 @@ nameModMap = M.fromList . L.map (\(n@(Name n' m _ _), e) -> ((n', m), (n, e))) .
         Just (SymbObj i) -> Var i
         Nothing -> error $ "ExprEnv.!: Given key is not an element of the expr env" ++ show n
 
--- | Inserts a new `Expr` into the `ExorEnv`, at the given `Name`.
+-- | Inserts a new `Expr` into the `ExprEnv`, at the given `Name`.
 -- If the `Name` already exists in the `ExprEnv`, the `Expr` is replaced.
 insert :: Name -> Expr -> ExprEnv -> ExprEnv
 insert n e = ExprEnv . M.insert n (ExprObj e) . unwrapExprEnv

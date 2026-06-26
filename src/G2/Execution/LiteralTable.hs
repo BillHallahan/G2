@@ -7,31 +7,36 @@ module G2.Execution.LiteralTable
     , getLTArg
     , stopUpdateLastExpl
     , litTableToLam
+    , splitStateLT
     ) where
 
 import qualified G2.Language.Stack as S
 import qualified G2.Language.PathConds as PC
 import qualified G2.Language.KnownValues as KV
 import qualified G2.Language.ExprEnv as E
+import qualified G2.Language.CallGraph as CG
 import G2.Language.Typing
 import G2.Language.Syntax
 import G2.Language.Support
 import G2.Language.Naming
 import G2.Language.Expr
 import qualified Data.HashMap.Lazy as HM
+import qualified Data.HashSet as HS
 import qualified Data.List as L
 import Data.Maybe
 
-introduceLitTable :: State t -> Name -> Id -> LTUpdate -> State t
-introduceLitTable s n i up = s { lit_table_stack = lts
-                               , exec_stack = es }
+introduceLitTable :: State t -> Name -> Id -> State t
+introduceLitTable s n i = s { lit_table_stack = lts
+                                  , exec_stack = es }
     where lts = S.push lt (lit_table_stack s)
           lt = LitTable { lt_arg = i
+                        , lt_rec_funs = HS.empty
                         , lt_mapping = HM.empty
                         , lt_errored = False
                         , lt_init_pcs = path_conds s
+                        , lt_partial = False
                         }
-          es = S.push (LitTableFrame (StartedBuilding n) up) (exec_stack s)
+          es = S.push (LitTableFrame (StartedBuilding n) True) (exec_stack s)
 
 inLitTableMode :: State t -> Bool
 inLitTableMode s = let lit_stack = lit_table_stack s
@@ -96,7 +101,11 @@ mkIdLam s ng lt =
         arg_ty = typeOf tvnv $ lt_arg lt
         (arg_id, ng1) = freshId arg_ty ng
         lam_e = Lam TermL arg_id (Var arg_id)
-        tup_e = mkTup kv tenv tvnv lam_e $ mkTrue kv
+        tup_e = mkTup4 kv tenv tvnv
+                    lam_e
+                    (mkTrue kv)
+                    (Prim UnspecifiedOutput TyUnknown)
+                    (mkFalse kv)
     in (tup_e, [arg_id], ng1)
 
 -- Return Id for argument, and the Name that we're replacing in path conds
@@ -117,7 +126,14 @@ mkLamArg s ng lt =
         (elem_var, ng1) = freshId lit_ty ng
     in (elem_var, unboxed_name, ng1)
 
--- Make a fully applied primitive tuple
+-- Make a fully applied primitive tuple with four elements
+mkTup4 :: KnownValues -> TypeEnv -> TyVarEnv -> Expr -> Expr -> Expr -> Expr -> Expr
+mkTup4 kv tenv tv_env x y z q = t3
+    where
+        t3 = mkTup kv tenv tv_env x t2
+        t2 = mkTup kv tenv tv_env y t1
+        t1 = mkTup kv tenv tv_env z q
+
 mkTup :: KnownValues -> TypeEnv -> TyVarEnv -> Expr -> Expr -> Expr
 mkTup kv tenv tv_env x y =
     mkApp [ mkPrimTuple kv tenv
@@ -136,7 +152,13 @@ mkTup kv tenv tv_env x y =
 litTableToLam :: State t -> NameGen -> LitTable -> (Expr, EESymDiff, NameGen)
 litTableToLam s ng lt =
     if lt_errored lt then
-        (mkTup kv tenv tv_env (Prim UnspecifiedOutput TyUnknown) (mkFalse kv), [], ng)
+        -- (Model function, Success, Partial table function to use with `assume`, Is partial)
+        (mkTup4 kv tenv tv_env
+            (Prim UnspecifiedOutput TyUnknown)
+            (mkFalse kv)
+            (Prim UnspecifiedOutput TyUnknown)
+            (mkFalse kv)
+        , [], ng)
     else
         case HM.toList $ lt_mapping lt of
             [] ->
@@ -162,18 +184,27 @@ litTableToLamBool s ng lt =
 
         -- At this point, we know the literal table is non-empty, since we are creating a lambda for
         -- a boolean-returning function
-        or_exp = case lt_trues of
-                    [] -> mkFalse kv
-                    (hd:tl) ->
-                        L.foldl'
-                            (\prev_exp pcs -> mkApp [Prim Or (tripleBoolTy kv), prev_exp, pcsToExprBool kv pcs])
-                            (pcsToExprBool kv hd)
-                            tl
-
+        or_exp = mkDisjunction kv lt_trues
         or_exp1 = replaceVar unboxed_name (Var elem_var) or_exp
         fun_exp = Lam TermL elem_var or_exp1
-        tup_exp = mkTup kv tenv tv_env fun_exp $ mkTrue kv
+        (partial_check, is_partial) =
+            createPartialHandler (replaceVar unboxed_name (Var elem_var) lt) kv elem_var
+        tup_exp = mkTup4 kv tenv tv_env
+                      fun_exp
+                      (mkTrue kv)
+                      partial_check
+                      is_partial
     in (tup_exp, [elem_var], ng1)
+
+mkDisjunction :: KnownValues -> [[PathCond]] -> Expr
+mkDisjunction kv conds =
+    case conds of
+        [] -> mkFalse kv
+        (hd:tl) ->
+            L.foldl'
+                (\prev_exp pcs -> mkApp [Prim Or (tripleBoolTy kv), prev_exp, pcsToExprBool kv pcs])
+                (pcsToExprBool kv hd)
+                tl
 
 -- Turn the conjunction of these path conditions into an expression
 pcsToExprBool :: KnownValues -> [PathCond] -> Expr
@@ -213,14 +244,20 @@ litTableToLamNonBool s ng lt =
                                 mkApp [ Prim Ite TyUnknown
                                       , (pcsToExprBool kv $ PC.toList pcs)
                                       , (wrap e $ typeOf tv_env e)
-                                      , prev_exp]
+                                      , prev_exp ]
                             )
                             (wrap def_e $ typeOf tv_env def_e)
                             (reverse rest)
                     _ -> error "impossible, empty list despite checking in litTableToLam"
         ite_exp1 = replaceVar unboxed_name (Var elem_var) ite_exp
         fun_exp = Lam TermL elem_var ite_exp1
-        tup_exp = mkTup kv tenv tv_env fun_exp $ mkTrue kv
+        (partial_check, is_partial) =
+            createPartialHandler (replaceVar unboxed_name (Var elem_var) lt) kv elem_var
+        tup_exp = mkTup4 kv tenv tv_env
+                      fun_exp
+                      (mkTrue kv)
+                      partial_check
+                      is_partial
     in (tup_exp, [elem_var], ng1)
 
 tripleBoolTy :: KnownValues -> Type
@@ -228,3 +265,88 @@ tripleBoolTy kv = mkTyFun [tyBool kv, tyBool kv, tyBool kv]
 
 doubleBoolTy :: KnownValues -> Type
 doubleBoolTy kv = mkTyFun [tyBool kv, tyBool kv]
+
+-- Add an expression to the set of seen recursive functions, if we are
+-- in literal table mode and the expression is recursive and has a
+-- function type
+addFunExprLT :: State t -> Expr -> State t
+addFunExprLT s expr_ =
+    let lts = lit_table_stack s
+        eenv = expr_env s
+        tvnv = tyvar_env s
+
+        addE lt@(LitTable { lt_rec_funs = ltf }) = lt { lt_rec_funs = HS.insert expr_ ltf }
+        s1 = s { lit_table_stack = S.modifyTop addE lts }
+
+        cg = CG.getCallGraph eenv
+        isRec e@(Var (Id n _)) = (not $ CG.isFuncNonRecursive cg n) && isTyFun (typeOf tvnv e)
+        isRec _ = False
+
+        add_cond = inLitTableMode s && isRec expr_
+    in if add_cond then s1 else s
+
+-- Check if an expression is a recursive function that has already
+-- been discovered
+checkFunExprLT :: State t -> Expr -> Bool
+checkFunExprLT s expr_ =
+    let lts = lit_table_stack s
+    in case S.pop lts of
+        Just (lt, _) -> expr_ `HS.member` (lt_rec_funs lt)
+        Nothing -> False
+
+-- Pop stack frames until either a `StartedBuilding` literal table
+-- frame or the stack is empty
+popUntilStartedBuilding :: S.Stack Frame -> S.Stack Frame
+popUntilStartedBuilding stck =
+    case S.pop stck of
+        Just (LitTableFrame (StartedBuilding _) _, _) -> stck
+        Just (_, stck1) -> popUntilStartedBuilding stck1
+        Nothing -> stck
+
+topLTNonEmpty :: State t -> Bool
+topLTNonEmpty s =
+    let lts = lit_table_stack s
+    in case S.pop lts of
+        Just (lt, _) -> ltNonEmpty lt
+        Nothing -> False
+
+ltNonEmpty :: LitTable -> Bool
+ltNonEmpty lt = not $ null (HM.toList $ lt_mapping lt)
+
+-- If the literal table is partial, we want to create a function that
+-- returns True when an input is covered and False when it is not
+createPartialHandler :: LitTable -> KnownValues -> Id -> (Expr, Expr)
+createPartialHandler lt kv elem_id =
+    if not $ lt_partial lt then (Prim UnspecifiedOutput TyUnknown, mkFalse kv)
+    else (lam_exp, mkTrue kv)
+    where
+        lt_conds = map (PC.toList . fst) $ (HM.toList . lt_mapping) lt
+        or_exp = mkDisjunction kv lt_conds
+        lam_exp = Lam TermL elem_id or_exp
+
+-- Add the current expr into the list of evaluated recursive functions,
+-- if applicable. Then, check if we already know the current expr is a
+-- recursive function from the current literal table construction process,
+-- and if so, split state such that the new state is ready to return a
+-- partial table to the caller of buildLitTable#.
+-- When not in literal table mode or the current expression is Nothing,
+-- none of these events will occur.
+splitStateLT :: State t -> Maybe Expr -> (State t, Maybe (State t))
+splitStateLT init_s e = res
+    where
+        res = case e of
+                Just e1 -> (addFunExprLT init_s e1, mkLTExtra e1)
+                Nothing -> (init_s, Nothing)
+
+        -- We disregard any changes that can be made from evaluation
+        -- and pop all the way down to the started building frame
+        mkLTExtra e1 =
+            if checkFunExprLT init_s e1 && topLTNonEmpty init_s
+                then Just $ init_s { exec_stack = popUntilStartedBuilding stck
+                                   , lit_table_stack = S.modifyTop mkPartial lts }
+                else Nothing
+
+        mkPartial lt = lt { lt_partial = True }
+
+        lts = lit_table_stack init_s
+        stck = exec_stack init_s

@@ -126,10 +126,7 @@ stdReduce' _ discard_unknown symb_func_eval solver simplifier s@(State { curr_ex
             frstck = S.pop stck
 
 evalVarSharing :: State t -> NameGen -> Id -> (Rule, [State t], NameGen)
-evalVarSharing s@(State { expr_env = eenv
-                        , exec_stack = stck
-                        , poly_arg_map = pargm })
-               ng i
+evalVarSharing init_s ng i
     -- The value being evaluated is a symbolic value with a type that is a type variable. The type
     -- variable must also have an entry in the PolyArgMap, which shows how arguments of that type have been
     -- renamed during execution. A case expression with a symbolic Int as scrutinee is used to select
@@ -175,7 +172,7 @@ evalVarSharing s@(State { expr_env = eenv
             e'' = renames (HM.fromList ((otvN, tyIdN):tvVals)) e'
         in
             (RuleEvalVarPoly, [s { curr_expr = CurrExpr Evaluate e''
-                                 , expr_env = eenv''}], ng')
+                                 , expr_env = eenv''}] ++ lt_extra, ng')
     -- If a symbolic tyVar did not match PM-RETURN, then it is unrealizable. If
     -- it was not caught here it would be returned as an undefined and crash
     -- execution. There are still some unrealizable sym tyVars that can match on PM-RET,
@@ -185,9 +182,9 @@ evalVarSharing s@(State { expr_env = eenv
     | (Id _ (TyVar (Id tyIdN _))) <- i
     , E.isSymbolic (idName i) eenv
     , Just [] <- PM.lookup tyIdN pargm =
-        (RuleEvalVal, [], ng)
+        (RuleEvalVal, lt_extra, ng)
     | E.isSymbolic (idName i) eenv =
-        (RuleEvalVal, [s { curr_expr = CurrExpr Return (Var i)}], ng)
+        (RuleEvalVal, [s { curr_expr = CurrExpr Return (Var i)}] ++ lt_extra, ng)
     -- If the target in our environment is already a value form, we do not
     -- need to push additional redirects for updating later on.
     -- If our variable is not in value form, we first push the
@@ -196,24 +193,33 @@ evalVarSharing s@(State { expr_env = eenv
     -- we pop the stack to add a redirection pointer into the heap.
     | Just e' <- e
     , isExprValueForm eenv e' =
-      ( RuleEvalVarVal (idName i), [s { curr_expr = CurrExpr Evaluate e' }], ng)
+      ( RuleEvalVarVal (idName i), [s { curr_expr = CurrExpr Evaluate e' }] ++ lt_extra, ng)
     | Just e' <- e = -- e' is NOT in SWHNF
       ( RuleEvalVarNonVal (idName i)
       , [s { curr_expr = CurrExpr Evaluate e'
-           , exec_stack = S.push (UpdateFrame (idName i)) stck }]
+           , exec_stack = S.push (UpdateFrame (idName i)) stck }] ++ lt_extra
       , ng)
-    | otherwise = error  $ "evalVar: bad input." ++ show i
+    | otherwise = error $ "evalVar: bad input." ++ show i
     where
-        e = E.lookup (idName i) eenv
+        e = E.lookup (idName i) (expr_env init_s)
+        (s, lt_s_m) = splitStateLT init_s e
+        lt_extra = maybeToList lt_s_m
+        eenv = expr_env s
+        pargm = poly_arg_map s
+        stck = exec_stack s
 
 evalVarNoSharing :: State t -> NameGen -> Id -> (Rule, [State t], NameGen)
-evalVarNoSharing s@(State { expr_env = eenv })
-                 ng i
+evalVarNoSharing init_s ng i
     | E.isSymbolic (idName i) eenv =
-        (RuleEvalVal, [s { curr_expr = CurrExpr Return (Var i)}], ng)
-    | Just e <- E.lookup (idName i) eenv =
-        (RuleEvalVarNonVal (idName i), [s { curr_expr = CurrExpr Evaluate e }], ng)
-    | otherwise = error  $ "evalVar: bad input." ++ show i
+        (RuleEvalVal, [s { curr_expr = CurrExpr Return (Var i)}] ++ lt_extra, ng)
+    | Just e' <- e =
+        (RuleEvalVarNonVal (idName i), [s { curr_expr = CurrExpr Evaluate e' }] ++ lt_extra, ng)
+    | otherwise = error $ "evalVar: bad input." ++ show i
+    where
+        e = E.lookup (idName i) (expr_env init_s)
+        (s, lt_s_m) = splitStateLT init_s e
+        lt_extra = maybeToList lt_s_m
+        eenv = expr_env s
 
 makeAltsForPMRet :: [Name] -> Id -> [Alt] -- TODO: Default caused problems
 makeAltsForPMRet ns tyVarId = go ns tyVarId 1
@@ -1937,33 +1943,17 @@ retLTStartedBuilding s ng n =
         table_map = lit_tables s
         table_map' = HM.insert n table table_map
 
-        -- After the literal table is created, the current expression
-        -- will simply be an application of the literal table
-        -- When returning the final literal table, we want to leave
-        -- the literal table itself as the final expression, represented
-        -- as a lambda function.
-        ce = unwrapCurrExpr $ curr_expr s
-        table_e = Prim (LitTableRef n) TyUnknown
-        app_table_e = App table_e ce
-        lt_done = not $ isJust (S.pop lts')
-
+        -- Fully evaluating buildLitTable leaves a lambda function that models
+        -- the original function's behavior
         (lam_e, sym_diff, ng1) = litTableToLam s ng table
         insertSyms syms_ eenv_ = L.foldl' (flip E.insertSymbolic) eenv_ syms_
 
-        s0 = s { path_conds = lt_init_pcs table }
-        s1 = if lt_done
-                then s0 { expr_env = insertSyms sym_diff (expr_env s0) }
-                else s0
-        ng2 = if lt_done
-                then ng1
-                else ng2
-        s2 = s1 { lit_tables = table_map'
-                , lit_table_stack = lts'
-                , curr_expr = if lt_done
-                                  then CurrExpr Return lam_e
-                                  else CurrExpr Evaluate app_table_e
-                }
-    in return (RuleReturnLitTableSB, [s2], ng2)
+        s1 = s { lit_tables = table_map'
+               , lit_table_stack = lts'
+               , curr_expr = CurrExpr Return lam_e
+               , path_conds = lt_init_pcs table
+               , expr_env = insertSyms sym_diff (expr_env s) }
+    in return (RuleReturnLitTableSB, [s1], ng1)
 
 unwrapCurrExpr :: CurrExpr -> Expr
 unwrapCurrExpr (CurrExpr _ e) = e
