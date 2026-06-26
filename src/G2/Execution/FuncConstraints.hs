@@ -1356,6 +1356,15 @@ splitWHNFAndNonWHNFIndex i n fcs@(first_fc:_) = do
     madeProgress
     return . HM.toList . HM.fromListWith (++) $ non_whnf_cons ++ whnf_cons
 
+-- | Remove arguments which in all function constraints are either:
+--    1) Not in SWHNF
+-- or 2) are equivalent.
+-- To see why we need this, suppose we have two constraints:
+--     f (g x) s = []
+--     f (g y) s = x:xs
+-- where s is a symbolic variable. These are contradictory, but the only way we can realize this is if
+-- we determine that (1) (g x)/(g y) are not helpful, as they are not in SWHNF and (2) s is not useful to branch
+-- on, as it is the same in both constraints.
 elimAllNonWHNFOrEquiv :: MonadIO m => Name -> [FuncConstraint] -> FCState t m [(Name, [FuncConstraint])]
 elimAllNonWHNFOrEquiv _ [] = return []
 elimAllNonWHNFOrEquiv n fcs@(first_fc:_) = do
@@ -1363,12 +1372,15 @@ elimAllNonWHNFOrEquiv n fcs@(first_fc:_) = do
     tv_env <- tyVarEnv
 
     let matching_args = transpose $ map fc_args fcs
-        only_some_whnf = findIndex (\es -> all (not . isRedForm eenv . inlineVars eenv) es) matching_args
+
+        -- Check if no args are in SWHgNF
+        none_whnf = findIndex (\es -> all (not . isRedForm eenv . inlineVars eenv) es) matching_args
+        -- Check if all args are the same
         all_same = findIndex (\case es@(head_e:_) -> all (\e -> inlineVars eenv e == inlineVars eenv head_e) es; [] -> False) matching_args
 
     let ret_ty = typeOf tv_env $ fc_ret first_fc
 
-    case only_some_whnf <|> all_same of
+    case none_whnf <|> all_same of
         Just i -> do            
             lam_is <- freshIdsN (map (typeOf tv_env) $ fc_args first_fc)
             let all_other_is = deleteAt i lam_is
