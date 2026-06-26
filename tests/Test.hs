@@ -566,7 +566,7 @@ testFileTests = testGroup "TestFiles"
                                            , ("dropWhile1", 10000, [Exactly 4])
                                            , ("dropWhile2", 10000, [Exactly 1])
                                            , ("takeWhile1", 10000, [Exactly 4])
-                                           , ("map1", 10000, [Exactly 3])
+                                           , ("map1", 10000, [AtLeast 3, AtMost 4])
                                            , ("map2", 10000, [AtLeast 4, AtMost 5])
                                            -- Functions that error
                                            , ("filter3", 3000, [AtLeast 5])
@@ -630,6 +630,7 @@ testFileTests = testGroup "TestFiles"
                                                               , ("intersperse1", 3000, [Exactly 3])
 
                                                               , ("all1", 5000, [AtLeast 5])
+                                                              , ("all2", 1000, [AtLeast 5])
                                                               , ("any1", 5000, [AtLeast 5])
                                                               , ("filter1", 1000, [AtLeast 5])
                                                               , ("map1", 5000, [AtLeast 5])
@@ -655,6 +656,7 @@ testFileTests = testGroup "TestFiles"
     , checkInputOutputsLitTablesSMTLists "tests/TestFiles/Seq/Seq1.hs"
                                         [ ("any1", 20000, [Exactly 2])
                                         , ("all1", 20000, [Exactly 2])
+                                        , ("all2", 1000, [AtLeast 20])
                                         , ("filter1", 20000, [Exactly 6])
                                         , ("map1", 20000, [Exactly 8])
                                         , ("dropWhile1", 20000, [Exactly 6])

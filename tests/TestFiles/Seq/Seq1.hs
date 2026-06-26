@@ -1,4 +1,5 @@
 {-# LANGUAGE CPP, MultiWayIf #-}
+{-# OPTIONS_GHC -Wno-x-partial #-}
 
 module Seq1 where
 
@@ -363,6 +364,16 @@ all1 xs = case L.all big xs of
             True -> 1
     where
         big x = x > 10000
+
+all2 :: [Int] -> Int
+all2 xs = case L.all recFun xs of
+              True -> 0
+              False -> 1
+    where
+        recFun x
+            | x > 50 = recFun $ x - 2
+            | x == 50 = True
+            | otherwise = False
 
 any1 :: [Int] -> String
 any1 xs = case L.any (== 4) xs of
