@@ -23,6 +23,7 @@ import qualified G2.Language.Stack as Stck
 import G2.Lib.Printers
 import G2.Solver
 
+import Control.Applicative
 import Control.Monad
 import Control.Monad.Extra
 import Control.Monad.IO.Class
@@ -396,7 +397,7 @@ checkFunctionConstraints fc_logging solver simplifier no_inline s ng = do
     (m_unif_s, ng') <- runNamingT (unifyFuncConstraints solver simplifier no_inline s) ng
     case m_unif_s of
         Just unif_s -> do
-            r <- solveFuncConstraints fc_logging solver simplifier unif_s ng'
+            r <- solveFuncConstraints fc_logging solver simplifier no_inline unif_s ng'
             -- liftIO . putStrLn $ case r of Just _ -> "Just"; Nothing -> "Nothing"
             case r of
                 Just (s', ng'') -> return $ FCSat s' ng''
@@ -726,18 +727,18 @@ resetProgress = SM.lift $ SM.modify (\(_, pg, fc_log) -> (NoProgressFC, pg, fc_l
 madeProgress :: Monad m => FCState t m ()
 madeProgress = SM.lift $ SM.modify (\(_, pg, fc_log) -> (MadeProgressFC, pg, fc_log))
 
-solveFuncConstraints :: (ASTContainer t Expr, Solver solver, Simplifier simplifier, MonadIO m) => FCLogging -> solver -> simplifier -> State t -> NameGen -> m (Maybe (State t, NameGen))
-solveFuncConstraints fc_logging solver simplifier s@(State { sym_func_constraints = fcs }) ng = do
+solveFuncConstraints :: (ASTContainer t Expr, Solver solver, Simplifier simplifier, MonadIO m) => FCLogging -> solver -> simplifier -> HS.HashSet Name -> State t -> NameGen -> m (Maybe (State t, NameGen))
+solveFuncConstraints fc_logging solver simplifier no_inline s@(State { sym_func_constraints = fcs }) ng = do
     let no_tick_s = s { expr_env = stripAllTicks $ expr_env s }
         no_tick_fc = stripAllTicks fcs
-    (r, (s', !ng')) <- SM.evalStateT (runStateNGT (startSolveFC solver simplifier (-1) no_tick_fc) no_tick_s ng) (NoProgressFC, mkPrettyGuide no_tick_fc, fc_logging)
+    (r, (s', !ng')) <- SM.evalStateT (runStateNGT (startSolveFC solver simplifier no_inline (-1) no_tick_fc) no_tick_s ng) (NoProgressFC, mkPrettyGuide no_tick_fc, fc_logging)
     return $ case r of
                     SatFC fcs' -> Just (s' { solving_sym_func_constraints = SolvedFCs
                                            , sym_func_constraints = fcs' }, ng')
                     _ -> Nothing
 
-startSolveFC :: (Solver solver, Simplifier simplifier, MonadIO m) => solver -> simplifier -> Int -> FuncConstraints -> FCState t m FCRes
-startSolveFC solver simplifier n fcs = do
+startSolveFC :: (Solver solver, Simplifier simplifier, MonadIO m) => solver -> simplifier -> HS.HashSet Name -> Int -> FuncConstraints -> FCState t m FCRes
+startSolveFC solver simplifier no_inline n fcs = do
     fc_log <- getLogging
     when (fc_log == FCLogging) $ do
         pg <- getPrettyGuide
@@ -747,13 +748,13 @@ startSolveFC solver simplifier n fcs = do
             putStrLn "------------------------"
             putStrLn "Initial FCs:"
             T.putStrLn . addTab $ prettyFuncConstraints pg fcs
-    solveFC solver simplifier n fcs
+    solveFC solver simplifier no_inline n fcs
 
 
 -- TODO: Do we actually need the counter here?
-solveFC :: (Solver solver, Simplifier simplifier, MonadIO m) => solver -> simplifier -> Int -> FuncConstraints -> FCState t m FCRes
-solveFC _ _ 0 _ = return UnsatFC
-solveFC solver simplifier !n fcs = do
+solveFC :: (Solver solver, Simplifier simplifier, MonadIO m) => solver -> simplifier -> HS.HashSet Name -> Int -> FuncConstraints -> FCState t m FCRes
+solveFC _ _ _ 0 _ = return UnsatFC
+solveFC solver simplifier no_inline !n fcs = do
     -- Convert functions with only a single constraint into constants
     lit_val_sol <- solveLitVals solver simplifier fcs
 
@@ -788,11 +789,14 @@ solveFC solver simplifier !n fcs = do
             split_whnf_pieces <- concatMapM (uncurry splitWHNFAndNonWHNF) $ HM.toList fcs_branch_whnf_reassembled
             let fc_unfold_split_whnf_reassembled = HM.fromListWith (++) split_whnf_pieces
 
+            elim_non_whnf <- concatMapM (uncurry elimAllNonWHNFOrEquiv) $ HM.toList fc_unfold_split_whnf_reassembled
+            let elim_non_whnf_reassembled = HM.fromListWith (++) elim_non_whnf
+
             prog <- getProgress
             -- liftIO . putStrLn $ "end prog = " ++ show prog
 
             case prog of
-                MadeProgressFC -> solveFC solver simplifier (n - 1) fc_unfold_split_whnf_reassembled
+                MadeProgressFC -> solveFC solver simplifier no_inline (n - 1) elim_non_whnf_reassembled
                 NoProgressFC -> return UnsatFC
 
 -- | If we only have a single function constraint for a given function, we instantiate
@@ -1295,6 +1299,10 @@ splitWHNFAndNonWHNFIndex i n fcs@(first_fc:_) = do
     f_true <- freshSeededIdN (Name "f_true" Nothing 0 Nothing) . mkTyFun $ arg_tys ++ [ret_ty]
     f_false <- freshSeededIdN (Name "f_false" Nothing 0 Nothing) . mkTyFun $ arg_tys ++ [ret_ty]
 
+    insertSymbolicE f_pred
+    insertSymbolicE f_true
+    insertSymbolicE f_false
+
     bindee <- freshIdN ty_bool
     let pred_app_def = mkApp $ Var f_pred:map Var prim_ty_is
         f_true_app = mkApp $ Var f_true:map Var lam_is
@@ -1346,7 +1354,55 @@ splitWHNFAndNonWHNFIndex i n fcs@(first_fc:_) = do
         logEEnvInsert n lam_cse
         logFCListToNameFCList n fcs $ non_whnf_cons ++ whnf_cons
     madeProgress
-    return $ non_whnf_cons ++ whnf_cons
+    return . HM.toList . HM.fromListWith (++) $ non_whnf_cons ++ whnf_cons
+
+elimAllNonWHNFOrEquiv :: MonadIO m => Name -> [FuncConstraint] -> FCState t m [(Name, [FuncConstraint])]
+elimAllNonWHNFOrEquiv _ [] = return []
+elimAllNonWHNFOrEquiv n fcs@(first_fc:_) = do
+    eenv <- exprEnv
+    tv_env <- tyVarEnv
+
+    let matching_args = transpose $ map fc_args fcs
+        only_some_whnf = findIndex (\es -> all (not . isRedForm eenv . inlineVars eenv) es) matching_args
+        all_same = findIndex (\case es@(head_e:_) -> all (\e -> inlineVars eenv e == inlineVars eenv head_e) es; [] -> False) matching_args
+
+    let ret_ty = typeOf tv_env $ fc_ret first_fc
+
+    case only_some_whnf <|> all_same of
+        Just i -> do            
+            lam_is <- freshIdsN (map (typeOf tv_env) $ fc_args first_fc)
+            let all_other_is = deleteAt i lam_is
+                all_other_vars = map Var all_other_is
+                sym_f_ty = mkTyFun $ (map idType all_other_is) ++ [ret_ty]
+            
+            f <- freshSeededIdN (Name "elim_nonwhnf_f" Nothing 0 Nothing) sym_f_ty
+            insertSymbolicE f
+            let lam_f = mkLams (zip (repeat TermL) lam_is) . mkApp $ Var f:all_other_vars
+            insertE n lam_f
+
+            let new_fcs = map (\fc ->
+                                let
+                                    all_other_args = deleteAt i $ fc_args fc
+                                    all_other_split_ons = deleteAt i $ fc_split_on fc
+
+                                    new_fc = FC { fc_preconds = fc_preconds fc
+                                                , fc_args = all_other_args
+                                                , fc_split_on = all_other_split_ons
+                                                , fc_ret = fc_ret fc
+                                                }
+                                in
+                                new_fc
+                                )
+                                fcs
+            whenLogging "elimAllNonWHNF" $ do
+                logEEnvInsert n lam_f
+                logFCListToNameFCList n fcs $ [(idName f, new_fcs)]
+            -- madeProgress
+            elimAllNonWHNFOrEquiv (idName f) new_fcs
+        _ -> return [(n, fcs)]
+    where
+        isRedForm _ (Case _ _ _ [Alt (LitAlt _) (Assume Nothing _ (Prim UnspecifiedOutput _)), Alt _ _]) = True
+        isRedForm eenv e = isExprValueForm eenv e
 
 -- | Checks if we can find solutions to all functions.
 -- Uses an SMT solver and the theory of uninterpreted functions to solve for literal inputs/outputs.

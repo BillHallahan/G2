@@ -292,7 +292,6 @@ putPCStateNG pcs = do
     (s, ng) <- SM.get
     SM.put (s { path_conds = pcs }, ng)
 
-
 insertPCStateNG :: Monad m => PathCond -> StateNGT t m ()
 insertPCStateNG pc = do
     (s@(State { path_conds = pcs }), ng) <- SM.get
