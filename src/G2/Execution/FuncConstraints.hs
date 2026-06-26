@@ -397,7 +397,7 @@ checkFunctionConstraints fc_logging solver simplifier no_inline s ng = do
     (m_unif_s, ng') <- runNamingT (unifyFuncConstraints solver simplifier no_inline s) ng
     case m_unif_s of
         Just unif_s -> do
-            r <- solveFuncConstraints fc_logging solver simplifier no_inline unif_s ng'
+            r <- solveFuncConstraints fc_logging solver simplifier unif_s ng'
             -- liftIO . putStrLn $ case r of Just _ -> "Just"; Nothing -> "Nothing"
             case r of
                 Just (s', ng'') -> return $ FCSat s' ng''
@@ -727,18 +727,18 @@ resetProgress = SM.lift $ SM.modify (\(_, pg, fc_log) -> (NoProgressFC, pg, fc_l
 madeProgress :: Monad m => FCState t m ()
 madeProgress = SM.lift $ SM.modify (\(_, pg, fc_log) -> (MadeProgressFC, pg, fc_log))
 
-solveFuncConstraints :: (ASTContainer t Expr, Solver solver, Simplifier simplifier, MonadIO m) => FCLogging -> solver -> simplifier -> HS.HashSet Name -> State t -> NameGen -> m (Maybe (State t, NameGen))
-solveFuncConstraints fc_logging solver simplifier no_inline s@(State { sym_func_constraints = fcs }) ng = do
+solveFuncConstraints :: (ASTContainer t Expr, Solver solver, Simplifier simplifier, MonadIO m) => FCLogging -> solver -> simplifier -> State t -> NameGen -> m (Maybe (State t, NameGen))
+solveFuncConstraints fc_logging solver simplifier s@(State { sym_func_constraints = fcs }) ng = do
     let no_tick_s = s { expr_env = stripAllTicks $ expr_env s }
         no_tick_fc = stripAllTicks fcs
-    (r, (s', !ng')) <- SM.evalStateT (runStateNGT (startSolveFC solver simplifier no_inline (-1) no_tick_fc) no_tick_s ng) (NoProgressFC, mkPrettyGuide no_tick_fc, fc_logging)
+    (r, (s', !ng')) <- SM.evalStateT (runStateNGT (startSolveFC solver simplifier (-1) no_tick_fc) no_tick_s ng) (NoProgressFC, mkPrettyGuide no_tick_fc, fc_logging)
     return $ case r of
                     SatFC fcs' -> Just (s' { solving_sym_func_constraints = SolvedFCs
                                            , sym_func_constraints = fcs' }, ng')
                     _ -> Nothing
 
-startSolveFC :: (Solver solver, Simplifier simplifier, MonadIO m) => solver -> simplifier -> HS.HashSet Name -> Int -> FuncConstraints -> FCState t m FCRes
-startSolveFC solver simplifier no_inline n fcs = do
+startSolveFC :: (Solver solver, Simplifier simplifier, MonadIO m) => solver -> simplifier -> Int -> FuncConstraints -> FCState t m FCRes
+startSolveFC solver simplifier n fcs = do
     fc_log <- getLogging
     when (fc_log == FCLogging) $ do
         pg <- getPrettyGuide
@@ -748,13 +748,13 @@ startSolveFC solver simplifier no_inline n fcs = do
             putStrLn "------------------------"
             putStrLn "Initial FCs:"
             T.putStrLn . addTab $ prettyFuncConstraints pg fcs
-    solveFC solver simplifier no_inline n fcs
+    solveFC solver simplifier n fcs
 
 
 -- TODO: Do we actually need the counter here?
-solveFC :: (Solver solver, Simplifier simplifier, MonadIO m) => solver -> simplifier -> HS.HashSet Name -> Int -> FuncConstraints -> FCState t m FCRes
-solveFC _ _ _ 0 _ = return UnsatFC
-solveFC solver simplifier no_inline !n fcs = do
+solveFC :: (Solver solver, Simplifier simplifier, MonadIO m) => solver -> simplifier -> Int -> FuncConstraints -> FCState t m FCRes
+solveFC _ _ 0 _ = return UnsatFC
+solveFC solver simplifier !n fcs = do
     -- Convert functions with only a single constraint into constants
     lit_val_sol <- solveLitVals solver simplifier fcs
 
@@ -796,7 +796,7 @@ solveFC solver simplifier no_inline !n fcs = do
             -- liftIO . putStrLn $ "end prog = " ++ show prog
 
             case prog of
-                MadeProgressFC -> solveFC solver simplifier no_inline (n - 1) elim_non_whnf_reassembled
+                MadeProgressFC -> solveFC solver simplifier (n - 1) elim_non_whnf_reassembled
                 NoProgressFC -> return UnsatFC
 
 -- | If we only have a single function constraint for a given function, we instantiate
