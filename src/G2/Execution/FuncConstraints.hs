@@ -23,6 +23,7 @@ import qualified G2.Language.Stack as Stck
 import G2.Lib.Printers
 import G2.Solver
 
+import Control.Applicative
 import Control.Monad
 import Control.Monad.Extra
 import Control.Monad.IO.Class
@@ -788,11 +789,14 @@ solveFC solver simplifier !n fcs = do
             split_whnf_pieces <- concatMapM (uncurry splitWHNFAndNonWHNF) $ HM.toList fcs_branch_whnf_reassembled
             let fc_unfold_split_whnf_reassembled = HM.fromListWith (++) split_whnf_pieces
 
+            elim_non_whnf <- concatMapM (uncurry elimAllNonWHNFOrEquiv) $ HM.toList fc_unfold_split_whnf_reassembled
+            let elim_non_whnf_reassembled = HM.fromListWith (++) elim_non_whnf
+
             prog <- getProgress
             -- liftIO . putStrLn $ "end prog = " ++ show prog
 
             case prog of
-                MadeProgressFC -> solveFC solver simplifier (n - 1) fc_unfold_split_whnf_reassembled
+                MadeProgressFC -> solveFC solver simplifier (n - 1) elim_non_whnf_reassembled
                 NoProgressFC -> return UnsatFC
 
 -- | If we only have a single function constraint for a given function, we instantiate
@@ -1295,6 +1299,10 @@ splitWHNFAndNonWHNFIndex i n fcs@(first_fc:_) = do
     f_true <- freshSeededIdN (Name "f_true" Nothing 0 Nothing) . mkTyFun $ arg_tys ++ [ret_ty]
     f_false <- freshSeededIdN (Name "f_false" Nothing 0 Nothing) . mkTyFun $ arg_tys ++ [ret_ty]
 
+    insertSymbolicE f_pred
+    insertSymbolicE f_true
+    insertSymbolicE f_false
+
     bindee <- freshIdN ty_bool
     let pred_app_def = mkApp $ Var f_pred:map Var prim_ty_is
         f_true_app = mkApp $ Var f_true:map Var lam_is
@@ -1346,7 +1354,67 @@ splitWHNFAndNonWHNFIndex i n fcs@(first_fc:_) = do
         logEEnvInsert n lam_cse
         logFCListToNameFCList n fcs $ non_whnf_cons ++ whnf_cons
     madeProgress
-    return $ non_whnf_cons ++ whnf_cons
+    return . HM.toList . HM.fromListWith (++) $ non_whnf_cons ++ whnf_cons
+
+-- | Remove arguments which in all function constraints are either:
+--    1) Not in SWHNF
+-- or 2) are equivalent.
+-- To see why we need this, suppose we have two constraints:
+--     f (g x) s = []
+--     f (g y) s = x:xs
+-- where s is a symbolic variable. These are contradictory, but the only way we can realize this is if
+-- we determine that (1) (g x)/(g y) are not helpful, as they are not in SWHNF and (2) s is not useful to branch
+-- on, as it is the same in both constraints.
+elimAllNonWHNFOrEquiv :: MonadIO m => Name -> [FuncConstraint] -> FCState t m [(Name, [FuncConstraint])]
+elimAllNonWHNFOrEquiv _ [] = return []
+elimAllNonWHNFOrEquiv n fcs@(first_fc:_) = do
+    eenv <- exprEnv
+    tv_env <- tyVarEnv
+
+    let matching_args = transpose $ map fc_args fcs
+
+        -- Check if no args are in SWHgNF
+        none_whnf = findIndex (\es -> all (not . isRedForm eenv . inlineVars eenv) es) matching_args
+        -- Check if all args are the same
+        all_same = findIndex (\case es@(head_e:_) -> all (\e -> inlineVars eenv e == inlineVars eenv head_e) es; [] -> False) matching_args
+
+    let ret_ty = typeOf tv_env $ fc_ret first_fc
+
+    case none_whnf <|> all_same of
+        Just i -> do            
+            lam_is <- freshIdsN (map (typeOf tv_env) $ fc_args first_fc)
+            let all_other_is = deleteAt i lam_is
+                all_other_vars = map Var all_other_is
+                sym_f_ty = mkTyFun $ (map idType all_other_is) ++ [ret_ty]
+            
+            f <- freshSeededIdN (Name "elim_nonwhnf_f" Nothing 0 Nothing) sym_f_ty
+            insertSymbolicE f
+            let lam_f = mkLams (zip (repeat TermL) lam_is) . mkApp $ Var f:all_other_vars
+            insertE n lam_f
+
+            let new_fcs = map (\fc ->
+                                let
+                                    all_other_args = deleteAt i $ fc_args fc
+                                    all_other_split_ons = deleteAt i $ fc_split_on fc
+
+                                    new_fc = FC { fc_preconds = fc_preconds fc
+                                                , fc_args = all_other_args
+                                                , fc_split_on = all_other_split_ons
+                                                , fc_ret = fc_ret fc
+                                                }
+                                in
+                                new_fc
+                                )
+                                fcs
+            whenLogging "elimAllNonWHNF" $ do
+                logEEnvInsert n lam_f
+                logFCListToNameFCList n fcs $ [(idName f, new_fcs)]
+            -- madeProgress
+            elimAllNonWHNFOrEquiv (idName f) new_fcs
+        _ -> return [(n, fcs)]
+    where
+        isRedForm _ (Case _ _ _ [Alt (LitAlt _) (Assume Nothing _ (Prim UnspecifiedOutput _)), Alt _ _]) = True
+        isRedForm eenv e = isExprValueForm eenv e
 
 -- | Checks if we can find solutions to all functions.
 -- Uses an SMT solver and the theory of uninterpreted functions to solve for literal inputs/outputs.

@@ -263,3 +263,24 @@ repIte2 f g =
     where
         ite b !a x | b x = a x
                    | otherwise = x
+
+{-# NOINLINE infInt #-}
+infInt :: Int
+infInt = infInt
+
+{-# NOINLINE infInt2 #-}
+infInt2 :: Int
+infInt2 = infInt2
+
+duplicate :: (Int -> [Int] -> Int) -> [Int] -> Int
+duplicate f xs =
+    case f infInt xs of
+        1 -> duplicate2 f xs
+        _ -> 3
+
+{-# NOINLINE duplicate2 #-}
+duplicate2 :: (Int -> [Int] -> Int) -> [Int] -> Int
+duplicate2 f xs =
+    case f infInt2 xs of
+        1 -> 1
+        _ -> 2 -- If called from duplicate, this is unreachable
