@@ -5,8 +5,6 @@
 module Lambda.Interpreter where
 
 import Data.Data
-import Data.List
-import G2.QuasiQuotes.QuasiQuotes
 import G2.QuasiQuotes.G2Rep
 
 type Id = String
@@ -28,11 +26,11 @@ $(derivingG2Rep ''Expr)
 type Env = [(Id, Expr)]
 
 eval :: Env -> Expr -> Expr
-eval env (Var id) =
-  case lookup id env of
+eval env (Var id_) =
+  case lookup id_ env of
     Just expr -> eval env expr
-    Nothing -> Const (Fun id)
+    Nothing -> Const (Fun id_)
 eval env (App (Lam i body) arg) =
   eval ((i, arg) : env) body
-eval env expr = expr
+eval _ expr = expr
 

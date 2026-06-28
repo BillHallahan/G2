@@ -1,4 +1,4 @@
-{-# LANGUAGE OverloadedStrings, CPP, FlexibleContexts, BangPatterns #-}
+{-# LANGUAGE OverloadedStrings, CPP, FlexibleContexts #-}
 
 module G2.Translation.ValidateState ( validateStates
                                    , validateStatesGHC
@@ -37,7 +37,6 @@ import Data.Maybe
 import qualified Data.Text as T
 import qualified Data.Text.IO as T
 import qualified Data.Sequence as S
-import Text.Regex
 import Unsafe.Coerce
 import qualified Data.HashMap.Lazy as H
 import G2.Config
