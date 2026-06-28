@@ -1,5 +1,5 @@
-{-# OPTIONS_GHC -Wno-x-partial #-}}
-{-# OPTIONS_GHC -Wno-unrecognised-warning-flags #-}}
+{-# OPTIONS_GHC -Wno-x-partial #-}
+{-# OPTIONS_GHC -Wno-unrecognised-warning-flags #-}
 
 module NQueens.Encoding where
 
