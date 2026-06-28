@@ -107,7 +107,6 @@ take2 _ _ _ x = x
 
 takeMaybe :: a -> Maybe a 
 takeMaybe x = Just x 
-takeMaybe _ = Nothing   
 
 -- type that have no type variable 
 data Color = Red | Green | Blue | Yellow 

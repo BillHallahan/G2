@@ -1,4 +1,6 @@
 {-# LANGUAGE BangPatterns, MultiWayIf #-}
+{-# OPTIONS_GHC -Wno-x-partial #-}
+{-# OPTIONS_GHC -Wno-unrecognised-warning-flags #-}
 
 module ListTests where
 
