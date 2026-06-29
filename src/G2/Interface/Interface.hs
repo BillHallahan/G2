@@ -216,8 +216,11 @@ initStateFromSimpleState s m_mod useAssert mkCurr _argTys config =
     , curr_expr = CurrExpr Evaluate ce
     , path_conds = PC.fromList []
     , non_red_path_conds = empty_nrpc
+    
     , sym_func_constraints = HM.empty
     , solving_sym_func_constraints = InitialRun
+    , fc_state_type = PostCall
+
     , focused = Focused
     , handles = hs
     , mutvar_env = HM.empty

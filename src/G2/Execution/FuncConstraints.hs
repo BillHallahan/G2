@@ -120,7 +120,9 @@ redFuncConstraint solver simplifier no_inline fc_count s b =
         Just (s', ng') -> do
             unif_s_ng <- runNamingT (unifyFuncConstraints solver simplifier no_inline s') ng'
             case unif_s_ng of
-                (Just s'', ng'') -> return (Finished, [(s'', fc_count + 1)], b { name_gen = ng'' })
+                (Just s'', ng'') -> do
+                    let (xs, ng''') = addFuncArgStates s ng''
+                    return (Finished, [(s'', fc_count + 1)] ++ map (,fc_count) xs, b { name_gen = ng''' })
                 _ -> return (Finished, [], b { name_gen = ng' })
         Nothing -> return (Finished, [(s, fc_count)], b)
 
@@ -1645,6 +1647,81 @@ deleteAt idx xs | (lft, (_:rgt)) <- splitAt idx xs = lft ++ rgt
 replaceAt :: Int -> a -> [a] -> [a]
 replaceAt idx x xs | (lft, (_:rgt)) <- splitAt idx xs = lft ++ [x] ++ rgt
                    | otherwise = error "replaceAt: bad index"
+
+-------------------------------------------------------------------------------
+-- Function argument states
+-------------------------------------------------------------------------------
+addFuncArgStates :: State t -> NameGen -> ([State t], NameGen)
+addFuncArgStates s = runNamingM (addFuncArgStates' s)
+
+addFuncArgStates' :: State t -> NameGenM [State t]
+addFuncArgStates' s@(State { curr_expr = CurrExpr _ ce, expr_env = eenv, tyvar_env = tv_env })
+    |  v@(Var (Id n t)):es_ce <- unApp ce
+    , isTyFun t
+    , E.isSymbolic n eenv 
+    
+    , not . isTyFun . typeOf tv_env . mkApp $ v:es_ce = do
+        let reach_err = filter (reachesError eenv . snd) $ zip [0 :: Int ..] es_ce
+        if null reach_err
+            then return []
+            else mapM (uncurry (addFuncArgStates'' s n es_ce t)) reach_err
+    | otherwise = return []
+
+addFuncArgStates'' :: State t -> Name -> [Expr] -> Type -> Int -> Expr -> NameGenM (State t)
+addFuncArgStates'' s@(State { curr_expr = CurrExpr _ ce
+                            , expr_env = eenv
+                            , type_env = tenv
+                            , tyvar_env = tv_env }) fn es_ce func_ty i e
+    | TyCon tn _:_ <- unTyApp t
+    , Just (DataTyCon { data_cons = dcs }) <- HM.lookup tn tenv = do
+        let ret_ty = returnType func_ty
+
+        cont_funcs <- mapM 
+                        (\dc ->
+                                let
+                                    ts = anonArgumentTypes (typeOf tv_env dc)
+                                    sym_f_ty = mkTyFun $ ts ++ [ret_ty]
+                                in
+                                freshSeededIdN (Name "sym_f" Nothing 0 Nothing) sym_f_ty
+                        ) dcs
+
+        alts <- zipWithM
+                    (\dc f -> do
+                        let ts = anonArgumentTypes (typeOf tv_env dc)
+                        fs <- freshIdsN ts
+                        return $ Alt (DataAlt dc fs) (mkApp $ Var f:map Var fs))
+                    dcs cont_funcs
+
+        lam_is <- freshIdsN (map (typeOf tv_env) es_ce)
+        let branch_on = lam_is !! i
+        bindee <- freshIdN (idType branch_on)
+        let cse = Case
+                    (Var branch_on)
+                    bindee
+                    ret_ty
+                    alts
+            lam_cse = mkLams (zip (repeat TermL) lam_is) cse
+
+        let eenv' = E.insert fn lam_cse eenv
+            eenv'' = foldl' (flip E.insertSymbolic) eenv' cont_funcs
+        return $ s { curr_expr = CurrExpr Evaluate ce, expr_env = eenv'' }
+    | otherwise = error "addFuncArgStates'': unsupported"
+    where t = typeOf tv_env e
+
+reachesError :: ExprEnv -> Expr -> Bool
+reachesError eenv = reachesError' eenv HS.empty
+
+reachesError' :: ExprEnv -> HS.HashSet Name -> Expr -> Bool 
+reachesError' eenv = go
+    where
+        go seen (Var (Id n _)) 
+            | n `elem` seen = False
+            | Just e <- E.lookup n eenv = go (HS.insert n seen) e
+            | otherwise = False
+        go _ (Prim Raise _) = True
+        go _ (Prim Error _) = True
+        go _ (Prim Undefined _) = True
+        go seen e = any (go seen) $ children e
 
 ------------------------------------------------------------------------------
 -- Logging
