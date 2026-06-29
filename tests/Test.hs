@@ -758,7 +758,8 @@ testFileTests = testGroup "TestFiles"
                                                                         , ("test4", 1000, [AtLeast 4])
                                                                         , ("test5", 1000, [AtLeast 4])
                                                                         , ("test6", 1000, [AtLeast 4])
-                                                                        , ("test7", 1000, [AtLeast 5]) ]
+                                                                        , ("test7", 1000, [AtLeast 4])
+                                                                        , ("test8", 1000, [AtLeast 5]) ]
 
     , checkInputOutputsSymFuncConstraintsFCArgStepLimit "tests/HigherOrder/HigherOrder.hs" 100 [("repCons", 1000, [Exactly 3])]
 

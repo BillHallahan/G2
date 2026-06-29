@@ -27,24 +27,32 @@ test4 g x =
                     2 -> 2
                     _ -> 3
 
-test5 :: ((Int -> Int) -> Int -> Int) -> Int -> Int
+test5 :: ([Int] -> Int -> Int) -> Int -> Int
 test5 g x =
+    case g [1, 2, 3, 4, 5] 7 of
+        1 -> 1
+        _ -> case g [1, 2, 3, 4, error "BAD"] x of
+                    2 -> 2
+                    _ -> 3
+
+test6 :: ((Int -> Int) -> Int -> Int) -> Int -> Int
+test6 g x =
     case g (\x -> x + 1) x of
         1 -> 1
         _ -> case g (\_ -> error "error") 7 of
                     2 -> 2
                     _ -> 3
 
-test6 :: ((Int -> [Int]) -> Int -> Int) -> Int -> Int
-test6 g x =
+test7 :: ((Int -> [Int]) -> Int -> Int) -> Int -> Int
+test7 g x =
     case g (\x -> [x + 1]) x of
         1 -> 1
         _ -> case g (\_ -> [1, 2, error "error"]) 7 of
                     2 -> 2
                     _ -> 3
 
-test7 :: ((Int -> [Int]) -> [Int] -> Int -> Int) -> Int -> Int
-test7 g x =
+test8 :: ((Int -> [Int]) -> [Int] -> Int -> Int) -> Int -> Int
+test8 g x =
     case g (\x -> [x + 1]) [] x of
         1 -> 1
         _ -> case g (\_ -> [1, 2, error "error"]) (1:error "error") 7 of
