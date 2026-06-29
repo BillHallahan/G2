@@ -1,6 +1,6 @@
 module ZipList where
 
-import Control.Applicative
+import Data.Maybe (); import Control.Applicative
 
 callApp :: ZipList Int -> ZipList Int
 callApp = (<*>) funcList

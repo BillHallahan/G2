@@ -13,6 +13,7 @@ module G2.Translation.ValidateState ( validateStates
                                    , printStateOutput
                                    , toEnclodeFloat
                                     ) where
+
 #if MIN_VERSION_GLASGOW_HASKELL(9,0,2,0)
 import GHC.Driver.Session
 import qualified GHC.Data.EnumSet as ES
@@ -37,6 +38,7 @@ import Data.Maybe
 import qualified Data.Text as T
 import qualified Data.Text.IO as T
 import qualified Data.Sequence as S
+import Text.Regex
 import Unsafe.Coerce
 import qualified Data.HashMap.Lazy as H
 import G2.Config
@@ -212,7 +214,25 @@ loadToCheck proj src modN gflags = do
         let mdN = map (mkModuleName . T.unpack) . catMaybes $ HS.toList modN
         let imD = map simpleImportDecl mdN
 
-        setContext (map IIDecl imD ++ loadStandardSet)
+        imps <- liftIO $ concat <$> mapM getImports src
+
+        let imp_decls = map (IIDecl . simpleImportDecl . mkModuleName) imps
+
+        setContext (map IIDecl imD ++ loadStandardSet ++ imp_decls)
+
+getImports :: FilePath -> IO [String]
+getImports src = do
+    srcCode <- readFile src
+    get srcCode
+    where
+        get str = do
+            -- This also matches "import X as Y", which is fine since the code will need to
+            -- be parsed and it will error there
+            let reg_str = "(^|;[ \t]*)import[ \t]*(qualified[ \t]*)?([a-zA-Z0-9_.]*)([ \t]+as[ \t]+[a-zA-Z0-9_.]*)?"
+            let r = mkRegex reg_str
+            case matchRegexAll r str of
+                Just (_, _, after, [_, _, imp, _]) -> (imp :) <$> get after
+                _ -> return []
 
 loadStandard :: Ghc ()
 loadStandard = setContext loadStandardSet
@@ -251,6 +271,7 @@ runHPC src meas_with modN entry in_out = do
 -- Compile with GHC, and check that the output we got is correct for the input
 runHPC' :: FilePath -> String -> String -> [String] -> IO ()
 runHPC' src meas_with modN ars = do
+    imps <- getImports src
     srcCode <- readFile src
     let ext = dropWhile (/= '.') src
         dir = takeDirectory src
@@ -277,13 +298,16 @@ runHPC' src meas_with modN ars = do
     removeFile (mainMod ++ ".tix") `catch` handleExists
 
     writeFile (origFile ++ ext) srcCode
-    writeFile (mainFile ++ ".hs") ("module CallForHPC where\n\nimport qualified Control.Exception as Ex\nimport Data.Char\nimport " ++ modN ++ "\n" ++ mainFunc)
+    let main_imps = intercalate "\n" $ map ("import " ++) imps
+    writeFile (mainFile ++ ".hs") ("module CallForHPC where\n\nimport qualified Control.Exception as Ex\nimport Data.Char\nimport " ++ modN ++ "\n" ++ main_imps ++ "\n" ++ mainFunc)
 
     callProcess "ghc" $ ["-main-is", "CallForHPC.main_internal_g2", "-fhpc"
                         , mainFile ++ ".hs", src, "-o", mainFile, "-O0", "-i" ++ dir]
     callProcess ("./" ++ mainFile) []
 
     callProcess "hpc" ["report", mainMod, "--per-module", "--srcdir=hpc", "--hpcdir=../.hpc"]
+
+    -- putStrLn mainFunc
 
 toCall :: String -> String -> State t -> [Expr] -> Expr -> String
 toCall modN entry s ars _ =
