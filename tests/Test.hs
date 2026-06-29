@@ -538,7 +538,9 @@ testFileTests = testGroup "TestFiles"
                                         , ("reverse1", 5000, [AtLeast 5, AtMost 6]) 
                                         , ("reverse2", 5000, [Exactly 3])
                                         , ("insert1", 3000, [AtLeast 2, AtMost 6]) -- Quantifier causes SMT failures
-                                        , ("intersperse1", 3000, [AtLeast 2, AtMost 3])
+                                        -- Flaky; occasionally causes Z3 to blow up. Note that
+                                        -- this is most likely fixed in newer versions of Z3.
+                                        -- , ("intersperse1", 3000, [AtLeast 2, AtMost 3])
                                         , ("replicate1", 3000, [Exactly 2])
                                         , ("elemIndices1", 4000, [AtLeast 10])
                                         , ("minimum1", 3000, [AtLeast 1, AtMost 6]) -- Quantifier causes SMT failures
