@@ -411,3 +411,15 @@ find1 :: [Int] -> Char
 find1 xs = case find (== 4) xs of
                 Just x -> if length xs > 2 then 'a' else 'b'
                 Nothing -> 'c'
+
+findIndex1 :: [Int] -> Char
+findIndex1 xs = case findIndex (\x -> x + 2 == 4) xs of
+                    Just i -> if i > 2 then 'a' else 'b'
+                    Nothing -> 'c'
+
+findIndices1 :: [Int] -> Double
+findIndices1 xs = case findIndices (\x -> x * 2 == 10) xs of
+                      [1, 2, 3] -> 0.0
+                      [] -> 1.1
+                      [2] -> 2.2
+                      _ -> 3.3
