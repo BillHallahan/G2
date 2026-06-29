@@ -24,7 +24,8 @@ import Data.List
 import Data.Maybe
 import qualified Data.Sequence as Seq
 
-data NewPC t = SingleState (State t)
+data NewPC t = NoState
+             | SingleState (State t)
              | SplitStatePieces (State t) [StateDiff]
 
 
@@ -32,6 +33,7 @@ newPCEmpty :: State t -> NewPC t
 newPCEmpty s = SingleState s
 
 newDefNames :: NewPC t -> Seq.Seq Name
+newDefNames NoState = Seq.empty
 newDefNames (SingleState _) = Seq.empty
 newDefNames (SplitStatePieces _ sds) =
     mconcat $ map (\sd ->
@@ -53,6 +55,7 @@ reduceNewPC :: (Solver solver, Simplifier simplifier)
             -> NameGen
             -> NewPC t
             -> IO (NameGen, [State t])
+reduceNewPC _ _ _ ng NoState = return (ng, [])
 reduceNewPC _ _ _ ng (SingleState state) = return (ng, [state])
 reduceNewPC discard_unknown_states solver simplifier ng (SplitStatePieces state state_diffs)
     | inLitTableMode state = do

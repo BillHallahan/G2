@@ -213,6 +213,7 @@ instance Hashable Frame
 -- top of the stack and it is time to replace the `curr_expr`.
 data CEAction = EnsureEq Expr -- ^ `EnsureEq focus e1` means that we should check if the `curr_expr` is equal to `e1`
               | UpdateSolvingFCs FCStatus -- ^ Update the Ids/Lits in the solving_sym_func_constraints field
+              | DiscardIfNoError -- ^ Discard the state if it has not hit an error
               | NoAction -- ^ Just replace the curr_expr, no other actions are needed
               deriving (Show, Eq, Read, Generic, Data)
 

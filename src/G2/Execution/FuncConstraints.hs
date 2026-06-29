@@ -1755,7 +1755,24 @@ addFuncArgStates'' s@(State { curr_expr = CurrExpr _ ce
             eenv'' = foldl' (flip E.insertSymbolic) eenv' cont_funcs
         return $ s { curr_expr = CurrExpr Evaluate ce
                    , expr_env = eenv''
-                   , exec_stack = Stck.singleton $ CurrExprFrame NoAction (CurrExpr Return $ Prim UnspecifiedOutput TyBottom) }
+                   , exec_stack = Stck.singleton $ CurrExprFrame DiscardIfNoError (CurrExpr Return $ Prim Error TyBottom) }
+    | ts@(_:_) <- anonArgumentTypes t = do
+        lam_is <- freshIdsN (map (typeOf tv_env) es_ce)
+        let func_i = lam_is !! i
+        func_args <- freshIdsN ts
+
+        wrap_i <- freshSeededIdN (Name "wrap_f" Nothing 0 Nothing) $ TyFun (returnType $ idType func_i) ret_ty 
+
+        let app_func_i = mkApp . map Var $ func_i:func_args
+            wrap_func = App (Var wrap_i) app_func_i
+            lam_app = mkLams (zip (repeat TermL) lam_is) wrap_func 
+
+        let eenv' = E.insert fn lam_app eenv
+            eenv'' = foldl' (flip E.insertSymbolic) eenv' $ wrap_i:func_args
+
+        return $ s { curr_expr = CurrExpr Evaluate ce
+                   , expr_env = eenv''
+                   , exec_stack = Stck.singleton $ CurrExprFrame DiscardIfNoError (CurrExpr Return $ Prim Error TyBottom) }
     | otherwise = error $ "addFuncArgStates'': unsupported " ++ show t
     where t = typeOf tv_env e
 

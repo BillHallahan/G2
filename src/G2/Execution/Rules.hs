@@ -1331,6 +1331,15 @@ retCurrExpr s _ (UpdateSolvingFCs is_lits) orig_ce stck ng =
     , newPCEmpty $ s' { solving_sym_func_constraints = is_lits }
     , ng )
 
+retCurrExpr s _ DiscardIfNoError orig_ce stck ng =
+    let
+        s' = noActionUpdateState s orig_ce stck
+    in
+    case errorRaised s of
+        True -> ( RuleReturnCurrExprFr
+                , newPCEmpty $ s'
+                , ng )
+        False -> (RuleReturnCurrExprFr, NoState, ng)
 
 retCurrExpr s _ NoAction orig_ce stck ng =
     let
