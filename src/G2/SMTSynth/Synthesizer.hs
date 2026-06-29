@@ -134,7 +134,7 @@ data SynthConfig = SynthConfig { run_file :: String
                                , synth_mode :: SynthMode
                                , run_symex :: Bool -- ^ If true, run symbolic execution rather than synthesis
                                , specs_type :: SpecType -- ^ Synthesize function specification or SMT function
-                               , timeout :: Int -- ^ Sets the timeout (in seconds) for the Sygus solver
+                               , synth_timeout :: Int -- ^ Sets the timeout (in seconds) for the Sygus solver
                                , g2_config :: Config
                                }
 
@@ -209,7 +209,7 @@ seqGenConfig homedir =
                    <> help ("synthesize functions for a specific type/using a specific SMT theory. Options: " ++ intercalate ", " (map fst synthModeMapping)))
                 <*> flag False True (long "run-symex" <> help "Run symbolic execution on the passed function, rather than synthesis")
                 <*> flag SMTFunc FuncSpecs (long "func-specs" <> help "Generates specifications for functions")
-                <*> option auto (long "timeout"
+                <*> option auto (long "synth-timeout"
                    <> metavar "T"
                    <> value 1000
                    <> help "sets the timeout (in seconds) for the sygus solver")
@@ -831,7 +831,7 @@ runSygus sygus_cmds sc =
                     T.hPutStrLn h_in $ printSygus c
                     T.putStrLn $ printSygus c
                 ) sygus_cmds
-            _ <- hWaitForInput h_out (timeout sc)
+            _ <- hWaitForInput h_out (synth_timeout sc)
             out <- getLinesMatchParens h_out
             _ <- evaluate (length out)
             putStrLn out
