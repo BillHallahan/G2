@@ -58,38 +58,38 @@ myZip [] _ = []
 myZip _ [] = []
 myZip (x : xs) (y : ys) = (x,y) : myZip xs ys
 
-myMap :: [a] -> (a -> b) -> [b]
-myMap a f = map f a 
+-- myMap :: [a] -> (a -> b) -> [b]
+-- myMap a f = map f a
 
-myId :: a -> a
-myId x = x
+-- myId :: a -> a
+-- myId x = x
 
-takeOne :: a -> a -> a -> b -> a 
-takeOne x _ _ _ = x
+-- takeOne :: a -> a -> a -> b -> a
+-- takeOne x _ _ _ = x
 
-takeb :: a -> a -> a -> b -> b
-takeb _ _ _ x = x
+-- takeb :: a -> a -> a -> b -> b
+-- takeb _ _ _ x = x
 
-takeTwo :: a -> a -> a -> b -> a 
-takeTwo _ x _ _ = x
+-- takeTwo :: a -> a -> a -> b -> a
+-- takeTwo _ x _ _ = x
 
-takeTwo2 :: a -> a -> a -> b -> c -> c 
-takeTwo2 _ _ _ _ x = x
+-- takeTwo2 :: a -> a -> a -> b -> c -> c
+-- takeTwo2 _ _ _ _ x = x
 
-takeIntMul :: a -> a -> a -> b -> b
-takeIntMul _ _ _ x = x
+-- takeIntMul :: a -> a -> a -> b -> b
+-- takeIntMul _ _ _ x = x
 
-takeMul :: Int -> a -> a -> b -> Int
-takeMul x _ _ _ = x
+-- takeMul :: Int -> a -> a -> b -> Int
+-- takeMul x _ _ _ = x
 
-takeInt :: Int -> a -> b -> Int
-takeInt x _ _ = x
+-- takeInt :: Int -> a -> b -> Int
+-- takeInt x _ _ = x
 
-takeIntTwo :: Int -> a -> Int
-takeIntTwo x _ = x
+-- takeIntTwo :: Int -> a -> Int
+-- takeIntTwo x _ = x
 
-checkeq :: Eq a => a -> a -> Bool
-checkeq a a1 = a == a1
+-- checkeq :: Eq a => a -> a -> Bool
+-- checkeq a a1 = a == a1
 
 idlr :: Either l r -> Either l r 
 idlr x = x
@@ -105,8 +105,9 @@ extractRight (Left _) = Nothing
 take2 :: Either l r -> Either l r -> Either l r -> Either l r -> Either l r 
 take2 _ _ _ x = x
 
-takeMaybe :: a -> Maybe a 
-takeMaybe x = Just x 
+-- takeMaybe :: a -> Maybe a
+-- takeMaybe x = Just x
+-- takeMaybe _ = Nothing
 
 -- type that have no type variable 
 data Color = Red | Green | Blue | Yellow 
@@ -150,14 +151,14 @@ takeMyList x _ _ _ = x
 takeMyList2 :: MyList a -> MyList a -> MyList a -> MyList b -> MyList b
 takeMyList2 _ _ _ x = x 
 
-myListInt :: MyList Int -> MyList Int 
-myListInt x = x
+-- myListInt :: MyList Int -> MyList Int
+-- myListInt x = x
 
-myListTuple ::  MyList a -> MyList a -> (MyList a, MyList a)
-myListTuple x y = (x, y)
+-- myListTuple ::  MyList a -> MyList a -> (MyList a, MyList a)
+-- myListTuple x y = (x, y)
 
-myListTuple2 ::  MyList a -> MyList b -> (MyList b, MyList a)
-myListTuple2 x y = (y, x)
+-- myListTuple2 ::  MyList a -> MyList b -> (MyList b, MyList a)
+-- myListTuple2 x y = (y, x)
 
 myListMap :: [MyList a] -> (MyList a -> MyList b) -> [MyList b]
 myListMap a f = map f a 
@@ -185,8 +186,8 @@ triId x = x
 triFun :: Tri Int b c -> Tri b b c
 triFun (Tri x y z) = Tri y y z
 
-triInt :: Tri Int b c -> Int
-triInt (Tri x y z) = x 
+-- triInt :: Tri Int b c -> Int
+-- triInt (Tri x y z) = x
 
 triFuna :: Tri a b c -> a 
 triFuna (Tri x y z) = x
@@ -206,19 +207,19 @@ takeTri2 _ _ _ x = x
 -- test cases for type that take more than three type variable 
 -- data Fou a b c d where
 --   Fou :: a -> b -> Maybe c -> Maybe d -> Fou a b c d 
-data Fou a b c d = Fou a b (Maybe c) (Maybe d)
+-- data Fou a b c d = Fou a b (Maybe c) (Maybe d)
 
-instance (Eq a, Eq b, Eq c, Eq d) => Eq (Fou a b c d) where
-  (Fou a1 b1 c1 d1) == (Fou a2 b2 c2 d2) = a1 == a2 && b1 == b2 && c1 == c2 && d1 == d2
+-- instance (Eq a, Eq b, Eq c, Eq d) => Eq (Fou a b c d) where
+--   (Fou a1 b1 c1 d1) == (Fou a2 b2 c2 d2) = a1 == a2 && b1 == b2 && c1 == c2 && d1 == d2
 
-take4 :: Fou a b c d -> Fou a b c d -> Fou a b c d -> Fou a b c d -> Fou a b c d 
-take4 x _ _ _ = x
+-- take4 :: Fou a b c d -> Fou a b c d -> Fou a b c d -> Fou a b c d -> Fou a b c d
+-- take4 x _ _ _ = x
 
-take42 :: Fou b b c d -> Fou a b c d -> Fou a b c d -> Fou a b c d -> Fou b b c d 
-take42 x _ _ _ = x
+-- take42 :: Fou b b c d -> Fou a b c d -> Fou a b c d -> Fou a b c d -> Fou b b c d
+-- take42 x _ _ _ = x
 
-take4d :: Fou a b c d -> Maybe d 
-take4d (Fou x y z w) = w 
+-- take4d :: Fou a b c d -> Maybe d
+-- take4d (Fou x y z w) = w
 
-take4c :: Fou a b c d -> Maybe c
-take4c (Fou x y z w) = z
+-- take4c :: Fou a b c d -> Maybe c
+-- take4c (Fou x y z w) = z
