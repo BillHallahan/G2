@@ -751,6 +751,14 @@ testFileTests = testGroup "TestFiles"
                                                                        , ("duplicate", 1000, [Exactly 2])
                                                                        ]                                                                                         
 
+    , checkInputOutputsSymFuncConstraints "tests/HigherOrder/FAHigherOrder.hs"
+                                                                        [ ("test1", 1000, [AtLeast 2])
+                                                                        , ("test2", 1000, [AtLeast 4])
+                                                                        , ("test3", 1000, [AtLeast 4])
+                                                                        , ("test4", 1000, [AtLeast 4])
+                                                                        , ("test5", 1000, [AtLeast 4])
+                                                                        , ("test6", 1000, [AtLeast 5]) ]
+
     , checkInputOutputsSymFuncConstraintsFCArgStepLimit "tests/HigherOrder/HigherOrder.hs" 100 [("repCons", 1000, [Exactly 3])]
 
     , checkInputOutputsSymFuncConstraints "tests/HigherOrder/PolyHigherOrder.hs"
