@@ -1714,7 +1714,6 @@ adjustForFuncArg s@(State { known_values = kv
         fcs'' = fromMaybe fcs' $ fmap (flip (HM.insert (idName f2)) fcs') m_fc_fn
 
     return $ (s { expr_env = eenv'', sym_func_constraints = fcs'', fc_state_type = FuncArg }, idName f1)
-adjustForFuncArg s fn _ _ = return (s, fn)
 
 addFuncArgStates'' :: State t -> Name -> [Expr] -> Type -> Int -> Expr -> NameGenM (State t)
 addFuncArgStates'' s@(State { curr_expr = CurrExpr _ ce
