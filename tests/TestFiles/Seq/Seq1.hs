@@ -1,5 +1,6 @@
 {-# LANGUAGE CPP, MultiWayIf #-}
 {-# OPTIONS_GHC -Wno-x-partial #-}
+{-# OPTIONS_GHC -Wno-unrecognised-warning-flags #-}
 
 module Seq1 where
 

@@ -23,6 +23,7 @@ eval :: Stack -> Expr -> Expr
 eval (e:stck) (Lam e') = eval stck (rep e e')
 eval stck (App e1 e2) = eval (e2:stck) e1
 eval stck e@(Var _) = foldl1 App (e:stck)
+eval _ _ = error "empty stack and lambda, impossible"
 
 rep :: Expr -> Expr -> Expr
 rep e (Var _) = e

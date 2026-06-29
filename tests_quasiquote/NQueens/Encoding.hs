@@ -1,6 +1,7 @@
-module NQueens.Encoding where
+{-# OPTIONS_GHC -Wno-x-partial #-}
+{-# OPTIONS_GHC -Wno-unrecognised-warning-flags #-}
 
-import Data.List
+module NQueens.Encoding where
 
 type Queen = Int
 

@@ -2,8 +2,6 @@
 
 module RewriteVerify.RewriteVerifyTest ( rewriteTests ) where
 
-import qualified Data.Map as M
-import Data.Maybe
 import qualified Data.Text as T
 
 import G2.Config
@@ -13,7 +11,6 @@ import G2.Translation
 
 import G2.Equiv.Config
 import G2.Equiv.Verifier
-import G2.Equiv.Summary
 
 import Data.List
 

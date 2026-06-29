@@ -1,3 +1,7 @@
+{-# OPTIONS_GHC -Wno-x-partial #-}
+{-# OPTIONS_GHC -Wno-orphans #-}
+{-# OPTIONS_GHC -Wno-unrecognised-warning-flags #-}
+
 module UFMapTests where
 
 import G2.Data.UFMap
@@ -149,19 +153,19 @@ prop_merge_preserves_values_simple :: Integer
                                    -> UFMap Integer Integer
                                    -> UFMap Integer Integer
                                    -> Property
-prop_merge_preserves_values_simple x (Fn2 f2) ufm1 ufm2 =
+prop_merge_preserves_values_simple x_ (Fn2 f2) ufm1 ufm2 =
     let
         m_ufm = mergeJoiningWithKey (\_ x y -> (x + y, [])) (\_ x -> (x, [])) f2 (+) (+) (+) ufm1 ufm2
     in
-    isJust (lookup x ufm1) || isJust (lookup x ufm2)
+    isJust (lookup x_ ufm1) || isJust (lookup x_ ufm2)
     ==>
-    property (isJust (lookup x m_ufm))
+    property (isJust (lookup x_ m_ufm))
 
 prop_merge_merges_values :: Integer
                          -> UFMap Integer (S.HashSet Integer)
                          -> UFMap Integer (S.HashSet Integer)
                          -> Property
-prop_merge_merges_values x ufm1 ufm2 = 
+prop_merge_merges_values x_ ufm1 ufm2 =
     let
         m_ufm = mergeJoiningWithKey (\_ x y -> (S.union x y, []))
                                     (\_ x -> (x, []))
@@ -170,16 +174,16 @@ prop_merge_merges_values x ufm1 ufm2 =
                                     S.union
                                     S.union
                                     ufm1 ufm2
-        s1 = case lookup x ufm1 of
+        s1 = case lookup x_ ufm1 of
                     Just s -> s
                     Nothing -> S.empty 
-        s2 = case lookup x ufm2 of
+        s2 = case lookup x_ ufm2 of
                     Just s -> s
                     Nothing -> S.empty
     in
     not (S.null s1) || not (S.null s2)
     ==>
-    property (s1 `isSubsetOf` (m_ufm ! x) && s2 `isSubsetOf` (m_ufm ! x))
+    property (s1 `isSubsetOf` (m_ufm ! x_) && s2 `isSubsetOf` (m_ufm ! x_))
 
 isSubsetOf :: (Eq a, Hashable a) => S.HashSet a -> S.HashSet a -> Bool
 isSubsetOf xs ys = all (\x -> x `S.member` ys) $ S.toList xs

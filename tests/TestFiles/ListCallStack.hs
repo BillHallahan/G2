@@ -1,3 +1,6 @@
+{-# OPTIONS_GHC -Wno-x-partial #-}
+{-# OPTIONS_GHC -Wno-unrecognised-warning-flags #-}
+
 module ListCallStack where
 
 headOf :: [Int] -> Int

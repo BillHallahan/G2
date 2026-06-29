@@ -3,7 +3,7 @@ module InputOutputTest ( checkInputOutput
                        , checkInputOutputs
                        , checkInputOutputsWithCVC5
                        , checkInputOutputsADTHeight
-                       
+
                        , checkInputOutputsSMTStrings
                        , checkInputOutputsWithCVC5SMTStrings
                        , checkInputOutputsSMTStringsStrict
@@ -16,7 +16,7 @@ module InputOutputTest ( checkInputOutput
                        , checkInputOutputsSMTListsWith
                        , checkInputOutputsLambdaSMTLists
                        , checkInputOutputsLitTablesSMTLists
-                       
+
                        , checkInputOutputsTemplate
                        , checkInputOutputsWith
                        , checkInputOutputsNonRedHigher
@@ -25,7 +25,7 @@ module InputOutputTest ( checkInputOutput
                        , checkInputOutputsSymFuncConstraints
                        , checkInputOutputsSymFuncConstraintsFCArgStepLimit
                        , checkInputOutputsSymFuncConstraintsSubPathSMTLists
-                       , checkInputOutputsInstType 
+                       , checkInputOutputsInstType
                        , checkInputOutputsWithValidate
                        , checkInputOutputsWithTemplatesAndHpc) where
 
@@ -33,14 +33,10 @@ import Test.Tasty
 import Test.Tasty.HUnit
 
 import Control.Exception
-import Data.IORef
 import qualified Data.HashSet as HS
 import Data.List
-import qualified Data.Map.Lazy as M
-import Data.Maybe
 import qualified Data.Text as T
 import System.FilePath
-import System.IO.Unsafe
 import qualified G2.Language.TyVarEnv as TV
 import G2.Config
 import G2.Initialization.MkCurrExpr
