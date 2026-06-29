@@ -63,6 +63,4 @@ test9 :: ([Int] -> Int -> Int) -> Int -> Int
 test9 g x =
     case g [error "BAD"] x of
         1 -> 1
-        _ -> case g [1, 2, 3, 4, 5] 7 of
-                    2 -> 2
-                    _ -> 3
+        _ -> 2

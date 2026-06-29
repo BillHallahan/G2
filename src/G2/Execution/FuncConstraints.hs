@@ -1670,8 +1670,7 @@ addFuncArgStates' s@(State { curr_expr = CurrExpr _ ce, expr_env = eenv, tyvar_e
     | otherwise = return []
 
 adjustForFuncArg :: State t -> Name -> [Expr] -> Type -> NameGenM (State t, Name)
-adjustForFuncArg s@(State { fc_state_type = PostCall
-                          , known_values = kv
+adjustForFuncArg s@(State { known_values = kv
                           , expr_env = eenv
                           , sym_func_constraints = fcs
                           , solving_sym_func_constraints = solving_sfc
@@ -1700,7 +1699,8 @@ adjustForFuncArg s@(State { fc_state_type = PostCall
         eenv'' = E.insertSymbolic pr . E.insertSymbolic f1 . E.insertSymbolic f2 $ eenv'
 
         -- Adjust func constraints
-        fc_fn = fromMaybe [] $ HM.lookup fn fcs
+        m_fc_fn = HM.lookup fn fcs
+        fc_fn = fromMaybe [] $ m_fc_fn
 
         new_fc_pred = FC { fc_preconds = getPreConds solving_sfc
                          , fc_args = es_ce
@@ -1709,11 +1709,11 @@ adjustForFuncArg s@(State { fc_state_type = PostCall
         adj_fc_pred = map (\fc -> fc { fc_ret = Data dc_false}) fc_fn
         fc_pred = new_fc_pred:adj_fc_pred
 
-        fcs' = HM.insert (idName f2) fc_fn
-             $ HM.insert (idName pr) fc_pred
+        fcs' = HM.insert (idName pr) fc_pred
              $ HM.delete fn fcs
+        fcs'' = fromMaybe fcs' $ fmap (flip (HM.insert (idName f2)) fcs') m_fc_fn
 
-    return $ (s { expr_env = eenv'', sym_func_constraints = fcs', fc_state_type = FuncArg }, idName f1)
+    return $ (s { expr_env = eenv'', sym_func_constraints = fcs'', fc_state_type = FuncArg }, idName f1)
 adjustForFuncArg s fn _ _ = return (s, fn)
 
 addFuncArgStates'' :: State t -> Name -> [Expr] -> Type -> Int -> Expr -> NameGenM (State t)
