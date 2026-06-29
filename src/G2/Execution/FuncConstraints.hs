@@ -1773,7 +1773,7 @@ addFuncArgStates'' s@(State { curr_expr = CurrExpr _ ce
                    , expr_env = eenv''
                    , exec_stack = Stck.singleton $ CurrExprFrame DiscardIfNoError (CurrExpr Return $ Prim Error TyBottom) }
     | otherwise = error $ "addFuncArgStates'': unsupported " ++ show t
-    where t = typeOf tv_env e
+    where t = tyVarSubst tv_env $ typeOf tv_env e
 
 reachesError :: ExprEnv -> Expr -> Bool
 reachesError eenv = reachesError' eenv HS.empty

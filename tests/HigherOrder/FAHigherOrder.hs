@@ -58,3 +58,8 @@ test8 g x =
         _ -> case g (\_ -> [1, 2, error "error"]) (1:error "error") 7 of
                     2 -> 2
                     _ -> 3
+
+test9 :: (a -> a -> a) -> a -> [a] -> Int -> a
+test9 f _ (x:y:_) z =
+    f x (if z > 0 then y else error "here")
+test9 f d _ _ = d
