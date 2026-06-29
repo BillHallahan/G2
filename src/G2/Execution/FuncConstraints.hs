@@ -1672,23 +1672,24 @@ addFuncArgStates'' s@(State { curr_expr = CurrExpr _ ce
                             , expr_env = eenv
                             , type_env = tenv
                             , tyvar_env = tv_env }) fn es_ce func_ty i e
-    | TyCon tn _:_ <- unTyApp t
-    , Just (DataTyCon { data_cons = dcs }) <- HM.lookup tn tenv = do
+    | TyCon tn _:ts <- unTyApp t
+    , Just (DataTyCon { data_cons = dcs, bound_ids = bids }) <- HM.lookup tn tenv = do
         let ret_ty = returnType func_ty
+            bids_to_ts = HM.fromList $ zip (map idName bids) ts
 
         cont_funcs <- mapM 
                         (\dc ->
                                 let
-                                    ts = anonArgumentTypes (typeOf tv_env dc)
-                                    sym_f_ty = mkTyFun $ ts ++ [ret_ty]
+                                    anon_ts = anonArgumentTypes $ replaceTyVars bids_to_ts (typeOf tv_env dc)
+                                    sym_f_ty = mkTyFun $ anon_ts ++ [ret_ty]
                                 in
                                 freshSeededIdN (Name "sym_f" Nothing 0 Nothing) sym_f_ty
                         ) dcs
 
         alts <- zipWithM
                     (\dc f -> do
-                        let ts = anonArgumentTypes (typeOf tv_env dc)
-                        fs <- freshIdsN ts
+                        let anon_ts = anonArgumentTypes $ replaceTyVars bids_to_ts (typeOf tv_env dc)
+                        fs <- freshIdsN anon_ts
                         return $ Alt (DataAlt dc fs) (mkApp $ Var f:map Var fs))
                     dcs cont_funcs
 
@@ -1705,7 +1706,7 @@ addFuncArgStates'' s@(State { curr_expr = CurrExpr _ ce
         let eenv' = E.insert fn lam_cse eenv
             eenv'' = foldl' (flip E.insertSymbolic) eenv' cont_funcs
         return $ s { curr_expr = CurrExpr Evaluate ce, expr_env = eenv'' }
-    | otherwise = error "addFuncArgStates'': unsupported"
+    | otherwise = error $ "addFuncArgStates'': unsupported " ++ show t
     where t = typeOf tv_env e
 
 reachesError :: ExprEnv -> Expr -> Bool
