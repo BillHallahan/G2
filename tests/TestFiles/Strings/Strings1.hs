@@ -1,5 +1,6 @@
 {-# LANGUAGE CPP #-}
 {-# OPTIONS_GHC -Wno-x-partial #-}
+{-# OPTIONS_GHC -Wno-unrecognised-warning-flags #-}
 
 module Strings1 where
 

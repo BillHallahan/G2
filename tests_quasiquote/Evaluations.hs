@@ -5,8 +5,6 @@ module Evaluations where
 import G2.QuasiQuotes.QuasiQuotes
 
 import DeBruijn.Interpreter as D
-import RegEx.RegEx as R
-
 
 -------------------------------------------
 -------------------------------------------
