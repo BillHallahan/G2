@@ -1223,7 +1223,7 @@ todoTests = testGroup "To Do"
 
 data ToDo = RunMain
           | RunToDo
-          deriving (Eq)
+          deriving Eq
 
 
 instance IsOption ToDo where
