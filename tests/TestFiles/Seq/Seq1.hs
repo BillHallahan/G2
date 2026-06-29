@@ -3,8 +3,9 @@
 
 module Seq1 where
 
-import Data.List
+import Data.List hiding (find)
 import qualified GHC.List as L
+import GHC.OldList (find)
 
 -- Validation
 floatEq :: (Eq a, RealFloat a) => a -> a -> Bool
@@ -405,3 +406,8 @@ takeWhile1 xs = case takeWhile (== 4) xs of
                     [4, 4] -> "Reasonable amount of fours. I'm satisfied."
                     [4] -> "Only one four? I'm disappointed."
                     _ -> "Either you gave me way too many fours, or none at all. How could you do this?"
+
+find1 :: [Int] -> Char
+find1 xs = case find (== 4) xs of
+                Just x -> if length xs > 2 then 'a' else 'b'
+                Nothing -> 'c'
