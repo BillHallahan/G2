@@ -1662,20 +1662,68 @@ addFuncArgStates' s@(State { curr_expr = CurrExpr _ ce, expr_env = eenv, tyvar_e
     
     , not . isTyFun . typeOf tv_env . mkApp $ v:es_ce = do
         let reach_err = filter (reachesError eenv . snd) $ zip [0 :: Int ..] es_ce
+            ret_ty = returnType t
+        (s', rep_fn) <- adjustForFuncArg s n es_ce ret_ty
         if null reach_err
             then return []
-            else mapM (uncurry (addFuncArgStates'' s n es_ce t)) reach_err
+            else mapM (uncurry (addFuncArgStates'' s' rep_fn es_ce ret_ty)) reach_err
     | otherwise = return []
+
+adjustForFuncArg :: State t -> Name -> [Expr] -> Type -> NameGenM (State t, Name)
+adjustForFuncArg s@(State { fc_state_type = PostCall
+                          , known_values = kv
+                          , expr_env = eenv
+                          , sym_func_constraints = fcs
+                          , solving_sym_func_constraints = solving_sfc
+                          , type_env = tenv
+                          , tyvar_env = tv_env }) fn es_ce ret_ty = do
+    let ty_bool = tyBool kv
+        dc_true = mkDCTrue kv tenv
+        dc_false = mkDCFalse kv tenv
+    pr <- freshSeededIdN (Name "fa_pred" Nothing 0 Nothing) . mkTyFun $ map (typeOf tv_env) es_ce ++ [ty_bool]
+    f1 <- freshSeededIdN (Name "fa_f1" Nothing 0 Nothing) . mkTyFun $ map (typeOf tv_env) es_ce ++ [ret_ty]
+    f2 <- freshSeededIdN (Name "fa_f2" Nothing 0 Nothing) . mkTyFun $ map (typeOf tv_env) es_ce ++ [ret_ty]
+
+    lam_is <- freshIdsN (map (typeOf tv_env) es_ce)
+    let lam_vars = map Var lam_is
+    bindee <- freshIdN ty_bool
+    
+    let alts = [ Alt (DataAlt dc_true []) (mkApp $ Var f1:lam_vars)
+               , Alt (DataAlt dc_false []) (mkApp $ Var f2:lam_vars) ] 
+        cse = Case
+                (mkApp $ Var pr:lam_vars)
+                bindee
+                ty_bool
+                alts
+        lam_cse = mkLams (map (TermL,) lam_is) cse
+        eenv' = E.insert fn lam_cse eenv
+        eenv'' = E.insertSymbolic pr . E.insertSymbolic f1 . E.insertSymbolic f2 $ eenv'
+
+        -- Adjust func constraints
+        fc_fn = fromMaybe [] $ HM.lookup fn fcs
+
+        new_fc_pred = FC { fc_preconds = getPreConds solving_sfc
+                         , fc_args = es_ce
+                         , fc_ret = Data dc_true
+                         , fc_split_on = map (const NoSplit) es_ce}
+        adj_fc_pred = map (\fc -> fc { fc_ret = Data dc_false}) fc_fn
+        fc_pred = new_fc_pred:adj_fc_pred
+
+        fcs' = HM.insert (idName f2) fc_fn
+             $ HM.insert (idName pr) fc_pred
+             $ HM.delete fn fcs
+
+    return $ (s { expr_env = eenv'', sym_func_constraints = fcs', fc_state_type = FuncArg }, idName f1)
+adjustForFuncArg s fn _ _ = return (s, fn)
 
 addFuncArgStates'' :: State t -> Name -> [Expr] -> Type -> Int -> Expr -> NameGenM (State t)
 addFuncArgStates'' s@(State { curr_expr = CurrExpr _ ce
                             , expr_env = eenv
                             , type_env = tenv
-                            , tyvar_env = tv_env }) fn es_ce func_ty i e
+                            , tyvar_env = tv_env }) fn es_ce ret_ty i e
     | TyCon tn _:ts <- unTyApp t
     , Just (DataTyCon { data_cons = dcs, bound_ids = bids }) <- HM.lookup tn tenv = do
-        let ret_ty = returnType func_ty
-            bids_to_ts = HM.fromList $ zip (map idName bids) ts
+        let bids_to_ts = HM.fromList $ zip (map idName bids) ts
 
         cont_funcs <- mapM 
                         (\dc ->
@@ -1705,7 +1753,9 @@ addFuncArgStates'' s@(State { curr_expr = CurrExpr _ ce
 
         let eenv' = E.insert fn lam_cse eenv
             eenv'' = foldl' (flip E.insertSymbolic) eenv' cont_funcs
-        return $ s { curr_expr = CurrExpr Evaluate ce, expr_env = eenv'' }
+        return $ s { curr_expr = CurrExpr Evaluate ce
+                   , expr_env = eenv''
+                   , exec_stack = Stck.singleton $ CurrExprFrame NoAction (CurrExpr Return $ Prim UnspecifiedOutput TyBottom) }
     | otherwise = error $ "addFuncArgStates'': unsupported " ++ show t
     where t = typeOf tv_env e
 
