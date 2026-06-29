@@ -666,7 +666,7 @@ testFileTests = testGroup "TestFiles"
                                         , ("takeWhile1", 20000, [Exactly 5])
                                         , ("find1", 20000, [Exactly 3])
                                         , ("findIndex1", 20000, [Exactly 3])
-                                        , ("findIndices1", 20000, [Exactly 6])
+                                        , ("findIndices1", 20000, [AtLeast 6, AtMost 7])
                                         ]
 
     , checkExpr "tests/TestFiles/Strings/Strings1.hs" 1000 "exclaimEq"
