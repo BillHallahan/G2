@@ -9,7 +9,10 @@ module G2.Execution.FuncConstraints ( addFuncConstraintReducer
                                     
                                     , FCCheckRes (..)
                                     , checkFunctionConstraints
-                                    , setUpArgReduction ) where
+                                    , setUpArgReduction
+                                    
+                                    , ErrorMemoTable
+                                    , funcArgReachesErrorHalter ) where
 
 import G2.Config
 import G2.Data.Utils
@@ -33,6 +36,7 @@ import qualified Data.HashMap.Lazy as HM
 import qualified Data.HashSet as HS
 import Data.List
 import Data.Maybe
+import Data.Monoid (Any (..))
 import qualified Data.Sequence as S
 import Data.Tuple.Extra
 
@@ -40,7 +44,7 @@ import qualified Data.Text as T
 import qualified Data.Text.IO as T
 
 -- | A reducer to add higher order functions to the symbolic function constraints for solving later  
-addFuncConstraintReducer :: (Solver solver, Simplifier simplifier, MonadIO m) =>
+addFuncConstraintReducer :: (Solver solver, Simplifier simplifier, MonadIO m, SM.MonadState ErrorMemoTable m) =>
                              solver
                          -> simplifier
                          -> HS.HashSet Name
@@ -92,7 +96,7 @@ In the running example, we would get:
     fr_branch1 = 2 \/ fr_branch2 = 2 = 3 => g y = r2
 -}
 
-redFuncConstraint :: (Solver solver, Simplifier simplifier, MonadIO m) =>
+redFuncConstraint :: (Solver solver, Simplifier simplifier, MonadIO m, SM.MonadState ErrorMemoTable m) =>
                      solver
                   -> simplifier
                   -> HS.HashSet Name
@@ -121,7 +125,10 @@ redFuncConstraint solver simplifier no_inline fc_count s b =
             unif_s_ng <- runNamingT (unifyFuncConstraints solver simplifier no_inline s') ng'
             case unif_s_ng of
                 (Just s'', ng'') -> do
-                    let (xs, ng''') = addFuncArgStates s ng''
+                    err_memo <- SM.get
+                    let (xs, err_memo', ng''') = addFuncArgStates err_memo s ng''
+                    SM.put err_memo'
+                    liftIO . putStrLn $ "length xs = " ++ show (length xs) ++ "\n" ++ show (map curr_expr xs) ++ "\n" ++ show (log_path s) ++ "\nnum_steps = " ++ show (num_steps s)
                     return (Finished, [(s'', fc_count + 1)] ++ map (,fc_count) xs, b { name_gen = ng''' })
                 _ -> return (Finished, [], b { name_gen = ng' })
         Nothing -> return (Finished, [(s, fc_count)], b)
@@ -1651,23 +1658,30 @@ replaceAt idx x xs | (lft, (_:rgt)) <- splitAt idx xs = lft ++ [x] ++ rgt
 -------------------------------------------------------------------------------
 -- Function argument states
 -------------------------------------------------------------------------------
-addFuncArgStates :: State t -> NameGen -> ([State t], NameGen)
-addFuncArgStates s = runNamingM (addFuncArgStates' s)
+addFuncArgStates :: ErrorMemoTable -> State t -> NameGen -> ([State t], ErrorMemoTable, NameGen)
+addFuncArgStates err_memo_table s = do
+    ((xs, err_memo_table'), ng') <- runNamingM (addFuncArgStates' err_memo_table s)
+    return (xs, err_memo_table', ng')
 
-addFuncArgStates' :: State t -> NameGenM [State t]
-addFuncArgStates' s@(State { curr_expr = CurrExpr _ ce, expr_env = eenv, tyvar_env = tv_env })
+addFuncArgStates' :: ErrorMemoTable -> State t -> NameGenM ([State t], ErrorMemoTable)
+addFuncArgStates' err_memo_table s@(State { curr_expr = CurrExpr _ ce, expr_env = eenv, tyvar_env = tv_env })
     |  v@(Var (Id n t)):es_ce <- unApp ce
     , isTyFun t
-    , E.isSymbolic n eenv 
+    , E.isSymbolic n eenv
+
+    -- Don't generate function argument states from predicates added for function argument states
+    , nameOcc n /= "fa_!!_pred"
+    , solving_sym_func_constraints s == InitialRun
     
     , not . isTyFun . typeOf tv_env . mkApp $ v:es_ce = do
-        let reach_err = filter (reachesError eenv . snd) $ zip [0 :: Int ..] es_ce
+        let (reach_err, err_mem_table') = SM.runState (filterM (reachesError eenv . snd) $ zip [0 :: Int ..] es_ce) err_memo_table
             ret_ty = returnType t
         (s', rep_fn) <- adjustForFuncArg s n es_ce ret_ty
-        if null reach_err
+        xs <- if null reach_err
             then return []
             else mapM (uncurry (addFuncArgStates'' s' rep_fn es_ce ret_ty)) reach_err
-    | otherwise = return []
+        return (xs, err_mem_table')
+    | otherwise = return ([], err_memo_table)
 
 adjustForFuncArg :: State t -> Name -> [Expr] -> Type -> NameGenM (State t, Name)
 adjustForFuncArg s@(State { known_values = kv
@@ -1679,7 +1693,7 @@ adjustForFuncArg s@(State { known_values = kv
     let ty_bool = tyBool kv
         dc_true = mkDCTrue kv tenv
         dc_false = mkDCFalse kv tenv
-    pr <- freshSeededIdN (Name "fa_pred" Nothing 0 Nothing) . mkTyFun $ map (typeOf tv_env) es_ce ++ [ty_bool]
+    pr <- freshSeededIdN (Name "fa_!!_pred" Nothing 0 Nothing) . mkTyFun $ map (typeOf tv_env) es_ce ++ [ty_bool]
     f1 <- freshSeededIdN (Name "fa_f1" Nothing 0 Nothing) . mkTyFun $ map (typeOf tv_env) es_ce ++ [ret_ty]
     f2 <- freshSeededIdN (Name "fa_f2" Nothing 0 Nothing) . mkTyFun $ map (typeOf tv_env) es_ce ++ [ret_ty]
 
@@ -1775,20 +1789,39 @@ addFuncArgStates'' s@(State { curr_expr = CurrExpr _ ce
     | otherwise = error $ "addFuncArgStates'': unsupported " ++ show t
     where t = tyVarSubst tv_env $ typeOf tv_env e
 
-reachesError :: ExprEnv -> Expr -> Bool
-reachesError eenv = reachesError' eenv HS.empty
+type ErrorMemoTable = HM.HashMap Name Bool
 
-reachesError' :: ExprEnv -> HS.HashSet Name -> Expr -> Bool 
-reachesError' eenv = go
+reachesError :: (SM.MonadState ErrorMemoTable m, ASTContainer c Expr) => E.ExprEnv -> c -> m Bool
+reachesError eenv es = return . getAny =<< mconcat <$> mapM (reaches eenv) (containedASTs es) 
+
+reaches :: SM.MonadState ErrorMemoTable m => E.ExprEnv -> Expr -> m Any
+reaches eenv (Var (Id n _)) = do
+    seen <- SM.get
+    case HM.lookup n seen of
+        Just re -> return $ Any re
+        Nothing -> do
+            SM.modify (HM.insert n False)
+            reached_err <- maybe (return $ Any False) (reaches eenv) (E.lookup n eenv)
+            SM.modify (HM.insert n $ getAny reached_err)
+            return reached_err
+reaches _ (Prim Raise _) = return $ Any True
+reaches _ (Prim Error _) = return $ Any True
+reaches _ (Prim Undefined _) = return $ Any True
+reaches eenv e = mconcat <$> mapM (reaches eenv) (children e)
+
+funcArgReachesErrorHalter :: SM.MonadState ErrorMemoTable m => Halter m () r t
+funcArgReachesErrorHalter = mkSimpleHalter
+                                (const ())
+                                (\hv _ _ -> hv)
+                                stop
+                                (\_ _ _ _ -> ())
     where
-        go seen (Var (Id n _)) 
-            | n `elem` seen = False
-            | Just e <- E.lookup n eenv = go (HS.insert n seen) e
-            | otherwise = False
-        go _ (Prim Raise _) = True
-        go _ (Prim Error _) = True
-        go _ (Prim Undefined _) = True
-        go seen e = any (go seen) $ children e
+        -- stop _ _ s@(State { curr_expr = CurrExpr _ (Var _), expr_env = eenv, fc_state_type = FuncArg }) = do
+        --     reaches_err <- reachesError eenv (curr_expr s, exec_stack s)
+        --     return $ if reaches_err
+        --                 then Continue
+        --                 else Discard "reachesErrorHalter"
+        stop _ _ _ = return Continue
 
 ------------------------------------------------------------------------------
 -- Logging
