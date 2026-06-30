@@ -63,3 +63,17 @@ test9 :: (a -> a -> a) -> a -> [a] -> Int -> a
 test9 f _ (x:y:_) z =
     f x (if z > 0 then y else error "here")
 test9 f d _ _ = d
+
+test10 :: Int -> (Int -> Int) -> [Int] -> Int -> Int
+test10 c _ _ _ | c <= 0 = 0
+test10 c f xs i =
+    f (if 0 < i && i < length xs then xs !! i else error "HERE")
+    +
+    test10 (c - 1) f xs i
+
+test11 :: Int -> (Int -> Int) -> [Int] -> Int -> Int
+test11 c _ _ _ | c <= 0 = 0
+test11 c f xs i =
+    f (if 0 <= i && i < length xs then xs !! i else 1)
+    +
+    test11 (c - 1) f xs i

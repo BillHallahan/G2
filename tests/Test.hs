@@ -760,7 +760,9 @@ testFileTests = testGroup "TestFiles"
                                                                         , ("test6", 1000, [AtLeast 4])
                                                                         , ("test7", 1000, [AtLeast 4])
                                                                         , ("test8", 1000, [AtLeast 5])
-                                                                        , ("test9", 1000, [AtLeast 3]) ]
+                                                                        , ("test9", 1000, [AtLeast 3])
+                                                                        , ("test10", 1000, [AtLeast 6]) 
+                                                                        , ("test11", 1000, [AtLeast 3]) ]
 
     , checkInputOutputsSymFuncConstraintsFCArgStepLimit "tests/HigherOrder/HigherOrder.hs" 100 [("repCons", 1000, [Exactly 3])]
 

@@ -128,7 +128,7 @@ redFuncConstraint solver simplifier no_inline fc_count s b =
                     err_memo <- SM.get
                     let (xs, err_memo', ng''') = addFuncArgStates err_memo s ng''
                     SM.put err_memo'
-                    liftIO . putStrLn $ "length xs = " ++ show (length xs) ++ "\n" ++ show (map curr_expr xs) ++ "\n" ++ show (log_path s) ++ "\nnum_steps = " ++ show (num_steps s)
+                    -- liftIO . putStrLn $ "length xs = " ++ show (length xs) ++ "\n" ++ show (map curr_expr xs) ++ "\n" ++ show (log_path s) ++ "\nnum_steps = " ++ show (num_steps s)
                     return (Finished, [(s'', fc_count + 1)] ++ map (,fc_count) xs, b { name_gen = ng''' })
                 _ -> return (Finished, [], b { name_gen = ng' })
         Nothing -> return (Finished, [(s, fc_count)], b)
@@ -1674,12 +1674,17 @@ addFuncArgStates' err_memo_table s@(State { curr_expr = CurrExpr _ ce, expr_env 
     , solving_sym_func_constraints s == InitialRun
     
     , not . isTyFun . typeOf tv_env . mkApp $ v:es_ce = do
-        let (reach_err, err_mem_table') = SM.runState (filterM (reachesError eenv . snd) $ zip [0 :: Int ..] es_ce) err_memo_table
+        wrap_is <- freshIdsN $ map (typeOf tv_env) es_ce
+        let eenv' = foldl' (\eenv_ (Id wn _, e) -> E.insert wn e eenv_) eenv $ zip wrap_is es_ce
+            wrap_vs = map Var wrap_is
+
+        let (reach_err, err_mem_table') = SM.runState (filterM (reachesError eenv' . snd) $ zip [0 :: Int ..] wrap_vs) err_memo_table
             ret_ty = returnType t
-        (s', rep_fn) <- adjustForFuncArg s n es_ce ret_ty
+            s' = s { curr_expr = CurrExpr Evaluate . mkApp $ v:wrap_vs, expr_env = eenv' }
+        (s'', rep_fn) <- adjustForFuncArg s' n wrap_vs ret_ty
         xs <- if null reach_err
             then return []
-            else mapM (uncurry (addFuncArgStates'' s' rep_fn es_ce ret_ty)) reach_err
+            else mapM (uncurry (addFuncArgStates'' s'' rep_fn wrap_vs ret_ty)) reach_err
         return (xs, err_mem_table')
     | otherwise = return ([], err_memo_table)
 
