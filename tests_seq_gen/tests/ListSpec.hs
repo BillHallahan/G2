@@ -25,9 +25,8 @@ delete  _ []        = []
 delete x (y:ys)    = if x == y then ys else y : delete x ys
 
 
--- Throwing error for String: (error "Parse Error: <stdin>:14.22: Non-printable character in string literal")
 -- Throwinf error for Ints: (error "invalid grammar, must have at least one rule for each non-terminal symbol")
-insert :: Int -> [Int] -> [Int]
+insert :: Char -> [Char] -> [Char]
 insert x [] = [x]
 insert x ys@(y:ys')
  = case compare x y of
