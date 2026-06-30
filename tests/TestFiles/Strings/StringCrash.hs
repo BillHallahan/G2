@@ -1,3 +1,6 @@
+{-# OPTIONS_GHC -Wno-x-partial #-}
+{-# OPTIONS_GHC -Wno-unrecognised-warning-flags #-}
+
 module StringCrash where
 
 import Data.Char

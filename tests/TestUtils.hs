@@ -32,19 +32,16 @@ mkConfigTestWithSetIO = mkConfigTestWithMapIO
 mkConfigTestWithMapIO :: IO Config
 mkConfigTestWithMapIO = do
     config <- mkConfigTestIO
-    homedir <- getHomeDirectory
     return $ config { base = base config }
 
 mkConfigTestWithSMTStringsIO :: IO Config
 mkConfigTestWithSMTStringsIO = do
     config <- mkConfigTestIO
-    homedir <- getHomeDirectory
     return $ config { smt_strings = UseSMTStrings, smt = ConCVC5 }
 
 mkConfigTestWithQuantifiedSMTStringsIO :: IO Config
 mkConfigTestWithQuantifiedSMTStringsIO = do
     config <- mkConfigTestIO
-    homedir <- getHomeDirectory
     return $ config { smt_strings = UseSMTStrings
                     , quantified_smt_strings = UseQuantifiers
                     , smt_discard_on_unknown = DiscardUnknown }
@@ -52,7 +49,6 @@ mkConfigTestWithQuantifiedSMTStringsIO = do
 mkConfigTestWithLambdaSMTStringsIO :: IO Config
 mkConfigTestWithLambdaSMTStringsIO = do
     config <- mkConfigTestIO
-    homedir <- getHomeDirectory
     return $ config { smt_strings = UseSMTStrings, using_smt_lams = UseSMTLams }
 
 mkConfigTestWithLitTablesSMTStringsIO :: IO Config

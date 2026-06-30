@@ -11,7 +11,6 @@ import G2.Translation
 
 import qualified Data.HashMap.Lazy as HM
 import qualified Data.HashSet as HS
-import Data.Maybe
 import qualified Data.Text as T
 
 import GHC hiding (Name, entry)

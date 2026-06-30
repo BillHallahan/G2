@@ -8,15 +8,12 @@ import Test.Tasty.HUnit
 import DeBruijn.Test
 import Arithmetics.Interpreter
 import Arithmetics.Test
-import Lambda.Test
 import NQueens.Test
 import RegEx.Test
 import RegEx.RegEx
 import Simple.SimpleTest1
 
 import G2.Interface
-
-import qualified Evaluations as E
 
 tests :: TestTree
 tests = testGroup "All Tests"

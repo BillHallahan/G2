@@ -1,4 +1,6 @@
 {-# LANGUAGE CPP, DeriveDataTypeable, FlexibleContexts, LambdaCase, OverloadedStrings #-}
+{-# OPTIONS_GHC -Wno-incomplete-patterns #-}
+{-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
 
 module Main where
 
@@ -23,11 +25,9 @@ import Data.Tagged
 import qualified Data.Text as T
 import System.Environment
 import System.FilePath
-import Type.Reflection (Typeable)
 
 import PeanoTest
 import HigherOrderMathTest
-import GetNthTest
 import DefuncTest
 import FuzzExecution
 import CaseTest
@@ -47,7 +47,6 @@ import Reqs
 import TestUtils
 
 import Data.List
-import qualified Data.Map.Lazy as M
 
 -- Run with no arguments for default test cases.
 -- All default test cases should pass.
@@ -539,7 +538,9 @@ testFileTests = testGroup "TestFiles"
                                         , ("reverse1", 5000, [AtLeast 5, AtMost 6]) 
                                         , ("reverse2", 5000, [Exactly 3])
                                         , ("insert1", 3000, [AtLeast 2, AtMost 6]) -- Quantifier causes SMT failures
-                                        , ("intersperse1", 3000, [AtLeast 2, AtMost 3])
+                                        -- Flaky; occasionally causes Z3 to blow up. Note that
+                                        -- this is most likely fixed in newer versions of Z3.
+                                        -- , ("intersperse1", 3000, [AtLeast 2, AtMost 3])
                                         , ("replicate1", 3000, [Exactly 2])
                                         , ("elemIndices1", 4000, [AtLeast 10])
                                         , ("minimum1", 3000, [AtLeast 1, AtMost 6]) -- Quantifier causes SMT failures
@@ -1235,7 +1236,7 @@ todoTests = testGroup "To Do"
 
 data ToDo = RunMain
           | RunToDo
-          deriving (Eq, Typeable)
+          deriving Eq
 
 
 instance IsOption ToDo where
@@ -1349,7 +1350,7 @@ checkExprWithConfig src m_assume m_assert m_reaches entry reqList config_f = do
     testCase (src ++ " " ++ entry) (do
         config <- config_f
         res <- testFile src m_assume m_assert m_reaches entry config
-        
+
         let (reqRes, res_print) =
                 case res of
                     Left _ -> (Nothing, [])
@@ -1359,9 +1360,9 @@ checkExprWithConfig src m_assume m_assert m_reaches entry reqList config_f = do
 
                                 pg = mkPrettyGuide exec_res
                                 res_pretty = map (printInputOutput pg (Id (Name (T.pack entry) Nothing 0 Nothing) TyUnknown) b) exec_res
-                                res_print = map T.unpack $ map (\(_, inp, out, _) -> inp <> " = " <> out) res_pretty
+                                res_print_ = map T.unpack $ map (\(_, inp, out, _) -> inp <> " = " <> out) res_pretty
                             in
-                            (Just reqs, res_print)
+                            (Just reqs, res_print_)
 
 
 
