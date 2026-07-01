@@ -521,7 +521,7 @@ testFileTests = testGroup "TestFiles"
 
                                         , ("lines1", 4000, [AtLeast 10])
 
-                                        , ("repeat1", 1000, [AtLeast 5])
+                                        , ("repeat1", 1200, [AtLeast 5])
 
                                         , ("testQualImp", 4000, [Exactly 2])
                                         ]
