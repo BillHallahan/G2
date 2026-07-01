@@ -1165,7 +1165,7 @@ simpleLogger :: (MonadIO m, Show t) => FilePath -> Reducer m () t
 simpleLogger fn =
     (mkSimpleReducer (const ())
                      (\_ s b -> do
-                        liftIO $ outputState stdFileNamer fn (log_path s) s b pprExecStateStr
+                        liftIO $ outputState True stdFileNamer fn (log_path s) s b pprExecStateStr
                         return (NoProgress, [(s, ())], b) ))
                     { updateWithAll = \s -> map (\(s_, i) -> s_ { log_path = log_path s_ ++ [i]} ) $ zip s [1..] }
 
@@ -1178,7 +1178,7 @@ prettyLogger pretty_track fp =
             pg <- SM.get
             let pg' = updatePrettyGuide (s { track = () }) pg
             SM.put pg'
-            liftIO $ outputState stdFileNamer fp (log_path s) s b (\s_ _ -> T.unpack $ prettyState pg' pretty_track s_)
+            liftIO $ outputState True stdFileNamer fp (log_path s) s b (\s_ _ -> T.unpack $ prettyState pg' pretty_track s_)
             return (NoProgress, [(s, ())], b)
         )
 
@@ -1275,6 +1275,7 @@ data LimLogger t =
               , conc_pc_guide :: Maybe (SomeSolver, ConcPCGuide)
               , inline_nrpc :: Bool
               , inline_fc :: Bool
+              , output_files :: Bool
               , lim_output_path :: String
               , filter_env :: Bool
               , order_env :: EnvOrdering
@@ -1291,6 +1292,7 @@ limLoggerConfig fp = LimLogger { every_n = 0
                                , order_env = Unordered
                                , inline_nrpc = False
                                , inline_fc = False
+                               , output_files = True
                                , lim_output_path = fp
                                , output_name = \s -> "state" ++ show (length $ rules s) }
 
@@ -1322,6 +1324,7 @@ getLimLogger' out_name config pretty_track = do
                                                          , order_env = if logOrder config then Ordered else Unordered     
                                                          , inline_nrpc = logInlineNRPC config
                                                          , inline_fc = logInlineFC config
+                                                         , output_files = output_log_files config
                                                          , output_name = out_name }
                         NoLog -> limLoggerConfig ""
     
@@ -1361,7 +1364,7 @@ genLimLogger out_f ll@(LimLogger { after_n = aft, before_n = bfr, down_path = do
 
 limLogger :: (MonadIO m, Show t) => LimLogger t -> Reducer m LLTracker t
 limLogger ll@(LimLogger {filter_env = f_env}) =
-    genLimLogger (\off s b -> liftIO $ outputState (output_name ll) (lim_output_path ll) off (if f_env then filterStateEnv s else s) b pprExecStateStr) ll
+    genLimLogger (\off s b -> liftIO $ outputState (output_files ll) (output_name ll) (lim_output_path ll) off (if f_env then filterStateEnv s else s) b pprExecStateStr) ll
 
 prettyLimLogger :: (MonadIO m, SM.MonadState PrettyGuide m, Named t) => PrettyTrack t -> LimLogger t -> Reducer m LLTracker t
 prettyLimLogger pretty_track ll@(LimLogger {filter_env = f_env, order_env = o_env}) =
@@ -1373,7 +1376,7 @@ prettyLimLogger pretty_track ll@(LimLogger {filter_env = f_env, order_env = o_en
                 SM.put pg'
                 let pg'' = setEnvOrdering o_env pg'
                 let s''' = if f_env then filterStateEnv s'' else s''     
-                liftIO $ outputState (output_name ll) (lim_output_path ll) off s''' b (\s_ _ -> T.unpack $ prettyState pg'' pretty_track s_)
+                liftIO $ outputState (output_files ll) (output_name ll) (lim_output_path ll) off s''' b (\s_ _ -> T.unpack $ prettyState pg'' pretty_track s_)
     ) ll
 
 filterStateEnv :: State t -> State t
@@ -1395,8 +1398,8 @@ inlineFC s@(State { expr_env = eenv, sym_func_constraints = sym_func }) =
 stdFileNamer :: State t -> FilePath
 stdFileNamer s = "state" ++ show (length $ rules s)
 
-outputState :: (State t -> FilePath) -> FilePath -> [Int] -> State t -> Bindings -> (State t -> Bindings -> String) -> IO ()
-outputState calc_file_name dn is s b printer = do
+outputState :: Bool -> (State t -> FilePath) -> FilePath -> [Int] -> State t -> Bindings -> (State t -> Bindings -> String) -> IO ()
+outputState True calc_file_name dn is s b printer = do
     fn <- getFile dn is (calc_file_name s)
 
     -- Don't re-output states that  already exist
@@ -1409,6 +1412,9 @@ outputState calc_file_name dn is s b printer = do
 
             putStrLn fn
         else return ()
+outputState False calc_file_name dn is s _ _ = do
+    let (_, fn) = getFileDirAndName dn is (calc_file_name s)
+    putStrLn fn
 
 outputConcPCGuide :: FilePath -> [Int] -> State t -> Bindings -> IO ()
 outputConcPCGuide fp is s b = do
@@ -1430,10 +1436,16 @@ outputConcPCGuide fp is s b = do
 
 getFile :: String -> [Int] -> String -> IO String
 getFile dn is n = do
-    let dir = dn ++ "/" ++ foldl' (\str i -> str ++ show i ++ "/") "" is
+    let (dir, fn) = getFileDirAndName dn is n
     createDirectoryIfMissing True dir
-    let fn = dir ++ n ++ ".txt"
     return fn
+
+getFileDirAndName :: String -> [Int] -> String -> (String, String)
+getFileDirAndName dn is n =
+    let
+        dir = dn ++ "/" ++ foldl' (\str i -> str ++ show i ++ "/") "" is
+    in
+    (dir, dir ++ n ++ ".txt")
 
 -- | Output each path and current expression on the command line
 currExprLogger :: (MonadIO m, SM.MonadState PrettyGuide m, Show t) => LimLogger t -> Reducer m LLTracker t

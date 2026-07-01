@@ -43,6 +43,8 @@ import Data.Tuple.Extra
 import qualified Data.Text as T
 import qualified Data.Text.IO as T
 
+import System.Clock
+
 -- | A reducer to add higher order functions to the symbolic function constraints for solving later  
 addFuncConstraintReducer :: (Solver solver, Simplifier simplifier, MonadIO m, SM.MonadState ErrorMemoTable m) =>
                              solver
@@ -128,7 +130,6 @@ redFuncConstraint solver simplifier no_inline fc_count s b =
                     err_memo <- SM.get
                     let (xs, err_memo', ng''') = addFuncArgStates err_memo s ng''
                     SM.put err_memo'
-                    liftIO . putStrLn $ "length xs = " ++ show (length xs) ++ "\n" ++ show (map curr_expr xs) ++ "\n" ++ show (log_path s) ++ "\nnum_steps = " ++ show (num_steps s)
                     return (Finished, [(s'', fc_count + 1)] ++ map (,fc_count) xs, b { name_gen = ng''' })
                 _ -> return (Finished, [], b { name_gen = ng' })
         Nothing -> return (Finished, [(s, fc_count)], b)
@@ -406,7 +407,7 @@ checkFunctionConstraints fc_logging solver simplifier no_inline s ng = do
     (m_unif_s, ng') <- runNamingT (unifyFuncConstraints solver simplifier no_inline s) ng
     case m_unif_s of
         Just unif_s -> do
-            r <- solveFuncConstraints fc_logging solver simplifier unif_s ng'
+            r <- solveFuncConstraints fc_logging solver simplifier no_inline unif_s ng'
             -- liftIO . putStrLn $ case r of Just _ -> "Just"; Nothing -> "Nothing"
             case r of
                 Just (s', ng'') -> return $ FCSat s' ng''
@@ -741,18 +742,18 @@ resetProgress = SM.lift $ SM.modify (\(_, pg, fc_log) -> (NoProgressFC, pg, fc_l
 madeProgress :: Monad m => FCState t m ()
 madeProgress = SM.lift $ SM.modify (\(_, pg, fc_log) -> (MadeProgressFC, pg, fc_log))
 
-solveFuncConstraints :: (ASTContainer t Expr, Solver solver, Simplifier simplifier, MonadIO m) => FCLogging -> solver -> simplifier -> State t -> NameGen -> m (Maybe (State t, NameGen))
-solveFuncConstraints fc_logging solver simplifier s@(State { sym_func_constraints = fcs }) ng = do
+solveFuncConstraints :: (ASTContainer t Expr, Solver solver, Simplifier simplifier, MonadIO m) => FCLogging -> solver -> simplifier -> HS.HashSet Name -> State t -> NameGen -> m (Maybe (State t, NameGen))
+solveFuncConstraints fc_logging solver simplifier no_inline s@(State { sym_func_constraints = fcs }) ng = do
     let no_tick_s = s { expr_env = stripAllTicks $ expr_env s }
         no_tick_fc = stripAllTicks fcs
-    (r, (s', !ng')) <- SM.evalStateT (runStateNGT (startSolveFC solver simplifier (-1) no_tick_fc) no_tick_s ng) (NoProgressFC, mkPrettyGuide no_tick_fc, fc_logging)
+    (r, (s', !ng')) <- SM.evalStateT (runStateNGT (startSolveFC solver simplifier no_inline (-1) no_tick_fc) no_tick_s ng) (NoProgressFC, mkPrettyGuide no_tick_fc, fc_logging)
     return $ case r of
                     SatFC fcs' -> Just (s' { solving_sym_func_constraints = SolvedFCs
                                            , sym_func_constraints = fcs' }, ng')
                     _ -> Nothing
 
-startSolveFC :: (Solver solver, Simplifier simplifier, MonadIO m) => solver -> simplifier -> Int -> FuncConstraints -> FCState t m FCRes
-startSolveFC solver simplifier n fcs = do
+startSolveFC :: (Solver solver, Simplifier simplifier, MonadIO m) => solver -> simplifier -> HS.HashSet Name -> Int -> FuncConstraints -> FCState t m FCRes
+startSolveFC solver simplifier no_inline n fcs = do
     fc_log <- getLogging
     when (fc_log == FCLogging) $ do
         pg <- getPrettyGuide
@@ -762,13 +763,15 @@ startSolveFC solver simplifier n fcs = do
             putStrLn "------------------------"
             putStrLn "Initial FCs:"
             T.putStrLn . addTab $ prettyFuncConstraints pg fcs
-    solveFC solver simplifier n fcs
+    solveFC solver simplifier no_inline n fcs
 
 
 -- TODO: Do we actually need the counter here?
-solveFC :: (Solver solver, Simplifier simplifier, MonadIO m) => solver -> simplifier -> Int -> FuncConstraints -> FCState t m FCRes
-solveFC _ _ 0 _ = return UnsatFC
-solveFC solver simplifier !n fcs = do
+solveFC :: (Solver solver, Simplifier simplifier, MonadIO m) => solver -> simplifier -> HS.HashSet Name -> Int -> FuncConstraints -> FCState t m FCRes
+solveFC _ _ _ 0 _ = return UnsatFC
+solveFC solver simplifier no_inline !n fcs = do
+    init_time <- liftIO $ getTime Realtime
+
     -- Convert functions with only a single constraint into constants
     lit_val_sol <- solveLitVals solver simplifier fcs
 
@@ -794,7 +797,6 @@ solveFC solver simplifier !n fcs = do
             fcs_unfold_adt_pieces <- concatMapM (uncurry unfoldADTArgs) $ HM.toList fcs_bool_precond
             let fc_unfold_adt_reassembled = HM.fromListWith (++) fcs_unfold_adt_pieces
 
-
             -- Branch on whether possibly WHNF arguments are reduced or not
             fcs_branch_whnf_pieces <- concatMapM (uncurry branchOnWHNF) $ HM.toList fc_unfold_adt_reassembled
             let fcs_branch_whnf_reassembled = HM.fromListWith (++) fcs_branch_whnf_pieces
@@ -803,14 +805,19 @@ solveFC solver simplifier !n fcs = do
             split_whnf_pieces <- concatMapM (uncurry splitWHNFAndNonWHNF) $ HM.toList fcs_branch_whnf_reassembled
             let fc_unfold_split_whnf_reassembled = HM.fromListWith (++) split_whnf_pieces
 
-            elim_non_whnf <- concatMapM (uncurry elimAllNonWHNFOrEquiv) $ HM.toList fc_unfold_split_whnf_reassembled
+            elim_non_whnf <- concatMapM (uncurry (elimAllNonWHNFOrEquiv no_inline)) $ HM.toList fc_unfold_split_whnf_reassembled
             let elim_non_whnf_reassembled = HM.fromListWith (++) elim_non_whnf
 
             prog <- getProgress
-            -- liftIO . putStrLn $ "end prog = " ++ show prog
+            end_of_loop_time <- liftIO $ getTime Realtime
+            let diff = diffTimeSpec end_of_loop_time init_time
+                diff_secs = (fromInteger (toNanoSecs diff)) / (10 ^ (9 :: Int) :: Double)
+            
+            whenLogging "End of loop" $ do
+                liftIO . putStrLn $ "loop iter time = " ++ show diff_secs
 
             case prog of
-                MadeProgressFC -> solveFC solver simplifier (n - 1) elim_non_whnf_reassembled
+                MadeProgressFC -> solveFC solver simplifier no_inline (n - 1) elim_non_whnf_reassembled
                 NoProgressFC -> return UnsatFC
 
 -- | If we only have a single function constraint for a given function, we instantiate
@@ -1379,9 +1386,9 @@ splitWHNFAndNonWHNFIndex i n fcs@(first_fc:_) = do
 -- where s is a symbolic variable. These are contradictory, but the only way we can realize this is if
 -- we determine that (1) (g x)/(g y) are not helpful, as they are not in SWHNF and (2) s is not useful to branch
 -- on, as it is the same in both constraints.
-elimAllNonWHNFOrEquiv :: MonadIO m => Name -> [FuncConstraint] -> FCState t m [(Name, [FuncConstraint])]
-elimAllNonWHNFOrEquiv _ [] = return []
-elimAllNonWHNFOrEquiv n fcs@(first_fc:_) = do
+elimAllNonWHNFOrEquiv :: MonadIO m => HS.HashSet Name -> Name -> [FuncConstraint] -> FCState t m [(Name, [FuncConstraint])]
+elimAllNonWHNFOrEquiv _ _ [] = return []
+elimAllNonWHNFOrEquiv no_inline n fcs@(first_fc:_) = do
     eenv <- exprEnv
     tv_env <- tyVarEnv
 
@@ -1390,7 +1397,7 @@ elimAllNonWHNFOrEquiv n fcs@(first_fc:_) = do
         -- Check if no args are in SWHgNF
         none_whnf = findIndex (\es -> all (not . isRedForm eenv . inlineVars eenv) es) matching_args
         -- Check if all args are the same
-        all_same = findIndex (\case es@(head_e:_) -> all (\e -> inlineVars eenv e == inlineVars eenv head_e) es; [] -> False) matching_args
+        all_same = findIndex (\case es@(head_e:_) -> all (eqUpToTypesInlineIgnoringTicks no_inline eenv head_e) es; [] -> False) matching_args
 
     let ret_ty = typeOf tv_env $ fc_ret first_fc
 
@@ -1424,7 +1431,7 @@ elimAllNonWHNFOrEquiv n fcs@(first_fc:_) = do
                 logEEnvInsert n lam_f
                 logFCListToNameFCList n fcs $ [(idName f, new_fcs)]
             -- madeProgress
-            elimAllNonWHNFOrEquiv (idName f) new_fcs
+            elimAllNonWHNFOrEquiv no_inline (idName f) new_fcs
         _ -> return [(n, fcs)]
     where
         isRedForm _ (Case _ _ _ [Alt (LitAlt _) (Assume Nothing _ (Prim UnspecifiedOutput _)), Alt _ _]) = True
