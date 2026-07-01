@@ -1331,6 +1331,15 @@ retCurrExpr s _ (UpdateSolvingFCs is_lits) orig_ce stck ng =
     , newPCEmpty $ s' { solving_sym_func_constraints = is_lits }
     , ng )
 
+retCurrExpr s _ DiscardIfNoError orig_ce stck ng =
+    let
+        s' = noActionUpdateState s orig_ce stck
+    in
+    case errorRaised s of
+        True -> ( RuleReturnCurrExprFr
+                , newPCEmpty $ s'
+                , ng )
+        False -> (RuleReturnCurrExprFr, NoState, ng)
 
 retCurrExpr s _ NoAction orig_ce stck ng =
     let
@@ -1341,13 +1350,18 @@ retCurrExpr s _ NoAction orig_ce stck ng =
     , ng )
 
 noActionUpdateState :: State t -> CurrExpr -> S.Stack Frame -> State t
-noActionUpdateState s orig_ce stck =
+noActionUpdateState s (CurrExpr _ ce_e) stck =
     let
-        stck' = case orig_ce of
-                    CurrExpr _ (Var (Id n _)) | not $ E.isSymbolic n (expr_env s) -> S.push (UpdateFrame n) stck
+        stck' = case ce_e of
+                    Var (Id n _)
+                        | Just e <- E.deepLookup n (expr_env s)
+                        -- Take care not to overwrite a symbolic variable with a concrete infinite loop
+                        , let isSymbVar (Var (Id n' _)) = n == n'
+                              isSymbVar _ = False 
+                        , not $ isSymbVar e -> S.push (UpdateFrame n) stck
                     _ -> stck
     in
-    s { curr_expr = orig_ce
+    s { curr_expr = CurrExpr Evaluate ce_e
       , exec_stack = stck'}
 
 matchPairs :: TV.TyVarEnv -> KnownValues -> Expr -> Expr -> (ExprEnv, [PathCond], [(Expr, Expr)]) -> Maybe (ExprEnv, [PathCond], [(Expr, Expr)])

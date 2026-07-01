@@ -9,7 +9,10 @@ module G2.Execution.FuncConstraints ( addFuncConstraintReducer
                                     
                                     , FCCheckRes (..)
                                     , checkFunctionConstraints
-                                    , setUpArgReduction ) where
+                                    , setUpArgReduction
+                                    
+                                    , ErrorMemoTable
+                                    , funcArgReachesErrorHalter ) where
 
 import G2.Config
 import G2.Data.Utils
@@ -33,14 +36,17 @@ import qualified Data.HashMap.Lazy as HM
 import qualified Data.HashSet as HS
 import Data.List
 import Data.Maybe
+import Data.Monoid (Any (..))
 import qualified Data.Sequence as S
 import Data.Tuple.Extra
 
 import qualified Data.Text as T
 import qualified Data.Text.IO as T
 
+import System.Clock
+
 -- | A reducer to add higher order functions to the symbolic function constraints for solving later  
-addFuncConstraintReducer :: (Solver solver, Simplifier simplifier, MonadIO m) =>
+addFuncConstraintReducer :: (Solver solver, Simplifier simplifier, MonadIO m, SM.MonadState ErrorMemoTable m) =>
                              solver
                          -> simplifier
                          -> HS.HashSet Name
@@ -92,7 +98,7 @@ In the running example, we would get:
     fr_branch1 = 2 \/ fr_branch2 = 2 = 3 => g y = r2
 -}
 
-redFuncConstraint :: (Solver solver, Simplifier simplifier, MonadIO m) =>
+redFuncConstraint :: (Solver solver, Simplifier simplifier, MonadIO m, SM.MonadState ErrorMemoTable m) =>
                      solver
                   -> simplifier
                   -> HS.HashSet Name
@@ -120,7 +126,11 @@ redFuncConstraint solver simplifier no_inline fc_count s b =
         Just (s', ng') -> do
             unif_s_ng <- runNamingT (unifyFuncConstraints solver simplifier no_inline s') ng'
             case unif_s_ng of
-                (Just s'', ng'') -> return (Finished, [(s'', fc_count + 1)], b { name_gen = ng'' })
+                (Just s'', ng'') -> do
+                    err_memo <- SM.get
+                    let (xs, err_memo', ng''') = addFuncArgStates err_memo s ng''
+                    SM.put err_memo'
+                    return (Finished, [(s'', fc_count + 1)] ++ map (,fc_count) xs, b { name_gen = ng''' })
                 _ -> return (Finished, [], b { name_gen = ng' })
         Nothing -> return (Finished, [(s, fc_count)], b)
 
@@ -397,13 +407,14 @@ checkFunctionConstraints fc_logging solver simplifier no_inline s ng = do
     (m_unif_s, ng') <- runNamingT (unifyFuncConstraints solver simplifier no_inline s) ng
     case m_unif_s of
         Just unif_s -> do
-            r <- solveFuncConstraints fc_logging solver simplifier unif_s ng'
+            r <- solveFuncConstraints fc_logging solver simplifier no_inline unif_s ng'
             -- liftIO . putStrLn $ case r of Just _ -> "Just"; Nothing -> "Nothing"
             case r of
                 Just (s', ng'') -> return $ FCSat s' ng''
                 Nothing -> do
+                    let s' = collapseStack s
                     -- Function constraints were not solved
-                    ((is, fc'), (s', !ng'')) <- runStateNGT (do
+                    ((is, fc'), (s'', !ng'')) <- runStateNGT (do
                         let fcs = sym_func_constraints s
                         -- Add extra calls to higher order functions
                         added_higher_fcs <- mapM (uncurry addHigherOrderCalls) $ HM.toList fcs
@@ -413,9 +424,9 @@ checkFunctionConstraints fc_logging solver simplifier no_inline s ng = do
                         fc_wrapper <- addWrappersToFC fc_higher_reassembled
                         non_red_v <- collectNonReducedVars fc_wrapper
                         return (non_red_v, fc_wrapper)
-                        ) s ng'
-                    let s'' = s' { sym_func_constraints = fc' }
-                    return $ FCReductionNeeded is s'' ng''
+                        ) s' ng'
+                    let s''' = s'' { sym_func_constraints = fc' }
+                    return $ FCReductionNeeded is s''' ng''
         Nothing -> return FCUnsat
 
 setUpArgReduction ::  [(VarLitEqualities, Id)] -> State t -> Maybe (State t)
@@ -674,10 +685,7 @@ limitSolvingFuncConstraintPieces stps = mkSimpleReducer (\_ -> stps) go
     where
         go 0 s b | SolvingFCs _ <- solving_sym_func_constraints s =
             let
-                (e, eenv, stck) = collapseStack (exec_stack s) (expr_env s) (getExpr s)
-                s' = s { curr_expr = CurrExpr Return e
-                       , expr_env = eenv
-                       , exec_stack = stck }
+                s' = collapseStack s
             in
             return (Finished, [(s', stps)], b)
         go !c s b 
@@ -687,23 +695,30 @@ limitSolvingFuncConstraintPieces stps = mkSimpleReducer (\_ -> stps) go
             | SolvingFCs _ <- solving_sym_func_constraints s = return (InProgress, [(s, c - 1)], b)
         go _ s b = return (NoProgress, [(s, stps)], b)
 
-collapseStack :: Stck.Stack Frame -> ExprEnv -> Expr -> (Expr, ExprEnv, Stck.Stack Frame)
-collapseStack stck eenv e
-    | Just (CaseFrame i t as, stck') <- fr = collapseStack stck' eenv (Case e i t as)
-    | Just (ApplyFrame e', stck') <- fr = collapseStack stck' eenv (App e e')
+collapseStack :: State t -> State t
+collapseStack s =
+    let (e, eenv, stck) = collapseStack' (exec_stack s) (expr_env s) (tyvar_env s) (getExpr s) in
+    s { curr_expr = CurrExpr Return e
+      , expr_env = eenv
+      , exec_stack = stck }
+
+collapseStack' :: Stck.Stack Frame -> ExprEnv -> TyVarEnv -> Expr -> (Expr, ExprEnv, Stck.Stack Frame)
+collapseStack' stck eenv tv_env e
+    | Just (CaseFrame i t as, stck') <- fr = collapseStack' stck' eenv tv_env (Case e i t as)
+    | Just (ApplyFrame e', stck') <- fr = collapseStack' stck' eenv tv_env (App e e')
     | Just (UpdateFrame n, stck') <- fr =
         -- Update frames require a bit of care: we want to avoid a scenario where we overwrite a variable definition
         -- with a reference to itself (i.e. if the current expression is a variable `v`, and we have an update frame for `v`,
         -- we don't want to insert `v -> v` in the environment.)
         case e of
-            (Var (Id n' _)) | n == n' -> collapseStack stck' eenv e
-            _ -> collapseStack stck' (E.insert n e eenv) e
-    | Just (CastFrame coer, stck') <- fr = collapseStack stck' eenv (Cast e coer)
-    | Just (CatchFrame catch, stck') <- fr = collapseStack stck' eenv (mkApp [Prim Catch TyUnknown, e, catch])
-    | Just (AssumeFrame assume_e, stck') <- fr = collapseStack stck' eenv (Assume Nothing assume_e e)
-    | Just (AssertFrame fc assume_e, stck') <- fr = collapseStack stck' eenv (L.Assert fc assume_e e)
+            (Var (Id n' _)) | n == n' -> collapseStack' stck' eenv tv_env e
+            _ -> collapseStack' stck' (E.insert n e eenv) tv_env (Var . Id n $ typeOf tv_env e)
+    | Just (CastFrame coer, stck') <- fr = collapseStack' stck' eenv tv_env (Cast e coer)
+    | Just (CatchFrame catch, stck') <- fr = collapseStack' stck' eenv tv_env (mkApp [Prim Catch TyUnknown, e, catch])
+    | Just (AssumeFrame assume_e, stck') <- fr = collapseStack' stck' eenv tv_env (Assume Nothing assume_e e)
+    | Just (AssertFrame fc assume_e, stck') <- fr = collapseStack' stck' eenv tv_env (L.Assert fc assume_e e)
     | Just (CurrExprFrame _ _, _) <- fr = (e, eenv, stck)
-    | Just (LitTableFrame _ _, _) <- fr = error "collapseStack: LitTableFrame not supported"
+    | Just (LitTableFrame _ _, _) <- fr = error "collapseStack': LitTableFrame not supported"
     | Nothing <- fr = (e, eenv, stck)
     where
         fr = Stck.pop stck
@@ -727,18 +742,18 @@ resetProgress = SM.lift $ SM.modify (\(_, pg, fc_log) -> (NoProgressFC, pg, fc_l
 madeProgress :: Monad m => FCState t m ()
 madeProgress = SM.lift $ SM.modify (\(_, pg, fc_log) -> (MadeProgressFC, pg, fc_log))
 
-solveFuncConstraints :: (ASTContainer t Expr, Solver solver, Simplifier simplifier, MonadIO m) => FCLogging -> solver -> simplifier -> State t -> NameGen -> m (Maybe (State t, NameGen))
-solveFuncConstraints fc_logging solver simplifier s@(State { sym_func_constraints = fcs }) ng = do
+solveFuncConstraints :: (ASTContainer t Expr, Solver solver, Simplifier simplifier, MonadIO m) => FCLogging -> solver -> simplifier -> HS.HashSet Name -> State t -> NameGen -> m (Maybe (State t, NameGen))
+solveFuncConstraints fc_logging solver simplifier no_inline s@(State { sym_func_constraints = fcs }) ng = do
     let no_tick_s = s { expr_env = stripAllTicks $ expr_env s }
         no_tick_fc = stripAllTicks fcs
-    (r, (s', !ng')) <- SM.evalStateT (runStateNGT (startSolveFC solver simplifier (-1) no_tick_fc) no_tick_s ng) (NoProgressFC, mkPrettyGuide no_tick_fc, fc_logging)
+    (r, (s', !ng')) <- SM.evalStateT (runStateNGT (startSolveFC solver simplifier no_inline (-1) no_tick_fc) no_tick_s ng) (NoProgressFC, mkPrettyGuide no_tick_fc, fc_logging)
     return $ case r of
                     SatFC fcs' -> Just (s' { solving_sym_func_constraints = SolvedFCs
                                            , sym_func_constraints = fcs' }, ng')
                     _ -> Nothing
 
-startSolveFC :: (Solver solver, Simplifier simplifier, MonadIO m) => solver -> simplifier -> Int -> FuncConstraints -> FCState t m FCRes
-startSolveFC solver simplifier n fcs = do
+startSolveFC :: (Solver solver, Simplifier simplifier, MonadIO m) => solver -> simplifier -> HS.HashSet Name -> Int -> FuncConstraints -> FCState t m FCRes
+startSolveFC solver simplifier no_inline n fcs = do
     fc_log <- getLogging
     when (fc_log == FCLogging) $ do
         pg <- getPrettyGuide
@@ -748,13 +763,15 @@ startSolveFC solver simplifier n fcs = do
             putStrLn "------------------------"
             putStrLn "Initial FCs:"
             T.putStrLn . addTab $ prettyFuncConstraints pg fcs
-    solveFC solver simplifier n fcs
+    solveFC solver simplifier no_inline n fcs
 
 
 -- TODO: Do we actually need the counter here?
-solveFC :: (Solver solver, Simplifier simplifier, MonadIO m) => solver -> simplifier -> Int -> FuncConstraints -> FCState t m FCRes
-solveFC _ _ 0 _ = return UnsatFC
-solveFC solver simplifier !n fcs = do
+solveFC :: (Solver solver, Simplifier simplifier, MonadIO m) => solver -> simplifier -> HS.HashSet Name -> Int -> FuncConstraints -> FCState t m FCRes
+solveFC _ _ _ 0 _ = return UnsatFC
+solveFC solver simplifier no_inline !n fcs = do
+    init_time <- liftIO $ getTime Realtime
+
     -- Convert functions with only a single constraint into constants
     lit_val_sol <- solveLitVals solver simplifier fcs
 
@@ -780,7 +797,6 @@ solveFC solver simplifier !n fcs = do
             fcs_unfold_adt_pieces <- concatMapM (uncurry unfoldADTArgs) $ HM.toList fcs_bool_precond
             let fc_unfold_adt_reassembled = HM.fromListWith (++) fcs_unfold_adt_pieces
 
-
             -- Branch on whether possibly WHNF arguments are reduced or not
             fcs_branch_whnf_pieces <- concatMapM (uncurry branchOnWHNF) $ HM.toList fc_unfold_adt_reassembled
             let fcs_branch_whnf_reassembled = HM.fromListWith (++) fcs_branch_whnf_pieces
@@ -789,14 +805,19 @@ solveFC solver simplifier !n fcs = do
             split_whnf_pieces <- concatMapM (uncurry splitWHNFAndNonWHNF) $ HM.toList fcs_branch_whnf_reassembled
             let fc_unfold_split_whnf_reassembled = HM.fromListWith (++) split_whnf_pieces
 
-            elim_non_whnf <- concatMapM (uncurry elimAllNonWHNFOrEquiv) $ HM.toList fc_unfold_split_whnf_reassembled
+            elim_non_whnf <- concatMapM (uncurry (elimAllNonWHNFOrEquiv no_inline)) $ HM.toList fc_unfold_split_whnf_reassembled
             let elim_non_whnf_reassembled = HM.fromListWith (++) elim_non_whnf
 
             prog <- getProgress
-            -- liftIO . putStrLn $ "end prog = " ++ show prog
+            end_of_loop_time <- liftIO $ getTime Realtime
+            let diff = diffTimeSpec end_of_loop_time init_time
+                diff_secs = (fromInteger (toNanoSecs diff)) / (10 ^ (9 :: Int) :: Double)
+            
+            whenLogging "End of loop" $ do
+                liftIO . putStrLn $ "loop iter time = " ++ show diff_secs
 
             case prog of
-                MadeProgressFC -> solveFC solver simplifier (n - 1) elim_non_whnf_reassembled
+                MadeProgressFC -> solveFC solver simplifier no_inline (n - 1) elim_non_whnf_reassembled
                 NoProgressFC -> return UnsatFC
 
 -- | If we only have a single function constraint for a given function, we instantiate
@@ -1365,9 +1386,9 @@ splitWHNFAndNonWHNFIndex i n fcs@(first_fc:_) = do
 -- where s is a symbolic variable. These are contradictory, but the only way we can realize this is if
 -- we determine that (1) (g x)/(g y) are not helpful, as they are not in SWHNF and (2) s is not useful to branch
 -- on, as it is the same in both constraints.
-elimAllNonWHNFOrEquiv :: MonadIO m => Name -> [FuncConstraint] -> FCState t m [(Name, [FuncConstraint])]
-elimAllNonWHNFOrEquiv _ [] = return []
-elimAllNonWHNFOrEquiv n fcs@(first_fc:_) = do
+elimAllNonWHNFOrEquiv :: MonadIO m => HS.HashSet Name -> Name -> [FuncConstraint] -> FCState t m [(Name, [FuncConstraint])]
+elimAllNonWHNFOrEquiv _ _ [] = return []
+elimAllNonWHNFOrEquiv no_inline n fcs@(first_fc:_) = do
     eenv <- exprEnv
     tv_env <- tyVarEnv
 
@@ -1376,7 +1397,7 @@ elimAllNonWHNFOrEquiv n fcs@(first_fc:_) = do
         -- Check if no args are in SWHgNF
         none_whnf = findIndex (\es -> all (not . isRedForm eenv . inlineVars eenv) es) matching_args
         -- Check if all args are the same
-        all_same = findIndex (\case es@(head_e:_) -> all (\e -> inlineVars eenv e == inlineVars eenv head_e) es; [] -> False) matching_args
+        all_same = findIndex (\case es@(head_e:_) -> all (eqUpToTypesInlineIgnoringTicks no_inline eenv head_e) es; [] -> False) matching_args
 
     let ret_ty = typeOf tv_env $ fc_ret first_fc
 
@@ -1410,7 +1431,7 @@ elimAllNonWHNFOrEquiv n fcs@(first_fc:_) = do
                 logEEnvInsert n lam_f
                 logFCListToNameFCList n fcs $ [(idName f, new_fcs)]
             -- madeProgress
-            elimAllNonWHNFOrEquiv (idName f) new_fcs
+            elimAllNonWHNFOrEquiv no_inline (idName f) new_fcs
         _ -> return [(n, fcs)]
     where
         isRedForm _ (Case _ _ _ [Alt (LitAlt _) (Assume Nothing _ (Prim UnspecifiedOutput _)), Alt _ _]) = True
@@ -1645,6 +1666,179 @@ deleteAt idx xs | (lft, (_:rgt)) <- splitAt idx xs = lft ++ rgt
 replaceAt :: Int -> a -> [a] -> [a]
 replaceAt idx x xs | (lft, (_:rgt)) <- splitAt idx xs = lft ++ [x] ++ rgt
                    | otherwise = error "replaceAt: bad index"
+
+-------------------------------------------------------------------------------
+-- Function argument states
+-------------------------------------------------------------------------------
+addFuncArgStates :: ErrorMemoTable -> State t -> NameGen -> ([State t], ErrorMemoTable, NameGen)
+addFuncArgStates err_memo_table s = do
+    ((xs, err_memo_table'), ng') <- runNamingM (addFuncArgStates' err_memo_table s)
+    return (xs, err_memo_table', ng')
+
+addFuncArgStates' :: ErrorMemoTable -> State t -> NameGenM ([State t], ErrorMemoTable)
+addFuncArgStates' err_memo_table s@(State { curr_expr = CurrExpr _ ce, expr_env = eenv, tyvar_env = tv_env })
+    |  v@(Var (Id n t)):es_ce <- unApp ce
+    , isTyFun t
+    , E.isSymbolic n eenv
+
+    -- Don't generate function argument states from predicates added for function argument states
+    , nameOcc n /= "fa_!!_pred"
+    , solving_sym_func_constraints s == InitialRun
+    
+    , not . isTyFun . typeOf tv_env . mkApp $ v:es_ce = do
+        wrap_is <- freshIdsN $ map (typeOf tv_env) es_ce
+        let eenv' = foldl' (\eenv_ (Id wn _, e) -> E.insert wn e eenv_) eenv $ zip wrap_is es_ce
+            wrap_vs = map Var wrap_is
+
+        let (reach_err, err_mem_table') = SM.runState (filterM (reachesError eenv' . snd) $ zip [0 :: Int ..] wrap_vs) err_memo_table
+            ret_ty = returnType t
+            s' = s { curr_expr = CurrExpr Evaluate . mkApp $ v:wrap_vs, expr_env = eenv' }
+        (s'', rep_fn) <- adjustForFuncArg s' n wrap_vs ret_ty
+        xs <- if null reach_err
+            then return []
+            else mapM (uncurry (addFuncArgStates'' s'' rep_fn wrap_vs ret_ty)) reach_err
+        return (xs, err_mem_table')
+    | otherwise = return ([], err_memo_table)
+
+adjustForFuncArg :: State t -> Name -> [Expr] -> Type -> NameGenM (State t, Name)
+adjustForFuncArg s@(State { known_values = kv
+                          , expr_env = eenv
+                          , sym_func_constraints = fcs
+                          , solving_sym_func_constraints = solving_sfc
+                          , type_env = tenv
+                          , tyvar_env = tv_env }) fn es_ce ret_ty = do
+    let ty_bool = tyBool kv
+        dc_true = mkDCTrue kv tenv
+        dc_false = mkDCFalse kv tenv
+    pr <- freshSeededIdN (Name "fa_!!_pred" Nothing 0 Nothing) . mkTyFun $ map (typeOf tv_env) es_ce ++ [ty_bool]
+    f1 <- freshSeededIdN (Name "fa_f1" Nothing 0 Nothing) . mkTyFun $ map (typeOf tv_env) es_ce ++ [ret_ty]
+    f2 <- freshSeededIdN (Name "fa_f2" Nothing 0 Nothing) . mkTyFun $ map (typeOf tv_env) es_ce ++ [ret_ty]
+
+    lam_is <- freshIdsN (map (typeOf tv_env) es_ce)
+    let lam_vars = map Var lam_is
+    bindee <- freshIdN ty_bool
+    
+    let alts = [ Alt (DataAlt dc_true []) (mkApp $ Var f1:lam_vars)
+               , Alt (DataAlt dc_false []) (mkApp $ Var f2:lam_vars) ] 
+        cse = Case
+                (mkApp $ Var pr:lam_vars)
+                bindee
+                ty_bool
+                alts
+        lam_cse = mkLams (map (TermL,) lam_is) cse
+        eenv' = E.insert fn lam_cse eenv
+        eenv'' = E.insertSymbolic pr . E.insertSymbolic f1 . E.insertSymbolic f2 $ eenv'
+
+        -- Adjust func constraints
+        m_fc_fn = HM.lookup fn fcs
+        fc_fn = fromMaybe [] $ m_fc_fn
+
+        new_fc_pred = FC { fc_preconds = getPreConds solving_sfc
+                         , fc_args = es_ce
+                         , fc_ret = Data dc_true
+                         , fc_split_on = map (const NoSplit) es_ce}
+        adj_fc_pred = map (\fc -> fc { fc_ret = Data dc_false}) fc_fn
+        fc_pred = new_fc_pred:adj_fc_pred
+
+        fcs' = HM.insert (idName pr) fc_pred
+             $ HM.delete fn fcs
+        fcs'' = fromMaybe fcs' $ fmap (flip (HM.insert (idName f2)) fcs') m_fc_fn
+
+    return $ (s { expr_env = eenv'', sym_func_constraints = fcs'', fc_state_type = FuncArg }, idName f1)
+
+addFuncArgStates'' :: State t -> Name -> [Expr] -> Type -> Int -> Expr -> NameGenM (State t)
+addFuncArgStates'' s@(State { curr_expr = CurrExpr _ ce
+                            , expr_env = eenv
+                            , type_env = tenv
+                            , tyvar_env = tv_env }) fn es_ce ret_ty i e
+    | TyCon tn _:ts <- unTyApp t
+    , Just (DataTyCon { data_cons = dcs, bound_ids = bids }) <- HM.lookup tn tenv = do
+        let bids_to_ts = HM.fromList $ zip (map idName bids) ts
+
+        cont_funcs <- mapM 
+                        (\dc ->
+                                let
+                                    anon_ts = anonArgumentTypes $ replaceTyVars bids_to_ts (typeOf tv_env dc)
+                                    sym_f_ty = mkTyFun $ anon_ts ++ [ret_ty]
+                                in
+                                freshSeededIdN (Name "sym_f" Nothing 0 Nothing) sym_f_ty
+                        ) dcs
+
+        alts <- zipWithM
+                    (\dc f -> do
+                        let anon_ts = anonArgumentTypes $ replaceTyVars bids_to_ts (typeOf tv_env dc)
+                        fs <- freshIdsN anon_ts
+                        return $ Alt (DataAlt dc fs) (mkApp $ Var f:map Var fs))
+                    dcs cont_funcs
+
+        lam_is <- freshIdsN (map (typeOf tv_env) es_ce)
+        let branch_on = lam_is !! i
+        bindee <- freshIdN (idType branch_on)
+        let cse = Case
+                    (Var branch_on)
+                    bindee
+                    ret_ty
+                    alts
+            lam_cse = mkLams (zip (repeat TermL) lam_is) cse
+
+        let eenv' = E.insert fn lam_cse eenv
+            eenv'' = foldl' (flip E.insertSymbolic) eenv' cont_funcs
+        return $ s { curr_expr = CurrExpr Evaluate ce
+                   , expr_env = eenv''
+                   , exec_stack = Stck.singleton $ CurrExprFrame DiscardIfNoError (CurrExpr Return $ Prim Error TyBottom) }
+    | ts@(_:_) <- anonArgumentTypes t = do
+        lam_is <- freshIdsN (map (typeOf tv_env) es_ce)
+        let func_i = lam_is !! i
+        func_args <- freshIdsN ts
+
+        wrap_i <- freshSeededIdN (Name "wrap_f" Nothing 0 Nothing) $ TyFun (returnType $ idType func_i) ret_ty 
+
+        let app_func_i = mkApp . map Var $ func_i:func_args
+            wrap_func = App (Var wrap_i) app_func_i
+            lam_app = mkLams (zip (repeat TermL) lam_is) wrap_func 
+
+        let eenv' = E.insert fn lam_app eenv
+            eenv'' = foldl' (flip E.insertSymbolic) eenv' $ wrap_i:func_args
+
+        return $ s { curr_expr = CurrExpr Evaluate ce
+                   , expr_env = eenv''
+                   , exec_stack = Stck.singleton $ CurrExprFrame DiscardIfNoError (CurrExpr Return $ Prim Error TyBottom) }
+    | otherwise = error $ "addFuncArgStates'': unsupported " ++ show t
+    where t = tyVarSubst tv_env $ typeOf tv_env e
+
+type ErrorMemoTable = HM.HashMap Name Bool
+
+reachesError :: (SM.MonadState ErrorMemoTable m, ASTContainer c Expr) => E.ExprEnv -> c -> m Bool
+reachesError eenv es = return . getAny =<< mconcat <$> mapM (reaches eenv) (containedASTs es) 
+
+reaches :: SM.MonadState ErrorMemoTable m => E.ExprEnv -> Expr -> m Any
+reaches eenv (Var (Id n _)) = do
+    seen <- SM.get
+    case HM.lookup n seen of
+        Just re -> return $ Any re
+        Nothing -> do
+            SM.modify (HM.insert n False)
+            reached_err <- maybe (return $ Any False) (reaches eenv) (E.lookup n eenv)
+            SM.modify (HM.insert n $ getAny reached_err)
+            return reached_err
+reaches _ (Prim Raise _) = return $ Any True
+reaches _ (Prim Error _) = return $ Any True
+reaches _ (Prim Undefined _) = return $ Any True
+reaches eenv e = mconcat <$> mapM (reaches eenv) (children e)
+
+funcArgReachesErrorHalter :: SM.MonadState ErrorMemoTable m => Halter m () r t
+funcArgReachesErrorHalter = mkSimpleHalter
+                                (const ())
+                                (\hv _ _ -> hv)
+                                stop
+                                (\_ _ _ _ -> ())
+    where
+        -- stop _ _ s@(State { curr_expr = CurrExpr _ (Var _), expr_env = eenv, fc_state_type = FuncArg }) = do
+        --     reaches_err <- reachesError eenv (curr_expr s, exec_stack s)
+        --     return $ if reaches_err
+        --                 then Continue
+        --                 else Discard "reachesErrorHalter"
+        stop _ _ _ = return Continue
 
 ------------------------------------------------------------------------------
 -- Logging

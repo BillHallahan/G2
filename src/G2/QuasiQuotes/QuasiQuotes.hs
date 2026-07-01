@@ -324,8 +324,11 @@ moveOutStatePieces tenv_name s = do
              , curr_expr = $(curr_expr_exp)
              , path_conds = PC.fromList $(pc_exp)
              , non_red_path_conds = $(non_red_path_conds_exp)
+             
              , sym_func_constraints = $(sym_func_constraints_exp)
              , solving_sym_func_constraints = $(solving_sym_func_constraints_exp)
+             , fc_state_type = PostCall
+
              , handles = HM.empty
              , mutvar_env = $(mutvar_env_exp)
              , true_assert = $(true_assert_exp) 
