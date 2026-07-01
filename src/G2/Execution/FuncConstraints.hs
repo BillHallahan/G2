@@ -128,7 +128,7 @@ redFuncConstraint solver simplifier no_inline fc_count s b =
                     err_memo <- SM.get
                     let (xs, err_memo', ng''') = addFuncArgStates err_memo s ng''
                     SM.put err_memo'
-                    -- liftIO . putStrLn $ "length xs = " ++ show (length xs) ++ "\n" ++ show (map curr_expr xs) ++ "\n" ++ show (log_path s) ++ "\nnum_steps = " ++ show (num_steps s)
+                    liftIO . putStrLn $ "length xs = " ++ show (length xs) ++ "\n" ++ show (map curr_expr xs) ++ "\n" ++ show (log_path s) ++ "\nnum_steps = " ++ show (num_steps s)
                     return (Finished, [(s'', fc_count + 1)] ++ map (,fc_count) xs, b { name_gen = ng''' })
                 _ -> return (Finished, [], b { name_gen = ng' })
         Nothing -> return (Finished, [(s, fc_count)], b)
@@ -411,8 +411,9 @@ checkFunctionConstraints fc_logging solver simplifier no_inline s ng = do
             case r of
                 Just (s', ng'') -> return $ FCSat s' ng''
                 Nothing -> do
+                    let s' = collapseStack s
                     -- Function constraints were not solved
-                    ((is, fc'), (s', !ng'')) <- runStateNGT (do
+                    ((is, fc'), (s'', !ng'')) <- runStateNGT (do
                         let fcs = sym_func_constraints s
                         -- Add extra calls to higher order functions
                         added_higher_fcs <- mapM (uncurry addHigherOrderCalls) $ HM.toList fcs
@@ -422,9 +423,9 @@ checkFunctionConstraints fc_logging solver simplifier no_inline s ng = do
                         fc_wrapper <- addWrappersToFC fc_higher_reassembled
                         non_red_v <- collectNonReducedVars fc_wrapper
                         return (non_red_v, fc_wrapper)
-                        ) s ng'
-                    let s'' = s' { sym_func_constraints = fc' }
-                    return $ FCReductionNeeded is s'' ng''
+                        ) s' ng'
+                    let s''' = s'' { sym_func_constraints = fc' }
+                    return $ FCReductionNeeded is s''' ng''
         Nothing -> return FCUnsat
 
 setUpArgReduction ::  [(VarLitEqualities, Id)] -> State t -> Maybe (State t)
@@ -683,10 +684,7 @@ limitSolvingFuncConstraintPieces stps = mkSimpleReducer (\_ -> stps) go
     where
         go 0 s b | SolvingFCs _ <- solving_sym_func_constraints s =
             let
-                (e, eenv, stck) = collapseStack (exec_stack s) (expr_env s) (getExpr s)
-                s' = s { curr_expr = CurrExpr Return e
-                       , expr_env = eenv
-                       , exec_stack = stck }
+                s' = collapseStack s
             in
             return (Finished, [(s', stps)], b)
         go !c s b 
@@ -696,23 +694,30 @@ limitSolvingFuncConstraintPieces stps = mkSimpleReducer (\_ -> stps) go
             | SolvingFCs _ <- solving_sym_func_constraints s = return (InProgress, [(s, c - 1)], b)
         go _ s b = return (NoProgress, [(s, stps)], b)
 
-collapseStack :: Stck.Stack Frame -> ExprEnv -> Expr -> (Expr, ExprEnv, Stck.Stack Frame)
-collapseStack stck eenv e
-    | Just (CaseFrame i t as, stck') <- fr = collapseStack stck' eenv (Case e i t as)
-    | Just (ApplyFrame e', stck') <- fr = collapseStack stck' eenv (App e e')
+collapseStack :: State t -> State t
+collapseStack s =
+    let (e, eenv, stck) = collapseStack' (exec_stack s) (expr_env s) (tyvar_env s) (getExpr s) in
+    s { curr_expr = CurrExpr Return e
+      , expr_env = eenv
+      , exec_stack = stck }
+
+collapseStack' :: Stck.Stack Frame -> ExprEnv -> TyVarEnv -> Expr -> (Expr, ExprEnv, Stck.Stack Frame)
+collapseStack' stck eenv tv_env e
+    | Just (CaseFrame i t as, stck') <- fr = collapseStack' stck' eenv tv_env (Case e i t as)
+    | Just (ApplyFrame e', stck') <- fr = collapseStack' stck' eenv tv_env (App e e')
     | Just (UpdateFrame n, stck') <- fr =
         -- Update frames require a bit of care: we want to avoid a scenario where we overwrite a variable definition
         -- with a reference to itself (i.e. if the current expression is a variable `v`, and we have an update frame for `v`,
         -- we don't want to insert `v -> v` in the environment.)
         case e of
-            (Var (Id n' _)) | n == n' -> collapseStack stck' eenv e
-            _ -> collapseStack stck' (E.insert n e eenv) e
-    | Just (CastFrame coer, stck') <- fr = collapseStack stck' eenv (Cast e coer)
-    | Just (CatchFrame catch, stck') <- fr = collapseStack stck' eenv (mkApp [Prim Catch TyUnknown, e, catch])
-    | Just (AssumeFrame assume_e, stck') <- fr = collapseStack stck' eenv (Assume Nothing assume_e e)
-    | Just (AssertFrame fc assume_e, stck') <- fr = collapseStack stck' eenv (L.Assert fc assume_e e)
+            (Var (Id n' _)) | n == n' -> collapseStack' stck' eenv tv_env e
+            _ -> collapseStack' stck' (E.insert n e eenv) tv_env (Var . Id n $ typeOf tv_env e)
+    | Just (CastFrame coer, stck') <- fr = collapseStack' stck' eenv tv_env (Cast e coer)
+    | Just (CatchFrame catch, stck') <- fr = collapseStack' stck' eenv tv_env (mkApp [Prim Catch TyUnknown, e, catch])
+    | Just (AssumeFrame assume_e, stck') <- fr = collapseStack' stck' eenv tv_env (Assume Nothing assume_e e)
+    | Just (AssertFrame fc assume_e, stck') <- fr = collapseStack' stck' eenv tv_env (L.Assert fc assume_e e)
     | Just (CurrExprFrame _ _, _) <- fr = (e, eenv, stck)
-    | Just (LitTableFrame _ _, _) <- fr = error "collapseStack: LitTableFrame not supported"
+    | Just (LitTableFrame _ _, _) <- fr = error "collapseStack': LitTableFrame not supported"
     | Nothing <- fr = (e, eenv, stck)
     where
         fr = Stck.pop stck

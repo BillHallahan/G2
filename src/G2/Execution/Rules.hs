@@ -1350,13 +1350,15 @@ retCurrExpr s _ NoAction orig_ce stck ng =
     , ng )
 
 noActionUpdateState :: State t -> CurrExpr -> S.Stack Frame -> State t
-noActionUpdateState s orig_ce stck =
+noActionUpdateState s (CurrExpr _ ce_e) stck =
     let
-        stck' = case orig_ce of
-                    CurrExpr _ (Var (Id n _)) | not $ E.isSymbolic n (expr_env s) -> S.push (UpdateFrame n) stck
+        stck' = case ce_e of
+                    Var (Id n _)
+                        | Just e <- E.deepLookup n (expr_env s)
+                        , not $ isExprValueForm (expr_env s) e -> S.push (UpdateFrame n) stck
                     _ -> stck
     in
-    s { curr_expr = orig_ce
+    s { curr_expr = CurrExpr Evaluate ce_e
       , exec_stack = stck'}
 
 matchPairs :: TV.TyVarEnv -> KnownValues -> Expr -> Expr -> (ExprEnv, [PathCond], [(Expr, Expr)]) -> Maybe (ExprEnv, [PathCond], [(Expr, Expr)])
