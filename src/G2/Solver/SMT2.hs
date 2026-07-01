@@ -15,6 +15,7 @@ module G2.Solver.SMT2 ( Z3StringSolver (..)
                       , SomeSMTSolver (..)
                       , getProcessHandles
                       , getProcessHandlesCont
+                      , getCVC5ProcessHandles
                       , getLinesMatchParens
 
                       , getZ3

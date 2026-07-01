@@ -637,6 +637,9 @@ testFileTests = testGroup "TestFiles"
                                                               , ("map1", 5000, [AtLeast 5])
                                                               , ("dropWhile1", 1000, [AtLeast 5])
                                                               , ("takeWhile1", 1000, [AtLeast 5])
+                                                              , ("find1", 1000, [AtLeast 5])
+                                                              , ("findIndex1", 1000, [AtLeast 5])
+                                                              , ("findIndices1", 1000, [AtLeast 5])
 
                                                               ]
 
@@ -662,6 +665,9 @@ testFileTests = testGroup "TestFiles"
                                         , ("map1", 20000, [Exactly 8])
                                         , ("dropWhile1", 20000, [Exactly 6])
                                         , ("takeWhile1", 20000, [Exactly 5])
+                                        , ("find1", 20000, [Exactly 3])
+                                        , ("findIndex1", 20000, [Exactly 3])
+                                        , ("findIndices1", 20000, [AtLeast 6, AtMost 7])
                                         ]
 
     , checkExpr "tests/TestFiles/Strings/Strings1.hs" 1000 "exclaimEq"
