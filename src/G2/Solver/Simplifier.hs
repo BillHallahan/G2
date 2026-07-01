@@ -13,6 +13,7 @@ module G2.Solver.Simplifier ( Simplifier (..)
                             , LitConc (..)
                             , LamVarSimplifier (..)
                             , ConstSimplifier (..)
+                            , HigherOrderSimplifier (..)
                             ) where
 
 import G2.Language
@@ -334,8 +335,34 @@ instance Simplifier LamVarSimplifier where
 
 data ConstSimplifier = ConstSimplifier
 
-instance Simplifier ConstSimplifier where 
+instance Simplifier ConstSimplifier where
     simplifyPC _ _ (ExtCond e True) |
         [Prim Eq _, e1, e2] <- unApp e, e1 == e2 = []
     simplifyPC _ _ pc = [pc]
     reverseSimplification _ _ _ m = m
+
+-- Rewrite functions with higher order arguments, like fold and map
+data HigherOrderSimplifier = HigherOrderSimplifier
+
+instance Simplifier HigherOrderSimplifier where
+    simplifyPC _ _ pc = [modifyASTs unfoldAppend pc]
+
+    reverseSimplification _ _ _ m = m
+
+unfoldAppend :: Expr -> Expr
+unfoldAppend e | [Prim FoldLeft t, func, accum, App (App (Prim StrAppend t1) xs) ys] <- unApp e =
+    mkApp [ Prim StrAppend t1
+          , mkApp [Prim FoldLeft t, func, accum, xs]
+          , mkApp [Prim FoldLeft t, func, accum, ys]
+          ]
+unfoldAppend e | [Prim FoldLeftI t, func, offset, accum, App (App (Prim StrAppend t1) xs) ys] <- unApp e =
+    mkApp [ Prim StrAppend t1
+          , mkApp [Prim FoldLeftI t, func, offset, accum, xs]
+          , mkApp [Prim FoldLeftI t, func, offset, accum, ys]
+          ]
+unfoldAppend e | [Prim Map t, func, App (App (Prim StrAppend t1) xs) ys] <- unApp e =
+    mkApp [ Prim StrAppend t1
+          , mkApp [Prim Map t, func, xs]
+          , mkApp [Prim Map t, func, ys]
+          ]
+unfoldAppend e = e
