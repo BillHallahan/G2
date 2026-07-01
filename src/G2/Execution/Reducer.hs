@@ -2199,15 +2199,10 @@ logStatesAtTimeHigher = logStatesAtTime' (\ns as -> count_num (ns ++ as))
     where
         count_num xs =
             let
-                (func_arg, post_call) = L.partition (hasUnspecified . Stck.toList . exec_stack) xs
+                (func_arg, post_call) = L.partition (\s -> fc_state_type s == FuncArg) xs
             in
             "Post Call: " ++ show (length post_call) ++ " Func Arg: " ++ show (length func_arg)
         
-        hasUnspecified =
-            any (\case
-                (CurrExprFrame NoAction (CurrExpr Return (Prim UnspecifiedOutput _))) -> True
-                _ -> False)
-
 logStatesAtTime' :: MonadIO m => ([State t] -> [State t] -> String) -> IO (AnalyzeStates m r t)
 logStatesAtTime' extra_info = do
     init_time <- getTime Realtime
