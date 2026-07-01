@@ -388,6 +388,15 @@ filter1 xs = case filter small xs of
     where
         small x = x < 4
 
+filter2 :: [Int] -> [Int] -> Int
+filter2 xs ys = let both = xs ++ ys
+                    ne_4 = filter (/= 4) both
+                in case ne_4 of
+                       (4:_) -> 0 -- Unreachable
+                       x | length x > 10 -> 1
+                       z | isInfixOf [1,5] z -> 2
+                       _ -> 3
+
 map1 :: [Int] -> Char
 map1 xs = case map (*2) xs of
             [2,4,6] -> 'a'
@@ -406,14 +415,3 @@ takeWhile1 xs = case takeWhile (== 4) xs of
                     [4, 4] -> "Reasonable amount of fours. I'm satisfied."
                     [4] -> "Only one four? I'm disappointed."
                     _ -> "Either you gave me way too many fours, or none at all. How could you do this?"
-
-combined :: [Int] -> [Int] -> Int
-combined xs ys = let both = xs ++ ys
-                     ne_4 = filter (/= 4) both
-                 in case ne_4 of
-                        [1,2,3] -> 0
-                        (4:_) -> 1 -- Unreachable
-                        [2,4,6] -> 2
-                        x | length x > 10 -> 3
-                        z | isInfixOf [1,5] z -> 4
-                        _ -> 5
