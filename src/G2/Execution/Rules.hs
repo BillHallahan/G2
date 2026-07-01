@@ -1355,7 +1355,10 @@ noActionUpdateState s (CurrExpr _ ce_e) stck =
         stck' = case ce_e of
                     Var (Id n _)
                         | Just e <- E.deepLookup n (expr_env s)
-                        , not $ isExprValueForm (expr_env s) e -> S.push (UpdateFrame n) stck
+                        -- Take care not to overwrite a symbolic variable with a concrete infinite loop
+                        , let isSymbVar (Var (Id n' _)) = n == n'
+                              isSymbVar _ = False 
+                        , not $ isSymbVar e -> S.push (UpdateFrame n) stck
                     _ -> stck
     in
     s { curr_expr = CurrExpr Evaluate ce_e
