@@ -1189,7 +1189,14 @@ branchOnWHNF n fcs@(first_fc:_) = do
         Just i
             | rel_args <- matching_args !! i
             , whnf_br:_ <- mapMaybe (unspecCase eenv . flip E.deepLookupExpr eenv) $ rel_args -> do
-            
+
+            -- If the whnf_id has been concretized by the EqualitySimplifier, we don't want to violate
+            -- that concretization
+            whnf_br_e <- deepLookupConcOrSymE (idName whnf_br)
+            case whnf_br_e of
+                Just (E.Conc e) -> insertPCStateNG $ ExtCond (mkApp $ [Prim Eq TyUnknown, Var whnf_br, e]) True
+                _ -> return ()
+
             -- Adjust function
             lam_is <- freshIdsN (map (typeOf tv_env) $ fc_args first_fc)
             let all_other_is = deleteAt i lam_is
@@ -1396,7 +1403,7 @@ elimAllNonWHNFOrEquiv no_inline n fcs@(first_fc:_) = do
     let matching_args = transpose $ map fc_args fcs
 
         -- Check if no args are in SWHgNF
-        none_whnf = findIndex (\es -> all (not . isRedForm eenv . inlineVars eenv) es) matching_args
+        none_whnf = findIndex (\es -> all (not . isRedForm eenv . flip E.deepLookupExpr eenv) es) matching_args
         -- Check if all args are the same
         all_same = findIndex (\case es@(head_e:_) -> all (eqUpToTypesInlineIgnoringTicks no_inline eenv head_e) es; [] -> False) matching_args
 
@@ -1435,7 +1442,7 @@ elimAllNonWHNFOrEquiv no_inline n fcs@(first_fc:_) = do
             elimAllNonWHNFOrEquiv no_inline (idName f) new_fcs
         _ -> return [(n, fcs)]
     where
-        isRedForm _ (Case _ _ _ [Alt (LitAlt _) (Assume Nothing _ (Prim UnspecifiedOutput _)), Alt _ _]) = True
+        isRedForm eenv (Case _ _ _ [alt, _]) = isUnspecifiedOutputAlt eenv alt
         isRedForm eenv e = isExprValueForm eenv e
 
 -- | Checks if we can find solutions to all functions.
