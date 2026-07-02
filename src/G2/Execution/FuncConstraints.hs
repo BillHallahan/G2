@@ -1184,7 +1184,7 @@ branchOnWHNF n fcs@(first_fc:_) = do
 
     -- Find an argument that is (1) an ADT where (2) some arguments are wrapped up in WHNF branches
     let matching_args = transpose $ map fc_args fcs
-        unspec_case = findIndex (any (isJust . unspecCase . inlineVars eenv)) matching_args
+        unspec_case = findIndex (any (isJust . unspecCase . flip E.deepLookupExpr eenv)) matching_args
     case unspec_case of
         Just i
             | rel_args <- matching_args !! i
@@ -1234,7 +1234,7 @@ branchOnWHNF n fcs@(first_fc:_) = do
         unspecCase (Case (Var whnf_br) _ _ [Alt (LitAlt _) (Assume _ _ (Prim UnspecifiedOutput _)), Alt _ _]) = Just whnf_br
         unspecCase _ = Nothing
 
-        elimUnspec whnf_br eenv e | (Case (Var whnf_br') _ _ [_, Alt _ ae]) <- inlineVars eenv e
+        elimUnspec whnf_br eenv e | (Case (Var whnf_br') _ _ [_, Alt _ ae]) <- E.deepLookupExpr e eenv
                                   , idName whnf_br == idName whnf_br' = ae
         elimUnspec _ _ e = e
 
