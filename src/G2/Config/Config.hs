@@ -127,6 +127,7 @@ data Config = Config {
     , logInlineFC :: Bool -- ^ Inline variables in the function constraints when logging states
     , log_typeclasses :: Bool -- ^ Including typeclasses in log files
     , log_internal_names :: Bool -- ^ Including mapping to internal names in log files
+    , output_log_files :: Bool -- ^ If False, output log file names, but not the actual files
     , log_fc_solver :: FCLogging -- ^ Print logging during symbolic function constraint solving
     , sharing :: Sharing
     , instTV :: InstTV -- allow the instantiation of types in the beginning or it's instantiate symbolically by functions
@@ -234,6 +235,8 @@ mkConfig homedir = Config Regular
                          <> help "include typeclasses in log file (default: include)")
     <*> flag True False (long "no-log-internal-names"
                          <> help "include mapping to internal names in log file (default: include)")
+    <*> flag True False (long "no-log-files"
+                         <> help "when logging is on, output log file names, but not the actual files")
     <*> flag NoFCLogging FCLogging (long "log-fc-solver"
                          <> help "log during function constraint solving")
     <*> flag Sharing NoSharing (long "no-sharing" <> help "disable sharing")
@@ -463,6 +466,7 @@ mkConfigDirect homedir as m = Config {
     , logInlineFC = False
     , log_typeclasses = True
     , log_internal_names = True
+    , output_log_files = True
     , log_fc_solver = NoFCLogging
     , sharing = boolArg' "sharing" as Sharing Sharing NoSharing
     , instTV = InstBefore

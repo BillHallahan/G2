@@ -58,6 +58,8 @@ data State t = State { expr_env :: E.ExprEnv -- ^ Mapping of `Name`s to `Expr`s
                                                              -- expression pairs that must be proved equivalent
                      , sym_func_constraints :: FuncConstraints -- ^ Constraints on symbolic functions
                      , solving_sym_func_constraints :: FCStatus -- ^ Have we solved the sym func constraints?
+                     , fc_state_type :: FCStateType -- ^ Post call or func arg state?
+
                      , focused :: Focus -- ^ Is the expression that we are currently evaluating in focus (may be unfocused when from NRPC)
                      , handles :: HM.HashMap Name Handle -- ^ Each Handle has a name, that appears in `Expr`s within the `Handle` `Primitive`
                      , mutvar_env :: MutVarEnv -- ^ MutVar `Name`s to mappings of names in the `ExprEnv`.
@@ -211,6 +213,7 @@ instance Hashable Frame
 -- top of the stack and it is time to replace the `curr_expr`.
 data CEAction = EnsureEq Expr -- ^ `EnsureEq focus e1` means that we should check if the `curr_expr` is equal to `e1`
               | UpdateSolvingFCs FCStatus -- ^ Update the Ids/Lits in the solving_sym_func_constraints field
+              | DiscardIfNoError -- ^ Discard the state if it has not hit an error
               | NoAction -- ^ Just replace the curr_expr, no other actions are needed
               deriving (Show, Eq, Read, Generic, Data)
 
@@ -250,6 +253,12 @@ type VarLitEqualities = [(Id, Lit)]
 -- instance Hashable FuncRec
 
 type FuncConstraints = HM.HashMap Name [FuncConstraint]
+
+data FCStateType = PostCall
+                 | FuncArg
+                 deriving (Eq, Show, Read, Generic, Data)
+
+instance Hashable FCStateType
 
 -- | A model is a mapping of symbolic variable names to `Expr`@s@,
 -- typically produced by a solver. 
@@ -314,6 +323,7 @@ instance Named t => Named (State t) where
                , non_red_path_conds = rename old new (non_red_path_conds s)
                , sym_func_constraints = rename old new (sym_func_constraints s)
                , solving_sym_func_constraints = solving_sym_func_constraints s
+               , fc_state_type = fc_state_type s
                , focused = focused s
                , handles = rename old new (handles s)
                , mutvar_env = rename old new (mutvar_env s)
@@ -347,6 +357,7 @@ instance Named t => Named (State t) where
                , non_red_path_conds = renames hm (non_red_path_conds s)
                , sym_func_constraints = renames hm (sym_func_constraints s)
                , solving_sym_func_constraints = solving_sym_func_constraints s
+               , fc_state_type = fc_state_type s
                , focused = focused s
                , handles = renames hm (handles s)
                , mutvar_env = renames hm (mutvar_env s)
