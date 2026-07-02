@@ -22,10 +22,10 @@ def call_g2_process(filename, func, var_settings):
 
 def run_nofib_bench(filename, var_settings, timeout):
     # --check-asserts --error-asserts --accept-times --print-num-nrpc --print-num-red-rules --solver-time --print-num-solver-calls --no-step-limit --search subpath --time 60
-    return run_g2(filename, "main", ["--check-asserts", "--error-asserts", "--accept-times", "--print-num-nrpc", "--print-num-red-rules", "--solver-time", "--print-num-solver-calls", "--no-step-limit", "--search", "subpath", "--time", str(timeout)] + var_settings)
+    return run_g2(filename, "compare", ["--check-asserts", "--error-asserts", "--accept-times", "--print-num-red-rules", "--solver-time", "--print-num-solver-calls", "--no-step-limit", "--search", "subpath", "--time", str(timeout)] + var_settings)
 
 def run_nofib_bench_nrpc(filename, var_settings, timeout):
-    return run_nofib_bench(filename, ["--nrpc", "--higher-order", "symbolic"] + var_settings, timeout)
+    return run_nofib_bench(filename, ["--lib-nrpc", "--print-num-nrpc"] + var_settings, timeout)
 
 def read_float(pre, out):
     reg = re.search(pre + r": ((?:\d|\.|e|-)*)", out)
@@ -108,4 +108,4 @@ def run_nofib_set(setname, var_settings, timeout):
                     print("NRPC:")
                     process_output(res_bench_nrpc)
 
-run_nofib_set("imaginary", [], 60)
+run_nofib_set("imaginary", [], 10)
