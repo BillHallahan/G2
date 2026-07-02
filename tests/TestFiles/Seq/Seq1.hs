@@ -393,9 +393,7 @@ filter2 xs ys = let both = xs ++ ys
                     ne_4 = filter (/= 4) both
                 in case ne_4 of
                        (4:_) -> 0 -- Unreachable
-                       x | length x > 10 -> 1
-                       z | isInfixOf [1,5] z -> 2
-                       _ -> 3
+                       x -> if length x == 3 then 1 else 2
 
 map1 :: [Int] -> Char
 map1 xs = case map (*2) xs of

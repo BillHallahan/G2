@@ -780,6 +780,12 @@ idToNameSort :: TV.TyVarEnv -> Id -> (Name, Sort)
 idToNameSort tv (Id n t) = (n, typeToSMT tv t)
 
 typeToSMT :: TV.TyVarEnv -> Type -> Sort
+typeToSMT tv (TyForAll _ t@(TyFun _ _)) =
+    let
+        arg_sort = map (typeToSMT tv . tyVarSubst tv) $ anonArgumentTypes t
+        ret_sort = typeToSMT tv . tyVarSubst tv $ returnType t
+    in
+    SortFunc arg_sort ret_sort
 typeToSMT tv t@(TyFun _ _) =
     let
         arg_sort = map (typeToSMT tv . tyVarSubst tv) $ anonArgumentTypes t
@@ -826,6 +832,7 @@ adtTypeToSMTSeq _ (TyCon (Name "Int" _ _ _) _) = SortSeq SortInt
 adtTypeToSMTSeq _ (TyCon (Name "Integer" _ _ _) _) = SortSeq SortInt
 adtTypeToSMTSeq _ (TyCon (Name "Float" _ _ _) _) = SortSeq SortFloat
 adtTypeToSMTSeq _ (TyCon (Name "Double" _ _ _) _) = SortSeq SortDouble
+adtTypeToSMTSeq _ (TyCon (Name "Bool" _ _ _) _) = SortSeq SortBool
 adtTypeToSMTSeq tv t | TyCon n _:ts <- unTyApp t = SortSeq . ADTSort (nameToStr n) $ map (typeToSMT tv) ts
 adtTypeToSMTSeq tv (TyVar (Id n _)) | Just t <- TV.deepLookupName tv n = adtTypeToSMTSeq tv t
 adtTypeToSMTSeq _ t = error $ "Unsupported type in adtTypeToSMTSeq: " ++ show t
