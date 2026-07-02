@@ -1153,7 +1153,7 @@ unfoldADTArgs n fcs@(first_fc:_) = do
                                                                 else all_other_split_ons ++ map (const NoSplit) as
 
                                                 new_fc = FC { fc_preconds = fc_preconds fc
-                                                            , fc_args = all_other_args ++ filter (not . isType . inlineVars eenv) as
+                                                            , fc_args = all_other_args ++ filter (not . isType . flip E.deepLookupExpr eenv) as
                                                             , fc_split_on = new_splits
                                                             , fc_ret = fc_ret fc
                                                             }
@@ -1184,11 +1184,11 @@ branchOnWHNF n fcs@(first_fc:_) = do
 
     -- Find an argument that is (1) an ADT where (2) some arguments are wrapped up in WHNF branches
     let matching_args = transpose $ map fc_args fcs
-        unspec_case = findIndex (any (isJust . unspecCase . flip E.deepLookupExpr eenv)) matching_args
+        unspec_case = findIndex (any (isJust . unspecCase eenv . flip E.deepLookupExpr eenv)) matching_args
     case unspec_case of
         Just i
             | rel_args <- matching_args !! i
-            , whnf_br:_ <- mapMaybe (unspecCase . inlineVars eenv) $ rel_args -> do
+            , whnf_br:_ <- mapMaybe (unspecCase eenv . flip E.deepLookupExpr eenv) $ rel_args -> do
             
             -- Adjust function
             lam_is <- freshIdsN (map (typeOf tv_env) $ fc_args first_fc)
@@ -1231,8 +1231,9 @@ branchOnWHNF n fcs@(first_fc:_) = do
 
 
     where
-        unspecCase (Case (Var whnf_br) _ _ [Alt (LitAlt _) (Assume _ _ (Prim UnspecifiedOutput _)), Alt _ _]) = Just whnf_br
-        unspecCase _ = Nothing
+        unspecCase eenv (Case (Var whnf_br) _ _ [alt, _])
+            | isUnspecifiedOutputAlt eenv alt = Just whnf_br
+        unspecCase _ _ = Nothing
 
         elimUnspec whnf_br eenv e | (Case (Var whnf_br') _ _ [_, Alt _ ae]) <- E.deepLookupExpr e eenv
                                   , idName whnf_br == idName whnf_br' = ae
@@ -1666,6 +1667,12 @@ deleteAt idx xs | (lft, (_:rgt)) <- splitAt idx xs = lft ++ rgt
 replaceAt :: Int -> a -> [a] -> [a]
 replaceAt idx x xs | (lft, (_:rgt)) <- splitAt idx xs = lft ++ [x] ++ rgt
                    | otherwise = error "replaceAt: bad index"
+
+isUnspecifiedOutputAlt :: ExprEnv -> Alt -> Bool
+isUnspecifiedOutputAlt eenv (Alt (LitAlt _) e)
+    | Assume Nothing _ e' <- E.deepLookupExpr e eenv
+    , Prim UnspecifiedOutput _ <- E.deepLookupExpr e' eenv = True
+isUnspecifiedOutputAlt _ _ = False
 
 -------------------------------------------------------------------------------
 -- Function argument states
