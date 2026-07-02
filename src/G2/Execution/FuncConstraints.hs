@@ -912,7 +912,7 @@ replaceADTSymVars fcs = do
         go eenv tenv tv_env $ fc_ret fc) fcs
     where
         go eenv tenv tv_env e
-            | Var (Id n t) <- inlineVars eenv e
+            | Var (Id n t) <- E.deepLookupExpr e eenv
             , E.isSymbolic n eenv
             , TyCon tn _:tycon_ts <- unTyApp $ tyVarSubst tv_env t
             , Just (DataTyCon { data_cons = dcs }) <- HM.lookup tn tenv = do
@@ -1094,7 +1094,7 @@ unfoldADTArgs n fcs@(first_fc:_) = do
 
     -- Find an argument that is (1) an ADT where (2) all arguments are data constructor applications
     let matching_args = transpose $ map fc_args fcs
-        all_whnf = findIndex (all (isADT . inlineVars eenv)) matching_args
+        all_whnf = findIndex (all (isADT . flip E.deepLookupExpr eenv)) matching_args
     case all_whnf of
         Just i | e:_ <- matching_args !! i-> do
             let t = typeOf tv_env e
@@ -1280,8 +1280,8 @@ splitWHNFAndNonWHNF n fcs@(first_fc:_) = do
     tv_env <- tyVarEnv
 
     let matching_args = transpose $ map fc_args fcs
-        only_some_whnf = findIndices (\e -> any (isADT . inlineVars eenv) e
-                                        && any (not . isADT . inlineVars eenv) e ) matching_args
+        only_some_whnf = findIndices (\e -> any (isADT . flip E.deepLookupExpr eenv) e
+                                        && any (not . isADT . flip E.deepLookupExpr eenv) e ) matching_args
     
     let arg_tys = map (typeOf tv_env) $ fc_args first_fc
 
@@ -1337,7 +1337,7 @@ splitWHNFAndNonWHNFIndex i n fcs@(first_fc:_) = do
 
     -- Rewrite constraints which do not have argument in WHNF
     non_whnf_cons <- mapMaybeM
-                        (\fc -> if | not . isADT . inlineVars eenv $ fc_args fc !! i -> do
+                        (\fc -> if | not . isADT . flip E.deepLookupExpr eenv $ fc_args fc !! i -> do
                                         -- Add a path constraint that the predicate does not hold
                                         let pred_args = filter (isPrimType . typeOf tv_env) $ fc_args fc
                                             pred_app = mkApp $ Var f_pred:pred_args
@@ -1351,7 +1351,7 @@ splitWHNFAndNonWHNFIndex i n fcs@(first_fc:_) = do
 
     -- Rewrite constraints which do have argument in WHNF.
     -- Allow either satisfying OR not satisfying the predicate
-    whnf_cons <- concatMapM (\fc -> if | isADT . inlineVars eenv $ fc_args fc !! i -> do
+    whnf_cons <- concatMapM (\fc -> if | isADT . flip E.deepLookupExpr eenv $ fc_args fc !! i -> do
                                         -- Add a path constraint that the predicate does not hold
                                         let pred_args = filter (isPrimType . typeOf tv_env) $ fc_args fc
                                             pred_app = mkApp $ Var f_pred:pred_args
@@ -1589,7 +1589,7 @@ splitReturns' n fcs@(first_fc:_) = do
     if | let ret_ty_unapp = unTyApp . tyVarSubst tv_env . typeOf tv_env $ fc_ret first_fc
        , TyCon tn _:tycon_ts <- ret_ty_unapp
        , Just (DataTyCon { data_cons = dcs}) <- HM.lookup tn tenv
-       , all (isADT . inlineVars eenv . fc_ret) fcs -> do
+       , all (isADT . flip E.deepLookupExpr eenv . fc_ret) fcs -> do
 
             let ret_ty = typeOf tv_env $ fc_ret first_fc
 
