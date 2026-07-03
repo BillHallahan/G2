@@ -58,7 +58,9 @@ primDefs pt = case (boolName pt, charName pt, listName pt, unitName pt) of
 
 primDefs' :: Name -> Name -> Name -> Name -> [(T.Text, Expr)]
 primDefs' b c l unit =
-              [ ("$==#", Prim Eq $ tyIntIntBool b)
+              [ ("notBool#", Prim Not $ tyBoolBoolBool b)
+
+              , ("$==#", Prim Eq $ tyIntIntBool b)
               , ("$/=#", Prim Neq $ tyIntIntBool b)
               , ("+#", Prim Plus tyIntIntInt)
               , ("*#", Prim Mult tyIntIntInt)
@@ -453,6 +455,10 @@ dummyId name = Id (Name name Nothing 0 Nothing)
 
 binder :: Type -> Id
 binder = Id (Name "b" Nothing 0 Nothing)
+
+tyBoolBoolBool :: Name -> Type
+tyBoolBoolBool n = TyFun bool' $ TyFun bool' bool'
+    where bool' = TyCon n TYPE
 
 tyIntInt :: Type
 tyIntInt = TyFun TyLitInt TyLitInt
