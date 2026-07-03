@@ -780,12 +780,6 @@ idToNameSort :: TV.TyVarEnv -> Id -> (Name, Sort)
 idToNameSort tv (Id n t) = (n, typeToSMT tv t)
 
 typeToSMT :: TV.TyVarEnv -> Type -> Sort
-typeToSMT tv (TyForAll _ t@(TyFun _ _)) =
-    let
-        arg_sort = map (typeToSMT tv . tyVarSubst tv) $ anonArgumentTypes t
-        ret_sort = typeToSMT tv . tyVarSubst tv $ returnType t
-    in
-    SortFunc arg_sort ret_sort
 typeToSMT tv t@(TyFun _ _) =
     let
         arg_sort = map (typeToSMT tv . tyVarSubst tv) $ anonArgumentTypes t
