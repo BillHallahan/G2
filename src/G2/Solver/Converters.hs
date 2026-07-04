@@ -1206,6 +1206,9 @@ smtastToExpr _ _ _ _ (VReal r) = Lit $ LitRational r
 smtastToExpr _ _ _ _ (VBitVec bv) = Lit $ LitBV bv
 smtastToExpr kv _ _ _ (VBool True) = mkTrue kv
 smtastToExpr kv _ _ _ (VBool False) = mkFalse kv
+smtastToExpr _ _ _ TyLitChar (VString cs)
+    | [c] <- cs = Lit $ LitChar c
+    | otherwise = error "smtastToExpr: bad string for char"
 smtastToExpr kv tenv _ _ (VString cs) = mkG2List kv tenv (tyChar kv) $ map (App (mkDCChar kv tenv) . Lit . LitChar) cs
 smtastToExpr _ _ _ _ (VChar c) = Lit $ LitChar c
 smtastToExpr _ _ _ _ (V n s) = Var $ Id (certainStrToName n) (sortToType s)
