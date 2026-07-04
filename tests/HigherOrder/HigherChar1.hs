@@ -1,7 +1,7 @@
 {-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
-module Arithmetics.Interpreter where
+module HigherChar1 where
 
 type Env = String -> Int
           

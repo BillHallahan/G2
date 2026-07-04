@@ -799,6 +799,7 @@ testFileTests = testGroup "TestFiles"
     , checkExprRetTrueSymFunc "tests/HigherOrder/HigherAssume.hs" 2500 "propA" [Exactly 0]
 
     , checkInputOutputsSymFuncConstraints "tests/HigherOrder/HigherChar1.hs" [("eval", 10000, [AtLeast 2])]
+    , checkInputOutputsSymFuncConstraints "tests/HigherOrder/HigherChar2.hs" [("eval", 10000, [AtLeast 2])]
 
     , checkInputOutputsWithValidate "tests/BaseTests/ListTests.hs" [ ("lengthN", 2000, [AtLeast 1])
                                                                 , ("lengthBranch", 2000, [AtLeast 4])]
