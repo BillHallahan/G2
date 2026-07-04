@@ -551,8 +551,8 @@ evalCase s@(State { expr_env = eenv
   -- expression.
   | e:_ <- unApp $ unsafeElimOuterCast mexpr
   , isData e
-      || isLit e
-      || isLam e
+      || isLit mexpr
+      || isLam mexpr
       || (case e of Var i@(Id n _) -> E.isSymbolic n eenv && hasFuncType (typeOf tvnv i); _ -> False)
   , (Alt _ expr):_ <- matchDefaultAlts alts =
       let

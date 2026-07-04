@@ -912,7 +912,7 @@ replaceADTSymVars fcs = do
         go eenv tenv tv_env $ fc_ret fc) fcs
     where
         go eenv tenv tv_env e
-            | Var (Id n t) <- inlineVars eenv e
+            | Var (Id n t) <- E.deepLookupExpr e eenv
             , E.isSymbolic n eenv
             , TyCon tn _:tycon_ts <- unTyApp $ tyVarSubst tv_env t
             , Just (DataTyCon { data_cons = dcs }) <- HM.lookup tn tenv = do
@@ -1094,7 +1094,7 @@ unfoldADTArgs n fcs@(first_fc:_) = do
 
     -- Find an argument that is (1) an ADT where (2) all arguments are data constructor applications
     let matching_args = transpose $ map fc_args fcs
-        all_whnf = findIndex (all (isADT . inlineVars eenv)) matching_args
+        all_whnf = findIndex (all (isADT . flip E.deepLookupExpr eenv)) matching_args
     case all_whnf of
         Just i | e:_ <- matching_args !! i-> do
             let t = typeOf tv_env e
@@ -1153,7 +1153,7 @@ unfoldADTArgs n fcs@(first_fc:_) = do
                                                                 else all_other_split_ons ++ map (const NoSplit) as
 
                                                 new_fc = FC { fc_preconds = fc_preconds fc
-                                                            , fc_args = all_other_args ++ filter (not . isType . inlineVars eenv) as
+                                                            , fc_args = all_other_args ++ filter (not . isType . flip E.deepLookupExpr eenv) as
                                                             , fc_split_on = new_splits
                                                             , fc_ret = fc_ret fc
                                                             }
@@ -1184,12 +1184,19 @@ branchOnWHNF n fcs@(first_fc:_) = do
 
     -- Find an argument that is (1) an ADT where (2) some arguments are wrapped up in WHNF branches
     let matching_args = transpose $ map fc_args fcs
-        unspec_case = findIndex (any (isJust . unspecCase . flip E.deepLookupExpr eenv)) matching_args
+        unspec_case = findIndex (any (isJust . unspecCase eenv . flip E.deepLookupExpr eenv)) matching_args
     case unspec_case of
         Just i
             | rel_args <- matching_args !! i
-            , whnf_br:_ <- mapMaybe (unspecCase . inlineVars eenv) $ rel_args -> do
-            
+            , whnf_br:_ <- mapMaybe (unspecCase eenv . flip E.deepLookupExpr eenv) $ rel_args -> do
+
+            -- If the whnf_id has been concretized by the EqualitySimplifier, we don't want to violate
+            -- that concretization
+            whnf_br_e <- deepLookupConcOrSymE (idName whnf_br)
+            case whnf_br_e of
+                Just (E.Conc e) -> insertPCStateNG $ ExtCond (mkApp $ [Prim Eq TyUnknown, Var whnf_br, e]) True
+                _ -> return ()
+
             -- Adjust function
             lam_is <- freshIdsN (map (typeOf tv_env) $ fc_args first_fc)
             let all_other_is = deleteAt i lam_is
@@ -1231,8 +1238,9 @@ branchOnWHNF n fcs@(first_fc:_) = do
 
 
     where
-        unspecCase (Case (Var whnf_br) _ _ [Alt (LitAlt _) (Assume _ _ (Prim UnspecifiedOutput _)), Alt _ _]) = Just whnf_br
-        unspecCase _ = Nothing
+        unspecCase eenv (Case (Var whnf_br) _ _ [alt, _])
+            | isUnspecifiedOutputAlt eenv alt = Just whnf_br
+        unspecCase _ _ = Nothing
 
         elimUnspec whnf_br eenv e | (Case (Var whnf_br') _ _ [_, Alt _ ae]) <- E.deepLookupExpr e eenv
                                   , idName whnf_br == idName whnf_br' = ae
@@ -1280,8 +1288,8 @@ splitWHNFAndNonWHNF n fcs@(first_fc:_) = do
     tv_env <- tyVarEnv
 
     let matching_args = transpose $ map fc_args fcs
-        only_some_whnf = findIndices (\e -> any (isADT . inlineVars eenv) e
-                                        && any (not . isADT . inlineVars eenv) e ) matching_args
+        only_some_whnf = findIndices (\e -> any (isADT . flip E.deepLookupExpr eenv) e
+                                        && any (not . isADT . flip E.deepLookupExpr eenv) e ) matching_args
     
     let arg_tys = map (typeOf tv_env) $ fc_args first_fc
 
@@ -1337,7 +1345,7 @@ splitWHNFAndNonWHNFIndex i n fcs@(first_fc:_) = do
 
     -- Rewrite constraints which do not have argument in WHNF
     non_whnf_cons <- mapMaybeM
-                        (\fc -> if | not . isADT . inlineVars eenv $ fc_args fc !! i -> do
+                        (\fc -> if | not . isADT . flip E.deepLookupExpr eenv $ fc_args fc !! i -> do
                                         -- Add a path constraint that the predicate does not hold
                                         let pred_args = filter (isPrimType . typeOf tv_env) $ fc_args fc
                                             pred_app = mkApp $ Var f_pred:pred_args
@@ -1351,7 +1359,7 @@ splitWHNFAndNonWHNFIndex i n fcs@(first_fc:_) = do
 
     -- Rewrite constraints which do have argument in WHNF.
     -- Allow either satisfying OR not satisfying the predicate
-    whnf_cons <- concatMapM (\fc -> if | isADT . inlineVars eenv $ fc_args fc !! i -> do
+    whnf_cons <- concatMapM (\fc -> if | isADT . flip E.deepLookupExpr eenv $ fc_args fc !! i -> do
                                         -- Add a path constraint that the predicate does not hold
                                         let pred_args = filter (isPrimType . typeOf tv_env) $ fc_args fc
                                             pred_app = mkApp $ Var f_pred:pred_args
@@ -1395,7 +1403,7 @@ elimAllNonWHNFOrEquiv no_inline n fcs@(first_fc:_) = do
     let matching_args = transpose $ map fc_args fcs
 
         -- Check if no args are in SWHgNF
-        none_whnf = findIndex (\es -> all (not . isRedForm eenv . inlineVars eenv) es) matching_args
+        none_whnf = findIndex (\es -> all (not . isRedForm eenv . flip E.deepLookupExpr eenv) es) matching_args
         -- Check if all args are the same
         all_same = findIndex (\case es@(head_e:_) -> all (eqUpToTypesInlineIgnoringTicks no_inline eenv head_e) es; [] -> False) matching_args
 
@@ -1434,7 +1442,7 @@ elimAllNonWHNFOrEquiv no_inline n fcs@(first_fc:_) = do
             elimAllNonWHNFOrEquiv no_inline (idName f) new_fcs
         _ -> return [(n, fcs)]
     where
-        isRedForm _ (Case _ _ _ [Alt (LitAlt _) (Assume Nothing _ (Prim UnspecifiedOutput _)), Alt _ _]) = True
+        isRedForm eenv (Case _ _ _ [alt, _]) = isUnspecifiedOutputAlt eenv alt
         isRedForm eenv e = isExprValueForm eenv e
 
 -- | Checks if we can find solutions to all functions.
@@ -1589,7 +1597,7 @@ splitReturns' n fcs@(first_fc:_) = do
     if | let ret_ty_unapp = unTyApp . tyVarSubst tv_env . typeOf tv_env $ fc_ret first_fc
        , TyCon tn _:tycon_ts <- ret_ty_unapp
        , Just (DataTyCon { data_cons = dcs}) <- HM.lookup tn tenv
-       , all (isADT . inlineVars eenv . fc_ret) fcs -> do
+       , all (isADT . flip E.deepLookupExpr eenv . fc_ret) fcs -> do
 
             let ret_ty = typeOf tv_env $ fc_ret first_fc
 
@@ -1666,6 +1674,12 @@ deleteAt idx xs | (lft, (_:rgt)) <- splitAt idx xs = lft ++ rgt
 replaceAt :: Int -> a -> [a] -> [a]
 replaceAt idx x xs | (lft, (_:rgt)) <- splitAt idx xs = lft ++ [x] ++ rgt
                    | otherwise = error "replaceAt: bad index"
+
+isUnspecifiedOutputAlt :: ExprEnv -> Alt -> Bool
+isUnspecifiedOutputAlt eenv (Alt (LitAlt _) e)
+    | Assume Nothing _ e' <- E.deepLookupExpr e eenv
+    , Prim UnspecifiedOutput _ <- E.deepLookupExpr e' eenv = True
+isUnspecifiedOutputAlt _ _ = False
 
 -------------------------------------------------------------------------------
 -- Function argument states
