@@ -200,7 +200,7 @@ arrayExpr = do
     (do
         _ <- reserved "store"
         array <- sExpr Nothing
-        args <- many1 (sExpr Nothing)
+        args <- sepBy1 (sExpr Nothing) whiteSpace
         let ind = init args
             val = last args
         return $ ArrayStore array ind val)
