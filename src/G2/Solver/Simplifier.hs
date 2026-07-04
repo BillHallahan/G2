@@ -365,4 +365,14 @@ unfoldAppend e | [Prim Map t, func, App (App (Prim StrAppend t1) xs) ys] <- unAp
           , mkApp [Prim Map t, func, xs]
           , mkApp [Prim Map t, func, ys]
           ]
+unfoldAppend e | [Prim MapConcat t, func, App (App (Prim StrAppend t1) xs) ys] <- unApp e =
+    mkApp [ Prim StrAppend t1
+          , mkApp [Prim MapConcat t, func, xs]
+          , mkApp [Prim MapConcat t, func, ys]
+          ]
+unfoldAppend e | [Prim MapConcatI t, func, App (App (Prim StrAppend t1) xs) ys] <- unApp e =
+    mkApp [ Prim StrAppend t1
+          , mkApp [Prim MapConcatI t, func, xs]
+          , mkApp [Prim MapConcatI t, func, ys]
+          ]
 unfoldAppend e = e

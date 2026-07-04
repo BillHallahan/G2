@@ -1097,4 +1097,4 @@ mapNG f xs ng = swap $ mapAccumR (\xs' ng' -> swap $ f ng' xs') ng xs
 {-# INLINE mapNG #-}
 
 freshLamId :: Type -> Unique -> Id
-freshLamId t idx = Id (Name "G2_!!_LAM_BINDER" Nothing (idx) Nothing) t
+freshLamId t idx = Id (Name "G2_!!_LAM_BINDER" Nothing idx Nothing) t
