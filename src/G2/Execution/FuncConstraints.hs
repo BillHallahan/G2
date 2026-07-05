@@ -914,7 +914,7 @@ replaceADTSymVars fcs = do
         go eenv tenv tv_env e
             | v@(Var (Id n t)) <- E.deepLookupExpr e eenv
             , E.isSymbolic n eenv
-            , TyCon tn _:tycon_ts <- unTyApp $ tyVarSubst tv_env t
+            , tycon@(TyCon tn _):tycon_ts <- unTyApp $ tyVarSubst tv_env t
             , Just (DataTyCon { data_cons = dcs }) <- HM.lookup tn tenv = do
                 branch_n <- freshSeededStringN "n"
                 bindee <- freshSeededStringN "bindee"
@@ -925,14 +925,16 @@ replaceADTSymVars fcs = do
                 insertPCStateNG (ExtCond (mkApp $ [Prim Le TyUnknown, Var branch_i, Lit (LitInt $ genericLength dcs)]) True)
 
                 -- If we have a boolean, have to make sure we don't violate path conds
-                zipWithM_ (\i dc -> insertPCStateNG
-                                        (ExtCond 
-                                            (mkApp [ Prim Eq TyUnknown
-                                                   , mkApp [Prim Eq TyUnknown, Var branch_i, Lit $ LitInt i]
-                                                   , mkApp [Prim Eq TyUnknown, v, Data dc]
-                                                   ])
-                                        $ True)
-                         ) [1, 2] dcs
+                ty_bool <- tyBoolT
+                when (tycon == ty_bool) $
+                    zipWithM_ (\i dc -> insertPCStateNG
+                                            (ExtCond 
+                                                (mkApp [ Prim Eq TyUnknown
+                                                    , mkApp [Prim Eq TyUnknown, Var branch_i, Lit $ LitInt i]
+                                                    , mkApp [Prim Eq TyUnknown, v, Data dc]
+                                                    ])
+                                            $ True)
+                            ) [1, 2] dcs
 
                 alts_expr <- mapM (\dc -> do
                                     let dc_ty = typeOf tv_env dc
@@ -1479,7 +1481,8 @@ solveLitVals solver simplifier fcs = do
             [] -> return []
             (fc_first:_) -> do
                     let prim_arg_tys = map (typeOf tv_env) $ filter (isPrimType . typeOf tv_env) $ fc_args fc_first
-                        call_ty = mkTyFun $ prim_arg_tys ++ [TyLitInt]
+                        ret_ty = typeOf tv_env $ fc_ret fc_first
+                        call_ty = mkTyFun $ prim_arg_tys ++ if isPrimTypeOrBool ret_ty then [ret_ty] else [TyLitInt]
                     sel_func <- freshSeededIdN (Name "sel" Nothing 0 Nothing) call_ty
 
                     let fc_prim = map (\fc -> fc { fc_args = filter (isPrimType . typeOf tv_env) $ fc_args fc}) fc_list
@@ -1532,14 +1535,13 @@ solveLitVals solver simplifier fcs = do
                         sel_func_app = mkApp . map Var $ sel_func:prim_lam_is
 
                     -- See Note [Uninterpreted Return Value], above
-                    if isPrimType (typeOf tv_env $ fc_ret fc_first)
+                    if isPrimTypeOrBool (typeOf tv_env $ fc_ret fc_first)
                         then
                             insertE n $ mkLams (zip (repeat TermL) lam_is) sel_func_app
                         else do
                             bindee <- freshIdN TyLitInt
                             let def_alt = Alt Default (Var unified_id)
                                 alts = zipWith (\i fc -> Alt (LitAlt (LitInt i)) $ fc_ret fc) [1..] fc_inlined 
-                                ret_ty = typeOf tv_env (fc_ret fc_first)
                                 cse = Case sel_func_app bindee ret_ty (alts ++ [def_alt])
                                 lam_cse = mkLams (zip (repeat TermL) lam_is) cse
                             insertE n lam_cse

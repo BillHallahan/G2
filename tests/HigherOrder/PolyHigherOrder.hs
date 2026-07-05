@@ -9,7 +9,7 @@ f g l = case g l of
     EmptyList -> True
 
 h :: (Num a, Ord a) => (a -> a) -> Bool
-h g = not (g 3 <= g 6)
+h g = myNot (g 3 <= g 6)
 
 myNot :: Bool -> Bool
 myNot True = False
@@ -40,7 +40,8 @@ retStream2 g x y =
 
 
 tupleTest :: (Num a, Ord a) => ((a, a) -> (a, a)) -> Bool
-tupleTest f = let (a,b) = f (3,6) in not (a <= b)
+tupleTest f = let (a,b) = f (3,6) in myNot
+ (a <= b)
 
 list1 :: (a -> Int) -> [a] -> Int
 list1 f xs =
