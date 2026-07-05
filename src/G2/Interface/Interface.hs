@@ -453,7 +453,8 @@ initRedHaltOrd s mod_name solver simplifier config exec_func_names no_nrpc_names
 
         orderer = case search_strat config of
                         Subpath -> SomeOrderer . liftOrderer $ lengthNSubpathOrderer (subpath_length config)
-                        Iterative -> SomeOrderer $ pickLeastUsedOrderer
+                        ADTHeightOrd -> SomeOrderer $ adtHeightOrderer 0
+                        Iterative -> SomeOrderer pickLeastUsedOrderer
 
     let fc_logging = log_fc_solver config
 

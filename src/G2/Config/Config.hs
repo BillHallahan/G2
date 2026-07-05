@@ -67,7 +67,7 @@ data ShowType = Lax | Aggressive deriving (Eq, Show, Read)
 
 data SMTSolver = ConZ3 | ConZ3Str3 | ConCVC5 | ConOstrich deriving (Eq, Show, Read)
 
-data SearchStrategy = Iterative | Subpath deriving (Eq, Show, Read)
+data SearchStrategy = Iterative | Subpath | ADTHeightOrd deriving (Eq, Show, Read)
 
 data HigherOrderSolver = AllFuncs
                        | SingleFunc
@@ -438,6 +438,7 @@ mkSearchStrategy =
     option (eitherReader (\s -> case s of
                                     "iter" -> Right Iterative
                                     "subpath" -> Right Subpath
+                                    "height" -> Right ADTHeightOrd
                                     _ -> Left "Unsupported search strategy"))
             ( long "search"
             <> metavar "SEARCH"
