@@ -882,6 +882,7 @@ prettyLitTables pg lts = T.concat (map pair $ HM.toList lts)
 prettyCEAction :: PrettyGuide -> CEAction -> T.Text
 prettyCEAction pg (EnsureEq e) = "EnsureEq " <> mkDirtyExprHaskell pg e
 prettyCEAction pg (UpdateSolvingFCs fc_stat) = "UpdateSolving " <> prettyFCStatus pg fc_stat
+prettyCEAction _ DiscardIfNoError = "DiscardIfNoError"
 prettyCEAction _ NoAction = "NoAction"
 
 prettyEEnv :: TV.TyVarEnv -> PrettyGuide -> CurrExpr -> Stack Frame -> ExprEnv -> T.Text

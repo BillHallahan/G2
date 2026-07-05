@@ -1075,14 +1075,14 @@ toSolverASTSeq = go
             "(seq.map (lambda ((" <> TB.string n1 <> " " <> sortNameLam s1 <> ")) "
                     <> goBack x <> ") " <> goBack y <> ")"
         go (MapConcatSMT n1 s1 accum_s x y) =
-            "(seq.fold_left (lambda ((G2_INTERNAL_acc " <> sortNameLam accum_s <> " "
+            "(seq.fold_left (lambda ((G2_INTERNAL_acc " <> sortNameLam accum_s <> ") ("
                     <> TB.string n1 <> " " <> sortNameLam s1 <> ")) (seq.++ G2_INTERNAL_acc "
-                    <> goBack x <> ")) (as seq.empty (" <> sortNameLam accum_s <> ")) " <> goBack y <> ")"
+                    <> goBack x <> ")) (as seq.empty " <> sortNameLam accum_s <> ") " <> goBack y <> ")"
         go (MapConcatISMT n1 s1 n2 s2 accum_s x y) =
             "(seq.fold_lefti (lambda ((" <> TB.string n1 <> " " <> sortNameLam s1
-                    <> " G2_INTERNAL_acc " <> sortNameLam accum_s <> " "
+                    <> ") (G2_INTERNAL_acc " <> sortNameLam accum_s <> ") ("
                     <> TB.string n2 <> " " <> sortNameLam s2 <> ")) "
-                    <> "(seq.++ G2_INTERNAL_acc "<> goBack x <> ")) 0 (as seq.empty (" <> sortNameLam accum_s <> ")) " <> goBack y <> ")"
+                    <> "(seq.++ G2_INTERNAL_acc "<> goBack x <> ")) 0 (as seq.empty " <> sortNameLam accum_s <> ") " <> goBack y <> ")"
         go (FoldLeftSMT n1 s1 n2 s2 x y z) =
             "(seq.fold_left (lambda ((" <> TB.string n1 <> " " <> sortNameLam s1 <> ")"
                     <> " (" <> TB.string n2 <> " " <> sortNameLam s2 <> ")) "

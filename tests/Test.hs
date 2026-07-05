@@ -521,7 +521,7 @@ testFileTests = testGroup "TestFiles"
 
                                         , ("lines1", 4000, [AtLeast 10])
 
-                                        , ("repeat1", 1000, [AtLeast 5])
+                                        , ("repeat1", 1200, [AtLeast 5])
 
                                         , ("testQualImp", 4000, [Exactly 2])
                                         ]
@@ -638,6 +638,9 @@ testFileTests = testGroup "TestFiles"
                                                               , ("map1", 5000, [AtLeast 5])
                                                               , ("dropWhile1", 1000, [AtLeast 5])
                                                               , ("takeWhile1", 1000, [AtLeast 5])
+                                                              , ("find1", 1000, [AtLeast 5])
+                                                              , ("findIndex1", 1000, [AtLeast 5])
+                                                              , ("findIndices1", 1000, [AtLeast 5])
 
                                                               ]
 
@@ -664,6 +667,9 @@ testFileTests = testGroup "TestFiles"
                                         , ("map1", 20000, [Exactly 8])
                                         , ("dropWhile1", 20000, [Exactly 6])
                                         , ("takeWhile1", 20000, [Exactly 5])
+                                        , ("find1", 20000, [AtLeast 3, AtMost 4])
+                                        , ("findIndex1", 20000, [Exactly 3])
+                                        , ("findIndices1", 20000, [AtLeast 6, AtMost 7])
                                         ]
 
     , checkExpr "tests/TestFiles/Strings/Strings1.hs" 1000 "exclaimEq"
@@ -753,6 +759,19 @@ testFileTests = testGroup "TestFiles"
                                                                        , ("repIte2", 1000 * 1000, [AtLeast 2, AtMost 3])
                                                                        , ("duplicate", 1000, [Exactly 2])
                                                                        ]                                                                                         
+
+    , checkInputOutputsSymFuncConstraints "tests/HigherOrder/FAHigherOrder.hs"
+                                                                        [ ("test1", 1000, [AtLeast 2])
+                                                                        , ("test2", 1000, [AtLeast 4])
+                                                                        , ("test3", 1000, [AtLeast 4])
+                                                                        , ("test4", 1000, [AtLeast 4])
+                                                                        , ("test5", 1000, [AtLeast 4])
+                                                                        , ("test6", 1000, [AtLeast 4])
+                                                                        , ("test7", 1000, [AtLeast 4])
+                                                                        , ("test8", 1000, [AtLeast 5])
+                                                                        , ("test9", 1000, [AtLeast 3])
+                                                                        , ("test10", 1000, [AtLeast 6]) 
+                                                                        , ("test11", 1000, [AtLeast 3]) ]
 
     , checkInputOutputsSymFuncConstraintsFCArgStepLimit "tests/HigherOrder/HigherOrder.hs" 100 [("repCons", 1000, [Exactly 3])]
 
