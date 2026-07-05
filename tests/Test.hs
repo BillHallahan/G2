@@ -801,6 +801,9 @@ testFileTests = testGroup "TestFiles"
     , checkInputOutputsSymFuncConstraints "tests/HigherOrder/HigherChar1.hs" [("eval", 10000, [AtLeast 2])]
     , checkInputOutputsSymFuncConstraints "tests/HigherOrder/HigherChar2.hs" [("eval", 10000, [AtLeast 2])]
 
+    , checkInputOutputsSymFuncConstraints "tests/HigherOrder/HigherNot.hs" [ ("check1", 10000, [AtLeast 2])
+                                                                           , ("check2", 10000, [AtLeast 2]) ]
+
     , checkInputOutputsWithValidate "tests/BaseTests/ListTests.hs" [ ("lengthN", 2000, [AtLeast 1])
                                                                 , ("lengthBranch", 2000, [AtLeast 4])]
     , checkInputOutputsNonRedLib "tests/BaseTests/ListTests.hs" [ ("lengthN", 20000, [Exactly 1])

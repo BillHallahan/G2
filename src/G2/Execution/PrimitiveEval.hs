@@ -537,7 +537,8 @@ evalPrimADT1 kv tenv StrReverse xs = do
     t <- listType xs
     xs' <- toExprList xs
     return $ toListExpr kv tenv t (reverse xs')
-
+evalPrimADT1 kv _ Not e
+    | Just v <- toBool kv e = Just . mkBool kv $ not v
 evalPrimADT1 _ _ _ _ = Nothing
 
 evalPrimADT2 :: KnownValues -> TypeEnv -> Primitive -> Expr -> Expr -> Maybe Expr

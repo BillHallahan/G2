@@ -912,7 +912,7 @@ replaceADTSymVars fcs = do
         go eenv tenv tv_env $ fc_ret fc) fcs
     where
         go eenv tenv tv_env e
-            | Var (Id n t) <- E.deepLookupExpr e eenv
+            | v@(Var (Id n t)) <- E.deepLookupExpr e eenv
             , E.isSymbolic n eenv
             , TyCon tn _:tycon_ts <- unTyApp $ tyVarSubst tv_env t
             , Just (DataTyCon { data_cons = dcs }) <- HM.lookup tn tenv = do
@@ -923,6 +923,16 @@ replaceADTSymVars fcs = do
                 insertSymbolicE branch_i
                 insertPCStateNG (ExtCond (mkApp $ [Prim Le TyUnknown, Lit (LitInt 1), Var branch_i]) True)
                 insertPCStateNG (ExtCond (mkApp $ [Prim Le TyUnknown, Var branch_i, Lit (LitInt $ genericLength dcs)]) True)
+
+                -- If we have a boolean, have to make sure we don't violate path conds
+                zipWithM_ (\i dc -> insertPCStateNG
+                                        (ExtCond 
+                                            (mkApp [ Prim Eq TyUnknown
+                                                   , mkApp [Prim Eq TyUnknown, Var branch_i, Lit $ LitInt i]
+                                                   , mkApp [Prim Eq TyUnknown, v, Data dc]
+                                                   ])
+                                        $ True)
+                         ) [1, 2] dcs
 
                 alts_expr <- mapM (\dc -> do
                                     let dc_ty = typeOf tv_env dc
@@ -1461,6 +1471,9 @@ solveLitVals solver simplifier fcs = do
     -- eenv <- exprEnv
     -- liftIO $ putStrLn $ "fcs_split =\n" ++ T.unpack (prettyFuncConstraints pg $ inlineVars eenv fcs_split)  
 
+    ty_bool <- tyBoolT
+    let isPrimTypeOrBool t = isPrimType t || t == ty_bool
+
     new_pcs <- concatMapM (\(n, fc_list) ->
         case fc_list of
             [] -> return []
@@ -1477,9 +1490,13 @@ solveLitVals solver simplifier fcs = do
                                                         (Var (Id vn t)) -> do
                                                             m_conc_or_sym <- deepLookupConcOrSymE vn
                                                             case m_conc_or_sym of
-                                                                Just (E.Sym _) -> return $ isPrimType t
+                                                                Just (E.Sym _) -> return $ isPrimTypeOrBool t
                                                                 _ -> return True
                                                         _ -> return True) fc_unified
+                    
+                    -- Make sure we have all actual values of concretized variables
+                    let fc_inlined = map (\fc -> fc { fc_args = map (inlineVars eenv) $ fc_args fc
+                                                    , fc_ret = inlineVars eenv $ fc_ret fc }) fc_no_sym_ret
 
                     let fc_pcs = zipWith 
                                 (\i fc -> 
@@ -1493,7 +1510,7 @@ solveLitVals solver simplifier fcs = do
                                         -- Note [Uninterpreted Return Value] 
                                         -- If we are returning an ADT, returning an Int that can then be mapped to that ADT.
                                         -- If we are returning a primitive type, just return it directly.
-                                        uninterp_ret = if isPrimType (typeOf tv_env $ fc_ret fc)
+                                        uninterp_ret = if isPrimTypeOrBool (typeOf tv_env $ fc_ret fc)
                                                                 then fc_ret fc
                                                                 else Lit (LitInt i)
 
@@ -1504,7 +1521,7 @@ solveLitVals solver simplifier fcs = do
                                     in
                                     ExtCond implies_func True
                                     )
-                                    [1..] fc_no_sym_ret
+                                    [1..] fc_inlined
                     
                     -- We optimistically insert expressions into the ExprEnv; if we do not find a solution,
                     -- we revert to the old ExprEnv
@@ -1521,7 +1538,7 @@ solveLitVals solver simplifier fcs = do
                         else do
                             bindee <- freshIdN TyLitInt
                             let def_alt = Alt Default (Var unified_id)
-                                alts = zipWith (\i fc -> Alt (LitAlt (LitInt i)) $ fc_ret fc) [1..] fc_no_sym_ret 
+                                alts = zipWith (\i fc -> Alt (LitAlt (LitInt i)) $ fc_ret fc) [1..] fc_inlined 
                                 ret_ty = typeOf tv_env (fc_ret fc_first)
                                 cse = Case sel_func_app bindee ret_ty (alts ++ [def_alt])
                                 lam_cse = mkLams (zip (repeat TermL) lam_is) cse
@@ -1536,6 +1553,7 @@ solveLitVals solver simplifier fcs = do
     case r of
             Just (ng', s') -> do
                 SM.put (s', ng')
+                whenLogging "solvLitVals" $ return ()
                 return True
             _ -> do
                 -- We did not find a solution, revert to old ExprEnv
@@ -1553,10 +1571,12 @@ unifyAllRetSymVars fcs@(fc_first:_) = do
     eenv <- exprEnv
     tv_env <- tyVarEnv
 
+    ty_bool <- tyBoolT
+
     let ret_ty = typeOf tv_env $ fc_ret fc_first
     unify_id <- freshSeededIdN (Name "unify" Nothing 0 Nothing) ret_ty
     insertSymbolicE unify_id
-    if | not (isPrimType ret_ty) -> do
+    if | not (isPrimType ret_ty) && not (ret_ty == ty_bool) -> do
             fcs' <- mapM (\fc -> case fc_ret fc of
                                     (Var (Id n _))
                                         | Just (E.Sym (Id sym_n _)) <- E.deepLookupConcOrSym n eenv -> do
@@ -1594,13 +1614,12 @@ splitReturns' n fcs@(first_fc:_) = do
     tenv <- typeEnv
     tv_env <- tyVarEnv
 
-    if | let ret_ty_unapp = unTyApp . tyVarSubst tv_env . typeOf tv_env $ fc_ret first_fc
-       , TyCon tn _:tycon_ts <- ret_ty_unapp
+    let ret_ty = typeOf tv_env $ fc_ret first_fc
+        ret_ty_unapp = unTyApp . tyVarSubst tv_env $ ret_ty
+
+    if | TyCon tn _:tycon_ts <- ret_ty_unapp
        , Just (DataTyCon { data_cons = dcs}) <- HM.lookup tn tenv
        , all (isADT . flip E.deepLookupExpr eenv . fc_ret) fcs -> do
-
-            let ret_ty = typeOf tv_env $ fc_ret first_fc
-
             lam_is <- freshIdsN (map (typeOf tv_env) $ fc_args first_fc)
             let prim_ty_is = filter (isPrimType . idType) lam_is
 
