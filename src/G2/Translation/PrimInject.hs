@@ -177,6 +177,8 @@ primDefs' b c l unit =
               , ("g2SetPos'", Prim HandleSetPos (TyFun strTy (TyFun TyUnknown (TyCon unit TYPE))))
               , ("g2PutChar'", Prim HandlePutChar (TyFun (TyCon c TYPE) (TyFun TyUnknown (TyCon unit TYPE))))
 
+              , ("not#", Prim Not (TyFun (TyCon b TYPE) (TyCon b TYPE)))
+
               , ("strLen#", Lam TypeL (x TYPE) . Lam TermL (y seqTyX) $ App (Prim StrLen (TyFun seqTyX TyLitInt)) (Var $ y seqTyX))
               , ("strAppend#", Lam TypeL (x TYPE) . Lam TermL (y seqTyX) . Lam TermL (z seqTyX)
                                   $ App 

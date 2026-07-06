@@ -60,7 +60,9 @@ getValuesParser :: Maybe Sort -> Parser SMTAST
 getValuesParser srt = parens (parens (identifier >> (sExpr srt)))
 
 sExpr :: Maybe Sort -> Parser SMTAST
-sExpr srt = try boolExpr <|> try arrayExpr <|> try (seqExpr srt) <|> try funcExpr <|> try dcExpr <|> try (doubleFloatExpr srt) <|> varExpr
+sExpr srt = do
+    whiteSpace
+    try boolExpr <|> try arrayExpr <|> try (seqExpr srt) <|> try funcExpr <|> try dcExpr <|> try (doubleFloatExpr srt) <|> varExpr
                          <|> parens (sExpr srt) <|> letExpr <|> try realExpr
                          <|> try doubleFloatExprDec <|> stringExpr <|> intExpr <|> bvExpr
                          <|> try lambdaExpr
@@ -416,6 +418,8 @@ parseSort =
     (do _ <- string "Int"; return SortInt)
     <|>
     (do _ <- string "Bool"; return SortBool)
+    <|>
+    (do _ <- string "String"; return SortString)
     <|>
     (return . ParSort =<< identifier)
     <|>
