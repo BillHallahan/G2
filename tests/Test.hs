@@ -804,6 +804,8 @@ testFileTests = testGroup "TestFiles"
     , checkInputOutputsSymFuncConstraints "tests/HigherOrder/HigherNot.hs" [ ("check1", 10000, [AtLeast 2])
                                                                            , ("check2", 10000, [AtLeast 2]) ]
 
+    , checkInputOutputsSymFuncConstraints "tests/HigherOrder/MaybeFuncHigherOrder.hs" [("f", 10000, [Exactly 2])]
+
     , checkInputOutputsWithValidate "tests/BaseTests/ListTests.hs" [ ("lengthN", 2000, [AtLeast 1])
                                                                 , ("lengthBranch", 2000, [AtLeast 4])]
     , checkInputOutputsNonRedLib "tests/BaseTests/ListTests.hs" [ ("lengthN", 20000, [Exactly 1])
