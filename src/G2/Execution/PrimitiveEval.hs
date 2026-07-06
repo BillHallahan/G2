@@ -115,7 +115,7 @@ maybeEvalPrim' eenv tenv tv_env kv tc xs
     , Lit x' <- x
     , Lit y' <- y = evalPrim2 kv p x' y'
     | [Prim p _, x, y] <- xs
-    , Just e <- evalPrimADT2 kv tenv p x y = Just e
+    , Just e <- evalPrimADT2 eenv tenv tv_env kv tc p x y = Just e
 
     | [Prim p _, x, y, z] <- xs
     , Just e <- evalPrimADT3 eenv tenv tv_env kv tc p x y z = Just e
@@ -541,42 +541,42 @@ evalPrimADT1 kv _ Not e
     | Just v <- toBool kv e = Just . mkBool kv $ not v
 evalPrimADT1 _ _ _ _ = Nothing
 
-evalPrimADT2 :: KnownValues -> TypeEnv -> Primitive -> Expr -> Expr -> Maybe Expr
-evalPrimADT2 kv _ And e1 e2
+evalPrimADT2 :: ExprEnv -> TypeEnv -> TyVarEnv -> KnownValues -> TypeClasses -> Primitive -> Expr -> Expr -> Maybe Expr
+evalPrimADT2 _ _ _ kv _ And e1 e2
     | Just b1 <- toBool kv e1
     , Just b2 <- toBool kv e2 = Just $ mkBool kv (b1 && b2)
-evalPrimADT2 kv _ Or e1 e2
+evalPrimADT2 _ _ _ kv _ Or e1 e2
     | Just b1 <- toBool kv e1
     , Just b2 <- toBool kv e2 = Just $ mkBool kv (b1 || b2)
 
-evalPrimADT2 kv _ Eq l1 l2 = do
+evalPrimADT2 _ _ _ kv _ Eq l1 l2 = do
     xs <- toExprList l1
     ys <- toExprList l2
     return $ mkBool kv (xs == ys)
-evalPrimADT2 kv _ Neq l1 l2 = do
+evalPrimADT2 _ _ _ kv _ Neq l1 l2 = do
     xs <- toExprList l1
     ys <- toExprList l2
     return $ mkBool kv (xs /= ys)
 
-evalPrimADT2 kv tenv StrAppend xs ys = do
+evalPrimADT2 _ tenv _ kv _ StrAppend xs ys = do
     t <- listType xs
     xs' <- toExprList xs
     ys' <- toExprList ys
     return . toListExpr kv tenv t $ xs' ++ ys'
 
-evalPrimADT2 kv _ StrContains str sub = do
+evalPrimADT2 _ _ _ kv _ StrContains str sub = do
     str' <- toExprList str
     sub' <- toExprList sub
     let ret = sub' `L.isInfixOf` str'
     return $ mkBool kv ret
 
-evalPrimADT2 kv tenv StrAt xs (Lit (LitInt i)) = do
+evalPrimADT2 _ tenv _ kv _ StrAt xs (Lit (LitInt i)) = do
     t <- listType xs
     xs' <- toExprList xs
     let c = if 0 <= i && fromInteger i < length xs' then  [xs' !! (fromInteger i)] else []
     return $ toListExpr kv tenv t c
 
-evalPrimADT2 kv _ SeqNth xs (Lit (LitInt i)) = do
+evalPrimADT2 _ _ _ kv _ SeqNth xs (Lit (LitInt i)) = do
     let stripCons (App (Data (DataCon { dc_name = dcn })) e) | dcn == KV.dcInt kv
                                                              || dcn == KV.dcInteger kv = e
         stripCons e = e
@@ -586,17 +586,17 @@ evalPrimADT2 kv _ SeqNth xs (Lit (LitInt i)) = do
         then Just . stripCons $ xs' !! (fromInteger i)
         else Just $ Prim Error TyBottom
 
-evalPrimADT2 kv _ StrPrefixOf pre s = do
+evalPrimADT2 _ _ _ kv _ StrPrefixOf pre s = do
     pre' <- toExprList pre
     s' <- toExprList s
     return . mkBool kv $ pre' `L.isPrefixOf` s'
 
-evalPrimADT2 kv _ StrSuffixOf suf s = do
+evalPrimADT2 _ _ _ kv _ StrSuffixOf suf s = do
     suf' <- toExprList suf
     s' <- toExprList s
     return . mkBool kv $ suf' `L.isSuffixOf` s'
 
-evalPrimADT2 kv _ StrLe f s = fmap (mkBool kv) $ lstLe f s
+evalPrimADT2 _ _ _ kv _ StrLe f s = fmap (mkBool kv) $ lstLe f s
     where
         lstLe (App (App (App (Data dc_f) _) (App _ (Lit (LitChar c1)))) xs) (App (App (App (Data dc_s) _) (App _ (Lit (LitChar c2)))) ys)
             | c1 <= c2 = Just True
@@ -606,24 +606,57 @@ evalPrimADT2 kv _ StrLe f s = fmap (mkBool kv) $ lstLe f s
         lstLe (App (Data _) _) (App (App (App (Data _) _) _) _) = Just True
         lstLe (App (Data dc_f) _) (App (Data dc_s) _) = assert (KV.dcEmpty kv == dcName dc_f && KV.dcEmpty kv == dcName dc_s) (Just True)
         lstLe _ _= Nothing
-evalPrimADT2 kv _ StrLt f s = do
+evalPrimADT2 _ _ _ kv _ StrLt f s = do
     f' <- toString f
     s' <- toString s
     return $ mkBool kv (f' < s')
-evalPrimADT2 kv _ StrGt f s = do
+evalPrimADT2 _ _ _ kv _ StrGt f s = do
     f' <- toString f
     s' <- toString s
     return $ mkBool kv (f' > s')
-evalPrimADT2 kv _ StrGe f s = do
+evalPrimADT2 _ _ _ kv _ StrGe f s = do
     f' <- toString f
     s' <- toString s
     return $ mkBool kv (f' >= s')
 
-evalPrimADT2 kv _ InRe s regex = do
+evalPrimADT2 _ _ _ kv _ InRe s regex = do
     s' <- toExprList s
     return $ mkBool kv (matchesRegex s' regex)
 
-evalPrimADT2 _ _ _ _ _ = Nothing
+evalPrimADT2 eenv tenv tv_env kv tc Map (Lam _ (Id a_id _) e) lst = do
+    lst' <- toExprList lst
+    let t = typeOf tv_env e
+    let mapped = L.foldl (\acc a_val -> acc ++ [replaceVar a_id a_val e]) [] lst'
+    let mapped' = toListExpr kv tenv t mapped
+    return . evalPrims eenv tenv tv_env kv tc $ inlineVarsForPrim eenv tc mapped'
+evalPrimADT2 eenv tenv tv_env kv tc MapConcat (Lam _ (Id a_id _) e) lst = do
+    lst' <- toExprList lst
+    let lst_t = typeOf tv_env e
+    t <- innerListTy kv lst_t
+    let emp = toListExpr kv tenv t []
+    let mapped = L.foldl (\acc a_val ->
+                            mkApp [ Prim StrAppend TyUnknown
+                                  , acc
+                                  , replaceVar a_id a_val e]) emp lst'
+    return . evalPrims eenv tenv tv_env kv tc $ inlineVarsForPrim eenv tc mapped
+evalPrimADT2 eenv tenv tv_env kv tc MapConcatI (Lam _ (Id b_id _) (Lam _ (Id a_id _) e)) lst = do
+    lst1 <- toExprList lst
+    let lst_t = typeOf tv_env e
+    t <- innerListTy kv lst_t
+    let emp = toListExpr kv tenv t []
+    let lst2 = zip (map (Lit . LitInt) [0..]) lst1
+    let mapped = L.foldl (\acc (a_val, b_val) ->
+                            mkApp [ Prim StrAppend TyUnknown
+                                  , acc
+                                  , replaceVar b_id b_val $ replaceVar a_id a_val e
+                                  ]) emp lst2
+    return . evalPrims eenv tenv tv_env kv tc $ inlineVarsForPrim eenv tc mapped
+
+evalPrimADT2 _ _ _ _ _ _ _ _ = Nothing
+
+innerListTy :: KnownValues -> Type -> Maybe Type
+innerListTy kv t | [t1, t2] <- unTyApp t, t1 == tyList kv = Just t2
+innerListTy _ _ = Nothing
 
 matchesRegex :: [Expr] -> Expr -> Bool
 matchesRegex es r = any null $ matchesRegex' es r
