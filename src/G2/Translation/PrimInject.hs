@@ -58,9 +58,7 @@ primDefs pt = case (boolName pt, charName pt, listName pt, unitName pt) of
 
 primDefs' :: Name -> Name -> Name -> Name -> [(T.Text, Expr)]
 primDefs' b c l unit =
-              [ ("notBool#", Prim Not $ tyBoolBool b)
-
-              , ("$==#", Prim Eq $ tyIntIntBool b)
+              [ ("$==#", Prim Eq $ tyIntIntBool b)
               , ("$/=#", Prim Neq $ tyIntIntBool b)
               , ("+#", Prim Plus tyIntIntInt)
               , ("*#", Prim Mult tyIntIntInt)
@@ -178,6 +176,8 @@ primDefs' b c l unit =
               , ("g2GetPos'", Prim HandleGetPos (TyFun TyUnknown strTy))
               , ("g2SetPos'", Prim HandleSetPos (TyFun strTy (TyFun TyUnknown (TyCon unit TYPE))))
               , ("g2PutChar'", Prim HandlePutChar (TyFun (TyCon c TYPE) (TyFun TyUnknown (TyCon unit TYPE))))
+
+              , ("not#", Prim Not (TyFun (TyCon b TYPE) (TyCon b TYPE)))
 
               , ("strLen#", Lam TypeL (x TYPE) . Lam TermL (y seqTyX) $ App (Prim StrLen (TyFun seqTyX TyLitInt)) (Var $ y seqTyX))
               , ("strAppend#", Lam TypeL (x TYPE) . Lam TermL (y seqTyX) . Lam TermL (z seqTyX)

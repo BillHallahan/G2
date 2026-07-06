@@ -2014,8 +2014,8 @@ bucketSizeOrderer b =
 -- | Orders by the size (in terms of height) of (previously) symbolic ADT.
 -- In particular, aims to first execute those states with a height closest to
 -- the specified height.
-adtHeightOrderer :: Monad m => Int -> Maybe Name -> Orderer m (HS.HashSet Name, Bool) Int r t
-adtHeightOrderer pref_height mn =
+adtHeightOrderer :: Monad m => Int -> Orderer m (HS.HashSet Name) Int r t
+adtHeightOrderer pref_height =
     (mkSimpleOrderer initial
                     order
                     (\v _ _ -> v))
@@ -2030,23 +2030,18 @@ adtHeightOrderer pref_height mn =
         -- back to false.
         -- This avoids repeated operations on the hashset after rules that we know
         -- will not add symbolic variables.
-        initial s = (HS.fromList . map idName . E.symbolicIds . expr_env $ s, False)
-        order (v, _) _ s =
+        initial s = HS.fromList . map idName . E.symbolicIds . expr_env $ s
+        order v _ s =
             let
                 m = maximum $ (-1):(HS.toList $ HS.map (flip adtHeight s) v)
                 h = abs (pref_height - m)
             in
             return h
 
-        step (v, _) _ _
-                      (State { curr_expr = CurrExpr _ (SymGen _ _) }) = (v, True)
-        step(v, True) _ _ s =
-            (v `HS.union` (HS.fromList . map idName . E.symbolicIds . expr_env $ s), False)
-        step (v, _) _ _
-                       (State { curr_expr = CurrExpr _ (Tick (NamedLoc n') (Var (Id vn _))) })
-                | Just n <- mn, n == n' =
-                    (HS.insert vn v, False)
-        step  v _ _ _ = v
+        step  v _ _ (State { expr_env = eenv, curr_expr = CurrExpr Evaluate (Var (Id n _))})
+            | E.isSymbolic n eenv = HS.insert n v
+        step v _ _ _ = v
+
 
 adtHeight :: Name -> State t -> Int
 adtHeight n s@(State { expr_env = eenv })

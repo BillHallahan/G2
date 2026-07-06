@@ -33,7 +33,11 @@ showValue (VBool b) = show b
 
 -- Negate a Value Bool
 notValue :: Value Bool -> Value Bool
-notValue (VBool b) = VBool (not b)
+notValue (VBool b) = VBool (myNot b)
+
+myNot :: Bool -> Bool
+myNot True = False
+myNot False = True
 
 -- Increment a Value Int
 incValue :: Value Int -> Value Int
