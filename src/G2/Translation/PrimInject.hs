@@ -456,10 +456,6 @@ dummyId name = Id (Name name Nothing 0 Nothing)
 binder :: Type -> Id
 binder = Id (Name "b" Nothing 0 Nothing)
 
-tyBoolBool :: Name -> Type
-tyBoolBool n = TyFun bool' bool'
-    where bool' = TyCon n TYPE
-
 tyIntInt :: Type
 tyIntInt = TyFun TyLitInt TyLitInt
 
