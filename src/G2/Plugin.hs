@@ -94,7 +94,7 @@ g2PluginPass' cmd_lne config env modguts = do
     -- results in an infinite loop.
     let tconfig = (simplTranslationConfig { simpl = False
                                           , load_rewrite_rules = True
-                                          , hpc_ticks = True })
+                                          , hpc_ticks = False })
         ems = EnvModSumModGuts env [] [modguts]
 
     prev_comp <- liftIO $ readIORef compiledModules
