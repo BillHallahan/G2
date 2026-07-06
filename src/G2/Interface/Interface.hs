@@ -643,9 +643,13 @@ runG2WithConfig proj src entry_f f gflags mb_modname state config bindings = do
         non_rec_funcs = filter (G.isFuncNonRecursive callGraph) reachable_funcs
 
     analysis1 <- if states_at_time config then do l <- logStatesAtTimeHigher; return [l] else return noAnalysis
+    
+    all_of_height <- allOfHeightTerminated config (idName entry_f) state'
+
     let analysis2 = if states_at_step config then [\s p xs -> SM.lift .  SM.lift . SM.lift . SM.lift . SM.lift . SM.lift  $ logStatesAtStep s p xs] else noAnalysis
         analysis3 = if print_num_red_rules config then [\s p xs -> SM.lift . SM.lift . SM.lift . SM.lift . SM.lift . SM.lift . SM.lift $ logRedRuleNum s p xs] else noAnalysis
-        analysis = analysis1 ++ analysis2 ++ analysis3
+        analysis4 = if print_up_to_height config then [all_of_height] else noAnalysis
+        analysis = analysis1 ++ analysis2 ++ analysis3 ++ analysis4
 
     let pretty_guide = if showType config == Lax 
                             then (mkPrettyGuide ())
