@@ -428,8 +428,6 @@ initRedHaltOrd s mod_name solver simplifier config exec_func_names no_nrpc_names
                             True -> SomeHalter (zeroHalter (steps config) <~> halter)
                             False -> SomeHalter halter
         
-        -- halter_accept_only = case halter_step of SomeHalter h -> SomeHalter (liftHalter (liftHalter (liftHalter (acceptOnlyNewHPC h))))
-
         halter_hpc_discard = case hpc_discard_strat config of
                                     True -> SomeHalter (liftHalter . liftHalter . liftHalter . liftHalter . liftHalter $ noNewHPCHalter mod_name) .<~> halter_step
                                     False -> halter_step
@@ -643,9 +641,12 @@ runG2WithConfig proj src entry_f f gflags mb_modname state config bindings = do
         non_rec_funcs = filter (G.isFuncNonRecursive callGraph) reachable_funcs
 
     analysis1 <- if states_at_time config then do l <- logStatesAtTimeHigher; return [l] else return noAnalysis
+    
+    analysis4 <- if print_up_to_height config then do l <- allOfHeightTerminated config (idName entry_f) state'; return [l] else return noAnalysis
+
     let analysis2 = if states_at_step config then [\s p xs -> SM.lift .  SM.lift . SM.lift . SM.lift . SM.lift . SM.lift  $ logStatesAtStep s p xs] else noAnalysis
         analysis3 = if print_num_red_rules config then [\s p xs -> SM.lift . SM.lift . SM.lift . SM.lift . SM.lift . SM.lift . SM.lift $ logRedRuleNum s p xs] else noAnalysis
-        analysis = analysis1 ++ analysis2 ++ analysis3
+        analysis = analysis1 ++ analysis2 ++ analysis3 ++ analysis4
 
     let pretty_guide = if showType config == Lax 
                             then (mkPrettyGuide ())

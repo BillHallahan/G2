@@ -35,6 +35,7 @@ import qualified Data.Foldable as F
 import qualified Data.HashMap.Lazy as HM
 import qualified Data.HashSet as HS
 import Data.List
+import qualified Data.List.NonEmpty as NE
 import Data.Maybe
 import Data.Monoid (Any (..))
 import qualified Data.Sequence as S
@@ -319,6 +320,100 @@ unifyFuncConstraints solver simplifier no_inline s@(State { sym_func_constraints
     return $ fmap (\s' -> s' { sym_func_constraints = rfcs }) rs
 
 ------------------------------------------------------------------------------
+-- Unifying functions in return values
+------------------------------------------------------------------------------
+
+-- Suppose we have a function that returns another function, wrapped in a data constructor.
+-- For example, see tests/HigherOrder/MaybeFuncHigherOrder.hs:
+-- @
+-- f :: (Int -> Maybe (Int -> Int)) -> Int
+-- f g =
+--     case g 1 of
+--         Just h -> case g (one ()) of
+--                     Just k -> case h 2 == k 2 of
+--                                     True -> 1
+--                                     False -> 2 -- Unreachable
+--         Nothing -> 3
+-- @
+-- The only way to reach the output `1` is to recognize that `h` and `k` are really the same function.
+-- But we will get separate functions, and separate corresponding function constraints, i.e. something like:
+-- @
+--   g 1 = Just h
+--   g 1 = Just k
+--   h 2 = x
+--   k 2 = y
+-- @
+-- To address this, when we have function g that return functions h, k , we replace h and k with a single function,
+-- which also takes all arguments from g. I.e. we rewrite the above with a fresh function `m` as:
+-- @
+--   g 1 = Just (m 1)
+--   g 1 = Just (m 2)
+--   m 1 2 = x
+--   m 1 2 = y
+-- @
+
+unifyReturnFuncs :: Monad m => StateNGT t m ()
+unifyReturnFuncs = do
+    fcs <- getFCsStateNG
+    unifyRT $ HM.toList fcs
+
+unifyRT :: Monad m => [(Name, [FuncConstraint])] -> StateNGT t m ()
+unifyRT [] = return ()
+unifyRT ((_, these_fcs):xs) = do
+    new_ns_fcs <- walkReturns these_fcs
+    unifyRT $ xs ++ new_ns_fcs
+
+walkReturns :: Monad m => [FuncConstraint] -> StateNGT t m [(Name, [FuncConstraint])]
+walkReturns [] = return []
+walkReturns fcs@(first_fc:_) = do
+    eenv <- exprEnv
+    tv_env <- tyVarEnv
+    let fcs' = map (\fc -> fc { fc_ret = E.deepLookupExpr (fc_ret fc) eenv}) fcs
+        
+    case tyVarSubst tv_env . typeOf tv_env $ fc_ret first_fc of
+        -- We have a function type- rewrite constraints
+        t@(TyFun _ _) -> do
+            func_cons_set <- getFCsStateNG
+            let ns = map (\fc -> case fc_ret fc of
+                            Var (Id n _) -> n
+                            _ -> error "walkReturns: expectedVar") fcs'
+                all_ns_fc = map (fromMaybe []) $ map (flip HM.lookup func_cons_set) ns
+                updated_fc = concat $ zipWith
+                                (\ret_fc f_fcs ->
+                                    map (\f_fc -> f_fc { fc_args = fc_args ret_fc ++ fc_args f_fc
+                                                       , fc_split_on = fc_split_on ret_fc ++ fc_split_on f_fc }) f_fcs )
+                                fcs'
+                                all_ns_fc 
+
+            join_f <- freshSeededIdN (Name "join_f" Nothing 0 Nothing) (mkTyFun $ map (typeOf tv_env) (fc_args first_fc) ++ [t])
+            insertSymbolicE join_f
+            let func_cons_set' = HM.insert (idName join_f) updated_fc
+                               $ foldl' (flip HM.delete) func_cons_set ns
+
+            putFCsStateNG func_cons_set'
+            return [(idName join_f, updated_fc)]
+        _ -> do
+            let fcs'' = splitOnDCArgs fcs'
+            concatMapM walkReturns fcs''
+
+splitOnDCArgs :: [FuncConstraint] -> [[FuncConstraint]]
+splitOnDCArgs fcs =
+    let
+        same_dc_map = HM.fromListWith (<>)
+                            $ mapMaybe (\fc -> case unApp $ fc_ret fc of
+                                                Data dc:as -> Just (dcName dc, (fc, as) NE.:| [])
+                                                _ -> Nothing) fcs
+        same_dcs = HM.elems same_dc_map
+        match_args = concatMap (\fc_as@((_, first_as) NE.:| _) -> 
+                            let
+                                new_fc = map (\i -> NE.map (\(fc, as) -> fc { fc_ret = as !! i }) fc_as) [0..length first_as - 1]
+                            in
+                            new_fc) same_dcs
+    in
+    map NE.toList match_args
+
+
+------------------------------------------------------------------------------
 -- Solving Function Constraints
 ------------------------------------------------------------------------------
 
@@ -404,17 +499,18 @@ checkFunctionConstraints :: (ASTContainer t Expr, Solver solver, Simplifier simp
                          -> NameGen
                          -> m (FCCheckRes t)
 checkFunctionConstraints fc_logging solver simplifier no_inline s ng = do
-    (m_unif_s, ng') <- runNamingT (unifyFuncConstraints solver simplifier no_inline s) ng
+    (m_unif_s, ng1) <- runNamingT (unifyFuncConstraints solver simplifier no_inline s) ng
     case m_unif_s of
         Just unif_s -> do
-            r <- solveFuncConstraints fc_logging solver simplifier no_inline unif_s ng'
+            (_, (unif_ret_s, ng2)) <- runStateNGT unifyReturnFuncs unif_s ng1
+            r <- solveFuncConstraints fc_logging solver simplifier no_inline unif_ret_s ng2
             -- liftIO . putStrLn $ case r of Just _ -> "Just"; Nothing -> "Nothing"
             case r of
-                Just (s', ng'') -> return $ FCSat s' ng''
+                Just (s', ng3) -> return $ FCSat s' ng3
                 Nothing -> do
                     let s' = collapseStack s
                     -- Function constraints were not solved
-                    ((is, fc'), (s'', !ng'')) <- runStateNGT (do
+                    ((is, fc'), (s'', !ng3)) <- runStateNGT (do
                         let fcs = sym_func_constraints s
                         -- Add extra calls to higher order functions
                         added_higher_fcs <- mapM (uncurry addHigherOrderCalls) $ HM.toList fcs
@@ -424,9 +520,9 @@ checkFunctionConstraints fc_logging solver simplifier no_inline s ng = do
                         fc_wrapper <- addWrappersToFC fc_higher_reassembled
                         non_red_v <- collectNonReducedVars fc_wrapper
                         return (non_red_v, fc_wrapper)
-                        ) s' ng'
+                        ) s' ng2
                     let s''' = s'' { sym_func_constraints = fc' }
-                    return $ FCReductionNeeded is s''' ng''
+                    return $ FCReductionNeeded is s''' ng3
         Nothing -> return FCUnsat
 
 setUpArgReduction ::  [(VarLitEqualities, Id)] -> State t -> Maybe (State t)
@@ -1690,7 +1786,7 @@ isType _ = False
 
 deleteAt :: Int -> [a] -> [a]
 deleteAt idx xs | (lft, (_:rgt)) <- splitAt idx xs = lft ++ rgt
-                | otherwise = error "deleteAt: bad index"
+                | otherwise = error $ "deleteAt: bad index"
 
 replaceAt :: Int -> a -> [a] -> [a]
 replaceAt idx x xs | (lft, (_:rgt)) <- splitAt idx xs = lft ++ [x] ++ rgt

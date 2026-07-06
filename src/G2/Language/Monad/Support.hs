@@ -30,6 +30,10 @@ module G2.Language.Monad.Support ( StateT
                                  , insertPCStateNG
                                  , getPCStateNG
                                  , putPCStateNG
+
+                                 , getFCsStateNG
+                                 , putFCsStateNG
+                                 
                                  , mapMAccumB ) where
 
 import Control.Monad.Identity
@@ -296,6 +300,16 @@ insertPCStateNG :: Monad m => PathCond -> StateNGT t m ()
 insertPCStateNG pc = do
     (s@(State { path_conds = pcs }), ng) <- SM.get
     SM.put (s { path_conds = PC.insert pc pcs}, ng)
+
+getFCsStateNG :: Monad m => StateNGT t m FuncConstraints
+getFCsStateNG = do
+    ((State { sym_func_constraints = fcs }), _) <- SM.get
+    return fcs
+
+putFCsStateNG :: Monad m => FuncConstraints -> StateNGT t m ()
+putFCsStateNG fcs = do
+    (s, ng) <- SM.get
+    SM.put (s { sym_func_constraints = fcs }, ng)
 
 mapMAccumB :: Monad m => (a -> b -> m (a, c)) -> a -> [b] -> m (a, [c])
 mapMAccumB _ a [] = do

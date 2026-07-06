@@ -158,6 +158,7 @@ module G2.Execution.Reducer (
                             , logStatesAtTime
                             , logStatesAtTimeHigher
                             , logRedRuleNum
+                            , allOfHeightTerminated
 
                             , LogStatesAtStep
                             , logStatesAtStepTracker
@@ -2291,6 +2292,40 @@ logRedRuleNum (StateDiscarded _) _ [] = do
     liftIO . putStrLn $ "# Red Rules: " ++ show n
 logRedRuleNum _ _ _ = return ()
 
+allOfHeightTerminated :: MonadIO m => Config -> Name -> State t -> IO (AnalyzeStates m rt t)
+allOfHeightTerminated config func_name init_s = do
+    init_time <- liftIO $ getTime Realtime
+    curr_height_io <- newIORef (0 :: Int)
+
+    let vs = HS.fromList . map idName . E.symbolicIds $ expr_env init_s
+    writeFile file_name ""
+
+    return $ analysis init_time curr_height_io vs
+    where
+        symb_func = case higherOrderSolver config of
+                        SymbolicFunc -> "_symbolic"
+                        SymConstraints -> "_sym_constraints"
+                        _ -> ""
+        file_name = "logs/" ++ T.unpack (nameOcc func_name) ++ symb_func ++ ".txt"
+
+        isAcceptedOrDiscarded (StateAccepted _) = True 
+        isAcceptedOrDiscarded (StateDiscarded _) = True
+        isAcceptedOrDiscarded (StateReduced _ _) = False
+
+        analysis init_time curr_height_io vs analysis_event _ all_states
+            | isAcceptedOrDiscarded analysis_event = do
+                let m = case all_states of
+                            [] -> -1
+                            _:_ -> minimum $ map (\curr_s -> sum $ (HS.toList $ HS.map (flip adtHeight curr_s) vs)) all_states
+                curr_height <- liftIO $ readIORef curr_height_io
+
+                when (m > curr_height) $ do
+                    accept_time <- liftIO $ getTime Realtime
+                    let diff = diffTimeSpec accept_time init_time
+                        diff_secs = (fromInteger (toNanoSecs diff)) / (10 ^ (9 :: Int) :: Double)
+                    liftIO $ writeIORef curr_height_io m
+                    liftIO . appendFile file_name $ "(" ++ show diff_secs ++ "," ++ show (m - 1) ++ ")" -- "Up to height " ++ show (m - 1) ++ ": "
+            | otherwise = return ()
 --------
 --------
 

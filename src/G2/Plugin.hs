@@ -92,7 +92,9 @@ g2PluginPass' cmd_lne config env modguts = do
     -- We want simpl to be False so the simplifier does not run, because
     -- this plugin gets inserted into the simplifier.  Thus, running the simplifier
     -- results in an infinite loop.
-    let tconfig = (simplTranslationConfig {simpl = False, load_rewrite_rules = True, hpc_ticks = False})
+    let tconfig = (simplTranslationConfig { simpl = False
+                                          , load_rewrite_rules = True
+                                          , hpc_ticks = False })
         ems = EnvModSumModGuts env [] [modguts]
 
     prev_comp <- liftIO $ readIORef compiledModules
