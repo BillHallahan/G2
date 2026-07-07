@@ -130,7 +130,7 @@ verifyRedHaltOrd s solver simplifier config verify_config no_nrpc_names = do
 
         orderer = case search_strat config of
                         Subpath -> SomeOrderer . liftOrderer . liftOrderer $ lengthNSubpathOrderer (subpath_length config)
-                        ADTHeightOrd -> SomeOrderer $ adtHeightOrderer 0
+                        ADTHeightOrd -> SomeOrderer $ sumAdtHeightOrderer 0
                         Iterative -> SomeOrderer pickLeastUsedOrderer
 
     return ( lemma_gen (\_ _ _ _ -> Nothing) .== Finished --> verifySolveNRPC

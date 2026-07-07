@@ -146,7 +146,8 @@ module G2.Execution.Reducer (
                             , nextOrderer
                             , pickLeastUsedOrderer
                             , bucketSizeOrderer
-                            , adtHeightOrderer
+                            , maxAdtHeightOrderer
+                            , sumAdtHeightOrderer
                             , adtSizeOrderer
                             , pcSizeOrderer
                             , incrAfterN
@@ -2015,8 +2016,8 @@ bucketSizeOrderer b =
 -- | Orders by the size (in terms of height) of (previously) symbolic ADT.
 -- In particular, aims to first execute those states with a height closest to
 -- the specified height.
-adtHeightOrderer :: Monad m => Int -> Orderer m (HS.HashSet Name) Int r t
-adtHeightOrderer pref_height =
+adtHeightOrderer :: Monad m => Bool -> ([Int] -> Int)  -> Int -> Orderer m (HS.HashSet Name) Int r t
+adtHeightOrderer read_in_new f pref_height =
     (mkSimpleOrderer initial
                     order
                     (\v _ _ -> v))
@@ -2034,15 +2035,20 @@ adtHeightOrderer pref_height =
         initial s = HS.fromList . map idName . E.symbolicIds . expr_env $ s
         order v _ s =
             let
-                m = maximum $ (-1):(HS.toList $ HS.map (flip adtHeight s) v)
+                m = f $ (HS.toList $ HS.map (flip adtHeight s) v)
                 h = abs (pref_height - m)
             in
             return h
 
         step  v _ _ (State { expr_env = eenv, curr_expr = CurrExpr Evaluate (Var (Id n _))})
-            | E.isSymbolic n eenv = HS.insert n v
+            | read_in_new, E.isSymbolic n eenv = HS.insert n v
         step v _ _ _ = v
 
+maxAdtHeightOrderer :: Monad m => Int -> Orderer m (HS.HashSet Name) Int r t
+maxAdtHeightOrderer = adtHeightOrderer True (\xs -> maximum (-1:xs))
+
+sumAdtHeightOrderer :: Monad m => Int -> Orderer m (HS.HashSet Name) Int r t
+sumAdtHeightOrderer = adtHeightOrderer False sum
 
 adtHeight :: Name -> State t -> Int
 adtHeight n s@(State { expr_env = eenv })
@@ -2314,9 +2320,10 @@ allOfHeightTerminated config func_name init_s = do
 
         analysis init_time curr_height_io vs analysis_event _ all_states
             | isAcceptedOrDiscarded analysis_event = do
-                let m = case all_states of
+                let ms = map (\curr_s -> sum $ (HS.toList $ HS.map (flip adtHeight curr_s) vs)) all_states
+                    m = case ms of
                             [] -> -1
-                            _:_ -> minimum $ map (\curr_s -> sum $ (HS.toList $ HS.map (flip adtHeight curr_s) vs)) all_states
+                            _:_ -> minimum ms
                 curr_height <- liftIO $ readIORef curr_height_io
 
                 when (m > curr_height) $ do
