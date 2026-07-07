@@ -2343,14 +2343,14 @@ allOfHeightTerminated config func_name init_s = do
 
         worthAnalyzing (StateAccepted _) = True 
         worthAnalyzing (StateDiscarded _) = True
-        worthAnalyzing (StateReduced s _) = False
-            -- case getExpr s of
-            --     Var (Id n _) -> E.isSymbolic n (expr_env s)
-            --     _ -> False
+        worthAnalyzing (StateReduced s _) =
+            case getExpr s of
+                Var (Id n _) -> E.isSymbolic n (expr_env s)
+                _ -> False
 
         analysis init_time curr_height_io vs analysis_event _ all_states 
             | worthAnalyzing analysis_event = do
-                let ms = map (\curr_s -> sum $ (HS.toList $ HS.map (flip adtHeight curr_s) vs)) all_states
+                let ms = map (\curr_s -> sum $ (HS.toList $ HS.map (flip adtSum curr_s) vs)) all_states
                     m = case ms of
                             [] -> -1
                             _:_ -> minimum ms
