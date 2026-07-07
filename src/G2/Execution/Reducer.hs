@@ -2016,8 +2016,12 @@ bucketSizeOrderer b =
 -- | Orders by the size (in terms of height) of (previously) symbolic ADT.
 -- In particular, aims to first execute those states with a height closest to
 -- the specified height.
-adtHeightOrderer :: Monad m => Bool -> ([Int] -> Int)  -> Int -> Orderer m (HS.HashSet Name) Int r t
-adtHeightOrderer read_in_new f pref_height =
+adtHeightOrderer :: Monad m => Bool
+                 -> ([Int] -> Int)
+                 -> (Name -> State t -> Int)
+                 -> Int
+                 -> Orderer m (HS.HashSet Name) Int r t
+adtHeightOrderer read_in_new combine_adt_res adt_res pref_height =
     (mkSimpleOrderer initial
                     order
                     (\v _ _ -> v))
@@ -2035,7 +2039,7 @@ adtHeightOrderer read_in_new f pref_height =
         initial s = HS.fromList . map idName . E.symbolicIds . expr_env $ s
         order v _ s =
             let
-                m = f $ (HS.toList $ HS.map (flip adtHeight s) v)
+                m = combine_adt_res $ (HS.toList $ HS.map (flip adt_res s) v)
                 h = abs (pref_height - m)
             in
             return h
@@ -2045,24 +2049,47 @@ adtHeightOrderer read_in_new f pref_height =
         step v _ _ _ = v
 
 maxAdtHeightOrderer :: Monad m => Int -> Orderer m (HS.HashSet Name) Int r t
-maxAdtHeightOrderer = adtHeightOrderer True (\xs -> maximum (-1:xs))
+maxAdtHeightOrderer = adtHeightOrderer True (\xs -> maximum (-1:xs)) adtHeight
 
 sumAdtHeightOrderer :: Monad m => Int -> Orderer m (HS.HashSet Name) Int r t
-sumAdtHeightOrderer = adtHeightOrderer False sum
+sumAdtHeightOrderer = adtHeightOrderer False sum (adtSum)
+
+adtSum :: Name -> State t -> Int
+adtSum = adtComp sum ExcludePrimWrap
 
 adtHeight :: Name -> State t -> Int
-adtHeight n s@(State { expr_env = eenv })
+adtHeight = adtComp (\xs -> maximum $ -1:xs) IncludePrimWrap
+
+data ExcludePrimWrap = ExcludePrimWrap | IncludePrimWrap
+
+isExcludePrimWrap :: ExcludePrimWrap -> Bool
+isExcludePrimWrap IncludePrimWrap = True
+isExcludePrimWrap ExcludePrimWrap = True
+
+adtComp :: ([Int] -> Int) -> ExcludePrimWrap -> Name -> State t -> Int
+adtComp f exclude_prim_wrap n s@(State { expr_env = eenv, tyvar_env = tv_env, known_values = kv })
+    | Just t <- mt
+    , isTyFun t || (isExcludePrimWrap exclude_prim_wrap && isPrimWrap t) = 0
     | Just (E.Sym _) <- v = 0
     | Just (E.Conc e) <- v =
-        1 + adtHeight' e s
+        1 + adtComp' f exclude_prim_wrap e s
     | otherwise = 0
     where
-        v = E.lookupConcOrSym n eenv
+        v = E.deepLookupConcOrSym n eenv
+        mt = fmap (typeOf tv_env) $ fmap E.concOrSymToExpr v
 
-adtHeight' :: Expr -> State t -> Int
-adtHeight' e s =
-    maximum $ 0:map (\e' -> case e' of
-                        Var (Id n _) -> adtHeight n s
+        isPrimWrap (TyCon tn _) =  tn == KV.tyInt kv
+                                || tn == KV.tyFloat kv
+                                || tn == KV.tyDouble kv
+                                || tn == KV.tyInteger kv
+                                || tn == KV.tyWord kv
+                                || tn == KV.tyChar kv
+        isPrimWrap _ = False
+
+adtComp' :: ([Int] -> Int) -> ExcludePrimWrap -> Expr -> State t -> Int
+adtComp' f exclude_prim_wrap e s =
+    f $ map (\e' -> case e' of
+                        Var (Id n _) -> adtComp f exclude_prim_wrap n s
                         _ -> 0) (appArgs e)
 
 -- | Orders by the combined size of (previously) symbolic ADT.
@@ -2320,11 +2347,11 @@ allOfHeightTerminated config func_name init_s = do
 
         analysis init_time curr_height_io vs analysis_event _ all_states
             | isAcceptedOrDiscarded analysis_event = do
-                let ms = map (\curr_s -> sum $ (HS.toList $ HS.map (flip adtHeight curr_s) vs)) all_states
+                let ms = map (\curr_s -> sum $ (HS.toList $ HS.map (flip adtSum curr_s) vs)) all_states
                     m = case ms of
                             [] -> -1
                             _:_ -> minimum ms
-                curr_height <- liftIO $ readIORef curr_height_io
+                curr_height <-liftIO $ readIORef curr_height_io
 
                 when (m > curr_height) $ do
                     accept_time <- liftIO $ getTime Realtime
