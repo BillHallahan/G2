@@ -2314,12 +2314,11 @@ allOfHeightTerminated config func_name init_s = do
                         _ -> ""
         file_name = "logs/" ++ T.unpack (nameOcc func_name) ++ symb_func ++ ".txt"
 
-        isAcceptedOrDiscarded (StateAccepted _) = True 
-        isAcceptedOrDiscarded (StateDiscarded _) = True
-        isAcceptedOrDiscarded (StateReduced _ _) = False
+        -- isAcceptedOrDiscarded (StateAccepted _) = True 
+        -- isAcceptedOrDiscarded (StateDiscarded _) = True
+        -- isAcceptedOrDiscarded (StateReduced _ _) = False
 
-        analysis init_time curr_height_io vs analysis_event _ all_states
-            | isAcceptedOrDiscarded analysis_event = do
+        analysis init_time curr_height_io vs _ _ all_states = do
                 let ms = map (\curr_s -> sum $ (HS.toList $ HS.map (flip adtHeight curr_s) vs)) all_states
                     m = case ms of
                             [] -> -1
@@ -2332,7 +2331,7 @@ allOfHeightTerminated config func_name init_s = do
                         diff_secs = (fromInteger (toNanoSecs diff)) / (10 ^ (9 :: Int) :: Double)
                     liftIO $ writeIORef curr_height_io m
                     liftIO . appendFile file_name $ "(" ++ show diff_secs ++ "," ++ show (m - 1) ++ ")" -- "Up to height " ++ show (m - 1) ++ ": "
-            | otherwise = return ()
+
 --------
 --------
 
