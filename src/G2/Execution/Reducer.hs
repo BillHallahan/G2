@@ -2343,6 +2343,7 @@ allOfHeightTerminated config func_name init_s = do
 
         worthAnalyzing (StateAccepted _) = True 
         worthAnalyzing (StateDiscarded _) = True
+        worthAnalyzing (StateReduced _ []) = True
         worthAnalyzing (StateReduced s _) =
             case getExpr s of
                 Var (Id n _) -> E.isSymbolic n (expr_env s)
