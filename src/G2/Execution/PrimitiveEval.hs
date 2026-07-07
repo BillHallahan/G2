@@ -444,7 +444,7 @@ evalPrimWithState s ng (App (App (App (App (App (Prim WriteMutVar _) _) (Type t)
     Just (newPCEmpty s', ng')
 evalPrimWithState _ _ e | [Prim WriteMutVar _, _, _, _, _, _] <- unApp e = Nothing
 evalPrimWithState s ng (App (Prim BuildLitTable _) fun_e)
-    | (TyFun fst_t _snd_t) <- typeOf (tyvar_env s) fun_e =
+    | (TyFun fst_t snd_t) <- typeOf (tyvar_env s) fun_e =
     -- When starting to build a literal table, we need to insert a literal table frame,
     -- put an empty table on the literal table stack, and create a new symbolic var
     -- to evaluate the function with
@@ -454,7 +454,7 @@ evalPrimWithState s ng (App (Prim BuildLitTable _) fun_e)
         eenv1 = E.insertSymbolic arg_id $ expr_env s
 
         (lt_name, ng2) = freshName ng1
-        s1 = introduceLitTable s lt_name arg_id
+        s1 = introduceLitTable s lt_name arg_id snd_t
 
         s2 = s1 { curr_expr = ce1
                 , expr_env = eenv1 }

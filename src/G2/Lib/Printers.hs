@@ -852,7 +852,8 @@ prettyStateDiff pg (SD { new_conc_entries = nce
 
 prettyLitTable :: PrettyGuide -> LitTable -> T.Text
 prettyLitTable pg (LitTable { lt_arg = lta, lt_rec_funs = ltf, lt_mapping = ltm
-                            , lt_errored = lte, lt_init_pcs = lip, lt_partial = ltp })
+                            , lt_errored = lte, lt_init_pcs = lip, lt_partial = ltp
+                            , lt_ret_ty = lrt })
     | HM.null ltm = header <> "empty literal table"
     | otherwise =
         header <> (T.intercalate "\n----------------\n"
@@ -864,10 +865,11 @@ prettyLitTable pg (LitTable { lt_arg = lta, lt_rec_funs = ltf, lt_mapping = ltm
         fun_exps = map (mkDirtyExprHaskell pg) $ HS.toList ltf
         header = "-- start lit table --\n"
                      <> "symbolic id: " <> sym_id <> "\n"
+                     <> "function return type: " <> mkTypeHaskellPG pg lrt <> "\n"
                      <> "evaluated recursive function expr set:\n" <> (T.pack $ show fun_exps) <> "\n"
                      <> "error found: " <> (T.pack $ show lte) <> "\n"
                      <> "partial table: " <> (T.pack $ show ltp) <> "\n"
-                     <> "initial path conds:" <> prettyPathConds pg lip <> "\n"
+                     <> "initial path conds: " <> prettyPathConds pg lip <> "\n"
                      <> "mapping:\n"
 
 prettyLitTables :: PrettyGuide -> HM.HashMap Name LitTable -> T.Text
