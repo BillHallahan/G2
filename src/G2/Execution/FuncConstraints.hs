@@ -1609,7 +1609,7 @@ solveLitVals solver simplifier fcs = do
                     sel_func <- freshSeededIdN (Name "sel" Nothing 0 Nothing) call_ty
 
                     let fc_prim = map (\fc -> fc { fc_args = filter (isPrimType . typeOf tv_env) $ fc_args fc}) fc_list
-                    (unified_e, fc_unified) <- unifyAllRetSymVars fc_prim
+                    (unified_i, fc_unified) <- unifyAllRetSymVars fc_prim
                     -- Filter to only constraints that do not return symbolic variables.
                     -- Constraints returning symbolic variables may return any value; thus they may be ignored.
                     fc_no_sym_ret <- filterM (\fc -> case fc_ret fc of
@@ -1663,7 +1663,7 @@ solveLitVals solver simplifier fcs = do
                             insertE n $ mkLams (zip (repeat TermL) lam_is) sel_func_app
                         else do
                             bindee <- freshIdN TyLitInt
-                            let def_alt = Alt Default unified_e
+                            let def_alt = Alt Default (Var unified_i)
                                 alts = zipWith (\i fc -> Alt (LitAlt (LitInt i)) $ fc_ret fc) [1..] fc_inlined 
                                 cse = Case sel_func_app bindee ret_ty (alts ++ [def_alt])
                                 lam_cse = mkLams (zip (repeat TermL) lam_is) cse
@@ -1686,31 +1686,40 @@ solveLitVals solver simplifier fcs = do
                 return False    
 
 -- | Adjust all symbolic variables of ADT types being returned from function constraints
--- to be the same (fresh) symbolic value.
+-- to be the same symbolic value.
 -- This then allows us to ignore these constraints.
-unifyAllRetSymVars :: Monad m => [FuncConstraint] -> FCState t m (Expr, [FuncConstraint])
+unifyAllRetSymVars :: Monad m => [FuncConstraint] -> FCState t m (Id, [FuncConstraint])
 unifyAllRetSymVars [] = do
     unify_id <- freshSeededIdN (Name "unify" Nothing 0 Nothing) TyUnknown
-    return (Var unify_id, [])
-unifyAllRetSymVars fcs@(fc_first:other_fcs) = do
+    return (unify_id, [])
+unifyAllRetSymVars fcs@(fc_first:_) = do
     eenv <- exprEnv
     tv_env <- tyVarEnv
 
     ty_bool <- tyBoolT
 
     let ret_ty = typeOf tv_env $ fc_ret fc_first
-    let unify_e = fc_ret fc_first
-    -- insertSymbolicE unify_id
-    if | not (isPrimType ret_ty) && not (ret_ty == ty_bool) -> do
-            fcs' <- mapM (\fc -> case fc_ret fc of
-                                    (Var (Id n _))
-                                        | Just (E.Sym (Id sym_n _)) <- E.deepLookupConcOrSym n eenv -> do
-                                            insertE sym_n unify_e
-                                            return fc { fc_ret = unify_e }
-                                        | otherwise -> return fc
-                                    _ -> return fc) other_fcs
-            return (unify_e, fcs')
-       | otherwise -> return (unify_e, fcs)
+    let m_unify_i = firstJust (\fc -> isSymbolicVar (fc_ret fc) eenv) fcs
+    case m_unify_i of
+        Just unify_i@(Id unify_n _) | not (isPrimType ret_ty) && not (ret_ty == ty_bool) -> do
+                fcs' <- mapM (\fc -> case fc_ret fc of
+                                        (Var (Id n _))
+                                            | Just (E.Sym (Id sym_n _)) <- E.deepLookupConcOrSym n eenv
+                                            , unify_n /= sym_n -> do
+                                                insertE sym_n (Var unify_i)
+                                                return $ fc {fc_ret = Var unify_i}
+                                            | otherwise -> return fc
+                                        _ -> return fc) fcs
+                return (unify_i, fcs')
+        _ -> do
+            unify_i <- freshSeededIdN (Name "unify" Nothing 0 Nothing) TyUnknown
+            return (unify_i, fcs)
+    where
+        isSymbolicVar (Var (Id n _)) eenv | Just (E.Sym i) <- E.deepLookupConcOrSym n eenv = Just i
+        isSymbolicVar _ _ = Nothing
+
+        firstJust f = listToMaybe . mapMaybe f
+
 
 -- If the same function is returning different constructors for an ADT, try to split it up using literals.
 -- For instance, if we have:
