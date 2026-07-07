@@ -686,6 +686,7 @@ collectNonReducedVars fcs = do
             | nameOcc n == whnfBrOccName = collect seen ((i, LitInt 2):whnf_br) e
         collect seen whnf_br e
             | Data _:es <- unApp e = concatMap (collect seen whnf_br) es
+        collect seen whnf_br (Tick _ e) = collect seen whnf_br e
         collect _ _ _ = []
     
     return . concatMap (
@@ -746,6 +747,9 @@ addVarWrappers v@(Var (Id n t)) = do
             SM.lift $ insertE n var
             return (e', var)
         _ -> return (v, v)
+addVarWrappers (Tick t e) = do
+    (e', v) <- addVarWrappers e
+    return (Tick t e', v)
 addVarWrappers e = do
     eenv <- SM.lift $ exprEnv
     case isExprValueForm eenv . stripAllTicks $ inlineVars eenv e of
