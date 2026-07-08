@@ -770,9 +770,9 @@ addVarWrappers v@(Var (Id n t)) = do
             SM.lift $ insertE n var
             return (e', var)
         _ -> return (v, v)
-addVarWrappers (Tick t e) = do
+addVarWrappers (Tick _ e) = do
     (e', v) <- addVarWrappers e
-    return (Tick t e', v)
+    return (e', v)
 addVarWrappers e = do
     eenv <- SM.lift $ exprEnv
     case isExprValueForm eenv . stripAllTicks $ inlineVars eenv e of
