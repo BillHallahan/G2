@@ -377,6 +377,11 @@ all2 xs = case L.all recFun xs of
             | x == 50 = True
             | otherwise = False
 
+all3 :: (Int -> Bool) -> [Int] -> Char
+all3 f xs = case L.all f xs of
+                 True -> 'a'
+                 False -> 'b'
+
 any1 :: [Int] -> String
 any1 xs = case L.any (== 4) xs of
             True -> "Four found. Not good"
@@ -413,11 +418,6 @@ find1 xs = case find (== 4) xs of
                 Just x -> if length xs > 2 then 'a' else 'b'
                 Nothing -> 'c'
 
-find2 :: (Int -> Bool) -> [Int] -> Char
-find2 f xs = case find f xs of
-                 Just _ -> 'a'
-                 Nothing -> 'b'
-
 findIndex1 :: [Int] -> Char
 findIndex1 xs = case findIndex (\x -> x + 2 == 4) xs of
                     Just i -> if i > 2 then 'a' else 'b'
@@ -429,6 +429,3 @@ findIndices1 xs = case findIndices (\x -> x * 2 == 10) xs of
                       [] -> 1.1
                       [2] -> 2.2
                       _ -> 3.3
-
-findIndices2 :: [Double] -> [Int]
-findIndices2 = findIndices (\x -> x + 3 > 45.67)

@@ -15,5 +15,6 @@ pkgs.mkShell {
   shellHook = ''
     bash base_setup.sh
     cabal update
+    cabal configure --enable-tests
   '';
 }

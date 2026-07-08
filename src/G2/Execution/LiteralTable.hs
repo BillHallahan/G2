@@ -190,21 +190,21 @@ litTableToLam' s ng lt =
 litTableToLamBool :: State t -> NameGen -> LitTable -> Maybe (Expr, EESymDiff, NameGen)
 litTableToLamBool s ng lt = do
     let kv = known_values s
-    let tenv = type_env s
-    let tv_env = tyvar_env s
+        tenv = type_env s
+        tv_env = tyvar_env s
     (elem_var, unboxed_name, ng1) <- mkLamArg s ng lt
 
     let lt_lst = HM.toList $ lt_mapping lt
-    let lt_trues = makeAllTrue kv lt_lst
+        lt_trues = makeAllTrue kv lt_lst
 
         -- At this point, we know the literal table is non-empty, since we are creating a lambda for
         -- a boolean-returning function
-    let or_exp = mkDisjunction kv lt_trues
-    let or_exp1 = replaceVar unboxed_name (Var elem_var) or_exp
-    let fun_exp = Lam TermL elem_var or_exp1
-    let (partial_check, is_partial) =
+        or_exp = mkDisjunction kv lt_trues
+        or_exp1 = replaceVar unboxed_name (Var elem_var) or_exp
+        fun_exp = Lam TermL elem_var or_exp1
+        (partial_check, is_partial) =
             createPartialHandler (replaceVar unboxed_name (Var elem_var) lt) kv elem_var
-    let tup_exp = mkTup4 kv tenv tv_env
+        tup_exp = mkTup4 kv tenv tv_env
                       fun_exp
                       (mkTrue kv)
                       partial_check
@@ -215,12 +215,12 @@ litTableToLamNonBool :: State t -> NameGen -> LitTable -> Maybe (Expr, EESymDiff
 litTableToLamNonBool s ng lt = do
     (elem_var, unboxed_name, ng1) <- mkLamArg s ng lt
     let kv = known_values s
-    let tv_env = tyvar_env s
-    let tenv = type_env s
-    let lt_lst = HM.toList $ lt_mapping lt
+        tv_env = tyvar_env s
+        tenv = type_env s
+        lt_lst = HM.toList $ lt_mapping lt
     -- `Char`s are represented as one character `String`s here, so we
     -- need to extract the first character.
-    let wrap e t = if t == tyChar kv
+        wrap e t = if t == tyChar kv
                        then mkApp [Prim SeqNth TyUnknown, e, Lit $ LitInt 0]
                        else e
     -- At this point, we assume there are no `Error`s in the literal table. This
@@ -238,10 +238,10 @@ litTableToLamNonBool s ng lt = do
                                 (reverse rest)
                     _ -> Nothing
     let ite_exp1 = replaceVar unboxed_name (Var elem_var) ite_exp
-    let fun_exp = Lam TermL elem_var ite_exp1
-    let (partial_check, is_partial) =
+        fun_exp = Lam TermL elem_var ite_exp1
+        (partial_check, is_partial) =
             createPartialHandler (replaceVar unboxed_name (Var elem_var) lt) kv elem_var
-    let tup_exp = mkTup4 kv tenv tv_env
+        tup_exp = mkTup4 kv tenv tv_env
                       fun_exp
                       (mkTrue kv)
                       partial_check
