@@ -1682,7 +1682,7 @@ varLookupLimitHalter lim = mkSimpleHalter
 maxAdtHeightHalter :: Monad m =>
                    Int -- ^ Limit
                 -> Halter m (HS.HashSet Name) r t
-maxAdtHeightHalter = adtHeightHalter (\xs -> maximum $ (-1):xs)
+maxAdtHeightHalter = adtHeightHalter (\xs -> maximum $ 0:xs)
 
 -- | Discard a state if at least N previously symbolic ADTs have been concretized. 
 sumAdtHeightHalter :: Monad m =>
@@ -2049,7 +2049,7 @@ adtHeightOrderer read_in_new combine_adt_res adt_res pref_height =
         step v _ _ _ = v
 
 maxAdtHeightOrderer :: Monad m => Int -> Orderer m (HS.HashSet Name) Int r t
-maxAdtHeightOrderer = adtHeightOrderer True (\xs -> maximum (-1:xs)) adtHeight
+maxAdtHeightOrderer = adtHeightOrderer True (\xs -> maximum (0:xs)) adtHeight
 
 sumAdtHeightOrderer :: Monad m => Int -> Orderer m (HS.HashSet Name) Int r t
 sumAdtHeightOrderer = adtHeightOrderer False sum (adtSum)
@@ -2058,7 +2058,7 @@ adtSum :: Name -> State t -> Int
 adtSum = adtComp sum ExcludePrimWrap
 
 adtHeight :: Name -> State t -> Int
-adtHeight = adtComp (\xs -> maximum $ -1:xs) IncludePrimWrap
+adtHeight = adtComp (\xs -> maximum $ 0:xs) IncludePrimWrap
 
 data ExcludePrimWrap = ExcludePrimWrap | IncludePrimWrap
 
