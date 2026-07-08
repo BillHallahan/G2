@@ -2359,7 +2359,6 @@ allOfHeightTerminated config func_name init_s = do
                             [] -> -1
                             _:_ -> minimum ms
                 curr_height <-liftIO $ readIORef curr_height_io
-
                 when (m > curr_height) $ do
                     accept_time <- liftIO $ getTime Realtime
                     let diff = diffTimeSpec accept_time init_time
