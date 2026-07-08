@@ -2331,15 +2331,18 @@ allOfHeightTerminated config func_name init_s = do
     curr_height_io <- newIORef (0 :: Int)
 
     let vs = HS.fromList . map idName . E.symbolicIds $ expr_env init_s
-    writeFile file_name ""
+        file_name = "logs/" ++ T.unpack (nameOcc func_name) ++ symb_func ++ ".txt"
+    file_exists <- doesFileExist file_name
+    let file_name' = if not file_exists
+                        then file_name
+                        else "logs_second/" ++ T.unpack (nameOcc func_name) ++ symb_func ++ ".txt"
 
-    return $ analysis init_time curr_height_io vs
+    return $ analysis file_name' init_time curr_height_io vs
     where
         symb_func = case higherOrderSolver config of
                         SymbolicFunc -> "_symbolic"
                         SymConstraints -> "_sym_constraints"
                         _ -> ""
-        file_name = "logs/" ++ T.unpack (nameOcc func_name) ++ symb_func ++ ".txt"
 
         worthAnalyzing (StateAccepted _) = True 
         worthAnalyzing (StateDiscarded _) = True
@@ -2349,7 +2352,7 @@ allOfHeightTerminated config func_name init_s = do
                 Var (Id n _) -> E.isSymbolic n (expr_env s)
                 _ -> False
 
-        analysis init_time curr_height_io vs analysis_event _ all_states 
+        analysis file_name init_time curr_height_io vs analysis_event _ all_states 
             | worthAnalyzing analysis_event = do
                 let ms = map (\curr_s -> sum $ (HS.toList $ HS.map (flip adtSum curr_s) vs)) all_states
                     m = case ms of
