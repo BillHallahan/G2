@@ -210,11 +210,12 @@ unifiableFuncConstraints no_inline eenv kv fc1 fc2 = do
             case alignRet eenv (fc_ret fc1) (fc_ret fc2) of
                 Just eq_hs ->
                     let
-                        and1 = foldr (\e1 e2 -> mkApp [Prim And TyUnknown, e1, e2]) (mkTrue kv) $ fc_preconds fc1
-                        and2 = foldr (\e1 e2 -> mkApp [Prim And TyUnknown, e1, e2]) (mkTrue kv) $ fc_preconds fc2
-                        precond_eq = mkApp [Prim Eq TyUnknown, and1, and2]
+                        and1 = HS.fromList $ fc_preconds fc1
+                        and2 = HS.fromList $ fc_preconds fc2
                     in
-                    Unifiable (eq_hs, precond_eq)
+                    case and1 == and2 of
+                        True -> Unifiable (eq_hs, mkTrue kv)
+                        False -> NotUnifiable
                 Nothing -> Contradiction
         False -> NotUnifiable
 
