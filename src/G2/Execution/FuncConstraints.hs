@@ -870,7 +870,7 @@ solveFuncConstraints :: (ASTContainer t Expr, Solver solver, Simplifier simplifi
 solveFuncConstraints fc_logging solver simplifier no_inline s@(State { sym_func_constraints = fcs }) ng = do
     let no_tick_s = s { expr_env = stripAllTicks $ expr_env s }
         no_tick_fc = stripAllTicks fcs
-    (r, (s', !ng')) <- SM.evalStateT (runStateNGT (startSolveFC solver simplifier no_inline (-1) no_tick_fc) no_tick_s ng) (NoProgressFC, mkPrettyGuide no_tick_fc, fc_logging)
+    (r, (s', !ng')) <- SM.evalStateT (runStateNGT (startSolveFC solver simplifier no_inline 100 no_tick_fc) no_tick_s ng) (NoProgressFC, mkPrettyGuide no_tick_fc, fc_logging)
     return $ case r of
                     SatFC fcs' -> Just (s' { solving_sym_func_constraints = SolvedFCs
                                            , sym_func_constraints = fcs' }, ng')
@@ -892,7 +892,9 @@ startSolveFC solver simplifier no_inline n fcs = do
 
 -- TODO: Do we actually need the counter here?
 solveFC :: (Solver solver, Simplifier simplifier, MonadIO m) => solver -> simplifier -> HS.HashSet Name -> Int -> FuncConstraints -> FCState t m FCRes
-solveFC _ _ _ 0 _ = return UnsatFC
+solveFC _ _ _ 0 _ = do
+    liftIO $ putStrLn "HIT FC LIMIT"
+    return UnsatFC
 solveFC solver simplifier no_inline !n fcs = do
     init_time <- liftIO $ getTime Realtime
 
