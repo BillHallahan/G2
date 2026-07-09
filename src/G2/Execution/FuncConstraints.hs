@@ -7,7 +7,7 @@ module G2.Execution.FuncConstraints ( addFuncConstraintReducer
                                     , solveFuncConstraintsReducer
                                     , limitSolvingFuncConstraintPieces
 
-                                    , TimeInFC
+                                    , TimeInFC (..)
                                     
                                     , FCCheckRes (..)
                                     , checkFunctionConstraints
@@ -495,7 +495,7 @@ This way, the precondition allows choosing between making use of the argument an
 or not using the argument and also discarding the constraint.
 -}
 
-newtype TimeInFC = TimeInFC TimeSpec
+newtype TimeInFC = TimeInFC TimeSpec deriving Show
 
 solveFuncConstraintsReducer :: (ASTContainer t Expr, Solver solver, Simplifier simplifier, MonadIO m) => FCLogging -> solver -> simplifier -> HS.HashSet Name -> IO (Reducer m () t, IORef TimeInFC)
 solveFuncConstraintsReducer fc_logging solver simplifier no_inline = do

@@ -14,6 +14,7 @@ import GHC.Core.InstEnv
 import GHC.Types.TyThing
 
 import G2.Config
+import G2.Execution.FuncConstraints
 import G2.Initialization.MkCurrExpr
 import G2.Interface
 import G2.Initialization.Types as IT
@@ -39,6 +40,8 @@ import qualified Data.Text.IO as T
 import Options.Applicative
 import G2.Language.TyVarEnv as TV
 import qualified Data.Text as TX
+
+import System.Clock
 
 data SymEx = SymEx
            | SymExWithConfig String
@@ -166,7 +169,9 @@ runFunc' cmd_lne simp_state symex_annot entry
                                     func_config
             bindings' = bindings { higher_order_inst = HS.empty }
 
-        (_, _, _, time_outs, timeInFC) <- liftIO $ runG2WithConfig [] [] entry_id "" [] [L.nameModule entry] init_state func_config bindings'
+        (_, _, _, time_outs, TimeInFC timeInFC) <- liftIO $ runG2WithConfig [] [] entry_id "" [] [L.nameModule entry] init_state func_config bindings'
+        let seconds_in_fc = fromInteger (toNanoSecs timeInFC) / (10 ^ (9 :: Int) :: Double)
+        putStrLn $ "seconds in fc = " ++ show seconds_in_fc
         reportTerminationResults time_outs func_config
         return ()
     | otherwise = return ()
