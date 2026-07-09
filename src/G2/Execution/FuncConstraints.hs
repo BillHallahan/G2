@@ -897,15 +897,18 @@ startSolveFC solver simplifier no_inline n fcs = do
             putStrLn "------------------------"
             putStrLn "Initial FCs:"
             T.putStrLn . addTab $ prettyFuncConstraints pg fcs
-    solveFC solver simplifier no_inline n fcs
-
+    let all_whnf_preconds = HS.fromList . mapMaybe varName . concatMap fc_preconds . concat $ HM.elems fcs
+    solveFC solver simplifier all_whnf_preconds no_inline n fcs
+    where
+        varName e | [_, Var (Id vn _), _] <- unApp e, nameOcc vn == whnfBrOccName = Just vn
+        varName _ = Nothing
 
 -- TODO: Do we actually need the counter here?
-solveFC :: (Solver solver, Simplifier simplifier, MonadIO m) => solver -> simplifier -> HS.HashSet Name -> Int -> FuncConstraints -> FCState t m FCRes
-solveFC _ _ _ 0 _ = do
+solveFC :: (Solver solver, Simplifier simplifier, MonadIO m) => solver -> simplifier ->  HS.HashSet Name -> HS.HashSet Name -> Int -> FuncConstraints -> FCState t m FCRes
+solveFC _ _ _ _ 0 _ = do
     liftIO $ putStrLn "HIT FC LIMIT"
     return UnsatFC
-solveFC solver simplifier no_inline !n fcs = do
+solveFC solver simplifier all_whnf_preconds no_inline !n fcs = do
     init_time <- liftIO $ getTime Realtime
 
     -- Convert functions with only a single constraint into constants
@@ -934,7 +937,7 @@ solveFC solver simplifier no_inline !n fcs = do
             let fc_unfold_adt_reassembled = HM.fromListWith (++) fcs_unfold_adt_pieces
 
             -- Branch on whether possibly WHNF arguments are reduced or not
-            fcs_branch_whnf_pieces <- concatMapM (uncurry branchOnWHNF) $ HM.toList fc_unfold_adt_reassembled
+            fcs_branch_whnf_pieces <- concatMapM (uncurry (branchOnWHNF all_whnf_preconds)) $ HM.toList fc_unfold_adt_reassembled
             let fcs_branch_whnf_reassembled = HM.fromListWith (++) fcs_branch_whnf_pieces
 
             -- Branch on literals, with the aim of splitting up ADTs that are in WHNF from those that are not
@@ -953,7 +956,7 @@ solveFC solver simplifier no_inline !n fcs = do
                 liftIO . putStrLn $ "loop iter time = " ++ show diff_secs
 
             case prog of
-                MadeProgressFC -> solveFC solver simplifier no_inline (n - 1) elim_non_whnf_reassembled
+                MadeProgressFC -> solveFC solver simplifier all_whnf_preconds no_inline (n - 1) elim_non_whnf_reassembled
                 NoProgressFC -> return UnsatFC
 
 -- | If we only have a single function constraint for a given function, we instantiate
@@ -1322,9 +1325,9 @@ unfoldADTArgs n fcs@(first_fc:_) = do
             | otherwise -> error "unfoldADTArgs: bad index"
         Nothing -> return [(n, fcs)]
 
-branchOnWHNF :: MonadIO m => Name -> [FuncConstraint] -> FCState t m [(Name, [FuncConstraint])]
-branchOnWHNF _ [] = return []
-branchOnWHNF n fcs@(first_fc:_) = do
+branchOnWHNF :: MonadIO m => HS.HashSet Name -> Name -> [FuncConstraint] -> FCState t m [(Name, [FuncConstraint])]
+branchOnWHNF _ _ [] = return []
+branchOnWHNF used_whnf_branches n fcs@(first_fc:_) = do
     eenv <- exprEnv
     tv_env <- tyVarEnv
 
@@ -1363,24 +1366,41 @@ branchOnWHNF n fcs@(first_fc:_) = do
                 lam_cse = mkLams (zip (repeat TermL) lam_is) cse
             insertE n lam_cse
 
-            -- Rewrite constraints
-            let whnf_br_eq_1 = mkApp [Prim Eq TyUnknown, Var whnf_br, Lit (LitInt 1)]
-                fcs_can_eq_1 = filter (not . hasIncompatPrecond whnf_br (LitInt 1)) fcs
-                fcs_elim = map (\fc -> fc { fc_preconds = whnf_br_eq_1:fc_preconds fc
-                                          , fc_args = deleteAt i $ fc_args fc
-                                          , fc_split_on = map (const NoSplit) . deleteAt i $ fc_split_on fc }) fcs_can_eq_1
 
-                whnf_br_eq_2 = mkApp [Prim Eq TyUnknown, Var whnf_br, Lit (LitInt 2)]
-                fcs_can_eq_2 = filter (not . hasIncompatPrecond whnf_br (LitInt 2)) fcs
-                fcs_cont = map (\fc -> fc { fc_preconds = whnf_br_eq_2:fc_preconds fc
-                                          , fc_args = map (elimUnspec whnf_br eenv) $ fc_args fc
-                                          , fc_split_on = map (const NoSplit ) $ fc_split_on fc }) fcs_can_eq_2
+            -- If we do not have any function constraints that depend on the weak head normal form branch,
+            -- it is fine to just assume that we did evaluate to WHNF
+            case idName whnf_br `elem` used_whnf_branches of
+                True -> do
+                    -- Rewrite constraints
+                    let whnf_br_eq_1 = mkApp [Prim Eq TyUnknown, Var whnf_br, Lit (LitInt 1)]
+                        fcs_can_eq_1 = filter (not . hasIncompatPrecond whnf_br (LitInt 1)) fcs
+                        fcs_elim = map (\fc -> fc { fc_preconds = whnf_br_eq_1:fc_preconds fc
+                                                , fc_args = deleteAt i $ fc_args fc
+                                                , fc_split_on = map (const NoSplit) . deleteAt i $ fc_split_on fc }) fcs_can_eq_1
 
-            whenLogging "BranchOnWHNF" $ do
-                logEEnvInsert n lam_cse
-                logFCListToNameFCList n fcs [(idName f1, fcs_elim), (idName f2, fcs_cont)]
-            madeProgress
-            return $ [(idName f1, fcs_elim), (idName f2, fcs_cont)]
+                        whnf_br_eq_2 = mkApp [Prim Eq TyUnknown, Var whnf_br, Lit (LitInt 2)]
+                        fcs_can_eq_2 = filter (not . hasIncompatPrecond whnf_br (LitInt 2)) fcs
+                        fcs_cont = map (\fc -> fc { fc_preconds = whnf_br_eq_2:fc_preconds fc
+                                                , fc_args = map (elimUnspec whnf_br eenv) $ fc_args fc
+                                                , fc_split_on = map (const NoSplit ) $ fc_split_on fc }) fcs_can_eq_2
+
+                    whenLogging "BranchOnWHNF" $ do
+                        logEEnvInsert n lam_cse
+                        logFCListToNameFCList n fcs [(idName f1, fcs_elim), (idName f2, fcs_cont)]
+                    madeProgress
+                    return $ [(idName f1, fcs_elim), (idName f2, fcs_cont)]
+                False -> do
+                    insertPCStateNG $ ExtCond (mkApp [Prim Eq TyUnknown, Var whnf_br, Lit $ LitInt 2]) True
+                    let fcs_can_eq_2 = filter (not . hasIncompatPrecond whnf_br (LitInt 2)) fcs
+                        fcs_cont = map (\fc -> fc { fc_preconds = fc_preconds fc
+                                                  , fc_args = map (elimUnspec whnf_br eenv) $ fc_args fc
+                                                  , fc_split_on = map (const NoSplit ) $ fc_split_on fc }) fcs_can_eq_2
+
+                    whenLogging "BranchOnWHNF" $ do
+                        logEEnvInsert n lam_cse
+                        logFCListToNameFCList n fcs [(idName f2, fcs_cont)]
+                    madeProgress
+                    return $ [ (idName f2, fcs_cont)]
             | otherwise -> error "branchOnWHNF: Unexpected index or arguments"
         Nothing -> return [(n, fcs)]
 
