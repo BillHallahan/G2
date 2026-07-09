@@ -1,0 +1,8 @@
+packages: .
+          ./../g2.cabal
+
+package FC
+  ghc-options:        -fno-ignore-interface-pragmas
+
+package *
+    ghc-options:      -O0 -fno-omit-interface-pragmas -fexpose-all-unfoldings -fhpc

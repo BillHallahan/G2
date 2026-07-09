@@ -3,9 +3,15 @@
 
 module ReverseArgs where
 
+import G2.Plugin
+
 omega :: Int
 omega = omega
 
+{-# ANN reverseArgs (SymExWithConfig "--max-outputs 1 --no-step-limit --time 300 --higher-order symbolic --search subpath --subpath-len 8 --accept-times --print-timeout-list-depth --smt cvc5")
+    #-}
+{-# ANN reverseArgs (SymExWithConfig "--max-outputs 1 --no-step-limit --time 300 --higher-order sym-constraints --search subpath --subpath-len 8 --accept-times --print-timeout-list-depth --smt cvc5")
+    #-}
 reverseArgs :: ((Int -> Int) -> Int -> Int) -> Int
 reverseArgs f =
     let

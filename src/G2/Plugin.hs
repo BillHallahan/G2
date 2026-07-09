@@ -1,7 +1,7 @@
 {-# LANGUAGE BangPatterns, CPP, DeriveDataTypeable, DeriveGeneric, 
              FlexibleContexts, LambdaCase, OverloadedStrings, TupleSections #-}
 
-module G2.Plugin (SymEx (..), assume, (==>), plugin) where
+module G2.Plugin (SymEx (..), assume, (==>), plugin, logAcceptedStateTime) where
 
 #if MIN_VERSION_GLASGOW_HASKELL(9,0,2,0)
 import GHC.Plugins as GHC hiding ((<>))
@@ -38,6 +38,7 @@ import qualified Data.Sequence as Seq
 import qualified Data.Text.IO as T
 import Options.Applicative
 import G2.Language.TyVarEnv as TV
+import qualified Data.Text as TX
 
 data SymEx = SymEx
            | SymExWithConfig String
@@ -153,7 +154,12 @@ runFunc' cmd_lne simp_state symex_annot entry
 
         -- Run symbolic execution
         let entry_id = Id entry_name $ L.typeOf TV.empty e
-        T.putStrLn $ "Running " <> nameOcc entry
+            entry_name' = case higherOrderSolver func_config of
+                            SymConstraints -> nameOcc entry <> "_sym_constraints"
+                            SymbolicFunc -> nameOcc entry <> "_symbolic"
+                            _ -> nameOcc entry
+        T.putStrLn $ "Running " <> entry_name'
+        logAcceptedStateTime (TX.unpack entry_name')
         let (init_state, bindings) = initStateFromSimpleState simp_state [L.nameModule entry] False
                                     (mkCurrExpr TV.empty Nothing Nothing entry_id)
                                     (E.higherOrderExprs TV.empty . IT.expr_env)
@@ -164,6 +170,12 @@ runFunc' cmd_lne simp_state symex_annot entry
         reportTerminationResults time_outs func_config
         return ()
     | otherwise = return ()
+
+logAcceptedStateTime :: [Char] -> IO ()
+logAcceptedStateTime entryName  = do
+    let file_name = "time_logs/state_accept_log.txt"
+    file_exists <- doesFileExist file_name
+    when file_exists $ appendFile file_name $ "\n" ++ entryName ++ " : "
 
 -- Based on https://dl.acm.org/doi/pdf/10.1145/3495272
 loadImports :: SM.MonadIO m => HscEnv -> HM.HashMap L.Name L.Expr -> S.Set L.Name -> Seq.Seq L.Name -> NamesT m ExtractedG2
