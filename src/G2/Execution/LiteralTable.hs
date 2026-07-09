@@ -115,9 +115,9 @@ mkIdLam s ng lt =
 mkLamArg :: State t -> NameGen -> LitTable -> Maybe (Id, Name, NameGen)
 mkLamArg s ng lt = do
     let eenv = expr_env s
-    let tvnv = tyvar_env s
+        tvnv = tyvar_env s
 
-    let (Id lt_arg_name _) = lt_arg lt
+        (Id lt_arg_name _) = lt_arg lt
     lt_arg_e <- E.deepLookup lt_arg_name eenv
     (unboxed_sym, unboxed_name) <-
         case lt_arg_e of
@@ -125,7 +125,7 @@ mkLamArg s ng lt = do
             _ -> Nothing
 
     let lit_ty = typeOf tvnv unboxed_sym
-    let (elem_var, ng1) = freshId lit_ty ng
+        (elem_var, ng1) = freshId lit_ty ng
     return (elem_var, unboxed_name, ng1)
 
 -- Make a fully applied primitive tuple with four elements
