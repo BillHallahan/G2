@@ -1487,6 +1487,11 @@ acceptTimeLogger = do
                             accept_time <- getTime Realtime
                             let diff = diffTimeSpec accept_time init_time
                                 diff_secs = (fromInteger (toNanoSecs diff)) / (10 ^ (9 :: Int) :: Double)
+
+                            let file_name = "time_logs/state_accept_log.txt"
+                            file_exists <- doesFileExist file_name
+                            when file_exists $ appendFile file_name (" " ++ show diff_secs)
+
                             putStr "State Accepted Time: "
                             print diff_secs
                             return () }
