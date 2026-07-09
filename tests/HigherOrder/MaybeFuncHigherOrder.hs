@@ -9,6 +9,15 @@ f g =
                                     False -> 2 -- Unreachable
         Nothing -> 3
 
+f2 :: (Int -> Maybe (Int -> Int)) -> Int
+f2 g =
+    case g 1 of
+        Just h -> case g 2 of
+                    Just k -> case h 2 == k 2 of
+                                    True -> 1
+                                    False -> 2
+        Nothing -> 3
+
 h :: (Int -> [Int -> Int]) -> Int
 h g =
     case g 1 of

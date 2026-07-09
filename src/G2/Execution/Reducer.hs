@@ -146,7 +146,8 @@ module G2.Execution.Reducer (
                             , nextOrderer
                             , pickLeastUsedOrderer
                             , bucketSizeOrderer
-                            , adtHeightOrderer
+                            , maxAdtHeightOrderer
+                            , sumAdtHeightOrderer
                             , adtSizeOrderer
                             , pcSizeOrderer
                             , incrAfterN
@@ -1681,7 +1682,7 @@ varLookupLimitHalter lim = mkSimpleHalter
 maxAdtHeightHalter :: Monad m =>
                    Int -- ^ Limit
                 -> Halter m (HS.HashSet Name) r t
-maxAdtHeightHalter = adtHeightHalter (\xs -> maximum $ (-1):xs)
+maxAdtHeightHalter = adtHeightHalter (\xs -> maximum $ 0:xs)
 
 -- | Discard a state if at least N previously symbolic ADTs have been concretized. 
 sumAdtHeightHalter :: Monad m =>
@@ -2015,8 +2016,12 @@ bucketSizeOrderer b =
 -- | Orders by the size (in terms of height) of (previously) symbolic ADT.
 -- In particular, aims to first execute those states with a height closest to
 -- the specified height.
-adtHeightOrderer :: Monad m => Int -> Orderer m (HS.HashSet Name) Int r t
-adtHeightOrderer pref_height =
+adtHeightOrderer :: Monad m => Bool
+                 -> ([Int] -> Int)
+                 -> (Name -> State t -> Int)
+                 -> Int
+                 -> Orderer m (HS.HashSet Name) Int r t
+adtHeightOrderer read_in_new combine_adt_res adt_res pref_height =
     (mkSimpleOrderer initial
                     order
                     (\v _ _ -> v))
@@ -2034,29 +2039,57 @@ adtHeightOrderer pref_height =
         initial s = HS.fromList . map idName . E.symbolicIds . expr_env $ s
         order v _ s =
             let
-                m = maximum $ (-1):(HS.toList $ HS.map (flip adtHeight s) v)
+                m = combine_adt_res $ (HS.toList $ HS.map (flip adt_res s) v)
                 h = abs (pref_height - m)
             in
             return h
 
         step  v _ _ (State { expr_env = eenv, curr_expr = CurrExpr Evaluate (Var (Id n _))})
-            | E.isSymbolic n eenv = HS.insert n v
+            | read_in_new, E.isSymbolic n eenv = HS.insert n v
         step v _ _ _ = v
 
+maxAdtHeightOrderer :: Monad m => Int -> Orderer m (HS.HashSet Name) Int r t
+maxAdtHeightOrderer = adtHeightOrderer True (\xs -> maximum (0:xs)) adtHeight
+
+sumAdtHeightOrderer :: Monad m => Int -> Orderer m (HS.HashSet Name) Int r t
+sumAdtHeightOrderer = adtHeightOrderer False sum (adtSum)
+
+adtSum :: Name -> State t -> Int
+adtSum = adtComp sum ExcludePrimWrap
 
 adtHeight :: Name -> State t -> Int
-adtHeight n s@(State { expr_env = eenv })
+adtHeight = adtComp (\xs -> maximum $ 0:xs) IncludePrimWrap
+
+data ExcludePrimWrap = ExcludePrimWrap | IncludePrimWrap
+
+isExcludePrimWrap :: ExcludePrimWrap -> Bool
+isExcludePrimWrap IncludePrimWrap = True
+isExcludePrimWrap ExcludePrimWrap = True
+
+adtComp :: ([Int] -> Int) -> ExcludePrimWrap -> Name -> State t -> Int
+adtComp f exclude_prim_wrap n s@(State { expr_env = eenv, tyvar_env = tv_env, known_values = kv })
+    | Just t <- mt
+    , isTyFun t || (isExcludePrimWrap exclude_prim_wrap && isPrimWrap t) = 0
     | Just (E.Sym _) <- v = 0
     | Just (E.Conc e) <- v =
-        1 + adtHeight' e s
+        1 + adtComp' f exclude_prim_wrap e s
     | otherwise = 0
     where
-        v = E.lookupConcOrSym n eenv
+        v = E.deepLookupConcOrSym n eenv
+        mt = fmap (typeOf tv_env) $ fmap E.concOrSymToExpr v
 
-adtHeight' :: Expr -> State t -> Int
-adtHeight' e s =
-    maximum $ 0:map (\e' -> case e' of
-                        Var (Id n _) -> adtHeight n s
+        isPrimWrap (TyCon tn _) =  tn == KV.tyInt kv
+                                || tn == KV.tyFloat kv
+                                || tn == KV.tyDouble kv
+                                || tn == KV.tyInteger kv
+                                || tn == KV.tyWord kv
+                                || tn == KV.tyChar kv
+        isPrimWrap _ = False
+
+adtComp' :: ([Int] -> Int) -> ExcludePrimWrap -> Expr -> State t -> Int
+adtComp' f exclude_prim_wrap e s =
+    f $ map (\e' -> case e' of
+                        Var (Id n _) -> adtComp f exclude_prim_wrap n s
                         _ -> 0) (appArgs e)
 
 -- | Orders by the combined size of (previously) symbolic ADT.
@@ -2298,27 +2331,34 @@ allOfHeightTerminated config func_name init_s = do
     curr_height_io <- newIORef (0 :: Int)
 
     let vs = HS.fromList . map idName . E.symbolicIds $ expr_env init_s
-    writeFile file_name ""
+        file_name = "logs/" ++ T.unpack (nameOcc func_name) ++ symb_func ++ ".txt"
+    file_exists <- doesFileExist file_name
+    let file_name' = if not file_exists
+                        then file_name
+                        else "logs_second/" ++ T.unpack (nameOcc func_name) ++ symb_func ++ ".txt"
 
-    return $ analysis init_time curr_height_io vs
+    return $ analysis file_name' init_time curr_height_io vs
     where
         symb_func = case higherOrderSolver config of
                         SymbolicFunc -> "_symbolic"
                         SymConstraints -> "_sym_constraints"
                         _ -> ""
-        file_name = "logs/" ++ T.unpack (nameOcc func_name) ++ symb_func ++ ".txt"
 
-        isAcceptedOrDiscarded (StateAccepted _) = True 
-        isAcceptedOrDiscarded (StateDiscarded _) = True
-        isAcceptedOrDiscarded (StateReduced _ _) = False
+        worthAnalyzing (StateAccepted _) = True 
+        worthAnalyzing (StateDiscarded _) = True
+        worthAnalyzing (StateReduced _ []) = True
+        worthAnalyzing (StateReduced s _) =
+            case getExpr s of
+                Var (Id n _) -> E.isSymbolic n (expr_env s)
+                _ -> False
 
-        analysis init_time curr_height_io vs analysis_event _ all_states
-            | isAcceptedOrDiscarded analysis_event = do
-                let m = case all_states of
+        analysis file_name init_time curr_height_io vs analysis_event _ all_states 
+            | worthAnalyzing analysis_event = do
+                let ms = map (\curr_s -> sum $ (HS.toList $ HS.map (flip adtSum curr_s) vs)) all_states
+                    m = case ms of
                             [] -> -1
-                            _:_ -> minimum $ map (\curr_s -> sum $ (HS.toList $ HS.map (flip adtHeight curr_s) vs)) all_states
-                curr_height <- liftIO $ readIORef curr_height_io
-
+                            _:_ -> minimum ms
+                curr_height <-liftIO $ readIORef curr_height_io
                 when (m > curr_height) $ do
                     accept_time <- liftIO $ getTime Realtime
                     let diff = diffTimeSpec accept_time init_time
@@ -2326,6 +2366,7 @@ allOfHeightTerminated config func_name init_s = do
                     liftIO $ writeIORef curr_height_io m
                     liftIO . appendFile file_name $ "(" ++ show diff_secs ++ "," ++ show (m - 1) ++ ")" -- "Up to height " ++ show (m - 1) ++ ": "
             | otherwise = return ()
+
 --------
 --------
 

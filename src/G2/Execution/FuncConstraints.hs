@@ -210,11 +210,12 @@ unifiableFuncConstraints no_inline eenv kv fc1 fc2 = do
             case alignRet eenv (fc_ret fc1) (fc_ret fc2) of
                 Just eq_hs ->
                     let
-                        and1 = foldr (\e1 e2 -> mkApp [Prim And TyUnknown, e1, e2]) (mkTrue kv) $ fc_preconds fc1
-                        and2 = foldr (\e1 e2 -> mkApp [Prim And TyUnknown, e1, e2]) (mkTrue kv) $ fc_preconds fc2
-                        precond_eq = mkApp [Prim Eq TyUnknown, and1, and2]
+                        and1 = HS.fromList $ fc_preconds fc1
+                        and2 = HS.fromList $ fc_preconds fc2
                     in
-                    Unifiable (eq_hs, precond_eq)
+                    case and1 == and2 of
+                        True -> Unifiable (eq_hs, mkTrue kv)
+                        False -> NotUnifiable
                 Nothing -> Contradiction
         False -> NotUnifiable
 
@@ -352,20 +353,35 @@ unifyFuncConstraints solver simplifier no_inline s@(State { sym_func_constraints
 --   m 1 2 = y
 -- @
 
-unifyReturnFuncs :: Monad m => StateNGT t m ()
+data JoinedFuncs = JF { top_name :: Name
+                      , joined_id :: Id
+                      , joined_vars :: [Id] }
+                      deriving (Eq, Show)
+
+adjustFromJoinedFunc :: JoinedFuncs -> State t -> State t
+adjustFromJoinedFunc (JF { top_name = tn, joined_id = j_id, joined_vars = vs })
+                   s@(State { expr_env = eenv }) =
+    let
+        tn_lams = leadingLamIds . fromJust $ E.lookup tn eenv
+        def = mkApp $ Var j_id:map Var tn_lams
+        eenv' = foldr (\v eenv_ -> E.insert (idName v) def eenv_) eenv vs
+    in
+    s { expr_env = eenv' }
+
+unifyReturnFuncs :: Monad m => StateNGT t m [JoinedFuncs]
 unifyReturnFuncs = do
     fcs <- getFCsStateNG
-    unifyRT $ HM.toList fcs
+    unifyRT [] $ HM.toList fcs
 
-unifyRT :: Monad m => [(Name, [FuncConstraint])] -> StateNGT t m ()
-unifyRT [] = return ()
-unifyRT ((_, these_fcs):xs) = do
-    new_ns_fcs <- walkReturns these_fcs
-    unifyRT $ xs ++ new_ns_fcs
+unifyRT :: Monad m => [JoinedFuncs] -> [(Name, [FuncConstraint])] -> StateNGT t m [JoinedFuncs]
+unifyRT joined_funcs [] = return joined_funcs
+unifyRT joined_funcs ((this_n, these_fcs):xs) = do
+    (new_ns_fcs, new_joined_funcs) <- walkReturns this_n these_fcs
+    unifyRT (joined_funcs ++ new_joined_funcs) $ xs ++ new_ns_fcs
 
-walkReturns :: Monad m => [FuncConstraint] -> StateNGT t m [(Name, [FuncConstraint])]
-walkReturns [] = return []
-walkReturns fcs@(first_fc:_) = do
+walkReturns :: Monad m => Name -> [FuncConstraint] -> StateNGT t m ([(Name, [FuncConstraint])], [JoinedFuncs])
+walkReturns _ [] = return ([], [])
+walkReturns fcs_for_func_n fcs@(first_fc:_) = do
     eenv <- exprEnv
     tv_env <- tyVarEnv
     let fcs' = map (\fc -> fc { fc_ret = E.deepLookupExpr (fc_ret fc) eenv}) fcs
@@ -389,12 +405,17 @@ walkReturns fcs@(first_fc:_) = do
             insertSymbolicE join_f
             let func_cons_set' = HM.insert (idName join_f) updated_fc
                                $ foldl' (flip HM.delete) func_cons_set ns
-
+                               
             putFCsStateNG func_cons_set'
-            return [(idName join_f, updated_fc)]
+            return ( [ (idName join_f, updated_fc) ]
+                   , [ JF { top_name =fcs_for_func_n
+                          , joined_id = join_f
+                          , joined_vars = map (\case Var i -> i; _ -> error "walkReturns: expected var") $ map fc_ret fcs' } ])
         _ -> do
             let fcs'' = splitOnDCArgs fcs'
-            concatMapM walkReturns fcs''
+            walked <- mapM (walkReturns fcs_for_func_n) fcs''
+            let (new_fcs, joined_info) = unzip walked
+            return (concat new_fcs, concat joined_info)
 
 splitOnDCArgs :: [FuncConstraint] -> [[FuncConstraint]]
 splitOnDCArgs fcs =
@@ -502,11 +523,14 @@ checkFunctionConstraints fc_logging solver simplifier no_inline s ng = do
     (m_unif_s, ng1) <- runNamingT (unifyFuncConstraints solver simplifier no_inline s) ng
     case m_unif_s of
         Just unif_s -> do
-            (_, (unif_ret_s, ng2)) <- runStateNGT unifyReturnFuncs unif_s ng1
+            (joined_funcs, (unif_ret_s, ng2)) <- runStateNGT unifyReturnFuncs unif_s ng1
+
             r <- solveFuncConstraints fc_logging solver simplifier no_inline unif_ret_s ng2
             -- liftIO . putStrLn $ case r of Just _ -> "Just"; Nothing -> "Nothing"
             case r of
-                Just (s', ng3) -> return $ FCSat s' ng3
+                Just (s', ng3) -> 
+                    let s'' = foldr adjustFromJoinedFunc s' joined_funcs in
+                    return $ FCSat s'' ng3
                 Nothing -> do
                     let s' = collapseStack s
                     -- Function constraints were not solved
@@ -747,9 +771,9 @@ addVarWrappers v@(Var (Id n t)) = do
             SM.lift $ insertE n var
             return (e', var)
         _ -> return (v, v)
-addVarWrappers (Tick t e) = do
+addVarWrappers (Tick _ e) = do
     (e', v) <- addVarWrappers e
-    return (Tick t e', v)
+    return (e', v)
 addVarWrappers e = do
     eenv <- SM.lift $ exprEnv
     case isExprValueForm eenv . stripAllTicks $ inlineVars eenv e of
@@ -1586,7 +1610,7 @@ solveLitVals solver simplifier fcs = do
                     sel_func <- freshSeededIdN (Name "sel" Nothing 0 Nothing) call_ty
 
                     let fc_prim = map (\fc -> fc { fc_args = filter (isPrimType . typeOf tv_env) $ fc_args fc}) fc_list
-                    (unified_id, fc_unified) <- unifyAllRetSymVars fc_prim
+                    (unified_i, fc_unified) <- unifyAllRetSymVars fc_prim
                     -- Filter to only constraints that do not return symbolic variables.
                     -- Constraints returning symbolic variables may return any value; thus they may be ignored.
                     fc_no_sym_ret <- filterM (\fc -> case fc_ret fc of
@@ -1640,7 +1664,7 @@ solveLitVals solver simplifier fcs = do
                             insertE n $ mkLams (zip (repeat TermL) lam_is) sel_func_app
                         else do
                             bindee <- freshIdN TyLitInt
-                            let def_alt = Alt Default (Var unified_id)
+                            let def_alt = Alt Default (Var unified_i)
                                 alts = zipWith (\i fc -> Alt (LitAlt (LitInt i)) $ fc_ret fc) [1..] fc_inlined 
                                 cse = Case sel_func_app bindee ret_ty (alts ++ [def_alt])
                                 lam_cse = mkLams (zip (repeat TermL) lam_is) cse
@@ -1663,7 +1687,7 @@ solveLitVals solver simplifier fcs = do
                 return False    
 
 -- | Adjust all symbolic variables of ADT types being returned from function constraints
--- to be the same (fresh) symbolic value.
+-- to be the same symbolic value.
 -- This then allows us to ignore these constraints.
 unifyAllRetSymVars :: Monad m => [FuncConstraint] -> FCState t m (Id, [FuncConstraint])
 unifyAllRetSymVars [] = do
@@ -1676,18 +1700,27 @@ unifyAllRetSymVars fcs@(fc_first:_) = do
     ty_bool <- tyBoolT
 
     let ret_ty = typeOf tv_env $ fc_ret fc_first
-    unify_id <- freshSeededIdN (Name "unify" Nothing 0 Nothing) ret_ty
-    insertSymbolicE unify_id
-    if | not (isPrimType ret_ty) && not (ret_ty == ty_bool) -> do
-            fcs' <- mapM (\fc -> case fc_ret fc of
-                                    (Var (Id n _))
-                                        | Just (E.Sym (Id sym_n _)) <- E.deepLookupConcOrSym n eenv -> do
-                                            insertE sym_n (Var unify_id)
-                                            return fc { fc_ret = Var unify_id }
-                                        | otherwise -> return fc
-                                    _ -> return fc) fcs
-            return (unify_id, fcs')
-       | otherwise -> return (unify_id, fcs)
+    let m_unify_i = firstJust (\fc -> isSymbolicVar (fc_ret fc) eenv) fcs
+    case m_unify_i of
+        Just unify_i@(Id unify_n _) | not (isPrimType ret_ty) && not (ret_ty == ty_bool) -> do
+                fcs' <- mapM (\fc -> case fc_ret fc of
+                                        (Var (Id n _))
+                                            | Just (E.Sym (Id sym_n _)) <- E.deepLookupConcOrSym n eenv
+                                            , unify_n /= sym_n -> do
+                                                insertE sym_n (Var unify_i)
+                                                return $ fc {fc_ret = Var unify_i}
+                                            | otherwise -> return fc
+                                        _ -> return fc) fcs
+                return (unify_i, fcs')
+        _ -> do
+            unify_i <- freshSeededIdN (Name "unify" Nothing 0 Nothing) TyUnknown
+            return (unify_i, fcs)
+    where
+        isSymbolicVar (Var (Id n _)) eenv | Just (E.Sym i) <- E.deepLookupConcOrSym n eenv = Just i
+        isSymbolicVar _ _ = Nothing
+
+        firstJust f = listToMaybe . mapMaybe f
+
 
 -- If the same function is returning different constructors for an ADT, try to split it up using literals.
 -- For instance, if we have:

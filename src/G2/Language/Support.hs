@@ -600,8 +600,8 @@ instance Named FuncConstraint where
                        , fc_ret = renames hm (fc_ret fc) }
 
 instance ASTContainer FuncConstraint Expr where
-    modifyContainedASTs f fc = fc { fc_preconds = modifyContainedASTs f (fc_preconds fc)
-                                  , fc_args = modifyContainedASTs f (fc_args fc)
+    modifyContainedASTs f fc = fc { fc_preconds = map f (fc_preconds fc)
+                                  , fc_args = map f (fc_args fc)
                                   , fc_ret = f (fc_ret fc) }
     containedASTs fc = containedASTs (fc_preconds fc) <> containedASTs (fc_args fc) <> containedASTs (fc_ret fc)
 

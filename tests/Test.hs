@@ -796,6 +796,7 @@ testFileTests = testGroup "TestFiles"
     , checkInputOutputsSymFuncConstraintsSubPathSMTLists "tests/HigherOrder/HigherOrder3.hs"
                                                                        [ ("propFalse", 1000 * 1000, [AtLeast 5])
                                                                        , ("prop2", 1000 * 1000, [AtLeast 5]) ]
+    , checkInputOutputsSymFuncConstraintsSubPathReturnsTrue "tests/HigherOrder/UncurryHigherOrder.hs" [ ("prop", 1000, [Exactly 1]) ]
 
     , checkExprRetTrueSymFunc "tests/HigherOrder/HigherAssume.hs" 2500 "propA" [Exactly 0]
 
@@ -806,6 +807,7 @@ testFileTests = testGroup "TestFiles"
                                                                            , ("check2", 10000, [AtLeast 2]) ]
 
     , checkInputOutputsSymFuncConstraints "tests/HigherOrder/MaybeFuncHigherOrder.hs" [ ("f", 10000, [Exactly 2])
+                                                                                      , ("f2", 10000, [Exactly 4])
                                                                                       , ("h", 10000, [Exactly 4]) ]
 
     , checkInputOutputsWithValidate "tests/BaseTests/ListTests.hs" [ ("lengthN", 2000, [AtLeast 1])
