@@ -6,6 +6,8 @@ module G2.Execution.FuncConstraints ( addFuncConstraintReducer
                                     , redFuncConstraint
                                     , solveFuncConstraintsReducer
                                     , limitSolvingFuncConstraintPieces
+
+                                    , TimeInFC
                                     
                                     , FCCheckRes (..)
                                     , checkFunctionConstraints
@@ -31,9 +33,11 @@ import Control.Monad
 import Control.Monad.Extra
 import Control.Monad.IO.Class
 import qualified Control.Monad.State.Lazy as SM
+import Data.Coerce
 import qualified Data.Foldable as F
 import qualified Data.HashMap.Lazy as HM
 import qualified Data.HashSet as HS
+import Data.IORef
 import Data.List
 import qualified Data.List.NonEmpty as NE
 import Data.Maybe
@@ -477,7 +481,6 @@ splitOnDCArgs fcs =
 -- For this reason, we introduce these branches before trying to solve literal constraints,
 -- but then revert these branches before we go back to introducing further splits on ADTs.
 
-
 {-
 Problem:
 If we fail to solve function constraints, have to try and reduce arguments.
@@ -492,12 +495,19 @@ This way, the precondition allows choosing between making use of the argument an
 or not using the argument and also discarding the constraint.
 -}
 
-solveFuncConstraintsReducer :: (ASTContainer t Expr, Solver solver, Simplifier simplifier, MonadIO m) => FCLogging -> solver -> simplifier -> HS.HashSet Name -> Reducer m () t
-solveFuncConstraintsReducer fc_logging solver simplifier no_inline = mkSimpleReducer (\_ -> ()) go
+newtype TimeInFC = TimeInFC TimeSpec
+
+solveFuncConstraintsReducer :: (ASTContainer t Expr, Solver solver, Simplifier simplifier, MonadIO m) => FCLogging -> solver -> simplifier -> HS.HashSet Name -> IO (Reducer m () t, IORef TimeInFC)
+solveFuncConstraintsReducer fc_logging solver simplifier no_inline = do
+    fc_time_spent <- newIORef (TimeInFC 0)
+    return $ (mkSimpleReducer (const ()) (go fc_time_spent), fc_time_spent)
     where
-        go _ s b
+        go fc_time_spent _ s b
             | true_assert s = do
+                st <- liftIO $ getTime Realtime
                 fc_check_res <- checkFunctionConstraints fc_logging solver simplifier no_inline s (name_gen b)
+                en <- liftIO $ getTime Realtime
+                liftIO $ modifyIORef fc_time_spent (coerce (+ (en - st)))
                 case fc_check_res of
                     FCSat s' ng' -> return (Finished, [(s', ())], b { name_gen = ng' })
                     FCReductionNeeded is s' ng' ->

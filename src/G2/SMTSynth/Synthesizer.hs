@@ -486,7 +486,7 @@ runFuncSMT temp src f smt_def sc@(SynthConfig { eq_file = eq_f, g2_config = conf
 
     let comp_state' = if checking sc == Verify then setUpVerification (idName entry_f) comp_state else comp_state
 
-    (er, got_unknown, bindings', _) <- runG2WithConfig proj src entry_f f [] mb_modname comp_state' config' bindings
+    (er, got_unknown, bindings', _, _) <- runG2WithConfig proj src entry_f f [] mb_modname comp_state' config' bindings
 
     let new_state_bindings = getFCStateBindings er bindings' 
     reached_fc_res <- mapM (\(new_s, new_b) -> do
@@ -495,7 +495,7 @@ runFuncSMT temp src f smt_def sc@(SynthConfig { eq_file = eq_f, g2_config = conf
         --                         else config'
         runG2WithConfig proj src entry_f f [] mb_modname new_s config' new_b) new_state_bindings
     
-    let reached_fc_ers = concatMap (\(er_, _, _, _) -> er_) reached_fc_res
+    let reached_fc_ers = concatMap (\(er_, _, _, _, _) -> er_) reached_fc_res
 
     return (entry_f, er ++ reached_fc_ers, got_unknown, name_gen bindings, Nothing)
 
@@ -537,7 +537,7 @@ runFuncSpec temp src f smt_def sc@(SynthConfig { eq_file = eq_f, g2_config = con
 
     let (comp_state'', ng) = if checking sc == Verify then verifySpec (idName entry_f) (idName comp_func) comp_bindings comp_state' else (comp_state', name_gen comp_bindings)
 
-    (er, got_unknown, bindings', _) <- runG2WithConfig proj src comp_func "comp" [] comp_mb_modname comp_state'' config'' comp_bindings
+    (er, got_unknown, bindings', _, _) <- runG2WithConfig proj src comp_func "comp" [] comp_mb_modname comp_state'' config'' comp_bindings
 
     let isSpecCorrect = case smt_def of
                             Just _ -> checkIfSpecIsCorrect er
