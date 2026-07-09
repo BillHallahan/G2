@@ -171,6 +171,10 @@ runFunc' cmd_lne simp_state symex_annot entry
 
         (_, _, _, time_outs, TimeInFC timeInFC) <- liftIO $ runG2WithConfig [] [] entry_id "" [] [L.nameModule entry] init_state func_config bindings'
         let seconds_in_fc = fromInteger (toNanoSecs timeInFC) / (10 ^ (9 :: Int) :: Double)
+        -- Clean it up later, move this in some sort of Util
+        let fc_file = "time_logs/fc_time.txt"
+        file_exists <- doesFileExist fc_file
+        when file_exists $ appendFile fc_file $ "\n" ++ TX.unpack entry_name' ++ " : " ++ show seconds_in_fc
         putStrLn $ "seconds in fc = " ++ show seconds_in_fc
         reportTerminationResults time_outs func_config
         return ()
