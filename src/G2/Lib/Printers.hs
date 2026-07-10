@@ -549,6 +549,10 @@ mkPrimHaskell pg = pr
         pr WGenCat = "wgencat"
 
         pr Map = "seq.map"
+        -- Note that these two primitives are not SMT constructs,
+        -- we build them out of folds
+        pr MapConcat = "MapConcat"
+        pr MapConcatI = "MapConcatI"
         pr FoldLeft = "seq.fold_left"
         pr FoldLeftI = "seq.fold_lefti"
 

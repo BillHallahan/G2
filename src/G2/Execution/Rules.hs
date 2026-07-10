@@ -288,23 +288,25 @@ evalApp s@(State { expr_env = eenv
         (RuleEvalPrimToNorm, newPCEmpty $ s { curr_expr = CurrExpr Return (App e1 e2') }, ng)
     -- Force evaluation of the expression being folded over
     | [Prim FoldLeft t, lam, initial] <- unApp e1 =
-        let
-            lam' = simplifyExprs eenv eenv lam
+        let lam' = simplifyExprs eenv eenv lam
             e1' = mkApp [Prim FoldLeft t, lam', initial]
-        in
-        forceEval (App e1' e2) eenv tenv tv_env kv tc s ng
+        in forceEval (App e1' e2) eenv tenv tv_env kv tc s ng
     | [Prim Map t, lam] <- unApp e1 =
-        let
-            lam' = simplifyExprs eenv eenv lam
+        let lam' = simplifyExprs eenv eenv lam
             e1' = mkApp [Prim Map t, lam']
-        in
-        forceEval (App e1' e2) eenv tenv tv_env kv tc s ng
+        in forceEval (App e1' e2) eenv tenv tv_env kv tc s ng
     | [Prim FoldLeftI t, lam, offset, initial] <- unApp e1 =
-        let
-            lam' = simplifyExprs eenv eenv lam
+        let lam' = simplifyExprs eenv eenv lam
             e1' = mkApp [Prim FoldLeftI t, lam', offset, initial]
-        in
-        forceEval (App e1' e2) eenv tenv tv_env kv tc s ng
+        in forceEval (App e1' e2) eenv tenv tv_env kv tc s ng
+    | [Prim MapConcat t, lam] <- unApp e1 =
+        let lam' = simplifyExprs eenv eenv lam
+            e1' = mkApp [Prim MapConcat t, lam']
+        in forceEval (App e1' e2) eenv tenv tv_env kv tc s ng
+    | [Prim MapConcatI t, lam] <- unApp e1 =
+        let lam' = simplifyExprs eenv eenv lam
+            e1' = mkApp [Prim MapConcatI t, lam']
+        in forceEval (App e1' e2) eenv tenv tv_env kv tc s ng
     -- Float ticks to the top of a prim
     | Prim _ _:es <- unApp (App e1 e2)
     , ts <- concatMap getTickish es

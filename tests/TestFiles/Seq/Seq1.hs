@@ -389,11 +389,24 @@ filter1 xs = case filter small xs of
     where
         small x = x < 4
 
+filter2 :: [Int] -> [Int] -> Int
+filter2 xs ys = let both = xs ++ ys
+                    ne_4 = filter (/= 4) both
+                in case ne_4 of
+                       (4:_) -> 0 -- Unreachable
+                       x -> if length x == 3 then 1 else 2
+
+filter3 :: [Double] -> [Double]
+filter3 = filter (\x -> x > 3.3 && x < 6.6)
+
 map1 :: [Int] -> Char
 map1 xs = case map (*2) xs of
             [2,4,6] -> 'a'
             [1,2] -> 'b' -- Unreachable
             _ -> 'c'
+
+map2 :: [Double] -> [Double]
+map2 = map (\x -> x * 2 + 3)
 
 dropWhile1 :: [Double] -> Int
 dropWhile1 xs = case dropWhile (> 13.37) xs of
@@ -424,3 +437,6 @@ findIndices1 xs = case findIndices (\x -> x * 2 == 10) xs of
                       [] -> 1.1
                       [2] -> 2.2
                       _ -> 3.3
+
+findIndices2 :: [Double] -> [Int]
+findIndices2 = findIndices (\x -> x + 3 > 45.67)
