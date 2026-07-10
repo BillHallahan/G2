@@ -880,7 +880,7 @@ solveFuncConstraints :: (ASTContainer t Expr, Solver solver, Simplifier simplifi
 solveFuncConstraints fc_logging solver simplifier no_inline s@(State { sym_func_constraints = fcs }) ng = do
     let no_tick_s = s { expr_env = stripAllTicks $ expr_env s }
         no_tick_fc = stripAllTicks fcs
-    (r, (s', !ng')) <- SM.evalStateT (runStateNGT (startSolveFC solver simplifier no_inline 100 no_tick_fc) no_tick_s ng) (NoProgressFC, mkPrettyGuide no_tick_fc, fc_logging)
+    (r, (s', !ng')) <- SM.evalStateT (runStateNGT (startSolveFC solver simplifier no_inline 200 no_tick_fc) no_tick_s ng) (NoProgressFC, mkPrettyGuide no_tick_fc, fc_logging)
     return $ case r of
                     SatFC fcs' -> Just (s' { solving_sym_func_constraints = SolvedFCs
                                            , sym_func_constraints = fcs' }, ng')
@@ -912,13 +912,11 @@ solveFC solver simplifier all_whnf_preconds no_inline !n fcs = do
     init_time <- liftIO $ getTime Realtime
 
     -- Convert functions with only a single constraint into constants
-    lit_val_sol <- solveLitVals solver simplifier fcs
+    lit_val_sol <- if n `mod` 8 == 0 then do sol <- solveLitVals solver simplifier fcs; resetProgress; return sol else return False
 
     case lit_val_sol of
         True -> return (SatFC fcs)
         False -> do
-            resetProgress
-
             fcs_nosingle <- return . HM.mapMaybe id =<< HM.traverseWithKey solveSingleton fcs
 
             fcs_simp_pieces <- concatMapM (uncurry simplifyReturns) $ HM.toList fcs_nosingle
@@ -1388,7 +1386,7 @@ branchOnWHNF used_whnf_branches n fcs@(first_fc:_) = do
                         logEEnvInsert n lam_cse
                         logFCListToNameFCList n fcs [(idName f1, fcs_elim), (idName f2, fcs_cont)]
                     madeProgress
-                    return $ [(idName f1, fcs_elim), (idName f2, fcs_cont)]
+                    concatMapM (uncurry (branchOnWHNF used_whnf_branches)) [(idName f1, fcs_elim), (idName f2, fcs_cont)]
                 False -> do
                     insertPCStateNG $ ExtCond (mkApp [Prim Eq TyUnknown, Var whnf_br, Lit $ LitInt 2]) True
                     let fcs_can_eq_2 = filter (not . hasIncompatPrecond whnf_br (LitInt 2)) fcs
@@ -1400,7 +1398,7 @@ branchOnWHNF used_whnf_branches n fcs@(first_fc:_) = do
                         logEEnvInsert n lam_cse
                         logFCListToNameFCList n fcs [(idName f2, fcs_cont)]
                     madeProgress
-                    return $ [ (idName f2, fcs_cont)]
+                    concatMapM (uncurry (branchOnWHNF used_whnf_branches)) [ (idName f2, fcs_cont)]
             | otherwise -> error "branchOnWHNF: Unexpected index or arguments"
         Nothing -> return [(n, fcs)]
 
@@ -1457,13 +1455,18 @@ splitWHNFAndNonWHNF n fcs@(first_fc:_) = do
 
     let matching_args = transpose $ map fc_args fcs
         only_some_whnf = findIndices (\e -> any (isADT . flip E.deepLookupExpr eenv) e
-                                        && any (not . isADT . flip E.deepLookupExpr eenv) e ) matching_args
+                                        && any (not . isADT . flip E.deepLookupExpr eenv) e
+                                        && all (not . isUnspecCase eenv . flip E.deepLookupExpr eenv) e) matching_args
     
     let arg_tys = map (typeOf tv_env) $ fc_args first_fc
 
     case any isPrimType arg_tys of
         True -> splitWHNFAndNonWHNFIndices only_some_whnf [(n, fcs)]
         False -> return [(n, fcs)]
+    where
+        isUnspecCase eenv (Case (Var _) _ _ [alt, _])
+            | isUnspecifiedOutputAlt eenv alt = True
+        isUnspecCase _ _ = False
 
 splitWHNFAndNonWHNFIndices :: MonadIO m => [Int] -> [(Name, [FuncConstraint])] -> FCState t m [(Name, [FuncConstraint])]
 splitWHNFAndNonWHNFIndices [] n_fcs = return n_fcs

@@ -44,11 +44,13 @@ runWithArgs as = do
 
   logAcceptedStateTime entry
 
-  (in_out, init_state, _, time_outs, _, entry_f@(Id (Name _ mb_modname _ _) _), all_mods) <-
+  (in_out, init_state, _, time_outs, fc_time, entry_f@(Id (Name _ mb_modname _ _) _), all_mods) <-
         runG2FromFile proj [src] gFlags (fmap T.pack m_assume)
                   (fmap T.pack m_assert) (fmap T.pack m_reaches) 
                   (isJust m_assert || isJust m_reaches || m_retsTrue) 
                   tentry simplTranslationConfig config'
+
+  print fc_time
 
   let (unspecified_output, spec_output) = L.partition (\ExecRes { final_state = s } -> getExpr s == Prim UnspecifiedOutput TyBottom) in_out
   
