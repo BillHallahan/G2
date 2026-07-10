@@ -108,4 +108,5 @@ assertFalseOnError kv = modifyContainedASTs (assertFalseOnError' kv)
 
 assertFalseOnError' :: KnownValues -> Expr -> Expr
 assertFalseOnError' kv err@(Prim Error _) = Assert Nothing (mkFalse kv) err
+assertFalseOnError' kv err@(Prim Raise _) = Assert Nothing (mkFalse kv) err
 assertFalseOnError' kv e = modifyChildren (assertFalseOnError' kv) e

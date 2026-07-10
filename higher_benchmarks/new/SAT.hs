@@ -41,7 +41,13 @@ sat2 = [ [ Pos "x1", Neg "x2", Pos "x3" ]
     ]
 
 checkSat1 :: Model -> Bool
-checkSat1 = not . flip checkClauses sat1
+checkSat1 mdl =
+    case checkClauses mdl sat2 of
+        True -> True
+        False -> True
 
 checkSat2 :: Model -> Bool
-checkSat2 = not . flip checkClauses sat1
+checkSat2 mdl =
+    case checkClauses mdl sat2 of
+        True -> True
+        False -> True

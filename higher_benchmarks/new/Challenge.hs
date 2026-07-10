@@ -1,7 +1,7 @@
 module Challenge where
 
-import Control.Exception
 import G2.Plugin
+import Control.Exception
 
 data AB = A AB | B deriving Eq
 
@@ -15,9 +15,9 @@ b () = A B
 
 data XYZ = X | Y | Z
 
-{-# ANN abc1 (SymExWithConfig "--max-outputs 1 --no-step-limit --time 300 --higher-order symbolic --error-asserts --search subpath --subpath-len 8 --accept-times --print-timeout-list-depth --smt cvc5")
+{-# ANN abc1 (SymExWithConfig "--max-outputs 1 --no-step-limit --time 300 --higher-order symbolic --search subpath --subpath-len 8 --accept-times --print-timeout-list-depth --smt cvc5 --check-asserts --error-asserts")
     #-}
-{-# ANN abc1 (SymExWithConfig "--max-outputs 1 --no-step-limit --time 300 --higher-order sym-constraints --search subpath --subpath-len 8 --accept-times --print-timeout-list-depth --smt cvc5")
+{-# ANN abc1 (SymExWithConfig "--max-outputs 1 --no-step-limit --time 300 --higher-order sym-constraints --search subpath --subpath-len 8 --accept-times --print-timeout-list-depth --smt cvc5 --check-asserts --error-asserts")
     #-}
 abc1 :: (Int -> AB -> XYZ) -> Int
 abc1 f = case f 1 B of
@@ -28,9 +28,9 @@ abc1 f = case f 1 B of
                             _ -> 3
                 _ -> 4
 
-{-# ANN abc2 (SymExWithConfig "--max-outputs 1 --no-step-limit --time 300 --higher-order symbolic --search subpath --subpath-len 8 --accept-times --print-timeout-list-depth --smt cvc5")
+{-# ANN abc2 (SymExWithConfig "--max-outputs 1 --no-step-limit --time 300 --higher-order symbolic --search subpath --subpath-len 8 --accept-times --print-timeout-list-depth --smt cvc5 --check-asserts --error-asserts")
     #-}
-{-# ANN abc2 (SymExWithConfig "--max-outputs 1 --no-step-limit --time 300 --higher-order sym-constraints --search subpath --subpath-len 8 --accept-times --print-timeout-list-depth --smt cvc5")
+{-# ANN abc2 (SymExWithConfig "--max-outputs 1 --no-step-limit --time 300 --higher-order sym-constraints --search subpath --subpath-len 8 --accept-times --print-timeout-list-depth --smt cvc5 --check-asserts --error-asserts")
     #-}
 abc2 :: (Int -> AB -> AB -> XYZ) -> Int
 abc2 f =
@@ -40,9 +40,9 @@ abc2 f =
                 _ -> 2
         _ -> 3
 
-{-# ANN abc3 (SymExWithConfig "--max-outputs 1 --no-step-limit --time 300 --higher-order symbolic --search subpath --subpath-len 8 --accept-times --print-timeout-list-depth --smt cvc5")
+{-# ANN abc3 (SymExWithConfig "--max-outputs 1 --no-step-limit --time 300 --higher-order symbolic --search subpath --subpath-len 8 --accept-times --print-timeout-list-depth --smt cvc5 --check-asserts --error-asserts")
     #-}
-{-# ANN abc3 (SymExWithConfig "--max-outputs 1 --no-step-limit --time 300 --higher-order sym-constraints --search subpath --subpath-len 8 --accept-times --print-timeout-list-depth --smt cvc5")
+{-# ANN abc3 (SymExWithConfig "--max-outputs 1 --no-step-limit --time 300 --higher-order sym-constraints --search subpath --subpath-len 8 --accept-times --print-timeout-list-depth --smt cvc5 --check-asserts --error-asserts")
     #-}
 abc3 :: (Int -> AB -> Bool) -> Int
 abc3 f =
@@ -54,9 +54,9 @@ abc3 f =
                     _ -> 3
         _ -> 4
 
-{-# ANN abc4 (SymExWithConfig "--max-outputs 1 --no-step-limit --time 300 --higher-order symbolic --search subpath --subpath-len 8 --accept-times --print-timeout-list-depth --smt cvc5")
+{-# ANN abc4 (SymExWithConfig "--max-outputs 1 --no-step-limit --time 300 --higher-order symbolic --search subpath --subpath-len 8 --accept-times --print-timeout-list-depth --smt cvc5 --check-asserts --error-asserts")
     #-}
-{-# ANN abc4 (SymExWithConfig "--max-outputs 1 --no-step-limit --time 300 --higher-order sym-constraints --search subpath --subpath-len 8 --accept-times --print-timeout-list-depth --smt cvc5")
+{-# ANN abc4 (SymExWithConfig "--max-outputs 1 --no-step-limit --time 300 --higher-order sym-constraints --search subpath --subpath-len 8 --accept-times --print-timeout-list-depth --smt cvc5 --check-asserts --error-asserts")
     #-}
 abc4 :: (AB -> Int -> Bool) -> Int
 abc4 f =
@@ -70,9 +70,9 @@ abc4 f =
 
 data Funcs = I (Int -> Int) | I2 (Int -> Int -> Int) | B2 (Int -> Bool)
 
-{-# ANN funcs (SymExWithConfig "--max-outputs 1 --no-step-limit --time 300 --higher-order symbolic --search subpath --subpath-len 8 --accept-times --print-timeout-list-depth --smt cvc5")
+{-# ANN funcs (SymExWithConfig "--max-outputs 1 --no-step-limit --time 300 --higher-order symbolic --search subpath --subpath-len 8 --accept-times --print-timeout-list-depth --smt cvc5 --check-asserts --error-asserts")
     #-}
-{-# ANN funcs (SymExWithConfig "--max-outputs 1 --no-step-limit --time 300 --higher-order sym-constraints --search subpath --subpath-len 8 --accept-times --print-timeout-list-depth --smt cvc5")
+{-# ANN funcs (SymExWithConfig "--max-outputs 1 --no-step-limit --time 300 --higher-order sym-constraints --search subpath --subpath-len 8 --accept-times --print-timeout-list-depth --smt cvc5 --check-asserts --error-asserts")
     #-}
 funcs :: (Funcs -> Int) -> Int
 funcs f =
@@ -82,9 +82,9 @@ funcs f =
                     True -> error "REAL"
                     False -> 3
 
-{-# ANN maybeFuncs (SymExWithConfig "--max-outputs 1 --no-step-limit --time 300 --higher-order symbolic --search subpath --subpath-len 8 --accept-times --print-timeout-list-depth --smt cvc5")
+{-# ANN maybeFuncs (SymExWithConfig "--max-outputs 1 --no-step-limit --time 300 --higher-order symbolic --search subpath --subpath-len 8 --accept-times --print-timeout-list-depth --smt cvc5 --check-asserts --error-asserts")
     #-}
-{-# ANN maybeFuncs (SymExWithConfig "--max-outputs 1 --no-step-limit --time 300 --higher-order sym-constraints --search subpath --subpath-len 8 --accept-times --print-timeout-list-depth --smt cvc5")
+{-# ANN maybeFuncs (SymExWithConfig "--max-outputs 1 --no-step-limit --time 300 --higher-order sym-constraints --search subpath --subpath-len 8 --accept-times --print-timeout-list-depth --smt cvc5 --check-asserts --error-asserts")
     #-}
 maybeFuncs :: (Maybe Funcs -> Int) -> Int
 maybeFuncs f =
@@ -95,3 +95,25 @@ maybeFuncs f =
                                 True -> error "REAL"
                                 False -> 3
                     False -> 4
+
+{-# ANN retFunc (SymExWithConfig "--max-outputs 1 --no-step-limit --time 300 --higher-order symbolic --search subpath --subpath-len 8 --accept-times --print-timeout-list-depth --smt cvc5 --check-asserts --error-asserts")
+    #-}
+{-# ANN retFunc (SymExWithConfig "--max-outputs 1 --no-step-limit --time 300 --higher-order sym-constraints --search subpath --subpath-len 8 --accept-times --print-timeout-list-depth --smt cvc5 --check-asserts --error-asserts")
+    #-}
+retFunc :: (Int -> [Int -> Int]) -> Int
+retFunc g =
+    case g 1 of
+        [h] -> case g (one ()) of
+                    [k] -> case h 2 == k 2 of
+                                    True -> 1
+                                    False -> 2 -- Unreachable
+        [_, h] -> case g (one ()) of
+                    [_, k] -> case h 2 == k 2 of
+                                    True -> error "REAL"
+                                    False -> 4 -- Unreachable
+        (_:_:_:_) -> 5
+        _ -> 6
+
+{-# NOINLINE one #-}
+one :: () -> Int
+one _ = 1
