@@ -17,7 +17,6 @@ import G2.Interface
 import G2.Language
 import G2.Language.HPC
 import G2.Translation
-import G2.Plugin
 
 main :: IO ()
 main = do
@@ -41,8 +40,6 @@ runWithArgs as = do
 
   let gFlags = if measure_coverage config then [Opt_Hpc] else []
       config' = if measure_coverage config then config { validate = True } else config
-
-  logAcceptedStateTime entry
 
   (in_out, init_state, _, time_outs, fc_time, entry_f@(Id (Name _ mb_modname _ _) _), all_mods) <-
         runG2FromFile proj [src] gFlags (fmap T.pack m_assume)
