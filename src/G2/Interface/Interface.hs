@@ -534,7 +534,7 @@ initSolver' avf config = do
 
 initSimplifier :: SomeSimplifier
 initSimplifier =
-    SomeSimplifier $ LamVarSimplifier :>> FloatSimplifier :>> ArithSimplifier
+    SomeSimplifier $ HigherOrderSimplifier :>> LamVarSimplifier :>> FloatSimplifier :>> ArithSimplifier
                  :>> BoolSimplifier :>> StringSimplifier :>> EqualitySimplifier :>> ConstSimplifier :>> LitConc
 
 mkTypeEnv :: HM.HashMap Name AlgDataTy -> TypeEnv

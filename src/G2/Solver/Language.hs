@@ -144,6 +144,8 @@ data SMTAST = (:>=) !SMTAST !SMTAST
             | SeqNthSMT !SMTAST !SMTAST
 
             | MapSMT SMTName Sort !SMTAST !SMTAST
+            | MapConcatSMT SMTName Sort Sort !SMTAST !SMTAST
+            | MapConcatISMT SMTName Sort SMTName Sort Sort !SMTAST !SMTAST
             | FoldLeftSMT SMTName Sort SMTName Sort !SMTAST !SMTAST !SMTAST
             | FoldLeftISMT SMTName Sort SMTName Sort SMTName Sort !SMTAST !SMTAST !SMTAST !SMTAST
             | LambdaSMT [(SMTName, Sort)] SMTAST
@@ -354,6 +356,8 @@ instance AST SMTAST where
     children (SeqNthSMT x y) = [x, y]
 
     children (MapSMT _ _ x y) = [x, y]
+    children (MapConcatSMT _ _ _ x y) = [x, y]
+    children (MapConcatISMT _ _ _ _ _ x y) = [x, y]
     children (FoldLeftSMT _ _ _ _ x y z) = [x, y, z]
     children (FoldLeftISMT _ _ _ _ _ _ w x y z) = [w, x, y, z]
     children (LambdaSMT _ x) = [x]
@@ -478,6 +482,8 @@ instance AST SMTAST where
     modifyChildren f (SeqNthSMT x y) = SeqNthSMT (f x) (f y)
 
     modifyChildren f (MapSMT n1 s1 x y) = MapSMT n1 s1 (f x) (f y)
+    modifyChildren f (MapConcatSMT n1 s1 accum_s x y) = MapConcatSMT n1 s1 accum_s (f x) (f y)
+    modifyChildren f (MapConcatISMT n1 s1 n2 s2 accum_s x y) = MapConcatISMT n1 s1 n2 s2 accum_s (f x) (f y)
     modifyChildren f (FoldLeftSMT n1 s1 n2 s2 x y z) = FoldLeftSMT n1 s1 n2 s2 (f x) (f y) (f z)
     modifyChildren f (FoldLeftISMT idx idx_t n1 s1 n2 s2 w x y z) =
         FoldLeftISMT idx idx_t n1 s1 n2 s2 (f w) (f x) (f y) (f z)

@@ -315,7 +315,10 @@ solveOnePattern entry_f exclude s (PL { pattern = varred_form, pat_ids = is, lit
         smt_spec = map snd new_pieces
         new_smt_def = "let " ++ intercalate "; " new_pieces' ++ " in "
                     ++ T.unpack (toHaskellCode s pg varred_form)
-    return (new_smt_def, head smt_spec)
+        fst_spec = case smt_spec of
+                       (h:_) -> h
+                       _ -> error "impossible"
+    return (new_smt_def, fst_spec)
 
 toHaskellCode :: State t -> PrettyGuide -> Expr -> T.Text
 toHaskellCode _ _ e | Prim Error _:_ <- unApp e = "error \"\""
@@ -475,7 +478,7 @@ runFuncSMT temp src f smt_def sc@(SynthConfig { eq_file = eq_f, g2_config = conf
                                             let
                                                 new_i = Id entry_f_n $ typeOf (tyvar_env init_state) entry_f_def
                                             in
-                                            (findInconsistent new_i init_state bindings False, new_i)
+                                            (findInconsistent new_i init_state False, new_i)
                                        | otherwise -> error "runFunc: func not found" 
                         Nothing -> (init_state, func)
     -- let sol = fmap (\(_, _, sl) -> sl) smt_def
@@ -523,12 +526,12 @@ runFuncSpec temp src f smt_def sc@(SynthConfig { eq_file = eq_f, g2_config = con
                                     simplTranslationConfig config'
     
     let (comp_state', entry_f) = case E.lookupNameMod (nameOcc n) (nameModule n) (expr_env comp_state) of
-            Just (entry_f_n, entry_f_def) | isJust smt_def -> 
+            Just (entry_f_n, entry_f_def) | isJust smt_def ->
                 let new_i = Id entry_f_n $ typeOf (tyvar_env comp_state) entry_f_def
-                    in (findInconsistent new_i comp_state comp_bindings False, new_i)
+                    in (findInconsistent new_i comp_state False, new_i)
             Just (entry_f_n, entry_f_def) -> 
                 let new_i = Id entry_f_n $ typeOf (tyvar_env comp_state) entry_f_def
-                    in (findInconsistent new_i comp_state comp_bindings True, new_i)
+                    in (findInconsistent new_i comp_state True, new_i)
             Nothing -> (comp_state, func)
 
     -- let config'' = if isJust smt_def then config' { logStates = Log Pretty "a_smt_1"} else config'
@@ -537,7 +540,7 @@ runFuncSpec temp src f smt_def sc@(SynthConfig { eq_file = eq_f, g2_config = con
 
     let (comp_state'', ng) = if checking sc == Verify then verifySpec (idName entry_f) (idName comp_func) comp_bindings comp_state' else (comp_state', name_gen comp_bindings)
 
-    (er, got_unknown, bindings', _, _) <- runG2WithConfig proj src comp_func "comp" [] comp_mb_modname comp_state'' config'' comp_bindings
+    (er, got_unknown, _, _, _) <- runG2WithConfig proj src comp_func "comp" [] comp_mb_modname comp_state'' config'' comp_bindings
 
     let isSpecCorrect = case smt_def of
                             Just _ -> checkIfSpecIsCorrect er
@@ -555,12 +558,12 @@ runFuncSpec temp src f smt_def sc@(SynthConfig { eq_file = eq_f, g2_config = con
                 else checkIfSpecIsCorrect es
 
         verifySpec :: Name -> Name -> Bindings -> State t -> (State t, NameGen)
-        verifySpec entry_n comp_f_n b@Bindings {name_gen = ng} s@(State { expr_env = eenv, known_values = kv, tyvar_env = tvnv })
+        verifySpec entry_n comp_f_n Bindings {name_gen = ng} s@(State { expr_env = eenv, tyvar_env = tvnv })
             | Just entry_e <- E.lookup entry_n eenv
             , Just (smt_n, smt_e) <- E.lookupNameMod (smtName $ nameOcc comp_f_n) (Just "Spec") eenv
             , Just (placeholder_n, place_e) <- E.lookupNameMod "placeholder" (Just "Spec") eenv
             , Just (placeholder_ret_n, _) <- E.lookupNameMod "originalFunc" (Just "Spec") eenv
-            , Just (ideal_n, ideal_e) <- E.lookupNameMod (T.pack ("ideal_" ++ (T.unpack $ nameOcc comp_f_n))) (Just "Spec") eenv
+            , Just (_ideal_n, ideal_e) <- E.lookupNameMod (T.pack ("ideal_" ++ (T.unpack $ nameOcc comp_f_n))) (Just "Spec") eenv
             , Just (ideal_ret_n, _) <- E.lookupNameMod "ideal_spec" (Just "Spec") eenv =
                 let t = Ty.typeOf tvnv entry_e
                     tys = splitTyFuns t
@@ -584,11 +587,11 @@ runFuncSpec temp src f smt_def sc@(SynthConfig { eq_file = eq_f, g2_config = con
         --TODO: Account for partial function application
         replaceRecExpr :: Name -> ([Expr] -> Expr) -> Expr -> Expr
         replaceRecExpr n e es
-            | v@(Var (Id n' _)):args <- unApp es, n == n' = e args
+            | (Var (Id n' _)):args_ <- unApp es, n == n' = e args_
         replaceRecExpr n e (App e' e'') = App (replaceRecExpr n e e') (replaceRecExpr n e e'')
         replaceRecExpr n e (Lam u i e') = Lam u i (replaceRecExpr n e e')
         replaceRecExpr n e (Case b i@(Id n' _) t as) | n == n' = Case (replaceRecExpr n e b) i t as
-        replaceRecExpr n e (Case b i t as) = Case (replaceRecExpr n e b) i t (map (\a@(Alt m e') -> Alt m (replaceRecExpr n e e')) as)
+        replaceRecExpr n e (Case b i t as) = Case (replaceRecExpr n e b) i t (map (\(Alt m e') -> Alt m (replaceRecExpr n e e')) as)
         replaceRecExpr n e (Tick t e') = Tick t (replaceRecExpr n e e')
         replaceRecExpr n e (Let b e') = Let (map (\(i, e'') -> (i, replaceRecExpr n e e'')) b) (replaceRecExpr n e e')
         replaceRecExpr n e e' = modifyChildren (replaceRecExpr n e) e'-- replaceVar n e e'
@@ -652,7 +655,7 @@ setupSpecFuncOrSMT src f sc h smt_def = case specs_type sc of
 
 setUpSpecSMT :: SynthConfig -> Handle -> Maybe (State t, Id, String, String) -> IO ()
 setUpSpecSMT _ h Nothing = hClose h
-setUpSpecSMT sc h (Just (s@(State { known_values = kv, type_classes = tc }), Id n t, spec,_)) = do
+setUpSpecSMT sc h (Just (s@(State { type_classes = tc }), Id n t, spec,_)) = do
     let ts = splitTyFuns
            . snd
            $ splitTyForAlls t
@@ -698,7 +701,7 @@ setUpSpecFunc src f sc@(SynthConfig { g2_config = config }) h Nothing = do
                 src':_ -> guessProj (includePaths config) src'
                 _ -> return []
 
-    (s@(State { known_values = kv, type_classes = tc }), func@(Id n ty), _, _) <- initialStateFromFile proj src
+    (s@(State { known_values = kv, type_classes = tc }), (Id n ty), _, _) <- initialStateFromFile proj src
                                     Nothing False f (mkCurrExpr TV.empty Nothing Nothing) (mkArgTys config TV.empty)
                                     simplTranslationConfig config
     let ts = splitTyFuns
@@ -715,7 +718,7 @@ setUpSpecFunc src f sc@(SynthConfig { g2_config = config }) h Nothing = do
 
 
         contents = getImportStr
-                    ++ fromMaybe "\n" (fmap (\f -> "import " ++ f ++ "\n") . fmap (dropExtension . takeFileName) $ eq_file sc)
+                    ++ fromMaybe "\n" (fmap (\f_ -> "import " ++ f_ ++ "\n") . fmap (dropExtension . takeFileName) $ eq_file sc)
                     ++ "\n"
                     ++ "\n"++ idealFunName ++ " :: " ++ T.unpack (mkTypeHaskellDictArrows (mkPrettyGuide ()) (type_classes s) t') ++ "\n"
                     ++ idealFunName ++ " " ++ vs_str ++ " = (placeholder " ++ vs_input ++ ") == " ++ last vs
@@ -803,8 +806,8 @@ isCallStack ty | TyCon tn _:_ <- unTyApp ty = nameOcc tn == "IP"
                | otherwise = False
 
 -- | Find inputs that violate a found SMT definition
-findInconsistent :: Id -> State t -> Bindings -> Bool -> State t
-findInconsistent entry_f s@(State { expr_env = eenv  }) b output_true
+findInconsistent :: Id -> State t -> Bool -> State t
+findInconsistent entry_f s@(State { expr_env = eenv }) output_true
     | Just (ph_name, _) <- E.lookupNameMod "placeholder" (Just "Spec") eenv 
     , Just entry_e <- E.lookup (idName entry_f) eenv =
         s { expr_env = E.insert ph_name entry_e eenv
@@ -1132,10 +1135,11 @@ constraintsForFuncSpec  smt_def is_spec_correct ers = do
             else separateConjDis es prev_spec movables (er:non_movables)
 
         moveSpecToConjunction :: String -> ExecRes t -> IO Bool
-        moveSpecToConjunction past_spec er@(ExecRes { final_state = s, conc_args = ars, conc_out = out_e}) = do
+        moveSpecToConjunction past_spec er = do
             let term = genDisjTerm er
                 assertSt = "( assert " ++ T.unpack (printSygus term) ++ ")"
-                cmd = [T.unpack (printSygus (SmtCmd $ SetLogic "ALL")), init (tail past_spec), assertSt, "(check-sat)"]
+                cmd = [ T.unpack (printSygus (SmtCmd $ SetLogic "ALL"))
+                      , take ((length past_spec) - 2) (drop 1 past_spec), assertSt, "(check-sat)" ]
             (h_in, h_out, _) <- getCVC5ProcessHandles Nothing 60
             mapM_ (\c -> do
                     T.hPutStrLn h_in (T.pack c)
