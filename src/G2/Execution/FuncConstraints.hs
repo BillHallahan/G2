@@ -497,10 +497,12 @@ or not using the argument and also discarding the constraint.
 
 newtype TimeInFC = TimeInFC TimeSpec deriving Show
 
-solveFuncConstraintsReducer :: (ASTContainer t Expr, Solver solver, Simplifier simplifier, MonadIO m) => FCLogging -> solver -> simplifier -> HS.HashSet Name -> IO (Reducer m () t, IORef TimeInFC)
-solveFuncConstraintsReducer fc_logging solver simplifier no_inline = do
+solveFuncConstraintsReducer :: (ASTContainer t Expr, Solver solver, Simplifier simplifier, MonadIO m) => Config -> solver -> simplifier -> HS.HashSet Name -> IO (Reducer m () t, IORef TimeInFC)
+solveFuncConstraintsReducer (Config { log_fc_solver = fc_logging, log_fc_solver_time = log_solving_time }) solver simplifier no_inline = do
     fc_time_spent <- newIORef (TimeInFC 0)
-    return $ (mkSimpleReducer (const ()) (go fc_time_spent), fc_time_spent)
+    let red = (mkSimpleReducer (const ()) (go fc_time_spent))
+        red' = if log_solving_time then red { afterRed = outputTime fc_time_spent} else red
+    return (red', fc_time_spent)
     where
         go fc_time_spent _ s b
             | true_assert s = do
@@ -516,6 +518,12 @@ solveFuncConstraintsReducer fc_logging solver simplifier no_inline = do
                             Just s'' -> return (Finished, [(s'', ())], b { name_gen = ng' })
                     FCUnsat -> return (Finished, [], b)
             | otherwise = return (Finished, [], b)
+
+        outputTime io_fc_time_spent = do
+            TimeInFC fc_time_spent <- liftIO $ readIORef io_fc_time_spent
+            let seconds_in_fc = fromInteger (toNanoSecs fc_time_spent) / (10 ^ (9 :: Int) :: Double)
+            liftIO $ putStrLn $ "Function constraints solving time= " ++ show seconds_in_fc
+
 
 data FCCheckRes t = FCSat (State t) !NameGen
                   | FCReductionNeeded [(VarLitEqualities, Id)] (State t) !NameGen

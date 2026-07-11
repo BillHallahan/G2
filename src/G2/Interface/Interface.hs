@@ -369,13 +369,12 @@ initRedHaltOrd s mod_name solver simplifier config exec_func_names no_nrpc_names
 
     on_acc_hpc_red <- onAcceptHpcReducer s mod_name
 
-    let fc_logging = log_fc_solver config
-        approx_no_inline = S.fromList
+    let approx_no_inline = S.fromList
                          . E.keys
                          . E.filterConcOrSym (\case E.Conc _ -> True; E.Sym _ -> False)
                          $ expr_env s
 
-    (func_constraint_res, func_const_time) <- solveFuncConstraintsReducer fc_logging solver simplifier approx_no_inline
+    (func_constraint_res, func_const_time) <- solveFuncConstraintsReducer config solver simplifier approx_no_inline
     let func_constraint_res' = liftSomeReducer . liftSomeReducer . liftSomeReducer . liftSomeReducer . liftSomeReducer . liftSomeReducer . SomeReducer $ func_constraint_res
 
     let state_name = Name "state" Nothing 0 Nothing

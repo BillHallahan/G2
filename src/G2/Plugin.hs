@@ -175,7 +175,6 @@ runFunc' cmd_lne simp_state symex_annot entry
         let fc_file = "time_logs/fc_time.txt"
         file_exists <- doesFileExist fc_file
         when file_exists $ appendFile fc_file $ "\n" ++ TX.unpack entry_name' ++ " : " ++ show seconds_in_fc
-        putStrLn $ "seconds in fc = " ++ show seconds_in_fc
         reportTerminationResults time_outs func_config
         return ()
     | otherwise = return ()
