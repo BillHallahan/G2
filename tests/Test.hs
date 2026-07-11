@@ -662,6 +662,7 @@ testFileTests = testGroup "TestFiles"
                                         [ ("any1", 20000, [Exactly 2])
                                         , ("all1", 20000, [Exactly 2])
                                         , ("all2", 1000, [AtLeast 20])
+                                        , ("all3", 3000, [AtLeast 0])
                                         , ("filter1", 20000, [Exactly 6])
                                         , ("filter2", 20000, [Exactly 3])
                                         , ("filter3", 20000, [Exactly 1])

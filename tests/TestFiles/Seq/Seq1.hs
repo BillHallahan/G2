@@ -377,6 +377,11 @@ all2 xs = case L.all recFun xs of
             | x == 50 = True
             | otherwise = False
 
+all3 :: (Int -> Bool) -> [Int] -> Char
+all3 f xs = case L.all f xs of
+                 True -> 'a'
+                 False -> 'b'
+
 any1 :: [Int] -> String
 any1 xs = case L.any (== 4) xs of
             True -> "Four found. Not good"
