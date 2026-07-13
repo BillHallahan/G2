@@ -20,15 +20,6 @@ instance Monoid A where
         mconcat _     = A
 
 newtype Sum a = Sum { getSum :: a }
-        -- deriving ( Eq       -- ^ @since base-2.01
-        --          , Ord      -- ^ @since base-2.01
-        --          , Read     -- ^ @since base-2.01
-        --          , Show     -- ^ @since base-2.01
-        --          , Bounded  -- ^ @since base-2.01
-        --          , Generic  -- ^ @since base-4.7.0.0
-        --          , Generic1 -- ^ @since base-4.7.0.0
-        --          , Num      -- ^ @since base-4.7.0.0
-        --          )
 
 instance Eq a => Eq (Sum a) where
     Sum x == Sum y = x == y

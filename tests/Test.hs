@@ -1233,7 +1233,10 @@ verifierTests = testGroup "Verifier"
     , checkExprVerified "tests/Verify/Reader1.hs" "p1"
     , checkExprCEx "tests/Verify/Reader1.hs" "p1False"
 
+
+#if MIN_VERSION_GLASGOW_HASKELL(9,2,0,0)
     , checkExprVerified "tests/Verify/Tuple2.hs" "prop"
+#endif
 
     , checkRuleVerified "tests/Verify/Rules1.hs" "justJust"
     , checkRuleVerified "tests/Verify/Rules1.hs" "justJust2"
