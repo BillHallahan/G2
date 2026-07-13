@@ -24,6 +24,7 @@ module InputOutputTest ( checkInputOutput
                        , checkInputOutputsNonRedLib
                        , checkInputOutputsSymFuncConstraints
                        , checkInputOutputsSymFuncConstraintsFCArgStepLimit
+                       , checkInputOutputsSymFuncConstraintsSubPath
                        , checkInputOutputsSymFuncConstraintsSubPathSMTLists
                        , checkInputOutputsSymFuncConstraintsSubPathReturnsTrue
                        , checkInputOutputsInstType
@@ -162,6 +163,13 @@ checkInputOutputsSymFuncConstraintsFCArgStepLimit :: FilePath -> Int -> [(String
 checkInputOutputsSymFuncConstraintsFCArgStepLimit src arg_step_lim tests = do
     checkInputOutput'
         (do config <- mkConfigTestIO; return (config { higherOrderSolver = SymConstraints, fc_arg_step_limit = arg_step_lim, smt = ConCVC5 }))
+        src
+        tests
+
+checkInputOutputsSymFuncConstraintsSubPath :: FilePath -> [(String, Int, [Reqs String])] -> TestTree
+checkInputOutputsSymFuncConstraintsSubPath src tests = do
+    checkInputOutput'
+        (do config <- mkConfigTestIO; return (config { higherOrderSolver = SymConstraints, smt = ConCVC5, search_strat = Subpath, subpath_length = 8 }))
         src
         tests
 
