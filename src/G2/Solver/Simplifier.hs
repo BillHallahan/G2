@@ -4,6 +4,7 @@
 module G2.Solver.Simplifier ( Simplifier (..)
                             , SomeSimplifier (..)
                             , (:>>) (..)
+                            , (.>>)
                             , IdSimplifier (..)
                             , ArithSimplifier (..)
                             , BoolSimplifier (..)
@@ -64,6 +65,9 @@ instance (Simplifier simp1, Simplifier simp2) => Simplifier (simp1 :>> simp2) wh
 data SomeSimplifier where
     SomeSimplifier :: forall simplifier
                     . Simplifier simplifier => simplifier -> SomeSimplifier
+
+(.>>) :: SomeSimplifier -> SomeSimplifier -> SomeSimplifier
+SomeSimplifier s1 .>> SomeSimplifier s2 = SomeSimplifier (s1 :>> s2)
 
 -- | A simplifier that does no simplification
 data IdSimplifier = IdSimplifier

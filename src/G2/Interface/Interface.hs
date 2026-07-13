@@ -524,10 +524,19 @@ initSolver' avf config = do
                 True -> callsSomeSolver "General" con''
                 False -> return con''
 
-initSimplifier :: SomeSimplifier
-initSimplifier =
-    SomeSimplifier $ HigherOrderSimplifier :>> LamVarSimplifier :>> FloatSimplifier :>> ArithSimplifier
+initSimplifier :: Config -> SomeSimplifier
+initSimplifier config =
+    let
+        base_simp = SomeSimplifier $ LamVarSimplifier :>> FloatSimplifier :>> ArithSimplifier
                  :>> BoolSimplifier :>> StringSimplifier :>> EqualitySimplifier :>> ConstSimplifier :>> LitConc
+        
+        using_smt_lists = case smt_prim_lists config of
+                            UseSMTSeq _ _ -> True
+                            NoSMTSeq -> False
+    in
+    case smt_strings config == UseSMTStrings || using_smt_lists of
+        True -> SomeSimplifier HigherOrderSimplifier .>> base_simp
+        False -> base_simp
 
 mkTypeEnv :: HM.HashMap Name AlgDataTy -> TypeEnv
 mkTypeEnv = id
@@ -625,7 +634,7 @@ runG2WithConfig :: [FilePath]-> [FilePath] -> Id -> StartFunc -> [GeneralFlag] -
                       )
 runG2WithConfig proj src entry_f f gflags mb_modname state config bindings = do
     SomeSolver solver <- initSolver config
-    SomeSimplifier simplifier <- return initSimplifier
+    SomeSimplifier simplifier <- return $ initSimplifier config
     let (state', bindings') = runG2Pre emptyMemConfig state bindings
         all_mod_set = S.fromList mb_modname
     hpc_t <- hpcTracker state' all_mod_set (hpc_print_times config) (hpc_print_ticks config)
