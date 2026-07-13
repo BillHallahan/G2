@@ -22,6 +22,7 @@ module G2.Language.PathConds ( PathConds
                              , mapHashedPCs
                              , concatMapHashedPCs
                              , mapPathCondsSCC
+                             , mapMaybePathCondsSCC
                              , map'
                              , filter
                              , alter
@@ -168,6 +169,12 @@ mapPathCondsSCC n f (PathConds uf) | Just pcg <- UF.lookup (Just n) uf =
     in
     PathConds uf'
 mapPathCondsSCC _ _ pc = pc
+
+-- | Find all `PathCond`s return Just and return the Just values from the specified SCC component
+mapMaybePathCondsSCC :: Name -> (PathCond -> Maybe a) -> PathConds -> [a]
+mapMaybePathCondsSCC n f (PathConds uf) | Just pcg <- UF.lookup (Just n) uf = 
+    mapMaybe (f . unhashedPC) . HS.toList $ pcs pcg
+mapMaybePathCondsSCC _ _ _ = []
 
 map' :: (PathCond -> a) -> PathConds -> [a]
 map' f = L.map f . toList
