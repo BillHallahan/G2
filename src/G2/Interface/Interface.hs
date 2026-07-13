@@ -529,14 +529,10 @@ initSimplifier config =
     let
         base_simp = SomeSimplifier $ LamVarSimplifier :>> FloatSimplifier :>> ArithSimplifier
                  :>> BoolSimplifier :>> StringSimplifier :>> EqualitySimplifier :>> ConstSimplifier :>> LitConc
-        
-        using_smt_lists = case smt_prim_lists config of
-                            UseSMTSeq _ _ -> True
-                            NoSMTSeq -> False
     in
-    case smt_strings config == UseSMTStrings || using_smt_lists of
-        True -> SomeSimplifier HigherOrderSimplifier .>> base_simp
-        False -> base_simp
+    case using_smt_lams config of
+        UseSMTLams -> SomeSimplifier HigherOrderSimplifier .>> base_simp
+        NoSMTLams -> base_simp
 
 mkTypeEnv :: HM.HashMap Name AlgDataTy -> TypeEnv
 mkTypeEnv = id
