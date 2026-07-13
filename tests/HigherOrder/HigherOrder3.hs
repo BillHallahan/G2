@@ -4,6 +4,8 @@ import Prelude hiding (filter, takeWhile, dropWhile)
 import Data.List as L hiding (filter, partition, takeWhile, dropWhile)
 import qualified Data.List as L
 
+-- CONFIG: --higher-order sym-constraints --search subpath --smt-lists --smt cvc5
+
 data Seq a = Q !Int [a] [a] !Int deriving (Eq)
 
 si (Q x f r y) =
