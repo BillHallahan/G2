@@ -170,7 +170,9 @@ mapPathCondsSCC n f (PathConds uf) | Just pcg <- UF.lookup (Just n) uf =
     PathConds uf'
 mapPathCondsSCC _ _ pc = pc
 
--- | Find all `PathCond`s return Just and return the Just values from the specified SCC component
+-- | Filter the PathConds to the SCC for the given Name. Then, apply the passed
+-- function to the PathConds. Discard those which return `Nothing`. For all that
+-- return `Just x`, return `x` in the list.
 mapMaybePathCondsSCC :: Name -> (PathCond -> Maybe a) -> PathConds -> [a]
 mapMaybePathCondsSCC n f (PathConds uf) | Just pcg <- UF.lookup (Just n) uf = 
     mapMaybe (f . unhashedPC) . HS.toList $ pcs pcg

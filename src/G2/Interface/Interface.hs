@@ -527,11 +527,11 @@ initSolver' avf config = do
 initSimplifier :: Config -> SomeSimplifier
 initSimplifier config =
     let
-        base_simp = SomeSimplifier $ LamVarSimplifier :>> FloatSimplifier :>> ArithSimplifier
+        base_simp = SomeSimplifier $ FloatSimplifier :>> ArithSimplifier
                  :>> BoolSimplifier :>> StringSimplifier :>> EqualitySimplifier :>> ConstSimplifier :>> LitConc
     in
     case using_smt_lams config of
-        UseSMTLams -> SomeSimplifier HigherOrderSimplifier .>> base_simp
+        UseSMTLams -> SomeSimplifier (HigherOrderSimplifier :>> LamVarSimplifier) .>> base_simp
         NoSMTLams -> base_simp
 
 mkTypeEnv :: HM.HashMap Name AlgDataTy -> TypeEnv
