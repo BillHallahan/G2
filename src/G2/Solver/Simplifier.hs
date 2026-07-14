@@ -210,8 +210,8 @@ instance Simplifier EqualitySimplifier where
     simplifyPCWithExprEnv _ s ng eenv pc
         | Just (n, e) <- smallEqPC (known_values s) pc =
             case e of
-                Var (Id n' _) | n == n' -> (ng, eenv, [pc])
-                _ -> (ng, E.insert n e eenv, [pc])
+                Var (Id n' _) | n == n' -> (ng, eenv, [])
+                _ -> (ng, E.insert n e eenv, [])
         | otherwise = (ng, eenv, [pc])
     
     reverseSimplification _ _ _ m = m
