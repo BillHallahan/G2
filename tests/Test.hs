@@ -1207,6 +1207,7 @@ verifierTests = testGroup "Verifier"
 #if MIN_VERSION_GLASGOW_HASKELL(9,2,0,0)
     , checkExprVerified "tests/Verify/Function1.hs" "p1"
     , checkExprCEx "tests/Verify/Function1.hs" "p1False"
+    , checkExprCExSubpath "tests/Verify/Function1.hs" "p1False"
 #endif
 
     , checkExprVerified "tests/Verify/HigherOrder.hs" "prop1"
@@ -1420,6 +1421,9 @@ checkExprVerifiedWithNoRevAbs =
 
 checkExprCEx :: String -> String -> TestTree
 checkExprCEx = checkExprVerifier (\case Verified -> False; Counterexample _ -> True; VerifyTimeOut -> False)
+
+checkExprCExSubpath :: String -> String -> TestTree
+checkExprCExSubpath = checkExprVerifierSubpath (\case Verified -> False; Counterexample _ -> True; VerifyTimeOut -> False)
 
 checkExprNotVerified :: String -> String -> TestTree
 checkExprNotVerified = checkExprVerifier (\case Verified -> False; Counterexample _ -> True; VerifyTimeOut -> True)
