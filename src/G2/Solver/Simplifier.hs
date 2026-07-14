@@ -4,6 +4,7 @@
 module G2.Solver.Simplifier ( Simplifier (..)
                             , SomeSimplifier (..)
                             , (:>>) (..)
+                            , (.>>)
                             , IdSimplifier (..)
                             , ArithSimplifier (..)
                             , BoolSimplifier (..)
@@ -64,6 +65,9 @@ instance (Simplifier simp1, Simplifier simp2) => Simplifier (simp1 :>> simp2) wh
 data SomeSimplifier where
     SomeSimplifier :: forall simplifier
                     . Simplifier simplifier => simplifier -> SomeSimplifier
+
+(.>>) :: SomeSimplifier -> SomeSimplifier -> SomeSimplifier
+SomeSimplifier s1 .>> SomeSimplifier s2 = SomeSimplifier (s1 :>> s2)
 
 -- | A simplifier that does no simplification
 data IdSimplifier = IdSimplifier
@@ -345,21 +349,42 @@ instance Simplifier ConstSimplifier where
 data HigherOrderSimplifier = HigherOrderSimplifier
 
 instance Simplifier HigherOrderSimplifier where
-    simplifyPC _ _ pc = [modifyASTs unfoldAppend pc]
+    simplifyPC _ _ pc = [pc]
+
+    simplifyPCs _ _ pc = modifyASTs unfoldAppend . inFoldStringVars pc
 
     reverseSimplification _ _ _ m = m
 
 unfoldAppend :: Expr -> Expr
-unfoldAppend e | [Prim FoldLeft t, func, accum, App (App (Prim StrAppend t1) xs) ys] <- unApp e =
+-- Split up folds containg appends
+unfoldAppend e | [Prim FoldLeft t, func, accum, App (App (Prim StrAppend t1) xs) ys] <- unApp e 
+               , isSplittableFoldAppend func =
     mkApp [ Prim StrAppend t1
           , mkApp [Prim FoldLeft t, func, accum, xs]
           , mkApp [Prim FoldLeft t, func, accum, ys]
           ]
-unfoldAppend e | [Prim FoldLeftI t, func, offset, accum, App (App (Prim StrAppend t1) xs) ys] <- unApp e =
+unfoldAppend e | [Prim FoldLeftI t, func, offset, accum, App (App (Prim StrAppend t1) xs) ys] <- unApp e
+               , isSplittableFoldAppend func =
     mkApp [ Prim StrAppend t1
           , mkApp [Prim FoldLeftI t, func, offset, accum, xs]
           , mkApp [Prim FoldLeftI t, func, offset, accum, ys]
           ]
+
+-- Split up folds containg ands
+unfoldAppend e | [Prim FoldLeft t, func, accum, App (App (Prim StrAppend _) xs) ys] <- unApp e 
+               , isSplittableFoldAnd func =
+    mkApp [ Prim And TyUnknown
+          , mkApp [Prim FoldLeft t, func, accum, xs]
+          , mkApp [Prim FoldLeft t, func, accum, ys]
+          ]
+unfoldAppend e | [Prim FoldLeftI t, func, offset, accum, App (App (Prim StrAppend _) xs) ys] <- unApp e
+               , isSplittableFoldAnd func =
+    mkApp [ Prim And TyUnknown
+          , mkApp [Prim FoldLeftI t, func, offset, accum, xs]
+          , mkApp [Prim FoldLeftI t, func, offset, accum, ys]
+          ]
+
+-- Split up maps
 unfoldAppend e | [Prim Map t, func, App (App (Prim StrAppend t1) xs) ys] <- unApp e =
     mkApp [ Prim StrAppend t1
           , mkApp [Prim Map t, func, xs]
@@ -370,9 +395,90 @@ unfoldAppend e | [Prim MapConcat t, func, App (App (Prim StrAppend t1) xs) ys] <
           , mkApp [Prim MapConcat t, func, xs]
           , mkApp [Prim MapConcat t, func, ys]
           ]
+
 unfoldAppend e | [Prim MapConcatI t, func, App (App (Prim StrAppend t1) xs) ys] <- unApp e =
     mkApp [ Prim StrAppend t1
           , mkApp [Prim MapConcatI t, func, xs]
           , mkApp [Prim MapConcatI t, func, ys]
           ]
 unfoldAppend e = e
+
+-- foldl' (\zs x -> zs ++ f x) [] (xs ++ ys)
+-- ==
+-- foldl' (\zs x -> zs ++ f x) [] xs ++ foldl' (\zs x -> zs ++ f x) [] ys
+isSplittableFoldAppend :: Expr -> Bool
+isSplittableFoldAppend = isSplittableFold StrAppend
+
+isSplittableFoldAnd :: Expr -> Bool
+isSplittableFoldAnd = isSplittableFold And
+
+isSplittableFold :: Primitive -> Expr -> Bool
+isSplittableFold prim (Lam _ (Id col_v1 _) (Lam _ (Id _ _) e)) 
+    | [Prim prim' _, Var (Id col_v2 _), e2] <- unApp e
+    , prim == prim'
+    , col_v1 == col_v2
+    , col_v1 `notElem` varNames e2 = True
+isSplittableFold _ _ = False
+
+-- Looks for cases where a fold function is applied to a variable:
+--  @ fold_left f i xs @
+-- and that variable is defined as an equality:
+--  @ xs = e1 ++ e2 @
+-- Then inline the variable into the fold:
+--  @ fold_left f i (e1 ++ e2) @
+-- Not useful by itself, but allows opportunities for other optimizations 
+inFoldStringVars :: PathCond -> PathConds -> PathConds
+inFoldStringVars new_pc pcs
+    -- If we get a new mapping of a variable to a string/sequence
+    | Just (n1, e@(Var (Id n2 _))) <- eq_pc = PC.mapPathCondsSCC n1 (replaceVarFold n1 e) (PC.join n1 n2 pcs)
+    | Just (n, e) <- eq_pc = PC.mapPathCondsSCC n (replaceVarFold n e) pcs
+    -- If we get a new fold of a string/sequence
+    | Just (Id init_n _) <- isFold new_pc
+    , e:_ <- PC.mapMaybePathCondsSCC init_n (specEqPC init_n) pcs = replaceVar init_n e pcs
+    where
+        eq_pc = eqPC new_pc
+inFoldStringVars _ pcs = pcs
+
+specEqPC :: Name -> PathCond -> Maybe Expr
+specEqPC n pc =
+    case eqPC pc of
+        Just (n1, e) | n == n1 -> Just e
+        _ -> Nothing
+
+eqPC :: PathCond
+     -> Maybe (Name, Expr) -- ^ If PC is an equality between a variable and a value
+eqPC (ExtCond e True)
+    | [Prim Eq _, e1, e2] <- es
+    , Var (Id n _) <- e1  = Just (n, e2)
+    | [Prim Eq _, e1, e2] <- es
+    , Var (Id n _) <- e2  = Just (n, e1)
+    where
+        es = unApp e
+eqPC _ = Nothing
+
+isFold :: PathCond -> Maybe Id
+isFold (ExtCond e _)
+    | [(Prim prim _), _, (Var init_i), _] <- unApp e
+    , prim == FoldLeft || prim == FoldLeftI || prim == MapConcat = Just init_i
+isFold _ = Nothing
+
+replaceVarFold :: ASTContainer m Expr => Name -> Expr -> m -> m
+replaceVarFold n e = modifyContainedASTs (replaceVarFold' n e)
+
+replaceVarFold' :: Name -> Expr -> Expr -> Expr
+replaceVarFold' n e e2
+    | [prim_fold@(Prim prim _), f, init_e, (Var (Id lst_n _))] <- unApp e2
+    , lst_n == n
+    , prim == FoldLeft || prim == FoldLeftI || prim == MapConcat =
+        mkApp [ prim_fold, f, init_e, e]
+replaceVarFold' n _ le@(Lam _ (Id n' _) _) | n == n' = le
+replaceVarFold' n e (Case b i@(Id n' _) t as) | n == n' = Case (replaceVarFold n e b) i t as
+replaceVarFold' n e (Case b i t as) = Case (replaceVarFold' n e b) i t (map repAlt as)
+    where
+        repAlt a@(Alt (DataAlt _ is) _)
+            | n `elem` map idName is = a
+        repAlt a = modifyContainedASTs (replaceVarFold' n e) a
+replaceVarFold' n _ le@(Let b _) | n `elem` map (idName . fst) b = le
+replaceVarFold' n e e' = modifyChildren (replaceVarFold' n e) e'
+
+
