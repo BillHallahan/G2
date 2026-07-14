@@ -400,16 +400,17 @@ isNRPCSymFun eenv (NRPC _ e1 _) = is_sym_fun HS.empty e1
 inlineInner :: ExprEnv -> Expr -> Expr
 inlineInner eenv e
     | (Tick tick (Var (Id n t))):es <- unApp e
-    , v <- deepLookupVarThroughTicks eenv n = mkApp (Tick tick (Var (Id v t)):es)
+    , v <- deepLookupVarThroughTicks n eenv = mkApp (Tick tick (Var (Id v t)):es)
 inlineInner _ e = e
 
-deepLookupVarThroughTicks :: ExprEnv -> Name -> Name
-deepLookupVarThroughTicks eenv = go HS.empty
+deepLookupVarThroughTicks :: Name -> ExprEnv -> Name
+deepLookupVarThroughTicks init_n eenv = go HS.empty init_n
     where
     go seen n
-        | n `elem` seen = n
-        | Just (Tick _ (Var (Id n' _))) <- deep_e = go (HS.insert n' seen) n'
-        | Just (Var (Id n' _)) <- deep_e = go (HS.insert n' seen) n'
+        | Just (Tick _ (Var (Id n' _))) <- deep_e
+        , n' `notElem` seen = go (HS.insert n' seen) n'
+        | Just (Var (Id n' _)) <- deep_e 
+        , n' `notElem` seen = go (HS.insert n' seen) n'
         | otherwise = n
         where
             deep_e = E.lookup n eenv

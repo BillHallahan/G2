@@ -1229,6 +1229,7 @@ verifierTests = testGroup "Verifier"
     , checkExprVerified "tests/Verify/State1.hs" "p2"
     , checkExprCEx "tests/Verify/State1.hs" "simple1False"
     , checkExprCEx "tests/Verify/State1.hs" "p1False"
+    , checkExprCExSubpath "tests/Verify/State1.hs" "p1False"
 
     , checkExprVerified "tests/Verify/State2.hs" "p1"
     , checkExprVerified "tests/Verify/State3.hs" "p1"
