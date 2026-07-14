@@ -3,9 +3,14 @@
 
 module ReverseArgs where
 
+
 omega :: Int
 omega = omega
 
+{-# ANN reverseArgs (SymExWithConfig "--max-outputs 1 --no-step-limit --time 300 --higher-order symbolic --search subpath --subpath-len 8 --accept-times --print-timeout-list-depth --smt cvc5 --check-asserts --error-asserts")
+    #-}
+{-# ANN reverseArgs (SymExWithConfig "--max-outputs 1 --no-step-limit --time 300 --higher-order sym-constraints --search subpath --subpath-len 8 --accept-times --print-timeout-list-depth --smt cvc5 --check-asserts --error-asserts")
+    #-}
 reverseArgs :: ((Int -> Int) -> Int -> Int) -> Int
 reverseArgs f =
     let

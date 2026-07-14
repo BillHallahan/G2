@@ -799,7 +799,7 @@ testFileTests = testGroup "TestFiles"
                                                                        , ("tupleFunc", 1000, [Exactly 2])                                                                       
                                                                        ]
     , checkInputOutputsSymFuncConstraintsSubPath "tests/HigherOrder/PolyHigherOrder.hs" [ ("funcs", 1000, [Exactly 3])]
-    , checkInputOutputsSymFuncConstraintsSubPathSMTLists "tests/HigherOrder/HigherOrder3.hs"
+    , checkInputOutputs "tests/HigherOrder/HigherOrder3.hs"
                                                                        [ ("propFalse", 1000 * 1000, [AtLeast 5])
                                                                        , ("prop2", 1000 * 1000, [AtLeast 5]) ]
     , checkInputOutputsSymFuncConstraintsSubPathReturnsTrue "tests/HigherOrder/UncurryHigherOrder.hs" [ ("prop", 1000, [Exactly 1]) ]
@@ -1234,6 +1234,11 @@ verifierTests = testGroup "Verifier"
     , checkExprVerified "tests/Verify/Reader1.hs" "p1"
     , checkExprCEx "tests/Verify/Reader1.hs" "p1False"
 
+
+#if MIN_VERSION_GLASGOW_HASKELL(9,2,0,0)
+    , checkExprVerified "tests/Verify/Tuple2.hs" "prop"
+#endif
+
     , checkRuleVerified "tests/Verify/Rules1.hs" "justJust"
     , checkRuleVerified "tests/Verify/Rules1.hs" "justJust2"
     , checkRuleVerified "tests/Verify/Rules1.hs" "polyJustJust"
@@ -1496,7 +1501,7 @@ testFileWithConfig src m_assume m_assert m_reaches entry config = do
                 simplTranslationConfig
                 config
 
-    return $ maybe (error "Timeout") (\(er, _, b, _, _, _) -> (er, b)) r
+    return $ maybe (error "Timeout") (\(er, _, b, _, _, _, _) -> (er, b)) r
 
 -- For mergeState unit tests
 checkFn :: Either String Bool -> String -> IO TestTree

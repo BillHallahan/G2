@@ -9,6 +9,8 @@
 
 module Arithmetics.Interpreter where
 
+import G2.Plugin
+
 import Control.Monad
 import Data.Data
 
@@ -98,5 +100,9 @@ prog1 =
     Assert (Lt (Mul (Var "n") (I 2)) (Var "z"))
   ]
 
+{-# ANN evalProg1 (SymExWithConfig "--max-outputs 1 --no-step-limit --time 300 --higher-order symbolic --search subpath --subpath-len 8 --returns-true --accept-times --print-timeout-list-depth --smt cvc5 --check-asserts --error-asserts")
+    #-}
+{-# ANN evalProg1 (SymExWithConfig "--max-outputs 1 --no-step-limit --time 300 --higher-order sym-constraints --search subpath --subpath-len 8 --returns-true --accept-times --print-timeout-list-depth --smt cvc5 --check-asserts --error-asserts")
+    #-}
 evalProg1 :: Env -> Bool
 evalProg1 env = evalStmtsUnsafe env prog1

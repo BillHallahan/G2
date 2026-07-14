@@ -129,6 +129,7 @@ data Config = Config {
     , log_internal_names :: Bool -- ^ Including mapping to internal names in log files
     , output_log_files :: Bool -- ^ If False, output log file names, but not the actual files
     , log_fc_solver :: FCLogging -- ^ Print logging during symbolic function constraint solving
+    , log_fc_solver_time :: Bool -- ^ Print the total amount of time spent in the function constraint solver
     , sharing :: Sharing
     , instTV :: InstTV -- allow the instantiation of types in the beginning or it's instantiate symbolically by functions
     , favor_tys :: [String] -- ^ Which types (in order) to prefer instantiating type variables with
@@ -240,6 +241,8 @@ mkConfig homedir = Config Regular
                          <> help "when logging is on, output log file names, but not the actual files")
     <*> flag NoFCLogging FCLogging (long "log-fc-solver"
                          <> help "log during function constraint solving")
+    <*> flag False True (long "log-fc-solver-time"
+                         <> help "log the total amount of time spent in the function constraint solving")
     <*> flag Sharing NoSharing (long "no-sharing" <> help "disable sharing")
     <*> flag InstBefore InstAfter (long "inst-after" <> help "select to instantiate type variables after symbolic execution, rather than before")
     <*> option auto (long "favor-types"
@@ -471,6 +474,7 @@ mkConfigDirect homedir as m = Config {
     , log_internal_names = True
     , output_log_files = True
     , log_fc_solver = NoFCLogging
+    , log_fc_solver_time = False
     , sharing = boolArg' "sharing" as Sharing Sharing NoSharing
     , instTV = InstBefore
     , favor_tys = ["Int"]

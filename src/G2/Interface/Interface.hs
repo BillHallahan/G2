@@ -344,7 +344,8 @@ type RHOStack m t = SM.StateT (ApproxPrevs t)
                    -> IO ( SomeReducer (RHOStack IO ()) ()
                          , SomeHalter (RHOStack IO ()) (ExecRes ()) ()
                          , SomeOrderer (RHOStack IO ()) (ExecRes ()) ()
-                         , IORef TimedOut)
+                         , IORef TimedOut
+                         , IORef TimeInFC)
     #-}
 initRedHaltOrd :: (MonadIO m, Solver solver, Simplifier simplifier) =>
                   State ()
@@ -358,7 +359,8 @@ initRedHaltOrd :: (MonadIO m, Solver solver, Simplifier simplifier) =>
                -> IO ( SomeReducer (RHOStack m ()) ()
                      , SomeHalter (RHOStack m ()) (ExecRes ()) ()
                      , SomeOrderer (RHOStack m ()) (ExecRes ()) ()
-                     , IORef TimedOut)
+                     , IORef TimedOut
+                     , IORef TimeInFC)
 initRedHaltOrd s mod_name solver simplifier config exec_func_names no_nrpc_names = do
     time_logger <- acceptTimeLogger
     (time_halter, io_timed_out) <- stdTimerHalter (fromInteger . toInteger $ timeLimit config) (min_found config)
@@ -367,12 +369,15 @@ initRedHaltOrd s mod_name solver simplifier config exec_func_names no_nrpc_names
 
     on_acc_hpc_red <- onAcceptHpcReducer s mod_name
 
-    let state_name = Name "state" Nothing 0 Nothing
-
-        approx_no_inline = S.fromList
+    let approx_no_inline = S.fromList
                          . E.keys
                          . E.filterConcOrSym (\case E.Conc _ -> True; E.Sym _ -> False)
                          $ expr_env s
+
+    (func_constraint_res, func_const_time) <- solveFuncConstraintsReducer config solver simplifier approx_no_inline
+    let func_constraint_res' = liftSomeReducer . liftSomeReducer . liftSomeReducer . liftSomeReducer . liftSomeReducer . liftSomeReducer . SomeReducer $ func_constraint_res
+
+    let state_name = Name "state" Nothing 0 Nothing
                          
         strict_red f = case strict config of
                             True -> SomeReducer (stdRed config approx_no_inline f solver simplifier ~> instTypeRed ~> strictRed)
@@ -454,34 +459,36 @@ initRedHaltOrd s mod_name solver simplifier config exec_func_names no_nrpc_names
                         ADTHeightOrd -> SomeOrderer $ sumAdtHeightOrderer 0
                         Iterative -> SomeOrderer pickLeastUsedOrderer
 
-    let fc_logging = log_fc_solver config
-
     return $
         case higherOrderSolver config of
             AllFuncs ->
                 ( nrpc_approx_red retReplaceSymbFuncVar .== Finished
-                        .--> (SomeReducer nonRedPCRed .== Finished .--> SomeReducer (solveFuncConstraintsReducer fc_logging solver simplifier approx_no_inline))
+                        .--> (SomeReducer nonRedPCRed .== Finished .--> func_constraint_res')
                 , SomeHalter (discardIfAcceptedTagHalter True state_name) .<~> halter_func_arg
                 , orderer
-                , io_timed_out)
+                , io_timed_out
+                , func_const_time)
             SingleFunc ->
                 ( nrpc_approx_red retReplaceSymbFuncVar .== Finished .--> taggerRed state_name :== Finished
-                            .--> (SomeReducer nonRedPCRed .== Finished .--> SomeReducer (solveFuncConstraintsReducer fc_logging solver simplifier approx_no_inline))
+                            .--> (SomeReducer nonRedPCRed .== Finished .--> func_constraint_res')
                 , SomeHalter (discardIfAcceptedTagHalter True state_name) .<~> halter_func_arg
                 , orderer
-                , io_timed_out)
+                , io_timed_out
+                , func_const_time)
             SymConstraints ->
                 ( nrpc_approx_red retReplaceSymbFuncVar .== Finished .--> taggerRed state_name :== Finished
-                            .--> (SomeReducer nonRedPCRed .== Finished .--> SomeReducer (solveFuncConstraintsReducer fc_logging solver simplifier approx_no_inline))
+                            .--> (SomeReducer nonRedPCRed .== Finished .--> func_constraint_res')
                 , SomeHalter (discardIfAcceptedTagHalter True state_name) .<~> halter_func_arg
                 , orderer
-                , io_timed_out)
+                , io_timed_out
+                , func_const_time)
             SymbolicFunc ->
                 ( nrpc_approx_red retReplaceSymbFuncTemplate .== Finished .--> taggerRed state_name :== Finished
-                            .--> (SomeReducer nonRedPCSymFuncRed .== Finished .--> SomeReducer (solveFuncConstraintsReducer fc_logging solver simplifier approx_no_inline))
+                            .--> (SomeReducer nonRedPCSymFuncRed .== Finished .--> func_constraint_res')
                 , SomeHalter (discardIfAcceptedTagHalter True state_name) .<~> halter_func_arg
                 , orderer
-                , io_timed_out)
+                , io_timed_out
+                , func_const_time)
 
 initSolver :: Config -> IO SomeSolver
 initSolver = initSolver' arbValue
@@ -524,10 +531,15 @@ initSolver' avf config = do
                 True -> callsSomeSolver "General" con''
                 False -> return con''
 
-initSimplifier :: SomeSimplifier
-initSimplifier =
-    SomeSimplifier $ HigherOrderSimplifier :>> LamVarSimplifier :>> FloatSimplifier :>> ArithSimplifier
+initSimplifier :: Config -> SomeSimplifier
+initSimplifier config =
+    let
+        base_simp = SomeSimplifier $ FloatSimplifier :>> ArithSimplifier
                  :>> BoolSimplifier :>> StringSimplifier :>> EqualitySimplifier :>> ConstSimplifier :>> LitConc
+    in
+    case using_smt_lams config of
+        UseSMTLams -> SomeSimplifier (HigherOrderSimplifier :>> LamVarSimplifier) .>> base_simp
+        NoSMTLams -> base_simp
 
 mkTypeEnv :: HM.HashMap Name AlgDataTy -> TypeEnv
 mkTypeEnv = id
@@ -607,25 +619,26 @@ runG2FromFile :: [FilePath]
               -> StartFunc
               -> TranslationConfig
               -> Config
-              -> IO ([ExecRes ()], State (), Bindings, TimedOut, Id, S.HashSet (Maybe T.Text))
+              -> IO ([ExecRes ()], State (), Bindings, TimedOut, TimeInFC, Id, S.HashSet (Maybe T.Text))
 runG2FromFile proj src gflags m_assume m_assert m_reach def_assert f transConfig config = do
     (init_state, entry_f, bindings, mb_modname) <- initialStateFromFile  proj src
                                     m_reach def_assert f (mkCurrExpr TV.empty m_assume m_assert) (mkArgTys config TV.empty)
                                     transConfig config
 
-    (er, _, b, to) <- runG2WithConfig proj src entry_f f gflags mb_modname init_state config bindings
+    (er, _, b, to, time_fc) <- runG2WithConfig proj src entry_f f gflags mb_modname init_state config bindings
 
-    return (er, init_state, b, to, entry_f, S.fromList mb_modname)
+    return (er, init_state, b, to, time_fc, entry_f, S.fromList mb_modname)
 
 runG2WithConfig :: [FilePath]-> [FilePath] -> Id -> StartFunc -> [GeneralFlag] -> [Maybe T.Text] -> State () -> Config -> Bindings
                 -> IO ( [ExecRes ()]
                       , GotUnknown
                       , Bindings
                       , TimedOut -- ^ Did any states timeout?
+                      , TimeInFC -- ^ Time spent in FunctionConstraintSolver
                       )
 runG2WithConfig proj src entry_f f gflags mb_modname state config bindings = do
     SomeSolver solver <- initSolver config
-    SomeSimplifier simplifier <- return initSimplifier
+    SomeSimplifier simplifier <- return $ initSimplifier config
     let (state', bindings') = runG2Pre emptyMemConfig state bindings
         all_mod_set = S.fromList mb_modname
     hpc_t <- hpcTracker state' all_mod_set (hpc_print_times config) (hpc_print_ticks config)
@@ -654,18 +667,18 @@ runG2WithConfig proj src entry_f f gflags mb_modname state config bindings = do
         pretty_guide' = setLogTypeClasses (log_typeclasses config) 
                       $ setLogInternalName (log_internal_names config) pretty_guide
 
-    (in_out, got_unknown, bindings'', timed_out) <- case null analysis of
+    (in_out, got_unknown, bindings'', timed_out, fc_time) <- case null analysis of
         True -> do
             rho <- initRedHaltOrd state' all_mod_set solver simplifier config (S.fromList executable_funcs) (S.fromList non_rec_funcs)
             case rho of
-                (red, hal, ord, to) ->
+                (red, hal, ord, to, fc_time) ->
                         SM.evalStateT (
                             SM.evalStateT
                                 (SM.evalStateT
                                     (SM.evalStateT
                                         (SM.evalStateT
                                             (SM.evalStateT
-                                                    (addTimedOut to $ runG2WithValidate proj src all_mod_set (T.unpack f) entry_f gflags red hal ord [] solver simplifier state' config bindings')
+                                                    (addTimedOutAndFCTime to fc_time $ runG2WithValidate proj src all_mod_set (T.unpack f) entry_f gflags red hal ord [] solver simplifier state' config bindings')
                                                 emptyApproxPrevs
                                             )
                                             lnt
@@ -680,7 +693,7 @@ runG2WithConfig proj src entry_f f gflags mb_modname state config bindings = do
         False -> do
             rho <- initRedHaltOrd state' all_mod_set solver simplifier config (S.fromList executable_funcs) (S.fromList non_rec_funcs)
             case rho of
-                (red, hal, ord, to) ->
+                (red, hal, ord, to, fc_time) ->
                         SM.evalStateT (
                             SM.evalStateT (
                                 SM.evalStateT (
@@ -689,7 +702,7 @@ runG2WithConfig proj src entry_f f gflags mb_modname state config bindings = do
                                             (SM.evalStateT
                                                 (SM.evalStateT
                                                     (SM.evalStateT
-                                                            (addTimedOut to $ runG2WithValidate proj src all_mod_set (T.unpack f) entry_f gflags red hal ord analysis solver simplifier state' config bindings')
+                                                            (addTimedOutAndFCTime to fc_time $ runG2WithValidate proj src all_mod_set (T.unpack f) entry_f gflags red hal ord analysis solver simplifier state' config bindings')
                                                         emptyApproxPrevs
                                                     )
                                                     lnt
@@ -709,13 +722,14 @@ runG2WithConfig proj src entry_f f gflags mb_modname state config bindings = do
 
     close solver
 
-    return (in_out, got_unknown, bindings'', timed_out)
+    return (in_out, got_unknown, bindings'', timed_out, fc_time)
 
-addTimedOut :: MonadIO m => IORef TimedOut -> m (a, b, c) -> m (a, b, c, TimedOut)
-addTimedOut to m = do
+addTimedOutAndFCTime :: MonadIO m => IORef TimedOut -> IORef TimeInFC -> m (a, b, c) -> m (a, b, c, TimedOut, TimeInFC)
+addTimedOutAndFCTime to fc_time m = do
     (er, b, c) <- m
     to' <- liftIO $ readIORef to
-    return (er, b, c, to')
+    fc_time' <- liftIO $ readIORef fc_time
+    return (er, b, c, to', fc_time')
 
 getFuncsByModule :: [Maybe T.Text] -> [Name] -> [Name]
 getFuncsByModule ms reachable_funcs = 
