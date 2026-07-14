@@ -1212,6 +1212,7 @@ verifierTests = testGroup "Verifier"
 
     , checkExprVerified "tests/Verify/HigherOrder.hs" "prop1"
     , checkExprVerified "tests/Verify/HigherOrder.hs" "prop2"
+    , checkExprVerifiedSubpath "tests/Verify/HigherOrder.hs" "prop2"
 
     , checkExprVerified "tests/Verify/IdCall.hs" "idCall"
     , checkExprVerified "tests/Verify/IdCall.hs" "idCall2"
@@ -1475,7 +1476,7 @@ checkExprVerifierWithConfig io_config vr_config vr_check src entry =
 configTL30 :: IO Config
 configTL30 = do
     config <- mkConfigTestIO
-    return $ config { timeLimit = 30, search_strat = Subpath }
+    return $ config { timeLimit = 30 }
 
 checkRuleVerified :: String -> String -> TestTree
 checkRuleVerified = checkRuleVerifier (\case Verified -> True; Counterexample _ -> False; VerifyTimeOut -> False)

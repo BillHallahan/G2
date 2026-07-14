@@ -557,7 +557,7 @@ unifyNRPCs no_inline eenv pc fm (nrpc@(NRPC focus1 e1 v1) :*> nrpcs) =
     let
         con_nrpc = listToMaybe
                  $ mapMaybe (\(NRPC focus2 e2 v2) ->
-                    case eqUpToTypesInline no_inline eenv (stripAllTicks e1) (stripAllTicks e2) of
+                    case eqUpToTypesInlineIgnoringTicks no_inline eenv (stripAllTicks e1) (stripAllTicks e2) of
                         True -> (\(eenv_, pc_) -> (eenv_, pc_, focus2)) <$> alignVar HS.empty HS.empty eenv pc v1 v2
                         False -> Nothing)
                  $ toListNRPC nrpcs
