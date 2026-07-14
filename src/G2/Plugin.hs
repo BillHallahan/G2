@@ -1,7 +1,7 @@
 {-# LANGUAGE BangPatterns, CPP, DeriveDataTypeable, DeriveGeneric, 
              FlexibleContexts, LambdaCase, OverloadedStrings, TupleSections #-}
 
-module G2.Plugin (SymEx (..), assume, (==>), plugin) where
+module G2.Plugin (SymEx (..), assume, (==>), plugin, logAcceptedStateTime) where
 
 #if MIN_VERSION_GLASGOW_HASKELL(9,0,2,0)
 import GHC.Plugins as GHC hiding ((<>))
@@ -14,6 +14,7 @@ import GHC.Core.InstEnv
 import GHC.Types.TyThing
 
 import G2.Config
+import G2.Execution.FuncConstraints
 import G2.Initialization.MkCurrExpr
 import G2.Interface
 import G2.Initialization.Types as IT
@@ -38,6 +39,9 @@ import qualified Data.Sequence as Seq
 import qualified Data.Text.IO as T
 import Options.Applicative
 import G2.Language.TyVarEnv as TV
+import qualified Data.Text as TX
+
+import System.Clock
 
 data SymEx = SymEx
            | SymExWithConfig String
@@ -153,17 +157,33 @@ runFunc' cmd_lne simp_state symex_annot entry
 
         -- Run symbolic execution
         let entry_id = Id entry_name $ L.typeOf TV.empty e
-        T.putStrLn $ "Running " <> nameOcc entry
+            entry_name' = case higherOrderSolver func_config of
+                            SymConstraints -> nameOcc entry <> "_sym_constraints"
+                            SymbolicFunc -> nameOcc entry <> "_symbolic"
+                            _ -> nameOcc entry
+        T.putStrLn $ "Running " <> entry_name'
+        logAcceptedStateTime (TX.unpack entry_name')
         let (init_state, bindings) = initStateFromSimpleState simp_state [L.nameModule entry] False
                                     (mkCurrExpr TV.empty Nothing Nothing entry_id)
                                     (E.higherOrderExprs TV.empty . IT.expr_env)
                                     func_config
             bindings' = bindings { higher_order_inst = HS.empty }
 
-        (_, _, _, time_outs) <- liftIO $ runG2WithConfig [] [] entry_id "" [] [L.nameModule entry] init_state func_config bindings'
+        (_, _, _, time_outs, TimeInFC timeInFC) <- liftIO $ runG2WithConfig [] [] entry_id "" [] [L.nameModule entry] init_state func_config bindings'
+        let seconds_in_fc = fromInteger (toNanoSecs timeInFC) / (10 ^ (9 :: Int) :: Double)
+        -- Clean it up later, move this in some sort of Util
+        let fc_file = "time_logs/fc_time.txt"
+        file_exists <- doesFileExist fc_file
+        when file_exists $ appendFile fc_file $ "\n" ++ TX.unpack entry_name' ++ " : " ++ show seconds_in_fc
         reportTerminationResults time_outs func_config
         return ()
     | otherwise = return ()
+
+logAcceptedStateTime :: [Char] -> IO ()
+logAcceptedStateTime entryName  = do
+    let file_name = "time_logs/state_accept_log.txt"
+    file_exists <- doesFileExist file_name
+    when file_exists $ appendFile file_name $ "\n" ++ entryName ++ " : "
 
 -- Based on https://dl.acm.org/doi/pdf/10.1145/3495272
 loadImports :: SM.MonadIO m => HscEnv -> HM.HashMap L.Name L.Expr -> S.Set L.Name -> Seq.Seq L.Name -> NamesT m ExtractedG2

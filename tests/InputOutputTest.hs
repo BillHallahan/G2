@@ -290,7 +290,7 @@ checkInputOutput''' adj_config src exg2 nm tnm mb_modname config (entry, stps, r
     let config' = adj_config stps config
         (entry_f, init_state, bindings) = initStateWithCall exg2 nm tnm False (T.pack entry) mb_modname (mkCurrExpr TV.empty Nothing Nothing) (mkArgTys config TV.empty) config'
     
-    (r, _, b, _) <- runG2WithConfig proj src entry_f (T.pack entry) [] mb_modname init_state config' bindings
+    (r, _, b, _, _) <- runG2WithConfig proj src entry_f (T.pack entry) [] mb_modname init_state config' bindings
 
     let chAll = checkExprAll req
     let chAny = checkExprExists req
