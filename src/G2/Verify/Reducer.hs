@@ -123,11 +123,11 @@ nrpcAnyCallReducer no_nrpc_names v_config config =
         -- * the function is not in the list of names to not add to NRPCs
         -- * we are not applying a symbolic function
         allowedApp app eenv tvnv
-            | Var (Id n _):_:_ <- unApp app
+            | Var (Id n _):_:_ <- unApp $ stripAllTicks app
             , n' <- deepLookupCenterName n eenv
             , not . isTyFun . typeOf tvnv $ app =
                 not (n' `HS.member` no_nrpc_names)
-            | Data _:_:_ <- unApp app
+            | Data _:_:_ <- unApp $ stripAllTicks app
             , not . isTyFun . typeOf tvnv $ app
             , data_arg_rev_abs v_config == AbsDataArgs = True
             | otherwise = False
@@ -171,6 +171,7 @@ nrpcAnyCallReducer no_nrpc_names v_config config =
                 case createRAExpr ng' (Unfocused ()) s' e' of
                     Just (s'', sym_i, _, ng'') -> (Var sym_i, s'', ng'')
                     Nothing -> (e', s', ng')
+        argsToNRPCs' seen s ng grace (Tick _ e) = argsToNRPCs' seen s ng grace e
         argsToNRPCs' _ s ng _ e = (e, s, ng)
 
         -- (Maybe) converts an argument of an application into an NRPC.
@@ -202,6 +203,7 @@ nrpcAnyCallReducer no_nrpc_names v_config config =
                                        . filter (\(s, _) -> s == NonStatic)
                                        $ zip stat es
             | otherwise = symbolic_names' seen eenv e1 `HS.union` symbolic_names' seen eenv e2
+        symbolic_names' seen eenv (Tick _ e) = symbolic_names' seen eenv e
         symbolic_names' _ _ _ = HS.empty
 
         allowed_frame (ApplyFrame _) = False
