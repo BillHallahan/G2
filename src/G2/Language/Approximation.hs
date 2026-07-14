@@ -143,19 +143,19 @@ moreRestrictive' mr_cont m_gen_lemma lkp = go
     go s1@(State {expr_env = h1, tyvar_env = tv1}) s2@(State {expr_env = h2, tyvar_env = tv2}) ns hm active n1 n2 e1 e2 =
         case (e1, e2) of
           (Var i, _) | m <- idName i
-                    , (m, e2) `elem` n1 -> Right hm
+                    , (m, stripAllTicks e2) `elem` n1 -> Right hm
                     | m <- idName i
                     , not $ HS.member m ns
-                    , not $ (m, e2) `elem` n1
+                    , not $ (m, stripAllTicks e2) `elem` n1
                     , Just (E.Conc e) <- lkp m s1 ->
-                      go s1 s2 ns hm active ((m, e2):n1) n2 e e2
+                      go s1 s2 ns hm active ((m, stripAllTicks e2):n1) n2 e e2
           (_, Var i) | m <- idName i
                     , (m, e1) `elem` n2 -> Right hm
                     | m <- idName i
                     , not $ HS.member m ns
-                    , not $ (m, e1) `elem` n2
+                    , not $ (m, stripAllTicks e1) `elem` n2
                     , Just (E.Conc e) <- lkp m s2 ->
-                      go s1 s2 ns hm active n1 ((m, e1):n2) e1 e
+                      go s1 s2 ns hm active n1 ((m, stripAllTicks e1):n2) e1 e
           (Var i1, Var i2) | HS.member (idName i1) ns
                           , idName i1 == idName i2 -> Right hm
                           | idName i1 == idName i2
@@ -171,10 +171,10 @@ moreRestrictive' mr_cont m_gen_lemma lkp = go
                     , e == inlineEquiv lkp s2 ns e2 -> Right hm
                     -- this last case means there's a mismatch
                     | Just (E.Sym _) <- lkp (idName i) s1 -> Left []
-                    | not $ (idName i, e2) `elem` n1
+                    | not $ (idName i, stripAllTicks e2) `elem` n1
                     , not $ HS.member (idName i) ns -> error $ "unmapped variable " ++ (show i) ++ "\n" ++ show (log_path s1) ++ "\n" ++ show (num_steps s1)
           (_, Var i) | Just (E.Sym _) <- lkp (idName i) s2 -> Left [] -- sym replaces non-sym
-                    | not $ (idName i, e1) `elem` n2
+                    | not $ (idName i, stripAllTicks e1) `elem` n2
                     , not $ HS.member (idName i) ns -> error $ "unmapped variable " ++ (show i)
         
           (App f1 a1, App f2 a2) | Right hm_fa <- moreResFA -> Right hm_fa
@@ -298,6 +298,7 @@ inlineEquiv lkp s ns v@(Var (Id n _))
     | Just (E.Conc e) <- cs = inlineEquiv lkp s (HS.insert n ns) e
     where
         cs = lkp n s
+inlineEquiv lkp s ns (Tick _ e) = inlineEquiv lkp s ns e
 inlineEquiv lkp s ns e = modifyChildren (inlineEquiv lkp s ns) e
 
 

@@ -1142,6 +1142,7 @@ verifierTests = testGroup "Verifier"
     , checkExprVerified "tests/Verify/List1.hs" "prop6"
     , checkExprVerified "tests/Verify/List1.hs" "prop7Simple"
     , checkExprVerified "tests/Verify/List1.hs" "prop7"
+    , checkExprVerifiedSubpath "tests/Verify/List1.hs" "prop7"
     , checkExprVerified "tests/Verify/List1.hs" "prop8"
     , checkExprVerified "tests/Verify/List1.hs" "prop9"
     , checkExprVerified "tests/Verify/List1.hs" "prop10"
@@ -1405,12 +1406,15 @@ checkExprWithConfig src m_assume m_assert m_reaches entry reqList config_f = do
 checkExprVerified :: String -> String -> TestTree
 checkExprVerified = checkExprVerifier (\case Verified -> True; Counterexample _ -> False; VerifyTimeOut -> False)
 
+checkExprVerifiedSubpath :: String -> String -> TestTree
+checkExprVerifiedSubpath = checkExprVerifierSubpath (\case Verified -> True; Counterexample _ -> False; VerifyTimeOut -> False)
+
 checkExprVerifiedWithNoRevAbs :: String -> String -> TestTree
 checkExprVerifiedWithNoRevAbs =
     let
         vr_config = defVerifyConfig { rev_abs = False }
     in
-    checkExprVerifierWithConfig vr_config (\case Verified -> True; Counterexample _ -> False; VerifyTimeOut -> False)
+    checkExprVerifierWithConfig configTL30 vr_config (\case Verified -> True; Counterexample _ -> False; VerifyTimeOut -> False)
 
 checkExprCEx :: String -> String -> TestTree
 checkExprCEx = checkExprVerifier (\case Verified -> False; Counterexample _ -> True; VerifyTimeOut -> False)
@@ -1423,29 +1427,31 @@ checkExprNotCExWithDataArgs =
     let
         vr_config = defVerifyConfig { data_arg_rev_abs = AbsDataArgs }
     in
-    checkExprVerifierWithConfig vr_config (\case Verified -> True; Counterexample _ -> False; VerifyTimeOut -> True)
+    checkExprVerifierWithConfig configTL30 vr_config (\case Verified -> True; Counterexample _ -> False; VerifyTimeOut -> True)
 
 checkExprCExWithNoArgRevAbs :: String -> String -> TestTree
 checkExprCExWithNoArgRevAbs =
     let
         vr_config = defVerifyConfig { arg_rev_abs = NoAbsFuncArgs }
     in
-    checkExprVerifierWithConfig vr_config (\case Verified -> False; Counterexample _ -> True; VerifyTimeOut -> False)
+    checkExprVerifierWithConfig configTL30 vr_config (\case Verified -> False; Counterexample _ -> True; VerifyTimeOut -> False)
 
 checkExprVerifiedNoLemmas :: String -> String -> TestTree
-checkExprVerifiedNoLemmas = checkExprVerifierWithConfig (defVerifyConfig { use_lemmas = False}) (\case Verified -> True; Counterexample _ -> False; VerifyTimeOut -> False)
+checkExprVerifiedNoLemmas = checkExprVerifierWithConfig configTL30 (defVerifyConfig { use_lemmas = False}) (\case Verified -> True; Counterexample _ -> False; VerifyTimeOut -> False)
+
+checkExprVerifierSubpath :: (VerifyResult -> Bool) -> String -> String -> TestTree
+checkExprVerifierSubpath = checkExprVerifierWithConfig (do config <- configTL30; return $ config { search_strat = Subpath }) defVerifyConfig
 
 checkExprVerifier :: (VerifyResult -> Bool) -> String -> String -> TestTree
-checkExprVerifier = checkExprVerifierWithConfig defVerifyConfig
+checkExprVerifier = checkExprVerifierWithConfig configTL30 defVerifyConfig
 
-checkExprVerifierWithConfig :: VerifyConfig -> (VerifyResult -> Bool) -> String -> String -> TestTree
-checkExprVerifierWithConfig vr_config vr_check src entry = 
+checkExprVerifierWithConfig :: IO Config -> VerifyConfig -> (VerifyResult -> Bool) -> String -> String -> TestTree
+checkExprVerifierWithConfig io_config vr_config vr_check src entry = 
     testCase ("Verifier:" ++ src ++ " " ++ entry) $ do
         res <- try (do
                 let proj = takeDirectory src
-                config <- mkConfigTestIO
-                let config' = config { timeLimit = 30 }
-                verifyFromFile [proj] [src] (T.pack entry) simplTranslationConfig config' vr_config)
+                config <- io_config
+                verifyFromFile [proj] [src] (T.pack entry) simplTranslationConfig config vr_config)
                     :: IO (Either SomeException ((VerifyResult, Double, Bindings, Id)))
         let res' = case res of
                         Left _ -> VerifyTimeOut
@@ -1459,6 +1465,11 @@ checkExprVerifierWithConfig vr_config vr_check src entry =
             resToString VerifyTimeOut = "TimeOut"
             resToString (Counterexample _) = "Counterexample"
 
+configTL30 :: IO Config
+configTL30 = do
+    config <- mkConfigTestIO
+    return $ config { timeLimit = 30 }
+
 checkRuleVerified :: String -> String -> TestTree
 checkRuleVerified = checkRuleVerifier (\case Verified -> True; Counterexample _ -> False; VerifyTimeOut -> False)
 
@@ -1467,7 +1478,7 @@ checkRuleVerifier = checkRuleVerifierWithConfig defVerifyConfig
 
 checkRuleVerifierWithConfig :: VerifyConfig -> (VerifyResult -> Bool) -> String -> String -> TestTree
 checkRuleVerifierWithConfig vr_config vr_check src entry =
-    checkExprVerifierWithConfig (vr_config { rewrite_rule = True }) vr_check src entry
+    checkExprVerifierWithConfig configTL30 (vr_config { rewrite_rule = True }) vr_check src entry
 
 testFile :: String
          -> Maybe String
