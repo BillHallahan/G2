@@ -660,6 +660,7 @@ getFuncExtractorPaths init_e = do
     return $ go tv_env [] init_e
     where
         go tv_env curr_path e 
+            | Tick _ e' <- e = go tv_env curr_path e'
             | (Data dc:es) <- unApp e =
                 let
                     paths = zipWith (\i ar -> (i, go tv_env curr_path ar)) [0..] $ filter (not . isType) es

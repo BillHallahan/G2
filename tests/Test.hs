@@ -798,6 +798,7 @@ testFileTests = testGroup "TestFiles"
                                                                        , ("eitherFuncs", 1000, [Exactly 3])                                                                       
                                                                        , ("tupleFunc", 1000, [Exactly 2])                                                                       
                                                                        ]
+    , checkInputOutputsSymFuncConstraintsSubPath "tests/HigherOrder/PolyHigherOrder.hs" [ ("funcs", 1000, [Exactly 3])]
     , checkInputOutputs "tests/HigherOrder/HigherOrder3.hs"
                                                                        [ ("propFalse", 1000 * 1000, [AtLeast 5])
                                                                        , ("prop2", 1000 * 1000, [AtLeast 5]) ]
