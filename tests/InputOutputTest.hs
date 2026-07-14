@@ -36,7 +36,10 @@ import Test.Tasty.HUnit
 import Control.Exception
 import qualified Data.HashSet as HS
 import Data.List
+import Data.Maybe
 import qualified Data.Text as T
+import Options.Applicative
+import System.Directory
 import System.FilePath
 import qualified G2.Language.TyVarEnv as TV
 import G2.Config
@@ -51,11 +54,34 @@ import TestUtils
 
 checkInputOutput :: FilePath -> String -> Int -> [Reqs String] -> TestTree
 checkInputOutput src entry stps req = do
-    checkInputOutput' mkConfigTestIO src [(entry, stps, req)]
+    checkInputOutput' (getConfigFromAnnotOrDefault src) src [(entry, stps, req)]
 
 checkInputOutputs :: FilePath -> [(String, Int, [Reqs String])] -> TestTree
 checkInputOutputs src tests = do
-    checkInputOutput' mkConfigTestIO src tests
+    checkInputOutput' (getConfigFromAnnotOrDefault src) src tests
+
+getConfigFromAnnotOrDefault :: FilePath -> IO Config
+getConfigFromAnnotOrDefault fp = do
+    m_config <- getConfigFromAnnot fp
+    case m_config of
+        Just config -> return $ config { print_output = False }
+        Nothing -> mkConfigTestIO
+
+getConfigFromAnnot :: FilePath -> IO (Maybe Config)
+getConfigFromAnnot fp = do
+    homedir <- getHomeDirectory
+    fp_text <- readFile fp
+    let fp_lines = lines fp_text
+    case listToMaybe $ mapMaybe (stripPrefix "-- CONFIG:") fp_lines of
+        Just params -> Just <$> handleParseResult (execParserPure defaultPrefs (testConfig homedir) $ words params)
+        Nothing -> return Nothing
+
+testConfig :: FilePath -> ParserInfo Config
+testConfig homedir = 
+    info (mkConfig homedir <**> helper)
+          ( fullDesc
+          <> progDesc "Symbolic Execution of Haskell code"
+          <> header "The G2 Symbolic Execution Engine" )
 
 checkInputOutputsWithCVC5 :: FilePath -> [(String, Int, [Reqs String])] -> TestTree
 checkInputOutputsWithCVC5 src tests = do

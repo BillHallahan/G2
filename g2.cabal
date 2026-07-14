@@ -379,6 +379,7 @@ test-suite test
                        , ghc-paths
                        , ghc
                        , hashable
+                       , optparse-applicative
                        , tagged
                        , tasty >= 1.0 && < 1.5.4
                        , tasty-hunit >= 0.10 && < 0.11
