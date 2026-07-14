@@ -1440,7 +1440,7 @@ matchPairs tvnv kv e1 e2 eenv_pc_ee@(eenv, pc, ees)
         inline h ns e = modifyChildren (inline h ns) e
 
 addNRPCTick :: NameGen -> Expr -> (Expr, NameGen)
-addNRPCTick ng e | c@(Var _):es <- unApp e =
+addNRPCTick ng e | c@(Var _):es <- unApp $ stripAllTicks e =
     let (c', ng') = nonRedBlockerTick ng c in (mkApp $ c':es, ng')
 addNRPCTick ng e = (e, ng)
 

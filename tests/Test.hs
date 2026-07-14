@@ -1475,7 +1475,7 @@ checkExprVerifierWithConfig io_config vr_config vr_check src entry =
 configTL30 :: IO Config
 configTL30 = do
     config <- mkConfigTestIO
-    return $ config { timeLimit = 30 }
+    return $ config { timeLimit = 30, search_strat = Subpath }
 
 checkRuleVerified :: String -> String -> TestTree
 checkRuleVerified = checkRuleVerifier (\case Verified -> True; Counterexample _ -> False; VerifyTimeOut -> False)
