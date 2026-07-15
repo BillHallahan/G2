@@ -141,12 +141,12 @@ nrpcAnyCallReducer no_nrpc_names v_config config =
         --  @ s1 = g x 
         --    s2 = h z @
         -- See Note [Replacing nested function applications]
-        argsToNRPCs s ng v es =
+        argsToNRPCs s@(State { curr_expr = CurrExpr er _ }) ng v es =
             let
                 arg_holes = holes es
                 ((s', ng'), es') = mapAccumR (\(s_, ng_)  (e_, other_es) -> appArgToNRPC HS.empty s_ ng_ HS.empty e_ other_es) (s, ng) arg_holes
             in
-            (s' { curr_expr = CurrExpr Evaluate . mkApp $ v:es' }, ng')
+            (s' { curr_expr = CurrExpr er . mkApp $ v:es' }, ng')
         
         argsToNRPCs' seen s@(State { expr_env = eenv }) ng grace v@(Var (Id n _))
             | n `notElem` seen

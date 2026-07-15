@@ -280,6 +280,9 @@ evalApp s@(State { expr_env = eenv
                  , tyvar_env = tv_env
                  , type_classes = tc })
         ng e1 e2
+    | (Var (Id n _)) <- appCenter e1
+    , E.isSymbolic n eenv =
+        (RuleReturnAppSWHNF, newPCEmpty $ s { curr_expr = CurrExpr Return (App e1 e2) }, ng)
     | (Prim Error _) <- appCenter e1 =
         (RuleError, newPCEmpty $ s { curr_expr = CurrExpr Return (App e1 e2) }, ng)
     -- Force evaluation of the expression being quantified over
@@ -1419,6 +1422,12 @@ matchPairs tvnv kv e1 e2 eenv_pc_ee@(eenv, pc, ees)
             False ->
                 Just (eenv, [ExtCond (mkFalse kv) True], [])
 
+    | Var (Id n _) <- appCenter e1
+    , E.isSymbolic n eenv
+    , Lam _ _ _ <- e2 = Just (eenv, pc, [(e1, e2)])
+    | Var (Id n _) <- appCenter e2
+    , E.isSymbolic n eenv
+    , Lam _ _ _ <- e1 = Just (eenv, pc, [(e1, e2)])
     | Lam _ _ _ <- e1
     , Lam _ _ _ <- e2 = Just (eenv, pc, [(e1, e2)])
 
