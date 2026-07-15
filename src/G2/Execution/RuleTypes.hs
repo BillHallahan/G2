@@ -82,6 +82,7 @@ data Rule = RuleEvalVal
           | RuleReturnCurrExprFr
 
           | RuleError
+          | RuleSkipCatch
 
           | RuleBind
 

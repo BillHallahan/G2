@@ -87,6 +87,7 @@ tests = testGroup "All Tests"
         , smtSynthTestRunSymexSMTStrings "tests_seq_gen/tests_symex/Test2.hs" "callReplaceAll" (Just 2) (Just 2)
         , smtSynthTestRunSymexSMTStrings "tests_seq_gen/tests_symex/Test3.hs" "comp" (Just 1) Nothing
         , smtSynthTestRunSymexSMTStrings "tests_seq_gen/tests_symex/Test4.hs" "comp" (Just 2) Nothing
+        , smtSynthTestRunSymexSMTStringsCheckAsserts "tests_seq_gen/tests_symex/Test7.hs" "comp" (Just 1) Nothing
         ]
 
 getSeqGenConfigDir :: T.Text -> IO SynthConfig
@@ -162,6 +163,20 @@ smtSynthTestRunSymexSMTStrings fle f =
     smtSynthTestRunSymexWithConfig (do
                                         synth_config@(SynthConfig { g2_config = config }) <- getSeqGenConfigDir fle
                                         let config' = adjustConfig synth_config $ config { smt = ConCVC5, steps = 2000, smt_strings = UseSMTStrings }
+                                        return $ synth_config { run_symex = True, g2_config = config' {timeLimit = 60} })
+                                        fle
+                                        f
+                                        (const True)
+
+smtSynthTestRunSymexSMTStringsCheckAsserts :: T.Text -- ^ Filer
+                                           -> T.Text -- ^ Function
+                                           -> Maybe Int -- ^ Minimum number of outputs
+                                           -> Maybe Int -- ^ Maximum number of outputs
+                                           -> TestTree
+smtSynthTestRunSymexSMTStringsCheckAsserts fle f =
+    smtSynthTestRunSymexWithConfig (do
+                                        synth_config@(SynthConfig { g2_config = config }) <- getSeqGenConfigDir fle
+                                        let config' = adjustConfig synth_config $ config { smt = ConCVC5, steps = 2000, smt_strings = UseSMTStrings, check_asserts = True }
                                         return $ synth_config { run_symex = True, g2_config = config' {timeLimit = 60} })
                                         fle
                                         f
