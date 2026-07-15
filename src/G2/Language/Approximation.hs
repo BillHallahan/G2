@@ -150,7 +150,7 @@ moreRestrictive' mr_cont m_gen_lemma lkp = go
                     , Just (E.Conc e) <- lkp m s1 ->
                       go s1 s2 ns hm active ((m, stripAllTicks e2):n1) n2 e e2
           (_, Var i) | m <- idName i
-                    , (m, e1) `elem` n2 -> Right hm
+                    , (m, stripAllTicks e1) `elem` n2 -> Right hm
                     | m <- idName i
                     , not $ HS.member m ns
                     , not $ (m, stripAllTicks e1) `elem` n2
