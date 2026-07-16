@@ -176,7 +176,7 @@ def run_verify(filename, thm, time_limit, var_settings):
 
 def call_verify_process(filename, thm, time_limit, var_settings):
     try:
-        args = [exe_name, "verify/tests/" + filename, thm, "--time", str(time_limit), "--search", "subpath"]
+        args = [exe_name, "verify/tests/" + filename, thm, "--time", str(time_limit)]
         res = subprocess.run(args + var_settings, universal_newlines=True, capture_output=True, timeout=time_limit+30);
         return res.stdout
     except subprocess.TimeoutExpired as TimeoutEx:
