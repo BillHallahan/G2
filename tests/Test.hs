@@ -1247,6 +1247,8 @@ verifierTests = testGroup "Verifier"
     , checkExprVerified "tests/Verify/Tuple2.hs" "prop"
 #endif
 
+    , checkExprVerifiedWithNoSharedVar "tests/Verify/FMap.hs" "prop"
+
     , checkRuleVerified "tests/Verify/Rules1.hs" "justJust"
     , checkRuleVerified "tests/Verify/Rules1.hs" "justJust2"
     , checkRuleVerified "tests/Verify/Rules1.hs" "polyJustJust"
@@ -1420,6 +1422,13 @@ checkExprVerifiedWithNoRevAbs :: String -> String -> TestTree
 checkExprVerifiedWithNoRevAbs =
     let
         vr_config = defVerifyConfig { rev_abs = False }
+    in
+    checkExprVerifierWithConfig configTL30 vr_config (\case Verified -> True; Counterexample _ -> False; VerifyTimeOut -> False)
+
+checkExprVerifiedWithNoSharedVar :: String -> String -> TestTree
+checkExprVerifiedWithNoSharedVar =
+    let
+        vr_config = defVerifyConfig { shared_var_heuristic = NoSharedVarHeuristic }
     in
     checkExprVerifierWithConfig configTL30 vr_config (\case Verified -> True; Counterexample _ -> False; VerifyTimeOut -> False)
 
