@@ -1250,6 +1250,8 @@ verifierTests = testGroup "Verifier"
     , checkExprVerifiedWithNoSharedVar "tests/Verify/FMap.hs" "prop"
     , checkExprVerifiedWithNoSharedVar "tests/Verify/FMap.hs" "prop2"
 
+    , checkExprNotCExSubPathWithNoSharedVar "tests/Verify/NonEmpty.hs" "prop"
+
     , checkRuleVerified "tests/Verify/Rules1.hs" "justJust"
     , checkRuleVerified "tests/Verify/Rules1.hs" "justJust2"
     , checkRuleVerified "tests/Verify/Rules1.hs" "polyJustJust"
@@ -1432,6 +1434,16 @@ checkExprVerifiedWithNoRevAbs =
         vr_config = defVerifyConfig { rev_abs = False }
     in
     checkExprVerifierWithConfig configTL30 vr_config (\case Verified -> True; Counterexample _ -> False; VerifyTimeOut -> False)
+
+checkExprNotCExSubPathWithNoSharedVar :: String -> String -> TestTree
+checkExprNotCExSubPathWithNoSharedVar =
+    let
+        vr_config = defVerifyConfig { shared_var_heuristic = NoSharedVarHeuristic }
+    in
+    checkExprVerifierWithConfig 
+        (do config <- configTL30; return $ config { search_strat = Subpath })
+        vr_config
+        (\case Verified -> True; Counterexample _ -> False; VerifyTimeOut -> True)
 
 checkExprVerifiedWithNoSharedVar :: String -> String -> TestTree
 checkExprVerifiedWithNoSharedVar =

@@ -1,4 +1,4 @@
-{-# LANGUAGE BangPatterns, FlexibleContexts, MultiParamTypeClasses, MultiWayIf, OverloadedStrings, TupleSections #-}
+{-# LANGUAGE BangPatterns, FlexibleContexts, MultiParamTypeClasses, MultiWayIf, OverloadedStrings, TupleSections, ViewPatterns #-}
 
 module G2.Verify.Reducer ( VerifierTracker (..)
                          , Goal (..)
@@ -320,7 +320,7 @@ adjustFocusReducer = mkSimpleReducer (const ()) red
                 let s' = update_ensure_eq HS.empty e s in
                 return (Finished, [(s', rv)], b)
             where
-                update_ensure_eq seen (Var (Id n _)) s_ | n `notElem` seen =
+                update_ensure_eq seen (stripAllTicks -> Var (Id n _)) s_ | n `notElem` seen =
                     let
                         s_' = updateStateFocusMap n 
                             $ s_ { non_red_path_conds = setFocus n Focused (expr_env s_) $ non_red_path_conds s_ }
