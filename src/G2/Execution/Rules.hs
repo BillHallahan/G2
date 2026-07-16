@@ -102,7 +102,7 @@ stdReduce' config _ symb_func_eval solver simplifier s@(State { curr_expr = Curr
 
     | errorRaised s = return $ retErrorState s ng
     -- | Ignore a catch frame if there is no error
-    | Just (CatchFrame _, stck') <- frstck = return (RuleIdentity, [s { exec_stack = stck' }], ng)
+    | Just (CatchFrame _, stck') <- frstck = return (RuleSkipCatch, [s { exec_stack = stck' }], ng)
 
     | Just (CaseFrame i t a, stck') <- frstck = return $ retCaseFrame s ng ce i t a stck'
     | Just (CastFrame c, stck') <- frstck = return $ retCastFrame s ng ce c stck'
