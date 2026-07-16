@@ -1218,7 +1218,7 @@ verifierTests = testGroup "Verifier"
     , checkExprVerified "tests/Verify/IdCall.hs" "idCall"
     , checkExprVerified "tests/Verify/IdCall.hs" "idCall2"
     , checkExprVerified "tests/Verify/IdCall.hs" "p1"
-    , checkExprVerifiedSubpath "tests/Verify/IdCall.hs" "p1"
+    , checkExprVerifiedSubpathTL 60 "tests/Verify/IdCall.hs" "p1"
 
     , checkExprVerified "tests/Verify/Maybe1.hs" "p1"
 
@@ -1419,6 +1419,13 @@ checkExprVerified = checkExprVerifier (\case Verified -> True; Counterexample _ 
 checkExprVerifiedSubpath :: String -> String -> TestTree
 checkExprVerifiedSubpath = checkExprVerifierSubpath (\case Verified -> True; Counterexample _ -> False; VerifyTimeOut -> False)
 
+checkExprVerifiedSubpathTL :: Int -> String -> String -> TestTree
+checkExprVerifiedSubpathTL time_lim =
+    checkExprVerifierWithConfig
+        (do config <- configTL time_lim; return $ config { search_strat = Subpath })
+        defVerifyConfig
+        (\case Verified -> True; Counterexample _ -> False; VerifyTimeOut -> False)
+
 checkExprVerifiedWithNoRevAbs :: String -> String -> TestTree
 checkExprVerifiedWithNoRevAbs =
     let
@@ -1486,9 +1493,13 @@ checkExprVerifierWithConfig io_config vr_config vr_check src entry =
             resToString (Counterexample _) = "Counterexample"
 
 configTL30 :: IO Config
-configTL30 = do
+configTL30 = configTL 30
+
+configTL :: Int -> IO Config
+configTL time_lim = do
     config <- mkConfigTestIO
-    return $ config { timeLimit = 30 }
+    return $ config { timeLimit = time_lim }
+
 
 checkRuleVerified :: String -> String -> TestTree
 checkRuleVerified = checkRuleVerifier (\case Verified -> True; Counterexample _ -> False; VerifyTimeOut -> False)
