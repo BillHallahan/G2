@@ -524,10 +524,14 @@ liftOutFullyAppedReducer = mkSimpleReducer (const ()) red
                 allBound (Var (Id n _)) = All $ E.member n eenv
                 allBound _ = All True
 
-                s'' = s' { curr_expr = CurrExpr Evaluate renamed_le }
+                s'' = s' { curr_expr = CurrExpr Evaluate $ stripTicks renamed_le }
             in
             return (Finished, [(s'', ())], b')
         red _ s b = return (Finished, [(s, ())], b) 
+
+stripTicks :: Expr -> Expr
+stripTicks (Tick _ e) = stripTicks e
+stripTicks e = e
 
 unifyNRPCReducer :: Monad m =>
                     HS.HashSet Name -- ^ Names that should not be inlined (often: top level names from the original source code)

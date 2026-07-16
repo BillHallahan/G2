@@ -1193,6 +1193,7 @@ verifierTests = testGroup "Verifier"
     , checkExprVerified "tests/Verify/ListComp.hs" "p1"
     , checkExprVerifiedSubpath "tests/Verify/ListComp.hs" "p1"
     , checkExprVerified "tests/Verify/ListComp.hs" "p2"
+    , checkExprVerifiedSubpath "tests/Verify/ListComp2.hs" "prop"
 
     -- , checkExprVerified "tests/Verify/NatList1.hs" "prop1"
     , checkExprVerified "tests/Verify/NatList1.hs" "prop2"
