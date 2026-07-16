@@ -10,3 +10,6 @@ data X = X
 
 instance Eq X where
     X == X = True
+
+prop2 :: (X -> X) -> (X -> X) -> [X] -> Bool
+prop2 f g xs = P.map (f . g) xs == P.map f xs

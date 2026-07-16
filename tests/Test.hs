@@ -1248,6 +1248,7 @@ verifierTests = testGroup "Verifier"
 #endif
 
     , checkExprVerifiedWithNoSharedVar "tests/Verify/FMap.hs" "prop"
+    , checkExprVerifiedWithNoSharedVar "tests/Verify/FMap.hs" "prop2"
 
     , checkRuleVerified "tests/Verify/Rules1.hs" "justJust"
     , checkRuleVerified "tests/Verify/Rules1.hs" "justJust2"
