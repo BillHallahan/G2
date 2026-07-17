@@ -131,16 +131,18 @@ mkLamArg s ng lt = do
 -- Make a fully applied primitive tuple with four elements
 mkLitTableInfo :: KnownValues -> TypeEnv -> TyVarEnv -> Expr -> Expr -> Expr -> Expr -> Expr
 mkLitTableInfo kv tenv tv_env x y z q =
-    case typeOf tv_env x of
-        TyFun t1 t2 -> 
-            mkApp [ Data lit_info_dc
-                , Type t1
-                , Type t2
-                , x
-                , y
-                , z
-                , q]
-        _ -> error "mkLitTableInfo: expected function type"
+    let
+        (t1, t2) = case typeOf tv_env x of
+                        TyFun t1_ t2_ -> (t1_, t2_)
+                        _ -> (TyUnknown, TyUnknown)
+    in
+    mkApp [ Data lit_info_dc
+        , Type t1
+        , Type t2
+        , x
+        , y
+        , z
+        , q]
     where
         lit_info_dc = case getDataCon tenv (KV.tyLitTableInfo kv) (KV.dcLitTableInfo kv) of
                             Just dc -> dc
