@@ -104,7 +104,7 @@ mkIdLam s ng lt =
         ret_ty = lt_ret_ty lt
         (arg_id, ng1) = freshId arg_ty ng
         lam_e = Lam TermL arg_id (Var arg_id)
-        tup_e = mkTup4 kv tenv tvnv
+        tup_e = mkLitTableInfo kv tenv tvnv
                     lam_e
                     (mkTrue kv)
                     (Prim UnspecifiedOutput TyUnknown)
@@ -129,28 +129,27 @@ mkLamArg s ng lt = do
     return (elem_var, unboxed_name, ng1)
 
 -- Make a fully applied primitive tuple with four elements
-mkTup4 :: KnownValues -> TypeEnv -> TyVarEnv -> Expr -> Expr -> Expr -> Expr -> Expr
-mkTup4 kv tenv tv_env x y z q = t3
+mkLitTableInfo :: KnownValues -> TypeEnv -> TyVarEnv -> Expr -> Expr -> Expr -> Expr -> Expr
+mkLitTableInfo kv tenv tv_env x y z q =
+    case typeOf tv_env x of
+        TyFun t1 t2 -> 
+            mkApp [ Data lit_info_dc
+                , Type t1
+                , Type t2
+                , x
+                , y
+                , z
+                , q]
+        _ -> error "mkLitTableInfo: expected function type"
     where
-        t3 = mkTup kv tenv tv_env x t2
-        t2 = mkTup kv tenv tv_env y t1
-        t1 = mkTup kv tenv tv_env z q
-
-mkTup :: KnownValues -> TypeEnv -> TyVarEnv -> Expr -> Expr -> Expr
-mkTup kv tenv tv_env x y =
-    mkApp [ mkPrimTuple kv tenv
-          , Type TyUnknown
-          , Type TyUnknown
-          , Type $ typeOf tv_env x
-          , Type $ typeOf tv_env y
-          , x
-          , y
-          ]
+        lit_info_dc = case getDataCon tenv (KV.tyLitTableInfo kv) (KV.dcLitTableInfo kv) of
+                            Just dc -> dc
+                            Nothing -> error "mkLitTableInfo: LitInfoDC"
 
 -- (Model function, Success, Partial table function to use with `assume`, Is partial)
 mkUnsuccessfulRet :: KnownValues -> TypeEnv -> TyVarEnv -> Expr
 mkUnsuccessfulRet kv tenv tv_env =
-    mkTup4 kv tenv tv_env
+    mkLitTableInfo kv tenv tv_env
         (Prim UnspecifiedOutput TyUnknown)
         (mkFalse kv)
         (Prim UnspecifiedOutput TyUnknown)
@@ -204,7 +203,7 @@ litTableToLamBool s ng lt = do
         fun_exp = Lam TermL elem_var or_exp1
         (partial_check, is_partial) =
             createPartialHandler (replaceVar unboxed_name (Var elem_var) lt) kv elem_var
-        tup_exp = mkTup4 kv tenv tv_env
+        tup_exp = mkLitTableInfo kv tenv tv_env
                       fun_exp
                       (mkTrue kv)
                       partial_check
@@ -241,7 +240,7 @@ litTableToLamNonBool s ng lt = do
         fun_exp = Lam TermL elem_var ite_exp1
         (partial_check, is_partial) =
             createPartialHandler (replaceVar unboxed_name (Var elem_var) lt) kv elem_var
-        tup_exp = mkTup4 kv tenv tv_env
+        tup_exp = mkLitTableInfo kv tenv tv_env
                       fun_exp
                       (mkTrue kv)
                       partial_check

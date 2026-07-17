@@ -118,6 +118,9 @@ data KnownValues = KnownValues {
                  , usingSMTLams :: Name
                  , usingLiteralTables :: Name
 
+                 , tyLitTableInfo :: Name
+                 , dcLitTableInfo :: Name
+
                  -- Useful functions
                  , errorFunc :: Name
                  , errorWithoutStackTraceFunc :: Name
