@@ -1,4 +1,4 @@
-{-# LANGUAGE CPP, BangPatterns, FlexibleContexts, OverloadedStrings #-}
+{-# LANGUAGE CPP, BangPatterns, FlexibleContexts, LambdaCase, OverloadedStrings #-}
 
 module G2.SMTSynth.Synthesizer ( SynthConfig (..)
                                , SynthMode (..)
@@ -343,10 +343,13 @@ computeProdPieces :: Id
 computeProdPieces entry_f exclude constraints sc smt_def is_spec_correct = do
     smt_strs <- synthFunc entry_f exclude constraints sc smt_def is_spec_correct
     case smt_strs of
-        Just (smt_cmd@(DefineFun _ _ _ t), smt_spec) -> do
-            print smt_cmd
-            return (termToHaskell t, smt_spec)
-        _ -> error "genSMTFunc: no SMT function generated"
+        Just (smt_cmds, smt_spec) -> do
+            case mapMaybe (\case d@(DefineFun "spec" _ _ _) -> Just d; _ -> Nothing) smt_cmds of
+                smt_cmd@(DefineFun _ _ _ t):_ -> do
+                    print smt_cmd
+                    return (termToHaskell t, smt_spec)
+                _ -> error "computeProdPieces: no spec function found"
+        _ -> error "computeProdPieces: no SMT function generated"
 
 isList :: Expr -> Bool
 isList (App (Data dc) (Type (TyCon _ _)))
@@ -821,12 +824,12 @@ synthFunc :: Id
            -> [Symbol]
           -> [ExecRes t]
           -> SynthConfig -> Maybe String -> Maybe Bool
-          -> IO (Maybe (SmtCmd, String))
+          -> IO (Maybe ([SmtCmd], String))
 synthFunc entry_f exclude er sc smt_def is_spec_correct = do
     cmds <- sygusCmds entry_f exclude er sc smt_def is_spec_correct
     runSygus cmds sc
 
-runSygus :: [Cmd] -> SynthConfig -> IO (Maybe (SmtCmd, String))
+runSygus :: [Cmd] -> SynthConfig -> IO (Maybe ([SmtCmd], String))
 runSygus sygus_cmds sc = 
     let cr_p = getCVC5Sygus 60
         f (h_in, h_out, _) = do
@@ -844,13 +847,27 @@ runSygus sygus_cmds sc =
             -- The parseSygus function does not like having the extra "("/")" at the beginning/end-
             -- so we drop them.
             let stripped_out = drop 1 $ take (length out - 1) out
+            putStrLn $ "stripped_out = " ++ show stripped_out
             let sy_out = parseSygus stripped_out
+            print sy_out
+
+            let smtCmds (SmtCmd smt_cmd) = Just smt_cmd
+                smtCmds _ = Nothing
+
             case stripped_out of
                 "infeasible" -> return Nothing
-                _ -> case sy_out of
-                        [SmtCmd def_fun] -> return $ Just (def_fun, out)
-                        _ -> return Nothing
+                _ -> return $ Just (mapMaybe smtCmds sy_out, out)
     in getProcessHandlesCont cr_p f
+
+-- splitSolutions :: String -> [String]
+-- splitSolutions = go 0 ""
+--     where
+--         go 0 "" [] = []
+--         go 0 read_in (')':xs) = reverse (')':read_in):go 0 "" xs 
+--         go n read_in ('(':xs) = go (n + 1) ('(':read_in) xs
+--         go n read_in ('':xs) = go (n + 1) ('(':read_in) xs
+--         go n read_in (x:xs) = go n (x:read_in) xs
+--         go _ _ _ = error "splitSolutions: unexpected input"
 
 sygusCmds :: Id
           -> [Symbol] -- ^ SMT function names to exclude during synthesis
@@ -887,12 +904,19 @@ sygusCmds (Id _ entry_ty) exclude er@(ExecRes { final_state = s@(State { tyvar_e
                                 intSort
                                 ( TermCall (ISymb "seq.nth") [TermIdent (ISymb "x"), TermLit (LitNum 0)] )
 
-        grm = GrammarDef pre_dec gram_defs'
+        spec_grm = GrammarDef spec_pre_dec spec_gram_defs'
+        map_func_grm = GrammarDef map_func_pre_dec map_func_gram_defs
 
     constraints <- case specs_type sc of
             FuncSpecs -> constraintsForFuncSpec smt_def is_spec_correct er
             SMTFunc -> return $ map execResToConstraints er
-    let cmds = [ SmtCmd $ SetLogic "ALL"
+    let synth_map_func = SynthFun
+                            "map_func"
+                            (arg_vars ++ [SortedVar "offset" (IdentSort $ ISymb "Int"), SortedVar "x" (IdentSort $ ISymb "Int")])
+                            (IdentSort $ ISymb "Int")
+                            (Just map_func_grm)
+        
+        cmds = [ SmtCmd $ SetLogic "HO_ALL"
                 , define_eq "strEq" strSort
                 , define_eq "seqIntEq" seq_int_sort
                 , define_eq "seqFloatEq" seq_float_sort
@@ -903,7 +927,9 @@ sygusCmds (Id _ entry_ty) exclude er@(ExecRes { final_state = s@(State { tyvar_e
                 , from_char
                 , to_char
                 , to_int
-                , SynthFun "spec" arg_vars ret_sort (Just grm) ]
+                , mapi_func
+                , synth_map_func
+                , SynthFun "spec" arg_vars ret_sort (Just spec_grm) ]
                 ++ constraints
                 ++ [CheckSynth]
     
@@ -936,6 +962,38 @@ sygusCmds (Id _ entry_ty) exclude er@(ExecRes { final_state = s@(State { tyvar_e
         seqIntIdent = BfIdentifier (ISymb "SeqIntPr")
         seqFloatIdent = BfIdentifier (ISymb "SeqFloatPr")
         boolIdent = BfIdentifier (ISymb "BoolPr")
+
+        -------------------------------
+        -- Functions
+        -------------------------------
+        map_rec = TermCall (ISymb "seq.++")
+                        [ TermCall (ISymb "seq.unit")
+                            [TermCall (ISymb "@") [ TermIdent (ISymb "f")
+                                                  , TermIdent (ISymb "offset")
+                                                  , TermCall (ISymb "seq.nth") [TermIdent (ISymb "xs"), TermLit (LitNum 0)]]
+                            ]
+                        , TermCall (ISymb "seq.mapi")
+                            [ TermIdent (ISymb "f")
+                            , TermCall (ISymb "+") [ TermIdent (ISymb "offset"), TermLit (LitNum 1)]
+                            , TermCall (ISymb "seq.extract")
+                                [ TermIdent (ISymb "xs")
+                                , TermLit (LitNum 1)
+                                , TermCall (ISymb "seq.len") [TermIdent (ISymb "xs")]
+                                ]
+                            ]
+                        ]
+        mapi_func = SmtCmd
+                  $ DefineFunRec "seq.mapi"
+                            [ SortedVar "f" (IdentSortSort (ISymb "->") [IdentSort (ISymb "Int"), IdentSort (ISymb "Int"), IdentSort (ISymb "Int")])
+                            , SortedVar "offset" (IdentSort (ISymb "Int"))
+                            , SortedVar "xs" seq_int_sort]
+                            seq_int_sort
+                            (TermCall (ISymb "ite")
+                                [ TermCall (ISymb "=") [TermCall (ISymb "seq.len") [TermIdent (ISymb "xs")], TermLit (LitNum 0)]
+                                , TermCall (ISymb "as") [TermIdent (ISymb "seq.empty"), TermIdent (ISymb "(Seq Int)")]
+                                , map_rec
+                                ]
+                            )
 
         -------------------------------
         -- Grammar
@@ -1000,7 +1058,7 @@ sygusCmds (Id _ entry_ty) exclude er@(ExecRes { final_state = s@(State { tyvar_e
                   , GBfTerm (BfIdentifierBfs (ISymb "seq.contains") [ ident, ident ])
                   ]
 
-        grmSeq srt unitName contIdent srtIdent =
+        grmSeq srt unitName contIdent srtIdent maybe_mapi =
                     (if not has_tyvars then (GBfTerm (BfIdentifierBfs (ISymb unitName) [ contIdent ]):) else id)
                      [ GVariable srt
                      , GBfTerm (BfIdentifierBfs (ISymb "ite") [ boolIdent, srtIdent, srtIdent])
@@ -1012,24 +1070,48 @@ sygusCmds (Id _ entry_ty) exclude er@(ExecRes { final_state = s@(State { tyvar_e
                      , GBfTerm (BfIdentifierBfs (ISymb "seq.replace_all") [ srtIdent, srtIdent, srtIdent])
                      , GBfTerm (BfIdentifierBfs (ISymb "seq.rev") [ srtIdent])
                      ]
+                     ++ maybeToList maybe_mapi
+        intMap = GBfTerm $ BfIdentifierBfs
+                                (ISymb "seq.mapi")
+                                [BfIdentifier (ISymb "FuncPr"), intIdent, seqIntIdent]
+
+        grmFunc = [ GBfTerm (BfIdentifierBfs (ISymb "map_func") $ map (BfIdentifier . ISymb) prod_arg_names)]
+        map_func_arg_sort = IdentSortSort (ISymb "->") [IdentSort (ISymb "Int"), IdentSort (ISymb "Int"), IdentSort (ISymb "Int")]
 
         seq_int_sort = IdentSortSort (ISymb "Seq") [IdentSort (ISymb "Int")]
         seq_float_sort = IdentSortSort (ISymb "Seq") [IdentSort (ISymb "Float32")]
 
-        ty_gram_defs = (if ret_type == tyChar kv then (([tyChar kv], GroupedRuleList "CharRetPr" strSort grmCharRet):) else id) $
+        ty_gram_defs int_map =
+                    (if ret_type == tyChar kv then (([tyChar kv], GroupedRuleList "CharRetPr" strSort grmCharRet):) else id) $
                        (if not (null char_args) then (([tyChar kv], GroupedRuleList "CharArgPr" strSort grmCharArgs):) else id)
                        [ ([tyString kv], GroupedRuleList "StrPr" strSort grmString)
-                       , ([TyApp (tyList kv) (tyInt kv), TyApp (tyList kv) (tyInteger kv)], GroupedRuleList "SeqIntPr" seq_int_sort (grmSeq seq_int_sort "intUnit" intIdent seqIntIdent))
-                       , ([TyApp (tyList kv) (tyFloat kv)], GroupedRuleList "SeqFloatPr" seq_float_sort (grmSeq seq_float_sort "floatUnit" floatIdent seqFloatIdent))
+                       , ( [TyApp (tyList kv) (tyInt kv), TyApp (tyList kv) (tyInteger kv)]
+                         , GroupedRuleList "SeqIntPr" seq_int_sort (grmSeq seq_int_sort "intUnit" intIdent seqIntIdent int_map))
+                       , ( [TyApp (tyList kv) (tyFloat kv)]
+                         , GroupedRuleList "SeqFloatPr" seq_float_sort (grmSeq seq_float_sort "floatUnit" floatIdent seqFloatIdent Nothing))
                        , ([TyLitInt], GroupedRuleList "grmGetIntPr" intSort grmGetInt)
                        , ([TyLitInt], GroupedRuleList "IntPr" intSort grmInt)
                        , ([TyLitFloat], GroupedRuleList "FloatPr" floatSort grmFloat)
                        , ([tyBool kv], GroupedRuleList "BoolPr" boolSort grmBool)]
-        find_start_gram = findElem (\(ty, _) -> ret_type `elem` ty) (if specs_type sc == SMTFunc then ty_gram_defs else funcDefGrammer)
-        gram_defs' = case find_start_gram of
+        spec_ty_gram_defs int_map = ty_gram_defs int_map ++ [([TyUnknown], GroupedRuleList "FuncPr" map_func_arg_sort grmFunc)]
+
+        find_spec_start_gram = findElem (\(ty, _) -> ret_type `elem` ty) (if specs_type sc == SMTFunc then spec_ty_gram_defs (Just intMap) else funcDefGrammer)
+        spec_gram_defs = case find_spec_start_gram of
                             Just (start_sym, other_sym) -> map removeExcluded . map snd $ start_sym:other_sym
                             Nothing -> error "runSygus: no start symbol"
-        pre_dec = map (\(GroupedRuleList n srt _) -> SortedVar n srt) gram_defs'
+
+        -- Get productions that produce only one single argument, to pass on to the map function
+        prod_arg_names = map (\i -> "Arg" ++ show i) $ [0..length arg_vars - 1]
+        prod_args = zipWith (\gram_name (SortedVar n srt) -> GroupedRuleList gram_name srt [GBfTerm (BfIdentifier (ISymb n))] ) prod_arg_names arg_vars
+        spec_gram_defs' = spec_gram_defs ++ prod_args
+
+        find_map_func_start_gram = findElem (\(ty, _) -> TyLitInt `elem` ty) (if specs_type sc == SMTFunc then ty_gram_defs Nothing else funcDefGrammer)
+        map_func_gram_defs = case find_map_func_start_gram of
+                            Just (start_sym, other_sym) -> map removeExcluded . map snd $ start_sym:other_sym
+                            Nothing -> error "runSygus: no start symbol"
+
+        spec_pre_dec = map (\(GroupedRuleList n srt _) -> SortedVar n srt) $ spec_gram_defs'
+        map_func_pre_dec = map (\(GroupedRuleList n srt _) -> SortedVar n srt) map_func_gram_defs
 
         removeExcluded (GroupedRuleList sym srt gterms) = GroupedRuleList sym srt (filter removeGTerms gterms)
 
