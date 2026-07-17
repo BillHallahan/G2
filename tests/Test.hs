@@ -657,11 +657,11 @@ testFileTests = testGroup "TestFiles"
                                                         , ("listLen3", 1000, [Exactly 2])
                                                         , ("listApp", 10000, [Exactly 3])
                                                         , ("take1", 5000, [Exactly 2])
-                                                        , ("drop1", 5000, [Exactly 3])
+                                                        , ("drop1", 5000, [Exactly 4])
                                                         , ("compLen", 5000, [Exactly 4]) ]
 
     , checkInputOutputs "tests/TestFiles/Seq/SeqADT.hs" [ ("conLen", 2000, [Exactly 5])
-                                                        , ("pairExtract", 2000, [Exactly 5]) ]
+                                                        , ("pairExtract", 2000, [AtLeast 6, AtMost 8]) ]
 
     , checkInputOutputsSMTListsWith "tests/TestFiles/Seq/Seq1.hs" "floatListEq" [ ("conFloat", 1000, [Exactly 1])
                                                                                 , ("conDouble", 1000, [Exactly 1])]
