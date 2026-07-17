@@ -912,7 +912,7 @@ sygusCmds (Id _ entry_ty) exclude er@(ExecRes { final_state = s@(State { tyvar_e
             SMTFunc -> return $ map execResToConstraints er
     let synth_map_func = SynthFun
                             "map_func"
-                            (arg_vars ++ [SortedVar "offset" (IdentSort $ ISymb "Int"), SortedVar "x" (IdentSort $ ISymb "Int")])
+                            (arg_vars ++ [SortedVar "x" (IdentSort $ ISymb "Int")])
                             (IdentSort $ ISymb "Int")
                             (Just map_func_grm)
         
@@ -969,12 +969,10 @@ sygusCmds (Id _ entry_ty) exclude er@(ExecRes { final_state = s@(State { tyvar_e
         map_rec = TermCall (ISymb "seq.++")
                         [ TermCall (ISymb "seq.unit")
                             [TermCall (ISymb "@") [ TermIdent (ISymb "f")
-                                                  , TermIdent (ISymb "offset")
                                                   , TermCall (ISymb "seq.nth") [TermIdent (ISymb "xs"), TermLit (LitNum 0)]]
                             ]
                         , TermCall (ISymb "seq.mapi")
                             [ TermIdent (ISymb "f")
-                            , TermCall (ISymb "+") [ TermIdent (ISymb "offset"), TermLit (LitNum 1)]
                             , TermCall (ISymb "seq.extract")
                                 [ TermIdent (ISymb "xs")
                                 , TermLit (LitNum 1)
@@ -984,8 +982,7 @@ sygusCmds (Id _ entry_ty) exclude er@(ExecRes { final_state = s@(State { tyvar_e
                         ]
         mapi_func = SmtCmd
                   $ DefineFunRec "seq.mapi"
-                            [ SortedVar "f" (IdentSortSort (ISymb "->") [IdentSort (ISymb "Int"), IdentSort (ISymb "Int"), IdentSort (ISymb "Int")])
-                            , SortedVar "offset" (IdentSort (ISymb "Int"))
+                            [ SortedVar "f" (IdentSortSort (ISymb "->") [IdentSort (ISymb "Int"), IdentSort (ISymb "Int")])
                             , SortedVar "xs" seq_int_sort]
                             seq_int_sort
                             (TermCall (ISymb "ite")
@@ -1073,10 +1070,12 @@ sygusCmds (Id _ entry_ty) exclude er@(ExecRes { final_state = s@(State { tyvar_e
                      ++ maybeToList maybe_mapi
         intMap = GBfTerm $ BfIdentifierBfs
                                 (ISymb "seq.mapi")
-                                [BfIdentifier (ISymb "FuncPr"), intIdent, seqIntIdent]
+                                [BfIdentifier (ISymb "FuncPr"), seqIntIdent]
 
-        grmFunc = [ GBfTerm (BfIdentifierBfs (ISymb "map_func") $ map (BfIdentifier . ISymb) prod_arg_names)]
-        map_func_arg_sort = IdentSortSort (ISymb "->") [IdentSort (ISymb "Int"), IdentSort (ISymb "Int"), IdentSort (ISymb "Int")]
+        grmFunc = [ GBfTerm (BfIdentifierBfs (ISymb "@") $ (BfIdentifier $ ISymb "MapFunc"):map (BfIdentifier . ISymb) prod_arg_names)]
+        map_func_arg_sort = IdentSortSort (ISymb "->") [IdentSort (ISymb "Int"), IdentSort (ISymb "Int")]
+        grmMap = [ GBfTerm $ BfIdentifier (ISymb "map_func")]
+        map_arg_sort = IdentSortSort (ISymb "->") $ map (\(SortedVar _ srt) -> srt) arg_vars ++ [intSort, intSort]
 
         seq_int_sort = IdentSortSort (ISymb "Seq") [IdentSort (ISymb "Int")]
         seq_float_sort = IdentSortSort (ISymb "Seq") [IdentSort (ISymb "Float32")]
@@ -1093,7 +1092,9 @@ sygusCmds (Id _ entry_ty) exclude er@(ExecRes { final_state = s@(State { tyvar_e
                        , ([TyLitInt], GroupedRuleList "IntPr" intSort grmInt)
                        , ([TyLitFloat], GroupedRuleList "FloatPr" floatSort grmFloat)
                        , ([tyBool kv], GroupedRuleList "BoolPr" boolSort grmBool)]
-        spec_ty_gram_defs int_map = ty_gram_defs int_map ++ [([TyUnknown], GroupedRuleList "FuncPr" map_func_arg_sort grmFunc)]
+        spec_ty_gram_defs int_map = ty_gram_defs int_map
+                                 ++ [ ([TyUnknown], GroupedRuleList "FuncPr" map_func_arg_sort grmFunc)
+                                    , ([TyUnknown], GroupedRuleList "MapFunc" map_arg_sort grmMap)]
 
         find_spec_start_gram = findElem (\(ty, _) -> ret_type `elem` ty) (if specs_type sc == SMTFunc then spec_ty_gram_defs (Just intMap) else funcDefGrammer)
         spec_gram_defs = case find_spec_start_gram of

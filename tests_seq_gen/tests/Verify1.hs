@@ -38,3 +38,6 @@ myLast :: [Int] -> Int
 myLast [] = 0
 myLast [x] = x
 myLast (_:xs) = myLast xs
+
+mapAddOne :: [Int] -> [Int]
+mapAddOne = map (+ 1)
