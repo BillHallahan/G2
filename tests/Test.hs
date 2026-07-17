@@ -660,6 +660,9 @@ testFileTests = testGroup "TestFiles"
                                                         , ("drop1", 5000, [Exactly 3])
                                                         , ("compLen", 5000, [Exactly 4]) ]
 
+    , checkInputOutputs "tests/TestFiles/Seq/SeqADT.hs" [ ("conLen", 2000, [Exactly 5])
+                                                        , ("pairExtract", 2000, [Exactly 5])
+
     , checkInputOutputsSMTListsWith "tests/TestFiles/Seq/Seq1.hs" "floatListEq" [ ("conFloat", 1000, [Exactly 1])
                                                                                 , ("conDouble", 1000, [Exactly 1])]
 
