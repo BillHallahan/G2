@@ -651,6 +651,13 @@ testFileTests = testGroup "TestFiles"
                                                                   , ("listApp", 10000, [Exactly 3])
                                                                   , ("take1", 5000, [Exactly 2]) ]
 
+    , checkInputOutputsSMTLists "tests/TestFiles/Seq/SeqNat.hs" [ ("con", 2000, [Exactly 2])
+                                                                , ("listLen", 1000, [Exactly 2])
+                                                                , ("listLen2", 1000, [Exactly 3])
+                                                                , ("listLen3", 1000, [Exactly 2])
+                                                                , ("listApp", 10000, [Exactly 3])
+                                                                , ("take1", 5000, [Exactly 2]) ]
+
     , checkInputOutputsSMTListsWith "tests/TestFiles/Seq/Seq1.hs" "floatListEq" [ ("conFloat", 1000, [Exactly 1])
                                                                                 , ("conDouble", 1000, [Exactly 1])]
 

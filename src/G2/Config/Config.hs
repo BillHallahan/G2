@@ -1,3 +1,5 @@
+{-# LANGUAGE OverloadedStrings #-}
+
 module G2.Config.Config ( Mode (..)
                         , LogMode (..)
                         , LogMethod (..)
@@ -40,13 +42,12 @@ module G2.Config.Config ( Mode (..)
                         , baseDef
                         , baseSimple) where
 
-
 import Data.Char
 import Data.List as L
 import qualified Data.Map as M
 import Options.Applicative
 import Text.Read
-
+import qualified Data.Text as T
 
 data Mode = Regular | Liquid deriving (Eq, Show, Read)
 
@@ -154,6 +155,7 @@ data Config = Config {
     , using_smt_lams :: UseSMTLams -- ^ Sets whether SMT Lambda expressions should be used (Z3 only)
     , smt_prim_lists :: UseSMTSeq -- ^ Sets whether the SMT solver should be used to solve lists containing primitive type wrappers (Int, Float, etc.)
     , smt_tuples :: UseSMTDC -- ^ Sets whether the SMT solver should be used to solve tuples
+    , smt_adt :: [T.Text] -- ^ Comma separated list of algebraic datatypes to reason about via SMT solver
 
     , literal_tables :: UseLiteralTables -- ^ Sets whether to use literal tables for functions with function arguments, like `map` or `all`
     
@@ -287,9 +289,10 @@ mkConfig homedir = Config Regular
     <*> flag NoSMTLams UseSMTLams (long "smt-lams" <> help "Use map and fold with lambdas to model functions in the SMT solver (Z3 only)")
     <*> flag NoSMTSeq (UseSMTSeq True True) (long "smt-lists" <> help "Sets whether the SMT solver should be used to solve list constraints for primitive types")
     <*> flag NoSMTDC UseSMTDC (long "smt-tuples" <> help "Sets whether the SMT solver should be used to solve tuples")
+    <*> mkSMTADT
 
     <*> flag NoLiteralTables UseLiteralTables (long "lit-tables" <> help "Use literal tables for functions that take functions as arguments, like all and map")
-
+    
     <*> flag False True (long "print-timeout" <> help "print a message indicating if any states timed out")
     <*> flag False True (long "print-timeout-list-depth" <> help "print a message indicating depth of lists in timed out states")
 
@@ -425,6 +428,14 @@ quantStrings :: String -> Maybe SMTQuantifiers
 quantStrings "-" = Just UseQuantifiers
 quantStrings n = fmap UnrollQuant (readMaybe n)
 
+mkSMTADT :: Parser [T.Text]
+mkSMTADT =
+    option (maybeReader (Just . T.splitOn "," . T.pack))
+            ( long "smt-adts"
+            <> metavar "ADTs"
+            <> value []
+            <> help "comma separated list of algebraic datatypes to reason about via SMT solver")
+
 mkSMTSolver :: Parser SMTSolver
 mkSMTSolver =
     option (eitherReader (\s -> case s of
@@ -499,6 +510,7 @@ mkConfigDirect homedir as m = Config {
     , using_smt_lams = NoSMTLams
     , smt_prim_lists = NoSMTSeq
     , smt_tuples = NoSMTDC
+    , smt_adt = []
 
     , literal_tables = NoLiteralTables
     

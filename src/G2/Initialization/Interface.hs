@@ -8,6 +8,7 @@ import G2.Initialization.TrivializeDCs
 import qualified G2.Language.ExprEnv as E
 import G2.Language.Expr
 import G2.Language.KnownValues
+import G2.Language.Naming
 import G2.Language.Syntax
 import G2.Language.Support hiding (State (..))
 import G2.Language.Typing
@@ -22,6 +23,8 @@ import G2.Initialization.Types as IT
 import qualified G2.Language.TyVarEnv as TV
 import G2.Execution.DataConPCMap
 import G2.SMTSynth.Integrate
+
+import qualified Data.HashMap.Lazy as HM
 
 type MkArgTypes = IT.SimpleState -> [Type]
 
@@ -89,11 +92,14 @@ runInitialization2 config s@(IT.SimpleState { IT.expr_env = eenv
                     else s2
         kv' = recalcSmtStringFuncs (expr_env s3) (known_values s3) use_lams use_lts
         s4 = s3 { known_values = kv' }
-        
 
-        dcpc = addToDCPC config s4 (dcpcMap TV.empty kv tenv)
+        tenv2 = HM.mapWithKey (\n adt -> if nameOcc n `elem` smt_adt config then adt { to_smt = True } else adt) tenv
+        
+        s5 = s4 { type_env = tenv2 }
+
+        dcpc = addToDCPC config s5 (dcpcMap TV.empty kv tenv)
     in
-    (s4, dcpc)
+    (s5, dcpc)
     where
         adjTyH = E.insert (typeIndex kv) . modifyASTs adjTyH' $ eenv E.! typeIndex kv
 
