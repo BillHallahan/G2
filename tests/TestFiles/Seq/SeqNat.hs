@@ -42,6 +42,13 @@ take1 str = case t == [S Z, Z, S (S Z), S Z, Z] of
     where
         t = take 5 str
 
+drop1 :: [Nat] -> Int 
+drop1 xs
+    | drop 3 xs == xs = 1
+    | Z:_ <- drop 1 xs = 2
+    | _:_ <- drop 1 xs = 3
+    | otherwise = 4
+
 data AB = A | B deriving Eq
 
 compLen :: [AB] -> [Nat] -> Int

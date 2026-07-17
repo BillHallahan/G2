@@ -99,7 +99,7 @@ runInitialization2 config s@(IT.SimpleState { IT.expr_env = eenv
         
         s5 = s4 { type_env = tenv2 }
 
-        dcpc = addToDCPC config s5 (dcpcMap TV.empty kv tenv)
+        dcpc = addToDCPC config s5 (dcpcMap TV.empty kv tenv2)
     in
     (s5, dcpc)
     where

@@ -657,6 +657,7 @@ testFileTests = testGroup "TestFiles"
                                                         , ("listLen3", 1000, [Exactly 2])
                                                         , ("listApp", 10000, [Exactly 3])
                                                         , ("take1", 5000, [Exactly 2])
+                                                        , ("drop1", 5000, [Exactly 3])
                                                         , ("compLen", 5000, [Exactly 4]) ]
 
     , checkInputOutputsSMTListsWith "tests/TestFiles/Seq/Seq1.hs" "floatListEq" [ ("conFloat", 1000, [Exactly 1])
