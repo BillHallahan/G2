@@ -2,7 +2,7 @@
 
 module SeqNat where
 
--- CONFIG: --smt-adt Nat
+-- CONFIG: --smt-lists --smt-adts Nat,AB
 
 data Nat = S Nat | Z deriving Eq
 
@@ -41,3 +41,11 @@ take1 str = case t == [S Z, Z, S (S Z), S Z, Z] of
                 False -> (True, t)
     where
         t = take 5 str
+
+data AB = A | B deriving Eq
+
+compLen :: [AB] -> [Nat] -> Int
+compLen xs ys | length xs > length ys = 1
+              | length xs == length ys = 2
+              | length xs > 6, length ys > 3 = 3
+              | otherwise = 4
