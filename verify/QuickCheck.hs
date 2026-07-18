@@ -189,7 +189,7 @@ zenoWithZip :: TestTree
 zenoWithZip =
     testGroup "zenoWithZip" [
         testProperty "prop_44" (ZZip.prop_44 @Int @Int)
-      , testProperty "prop_45" (ZZip.prop_42 @Int)
+      , testProperty "prop_45" (ZZip.prop_45 @Int @Int)
       , testProperty "prop_58" (ZZip.prop_58 @Int @Int)
       , testProperty "prop_82" (ZZip.prop_82 @Int @Int)
       , testProperty "prop_83" (ZZip.prop_83 @Int @Int)
