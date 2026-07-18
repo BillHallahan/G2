@@ -24,13 +24,17 @@ addToDCPC (Config { smt_prim_lists = UseSMTSeq { add_to_dcs = True } }) (IT.Simp
                         in
                         T.mkTyApp $ TyCon n kind:map TyVar bi
                     ) tys
+      dcs = concatMap (\(_, adt) -> data_cons adt) tys
 
       dcpc_prim = addWrappedListToDCPCMap kv (mkDCDouble kv tenv) TyLitDouble
                 . addWrappedListToDCPCMap kv (mkDCFloat kv tenv) TyLitFloat
                 . addWrappedListToDCPCMap kv (mkDCInteger kv tenv) TyLitInt
                 . addWrappedListToDCPCMap kv (mkDCInt kv tenv) TyLitInt $ dcpc
+      
+      dcpc_map' = F.foldl' (addListToDCPCMap kv) dcpc_prim ty_cons
+      dcpc_map'' = F.foldl' (addArbDC kv) dcpc_map' dcs
     in
-    F.foldl' (addListToDCPCMap kv) dcpc_prim ty_cons
+    dcpc_map''
 addToDCPC _ _ dcpc = dcpc
 
 addWrappedListToDCPCMap :: KV.KnownValues -> Expr -> Type -> DataConPCMap -> DataConPCMap
@@ -43,3 +47,6 @@ addListToDCPCMap kv dcpc t =
       addToDCPCMap (KV.dcEmpty kv) [t] (listEmpty t kv TV.empty)
     . addToDCPCMap (KV.dcCons kv) [t] (listCons t kv TV.empty)
     $ dcpc
+
+addArbDC :: KV.KnownValues -> DataConPCMap -> DataCon -> DataConPCMap
+addArbDC kv dcpc dc = addToDCPCMap (dc_name dc) (map TyVar $ dc_univ_tyvars dc) (arbDC kv TV.empty dc) dcpc

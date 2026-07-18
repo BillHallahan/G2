@@ -142,6 +142,8 @@ initKnownValues eenv tenv tc =
 
     , usingSMTLams = exprWithStrName eenv "usingSMTLams#"
     , usingLiteralTables = exprWithStrName eenv "usingLiteralTables#"
+    , tyLitTableInfo = typeWithStrName tenv "LitTableInfo"
+    , dcLitTableInfo = dcWithStrName tenv "LitTableInfo" "LTI" 
 
     , errorFunc = exprWithStrName eenv "error"
     , errorEmptyListFunc = exprWithStrName eenv "errorEmptyList"

@@ -461,6 +461,8 @@ fakeKnownValues =
 
     , usingSMTLams = Name "" Nothing 0 Nothing
     , usingLiteralTables = Name "" Nothing 0 Nothing
+    , tyLitTableInfo = Name "" Nothing 0 Nothing
+    , dcLitTableInfo = Name "" Nothing 0 Nothing
 
     , errorFunc = Name "" Nothing 0 Nothing
     , errorWithoutStackTraceFunc = Name "" Nothing 0 Nothing

@@ -12,6 +12,7 @@ module G2.Execution.DataConPCMap ( DCArgBind (..)
                                  , wrapperListCons
                                  , listCons
                                  , listEmpty
+                                 , arbDC
                                  ) where
 
 import G2.Language.Naming
@@ -30,6 +31,7 @@ import qualified Data.HashMap.Lazy as HM
 
 import Control.Exception
 import Data.Data (Data)
+import qualified Data.Text as T
 
 data DCArgBind =
       -- | A new symbolic argument
@@ -109,20 +111,38 @@ listCons t kv tv = let
                         hi = Id hn t
                         tn = Name "t" Nothing 0 Nothing
                         ti = Id tn (TyApp (T.tyList kv) t)
-                        cn = Name "c" Nothing 0 Nothing
-                        ci = Id cn t
                         asn = Name "as" Nothing 0 Nothing
                         asi = Id asn (TyApp (T.tyList kv) t)
                         dcpc = DCPC { dc_as_pattern = asn
                                     , dc_args = [ ArgSymb hn
                                                 , ArgSymb tn]
                                     , dc_pc = [ExtCond (mkEqExpr tv kv
-                                                    (App (App (mkSeqAppend t kv) (App (Prim SeqUnit TyUnknown) (Var ci))) (Var ti))
+                                                    (App (App (mkSeqAppend t kv) (App (Prim SeqUnit TyUnknown) (Var hi))) (Var ti))
                                                     (Var asi)) True]
                                     , dc_bindee_exprs = [Var hi, Var ti]
                                     }
                       in
                       dcpc
+
+arbDC :: KnownValues -> TyVarEnv -> DataCon -> DataConPCInfo
+arbDC kv tv_env dc =
+    let
+        ts = T.anonArgumentTypes $ dc_type dc
+        is = zipWith (\i t -> Id (Name ("x" <> T.pack (show i)) Nothing 0 Nothing) t) [1 :: Integer ..] ts
+
+        asn = Name "as" Nothing 0 Nothing
+        asi = Id asn . T.returnType $ dc_type dc
+
+        dcpc = DCPC { dc_as_pattern = asn
+                    , dc_args = map (ArgSymb . idName) is
+                    , dc_pc = [ExtCond (mkEqExpr tv_env kv
+                                    (mkApp $ Data dc:map Var is)
+                                    (Var asi)) True]
+                    , dc_bindee_exprs = map Var is
+                    }
+    in
+    dcpc
+
 
 strEmpty :: KnownValues -> TyVarEnv -> DataConPCInfo
 strEmpty kv = listEmpty (T.tyChar kv) kv

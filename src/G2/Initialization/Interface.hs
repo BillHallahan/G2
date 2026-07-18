@@ -1,4 +1,4 @@
-{-# LANGUAGE FlexibleContexts, OverloadedStrings #-}
+{-# LANGUAGE FlexibleContexts, LambdaCase, OverloadedStrings #-}
 
 module G2.Initialization.Interface (MkArgTypes, runInitialization1, runInitialization2) where
 
@@ -93,11 +93,13 @@ runInitialization2 config s@(IT.SimpleState { IT.expr_env = eenv
         kv' = recalcSmtStringFuncs (expr_env s3) (known_values s3) use_lams use_lts
         s4 = s3 { known_values = kv' }
 
-        tenv2 = HM.mapWithKey (\n adt -> if nameOcc n `elem` smt_adt config then adt { to_smt = True } else adt) tenv
+        tenv2 = HM.mapWithKey (\n ->
+                \case adt@(DataTyCon {}) -> if nameOcc n `elem` smt_adt config then adt { to_smt = True } else adt
+                      adt -> adt) tenv
         
         s5 = s4 { type_env = tenv2 }
 
-        dcpc = addToDCPC config s5 (dcpcMap TV.empty kv tenv)
+        dcpc = addToDCPC config s5 (dcpcMap TV.empty kv tenv2)
     in
     (s5, dcpc)
     where
