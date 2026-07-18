@@ -24,6 +24,9 @@ import Control.Monad
 import Test.Tasty
 import Test.Tasty.QuickCheck
 
+-- Pass:
+-- --min-duration-to-report 0s
+-- on the command line to make sure we get times for all tests
 main :: IO ()
 main =
     defaultMainWithIngredients
