@@ -1022,7 +1022,8 @@ toSolverAST str_seq = go
                             | otherwise = "\"\\u{" <> TB.string (showHex (fromEnum c) "") <> "}\""
         go (VBool b) = if b then "true" else "false"
         go (V n _) = TB.string n
-        go (DataSMT n as) = "(" <> TB.string n <> TB.intercalate " " (map go as) <> ")"
+        go (DataSMT n []) = TB.string n
+        go (DataSMT n as) = "(" <> TB.string n <> " " <> TB.intercalate " " (map go as) <> ")"
 
         go (Named x n) = "(! " <> go x <> " :named " <> TB.string n <> ")"
 

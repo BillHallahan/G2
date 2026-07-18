@@ -678,6 +678,8 @@ instance Named KnownValues where
 
             , usingSMTLams = useLams
             , usingLiteralTables = useLitTabs
+            , tyLitTableInfo = ltiT
+            , dcLitTableInfo = ltiDC
 
             , errorFunc = errF
             , errorEmptyListFunc = errEmpListF
@@ -703,7 +705,7 @@ instance Named KnownValues where
                 , impF, iffF
                 , andF, orF, notF
                 , ti, adjN, checkStrLN
-                , useLams, useLitTabs
+                , useLams, useLitTabs, ltiT, ltiDC
                 , errF, errEmpListF, errWOST, patE] ++ HS.toList smt_string
 
     rename old new (KnownValues {
@@ -800,6 +802,8 @@ instance Named KnownValues where
 
                    , usingSMTLams = useLams
                    , usingLiteralTables = useLitTabs
+                   , tyLitTableInfo = ltiT
+                   , dcLitTableInfo = ltiDC
 
                    , errorFunc = errF
                    , errorEmptyListFunc = errEmpListF
@@ -902,6 +906,8 @@ instance Named KnownValues where
 
                         , usingSMTLams = rename old new useLams
                         , usingLiteralTables = rename old new useLitTabs
+                        , tyLitTableInfo = rename old new ltiT
+                        , dcLitTableInfo = rename old new ltiDC
 
                         , errorFunc = rename old new errF
                         , errorEmptyListFunc = rename old new errEmpListF
