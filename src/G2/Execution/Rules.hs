@@ -97,6 +97,18 @@ stdReduce' config _ symb_func_eval solver simplifier s@(State { curr_expr = Curr
         return (RuleError, [s { exec_stack = stck'
                               , true_assert = True
                               , assert_ids = fmap (\fc -> fc { returns = Prim Error TyBottom }) is }], ng)
+    -- If we got an error while evaluating an unfocused NRPC, then the overall state might still not error
+    -- unless we do force evaluation of that unfocused NRPCs return value. Thus, revert any effects of the error,
+    -- and store `Prim Error` in the return value in the state.
+    | errorRaised s
+    , Just (CurrExprFrame (EnsureEq (Var (Id n _))) ce_frame_ce, stck') <- frstck
+    , Unfocused _ <- focused s =
+            return (RuleError, [s { curr_expr = ce_frame_ce
+                                  , expr_env = E.insert n (Prim Error TyUnknown) $ expr_env s
+                                  , exec_stack = stck'
+                                  , true_assert = False
+                                  , assert_ids = Nothing }], ng)
+
     | Just rs <- symb_func_eval defSymFuncTicks s ng ce = return rs
     | Just (UpdateFrame n, stck') <- frstck = return $ retUpdateFrame s ng n stck'
 
@@ -280,6 +292,9 @@ evalApp s@(State { expr_env = eenv
                  , tyvar_env = tv_env
                  , type_classes = tc })
         ng e1 e2
+    | (Var (Id n _)) <- appCenter e1
+    , E.isSymbolic n eenv =
+        (RuleReturnAppSWHNF, newPCEmpty $ s { curr_expr = CurrExpr Return (App e1 e2) }, ng)
     | (Prim Error _) <- appCenter e1 =
         (RuleError, newPCEmpty $ s { curr_expr = CurrExpr Return (App e1 e2) }, ng)
     -- Force evaluation of the expression being quantified over
@@ -1419,6 +1434,12 @@ matchPairs tvnv kv e1 e2 eenv_pc_ee@(eenv, pc, ees)
             False ->
                 Just (eenv, [ExtCond (mkFalse kv) True], [])
 
+    | Var (Id n _) <- appCenter e1
+    , E.isSymbolic n eenv
+    , Lam _ _ _ <- e2 = Just (eenv, pc, [(e1, e2)])
+    | Var (Id n _) <- appCenter e2
+    , E.isSymbolic n eenv
+    , Lam _ _ _ <- e1 = Just (eenv, pc, [(e1, e2)])
     | Lam _ _ _ <- e1
     , Lam _ _ _ <- e2 = Just (eenv, pc, [(e1, e2)])
 
@@ -1440,7 +1461,7 @@ matchPairs tvnv kv e1 e2 eenv_pc_ee@(eenv, pc, ees)
         inline h ns e = modifyChildren (inline h ns) e
 
 addNRPCTick :: NameGen -> Expr -> (Expr, NameGen)
-addNRPCTick ng e | c@(Var _):es <- unApp e =
+addNRPCTick ng e | c@(Var _):es <- unApp $ stripAllTicks e =
     let (c', ng') = nonRedBlockerTick ng c in (mkApp $ c':es, ng')
 addNRPCTick ng e = (e, ng)
 

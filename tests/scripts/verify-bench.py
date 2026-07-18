@@ -243,7 +243,7 @@ def test_suite_general(fname_in, suite, time_limit, var_settings):
     total_ver_time = 0
     total_cex_time = 0
 
-    with Pool(processes=8) as pool:
+    with Pool(processes=6) as pool:
         arg_suite = [(fname_in, time_limit, var_settings, s) for (s, _) in suite]
         for (thm, res) in pool.imap(run_theorem, arg_suite):
             print(thm)

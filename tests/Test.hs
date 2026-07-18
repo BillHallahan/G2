@@ -1149,6 +1149,7 @@ verifierTests = testGroup "Verifier"
     , checkExprVerified "tests/Verify/List1.hs" "prop6"
     , checkExprVerified "tests/Verify/List1.hs" "prop7Simple"
     , checkExprVerified "tests/Verify/List1.hs" "prop7"
+    , checkExprVerifiedSubpath "tests/Verify/List1.hs" "prop7"
     , checkExprVerified "tests/Verify/List1.hs" "prop8"
     , checkExprVerified "tests/Verify/List1.hs" "prop9"
     , checkExprVerified "tests/Verify/List1.hs" "prop10"
@@ -1185,7 +1186,9 @@ verifierTests = testGroup "Verifier"
     , checkExprVerified "tests/Verify/List4.hs" "p4"
     , checkExprVerified "tests/Verify/List4.hs" "p5"
     , checkExprVerified "tests/Verify/List4.hs" "p6"
+    , checkExprVerifiedSubpath "tests/Verify/List4.hs" "p6"
     , checkExprVerified "tests/Verify/List4.hs" "p7"
+    , checkExprVerifiedSubpath "tests/Verify/List4.hs" "p7"
     , checkExprCExWithNoArgRevAbs "tests/Verify/List4.hs" "p1False"
 
     , checkExprCEx "tests/Verify/List5.hs" "p1False"
@@ -1195,7 +1198,9 @@ verifierTests = testGroup "Verifier"
     , checkExprVerified "tests/Verify/List7.hs" "p1"
 
     , checkExprVerified "tests/Verify/ListComp.hs" "p1"
+    , checkExprVerifiedSubpath "tests/Verify/ListComp.hs" "p1"
     , checkExprVerified "tests/Verify/ListComp.hs" "p2"
+    , checkExprVerifiedSubpath "tests/Verify/ListComp2.hs" "prop"
 
     -- , checkExprVerified "tests/Verify/NatList1.hs" "prop1"
     , checkExprVerified "tests/Verify/NatList1.hs" "prop2"
@@ -1211,14 +1216,17 @@ verifierTests = testGroup "Verifier"
 #if MIN_VERSION_GLASGOW_HASKELL(9,2,0,0)
     , checkExprVerified "tests/Verify/Function1.hs" "p1"
     , checkExprCEx "tests/Verify/Function1.hs" "p1False"
+    , checkExprCExSubpath "tests/Verify/Function1.hs" "p1False"
 #endif
 
     , checkExprVerified "tests/Verify/HigherOrder.hs" "prop1"
     , checkExprVerified "tests/Verify/HigherOrder.hs" "prop2"
+    , checkExprVerifiedSubpath "tests/Verify/HigherOrder.hs" "prop2"
 
     , checkExprVerified "tests/Verify/IdCall.hs" "idCall"
     , checkExprVerified "tests/Verify/IdCall.hs" "idCall2"
     , checkExprVerified "tests/Verify/IdCall.hs" "p1"
+    , checkExprVerifiedSubpathTL 60 "tests/Verify/IdCall.hs" "p1"
 
     , checkExprVerified "tests/Verify/Maybe1.hs" "p1"
 
@@ -1232,6 +1240,7 @@ verifierTests = testGroup "Verifier"
     , checkExprVerified "tests/Verify/State1.hs" "p2"
     , checkExprCEx "tests/Verify/State1.hs" "simple1False"
     , checkExprCEx "tests/Verify/State1.hs" "p1False"
+    , checkExprCExSubpath "tests/Verify/State1.hs" "p1False"
 
     , checkExprVerified "tests/Verify/State2.hs" "p1"
     , checkExprVerified "tests/Verify/State3.hs" "p1"
@@ -1245,6 +1254,11 @@ verifierTests = testGroup "Verifier"
 #if MIN_VERSION_GLASGOW_HASKELL(9,2,0,0)
     , checkExprVerified "tests/Verify/Tuple2.hs" "prop"
 #endif
+
+    , checkExprVerifiedWithNoSharedVar "tests/Verify/FMap.hs" "prop"
+    , checkExprVerifiedWithNoSharedVar "tests/Verify/FMap.hs" "prop2"
+
+    , checkExprNotCExSubPathWithNoSharedVar "tests/Verify/NonEmpty.hs" "prop"
 
     , checkRuleVerified "tests/Verify/Rules1.hs" "justJust"
     , checkRuleVerified "tests/Verify/Rules1.hs" "justJust2"
@@ -1412,15 +1426,45 @@ checkExprWithConfig src m_assume m_assert m_reaches entry reqList config_f = do
 checkExprVerified :: String -> String -> TestTree
 checkExprVerified = checkExprVerifier (\case Verified -> True; Counterexample _ -> False; VerifyTimeOut -> False)
 
+checkExprVerifiedSubpath :: String -> String -> TestTree
+checkExprVerifiedSubpath = checkExprVerifierSubpath (\case Verified -> True; Counterexample _ -> False; VerifyTimeOut -> False)
+
+checkExprVerifiedSubpathTL :: Int -> String -> String -> TestTree
+checkExprVerifiedSubpathTL time_lim =
+    checkExprVerifierWithConfig
+        (do config <- configTL time_lim; return $ config { search_strat = Subpath })
+        defVerifyConfig
+        (\case Verified -> True; Counterexample _ -> False; VerifyTimeOut -> False)
+
 checkExprVerifiedWithNoRevAbs :: String -> String -> TestTree
 checkExprVerifiedWithNoRevAbs =
     let
         vr_config = defVerifyConfig { rev_abs = False }
     in
-    checkExprVerifierWithConfig vr_config (\case Verified -> True; Counterexample _ -> False; VerifyTimeOut -> False)
+    checkExprVerifierWithConfig configTL30 vr_config (\case Verified -> True; Counterexample _ -> False; VerifyTimeOut -> False)
+
+checkExprNotCExSubPathWithNoSharedVar :: String -> String -> TestTree
+checkExprNotCExSubPathWithNoSharedVar =
+    let
+        vr_config = defVerifyConfig { shared_var_heuristic = NoSharedVarHeuristic }
+    in
+    checkExprVerifierWithConfig 
+        (do config <- configTL30; return $ config { search_strat = Subpath })
+        vr_config
+        (\case Verified -> True; Counterexample _ -> False; VerifyTimeOut -> True)
+
+checkExprVerifiedWithNoSharedVar :: String -> String -> TestTree
+checkExprVerifiedWithNoSharedVar =
+    let
+        vr_config = defVerifyConfig { shared_var_heuristic = NoSharedVarHeuristic }
+    in
+    checkExprVerifierWithConfig configTL30 vr_config (\case Verified -> True; Counterexample _ -> False; VerifyTimeOut -> False)
 
 checkExprCEx :: String -> String -> TestTree
 checkExprCEx = checkExprVerifier (\case Verified -> False; Counterexample _ -> True; VerifyTimeOut -> False)
+
+checkExprCExSubpath :: String -> String -> TestTree
+checkExprCExSubpath = checkExprVerifierSubpath (\case Verified -> False; Counterexample _ -> True; VerifyTimeOut -> False)
 
 checkExprNotVerified :: String -> String -> TestTree
 checkExprNotVerified = checkExprVerifier (\case Verified -> False; Counterexample _ -> True; VerifyTimeOut -> True)
@@ -1430,29 +1474,31 @@ checkExprNotCExWithDataArgs =
     let
         vr_config = defVerifyConfig { data_arg_rev_abs = AbsDataArgs }
     in
-    checkExprVerifierWithConfig vr_config (\case Verified -> True; Counterexample _ -> False; VerifyTimeOut -> True)
+    checkExprVerifierWithConfig configTL30 vr_config (\case Verified -> True; Counterexample _ -> False; VerifyTimeOut -> True)
 
 checkExprCExWithNoArgRevAbs :: String -> String -> TestTree
 checkExprCExWithNoArgRevAbs =
     let
         vr_config = defVerifyConfig { arg_rev_abs = NoAbsFuncArgs }
     in
-    checkExprVerifierWithConfig vr_config (\case Verified -> False; Counterexample _ -> True; VerifyTimeOut -> False)
+    checkExprVerifierWithConfig configTL30 vr_config (\case Verified -> False; Counterexample _ -> True; VerifyTimeOut -> False)
 
 checkExprVerifiedNoLemmas :: String -> String -> TestTree
-checkExprVerifiedNoLemmas = checkExprVerifierWithConfig (defVerifyConfig { use_lemmas = False}) (\case Verified -> True; Counterexample _ -> False; VerifyTimeOut -> False)
+checkExprVerifiedNoLemmas = checkExprVerifierWithConfig configTL30 (defVerifyConfig { use_lemmas = False}) (\case Verified -> True; Counterexample _ -> False; VerifyTimeOut -> False)
+
+checkExprVerifierSubpath :: (VerifyResult -> Bool) -> String -> String -> TestTree
+checkExprVerifierSubpath = checkExprVerifierWithConfig (do config <- configTL30; return $ config { search_strat = Subpath }) defVerifyConfig
 
 checkExprVerifier :: (VerifyResult -> Bool) -> String -> String -> TestTree
-checkExprVerifier = checkExprVerifierWithConfig defVerifyConfig
+checkExprVerifier = checkExprVerifierWithConfig configTL30 defVerifyConfig
 
-checkExprVerifierWithConfig :: VerifyConfig -> (VerifyResult -> Bool) -> String -> String -> TestTree
-checkExprVerifierWithConfig vr_config vr_check src entry = 
+checkExprVerifierWithConfig :: IO Config -> VerifyConfig -> (VerifyResult -> Bool) -> String -> String -> TestTree
+checkExprVerifierWithConfig io_config vr_config vr_check src entry = 
     testCase ("Verifier:" ++ src ++ " " ++ entry) $ do
         res <- try (do
                 let proj = takeDirectory src
-                config <- mkConfigTestIO
-                let config' = config { timeLimit = 30 }
-                verifyFromFile [proj] [src] (T.pack entry) simplTranslationConfig config' vr_config)
+                config <- io_config
+                verifyFromFile [proj] [src] (T.pack entry) simplTranslationConfig config vr_config)
                     :: IO (Either SomeException ((VerifyResult, Double, Bindings, Id)))
         let res' = case res of
                         Left _ -> VerifyTimeOut
@@ -1466,6 +1512,15 @@ checkExprVerifierWithConfig vr_config vr_check src entry =
             resToString VerifyTimeOut = "TimeOut"
             resToString (Counterexample _) = "Counterexample"
 
+configTL30 :: IO Config
+configTL30 = configTL 30
+
+configTL :: Int -> IO Config
+configTL time_lim = do
+    config <- mkConfigTestIO
+    return $ config { timeLimit = time_lim }
+
+
 checkRuleVerified :: String -> String -> TestTree
 checkRuleVerified = checkRuleVerifier (\case Verified -> True; Counterexample _ -> False; VerifyTimeOut -> False)
 
@@ -1474,7 +1529,7 @@ checkRuleVerifier = checkRuleVerifierWithConfig defVerifyConfig
 
 checkRuleVerifierWithConfig :: VerifyConfig -> (VerifyResult -> Bool) -> String -> String -> TestTree
 checkRuleVerifierWithConfig vr_config vr_check src entry =
-    checkExprVerifierWithConfig (vr_config { rewrite_rule = True }) vr_check src entry
+    checkExprVerifierWithConfig configTL30 (vr_config { rewrite_rule = True }) vr_check src entry
 
 testFile :: String
          -> Maybe String

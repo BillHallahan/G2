@@ -1,4 +1,4 @@
-{-# LANGUAGE BangPatterns, FlexibleContexts, MultiParamTypeClasses, MultiWayIf, OverloadedStrings, TupleSections #-}
+{-# LANGUAGE BangPatterns, FlexibleContexts, MultiParamTypeClasses, MultiWayIf, OverloadedStrings, TupleSections, ViewPatterns #-}
 
 module G2.Verify.Reducer ( VerifierTracker (..)
                          , Goal (..)
@@ -123,11 +123,11 @@ nrpcAnyCallReducer no_nrpc_names v_config config =
         -- * the function is not in the list of names to not add to NRPCs
         -- * we are not applying a symbolic function
         allowedApp app eenv tvnv
-            | Var (Id n _):_:_ <- unApp app
+            | Var (Id n _):_:_ <- unApp $ stripAllTicks app
             , n' <- deepLookupCenterName n eenv
             , not . isTyFun . typeOf tvnv $ app =
                 not (n' `HS.member` no_nrpc_names)
-            | Data _:_:_ <- unApp app
+            | Data _:_:_ <- unApp $ stripAllTicks app
             , not . isTyFun . typeOf tvnv $ app
             , data_arg_rev_abs v_config == AbsDataArgs = True
             | otherwise = False
@@ -141,12 +141,12 @@ nrpcAnyCallReducer no_nrpc_names v_config config =
         --  @ s1 = g x 
         --    s2 = h z @
         -- See Note [Replacing nested function applications]
-        argsToNRPCs s ng v es =
+        argsToNRPCs s@(State { curr_expr = CurrExpr er _ }) ng v es =
             let
                 arg_holes = holes es
                 ((s', ng'), es') = mapAccumR (\(s_, ng_)  (e_, other_es) -> appArgToNRPC HS.empty s_ ng_ HS.empty e_ other_es) (s, ng) arg_holes
             in
-            (s' { curr_expr = CurrExpr Evaluate . mkApp $ v:es' }, ng')
+            (s' { curr_expr = CurrExpr er . mkApp $ v:es' }, ng')
         
         argsToNRPCs' seen s@(State { expr_env = eenv }) ng grace v@(Var (Id n _))
             | n `notElem` seen
@@ -171,6 +171,7 @@ nrpcAnyCallReducer no_nrpc_names v_config config =
                 case createRAExpr ng' (Unfocused ()) s' e' of
                     Just (s'', sym_i, _, ng'') -> (Var sym_i, s'', ng'')
                     Nothing -> (e', s', ng')
+        argsToNRPCs' seen s ng grace (Tick _ e) = argsToNRPCs' seen s ng grace e
         argsToNRPCs' _ s ng _ e = (e, s, ng)
 
         -- (Maybe) converts an argument of an application into an NRPC.
@@ -202,6 +203,7 @@ nrpcAnyCallReducer no_nrpc_names v_config config =
                                        . filter (\(s, _) -> s == NonStatic)
                                        $ zip stat es
             | otherwise = symbolic_names' seen eenv e1 `HS.union` symbolic_names' seen eenv e2
+        symbolic_names' seen eenv (Tick _ e) = symbolic_names' seen eenv e
         symbolic_names' _ _ _ = HS.empty
 
         allowed_frame (ApplyFrame _) = False
@@ -318,7 +320,7 @@ adjustFocusReducer = mkSimpleReducer (const ()) red
                 let s' = update_ensure_eq HS.empty e s in
                 return (Finished, [(s', rv)], b)
             where
-                update_ensure_eq seen (Var (Id n _)) s_ | n `notElem` seen =
+                update_ensure_eq seen (stripAllTicks -> Var (Id n _)) s_ | n `notElem` seen =
                     let
                         s_' = updateStateFocusMap n 
                             $ s_ { non_red_path_conds = setFocus n Focused (expr_env s_) $ non_red_path_conds s_ }
@@ -398,8 +400,20 @@ isNRPCSymFun eenv (NRPC _ e1 _) = is_sym_fun HS.empty e1
 inlineInner :: ExprEnv -> Expr -> Expr
 inlineInner eenv e
     | (Tick tick (Var (Id n t))):es <- unApp e
-    , Just v <- E.deepLookupVar n eenv = mkApp (Tick tick (Var (Id v t)):es)
+    , v <- deepLookupVarThroughTicks n eenv = mkApp (Tick tick (Var (Id v t)):es)
 inlineInner _ e = e
+
+deepLookupVarThroughTicks :: Name -> ExprEnv -> Name
+deepLookupVarThroughTicks init_n eenv = go HS.empty init_n
+    where
+    go seen n
+        | Just (Tick _ (Var (Id n' _))) <- deep_e
+        , n' `notElem` seen = go (HS.insert n' seen) n'
+        | Just (Var (Id n' _)) <- deep_e 
+        , n' `notElem` seen = go (HS.insert n' seen) n'
+        | otherwise = n
+        where
+            deep_e = E.lookup n eenv
 
 verifyHigherOrderHandling :: MonadIO m => Reducer m () t
 verifyHigherOrderHandling = mkSimpleReducer (const ()) red
@@ -510,10 +524,14 @@ liftOutFullyAppedReducer = mkSimpleReducer (const ()) red
                 allBound (Var (Id n _)) = All $ E.member n eenv
                 allBound _ = All True
 
-                s'' = s' { curr_expr = CurrExpr Evaluate renamed_le }
+                s'' = s' { curr_expr = CurrExpr Evaluate $ stripTicks renamed_le }
             in
             return (Finished, [(s'', ())], b')
         red _ s b = return (Finished, [(s, ())], b) 
+
+stripTicks :: Expr -> Expr
+stripTicks (Tick _ e) = stripTicks e
+stripTicks e = e
 
 unifyNRPCReducer :: Monad m =>
                     HS.HashSet Name -- ^ Names that should not be inlined (often: top level names from the original source code)
@@ -543,7 +561,7 @@ unifyNRPCs no_inline eenv pc fm (nrpc@(NRPC focus1 e1 v1) :*> nrpcs) =
     let
         con_nrpc = listToMaybe
                  $ mapMaybe (\(NRPC focus2 e2 v2) ->
-                    case eqUpToTypesInline no_inline eenv (stripAllTicks e1) (stripAllTicks e2) of
+                    case eqUpToTypesInlineIgnoringTicks no_inline eenv (stripAllTicks e1) (stripAllTicks e2) of
                         True -> (\(eenv_, pc_) -> (eenv_, pc_, focus2)) <$> alignVar HS.empty HS.empty eenv pc v1 v2
                         False -> Nothing)
                  $ toListNRPC nrpcs
