@@ -821,7 +821,8 @@ prettyFrame pg (LitTableFrame ltc up) = header <> update_str <> ":\n" <> printLi
 printLiteralTableCond :: PrettyGuide -> LitTableCond -> T.Text
 printLiteralTableCond pg ltc
     | (Exploring pc) <- ltc = "exploring " <> prettyPathConds pg pc
-    | (Diff sd _) <- ltc = prettyStateDiff pg sd <> " note: truncated (expr_env, tyvar_env, mutvar_env, conds) for now"
+    | (Diff sd pc) <- ltc = prettyStateDiff pg sd <> "\nold conds to put back:\n"
+                                <> prettyPathConds pg pc <> "---\n"
     | (StartedBuilding n) <- ltc = "started building " <> mkNameHaskell pg n
 
 prettyStateDiff :: PrettyGuide -> StateDiff -> T.Text
@@ -839,14 +840,14 @@ prettyStateDiff pg (SD { new_conc_entries = nce
         [ "--- state diff: "
         , "  concrete entries -> " <> T.intercalate ", " (map prettyConc nce)
         , "  symbolic entries -> " <> T.intercalate ", " (map (mkIdHaskell pg) nse)
-        , "  path conds -> " <> T.intercalate ", " (map (prettyPathCond pg) pc)
+        , "  new path conds -> " <> T.intercalate ", " (map (prettyPathCond pg) pc)
         , "  concretized -> " <> T.intercalate ", " (map (mkIdHaskell pg) concIds)
-        , "  true_assert -> " <> T.pack (show nta)
-        , "  assert_ids -> " <> maybe "Nothing" (printFuncCallPG pg) nai
-        , "  curr_expr -> " <> prettyCurrExpr pg n_curre
-        , "  new_conc_types -> " <> T.intercalate ", " (map prettyConcType nct)
-        , "  new_sym_types -> " <> T.intercalate ", " (map (mkIdHaskell pg) nst)
-        , "  new_mut_vars -> " <> T.intercalate ", " (map prettyMutVar nmv)
+        , "  true assert -> " <> T.pack (show nta)
+        , "  assert ids -> " <> maybe "Nothing" (printFuncCallPG pg) nai
+        , "  curr expr -> " <> prettyCurrExpr pg n_curre
+        , "  new conc types -> " <> T.intercalate ", " (map prettyConcType nct)
+        , "  new sym types -> " <> T.intercalate ", " (map (mkIdHaskell pg) nst)
+        , "  new mut vars -> " <> T.intercalate ", " (map prettyMutVar nmv)
         , "---"
         ]
     where

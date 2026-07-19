@@ -58,7 +58,8 @@ reduceNewPC :: (Solver solver, Simplifier simplifier)
 reduceNewPC _ _ _ ng NoState = return (ng, [])
 reduceNewPC _ _ _ ng (SingleState state) = return (ng, [state])
 reduceNewPC discard_unknown_states solver simplifier ng (SplitStatePieces state state_diffs)
-    | inLitTableMode state = do
+    | inLitTableMode state
+    , scrut_bool || all (null . new_conc_entries) state_diffs = do
         res <- reduceToFirstDiff discard_unknown_states solver simplifier ng state state_diffs
         case res of
             Just (ng', first_s, pcs, other_diffs) ->
@@ -70,9 +71,19 @@ reduceNewPC discard_unknown_states solver simplifier ng (SplitStatePieces state 
     | otherwise =
         mapAccumMaybeM (\ng' sd -> reduceStateDiff discard_unknown_states solver simplifier ng' state sd) ng state_diffs
     where
-        wrap diff = LitTableFrame (
-                        Diff diff (expr_env state, tyvar_env state, mutvar_env state, path_conds state)
-                    ) True
+        kv = known_values state
+        tv_env = tyvar_env state
+        ce = curr_expr state
+        unwrapped_ce = getCurrExpr ce
+
+        scrut_bool = case unwrapped_ce of
+                      Case e _ _ _ -> typeOf tv_env e == tyBool kv
+                      _ -> False
+
+        getCurrExpr (CurrExpr _ e) = e
+
+        -- For booleans, we want to avoid concretization, only using the path conds
+        wrap diff = LitTableFrame (Diff (diff {new_conc_entries = []}) (path_conds state)) True
 
 -- Find the first diff to explore, when in literal table building mode
 reduceToFirstDiff :: (Solver solver, Simplifier simplifier)

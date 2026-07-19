@@ -696,6 +696,11 @@ takeWhile1 s = case takeWhile (/= '@') s of
                    "a" -> 1
                    _ -> 2
 
+takeWhile2 :: Maybe Int -> String -> Int
+takeWhile2 m s = case takeWhile (\x -> case m of Just _ -> True; Nothing -> False) s of
+                   "b" -> 0
+                   _ -> case m of Just _ -> 1; Nothing -> 2
+
 testQualImp :: String -> M.Maybe Char
 testQualImp s = case "12345" `isInfixOf` s of
                     True -> M.Nothing

@@ -567,6 +567,7 @@ testFileTests = testGroup "TestFiles"
                                            , ("dropWhile1", 10000, [Exactly 4])
                                            , ("dropWhile2", 10000, [Exactly 1])
                                            , ("takeWhile1", 10000, [Exactly 4])
+                                           , ("takeWhile2", 10000, [Exactly 6])
                                            , ("map1", 10000, [AtLeast 3, AtMost 4])
                                            , ("map2", 10000, [AtLeast 4, AtMost 5])
                                            -- Functions that error

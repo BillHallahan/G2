@@ -1932,8 +1932,8 @@ retLitTableFrame :: (Solver solver, Simplifier simplifier)
                  -> IO (Rule, [State t], NameGen)
 retLitTableFrame dus solver simplifier s ng ltc up stck = case ltc of
     Exploring _ -> retLTExploring ng updated_state sym_id
-    Diff sd (eenv, tvenv, mvenv, conds) ->
-        retLTDiff dus solver simplifier s ng sd eenv tvenv mvenv conds stck up
+    Diff sd conds ->
+        retLTDiff dus solver simplifier s ng sd conds stck up
     StartedBuilding n ->
         retLTStartedBuilding updated_state ng n
     where
@@ -1963,19 +1963,12 @@ retLTDiff :: (Solver solver, Simplifier simplifier)
           -> State t
           -> NameGen
           -> StateDiff
-          -> E.ExprEnv
-          -> TV.TyVarEnv
-          -> MutVarEnv
           -> PathConds
           -> S.Stack Frame
           -> LTUpdate
           -> IO (Rule, [State t], NameGen)
-retLTDiff dus solver simplifier s ng sd eenv tvenv mvenv conds stck up = do
-    -- We need to make sure the argument is still symbolic
-    -- after exploring other paths, since it can get concretized
-    let diff_state = s { exec_stack = stck, expr_env = eenv
-                        , tyvar_env = tvenv, mutvar_env = mvenv
-                        , path_conds = conds }
+retLTDiff dus solver simplifier s ng sd conds stck up = do
+    let diff_state = s { exec_stack = stck, path_conds = conds }
     res <- reduceStateDiff dus solver simplifier ng diff_state sd
     case res of
         -- This diff is unsat or unknown, try the next
