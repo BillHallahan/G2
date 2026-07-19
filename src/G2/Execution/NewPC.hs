@@ -58,7 +58,8 @@ reduceNewPC :: (Solver solver, Simplifier simplifier)
 reduceNewPC _ _ _ ng NoState = return (ng, [])
 reduceNewPC _ _ _ ng (SingleState state) = return (ng, [state])
 reduceNewPC discard_unknown_states solver simplifier ng (SplitStatePieces state state_diffs)
-    | inLitTableMode state, scrut_bool = do
+    | inLitTableMode state
+    , scrut_bool || all (null . concretized) state_diffs = do
         res <- reduceToFirstDiff discard_unknown_states solver simplifier ng state state_diffs
         case res of
             Just (ng', first_s, pcs, other_diffs) ->
@@ -81,9 +82,7 @@ reduceNewPC discard_unknown_states solver simplifier ng (SplitStatePieces state 
 
         getCurrExpr (CurrExpr _ e) = e
 
-        wrap diff = LitTableFrame (
-                        Diff diff (expr_env state, tyvar_env state, mutvar_env state, path_conds state)
-                    ) True
+        wrap diff = LitTableFrame (Diff diff (path_conds state)) True
 
 -- Find the first diff to explore, when in literal table building mode
 reduceToFirstDiff :: (Solver solver, Simplifier simplifier)
