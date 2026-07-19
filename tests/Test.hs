@@ -661,13 +661,13 @@ testFileTests = testGroup "TestFiles"
                                                         , ("drop1", 5000, [Exactly 4])
                                                         , ("compLen", 5000, [Exactly 4]) ]
 
-    , checkInputOutputs "tests/TestFiles/Seq/SeqADT.hs" [ ("takeWhile1", 10000, [Exactly 4])
-                                                        , ("takeWhile2", 10000, [Exactly 4])
-                                                        , ("takeWhile3", 10000, [Exactly 3])
-                                                        , ("map1", 10000, [Exactly 7]) ]
+    , checkInputOutputs "tests/TestFiles/Seq/SeqADT.hs" [ ("conLen", 2000, [Exactly 5])
+                                                        , ("pairExtract", 2000, [AtLeast 6, AtMost 8]) ]
 
-    , checkInputOutputs "tests/TestFiles/Seq/ADTLitTable.hs" [ ("conLen", 2000, [Exactly 5])
-                                                             , ("pairExtract", 2000, [AtLeast 6, AtMost 8]) ]
+    , checkInputOutputs "tests/TestFiles/Seq/ADTLitTable.hs" [ ("takeWhile1", 10000, [Exactly 4])
+                                                             , ("takeWhile2", 10000, [Exactly 4])
+                                                             , ("takeWhile3", 10000, [Exactly 3])
+                                                             , ("map1", 10000, [Exactly 7]) ]
 
     , checkInputOutputsSMTListsWith "tests/TestFiles/Seq/Seq1.hs" "floatListEq" [ ("conFloat", 1000, [Exactly 1])
                                                                                 , ("conDouble", 1000, [Exactly 1])]
