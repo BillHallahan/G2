@@ -906,11 +906,14 @@ evalsToSMTRep seen eenv kv tc = go
                 altEvals (Alt _ ae) = go ae
         go (Data _) = True
         go (Lit _) = True
-        go (App e1 e2) = go e1 && go e2
+        go (App e1 e2) = go e1 && goArg e2
         go (Type _) = True
         go (Tick _ e) = go e
         go e | isSMTRep eenv kv e = True
         go _ = False
+
+        goArg (Lam _ _ _) = True
+        goArg e = go e
 
 -- | Is the expression a symbolically representable string?
 isSymList :: ExprEnv -> KnownValues ->  Expr -> Bool
